@@ -1,11 +1,12 @@
 
 import os
 import types
+
+from hwt.hdl.types.defs import BIT
+from hwt.interfaces.std import Rst_n, Rst
 from myhdl import always_seq, always_comb, Signal, modbv, ResetSignal
 from myhdl.conversion._toVHDL import _ToVHDLConvertor
 
-from hwt.hdlObjects.types.defs import BIT
-from hwt.interfaces.std import Rst_n, Rst
 
 def toMyHdlIntf(interface):
     if isinstance(interface, type):

@@ -1,15 +1,15 @@
 import copy
-from myhdl.conversion._toVHDL import _ToVHDLConvertor, _shortversion
 import os
 import types
 
-from hwt.hdlObjects.specialValues import DIRECTION
+from hwt.hdl.constants import DIRECTION
+from hwt.pyUtils.arrayQuery import single, NoValueExc
 from hwt.synthesizer.interfaceLevel.interfaceUtils.utils import walkPhysInterfaces
 from hwt.synthesizer.interfaceLevel.unitFromHdl import UnitFromHdl, \
     toAbsolutePaths
 from hwt.synthesizer.interfaceLevel.unitUtils import defaultUnitName
 from hwtHls.myHdlSynthesizer import toMyHdlIntf
-from hwt.pyUtils.arrayQuery import single, NoValueExc
+from myhdl.conversion._toVHDL import _ToVHDLConvertor, _shortversion
 
 
 class DirectionInfoCont():
