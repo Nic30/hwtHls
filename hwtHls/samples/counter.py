@@ -1,8 +1,7 @@
-from myhdl import always_seq, Signal as Sig, modbv
-
-from hwt.hdlObjects.typeShortcuts import vecT
+from hwt.hdl.types.bits import Bits
 from hwt.interfaces.std import Clk, Rst, Signal
 from hwtHls.myhdlSynthesizer.unitMyHdl import UnitMyHdl
+from myhdl import always_seq, Signal as Sig, modbv
 
 
 class Counter(UnitMyHdl):
@@ -14,7 +13,7 @@ class Counter(UnitMyHdl):
         self.rst = Rst()
 
         self.enable = Signal()
-        self.count = Signal(dtype=vecT(self.DATA_WIDTH))
+        self.count = Signal(dtype=Bits(self.DATA_WIDTH))
 
     def _impl(self):
         def Inc(count, enable, clk, rst):
@@ -41,3 +40,4 @@ class Counter(UnitMyHdl):
 if __name__ == "__main__":
     from hwt.synthesizer.shortcuts import toRtl
     print(toRtl(Counter))
+
