@@ -1,19 +1,26 @@
 from hwt.interfaces.std import VectSignal
 from hwt.synthesizer.interfaceLevel.unit import Unit
 from hwtHls.hls import Hls
+from hwt.synthesizer.shortcuts import toRtl
 
 
 class ExampleUnit(Unit):
     def _declr(self):
-        self.a = VectSignal(32)
-        self.b = VectSignal(32)
-        self.c = VectSignal(32)
-        self.d = VectSignal(32)
-        self.e = VectSignal(32)
+        self.a = VectSignal(32, signed=False)
+        self.b = VectSignal(32, signed=False)
+        self.c = VectSignal(32, signed=False)
+        self.d = VectSignal(32, signed=False)
+        self.e = VectSignal(32, signed=False)
 
     def _impl(self):
-        self.e(self.a + self.b + self.c + self.d)
-        with Hls(freq=int(100e6)) as hls:
+        with Hls(self, freq=int(100e6)) as hls:
             r = hls.read
-            e = (r(self.a) + r(self.b)) * (r(self.c) + r(self.d))
+            aPlusB = r(self.a) + r(self.b)
+            cPlusD = r(self.c) + r(self.d)
+            e = aPlusB * cPlusD
             hls.write(e, self.e)
+
+
+if __name__ == "__main__":
+    u = ExampleUnit()
+    print(toRtl(u))
