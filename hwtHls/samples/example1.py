@@ -7,9 +7,13 @@ from hwt.simulator.simTestCase import SimTestCase
 from hwt.synthesizer.interfaceLevel.unit import Unit
 from hwt.synthesizer.shortcuts import toRtl
 from hwtHls.hls import Hls
+from hwt.synthesizer.param import Param
 
 
 class HlsMAC_example(Unit):
+    def _config(self):
+        self.CLK_FREQ = Param(int(100e6))
+
     def _declr(self):
         addClkRstn(self)
         self.a = VectSignal(32, signed=False)
@@ -19,7 +23,7 @@ class HlsMAC_example(Unit):
         self.e = VectSignal(32, signed=False)
 
     def _impl(self):
-        with Hls(self, freq=int(100e6)) as hls:
+        with Hls(self, freq=self.CLK_FREQ) as hls:
             r = hls.read
             e = (r(self.a) * r(self.b)) + (r(self.c) * r(self.d))
             hls.write(e, self.e)

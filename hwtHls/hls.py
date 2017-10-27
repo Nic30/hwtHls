@@ -41,7 +41,7 @@ class Hls():
                  platformCls=VirtualHlsPlatform):
         self.parentUnit = parentUnit
         self.platform = VirtualHlsPlatform(self)
-        self.freq = freq
+        self.freq = int(freq)
         self.maxLatency = maxLatency
         self.resources = resources
         self.inputs = []
