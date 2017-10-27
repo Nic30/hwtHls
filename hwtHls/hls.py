@@ -2,8 +2,8 @@ from copy import copy
 
 from hwt.hdl.operator import Operator
 from hwt.hdl.value import Value
-from hwt.synthesizer.interfaceLevel.unit import Unit
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
+from hwt.synthesizer.unit import Unit
 from hwtHls.allocator.allocator import HlsAllocator
 from hwtHls.codeObjs import ReadOpPromise, WriteOpPromise, HlsOperation,\
     HlsConst, AbstractHlsOp
@@ -15,6 +15,7 @@ class VirtualHlsPlatform():
     Platform wit informations about target platform and configuration
     of HLS
     """
+
     def __init__(self, parentHls):
         self.parentHls = parentHls
         self.allocator = HlsAllocator(parentHls)
@@ -40,7 +41,7 @@ class Hls():
                  freq, maxLatency=None, resources=None,
                  platformCls=VirtualHlsPlatform):
         self.parentUnit = parentUnit
-        self.platform = VirtualHlsPlatform(self)
+        self.platform = platformCls(self)
         self.freq = int(freq)
         self.maxLatency = maxLatency
         self.resources = resources
