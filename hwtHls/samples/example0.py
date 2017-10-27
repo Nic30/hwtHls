@@ -1,7 +1,7 @@
 from hwt.interfaces.std import VectSignal
 from hwt.synthesizer.interfaceLevel.unit import Unit
-from hwtHls.hls import Hls
 from hwt.synthesizer.shortcuts import toRtl
+from hwtHls.hls import Hls
 
 
 class HlsExample0(Unit):
