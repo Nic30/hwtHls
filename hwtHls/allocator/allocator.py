@@ -83,7 +83,7 @@ class HlsAllocator():
         """
         Allocate scheduled circut in RTL
         """
-        scheduler = self.parentHls.platform.scheduler
+        scheduler = self.parentHls.scheduler
         node2instance = self.node2instance
 
         for nodes in scheduler.schedulization:
