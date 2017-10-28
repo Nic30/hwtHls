@@ -117,10 +117,11 @@ class UnitMyHdl(UnitFromHdl):
     def _impl(self):
         pass
 
-    def _toRtl(self):
+    def _toRtl(self, targetPlatform):
         """Convert unit to hdl objects"""
+        self._targetPlatform = targetPlatform
         assert not self._wasSynthetised()
-
+        
         if not hasattr(self, '_name'):
             self._name = defaultUnitName(self)
         self._loadMyImplementations()
