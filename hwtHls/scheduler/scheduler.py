@@ -6,6 +6,8 @@ class HlsScheduler():
 
     def asap(self):
         """
+        As Soon As Possible scheduler
+
         :return: maximum schedueled timme
         """
         # [TODO] fine grained latency
@@ -36,6 +38,8 @@ class HlsScheduler():
 
     def alap(self):
         """
+        As Late As Possible scheduler
+
         :return: maximum schedueled timme
         """
         # [TODO] fine grained latency
