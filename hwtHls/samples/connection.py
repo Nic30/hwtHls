@@ -4,7 +4,7 @@ from hwt.synthesizer.utils import toRtl
 from hwtHls.hls import Hls
 
 
-class HlsExample0(Unit):
+class HlsConnection(Unit):
     def _declr(self):
         self.a = VectSignal(32, signed=False)
         self.b = VectSignal(32, signed=False)
@@ -16,5 +16,5 @@ class HlsExample0(Unit):
 
 
 if __name__ == "__main__":
-    u = HlsExample0()
+    u = HlsConnection()
     print(toRtl(u))
