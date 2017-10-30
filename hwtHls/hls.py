@@ -2,23 +2,10 @@ from copy import copy
 
 from hwt.hdl.operator import Operator
 from hwt.hdl.value import Value
-from hwt.synthesizer.interfaceLevel.unit import Unit
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
-from hwtHls.allocator.allocator import HlsAllocator
+from hwt.synthesizer.unit import Unit
 from hwtHls.codeObjs import ReadOpPromise, WriteOpPromise, HlsOperation,\
     HlsConst, AbstractHlsOp
-from hwtHls.scheduler.scheduler import HlsScheduler
-
-
-class VirtualHlsPlatform():
-    """
-    Platform wit informations about target platform and configuration
-    of HLS
-    """
-    def __init__(self, parentHls):
-        self.parentHls = parentHls
-        self.allocator = HlsAllocator(parentHls)
-        self.scheduler = HlsScheduler(parentHls)
 
 
 class Hls():
@@ -37,16 +24,19 @@ class Hls():
     """
 
     def __init__(self, parentUnit: Unit,
-                 freq, maxLatency=None, resources=None,
-                 platformCls=VirtualHlsPlatform):
+                 freq, maxLatency=None, resources=None):
         self.parentUnit = parentUnit
-        self.platform = VirtualHlsPlatform(self)
-        self.freq = int(freq)
+        self.platform = parentUnit._targetPlatform
+        self.scheduler = self.platform.scheduler(self)
+        self.allocator = self.platform.allocator(self)
+        # (still float div)
+        self.clk_period = 1 / int(freq)
         self.maxLatency = maxLatency
         self.resources = resources
         self.inputs = []
         self.outputs = []
         self.ctx = RtlNetlist()
+        self.platform.onHlsInit(self)
 
     def read(self, intf, latency=0):
         """
@@ -126,8 +116,8 @@ class Hls():
 
     def synthesise(self):
         self.nodes = self.discoverAllNodes()
-        self.platform.scheduler.schedule()
-        self.platform.allocator.allocate()
+        self.scheduler.schedule()
+        self.allocator.allocate()
 
     def __enter__(self):
         return self

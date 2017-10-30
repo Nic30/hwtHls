@@ -1,4 +1,4 @@
-from hwt.synthesizer.shortcuts import toRtl
+from hwt.synthesizer.utils import toRtl
 from hwtHls.vivadoHLS.unit import VivadoHLSUnit
 
 
