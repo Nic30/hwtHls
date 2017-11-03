@@ -1,6 +1,7 @@
 from hwtHls.codeObjs import ReadOpPromise, HlsOperation, WriteOpPromise
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
+from hwtHls.hls import Hls
 
 
 class TimeIndependentRtlResource():
@@ -44,7 +45,7 @@ class HlsAllocator():
     :ivar node2instance: dictionary {hls node: rtl instance}
     """
 
-    def __init__(self, parentHls):
+    def __init__(self, parentHls: Hls):
         self.parentHls = parentHls
         self.node2instance = {}
         # function to create register on RTL level

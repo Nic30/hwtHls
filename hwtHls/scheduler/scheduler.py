@@ -1,7 +1,8 @@
+from hwtHls.hls import Hls
 
 
 class HlsScheduler():
-    def __init__(self, parentHls):
+    def __init__(self, parentHls: Hls):
         self.parentHls = parentHls
 
     def asap(self):
