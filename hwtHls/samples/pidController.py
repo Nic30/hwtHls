@@ -4,6 +4,7 @@ from hwt.interfaces.std import VectSignal
 from hwt.interfaces.utils import addClkRstn
 from hwt.code import Add
 from hwt.synthesizer.utils import toRtl
+from hwt.hdl.types.bits import Bits
 
 
 class PidController(Unit):
@@ -56,7 +57,11 @@ class PidController(Unit):
             y.append(_y)
 
         a = self.coefs
-        u(Add(u, a[0] * err, a[1] * y[0], a[2] * y[1], a[3] * y[2]))
+
+        def trim(signal):
+            return signal._reinterpret_cast(self.output._dtype)
+
+        u(Add(u, a[0] * err, a[1] * y[0], a[2] * y[1], a[3] * y[2], key=trim))
         self.output(u)
 
 

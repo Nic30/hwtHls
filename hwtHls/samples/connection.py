@@ -2,6 +2,7 @@ from hwt.interfaces.std import VectSignal
 from hwt.synthesizer.unit import Unit
 from hwt.synthesizer.utils import toRtl
 from hwtHls.hls import Hls
+from hwtHls.platform.virtual import VirtualHlsPlatform
 
 
 class HlsConnection(Unit):
@@ -17,4 +18,4 @@ class HlsConnection(Unit):
 
 if __name__ == "__main__":
     u = HlsConnection()
-    print(toRtl(u))
+    print(toRtl(u, targetPlatform=VirtualHlsPlatform()))
