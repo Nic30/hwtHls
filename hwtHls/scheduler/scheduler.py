@@ -1,4 +1,6 @@
 from hwtHls.hls import Hls
+from hwtHls.codeObjs import WriteOpPromise, HlsConst
+from hwt.hdl.operator import isConst
 
 
 class HlsScheduler():
@@ -34,6 +36,15 @@ class HlsScheduler():
                 maxTime = max(maxTime, node.asap)
 
             unresolved = nextUnresolved
+        # some of nodes does not have to be discovered because
+        # they have no connection
+        for node in self.parentHls.outputs:
+            try:
+                _time = node.asap
+            except AttributeError:
+                assert isConst(node.what), node
+                node.asap = 0
+                node.what.asap = 0
 
         return maxTime
 
@@ -75,7 +86,12 @@ class HlsScheduler():
         schedulization = [[] for _ in range(maxTime + 1)]
         # [DEBUG] scheduele by asap only
         for node in self.parentHls.nodes:
-            schedulization[node.asap].append(node)
-            node.scheduledIn = node.asap
+            try:
+                time = node.asap
+            except AttributeError:
+                assert isinstance(node, HlsConst)
+                time = node.usedBy[0].asap
+            schedulization[time].append(node)
+            node.scheduledIn = time
 
         self.schedulization = schedulization
