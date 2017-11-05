@@ -9,6 +9,7 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.uniqList import UniqList
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
+from hwt.hdl.types.typeCast import toHVal
 
 
 class AbstractHlsOp():
@@ -67,7 +68,7 @@ class WriteOpPromise(AbstractHlsOp):
     def __init__(self, hlsCtx, what, where, latency):
         super(WriteOpPromise, self).__init__(latency=latency)
         self.hlsCtx = hlsCtx
-        self.what = what
+        self.what = toHVal(what)
         self.where = where
         if isinstance(what, RtlSignal):
             what.endpoints.append(self)
