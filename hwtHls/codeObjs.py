@@ -4,19 +4,43 @@ Bernsteins Synthesis Algorithm - database key dependencies, Lazy Thinking
 http://www.risc.jku.at/publications/download/risc_2335/2004-02-18-A.pdf
 """
 from hwt.hdl.operatorDefs import OpDefinition
+from hwt.hdl.types.typeCast import toHVal
 from hwt.interfaces.std import Signal
+from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
+from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.uniqList import UniqList
-from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
-from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
-from hwt.hdl.types.typeCast import toHVal
 
 
 class AbstractHlsOp():
-    def __init__(self, latency):
+    """
+    :ivar usedBy: unique list of operations which are using data from this
+        operation
+    :ivar dependsOn: unique list of operations which data are required
+        to perform this operation
+    :ivar asap_start: scheduled time of start of operation using ASAP scheduler
+    :ivar asap_end: scheduled time of end of operation using ASAP scheduler
+    :ivar alap_start: scheduled time of start of operation using ALAP scheduler
+    :ivar alap_end: scheduled time of end of operation using ALAP scheduler
+    :ivar latency_pre: combinational latency before first register
+        in compoent for this operation
+    :ivar latency_post: combinational latency after last register
+        in compoent for this operation
+    :ivar cycles_latency: number of clk cycles for data to get from input
+        to output
+    :ivar cycles_dealy: number of clk cycles required to process data
+    """
+
+    def __init__(self, latency_pre, latency_post=0,
+                 cycles_latency=0, cycles_delay=0):
         self.usedBy = UniqList()
         self.dependsOn = UniqList()
-        self.latency = latency
+        self.asap_start, self.asap_end = None, None
+        self.alap_start, self.alap_end = None, None
+        self.latency_pre = latency_pre
+        self.latency_post = latency_post
+        self.cycles_latency = cycles_latency
+        self.cycles_delay = cycles_delay
 
 
 class HlsConst(AbstractHlsOp):
@@ -66,7 +90,7 @@ class WriteOpPromise(AbstractHlsOp):
     """
 
     def __init__(self, hlsCtx, what, where, latency):
-        super(WriteOpPromise, self).__init__(latency=latency)
+        super(WriteOpPromise, self).__init__(latency_pre=latency)
         self.hlsCtx = hlsCtx
         self.what = toHVal(what)
         self.where = where
@@ -81,32 +105,16 @@ class HlsOperation(AbstractHlsOp):
     Abstract implementation of RTL operator
 
     :ivar parentHls: Hls instance where is schedueling performed
-    :ivar pre_delay: wire delay from input to outputs or next clock cycles
-    :ivar pot_delay: wire delay after last clock cycle (or 0)
-    :ivar latency: computational latency of pipelined operation
-        (0 == combinational component)
-    :ivar cycles: computational delay of operation (0 == result every cycle)
-    :ivar asap_time: scheduled time using ASAP scheduler
-                     ([0] - start, [1] - end)
-    :ivar alap_time: scheduled time using ALAP scheduler
-                     ([0] - start, [1] - end)                     
+    :ivar operator: parent RTL operator for this hsl operator
     """
 
     def __init__(self,
                  operator: OpDefinition,
-                 parentHls,
-                 onUpdateFn=None):
+                 parentHls):
         latencies = parentHls.platform.OP_LATENCIES
-        super(HlsOperation, self).__init__(latency=latencies[operator])
+        super(HlsOperation, self).__init__(latency_pre=latencies[operator])
         self.parentHls = parentHls
-        self.pre_delay = 0
-        self.post_delay = 0
-        self.cycles = 0
-        self.asap_start, self.asap_end = 0, 0
-        self.alap_start, self.alap_end = 0, 0
-
         self.operator = operator
-        self.onUpdateFn = onUpdateFn
 
     def __repr__(self):
         return "<%s %r %r>" % (self.__class__.__name__,

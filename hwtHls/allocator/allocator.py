@@ -1,7 +1,7 @@
+from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
+from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.codeObjs import ReadOpPromise, HlsOperation, WriteOpPromise,\
     HlsConst
-from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwtHls.hls import Hls
 
 
@@ -20,7 +20,7 @@ class TimeIndependentRtlResource():
         if self.timeOffset == self.INVARIANT_TIME:
             return self.valuesInTime[0]
 
-        index = time - self.timeOffset
+        index = int(time - self.timeOffset)
         assert index >= 0
         try:
             return self.valuesInTime[index]
@@ -70,16 +70,16 @@ class HlsAllocator():
                 if not isinstance(o, TimeIndependentRtlResource):
                     if isinstance(o, ReadOpPromise):
                         rtlNode = TimeIndependentRtlResource(o.getRtlDataSig(),
-                                                         o.scheduledIn,
-                                                         self)
+                                                             o.scheduledIn,
+                                                             self)
                         self.node2instance[o] = rtlNode
                     elif isinstance(o, WriteOpPromise):
                         self.inistanciateWrite(o)
                     else:
                         rtlNode = self.instantiateOperation(o)
                         self.node2instance[o] = rtlNode
-                        
-            _o = self.node2instance[o]   
+
+            _o = self.node2instance[o]
             _o = _o.get(node.scheduledIn)
             operands.append(_o)
 
@@ -101,7 +101,7 @@ class HlsAllocator():
             _o = self.node2instance[o]
         except KeyError:
             _o = o
-            assert isinstance(o, TimeIndependentRtlResource), o    
+            assert isinstance(o, TimeIndependentRtlResource), o
         _o = _o.get(o.scheduledIn)
 
         return write.where(_o)
