@@ -64,6 +64,11 @@ class Hls():
         nodeToHlsNode = {}
 
         def convertToHlsNodeTree(operator: Operator) -> HlsOperation:
+            """
+            Recursively convert operator and it's inputs to HLS representation
+
+            :return: instance of HlsOperation representing of this operator
+            """
             assert isinstance(operator, Operator), operator
             try:
                 return nodeToHlsNode[operator]

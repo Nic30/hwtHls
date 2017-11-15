@@ -3,6 +3,7 @@
 	<name>hwtHls</name>
 	<comment></comment>
 	<projects>
+		<project>hwtLib</project>
 		<project>HWToolkit</project>
 	</projects>
 	<buildSpec>
