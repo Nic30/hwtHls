@@ -1,9 +1,13 @@
-from hwtHls.codeObjs import ReadOpPromise, HlsOperation, WriteOpPromise
+from hwtHls.codeObjs import ReadOpPromise, HlsOperation, WriteOpPromise,\
+    HlsConst
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
+from hwtHls.hls import Hls
 
 
 class TimeIndependentRtlResource():
+    INVARIANT_TIME = "INVARIANT_TIME"
+
     def __init__(self, signal: RtlSignal, time: int, hlsAllocator):
         self.timeOffset = time
         self.allocator = hlsAllocator
@@ -13,6 +17,9 @@ class TimeIndependentRtlResource():
         """
         Get value of singal in specified time
         """
+        if self.timeOffset == self.INVARIANT_TIME:
+            return self.valuesInTime[0]
+
         index = time - self.timeOffset
         assert index >= 0
         try:
@@ -44,7 +51,7 @@ class HlsAllocator():
     :ivar node2instance: dictionary {hls node: rtl instance}
     """
 
-    def __init__(self, parentHls):
+    def __init__(self, parentHls: Hls):
         self.parentHls = parentHls
         self.node2instance = {}
         # function to create register on RTL level
@@ -76,8 +83,14 @@ class HlsAllocator():
             _o = _o.get(node.scheduledIn)
             operands.append(_o)
 
-        return TimeIndependentRtlResource(node.operator._evalFn(*operands),
-                                          node.scheduledIn, self)
+        if isinstance(node, HlsConst):
+            s = node.val
+            t = TimeIndependentRtlResource.INVARIANT_TIME
+        else:
+            s = node.operator._evalFn(*operands)
+            t = node.scheduledIn
+
+        return TimeIndependentRtlResource(s, t, self)
 
     def inistanciateWrite(self, write: WriteOpPromise):
         """

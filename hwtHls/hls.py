@@ -27,6 +27,9 @@ class Hls():
                  freq, maxLatency=None, resources=None):
         self.parentUnit = parentUnit
         self.platform = parentUnit._targetPlatform
+        if self.platform is None:
+            raise Exception("HLS requires platform to be specified")
+
         self.scheduler = self.platform.scheduler(self)
         self.allocator = self.platform.allocator(self)
         # (still float div)
@@ -61,6 +64,11 @@ class Hls():
         nodeToHlsNode = {}
 
         def convertToHlsNodeTree(operator: Operator) -> HlsOperation:
+            """
+            Recursively convert operator and it's inputs to HLS representation
+
+            :return: instance of HlsOperation representing of this operator
+            """
             assert isinstance(operator, Operator), operator
             try:
                 return nodeToHlsNode[operator]

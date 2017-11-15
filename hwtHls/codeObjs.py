@@ -7,6 +7,9 @@ from hwt.hdl.operatorDefs import OpDefinition
 from hwt.interfaces.std import Signal
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.uniqList import UniqList
+from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
+from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
+from hwt.hdl.types.typeCast import toHVal
 
 
 class AbstractHlsOp():
@@ -18,7 +21,7 @@ class AbstractHlsOp():
 
 class HlsConst(AbstractHlsOp):
     def __init__(self, val):
-        super(HlsConst, self).__init__()
+        super(HlsConst, self).__init__(latency=0)
         self.val = val
 
     def get(self, time):
@@ -27,13 +30,17 @@ class HlsConst(AbstractHlsOp):
 
 class ReadOpPromise(Signal, AbstractHlsOp):
     def __init__(self, hlsCtx, intf, latency):
-        dataSig = intf._sig
+        if isinstance(intf, RtlSignalBase):
+            dataSig = intf
+        else:
+            dataSig = intf._sig
+
         t = dataSig._dtype
 
         AbstractHlsOp.__init__(self, latency)
         Signal.__init__(self, dtype=t)
 
-        self._sig = hlsCtx.ctx.sig("hsl_" + intf._name,
+        self._sig = hlsCtx.ctx.sig("hsl_" + getSignalName(intf),
                                    dtype=t)
 
         self._sig.origin = self
@@ -61,7 +68,7 @@ class WriteOpPromise(AbstractHlsOp):
     def __init__(self, hlsCtx, what, where, latency):
         super(WriteOpPromise, self).__init__(latency=latency)
         self.hlsCtx = hlsCtx
-        self.what = what
+        self.what = toHVal(what)
         self.where = where
         if isinstance(what, RtlSignal):
             what.endpoints.append(self)

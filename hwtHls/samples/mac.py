@@ -4,10 +4,11 @@ from hwt.hdl.constants import Time
 from hwt.interfaces.std import VectSignal
 from hwt.interfaces.utils import addClkRstn
 from hwt.simulator.simTestCase import SimTestCase
-from hwt.synthesizer.unit import Unit
 from hwt.synthesizer.param import Param
+from hwt.synthesizer.unit import Unit
 from hwt.synthesizer.utils import toRtl
 from hwtHls.hls import Hls
+from hwtHls.platform.virtual import VirtualHlsPlatform
 
 
 class HlsMAC_example(Unit):
@@ -20,7 +21,7 @@ class HlsMAC_example(Unit):
         self.b = VectSignal(32, signed=False)
         self.c = VectSignal(32, signed=False)
         self.d = VectSignal(32, signed=False)
-        self.e = VectSignal(32, signed=False)
+        self.e = VectSignal(64, signed=False)
 
     def _impl(self):
         with Hls(self, freq=self.CLK_FREQ) as hls:
@@ -32,7 +33,7 @@ class HlsMAC_example(Unit):
 class HlsMAC_example_TC(SimTestCase):
     def test_simple(self):
         u = HlsMAC_example()
-        self.prepareUnit(u)
+        self.prepareUnit(u, targetPlatform=VirtualHlsPlatform())
         u.a._ag.data.append(3)
         u.b._ag.data.append(4)
         u.c._ag.data.append(5)
@@ -45,7 +46,7 @@ class HlsMAC_example_TC(SimTestCase):
 
 if __name__ == "__main__":
     u = HlsMAC_example()
-    print(toRtl(u))
+    print(toRtl(u, targetPlatform=VirtualHlsPlatform()))
 
     suite = unittest.TestSuite()
     # suite.addTest(FrameTmplTC('test_frameHeader'))
