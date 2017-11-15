@@ -60,6 +60,19 @@ class HlsAllocator():
                 _o = self.node2instance[o]
             except KeyError:
                 _o = o
+                if not isinstance(o, TimeIndependentRtlResource):
+                    if isinstance(o, ReadOpPromise):
+                        rtlNode = TimeIndependentRtlResource(o.getRtlDataSig(),
+                                                         o.scheduledIn,
+                                                         self)
+                        self.node2instance[o] = rtlNode
+                    elif isinstance(o, WriteOpPromise):
+                        self.inistanciateWrite(o)
+                    else:
+                        rtlNode = self.instantiateOperation(o)
+                        self.node2instance[o] = rtlNode
+                        
+            _o = self.node2instance[o]   
             _o = _o.get(node.scheduledIn)
             operands.append(_o)
 
@@ -75,6 +88,7 @@ class HlsAllocator():
             _o = self.node2instance[o]
         except KeyError:
             _o = o
+            assert isinstance(o, TimeIndependentRtlResource), o    
         _o = _o.get(o.scheduledIn)
 
         return write.where(_o)

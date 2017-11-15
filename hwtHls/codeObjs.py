@@ -79,17 +79,24 @@ class HlsOperation(AbstractHlsOp):
     :ivar latency: computational latency of pipelined operation
         (0 == combinational component)
     :ivar cycles: computational delay of operation (0 == result every cycle)
+    :ivar asap_time: scheduled time using ASAP scheduler
+                     ([0] - start, [1] - end)
+    :ivar alap_time: scheduled time using ALAP scheduler
+                     ([0] - start, [1] - end)                     
     """
 
     def __init__(self,
                  operator: OpDefinition,
                  parentHls,
                  onUpdateFn=None):
-        super(HlsOperation, self).__init__(latency=0)
+        latencies = parentHls.platform.OP_LATENCIES
+        super(HlsOperation, self).__init__(latency=latencies[operator])
         self.parentHls = parentHls
         self.pre_delay = 0
         self.post_delay = 0
         self.cycles = 0
+        self.asap_start, self.asap_end = 0, 0
+        self.alap_start, self.alap_end = 0, 0
 
         self.operator = operator
         self.onUpdateFn = onUpdateFn

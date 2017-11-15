@@ -1,3 +1,4 @@
+from math import ceil
 
 
 class HlsScheduler():
@@ -11,26 +12,28 @@ class HlsScheduler():
         :return: maximum schedueled timme
         """
         # [TODO] fine grained latency
-
+        
         maxTime = 0
         unresolved = []
         for node in self.parentHls.inputs:
-            node.asap = 0
+            node.asap_start = 0
+            node.asap_end = 0
+            #node.asap_time = 0
             unresolved.extend(node.usedBy)
 
         while unresolved:
             nextUnresolved = []
             for node in unresolved:
                 try:
-                    node_t = max(map(lambda n: n.asap, node.dependsOn))
+                    node_t = max(map(lambda n: n.asap_end, node.dependsOn))
                 except AttributeError:
                     # skip this node because we will find it
                     # after its dependency will be completed
                     continue
-
-                node.asap = node_t + 1
+                node.asap_start = node_t
+                node.asap_end = node_t + node.latency
                 nextUnresolved.extend(node.usedBy)
-                maxTime = max(maxTime, node.asap)
+                maxTime = max(maxTime, node.asap_end)
 
             unresolved = nextUnresolved
 
@@ -48,7 +51,7 @@ class HlsScheduler():
         for node in self.parentHls.outputs:
             # has no predecessors
             # [TODO] input read latency
-            node.alap = t
+            node.alap_time = t
             unresolved.extend(node.dependsOn)
 
         while unresolved:
@@ -56,25 +59,27 @@ class HlsScheduler():
             nextUnresolved = []
 
             for o in unresolved:
-                o.alap = t
+                o.alap_time = t
                 nextUnresolved.extend(o.dependsOn)
 
             unresolved = nextUnresolved
 
         timeOffset = -t
         for node in self.parentHls.nodes:
-            node.alap += timeOffset
+            node.alap_time += timeOffset
 
         return timeOffset
 
     def schedule(self):
         maxTime = self.asap()
-        self.alap()
-
-        schedulization = [[] for _ in range(maxTime + 1)]
+        #self.alap()
+        schedulization = [[] for _ in range(ceil(maxTime) + 1)]
         # [DEBUG] scheduele by asap only
         for node in self.parentHls.nodes:
-            schedulization[node.asap].append(node)
-            node.scheduledIn = node.asap
+            time = int(node.asap_start)
+            if hasattr(node, 'operator'):
+                print(time, node.asap_end, node.operator)
+            schedulization[time].append(node)
+            node.scheduledIn = time
 
         self.schedulization = schedulization
