@@ -3,10 +3,17 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.codeObjs import ReadOpPromise, HlsOperation, WriteOpPromise,\
     HlsConst
 from hwtHls.hls import Hls
+from typing import Union
 
 
 class TimeIndependentRtlResource():
+    """
+    Container of resource which manages acess to resource
+    in diferent times
+    """
     INVARIANT_TIME = "INVARIANT_TIME"
+    # time constatnt, which means that item is not time dependent
+    # and can be acessed anytime
 
     def __init__(self, signal: RtlSignal, time: int, hlsAllocator):
         self.timeOffset = time
@@ -57,6 +64,21 @@ class HlsAllocator():
         # function to create register on RTL level
         self._reg = parentHls.parentUnit._reg
 
+    def _instantiate(self, node: Union[HlsOperation,
+                                       ReadOpPromise,
+                                       WriteOpPromise]):
+        """
+        Universal RTL instanciation method for all types
+        """
+        if isinstance(node, TimeIndependentRtlResource):
+            return node
+        elif isinstance(node, ReadOpPromise):
+            return self.instanciateRead(node)
+        elif isinstance(node, WriteOpPromise):
+            return self.inistanciateWrite(node)
+        else:
+            return self.instantiateOperation(node)
+
     def instantiateOperation(self, node: HlsOperation):
         """
         Instantiate operation on RTL level
@@ -66,20 +88,10 @@ class HlsAllocator():
             try:
                 _o = self.node2instance[o]
             except KeyError:
-                _o = o
-                if not isinstance(o, TimeIndependentRtlResource):
-                    if isinstance(o, ReadOpPromise):
-                        rtlNode = TimeIndependentRtlResource(o.getRtlDataSig(),
-                                                             o.scheduledIn,
-                                                             self)
-                        self.node2instance[o] = rtlNode
-                    elif isinstance(o, WriteOpPromise):
-                        self.inistanciateWrite(o)
-                    else:
-                        rtlNode = self.instantiateOperation(o)
-                        self.node2instance[o] = rtlNode
+                # if dependency of this node is not instantiated yet
+                # instantiate it
+                _o = self._instantiate(o)
 
-            _o = self.node2instance[o]
             _o = _o.get(node.scheduledIn)
             operands.append(_o)
 
@@ -87,44 +99,57 @@ class HlsAllocator():
             s = node.val
             t = TimeIndependentRtlResource.INVARIANT_TIME
         else:
+            # create RTL signal expression base on operator type
             s = node.operator._evalFn(*operands)
             t = node.scheduledIn
 
-        return TimeIndependentRtlResource(s, t, self)
+        rtlObj = TimeIndependentRtlResource(s, t, self)
+        self.node2instance[node] = rtlObj
+        return rtlObj
+
+    def instanciateRead(self, readOp: ReadOpPromise):
+        """
+        Instanciate read operation on RTL level
+        """
+        _o = TimeIndependentRtlResource(
+            readOp.getRtlDataSig(),
+            readOp.scheduledIn,
+            self)
+        self.node2instance[readOp] = _o
+        return _o
 
     def inistanciateWrite(self, write: WriteOpPromise):
         """
-        Instantiate write operation on RTL level
+        Instanciate write operation on RTL level
         """
         o = write.dependsOn[0]
         try:
             _o = self.node2instance[o]
         except KeyError:
-            _o = o
-            assert isinstance(o, TimeIndependentRtlResource), o
+            # o should be instance of TimeIndependentRtlResource itself
+            _o = self._instantiate(o)
+        assert o is not _o
         _o = _o.get(o.scheduledIn)
 
-        return write.where(_o)
+        # apply indexes before assignments
+        dst = write.where
+        if write.indexes is not None:
+            for i in write.indexes:
+                dst = dst[i]
+
+        rtlObj = dst(_o)
+        self.node2instance[o] = rtlObj
+
+        return rtlObj
 
     def allocate(self):
         """
         Allocate scheduled circut in RTL
         """
         scheduler = self.parentHls.scheduler
-        node2instance = self.node2instance
 
         for nodes in scheduler.schedulization:
             for node in nodes:
                 # this is one level of nodes,
                 # node can not be dependent on nodes behind in this list
-                if isinstance(node, ReadOpPromise):
-                    rtlNode = TimeIndependentRtlResource(node.getRtlDataSig(),
-                                                         node.scheduledIn,
-                                                         self)
-                elif isinstance(node, WriteOpPromise):
-                    self.inistanciateWrite(node)
-                    continue
-                else:
-                    rtlNode = self.instantiateOperation(node)
-
-                node2instance[node] = rtlNode
+                self._instantiate(node)
