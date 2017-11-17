@@ -31,8 +31,9 @@ class AbstractHlsOp():
     :ivar cycles_dealy: number of clk cycles required to process data
     """
 
-    def __init__(self, latency_pre, latency_post=0,
+    def __init__(self, parentHls, latency_pre=0, latency_post=0,
                  cycles_latency=0, cycles_delay=0):
+        self.hls = parentHls
         self.usedBy = UniqList()
         self.dependsOn = UniqList()
         self.asap_start, self.asap_end = None, None
@@ -44,16 +45,46 @@ class AbstractHlsOp():
 
 
 class HlsConst(AbstractHlsOp):
+    """
+    Wrapper around constant value for HLS sybsystem
+    """
+
     def __init__(self, val):
-        super(HlsConst, self).__init__(latency=0)
+        self.usedBy = UniqList()
+        self.dependsOn = UniqList()
+        self.latency_pre = 0
+        self.latency_post = 0
+        self.cycles_latency = 0
+        self.cycles_delay = 0
         self.val = val
 
     def get(self, time):
         return self.val
 
+    @property
+    def asap_start(self):
+        return self.usedBy[0].asap_start
+
+    @property
+    def asap_end(self):
+        return self.usedBy[0].asap_start
+
+    @property
+    def alap_start(self):
+        return self.usedBy[0].alap_start
+
+    @property
+    def alap_end(self):
+        return self.usedBy[0].alap_start
+
 
 class ReadOpPromise(Signal, AbstractHlsOp):
-    def __init__(self, hlsCtx, intf, latency):
+    """
+    :ivar _sig: RTL signal in HLS context used for HLS code description
+    :ivar intf: original interface from which read should be performed
+    """
+
+    def __init__(self, parentHls, intf, latency):
         if isinstance(intf, RtlSignalBase):
             dataSig = intf
         else:
@@ -61,26 +92,26 @@ class ReadOpPromise(Signal, AbstractHlsOp):
 
         t = dataSig._dtype
 
-        AbstractHlsOp.__init__(self, latency)
+        AbstractHlsOp.__init__(self, parentHls, latency)
         Signal.__init__(self, dtype=t)
 
-        self._sig = hlsCtx.ctx.sig("hsl_" + getSignalName(intf),
-                                   dtype=t)
+        self._sig = parentHls.ctx.sig(
+            "hsl_" + getSignalName(intf),
+            dtype=t)
 
         self._sig.origin = self
         self._sig.drivers.append(self)
 
-        self.hlsCtx = hlsCtx
         self.intf = intf
 
-        hlsCtx.inputs.append(self)
+        parentHls.inputs.append(self)
 
     def getRtlDataSig(self):
         return self.intf
 
     def __repr__(self):
-        return "<%s, %r, latency=%d>" % (self.__class__.__name__,
-                                         self.intf, self.latency)
+        return "<%s, %r>" % (self.__class__.__name__,
+                             self.intf)
 
 
 class WriteOpPromise(AbstractHlsOp):
@@ -90,12 +121,27 @@ class WriteOpPromise(AbstractHlsOp):
     """
 
     def __init__(self, hlsCtx, what, where, latency):
-        super(WriteOpPromise, self).__init__(latency_pre=latency)
-        self.hlsCtx = hlsCtx
+        super(WriteOpPromise, self).__init__(hlsCtx, latency_pre=latency)
         self.what = toHVal(what)
-        self.where = where
+
+        if isinstance(where, RtlSignal):
+            if not isinstance(where, Signal):
+                tmp = where._getIndexCascade()
+                if tmp:
+                    where, indexCascade = tmp
+                else:
+                    indexCascade = None
+
+        else:
+            indexCascade = None
+
         if isinstance(what, RtlSignal):
+            assert what.ctx is hlsCtx.ctx, \
+                "Not mixing unit signals and HLS signals"
             what.endpoints.append(self)
+
+        self.where = where
+        self.indexes = indexCascade
 
         hlsCtx.outputs.append(self)
 
@@ -104,16 +150,14 @@ class HlsOperation(AbstractHlsOp):
     """
     Abstract implementation of RTL operator
 
-    :ivar parentHls: Hls instance where is schedueling performed
     :ivar operator: parent RTL operator for this hsl operator
     """
 
-    def __init__(self,
-                 operator: OpDefinition,
-                 parentHls):
+    def __init__(self, parentHls,
+                 operator: OpDefinition):
         latencies = parentHls.platform.OP_LATENCIES
-        super(HlsOperation, self).__init__(latency_pre=latencies[operator])
-        self.parentHls = parentHls
+        super(HlsOperation, self).__init__(
+            parentHls, latency_pre=latencies[operator])
         self.operator = operator
 
     def __repr__(self):
