@@ -1,4 +1,3 @@
-import unittest
 
 from hwt.hdl.constants import Time
 from hwt.interfaces.std import VectSignal
@@ -45,6 +44,7 @@ class HlsMAC_example_TC(SimTestCase):
 
 
 if __name__ == "__main__":
+    import unittest
     u = HlsMAC_example()
     print(toRtl(u, targetPlatform=VirtualHlsPlatform()))
 

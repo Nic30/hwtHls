@@ -1,7 +1,8 @@
-from hwt.synthesizer.param import Param
 from hwt.interfaces.utils import addClkRstn
+from hwt.synthesizer.param import Param
 from hwtHls.hls import Hls
-from hwtLib.logic.bitonicSorter import BitonicSorter
+from hwtHls.platform.virtual import VirtualHlsPlatform
+from hwtLib.logic.bitonicSorter import BitonicSorter, BitonicSorterTC
 
 
 class BitonicSorterHLS(BitonicSorter):
@@ -21,9 +22,15 @@ class BitonicSorterHLS(BitonicSorter):
                 hls.write(otmp, o)
 
 
+class BitonicSorterHLS_TC(BitonicSorterTC):
+    def createUnit(self):
+        u = BitonicSorterHLS()
+        self.prepareUnit(u, targetPlatform=VirtualHlsPlatform())
+        return u
+
+
 if __name__ == "__main__":
     from hwt.synthesizer.utils import toRtl
-    from hwtHls.platform.virtual import VirtualHlsPlatform
     u = BitonicSorterHLS()
     u.ITEMS.set(4)
     print(toRtl(u, targetPlatform=VirtualHlsPlatform()))
