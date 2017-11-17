@@ -75,7 +75,7 @@ class Hls():
             except KeyError:
                 pass
 
-            node = HlsOperation(operator.operator, self)
+            node = HlsOperation(self, operator.operator)
             nodeToHlsNode[operator] = node
 
             for op in operator.operands:
