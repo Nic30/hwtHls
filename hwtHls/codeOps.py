@@ -10,6 +10,8 @@ from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.uniqList import UniqList
+from hwt.hdl.assignment import Assignment
+from hwt.synthesizer.andReducedContainer import AndReducedContainer
 
 
 class AbstractHlsOp():
@@ -78,8 +80,11 @@ class HlsConst(AbstractHlsOp):
         return self.usedBy[0].alap_start
 
 
-class ReadOpPromise(Signal, AbstractHlsOp):
+class HlsRead(AbstractHlsOp, Signal, Assignment):
     """
+    Hls plane to read from interface
+    * 
+
     :ivar _sig: RTL signal in HLS context used for HLS code description
     :ivar intf: original interface from which read should be performed
     """
@@ -95,6 +100,13 @@ class ReadOpPromise(Signal, AbstractHlsOp):
         AbstractHlsOp.__init__(self, parentHls, latency)
         Signal.__init__(self, dtype=t)
 
+        # from Assignment __init__
+        self.isEventDependent = False
+        self.indexes = None
+        self.cond = AndReducedContainer()
+        self._instId = Assignment._nextInstId()
+
+        # instantiate signal for value from this read
         self._sig = parentHls.ctx.sig(
             "hsl_" + getSignalName(intf),
             dtype=t)
@@ -114,14 +126,14 @@ class ReadOpPromise(Signal, AbstractHlsOp):
                              self.intf)
 
 
-class WriteOpPromise(AbstractHlsOp):
+class HlsWrite(AbstractHlsOp, Assignment):
     """
     :ivar what: const value or HlsVariable
     :ivar where: output interface not relatet to HLS
     """
 
     def __init__(self, hlsCtx, what, where, latency):
-        super(WriteOpPromise, self).__init__(hlsCtx, latency_pre=latency)
+        AbstractHlsOp.__init__(self, hlsCtx, latency_pre=latency)
         self.what = toHVal(what)
 
         if isinstance(where, RtlSignal):
@@ -141,9 +153,23 @@ class WriteOpPromise(AbstractHlsOp):
             what.endpoints.append(self)
 
         self.where = where
+
+        # from Assignment __init__
+        self.isEventDependent = False
         self.indexes = indexCascade
+        self.cond = AndReducedContainer()
+        self._instId = Assignment._nextInstId()
 
         hlsCtx.outputs.append(self)
+
+    def __repr__(self):
+        if self.indexes:
+            indexes = "[%r]" % self.indexes
+        else:
+            indexes = ""
+
+        return "<%s, %r <- %r%s>" % (self.__class__.__name__,
+                                     self.where, self.what, indexes)
 
 
 class HlsOperation(AbstractHlsOp):
@@ -164,26 +190,3 @@ class HlsOperation(AbstractHlsOp):
         return "<%s %r %r>" % (self.__class__.__name__,
                                self.operator,
                                self.dependsOn)
-
-
-class FsmNode():
-    """
-        -------
- lValid>|     |>rValid
-        |     |
- lReady<|     |<rReady
-        -------
-
-    """
-
-    def __init__(self):
-        self.ldata = None
-        self.lReady = None
-        self.lValid = None
-
-        self.rdata = None
-        self.rReady = None
-        self.rValid = None
-
-    def isClkDependent(self):
-        raise NotImplementedError()

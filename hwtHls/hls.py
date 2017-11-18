@@ -4,7 +4,7 @@ from hwt.hdl.operator import Operator
 from hwt.hdl.value import Value
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.unit import Unit
-from hwtHls.codeObjs import ReadOpPromise, WriteOpPromise, HlsOperation,\
+from hwtHls.codeOps import HlsRead, HlsWrite, HlsOperation,\
     HlsConst, AbstractHlsOp
 
 
@@ -18,8 +18,8 @@ class Hls():
     :ivar freq: target frequency for RTL
     :ivar maxLatency: optional maximum allowed latency of circut
     :ivar resources: optional resource constrains
-    :ivar inputs: list of ReadOpPromise in this context
-    :ivar outputs: list of WriteOpPromise in this context
+    :ivar inputs: list of HlsRead in this context
+    :ivar outputs: list of HlsWrite in this context
     :ivar ctx: RtlNetlist (contarner of RTL signals for this HLS context)
     """
 
@@ -45,15 +45,15 @@ class Hls():
         """
         Scheduele read operation
         """
-        return ReadOpPromise(self, intf, latency)
+        return HlsRead(self, intf, latency)
 
     def write(self, what, where, latency=1):
         """
         Scheduele write operation
         """
-        return WriteOpPromise(self, what, where, latency)
+        return HlsWrite(self, what, where, latency)
 
-    def discoverAllNodes(self):
+    def _discoverAllNodes(self):
         """
         Walk signals and extract operations as AbstractHlsOp
 
@@ -84,7 +84,7 @@ class Hls():
                     nodes.append(_op)
                 else:
                     origin = op.origin
-                    if isinstance(origin, ReadOpPromise):
+                    if isinstance(origin, HlsRead):
                         _op = origin
                         nodes.append(_op)
                     else:
@@ -102,7 +102,7 @@ class Hls():
 
         for out in self.outputs:
             driver = out.what
-            if isinstance(driver, ReadOpPromise):
+            if isinstance(driver, HlsRead):
                 registerNode(driver, out)
             elif isinstance(driver, Value) or driver._const:
                 registerNode(HlsConst(driver), out)
@@ -113,7 +113,7 @@ class Hls():
                         usedBy = out
                         usedBy.dependsOn.append(node)
                         node.usedBy.append(usedBy)
-                    elif isinstance(_driver, ReadOpPromise):
+                    elif isinstance(_driver, HlsRead):
                         node = _driver
                         registerNode(node, out)
                     else:
@@ -123,7 +123,7 @@ class Hls():
         return nodes
 
     def synthesise(self):
-        self.nodes = self.discoverAllNodes()
+        self.nodes = self._discoverAllNodes()
         self.scheduler.schedule()
         self.allocator.allocate()
 
@@ -131,4 +131,5 @@ class Hls():
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.synthesise()
+        if exc_type is None:
+            self.synthesise()

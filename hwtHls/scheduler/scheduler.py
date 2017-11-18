@@ -1,8 +1,9 @@
 from math import ceil
 
 from hwt.hdl.operator import isConst
-from hwtHls.codeObjs import HlsConst
+from hwtHls.codeOps import HlsConst
 from hwtHls.hls import Hls
+from itertools import chain
 
 
 class UnresolvedChild(Exception):
@@ -93,7 +94,7 @@ class HlsScheduler():
 
         return maxTime
 
-    def alap_and_rm_unused(self):
+    def alap(self):
         """
         As Late As Possible scheduler + remove nodes which are not effecting
         any output
@@ -105,6 +106,7 @@ class HlsScheduler():
         # [TODO] pre-post latencies
         # [TODO] cycle delays/latencies
         unresolved = []
+        print(self.parentHls.outputs)
         for node in self.parentHls.outputs:
             # has no predecessors
             # [TODO] input read latency
@@ -137,28 +139,20 @@ class HlsScheduler():
 
             unresolved = nextUnresolved
 
+        # add offset to get positive numbers
         timeOffset = -min(map(lambda x: ceil(x.alap_start),
                               self.parentHls.inputs))
-
-        # remove nodes which does not have alap time set
-        # (are not connected to output)
-        def time_fix_and_clean(node):
+        for node in chain(self.parentHls.nodes, self.parentHls.inputs, self.parentHls.outputs):
             if isinstance(node, HlsConst):
-                return True
-            if node.alap_end is None:
-                return False
+                pass
             else:
                 node.alap_end += timeOffset
-                return True
-
-        self.parentHls.nodes = list(filter(time_fix_and_clean,
-                                           self.parentHls.nodes))
 
         return timeOffset
 
     def schedule(self):
         # discover time interval where operations can be schedueled
-        self.alap_and_rm_unused()
+        self.alap()
         maxTime = self.asap()
 
         # self.alap()

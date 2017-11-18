@@ -7,8 +7,8 @@ from hwt.simulator.hdlSimConfig import HdlSimConfig
 from hwt.simulator.hdlSimulator import HdlSimulator
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.samples.bitonicSort import BitonicSorterHLS_TC
-from hwtHls.samples.connection import HlsSlicingTC
 from hwtHls.samples.mac import HlsMAC_example_TC
+from hwtHls.tests.connection import HlsSlicingTC
 
 
 def doSimWithoutLog(self, time, name=None, config=None):

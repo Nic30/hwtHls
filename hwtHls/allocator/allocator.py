@@ -1,6 +1,6 @@
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.codeObjs import ReadOpPromise, HlsOperation, WriteOpPromise,\
+from hwtHls.codeOps import HlsRead, HlsOperation, HlsWrite,\
     HlsConst
 from hwtHls.hls import Hls
 from typing import Union
@@ -65,16 +65,16 @@ class HlsAllocator():
         self._reg = parentHls.parentUnit._reg
 
     def _instantiate(self, node: Union[HlsOperation,
-                                       ReadOpPromise,
-                                       WriteOpPromise]):
+                                       HlsRead,
+                                       HlsWrite]):
         """
         Universal RTL instanciation method for all types
         """
         if isinstance(node, TimeIndependentRtlResource):
             return node
-        elif isinstance(node, ReadOpPromise):
+        elif isinstance(node, HlsRead):
             return self.instanciateRead(node)
-        elif isinstance(node, WriteOpPromise):
+        elif isinstance(node, HlsWrite):
             return self.inistanciateWrite(node)
         else:
             return self.instantiateOperation(node)
@@ -107,7 +107,7 @@ class HlsAllocator():
         self.node2instance[node] = rtlObj
         return rtlObj
 
-    def instanciateRead(self, readOp: ReadOpPromise):
+    def instanciateRead(self, readOp: HlsRead):
         """
         Instanciate read operation on RTL level
         """
@@ -118,7 +118,7 @@ class HlsAllocator():
         self.node2instance[readOp] = _o
         return _o
 
-    def inistanciateWrite(self, write: WriteOpPromise):
+    def inistanciateWrite(self, write: HlsWrite):
         """
         Instanciate write operation on RTL level
         """
