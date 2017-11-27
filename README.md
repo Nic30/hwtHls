@@ -1,5 +1,8 @@
 # hwtHls
 
+[![Travis-ci Build Status](https://travis-ci.org/Nic30/hwtHls.png?branch=master)](https://travis-ci.org/Nic30/hwtHls)[![PyPI version](https://badge.fury.io/py/hwtHls.svg)](http://badge.fury.io/py/hwtHls)[![Coverage Status](https://coveralls.io/repos/github/Nic30/hwtHls/badge.svg?branch=master)](https://coveralls.io/github/Nic30/hwtHls?branch=master)
+
+
 HLS for [HWToolkit](https://github.com/Nic30/HWToolkit) (hardware devel. toolkit)
 
 ### Current state
