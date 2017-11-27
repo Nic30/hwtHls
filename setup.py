@@ -29,7 +29,7 @@ setup(name='hwtHls',
       author_email='michal.o.socials@gmail.com',
       install_requires=[
         'hwt>=1.9',
-        'Pillow',  # there are some components which are working with images
+        'hwtLib>=1.9',
       ],
       license='MIT',
       packages=find_packages(),
