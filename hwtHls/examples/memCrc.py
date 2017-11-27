@@ -32,34 +32,32 @@ class MemCrc(Crc):
 
     def _impl(self):
         crc = self.crc
-        mem = self.mem
-        mem.a(self.data)
+        self.mem.a(self.data)
 
         with Hls(self, freq=self.CLK_FREQ) as hls:
-            r, w, If = hls.read, hls.write, hls.If
-            run = r(self.run)
+            # collect all interfaces
+            # hls see bram interface as array
+            mem = hls(self.mem.b)
+            run = hls(self.run)
+            hasherOut = hls(crc.dataOut)
+            hasherIn = hls(crc.dataIn)
+            crcOut = hls(self.crcOut)
             # tell hls that default state of this interface should be 0
-            hls.pull(crc.clean, 0)
+            clean = hls(crc.clean, pull=0)
+
+            If = hls.If
 
             If(run,
                 hls.seq(
                     # reset crc hasher
-                    w(1, crc.clean),
-                    # walk memory and accumulate hash
-                    hls.For(main_for_body, items=mem.b),
+                    clean(1),
+                    # walk memory and accumulate hash,
+                    hls.For(lambda i: hasherIn(mem[i]),
+                            items=mem),
                     # send data to utside word
-                    w(crc.dataOut, self.crcOut)
+                    crcOut(hasherOut)
                 )
             )
-
-            def main_for_body(index):
-                data = r(mem.b, index)
-
-                # return operations in iteration
-                return [
-                    data,
-                    w(data, crc.dataIn),
-                ]
 
 
 if __name__ == "__main__":
