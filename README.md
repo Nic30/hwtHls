@@ -79,6 +79,11 @@ class HlsMAC_example(Unit):
             #  but they will be directly synthesized)
             a, b, c, d = [hls.read(intf)
                           for intf in [self.a, self.b, self.c, self.d]]
+
+            # depending on target platform this expresion
+            # can be mapped to DPS, LUT, etc...
+            # no constrains are specified => default strategy is
+            # to achieve zero delay and minimum latency, for this CLK_FREQ
             e = a * b + c * d
 
             hls.write(e, self.e)
