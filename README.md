@@ -9,12 +9,13 @@ HLS for [HWToolkit](https://github.com/Nic30/HWToolkit) (hardware devel. toolkit
 
 * hwtHls solves problems latency/resource/delay constrained schedueling/allocation
 * uses separated CDFG with backward reference for representation of code
-* operator tree balancing, support for non primitive operators (DSP etc., with multiple IO, latency, delayy)
+* operator tree balancing, support for non primitive operators (DSP etc., with multiple IO, latency, delay)
 * default scheduling ALAP, ASAP, ILP, list based schedueling
 * default allocating Left edge, ILP
 
 * loop unroll, pipeline
 * Support for Bus, Handshaked, Rd/VldSynced, Signal interfaces
+
 
 
 # Example MAC operation
