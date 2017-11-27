@@ -106,7 +106,7 @@ class HlsScheduler():
         # [TODO] pre-post latencies
         # [TODO] cycle delays/latencies
         unresolved = []
-        print(self.parentHls.outputs)
+        #print(self.parentHls.outputs)
         for node in self.parentHls.outputs:
             # has no predecessors
             # [TODO] input read latency

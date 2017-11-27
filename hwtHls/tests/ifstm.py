@@ -1,3 +1,7 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+
 from hwt.code import If
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.param import Param

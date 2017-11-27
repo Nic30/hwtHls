@@ -6,8 +6,8 @@ from unittest import TestLoader, TextTestRunner, TestSuite
 from hwt.simulator.hdlSimConfig import HdlSimConfig
 from hwt.simulator.hdlSimulator import HdlSimulator
 from hwt.simulator.simTestCase import SimTestCase
-from hwtHls.samples.bitonicSort import BitonicSorterHLS_TC
-from hwtHls.samples.mac import HlsMAC_example_TC
+from hwtHls.examples.bitonicSort import BitonicSorterHLS_TC
+from hwtHls.examples.mac import HlsMAC_example_TC
 from hwtHls.tests.connection import HlsSlicingTC
 
 

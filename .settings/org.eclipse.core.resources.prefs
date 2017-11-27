@@ -1,2 +1,7 @@
 eclipse.preferences.version=1
+encoding//hwtHls/examples/bitonicSort.py=utf-8
+encoding//hwtHls/examples/mac.py=utf-8
+encoding//hwtHls/examples/pid.py=utf-8
 encoding//hwtHls/tests/all.py=utf-8
+encoding//hwtHls/tests/connection.py=utf-8
+encoding//hwtHls/tests/ifstm.py=utf-8

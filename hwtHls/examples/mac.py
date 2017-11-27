@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 
 from hwt.hdl.constants import Time
 from hwt.interfaces.std import VectSignal
@@ -24,8 +27,9 @@ class HlsMAC_example(Unit):
 
     def _impl(self):
         with Hls(self, freq=self.CLK_FREQ) as hls:
-            r = hls.read
-            e = (r(self.a) * r(self.b)) + (r(self.c) * r(self.d))
+            a, b, c, d = [hls.read(intf)
+                          for intf in [self.a, self.b, self.c, self.d]]
+            e = a * b + c * d
             hls.write(e, self.e)
 
 

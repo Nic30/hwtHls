@@ -1,3 +1,7 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.param import Param
 from hwtHls.hls import Hls

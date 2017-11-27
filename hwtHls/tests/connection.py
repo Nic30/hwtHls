@@ -1,10 +1,14 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+
+from hwt.bitmask import mask
+from hwt.hdl.constants import Time
 from hwt.interfaces.std import VectSignal
+from hwt.simulator.simTestCase import SimTestCase
 from hwt.synthesizer.unit import Unit
 from hwtHls.hls import Hls
 from hwtHls.platform.virtual import VirtualHlsPlatform
-from hwt.simulator.simTestCase import SimTestCase
-from hwt.hdl.constants import Time
-from hwt.bitmask import mask
 
 
 class HlsConnection(Unit):
@@ -73,10 +77,10 @@ if __name__ == "__main__":
 
     u = HlsConnection()
     print(toRtl(u, targetPlatform=VirtualHlsPlatform()) + "\n")
-    
+
     u = HlsSlice()
     print(toRtl(u, targetPlatform=VirtualHlsPlatform()))
-    
+
     u = HlsSlice2()
     print(toRtl(u, targetPlatform=VirtualHlsPlatform()) + "\n")
 
