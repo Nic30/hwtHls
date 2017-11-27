@@ -3,8 +3,19 @@
 HLS for [HWToolkit](https://github.com/Nic30/HWToolkit) (hardware devel. toolkit)
 
 ### Current state
+
 * This library is in state of prototype. Many features are left out due unfinished code port
-* This library used to be part of [HWToolkit](https://github.com/Nic30/HWToolkit), in 2017 Q1 it was decided that it needs to be separated library due it's instability and complexity. This extraction will be finished 15.12.2017.
+
+* Not ported yet:
+ 
+  * Complex operation reducing (DSP)
+  * Universal tree balancing
+  * All platfoms
+  * Loop agenda
+  * memory acess pattern recognizition
+  * allocation, schedueling solved by temporary solutions
+
+* This library used to be part of [HWToolkit](https://github.com/Nic30/HWToolkit), in 2017 Q1 it was decided that it needs to be separated library due it's instability and complexity. This rewrite will be finished 15.12.2017.
 
 
 
