@@ -2,6 +2,12 @@
 
 HLS for [HWToolkit](https://github.com/Nic30/HWToolkit) (hardware devel. toolkit)
 
+### Current state
+* This library is in state of prototype. Many features are left out due unfinished code port
+* This library used to be part of [HWToolkit](https://github.com/Nic30/HWToolkit), in 2017 Q1 it was decided that it needs to be separated library due it's instability and complexity. This extraction will be finished 15.12.2017.
+
+
+
 ## How it works.
 
 * hwtHls uses HDL objects from [HWToolkit](https://github.com/Nic30/HWToolkit). 
@@ -12,9 +18,20 @@ HLS for [HWToolkit](https://github.com/Nic30/HWToolkit) (hardware devel. toolkit
 * operator tree balancing, support for non primitive operators (DSP etc., with multiple IO, latency, delay)
 * default scheduling ALAP, ASAP, ILP, list based schedueling
 * default allocating Left edge, ILP
-
 * loop unroll, pipeline
 * Support for Bus, Handshaked, Rd/VldSynced, Signal interfaces
+
+* Metainformations about target platform are derived from Platfom class.
+  This class is container of HLS settings (Scheduler/Alocator...),
+  information about resources and capabilities of target and target specific components (transceiver, PLL wrapper).
+  
+### Why hwtHls is not compiler
+* Nearly all HLS synthesizers performing conversion from source language to target language. HwtHls is different.
+* In HwtHls code is written in metalanguage.
+* Reason for this is that #pragmas and other compilator directives became major part of code and #pragmas can not contain any code which can run at compilation time. One solution is to use external language for example TCL to controll HLS synthesiser, but still retrospectivity is greatly limited.
+* Metalanguage description allows very precise driving of HLS process with minimum effort. 
+  
+  
 
 
 
@@ -64,11 +81,6 @@ if __name__ == "__main__":
     u = HlsMAC_example()
     print(toRtl(u, targetPlatform=VirtualHlsPlatform()))
 ```
-
-
-### short story
-* This library used to be part of [HWToolkit](https://github.com/Nic30/HWToolkit), in 2017 Q1 it was decided that it needs to be separated library due it's instability and complexity. This extraction will be finished 15.12.2017.
-
 
 
 
