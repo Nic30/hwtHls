@@ -32,7 +32,7 @@ HLS for [HWToolkit](https://github.com/Nic30/HWToolkit) (hardware devel. toolkit
 * loop unroll, pipeline
 * Support for Bus, Handshaked, Rd/VldSynced, Signal interfaces
 
-* Metainformations about target platform are derived from Platfom class.
+* Metainformations about target platform are classes derived from Platfom class.
   This class is container of HLS settings (Scheduler/Alocator...),
   information about resources and capabilities of target and target specific components (transceiver, PLL wrapper).
 
