@@ -36,6 +36,7 @@ HLS for [HWToolkit](https://github.com/Nic30/HWToolkit) (hardware devel. toolkit
   This class is container of HLS settings (Scheduler/Alocator...),
   information about resources and capabilities of target and target specific components (transceiver, PLL wrapper).
 
+* All parts of hwtHls can be modified, there are is no magic. All parts can be used separately.
 
 ### Why hwtHls is not compiler
 * Nearly all HLS synthesizers performing conversion from source language to target language. HwtHls is different.
