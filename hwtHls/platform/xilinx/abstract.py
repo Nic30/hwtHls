@@ -1,4 +1,5 @@
 from functools import lru_cache
+
 from hwtHls.platform.interpolations import interpolate_area_2d, downscale_width
 
 
@@ -32,6 +33,12 @@ class AbstractXilinxPlatform():
         self.MUXF8_DELAY = 1
         self.NET_DELAY = 1
         self.CMP_DELAY = {1.0: (1, 1)}
+        self.ADD_COMB_DELAYS = {1.0: (1, 1)}
+        self.BITWISE_DELAY = 1
+        # pre
+        self.FF_DELAY_SETUP = 0
+        # post
+        self.FF_DELAY_HOLD = 0
 
     @lru_cache()
     def get_op_delay(self, op, bit_width: int, clk_period: float):
@@ -43,10 +50,11 @@ class AbstractXilinxPlatform():
         """
         delay for bitwise AND, OR, XOR etc
         """
-        return self.NET_DELAY + self.LUT6_DELAY + self.MUXF7_DELAY
+        return self.BITWISE_DELAY
 
+    @lru_cache()
     def get_cmp_delay(self, bit_width: int, clk_period: float):
-        interpolate_area_2d(self.CMP_DELAY, bit_width, clk_period)
+        return interpolate_area_2d(self.CMP_DELAY, bit_width, clk_period)
 
     @lru_cache()
     def get_mux_delay(self, input_cnt: int, clk_period: float):
@@ -94,3 +102,10 @@ class AbstractXilinxPlatform():
                 delay = delay + NET
 
         return delay
+
+    @lru_cache()
+    def get_add_op_delay(self, bitWidth: int, clk_period: float):
+        return interpolate_area_2d(self, bitWidth, clk_period)
+
+    def get_ff_delay(self, bitWidth: int, clk_period: float):
+        return self.FF_DELAY_SETUP
