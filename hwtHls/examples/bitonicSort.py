@@ -20,10 +20,15 @@ class BitonicSorterHLS(BitonicSorter):
 
     def _impl(self):
         with Hls(self, self.CLK_FREQ) as hls:
+            _sig = self._sig
+            self._sig = hls.var
+
             outs = self.bitonic_sort(self.cmpFn,
                                      [hls.read(i) for i in self.inputs])
             for o, otmp in zip(self.outputs, outs):
                 hls.write(otmp, o)
+
+            self._sig = _sig
 
 
 class BitonicSorterHLS_TC(BitonicSorterTC):
