@@ -38,6 +38,7 @@ class AbstractHlsOp():
         self.hls = parentHls
         self.usedBy = UniqList()
         self.dependsOn = UniqList()
+
         self.asap_start, self.asap_end = None, None
         self.alap_start, self.alap_end = None, None
         self.latency_pre = latency_pre
@@ -83,7 +84,6 @@ class HlsConst(AbstractHlsOp):
 class HlsRead(AbstractHlsOp, Signal, Assignment):
     """
     Hls plane to read from interface
-    * 
 
     :ivar _sig: RTL signal in HLS context used for HLS code description
     :ivar intf: original interface from which read should be performed
