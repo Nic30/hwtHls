@@ -15,6 +15,10 @@ install:
   - git clone --depth=1 https://github.com/Nic30/HWToolkit.git
   - cd HWToolkit
   - python setup.py install
+  - cd ..
+  - git clone --depth=1 https://github.com/Nic30/hwtLib.git
+  - cd hwtLib
+  - python setup.py install
   - cd ../hwtHls
   - python setup.py install
 
