@@ -3,7 +3,7 @@ from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF,\
     ResourceMUX
 from hwtHls.platform.xilinx.abstract import AbstractXilinxPlatform
 
-
+# https://www.xilinx.com/support/documentation/data_sheets/ds181_Artix_7_Data_Sheet.pdf
 class Artix7Slow(AbstractXilinxPlatform):
     def _initDelayCoefs(self):
         self.ARC_DELAY = 1.447
