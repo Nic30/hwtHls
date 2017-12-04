@@ -6,6 +6,9 @@ from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.unit import Unit
 from hwtHls.codeOps import HlsRead, HlsWrite, HlsOperation,\
     HlsConst, AbstractHlsOp
+from hwt.hdl.types.defs import BIT
+from hwt.hdl.types.struct import HStruct
+from hwt.hdl.assignment import Assignment
 
 
 class Hls():
@@ -40,6 +43,20 @@ class Hls():
         self.outputs = []
         self.ctx = RtlNetlist()
         self.platform.onHlsInit(self)
+
+    def var(self, name, dtype=BIT, defVal=None):
+        if isinstance(dtype, HStruct):
+            if defVal is not None:
+                raise NotImplementedError()
+            container = dtype.fromPy(None)
+            for f in dtype.fields:
+                if f.name is not None:
+                    r = self._var("%s_%s" % (name, f.name), f.dtype)
+                    setattr(container, f.name, r)
+
+            return container
+
+        return self.ctx.sig(name, dtype=dtype, defVal=defVal)
 
     def read(self, intf, latency=0):
         """
@@ -116,6 +133,8 @@ class Hls():
                     elif isinstance(_driver, HlsRead):
                         node = _driver
                         registerNode(node, out)
+                    elif isinstance(_driver, Assignment):
+                        raise NotImplementedError()
                     else:
                         raise NotImplementedError(_driver)
 
