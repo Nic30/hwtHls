@@ -1,14 +1,21 @@
+from itertools import chain
 from math import ceil
 
 from hwt.hdl.operator import isConst
 from hwtHls.codeOps import HlsConst
 from hwtHls.hls import Hls
-from itertools import chain
 
 
 class UnresolvedChild(Exception):
     """
     Exception raised when children should be lazyloaded first
+    """
+    pass
+
+
+class TimeConstraintError(Exception):
+    """
+    Exception raised when it is not possble to satisfy timing constraints
     """
     pass
 
@@ -51,6 +58,7 @@ class HlsScheduler():
 
         maxTime = 0
         unresolved = []
+        clk_period = self.parentHls.clk_period
         # init start times
         for node in self.parentHls.inputs:
             node.asap_start = node.asap_end = 0
@@ -68,10 +76,18 @@ class HlsScheduler():
                     # (unresolved children will be resolved and it will
                     # run resolution for this node again)
                     continue
-
+                else:
+                    # Remaining time until clock tick
+                    remaining_time = clk_period - (node_t % clk_period)
+                    if node.latency_pre > remaining_time:
+                        # Operation would exceed clock cycle -> align to clock rising edge
+                        node_t += remaining_time
+                        if node.latency_post + node.latency_pre >= clk_period:
+                            raise TimeConstraintError("Impossible scheduling, clk_period too low for ", node)
+                
                 node.asap_start = node_t
                 node.asap_end = node_t + node.latency_pre
-
+                
                 nextUnresolved.extend(node.usedBy)
 
                 for prev in node.dependsOn:
@@ -106,7 +122,7 @@ class HlsScheduler():
         # [TODO] pre-post latencies
         # [TODO] cycle delays/latencies
         unresolved = []
-        #print(self.parentHls.outputs)
+
         for node in self.parentHls.outputs:
             # has no predecessors
             # [TODO] input read latency
@@ -154,14 +170,14 @@ class HlsScheduler():
         # discover time interval where operations can be schedueled
         self.alap()
         maxTime = self.asap()
-
+        
+        clk_count = ceil(maxTime / self.parentHls.clk_period)
         # self.alap()
-        schedulization = [[] for _ in range(ceil(maxTime) + 1)]
+        schedulization = [[] for _ in range(clk_count)]
         # [DEBUG] scheduele by asap only
         for node in self.parentHls.nodes:
             time = node.asap_start
             assert time is not None, node
-            schedulization[int(time)].append(node)
+            schedulization[int(time * self.parentHls.clk_period)].append(node)
             node.scheduledIn = time
-
         self.schedulization = schedulization
