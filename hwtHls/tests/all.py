@@ -7,6 +7,7 @@ from hwt.simulator.hdlSimConfig import HdlSimConfig
 from hwt.simulator.hdlSimulator import HdlSimulator
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.examples.bitonicSort import BitonicSorterHLS_TC
+from hwtHls.examples.hls_expr_tree3 import HlsExprTree3_example_TC
 from hwtHls.examples.mac import HlsMAC_example_TC
 from hwtHls.tests.connection import HlsSlicingTC
 
@@ -36,6 +37,7 @@ suite = testSuiteFromTCs(
     HlsSlicingTC,
     HlsMAC_example_TC,
     BitonicSorterHLS_TC,
+    HlsExprTree3_example_TC,
 )
 
 

@@ -33,15 +33,16 @@ class Hls():
         if self.platform is None:
             raise Exception("HLS requires platform to be specified")
 
-        self.scheduler = self.platform.scheduler(self)
-        self.allocator = self.platform.allocator(self)
-        # (still float div)
         self.clk_period = 1 / int(freq)
         self.maxLatency = maxLatency
         self.resources = resources
         self.inputs = []
         self.outputs = []
         self.ctx = RtlNetlist()
+
+        self.scheduler = self.platform.scheduler(self)
+        self.allocator = self.platform.allocator(self)
+        # (still float div)
         self.platform.onHlsInit(self)
 
     def var(self, name, dtype=BIT, defVal=None):
@@ -64,7 +65,7 @@ class Hls():
         """
         return HlsRead(self, intf, latency)
 
-    def write(self, what, where, latency=1):
+    def write(self, what, where, latency=0):
         """
         Scheduele write operation
         """
