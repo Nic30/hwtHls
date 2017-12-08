@@ -46,6 +46,9 @@ class AbstractHlsOp():
         self.cycles_latency = cycles_latency
         self.cycles_delay = cycles_delay
 
+    def asHwt(self, serializer, ctx):
+        return repr(self)
+
 
 class HlsConst(AbstractHlsOp):
     """
@@ -124,6 +127,7 @@ class HlsRead(AbstractHlsOp, Signal, Assignment):
     def __repr__(self):
         return "<%s, %r>" % (self.__class__.__name__,
                              self.intf)
+
 
 
 class HlsWrite(AbstractHlsOp, Assignment):
