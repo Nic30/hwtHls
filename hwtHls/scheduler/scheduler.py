@@ -1,9 +1,12 @@
-from itertools import chain
 from math import ceil
+import sys
 
 from hwt.hdl.operator import isConst
 from hwtHls.codeOps import HlsConst
 from hwtHls.hls import Hls
+
+
+epsilon = sys.float_info.epsilon
 
 
 class UnresolvedChild(Exception):
@@ -38,6 +41,22 @@ def parent_alap_time(ch):
             raise UnresolvedChild()
     else:
         return ch.alap_start
+
+
+def start_clk(time, clk_period):
+    """
+    :return: index of clk period for start time
+    """
+    return max((time + epsilon) // clk_period,
+               time // clk_period)
+
+
+def end_clk(time, clk_period):
+    """
+    :return: index of clk period for end time
+    """
+    return min((time - epsilon) // clk_period,
+               time // clk_period)
 
 
 class HlsScheduler():
@@ -118,7 +137,6 @@ class HlsScheduler():
         any output
 
         :param minimum_latency: Minimum hls latency returned by ASAP
-        :return: maximum schedueled timme
         """
         # [TODO] fine grained latency
         # [TODO] clock cycle respect
@@ -132,7 +150,7 @@ class HlsScheduler():
             node.alap_end = minimum_latency
             node.alap_start = node.alap_end - node.latency_pre
             unresolved.extend(node.dependsOn)
-        
+
         clk_period = self.parentHls.clk_period
         # walk from outputs to inputs and note time
         while unresolved:
@@ -143,9 +161,9 @@ class HlsScheduler():
                     continue
                 try:
                     if node.usedBy:
-                        node_t = min(map(parent_alap_time, node.usedBy))
+                        node_end_t = min(map(parent_alap_time, node.usedBy))
                     else:
-                        node_t = minimum_latency
+                        node_end_t = minimum_latency
                 except UnresolvedChild:
                     # skip this node because we will find it
                     # after its dependency will be completed
@@ -153,23 +171,27 @@ class HlsScheduler():
                     # run resolution for this node again)
                     continue
                 else:
-                    time_offset = node_t % clk_period
-                    pass
-                    if time_offset <= node.latency_pre:
-                        node_t += time_offset - node.latency_pre
+                    if node.latency_pre != 0:
+                        clk_start = start_clk(
+                            node_end_t - node.latency_pre, clk_period)
+                        clk_end = end_clk(node_end_t, clk_period)
 
-                node.alap_end = node_t
-                node.alap_start = node_t - node.latency_pre
+                       if clk_start != clk_end:
+                            assert clk_end > clk_start and clk_end - clk_start <= 1, (
+                                clk_start, clk_end, node)
+                            node_end_t = clk_end * clk_period
+
+                node.alap_end = node_end_t
+                node.alap_start = node_end_t - node.latency_pre
                 nextUnresolved.extend(node.dependsOn)
 
             unresolved = nextUnresolved
-
 
     def schedule(self):
         # discover time interval where operations can be schedueled
         maxTime = self.asap()
         self.alap(maxTime)
-        
+
         if maxTime == 0:
             clk_count = 1
         else:
@@ -179,8 +201,10 @@ class HlsScheduler():
         schedulization = [[] for _ in range(clk_count)]
         # [DEBUG] scheduele by asap only
         for node in self.parentHls.nodes:
-            time = node.asap_start
+            time = node.alap_start
             assert time is not None, node
             schedulization[int(time * self.parentHls.clk_period)].append(node)
             node.scheduledIn = time
+            node.scheduledInEnd = node.alap_end
+
         self.schedulization = schedulization
