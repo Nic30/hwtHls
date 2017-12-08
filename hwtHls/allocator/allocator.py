@@ -27,7 +27,8 @@ class TimeIndependentRtlResource():
         if self.timeOffset == self.INVARIANT_TIME:
             return self.valuesInTime[0]
 
-        index = int(time - self.timeOffset)
+        index = int((time - self.timeOffset) /
+                    self.allocator.parentHls.clk_period)
         assert index >= 0
         try:
             return self.valuesInTime[index]
