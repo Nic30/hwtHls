@@ -112,11 +112,12 @@ class HlsScheduler():
 
         return maxTime
 
-    def alap(self):
+    def alap(self, minimum_latency):
         """
         As Late As Possible scheduler + remove nodes which are not effecting
         any output
 
+        :param minimum_latency: Minimum hls latency returned by ASAP
         :return: maximum schedueled timme
         """
         # [TODO] fine grained latency
@@ -128,50 +129,47 @@ class HlsScheduler():
         for node in self.parentHls.outputs:
             # has no predecessors
             # [TODO] input read latency
-            node.alap_end = 0
-            node.alap_start = -node.latency_pre
+            node.alap_end = minimum_latency
+            node.alap_start = node.alap_end - node.latency_pre
             unresolved.extend(node.dependsOn)
-
+        
+        clk_period = self.parentHls.clk_period
         # walk from outputs to inputs and note time
         while unresolved:
             nextUnresolved = []
 
-            for o in unresolved:
-                if isinstance(o, HlsConst):
+            for node in unresolved:
+                if isinstance(node, HlsConst):
                     continue
                 try:
                     if node.usedBy:
-                        node_t = max(map(parent_alap_time, node.usedBy))
+                        node_t = min(map(parent_alap_time, node.usedBy))
                     else:
-                        node_t = 0
+                        node_t = minimum_latency
                 except UnresolvedChild:
                     # skip this node because we will find it
                     # after its dependency will be completed
                     # (unresolved children will be resolved and it will
                     # run resolution for this node again)
                     continue
+                else:
+                    time_offset = node_t % clk_period
+                    pass
+                    if time_offset <= node.latency_pre:
+                        node_t += time_offset - node.latency_pre
 
-                o.alap_end = node_t
-                o.alap_start = node_t - o.latency_pre
-                nextUnresolved.extend(o.dependsOn)
+                node.alap_end = node_t
+                node.alap_start = node_t - node.latency_pre
+                nextUnresolved.extend(node.dependsOn)
 
             unresolved = nextUnresolved
 
-        # add offset to get positive numbers
-        timeOffset = -min(map(lambda x: ceil(x.alap_start),
-                              self.parentHls.inputs))
-        for node in chain(self.parentHls.nodes, self.parentHls.inputs, self.parentHls.outputs):
-            if isinstance(node, HlsConst):
-                pass
-            else:
-                node.alap_end += timeOffset
-
-        return timeOffset
 
     def schedule(self):
         # discover time interval where operations can be schedueled
-        self.alap()
         maxTime = self.asap()
+        self.alap(maxTime)
+        
         if maxTime == 0:
             clk_count = 1
         else:
@@ -184,8 +182,5 @@ class HlsScheduler():
             time = node.asap_start
             assert time is not None, node
             schedulization[int(time * self.parentHls.clk_period)].append(node)
-
             node.scheduledIn = time
-            node.scheduledInEnd = node.asap_end
-
         self.schedulization = schedulization
