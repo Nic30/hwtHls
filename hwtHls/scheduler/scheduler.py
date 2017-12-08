@@ -80,14 +80,16 @@ class HlsScheduler():
                     # Remaining time until clock tick
                     remaining_time = clk_period - (node_t % clk_period)
                     if node.latency_pre > remaining_time:
-                        # Operation would exceed clock cycle -> align to clock rising edge
+                        # Operation would exceed clock cycle -> align to clock
+                        # rising edge
                         node_t += remaining_time
                         if node.latency_post + node.latency_pre >= clk_period:
-                            raise TimeConstraintError("Impossible scheduling, clk_period too low for ", node)
-                
+                            raise TimeConstraintError(
+                                "Impossible scheduling, clk_period too low for ", node)
+
                 node.asap_start = node_t
                 node.asap_end = node_t + node.latency_pre
-                
+
                 nextUnresolved.extend(node.usedBy)
 
                 for prev in node.dependsOn:
@@ -170,8 +172,11 @@ class HlsScheduler():
         # discover time interval where operations can be schedueled
         self.alap()
         maxTime = self.asap()
-        
-        clk_count = ceil(maxTime / self.parentHls.clk_period)
+        if maxTime == 0:
+            clk_count = 1
+        else:
+            clk_count = ceil(maxTime / self.parentHls.clk_period)
+
         # self.alap()
         schedulization = [[] for _ in range(clk_count)]
         # [DEBUG] scheduele by asap only
