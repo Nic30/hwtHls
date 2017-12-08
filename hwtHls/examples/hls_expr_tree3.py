@@ -23,12 +23,12 @@ class HlsExprTree3_example(Unit):
         self.b = VectSignal(32, signed=False)
         self.c = VectSignal(32, signed=False)
         self.d = VectSignal(32, signed=False)
-        
+
         self.x = VectSignal(32, signed=False)
         self.y = VectSignal(32, signed=False)
         self.z = VectSignal(32, signed=False)
         self.w = VectSignal(32, signed=False)
-        
+
         self.f1 = VectSignal(64, signed=False)
         self.f2 = VectSignal(64, signed=False)
         self.f3 = VectSignal(64, signed=False)
@@ -38,7 +38,7 @@ class HlsExprTree3_example(Unit):
 
             a, b, c, d = self.a, self.b, self.c, self.d
             x, y, z, w = self.x, self.y, self.z, self.w
-            
+
             r, wr = hls.read, hls.write
             f1 = (r(a) + r(b) + r(c)) * r(d)
             xy = r(x) + r(y)
@@ -61,7 +61,7 @@ class HlsExprTree3_example_TC(SimTestCase):
         u.x._ag.data.append(7)
         u.y._ag.data.append(8)
         u.z._ag.data.append(9)
-        u.w._ag.data.append(10)        
+        u.w._ag.data.append(10)
 
         self.doSim(40 * Time.ns)
 
