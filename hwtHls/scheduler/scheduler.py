@@ -184,5 +184,8 @@ class HlsScheduler():
             time = node.asap_start
             assert time is not None, node
             schedulization[int(time * self.parentHls.clk_period)].append(node)
+
             node.scheduledIn = time
+            node.scheduledInEnd = node.asap_end
+
         self.schedulization = schedulization

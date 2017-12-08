@@ -24,6 +24,8 @@ class AbstractHlsOp():
     :ivar asap_end: scheduled time of end of operation using ASAP scheduler
     :ivar alap_start: scheduled time of start of operation using ALAP scheduler
     :ivar alap_end: scheduled time of end of operation using ALAP scheduler
+    :ivar scheduledIn: final scheduled time of start of operation
+    :ivar scheduledInEnd: final scheduled time of end of operation
     :ivar latency_pre: combinational latency before first register
         in compoent for this operation
     :ivar latency_post: combinational latency after last register
@@ -41,6 +43,8 @@ class AbstractHlsOp():
 
         self.asap_start, self.asap_end = None, None
         self.alap_start, self.alap_end = None, None
+        self.scheduledIn, self.scheduledInEnd = None, None
+
         self.latency_pre = latency_pre
         self.latency_post = latency_post
         self.cycles_latency = cycles_latency
@@ -127,7 +131,6 @@ class HlsRead(AbstractHlsOp, Signal, Assignment):
     def __repr__(self):
         return "<%s, %r>" % (self.__class__.__name__,
                              self.intf)
-
 
 
 class HlsWrite(AbstractHlsOp, Assignment):
