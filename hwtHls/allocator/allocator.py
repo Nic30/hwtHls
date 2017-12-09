@@ -8,6 +8,7 @@ from hwtHls.codeOps import HlsRead, HlsOperation, HlsWrite,\
 from hwtHls.hls import Hls
 from hwtHls.clk_math import start_clk, end_clk, epsilon
 from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
+from hwt.code import If
 
 
 class TimeIndependentRtlResource():
@@ -46,7 +47,7 @@ class TimeIndependentRtlResource():
 
         # allocate registers to propagate value into next cycles
         sig = self.valuesInTime[0]
-        prevReg = self.valuesInTime[-1]
+        prev = self.valuesInTime[-1]
         requestedRegCnt = index + 1
         actualTimesCnt = len(self.valuesInTime)
         name = getSignalName(sig)
@@ -54,9 +55,9 @@ class TimeIndependentRtlResource():
         for i in range(actualTimesCnt, requestedRegCnt):
             reg = self.allocator._reg(name + "_delay_%d" % i,
                                       dtype=sig._dtype)
-            reg(prevReg)
+            reg(prev)
             self.valuesInTime.append(reg)
-            prevReg = reg
+            prev = reg
 
         return reg
 
@@ -120,11 +121,11 @@ class HlsAllocator():
             if node.operator == AllOps.TERNARY:
                 cond, ifTrue, ifFalse = operands
                 s = self._sig(name, operands[1]._dtype)
-                for cond, src in zip([cond, ~cond], [ifTrue, ifFalse]):
-                    a = s(src)
-                    if isinstance(cond, InterfaceBase):
-                        cond = cond._sig
-                    a[0].cond.append(cond)
+                If(cond,
+                   s(ifTrue)
+                ).Else(
+                   s(ifFalse)
+                )
             else:
                 s = node.operator._evalFn(*operands)
 
