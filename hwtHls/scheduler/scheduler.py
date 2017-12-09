@@ -55,16 +55,16 @@ class HlsScheduler():
         # [TODO] cycle delays/latencies
 
         maxTime = 0
-        unresolved = []
+        unresolved = set()
         clk_period = self.parentHls.clk_period
         # init start times
         for node in self.parentHls.inputs:
             node.asap_start = node.asap_end = 0
-            unresolved.extend(node.usedBy)
+            unresolved.update(node.usedBy)
 
         # walk from inputs to outputs and decorate nodes with time
         while unresolved:
-            nextUnresolved = []
+            nextUnresolved = set()
             for node in unresolved:
                 try:
                     node_t = max(map(child_asap_time, node.dependsOn))
@@ -89,7 +89,7 @@ class HlsScheduler():
                 node.asap_start = node_t
                 node.asap_end = node_t + node.latency_pre
 
-                nextUnresolved.extend(node.usedBy)
+                nextUnresolved.update(node.usedBy)
 
                 for prev in node.dependsOn:
                     if prev.asap_end is None and isinstance(prev, HlsConst):
@@ -120,19 +120,19 @@ class HlsScheduler():
         """
         # [TODO] pre-post latencies
         # [TODO] cycle delays/latencies
-        unresolved = []
+        unresolved = set()
 
         for node in self.parentHls.outputs:
             # has no predecessors
             # [TODO] input read latency
             node.alap_end = minimum_latency
             node.alap_start = node.alap_end - node.latency_pre
-            unresolved.extend(node.dependsOn)
+            unresolved.update(node.dependsOn)
 
         clk_period = self.parentHls.clk_period
         # walk from outputs to inputs and note time
         while unresolved:
-            nextUnresolved = []
+            nextUnresolved = set()
 
             for node in unresolved:
                 if isinstance(node, HlsConst):
@@ -161,7 +161,7 @@ class HlsScheduler():
 
                 node.alap_end = node_end_t
                 node.alap_start = node_end_t - node.latency_pre
-                nextUnresolved.extend(node.dependsOn)
+                nextUnresolved.update(node.dependsOn)
 
             unresolved = nextUnresolved
 
