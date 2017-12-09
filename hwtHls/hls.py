@@ -11,6 +11,11 @@ from hwt.hdl.types.struct import HStruct
 from hwt.hdl.assignment import Assignment
 
 
+def link_nodes(parent, child):
+    child.dependsOn.append(parent)
+    parent.usedBy.append(child)
+
+
 class Hls():
     """
     High level synthesiser context.
@@ -78,10 +83,10 @@ class Hls():
         (convert from representation with signals
          to directed graph of operations)
         """
-        nodes = copy(self.outputs)
+        nodes = []
         nodeToHlsNode = {}
 
-        def convertToHlsNodeTree(operator: Operator) -> HlsOperation:
+        def operator2HlsOperation(operator: Operator) -> HlsOperation:
             """
             Recursively convert operator and it's inputs to HLS representation
 
@@ -93,51 +98,47 @@ class Hls():
             except KeyError:
                 pass
 
-            node = HlsOperation(self, operator.operator)
-            nodeToHlsNode[operator] = node
+            op_node = HlsOperation(self, operator.operator)
+            nodeToHlsNode[operator] = op_node
 
             for op in operator.operands:
-                if isinstance(op, Value) or op._const:
-                    _op = HlsConst(op)
-                    nodes.append(_op)
+                op = hldObj2Hls(op)
+                link_nodes(op, op_node)
+
+            return op_node
+
+        def hldObj2Hls(obj) -> AbstractHlsOp:
+            """
+            Convert RtlObject to HlsObject, register it and link it wit parent
+
+            :note: parent is who provides values to operation
+            """
+            if isinstance(obj, Value) or obj._const:
+                _obj = HlsConst(obj)
+                nodes.append(_obj)
+            elif len(obj.drivers) > 1:
+                raise NotImplementedError()
+            else:
+                # parent is just RtlSignal, we needs operation
+                # it is drivern from
+                origin = obj.origin
+                if isinstance(origin, HlsRead):
+                    _obj = origin
+                    nodes.append(_obj)
+                elif isinstance(origin, Operator):
+                    _obj = operator2HlsOperation(origin)
+                elif isinstance(origin, Assignment):
+                    raise NotImplementedError()
                 else:
-                    origin = op.origin
-                    if isinstance(origin, HlsRead):
-                        _op = origin
-                        nodes.append(_op)
-                    else:
-                        _op = convertToHlsNodeTree(origin)
+                    raise NotImplementedError(origin)
 
-                _op.usedBy.append(node)
-                node.dependsOn.append(_op)
-            return node
+            return _obj
 
-        def registerNode(node, usedBy):
-            assert isinstance(node, AbstractHlsOp)
-            usedBy.dependsOn.append(node)
-            node.usedBy.append(usedBy)
-            nodes.append(node)
-
+        nodes.extend(self.outputs)
         for out in self.outputs:
             driver = out.what
-            if isinstance(driver, HlsRead):
-                registerNode(driver, out)
-            elif isinstance(driver, Value) or driver._const:
-                registerNode(HlsConst(driver), out)
-            else:
-                for _driver in driver.drivers:
-                    if isinstance(_driver, Operator):
-                        node = convertToHlsNodeTree(_driver)
-                        usedBy = out
-                        usedBy.dependsOn.append(node)
-                        node.usedBy.append(usedBy)
-                    elif isinstance(_driver, HlsRead):
-                        node = _driver
-                        registerNode(node, out)
-                    elif isinstance(_driver, Assignment):
-                        raise NotImplementedError()
-                    else:
-                        raise NotImplementedError(_driver)
+            driver = hldObj2Hls(driver)
+            link_nodes(driver, out)
 
         nodes.extend(nodeToHlsNode.values())
         return nodes
