@@ -15,7 +15,7 @@ from hwtHls.platform.virtual import VirtualHlsPlatform
 
 class HlsExprTree3_example(Unit):
     def _config(self):
-        self.CLK_FREQ = Param(int(3e8))
+        self.CLK_FREQ = Param(int(50e6))
 
     def _declr(self):
         addClkRstn(self)
