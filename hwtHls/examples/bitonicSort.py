@@ -11,7 +11,7 @@ from hwtLib.logic.bitonicSorter import BitonicSorter, BitonicSorterTC
 class BitonicSorterHLS(BitonicSorter):
     def _config(self):
         BitonicSorter._config(self)
-        self.CLK_FREQ = int(2e9)
+        self.CLK_FREQ = int(100e6)
 
     def _declr(self):
         addClkRstn(self)
@@ -25,6 +25,13 @@ class BitonicSorterHLS(BitonicSorter):
                 hls.write(otmp, o)
 
 
+class BitonicSorterHLS_large(BitonicSorterHLS):
+    def _config(self):
+        BitonicSorterHLS._config(self)
+        self.CLK_FREQ = int(100e6)
+        self.ITEMS.set(4)
+
+
 class BitonicSorterHLS_TC(BitonicSorterTC):
     def createUnit(self):
         u = BitonicSorterHLS()
@@ -32,8 +39,24 @@ class BitonicSorterHLS_TC(BitonicSorterTC):
         return u
 
 
+class BitonicSorterHLS_large_TC(BitonicSorterTC):
+    def createUnit(self):
+        u = BitonicSorterHLS_large()
+        self.prepareUnit(u, targetPlatform=VirtualHlsPlatform())
+        return u
+
+
 if __name__ == "__main__":
+    import unittest
     from hwt.synthesizer.utils import toRtl
+
     u = BitonicSorterHLS()
-    u.ITEMS.set(4)
+    u.ITEMS.set(8)
     print(toRtl(u, targetPlatform=VirtualHlsPlatform()))
+
+    suite = unittest.TestSuite()
+    #suite.addTest(BitonicSorterHLS_large_TC('test_reversed'))
+    suite.addTest(unittest.makeSuite(BitonicSorterHLS_TC))
+    suite.addTest(unittest.makeSuite(BitonicSorterHLS_large_TC))
+    runner = unittest.TextTestRunner(verbosity=3)
+    runner.run(suite)
