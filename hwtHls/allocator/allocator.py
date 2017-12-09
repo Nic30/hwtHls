@@ -8,6 +8,7 @@ from hwtHls.codeOps import HlsRead, HlsOperation, HlsWrite,\
     HlsConst
 from hwtHls.hls import Hls
 from hwtHls.clk_math import start_clk, end_clk, epsilon
+from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
 
 
 class TimeIndependentRtlResource():
@@ -120,6 +121,8 @@ class HlsAllocator():
                 s = self._sig(name, operands[1]._dtype)
                 for cond, src in grouper(2, operands):
                     a = s(src)
+                    if isinstance(cond, InterfaceBase):
+                        cond = cond._sig
                     a[0].cond.append(cond)
             else:
                 s = node.operator._evalFn(*operands)
