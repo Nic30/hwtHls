@@ -88,13 +88,13 @@ class VirtualHlsPlatform():
             latency_pre = base_delay
 
         elif op in _OPS_T_GROWING_LIN:
-            latency_pre = base_delay * log2(bit_width+1)
+            latency_pre = base_delay * log2(bit_width)
 
         elif op in _OPS_T_GROWING_EXP:
             latency_pre = base_delay * bit_width
 
         elif op == AllOps.TERNARY:
-            latency_pre = base_delay * log2(bit_width+1)
+            latency_pre = base_delay * log2(bit_width)
 
         else:
             raise NotImplementedError(op)
