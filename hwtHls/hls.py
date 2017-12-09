@@ -40,6 +40,10 @@ def operator2Hls(operator: Operator, hls, nodeToHlsNode: dict) -> HlsOperation:
 
 
 def mux2Hls(obj: RtlSignal, hls, nodeToHlsNode: dict):
+    """
+    Recursively convert signal which is output of multiplexer/demultiplexer
+    to HLS nodes
+    """
     try:
         return nodeToHlsNode[obj]
         # was already discovered
@@ -135,6 +139,9 @@ class Hls():
         self.platform.onHlsInit(self)
 
     def var(self, name, dtype=BIT, defVal=None):
+        """
+        Universal HLS code variable
+        """
         if isinstance(dtype, HStruct):
             if defVal is not None:
                 raise NotImplementedError()
@@ -186,6 +193,9 @@ class Hls():
         return nodes
 
     def synthesise(self):
+        """
+        Convert code template to circuit (netlist of Hdl objects)
+        """
         self.nodes = self._discoverAllNodes()
         self.scheduler.schedule()
         self.allocator.allocate()
