@@ -176,7 +176,7 @@ class HlsScheduler():
                             node_end_t - node.latency_pre, clk_period)
                         clk_end = end_clk(node_end_t, clk_period)
 
-                       if clk_start != clk_end:
+                        if clk_start != clk_end:
                             assert clk_end > clk_start and clk_end - clk_start <= 1, (
                                 clk_start, clk_end, node)
                             node_end_t = clk_end * clk_period
