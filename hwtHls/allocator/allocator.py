@@ -7,7 +7,7 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.codeOps import HlsRead, HlsOperation, HlsWrite,\
     HlsConst
 from hwtHls.hls import Hls
-from hwtHls.clk_math import start_clk, end_clk
+from hwtHls.clk_math import start_clk, end_clk, epsilon
 
 
 class TimeIndependentRtlResource():
@@ -28,12 +28,15 @@ class TimeIndependentRtlResource():
         """
         Get value of singal in specified time
         """
+        time += epsilon
         if self.timeOffset == self.INVARIANT_TIME or self.timeOffset == time:
             return self.valuesInTime[0]
 
         clk_period = self.allocator.parentHls.clk_period
-        index = start_clk(time, clk_period) - \
-            end_clk(self.timeOffset, clk_period)
+        index = end_clk(time, clk_period) - \
+            start_clk(self.timeOffset, clk_period)
+
+        #print(index, self.timeOffset / clk_period, time / clk_period)
         assert index >= 0
         try:
             return self.valuesInTime[index]
@@ -111,7 +114,7 @@ class HlsAllocator():
             t = TimeIndependentRtlResource.INVARIANT_TIME
         else:
             # create RTL signal expression base on operator type
-            t = node.scheduledIn
+            t = node.scheduledIn + epsilon
             name = node.name
             if node.operator == AllOps.TERNARY:
                 s = self._sig(name, operands[1]._dtype)
@@ -131,7 +134,7 @@ class HlsAllocator():
         """
         _o = TimeIndependentRtlResource(
             readOp.getRtlDataSig(),
-            readOp.scheduledIn,
+            readOp.scheduledIn + epsilon,
             self)
         self.node2instance[readOp] = _o
         return _o

@@ -8,11 +8,14 @@ from hwt.synthesizer.unit import Unit
 from hwt.synthesizer.utils import toRtl
 from hwtHls.hls import Hls
 from hwtHls.platform.virtual import VirtualHlsPlatform
+from hwt.simulator.simTestCase import SimTestCase
+from hwt.hdl.constants import Time
+from hwtHls.scheduler.scheduler import TimeConstraintError
 
 
 class AlapAsapDiffExample(Unit):
     def _config(self):
-        self.CLK_FREQ = int(3e9)
+        self.CLK_FREQ = int(500e6)
 
     def _declr(self):
         addClkRstn(self)
@@ -37,13 +40,48 @@ class AlapAsapDiffExample(Unit):
             hls.write(d, self.d)
 
 
+def neg_8b(a):
+    return ~a & 0xff
+
+
+class AlapAsapDiffExample_TC(SimTestCase):
+    def test_500MHz(self):
+        self._test_simple(500e6)
+
+    def test_200MHz(self):
+        self._test_simple(200e6)
+
+    def test_1Hz(self):
+        self._test_simple(1)
+
+    def test_1GHz_fail(self):
+        with self.assertRaises(TimeConstraintError):
+            self._test_simple(1e9)
+
+    def _test_simple(self, freq):
+        u = AlapAsapDiffExample()
+        u.CLK_FREQ = int(freq)
+        a = 20
+        b = 58
+        c = 48
+        self.prepareUnit(u, targetPlatform=VirtualHlsPlatform())
+        u.a._ag.data.append(a)
+        u.b._ag.data.append(b)
+        u.c._ag.data.append(c)
+
+        self.doSim(40 * Time.ns)
+
+        res = u.d._ag.data[-1]
+        self.assertValEqual(res, neg_8b(neg_8b(a) & neg_8b(b)) & neg_8b(c))
+
+
 if __name__ == "__main__":
     import unittest
     u = AlapAsapDiffExample()
     print(toRtl(u, targetPlatform=VirtualHlsPlatform()))
 
-    #suite = unittest.TestSuite()
+    suite = unittest.TestSuite()
     # suite.addTest(FrameTmplTC('test_frameHeader'))
-    # suite.addTest(unittest.makeSuite(HlsMAC_example_TC))
-    #runner = unittest.TextTestRunner(verbosity=3)
-    # runner.run(suite)
+    suite.addTest(unittest.makeSuite(AlapAsapDiffExample_TC))
+    runner = unittest.TextTestRunner(verbosity=3)
+    runner.run(suite)
