@@ -70,8 +70,6 @@ class HlsScheduler():
         :return: maximum schedueled timme, decorate nodes
             with asap_start,end time
         """
-        # [TODO] fine grained latency
-        # [TODO] clock cycle respect
         # [TODO] pre-post latencies
         # [TODO] cycle delays/latencies
 
@@ -138,8 +136,6 @@ class HlsScheduler():
 
         :param minimum_latency: Minimum hls latency returned by ASAP
         """
-        # [TODO] fine grained latency
-        # [TODO] clock cycle respect
         # [TODO] pre-post latencies
         # [TODO] cycle delays/latencies
         unresolved = []
@@ -197,7 +193,6 @@ class HlsScheduler():
         else:
             clk_count = ceil(maxTime / self.parentHls.clk_period)
 
-        # self.alap()
         schedulization = [[] for _ in range(clk_count)]
         # [DEBUG] scheduele by asap only
         for node in self.parentHls.nodes:
