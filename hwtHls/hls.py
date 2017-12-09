@@ -28,7 +28,9 @@ def operator2Hls(operator: Operator, hls, nodeToHlsNode: dict) -> HlsOperation:
         pass
 
     # create HlsOperation node for this operator and register it
-    op_node = HlsOperation(hls, operator.operator)
+    op_node = HlsOperation(hls,
+                           operator.operator,
+                           operator.result._dtype.bit_length())
     nodeToHlsNode[operator] = op_node
 
     # walk all inputs and connect them as my parent
@@ -155,17 +157,17 @@ class Hls():
 
         return self.ctx.sig(name, dtype=dtype, defVal=defVal)
 
-    def read(self, intf, latency=0):
+    def read(self, intf):
         """
         Scheduele read operation
         """
-        return HlsRead(self, intf, latency)
+        return HlsRead(self, intf)
 
-    def write(self, what, where, latency=0):
+    def write(self, what, where):
         """
         Scheduele write operation
         """
-        return HlsWrite(self, what, where, latency)
+        return HlsWrite(self, what, where)
 
     def _discoverAllNodes(self):
         """
@@ -197,6 +199,9 @@ class Hls():
         Convert code template to circuit (netlist of Hdl objects)
         """
         self.nodes = self._discoverAllNodes()
+        for n in self.nodes:
+            n.resolve_realization()
+
         self.scheduler.schedule()
         self.allocator.allocate()
 

@@ -1,12 +1,9 @@
 from math import ceil
-import sys
 
 from hwt.hdl.operator import isConst
 from hwtHls.codeOps import HlsConst
 from hwtHls.hls import Hls
-
-
-epsilon = sys.float_info.epsilon
+from hwtHls.clk_math import start_clk, end_clk
 
 
 class UnresolvedChild(Exception):
@@ -41,22 +38,6 @@ def parent_alap_time(ch):
             raise UnresolvedChild()
     else:
         return ch.alap_start
-
-
-def start_clk(time, clk_period):
-    """
-    :return: index of clk period for start time
-    """
-    return max((time + epsilon) // clk_period,
-               time // clk_period)
-
-
-def end_clk(time, clk_period):
-    """
-    :return: index of clk period for end time
-    """
-    return min((time - epsilon) // clk_period,
-               time // clk_period)
 
 
 class HlsScheduler():
@@ -100,9 +81,10 @@ class HlsScheduler():
                         # Operation would exceed clock cycle -> align to clock
                         # rising edge
                         node_t += remaining_time
-                        if node.latency_post + node.latency_pre >= clk_period:
+                        if node.latency_pre + node.latency_post >= clk_period:
                             raise TimeConstraintError(
-                                "Impossible scheduling, clk_period too low for ", node)
+                                "Impossible scheduling, clk_period too low for ",
+                                node.latency_pre, node.latency_post, node)
 
                 node.asap_start = node_t
                 node.asap_end = node_t + node.latency_pre

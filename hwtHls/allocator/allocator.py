@@ -1,11 +1,13 @@
+from typing import Union
+
+from hwt.hdl.operatorDefs import AllOps
+from hwt.pyUtils.arrayQuery import grouper
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.codeOps import HlsRead, HlsOperation, HlsWrite,\
     HlsConst
 from hwtHls.hls import Hls
-from typing import Union
-from hwt.hdl.operatorDefs import AllOps
-from hwt.pyUtils.arrayQuery import grouper
+from hwtHls.clk_math import start_clk, end_clk
 
 
 class TimeIndependentRtlResource():
@@ -26,16 +28,18 @@ class TimeIndependentRtlResource():
         """
         Get value of singal in specified time
         """
-        if self.timeOffset == self.INVARIANT_TIME:
+        if self.timeOffset == self.INVARIANT_TIME or self.timeOffset == time:
             return self.valuesInTime[0]
 
-        index = int((time - self.timeOffset) /
-                    self.allocator.parentHls.clk_period)
+        clk_period = self.allocator.parentHls.clk_period
+        index = start_clk(time, clk_period) - \
+            end_clk(self.timeOffset, clk_period)
         assert index >= 0
         try:
             return self.valuesInTime[index]
         except IndexError:
             pass
+
         # allocate registers to propagate value into next cycles
         sig = self.valuesInTime[0]
         prevReg = self.valuesInTime[-1]

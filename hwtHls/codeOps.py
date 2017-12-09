@@ -3,15 +3,17 @@
 Bernsteins Synthesis Algorithm - database key dependencies, Lazy Thinking
 http://www.risc.jku.at/publications/download/risc_2335/2004-02-18-A.pdf
 """
+from hwt.hdl.assignment import Assignment
 from hwt.hdl.operatorDefs import OpDefinition, AllOps
 from hwt.hdl.types.typeCast import toHVal
 from hwt.interfaces.std import Signal
+from hwt.synthesizer.andReducedContainer import AndReducedContainer
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.uniqList import UniqList
-from hwt.hdl.assignment import Assignment
-from hwt.synthesizer.andReducedContainer import AndReducedContainer
+from hwtHls.platform.opRealizationMeta import OpRealizationMeta,\
+    UNSPECIFIED_OP_REALIZATION, EMPTY_OP_REALIZATION
 
 
 class AbstractHlsOp():
@@ -36,21 +38,29 @@ class AbstractHlsOp():
     :ivar cycles_dealy: number of clk cycles required to process data
     """
 
-    def __init__(self, parentHls, latency_pre=0, latency_post=0,
-                 cycles_latency=0, cycles_delay=0, name=None):
+    def __init__(self, parentHls, bit_length: int, name: str=None,
+                 realization: OpRealizationMeta=UNSPECIFIED_OP_REALIZATION):
         self.name = name
         self.hls = parentHls
         self.usedBy = UniqList()
         self.dependsOn = UniqList()
+        self.bit_length = bit_length
 
         self.asap_start, self.asap_end = None, None
         self.alap_start, self.alap_end = None, None
         self.scheduledIn, self.scheduledInEnd = None, None
+        self.assignRealization(realization)
 
-        self.latency_pre = latency_pre
-        self.latency_post = latency_post
-        self.cycles_latency = cycles_latency
-        self.cycles_delay = cycles_delay
+    def assignRealization(self, r: OpRealizationMeta):
+        self.realization = r
+        self.latency_pre = r.latency_pre
+        self.latency_post = r.latency_post
+        self.cycles_latency = r.cycles_latency
+        self.cycles_delay = r.cycles_delay
+
+    def resolve_realization(self):
+        raise NotImplementedError(
+            "Override this method in derived class", self)
 
     def asHwt(self, serializer, ctx):
         return repr(self)
@@ -62,12 +72,7 @@ class HlsConst(AbstractHlsOp):
     """
 
     def __init__(self, val):
-        self.usedBy = UniqList()
-        self.dependsOn = UniqList()
-        self.latency_pre = 0
-        self.latency_post = 0
-        self.cycles_latency = 0
-        self.cycles_delay = 0
+        super(HlsConst, self).__init__(None, None)
         self.val = val
 
     def get(self, time):
@@ -98,15 +103,15 @@ class HlsRead(AbstractHlsOp, Signal, Assignment):
     :ivar intf: original interface from which read should be performed
     """
 
-    def __init__(self, parentHls, intf, latency):
+    def __init__(self, parentHls, intf):
+        AbstractHlsOp.__init__(self, parentHls, None)
+
         if isinstance(intf, RtlSignalBase):
             dataSig = intf
         else:
             dataSig = intf._sig
 
         t = dataSig._dtype
-
-        AbstractHlsOp.__init__(self, parentHls, latency)
         Signal.__init__(self, dtype=t)
 
         # from Assignment __init__
@@ -130,6 +135,9 @@ class HlsRead(AbstractHlsOp, Signal, Assignment):
     def getRtlDataSig(self):
         return self.intf
 
+    def resolve_realization(self):
+        self.assignRealization(EMPTY_OP_REALIZATION)
+
     def __repr__(self):
         return "<%s, %r>" % (self.__class__.__name__,
                              self.intf)
@@ -141,8 +149,8 @@ class HlsWrite(AbstractHlsOp, Assignment):
     :ivar where: output interface not relatet to HLS
     """
 
-    def __init__(self, hlsCtx, what, where, latency):
-        AbstractHlsOp.__init__(self, hlsCtx, latency_pre=latency)
+    def __init__(self, hlsCtx, what, where):
+        AbstractHlsOp.__init__(self, hlsCtx, None)
         self.what = toHVal(what)
 
         if isinstance(where, RtlSignal):
@@ -171,6 +179,9 @@ class HlsWrite(AbstractHlsOp, Assignment):
 
         hlsCtx.outputs.append(self)
 
+    def resolve_realization(self):
+        self.assignRealization(EMPTY_OP_REALIZATION)
+
     def __repr__(self):
         if self.indexes:
             indexes = "[%r]" % self.indexes
@@ -189,11 +200,22 @@ class HlsOperation(AbstractHlsOp):
     """
 
     def __init__(self, parentHls,
-                 operator: OpDefinition, name=None):
-        latencies = parentHls.platform.OP_LATENCIES
-        super(HlsOperation, self).__init__(
-            parentHls, latency_pre=latencies[operator], name=name)
+                 operator: OpDefinition, bit_length: int,  name=None):
+        super(HlsOperation, self).__init__(parentHls, bit_length, name=name)
         self.operator = operator
+
+    def resolve_realization(self):
+        hls = self.hls
+        clk_period = hls.clk_period
+        input_cnt = len(self.dependsOn)
+        bit_length = self.bit_length
+
+        if self.operator is AllOps.TERNARY:
+            input_cnt /= 2
+
+        r = hls.platform.get_op_realization(
+            self.operator, bit_length, input_cnt, clk_period)
+        self.assignRealization(r)
 
     def __repr__(self):
         return "<%s %r %r>" % (self.__class__.__name__,
