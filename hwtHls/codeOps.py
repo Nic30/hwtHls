@@ -14,6 +14,7 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.uniqList import UniqList
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta,\
     UNSPECIFIED_OP_REALIZATION, EMPTY_OP_REALIZATION
+from cryptography.utils import bit_length
 
 
 class AbstractHlsOp():
@@ -228,6 +229,6 @@ class HlsMux(HlsOperation):
     :note: dependsOn  in fommat [cond0, input0, cond1, intput1, ...]
     """
 
-    def __init__(self, parentHls, name=None):
+    def __init__(self, parentHls, bit_length: int, name: str=None):
         super(HlsMux, self).__init__(
-            parentHls, AllOps.TERNARY, name=name)
+            parentHls, AllOps.TERNARY, bit_length, name=name)

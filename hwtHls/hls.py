@@ -57,7 +57,7 @@ def mux2Hls(obj: RtlSignal, hls, nodeToHlsNode: dict):
     else:
         name = obj.name
 
-    _obj = HlsMux(hls, name=name)
+    _obj = HlsMux(hls, obj._dtype.bit_length(), name=name)
     nodeToHlsNode[obj] = _obj
 
     for a in obj.drivers:
