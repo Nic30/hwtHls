@@ -174,6 +174,8 @@ class Hls():
 
         # walk CFG of HDL objects from outputs to inputs and convert it to CFG
         # of HLS nodes
+        # [TODO] write can be to same destination,
+        # if there is such a situation MUX has to be created
         nodes.extend(self.outputs)
         for out in self.outputs:
             driver = out.what
@@ -189,8 +191,12 @@ class Hls():
         self.allocator.allocate()
 
     def __enter__(self):
+        # temporary overload _sig method to use var from HLS
+        self._unit_sig = self.parentUnit._sig
+        self.parentUnit._sig = self.var
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        self.parentUnit._sig = self._unit_sig
         if exc_type is None:
             self.synthesise()
