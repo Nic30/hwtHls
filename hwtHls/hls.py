@@ -30,7 +30,7 @@ def operator2Hls(operator: Operator, hls, nodeToHlsNode: dict) -> HlsOperation:
     # create HlsOperation node for this operator and register it
     op_node = HlsOperation(hls,
                            operator.operator,
-                           operator.result._dtype.bit_length())
+                           operator.operands[0]._dtype.bit_length())
     nodeToHlsNode[operator] = op_node
 
     # walk all inputs and connect them as my parent
