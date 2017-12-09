@@ -60,16 +60,25 @@ def mux2Hls(obj: RtlSignal, hls, nodeToHlsNode: dict):
     _obj = HlsMux(hls, obj._dtype.bit_length(), name=name)
     nodeToHlsNode[obj] = _obj
 
+    # check if conditions are in suitable format for simple MUX
+    if len(obj.drivers) != 2:
+        raise NotImplementedError()
+
+    ifTrue, ifFalse = obj.drivers
+    if len(ifTrue.cond) != len(ifFalse.cond) != 1:
+        raise NotImplementedError(ifTrue.cond, ifFalse.cond)
+
+    if ifTrue.cond[0] is not ~ifFalse.cond[0]:
+        raise NotImplementedError(ifTrue.cond, ifFalse.cond)
+
+    # add condition to dependencies of this MUX operator
+    c = hldObj2Hls(obj.drivers[0].cond[0],  hls, nodeToHlsNode)
+    link_nodes(c, _obj)
+
     for a in obj.drivers:
         assert isinstance(a, Assignment), a
         if a.indexes:
             raise NotImplementedError()
-
-        if len(a.cond) > 1:
-            raise NotImplementedError(a.cond)
-
-        c = hldObj2Hls(a.cond[0],  hls, nodeToHlsNode)
-        link_nodes(c, _obj)
 
         src = hldObj2Hls(a.src,  hls, nodeToHlsNode)
         link_nodes(src, _obj)

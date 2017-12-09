@@ -1,7 +1,6 @@
 from typing import Union
 
 from hwt.hdl.operatorDefs import AllOps
-from hwt.pyUtils.arrayQuery import grouper
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.codeOps import HlsRead, HlsOperation, HlsWrite,\
@@ -37,7 +36,8 @@ class TimeIndependentRtlResource():
         index = end_clk(time, clk_period) - \
             start_clk(self.timeOffset, clk_period)
 
-        #print(index, self.timeOffset / clk_period, time / clk_period)
+        #print(index, getSignalName(self.valuesInTime[0]),
+        #      self.timeOffset / clk_period, time / clk_period)
         assert index >= 0
         try:
             return self.valuesInTime[index]
@@ -118,8 +118,9 @@ class HlsAllocator():
             t = node.scheduledIn + epsilon
             name = node.name
             if node.operator == AllOps.TERNARY:
+                cond, ifTrue, ifFalse = operands
                 s = self._sig(name, operands[1]._dtype)
-                for cond, src in grouper(2, operands):
+                for cond, src in zip([cond, ~cond], [ifTrue, ifFalse]):
                     a = s(src)
                     if isinstance(cond, InterfaceBase):
                         cond = cond._sig
