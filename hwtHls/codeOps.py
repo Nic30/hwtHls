@@ -72,7 +72,10 @@ class HlsConst(AbstractHlsOp):
     """
 
     def __init__(self, val):
-        super(HlsConst, self).__init__(None, None)
+        self.name = None
+        self.hls = None
+        self.usedBy = UniqList()
+        self.dependsOn = UniqList()
         self.val = val
 
     def get(self, time):
@@ -93,6 +96,9 @@ class HlsConst(AbstractHlsOp):
     @property
     def alap_end(self):
         return self.usedBy[0].alap_start
+
+    def resolve_realization(self):
+        pass
 
 
 class HlsRead(AbstractHlsOp, Signal, Assignment):
