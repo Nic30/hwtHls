@@ -62,8 +62,8 @@ class VirtualHlsPlatform():
 
             # nearly linear with bit width
             AllOps.ADD: 1.5e-9,
-            AllOps.SUB: 0.2e-9,
-            AllOps.UN_MINUS: 0.2e-9,
+            AllOps.SUB: 1.5e-9,
+            AllOps.UN_MINUS: 1.5e-9,
 
             AllOps.EQ:  1.5e-9,
             AllOps.NEQ: 1.5e-9,
@@ -88,17 +88,16 @@ class VirtualHlsPlatform():
             latency_pre = base_delay
 
         elif op in _OPS_T_GROWING_LIN:
-            latency_pre = base_delay * log2(bit_width)
+            latency_pre = base_delay * log2(bit_width+1)
 
         elif op in _OPS_T_GROWING_EXP:
             latency_pre = base_delay * bit_width
 
         elif op == AllOps.TERNARY:
-            latency_pre = base_delay * log2(bit_width)
+            latency_pre = base_delay * log2(bit_width+1)
 
         else:
             raise NotImplementedError(op)
-
         return OpRealizationMeta(latency_pre=latency_pre)
 
     def onHlsInit(self, hls):
