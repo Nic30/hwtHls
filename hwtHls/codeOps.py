@@ -3,7 +3,7 @@
 Bernsteins Synthesis Algorithm - database key dependencies, Lazy Thinking
 http://www.risc.jku.at/publications/download/risc_2335/2004-02-18-A.pdf
 """
-from hwt.hdl.operatorDefs import OpDefinition
+from hwt.hdl.operatorDefs import OpDefinition, AllOps
 from hwt.hdl.types.typeCast import toHVal
 from hwt.interfaces.std import Signal
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
@@ -16,6 +16,7 @@ from hwt.synthesizer.andReducedContainer import AndReducedContainer
 
 class AbstractHlsOp():
     """
+    :ivar name: optional suggested name for this object
     :ivar usedBy: unique list of operations which are using data from this
         operation
     :ivar dependsOn: unique list of operations which data are required
@@ -36,7 +37,8 @@ class AbstractHlsOp():
     """
 
     def __init__(self, parentHls, latency_pre=0, latency_post=0,
-                 cycles_latency=0, cycles_delay=0):
+                 cycles_latency=0, cycles_delay=0, name=None):
+        self.name = name
         self.hls = parentHls
         self.usedBy = UniqList()
         self.dependsOn = UniqList()
@@ -187,13 +189,23 @@ class HlsOperation(AbstractHlsOp):
     """
 
     def __init__(self, parentHls,
-                 operator: OpDefinition):
+                 operator: OpDefinition, name=None):
         latencies = parentHls.platform.OP_LATENCIES
         super(HlsOperation, self).__init__(
-            parentHls, latency_pre=latencies[operator])
+            parentHls, latency_pre=latencies[operator], name=name)
         self.operator = operator
 
     def __repr__(self):
         return "<%s %r %r>" % (self.__class__.__name__,
                                self.operator,
                                self.dependsOn)
+
+
+class HlsMux(HlsOperation):
+    """
+    :note: dependsOn  in fommat [cond0, input0, cond1, intput1, ...]
+    """
+
+    def __init__(self, parentHls, name=None):
+        super(HlsMux, self).__init__(
+            parentHls, AllOps.TERNARY, name=name)

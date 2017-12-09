@@ -1,14 +1,13 @@
-from copy import copy
-
 from hwt.hdl.operator import Operator
 from hwt.hdl.value import Value
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.unit import Unit
 from hwtHls.codeOps import HlsRead, HlsWrite, HlsOperation,\
-    HlsConst, AbstractHlsOp
+    HlsConst, AbstractHlsOp, HlsMux
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.struct import HStruct
 from hwt.hdl.assignment import Assignment
+from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 
 
 def link_nodes(parent, child):
@@ -83,29 +82,67 @@ class Hls():
         (convert from representation with signals
          to directed graph of operations)
         """
+        # list of discovered nodes
         nodes = []
+        # used as seen set
         nodeToHlsNode = {}
 
-        def operator2HlsOperation(operator: Operator) -> HlsOperation:
+        def operator2Hls(operator: Operator) -> HlsOperation:
             """
             Recursively convert operator and it's inputs to HLS representation
 
             :return: instance of HlsOperation representing of this operator
             """
-            assert isinstance(operator, Operator), operator
             try:
                 return nodeToHlsNode[operator]
+                # was already discovered
             except KeyError:
                 pass
 
+            # create HlsOperation node for this operator and register it
             op_node = HlsOperation(self, operator.operator)
             nodeToHlsNode[operator] = op_node
 
+            # walk all inputs and connect them as my parent
             for op in operator.operands:
                 op = hldObj2Hls(op)
                 link_nodes(op, op_node)
 
             return op_node
+
+        def mux2Hls(obj: RtlSignal):
+            try:
+                return nodeToHlsNode[obj]
+                # was already discovered
+            except KeyError:
+                pass
+
+            if obj.hasGenericName:
+                name = "mux_"
+            else:
+                name = obj.name
+
+            _obj = HlsMux(self, name=name)
+            nodeToHlsNode[obj] = _obj
+
+            muxInputs = []
+            for a in obj.drivers:
+                assert isinstance(a, Assignment), a
+                if a.indexes:
+                    raise NotImplementedError()
+
+                if len(a.cond) > 1:
+                    raise NotImplementedError(a.cond)
+
+                c = hldObj2Hls(a.cond[0])
+                link_nodes(c, _obj)
+
+                src = hldObj2Hls(a.src)
+                link_nodes(src, _obj)
+
+                muxInputs.extend((c, src))
+
+            return _obj
 
         def hldObj2Hls(obj) -> AbstractHlsOp:
             """
@@ -117,7 +154,8 @@ class Hls():
                 _obj = HlsConst(obj)
                 nodes.append(_obj)
             elif len(obj.drivers) > 1:
-                raise NotImplementedError()
+                # [TODO] mux X indexed assignments
+                _obj = mux2Hls(obj)
             else:
                 # parent is just RtlSignal, we needs operation
                 # it is drivern from
@@ -126,7 +164,7 @@ class Hls():
                     _obj = origin
                     nodes.append(_obj)
                 elif isinstance(origin, Operator):
-                    _obj = operator2HlsOperation(origin)
+                    _obj = operator2Hls(origin)
                 elif isinstance(origin, Assignment):
                     raise NotImplementedError()
                 else:
@@ -134,6 +172,8 @@ class Hls():
 
             return _obj
 
+        # walk CFG of HDL objects from outputs to inputs and convert it to CFG
+        # of HLS nodes
         nodes.extend(self.outputs)
         for out in self.outputs:
             driver = out.what

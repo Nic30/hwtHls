@@ -10,17 +10,17 @@ class DebugHlsPlatform():
     """
     OP_LATENCIES = {
         # operator: s
-        AllOps.NEG: 0.2,
         AllOps.ADD: 1.5,
+        AllOps.SUB: 0.2,
         AllOps.UN_MINUS: 0.2,
 
-        AllOps.SUB: 0.2,
         AllOps.DIV: 0.2,
         AllOps.POW: 0.2,
         AllOps.MUL: 3.2,
         AllOps.MOD: 0.2,
 
         AllOps.NOT: 0.2,
+        AllOps.NEG: 0.2,
         AllOps.XOR: 0.2,
         AllOps.AND: 0.2,
         AllOps.OR: 0.2,
@@ -32,6 +32,7 @@ class DebugHlsPlatform():
         AllOps.LT: 0.2,
         AllOps.LE: 0.2,
 
+        AllOps.TERNARY: 0.3,
         AllOps.INDEX: 0,
     }
 

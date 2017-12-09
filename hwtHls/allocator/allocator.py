@@ -4,6 +4,8 @@ from hwtHls.codeOps import HlsRead, HlsOperation, HlsWrite,\
     HlsConst
 from hwtHls.hls import Hls
 from typing import Union
+from hwt.hdl.operatorDefs import AllOps
+from hwt.pyUtils.arrayQuery import grouper
 
 
 class TimeIndependentRtlResource():
@@ -64,6 +66,7 @@ class HlsAllocator():
         self.node2instance = {}
         # function to create register on RTL level
         self._reg = parentHls.parentUnit._reg
+        self._sig = parentHls.parentUnit._sig
 
     def _instantiate(self, node: Union[HlsOperation,
                                        HlsRead,
@@ -89,6 +92,9 @@ class HlsAllocator():
             try:
                 _o = self.node2instance[o]
             except KeyError:
+                _o = None
+
+            if _o is None:
                 # if dependency of this node is not instantiated yet
                 # instantiate it
                 _o = self._instantiate(o)
@@ -101,8 +107,15 @@ class HlsAllocator():
             t = TimeIndependentRtlResource.INVARIANT_TIME
         else:
             # create RTL signal expression base on operator type
-            s = node.operator._evalFn(*operands)
             t = node.scheduledIn
+            name = node.name
+            if node.operator == AllOps.TERNARY:
+                s = self._sig(name, operands[1]._dtype)
+                for cond, src in grouper(2, operands):
+                    a = s(src)
+                    a[0].cond.append(cond)
+            else:
+                s = node.operator._evalFn(*operands)
 
         rtlObj = TimeIndependentRtlResource(s, t, self)
         self.node2instance[node] = rtlObj
@@ -128,7 +141,11 @@ class HlsAllocator():
             _o = self.node2instance[o]
         except KeyError:
             # o should be instance of TimeIndependentRtlResource itself
+            _o = None
+
+        if _o is None:
             _o = self._instantiate(o)
+
         assert o is not _o
         _o = _o.get(o.scheduledIn)
 
