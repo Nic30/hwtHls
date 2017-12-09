@@ -3,7 +3,6 @@
 
 
 from hwt.interfaces.utils import addClkRstn
-from hwt.synthesizer.param import Param
 from hwtHls.hls import Hls
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtLib.logic.bitonicSorter import BitonicSorter, BitonicSorterTC
@@ -12,7 +11,7 @@ from hwtLib.logic.bitonicSorter import BitonicSorter, BitonicSorterTC
 class BitonicSorterHLS(BitonicSorter):
     def _config(self):
         BitonicSorter._config(self)
-        self.CLK_FREQ = Param(int(100e6))
+        self.CLK_FREQ = int(2e9)
 
     def _declr(self):
         addClkRstn(self)
@@ -20,15 +19,10 @@ class BitonicSorterHLS(BitonicSorter):
 
     def _impl(self):
         with Hls(self, self.CLK_FREQ) as hls:
-            _sig = self._sig
-            self._sig = hls.var
-
             outs = self.bitonic_sort(self.cmpFn,
                                      [hls.read(i) for i in self.inputs])
             for o, otmp in zip(self.outputs, outs):
                 hls.write(otmp, o)
-
-            self._sig = _sig
 
 
 class BitonicSorterHLS_TC(BitonicSorterTC):
