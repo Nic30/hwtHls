@@ -122,7 +122,12 @@ https://github.com/m8pple/hls_recurse
 
 https://github.com/funningboy/hg_lvl_syn
 
+https://people.eecs.berkeley.edu/~alanmi/abc/
+
+
 
 # related papers
 
 https://people.csail.mit.edu/saman/student_thesis/petkov-01.pdf
+
+https://escholarship.org/uc/item/3421b3h6
