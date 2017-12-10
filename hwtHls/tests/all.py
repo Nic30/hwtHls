@@ -12,6 +12,7 @@ from hwtHls.examples.bitonicSort import BitonicSorterHLS_TC,\
 from hwtHls.examples.hls_expr_tree3 import HlsExprTree3_example_TC
 from hwtHls.examples.mac import HlsMAC_example_TC
 from hwtHls.tests.connection import HlsSlicingTC
+from hwtHls.scheduler.list_schedueling_test import ListSchedueling_TC
 
 
 def doSimWithoutLog(self, time, name=None, config=None):
@@ -42,6 +43,7 @@ suite = testSuiteFromTCs(
     BitonicSorterHLS_large_TC,
     HlsExprTree3_example_TC,
     AlapAsapDiffExample_TC,
+    ListSchedueling_TC,
 )
 
 

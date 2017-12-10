@@ -18,6 +18,13 @@ def end_clk(time: float, clk_period: float):
                int(time // clk_period))
 
 
+def start_of_next_clk_period(time: float, clk_period: float):
+    """
+    :return: start time of next clk period
+    """
+    return (start_clk(time, clk_period) + 1) * clk_period
+
+
 def clk_period_diff(start: float, end: float, clk_period: float):
     """
     :return: how many clk periods is between start and end
