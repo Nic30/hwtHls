@@ -33,6 +33,7 @@ _OPS_T_GROWING_CONST = {
     AllOps.AND,
     AllOps.OR,
     AllOps.INDEX,
+    AllOps.CONCAT,
 }
 
 
@@ -76,6 +77,7 @@ class VirtualHlsPlatform():
             AllOps.TERNARY: 0.8e-9,
             # constant
             AllOps.INDEX: 0,
+            AllOps.CONCAT: 0,
         }
         self.allocator = HlsAllocator
         self.scheduler = HlsScheduler
