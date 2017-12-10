@@ -29,7 +29,7 @@ class BitonicSorterHLS_large(BitonicSorterHLS):
     def _config(self):
         BitonicSorterHLS._config(self)
         self.CLK_FREQ = int(100e6)
-        self.ITEMS.set(4)
+        self.ITEMS.set(16)
 
 
 class BitonicSorterHLS_TC(BitonicSorterTC):
