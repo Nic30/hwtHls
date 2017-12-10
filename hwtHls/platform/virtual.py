@@ -2,7 +2,7 @@ from functools import lru_cache
 
 from hwt.hdl.operatorDefs import AllOps
 from hwtHls.allocator.allocator import HlsAllocator
-from hwtHls.scheduler.scheduler import HlsScheduler
+from hwtHls.scheduler.scheduler import HlsScheduler, ForceDirectedScheduler
 from math import log2
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 
@@ -78,7 +78,7 @@ class VirtualHlsPlatform():
             AllOps.INDEX: 0,
         }
         self.allocator = HlsAllocator
-        self.scheduler = HlsScheduler
+        self.scheduler = ForceDirectedScheduler
 
     @lru_cache()
     def get_op_realization(self, op, bit_width: int,

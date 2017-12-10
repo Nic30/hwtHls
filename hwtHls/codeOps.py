@@ -15,6 +15,7 @@ from hwt.synthesizer.uniqList import UniqList
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta,\
     UNSPECIFIED_OP_REALIZATION, EMPTY_OP_REALIZATION
 
+from hwtHls.clk_math import start_clk
 
 class AbstractHlsOp():
     """
@@ -48,6 +49,9 @@ class AbstractHlsOp():
 
         self.asap_start, self.asap_end = None, None
         self.alap_start, self.alap_end = None, None
+        # True if scheduled to specific time
+        self._earliest, self._latest = None, None
+        self.fixed_schedulation = False
         self.scheduledIn, self.scheduledInEnd = None, None
         self.assignRealization(realization)
 
@@ -61,7 +65,40 @@ class AbstractHlsOp():
     def resolve_realization(self):
         raise NotImplementedError(
             "Override this method in derived class", self)
+    
+    @property
+    def earliest(self):
+        """Earliest schedule step (by ASAP)"""
+        assert self.asap_start is not None, "ASAP must be executed first"
+        self._earliest = start_clk(self.asap_start, self.hls.clk_period)
+        return self._earliest
+    
+    @property
+    def latest(self):
+        """Earliest schedule step (by ALAP)"""
+        assert self.alap_start is not None, "ALAP must be executed first"
+        self._latest = start_clk(self.alap_start, self.hls.clk_period)
+        return self._latest
+    
+    @earliest.setter
+    def earliest(self, value):
+        self._earliest = value
 
+    @latest.setter
+    def latest(self, value):
+        self._latest = value
+    
+    @property
+    def mobility(self):
+        return self.latest - self.earliest + 1
+    
+    def get_probability(self, step):
+        """Calculate probability of scheduling operation to this step"""
+        if step < self.earliest or step > self.latest:
+            return 0.0
+        
+        return 1 / self.mobility 
+    
     def asHwt(self, serializer, ctx):
         return repr(self)
 
