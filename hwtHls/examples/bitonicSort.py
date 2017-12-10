@@ -6,6 +6,7 @@ from hwt.interfaces.utils import addClkRstn
 from hwtHls.hls import Hls
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtLib.logic.bitonicSorter import BitonicSorter, BitonicSorterTC
+from hwt.hdl.constants import Time
 
 
 class BitonicSorterHLS(BitonicSorter):
@@ -40,6 +41,8 @@ class BitonicSorterHLS_TC(BitonicSorterTC):
 
 
 class BitonicSorterHLS_large_TC(BitonicSorterTC):
+    SIM_TIME = 200 * Time.ns
+
     def createUnit(self):
         u = BitonicSorterHLS_large()
         self.prepareUnit(u, targetPlatform=VirtualHlsPlatform())
@@ -51,11 +54,11 @@ if __name__ == "__main__":
     from hwt.synthesizer.utils import toRtl
 
     u = BitonicSorterHLS()
-    u.ITEMS.set(8)
+    u.ITEMS.set(2)
     print(toRtl(u, targetPlatform=VirtualHlsPlatform()))
 
     suite = unittest.TestSuite()
-    #suite.addTest(BitonicSorterHLS_large_TC('test_reversed'))
+    # suite.addTest(BitonicSorterHLS_large_TC('test_reversed'))
     suite.addTest(unittest.makeSuite(BitonicSorterHLS_TC))
     suite.addTest(unittest.makeSuite(BitonicSorterHLS_large_TC))
     runner = unittest.TextTestRunner(verbosity=3)
