@@ -60,7 +60,8 @@ class HlsScheduler():
         # init start times
         for node in self.parentHls.inputs:
             node.asap_start = node.asap_end = 0
-            unresolved.update([n for n in node.usedBy if not n.fixed_schedulation])
+            unresolved.update(
+                [n for n in node.usedBy if not n.fixed_schedulation])
 
         # walk from inputs to outputs and decorate nodes with time
         while unresolved:
@@ -89,7 +90,8 @@ class HlsScheduler():
                 node.asap_start = node_t
                 node.asap_end = node_t + node.latency_pre
 
-                nextUnresolved.update([n for n in node.usedBy if not n.fixed_schedulation])
+                nextUnresolved.update(
+                    [n for n in node.usedBy if not n.fixed_schedulation])
 
                 for prev in node.dependsOn:
                     if prev.asap_end is None and isinstance(prev, HlsConst):
@@ -127,7 +129,8 @@ class HlsScheduler():
             # [TODO] input read latency
             node.alap_end = minimum_latency
             node.alap_start = node.alap_end - node.latency_pre
-            unresolved.update([n for n in node.dependsOn if not n.fixed_schedulation])
+            unresolved.update(
+                [n for n in node.dependsOn if not n.fixed_schedulation])
 
         clk_period = self.parentHls.clk_period
         # walk from outputs to inputs and note time
@@ -161,7 +164,8 @@ class HlsScheduler():
 
                 node.alap_end = node_end_t
                 node.alap_start = node_end_t - node.latency_pre
-                nextUnresolved.update([n for n in node.dependsOn if not n.fixed_schedulation])
+                nextUnresolved.update(
+                    [n for n in node.dependsOn if not n.fixed_schedulation])
 
             unresolved = nextUnresolved
 
@@ -193,56 +197,54 @@ class ForceDirectedScheduler(HlsScheduler):
             self.operator = op_type
             self.nodes = []
             self.average_usage = {}
-            
+
         def resource_usage(self, op_type, cstep):
             if op_type != self.operator or not self.nodes:
                 return 0.0
-            
+
             return sum([node.get_probability(cstep) for node in self.nodes])
-        
+
         def set_average_resource_usage(self, node):
             usage = 0
-            
+
             start, end = node.earliest, node.latest
             for i in range(start, end + 1):
                 usage += self.resource_usage(node.operator, i)
 
             self.average_usage[node.operator] = usage / (end - start + 1)
-        
+
         def self_force(self, node, cstep):
             if cstep < node.earliest or cstep > node.latest:
                 return 0.0
-            
+
             return self.resource_usage(node.operator, cstep) - self.average_usage.get(node.operator, 0)
-        
+
         def succ_force(self, node, cstep):
             if node.mobility == 1:
                 return 0.0
-            
+
             node.earliest += 1
             force = self.self_force(node, cstep)
             node.earliest -= 1
-            
+
             return force
 
         def pred_force(self, node, cstep):
             if node.mobility == 1:
                 return 0.0
-            
+
             node.earliest -= 1
             force = self.self_force(node, cstep)
             node.earliest += 1
-            
-            return force         
-            
-    
-    
+
+            return force
+
     def __init__(self, *args, **kwargs):
         super(ForceDirectedScheduler, self).__init__(*args, **kwargs)
-        
+
         self.succ_list = {}
         self.pred_list = {}
-        
+
     @property
     def operators(self):
         nodes = []
@@ -259,32 +261,34 @@ class ForceDirectedScheduler(HlsScheduler):
                 continue
             nodes.append(op)
         return nodes
-    
+
     def update_time_frames(self):
         self.alap(self.asap())
-    
+
     def traverse(self, node):
         self.succ_list.setdefault(node, set())
-        self.succ_list[node].update([n for n in node.usedBy if hasattr(n, 'operator')])
-        
+        self.succ_list[node].update(
+            [n for n in node.usedBy if hasattr(n, 'operator')])
+
         self.pred_list.setdefault(node, set())
-        self.pred_list[node].update([n for n in node.dependsOn if hasattr(n, 'operator')])
-        
+        self.pred_list[node].update(
+            [n for n in node.dependsOn if hasattr(n, 'operator')])
+
         for child in node.usedBy:
             self.succ_list[node].add(child)
             self.traverse(child)
-            
+
     def force_scheduling(self):
         operators = self.operators
         for i in self.parentHls.inputs:
             self.traverse(i)
-        
+
         #map(self.traverse, self.parentHls.inputs)
         unresolved = []
         for op in operators:
             if not op.fixed_schedulation and op.earliest != op.latest:
                 unresolved.append(op)
-        
+
         # distribution graphs
         print(unresolved)
         dgs = {}
@@ -293,24 +297,23 @@ class ForceDirectedScheduler(HlsScheduler):
             if op not in dgs:
                 dgs[op] = self.DistributionGraph(op)
             dgs[op].set_average_resource_usage(node)
-        
-        
+
         for op in operators:
             if op.operator in dgs:
                 dgs[op.operator].nodes.append(op)
 
         while True:
             self.update_time_frames()
-            
+
             unresolved = list(self.unscheduled_operators)
 
             if not unresolved:
                 break
-            
+
             min_op = None
             min_force = 100
             scheduled_step = -1
-            #print(list(unresolved))
+            # print(list(unresolved))
             for node in unresolved:
                 print(node)
                 for step in range(node.earliest, node.latest + 1):
@@ -322,7 +325,7 @@ class ForceDirectedScheduler(HlsScheduler):
                         succ_force += dgs[node.operator].succ_force(succ, step)
                     for pred in self.pred_list[node]:
                         pred_force += dgs[node.operator].pred_force(pred, step)
-                        
+
                     total_force = self_force + succ_force + pred_force
 
                     if total_force < min_force:
@@ -332,30 +335,28 @@ class ForceDirectedScheduler(HlsScheduler):
 
             self._reschedule(min_op, scheduled_step)
             min_op.fixed_schedulation = True
-            
+
     def _reschedule(self, node, scheduled_step):
         step_diff = scheduled_step - node.earliest
         if not step_diff:
             return
-        
+
         scheduled_start = node.asap_start + step_diff * self.parentHls.clk_period
         node.asap_start = node.alap_start = scheduled_start
         node.asap_end = node.alap_end = scheduled_start + node.latency_pre
-        
+
         for parent in node.dependsOn:
             if isinstance(parent, HlsConst):
                 continue
             parent.alap_start -= step_diff * self.parentHls.clk_period
             parent.alap_end -= step_diff * self.parentHls.clk_period
-        
-        
+
     def schedule(self):
         # discover time interval where operations can be schedueled
         maxTime = self.asap()
         self.alap(maxTime)
         self.force_scheduling()
-        
-        
+
         if maxTime == 0:
             clk_count = 1
         else:
@@ -370,5 +371,4 @@ class ForceDirectedScheduler(HlsScheduler):
             node.scheduledIn = time
             node.scheduledInEnd = node.alap_end
 
-        self.schedulization = schedulization                        
-        
+        self.schedulization = schedulization
