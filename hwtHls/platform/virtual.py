@@ -5,6 +5,8 @@ from hwtHls.allocator.allocator import HlsAllocator
 from math import log2
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.scheduler.force_directed import ForceDirectedScheduler
+from hwtHls.scheduler.list_schedueling import ListSchedueler
+from hwtHls.scheduler.scheduler import HlsScheduler
 
 
 _OPS_T_GROWING_EXP = {
@@ -80,7 +82,7 @@ class VirtualHlsPlatform():
             AllOps.CONCAT: 0,
         }
         self.allocator = HlsAllocator
-        self.scheduler = ForceDirectedScheduler
+        self.scheduler = HlsScheduler
 
     @lru_cache()
     def get_op_realization(self, op, bit_width: int,

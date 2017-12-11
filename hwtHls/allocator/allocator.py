@@ -1,14 +1,13 @@
 from typing import Union
 
+from hwt.code import If
 from hwt.hdl.operatorDefs import AllOps
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
+from hwtHls.clk_math import start_clk, end_clk, epsilon
 from hwtHls.codeOps import HlsRead, HlsOperation, HlsWrite,\
     HlsConst
 from hwtHls.hls import Hls
-from hwtHls.clk_math import start_clk, end_clk, epsilon
-from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
-from hwt.code import If
 
 
 class TimeIndependentRtlResource():
@@ -39,7 +38,7 @@ class TimeIndependentRtlResource():
 
         #print(index, getSignalName(self.valuesInTime[0]),
         #      self.timeOffset / clk_period, time / clk_period)
-        assert index >= 0
+        assert index >= 0, (self.timeOffset, time, self.valuesInTime[0])
         try:
             return self.valuesInTime[index]
         except IndexError:

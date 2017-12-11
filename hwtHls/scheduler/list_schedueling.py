@@ -3,7 +3,7 @@ from itertools import chain
 
 from hwtHls.clk_math import start_clk, end_clk
 from hwtHls.codeOps import HlsConst, HlsOperation
-from hwtHls.scheduler.scheduler import HlsScheduler
+from hwtHls.scheduler.scheduler import HlsScheduler, asap
 
 
 def getComponentConstrainingFn(clk_period: float, comp_constrain):
@@ -126,7 +126,7 @@ class ListSchedueler(HlsScheduler):
         clk_period = self.parentHls.clk_period
         # discover time interval where operations can be schedueled
         #maxTime = self.asap()
-        self.asap()
+        asap(hls.inputs, hls.outputs, clk_period)
         # self.alap(maxTime)
 
         comp_constrain = {

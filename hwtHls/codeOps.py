@@ -18,7 +18,7 @@ from hwtHls.platform.opRealizationMeta import OpRealizationMeta,\
 
 IO_COMB_REALIZATION = OpRealizationMeta(latency_post=0.1e-9)
 
-from hwtHls.clk_math import start_clk
+from hwtHls.clk_math import start_clk, end_clk
 
 
 class AbstractHlsOp():
@@ -70,38 +70,26 @@ class AbstractHlsOp():
         raise NotImplementedError(
             "Override this method in derived class", self)
 
-    @property
-    def earliest(self):
+    def get_earliest_clk(self):
         """Earliest schedule step (by ASAP)"""
-        assert self.asap_start is not None, "ASAP must be executed first"
-        self._earliest = start_clk(self.asap_start, self.hls.clk_period)
-        return self._earliest
+        return start_clk(self.asap_start, self.hls.clk_period)
 
-    @property
-    def latest(self):
+    def get_latest_clk(self):
         """Earliest schedule step (by ALAP)"""
-        assert self.alap_start is not None, "ALAP must be executed first"
-        self._latest = start_clk(self.alap_start, self.hls.clk_period)
-        return self._latest
+        return start_clk(self.alap_start, self.hls.clk_period)
 
-    @earliest.setter
-    def earliest(self, value):
-        self._earliest = value
-
-    @latest.setter
-    def latest(self, value):
-        self._latest = value
-
-    @property
-    def mobility(self):
-        return self.latest - self.earliest + 1
+    def get_mobility(self):
+        m = self.get_latest_clk() - self.get_earliest_clk()
+        assert m >= 0, (self, self.get_earliest_clk(),
+                        self.get_latest_clk(), self.asap_start, self.alap_start)
+        return m
 
     def get_probability(self, step):
         """Calculate probability of scheduling operation to this step"""
-        if step < self.earliest or step > self.latest:
+        if step < self.get_earliest_clk() or step > self.get_latest_clk():
             return 0.0
 
-        return 1 / self.mobility
+        return 1 / (self.get_mobility() + 1)
 
     def asHwt(self, serializer, ctx):
         return repr(self)
@@ -153,6 +141,7 @@ class HlsRead(AbstractHlsOp, Signal, Assignment):
 
     def __init__(self, parentHls, intf):
         AbstractHlsOp.__init__(self, parentHls, None)
+        self.operator = "read"
 
         if isinstance(intf, RtlSignalBase):
             dataSig = intf
@@ -199,6 +188,7 @@ class HlsWrite(AbstractHlsOp, Assignment):
 
     def __init__(self, hlsCtx, what, where):
         AbstractHlsOp.__init__(self, hlsCtx, None)
+        self.operator = "write"
         self.what = toHVal(what)
 
         if isinstance(where, RtlSignal):
