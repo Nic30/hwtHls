@@ -82,7 +82,7 @@ class VirtualHlsPlatform():
             AllOps.CONCAT: 0,
         }
         self.allocator = HlsAllocator
-        self.scheduler = HlsScheduler
+        self.scheduler = ListSchedueler  #HlsScheduler #ForceDirectedScheduler
 
     @lru_cache()
     def get_op_realization(self, op, bit_width: int,
