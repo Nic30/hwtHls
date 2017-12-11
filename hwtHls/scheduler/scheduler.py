@@ -50,7 +50,9 @@ def asap_filter_inputs(inputs, realInputs):
 
         for n in node.usedBy:
             if n.fixed_schedulation:
-                newlyDiscoveredInputs.update(n)
+                newlyDiscoveredInputs.add(n)
+            elif n.asap_start is not None:
+                continue
             else:
                 realInputs.add(n)
 
@@ -66,7 +68,7 @@ def asap(inputs, outputs, clk_period):
         with asap_start,end time
     """
     # [TODO] cycle delays/latencies
-
+    #print("asap")
     maxTime = 0
     unresolved = set()
     asap_filter_inputs(inputs, unresolved)
@@ -95,8 +97,11 @@ def asap(inputs, outputs, clk_period):
                             "Impossible scheduling, clk_period too low for ",
                             node.latency_pre, node.latency_post, node)
 
+            assert not node.fixed_schedulation
             node.asap_start = node_t
             node.asap_end = node_t + node.latency_pre
+            #print(node.__class__.__name__,
+            #      node.asap_start / clk_period, node.asap_end / clk_period)
             asap_filter_inputs((node, ), nextUnresolved)
 
             for prev in node.dependsOn:
@@ -124,14 +129,17 @@ def alap_filter_outputs(outputs, realOutputs, minimum_latency):
     newlyDiscovered = set()
     for node in outputs:
         if node.fixed_schedulation:
-            assert node.asap_end <= minimum_latency
+            assert node.alap_end <= minimum_latency, (
+                node.alap_end, minimum_latency)
         elif not node.usedBy:
             node.alap_end = minimum_latency
             node.alap_start = node.alap_end - node.latency_pre
 
         for n in node.dependsOn:
             if n.fixed_schedulation:
-                newlyDiscovered.update(n.dependsOn)
+                newlyDiscovered.add(n)
+            elif n.alap_start is not None:
+                continue
             else:
                 realOutputs.add(n)
 
@@ -146,8 +154,13 @@ def alap(outputs, clk_period, minimum_latency):
 
     :param minimum_latency: Minimum hls latency returned by ASAP
     """
+    # print("alap")
     # [TODO] cycle delays/latencies
     unresolved = set()
+    # round to end of last cycle
+    _minimum_latency = minimum_latency
+    minimum_latency = (end_clk(minimum_latency, clk_period) + 1) * clk_period
+    # print(_minimum_latency, minimum_latency)
     alap_filter_outputs(outputs, unresolved, minimum_latency)
     # walk from outputs to inputs and note time
     while unresolved:
@@ -176,11 +189,12 @@ def alap(outputs, clk_period, minimum_latency):
                             clk_start, clk_end, node)
                         node_end_t = clk_end * clk_period
 
+            assert not node.fixed_schedulation
             node.alap_end = node_end_t
             node.alap_start = node_end_t - node.latency_pre
+            # print(node.__class__.__name__,
+            #       node.alap_start / clk_period, node.alap_end / clk_period)
             alap_filter_outputs((node, ), nextUnresolved, minimum_latency)
-            # nextUnresolved.update(
-            #    [n for n in node.dependsOn if not n.fixed_schedulation])
 
         unresolved = nextUnresolved
 
@@ -200,9 +214,9 @@ class HlsScheduler():
             clk_count = 1
         else:
             clk_count = ceil(maxTime / clk_period)
-
+        # print(clk_count)
         # render nodes in clk_periods
-        schedulization = [[] for _ in range(clk_count)]
+        schedulization = [[] for _ in range(clk_count + 1)]
         constants = set()
         for node in self.parentHls.nodes:
             if isinstance(node, HlsConst):
@@ -215,14 +229,17 @@ class HlsScheduler():
                         and time_start <= time_end), (
                     node, time_start, time_end)
 
-            schedulization[int(time_start * clk_period)].append(node)
+            clk_index = start_clk(time_start, clk_period)
+            # print(clk_index)
+            schedulization[clk_index].append(node)
             node.scheduledIn = time_start
             node.scheduledInEnd = time_end
             assert node.scheduledIn <= node.scheduledInEnd
 
         for node in constants:
             time_start, time_end = node.scheduledIn, node.scheduledInEnd
-            schedulization[int(time_start * clk_period)].append(node)
+            clk_index = start_clk(time_start, clk_period)
+            schedulization[clk_index].append(node)
 
         self.schedulization = schedulization
 
