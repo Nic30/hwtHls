@@ -1,10 +1,12 @@
 from math import ceil
 
 from hwt.hdl.operator import isConst
-from hwtHls.codeOps import HlsConst, HlsRead
-from hwtHls.hls import Hls
+from hwt.hdl.operatorDefs import AllOps
 from hwtHls.clk_math import start_clk, end_clk
-from hwtHls.scheduler.list_schedueling import list_schedueling
+from hwtHls.codeOps import HlsConst
+from hwtHls.hls import Hls
+from hwtHls.scheduler.list_schedueling import list_schedueling,\
+    getComponentConstrainingFn
 
 
 class UnresolvedChild(Exception):
@@ -167,45 +169,58 @@ class HlsScheduler():
 
             unresolved = nextUnresolved
 
+    def apply_scheduelization_dict(self, sched):
+        """
+        :pram sched: dict {node: (startTime, endTime)}
+        """
+        clk_period = self.parentHls.clk_period
+        maxTime = max(map(lambda x: x[1], sched.values()))
+
+        if maxTime == 0:
+            clk_count = 1
+        else:
+            clk_count = ceil(maxTime / clk_period)
+
+        # render nodes in clk_periods
+        schedulization = [[] for _ in range(clk_count)]
+        constants = set()
+        for node in self.parentHls.nodes:
+            if isinstance(node, HlsConst):
+                # constants has time specified by it's user
+                constants.add(node)
+            else:
+                time_start, time_end = sched[node]
+                assert time_start is not None and time_start >= 0, node
+
+            schedulization[int(time_start * clk_period)].append(node)
+            node.scheduledIn = time_start
+            node.scheduledInEnd = time_end
+            assert node.scheduledIn <= node.scheduledInEnd
+
+        for node in constants:
+            time_start, time_end = node.scheduledIn, node.scheduledInEnd
+            schedulization[int(time_start * clk_period)].append(node)
+
+        self.schedulization = schedulization
+
     def schedule(self):
+        hls = self.parentHls
+        clk_period = self.parentHls.clk_period
         # discover time interval where operations can be schedueled
         #maxTime = self.asap()
         self.asap()
         # self.alap(maxTime)
-        hls = self.parentHls
 
-        def constrainFn(node, sched, startTime, endTime):
-            return startTime, endTime
+        comp_constrain = {
+            #AllOps.MUL: 1
+        }
+        constrainFn = getComponentConstrainingFn(clk_period, comp_constrain)
 
         def priorityFn(node):
-            if isinstance(node, HlsRead):
-                return 0
             return node.asap_start
 
         sched = list_schedueling(
             hls.inputs, hls.nodes, hls.outputs,
             constrainFn, priorityFn)
 
-        for node, (start, end) in sched.items():
-            #print(node, start, end)
-            node.alap_start = start
-            node.alap_end = end
-
-        maxTime = max(map(lambda x: x[1], sched.values()))
-
-        if maxTime == 0:
-            clk_count = 1
-        else:
-            clk_count = ceil(maxTime / self.parentHls.clk_period)
-
-        schedulization = [[] for _ in range(clk_count)]
-        # [DEBUG] scheduele by asap only
-        for node in self.parentHls.nodes:
-            time = node.alap_start
-            assert time is not None and time >= 0, node
-            schedulization[int(time * self.parentHls.clk_period)].append(node)
-            node.scheduledIn = time
-            node.scheduledInEnd = node.alap_end
-            assert node.scheduledIn <= node.scheduledInEnd
-
-        self.schedulization = schedulization
+        self.apply_scheduelization_dict(sched)

@@ -1,7 +1,53 @@
 from heapq import heappush, heappop
 from itertools import chain
-from hwtHls.codeOps import HlsConst
-from hwt.hdl.operator import isConst
+
+from hwtHls.clk_math import start_clk, end_clk
+from hwtHls.codeOps import HlsConst, HlsOperation
+
+
+def getComponentConstrainingFn(clk_period: float, comp_constrain):
+    """
+    Build component constraining function for specified comp_constrain
+    and clk_period
+
+    :param comp_constrain: dict {operation: max count per clk}
+    """
+    comp_per_clk = {}
+
+    def constrainFn(node, sched, startTime, endTime):
+        s_clk = start_clk(startTime, clk_period)
+        e_clk = end_clk(endTime, clk_period)
+        clk_shift = 0
+
+        if s_clk != e_clk:
+            # component is crossing clk cycle
+            assert e_clk - s_clk == 1
+            clk_shift = 1
+
+        if isinstance(node, HlsOperation):
+            o = node.operator
+            constr = comp_constrain.get(o, None)
+            if constr is not None:
+                assert constr > 0, (o, "Count of available units too low")
+                while True:
+                    clk_usages = comp_per_clk.setdefault(
+                        s_clk + clk_shift, {})
+                    comp_usage_in_clk = clk_usages.setdefault(o, 0)
+                    if comp_usage_in_clk + 1 <= constr:
+                        # component can be schedueled in this clk cycle
+                        clk_usages[o] += 1
+                        break
+                    else:
+                        # scheduele component later
+                        clk_shift += 1
+
+        if clk_shift:
+            _startTime = (s_clk + clk_shift) * clk_period
+            endTime = endTime - startTime + _startTime
+            startTime = _startTime
+
+        return startTime, endTime
+    return constrainFn
 
 
 class ListSchedItem():
@@ -38,7 +84,6 @@ def list_schedueling(inputs, nodes, outputs, constrainFn, priorityFn):
     while h:
         item = heappop(h)
         node = item.node
-        #print("node", item.priority, node)
         assert node not in sched
         startTime = 0
         for parent in node.dependsOn:
