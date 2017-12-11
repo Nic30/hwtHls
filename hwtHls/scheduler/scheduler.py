@@ -1,12 +1,9 @@
 from math import ceil
 
 from hwt.hdl.operator import isConst
-from hwt.hdl.operatorDefs import AllOps
 from hwtHls.clk_math import start_clk, end_clk
 from hwtHls.codeOps import HlsConst
 from hwtHls.hls import Hls
-from hwtHls.scheduler.list_schedueling import list_schedueling,\
-    getComponentConstrainingFn
 
 
 class UnresolvedChild(Exception):
@@ -64,7 +61,8 @@ class HlsScheduler():
         for node in self.parentHls.inputs:
             node.asap_start = 0
             node.asap_end = node.latency_pre + node.latency_post
-            unresolved.update(node.usedBy)
+            unresolved.update(
+                [n for n in node.usedBy if not n.fixed_schedulation])
 
         # walk from inputs to outputs and decorate nodes with time
         while unresolved:
@@ -93,7 +91,8 @@ class HlsScheduler():
                 node.asap_start = node_t
                 node.asap_end = node_t + node.latency_pre
 
-                nextUnresolved.update(node.usedBy)
+                nextUnresolved.update(
+                    [n for n in node.usedBy if not n.fixed_schedulation])
 
                 for prev in node.dependsOn:
                     if prev.asap_end is None and isinstance(prev, HlsConst):
@@ -131,7 +130,8 @@ class HlsScheduler():
             # [TODO] input read latency
             node.alap_end = minimum_latency
             node.alap_start = node.alap_end - node.latency_pre
-            unresolved.update(node.dependsOn)
+            unresolved.update(
+                [n for n in node.dependsOn if not n.fixed_schedulation])
 
         clk_period = self.parentHls.clk_period
         # walk from outputs to inputs and note time
@@ -165,7 +165,8 @@ class HlsScheduler():
 
                 node.alap_end = node_end_t
                 node.alap_start = node_end_t - node.latency_pre
-                nextUnresolved.update(node.dependsOn)
+                nextUnresolved.update(
+                    [n for n in node.dependsOn if not n.fixed_schedulation])
 
             unresolved = nextUnresolved
 
@@ -205,22 +206,8 @@ class HlsScheduler():
 
     def schedule(self):
         hls = self.parentHls
-        clk_period = self.parentHls.clk_period
-        # discover time interval where operations can be schedueled
-        #maxTime = self.asap()
-        self.asap()
-        # self.alap(maxTime)
-
-        comp_constrain = {
-            #AllOps.MUL: 1
-        }
-        constrainFn = getComponentConstrainingFn(clk_period, comp_constrain)
-
-        def priorityFn(node):
-            return node.asap_start
-
-        sched = list_schedueling(
-            hls.inputs, hls.nodes, hls.outputs,
-            constrainFn, priorityFn)
+        maxTime = self.asap()
+        self.alap(maxTime)
+        sched = {n: (n.alap_start, n.alap_end) for n in hls.nodes}
 
         self.apply_scheduelization_dict(sched)
