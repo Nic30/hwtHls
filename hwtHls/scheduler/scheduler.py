@@ -1,9 +1,10 @@
 from math import ceil
 
 from hwt.hdl.operator import isConst
-from hwtHls.codeOps import HlsConst
+from hwtHls.codeOps import HlsConst, HlsRead
 from hwtHls.hls import Hls
 from hwtHls.clk_math import start_clk, end_clk
+from hwtHls.scheduler.list_schedueling import list_schedueling
 
 
 class UnresolvedChild(Exception):
@@ -59,7 +60,8 @@ class HlsScheduler():
         clk_period = self.parentHls.clk_period
         # init start times
         for node in self.parentHls.inputs:
-            node.asap_start = node.asap_end = 0
+            node.asap_start = 0
+            node.asap_end = node.latency_pre + node.latency_post
             unresolved.update(node.usedBy)
 
         # walk from inputs to outputs and decorate nodes with time
@@ -167,8 +169,29 @@ class HlsScheduler():
 
     def schedule(self):
         # discover time interval where operations can be schedueled
-        maxTime = self.asap()
-        self.alap(maxTime)
+        #maxTime = self.asap()
+        self.asap()
+        # self.alap(maxTime)
+        hls = self.parentHls
+
+        def constrainFn(node, sched, startTime, endTime):
+            return startTime, endTime
+
+        def priorityFn(node):
+            if isinstance(node, HlsRead):
+                return 0
+            return node.asap_start
+
+        sched = list_schedueling(
+            hls.inputs, hls.nodes, hls.outputs,
+            constrainFn, priorityFn)
+
+        for node, (start, end) in sched.items():
+            #print(node, start, end)
+            node.alap_start = start
+            node.alap_end = end
+
+        maxTime = max(map(lambda x: x[1], sched.values()))
 
         if maxTime == 0:
             clk_count = 1
@@ -179,9 +202,10 @@ class HlsScheduler():
         # [DEBUG] scheduele by asap only
         for node in self.parentHls.nodes:
             time = node.alap_start
-            assert time is not None, node
+            assert time is not None and time >= 0, node
             schedulization[int(time * self.parentHls.clk_period)].append(node)
             node.scheduledIn = time
             node.scheduledInEnd = node.alap_end
+            assert node.scheduledIn <= node.scheduledInEnd
 
         self.schedulization = schedulization

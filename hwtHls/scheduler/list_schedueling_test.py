@@ -5,12 +5,11 @@ from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.types.defs import BIT
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.unit import Unit
-from hwtHls.codeOps import HlsRead, HlsOperation, HlsWrite
+from hwtHls.codeOps import HlsRead, HlsOperation, HlsWrite, IO_COMB_REALIZATION
 from hwtHls.hls import Hls, link_nodes
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scheduler.list_schedueling import list_schedueling
 from hwtHls.clk_math import start_clk, start_of_next_clk_period
-from pprint import pprint
 
 
 n = RtlNetlist("test")
@@ -20,8 +19,11 @@ def sig(name, t=BIT):
     return n.sig("sig", t)
 
 
-def dummy_constrainFn(node, sched, suggestedStart, suggestedEnd, priv):
+def dummy_constrainFn(node, sched, suggestedStart, suggestedEnd):
     return suggestedStart, suggestedEnd
+
+
+IO = IO_COMB_REALIZATION.latency_post
 
 
 class ListSchedueling_TC(unittest.TestCase):
@@ -82,12 +84,12 @@ class ListSchedueling_TC(unittest.TestCase):
             else:
                 raise ValueError(node)
 
-        sched = list_schedueling([a_in, ], [a_not, ], [a_out, ],
+        sched = list_schedueling([a_in, ], [a_in, a_not, a_out], [a_out, ],
                                  dummy_constrainFn, priorityFn)
         ref = {
-            a_in: (0, 0),
-            a_not: (0, 1.2e-09),
-            a_out: (1.2e-09, 1.2e-09),
+            a_in: (0, 0 + IO),
+            a_not: (0 + IO, 1.2e-09 + IO),
+            a_out: (1.2e-09 + IO, 1.2e-09 + IO + IO),
         }
         self.assertDictEqual(sched, ref)
 
@@ -96,8 +98,8 @@ class ListSchedueling_TC(unittest.TestCase):
             b0_in, b1_in, b_and, b_out = self.dual_and()
 
         inputs = [a0_in, a1_in, b0_in, b1_in]
-        nodes = [a_and, b_and]
         outputs = [a_out, b_out]
+        nodes = [a_and, b_and] + inputs + outputs
 
         def priorityFn(node):
             if node in inputs:
@@ -111,9 +113,11 @@ class ListSchedueling_TC(unittest.TestCase):
 
         sched = list_schedueling(inputs, nodes, outputs,
                                  dummy_constrainFn, priorityFn)
-        ref = {a_in: (0, 0) for a_in in inputs}
-        ref.update({op: (0, 1.2e-09) for op in nodes})
-        ref.update({a_out: (1.2e-09, 1.2e-09) for a_out in outputs})
+        ref = {a_in: (0, 0 + IO) for a_in in inputs}
+        ref.update({op: (0 + IO, 1.2e-09 + IO) for op in [a_and, b_and]})
+        ref.update({a_out: (1.2e-09 + IO, 1.2e-09 + IO + IO)
+                    for a_out in outputs})
+
         self.assertDictEqual(sched, ref)
 
     def test_dual_and_constrained(self):
@@ -121,22 +125,27 @@ class ListSchedueling_TC(unittest.TestCase):
             b0_in, b1_in, b_and, b_out = self.dual_and()
         clk_period = 1.2e-08
 
-        def one_op_per_clk(node, sched, suggestedStart, suggestedEnd, priv):
-            clk_index = start_clk(suggestedStart, clk_period)
-            others_in_clk = priv.get(clk_index, set())
-            isAllone = not (isinstance(node, HlsOperation) and others_in_clk)
-            others_in_clk.add(node)
+        clk_mem = {}
 
-            if not isAllone:
+        def one_op_per_clk(node, sched, suggestedStart, suggestedEnd):
+            clk_index = start_clk(suggestedStart, clk_period)
+            others_in_clk = clk_mem.setdefault(clk_index, set())
+            isNotAllone = isinstance(node, HlsOperation) and others_in_clk
+
+            if isNotAllone:
+                print("isNotAllone", node)
                 suggestedStart = start_of_next_clk_period(
                     suggestedStart, clk_period)
                 suggestedEnd = suggestedStart + node.latency_pre + node.latency_post
 
+            if isinstance(node, HlsOperation):
+                others_in_clk.add(node)
+
             return suggestedStart, suggestedEnd
 
         inputs = [a0_in, a1_in, b0_in, b1_in]
-        nodes = [a_and, b_and]
         outputs = [a_out, b_out]
+        nodes = [a_and, b_and] + inputs + outputs
 
         def priorityFn(node):
             if node in inputs:
@@ -150,13 +159,14 @@ class ListSchedueling_TC(unittest.TestCase):
 
         sched = list_schedueling(inputs, nodes, outputs,
                                  one_op_per_clk, priorityFn)
-        ref = {a_in: (0, 0)
+        ref = {a_in: (0, 0 + IO)
                for a_in in inputs}
-        ref.update({op: (0, 1.2e-09)
+        ref.update({op: (0 + IO, 1.2e-09 + IO)
                     for op in nodes})
-        ref.update({a_out: (1.2e-09, 1.2e-09)
+        ref.update({a_out: (1.2e-09 + IO, 1.2e-09 + IO)
                     for a_out in outputs})
-
+        for k, v in sched.items():
+            print(k, v, ref[k])
         self.assertDictEqual(sched, ref)
 
 

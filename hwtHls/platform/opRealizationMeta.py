@@ -1,8 +1,8 @@
 
 
 class OpRealizationMeta():
-    def __init__(self, latency_pre=0, latency_post=0,
-                 cycles_latency=0, cycles_delay=0):
+    def __init__(self, latency_pre=0.0, latency_post=0.0,
+                 cycles_latency=0.0, cycles_delay=0.0):
         self.latency_pre = latency_pre
         self.latency_post = latency_post
         self.cycles_latency = cycles_latency

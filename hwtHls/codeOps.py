@@ -13,7 +13,10 @@ from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.uniqList import UniqList
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta,\
-    UNSPECIFIED_OP_REALIZATION, EMPTY_OP_REALIZATION
+    UNSPECIFIED_OP_REALIZATION
+
+
+IO_COMB_REALIZATION = OpRealizationMeta(latency_post=0.1e-9)
 
 
 class AbstractHlsOp():
@@ -142,7 +145,7 @@ class HlsRead(AbstractHlsOp, Signal, Assignment):
         return self.intf
 
     def resolve_realization(self):
-        self.assignRealization(EMPTY_OP_REALIZATION)
+        self.assignRealization(IO_COMB_REALIZATION)
 
     def __repr__(self):
         return "<%s, %r>" % (self.__class__.__name__,
@@ -186,7 +189,7 @@ class HlsWrite(AbstractHlsOp, Assignment):
         hlsCtx.outputs.append(self)
 
     def resolve_realization(self):
-        self.assignRealization(EMPTY_OP_REALIZATION)
+        self.assignRealization(IO_COMB_REALIZATION)
 
     def __repr__(self):
         if self.indexes:
