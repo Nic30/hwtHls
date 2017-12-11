@@ -133,7 +133,7 @@ class ListSchedueling_TC(unittest.TestCase):
             isNotAllone = isinstance(node, HlsOperation) and others_in_clk
 
             if isNotAllone:
-                print("isNotAllone", node)
+                #print("isNotAllone", node)
                 suggestedStart = start_of_next_clk_period(
                     suggestedStart, clk_period)
                 suggestedEnd = suggestedStart + node.latency_pre + node.latency_post
@@ -161,12 +161,17 @@ class ListSchedueling_TC(unittest.TestCase):
                                  one_op_per_clk, priorityFn)
         ref = {a_in: (0, 0 + IO)
                for a_in in inputs}
-        ref.update({op: (0 + IO, 1.2e-09 + IO)
-                    for op in nodes})
-        ref.update({a_out: (1.2e-09 + IO, 1.2e-09 + IO)
-                    for a_out in outputs})
-        for k, v in sched.items():
-            print(k, v, ref[k])
+        ref[a_and] = (0 + IO, 1.2e-09 + IO)
+        t = 1.2e-09 + clk_period
+        ref[b_and] = (clk_period, t)
+        ref[a_out] = (1.2e-09 + IO, 1.2e-09 + IO + IO)
+        ref[b_out] = (t, t + IO)
+
+        #for k, v in sched.items():
+        #    r = ref[k]
+        #    print(int(v == r),
+        #          k.__class__.__name__,
+        #          v, r)
         self.assertDictEqual(sched, ref)
 
 
