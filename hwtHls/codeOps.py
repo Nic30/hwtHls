@@ -81,7 +81,9 @@ class AbstractHlsOp():
     def get_mobility(self):
         m = self.get_latest_clk() - self.get_earliest_clk()
         assert m >= 0, (self, self.get_earliest_clk(),
-                        self.get_latest_clk(), self.asap_start, self.alap_start)
+                        self.get_latest_clk(),
+                        self.asap_start/self.hls.clk_period,
+                        self.alap_start/self.hls.clk_period)
         return m
 
     def get_probability(self, step):

@@ -6,16 +6,16 @@ def start_clk(time: float, clk_period: float):
     """
     :return: index of clk period for start time
     """
-    return max(int((time + epsilon) // clk_period),
-               int(time // clk_period))
+    return int(max((time + epsilon) // clk_period,
+               time // clk_period))
 
 
 def end_clk(time: float, clk_period: float):
     """
     :return: index of clk period for end time
     """
-    return min(int((time - epsilon) // clk_period),
-               int(time // clk_period))
+    return int(min((time - epsilon) // clk_period,
+                   time // clk_period))
 
 
 def start_of_next_clk_period(time: float, clk_period: float):
