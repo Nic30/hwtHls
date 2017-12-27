@@ -7,20 +7,20 @@ HLS for [HWToolkit](https://github.com/Nic30/HWToolkit) (hardware devel. toolkit
 
 ### Current state
 
-* This library is in state of prototype. Many features are left out due unfinished code port
+* This library is in alpha phase.
 
-* Not ported yet:
- 
-  * Complex operation reducing (DSP)
-  * Universal tree balancing
+* Not done yet:
+  * Complex operation reducing (DSP, LUT, ALU, CLB ...)
+  * Universal tree balancing, operation reordering
   * All platfoms
   * Loop agenda
-  * memory acess pattern recognizition
-  * allocation, schedueling solved by temporary solutions
-
+  * memory acess pattern recognizition, partition (fifo, single/double port ram ...)
+  * allocation, schedueling solved by temporary solutions (partial true)
+  * netlist query
+  * DMA logic for generic bus access
+  * automatic micro kernels
 
 ## How it works.
-
 * hwtHls uses HDL objects from [HWToolkit](https://github.com/Nic30/HWToolkit). 
   It means that generation target HDL and simulation is solved by [HWToolkit](https://github.com/Nic30/HWToolkit).
 
