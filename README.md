@@ -10,7 +10,7 @@ HLS for [HWToolkit](https://github.com/Nic30/HWToolkit) (hardware devel. toolkit
 * This library is in alpha phase.
 
 * Not done yet:
-  * Complex operation reducing (DSP, LUT, ALU, CLB ...)
+  * Complex operation reducing (DSP, LUT, CLB ...)
   * Universal tree balancing, operation reordering
   * All platfoms
   * Loop agenda
