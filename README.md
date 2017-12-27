@@ -18,9 +18,6 @@ HLS for [HWToolkit](https://github.com/Nic30/HWToolkit) (hardware devel. toolkit
   * memory acess pattern recognizition
   * allocation, schedueling solved by temporary solutions
 
-* This library used to be part of [HWToolkit](https://github.com/Nic30/HWToolkit), in 2017 Q1 it was decided that it needs to be separated library due it's instability and complexity. This rewrite will be finished 15.12.2017.
-
-
 
 ## How it works.
 
@@ -30,8 +27,8 @@ HLS for [HWToolkit](https://github.com/Nic30/HWToolkit) (hardware devel. toolkit
 * hwtHls solves problems latency/resource/delay constrained schedueling/allocation
 * uses separated CDFG with backward reference for representation of code
 * operator tree balancing, support for non primitive operators (DSP etc., with multiple IO, latency, delay)
-* default scheduling ALAP, ASAP, ILP, list based schedueling
-* default allocating Left edge, ILP
+* default scheduling ALAP, ASAP, list based schedueling
+* default allocating Left edge
 * loop unroll, pipeline
 * Support for Bus, Handshaked, Rd/VldSynced, Signal interfaces
 
