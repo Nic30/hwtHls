@@ -40,7 +40,7 @@ HLS for [HWToolkit](https://github.com/Nic30/HWToolkit) (hardware devel. toolkit
 
 ### Why hwtHls is not compiler
 * Nearly all HLS synthesizers performing conversion from source language to target language. HwtHls is different.
-* In HwtHls code is written in metalanguage.
+* In HwtHls code is written in meta-language.
 * Reason for this is that #pragmas and other compilator directives became major part of code and #pragmas can not contain any code which can run at compilation time. One solution is to use external language for example TCL to controll HLS synthesiser, but still retrospectivity is greatly limited.
 * Metalanguage description allows very precise driving of HLS process with minimum effort. 
 
