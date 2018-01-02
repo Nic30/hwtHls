@@ -24,7 +24,7 @@ HLS for [HWToolkit](https://github.com/Nic30/HWToolkit) (hardware devel. toolkit
 * hwtHls uses HDL objects from [HWToolkit](https://github.com/Nic30/HWToolkit). 
   It means that generation target HDL and simulation is solved by [HWToolkit](https://github.com/Nic30/HWToolkit).
 
-* hwtHls solves problems latency/resource/delay constrained schedueling/allocation
+* hwtHls solves problems of latency/resource/delay constrained schedueling/allocation
 * uses separated CDFG with backward reference for representation of code
 * operator tree balancing, support for non primitive operators (DSP etc., with multiple IO, latency, delay)
 * default scheduling ALAP, ASAP, list based schedueling
