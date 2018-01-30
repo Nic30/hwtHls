@@ -7,31 +7,28 @@ HLS for [HWToolkit](https://github.com/Nic30/HWToolkit) (hardware devel. toolkit
 
 ### Current state
 
-* This library is in state of prototype. Many features are left out due unfinished code port
+* This library is in alpha phase.
 
-* Not ported yet:
- 
-  * Complex operation reducing (DSP)
-  * Universal tree balancing
+* Not done yet:
+  * Complex operation reducing (DSP, LUT, CLB ...)
+  * Universal tree balancing, operation reordering
   * All platfoms
   * Loop agenda
-  * memory acess pattern recognizition
-  * allocation, schedueling solved by temporary solutions
-
-* This library used to be part of [HWToolkit](https://github.com/Nic30/HWToolkit), in 2017 Q1 it was decided that it needs to be separated library due it's instability and complexity. This rewrite will be finished 15.12.2017.
-
-
+  * memory acess pattern recognizition, partition (fifo, single/double port ram ...)
+  * allocation, schedueling solved by temporary solutions (partial true)
+  * netlist query
+  * DMA logic for generic bus access
+  * automatic micro kernels
 
 ## How it works.
-
 * hwtHls uses HDL objects from [HWToolkit](https://github.com/Nic30/HWToolkit). 
   It means that generation target HDL and simulation is solved by [HWToolkit](https://github.com/Nic30/HWToolkit).
 
-* hwtHls solves problems latency/resource/delay constrained schedueling/allocation
+* hwtHls solves problems of latency/resource/delay constrained schedueling/allocation
 * uses separated CDFG with backward reference for representation of code
 * operator tree balancing, support for non primitive operators (DSP etc., with multiple IO, latency, delay)
-* default scheduling ALAP, ASAP, ILP, list based schedueling
-* default allocating Left edge, ILP
+* default scheduling ALAP, ASAP, list based schedueling
+* default allocating Left edge
 * loop unroll, pipeline
 * Support for Bus, Handshaked, Rd/VldSynced, Signal interfaces
 
@@ -43,7 +40,7 @@ HLS for [HWToolkit](https://github.com/Nic30/HWToolkit) (hardware devel. toolkit
 
 ### Why hwtHls is not compiler
 * Nearly all HLS synthesizers performing conversion from source language to target language. HwtHls is different.
-* In HwtHls code is written in metalanguage.
+* In HwtHls code is written in meta-language.
 * Reason for this is that #pragmas and other compilator directives became major part of code and #pragmas can not contain any code which can run at compilation time. One solution is to use external language for example TCL to controll HLS synthesiser, but still retrospectivity is greatly limited.
 * Metalanguage description allows very precise driving of HLS process with minimum effort. 
 
