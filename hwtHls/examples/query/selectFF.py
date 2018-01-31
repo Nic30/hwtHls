@@ -8,64 +8,97 @@ from hwt.interfaces.std import Signal, Clk
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.unit import Unit
 from hwt.synthesizer.utils import toRtl
+from hwt.code import If, And
+from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 
 
 SigOrVal = Union[RtlSignal, Value]
 AssigOrOp = Union[Assignment, Operator]
 
 
-def reconnectDriverOf(sig: SigOrVal,
-                      driver: AssigOrOp,
-                      replacement: SigOrVal):
-    sig.drivers.remove(driver)
+class RtlNetlistManipulator():
+    def __init__(self, cntx: RtlNetlist):
+        self.cntx = cntx
 
-    if isinstance(driver, Operator):
-        raise NotImplementedError()
-    elif isinstance(driver, Assignment):
-        raise NotImplementedError()
-    else:
-        raise TypeError(driver)
+    def reconnectDriverOf(self, sig: SigOrVal,
+                          driver: AssigOrOp,
+                          replacement: SigOrVal):
+        sig.drivers.remove(driver)
 
+        if isinstance(driver, Operator):
+            raise NotImplementedError()
+        elif isinstance(driver, Assignment):
+            raise NotImplementedError()
+        else:
+            raise TypeError(driver)
 
-def reconnectEndpointOf(sig: RtlSignal,
-                        endpoint: AssigOrOp,
-                        replacement: SigOrVal):
-    sig.endpoints.remove(endpoint)
+    def reconnectEndpointsOf(self, sig: RtlSignal,
+                             replacement: SigOrVal):
+        for endpoint in sig.endpoints:
+            if isinstance(endpoint, Operator):
+                raise NotImplementedError()
+            elif isinstance(endpoint, Assignment):
+                a = endpoint
+                if a.src is sig:
+                    if a.indexes:
+                        raise NotImplementedError()
+                    self.destroyAssignment(a)
+                    # [TODO] if type matches reuse old assignment
+                    if a.cond:
+                        If(And(*a.cond),
+                           a.dst(replacement)
+                           )
+                    else:
+                        a.dst(replacement)
+                else:
+                    raise NotImplementedError()
+            else:
+                raise TypeError(endpoint)
 
-    if isinstance(endpoint, Operator):
-        raise NotImplementedError()
-    elif isinstance(endpoint, Assignment):
-        raise NotImplementedError()
-    else:
-        raise TypeError(endpoint)
+    def destroyAssignment(self, a: Assignment, disconnectDst=True, disconnectSrc=True):
+        if a.indexes:
+            for i in a.indexes:
+                if isinstance(i, RtlSignal):
+                    i.endpoints.remove(a)
 
+        for c in a.cond:
+            if isinstance(c, RtlSignal):
+                c.endpoints.remove(a)
 
-def disconnectDriverOf(sig: RtlSignal,
-                       driver: AssigOrOp):
-    sig.drivers.remove(driver)
+        if disconnectSrc:
+            a.src.endpoints.remove(a)
+        if disconnectDst:
+            a.dst.drivers.remove(a)
+        self.cntx.startsOfDataPaths.remove(a)
 
-    if isinstance(driver, Operator):
-        raise NotImplementedError()
-    elif isinstance(driver, Assignment):
-        raise NotImplementedError()
-    else:
-        raise TypeError(driver)
+    def disconnectDriverOf(self, sig: RtlSignal,
+                           driver: AssigOrOp):
 
+        if isinstance(driver, Operator):
+            raise NotImplementedError()
+        elif isinstance(driver, Assignment):
+            if driver.dst is sig:
+                self.destroyAssignment(driver)
+            else:
+                raise NotImplementedError()
+        else:
+            raise TypeError(driver)
 
-def disconnectEndpointOf(sig: RtlSignal,
-                         endpoint: AssigOrOp):
-    sig.endpoints.remove(endpoint)
+    def disconnectEndpointOf(self, sig: RtlSignal,
+                             endpoint: AssigOrOp):
+        sig.endpoints.remove(endpoint)
 
-    if isinstance(endpoint, Operator):
-        raise NotImplementedError()
-    elif isinstance(endpoint, Assignment):
-        raise NotImplementedError()
-    else:
-        raise TypeError(endpoint)
+        if isinstance(endpoint, Operator):
+            raise NotImplementedError()
+        elif isinstance(endpoint, Assignment):
+            raise NotImplementedError()
+        else:
+            raise TypeError(endpoint)
 
 
 class FF_result():
-    def __init__(self, clkSig, inputSig, regSig):
+    def __init__(self, parent, clkSig, inputSig, regSig):
+        self.parent = parent
         self.clkSig = clkSig
         self.inputSig = inputSig
         self.regSig = regSig
@@ -74,20 +107,20 @@ class FF_result():
         return "<FF_result clk:%r, inputSig:%r, regSig:%r>" % (
             self.clkSig, self.inputSig, self.regSig)
 
-    def replace(self, newInput, newOutput):
+    def replace(self, newOutput, newInput):
         inp = self.inputSig
         assig = inp.drivers[0]
+        m = RtlNetlistManipulator(self.parent.parent._cntx)
         if newInput is None:
-            disconnectDriverOf(inp, assig)
+            m.disconnectDriverOf(inp, assig)
         else:
-            reconnectDriverOf(inp, assig, newInput)
+            m.reconnectDriverOf(inp, assig, newInput)
 
         reg = self.regSig
         if newOutput is None:
-            disconnectEndpointOf(reg, assig)
+            m.disconnectEndpointOf(reg, assig)
         else:
-            for dst in reg.endpoints:
-                reconnectEndpointOf(reg, dst, newOutput)
+            m.reconnectEndpointsOf(reg, newOutput)
 
 
 class FF_select():
@@ -99,7 +132,7 @@ class FF_select():
             if isinstance(ep, Assignment):
                 if sig in ep.cond:
                     clk = sig.drivers[0].operands[0]
-                    yield FF_result(clk, ep.src, ep.dst)
+                    yield FF_result(self, clk, ep.src, ep.dst)
 
     def select(self):
         ctx = self.parent._cntx
@@ -125,8 +158,8 @@ class OneFF(Unit):
 
         s = FF_select(self)
         for ff in s.select():
-            ff.replace(None, 1)
+            ff.replace(1, None)
 
 
 if __name__ == "__main__":
-    toRtl(OneFF())
+    print(toRtl(OneFF()))
