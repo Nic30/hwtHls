@@ -35,7 +35,7 @@ def operator2Hls(operator: Operator, hls, nodeToHlsNode: dict) -> HlsOperation:
 
     # walk all inputs and connect them as my parent
     for op in operator.operands:
-        op = hldObj2Hls(op, hls, nodeToHlsNode)
+        op = hdlObj2Hls(op, hls, nodeToHlsNode)
         link_nodes(op, op_node)
 
     return op_node
@@ -72,7 +72,7 @@ def mux2Hls(obj: RtlSignal, hls, nodeToHlsNode: dict):
         raise NotImplementedError(ifTrue.cond, ifFalse.cond)
 
     # add condition to dependencies of this MUX operator
-    c = hldObj2Hls(obj.drivers[0].cond[0],  hls, nodeToHlsNode)
+    c = hdlObj2Hls(obj.drivers[0].cond[0],  hls, nodeToHlsNode)
     link_nodes(c, _obj)
 
     for a in obj.drivers:
@@ -80,13 +80,13 @@ def mux2Hls(obj: RtlSignal, hls, nodeToHlsNode: dict):
         if a.indexes:
             raise NotImplementedError()
 
-        src = hldObj2Hls(a.src,  hls, nodeToHlsNode)
+        src = hdlObj2Hls(a.src,  hls, nodeToHlsNode)
         link_nodes(src, _obj)
 
     return _obj
 
 
-def hldObj2Hls(obj, hls, nodeToHlsNode: dict) -> AbstractHlsOp:
+def hdlObj2Hls(obj, hls, nodeToHlsNode: dict) -> AbstractHlsOp:
     """
     Convert RtlObject to HlsObject, register it and link it wit parent
 
@@ -197,7 +197,7 @@ class Hls():
         nodes.extend(self.outputs)
         for out in self.outputs:
             driver = out.what
-            driver = hldObj2Hls(driver, self, nodeToHlsNode)
+            driver = hdlObj2Hls(driver, self, nodeToHlsNode)
             link_nodes(driver, out)
 
         nodes.extend(nodeToHlsNode.values())
