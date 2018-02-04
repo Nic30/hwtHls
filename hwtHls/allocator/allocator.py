@@ -161,7 +161,7 @@ class HlsAllocator():
         _o = _o.get(o.scheduledIn)
 
         # apply indexes before assignments
-        dst = write.where
+        dst = write.dst
         if write.indexes is not None:
             for i in write.indexes:
                 dst = dst[i]

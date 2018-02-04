@@ -116,11 +116,11 @@ def asap(inputs, outputs, clk_period):
     # they have no connection to any input
     for node in outputs:
         if node.asap_start is None:
-            assert isConst(node.what), node
+            assert isConst(node.src), node
             node.asap_start = 0
             node.asap_end = 0
-            node.what.asap_start = 0
-            node.what.asap_end = 0
+            node.src.asap_start = 0
+            node.src.asap_end = 0
 
     return maxTime
 

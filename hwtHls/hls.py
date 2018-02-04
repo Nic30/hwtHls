@@ -172,11 +172,11 @@ class Hls():
         """
         return HlsRead(self, intf)
 
-    def write(self, what, where):
+    def write(self, src, dst):
         """
         Scheduele write operation
         """
-        return HlsWrite(self, what, where)
+        return HlsWrite(self, src, dst)
 
     def _discoverAllNodes(self):
         """
@@ -196,7 +196,7 @@ class Hls():
         # if there is such a situation MUX has to be created
         nodes.extend(self.outputs)
         for out in self.outputs:
-            driver = out.what
+            driver = out.src
             driver = hdlObj2Hls(driver, self, nodeToHlsNode)
             link_nodes(driver, out)
 

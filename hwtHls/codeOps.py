@@ -12,13 +12,12 @@ from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.uniqList import UniqList
+from hwtHls.clk_math import start_clk
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta,\
     UNSPECIFIED_OP_REALIZATION
 
 
 IO_COMB_REALIZATION = OpRealizationMeta(latency_post=0.1e-9)
-
-from hwtHls.clk_math import start_clk, end_clk
 
 
 class AbstractHlsOp():
@@ -82,8 +81,8 @@ class AbstractHlsOp():
         m = self.get_latest_clk() - self.get_earliest_clk()
         assert m >= 0, (self, self.get_earliest_clk(),
                         self.get_latest_clk(),
-                        self.asap_start/self.hls.clk_period,
-                        self.alap_start/self.hls.clk_period)
+                        self.asap_start / self.hls.clk_period,
+                        self.alap_start / self.hls.clk_period)
         return m
 
     def get_probability(self, step):
@@ -184,32 +183,32 @@ class HlsRead(AbstractHlsOp, Signal, Assignment):
 
 class HlsWrite(AbstractHlsOp, Assignment):
     """
-    :ivar what: const value or HlsVariable
-    :ivar where: output interface not relatet to HLS
+    :ivar src: const value or HlsVariable
+    :ivar dst: output interface not relatet to HLS
     """
 
-    def __init__(self, hlsCtx, what, where):
+    def __init__(self, hlsCtx, src, dst):
         AbstractHlsOp.__init__(self, hlsCtx, None)
         self.operator = "write"
-        self.what = toHVal(what)
+        self.src = toHVal(src)
 
-        if isinstance(where, RtlSignal):
-            if not isinstance(where, Signal):
-                tmp = where._getIndexCascade()
+        if isinstance(dst, RtlSignal):
+            if not isinstance(dst, Signal):
+                tmp = dst._getIndexCascade()
                 if tmp:
-                    where, indexCascade = tmp
+                    dst, indexCascade = tmp
                 else:
                     indexCascade = None
 
         else:
             indexCascade = None
 
-        if isinstance(what, RtlSignal):
-            assert what.ctx is hlsCtx.ctx, \
+        if isinstance(src, RtlSignal):
+            assert src.ctx is hlsCtx.ctx, \
                 "Not mixing unit signals and HLS signals"
-            what.endpoints.append(self)
+            src.endpoints.append(self)
 
-        self.where = where
+        self.dst = dst
 
         # from Assignment __init__
         self.isEventDependent = False
@@ -229,7 +228,7 @@ class HlsWrite(AbstractHlsOp, Assignment):
             indexes = ""
 
         return "<%s, %r <- %r%s>" % (self.__class__.__name__,
-                                     self.where, self.what, indexes)
+                                     self.dst, self.src, indexes)
 
 
 class HlsOperation(AbstractHlsOp):
