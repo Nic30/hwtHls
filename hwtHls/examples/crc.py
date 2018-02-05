@@ -1,13 +1,13 @@
 from hwt.synthesizer.vectorUtils import iterBits
 from hwtHls.hls import Hls
-from hwtLib.logic.crc import Crc
 from hwtLib.logic.crcPoly import CRC_32
 from hwtLib.logic.crcUtils import buildCrcMatrix_dataMatrix
+from hwtLib.logic.crcComb import CrcComb
 
 
-class CrcCombHls(Crc):
+class CrcCombHls(CrcComb):
     def _config(self):
-        Crc._config(self)
+        CrcComb._config(self)
         self.CLK_FREQ = 100e6
         self.POLY_WIDTH.set(32)
         self.DATA_WIDTH.set(8)
@@ -17,8 +17,7 @@ class CrcCombHls(Crc):
         with Hls(self, freq=self.CLK_FREQ) as hls:
             DW = int(self.DATA_WIDTH)
             # assert PW == DW
-            PW = int(self.POLY_WIDTH)
-            polyCoefs = self.parsePoly(PW)
+            polyCoefs, PW = self.parsePoly()
             xorMatrix = buildCrcMatrix_dataMatrix(polyCoefs, PW, DW)
 
             for outBit, inMask in zip(iterBits(self.dataOut),
