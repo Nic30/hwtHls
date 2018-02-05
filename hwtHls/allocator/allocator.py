@@ -36,8 +36,6 @@ class TimeIndependentRtlResource():
         index = end_clk(time, clk_period) - \
             start_clk(self.timeOffset, clk_period)
 
-        #print(index, getSignalName(self.valuesInTime[0]),
-        #      self.timeOffset / clk_period, time / clk_period)
         assert index >= 0, (self.timeOffset, time, self.valuesInTime[0])
         try:
             return self.valuesInTime[index]
@@ -162,6 +160,12 @@ class HlsAllocator():
 
         # apply indexes before assignments
         dst = write.dst
+        try:
+            _dst = self.parentHls._io[dst]
+            dst = _dst
+        except KeyError:
+            pass
+
         if write.indexes is not None:
             for i in write.indexes:
                 dst = dst[i]
