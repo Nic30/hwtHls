@@ -212,6 +212,7 @@ class HlsWrite(AbstractHlsOp, Assignment):
         self.indexes = indexCascade
         self.cond = AndReducedContainer()
         self._instId = Assignment._nextInstId()
+        hlsCntx.ctx.startsOfDataPaths.add(self)
 
     def resolve_realization(self):
         self.assignRealization(IO_COMB_REALIZATION)

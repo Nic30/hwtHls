@@ -1,5 +1,5 @@
 
-from typing import Union, Tuple, Dict, List, Set
+from typing import Union, Tuple, Dict, List
 
 from hwt.hdl.assignment import Assignment
 from hwt.hdl.operator import Operator
@@ -18,8 +18,12 @@ AssigOrOp = Union[Assignment, Operator]
 
 
 class SubgraphDestroyCntx():
+    """
+    Context container for subgraph destroy operation
+    """
+
     def __init__(self, endpoint_destroy_set, driver_destroy_set,
-                 inBoudaries, outBoundaries):
+                 inBoundaries, outBoundaries):
         """
         :param endpoint_destroy_set: set of RtlSignals to recursively
             destroy in endpoint direction (inputs)
@@ -28,31 +32,58 @@ class SubgraphDestroyCntx():
         """
         self.endpoint_destroy_set = endpoint_destroy_set
         self.driver_destroy_set = driver_destroy_set
-        self.inBoudaries = inBoudaries
+        self.inBoundaries = inBoundaries
         self.outBoundaries = outBoundaries
         self.destroyed = set()
 
 
 class RtlNetlistManipulator():
+    """
+    Container of RtlNetlist manipulation methods
+    """
+
     def __init__(self, cntx: RtlNetlist, io: Dict[HlsIO, Interface]={}):
+        """
+        :param cntx: instance of RtlNetlist where operations will be performed
+        :pram io: dictionary for IO binding of cntx
+        """
         self.cntx = cntx
         self.io = io
 
-    def destroy_subgraph(self, inSignals: List[RtlSignal], outSignals: [RtlSignal]):
+    def destroy_subgraph(self,
+                         inSignals: List[RtlSignal],
+                         outSignals: [RtlSignal]):
         """
+        Destroy sugraph specified by in/out signals
+
         :attention: boundary signals are not destroyed
-        :attention: all boundaries has to be specified otherwise parent graph will be damaged
+        :attention: all boundaries has to be specified
+            otherwise parent graph will be damaged
         """
         outSignals = set(outSignals)
         inSignals = set(inSignals)
         d_cntx = SubgraphDestroyCntx(
             inSignals.copy(), outSignals.copy(),
-            outSignals, inSignals)
+            inSignals, outSignals)
         drvs = d_cntx.driver_destroy_set
         eps = d_cntx.endpoint_destroy_set
+
+        print("inBoundaries")
+        for d in d_cntx.inBoundaries:
+            print("    " + repr(d))
+
+        print("outBoundaries")
+        for d in d_cntx.outBoundaries:
+            print("    " + repr(d))
+
         while drvs or eps:
-            print("drvs", drvs)
-            print("eps", eps)
+            print("drvs")
+            for d in drvs:
+                print("    " + repr(d))
+            print("eps")
+            for e in eps:
+                print("    " + repr(e))
+
             if drvs:
                 self.recursive_destroy_drivers(d_cntx)
             if eps:
@@ -61,6 +92,7 @@ class RtlNetlistManipulator():
     def recursive_destroy_drivers(self, cntx: SubgraphDestroyCntx):
         """
         Recursively disconect signals and it's drivers
+        until boundaries specified in cntx
         """
         destroyed = cntx.destroyed
         open_set = cntx.driver_destroy_set
@@ -76,6 +108,7 @@ class RtlNetlistManipulator():
     def recursive_destroy_endpoints(self, cntx: SubgraphDestroyCntx):
         """
         Recursively disconect signals and it's endpoints
+        until boundaries specified in cntx
         """
         destroyed = cntx.destroyed
         open_set = cntx.endpoint_destroy_set
@@ -88,87 +121,149 @@ class RtlNetlistManipulator():
                 endpoint = eps.pop()
                 self.destroy_endpoint(endpoint, cntx)
 
-    def destroy_driver(self, driver: Union[Operator, Assignment], cntx: SubgraphDestroyCntx):
+    def destroy_driver(self,
+                       driver: Union[Operator, Assignment],
+                       cntx: SubgraphDestroyCntx):
         """
-        :return: list of input signals to this driver
+        Destroy driver of signal and collect input signals of it
         """
-        boundaries = cntx.inBoudaries
+        boundaries = cntx.inBoundaries
         destroyed = cntx.destroyed
         to_destroy = cntx.driver_destroy_set
 
         if isinstance(driver, Assignment):
             # comming from dst
+            print("rm a (drv)", driver)
             self.cntx.startsOfDataPaths.remove(driver)
+
+            # destroy indexes
             if driver.indexes:
                 for i in driver.indexes:
                     if isinstance(i, RtlSignal):
                         if i not in boundaries and i not in destroyed:
+                            print("rm i (drv)", i)
                             to_destroy.add(i)
 
                 driver.indexes = None
-                for c in driver.cond:
-                    if isinstance(c, RtlSignal) and \
-                            c not in boundaries and \
-                            c not in destroyed:
-                        to_destroy.add(c)
-                driver.cond.clear()
 
-                src = driver.src
-                if isinstance(src, RtlSignal) and \
-                        src not in boundaries and \
-                        src not in destroyed:
-                    to_destroy.append(src)
-                driver.src = None
-                driver.dst = None
+            # destroy condition
+            for c in driver.cond:
+                if isinstance(c, RtlSignal) and \
+                        c not in boundaries and \
+                        c not in destroyed:
+                    print("rm cond (drv)", c)
+                    to_destroy.add(c)
+            driver.cond.clear()
+
+            # destroy src
+            src = driver.src
+            if isinstance(src, RtlSignal) and \
+                    src not in boundaries and \
+                    src not in destroyed:
+                print("rm src (drv)", src)
+                to_destroy.add(src)
+            driver.src = None
+            driver.dst = None
 
         elif isinstance(driver, Operator):
+            print("rm op (drv)", driver)
             # comming from result
-            to_destroy = cntx.driver_destroy_set
             for op in driver.operands:
                 if isinstance(op, RtlSignal):
                     if op not in boundaries and op not in destroyed:
+                        print("rm op-op (drv)", op)
                         to_destroy.add(op)
-                        print(op, driver)
                         try:
                             op.endpoints.remove(driver)
                         except KeyError:
                             pass
+            # result is already destroyed
+            res = driver.result
+            if res is not None:
+                driver.result = None
+                if res not in boundaries and res not in destroyed:
+                    print("rm op-res (drv)", res)
+                    to_destroy = cntx.endpoit_destroy_set.add(res)
+                    try:
+                        res.endpoints.remove(driver)
+                    except KeyError:
+                        pass
 
             driver.operands = []
         else:
             raise TypeError(driver)
 
     def destroy_endpoint(self, endpoint: Union[Operator, Assignment],
-                         boundaries: Set[RtlSignal],
-                         destroyed: Set[Union[RtlSignal, Operator, Assignment]]):
+                         cntx: SubgraphDestroyCntx):
         """
-        :return: outputs from this endpoint
+        Destroy endpoint of signal and collect output signals of it
         """
+        outBoundaries = cntx.outBoudaries
+        inBoundaries = cntx.inBoundaries
+
+        destroyed = cntx.destroyed
+        to_destroyDrv = cntx.endpoint_destroy_set
+        to_destroyEp = cntx.driver_destroy_set
+
         if isinstance(endpoint, Assignment):
+            # comming from dst
+            print("rm a (ep)", endpoint)
+            self.cntx.startsOfDataPaths.remove(endpoint)
+
+            # destroy indexes
             if endpoint.indexes:
                 for i in endpoint.indexes:
                     if isinstance(i, RtlSignal):
-                        self.recursive_destroy_drivers(
-                            i, boundaries, destroyed)
+                        if i not in inBoundaries and i not in destroyed:
+                            to_destroyDrv.add(i)
 
                 endpoint.indexes = None
-                for c in endpoint.cond:
-                    if isinstance(c, RtlSignal):
-                        self.recursive_destroy_drivers(
-                            c, boundaries, destroyed)
-                endpoint.cond.clear()
 
-                inputs.append(endpoint.dst)
-                endpoint.src = None
-                endpoint.dst = None
+            # destroy condition
+            for c in endpoint.cond:
+                if isinstance(c, RtlSignal) and \
+                        c not in inBoundaries and \
+                        c not in destroyed:
+                    to_destroyDrv.add(c)
+            endpoint.cond.clear()
+
+            # destroy dst
+            dst = endpoint.dst
+            if isinstance(dst, RtlSignal) and \
+                    dst not in outBoundaries and \
+                    dst not in destroyed:
+                to_destroyEp.append(dst)
+            endpoint.src = None
+            endpoint.dst = None
+
         elif isinstance(endpoint, Operator):
-            raise NotImplementedError()
+            # comming from result
+
+            # destroy other operands
+            for op in endpoint.operands:
+                if isinstance(op, RtlSignal):
+                    if op not in inBoundaries and op not in destroyed:
+                        to_destroyDrv.add(op)
+                        try:
+                            op.endpoints.remove(endpoint)
+                        except KeyError:
+                            pass
+            endpoint.operands = []
+
+            # destroy result
+            res = endpoint.result
+            endpoint.result = None
+            res.origin = None
+            res.drivers.remove(endpoint)
+            if res not in outBoundaries and res not in destroyed:
+                to_destroyEp.add(res)
+
         else:
             raise TypeError(endpoint)
 
     def reconnect_subgraph(self, inSignals: Dict[RtlSignal, RtlSignal],
                            outSignals: Dict[RtlSignal, RtlSignal]):
-
+        # reconnect boundaries of subgraph
         for sig, replacement in inSignals.items():
             if sig is not replacement:
                 self.reconnect_drivers_of(sig, replacement)
@@ -177,7 +272,8 @@ class RtlNetlistManipulator():
             if sig is not replacement:
                 self.reconnect_endpoints_of(sig, replacement)
 
-        #self.destroy_subgraph(inSignals.keys(), outSignals.keys())
+        # delete old subgraph
+        self.destroy_subgraph(inSignals.keys(), outSignals.keys())
 
     def reconnect_drivers_of(self, sig: SigOrVal,
                              replacement: SigOrVal):
@@ -256,7 +352,7 @@ class RtlNetlistManipulator():
             raise NotImplementedError()
         elif isinstance(driver, Assignment):
             if driver.dst is sig:
-                self.destroyAssignment(driver)
+                self.destroy_assignment(driver)
             else:
                 raise NotImplementedError()
         else:
