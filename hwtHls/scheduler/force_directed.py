@@ -201,7 +201,10 @@ class ForceDirectedScheduler(HlsScheduler):
         #    parent.alap_start -= time_diff
         #    parent.alap_end -= time_diff
 
-    def schedule(self):
+    def schedule(self, resource_constrain):
+        if resource_constrain:
+            raise NotImplementedError()
+
         # discover time interval where operations can be schedueled
         hls = self.parentHls
         maxTime = asap(hls.inputs, hls.outputs, hls.clk_period)

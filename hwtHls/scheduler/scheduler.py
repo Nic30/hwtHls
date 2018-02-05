@@ -68,7 +68,6 @@ def asap(inputs, outputs, clk_period):
         with asap_start,end time
     """
     # [TODO] cycle delays/latencies
-    #print("asap")
     maxTime = 0
     unresolved = set()
     asap_filter_inputs(inputs, unresolved)
@@ -100,7 +99,7 @@ def asap(inputs, outputs, clk_period):
             assert not node.fixed_schedulation
             node.asap_start = node_t
             node.asap_end = node_t + node.latency_pre
-            #print(node.__class__.__name__,
+            # print(node.__class__.__name__,
             #      node.asap_start / clk_period, node.asap_end / clk_period)
             asap_filter_inputs((node, ), nextUnresolved)
 
@@ -237,13 +236,17 @@ class HlsScheduler():
             assert node.scheduledIn <= node.scheduledInEnd
 
         for node in constants:
+            # [TODO] constants are cheduled multiple times
             time_start, time_end = node.scheduledIn, node.scheduledInEnd
             clk_index = start_clk(time_start, clk_period)
             schedulization[clk_index].append(node)
 
         self.schedulization = schedulization
 
-    def schedule(self):
+    def schedule(self, resource_constrain):
+        if resource_constrain:
+            raise NotImplementedError()
+
         hls = self.parentHls
         maxTime = asap(hls.inputs, hls.outputs, hls.clk_period)
         alap(hls.outputs, self.parentHls.clk_period, maxTime)
