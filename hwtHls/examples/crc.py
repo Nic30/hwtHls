@@ -1,8 +1,12 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+
 from hwt.synthesizer.vectorUtils import iterBits
 from hwtHls.hls import Hls
+from hwtLib.logic.crcComb import CrcComb
 from hwtLib.logic.crcPoly import CRC_32
 from hwtLib.logic.crcUtils import buildCrcMatrix_dataMatrix
-from hwtLib.logic.crcComb import CrcComb
 
 
 class CrcCombHls(CrcComb):
