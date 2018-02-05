@@ -1,16 +1,17 @@
+from typing import Union
+
+from hwt.hdl.assignment import Assignment
 from hwt.hdl.operator import Operator
+from hwt.hdl.types.defs import BIT
+from hwt.hdl.types.struct import HStruct
 from hwt.hdl.value import Value
+from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
+from hwt.synthesizer.rtlLevel.optimalizator import removeUnconnectedSignals
+from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.unit import Unit
 from hwtHls.codeOps import HlsRead, HlsWrite, HlsOperation,\
     HlsConst, AbstractHlsOp, HlsMux, HlsIO
-from hwt.hdl.types.defs import BIT
-from hwt.hdl.types.struct import HStruct
-from hwt.hdl.assignment import Assignment
-from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from pprint import pprint
-from typing import Union
-from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 
 
 class HLS_Error(Exception):
@@ -143,6 +144,16 @@ def hdlObj2Hls(obj: Union[RtlSignal, Value],
         assert isinstance(obj, HlsIO), obj
 
 
+def reconnect_endpoint_list(signals, oldEp, newEp):
+    for s in signals:
+        if isinstance(s, RtlSignal):
+            try:
+                s.endpoints.remove(oldEp)
+            except KeyError:
+                pass
+            s.endpoints.append(newEp)
+
+
 class Hls():
     """
     High level synthesiser context.
@@ -160,7 +171,7 @@ class Hls():
     """
 
     def __init__(self, parentUnit: Unit,
-                 freq, maxLatency=None, resources=None):
+                 freq, maxLatency=None, resource_constrain=None):
         self.parentUnit = parentUnit
         self.platform = parentUnit._targetPlatform
         if self.platform is None:
@@ -168,7 +179,7 @@ class Hls():
 
         self.clk_period = 1 / int(freq)
         self.maxLatency = maxLatency
-        self.resources = resources
+        self.resource_constrain = resource_constrain
         self.inputs = []
         self.outputs = []
         self._io = {}
@@ -196,6 +207,21 @@ class Hls():
 
         return self.ctx.sig(name, dtype=dtype, defVal=defVal)
 
+    def convert_indexed_io_assignments_to_HlsWrite(self):
+        to_destroy = []
+        assignments = self.ctx.startsOfDataPaths
+        for a in assignments:
+            if a.indexes and isinstance(a.dst, HlsIO):
+                to_destroy.append(a)
+                w = HlsWrite(self, a.src, a.dst)
+                w.indexes = a.indexes
+                reconnect_endpoint_list(w.indexes, a, w)
+                w.cond = a.cond
+                reconnect_endpoint_list(w.cond, a, w)
+
+        for a in to_destroy:
+            assignments.remove(a)
+
     def _discoverAllNodes(self):
         """
         Walk signals and extract operations as AbstractHlsOp
@@ -203,15 +229,17 @@ class Hls():
         (convert from representation with signals
          to directed graph of operations)
         """
+        self.convert_indexed_io_assignments_to_HlsWrite()
+        removeUnconnectedSignals(self.ctx)
+
         for io, ioIntf in self._io.items():
             if io.drivers:
                 if io.endpoints:
                     # R/W
                     raise NotImplementedError()
                 else:
-                    # WriteOnly
-                    w = HlsWrite(self, io, ioIntf)
-                    io.origin = w
+                    # WriteOnly, HlsWrite already created
+                    pass
             elif io.endpoints:
                 if io.drivers:
                     # R/W
@@ -241,7 +269,6 @@ class Hls():
 
         # list of discovered nodes
         nodes = list(nodeToHlsNode.values())
-        pprint(nodes)
         return nodes
 
     def synthesise(self):
@@ -252,7 +279,7 @@ class Hls():
         for n in self.nodes:
             n.resolve_realization()
 
-        self.scheduler.schedule()
+        self.scheduler.schedule(self.resource_constrain)
         self.allocator.allocate()
 
     def io(self, io):
@@ -261,7 +288,7 @@ class Hls():
         """
         name = "hls_io_" + getSignalName(io)
         dtype = io._dtype
-        _io = HlsIO(self.ctx, name, dtype)
+        _io = HlsIO(self, name, dtype)
         _io.hasGenericName = True
         self.ctx.signals.add(_io)
         self._io[_io] = io
