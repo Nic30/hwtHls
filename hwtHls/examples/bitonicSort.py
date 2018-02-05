@@ -21,9 +21,9 @@ class BitonicSorterHLS(BitonicSorter):
     def _impl(self):
         with Hls(self, self.CLK_FREQ) as hls:
             outs = self.bitonic_sort(self.cmpFn,
-                                     [hls.read(i) for i in self.inputs])
+                                     [hls.io(i) for i in self.inputs])
             for o, otmp in zip(self.outputs, outs):
-                hls.write(otmp, o)
+                hls.io(o)(otmp)
 
 
 class BitonicSorterHLS_large(BitonicSorterHLS):

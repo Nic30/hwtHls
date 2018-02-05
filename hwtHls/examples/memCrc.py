@@ -37,13 +37,13 @@ class MemCrc(Crc):
         with Hls(self, freq=self.CLK_FREQ) as hls:
             # collect all interfaces
             # hls see bram interface as array
-            mem = hls(self.mem.b)
-            run = hls(self.run)
-            hasherOut = hls(crc.dataOut)
-            hasherIn = hls(crc.dataIn)
-            crcOut = hls(self.crcOut)
+            mem = hls.io(self.mem.b)
+            run = hls.io(self.run)
+            hasherOut = hls.io(crc.dataOut)
+            hasherIn = hls.io(crc.dataIn)
+            crcOut = hls.io(self.crcOut)
             # tell hls that default state of this interface should be 0
-            clean = hls(crc.clean, pull=0)
+            clean = hls.io(crc.clean, pull=0)
 
             If = hls.If
 

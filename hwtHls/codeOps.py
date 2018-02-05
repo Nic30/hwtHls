@@ -132,7 +132,7 @@ class HlsConst(AbstractHlsOp):
         pass
 
 
-class HlsRead(AbstractHlsOp, Signal, Assignment):
+class HlsRead(AbstractHlsOp):
     """
     Hls plane to read from interface
 
@@ -150,7 +150,6 @@ class HlsRead(AbstractHlsOp, Signal, Assignment):
             dataSig = intf._sig
 
         t = dataSig._dtype
-        Signal.__init__(self, dtype=t)
 
         # from Assignment __init__
         self.isEventDependent = False
@@ -270,3 +269,12 @@ class HlsMux(HlsOperation):
     def __init__(self, parentHls, bit_length: int, name: str=None):
         super(HlsMux, self).__init__(
             parentHls, AllOps.TERNARY, bit_length, name=name)
+
+
+class HlsIO(RtlSignal):
+    """
+    Signal which is connected to outside of HLS context
+    """
+
+    def __repr__(self):
+        return "<HlsIO %s>" % self.name

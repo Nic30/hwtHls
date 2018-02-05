@@ -29,7 +29,7 @@ class AlapAsapDiffExample(Unit):
             # inputs has to be readed to enter hls scope
             # (without read() operation will not be schedueled by HLS
             #  but they will be directly synthesized)
-            a, b, c = [hls.read(intf)
+            a, b, c = [hls.io(intf)
                        for intf in [self.a, self.b, self.c]]
             # depending on target platform this expresion
             # can be mapped to DPS, LUT, etc...
@@ -37,7 +37,7 @@ class AlapAsapDiffExample(Unit):
             # to achieve zero delay and minimum latency, for this CLK_FREQ
             d = ~(~a & ~b) & ~c
 
-            hls.write(d, self.d)
+            hls.io(self.d)(d)
 
 
 def neg_8b(a):

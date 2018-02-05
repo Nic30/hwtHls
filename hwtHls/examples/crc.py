@@ -1,13 +1,13 @@
-from hwtLib.logic.crcComb import CrcComb
-from hwtHls.hls import Hls
-from hwtLib.logic.crcUtils import buildCrcMatrix_dataMatrix
 from hwt.synthesizer.vectorUtils import iterBits
+from hwtHls.hls import Hls
+from hwtLib.logic.crc import Crc
 from hwtLib.logic.crcPoly import CRC_32
+from hwtLib.logic.crcUtils import buildCrcMatrix_dataMatrix
 
 
-class CrcCombHls(CrcComb):
+class CrcCombHls(Crc):
     def _config(self):
-        CrcComb._config(self)
+        Crc._config(self)
         self.CLK_FREQ = 100e6
         self.POLY_WIDTH.set(32)
         self.DATA_WIDTH.set(8)
@@ -17,7 +17,8 @@ class CrcCombHls(CrcComb):
         with Hls(self, freq=self.CLK_FREQ) as hls:
             DW = int(self.DATA_WIDTH)
             # assert PW == DW
-            polyCoefs, PW = self.parsePoly()
+            PW = int(self.POLY_WIDTH)
+            polyCoefs = self.parsePoly(PW)
             xorMatrix = buildCrcMatrix_dataMatrix(polyCoefs, PW, DW)
 
             for outBit, inMask in zip(iterBits(self.dataOut),
@@ -26,13 +27,14 @@ class CrcCombHls(CrcComb):
                 for m, b in zip(reversed(inMask),
                                 iterBits(self.dataIn)):
                     if m:
+                        b = hls.io(b)
                         if bit is None:
-                            bit = hls.read(b)
+                            bit = b
                         else:
-                            bit = bit ^ hls.read(b)
+                            bit = bit ^ b
                 assert bit is not None
 
-                hls.write(bit, outBit)
+                hls.io(outBit)(bit)
 
 
 if __name__ == "__main__":

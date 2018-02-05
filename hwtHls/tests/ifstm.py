@@ -20,12 +20,11 @@ class SimpleIfStatementHls(SimpleIfStatement):
 
     def _impl(self):
         with Hls(self, freq=self.CLK_FREQ) as h:
-            r = h.read
-            a = r(self.a)
-            b = r(self.b)
-            c = r(self.c)
-
-            d = self._sig("d_tmp", self.d._dtype)
+            io = h.io
+            a = io(self.a)
+            b = io(self.b)
+            c = io(self.c)
+            d = io(self.d)
 
             If(a,
                 d(b),
@@ -34,8 +33,6 @@ class SimpleIfStatementHls(SimpleIfStatement):
             ).Else(
                 d(c)
             )
-
-            h.write(d, self.d)
 
 
 if __name__ == "__main__":  # alias python main function

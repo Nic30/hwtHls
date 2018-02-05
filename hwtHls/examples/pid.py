@@ -33,14 +33,14 @@ class PidControllerHls(PidController):
 
         # create arith. expressions between inputs and regs
         with Hls(self, freq=self.CLK_FREQ) as hls:
-            r = hls.read
-            err = r(self.input) - r(self.target)
-            a = [r(c) for c in self.coefs]
-            y = [r(_y) for _y in y]
+            io = hls.io
+            err = io(self.input) - io(self.target)
+            a = [io(c) for c in self.coefs]
+            y = [io(_y) for _y in y]
 
-            _u = Add(r(u), a[0] * err, a[1] * y[0],
+            _u = Add(io(u), a[0] * err, a[1] * y[0],
                      a[2] * y[1], a[3] * y[2], key=trim)
-            hls.write(_u, u)
+            hls.io(u)(_u)
 
         # propagate output value register to output
         self.output(u)

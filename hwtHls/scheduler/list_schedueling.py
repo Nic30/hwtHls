@@ -4,6 +4,7 @@ from itertools import chain
 from hwtHls.clk_math import start_clk, end_clk
 from hwtHls.codeOps import HlsConst, HlsOperation
 from hwtHls.scheduler.scheduler import HlsScheduler, asap
+from hwtHls.hls import HLS_Error
 
 
 def getComponentConstrainingFn(clk_period: float, comp_constrain):
@@ -125,7 +126,7 @@ class ListSchedueler(HlsScheduler):
         hls = self.parentHls
         clk_period = self.parentHls.clk_period
         # discover time interval where operations can be schedueled
-        #maxTime = self.asap()
+        # maxTime = self.asap()
         asap(hls.inputs, hls.outputs, clk_period)
         # self.alap(maxTime)
 
@@ -140,5 +141,8 @@ class ListSchedueler(HlsScheduler):
         sched = list_schedueling(
             hls.inputs, hls.nodes, hls.outputs,
             constrainFn, priorityFn)
+
+        if not sched:
+            raise HLS_Error("Everything was removed durning optimization")
 
         self.apply_scheduelization_dict(sched)

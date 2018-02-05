@@ -18,8 +18,8 @@ class HlsConnection(Unit):
 
     def _impl(self):
         with Hls(self, freq=int(100e6)) as hls:
-            a = hls.read(self.a)
-            hls.write(a, self.b)
+            a = hls.io(self.a)
+            hls.io(self.b)(a)
 
 
 class HlsSlice(Unit):
@@ -29,8 +29,15 @@ class HlsSlice(Unit):
 
     def _impl(self):
         with Hls(self, freq=int(100e6)) as hls:
-            a = hls.read(self.a)
-            hls.write(a[16:], self.b)
+            a = hls.io(self.a)
+            hls.io(a[16:])(self.b)
+
+
+class HlsSliceB(HlsSlice):
+    def _impl(self):
+        with Hls(self, freq=int(100e6)) as hls:
+            a = hls.io(self.a)
+            hls.io(a)[16:](self.b)
 
 
 class HlsSlice2(Unit):
@@ -40,9 +47,26 @@ class HlsSlice2(Unit):
 
     def _impl(self):
         with Hls(self, freq=int(100e6)) as hls:
-            a = hls.read(self.a)
-            hls.write(a, self.b[16:])
-            hls.write(16, self.b[:16])
+            a = hls.io(self.a)
+            hls.io(self.b[16:])(a)
+            hls.io(self.b[:16])(16)
+
+
+class HlsSlice2B(HlsSlice2):
+    def _impl(self):
+        with Hls(self, freq=int(100e6)) as hls:
+            a = hls.io(self.a)
+            hls.io(self.b)[16:](a)
+            hls.io(self.b)[:16](16)
+
+
+class HlsSlice2C(HlsSlice2):
+    def _impl(self):
+        with Hls(self, freq=int(100e6)) as hls:
+            a = hls.io(self.a)
+            b = hls.io(self.b)
+            b[16:](a)
+            b[:16](16)
 
 
 class HlsSlicingTC(SimTestCase):
@@ -57,23 +81,44 @@ class HlsSlicingTC(SimTestCase):
         data = [0, 1, 2, 3, 1 << 16]
         self._test(u, data, data)
 
-    def test_slice(self):
-        u = HlsSlice()
+    def _test_slice(self, cls):
+        u = cls()
         data_in = [0, 1, 2, 3, 1 << 16, 768 << 20]
         data_out = [d & mask(16) for d in data_in]
         self._test(u, data_in, data_out)
 
-    def test_slice2(self):
+    def test_slice(self):
+        self._test_slice(HlsSlice)
+
+    def test_sliceB(self):
+        self._test_slice(HlsSliceB)
+
+    def _test_slice2(self, cls):
         u = HlsSlice2()
         data_in = [0, 1, 2, 3]
         data_out = [d + (16 << 16) for d in data_in]
         self._test(u, data_in, data_out)
+
+    def test_slice2(self, cls):
+        self._test_slice2(HlsSlice2)
+
+    def test_slice2B(self, cls):
+        self._test_slice2(HlsSlice2B)
+
+    def test_slice2C(self, cls):
+        self._test_slice2(HlsSlice2C)
 
 
 if __name__ == "__main__":
     import unittest
 
     from hwt.synthesizer.utils import toRtl
+
+    suite = unittest.TestSuite()
+    # suite.addTest(FrameTmplTC('test_frameHeader'))
+    suite.addTest(unittest.makeSuite(HlsSlicingTC))
+    runner = unittest.TextTestRunner(verbosity=3)
+    runner.run(suite)
 
     u = HlsConnection()
     print(toRtl(u, targetPlatform=VirtualHlsPlatform()) + "\n")
@@ -83,9 +128,3 @@ if __name__ == "__main__":
 
     u = HlsSlice2()
     print(toRtl(u, targetPlatform=VirtualHlsPlatform()) + "\n")
-
-    suite = unittest.TestSuite()
-    # suite.addTest(FrameTmplTC('test_frameHeader'))
-    suite.addTest(unittest.makeSuite(HlsSlicingTC))
-    runner = unittest.TextTestRunner(verbosity=3)
-    runner.run(suite)

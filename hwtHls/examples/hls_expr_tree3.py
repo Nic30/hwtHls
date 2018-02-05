@@ -39,15 +39,15 @@ class HlsExprTree3_example(Unit):
             a, b, c, d = self.a, self.b, self.c, self.d
             x, y, z, w = self.x, self.y, self.z, self.w
 
-            r, wr = hls.read, hls.write
-            f1 = (r(a) + r(b) + r(c)) * r(d)
-            xy = r(x) + r(y)
-            f2 = xy * r(z)
-            f3 = xy * r(w)
+            io = hls.io
+            f1 = (io(a) + io(b) + io(c)) * io(d)
+            xy = io(x) + io(y)
+            f2 = xy * io(z)
+            f3 = xy * io(w)
 
-            wr(f1, self.f1)
-            wr(f2, self.f2)
-            wr(f3, self.f3)
+            io(self.f1)(f1)
+            io(self.f2)(f2)
+            io(self.f3)(f3)
 
 
 class HlsExprTree3_example_TC(SimTestCase):
