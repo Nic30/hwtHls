@@ -44,7 +44,3 @@ if __name__ == "__main__":
     u = CrcCombHls()
 
     print(toRtl(u, targetPlatform=VirtualHlsPlatform()))
-
-    suite = unittest.TestSuite()
-    # suite.addTest(FrameTmplTC('test_frameHeader'))
-    # suite.addTest(unittest.makeSuite(HlsMAC_example_TC))
