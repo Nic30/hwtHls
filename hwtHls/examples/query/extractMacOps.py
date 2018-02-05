@@ -1,3 +1,7 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+
 from hwt.interfaces.std import VectSignal
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.param import Param
@@ -6,6 +10,7 @@ from hwtHls.examples.query.rtlNetlistManipulator import RtlNetlistManipulator,\
     QuerySignal, HwSelect
 from hwtHls.hls import Hls
 from hwtHls.platform.virtual import VirtualHlsPlatform
+from pprint import pprint
 
 
 def MAC_qurey():
@@ -45,7 +50,7 @@ class MacExtractingHls(Hls):
             name = "mac%d" % i
             macU = MAC()
             setattr(self.parentUnit, name, macU)
-            print(mac)
+            pprint(mac)
 
             io = self.io
             new_a = io(macU.a)

@@ -1,4 +1,5 @@
-from typing import Union
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 from hwt.hdl.assignment import Assignment
 from hwt.hdl.operator import Operator
@@ -23,17 +24,17 @@ class FF_result():
     def replace(self, newOutput, newInput):
         inp = self.inputSig
         assig = inp.drivers[0]
-        m = RtlNetlistManipulator(self.parent.parent._cntx)
+        m = RtlNetlistManipulator(self.parent)
         if newInput is None:
-            m.disconnectDriverOf(inp, assig)
+            m.disconnect_driver_of(inp, assig)
         else:
             m.reconnectDriverOf(inp, assig, newInput)
 
         reg = self.regSig
         if newOutput is None:
-            m.disconnectEndpointOf(reg, assig)
+            m.disconnect_endpoint_of(reg, assig)
         else:
-            m.reconnectEndpointsOf(reg, newOutput)
+            m.reconnect_endpoints_of(reg, newOutput)
 
 
 class FF_select():
@@ -68,7 +69,7 @@ class OneFF(Unit):
         a_reg(self.a)
         self.b(a_reg)
 
-        s = FF_select(self)
+        s = FF_select(self._cntx)
         for ff in s.select():
             ff.replace(1, None)
 

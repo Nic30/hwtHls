@@ -2,11 +2,11 @@
 # -*- coding: utf-8 -*-
 
 
+from hwt.hdl.constants import Time
 from hwt.interfaces.utils import addClkRstn
 from hwtHls.hls import Hls
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtLib.logic.bitonicSorter import BitonicSorter, BitonicSorterTC
-from hwt.hdl.constants import Time
 
 
 class BitonicSorterHLS(BitonicSorter):

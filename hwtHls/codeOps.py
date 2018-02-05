@@ -3,6 +3,8 @@
 Bernsteins Synthesis Algorithm - database key dependencies, Lazy Thinking
 http://www.risc.jku.at/publications/download/risc_2335/2004-02-18-A.pdf
 """
+from typing import List
+
 from hwt.hdl.assignment import Assignment
 from hwt.hdl.operatorDefs import OpDefinition, AllOps
 from hwt.hdl.types.typeCast import toHVal
@@ -186,36 +188,31 @@ class HlsWrite(AbstractHlsOp, Assignment):
     :ivar dst: output interface not relatet to HLS
     """
 
-    def __init__(self, hlsCtx, src, dst):
-        AbstractHlsOp.__init__(self, hlsCtx, None)
+    def __init__(self, hlsCntx, src, dst):
+        AbstractHlsOp.__init__(self, hlsCntx, None)
         self.operator = "write"
         self.src = toHVal(src)
 
+        indexCascade = None
         if isinstance(dst, RtlSignal):
-            if not isinstance(dst, Signal):
+            if not isinstance(dst, (Signal, HlsIO)):
                 tmp = dst._getIndexCascade()
                 if tmp:
                     dst, indexCascade = tmp
-                else:
-                    indexCascade = None
-
-        else:
-            indexCascade = None
 
         if isinstance(src, RtlSignal):
-            assert src.ctx is hlsCtx.ctx, \
-                "Not mixing unit signals and HLS signals"
             src.endpoints.append(self)
-
+        dst.drivers.append(self)
         self.dst = dst
+        if isinstance(dst, HlsIO):
+            hlsCntx.outputs.append(self)
 
         # from Assignment __init__
         self.isEventDependent = False
         self.indexes = indexCascade
         self.cond = AndReducedContainer()
         self._instId = Assignment._nextInstId()
-
-        hlsCtx.outputs.append(self)
+        hlsCntx.ctx.startsOfDataPaths.add(self)
 
     def resolve_realization(self):
         self.assignRealization(IO_COMB_REALIZATION)
@@ -275,6 +272,17 @@ class HlsIO(RtlSignal):
     """
     Signal which is connected to outside of HLS context
     """
+
+    def __init__(self, hlsCntx, name, dtype, defaultVal=None, nopVal=None,
+                 useNopVal=False):
+        self.hlsCntx = hlsCntx
+        RtlSignal.__init__(
+            self, hlsCntx.ctx, name, dtype, defaultVal=defaultVal,
+            nopVal=nopVal, useNopVal=useNopVal)
+        self._interface = True
+
+    def __call__(self, source) -> List[Assignment]:
+        return HlsWrite(self.hlsCntx, source, self)
 
     def __repr__(self):
         return "<HlsIO %s>" % self.name

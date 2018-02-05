@@ -1,10 +1,13 @@
 eclipse.preferences.version=1
 encoding//hwtHls/examples/alapAsapDiffExample.py=utf-8
 encoding//hwtHls/examples/bitonicSort.py=utf-8
+encoding//hwtHls/examples/crc.py=utf-8
 encoding//hwtHls/examples/hls_expr_tree3.py=utf-8
 encoding//hwtHls/examples/mac.py=utf-8
 encoding//hwtHls/examples/memCrc.py=utf-8
 encoding//hwtHls/examples/pid.py=utf-8
+encoding//hwtHls/examples/query/extractMacOps.py=utf-8
+encoding//hwtHls/examples/query/selectFF.py=utf-8
 encoding//hwtHls/tests/all.py=utf-8
 encoding//hwtHls/tests/connection.py=utf-8
 encoding//hwtHls/tests/ifstm.py=utf-8

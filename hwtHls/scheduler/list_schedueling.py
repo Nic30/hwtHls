@@ -122,7 +122,7 @@ def list_schedueling(inputs, nodes, outputs, constrainFn, priorityFn):
 
 
 class ListSchedueler(HlsScheduler):
-    def schedule(self):
+    def schedule(self, resource_constrain):
         hls = self.parentHls
         clk_period = self.parentHls.clk_period
         # discover time interval where operations can be schedueled
@@ -130,10 +130,11 @@ class ListSchedueler(HlsScheduler):
         asap(hls.inputs, hls.outputs, clk_period)
         # self.alap(maxTime)
 
-        comp_constrain = {
-            #AllOps.MUL: 1
-        }
-        constrainFn = getComponentConstrainingFn(clk_period, comp_constrain)
+        if resource_constrain is None:
+            resource_constrain = {}
+
+        constrainFn = getComponentConstrainingFn(
+            clk_period, resource_constrain)
 
         def priorityFn(node):
             return node.asap_start
