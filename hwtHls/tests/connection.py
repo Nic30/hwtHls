@@ -30,14 +30,7 @@ class HlsSlice(Unit):
     def _impl(self):
         with Hls(self, freq=int(100e6)) as hls:
             a = hls.io(self.a)
-            hls.io(a[16:])(self.b)
-
-
-class HlsSliceB(HlsSlice):
-    def _impl(self):
-        with Hls(self, freq=int(100e6)) as hls:
-            a = hls.io(self.a)
-            hls.io(a)[16:](self.b)
+            hls.io(self.b)(a[16:])
 
 
 class HlsSlice2(Unit):
@@ -90,22 +83,19 @@ class HlsSlicingTC(SimTestCase):
     def test_slice(self):
         self._test_slice(HlsSlice)
 
-    def test_sliceB(self):
-        self._test_slice(HlsSliceB)
-
     def _test_slice2(self, cls):
         u = HlsSlice2()
         data_in = [0, 1, 2, 3]
         data_out = [d + (16 << 16) for d in data_in]
         self._test(u, data_in, data_out)
 
-    def test_slice2(self, cls):
+    def test_slice2(self):
         self._test_slice2(HlsSlice2)
 
-    def test_slice2B(self, cls):
+    def test_slice2B(self):
         self._test_slice2(HlsSlice2B)
 
-    def test_slice2C(self, cls):
+    def test_slice2C(self):
         self._test_slice2(HlsSlice2C)
 
 
@@ -123,8 +113,5 @@ if __name__ == "__main__":
     u = HlsConnection()
     print(toRtl(u, targetPlatform=VirtualHlsPlatform()) + "\n")
 
-    u = HlsSlice()
-    print(toRtl(u, targetPlatform=VirtualHlsPlatform()))
-
     u = HlsSlice2()
-    print(toRtl(u, targetPlatform=VirtualHlsPlatform()) + "\n")
+    print(toRtl(u, targetPlatform=VirtualHlsPlatform()))
