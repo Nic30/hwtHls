@@ -154,7 +154,7 @@ class HlsRead(AbstractHlsOp):
         t = dataSig._dtype
 
         # from Assignment __init__
-        self.isEventDependent = False
+        self._now_is_event_dependent = False
         self.indexes = None
         self.cond = AndReducedContainer()
         self._instId = Assignment._nextInstId()
