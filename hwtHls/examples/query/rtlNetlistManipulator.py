@@ -5,10 +5,10 @@ from hwt.hdl.assignment import Assignment
 from hwt.hdl.operator import Operator
 from hwt.hdl.operatorDefs import OpDefinition, AllOps
 from hwt.hdl.value import Value
+from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwt.synthesizer.uniqList import UniqList
 from hwt.synthesizer.unit import Unit
 from hwtHls.codeOps import HlsIO
 
@@ -42,12 +42,12 @@ class RtlNetlistManipulator():
     Container of RtlNetlist manipulation methods
     """
 
-    def __init__(self, cntx: RtlNetlist, io: Dict[HlsIO, Interface]={}):
+    def __init__(self, ctx: RtlNetlist, io: Dict[HlsIO, Interface]={}):
         """
-        :param cntx: instance of RtlNetlist where operations will be performed
-        :pram io: dictionary for IO binding of cntx
+        :param ctx: instance of RtlNetlist where operations will be performed
+        :pram io: dictionary for IO binding of ctx
         """
-        self.cntx = cntx
+        self.ctx = ctx
         self.io = io
 
     def destroy_subgraph(self,
@@ -62,40 +62,25 @@ class RtlNetlistManipulator():
         """
         outSignals = set(outSignals)
         inSignals = set(inSignals)
-        d_cntx = SubgraphDestroyCntx(
+        d_ctx = SubgraphDestroyCntx(
             inSignals.copy(), outSignals.copy(),
             inSignals, outSignals)
-        drvs = d_cntx.driver_destroy_set
-        eps = d_cntx.endpoint_destroy_set
-
-        print("inBoundaries")
-        for d in d_cntx.inBoundaries:
-            print("    " + repr(d))
-
-        print("outBoundaries")
-        for d in d_cntx.outBoundaries:
-            print("    " + repr(d))
+        drvs = d_ctx.driver_destroy_set
+        eps = d_ctx.endpoint_destroy_set
 
         while drvs or eps:
-            print("drvs")
-            for d in drvs:
-                print("    " + repr(d))
-            print("eps")
-            for e in eps:
-                print("    " + repr(e))
-
             if drvs:
-                self.recursive_destroy_drivers(d_cntx)
+                self.recursive_destroy_drivers(d_ctx)
             if eps:
-                self.recursive_destroy_endpoints(d_cntx)
+                self.recursive_destroy_endpoints(d_ctx)
 
-    def recursive_destroy_drivers(self, cntx: SubgraphDestroyCntx):
+    def recursive_destroy_drivers(self, ctx: SubgraphDestroyCntx):
         """
         Recursively disconect signals and it's drivers
-        until boundaries specified in cntx
+        until boundaries specified in ctx
         """
-        destroyed = cntx.destroyed
-        open_set = cntx.driver_destroy_set
+        destroyed = ctx.destroyed
+        open_set = ctx.driver_destroy_set
 
         while open_set:
             sig = open_set.pop()
@@ -103,15 +88,15 @@ class RtlNetlistManipulator():
             drvs = sig.drivers
             while drvs:
                 driver = drvs.pop()
-                self.destroy_driver(driver, cntx)
+                self.destroy_driver(driver, ctx)
 
-    def recursive_destroy_endpoints(self, cntx: SubgraphDestroyCntx):
+    def recursive_destroy_endpoints(self, ctx: SubgraphDestroyCntx):
         """
         Recursively disconect signals and it's endpoints
-        until boundaries specified in cntx
+        until boundaries specified in ctx
         """
-        destroyed = cntx.destroyed
-        open_set = cntx.endpoint_destroy_set
+        destroyed = ctx.destroyed
+        open_set = ctx.endpoint_destroy_set
 
         while open_set:
             sig = open_set.pop()
@@ -119,29 +104,27 @@ class RtlNetlistManipulator():
             eps = sig.endpoints
             while eps:
                 endpoint = eps.pop()
-                self.destroy_endpoint(endpoint, cntx)
+                self.destroy_endpoint(endpoint, ctx)
 
     def destroy_driver(self,
                        driver: Union[Operator, Assignment],
-                       cntx: SubgraphDestroyCntx):
+                       ctx: SubgraphDestroyCntx):
         """
         Destroy driver of signal and collect input signals of it
         """
-        boundaries = cntx.inBoundaries
-        destroyed = cntx.destroyed
-        to_destroy = cntx.driver_destroy_set
+        boundaries = ctx.inBoundaries
+        destroyed = ctx.destroyed
+        to_destroy = ctx.driver_destroy_set
 
         if isinstance(driver, Assignment):
             # comming from dst
-            print("rm a (drv)", driver)
-            self.cntx.startsOfDataPaths.remove(driver)
+            self.ctx.statements.remove(driver)
 
             # destroy indexes
             if driver.indexes:
                 for i in driver.indexes:
                     if isinstance(i, RtlSignal):
                         if i not in boundaries and i not in destroyed:
-                            print("rm i (drv)", i)
                             to_destroy.add(i)
 
                 driver.indexes = None
@@ -151,7 +134,6 @@ class RtlNetlistManipulator():
                 if isinstance(c, RtlSignal) and \
                         c not in boundaries and \
                         c not in destroyed:
-                    print("rm cond (drv)", c)
                     to_destroy.add(c)
             driver.cond.clear()
 
@@ -160,18 +142,15 @@ class RtlNetlistManipulator():
             if isinstance(src, RtlSignal) and \
                     src not in boundaries and \
                     src not in destroyed:
-                print("rm src (drv)", src)
                 to_destroy.add(src)
             driver.src = None
             driver.dst = None
 
         elif isinstance(driver, Operator):
-            print("rm op (drv)", driver)
             # comming from result
             for op in driver.operands:
                 if isinstance(op, RtlSignal):
                     if op not in boundaries and op not in destroyed:
-                        print("rm op-op (drv)", op)
                         to_destroy.add(op)
                         try:
                             op.endpoints.remove(driver)
@@ -182,33 +161,31 @@ class RtlNetlistManipulator():
             if res is not None:
                 driver.result = None
                 if res not in boundaries and res not in destroyed:
-                    print("rm op-res (drv)", res)
-                    to_destroy = cntx.endpoit_destroy_set.add(res)
+                    to_destroy = ctx.endpoit_destroy_set.add(res)
                     try:
                         res.endpoints.remove(driver)
                     except KeyError:
                         pass
 
-            driver.operands = []
+            #driver.operands = ()
         else:
             raise TypeError(driver)
 
     def destroy_endpoint(self, endpoint: Union[Operator, Assignment],
-                         cntx: SubgraphDestroyCntx):
+                         ctx: SubgraphDestroyCntx):
         """
         Destroy endpoint of signal and collect output signals of it
         """
-        outBoundaries = cntx.outBoudaries
-        inBoundaries = cntx.inBoundaries
+        outBoundaries = ctx.outBoundaries
+        inBoundaries = ctx.inBoundaries
 
-        destroyed = cntx.destroyed
-        to_destroyDrv = cntx.endpoint_destroy_set
-        to_destroyEp = cntx.driver_destroy_set
+        destroyed = ctx.destroyed
+        to_destroyDrv = ctx.endpoint_destroy_set
+        to_destroyEp = ctx.driver_destroy_set
 
         if isinstance(endpoint, Assignment):
             # comming from dst
-            print("rm a (ep)", endpoint)
-            self.cntx.startsOfDataPaths.remove(endpoint)
+            self.ctx.statements.remove(endpoint)
 
             # destroy indexes
             if endpoint.indexes:
@@ -248,32 +225,58 @@ class RtlNetlistManipulator():
                             op.endpoints.remove(endpoint)
                         except KeyError:
                             pass
-            endpoint.operands = []
+            #endpoint.operands = []
 
             # destroy result
             res = endpoint.result
-            endpoint.result = None
-            res.origin = None
-            res.drivers.remove(endpoint)
-            if res not in outBoundaries and res not in destroyed:
-                to_destroyEp.add(res)
+            if res:
+                endpoint.result = None
+                res.origin = None
+                res.drivers.remove(endpoint)
+                if res not in outBoundaries and res not in destroyed:
+                    to_destroyEp.add(res)
 
         else:
             raise TypeError(endpoint)
 
     def reconnect_subgraph(self, inSignals: Dict[RtlSignal, RtlSignal],
                            outSignals: Dict[RtlSignal, RtlSignal]):
+
+        io_connections = []
+        io = self.io
         # reconnect boundaries of subgraph
         for sig, replacement in inSignals.items():
             if sig is not replacement:
-                self.reconnect_drivers_of(sig, replacement)
+                if io:
+                    _sig = io.get(sig, None)
+                else:
+                    _sig = None
+                if _sig is None:
+                    # directly replace signal with replacement
+                    self.reconnect_drivers_of(sig, replacement)
+                else:
+                    # signal can not be replaced and replacement
+                    # has to be connected to this signal
+                    io_connections.append((sig, replacement))
 
         for sig, replacement in outSignals.items():
             if sig is not replacement:
-                self.reconnect_endpoints_of(sig, replacement)
+                if io:
+                    _sig = io.get(sig, None)
+                else:
+                    _sig = None
+                if _sig is None:
+                    # directly replace signal with replacement
+                    self.reconnect_endpoints_of(sig, replacement)
+                else:
+                    # signal can not be replaced and replacement
+                    # has to be connected to this signal
+                    io_connections.append((replacement, sig))
 
         # delete old subgraph
         self.destroy_subgraph(inSignals.keys(), outSignals.keys())
+        for src, dst in io_connections:
+            dst(src)
 
     def reconnect_drivers_of(self, sig: SigOrVal,
                              replacement: SigOrVal):
@@ -343,7 +346,7 @@ class RtlNetlistManipulator():
 
         a.src.endpoints.remove(a)
         a.dst.drivers.remove(a)
-        self.cntx.startsOfDataPaths.remove(a)
+        self.ctx.statements.remove(a)
 
     def disconnect_driver_of(self, sig: RtlSignal,
                              driver: AssigOrOp):

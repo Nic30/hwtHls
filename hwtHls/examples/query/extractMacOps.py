@@ -4,13 +4,13 @@
 
 from hwt.interfaces.std import VectSignal
 from hwt.interfaces.utils import addClkRstn
+from hwt.serializer.mode import serializeOnce
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
 from hwtHls.examples.query.rtlNetlistManipulator import RtlNetlistManipulator,\
     QuerySignal, HwSelect
 from hwtHls.hls import Hls
 from hwtHls.platform.virtual import VirtualHlsPlatform
-from pprint import pprint
 
 
 def MAC_qurey():
@@ -25,6 +25,7 @@ def MAC_qurey():
     return out
 
 
+@serializeOnce
 class MAC(Unit):
     def _config(self):
         self.DATA_WIDTH = Param(32)
@@ -50,7 +51,6 @@ class MacExtractingHls(Hls):
             name = "mac%d" % i
             macU = MAC()
             setattr(self.parentUnit, name, macU)
-            pprint(mac)
 
             io = self.io
             new_a = io(macU.a)
@@ -67,18 +67,6 @@ class MacExtractingHls(Hls):
             }, {
                 mac["out"]: new_out
             })
-
-            # substitute io signals in _io mapping
-            _io = self._io
-            for oldIo, newIo in [(mac["a"], new_a),
-                                 (mac["b"], new_b),
-                                 (mac["c"], new_c),
-                                 (mac["d"], new_d),
-                                 #(mac["out"], new_out)
-                                 ]:
-                assert newIo.endpoints, newIo
-                _io[newIo] = _io[oldIo]
-                del _io[oldIo]
 
         nodes = Hls._discoverAllNodes(self)
         return nodes
@@ -99,11 +87,11 @@ class GroupOfMacOps(Unit):
 
         self.dataOut0 = VectSignal(64, signed=False)
 
-        # self.dataIn1 = [VectSignal(32, signed=False)
-        #                for _ in range(int(self.INPUT_CNT))]
-        #self._registerArray("dataIn1", self.dataIn1)
-        #
-        #self.dataOut1 = VectSignal(64, signed=False)
+        self.dataIn1 = [VectSignal(32, signed=False)
+                        for _ in range(int(self.INPUT_CNT))]
+        self._registerArray("dataIn1", self.dataIn1)
+
+        self.dataOut1 = VectSignal(64, signed=False)
 
     def _impl(self):
         def mac(hls, inputs, out):
@@ -113,7 +101,7 @@ class GroupOfMacOps(Unit):
 
         with MacExtractingHls(self, freq=self.CLK_FREQ) as hls:
             mac(hls, self.dataIn0, self.dataOut0)
-            #mac(hls, self.dataIn1, self.dataOut1)
+            mac(hls, self.dataIn1, self.dataOut1)
 
 
 if __name__ == "__main__":

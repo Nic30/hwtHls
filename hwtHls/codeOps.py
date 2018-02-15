@@ -9,11 +9,11 @@ from hwt.hdl.assignment import Assignment
 from hwt.hdl.operatorDefs import OpDefinition, AllOps
 from hwt.hdl.types.typeCast import toHVal
 from hwt.interfaces.std import Signal
-from hwt.synthesizer.andReducedContainer import AndReducedContainer
+from hwt.pyUtils.andReducedList import AndReducedList
+from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwt.synthesizer.uniqList import UniqList
 from hwtHls.clk_math import start_clk
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta,\
     UNSPECIFIED_OP_REALIZATION
@@ -156,7 +156,7 @@ class HlsRead(AbstractHlsOp):
         # from Assignment __init__
         self._now_is_event_dependent = False
         self.indexes = None
-        self.cond = AndReducedContainer()
+        self.cond = AndReducedList()
         self._instId = Assignment._nextInstId()
 
         # instantiate signal for value from this read
@@ -210,9 +210,9 @@ class HlsWrite(AbstractHlsOp, Assignment):
         # from Assignment __init__
         self.isEventDependent = False
         self.indexes = indexCascade
-        self.cond = AndReducedContainer()
+        self.cond = AndReducedList()
         self._instId = Assignment._nextInstId()
-        hlsCntx.ctx.startsOfDataPaths.add(self)
+        hlsCntx.ctx.statements.add(self)
 
     def resolve_realization(self):
         self.assignRealization(IO_COMB_REALIZATION)

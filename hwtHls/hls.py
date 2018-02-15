@@ -209,7 +209,7 @@ class Hls():
 
     def convert_indexed_io_assignments_to_HlsWrite(self):
         to_destroy = []
-        assignments = self.ctx.startsOfDataPaths
+        assignments = self.ctx.statements
         for a in assignments:
             if a.indexes and isinstance(a.dst, HlsIO):
                 to_destroy.append(a)

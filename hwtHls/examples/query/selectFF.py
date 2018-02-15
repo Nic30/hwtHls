@@ -69,7 +69,7 @@ class OneFF(Unit):
         a_reg(self.a)
         self.b(a_reg)
 
-        s = FF_select(self._cntx)
+        s = FF_select(self._ctx)
         for ff in s.select():
             ff.replace(1, None)
 
