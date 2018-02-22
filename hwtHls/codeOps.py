@@ -273,11 +273,11 @@ class HlsIO(RtlSignal):
     Signal which is connected to outside of HLS context
     """
 
-    def __init__(self, hlsCntx, name, dtype, defaultVal=None, nopVal=None,
+    def __init__(self, hlsCntx, name, dtype, defVal=None, nopVal=None,
                  useNopVal=False):
         self.hlsCntx = hlsCntx
         RtlSignal.__init__(
-            self, hlsCntx.ctx, name, dtype, defaultVal=defaultVal,
+            self, hlsCntx.ctx, name, dtype, defVal=defVal,
             nopVal=nopVal, useNopVal=useNopVal)
         self._interface = True
 
