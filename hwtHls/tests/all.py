@@ -15,13 +15,13 @@ from hwtHls.tests.connection import HlsSlicingTC
 from hwtHls.scheduler.list_schedueling_test import ListSchedueling_TC
 
 
-def doSimWithoutLog(self, time, name=None, config=None):
+def doSimWithoutLog(self, until, name=None, config=None):
     sim = HdlSimulator()
     # dummy config
     sim.config = HdlSimConfig()
     # run simulation, stimul processes are register after initial
     # initialization
-    sim.simUnit(self.model, time=time, extraProcesses=self.procs)
+    sim.simUnit(self.model, until=until, extraProcesses=self.procs)
     return sim
 
 
