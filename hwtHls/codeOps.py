@@ -3,13 +3,12 @@
 Bernsteins Synthesis Algorithm - database key dependencies, Lazy Thinking
 http://www.risc.jku.at/publications/download/risc_2335/2004-02-18-A.pdf
 """
-from typing import List
+from typing import List, Union
 
 from hwt.hdl.assignment import Assignment
 from hwt.hdl.operatorDefs import OpDefinition, AllOps
 from hwt.hdl.types.typeCast import toHVal
 from hwt.interfaces.std import Signal
-from hwt.pyUtils.andReducedList import AndReducedList
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
@@ -17,6 +16,8 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.clk_math import start_clk
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta,\
     UNSPECIFIED_OP_REALIZATION
+from hwt.hdl.value import Value
+from hwt.synthesizer.interface import Interface
 
 
 IO_COMB_REALIZATION = OpRealizationMeta(latency_post=0.1e-9)
@@ -44,7 +45,7 @@ class AbstractHlsOp():
     :ivar cycles_dealy: number of clk cycles required to process data
     """
 
-    def __init__(self, parentHls, bit_length: int, name: str=None,
+    def __init__(self, parentHls: "Hls", bit_length: int, name: str=None,
                  realization: OpRealizationMeta=UNSPECIFIED_OP_REALIZATION):
         self.name = name
         self.hls = parentHls
@@ -103,7 +104,7 @@ class HlsConst(AbstractHlsOp):
     Wrapper around constant value for HLS sybsystem
     """
 
-    def __init__(self, val):
+    def __init__(self, val: Value):
         self.name = None
         self.hls = None
         self.usedBy = UniqList()
@@ -111,7 +112,7 @@ class HlsConst(AbstractHlsOp):
         self.val = val
         self.fixed_schedulation = True
 
-    def get(self, time):
+    def get(self, time: float):
         return self.val
 
     @property
@@ -142,7 +143,7 @@ class HlsRead(AbstractHlsOp):
     :ivar intf: original interface from which read should be performed
     """
 
-    def __init__(self, parentHls, intf):
+    def __init__(self, parentHls: "Hls", intf: Union[RtlSignal, Interface]):
         AbstractHlsOp.__init__(self, parentHls, None)
         self.operator = "read"
 
@@ -156,7 +157,6 @@ class HlsRead(AbstractHlsOp):
         # from Assignment __init__
         self._now_is_event_dependent = False
         self.indexes = None
-        self.cond = AndReducedList()
         self._instId = Assignment._nextInstId()
 
         # instantiate signal for value from this read
@@ -188,8 +188,8 @@ class HlsWrite(AbstractHlsOp, Assignment):
     :ivar dst: output interface not relatet to HLS
     """
 
-    def __init__(self, hlsCntx, src, dst):
-        AbstractHlsOp.__init__(self, hlsCntx, None)
+    def __init__(self, parentHls: "Hls", src, dst):
+        AbstractHlsOp.__init__(self, parentHls, None)
         self.operator = "write"
         self.src = toHVal(src)
 
@@ -205,14 +205,13 @@ class HlsWrite(AbstractHlsOp, Assignment):
         dst.drivers.append(self)
         self.dst = dst
         if isinstance(dst, HlsIO):
-            hlsCntx.outputs.append(self)
+            parentHls.outputs.append(self)
 
         # from Assignment __init__
         self.isEventDependent = False
         self.indexes = indexCascade
-        self.cond = AndReducedList()
         self._instId = Assignment._nextInstId()
-        hlsCntx.ctx.statements.add(self)
+        parentHls.ctx.statements.add(self)
 
     def resolve_realization(self):
         self.assignRealization(IO_COMB_REALIZATION)
@@ -234,7 +233,7 @@ class HlsOperation(AbstractHlsOp):
     :ivar operator: parent RTL operator for this hsl operator
     """
 
-    def __init__(self, parentHls,
+    def __init__(self, parentHls: "Hls",
                  operator: OpDefinition, bit_length: int,  name=None):
         super(HlsOperation, self).__init__(parentHls, bit_length, name=name)
         self.operator = operator
@@ -256,16 +255,6 @@ class HlsOperation(AbstractHlsOp):
         return "<%s %r %r>" % (self.__class__.__name__,
                                self.operator,
                                self.dependsOn)
-
-
-class HlsMux(HlsOperation):
-    """
-    :note: dependsOn  in fommat [cond0, input0, cond1, intput1, ...]
-    """
-
-    def __init__(self, parentHls, bit_length: int, name: str=None):
-        super(HlsMux, self).__init__(
-            parentHls, AllOps.TERNARY, bit_length, name=name)
 
 
 class HlsIO(RtlSignal):

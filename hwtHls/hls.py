@@ -11,7 +11,8 @@ from hwt.synthesizer.rtlLevel.optimalizator import removeUnconnectedSignals
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.unit import Unit
 from hwtHls.codeOps import HlsRead, HlsWrite, HlsOperation,\
-    HlsConst, AbstractHlsOp, HlsMux, HlsIO
+    HlsConst, AbstractHlsOp, HlsIO
+from hwt.code import If
 
 
 class HLS_Error(Exception):
@@ -69,19 +70,8 @@ def mux2Hls(obj: RtlSignal, hls, nodeToHlsNode: dict):
     _obj = HlsMux(hls, obj._dtype.bit_length(), name=name)
     nodeToHlsNode[obj] = _obj
 
-    # check if conditions are in suitable format for simple MUX
-    if len(obj.drivers) != 2:
-        raise NotImplementedError()
-
-    ifTrue, ifFalse = obj.drivers
-    if len(ifTrue.cond) != len(ifFalse.cond) != 1:
-        raise NotImplementedError(ifTrue.cond, ifFalse.cond)
-
-    if ifTrue.cond[0] is not ~ifFalse.cond[0]:
-        raise NotImplementedError(ifTrue.cond, ifFalse.cond)
-
     # add condition to dependencies of this MUX operator
-    c = hdlObj2Hls(obj.drivers[0].cond[0],  hls, nodeToHlsNode)
+    c = hdlObj2Hls(obj.drivers[0].cond,  hls, nodeToHlsNode)
     link_nodes(c, _obj)
 
     for a in obj.drivers:
@@ -99,23 +89,30 @@ def driver2Hls(obj, hls, nodeToHlsNode: dict) -> AbstractHlsOp:
     if isinstance(obj, HlsRead):
         nodeToHlsNode[obj] = obj
         return obj
+
     elif isinstance(obj, HlsWrite):
         nodeToHlsNode[obj] = obj
         if obj.cond or obj.indexes:
             raise NotImplementedError()
 
         return hdlObj2Hls(obj.src, hls, nodeToHlsNode)
+
     elif isinstance(obj, Operator):
         return operator2Hls(obj, hls, nodeToHlsNode)
+
     elif isinstance(obj, Assignment):
         if obj.cond or obj.indexes:
             raise NotImplementedError()
 
         src = hdlObj2Hls(obj.src, hls, nodeToHlsNode)
         dst = nodeToHlsNode[obj.dst.endpoints[0]]
-
         link_nodes(src, dst)
+
         return src
+
+    elif isinstance(obj, If):
+        raise NotImplementedError(obj)
+
     else:
         raise NotImplementedError(obj)
 
@@ -187,7 +184,6 @@ class Hls():
 
         self.scheduler = self.platform.scheduler(self)
         self.allocator = self.platform.allocator(self)
-        # (still float div)
         self.platform.onHlsInit(self)
 
     def var(self, name, dtype=BIT, defVal=None):
@@ -209,9 +205,12 @@ class Hls():
 
     def convert_indexed_io_assignments_to_HlsWrite(self):
         to_destroy = []
-        assignments = self.ctx.statements
-        for a in assignments:
-            if a.indexes and isinstance(a.dst, HlsIO):
+        statements = self.ctx.statements
+        for stm in statements:
+            if isinstance(stm, Assignment)\
+                    and stm.indexes\
+                    and isinstance(stm.dst, HlsIO):
+                a = stm
                 to_destroy.append(a)
                 w = HlsWrite(self, a.src, a.dst)
                 w.indexes = a.indexes
@@ -220,7 +219,7 @@ class Hls():
                 reconnect_endpoint_list(w.cond, a, w)
 
         for a in to_destroy:
-            assignments.remove(a)
+            statements.remove(a)
 
     def _discoverAllNodes(self):
         """
@@ -269,6 +268,7 @@ class Hls():
 
         # list of discovered nodes
         nodes = list(nodeToHlsNode.values())
+
         return nodes
 
     def synthesise(self):
