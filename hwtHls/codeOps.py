@@ -18,6 +18,7 @@ from hwtHls.platform.opRealizationMeta import OpRealizationMeta,\
     UNSPECIFIED_OP_REALIZATION
 from hwt.hdl.value import Value
 from hwt.synthesizer.interface import Interface
+from hwt.hdl.statements import HdlStatement
 
 
 IO_COMB_REALIZATION = OpRealizationMeta(latency_post=0.1e-9)
@@ -98,6 +99,9 @@ class AbstractHlsOp():
     def asHwt(self, serializer, ctx):
         return repr(self)
 
+    def _get_rtl_context(self):
+        return self.hls.ctx
+
 
 class HlsConst(AbstractHlsOp):
     """
@@ -146,6 +150,7 @@ class HlsRead(AbstractHlsOp):
     def __init__(self, parentHls: "Hls", intf: Union[RtlSignal, Interface]):
         AbstractHlsOp.__init__(self, parentHls, None)
         self.operator = "read"
+        HdlStatement.__init__(self)
 
         if isinstance(intf, RtlSignalBase):
             dataSig = intf
@@ -190,6 +195,7 @@ class HlsWrite(AbstractHlsOp, Assignment):
 
     def __init__(self, parentHls: "Hls", src, dst):
         AbstractHlsOp.__init__(self, parentHls, None)
+        HdlStatement.__init__(self)
         self.operator = "write"
         self.src = toHVal(src)
 

@@ -28,8 +28,8 @@ class SimpleIfStatementHls(SimpleIfStatement):
 
             If(a,
                 d(b),
-            #).Elif(b,
-            #    d(c),
+            ).Elif(b,
+                d(c),
             ).Else(
                 d(c)
             )

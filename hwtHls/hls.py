@@ -101,7 +101,7 @@ def driver2Hls(obj, hls, nodeToHlsNode: dict) -> AbstractHlsOp:
         return operator2Hls(obj, hls, nodeToHlsNode)
 
     elif isinstance(obj, Assignment):
-        if obj.cond or obj.indexes:
+        if obj.parentStm is not None or obj.indexes:
             raise NotImplementedError()
 
         src = hdlObj2Hls(obj.src, hls, nodeToHlsNode)
