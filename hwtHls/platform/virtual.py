@@ -7,6 +7,7 @@ from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.scheduler.force_directed import ForceDirectedScheduler
 from hwtHls.scheduler.list_schedueling import ListSchedueler
 from hwtHls.scheduler.scheduler import HlsScheduler
+from hwt.synthesizer.dummyPlatform import DummyPlatform
 
 
 _OPS_T_GROWING_EXP = {
@@ -39,7 +40,7 @@ _OPS_T_GROWING_CONST = {
 }
 
 
-class VirtualHlsPlatform():
+class VirtualHlsPlatform(DummyPlatform):
     """
     Platform with informations about target platform
     and configuration of HLS
@@ -48,6 +49,7 @@ class VirtualHlsPlatform():
     """
 
     def __init__(self):
+        super(VirtualHlsPlatform, self).__init__()
         # operator: seconds to perform
         self._OP_DELAYS = {
             # exponentially growing with bit width
