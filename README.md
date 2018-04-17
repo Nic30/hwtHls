@@ -12,10 +12,10 @@ HLS for [HWToolkit](https://github.com/Nic30/HWToolkit) (hardware devel. toolkit
 * Not done yet:
   * Complex operation reducing (DSP, LUT, CLB ...)
   * Universal tree balancing, operation reordering
-  * All platfoms
+  * All platforms
   * Loop agenda
-  * memory acess pattern recognizition, partition (fifo, single/double port ram ...)
-  * allocation, schedueling solved by temporary solutions (partial true)
+  * memory access pattern recognization, partition (fifo, single/double port ram ...)
+  * allocation, scheduling solved by temporary solutions (partial true)
   * netlist query
   * DMA logic for generic bus access
   * automatic micro kernels
@@ -32,8 +32,8 @@ HLS for [HWToolkit](https://github.com/Nic30/HWToolkit) (hardware devel. toolkit
 * loop unroll, pipeline
 * Support for Bus, Handshaked, Rd/VldSynced, Signal interfaces
 
-* Metainformations about target platform are classes derived from Platfom class.
-  This class is container of HLS settings (Scheduler/Alocator...),
+* Meta-informations about target platform are classes derived from Platform class.
+  This class is container of HLS settings (Scheduler/Allocator...),
   information about resources and capabilities of target and target specific components (transceiver, PLL wrapper).
 
 * All parts of hwtHls can be modified, there are is no magic. All parts can be used separately.
@@ -41,7 +41,7 @@ HLS for [HWToolkit](https://github.com/Nic30/HWToolkit) (hardware devel. toolkit
 ### Why hwtHls is not compiler
 * Nearly all HLS synthesizers performing conversion from source language to target language. HwtHls is different.
 * In HwtHls code is written in meta-language.
-* Reason for this is that #pragmas and other compilator directives became major part of code and #pragmas can not contain any code which can run at compilation time. One solution is to use external language for example TCL to controll HLS synthesiser, but still retrospectivity is greatly limited.
+* Reason for this is that #pragmas and other compiler directives became major part of code and #pragmas can not contain any code which can run at compilation time. One solution is to use external language for example TCL to control HLS synthesiser, but still retrospectivity is greatly limited.
 * Metalanguage description allows very precise driving of HLS process with minimum effort. 
 
 
