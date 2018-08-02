@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: UTF-8 -*-
 
+from os import path
 from setuptools import setup, find_packages
 from setuptools.command.test import test as TestCommand
 import sys
 import textwrap
 
+
+this_directory = path.abspath(path.dirname(__file__))
+with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
+    long_description = f.read()
 
 class PyTest(TestCommand):
     user_options = [('pytest-args=', 'a', "Arguments to pass to pytest")]
@@ -25,6 +30,8 @@ class PyTest(TestCommand):
 setup(name='hwtHls',
       version='0.1',
       description='High level synthesizer for HWToolkit (hwt)',
+      long_description=long_description,
+      long_description_content_type="text/markdown",
       url='https://github.com/Nic30/hwtHls',
       author='Michal Orsak',
       author_email='michal.o.socials@gmail.com',
