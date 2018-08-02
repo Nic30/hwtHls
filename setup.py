@@ -4,6 +4,7 @@
 from setuptools import setup, find_packages
 from setuptools.command.test import test as TestCommand
 import sys
+import textwrap
 
 
 class PyTest(TestCommand):
@@ -27,6 +28,21 @@ setup(name='hwtHls',
       url='https://github.com/Nic30/hwtHls',
       author='Michal Orsak',
       author_email='michal.o.socials@gmail.com',
+      classifiers=textwrap.dedent("""
+        Development Status :: 4 - Beta
+        Intended Audience :: Developers
+        License :: OSI Approved :: MIT License
+        Operating System :: OS Independent
+        Programming Language :: Python :: 3 :: Only
+        Programming Language :: Python :: 3
+        Programming Language :: Python :: 3.5
+        Programming Language :: Python :: 3.6
+        Programming Language :: Python :: 3.7
+        Topic :: Scientific/Engineering :: Electronic Design Automation (EDA)
+        Topic :: System :: Hardware
+        Topic :: System :: Emulators
+        Topic :: Utilities
+        """).strip().splitlines(),
       install_requires=[
         'hwt>=1.9',
         'hwtLib>=1.9',
