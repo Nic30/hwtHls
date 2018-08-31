@@ -99,7 +99,7 @@ if __name__ == "__main__":
 
 
 
-# related opensource
+# Related opensource
 
 http://legup.eecg.utoronto.ca/
 
@@ -124,6 +124,8 @@ https://people.eecs.berkeley.edu/~alanmi/abc/
 https://github.com/ktok07b6/polyphony
 
 https://github.com/ni/DelayGraph
+
+https://github.com/rdaly525/coreir
 
 
 # Useful publications
