@@ -126,8 +126,10 @@ https://github.com/ktok07b6/polyphony
 https://github.com/ni/DelayGraph
 
 
-# related papers
+# Useful publications
 
 https://people.csail.mit.edu/saman/student_thesis/petkov-01.pdf
 
 https://escholarship.org/uc/item/3421b3h6
+
+https://github.com/KastnerRG/pp4fpgas
