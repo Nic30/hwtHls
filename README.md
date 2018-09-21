@@ -97,7 +97,7 @@ if __name__ == "__main__":
     print(toRtl(u, targetPlatform=VirtualHlsPlatform()))
 ```
 
-# Related opensource
+## Related open-source
 * [legup](http://legup.eecg.utoronto.ca/) - 2011-2015, LLVM based c->verilog 
 * [bambu](http://panda.dei.polimi.it/?page_id=31) - 2003-?, GCC based c->verilog 
 * [augh](http://tima.imag.fr/sls/research-projects/augh/) - c->verilog, DSP support
@@ -113,7 +113,7 @@ if __name__ == "__main__":
 * [coreir](https://github.com/rdaly525/coreir) - 2016-?, LLVM HW compiler
 
 
-# Useful publications
+## Useful publications
 * [Efficient Pipelining of Nested Loops: Unroll-and-Squash](https://people.csail.mit.edu/saman/student_thesis/petkov-01.pdf)
 * [Coordinated Parallelizing Compiler Optimizations and High-Level Synthesis](https://escholarship.org/uc/item/3421b3h6)
 * [Parallel Programming for FPGAs](https://github.com/KastnerRG/pp4fpgas)
