@@ -101,31 +101,31 @@ if __name__ == "__main__":
 
 # Related opensource
 
-http://legup.eecg.utoronto.ca/
+[legup](http://legup.eecg.utoronto.ca/) - 2011-2015, LLVM based c->verilog 
 
-http://panda.dei.polimi.it/?page_id=31
+[bambu](http://panda.dei.polimi.it/?page_id=31) - 2003-?, GCC based c->verilog 
 
-http://tima.imag.fr/sls/research-projects/augh/
+[augh](http://tima.imag.fr/sls/research-projects/augh/) - c->verilog, DSP support
 
-https://github.com/utwente-fmt
+https://github.com/utwente-fmt - abstract hls, verification libraries
 
-https://github.com/etherzhhb/Shang
+[Shang](https://github.com/etherzhhb/Shang) - 2012-2014, LLVM based, c -
 
-https://github.com/endrix/xronos
+[xronos](https://github.com/endrix/xronos) - 2012, simple HLS, java
 
-https://github.com/SamuelBayliss/Potholes
+[Potholes](https://github.com/SamuelBayliss/Potholes) - 2012-2014 - polyhedral model preprocessor, Uses Vivado HLS, PET
 
-https://github.com/m8pple/hls_recurse
+[hls_recurse](https://github.com/m8pple/hls_recurse) - 2015-2016 - conversion of recursive fn. for stackless architectures
 
-https://github.com/funningboy/hg_lvl_syn
+[hg_lvl_syn](https://github.com/funningboy/hg_lvl_syn) - 2010, ILP, Force Directed scheduler
 
-https://people.eecs.berkeley.edu/~alanmi/abc/
+[abc](https://people.eecs.berkeley.edu/~alanmi/abc/) <2008-?, A System for Sequential Synthesis and Verification 
 
-https://github.com/ktok07b6/polyphony
+[polyphony](https://github.com/ktok07b6/polyphony) - 2015-2017, simple python to hdl
 
-https://github.com/ni/DelayGraph
+[DelayGraph](https://github.com/ni/DelayGraph) - 2016, C#, register assignment alghorithms
 
-https://github.com/rdaly525/coreir
+[coreir](https://github.com/rdaly525/coreir) - 2016-?, LLVM HW compiler
 
 
 # Useful publications
