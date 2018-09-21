@@ -97,41 +97,23 @@ if __name__ == "__main__":
     print(toRtl(u, targetPlatform=VirtualHlsPlatform()))
 ```
 
-
-
 # Related opensource
-
-[legup](http://legup.eecg.utoronto.ca/) - 2011-2015, LLVM based c->verilog 
-
-[bambu](http://panda.dei.polimi.it/?page_id=31) - 2003-?, GCC based c->verilog 
-
-[augh](http://tima.imag.fr/sls/research-projects/augh/) - c->verilog, DSP support
-
-https://github.com/utwente-fmt - abstract hls, verification libraries
-
-[Shang](https://github.com/etherzhhb/Shang) - 2012-2014, LLVM based, c -
-
-[xronos](https://github.com/endrix/xronos) - 2012, simple HLS, java
-
-[Potholes](https://github.com/SamuelBayliss/Potholes) - 2012-2014 - polyhedral model preprocessor, Uses Vivado HLS, PET
-
-[hls_recurse](https://github.com/m8pple/hls_recurse) - 2015-2016 - conversion of recursive fn. for stackless architectures
-
-[hg_lvl_syn](https://github.com/funningboy/hg_lvl_syn) - 2010, ILP, Force Directed scheduler
-
-[abc](https://people.eecs.berkeley.edu/~alanmi/abc/) <2008-?, A System for Sequential Synthesis and Verification 
-
-[polyphony](https://github.com/ktok07b6/polyphony) - 2015-2017, simple python to hdl
-
-[DelayGraph](https://github.com/ni/DelayGraph) - 2016, C#, register assignment alghorithms
-
-[coreir](https://github.com/rdaly525/coreir) - 2016-?, LLVM HW compiler
+* [legup](http://legup.eecg.utoronto.ca/) - 2011-2015, LLVM based c->verilog 
+* [bambu](http://panda.dei.polimi.it/?page_id=31) - 2003-?, GCC based c->verilog 
+* [augh](http://tima.imag.fr/sls/research-projects/augh/) - c->verilog, DSP support
+* https://github.com/utwente-fmt - abstract hls, verification libraries
+* [Shang](https://github.com/etherzhhb/Shang) - 2012-2014, LLVM based, c->verilog
+* [xronos](https://github.com/endrix/xronos) - 2012, java, simple HLS
+* [Potholes](https://github.com/SamuelBayliss/Potholes) - 2012-2014 - polyhedral model preprocessor, Uses Vivado HLS, PET
+* [hls_recurse](https://github.com/m8pple/hls_recurse) - 2015-2016 - conversion of recursive fn. for stackless architectures
+* [hg_lvl_syn](https://github.com/funningboy/hg_lvl_syn) - 2010, ILP, Force Directed scheduler
+* [abc](https://people.eecs.berkeley.edu/~alanmi/abc/) <2008-?, A System for Sequential Synthesis and Verification 
+* [polyphony](https://github.com/ktok07b6/polyphony) - 2015-2017, simple python to hdl
+* [DelayGraph](https://github.com/ni/DelayGraph) - 2016, C#, register assignment alghorithms
+* [coreir](https://github.com/rdaly525/coreir) - 2016-?, LLVM HW compiler
 
 
 # Useful publications
-
-https://people.csail.mit.edu/saman/student_thesis/petkov-01.pdf
-
-https://escholarship.org/uc/item/3421b3h6
-
-https://github.com/KastnerRG/pp4fpgas
+* [Efficient Pipelining of Nested Loops: Unroll-and-Squash](https://people.csail.mit.edu/saman/student_thesis/petkov-01.pdf)
+* [Coordinated Parallelizing Compiler Optimizations and High-Level Synthesis](https://escholarship.org/uc/item/3421b3h6)
+* [Parallel Programming for FPGAs](https://github.com/KastnerRG/pp4fpgas)
