@@ -103,7 +103,7 @@ if __name__ == "__main__":
 * [augh](http://tima.imag.fr/sls/research-projects/augh/) - c->verilog, DSP support
 * https://github.com/utwente-fmt - abstract hls, verification libraries
 * [Shang](https://github.com/etherzhhb/Shang) - 2012-2014, LLVM based, c->verilog
-* [xronos](https://github.com/endrix/xronos)(git2)[https://github.com/endrix/xronos] - 2012-2016, java, simple HLS
+* [xronos](https://github.com/endrix/xronos)[git2](https://github.com/endrix/xronos) - 2012-2016, java, simple HLS
 * [Potholes](https://github.com/SamuelBayliss/Potholes) - 2012-2014 - polyhedral model preprocessor, Uses Vivado HLS, PET
 * [hls_recurse](https://github.com/m8pple/hls_recurse) - 2015-2016 - conversion of recursive fn. for stackless architectures
 * [hg_lvl_syn](https://github.com/funningboy/hg_lvl_syn) - 2010, ILP, Force Directed scheduler
