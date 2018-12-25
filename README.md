@@ -111,6 +111,7 @@ if __name__ == "__main__":
 * [polyphony](https://github.com/ktok07b6/polyphony) - 2015-2017, simple python to hdl
 * [DelayGraph](https://github.com/ni/DelayGraph) - 2016, C#, register assignment alghorithms
 * [coreir](https://github.com/rdaly525/coreir) - 2016-?, LLVM HW compiler
+* [spatial](https://github.com/stanford-ppl/spatial)  - , scala
 
 
 ## Useful publications
