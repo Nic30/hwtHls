@@ -112,7 +112,7 @@ if __name__ == "__main__":
 * [DelayGraph](https://github.com/ni/DelayGraph) - 2016, C#, register assignment alghorithms
 * [coreir](https://github.com/rdaly525/coreir) - 2016-?, LLVM HW compiler
 * [spatial](https://github.com/stanford-ppl/spatial)  - , scala
-
+* [microcoder](https://github.com/ben-marshall/microcoder) - , Python, ASM like lang. -> verilog
 
 ## Useful publications
 * [Efficient Pipelining of Nested Loops: Unroll-and-Squash](https://people.csail.mit.edu/saman/student_thesis/petkov-01.pdf)
