@@ -114,6 +114,7 @@ if __name__ == "__main__":
 * [spatial](https://github.com/stanford-ppl/spatial)  - , scala
 * [microcoder](https://github.com/ben-marshall/microcoder) - , Python, ASM like lang. -> verilog
 * [TAPAS](https://github.com/sfu-arch/TAPAS) - 2018-?, c++, Generating Parallel Accelerators fromParallel Programs
+* [DHLS](https://github.com/dillonhuff/DHLS) - 2019-?, C++, A Basic High Level Synthesis System Using LLVM
 
 ## Useful publications
 * [Efficient Pipelining of Nested Loops: Unroll-and-Squash](https://people.csail.mit.edu/saman/student_thesis/petkov-01.pdf)
