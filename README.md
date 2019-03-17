@@ -6,6 +6,8 @@
 
 HLS for [HWToolkit](https://github.com/Nic30/HWToolkit) (hardware devel. toolkit)
 
+*As you can see in the section "related opensource" below there is tons of HLS synthesizers. If you are also interested in this arrea let us know! The HLS community has to be connected!*
+
 ### Current state
 
 * This library is in alpha phase.
@@ -116,7 +118,7 @@ if __name__ == "__main__":
 * [microcoder](https://github.com/ben-marshall/microcoder) - , Python, ASM like lang. -> verilog
 * [TAPAS](https://github.com/sfu-arch/TAPAS) - 2018-?, c++, Generating Parallel Accelerators fromParallel Programs
 * [DHLS](https://github.com/dillonhuff/DHLS) - 2019-?, C++, A Basic High Level Synthesis System Using LLVM
-* [ahaHLS](https://github.com/dillonhuff/ahaHLS) - 2018-?, LLVM
+* [ahaHLS](https://github.com/dillonhuff/ahaHLS) - 2018-?, A Basic High Level Synthesis System Using LLVM
 
 ## Useful publications
 * [Efficient Pipelining of Nested Loops: Unroll-and-Squash](https://people.csail.mit.edu/saman/student_thesis/petkov-01.pdf)
