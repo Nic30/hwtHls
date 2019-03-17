@@ -6,7 +6,7 @@
 
 HLS for [HWToolkit](https://github.com/Nic30/HWToolkit) (hardware devel. toolkit)
 
-*As you can see in the section "related opensource" below there is tons of HLS synthesizers. If you are also interested in this arrea let us know! The HLS community has to be connected!*
+*As you can see in the section "related opensource" below there is tons of HLS synthesizers. If you are also interested in this area let us know! The HLS community has to be connected!*
 
 ### Current state
 
