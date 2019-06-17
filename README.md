@@ -126,3 +126,4 @@ if __name__ == "__main__":
 * [Efficient Pipelining of Nested Loops: Unroll-and-Squash](https://people.csail.mit.edu/saman/student_thesis/petkov-01.pdf)
 * [Coordinated Parallelizing Compiler Optimizations and High-Level Synthesis](https://escholarship.org/uc/item/3421b3h6)
 * [Parallel Programming for FPGAs](https://github.com/KastnerRG/pp4fpgas)
+* [Speculative Dataflow Circuits](https://dl.acm.org/citation.cfm?id=3293914)
