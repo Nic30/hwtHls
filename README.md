@@ -121,6 +121,7 @@ if __name__ == "__main__":
 * [ahaHLS](https://github.com/dillonhuff/ahaHLS) - 2018-?, A Basic High Level Synthesis System Using LLVM
 * [pluto](https://github.com/bondhugula/pluto) -  An automatic polyhedral parallelizer and locality optimizer
 * [ctoverilog](https://github.com/udif/ctoverilog) - A C to verilog compiler, LLVM
+* [exprc](https://github.com/n-nez/exprc) - 2018-2018, C++, a toy HLS compiler
 
 ## Useful publications
 * [Efficient Pipelining of Nested Loops: Unroll-and-Squash](https://people.csail.mit.edu/saman/student_thesis/petkov-01.pdf)
