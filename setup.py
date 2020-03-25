@@ -3,29 +3,11 @@
 
 from os import path
 from setuptools import setup, find_packages
-from setuptools.command.test import test as TestCommand
-import sys
-import textwrap
 
 
 this_directory = path.abspath(path.dirname(__file__))
 with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
-
-class PyTest(TestCommand):
-    user_options = [('pytest-args=', 'a', "Arguments to pass to pytest")]
-
-    def initialize_options(self):
-        TestCommand.initialize_options(self)
-        self.pytest_args = []
-
-    def run_tests(self):
-        import shlex
-        # import here, cause outside the eggs aren't loaded
-        import pytest
-        errno = pytest.main(shlex.split(self.pytest_args))
-        sys.exit(errno)
-
 
 setup(name='hwtHls',
       version='0.1',
@@ -35,21 +17,21 @@ setup(name='hwtHls',
       url='https://github.com/Nic30/hwtHls',
       author='Michal Orsak',
       author_email='michal.o.socials@gmail.com',
-      classifiers=textwrap.dedent("""
-        Development Status :: 4 - Beta
-        Intended Audience :: Developers
-        License :: OSI Approved :: MIT License
-        Operating System :: OS Independent
-        Programming Language :: Python :: 3 :: Only
-        Programming Language :: Python :: 3
-        Programming Language :: Python :: 3.5
-        Programming Language :: Python :: 3.6
-        Programming Language :: Python :: 3.7
-        Topic :: Scientific/Engineering :: Electronic Design Automation (EDA)
-        Topic :: System :: Hardware
-        Topic :: System :: Emulators
-        Topic :: Utilities
-        """).strip().splitlines(),
+      classifiers=[
+        "Development Status :: 4 - Beta",
+        "Intended Audience :: Developers",
+        "License :: OSI Approved :: MIT License",
+        "Operating System :: OS Independent",
+        "Programming Language :: Python :: 3 :: Only",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.5",
+        "Programming Language :: Python :: 3.6",
+        "Programming Language :: Python :: 3.7",
+        "Topic :: Scientific/Engineering :: Electronic Design Automation (EDA)",
+        "Topic :: System :: Hardware",
+        "Topic :: System :: Emulators",
+        "Topic :: Utilities"
+      ],
       install_requires=[
         'hwt>=1.9',
         'hwtLib>=1.9',

@@ -82,6 +82,9 @@ class AbstractHlsOp():
         return start_clk(self.alap_start, self.hls.clk_period)
 
     def get_mobility(self):
+        """
+        :return: number of clk periods between earliest and latest schedulization time
+        """
         m = self.get_latest_clk() - self.get_earliest_clk()
         assert m >= 0, (self, self.get_earliest_clk(),
                         self.get_latest_clk(),
@@ -254,7 +257,8 @@ class HlsOperation(AbstractHlsOp):
             input_cnt /= 2
 
         r = hls.platform.get_op_realization(
-            self.operator, bit_length, input_cnt, clk_period)
+            self.operator, bit_length,
+            input_cnt, clk_period)
         self.assignRealization(r)
 
     def __repr__(self):

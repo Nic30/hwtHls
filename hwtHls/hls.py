@@ -1,5 +1,4 @@
-from typing import Union
-
+from hwt.code import If
 from hwt.hdl.assignment import Assignment
 from hwt.hdl.operator import Operator
 from hwt.hdl.types.defs import BIT
@@ -10,9 +9,10 @@ from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.rtlLevel.optimalizator import removeUnconnectedSignals
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.unit import Unit
-from hwtHls.codeOps import HlsRead, HlsWrite, HlsOperation,\
+from typing import Union
+
+from hwtHls.codeOps import HlsRead, HlsWrite, HlsOperation, \
     HlsConst, AbstractHlsOp, HlsIO
-from hwt.code import If
 
 
 class HLS_Error(Exception):
@@ -111,7 +111,9 @@ def driver2Hls(obj, hls, nodeToHlsNode: dict) -> AbstractHlsOp:
         return src
 
     elif isinstance(obj, If):
-        raise NotImplementedError(obj)
+        for o in obj._outputs:
+            # render if as tree of muxes
+            raise NotImplementedError(obj)
 
     else:
         raise NotImplementedError(obj)

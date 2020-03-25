@@ -430,7 +430,7 @@ class QueryOperator():
             AllOps.CONCAT, AllOps.DIV, AllOps.DOT,
             AllOps.DOWNTO, AllOps.LE, AllOps.LT,
             AllOps.GE, AllOps.GT, AllOps.MOD, AllOps.POW,
-            AllOps.RISING_EDGE, AllOps.FALLIGN_EDGE,
+            AllOps.RISING_EDGE, AllOps.FALLING_EDGE,
             AllOps.SUB, AllOps.TERNARY, AllOps.TO
         }
 
