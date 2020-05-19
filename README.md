@@ -123,6 +123,7 @@ if __name__ == "__main__":
 * [ctoverilog](https://github.com/udif/ctoverilog) - A C to verilog compiler, LLVM
 * [exprc](https://github.com/n-nez/exprc) - 2018-2018, C++, a toy HLS compiler
 * [kiwi](https://www.cl.cam.ac.uk/~djg11/kiwi/)
+* [ElasticC](https://github.com/daveshah1/ElasticC) - C++, lightweight open HLS for FPGA rapid prototyping 
 
 ## Useful publications
 * [Efficient Pipelining of Nested Loops: Unroll-and-Squash](https://people.csail.mit.edu/saman/student_thesis/petkov-01.pdf)
