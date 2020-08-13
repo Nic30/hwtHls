@@ -28,7 +28,7 @@ class MemCrc(Crc):
             self.crc = Crc()
             # memory
             self.mem = RamSingleClock()
-            self.mem.PORT_CNT.set(2)
+            self.mem.PORT_CNT = 2
 
     def _impl(self):
         crc = self.crc

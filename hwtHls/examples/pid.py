@@ -17,12 +17,12 @@ class PidControllerHls(PidController):
 
     def _impl(self):
         # register of current output value
-        u = self._reg("u", dtype=self.output._dtype, defVal=0)
+        u = self._reg("u", dtype=self.output._dtype, def_val=0)
 
         # create y-pipeline registers (y -> y_reg[0]-> y_reg[1])
         y = [self.input, ]
         for i in range(2):
-            _y = self._reg("y_reg%d" % i, dtype=self.input._dtype, defVal=0)
+            _y = self._reg("y_reg%d" % i, dtype=self.input._dtype, def_val=0)
             # feed data from last register
             _y(y[-1])
             y.append(_y)

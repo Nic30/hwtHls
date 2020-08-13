@@ -188,12 +188,12 @@ class Hls():
         self.allocator = self.platform.allocator(self)
         self.platform.onHlsInit(self)
 
-    def var(self, name, dtype=BIT, defVal=None):
+    def var(self, name, dtype=BIT, def_val=None):
         """
         Universal HLS code variable
         """
         if isinstance(dtype, HStruct):
-            if defVal is not None:
+            if def_val is not None:
                 raise NotImplementedError()
             container = dtype.fromPy(None)
             for f in dtype.fields:
@@ -203,7 +203,7 @@ class Hls():
 
             return container
 
-        return self.ctx.sig(name, dtype=dtype, defVal=defVal)
+        return self.ctx.sig(name, dtype=dtype, def_val=def_val)
 
     def convert_indexed_io_assignments_to_HlsWrite(self):
         to_destroy = []

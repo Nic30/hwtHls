@@ -30,7 +30,7 @@ class BitonicSorterHLS_large(BitonicSorterHLS):
     def _config(self):
         BitonicSorterHLS._config(self)
         self.CLK_FREQ = int(100e6)
-        self.ITEMS.set(16)
+        self.ITEMS = 16
 
 
 class BitonicSorterHLS_TC(BitonicSorterTC):
@@ -54,7 +54,7 @@ if __name__ == "__main__":
     from hwt.synthesizer.utils import toRtl
 
     u = BitonicSorterHLS()
-    u.ITEMS.set(2)
+    u.ITEMS = 2
     print(toRtl(u, targetPlatform=VirtualHlsPlatform()))
 
     suite = unittest.TestSuite()

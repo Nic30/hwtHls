@@ -7,18 +7,18 @@ from typing import List, Union
 
 from hwt.hdl.assignment import Assignment
 from hwt.hdl.operatorDefs import OpDefinition, AllOps
+from hwt.hdl.statements import HdlStatement
 from hwt.hdl.types.typeCast import toHVal
+from hwt.hdl.value import Value
 from hwt.interfaces.std import Signal
 from hwt.pyUtils.uniqList import UniqList
+from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
-from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
+from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal, NO_NOPVAL
 from hwtHls.clk_math import start_clk
-from hwtHls.platform.opRealizationMeta import OpRealizationMeta,\
+from hwtHls.platform.opRealizationMeta import OpRealizationMeta, \
     UNSPECIFIED_OP_REALIZATION
-from hwt.hdl.value import Value
-from hwt.synthesizer.interface import Interface
-from hwt.hdl.statements import HdlStatement
 
 
 IO_COMB_REALIZATION = OpRealizationMeta(latency_post=0.1e-9)
@@ -272,12 +272,11 @@ class HlsIO(RtlSignal):
     Signal which is connected to outside of HLS context
     """
 
-    def __init__(self, hlsCntx, name, dtype, defVal=None, nopVal=None,
-                 useNopVal=False):
+    def __init__(self, hlsCntx, name, dtype, def_val=None, nop_val=NO_NOPVAL):
         self.hlsCntx = hlsCntx
         RtlSignal.__init__(
-            self, hlsCntx.ctx, name, dtype, defVal=defVal,
-            nopVal=nopVal, useNopVal=useNopVal)
+            self, hlsCntx.ctx, name, dtype, def_val=def_val,
+            nop_val=nop_val)
         self._interface = True
 
     def __call__(self, source) -> List[Assignment]:
