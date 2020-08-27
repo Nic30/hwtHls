@@ -36,7 +36,7 @@ class BitonicSorterHLS_large(BitonicSorterHLS):
 class BitonicSorterHLS_TC(BitonicSorterTC):
     def createUnit(self):
         u = BitonicSorterHLS()
-        self.prepareUnit(u, targetPlatform=VirtualHlsPlatform())
+        self.prepareUnit(u, target_platform=VirtualHlsPlatform())
         return u
 
 
@@ -45,17 +45,17 @@ class BitonicSorterHLS_large_TC(BitonicSorterTC):
 
     def createUnit(self):
         u = BitonicSorterHLS_large()
-        self.prepareUnit(u, targetPlatform=VirtualHlsPlatform())
+        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
         return u
 
 
 if __name__ == "__main__":
     import unittest
-    from hwt.synthesizer.utils import toRtl
+    from hwt.synthesizer.utils import to_rtl_str
 
     u = BitonicSorterHLS()
     u.ITEMS = 2
-    print(toRtl(u, targetPlatform=VirtualHlsPlatform()))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform()))
 
     suite = unittest.TestSuite()
     # suite.addTest(BitonicSorterHLS_large_TC('test_reversed'))

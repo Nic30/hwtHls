@@ -7,7 +7,6 @@ from hwt.interfaces.std import VectSignal
 from hwt.interfaces.utils import addClkRstn
 from hwt.simulator.simTestCase import SimTestCase
 from hwt.synthesizer.unit import Unit
-from hwt.synthesizer.utils import toRtl
 from hwtHls.hls import Hls
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scheduler.scheduler import TimeConstraintError
@@ -22,7 +21,7 @@ class AlapAsapDiffExample(Unit):
         self.a = VectSignal(8)
         self.b = VectSignal(8)
         self.c = VectSignal(8)
-        self.d = VectSignal(8)
+        self.d = VectSignal(8)._m()
 
     def _impl(self):
         with Hls(self, freq=self.CLK_FREQ) as hls:
@@ -64,12 +63,12 @@ class AlapAsapDiffExample_TC(SimTestCase):
         a = 20
         b = 58
         c = 48
-        self.prepareUnit(u, targetPlatform=VirtualHlsPlatform())
+        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
         u.a._ag.data.append(a)
         u.b._ag.data.append(b)
         u.c._ag.data.append(c)
 
-        self.doSim(40 * Time.ns)
+        self.runSim(40 * Time.ns)
 
         res = u.d._ag.data[-1]
         self.assertValEqual(res, neg_8b(neg_8b(a) & neg_8b(b)) & neg_8b(c))
@@ -77,8 +76,9 @@ class AlapAsapDiffExample_TC(SimTestCase):
 
 if __name__ == "__main__":
     import unittest
+    from hwt.synthesizer.utils import to_rtl_str
     u = AlapAsapDiffExample()
-    print(toRtl(u, targetPlatform=VirtualHlsPlatform()))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform()))
 
     suite = unittest.TestSuite()
     # suite.addTest(FrameTmplTC('test_frameHeader'))

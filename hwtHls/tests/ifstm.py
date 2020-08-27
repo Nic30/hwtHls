@@ -7,7 +7,7 @@ from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.param import Param
 from hwtHls.hls import Hls
 from hwtHls.platform.virtual import VirtualHlsPlatform
-from hwtLib.samples.statements.ifStm import SimpleIfStatement
+from hwtLib.examples.statements.ifStm import SimpleIfStatement
 
 
 class SimpleIfStatementHls(SimpleIfStatement):
@@ -36,8 +36,8 @@ class SimpleIfStatementHls(SimpleIfStatement):
 
 
 if __name__ == "__main__":  # alias python main function
-    from hwt.synthesizer.utils import toRtl
+    from hwt.synthesizer.utils import to_rtl_str
 
     u = SimpleIfStatementHls()
     p = VirtualHlsPlatform()
-    print(toRtl(u, targetPlatform=p))
+    print(to_rtl_str(u, target_platform=p))

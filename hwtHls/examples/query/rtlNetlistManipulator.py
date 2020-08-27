@@ -4,7 +4,7 @@ from typing import Union, Tuple, Dict, List
 from hwt.hdl.assignment import Assignment
 from hwt.hdl.operator import Operator
 from hwt.hdl.operatorDefs import OpDefinition, AllOps
-from hwt.hdl.value import Value
+from hwt.hdl.value import HValue
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
@@ -13,7 +13,7 @@ from hwt.synthesizer.unit import Unit
 from hwtHls.codeOps import HlsIO
 
 
-SigOrVal = Union[RtlSignal, Value]
+SigOrVal = Union[RtlSignal, HValue]
 AssigOrOp = Union[Assignment, Operator]
 
 

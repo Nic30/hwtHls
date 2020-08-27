@@ -2,16 +2,16 @@
 # -*- coding: utf-8 -*-
 
 
-from _functools import reduce
+from functools import reduce
 
 from hwt.hdl.constants import Time
 from hwt.interfaces.std import VectSignal
 from hwt.interfaces.utils import addClkRstn
 from hwt.pyUtils.arrayQuery import grouper, balanced_reduce
 from hwt.simulator.simTestCase import SimTestCase
+from hwt.synthesizer.hObjList import HObjList
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
-from hwt.synthesizer.utils import toRtl
 from hwtHls.hls import Hls
 from hwtHls.platform.virtual import VirtualHlsPlatform
 
@@ -25,11 +25,10 @@ class HlsMAC_example(Unit):
         addClkRstn(self)
         assert int(self.INPUT_CNT) % 2 == 0
 
-        self.dataIn = [VectSignal(32, signed=False)
-                       for _ in range(int(self.INPUT_CNT))]
-        self._registerArray("dataIn", self.dataIn)
+        self.dataIn = HObjList(VectSignal(32, signed=False)
+                       for _ in range(int(self.INPUT_CNT)))
 
-        self.dataOut = VectSignal(64, signed=False)
+        self.dataOut = VectSignal(32, signed=False)._m()
 
     def _impl(self):
         with Hls(self, freq=self.CLK_FREQ) as hls:
@@ -51,7 +50,7 @@ class HlsMAC_example(Unit):
 class HlsMAC_example2(HlsMAC_example):
     def _config(self):
         super(HlsMAC_example2, self)._config()
-        self.INPUT_CNT.set(16)
+        self.INPUT_CNT = 16
 
     def _impl(self):
         with Hls(self, freq=self.CLK_FREQ) as hls:
@@ -75,37 +74,37 @@ class HlsMAC_example2(HlsMAC_example):
 class HlsMAC_example_TC(SimTestCase):
     def test_simple(self):
         u = HlsMAC_example()
-        self.prepareUnit(u, targetPlatform=VirtualHlsPlatform())
+        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
         for intf, d in zip(u.dataIn, [3, 4, 5, 6]):
             intf._ag.data.append(d)
 
-        self.doSim(40 * Time.ns)
+        self.runSim(40 * Time.ns)
 
         self.assertValEqual(u.dataOut._ag.data[-1],
                             (3 * 4) + (5 * 6))
 
     def test_2simple(self):
         u = HlsMAC_example2()
-        u.INPUT_CNT.set(4)
-        self.prepareUnit(u, targetPlatform=VirtualHlsPlatform())
+        u.INPUT_CNT = 4
+        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
         for intf, d in zip(u.dataIn, [3, 4, 5, 6]):
             intf._ag.data.append(d)
 
-        self.doSim(40 * Time.ns)
+        self.runSim(40 * Time.ns)
 
         self.assertValEqual(u.dataOut._ag.data[-1],
                             (3 * 4) + (5 * 6))
 
     def test_2_16simple(self):
         u = HlsMAC_example2()
-        u.INPUT_CNT.set(16)
-        self.prepareUnit(u, targetPlatform=VirtualHlsPlatform())
+        u.INPUT_CNT = 16
+        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
 
         inputs = [i for i in range(16)]
         for intf, d in zip(u.dataIn, inputs):
             intf._ag.data.append(d)
 
-        self.doSim(80 * Time.ns)
+        self.runSim(80 * Time.ns)
 
         res = u.dataOut._ag.data[-1]
         expectedRes = reduce(lambda a, b: a + b,
@@ -117,8 +116,9 @@ class HlsMAC_example_TC(SimTestCase):
 
 if __name__ == "__main__":
     import unittest
+    from hwt.synthesizer.utils import to_rtl_str
     u = HlsMAC_example()
-    print(toRtl(u, targetPlatform=VirtualHlsPlatform()))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform()))
 
     suite = unittest.TestSuite()
     # suite.addTest(FrameTmplTC('test_frameHeader'))

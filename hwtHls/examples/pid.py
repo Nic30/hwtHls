@@ -4,7 +4,6 @@
 
 from hwt.code import Add
 from hwt.synthesizer.param import Param
-from hwt.synthesizer.utils import toRtl
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.hls import Hls
 from hwtLib.logic.pid import PidController
@@ -47,7 +46,8 @@ class PidControllerHls(PidController):
 
 
 if __name__ == "__main__":
+    from hwt.synthesizer.utils import to_rtl_str
     u = PidController()
-    print(toRtl(u))
+    print(to_rtl_str(u))
     u = PidControllerHls()
-    print(toRtl(u, targetPlatform=VirtualHlsPlatform()))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform()))

@@ -29,7 +29,7 @@ IO = IO_COMB_REALIZATION.latency_post
 class ListSchedueling_TC(unittest.TestCase):
     def setUp(self):
         u = Unit()
-        u._targetPlatform = VirtualHlsPlatform()
+        u._target_platform = VirtualHlsPlatform()
         self.hls = Hls(u, freq=int(100e6))
 
     def simple_not(self):

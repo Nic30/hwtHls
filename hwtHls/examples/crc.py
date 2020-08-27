@@ -6,9 +6,8 @@ from hwt.synthesizer.vectorUtils import iterBits
 from hwtHls.hls import Hls
 from hwtLib.logic.crcComb import CrcComb
 from hwtLib.logic.crcPoly import CRC_32
-from pyMathBitPrecise.bit_utils import selectBit, bitListReversedEndianity,\
-    bitListReversedBitsInBytes
-
+from pyMathBitPrecise.bit_utils import get_bit, bit_list_reversed_bits_in_bytes,\
+    bit_list_reversed_endianity
 
 class CrcCombHls(CrcComb):
     def _config(self):
@@ -26,15 +25,15 @@ class CrcCombHls(CrcComb):
             # initXorMatrix = buildCrcMatrix_reg0Matrix(polyCoefs, PW, DW)
             XOROUT = int(self.XOROUT)
             _INIT = int(self.INIT)
-            initBits = [selectBit(_INIT, i)
+            initBits = [get_bit(_INIT, i)
                         for i in range(PW)]
-            finBits = [selectBit(XOROUT, i)
+            finBits = [get_bit(XOROUT, i)
                        for i in range(PW)]
 
             inBits = list(iterBits(hls.io(self.dataIn)))
 
             if not self.IN_IS_BIGENDIAN:
-                inBits = bitListReversedEndianity(inBits)
+                inBits = bit_list_reversed_endianity(inBits)
 
             outBits = iterBits(hls.io(self.dataOut))
 
@@ -45,7 +44,7 @@ class CrcCombHls(CrcComb):
 
             if self.REFOUT:
                 res = list(reversed(res))
-                finBits = bitListReversedBitsInBytes(finBits)
+                finBits = bit_list_reversed_bits_in_bytes(finBits)
 
             for ob, b, fb in zip(outBits, res, finBits):
                 ob(b ^ fb)
@@ -65,9 +64,9 @@ class CrcCombHls(CrcComb):
             #    hls.io(outBit)(bit)
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import toRtl
+    from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
 
     u = CrcCombHls()
 
-    print(toRtl(u, targetPlatform=VirtualHlsPlatform()))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform()))

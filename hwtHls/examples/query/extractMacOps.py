@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-
 from hwt.interfaces.std import VectSignal
 from hwt.interfaces.utils import addClkRstn
 from hwt.serializer.mode import serializeOnce
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
-from hwtHls.examples.query.rtlNetlistManipulator import RtlNetlistManipulator,\
+from hwtHls.examples.query.rtlNetlistManipulator import RtlNetlistManipulator, \
     QuerySignal, HwSelect
 from hwtHls.hls import Hls
 from hwtHls.platform.virtual import VirtualHlsPlatform
+from hwt.synthesizer.hObjList import HObjList
 
 
 def MAC_qurey():
@@ -27,6 +27,7 @@ def MAC_qurey():
 
 @serializeOnce
 class MAC(Unit):
+
     def _config(self):
         self.DATA_WIDTH = Param(32)
 
@@ -36,7 +37,7 @@ class MAC(Unit):
         self.c = VectSignal(self.DATA_WIDTH, signed=False)
         self.d = VectSignal(self.DATA_WIDTH, signed=False)
 
-        self.out = VectSignal(self.DATA_WIDTH * 2, signed=False)
+        self.out = VectSignal(self.DATA_WIDTH, signed=False)._m()
 
     def _impl(self):
         out = (self.a * self.b) + (self.c * self.d)
@@ -44,6 +45,7 @@ class MAC(Unit):
 
 
 class MacExtractingHls(Hls):
+
     def _discoverAllNodes(self):
         m = RtlNetlistManipulator(self.ctx, self._io)
         macs = list(HwSelect(self.ctx).select(MAC_qurey))
@@ -73,6 +75,7 @@ class MacExtractingHls(Hls):
 
 
 class GroupOfMacOps(Unit):
+
     def _config(self):
         self.CLK_FREQ = Param(int(25e6))
         self.INPUT_CNT = Param(4)
@@ -81,19 +84,22 @@ class GroupOfMacOps(Unit):
         addClkRstn(self)
         assert int(self.INPUT_CNT) % 2 == 0
 
-        self.dataIn0 = [VectSignal(32, signed=False)
-                        for _ in range(int(self.INPUT_CNT))]
-        self._registerArray("dataIn0", self.dataIn0)
+        self.dataIn0 = HObjList(
+            VectSignal(32, signed=False)
+            for _ in range(int(self.INPUT_CNT))
+        )
 
-        self.dataOut0 = VectSignal(64, signed=False)
+        self.dataOut0 = VectSignal(32, signed=False)._m()
 
-        self.dataIn1 = [VectSignal(32, signed=False)
-                        for _ in range(int(self.INPUT_CNT))]
-        self._registerArray("dataIn1", self.dataIn1)
+        self.dataIn1 = HObjList(
+            VectSignal(32, signed=False)
+            for _ in range(int(self.INPUT_CNT))
+        )
 
-        self.dataOut1 = VectSignal(64, signed=False)
+        self.dataOut1 = VectSignal(32, signed=False)._m()
 
     def _impl(self):
+
         def mac(hls, inputs, out):
             a, b, c, d = [hls.io(intf) for intf in inputs]
             e = a * b + c * d
@@ -105,6 +111,6 @@ class GroupOfMacOps(Unit):
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import toRtl
+    from hwt.synthesizer.utils import to_rtl_str
     u = GroupOfMacOps()
-    print(toRtl(u, targetPlatform=VirtualHlsPlatform()))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform()))

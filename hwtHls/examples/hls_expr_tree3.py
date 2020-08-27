@@ -8,7 +8,6 @@ from hwt.interfaces.utils import addClkRstn
 from hwt.simulator.simTestCase import SimTestCase
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
-from hwt.synthesizer.utils import toRtl
 from hwtHls.hls import Hls
 from hwtHls.platform.virtual import VirtualHlsPlatform
 
@@ -29,9 +28,9 @@ class HlsExprTree3_example(Unit):
         self.z = VectSignal(32, signed=False)
         self.w = VectSignal(32, signed=False)
 
-        self.f1 = VectSignal(64, signed=False)
-        self.f2 = VectSignal(64, signed=False)
-        self.f3 = VectSignal(64, signed=False)
+        self.f1 = VectSignal(32, signed=False)._m()
+        self.f2 = VectSignal(32, signed=False)._m()
+        self.f3 = VectSignal(32, signed=False)._m()
 
     def _impl(self):
         with Hls(self, freq=self.CLK_FREQ) as hls:
@@ -53,7 +52,7 @@ class HlsExprTree3_example(Unit):
 class HlsExprTree3_example_TC(SimTestCase):
     def test_simple(self):
         u = HlsExprTree3_example()
-        self.prepareUnit(u, targetPlatform=VirtualHlsPlatform())
+        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
         u.a._ag.data.append(3)
         u.b._ag.data.append(4)
         u.c._ag.data.append(5)
@@ -63,7 +62,7 @@ class HlsExprTree3_example_TC(SimTestCase):
         u.z._ag.data.append(9)
         u.w._ag.data.append(10)
 
-        self.doSim(40 * Time.ns)
+        self.runSim(40 * Time.ns)
 
         self.assertValEqual(u.f1._ag.data[-1], (3 + 4 + 5) * 6)
         self.assertValEqual(u.f2._ag.data[-1], (7 + 8) * 9)
@@ -72,8 +71,9 @@ class HlsExprTree3_example_TC(SimTestCase):
 
 if __name__ == "__main__":
     import unittest
+    from hwt.synthesizer.utils import to_rtl_str
     u = HlsExprTree3_example()
-    print(toRtl(u, targetPlatform=VirtualHlsPlatform()))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform()))
 
     suite = unittest.TestSuite()
     # suite.addTest(FrameTmplTC('test_frameHeader'))

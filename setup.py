@@ -33,8 +33,7 @@ setup(name='hwtHls',
         "Topic :: Utilities"
       ],
       install_requires=[
-        'hwt>=1.9',
-        'hwtLib>=1.9',
+        'hwtLib>=2.8',
       ],
       license='MIT',
       packages=find_packages(),

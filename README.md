@@ -94,10 +94,10 @@ class HlsMAC_example(Unit):
 if __name__ == "__main__":
     import unittest
     from hwtHls.platform.virtual import VirtualHlsPlatform
-    from hwt.synthesizer.utils import toRtl
+    from hwt.synthesizer.utils import to_rtl
     
     u = HlsMAC_example()
-    print(toRtl(u, targetPlatform=VirtualHlsPlatform()))
+    print(to_rtl(u, targetPlatform=VirtualHlsPlatform()))
 ```
 
 ## Related open-source

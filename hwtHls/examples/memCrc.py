@@ -32,12 +32,12 @@ class MemCrc(Crc):
 
     def _impl(self):
         crc = self.crc
-        self.mem.a(self.data)
+        self.mem.port[0](self.data)
 
         with Hls(self, freq=self.CLK_FREQ) as hls:
             # collect all interfaces
             # hls see bram interface as array
-            mem = hls.io(self.mem.b)
+            mem = hls.io(self.mem.port[1])
             run = hls.io(self.run)
             hasherOut = hls.io(crc.dataOut)
             hasherIn = hls.io(crc.dataIn)
@@ -61,7 +61,7 @@ class MemCrc(Crc):
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import toRtl
+    from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
     u = MemCrc()
-    print(toRtl(u, targetPlatform=VirtualHlsPlatform()))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform()))

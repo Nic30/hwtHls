@@ -6,7 +6,6 @@ from hwt.hdl.operator import Operator
 from hwt.hdl.operatorDefs import AllOps
 from hwt.interfaces.std import Signal, Clk
 from hwt.synthesizer.unit import Unit
-from hwt.synthesizer.utils import toRtl
 from hwtHls.examples.query.rtlNetlistManipulator import RtlNetlistManipulator
 
 
@@ -61,7 +60,7 @@ class OneFF(Unit):
     def _declr(self):
         self.clk = Clk()
         self.a = Signal()
-        self.b = Signal()
+        self.b = Signal()._m()
 
     def _impl(self):
         r = self._reg
@@ -75,4 +74,5 @@ class OneFF(Unit):
 
 
 if __name__ == "__main__":
-    print(toRtl(OneFF()))
+    from hwt.synthesizer.utils import to_rtl_str
+    print(to_rtl_str(OneFF()))

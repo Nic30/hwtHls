@@ -7,9 +7,8 @@ from typing import List, Union
 
 from hwt.hdl.assignment import Assignment
 from hwt.hdl.operatorDefs import OpDefinition, AllOps
-from hwt.hdl.statements import HdlStatement
 from hwt.hdl.types.typeCast import toHVal
-from hwt.hdl.value import Value
+from hwt.hdl.value import HValue
 from hwt.interfaces.std import Signal
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
@@ -19,6 +18,7 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal, NO_NOPVAL
 from hwtHls.clk_math import start_clk
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta, \
     UNSPECIFIED_OP_REALIZATION
+from hwt.hdl.statement import HdlStatement
 
 
 IO_COMB_REALIZATION = OpRealizationMeta(latency_post=0.1e-9)
@@ -111,7 +111,7 @@ class HlsConst(AbstractHlsOp):
     Wrapper around constant value for HLS sybsystem
     """
 
-    def __init__(self, val: Value):
+    def __init__(self, val: HValue):
         self.name = None
         self.hls = None
         self.usedBy = UniqList()

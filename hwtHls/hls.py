@@ -3,16 +3,16 @@ from hwt.hdl.assignment import Assignment
 from hwt.hdl.operator import Operator
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.struct import HStruct
-from hwt.hdl.value import Value
+from hwt.hdl.value import HValue
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
-from hwt.synthesizer.rtlLevel.optimalizator import removeUnconnectedSignals
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.unit import Unit
 from typing import Union
 
 from hwtHls.codeOps import HlsRead, HlsWrite, HlsOperation, \
     HlsConst, AbstractHlsOp, HlsIO
+from hwt.synthesizer.rtlLevel.remove_unconnected_signals import removeUnconnectedSignals
 
 
 class HLS_Error(Exception):
@@ -119,14 +119,14 @@ def driver2Hls(obj, hls, nodeToHlsNode: dict) -> AbstractHlsOp:
         raise NotImplementedError(obj)
 
 
-def hdlObj2Hls(obj: Union[RtlSignal, Value],
+def hdlObj2Hls(obj: Union[RtlSignal, HValue],
                hls, nodeToHlsNode: dict) -> AbstractHlsOp:
     """
     Convert RtlObject to HlsObject, register it and link it wit parent
 
     :note: parent is who provides values to operation
     """
-    if isinstance(obj, Value) or obj._const:
+    if isinstance(obj, HValue) or obj._const:
         _obj = HlsConst(obj)
         nodeToHlsNode[_obj] = _obj
         return _obj
@@ -166,13 +166,13 @@ class Hls():
     :ivar inputs: list of HlsRead in this context
     :ivar outputs: list of HlsWrite in this context
     :ivar io: dict HlsIO:Interface
-    :ivar ctx: RtlNetlist (contarner of RTL signals for this HLS context)
+    :ivar ctx: RtlNetlist (container of RTL signals for this HLS context)
     """
 
     def __init__(self, parentUnit: Unit,
                  freq, maxLatency=None, resource_constrain=None):
         self.parentUnit = parentUnit
-        self.platform = parentUnit._targetPlatform
+        self.platform = parentUnit._target_platform
         if self.platform is None:
             raise Exception("HLS requires platform to be specified")
 
@@ -217,8 +217,6 @@ class Hls():
                 w = HlsWrite(self, a.src, a.dst)
                 w.indexes = a.indexes
                 reconnect_endpoint_list(w.indexes, a, w)
-                w.cond = a.cond
-                reconnect_endpoint_list(w.cond, a, w)
 
         for a in to_destroy:
             statements.remove(a)

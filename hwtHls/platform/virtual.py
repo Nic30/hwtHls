@@ -20,9 +20,9 @@ _OPS_T_GROWING_EXP = {
 _OPS_T_GROWING_LIN = {
     AllOps.ADD,
     AllOps.SUB,
-    AllOps.UN_MINUS,
+    AllOps.MINUS_UNARY,
     AllOps.EQ,
-    AllOps.NEQ,
+    AllOps.NE,
     AllOps.GT,
     AllOps.GE,
     AllOps.LT,
@@ -30,7 +30,6 @@ _OPS_T_GROWING_LIN = {
 }
 
 _OPS_T_GROWING_CONST = {
-    AllOps.NEG,
     AllOps.NOT,
     AllOps.XOR,
     AllOps.AND,
@@ -59,7 +58,6 @@ class VirtualHlsPlatform(DummyPlatform):
             AllOps.MOD: 0.9e-9,
 
             # nearly constant with bit width
-            AllOps.NEG: 1.2e-9,
             AllOps.NOT: 1.2e-9,
             AllOps.XOR: 1.2e-9,
             AllOps.AND: 1.2e-9,
@@ -68,10 +66,10 @@ class VirtualHlsPlatform(DummyPlatform):
             # nearly linear with bit width
             AllOps.ADD: 1.5e-9,
             AllOps.SUB: 1.5e-9,
-            AllOps.UN_MINUS: 1.5e-9,
+            AllOps.MINUS_UNARY: 1.5e-9,
 
             AllOps.EQ:  1.5e-9,
-            AllOps.NEQ: 1.5e-9,
+            AllOps.NE: 1.5e-9,
             AllOps.GT: 1.5e-9,
             AllOps.GE: 1.5e-9,
             AllOps.LT: 1.5e-9,

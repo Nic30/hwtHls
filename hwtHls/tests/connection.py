@@ -2,19 +2,19 @@
 # -*- coding: utf-8 -*-
 
 
-from hwt.bitmask import mask
 from hwt.hdl.constants import Time
 from hwt.interfaces.std import VectSignal
 from hwt.simulator.simTestCase import SimTestCase
 from hwt.synthesizer.unit import Unit
 from hwtHls.hls import Hls
 from hwtHls.platform.virtual import VirtualHlsPlatform
+from pyMathBitPrecise.bit_utils import mask
 
 
 class HlsConnection(Unit):
     def _declr(self):
         self.a = VectSignal(32, signed=False)
-        self.b = VectSignal(32, signed=False)
+        self.b = VectSignal(32, signed=False)._m()
 
     def _impl(self):
         with Hls(self, freq=int(100e6)) as hls:
@@ -25,7 +25,7 @@ class HlsConnection(Unit):
 class HlsSlice(Unit):
     def _declr(self):
         self.a = VectSignal(32, signed=False)
-        self.b = VectSignal(16, signed=False)
+        self.b = VectSignal(16, signed=False)._m()
 
     def _impl(self):
         with Hls(self, freq=int(100e6)) as hls:
@@ -36,7 +36,7 @@ class HlsSlice(Unit):
 class HlsSlice2(Unit):
     def _declr(self):
         self.a = VectSignal(16, signed=False)
-        self.b = VectSignal(32, signed=False)
+        self.b = VectSignal(32, signed=False)._m()
 
     def _impl(self):
         with Hls(self, freq=int(100e6)) as hls:
@@ -64,9 +64,9 @@ class HlsSlice2C(HlsSlice2):
 
 class HlsSlicingTC(SimTestCase):
     def _test(self, unit, data_in, data_out):
-        self.prepareUnit(unit, targetPlatform=VirtualHlsPlatform())
+        self.compileSimAndStart(unit, target_platform=VirtualHlsPlatform())
         unit.a._ag.data.extend(data_in)
-        self.doSim(len(data_in) * 10 * Time.ns)
+        self.runSim(len(data_in) * 10 * Time.ns)
         self.assertValSequenceEqual(unit.b._ag.data, data_out)
 
     def test_connection(self):
@@ -101,8 +101,7 @@ class HlsSlicingTC(SimTestCase):
 
 if __name__ == "__main__":
     import unittest
-
-    from hwt.synthesizer.utils import toRtl
+    from hwt.synthesizer.utils import to_rtl_str
 
     suite = unittest.TestSuite()
     # suite.addTest(FrameTmplTC('test_frameHeader'))
@@ -111,7 +110,7 @@ if __name__ == "__main__":
     runner.run(suite)
 
     u = HlsConnection()
-    print(toRtl(u, targetPlatform=VirtualHlsPlatform()) + "\n")
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform()) + "\n")
 
     u = HlsSlice2()
-    print(toRtl(u, targetPlatform=VirtualHlsPlatform()))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform()))
