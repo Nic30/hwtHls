@@ -116,14 +116,14 @@ if __name__ == "__main__":
 * [coreir](https://github.com/rdaly525/coreir) - 2016-?, LLVM HW compiler
 * [spatial](https://github.com/stanford-ppl/spatial)  - , scala
 * [microcoder](https://github.com/ben-marshall/microcoder) - , Python, ASM like lang. -> verilog
-* [TAPAS](https://github.com/sfu-arch/TAPAS) - 2018-?, c++, Generating Parallel Accelerators fromParallel Programs
+* [TAPAS](https://github.com/sfu-arch/TAPAS) - 2018-2019, c++, Generating Parallel Accelerators fromParallel Programs
 * [DHLS](https://github.com/dillonhuff/DHLS) - 2019-?, C++, A Basic High Level Synthesis System Using LLVM
-* [ahaHLS](https://github.com/dillonhuff/ahaHLS) - 2018-?, A Basic High Level Synthesis System Using LLVM
+* [ahaHLS](https://github.com/dillonhuff/ahaHLS) - 2018-2019, A Basic High Level Synthesis System Using LLVM
 * [pluto](https://github.com/bondhugula/pluto) -  An automatic polyhedral parallelizer and locality optimizer
 * [ctoverilog](https://github.com/udif/ctoverilog) - A C to verilog compiler, LLVM
 * [exprc](https://github.com/n-nez/exprc) - 2018-2018, C++, a toy HLS compiler
 * [kiwi](https://www.cl.cam.ac.uk/~djg11/kiwi/)
-* [ElasticC](https://github.com/daveshah1/ElasticC) - C++, lightweight open HLS for FPGA rapid prototyping 
+* [ElasticC](https://github.com/daveshah1/ElasticC)  ?-2018 - C++, lightweight open HLS for FPGA rapid prototyping 
 
 ## Useful publications
 * [Efficient Pipelining of Nested Loops: Unroll-and-Squash](https://people.csail.mit.edu/saman/student_thesis/petkov-01.pdf)
