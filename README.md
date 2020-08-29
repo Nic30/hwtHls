@@ -48,57 +48,6 @@ HLS for [HWToolkit](https://github.com/Nic30/HWToolkit) (hardware devel. toolkit
 * Metalanguage description allows very precise driving of HLS process with minimum effort. 
 
 
-# Example MAC operation
-
-```python
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
-from hwt.interfaces.std import VectSignal
-from hwt.interfaces.utils import addClkRstn
-from hwt.synthesizer.param import Param
-from hwt.synthesizer.unit import Unit
-from hwtHls.hls import Hls
-
-
-
-class HlsMAC_example(Unit):
-    def _config(self):
-        self.CLK_FREQ = Param(int(100e6))
-
-    def _declr(self):
-        addClkRstn(self)
-        self.a = VectSignal(32, signed=False)
-        self.b = VectSignal(32, signed=False)
-        self.c = VectSignal(32, signed=False)
-        self.d = VectSignal(32, signed=False)
-        self.e = VectSignal(64, signed=False)
-
-    def _impl(self):
-        with Hls(self, freq=self.CLK_FREQ) as hls:
-            # inputs has to be readed to enter hls scope
-            # (without read() operation will not be schedueled by HLS
-            #  but they will be directly synthesized)
-            a, b, c, d = [hls.read(intf)
-                          for intf in [self.a, self.b, self.c, self.d]]
-
-            # depending on target platform this expresion
-            # can be mapped to DPS, LUT, etc...
-            # no constrains are specified => default strategy is
-            # to achieve zero delay and minimum latency, for this CLK_FREQ
-            e = a * b + c * d
-
-            hls.write(e, self.e)
-
-if __name__ == "__main__":
-    import unittest
-    from hwtHls.platform.virtual import VirtualHlsPlatform
-    from hwt.synthesizer.utils import to_rtl
-    
-    u = HlsMAC_example()
-    print(to_rtl(u, targetPlatform=VirtualHlsPlatform()))
-```
 
 ## Related open-source
 * :skull: [legup](http://legup.eecg.utoronto.ca/) - 2011-2015, LLVM based c->verilog 
