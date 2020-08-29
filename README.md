@@ -101,29 +101,29 @@ if __name__ == "__main__":
 ```
 
 ## Related open-source
-* [legup](http://legup.eecg.utoronto.ca/) - 2011-2015, LLVM based c->verilog 
+* :skull: [legup](http://legup.eecg.utoronto.ca/) - 2011-2015, LLVM based c->verilog 
 * [bambu](http://panda.dei.polimi.it/?page_id=31) - 2003-?, GCC based c->verilog 
-* [augh](http://tima.imag.fr/sls/research-projects/augh/) - c->verilog, DSP support
-* https://github.com/utwente-fmt - abstract hls, verification libraries
-* [Shang](https://github.com/etherzhhb/Shang) - 2012-2014, LLVM based, c->verilog
-* [xronos](https://github.com/endrix/xronos) [git2](https://github.com/endrix/xronos) - 2012-2016, java, simple HLS
-* [Potholes](https://github.com/SamuelBayliss/Potholes) - 2012-2014 - polyhedral model preprocessor, Uses Vivado HLS, PET
-* [hls_recurse](https://github.com/m8pple/hls_recurse) - 2015-2016 - conversion of recursive fn. for stackless architectures
-* [hg_lvl_syn](https://github.com/funningboy/hg_lvl_syn) - 2010, ILP, Force Directed scheduler
+* :skull: [augh](http://tima.imag.fr/sls/research-projects/augh/) - c->verilog, DSP support
+* [utwente-fmt](https://github.com/utwente-fmt) - abstract hls, verification libraries
+* :skull: [Shang](https://github.com/etherzhhb/Shang) - 2012-2014, LLVM based, c->verilog
+* :skull: [xronos](https://github.com/endrix/xronos) [git2](https://github.com/endrix/xronos) - 2012-2016, java, simple HLS
+* :skull: [Potholes](https://github.com/SamuelBayliss/Potholes) - 2012-2014 - polyhedral model preprocessor, Uses Vivado HLS, PET
+* :skull: [hls_recurse](https://github.com/m8pple/hls_recurse) - 2015-2016 - conversion of recursive fn. for stackless architectures
+* :skull: [hg_lvl_syn](https://github.com/funningboy/hg_lvl_syn) - 2010, ILP, Force Directed scheduler
 * [abc](https://people.eecs.berkeley.edu/~alanmi/abc/) <2008-?, A System for Sequential Synthesis and Verification 
-* [polyphony](https://github.com/ktok07b6/polyphony) - 2015-2017, simple python to hdl
-* [DelayGraph](https://github.com/ni/DelayGraph) - 2016, C#, register assignment alghorithms
+* :skull: [polyphony](https://github.com/ktok07b6/polyphony) - 2015-2017, simple python to hdl
+* :skull: [DelayGraph](https://github.com/ni/DelayGraph) - 2016, C#, register assignment alghorithms
 * [coreir](https://github.com/rdaly525/coreir) - 2016-?, LLVM HW compiler
 * [spatial](https://github.com/stanford-ppl/spatial)  - , scala
-* [microcoder](https://github.com/ben-marshall/microcoder) - , Python, ASM like lang. -> verilog
-* [TAPAS](https://github.com/sfu-arch/TAPAS) - 2018-2019, c++, Generating Parallel Accelerators fromParallel Programs
-* [DHLS](https://github.com/dillonhuff/DHLS) - 2019-?, C++, A Basic High Level Synthesis System Using LLVM
-* [ahaHLS](https://github.com/dillonhuff/ahaHLS) - 2018-2019, A Basic High Level Synthesis System Using LLVM
+* :skull: [microcoder](https://github.com/ben-marshall/microcoder) - ?-2019, Python, ASM like lang. -> verilog
+* :skull: [TAPAS](https://github.com/sfu-arch/TAPAS) - 2018-2019, c++, Generating Parallel Accelerators fromParallel Programs
+* :skull: [DHLS](https://github.com/dillonhuff/DHLS) - 2019-?, C++, A Basic High Level Synthesis System Using LLVM
+* :skull: [ahaHLS](https://github.com/dillonhuff/ahaHLS) - 2018-2019, A Basic High Level Synthesis System Using LLVM
 * [pluto](https://github.com/bondhugula/pluto) -  An automatic polyhedral parallelizer and locality optimizer
-* [ctoverilog](https://github.com/udif/ctoverilog) - A C to verilog compiler, LLVM
-* [exprc](https://github.com/n-nez/exprc) - 2018-2018, C++, a toy HLS compiler
-* [kiwi](https://www.cl.cam.ac.uk/~djg11/kiwi/)
-* [ElasticC](https://github.com/daveshah1/ElasticC)  ?-2018 - C++, lightweight open HLS for FPGA rapid prototyping 
+* :skull: [ctoverilog](https://github.com/udif/ctoverilog) ?-2015 - A C to verilog compiler, LLVM
+* :skull: [exprc](https://github.com/n-nez/exprc) - 2018-2018, C++, a toy HLS compiler
+* :skull: [kiwi](https://www.cl.cam.ac.uk/~djg11/kiwi/) 2003-2017
+* :skull: [ElasticC](https://github.com/daveshah1/ElasticC)  ?-2018 - C++, lightweight open HLS for FPGA rapid prototyping 
 
 ## Useful publications
 * [Efficient Pipelining of Nested Loops: Unroll-and-Squash](https://people.csail.mit.edu/saman/student_thesis/petkov-01.pdf)
