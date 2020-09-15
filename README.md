@@ -51,7 +51,7 @@ HLS for [HWToolkit](https://github.com/Nic30/HWToolkit) (hardware devel. toolkit
 
 ## Related open-source
 * :skull: [legup](http://legup.eecg.utoronto.ca/) - 2011-2015, LLVM based c->verilog 
-* [bambu](http://panda.dei.polimi.it/?page_id=31) - 2003-?, GCC based c->verilog 
+* [PandA-bambu](http://panda.dei.polimi.it/?page_id=31) - 2003-?, GCC based c->verilog 
 * :skull: [augh](http://tima.imag.fr/sls/research-projects/augh/) - c->verilog, DSP support
 * [utwente-fmt](https://github.com/utwente-fmt) - abstract hls, verification libraries
 * :skull: [Shang](https://github.com/etherzhhb/Shang) - 2012-2014, LLVM based, c->verilog
