@@ -27,10 +27,10 @@ HLS for [HWToolkit](https://github.com/Nic30/HWToolkit) (hardware devel. toolkit
 * hwtHls uses HDL objects from [HWToolkit](https://github.com/Nic30/HWToolkit). 
   It means that generation target HDL and simulation is solved by [HWToolkit](https://github.com/Nic30/HWToolkit).
 
-* hwtHls solves problems of latency/resource/delay constrained schedueling/allocation
+* hwtHls solves problems of latency/resource/delay constrained scheduling/allocation
 * uses separated CDFG with backward reference for representation of code
 * operator tree balancing, support for non primitive operators (DSP etc., with multiple IO, latency, delay)
-* default scheduling ALAP, ASAP, list based schedueling
+* default scheduling ALAP, ASAP, list based scheduling
 * default allocating Left edge
 * loop unroll, pipeline
 * Support for Bus, Handshaked, Rd/VldSynced, Signal interfaces
@@ -48,85 +48,39 @@ HLS for [HWToolkit](https://github.com/Nic30/HWToolkit) (hardware devel. toolkit
 * Metalanguage description allows very precise driving of HLS process with minimum effort. 
 
 
-# Example MAC operation
-
-```python
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-
-from hwt.interfaces.std import VectSignal
-from hwt.interfaces.utils import addClkRstn
-from hwt.synthesizer.param import Param
-from hwt.synthesizer.unit import Unit
-from hwtHls.hls import Hls
-
-
-
-class HlsMAC_example(Unit):
-    def _config(self):
-        self.CLK_FREQ = Param(int(100e6))
-
-    def _declr(self):
-        addClkRstn(self)
-        self.a = VectSignal(32, signed=False)
-        self.b = VectSignal(32, signed=False)
-        self.c = VectSignal(32, signed=False)
-        self.d = VectSignal(32, signed=False)
-        self.e = VectSignal(64, signed=False)
-
-    def _impl(self):
-        with Hls(self, freq=self.CLK_FREQ) as hls:
-            # inputs has to be readed to enter hls scope
-            # (without read() operation will not be schedueled by HLS
-            #  but they will be directly synthesized)
-            a, b, c, d = [hls.read(intf)
-                          for intf in [self.a, self.b, self.c, self.d]]
-
-            # depending on target platform this expresion
-            # can be mapped to DPS, LUT, etc...
-            # no constrains are specified => default strategy is
-            # to achieve zero delay and minimum latency, for this CLK_FREQ
-            e = a * b + c * d
-
-            hls.write(e, self.e)
-
-if __name__ == "__main__":
-    import unittest
-    from hwtHls.platform.virtual import VirtualHlsPlatform
-    from hwt.synthesizer.utils import to_rtl
-    
-    u = HlsMAC_example()
-    print(to_rtl(u, targetPlatform=VirtualHlsPlatform()))
-```
 
 ## Related open-source
-* [legup](http://legup.eecg.utoronto.ca/) - 2011-2015, LLVM based c->verilog 
-* [bambu](http://panda.dei.polimi.it/?page_id=31) - 2003-?, GCC based c->verilog 
-* [augh](http://tima.imag.fr/sls/research-projects/augh/) - c->verilog, DSP support
-* https://github.com/utwente-fmt - abstract hls, verification libraries
-* [Shang](https://github.com/etherzhhb/Shang) - 2012-2014, LLVM based, c->verilog
-* [xronos](https://github.com/endrix/xronos) [git2](https://github.com/endrix/xronos) - 2012-2016, java, simple HLS
-* [Potholes](https://github.com/SamuelBayliss/Potholes) - 2012-2014 - polyhedral model preprocessor, Uses Vivado HLS, PET
-* [hls_recurse](https://github.com/m8pple/hls_recurse) - 2015-2016 - conversion of recursive fn. for stackless architectures
-* [hg_lvl_syn](https://github.com/funningboy/hg_lvl_syn) - 2010, ILP, Force Directed scheduler
+* :skull: [legup](http://legup.eecg.utoronto.ca/) - 2011-2015, LLVM based c->verilog 
+* [PandA-bambu](http://panda.dei.polimi.it/?page_id=31) - 2003-?, GCC based c->verilog 
+* :skull: [augh](http://tima.imag.fr/sls/research-projects/augh/) - c->verilog, DSP support
+* [utwente-fmt](https://github.com/utwente-fmt) - abstract hls, verification libraries
+* :skull: [Shang](https://github.com/etherzhhb/Shang) - 2012-2014, LLVM based, c->verilog
+* :skull: [xronos](https://github.com/endrix/xronos) [git2](https://github.com/endrix/xronos) - 2012-2016, java, simple HLS
+* :skull: [Potholes](https://github.com/SamuelBayliss/Potholes) - 2012-2014 - polyhedral model preprocessor, Uses Vivado HLS, PET
+* :skull: [hls_recurse](https://github.com/m8pple/hls_recurse) - 2015-2016 - conversion of recursive fn. for stackless architectures
+* :skull: [hg_lvl_syn](https://github.com/funningboy/hg_lvl_syn) - 2010, ILP, Force Directed scheduler
 * [abc](https://people.eecs.berkeley.edu/~alanmi/abc/) <2008-?, A System for Sequential Synthesis and Verification 
-* [polyphony](https://github.com/ktok07b6/polyphony) - 2015-2017, simple python to hdl
-* [DelayGraph](https://github.com/ni/DelayGraph) - 2016, C#, register assignment alghorithms
+* :skull: [polyphony](https://github.com/ktok07b6/polyphony) - 2015-2017, simple python to hdl
+* :skull: [DelayGraph](https://github.com/ni/DelayGraph) - 2016, C#, register assignment alghorithms
 * [coreir](https://github.com/rdaly525/coreir) - 2016-?, LLVM HW compiler
 * [spatial](https://github.com/stanford-ppl/spatial)  - , scala
-* [microcoder](https://github.com/ben-marshall/microcoder) - , Python, ASM like lang. -> verilog
-* [TAPAS](https://github.com/sfu-arch/TAPAS) - 2018-?, c++, Generating Parallel Accelerators fromParallel Programs
-* [DHLS](https://github.com/dillonhuff/DHLS) - 2019-?, C++, A Basic High Level Synthesis System Using LLVM
-* [ahaHLS](https://github.com/dillonhuff/ahaHLS) - 2018-?, A Basic High Level Synthesis System Using LLVM
+* :skull: [microcoder](https://github.com/ben-marshall/microcoder) - ?-2019, Python, ASM like lang. -> verilog
+* :skull: [TAPAS](https://github.com/sfu-arch/TAPAS) - 2018-2019, c++, Generating Parallel Accelerators fromParallel Programs
+* :skull: [DHLS](https://github.com/dillonhuff/DHLS) - 2019-?, C++, A Basic High Level Synthesis System Using LLVM
+* :skull: [ahaHLS](https://github.com/dillonhuff/ahaHLS) - 2018-2019, A Basic High Level Synthesis System Using LLVM
 * [pluto](https://github.com/bondhugula/pluto) -  An automatic polyhedral parallelizer and locality optimizer
-* [ctoverilog](https://github.com/udif/ctoverilog) - A C to verilog compiler, LLVM
-* [exprc](https://github.com/n-nez/exprc) - 2018-2018, C++, a toy HLS compiler
-* [kiwi](https://www.cl.cam.ac.uk/~djg11/kiwi/)
-* [ElasticC](https://github.com/daveshah1/ElasticC) - C++, lightweight open HLS for FPGA rapid prototyping 
+* :skull: [ctoverilog](https://github.com/udif/ctoverilog) ?-2015 - A C to verilog compiler, LLVM
+* :skull: [exprc](https://github.com/n-nez/exprc) - 2018-2018, C++, a toy HLS compiler
+* :skull: [kiwi](https://www.cl.cam.ac.uk/~djg11/kiwi/) 2003-2017
+* :skull: [ElasticC](https://github.com/daveshah1/ElasticC)  ?-2018 - C++, lightweight open HLS for FPGA rapid prototyping 
+* :skull: [c-ll-verilog](https://github.com/sabbaghm/c-ll-verilog) 2017-2017, C++, An LLVM based mini-C to Verilog High-level Synthesis tool
+
 
 ## Useful publications
 * [Efficient Pipelining of Nested Loops: Unroll-and-Squash](https://people.csail.mit.edu/saman/student_thesis/petkov-01.pdf)
 * [Coordinated Parallelizing Compiler Optimizations and High-Level Synthesis](https://escholarship.org/uc/item/3421b3h6)
 * [Parallel Programming for FPGAs](https://github.com/KastnerRG/pp4fpgas)
 * [Speculative Dataflow Circuits](https://dl.acm.org/citation.cfm?id=3293914)
+* 2012 [An overview of today's high-level synthesis tools](https://www.researchgate.net/publication/260432684_An_overview_of_today's_high-level_synthesis_tools)
+* 2015 [A Survey and Evaluation of FPGA High-Level Synthesis Tools](https://ieeexplore.ieee.org/document/7368920)
+* 2019 [Are We There Yet? A Study on the State of High-Level Synthesis](https://ieeexplore.ieee.org/document/8356004)
