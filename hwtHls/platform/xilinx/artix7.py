@@ -44,7 +44,7 @@ class Artix7Slow(AbstractXilinxPlatform):
             AllOps.XOR: self.get_bitwise_op_delay,
             AllOps.NOT: self.get_bitwise_op_delay,
 
-            AllOps.NEG: self.get_bitwise_op_delay,
+            AllOps.NOT: self.get_bitwise_op_delay,
             AllOps.ADD: self.get_add_op_delay,
             AllOps.SUB: self.get_add_op_delay,
 
