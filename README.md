@@ -24,7 +24,7 @@ HLS for [HWToolkit](https://github.com/Nic30/HWToolkit) (hardware devel. toolkit
   * automatic micro kernels
 
 ## How it works.
-* hwtHls uses HDL objects from [HWToolkit](https://github.com/Nic30/HWToolkit). 
+* hwtHls uses HDL objects from [HWToolkit](https://github.com/Nic30/HWToolkit).
   It means that generation target HDL and simulation is solved by [HWToolkit](https://github.com/Nic30/HWToolkit).
 
 * hwtHls solves problems of latency/resource/delay constrained scheduling/allocation
@@ -45,13 +45,13 @@ HLS for [HWToolkit](https://github.com/Nic30/HWToolkit) (hardware devel. toolkit
 * Nearly all HLS synthesizers performing conversion from source language to target language. HwtHls is different.
 * In HwtHls code is written in meta-language.
 * Reason for this is that #pragmas and other compiler directives became major part of code and #pragmas can not contain any code which can run at compilation time. One solution is to use external language for example TCL to control HLS synthesiser, but still retrospectivity is greatly limited.
-* Metalanguage description allows very precise driving of HLS process with minimum effort. 
+* Metalanguage description allows very precise driving of HLS process with minimum effort.
 
 
 
 ## Related open-source
-* :skull: [legup](http://legup.eecg.utoronto.ca/) - 2011-2015, LLVM based c->verilog 
-* [PandA-bambu](http://panda.dei.polimi.it/?page_id=31) - 2003-?, GCC based c->verilog 
+* :skull: [legup](http://legup.eecg.utoronto.ca/) - 2011-2015, LLVM based c->verilog
+* [PandA-bambu](http://panda.dei.polimi.it/?page_id=31) - 2003-?, GCC based c->verilog
 * :skull: [augh](http://tima.imag.fr/sls/research-projects/augh/) - c->verilog, DSP support
 * [gemmini](https://github.com/ucb-bar/gemmini) - scala, systolic array generator
 * [utwente-fmt](https://github.com/utwente-fmt) - abstract hls, verification libraries
@@ -60,9 +60,10 @@ HLS for [HWToolkit](https://github.com/Nic30/HWToolkit) (hardware devel. toolkit
 * :skull: [Potholes](https://github.com/SamuelBayliss/Potholes) - 2012-2014 - polyhedral model preprocessor, Uses Vivado HLS, PET
 * :skull: [hls_recurse](https://github.com/m8pple/hls_recurse) - 2015-2016 - conversion of recursive fn. for stackless architectures
 * :skull: [hg_lvl_syn](https://github.com/funningboy/hg_lvl_syn) - 2010, ILP, Force Directed scheduler
-* [abc](https://people.eecs.berkeley.edu/~alanmi/abc/) <2008-?, A System for Sequential Synthesis and Verification 
+* [abc](https://people.eecs.berkeley.edu/~alanmi/abc/) <2008-?, A System for Sequential Synthesis and Verification
 * :skull: [polyphony](https://github.com/ktok07b6/polyphony) - 2015-2017, simple python to hdl
 * :skull: [DelayGraph](https://github.com/ni/DelayGraph) - 2016, C#, register assignment alghorithms
+* [PipelineC](https://github.com/JulianKemmerer/PipelineC) - 2018, Python, c -> hdl for a limited subset of c
 * [coreir](https://github.com/rdaly525/coreir) - 2016-?, LLVM HW compiler
 * [spatial](https://github.com/stanford-ppl/spatial)  - , scala
 * :skull: [microcoder](https://github.com/ben-marshall/microcoder) - ?-2019, Python, ASM like lang. -> verilog
@@ -73,7 +74,7 @@ HLS for [HWToolkit](https://github.com/Nic30/HWToolkit) (hardware devel. toolkit
 * :skull: [ctoverilog](https://github.com/udif/ctoverilog) ?-2015 - A C to verilog compiler, LLVM
 * :skull: [exprc](https://github.com/n-nez/exprc) - 2018-2018, C++, a toy HLS compiler
 * :skull: [kiwi](https://www.cl.cam.ac.uk/~djg11/kiwi/) 2003-2017
-* :skull: [ElasticC](https://github.com/daveshah1/ElasticC)  ?-2018 - C++, lightweight open HLS for FPGA rapid prototyping 
+* :skull: [ElasticC](https://github.com/daveshah1/ElasticC)  ?-2018 - C++, lightweight open HLS for FPGA rapid prototyping
 * :skull: [c-ll-verilog](https://github.com/sabbaghm/c-ll-verilog) 2017-2017, C++, An LLVM based mini-C to Verilog High-level Synthesis tool
 
 
