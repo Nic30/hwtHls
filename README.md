@@ -50,7 +50,7 @@ HLS for [HWToolkit](https://github.com/Nic30/HWToolkit) (hardware devel. toolkit
 
 
 ## Related open-source
-* :skull: [legup](http://legup.eecg.utoronto.ca/) - 2011-2015, LLVM based c->verilog
+* :skull: [legup](http://legup.eecg.utoronto.ca/) (reborn as Microchip SmarthHLS in 2020) - 2011-2015, LLVM based c->verilog
 * [PandA-bambu](http://panda.dei.polimi.it/?page_id=31) - 2003-?, GCC based c->verilog
 * :skull: [augh](http://tima.imag.fr/sls/research-projects/augh/) - c->verilog, DSP support
 * [gemmini](https://github.com/ucb-bar/gemmini) - scala, systolic array generator
