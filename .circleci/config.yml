@@ -1,0 +1,30 @@
+version: 2.1
+
+orbs:
+  python: circleci/python@0.2.1
+  py: nic30/python-all-in-1@0.2.47
+
+jobs:
+  install-test-deploy:
+    executor: python/default
+    resource_class: small
+    steps:
+      - checkout
+      # - python/load-cache
+      - py/install-package-git:
+          cwd: ..
+          url: https://github.com/Nic30/hwtHls
+      - py/install-setup-py
+      # - python/save-cache
+      - py/test-and-coverage
+      - py/deploy-pypi-on-tag
+
+workflows:
+  main:
+    jobs:
+      - install-test-deploy:
+          context:
+            - pypi
+          filters:
+            tags:
+              only: /.*/
