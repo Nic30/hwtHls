@@ -4,7 +4,7 @@
 [![Python version](https://img.shields.io/pypi/pyversions/hwtHls.svg)](https://img.shields.io/pypi/pyversions/hwtHls.svg)
 
 
-HLS for [HWToolkit](https://github.com/Nic30/HWToolkit) (hardware devel. toolkit)
+HLS for [hwt](https://github.com/Nic30/hwt) (hwt is a library for circuit construction)
 
 *As you can see in the section "related opensource" below there is tons of HLS synthesizers. If you are also interested in this area let us know! The HLS community has to be connected!*
 
@@ -24,8 +24,8 @@ HLS for [HWToolkit](https://github.com/Nic30/HWToolkit) (hardware devel. toolkit
   * automatic micro kernels
 
 ## How it works.
-* hwtHls uses HDL objects from [HWToolkit](https://github.com/Nic30/HWToolkit).
-  It means that generation target HDL and simulation is solved by [HWToolkit](https://github.com/Nic30/HWToolkit).
+* hwtHls uses HDL objects from [hwt](https://github.com/Nic30/hwt).
+  It means that generation target HDL and simulation is solved by [hwt](https://github.com/Nic30/hwt).
 
 * hwtHls solves problems of latency/resource/delay constrained scheduling/allocation
 * uses separated CDFG with backward reference for representation of code
