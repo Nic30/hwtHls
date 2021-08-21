@@ -79,6 +79,12 @@ HLS for [HWToolkit](https://github.com/Nic30/HWToolkit) (hardware devel. toolkit
 * [xls](https://github.com/google/xls) - 2020-?, C++ HLS compiler with JIT
 * :skull: [Chips-2.0](https://github.com/dawsonjon/Chips-2.0) - 2011-2019, Python, C->Verilog HLS
 * [tiramisu](https://github.com/Tiramisu-Compiler/tiramisu) - 2016-?, C++, A polyhedral compiler
+* [Slice](https://github.com/sylefeb/Silice)
+* [blarney](https://github.com/blarney-lang/blarney)
+* [clash-compiler](https://github.com/clash-lang/clash-compiler)
+* [heterocl](https://awesomeopensource.com/project/cornell-zhang/heterocl)
+* [futil](https://github.com/cucapra/futil) - 2020-?, custom lang.
+* :skull: [streamit-hls](https://github.com/stenzek/streamit-hls) - 2017, custom lang, based on micro kernels
 
 ## Useful publications
 * [Efficient Pipelining of Nested Loops: Unroll-and-Squash](https://people.csail.mit.edu/saman/student_thesis/petkov-01.pdf)
@@ -88,3 +94,5 @@ HLS for [HWToolkit](https://github.com/Nic30/HWToolkit) (hardware devel. toolkit
 * 2012 [An overview of today's high-level synthesis tools](https://www.researchgate.net/publication/260432684_An_overview_of_today's_high-level_synthesis_tools)
 * 2015 [A Survey and Evaluation of FPGA High-Level Synthesis Tools](https://ieeexplore.ieee.org/document/7368920)
 * 2019 [Are We There Yet? A Study on the State of High-Level Synthesis](https://ieeexplore.ieee.org/document/8356004)
+* [LLVM dialect overview](https://llvm.discourse.group/t/codegen-dialect-overview/2723)
+* [dynamatically scheduled circuits](https://dynamatic.epfl.ch/)
