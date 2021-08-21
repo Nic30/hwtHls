@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-
 from functools import reduce
 
 from hwt.hdl.constants import Time
@@ -17,6 +16,7 @@ from hwtHls.platform.virtual import VirtualHlsPlatform
 
 
 class HlsMAC_example(Unit):
+
     def _config(self):
         self.CLK_FREQ = Param(int(25e6))
         self.INPUT_CNT = Param(4)
@@ -48,6 +48,7 @@ class HlsMAC_example(Unit):
 
 
 class HlsMAC_example2(HlsMAC_example):
+
     def _config(self):
         super(HlsMAC_example2, self)._config()
         self.INPUT_CNT = 16
@@ -72,6 +73,7 @@ class HlsMAC_example2(HlsMAC_example):
 
 
 class HlsMAC_example_TC(SimTestCase):
+
     def test_simple(self):
         u = HlsMAC_example()
         self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())

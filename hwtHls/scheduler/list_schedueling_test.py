@@ -34,10 +34,11 @@ class ListSchedueling_TC(unittest.TestCase):
 
     def simple_not(self):
         hls = self.hls
+        a_ioin_sig = sig("a_ioin")
         a_in_sig = sig("a_in")
         a_out_sig = sig("a_out")
 
-        a_in = HlsRead(hls, a_in_sig)
+        a_in = HlsRead(hls, a_ioin_sig, a_in_sig)
         a_not = HlsOperation(hls, AllOps.NOT, 1)
         link_nodes(a_in, a_not)
         a_out = HlsWrite(hls, 1, a_out_sig)
@@ -51,12 +52,15 @@ class ListSchedueling_TC(unittest.TestCase):
         hls = self.hls
 
         def and_op(prefix):
+            a0_io_in_sig = sig(prefix + "0_ioin")
+            a1_io_in_sig = sig(prefix + "1_ioin")
             a0_in_sig = sig(prefix + "0_in")
             a1_in_sig = sig(prefix + "1_in")
+
             a_out_sig = sig(prefix + "_out")
 
-            a0_in = HlsRead(hls, a0_in_sig)
-            a1_in = HlsRead(hls, a1_in_sig)
+            a0_in = HlsRead(hls, a0_io_in_sig, a0_in_sig)
+            a1_in = HlsRead(hls, a1_io_in_sig, a1_in_sig)
 
             a_and = HlsOperation(hls, AllOps.AND, 1)
             link_nodes(a0_in, a_and)

@@ -5,21 +5,21 @@ http://www.risc.jku.at/publications/download/risc_2335/2004-02-18-A.pdf
 """
 from typing import List, Union
 
-from hwt.hdl.assignment import Assignment
 from hwt.hdl.operatorDefs import OpDefinition, AllOps
+from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
+from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.typeCast import toHVal
 from hwt.hdl.value import HValue
 from hwt.interfaces.std import Signal
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
+from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
-from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal, NO_NOPVAL
+from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.clk_math import start_clk
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta, \
     UNSPECIFIED_OP_REALIZATION
-from hwt.hdl.statement import HdlStatement
-
 
 IO_COMB_REALIZATION = OpRealizationMeta(latency_post=0.1e-9)
 
@@ -142,7 +142,7 @@ class HlsConst(AbstractHlsOp):
         pass
 
 
-class HlsRead(AbstractHlsOp):
+class HlsRead(AbstractHlsOp, HdlAssignmentContainer):
     """
     Hls plane to read from interface
 
@@ -150,7 +150,7 @@ class HlsRead(AbstractHlsOp):
     :ivar intf: original interface from which read should be performed
     """
 
-    def __init__(self, parentHls: "Hls", intf: Union[RtlSignal, Interface]):
+    def __init__(self, parentHls: "Hls", intf: Union[RtlSignal, Interface], dst_intf: Union[RtlSignal, Interface]):
         AbstractHlsOp.__init__(self, parentHls, None)
         self.operator = "read"
         HdlStatement.__init__(self)
@@ -159,21 +159,27 @@ class HlsRead(AbstractHlsOp):
             dataSig = intf
         else:
             dataSig = intf._sig
-
-        t = dataSig._dtype
+        self._inputs.append(dataSig)
+        # t = dataSig._dtype
 
         # from Assignment __init__
         self._now_is_event_dependent = False
         self.indexes = None
-        self._instId = Assignment._nextInstId()
+        self._instId = HdlAssignmentContainer._nextInstId()
 
         # instantiate signal for value from this read
-        self._sig = parentHls.ctx.sig(
-            "hsl_" + getSignalName(intf),
-            dtype=t)
+        # self._sig = parentHls.ctx.sig(
+        #    "hsl_" + getSignalName(intf),
+        #    dtype=t)
+        # self._sig.hidden =  False
+        #
+        # self._sig.origin = self
+        # self._sig.drivers.append(self)
 
-        self._sig.origin = self
-        self._sig.drivers.append(self)
+        self._outputs.append(dst_intf)
+        dst_intf.drivers.append(self)
+        dst_intf.origin = self
+        self.dst = dst_intf
 
         self.intf = intf
 
@@ -186,11 +192,10 @@ class HlsRead(AbstractHlsOp):
         self.assignRealization(IO_COMB_REALIZATION)
 
     def __repr__(self):
-        return "<%s, %r>" % (self.__class__.__name__,
-                             self.intf)
+        return f"<{self.__class__.__name__:s}, {self.intf}>"
 
 
-class HlsWrite(AbstractHlsOp, Assignment):
+class HlsWrite(AbstractHlsOp, HdlAssignmentContainer):
     """
     :ivar src: const value or HlsVariable
     :ivar dst: output interface not relatet to HLS
@@ -207,7 +212,7 @@ class HlsWrite(AbstractHlsOp, Assignment):
             if not isinstance(dst, (Signal, HlsIO)):
                 tmp = dst._getIndexCascade()
                 if tmp:
-                    dst, indexCascade = tmp
+                    dst, indexCascade, _ = tmp
 
         if isinstance(src, RtlSignal):
             src.endpoints.append(self)
@@ -216,10 +221,17 @@ class HlsWrite(AbstractHlsOp, Assignment):
         if isinstance(dst, HlsIO):
             parentHls.outputs.append(self)
 
+        self._inputs.append(src)
+        if indexCascade:
+            for i in indexCascade:
+                if isinstance(i, (Signal, HlsIO)):
+                    self._inputs.append(i)
+        self._outputs.append(dst)
+
         # from Assignment __init__
         self.isEventDependent = False
         self.indexes = indexCascade
-        self._instId = Assignment._nextInstId()
+        self._instId = HdlAssignmentContainer._nextInstId()
         parentHls.ctx.statements.add(self)
 
     def resolve_realization(self):
@@ -243,7 +255,7 @@ class HlsOperation(AbstractHlsOp):
     """
 
     def __init__(self, parentHls: "Hls",
-                 operator: OpDefinition, bit_length: int,  name=None):
+                 operator: OpDefinition, bit_length: int, name=None):
         super(HlsOperation, self).__init__(parentHls, bit_length, name=name)
         self.operator = operator
 
@@ -272,15 +284,15 @@ class HlsIO(RtlSignal):
     Signal which is connected to outside of HLS context
     """
 
-    def __init__(self, hlsCntx, name, dtype, def_val=None, nop_val=NO_NOPVAL):
+    def __init__(self, hlsCntx, name, dtype, def_val=None, nop_val=NOT_SPECIFIED):
         self.hlsCntx = hlsCntx
         RtlSignal.__init__(
             self, hlsCntx.ctx, name, dtype, def_val=def_val,
             nop_val=nop_val)
         self._interface = True
 
-    def __call__(self, source) -> List[Assignment]:
-        return HlsWrite(self.hlsCntx, source, self)
+    def __call__(self, source) -> List[HdlAssignmentContainer]:
+        return [HlsWrite(self.hlsCntx, source, self), ]
 
     def __repr__(self):
         return "<HlsIO %s>" % self.name

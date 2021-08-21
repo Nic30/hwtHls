@@ -1,18 +1,20 @@
+from typing import Union
+
 from hwt.code import If
-from hwt.hdl.assignment import Assignment
 from hwt.hdl.operator import Operator
+from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.struct import HStruct
 from hwt.hdl.value import HValue
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
+from hwt.synthesizer.rtlLevel.remove_unconnected_signals import removeUnconnectedSignals
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.unit import Unit
-from typing import Union
-
 from hwtHls.codeOps import HlsRead, HlsWrite, HlsOperation, \
     HlsConst, AbstractHlsOp, HlsIO
-from hwt.synthesizer.rtlLevel.remove_unconnected_signals import removeUnconnectedSignals
+from hwt.synthesizer.interface import Interface
+from ipCorePackager.constants import DIRECTION
 
 
 class HLS_Error(Exception):
@@ -71,15 +73,15 @@ def mux2Hls(obj: RtlSignal, hls, nodeToHlsNode: dict):
     nodeToHlsNode[obj] = _obj
 
     # add condition to dependencies of this MUX operator
-    c = hdlObj2Hls(obj.drivers[0].cond,  hls, nodeToHlsNode)
+    c = hdlObj2Hls(obj.drivers[0].cond, hls, nodeToHlsNode)
     link_nodes(c, _obj)
 
     for a in obj.drivers:
-        assert isinstance(a, Assignment), a
+        assert isinstance(a, HdlAssignmentContainer), a
         if a.indexes:
             raise NotImplementedError()
 
-        src = hdlObj2Hls(a.src,  hls, nodeToHlsNode)
+        src = hdlObj2Hls(a.src, hls, nodeToHlsNode)
         link_nodes(src, _obj)
 
     return _obj
@@ -100,7 +102,7 @@ def driver2Hls(obj, hls, nodeToHlsNode: dict) -> AbstractHlsOp:
     elif isinstance(obj, Operator):
         return operator2Hls(obj, hls, nodeToHlsNode)
 
-    elif isinstance(obj, Assignment):
+    elif isinstance(obj, HdlAssignmentContainer):
         if obj.parentStm is not None or obj.indexes:
             raise NotImplementedError()
 
@@ -209,7 +211,7 @@ class Hls():
         to_destroy = []
         statements = self.ctx.statements
         for stm in statements:
-            if isinstance(stm, Assignment)\
+            if isinstance(stm, HdlAssignmentContainer)\
                     and stm.indexes\
                     and isinstance(stm.dst, HlsIO):
                 a = stm
@@ -229,27 +231,26 @@ class Hls():
          to directed graph of operations)
         """
         self.convert_indexed_io_assignments_to_HlsWrite()
-        removeUnconnectedSignals(self.ctx)
 
         for io, ioIntf in self._io.items():
+            io: HlsIO
+            ioIntf: Interface
             if io.drivers:
                 if io.endpoints:
                     # R/W
-                    raise NotImplementedError()
+                    raise NotImplementedError("read and write from a single interface", io, ioIntf)
                 else:
                     # WriteOnly, HlsWrite already created
+                    self.ctx.interfaces[io] = DIRECTION.OUT
                     pass
             elif io.endpoints:
-                if io.drivers:
-                    # R/W
-                    raise NotImplementedError()
-                else:
-                    # ReadOnly
-                    r = HlsRead(self, ioIntf)
-                    io.drivers.append(r)
-                    io.origin = r
+                # ReadOnly
+                r = HlsRead(self, ioIntf, io)
+                self.ctx.interfaces[r] = DIRECTION.IN
             else:
                 raise HLS_Error("Unused IO", io, ioIntf)
+
+        removeUnconnectedSignals(self.ctx)
 
         # used as seen set
         nodeToHlsNode = {}
@@ -282,7 +283,7 @@ class Hls():
         self.scheduler.schedule(self.resource_constrain)
         self.allocator.allocate()
 
-    def io(self, io):
+    def io(self, io) -> HlsIO:
         """
         Convert signal/interface to IO
         """
@@ -290,6 +291,7 @@ class Hls():
         dtype = io._dtype
         _io = HlsIO(self, name, dtype)
         _io.hasGenericName = True
+        _io.hidden = False
         self.ctx.signals.add(_io)
         self._io[_io] = io
 

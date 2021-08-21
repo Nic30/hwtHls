@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-
 from hwt.hdl.constants import Time
 from hwt.interfaces.std import VectSignal
 from hwt.simulator.simTestCase import SimTestCase
@@ -12,6 +11,7 @@ from pyMathBitPrecise.bit_utils import mask
 
 
 class HlsConnection(Unit):
+
     def _declr(self):
         self.a = VectSignal(32, signed=False)
         self.b = VectSignal(32, signed=False)._m()
@@ -23,6 +23,7 @@ class HlsConnection(Unit):
 
 
 class HlsSlice(Unit):
+
     def _declr(self):
         self.a = VectSignal(32, signed=False)
         self.b = VectSignal(16, signed=False)._m()
@@ -34,6 +35,7 @@ class HlsSlice(Unit):
 
 
 class HlsSlice2(Unit):
+
     def _declr(self):
         self.a = VectSignal(16, signed=False)
         self.b = VectSignal(32, signed=False)._m()
@@ -46,6 +48,7 @@ class HlsSlice2(Unit):
 
 
 class HlsSlice2B(HlsSlice2):
+
     def _impl(self):
         with Hls(self, freq=int(100e6)) as hls:
             a = hls.io(self.a)
@@ -54,6 +57,7 @@ class HlsSlice2B(HlsSlice2):
 
 
 class HlsSlice2C(HlsSlice2):
+
     def _impl(self):
         with Hls(self, freq=int(100e6)) as hls:
             a = hls.io(self.a)
@@ -63,6 +67,7 @@ class HlsSlice2C(HlsSlice2):
 
 
 class HlsSlicingTC(SimTestCase):
+
     def _test(self, unit, data_in, data_out):
         self.compileSimAndStart(unit, target_platform=VirtualHlsPlatform())
         unit.a._ag.data.extend(data_in)
@@ -103,14 +108,11 @@ if __name__ == "__main__":
     import unittest
     from hwt.synthesizer.utils import to_rtl_str
 
-    suite = unittest.TestSuite()
-    # suite.addTest(FrameTmplTC('test_frameHeader'))
-    suite.addTest(unittest.makeSuite(HlsSlicingTC))
-    runner = unittest.TextTestRunner(verbosity=3)
-    runner.run(suite)
+    #suite = unittest.TestSuite()
+    ## suite.addTest(FrameTmplTC('test_frameHeader'))
+    #suite.addTest(unittest.makeSuite(HlsSlicingTC))
+    #runner = unittest.TextTestRunner(verbosity=3)
+    #runner.run(suite)
 
-    u = HlsConnection()
+    u = HlsSlice()
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform()) + "\n")
-
-    u = HlsSlice2()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform()))
