@@ -1,19 +1,14 @@
-
-"""
-Bernsteins Synthesis Algorithm - database key dependencies, Lazy Thinking
-http://www.risc.jku.at/publications/download/risc_2335/2004-02-18-A.pdf
-"""
 from typing import List, Union
 
 from hwt.hdl.operatorDefs import OpDefinition, AllOps
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.statements.statement import HdlStatement
+from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.types.typeCast import toHVal
 from hwt.hdl.value import HValue
 from hwt.interfaces.std import Signal
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
-from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
@@ -21,11 +16,14 @@ from hwtHls.clk_math import start_clk
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta, \
     UNSPECIFIED_OP_REALIZATION
 
+
 IO_COMB_REALIZATION = OpRealizationMeta(latency_post=0.1e-9)
 
 
 class AbstractHlsOp():
     """
+    Abstract class for nodes in circuit which are subject to HLS scheduling
+
     :ivar name: optional suggested name for this object
     :ivar usedBy: unique list of operations which are using data from this
         operation
@@ -99,9 +97,6 @@ class AbstractHlsOp():
 
         return 1 / (self.get_mobility() + 1)
 
-    def asHwt(self, serializer, ctx):
-        return repr(self)
-
     def _get_rtl_context(self):
         return self.hls.ctx
 
@@ -150,7 +145,9 @@ class HlsRead(AbstractHlsOp, HdlAssignmentContainer):
     :ivar intf: original interface from which read should be performed
     """
 
-    def __init__(self, parentHls: "Hls", intf: Union[RtlSignal, Interface], dst_intf: Union[RtlSignal, Interface]):
+    def __init__(self, parentHls: "Hls",
+                 intf: Union[RtlSignal, Interface],
+                 dst_intf: Union[RtlSignal, Interface]):
         AbstractHlsOp.__init__(self, parentHls, None)
         self.operator = "read"
         HdlStatement.__init__(self)
@@ -243,8 +240,7 @@ class HlsWrite(AbstractHlsOp, HdlAssignmentContainer):
         else:
             indexes = ""
 
-        return "<%s, %r <- %r%s>" % (self.__class__.__name__,
-                                     self.dst, self.src, indexes)
+        return f"<{self.__class__.__name__:s}, {self.dst} <- {self.src}{indexes:s}>"
 
 
 class HlsOperation(AbstractHlsOp):
@@ -255,7 +251,9 @@ class HlsOperation(AbstractHlsOp):
     """
 
     def __init__(self, parentHls: "Hls",
-                 operator: OpDefinition, bit_length: int, name=None):
+                 operator: OpDefinition,
+                 bit_length: int,
+                 name=None):
         super(HlsOperation, self).__init__(parentHls, bit_length, name=name)
         self.operator = operator
 
@@ -274,9 +272,7 @@ class HlsOperation(AbstractHlsOp):
         self.assignRealization(r)
 
     def __repr__(self):
-        return "<%s %r %r>" % (self.__class__.__name__,
-                               self.operator,
-                               self.dependsOn)
+        return f"<{self.__class__.__name__:s} {self.operator} {self.dependsOn}>"
 
 
 class HlsIO(RtlSignal):
@@ -284,7 +280,7 @@ class HlsIO(RtlSignal):
     Signal which is connected to outside of HLS context
     """
 
-    def __init__(self, hlsCntx, name, dtype, def_val=None, nop_val=NOT_SPECIFIED):
+    def __init__(self, hlsCntx, name: str, dtype:HdlType, def_val=None, nop_val=NOT_SPECIFIED):
         self.hlsCntx = hlsCntx
         RtlSignal.__init__(
             self, hlsCntx.ctx, name, dtype, def_val=def_val,
