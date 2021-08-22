@@ -23,7 +23,8 @@ HLS for [hwt](https://github.com/Nic30/hwt) (hwt is a library for circuit constr
   * DMA logic for generic bus access
   * automatic micro kernels
 
-## How it works.
+## How it works?
+
 * hwtHls uses HDL objects from [hwt](https://github.com/Nic30/hwt).
   It means that generation target HDL and simulation is solved by [hwt](https://github.com/Nic30/hwt).
 
@@ -39,18 +40,22 @@ HLS for [hwt](https://github.com/Nic30/hwt) (hwt is a library for circuit constr
   This class is container of HLS settings (Scheduler/Allocator...),
   information about resources and capabilities of target and target specific components (transceiver, PLL wrapper).
 
-* All parts of hwtHls can be modified, there are is no magic. All parts can be used separately.
+* All parts of hwtHls can be modified by user, there are not global objects, all parts can be also used separately.
 
-### Why hwtHls is not compiler
+### Why hwtHls is not a compiler?
+
 * Nearly all HLS synthesizers performing conversion from source language to target language. HwtHls is different.
-* In HwtHls code is written in meta-language.
-* Reason for this is that #pragmas and other compiler directives became major part of code and #pragmas can not contain any code which can run at compilation time. One solution is to use external language for example TCL to control HLS synthesiser, but still retrospectivity is greatly limited.
+* In hwtHls code is a kernel described using language objects in parent language (Python) and it does produce the circut object (in hwt format).
+* Reason for this is that #pragmas and other compiler directives became major part of code and #pragmas can not contain any code which can run at compilation time.
+  One solution is to use external language for example TCL to control HLS synthesiser, but still retrospectivity is greatly limited.
 * Metalanguage description allows very precise driving of HLS process with minimum effort.
+  Delegation of vhdl/systemverilog generation to other library (hwt) also greatly simplifies this library
+  and it also opens the door for post-processing.
 
 
 
 ## Related open-source
-* :skull: [legup](http://legup.eecg.utoronto.ca/) (reborn as Microchip SmarthHLS in 2020) - 2011-2015, LLVM based c->verilog
+* :skull: [LegUp](http://legup.eecg.utoronto.ca/) (reborn as Microchip SmarthHLS in 2020) - 2011-2015, LLVM based c->verilog
 * [PandA-bambu](http://panda.dei.polimi.it/?page_id=31) - 2003-?, GCC based c->verilog
 * :skull: [augh](http://tima.imag.fr/sls/research-projects/augh/) - c->verilog, DSP support
 * [gemmini](https://github.com/ucb-bar/gemmini) - scala, systolic array generator
@@ -91,6 +96,7 @@ HLS for [hwt](https://github.com/Nic30/hwt) (hwt is a library for circuit constr
 * [Coordinated Parallelizing Compiler Optimizations and High-Level Synthesis](https://escholarship.org/uc/item/3421b3h6)
 * [Parallel Programming for FPGAs](https://github.com/KastnerRG/pp4fpgas)
 * [Speculative Dataflow Circuits](https://dl.acm.org/citation.cfm?id=3293914)
+* 2004 [Algorithm Synthesis by Lazy Thinking: Examples and Implementation in Theorema](https://doi.org/10.1016/j.entcs.2003.12.027)
 * 2012 [An overview of today's high-level synthesis tools](https://www.researchgate.net/publication/260432684_An_overview_of_today's_high-level_synthesis_tools)
 * 2015 [A Survey and Evaluation of FPGA High-Level Synthesis Tools](https://ieeexplore.ieee.org/document/7368920)
 * 2019 [Are We There Yet? A Study on the State of High-Level Synthesis](https://ieeexplore.ieee.org/document/8356004)
