@@ -106,13 +106,13 @@ class HlsSlicingTC(SimTestCase):
 
 if __name__ == "__main__":
     import unittest
-    from hwt.synthesizer.utils import to_rtl_str
+    #from hwt.synthesizer.utils import to_rtl_str
 
-    #suite = unittest.TestSuite()
-    ## suite.addTest(FrameTmplTC('test_frameHeader'))
-    #suite.addTest(unittest.makeSuite(HlsSlicingTC))
-    #runner = unittest.TextTestRunner(verbosity=3)
-    #runner.run(suite)
+    suite = unittest.TestSuite()
+    # suite.addTest(FrameTmplTC('test_frameHeader'))
+    suite.addTest(unittest.makeSuite(HlsSlicingTC))
+    runner = unittest.TextTestRunner(verbosity=3)
+    runner.run(suite)
 
-    u = HlsSlice()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform()) + "\n")
+    #u = HlsSlice()
+    #print(to_rtl_str(u, target_platform=VirtualHlsPlatform()) + "\n")
