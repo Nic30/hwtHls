@@ -210,7 +210,7 @@ class Hls():
     def convert_indexed_io_assignments_to_HlsWrite(self):
         to_destroy = []
         statements = self.ctx.statements
-        for stm in statements:
+        for stm in list(statements):
             if isinstance(stm, HdlAssignmentContainer)\
                     and stm.indexes\
                     and isinstance(stm.dst, HlsIO):
