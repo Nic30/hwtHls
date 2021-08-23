@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.operator import Operator
 from hwt.hdl.operatorDefs import AllOps
+from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.interfaces.std import Signal, Clk
 from hwt.synthesizer.unit import Unit
-from hwtHls.examples.query.rtlNetlistManipulator import RtlNetlistManipulator
+from hwtHls.query.rtlNetlistManipulator import RtlNetlistManipulator
 
 
 class FF_result():

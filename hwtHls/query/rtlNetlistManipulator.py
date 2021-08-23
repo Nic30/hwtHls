@@ -2,21 +2,18 @@
 from typing import Union, Tuple, Dict, List
 
 from hwt.hdl.operator import Operator
-from hwt.hdl.operatorDefs import OpDefinition, AllOps
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.value import HValue
-from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwt.synthesizer.unit import Unit
 from hwtHls.codeOps import HlsIO
 
 SigOrVal = Union[RtlSignal, HValue]
 AssigOrOp = Union[HdlAssignmentContainer, Operator]
 
 
-class SubgraphDestroyCntx():
+class SubgraphDestroyCtx():
     """
     Context container for subgraph destroy operation
     """
@@ -61,7 +58,7 @@ class RtlNetlistManipulator():
         """
         outSignals = set(outSignals)
         inSignals = set(inSignals)
-        d_ctx = SubgraphDestroyCntx(
+        d_ctx = SubgraphDestroyCtx(
             inSignals.copy(), outSignals.copy(),
             inSignals, outSignals)
         drvs = d_ctx.driver_destroy_set
@@ -73,7 +70,7 @@ class RtlNetlistManipulator():
             if eps:
                 self.recursive_destroy_endpoints(d_ctx)
 
-    def recursive_destroy_drivers(self, ctx: SubgraphDestroyCntx):
+    def recursive_destroy_drivers(self, ctx: SubgraphDestroyCtx):
         """
         Recursively disconect signals and it's drivers
         until boundaries specified in ctx
@@ -89,7 +86,7 @@ class RtlNetlistManipulator():
                 driver = drvs.pop()
                 self.destroy_driver(driver, ctx)
 
-    def recursive_destroy_endpoints(self, ctx: SubgraphDestroyCntx):
+    def recursive_destroy_endpoints(self, ctx: SubgraphDestroyCtx):
         """
         Recursively disconect signals and it's endpoints
         until boundaries specified in ctx
@@ -107,7 +104,7 @@ class RtlNetlistManipulator():
 
     def destroy_driver(self,
                        driver: Union[Operator, HdlAssignmentContainer],
-                       ctx: SubgraphDestroyCntx):
+                       ctx: SubgraphDestroyCtx):
         """
         Destroy driver of signal and collect input signals of it
         """
@@ -166,12 +163,12 @@ class RtlNetlistManipulator():
                     except KeyError:
                         pass
 
-            #driver.operands = ()
+            # driver.operands = ()
         else:
             raise TypeError(driver)
 
     def destroy_endpoint(self, endpoint: Union[Operator, HdlAssignmentContainer],
-                         ctx: SubgraphDestroyCntx):
+                         ctx: SubgraphDestroyCtx):
         """
         Destroy endpoint of signal and collect output signals of it
         """
@@ -224,7 +221,7 @@ class RtlNetlistManipulator():
                             op.endpoints.remove(endpoint)
                         except KeyError:
                             pass
-            #endpoint.operands = []
+            # endpoint.operands = []
 
             # destroy result
             res = endpoint.result
@@ -371,119 +368,3 @@ class RtlNetlistManipulator():
         else:
             raise TypeError(endpoint)
 
-
-class QuerySignal():
-    def __init__(self, label: str=None):
-        self.label = label
-        self.drivers = UniqList()
-        self.endpoints = UniqList()
-        self._usedOps = {}
-
-    def setLabel(self, label: str):
-        self.label = label
-
-    def naryOp(self, operator, *otherOps):
-        """
-        Try lookup operator with this parameters in _usedOps
-        if not found create new one and soter it in _usedOps
-        """
-        k = (operator, otherOps)
-        try:
-            return self._usedOps[k]
-        except KeyError:
-            pass
-
-        o = QueryOperator.signalWrapped(operator, (self, *otherOps))
-        self._usedOps[k] = o
-        return o
-
-    def __add__(self, other):
-        return self.naryOp(AllOps.ADD, other)
-
-    def __mul__(self, other):
-        return self.naryOp(AllOps.MUL, other)
-
-    def __call__(self, other):
-        raise NotImplementedError()
-
-    def __repr__(self):
-        if self.label:
-            return self.label
-        else:
-            return object.__repr__(self)
-
-
-class QueryHdlAssignmentContainer():
-    def __init__(self, dst, src):
-        #self.cond = UniqList()
-        #self.indexes = None
-        self.dst = dst
-        self.src = src
-
-
-class QueryOperator():
-    def __init__(self, operator: OpDefinition, operands: Tuple[QuerySignal]):
-        self.operator = operator
-        self.operands = operands
-        self.op_order_depends = operator in {
-            AllOps.CONCAT, AllOps.DIV, AllOps.DOT,
-            AllOps.DOWNTO, AllOps.LE, AllOps.LT,
-            AllOps.GE, AllOps.GT, AllOps.MOD, AllOps.POW,
-            AllOps.RISING_EDGE, AllOps.FALLING_EDGE,
-            AllOps.SUB, AllOps.TERNARY, AllOps.TO
-        }
-
-    @staticmethod
-    def signalWrapped(opertor: OpDefinition, ops: Tuple[QuerySignal]):
-        s = QuerySignal()
-        o = QueryOperator(opertor, ops)
-        s.drivers.append(o)
-        return s
-
-
-class HwSelect():
-    def __init__(self, ctx: Unit):
-        self.ctx = ctx
-
-    def match_operator_drivers(self, op: Operator, qop: QueryOperator, res: dict):
-        if op.operator != qop.operator:
-            return False
-        # if not qop.op_order_depends:
-        #    raise NotImplementedError()
-
-        for oper, qoper in zip(op.operands, qop.operands):
-            if not self.match_signal_drivers(oper, qoper, res):
-                return False
-
-        return True
-
-    def match_signal_drivers(self, sig: RtlSignal, q: QuerySignal, res: dict):
-        if not q.drivers:
-            if q.label:
-                res[q.label] = sig
-            return True
-
-        if len(sig.drivers) == len(q.drivers):
-            if len(sig.drivers) != 1:
-                # [TODO] need to check all combinations of driver oders
-                raise NotImplementedError()
-
-            for d, dq in zip(sig.drivers, q.drivers):
-                if isinstance(dq, QueryOperator):
-                    if isinstance(d, Operator) and self.match_operator_drivers(d, dq, res):
-                        continue
-                    else:
-                        return False
-                else:
-                    raise NotImplementedError()
-
-            if q.label:
-                res[q.label] = sig
-            return True
-
-    def select(self, query):
-        q = query()
-        for sig in self.ctx.signals:
-            res = {}
-            if self.match_signal_drivers(sig, q, res):
-                yield res

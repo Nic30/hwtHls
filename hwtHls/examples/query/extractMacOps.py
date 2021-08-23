@@ -4,16 +4,16 @@
 from hwt.interfaces.std import VectSignal
 from hwt.interfaces.utils import addClkRstn
 from hwt.serializer.mode import serializeOnce
+from hwt.synthesizer.hObjList import HObjList
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
-from hwtHls.examples.query.rtlNetlistManipulator import RtlNetlistManipulator, \
-    QuerySignal, HwSelect
 from hwtHls.hls import Hls
 from hwtHls.platform.virtual import VirtualHlsPlatform
-from hwt.synthesizer.hObjList import HObjList
+from hwtHls.query.rtlNetlist import QuerySignal, HwSelect
+from hwtHls.query.rtlNetlistManipulator import RtlNetlistManipulator
 
 
-def MAC_qurey():
+def MAC_qurey() -> QuerySignal:
     a = QuerySignal("a")
     b = QuerySignal("b")
     c = QuerySignal("c")
@@ -32,12 +32,13 @@ class MAC(Unit):
         self.DATA_WIDTH = Param(32)
 
     def _declr(self):
-        self.a = VectSignal(self.DATA_WIDTH, signed=False)
-        self.b = VectSignal(self.DATA_WIDTH, signed=False)
-        self.c = VectSignal(self.DATA_WIDTH, signed=False)
-        self.d = VectSignal(self.DATA_WIDTH, signed=False)
+        DW = self.DATA_WIDTH
+        self.a = VectSignal(DW, signed=False)
+        self.b = VectSignal(DW, signed=False)
+        self.c = VectSignal(DW, signed=False)
+        self.d = VectSignal(DW, signed=False)
 
-        self.out = VectSignal(self.DATA_WIDTH, signed=False)._m()
+        self.out = VectSignal(DW, signed=False)._m()
 
     def _impl(self):
         out = (self.a * self.b) + (self.c * self.d)
@@ -46,13 +47,13 @@ class MAC(Unit):
 
 class MacExtractingHls(Hls):
 
-    def _discoverAllNodes(self):
+    def _build_data_flow_graph(self):
         m = RtlNetlistManipulator(self.ctx, self._io)
         macs = list(HwSelect(self.ctx).select(MAC_qurey))
         for i, mac in enumerate(macs):
-            name = "mac%d" % i
+            # replace MAC expression with MAC unit
             macU = MAC()
-            setattr(self.parentUnit, name, macU)
+            setattr(self.parentUnit, f"mac{i:d}", macU)
 
             io = self.io
             new_a = io(macU.a)
@@ -70,8 +71,7 @@ class MacExtractingHls(Hls):
                 mac["out"]: new_out
             })
 
-        nodes = Hls._discoverAllNodes(self)
-        return nodes
+        return Hls._build_data_flow_graph(self)
 
 
 class GroupOfMacOps(Unit):
