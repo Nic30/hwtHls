@@ -68,11 +68,11 @@ class HlsSlice2C(HlsSlice2):
 
 class HlsSlicingTC(SimTestCase):
 
-    def _test(self, unit, data_in, data_out):
-        self.compileSimAndStart(unit, target_platform=VirtualHlsPlatform())
-        unit.a._ag.data.extend(data_in)
+    def _test(self, unit_cls, data_in, data_out):
+        self.compileSimAndStart(unit_cls, target_platform=VirtualHlsPlatform())
+        unit_cls.a._ag.data.extend(data_in)
         self.runSim(len(data_in) * 10 * Time.ns)
-        self.assertValSequenceEqual(unit.b._ag.data, data_out)
+        self.assertValSequenceEqual(unit_cls.b._ag.data, data_out)
 
     def test_connection(self):
         u = HlsConnection()
@@ -89,7 +89,7 @@ class HlsSlicingTC(SimTestCase):
         self._test_slice(HlsSlice)
 
     def _test_slice2(self, cls):
-        u = HlsSlice2()
+        u = cls()
         data_in = [0, 1, 2, 3]
         data_out = [d + (16 << 16) for d in data_in]
         self._test(u, data_in, data_out)
@@ -106,7 +106,6 @@ class HlsSlicingTC(SimTestCase):
 
 if __name__ == "__main__":
     import unittest
-    #from hwt.synthesizer.utils import to_rtl_str
 
     suite = unittest.TestSuite()
     # suite.addTest(FrameTmplTC('test_frameHeader'))
@@ -114,5 +113,6 @@ if __name__ == "__main__":
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
 
-    #u = HlsSlice()
-    #print(to_rtl_str(u, target_platform=VirtualHlsPlatform()) + "\n")
+    # from hwt.synthesizer.utils import to_rtl_str
+    # u = HlsSlice2B()
+    # print(to_rtl_str(u, target_platform=VirtualHlsPlatform()) + "\n")

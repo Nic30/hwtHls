@@ -1,5 +1,6 @@
 from typing import List, Union, Optional, Tuple
 
+from hwt.doc_markers import internal
 from hwt.hdl.operatorDefs import OpDefinition, AllOps
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.statements.statement import HdlStatement
@@ -187,6 +188,11 @@ class HlsRead(AbstractHlsOp, HdlAssignmentContainer):
     def resolve_realization(self):
         self.assignRealization(IO_COMB_REALIZATION)
 
+    @internal
+    def _destroy(self):
+        HdlAssignmentContainer._destroy(self)
+        self.hls.inputs.remove(self)
+
     def __repr__(self):
         return f"<{self.__class__.__name__:s}, {self.intf}>"
 
@@ -233,13 +239,18 @@ class HlsWrite(AbstractHlsOp, HdlAssignmentContainer):
     def resolve_realization(self):
         self.assignRealization(IO_COMB_REALIZATION)
 
+    @internal
+    def _destroy(self):
+        HdlAssignmentContainer._destroy(self)
+        self.hls.outputs.remove(self)
+
     def __repr__(self):
         if self.indexes:
             indexes = "[%r]" % self.indexes
         else:
             indexes = ""
 
-        return f"<{self.__class__.__name__:s}, {self.dst} <- {self.src}{indexes:s}>"
+        return f"<{self.__class__.__name__:s}, {self.dst}{indexes:s} <- {self.src}>"
 
 
 class HlsOperation(AbstractHlsOp):

@@ -6,6 +6,7 @@ from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.struct import HStruct
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
+from hwt.synthesizer.rtlLevel.extract_part_drivers import extract_part_drivers
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.rtlLevel.remove_unconnected_signals import removeUnconnectedSignals
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
@@ -91,23 +92,25 @@ class Hls():
         (convert from representation with signals
          to directed graph of operations)
         """
+        extract_part_drivers(self.ctx)
         self.convert_indexed_io_assignments_to_HlsWrite()
-
         for io, ioIntf in self._io.items():
             io: HlsIO
             ioIntf: Interface
             if io.drivers:
-                if io.endpoints:
-                    # R/W
-                    raise NotImplementedError("read and write from a single interface", io, ioIntf)
-                else:
-                    # WriteOnly, HlsWrite already created
-                    self.ctx.interfaces[io] = DIRECTION.OUT
-                    pass
+                # if io.endpoints:
+                #    # R/W
+                #    raise NotImplementedError("read and write from a single interface", io, ioIntf)
+                # else:
+                # WriteOnly, HlsWrite already created
+                assert len(io.drivers) == 1, (io, io.drivers)
+                self.ctx.interfaces[io] = DIRECTION.OUT
+
             elif io.endpoints:
                 # ReadOnly
                 r = HlsRead(self, ioIntf, io)
                 self.ctx.interfaces[r] = DIRECTION.IN
+
             else:
                 raise HlsSyntaxError("Unused IO", io, ioIntf)
 
@@ -124,11 +127,11 @@ class Hls():
         to_hls = HwtNetlistToHwtHlsNetlist(self, nodeToHlsNode)
         for out in self.outputs:
             out: HlsWrite
-            #driver = out.src
+            # driver = out.src
             to_hls.to_hls_expr(out.dst)
             # driver =
-            #link_hls_nodes(driver, out)
-            #nodeToHlsNode[out] = out
+            # link_hls_nodes(driver, out)
+            # nodeToHlsNode[out] = out
 
         # list of discovered nodes
         nodes = list(nodeToHlsNode.values())
@@ -146,10 +149,14 @@ class Hls():
         self.scheduler.schedule(self.resource_constrain)
         self.allocator.allocate()
 
-    def io(self, io) -> HlsIO:
+    def io(self, io: Interface) -> HlsIO:
         """
         Convert signal/interface to IO
         """
+        for _io, prev_io_obj in self._io.items():
+            if io is prev_io_obj:
+                return _io
+
         name = "hls_io_" + getSignalName(io)
         dtype = io._dtype
         _io = HlsIO(self, name, dtype)
