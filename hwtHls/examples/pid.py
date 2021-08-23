@@ -4,8 +4,8 @@
 
 from hwt.code import Add
 from hwt.synthesizer.param import Param
-from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.hls import Hls
+from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtLib.logic.pid import PidController
 
 
