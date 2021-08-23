@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.hdl.assignment import Assignment
+from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.operator import Operator
 from hwt.hdl.operatorDefs import AllOps
 from hwt.interfaces.std import Signal, Clk
@@ -10,6 +10,7 @@ from hwtHls.examples.query.rtlNetlistManipulator import RtlNetlistManipulator
 
 
 class FF_result():
+
     def __init__(self, parent, clkSig, inputSig, regSig):
         self.parent = parent
         self.clkSig = clkSig
@@ -37,12 +38,13 @@ class FF_result():
 
 
 class FF_select():
+
     def __init__(self, ctx: Unit):
         self.ctx = ctx
 
     def on_rising_edge_found(self, sig):
         for ep in sig.endpoints:
-            if isinstance(ep, Assignment):
+            if isinstance(ep, HdlAssignmentContainer):
                 if sig in ep.cond:
                     clk = sig.drivers[0].operands[0]
                     yield FF_result(self, clk, ep.src, ep.dst)
@@ -57,6 +59,7 @@ class FF_select():
 
 
 class OneFF(Unit):
+
     def _declr(self):
         self.clk = Clk()
         self.a = Signal()

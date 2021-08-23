@@ -1,9 +1,9 @@
 
 from typing import Union, Tuple, Dict, List
 
-from hwt.hdl.assignment import Assignment
 from hwt.hdl.operator import Operator
 from hwt.hdl.operatorDefs import OpDefinition, AllOps
+from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.value import HValue
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
@@ -12,9 +12,8 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.unit import Unit
 from hwtHls.codeOps import HlsIO
 
-
 SigOrVal = Union[RtlSignal, HValue]
-AssigOrOp = Union[Assignment, Operator]
+AssigOrOp = Union[HdlAssignmentContainer, Operator]
 
 
 class SubgraphDestroyCntx():
@@ -107,7 +106,7 @@ class RtlNetlistManipulator():
                 self.destroy_endpoint(endpoint, ctx)
 
     def destroy_driver(self,
-                       driver: Union[Operator, Assignment],
+                       driver: Union[Operator, HdlAssignmentContainer],
                        ctx: SubgraphDestroyCntx):
         """
         Destroy driver of signal and collect input signals of it
@@ -116,7 +115,7 @@ class RtlNetlistManipulator():
         destroyed = ctx.destroyed
         to_destroy = ctx.driver_destroy_set
 
-        if isinstance(driver, Assignment):
+        if isinstance(driver, HdlAssignmentContainer):
             # comming from dst
             self.ctx.statements.remove(driver)
 
@@ -171,7 +170,7 @@ class RtlNetlistManipulator():
         else:
             raise TypeError(driver)
 
-    def destroy_endpoint(self, endpoint: Union[Operator, Assignment],
+    def destroy_endpoint(self, endpoint: Union[Operator, HdlAssignmentContainer],
                          ctx: SubgraphDestroyCntx):
         """
         Destroy endpoint of signal and collect output signals of it
@@ -183,7 +182,7 @@ class RtlNetlistManipulator():
         to_destroyDrv = ctx.endpoint_destroy_set
         to_destroyEp = ctx.driver_destroy_set
 
-        if isinstance(endpoint, Assignment):
+        if isinstance(endpoint, HdlAssignmentContainer):
             # comming from dst
             self.ctx.statements.remove(endpoint)
 
@@ -296,7 +295,7 @@ class RtlNetlistManipulator():
                             replacement: SigOrVal):
         if isinstance(driver, Operator):
             raise NotImplementedError()
-        elif isinstance(driver, Assignment):
+        elif isinstance(driver, HdlAssignmentContainer):
             driver.dst = replacement
         else:
             raise TypeError(driver)
@@ -309,7 +308,7 @@ class RtlNetlistManipulator():
         for endpoint in sig.endpoints:
             if isinstance(endpoint, Operator):
                 raise NotImplementedError()
-            elif isinstance(endpoint, Assignment):
+            elif isinstance(endpoint, HdlAssignmentContainer):
                 a = endpoint
                 if a.src is sig:
                     if a.indexes:
@@ -322,7 +321,7 @@ class RtlNetlistManipulator():
                     else:
                         # type has to be exactly the same
                         raise TypeError(a.src._dtype, replacement._dtype)
-                        # self.destroyAssignment(a)
+                        # self.destroyHdlAssignmentContainer(a)
                         # if a.cond:
                         #    If(And(*a.cond),
                         #       a.dst(replacement)
@@ -334,7 +333,7 @@ class RtlNetlistManipulator():
             else:
                 raise TypeError(endpoint)
 
-    def destroy_assignment(self, a: Assignment):
+    def destroy_HdlAssignmentContainer(self, a: HdlAssignmentContainer):
         if a.indexes:
             for i in a.indexes:
                 if isinstance(i, RtlSignal):
@@ -353,9 +352,9 @@ class RtlNetlistManipulator():
 
         if isinstance(driver, Operator):
             raise NotImplementedError()
-        elif isinstance(driver, Assignment):
+        elif isinstance(driver, HdlAssignmentContainer):
             if driver.dst is sig:
-                self.destroy_assignment(driver)
+                self.destroy_HdlAssignmentContainer(driver)
             else:
                 raise NotImplementedError()
         else:
@@ -367,7 +366,7 @@ class RtlNetlistManipulator():
 
         if isinstance(endpoint, Operator):
             raise NotImplementedError()
-        elif isinstance(endpoint, Assignment):
+        elif isinstance(endpoint, HdlAssignmentContainer):
             raise NotImplementedError()
         else:
             raise TypeError(endpoint)
@@ -414,7 +413,7 @@ class QuerySignal():
             return object.__repr__(self)
 
 
-class QueryAssignment():
+class QueryHdlAssignmentContainer():
     def __init__(self, dst, src):
         #self.cond = UniqList()
         #self.indexes = None
