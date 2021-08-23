@@ -69,7 +69,7 @@ class Hls():
 
         return self.ctx.sig(name, dtype=dtype, def_val=def_val)
 
-    def convert_indexed_io_assignments_to_HlsWrite(self):
+    def _convert_indexed_io_assignments_to_HlsWrite(self):
         to_destroy = []
         statements = self.ctx.statements
         for stm in list(statements):
@@ -93,7 +93,7 @@ class Hls():
          to directed graph of operations)
         """
         extract_part_drivers(self.ctx)
-        self.convert_indexed_io_assignments_to_HlsWrite()
+        self._convert_indexed_io_assignments_to_HlsWrite()
         for io, ioIntf in self._io.items():
             io: HlsIO
             ioIntf: Interface

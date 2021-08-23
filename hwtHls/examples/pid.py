@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-
 from hwt.code import Add
 from hwt.synthesizer.param import Param
 from hwtHls.hls import Hls
@@ -10,6 +9,7 @@ from hwtLib.logic.pid import PidController
 
 
 class PidControllerHls(PidController):
+
     def _config(self):
         super(PidControllerHls, self)._config()
         self.CLK_FREQ = Param(int(100e6))
@@ -39,7 +39,7 @@ class PidControllerHls(PidController):
 
             _u = Add(io(u), a[0] * err, a[1] * y[0],
                      a[2] * y[1], a[3] * y[2], key=trim)
-            hls.io(u)(_u)
+            io(u.next)(_u)
 
         # propagate output value register to output
         self.output(u)
