@@ -1,10 +1,11 @@
 from heapq import heappush, heappop
 from itertools import chain
+import sys
 
 from hwtHls.clk_math import start_clk, end_clk
 from hwtHls.codeOps import HlsConst, HlsOperation
-from hwtHls.scheduler.scheduler import HlsScheduler, asap
 from hwtHls.hls import HlsSyntaxError
+from hwtHls.scheduler.scheduler import HlsScheduler, asap
 
 
 def getComponentConstrainingFn(clk_period: float, comp_constrain):
@@ -49,10 +50,12 @@ def getComponentConstrainingFn(clk_period: float, comp_constrain):
             startTime = _startTime
 
         return startTime, endTime
+
     return constrainFn
 
 
 class ListSchedItem():
+
     def __init__(self, priority, node):
         self.priority = priority
         self.node = node
@@ -106,6 +109,8 @@ def list_schedueling(inputs, nodes, outputs, constrainFn, priorityFn):
             item.priority = max(map(lambda x: 0 if isinstance(
                 x, HlsConst) else priority[x].priority,
                 node.dependsOn))
+            if item.priority == p:
+                item.priority += sys.float_info.epsilon
             # or h[0].priority == p
             assert item.priority >= p, (p, item.priority)
             heappush(h, item)
@@ -122,6 +127,7 @@ def list_schedueling(inputs, nodes, outputs, constrainFn, priorityFn):
 
 
 class ListSchedueler(HlsScheduler):
+
     def schedule(self, resource_constrain):
         hls = self.parentHls
         clk_period = self.parentHls.clk_period
