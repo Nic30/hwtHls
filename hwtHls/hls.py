@@ -1,158 +1,21 @@
-from typing import Union
-
-from hwt.code import If
-from hwt.hdl.operator import Operator
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.struct import HStruct
-from hwt.hdl.value import HValue
+from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.rtlLevel.remove_unconnected_signals import removeUnconnectedSignals
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.unit import Unit
-from hwtHls.codeOps import HlsRead, HlsWrite, HlsOperation, \
-    HlsConst, AbstractHlsOp, HlsIO
-from hwt.synthesizer.interface import Interface
+from hwtHls.codeOps import HlsRead, HlsWrite, HlsIO
 from ipCorePackager.constants import DIRECTION
+from hwtHls.hwtNetlistToHwtHlsNetlist import HwtNetlistToHwtHlsNetlist
+from hwt.hdl.statements.statement import HwtSyntaxError
+from typing import List, Dict
 
 
-class HLS_Error(Exception):
+class HlsSyntaxError(HwtSyntaxError):
     pass
-
-
-def link_nodes(parent, child):
-    child.dependsOn.append(parent)
-    parent.usedBy.append(child)
-
-
-def operator2Hls(operator: Operator, hls, nodeToHlsNode: dict) -> HlsOperation:
-    """
-    Recursively convert operator and it's inputs to HLS representation
-
-    :return: instance of HlsOperation representing of this operator
-    """
-    try:
-        return nodeToHlsNode[operator]
-        # was already discovered
-    except KeyError:
-        pass
-
-    # create HlsOperation node for this operator and register it
-    op_node = HlsOperation(hls,
-                           operator.operator,
-                           operator.operands[0]._dtype.bit_length())
-    nodeToHlsNode[operator] = op_node
-
-    # walk all inputs and connect them as my parent
-    for op in operator.operands:
-        op = hdlObj2Hls(op, hls, nodeToHlsNode)
-        if op is not None:
-            link_nodes(op, op_node)
-
-    return op_node
-
-
-def mux2Hls(obj: RtlSignal, hls, nodeToHlsNode: dict):
-    """
-    Recursively convert signal which is output of multiplexer/demultiplexer
-    to HLS nodes
-    """
-    try:
-        return nodeToHlsNode[obj]
-        # was already discovered
-    except KeyError:
-        pass
-
-    if obj.hasGenericName:
-        name = "mux_"
-    else:
-        name = obj.name
-
-    _obj = HlsMux(hls, obj._dtype.bit_length(), name=name)
-    nodeToHlsNode[obj] = _obj
-
-    # add condition to dependencies of this MUX operator
-    c = hdlObj2Hls(obj.drivers[0].cond, hls, nodeToHlsNode)
-    link_nodes(c, _obj)
-
-    for a in obj.drivers:
-        assert isinstance(a, HdlAssignmentContainer), a
-        if a.indexes:
-            raise NotImplementedError()
-
-        src = hdlObj2Hls(a.src, hls, nodeToHlsNode)
-        link_nodes(src, _obj)
-
-    return _obj
-
-
-def driver2Hls(obj, hls, nodeToHlsNode: dict) -> AbstractHlsOp:
-    if isinstance(obj, HlsRead):
-        nodeToHlsNode[obj] = obj
-        return obj
-
-    elif isinstance(obj, HlsWrite):
-        nodeToHlsNode[obj] = obj
-        if obj.cond or obj.indexes:
-            raise NotImplementedError()
-
-        return hdlObj2Hls(obj.src, hls, nodeToHlsNode)
-
-    elif isinstance(obj, Operator):
-        return operator2Hls(obj, hls, nodeToHlsNode)
-
-    elif isinstance(obj, HdlAssignmentContainer):
-        if obj.parentStm is not None or obj.indexes:
-            raise NotImplementedError()
-
-        src = hdlObj2Hls(obj.src, hls, nodeToHlsNode)
-        dst = nodeToHlsNode[obj.dst.endpoints[0]]
-        link_nodes(src, dst)
-
-        return src
-
-    elif isinstance(obj, If):
-        for o in obj._outputs:
-            # render if as tree of muxes
-            raise NotImplementedError(obj)
-
-    else:
-        raise NotImplementedError(obj)
-
-
-def hdlObj2Hls(obj: Union[RtlSignal, HValue],
-               hls, nodeToHlsNode: dict) -> AbstractHlsOp:
-    """
-    Convert RtlObject to HlsObject, register it and link it wit parent
-
-    :note: parent is who provides values to operation
-    """
-    if isinstance(obj, HValue) or obj._const:
-        _obj = HlsConst(obj)
-        nodeToHlsNode[_obj] = _obj
-        return _obj
-
-    dcnt = len(obj.drivers)
-    if dcnt > 1:
-        # [TODO] mux X indexed assignments
-        return mux2Hls(obj, hls, nodeToHlsNode)
-    elif dcnt == 1:
-        # parent is just RtlSignal, we needs operation
-        # it is drivern from
-        return driver2Hls(obj.drivers[0], hls, nodeToHlsNode)
-    else:
-        assert isinstance(obj, HlsIO), obj
-
-
-def reconnect_endpoint_list(signals, oldEp, newEp):
-    for s in signals:
-        if isinstance(s, RtlSignal):
-            try:
-                s.endpoints.remove(oldEp)
-            except KeyError:
-                pass
-            s.endpoints.append(newEp)
 
 
 class Hls():
@@ -162,12 +25,9 @@ class Hls():
 
     :ivar parentUnit: parent unit where RTL should be instantiated
     :ivar platform: platform with configuration of this HLS context
-    :ivar freq: target frequency for RTL
+    :ivar freq: target frequency for RTL (in Hz)
     :ivar maxLatency: optional maximum allowed latency of circut
     :ivar resources: optional resource constrains
-    :ivar inputs: list of HlsRead in this context
-    :ivar outputs: list of HlsWrite in this context
-    :ivar io: dict HlsIO:Interface
     :ivar ctx: RtlNetlist (container of RTL signals for this HLS context)
     """
 
@@ -181,9 +41,9 @@ class Hls():
         self.clk_period = 1 / int(freq)
         self.maxLatency = maxLatency
         self.resource_constrain = resource_constrain
-        self.inputs = []
-        self.outputs = []
-        self._io = {}
+        self.inputs: List[HlsRead] = []
+        self.outputs: List[HlsWrite] = []
+        self._io: Dict[HlsIO, Interface] = {}
         self.ctx = RtlNetlist()
 
         self.scheduler = self.platform.scheduler(self)
@@ -223,7 +83,7 @@ class Hls():
         for a in to_destroy:
             statements.remove(a)
 
-    def _discoverAllNodes(self):
+    def _build_data_flow_graph(self):
         """
         Walk signals and extract operations as AbstractHlsOp
 
@@ -248,7 +108,7 @@ class Hls():
                 r = HlsRead(self, ioIntf, io)
                 self.ctx.interfaces[r] = DIRECTION.IN
             else:
-                raise HLS_Error("Unused IO", io, ioIntf)
+                raise HlsSyntaxError("Unused IO", io, ioIntf)
 
         removeUnconnectedSignals(self.ctx)
 
@@ -259,13 +119,15 @@ class Hls():
         # of HLS nodes
         # [TODO] write can be to same destination,
         # if there is such a situation MUX has to be created
-        for out in self.outputs:
-            nodeToHlsNode[out] = out
 
+        to_hls = HwtNetlistToHwtHlsNetlist(self, nodeToHlsNode)
         for out in self.outputs:
-            driver = out.src
-            driver = hdlObj2Hls(driver, self, nodeToHlsNode)
-            link_nodes(driver, out)
+            out: HlsWrite
+            #driver = out.src
+            to_hls.to_hls_expr(out.dst)
+            # driver =
+            #link_hls_nodes(driver, out)
+            #nodeToHlsNode[out] = out
 
         # list of discovered nodes
         nodes = list(nodeToHlsNode.values())
@@ -276,7 +138,7 @@ class Hls():
         """
         Convert code template to circuit (netlist of Hdl objects)
         """
-        self.nodes = self._discoverAllNodes()
+        self.nodes = self._build_data_flow_graph()
         for n in self.nodes:
             n.resolve_realization()
 
@@ -307,3 +169,13 @@ class Hls():
         self.parentUnit._sig = self._unit_sig
         if exc_type is None:
             self.synthesise()
+
+
+def reconnect_endpoint_list(signals, oldEp, newEp):
+    for s in signals:
+        if isinstance(s, RtlSignal):
+            try:
+                s.endpoints.remove(oldEp)
+            except KeyError:
+                pass
+            s.endpoints.append(newEp)

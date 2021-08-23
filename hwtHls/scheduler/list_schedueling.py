@@ -4,7 +4,7 @@ from itertools import chain
 from hwtHls.clk_math import start_clk, end_clk
 from hwtHls.codeOps import HlsConst, HlsOperation
 from hwtHls.scheduler.scheduler import HlsScheduler, asap
-from hwtHls.hls import HLS_Error
+from hwtHls.hls import HlsSyntaxError
 
 
 def getComponentConstrainingFn(clk_period: float, comp_constrain):
@@ -144,6 +144,6 @@ class ListSchedueler(HlsScheduler):
             constrainFn, priorityFn)
 
         if not sched:
-            raise HLS_Error("Everything was removed durning optimization")
+            raise HlsSyntaxError("Everything was removed durning optimization")
 
         self.apply_scheduelization_dict(sched)

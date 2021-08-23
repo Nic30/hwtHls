@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-
 from hwt.code import If
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.param import Param
@@ -11,6 +10,7 @@ from hwtLib.examples.statements.ifStm import SimpleIfStatement
 
 
 class SimpleIfStatementHls(SimpleIfStatement):
+
     def _config(self):
         self.CLK_FREQ = Param(int(100e6))
 

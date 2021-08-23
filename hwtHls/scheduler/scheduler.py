@@ -45,6 +45,8 @@ def asap_filter_inputs(inputs, realInputs):
     # init start times, filter inputs
     for node in inputs:
         if not node.fixed_schedulation and not node.dependsOn:
+            if node.latency_pre is None:
+                raise AssertionError("Missing realization for node", node)
             node.asap_start = 0.0
             node.asap_end = node.latency_pre + node.latency_post
 
@@ -87,6 +89,8 @@ def asap(inputs, outputs, clk_period):
             else:
                 # Remaining time until clock tick
                 remaining_time = clk_period - (node_t % clk_period)
+                if node.latency_pre is None:
+                    raise AssertionError("Missing realization for node", node)
                 if node.latency_pre > remaining_time:
                     # Operation would exceed clock cycle -> align to clock
                     # rising edge
@@ -101,7 +105,7 @@ def asap(inputs, outputs, clk_period):
             node.asap_end = node_t + node.latency_pre
             # print(node.__class__.__name__,
             #      node.asap_start / clk_period, node.asap_end / clk_period)
-            asap_filter_inputs((node, ), nextUnresolved)
+            asap_filter_inputs((node,), nextUnresolved)
 
             for prev in node.dependsOn:
                 if prev.asap_end is None and isinstance(prev, HlsConst):
@@ -115,7 +119,7 @@ def asap(inputs, outputs, clk_period):
     # they have no connection to any input
     for node in outputs:
         if node.asap_start is None:
-            assert isConst(node.src), node
+            assert isConst(node.src), (node, "was not schedule, possibly not connected correctly in data flow graph")
             node.asap_start = 0
             node.asap_end = 0
             node.src.asap_start = 0
@@ -193,12 +197,13 @@ def alap(outputs, clk_period, minimum_latency):
             node.alap_start = node_end_t - node.latency_pre
             # print(node.__class__.__name__,
             #       node.alap_start / clk_period, node.alap_end / clk_period)
-            alap_filter_outputs((node, ), nextUnresolved, minimum_latency)
+            alap_filter_outputs((node,), nextUnresolved, minimum_latency)
 
         unresolved = nextUnresolved
 
 
 class HlsScheduler():
+
     def __init__(self, parentHls: Hls):
         self.parentHls = parentHls
 

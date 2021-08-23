@@ -4,12 +4,11 @@
 from unittest import TestLoader, TextTestRunner, TestSuite
 
 from hwtHls.examples.alapAsapDiffExample import AlapAsapDiffExample_TC
-from hwtHls.examples.bitonicSort import BitonicSorterHLS_TC,\
-    BitonicSorterHLS_large_TC
+from hwtHls.examples.bitonicSort import BitonicSorterHLS_TCs
 from hwtHls.examples.hls_expr_tree3 import HlsExprTree3_example_TC
 from hwtHls.examples.mac import HlsMAC_example_TC
-from hwtHls.tests.connection import HlsSlicingTC
 from hwtHls.scheduler.list_schedueling_test import ListSchedueling_TC
+from hwtHls.tests.connection import HlsSlicingTC
 
 
 def testSuiteFromTCs(*tcs):
@@ -24,13 +23,11 @@ def testSuiteFromTCs(*tcs):
 suite = testSuiteFromTCs(
     HlsSlicingTC,
     HlsMAC_example_TC,
-    BitonicSorterHLS_TC,
-    BitonicSorterHLS_large_TC,
+    *BitonicSorterHLS_TCs,
     HlsExprTree3_example_TC,
     AlapAsapDiffExample_TC,
     ListSchedueling_TC,
 )
-
 
 if __name__ == '__main__':
     runner = TextTestRunner(verbosity=2)

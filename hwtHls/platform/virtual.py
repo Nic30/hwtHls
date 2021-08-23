@@ -98,10 +98,11 @@ class VirtualHlsPlatform(DummyPlatform):
             latency_pre = base_delay * bit_width
 
         elif op == AllOps.TERNARY:
-            latency_pre = base_delay * log2(bit_width)
+            latency_pre = base_delay * log2(bit_width * input_cnt)
 
         else:
             raise NotImplementedError(op)
+
         return OpRealizationMeta(latency_pre=latency_pre)
 
     def onHlsInit(self, hls):

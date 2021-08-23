@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import List, Union, Optional, Tuple
 
 from hwt.hdl.operatorDefs import OpDefinition, AllOps
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
@@ -15,7 +15,6 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.clk_math import start_clk
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta, \
     UNSPECIFIED_OP_REALIZATION
-
 
 IO_COMB_REALIZATION = OpRealizationMeta(latency_post=0.1e-9)
 
@@ -264,7 +263,7 @@ class HlsOperation(AbstractHlsOp):
         bit_length = self.bit_length
 
         if self.operator is AllOps.TERNARY:
-            input_cnt /= 2
+            input_cnt = input_cnt // 2 + 1
 
         r = hls.platform.get_op_realization(
             self.operator, bit_length,
@@ -273,6 +272,14 @@ class HlsOperation(AbstractHlsOp):
 
     def __repr__(self):
         return f"<{self.__class__.__name__:s} {self.operator} {self.dependsOn}>"
+
+
+class HlsMux(HlsOperation):
+
+    def __init__(self, parentHls, bit_length: int, name: str=None):
+        super(HlsMux, self).__init__(
+            parentHls, AllOps.TERNARY, bit_length, name=name)
+        self.elifs: Tuple[Optional[AbstractHlsOp], AbstractHlsOp] = []
 
 
 class HlsIO(RtlSignal):

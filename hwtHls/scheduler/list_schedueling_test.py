@@ -5,12 +5,12 @@ from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.types.defs import BIT
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.unit import Unit
+from hwtHls.clk_math import start_clk, start_of_next_clk_period
 from hwtHls.codeOps import HlsRead, HlsOperation, HlsWrite, IO_COMB_REALIZATION
-from hwtHls.hls import Hls, link_nodes
+from hwtHls.hls import Hls
+from hwtHls.hwtNetlistToHwtHlsNetlist import link_hls_nodes
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scheduler.list_schedueling import list_schedueling
-from hwtHls.clk_math import start_clk, start_of_next_clk_period
-
 
 n = RtlNetlist("test")
 
@@ -27,6 +27,7 @@ IO = IO_COMB_REALIZATION.latency_post
 
 
 class ListSchedueling_TC(unittest.TestCase):
+
     def setUp(self):
         u = Unit()
         u._target_platform = VirtualHlsPlatform()
@@ -40,9 +41,9 @@ class ListSchedueling_TC(unittest.TestCase):
 
         a_in = HlsRead(hls, a_ioin_sig, a_in_sig)
         a_not = HlsOperation(hls, AllOps.NOT, 1)
-        link_nodes(a_in, a_not)
+        link_hls_nodes(a_in, a_not)
         a_out = HlsWrite(hls, 1, a_out_sig)
-        link_nodes(a_not, a_out)
+        link_hls_nodes(a_not, a_out)
         for n in [a_in, a_not, a_out]:
             n.resolve_realization()
 
@@ -63,11 +64,11 @@ class ListSchedueling_TC(unittest.TestCase):
             a1_in = HlsRead(hls, a1_io_in_sig, a1_in_sig)
 
             a_and = HlsOperation(hls, AllOps.AND, 1)
-            link_nodes(a0_in, a_and)
-            link_nodes(a1_in, a_and)
+            link_hls_nodes(a0_in, a_and)
+            link_hls_nodes(a1_in, a_and)
 
             a_out = HlsWrite(hls, 1, a_out_sig)
-            link_nodes(a_and, a_out)
+            link_hls_nodes(a_and, a_out)
             ops = [a0_in, a1_in, a_and, a_out]
             for n in ops:
                 n.resolve_realization()
@@ -137,7 +138,7 @@ class ListSchedueling_TC(unittest.TestCase):
             isNotAllone = isinstance(node, HlsOperation) and others_in_clk
 
             if isNotAllone:
-                #print("isNotAllone", node)
+                # print("isNotAllone", node)
                 suggestedStart = start_of_next_clk_period(
                     suggestedStart, clk_period)
                 suggestedEnd = suggestedStart + node.latency_pre + node.latency_post
@@ -171,7 +172,7 @@ class ListSchedueling_TC(unittest.TestCase):
         ref[a_out] = (1.2e-09 + IO, 1.2e-09 + IO + IO)
         ref[b_out] = (t, t + IO)
 
-        #for k, v in sched.items():
+        # for k, v in sched.items():
         #    r = ref[k]
         #    print(int(v == r),
         #          k.__class__.__name__,
