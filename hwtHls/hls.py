@@ -1,4 +1,7 @@
+from typing import List, Dict
+
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
+from hwt.hdl.statements.statement import HwtSyntaxError
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.struct import HStruct
 from hwt.synthesizer.interface import Interface
@@ -8,10 +11,8 @@ from hwt.synthesizer.rtlLevel.remove_unconnected_signals import removeUnconnecte
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.unit import Unit
 from hwtHls.codeOps import HlsRead, HlsWrite, HlsIO
-from ipCorePackager.constants import DIRECTION
 from hwtHls.hwtNetlistToHwtHlsNetlist import HwtNetlistToHwtHlsNetlist
-from hwt.hdl.statements.statement import HwtSyntaxError
-from typing import List, Dict
+from ipCorePackager.constants import DIRECTION
 
 
 class HlsSyntaxError(HwtSyntaxError):
