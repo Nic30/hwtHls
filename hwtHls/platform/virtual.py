@@ -4,9 +4,7 @@ from hwt.hdl.operatorDefs import AllOps
 from hwtHls.allocator.allocator import HlsAllocator
 from math import log2
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
-from hwtHls.scheduler.force_directed import ForceDirectedScheduler
 from hwtHls.scheduler.list_schedueling import ListSchedueler
-from hwtHls.scheduler.scheduler import HlsScheduler
 from hwt.synthesizer.dummyPlatform import DummyPlatform
 
 
@@ -36,6 +34,9 @@ _OPS_T_GROWING_CONST = {
     AllOps.OR,
     AllOps.INDEX,
     AllOps.CONCAT,
+    AllOps.BitsAsSigned,
+    AllOps.BitsAsVec,
+    AllOps.BitsAsUnsigned,
 }
 
 
@@ -80,6 +81,9 @@ class VirtualHlsPlatform(DummyPlatform):
             # constant
             AllOps.INDEX: 0,
             AllOps.CONCAT: 0,
+            AllOps.BitsAsSigned: 0,
+            AllOps.BitsAsVec: 0,
+            AllOps.BitsAsUnsigned: 0,
         }
         self.allocator = HlsAllocator
         self.scheduler = ListSchedueler  #HlsScheduler #ForceDirectedScheduler
