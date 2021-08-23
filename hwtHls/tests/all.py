@@ -9,6 +9,7 @@ from hwtHls.examples.hls_expr_tree3 import HlsExprTree3_example_TC
 from hwtHls.examples.mac import HlsMAC_example_TC
 from hwtHls.scheduler.list_schedueling_test import ListSchedueling_TC
 from hwtHls.tests.connection import HlsSlicingTC
+from hwtHls.tests.syntehesis_checks import HlsSynthesisChecksTC
 
 
 def testSuiteFromTCs(*tcs):
@@ -27,6 +28,7 @@ suite = testSuiteFromTCs(
     HlsExprTree3_example_TC,
     AlapAsapDiffExample_TC,
     ListSchedueling_TC,
+    HlsSynthesisChecksTC,
 )
 
 if __name__ == '__main__':
