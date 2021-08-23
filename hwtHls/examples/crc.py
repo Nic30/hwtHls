@@ -35,7 +35,6 @@ class CrcCombHls(CrcComb):
             if not self.IN_IS_BIGENDIAN:
                 inBits = bit_list_reversed_endianity(inBits)
 
-            outBits = iterBits(hls.io(self.dataOut))
 
             crcMatrix = self.buildCrcXorMatrix(DW, polyBits)
             res = self.applyCrcXorMatrix(
@@ -46,6 +45,7 @@ class CrcCombHls(CrcComb):
                 res = list(reversed(res))
                 finBits = bit_list_reversed_bits_in_bytes(finBits)
 
+            outBits = iterBits(hls.io(self.dataOut))
             for ob, b, fb in zip(outBits, res, finBits):
                 ob(b ^ fb)
             #for outBit, inMask in zip(iterBits(self.dataOut),
@@ -68,5 +68,7 @@ if __name__ == "__main__":
     from hwtHls.platform.virtual import VirtualHlsPlatform
 
     u = CrcCombHls()
+    u.CLK_FREQ = int(200e6)
+    u.DATA_WIDTH = 128
 
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform()))
