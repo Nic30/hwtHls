@@ -50,7 +50,6 @@ class Hls():
 
         self.scheduler = self.platform.scheduler(self)
         self.allocator = self.platform.allocator(self)
-        self.platform.onHlsInit(self)
 
     def var(self, name, dtype=BIT, def_val=None):
         """
