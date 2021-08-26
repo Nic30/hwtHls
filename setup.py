@@ -34,6 +34,7 @@ setup(name='hwtHls',
       ],
       install_requires=[
         'hwtLib>=2.9',
+        'scipy>=1.5.2',
       ],
       license='MIT',
       packages=find_packages(),
