@@ -7,7 +7,7 @@ from hwt.interfaces.std import VectSignal
 from hwt.interfaces.utils import addClkRstn
 from hwt.simulator.simTestCase import SimTestCase
 from hwt.synthesizer.unit import Unit
-from hwtHls.hls import Hls
+from hwtHls.hlsPipeline import HlsPipeline
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scheduler.scheduler import TimeConstraintError
 
@@ -24,7 +24,7 @@ class AlapAsapDiffExample(Unit):
         self.d = VectSignal(8)._m()
 
     def _impl(self):
-        with Hls(self, freq=self.CLK_FREQ) as hls:
+        with HlsPipeline(self, freq=self.CLK_FREQ) as hls:
             # inputs has to be readed to enter hls scope
             # (without read() operation will not be schedueled by HLS
             #  but they will be directly synthesized)

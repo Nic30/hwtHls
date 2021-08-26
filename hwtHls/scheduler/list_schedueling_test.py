@@ -7,7 +7,7 @@ from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.unit import Unit
 from hwtHls.clk_math import start_clk, start_of_next_clk_period
 from hwtHls.codeOps import HlsRead, HlsOperation, HlsWrite, IO_COMB_REALIZATION
-from hwtHls.hls import Hls
+from hwtHls.hlsPipeline import HlsPipeline
 from hwtHls.hwtNetlistToHwtHlsNetlist import link_hls_nodes
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scheduler.list_schedueling import list_schedueling
@@ -31,7 +31,7 @@ class ListSchedueling_TC(unittest.TestCase):
     def setUp(self):
         u = Unit()
         u._target_platform = VirtualHlsPlatform()
-        self.hls = Hls(u, freq=int(100e6))
+        self.hls = HlsPipeline(u, freq=int(100e6))
 
     def simple_not(self):
         hls = self.hls

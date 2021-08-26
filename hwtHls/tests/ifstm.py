@@ -4,7 +4,7 @@
 from hwt.code import If
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.param import Param
-from hwtHls.hls import Hls
+from hwtHls.hlsPipeline import HlsPipeline
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtLib.examples.statements.ifStm import SimpleIfStatement
 
@@ -19,7 +19,7 @@ class SimpleIfStatementHls(SimpleIfStatement):
         super(SimpleIfStatementHls, self)._declr()
 
     def _impl(self):
-        with Hls(self, freq=self.CLK_FREQ) as h:
+        with HlsPipeline(self, freq=self.CLK_FREQ) as h:
             io = h.io
             a = io(self.a)
             b = io(self.b)

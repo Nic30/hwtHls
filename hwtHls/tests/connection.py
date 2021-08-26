@@ -5,7 +5,7 @@ from hwt.hdl.constants import Time
 from hwt.interfaces.std import VectSignal
 from hwt.simulator.simTestCase import SimTestCase
 from hwt.synthesizer.unit import Unit
-from hwtHls.hls import Hls
+from hwtHls.hlsPipeline import HlsPipeline
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from pyMathBitPrecise.bit_utils import mask
 
@@ -17,7 +17,7 @@ class HlsConnection(Unit):
         self.b = VectSignal(32, signed=False)._m()
 
     def _impl(self):
-        with Hls(self, freq=int(100e6)) as hls:
+        with HlsPipeline(self, freq=int(100e6)) as hls:
             a = hls.io(self.a)
             hls.io(self.b)(a)
 
@@ -29,7 +29,7 @@ class HlsSlice(Unit):
         self.b = VectSignal(16, signed=False)._m()
 
     def _impl(self):
-        with Hls(self, freq=int(100e6)) as hls:
+        with HlsPipeline(self, freq=int(100e6)) as hls:
             a = hls.io(self.a)
             hls.io(self.b)(a[16:])
 
@@ -41,7 +41,7 @@ class HlsSlice2(Unit):
         self.b = VectSignal(32, signed=False)._m()
 
     def _impl(self):
-        with Hls(self, freq=int(100e6)) as hls:
+        with HlsPipeline(self, freq=int(100e6)) as hls:
             a = hls.io(self.a)
             hls.io(self.b[16:])(a)
             hls.io(self.b[:16])(16)
@@ -50,7 +50,7 @@ class HlsSlice2(Unit):
 class HlsSlice2B(HlsSlice2):
 
     def _impl(self):
-        with Hls(self, freq=int(100e6)) as hls:
+        with HlsPipeline(self, freq=int(100e6)) as hls:
             a = hls.io(self.a)
             hls.io(self.b)[16:](a)
             hls.io(self.b)[:16](16)
@@ -59,7 +59,7 @@ class HlsSlice2B(HlsSlice2):
 class HlsSlice2C(HlsSlice2):
 
     def _impl(self):
-        with Hls(self, freq=int(100e6)) as hls:
+        with HlsPipeline(self, freq=int(100e6)) as hls:
             a = hls.io(self.a)
             b = hls.io(self.b)
             b[16:](a)

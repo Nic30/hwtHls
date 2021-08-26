@@ -20,7 +20,7 @@ class HlsSyntaxError(HwtSyntaxError):
     pass
 
 
-class Hls():
+class HlsPipeline():
     """
     High level synthesiser context.
     Convert sequential code to RTL.

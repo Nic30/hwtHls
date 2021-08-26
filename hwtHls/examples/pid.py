@@ -3,7 +3,7 @@
 
 from hwt.code import Add
 from hwt.synthesizer.param import Param
-from hwtHls.hls import Hls
+from hwtHls.hlsPipeline import HlsPipeline
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtLib.logic.pid import PidController
 
@@ -31,7 +31,7 @@ class PidControllerHls(PidController):
             return signal._reinterpret_cast(self.output._dtype)
 
         # create arith. expressions between inputs and regs
-        with Hls(self, freq=self.CLK_FREQ) as hls:
+        with HlsPipeline(self, freq=self.CLK_FREQ) as hls:
             io = hls.io
             err = io(self.input) - io(self.target)
             a = [io(c) for c in self.coefs]

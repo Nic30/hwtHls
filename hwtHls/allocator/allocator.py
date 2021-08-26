@@ -7,7 +7,7 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.clk_math import start_clk, end_clk, epsilon
 from hwtHls.codeOps import HlsRead, HlsOperation, HlsWrite, \
     HlsConst, HlsMux
-from hwtHls.hls import Hls
+from hwtHls.hlsPipeline import HlsPipeline
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 
 
@@ -87,7 +87,7 @@ class HlsAllocator():
     :ivar node2instance: dictionary {hls node: rtl instance}
     """
 
-    def __init__(self, parentHls: Hls):
+    def __init__(self, parentHls: HlsPipeline):
         self.parentHls = parentHls
         self.node2instance = {}
         # function to create register on RTL level

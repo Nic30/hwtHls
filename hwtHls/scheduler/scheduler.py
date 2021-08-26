@@ -3,7 +3,7 @@ from math import ceil
 from hwt.hdl.operator import isConst
 from hwtHls.clk_math import start_clk, end_clk
 from hwtHls.codeOps import HlsConst
-from hwtHls.hls import Hls
+from hwtHls.hlsPipeline import HlsPipeline
 
 
 class UnresolvedChild(Exception):
@@ -204,7 +204,7 @@ def alap(outputs, clk_period, minimum_latency):
 
 class HlsScheduler():
 
-    def __init__(self, parentHls: Hls):
+    def __init__(self, parentHls: HlsPipeline):
         self.parentHls = parentHls
 
     def apply_scheduelization_dict(self, sched):

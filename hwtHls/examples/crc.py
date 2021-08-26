@@ -3,7 +3,7 @@
 
 
 from hwt.synthesizer.vectorUtils import iterBits
-from hwtHls.hls import Hls
+from hwtHls.hlsPipeline import HlsPipeline
 from hwtLib.logic.crcComb import CrcComb
 from hwtLib.logic.crcPoly import CRC_32
 from pyMathBitPrecise.bit_utils import get_bit, bit_list_reversed_bits_in_bytes,\
@@ -17,7 +17,7 @@ class CrcCombHls(CrcComb):
         self.DATA_WIDTH = 8
 
     def _impl(self):
-        with Hls(self, freq=self.CLK_FREQ) as hls:
+        with HlsPipeline(self, freq=self.CLK_FREQ) as hls:
             DW = int(self.DATA_WIDTH)
             # assert PW == DW
             polyBits, PW = self.parsePoly(self.POLY, self.POLY_WIDTH)

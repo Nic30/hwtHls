@@ -4,7 +4,7 @@ import sys
 
 from hwtHls.clk_math import start_clk, end_clk
 from hwtHls.codeOps import HlsConst, HlsOperation
-from hwtHls.hls import HlsSyntaxError
+from hwtHls.hlsPipeline import HlsSyntaxError
 from hwtHls.scheduler.scheduler import HlsScheduler, asap
 
 

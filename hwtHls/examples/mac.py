@@ -11,7 +11,7 @@ from hwt.simulator.simTestCase import SimTestCase
 from hwt.synthesizer.hObjList import HObjList
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
-from hwtHls.hls import Hls
+from hwtHls.hlsPipeline import HlsPipeline
 from hwtHls.platform.virtual import VirtualHlsPlatform
 
 
@@ -31,7 +31,7 @@ class HlsMAC_example(Unit):
         self.dataOut = VectSignal(32, signed=False)._m()
 
     def _impl(self):
-        with Hls(self, freq=self.CLK_FREQ) as hls:
+        with HlsPipeline(self, freq=self.CLK_FREQ) as hls:
             # inputs has to be readed to enter hls scope
             # (without read() operation will not be schedueled by HLS
             #  instead they will be directly synthesized)
@@ -54,7 +54,7 @@ class HlsMAC_example2(HlsMAC_example):
         self.INPUT_CNT = 16
 
     def _impl(self):
-        with Hls(self, freq=self.CLK_FREQ) as hls:
+        with HlsPipeline(self, freq=self.CLK_FREQ) as hls:
             # inputs has to be readed to enter hls scope
             # (without read() operation will not be schedueled by HLS
             #  instead they will be directly synthesized)

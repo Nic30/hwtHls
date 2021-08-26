@@ -8,7 +8,7 @@ from hwt.interfaces.utils import addClkRstn
 from hwt.simulator.simTestCase import SimTestCase
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
-from hwtHls.hls import Hls
+from hwtHls.hlsPipeline import HlsPipeline
 from hwtHls.platform.virtual import VirtualHlsPlatform
 
 
@@ -33,7 +33,7 @@ class HlsExprTree3_example(Unit):
         self.f3 = VectSignal(32, signed=False)._m()
 
     def _impl(self):
-        with Hls(self, freq=self.CLK_FREQ) as hls:
+        with HlsPipeline(self, freq=self.CLK_FREQ) as hls:
 
             a, b, c, d = self.a, self.b, self.c, self.d
             x, y, z, w = self.x, self.y, self.z, self.w
