@@ -1,12 +1,13 @@
 from functools import lru_cache
 
-from hwt.hdl.operatorDefs import AllOps
+from hwt.hdl.operatorDefs import AllOps, OpDefinition
 from hwtHls.allocator.allocator import HlsAllocator
 from math import log2
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.scheduler.list_schedueling import ListSchedueler
 from hwt.synthesizer.dummyPlatform import DummyPlatform
-
+from hwt.hdl.operator import Operator
+from typing import Dict
 
 _OPS_T_GROWING_EXP = {
     AllOps.DIV,
@@ -27,16 +28,19 @@ _OPS_T_GROWING_LIN = {
     AllOps.LE,
 }
 
-_OPS_T_GROWING_CONST = {
-    AllOps.NOT,
-    AllOps.XOR,
-    AllOps.AND,
-    AllOps.OR,
+_OPS_T_ZERO_LATENCY = {
     AllOps.INDEX,
     AllOps.CONCAT,
     AllOps.BitsAsSigned,
     AllOps.BitsAsVec,
     AllOps.BitsAsUnsigned,
+}
+_OPS_T_GROWING_CONST = {
+    AllOps.NOT,
+    AllOps.XOR,
+    AllOps.AND,
+    AllOps.OR,
+    *_OPS_T_ZERO_LATENCY,
 }
 
 
@@ -48,10 +52,13 @@ class VirtualHlsPlatform(DummyPlatform):
     :note: latencies like in average 28nm FPGA
     """
 
-    def __init__(self):
+    def __init__(self, allocator=HlsAllocator, scheduler=ListSchedueler):
         super(VirtualHlsPlatform, self).__init__()
+        self.allocator = allocator
+        self.scheduler = scheduler  # HlsScheduler #ForceDirectedScheduler
+
         # operator: seconds to perform
-        self._OP_DELAYS = {
+        self._OP_DELAYS: Dict[Operator, float] = {
             # exponentially growing with bit width
             AllOps.DIV: 0.9e-9,
             AllOps.POW: 0.6e-9,
@@ -69,7 +76,7 @@ class VirtualHlsPlatform(DummyPlatform):
             AllOps.SUB: 1.5e-9,
             AllOps.MINUS_UNARY: 1.5e-9,
 
-            AllOps.EQ:  1.5e-9,
+            AllOps.EQ: 1.5e-9,
             AllOps.NE: 1.5e-9,
             AllOps.GT: 1.5e-9,
             AllOps.GE: 1.5e-9,
@@ -85,12 +92,10 @@ class VirtualHlsPlatform(DummyPlatform):
             AllOps.BitsAsVec: 0,
             AllOps.BitsAsUnsigned: 0,
         }
-        self.allocator = HlsAllocator
-        self.scheduler = ListSchedueler  #HlsScheduler #ForceDirectedScheduler
 
     @lru_cache()
-    def get_op_realization(self, op, bit_width: int,
-                           input_cnt: int, clk_period: float):
+    def get_op_realization(self, op: OpDefinition, bit_width: int,
+                           input_cnt: int, clk_period: float) -> OpRealizationMeta:
         base_delay = self._OP_DELAYS[op]
         if op in _OPS_T_GROWING_CONST:
             latency_pre = base_delay
@@ -109,5 +114,3 @@ class VirtualHlsPlatform(DummyPlatform):
 
         return OpRealizationMeta(latency_pre=latency_pre)
 
-    def onHlsInit(self, hls):
-        pass

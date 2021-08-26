@@ -39,5 +39,3 @@ class DebugHlsPlatform():
         self.allocator = HlsAllocator
         self.scheduler = HlsScheduler
 
-    def onHlsInit(self, hls):
-        pass

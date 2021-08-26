@@ -1,111 +1,40 @@
 from functools import lru_cache
+from typing import Dict, Callable, Tuple
 
-from hwtHls.platform.interpolations import interpolate_area_2d, downscale_width
+from hwt.hdl.operatorDefs import OpDefinition
+from hwt.synthesizer.dummyPlatform import DummyPlatform
+from hwtHls.allocator.allocator import HlsAllocator
+from hwtHls.platform.opRealizationMeta import OpRealizationMeta
+from hwtHls.scheduler.list_schedueling import ListSchedueler
+from hwtHls.platform.virtual import _OPS_T_ZERO_LATENCY
 
 
-class AbstractXilinxPlatform():
-    def __init__(self):
-        # {inputCnt: (lut6_coef, mux7f_coef, mux8f_coef)}
-        self.mux_coefs = self._initMuxCoefs()
-        self.mux_coefs_inputs = list(self.mux_coefs.keys())
-        self.mux_coefs_inputs.sort()
-        self._initDelayCoefs()
+class AbstractXilinxPlatform(DummyPlatform):
+    """
+    :ivar _OP_DELAYS: dict operator -> function (number of args, bitwidth input, min latency in cycles, maximum_time_budget) -> delay in seconds
 
-    def _initMuxCoefs(self):
+    """
+
+    def __init__(self, allocator=HlsAllocator, scheduler=ListSchedueler):
+        super(AbstractXilinxPlatform, self).__init__()
+        self.allocator = allocator
+        self.scheduler = scheduler  # HlsScheduler #ForceDirectedScheduler
+
+        self._init_coefs()
+
+    def _init_coefs(self):
         """
-        get mux coefs dict
-
-        :return: {inputCnt: (lut6_coef, mux7f_coef, mux8f_coef)}
+        set delay/area coefficients
         """
         raise NotImplementedError(
             "Override this in your implementation of platform")
-
-    def _initDelayCoefs(self):
-        """
-        set delay coefficients
-        """
-        raise NotImplementedError(
-            "Override this in your implementation of platform")
-        # example values to allow IDE to gues attribute types
-        self.ARC_DELAY = 1
-        self.LUT6_DELAY = 1
-        self.MUXF7_DELAY = 1
-        self.MUXF8_DELAY = 1
-        self.NET_DELAY = 1
-        self.CMP_DELAY = {1.0: (1, 1)}
-        self.ADD_COMB_DELAYS = {1.0: (1, 1)}
-        self.BITWISE_DELAY = 1
-        # pre
-        self.FF_DELAY_SETUP = 0
-        # post
-        self.FF_DELAY_HOLD = 0
+        self._OP_DELAYS: Dict[str, Callable[[int, int, int, float], Tuple[int, float]]] = {}
 
     @lru_cache()
-    def get_op_delay(self, op, bit_width: int, clk_period: float):
-        w = downscale_width(bit_width)
-        data = self.OP_DELAYS[op]
-        return interpolate_area_2d(data, w, clk_period)
+    def get_op_realization(self, op: OpDefinition, bit_width: int,
+                           input_cnt: int, clk_period: float) -> OpRealizationMeta:
+        if op in _OPS_T_ZERO_LATENCY:
+            return OpRealizationMeta()
+        (cycles_latency, latency_pre) = self._OP_DELAYS[op](bit_width, input_cnt, 0, clk_period)
+        return OpRealizationMeta(latency_pre=latency_pre, cycles_latency=cycles_latency)
 
-    def get_bitwise_op_delay(self, input_cnt: int, clk_period: float):
-        """
-        delay for bitwise AND, OR, XOR etc
-        """
-        return self.BITWISE_DELAY
-
-    @lru_cache()
-    def get_cmp_delay(self, bit_width: int, clk_period: float):
-        return interpolate_area_2d(self.CMP_DELAY, bit_width, clk_period)
-
-    @lru_cache()
-    def get_mux_delay(self, input_cnt: int, clk_period: float):
-        """
-        Formula-based delay lookup for multiplexer
-
-        :return: delay of a mux based on the following formula:
-            delay = ARC + K1*LUT6 + K2*MUX7F + K3*MUX8F + (K1-1)*NET
-        """
-        input_number_list = self.mux_coefs
-
-        # get the delay parameters
-        ARC = self.ARC_DELAY
-        LUT6 = self.LUT6_DELAY
-        MUXF7 = self.MUXF7_DELAY
-        MUXF8 = self.MUXF8_DELAY
-        NET = self.NET_DELAY
-
-        delay = 0
-        while input_cnt > 1:
-            # if input_cnt > input_number_max, we divide the mux into several
-            # pieces the last piece's input number <= input_number_max,
-            # others = input_number_max.
-            for piece_input_number in input_number_list:
-                if input_cnt <= piece_input_number:
-                    break
-
-            # now we get the input number of current piece,
-            # calculate the remaining input number
-            input_cnt = (input_cnt + piece_input_number -
-                         1) / piece_input_number
-
-            K1, K2, K3 = self.mux_coefs[piece_input_number]
-
-            # add delay of current piece
-            piece_delay = (ARC +
-                           K1 * LUT6 +
-                           K2 * MUXF7 +
-                           K3 * MUXF8 +
-                           (K1 - 1) * NET)
-            delay = delay + piece_delay
-
-            # add net delay if it's not the last piece
-            if input_cnt > 1:
-                delay = delay + NET
-
-        return delay
-
-    @lru_cache()
-    def get_add_op_delay(self, bitWidth: int, clk_period: float):
-        return interpolate_area_2d(self, bitWidth, clk_period)
-
-    def get_ff_delay(self, bitWidth: int, clk_period: float):
-        return self.FF_DELAY_SETUP
