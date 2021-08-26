@@ -55,17 +55,6 @@ class HlsPipeline():
         """
         Universal HLS code variable
         """
-        if isinstance(dtype, HStruct):
-            if def_val is not None:
-                raise NotImplementedError()
-            container = dtype.fromPy(None)
-            for f in dtype.fields:
-                if f.name is not None:
-                    r = self._var("%s_%s" % (name, f.name), f.dtype)
-                    setattr(container, f.name, r)
-
-            return container
-
         return self.ctx.sig(name, dtype=dtype, def_val=def_val)
 
     def _convert_indexed_io_assignments_to_HlsWrite(self):
