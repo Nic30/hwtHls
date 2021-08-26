@@ -8,6 +8,7 @@ from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scheduler.scheduler import TimeConstraintError
 from hwtHls.tests.ifstm import SimpleIfStatementHls
 from hwtLib.logic.crcPoly import CRC_32
+from hwtHls.platform.xilinx.artix7 import Artix7Slow
 
 
 class HlsSynthesisChecksTC(SimTestCase):
@@ -37,6 +38,13 @@ class HlsSynthesisChecksTC(SimTestCase):
         u.CLK_FREQ = int(100e6)
         u.DATA_WIDTH = 8
         self._test(u)
+
+    def test_CrcCombHls_crc32_128b_200MHz_XilinxAtrix7(self):
+        u = CrcCombHls()
+        u.setConfig(CRC_32)
+        u.CLK_FREQ = int(200e6)
+        u.DATA_WIDTH = 128
+        self.compileSimAndStart(u, target_platform=Artix7Slow())
 
     def _test(self, unit):
         self.compileSimAndStart(unit, target_platform=VirtualHlsPlatform())
