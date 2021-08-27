@@ -7,7 +7,7 @@ from hwtHls.examples.alapAsapDiffExample import AlapAsapDiffExample_TC
 from hwtHls.examples.bitonicSort import BitonicSorterHLS_TCs
 from hwtHls.examples.hls_expr_tree3 import HlsExprTree3_example_TC
 from hwtHls.examples.mac import HlsMAC_example_TC
-from hwtHls.scheduler.list_schedueling_test import ListSchedueling_TC
+from hwtHls.tests.list_schedueling_test import ListSchedueling_TC
 from hwtHls.tests.connection import HlsSlicingTC
 from hwtHls.tests.syntehesis_checks import HlsSynthesisChecksTC
 
