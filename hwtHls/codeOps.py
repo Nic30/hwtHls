@@ -16,6 +16,8 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.clk_math import start_clk
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta, \
     UNSPECIFIED_OP_REALIZATION
+from hwt.synthesizer.interfaceLevel.interfaceUtils.utils import walkPhysInterfaces
+from hwt.interfaces.hsStructIntf import HsStructIntf
 
 IO_COMB_REALIZATION = OpRealizationMeta(latency_post=0.1e-9)
 
@@ -153,10 +155,14 @@ class HlsRead(AbstractHlsOp, HdlAssignmentContainer):
         HdlStatement.__init__(self)
 
         if isinstance(intf, RtlSignalBase):
-            dataSig = intf
+            self._inputs.append(intf)
+        elif isinstance(intf, Signal):
+            self._inputs.append(intf._sig)
         else:
-            dataSig = intf._sig
-        self._inputs.append(dataSig)
+            assert isinstance(intf, HsStructIntf), intf
+            for s in walkPhysInterfaces(intf.data):
+                self._inputs.append(s._sig)
+
         # t = dataSig._dtype
 
         # from Assignment __init__
@@ -183,7 +189,11 @@ class HlsRead(AbstractHlsOp, HdlAssignmentContainer):
         parentHls.inputs.append(self)
 
     def getRtlDataSig(self):
-        return self.intf
+        intf = self.intf
+        if isinstance(intf, HsStructIntf):
+            return intf.data
+        else:
+            return intf
 
     def resolve_realization(self):
         self.assignRealization(IO_COMB_REALIZATION)

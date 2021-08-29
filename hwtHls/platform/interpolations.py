@@ -1,9 +1,10 @@
 # https://stackoverflow.com/questions/46040382/spline-interpolation-in-3d-in-python
 from itertools import islice
-from typing import Tuple, Optional
-from scipy.interpolate import UnivariateSpline
-from hwtHls.scheduler.scheduler import TimeConstraintError
 from pprint import pformat
+from scipy.interpolate import UnivariateSpline
+from typing import Tuple, Optional
+
+from hwtHls.scheduler.errors import TimeConstraintError
 
 
 class Spline(UnivariateSpline):

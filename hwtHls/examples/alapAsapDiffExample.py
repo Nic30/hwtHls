@@ -9,7 +9,7 @@ from hwt.simulator.simTestCase import SimTestCase
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsPipeline import HlsPipeline
 from hwtHls.platform.virtual import VirtualHlsPlatform
-from hwtHls.scheduler.scheduler import TimeConstraintError
+from hwtHls.scheduler.errors import TimeConstraintError
 
 
 class AlapAsapDiffExample(Unit):

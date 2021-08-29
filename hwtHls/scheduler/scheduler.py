@@ -51,6 +51,9 @@ class HlsScheduler():
             clk_index = start_clk(time_start, clk_period)
             schedulization[clk_index].append(node)
 
+        if not schedulization[-1]:
+            schedulization.pop()
+
         self.schedulization = schedulization
 
     def schedule(self, resource_constrain):

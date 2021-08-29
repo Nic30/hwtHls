@@ -5,10 +5,10 @@ from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.examples.crc import CrcCombHls
 from hwtHls.examples.pid import PidControllerHls
 from hwtHls.platform.virtual import VirtualHlsPlatform
-from hwtHls.scheduler.scheduler import TimeConstraintError
+from hwtHls.platform.xilinx.artix7 import Artix7Slow
+from hwtHls.scheduler.errors import TimeConstraintError
 from hwtHls.tests.ifstm import SimpleIfStatementHls
 from hwtLib.logic.crcPoly import CRC_32
-from hwtHls.platform.xilinx.artix7 import Artix7Slow
 
 
 class HlsSynthesisChecksTC(SimTestCase):

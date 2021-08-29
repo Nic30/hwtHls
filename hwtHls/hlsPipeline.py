@@ -14,6 +14,9 @@ from hwt.synthesizer.unit import Unit
 from hwtHls.codeOps import HlsRead, HlsWrite, HlsIO
 from hwtHls.hwtNetlistToHwtHlsNetlist import HwtNetlistToHwtHlsNetlist
 from ipCorePackager.constants import DIRECTION
+from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
+from hwt.interfaces.hsStructIntf import HsStructIntf
+from hwt.interfaces.std import Signal
 
 
 class HlsSyntaxError(HwtSyntaxError):
@@ -146,7 +149,12 @@ class HlsPipeline():
                 return _io
 
         name = "hls_io_" + getSignalName(io)
-        dtype = io._dtype
+        if isinstance(io, (RtlSignalBase, Signal)):
+            dtype = io._dtype
+        else:
+            assert isinstance(io, HsStructIntf), io
+            dtype = io.T
+
         _io = HlsIO(self, name, dtype)
         _io.hasGenericName = True
         _io.hidden = False
