@@ -1,26 +1,26 @@
+from itertools import chain
 from typing import Union, List, Type, Dict, Optional
 
+from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.code import If
 from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
+from hwt.hdl.types.defs import BIT
+from hwt.hdl.types.struct import HStruct
 from hwt.interfaces.hsStructIntf import HsStructIntf
+from hwt.interfaces.std import VldSynced, RdSynced, Signal, Handshaked, \
+    HandshakeSync
+from hwt.pyUtils.uniqList import UniqList
+from hwt.synthesizer.interface import Interface
+from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
+from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource, \
     TimeIndependentRtlResourceItem
 from hwtHls.clk_math import epsilon
 from hwtHls.codeOps import HlsRead, HlsOperation, HlsWrite, \
     HlsConst, HlsMux
 from hwtHls.hlsPipeline import HlsPipeline
-from hwt.interfaces.std import VldSynced, RdSynced, Signal, Handshaked, \
-    HandshakeSync
-from hwt.synthesizer.interface import Interface
-from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtLib.handshaked.streamNode import StreamNode
-from hdlConvertorAst.to.hdlUtils import iter_with_last
-from hwt.pyUtils.uniqList import UniqList
-from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
-from hwt.hdl.types.defs import BIT
-from hwt.hdl.types.struct import HStruct
-from itertools import chain
 
 
 def get_sync_type(intf: Interface) -> Type[Interface]:
@@ -210,51 +210,45 @@ class HlsAllocator():
                       pipeline_st_i:int,
                       prev_st_sync_input: Optional[HandshakeSync],
                       prev_st_valid: Optional[RtlSyncSignal]):
-            for op in chain(cur_inputs, cur_outputs):
-                sync_type = get_sync_type(op)
-                if sync_type is Handshaked or current_sync is RdSynced and sync_type is VldSynced:
-                    current_sync = Handshaked
-                elif sync_type is RdSynced and sync_type is VldSynced:
-                    current_sync = sync_type
+        """
+        Allocate synchronization for a single stage of pipeline
+        """
+        for op in chain(cur_inputs, cur_outputs):
+            sync_type = get_sync_type(op)
+            if sync_type is Handshaked or current_sync is RdSynced and sync_type is VldSynced:
+                current_sync = Handshaked
+            elif sync_type is RdSynced and sync_type is VldSynced:
+                current_sync = sync_type
 
-            if current_sync is not Signal:
-                # :note: for a signal we do not need any synchronization
-                cur_registers = [r.valuesInTime[-1] for r in cur_registers if r.valuesInTime[-1].is_rlt_register()]
-                if not is_last_in_pipeline:
-                    # does not need a synchronization with next stage in pipeline
-                    to_next_stage = self._sig(f"stage_sync_{pipeline_st_i:d}_to_{pipeline_st_i+1:d}",
-                                              HStruct(
-                                                  (BIT, "rd"),
-                                                  (BIT, "vld"))
-                                            )
-                    cur_outputs.append(to_next_stage)
-                    # if not is_first_in_pipeline:
-                    # :note: that the register 0 is behind the first stage of pipeline
-                    stage_valid = self._reg(f"stage{pipeline_st_i:d}_valid", def_val=0)
-                    extra_conds = {
-                        # to_next_stage: stage_valid,
-                    }
-                    skip_when = {
-                        # to_next_stage: stage_valid,
-                    }
-                else:
-                    to_next_stage = None
-                    stage_valid = None
-                    extra_conds = None
-                    skip_when = None
+        if current_sync is not Signal:
+            # :note: for a signal we do not need any synchronization
+            cur_registers = [r.valuesInTime[-1] for r in cur_registers if r.valuesInTime[-1].is_rlt_register()]
+            if not is_last_in_pipeline:
+                # does not need a synchronization with next stage in pipeline
+                to_next_stage = self._sig(f"stage_sync_{pipeline_st_i:d}_to_{pipeline_st_i+1:d}",
+                                          HStruct(
+                                              (BIT, "rd"),
+                                              (BIT, "vld"))
+                                        )
+                cur_outputs.append(to_next_stage)
+                # if not is_first_in_pipeline:
+                # :note: that the register 0 is behind the first stage of pipeline
+                stage_valid = self._reg(f"stage{pipeline_st_i:d}_valid", def_val=0)
+            else:
+                to_next_stage = None
+                stage_valid = None
 
-                if prev_st_sync_input is not None:
-                    # :note: we want to allow flushing if no io is involved
-                    cur_inputs.append((prev_st_valid, prev_st_sync_input.rd))
-                    If(prev_st_sync_input.rd,
-                       prev_st_valid(prev_st_sync_input.vld)
-                    ).Else(
-                       prev_st_valid(prev_st_valid | prev_st_sync_input.vld)
-                    )
+            if prev_st_sync_input is not None:
+                # :note: we want to allow flushing if no io is involved
+                cur_inputs.append((prev_st_valid, prev_st_sync_input.rd))
+                If(prev_st_sync_input.rd,
+                   prev_st_valid(prev_st_sync_input.vld)
+                ).Else(
+                   prev_st_valid(prev_st_valid | prev_st_sync_input.vld)
+                )
 
-                sync = StreamNode(cur_inputs, cur_outputs,
-                                  extraConds=extra_conds,
-                                  skipWhen=skip_when)
+            if cur_inputs or cur_outputs:
+                sync = StreamNode(cur_inputs, cur_outputs)
                 sync.sync()
                 if cur_registers:
                     # add enable signal for register load derived from synchronization of stage
@@ -262,10 +256,10 @@ class HlsAllocator():
                        *(r.data.next.drivers[0] for r in cur_registers)
                     )
 
-                prev_st_sync_input = to_next_stage
-                prev_st_valid = stage_valid
+            prev_st_sync_input = to_next_stage
+            prev_st_valid = stage_valid
 
-            return prev_st_sync_input, prev_st_valid, current_sync
+        return prev_st_sync_input, prev_st_valid, current_sync
 
     def allocate(self):
         """
@@ -286,6 +280,7 @@ class HlsAllocator():
                 # node can not be dependent on nodes behind in this list
                 # because this engine does not support backward edges in DFG
                 self._instantiate(node, cur_registers)
+
                 if isinstance(node, HlsRead):
                     cur_inputs.append(node.intf)
                 elif isinstance(node, HlsWrite):
