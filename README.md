@@ -90,6 +90,7 @@ HLS for [hwt](https://github.com/Nic30/hwt) (hwt is a library for circuit constr
 * [heterocl](https://awesomeopensource.com/project/cornell-zhang/heterocl)
 * [futil](https://github.com/cucapra/futil) - 2020-?, custom lang.
 * :skull: [streamit-hls](https://github.com/stenzek/streamit-hls) - 2017, custom lang, based on micro kernels
+* [Hastlayer](https://github.com/Lombiq/Hastlayer-SDK) - 2012-2019, C# -> HW
 
 ## Useful publications
 * [Efficient Pipelining of Nested Loops: Unroll-and-Squash](https://people.csail.mit.edu/saman/student_thesis/petkov-01.pdf)
