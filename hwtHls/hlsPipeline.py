@@ -3,10 +3,12 @@ from typing import List, Dict
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.statements.statement import HwtSyntaxError
 from hwt.hdl.types.defs import BIT
-from hwt.hdl.types.struct import HStruct
+from hwt.interfaces.hsStructIntf import HsStructIntf
+from hwt.interfaces.std import Signal
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwt.synthesizer.rtlLevel.extract_part_drivers import extract_part_drivers
+from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.rtlLevel.remove_unconnected_signals import removeUnconnectedSignals
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
@@ -14,9 +16,6 @@ from hwt.synthesizer.unit import Unit
 from hwtHls.codeOps import HlsRead, HlsWrite, HlsIO
 from hwtHls.hwtNetlistToHwtHlsNetlist import HwtNetlistToHwtHlsNetlist
 from ipCorePackager.constants import DIRECTION
-from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
-from hwt.interfaces.hsStructIntf import HsStructIntf
-from hwt.interfaces.std import Signal
 
 
 class HlsSyntaxError(HwtSyntaxError):
