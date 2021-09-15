@@ -3,7 +3,6 @@ from typing import Union, List, Type, Dict, Optional
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.code import If
-from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.struct import HStruct
@@ -17,8 +16,7 @@ from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource, \
     TimeIndependentRtlResourceItem
 from hwtHls.clk_math import epsilon
-from hwtHls.codeOps import HlsRead, HlsOperation, HlsWrite, \
-    HlsConst, HlsMux
+from hwtHls.codeOps import HlsRead, HlsOperation, HlsWrite, AbstractHlsOp
 from hwtHls.hlsPipeline import HlsPipeline
 from hwtLib.handshaked.streamNode import StreamNode
 
@@ -64,79 +62,21 @@ class HlsAllocator():
             used_signals.append(node)
             return node
         elif isinstance(node, HlsRead):
-            return self.instantiateRead(node)
+            return self.instantiateRead(node, used_signals)
         elif isinstance(node, HlsWrite):
             return self.instantiateWrite(node, used_signals)
         else:
-            return self.instantiateOperation(node, used_signals)
+            return node.allocate_instance(self, used_signals)
 
-    def instantiateOperationInTime(self,
-                                   o: HlsOperation,
-                                   time:float,
-                                   used_signals: UniqList[TimeIndependentRtlResourceItem]
-                                   ) -> TimeIndependentRtlResourceItem:
-        try:
-            _o = self.node2instance[o]
-        except KeyError:
-            _o = None
+    def _registerSignal(self, origin: AbstractHlsOp,
+                        s: TimeIndependentRtlResource,
+                        used_signals: UniqList[TimeIndependentRtlResourceItem]):
+        assert isinstance(s, TimeIndependentRtlResource), s
+        used_signals.append(s)
+        self.node2instance[origin] = s
 
-        if _o is None:
-            # if dependency of this node is not instantiated yet
-            # instantiate it
-            _o = self._instantiate(o, used_signals)
-        else:
-            used_signals.append(_o)
-
-        return _o.get(time)
-
-    def instantiateOperation(self,
-                             node: HlsOperation,
-                             used_signals: UniqList[TimeIndependentRtlResourceItem]
-                            ) -> TimeIndependentRtlResource:
-        """
-        Instantiate operation on RTL level
-        """
-        if isinstance(node, HlsConst):
-            s = node.val
-            t = TimeIndependentRtlResource.INVARIANT_TIME
-        else:
-
-            # instantiate dependencies
-            # [TODO] problem with cyclic dependency
-            if node.operator == AllOps.TERNARY:
-                node: HlsMux
-                name = node.name
-                s = self._sig(name, self.instantiateOperationInTime(node.elifs[0][1], node.scheduledIn, used_signals).data._dtype)
-                mux_top = None
-                for (c, v) in node.elifs:
-                    if c is not None:
-                        c = self.instantiateOperationInTime(c, node.scheduledIn, used_signals)
-                    v = self.instantiateOperationInTime(v, node.scheduledIn, used_signals)
-
-                    if mux_top is None:
-                        mux_top = If(c.data, s(v.data))
-                    elif c is not None:
-                        mux_top.Elif(c.data, s(v.data))
-                    else:
-                        mux_top.Else(s(v.data))
-
-            else:
-                operands = []
-                for o in node.dependsOn:
-                    _o = self.instantiateOperationInTime(o, node.scheduledIn, used_signals)
-                    operands.append(_o)
-                s = node.operator._evalFn(*(o.data for o in operands))
-
-            # create RTL signal expression base on operator type
-            t = node.scheduledIn + epsilon
-
-        rtlObj = TimeIndependentRtlResource(s, t, self)
-        used_signals.append(rtlObj)
-        self.node2instance[node] = rtlObj
-
-        return rtlObj
-
-    def instantiateRead(self, readOp: HlsRead) -> TimeIndependentRtlResource:
+    def instantiateRead(self, readOp: HlsRead,
+                         used_signals: UniqList[TimeIndependentRtlResourceItem]) -> TimeIndependentRtlResource:
         """
         Instantiate read operation on RTL level
         """
@@ -144,7 +84,7 @@ class HlsAllocator():
             readOp.getRtlDataSig(),
             readOp.scheduledIn + epsilon,
             self)
-        self.node2instance[readOp] = _o
+        self._registerSignal(readOp, _o, used_signals)
 
         return _o
 

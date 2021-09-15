@@ -1,5 +1,6 @@
 from typing import List, Union, Optional, Tuple
 
+from hwt.code import If
 from hwt.doc_markers import internal
 from hwt.hdl.operatorDefs import OpDefinition, AllOps
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
@@ -7,17 +8,20 @@ from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.types.typeCast import toHVal
 from hwt.hdl.value import HValue
+from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.interfaces.std import Signal
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
+from hwt.synthesizer.interfaceLevel.interfaceUtils.utils import walkPhysInterfaces
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
+from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource, \
+    TimeIndependentRtlResourceItem
+from hwtHls.clk_math import epsilon
 from hwtHls.clk_math import start_clk
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta, \
     UNSPECIFIED_OP_REALIZATION
-from hwt.synthesizer.interfaceLevel.interfaceUtils.utils import walkPhysInterfaces
-from hwt.interfaces.hsStructIntf import HsStructIntf
 
 IO_COMB_REALIZATION = OpRealizationMeta(latency_post=0.1e-9)
 
@@ -102,6 +106,25 @@ class AbstractHlsOp():
     def _get_rtl_context(self):
         return self.hls.ctx
 
+    def instantiateOperationInTime(self,
+                                   allocator: "HlsAllocator",
+                                   time:float,
+                                   used_signals: UniqList[TimeIndependentRtlResourceItem]
+                                   ) -> TimeIndependentRtlResourceItem:
+        try:
+            _o = allocator.node2instance[self]
+        except KeyError:
+            _o = None
+
+        if _o is None:
+            # if dependency of this node is not instantiated yet
+            # instantiate it
+            _o = allocator._instantiate(self, used_signals)
+        else:
+            used_signals.append(_o)
+
+        return _o.get(time)
+
 
 class HlsConst(AbstractHlsOp):
     """
@@ -118,6 +141,13 @@ class HlsConst(AbstractHlsOp):
 
     def get(self, time: float):
         return self.val
+
+    def allocate_instance(self,
+                          allocator: "HlsAllocator",
+                          used_signals: UniqList[TimeIndependentRtlResourceItem]) -> TimeIndependentRtlResource:
+        s = self.val
+        t = TimeIndependentRtlResource.INVARIANT_TIME
+        return TimeIndependentRtlResource(s, t, allocator)
 
     @property
     def asap_start(self):
@@ -291,6 +321,23 @@ class HlsOperation(AbstractHlsOp):
             input_cnt, clk_period)
         self.assignRealization(r)
 
+
+    def allocate_instance(self,
+                          allocator: "HlsAllocator",
+                          used_signals: UniqList[TimeIndependentRtlResourceItem]) -> TimeIndependentRtlResource:
+
+        operands = []
+        for o in self.dependsOn:
+            _o = o.instantiateOperationInTime(allocator, self.scheduledIn, used_signals)
+            operands.append(_o)
+        s = self.operator._evalFn(*(o.data for o in operands))
+
+        # create RTL signal expression base on operator type
+        t = self.scheduledIn + epsilon
+        tis = TimeIndependentRtlResource(s, t, allocator)
+        allocator._registerSignal(self, tis, used_signals)
+        return tis
+
     def __repr__(self):
         return f"<{self.__class__.__name__:s} {self.operator} {self.dependsOn}>"
 
@@ -301,6 +348,29 @@ class HlsMux(HlsOperation):
         super(HlsMux, self).__init__(
             parentHls, AllOps.TERNARY, bit_length, name=name)
         self.elifs: Tuple[Optional[AbstractHlsOp], AbstractHlsOp] = []
+
+    def allocate_instance(self,
+                          allocator: "HlsAllocator",
+                          used_signals: UniqList[TimeIndependentRtlResourceItem]) -> TimeIndependentRtlResource:
+        name = self.name
+        s = allocator._sig(name, self.elifs[0][1].instantiateOperationInTime(allocator, self.scheduledIn, used_signals).data._dtype)
+        mux_top = None
+        for (c, v) in self.elifs:
+            if c is not None:
+                c = c.instantiateOperationInTime(allocator, self.scheduledIn, used_signals)
+            v = v.instantiateOperationInTime(allocator, self.scheduledIn, used_signals)
+
+            if mux_top is None:
+                mux_top = If(c.data, s(v.data))
+            elif c is not None:
+                mux_top.Elif(c.data, s(v.data))
+            else:
+                mux_top.Else(s(v.data))
+        # create RTL signal expression base on operator type
+        t = self.scheduledIn + epsilon
+        s = TimeIndependentRtlResource(s, t, allocator)
+        allocator._registerSignal(self, s, used_signals)
+        return s
 
 
 class HlsIO(RtlSignal):
