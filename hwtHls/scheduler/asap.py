@@ -1,9 +1,10 @@
 from hwt.hdl.operator import isConst
-from hwtHls.codeOps import HlsConst
+from hwtHls.codeOps import HlsConst, AbstractHlsOp, HlsRead, HlsWrite
 from hwtHls.scheduler.errors import UnresolvedChild, TimeConstraintError
+from typing import List, Set
 
 
-def child_asap_time(ch):
+def child_asap_time(ch: AbstractHlsOp):
     if ch.asap_end is None:
         if isinstance(ch, HlsConst):
             return 0
@@ -13,8 +14,8 @@ def child_asap_time(ch):
         return ch.asap_end
 
 
-def asap_filter_inputs(inputs, realInputs):
-    newlyDiscoveredInputs = set()
+def asap_filter_inputs(inputs: List[AbstractHlsOp], realInputs: Set[AbstractHlsOp]):
+    newlyDiscoveredInputs: Set[AbstractHlsOp] = set()
     # init start times, filter inputs
     for node in inputs:
         if not node.fixed_schedulation and not node.dependsOn:
@@ -35,7 +36,7 @@ def asap_filter_inputs(inputs, realInputs):
         asap_filter_inputs(newlyDiscoveredInputs, realInputs)
 
 
-def asap(inputs, outputs, clk_period):
+def asap(inputs: List[HlsRead], outputs: List[HlsWrite], clk_period: float):
     """
     As Soon As Possible scheduler
 
@@ -44,12 +45,12 @@ def asap(inputs, outputs, clk_period):
     """
     # [TODO] cycle delays/latencies
     maxTime = 0
-    unresolved = set()
+    unresolved: Set[AbstractHlsOp] = set()
     asap_filter_inputs(inputs, unresolved)
 
     # walk from inputs to outputs and decorate nodes with time
     while unresolved:
-        nextUnresolved = set()
+        nextUnresolved: Set[AbstractHlsOp] = set()
         for node in unresolved:
             try:
                 node_t = max(map(child_asap_time, node.dependsOn))
