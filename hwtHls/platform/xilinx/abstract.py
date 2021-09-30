@@ -36,5 +36,5 @@ class AbstractXilinxPlatform(DummyPlatform):
         if op in _OPS_T_ZERO_LATENCY:
             return OpRealizationMeta()
         (cycles_latency, latency_pre) = self._OP_DELAYS[op](bit_width, input_cnt, 0, clk_period)
-        return OpRealizationMeta(latency_pre=latency_pre, cycles_latency=cycles_latency)
+        return OpRealizationMeta(latency_pre=float(latency_pre), cycles_latency=float(cycles_latency))
 
