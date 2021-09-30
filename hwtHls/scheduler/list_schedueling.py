@@ -1,14 +1,17 @@
 from heapq import heappush, heappop
 from itertools import chain
 import sys
+from typing import List, Callable, Dict, Tuple, Union
 
-from hwtHls.clk_math import start_clk, end_clk
-from hwtHls.codeOps import HlsConst, HlsOperation
+from hwt.hdl.operatorDefs import OpDefinition
+from hwtHls.clk_math import start_clk, end_clk, epsilon
+from hwtHls.codeOps import HlsConst, HlsOperation, AbstractHlsOp, HlsWrite, \
+    HlsRead, OperationIn, OperationOut
 from hwtHls.hlsPipeline import HlsSyntaxError
 from hwtHls.scheduler.scheduler import HlsScheduler, asap
 
 
-def getComponentConstrainingFn(clk_period: float, comp_constrain):
+def getComponentConstrainingFn(clk_period: float, comp_constrain: Dict[OpDefinition, int]):
     """
     Build component constraining function for specified comp_constrain
     and clk_period
@@ -64,7 +67,11 @@ class ListSchedItem():
         return self.priority < other.priority
 
 
-def list_schedueling(inputs, nodes, outputs, constrainFn, priorityFn):
+def list_schedueling(inputs: List[HlsRead], nodes: List[AbstractHlsOp],
+                     outputs: List[HlsWrite],
+                     constrainFn:Callable[[AbstractHlsOp, Dict[AbstractHlsOp, Tuple[float, float]], float, float], float],
+                     priorityFn:Callable[[AbstractHlsOp], float]
+                     ) -> Dict[Union[Tuple[int, AbstractHlsOp], Tuple[AbstractHlsOp, int]], Tuple[float, float]]:
     """
     :param inputs: list of HlsRead objects
     :param nodes: list of HlsOperation instances
@@ -77,12 +84,15 @@ def list_schedueling(inputs, nodes, outputs, constrainFn, priorityFn):
     # node: (start time, end time)
     sched = {}
     # cache for priority values
-    priority = {n: ListSchedItem(priorityFn(n), n)
-                for n in chain(inputs, nodes, outputs)}
+    priority = {
+        n: ListSchedItem(priorityFn(n), n)
+        for n in chain(inputs, nodes, outputs)
+    }
 
     h = []  # heap for unresolved nodes
     for n in nodes:
         if isinstance(n, HlsConst):
+            # constants will be scheduled to same time as operations later
             continue
         heappush(h, priority[n])
 
@@ -90,38 +100,53 @@ def list_schedueling(inputs, nodes, outputs, constrainFn, priorityFn):
         item = heappop(h)
         node = item.node
         assert node not in sched
-        startTime = 0
+        startTime = 0.0
         for parent in node.dependsOn:
+            assert parent is not None, node
             try:
                 p_times = sched[parent]
             except KeyError:
-                if not isinstance(parent, HlsConst):
-                    # imposible to schedule due req. not met
+                if not isinstance(parent.obj, HlsConst):
+                    # imposible to schedule due req. not scheduled yet
                     startTime = None
                     break
-                p_times = (0, 0)
+                p_times = (0.0, 0.0)
 
             startTime = max(startTime, p_times[1])
 
         if startTime is None:
             # imposible to schedule due req. not met
             p = item.priority
-            item.priority = max(map(lambda x: 0 if isinstance(
-                x, HlsConst) else priority[x].priority,
-                node.dependsOn))
+            item.priority = max(
+                (0.0 if isinstance(d.obj, HlsConst) else priority[d.obj].priority
+                for d in node.dependsOn))
             if item.priority == p:
-                item.priority += sys.float_info.epsilon
+                item.priority += epsilon
             # or h[0].priority == p
-            assert item.priority >= p, (p, item.priority)
+            assert item.priority >= p, (node, item.priority, p)
             heappush(h, item)
+            # scheduling is postponed untill children are scheduled
             continue
 
-        endTime = startTime + node.latency_pre + node.latency_post
+        pre = node.latency_pre
+        pre = (max(pre) if pre else 0.0)
+        post = node.latency_post
+        post = (max(post) if post else 0.0)
+        endTime = startTime + pre + post
 
         startTime, endTime = constrainFn(node, sched, startTime, endTime)
 
         # start can be behind all ends of parents
-        sched[node] = (startTime, endTime)
+
+        # assign start/end for individual inputs/outputs
+        for ii, i_pre_time in enumerate(node.latency_pre):
+            sched[OperationIn(node, ii)] = (startTime - (pre - i_pre_time) , endTime)
+
+        for oi, o_post_time in enumerate(node.latency_post):
+            sched[OperationOut(node, oi)] = (startTime, endTime - post + o_post_time)
+
+        # total span of operation
+        # sched[node] = (startTime, endTime)
 
     return sched
 
@@ -132,8 +157,10 @@ class ListSchedueler(HlsScheduler):
         hls = self.parentHls
         clk_period = self.parentHls.clk_period
         # discover time interval where operations can be schedueled
+        for n in hls.nodes:
+            n.resolve_realization()
         # maxTime = self.asap()
-        asap(hls.inputs, hls.outputs, clk_period)
+        asap(hls.outputs, clk_period)
         # self.alap(maxTime)
 
         if resource_constrain is None:
@@ -143,7 +170,10 @@ class ListSchedueler(HlsScheduler):
             clk_period, resource_constrain)
 
         def priorityFn(node):
-            return node.asap_start
+            if not node.asap_start:
+                return 0.0
+            else:
+                return min(node.asap_start)
 
         sched = list_schedueling(
             hls.inputs, hls.nodes, hls.outputs,

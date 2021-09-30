@@ -1,24 +1,30 @@
-from typing import Dict, Union, Optional, List
+from typing import Dict, Union, Optional, List, Tuple
 
 from hwt.code import If, CodeBlock, Switch
 from hwt.hdl.operator import Operator
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
+from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.value import HValue
+from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.codeOps import AbstractHlsOp, HlsOperation, HlsMux, HlsConst, HlsIO, \
-    HlsRead, HlsWrite
-from hwt.hdl.statements.statement import HdlStatement
-from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
+    HlsRead, HlsWrite, OperationOut, OperationIn
+from itertools import chain
 
 
-def link_hls_nodes(parent: AbstractHlsOp, child: AbstractHlsOp) -> None:
-    child.dependsOn.append(parent)
-    parent.usedBy.append(child)
+def link_hls_nodes(parent: OperationOut, child: OperationIn) -> None:
+    assert isinstance(parent, OperationOut), parent
+    assert isinstance(child, OperationIn), child
+    child.obj.dependsOn[child.in_i] = parent
+    parent.obj.usedBy[parent.out_i].append(child)
 
 
 class HwtNetlistToHwtHlsNetlist():
+    """
+    Translate hwt netlict (RtlNetlist) to DAG of AbstractHlsOp nodes
+    """
 
-    def __init__(self, hls: "Hls", to_hls: Dict[Union[RtlSignal, Operator], AbstractHlsOp]):
+    def __init__(self, hls: "Hls", to_hls: Dict[Union[RtlSignal, Operator], Tuple[AbstractHlsOp, int]]):
         self.hls = hls
         self._to_hls = to_hls
 
@@ -29,7 +35,7 @@ class HwtNetlistToHwtHlsNetlist():
         :return: instance of HlsOperation representing of this operator
         """
         try:
-            return self._to_hls[operator]
+            return (self._to_hls[operator], 0)
             # was already discovered
         except KeyError:
             pass
@@ -37,49 +43,18 @@ class HwtNetlistToHwtHlsNetlist():
         # create HlsOperation node for this operator and register it
         op_node = HlsOperation(self.hls,
                                operator.operator,
+                               len(operator.operands),
                                operator.operands[0]._dtype.bit_length())
         self._to_hls[operator] = op_node
 
         # walk all inputs and connect them as my parent
-        for op in operator.operands:
+        for i, op in enumerate(operator.operands):
             op = self.to_hls_expr(op)
-            if op is not None:
-                link_hls_nodes(op, op_node)
+            assert op is not None
+            link_hls_nodes(op, OperationIn(op_node, i))
 
-        return op_node
+        return OperationOut(op_node, 0)
 
-    # def to_hls_mux(self, obj: RtlSignal) -> HlsMux:
-    #    """
-    #    Recursively convert signal which is output of multiplexer/demultiplexer
-    #    to HLS nodes
-    #    """
-    #    try:
-    #        return self._to_hls[obj]
-    #        # was already discovered
-    #    except KeyError:
-    #        pass
-    #
-    #    if obj.hasGenericName:
-    #        name = "mux_"
-    #    else:
-    #        name = obj.name
-    #
-    #    _obj = HlsMux(self.hls, obj._dtype.bit_length(), name=name)
-    #    self._to_hls[obj] = _obj
-    #
-    #    # add condition to dependencies of this MUX operator
-    #    c = self.to_hls_expr(obj.drivers[0].cond)
-    #    link_nodes(c, _obj)
-    #
-    #    for a in obj.drivers:
-    #        assert isinstance(a, HdlAssignmentContainer), a
-    #        if a.indexes:
-    #            raise NotImplementedError()
-    #
-    #        src = self.to_hls_expr(a.src)
-    #        link_nodes(src, _obj)
-    #
-    #    return _obj
     def to_hls_driver_block(self, sig: RtlSignal,
                             obj: Union[CodeBlock, List[HdlStatement], None],
                             default_driver: Optional[AbstractHlsOp]) -> AbstractHlsOp:
@@ -94,61 +69,72 @@ class HwtNetlistToHwtHlsNetlist():
                 stm: HdlStatement
                 if sig in stm._outputs:
                     default_driver = self.to_hls_driver(sig, stm, default_driver)
+
         assert default_driver is not None, ("The signal ", sig, " has undriven branch and has no default value specified (result in undefined value without explicit notation)")
         return default_driver
 
+    def to_hls_driver_mux_case(self, mux: HlsMux,
+                               sig: RtlSignal,
+                               cond:Optional[RtlSignal],
+                               stms: List[HdlStatement],
+                               default_driver):
+        # :note: dependsOn slots must be spoted first before going deeper in statements
+        #  because potential controll dependency must have slot available
+        if cond is not None:
+            mux.dependsOn.append(None)
+
+        mux.dependsOn.append(None)
+        if cond is None:
+            _c = None
+        else:
+            _c = self.to_hls_expr(cond)
+            link_hls_nodes(_c, OperationIn(mux, len(mux.dependsOn) - 2))
+
+        v = self.to_hls_driver_block(sig, stms, default_driver)
+        link_hls_nodes(v, OperationIn(mux, len(mux.dependsOn) - 1))
+        for d in mux.dependsOn:
+            assert d is not None
+        mux.elifs.append((_c, v))
+
     def to_hls_driver_if(self, sig: RtlSignal,
                          obj: If,
-                         default_driver: Optional[AbstractHlsOp]) -> HlsMux:
+                         default_driver: Optional[AbstractHlsOp]) -> Tuple[HlsMux, int]:
         mux = HlsMux(self.hls, sig._dtype.bit_length(), sig.name)
         if obj.parentStm is None:
             self._to_hls[sig] = mux
 
-        for c, stms in obj._iter_all_elifs():
-            _c = self.to_hls_expr(c)
-            link_hls_nodes(_c, mux)
-            v = self.to_hls_driver_block(sig, stms, default_driver)
-            link_hls_nodes(v, mux)
-            mux.elifs.append((_c, v))
+        for c, stms in chain(obj._iter_all_elifs(), [(None, obj.ifFalse), ]):
+            self.to_hls_driver_mux_case(mux, sig, c, stms, default_driver)
 
-        v = self.to_hls_driver_block(sig, obj.ifFalse, default_driver)
-        link_hls_nodes(v, mux)
-        mux.elifs.append((None, v))
-
-        return mux
+        return OperationOut(mux, 0)
 
     def to_hls_driver_switch(self, sig: RtlSignal,
                          obj: Switch,
-                         default_driver: Optional[AbstractHlsOp]) -> HlsMux:
+                         default_driver: Optional[AbstractHlsOp]) -> Tuple[HlsMux, int]:
         mux = HlsMux(self.hls, sig._dtype.bit_length(), sig.name)
         if obj.parentStm is None:
             self._to_hls[sig] = mux
 
-        for c, stms in obj._iter_all_elifs():
-            _c = self.to_hls_expr(c._eq(1))
-            link_hls_nodes(_c, mux)
-            v = self.to_hls_driver_block(sig, stms, default_driver)
-            link_hls_nodes(v, mux)
+        for c, stms in chain(obj._iter_all_elifs(), [(None, obj.default), ]):
+            self.to_hls_driver_mux_case(mux, sig, c, stms, default_driver)
 
-        v = self.to_hls_driver_block(sig, obj.default, default_driver)
-        link_hls_nodes(v, mux)
-        return mux
+        return (mux, 0)
 
     def to_hls_driver(self,
                       sig: RtlSignal,
                       obj: Union[HlsRead, HlsWrite, Operator, HdlAssignmentContainer, If, Switch, CodeBlock],
-                      default_driver: Optional[AbstractHlsOp]) -> AbstractHlsOp:
+                      default_driver: Optional[AbstractHlsOp]) -> OperationOut:
         """
         :param default_driver: a value which should drive the sighal when the signal is not actively driven
         """
         try:
-            return self._to_hls[obj]
+            return OperationOut(self._to_hls[obj], 0)
         except KeyError:
             pass
 
         if isinstance(obj, HlsRead):
             self._to_hls[obj] = obj
-            return obj
+            return OperationOut(obj, 0)
 
         elif isinstance(obj, HlsWrite):
             if obj.indexes:
@@ -158,15 +144,14 @@ class HwtNetlistToHwtHlsNetlist():
 
             src = self.to_hls_expr(obj.src)
             if obj.parentStm is None:
-                link_hls_nodes(src, obj)
+                link_hls_nodes(src, OperationIn(obj, 0))
             else:
-
                 # read/write is not just assigment which just marks some connection
                 # instead it is operation which may take some time and require some synchronization
                 # because of this we need to transfer all potentiall controll inputs to input of this operation
                 top_sig_driver = self._to_hls[sig]
-                link_hls_nodes(src, top_sig_driver)
-                link_hls_nodes(top_sig_driver, obj)
+                link_hls_nodes(src, OperationIn(top_sig_driver, 0))
+                link_hls_nodes(OperationOut(top_sig_driver, 0), OperationIn(obj, 0))
 
             return src
 
@@ -197,34 +182,32 @@ class HwtNetlistToHwtHlsNetlist():
         else:
             raise NotImplementedError(obj)
 
-    def to_hls_expr(self, obj: Union[RtlSignal, HValue]) -> AbstractHlsOp:
+    def to_hls_expr(self, obj: Union[RtlSignal, HValue]) -> OperationOut:
         """
         Convert RtlObject to HlsObject, register it and link it wit parent
 
         :note: parent is an object what provides values to operation
         """
         try:
-            return self._to_hls[obj]
+            return OperationOut(self._to_hls[obj], 0)
         except KeyError:
             pass
 
         if isinstance(obj, HValue) or obj._const:
             _obj = HlsConst(obj)
             self._to_hls[_obj] = _obj
-            return _obj
+            return OperationOut(_obj, 0)
 
         if not obj.drivers:
             assert isinstance(obj, HlsIO), obj
-            return obj
+            return OperationOut(obj, 0)
         else:
             if len(obj.drivers) == 1:
-                # parent is just RtlSignal, we needs operation
-                # it is drivern from
+                # parent is just RtlSignal, we needs operation it is driven from
                 return self.to_hls_driver(
                     obj,
                     obj.drivers[0],
                     None if obj._nop_val is NOT_SPECIFIED else self.to_hls_expr(obj._nop_val))
             else:
+                # [TODO] multi port memories
                 raise NotImplementedError(obj, "Multiple drivers")
-                # [TODO] mux X indexed assignments
-                # return mux2Hls(obj, hls, _to_hls)

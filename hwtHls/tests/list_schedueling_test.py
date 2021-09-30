@@ -6,7 +6,8 @@ from hwt.hdl.types.defs import BIT
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.unit import Unit
 from hwtHls.clk_math import start_clk, start_of_next_clk_period
-from hwtHls.codeOps import HlsRead, HlsOperation, HlsWrite, IO_COMB_REALIZATION
+from hwtHls.codeOps import HlsRead, HlsOperation, HlsWrite, IO_COMB_REALIZATION,\
+    OperationOut, OperationIn
 from hwtHls.hlsPipeline import HlsPipeline
 from hwtHls.hwtNetlistToHwtHlsNetlist import link_hls_nodes
 from hwtHls.platform.virtual import VirtualHlsPlatform
@@ -16,7 +17,7 @@ n = RtlNetlist("test")
 
 
 def sig(name, t=BIT):
-    return n.sig("sig", t)
+    return n.sig(name, t)
 
 
 def dummy_constrainFn(node, sched, suggestedStart, suggestedEnd):
@@ -40,10 +41,10 @@ class ListSchedueling_TC(unittest.TestCase):
         a_out_sig = sig("a_out")
 
         a_in = HlsRead(hls, a_ioin_sig, a_in_sig)
-        a_not = HlsOperation(hls, AllOps.NOT, 1)
-        link_hls_nodes(a_in, a_not)
+        a_not = HlsOperation(hls, AllOps.NOT, 1, 1)
+        link_hls_nodes(OperationOut(a_in, 0), OperationIn(a_not, 0))
         a_out = HlsWrite(hls, 1, a_out_sig)
-        link_hls_nodes(a_not, a_out)
+        link_hls_nodes(OperationOut(a_not, 0), OperationIn(a_out, 0))
         for n in [a_in, a_not, a_out]:
             n.resolve_realization()
 
@@ -63,12 +64,12 @@ class ListSchedueling_TC(unittest.TestCase):
             a0_in = HlsRead(hls, a0_io_in_sig, a0_in_sig)
             a1_in = HlsRead(hls, a1_io_in_sig, a1_in_sig)
 
-            a_and = HlsOperation(hls, AllOps.AND, 1)
-            link_hls_nodes(a0_in, a_and)
-            link_hls_nodes(a1_in, a_and)
+            a_and = HlsOperation(hls, AllOps.AND, 2, 1)
+            link_hls_nodes(OperationOut(a0_in, 0), OperationIn(a_and, 0))
+            link_hls_nodes(OperationOut(a1_in, 0), OperationIn(a_and, 1))
 
             a_out = HlsWrite(hls, 1, a_out_sig)
-            link_hls_nodes(a_and, a_out)
+            link_hls_nodes(OperationOut(a_and, 0), OperationIn(a_out, 0))
             ops = [a0_in, a1_in, a_and, a_out]
             for n in ops:
                 n.resolve_realization()
@@ -88,7 +89,8 @@ class ListSchedueling_TC(unittest.TestCase):
                 return 2
             else:
                 raise ValueError(node)
-
+        if a_in.dependsOn[0] is None:
+            a_in.dependsOn.pop()
         sched = list_schedueling([a_in, ], [a_in, a_not, a_out], [a_out, ],
                                  dummy_constrainFn, priorityFn)
         ref = {
@@ -103,6 +105,9 @@ class ListSchedueling_TC(unittest.TestCase):
             b0_in, b1_in, b_and, b_out = self.dual_and()
 
         inputs = [a0_in, a1_in, b0_in, b1_in]
+        for i in inputs:
+            if i.dependsOn[0] is None:
+                i.dependsOn.pop()
         outputs = [a_out, b_out]
         nodes = [a_and, b_and] + inputs + outputs
 
@@ -141,7 +146,7 @@ class ListSchedueling_TC(unittest.TestCase):
                 # print("isNotAllone", node)
                 suggestedStart = start_of_next_clk_period(
                     suggestedStart, clk_period)
-                suggestedEnd = suggestedStart + node.latency_pre + node.latency_post
+                suggestedEnd = suggestedStart + node.latency_pre[0] + node.latency_post[0]
 
             if isinstance(node, HlsOperation):
                 others_in_clk.add(node)
@@ -149,6 +154,9 @@ class ListSchedueling_TC(unittest.TestCase):
             return suggestedStart, suggestedEnd
 
         inputs = [a0_in, a1_in, b0_in, b1_in]
+        for i in inputs:
+            if i.dependsOn[0] is None:
+                i.dependsOn.pop()
         outputs = [a_out, b_out]
         nodes = [a_and, b_and] + inputs + outputs
 

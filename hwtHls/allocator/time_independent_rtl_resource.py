@@ -15,6 +15,9 @@ class TimeIndependentRtlResourceItem():
     def is_rlt_register(self) -> bool:
         return self.parent.valuesInTime[0] is not self
 
+    def __repr__(self):
+        return f"<{self.__class__.__name__:s} {self.data}>"
+
 
 class TimeIndependentRtlResource():
     """
@@ -83,3 +86,5 @@ class TimeIndependentRtlResource():
 
         return cur
 
+    def __repr__(self):
+        return f"<{self.__class__.__name__:s} for {self.valuesInTime[0].data}>"

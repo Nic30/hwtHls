@@ -22,56 +22,108 @@ from hwtHls.clk_math import epsilon
 from hwtHls.clk_math import start_clk
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta, \
     UNSPECIFIED_OP_REALIZATION
+from copy import copy
 
 IO_COMB_REALIZATION = OpRealizationMeta(latency_post=0.1e-9)
+
+TimeSpec = Union[float, Tuple[float, ...]]
+AbstractHlsOpConnection = Tuple['AbstractHlsOp', int]
+
+
+class OperationIn():
+
+    def __init__(self, obj: "AbstractHlsOp", in_i: int):
+        self.obj = obj
+        self.in_i = in_i
+
+    def __hash__(self):
+        return hash((self.obj, self.in_i))
+
+    def __eq__(self, other):
+        return self.__class__ is other.__class__ and self.obj == other.obj and self.in_i == other.in_i
+
+
+class OperationOut():
+
+    def __init__(self, obj: "AbstractHlsOp", out_i: int):
+        self.obj = obj
+        self.out_i = out_i
+
+    def __hash__(self):
+        return hash((self.obj, self.out_i))
+
+    def __eq__(self, other):
+        return self.__class__ is other.__class__ and self.obj == other.obj and self.out_i == other.out_i
 
 
 class AbstractHlsOp():
     """
     Abstract class for nodes in circuit which are subject to HLS scheduling
 
-    :ivar name: optional suggested name for this object
-    :ivar usedBy: unique list of operations which are using data from this
-        operation
-    :ivar dependsOn: unique list of operations which data are required
+    :ivar name: optional suggested name for this object (for debbuging purposes)
+    :ivar usedBy: for each output list of operation and its input index which are using this output
+    :ivar dependsOn: for each input operation and index of its output with data required
         to perform this operation
-    :ivar asap_start: scheduled time of start of operation using ASAP scheduler
-    :ivar asap_end: scheduled time of end of operation using ASAP scheduler
-    :ivar alap_start: scheduled time of start of operation using ALAP scheduler
-    :ivar alap_end: scheduled time of end of operation using ALAP scheduler
-    :ivar scheduledIn: final scheduled time of start of operation
-    :ivar scheduledInEnd: final scheduled time of end of operation
+    :ivar asap_start: scheduled time of start of operation using ASAP scheduler for each input
+    :ivar asap_end: scheduled time of end of operation using ASAP scheduler for each output
+    :ivar alap_start: scheduled time of start of operation using ALAP scheduler for each input
+    :ivar alap_end: scheduled time of end of operation using ALAP scheduler for each output
+    :ivar scheduledIn: final scheduled time of start of operation for each input
+    :ivar scheduledInEnd: final scheduled time of end of operation for each output
+
+    :attention: inputs must be soted 1st must have lowest latency
+
     :ivar latency_pre: combinational latency before first register
-        in compoent for this operation
+        in compoent for this operation (for each input)
     :ivar latency_post: combinational latency after last register
-        in compoent for this operation
+        in compoent for this operation (for each output, 0 corresponds to a same time as input[0])
     :ivar cycles_latency: number of clk cycles for data to get from input
-        to output
+        to output (for each output, 0 corresponds to a same clock cycle as input[0])
     :ivar cycles_dealy: number of clk cycles required to process data
+         (for each output, 0 corresponds to a same clock cycle as input[0])
     """
 
-    def __init__(self, parentHls: "Hls", bit_length: int, name: str=None,
-                 realization: OpRealizationMeta=UNSPECIFIED_OP_REALIZATION):
+    def __init__(self, parentHls: "Hls", name: str=None):
         self.name = name
         self.hls = parentHls
-        self.usedBy = UniqList()
-        self.dependsOn = UniqList()
-        self.bit_length = bit_length
 
-        self.asap_start, self.asap_end = None, None
-        self.alap_start, self.alap_end = None, None
+        self.usedBy: List[List[OperationIn]] = []
+        self.dependsOn: List[OperationOut] = []
+
+        self.asap_start: Optional[TimeSpec] = None
+        self.asap_end: Optional[TimeSpec] = None
+        self.alap_start: Optional[TimeSpec] = None
+        self.alap_end: Optional[TimeSpec] = None
         # True if scheduled to specific time
-        self._earliest, self._latest = None, None
         self.fixed_schedulation = False
-        self.scheduledIn, self.scheduledInEnd = None, None
-        self.assignRealization(realization)
+        self.scheduledIn: Optional[TimeSpec] = None
+        self.scheduledInEnd: Optional[TimeSpec] = None
+
+    def _numberForEachInput(self, val: Union[float, Tuple[float]]):
+        if isinstance(val, (float, int)):
+            return [val for _ in self.dependsOn]
+        else:
+            val = list(val)
+            assert len(val) == self.dependsOn, (val, self.dependsOn)
+            return val
+
+    def _numberForEachOutput(self, val: Union[float, Tuple[float]]):
+        if isinstance(val, (float, int)):
+            return tuple(val for _ in self.usedBy)
+        else:
+            val = list(val)
+            assert len(val) == self.usedBy
+            return val
 
     def assignRealization(self, r: OpRealizationMeta):
         self.realization = r
-        self.latency_pre = r.latency_pre
-        self.latency_post = r.latency_post
-        self.cycles_latency = r.cycles_latency
-        self.cycles_delay = r.cycles_delay
+        self.in_cycles_offset = self._numberForEachInput(copy(r.latency_pre))
+        self.latency_pre = self._numberForEachInput(copy(r.latency_pre))
+        self.latency_post = self._numberForEachOutput(copy(r.latency_post))
+        self.cycles_latency = self._numberForEachOutput(copy(r.cycles_latency))
+        self.cycles_delay = self._numberForEachOutput(copy(r.cycles_delay))
+
+        return self
 
     def resolve_realization(self):
         raise NotImplementedError(
@@ -132,12 +184,17 @@ class HlsConst(AbstractHlsOp):
     """
 
     def __init__(self, val: HValue):
+        self.val = val
+
         self.name = None
         self.hls = None
-        self.usedBy = UniqList()
-        self.dependsOn = UniqList()
-        self.val = val
+        # True if scheduled to specific time
         self.fixed_schedulation = True
+        self.scheduledIn: Optional[TimeSpec] = None
+        self.scheduledInEnd: Optional[TimeSpec] = None
+
+        self.usedBy: List[List[OperationIn]] = [[], ]
+        self.dependsOn: List[OperationOut] = []
 
     def get(self, time: float):
         return self.val
@@ -151,19 +208,36 @@ class HlsConst(AbstractHlsOp):
 
     @property
     def asap_start(self):
-        return self.usedBy[0].asap_start
+        return self.usedBy[0][0].obj.asap_start
+
+    # @asap_start.setter
+    # def asap_start(self, v):
+    #    self.usedBy[0][0].obj.asap_start = v
 
     @property
     def asap_end(self):
-        return self.usedBy[0].asap_start
+        # (yes, the constant operation takes zero time that implies start = end)
+        return self.usedBy[0][0].obj.asap_start
+
+    # @asap_end.setter
+    # def asap_end(self, v):
+    #    self.usedBy[0][0].obj.asap_start = v
 
     @property
     def alap_start(self):
-        return self.usedBy[0].alap_start
+        return self.usedBy[0][0].obj.alap_start
+
+    # @alap_start.setter
+    # def alap_start(self, v):
+    #    self.usedBy[0][0].obj.alap_start = v
 
     @property
     def alap_end(self):
-        return self.usedBy[0].alap_start
+        return self.usedBy[0][0].obj.alap_start
+
+    # @alap_end.setter
+    # def alap_end(self, v):
+    #    self.usedBy[0][0].obj.alap_start = v
 
     def resolve_realization(self):
         pass
@@ -181,6 +255,8 @@ class HlsRead(AbstractHlsOp, HdlAssignmentContainer):
                  intf: Union[RtlSignal, Interface],
                  dst_intf: Union[RtlSignal, Interface]):
         AbstractHlsOp.__init__(self, parentHls, None)
+        self.dependsOn.append(None)  # slot left for synchronization
+        self.usedBy.append([])  # slot for data consummer
         self.operator = "read"
         HdlStatement.__init__(self)
 
@@ -246,6 +322,8 @@ class HlsWrite(AbstractHlsOp, HdlAssignmentContainer):
     def __init__(self, parentHls: "Hls", src, dst):
         AbstractHlsOp.__init__(self, parentHls, None)
         HdlStatement.__init__(self)
+        self.dependsOn.append(None)
+        self.usedBy.append([])
         self.operator = "write"
         self.src = toHVal(src)
 
@@ -270,7 +348,7 @@ class HlsWrite(AbstractHlsOp, HdlAssignmentContainer):
                     self._inputs.append(i)
         self._outputs.append(dst)
 
-        # from Assignment __init__
+        # from HdlAssignmentContainer.__init__
         self.isEventDependent = False
         self.indexes = indexCascade
         self._instId = HdlAssignmentContainer._nextInstId()
@@ -302,10 +380,16 @@ class HlsOperation(AbstractHlsOp):
 
     def __init__(self, parentHls: "Hls",
                  operator: OpDefinition,
+                 operand_cnt: int,
                  bit_length: int,
                  name=None):
-        super(HlsOperation, self).__init__(parentHls, bit_length, name=name)
+        super(HlsOperation, self).__init__(parentHls, name=name)
+        self.bit_length = bit_length
         self.operator = operator
+        for _ in range(operand_cnt):
+            self.dependsOn.append(None)
+        # add containers for io pins
+        self.usedBy.append([])
 
     def resolve_realization(self):
         hls = self.hls
@@ -321,19 +405,18 @@ class HlsOperation(AbstractHlsOp):
             input_cnt, clk_period)
         self.assignRealization(r)
 
-
     def allocate_instance(self,
                           allocator: "HlsAllocator",
                           used_signals: UniqList[TimeIndependentRtlResourceItem]) -> TimeIndependentRtlResource:
-
         operands = []
-        for o in self.dependsOn:
-            _o = o.instantiateOperationInTime(allocator, self.scheduledIn, used_signals)
+        for in_i, dep in enumerate(self.dependsOn):
+            o = dep.obj
+            _o = o.instantiateOperationInTime(allocator, self.scheduledIn[in_i], used_signals)
             operands.append(_o)
         s = self.operator._evalFn(*(o.data for o in operands))
 
         # create RTL signal expression base on operator type
-        t = self.scheduledIn + epsilon
+        t = self.scheduledInEnd[0] + epsilon
         tis = TimeIndependentRtlResource(s, t, allocator)
         allocator._registerSignal(self, tis, used_signals)
         return tis
@@ -343,34 +426,41 @@ class HlsOperation(AbstractHlsOp):
 
 
 class HlsMux(HlsOperation):
+    """
+    Multiplexer operation with one-hot encoded select signal
+    """
 
     def __init__(self, parentHls, bit_length: int, name: str=None):
         super(HlsMux, self).__init__(
-            parentHls, AllOps.TERNARY, bit_length, name=name)
-        self.elifs: Tuple[Optional[AbstractHlsOp], AbstractHlsOp] = []
+            parentHls, AllOps.TERNARY, 0, bit_length, name=name)
+        self.elifs: List[Tuple[Optional[AbstractHlsOp], AbstractHlsOp]] = []
 
     def allocate_instance(self,
                           allocator: "HlsAllocator",
                           used_signals: UniqList[TimeIndependentRtlResourceItem]) -> TimeIndependentRtlResource:
         name = self.name
-        s = allocator._sig(name, self.elifs[0][1].instantiateOperationInTime(allocator, self.scheduledIn, used_signals).data._dtype)
+        mux_out_s = allocator._sig(name, self.elifs[0][1].obj.instantiateOperationInTime(
+            allocator, self.scheduledInEnd[0], used_signals).data._dtype)
         mux_top = None
-        for (c, v) in self.elifs:
+        for elif_i, (c, v) in enumerate(self.elifs):
             if c is not None:
-                c = c.instantiateOperationInTime(allocator, self.scheduledIn, used_signals)
-            v = v.instantiateOperationInTime(allocator, self.scheduledIn, used_signals)
+                c = c.obj.instantiateOperationInTime(
+                    allocator, self.scheduledIn[elif_i * 2], used_signals)
+            v = v.obj.instantiateOperationInTime(
+                allocator, self.scheduledIn[elif_i * 2 + (1 if c is not None else 0)], used_signals)
 
             if mux_top is None:
-                mux_top = If(c.data, s(v.data))
+                mux_top = If(c.data, mux_out_s(v.data))
             elif c is not None:
-                mux_top.Elif(c.data, s(v.data))
+                mux_top.Elif(c.data, mux_out_s(v.data))
             else:
-                mux_top.Else(s(v.data))
+                mux_top.Else(mux_out_s(v.data))
+
         # create RTL signal expression base on operator type
-        t = self.scheduledIn + epsilon
-        s = TimeIndependentRtlResource(s, t, allocator)
-        allocator._registerSignal(self, s, used_signals)
-        return s
+        t = self.scheduledInEnd[0] + epsilon
+        mux_out_s = TimeIndependentRtlResource(mux_out_s, t, allocator)
+        allocator._registerSignal(self, mux_out_s, used_signals)
+        return mux_out_s
 
 
 class HlsIO(RtlSignal):

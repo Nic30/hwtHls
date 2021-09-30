@@ -1,7 +1,6 @@
 from typing import List, Dict
 
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
-from hwt.hdl.statements.statement import HwtSyntaxError
 from hwt.hdl.types.defs import BIT
 from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.interfaces.std import Signal
@@ -14,36 +13,31 @@ from hwt.synthesizer.rtlLevel.remove_unconnected_signals import removeUnconnecte
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.unit import Unit
 from hwtHls.codeOps import HlsRead, HlsWrite, HlsIO
+from hwtHls.errors import HlsSyntaxError
 from hwtHls.hwtNetlistToHwtHlsNetlist import HwtNetlistToHwtHlsNetlist
 from ipCorePackager.constants import DIRECTION
-
-
-class HlsSyntaxError(HwtSyntaxError):
-    pass
 
 
 class HlsPipeline():
     """
     High level synthesiser context.
-    Convert sequential code to RTL.
+    Convert sequential code without data dependency cycles to RTL.
 
     :ivar parentUnit: parent unit where RTL should be instantiated
     :ivar platform: platform with configuration of this HLS context
     :ivar freq: target frequency for RTL (in Hz)
-    :ivar maxLatency: optional maximum allowed latency of circut
     :ivar resources: optional resource constrains
     :ivar ctx: RtlNetlist (container of RTL signals for this HLS context)
     """
 
     def __init__(self, parentUnit: Unit,
-                 freq, maxLatency=None, resource_constrain=None):
+                 freq, resource_constrain=None):
         self.parentUnit = parentUnit
         self.platform = parentUnit._target_platform
         if self.platform is None:
             raise Exception("HLS requires platform to be specified")
 
         self.clk_period = 1 / int(freq)
-        self.maxLatency = maxLatency
         self.resource_constrain = resource_constrain
         self.inputs: List[HlsRead] = []
         self.outputs: List[HlsWrite] = []
@@ -77,7 +71,7 @@ class HlsPipeline():
 
     def _build_data_flow_graph(self):
         """
-        Walk signals and extract operations as AbstractHlsOp
+        Walk signals and extract operations as data flow graph composed of AbstractHlsOp
 
         (convert from representation with signals
          to directed graph of operations)
@@ -126,6 +120,9 @@ class HlsPipeline():
         # list of discovered nodes
         nodes = list(nodeToHlsNode.values())
 
+        for i in self.inputs:
+            if i.dependsOn[0] is None:
+                i.dependsOn.pop()
         return nodes
 
     def synthesise(self):
@@ -133,9 +130,6 @@ class HlsPipeline():
         Convert code template to circuit (netlist of Hdl objects)
         """
         self.nodes = self._build_data_flow_graph()
-        for n in self.nodes:
-            n.resolve_realization()
-
         self.scheduler.schedule(self.resource_constrain)
         self.allocator.allocate()
 

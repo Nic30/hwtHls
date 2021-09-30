@@ -82,7 +82,7 @@ class HlsAllocator():
         """
         _o = TimeIndependentRtlResource(
             readOp.getRtlDataSig(),
-            readOp.scheduledIn + epsilon,
+            readOp.scheduledInEnd[0],
             self)
         self._registerSignal(readOp, _o, used_signals)
 
@@ -95,7 +95,8 @@ class HlsAllocator():
         Instantiate write operation on RTL level
         """
         assert len(write.dependsOn) == 1, write.dependsOn
-        o = write.dependsOn[0]
+        dep = write.dependsOn[0]
+        o = dep.obj
         # if isinstance(o, HlsMux) and o in self.node2instance:
         #    return []
 
@@ -133,7 +134,7 @@ class HlsAllocator():
         assert o is not _o, (o, _o)
         assert isinstance(_o, TimeIndependentRtlResource), _o
 
-        _o = _o.get(o.scheduledIn)
+        _o = _o.get(o.scheduledInEnd[0])
 
         rtlObj = dst(_o.data)
         self.node2instance[o] = rtlObj
