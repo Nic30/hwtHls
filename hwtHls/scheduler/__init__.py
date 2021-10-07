@@ -24,6 +24,6 @@ Differencies:
     * Each of this time is specific for each input output.
   * Circuit offten contains cycles. Most of schedulers do work only for DAGs. In this module we cut of some ("backward") connections.
     The synchronization has to be handled explicitely and externally (data synchronization protocol, buffering, pipeline stalling etc.)
-    :see: :mod:`hwtHls.frameMachine.pipelineExtractor`.
+    :see: :mod:`hwtHls.hlsStreamProc.pipelineExtractor`.
 
 """
