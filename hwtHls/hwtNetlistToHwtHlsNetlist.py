@@ -12,12 +12,6 @@ from hwtHls.codeOps import AbstractHlsOp, HlsOperation, HlsMux, HlsConst, HlsIO,
 from itertools import chain
 
 
-def link_hls_nodes(parent: OperationOut, child: OperationIn) -> None:
-    assert isinstance(parent, OperationOut), parent
-    assert isinstance(child, OperationIn), child
-    child.obj.dependsOn[child.in_i] = parent
-    parent.obj.usedBy[parent.out_i].append(child)
-
 
 class HwtNetlistToHwtHlsNetlist():
     """
