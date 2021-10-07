@@ -53,7 +53,7 @@ def _asap(node: HlsOperation, clk_period: float) -> float:
     """
     if node.asap_end is None:
         if node.dependsOn:
-            input_times = [_asap(d.obj, clk_period)[d.out_i] for d in node.dependsOn]
+            input_times = [_asap(d.obj, clk_period)[d.out_i] for d in node.dependsOn if d is not None]
             # now we have times when the value is available on input
             # and we must resolve the minimal time so each input timing constraints are satisfied
             time_when_all_inputs_present = 0.0
@@ -72,7 +72,11 @@ def _asap(node: HlsOperation, clk_period: float) -> float:
                 if normalized_time >= time_when_all_inputs_present:
                     latest_input_i = in_i
                     time_when_all_inputs_present = normalized_time
-            node_zero_time = time_when_all_inputs_present - node.in_cycles_offset[latest_input_i] * clk_period - node.latency_pre[latest_input_i]
+            if latest_input_i is None:
+                # no input
+                node_zero_time = 0.0
+            else:
+                node_zero_time = time_when_all_inputs_present - node.in_cycles_offset[latest_input_i] * clk_period - node.latency_pre[latest_input_i]
             asap_start = node.asap_start = []
             asap_end = node.asap_end = []
 

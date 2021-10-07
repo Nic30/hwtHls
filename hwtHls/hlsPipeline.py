@@ -12,7 +12,7 @@ from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.rtlLevel.remove_unconnected_signals import removeUnconnectedSignals
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.unit import Unit
-from hwtHls.codeOps import HlsRead, HlsWrite, HlsIO
+from hwtHls.codeOps import HlsRead, HlsWrite, HlsIO, AbstractHlsOp
 from hwtHls.errors import HlsSyntaxError
 from hwtHls.hwtNetlistToHwtHlsNetlist import HwtNetlistToHwtHlsNetlist
 from ipCorePackager.constants import DIRECTION
@@ -28,6 +28,9 @@ class HlsPipeline():
     :ivar freq: target frequency for RTL (in Hz)
     :ivar resources: optional resource constrains
     :ivar ctx: RtlNetlist (container of RTL signals for this HLS context)
+        the purpose of objects in this ctx is only to store the input code
+        these objecs are not present in output circuit and are only form of code
+        themplate which must be translated
     """
 
     def __init__(self, parentUnit: Unit,
@@ -41,6 +44,7 @@ class HlsPipeline():
         self.resource_constrain = resource_constrain
         self.inputs: List[HlsRead] = []
         self.outputs: List[HlsWrite] = []
+        self.nodes: List[AbstractHlsOp] = []
         self._io: Dict[HlsIO, Interface] = {}
         self.ctx = RtlNetlist()
 
@@ -69,12 +73,14 @@ class HlsPipeline():
         for a in to_destroy:
             statements.remove(a)
 
-    def _build_data_flow_graph(self):
+    def _build_data_flow_graph(self, nodes: List[AbstractHlsOp]):
         """
         Walk signals and extract operations as data flow graph composed of AbstractHlsOp
 
         (convert from representation with signals
          to directed graph of operations)
+
+        :param nodes: output list for result
         """
         extract_part_drivers(self.ctx)
         self._convert_indexed_io_assignments_to_HlsWrite()
@@ -118,18 +124,16 @@ class HlsPipeline():
             # nodeToHlsNode[out] = out
 
         # list of discovered nodes
-        nodes = list(nodeToHlsNode.values())
+        nodes.extend(nodeToHlsNode.values())
 
         for i in self.inputs:
             if i.dependsOn[0] is None:
                 i.dependsOn.pop()
-        return nodes
 
     def synthesise(self):
         """
         Convert code template to circuit (netlist of Hdl objects)
         """
-        self.nodes = self._build_data_flow_graph()
         self.scheduler.schedule(self.resource_constrain)
         self.allocator.allocate()
 
@@ -165,6 +169,7 @@ class HlsPipeline():
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.parentUnit._sig = self._unit_sig
         if exc_type is None:
+            self._build_data_flow_graph()
             self.synthesise()
 
 

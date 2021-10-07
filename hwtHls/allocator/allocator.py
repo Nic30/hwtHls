@@ -15,7 +15,6 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource, \
     TimeIndependentRtlResourceItem
-from hwtHls.clk_math import epsilon
 from hwtHls.codeOps import HlsRead, HlsOperation, HlsWrite, AbstractHlsOp
 from hwtHls.hlsPipeline import HlsPipeline
 from hwtLib.handshaked.streamNode import StreamNode
@@ -207,7 +206,7 @@ class HlsAllocator():
         Allocate scheduled circuit in RTL
         """
         scheduler = self.parentHls.scheduler
-
+        io = self.parentHls._io
         # is_first_in_pipeline = True
         prev_st_sync_input = None
         prev_st_valid = None
@@ -225,7 +224,7 @@ class HlsAllocator():
                 if isinstance(node, HlsRead):
                     cur_inputs.append(node.intf)
                 elif isinstance(node, HlsWrite):
-                    cur_outputs.append(self.parentHls._io[node.dst])
+                    cur_outputs.append(io[node.dst])
 
             prev_st_sync_input, prev_st_valid, current_sync = self.allocate_sync(
                 current_sync, cur_inputs, cur_outputs, cur_registers,

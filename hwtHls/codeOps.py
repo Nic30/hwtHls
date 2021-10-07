@@ -1,3 +1,4 @@
+from copy import copy
 from typing import List, Union, Optional, Tuple
 
 from hwt.code import If
@@ -6,7 +7,6 @@ from hwt.hdl.operatorDefs import OpDefinition, AllOps
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.hdlType import HdlType
-from hwt.hdl.types.typeCast import toHVal
 from hwt.hdl.value import HValue
 from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.interfaces.std import Signal
@@ -20,40 +20,13 @@ from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlRes
     TimeIndependentRtlResourceItem
 from hwtHls.clk_math import epsilon
 from hwtHls.clk_math import start_clk
-from hwtHls.platform.opRealizationMeta import OpRealizationMeta, \
-    UNSPECIFIED_OP_REALIZATION
-from copy import copy
+from hwtHls.codeOpsPorts import OperationIn, OperationOut
+from hwtHls.platform.opRealizationMeta import OpRealizationMeta
+from hwtHls.tmpVariable import TmpVariable
 
 IO_COMB_REALIZATION = OpRealizationMeta(latency_post=0.1e-9)
 
 TimeSpec = Union[float, Tuple[float, ...]]
-AbstractHlsOpConnection = Tuple['AbstractHlsOp', int]
-
-
-class OperationIn():
-
-    def __init__(self, obj: "AbstractHlsOp", in_i: int):
-        self.obj = obj
-        self.in_i = in_i
-
-    def __hash__(self):
-        return hash((self.obj, self.in_i))
-
-    def __eq__(self, other):
-        return self.__class__ is other.__class__ and self.obj == other.obj and self.in_i == other.in_i
-
-
-class OperationOut():
-
-    def __init__(self, obj: "AbstractHlsOp", out_i: int):
-        self.obj = obj
-        self.out_i = out_i
-
-    def __hash__(self):
-        return hash((self.obj, self.out_i))
-
-    def __eq__(self, other):
-        return self.__class__ is other.__class__ and self.obj == other.obj and self.out_i == other.out_i
 
 
 class AbstractHlsOp():
@@ -201,7 +174,8 @@ class HlsConst(AbstractHlsOp):
 
     def allocate_instance(self,
                           allocator: "HlsAllocator",
-                          used_signals: UniqList[TimeIndependentRtlResourceItem]) -> TimeIndependentRtlResource:
+                          used_signals: UniqList[TimeIndependentRtlResourceItem]
+                          ) -> TimeIndependentRtlResource:
         s = self.val
         t = TimeIndependentRtlResource.INVARIANT_TIME
         return TimeIndependentRtlResource(s, t, allocator)
@@ -253,7 +227,7 @@ class HlsRead(AbstractHlsOp, HdlAssignmentContainer):
 
     def __init__(self, parentHls: "Hls",
                  intf: Union[RtlSignal, Interface],
-                 dst_intf: Union[RtlSignal, Interface]):
+                 dst_intf: Union[RtlSignal, Interface, None]):
         AbstractHlsOp.__init__(self, parentHls, None)
         self.dependsOn.append(None)  # slot left for synchronization
         self.usedBy.append([])  # slot for data consummer
@@ -284,10 +258,10 @@ class HlsRead(AbstractHlsOp, HdlAssignmentContainer):
         #
         # self._sig.origin = self
         # self._sig.drivers.append(self)
-
-        self._outputs.append(dst_intf)
-        dst_intf.drivers.append(self)
-        dst_intf.origin = self
+        if dst_intf is not None:
+            self._outputs.append(dst_intf)
+            dst_intf.drivers.append(self)
+            dst_intf.origin = self
         self.dst = dst_intf
 
         self.intf = intf
@@ -319,13 +293,16 @@ class HlsWrite(AbstractHlsOp, HdlAssignmentContainer):
     :ivar dst: output interface not relatet to HLS
     """
 
-    def __init__(self, parentHls: "Hls", src, dst):
+    def __init__(self, parentHls: "Hls", src, dst: Union[RtlSignal, Interface, TmpVariable]):
         AbstractHlsOp.__init__(self, parentHls, None)
         HdlStatement.__init__(self)
         self.dependsOn.append(None)
         self.usedBy.append([])
         self.operator = "write"
-        self.src = toHVal(src)
+        self.src = src
+        if isinstance(src, RtlSignal):
+            src.endpoints.append(self)
+            self._inputs.append(src)
 
         indexCascade = None
         if isinstance(dst, RtlSignal):
@@ -334,19 +311,20 @@ class HlsWrite(AbstractHlsOp, HdlAssignmentContainer):
                 if tmp:
                     dst, indexCascade, _ = tmp
 
-        if isinstance(src, RtlSignal):
-            src.endpoints.append(self)
-        dst.drivers.append(self)
         self.dst = dst
         if isinstance(dst, HlsIO):
+            dst.drivers.append(self)
             parentHls.outputs.append(self)
+        else:
+            assert isinstance(dst, (OperationIn, HsStructIntf)), dst
 
-        self._inputs.append(src)
         if indexCascade:
             for i in indexCascade:
                 if isinstance(i, (Signal, HlsIO)):
                     self._inputs.append(i)
-        self._outputs.append(dst)
+
+        if isinstance(dst, (HlsIO, RtlSignal)):
+            self._outputs.append(dst)
 
         # from HdlAssignmentContainer.__init__
         self.isEventDependent = False
@@ -407,7 +385,8 @@ class HlsOperation(AbstractHlsOp):
 
     def allocate_instance(self,
                           allocator: "HlsAllocator",
-                          used_signals: UniqList[TimeIndependentRtlResourceItem]) -> TimeIndependentRtlResource:
+                          used_signals: UniqList[TimeIndependentRtlResourceItem]
+                          ) -> TimeIndependentRtlResource:
         operands = []
         for in_i, dep in enumerate(self.dependsOn):
             o = dep.obj
@@ -437,7 +416,8 @@ class HlsMux(HlsOperation):
 
     def allocate_instance(self,
                           allocator: "HlsAllocator",
-                          used_signals: UniqList[TimeIndependentRtlResourceItem]) -> TimeIndependentRtlResource:
+                          used_signals: UniqList[TimeIndependentRtlResourceItem]
+                          ) -> TimeIndependentRtlResource:
         name = self.name
         mux_out_s = allocator._sig(name, self.elifs[0][1].obj.instantiateOperationInTime(
             allocator, self.scheduledInEnd[0], used_signals).data._dtype)
@@ -447,7 +427,9 @@ class HlsMux(HlsOperation):
                 c = c.obj.instantiateOperationInTime(
                     allocator, self.scheduledIn[elif_i * 2], used_signals)
             v = v.obj.instantiateOperationInTime(
-                allocator, self.scheduledIn[elif_i * 2 + (1 if c is not None else 0)], used_signals)
+                allocator,
+                self.scheduledIn[elif_i * 2 + (1 if c is not None else 0)],
+                used_signals)
 
             if mux_top is None:
                 mux_top = If(c.data, mux_out_s(v.data))

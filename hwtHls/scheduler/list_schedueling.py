@@ -1,6 +1,5 @@
 from heapq import heappush, heappop
 from itertools import chain
-import sys
 from typing import List, Callable, Dict, Tuple, Union
 
 from hwt.hdl.operatorDefs import OpDefinition
@@ -27,7 +26,7 @@ def getComponentConstrainingFn(clk_period: float, comp_constrain: Dict[OpDefinit
 
         if s_clk != e_clk:
             # component is crossing clk cycle
-            assert e_clk - s_clk == 1
+            assert e_clk - s_clk == 1, node
             clk_shift = 1
 
         if isinstance(node, HlsOperation):
@@ -102,7 +101,8 @@ def list_schedueling(inputs: List[HlsRead], nodes: List[AbstractHlsOp],
         assert node not in sched
         startTime = 0.0
         for parent in node.dependsOn:
-            assert parent is not None, node
+            if parent is None:
+                continue
             try:
                 p_times = sched[parent]
             except KeyError:
