@@ -4,8 +4,8 @@ from typing import List, Callable, Dict, Tuple, Union
 
 from hwt.hdl.operatorDefs import OpDefinition
 from hwtHls.clk_math import start_clk, end_clk, epsilon
-from hwtHls.codeOps import HlsConst, HlsOperation, AbstractHlsOp, HlsWrite, \
-    HlsRead, OperationIn, OperationOut
+from hwtHls.netlist.codeOps import HlsConst, HlsOperation, AbstractHlsOp, HlsWrite, \
+    HlsRead, HlsOperationIn, HlsOperationOut
 from hwtHls.hlsPipeline import HlsSyntaxError
 from hwtHls.scheduler.scheduler import HlsScheduler, asap
 
@@ -21,12 +21,16 @@ def getComponentConstrainingFn(clk_period: float, comp_constrain: Dict[OpDefinit
 
     def constrainFn(node, sched, startTime, endTime):
         s_clk = start_clk(startTime, clk_period)
-        e_clk = end_clk(endTime, clk_period)
+        if startTime == endTime:
+            e_clk = s_clk
+        else:
+            e_clk = end_clk(endTime, clk_period)
+
         clk_shift = 0
 
         if s_clk != e_clk:
             # component is crossing clk cycle
-            assert e_clk - s_clk == 1, node
+            assert e_clk - s_clk == 1, (s_clk, e_clk, node)
             clk_shift = 1
 
         if isinstance(node, HlsOperation):
@@ -118,12 +122,12 @@ def list_schedueling(inputs: List[HlsRead], nodes: List[AbstractHlsOp],
             # imposible to schedule due req. not met
             p = item.priority
             item.priority = max(
-                (0.0 if isinstance(d.obj, HlsConst) else priority[d.obj].priority
+                (0.0 if d is None or isinstance(d.obj, HlsConst) else priority[d.obj].priority
                 for d in node.dependsOn))
             if item.priority == p:
                 item.priority += epsilon
             # or h[0].priority == p
-            assert item.priority >= p, (node, item.priority, p)
+            assert item.priority >= p, ("Node shcheduling time was somehow skipped (probably broken graph)", node, item.priority, p)
             heappush(h, item)
             # scheduling is postponed untill children are scheduled
             continue
@@ -140,10 +144,10 @@ def list_schedueling(inputs: List[HlsRead], nodes: List[AbstractHlsOp],
 
         # assign start/end for individual inputs/outputs
         for ii, i_pre_time in enumerate(node.latency_pre):
-            sched[OperationIn(node, ii)] = (startTime - (pre - i_pre_time) , endTime)
+            sched[HlsOperationIn(node, ii)] = (startTime - (pre - i_pre_time) , endTime)
 
         for oi, o_post_time in enumerate(node.latency_post):
-            sched[OperationOut(node, oi)] = (startTime, endTime - post + o_post_time)
+            sched[HlsOperationOut(node, oi)] = (startTime, endTime - post + o_post_time)
 
         # total span of operation
         # sched[node] = (startTime, endTime)
