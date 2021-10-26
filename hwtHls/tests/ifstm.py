@@ -24,15 +24,17 @@ class SimpleIfStatementHls(SimpleIfStatement):
             a = io(self.a)
             b = io(self.b)
             c = io(self.c)
+            tmp = h.var("tmp", self.d._dtype)
             d = io(self.d)
 
             If(a,
-                d(b),
+                tmp(b),
             ).Elif(b,
-                d(c),
+                tmp(c),
             ).Else(
-                d(c)
+                tmp(c)
             )
+            d(tmp)
 
 
 if __name__ == "__main__":  # alias python main function
