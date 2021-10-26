@@ -1,7 +1,7 @@
 from typing import List, Union
 
 
-class OperationIn():
+class HlsOperationIn():
 
     def __init__(self, obj: "AbstractHlsOp", in_i: int):
         self.obj = obj
@@ -14,7 +14,7 @@ class OperationIn():
         return self.__class__ is other.__class__ and self.obj == other.obj and self.in_i == other.in_i
 
 
-class OperationOut():
+class HlsOperationOut():
 
     def __init__(self, obj: "AbstractHlsOp", out_i: int):
         self.obj = obj
@@ -26,23 +26,25 @@ class OperationOut():
     def __eq__(self, other):
         return self.__class__ is other.__class__ and self.obj == other.obj and self.out_i == other.out_i
 
+    def __repr__(self):
+        return f"<{self.__class__.__name__} {self.obj} [{self.out_i:d}]>"
 
-class OperationOutLazy():
+class HlsOperationOutLazy():
     """
-    A placeholder for future OperationOut.
+    A placeholder for future HlsOperationOut.
 
     :ivar dependencies: information about children where new object should be replaced
     """
 
     def __init__(self):
-        self.dependencies: List[OperationIn, HlsMuxElifRef] = []
+        self.dependencies: List[HlsOperationIn, HlsMuxElifRef] = []
 
     def register_mux_elif(self, mux: "HlsMux", elif_i:int):
         self.dependencies.append(HlsMuxElifRef(mux, elif_i, self))
 
-    def replace(self, obj:OperationOut):
+    def replace(self, obj:HlsOperationOut):
         for c in self.dependencies:
-            if isinstance(c, OperationIn):
+            if isinstance(c, HlsOperationIn):
                 c.obj.dependsOn[c.in_i] = obj
             else:
                 c.replace(obj)
@@ -50,12 +52,12 @@ class OperationOutLazy():
 
 class HlsMuxElifRef():
 
-    def __init__(self, mux: "HlsMux", elif_i: int, obj: OperationOutLazy):
+    def __init__(self, mux: "HlsMux", elif_i: int, obj: HlsOperationOutLazy):
         self.mux = mux
         self.elif_i = elif_i
         self.obj = obj
 
-    def replace(self, new_obj: OperationOut):
+    def replace(self, new_obj: HlsOperationOut):
         c, v = self.mux.elifs[self.elif_i]
         if c is self.obj:
             c = new_obj
@@ -64,12 +66,14 @@ class HlsMuxElifRef():
         self.mux.elifs[self.elif_i] = (c, v)
 
 
-def link_hls_nodes(parent: Union[OperationOut, OperationOutLazy], child: OperationIn) -> None:
-    if isinstance(parent, OperationOutLazy):
+def link_hls_nodes(parent: Union[HlsOperationOut, HlsOperationOutLazy], child: HlsOperationIn) -> None:
+    if isinstance(parent, HlsOperationOutLazy):
         parent.dependencies.append(child)
     else:
-        assert isinstance(parent, OperationOut), parent
+        assert isinstance(parent, HlsOperationOut), parent
         parent.obj.usedBy[parent.out_i].append(child)
 
-    assert isinstance(child, OperationIn), child
+    assert isinstance(child, HlsOperationIn), child
     child.obj.dependsOn[child.in_i] = parent
+    if isinstance(parent, HlsOperationOut) and isinstance(child, HlsOperationOut):
+        assert parent.obj is not child.obj
