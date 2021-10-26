@@ -1,8 +1,8 @@
 from itertools import chain
-from typing import Union, List, Type, Dict, Optional
+from typing import Union, List, Type, Dict, Optional, Tuple
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
-from hwt.code import If
+from hwt.code import If, And
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.struct import HStruct
@@ -15,8 +15,9 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource, \
     TimeIndependentRtlResourceItem
-from hwtHls.codeOps import HlsRead, HlsOperation, HlsWrite, AbstractHlsOp
 from hwtHls.hlsPipeline import HlsPipeline
+from hwtHls.netlist.codeOps import HlsRead, HlsOperation, HlsWrite
+from hwtHls.netlist.codeOpsPorts import HlsOperationOut
 from hwtLib.handshaked.streamNode import StreamNode
 
 
@@ -40,11 +41,15 @@ class HlsAllocator():
     :ivar node2instance: dictionary {hls node: rtl instance}
     """
 
-    def __init__(self, parentHls: HlsPipeline):
+    def __init__(self, parentHls: HlsPipeline, name_prefix:str="hls_"):
+        self.name_prefix = name_prefix
         self.parentHls = parentHls
-        self.node2instance: Dict[Union[HlsOperation,
-                                       HlsRead,
-                                       HlsWrite], TimeIndependentRtlResource] = {}
+        self.node2instance: Dict[
+            Union[
+                HlsOperationOut,  # any operation output
+                Tuple[HlsOperationOut, Interface]  # write
+            ],
+            TimeIndependentRtlResource] = {}
         # function to create register on RTL level
         self._reg = parentHls.parentUnit._reg
         self._sig = parentHls.parentUnit._sig
@@ -58,6 +63,7 @@ class HlsAllocator():
         Universal RTL instanciation method for all types
         """
         if isinstance(node, TimeIndependentRtlResource):
+            # [todo] check if this is really used
             used_signals.append(node)
             return node
         elif isinstance(node, HlsRead):
@@ -67,24 +73,48 @@ class HlsAllocator():
         else:
             return node.allocate_instance(self, used_signals)
 
-    def _registerSignal(self, origin: AbstractHlsOp,
+    def _registerSignal(self, origin: HlsOperationOut,
                         s: TimeIndependentRtlResource,
                         used_signals: UniqList[TimeIndependentRtlResourceItem]):
         assert isinstance(s, TimeIndependentRtlResource), s
+        assert isinstance(origin, HlsOperationOut), origin
         used_signals.append(s)
         self.node2instance[origin] = s
 
-    def instantiateRead(self, readOp: HlsRead,
+    def instantiateRead(self, o: HlsRead,
                          used_signals: UniqList[TimeIndependentRtlResourceItem]) -> TimeIndependentRtlResource:
         """
         Instantiate read operation on RTL level
         """
-        _o = TimeIndependentRtlResource(
-            readOp.getRtlDataSig(),
-            readOp.scheduledInEnd[0],
-            self)
-        self._registerSignal(readOp, _o, used_signals)
+        r_out = HlsOperationOut(o, 0)
+        try:
+            return self.node2instance[r_out]
+        except KeyError:
+            pass
 
+        _o = TimeIndependentRtlResource(
+            o.getRtlDataSig(),
+            o.scheduledInEnd[0],
+            self)
+        self._registerSignal(r_out, _o, used_signals)
+        for sync in o.dependsOn[1:]:
+            # prepare sync intputs but do not connect it because we do not implemet synchronization
+            # in this step we are building only datapath
+            self.instantiateHlsOperationOut(sync, used_signals)
+        return _o
+
+    def instantiateHlsOperationOut(self, o: HlsOperationOut, used_signals: UniqList[TimeIndependentRtlResourceItem]) -> TimeIndependentRtlResource:
+        assert isinstance(o, HlsOperationOut), o
+        _o = self.node2instance.get(o, None)
+
+        if _o is None:
+            _o = self._instantiate(o.obj, used_signals)
+            if _o is not None:
+                return _o
+            else:
+                return self.node2instance[o]
+        else:
+            used_signals.append(_o)
         return _o
 
     def instantiateWrite(self, write: HlsWrite,
@@ -93,30 +123,20 @@ class HlsAllocator():
         """
         Instantiate write operation on RTL level
         """
-        assert len(write.dependsOn) == 1, write.dependsOn
+        assert len(write.dependsOn) >= 1, write.dependsOn
+        # [0] - data, [1:] controll dependencies
+        for sync in write.dependsOn[1:]:
+            # prepare sync intputs but do not connect it because we do not implemet synchronization
+            # in this step we are building only datapath
+            self.instantiateHlsOperationOut(sync, used_signals)
+
         dep = write.dependsOn[0]
-        o = dep.obj
-        # if isinstance(o, HlsMux) and o in self.node2instance:
-        #    return []
-
-        try:
-            _o = self.node2instance[o]
-        except KeyError:
-            # o should be instance of TimeIndependentRtlResource itself
-            _o = None
-
-        if _o is None:
-            _o = self._instantiate(o, used_signals)
-        else:
-            used_signals.append(_o)
+        _o = self.instantiateHlsOperationOut(dep, used_signals)
 
         # apply indexes before assignments
         dst = write.dst
-        try:
-            # translate HlsIo object to signal
-            dst = self.parentHls._io[dst]
-        except KeyError:
-            pass
+        # translate HlsIo object to signal
+        dst = self.parentHls._io.get(dst, dst)
         _dst = dst
         if isinstance(dst, HsStructIntf):
             dst = dst.data
@@ -126,20 +146,73 @@ class HlsAllocator():
                 dst = dst[i]
         try:
             # skip instantiation of writes in the same mux
-            return self.node2instance[(o, dst)]
+            return self.node2instance[(dep, dst)]
         except KeyError:
             pass
 
-        assert o is not _o, (o, _o)
-        assert isinstance(_o, TimeIndependentRtlResource), _o
-
-        _o = _o.get(o.scheduledInEnd[0])
+        _o = _o.get(dep.obj.scheduledInEnd[0])
 
         rtlObj = dst(_o.data)
-        self.node2instance[o] = rtlObj
-        self.node2instance[(o, dst)] = rtlObj
+        # self.node2instance[o] = rtlObj
+        self.node2instance[(dep, dst)] = rtlObj
 
         return rtlObj
+
+    def allocate(self):
+        """
+        Allocate scheduled circuit in RTL
+        """
+
+        scheduler = self.parentHls.scheduler
+        io = self.parentHls._io
+        io_aggregation = self.parentHls.io_by_interface
+        # is_first_in_pipeline = True
+        prev_st_sync_input = None
+        prev_st_valid = None
+        current_sync = Signal
+        for pipeline_st_i, (is_last_in_pipeline, nodes) in enumerate(iter_with_last(scheduler.schedulization)):
+            cur_inputs: UniqList[Interface] = UniqList()
+            cur_outputs: UniqList[Interface] = UniqList()
+            cur_registers: UniqList[TimeIndependentRtlResourceItem] = UniqList()
+            assert nodes
+
+            sync_per_io: Dict[Interface, List[TimeIndependentRtlResourceItem]] = {}
+            for node in nodes:
+                # this is one level of nodes,
+                # node can not be dependent on nodes behind in this list
+                # because this engine does not support backward edges in DFG
+                self._instantiate(node, cur_registers)
+                if isinstance(node, HlsRead):
+                    if len(io_aggregation[node.src]) > 1:
+                        raise AssertionError("In this phase each IO operation should already have separate gate"
+                                             " if it wants to access same interface")
+
+                    cur_inputs.append(node.src)
+                    if node.src in self.parentHls.coherency_checked_io:
+                        self._copy_sync(node.src, node, sync_per_io)
+
+                elif isinstance(node, HlsWrite):
+                    if len(io_aggregation[node.dst]) > 1:
+                        raise AssertionError("In this phase each IO operation should already have separate gate"
+                                             " if it wants to access same interface")
+
+                    cur_outputs.append(io[node.dst])
+                    if node.dst in self.parentHls.coherency_checked_io:
+                        self._copy_sync(node.dst, node, sync_per_io)
+
+            prev_st_sync_input, prev_st_valid, current_sync = self.allocate_sync(
+                current_sync, cur_inputs, cur_outputs, cur_registers,
+                is_last_in_pipeline, pipeline_st_i,
+                prev_st_sync_input, prev_st_valid,
+                sync_per_io)
+
+    def _copy_sync(self, intf: Interface,
+                   node: Union[HlsRead, HlsWrite],
+                   res: Dict[Interface, List[TimeIndependentRtlResourceItem]]):
+        res[intf] = [
+            self.node2instance[o].get(node.scheduledInEnd[0])
+            for o in node.dependsOn[1:]
+        ]
 
     def allocate_sync(self,
                       current_sync: Type[Interface],
@@ -149,7 +222,8 @@ class HlsAllocator():
                       is_last_in_pipeline:bool,
                       pipeline_st_i:int,
                       prev_st_sync_input: Optional[HandshakeSync],
-                      prev_st_valid: Optional[RtlSyncSignal]):
+                      prev_st_valid: Optional[RtlSyncSignal],
+                      sync_per_io: Dict[Interface, List[TimeIndependentRtlResourceItem]]):
         """
         Allocate synchronization for a single stage of pipeline
         """
@@ -162,10 +236,15 @@ class HlsAllocator():
 
         if current_sync is not Signal:
             # :note: for a signal we do not need any synchronization
-            cur_registers = [r.valuesInTime[-1] for r in cur_registers if r.valuesInTime[-1].is_rlt_register()]
+            cur_registers = [
+                r.valuesInTime[-1]
+                for r in cur_registers
+                if r.valuesInTime[-1].is_rlt_register()
+            ]
+
             if not is_last_in_pipeline:
                 # does not need a synchronization with next stage in pipeline
-                to_next_stage = self._sig(f"stage_sync_{pipeline_st_i:d}_to_{pipeline_st_i+1:d}",
+                to_next_stage = self._sig(f"{self.name_prefix:s}stage_sync_{pipeline_st_i:d}_to_{pipeline_st_i+1:d}",
                                           HStruct(
                                               (BIT, "rd"),
                                               (BIT, "vld"))
@@ -173,13 +252,13 @@ class HlsAllocator():
                 cur_outputs.append(to_next_stage)
                 # if not is_first_in_pipeline:
                 # :note: that the register 0 is behind the first stage of pipeline
-                stage_valid = self._reg(f"stage{pipeline_st_i:d}_valid", def_val=0)
+                stage_valid = self._reg(f"{self.name_prefix:s}stage{pipeline_st_i:d}_valid", def_val=0)
             else:
                 to_next_stage = None
                 stage_valid = None
 
             if prev_st_sync_input is not None:
-                # :note: we want to allow flushing if no io is involved
+                # :note: we want to allow pipeline flushing if no io is involved
                 cur_inputs.append((prev_st_valid, prev_st_sync_input.rd))
                 If(prev_st_sync_input.rd,
                    prev_st_valid(prev_st_sync_input.vld)
@@ -188,7 +267,19 @@ class HlsAllocator():
                 )
 
             if cur_inputs or cur_outputs:
-                sync = StreamNode(cur_inputs, cur_outputs)
+                extra_conds = {}
+                skip_when = {}
+                for intf, sync_source in sync_per_io.items():
+                    # [TODO] disconnect the inputs/outputs from outside word if this data beat is not confirmed
+                    en = And(*(s.data for s in sync_source))
+                    if isinstance(en, HandshakeSync):
+                        if en not in cur_inputs:
+                            cur_inputs.append(en)
+                    else:
+                        extra_conds[intf] = en  # current block en=1
+                        skip_when[intf] = ~en  # current block vld and en=0
+
+                sync = StreamNode(cur_inputs, cur_outputs, extraConds=extra_conds, skipWhen=skip_when)
                 sync.sync()
                 if cur_registers:
                     # add enable signal for register load derived from synchronization of stage
@@ -200,34 +291,3 @@ class HlsAllocator():
             prev_st_valid = stage_valid
 
         return prev_st_sync_input, prev_st_valid, current_sync
-
-    def allocate(self):
-        """
-        Allocate scheduled circuit in RTL
-        """
-        scheduler = self.parentHls.scheduler
-        io = self.parentHls._io
-        # is_first_in_pipeline = True
-        prev_st_sync_input = None
-        prev_st_valid = None
-        current_sync = Signal
-        for pipeline_st_i, (is_last_in_pipeline, nodes) in enumerate(iter_with_last(scheduler.schedulization)):
-            cur_inputs: UniqList[Interface] = UniqList()
-            cur_outputs: UniqList[Interface] = UniqList()
-            cur_registers: UniqList[TimeIndependentRtlResourceItem] = UniqList()
-            for node in nodes:
-                # this is one level of nodes,
-                # node can not be dependent on nodes behind in this list
-                # because this engine does not support backward edges in DFG
-                self._instantiate(node, cur_registers)
-
-                if isinstance(node, HlsRead):
-                    cur_inputs.append(node.intf)
-                elif isinstance(node, HlsWrite):
-                    cur_outputs.append(io[node.dst])
-
-            prev_st_sync_input, prev_st_valid, current_sync = self.allocate_sync(
-                current_sync, cur_inputs, cur_outputs, cur_registers,
-                is_last_in_pipeline, pipeline_st_i,
-                prev_st_sync_input, prev_st_valid)
-
