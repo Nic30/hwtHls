@@ -1,0 +1,99 @@
+from typing import Callable
+
+from hwt.hdl.operatorDefs import OpDefinition, AllOps
+from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
+from hwtHls.hlsStreamProc.ssa.basicBlock import SsaBasicBlock
+from hwtHls.hlsStreamProc.ssa.instr import SsaInstr
+from hwtHls.tmpVariable import TmpVariable
+
+
+class SsaExprBuilderProxy():
+
+    def __init__(self, parent:"SsaExprBuilder", var: TmpVariable):
+        self.parent = parent
+        self.var = var
+
+    def _normalize(self, other):
+        if not isinstance(other, TmpVariable):
+            raise NotImplementedError()
+        return other
+
+    def __add__(self, other):
+        return self.parent.binaryOp(self, AllOps.ADD, self._normalize(other))
+
+    def __sub__(self, other):
+        return self.parent.binaryOp(self, AllOps.SUB, self._normalize(other))
+
+    def __mul__(self, other):
+        return self.parent.binaryOp(self, AllOps.MUL, self._normalize(other))
+
+    def __floordiv__(self, other):
+        return self.parent.binaryOp(self, AllOps.DIV, self._normalize(other))
+
+    def __and__(self, other):
+        return self.parent.binaryOp(self, AllOps.AND, self._normalize(other))
+
+    def __or__(self, other):
+        return self.parent.binaryOp(self, AllOps.OR, self._normalize(other))
+
+    def __xor__(self, other):
+        return self.parent.binaryOp(self, AllOps.XOR, self._normalize(other))
+
+    def __eq__(self, other):
+        return self.parent.binaryOp(self, AllOps.EQ, self._normalize(other))
+
+    def __ne__(self, other):
+        return self.parent.binaryOp(self, AllOps.NE, self._normalize(other))
+
+    def __gt__(self, other):
+        return self.parent.binaryOp(self, AllOps.GT, self._normalize(other))
+
+    def __ge__(self, other):
+        return self.parent.binaryOp(self, AllOps.GE, self._normalize(other))
+
+    def __lt__(self, other):
+        return self.parent.binaryOp(self, AllOps.LT, self._normalize(other))
+
+    def __le__(self, other):
+        return self.parent.binaryOp(self, AllOps.LE, self._normalize(other))
+
+    def __invert__(self):
+        return self.parent.unaryOp(self, AllOps.NOT)
+
+    def __neg__(self):
+        return self.parent.binaryOp(self, AllOps.MINUS_UNARY)
+
+    def __getitem__(self, key):
+        return self.parent.binaryOp(self, AllOps.INDEX, self._normalize(key))
+
+
+class SsaExprBuilder():
+
+    def __init__(self, createTmpVariable: Callable[[RtlSignal, ], TmpVariable],
+                 block:SsaBasicBlock):
+        self._createTmpVariable = createTmpVariable
+        self.block = block
+
+    def _unaryOp(self, o: TmpVariable, operator: OpDefinition) -> TmpVariable:
+        res = operator._evalFn(o.origin)
+        var = self._createTmpVariable(res)
+        instr = SsaInstr(var, (operator, [o, ]))
+        self.block.body.append(instr)
+        return instr
+
+    def unaryOp(self, o: TmpVariable, operator: OpDefinition) -> SsaExprBuilderProxy:
+        return self.var(self._unaryOp(o.var, operator).dst)
+
+    def _binaryOp(self, o0: TmpVariable, operator: OpDefinition, o1: TmpVariable) -> TmpVariable:
+        res = operator._evalFn(o0.origin, o1.origin)
+        var = self._createTmpVariable(res)
+        instr = SsaInstr(var, (operator, [o0, o1]))
+        self.block.body.append(instr)
+        return instr
+
+    def binaryOp(self, o0: TmpVariable, operator: OpDefinition, o1: TmpVariable) -> SsaExprBuilderProxy:
+        return self.var(self._binaryOp(o0.var, operator, o1.var).dst)
+
+    def var(self, v: TmpVariable):
+        return SsaExprBuilderProxy(self, v)
+
