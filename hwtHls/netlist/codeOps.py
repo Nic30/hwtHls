@@ -7,12 +7,14 @@ from hwt.hdl.operatorDefs import OpDefinition, AllOps
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.hdlType import HdlType
+from hwt.hdl.types.typeCast import toHVal
 from hwt.hdl.value import HValue
 from hwt.interfaces.hsStructIntf import HsStructIntf
-from hwt.interfaces.std import Signal
+from hwt.interfaces.std import Signal, HandshakeSync
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.interfaceUtils.utils import walkPhysInterfaces
+from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
@@ -20,9 +22,10 @@ from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlRes
     TimeIndependentRtlResourceItem
 from hwtHls.clk_math import epsilon
 from hwtHls.clk_math import start_clk
-from hwtHls.codeOpsPorts import OperationIn, OperationOut
+from hwtHls.netlist.codeOpsPorts import HlsOperationIn, HlsOperationOut
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.tmpVariable import TmpVariable
+
 
 IO_COMB_REALIZATION = OpRealizationMeta(latency_post=0.1e-9)
 
@@ -56,12 +59,12 @@ class AbstractHlsOp():
          (for each output, 0 corresponds to a same clock cycle as input[0])
     """
 
-    def __init__(self, parentHls: "Hls", name: str=None):
+    def __init__(self, parentHls: "HlsPipeline", name: str=None):
         self.name = name
         self.hls = parentHls
 
-        self.usedBy: List[List[OperationIn]] = []
-        self.dependsOn: List[OperationOut] = []
+        self.usedBy: List[List[HlsOperationIn]] = []
+        self.dependsOn: List[HlsOperationOut] = []
 
         self.asap_start: Optional[TimeSpec] = None
         self.asap_end: Optional[TimeSpec] = None
@@ -131,7 +134,7 @@ class AbstractHlsOp():
     def _get_rtl_context(self):
         return self.hls.ctx
 
-    def instantiateOperationInTime(self,
+    def instantiateHlsOperationInTime(self,
                                    allocator: "HlsAllocator",
                                    time:float,
                                    used_signals: UniqList[TimeIndependentRtlResourceItem]
@@ -166,8 +169,8 @@ class HlsConst(AbstractHlsOp):
         self.scheduledIn: Optional[TimeSpec] = None
         self.scheduledInEnd: Optional[TimeSpec] = None
 
-        self.usedBy: List[List[OperationIn]] = [[], ]
-        self.dependsOn: List[OperationOut] = []
+        self.usedBy: List[List[HlsOperationIn]] = [[], ]
+        self.dependsOn: List[HlsOperationOut] = []
 
     def get(self, time: float):
         return self.val
@@ -217,7 +220,7 @@ class HlsConst(AbstractHlsOp):
         pass
 
 
-class HlsRead(AbstractHlsOp, HdlAssignmentContainer):
+class HlsRead(AbstractHlsOp, HdlAssignmentContainer, InterfaceBase):
     """
     Hls plane to read from interface
 
@@ -225,7 +228,7 @@ class HlsRead(AbstractHlsOp, HdlAssignmentContainer):
     :ivar intf: original interface from which read should be performed
     """
 
-    def __init__(self, parentHls: "Hls",
+    def __init__(self, parentHls: "HlsPipeline",
                  intf: Union[RtlSignal, Interface],
                  dst_intf: Union[RtlSignal, Interface, None]):
         AbstractHlsOp.__init__(self, parentHls, None)
@@ -239,9 +242,10 @@ class HlsRead(AbstractHlsOp, HdlAssignmentContainer):
         elif isinstance(intf, Signal):
             self._inputs.append(intf._sig)
         else:
-            assert isinstance(intf, HsStructIntf), intf
-            for s in walkPhysInterfaces(intf.data):
-                self._inputs.append(s._sig)
+            assert isinstance(intf, (HsStructIntf, HandshakeSync)), intf
+            if isinstance(intf, HsStructIntf):
+                for s in walkPhysInterfaces(intf.data):
+                    self._inputs.append(s._sig)
 
         # t = dataSig._dtype
 
@@ -263,13 +267,12 @@ class HlsRead(AbstractHlsOp, HdlAssignmentContainer):
             dst_intf.drivers.append(self)
             dst_intf.origin = self
         self.dst = dst_intf
+        self.src = intf
 
-        self.intf = intf
-
-        parentHls.inputs.append(self)
+        # parentHls.inputs.append(self)
 
     def getRtlDataSig(self):
-        intf = self.intf
+        intf = self.src
         if isinstance(intf, HsStructIntf):
             return intf.data
         else:
@@ -284,7 +287,7 @@ class HlsRead(AbstractHlsOp, HdlAssignmentContainer):
         self.hls.inputs.remove(self)
 
     def __repr__(self):
-        return f"<{self.__class__.__name__:s}, {self.intf}>"
+        return f"<{self.__class__.__name__:s}, {self.src}>"
 
 
 class HlsWrite(AbstractHlsOp, HdlAssignmentContainer):
@@ -293,7 +296,7 @@ class HlsWrite(AbstractHlsOp, HdlAssignmentContainer):
     :ivar dst: output interface not relatet to HLS
     """
 
-    def __init__(self, parentHls: "Hls", src, dst: Union[RtlSignal, Interface, TmpVariable]):
+    def __init__(self, parentHls: "HlsPipeline", src, dst: Union[RtlSignal, Interface, TmpVariable]):
         AbstractHlsOp.__init__(self, parentHls, None)
         HdlStatement.__init__(self)
         self.dependsOn.append(None)
@@ -312,11 +315,11 @@ class HlsWrite(AbstractHlsOp, HdlAssignmentContainer):
                     dst, indexCascade, _ = tmp
 
         self.dst = dst
+        # parentHls.outputs.append(self)
         if isinstance(dst, HlsIO):
             dst.drivers.append(self)
-            parentHls.outputs.append(self)
         else:
-            assert isinstance(dst, (OperationIn, HsStructIntf)), dst
+            assert isinstance(dst, (HlsOperationIn, HsStructIntf, Signal)), dst
 
         if indexCascade:
             for i in indexCascade:
@@ -330,7 +333,7 @@ class HlsWrite(AbstractHlsOp, HdlAssignmentContainer):
         self.isEventDependent = False
         self.indexes = indexCascade
         self._instId = HdlAssignmentContainer._nextInstId()
-        parentHls.ctx.statements.add(self)
+        # parentHls.ctx.statements.add(self)
 
     def resolve_realization(self):
         self.assignRealization(IO_COMB_REALIZATION)
@@ -356,7 +359,7 @@ class HlsOperation(AbstractHlsOp):
     :ivar operator: parent RTL operator for this hsl operator
     """
 
-    def __init__(self, parentHls: "Hls",
+    def __init__(self, parentHls: "HlsPipeline",
                  operator: OpDefinition,
                  operand_cnt: int,
                  bit_length: int,
@@ -387,21 +390,32 @@ class HlsOperation(AbstractHlsOp):
                           allocator: "HlsAllocator",
                           used_signals: UniqList[TimeIndependentRtlResourceItem]
                           ) -> TimeIndependentRtlResource:
+        op_out = HlsOperationOut(self, 0)
+        try:
+            return allocator.node2instance[op_out]
+        except KeyError:
+            pass
+
         operands = []
         for in_i, dep in enumerate(self.dependsOn):
             o = dep.obj
-            _o = o.instantiateOperationInTime(allocator, self.scheduledIn[in_i], used_signals)
+            _o = o.instantiateHlsOperationInTime(allocator, self.scheduledIn[in_i], used_signals)
             operands.append(_o)
         s = self.operator._evalFn(*(o.data for o in operands))
 
-        # create RTL signal expression base on operator type
-        t = self.scheduledInEnd[0] + epsilon
+        if isinstance(s, HValue):
+            t = TimeIndependentRtlResource.INVARIANT_TIME
+
+        else:
+            # create RTL signal expression base on operator type
+            t = self.scheduledInEnd[0] + epsilon
+
         tis = TimeIndependentRtlResource(s, t, allocator)
-        allocator._registerSignal(self, tis, used_signals)
+        allocator._registerSignal(op_out, tis, used_signals)
         return tis
 
     def __repr__(self):
-        return f"<{self.__class__.__name__:s} {self.operator} {self.dependsOn}>"
+        return f"<{self.__class__.__name__:s} {self.operator.id:s} {self.dependsOn}>"
 
 
 class HlsMux(HlsOperation):
@@ -418,15 +432,21 @@ class HlsMux(HlsOperation):
                           allocator: "HlsAllocator",
                           used_signals: UniqList[TimeIndependentRtlResourceItem]
                           ) -> TimeIndependentRtlResource:
+        op_out = HlsOperationOut(self, 0)
+
+        try:
+            return allocator.node2instance[op_out]
+        except KeyError:
+            pass
         name = self.name
-        mux_out_s = allocator._sig(name, self.elifs[0][1].obj.instantiateOperationInTime(
+        mux_out_s = allocator._sig(name, self.elifs[0][1].obj.instantiateHlsOperationInTime(
             allocator, self.scheduledInEnd[0], used_signals).data._dtype)
         mux_top = None
         for elif_i, (c, v) in enumerate(self.elifs):
             if c is not None:
-                c = c.obj.instantiateOperationInTime(
+                c = c.obj.instantiateHlsOperationInTime(
                     allocator, self.scheduledIn[elif_i * 2], used_signals)
-            v = v.obj.instantiateOperationInTime(
+            v = v.obj.instantiateHlsOperationInTime(
                 allocator,
                 self.scheduledIn[elif_i * 2 + (1 if c is not None else 0)],
                 used_signals)
@@ -441,7 +461,7 @@ class HlsMux(HlsOperation):
         # create RTL signal expression base on operator type
         t = self.scheduledInEnd[0] + epsilon
         mux_out_s = TimeIndependentRtlResource(mux_out_s, t, allocator)
-        allocator._registerSignal(self, mux_out_s, used_signals)
+        allocator._registerSignal(op_out, mux_out_s, used_signals)
         return mux_out_s
 
 
@@ -458,7 +478,12 @@ class HlsIO(RtlSignal):
         self._interface = True
 
     def __call__(self, source) -> List[HdlAssignmentContainer]:
-        return [HlsWrite(self.hlsCntx, source, self), ]
+        source = toHVal(source, self._dtype)
+        hls = self.hlsCntx
+        w = HlsWrite(hls, source, self)
+        hls.outputs.append(w)
+        hls.ctx.statements.add(w)
+        return [w, ]
 
     def __repr__(self):
-        return "<HlsIO %s>" % self.name
+        return f"<{self.__class__.__name__:s} {self.name:s}>"
