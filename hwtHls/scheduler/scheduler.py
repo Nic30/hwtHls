@@ -1,8 +1,8 @@
 from math import ceil
 
 from hwtHls.clk_math import start_clk
-from hwtHls.codeOps import HlsConst, AbstractHlsOp, HlsWrite, HlsRead,\
-    OperationIn, OperationOut
+from hwtHls.netlist.codeOps import HlsConst, AbstractHlsOp, HlsWrite, HlsRead,\
+    HlsOperationIn, HlsOperationOut
 from hwtHls.hlsPipeline import HlsPipeline
 #from hwtHls.scheduler.alap import alap
 from hwtHls.scheduler.asap import asap
@@ -38,12 +38,12 @@ class HlsScheduler():
                 assert isinstance(node, AbstractHlsOp), node
                 time_start = []
                 for i_i in range(len(node.dependsOn)):
-                    s, _ = sched[OperationIn(node, i_i)]
+                    s, _ = sched[HlsOperationIn(node, i_i)]
                     time_start.append(s)
 
                 time_end = []
                 for o_i in range(len(node.usedBy)):
-                    _, e = sched[OperationOut(node, o_i)]
+                    _, e = sched[HlsOperationOut(node, o_i)]
                     time_end.append(e)
 
                 # assert (time_start is not None
