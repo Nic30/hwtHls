@@ -1,5 +1,6 @@
 from typing import Union, List
 
+from hwt.hdl.value import HValue
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
@@ -31,7 +32,7 @@ class TimeIndependentRtlResource():
     # time constant, which means that item is not time dependent
     # and can be accessed any time
 
-    def __init__(self, data: RtlSignal,
+    def __init__(self, data: Union[RtlSignal, Interface, HValue],
                  time: Union[int, "TimeIndependentRtlResource.INVARIANT_TIME"],
                  hlsAllocator: "HlsAllocator"):
         """
@@ -45,7 +46,9 @@ class TimeIndependentRtlResource():
         """
         self.timeOffset = time
         self.allocator = hlsAllocator
-        self.valuesInTime: List[TimeIndependentRtlResourceItem] = [TimeIndependentRtlResourceItem(self, data), ]
+        self.valuesInTime: List[TimeIndependentRtlResourceItem] = [
+            TimeIndependentRtlResourceItem(self, data),
+        ]
 
     def get(self, time: float) -> TimeIndependentRtlResourceItem:
         """
@@ -54,7 +57,7 @@ class TimeIndependentRtlResource():
 
         # if time is first time in live of this value return original signal
         time += epsilon
-        if self.timeOffset == self.INVARIANT_TIME or self.timeOffset == time:
+        if self.timeOffset is self.INVARIANT_TIME or self.timeOffset == time:
             return self.valuesInTime[0]
 
         # else try to look up register for this signal in valuesInTime cache
@@ -73,6 +76,8 @@ class TimeIndependentRtlResource():
         prev = self.valuesInTime[-1]
         requestedRegCnt = index + 1
         actualTimesCnt = len(self.valuesInTime)
+
+        # HValue instance should have never get the there
         name = getSignalName(sig.data)
 
         # allocate specified number of registers to pass value to specified pieline stage
