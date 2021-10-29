@@ -6,17 +6,17 @@ from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.hlsStreamProc.ssa.basicBlock import SsaBasicBlock
 from hwtHls.hlsStreamProc.ssa.instr import SsaInstr, ValOrVal
-from hwtHls.hlsStreamProc.ssa.phi import SsaPhi, TmpVariable
+from hwtHls.hlsStreamProc.ssa.phi import SsaPhi, HlsTmpVariable
 from hwtHls.hlsStreamProc.statements import HlsStreamProcWrite, HlsStreamProcRead
 
-_ValOrVal = (TmpVariable, RtlSignal, HValue, SsaPhi)
+_ValOrVal = (HlsTmpVariable, RtlSignal, HValue, SsaPhi)
 
 
 class SsaConsystencyCheck():
 
     def visit_collect(self, bb: SsaBasicBlock, blocks: UniqList[SsaBasicBlock],
                       phis: UniqList[SsaPhi],
-                      variables: Dict[TmpVariable, SsaBasicBlock]):
+                      variables: Dict[HlsTmpVariable, SsaBasicBlock]):
         blocks.append(bb)
         for phi in bb.phis:
             phi: SsaPhi
@@ -44,7 +44,7 @@ class SsaConsystencyCheck():
 
     def _check_variable_definition_for_use(self, var: ValOrVal,
                                            phis: UniqList[SsaPhi],
-                                           variables: Dict[TmpVariable, SsaBasicBlock]):
+                                           variables: Dict[HlsTmpVariable, SsaBasicBlock]):
         if isinstance(var, (HValue, HlsStreamProcRead)):
             pass
         elif isinstance(var, SsaPhi):
@@ -56,7 +56,7 @@ class SsaConsystencyCheck():
     def visit_check(self, bb: SsaBasicBlock,
                     blocks: UniqList[SsaBasicBlock],
                     phis: UniqList[SsaPhi],
-                    variables: Dict[TmpVariable, SsaBasicBlock],
+                    variables: Dict[HlsTmpVariable, SsaBasicBlock],
                     seen: Set[SsaBasicBlock]):
         assert bb in blocks
         seen.add(bb)
@@ -92,7 +92,7 @@ class SsaConsystencyCheck():
     def visit(self, bb: SsaBasicBlock):
         blocks: UniqList[SsaBasicBlock] = UniqList()
         phis: UniqList[SsaPhi] = UniqList()
-        variables: Dict[TmpVariable, SsaBasicBlock] = {}
+        variables: Dict[HlsTmpVariable, SsaBasicBlock] = {}
         self.visit_collect(bb, blocks, phis, variables)
         seen = set()
         self.visit_check(bb, blocks, phis, variables, seen)

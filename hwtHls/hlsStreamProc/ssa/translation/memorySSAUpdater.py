@@ -4,7 +4,8 @@ from hwt.hdl.value import HValue
 from hwt.serializer.utils import RtlSignal_sort_key
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.hlsStreamProc.ssa.basicBlock import SsaBasicBlock
-from hwtHls.hlsStreamProc.ssa.phi import SsaPhi, TmpVariable
+from hwtHls.hlsStreamProc.ssa.phi import SsaPhi
+from hwtHls.tmpVariable import HlsTmpVariable
 
 
 class MemorySSAUpdater():
@@ -16,7 +17,7 @@ class MemorySSAUpdater():
 
     def __init__(self,
                  onBlockReduce: Callable[[SsaBasicBlock, SsaBasicBlock], None],
-                 createTmpVariable: Callable[[RtlSignal, ], TmpVariable]):
+                 createHlsTmpVariable: Callable[[RtlSignal, ], HlsTmpVariable]):
         """
         :param onBlockReduce: function (old, new) called if some block is reduced
         """
@@ -24,7 +25,7 @@ class MemorySSAUpdater():
         self.sealedBlocks: Set[SsaBasicBlock] = set()
         self.incompletePhis: Dict[SsaBasicBlock, Dict[RtlSignal, SsaPhi]] = {}
         self._onBlockReduce = onBlockReduce
-        self._createTmpVariable = createTmpVariable
+        self._createHlsTmpVariable = createHlsTmpVariable
 
     def writeVariable(self, variable: RtlSignal, block: SsaBasicBlock, value: SsaPhi) -> int:
         """
@@ -50,7 +51,7 @@ class MemorySSAUpdater():
         """
         if block not in self.sealedBlocks:
             # Incomplete CFG
-            phi = SsaPhi(block, self._createTmpVariable(variable))
+            phi = SsaPhi(block, self._createHlsTmpVariable(variable))
             self.incompletePhis.setdefault(block, {})[variable] = phi
 
         elif len(block.predecessors) == 1:
@@ -59,7 +60,7 @@ class MemorySSAUpdater():
 
         else:
             # Break potential cycles with operandless phi
-            phi = SsaPhi(block, self._createTmpVariable(variable))
+            phi = SsaPhi(block, self._createHlsTmpVariable(variable))
             phi.dst.i = self.writeVariable(variable, block, phi)
             phi = self.addPhiOperands(variable, phi)
 

@@ -24,7 +24,7 @@ from hwtHls.clk_math import epsilon
 from hwtHls.clk_math import start_clk
 from hwtHls.netlist.codeOpsPorts import HlsOperationIn, HlsOperationOut
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
-from hwtHls.tmpVariable import TmpVariable
+from hwtHls.tmpVariable import HlsTmpVariable
 
 
 IO_COMB_REALIZATION = OpRealizationMeta(latency_post=0.1e-9)
@@ -296,7 +296,7 @@ class HlsWrite(AbstractHlsOp, HdlAssignmentContainer):
     :ivar dst: output interface not relatet to HLS
     """
 
-    def __init__(self, parentHls: "HlsPipeline", src, dst: Union[RtlSignal, Interface, TmpVariable]):
+    def __init__(self, parentHls: "HlsPipeline", src, dst: Union[RtlSignal, Interface, HlsTmpVariable]):
         AbstractHlsOp.__init__(self, parentHls, None)
         HdlStatement.__init__(self)
         self.dependsOn.append(None)

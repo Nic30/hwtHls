@@ -4,17 +4,17 @@ from hwt.hdl.operatorDefs import OpDefinition, AllOps
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.hlsStreamProc.ssa.basicBlock import SsaBasicBlock
 from hwtHls.hlsStreamProc.ssa.instr import SsaInstr
-from hwtHls.tmpVariable import TmpVariable
+from hwtHls.tmpVariable import HlsTmpVariable
 
 
 class SsaExprBuilderProxy():
 
-    def __init__(self, parent:"SsaExprBuilder", var: TmpVariable):
+    def __init__(self, parent:"SsaExprBuilder", var: HlsTmpVariable):
         self.parent = parent
         self.var = var
 
     def _normalize(self, other):
-        if not isinstance(other, TmpVariable):
+        if not isinstance(other, HlsTmpVariable):
             raise NotImplementedError()
         return other
 
@@ -69,31 +69,31 @@ class SsaExprBuilderProxy():
 
 class SsaExprBuilder():
 
-    def __init__(self, createTmpVariable: Callable[[RtlSignal, ], TmpVariable],
+    def __init__(self, createHlsTmpVariable: Callable[[RtlSignal, ], HlsTmpVariable],
                  block:SsaBasicBlock):
-        self._createTmpVariable = createTmpVariable
+        self._createHlsTmpVariable = createHlsTmpVariable
         self.block = block
 
-    def _unaryOp(self, o: TmpVariable, operator: OpDefinition) -> TmpVariable:
+    def _unaryOp(self, o: HlsTmpVariable, operator: OpDefinition) -> HlsTmpVariable:
         res = operator._evalFn(o.origin)
-        var = self._createTmpVariable(res)
+        var = self._createHlsTmpVariable(res)
         instr = SsaInstr(var, (operator, [o, ]))
         self.block.body.append(instr)
         return instr
 
-    def unaryOp(self, o: TmpVariable, operator: OpDefinition) -> SsaExprBuilderProxy:
+    def unaryOp(self, o: HlsTmpVariable, operator: OpDefinition) -> SsaExprBuilderProxy:
         return self.var(self._unaryOp(o.var, operator).dst)
 
-    def _binaryOp(self, o0: TmpVariable, operator: OpDefinition, o1: TmpVariable) -> TmpVariable:
+    def _binaryOp(self, o0: HlsTmpVariable, operator: OpDefinition, o1: HlsTmpVariable) -> HlsTmpVariable:
         res = operator._evalFn(o0.origin, o1.origin)
-        var = self._createTmpVariable(res)
+        var = self._createHlsTmpVariable(res)
         instr = SsaInstr(var, (operator, [o0, o1]))
         self.block.body.append(instr)
         return instr
 
-    def binaryOp(self, o0: TmpVariable, operator: OpDefinition, o1: TmpVariable) -> SsaExprBuilderProxy:
+    def binaryOp(self, o0: HlsTmpVariable, operator: OpDefinition, o1: HlsTmpVariable) -> SsaExprBuilderProxy:
         return self.var(self._binaryOp(o0.var, operator, o1.var).dst)
 
-    def var(self, v: TmpVariable):
+    def var(self, v: HlsTmpVariable):
         return SsaExprBuilderProxy(self, v)
 

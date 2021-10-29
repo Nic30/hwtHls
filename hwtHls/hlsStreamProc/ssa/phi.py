@@ -3,7 +3,7 @@ from typing import Tuple, Union, List
 from hwt.hdl.value import HValue
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
-from hwtHls.tmpVariable import TmpVariable
+from hwtHls.tmpVariable import HlsTmpVariable
 
 
 class SsaPhi():
@@ -11,10 +11,10 @@ class SsaPhi():
     A function from SSA normal form which select the value of variable based on prevous basic block
     """
 
-    def __init__(self, parent: "SsaBasicBlock", dst: TmpVariable,
-                 *operands: Tuple[Union[RtlSignalBase, HValue, TmpVariable, 'SsaPhi'], "SsaBasicBlock"]):
+    def __init__(self, parent: "SsaBasicBlock", dst: HlsTmpVariable,
+                 *operands: Tuple[Union[RtlSignalBase, HValue, HlsTmpVariable, 'SsaPhi'], "SsaBasicBlock"]):
         self.block = parent
-        assert isinstance(dst, TmpVariable)
+        assert isinstance(dst, HlsTmpVariable)
         self.dst = dst
         assert isinstance(dst, RtlSignalBase), dst
         self.operands = operands
