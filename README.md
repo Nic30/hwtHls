@@ -93,7 +93,10 @@ HLS for [hwt](https://github.com/Nic30/hwt) (hwt is a library for circuit constr
 * [tiramisu](https://github.com/Tiramisu-Compiler/tiramisu) - 2016-?, C++, A polyhedral compiler
 * [utwente-fmt](https://github.com/utwente-fmt) - abstract hls, verification libraries
 * [xls](https://github.com/google/xls) - 2020-?, C++ HLS compiler with JIT
-* [binaryen](https://github.com/WebAssembly/binaryen) , C++, WebAssembly compiler (implements some similar optimization passes)
+* [binaryen](https://github.com/WebAssembly/binaryen) - , C++, WebAssembly compiler (implements some similar optimization passes)
+* [Light-HLS](https://github.com/zslwyuan/Light-HLS) -, C++/LLVM, experimental HLS framework
+* [DASS](https://github.com/JianyiCheng/DSS) - combination of dynamic and static scheduling
+* [phism](https://github.com/kumasento/phism) - Python/C++/LLVM, Polyhedral High-Level Synthesis in MLIR
 
 ## Useful publications
 * [Efficient Pipelining of Nested Loops: Unroll-and-Squash](https://people.csail.mit.edu/saman/student_thesis/petkov-01.pdf)
@@ -107,3 +110,8 @@ HLS for [hwt](https://github.com/Nic30/hwt) (hwt is a library for circuit constr
 * [LLVM dialect overview](https://llvm.discourse.group/t/codegen-dialect-overview/2723)
 * [dynamatically scheduled circuits](https://dynamatic.epfl.ch/)
 * [Stackifier algorithm](https://medium.com/leaningtech/solving-the-structured-control-flow-problem-once-and-for-all-5123117b1ee2) converts SSA back to cycles and conditions
+* [DASS: Combining Dynamic and Static Scheduling in High-level Synthesis](https://www.researchgate.net/publication/350081168_DASS_Combining_Dynamic_and_Static_Scheduling_in_High-level_Synthesis)
+
+## Timing database generator scripts
+
+* [Light-HLS](https://github.com/zslwyuan/Light-HLS/blob/master/HLS_Lib_Generator/LibGen.py)
