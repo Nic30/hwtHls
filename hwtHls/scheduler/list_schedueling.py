@@ -93,7 +93,7 @@ def list_schedueling(inputs: List[HlsRead], nodes: List[AbstractHlsOp],
     }
 
     h = []  # heap for unresolved nodes
-    for n in nodes:
+    for n in chain(inputs, nodes, outputs):
         if isinstance(n, HlsConst):
             # constants will be scheduled to same time as operations later
             continue
@@ -161,7 +161,7 @@ class ListSchedueler(HlsScheduler):
         hls = self.parentHls
         clk_period = self.parentHls.clk_period
         # discover time interval where operations can be schedueled
-        for n in hls.nodes:
+        for n in chain(hls.inputs, hls.nodes, hls.outputs):
             n.resolve_realization()
         # maxTime = self.asap()
         asap(hls.outputs, clk_period)
