@@ -1,5 +1,5 @@
 from hwtHls.clk_math import end_clk, start_clk
-from hwtHls.codeOps import HlsConst
+from hwtHls.netlist.codeOps import HlsConst
 #from hwtHls.scheduler.asap import asap_filter_inputs
 from hwtHls.scheduler.errors import UnresolvedChild
 
