@@ -1,14 +1,15 @@
+from itertools import chain
 from math import ceil
-
-from hwtHls.clk_math import start_clk
-from hwtHls.netlist.codeOps import HlsConst, AbstractHlsOp, HlsWrite, HlsRead,\
-    HlsOperationIn, HlsOperationOut
-from hwtHls.hlsPipeline import HlsPipeline
-#from hwtHls.scheduler.alap import alap
-from hwtHls.scheduler.asap import asap
 from typing import Dict, Tuple
 
+from hwtHls.clk_math import start_clk
+from hwtHls.hlsPipeline import HlsPipeline
+from hwtHls.netlist.codeOps import HlsConst, AbstractHlsOp, HlsRead, \
+    HlsOperationIn, HlsOperationOut
+from hwtHls.scheduler.asap import asap
 
+
+# from hwtHls.scheduler.alap import alap
 class HlsScheduler():
 
     def __init__(self, parentHls: HlsPipeline):
@@ -25,11 +26,11 @@ class HlsScheduler():
             clk_count = 1
         else:
             clk_count = ceil(maxTime / clk_period)
-        # print(clk_count)
+
         # render nodes in clk_periods
         schedulization = [[] for _ in range(clk_count + 1)]
         constants = set()
-        for node in self.parentHls.nodes:
+        for node in chain(self.parentHls.inputs, self.parentHls.nodes, self.parentHls.outputs):
             if isinstance(node, HlsConst):
                 # constants has time specified by it's user
                 constants.add(node)
@@ -64,8 +65,9 @@ class HlsScheduler():
             node: AbstractHlsOp
             # [TODO] constants are cheduled multiple times
             parent = node.usedBy[0]
+            p_input = parent[0]
             node.scheduledInEnd = node.scheduledIn = [
-                parent[0].obj.scheduledIn[parent[0].in_i], ]
+                p_input.obj.scheduledIn[p_input.in_i], ]
 
             time_start, _ = node.scheduledIn, node.scheduledInEnd
             clk_index = start_clk(time_start[0], clk_period)
