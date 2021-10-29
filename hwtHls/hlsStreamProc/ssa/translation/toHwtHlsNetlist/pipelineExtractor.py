@@ -6,7 +6,14 @@ from hwtHls.hlsStreamProc.ssa.basicBlock import SsaBasicBlock
 
 class PipelineExtractor():
     """
-    Cut the circuit graph to individual pipelines.
+    Cut the circuit graph to individual independent pipelines and mark some edges as backward
+    to linearize the circuit for scheduling.
+
+
+    In this class we solve the feedback arc set problem (which is NP-complete), more info:
+    * https://doi.org/10.1016/0020-0190(93)90079-O
+    * https://www.mat.univie.ac.at/~neum/ms/minimum_feedback_arc_set.pdf
+
     """
 
     def _split_to_pipelines_from_component(self,
