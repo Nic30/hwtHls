@@ -37,4 +37,4 @@ class BranchControlLabel():
         ))
 
     def __repr__(self):
-        return f"<{self.__class__.__name__:s} {self.src_block} -> {self.dst_block} {self.direction.name}>"
+        return f"<{self.__class__.__name__:s} {self.src_block.label:s} -> {self.dst_block.label:s} {self.direction.name}>"
