@@ -4,7 +4,8 @@ from hwt.hdl.operatorDefs import OpDefinition
 from hwt.hdl.value import HValue
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.hlsStreamProc.ssa.phi import SsaPhi, TmpVariable
+from hwtHls.hlsStreamProc.ssa.phi import SsaPhi
+from hwtHls.tmpVariable import HlsTmpVariable
 
 
 class SsaInstrBranch():
@@ -35,13 +36,13 @@ class SsaInstrBranch():
         return f"<{self.__class__.__name__} {self.targets}>"
 
 
-ValOrVal = Union[TmpVariable, RtlSignal, HValue, SsaPhi]
+ValOrVal = Union[HlsTmpVariable, RtlSignal, HValue, SsaPhi]
 
 
 class SsaInstr():
 
     def __init__(self,
-                 dst: Union[RtlSignal, TmpVariable],
+                 dst: Union[RtlSignal, HlsTmpVariable],
                  src: Union[ValOrVal,
                             Tuple[OpDefinition, List[ValOrVal]]
                 ]):
@@ -79,7 +80,7 @@ class SsaInstr():
     def __repr__(self):
         dst = self.dst
         src = self.src
-        if isinstance(src, (TmpVariable, RtlSignal, HValue, SsaPhi)):
+        if isinstance(src, (HlsTmpVariable, RtlSignal, HValue, SsaPhi)):
             return f"{dst} = {src}"
         else:
             _src = ", ".join(repr(s) for s in src[1])
