@@ -29,6 +29,7 @@ class HlsOperationOut():
     def __repr__(self):
         return f"<{self.__class__.__name__} {self.obj} [{self.out_i:d}]>"
 
+
 class HlsOperationOutLazy():
     """
     A placeholder for future HlsOperationOut.
@@ -36,18 +37,27 @@ class HlsOperationOutLazy():
     :ivar dependencies: information about children where new object should be replaced
     """
 
-    def __init__(self):
+    def __init__(self, key_of_self_in_cache, op_cache:dict):
         self.dependencies: List[HlsOperationIn, HlsMuxElifRef] = []
+        self.replaced_by = None
+        self.keys_of_self_in_cache = [key_of_self_in_cache, ]
+        self.op_cache = op_cache
 
     def register_mux_elif(self, mux: "HlsMux", elif_i:int):
         self.dependencies.append(HlsMuxElifRef(mux, elif_i, self))
 
     def replace(self, obj:HlsOperationOut):
+        assert self.replaced_by is None, (self, self.replaced_by)
+        for k in self.keys_of_self_in_cache:
+            self.op_cache[k] = obj
+
         for c in self.dependencies:
             if isinstance(c, HlsOperationIn):
                 c.obj.dependsOn[c.in_i] = obj
             else:
                 c.replace(obj)
+
+        self.replaced_by = obj
 
 
 class HlsMuxElifRef():
