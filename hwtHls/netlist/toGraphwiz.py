@@ -24,7 +24,7 @@ class GraphwizNode():
 
 class GraphwizLink():
 
-    def __init__(self, src, dst, style="->"):
+    def __init__(self, src, dst, style=""):
         self.src = src
         self.dst = dst
         self.style = style
@@ -32,8 +32,9 @@ class GraphwizLink():
     def dumps(self, buff):
         buff.append(" ")
         buff.append(self.src)
-        buff.append(self.style)
+        buff.append("->")
         buff.append(self.dst)
+        buff.append(self.style)
         buff.append(";\n")
 
 
@@ -72,7 +73,10 @@ class HwtHlsNetlistToGraphwiz():
                 if drv is not None:
                     drv: HlsOperationOut
                     drv_node = self._node_from_AbstractHlsOp(drv.obj)
-                    self.links.append(GraphwizLink(f"{drv_node.label:s}:o{drv.out_i:d}", f"{node.label}:i{node_in_i:d}"))
+                    self.links.append(GraphwizLink(f"{drv_node.label:s}:o{drv.out_i:d}", f"{node.label:s}:i{node_in_i:d}"))
+            for shadow_dst in obj.debug_iter_shadow_connection_dst():
+                shadow_dst_node = self._node_from_AbstractHlsOp(shadow_dst)
+                self.links.append(GraphwizLink(f"{node.label:s}", f"{shadow_dst_node.label:s}", style="[style=dashed, color=grey]"))
         except:
             raise AssertionError("defective node", obj)
 

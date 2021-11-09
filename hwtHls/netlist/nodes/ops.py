@@ -1,5 +1,5 @@
 from copy import copy
-from typing import List, Union, Optional, Tuple
+from typing import List, Union, Optional, Tuple, Generator
 
 from hwt.hdl.operatorDefs import OpDefinition, AllOps
 from hwt.hdl.value import HValue
@@ -150,6 +150,14 @@ class AbstractHlsOp():
             used_signals.append(_o)
 
         return _o.get(time)
+
+    def debug_iter_shadow_connection_dst(self) -> Generator["AbstractHlsOp", None, None]:
+        """
+        Iter nodes which are not connected or somehow related to this but do not use a standard connection.
+        (The information is used for visualization.)
+        """
+        return
+        yield
 
 
 class HlsConst(AbstractHlsOp):

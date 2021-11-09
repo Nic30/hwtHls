@@ -1,4 +1,4 @@
-from typing import Union, Optional
+from typing import Union, Optional, Generator
 
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
@@ -64,3 +64,6 @@ class HlsWriteBackwardEdge(HlsWrite):
             .end
         dst_read.src(buffs)
         return res
+
+    def debug_iter_shadow_connection_dst(self) -> Generator["AbstractHlsOp", None, None]:
+        yield self.associated_read
