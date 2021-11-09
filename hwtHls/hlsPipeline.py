@@ -13,9 +13,10 @@ from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.rtlLevel.remove_unconnected_signals import removeUnconnectedSignals
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.unit import Unit
-from hwtHls.netlist.codeOps import HlsRead, HlsWrite, HlsIO, AbstractHlsOp
 from hwtHls.errors import HlsSyntaxError
 from hwtHls.hwtNetlistToHwtHlsNetlist import HwtNetlistToHwtHlsNetlist
+from hwtHls.netlist.nodes.ops import AbstractHlsOp
+from hwtHls.netlist.nodes.io import HlsRead, HlsWrite, HlsIO
 from ipCorePackager.constants import DIRECTION
 
 

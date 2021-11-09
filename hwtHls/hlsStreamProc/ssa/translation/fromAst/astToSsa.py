@@ -12,7 +12,7 @@ from hwt.synthesizer.rtlLevel.signalUtils.exceptions import SignalDriverErr
 from hwtHls.hlsStreamProc.ssa.basicBlock import SsaBasicBlock
 from hwtHls.hlsStreamProc.ssa.instr import SsaInstr
 from hwtHls.hlsStreamProc.ssa.phi import SsaPhi
-from hwtHls.hlsStreamProc.ssa.translation.memorySSAUpdater import MemorySSAUpdater
+from hwtHls.hlsStreamProc.ssa.translation.fromAst.memorySSAUpdater import MemorySSAUpdater
 from hwtHls.hlsStreamProc.statements import HlsStreamProcStm, HlsStreamProcWhile, \
     HlsStreamProcWrite, HlsStreamProcRead
 from hwtHls.tmpVariable import HlsTmpVariable

@@ -1,10 +1,10 @@
 import html
+from itertools import zip_longest
 from typing import List, Union, Dict
 
-from hwtHls.netlist.codeOps import AbstractHlsOp, HlsConst, HlsOperation, \
-    HlsRead, HlsWrite
-from hwtHls.netlist.codeOpsPorts import HlsOperationOut
-from itertools import zip_longest
+from hwtHls.netlist.nodes.ops import AbstractHlsOp, HlsConst, HlsOperation
+from hwtHls.netlist.nodes.io import HlsRead, HlsWrite
+from hwtHls.netlist.nodes.ports import HlsOperationOut
 
 
 class GraphwizNode():
@@ -66,12 +66,15 @@ class HwtHlsNetlistToGraphwiz():
 
         # construct new node
         input_rows = []
-        for node_in_i, drv in enumerate(obj.dependsOn):
-            input_rows.append(f"<td port='i{node_in_i:d}'>i{node_in_i:d}</td>")
-            if drv is not None:
-                drv: HlsOperationOut
-                drv_node = self._node_from_AbstractHlsOp(drv.obj)
-                self.links.append(GraphwizLink(f"{drv_node.label:s}:o{drv.out_i:d}", f"{node.label}:i{node_in_i:d}"))
+        try:
+            for node_in_i, drv in enumerate(obj.dependsOn):
+                input_rows.append(f"<td port='i{node_in_i:d}'>i{node_in_i:d}</td>")
+                if drv is not None:
+                    drv: HlsOperationOut
+                    drv_node = self._node_from_AbstractHlsOp(drv.obj)
+                    self.links.append(GraphwizLink(f"{drv_node.label:s}:o{drv.out_i:d}", f"{node.label}:i{node_in_i:d}"))
+        except:
+            raise AssertionError("defective node", obj)
 
         output_rows = []
         for node_out_i, _ in enumerate(obj.usedBy):

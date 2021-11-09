@@ -16,7 +16,7 @@ from hwtHls.hlsStreamProc.ssa.analysis.consystencyCheck import SsaConsystencyChe
 from hwtHls.hlsStreamProc.ssa.analysis.liveness import ssa_liveness_edge_variables
 from hwtHls.hlsStreamProc.ssa.transformation.expandControlSelfLoops import ExpandControlSelfloops
 from hwtHls.hlsStreamProc.ssa.transformation.removeTrivialBlocks import RemoveTrivialBlocks
-from hwtHls.hlsStreamProc.ssa.translation.astToSsa import AstToSsa, AnyStm
+from hwtHls.hlsStreamProc.ssa.translation.fromAst.astToSsa import AstToSsa, AnyStm
 from hwtHls.hlsStreamProc.ssa.translation.toGraphwiz import SsaToGraphwiz
 from hwtHls.hlsStreamProc.ssa.translation.toHwtHlsNetlist.pipelineExtractor import PipelineExtractor
 from hwtHls.hlsStreamProc.ssa.translation.toHwtHlsNetlist.pipelineMaterialization import SsaSegmentToHwPipeline
@@ -84,8 +84,8 @@ class HlsStreamProc():
             all_blocks.extend(comp)
 
         edge_var_live = ssa_liveness_edge_variables(ssa)
-        #print("backward_edges", [(e[0].label, e[1].label) for e in pe.backward_edges])
-        #print("pipeline", [n.label for n in all_blocks])
+        # print("backward_edges", [(e[0].label, e[1].label) for e in pe.backward_edges])
+        # print("pipeline", [n.label for n in all_blocks])
 
         # [debug]
         to_graphwiz = SsaToGraphwiz("top")

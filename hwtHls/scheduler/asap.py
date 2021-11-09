@@ -1,7 +1,9 @@
 from typing import List
-from hwtHls.netlist.codeOps import HlsConst, HlsWrite, HlsOperation
-from hwtHls.scheduler.errors import TimeConstraintError
+
 from hwtHls.clk_math import start_of_next_clk_period
+from hwtHls.netlist.nodes.ops import HlsConst, HlsOperation
+from hwtHls.netlist.nodes.io import HlsWrite
+from hwtHls.scheduler.errors import TimeConstraintError
 
 
 def _asap(node: HlsOperation, clk_period: float) -> float:
@@ -10,14 +12,14 @@ def _asap(node: HlsOperation, clk_period: float) -> float:
     """
     if node.asap_end is None:
         if node.dependsOn:
-            #print(node)
+            # print(node)
             input_times = [_asap(d.obj, clk_period)[d.out_i] for d in node.dependsOn if d is not None]
             # now we have times when the value is available on input
             # and we must resolve the minimal time so each input timing constraints are satisfied
             time_when_all_inputs_present = 0.0
             latest_input_i = None
             if not hasattr(node, "latency_pre"):
-                raise NotImplementedError(node.usedBy, node)
+                raise AssertionError("Missing timing info", node, node.usedBy)
             for in_i, (available_in_time, in_delay, in_cycles) in enumerate(
                 zip(input_times, node.latency_pre, node.in_cycles_offset)):
                 next_clk_time = start_of_next_clk_period(available_in_time, clk_period)
