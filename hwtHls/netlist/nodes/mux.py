@@ -1,0 +1,89 @@
+from typing import List, Tuple, Optional, Union
+
+from hwt.code import If
+from hwt.hdl.operatorDefs import AllOps
+from hwt.pyUtils.uniqList import UniqList
+from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResourceItem, \
+    TimeIndependentRtlResource
+from hwtHls.clk_math import epsilon
+from hwtHls.netlist.nodes.ops import HlsOperation, AbstractHlsOp
+from hwtHls.netlist.nodes.ports import HlsOperationOut, HlsOperationOutLazy, \
+    link_hls_nodes
+
+
+class HlsMux(HlsOperation):
+    """
+    Multiplexer operation with one-hot encoded select signal
+    """
+
+    def __init__(self, parentHls, bit_length: int, name: str=None):
+        super(HlsMux, self).__init__(
+            parentHls, AllOps.TERNARY, 0, bit_length, name=name)
+        self.elifs: List[Tuple[Optional[AbstractHlsOp], AbstractHlsOp]] = []
+
+    def allocate_instance(self,
+                          allocator: "HlsAllocator",
+                          used_signals: UniqList[TimeIndependentRtlResourceItem]
+                          ) -> TimeIndependentRtlResource:
+        op_out = self._outputs[0]
+
+        try:
+            return allocator.node2instance[op_out]
+        except KeyError:
+            pass
+
+        name = self.name
+        mux_out_s = allocator._sig(name, self.elifs[0][1].obj.instantiateHlsOperationInTime(
+            allocator, self.scheduledInEnd[0], used_signals).data._dtype)
+        mux_top = None
+        for elif_i, (c, v) in enumerate(self.elifs):
+            if c is not None:
+                c = c.obj.instantiateHlsOperationInTime(
+                    allocator, self.scheduledIn[elif_i * 2], used_signals)
+            v = v.obj.instantiateHlsOperationInTime(
+                allocator,
+                self.scheduledIn[elif_i * 2 + (1 if c is not None else 0)],
+                used_signals)
+
+            if mux_top is None:
+                mux_top = If(c.data, mux_out_s(v.data))
+            elif c is not None:
+                mux_top.Elif(c.data, mux_out_s(v.data))
+            else:
+                mux_top.Else(mux_out_s(v.data))
+
+        # create RTL signal expression base on operator type
+        t = self.scheduledInEnd[0] + epsilon
+        mux_out_s = TimeIndependentRtlResource(mux_out_s, t, allocator)
+        allocator._registerSignal(op_out, mux_out_s, used_signals)
+        return mux_out_s
+
+    def _add_input_and_link(self, src: Union[HlsOperationOut, HlsOperationOutLazy]):
+        i = self._add_input()
+        link_hls_nodes(src, i)
+        if isinstance(src, HlsOperationOutLazy):
+            src.dependencies.append(HlsMuxInputRef(self, len(self.elifs), i.in_i, src))
+
+
+class HlsMuxInputRef():
+    """
+    An object which is used in HlsOperationOutLazy dependencies to update also HlsMux object
+    once the lazy output of some node on input is resolved.
+    """
+
+    def __init__(self, mux: "HlsMux", elif_i: int, in_i: int, obj: HlsOperationOutLazy):
+        self.mux = mux
+        self.elif_i = elif_i
+        self.in_i = in_i
+        self.obj = obj
+
+    def replace(self, new_obj: HlsOperationOut):
+        assert isinstance(new_obj, HlsOperationOut), ("Must be a final out port")
+        c, v = self.mux.elifs[self.elif_i]
+        if c is self.obj:
+            c = new_obj
+        if v is self.obj:
+            v = new_obj
+        self.mux.elifs[self.elif_i] = (c, v)
+        self.updated_obj.dependsOn[self.in_i] = new_obj
+
