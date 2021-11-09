@@ -1,5 +1,5 @@
 from hwtHls.hlsStreamProc.ssa.basicBlock import SsaBasicBlock
-from ipCorePackager.constants import DIRECTION
+from ipCorePackager.constants import INTF_DIRECTION
 
 
 class BranchControlLabel():
@@ -11,11 +11,12 @@ class BranchControlLabel():
     And does not need to have a physical representation at all if controll flow can be handled purely
     by presence of data.
 
-    :note: DIRECTION.OUT means that this is a label for an interface which outputs the sync. token to next block
-    :note: DIRECTION.IN means that this is a label for an interface which provides the sync. token from previous block
+    :note: INTF_DIRECTION.MASTER means that this is a label for an interface which outputs the sync. token to next block
+    :note: INTF_DIRECTION.SLAVE means that this is a label for an interface which provides the sync. token from previous block
     """
 
-    def __init__(self, src_block:SsaBasicBlock, dst_block:SsaBasicBlock, direction: DIRECTION):
+    def __init__(self, src_block:SsaBasicBlock, dst_block:SsaBasicBlock, direction: INTF_DIRECTION):
+        assert isinstance(direction, INTF_DIRECTION)
         self.src_block = src_block
         self.dst_block = dst_block
         self.direction = direction

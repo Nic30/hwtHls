@@ -4,8 +4,7 @@ from typing import Dict, Tuple
 
 from hwtHls.clk_math import start_clk
 from hwtHls.hlsPipeline import HlsPipeline
-from hwtHls.netlist.codeOps import HlsConst, AbstractHlsOp, HlsRead, \
-    HlsOperationIn, HlsOperationOut
+from hwtHls.netlist.nodes.ops import HlsConst, AbstractHlsOp
 from hwtHls.scheduler.asap import asap
 
 
@@ -38,13 +37,13 @@ class HlsScheduler():
             else:
                 assert isinstance(node, AbstractHlsOp), node
                 time_start = []
-                for i_i in range(len(node.dependsOn)):
-                    s, _ = sched[HlsOperationIn(node, i_i)]
+                for i in node._inputs:
+                    s, _ = sched[i]
                     time_start.append(s)
 
                 time_end = []
-                for o_i in range(len(node.usedBy)):
-                    _, e = sched[HlsOperationOut(node, o_i)]
+                for o in node._outputs:
+                    _, e = sched[o]
                     time_end.append(e)
 
                 # assert (time_start is not None
@@ -52,7 +51,7 @@ class HlsScheduler():
                 #        and time_start <= time_end), (
                 #    node, time_start, time_end)
             if not time_start:
-                assert isinstance(node, HlsRead), node
+                assert not node._inputs, node
                 time_start = time_end
             clk_index = start_clk(min(time_start), clk_period)
             # print(clk_index)

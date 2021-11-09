@@ -1,12 +1,13 @@
 from heapq import heappush, heappop
-from itertools import chain
+from itertools import chain, zip_longest
 from typing import List, Callable, Dict, Tuple, Union
 
 from hwt.hdl.operatorDefs import OpDefinition
 from hwtHls.clk_math import start_clk, end_clk, epsilon
-from hwtHls.netlist.codeOps import HlsConst, HlsOperation, AbstractHlsOp, HlsWrite, \
-    HlsRead, HlsOperationIn, HlsOperationOut
 from hwtHls.hlsPipeline import HlsSyntaxError
+from hwtHls.netlist.nodes.ops import HlsConst, HlsOperation, AbstractHlsOp
+from hwtHls.netlist.nodes.io import HlsRead, HlsWrite
+from hwtHls.netlist.nodes.ports import HlsOperationIn, HlsOperationOut
 from hwtHls.scheduler.scheduler import HlsScheduler, asap
 
 
@@ -143,12 +144,10 @@ def list_schedueling(inputs: List[HlsRead], nodes: List[AbstractHlsOp],
         # start can be behind all ends of parents
 
         # assign start/end for individual inputs/outputs
-        for ii, i_pre_time in enumerate(node.latency_pre):
-            sched[HlsOperationIn(node, ii)] = (startTime - (pre - i_pre_time) , endTime)
-
-        for oi, o_post_time in enumerate(node.latency_post):
-            sched[HlsOperationOut(node, oi)] = (startTime, endTime - post + o_post_time)
-
+        for i, i_pre_time in zip(node._inputs, node.latency_pre):
+            sched[i] = (startTime - (pre - i_pre_time) , endTime)
+        for o, o_post_time in zip(node._outputs, node.latency_post):
+            sched[o] = (startTime, endTime - post + o_post_time)
         # total span of operation
         # sched[node] = (startTime, endTime)
 
@@ -163,6 +162,8 @@ class ListSchedueler(HlsScheduler):
         # discover time interval where operations can be schedueled
         for n in chain(hls.inputs, hls.nodes, hls.outputs):
             n.resolve_realization()
+            assert len(n._outputs) == len(n.latency_post), n
+            assert len(n._inputs) == len(n.latency_pre), n
         # maxTime = self.asap()
         asap(hls.outputs, clk_period)
         # self.alap(maxTime)

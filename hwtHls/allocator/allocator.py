@@ -3,10 +3,8 @@ from typing import Union, List, Type, Dict, Optional, Tuple
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.code import If, And
-from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.struct import HStruct
-from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.interfaces.std import VldSynced, RdSynced, Signal, Handshaked, \
     HandshakeSync
 from hwt.pyUtils.uniqList import UniqList
@@ -16,12 +14,17 @@ from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource, \
     TimeIndependentRtlResourceItem
 from hwtHls.hlsPipeline import HlsPipeline
-from hwtHls.netlist.codeOps import HlsRead, HlsOperation, HlsWrite
-from hwtHls.netlist.codeOpsPorts import HlsOperationOut
+from hwtHls.netlist.nodes.io import HlsRead, HlsWrite
+from hwtHls.netlist.nodes.ops import AbstractHlsOp
+from hwtHls.netlist.nodes.ports import HlsOperationOut
 from hwtLib.handshaked.streamNode import StreamNode
 
 
 def get_sync_type(intf: Interface) -> Type[Interface]:
+    """
+    resolve wich primiteve type of synchronization is the interface using
+    """
+
     if isinstance(intf, HandshakeSync):
         return Handshaked
     elif isinstance(intf, VldSynced):
@@ -54,9 +57,8 @@ class HlsAllocator():
         self._reg = parentHls.parentUnit._reg
         self._sig = parentHls.parentUnit._sig
 
-    def _instantiate(self, node: Union[HlsOperation,
-                                       HlsRead,
-                                       HlsWrite],
+    def _instantiate(self, node: Union[AbstractHlsOp,
+                                       TimeIndependentRtlResource],
                            used_signals: UniqList[TimeIndependentRtlResourceItem]
                            ) -> TimeIndependentRtlResource:
         """
@@ -66,10 +68,6 @@ class HlsAllocator():
             # [todo] check if this is really used
             used_signals.append(node)
             return node
-        elif isinstance(node, HlsRead):
-            return self.instantiateRead(node, used_signals)
-        elif isinstance(node, HlsWrite):
-            return self.instantiateWrite(node, used_signals)
         else:
             return node.allocate_instance(self, used_signals)
 
@@ -80,28 +78,6 @@ class HlsAllocator():
         assert isinstance(origin, HlsOperationOut), origin
         used_signals.append(s)
         self.node2instance[origin] = s
-
-    def instantiateRead(self, o: HlsRead,
-                         used_signals: UniqList[TimeIndependentRtlResourceItem]) -> TimeIndependentRtlResource:
-        """
-        Instantiate read operation on RTL level
-        """
-        r_out = HlsOperationOut(o, 0)
-        try:
-            return self.node2instance[r_out]
-        except KeyError:
-            pass
-
-        _o = TimeIndependentRtlResource(
-            o.getRtlDataSig(),
-            o.scheduledInEnd[0],
-            self)
-        self._registerSignal(r_out, _o, used_signals)
-        for sync in o.dependsOn[1:]:
-            # prepare sync intputs but do not connect it because we do not implemet synchronization
-            # in this step we are building only datapath
-            self.instantiateHlsOperationOut(sync, used_signals)
-        return _o
 
     def instantiateHlsOperationOut(self, o: HlsOperationOut, used_signals: UniqList[TimeIndependentRtlResourceItem]) -> TimeIndependentRtlResource:
         assert isinstance(o, HlsOperationOut), o
@@ -116,47 +92,6 @@ class HlsAllocator():
         else:
             used_signals.append(_o)
         return _o
-
-    def instantiateWrite(self, write: HlsWrite,
-                         used_signals: UniqList[TimeIndependentRtlResourceItem]
-                         ) -> List[HdlAssignmentContainer]:
-        """
-        Instantiate write operation on RTL level
-        """
-        assert len(write.dependsOn) >= 1, write.dependsOn
-        # [0] - data, [1:] controll dependencies
-        for sync in write.dependsOn[1:]:
-            # prepare sync intputs but do not connect it because we do not implemet synchronization
-            # in this step we are building only datapath
-            self.instantiateHlsOperationOut(sync, used_signals)
-
-        dep = write.dependsOn[0]
-        _o = self.instantiateHlsOperationOut(dep, used_signals)
-
-        # apply indexes before assignments
-        dst = write.dst
-        # translate HlsIo object to signal
-        dst = self.parentHls._io.get(dst, dst)
-        _dst = dst
-        if isinstance(dst, HsStructIntf):
-            dst = dst.data
-
-        if write.indexes is not None:
-            for i in write.indexes:
-                dst = dst[i]
-        try:
-            # skip instantiation of writes in the same mux
-            return self.node2instance[(dep, dst)]
-        except KeyError:
-            pass
-
-        _o = _o.get(dep.obj.scheduledInEnd[0])
-
-        rtlObj = dst(_o.data)
-        # self.node2instance[o] = rtlObj
-        self.node2instance[(dep, dst)] = rtlObj
-
-        return rtlObj
 
     def allocate(self):
         """
@@ -182,6 +117,12 @@ class HlsAllocator():
                 # node can not be dependent on nodes behind in this list
                 # because this engine does not support backward edges in DFG
                 self._instantiate(node, cur_registers)
+                # [todo] possibly there are two types of enable for read/write,
+                #        1. block until data present,
+                #        2. for read makrs if data should be received or input should be disconnected
+                #           for write marks that the output should b dropped or not
+                #        this is an equivalent of extraCond, skipWhen in StreamNode
+
                 if isinstance(node, HlsRead):
                     if len(io_aggregation[node.src]) > 1:
                         raise AssertionError("In this phase each IO operation should already have separate gate"
@@ -209,8 +150,13 @@ class HlsAllocator():
     def _copy_sync(self, intf: Interface,
                    node: Union[HlsRead, HlsWrite],
                    res: Dict[Interface, List[TimeIndependentRtlResourceItem]]):
+        if isinstance(node, HlsRead):
+            sync_time = node.scheduledInEnd[0]
+        else:
+            sync_time = node.scheduledIn[0]
+
         res[intf] = [
-            self.node2instance[o].get(node.scheduledInEnd[0])
+            self.node2instance[o].get(sync_time)
             for o in node.dependsOn[1:]
         ]
 
@@ -225,7 +171,9 @@ class HlsAllocator():
                       prev_st_valid: Optional[RtlSyncSignal],
                       sync_per_io: Dict[Interface, List[TimeIndependentRtlResourceItem]]):
         """
-        Allocate synchronization for a single stage of pipeline
+        Allocate synchronization for a single stage of pipeline.
+        However the single stage of pipeline may have multiple sections with own validity flag.
+        This happens if inputs to this section are driven from the inputs which may be skipped.
         """
         for op in chain(cur_inputs, cur_outputs):
             sync_type = get_sync_type(op)
@@ -258,7 +206,7 @@ class HlsAllocator():
                 stage_valid = None
 
             if prev_st_sync_input is not None:
-                # :note: we want to allow pipeline flushing if no io is involved
+                # :note: allow pipeline flushing if no io is involved
                 cur_inputs.append((prev_st_valid, prev_st_sync_input.rd))
                 If(prev_st_sync_input.rd,
                    prev_st_valid(prev_st_sync_input.vld)
@@ -271,13 +219,15 @@ class HlsAllocator():
                 skip_when = {}
                 for intf, sync_source in sync_per_io.items():
                     # [TODO] disconnect the inputs/outputs from outside word if this data beat is not confirmed
-                    en = And(*(s.data for s in sync_source))
-                    if isinstance(en, HandshakeSync):
-                        if en not in cur_inputs:
-                            cur_inputs.append(en)
-                    else:
-                        extra_conds[intf] = en  # current block en=1
-                        skip_when[intf] = ~en  # current block vld and en=0
+                    # [TODO] disconnect if the input is not required
+                    if sync_source:
+                        en = And(*(s.data for s in sync_source))
+                        if isinstance(en, HandshakeSync):
+                            if en not in cur_inputs:
+                                cur_inputs.append(en)
+                        else:
+                            extra_conds[intf] = en  # current block en=1
+                            skip_when[intf] = ~en  # current block vld and en=0
 
                 sync = StreamNode(cur_inputs, cur_outputs, extraConds=extra_conds, skipWhen=skip_when)
                 sync.sync()

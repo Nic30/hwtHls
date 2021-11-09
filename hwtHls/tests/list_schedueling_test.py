@@ -6,12 +6,13 @@ from hwt.hdl.types.defs import BIT
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.unit import Unit
 from hwtHls.clk_math import start_clk, start_of_next_clk_period
-from hwtHls.codeOps import HlsRead, HlsOperation, HlsWrite, IO_COMB_REALIZATION,\
-    OperationOut, OperationIn
 from hwtHls.hlsPipeline import HlsPipeline
 from hwtHls.hwtNetlistToHwtHlsNetlist import link_hls_nodes
+from hwtHls.netlist.nodes.ops import HlsOperation, IO_COMB_REALIZATION
+from hwtHls.netlist.nodes.io import HlsRead, HlsWrite
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scheduler.list_schedueling import list_schedueling
+
 
 n = RtlNetlist("test")
 
@@ -42,9 +43,9 @@ class ListSchedueling_TC(unittest.TestCase):
 
         a_in = HlsRead(hls, a_ioin_sig, a_in_sig)
         a_not = HlsOperation(hls, AllOps.NOT, 1, 1)
-        link_hls_nodes(OperationOut(a_in, 0), OperationIn(a_not, 0))
+        link_hls_nodes(a_in._outputs[0], a_not._inputs[0])
         a_out = HlsWrite(hls, 1, a_out_sig)
-        link_hls_nodes(OperationOut(a_not, 0), OperationIn(a_out, 0))
+        link_hls_nodes(a_not._outputs[0], a_out._inputs[0])
         for n in [a_in, a_not, a_out]:
             n.resolve_realization()
 
@@ -65,11 +66,11 @@ class ListSchedueling_TC(unittest.TestCase):
             a1_in = HlsRead(hls, a1_io_in_sig, a1_in_sig)
 
             a_and = HlsOperation(hls, AllOps.AND, 2, 1)
-            link_hls_nodes(OperationOut(a0_in, 0), OperationIn(a_and, 0))
-            link_hls_nodes(OperationOut(a1_in, 0), OperationIn(a_and, 1))
+            link_hls_nodes(a0_in._outputs[0], a_and._inputs[0])
+            link_hls_nodes(a1_in._outputs[0], a_and._inputs[1])
 
             a_out = HlsWrite(hls, 1, a_out_sig)
-            link_hls_nodes(OperationOut(a_and, 0), OperationIn(a_out, 0))
+            link_hls_nodes(a_and._outputs[0], a_out._inputs[0])
             ops = [a0_in, a1_in, a_and, a_out]
             for n in ops:
                 n.resolve_realization()
@@ -89,6 +90,7 @@ class ListSchedueling_TC(unittest.TestCase):
                 return 2
             else:
                 raise ValueError(node)
+
         if a_in.dependsOn[0] is None:
             a_in.dependsOn.pop()
         sched = list_schedueling([a_in, ], [a_in, a_not, a_out], [a_out, ],

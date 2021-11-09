@@ -8,9 +8,10 @@ from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.value import HValue
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.netlist.codeOps import AbstractHlsOp, HlsOperation, HlsMux, HlsConst, HlsIO, \
-    HlsRead, HlsWrite, HlsOperationOut, HlsOperationIn
-from hwtHls.netlist.codeOpsPorts import link_hls_nodes
+from hwtHls.netlist.nodes.io import HlsRead, HlsWrite, HlsIO
+from hwtHls.netlist.nodes.mux import HlsMux
+from hwtHls.netlist.nodes.ops import AbstractHlsOp, HlsOperation, HlsConst
+from hwtHls.netlist.nodes.ports import HlsOperationOut, link_hls_nodes
 
 
 class HwtNetlistToHwtHlsNetlist():
@@ -45,9 +46,9 @@ class HwtNetlistToHwtHlsNetlist():
         for i, op in enumerate(operator.operands):
             op = self.to_hls_expr(op)
             assert op is not None
-            link_hls_nodes(op, HlsOperationIn(op_node, i))
+            link_hls_nodes(op, op_node._inputs[i])
 
-        return HlsOperationOut(op_node, 0)
+        return op_node._outputs[0]
 
     def to_hls_driver_block(self, sig: RtlSignal,
                             obj: Union[CodeBlock, List[HdlStatement], None],
@@ -74,20 +75,17 @@ class HwtNetlistToHwtHlsNetlist():
                                default_driver):
         # :note: dependsOn slots must be spoted first before going deeper in statements
         #  because potential controll dependency must have slot available
-        if cond is not None:
-            mux.dependsOn.append(None)
 
-        mux.dependsOn.append(None)
         if cond is None:
             _c = None
         else:
+            cond_i = mux._add_input()
             _c = self.to_hls_expr(cond)
-            link_hls_nodes(_c, HlsOperationIn(mux, len(mux.dependsOn) - 2))
+            link_hls_nodes(_c, cond_i)
 
+        val_i = mux._add_input()
         v = self.to_hls_driver_block(sig, stms, default_driver)
-        link_hls_nodes(v, HlsOperationIn(mux, len(mux.dependsOn) - 1))
-        for d in mux.dependsOn:
-            assert d is not None
+        link_hls_nodes(v, val_i)
         mux.elifs.append((_c, v))
 
     def to_hls_driver_if(self, sig: RtlSignal,
@@ -100,7 +98,7 @@ class HwtNetlistToHwtHlsNetlist():
         for c, stms in chain(obj._iter_all_elifs(), [(None, obj.ifFalse), ]):
             self.to_hls_driver_mux_case(mux, sig, c, stms, default_driver)
 
-        return HlsOperationOut(mux, 0)
+        return mux._outputs[0]
 
     def to_hls_driver_switch(self, sig: RtlSignal,
                          obj: Switch,
@@ -122,13 +120,13 @@ class HwtNetlistToHwtHlsNetlist():
         :param default_driver: a value which should drive the sighal when the signal is not actively driven
         """
         try:
-            return HlsOperationOut(self._to_hls[obj], 0)
+            return self._to_hls[obj]._outputs[0]
         except KeyError:
             pass
 
         if isinstance(obj, HlsRead):
             self._to_hls[obj] = obj
-            return HlsOperationOut(obj, 0)
+            return obj._outputs[0]
 
         elif isinstance(obj, HlsWrite):
             if obj.indexes:
@@ -138,14 +136,14 @@ class HwtNetlistToHwtHlsNetlist():
 
             src = self.to_hls_expr(obj.src)
             if obj.parentStm is None:
-                link_hls_nodes(src, HlsOperationIn(obj, 0))
+                link_hls_nodes(src, obj._inputs[0])
             else:
                 # read/write is not just assigment which just marks some connection
                 # instead it is operation which may take some time and require some synchronization
                 # because of this we need to transfer all potentiall controll inputs to input of this operation
                 top_sig_driver = self._to_hls[sig]
-                link_hls_nodes(src, HlsOperationIn(top_sig_driver, 0))
-                link_hls_nodes(HlsOperationOut(top_sig_driver, 0), HlsOperationIn(obj, 0))
+                link_hls_nodes(src, top_sig_driver._inputs[0])
+                link_hls_nodes(top_sig_driver._outputs[0], obj._inputs[0])
 
             return src
 
@@ -183,18 +181,18 @@ class HwtNetlistToHwtHlsNetlist():
         :note: parent is an object what provides values to operation
         """
         try:
-            return HlsOperationOut(self._to_hls[obj], 0)
+            return self._to_hls[obj]._outputs[0]
         except KeyError:
             pass
 
         if isinstance(obj, HValue) or obj._const:
             _obj = HlsConst(obj)
             self._to_hls[_obj] = _obj
-            return HlsOperationOut(_obj, 0)
+            return _obj._outputs[0]
 
         if not obj.drivers:
             assert isinstance(obj, HlsIO), obj
-            return HlsOperationOut(obj, 0)
+            return obj._outputs[0]
         else:
             if len(obj.drivers) == 1:
                 # parent is just RtlSignal, we needs operation it is driven from
