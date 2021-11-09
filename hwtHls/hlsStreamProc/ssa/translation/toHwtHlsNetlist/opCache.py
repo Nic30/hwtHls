@@ -43,6 +43,6 @@ class SsaToHwtHlsNetlistOpCache():
             assert not isinstance(v, HlsOperationOutLazy) or v.replaced_by is None, (k, v)
             return v
         except KeyError:
-            o = HlsOperationOutLazy(k, self._to_hls_cache)
+            o = HlsOperationOutLazy(k, self)
             self._to_hls_cache[k] = o
             return o

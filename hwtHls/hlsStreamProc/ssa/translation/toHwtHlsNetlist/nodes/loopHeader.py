@@ -141,13 +141,13 @@ class HlsLoopGate(AbstractHlsOp):
             esn, control = HlsExplicitSyncNode.replace_variable(hls, control_key, control, to_hls_cache, en)
             nodes.append(esn)
 
-            variables = []
-            for v in io.edge_var_live.get((pred, block), ()):
+            #variables = []
+            for v in io.edge_var_live.get(pred, {}).get(block, ()):
                 cache_key = (block, v)
                 v = to_hls_cache.get(cache_key)
-                esn, v = HlsExplicitSyncNode.replace_variable(hls, cache_key, v, to_hls_cache, en)
+                esn, _ = HlsExplicitSyncNode.replace_variable(hls, cache_key, v, to_hls_cache, en)
                 nodes.append(esn)
-                variables.append(v)
+                #variables.append(v)
 
             if is_reenter:
                 self.connect_reenter(control)

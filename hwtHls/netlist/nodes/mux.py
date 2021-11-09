@@ -62,7 +62,7 @@ class HlsMux(HlsOperation):
         i = self._add_input()
         link_hls_nodes(src, i)
         if isinstance(src, HlsOperationOutLazy):
-            src.dependencies.append(HlsMuxInputRef(self, len(self.elifs), i.in_i, src))
+            src.dependent_inputs.append(HlsMuxInputRef(self, len(self.elifs), i.in_i, src))
 
 
 class HlsMuxInputRef():
@@ -71,19 +71,19 @@ class HlsMuxInputRef():
     once the lazy output of some node on input is resolved.
     """
 
-    def __init__(self, mux: "HlsMux", elif_i: int, in_i: int, obj: HlsOperationOutLazy):
-        self.mux = mux
+    def __init__(self, updated_obj: "HlsMux", elif_i: int, in_i: int, obj: HlsOperationOutLazy):
+        self.updated_obj = updated_obj
         self.elif_i = elif_i
         self.in_i = in_i
         self.obj = obj
 
-    def replace(self, new_obj: HlsOperationOut):
+    def replace_driver(self, new_obj: HlsOperationOut):
         assert isinstance(new_obj, HlsOperationOut), ("Must be a final out port")
-        c, v = self.mux.elifs[self.elif_i]
+        c, v = self.updated_obj.elifs[self.elif_i]
         if c is self.obj:
             c = new_obj
         if v is self.obj:
             v = new_obj
-        self.mux.elifs[self.elif_i] = (c, v)
+        self.updated_obj.elifs[self.elif_i] = (c, v)
         self.updated_obj.dependsOn[self.in_i] = new_obj
 

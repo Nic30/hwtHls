@@ -1,6 +1,6 @@
 # Computing Liveness Sets for SSA-Form Programs
 # Algorithm 4 Computing liveness sets by exploring paths from variable uses.
-from typing import Dict, Set, Union, Optional, Tuple, List
+from typing import Dict, Set, Union, Optional, Tuple
 
 from hwt.hdl.value import HValue
 from hwt.pyUtils.uniqList import UniqList
@@ -30,8 +30,8 @@ def collect_blocks(start: SsaBasicBlock):
 
 
 def collect_direct_provieds_and_requires(block: SsaBasicBlock):
-    provides = UniqList()
-    requires = UniqList()
+    provides: UniqList[HlsTmpVariable] = UniqList()
+    requires: UniqList[Tuple[HlsTmpVariable, SsaBasicBlock]] = UniqList()
 
     for phi in block.phis:
         phi: SsaPhi
@@ -65,11 +65,15 @@ def recursively_add_edge_requirement_var(provides: Dict[SsaBasicBlock, UniqList[
                                          dst: SsaBasicBlock,
                                          v: Union[HlsTmpVariable, SsaPhi],
                                          live: EdgeLivenessDict):
+    if isinstance(v, (HValue, HlsStreamProcRead)):
+        return
+
     _live = live[src][dst]
     if isinstance(v, SsaPhi):
         v = v.dst
-    if isinstance(v, HValue) or v in _live:
+    if v in _live:
         return
+    assert isinstance(v, HlsTmpVariable), v
 
     _live.add(v)
     if v not in provides[src]:

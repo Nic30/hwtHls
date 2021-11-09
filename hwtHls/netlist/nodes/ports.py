@@ -1,4 +1,4 @@
-from typing import List, Union, Dict
+from typing import List, Union
 
 
 class HlsOperationOut():
@@ -40,7 +40,7 @@ class HlsOperationOutLazy():
     :ivar dependent_inputs: information about children where new object should be replaced
     """
 
-    def __init__(self, key_of_self_in_cache, op_cache:Dict[object, Union[HlsOperationOut, "HlsOperationOutLazy"]]):
+    def __init__(self, key_of_self_in_cache, op_cache:"SsaToHwtHlsNetlistOpCache"):
         self.dependent_inputs: List[HlsOperationIn, HlsOperationOutLazyIndirect] = []
         self.replaced_by = None
         self.keys_of_self_in_cache = [key_of_self_in_cache, ]
@@ -50,7 +50,7 @@ class HlsOperationOutLazy():
         assert self is not obj, self
         assert self.replaced_by is None, (self, self.replaced_by)
         for k in self.keys_of_self_in_cache:
-            self.op_cache[k] = obj
+            self.op_cache._to_hls_cache[k] = obj
 
         for c in self.dependent_inputs:
             c.replace_driver(obj)
@@ -71,7 +71,7 @@ class HlsOperationOutLazyIndirect(HlsOperationOutLazy):
     """
 
     def __init__(self,
-                 op_cache:Dict[object, Union[HlsOperationOut, HlsOperationOutLazy]],
+                 op_cache:"SsaToHwtHlsNetlistOpCache",
                  original_lazy_out: HlsOperationOutLazy,
                  final_value: HlsOperationOut):
         assert original_lazy_out.replaced_by is None
@@ -83,7 +83,7 @@ class HlsOperationOutLazyIndirect(HlsOperationOutLazy):
         self.final_value = final_value
         assert self.original_lazy_out.replaced_by is None, (self, self.original_lazy_out.replaced_by)
         for k in self.original_lazy_out.keys_of_self_in_cache:
-            self.op_cache[k] = self
+            self.op_cache._to_hls_cache[k] = self
 
     def replace_driver(self, obj:HlsOperationOut):
         """
@@ -95,7 +95,7 @@ class HlsOperationOutLazyIndirect(HlsOperationOutLazy):
 
         # replace self to a final value
         for k in self.keys_of_self_in_cache:
-            self.op_cache[k] = self.final_value
+            self.op_cache._to_hls_cache[k] = self.final_value
 
         for c in self.dependent_inputs:
             c.replace_driver(self.final_value)

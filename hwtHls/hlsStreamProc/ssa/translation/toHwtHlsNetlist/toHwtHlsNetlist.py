@@ -173,10 +173,12 @@ class SsaToHwtHlsNetlist():
         # variable value is selected based on predecessor block
         mux = HlsMux(self.hls, phi.dst._dtype.bit_length(), phi.dst._name)
         self.nodes.append(mux)
-        cur_dst = self._to_hls_cache.get(phi.dst, None)
-        assert cur_dst is None or isinstance(cur_dst, HlsOperationOutLazy), (phi, cur_dst)
+
         mux_out = mux._outputs[0]
-        self._to_hls_cache.get((self._current_block, phi.dst), mux_out)
+        self._to_hls_cache.add((phi.block, phi.dst), mux_out)
+        #cur_dst = self._to_hls_cache._to_hls_cache.get(phi.dst, None)
+        #assert cur_dst is None or isinstance(cur_dst, HlsOperationOutLazy), (phi, cur_dst)
+        self._to_hls_cache._to_hls_cache.get((self._current_block, phi.dst), mux_out)
 
         for lastSrc, (src, src_block) in iter_with_last(phi.operands):
             if lastSrc:
@@ -261,6 +263,7 @@ class SsaToHwtHlsNetlist():
         #     which requires synchronization)
         en_by_pred = self._collect_en_from_predecessor(block)
         cond = None
+        block_var_live = self.io.edge_var_live.get(block, {})
         for c, suc_block in block.successors.targets:
             # cummulatively build the condition for the branching
             if c is not None:
@@ -294,6 +297,7 @@ class SsaToHwtHlsNetlist():
 
             if not is_out_of_pipeline:
                 # propagete variables on block input
-                for v in self.io.edge_var_live.get(block, {}).get(suc_block, ()):
-                    self._to_hls_cache.add((suc_block, v), self._to_hls_cache.get((block, v)))
+                for v in block_var_live.get(suc_block, ()):
+                    cur_v = self._to_hls_cache.get((block, v))
+                    self._to_hls_cache.add((suc_block, v), cur_v)
 

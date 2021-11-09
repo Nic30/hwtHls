@@ -113,10 +113,11 @@ class HlsExplicitSyncNode(AbstractHlsOp):
         self = cls(parentHls)
         o = self._outputs[0]
         link_hls_nodes(var, self._inputs[0])
+        assert to_hls_cache._to_hls_cache[cache_key] is var, (cache_key, to_hls_cache._to_hls_cache[cache_key], var)
         if isinstance(var, HlsOperationOutLazy):
             o = HlsOperationOutLazyIndirect(to_hls_cache, var, o)
-
-        to_hls_cache._to_hls_cache[cache_key] = o
+        else:
+            to_hls_cache._to_hls_cache[cache_key] = o
 
         self.add_control_extraCond(en)
 
