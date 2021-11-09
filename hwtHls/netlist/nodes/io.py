@@ -327,7 +327,7 @@ class HlsOperationPropertyInputRef():
         else:
             assert isinstance(new_obj, HlsOperationOut), ("Must be a final out port", new_obj)
 
-        assert getattr(self.updated_obj, self.property_name) == self.obj
-        assert self.updated_obj.dependsOn[self.in_i] == self.obj
+        assert getattr(self.updated_obj, self.property_name) == self.obj, (getattr(self.updated_obj, self.property_name), self.obj)
+        assert self.updated_obj.dependsOn[self.in_i] == self.obj, (self.updated_obj.dependsOn[self.in_i], self.obj)
         setattr(self.updated_obj, self.property_name, new_obj)
         self.updated_obj.dependsOn[self.in_i] = new_obj
