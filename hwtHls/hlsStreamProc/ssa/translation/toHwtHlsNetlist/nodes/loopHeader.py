@@ -39,6 +39,9 @@ class HlsLoopGateStatus(AbstractHlsOp):
 
         name = self.name
         status_reg = allocator._reg(name if name else "loop_gate_status", def_val=0)
+        # [todo] set this register based on how data flows on control channels
+        # (breaks returns token, predec takes token)
+
         # create RTL signal expression base on operator type
         t = self.scheduledInEnd[0] + epsilon
         status_reg_s = TimeIndependentRtlResource(status_reg, t, allocator)
