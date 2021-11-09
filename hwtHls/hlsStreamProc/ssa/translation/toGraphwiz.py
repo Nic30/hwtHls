@@ -31,7 +31,6 @@ class SsaToGraphwiz():
             bb_to_pipe_i = {}
             for i, pipe in enumerate(pipelines):
                 for bb in pipe:
-                    # print(bb.label, i)
                     bb_to_pipe_i[bb] = i
 
             for bb, n in self.obj_to_node.items():

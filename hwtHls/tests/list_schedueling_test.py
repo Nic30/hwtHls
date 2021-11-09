@@ -145,7 +145,6 @@ class ListSchedueling_TC(unittest.TestCase):
             isNotAllone = isinstance(node, HlsOperation) and others_in_clk
 
             if isNotAllone:
-                # print("isNotAllone", node)
                 suggestedStart = start_of_next_clk_period(
                     suggestedStart, clk_period)
                 suggestedEnd = suggestedStart + node.latency_pre[0] + node.latency_post[0]

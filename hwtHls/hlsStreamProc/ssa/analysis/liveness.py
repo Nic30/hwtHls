@@ -73,7 +73,6 @@ def recursively_add_edge_requirement_var(provides: Dict[SsaBasicBlock, UniqList[
 
     _live.add(v)
     if v not in provides[src]:
-        # print(v)
         for pred in src.predecessors:
             recursively_add_edge_requirement_var(provides, pred, src, v, live)
 
@@ -87,10 +86,6 @@ def ssa_liveness_edge_variables(start: SsaBasicBlock) -> EdgeLivenessDict:
     for block in blocks:
         provides[block], requires[block] = collect_direct_provieds_and_requires(block)
         live[block] = {suc: set() for suc in block.successors.iter_blocks()}
-    # for block in blocks:
-    #    print(block)
-    #    print("  provides", provides[block])
-    #    print("  requires", requires[block])
 
     # transitive enclosure of requires relation
     for block in blocks:

@@ -19,9 +19,6 @@ class SsaToHwtHlsNetlistOpCache():
         """
         Register object in _to_hls_cache dictionary, which is used to avoid duplication of object in the circuit.
         """
-        print(k)
-        if repr(k) == "<BranchControlLabel top_wh -> top_wh OUT>":
-            print(k)
         assert not isinstance(k, HlsTmpVariable), (k, "tmp variable has to always be tied to some block")
         if isinstance(v, HlsOperationOutLazy):
             assert v.replaced_by is None, (v, v.replaced_by)

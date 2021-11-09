@@ -89,7 +89,6 @@ class HlsOperationOutLazyIndirect(HlsOperationOutLazy):
         """
         Replace the original_lazy_out with the obj and replace self with final_value.
         """
-        #print("replace2", self, "->", obj, "->", self.final_value)
         assert self.replaced_by is None, (self, self.replaced_by)
         # replace original HlsOperationOutLazy to a resolved value
         self.original_lazy_out.replace_driver(obj)

@@ -38,7 +38,6 @@ class RemoveTrivialBlocks():
             if block is self.start:
                 self.start = new_block
 
-            # print(new_block, new_block.predecessors)
             return self._visit(new_block, seen)
         else:
             # copy because successor may change due removing

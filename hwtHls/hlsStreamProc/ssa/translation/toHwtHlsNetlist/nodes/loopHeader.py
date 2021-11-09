@@ -1,4 +1,4 @@
-from typing import List, Tuple, Optional, Union, Dict, Callable
+from typing import List, Tuple, Optional, Union
 
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource, \
@@ -7,13 +7,13 @@ from hwtHls.clk_math import epsilon
 from hwtHls.hlsPipeline import HlsPipeline
 from hwtHls.hlsStreamProc.ssa.basicBlock import SsaBasicBlock
 from hwtHls.hlsStreamProc.ssa.branchControlLabel import BranchControlLabel
+from hwtHls.hlsStreamProc.ssa.translation.toHwtHlsNetlist.opCache import SsaToHwtHlsNetlistOpCache
 from hwtHls.hlsStreamProc.ssa.translation.toHwtHlsNetlist.syncAndIo import SsaToHwtHlsNetlistSyncAndIo
 from hwtHls.netlist.nodes.io import HlsExplicitSyncNode, IO_COMB_REALIZATION
 from hwtHls.netlist.nodes.ops import AbstractHlsOp
 from hwtHls.netlist.nodes.ports import HlsOperationOut, link_hls_nodes, HlsOperationOutLazy
 from hwtHls.netlist.utils import hls_op_not
 from ipCorePackager.constants import INTF_DIRECTION
-from hwtHls.hlsStreamProc.ssa.translation.toHwtHlsNetlist.opCache import SsaToHwtHlsNetlistOpCache
 
 
 class HlsLoopGateStatus(AbstractHlsOp):
@@ -139,7 +139,6 @@ class HlsLoopGate(AbstractHlsOp):
             control_key = BranchControlLabel(pred, block, INTF_DIRECTION.SLAVE)
             control = to_hls_cache.get(control_key)
             esn, control = HlsExplicitSyncNode.replace_variable(hls, control_key, control, to_hls_cache, en)
-            # print("control", esn)
             nodes.append(esn)
 
             variables = []
@@ -147,7 +146,6 @@ class HlsLoopGate(AbstractHlsOp):
                 cache_key = (block, v)
                 v = to_hls_cache.get(cache_key)
                 esn, v = HlsExplicitSyncNode.replace_variable(hls, cache_key, v, to_hls_cache, en)
-                # print("v", v, esn)
                 nodes.append(esn)
                 variables.append(v)
 
@@ -209,6 +207,5 @@ class HlsLoopGateInputRef():
         assert self.in_list[self.in_list_i] is self.obj
 
     def replace_driver(self, new_obj: HlsOperationOut):
-        # print("HlsLoopGateInputRef replace", self, "->", new_obj)
         assert self.in_list[self.in_list_i] is self.obj
         self.in_list[self.in_list_i] = new_obj

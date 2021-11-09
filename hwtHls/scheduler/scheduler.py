@@ -54,7 +54,7 @@ class HlsScheduler():
                 assert not node._inputs, node
                 time_start = time_end
             clk_index = start_clk(min(time_start), clk_period)
-            # print(clk_index)
+
             schedulization[clk_index].append(node)
             node.scheduledIn = time_start
             node.scheduledInEnd = time_end
