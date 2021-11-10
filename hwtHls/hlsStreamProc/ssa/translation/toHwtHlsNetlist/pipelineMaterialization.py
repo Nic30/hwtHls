@@ -8,6 +8,7 @@ from hwtHls.hlsStreamProc.ssa.basicBlock import SsaBasicBlock
 from hwtHls.hlsStreamProc.ssa.translation.toHwtHlsNetlist.toHwtHlsNetlist import SsaToHwtHlsNetlist
 from hwtHls.netlist.toGraphwiz import HwtHlsNetlistToGraphwiz
 from hwtHls.netlist.transformations.mergeExplicitSync import merge_explicit_sync
+from hwtHls.netlist.toTimeline import HwtHlsNetlistToTimeline
 
 
 class SsaSegmentToHwPipeline():
@@ -82,6 +83,9 @@ class SsaSegmentToHwPipeline():
             f.write(to_graphwiz.dumps())
 
         hls.synthesise()
+        to_timeline = HwtHlsNetlistToTimeline(hls.clk_period)
+        to_timeline.construct(hls.inputs + hls.nodes + hls.outputs)
+        to_timeline.show()
 
         if toHlsNetlist.start_block_en is not None:
             # the start_block_en may not be pressent if the code is and infinite cycle
