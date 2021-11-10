@@ -1,5 +1,5 @@
 from heapq import heappush, heappop
-from itertools import chain, zip_longest
+from itertools import chain
 from typing import List, Callable, Dict, Tuple, Union
 
 from hwt.hdl.operatorDefs import OpDefinition
@@ -7,7 +7,6 @@ from hwtHls.clk_math import start_clk, end_clk, epsilon
 from hwtHls.hlsPipeline import HlsSyntaxError
 from hwtHls.netlist.nodes.ops import HlsConst, HlsOperation, AbstractHlsOp
 from hwtHls.netlist.nodes.io import HlsRead, HlsWrite
-from hwtHls.netlist.nodes.ports import HlsOperationIn, HlsOperationOut
 from hwtHls.scheduler.scheduler import HlsScheduler, asap
 
 
