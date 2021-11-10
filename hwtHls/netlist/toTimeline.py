@@ -65,7 +65,7 @@ class HwtHlsNetlistToTimeline():
                 label = obj.__class__.__name__
             else:
                 label = repr(obj)
-            print(start, finish, obj)
+
             row = {"Label": label, "Start":start, "Finish": finish, "Deps": []}
             rows.append(row)
             self.obj_to_row[obj] = (row, row_i)
