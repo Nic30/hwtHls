@@ -1,4 +1,5 @@
 import html
+import os
 from typing import List, Union, Dict, Optional, Tuple
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
@@ -116,3 +117,16 @@ class SsaToGraphwiz():
             link.dumps(buff)
         buff.append("}\n")
         return "".join(buff)
+
+
+class HlsNetlistPassToDot():
+
+    def __init__(self, file_name:str):
+        self.file_name = file_name
+
+    def apply(self, to_hw: "SsaSegmentToHwPipeline"):
+        to_graphwiz = SsaToGraphwiz(os.path.basename(self.file_name))
+        with open(self.file_name, "w") as f:
+            to_graphwiz.construct(to_hw.start, to_hw.original_code, [to_hw.pipeline, ],
+                                  to_hw.edge_var_live)
+            f.write(to_graphwiz.dumps())

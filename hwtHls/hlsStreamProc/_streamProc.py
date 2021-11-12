@@ -12,16 +12,18 @@ from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.unit import Unit
-from hwtHls.hlsStreamProc.ssa.analysis.consystencyCheck import SsaConsystencyCheck
-from hwtHls.hlsStreamProc.ssa.analysis.liveness import ssa_liveness_edge_variables
-from hwtHls.hlsStreamProc.ssa.transformation.expandControlSelfLoops import ExpandControlSelfloops
-from hwtHls.hlsStreamProc.ssa.transformation.removeTrivialBlocks import RemoveTrivialBlocks
+from hwtHls.hlsStreamProc.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
+from hwtHls.hlsStreamProc.ssa.transformation.expandControlSelfLoops import SsaPassExpandControlSelfloops
+from hwtHls.hlsStreamProc.ssa.transformation.removeTrivialBlocks import SsaPassRemoveTrivialBlocks
 from hwtHls.hlsStreamProc.ssa.translation.fromAst.astToSsa import AstToSsa, AnyStm
-from hwtHls.hlsStreamProc.ssa.translation.toGraphwiz import SsaToGraphwiz
-from hwtHls.hlsStreamProc.ssa.translation.toHwtHlsNetlist.pipelineExtractor import PipelineExtractor
+from hwtHls.hlsStreamProc.ssa.translation.toGraphwiz import HlsNetlistPassToDot
 from hwtHls.hlsStreamProc.ssa.translation.toHwtHlsNetlist.pipelineMaterialization import SsaSegmentToHwPipeline
 from hwtHls.hlsStreamProc.statements import HlsStreamProcRead, \
     HlsStreamProcWrite, HlsStreamProcWhile, HlsStreamProcCodeBlock
+from hwtHls.netlist.toGraphwiz import HlsNetlistPassDumpToDot
+from hwtHls.netlist.toTimeline import HwtHlsNetlistToTimeline, \
+    RtlNetlistPassShowTimeline
+from hwtHls.netlist.transformations.mergeExplicitSync import HlsnetlistPassMergeExplicitSync
 from hwtLib.amba.axis import AxiStream
 
 
@@ -37,10 +39,25 @@ class HlsStreamProc():
     * materialization of inter pipeline synchronization
     """
 
-    def __init__(self, parent: Unit):
+    def __init__(self, parent: Unit,
+                 ssa_passes=[
+                    SsaPassConsystencyCheck(),
+                    # SsaPassExpandControlSelfloops()
+                 ],
+                 hlsnetlist_passes=[
+                    HlsNetlistPassToDot("top.dot"),
+                    HlsNetlistPassDumpToDot("top_p.dot"),
+                    HlsnetlistPassMergeExplicitSync(),
+                 ],
+                 rtlnetlist_passes=[
+                     RtlNetlistPassShowTimeline(),
+                 ]):
         self.parent = parent
         self.freq = parent.clk.FREQ
         self.ctx = RtlNetlist()
+        self.ssa_passes = ssa_passes
+        self.hlsnetlist_passes = hlsnetlist_passes
+        self.rtlnetlist_passes = rtlnetlist_passes
 
     def var(self, name:str, dtype:HdlType):
         return self.ctx.sig(name, dtype)
@@ -71,36 +88,28 @@ class HlsStreamProc():
 
     def thread(self, *code: AnyStm):
         _code = self._format_code(code)
-
         to_ssa = AstToSsa()
         to_ssa.visit_top_CodeBlock(_code)
-        ssa = to_ssa.start
-        # ssa = RemoveTrivialBlocks().visit(ssa)
-        # ssa = ExpandControlSelfloops(to_ssa._createHlsTmpVariable).visit_SsaBasicBlock(ssa)
-        SsaConsystencyCheck().visit(ssa)
-        pe = PipelineExtractor()
-        all_blocks = []
-        for comp in pe.collect_pipelines(ssa):
-            all_blocks.extend(comp)
+        for ssa_pass in self.ssa_passes:
+            ssa_pass.apply(to_ssa)
 
-        edge_var_live = ssa_liveness_edge_variables(ssa)
-        # print("backward_edges", [(e[0].label, e[1].label) for e in pe.backward_edges])
-        # print("pipeline", [n.label for n in all_blocks])
+        to_hw = SsaSegmentToHwPipeline(self.parent, self.freq, to_ssa.start, _code)
+        to_hw.extract_pipeline()
+
+        to_hw.extract_netlist()
+        for hlsnetlist_pass in self.hlsnetlist_passes:
+            hlsnetlist_pass.apply(to_hw)
+
+        to_hw.construct_rtlnetlist()
+        for rtlnetlist_pass in self.rtlnetlist_passes:
+            rtlnetlist_pass.apply(to_hw)
+
+        return to_hw
 
         # [debug]
-        to_graphwiz = SsaToGraphwiz("top")
-        with open("top.dot", "w") as f:
-            to_graphwiz.construct(ssa, _code, [all_blocks, ], edge_var_live)
-            f.write(to_graphwiz.dumps())
-
-        SsaSegmentToHwPipeline(self.parent, self.freq)\
-            ._construct_pipeline(ssa, all_blocks, pe.backward_edges, edge_var_live)
-
         # io = {}
         # interpret = SsaInterpret(io, ssa)
         # for _ in range(40):
         #     next(interpret)
         # print(io)
-
-        # raise NotImplementedError("scheduling of ssa, allocation of circuit primitives")
 

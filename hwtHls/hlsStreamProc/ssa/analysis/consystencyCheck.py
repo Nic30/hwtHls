@@ -12,7 +12,7 @@ from hwtHls.hlsStreamProc.statements import HlsStreamProcWrite, HlsStreamProcRea
 _ValOrVal = (HlsTmpVariable, RtlSignal, HValue, SsaPhi)
 
 
-class SsaConsystencyCheck():
+class SsaPassConsystencyCheck():
 
     def visit_collect(self, bb: SsaBasicBlock, blocks: UniqList[SsaBasicBlock],
                       phis: UniqList[SsaPhi],
@@ -89,10 +89,12 @@ class SsaConsystencyCheck():
             if _bb not in seen:
                 self.visit_check(_bb, blocks, phis, variables, seen)
 
-    def visit(self, bb: SsaBasicBlock):
+    def apply(self, to_ssa: "AstToSsa"):
+        bb = to_ssa.start
         blocks: UniqList[SsaBasicBlock] = UniqList()
         phis: UniqList[SsaPhi] = UniqList()
         variables: Dict[HlsTmpVariable, SsaBasicBlock] = {}
         self.visit_collect(bb, blocks, phis, variables)
         seen = set()
         self.visit_check(bb, blocks, phis, variables, seen)
+

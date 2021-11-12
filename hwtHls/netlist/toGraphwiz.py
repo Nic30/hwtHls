@@ -119,3 +119,16 @@ class HwtHlsNetlistToGraphwiz():
             link.dumps(buff)
         buff.append("}\n")
         return "".join(buff)
+
+
+class HlsNetlistPassDumpToDot():
+
+    def __init__(self, file_name:str):
+        self.file_name = file_name
+
+    def apply(self, to_hw: "SsaSegmentToHwPipeline"):
+        to_graphwiz = HwtHlsNetlistToGraphwiz("top")
+        with open(self.file_name, "w") as f:
+            to_graphwiz.construct(to_hw.hls.inputs + to_hw.hls.nodes + to_hw.hls.outputs)
+            f.write(to_graphwiz.dumps())
+

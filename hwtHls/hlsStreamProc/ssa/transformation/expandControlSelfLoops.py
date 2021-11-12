@@ -6,10 +6,11 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.hlsStreamProc.exprBuilder import SsaExprBuilder
 from hwtHls.hlsStreamProc.ssa.basicBlock import SsaBasicBlock
 from hwtHls.hlsStreamProc.ssa.phi import SsaPhi
+from hwtHls.hlsStreamProc.ssa.translation.fromAst.astToSsa import AstToSsa
 from hwtHls.tmpVariable import HlsTmpVariable
 
 
-class ExpandControlSelfloops():
+class SsaPassExpandControlSelfloops():
     """
 
     Effectively transforms
@@ -86,8 +87,10 @@ class ExpandControlSelfloops():
 
     """
 
-    def __init__(self, createHlsTmpVariable: Callable[[RtlSignal, ], HlsTmpVariable]):
-        self._createHlsTmpVariable = createHlsTmpVariable
+    def apply(self, to_ssa: AstToSsa,):
+        self._createHlsTmpVariable: Callable[[RtlSignal, ], HlsTmpVariable] = to_ssa._createHlsTmpVariable
+        seen: SsaBasicBlock = set()
+        to_ssa.start = self._visit_SsaBasicBlock(to_ssa.start, seen)
 
     def _visit_SsaBasicBlock(self, block: SsaBasicBlock, seen: Set[SsaBasicBlock]):
         seen.add(block)
@@ -98,7 +101,6 @@ class ExpandControlSelfloops():
             # we must define all variables before first use
             # this means that if there is some variable comming from a self loop
             # se need to preset it
-
 
             # will contain all except things related to original selfloop (uses tmp var. instead orig ind. var.)
             cond_block = block
@@ -179,7 +181,7 @@ class ExpandControlSelfloops():
                     continue
                 else:
                     # :note: predecessors auto updated
-                    c = None # [TODO] must check if is always satisfied after loop restart
+                    c = None  # [TODO] must check if is always satisfied after loop restart
                     merge_cond_block.successors.addTarget(c, suc_block)
 
             assert cond_block.successors.targets[-1][1] is cond_block
@@ -203,6 +205,3 @@ class ExpandControlSelfloops():
 
         return block
 
-    def visit_SsaBasicBlock(self, block: SsaBasicBlock):
-        seen: SsaBasicBlock = set()
-        return self._visit_SsaBasicBlock(block, seen)

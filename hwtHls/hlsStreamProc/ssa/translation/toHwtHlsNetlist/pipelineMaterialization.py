@@ -1,20 +1,19 @@
-from typing import List, Set, Tuple
+from typing import List, Optional
 
 from hwt.code import If
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsPipeline import HlsPipeline
-from hwtHls.hlsStreamProc.ssa.analysis.liveness import EdgeLivenessDict
+from hwtHls.hlsStreamProc.ssa.analysis.liveness import ssa_liveness_edge_variables
 from hwtHls.hlsStreamProc.ssa.basicBlock import SsaBasicBlock
+from hwtHls.hlsStreamProc.ssa.translation.toHwtHlsNetlist.pipelineExtractor import PipelineExtractor
+from hwtHls.hlsStreamProc.statements import HlsStreamProcCodeBlock
 from hwtHls.hlsStreamProc.ssa.translation.toHwtHlsNetlist.toHwtHlsNetlist import SsaToHwtHlsNetlist
-from hwtHls.netlist.toGraphwiz import HwtHlsNetlistToGraphwiz
-from hwtHls.netlist.transformations.mergeExplicitSync import merge_explicit_sync
-from hwtHls.netlist.toTimeline import HwtHlsNetlistToTimeline
 
 
 class SsaSegmentToHwPipeline():
     """
     We know the variables which are crossing pipeline boundary
-    from out_of_pipeline_edges and edge_var_live.
+    from backward_edges and edge_var_live.
     These variables usually appear because of cycle which means
     that there could exists a code section which uses the value from a previous cycle iterration
     and a section which uses a newly generate value.
@@ -33,38 +32,40 @@ class SsaSegmentToHwPipeline():
 
    :ivar parent: an Unit instance where the circuit should be constructed
    :ivar freq: target clock frequency
+   :ivar start: a block where the program excecution starts
+   :ivar original_code: an original code for debug purposes
     """
 
-    def __init__(self, parent: Unit, freq: float):
-        self.parent = parent
+    def __init__(self,
+                 parent: Unit,
+                 freq: float,
+                 start: SsaBasicBlock,
+                 original_code:Optional[HlsStreamProcCodeBlock]):
+        self.start = start
+        self.parentUnit = parent
         self.freq = freq
+        self.original_code = original_code
 
-    def _construct_pipeline(self,
-                            start: SsaBasicBlock,
-                            pipeline: List[SsaBasicBlock],
-                            out_of_pipeline_edges: Set[Tuple[SsaBasicBlock, SsaBasicBlock]],
-                            edge_var_live: EdgeLivenessDict):
-        """
-        :param pipeline: list of SsaBasicBlocks (represents DAG if out_of_pipeline_edges are cut off) to build the pipeline from
+    def extract_pipeline(self):
+        pe = PipelineExtractor()
+        pipeline: List[SsaBasicBlock] = []
+        for comp in pe.collect_pipelines(self.start):
+            pipeline.extend(comp)
+        self.pipeline = pipeline
+        self.edge_var_live = ssa_liveness_edge_variables(self.start)
+        self.backward_edges = pe.backward_edges
+        # print("backward_edges", [(e[0].label, e[1].label) for e in pe.backward_edges])
+        # print("pipeline", [n.label for n in all_blocks])
 
-        :param start: a block where the program excecution starts
-        :param out_of_pipeline_edges: a set of connections between block where pipeline should be cut in order to prevent cycles
-            the data channels for this type of connections are added in post processing and are not part of scheduling
-        :param edge_var_live: dictionary of variables which are alive on a specific edge between blocks
-        :attention: it is expected that the blocks in pipeline are sorted in topological order
-            it is important that the outputs from previous block are seen before inputs from previous block
-            otherwise the input is threated as an input of pipeline instead of connection between stages in pipeline
-        """
-        parent = self.parent
-        freq = self.freq
-
-        hls: HlsPipeline = HlsPipeline(parent, freq).__enter__()
-
-        toHlsNetlist = SsaToHwtHlsNetlist(hls, start, out_of_pipeline_edges, edge_var_live)
+    def extract_netlist(self):
+        self.hls: HlsPipeline = HlsPipeline(self.parentUnit, self.freq).__enter__()
+        hls = self.hls
+        self.toHlsNetlist = SsaToHwtHlsNetlist(hls, self.start, self.backward_edges, self.edge_var_live)
+        toHlsNetlist = self.toHlsNetlist
         try:
             toHlsNetlist.io.init_out_of_hls_variables()
             # construct nodes for scheduling
-            for block in pipeline:
+            for block in self.pipeline:
                 toHlsNetlist.to_hls_SsaBasicBlock(block)
             toHlsNetlist.io.finalize_out_of_pipeline_variable_outputs()
         finally:
@@ -74,22 +75,15 @@ class SsaSegmentToHwPipeline():
         assert not hls.coherency_checked_io
         hls.coherency_checked_io = toHlsNetlist.io._out_of_hls_io
 
-        merge_explicit_sync(hls.nodes)
-
-        # [debug]
-        to_graphwiz = HwtHlsNetlistToGraphwiz("top")
-        with open("top_p.dot", "w") as f:
-            to_graphwiz.construct(hls.inputs + hls.nodes + hls.outputs)
-            f.write(to_graphwiz.dumps())
-
+    def construct_rtlnetlist(self):
+        hls = self.hls
         hls.synthesise()
-        to_timeline = HwtHlsNetlistToTimeline(hls.clk_period)
-        to_timeline.construct(hls.inputs + hls.nodes + hls.outputs)
-        to_timeline.show()
 
+        # [todo] to specific initializer node
+        toHlsNetlist = self.toHlsNetlist
         if toHlsNetlist.start_block_en is not None:
             # the start_block_en may not be pressent if the code is and infinite cycle
-            start_init = parent._reg(f"{start.label}_init", def_val=1)
+            start_init = self.parentUnit._reg(f"{self.start.label}_init", def_val=1)
             toHlsNetlist.start_block_en.vld(start_init)
             toHlsNetlist.start_block_en.data(1)
             If(toHlsNetlist.start_block_en.rd,
