@@ -1,14 +1,16 @@
 from typing import Dict, List
 
-import plotly.express
+from plotly import graph_objs as go
 from plotly.graph_objs import Figure
 import plotly.offline
 
-from hwtHls.netlist.nodes.ops import AbstractHlsOp, HlsOperation, HlsConst
-import pandas as pd
-from hwtHls.netlist.nodes.io import HlsWrite, HlsRead, HlsExplicitSyncNode
-from hwtHls.clk_math import epsilon
 from hwt.hdl.types.bitsVal import BitsVal
+from hwt.synthesizer.interface import Interface
+from hwtHls.hlsStreamProc.ssa.translation.toHwtHlsNetlist.nodes.backwardEdge import HlsWriteBackwardEdge
+from hwtHls.netlist.nodes.io import HlsWrite, HlsRead, HlsExplicitSyncNode
+from hwtHls.netlist.nodes.ops import AbstractHlsOp, HlsOperation, HlsConst
+# [todo] pandas is overkill in this case, rm if ploty does not have it as dependencies
+import pandas as pd
 
 
 class HwtHlsNetlistToTimeline():
@@ -25,8 +27,10 @@ class HwtHlsNetlistToTimeline():
 
     def construct(self, nodes: List[AbstractHlsOp]):
         rows = self.rows
+        io_group_ids: Dict[Interface, int] = {}
         for row_i, obj in enumerate(nodes):
             obj: AbstractHlsOp
+            obj_group_id = row_i
             if obj.scheduledIn:
                 start = min(obj.scheduledIn)
             else:
@@ -46,12 +50,18 @@ class HwtHlsNetlistToTimeline():
                 start -= to_add / 2
                 finish += to_add / 2
 
+            color = "purple"
             if isinstance(obj, HlsOperation):
                 label = obj.operator.id
             elif isinstance(obj, HlsWrite):
                 label = f"{obj.dst._name}.write()"
+                if isinstance(obj, HlsWriteBackwardEdge):
+                    obj_group_id = io_group_ids.setdefault(obj.associated_read.src, obj_group_id)
+                color = "green"
             elif isinstance(obj, HlsRead):
                 label = f"{obj.src._name}.read()"
+                obj_group_id = io_group_ids.setdefault(obj.src, obj_group_id)
+                color = "green"
             elif isinstance(obj, HlsConst):
                 val = obj.val
                 if isinstance(val, BitsVal):
@@ -65,18 +75,20 @@ class HwtHlsNetlistToTimeline():
                 label = obj.__class__.__name__
             else:
                 label = repr(obj)
-
-            row = {"Label": label, "Start":start, "Finish": finish, "Deps": []}
+            row = {"label": label, "group": obj_group_id, "start":start, "finish": finish, "deps": [], "backward_deps": [], "color": color}
             rows.append(row)
             self.obj_to_row[obj] = (row, row_i)
 
-        for row, obj in zip(rows, nodes):
+        for row_i, (row, obj) in enumerate(zip(rows, nodes)):
             obj: AbstractHlsOp
-            row["Deps"].extend(self.obj_to_row[dep.obj][1] for dep in obj.dependsOn)
+            row["deps"].extend(self.obj_to_row[dep.obj][1] for dep in obj.dependsOn)
+            for bdep_obj in obj.debug_iter_shadow_connection_dst():
+                bdep = self.obj_to_row[bdep_obj][0]
+                bdep["backward_deps"].append(row_i)
 
     def _draw_clock_boundaries(self):
         clk_period = self.clk_period
-        last_time = self.df["Finish"].max() + clk_period
+        last_time = self.df["finish"].max() + clk_period
         i = 0.0
         fig = self.fig
         row_cnt = len(self.rows)
@@ -88,99 +100,131 @@ class HwtHlsNetlistToTimeline():
             )
             i += clk_period
 
+    def _draw_arrow(self, x0:float, y0:float, x1:float, y1:float, color: str):
+        fig = self.fig
+        # assert x1 >= x0
+        jobs_delta = x1 - x0
+        # fig.add_shape(
+        #    x0=x0, y0=startY,
+        #    x1=x1, y1=endY,
+        #    line=dict(color=color, width=2))
+        if jobs_delta > 0 and y0 == y1:
+            p = f"M {x0} {y0} L {x1} {y1}"
+        else:
+            if jobs_delta > 0:
+                middleX = x0 + jobs_delta / 2
+                p = f"M {x0} {y0} C {middleX} {y0}, {middleX} {y1}, {x1} {y1}"
+            else:
+                # x0 is on right, x1 on left
+                p = f"M {x0} {y0} C {x0 + self.min_duration} {y0}, {x1-self.min_duration} {y1}, {x1} {y1}"
+        fig.add_shape(
+            type="path",
+            path=p,
+            line_color=color,
+        )
+        # # # horizontal line segment
+        # fig.add_shape(
+        #    x0=x0, y0=startY,
+        #    x1=x0 + jobs_delta / 2, y1=startY,
+        #    line=dict(color=color, width=2)
+        # )
+        # # # vertical line segment
+        # fig.add_shape(
+        #    x0=x0 + jobs_delta / 2, y0=startY,
+        #    x1=x0 + jobs_delta / 2, y1=endY,
+        #    line=dict(color="blue", width=2)
+        # )
+        # # # horizontal line segment
+        # fig.add_shape(
+        #    x0=x0 + jobs_delta / 2, y0=endY,
+        #    x1=x1, y1=endY,
+        #    line=dict(color=color, width=2)
+        # )
+        # Add shapes
+        # fig.update_layout(
+        #    shapes=[
+        #        dict(type="line", xref="x", yref="y",
+        #            x0=3, y0=0.5, x1=5, y1=0.8, line_width=3),
+        #        dict(type="rect", xref="x2", yref='y2',
+        #             x0=4, y0=2, x1=5, y1=6),
+        #     ])
+
+        # # draw an arrow
+        fig.add_annotation(
+            x=x1, y=y1,
+            xref="x", yref="y",
+            showarrow=True,
+            ax=-10,
+            ay=0,
+            arrowwidth=2,
+            arrowcolor=color,
+            arrowhead=2,
+        )
+
     def _draw_arrow_between_jobs(self):
         df = self.df
         fig = self.fig
         # # draw an arrow from the end of the first job to the start of the second job
         # # retrieve tick text and tick vals
         # job_yaxis_mapping = dict(zip(fig.layout.yaxis.ticktext, fig.layout.yaxis.tickvals))
-        for end_i, second_job_dict in df.iterrows():
-            endX = second_job_dict['Start']
-            endY = second_job_dict['Label']
+        for _, second_job_dict in df.iterrows():
+            endX = second_job_dict['start']
+            endY = second_job_dict['group']
 
-            for start_i in second_job_dict['Deps']:
+            for start_i in second_job_dict['deps']:
                 first_job_dict = df.iloc[start_i]
-                startX = first_job_dict['Finish']
-                # startY = first_job_dict['Task']
-                # assert endX >= startX
-                # jobs_delta = endX - startX
-                # middleX = startX + jobs_delta / 2
-                # fig.add_shape(
-                #    x0=startX, y0=startY,
-                #    x1=endX, y1=endY,
-                #    line=dict(color="blue", width=2))
+                startX = first_job_dict['finish']
+                startY = first_job_dict['group']
+                self._draw_arrow(startX, startY, endX, endY, "blue")
 
-                # p = f"M {startX} {start_i} C {middleX} {start_i}, {middleX} {end_i}, {endX} {end_i}"
-                p = f"M {startX} {start_i} L {endX} {end_i}"
-                fig.add_shape(
-                    type="path",
-                    path=p,
-                    line_color="MediumPurple",
-                )
-                # # # horizontal line segment
-                # fig.add_shape(
-                #    x0=startX, y0=startY,
-                #    x1=startX + jobs_delta / 2, y1=startY,
-                #    line=dict(color="blue", width=2)
-                # )
-                # # # vertical line segment
-                # fig.add_shape(
-                #    x0=startX + jobs_delta / 2, y0=startY,
-                #    x1=startX + jobs_delta / 2, y1=endY,
-                #    line=dict(color="blue", width=2)
-                # )
-                # # # horizontal line segment
-                # fig.add_shape(
-                #    x0=startX + jobs_delta / 2, y0=endY,
-                #    x1=endX, y1=endY,
-                #    line=dict(color="blue", width=2)
-                # )
-                # Add shapes
-                # fig.update_layout(
-                #    shapes=[
-                #        dict(type="line", xref="x", yref="y",
-                #            x0=3, y0=0.5, x1=5, y1=0.8, line_width=3),
-                #        dict(type="rect", xref="x2", yref='y2',
-                #             x0=4, y0=2, x1=5, y1=6),
-                #     ])
+            for start_i in second_job_dict["backward_deps"]:
+                first_job_dict = df.iloc[start_i]
+                startX = first_job_dict['finish']
+                startY = first_job_dict['group']
+                self._draw_arrow(startX, startY, endX, endY, "gray")
 
-                # # draw an arrow
-                fig.add_annotation(
-                    x=endX, y=endY,
-                    xref="x", yref="y",
-                    showarrow=True,
-                    ax=-10,
-                    ay=0,
-                    arrowwidth=2,
-                    arrowcolor="blue",
-                    arrowhead=2,
-                )
         return fig
 
     def show(self):
-        # self.rows = [
-        #    dict(Task="Job A", id=0, Start=1.01, Finish=2.28, deps=[]),
-        #    dict(Task="Job B", id=1, Start=3.05, Finish=4.15, deps=[0]),
-        #    dict(Task="Job C", id=2, Start=5.01, Finish=6.30, deps=[1])
-        # ]
-
         self.df: pd.DataFrame = pd.DataFrame(self.rows)
         df = self.df
-        df['delta'] = df['Finish'] - df['Start']
+        df['delta'] = df['finish'] - df['start']
 
-        self.fig: Figure = plotly.express.timeline(df, x_start="Start", x_end="Finish", text="Label")
-        fig = self.fig
+        # https://plotly.com/python/bar-charts/
+        bars = []
+        for color, rows in df.groupby(by="color", sort=False):
+            b = go.Bar(x=rows["delta"], base=rows["start"], y=rows["group"],
+                       marker_color=color,
+                       orientation='h',
+                       customdata=rows["label"],
+                       texttemplate="%{customdata}",
+                       textangle=0,
+                       textposition="inside",
+                       insidetextanchor="middle",
+                       hovertemplate="<br>".join([
+                           "(%{base}, %{x}):",
+                           " %{customdata}",
+                       ]))
+            bars.append(b)
+        fig = Figure(bars, go.Layout(barmode='overlay'))
+        self.fig = fig
+
         fig.update_yaxes(title="Operations", autorange="reversed", visible=True, showticklabels=False)  # otherwise tasks are listed from the bottom up
-
         fig.update_xaxes(title="Time[ns]")
-        fig.layout.xaxis.type = 'linear'
-        fig.data[0].x = df.delta.tolist()
         self._draw_arrow_between_jobs()
         self._draw_clock_boundaries()
         self.fig.show()
 
     def save_html(self, filename):
         plotly.offline.plot(self.fig, filename=filename)
+
+
+class RtlNetlistPassShowTimeline():
+
+    def apply(self, to_hw: "SsaSegmentToHwPipeline"):
+        to_timeline = HwtHlsNetlistToTimeline(to_hw.hls.clk_period)
+        to_timeline.construct(to_hw.hls.inputs + to_hw.hls.nodes + to_hw.hls.outputs)
+        to_timeline.show()
 
 
 if __name__ == "__main__":
