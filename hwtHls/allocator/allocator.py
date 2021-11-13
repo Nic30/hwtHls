@@ -1,5 +1,5 @@
 from itertools import chain
-from typing import Union, List, Type, Dict, Optional, Tuple
+from typing import Union, List, Type, Dict, Optional, Tuple, Sequence
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.code import If, And
@@ -9,6 +9,7 @@ from hwt.interfaces.std import VldSynced, RdSynced, Signal, Handshaked, \
     HandshakeSync
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
+from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource, \
@@ -18,6 +19,8 @@ from hwtHls.netlist.nodes.io import HlsRead, HlsWrite
 from hwtHls.netlist.nodes.ops import AbstractHlsOp
 from hwtHls.netlist.nodes.ports import HlsOperationOut
 from hwtLib.handshaked.streamNode import StreamNode
+from hwt.interfaces.structIntf import StructIntf
+from hwt.synthesizer.interfaceLevel.unitImplHelpers import Interface_without_registration
 
 
 def get_sync_type(intf: Interface) -> Type[Interface]:
@@ -126,7 +129,7 @@ class HlsAllocator():
                 if isinstance(node, HlsRead):
                     if len(io_aggregation[node.src]) > 1:
                         raise AssertionError("In this phase each IO operation should already have separate gate"
-                                             " if it wants to access same interface")
+                                             " if it wants to access same interface", node.src, io_aggregation[node.src])
 
                     cur_inputs.append(node.src)
                     if node.src in self.parentHls.coherency_checked_io:
@@ -160,6 +163,48 @@ class HlsAllocator():
             for o in node.dependsOn[1:]
         ]
 
+    def _resole_global_sync_type(self, current_sync: Type[Interface], io_channels: Sequence[Interface]):
+        for op in io_channels:
+            sync_type = get_sync_type(op)
+            if sync_type is Handshaked or current_sync is RdSynced and sync_type is VldSynced:
+                current_sync = Handshaked
+            elif sync_type is RdSynced:
+                if current_sync is Handshaked:
+                    pass
+                elif current_sync is VldSynced:
+                    current_sync = Handshaked
+                else:
+                    current_sync = sync_type
+            elif sync_type is VldSynced:
+                if current_sync is Handshaked:
+                    pass
+                elif current_sync is RdSynced:
+                    current_sync = Handshaked
+                else:
+                    current_sync = sync_type
+        return current_sync
+
+    def _extract_control_sig_of_interface(
+            self,
+            intf: Union[HandshakeSync, RdSynced, VldSynced, RtlSignalBase, Signal,
+                        Tuple[Union[int, RtlSignalBase, Signal],
+                              Union[int, RtlSignalBase, Signal]]]
+            ) -> Tuple[Union[int, RtlSignalBase, Signal],
+                       Union[int, RtlSignalBase, Signal]]:
+        if isinstance(intf, tuple):
+            assert len(intf) == 2
+            return intf
+        elif isinstance(intf, (Handshaked, HandshakeSync)):
+            return (intf.vld, intf.rd)
+        elif isinstance(intf, VldSynced):
+            return (intf.vld, 1)
+        elif isinstance(intf, RdSynced):
+            return (1, intf.rd)
+        elif isinstance(intf, (RtlSignalBase, Signal, StructIntf)):
+            return (1, 1)
+        else:
+            raise TypeError("Unknown synchronisation of ", intf)
+
     def allocate_sync(self,
                       current_sync: Type[Interface],
                       cur_inputs: UniqList[Interface],
@@ -175,12 +220,7 @@ class HlsAllocator():
         However the single stage of pipeline may have multiple sections with own validity flag.
         This happens if inputs to this section are driven from the inputs which may be skipped.
         """
-        for op in chain(cur_inputs, cur_outputs):
-            sync_type = get_sync_type(op)
-            if sync_type is Handshaked or current_sync is RdSynced and sync_type is VldSynced:
-                current_sync = Handshaked
-            elif sync_type is RdSynced and sync_type is VldSynced:
-                current_sync = sync_type
+        current_sync = self._resole_global_sync_type(current_sync, chain(cur_inputs, cur_outputs))
 
         if current_sync is not Signal:
             # :note: for a signal we do not need any synchronization
@@ -192,11 +232,8 @@ class HlsAllocator():
 
             if not is_last_in_pipeline:
                 # does not need a synchronization with next stage in pipeline
-                to_next_stage = self._sig(f"{self.name_prefix:s}stage_sync_{pipeline_st_i:d}_to_{pipeline_st_i+1:d}",
-                                          HStruct(
-                                              (BIT, "rd"),
-                                              (BIT, "vld"))
-                                        )
+                to_next_stage = Interface_without_registration(
+                    self, HandshakeSync(), f"{self.name_prefix:s}stage_sync_{pipeline_st_i:d}_to_{pipeline_st_i+1:d}")
                 cur_outputs.append(to_next_stage)
                 # if not is_first_in_pipeline:
                 # :note: that the register 0 is behind the first stage of pipeline
@@ -220,7 +257,10 @@ class HlsAllocator():
                 for intf, sync_source in sync_per_io.items():
                     # [TODO] disconnect the inputs/outputs from outside word if this data beat is not confirmed
                     # [TODO] disconnect if the input is not required
+                    intf = self._extract_control_sig_of_interface(intf)
                     if sync_source:
+                        if intf == (0, 0):
+                            continue
                         en = And(*(s.data for s in sync_source))
                         if isinstance(en, HandshakeSync):
                             if en not in cur_inputs:
@@ -229,7 +269,9 @@ class HlsAllocator():
                             extra_conds[intf] = en  # current block en=1
                             skip_when[intf] = ~en  # current block vld and en=0
 
-                sync = StreamNode(cur_inputs, cur_outputs, extraConds=extra_conds, skipWhen=skip_when)
+                sync = StreamNode([self._extract_control_sig_of_interface(intf) for intf in cur_inputs],
+                                  [self._extract_control_sig_of_interface(intf) for intf in cur_outputs],
+                                  extraConds=extra_conds, skipWhen=skip_when)
                 sync.sync()
                 if cur_registers:
                     # add enable signal for register load derived from synchronization of stage
