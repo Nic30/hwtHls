@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from plotly import graph_objs as go
 from plotly.graph_objs import Figure
@@ -6,16 +6,17 @@ import plotly.offline
 
 from hwt.hdl.types.bitsVal import BitsVal
 from hwt.synthesizer.interface import Interface
+from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwtHls.hlsStreamProc.ssa.translation.toHwtHlsNetlist.nodes.backwardEdge import HlsWriteBackwardEdge
 from hwtHls.netlist.nodes.io import HlsWrite, HlsRead, HlsExplicitSyncNode
 from hwtHls.netlist.nodes.ops import AbstractHlsOp, HlsOperation, HlsConst
-# [todo] pandas is overkill in this case, rm if ploty does not have it as dependencies
 import pandas as pd
 
 
+# [todo] pandas is overkill in this case, rm if ploty does not have it as dependencies
 class HwtHlsNetlistToTimeline():
     """
-
+    Generate a timeline (Gantt) diagram of how operations in curcuti are scheduled in time.
     """
 
     def __init__(self, clk_period: float):
@@ -53,15 +54,18 @@ class HwtHlsNetlistToTimeline():
             color = "purple"
             if isinstance(obj, HlsOperation):
                 label = obj.operator.id
+
             elif isinstance(obj, HlsWrite):
-                label = f"{obj.dst._name}.write()"
+                label = f"{getSignalName(obj.dst)}.write()"
                 if isinstance(obj, HlsWriteBackwardEdge):
                     obj_group_id = io_group_ids.setdefault(obj.associated_read.src, obj_group_id)
                 color = "green"
+
             elif isinstance(obj, HlsRead):
-                label = f"{obj.src._name}.read()"
+                label = f"{getSignalName(obj.src)}.read()"
                 obj_group_id = io_group_ids.setdefault(obj.src, obj_group_id)
                 color = "green"
+
             elif isinstance(obj, HlsConst):
                 val = obj.val
                 if isinstance(val, BitsVal):
@@ -71,10 +75,13 @@ class HwtHlsNetlistToTimeline():
                         label = repr(val)
                 else:
                     label = repr(val)
+
             elif isinstance(obj, HlsExplicitSyncNode):
                 label = obj.__class__.__name__
+
             else:
                 label = repr(obj)
+
             row = {"label": label, "group": obj_group_id, "start":start, "finish": finish, "deps": [], "backward_deps": [], "color": color}
             rows.append(row)
             self.obj_to_row[obj] = (row, row_i)
@@ -86,11 +93,10 @@ class HwtHlsNetlistToTimeline():
                 bdep = self.obj_to_row[bdep_obj][0]
                 bdep["backward_deps"].append(row_i)
 
-    def _draw_clock_boundaries(self):
+    def _draw_clock_boundaries(self, fig: Figure):
         clk_period = self.clk_period
         last_time = self.df["finish"].max() + clk_period
         i = 0.0
-        fig = self.fig
         row_cnt = len(self.rows)
         while i < last_time:
             fig.add_shape(
@@ -100,8 +106,7 @@ class HwtHlsNetlistToTimeline():
             )
             i += clk_period
 
-    def _draw_arrow(self, x0:float, y0:float, x1:float, y1:float, color: str):
-        fig = self.fig
+    def _draw_arrow(self, fig: Figure, x0:float, y0:float, x1:float, y1:float, color: str):
         # assert x1 >= x0
         jobs_delta = x1 - x0
         # fig.add_shape(
@@ -161,9 +166,8 @@ class HwtHlsNetlistToTimeline():
             arrowhead=2,
         )
 
-    def _draw_arrow_between_jobs(self):
+    def _draw_arrow_between_jobs(self, fig: Figure):
         df = self.df
-        fig = self.fig
         # # draw an arrow from the end of the first job to the start of the second job
         # # retrieve tick text and tick vals
         # job_yaxis_mapping = dict(zip(fig.layout.yaxis.ticktext, fig.layout.yaxis.tickvals))
@@ -175,17 +179,17 @@ class HwtHlsNetlistToTimeline():
                 first_job_dict = df.iloc[start_i]
                 startX = first_job_dict['finish']
                 startY = first_job_dict['group']
-                self._draw_arrow(startX, startY, endX, endY, "blue")
+                self._draw_arrow(fig, startX, startY, endX, endY, "blue")
 
             for start_i in second_job_dict["backward_deps"]:
                 first_job_dict = df.iloc[start_i]
                 startX = first_job_dict['finish']
                 startY = first_job_dict['group']
-                self._draw_arrow(startX, startY, endX, endY, "gray")
+                self._draw_arrow(fig, startX, startY, endX, endY, "gray")
 
         return fig
 
-    def show(self):
+    def _generate_fig(self):
         self.df: pd.DataFrame = pd.DataFrame(self.rows)
         df = self.df
         df['delta'] = df['finish'] - df['start']
@@ -197,6 +201,7 @@ class HwtHlsNetlistToTimeline():
                        marker_color=color,
                        orientation='h',
                        customdata=rows["label"],
+                       showlegend=False,
                        texttemplate="%{customdata}",
                        textangle=0,
                        textposition="inside",
@@ -207,24 +212,36 @@ class HwtHlsNetlistToTimeline():
                        ]))
             bars.append(b)
         fig = Figure(bars, go.Layout(barmode='overlay'))
-        self.fig = fig
 
         fig.update_yaxes(title="Operations", autorange="reversed", visible=True, showticklabels=False)  # otherwise tasks are listed from the bottom up
         fig.update_xaxes(title="Time[ns]")
-        self._draw_arrow_between_jobs()
-        self._draw_clock_boundaries()
-        self.fig.show()
+        self._draw_arrow_between_jobs(fig)
+        self._draw_clock_boundaries(fig)
+        return fig
 
-    def save_html(self, filename):
-        plotly.offline.plot(self.fig, filename=filename)
+    def show(self):
+        fig = self._generate_fig()
+        plotly.offline.iplot(fig)
+
+    def save_html(self, filename, auto_open):
+        fig = self._generate_fig()
+        plotly.offline.plot(fig, filename=filename, auto_open=auto_open)
 
 
 class RtlNetlistPassShowTimeline():
 
+    def __init__(self, filename:Optional[str]=None, auto_open=False):
+        self.filename = filename
+        self.auto_open = auto_open
+
     def apply(self, to_hw: "SsaSegmentToHwPipeline"):
         to_timeline = HwtHlsNetlistToTimeline(to_hw.hls.clk_period)
         to_timeline.construct(to_hw.hls.inputs + to_hw.hls.nodes + to_hw.hls.outputs)
-        to_timeline.show()
+        if self.filename is not None:
+            to_timeline.save_html(self.filename, self.auto_open)
+        else:
+            assert self.auto_open, "Must be True because we can not show figure without opening it"
+            to_timeline.show()
 
 
 if __name__ == "__main__":
