@@ -26,9 +26,13 @@ class HlsWriteBackwardEdge(HlsWrite):
     The read from HLS pipeline which is binded to a buffer for data/sync on backward edge in dataflow graph.
     """
 
-    def __init__(self, parentHls:"HlsPipeline", src, dst:Union[RtlSignal, Interface, HlsTmpVariable]):
+    def __init__(self, parentHls:"HlsPipeline",
+                 src,
+                 dst:Union[RtlSignal, Interface, HlsTmpVariable],
+                 channel_init_values=()):
         HlsWrite.__init__(self, parentHls, src, dst)
         self.associated_read: Optional[HlsReadBackwardEdge] = None
+        self.channel_init_values = channel_init_values
 
     def associate_read(self, read: HlsReadBackwardEdge):
         assert isinstance(read, HlsReadBackwardEdge), read
@@ -36,11 +40,9 @@ class HlsWriteBackwardEdge(HlsWrite):
         read.associated_write = self
 
     def allocate_instance(self,
-        allocator:"HlsAllocator",
-        used_signals:UniqList[TimeIndependentRtlResourceItem]) -> TimeIndependentRtlResource:
+            allocator:"HlsAllocator",
+            used_signals:UniqList[TimeIndependentRtlResourceItem]) -> TimeIndependentRtlResource:
         res = HlsWrite.allocate_instance(self, allocator, used_signals)
-        # connect islands and loops in pipeline together
-        # handles controll and data (in separate channels)
         src_write = self
         dst_read: HlsReadBackwardEdge = self.associated_read
         assert dst_read is not None
@@ -50,17 +52,11 @@ class HlsWriteBackwardEdge(HlsWrite):
         # 1 register at minimum, because we need to break a comibnational path
         # the size of buffer is derived from the latency of operations between the io ports
         reg_cnt = max((src_t - dst_t) / allocator.parentHls.clk_period, 1)
-        channel_init = ()
-        # channel_init = ((0,),)
-        # if toHlsNetlist.start_block_en is None:
-        #     if dst_block is start:
-        #         # fill channel with sync token with reset values for input variables
-        #         channel_init = ((1,),)
-        #         # reg_cnt = 4
 
+        # :note: latency is 1-2 to break ready chain (it is not always required, but the check is not implemented)
         buffs = HsBuilder(allocator.parentHls.parentUnit, src_write.dst,
                           "hls_backward_buff")\
-            .buff(reg_cnt, latency=(1, 2), init_data=channel_init)\
+            .buff(reg_cnt, latency=(1, 2), init_data=self.channel_init_values)\
             .end
         dst_read.src(buffs)
         return res
