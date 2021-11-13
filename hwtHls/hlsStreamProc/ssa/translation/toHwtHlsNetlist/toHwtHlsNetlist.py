@@ -3,7 +3,6 @@ from typing import List, Dict, Union, Set, Tuple, Optional
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.hdl.operatorDefs import OpDefinition
 from hwt.hdl.value import HValue
-from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
@@ -44,8 +43,7 @@ class SsaToHwtHlsNetlist():
                  edge_var_live: EdgeLivenessDict):
         self.hls = hls
         self.start_block = start_block
-        self.start_block_en: Optional[HsStructIntf] = None
-        self.start_block_en_r: Optional[HlsOperationOut] = None
+        self.start_block_en: Optional[HlsOperationOut] = None
 
         self.nodes: List[AbstractHlsOp] = hls.nodes
         self.io = SsaToHwtHlsNetlistSyncAndIo(self, out_of_pipeline_edges, edge_var_live)
@@ -100,7 +98,7 @@ class SsaToHwtHlsNetlist():
                     stm: HlsStreamProcWrite
                     src = self.to_hls_expr(stm.src)
                     dst = stm.dst
-                    assert isinstance(dst, Interface), dst
+                    assert isinstance(dst, (Interface, RtlSignalBase)), dst
                     self.io._out_of_hls_io.append(stm.dst)
                     self.io._write_to_io(dst, src)
 
@@ -151,8 +149,14 @@ class SsaToHwtHlsNetlist():
 
         elif isinstance(obj, HlsStreamProcRead):
             obj: HlsStreamProcRead
+            try:
+                return self._to_hls_cache._to_hls_cache[obj]
+            except KeyError:
+                pass
             self.io._out_of_hls_io.append(obj._src)
-            return self.io._read_from_io(obj._src)
+            o = self.io._read_from_io(obj._src)
+            self._to_hls_cache.add(obj, o)
+            return o
 
         elif isinstance(obj, SsaPhi):
             return self._to_hls_cache.get((self._current_block, obj.dst))
@@ -212,6 +216,9 @@ class SsaToHwtHlsNetlist():
         return en_from_pred
 
     def _collect_en_from_predecessor(self, block: SsaBasicBlock):
+        """
+        [todo] The en is not required if the synchronisation can be done purely by data.
+        """
         assert block is self._current_block
         cur = self._block_ens.get(block, NOT_SPECIFIED)
         if cur is not NOT_SPECIFIED:
@@ -222,7 +229,7 @@ class SsaToHwtHlsNetlist():
             return cur
 
         if block is self.start_block and self.start_block_en is not None:
-            en_by_pred = self.start_block_en_r
+            en_by_pred = self.start_block_en
         else:
             en_by_pred = None
             assert block.predecessors, (self._current_block,
@@ -279,21 +286,24 @@ class SsaToHwtHlsNetlist():
             # merge branching condition and enable for this block
             if cond is None:
                 br_cond = en_by_pred
+            elif en_by_pred is None:
+                br_cond = None
             else:
                 br_cond = hls_op_and(self.hls, cond, en_by_pred)
 
             # produce tokens for all successors depending on brach condition on the end of this block
             is_out_of_pipeline = (block, suc_block) in self.io.out_of_pipeline_edges
-            for d in (INTF_DIRECTION.SLAVE, INTF_DIRECTION.MASTER):
-                label = BranchControlLabel(block, suc_block, d)
-                if is_out_of_pipeline and d is INTF_DIRECTION.SLAVE:
-                    # input will be or already is connected to io port which provides the data from
-                    # out of pipeline
-                    assert label in self._to_hls_cache, label
-                    continue
-                    # else we need to add the record for output port to find it
+            if br_cond is not None:
+                for d in (INTF_DIRECTION.SLAVE, INTF_DIRECTION.MASTER):
+                    label = BranchControlLabel(block, suc_block, d)
+                    if is_out_of_pipeline and d is INTF_DIRECTION.SLAVE:
+                        # input will be or already is connected to io port which provides the data from
+                        # out of pipeline
+                        assert label in self._to_hls_cache, label
+                        continue
+                        # else we need to add the record for output port to find it
 
-                self._to_hls_cache.add(label, br_cond)
+                    self._to_hls_cache.add(label, br_cond)
 
             if not is_out_of_pipeline:
                 # propagete variables on block input
