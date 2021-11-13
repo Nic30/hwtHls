@@ -1,7 +1,6 @@
 import html
-import os
 from typing import List, Union, Dict, Optional, Tuple
-
+from pathlib import Path
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwtHls.hlsStreamProc.debugCodeSerializer import CopyBasicBlockLabelsToCode
 from hwtHls.hlsStreamProc.ssa.analysis.liveness import EdgeLivenessDict
@@ -125,7 +124,7 @@ class HlsNetlistPassToDot():
         self.file_name = file_name
 
     def apply(self, to_hw: "SsaSegmentToHwPipeline"):
-        to_graphwiz = SsaToGraphwiz(os.path.basename(self.file_name))
+        to_graphwiz = SsaToGraphwiz(Path(self.file_name).stem)
         with open(self.file_name, "w") as f:
             to_graphwiz.construct(to_hw.start, to_hw.original_code, [to_hw.pipeline, ],
                                   to_hw.edge_var_live)
