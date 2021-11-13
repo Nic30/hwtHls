@@ -1,6 +1,6 @@
 from hwt.simulator.simTestCase import SimTestCase
-from hwtHls.examples.hlsStreamProc.trivial_test import HlsStreamMachineTrivial_TC
-from hwtHls.examples.hlsStreamProc.while_if import WhileAndIf0, WhileAndIf2
+from hwtHls.examples.trivial_test import HlsStreamMachineTrivial_TC
+from hwtHls.examples.while_if import WhileAndIf0, WhileAndIf2
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtSimApi.utils import freq_to_period
 

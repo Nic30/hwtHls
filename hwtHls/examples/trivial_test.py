@@ -1,6 +1,6 @@
 from hwt.serializer.combLoopAnalyzer import CombLoopAnalyzer
 from hwt.simulator.simTestCase import SimTestCase
-from hwtHls.examples.hlsStreamProc.trivial import WriteOnce, ReadWriteOnce0, \
+from hwtHls.examples.trivial import WriteOnce, ReadWriteOnce0, \
     ReadWriteOnce1, WhileTrueWrite, WhileTrueReadWrite, ReadWriteOnce2
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtLib.examples.errors.combLoops import freeze_set_of_sets
@@ -85,7 +85,7 @@ class HlsStreamMachineTrivial_TC(SimTestCase):
 if __name__ == "__main__":
     import unittest
     suite = unittest.TestSuite()
-    #suite.addTest(HlsStreamMachineTrivial_TC('test_WhileTrueWrite'))
+    # suite.addTest(HlsStreamMachineTrivial_TC('test_WhileTrueWrite'))
     suite.addTest(unittest.makeSuite(HlsStreamMachineTrivial_TC))
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
