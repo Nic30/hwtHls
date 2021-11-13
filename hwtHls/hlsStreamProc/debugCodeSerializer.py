@@ -8,6 +8,7 @@ from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.statements.ifContainter import IfContainer
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.serializer.hwt import HwtDebugSerializer, ToHdlAstDebugHwt
+from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwtHls.hlsStreamProc.ssa.basicBlock import SsaBasicBlock
 from hwtHls.hlsStreamProc.ssa.phi import SsaPhi
 from hwtHls.hlsStreamProc.statements import HlsStreamProcWhile, \
@@ -44,7 +45,7 @@ class ToHdlAstHlsStreamProcDebugCode(ToHdlAstDebugHwt):
 
     def as_hdl_HlsStreamProcWrite(self, o: HlsStreamProcWrite):
         return hdl_call(
-            hdl_getattr(HdlValueId(o.dst._name), "write"),
+            hdl_getattr(HdlValueId(getSignalName(o.dst)), "write"),
             [self.as_hdl(o._orig_src), ]
         )
 
