@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-from hwtHls.hlsStreamProc._streamProc import HlsStreamProc
-
 """
 
 
