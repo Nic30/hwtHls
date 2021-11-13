@@ -32,7 +32,7 @@ class AstToSsa():
       * :see: https://github.com/lohner/FormalSSA
 
     :see: http://dev.stephendiehl.com/numpile/
-    :ivar start: basic block where the program beggins
+    :ivar start: basic block where the program begins
     :ivar m_ssa_u: object which is used to track variable usage a to construct SsaPhi for SSA normal form
     :ivar _continue_target: basic block where code should jump on continue statement
     :ivar _continue_target: basic block where code should jump on break statement
@@ -48,7 +48,7 @@ class AstToSsa():
         self._break_target: Optional[SsaBasicBlock] = None
 
     def _createHlsTmpVariable(self, origin: RtlSignal) -> HlsTmpVariable:
-        v = HlsTmpVariable(f"v{self._tmpVarCounter}", origin)
+        v = HlsTmpVariable(f"v{self._tmpVarCounter:d}", origin)
         self._tmpVarCounter += 1
         return v
 
@@ -79,8 +79,6 @@ class AstToSsa():
         for o in obj:
             if isinstance(o, HdlAssignmentContainer):
                 bb = self.visit_Assignment(bb, o)
-            # elif isinstance(o, HlsStreamProcAwait):
-            #     bb = self.visit_Await(bb, o)
             elif isinstance(o, HlsStreamProcWrite):
                 bb = self.visit_Write(bb, o)
             elif isinstance(o, HlsStreamProcWhile):
@@ -104,7 +102,7 @@ class AstToSsa():
                     return bb, op
                 else:
                     if isinstance(op, HdlPortItem):
-                        raise NotImplementedError()
+                        raise NotImplementedError(op)
                     return bb, self.m_ssa_u.readVariable(var, bb)
 
             ops = []
@@ -127,12 +125,6 @@ class AstToSsa():
         if isinstance(o.cond, HValue):
             if o.cond:
                 # while True
-                # body_bb = self._addNewTargetBb(bb, None, f"{bb.label:s}_While1Body", o)
-                # end_bb = self.visit_CodeBlock_list(body_bb, o.body)
-                # end_bb.successors.addTarget(None, body_bb)
-                # self._onAllPredecsKnown(body_bb)
-                # return SsaBasicBlock(f"{bb.label:s}_While1Unreachable")
-
                 body_bb = self._addNewTargetBb(bb, None, f"{bb.label:s}_wh", o)
                 body_bb_begin = body_bb
                 body_bb = self.visit_CodeBlock_list(body_bb, o.body)
@@ -218,10 +210,6 @@ class AstToSsa():
 
         return bb
 
-    # def visit_Await(self, bb: SsaBasicBlock, o: HlsStreamProcAwait) -> SsaBasicBlock:
-    #    bb.body.append(o)
-    #    return bb
-    #
     def visit_Write(self, bb: SsaBasicBlock, o: HlsStreamProcWrite) -> SsaBasicBlock:
         bb, src = self.visit_expr(bb, o.src)
         o.src = src
