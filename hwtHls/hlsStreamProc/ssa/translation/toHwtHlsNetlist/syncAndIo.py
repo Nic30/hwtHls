@@ -10,14 +10,15 @@ from hwtHls.hlsPipeline import HlsPipeline
 from hwtHls.hlsStreamProc.ssa.analysis.liveness import EdgeLivenessDict
 from hwtHls.hlsStreamProc.ssa.basicBlock import SsaBasicBlock
 from hwtHls.hlsStreamProc.ssa.branchControlLabel import BranchControlLabel
+from hwtHls.hlsStreamProc.ssa.translation.toHwtHlsNetlist.nodes.backwardEdge import HlsWriteBackwardEdge, \
+    HlsReadBackwardEdge
+from hwtHls.hlsStreamProc.ssa.translation.toHwtHlsNetlist.nodes.programStarter import HlsProgramStarter
 from hwtHls.netlist.nodes.io import HlsWrite, HlsRead
 from hwtHls.netlist.nodes.ports import HlsOperationOut, link_hls_nodes, \
     HlsOperationOutLazy
 from hwtHls.tmpVariable import HlsTmpVariable
 from hwtLib.abstract.componentBuilder import AbstractComponentBuilder
 from ipCorePackager.constants import INTF_DIRECTION
-from hwtHls.hlsStreamProc.ssa.translation.toHwtHlsNetlist.nodes.backwardEdge import HlsWriteBackwardEdge, \
-    HlsReadBackwardEdge
 
 
 class SsaToHwtHlsNetlistSyncAndIo():
@@ -51,10 +52,10 @@ class SsaToHwtHlsNetlistSyncAndIo():
         Initialize all input interfaces for every input variables and control.
         """
         if not self.parent.start_block.predecessors:
-            self.parent.start_block_en = start_in = HsStructIntf()
-            start_in.T = BIT
-            self._add_intf_instance(start_in, f"{self.parent.start_block.label}_start")
-            self.parent.start_block_en_r = self._read_from_io(start_in)
+            # can not be synchronized by data we need an explicit synchronisation node
+            sync_node = HlsProgramStarter(self.hls)
+            self.hls.nodes.append(sync_node)
+            self.parent.start_block_en = sync_node._outputs[0]
 
         # After we split the SsaBasicBlocks to pipeline we marked some edges to be outside of pipeline
         # this means that these paths are associated with a variables which do corresponds to variable from SSA
@@ -184,21 +185,6 @@ class SsaToHwtHlsNetlistSyncAndIo():
         self.hls._io[intf] = intf
         return intf
 
-    def _construct_io_pair(self, name:str, t: HdlType,
-                           src_out_port: Union[HlsOperationOut, HlsOperationOutLazy]) -> Tuple[HlsWrite, HlsOperationOut]:
-        in_var = HsStructIntf()
-        out_var = HsStructIntf()
-        out_var.T = in_var.T = t
-
-        self._add_intf_instance(out_var, f"{name:s}_out")
-        w_to_out = self._write_to_io(out_var, src_out_port, HlsWriteBackwardEdge)
-
-        self._add_intf_instance(in_var, f"{name:s}_in")
-        from_in = self._read_from_io(in_var, HlsReadBackwardEdge)
-        w_to_out.associate_read(from_in)
-
-        return w_to_out, from_in
-
     def _write_to_io(self, intf: Interface,
                      val: Union[HlsOperationOut, HlsOperationOutLazy],
                      write_cls:Type[HlsWrite]=HlsWrite) -> HlsWrite:
@@ -220,7 +206,7 @@ class SsaToHwtHlsNetlistSyncAndIo():
         Instantiate HlsRead operation for this specific interface.
         """
         read = read_cls(self.hls, intf)
-        if self.parent._current_block is not None and intf is not self.parent.start_block_en:
+        if self.parent._current_block is not None:
             self.parent._add_block_en_to_controll_if_required(read)
         self.inputs.append(read)
         # self.nodes.append(read)
