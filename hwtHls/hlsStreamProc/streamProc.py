@@ -21,9 +21,8 @@ from hwtHls.hlsStreamProc.ssa.translation.toHwtHlsNetlist.pipelineMaterializatio
 from hwtHls.hlsStreamProc.statements import HlsStreamProcRead, \
     HlsStreamProcWrite, HlsStreamProcWhile, HlsStreamProcCodeBlock
 from hwtHls.netlist.toGraphwiz import HlsNetlistPassDumpToDot
-from hwtHls.netlist.toTimeline import HwtHlsNetlistToTimeline, \
-    RtlNetlistPassShowTimeline
-from hwtHls.netlist.transformations.mergeExplicitSync import HlsnetlistPassMergeExplicitSync
+from hwtHls.netlist.toTimeline import RtlNetlistPassShowTimeline
+from hwtHls.netlist.transformations.mergeExplicitSync import HlsNetlistPassMergeExplicitSync
 from hwtLib.amba.axis import AxiStream
 
 
@@ -33,50 +32,64 @@ class HlsStreamProc():
 
     * code -> SSA
     * packet level ops -> word ops
-    * SSA optimizations (trivial block rm)
+    * SSA optimizations
     * pipeline extraction
+    * hls netlist optimization before scheduling
     * scheduling and materialization of pipelines
     * materialization of inter pipeline synchronization
+    * rtl netlist optimizations
     """
 
-    def __init__(self, parent: Unit,
+    def __init__(self, parentUnit: Unit,
                  ssa_passes=[
                     SsaPassConsystencyCheck(),
+                    # SsaPassRemoveTrivialBlocks()
                     # SsaPassExpandControlSelfloops()
                  ],
                  hlsnetlist_passes=[
                     HlsNetlistPassToDot("top.dot"),
                     HlsNetlistPassDumpToDot("top_p.dot"),
-                    HlsnetlistPassMergeExplicitSync(),
+                    HlsNetlistPassMergeExplicitSync(),
                  ],
                  rtlnetlist_passes=[
-                     RtlNetlistPassShowTimeline(),
-                 ]):
-        self.parent = parent
-        self.freq = parent.clk.FREQ
+                    RtlNetlistPassShowTimeline("top_schedule.html"),
+                 ],
+                 freq=None):
+        self.parentUnit = parentUnit
+        if freq is None:
+            freq = parentUnit.clk.FREQ
+        self.freq = freq
         self.ctx = RtlNetlist()
         self.ssa_passes = ssa_passes
         self.hlsnetlist_passes = hlsnetlist_passes
         self.rtlnetlist_passes = rtlnetlist_passes
 
     def var(self, name:str, dtype:HdlType):
+        """
+        Create a thread local variable.
+        """
         return self.ctx.sig(name, dtype)
 
     def read(self,
              src: Union[AxiStream, Handshaked],
-             type_or_size: Union[HdlType, RtlSignal, int]=NOT_SPECIFIED,
-             buffer_size: int=0):
+             type_or_size: Union[HdlType, RtlSignal, int]=NOT_SPECIFIED):
         """
-        :param buffer_size: size of buffer for read data in bits
+        Create a read statement in thread.
         """
-        return HlsStreamProcRead(self, src, type_or_size, buffer_size)
+        return HlsStreamProcRead(self, src, type_or_size)
 
     def write(self,
               src:Union[HlsStreamProcRead, Handshaked, AxiStream, bytes, HValue],
               dst:Union[AxiStream, Handshaked]):
+        """
+        Create a write statement in thread.
+        """
         return HlsStreamProcWrite(self, src, dst)
 
     def While(self, cond: Union[RtlSignal, bool], *body: AnyStm):
+        """
+        Create a while statement in thread.
+        """
         return HlsStreamProcWhile(self, cond, body)
 
     def _format_code(self, code: List[AnyStm], label:str="hls_top") -> HlsStreamProcCodeBlock:
@@ -87,16 +100,22 @@ class HlsStreamProc():
         return _code
 
     def thread(self, *code: AnyStm):
+        """
+        Create a thread from a code which will be translated to hw.
+        """
         _code = self._format_code(code)
         to_ssa = AstToSsa()
         to_ssa.visit_top_CodeBlock(_code)
         for ssa_pass in self.ssa_passes:
             ssa_pass.apply(to_ssa)
 
-        to_hw = SsaSegmentToHwPipeline(self.parent, self.freq, to_ssa.start, _code)
-        to_hw.extract_pipeline()
+        to_hw = SsaSegmentToHwPipeline(self.parentUnit, self.freq, to_ssa.start, _code)
 
-        to_hw.extract_netlist()
+        to_hw.extract_pipeline()
+        # print("backward_edges", [(e[0].label, e[1].label) for e in to_hw.backward_edges])
+        # print("pipeline", [n.label for n in to_hw.pipeline])
+
+        to_hw.extract_hlsnetlist()
         for hlsnetlist_pass in self.hlsnetlist_passes:
             hlsnetlist_pass.apply(to_hw)
 
