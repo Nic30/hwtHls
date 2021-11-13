@@ -2,8 +2,9 @@ import html
 from itertools import zip_longest
 from typing import List, Union, Dict
 
-from hwtHls.netlist.nodes.ops import AbstractHlsOp, HlsConst, HlsOperation
+from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwtHls.netlist.nodes.io import HlsRead, HlsWrite
+from hwtHls.netlist.nodes.ops import AbstractHlsOp, HlsConst, HlsOperation
 from hwtHls.netlist.nodes.ports import HlsOperationOut
 
 
@@ -89,7 +90,6 @@ class HwtHlsNetlistToGraphwiz():
         buff.append('''[shape=plaintext
     label=<
         <table border="0" cellborder="1" cellspacing="0">\n''')
-        label = obj.__class__.__name__
         if isinstance(obj, HlsConst):
             label = repr(obj.val)
         elif isinstance(obj, HlsOperation):
@@ -97,7 +97,10 @@ class HwtHlsNetlistToGraphwiz():
         elif isinstance(obj, HlsRead):
             label = repr(obj)
         elif isinstance(obj, HlsWrite):
-            label = f"{label}({obj.dst._name})"
+            label = f"<{obj.__class__.__name__} {getSignalName(obj.dst)}>"
+        else:
+            label = obj.__class__.__name__
+
         buff.append(f'            <tr><td colspan="2">{html.escape(label):s}</td></tr>\n')
         for i, o in zip_longest(input_rows, output_rows, fillvalue="<td></td>"):
             buff.append(f"            <tr>{i:s}{o:s}</tr>\n")
