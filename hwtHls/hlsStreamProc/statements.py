@@ -11,11 +11,12 @@ from hwt.hdl.types.typeCast import toHVal
 from hwt.hdl.value import HValue
 from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.interfaces.signalOps import SignalOps
-from hwt.interfaces.std import Handshaked
+from hwt.interfaces.std import Handshaked, Signal
 from hwt.interfaces.structIntf import StructIntf
 from hwt.interfaces.unionIntf import UnionSink, UnionSource
 from hwt.pyUtils.arrayQuery import flatten
 from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
+from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.hlsStreamProc.ssa.phi import SsaPhi
@@ -63,9 +64,8 @@ class HlsStreamProcRead(HdlStatement, SignalOps, InterfaceBase):
     """
 
     def __init__(self,
-                 parent: "HlsStreamProc", src: Union[AxiStream, Handshaked],
-                 type_or_size: Union[HdlType, RtlSignal, int],
-                 buffer_size: int):
+                 parent: "HlsStreamProc", src: Union[AxiStream, Handshaked, Signal, RtlSignal],
+                 type_or_size: Union[HdlType, RtlSignal, int]):
         super(HlsStreamProcRead, self).__init__()
         self._isAccessible = True
         self._parent = parent
@@ -73,24 +73,20 @@ class HlsStreamProcRead(HdlStatement, SignalOps, InterfaceBase):
 
         ctx = parent.ctx
         if isinstance(src, (Handshaked, HsStructIntf)):
-            if buffer_size:
-                raise NotImplementedError()
             assert (type_or_size is NOT_SPECIFIED or
                     type_or_size is src.data._dtype), "The handshaked interfaces do not undergo any parsing thus only their native type is supportted"
             type_or_size = src.data._dtype
+        elif isinstance(src, (Signal, RtlSignal)):
+            assert (type_or_size is NOT_SPECIFIED or
+                    type_or_size is src._dtype), "The signal interfaces do not undergo any parsing thus only their native type is supportted"
+            type_or_size = src._dtype
 
-        if buffer_size:
-            self._sig = AxiStream()
-            self._sig._updateParamsFrom(src)
-            self._sig._signalsForInterface(ctx, None, None)
-        else:
-            assert isinstance(type_or_size, HdlType), type_or_size
-            self._sig = ctx.sig(f"{src._name:s}_read", type_or_size)
-            self._sig.drivers.append(self)
-            self._sig.origin = self
+        assert isinstance(type_or_size, HdlType), type_or_size
+        self._sig = ctx.sig(f"{getSignalName(src):s}_read", type_or_size)
+        self._sig.drivers.append(self)
+        self._sig.origin = self
 
         self._dtype = type_or_size
-        self._buffer_size = buffer_size
         self._out: Optional[Handshaked] = None
 
         if isinstance(self._sig, (StructIntf, UnionSink, UnionSource)):
@@ -110,7 +106,7 @@ class HlsStreamProcRead(HdlStatement, SignalOps, InterfaceBase):
         return self._parent.ctx
 
     def __repr__(self):
-        return f"<{self.__class__.__name__} {self._src._name:s}, {self._dtype}>"
+        return f"<{self.__class__.__name__} {getSignalName(self._src):s}, {self._dtype}>"
 
 
 class HlsStreamProcWrite(HlsStreamProcStm):
@@ -142,7 +138,7 @@ class HlsStreamProcWrite(HlsStreamProcStm):
         new_expr.users.append(self)
 
     def __repr__(self):
-        return f"<{self.__class__.__name__} {self.src}->{self.dst._name}>"
+        return f"<{self.__class__.__name__} {self.src}->{getSignalName(self.dst)}>"
 
 # class HlsStreamProcJump(HlsStreamProcStm):
 #
