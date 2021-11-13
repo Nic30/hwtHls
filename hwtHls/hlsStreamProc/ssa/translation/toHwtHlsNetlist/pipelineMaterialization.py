@@ -1,6 +1,5 @@
 from typing import List, Optional
 
-from hwt.code import If
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsPipeline import HlsPipeline
 from hwtHls.hlsStreamProc.ssa.analysis.liveness import ssa_liveness_edge_variables
@@ -29,20 +28,19 @@ class SsaSegmentToHwPipeline():
     On each place where multiple values may appear due to branching we need to add multiplexer
     and use it in following expressions.
 
-
-   :ivar parent: an Unit instance where the circuit should be constructed
+   :ivar parentUnit: an Unit instance where the circuit should be constructed
    :ivar freq: target clock frequency
    :ivar start: a block where the program excecution starts
    :ivar original_code: an original code for debug purposes
     """
 
     def __init__(self,
-                 parent: Unit,
+                 parentUnit: Unit,
                  freq: float,
                  start: SsaBasicBlock,
                  original_code:Optional[HlsStreamProcCodeBlock]):
         self.start = start
-        self.parentUnit = parent
+        self.parentUnit = parentUnit
         self.freq = freq
         self.original_code = original_code
 
@@ -54,39 +52,22 @@ class SsaSegmentToHwPipeline():
         self.pipeline = pipeline
         self.edge_var_live = ssa_liveness_edge_variables(self.start)
         self.backward_edges = pe.backward_edges
-        # print("backward_edges", [(e[0].label, e[1].label) for e in pe.backward_edges])
-        # print("pipeline", [n.label for n in all_blocks])
 
-    def extract_netlist(self):
-        self.hls: HlsPipeline = HlsPipeline(self.parentUnit, self.freq).__enter__()
+    def extract_hlsnetlist(self):
+        self.hls: HlsPipeline = HlsPipeline(self.parentUnit, self.freq)
         hls = self.hls
         self.toHlsNetlist = SsaToHwtHlsNetlist(hls, self.start, self.backward_edges, self.edge_var_live)
         toHlsNetlist = self.toHlsNetlist
-        try:
-            toHlsNetlist.io.init_out_of_hls_variables()
-            # construct nodes for scheduling
-            for block in self.pipeline:
-                toHlsNetlist.to_hls_SsaBasicBlock(block)
-            toHlsNetlist.io.finalize_out_of_pipeline_variable_outputs()
-        finally:
-            # recover from HlsPipeline temporary modification of hls.parentUnit
-            hls.parentUnit._sig = hls._unit_sig
+        toHlsNetlist.io.init_out_of_hls_variables()
+        # construct nodes for scheduling
+        for block in self.pipeline:
+            toHlsNetlist.to_hls_SsaBasicBlock(block)
+        toHlsNetlist.io.finalize_out_of_pipeline_variable_outputs()
 
         assert not hls.coherency_checked_io
         hls.coherency_checked_io = toHlsNetlist.io._out_of_hls_io
 
     def construct_rtlnetlist(self):
         hls = self.hls
+        hls.schedule()
         hls.synthesise()
-
-        # [todo] to specific initializer node
-        toHlsNetlist = self.toHlsNetlist
-        if toHlsNetlist.start_block_en is not None:
-            # the start_block_en may not be pressent if the code is and infinite cycle
-            start_init = self.parentUnit._reg(f"{self.start.label}_init", def_val=1)
-            toHlsNetlist.start_block_en.vld(start_init)
-            toHlsNetlist.start_block_en.data(1)
-            If(toHlsNetlist.start_block_en.rd,
-               start_init(0),
-            )
-
