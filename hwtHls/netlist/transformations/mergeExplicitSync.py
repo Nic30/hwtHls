@@ -4,7 +4,7 @@ from hwtHls.netlist.nodes.ops import AbstractHlsOp
 from hwtHls.netlist.nodes.io import HlsExplicitSyncNode, HlsRead, HlsWrite
 
 
-class HlsnetlistPassMergeExplicitSync():
+class HlsNetlistPassMergeExplicitSync():
     """
     Merge nodes with explicit synchronization (HlsRead, HlsWrite, HlsExplicitSyncNode) together
     if possible to reduce the number of places where we need to solve the synchronisation.
