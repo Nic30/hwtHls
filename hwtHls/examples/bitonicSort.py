@@ -3,10 +3,11 @@
 
 from hwt.hdl.constants import Time
 from hwt.interfaces.utils import addClkRstn
-from hwtHls.hlsPipeline import HlsPipeline
+from hwt.synthesizer.param import Param
+from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtLib.logic.bitonicSorter import BitonicSorter, BitonicSorterTC
-from hwt.synthesizer.param import Param
+from hwt.code import If
 
 
 class BitonicSorterHLS(BitonicSorter):
@@ -17,15 +18,41 @@ class BitonicSorterHLS(BitonicSorter):
 
     def _declr(self):
         addClkRstn(self)
+        self.clk.FREQ = self.CLK_FREQ
         BitonicSorter._declr(self)
         self.clk.FREQ = self.CLK_FREQ
 
+    def bitonic_compare(self, cmpFn, x, layer, offset):
+        dist = len(x) // 2
+        _x = [self.hls.var(f"sort_tmp_{layer:d}_{offset:d}_{i:d}", x[0]._dtype) for i, _ in enumerate(x)]
+        for i in range(dist):
+            self.hls_code.append(
+                If(cmpFn(x[i], x[i + dist]),
+                    # keep
+                    _x[i](x[i]),
+                    _x[i + dist](x[i + dist])
+                ).Else(
+                    # swap
+                    _x[i](x[i + dist]),
+                    _x[i + dist](x[i]),
+                )
+            )
+        return _x
+
     def _impl(self):
-        with HlsPipeline(self, self.CLK_FREQ) as hls:
-            outs = self.bitonic_sort(self.cmpFn,
-                                     [hls.io(i) for i in self.inputs])
-            for o, otmp in zip(self.outputs, outs):
-                hls.io(o)(otmp)
+        hls = HlsStreamProc(self)
+        self.hls = hls
+        self.hls_code = []
+        outs = self.bitonic_sort(self.cmpFn,
+                                 [hls.read(i) for i in self.inputs])
+        hls.thread(
+            hls.While(True,
+                *self.hls_code,
+                *(
+                    hls.write(otmp, o)
+                    for otmp, o in zip(outs, self.outputs)
+                )
+            ))
 
 
 class BitonicSorterHLS_TC(BitonicSorterTC):
@@ -53,11 +80,11 @@ BitonicSorterHLS_TCs = [
 
 if __name__ == "__main__":
     import unittest
-    # from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synthesizer.utils import to_rtl_str
     #
-    # u = BitonicSorterHLS()
-    # u.ITEMS = 4
-    # print(to_rtl_str(u, target_platform=VirtualHlsPlatform()))
+    u = BitonicSorterHLS()
+    u.ITEMS = 2
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform()))
 
     suite = unittest.TestSuite()
     # suite.addTest(BitonicSorterHLS_large_TC('test_reversed'))

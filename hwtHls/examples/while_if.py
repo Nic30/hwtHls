@@ -3,16 +3,16 @@
 
 from hwt.code import If
 from hwt.hdl.types.bits import Bits
-from hwtHls.examples.hlsStreamProc.trivial import WhileTrueWrite, \
+from hwtHls.examples.trivial import WhileTrueWrite, \
     WhileTrueReadWrite
-from hwtHls.hlsStreamProc import HlsStreamProc
+from hwtHls.hlsStreamProc.streamProc  import HlsStreamProc
 
 
 class WhileAndIf0(WhileTrueWrite):
 
     def _impl(self) -> None:
         hls = HlsStreamProc(self)
-        x = hls.var("x", Bits(8, signed=False))
+        x = hls.var("x", Bits(self.DATA_WIDTH, signed=False))
         hls.thread(
             hls.While(True,
                 x(10),
@@ -39,7 +39,7 @@ class WhileAndIf1(WhileTrueWrite):
     def _impl(self) -> None:
         dout = self.dataOut
         hls = HlsStreamProc(self)
-        x = hls.var("x", Bits(8, signed=False))
+        x = hls.var("x", Bits(self.DATA_WIDTH, signed=False))
         hls.thread(
             hls.While(True,
                 x(10),
@@ -67,7 +67,7 @@ class WhileAndIf2(WhileTrueReadWrite):
     def _impl(self) -> None:
         dout = self.dataOut
         hls = HlsStreamProc(self)
-        x = hls.var("x", Bits(8, signed=False))
+        x = hls.var("x", Bits(self.DATA_WIDTH, signed=False))
         hls.thread(
             hls.While(True,
                 x(10),
@@ -87,5 +87,6 @@ if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
     u = WhileAndIf2()
-    u.FREQ = int(10e6)
+    u.DATA_WIDTH = 32
+    u.FREQ = int(130e6)
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform()))

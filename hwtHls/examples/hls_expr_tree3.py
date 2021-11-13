@@ -1,23 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-
 from hwt.hdl.constants import Time
 from hwt.interfaces.std import VectSignal
 from hwt.interfaces.utils import addClkRstn
 from hwt.simulator.simTestCase import SimTestCase
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
-from hwtHls.hlsPipeline import HlsPipeline
+from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 from hwtHls.platform.virtual import VirtualHlsPlatform
 
 
 class HlsExprTree3_example(Unit):
+
     def _config(self):
         self.CLK_FREQ = Param(int(50e6))
 
     def _declr(self):
         addClkRstn(self)
+        self.clk.FREQ = self.CLK_FREQ
+
         self.a = VectSignal(32, signed=False)
         self.b = VectSignal(32, signed=False)
         self.c = VectSignal(32, signed=False)
@@ -33,23 +35,26 @@ class HlsExprTree3_example(Unit):
         self.f3 = VectSignal(32, signed=False)._m()
 
     def _impl(self):
-        with HlsPipeline(self, freq=self.CLK_FREQ) as hls:
+        hls = HlsStreamProc(self)
+        a, b, c, d = self.a, self.b, self.c, self.d
+        x, y, z, w = self.x, self.y, self.z, self.w
 
-            a, b, c, d = self.a, self.b, self.c, self.d
-            x, y, z, w = self.x, self.y, self.z, self.w
+        r = hls.read
+        f1 = (r(a) + r(b) + r(c)) * r(d)
+        xy = r(x) + r(y)
+        f2 = xy * r(z)
+        f3 = xy * r(w)
 
-            io = hls.io
-            f1 = (io(a) + io(b) + io(c)) * io(d)
-            xy = io(x) + io(y)
-            f2 = xy * io(z)
-            f3 = xy * io(w)
-
-            io(self.f1)(f1)
-            io(self.f2)(f2)
-            io(self.f3)(f3)
+        wr = hls.write
+        hls.thread(
+            wr(f1, self.f1),
+            wr(f2, self.f2),
+            wr(f3, self.f3),
+        )
 
 
 class HlsExprTree3_example_TC(SimTestCase):
+
     def test_simple(self):
         u = HlsExprTree3_example()
         self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())

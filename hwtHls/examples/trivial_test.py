@@ -85,7 +85,7 @@ class HlsStreamMachineTrivial_TC(SimTestCase):
 if __name__ == "__main__":
     import unittest
     suite = unittest.TestSuite()
-    # suite.addTest(HlsStreamMachineTrivial_TC('test_WriteOnce'))
+    #suite.addTest(HlsStreamMachineTrivial_TC('test_WhileTrueWrite'))
     suite.addTest(unittest.makeSuite(HlsStreamMachineTrivial_TC))
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

@@ -3,7 +3,7 @@ from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
-from hwtHls.hlsStreamProc import HlsStreamProc
+from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 
 
 class WriteOnce(Unit):

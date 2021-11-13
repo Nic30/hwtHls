@@ -1,4 +1,4 @@
-from hwtHls.hlsStreamProc import HlsStreamProc
+from hwtHls.hlsStreamProc.streamProc  import HlsStreamProc
 from hwtHls.examples.hlsStreamProc.trivial import WhileTrueReadWrite
 
 
