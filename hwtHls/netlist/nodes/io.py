@@ -19,31 +19,10 @@ from hwtHls.netlist.nodes.ports import HlsOperationIn, HlsOperationOut, \
     link_hls_nodes, HlsOperationOutLazy, HlsOperationOutLazyIndirect
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.tmpVariable import HlsTmpVariable
+from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
+
 
 IO_COMB_REALIZATION = OpRealizationMeta(latency_post=epsilon)
-
-
-class HlsIO(RtlSignal):
-    """
-    Signal which is connected to outside of HLS context
-    """
-
-    def __init__(self, hlsCntx, name: str, dtype:HdlType, def_val=None, nop_val=NOT_SPECIFIED):
-        self.hlsCntx = hlsCntx
-        RtlSignal.__init__(
-            self, hlsCntx.ctx, name, dtype, def_val=def_val,
-            nop_val=nop_val)
-        self._interface = True
-
-    def __call__(self, source) -> List["HlsWrite"]:
-        source = toHVal(source, self._dtype)
-        hls = self.hlsCntx
-        w = HlsWrite(hls, source, self)
-        hls.outputs.append(w)
-        return [w, ]
-
-    def __repr__(self):
-        return f"<{self.__class__.__name__:s} {self.name:s}>"
 
 
 class HlsExplicitSyncNode(AbstractHlsOp):
@@ -233,17 +212,17 @@ class HlsWrite(HlsExplicitSyncNode):
 
         indexCascade = None
         if isinstance(dst, RtlSignal):
-            if not isinstance(dst, (Signal, HlsIO)):
+            if not isinstance(dst, (Signal, RtlSignal)):
                 tmp = dst._getIndexCascade()
                 if tmp:
                     dst, indexCascade, _ = tmp
 
         self.dst = dst
         # parentHls.outputs.append(self)
-        if isinstance(dst, HlsIO):
-            dst.drivers.append(self)
+        if isinstance(dst, RtlSignal):
+            pass
         else:
-            assert isinstance(dst, (HlsOperationIn, HsStructIntf, Signal)), dst
+            assert isinstance(dst, (HlsOperationIn, HsStructIntf, Signal, RtlSignalBase)), dst
 
         self.indexes = indexCascade
 
