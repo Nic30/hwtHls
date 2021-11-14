@@ -5,10 +5,10 @@ from ipCorePackager.constants import INTF_DIRECTION
 class BranchControlLabel():
     """
     The label for and interface between two basic blocks wich passes the control tokens.
-    To drive the controll/program flow of the circuit.
+    To drive the control/program flow of the circuit.
 
     This interface may have a different implementation depending on a type of synchronization.
-    And does not need to have a physical representation at all if controll flow can be handled purely
+    And does not need to have a physical representation at all if control flow can be handled purely
     by presence of data.
 
     :note: INTF_DIRECTION.MASTER means that this is a label for an interface which outputs the sync. token to next block

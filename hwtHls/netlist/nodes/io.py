@@ -34,7 +34,7 @@ class HlsExplicitSyncNode(AbstractHlsOp):
 
     :ivar extraCond: a flag which must be true to allow the transaction (is blocking until 1)
     # :ivar skipWhen: a flag which marks that this write should be skipped and transaction
-    #                 will not be performed but the controll flow will continue
+    #                 will not be performed but the control flow will continue
     """
 
     def __init__(self, parentHls: "HlsPipeline"):
@@ -239,7 +239,7 @@ class HlsWrite(HlsExplicitSyncNode):
         Instantiate write operation on RTL level
         """
         assert len(self.dependsOn) >= 1, self.dependsOn
-        # [0] - data, [1:] controll dependencies
+        # [0] - data, [1:] control dependencies
         for sync in self.dependsOn[1:]:
             # prepare sync intputs but do not connect it because we do not implemet synchronization
             # in this step we are building only datapath
