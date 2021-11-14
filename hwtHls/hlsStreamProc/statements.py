@@ -121,7 +121,10 @@ class HlsStreamProcWrite(HlsStreamProcStm):
         super(HlsStreamProcWrite, self).__init__(parent)
         self.parent = parent
         if isinstance(src, int):
-            src = dst.data._dtype.from_py(src)
+            dtype = getattr(dst, "_dtype", None)
+            if dtype is None:
+                dtype = dst.data._dtype
+            src = dtype.from_py(src)
         self.src = src
         # store original source for debugging
         self._orig_src = src
