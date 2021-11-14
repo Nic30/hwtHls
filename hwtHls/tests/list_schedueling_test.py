@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 import unittest
 
@@ -7,12 +9,11 @@ from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.unit import Unit
 from hwtHls.clk_math import start_clk, start_of_next_clk_period
 from hwtHls.hlsPipeline import HlsPipeline
-from hwtHls.hwtNetlistToHwtHlsNetlist import link_hls_nodes
-from hwtHls.netlist.nodes.ops import HlsOperation, IO_COMB_REALIZATION
-from hwtHls.netlist.nodes.io import HlsRead, HlsWrite
+from hwtHls.netlist.nodes.io import HlsRead, HlsWrite, IO_COMB_REALIZATION
+from hwtHls.netlist.nodes.ops import HlsOperation
+from hwtHls.netlist.nodes.ports import link_hls_nodes
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scheduler.list_schedueling import list_schedueling
-
 
 n = RtlNetlist("test")
 

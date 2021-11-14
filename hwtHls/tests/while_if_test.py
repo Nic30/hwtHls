@@ -1,7 +1,10 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 from hwt.simulator.simTestCase import SimTestCase
-from hwtHls.examples.trivial_test import HlsStreamMachineTrivial_TC
-from hwtHls.examples.while_if import WhileAndIf0, WhileAndIf2
 from hwtHls.platform.virtual import VirtualHlsPlatform
+from hwtHls.tests.trivial_test import HlsStreamMachineTrivial_TC
+from hwtHls.tests.while_if import WhileAndIf0, WhileAndIf2
 from hwtSimApi.utils import freq_to_period
 
 

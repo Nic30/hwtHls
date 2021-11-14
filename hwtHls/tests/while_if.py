@@ -3,8 +3,7 @@
 
 from hwt.code import If
 from hwt.hdl.types.bits import Bits
-from hwtHls.examples.trivial import WhileTrueWrite, \
-    WhileTrueReadWrite
+from hwtHls.tests.trivial import WhileTrueWrite, WhileTrueReadWrite
 from hwtHls.hlsStreamProc.streamProc  import HlsStreamProc
 
 
@@ -86,7 +85,7 @@ class WhileAndIf2(WhileTrueReadWrite):
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
-    u = WhileAndIf2()
+    u = WhileAndIf0()
     u.DATA_WIDTH = 32
     u.FREQ = int(130e6)
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform()))

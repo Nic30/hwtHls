@@ -1,6 +1,9 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 from hwt.serializer.combLoopAnalyzer import CombLoopAnalyzer
 from hwt.simulator.simTestCase import SimTestCase
-from hwtHls.examples.trivial import WriteOnce, ReadWriteOnce0, \
+from hwtHls.tests.trivial import WriteOnce, ReadWriteOnce0, \
     ReadWriteOnce1, WhileTrueWrite, WhileTrueReadWrite, ReadWriteOnce2
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtLib.examples.errors.combLoops import freeze_set_of_sets

@@ -1,5 +1,8 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 from hwtHls.hlsStreamProc.streamProc  import HlsStreamProc
-from hwtHls.examples.hlsStreamProc.trivial import WhileTrueReadWrite
+from hwtHls.tests.trivial import WhileTrueReadWrite
 
 
 class WhileTrueReadWriteExpr(WhileTrueReadWrite):

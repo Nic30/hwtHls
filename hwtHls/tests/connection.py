@@ -5,7 +5,7 @@ from hwt.hdl.constants import Time
 from hwt.interfaces.std import VectSignal
 from hwt.simulator.simTestCase import SimTestCase
 from hwt.synthesizer.unit import Unit
-from hwtHls.hlsPipeline import HlsPipeline
+from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from pyMathBitPrecise.bit_utils import mask
 
@@ -17,9 +17,12 @@ class HlsConnection(Unit):
         self.b = VectSignal(32, signed=False)._m()
 
     def _impl(self):
-        with HlsPipeline(self, freq=int(100e6)) as hls:
-            a = hls.io(self.a)
-            hls.io(self.b)(a)
+        hls = HlsStreamProc(self, freq=int(100e6))
+        hls.thread(
+            hls.While(True,
+                hls.write(hls.read(self.a), self.b)
+            )
+        )
 
 
 class HlsSlice(Unit):
@@ -29,9 +32,12 @@ class HlsSlice(Unit):
         self.b = VectSignal(16, signed=False)._m()
 
     def _impl(self):
-        with HlsPipeline(self, freq=int(100e6)) as hls:
-            a = hls.io(self.a)
-            hls.io(self.b)(a[16:])
+        hls = HlsStreamProc(self, freq=int(100e6))
+        hls.thread(
+            hls.While(True,
+                hls.write(hls.read(self.a)[16:], self.b)
+            )
+        )
 
 
 class HlsSlice2(Unit):
@@ -41,29 +47,14 @@ class HlsSlice2(Unit):
         self.b = VectSignal(32, signed=False)._m()
 
     def _impl(self):
-        with HlsPipeline(self, freq=int(100e6)) as hls:
-            a = hls.io(self.a)
-            hls.io(self.b[16:])(a)
-            hls.io(self.b[:16])(16)
+        hls = HlsStreamProc(self, freq=int(100e6))
+        hls.thread(
+            hls.While(True,
+                hls.write(hls.read(self.a), self.b[16:]),
+                hls.write(16, self.b[:16]),
+            )
+        )
 
-
-class HlsSlice2B(HlsSlice2):
-
-    def _impl(self):
-        with HlsPipeline(self, freq=int(100e6)) as hls:
-            a = hls.io(self.a)
-            hls.io(self.b)[16:](a)
-            hls.io(self.b)[:16](16)
-
-
-class HlsSlice2C(HlsSlice2):
-
-    def _impl(self):
-        with HlsPipeline(self, freq=int(100e6)) as hls:
-            a = hls.io(self.a)
-            b = hls.io(self.b)
-            b[16:](a)
-            b[:16](16)
 
 
 class HlsSlicingTC(SimTestCase):
@@ -97,11 +88,6 @@ class HlsSlicingTC(SimTestCase):
     def test_slice2(self):
         self._test_slice2(HlsSlice2)
 
-    def test_slice2B(self):
-        self._test_slice2(HlsSlice2B)
-
-    def test_slice2C(self):
-        self._test_slice2(HlsSlice2C)
 
 
 if __name__ == "__main__":

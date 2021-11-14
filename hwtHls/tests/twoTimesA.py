@@ -71,13 +71,13 @@ class TwoTimesA_TC(SimTestCase):
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import to_rtl_str
-    u = TwoTimesA0()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform()))
+    # from hwt.synthesizer.utils import to_rtl_str
+    # u = TwoTimesA0()
+    # print(to_rtl_str(u, target_platform=VirtualHlsPlatform()))
 
     import unittest
-    # suite = unittest.TestSuite()
-    # # suite.addTest(TwoTimesA_TC('_test_simple'))
-    # suite.addTest(unittest.makeSuite(TwoTimesA_TC))
-    # runner = unittest.TextTestRunner(verbosity=3)
-    # runner.run(suite)
+    suite = unittest.TestSuite()
+    # suite.addTest(TwoTimesA_TC('_test_simple'))
+    suite.addTest(unittest.makeSuite(TwoTimesA_TC))
+    runner = unittest.TextTestRunner(verbosity=3)
+    runner.run(suite)

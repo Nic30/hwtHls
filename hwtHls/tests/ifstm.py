@@ -4,9 +4,9 @@
 from hwt.code import If
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.param import Param
-from hwtHls.hlsPipeline import HlsPipeline
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtLib.examples.statements.ifStm import SimpleIfStatement
+from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 
 
 class SimpleIfStatementHls(SimpleIfStatement):
@@ -16,25 +16,28 @@ class SimpleIfStatementHls(SimpleIfStatement):
 
     def _declr(self):
         addClkRstn(self)
+        self.clk.FREQ = self.CLK_FREQ
         super(SimpleIfStatementHls, self)._declr()
 
     def _impl(self):
-        with HlsPipeline(self, freq=self.CLK_FREQ) as h:
-            io = h.io
-            a = io(self.a)
-            b = io(self.b)
-            c = io(self.c)
-            tmp = h.var("tmp", self.d._dtype)
-            d = io(self.d)
-
-            If(a,
-                tmp(b),
-            ).Elif(b,
-                tmp(c),
-            ).Else(
-                tmp(c)
+        hls = HlsStreamProc(self)
+        r = hls.read
+        a = r(self.a)
+        b = r(self.b)
+        c = r(self.c)
+        tmp = hls.var("tmp", self.d._dtype)
+        hls.thread(
+            hls.While(True,
+                If(a,
+                    tmp(b),
+                ).Elif(b,
+                    tmp(c),
+                ).Else(
+                    tmp(c)
+                ),
+                hls.write(tmp, self.d)
             )
-            d(tmp)
+        )
 
 
 if __name__ == "__main__":  # alias python main function

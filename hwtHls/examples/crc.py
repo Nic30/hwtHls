@@ -53,11 +53,13 @@ class CrcCombHls(CrcComb):
         outBits = iterBits(result)
 
         hls.thread(
-            *(
-                ob(b ^ fb)
-                for ob, b, fb in zip(outBits, res, finBits)
-            ),
-            hls.write(result, self.dataOut)
+            hls.While(True,
+                *(
+                    ob(b ^ fb)
+                    for ob, b, fb in zip(outBits, res, finBits)
+                ),
+                hls.write(result, self.dataOut)
+            )
         )
 
 

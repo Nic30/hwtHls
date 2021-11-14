@@ -3,15 +3,16 @@
 
 from unittest import TestLoader, TextTestRunner, TestSuite
 
-from hwtHls.examples.alapAsapDiffExample import AlapAsapDiffExample_TC
 from hwtHls.examples.bitonicSort import BitonicSorterHLS_TCs
-from hwtHls.examples.hls_expr_tree3 import HlsExprTree3_example_TC
 from hwtHls.examples.mac import HlsMAC_example_TC
-from hwtHls.tests.list_schedueling_test import ListSchedueling_TC
+from hwtHls.tests.alapAsapDiffExample import AlapAsapDiffExample_TC
 from hwtHls.tests.connection import HlsSlicingTC
+from hwtHls.tests.hls_expr_tree3 import HlsExprTree3_example_TC
+from hwtHls.tests.list_schedueling_test import ListSchedueling_TC
 from hwtHls.tests.syntehesis_checks import HlsSynthesisChecksTC
-from hwtHls.examples.hlsStreamProc.trivial_test import HlsStreamMachineTrivial_TC
-from hwtHls.examples.hlsStreamProc.while_if_test import HlsStreamMachineWhileIf_TC
+from hwtHls.tests.trivial_test import HlsStreamMachineTrivial_TC
+from hwtHls.tests.twoTimesA import TwoTimesA_TC
+from hwtHls.tests.while_if_test import HlsStreamMachineWhileIf_TC
 
 
 def testSuiteFromTCs(*tcs):
@@ -31,6 +32,7 @@ suite = testSuiteFromTCs(
     AlapAsapDiffExample_TC,
     ListSchedueling_TC,
     HlsSynthesisChecksTC,
+    TwoTimesA_TC,
     HlsStreamMachineTrivial_TC,
     HlsStreamMachineWhileIf_TC,
 )
