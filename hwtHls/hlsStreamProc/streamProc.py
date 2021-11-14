@@ -45,14 +45,14 @@ class HlsStreamProc():
                     SsaPassConsystencyCheck(),
                     # SsaPassRemoveTrivialBlocks()
                     # SsaPassExpandControlSelfloops()
-                    SsaPassDumpToDot("top.dot"),
+                    SsaPassDumpToDot("tmp/top.dot"),
                  ],
                  hlsnetlist_passes=[
-                    HlsNetlistPassDumpToDot("top_p.dot"),
+                    HlsNetlistPassDumpToDot("tmp/top_p.dot"),
                     HlsNetlistPassMergeExplicitSync(),
                  ],
                  rtlnetlist_passes=[
-                    RtlNetlistPassShowTimeline("top_schedule.html"),
+                    RtlNetlistPassShowTimeline("tmp/top_schedule.html"),
                  ],
                  freq=None):
         self.parentUnit = parentUnit
