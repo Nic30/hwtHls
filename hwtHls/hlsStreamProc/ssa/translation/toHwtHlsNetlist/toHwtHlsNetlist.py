@@ -1,4 +1,4 @@
-from typing import List, Dict, Union, Set, Tuple, Optional
+from typing import List, Dict, Union, Set, Tuple, Optional, Sequence
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.hdl.operatorDefs import OpDefinition
@@ -26,6 +26,21 @@ from hwtHls.tmpVariable import HlsTmpVariable
 from ipCorePackager.constants import INTF_DIRECTION
 
 
+class BlockMeta():
+
+    def __init__(self, is_cycle_entry_point: bool, needs_control: bool, requires_starter: bool):
+        self.is_cycle_entry_point = is_cycle_entry_point
+        self.needs_control = needs_control
+        self.requires_starter = requires_starter
+
+    def __repr__(self):
+        flags = []
+        for f in ("is_cycle_entry_point", 'needs_control', 'requires_starter'):
+            if getattr(self, f):
+                flags.append(f)
+        return f"<{self.__class__.__name__:s} {', '.join(flags)}>"
+
+
 class SsaToHwtHlsNetlist():
     """
     A class used to translate :mod:`hwtHls.hlsStreamProc.ssa` to objects from :mod:`hwtHls.netlist.nodes.ops`.
@@ -33,7 +48,6 @@ class SsaToHwtHlsNetlist():
 
     :ivar hls: parent hls synthetizer which is used to generate scheduling graph
     :ivar start_block: a basic block where program begins
-    :ivar start_block_en: optionaly port to trigger the program execution
     :ivar edge_var_live: dictionary which maps which variable is live on block transition
     """
 
@@ -43,7 +57,6 @@ class SsaToHwtHlsNetlist():
                  edge_var_live: EdgeLivenessDict):
         self.hls = hls
         self.start_block = start_block
-        self.start_block_en: Optional[HlsOperationOut] = None
 
         self.nodes: List[AbstractHlsOp] = hls.nodes
         self.io = SsaToHwtHlsNetlistSyncAndIo(self, out_of_pipeline_edges, edge_var_live)
@@ -51,28 +64,101 @@ class SsaToHwtHlsNetlist():
         self._to_hls_cache = SsaToHwtHlsNetlistOpCache()
         self._current_block:Optional[SsaBasicBlock] = None
 
+        self._block_meta: Dict[SsaBasicBlock, BlockMeta] = {}
         self._block_ens: Dict[SsaBasicBlock,
                               Union[HlsOperationOut, HlsOperationOutLazy, None]] = {}
 
-    def to_hls_SsaBasicBlock(self, block: SsaBasicBlock):
+    def _get_SsaBasicBlock_meta(self, block: SsaBasicBlock) -> BlockMeta:
         try:
-            # prepare HlsOutputLazy and input interface for variables which are live on
-            # edges which are corssing pipeline boundaries
-            self._current_block = block
-            is_cycle_entry_point = False
-            for pred in block.predecessors:
-                if (pred, block) in self.io.out_of_pipeline_edges:
-                    is_cycle_entry_point = True
-                    break
+            return self._block_meta[block]
+        except KeyError:
+            pass
 
-            if is_cycle_entry_point:
+        is_cycle_entry_point = False
+        for pred in block.predecessors:
+            if (pred, block) in self.io.out_of_pipeline_edges:
+                is_cycle_entry_point = True
+                break
+
+        needs_control = True
+        requires_starter = False
+        if is_cycle_entry_point:
+            # The synchronization is not required if it could be only by the data itself.
+            # It can be done by data itself if there is an single output/write which has all
+            # input as transitive dependencies (uncoditionally.) And if this is an infinite cycle.
+            # So we do not need to check the number of executions.
+            if len(block.predecessors) == 1 and len(block.successors) == 1:
+                pred = block.predecessors[0]
+                for cond, suc in pred.successors.targets:
+                    if suc is block and cond is None:
+                        needs_control = len(self.io.edge_var_live[pred][block]) > 1
+
+            if needs_control:
+                requires_starter = block is self.start_block
+
+        else:
+            requires_starter = block is self.start_block and not block.predecessors
+            needs_control = (
+                requires_starter or
+                len(block.predecessors) != 1 or
+                len(block.successors) != 1 or
+                self._get_SsaBasicBlock_meta(block.predecessors[0]).needs_control or
+                self._get_SsaBasicBlock_meta(block.successors.targets[0][1]).needs_control
+
+            )
+
+        m = BlockMeta(is_cycle_entry_point, needs_control, requires_starter)
+        self._block_meta[block] = m
+
+        print(block, m)
+        return m
+
+    def _prepare_SsaBasicBlockControl(self, block: SsaBasicBlock):
+        # prepare HlsOutputLazy and input interface for variables which are live on
+        # edges which are corssing pipeline boundaries
+        self._current_block = block
+        m = self._get_SsaBasicBlock_meta(block)
+
+        if m.is_cycle_entry_point:
+            if m.needs_control:
+                if m.requires_starter:
+                    self.io._add_HlsProgramStarter()
+
                 HlsLoopGate.inset_before_block(
                     self.hls,
                     block,
                     self.io,
                     self._to_hls_cache,
                     self.nodes)
+        elif m.requires_starter:
+            self.io._add_HlsProgramStarter()
 
+    def to_hls_SsaBasicBlock_resolve_io_and_sync(self, block: SsaBasicBlock):
+        m = self._get_SsaBasicBlock_meta(block)
+        for pred in block.predecessors:
+            if (pred, block) in self.io.out_of_pipeline_edges:
+                self.io.init_out_of_pipeline_variables(pred, block, m.needs_control)
+
+    def finalize_out_of_pipeline_variables(self, blocks: Sequence[SsaBasicBlock]):
+        assert self._current_block is None
+        try:
+            for block in blocks:
+                for dst_block in block.successors.iter_blocks():
+                    if (block, dst_block) in self.io.out_of_pipeline_edges:
+                        self._current_block = block
+                        self.io.finalize_block_out_of_pipeline_variable_outputs(block, dst_block)
+        finally:
+            self._current_block = None
+
+        for k, v in self._block_ens.items():
+            assert not isinstance(v, HlsOperationOutLazy) or v.replaced_by, ("All outputs should be already resolved", k, v)
+
+        for k, v in self._to_hls_cache.items():
+            assert not isinstance(v, HlsOperationOutLazy), ("All outputs should be already resolved", k, v)
+
+    def to_hls_SsaBasicBlock(self, block: SsaBasicBlock):
+        try:
+            self._prepare_SsaBasicBlockControl(block)
             self.to_hls_SsaBasicBlock_phis(block)
             # propagate also for variables which are not explicitely used
 
@@ -91,7 +177,7 @@ class SsaToHwtHlsNetlist():
                 elif isinstance(stm, HlsStreamProcRead):
                     # Read without any consummer
                     self.io._out_of_hls_io.append(stm._src)
-                    self._add_block_en_to_controll_if_required(stm)
+                    self._add_block_en_to_control_if_required(stm)
 
                 elif isinstance(stm, HlsStreamProcWrite):
                     # this is a write to output port which may require synchronization
@@ -180,8 +266,8 @@ class SsaToHwtHlsNetlist():
 
         mux_out = mux._outputs[0]
         self._to_hls_cache.add((phi.block, phi.dst), mux_out)
-        #cur_dst = self._to_hls_cache._to_hls_cache.get(phi.dst, None)
-        #assert cur_dst is None or isinstance(cur_dst, HlsOperationOutLazy), (phi, cur_dst)
+        # cur_dst = self._to_hls_cache._to_hls_cache.get(phi.dst, None)
+        # assert cur_dst is None or isinstance(cur_dst, HlsOperationOutLazy), (phi, cur_dst)
         self._to_hls_cache._to_hls_cache.get((self._current_block, phi.dst), mux_out)
 
         for lastSrc, (src, src_block) in iter_with_last(phi.operands):
@@ -200,18 +286,20 @@ class SsaToHwtHlsNetlist():
 
         return mux_out
 
-    def _add_block_en_to_controll_if_required(self, op: Union[HlsRead, HlsWrite]):
-        en = self._collect_en_from_predecessor(self._current_block)
-        if en is not None:
-            op.add_control_extraCond(en)
+    def _add_block_en_to_control_if_required(self, op: Union[HlsRead, HlsWrite]):
+        if self._get_SsaBasicBlock_meta(self._current_block).needs_control:
+            en = self._collect_en_from_predecessor(self._current_block)
+            if en is not None:
+                op.add_control_extraCond(en)
 
     def _collect_en_from_predecessor_one_hot(self, block: SsaBasicBlock):
         en_from_pred = []
         # [todo] check if does not lead to a deadlock if there is only as single predecessor
         # and the predecessor block has some extrenal io
         for pred in block.predecessors:
-            en = self._to_hls_cache.get(BranchControlLabel(pred, block, INTF_DIRECTION.SLAVE))
-            en_from_pred.append(en)
+            if self._get_SsaBasicBlock_meta(pred).needs_control:
+                en = self._to_hls_cache.get(BranchControlLabel(pred, block, INTF_DIRECTION.SLAVE))
+                en_from_pred.append(en)
 
         return en_from_pred
 
@@ -223,13 +311,18 @@ class SsaToHwtHlsNetlist():
         cur = self._block_ens.get(block, NOT_SPECIFIED)
         if cur is not NOT_SPECIFIED:
             while isinstance(cur, HlsOperationOutLazy) and cur.replaced_by is not None:
+                # lazy update of _block_ens if something got resolved
                 cur = cur.replaced_by
                 self._block_ens[block] = cur
 
             return cur
 
-        if block is self.start_block and self.start_block_en is not None:
-            en_by_pred = self.start_block_en
+        if not self._get_SsaBasicBlock_meta(self._current_block).needs_control:
+            self._block_ens[block] = None
+            return None
+
+        if block is self.start_block and self.io.start_block_en is not None:
+            en_by_pred = self.io.start_block_en
         else:
             en_by_pred = None
             assert block.predecessors, (self._current_block,

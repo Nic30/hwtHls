@@ -28,20 +28,14 @@ class SsaSegmentToHwPipeline():
     On each place where multiple values may appear due to branching we need to add multiplexer
     and use it in following expressions.
 
-   :ivar parentUnit: an Unit instance where the circuit should be constructed
-   :ivar freq: target clock frequency
    :ivar start: a block where the program excecution starts
    :ivar original_code: an original code for debug purposes
     """
 
     def __init__(self,
-                 parentUnit: Unit,
-                 freq: float,
                  start: SsaBasicBlock,
                  original_code:Optional[HlsStreamProcCodeBlock]):
         self.start = start
-        self.parentUnit = parentUnit
-        self.freq = freq
         self.original_code = original_code
 
     def extract_pipeline(self):
@@ -53,16 +47,25 @@ class SsaSegmentToHwPipeline():
         self.edge_var_live = ssa_liveness_edge_variables(self.start)
         self.backward_edges = pe.backward_edges
 
-    def extract_hlsnetlist(self):
-        self.hls: HlsPipeline = HlsPipeline(self.parentUnit, self.freq)
+    def extract_hlsnetlist(self, parentUnit: Unit, freq: float):
+        """
+        :param parentUnit: an Unit instance where the circuit should be constructed
+        :param freq: target clock frequency
+        """
+        self.hls: HlsPipeline = HlsPipeline(parentUnit, freq)
         hls = self.hls
         self.toHlsNetlist = SsaToHwtHlsNetlist(hls, self.start, self.backward_edges, self.edge_var_live)
         toHlsNetlist = self.toHlsNetlist
-        toHlsNetlist.io.init_out_of_hls_variables()
         # construct nodes for scheduling
+        # first resolve how block will be synchronized so we do not need to backtrace later
+        for block in self.pipeline:
+            toHlsNetlist.to_hls_SsaBasicBlock_resolve_io_and_sync(block)
+
+        # convert the code from the block to a netlist
         for block in self.pipeline:
             toHlsNetlist.to_hls_SsaBasicBlock(block)
-        toHlsNetlist.io.finalize_out_of_pipeline_variable_outputs()
+
+        toHlsNetlist.finalize_out_of_pipeline_variables(self.pipeline)
 
         assert not hls.coherency_checked_io
         hls.coherency_checked_io = toHlsNetlist.io._out_of_hls_io
