@@ -1,11 +1,13 @@
 import html
-from typing import List, Union, Dict, Optional, Tuple
 from pathlib import Path
+from typing import List, Union, Dict, Optional, Tuple
+
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwtHls.hlsStreamProc.debugCodeSerializer import CopyBasicBlockLabelsToCode
 from hwtHls.hlsStreamProc.ssa.analysis.liveness import EdgeLivenessDict
 from hwtHls.hlsStreamProc.ssa.basicBlock import SsaBasicBlock
 from hwtHls.hlsStreamProc.ssa.phi import SsaPhi
+from hwtHls.hlsStreamProc.ssa.translation.toHwtHlsNetlist.pipelineMaterialization import SsaSegmentToHwPipeline
 from hwtHls.hlsStreamProc.statements import HlsStreamProcCodeBlock
 from hwtHls.netlist.toGraphwiz import GraphwizNode, GraphwizLink, \
     HwtHlsNetlistToGraphwiz
@@ -118,14 +120,16 @@ class SsaToGraphwiz():
         return "".join(buff)
 
 
-class HlsNetlistPassToDot():
+class SsaPassDumpToDot():
 
     def __init__(self, file_name:str):
         self.file_name = file_name
 
-    def apply(self, to_hw: "SsaSegmentToHwPipeline"):
+    def apply(self, to_ssa: "AstToSsa"):
         to_graphwiz = SsaToGraphwiz(Path(self.file_name).stem)
+        to_hw = SsaSegmentToHwPipeline(to_ssa.start, to_ssa.original_code_for_debug)
+        to_hw.extract_pipeline()
         with open(self.file_name, "w") as f:
-            to_graphwiz.construct(to_hw.start, to_hw.original_code, [to_hw.pipeline, ],
+            to_graphwiz.construct(to_ssa.start, to_ssa.original_code_for_debug, [to_hw.pipeline, ],
                                   to_hw.edge_var_live)
             f.write(to_graphwiz.dumps())

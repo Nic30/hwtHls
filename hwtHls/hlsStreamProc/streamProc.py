@@ -16,7 +16,7 @@ from hwtHls.hlsStreamProc.ssa.analysis.consystencyCheck import SsaPassConsystenc
 from hwtHls.hlsStreamProc.ssa.transformation.expandControlSelfLoops import SsaPassExpandControlSelfloops
 from hwtHls.hlsStreamProc.ssa.transformation.removeTrivialBlocks import SsaPassRemoveTrivialBlocks
 from hwtHls.hlsStreamProc.ssa.translation.fromAst.astToSsa import AstToSsa, AnyStm
-from hwtHls.hlsStreamProc.ssa.translation.toGraphwiz import HlsNetlistPassToDot
+from hwtHls.hlsStreamProc.ssa.translation.toGraphwiz import SsaPassDumpToDot
 from hwtHls.hlsStreamProc.ssa.translation.toHwtHlsNetlist.pipelineMaterialization import SsaSegmentToHwPipeline
 from hwtHls.hlsStreamProc.statements import HlsStreamProcRead, \
     HlsStreamProcWrite, HlsStreamProcWhile, HlsStreamProcCodeBlock
@@ -45,9 +45,9 @@ class HlsStreamProc():
                     SsaPassConsystencyCheck(),
                     # SsaPassRemoveTrivialBlocks()
                     # SsaPassExpandControlSelfloops()
+                    SsaPassDumpToDot("top.dot"),
                  ],
                  hlsnetlist_passes=[
-                    HlsNetlistPassToDot("top.dot"),
                     HlsNetlistPassDumpToDot("top_p.dot"),
                     HlsNetlistPassMergeExplicitSync(),
                  ],
@@ -104,18 +104,17 @@ class HlsStreamProc():
         Create a thread from a code which will be translated to hw.
         """
         _code = self._format_code(code)
-        to_ssa = AstToSsa()
+        to_ssa = AstToSsa("top", _code)
         to_ssa.visit_top_CodeBlock(_code)
         for ssa_pass in self.ssa_passes:
             ssa_pass.apply(to_ssa)
 
-        to_hw = SsaSegmentToHwPipeline(self.parentUnit, self.freq, to_ssa.start, _code)
-
+        to_hw = SsaSegmentToHwPipeline(to_ssa.start, _code)
         to_hw.extract_pipeline()
         # print("backward_edges", [(e[0].label, e[1].label) for e in to_hw.backward_edges])
         # print("pipeline", [n.label for n in to_hw.pipeline])
 
-        to_hw.extract_hlsnetlist()
+        to_hw.extract_hlsnetlist(self.parentUnit, self.freq)
         for hlsnetlist_pass in self.hlsnetlist_passes:
             hlsnetlist_pass.apply(to_hw)
 

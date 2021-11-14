@@ -14,7 +14,7 @@ from hwtHls.hlsStreamProc.ssa.instr import SsaInstr
 from hwtHls.hlsStreamProc.ssa.phi import SsaPhi
 from hwtHls.hlsStreamProc.ssa.translation.fromAst.memorySSAUpdater import MemorySSAUpdater
 from hwtHls.hlsStreamProc.statements import HlsStreamProcStm, HlsStreamProcWhile, \
-    HlsStreamProcWrite, HlsStreamProcRead
+    HlsStreamProcWrite, HlsStreamProcRead, HlsStreamProcCodeBlock
 from hwtHls.tmpVariable import HlsTmpVariable
 
 AnyStm = Union[HdlStatement, HlsStreamProcStm]
@@ -38,7 +38,7 @@ class AstToSsa():
     :ivar _continue_target: basic block where code should jump on break statement
     """
 
-    def __init__(self, startBlockName:str="top"):
+    def __init__(self, startBlockName:str, original_code_for_debug: Optional[HlsStreamProcCodeBlock]):
         self._tmpVarCounter = 0
         self.start = SsaBasicBlock(startBlockName)
         self.m_ssa_u = MemorySSAUpdater(self._onBlockReduce, self._createHlsTmpVariable)
@@ -46,6 +46,7 @@ class AstToSsa():
         self._onAllPredecsKnown(self.start)
         self._continue_target: Optional[SsaBasicBlock] = None
         self._break_target: Optional[SsaBasicBlock] = None
+        self.original_code_for_debug = original_code_for_debug
 
     def _createHlsTmpVariable(self, origin: RtlSignal) -> HlsTmpVariable:
         v = HlsTmpVariable(f"v{self._tmpVarCounter:d}", origin)
