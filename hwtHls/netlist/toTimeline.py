@@ -197,7 +197,7 @@ class HwtHlsNetlistToTimeline():
         # https://plotly.com/python/bar-charts/
         bars = []
         for color, rows in df.groupby(by="color", sort=False):
-            b = go.Bar(x=rows["delta"], base=rows["start"], y=rows["group"],
+            b = go.Bar(x=rows["delta"], base=rows["start"], y=rows["group"], width=[1 for _ in rows["start"]],
                        marker_color=color,
                        orientation='h',
                        customdata=rows["label"],
