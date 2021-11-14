@@ -110,7 +110,6 @@ class SsaToHwtHlsNetlist():
         m = BlockMeta(is_cycle_entry_point, needs_control, requires_starter)
         self._block_meta[block] = m
 
-        print(block, m)
         return m
 
     def _prepare_SsaBasicBlockControl(self, block: SsaBasicBlock):
