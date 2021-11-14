@@ -49,7 +49,7 @@ Mapping of generic code to hardware architectures without harcoding of architect
 ===================================================================================================
 
 Translation of linear code to a hw pipeline in nearly a simple task, but arbitrary user code has rarely this format.
-It typicaly contains a loops with multicycle body, which must be modified and even after it the data and controll flow
+It typicaly contains a loops with multicycle body, which must be modified and even after it the data and control flow
 must be speculated and everything needs to be pipelined to achieve sufficient performance.
 The hardware naturaly supports the paralelism and thus speculation and non-constant length operation could be potentially
 support easily. However the support logic for speculation and data conflict solving can grow incredibly complex and costly.

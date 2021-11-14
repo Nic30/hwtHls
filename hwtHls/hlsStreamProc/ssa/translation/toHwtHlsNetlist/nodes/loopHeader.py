@@ -88,19 +88,19 @@ class HlsLoopGate(AbstractHlsOp):
 
 
     :note: This object does not handle the condition decission, it only manages guards the loop input while loop iterations are running.
-    :note: The place where this node bellong is characterized by a controll input from the pipeline and also out of pipeline.
+    :note: The place where this node bellong is characterized by a control input from the pipeline and also out of pipeline.
         The inputs from pipeline are from_predec and the inputs from out of pipeline are from_reenter.
     :note: to_loop are same outputs as from_predec + from_reenter, the only difference is that the order of input is managed and invalid values
-        are send on the channel which is not active (and should not be actively used in the pipeline by controll channel functionality).
-    :ivar from_predec: for each direct predecessor which is not in cycle body a tuple input for controll and variable values.
+        are send on the channel which is not active (and should not be actively used in the pipeline by control channel functionality).
+    :ivar from_predec: for each direct predecessor which is not in cycle body a tuple input for control and variable values.
         Signalizes that the loop has data to be executed.
-    :ivar from_reenter: For each direct predecessor which is a part of a cycle body a tuple controll input and associated variables.
+    :ivar from_reenter: For each direct predecessor which is a part of a cycle body a tuple control input and associated variables.
         Note that the channels are usually connected to out of pipeline interface because the HlsPipeline does not support cycles.
-    :ivar from_break: For each block wich is part of the cycle body and does have transition outside of the cycle a controll input
+    :ivar from_break: For each block wich is part of the cycle body and does have transition outside of the cycle a control input
         to mark the retun of the synchronization token.
-    :ivar to_loop: The controll and variable channels which are entering the loop condition eval.
+    :ivar to_loop: The control and variable channels which are entering the loop condition eval.
     :ivar to_successors: For each direct successor which is not the entry point of the loop body (because of structural programming there can be only one)
-        a tuple of controll and variable outputs.
+        a tuple of control and variable outputs.
 
     :note: values from from_predec are propagated to to_loop
     :note: if this gate has synchronization token it accepts only data from the from_predec then it accepts only from from_reenter/from_break

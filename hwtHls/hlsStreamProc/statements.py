@@ -200,7 +200,7 @@ class HlsStreamProcWhile(HlsStreamProcStm):
 
 class HlsStreamProcBreak(HlsStreamProcStm):
     """
-    The loop controll statement "break".
+    The loop control statement "break".
     """
 
     def __init__(self, parent: "HlsStreamProc"):
@@ -212,7 +212,7 @@ class HlsStreamProcBreak(HlsStreamProcStm):
 
 class HlsStreamProcContinue(HlsStreamProcStm):
     """
-    The loop controll statement "continue".
+    The loop control statement "continue".
     """
 
     def __init__(self, parent: "HlsStreamProc"):

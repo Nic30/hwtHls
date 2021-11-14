@@ -76,7 +76,7 @@ class WhileAndIf2(WhileTrueReadWrite):
                 # from while body end to push data in while body, otherwise we need to wait for one
                 hls.While(x,
                     x(x - hls.read(self.dataIn)),
-                    # a single predecessor, controll sync managed by pipeline, no dynamic scheduling
+                    # a single predecessor, control sync managed by pipeline, no dynamic scheduling
                     hls.write(x, dout)
                 ),
             )
