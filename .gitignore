@@ -44,6 +44,10 @@ nosetests.xml
 coverage.xml
 *,cover
 .hypothesis/
+*~
+*.dot
+*.html
+*.vcd
 
 # Translations
 *.mo
@@ -92,3 +96,5 @@ ENV/
 .pydevproject
 .project
 .settings/
+.cproject
+
