@@ -47,9 +47,11 @@ class HlsExprTree3_example(Unit):
 
         wr = hls.write
         hls.thread(
-            wr(f1, self.f1),
-            wr(f2, self.f2),
-            wr(f3, self.f3),
+            hls.While(True,
+                wr(f1, self.f1),
+                wr(f2, self.f2),
+                wr(f3, self.f3),
+            )
         )
 
 
