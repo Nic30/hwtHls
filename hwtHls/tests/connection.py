@@ -8,6 +8,8 @@ from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from pyMathBitPrecise.bit_utils import mask
+from hwt.hdl.types.bits import Bits
+from hwt.code import Concat
 
 
 class HlsConnection(Unit):
@@ -56,6 +58,32 @@ class HlsSlice2(Unit):
         )
 
 
+class HlsSlice2TmpHlsVarConcat(HlsSlice2):
+
+    def _impl(self):
+        hls = HlsStreamProc(self, freq=int(100e6))
+        tmp = hls.var("tmp", self.b._dtype)
+        hls.thread(
+            hls.While(True,
+                tmp(Concat(Bits(16).from_py(16), hls.read(self.a))),
+                hls.write(tmp, self.b)
+            )
+        )
+
+
+class HlsSlice2TmpHlsVarSlice(HlsSlice2):
+
+    def _impl(self):
+        hls = HlsStreamProc(self, freq=int(100e6))
+        tmp = hls.var("tmp", self.b._dtype)
+        hls.thread(
+            hls.While(True,
+                tmp[:16](Bits(16).from_py(16)),
+                tmp[16:](hls.read(self.a)),
+                hls.write(tmp, self.b)
+            )
+        )
+
 
 class HlsSlicingTC(SimTestCase):
 
@@ -88,14 +116,19 @@ class HlsSlicingTC(SimTestCase):
     def test_slice2(self):
         self._test_slice2(HlsSlice2)
 
+    def test_HlsSlice2TmpHlsVarConcat(self):
+        self._test_slice2(HlsSlice2TmpHlsVarConcat)
+
+    def test_HlsSlice2TmpHlsVarSlice(self):
+        self._test_slice2(HlsSlice2TmpHlsVarSlice)
 
 
 if __name__ == "__main__":
     import unittest
 
     suite = unittest.TestSuite()
-    # suite.addTest(HlsSlicingTC('test_connection'))
-    suite.addTest(unittest.makeSuite(HlsSlicingTC))
+    suite.addTest(HlsSlicingTC('test_HlsSlice2TmpHlsVarSlice'))
+    # suite.addTest(unittest.makeSuite(HlsSlicingTC))
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
 
