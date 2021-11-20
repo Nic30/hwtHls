@@ -221,11 +221,11 @@ class HwtHlsNetlistToTimeline():
 
     def show(self):
         fig = self._generate_fig()
-        plotly.offline.iplot(fig)
+        plotly.offline.iplot(fig, config={"scrollZoom":True})
 
     def save_html(self, filename, auto_open):
         fig = self._generate_fig()
-        plotly.offline.plot(fig, filename=filename, auto_open=auto_open)
+        plotly.offline.plot(fig, filename=filename, auto_open=auto_open, config={"scrollZoom":True})
 
 
 class RtlNetlistPassShowTimeline():
