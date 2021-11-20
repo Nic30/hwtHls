@@ -4,9 +4,9 @@ from typing import Dict, Optional, Union
 from hwt.hdl.value import HValue
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.hlsStreamProc.ssa.basicBlock import SsaBasicBlock
-from hwtHls.hlsStreamProc.ssa.instr import SsaInstr
-from hwtHls.hlsStreamProc.ssa.phi import SsaPhi
+from hwtHls.ssa.basicBlock import SsaBasicBlock
+from hwtHls.ssa.instr import SsaInstr
+from hwtHls.ssa.phi import SsaPhi
 from hwtHls.hlsStreamProc.statements import HlsStreamProcWrite
 
 

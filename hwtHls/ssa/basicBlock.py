@@ -1,8 +1,8 @@
 from typing import List
 
-from hwtHls.hlsStreamProc.ssa.context import SsaContext
-from hwtHls.hlsStreamProc.ssa.instr import SsaInstrBranch, SsaInstr
-from hwtHls.hlsStreamProc.ssa.phi import SsaPhi
+from hwtHls.ssa.context import SsaContext
+from hwtHls.ssa.instr import SsaInstrBranch, SsaInstr
+from hwtHls.ssa.phi import SsaPhi
 
 
 class SsaBasicBlock():

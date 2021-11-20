@@ -4,11 +4,11 @@ from typing import Dict, Set, Union, Optional, Tuple
 
 from hwt.hdl.value import HValue
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.hlsStreamProc.ssa.basicBlock import SsaBasicBlock
-from hwtHls.hlsStreamProc.ssa.instr import SsaInstr
-from hwtHls.hlsStreamProc.ssa.phi import SsaPhi
+from hwtHls.ssa.basicBlock import SsaBasicBlock
+from hwtHls.ssa.instr import SsaInstr
+from hwtHls.ssa.phi import SsaPhi
 from hwtHls.hlsStreamProc.statements import HlsStreamProcRead
-from hwtHls.hlsStreamProc.ssa.value import SsaValue
+from hwtHls.ssa.value import SsaValue
 
 
 # * Boissinot, B., Hack, S., Grund, D., de Dinechin, B. D., & Rastello, F. (2008). Fast Liveness Checking for SSA-Form Programs. CGO.

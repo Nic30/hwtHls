@@ -4,11 +4,11 @@ from typing import List, Tuple, Dict, Union
 
 from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.value import HValue
-from hwtHls.hlsStreamProc.ssa.basicBlock import SsaBasicBlock
-from hwtHls.hlsStreamProc.ssa.instr import SsaInstr
+from hwtHls.ssa.basicBlock import SsaBasicBlock
+from hwtHls.ssa.instr import SsaInstr
 from hwtHls.llvm.toLlvm import LLVMContext, Module, IRBuilder, LLVMStringContext, IntegerType, \
     Type, FunctionType, Function, VectorOfTypePtr, BasicBlock
-from hwtHls.hlsStreamProc.ssa.value import SsaValue
+from hwtHls.ssa.value import SsaValue
 
 
 class LlvmIrBundle():

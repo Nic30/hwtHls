@@ -7,18 +7,18 @@ from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsPipeline import HlsPipeline
-from hwtHls.hlsStreamProc.ssa.analysis.liveness import EdgeLivenessDict
-from hwtHls.hlsStreamProc.ssa.basicBlock import SsaBasicBlock
-from hwtHls.hlsStreamProc.ssa.branchControlLabel import BranchControlLabel
-from hwtHls.hlsStreamProc.ssa.translation.toHwtHlsNetlist.nodes.backwardEdge import HlsWriteBackwardEdge, \
+from hwtHls.ssa.analysis.liveness import EdgeLivenessDict
+from hwtHls.ssa.basicBlock import SsaBasicBlock
+from hwtHls.ssa.branchControlLabel import BranchControlLabel
+from hwtHls.ssa.translation.toHwtHlsNetlist.nodes.backwardEdge import HlsWriteBackwardEdge, \
     HlsReadBackwardEdge
-from hwtHls.hlsStreamProc.ssa.translation.toHwtHlsNetlist.nodes.programStarter import HlsProgramStarter
+from hwtHls.ssa.translation.toHwtHlsNetlist.nodes.programStarter import HlsProgramStarter
 from hwtHls.netlist.nodes.io import HlsWrite, HlsRead
 from hwtHls.netlist.nodes.ports import HlsOperationOut, link_hls_nodes, \
     HlsOperationOutLazy
 from hwtLib.abstract.componentBuilder import AbstractComponentBuilder
 from ipCorePackager.constants import INTF_DIRECTION
-from hwtHls.hlsStreamProc.ssa.value import SsaValue
+from hwtHls.ssa.value import SsaValue
 
 
 class BlockPortsRecord():
@@ -30,7 +30,7 @@ class BlockPortsRecord():
 
 class SsaToHwtHlsNetlistSyncAndIo():
     """
-    This object exists so :class:`hwtHls.hlsStreamProc.ssa.translation.toHwtHlsNetlist.SsaToHwtHlsNetlist`
+    This object exists so :class:`hwtHls.ssa.translation.toHwtHlsNetlist.SsaToHwtHlsNetlist`
     does not need to care about differnces between local data and data from ports which were constructed
     to avoid circuit cycles for scheduler.
 

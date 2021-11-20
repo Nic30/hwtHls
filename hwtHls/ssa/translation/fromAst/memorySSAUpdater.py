@@ -3,13 +3,13 @@ from typing import Set, Dict, Union, Callable, Tuple
 from hwt.hdl.value import HValue
 from hwt.serializer.utils import RtlSignal_sort_key
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.hlsStreamProc.ssa.basicBlock import SsaBasicBlock
-from hwtHls.hlsStreamProc.ssa.phi import SsaPhi
+from hwtHls.ssa.basicBlock import SsaBasicBlock
+from hwtHls.ssa.phi import SsaPhi
 from hwt.hdl.types.bitsVal import BitsVal
 from hwt.hdl.types.sliceVal import HSliceVal
 from hwt.code import Concat
 from hwt.hdl.types.bits import Bits
-from hwtHls.hlsStreamProc.ssa.value import SsaValue
+from hwtHls.ssa.value import SsaValue
 from hwtHls.hlsStreamProc.statements import HlsStreamProcRead
 
 

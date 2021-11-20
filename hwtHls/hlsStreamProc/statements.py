@@ -19,10 +19,10 @@ from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.hlsStreamProc.ssa.basicBlock import SsaBasicBlock
-from hwtHls.hlsStreamProc.ssa.instr import SsaInstr, OP_ASSIGN
-from hwtHls.hlsStreamProc.ssa.phi import SsaPhi
-from hwtHls.hlsStreamProc.ssa.value import SsaValue
+from hwtHls.ssa.basicBlock import SsaBasicBlock
+from hwtHls.ssa.instr import SsaInstr, OP_ASSIGN
+from hwtHls.ssa.phi import SsaPhi
+from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axis import AxiStream
 
 

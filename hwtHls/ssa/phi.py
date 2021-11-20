@@ -4,9 +4,9 @@ from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.value import HValue
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
-from hwtHls.hlsStreamProc.ssa.instr import SsaInstr
-from hwtHls.hlsStreamProc.ssa.value import SsaValue
-from hwtHls.hlsStreamProc.ssa.context import SsaContext
+from hwtHls.ssa.instr import SsaInstr
+from hwtHls.ssa.value import SsaValue
+from hwtHls.ssa.context import SsaContext
 
 
 class SsaPhi(SsaInstr):

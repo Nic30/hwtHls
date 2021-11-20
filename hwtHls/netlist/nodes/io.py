@@ -13,13 +13,13 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResourceItem, \
     TimeIndependentRtlResource
 from hwtHls.clk_math import epsilon
-from hwtHls.hlsStreamProc.ssa.translation.toHwtHlsNetlist.opCache import SsaToHwtHlsNetlistOpCache
+from hwtHls.ssa.translation.toHwtHlsNetlist.opCache import SsaToHwtHlsNetlistOpCache
 from hwtHls.netlist.nodes.ops import AbstractHlsOp
 from hwtHls.netlist.nodes.ports import HlsOperationIn, HlsOperationOut, \
     link_hls_nodes, HlsOperationOutLazy, HlsOperationOutLazyIndirect
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
-from hwtHls.hlsStreamProc.ssa.value import SsaValue
+from hwtHls.ssa.value import SsaValue
 
 
 IO_COMB_REALIZATION = OpRealizationMeta(latency_post=epsilon)

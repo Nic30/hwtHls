@@ -5,10 +5,10 @@ from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlRes
     TimeIndependentRtlResourceItem
 from hwtHls.clk_math import epsilon
 from hwtHls.hlsPipeline import HlsPipeline
-from hwtHls.hlsStreamProc.ssa.basicBlock import SsaBasicBlock
-from hwtHls.hlsStreamProc.ssa.branchControlLabel import BranchControlLabel
-from hwtHls.hlsStreamProc.ssa.translation.toHwtHlsNetlist.opCache import SsaToHwtHlsNetlistOpCache
-from hwtHls.hlsStreamProc.ssa.translation.toHwtHlsNetlist.syncAndIo import SsaToHwtHlsNetlistSyncAndIo
+from hwtHls.ssa.basicBlock import SsaBasicBlock
+from hwtHls.ssa.branchControlLabel import BranchControlLabel
+from hwtHls.ssa.translation.toHwtHlsNetlist.opCache import SsaToHwtHlsNetlistOpCache
+from hwtHls.ssa.translation.toHwtHlsNetlist.syncAndIo import SsaToHwtHlsNetlistSyncAndIo
 from hwtHls.netlist.nodes.io import HlsExplicitSyncNode, IO_COMB_REALIZATION
 from hwtHls.netlist.nodes.ops import AbstractHlsOp
 from hwtHls.netlist.nodes.ports import HlsOperationOut, link_hls_nodes, HlsOperationOutLazy

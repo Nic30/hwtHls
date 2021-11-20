@@ -12,20 +12,20 @@ from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.unit import Unit
-from hwtHls.hlsStreamProc.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
-from hwtHls.hlsStreamProc.ssa.transformation.expandControlSelfLoops import SsaPassExpandControlSelfloops
-from hwtHls.hlsStreamProc.ssa.transformation.extractPartDrivers import SsaPassExtractPartDrivers
-from hwtHls.hlsStreamProc.ssa.transformation.removeTrivialBlocks import SsaPassRemoveTrivialBlocks
-from hwtHls.hlsStreamProc.ssa.translation.fromAst.astToSsa import AstToSsa, AnyStm
-from hwtHls.hlsStreamProc.ssa.translation.toGraphwiz import SsaPassDumpToDot
-from hwtHls.hlsStreamProc.ssa.translation.toHwtHlsNetlist.pipelineMaterialization import SsaSegmentToHwPipeline
+from hwtHls.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
+from hwtHls.ssa.transformation.expandControlSelfLoops import SsaPassExpandControlSelfloops
+from hwtHls.ssa.transformation.extractPartDrivers import SsaPassExtractPartDrivers
+from hwtHls.ssa.transformation.removeTrivialBlocks import SsaPassRemoveTrivialBlocks
+from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa, AnyStm
+from hwtHls.ssa.translation.toGraphwiz import SsaPassDumpToDot
+from hwtHls.ssa.translation.toHwtHlsNetlist.pipelineMaterialization import SsaSegmentToHwPipeline
 from hwtHls.hlsStreamProc.statements import HlsStreamProcRead, \
     HlsStreamProcWrite, HlsStreamProcWhile, HlsStreamProcCodeBlock
 from hwtHls.netlist.toGraphwiz import HlsNetlistPassDumpToDot
 from hwtHls.netlist.toTimeline import RtlNetlistPassShowTimeline
 from hwtHls.netlist.transformations.mergeExplicitSync import HlsNetlistPassMergeExplicitSync
 from hwtLib.amba.axis import AxiStream
-from hwtHls.hlsStreamProc.ssa.context import SsaContext
+from hwtHls.ssa.context import SsaContext
 
 
 class HlsStreamProc():

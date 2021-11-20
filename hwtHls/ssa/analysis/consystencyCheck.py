@@ -3,10 +3,10 @@ from typing import Set, Dict, Union
 from hwt.hdl.operatorDefs import OpDefinition
 from hwt.hdl.value import HValue
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.hlsStreamProc.ssa.basicBlock import SsaBasicBlock
-from hwtHls.hlsStreamProc.ssa.instr import SsaInstr
-from hwtHls.hlsStreamProc.ssa.phi import SsaPhi
-from hwtHls.hlsStreamProc.ssa.value import SsaValue
+from hwtHls.ssa.basicBlock import SsaBasicBlock
+from hwtHls.ssa.instr import SsaInstr
+from hwtHls.ssa.phi import SsaPhi
+from hwtHls.ssa.value import SsaValue
 from hwtHls.hlsStreamProc.statements import HlsStreamProcRead
 
 

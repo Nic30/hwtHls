@@ -1,4 +1,4 @@
-from hwtHls.hlsStreamProc.ssa.basicBlock import SsaBasicBlock
+from hwtHls.ssa.basicBlock import SsaBasicBlock
 from ipCorePackager.constants import INTF_DIRECTION
 
 

@@ -1,7 +1,7 @@
 from typing import List, Set, Tuple
 
-from hwtHls.hlsStreamProc.ssa.analysis.sccSearch import DiscoverScc
-from hwtHls.hlsStreamProc.ssa.basicBlock import SsaBasicBlock
+from hwtHls.ssa.analysis.sccSearch import DiscoverScc
+from hwtHls.ssa.basicBlock import SsaBasicBlock
 
 
 class PipelineExtractor():

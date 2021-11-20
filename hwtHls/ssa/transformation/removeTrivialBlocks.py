@@ -1,7 +1,7 @@
 from typing import Set
 
-from hwtHls.hlsStreamProc.ssa.basicBlock import SsaBasicBlock
-from hwtHls.hlsStreamProc.ssa.translation.fromAst.astToSsa import AstToSsa
+from hwtHls.ssa.basicBlock import SsaBasicBlock
+from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
 
 
 class SsaPassRemoveTrivialBlocks():

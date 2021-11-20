@@ -4,10 +4,10 @@ from hwt.code import And
 from hwt.hdl.value import HValue
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.hlsStreamProc.exprBuilder import SsaExprBuilder
-from hwtHls.hlsStreamProc.ssa.basicBlock import SsaBasicBlock
-from hwtHls.hlsStreamProc.ssa.phi import SsaPhi
-from hwtHls.hlsStreamProc.ssa.translation.fromAst.astToSsa import AstToSsa
-from hwtHls.hlsStreamProc.ssa.value import SsaValue
+from hwtHls.ssa.basicBlock import SsaBasicBlock
+from hwtHls.ssa.phi import SsaPhi
+from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
+from hwtHls.ssa.value import SsaValue
 
 
 class SsaPassExpandControlSelfloops():

@@ -7,14 +7,14 @@ from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwtHls.hlsPipeline import HlsPipeline
-from hwtHls.hlsStreamProc.ssa.analysis.liveness import EdgeLivenessDict
-from hwtHls.hlsStreamProc.ssa.basicBlock import SsaBasicBlock
-from hwtHls.hlsStreamProc.ssa.branchControlLabel import BranchControlLabel
-from hwtHls.hlsStreamProc.ssa.instr import SsaInstr
-from hwtHls.hlsStreamProc.ssa.phi import SsaPhi
-from hwtHls.hlsStreamProc.ssa.translation.toHwtHlsNetlist.nodes.loopHeader import HlsLoopGate
-from hwtHls.hlsStreamProc.ssa.translation.toHwtHlsNetlist.opCache import SsaToHwtHlsNetlistOpCache
-from hwtHls.hlsStreamProc.ssa.translation.toHwtHlsNetlist.syncAndIo import SsaToHwtHlsNetlistSyncAndIo
+from hwtHls.ssa.analysis.liveness import EdgeLivenessDict
+from hwtHls.ssa.basicBlock import SsaBasicBlock
+from hwtHls.ssa.branchControlLabel import BranchControlLabel
+from hwtHls.ssa.instr import SsaInstr
+from hwtHls.ssa.phi import SsaPhi
+from hwtHls.ssa.translation.toHwtHlsNetlist.nodes.loopHeader import HlsLoopGate
+from hwtHls.ssa.translation.toHwtHlsNetlist.opCache import SsaToHwtHlsNetlistOpCache
+from hwtHls.ssa.translation.toHwtHlsNetlist.syncAndIo import SsaToHwtHlsNetlistSyncAndIo
 from hwtHls.hlsStreamProc.statements import HlsStreamProcRead, HlsStreamProcWrite
 from hwtHls.netlist.nodes.io import HlsRead, HlsWrite
 from hwtHls.netlist.nodes.mux import HlsMux
@@ -23,7 +23,7 @@ from hwtHls.netlist.nodes.ports import HlsOperationOutLazy, link_hls_nodes, \
     HlsOperationOut
 from hwtHls.netlist.utils import hls_op_or, hls_op_not, hls_op_and
 from ipCorePackager.constants import INTF_DIRECTION
-from hwtHls.hlsStreamProc.ssa.value import SsaValue
+from hwtHls.ssa.value import SsaValue
 
 
 class BlockMeta():
@@ -43,7 +43,7 @@ class BlockMeta():
 
 class SsaToHwtHlsNetlist():
     """
-    A class used to translate :mod:`hwtHls.hlsStreamProc.ssa` to objects from :mod:`hwtHls.netlist.nodes.ops`.
+    A class used to translate :mod:`hwtHls.ssa` to objects from :mod:`hwtHls.netlist.nodes.ops`.
     These objects are typicaly used for scheduling and circuit generating.
 
     :ivar hls: parent hls synthetizer which is used to generate scheduling graph

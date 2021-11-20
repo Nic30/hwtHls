@@ -3,8 +3,8 @@ from typing import List, Tuple, Optional, Union
 from hwt.hdl.operatorDefs import OpDefinition
 from hwt.hdl.value import HValue
 from hwt.hdl.types.hdlType import HdlType
-from hwtHls.hlsStreamProc.ssa.value import SsaValue
-from hwtHls.hlsStreamProc.ssa.context import SsaContext
+from hwtHls.ssa.value import SsaValue
+from hwtHls.ssa.context import SsaContext
 
 
 class SsaInstrBranch():

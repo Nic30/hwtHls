@@ -1,7 +1,7 @@
 from typing import Union
 
 from hwtHls.netlist.nodes.ports import HlsOperationOut, HlsOperationOutLazy
-from hwtHls.hlsStreamProc.ssa.value import SsaValue
+from hwtHls.ssa.value import SsaValue
 
 
 class SsaToHwtHlsNetlistOpCache():

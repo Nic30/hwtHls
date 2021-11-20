@@ -1,7 +1,7 @@
 from hwt.hdl.operatorDefs import OpDefinition, AllOps
-from hwtHls.hlsStreamProc.ssa.basicBlock import SsaBasicBlock
-from hwtHls.hlsStreamProc.ssa.instr import SsaInstr
-from hwtHls.hlsStreamProc.ssa.value import SsaValue
+from hwtHls.ssa.basicBlock import SsaBasicBlock
+from hwtHls.ssa.instr import SsaInstr
+from hwtHls.ssa.value import SsaValue
 
 
 class SsaExprBuilderProxy():

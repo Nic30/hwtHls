@@ -1,6 +1,6 @@
 from hwt.hdl.types.hdlType import HdlType
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.hlsStreamProc.ssa.context import SsaContext
+from hwtHls.ssa.context import SsaContext
 
 
 class SsaUser():
