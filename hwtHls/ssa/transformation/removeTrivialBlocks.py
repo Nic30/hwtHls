@@ -53,5 +53,5 @@ class SsaPassRemoveTrivialBlocks():
         seen = set()
         return self._visit(block, seen)
 
-    def apply(self, to_ssa: "AstToSsa"):
+    def apply(self, to_ssa: AstToSsa):
         to_ssa.start = self.visit(to_ssa.start)

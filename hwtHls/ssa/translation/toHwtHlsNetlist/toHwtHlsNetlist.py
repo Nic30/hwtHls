@@ -7,6 +7,13 @@ from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwtHls.hlsPipeline import HlsPipeline
+from hwtHls.hlsStreamProc.statements import HlsStreamProcRead, HlsStreamProcWrite
+from hwtHls.netlist.nodes.io import HlsRead, HlsWrite
+from hwtHls.netlist.nodes.mux import HlsMux
+from hwtHls.netlist.nodes.ops import AbstractHlsOp, HlsConst, HlsOperation
+from hwtHls.netlist.nodes.ports import HlsOperationOutLazy, link_hls_nodes, \
+    HlsOperationOut
+from hwtHls.netlist.utils import hls_op_or, hls_op_not, hls_op_and
 from hwtHls.ssa.analysis.liveness import EdgeLivenessDict
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.branchControlLabel import BranchControlLabel
@@ -15,15 +22,8 @@ from hwtHls.ssa.phi import SsaPhi
 from hwtHls.ssa.translation.toHwtHlsNetlist.nodes.loopHeader import HlsLoopGate
 from hwtHls.ssa.translation.toHwtHlsNetlist.opCache import SsaToHwtHlsNetlistOpCache
 from hwtHls.ssa.translation.toHwtHlsNetlist.syncAndIo import SsaToHwtHlsNetlistSyncAndIo
-from hwtHls.hlsStreamProc.statements import HlsStreamProcRead, HlsStreamProcWrite
-from hwtHls.netlist.nodes.io import HlsRead, HlsWrite
-from hwtHls.netlist.nodes.mux import HlsMux
-from hwtHls.netlist.nodes.ops import AbstractHlsOp, HlsConst, HlsOperation
-from hwtHls.netlist.nodes.ports import HlsOperationOutLazy, link_hls_nodes, \
-    HlsOperationOut
-from hwtHls.netlist.utils import hls_op_or, hls_op_not, hls_op_and
-from ipCorePackager.constants import INTF_DIRECTION
 from hwtHls.ssa.value import SsaValue
+from ipCorePackager.constants import INTF_DIRECTION
 
 
 class BlockMeta():

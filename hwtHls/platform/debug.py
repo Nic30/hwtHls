@@ -1,6 +1,6 @@
-from hwtHls.scheduler.scheduler import HlsScheduler
-from hwtHls.allocator.allocator import HlsAllocator
 from hwt.hdl.operatorDefs import AllOps
+from hwtHls.allocator.allocator import HlsAllocator
+from hwtHls.scheduler.scheduler import HlsScheduler
 
 
 class DebugHlsPlatform():

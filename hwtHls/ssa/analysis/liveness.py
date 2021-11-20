@@ -4,10 +4,10 @@ from typing import Dict, Set, Union, Optional, Tuple
 
 from hwt.hdl.value import HValue
 from hwt.pyUtils.uniqList import UniqList
+from hwtHls.hlsStreamProc.statements import HlsStreamProcRead
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.phi import SsaPhi
-from hwtHls.hlsStreamProc.statements import HlsStreamProcRead
 from hwtHls.ssa.value import SsaValue
 
 

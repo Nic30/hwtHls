@@ -7,9 +7,9 @@ import plotly.offline
 from hwt.hdl.types.bitsVal import BitsVal
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
-from hwtHls.ssa.translation.toHwtHlsNetlist.nodes.backwardEdge import HlsWriteBackwardEdge
 from hwtHls.netlist.nodes.io import HlsWrite, HlsRead, HlsExplicitSyncNode
 from hwtHls.netlist.nodes.ops import AbstractHlsOp, HlsOperation, HlsConst
+from hwtHls.ssa.translation.toHwtHlsNetlist.nodes.backwardEdge import HlsWriteBackwardEdge
 import pandas as pd
 
 

@@ -1,9 +1,9 @@
 from hwtHls.clk_math import end_clk, start_clk
 from hwtHls.netlist.nodes.ops import HlsConst
-#from hwtHls.scheduler.asap import asap_filter_inputs
 from hwtHls.scheduler.errors import UnresolvedChild
 
 
+#from hwtHls.scheduler.asap import asap_filter_inputs
 def parent_alap_time(ch):
     if ch.alap_start is None:
         if isinstance(ch, HlsConst):

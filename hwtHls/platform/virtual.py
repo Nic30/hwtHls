@@ -1,13 +1,13 @@
 from functools import lru_cache
-
-from hwt.hdl.operatorDefs import AllOps, OpDefinition
-from hwtHls.allocator.allocator import HlsAllocator
 from math import log2
+from typing import Dict
+
+from hwt.hdl.operator import Operator
+from hwt.hdl.operatorDefs import AllOps, OpDefinition
+from hwt.synthesizer.dummyPlatform import DummyPlatform
+from hwtHls.allocator.allocator import HlsAllocator
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.scheduler.list_schedueling import ListSchedueler
-from hwt.synthesizer.dummyPlatform import DummyPlatform
-from hwt.hdl.operator import Operator
-from typing import Dict
 
 _OPS_T_GROWING_EXP = {
     AllOps.DIV,

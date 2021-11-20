@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from hwt.code import If
 from hwt.hdl.constants import Time
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.param import Param
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtLib.logic.bitonicSorter import BitonicSorter, BitonicSorterTC
-from hwt.code import If
 
 
 class BitonicSorterHLS(BitonicSorter):

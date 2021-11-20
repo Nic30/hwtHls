@@ -6,8 +6,8 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResourceItem, \
     TimeIndependentRtlResource
 from hwtHls.netlist.nodes.io import HlsRead, HlsWrite
-from hwtLib.handshaked.builder import HsBuilder
 from hwtHls.ssa.value import SsaValue
+from hwtLib.handshaked.builder import HsBuilder
 
 
 class HlsReadBackwardEdge(HlsRead):

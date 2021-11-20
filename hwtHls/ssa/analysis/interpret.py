@@ -4,10 +4,10 @@ from typing import Dict, Optional, Union
 from hwt.hdl.value import HValue
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
+from hwtHls.hlsStreamProc.statements import HlsStreamProcWrite
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.phi import SsaPhi
-from hwtHls.hlsStreamProc.statements import HlsStreamProcWrite
 
 
 class SsaInterpretVarStore(Dict[Union[RtlSignal, HValue, SsaPhi], HValue]):

@@ -3,8 +3,8 @@
 
 from hwt.code import If
 from hwt.hdl.types.bits import Bits
-from hwtHls.tests.trivial import WhileTrueWrite, WhileTrueReadWrite
 from hwtHls.hlsStreamProc.streamProc  import HlsStreamProc
+from hwtHls.tests.trivial import WhileTrueWrite, WhileTrueReadWrite
 
 
 class WhileAndIf0(WhileTrueWrite):

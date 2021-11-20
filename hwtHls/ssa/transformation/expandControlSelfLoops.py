@@ -1,13 +1,11 @@
-from typing import Set, Callable
+from typing import Set
 
 from hwt.code import And
 from hwt.hdl.value import HValue
-from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.hlsStreamProc.exprBuilder import SsaExprBuilder
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.phi import SsaPhi
 from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
-from hwtHls.ssa.value import SsaValue
 
 
 class SsaPassExpandControlSelfloops():

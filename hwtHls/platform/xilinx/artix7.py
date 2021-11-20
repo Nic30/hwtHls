@@ -2,7 +2,7 @@ from typing import Callable, Dict, Union, Tuple
 
 from hwt.hdl.operator import Operator
 from hwt.hdl.operatorDefs import AllOps
-from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF,     RtlResourceType
+from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF, RtlResourceType
 from hwtHls.platform.interpolations import Spline, ResourceSplineBundle
 from hwtHls.platform.xilinx.abstract import AbstractXilinxPlatform
 
@@ -49,7 +49,7 @@ class Artix7Slow(AbstractXilinxPlatform):
             AllOps.TERNARY: MuxnS,
             ResourceFF: Sel
         }
-        
+
 class Artix7Medium(AbstractXilinxPlatform):
     def _init_coefs(self):
         AddSubnS = ResourceSplineBundle(Spline(
@@ -92,7 +92,7 @@ class Artix7Medium(AbstractXilinxPlatform):
             AllOps.TERNARY: MuxnS,
             ResourceFF: Sel
         }
-        
+
 class Artix7Fast(AbstractXilinxPlatform):
     def _init_coefs(self):
         AddSubnS = ResourceSplineBundle(Spline(
@@ -135,4 +135,4 @@ class Artix7Fast(AbstractXilinxPlatform):
             AllOps.TERNARY: MuxnS,
             ResourceFF: Sel
         }
-        
+

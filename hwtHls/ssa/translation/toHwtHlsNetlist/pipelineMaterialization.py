@@ -2,10 +2,10 @@ from typing import List, Optional
 
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsPipeline import HlsPipeline
+from hwtHls.hlsStreamProc.statements import HlsStreamProcCodeBlock
 from hwtHls.ssa.analysis.liveness import ssa_liveness_edge_variables
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.translation.toHwtHlsNetlist.pipelineExtractor import PipelineExtractor
-from hwtHls.hlsStreamProc.statements import HlsStreamProcCodeBlock
 from hwtHls.ssa.translation.toHwtHlsNetlist.toHwtHlsNetlist import SsaToHwtHlsNetlist
 
 

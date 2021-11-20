@@ -11,6 +11,7 @@ from hwtHls.clk_math import start_clk
 from hwtHls.netlist.nodes.ports import HlsOperationIn, HlsOperationOut
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 
+
 TimeSpec = Union[float, Tuple[float, ...]]
 
 

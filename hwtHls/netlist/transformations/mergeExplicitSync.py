@@ -1,7 +1,7 @@
 from typing import List
 
-from hwtHls.netlist.nodes.ops import AbstractHlsOp
 from hwtHls.netlist.nodes.io import HlsExplicitSyncNode, HlsRead, HlsWrite
+from hwtHls.netlist.nodes.ops import AbstractHlsOp
 
 
 class HlsNetlistPassMergeExplicitSync():

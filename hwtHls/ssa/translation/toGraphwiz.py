@@ -4,14 +4,14 @@ from typing import List, Union, Dict, Optional, Tuple
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwtHls.hlsStreamProc.debugCodeSerializer import CopyBasicBlockLabelsToCode
-from hwtHls.ssa.analysis.liveness import EdgeLivenessDict
-from hwtHls.ssa.basicBlock import SsaBasicBlock
-from hwtHls.ssa.phi import SsaPhi
-from hwtHls.ssa.translation.toHwtHlsNetlist.pipelineMaterialization import SsaSegmentToHwPipeline
 from hwtHls.hlsStreamProc.statements import HlsStreamProcCodeBlock
 from hwtHls.netlist.toGraphwiz import GraphwizNode, GraphwizLink, \
     HwtHlsNetlistToGraphwiz
+from hwtHls.ssa.analysis.liveness import EdgeLivenessDict
+from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
+from hwtHls.ssa.phi import SsaPhi
+from hwtHls.ssa.translation.toHwtHlsNetlist.pipelineMaterialization import SsaSegmentToHwPipeline
 
 
 class SsaToGraphwiz():

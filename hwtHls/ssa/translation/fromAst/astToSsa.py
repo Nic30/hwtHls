@@ -10,13 +10,13 @@ from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.value import HValue
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.rtlLevel.signalUtils.exceptions import SignalDriverErr
+from hwtHls.hlsStreamProc.statements import HlsStreamProcStm, HlsStreamProcWhile, \
+    HlsStreamProcWrite, HlsStreamProcRead, HlsStreamProcCodeBlock
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.context import SsaContext
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.translation.fromAst.memorySSAUpdater import MemorySSAUpdater
 from hwtHls.ssa.value import SsaValue
-from hwtHls.hlsStreamProc.statements import HlsStreamProcStm, HlsStreamProcWhile, \
-    HlsStreamProcWrite, HlsStreamProcRead, HlsStreamProcCodeBlock
 
 
 AnyStm = Union[HdlStatement, HlsStreamProcStm]

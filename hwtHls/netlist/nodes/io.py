@@ -1,24 +1,21 @@
-from typing import List, Union, Optional
+from typing import Union, Optional
 
 from hwt.doc_markers import internal
-from hwt.hdl.types.hdlType import HdlType
-from hwt.hdl.types.typeCast import toHVal
 from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.interfaces.std import Signal
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
-from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
+from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResourceItem, \
     TimeIndependentRtlResource
 from hwtHls.clk_math import epsilon
-from hwtHls.ssa.translation.toHwtHlsNetlist.opCache import SsaToHwtHlsNetlistOpCache
 from hwtHls.netlist.nodes.ops import AbstractHlsOp
 from hwtHls.netlist.nodes.ports import HlsOperationIn, HlsOperationOut, \
     link_hls_nodes, HlsOperationOutLazy, HlsOperationOutLazyIndirect
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
-from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
+from hwtHls.ssa.translation.toHwtHlsNetlist.opCache import SsaToHwtHlsNetlistOpCache
 from hwtHls.ssa.value import SsaValue
 
 

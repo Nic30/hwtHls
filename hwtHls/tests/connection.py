@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from hwt.code import Concat
 from hwt.hdl.constants import Time
+from hwt.hdl.types.bits import Bits
 from hwt.interfaces.std import VectSignal
 from hwt.simulator.simTestCase import SimTestCase
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from pyMathBitPrecise.bit_utils import mask
-from hwt.hdl.types.bits import Bits
-from hwt.code import Concat
 
 
 class HlsConnection(Unit):

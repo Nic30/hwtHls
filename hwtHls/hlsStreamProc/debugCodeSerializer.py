@@ -9,9 +9,9 @@ from hwt.hdl.statements.ifContainter import IfContainer
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.serializer.hwt import HwtDebugSerializer, ToHdlAstDebugHwt
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
-from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.hlsStreamProc.statements import HlsStreamProcWhile, \
     HlsStreamProcCodeBlock, HlsStreamProcWrite
+from hwtHls.ssa.basicBlock import SsaBasicBlock
 
 
 class ToHdlAstHlsStreamProcDebugCode(ToHdlAstDebugHwt):

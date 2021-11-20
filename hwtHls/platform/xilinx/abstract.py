@@ -5,8 +5,8 @@ from hwt.hdl.operatorDefs import OpDefinition
 from hwt.synthesizer.dummyPlatform import DummyPlatform
 from hwtHls.allocator.allocator import HlsAllocator
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
-from hwtHls.scheduler.list_schedueling import ListSchedueler
 from hwtHls.platform.virtual import _OPS_T_ZERO_LATENCY
+from hwtHls.scheduler.list_schedueling import ListSchedueler
 
 
 class AbstractXilinxPlatform(DummyPlatform):

@@ -4,9 +4,9 @@
 from hwt.code import If
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.param import Param
+from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtLib.examples.statements.ifStm import SimpleIfStatement
-from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 
 
 class SimpleIfStatementHls(SimpleIfStatement):

@@ -1,8 +1,8 @@
 from typing import List
 
 from hwtHls.clk_math import start_of_next_clk_period
-from hwtHls.netlist.nodes.ops import HlsConst, HlsOperation
 from hwtHls.netlist.nodes.io import HlsWrite
+from hwtHls.netlist.nodes.ops import HlsConst, HlsOperation
 from hwtHls.scheduler.errors import TimeConstraintError
 
 
