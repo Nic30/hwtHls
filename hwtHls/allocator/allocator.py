@@ -3,12 +3,12 @@ from typing import Union, List, Type, Dict, Optional, Tuple, Sequence
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.code import If, And
-from hwt.hdl.types.defs import BIT
-from hwt.hdl.types.struct import HStruct
 from hwt.interfaces.std import VldSynced, RdSynced, Signal, Handshaked, \
     HandshakeSync
+from hwt.interfaces.structIntf import StructIntf
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
+from hwt.synthesizer.interfaceLevel.unitImplHelpers import Interface_without_registration
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
@@ -19,8 +19,6 @@ from hwtHls.netlist.nodes.io import HlsRead, HlsWrite
 from hwtHls.netlist.nodes.ops import AbstractHlsOp
 from hwtHls.netlist.nodes.ports import HlsOperationOut
 from hwtLib.handshaked.streamNode import StreamNode
-from hwt.interfaces.structIntf import StructIntf
-from hwt.synthesizer.interfaceLevel.unitImplHelpers import Interface_without_registration
 
 
 def get_sync_type(intf: Interface) -> Type[Interface]:
