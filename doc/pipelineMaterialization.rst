@@ -12,6 +12,7 @@ which are explained in following section.
 
 Dictionary of terms for this section:
     * https://www.cs.cornell.edu/courses/cs6120/2020fa/lesson/
+    * https://llvm.org/pubs/2002-12-LattnerMSThesis.pdf
     .. code-block:: C
 
               for (int i=0;i<8;i++) {
