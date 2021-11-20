@@ -86,6 +86,36 @@ class WhileTrueWrite(Unit):
         )
 
 
+class WhileTrueWriteCntr0(WhileTrueWrite):
+
+    def _impl(self) -> None:
+        dout = self.dataOut
+        hls = HlsStreamProc(self)
+        cntr = hls.var("cntr", dout.data._dtype)
+        hls.thread(
+            cntr(0),
+            hls.While(True,
+                hls.write(cntr, dout),
+                cntr(cntr + 1),
+            )
+        )
+
+
+class WhileTrueWriteCntr1(WhileTrueWrite):
+
+    def _impl(self) -> None:
+        dout = self.dataOut
+        hls = HlsStreamProc(self)
+        cntr = hls.var("cntr", dout.data._dtype)
+        hls.thread(
+            cntr(0),
+            hls.While(True,
+                cntr(cntr + 1),
+                hls.write(cntr, dout),
+            )
+        )
+
+
 class WhileTrueReadWrite(WhileTrueWrite):
 
     def _declr(self) -> None:
@@ -105,6 +135,6 @@ class WhileTrueReadWrite(WhileTrueWrite):
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
-    u = WhileTrueWrite()
+    u = WhileTrueWriteCntr0()
     u.FREQ = int(150e6)
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform()))
