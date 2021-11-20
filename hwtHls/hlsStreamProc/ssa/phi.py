@@ -1,27 +1,24 @@
-from typing import Tuple, Union, List
+from typing import Tuple, Union, List, Optional
 
+from hwt.hdl.operatorDefs import AllOps
+from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.value import HValue
-from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
-from hwtHls.tmpVariable import HlsTmpVariable
+from hwtHls.hlsStreamProc.ssa.instr import SsaInstr
+from hwtHls.hlsStreamProc.ssa.value import SsaValue
+from hwtHls.hlsStreamProc.ssa.context import SsaContext
 
 
-class SsaPhi():
+class SsaPhi(SsaInstr):
     """
     A function from SSA normal form which select the value of variable based on prevous basic block
     """
 
-    def __init__(self, parent: "SsaBasicBlock", dst: HlsTmpVariable,
-                 *operands: Tuple[Union[RtlSignalBase, HValue, HlsTmpVariable, 'SsaPhi'], "SsaBasicBlock"]):
-        self.block = parent
-        assert isinstance(dst, HlsTmpVariable)
-        self.dst = dst
-        assert isinstance(dst, RtlSignalBase), dst
-        self.operands = operands
-        self.block.phis.append(self)
-        self.users: UniqList[SsaPhi, "SsaInstrBranch", "SsaInstr", "HlsStreamProcWrite"] = UniqList()
-        for (_, src_block) in operands:
-            assert src_block in parent.predecessors
+    def __init__(self,
+                 ctx: SsaContext, dtype: HdlType, name:Optional[str]=None, origin=None):
+        super(SsaPhi, self).__init__(ctx, dtype, AllOps.TERNARY, (), name=name, origin=origin)
+        self.block: Optional["SsaBasicBlock"] = None
+        self.operands:Tuple[Union[HValue, SsaValue], "SsaBasicBlock"] = ()
 
     def replaceUseBy(self, v: "SsaPhi"):
         for u in self.users:
@@ -34,7 +31,7 @@ class SsaPhi():
         if new_op in self.operands:
             return
         self.operands = (*self.operands, new_op)
-        if isinstance(val, SsaPhi):
+        if isinstance(val, SsaValue):
             val.users.append(self)
 
     def replacePredecessorBlockByMany(self,
@@ -57,4 +54,4 @@ class SsaPhi():
         self.operands = tuple(operands)
 
     def __repr__(self):
-        return f"<{self.__class__.__name__:s} {self.dst}>"
+        return f"<{self.__class__.__name__:s} {self._name}>"

@@ -14,6 +14,7 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
 from hwtHls.hlsStreamProc.ssa.transformation.expandControlSelfLoops import SsaPassExpandControlSelfloops
+from hwtHls.hlsStreamProc.ssa.transformation.extractPartDrivers import SsaPassExtractPartDrivers
 from hwtHls.hlsStreamProc.ssa.transformation.removeTrivialBlocks import SsaPassRemoveTrivialBlocks
 from hwtHls.hlsStreamProc.ssa.translation.fromAst.astToSsa import AstToSsa, AnyStm
 from hwtHls.hlsStreamProc.ssa.translation.toGraphwiz import SsaPassDumpToDot
@@ -24,6 +25,7 @@ from hwtHls.netlist.toGraphwiz import HlsNetlistPassDumpToDot
 from hwtHls.netlist.toTimeline import RtlNetlistPassShowTimeline
 from hwtHls.netlist.transformations.mergeExplicitSync import HlsNetlistPassMergeExplicitSync
 from hwtLib.amba.axis import AxiStream
+from hwtHls.hlsStreamProc.ssa.context import SsaContext
 
 
 class HlsStreamProc():
@@ -43,9 +45,12 @@ class HlsStreamProc():
     def __init__(self, parentUnit: Unit,
                  ssa_passes=[
                     SsaPassConsystencyCheck(),
+                    SsaPassDumpToDot("tmp/top.dot"),
+                    SsaPassExtractPartDrivers(),
+                    SsaPassDumpToDot("tmp/top2.dot"),
+                    # SsaPassConsystencyCheck(),
                     # SsaPassRemoveTrivialBlocks()
                     # SsaPassExpandControlSelfloops()
-                    SsaPassDumpToDot("tmp/top.dot"),
                  ],
                  hlsnetlist_passes=[
                     HlsNetlistPassDumpToDot("tmp/top_p.dot"),
@@ -61,6 +66,7 @@ class HlsStreamProc():
         self.freq = freq
         self.ctx = RtlNetlist()
         self.ssa_passes = ssa_passes
+        self.ssaCtx = SsaContext()
         self.hlsnetlist_passes = hlsnetlist_passes
         self.rtlnetlist_passes = rtlnetlist_passes
 
@@ -93,6 +99,9 @@ class HlsStreamProc():
         return HlsStreamProcWhile(self, cond, body)
 
     def _format_code(self, code: List[AnyStm], label:str="hls_top") -> HlsStreamProcCodeBlock:
+        """
+        Normalize an input code.
+        """
         _code = HlsStreamProcCodeBlock(self)
         _code.name = label
         _code._sensitivity = UniqList()
@@ -104,7 +113,7 @@ class HlsStreamProc():
         Create a thread from a code which will be translated to hw.
         """
         _code = self._format_code(code)
-        to_ssa = AstToSsa("top", _code)
+        to_ssa = AstToSsa(self.ssaCtx, "top", _code)
         to_ssa.visit_top_CodeBlock(_code)
         for ssa_pass in self.ssa_passes:
             ssa_pass.apply(to_ssa)

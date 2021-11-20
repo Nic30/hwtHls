@@ -1,11 +1,16 @@
-from typing import Set, Dict, Union, Callable
+from typing import Set, Dict, Union, Callable, Tuple
 
 from hwt.hdl.value import HValue
 from hwt.serializer.utils import RtlSignal_sort_key
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.hlsStreamProc.ssa.basicBlock import SsaBasicBlock
 from hwtHls.hlsStreamProc.ssa.phi import SsaPhi
-from hwtHls.tmpVariable import HlsTmpVariable
+from hwt.hdl.types.bitsVal import BitsVal
+from hwt.hdl.types.sliceVal import HSliceVal
+from hwt.code import Concat
+from hwt.hdl.types.bits import Bits
+from hwtHls.hlsStreamProc.ssa.value import SsaValue
+from hwtHls.hlsStreamProc.statements import HlsStreamProcRead
 
 
 class MemorySSAUpdater():
@@ -17,7 +22,10 @@ class MemorySSAUpdater():
 
     def __init__(self,
                  onBlockReduce: Callable[[SsaBasicBlock, SsaBasicBlock], None],
-                 createHlsTmpVariable: Callable[[RtlSignal, ], HlsTmpVariable]):
+                 hwtExprToSsa: Callable[
+                     [SsaBasicBlock, Union[RtlSignal, HValue]],
+                     Tuple[SsaBasicBlock, Union[SsaValue, HValue]]
+                ]):
         """
         :param onBlockReduce: function (old, new) called if some block is reduced
         """
@@ -25,15 +33,65 @@ class MemorySSAUpdater():
         self.sealedBlocks: Set[SsaBasicBlock] = set()
         self.incompletePhis: Dict[SsaBasicBlock, Dict[RtlSignal, SsaPhi]] = {}
         self._onBlockReduce = onBlockReduce
-        self._createHlsTmpVariable = createHlsTmpVariable
+        self._hwtExprToSsa = hwtExprToSsa
 
-    def writeVariable(self, variable: RtlSignal, block: SsaBasicBlock, value: SsaPhi) -> int:
+    def writeVariable(self, variable: RtlSignal,
+                      indexes: Tuple[Union[SsaValue, BitsVal, HSliceVal], ...],
+                      block: SsaBasicBlock,
+                      value: Union[SsaPhi, SsaValue, HValue]) -> int:
         """
+        :param variable: A variable which is beeing written to.
+        :param indexes: A list of indexes where in the variable is written.
+        :param block: A bock where this is taking place.
+        :param value: A value which is beeing written.
+
         :returns: unique index of tmp variable for phi function
         """
         defs = self.currentDef.setdefault(variable, {})
-        defs[block] = value
-        return len(defs) - 1
+        new_bb = block
+        if indexes:
+            if len(indexes) != 1 or not isinstance(variable._dtype, Bits):
+                raise NotImplementedError(block, variable, indexes, value)
+
+            i = indexes[0]
+            if isinstance(i, SsaValue):
+                raise NotImplementedError("indexing using address variable, we need to use getelementptr etc.")
+
+            else:
+                assert isinstance(i, HValue), (block, variable, indexes, value)
+                if isinstance(i, BitsVal):
+                    low = int(i)
+                    high = low + 1
+
+                else:
+                    assert isinstance(i, HSliceVal), (block, variable, indexes, value)
+                    assert int(i.val.step) == -1, (block, variable, indexes, value)
+                    low = int(i.val.stop)
+                    high = int(i.val.start)
+
+                assert isinstance(variable, RtlSignal), variable
+                width = variable._dtype.bit_length()
+                parts = []
+                if high < width:
+                    parts.append(variable[width:high])
+
+                if isinstance(value, SsaValue) and not isinstance(value, HlsStreamProcRead):
+                    assert value.origin is not None
+                    parts.append(value.origin)
+
+                else:
+                    parts.append(value)
+
+                if low > 0:
+                    parts.append(variable[low:0])
+
+                v = Concat(*parts)
+                assert v._dtype.bit_length() == variable._dtype.bit_length()
+                new_bb, new_var = self._hwtExprToSsa(block, v)
+                value = new_var
+
+        defs[new_bb] = value
+        return new_bb
 
     def readVariable(self, variable: RtlSignal, block: SsaBasicBlock) -> SsaPhi:
         try:
@@ -51,7 +109,8 @@ class MemorySSAUpdater():
         """
         if block not in self.sealedBlocks:
             # Incomplete CFG
-            phi = SsaPhi(block, self._createHlsTmpVariable(variable))
+            phi = SsaPhi(block.ctx, variable._dtype, origin=variable)
+            block.appendPhi(phi)
             self.incompletePhis.setdefault(block, {})[variable] = phi
 
         elif len(block.predecessors) == 1:
@@ -60,12 +119,13 @@ class MemorySSAUpdater():
 
         else:
             # Break potential cycles with operandless phi
-            phi = SsaPhi(block, self._createHlsTmpVariable(variable))
-            phi.dst.i = self.writeVariable(variable, block, phi)
+            phi = SsaPhi(block.ctx, variable._dtype, origin=variable)
+            block.appendPhi(phi)
+            self.writeVariable(variable, (), block, phi)
             phi = self.addPhiOperands(variable, phi)
 
         if isinstance(phi, SsaPhi):
-            phi.dst.i = self.writeVariable(variable, block, phi)
+            self.writeVariable(variable, (), block, phi)
         elif isinstance(phi, HValue):
             pass
         else:
@@ -94,7 +154,7 @@ class MemorySSAUpdater():
                 same = op
 
         if same is None:
-            same = phi.dst._dtype.from_py(None)  # The phi is unreachable or in the start block
+            same = phi._dtype.from_py(None)  # The phi is unreachable or in the start block
 
         users = [use for use in phi.users if use is not phi]  # Remember all users except the phi itself
         phi.replaceUseBy(same)  # Reroute all uses of phi to same and remove phi
@@ -151,11 +211,23 @@ class MemorySSAUpdater():
         # reduce the block with just phis
         for pred in tuple(block.predecessors):
             pred: SsaBasicBlock
-            # if predecessors contains only phis and has only this successor
+            # if predecessors contains only phis and has only this successor unconditionally
             if pred in self.sealedBlocks and\
                     len(pred.successors) == 1 and\
                     not pred.body and\
                     pred.successors.targets[0][0] is None:
+
+                if block.phis:
+                    if not pred.predecessors:
+                        # we can not propagate predecessors because there are any
+                        # and the predecessor block would be missing for some phi
+                        continue
+
+                    # if the predecessor has same predecessors as this block we can not reduce
+                    # because we would not be abble to select correctly in phis
+                    for pp in pred.predecessors:
+                        if pp in block.predecessors:
+                            continue
                 self.transferBlockPhis(pred, block)
                 self.transfertTargetsToBlock(pred, block)
                 self._onBlockReduce(pred, block)

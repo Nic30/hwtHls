@@ -6,8 +6,8 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResourceItem, \
     TimeIndependentRtlResource
 from hwtHls.netlist.nodes.io import HlsRead, HlsWrite
-from hwtHls.tmpVariable import HlsTmpVariable
 from hwtLib.handshaked.builder import HsBuilder
+from hwtHls.hlsStreamProc.ssa.value import SsaValue
 
 
 class HlsReadBackwardEdge(HlsRead):
@@ -28,7 +28,7 @@ class HlsWriteBackwardEdge(HlsWrite):
 
     def __init__(self, parentHls:"HlsPipeline",
                  src,
-                 dst:Union[RtlSignal, Interface, HlsTmpVariable],
+                 dst:Union[RtlSignal, Interface, SsaValue],
                  channel_init_values=()):
         HlsWrite.__init__(self, parentHls, src, dst)
         self.associated_read: Optional[HlsReadBackwardEdge] = None

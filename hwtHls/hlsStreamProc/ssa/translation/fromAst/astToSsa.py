@@ -1,6 +1,7 @@
-from typing import Union, List, Optional
+from typing import Union, List, Optional, Tuple
 
 from hwt.hdl.operator import Operator
+from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.portItem import HdlPortItem
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.statements.codeBlockContainer import HdlStmCodeBlockContainer
@@ -10,12 +11,13 @@ from hwt.hdl.value import HValue
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.rtlLevel.signalUtils.exceptions import SignalDriverErr
 from hwtHls.hlsStreamProc.ssa.basicBlock import SsaBasicBlock
+from hwtHls.hlsStreamProc.ssa.context import SsaContext
 from hwtHls.hlsStreamProc.ssa.instr import SsaInstr
-from hwtHls.hlsStreamProc.ssa.phi import SsaPhi
 from hwtHls.hlsStreamProc.ssa.translation.fromAst.memorySSAUpdater import MemorySSAUpdater
+from hwtHls.hlsStreamProc.ssa.value import SsaValue
 from hwtHls.hlsStreamProc.statements import HlsStreamProcStm, HlsStreamProcWhile, \
     HlsStreamProcWrite, HlsStreamProcRead, HlsStreamProcCodeBlock
-from hwtHls.tmpVariable import HlsTmpVariable
+
 
 AnyStm = Union[HdlStatement, HlsStreamProcStm]
 
@@ -38,20 +40,15 @@ class AstToSsa():
     :ivar _continue_target: basic block where code should jump on break statement
     """
 
-    def __init__(self, startBlockName:str, original_code_for_debug: Optional[HlsStreamProcCodeBlock]):
-        self._tmpVarCounter = 0
-        self.start = SsaBasicBlock(startBlockName)
-        self.m_ssa_u = MemorySSAUpdater(self._onBlockReduce, self._createHlsTmpVariable)
+    def __init__(self, ssaCtx: SsaContext, startBlockName:str, original_code_for_debug: Optional[HlsStreamProcCodeBlock]):
+        self.ssaCtx = ssaCtx
+        self.start = SsaBasicBlock(ssaCtx, startBlockName)
+        self.m_ssa_u = MemorySSAUpdater(self._onBlockReduce, self.visit_expr)
         # all predecesors known (because this is an entry point)
         self._onAllPredecsKnown(self.start)
         self._continue_target: Optional[SsaBasicBlock] = None
         self._break_target: Optional[SsaBasicBlock] = None
         self.original_code_for_debug = original_code_for_debug
-
-    def _createHlsTmpVariable(self, origin: RtlSignal) -> HlsTmpVariable:
-        v = HlsTmpVariable(f"v{self._tmpVarCounter:d}", origin)
-        self._tmpVarCounter += 1
-        return v
 
     def _onBlockReduce(self, block: SsaBasicBlock, replacement: SsaBasicBlock):
         if block is self.start:
@@ -59,39 +56,39 @@ class AstToSsa():
 
     @staticmethod
     def _addNewTargetBb(predecessor: SsaBasicBlock, cond: Optional[RtlSignal], label: str, origin) -> SsaBasicBlock:
-        new_bb = SsaBasicBlock(label)
+        new_block = SsaBasicBlock(predecessor.ctx, label)
         if origin is not None:
-            new_bb.origins.append(origin)
-        predecessor.successors.addTarget(cond, new_bb)
-        return new_bb
+            new_block.origins.append(origin)
+        predecessor.successors.addTarget(cond, new_block)
+        return new_block
 
-    def _onAllPredecsKnown(self, bb: SsaBasicBlock):
-        self.m_ssa_u.sealBlock(bb)
+    def _onAllPredecsKnown(self, block: SsaBasicBlock):
+        self.m_ssa_u.sealBlock(block)
 
     def visit_top_CodeBlock(self, obj: HdlStmCodeBlockContainer) -> SsaBasicBlock:
-        bb = self.visit_CodeBlock(self.start, obj)
-        self._onAllPredecsKnown(bb)
-        return bb
+        block = self.visit_CodeBlock(self.start, obj)
+        self._onAllPredecsKnown(block)
+        return block
 
-    def visit_CodeBlock(self, bb: SsaBasicBlock, obj: HdlStmCodeBlockContainer) -> SsaBasicBlock:
-        return self.visit_CodeBlock_list(bb, obj.statements)
+    def visit_CodeBlock(self, block: SsaBasicBlock, obj: HdlStmCodeBlockContainer) -> SsaBasicBlock:
+        return self.visit_CodeBlock_list(block, obj.statements)
 
-    def visit_CodeBlock_list(self, bb: SsaBasicBlock, obj: List[AnyStm]) -> SsaBasicBlock:
+    def visit_CodeBlock_list(self, block: SsaBasicBlock, obj: List[AnyStm]) -> SsaBasicBlock:
         for o in obj:
             if isinstance(o, HdlAssignmentContainer):
-                bb = self.visit_Assignment(bb, o)
+                block = self.visit_Assignment(block, o)
             elif isinstance(o, HlsStreamProcWrite):
-                bb = self.visit_Write(bb, o)
+                block = self.visit_Write(block, o)
             elif isinstance(o, HlsStreamProcWhile):
-                bb = self.visit_While(bb, o)
+                block = self.visit_While(block, o)
             elif isinstance(o, IfContainer):
-                bb = self.visit_If(bb, o)
+                block = self.visit_If(block, o)
             else:
                 raise NotImplementedError(o)
 
-        return bb
+        return block
 
-    def visit_expr(self, bb: SsaBasicBlock, var: Union[RtlSignal, HValue]):
+    def visit_expr(self, block: SsaBasicBlock, var: Union[RtlSignal, HValue]) -> Tuple[SsaBasicBlock, Union[SsaValue, HValue]]:
         if isinstance(var, RtlSignal):
             try:
                 op = var.singleDriver()
@@ -99,126 +96,138 @@ class AstToSsa():
                 op = None
 
             if op is None or not isinstance(op, Operator):
-                if isinstance(op, HlsStreamProcRead):
-                    return bb, op
+                if isinstance(op, HdlPortItem):
+                    raise NotImplementedError(op)
+                elif isinstance(op, HlsStreamProcRead):
+                    if op.block is None:
+                        block.appendInstruction(op)
+
+                    self.m_ssa_u.writeVariable(op, (), block, var)
+                    return block, op
                 else:
-                    if isinstance(op, HdlPortItem):
-                        raise NotImplementedError(op)
-                    return bb, self.m_ssa_u.readVariable(var, bb)
+                    return block, self.m_ssa_u.readVariable(var, block)
+
+            if op.operator in (AllOps.BitsAsVec, AllOps.BitsAsUnsigned) and not var._dtype.signed:
+                # skip implicit conversions
+                assert len(op.operands) == 1
+                return self.visit_expr(block, op.operands[0])
 
             ops = []
             for o in op.operands:
-                bb, _o = self.visit_expr(bb, o)
+                block, _o = self.visit_expr(block, o)
                 ops.append(_o)
 
-            i = self.m_ssa_u.writeVariable(var, bb, tuple(ops))
-            var = self._createHlsTmpVariable(var)
-            var.i = i
-            bb.body.append(SsaInstr(var, (op.operator, ops)))
-            return bb, var
+            self.m_ssa_u.writeVariable(var, (), block, tuple(ops))
+            var = SsaInstr(block.ctx, var._dtype, op.operator, ops, origin=var)
+            block.body.append(var)
+            return block, var
 
         else:
-            return bb, var
+            return block, var
 
-        return bb, var
+        return block, var
 
-    def visit_While(self, bb: SsaBasicBlock, o: HlsStreamProcWhile) -> SsaBasicBlock:
+    def visit_While(self, block: SsaBasicBlock, o: HlsStreamProcWhile) -> SsaBasicBlock:
         if isinstance(o.cond, HValue):
             if o.cond:
                 # while True
-                body_bb = self._addNewTargetBb(bb, None, f"{bb.label:s}_wh", o)
-                body_bb_begin = body_bb
-                body_bb = self.visit_CodeBlock_list(body_bb, o.body)
-                body_bb.successors.addTarget(None, body_bb_begin)
+                body_block = self._addNewTargetBb(block, None, f"{block.label:s}_wh", o)
+                body_block_begin = body_block
+                body_block = self.visit_CodeBlock_list(body_block, o.body)
+                body_block.successors.addTarget(None, body_block_begin)
 
-                self._onAllPredecsKnown(body_bb)
+                self._onAllPredecsKnown(body_block)
 
-                return SsaBasicBlock(f"{bb.label:s}_whUnreachable")
+                return SsaBasicBlock(block.ctx, f"{block.label:s}_whUnreachable")
             else:
                 # while False
-                return bb
+                return block
         else:
-            cond_bb = self._addNewTargetBb(bb, None, f"{bb.label:s}_whC", o)
+            cond_block = self._addNewTargetBb(block, None, f"{block.label:s}_whC", o)
             c = o.cond
             if c._dtype.bit_length() > 1:
                 c = c != 0
             else:
                 c = c._isOn()
 
-            cond_bb, c = self.visit_expr(cond_bb, c)
-            cond_bb.origins.append(o)
+            cond_block, c = self.visit_expr(cond_block, c)
+            cond_block.origins.append(o)
 
-            body_bb = self._addNewTargetBb(cond_bb, c, f"{bb.label:s}_wh", o)
-            self._onAllPredecsKnown(body_bb)
-            end_bb = self._addNewTargetBb(cond_bb, None, f"{bb.label:s}_whE", o)
-            body_bb = self.visit_CodeBlock_list(body_bb, o.body)
-            body_bb.successors.addTarget(None, cond_bb)
+            body_block = self._addNewTargetBb(cond_block, c, f"{block.label:s}_wh", o)
+            self._onAllPredecsKnown(body_block)
+            end_block = self._addNewTargetBb(cond_block, None, f"{block.label:s}_whE", o)
+            body_block = self.visit_CodeBlock_list(body_block, o.body)
+            body_block.successors.addTarget(None, cond_block)
 
-            self._onAllPredecsKnown(cond_bb)
+            self._onAllPredecsKnown(cond_block)
 
-        return end_bb
+        return end_block
 
-    def visit_If(self, bb: SsaBasicBlock, o: IfContainer) -> SsaBasicBlock:
-        cond_bb, cond = self.visit_expr(bb, o.cond)
-        cond_bb.origins.append(o)
-        self._onAllPredecsKnown(bb)
-        end_if_bb = SsaBasicBlock(f"{bb.label:s}_IfE")
+    def visit_If(self, block: SsaBasicBlock, o: IfContainer) -> SsaBasicBlock:
+        cond_block, cond = self.visit_expr(block, o.cond)
+        cond_block.origins.append(o)
+        self._onAllPredecsKnown(block)
+        end_if_block = SsaBasicBlock(self.ssaCtx, f"{block.label:s}_IfE")
 
         if o.ifTrue:
-            bb = SsaBasicBlock(f"{bb.label:s}_If")
-            bb.origins.append(o)
-            cond_bb.successors.addTarget(cond, bb)
-            self._onAllPredecsKnown(bb)
+            block = SsaBasicBlock(self.ssaCtx, f"{block.label:s}_If")
+            block.origins.append(o)
+            cond_block.successors.addTarget(cond, block)
+            self._onAllPredecsKnown(block)
 
-            self.visit_CodeBlock_list(bb, o.ifTrue)
-            bb.successors.addTarget(None, end_if_bb)
+            self.visit_CodeBlock_list(block, o.ifTrue)
+            block.successors.addTarget(None, end_if_block)
         else:
-            cond_bb.successors.addTarget(None, end_if_bb)
+            cond_block.successors.addTarget(None, end_if_block)
 
         for i, (c, stms) in enumerate(o.elIfs):
-            bb = SsaBasicBlock(f"{bb.label:s}_Elif{i:d}")
-            bb.origins.append(o)
-            _cond_bb, c = self.visit_expr(cond_bb, c)
-            _cond_bb.successors.addTarget(c, bb)
-            self._onAllPredecsKnown(bb)
+            block = SsaBasicBlock(self.ssaCtx, f"{block.label:s}_Elif{i:d}")
+            block.origins.append(o)
+            _cond_block, c = self.visit_expr(cond_block, c)
+            _cond_block.successors.addTarget(c, block)
+            self._onAllPredecsKnown(block)
 
-            self.visit_CodeBlock_list(bb, stms)
-            bb.successors.addTarget(None, end_if_bb)
+            self.visit_CodeBlock_list(block, stms)
+            block.successors.addTarget(None, end_if_block)
 
         if o.ifFalse:
-            bb = SsaBasicBlock(f"{bb.label:s}_Else")
-            bb.origins.append(o)
-            cond_bb.successors.addTarget(None, bb)
-            self._onAllPredecsKnown(bb)
+            block = SsaBasicBlock(self.ssaCtx, f"{block.label:s}_Else")
+            block.origins.append(o)
+            cond_block.successors.addTarget(None, block)
+            self._onAllPredecsKnown(block)
 
-            self.visit_CodeBlock_list(bb, o.ifFalse)
-            bb.successors.addTarget(None, end_if_bb)
+            self.visit_CodeBlock_list(block, o.ifFalse)
+            block.successors.addTarget(None, end_if_block)
         else:
-            cond_bb.successors.addTarget(None, end_if_bb)
+            cond_block.successors.addTarget(None, end_if_block)
 
-        self._onAllPredecsKnown(end_if_bb)
+        self._onAllPredecsKnown(end_if_block)
 
-        return end_if_bb
+        return end_if_block
 
-    def visit_Assignment(self, bb: SsaBasicBlock, o: HdlAssignmentContainer) -> SsaBasicBlock:
-        bb, src = self.visit_expr(bb, o.src)
-        bb.origins.append(o)
-        self.m_ssa_u.writeVariable(o.dst, bb, src)
+    def visit_Assignment(self, block: SsaBasicBlock, o: HdlAssignmentContainer) -> SsaBasicBlock:
+        block, src = self.visit_expr(block, o.src)
+        block.origins.append(o)
+        # this may result in:
+        # * store instruction
+        # * just the registration of the varialbe for the symbol
+        #   * only a segment in bit vector can be assigned, this result in the assignment of the concatenation of previous and new value
+        self.m_ssa_u.writeVariable(o.dst, o.indexes, block, src)
         # ld = SsaInstr(o.dst, src)
-        # bb.body.append(ld)
-        # if isinstance(src, SsaPhi):
+        # block.body.append(ld)
+        # if isinstance(src, SsaValue):
         #    src.users.append(ld)
 
-        return bb
+        return block
 
-    def visit_Write(self, bb: SsaBasicBlock, o: HlsStreamProcWrite) -> SsaBasicBlock:
-        bb, src = self.visit_expr(bb, o.src)
-        o.src = src
-        bb.body.append(o)
-        bb.origins.append(o)
+    def visit_Write(self, block: SsaBasicBlock, o: HlsStreamProcWrite) -> SsaBasicBlock:
+        block, src = self.visit_expr(block, o.getSrc())
+        o.operands = (src, )
+        block.body.append(o)
+        block.origins.append(o)
 
-        if isinstance(src, SsaPhi):
+        if isinstance(src, SsaValue):
             src.users.append(o)
 
-        return bb
+        return block
 

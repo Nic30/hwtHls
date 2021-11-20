@@ -8,7 +8,7 @@ from hwtHls.hlsStreamProc.ssa.basicBlock import SsaBasicBlock
 from hwtHls.hlsStreamProc.ssa.instr import SsaInstr
 from hwtHls.hlsStreamProc.ssa.phi import SsaPhi
 from hwtHls.hlsStreamProc.statements import HlsStreamProcRead
-from hwtHls.tmpVariable import HlsTmpVariable
+from hwtHls.hlsStreamProc.ssa.value import SsaValue
 
 
 # * Boissinot, B., Hack, S., Grund, D., de Dinechin, B. D., & Rastello, F. (2008). Fast Liveness Checking for SSA-Form Programs. CGO.
@@ -30,50 +30,48 @@ def collect_blocks(start: SsaBasicBlock):
 
 
 def collect_direct_provieds_and_requires(block: SsaBasicBlock):
-    provides: UniqList[HlsTmpVariable] = UniqList()
-    requires: UniqList[Tuple[HlsTmpVariable, SsaBasicBlock]] = UniqList()
+    provides: UniqList[SsaValue] = UniqList()
+    requires: UniqList[Tuple[SsaValue, SsaBasicBlock]] = UniqList()
 
     for phi in block.phis:
         phi: SsaPhi
-        provides.append(phi.dst)
+        provides.append(phi)
         for (v, b) in phi.operands:
             if isinstance(v, HValue):
                 continue
-            elif isinstance(v, SsaPhi):
-                v = v.dst
+
             requires.append((v, b))
 
     for i in block.body:
         i: SsaInstr
-        provides.append(i.dst)
+        provides.append(i)
         for v in i.iterInputs():
             if isinstance(v, (HValue, HlsStreamProcRead)):
                 continue
-            elif isinstance(v, SsaPhi):
-                v = v.dst
+
             if v not in provides:
                 requires.append((v, None))
 
     return provides, requires
 
 
-EdgeLivenessDict = Dict[SsaBasicBlock, Dict[SsaBasicBlock, Set[HlsTmpVariable]]]
+EdgeLivenessDict = Dict[SsaBasicBlock, Dict[SsaBasicBlock, Set[SsaValue]]]
 
 
-def recursively_add_edge_requirement_var(provides: Dict[SsaBasicBlock, UniqList[HlsTmpVariable]],
+def recursively_add_edge_requirement_var(provides: Dict[SsaBasicBlock, UniqList[SsaValue]],
                                          src: SsaBasicBlock,
                                          dst: SsaBasicBlock,
-                                         v: Union[HlsTmpVariable, SsaPhi],
+                                         v: Union[SsaValue, SsaPhi],
                                          live: EdgeLivenessDict):
     if isinstance(v, (HValue, HlsStreamProcRead)):
         return
 
     _live = live[src][dst]
-    if isinstance(v, SsaPhi):
-        v = v.dst
+
     if v in _live:
         return
-    assert isinstance(v, HlsTmpVariable), v
+
+    assert isinstance(v, SsaValue), v
 
     _live.add(v)
     if v not in provides[src]:
@@ -84,8 +82,8 @@ def recursively_add_edge_requirement_var(provides: Dict[SsaBasicBlock, UniqList[
 def ssa_liveness_edge_variables(start: SsaBasicBlock) -> EdgeLivenessDict:
     live: EdgeLivenessDict = {}
     blocks = list(collect_blocks(start))
-    provides: Dict[SsaBasicBlock, UniqList[HlsTmpVariable]] = {}
-    requires: Dict[SsaBasicBlock, UniqList[Tuple[HlsTmpVariable, Optional[SsaBasicBlock]]]] = {}
+    provides: Dict[SsaBasicBlock, UniqList[SsaValue]] = {}
+    requires: Dict[SsaBasicBlock, UniqList[Tuple[SsaValue, Optional[SsaBasicBlock]]]] = {}
     # initialization
     for block in blocks:
         provides[block], requires[block] = collect_direct_provieds_and_requires(block)
@@ -107,14 +105,14 @@ def ssa_liveness_edge_variables(start: SsaBasicBlock) -> EdgeLivenessDict:
 # it is live_out only for those which are blocks which are selected by phi in that case
 
 # Computing Liveness Sets for SSA-Form Programs: Algorithm 4: Computing liveness sets by exploring paths from variable uses.
-# def phi_defines(block: SsaBasicBlock, v: Union[SsaPhi, HlsTmpVariable]):
+# def phi_defines(block: SsaBasicBlock, v: Union[SsaPhi, SsaValue]):
 #    for phi in block.phis:
-#        if v is phi or v is phi.dst:
+#        if v is phi:
 #            return True
 #    return False
 #
 #
-# LivenessDict = Dict[SsaBasicBlock, Set[Union[HlsTmpVariable, SsaPhi]]]
+# LivenessDict = Dict[SsaBasicBlock, Set[Union[SsaValue, SsaPhi]]]
 #
 #
 # def _ssa_liveness(start: SsaBasicBlock):
@@ -149,15 +147,15 @@ def ssa_liveness_edge_variables(start: SsaBasicBlock) -> EdgeLivenessDict:
 #    return live_in, live_out
 #
 #
-# def body_defines(B: SsaBasicBlock, v: Union[SsaPhi, HlsTmpVariable]):
+# def body_defines(B: SsaBasicBlock, v: Union[SsaPhi, SsaValue]):
 #    for i in B.body:
-#        if i.dst is v:
+#        if i is v:
 #            return True
 #    return False
 #
 #
 # # Computing Liveness Sets for SSA-Form Programs: Algorithm 5 Exploring all paths from a variable’s use to its definition.
-# def dfs_find_uses(live_in:LivenessDict, live_out:LivenessDict, B:SsaBasicBlock, v:Union[SsaPhi, HlsTmpVariable]):
+# def dfs_find_uses(live_in:LivenessDict, live_out:LivenessDict, B:SsaBasicBlock, v:Union[SsaPhi, SsaValue]):
 #    if phi_defines(B, v) or body_defines(B, v):
 #        return  # defined in this block
 #

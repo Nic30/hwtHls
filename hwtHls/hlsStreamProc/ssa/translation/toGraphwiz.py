@@ -11,6 +11,7 @@ from hwtHls.hlsStreamProc.ssa.translation.toHwtHlsNetlist.pipelineMaterializatio
 from hwtHls.hlsStreamProc.statements import HlsStreamProcCodeBlock
 from hwtHls.netlist.toGraphwiz import GraphwizNode, GraphwizLink, \
     HwtHlsNetlistToGraphwiz
+from hwtHls.hlsStreamProc.ssa.instr import SsaInstr
 
 
 class SsaToGraphwiz():
@@ -63,10 +64,10 @@ class SsaToGraphwiz():
         for phi in bb.phis:
             phi: SsaPhi
             ops = ", ".join(
-                f"[{self._escape(repr(o))}, {b.label:s}]"
+                f"[{self._escape(o._name if isinstance(o, SsaInstr) else repr(o))}, {b.label:s}]"
                 for (o, b) in phi.operands
             )
-            body_rows.append(f"{self._escape(repr(phi.dst))} = phi {self._escape(repr(phi.dst._dtype))} {ops:s}\\l")
+            body_rows.append(f"{self._escape(phi._name)} = phi {self._escape(repr(phi._dtype))} {ops:s}\\l")
 
         for stm in bb.body:
             body_rows.append(self._escape(repr(stm)) + "\\l")

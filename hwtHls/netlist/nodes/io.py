@@ -18,8 +18,8 @@ from hwtHls.netlist.nodes.ops import AbstractHlsOp
 from hwtHls.netlist.nodes.ports import HlsOperationIn, HlsOperationOut, \
     link_hls_nodes, HlsOperationOutLazy, HlsOperationOutLazyIndirect
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
-from hwtHls.tmpVariable import HlsTmpVariable
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
+from hwtHls.hlsStreamProc.ssa.value import SsaValue
 
 
 IO_COMB_REALIZATION = OpRealizationMeta(latency_post=epsilon)
@@ -201,7 +201,7 @@ class HlsWrite(HlsExplicitSyncNode):
     :ivar dependsOn: list of dependencies for scheduling composed of data input, extraConds and skipWhen
     """
 
-    def __init__(self, parentHls: "HlsPipeline", src, dst: Union[RtlSignal, Interface, HlsTmpVariable]):
+    def __init__(self, parentHls: "HlsPipeline", src, dst: Union[RtlSignal, Interface, SsaValue]):
         AbstractHlsOp.__init__(self, parentHls, None)
         self.extraCond: Optional[HlsOperationOut] = None
         self._add_input()

@@ -7,12 +7,11 @@ from hwtHls.hlsStreamProc.exprBuilder import SsaExprBuilder
 from hwtHls.hlsStreamProc.ssa.basicBlock import SsaBasicBlock
 from hwtHls.hlsStreamProc.ssa.phi import SsaPhi
 from hwtHls.hlsStreamProc.ssa.translation.fromAst.astToSsa import AstToSsa
-from hwtHls.tmpVariable import HlsTmpVariable
+from hwtHls.hlsStreamProc.ssa.value import SsaValue
 
 
 class SsaPassExpandControlSelfloops():
     """
-
     Effectively transforms
 
     .. code-block:: Python
@@ -87,8 +86,7 @@ class SsaPassExpandControlSelfloops():
 
     """
 
-    def apply(self, to_ssa: AstToSsa,):
-        self._createHlsTmpVariable: Callable[[RtlSignal, ], HlsTmpVariable] = to_ssa._createHlsTmpVariable
+    def apply(self, to_ssa: AstToSsa):
         seen: SsaBasicBlock = set()
         to_ssa.start = self._visit_SsaBasicBlock(to_ssa.start, seen)
 
@@ -111,9 +109,9 @@ class SsaPassExpandControlSelfloops():
             #  body            # original successor of cond block
 
             # will contain selfloop related instructions (uses tmp var. instead orig ind. var.)
-            post_cond_block = SsaBasicBlock(f"{cond_block.label}_p")
+            post_cond_block = SsaBasicBlock(block.ctx, f"{cond_block.label}_p")
             # will will merge tmp variables from cond/cond_m into original ind. var.
-            merge_cond_block = SsaBasicBlock(f"{cond_block.label}_m")
+            merge_cond_block = SsaBasicBlock(block.ctx, f"{cond_block.label}_m")
 
             # * induction variables are Phis which do change value in selfloop transition
             for phi in cond_block.phis:
@@ -145,7 +143,8 @@ class SsaPassExpandControlSelfloops():
                             c_block_phi_ops.append((v, src_block))
 
                     if len(c_block_phi_ops) > 1:
-                        c_block_phi = SsaPhi(cond_block, self._createHlsTmpVariable(phi.dst.origin))
+                        c_block_phi = SsaPhi(block.ctx, phi._dtype, origin=phi.origin)
+                        cond_block.appendPhi(c_block_phi)
                         c_block_phi.appendOperand(v, src_block)
                     else:
                         # has just one predecessor and phi is not required, we use value directly

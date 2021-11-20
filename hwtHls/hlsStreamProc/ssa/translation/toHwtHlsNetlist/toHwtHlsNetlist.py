@@ -22,8 +22,8 @@ from hwtHls.netlist.nodes.ops import AbstractHlsOp, HlsConst, HlsOperation
 from hwtHls.netlist.nodes.ports import HlsOperationOutLazy, link_hls_nodes, \
     HlsOperationOut
 from hwtHls.netlist.utils import hls_op_or, hls_op_not, hls_op_and
-from hwtHls.tmpVariable import HlsTmpVariable
 from ipCorePackager.constants import INTF_DIRECTION
+from hwtHls.hlsStreamProc.ssa.value import SsaValue
 
 
 class BlockMeta():
@@ -162,30 +162,37 @@ class SsaToHwtHlsNetlist():
             # propagate also for variables which are not explicitely used
 
             for stm in block.body:
-                if isinstance(stm, SsaInstr):
-                    # arbitrary arithmetic instructions
-                    stm: SsaInstr
-                    if isinstance(stm.src, tuple):
-                        fn, ops = stm.src
-                        src = self._to_hls_expr_op(fn, ops)
-                    else:
-                        src = self.to_hls_expr(stm.src)
 
-                    self._to_hls_cache.add((self._current_block, stm.dst), src)
-
-                elif isinstance(stm, HlsStreamProcRead):
-                    # Read without any consummer
+                if isinstance(stm, HlsStreamProcRead):
+                    stm: HlsStreamProcRead
+                    try:
+                        return self._to_hls_cache._to_hls_cache[(block, stm)]
+                    except KeyError:
+                        pass
                     self.io._out_of_hls_io.append(stm._src)
-                    self._add_block_en_to_control_if_required(stm)
+                    o = self.io._read_from_io(stm._src)
+                    self._to_hls_cache.add((block, stm), o)
+
+                    #self.io._out_of_hls_io.append(stm._src)
+                    #self._add_block_en_to_control_if_required(stm)
 
                 elif isinstance(stm, HlsStreamProcWrite):
                     # this is a write to output port which may require synchronization
                     stm: HlsStreamProcWrite
-                    src = self.to_hls_expr(stm.src)
+                    src = self.to_hls_expr(stm.getSrc())
                     dst = stm.dst
                     assert isinstance(dst, (Interface, RtlSignalBase)), dst
-                    self.io._out_of_hls_io.append(stm.dst)
+                    self.io._out_of_hls_io.append(dst)
                     self.io._write_to_io(dst, src)
+
+                elif isinstance(stm, SsaInstr):
+                    # arbitrary arithmetic instructions
+                    stm: SsaInstr
+                    src = self._to_hls_expr_op(stm.operator, stm.operands)
+                    # variable can be potentially input and output variable of the block if it is used
+                    # because it can be used only in phi under the condition which is not met on first pass
+                    # trough the block
+                    self._to_hls_cache.add((self._current_block, stm), src)
 
                 else:
                     raise NotImplementedError(stm)
@@ -198,14 +205,12 @@ class SsaToHwtHlsNetlist():
 
     def _to_hls_expr_op(self,
                         fn:OpDefinition,
-                        args: List[Union[HValue, RtlSignalBase, HlsOperationOut, SsaPhi]]
+                        args: List[Union[HValue, RtlSignalBase, HlsOperationOut, SsaValue]]
                         ) -> HlsOperationOut:
         """
         Construct and link the operator node from operator and arguments.
         """
         a0 = args[0]
-        if isinstance(a0, SsaPhi):
-            a0 = a0.dst
         if isinstance(a0, HlsOperationOut):
             if isinstance(a0.obj, HlsRead):
                 w = a0.obj.src.T.bit_length()
@@ -222,8 +227,10 @@ class SsaToHwtHlsNetlist():
 
         return c._outputs[0]
 
-    def to_hls_expr(self, obj: Union[HValue]) -> HlsOperationOut:
-        if isinstance(obj, HValue) or (isinstance(obj, RtlSignalBase) and obj._const):
+    def to_hls_expr(self, obj: Union[HValue, SsaValue, RtlSignalBase, HlsOperationOut]) -> HlsOperationOut:
+        if isinstance(obj, SsaValue):
+            return self._to_hls_cache.get((self._current_block, obj))
+        elif isinstance(obj, HValue) or (isinstance(obj, RtlSignalBase) and obj._const):
             _obj = HlsConst(obj)
             self._to_hls_cache.add(_obj, _obj)
             self.nodes.append(_obj)
@@ -232,22 +239,6 @@ class SsaToHwtHlsNetlist():
         elif isinstance(obj, (HlsOperationOut, HlsOperationOutLazy)):
             return obj
 
-        elif isinstance(obj, HlsStreamProcRead):
-            obj: HlsStreamProcRead
-            try:
-                return self._to_hls_cache._to_hls_cache[obj]
-            except KeyError:
-                pass
-            self.io._out_of_hls_io.append(obj._src)
-            o = self.io._read_from_io(obj._src)
-            self._to_hls_cache.add(obj, o)
-            return o
-
-        elif isinstance(obj, SsaPhi):
-            return self._to_hls_cache.get((self._current_block, obj.dst))
-
-        elif isinstance(obj, HlsTmpVariable):
-            return self._to_hls_cache.get((self._current_block, obj))
         else:
             raise NotImplementedError(obj)
 
@@ -260,14 +251,14 @@ class SsaToHwtHlsNetlist():
         The value needs to be selected based on predecessor block of current block.
         """
         # variable value is selected based on predecessor block
-        mux = HlsMux(self.hls, phi.dst._dtype.bit_length(), phi.dst._name)
+        mux = HlsMux(self.hls, phi._dtype.bit_length(), phi._name)
         self.nodes.append(mux)
 
         mux_out = mux._outputs[0]
-        self._to_hls_cache.add((phi.block, phi.dst), mux_out)
-        # cur_dst = self._to_hls_cache._to_hls_cache.get(phi.dst, None)
+        self._to_hls_cache.add((phi.block, phi), mux_out)
+        # cur_dst = self._to_hls_cache._to_hls_cache.get(phi, None)
         # assert cur_dst is None or isinstance(cur_dst, HlsOperationOutLazy), (phi, cur_dst)
-        self._to_hls_cache._to_hls_cache.get((self._current_block, phi.dst), mux_out)
+        self._to_hls_cache._to_hls_cache.get((self._current_block, phi), mux_out)
 
         for lastSrc, (src, src_block) in iter_with_last(phi.operands):
             if lastSrc:
@@ -275,9 +266,6 @@ class SsaToHwtHlsNetlist():
             else:
                 c = en_from_pred_OH[block_predecessors.index(src_block)]
                 mux._add_input_and_link(c)
-
-            if isinstance(src, SsaPhi):
-                src = src.dst
 
             src = self.to_hls_expr(src)
             mux._add_input_and_link(src)

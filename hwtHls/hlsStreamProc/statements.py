@@ -19,7 +19,10 @@ from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
+from hwtHls.hlsStreamProc.ssa.basicBlock import SsaBasicBlock
+from hwtHls.hlsStreamProc.ssa.instr import SsaInstr, OP_ASSIGN
 from hwtHls.hlsStreamProc.ssa.phi import SsaPhi
+from hwtHls.hlsStreamProc.ssa.value import SsaValue
 from hwtLib.amba.axis import AxiStream
 
 
@@ -58,18 +61,20 @@ class HlsStreamProcCodeBlock(HlsStreamProcStm, HdlStmCodeBlockContainer):
         return HlsStreamProcStm.__repr__(self)
 
 
-class HlsStreamProcRead(HdlStatement, SignalOps, InterfaceBase):
+class HlsStreamProcRead(HdlStatement, SignalOps, InterfaceBase, SsaInstr):
     """
     Container of informations about read from some stream
     """
 
     def __init__(self,
-                 parent: "HlsStreamProc", src: Union[AxiStream, Handshaked, Signal, RtlSignal],
+                 parent: "HlsStreamProc",
+                 src: Union[AxiStream, Handshaked, Signal, RtlSignal],
                  type_or_size: Union[HdlType, RtlSignal, int]):
         super(HlsStreamProcRead, self).__init__()
         self._isAccessible = True
         self._parent = parent
         self._src = src
+        self.block: Optional[SsaBasicBlock] = None
 
         ctx = parent.ctx
         if isinstance(src, (Handshaked, HsStructIntf)):
@@ -86,7 +91,8 @@ class HlsStreamProcRead(HdlStatement, SignalOps, InterfaceBase):
         self._sig.drivers.append(self)
         self._sig.origin = self
 
-        self._dtype = type_or_size
+        SsaInstr.__init__(self, parent.ssaCtx, type_or_size, OP_ASSIGN, (),
+                          name=self._sig.name, origin=self._sig)
         self._out: Optional[Handshaked] = None
 
         if isinstance(self._sig, (StructIntf, UnionSink, UnionSource)):
@@ -97,10 +103,6 @@ class HlsStreamProcRead(HdlStatement, SignalOps, InterfaceBase):
                     n = field_path[0]
                     setattr(self, n, field_intf)
 
-    @property
-    def _name(self):
-        return self._src._name
-
     @internal
     def _get_rtl_context(self) -> 'RtlNetlist':
         return self._parent.ctx
@@ -109,29 +111,36 @@ class HlsStreamProcRead(HdlStatement, SignalOps, InterfaceBase):
         return f"<{self.__class__.__name__} {getSignalName(self._src):s}, {self._dtype}>"
 
 
-class HlsStreamProcWrite(HlsStreamProcStm):
+class HlsStreamProcWrite(HlsStreamProcStm, SsaInstr):
     """
     Container of informations about write in some stream
     """
 
     def __init__(self,
                  parent: "HlsStreamProc",
-                 src:Union[HlsStreamProcRead, Handshaked, AxiStream, bytes, HValue],
+                 src:Union[SsaValue, Handshaked, AxiStream, bytes, HValue],
                  dst: Union[AxiStream, Handshaked]):
-        super(HlsStreamProcWrite, self).__init__(parent)
-        self.parent = parent
+        HlsStreamProcStm.__init__(self, parent)
         if isinstance(src, int):
             dtype = getattr(dst, "_dtype", None)
             if dtype is None:
                 dtype = dst.data._dtype
             src = dtype.from_py(src)
-        self.src = src
+        else:
+            dtype = src._dtype
+
+        SsaInstr.__init__(self, parent.ssaCtx, dtype, OP_ASSIGN, ())
+        # [todo] this put this object in temprorary inconsistent state,
+        #  because src can be more than just SsaValue/HValue instance
+        self.operands = (src,)
+        self.parent = parent
+
         # store original source for debugging
         self._orig_src = src
         self.dst = dst
 
     def iterInputs(self):
-        yield self.src
+        return self.operands
 
     def replaceInput(self, orig_expr: SsaPhi, new_expr: SsaPhi):
         src = self.src
@@ -140,49 +149,13 @@ class HlsStreamProcWrite(HlsStreamProcStm):
         self.src = new_expr
         new_expr.users.append(self)
 
+    def getSrc(self):
+        assert len(self.operands) == 1, self
+        return self.operands[0]
+
     def __repr__(self):
-        return f"<{self.__class__.__name__} {self.src}->{getSignalName(self.dst)}>"
-
-# class HlsStreamProcJump(HlsStreamProcStm):
-#
-#    def __init__(self, parent: "HlsStreamProc",
-#                 cond: RtlSignal,
-#                 if_true:Optional[HlsStreamProcStm],
-#                 if_false:Optional[HlsStreamProcStm]):
-#        super(HlsStreamProcJump, self).__init__(parent)
-#        self.cond = cond
-#        self.if_true = if_true
-#        self.if_false = if_false
-#
-#    def __repr__(self):
-#        return f"<{self.__class__.__name__} 0x{id(self):x} {self.cond}, {self.if_true}, {self.if_false}>"
-
-# class HlsStreamProcAwait(HlsStreamProcStm):
-#    """
-#    Await until the read/write is finished
-#    """
-#
-#    def __init__(self, parent: "HlsStreamProc", op: Union[HlsStreamProcRead, HlsStreamProcWrite]):
-#        super(HlsStreamProcAwait, self).__init__(parent)
-#        assert isinstance(op, (HlsStreamProcRead, HlsStreamProcWrite)), op
-#        self.op = op
-#
-#    def __repr__(self):
-#        return f"<{self.__class__.__name__} {self.op}>"
-
-# class HlsStreamProcDelete(HlsStreamProcStm):
-#    """
-#    Mark result of read transaction as not needed anymore and deallocate it and
-#     allow for next data load in transaction storage if there is any.
-#    """
-#
-#    def __init__(self, parent: "HlsStreamProc", op: HlsStreamProcRead):
-#        super(HlsStreamProcDelete, self).__init__(parent)
-#        self.op = op
-#
-#    def __repr__(self):
-#        return f"<{self.__class__.__name__} {self.op}>"
-#
+        i = self.operands[0]
+        return f"<{self.__class__.__name__} {i if isinstance(i, HValue) else i._name}->{getSignalName(self.dst)}>"
 
 
 class HlsStreamProcWhile(HlsStreamProcStm):
@@ -224,5 +197,3 @@ class HlsStreamProcContinue(HlsStreamProcStm):
     def __repr__(self):
         return f"<{self.__class__.__name__}>"
 
-# class HlsStreamProcExclusiveGroups(list):
-#    pass

@@ -1,7 +1,7 @@
 from typing import Union
 
 from hwtHls.netlist.nodes.ports import HlsOperationOut, HlsOperationOutLazy
-from hwtHls.tmpVariable import HlsTmpVariable
+from hwtHls.hlsStreamProc.ssa.value import SsaValue
 
 
 class SsaToHwtHlsNetlistOpCache():
@@ -19,15 +19,15 @@ class SsaToHwtHlsNetlistOpCache():
         """
         Register object in _to_hls_cache dictionary, which is used to avoid duplication of object in the circuit.
         """
-        assert not isinstance(k, HlsTmpVariable), (k, "tmp variable has to always be tied to some block")
+        assert not isinstance(k, SsaValue), (k, "tmp variable has to always be added in format tuple(bloc, var)")
         if isinstance(v, HlsOperationOutLazy):
             assert v.replaced_by is None, (v, v.replaced_by)
             v.keys_of_self_in_cache.append(k)
 
         cur = self._to_hls_cache.get(k, None)
         if cur is not None:
-            assert isinstance(cur, HlsOperationOutLazy), (k, cur, v)
-            assert cur is not v, ("redefining the same", k, v)
+            assert isinstance(cur, HlsOperationOutLazy), ("redefinig already defined", k, cur, v)
+            assert cur is not v, ("redefining to the same", k, v)
             cur.replace_driver(v)
             return
 

@@ -8,7 +8,7 @@ from hwtHls.hlsStreamProc.ssa.basicBlock import SsaBasicBlock
 from hwtHls.hlsStreamProc.ssa.instr import SsaInstr
 from hwtHls.llvm.toLlvm import LLVMContext, Module, IRBuilder, LLVMStringContext, IntegerType, \
     Type, FunctionType, Function, VectorOfTypePtr, BasicBlock
-from hwtHls.tmpVariable import HlsTmpVariable
+from hwtHls.hlsStreamProc.ssa.value import SsaValue
 
 
 class LlvmIrBundle():
@@ -56,7 +56,7 @@ class LlvmIrBundle():
 
         return F
 
-    def _translateToLlvmExpr(self, v: Union[HlsTmpVariable, HValue]):
+    def _translateToLlvmExpr(self, v: Union[SsaValue, HValue]):
         if isinstance(v, HValue):
             pass
         raise NotImplementedError()
@@ -64,7 +64,7 @@ class LlvmIrBundle():
     def _translateToLlvmInstr(self, instr: SsaInstr):
         constructor_fn = self._opConstructorMap[instr.src[0]]
         args = (self._translateToLlvmExpr(a) for a in instr.src[1])
-        constructor_fn(*args, self.strCtx.addTwine(instr.dst._name), False, False)
+        constructor_fn(*args, self.strCtx.addTwine(instr._name), False, False)
 
     def _translateToLlvm(self, fn: Function, bb: SsaBasicBlock, seen_blocks: Dict[SsaBasicBlock, BasicBlock]):
         llvm_bb = BasicBlock.Create(self.ctx, self.strCtx.addTwine(bb.label), fn, None)

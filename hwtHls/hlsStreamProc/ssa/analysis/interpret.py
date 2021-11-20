@@ -43,34 +43,30 @@ class SsaInterpret():
                     if bb is pred:
                         if not isinstance(v, HValue):
                             v = variables[v]
-                        variables[phi.dst] = v
+                        variables[phi] = v
                         phi_value_found = True
                         break
                 assert phi_value_found, (phi, phi.operands, pred)
 
 
         for code in current.body:
-            if isinstance(code, SsaInstr):
-                code: SsaInstr
-                v = code.src
-                if isinstance(v, tuple):
-                    v = v[0]._evalFn(*(o if isinstance(o, HValue) else variables[o] for o in v[1]))
-                elif isinstance(v, HValue):
-                    pass
-                else:
-                    v = variables[v]
-                variables[code.dst] = v
-
-            elif isinstance(code, HlsStreamProcWrite):
+            if isinstance(code, HlsStreamProcWrite):
                 code: HlsStreamProcWrite
-                channel = self.io.get(code.dst, None)
+                channel = self.io.get(code, None)
                 if channel is None:
                     channel = deque()
                     self.io[code.dst] = channel
-                v = code.src
+                v = code.operands[0]
                 if not isinstance(v, HValue):
                     v = variables[v]
                 channel.append(v)
+
+            elif isinstance(code, SsaInstr):
+                code: SsaInstr
+                v = code.operands
+                v = code.operator._evalFn(*(o if isinstance(o, HValue) else variables[o] for o in v[1]))
+                v = variables[v]
+                variables[code] = v
 
             else:
                 raise NotImplementedError()

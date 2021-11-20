@@ -2,22 +2,21 @@ from typing import List, Tuple, Optional, Union
 
 from hwt.hdl.operatorDefs import OpDefinition
 from hwt.hdl.value import HValue
-from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
-from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.hlsStreamProc.ssa.phi import SsaPhi
-from hwtHls.tmpVariable import HlsTmpVariable
+from hwt.hdl.types.hdlType import HdlType
+from hwtHls.hlsStreamProc.ssa.value import SsaValue
+from hwtHls.hlsStreamProc.ssa.context import SsaContext
 
 
 class SsaInstrBranch():
 
     def __init__(self, parent: "SsaBasicBlock"):
         self.parent = parent
-        self.targets: List[Tuple[Optional[RtlSignal], "SsaBasicBlock"]] = []
+        self.targets: List[Tuple[Optional[SsaValue], "SsaBasicBlock"]] = []
 
-    def addTarget(self, cond: Optional[RtlSignal], target: "SsaBasicBlock"):
+    def addTarget(self, cond: Optional[SsaValue], target: "SsaBasicBlock"):
         self.targets.append((cond, target))
         target.predecessors.append(self.parent)
-        if isinstance(cond, SsaPhi):
+        if cond is not None:
             cond.users.append(self)
 
     def replaceTargetBlock(self, orig_block:"SsaBasicBlock", new_block:"SsaBasicBlock"):
@@ -36,53 +35,55 @@ class SsaInstrBranch():
         return f"<{self.__class__.__name__} {self.targets}>"
 
 
-ValOrVal = Union[HlsTmpVariable, RtlSignal, HValue, SsaPhi]
+class OperatorAssign(OpDefinition):
+    pass
 
 
-class SsaInstr():
+OP_ASSIGN = OperatorAssign(lambda x: x, allowsAssignTo=True)
+OP_ASSIGN.id = "ASSIGN"
+
+
+class SsaInstr(SsaValue):
 
     def __init__(self,
-                 dst: Union[RtlSignal, HlsTmpVariable],
-                 src: Union[ValOrVal,
-                            Tuple[OpDefinition, List[ValOrVal]]
-                ]):
-        assert isinstance(dst, RtlSignalBase), dst
-        self.dst = dst
-        self.src = src
-        if isinstance(src, SsaPhi):
-            src.users.append(self)
-        elif isinstance(src, tuple):
-            for op in src[1]:
-                if isinstance(op, SsaPhi):
-                    op.users.append(self)
+                 ctx: SsaContext,
+                 dtype: HdlType,
+                 operator: Union[OpDefinition],
+                 operands: Tuple[Union[SsaValue, HValue], ...],
+                 name: str=None,
+                 origin=None):
+        super(SsaInstr, self).__init__(ctx, dtype, name, origin)
+        self.block: Optional["SsaBasicBlock"] = None
+        self.operator = operator
+        self.operands = operands
+        assert isinstance(operands, (tuple, list)), operands
+        for op in operands:
+            if isinstance(op, SsaValue):
+                op.users.append(self)
+            else:
+                assert isinstance(op, HValue), op
 
     def iterInputs(self):
-        src = self.src
-        if isinstance(src, tuple):
-            yield from src[1]
-        else:
-            yield src
+        return self.operands
 
-    def replaceInput(self, orig_expr: SsaPhi, new_expr: Union[SsaPhi, HValue]):
+    def replaceInput(self, orig_expr: SsaValue, new_expr: Union[SsaValue, HValue]):
         src = self.src
         if orig_expr is src:
             orig_expr.users.remove(self)
             self.src = new_expr
-            if isinstance(new_expr, SsaPhi):
+            if isinstance(new_expr, SsaValue):
                 new_expr.users.append(self)
         else:
             assert orig_expr in src[1]
             self.src = (src[0], tuple(new_expr if o is orig_expr else o for o in src[1]))
             orig_expr.users.remove(self)
-            if isinstance(new_expr, SsaPhi):
+            if isinstance(new_expr, SsaValue):
                 new_expr.users.append(self)
 
     def __repr__(self):
-        dst = self.dst
-        src = self.src
-        if isinstance(src, (HlsTmpVariable, RtlSignal, HValue, SsaPhi)):
-            return f"{dst} = {src}"
+        _src = ", ".join(s._name if isinstance(s, SsaInstr) else repr(s) for s in self.operands)
+        if self.operator is OP_ASSIGN:
+            return f"{self._name:s} = {_src:s}"
         else:
-            _src = ", ".join(repr(s) for s in src[1])
-            return f"{dst} = {src[0].id:s} {_src:s}"
+            return f"{self._name:s} = {self.operator.id:s} {_src:s}"
 

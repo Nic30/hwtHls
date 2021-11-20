@@ -16,9 +16,9 @@ from hwtHls.hlsStreamProc.ssa.translation.toHwtHlsNetlist.nodes.programStarter i
 from hwtHls.netlist.nodes.io import HlsWrite, HlsRead
 from hwtHls.netlist.nodes.ports import HlsOperationOut, link_hls_nodes, \
     HlsOperationOutLazy
-from hwtHls.tmpVariable import HlsTmpVariable
 from hwtLib.abstract.componentBuilder import AbstractComponentBuilder
 from ipCorePackager.constants import INTF_DIRECTION
+from hwtHls.hlsStreamProc.ssa.value import SsaValue
 
 
 class BlockPortsRecord():
@@ -124,8 +124,8 @@ class SsaToHwtHlsNetlistSyncAndIo():
             newly_added_ports.append((r_from_in.obj, (src_block, dst_block)))
 
         out_of_pipeline_vars = self.edge_var_live.get(src_block, {}).get(dst_block, ())
-        for opv in sorted(out_of_pipeline_vars, key=lambda x: x.name):
-            opv: HlsTmpVariable
+        for opv in sorted(out_of_pipeline_vars, key=lambda x: x._name):
+            opv: SsaValue
             # The input interface is required for every input which is not just passing data
             # inside of pipeline this involves backward edges and external IO
             _, from_in = self._add_hs_intf_and_read(f"{opv._name:s}_in", opv._dtype, HlsReadBackwardEdge)
@@ -162,8 +162,8 @@ class SsaToHwtHlsNetlistSyncAndIo():
             assert control_cache_key not in self.parent._to_hls_cache._to_hls_cache, "The control must not be used anywhere if it should not exists."
 
         out_of_pipeline_vars = self.edge_var_live.get(src_block, {}).get(dst_block, ())
-        for opv in sorted(out_of_pipeline_vars, key=lambda x: x.name):
-            opv: HlsTmpVariable
+        for opv in sorted(out_of_pipeline_vars, key=lambda x: x._name):
+            opv: SsaValue
             # take the value of variable on the end and write it to a newly generated port
             _, w_to_out = self._add_hs_intf_and_write(f"{opv._name:s}_out", opv._dtype,
                                                       self.parent.to_hls_expr(opv), HlsWriteBackwardEdge)
