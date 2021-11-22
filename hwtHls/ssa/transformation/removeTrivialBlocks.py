@@ -12,10 +12,29 @@ class SsaPassRemoveTrivialBlocks():
     """
 
     def _visit(self, block: SsaBasicBlock, seen: Set[SsaBasicBlock]):
+        """
+        :ivar block: basic block which is potentially removed
+        """
         seen.add(block)
         targets = block.successors.targets
-        if (len(targets) == 1 and targets[0][0] is None and targets[0][1] is not block) and not block.body:
+        blockHasSingleSuccessor = (len(targets) == 1 and targets[0][0] is None)
+        blockSuccessorOfSelf = targets[0][1] is block
+
+        # check the case were we can not remove this block because the phis of new_block (block successor)
+        # need unique blocks as inputs
+        # block_pred -> block (to removove) -> new_block -> new_block_suc
+        # we need to check that new_block does not have block_pred in phis (as we will need to copy them there)
+        phiCollisions = False
+        if blockHasSingleSuccessor:
             new_block: SsaBasicBlock = targets[0][1]
+            for phi in new_block.phis:
+                for _, b in phi.operands:
+                    if b in block.predecessors:
+                        phiCollisions = True
+                        break
+
+        if blockHasSingleSuccessor and not blockSuccessorOfSelf and not block.body and not phiCollisions:
+            # replace block with its only successor
             new_block.origins.extend(block.origins)
             new_block.predecessors.remove(block)
             # copy content of self into successor
