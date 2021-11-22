@@ -29,7 +29,7 @@ class MemorySSAUpdater():
         """
         :param onBlockReduce: function (old, new) called if some block is reduced
         """
-        self.currentDef = {}
+        self.currentDef: Dict[RtlSignal, Dict[SsaBasicBlock, Union[SsaValue, HValue]]] = {}
         self.sealedBlocks: Set[SsaBasicBlock] = set()
         self.incompletePhis: Dict[SsaBasicBlock, Dict[RtlSignal, SsaPhi]] = {}
         self._onBlockReduce = onBlockReduce
@@ -55,7 +55,7 @@ class MemorySSAUpdater():
 
             i = indexes[0]
             if isinstance(i, SsaValue):
-                raise NotImplementedError("indexing using address variable, we need to use getelementptr etc.")
+                raise NotImplementedError("indexing using address variable, we need to use getelementptr/extractelement/insertelement etc.")
 
             else:
                 assert isinstance(i, HValue), (block, variable, indexes, value)
@@ -166,39 +166,6 @@ class MemorySSAUpdater():
 
         return same
 
-    @staticmethod
-    def transferBlockPhis(src: SsaBasicBlock, dst: SsaBasicBlock):
-        new_phis = []
-        for phi in src.phis:
-            phi: SsaPhi
-            # merge into some other phi if possible
-            if len(phi.users) == 1:
-                u = phi.users[0]
-                if isinstance(u, SsaPhi):
-                    u: SsaPhi
-                    assert u.block is dst
-                    u.operands = (*(o for o in u.operands if o[0] is not phi), *phi.operands)
-                    continue
-
-            new_phis.append(phi)
-            phi.block = dst
-
-        src.phis.clear()
-
-        new_phis.extend(dst.phis)
-        dst.phis = new_phis
-
-    @staticmethod
-    def transfertTargetsToBlock(src: SsaBasicBlock, dst: SsaBasicBlock):
-        src.successors.targets.remove((None, dst))
-        dst.predecessors.remove(src)
-
-        for pred in src.predecessors:
-            targets = pred.successors.targets
-            for i, (cond, target) in enumerate(targets):
-                if target is src:
-                    targets[i] = (cond, dst)
-
     def sealBlock(self, block: SsaBasicBlock):
         phis = self.incompletePhis.pop(block, None)
 
@@ -208,28 +175,5 @@ class MemorySSAUpdater():
                     key=lambda x: RtlSignal_sort_key(x[0])):
                 self.addPhiOperands(variable, phi)
 
-        # reduce the block with just phis
-        for pred in tuple(block.predecessors):
-            pred: SsaBasicBlock
-            # if predecessors contains only phis and has only this successor unconditionally
-            if pred in self.sealedBlocks and\
-                    len(pred.successors) == 1 and\
-                    not pred.body and\
-                    pred.successors.targets[0][0] is None:
-
-                if block.phis:
-                    if not pred.predecessors:
-                        # we can not propagate predecessors because there are any
-                        # and the predecessor block would be missing for some phi
-                        continue
-
-                    # if the predecessor has same predecessors as this block we can not reduce
-                    # because we would not be abble to select correctly in phis
-                    for pp in pred.predecessors:
-                        if pp in block.predecessors:
-                            continue
-                self.transferBlockPhis(pred, block)
-                self.transfertTargetsToBlock(pred, block)
-                self._onBlockReduce(pred, block)
-
+        # :note: can not reduce trivial blocks because we may need their defs later
         self.sealedBlocks.add(block)
