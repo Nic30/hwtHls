@@ -74,7 +74,7 @@ class SsaToGraphwiz():
 
         for i, (cond, dst_bb) in enumerate(bb.successors.targets):
             branch_label = f"br{i:d}"
-            cond_str = "" if cond is None else self._escape(repr(cond))
+            cond_str = "" if cond is None else self._escape(cond._name)
             body_rows.append(f"{{\\<{branch_label:s}\\> | <{branch_label:s}> {cond_str:s} }}")
             dst_node = self._node_from_SsaBasicBlock(dst_bb, False, edge_var_live)
             _src = f"{node.label:s}:{branch_label:s}"
