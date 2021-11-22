@@ -20,6 +20,9 @@ class SsaPhi(SsaInstr):
         self.block: Optional["SsaBasicBlock"] = None
         self.operands:Tuple[Union[HValue, SsaValue], "SsaBasicBlock"] = ()
 
+    def replaceInput(self, orig_expr: SsaValue, new_expr: Union[SsaValue, HValue]):
+        raise NotImplementedError()
+
     def replaceUseBy(self, v: "SsaPhi"):
         for u in self.users:
             u.replaceInput(self, v)
