@@ -28,7 +28,7 @@ class SsaBasicBlock():
 
     def appendPhi(self, phi: SsaPhi):
         assert phi.block is None, (phi, phi.block, self)
-        assert not self.body, ("Adding phi if already have instructions", self, phi)
+        # assert not self.body, ("Adding phi if already have instructions", self, phi)
         phi.block = self
         self.phis.append(phi)
 
