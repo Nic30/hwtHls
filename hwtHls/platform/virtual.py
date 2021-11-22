@@ -8,6 +8,8 @@ from hwt.synthesizer.dummyPlatform import DummyPlatform
 from hwtHls.allocator.allocator import HlsAllocator
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.scheduler.list_schedueling import ListSchedueler
+from hwtHls.ssa.instr import OP_ASSIGN
+
 
 _OPS_T_GROWING_EXP = {
     AllOps.DIV,
@@ -34,6 +36,7 @@ _OPS_T_ZERO_LATENCY = {
     AllOps.BitsAsSigned,
     AllOps.BitsAsVec,
     AllOps.BitsAsUnsigned,
+    OP_ASSIGN,
 }
 _OPS_T_GROWING_CONST = {
     AllOps.NOT,
@@ -91,6 +94,7 @@ class VirtualHlsPlatform(DummyPlatform):
             AllOps.BitsAsSigned: 0,
             AllOps.BitsAsVec: 0,
             AllOps.BitsAsUnsigned: 0,
+            OP_ASSIGN: 0,
         }
 
     @lru_cache()
