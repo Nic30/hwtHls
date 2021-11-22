@@ -45,6 +45,7 @@ class HlsStreamProc():
     def __init__(self, parentUnit: Unit,
                  ssa_passes=[
                     SsaPassConsystencyCheck(),
+                    SsaPassRemoveTrivialBlocks(),
                     SsaPassDumpToDot("tmp/top.dot"),
                     SsaPassExtractPartDrivers(),
                     SsaPassDumpToDot("tmp/top2.dot"),
@@ -115,6 +116,7 @@ class HlsStreamProc():
         _code = self._format_code(code)
         to_ssa = AstToSsa(self.ssaCtx, "top", _code)
         to_ssa.visit_top_CodeBlock(_code)
+        to_ssa.finalize()
         for ssa_pass in self.ssa_passes:
             ssa_pass.apply(to_ssa)
 
