@@ -65,7 +65,6 @@ class PidControllerHls(PidControllerHalfHls):
     def _impl(self):
         # register of current output value
         hls = HlsStreamProc(self)
-        u = hls.var("u", self.output._dtype)
 
         # create y-pipeline registers (y -> y_reg[0]-> y_reg[1])
         y = [hls.read(self.input), ]
@@ -81,6 +80,7 @@ class PidControllerHls(PidControllerHalfHls):
 
         err = y[0] - hls.read(self.target)
         a = [hls.read(c) for c in self.coefs]
+        u = hls.var("u", self.output._dtype)
         _u = Add(hls.read(u), a[0] * err, a[1] * y[0],
                  a[2] * y[1], a[3] * y[2], key=trim)
 
