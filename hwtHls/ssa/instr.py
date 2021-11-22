@@ -15,6 +15,7 @@ class SsaInstrBranch():
 
     def addTarget(self, cond: Optional[SsaValue], target: "SsaBasicBlock"):
         self.targets.append((cond, target))
+        assert self.parent not in target.predecessors
         target.predecessors.append(self.parent)
         if cond is not None:
             cond.users.append(self)
@@ -32,7 +33,8 @@ class SsaInstrBranch():
             yield t
 
     def __repr__(self):
-        return f"<{self.__class__.__name__} {self.targets}>"
+        targets = [(None if c is None else c._name, b.label) for c, b in self.targets]
+        return f"<{self.__class__.__name__} {targets}>"
 
 
 class OperatorAssign(OpDefinition):
@@ -67,18 +69,15 @@ class SsaInstr(SsaValue):
         return self.operands
 
     def replaceInput(self, orig_expr: SsaValue, new_expr: Union[SsaValue, HValue]):
-        src = self.src
-        if orig_expr is src:
-            orig_expr.users.remove(self)
-            self.src = new_expr
-            if isinstance(new_expr, SsaValue):
-                new_expr.users.append(self)
-        else:
-            assert orig_expr in src[1]
-            self.src = (src[0], tuple(new_expr if o is orig_expr else o for o in src[1]))
-            orig_expr.users.remove(self)
-            if isinstance(new_expr, SsaValue):
-                new_expr.users.append(self)
+        assert isinstance(new_expr, (SsaValue, HValue)), new_expr
+        assert orig_expr in self.operands
+        self.operands = tuple(
+            new_expr if o is orig_expr else o
+            for o in self.operands
+        )
+        orig_expr.users.remove(self)
+        if isinstance(new_expr, SsaValue):
+            new_expr.users.append(self)
 
     def __repr__(self):
         _src = ", ".join(s._name if isinstance(s, SsaInstr) else repr(s) for s in self.operands)
