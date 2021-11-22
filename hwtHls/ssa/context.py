@@ -7,11 +7,11 @@ class SsaContext():
     """
 
     def __init__(self):
-        self.objCnt: Dict[Type, int] = {}
+        self.objCnt = 0#: Dict[Type, int] = {}
 
     def genName(self, obj):
         prefix = getattr(obj, "GEN_NAME_PREFIX", "o")
-        i = self.objCnt.get(obj.__class__, 0)
+        i = self.objCnt #.get(obj.__class__, 0)
         i += 1
-        self.objCnt[obj.__class__] = i
+        self.objCnt = i #[obj.__class__] = i
         return f"{prefix}{i:d}"
