@@ -4,7 +4,6 @@ from typing import Dict, Set, Union, Optional, Tuple
 
 from hwt.hdl.value import HValue
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.hlsStreamProc.statements import HlsStreamProcRead
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.phi import SsaPhi
@@ -46,7 +45,7 @@ def collect_direct_provieds_and_requires(block: SsaBasicBlock):
         i: SsaInstr
         provides.append(i)
         for v in i.iterInputs():
-            if isinstance(v, (HValue, HlsStreamProcRead)):
+            if isinstance(v, HValue):
                 continue
 
             if v not in provides:
@@ -63,7 +62,7 @@ def recursively_add_edge_requirement_var(provides: Dict[SsaBasicBlock, UniqList[
                                          dst: SsaBasicBlock,
                                          v: Union[SsaValue, SsaPhi],
                                          live: EdgeLivenessDict):
-    if isinstance(v, (HValue, HlsStreamProcRead)):
+    if isinstance(v, HValue):
         return
 
     _live = live[src][dst]
@@ -100,78 +99,3 @@ def ssa_liveness_edge_variables(start: SsaBasicBlock) -> EdgeLivenessDict:
                 recursively_add_edge_requirement_var(provides, req_if_predecessor_is, block, req, live)
 
     return live
-
-# The variable used as input phi does not need to be live-out of all predecessors
-# it is live_out only for those which are blocks which are selected by phi in that case
-
-# Computing Liveness Sets for SSA-Form Programs: Algorithm 4: Computing liveness sets by exploring paths from variable uses.
-# def phi_defines(block: SsaBasicBlock, v: Union[SsaPhi, SsaValue]):
-#    for phi in block.phis:
-#        if v is phi:
-#            return True
-#    return False
-#
-#
-# LivenessDict = Dict[SsaBasicBlock, Set[Union[SsaValue, SsaPhi]]]
-#
-#
-# def _ssa_liveness(start: SsaBasicBlock):
-#    live_in: LivenessDict = {}
-#    live_out:LivenessDict = {}
-#    for B in collect_blocks(start):
-#        B_live_out = live_out.setdefault(B, set())
-#        # Consider all blocks successively
-#        for suc in B.successors.iter_blocks():
-#            for phi in suc.phis:  # Used in the φ of a successor block
-#                phi: SsaPhi
-#                for (v, b) in phi.operands:
-#                    if b is not B or isinstance(v, HValue):
-#                        # propagateonly to those variables which are selected by the branch
-#                        continue
-#                    B_live_out.add(v)
-#                    dfs_find_uses(live_in, live_out, suc, v)
-#
-#        for instr in B.body:
-#            for v in instr.iterInputs():
-#                if isinstance(v, HValue):
-#                    continue
-#                dfs_find_uses(live_in, live_out, B, v)  # Traverse the block to find all uses
-#
-#        for (v, suc) in B.successors.targets:
-#            if v is None or isinstance(v, HValue):
-#                # skip non variables
-#                continue
-#
-#            dfs_find_uses(live_in, live_out, B, v)
-#
-#    return live_in, live_out
-#
-#
-# def body_defines(B: SsaBasicBlock, v: Union[SsaPhi, SsaValue]):
-#    for i in B.body:
-#        if i is v:
-#            return True
-#    return False
-#
-#
-# # Computing Liveness Sets for SSA-Form Programs: Algorithm 5 Exploring all paths from a variable’s use to its definition.
-# def dfs_find_uses(live_in:LivenessDict, live_out:LivenessDict, B:SsaBasicBlock, v:Union[SsaPhi, SsaValue]):
-#    if phi_defines(B, v) or body_defines(B, v):
-#        return  # defined in this block
-#
-#    B_live_in = live_in.setdefault(B, set())
-#    if v in B_live_in:
-#        return  # Propagation already done, stop
-#
-#    B_live_in.add(v)
-#    for P in B.predecessors:  # Propagate backward
-#        live_out.setdefault(P, set()).add(v)
-#        dfs_find_uses(live_in, live_out, P, v)
-#
-# # Algorithm 6 Computing liveness sets per variable using def-use chains.
-# def Compute_LiveSets_SSA_ByVar(CFG):
-#    for each variable v:
-#        for each use of v in a block B:
-#            if v used at exit of B: # Used in the φ of a successor block
-#                live_out(B).add(v)
-#            dfs_mark_liveness(B, v)
