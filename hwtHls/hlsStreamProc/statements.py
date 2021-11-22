@@ -139,16 +139,6 @@ class HlsStreamProcWrite(HlsStreamProcStm, SsaInstr):
         self._orig_src = src
         self.dst = dst
 
-    def iterInputs(self):
-        return self.operands
-
-    def replaceInput(self, orig_expr: SsaPhi, new_expr: SsaPhi):
-        src = self.src
-        assert orig_expr is src
-        orig_expr.users.remove(self)
-        self.src = new_expr
-        new_expr.users.append(self)
-
     def getSrc(self):
         assert len(self.operands) == 1, self
         return self.operands[0]
