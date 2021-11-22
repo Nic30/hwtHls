@@ -6,6 +6,7 @@ from unittest import TestLoader, TextTestRunner, TestSuite
 from hwtHls.examples.bitonicSort import BitonicSorterHLS_TCs
 from hwtHls.examples.mac import HlsMAC_example_TC
 from hwtHls.tests.alapAsapDiffExample import AlapAsapDiffExample_TC
+from hwtHls.tests.concatOfSlices_test import ConcatOfSlicesTC
 from hwtHls.tests.connection import HlsSlicingTC
 from hwtHls.tests.expr_tree3 import HlsExprTree3_example_TC
 from hwtHls.tests.list_schedueling_test import ListSchedueling_TC
@@ -25,6 +26,7 @@ def testSuiteFromTCs(*tcs):
 
 
 suite = testSuiteFromTCs(
+    ConcatOfSlicesTC,
     HlsSlicingTC,
     HlsMAC_example_TC,
     *BitonicSorterHLS_TCs,
