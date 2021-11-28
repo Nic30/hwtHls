@@ -6,7 +6,7 @@ from typing import List
 from hwt.synthesizer.vectorUtils import iterBits
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 from hwtLib.logic.crcComb import CrcComb
-from hwtLib.logic.crcPoly import CRC_32
+from hwtLib.logic.crcPoly import CRC_32, CRC_5_USB
 from pyMathBitPrecise.bit_utils import get_bit, bit_list_reversed_bits_in_bytes, \
     bit_list_reversed_endianity
 
@@ -38,7 +38,8 @@ class CrcCombHls(CrcComb):
         inBits = list(iterBits(hls.read(self.dataIn)))
 
         if not self.IN_IS_BIGENDIAN:
-            inBits = bit_list_reversed_endianity(inBits)
+            # we need to process lower byte first
+            inBits = bit_list_reversed_endianity(inBits, extend=False)
 
         crcMatrix = self.buildCrcXorMatrix(DW, polyBits)
         res = self.applyCrcXorMatrix(
@@ -68,7 +69,9 @@ if __name__ == "__main__":
     from hwtHls.platform.virtual import VirtualHlsPlatform
 
     u = CrcCombHls()
+    u.setConfig(CRC_5_USB)
+    u.REFOUT = False
     u.CLK_FREQ = int(200e6)
-    u.DATA_WIDTH = 128
+    u.DATA_WIDTH = 8
 
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform()))
