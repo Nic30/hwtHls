@@ -1,19 +1,26 @@
-from typing import List
+from typing import List, Optional
 
 from hwtHls.clk_math import start_of_next_clk_period
 from hwtHls.netlist.nodes.io import HlsWrite
-from hwtHls.netlist.nodes.ops import HlsConst, HlsOperation
+from hwtHls.netlist.nodes.ops import HlsConst, AbstractHlsOp
 from hwtHls.scheduler.errors import TimeConstraintError
+from hwt.pyUtils.uniqList import UniqList
 
 
-def _asap(node: HlsOperation, clk_period: float) -> float:
+def _asap(node: AbstractHlsOp, clk_period: float, pathForDebug: Optional[UniqList[AbstractHlsOp]]) -> float:
     """
     The recursive function of ASAP scheduling
     """
     if node.asap_end is None:
         if node.dependsOn:
+            if pathForDebug is not None:
+                if node in pathForDebug:
+                    raise AssertionError("Cycle in graph", node, [n._id for n in pathForDebug[pathForDebug.index(node):]])
+                else:
+                    pathForDebug.append(node)
+
             # print(node)
-            input_times = [_asap(d.obj, clk_period)[d.out_i] for d in node.dependsOn if d is not None]
+            input_times = [_asap(d.obj, clk_period, pathForDebug)[d.out_i] for d in node.dependsOn if d is not None]
             # now we have times when the value is available on input
             # and we must resolve the minimal time so each input timing constraints are satisfied
             time_when_all_inputs_present = 0.0
@@ -51,6 +58,9 @@ def _asap(node: HlsOperation, clk_period: float) -> float:
             for (out_delay, out_cycles) in zip(node.latency_post, node.cycles_latency):
                 asap_end.append(time_when_all_inputs_present + out_delay + out_cycles * clk_period)
 
+            if pathForDebug is not None:
+                pathForDebug.pop()
+
         elif isinstance(node, HlsConst):
             return [0.0, ]
         else:
@@ -69,5 +79,16 @@ def asap(outputs: List[HlsWrite], clk_period: float):
     * The graph must not contain cycles.
     * DFS from outputs, decorate nodes with asap_start,asap_end time.
     """
+    try:
+        # normal run without checking for cycles
+        for o in outputs:
+            _asap(o, clk_period, None)
+        return
+    except RecursionError:
+        pass
+
+    # debug run which will raise an exception containing cycle node ids
+    path = UniqList()
     for o in outputs:
-        _asap(o, clk_period)
+        _asap(o, clk_period, path)
+
