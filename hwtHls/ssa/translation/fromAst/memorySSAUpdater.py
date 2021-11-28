@@ -47,6 +47,7 @@ class MemorySSAUpdater():
 
         :returns: unique index of tmp variable for phi function
         """
+        assert isinstance(variable, RtlSignal), variable
         defs = self.currentDef.setdefault(variable, {})
         new_bb = block
         if indexes:
