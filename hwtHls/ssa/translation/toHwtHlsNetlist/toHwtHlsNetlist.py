@@ -173,8 +173,8 @@ class SsaToHwtHlsNetlist():
                     o = self.io._read_from_io(stm._src)
                     self._to_hls_cache.add((block, stm), o)
 
-                    #self.io._out_of_hls_io.append(stm._src)
-                    #self._add_block_en_to_control_if_required(stm)
+                    # self.io._out_of_hls_io.append(stm._src)
+                    # self._add_block_en_to_control_if_required(stm)
 
                 elif isinstance(stm, HlsStreamProcWrite):
                     # this is a write to output port which may require synchronization
@@ -231,7 +231,7 @@ class SsaToHwtHlsNetlist():
         if isinstance(obj, SsaValue):
             return self._to_hls_cache.get((self._current_block, obj))
         elif isinstance(obj, HValue) or (isinstance(obj, RtlSignalBase) and obj._const):
-            _obj = HlsConst(obj)
+            _obj = HlsConst(self.hls, obj)
             self._to_hls_cache.add(_obj, _obj)
             self.nodes.append(_obj)
             return _obj._outputs[0]
@@ -275,9 +275,11 @@ class SsaToHwtHlsNetlist():
 
     def _add_block_en_to_control_if_required(self, op: Union[HlsRead, HlsWrite]):
         if self._get_SsaBasicBlock_meta(self._current_block).needs_control:
-            en = self._collect_en_from_predecessor(self._current_block)
-            if en is not None:
-                op.add_control_extraCond(en)
+            extraCond, skipWhen = self._collect_en_from_predecessor(self._current_block)
+            if extraCond is not None:
+                op.add_control_extraCond(extraCond)
+            if skipWhen is not None:
+                op.add_control_skipWhen(skipWhen)
 
     def _collect_en_from_predecessor_one_hot(self, block: SsaBasicBlock):
         en_from_pred = []
@@ -306,7 +308,7 @@ class SsaToHwtHlsNetlist():
 
         if not self._get_SsaBasicBlock_meta(self._current_block).needs_control:
             self._block_ens[block] = None
-            return None
+            return (None, None)
 
         if block is self.start_block and self.io.start_block_en is not None:
             en_by_pred = self.io.start_block_en
@@ -322,6 +324,7 @@ class SsaToHwtHlsNetlist():
                 en_by_pred = hls_op_or(self.hls, en_by_pred, pred_token)
 
         assert en_by_pred is not None
+        en_by_pred = (en_by_pred, hls_op_not(self.hls, en_by_pred))
         self._block_ens[block] = en_by_pred
         return en_by_pred
 
@@ -348,7 +351,7 @@ class SsaToHwtHlsNetlist():
         #     where branching does not depend on input data (the block itself
         #     can contain such a branching, but still may be a part of a branch
         #     which requires synchronization)
-        en_by_pred = self._collect_en_from_predecessor(block)
+        en_by_pred, _ = self._collect_en_from_predecessor(block)
         cond = None
         block_var_live = self.io.edge_var_live.get(block, {})
         for c, suc_block in block.successors.targets:
@@ -382,11 +385,10 @@ class SsaToHwtHlsNetlist():
                         assert label in self._to_hls_cache, label
                         continue
                         # else we need to add the record for output port to find it
-
                     self._to_hls_cache.add(label, br_cond)
 
             if not is_out_of_pipeline:
-                # propagete variables on block input
+                # propagete variables on suc_block input
                 for v in block_var_live.get(suc_block, ()):
                     cur_v = self._to_hls_cache.get((block, v))
                     self._to_hls_cache.add((suc_block, v), cur_v)
