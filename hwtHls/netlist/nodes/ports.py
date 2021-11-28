@@ -1,6 +1,13 @@
 from typing import List, Union
 
 
+def _reprMinify(o):
+    try:
+        return o.__repr__(minify=True)
+    except:
+        return o.__repr__()
+
+
 class HlsOperationOut():
 
     def __init__(self, obj: "AbstractHlsOp", out_i: int):
@@ -13,8 +20,12 @@ class HlsOperationOut():
     def __eq__(self, other):
         return self is other or (self.__class__ is other.__class__ and self.obj == other.obj and self.out_i == other.out_i)
 
-    def __repr__(self):
-        return f"<{self.__class__.__name__} {self.obj} [{self.out_i:d}]>"
+    def __repr__(self, minify=True):
+        if minify:
+            objStr = _reprMinify(self.obj)
+        else:
+            objStr = repr(self.obj)
+        return f"<{self.__class__.__name__} {objStr:s} [{self.out_i:d}]>"
 
 
 class HlsOperationIn():
@@ -31,6 +42,13 @@ class HlsOperationIn():
 
     def replace_driver(self, obj: HlsOperationOut):
         self.obj.dependsOn[self.in_i] = obj
+
+    def __repr__(self, minify=False):
+        if minify:
+            objStr = _reprMinify(self.obj)
+        else:
+            objStr = repr(self.obj)
+        return f"<{self.__class__.__name__} {objStr:s} [{self.in_i:d}]>"
 
 
 class HlsOperationOutLazy():
