@@ -75,6 +75,7 @@ class HwtHlsNetlistToGraphwiz():
                     drv: HlsOperationOut
                     drv_node = self._node_from_AbstractHlsOp(drv.obj)
                     self.links.append(GraphwizLink(f"{drv_node.label:s}:o{drv.out_i:d}", f"{node.label:s}:i{node_in_i:d}"))
+
             for shadow_dst in obj.debug_iter_shadow_connection_dst():
                 shadow_dst_node = self._node_from_AbstractHlsOp(shadow_dst)
                 self.links.append(GraphwizLink(f"{node.label:s}", f"{shadow_dst_node.label:s}", style="[style=dashed, color=grey]"))
@@ -101,7 +102,7 @@ class HwtHlsNetlistToGraphwiz():
         else:
             label = obj.__class__.__name__
 
-        buff.append(f'            <tr><td colspan="2">{html.escape(label):s}</td></tr>\n')
+        buff.append(f'            <tr><td colspan="2">{html.escape(label):s} {obj._id}</td></tr>\n')
         for i, o in zip_longest(input_rows, output_rows, fillvalue="<td></td>"):
             buff.append(f"            <tr>{i:s}{o:s}</tr>\n")
         buff.append('        </table>>')

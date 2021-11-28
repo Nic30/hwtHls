@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 from plotly import graph_objs as go
 from plotly.graph_objs import Figure
@@ -11,6 +11,7 @@ from hwtHls.netlist.nodes.io import HlsWrite, HlsRead, HlsExplicitSyncNode
 from hwtHls.netlist.nodes.ops import AbstractHlsOp, HlsOperation, HlsConst
 from hwtHls.ssa.translation.toHwtHlsNetlist.nodes.backwardEdge import HlsWriteBackwardEdge
 import pandas as pd
+from pathlib import Path
 
 
 # [todo] pandas is overkill in this case, rm if ploty does not have it as dependencies
@@ -53,16 +54,16 @@ class HwtHlsNetlistToTimeline():
 
             color = "purple"
             if isinstance(obj, HlsOperation):
-                label = obj.operator.id
+                label = f"{obj.operator.id:s} {obj._id:d}"
 
             elif isinstance(obj, HlsWrite):
-                label = f"{getSignalName(obj.dst)}.write()"
+                label = f"{getSignalName(obj.dst)}.write()  {obj._id:d}"
                 if isinstance(obj, HlsWriteBackwardEdge):
                     obj_group_id = io_group_ids.setdefault(obj.associated_read.src, obj_group_id)
                 color = "green"
 
             elif isinstance(obj, HlsRead):
-                label = f"{getSignalName(obj.src)}.read()"
+                label = f"{getSignalName(obj.src)}.read()  {obj._id:d}"
                 obj_group_id = io_group_ids.setdefault(obj.src, obj_group_id)
                 color = "green"
 
@@ -77,7 +78,7 @@ class HwtHlsNetlistToTimeline():
                     label = repr(val)
 
             elif isinstance(obj, HlsExplicitSyncNode):
-                label = obj.__class__.__name__
+                label = f"{obj.__class__.__name__:s}  {obj._id:d}"
 
             else:
                 label = repr(obj)
@@ -223,8 +224,11 @@ class HwtHlsNetlistToTimeline():
         fig = self._generate_fig()
         plotly.offline.iplot(fig, config={"scrollZoom":True})
 
-    def save_html(self, filename, auto_open):
+    def save_html(self, filename: Union[str, Path], auto_open):
         fig = self._generate_fig()
+        if isinstance(filename, Path):
+            filename = filename.as_posix()
+
         plotly.offline.plot(fig, filename=filename, auto_open=auto_open, config={"scrollZoom":True})
 
 
