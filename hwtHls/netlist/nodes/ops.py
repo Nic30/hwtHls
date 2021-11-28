@@ -8,9 +8,9 @@ from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlRes
     TimeIndependentRtlResourceItem
 from hwtHls.clk_math import epsilon
 from hwtHls.clk_math import start_clk
-from hwtHls.netlist.nodes.ports import HlsOperationIn, HlsOperationOut
+from hwtHls.netlist.nodes.ports import HlsOperationIn, HlsOperationOut, \
+    _reprMinify
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
-
 
 TimeSpec = Union[float, Tuple[float, ...]]
 
@@ -47,6 +47,7 @@ class AbstractHlsOp():
     def __init__(self, parentHls: "HlsPipeline", name: str=None):
         self.name = name
         self.hls = parentHls
+        self._id = parentHls.nodeCtx.getUniqId()
 
         self.usedBy: List[List[HlsOperationIn]] = []
         self.dependsOn: List[HlsOperationOut] = []
@@ -166,11 +167,12 @@ class HlsConst(AbstractHlsOp):
     Wrapper around constant value for HLS sybsystem
     """
 
-    def __init__(self, val: HValue):
+    def __init__(self, parentHls: "HlsPipeline", val: HValue):
         self.val = val
-
         self.name = None
-        self.hls = None
+        self.hls = parentHls
+        self._id = parentHls.nodeCtx.getUniqId()
+
         # True if scheduled to specific time
         self.fixed_schedulation = True
         self.scheduledIn: Optional[TimeSpec] = None
@@ -229,6 +231,12 @@ class HlsConst(AbstractHlsOp):
         self.latency_pre = ()
         self.latency_post = (0.0,)
 
+    def __repr__(self, minify=False):
+        if minify:
+            return repr(self.val)
+        else:
+            return f"<{self.__class__.__name__:s} {self._id:d} {self.val}>"
+
 
 class HlsOperation(AbstractHlsOp):
     """
@@ -282,7 +290,6 @@ class HlsOperation(AbstractHlsOp):
             _o = o.instantiateHlsOperationInTime(allocator, self.scheduledIn[in_i], used_signals)
             operands.append(_o)
         s = self.operator._evalFn(*(o.data for o in operands))
-
         if isinstance(s, HValue):
             t = TimeIndependentRtlResource.INVARIANT_TIME
 
@@ -294,6 +301,10 @@ class HlsOperation(AbstractHlsOp):
         allocator._registerSignal(op_out, tis, used_signals)
         return tis
 
-    def __repr__(self):
-        return f"<{self.__class__.__name__:s} {self.operator.id:s} {self.dependsOn}>"
+    def __repr__(self, minify=False):
+        if minify:
+            return f"<{self.__class__.__name__:s} {self._id:d} {self.operator.id:s}>"
+        else:
+            deps = ", ".join([_reprMinify(o) for o in self.dependsOn])
+            return f"<{self.__class__.__name__:s} {self._id:d} {self.operator.id:s} [{deps:s}]>"
 

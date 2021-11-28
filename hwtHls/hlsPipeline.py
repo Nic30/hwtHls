@@ -7,6 +7,19 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.unit import Unit
 from hwtHls.netlist.nodes.io import HlsRead, HlsWrite
 from hwtHls.netlist.nodes.ops import AbstractHlsOp
+from hwtHls.scheduler.scheduler import HlsScheduler
+from hwtHls.allocator.allocator import HlsAllocator
+
+
+class HlsPipelineNodeContext():
+
+    def __init__(self):
+        self.cntr = 0
+
+    def getUniqId(self):
+        c = self.cntr
+        self.cntr += 1
+        return c
 
 
 class HlsPipeline():
@@ -41,6 +54,7 @@ class HlsPipeline():
         """
         self.parentUnit = parentUnit
         self.platform = parentUnit._target_platform
+        self.nodeCtx = HlsPipelineNodeContext()
         if self.platform is None:
             raise ValueError("HLS requires platform to be specified")
 
@@ -58,8 +72,8 @@ class HlsPipeline():
 
         self.coherency_checked_io: UniqList[Interface] = coherency_checked_io
 
-        self.scheduler = self.platform.scheduler(self)
-        self.allocator = self.platform.allocator(self)
+        self.scheduler: HlsScheduler = self.platform.scheduler(self)
+        self.allocator: HlsAllocator = self.platform.allocator(self)
 
     def schedule(self):
         """
