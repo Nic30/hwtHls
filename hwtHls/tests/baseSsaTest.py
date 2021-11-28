@@ -5,7 +5,7 @@ from hwt.synthesizer.unit import Unit
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
 from hwtHls.ssa.transformation.extractPartDrivers import SsaPassExtractPartDrivers
-from hwtHls.ssa.transformation.raiseIf import SsaPassRunFn
+from hwtHls.ssa.transformation.runFn import SsaPassRunFn
 from hwtHls.ssa.transformation.removeTrivialBlocks import SsaPassRemoveTrivialBlocks
 from hwtHls.ssa.translation.toLl import SsaPassDumpToLl
 from hwtLib.examples.base_serialization_TC import BaseSerializationTC
