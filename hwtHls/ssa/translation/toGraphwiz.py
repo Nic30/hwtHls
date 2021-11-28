@@ -112,7 +112,7 @@ class SsaToGraphwiz():
         return HwtHlsNetlistToGraphwiz._escape(s)
 
     def dumps(self):
-        buff = ["digraph ", self.name, " {\n", " graph [splines=ortho]\n"]
+        buff = ["digraph ", self.name, " {\n", " graph []\n"]
         for n in self.nodes:
             n.dumps(buff)
         for link in self.links:
