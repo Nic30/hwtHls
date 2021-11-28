@@ -9,6 +9,7 @@ from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 from hwtHls.platform.virtual import VirtualHlsPlatform
+from hwtHls.tests.baseSsaTest import BaseSsaTC
 
 
 class HlsExprTree3_example(Unit):
@@ -55,7 +56,11 @@ class HlsExprTree3_example(Unit):
         )
 
 
-class HlsExprTree3_example_TC(SimTestCase):
+class HlsExprTree3_example_TC(BaseSsaTC):
+    __FILE__ = __file__
+
+    def test_ll(self):
+        self._test_ll(HlsExprTree3_example)
 
     def test_simple(self):
         u = HlsExprTree3_example()

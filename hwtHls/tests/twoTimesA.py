@@ -8,6 +8,7 @@ from hwt.simulator.simTestCase import SimTestCase
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 from hwtHls.platform.virtual import VirtualHlsPlatform
+from hwtHls.tests.baseSsaTest import BaseSsaTC
 
 
 class TwoTimesA0(Unit):
@@ -50,13 +51,16 @@ class TwoTimesA1(TwoTimesA0):
         )
 
 
-class TwoTimesA_TC(SimTestCase):
+class TwoTimesA_TC(BaseSsaTC):
+    __FILE__ = __file__
 
     def test0(self):
         self._test_simple(TwoTimesA0)
+        self._test_ll(TwoTimesA0)
 
     def test1(self):
         self._test_simple(TwoTimesA1)
+        self._test_ll(TwoTimesA1)
 
     def _test_simple(self, cls):
         u = cls()

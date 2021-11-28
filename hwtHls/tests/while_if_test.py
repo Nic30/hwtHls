@@ -6,9 +6,14 @@ from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.tests.trivial_test import HlsStreamMachineTrivial_TC
 from hwtHls.tests.while_if import WhileAndIf0, WhileAndIf2
 from hwtSimApi.utils import freq_to_period
+from hwtHls.tests.baseSsaTest import BaseSsaTC
 
 
-class HlsStreamMachineWhileIf_TC(SimTestCase):
+class HlsStreamMachineWhileIf_TC(BaseSsaTC):
+    __FILE__ = __file__
+
+    def test_WhileAndIf0_ll(self):
+        self._test_ll(WhileAndIf0)
 
     def test_WhileAndIf0(self):
         u = WhileAndIf0()
@@ -58,11 +63,14 @@ class HlsStreamMachineWhileIf_TC(SimTestCase):
         HlsStreamMachineTrivial_TC._test_no_comb_loops(self)
         self.assertValSequenceEqual(u.dataOut._ag.data, expected)
 
+    def test_WhileAndIf2_ll(self):
+        self._test_ll(WhileAndIf2)
+
 
 if __name__ == "__main__":
     import unittest
     suite = unittest.TestSuite()
-    suite.addTest(HlsStreamMachineWhileIf_TC('test_WhileAndIf0'))
-    # suite.addTest(unittest.makeSuite(HlsStreamMachineWhileIf_TC))
+    # suite.addTest(HlsStreamMachineWhileIf_TC('test_WhileAndIf0'))
+    suite.addTest(unittest.makeSuite(HlsStreamMachineWhileIf_TC))
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
