@@ -7,9 +7,10 @@ from hwtHls.examples.bitonicSort import BitonicSorterHLS_TCs
 from hwtHls.examples.mac import HlsMAC_example_TC
 from hwtHls.tests.alapAsapDiffExample import AlapAsapDiffExample_TC
 from hwtHls.tests.concatOfSlices_test import ConcatOfSlicesTC
-from hwtHls.tests.connection import HlsSlicingTC
 from hwtHls.tests.expr_tree3 import HlsExprTree3_example_TC
 from hwtHls.tests.list_schedueling_test import ListSchedueling_TC
+from hwtHls.tests.read_if import ReadIfTc
+from hwtHls.tests.slicing import HlsSlicingTC
 from hwtHls.tests.syntehesis_checks import HlsSynthesisChecksTC
 from hwtHls.tests.trivial_test import HlsStreamMachineTrivial_TC
 from hwtHls.tests.twoTimesA import TwoTimesA_TC
@@ -28,6 +29,7 @@ def testSuiteFromTCs(*tcs):
 suite = testSuiteFromTCs(
     ConcatOfSlicesTC,
     HlsSlicingTC,
+    ReadIfTc,
     HlsMAC_example_TC,
     *BitonicSorterHLS_TCs,
     HlsExprTree3_example_TC,
