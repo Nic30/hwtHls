@@ -5,10 +5,11 @@ from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlRes
     TimeIndependentRtlResourceItem
 from hwtHls.clk_math import epsilon
 from hwtHls.hlsPipeline import HlsPipeline
-from hwtHls.netlist.nodes.io import HlsExplicitSyncNode, IO_COMB_REALIZATION
+from hwtHls.netlist.nodes.io import HlsExplicitSyncNode, IO_COMB_REALIZATION, \
+    HlsReadSync
 from hwtHls.netlist.nodes.ops import AbstractHlsOp
 from hwtHls.netlist.nodes.ports import HlsOperationOut, link_hls_nodes, HlsOperationOutLazy
-from hwtHls.netlist.utils import hls_op_not
+from hwtHls.netlist.utils import hls_op_not, hls_op_and_variadic
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.branchControlLabel import BranchControlLabel
 from hwtHls.ssa.translation.toHwtHlsNetlist.opCache import SsaToHwtHlsNetlistOpCache
@@ -39,13 +40,30 @@ class HlsLoopGateStatus(AbstractHlsOp):
 
         name = self.name
         status_reg = allocator._reg(name if name else "loop_gate_status", def_val=0)
-        # [todo] set this register based on how data flows on control channels
-        # (breaks returns token, predec takes token)
 
         # create RTL signal expression base on operator type
         t = self.scheduledInEnd[0] + epsilon
         status_reg_s = TimeIndependentRtlResource(status_reg, t, allocator)
         allocator._registerSignal(op_out, status_reg_s, used_signals)
+
+        # [todo] set this register based on how data flows on control channels
+        # (breaks returns token, predec takes token)
+        # returns the controll token
+        from_break = [allocator.instantiateHlsOperationOut(i, used_signals) for i in  self._loop_gate.from_break]
+        # takes the control token
+        from_predec = [allocator.instantiateHlsOperationOut(i, used_signals) for i in self._loop_gate.from_predec]
+        # has the priority and does not require sync token (because it already owns it)
+        from_reenter = [allocator.instantiateHlsOperationOut(i, used_signals) for i in self._loop_gate.from_reenter]
+
+        if not from_break and not from_predec and from_reenter:
+            # this is infinite loop without predecessor, it will run infinitely but in just one instance
+            status_reg(1)
+        elif not from_break and from_predec and from_reenter:
+            # this is an infinite loop which has a predecessor, once started it will be closed for new starts
+            raise NotImplementedError()
+        else:
+            raise NotImplementedError()
+
         return status_reg_s
 
 
@@ -130,31 +148,71 @@ class HlsLoopGate(AbstractHlsOp):
         for pred in block.predecessors:
             is_reenter = (pred, block) in io.out_of_pipeline_edges
             en = self._sync_token_status._outputs[0]
+            not_en = hls_op_not(hls, en)
+
             if is_reenter:
                 # en if has sync token
                 pass
             else:
                 # en if has no sync token
-                en = hls_op_not(hls, en)
+                en, not_en = not_en, en
+
             control_key = BranchControlLabel(pred, block, INTF_DIRECTION.SLAVE)
             control = to_hls_cache.get(control_key)
-            esn, control = HlsExplicitSyncNode.replace_variable(hls, control_key, control, to_hls_cache, en)
+            esn, control = HlsExplicitSyncNode.replace_variable(hls, control_key, control, to_hls_cache, en, not_en)
             nodes.append(esn)
 
-            #variables = []
+            # variables = []
             for v in io.edge_var_live.get(pred, {}).get(block, ()):
                 cache_key = (block, v)
                 v = to_hls_cache.get(cache_key)
-                esn, _ = HlsExplicitSyncNode.replace_variable(hls, cache_key, v, to_hls_cache, en)
+                esn, _ = HlsExplicitSyncNode.replace_variable(hls, cache_key, v, to_hls_cache, en, not_en)
                 nodes.append(esn)
-                #variables.append(v)
+                # variables.append(v)
 
             if is_reenter:
                 self.connect_reenter(control)
             else:
                 self.connect_predec(control)
+        self._finalizeConnnections()
 
-    def _connect(self, control:HlsOperationOut, in_list):
+    def _finalizeConnnections(self):
+        if self.from_predec:
+            raise NotImplementedError()
+        if self.from_break:
+            raise NotImplementedError()
+
+        # allow to execute loop with just a single value from reenter
+        # in_list = self.from_reenter
+        # if len(in_list) > 1:
+        #     for inp0_i, inp0 in enumerate(in_list):
+        #         inp0: HlsOperationOut
+        #         anyOtherValid = []
+        #         for inp1 in in_list:
+        #             if inp1 is inp0:
+        #                 continue
+        #
+        #             vld = HlsReadSync(self.hls)
+        #             self.hls.nodes.append(vld)
+        #             otherInSyncNode = inp1.obj
+        #             assert isinstance(otherInSyncNode, HlsExplicitSyncNode), otherInSyncNode
+        #             link_hls_nodes(otherInSyncNode.dependsOn[0], vld._inputs[0])
+        #             anyOtherValid.append(vld._outputs[0])
+        #
+        #         inSyncNode: HlsExplicitSyncNode = inp0.obj
+        #         assert isinstance(inSyncNode, HlsExplicitSyncNode), inSyncNode
+        #
+        #         # any other valid
+        #         skipWhen = hls_op_and_variadic(self.hls, *anyOtherValid)
+        #         inSyncNode.add_control_skipWhen(skipWhen)
+        #         # all previous not valid
+        #         if inp0_i > 0:
+        #             extraCond = hls_op_and_variadic(self.hls,
+        #                                             *[hls_op_not(self.hls, o)
+        #                                               for o in anyOtherValid[:inp0_i]])
+        #             inSyncNode.add_control_extraCond(extraCond)
+
+    def _connect(self, control:HlsOperationOut, in_list: List[HlsOperationOut]):
         in_list.append(control)
         i = self._add_input()
         link_hls_nodes(control, i)
