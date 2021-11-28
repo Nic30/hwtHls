@@ -5,6 +5,7 @@ from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.clk_math import start_clk, end_clk, epsilon
+from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
 
 
 class TimeIndependentRtlResourceItem():
@@ -14,7 +15,8 @@ class TimeIndependentRtlResourceItem():
         self.data = data
 
     def is_rlt_register(self) -> bool:
-        return self.parent.valuesInTime[0] is not self
+        return (self.parent.valuesInTime[0] is not self or
+                isinstance(self.parent.valuesInTime[0].data, RtlSyncSignal))
 
     def __repr__(self):
         return f"<{self.__class__.__name__:s} {self.data}>"
