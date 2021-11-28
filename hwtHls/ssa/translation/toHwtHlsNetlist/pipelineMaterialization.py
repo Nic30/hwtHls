@@ -37,6 +37,7 @@ class SsaSegmentToHwPipeline():
                  original_code:Optional[HlsStreamProcCodeBlock]):
         self.start = start
         self.original_code = original_code
+        self.is_scheduled = False
 
     def extract_pipeline(self):
         pe = PipelineExtractor()
@@ -70,7 +71,12 @@ class SsaSegmentToHwPipeline():
         assert not hls.coherency_checked_io
         hls.coherency_checked_io = toHlsNetlist.io._out_of_hls_io
 
+    def schedulerReset(self):
+        self.is_scheduled = False
+
+    def schedulerRun(self):
+        self.is_scheduled = True
+        self.hls.schedule()
+
     def construct_rtlnetlist(self):
-        hls = self.hls
-        hls.schedule()
-        hls.synthesise()
+        self.hls.synthesise()
