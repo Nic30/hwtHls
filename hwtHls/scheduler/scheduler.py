@@ -3,7 +3,6 @@ from math import ceil
 from typing import Dict, Tuple
 
 from hwtHls.clk_math import start_clk
-from hwtHls.hlsPipeline import HlsPipeline
 from hwtHls.netlist.nodes.ops import HlsConst, AbstractHlsOp
 from hwtHls.scheduler.asap import asap
 
@@ -11,7 +10,7 @@ from hwtHls.scheduler.asap import asap
 # from hwtHls.scheduler.alap import alap
 class HlsScheduler():
 
-    def __init__(self, parentHls: HlsPipeline):
+    def __init__(self, parentHls: "HlsPipeline"):
         self.parentHls = parentHls
 
     def apply_scheduelization_dict(self, sched: Dict[AbstractHlsOp, Tuple[float, float]]):
