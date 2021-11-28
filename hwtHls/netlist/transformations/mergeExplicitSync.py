@@ -1,7 +1,9 @@
 from typing import List
 
-from hwtHls.netlist.nodes.io import HlsExplicitSyncNode, HlsRead, HlsWrite
+from hwtHls.netlist.nodes.io import HlsExplicitSyncNode, HlsRead, HlsWrite, \
+    HlsReadSync
 from hwtHls.netlist.nodes.ops import AbstractHlsOp
+from hwtHls.netlist.nodes.ports import HlsOperationOut
 
 
 class HlsNetlistPassMergeExplicitSync():
@@ -21,7 +23,10 @@ class HlsNetlistPassMergeExplicitSync():
                 if isinstance(dep0, HlsRead) and len(dep0.usedBy[0]) == 1:
                     # check if we did not generate cycle because sync was dependent on value of previous read
                     dep0: HlsRead
-                    dep0.add_control_extraCond(n.extraCond)
+                    if n.extraCond is not None:
+                        dep0.add_control_extraCond(n.extraCond)
+                    if n.skipWhen is not None:
+                        dep0.add_control_skipWhen(n.skipWhen)
                     # transfer output from this HlsExplicitSyncNode to HlsRead (to avoid modificaion of potentially unknown objects behind HlsExplicitSyncNode)
                     dep0._outputs = n._outputs
                     for o in dep0._outputs:
