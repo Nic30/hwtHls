@@ -18,7 +18,7 @@ class SsaPassRemoveTrivialBlocks():
         seen.add(block)
         targets = block.successors.targets
         blockHasSingleSuccessor = (len(targets) == 1 and targets[0][0] is None)
-        blockSuccessorOfSelf = targets[0][1] is block
+        blockSuccessorOfSelf = blockHasSingleSuccessor and targets[0][1] is block
 
         # check the case were we can not remove this block because the phis of new_block (block successor)
         # need unique blocks as inputs
@@ -50,9 +50,24 @@ class SsaPassRemoveTrivialBlocks():
                 new_block.predecessors.append(pred)
                 purely_new_predecessors.append(pred)
 
+            phiOffset = 0
+            for phi in block.phis:
+                canBeInlined = True
+                for u in phi.users:
+                    if u not in new_block.phis:
+                        canBeInlined = False
+                if canBeInlined:
+                    raise NotImplementedError()
+                else:
+                    # move this phi to new block
+                    phi.block = None
+                    new_block.insertPhi(phiOffset, phi)
+                    phiOffset += 1
+
             for phi in new_block.phis:
                 assert phi.block is new_block
                 phi.replacePredecessorBlockByMany(block, purely_new_predecessors)
+
             new_block.successors.replaceTargetBlock(block, new_block)
 
             if block is self.start:
