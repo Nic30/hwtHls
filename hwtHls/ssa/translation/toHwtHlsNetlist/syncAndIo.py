@@ -189,7 +189,7 @@ class SsaToHwtHlsNetlistSyncAndIo():
 
     def _add_intf_instance(self, intf: Interface, suggested_name: str) -> Interface:
         """
-        Sport interface instance in parent unit.
+        Spot interface instance in parent unit.
         """
         u:Unit = self.hls.parentUnit
         name = AbstractComponentBuilder(u, None, "hls")._findSuitableName(suggested_name)
@@ -204,7 +204,7 @@ class SsaToHwtHlsNetlistSyncAndIo():
         Instanciate HlsWrite operation for this specific interface.
         """
         write = write_cls(self.hls, val, intf)
-        if self.parent._current_block is not None:
+        if self.parent._current_block is not None and intf in self._out_of_hls_io:
             self.parent._add_block_en_to_control_if_required(write)
 
         self.hls._io[intf] = intf
@@ -218,7 +218,7 @@ class SsaToHwtHlsNetlistSyncAndIo():
         Instantiate HlsRead operation for this specific interface.
         """
         read = read_cls(self.hls, intf)
-        if self.parent._current_block is not None:
+        if self.parent._current_block is not None and intf in self._out_of_hls_io:
             self.parent._add_block_en_to_control_if_required(read)
         self.inputs.append(read)
 
