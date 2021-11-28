@@ -86,6 +86,8 @@ class AstToSsa():
                 block = self.visit_While(block, o)
             elif isinstance(o, IfContainer):
                 block = self.visit_If(block, o)
+            elif isinstance(o, HlsStreamProcRead):
+                block, _ = self.visit_expr(block, o)
             else:
                 raise NotImplementedError(o)
 
@@ -104,8 +106,8 @@ class AstToSsa():
                 elif isinstance(op, HlsStreamProcRead):
                     if op.block is None:
                         block.appendInstruction(op)
-                    # HlsStreamProcRead is a SsaValue and thus represents "variable"
-                    self.m_ssa_u.writeVariable(var, (), block, op)
+                        # HlsStreamProcRead is a SsaValue and thus represents "variable"
+                        self.m_ssa_u.writeVariable(var, (), block, op)
                     return block, op
                 else:
                     return block, self.m_ssa_u.readVariable(var, block)
@@ -130,6 +132,12 @@ class AstToSsa():
             return block, var
 
         else:
+            if isinstance(var, HlsStreamProcRead):
+                if var.block is None:
+                    block.appendInstruction(var)
+                    # HlsStreamProcRead is a SsaValue and thus represents "variable"
+                    self.m_ssa_u.writeVariable(var._sig, (), block, var)
+                var = var._sig
             return block, self.m_ssa_u.readVariable(var, block)
 
     def visit_While(self, block: SsaBasicBlock, o: HlsStreamProcWhile) -> SsaBasicBlock:
