@@ -11,7 +11,7 @@ from hwt.hdl.types.typeCast import toHVal
 from hwt.hdl.value import HValue
 from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.interfaces.signalOps import SignalOps
-from hwt.interfaces.std import Handshaked, Signal
+from hwt.interfaces.std import Handshaked, Signal, VldSynced
 from hwt.interfaces.structIntf import StructIntf
 from hwt.interfaces.unionIntf import UnionSink, UnionSource
 from hwt.pyUtils.arrayQuery import flatten
@@ -21,7 +21,6 @@ from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr, OP_ASSIGN
-from hwtHls.ssa.phi import SsaPhi
 from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axis import AxiStream
 
@@ -61,6 +60,11 @@ class HlsStreamProcCodeBlock(HlsStreamProcStm, HdlStmCodeBlockContainer):
         return HlsStreamProcStm.__repr__(self)
 
 
+ANY_HLS_STREAM_INTF_TYPE = Union[AxiStream, Handshaked, VldSynced,
+                                 HsStructIntf, RtlSignal, Signal,
+                                 UnionSink, UnionSource]
+
+
 class HlsStreamProcRead(HdlStatement, SignalOps, InterfaceBase, SsaInstr):
     """
     Container of informations about read from some stream
@@ -68,7 +72,7 @@ class HlsStreamProcRead(HdlStatement, SignalOps, InterfaceBase, SsaInstr):
 
     def __init__(self,
                  parent: "HlsStreamProc",
-                 src: Union[AxiStream, Handshaked, Signal, RtlSignal],
+                 src: ANY_HLS_STREAM_INTF_TYPE,
                  type_or_size: Union[HdlType, RtlSignal, int]):
         super(HlsStreamProcRead, self).__init__()
         self._isAccessible = True
@@ -81,6 +85,7 @@ class HlsStreamProcRead(HdlStatement, SignalOps, InterfaceBase, SsaInstr):
             assert (type_or_size is NOT_SPECIFIED or
                     type_or_size is src.data._dtype), "The handshaked interfaces do not undergo any parsing thus only their native type is supportted"
             type_or_size = src.data._dtype
+
         elif isinstance(src, (Signal, RtlSignal)):
             assert (type_or_size is NOT_SPECIFIED or
                     type_or_size is src._dtype), "The signal interfaces do not undergo any parsing thus only their native type is supportted"
@@ -93,7 +98,7 @@ class HlsStreamProcRead(HdlStatement, SignalOps, InterfaceBase, SsaInstr):
 
         SsaInstr.__init__(self, parent.ssaCtx, type_or_size, OP_ASSIGN, (),
                           name=self._sig.name, origin=self._sig)
-        self._out: Optional[Handshaked] = None
+        self._out: Optional[ANY_HLS_STREAM_INTF_TYPE] = None
 
         if isinstance(self._sig, (StructIntf, UnionSink, UnionSource)):
             sig = self._sig
@@ -128,6 +133,10 @@ class HlsStreamProcWrite(HlsStreamProcStm, SsaInstr):
             src = dtype.from_py(src)
         else:
             dtype = src._dtype
+        if isinstance(dst, RtlSignal):
+            intf, indexes, sign_cast_seen = dst._getIndexCascade()
+            if intf is not dst or indexes:
+                raise NotImplementedError()
 
         SsaInstr.__init__(self, parent.ssaCtx, dtype, OP_ASSIGN, ())
         # [todo] this put this object in temprorary inconsistent state,
