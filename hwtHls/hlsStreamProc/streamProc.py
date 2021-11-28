@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from typing import Union, List
+from typing import Union, List, Optional
 
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.value import HValue
@@ -14,16 +14,8 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.statements import HlsStreamProcRead, \
     HlsStreamProcWrite, HlsStreamProcWhile, HlsStreamProcCodeBlock
-from hwtHls.netlist.toGraphwiz import HlsNetlistPassDumpToDot
-from hwtHls.netlist.toTimeline import RtlNetlistPassShowTimeline
-from hwtHls.netlist.transformations.mergeExplicitSync import HlsNetlistPassMergeExplicitSync
-from hwtHls.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
 from hwtHls.ssa.context import SsaContext
-from hwtHls.ssa.transformation.expandControlSelfLoops import SsaPassExpandControlSelfloops
-from hwtHls.ssa.transformation.extractPartDrivers import SsaPassExtractPartDrivers
-from hwtHls.ssa.transformation.removeTrivialBlocks import SsaPassRemoveTrivialBlocks
 from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa, AnyStm
-from hwtHls.ssa.translation.toGraphwiz import SsaPassDumpToDot
 from hwtHls.ssa.translation.toHwtHlsNetlist.pipelineMaterialization import SsaSegmentToHwPipeline
 from hwtLib.amba.axis import AxiStream
 
@@ -43,32 +35,29 @@ class HlsStreamProc():
     """
 
     def __init__(self, parentUnit: Unit,
-                 ssa_passes=[
-                    SsaPassConsystencyCheck(),
-                    SsaPassRemoveTrivialBlocks(),
-                    SsaPassDumpToDot("tmp/top.dot"),
-                    SsaPassExtractPartDrivers(),
-                    SsaPassDumpToDot("tmp/top2.dot"),
-                    # SsaPassConsystencyCheck(),
-                    # SsaPassRemoveTrivialBlocks()
-                    # SsaPassExpandControlSelfloops()
-                 ],
-                 hlsnetlist_passes=[
-                    HlsNetlistPassDumpToDot("tmp/top_p.dot"),
-                    HlsNetlistPassMergeExplicitSync(),
-                 ],
-                 rtlnetlist_passes=[
-                    RtlNetlistPassShowTimeline("tmp/top_schedule.html"),
-                 ],
-                 freq=None):
+                 ssa_passes:Optional[list]=None,
+                 hlsnetlist_passes:Optional[list]=None,
+                 rtlnetlist_passes:Optional[list]=None,
+                 freq: Optional[Union[int, float]]=None):
+        """
+        :note: ssa_passes, hlsnetlist_passes, rtlnetlist_passes parameters are meant as an onverrride to specification from target platform
+        :param freq: override of the clock frequiency, if None the frequency of clock associated with paret is used
+        """
         self.parentUnit = parentUnit
         if freq is None:
             freq = parentUnit.clk.FREQ
         self.freq = freq
         self.ctx = RtlNetlist()
-        self.ssa_passes = ssa_passes
         self.ssaCtx = SsaContext()
+        p = parentUnit._target_platform
+        if ssa_passes is None:
+            ssa_passes = p.ssa_passes
+        self.ssa_passes = ssa_passes
+        if hlsnetlist_passes is None:
+            hlsnetlist_passes = p.hlsnetlist_passes
         self.hlsnetlist_passes = hlsnetlist_passes
+        if rtlnetlist_passes is None:
+            rtlnetlist_passes = p.rtlnetlist_passes
         self.rtlnetlist_passes = rtlnetlist_passes
 
     def var(self, name:str, dtype:HdlType):
@@ -128,6 +117,11 @@ class HlsStreamProc():
         to_hw.extract_hlsnetlist(self.parentUnit, self.freq)
         for hlsnetlist_pass in self.hlsnetlist_passes:
             hlsnetlist_pass.apply(to_hw)
+
+        # some optimization could call scheduling and everything after could let
+        # the netwlist without modifications
+        if not to_hw.is_scheduled:
+            to_hw.schedulerRun()
 
         to_hw.construct_rtlnetlist()
         for rtlnetlist_pass in self.rtlnetlist_passes:

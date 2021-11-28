@@ -1,15 +1,22 @@
 from functools import lru_cache
 from math import log2
-from typing import Dict
+from typing import Dict, Union
 
 from hwt.hdl.operator import Operator
 from hwt.hdl.operatorDefs import AllOps, OpDefinition
 from hwt.synthesizer.dummyPlatform import DummyPlatform
 from hwtHls.allocator.allocator import HlsAllocator
+from hwtHls.netlist.toGraphwiz import HlsNetlistPassDumpToDot
+from hwtHls.netlist.toTimeline import RtlNetlistPassShowTimeline
+from hwtHls.netlist.transformations.mergeExplicitSync import HlsNetlistPassMergeExplicitSync
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.scheduler.list_schedueling import ListSchedueler
+from hwtHls.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
 from hwtHls.ssa.instr import OP_ASSIGN
-
+from hwtHls.ssa.transformation.extractPartDrivers import SsaPassExtractPartDrivers
+from hwtHls.ssa.transformation.removeTrivialBlocks import SsaPassRemoveTrivialBlocks
+from pathlib import Path
+from hwtHls.ssa.translation.toGraphwiz import SsaPassDumpToDot
 
 _OPS_T_GROWING_EXP = {
     AllOps.DIV,
@@ -46,6 +53,54 @@ _OPS_T_GROWING_CONST = {
     *_OPS_T_ZERO_LATENCY,
 }
 
+DEFAULT_SSA_PASSES = [
+    SsaPassConsystencyCheck(),
+    SsaPassRemoveTrivialBlocks(),
+    # SsaPassDumpToDot("tmp/top.dot"),
+    SsaPassExtractPartDrivers(),
+    # SsaPassDumpToDot("tmp/top2.dot"),
+    # SsaPassConsystencyCheck(),
+    # SsaPassRemoveTrivialBlocks()
+    # SsaPassExpandControlSelfloops()
+]
+DEFAULT_HLSNETLIST_PASSES = [
+    HlsNetlistPassMergeExplicitSync(),
+]
+DEFAULT_RTLNETLIST_PASSES = [
+]
+
+
+def makeDebugPasses(debug_file_directory: Union[str, Path]):
+    """
+    Adds passes which are dumping the intermediate results during the compilation.
+
+    Example of use:
+
+    .. code-block::
+
+        print(to_rtl_str(u, target_platform=VirtualHlsPlatform(**make_debug_passes("tmp"))))
+
+    """
+    debug_file_directory = Path(debug_file_directory)
+    return {
+        "ssa_passes": [
+            SsaPassConsystencyCheck(),
+            SsaPassRemoveTrivialBlocks(),
+            SsaPassDumpToDot(debug_file_directory / "top.dot"),
+            SsaPassExtractPartDrivers(),
+            SsaPassDumpToDot(debug_file_directory / "top2.dot"),
+        ],
+        "hlsnetlist_passes":[
+            HlsNetlistPassDumpToDot(debug_file_directory / "top_p0.dot"),
+            HlsNetlistPassMergeExplicitSync(),
+            HlsNetlistPassDumpToDot(debug_file_directory / "top_p1.dot"),
+        ],
+        "rtlnetlist_passes":[
+            RtlNetlistPassShowTimeline(debug_file_directory / "top_schedule.html"),
+        ],
+
+    }
+
 
 class VirtualHlsPlatform(DummyPlatform):
     """
@@ -55,7 +110,11 @@ class VirtualHlsPlatform(DummyPlatform):
     :note: latencies like in average 28nm FPGA
     """
 
-    def __init__(self, allocator=HlsAllocator, scheduler=ListSchedueler):
+    def __init__(self, allocator=HlsAllocator, scheduler=ListSchedueler,
+                 ssa_passes=DEFAULT_SSA_PASSES,
+                 hlsnetlist_passes=DEFAULT_HLSNETLIST_PASSES,
+                 rtlnetlist_passes=DEFAULT_RTLNETLIST_PASSES,
+            ):
         super(VirtualHlsPlatform, self).__init__()
         self.allocator = allocator
         self.scheduler = scheduler  # HlsScheduler #ForceDirectedScheduler
@@ -96,6 +155,9 @@ class VirtualHlsPlatform(DummyPlatform):
             AllOps.BitsAsUnsigned: 0,
             OP_ASSIGN: 0,
         }
+        self.ssa_passes = ssa_passes
+        self.hlsnetlist_passes = hlsnetlist_passes
+        self.rtlnetlist_passes = rtlnetlist_passes
 
     @lru_cache()
     def get_op_realization(self, op: OpDefinition, bit_width: int,
