@@ -4,53 +4,105 @@
 [![Python version](https://img.shields.io/pypi/pyversions/hwtHls.svg)](https://img.shields.io/pypi/pyversions/hwtHls.svg)
 
 
-HLS for [hwt](https://github.com/Nic30/hwt) (hwt is a library for circuit construction)
+A library for an anutomatic translation of algorithmic code to a hardware realization
+based on [hwt](https://github.com/Nic30/hwt) (hwt is a library for circuit construction) and
+[LLVM](https://llvm.org/) (a compiler infrastructure).
 
-*As you can see in the section "related opensource" below there is tons of HLS synthesizers. If you are also interested in this area let us know! The HLS community has to be connected!*
+This library is build as a tool which lets you write code transformations
+and provides variety of existing ones (from LLVM/hwt) in order to build efficient code generators.
+
+* Powerful optimization passes form LLVM/HWT
+* Target specification for common FPGAs
+* Integration with HWT: SystemVerilog/VHDL export, various interfaces and components, verification API
+
 
 ### Current state
 
 * This library is in alpha phase.
 
+* Features
+  * Python statement-like objects -> LLVM -> hwt -> vhdl/verilog/IP-exact
+    * Support for multithreaded programs
+      (multiple hls programs with shared resources cooperating using shared memory or streams and
+       with automatic constrains propagation on shared resource)
+    * Supports for programs which are using resoruce shared with HDL code
+     (e.g. bus mapped registers where bus mapping is done in HDL (hwt))
+
+  * Support for precise latency/resources tuning
+    * FSM/dataflow fine graded architecture
+     (strategy specified as a sequence of transformations)
+
+  * Precise operation scheduling using target device timing characteristics (any Xilinx, Intel and others after benchmark)
+
+  * All optimizations aware of independent slice drivers
+    * SsaPassExtractPartDrivers - splits the slices to individual variables to exploit real dependencies, splits also bitwise operations and casts
+
+  * Any loop type with special care for:
+    * Infinite top loops - with/without internal/external sync beeing involved
+    * Loops where sync can be achieved only by data (no speculation, all inputs depends on every output)
+    * Polyhedral, affine, unroll and other transformations
+    * On demand speculations/out-of-order execution:
+        * next iteration speculation before break
+        * speculativele execution of multiple loop bodies
+        * after loop code speculative execution before break
+        * cascading of speculation
+        * speculative IO access using LSU (for memory mapped IO) or buffers with confirmation (for IO streams)
+
+  * Support for Handshake/ReadySynced/ValidSynced/Signal streams
+    (= handshake and all its degenerated variants = any single channel interface)
+    * arbitrary number of IO operations for any scheduling type
+    * support for side channels, virtual channels, multiple packets per clock
+      (e.g. xgmii)
+    * explicit blocking, explicit dropping, explicit skipping
+      (e.g. conditional read/write of data, read without consummer)
+    * Support for read/write of packet(HStream) types
+      * Per channel specific settings
+      * Processing of arbitrary size types using cursor or index of limited size
+      * Support for headers/footers in HStream
+      * incremental packet parsing/deparsing, read/write chunk:
+        * may not be alligned to word
+        * may cause under/overflow
+        * may be required to be end of stream or not
+      * Optional check of input packet format
+        (or synchronized by the input packet format which significantly reduce circuit complexity)
+
+
 * Not done yet:
-  * Complex operation reducing (DSP, LUT, CLB ...)
-  * Universal tree balancing, operation reordering
+  * Complex operation reducing (DSP)
+  * Abstract stream operation translation
   * All platforms
-  * Loop agenda
-  * memory access pattern recognization, partition (fifo, single/double port ram ...)
-  * allocation, scheduling solved by temporary solutions (partial true)
-  * netlist query
-  * DMA logic for generic bus access
-  * automatic micro kernels
+  * Memory access pattern, partition use
+
 
 ## How it works?
 
-* hwtHls uses HDL objects from [hwt](https://github.com/Nic30/hwt).
-  It means that generation target HDL and simulation is solved by [hwt](https://github.com/Nic30/hwt).
+* The input code is parsed into SSA objects defined in `hwtHls.ssa`.
+  (The code is loaded using `HlsStreamProc` object in [hwt](https://github.com/Nic30/hwt) component (`Unit` class),
+   the constraints and interface types are specified as [hwt](https://github.com/Nic30/hwt) objects.)
+* There are several optimization SSA passes (common subexpression elimination, dead code elimination
+  instruction combining, control optimization, ...). Full list of optimizations is specified in HlsPlatform.
+* Optimized SSA is then converted to a `hwtHls.netlist` and scheduled to clock cycles.
+  uses HDL objects from [hwt](https://github.com/Nic30/hwt).
+* Secheduled netlist is then translated to [hwt](https://github.com/Nic30/hwt) netlist which handles all SystemVerilog/VHDL/simulator/verification related things.
 
-* hwtHls solves problems of latency/resource/delay constrained scheduling/allocation
-* uses separated CDFG with backward reference for representation of code
-* operator tree balancing, support for non primitive operators (DSP etc., with multiple IO, latency, delay)
-* default scheduling ALAP, ASAP, list based scheduling
-* default allocating Left edge
-* loop unroll, pipeline
-* Support for Bus, Handshaked, Rd/VldSynced, Signal interfaces
-
-* Meta-informations about target platform are classes derived from Platform class.
-  This class is container of HLS settings (Scheduler/Allocator...),
-  information about resources and capabilities of target and target specific components (transceiver, PLL wrapper).
-
-* All parts of hwtHls can be modified by user, there are not global objects, all parts can be also used separately.
 
 ### Why hwtHls is not a compiler?
 
-* Nearly all HLS synthesizers performing conversion from source language to target language. HwtHls is different.
-* In hwtHls code is a kernel described using language objects in parent language (Python) and it does produce the circut object (in hwt format).
-* Reason for this is that #pragmas and other compiler directives became major part of code and #pragmas can not contain any code which can run at compilation time.
-  One solution is to use external language for example TCL to control HLS synthesiser, but still retrospectivity is greatly limited.
-* Metalanguage description allows very precise driving of HLS process with minimum effort.
-  Delegation of vhdl/systemverilog generation to other library (hwt) also greatly simplifies this library
-  and it also opens the door for post-processing.
+* Nearly all HLS synthesizers performing conversion from source language and constraints to a target language.
+  But there are many cases where a complex preprocessor code is required to generate efficient hardware because
+  it is not possible to interfere everything and constraint computation may also be complex.
+  Because of this this library uses python as a preprocessor and the input code is build from statement-like objects.
+  The benefit of Python object is that user can generate/analyze/modify it on demand.
+
+
+### Installation
+
+Linux:
+```
+apt install llvm-dev
+pip3 install -r https://raw.githubusercontent.com/Nic30/hwtHls/master/doc/requirements.txt
+pip3 install git+git://github.com/Nic30/hwtHls.git
+```
 
 
 

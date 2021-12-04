@@ -11,19 +11,37 @@
 
 # LLVM/clang
 
+## LLVM environment setup
 docker
 `docker pull silkeh/clang`
 `mkdir clang_test`
-`docker run -it -v $PWD/clang_test:/clang_tests --name clang_i silkeh/clang /bin/bash`
+`docker run -it -v $PWD/clang_test:/clang_test --name clang_i silkeh/clang /bin/bash`
 
-
+## Translation to LLVM IR
 `clang -S -emit-llvm main.c` produces  LLVM IR `main.ll`
 `clang -cc1 main.c -emit-llvm` produces  LLVM IR `main.ll`
 `llc main.ll` produces assembly `main.s`
 
+https://releases.llvm.org/11.0.0/docs/LangRef.html
+
 Dump all used passes
 `clang -mllvm -debug-pass=Arguments main.c`
+```
+opt -dot-cfg test.s
+#and now by using xdot for instance we can see the control flow graph of the program
+xdot cfg.main.dot
+```
 
+## TargetMachine
+https://llvm.org/docs/WritingAnLLVMBackend.html
+https://wiki.aalto.fi/display/t1065450/LLVM+TableGen
+`llvm-tblgen insns.td -print-records`
+
+## Interpret
+`clang -emit-llvm -c main.c -o main.bc`
+`lli -stats main.bc`
+
+## Transformation passes
 ```
 Pass Arguments:  -tti -targetlibinfo -ee-instrument
 Pass Arguments:  -tti -targetlibinfo -assumption-cache-tracker -profile-summary-info -annotation2metadata -forceattrs -basiccg -always-inline -barrier -annotation-remarks
@@ -33,3 +51,8 @@ Pass Arguments:  -tti -targetlibinfo -targetpassconfig -machinemoduleinfo -colle
 https://www.llvm.org/docs/Passes.html#introduction
 Llvm pass execution (`-disable-llvm-passes` is required otherwise `optnone` attribute is added and nothing happens during `opt`)
 `clang -cc1 -Os -disable-llvm-passes -emit-llvm main.c -o - | opt -S -mem2reg`
+
+
+## In IR debugging metainformations
+
+https://wiki.aalto.fi/display/t1065450/LLVM+DebugInfo
