@@ -2,6 +2,8 @@ from hwt.hdl.operatorDefs import OpDefinition, AllOps
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.value import SsaValue
+from typing import Optional, Union
+from hwt.hdl.value import HValue
 
 
 class SsaExprBuilderProxy():
@@ -66,26 +68,46 @@ class SsaExprBuilderProxy():
 
 class SsaExprBuilder():
 
-    def __init__(self, block:SsaBasicBlock):
+    def __init__(self, block:SsaBasicBlock, possition: Optional[int]=None):
         self.block = block
+        self.possition = possition
         # [todo] operator cache
 
-    def _unaryOp(self, o: SsaValue, operator: OpDefinition) -> SsaValue:
-        res = operator._evalFn(o.origin)
+    def _unaryOp(self, o: Union[SsaValue, HValue], operator: OpDefinition) -> SsaValue:
+        res = operator._evalFn(o.origin if o.origin is not None else o._dtype.from_py(None))
+        if isinstance(o, HValue):
+            return res
+
         instr = SsaInstr(self.block.ctx, res._dtype, operator, [o, ], origin=res)
-        self.block.body.append(instr)
+        self._insertInstr(instr)
         return instr
 
-    def unaryOp(self, o: SsaValue, operator: OpDefinition) -> SsaExprBuilderProxy:
+    def _insertInstr(self, instr):
+        pos = self.possition
+        b = self.block
+        if pos is None:
+            b.appendInstruction(instr)
+        else:
+            b.insertInstruction(pos, instr)
+            self.possition += 1
+
+    def unaryOp(self, o: Union[SsaValue, HValue], operator: OpDefinition) -> SsaExprBuilderProxy:
         return self.var(self._unaryOp(o.var, operator))
 
-    def _binaryOp(self, o0: SsaValue, operator: OpDefinition, o1: SsaValue) -> SsaValue:
-        res = operator._evalFn(o0.origin, o1.origin)
+    def _binaryOp(self, o0: Union[SsaValue, HValue], operator: OpDefinition, o1: Union[SsaValue, HValue]) -> SsaValue:
+        is_o0_value = isinstance(o0, HValue)
+        is_o1_value = isinstance(o1, HValue)
+        res = operator._evalFn(
+            o0 if is_o0_value else o0.origin if o0.origin is not None else o0._dtype.from_py(None),
+            o1 if is_o1_value else o1.origin if o1.origin is not None else o1._dtype.from_py(None))
+        if is_o0_value and is_o1_value:
+            return res
+
         instr = SsaInstr(self.block.ctx, res._dtype, operator, [o0, o1])
-        self.block.body.append(instr)
+        self._insertInstr(instr)
         return instr
 
-    def binaryOp(self, o0: SsaValue, operator: OpDefinition, o1: SsaValue) -> SsaExprBuilderProxy:
+    def binaryOp(self, o0: Union[SsaValue, HValue], operator: OpDefinition, o1: SsaValue) -> SsaExprBuilderProxy:
         return self.var(self._binaryOp(o0.var, operator, o1.var))
 
     def var(self, v: SsaValue):
