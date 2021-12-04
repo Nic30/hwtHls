@@ -1,13 +1,16 @@
 from functools import lru_cache
 from math import log2
-from typing import Dict, Union
+from pathlib import Path
+from typing import Dict, Union, Optional, List
 
 from hwt.hdl.operator import Operator
 from hwt.hdl.operatorDefs import AllOps, OpDefinition
 from hwt.synthesizer.dummyPlatform import DummyPlatform
 from hwtHls.allocator.allocator import HlsAllocator
+#from hwtHls.llvm.toLlvmPy import SsaPassToLlvm
 from hwtHls.netlist.toGraphwiz import HlsNetlistPassDumpToDot
 from hwtHls.netlist.toTimeline import RtlNetlistPassShowTimeline
+from hwtHls.netlist.transformations.hlsNetlistPass import HlsNetlistPass
 from hwtHls.netlist.transformations.mergeExplicitSync import HlsNetlistPassMergeExplicitSync
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.scheduler.list_schedueling import ListSchedueler
@@ -15,7 +18,7 @@ from hwtHls.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
 from hwtHls.ssa.instr import OP_ASSIGN
 from hwtHls.ssa.transformation.extractPartDrivers import SsaPassExtractPartDrivers
 from hwtHls.ssa.transformation.removeTrivialBlocks import SsaPassRemoveTrivialBlocks
-from pathlib import Path
+from hwtHls.ssa.transformation.ssaPass import SsaPass
 from hwtHls.ssa.translation.toGraphwiz import SsaPassDumpToDot
 
 _OPS_T_GROWING_EXP = {
@@ -85,10 +88,12 @@ def makeDebugPasses(debug_file_directory: Union[str, Path]):
     return {
         "ssa_passes": [
             SsaPassConsystencyCheck(),
-            SsaPassRemoveTrivialBlocks(),
-            SsaPassDumpToDot(debug_file_directory / "top.dot"),
             SsaPassExtractPartDrivers(),
-            SsaPassDumpToDot(debug_file_directory / "top2.dot"),
+            SsaPassDumpToDot(debug_file_directory / "top0.dot"),
+            #SsaPassToLlvm(),
+            SsaPassRemoveTrivialBlocks(),
+            SsaPassDumpToDot(debug_file_directory / "top1.dot"),
+
         ],
         "hlsnetlist_passes":[
             HlsNetlistPassDumpToDot(debug_file_directory / "top_p0.dot"),
@@ -101,7 +106,6 @@ def makeDebugPasses(debug_file_directory: Union[str, Path]):
 
     }
 
-
 class VirtualHlsPlatform(DummyPlatform):
     """
     Platform with informations about target platform
@@ -111,8 +115,8 @@ class VirtualHlsPlatform(DummyPlatform):
     """
 
     def __init__(self, allocator=HlsAllocator, scheduler=ListSchedueler,
-                 ssa_passes=DEFAULT_SSA_PASSES,
-                 hlsnetlist_passes=DEFAULT_HLSNETLIST_PASSES,
+                 ssa_passes:Optional[List[SsaPass]]=DEFAULT_SSA_PASSES,
+                 hlsnetlist_passes: Optional[List[HlsNetlistPass]]=DEFAULT_HLSNETLIST_PASSES,
                  rtlnetlist_passes=DEFAULT_RTLNETLIST_PASSES,
             ):
         super(VirtualHlsPlatform, self).__init__()

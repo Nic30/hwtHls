@@ -6,6 +6,7 @@ from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwtHls.netlist.nodes.io import HlsRead, HlsWrite
 from hwtHls.netlist.nodes.ops import AbstractHlsOp, HlsConst, HlsOperation
 from hwtHls.netlist.nodes.ports import HlsOperationOut
+from hwtHls.netlist.transformations.hlsNetlistPass import HlsNetlistPass
 
 
 class GraphwizNode():
@@ -125,12 +126,12 @@ class HwtHlsNetlistToGraphwiz():
         return "".join(buff)
 
 
-class HlsNetlistPassDumpToDot():
+class HlsNetlistPassDumpToDot(HlsNetlistPass):
 
     def __init__(self, file_name:str):
         self.file_name = file_name
 
-    def apply(self, to_hw: "SsaSegmentToHwPipeline"):
+    def apply(self, hls: "HlsStreamProc", to_hw: "SsaSegmentToHwPipeline"):
         to_graphwiz = HwtHlsNetlistToGraphwiz("top")
         with open(self.file_name, "w") as f:
             to_graphwiz.construct(to_hw.hls.inputs + to_hw.hls.nodes + to_hw.hls.outputs)

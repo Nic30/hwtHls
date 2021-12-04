@@ -1,12 +1,11 @@
 from typing import List
 
-from hwtHls.netlist.nodes.io import HlsExplicitSyncNode, HlsRead, HlsWrite, \
-    HlsReadSync
+from hwtHls.netlist.nodes.io import HlsExplicitSyncNode, HlsRead, HlsWrite
 from hwtHls.netlist.nodes.ops import AbstractHlsOp
-from hwtHls.netlist.nodes.ports import HlsOperationOut
+from hwtHls.netlist.transformations.hlsNetlistPass import HlsNetlistPass
 
 
-class HlsNetlistPassMergeExplicitSync():
+class HlsNetlistPassMergeExplicitSync(HlsNetlistPass):
     """
     Merge nodes with explicit synchronization (HlsRead, HlsWrite, HlsExplicitSyncNode) together
     if possible to reduce the number of places where we need to solve the synchronisation.
@@ -50,5 +49,5 @@ class HlsNetlistPassMergeExplicitSync():
                 if (n not in to_rm)
             ]
 
-    def apply(self, to_hw: "SsaSegmentToHwPipeline"):
+    def apply(self, hls: "HlsStreamProc", to_hw: "SsaSegmentToHwPipeline"):
         self._apply(to_hw.hls.nodes)

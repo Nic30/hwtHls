@@ -14,7 +14,9 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.statements import HlsStreamProcRead, \
     HlsStreamProcWrite, HlsStreamProcWhile, HlsStreamProcCodeBlock
+from hwtHls.netlist.transformations.hlsNetlistPass import HlsNetlistPass
 from hwtHls.ssa.context import SsaContext
+from hwtHls.ssa.transformation.ssaPass import SsaPass
 from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa, AnyStm
 from hwtHls.ssa.translation.toHwtHlsNetlist.pipelineMaterialization import SsaSegmentToHwPipeline
 from hwtLib.amba.axis import AxiStream
@@ -35,8 +37,8 @@ class HlsStreamProc():
     """
 
     def __init__(self, parentUnit: Unit,
-                 ssa_passes:Optional[list]=None,
-                 hlsnetlist_passes:Optional[list]=None,
+                 ssa_passes:Optional[List[SsaPass]]=None,
+                 hlsnetlist_passes:Optional[List[HlsNetlistPass]]=None,
                  rtlnetlist_passes:Optional[list]=None,
                  freq: Optional[Union[int, float]]=None):
         """
@@ -107,7 +109,7 @@ class HlsStreamProc():
         to_ssa.visit_top_CodeBlock(_code)
         to_ssa.finalize()
         for ssa_pass in self.ssa_passes:
-            ssa_pass.apply(to_ssa)
+            ssa_pass.apply(self, to_ssa)
 
         to_hw = SsaSegmentToHwPipeline(to_ssa.start, _code)
         to_hw.extract_pipeline()
@@ -116,7 +118,7 @@ class HlsStreamProc():
 
         to_hw.extract_hlsnetlist(self.parentUnit, self.freq)
         for hlsnetlist_pass in self.hlsnetlist_passes:
-            hlsnetlist_pass.apply(to_hw)
+            hlsnetlist_pass.apply(self, to_hw)
 
         # some optimization could call scheduling and everything after could let
         # the netwlist without modifications
@@ -125,7 +127,7 @@ class HlsStreamProc():
 
         to_hw.construct_rtlnetlist()
         for rtlnetlist_pass in self.rtlnetlist_passes:
-            rtlnetlist_pass.apply(to_hw)
+            rtlnetlist_pass.apply(self, to_hw)
 
         return to_hw
 

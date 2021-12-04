@@ -12,6 +12,7 @@ from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.phi import SsaPhi
 from hwtHls.ssa.translation.toHwtHlsNetlist.pipelineMaterialization import SsaSegmentToHwPipeline
+from hwtHls.ssa.transformation.ssaPass import SsaPass
 
 
 class SsaToGraphwiz():
@@ -121,12 +122,12 @@ class SsaToGraphwiz():
         return "".join(buff)
 
 
-class SsaPassDumpToDot():
+class SsaPassDumpToDot(SsaPass):
 
     def __init__(self, file_name:str):
         self.file_name = file_name
 
-    def apply(self, to_ssa: "AstToSsa"):
+    def apply(self, hls: "HlsStreamProc", to_ssa: "AstToSsa"):
         to_graphwiz = SsaToGraphwiz(Path(self.file_name).stem)
         to_hw = SsaSegmentToHwPipeline(to_ssa.start, to_ssa.original_code_for_debug)
         to_hw.extract_pipeline()

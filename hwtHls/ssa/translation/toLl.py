@@ -97,6 +97,6 @@ class SsaPassDumpToLl():
     def __init__(self, output:StringIO=sys.stdout):
         self.output = AutoIndentingStream(output, "  ")
 
-    def apply(self, to_ssa: "AstToSsa"):
+    def apply(self, hls: "HlsStreamProc", to_ssa: "AstToSsa"):
         to_graphwiz = SsaToLl(self.output)
         to_graphwiz.construct(to_ssa.start)

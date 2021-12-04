@@ -1,10 +1,11 @@
 from typing import Set
 
 from hwtHls.ssa.basicBlock import SsaBasicBlock
+from hwtHls.ssa.transformation.ssaPass import SsaPass
 from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
 
 
-class SsaPassRemoveTrivialBlocks():
+class SsaPassRemoveTrivialBlocks(SsaPass):
     """
     Trivial block is the one which has 0 or 1 successor and has no body.
 
@@ -87,5 +88,5 @@ class SsaPassRemoveTrivialBlocks():
         seen = set()
         return self._visit(block, seen)
 
-    def apply(self, to_ssa: AstToSsa):
+    def apply(self, hls: "HlsStreamProc", to_ssa: AstToSsa):
         to_ssa.start = self.visit(to_ssa.start)

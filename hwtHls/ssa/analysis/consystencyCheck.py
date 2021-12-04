@@ -8,11 +8,12 @@ from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.phi import SsaPhi
 from hwtHls.ssa.value import SsaValue
+from hwtHls.ssa.transformation.ssaPass import SsaPass
 
 _ValOrVal = (HValue, SsaValue)
 
 
-class SsaPassConsystencyCheck():
+class SsaPassConsystencyCheck(SsaPass):
 
     def visit_collect(self, bb: SsaBasicBlock, blocks: UniqList[SsaBasicBlock],
                       phis: UniqList[SsaPhi],
@@ -82,7 +83,7 @@ class SsaPassConsystencyCheck():
             if _bb not in seen:
                 self.visit_check(_bb, blocks, phis, variables, seen)
 
-    def apply(self, to_ssa: "AstToSsa"):
+    def apply(self, hls: "HlsStreamProc", to_ssa: "AstToSsa"):
         bb = to_ssa.start
         blocks: UniqList[SsaBasicBlock] = UniqList()
         phis: UniqList[SsaPhi] = UniqList()

@@ -2,13 +2,14 @@ from typing import Set
 
 from hwt.code import And
 from hwt.hdl.value import HValue
-from hwtHls.hlsStreamProc.exprBuilder import SsaExprBuilder
 from hwtHls.ssa.basicBlock import SsaBasicBlock
+from hwtHls.ssa.exprBuilder import SsaExprBuilder
 from hwtHls.ssa.phi import SsaPhi
+from hwtHls.ssa.transformation.ssaPass import SsaPass
 from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
 
 
-class SsaPassExpandControlSelfloops():
+class SsaPassExpandControlSelfloops(SsaPass):
     """
     Effectively transforms
 
@@ -84,7 +85,7 @@ class SsaPassExpandControlSelfloops():
 
     """
 
-    def apply(self, to_ssa: AstToSsa):
+    def apply(self, hls: "HlsStreamProc", to_ssa: AstToSsa):
         seen: SsaBasicBlock = set()
         to_ssa.start = self._visit_SsaBasicBlock(to_ssa.start, seen)
 
