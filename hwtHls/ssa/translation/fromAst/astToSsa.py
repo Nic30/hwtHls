@@ -124,7 +124,7 @@ class AstToSsa():
 
             self.m_ssa_u.writeVariable(var, (), block, tuple(ops))
             var = SsaInstr(block.ctx, var._dtype, op.operator, ops, origin=var)
-            block.body.append(var)
+            block.appendInstruction(var)
             # we know for sure that this in in this block that is why we do not need to use readVariable
             return block, var
 
@@ -223,7 +223,7 @@ class AstToSsa():
         #   * only a segment in bit vector can be assigned, this result in the assignment of the concatenation of previous and new value
         self.m_ssa_u.writeVariable(o.dst, o.indexes, block, src)
         # ld = SsaInstr(o.dst, src)
-        # block.body.append(ld)
+        # block.appendInstruction(ld)
         # if isinstance(src, SsaValue):
         #    src.users.append(ld)
 
@@ -232,7 +232,7 @@ class AstToSsa():
     def visit_Write(self, block: SsaBasicBlock, o: HlsStreamProcWrite) -> SsaBasicBlock:
         block, src = self.visit_expr(block, o.getSrc())
         o.operands = (src,)
-        block.body.append(o)
+        block.appendInstruction(o)
         block.origins.append(o)
 
         if isinstance(src, SsaValue):
