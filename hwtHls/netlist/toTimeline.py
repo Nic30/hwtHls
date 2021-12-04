@@ -107,7 +107,7 @@ class HwtHlsNetlistToTimeline():
             )
             i += clk_period
 
-    def _draw_arrow(self, fig: Figure, x0:float, y0:float, x1:float, y1:float, color: str):
+    def _draw_arrow(self, fig: Figure, x0:float, y0:float, x1:float, y1:float, color: str, shapesToAdd: List[dict], annotationsToAdd: List[dict]):
         # assert x1 >= x0
         jobs_delta = x1 - x0
         # fig.add_shape(
@@ -123,11 +123,12 @@ class HwtHlsNetlistToTimeline():
             else:
                 # x0 is on right, x1 on left
                 p = f"M {x0} {y0} C {x0 + self.min_duration} {y0}, {x1-self.min_duration} {y1}, {x1} {y1}"
-        fig.add_shape(
+        # fig.add_shape(
+        shapesToAdd.append(dict(
             type="path",
             path=p,
             line_color=color,
-        )
+        ))
         # # # horizontal line segment
         # fig.add_shape(
         #    x0=x0, y0=startY,
@@ -156,7 +157,8 @@ class HwtHlsNetlistToTimeline():
         #     ])
 
         # # draw an arrow
-        fig.add_annotation(
+        # fig.add_annotation(
+        annotationsToAdd.append(dict(
             x=x1, y=y1,
             xref="x", yref="y",
             showarrow=True,
@@ -165,9 +167,9 @@ class HwtHlsNetlistToTimeline():
             arrowwidth=2,
             arrowcolor=color,
             arrowhead=2,
-        )
+        ))
 
-    def _draw_arrow_between_jobs(self, fig: Figure):
+    def _draw_arrow_between_jobs(self, fig: Figure, shapesToAdd: List[dict], annotationsToAdd: List[dict]):
         df = self.df
         # # draw an arrow from the end of the first job to the start of the second job
         # # retrieve tick text and tick vals
@@ -180,13 +182,13 @@ class HwtHlsNetlistToTimeline():
                 first_job_dict = df.iloc[start_i]
                 startX = first_job_dict['finish']
                 startY = first_job_dict['group']
-                self._draw_arrow(fig, startX, startY, endX, endY, "blue")
+                self._draw_arrow(fig, startX, startY, endX, endY, "blue", shapesToAdd, annotationsToAdd)
 
             for start_i in second_job_dict["backward_deps"]:
                 first_job_dict = df.iloc[start_i]
                 startX = first_job_dict['finish']
                 startY = first_job_dict['group']
-                self._draw_arrow(fig, startX, startY, endX, endY, "gray")
+                self._draw_arrow(fig, startX, startY, endX, endY, "gray", shapesToAdd, annotationsToAdd)
 
         return fig
 
@@ -216,7 +218,13 @@ class HwtHlsNetlistToTimeline():
 
         fig.update_yaxes(title="Operations", autorange="reversed", visible=True, showticklabels=False)  # otherwise tasks are listed from the bottom up
         fig.update_xaxes(title="Time[ns]")
-        self._draw_arrow_between_jobs(fig)
+        shapesToAdd: List[dict] = []
+        annotationsToAdd: List[dict] = []
+        self._draw_arrow_between_jobs(fig, shapesToAdd, annotationsToAdd)
+        fig.layout.update({
+            "annotations": annotationsToAdd,
+            "shapes": shapesToAdd,
+        })
         self._draw_clock_boundaries(fig)
         return fig
 
@@ -238,7 +246,7 @@ class RtlNetlistPassShowTimeline():
         self.filename = filename
         self.auto_open = auto_open
 
-    def apply(self, to_hw: "SsaSegmentToHwPipeline"):
+    def apply(self, hls: "HlsStreamProc", to_hw: "SsaSegmentToHwPipeline"):
         to_timeline = HwtHlsNetlistToTimeline(to_hw.hls.clk_period)
         to_timeline.construct(to_hw.hls.inputs + to_hw.hls.nodes + to_hw.hls.outputs)
         if self.filename is not None:
