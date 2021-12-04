@@ -23,6 +23,9 @@ from hwtHls.ssa.transformation.utils.blockAnalysis import collest_all_blocks
 from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
 from hwtHls.ssa.value import SsaValue
 from ipCorePackager.constants import INTF_DIRECTION
+from hwt.interfaces.std import Signal, RdSynced, VldSynced, Handshaked
+from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
+from hwt.interfaces.hsStructIntf import HsStructIntf
 
 RE_NUMBER = re.compile('[^0-9]+|[0-9]+')
 
@@ -256,10 +259,19 @@ class ToLlvmIrTranslator():
                 key.append(part)
         return key
 
+    @staticmethod
+    def _getNativeInterfaceType(i: Interface):
+        if i.__class__ in (Handshaked, RdSynced, VldSynced):
+            return i.data._dtype
+        elif isinstance(i, (HsStructIntf, Signal, RtlSignal)):
+            return i._dtype
+        else:
+            raise NotImplementedError(i)
+
     def translate(self, start_bb: SsaBasicBlock):
         # create a function where we place the code and the argumets for a io interfaces
         io_sorted = sorted(self.topIo.items(), key=lambda x: self.splitStrToStrsAndInts(getSignalName(x[0])))
-        params = [(getSignalName(i), self._translateType(i._dtype, ptr=True))
+        params = [(getSignalName(i), self._translateType(self._getNativeInterfaceType(i), ptr=True))
                    for i, _ in io_sorted]
         self.main = main = self.createFunctionPrototype("main", params, Type.getVoidTy(self.ctx))
         ioToVar: Dict[Interface, Argument] = {}

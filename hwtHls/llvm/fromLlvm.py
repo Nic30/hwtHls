@@ -111,7 +111,7 @@ class FromLlvmIrTranslator():
                 a = tuple(instr.iterOperands())[0].get()
                 io = self.argToIntf[a]
                 res_t = self._translateType(instr.getType())
-                if io._dtype.signed is not None:
+                if ToLlvmIrTranslator._getNativeInterfaceType(io).signed is not None:
                     res_t = Bits(res_t.bit_length(), io._dtype.signed)
 
                 _instr = HlsStreamProcRead(self.hls, io, res_t)
@@ -170,6 +170,7 @@ class FromLlvmIrTranslator():
                         index = self._translateExpr(indexLow)
                     else:
                         index = 0
+                        mainVar = a
 
                     if indexWidth != 1:
                         index = SLICE.from_py(slice(index + indexWidth, index, -1))
