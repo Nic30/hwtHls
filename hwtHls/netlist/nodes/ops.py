@@ -169,19 +169,8 @@ class HlsConst(AbstractHlsOp):
 
     def __init__(self, parentHls: "HlsPipeline", val: HValue):
         self.val = val
-        self.name = None
-        self.hls = parentHls
-        self._id = parentHls.nodeCtx.getUniqId()
-
-        # True if scheduled to specific time
-        self.fixed_schedulation = True
-        self.scheduledIn: Optional[TimeSpec] = None
-        self.scheduledInEnd: Optional[TimeSpec] = None
-
-        self.usedBy: List[List[HlsOperationIn]] = [[], ]
-        self.dependsOn: List[HlsOperationOut] = []
-        self._inputs: List[HlsOperationIn] = []
-        self._outputs: List[HlsOperationOut] = [HlsOperationOut(self, 0)]
+        AbstractHlsOp.__init__(self, parentHls, None)
+        self._add_output()
 
     def get(self, time: float):
         return self.val
@@ -194,42 +183,11 @@ class HlsConst(AbstractHlsOp):
         t = TimeIndependentRtlResource.INVARIANT_TIME
         return TimeIndependentRtlResource(s, t, allocator)
 
-    @property
-    def asap_start(self):
-        return self.usedBy[0][0].obj.asap_start
-
-    # @asap_start.setter
-    # def asap_start(self, v):
-    #    self.usedBy[0][0].obj.asap_start = v
-
-    @property
-    def asap_end(self):
-        # (yes, the constant operation takes zero time that implies start = end)
-        return self.usedBy[0][0].obj.asap_start
-
-    # @asap_end.setter
-    # def asap_end(self, v):
-    #    self.usedBy[0][0].obj.asap_start = v
-
-    @property
-    def alap_start(self):
-        return self.usedBy[0][0].obj.alap_start
-
-    # @alap_start.setter
-    # def alap_start(self, v):
-    #    self.usedBy[0][0].obj.alap_start = v
-
-    @property
-    def alap_end(self):
-        return self.usedBy[0][0].obj.alap_start
-
-    # @alap_end.setter
-    # def alap_end(self, v):
-    #    self.usedBy[0][0].obj.alap_start = v
-
     def resolve_realization(self):
         self.latency_pre = ()
         self.latency_post = (0.0,)
+        self.asap_start = (0.0, )
+        self.asap_end = (0.0, )
 
     def __repr__(self, minify=False):
         if minify:
