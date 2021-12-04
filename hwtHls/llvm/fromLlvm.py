@@ -23,6 +23,7 @@ from hwtHls.ssa.phi import SsaPhi
 from pyMathBitPrecise.bit_utils import ValidityError, mask
 from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
 from hwtHls.llvm.toLlvmPy import ToLlvmIrTranslator
+from hwt.code import Concat
 
 
 def getValAndShift(v: Value):
@@ -46,7 +47,7 @@ def getValAndShift(v: Value):
     else:
         c = ValueToConstantInt(v)
         if c is not None:
-            c = int(sh.getValue())
+            c = int(c.getValue())
             # find offset of a value
             assert c != 0, "This can not be 0 because this would be already optimized out"
             sh = 0
@@ -54,7 +55,7 @@ def getValAndShift(v: Value):
                 if (1 << sh) & c:
                     break
                 sh += 1
-            base = Bits(TypeToIntegerType(sh.getType()).getBitWidth() - sh).from_py(c >> sh)
+            base = Bits(TypeToIntegerType(v.getType()).getBitWidth() - sh).from_py(c >> sh)
             return (base, sh)
 
     return (v, 0)
@@ -282,14 +283,18 @@ class FromLlvmIrTranslator():
                                     ops.append(right if isinstance(right, HValue) else self._translateExpr(right))
                                     if rightSh:
                                         ops.append(Bits(rightSh).from_py(0))
-                                if len(ops) == 2:
-                                    ops = [o if isinstance(o, (HValue, SsaValue)) else self._translateExpr(o) for o in ops]
-                                    _instr = SsaInstr(self.ssaCtx, res_t, AllOps.CONCAT, ops)
-                                    self.newValues[instr] = _instr
-                                    newBlock.appendInstruction(_instr)
+                                if ops:
+                                    _instr = ops[0]
+                                    for o in ops[1:]:
+                                        if isinstance(_instr, HValue) and isinstance(o, HValue):
+                                            _instr = Concat(_instr, o)
+                                        else:
+                                            ops = [o if isinstance(o, (HValue, SsaValue)) else self._translateExpr(o) for o in (_instr, o)]
+                                            _instr = SsaInstr(self.ssaCtx, res_t, AllOps.CONCAT, ops)
+                                            newBlock.appendInstruction(_instr)
+
+                                        self.newValues[instr] = _instr
                                     continue
-                                else:
-                                    raise NotImplementedError("Other concatenation ops")
 
                     ops = [self._translateExpr(o) for o in instr.iterOperands()]
                     op1 = 0
