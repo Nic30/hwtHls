@@ -85,10 +85,11 @@ class PidControllerHls(PidControllerHalfHls):
                  a[2] * y[1], a[3] * y[2], key=trim)
 
         hls.thread(
+            # reset
             u(0),
             *(_y(0) for _y in y[1:]),
+            # next value computation
             hls.While(True,
-                # next value computation
                 u(_u),
                 # propagate output value register to output
                 hls.write(u, self.output)

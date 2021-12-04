@@ -31,7 +31,7 @@ class HlsMux(HlsOperation):
             return allocator.node2instance[op_out]
         except KeyError:
             pass
-
+        assert self.elifs, ("Mux has to have operands", self)
         name = self.name
         mux_out_s = allocator._sig(name, self.elifs[0][1].obj.instantiateHlsOperationInTime(
             allocator, self.scheduledInEnd[0], used_signals).data._dtype)
