@@ -9,6 +9,7 @@ from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
 
 
 class TimeIndependentRtlResourceItem():
+    __slots__ = ["parent", "data"]
 
     def __init__(self, parent:"TimeIndependentRtlResource", data:Interface):
         self.parent = parent
@@ -33,6 +34,7 @@ class TimeIndependentRtlResource():
     INVARIANT_TIME = "INVARIANT_TIME"
     # time constant, which means that item is not time dependent
     # and can be accessed any time
+    __slots__ = ["timeOffset", "allocator", "valuesInTime"]
 
     def __init__(self, data: Union[RtlSignal, Interface, HValue],
                  time: Union[int, "TimeIndependentRtlResource.INVARIANT_TIME"],
