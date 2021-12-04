@@ -69,7 +69,7 @@ class SsaInstr(SsaValue):
         return self.operands
 
     def replaceInput(self, orig_expr: SsaValue, new_expr: Union[SsaValue, HValue]):
-        assert isinstance(new_expr, (SsaValue, HValue)), new_expr
+        assert isinstance(new_expr, (SsaValue, HValue)), (self, orig_expr, new_expr)
         assert orig_expr in self.operands
         self.operands = tuple(
             new_expr if o is orig_expr else o
