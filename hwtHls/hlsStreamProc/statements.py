@@ -83,12 +83,15 @@ class HlsStreamProcRead(HdlStatement, SignalOps, InterfaceBase, SsaInstr):
         ctx = parent.ctx
         if isinstance(src, (Handshaked, HsStructIntf)):
             assert (type_or_size is NOT_SPECIFIED or
-                    type_or_size == src.data._dtype), "The handshaked interfaces do not undergo any parsing thus only their native type is supportted"
+                    type_or_size == src.data._dtype), (
+                        "The handshaked interfaces do not undergo any parsing thus only their native type is supportted")
             type_or_size = src.data._dtype
 
         elif isinstance(src, (Signal, RtlSignal)):
             assert (type_or_size is NOT_SPECIFIED or
-                    type_or_size == src._dtype), ("The signal interfaces do not undergo any parsing thus only their native type is supportted", type_or_size, src._dtype)
+                    type_or_size == src._dtype), (
+                        "The signal interfaces do not undergo any parsing thus only their native type is supportted",
+                        type_or_size, src._dtype)
             type_or_size = src._dtype
 
         assert isinstance(type_or_size, HdlType), type_or_size
@@ -100,7 +103,7 @@ class HlsStreamProcRead(HdlStatement, SignalOps, InterfaceBase, SsaInstr):
                           name=self._sig.name, origin=self._sig)
         #self._out: Optional[ANY_HLS_STREAM_INTF_TYPE] = None
 
-        if isinstance(self._sig, (StructIntf, UnionSink, UnionSource)):
+        if isinstance(self._sig, StructIntf):
             sig = self._sig
             # copy all members on this object
             for field_path, field_intf in sig._fieldsToInterfaces.items():
