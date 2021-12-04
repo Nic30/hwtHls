@@ -7,7 +7,8 @@ from hwt.hdl.operator import Operator
 from hwt.hdl.operatorDefs import AllOps, OpDefinition
 from hwt.synthesizer.dummyPlatform import DummyPlatform
 from hwtHls.allocator.allocator import HlsAllocator
-#from hwtHls.llvm.toLlvmPy import SsaPassToLlvm
+from hwtHls.llvm.fromLlvm import SsaPassFromLlvm
+from hwtHls.llvm.toLlvmPy import SsaPassToLlvm
 from hwtHls.netlist.toGraphwiz import HlsNetlistPassDumpToDot
 from hwtHls.netlist.toTimeline import RtlNetlistPassShowTimeline
 from hwtHls.netlist.transformations.hlsNetlistPass import HlsNetlistPass
@@ -18,6 +19,7 @@ from hwtHls.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
 from hwtHls.ssa.instr import OP_ASSIGN
 from hwtHls.ssa.transformation.extractPartDrivers import SsaPassExtractPartDrivers
 from hwtHls.ssa.transformation.removeTrivialBlocks import SsaPassRemoveTrivialBlocks
+from hwtHls.ssa.transformation.runLlvmOpt import SsaPassRunLlvmOpt
 from hwtHls.ssa.transformation.ssaPass import SsaPass
 from hwtHls.ssa.translation.toGraphwiz import SsaPassDumpToDot
 
@@ -58,12 +60,14 @@ _OPS_T_GROWING_CONST = {
 
 DEFAULT_SSA_PASSES = [
     SsaPassConsystencyCheck(),
-    SsaPassRemoveTrivialBlocks(),
     # SsaPassDumpToDot("tmp/top.dot"),
     SsaPassExtractPartDrivers(),
     # SsaPassDumpToDot("tmp/top2.dot"),
     # SsaPassConsystencyCheck(),
-    # SsaPassRemoveTrivialBlocks()
+    SsaPassToLlvm(),
+    SsaPassRunLlvmOpt(),
+    SsaPassFromLlvm(),
+    SsaPassRemoveTrivialBlocks(),
     # SsaPassExpandControlSelfloops()
 ]
 DEFAULT_HLSNETLIST_PASSES = [
@@ -90,10 +94,13 @@ def makeDebugPasses(debug_file_directory: Union[str, Path]):
             SsaPassConsystencyCheck(),
             SsaPassExtractPartDrivers(),
             SsaPassDumpToDot(debug_file_directory / "top0.dot"),
-            #SsaPassToLlvm(),
-            SsaPassRemoveTrivialBlocks(),
+            SsaPassToLlvm(),
+            SsaPassRunLlvmOpt(),
+            SsaPassFromLlvm(),
             SsaPassDumpToDot(debug_file_directory / "top1.dot"),
-
+            SsaPassRemoveTrivialBlocks(),
+            SsaPassDumpToDot(debug_file_directory / "top2.dot"),
+            SsaPassConsystencyCheck(),
         ],
         "hlsnetlist_passes":[
             HlsNetlistPassDumpToDot(debug_file_directory / "top_p0.dot"),
@@ -105,6 +112,7 @@ def makeDebugPasses(debug_file_directory: Union[str, Path]):
         ],
 
     }
+
 
 class VirtualHlsPlatform(DummyPlatform):
     """
