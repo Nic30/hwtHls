@@ -111,6 +111,9 @@ class FromLlvmIrTranslator():
                 a = tuple(instr.iterOperands())[0].get()
                 io = self.argToIntf[a]
                 res_t = self._translateType(instr.getType())
+                if io._dtype.signed is not None:
+                    res_t = Bits(res_t.bit_length(), io._dtype.signed)
+
                 _instr = HlsStreamProcRead(self.hls, io, res_t)
 
             elif op == Instruction.MemoryOps.Store.value:
@@ -213,6 +216,8 @@ class FromLlvmIrTranslator():
                     _instr = SsaPhi(self.ssaCtx, res_t)
                     newBlock.appendPhi(_instr)
                     self.newValues[instr] = _instr
+                    continue
+                elif op == Instruction.TermOps.Ret:
                     continue
                 else:
                     res_t = self._translateType(instr.getType())
