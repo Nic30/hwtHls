@@ -2,12 +2,12 @@
 # -*- coding: utf-8 -*-
 
 from hwt.simulator.simTestCase import SimTestCase
-from hwtHls.examples.crc import CrcCombHls
-from hwtHls.examples.pid import PidControllerHls
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.platform.xilinx.artix7 import Artix7Slow
 from hwtHls.scheduler.errors import TimeConstraintError
+from hwtHls.tests.crc import CrcCombHls
 from hwtHls.tests.ifstm import SimpleIfStatementHls
+from hwtHls.tests.pid import PidControllerHls
 from hwtLib.logic.crcPoly import CRC_32
 
 
