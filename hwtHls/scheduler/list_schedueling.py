@@ -8,6 +8,7 @@ from hwtHls.errors import HlsSyntaxError
 from hwtHls.netlist.nodes.io import HlsRead, HlsWrite
 from hwtHls.netlist.nodes.ops import HlsConst, HlsOperation, AbstractHlsOp
 from hwtHls.scheduler.scheduler import HlsScheduler, asap
+from hwtHls.scheduler.errors import TimeConstraintError
 
 
 def getComponentConstrainingFn(clk_period: float, comp_constrain: Dict[OpDefinition, int]):
@@ -163,6 +164,15 @@ class ListSchedueler(HlsScheduler):
             n.resolve_realization()
             assert len(n._outputs) == len(n.latency_post), n
             assert len(n._inputs) == len(n.latency_pre), n
+
+            for in_delay in n.latency_pre:
+                if in_delay >= clk_period:
+                    raise TimeConstraintError(
+                        "Impossible scheduling, clk_period too low for ",
+                        n.latency_pre, n.latency_post, n)
+            if not hasattr(n, "latency_pre"):
+                raise AssertionError("Missing timing info", n, n.usedBy)
+
         # maxTime = self.asap()
         asap(hls.outputs, clk_period)
         # self.alap(maxTime)

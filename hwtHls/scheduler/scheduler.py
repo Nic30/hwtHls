@@ -5,6 +5,7 @@ from typing import Dict, Tuple
 from hwtHls.clk_math import start_clk
 from hwtHls.netlist.nodes.ops import HlsConst, AbstractHlsOp
 from hwtHls.scheduler.asap import asap
+from hwtHls.scheduler.errors import TimeConstraintError
 
 
 # from hwtHls.scheduler.alap import alap
@@ -83,6 +84,13 @@ class HlsScheduler():
         hls = self.parentHls
         for n in hls.nodes:
             n.resolve_realization()
+            for in_delay in n.latency_pre:
+                if in_delay >= hls.clk_period:
+                    raise TimeConstraintError(
+                        "Impossible scheduling, clk_period too low for ",
+                        n.latency_pre, n.latency_post, n)
+            if not hasattr(n, "latency_pre"):
+                raise AssertionError("Missing timing info", n, n.usedBy)
         asap(hls.outputs, hls.clk_period)
         # alap(hls.outputs, hls.clk_period)
 
