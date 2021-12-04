@@ -111,6 +111,6 @@ class ConcatOfSlices():
         return hash(tuple(self.slices))
 
     def __repr__(self):
-        slices = [f"{s._name}[{h}:{l}]" for s, h, l in self.slices]
+        slices = [f"{s._name if isinstance(s, SsaValue) else s }[{h}:{l}]" for s, h, l in self.slices]
         return f"<{self.__class__.__name__:s} [{', '.join(slices)}] >"
 
