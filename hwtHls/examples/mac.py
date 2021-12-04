@@ -22,16 +22,17 @@ class HlsMAC_example(Unit):
     def _config(self):
         self.CLK_FREQ = Param(int(25e6))
         self.INPUT_CNT = Param(4)
+        self.DATA_WIDTH = Param(32)
 
     def _declr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
         assert int(self.INPUT_CNT) % 2 == 0
 
-        self.dataIn = HObjList(VectSignal(32, signed=False)
+        self.dataIn = HObjList(VectSignal(self.DATA_WIDTH, signed=False)
                        for _ in range(int(self.INPUT_CNT)))
 
-        self.dataOut = VectSignal(32, signed=False)._m()
+        self.dataOut = VectSignal(self.DATA_WIDTH, signed=False)._m()
 
     def _impl(self):
         hls = HlsStreamProc(self)
@@ -98,7 +99,7 @@ class HlsMAC_example_handshake(HlsMAC_example2):
         )
         self.dataOut = HsStructIntf()._m()
         for d in self.dataIn + [self.dataOut, ]:
-            d.T = Bits(32, signed=False)
+            d.T = Bits(self.DATA_WIDTH, signed=False)
 
 
 class HlsMAC_example_TC(SimTestCase):
@@ -146,10 +147,12 @@ class HlsMAC_example_TC(SimTestCase):
 if __name__ == "__main__":
     import unittest
     from hwt.synthesizer.utils import to_rtl_str
+    from hwtHls.platform.virtual import makeDebugPasses
     u = HlsMAC_example_handshake()
+    u.DATA_WIDTH = 8
     u.CLK_FREQ = int(20e6)
     u.INPUT_CNT = 16
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform()))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(**makeDebugPasses("tmp"))))
 
     suite = unittest.TestSuite()
     # suite.addTest(HlsMAC_example_TC('test_simple_handshaked'))
