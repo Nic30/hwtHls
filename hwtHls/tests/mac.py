@@ -85,8 +85,9 @@ class HlsMAC_example2(HlsMAC_example):
 class HlsMAC_example_handshake(HlsMAC_example2):
 
     def _config(self):
-        self.CLK_FREQ = Param(int(25e6))
-        self.INPUT_CNT = Param(4)
+        super(HlsMAC_example_handshake, self)._config()
+        self.CLK_FREQ = int(25e6)
+        self.INPUT_CNT = 4
 
     def _declr(self):
         addClkRstn(self)
