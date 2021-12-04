@@ -1,28 +1,28 @@
 
 # from hwtHls.llvm.toLlvm import initializeModule
-from typing import List, Tuple, Dict, Union, Optional, Set
+import re
+from typing import List, Tuple, Dict, Union, Optional
 
 from hwt.hdl.operatorDefs import AllOps
+from hwt.hdl.types.bits import Bits
+from hwt.hdl.types.bitsVal import BitsVal
+from hwt.hdl.types.hdlType import HdlType
+from hwt.hdl.types.slice import HSlice
 from hwt.hdl.value import HValue
-from hwtHls.ssa.basicBlock import SsaBasicBlock
-from hwtHls.ssa.instr import SsaInstr, OP_ASSIGN
-from hwtHls.llvm.toLlvm import LLVMContext, Module, IRBuilder, LLVMStringContext, IntegerType, Value, \
-    Type, FunctionType, Function, VectorOfTypePtr, BasicBlock, Argument, PointerType, TypeToPointerType, \
-    ConstantInt, APInt, runOpt, verifyFunction, verifyModule, TypeToIntegerType, PHINode
-from hwtHls.ssa.value import SsaValue
-from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
+from hwt.synthesizer.interface import Interface
+from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwtHls.hlsStreamProc.statements import HlsStreamProcRead, \
     HlsStreamProcWrite
-from ipCorePackager.constants import INTF_DIRECTION
-from hwt.synthesizer.interface import Interface
-from hwt.hdl.types.hdlType import HdlType
-from hwt.hdl.types.bits import Bits
-from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
-from hwtHls.ssa.transformation.utils.blockAnalysis import collest_all_blocks
-from hwt.hdl.types.bitsVal import BitsVal
-import re
-from hwt.hdl.types.slice import HSlice
+from hwtHls.llvm.toLlvm import LLVMContext, Module, IRBuilder, LLVMStringContext, Value, \
+    Type, FunctionType, Function, VectorOfTypePtr, BasicBlock, Argument, PointerType, TypeToPointerType, \
+    ConstantInt, APInt, runOpt, verifyFunction, verifyModule, TypeToIntegerType, PHINode
+from hwtHls.ssa.basicBlock import SsaBasicBlock
+from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.phi import SsaPhi
+from hwtHls.ssa.transformation.utils.blockAnalysis import collest_all_blocks
+from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
+from hwtHls.ssa.value import SsaValue
+from ipCorePackager.constants import INTF_DIRECTION
 
 RE_NUMBER = re.compile('[^0-9]+|[0-9]+')
 
@@ -242,6 +242,9 @@ class ToLlvmIrTranslator():
                 b.CreateCondBr(self._translateExpr(c), self.varMap[sucBb], newLlvmBb, None)
                 llvmBb = newLlvmBb
                 b.SetInsertPoint(llvmBb)
+
+        if not bb.successors.targets:
+            b.CreateRetVoid()
 
     @staticmethod
     def splitStrToStrsAndInts(name):
