@@ -1,8 +1,8 @@
-from itertools import chain, islice
+from itertools import chain
 from typing import Union, List, Type, Dict, Optional, Tuple, Sequence
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
-from hwt.code import If, And
+from hwt.code import If
 from hwt.interfaces.std import VldSynced, RdSynced, Signal, Handshaked, \
     HandshakeSync
 from hwt.interfaces.structIntf import StructIntf
@@ -19,8 +19,6 @@ from hwtHls.netlist.nodes.io import HlsRead, HlsWrite, HlsExplicitSyncNode, \
 from hwtHls.netlist.nodes.ops import AbstractHlsOp
 from hwtHls.netlist.nodes.ports import HlsOperationOut
 from hwtLib.handshaked.streamNode import StreamNode
-from hwt.hdl.types.defs import BIT
-from hwt.hdl.value import HValue
 
 
 def get_sync_type(intf: Interface) -> Type[Interface]:
@@ -157,6 +155,7 @@ class HlsAllocator():
                         res_skipWhen: Dict[Interface, TimeIndependentRtlResourceItem],
                         res_extraCond: Dict[Interface, TimeIndependentRtlResourceItem],
                         intf: Interface, sync_time: float):
+
         if node.skipWhen is not None:
             self._copy_sync_single(node, node.skipWhen_inI, res_skipWhen, intf, sync_time)
 
@@ -311,13 +310,13 @@ class HlsAllocator():
                     extraConds=extra_conds,
                     skipWhen=skip_when
                 )
-                #print(f"############# stage {pipeline_st_i:d} #############")
-                #print("extra_conds")
-                #for i, c in sorted([(i._name, c) for i, c in extra_conds.items()], key=lambda x: x[0]):
+                # print(f"############# stage {pipeline_st_i:d} #############")
+                # print("extra_conds")
+                # for i, c in sorted([(i._name, c) for i, c in extra_conds.items()], key=lambda x: x[0]):
                 #    print(f"\t{i}: \t{c}")
                 #
-                #print("skip_when")
-                #for i, c in sorted([(i._name, c) for i, c in skip_when.items()], key=lambda x: x[0]):
+                # print("skip_when")
+                # for i, c in sorted([(i._name, c) for i, c in skip_when.items()], key=lambda x: x[0]):
                 #    print(f"\t{i}: \t{c}")
 
                 en = prev_st_valid
