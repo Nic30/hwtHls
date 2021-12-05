@@ -99,7 +99,7 @@ and provides variety of existing ones (from LLVM/hwt) in order to build efficien
 
 Linux:
 ```
-apt install llvm-dev
+apt install build-essential python3-dev llvm-dev
 pip3 install -r https://raw.githubusercontent.com/Nic30/hwtHls/master/doc/requirements.txt
 pip3 install git+git://github.com/Nic30/hwtHls.git
 ```
