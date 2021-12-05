@@ -263,7 +263,6 @@ class FromLlvmIrTranslator():
 
                         elif operator is AllOps.OR:
                             (left, leftSh), (right, rightSh) = (getValAndShift(o.get()) for o in instr.iterOperands())
-                            high, low = None, None
                             if leftSh != rightSh:
                                 if leftSh < rightSh:
                                     left, right = right, left

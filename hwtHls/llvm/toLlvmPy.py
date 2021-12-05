@@ -123,7 +123,7 @@ class ToLlvmIrTranslator():
             res_t = self._translateType(instr._dtype)
             op0, op1 = instr.operands
             _op0 = b.CreateZExt(self._translateExpr(op0), res_t, self.strCtx.addTwine(""))
-            sh = self._translateExprInt(instr._dtype.bit_length() - op1._dtype.bit_length(), res_t)
+            sh = self._translateExprInt(op1._dtype.bit_length(), res_t)
             highPart = b.CreateShl(_op0, sh, self.strCtx.addTwine(""), False, False)
             lowPart = b.CreateZExt(self._translateExpr(op1), res_t, self.strCtx.addTwine(""))
             return b.CreateOr(
