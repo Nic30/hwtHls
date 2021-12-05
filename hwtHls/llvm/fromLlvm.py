@@ -208,9 +208,9 @@ class FromLlvmIrTranslator():
                     if len(ops) == 1:
                         newBlock.successors.addTarget(None, self.newBlocks[ops[0].get()])
                     else:
-                        c, sucT, sucF = ops
-                        newBlock.successors.addTarget(self._translateExpr(c), self.newBlocks[sucT.get()])
-                        newBlock.successors.addTarget(None, self.newBlocks[sucF.get()])
+                        c, sucF, sucT = (o.get() for o in ops)
+                        newBlock.successors.addTarget(self._translateExpr(c), self.newBlocks[sucT])
+                        newBlock.successors.addTarget(None, self.newBlocks[sucF])
                     continue
 
                 elif op == Instruction.OtherOps.PHI:
