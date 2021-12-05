@@ -66,7 +66,7 @@ class CrcCombHls(CrcComb):
 
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
-    from hwtHls.platform.virtual import VirtualHlsPlatform
+    from hwtHls.platform.virtual import VirtualHlsPlatform, makeDebugPasses
 
     u = CrcCombHls()
     u.setConfig(CRC_5_USB)
@@ -74,4 +74,4 @@ if __name__ == "__main__":
     u.CLK_FREQ = int(200e6)
     u.DATA_WIDTH = 8
 
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform()))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(**makeDebugPasses("tmp"))))
