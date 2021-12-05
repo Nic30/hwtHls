@@ -7,9 +7,10 @@ from hdlConvertorAst.to.hdlUtils import Indent, \
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.phi import SsaPhi
-from hwtHls.hlsStreamProc.statements import HlsStreamProcRead,\
+from hwtHls.hlsStreamProc.statements import HlsStreamProcRead, \
     HlsStreamProcWrite
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
+from hwtHls.llvm.toLlvmPy import ToLlvmIrTranslator
 
 
 class SsaToLl():
@@ -94,9 +95,17 @@ class SsaToLl():
 
 class SsaPassDumpToLl():
 
-    def __init__(self, output:StringIO=sys.stdout):
+    def __init__(self, output:StringIO=sys.stdout, close=False):
+        self.close = close
         self.output = AutoIndentingStream(output, "  ")
 
     def apply(self, hls: "HlsStreamProc", to_ssa: "AstToSsa"):
-        to_graphwiz = SsaToLl(self.output)
-        to_graphwiz.construct(to_ssa.start)
+        if isinstance(to_ssa.start, SsaBasicBlock):
+            toLl = SsaToLl(self.output)
+            toLl.construct(to_ssa.start)
+        elif isinstance(to_ssa.start, ToLlvmIrTranslator):
+            toLlvmIr: ToLlvmIrTranslator = to_ssa.start
+            self.output.write(str(toLlvmIr.main))
+
+        if self.close:
+            self.output.close()

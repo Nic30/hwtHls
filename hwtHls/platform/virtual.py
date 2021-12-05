@@ -22,6 +22,7 @@ from hwtHls.ssa.transformation.removeTrivialBlocks import SsaPassRemoveTrivialBl
 from hwtHls.ssa.transformation.runLlvmOpt import SsaPassRunLlvmOpt
 from hwtHls.ssa.transformation.ssaPass import SsaPass
 from hwtHls.ssa.translation.toGraphwiz import SsaPassDumpToDot
+from hwtHls.ssa.translation.toLl import SsaToLl, SsaPassDumpToLl
 
 _OPS_T_GROWING_EXP = {
     AllOps.DIV,
@@ -95,7 +96,9 @@ def makeDebugPasses(debug_file_directory: Union[str, Path]):
             SsaPassExtractPartDrivers(),
             SsaPassDumpToDot(debug_file_directory / "top0.dot"),
             SsaPassToLlvm(),
+            SsaPassDumpToLl(open(debug_file_directory / "top0.ll", "w"), close=True),
             SsaPassRunLlvmOpt(),
+            SsaPassDumpToLl(open(debug_file_directory / "top1.ll", "w"), close=True),
             SsaPassFromLlvm(),
             SsaPassDumpToDot(debug_file_directory / "top1.dot"),
             SsaPassRemoveTrivialBlocks(),
