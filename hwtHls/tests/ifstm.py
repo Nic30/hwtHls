@@ -5,7 +5,6 @@ from hwt.code import If
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.param import Param
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
-from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtLib.examples.statements.ifStm import SimpleIfStatement
 
 
@@ -28,6 +27,7 @@ class SimpleIfStatementHls(SimpleIfStatement):
         tmp = hls.var("tmp", self.d._dtype)
         hls.thread(
             hls.While(True,
+                a, b, c,
                 If(a,
                     tmp(b),
                 ).Elif(b,
@@ -40,9 +40,10 @@ class SimpleIfStatementHls(SimpleIfStatement):
         )
 
 
-if __name__ == "__main__":  # alias python main function
+if __name__ == "__main__":
+    from hwtHls.platform.virtual import VirtualHlsPlatform, makeDebugPasses
     from hwt.synthesizer.utils import to_rtl_str
 
     u = SimpleIfStatementHls()
-    p = VirtualHlsPlatform()
+    p = VirtualHlsPlatform(**makeDebugPasses("tmp"))
     print(to_rtl_str(u, target_platform=p))
