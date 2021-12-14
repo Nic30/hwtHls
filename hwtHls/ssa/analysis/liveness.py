@@ -8,25 +8,13 @@ from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.phi import SsaPhi
 from hwtHls.ssa.value import SsaValue
+from hwtHls.ssa.transformation.utils.blockAnalysis import collect_all_blocks
 
 
 # * Boissinot, B., Hack, S., Grund, D., de Dinechin, B. D., & Rastello, F. (2008). Fast Liveness Checking for SSA-Form Programs. CGO.
 # * Domaine, & Brandner, Florian & Boissinot, Benoit & Darte, Alain & Dinechin, Benoît & Rastello, Fabrice. (2011).
 #   Computing Liveness Sets for SSA-Form Programs.
 # * https://github.com/lijiansong/clang-llvm-tutorial/blob/master/live-variable-analysis/Liveness.md
-def collect_blocks(start: SsaBasicBlock):
-    seen: Set[SsaBasicBlock] = set()
-    to_search: UniqList[SsaBasicBlock] = UniqList((start,))
-    while to_search:
-        block: SsaBasicBlock = to_search.pop()
-        if block in seen:
-            continue
-        seen.add(block)
-        yield block
-        for suc in block.successors.iter_blocks():
-            if suc not in seen:
-                to_search.append(suc)
-
 
 def collect_direct_provieds_and_requires(block: SsaBasicBlock):
     provides: UniqList[SsaValue] = UniqList()
@@ -80,7 +68,7 @@ def recursively_add_edge_requirement_var(provides: Dict[SsaBasicBlock, UniqList[
 
 def ssa_liveness_edge_variables(start: SsaBasicBlock) -> EdgeLivenessDict:
     live: EdgeLivenessDict = {}
-    blocks = list(collect_blocks(start))
+    blocks = list(collect_all_blocks(start, set()))
     provides: Dict[SsaBasicBlock, UniqList[SsaValue]] = {}
     requires: Dict[SsaBasicBlock, UniqList[Tuple[SsaValue, Optional[SsaBasicBlock]]]] = {}
     # initialization
