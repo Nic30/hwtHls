@@ -15,7 +15,7 @@ from hwtHls.ssa.exprBuilder import SsaExprBuilder
 from hwtHls.ssa.instr import SsaInstr, OP_ASSIGN, SsaInstrBranch
 from hwtHls.ssa.phi import SsaPhi
 from hwtHls.ssa.transformation.ssaPass import SsaPass
-from hwtHls.ssa.transformation.utils.blockAnalysis import collest_all_blocks
+from hwtHls.ssa.transformation.utils.blockAnalysis import collect_all_blocks
 from hwtHls.ssa.transformation.utils.concatOfSlices import ConcatOfSlices
 from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
 from hwtHls.ssa.value import SsaValue
@@ -646,7 +646,7 @@ class SsaPassExtractPartDrivers(SsaPass):
     def apply(self, hls: "HlsStreamProc", to_ssa: AstToSsa):
         self.var_segments: Dict[SsaValue, VarBitSegments] = {}
         allBlocksSet = set()
-        allBlocks = list(collest_all_blocks(to_ssa.start, allBlocksSet))
+        allBlocks = list(collect_all_blocks(to_ssa.start, allBlocksSet))
         # Collect very concat/index on every variable so we know how should we split the variables
         self._collect_indexes_on_variables(allBlocks)
         if not self.var_segments:
