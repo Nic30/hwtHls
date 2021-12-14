@@ -74,6 +74,8 @@ class HlsStreamProc():
         """
         Create a read statement in thread.
         """
+        if isinstance(src, RtlSignal):
+            assert src.ctx is not self.ctx, ("Read should be used only for IO, it is not required for hls variables")
         return HlsStreamProcRead(self, src, type_or_size)
 
     def write(self,
