@@ -19,7 +19,7 @@ from hwtHls.llvm.toLlvm import LLVMContext, Module, IRBuilder, LLVMStringContext
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.phi import SsaPhi
-from hwtHls.ssa.transformation.utils.blockAnalysis import collest_all_blocks
+from hwtHls.ssa.transformation.utils.blockAnalysis import collect_all_blocks
 from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
 from hwtHls.ssa.value import SsaValue
 from ipCorePackager.constants import INTF_DIRECTION
@@ -280,7 +280,7 @@ class ToLlvmIrTranslator():
         self.ioToVar = ioToVar
         self.varMap: Dict[Union[SsaValue, SsaBasicBlock], Value] = {}
         allBlocksSet = set()
-        allBlocks = list(collest_all_blocks(start_bb, allBlocksSet))
+        allBlocks = list(collect_all_blocks(start_bb, allBlocksSet))
         for bb in allBlocks:
             llvmBb = BasicBlock.Create(self.ctx, self.strCtx.addTwine(bb.label), main, None)
             self.varMap[bb] = llvmBb
@@ -311,7 +311,7 @@ class SsaPassToLlvm():
 
     def apply(self, hls: "HlsStreamProc", to_ssa: AstToSsa):
         io: Dict[Interface, INTF_DIRECTION] = {}
-        for block in collest_all_blocks(to_ssa.start, set()):
+        for block in collect_all_blocks(to_ssa.start, set()):
             for instr in block.body:
                 # [todo] the io can be bi-directional e.g. bram port
                 if isinstance(instr, HlsStreamProcRead):
