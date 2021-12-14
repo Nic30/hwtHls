@@ -2,7 +2,7 @@ version: 2.1
 
 orbs:
   python: circleci/python@0.2.1
-  py: nic30/python-all-in-1@0.2.47
+  py: nic30/python-all-in-1@0.2.48
 
 jobs:
   install-test-deploy:
@@ -17,7 +17,10 @@ jobs:
       - py/install-setup-py
       # - python/save-cache
       - py/test-and-coverage
-      - py/deploy-pypi-on-tag
+      - py/deploy-pypi-on-tag:
+          bin: false
+          src: false
+          build: true
 
 workflows:
   main:
