@@ -9,6 +9,7 @@ from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scheduler.errors import TimeConstraintError
+from hwtSimApi.utils import freq_to_period
 
 
 class AlapAsapDiffExample(Unit):
@@ -73,7 +74,7 @@ class AlapAsapDiffExample_TC(SimTestCase):
         u.b._ag.data.append(b)
         u.c._ag.data.append(c)
 
-        self.runSim(40 * Time.ns)
+        self.runSim(int(40 * freq_to_period(u.CLK_FREQ)))
 
         res = u.d._ag.data[-1]
         self.assertValEqual(res, neg_8b(neg_8b(a) & neg_8b(b)) & neg_8b(c))
