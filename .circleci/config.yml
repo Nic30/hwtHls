@@ -12,7 +12,8 @@ jobs:
       - checkout
       - run:
           command: |
-            sudo apt install python3-dev llvm-12-dev -y
+            sudo apt update
+            sudo apt install build-essential python3-dev llvm-12-dev -y
       # - python/load-cache
       - py/install-package-git:
           cwd: ..
