@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 from plotly import graph_objs as go
@@ -9,9 +10,9 @@ from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwtHls.netlist.nodes.io import HlsWrite, HlsRead, HlsExplicitSyncNode
 from hwtHls.netlist.nodes.ops import AbstractHlsOp, HlsOperation, HlsConst
+from hwtHls.netlist.transformations.rtlNetlistPass import RtlNetlistPass
 from hwtHls.ssa.translation.toHwtHlsNetlist.nodes.backwardEdge import HlsWriteBackwardEdge
 import pandas as pd
-from pathlib import Path
 
 
 # [todo] pandas is overkill in this case, rm if ploty does not have it as dependencies
@@ -240,7 +241,7 @@ class HwtHlsNetlistToTimeline():
         plotly.offline.plot(fig, filename=filename, auto_open=auto_open, config={"scrollZoom":True})
 
 
-class RtlNetlistPassShowTimeline():
+class RtlNetlistPassShowTimeline(RtlNetlistPass):
 
     def __init__(self, filename:Optional[str]=None, auto_open=False):
         self.filename = filename
