@@ -120,7 +120,7 @@ class SsaToHwtHlsNetlistSyncAndIo():
             _, r_from_in = self._add_hs_intf_and_read(
                 f"c_{src_block.label:s}_to_{dst_block.label:s}_in", BIT, HlsReadBackwardEdge)
             label = BranchControlLabel(src_block, dst_block, INTF_DIRECTION.SLAVE)
-            op_cache.add(label, r_from_in)
+            op_cache.add(label, r_from_in, False)
             newly_added_ports.append((r_from_in.obj, (src_block, dst_block)))
 
         out_of_pipeline_vars = self.edge_var_live.get(src_block, {}).get(dst_block, ())
@@ -129,7 +129,7 @@ class SsaToHwtHlsNetlistSyncAndIo():
             # The input interface is required for every input which is not just passing data
             # inside of pipeline this involves backward edges and external IO
             _, from_in = self._add_hs_intf_and_read(f"{opv._name:s}_in", opv._dtype, HlsReadBackwardEdge)
-            op_cache.add((dst_block, opv), from_in)
+            op_cache.add((dst_block, opv), from_in, False)
 
             # HlsWrite set to None because write port will be addet later
             newly_added_ports.append((from_in.obj, (src_block, dst_block)))
