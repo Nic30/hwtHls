@@ -16,6 +16,7 @@ summary="LLVM based HLS compiler"
 requires  = [
    'hwtLib>=2.9',
    'scipy>=1.5.2',
+   'networkx',
 ]
 home-page="https://github.com/Nic30/hwtHls"
 requires-python="py3"
