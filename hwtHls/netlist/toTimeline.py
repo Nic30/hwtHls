@@ -15,7 +15,7 @@ from hwtHls.ssa.translation.toHwtHlsNetlist.nodes.backwardEdge import HlsWriteBa
 import pandas as pd
 
 
-# [todo] pandas is overkill in this case, rm if ploty does not have it as dependencies
+# [todo] pandas is overkill in this case, rm, plotly does not have it as dependencies
 class HwtHlsNetlistToTimeline():
     """
     Generate a timeline (Gantt) diagram of how operations in curcuti are scheduled in time.
