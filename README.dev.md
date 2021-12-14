@@ -49,6 +49,7 @@ Pass Arguments:  -tti -targetlibinfo -targetpassconfig -machinemoduleinfo -colle
 ```
 
 https://www.llvm.org/docs/Passes.html#introduction
+https://www.llvm.org/docs/LoopTerminology.html
 Llvm pass execution (`-disable-llvm-passes` is required otherwise `optnone` attribute is added and nothing happens during `opt`)
 `clang -cc1 -Os -disable-llvm-passes -emit-llvm main.c -o - | opt -S -mem2reg`
 
