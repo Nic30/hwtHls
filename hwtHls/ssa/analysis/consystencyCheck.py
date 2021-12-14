@@ -25,6 +25,7 @@ class SsaPassConsystencyCheck(SsaPass):
             assert phi.block is bb, ("phi has parent block correct", phi, phi.block, bb)
             phis.append(phi)
             assert phi not in variables, ("Each phi has to use unique value", phi, variables[phi])
+            assert len(phi.operands) >= 2, ("Each phi is not trivial", phi, phi.operands)
             variables[phi] = phi
             for _, src_block in  phi.operands:
                 assert src_block in bb.predecessors, (phi, src_block, bb.predecessors)
