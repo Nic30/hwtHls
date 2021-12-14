@@ -22,7 +22,10 @@ from hwtHls.ssa.transformation.removeTrivialBlocks import SsaPassRemoveTrivialBl
 from hwtHls.ssa.transformation.runLlvmOpt import SsaPassRunLlvmOpt
 from hwtHls.ssa.transformation.ssaPass import SsaPass
 from hwtHls.ssa.translation.toGraphwiz import SsaPassDumpToDot
-from hwtHls.ssa.translation.toLl import SsaToLl, SsaPassDumpToLl
+from hwtHls.ssa.translation.toLl import SsaPassDumpToLl
+from hwtHls.ssa.transformation.expandControlSelfLoops import SsaPassExpandControlSelfloops
+from hwtHls.netlist.dumpStreamNodes import RtlNetlistPassDumpStreamNodes
+from hwtHls.ssa.analysis.dumpPipelines import SsaPassDumpPipelines
 
 _OPS_T_GROWING_EXP = {
     AllOps.DIV,
@@ -61,15 +64,11 @@ _OPS_T_GROWING_CONST = {
 
 DEFAULT_SSA_PASSES = [
     SsaPassConsystencyCheck(),
-    # SsaPassDumpToDot("tmp/top.dot"),
     SsaPassExtractPartDrivers(),
-    # SsaPassDumpToDot("tmp/top2.dot"),
-    # SsaPassConsystencyCheck(),
     SsaPassToLlvm(),
     SsaPassRunLlvmOpt(),
     SsaPassFromLlvm(),
-    SsaPassRemoveTrivialBlocks(),
-    # SsaPassExpandControlSelfloops()
+    SsaPassConsystencyCheck(),
 ]
 DEFAULT_HLSNETLIST_PASSES = [
     HlsNetlistPassMergeExplicitSync(),
@@ -94,24 +93,24 @@ def makeDebugPasses(debug_file_directory: Union[str, Path]):
         "ssa_passes": [
             SsaPassConsystencyCheck(),
             SsaPassExtractPartDrivers(),
-            SsaPassDumpToDot(debug_file_directory / "top0.dot"),
+            #SsaPassDumpToDot(debug_file_directory / "top0.dot"),
             SsaPassToLlvm(),
-            SsaPassDumpToLl(open(debug_file_directory / "top0.ll", "w"), close=True),
+            #SsaPassDumpToLl(open(debug_file_directory / "top1.ll", "w"), close=True),
             SsaPassRunLlvmOpt(),
-            SsaPassDumpToLl(open(debug_file_directory / "top1.ll", "w"), close=True),
+            SsaPassDumpToLl(open(debug_file_directory / "top2.ll", "w"), close=True),
             SsaPassFromLlvm(),
-            SsaPassDumpToDot(debug_file_directory / "top1.dot"),
-            SsaPassRemoveTrivialBlocks(),
-            SsaPassDumpToDot(debug_file_directory / "top2.dot"),
+            SsaPassDumpToDot(debug_file_directory / "top3.dot"),
+            SsaPassDumpPipelines(open(debug_file_directory / "top.pipeline.txt", "w"), close=True),
             SsaPassConsystencyCheck(),
         ],
         "hlsnetlist_passes":[
-            HlsNetlistPassDumpToDot(debug_file_directory / "top_p0.dot"),
+            #HlsNetlistPassDumpToDot(debug_file_directory / "top_p0.dot"),
             HlsNetlistPassMergeExplicitSync(),
-            HlsNetlistPassDumpToDot(debug_file_directory / "top_p1.dot"),
+            #HlsNetlistPassDumpToDot(debug_file_directory / "top_p1.dot"),
         ],
         "rtlnetlist_passes":[
-            RtlNetlistPassShowTimeline(debug_file_directory / "top_schedule.html"),
+            RtlNetlistPassShowTimeline(debug_file_directory / "top.schedule.html"),
+            RtlNetlistPassDumpStreamNodes(open(debug_file_directory / "top.sync.txt", "w"), close=True)
         ],
 
     }
