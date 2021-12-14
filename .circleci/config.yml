@@ -10,6 +10,7 @@ jobs:
     resource_class: small
     steps:
       - checkout
+      - command: apt install python3-dev llvm-12-dev
       # - python/load-cache
       - py/install-package-git:
           cwd: ..
