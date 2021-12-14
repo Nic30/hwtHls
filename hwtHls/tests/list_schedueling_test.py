@@ -138,7 +138,7 @@ class ListSchedueling_TC(unittest.TestCase):
         def one_op_per_clk(node, sched, suggestedStart, suggestedEnd):
             clk_index = start_clk(suggestedStart, clk_period)
             others_in_clk = clk_mem.setdefault(clk_index, set())
-            isNotAllone = isinstance(node, HlsOperation) and others_in_clk
+            isNotAllone = isinstance(node, HlsOperation) and not others_in_clk
 
             if isNotAllone:
                 suggestedStart = start_of_next_clk_period(
