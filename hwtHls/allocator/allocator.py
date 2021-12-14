@@ -23,7 +23,7 @@ from hwtLib.handshaked.streamNode import StreamNode
 
 def get_sync_type(intf: Interface) -> Type[Interface]:
     """
-    resolve wich primiteve type of synchronization is the interface using
+    resolve wich primitive type of synchronization is the interface using
     """
 
     if isinstance(intf, HandshakeSync):
@@ -35,6 +35,17 @@ def get_sync_type(intf: Interface) -> Type[Interface]:
     else:
         assert isinstance(intf, (Signal, RtlSignal)), intf
         return Signal
+
+
+class ConnectionsOfStage():
+
+    def __init__(self):
+        self.inputs: UniqList[Interface] = UniqList()
+        self.outputs: UniqList[Interface] = UniqList()
+        self.signals: UniqList[TimeIndependentRtlResourceItem] = UniqList()
+        self.io_skipWhen: Dict[Interface, TimeIndependentRtlResourceItem] = {}
+        self.io_extraCond: Dict[Interface, TimeIndependentRtlResourceItem] = {}
+        self.sync_node: Optional[StreamNode] = None
 
 
 class HlsAllocator():
@@ -57,6 +68,7 @@ class HlsAllocator():
         # function to create register/signal on RTL level
         self._reg = parentHls.parentUnit._reg
         self._sig = parentHls.parentUnit._sig
+        self._connections_of_stage: List[ConnectionsOfStage] = []
 
     def _instantiate(self, node: Union[AbstractHlsOp,
                                        TimeIndependentRtlResource],
@@ -65,11 +77,6 @@ class HlsAllocator():
         """
         Universal RTL instanciation method for all types
         """
-        # if isinstance(node, TimeIndependentRtlResource):
-        #    # [todo] check if this is really used
-        #    used_signals.append(node)
-        #    return node
-        # else:
         return node.allocate_instance(self, used_signals)
 
     def _registerSignal(self, origin: HlsOperationOut,
@@ -80,7 +87,10 @@ class HlsAllocator():
         used_signals.append(s)
         self.node2instance[origin] = s
 
-    def instantiateHlsOperationOut(self, o: HlsOperationOut, used_signals: UniqList[TimeIndependentRtlResourceItem]) -> TimeIndependentRtlResource:
+    def instantiateHlsOperationOut(self,
+                                   o: HlsOperationOut,
+                                   used_signals: UniqList[TimeIndependentRtlResourceItem]
+                                   ) -> TimeIndependentRtlResource:
         assert isinstance(o, HlsOperationOut), o
         _o = self.node2instance.get(o, None)
 
@@ -102,47 +112,46 @@ class HlsAllocator():
         scheduler = self.parentHls.scheduler
         io = self.parentHls._io
         io_aggregation = self.parentHls.io_by_interface
+        connections_of_stage = self._connections_of_stage = []
         # is_first_in_pipeline = True
-        prev_st_sync_input = None
-        prev_st_valid = None
-        current_sync = Signal
         for pipeline_st_i, (is_last_in_pipeline, nodes) in enumerate(iter_with_last(scheduler.schedulization)):
-            cur_inputs: UniqList[Interface] = UniqList()
-            cur_outputs: UniqList[Interface] = UniqList()
-            cur_registers: UniqList[TimeIndependentRtlResourceItem] = UniqList()
+            con = ConnectionsOfStage()
             assert nodes
-
-            sync_per_io_skipWhen: Dict[Interface, TimeIndependentRtlResourceItem] = {}
-            sync_per_io_extraCond: Dict[Interface, TimeIndependentRtlResourceItem] = {}
             for node in nodes:
                 # this is one level of nodes,
                 # node can not be dependent on nodes behind in this list
                 # because this engine does not support backward edges in DFG
-                self._instantiate(node, cur_registers)
+                self._instantiate(node, con.signals)
 
                 if isinstance(node, HlsRead):
                     if len(io_aggregation[node.src]) > 1:
                         raise AssertionError("In this phase each IO operation should already have separate gate"
                                              " if it wants to access same interface", node.src, io_aggregation[node.src])
 
-                    cur_inputs.append(node.src)
+                    con.inputs.append(node.src)
                     # if node.src in self.parentHls.coherency_checked_io:
-                    self._copy_sync(node.src, node, sync_per_io_skipWhen, sync_per_io_extraCond, cur_registers)
+                    self._copy_sync(node.src, node, con.io_skipWhen, con.io_extraCond, con.signals)
 
                 elif isinstance(node, HlsWrite):
                     if len(io_aggregation[node.dst]) > 1:
                         raise AssertionError("In this phase each IO operation should already have separate gate"
                                              " if it wants to access same interface")
 
-                    cur_outputs.append(io[node.dst])
+                    con.outputs.append(io[node.dst])
                     # if node.dst in self.parentHls.coherency_checked_io:
-                    self._copy_sync(node.dst, node, sync_per_io_skipWhen, sync_per_io_extraCond, cur_registers)
+                    self._copy_sync(node.dst, node, con.io_skipWhen, con.io_extraCond, con.signals)
 
+            connections_of_stage.append(con)
+
+        prev_st_sync_input = None
+        prev_st_valid = None
+        current_sync = Signal
+        for is_last_in_pipeline, (pipeline_st_i, (nodes, con)) in iter_with_last(enumerate(zip(scheduler.schedulization,
+                                                                                               connections_of_stage))):
             prev_st_sync_input, prev_st_valid, current_sync = self.allocate_sync(
-                current_sync, cur_inputs, cur_outputs, cur_registers,
+                con, current_sync,
                 is_last_in_pipeline, pipeline_st_i,
-                prev_st_sync_input, prev_st_valid,
-                sync_per_io_skipWhen, sync_per_io_extraCond)
+                prev_st_sync_input, prev_st_valid)
 
     def _copy_sync_single(self, node: Union[HlsRead, HlsWrite], node_inI: int,
                            res: Dict[Interface, TimeIndependentRtlResourceItem],
@@ -161,11 +170,6 @@ class HlsAllocator():
 
         if node.extraCond is not None:
             self._copy_sync_single(node, node.extraCond_inI, res_extraCond, intf, sync_time)
-
-    @staticmethod
-    def _numberOfNonSyncUsers(node: HlsRead):
-        cnt = 0
-        return cnt
 
     def _copy_sync(self, intf: Interface,
                    node: Union[HlsRead, HlsWrite],
@@ -260,30 +264,31 @@ class HlsAllocator():
         return sync
 
     def allocate_sync(self,
+                      con: ConnectionsOfStage,
                       current_sync: Type[Interface],
-                      cur_inputs: UniqList[Interface],
-                      cur_outputs: UniqList[Interface],
-                      cur_signals: UniqList[TimeIndependentRtlResourceItem],
                       is_last_in_pipeline:bool,
                       pipeline_st_i:int,
                       prev_st_sync_input: Optional[HandshakeSync],
-                      prev_st_valid: Optional[RtlSyncSignal],
-                      sync_per_io_skipWhen: Dict[Interface, TimeIndependentRtlResourceItem],
-                      sync_per_io_extraCond: Dict[Interface, TimeIndependentRtlResourceItem]):
+                      prev_st_valid: Optional[RtlSyncSignal]):
         """
         Allocate synchronization for a single stage of pipeline.
         However the single stage of pipeline may have multiple sections with own validity flag.
         This happens if inputs to this section are driven from the inputs which may be skipped.
+
+        :note: pipeline registers are placed at the end of the stage
         """
-        current_sync = self._resole_global_sync_type(current_sync, chain(cur_inputs, cur_outputs))
+        current_sync = self._resole_global_sync_type(current_sync, chain(con.inputs, con.outputs))
 
         if current_sync is not Signal:
-            # :note: for a signal we do not need any synchronization
-            cur_registers = [
-                r.valuesInTime[-1]
-                for r in cur_signals
-                if r.valuesInTime[-1].is_rlt_register()
-            ]
+            # :note: Collect registers at the end of this stage
+            # because additioal synchronization needs to be added
+            cur_registers = []
+            for s in con.signals:
+                s: TimeIndependentRtlResource
+                # if the value has a register at the end of this stage
+                v = s.checkIfExistsInClockCycle(pipeline_st_i + 1)
+                if v is not None and v.is_rlt_register():
+                    cur_registers.append(v)
 
             if is_last_in_pipeline:
                 to_next_stage = None
@@ -292,21 +297,18 @@ class HlsAllocator():
                 # does not need a synchronization with next stage in pipeline
                 to_next_stage = Interface_without_registration(
                     self, HandshakeSync(), f"{self.name_prefix:s}stage_sync_{pipeline_st_i:d}_to_{pipeline_st_i+1:d}")
-                cur_outputs.append(to_next_stage)
+                con.outputs.append(to_next_stage)
                 # if not is_first_in_pipeline:
                 # :note: that the register 0 is behind the first stage of pipeline
                 stage_valid = self._reg(f"{self.name_prefix:s}stage{pipeline_st_i:d}_valid", def_val=0)
-                If(to_next_stage.rd,
-                   stage_valid(to_next_stage.vld)
-                )
 
-            if cur_inputs or cur_outputs:
-                extra_conds = self._collect_rlt_sync(sync_per_io_extraCond, cur_inputs)
-                skip_when = self._collect_rlt_sync(sync_per_io_skipWhen, cur_inputs)
+            if con.inputs or con.outputs:
+                extra_conds = self._collect_rlt_sync(con.io_extraCond, con.inputs)
+                skip_when = self._collect_rlt_sync(con.io_skipWhen, con.inputs)
 
-                sync = StreamNode(
-                    [self._extract_control_sig_of_interface(intf) for intf in cur_inputs],
-                    [self._extract_control_sig_of_interface(intf) for intf in cur_outputs],
+                sync = con.sync_node = StreamNode(
+                    [self._extract_control_sig_of_interface(intf) for intf in con.inputs],
+                    [self._extract_control_sig_of_interface(intf) for intf in con.outputs],
                     extraConds=extra_conds,
                     skipWhen=skip_when
                 )
@@ -359,6 +361,11 @@ class HlsAllocator():
 
                 if prev_st_valid is not None:
                     ack = ack & prev_st_valid
+
+            if to_next_stage is not None:
+                If(to_next_stage.rd,
+                   stage_valid(to_next_stage.vld)
+                )
 
             if prev_st_sync_input is not None:
                 # valid is required because otherwise current stage is undefined

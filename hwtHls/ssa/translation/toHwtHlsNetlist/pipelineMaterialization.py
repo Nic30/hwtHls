@@ -3,6 +3,7 @@ from typing import List, Optional
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsPipeline import HlsPipeline
 from hwtHls.hlsStreamProc.statements import HlsStreamProcCodeBlock
+from hwtHls.ssa.analysis.blockSyncType import SaaGetBlockSyncType
 from hwtHls.ssa.analysis.liveness import ssa_liveness_edge_variables
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.translation.toHwtHlsNetlist.pipelineExtractor import PipelineExtractor
@@ -41,12 +42,10 @@ class SsaSegmentToHwPipeline():
 
     def extract_pipeline(self):
         pe = PipelineExtractor()
-        pipeline: List[SsaBasicBlock] = []
-        for comp in pe.collect_pipelines(self.start):
-            pipeline.extend(comp)
-        self.pipeline = pipeline
+        self.pipeline: List[SsaBasicBlock] = pe.collect_pipelines(self.start)
         self.edge_var_live = ssa_liveness_edge_variables(self.start)
         self.backward_edges = pe.backward_edges
+        self.blockMeta = SaaGetBlockSyncType(self.start, self.backward_edges, self.edge_var_live).apply()
 
     def extract_hlsnetlist(self, parentUnit: Unit, freq: float):
         """
@@ -54,9 +53,8 @@ class SsaSegmentToHwPipeline():
         :param freq: target clock frequency
         """
         self.hls: HlsPipeline = HlsPipeline(parentUnit, freq)
-        hls = self.hls
-        self.toHlsNetlist = SsaToHwtHlsNetlist(hls, self.start, self.backward_edges, self.edge_var_live)
-        toHlsNetlist = self.toHlsNetlist
+        toHlsNetlist = self.toHlsNetlist = SsaToHwtHlsNetlist(self.hls, self.start, self.backward_edges,
+                                                              self.edge_var_live, self.blockMeta)
         # construct nodes for scheduling
         # first resolve how block will be synchronized so we do not need to backtrace later
         for block in self.pipeline:
@@ -68,8 +66,8 @@ class SsaSegmentToHwPipeline():
 
         toHlsNetlist.finalize_out_of_pipeline_variables(self.pipeline)
 
-        assert not hls.coherency_checked_io
-        hls.coherency_checked_io = toHlsNetlist.io._out_of_hls_io
+        assert not self.hls.coherency_checked_io
+        self.hls.coherency_checked_io = toHlsNetlist.io._out_of_hls_io
 
     def schedulerReset(self):
         self.is_scheduled = False

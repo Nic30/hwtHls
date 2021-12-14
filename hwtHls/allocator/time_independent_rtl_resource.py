@@ -66,7 +66,8 @@ class TimeIndependentRtlResource():
 
         # else try to look up register for this signal in valuesInTime cache
         clk_period = self.allocator.parentHls.clk_period
-        index = end_clk(time, clk_period) - \
+        dst_clk_period = end_clk(time, clk_period)
+        index = dst_clk_period - \
             start_clk(self.timeOffset, clk_period)
 
         assert index >= 0, (self.timeOffset, time, self.valuesInTime[0])
@@ -82,11 +83,14 @@ class TimeIndependentRtlResource():
         actualTimesCnt = len(self.valuesInTime)
 
         # HValue instance should have never get the there
-        name = getSignalName(sig.data)
-
+        if isinstance(sig.data, Interface):
+            name = sig.data._getHdlName()
+        else:
+            name = sig.data.name
         # allocate specified number of registers to pass value to specified pieline stage
-        for i in range(actualTimesCnt, requestedRegCnt):
-            reg = self.allocator._reg(name + "_delay_%d" % i,
+        regsToAdd = requestedRegCnt - actualTimesCnt
+        for i in reversed(range(regsToAdd)):
+            reg = self.allocator._reg(f"{name:s}_delayTo{dst_clk_period - i:d}",
                                       dtype=sig.data._dtype)
             reg(prev.data)
             cur = TimeIndependentRtlResourceItem(self, reg)
@@ -94,6 +98,17 @@ class TimeIndependentRtlResource():
             prev = cur
 
         return cur
+
+    def checkIfExistsInClockCycle(self, clkCyleI: int):
+        if self.timeOffset is self.INVARIANT_TIME:
+            index = 0
+        else:
+            clk_period = self.allocator.parentHls.clk_period
+            index = clkCyleI - start_clk(self.timeOffset, clk_period)
+            if index < 0 or index >= len(self.valuesInTime):
+                return None
+
+        return self.valuesInTime[index]
 
     def __repr__(self):
         return f"<{self.__class__.__name__:s} for {self.valuesInTime[0].data}>"

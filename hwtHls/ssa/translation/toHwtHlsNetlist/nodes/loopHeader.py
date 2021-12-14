@@ -15,6 +15,7 @@ from hwtHls.ssa.branchControlLabel import BranchControlLabel
 from hwtHls.ssa.translation.toHwtHlsNetlist.opCache import SsaToHwtHlsNetlistOpCache
 from hwtHls.ssa.translation.toHwtHlsNetlist.syncAndIo import SsaToHwtHlsNetlistSyncAndIo
 from ipCorePackager.constants import INTF_DIRECTION
+from hwt.code import If, Or
 
 
 class HlsLoopGateStatus(AbstractHlsOp):
@@ -60,7 +61,9 @@ class HlsLoopGateStatus(AbstractHlsOp):
             status_reg(1)
         elif not from_break and from_predec and from_reenter:
             # this is an infinite loop which has a predecessor, once started it will be closed for new starts
-            raise NotImplementedError()
+            If(Or(*(p.get(t).data for p in from_predec)),
+               status_reg(1)
+            )
         else:
             raise NotImplementedError()
 
@@ -136,11 +139,12 @@ class HlsLoopGate(AbstractHlsOp):
         self._sync_token_status = HlsLoopGateStatus(parentHls, self)
 
     @classmethod
-    def inset_before_block(cls, hls: HlsPipeline, block: SsaBasicBlock,
+    def inset_before_block(cls, toHls: "SsaToHwtHlsNetlist", block: SsaBasicBlock,
                            io: SsaToHwtHlsNetlistSyncAndIo,
                            to_hls_cache: SsaToHwtHlsNetlistOpCache,
                            nodes: List[AbstractHlsOp],
                            ):
+        hls = toHls.hls
         self = cls(hls, block.label)
         # Mark all inputs from predec as not required and stalled while we do not have sync token ready.
         # Mark all inputs from reenter as not required and stalled while we have a sync token ready.
@@ -157,10 +161,13 @@ class HlsLoopGate(AbstractHlsOp):
                 # en if has no sync token
                 en, not_en = not_en, en
 
-            control_key = BranchControlLabel(pred, block, INTF_DIRECTION.SLAVE)
-            control = to_hls_cache.get(control_key)
-            esn, control = HlsExplicitSyncNode.replace_variable(hls, control_key, control, to_hls_cache, en, not_en)
-            nodes.append(esn)
+            if toHls._blockMeta[pred].needsControl:
+                control_key = BranchControlLabel(pred, block, INTF_DIRECTION.SLAVE)
+                control = to_hls_cache.get(control_key)
+                esn, control = HlsExplicitSyncNode.replace_variable(hls, control_key, control, to_hls_cache, en, not_en)
+                nodes.append(esn)
+            else:
+                control = None
 
             # variables = []
             for v in io.edge_var_live.get(pred, {}).get(block, ()):
@@ -170,17 +177,19 @@ class HlsLoopGate(AbstractHlsOp):
                 nodes.append(esn)
                 # variables.append(v)
 
-            if is_reenter:
-                self.connect_reenter(control)
-            else:
-                self.connect_predec(control)
+            if control is not None:
+                if is_reenter:
+                    self.connect_reenter(control)
+                else:
+                    self.connect_predec(control)
         self._finalizeConnnections()
 
     def _finalizeConnnections(self):
-        if self.from_predec:
-            raise NotImplementedError()
-        if self.from_break:
-            raise NotImplementedError()
+        pass
+        #if self.from_predec:
+        #    raise NotImplementedError()
+        #if self.from_break:
+        #    raise NotImplementedError()
 
         # allow to execute loop with just a single value from reenter
         # in_list = self.from_reenter
