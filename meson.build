@@ -26,6 +26,6 @@ pybind11_dep = declare_dependency(
   include_directories : pybind11_inc)
 
 
-llvm_dep = dependency('llvm', version : '>=12.0.0' )
+llvm_dep = dependency('llvm', version : '>=11.0.0' )
 
 subdir('hwtHls')
