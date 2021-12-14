@@ -9,8 +9,8 @@ from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.tests.baseSsaTest import BaseSsaTC
-from hwtSimApi.utils import freq_to_period
 from hwtHls.tests.trivial_test import HlsStreamMachineTrivial_TC
+from hwtSimApi.utils import freq_to_period
 
 
 class ReadIfOtherEqual(Unit):
@@ -109,13 +109,13 @@ if __name__ == '__main__':
     from hwtHls.platform.virtual import makeDebugPasses
     u = ReadIfOtherEqual()
     u.DATA_WIDTH = 8
-    u.FREQ = int(150e6)
+    u.FREQ = int(50e6)
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(**makeDebugPasses("tmp"))))
 
     import unittest
 
     suite = unittest.TestSuite()
-    suite.addTest(ReadIfTc('testReadIfOtherEqual_150M'))
+    suite.addTest(ReadIfTc('testReadIfOtherEqual_50M'))
     # suite.addTest(unittest.makeSuite(ReadIfTc))
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

@@ -5,6 +5,7 @@ from hwt.code import If
 from hwt.hdl.types.bits import Bits
 from hwtHls.hlsStreamProc.streamProc  import HlsStreamProc
 from hwtHls.tests.trivial import WhileTrueWrite, WhileTrueReadWrite
+from hwtHls.platform.virtual import makeDebugPasses
 
 
 class WhileAndIf0(WhileTrueWrite):
@@ -28,6 +29,26 @@ class WhileAndIf0(WhileTrueWrite):
                     # no need to manage control tokens
                     # use just regular pipeline with muxes
                     hls.write(x, self.dataOut)
+                ),
+            )
+        )
+
+class WhileAndIf0b(WhileAndIf0):
+
+    def _impl(self) -> None:
+        hls = HlsStreamProc(self)
+        x = hls.var("x", Bits(self.DATA_WIDTH, signed=False))
+        hls.thread(
+            hls.While(True,
+                x(10),
+                hls.While(x,
+                    If(x < 3,
+                       x(x - 1),
+                       hls.write(x, self.dataOut),
+                    ).Else(
+                       x(x - 3),
+                       hls.write(x, self.dataOut),
+                    ),
                 ),
             )
         )
@@ -76,7 +97,7 @@ class WhileAndIf2(WhileTrueReadWrite):
                 hls.While(x,
                     x(x - hls.read(self.dataIn)),
                     # a single predecessor, control sync managed by pipeline, no dynamic scheduling
-                    hls.write(x, dout)
+                    hls.write(x, dout),
                 ),
             )
         )
@@ -86,6 +107,6 @@ if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
     u = WhileAndIf0()
-    u.DATA_WIDTH = 32
+    u.DATA_WIDTH = 4
     u.FREQ = int(130e6)
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform()))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(**makeDebugPasses("tmp"))))

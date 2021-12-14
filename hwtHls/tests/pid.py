@@ -4,7 +4,6 @@
 from hwt.code import Add
 from hwt.synthesizer.param import Param
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
-from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtLib.logic.pid import PidController
 
 
@@ -37,8 +36,8 @@ class PidControllerHalfHls(PidController):
         def trim(signal):
             return signal._reinterpret_cast(self.output._dtype)
 
-        # create arith. expressions between inputs and regs
         hls = HlsStreamProc(self)
+        # in HLS create only arith. expressions between inputs and regs
         y = [hls.read(_y) for _y in y]
         err = y[0] - hls.read(self.target)
         a = [hls.read(c) for c in self.coefs]
@@ -69,37 +68,41 @@ class PidControllerHls(PidControllerHalfHls):
         # create y-pipeline registers (y -> y_reg[0]-> y_reg[1])
         y = [hls.read(self.input), ]
         for i in range(2):
-            _y = hls.var("y_reg%d" % i, dtype=self.input._dtype)
-            # feed data from last register
-            _y(y[-1])
-            y.append(_y)
+            y.append(hls.var(f"y_reg{i:d}", dtype=self.input._dtype))
 
         # trim signal to width of output
         def trim(signal):
             return signal._reinterpret_cast(self.output._dtype)
 
         err = y[0] - hls.read(self.target)
-        a = [hls.read(c) for c in self.coefs]
+        coefs = [hls.read(c) for c in self.coefs]
         u = hls.var("u", self.output._dtype)
-        _u = Add(hls.read(u), a[0] * err, a[1] * y[0],
-                 a[2] * y[1], a[3] * y[2], key=trim)
 
         hls.thread(
-            # reset
+            # initial reset
             u(0),
-            *(_y(0) for _y in y[1:]),
-            # next value computation
+            y[1](0),
+            y[2](0),
             hls.While(True,
-                u(_u),
+                # next value computation
+                u(Add(u,
+                      coefs[0] * err,
+                      coefs[1] * y[0],
+                      coefs[2] * y[1],
+                      coefs[3] * y[2], key=trim)),
                 # propagate output value register to output
-                hls.write(u, self.output)
+                hls.write(u, self.output),
+                # shift y registers
+                y[2](y[1]),
+                y[1](y[0]),
             )
         )
 
 
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
-    u = PidController()
-    print(to_rtl_str(u))
+    from hwtHls.platform.virtual import VirtualHlsPlatform, makeDebugPasses
+    #u = PidController()
+    #print(to_rtl_str(u))
     u = PidControllerHls()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform()))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(**makeDebugPasses("tmp"))))

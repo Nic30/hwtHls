@@ -14,7 +14,7 @@ from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 from hwtHls.platform.virtual import VirtualHlsPlatform
-from hwtSimApi.constants import CLK_PERIOD
+from hwtSimApi.utils import freq_to_period
 
 
 class HlsMAC_example(Unit):
@@ -77,7 +77,8 @@ class HlsMAC_example2(HlsMAC_example):
         adds = balanced_reduce(muls, lambda a, b: a + b)
         hls.thread(
             hls.While(True,
-                hls.write(adds, self.dataOut),
+                      *dataIn,
+                      hls.write(adds, self.dataOut),
             )
         )
 
@@ -112,7 +113,7 @@ class HlsMAC_example_TC(SimTestCase):
         for intf, d in zip(u.dataIn, [3, 4, 5, 6]):
             intf._ag.data.append(d)
 
-        self.runSim(4 * CLK_PERIOD)
+        self.runSim(int(4 * freq_to_period(u.CLK_FREQ)))
 
         self.assertValEqual(u.dataOut._ag.data[-1],
                             (3 * 4) + (5 * 6))
@@ -132,7 +133,7 @@ class HlsMAC_example_TC(SimTestCase):
         for intf, d in zip(u.dataIn, inputs):
             intf._ag.data.append(d)
 
-        self.runSim(8 * CLK_PERIOD)
+        self.runSim(int(8 * freq_to_period(u.CLK_FREQ)))
 
         res = u.dataOut._ag.data[-1]
         expectedRes = reduce(lambda a, b: a + b,
@@ -150,13 +151,13 @@ if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.virtual import makeDebugPasses
     u = HlsMAC_example_handshake()
-    u.DATA_WIDTH = 8
-    u.CLK_FREQ = int(20e6)
-    u.INPUT_CNT = 16
+    u.DATA_WIDTH = 32
+    u.CLK_FREQ = int(100e6)
+    u.INPUT_CNT = 4
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(**makeDebugPasses("tmp"))))
 
     suite = unittest.TestSuite()
-    # suite.addTest(HlsMAC_example_TC('test_simple_handshaked'))
+    #suite.addTest(HlsMAC_example_TC('test_simple_handshaked'))
     suite.addTest(unittest.makeSuite(HlsMAC_example_TC))
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

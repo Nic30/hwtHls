@@ -8,8 +8,8 @@ from hwt.interfaces.std import VectSignal
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 from hwtHls.platform.virtual import VirtualHlsPlatform
-from pyMathBitPrecise.bit_utils import mask
 from hwtHls.tests.baseSsaTest import BaseSsaTC
+from pyMathBitPrecise.bit_utils import mask
 
 
 class HlsConnection(Unit):
@@ -132,8 +132,7 @@ if __name__ == "__main__":
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
 
-    #from hwt.synthesizer.utils import to_rtl_str
-    #
-    #from hwtHls.platform.virtual import makeDebugPasses
-    #u = HlsSlice2TmpHlsVarSlice()
-    #print(to_rtl_str(u, target_platform=VirtualHlsPlatform(**makeDebugPasses("tmp"))))
+    from hwt.synthesizer.utils import to_rtl_str
+    from hwtHls.platform.virtual import makeDebugPasses
+    u = HlsSlice2TmpHlsVarSlice()
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(**makeDebugPasses("tmp"))))

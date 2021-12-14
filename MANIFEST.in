@@ -1,2 +1,47 @@
 include README.md
 include MANIFEST.in
+# find hwtHls/tests/data
+hwtHls/tests/data/ReadIfOtherEqualOnce_3.pipeline.txt
+hwtHls/tests/data/HlsExprTree3_example_0.ll
+hwtHls/tests/data/HlsSlice2TmpHlsVarSlice_1.ll
+hwtHls/tests/data/ReadIfOtherEqual_0.ll
+hwtHls/tests/data/HlsConnection_1.ll
+hwtHls/tests/data/HlsSlice2TmpHlsVarSlice_2.ll
+hwtHls/tests/data/ReadIfOtherEqual_3.pipeline.txt
+hwtHls/tests/data/ReadIfOtherEqual_1.ll
+hwtHls/tests/data/TwoTimesA0_2.ll
+hwtHls/tests/data/HlsExprTree3_example_1.ll
+hwtHls/tests/data/WhileAndIf2_1.ll
+hwtHls/tests/data/HlsSlice2TmpHlsVarConcat_0.ll
+hwtHls/tests/data/WhileAndIf2_0.ll
+hwtHls/tests/data/HlsSlice2TmpHlsVarConcat_1.ll
+hwtHls/tests/data/TwoTimesA1_2.ll
+hwtHls/tests/data/HlsSlice2TmpHlsVarConcat_2.ll
+hwtHls/tests/data/HlsSlice_0.ll
+hwtHls/tests/data/HlsSlice_1.ll
+hwtHls/tests/data/ReadIfOtherEqual_2.ll
+hwtHls/tests/data/TwoTimesA1_1.ll
+hwtHls/tests/data/HlsSlice2TmpHlsVarSlice_3.pipeline.txt
+hwtHls/tests/data/HlsConnection_2.ll
+hwtHls/tests/data/HlsExprTree3_example_2.ll
+hwtHls/tests/data/HlsSlice2TmpHlsVarConcat_3.pipeline.txt
+hwtHls/tests/data/TwoTimesA0_3.pipeline.txt
+hwtHls/tests/data/HlsSlice_3.pipeline.txt
+hwtHls/tests/data/ReadIfOtherEqualOnce_1.ll
+hwtHls/tests/data/WhileAndIf2_3.pipeline.txt
+hwtHls/tests/data/TwoTimesA1_0.ll
+hwtHls/tests/data/HlsExprTree3_example_3.pipeline.txt
+hwtHls/tests/data/WhileAndIf0_2.ll
+hwtHls/tests/data/TwoTimesA0_0.ll
+hwtHls/tests/data/WhileAndIf0_0.ll
+hwtHls/tests/data/TwoTimesA1_3.pipeline.txt
+hwtHls/tests/data/ReadIfOtherEqualOnce_0.ll
+hwtHls/tests/data/WhileAndIf0_1.ll
+hwtHls/tests/data/WhileAndIf2_2.ll
+hwtHls/tests/data/HlsSlice2TmpHlsVarSlice_0.ll
+hwtHls/tests/data/TwoTimesA0_1.ll
+hwtHls/tests/data/HlsConnection_3.pipeline.txt
+hwtHls/tests/data/HlsConnection_0.ll
+hwtHls/tests/data/WhileAndIf0_3.pipeline.txt
+hwtHls/tests/data/HlsSlice_2.ll
+hwtHls/tests/data/ReadIfOtherEqualOnce_2.ll

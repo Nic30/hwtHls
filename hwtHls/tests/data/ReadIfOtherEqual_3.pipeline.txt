@@ -1,0 +1,7 @@
+########## pipeline ##########
+  top <BlockMeta needsControl, requiresStarter, isInitialization>
+  top_whC <BlockMeta isCycleEntryPoint, needsControl>
+  top_wh_If <BlockMeta needsControl>
+  top_wh_IfE <BlockMeta needsControl>
+########## backward_edges ##########
+  top_wh_IfE -> top_whC

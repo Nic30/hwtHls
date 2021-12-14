@@ -19,20 +19,26 @@ class HlsStreamMachineWhileIf_TC(BaseSsaTC):
         u.FREQ = int(10e6)
         self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
         CLK = 8
-        clk_period = freq_to_period(u.FREQ)
+        clk_period = int(freq_to_period(u.FREQ))
 
-        self.runSim((CLK + 10) * int(clk_period))
+        self.runSim((CLK + 1) * clk_period)
         HlsStreamMachineTrivial_TC._test_no_comb_loops(self)
 
         expected = []
+
+        def model():
+            while True:
+                x = 10
+                while x:
+                    if x < 3:
+                        x = x - 1
+                    else:
+                        x = x - 3
+                    yield x
+
+        m = model()
         for _ in range(CLK):
-            x = 10
-            while x:
-                if x < 3:
-                    x = x - 1
-                else:
-                    x = x - 3
-                expected.append(x)
+            expected.append(next(m))
 
         self.assertValSequenceEqual(u.dataOut._ag.data, expected)
 
@@ -68,6 +74,12 @@ class HlsStreamMachineWhileIf_TC(BaseSsaTC):
 
 if __name__ == "__main__":
     import unittest
+    #from hwt.synthesizer.utils import to_rtl_str
+    #from hwtHls.platform.virtual import makeDebugPasses
+    #u = WhileAndIf0()
+    #u.FREQ = int(10e6)
+    #print(to_rtl_str(u, target_platform=VirtualHlsPlatform(**makeDebugPasses("tmp"))))
+
     suite = unittest.TestSuite()
     # suite.addTest(HlsStreamMachineWhileIf_TC('test_WhileAndIf0'))
     suite.addTest(unittest.makeSuite(HlsStreamMachineWhileIf_TC))
