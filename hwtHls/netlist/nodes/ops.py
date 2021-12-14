@@ -186,8 +186,8 @@ class HlsConst(AbstractHlsOp):
     def resolve_realization(self):
         self.latency_pre = ()
         self.latency_post = (0.0,)
-        self.asap_start = (0.0, )
-        self.asap_end = (0.0, )
+        self.asap_start = (0.0,)
+        self.asap_end = (0.0,)
 
     def __repr__(self, minify=False):
         if minify:
@@ -254,6 +254,11 @@ class HlsOperation(AbstractHlsOp):
         else:
             # create RTL signal expression base on operator type
             t = self.scheduledInEnd[0] + epsilon
+            if s.hasGenericName:
+                if self.name is not None:
+                    s.name = self.name
+                else:
+                    s.name = f"v{self._id:d}"
 
         tis = TimeIndependentRtlResource(s, t, allocator)
         allocator._registerSignal(op_out, tis, used_signals)
