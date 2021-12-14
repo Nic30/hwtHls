@@ -23,7 +23,6 @@ from hwtHls.ssa.transformation.runLlvmOpt import SsaPassRunLlvmOpt
 from hwtHls.ssa.transformation.ssaPass import SsaPass
 from hwtHls.ssa.translation.toGraphwiz import SsaPassDumpToDot
 from hwtHls.ssa.translation.toLl import SsaPassDumpToLl
-from hwtHls.ssa.transformation.expandControlSelfLoops import SsaPassExpandControlSelfloops
 from hwtHls.netlist.dumpStreamNodes import RtlNetlistPassDumpStreamNodes
 from hwtHls.ssa.analysis.dumpPipelines import SsaPassDumpPipelines
 
