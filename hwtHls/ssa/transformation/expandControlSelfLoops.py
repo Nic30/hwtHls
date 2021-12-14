@@ -173,7 +173,7 @@ class SsaPassExpandControlSelfloops(SsaPass):
                 suc_block.predecessors.remove(cond_block)
                 if suc_block is cond_block:
                     # And(~c for prev_conds)
-                    eb = SsaExprBuilder(self._createHlsTmpVariable, cond_block)
+                    eb = SsaExprBuilder(cond_block)
                     conds = [~eb.var(v) for v, _ in cond_block.successors.targets[:i]]
                     self_loop_cond = And(*conds).var
                     continue
