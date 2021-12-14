@@ -12,7 +12,7 @@ jobs:
       - checkout
       - run:
           command: |
-            apt install python3-dev llvm-12-dev
+            sudo apt install python3-dev llvm-12-dev -y
       # - python/load-cache
       - py/install-package-git:
           cwd: ..
