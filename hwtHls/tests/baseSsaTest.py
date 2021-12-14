@@ -6,9 +6,12 @@ from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
 from hwtHls.ssa.transformation.extractPartDrivers import SsaPassExtractPartDrivers
 from hwtHls.ssa.transformation.runFn import SsaPassRunFn
-from hwtHls.ssa.transformation.removeTrivialBlocks import SsaPassRemoveTrivialBlocks
 from hwtHls.ssa.translation.toLl import SsaPassDumpToLl
 from hwtLib.examples.base_serialization_TC import BaseSerializationTC
+from hwtHls.llvm.toLlvmPy import SsaPassToLlvm
+from hwtHls.ssa.transformation.runLlvmOpt import SsaPassRunLlvmOpt
+from hwtHls.llvm.fromLlvm import SsaPassFromLlvm
+from hwtHls.ssa.analysis.dumpPipelines import SsaPassDumpPipelines
 
 
 class TestFinishedSuccessfuly(BaseException):
@@ -33,42 +36,26 @@ class BaseSsaTC(BaseSerializationTC):
         self.rmSim()
 
     def _test_ll(self, unit_constructor: Unit):
-        buff = StringIO()
-        ssa_passes0 = [
+        buff = [StringIO() for _ in range(4)]
+        ssa_passes = [
             SsaPassConsystencyCheck(),
-            SsaPassDumpToLl(buff),
-            SsaPassRunFn(TestFinishedSuccessfuly.raise_)
-        ]
-        unit = unit_constructor()
-        self._runTranslation(unit, ssa_passes0)
-        ll = buff.getvalue()
-        buff.truncate(0)
-        buff.seek(0)
-        self.assert_same_as_file(ll, os.path.join("data", unit.__class__.__name__ + "_0.ll"))
-
-        ssa_passes1 = [
-            SsaPassRemoveTrivialBlocks(),
-            SsaPassConsystencyCheck(),
-            SsaPassDumpToLl(buff),
-            SsaPassRunFn(TestFinishedSuccessfuly.raise_)
-        ]
-        unit = unit_constructor()
-        self._runTranslation(unit, ssa_passes1)
-        ll = buff.getvalue()
-        buff.truncate(0)
-        buff.seek(0)
-        self.assert_same_as_file(ll, os.path.join("data", unit.__class__.__name__ + "_1.ll"))
-
-        ssa_passes2 = [
-            SsaPassRemoveTrivialBlocks(),
+            SsaPassDumpToLl(buff[0]),
             SsaPassExtractPartDrivers(),
             SsaPassConsystencyCheck(),
-            SsaPassDumpToLl(buff),
+            SsaPassDumpToLl(buff[1]),
+            SsaPassToLlvm(),
+            SsaPassRunLlvmOpt(),
+            SsaPassFromLlvm(),
+            SsaPassConsystencyCheck(),
+            SsaPassDumpToLl(buff[2]),
+            SsaPassDumpPipelines(buff[3]),
             SsaPassRunFn(TestFinishedSuccessfuly.raise_)
         ]
         unit = unit_constructor()
-        self._runTranslation(unit, ssa_passes2)
-        ll = buff.getvalue()
-        buff.truncate(0)
-        buff.seek(0)
-        self.assert_same_as_file(ll, os.path.join("data", unit.__class__.__name__ + "_2.ll"))
+        self._runTranslation(unit, ssa_passes)
+        val = [b.getvalue() for b in buff]
+
+        self.assert_same_as_file(val[0], os.path.join("data", unit.__class__.__name__ + "_0.ll"))
+        self.assert_same_as_file(val[1], os.path.join("data", unit.__class__.__name__ + "_1.ll"))
+        self.assert_same_as_file(val[2], os.path.join("data", unit.__class__.__name__ + "_2.ll"))
+        self.assert_same_as_file(val[3], os.path.join("data", unit.__class__.__name__ + "_3.pipeline.txt"))
