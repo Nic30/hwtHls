@@ -21,7 +21,16 @@ class SsaPhi(SsaInstr):
         self.operands:Tuple[Union[HValue, SsaValue], "SsaBasicBlock"] = ()
 
     def replaceInput(self, orig_expr: SsaValue, new_expr: Union[SsaValue, HValue]):
-        raise NotImplementedError()
+        somethingReplaced = False
+        ops = []
+        for (c, b) in self.operands:
+            if c is orig_expr:
+                somethingReplaced = True
+                c = new_expr
+            ops.append((c, b))
+
+        assert somethingReplaced, (self, orig_expr, new_expr)
+        self.operands = tuple(ops)
 
     def replaceUseBy(self, v: "SsaPhi"):
         for u in self.users:
