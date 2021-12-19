@@ -1,5 +1,5 @@
 #pragma once
-#include <Python.h>
-#include "llvm/IR/Module.h"
 
-void runOpt(llvm::Function & fn);
+#include "llvm/IR/Function.h"
+
+void runOpt(llvm::Function &fn);

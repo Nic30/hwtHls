@@ -1,10 +1,11 @@
+#include "llvmPasses.h"
+
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
-#include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
@@ -45,9 +46,7 @@
 #include "llvm/Transforms/Scalar/MemCpyOptimizer.h"
 #include "llvm/Transforms/Scalar/DeadStoreElimination.h"
 
-
 #include "llvm/Transforms/Utils.h"
-
 
 //#include "llvm/Support/TargetSelect.h"
 //#include "llvm/Target/TargetMachine.h"
@@ -67,10 +66,7 @@
 #include <pybind11/stl.h>
 #include <pybind11/stl_bind.h>
 
-#include "llvmPasses.h"
 namespace py = pybind11;
-
-
 
 void runOpt(llvm::Function &fn) {
 	// https://stackoverflow.com/questions/34255383/llvm-3-5-passmanager-vs-legacypassmanager
@@ -86,38 +82,21 @@ void runOpt(llvm::Function &fn) {
 	//llvm::FunctionPassManager FPM = PB.buildFunctionSimplificationPipeline(
 	//		llvm::PassBuilder::OptimizationLevel::O3, llvm::ThinOrFullLTOPhase::None);
 	//auto & DL = fn.getParent()->getDataLayout();
-	auto loop_manager = llvm::LoopAnalysisManager { };
+	auto LAM = llvm::LoopAnalysisManager { };
 	auto cgscc_manager = llvm::CGSCCAnalysisManager { };
-	auto mod_manager = llvm::ModuleAnalysisManager { };
+	auto MAM = llvm::ModuleAnalysisManager { };
 	auto FAM = llvm::FunctionAnalysisManager { };
 
-	PB.registerModuleAnalyses(mod_manager);
+	PB.registerModuleAnalyses(MAM);
 	PB.registerCGSCCAnalyses(cgscc_manager);
 	PB.registerFunctionAnalyses(FAM);
-	PB.registerLoopAnalyses(loop_manager);
+	PB.registerLoopAnalyses(LAM);
 
-	PB.crossRegisterProxies(loop_manager, FAM, cgscc_manager, mod_manager);
+	PB.crossRegisterProxies(LAM, FAM, cgscc_manager, MAM);
 	llvm::FunctionPassManager FPM;
-
-
-	//llvm::FunctionPassManager FPM = PB.buildFunctionSimplificationPipeline(
-	//		llvm::PassBuilder::OptimizationLevel::O0,
-	//		//llvm::PassBuilder::ThinLTOPhase::None,
-	//		llvm::ThinOrFullLTOPhase::None);
 
 	// Promote allocas to registers.
 	//Builder.addPass(llvm::PromoteMemoryToRegisterPass());
-	// Do simple "peephole" optimizations
-	//FPM.addPass(llvm::InstCombinePass());
-	//FPM.addPass(llvm::DCEPass());
-	//FPM.addPass(llvm::SCCPPass());
-	////FPM.addPass(llvm::AggressiveInstCombinePass());
-	////// Reassociate expressions.
-	//FPM.addPass(llvm::ReassociatePass());
-	//////// Eliminate Common SubExpressions.
-	//FPM.addPass(llvm::NewGVNPass());
-	//////// Simplify the control flow graph (deleting unreachable blocks etc).
-	//FPM.addPass(llvm::SimplifyCFGPass());
 
 	// Form SSA out of local memory accesses after breaking apart aggregates into
 	// scalars.
@@ -232,10 +211,9 @@ void runOpt(llvm::Function &fn) {
 	FPM.addPass(
 			llvm::RequireAnalysisPass<llvm::OptimizationRemarkEmitterAnalysis,
 					llvm::Function>());
-	FPM.addPass(
-			llvm::createFunctionToLoopPassAdaptor(std::move(LPM1),
-					/*EnableMSSALoopDependency=*/true,
-					/*UseBlockFrequencyInfo=*/true));
+	FPM.addPass(llvm::createFunctionToLoopPassAdaptor(std::move(LPM1),
+	/*EnableMSSALoopDependency=*/true,
+	/*UseBlockFrequencyInfo=*/true));
 	FPM.addPass(llvm::SimplifyCFGPass());
 	//FPM.addPass(llvm::InstCombinePass());
 	//if (EnableLoopFlatten)
@@ -293,18 +271,18 @@ void runOpt(llvm::Function &fn) {
 			createFunctionToLoopPassAdaptor(
 					llvm::LICMPass(PTO.LicmMssaOptCap,
 							PTO.LicmMssaNoAccForPromotionCap),
-							/*EnableMSSALoopDependency=*/true, /*UseBlockFrequencyInfo=*/true));
+					/*EnableMSSALoopDependency=*/true, /*UseBlockFrequencyInfo=*/
+					true));
 
 	//FPM.addPass(llvm::CoroElidePass());
 
 //	for (auto &C : ScalarOptimizerLateEPCallbacks)
 //		C(FPM, Level);
 
-	FPM.addPass(
-			llvm::SimplifyCFGPass(
-					//llvm::SimplifyCFGOptions().hoistCommonInsts(true).sinkCommonInsts(
-					//		true)
-							));
+	FPM.addPass(llvm::SimplifyCFGPass(
+	//llvm::SimplifyCFGOptions().hoistCommonInsts(true).sinkCommonInsts(
+	//		true)
+			));
 	//FPM.addPass(InstCombinePass());
 	//invokePeepholeEPCallbacks(FPM, Level);
 
