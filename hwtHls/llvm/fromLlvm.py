@@ -1,4 +1,4 @@
-from typing import Dict, Union
+from typing import Dict, Union, Tuple, List
 
 from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.value import HValue
@@ -24,6 +24,9 @@ from pyMathBitPrecise.bit_utils import ValidityError, mask
 from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
 from hwtHls.llvm.toLlvmPy import ToLlvmIrTranslator
 from hwt.code import Concat
+from itertools import islice
+from hwtHls.ssa.exprBuilder import SsaExprBuilder
+from hwt.pyUtils.arrayQuery import grouper
 
 
 def getValAndShift(v: Value):
@@ -84,7 +87,7 @@ class FromLlvmIrTranslator():
             it: IntegerType
             return Bits(it.getBitWidth())
         else:
-            raise NotImplementedError()
+            raise NotImplementedError(t)
 
     def _translateExpr(self, v: Union[Value, Use]):
         if isinstance(v, Use):
@@ -212,15 +215,33 @@ class FromLlvmIrTranslator():
                         newBlock.successors.addTarget(self._translateExpr(c), self.newBlocks[sucT])
                         newBlock.successors.addTarget(None, self.newBlocks[sucF])
                     continue
+                elif op == Instruction.TermOps.Ret.value:
+                    continue
+                elif op == Instruction.TermOps.Switch.value:
+                    ops = tuple(instr.iterOperands())
+                    opLen = len(ops)
+                    switchOn, defaultDst = islice(ops, 0, 2)
+                    switchOn = self._translateExpr(switchOn)
+                    assert opLen > 2 and opLen % 2 == 0, ops
+                    condDst: List[Tuple[SsaValue, SsaBasicBlock]] = []
+                    exprBuilder = SsaExprBuilder(newBlock)
+                    for v, dst in grouper(2, islice(ops, 2, None)):
+                        v = self._translateExpr(v)
+                        v = exprBuilder._binaryOp(switchOn, AllOps.EQ, v)
+                        condDst.append((v, self.newBlocks[dst.get()]))
+                    condDst.append((None, self.newBlocks[defaultDst.get()]))
 
-                elif op == Instruction.OtherOps.PHI:
+                    for c, dst in condDst:
+                        newBlock.successors.addTarget(c, dst)
+                    continue
+
+                elif op == Instruction.OtherOps.PHI.value:
                     res_t = self._translateType(instr.getType())
                     _instr = SsaPhi(self.ssaCtx, res_t)
                     newBlock.appendPhi(_instr)
                     self.newValues[instr] = _instr
                     continue
-                elif op == Instruction.TermOps.Ret:
-                    continue
+
                 else:
                     res_t = self._translateType(instr.getType())
                     if op == Instruction.OtherOps.ICmp:
