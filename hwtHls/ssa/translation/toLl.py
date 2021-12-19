@@ -4,13 +4,13 @@ from typing import Set
 
 from hdlConvertorAst.to.hdlUtils import Indent, \
     AutoIndentingStream
-from hwtHls.ssa.basicBlock import SsaBasicBlock
-from hwtHls.ssa.instr import SsaInstr
-from hwtHls.ssa.phi import SsaPhi
+from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwtHls.hlsStreamProc.statements import HlsStreamProcRead, \
     HlsStreamProcWrite
-from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
-from hwtHls.llvm.toLlvmPy import ToLlvmIrTranslator
+from hwtHls.ssa.basicBlock import SsaBasicBlock
+from hwtHls.ssa.instr import SsaInstr
+from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
+from hwtHls.ssa.phi import SsaPhi
 
 
 class SsaToLl():

@@ -7,7 +7,7 @@
 
 `meson build .`
 `ninja -C build`
-`cd hwtHls/llvm/ && ln -s ../../build/hwtHls/llvm/*.so`
+`cd hwtHls/ssa/llvm/ && ln -s ../../build/hwtHls/ssa/llvm/*.so`
 
 # LLVM/clang
 

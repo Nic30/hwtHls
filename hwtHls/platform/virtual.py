@@ -7,8 +7,8 @@ from hwt.hdl.operator import Operator
 from hwt.hdl.operatorDefs import AllOps, OpDefinition
 from hwt.synthesizer.dummyPlatform import DummyPlatform
 from hwtHls.allocator.allocator import HlsAllocator
-from hwtHls.llvm.fromLlvm import SsaPassFromLlvm
-from hwtHls.llvm.toLlvmPy import SsaPassToLlvm
+from hwtHls.ssa.translation.fromLlvm import SsaPassFromLlvm
+from hwtHls.ssa.translation.toLlvm import SsaPassToLlvm
 from hwtHls.netlist.toGraphwiz import HlsNetlistPassDumpToDot
 from hwtHls.netlist.toTimeline import RtlNetlistPassShowTimeline
 from hwtHls.netlist.transformations.hlsNetlistPass import HlsNetlistPass

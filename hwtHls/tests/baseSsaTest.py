@@ -4,14 +4,14 @@ import os
 from hwt.synthesizer.unit import Unit
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
+from hwtHls.ssa.analysis.dumpPipelines import SsaPassDumpPipelines
 from hwtHls.ssa.transformation.extractPartDrivers import SsaPassExtractPartDrivers
 from hwtHls.ssa.transformation.runFn import SsaPassRunFn
-from hwtHls.ssa.translation.toLl import SsaPassDumpToLl
-from hwtLib.examples.base_serialization_TC import BaseSerializationTC
-from hwtHls.llvm.toLlvmPy import SsaPassToLlvm
 from hwtHls.ssa.transformation.runLlvmOpt import SsaPassRunLlvmOpt
-from hwtHls.llvm.fromLlvm import SsaPassFromLlvm
-from hwtHls.ssa.analysis.dumpPipelines import SsaPassDumpPipelines
+from hwtHls.ssa.translation.fromLlvm import SsaPassFromLlvm
+from hwtHls.ssa.translation.toLl import SsaPassDumpToLl
+from hwtHls.ssa.translation.toLlvm import SsaPassToLlvm
+from hwtLib.examples.base_serialization_TC import BaseSerializationTC
 
 
 class TestFinishedSuccessfuly(BaseException):

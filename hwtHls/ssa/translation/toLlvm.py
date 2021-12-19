@@ -1,5 +1,5 @@
 
-# from hwtHls.llvm.toLlvm import initializeModule
+# from hwtHls..ssallvm.toLlvm import initializeModule
 import re
 from typing import List, Tuple, Dict, Union, Optional
 
@@ -9,23 +9,23 @@ from hwt.hdl.types.bitsVal import BitsVal
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.types.slice import HSlice
 from hwt.hdl.value import HValue
+from hwt.interfaces.hsStructIntf import HsStructIntf
+from hwt.interfaces.std import Signal, RdSynced, VldSynced, Handshaked
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
+from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.hlsStreamProc.statements import HlsStreamProcRead, \
     HlsStreamProcWrite
-from hwtHls.llvm.toLlvm import LLVMContext, Module, IRBuilder, LLVMStringContext, Value, \
-    Type, FunctionType, Function, VectorOfTypePtr, BasicBlock, Argument, PointerType, TypeToPointerType, \
-    ConstantInt, APInt, verifyFunction, verifyModule, TypeToIntegerType, PHINode
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
+from hwtHls.ssa.llvm.llvmIr import LLVMContext, Module, IRBuilder, LLVMStringContext, Value, \
+    Type, FunctionType, Function, VectorOfTypePtr, BasicBlock, Argument, PointerType, TypeToPointerType, \
+    ConstantInt, APInt, verifyFunction, verifyModule, TypeToIntegerType, PHINode
 from hwtHls.ssa.phi import SsaPhi
 from hwtHls.ssa.transformation.utils.blockAnalysis import collect_all_blocks
 from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
 from hwtHls.ssa.value import SsaValue
 from ipCorePackager.constants import INTF_DIRECTION
-from hwt.interfaces.std import Signal, RdSynced, VldSynced, Handshaked
-from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwt.interfaces.hsStructIntf import HsStructIntf
 
 RE_NUMBER = re.compile('[^0-9]+|[0-9]+')
 

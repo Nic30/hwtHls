@@ -1,5 +1,5 @@
-from hwtHls.llvm.toLlvm import runOpt
-from hwtHls.llvm.toLlvmPy import ToLlvmIrTranslator
+from hwtHls.ssa.llvm.llvmIr import runOpt
+from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from hwtHls.ssa.transformation.ssaPass import SsaPass
 
 

@@ -1,7 +1,7 @@
 
 
 py3.extension_module(
-    'toLlvm',
+    'llvmIr',
     ['llvmIr.cpp',
      'llvmIrBuilder.cpp',
      'llvmIrInstruction.cpp',
@@ -12,5 +12,5 @@ py3.extension_module(
     dependencies : [py3_dep, llvm_dep, pybind11_dep],
     install: true,
     cpp_args: ['-Wno-comment', '-Wno-non-virtual-dtor'], # because of LLVM
-    subdir: 'hwtHls/llvm',
+    subdir: 'hwtHls/ssa/llvm',
 )

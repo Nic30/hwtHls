@@ -1,32 +1,32 @@
+from itertools import islice
 from typing import Dict, Union, Tuple, List
 
+from hwt.code import Concat
 from hwt.hdl.operatorDefs import AllOps
+from hwt.hdl.types.bits import Bits
+from hwt.hdl.types.defs import SLICE, INT
 from hwt.hdl.value import HValue
+from hwt.pyUtils.arrayQuery import grouper
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwtHls.hlsStreamProc.statements import HlsStreamProcRead, \
     HlsStreamProcWrite
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
-from hwtHls.llvm.toLlvm import LLVMContext, Module, IRBuilder, LLVMStringContext, IntegerType, Value, \
+from hwtHls.ssa.basicBlock import SsaBasicBlock
+from hwtHls.ssa.context import SsaContext
+from hwtHls.ssa.exprBuilder import SsaExprBuilder
+from hwtHls.ssa.instr import SsaInstr
+from hwtHls.ssa.llvm.llvmIr import LLVMContext, Module, IRBuilder, LLVMStringContext, IntegerType, Value, \
     Type, FunctionType, Function, VectorOfTypePtr, BasicBlock, Argument, PointerType, TypeToPointerType, \
     ConstantInt, APInt, runOpt, verifyFunction, verifyModule, TypeToIntegerType, LoadInst, StoreInst, Instruction, \
     UserToInstruction, ValueToInstruction, Use, ValueToConstantInt, InstructionToICmpInst, ICmpInst, CmpInst, \
     PHINode, InstructionToPHINode
-from hwtHls.ssa.basicBlock import SsaBasicBlock
-from hwtHls.ssa.context import SsaContext
-from hwtHls.ssa.instr import SsaInstr
+from hwtHls.ssa.phi import SsaPhi
+from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
+from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from hwtHls.ssa.value import SsaValue
 from ipCorePackager.constants import INTF_DIRECTION
-from hwt.hdl.types.bits import Bits
-from hwt.hdl.types.defs import SLICE, INT
-from hwtHls.ssa.phi import SsaPhi
 from pyMathBitPrecise.bit_utils import ValidityError, mask
-from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
-from hwtHls.llvm.toLlvmPy import ToLlvmIrTranslator
-from hwt.code import Concat
-from itertools import islice
-from hwtHls.ssa.exprBuilder import SsaExprBuilder
-from hwt.pyUtils.arrayQuery import grouper
 
 
 def getValAndShift(v: Value):

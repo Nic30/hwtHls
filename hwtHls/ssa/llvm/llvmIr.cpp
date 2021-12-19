@@ -138,7 +138,7 @@ void register_Attribute_and_MDNode(pybind11::module_ & m) {
 
 // https://github.com/PointCloudLibrary/clang-bind
 // http://nondot.org/~sabre/LLVMNotes/TypeSystemChanges.txt
-PYBIND11_MODULE(toLlvm, m) {
+PYBIND11_MODULE(llvmIr, m) {
 
 	py::class_<llvm::LLVMContext>(m, "LLVMContext")
 			.def(py::init<>());
