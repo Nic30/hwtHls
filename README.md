@@ -164,6 +164,14 @@ pip3 install git+git://github.com/Nic30/hwtHls.git
 * [Stackifier algorithm](https://medium.com/leaningtech/solving-the-structured-control-flow-problem-once-and-for-all-5123117b1ee2) converts SSA back to cycles and conditions
 * [DASS: Combining Dynamic and Static Scheduling in High-level Synthesis](https://www.researchgate.net/publication/350081168_DASS_Combining_Dynamic_and_Static_Scheduling_in_High-level_Synthesis)
 * [Enabling adaptive loop pipelining in high-level synthesis](https://doi.org/10.1109/ACSSC.2017.8335152)
+* SODA [Chi, ICCAD 18]
+* Darkroom [Hegarty, TOG 14]
+* Aetherling [Durst, PLDI 20]
+* Polymage-FPGA [Chugh, PACT 16]
+* Rigel [Hegarty, TOG 16]
+* Halide-HLS [Pu, TACO 17]
+* Hipacc-FPGA [Reiche, CODES + ISS 14] https://github.com/hipacc/hipacc-fpga
+* Clokwork [Huff, FCCM 21] https://github.com/dillonhuff/clockwork
 
 ## Timing database generator scripts
 

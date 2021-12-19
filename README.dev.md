@@ -56,4 +56,9 @@ Llvm pass execution (`-disable-llvm-passes` is required otherwise `optnone` attr
 
 ## In IR debugging metainformations
 
-https://wiki.aalto.fi/display/t1065450/LLVM+DebugInfo
+* https://wiki.aalto.fi/display/t1065450/LLVM+DebugInfo
+
+
+## Other LLVM bindings
+
+* https://github.com/numba/llvmlite
