@@ -127,7 +127,7 @@ class MemorySSAUpdater():
 
         if isinstance(phi, SsaPhi):
             self.writeVariable(variable, (), block, phi)
-        elif isinstance(phi, HValue):
+        elif isinstance(phi, (HValue, HlsStreamProcRead)):
             pass
         else:
             raise TypeError(phi.__class__)

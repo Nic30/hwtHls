@@ -27,7 +27,7 @@ class BitonicSorterHLS(BitonicSorter):
         _x = [self.hls.var(f"sort_tmp_{layer:d}_{offset:d}_{i:d}", x[0]._dtype) for i, _ in enumerate(x)]
         for i in range(dist):
             self.hls_code.append(
-                If(cmpFn(x[i], x[i + dist]),
+                self.hls.If(cmpFn(x[i], x[i + dist]),
                     # keep
                     _x[i](x[i]),
                     _x[i + dist](x[i + dist])

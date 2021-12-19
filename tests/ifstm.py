@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.code import If
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.param import Param
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
@@ -28,7 +27,7 @@ class SimpleIfStatementHls(SimpleIfStatement):
         hls.thread(
             hls.While(True,
                 a, b, c,
-                If(a,
+                hls.If(a,
                     tmp(b),
                 ).Elif(b,
                     tmp(c),

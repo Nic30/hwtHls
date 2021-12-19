@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.code import If
 from hwt.interfaces.std import Handshaked
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 from hwtHls.platform.virtual import VirtualHlsPlatform
+from hwtSimApi.utils import freq_to_period
 from tests.baseSsaTest import BaseSsaTC
 from tests.trivial_test import HlsStreamMachineTrivial_TC
-from hwtSimApi.utils import freq_to_period
 
 
 class ReadIfOtherEqual(Unit):
@@ -30,7 +29,7 @@ class ReadIfOtherEqual(Unit):
         hls = HlsStreamProc(self, freq=self.FREQ)
         hls.thread(
             hls.While(True,
-                If(hls.read(self.a)._eq(3),
+                hls.If(hls.read(self.a)._eq(3),
                    hls.read(self.b),
                 )
             )
@@ -42,7 +41,7 @@ class ReadIfOtherEqualOnce(ReadIfOtherEqual):
     def _impl(self) -> None:
         hls = HlsStreamProc(self, freq=self.FREQ)
         hls.thread(
-            If(hls.read(self.a)._eq(3),
+            hls.If(hls.read(self.a)._eq(3),
                hls.read(self.b),
             )
         )
