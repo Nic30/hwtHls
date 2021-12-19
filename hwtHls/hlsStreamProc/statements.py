@@ -4,7 +4,7 @@ from typing import Union, Optional, List
 from hdlConvertorAst.translate.common.name_scope import NameScope
 from hwt.doc_markers import internal
 from hwt.hdl.statements.codeBlockContainer import HdlStmCodeBlockContainer
-from hwt.hdl.statements.statement import HdlStatement
+from hwt.hdl.statements.statement import HdlStatement, HwtSyntaxError
 from hwt.hdl.types.defs import BOOL
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.types.typeCast import toHVal
@@ -23,12 +23,13 @@ from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr, OP_ASSIGN
 from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axis import AxiStream
+from hwt.hdl.statements.ifContainter import IfContainer
 
 
 class HlsStreamProcStm(HdlStatement):
 
     def __init__(self, parent: "HlsStreamProc"):
-        super(HlsStreamProcStm, self).__init__()
+        HdlStatement.__init__(self)
         self.parent = parent
 
     @internal
@@ -101,7 +102,7 @@ class HlsStreamProcRead(HdlStatement, SignalOps, InterfaceBase, SsaInstr):
 
         SsaInstr.__init__(self, parent.ssaCtx, type_or_size, OP_ASSIGN, (),
                           name=self._sig.name, origin=self._sig)
-        #self._out: Optional[ANY_HLS_STREAM_INTF_TYPE] = None
+        # self._out: Optional[ANY_HLS_STREAM_INTF_TYPE] = None
 
         if isinstance(self._sig, StructIntf):
             sig = self._sig
@@ -160,20 +161,65 @@ class HlsStreamProcWrite(HlsStreamProcStm, SsaInstr):
         return f"<{self.__class__.__name__} {i if isinstance(i, HValue) else i._name}->{getSignalName(self.dst)}>"
 
 
-class HlsStreamProcWhile(HlsStreamProcStm):
+class HlsStreamProcIf(HlsStreamProcStm, IfContainer):
+
+    def __init__(self, parent: "HlsStreamProc", cond: Union[RtlSignal, HValue], body: List[HdlStatement]):
+        HlsStreamProcStm.__init__(self, parent)
+        assert isinstance(cond, (RtlSignal, HValue)), cond
+        self.cond = cond
+        self.ifTrue = body
+        self.elIfs = []
+        self.ifFalse = None
+
+    def Elif(self, cond, *statements):
+        self.elIfs.append((cond, statements))
+        return self
+
+    def Else(self, *statements):
+        if self.ifFalse is not None:
+            raise HwtSyntaxError(
+                "Else on this if-then-else statement was already used")
+
+        self.ifFalse = statements
+        return self
+
+
+class HlsStreamProcFor(HlsStreamProcStm):
     """
-    * All reads are converted to a reads of a streams of original type
-    * All parsers/deparsers are restarte on while exit
+    The for loop statement.
     """
 
-    def __init__(self, parent: "HlsStreamProc", cond: Union[RtlSignal, bool], body: List[HdlStatement]):
-        super(HlsStreamProcWhile, self).__init__(parent)
-        assert isinstance(cond, (RtlSignal, bool)), cond
-        self.cond = toHVal(cond, BOOL)
-        self.body = list(flatten(body))
+    def __init__(self, parent: "HlsStreamProc",
+                 init: List[HdlStatement],
+                 cond: Union[RtlSignal, HValue],
+                 step: List[HdlStatement],
+                 body: List[HdlStatement]):
+        super(HlsStreamProcFor, self).__init__(parent)
+        assert isinstance(cond, (RtlSignal, HValue)), cond
+        self.init = init
+        self.cond = cond
+        self.step = step
+        self.body = body
 
     def __repr__(self):
-        return f"<{self.__class__.__name__} {self.cond}: {self.body}>"
+        return f"<{self.__class__.__name__}({self.init}; {self.cond}; {self.step}): {self.body}>"
+
+
+class HlsStreamProcWhile(HlsStreamProcStm):
+    """
+    The while loop statement.
+    """
+
+    def __init__(self, parent: "HlsStreamProc",
+                 cond: Union[RtlSignal, HValue],
+                 body: List[HdlStatement]):
+        super(HlsStreamProcWhile, self).__init__(parent)
+        assert isinstance(cond, (RtlSignal, HValue)), cond
+        self.cond = cond
+        self.body = body
+
+    def __repr__(self):
+        return f"<{self.__class__.__name__}({self.cond}): {self.body}>"
 
 
 class HlsStreamProcBreak(HlsStreamProcStm):

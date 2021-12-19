@@ -6,19 +6,19 @@ from hwt.hdl.portItem import HdlPortItem
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.statements.codeBlockContainer import HdlStmCodeBlockContainer
 from hwt.hdl.statements.ifContainter import IfContainer
-from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.value import HValue
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.rtlLevel.signalUtils.exceptions import SignalDriverErr
 from hwtHls.hlsStreamProc.statements import HlsStreamProcStm, HlsStreamProcWhile, \
-    HlsStreamProcWrite, HlsStreamProcRead, HlsStreamProcCodeBlock
+    HlsStreamProcWrite, HlsStreamProcRead, HlsStreamProcCodeBlock, \
+    HlsStreamProcIf, HlsStreamProcFor
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.context import SsaContext
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.translation.fromAst.memorySSAUpdater import MemorySSAUpdater
 from hwtHls.ssa.value import SsaValue
 
-AnyStm = Union[HdlStatement, HlsStreamProcStm]
+AnyStm = Union[HdlAssignmentContainer, HlsStreamProcStm]
 
 
 class AstToSsa():
@@ -84,7 +84,9 @@ class AstToSsa():
                 block = self.visit_Write(block, o)
             elif isinstance(o, HlsStreamProcWhile):
                 block = self.visit_While(block, o)
-            elif isinstance(o, IfContainer):
+            elif isinstance(o, HlsStreamProcFor):
+                block = self.visit_For(block, o)
+            elif isinstance(o, HlsStreamProcIf):
                 block = self.visit_If(block, o)
             elif isinstance(o, HlsStreamProcRead):
                 block, _ = self.visit_expr(block, o)
@@ -139,6 +141,10 @@ class AstToSsa():
                     self.m_ssa_u.writeVariable(var._sig, (), block, var)
                 var = var._sig
             return block, self.m_ssa_u.readVariable(var, block)
+
+    def visit_For(self, block: SsaBasicBlock, o: HlsStreamProcFor) -> SsaBasicBlock:
+        block = self.visit_CodeBlock_list(block, o.init)
+        return self.visit_While(block, HlsStreamProcWhile(o.parent, o.cond, o.body + o.step))
 
     def visit_While(self, block: SsaBasicBlock, o: HlsStreamProcWhile) -> SsaBasicBlock:
         if isinstance(o.cond, HValue):
@@ -196,7 +202,7 @@ class AstToSsa():
         else:
             cond_block.successors.addTarget(cond, end_if_block)
 
-    def visit_If(self, block: SsaBasicBlock, o: IfContainer) -> SsaBasicBlock:
+    def visit_If(self, block: SsaBasicBlock, o: HlsStreamProcIf) -> SsaBasicBlock:
         cond_block = self._addNewTargetBb(block, None, f"{block.label:s}_IfC", o)
         self._onAllPredecsKnown(cond_block)
         cond_block, cond = self.visit_expr(cond_block, o.cond)

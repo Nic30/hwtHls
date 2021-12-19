@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from typing import Union, List, Optional
+from collections import deque
+from typing import Union, List, Optional, Tuple
 
+from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
+from hwt.hdl.types.defs import BOOL
 from hwt.hdl.types.hdlType import HdlType
+from hwt.hdl.types.typeCast import toHVal
 from hwt.hdl.value import HValue
 from hwt.interfaces.std import Handshaked
 from hwt.pyUtils.arrayQuery import flatten
@@ -13,7 +17,8 @@ from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.statements import HlsStreamProcRead, \
-    HlsStreamProcWrite, HlsStreamProcWhile, HlsStreamProcCodeBlock
+    HlsStreamProcWrite, HlsStreamProcWhile, HlsStreamProcCodeBlock, \
+    HlsStreamProcIf, HlsStreamProcStm, HlsStreamProcFor
 from hwtHls.netlist.transformations.hlsNetlistPass import HlsNetlistPass
 from hwtHls.ssa.context import SsaContext
 from hwtHls.ssa.transformation.ssaPass import SsaPass
@@ -90,7 +95,25 @@ class HlsStreamProc():
         """
         Create a while statement in thread.
         """
-        return HlsStreamProcWhile(self, cond, body)
+        return HlsStreamProcWhile(self, toHVal(cond, BOOL), list(body))
+
+    def For(self,
+            init: Union[AnyStm, Tuple[AnyStm, ...]],
+            cond: Union[Tuple, RtlSignal],
+            step: Union[AnyStm, Tuple[AnyStm, ...]],
+            *body: AnyStm):
+        if not isinstance(init, (tuple, list, deque)):
+            assert isinstance(init, (HdlAssignmentContainer, HlsStreamProcStm)), init
+            init = [init, ]
+        cond = toHVal(cond, BOOL)
+        if not isinstance(step, (tuple, list, deque)):
+            assert isinstance(step, (HdlAssignmentContainer, HlsStreamProcStm)), step
+            step = [step, ]
+
+        return HlsStreamProcFor(self, init, cond, step, list(body))
+
+    def If(self, cond: Union[RtlSignal, bool], *body: AnyStm):
+        return HlsStreamProcIf(self, toHVal(cond, BOOL), list(body))
 
     def _format_code(self, code: List[AnyStm], label:str="hls_top") -> HlsStreamProcCodeBlock:
         """
