@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 
 from hwtHls.platform.virtual import VirtualHlsPlatform
-from hwtHls.tests.baseSsaTest import BaseSsaTC
-from hwtHls.tests.trivial_test import HlsStreamMachineTrivial_TC
-from hwtHls.tests.while_if import WhileAndIf0, WhileAndIf2
+from tests.baseSsaTest import BaseSsaTC
+from tests.trivial_test import HlsStreamMachineTrivial_TC
+from tests.while_if import WhileAndIf0, WhileAndIf2
 from hwtSimApi.utils import freq_to_period
 
 

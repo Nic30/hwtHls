@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from hwtHls.hlsStreamProc.streamProc  import HlsStreamProc
-from hwtHls.tests.trivial import WhileTrueReadWrite
+from tests.trivial import WhileTrueReadWrite
 
 
 class WhileTrueReadWriteExpr(WhileTrueReadWrite):

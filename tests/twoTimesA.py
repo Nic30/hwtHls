@@ -7,7 +7,7 @@ from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 from hwtHls.platform.virtual import VirtualHlsPlatform
-from hwtHls.tests.baseSsaTest import BaseSsaTC
+from tests.baseSsaTest import BaseSsaTC
 
 
 class TwoTimesA0(Unit):

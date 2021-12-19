@@ -48,7 +48,7 @@ coverage.xml
 *.dot
 *.html
 *.vcd
-hwtHls/tests/tmp
+tests/tmp
 
 # Translations
 *.mo

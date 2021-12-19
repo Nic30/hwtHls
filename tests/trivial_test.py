@@ -4,7 +4,7 @@
 from hwt.serializer.combLoopAnalyzer import CombLoopAnalyzer
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.platform.virtual import VirtualHlsPlatform
-from hwtHls.tests.trivial import WriteOnce, ReadWriteOnce0, \
+from tests.trivial import WriteOnce, ReadWriteOnce0, \
     ReadWriteOnce1, WhileTrueWrite, WhileTrueReadWrite, ReadWriteOnce2
 from hwtLib.examples.errors.combLoops import freeze_set_of_sets
 from hwtSimApi.constants import CLK_PERIOD

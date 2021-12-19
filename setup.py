@@ -86,7 +86,7 @@ print("This project uses PEP517 use `pip install .` etc insead of executing setu
 #      include_package_data=True,
 #      zip_safe=False,
 #      #tests_require=['pytest'],
-#      test_suite='hwtHls.tests.all.suite',
+#      test_suite='tests.all.suite',
 #      #cmdclass={"build_ext": build_ext},
 #)
 #

@@ -3,18 +3,18 @@
 
 from unittest import TestLoader, TextTestRunner, TestSuite
 
-from hwtHls.tests.bitonicSort import BitonicSorterHLS_TCs
-from hwtHls.tests.mac import HlsMAC_example_TC
-from hwtHls.tests.alapAsapDiffExample import AlapAsapDiffExample_TC
-from hwtHls.tests.concatOfSlices_test import ConcatOfSlicesTC
-from hwtHls.tests.expr_tree3 import HlsExprTree3_example_TC
-from hwtHls.tests.list_schedueling_test import ListSchedueling_TC
-from hwtHls.tests.read_if import ReadIfTc
-from hwtHls.tests.slicing import HlsSlicingTC
-from hwtHls.tests.syntehesis_checks import HlsSynthesisChecksTC
-from hwtHls.tests.trivial_test import HlsStreamMachineTrivial_TC
-from hwtHls.tests.twoTimesA import TwoTimesA_TC
-from hwtHls.tests.while_if_test import HlsStreamMachineWhileIf_TC
+from tests.bitonicSort import BitonicSorterHLS_TCs
+from tests.mac import HlsMAC_example_TC
+from tests.alapAsapDiffExample import AlapAsapDiffExample_TC
+from tests.concatOfSlices_test import ConcatOfSlicesTC
+from tests.expr_tree3 import HlsExprTree3_example_TC
+from tests.list_schedueling_test import ListSchedueling_TC
+from tests.read_if import ReadIfTc
+from tests.slicing import HlsSlicingTC
+from tests.syntehesis_checks import HlsSynthesisChecksTC
+from tests.trivial_test import HlsStreamMachineTrivial_TC
+from tests.twoTimesA import TwoTimesA_TC
+from tests.while_if_test import HlsStreamMachineWhileIf_TC
 
 
 def testSuiteFromTCs(*tcs):

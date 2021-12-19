@@ -8,7 +8,7 @@ from hwt.interfaces.std import VectSignal
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 from hwtHls.platform.virtual import VirtualHlsPlatform
-from hwtHls.tests.baseSsaTest import BaseSsaTC
+from tests.baseSsaTest import BaseSsaTC
 from pyMathBitPrecise.bit_utils import mask
 
 

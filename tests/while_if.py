@@ -4,7 +4,7 @@
 from hwt.code import If
 from hwt.hdl.types.bits import Bits
 from hwtHls.hlsStreamProc.streamProc  import HlsStreamProc
-from hwtHls.tests.trivial import WhileTrueWrite, WhileTrueReadWrite
+from tests.trivial import WhileTrueWrite, WhileTrueReadWrite
 from hwtHls.platform.virtual import makeDebugPasses
 
 
