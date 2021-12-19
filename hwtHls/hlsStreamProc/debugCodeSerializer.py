@@ -10,7 +10,7 @@ from hwt.hdl.statements.statement import HdlStatement
 from hwt.serializer.hwt import HwtDebugSerializer, ToHdlAstDebugHwt
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwtHls.hlsStreamProc.statements import HlsStreamProcWhile, \
-    HlsStreamProcCodeBlock, HlsStreamProcWrite
+    HlsStreamProcCodeBlock, HlsStreamProcWrite, HlsStreamProcIf
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 
 
@@ -22,6 +22,9 @@ class ToHdlAstHlsStreamProcDebugCode(ToHdlAstDebugHwt):
 
     def as_hdl_HlsStreamProcCodeBlock(self, o: HlsStreamProcCodeBlock):
         return self.as_hdl_HdlStmCodeBlockContainer(o)
+
+    def as_hdl_HlsStreamProcIf(self, o: HlsStreamProcIf):
+        return self.as_hdl_IfContainer(o)
 
     def as_hdl_HlsStreamProcWhile(self, o: HlsStreamProcWhile):
         res = HdlStmWhile()
