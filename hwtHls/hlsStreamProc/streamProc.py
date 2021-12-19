@@ -18,7 +18,8 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.statements import HlsStreamProcRead, \
     HlsStreamProcWrite, HlsStreamProcWhile, HlsStreamProcCodeBlock, \
-    HlsStreamProcIf, HlsStreamProcStm, HlsStreamProcFor
+    HlsStreamProcIf, HlsStreamProcStm, HlsStreamProcFor, HlsStreamProcBreak, \
+    HlsStreamProcContinue
 from hwtHls.netlist.transformations.hlsNetlistPass import HlsNetlistPass
 from hwtHls.ssa.context import SsaContext
 from hwtHls.ssa.transformation.ssaPass import SsaPass
@@ -111,6 +112,12 @@ class HlsStreamProc():
             step = [step, ]
 
         return HlsStreamProcFor(self, init, cond, step, list(body))
+
+    def Break(self):
+        return HlsStreamProcBreak(self)
+
+    def Continue(self):
+        return HlsStreamProcContinue(self)
 
     def If(self, cond: Union[RtlSignal, bool], *body: AnyStm):
         return HlsStreamProcIf(self, toHVal(cond, BOOL), list(body))

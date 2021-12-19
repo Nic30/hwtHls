@@ -11,6 +11,7 @@ from hwtHls.hlsStreamProc.statements import HlsStreamProcRead
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.phi import SsaPhi
 from hwtHls.ssa.value import SsaValue
+from hwtHls.ssa.instr import SsaInstr
 
 
 class MemorySSAUpdater():
@@ -125,7 +126,7 @@ class MemorySSAUpdater():
             self.writeVariable(variable, (), block, phi)
             phi = self.addPhiOperands(variable, phi)
 
-        if isinstance(phi, SsaPhi):
+        if isinstance(phi, (SsaPhi, SsaInstr)):
             self.writeVariable(variable, (), block, phi)
         elif isinstance(phi, (HValue, HlsStreamProcRead)):
             pass
