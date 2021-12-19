@@ -4,7 +4,7 @@
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from tests.baseSsaTest import BaseSsaTC
 from tests.trivial_test import HlsStreamMachineTrivial_TC
-from tests.while_if import WhileAndIf0, WhileAndIf2
+from tests.while_if import WhileAndIf0, WhileAndIf2, WhileAndIf3
 from hwtSimApi.utils import freq_to_period
 
 
@@ -42,8 +42,8 @@ class HlsStreamMachineWhileIf_TC(BaseSsaTC):
 
         self.assertValSequenceEqual(u.dataOut._ag.data, expected)
 
-    def test_WhileAndIf2(self):
-        u = WhileAndIf2()
+    def test_WhileAndIf2(self, cls=WhileAndIf2):
+        u = cls()
         u.FREQ = int(10e6)
 
         self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
@@ -67,7 +67,10 @@ class HlsStreamMachineWhileIf_TC(BaseSsaTC):
         self.runSim((CLK + 10) * int(clk_period))
         HlsStreamMachineTrivial_TC._test_no_comb_loops(self)
         self.assertValSequenceEqual(u.dataOut._ag.data, expected)
-
+    
+    def test_WhileAndIf3(self):
+        self.test_WhileAndIf2(WhileAndIf3)
+    
     def test_WhileAndIf2_ll(self):
         self._test_ll(WhileAndIf2)
 
