@@ -7,7 +7,7 @@ orbs:
 jobs:
   install-test-deploy:
     executor: python/default
-    resource_class: small
+    resource_class: medium
     steps:
       - checkout
       - run:
