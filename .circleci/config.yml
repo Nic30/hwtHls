@@ -18,7 +18,7 @@ jobs:
       - py/install-package-git:
           cwd: ..
           url: https://github.com/Nic30/hwtHls
-      - py/install-setup-py
+      #- py/install-setup-py
       # - python/save-cache
       - py/test-and-coverage
       - py/deploy-pypi-on-tag:
