@@ -86,7 +86,7 @@ class AstToSsa():
                 block = self.visit_While(block, o)
             elif isinstance(o, HlsStreamProcFor):
                 block = self.visit_For(block, o)
-            elif isinstance(o, HlsStreamProcIf):
+            elif isinstance(o, (HlsStreamProcIf, IfContainer)):
                 block = self.visit_If(block, o)
             elif isinstance(o, HlsStreamProcRead):
                 block, _ = self.visit_expr(block, o)
