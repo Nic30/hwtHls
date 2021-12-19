@@ -18,7 +18,6 @@ requires  = [
    'scipy>=1.5.2',
    'networkx',
    'plotly',
-   'pandas',
 ]
 home-page="https://github.com/Nic30/hwtHls"
 requires-python="py3"

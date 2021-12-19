@@ -12,7 +12,6 @@ from hwtHls.netlist.nodes.io import HlsWrite, HlsRead, HlsExplicitSyncNode
 from hwtHls.netlist.nodes.ops import AbstractHlsOp, HlsOperation, HlsConst
 from hwtHls.netlist.transformations.rtlNetlistPass import RtlNetlistPass
 from hwtHls.ssa.translation.toHwtHlsNetlist.nodes.backwardEdge import HlsWriteBackwardEdge
-import pandas as pd
 
 
 # [todo] pandas is overkill in this case, rm, plotly does not have it as dependencies
@@ -97,7 +96,7 @@ class HwtHlsNetlistToTimeline():
 
     def _draw_clock_boundaries(self, fig: Figure):
         clk_period = self.clk_period
-        last_time = self.df["finish"].max() + clk_period
+        last_time = max(r["finish"] for r in self.rows) + clk_period
         i = 0.0
         row_cnt = len(self.rows)
         while i < last_time:
@@ -171,22 +170,21 @@ class HwtHlsNetlistToTimeline():
         ))
 
     def _draw_arrow_between_jobs(self, fig: Figure, shapesToAdd: List[dict], annotationsToAdd: List[dict]):
-        df = self.df
         # # draw an arrow from the end of the first job to the start of the second job
         # # retrieve tick text and tick vals
         # job_yaxis_mapping = dict(zip(fig.layout.yaxis.ticktext, fig.layout.yaxis.tickvals))
-        for _, second_job_dict in df.iterrows():
+        for second_job_dict in self.rows:
             endX = second_job_dict['start']
             endY = second_job_dict['group']
 
             for start_i in second_job_dict['deps']:
-                first_job_dict = df.iloc[start_i]
+                first_job_dict = self.rows[start_i]
                 startX = first_job_dict['finish']
                 startY = first_job_dict['group']
                 self._draw_arrow(fig, startX, startY, endX, endY, "blue", shapesToAdd, annotationsToAdd)
 
             for start_i in second_job_dict["backward_deps"]:
-                first_job_dict = df.iloc[start_i]
+                first_job_dict = self.rows[start_i]
                 startX = first_job_dict['finish']
                 startY = first_job_dict['group']
                 self._draw_arrow(fig, startX, startY, endX, endY, "gray", shapesToAdd, annotationsToAdd)
@@ -194,17 +192,27 @@ class HwtHlsNetlistToTimeline():
         return fig
 
     def _generate_fig(self):
-        self.df: pd.DataFrame = pd.DataFrame(self.rows)
-        df = self.df
-        df['delta'] = df['finish'] - df['start']
+        # df = self.df
+        # df['delta'] = df['finish'] - df['start']
 
         # https://plotly.com/python/bar-charts/
+        rows_by_color = {}
+        for row in self.rows:
+            c = row['color']
+            _rows = rows_by_color.get(c, None)
+            if _rows is None:
+                _rows = rows_by_color[c] = []
+            _rows.append(row)
+            
         bars = []
-        for color, rows in df.groupby(by="color", sort=False):
-            b = go.Bar(x=rows["delta"], base=rows["start"], y=rows["group"], width=[1 for _ in rows["start"]],
+        for color, rows in sorted(rows_by_color.items(), key=lambda x: x[0]):
+            b = go.Bar(x=[r['finish'] - r['start'] for r in rows],
+                       base=[r["start"] for r in rows],
+                       y=[r["group"] for r in rows],
+                       width=[1 for _ in rows],
                        marker_color=color,
                        orientation='h',
-                       customdata=rows["label"],
+                       customdata=[r["label"] for r in rows],
                        showlegend=False,
                        texttemplate="%{customdata}",
                        textangle=0,
