@@ -8,7 +8,6 @@ from tests.mac import HlsMAC_example_TC
 from tests.alapAsapDiffExample import AlapAsapDiffExample_TC
 from tests.concatOfSlices_test import ConcatOfSlicesTC
 from tests.expr_tree3 import HlsExprTree3_example_TC
-from tests.list_schedueling_test import ListSchedueling_TC
 from tests.read_if import ReadIfTc
 from tests.slicing import HlsSlicingTC
 from tests.syntehesis_checks import HlsSynthesisChecksTC
@@ -34,7 +33,6 @@ suite = testSuiteFromTCs(
     *BitonicSorterHLS_TCs,
     HlsExprTree3_example_TC,
     AlapAsapDiffExample_TC,
-    ListSchedueling_TC,
     HlsSynthesisChecksTC,
     TwoTimesA_TC,
     HlsStreamMachineTrivial_TC,

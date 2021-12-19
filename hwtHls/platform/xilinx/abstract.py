@@ -7,7 +7,7 @@ from hwtHls.allocator.allocator import HlsAllocator
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.platform.virtual import _OPS_T_ZERO_LATENCY, DEFAULT_SSA_PASSES, \
     DEFAULT_HLSNETLIST_PASSES, DEFAULT_RTLNETLIST_PASSES
-from hwtHls.scheduler.list_schedueling import ListSchedueler
+from hwtHls.scheduler.scheduler import HlsScheduler
 
 
 class AbstractXilinxPlatform(DummyPlatform):
@@ -17,7 +17,7 @@ class AbstractXilinxPlatform(DummyPlatform):
     """
 
     def __init__(self, allocator=HlsAllocator,
-                 scheduler=ListSchedueler,
+                 scheduler=HlsScheduler,
                  ssa_passes=DEFAULT_SSA_PASSES,
                  hlsnetlist_passes=DEFAULT_HLSNETLIST_PASSES,
                  rtlnetlist_passes=DEFAULT_RTLNETLIST_PASSES
