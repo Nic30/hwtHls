@@ -10,7 +10,7 @@ from hwtHls.allocator.allocator import HlsAllocator
 from hwtHls.ssa.translation.fromLlvm import SsaPassFromLlvm
 from hwtHls.ssa.translation.toLlvm import SsaPassToLlvm
 from hwtHls.netlist.toGraphwiz import HlsNetlistPassDumpToDot
-from hwtHls.netlist.toTimeline import RtlNetlistPassShowTimeline
+from hwtHls.netlist.toTimeline import HlsNetlistPassShowTimeline
 from hwtHls.netlist.transformations.hlsNetlistPass import HlsNetlistPass
 from hwtHls.netlist.transformations.mergeExplicitSync import HlsNetlistPassMergeExplicitSync
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
@@ -106,9 +106,9 @@ def makeDebugPasses(debug_file_directory: Union[str, Path]):
             #HlsNetlistPassDumpToDot(debug_file_directory / "top_p0.dot"),
             HlsNetlistPassMergeExplicitSync(),
             #HlsNetlistPassDumpToDot(debug_file_directory / "top_p1.dot"),
+            HlsNetlistPassShowTimeline(debug_file_directory / "top.schedule.html"),
         ],
         "rtlnetlist_passes":[
-            RtlNetlistPassShowTimeline(debug_file_directory / "top.schedule.html"),
             RtlNetlistPassDumpStreamNodes(open(debug_file_directory / "top.sync.txt", "w"), close=True)
         ],
 

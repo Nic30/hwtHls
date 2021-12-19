@@ -12,6 +12,7 @@ from hwtHls.netlist.nodes.io import HlsWrite, HlsRead, HlsExplicitSyncNode
 from hwtHls.netlist.nodes.ops import AbstractHlsOp, HlsOperation, HlsConst
 from hwtHls.netlist.transformations.rtlNetlistPass import RtlNetlistPass
 from hwtHls.ssa.translation.toHwtHlsNetlist.nodes.backwardEdge import HlsWriteBackwardEdge
+from hwtHls.netlist.transformations.hlsNetlistPass import HlsNetlistPass
 
 
 # [todo] pandas is overkill in this case, rm, plotly does not have it as dependencies
@@ -249,13 +250,16 @@ class HwtHlsNetlistToTimeline():
         plotly.offline.plot(fig, filename=filename, auto_open=auto_open, config={"scrollZoom":True})
 
 
-class RtlNetlistPassShowTimeline(RtlNetlistPass):
+class HlsNetlistPassShowTimeline(HlsNetlistPass):
 
     def __init__(self, filename:Optional[str]=None, auto_open=False):
         self.filename = filename
         self.auto_open = auto_open
 
     def apply(self, hls: "HlsStreamProc", to_hw: "SsaSegmentToHwPipeline"):
+        if not to_hw.is_scheduled:
+            to_hw.schedulerRun()
+
         to_timeline = HwtHlsNetlistToTimeline(to_hw.hls.clk_period)
         to_timeline.construct(to_hw.hls.inputs + to_hw.hls.nodes + to_hw.hls.outputs)
         if self.filename is not None:
