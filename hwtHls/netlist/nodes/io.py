@@ -1,6 +1,7 @@
-from typing import Union, Optional
+from typing import Union, Optional, List
 
 from hwt.doc_markers import internal
+from hwt.hdl.types.defs import BIT
 from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.interfaces.std import Signal, HandshakeSync, Handshaked, VldSynced, \
     RdSynced
@@ -11,16 +12,16 @@ from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResourceItem, \
     TimeIndependentRtlResource
-from hwtHls.clk_math import epsilon
+from hwtHls.clk_math import epsilon, start_of_next_clk_period, start_clk
 from hwtHls.netlist.nodes.ops import AbstractHlsOp
 from hwtHls.netlist.nodes.ports import HlsOperationIn, HlsOperationOut, \
     link_hls_nodes, HlsOperationOutLazy, HlsOperationOutLazyIndirect
+from hwtHls.netlist.utils import hls_op_and, hls_op_or
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.ssa.translation.toHwtHlsNetlist.opCache import SsaToHwtHlsNetlistOpCache
 from hwtHls.ssa.value import SsaValue
-from hwtHls.netlist.utils import hls_op_and, hls_op_or
-from hwt.hdl.types.defs import BIT
 from hwtLib.amba.axis import AxiStream
+
 
 IO_COMB_REALIZATION = OpRealizationMeta(latency_post=epsilon)
 
@@ -309,7 +310,33 @@ class HlsWrite(HlsExplicitSyncNode):
         self.dst = dst
 
         self.indexes = indexCascade
+        self.maxIosPerClk = 1
 
+    def scheduleAsap(self, clk_period: float, pathForDebug: Optional[UniqList["AbstractHlsOp"]]) -> List[float]:
+        assert self.dependsOn, self
+        AbstractHlsOp.scheduleAsap(self, clk_period, pathForDebug)
+        otherIoOps = self.hls.io_by_interface[self.dst]
+
+        while True:
+            curClk = start_clk(self.asap_start[0], clk_period)
+            iosInThisClk = 0
+            for io in otherIoOps:
+                assert isinstance(io, HlsWrite), (io, "This IO port supports only write")
+                end = io.asap_end
+                if end is not None:
+                    c = start_clk(io.asap_start[0], clk_period)
+                    if c == curClk:
+                        iosInThisClk += 1
+    
+            if iosInThisClk > self.maxIosPerClk:
+                # move to next clock cycle
+                self.asap_start = tuple(t + clk_period for t in self.asap_start)
+                self.asap_end = tuple(t + clk_period for t in self.asap_end)
+            else:
+                break
+            
+        return self.asap_end
+        
     def allocate_instance(self,
                           allocator: "HlsAllocator",
                           used_signals: UniqList[TimeIndependentRtlResourceItem]

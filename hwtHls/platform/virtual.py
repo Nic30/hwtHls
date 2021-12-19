@@ -14,7 +14,6 @@ from hwtHls.netlist.toTimeline import HlsNetlistPassShowTimeline
 from hwtHls.netlist.transformations.hlsNetlistPass import HlsNetlistPass
 from hwtHls.netlist.transformations.mergeExplicitSync import HlsNetlistPassMergeExplicitSync
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
-from hwtHls.scheduler.list_schedueling import ListSchedueler
 from hwtHls.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
 from hwtHls.ssa.instr import OP_ASSIGN
 from hwtHls.ssa.transformation.extractPartDrivers import SsaPassExtractPartDrivers
@@ -25,6 +24,7 @@ from hwtHls.ssa.translation.toGraphwiz import SsaPassDumpToDot
 from hwtHls.ssa.translation.toLl import SsaPassDumpToLl
 from hwtHls.netlist.dumpStreamNodes import RtlNetlistPassDumpStreamNodes
 from hwtHls.ssa.analysis.dumpPipelines import SsaPassDumpPipelines
+from hwtHls.scheduler.scheduler import HlsScheduler
 
 _OPS_T_GROWING_EXP = {
     AllOps.DIV,
@@ -123,7 +123,7 @@ class VirtualHlsPlatform(DummyPlatform):
     :note: latencies like in average 28nm FPGA
     """
 
-    def __init__(self, allocator=HlsAllocator, scheduler=ListSchedueler,
+    def __init__(self, allocator=HlsAllocator, scheduler=HlsScheduler,
                  ssa_passes:Optional[List[SsaPass]]=DEFAULT_SSA_PASSES,
                  hlsnetlist_passes: Optional[List[HlsNetlistPass]]=DEFAULT_HLSNETLIST_PASSES,
                  rtlnetlist_passes=DEFAULT_RTLNETLIST_PASSES,

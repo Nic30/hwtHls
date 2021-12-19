@@ -1,5 +1,5 @@
-from itertools import chain
-from math import ceil
+from itertools import chain, zip_longest
+from math import ceil, inf
 from typing import Dict, Tuple
 
 from hwtHls.clk_math import start_clk
@@ -19,7 +19,7 @@ class HlsScheduler():
         :pram sched: dict {node: (startTime, endTime)}
         """
         clk_period = self.parentHls.clk_period
-        maxTime = max(map(lambda x: x[1], sched.values()))
+        maxTime = max(sched.values())
 
         if maxTime == 0:
             clk_count = 1
@@ -38,12 +38,12 @@ class HlsScheduler():
                 assert isinstance(node, AbstractHlsOp), node
                 time_start = []
                 for i in node._inputs:
-                    s, _ = sched[i]
+                    s = sched[i]
                     time_start.append(s)
 
                 time_end = []
                 for o in node._outputs:
-                    _, e = sched[o]
+                    e = sched[o]
                     time_end.append(e)
 
                 # assert (time_start is not None
@@ -77,12 +77,9 @@ class HlsScheduler():
 
         self.schedulization = schedulization
 
-    def schedule(self, resource_constrain):
-        if resource_constrain:
-            raise NotImplementedError("This scheduler does not support resource constraints")
-
+    def schedule(self):
         hls = self.parentHls
-        for n in hls.nodes:
+        for n in chain(hls.inputs, hls.nodes, hls.outputs):
             n.resolve_realization()
             for in_delay in n.latency_pre:
                 if in_delay >= hls.clk_period:
@@ -91,13 +88,14 @@ class HlsScheduler():
                         n.latency_pre, n.latency_post, n)
             if not hasattr(n, "latency_pre"):
                 raise AssertionError("Missing timing info", n, n.usedBy)
-        asap(hls.outputs, hls.clk_period)
-        # alap(hls.outputs, hls.clk_period)
-
-        sched = {
-            n: (min(n.alap_start[0], n.alap_end[0]),
-                     max(n.alap_start[0], n.alap_end[0]))
-            for n in hls.nodes
-        }
+        asap(chain(hls.outputs, hls.nodes, hls.inputs), hls.clk_period)
+        
+        sched = {}
+        for n in chain(hls.inputs, hls.nodes, hls.outputs):
+            n: AbstractHlsOp
+            for t, i in zip_longest(n.asap_start, n._inputs):
+                sched[i] = t
+            for t, o in zip_longest(n.asap_end, n._outputs):
+                sched[o] = t
 
         self.apply_scheduelization_dict(sched)

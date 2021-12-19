@@ -46,7 +46,6 @@ class HlsPipeline():
 
     def __init__(self, parentUnit: Unit,
                  freq: Union[float, int],
-                 resource_constrain=None,
                  allow_io_aggregation=False,
                  coherency_checked_io:Optional[UniqList[Interface]]=None):
         """
@@ -59,7 +58,6 @@ class HlsPipeline():
             raise ValueError("HLS requires platform to be specified")
 
         self.clk_period = 1 / int(freq)
-        self.resource_constrain = resource_constrain
         self.inputs: List[HlsRead] = []
         self.outputs: List[HlsWrite] = []
         self.io_by_interface: Dict[Interface, List[Union[HlsRead, HlsWrite]]] = {}
@@ -95,7 +93,7 @@ class HlsPipeline():
                 op_list = io_by_interface[op.dst] = []
             op_list.append(op)
 
-        self.scheduler.schedule(self.resource_constrain)
+        self.scheduler.schedule()
 
     def synthesise(self):
         self.allocator.allocate()
