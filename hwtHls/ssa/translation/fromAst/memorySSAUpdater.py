@@ -160,9 +160,11 @@ class MemorySSAUpdater():
         users = [use for use in phi.users if use is not phi]  # Remember all users except the phi itself
         phi.replaceUseBy(same)  # Reroute all uses of phi to same and remove phi
         phi.block.phis.remove(phi)
+        phi.block = None
         # Try to recursively remove all phi users, which might have become trivial
         for use in users:
-            if isinstance(use, SsaPhi):
+            if isinstance(use, SsaPhi) and use.block is not None:
+                # potentially could be already removed
                 self.tryRemoveTrivialPhi(use)
 
         return same
