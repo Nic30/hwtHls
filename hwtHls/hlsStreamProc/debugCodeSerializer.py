@@ -2,6 +2,7 @@ from collections import defaultdict
 from typing import List, Dict, Set
 
 from hdlConvertorAst.hdlAst import HdlStmWhile, HdlValueId, HdlStmIf
+from hdlConvertorAst.hdlAst._statements import HdlStmBreak, HdlStmContinue
 from hdlConvertorAst.translate.verilog_to_basic_hdl_sim_model.utils import hdl_call, \
     hdl_getattr
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
@@ -10,8 +11,10 @@ from hwt.hdl.statements.statement import HdlStatement
 from hwt.serializer.hwt import HwtDebugSerializer, ToHdlAstDebugHwt
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwtHls.hlsStreamProc.statements import HlsStreamProcWhile, \
-    HlsStreamProcCodeBlock, HlsStreamProcWrite, HlsStreamProcIf
+    HlsStreamProcCodeBlock, HlsStreamProcWrite, HlsStreamProcIf, \
+    HlsStreamProcBreak, HlsStreamProcContinue
 from hwtHls.ssa.basicBlock import SsaBasicBlock
+from hdlConvertorAst.hdlAst._bases import iHdlStatement
 
 
 class ToHdlAstHlsStreamProcDebugCode(ToHdlAstDebugHwt):
@@ -20,11 +23,17 @@ class ToHdlAstHlsStreamProcDebugCode(ToHdlAstDebugHwt):
         if src.__doc__ != src.__class__.__doc__:
             dst.doc = " " + src.__doc__
 
+    def as_hdl_statements(self, stm_list) -> iHdlStatement:
+        res = ToHdlAstDebugHwt.as_hdl_statements(self, stm_list)
+        if res is not None:
+            res.in_preproc = True
+        return res
+        
     def as_hdl_HlsStreamProcCodeBlock(self, o: HlsStreamProcCodeBlock):
         return self.as_hdl_HdlStmCodeBlockContainer(o)
 
     def as_hdl_HlsStreamProcIf(self, o: HlsStreamProcIf):
-        return self.as_hdl_IfContainer(o)
+        return self.as_hdl_If(o)
 
     def as_hdl_HlsStreamProcWhile(self, o: HlsStreamProcWhile):
         res = HdlStmWhile()
@@ -34,6 +43,16 @@ class ToHdlAstHlsStreamProcDebugCode(ToHdlAstDebugHwt):
         res.body = self.as_hdl_statements((o.body))
         if isinstance(res.body, HdlStatement):
             res.body.in_preproc = True
+        return res
+
+    def as_hdl_HlsStreamProcBreak(self, o: HlsStreamProcBreak):
+        res = HdlStmBreak()
+        res.in_preproc = True
+        return res
+
+    def as_hdl_HlsStreamProcContinue(self, o: HlsStreamProcContinue):
+        res = HdlStmContinue()
+        res.in_preproc = True
         return res
 
     def as_hdl_If(self, o: IfContainer) -> HdlStmIf:
