@@ -15,10 +15,7 @@ jobs:
             sudo apt update
             sudo apt install build-essential python3-dev llvm-12-dev -y
       # - python/load-cache
-      - py/install-package-git:
-          cwd: ..
-          url: https://github.com/Nic30/hwtHls
-      #- py/install-setup-py
+      - py/install-setup-py
       # - python/save-cache
       - py/test-and-coverage
       - py/deploy-pypi-on-tag:
