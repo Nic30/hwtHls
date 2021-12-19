@@ -48,6 +48,7 @@ coverage.xml
 *.dot
 *.html
 *.vcd
+hwtHls/tests/tmp
 
 # Translations
 *.mo
