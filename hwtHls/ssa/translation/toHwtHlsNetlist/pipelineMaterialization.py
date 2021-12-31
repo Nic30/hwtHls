@@ -77,4 +77,4 @@ class SsaSegmentToHwPipeline():
         self.hls.schedule()
 
     def construct_rtlnetlist(self):
-        self.hls.synthesise()
+        self.hls.allocate()

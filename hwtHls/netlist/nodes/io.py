@@ -21,7 +21,7 @@ from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.ssa.translation.toHwtHlsNetlist.opCache import SsaToHwtHlsNetlistOpCache
 from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axis import AxiStream
-
+from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
 
 IO_COMB_REALIZATION = OpRealizationMeta(latency_post=epsilon)
 
@@ -130,6 +130,7 @@ class HlsExplicitSyncNode(AbstractHlsOp):
         Prepend the synchronization to an operation output representing variable.
         """
         self = cls(parentHls)
+        parentHls.nodes.append(self)
         o = self._outputs[0]
         link_hls_nodes(var, self._inputs[0])
         assert to_hls_cache._to_hls_cache[cache_key] is var, (cache_key, to_hls_cache._to_hls_cache[cache_key], var)
@@ -165,6 +166,7 @@ class HlsRead(HlsExplicitSyncNode, InterfaceBase):
 
         self.operator = "read"
         self.src = src
+        self.maxIosPerClk = 1
 
     def allocate_instance(self,
                           allocator: "HlsAllocator",
@@ -181,7 +183,7 @@ class HlsRead(HlsExplicitSyncNode, InterfaceBase):
 
         _o = TimeIndependentRtlResource(
             self.getRtlDataSig(),
-            self.scheduledInEnd[0],
+            self.scheduledOut[0],
             allocator)
         allocator._registerSignal(r_out, _o, used_signals)
         for sync in self.dependsOn:
@@ -191,6 +193,30 @@ class HlsRead(HlsExplicitSyncNode, InterfaceBase):
             allocator.instantiateHlsOperationOut(sync, used_signals)
 
         return _o
+
+    def scheduleAsap(self, clk_period: float, pathForDebug: Optional[UniqList["AbstractHlsOp"]]) -> List[float]:
+        AbstractHlsOp.scheduleAsap(self, clk_period, pathForDebug)
+        otherIoOps = self.hls.requestAnalysis(HlsNetlistAnalysisPassDiscoverIo).io_by_interface[self.src]
+
+        while True:
+            curClk = start_clk(self.asap_start[0], clk_period)
+            iosInThisClk = 0
+            for io in otherIoOps:
+                end = io.asap_end
+                if end is not None:
+                    c = start_clk(io.asap_start[0], clk_period)
+                    if c == curClk:
+                        iosInThisClk += 1
+    
+            if iosInThisClk > self.maxIosPerClk:
+                # move to next clock cycle
+                off = start_of_next_clk_period(self.asap_start[0], clk_period) - self.asap_start[0]
+                self.asap_start = tuple(t + off for t in self.asap_start)
+                self.asap_end = tuple(t + off for t in self.asap_end)
+            else:
+                break
+            
+        return self.asap_end
 
     def getRtlDataSig(self):
         src = self.src
@@ -242,7 +268,7 @@ class HlsReadSync(AbstractHlsOp, InterfaceBase):
 
         _o = TimeIndependentRtlResource(
             self.getRtlControlEn(),
-            self.scheduledInEnd[0],
+            self.scheduledOut[0],
             allocator)
         allocator._registerSignal(r_out, _o, used_signals)
 
@@ -313,15 +339,16 @@ class HlsWrite(HlsExplicitSyncNode):
         self.maxIosPerClk = 1
 
     def scheduleAsap(self, clk_period: float, pathForDebug: Optional[UniqList["AbstractHlsOp"]]) -> List[float]:
+        # [todo] duplicit code with HlsRead
+        # [todo] mv to scheduler as the generic resource constraint
         assert self.dependsOn, self
         AbstractHlsOp.scheduleAsap(self, clk_period, pathForDebug)
-        otherIoOps = self.hls.io_by_interface[self.dst]
+        otherIoOps = self.hls.requestAnalysis(HlsNetlistAnalysisPassDiscoverIo).io_by_interface[self.dst]
 
         while True:
             curClk = start_clk(self.asap_start[0], clk_period)
             iosInThisClk = 0
             for io in otherIoOps:
-                assert isinstance(io, HlsWrite), (io, "This IO port supports only write")
                 end = io.asap_end
                 if end is not None:
                     c = start_clk(io.asap_start[0], clk_period)
@@ -330,8 +357,9 @@ class HlsWrite(HlsExplicitSyncNode):
     
             if iosInThisClk > self.maxIosPerClk:
                 # move to next clock cycle
-                self.asap_start = tuple(t + clk_period for t in self.asap_start)
-                self.asap_end = tuple(t + clk_period for t in self.asap_end)
+                off = start_of_next_clk_period(self.asap_start[0], clk_period) - self.asap_start[0]
+                self.asap_start = tuple(t + off for t in self.asap_start)
+                self.asap_end = tuple(t + off for t in self.asap_end)
             else:
                 break
             
@@ -356,8 +384,6 @@ class HlsWrite(HlsExplicitSyncNode):
 
         # apply indexes before assignments
         dst = self.dst
-        # translate HlsIo object to signal
-        dst = allocator.parentHls._io.get(dst, dst)
         _dst = dst
         if isinstance(dst, HsStructIntf):
             dst = dst.data
@@ -371,7 +397,7 @@ class HlsWrite(HlsExplicitSyncNode):
         except KeyError:
             pass
 
-        _o = _o.get(dep.obj.scheduledInEnd[0])
+        _o = _o.get(dep.obj.scheduledOut[0])
 
         rtlObj = dst(_o.data)
         # allocator.node2instance[o] = rtlObj

@@ -1,21 +1,20 @@
 from typing import List, Tuple, Optional, Union
 
+from hwt.code import If, Or
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource, \
     TimeIndependentRtlResourceItem
 from hwtHls.clk_math import epsilon
 from hwtHls.hlsPipeline import HlsPipeline
-from hwtHls.netlist.nodes.io import HlsExplicitSyncNode, IO_COMB_REALIZATION, \
-    HlsReadSync
+from hwtHls.netlist.nodes.io import HlsExplicitSyncNode, IO_COMB_REALIZATION
 from hwtHls.netlist.nodes.ops import AbstractHlsOp
 from hwtHls.netlist.nodes.ports import HlsOperationOut, link_hls_nodes, HlsOperationOutLazy
-from hwtHls.netlist.utils import hls_op_not, hls_op_and_variadic
+from hwtHls.netlist.utils import hls_op_not
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.branchControlLabel import BranchControlLabel
 from hwtHls.ssa.translation.toHwtHlsNetlist.opCache import SsaToHwtHlsNetlistOpCache
 from hwtHls.ssa.translation.toHwtHlsNetlist.syncAndIo import SsaToHwtHlsNetlistSyncAndIo
 from ipCorePackager.constants import INTF_DIRECTION
-from hwt.code import If, Or
 
 
 class HlsLoopGateStatus(AbstractHlsOp):
@@ -43,7 +42,7 @@ class HlsLoopGateStatus(AbstractHlsOp):
         status_reg = allocator._reg(name if name else "loop_gate_status", def_val=0)
 
         # create RTL signal expression base on operator type
-        t = self.scheduledInEnd[0] + epsilon
+        t = self.scheduledOut[0] + epsilon
         status_reg_s = TimeIndependentRtlResource(status_reg, t, allocator)
         allocator._registerSignal(op_out, status_reg_s, used_signals)
 
@@ -149,6 +148,7 @@ class HlsLoopGate(AbstractHlsOp):
         # Mark all inputs from predec as not required and stalled while we do not have sync token ready.
         # Mark all inputs from reenter as not required and stalled while we have a sync token ready.
         nodes.append(self._sync_token_status)
+        nodes.append(self)
         for pred in block.predecessors:
             is_reenter = (pred, block) in io.out_of_pipeline_edges
             en = self._sync_token_status._outputs[0]
@@ -186,9 +186,9 @@ class HlsLoopGate(AbstractHlsOp):
 
     def _finalizeConnnections(self):
         pass
-        #if self.from_predec:
+        # if self.from_predec:
         #    raise NotImplementedError()
-        #if self.from_break:
+        # if self.from_break:
         #    raise NotImplementedError()
 
         # allow to execute loop with just a single value from reenter
@@ -250,6 +250,14 @@ class HlsLoopGate(AbstractHlsOp):
         :note: the loop may not end this implies that this may not be used at all
         """
         raise NotImplementedError()
+
+    def resolve_realization(self):
+        self.assignRealization(IO_COMB_REALIZATION)
+
+    def allocate_instance(self,
+            allocator:"HlsAllocator",
+            used_signals:UniqList[TimeIndependentRtlResourceItem]):
+        pass
 
 
 class HlsLoopGateInputRef():

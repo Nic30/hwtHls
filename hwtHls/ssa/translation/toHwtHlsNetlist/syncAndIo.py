@@ -194,7 +194,6 @@ class SsaToHwtHlsNetlistSyncAndIo():
         u:Unit = self.hls.parentUnit
         name = AbstractComponentBuilder(u, None, "hls")._findSuitableName(suggested_name)
         setattr(u, name, intf)
-        self.hls._io[intf] = intf
         return intf
 
     def _write_to_io(self, intf: Interface,
@@ -207,7 +206,6 @@ class SsaToHwtHlsNetlistSyncAndIo():
         if self.parent._current_block is not None and intf in self._out_of_hls_io:
             self.parent._add_block_en_to_control_if_required(write)
 
-        self.hls._io[intf] = intf
         link_hls_nodes(val, write._inputs[0])
         self.outputs.append(write)
 
