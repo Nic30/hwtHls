@@ -7,19 +7,19 @@ from hwt.interfaces.std import Signal, HandshakeSync
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import Interface_without_registration
 from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
+from hwtHls.allocator.architecturalElement import AllocatorArchitecturalElement
 from hwtHls.allocator.connectionsOfStage import ConnectionsOfStage, resolveStrongestSyncType
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.io import HlsRead, HlsWrite
 from hwtHls.netlist.nodes.ops import AbstractHlsOp
 
 
-class PipelineContainer():
+class PipelineContainer(AllocatorArchitecturalElement):
 
     def __init__(self, allocator: "HlsAllocator", stages: List[List[AbstractHlsOp]],
                  io_by_interface: Dict[Interface, List[Union["HlsRead", "HlsWrite"]]]):
-        self.allocator = allocator
+        AllocatorArchitecturalElement.__init__(self, allocator)
         self.stages = stages
-        self.connections: List[ConnectionsOfStage] = []
         self.io_by_interface = io_by_interface
 
     def allocateDataPath(self):

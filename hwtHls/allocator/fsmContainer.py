@@ -1,4 +1,4 @@
-from typing import List, Set, Tuple
+from typing import List, Set, Tuple, Dict
 
 from hwt.code import SwitchLogic, Switch
 from hwt.hdl.statements.statement import HdlStatement
@@ -7,6 +7,7 @@ from hwt.interfaces.std import Signal
 from hwt.math import log2ceil
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.allocator.allocator import ConnectionsOfStage
+from hwtHls.allocator.architecturalElement import AllocatorArchitecturalElement
 from hwtHls.allocator.connectionsOfStage import getIntfSyncSignals, \
     setNopValIfNotSet
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
@@ -15,13 +16,12 @@ from hwtHls.netlist.analysis.fsm import IoFsm
 from hwtHls.netlist.nodes.io import HlsWrite, HlsRead
 
 
-class FsmContainer():
+class FsmContainer(AllocatorArchitecturalElement):
 
     def __init__(self, allocator: "HlsAllocator", fsm: IoFsm):
-        self.allocator = allocator
+        AllocatorArchitecturalElement.__init__(self, allocator)
         self.fsm = fsm
-        self.connections: List[ConnectionsOfStage] = []
-    
+
     def _initNopValsOfIo(self):
         # initialize nop value which will drive the IO when not used
         for nodes in self.fsm.states:
