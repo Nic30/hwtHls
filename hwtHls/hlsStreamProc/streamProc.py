@@ -21,6 +21,7 @@ from hwtHls.hlsStreamProc.statements import HlsStreamProcRead, \
     HlsStreamProcIf, HlsStreamProcStm, HlsStreamProcFor, HlsStreamProcBreak, \
     HlsStreamProcContinue
 from hwtHls.netlist.transformations.hlsNetlistPass import HlsNetlistPass
+from hwtHls.netlist.transformations.rtlNetlistPass import RtlNetlistPass
 from hwtHls.ssa.context import SsaContext
 from hwtHls.ssa.transformation.ssaPass import SsaPass
 from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa, AnyStm
@@ -32,20 +33,15 @@ class HlsStreamProc():
     """
     A HLS synthetizer with support for loops and packet level operations
 
-    * code -> SSA
-    * packet level ops -> word ops
-    * SSA optimizations
-    * pipeline extraction
-    * hls netlist optimization before scheduling
-    * scheduling and materialization of pipelines
-    * materialization of inter pipeline synchronization
-    * rtl netlist optimizations
+    * code -> SSA -> HLS netlist -> RTL netlist
+
+    :ivar ctx: a RTL context for a signals used in input code
     """
 
     def __init__(self, parentUnit: Unit,
                  ssa_passes:Optional[List[SsaPass]]=None,
                  hlsnetlist_passes:Optional[List[HlsNetlistPass]]=None,
-                 rtlnetlist_passes:Optional[list]=None,
+                 rtlnetlist_passes:Optional[List[RtlNetlistPass]]=None,
                  freq: Optional[Union[int, float]]=None):
         """
         :note: ssa_passes, hlsnetlist_passes, rtlnetlist_passes parameters are meant as an onverrride to specification from target platform

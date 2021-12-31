@@ -78,7 +78,7 @@ class SsaToHwtHlsNetlist():
         m = self._blockMeta[block]
         for pred in block.predecessors:
             if (pred, block) in self.io.out_of_pipeline_edges:
-                self.io.init_out_of_pipeline_variables(pred, block,self._blockMeta[pred].needsControl and m.needsControl)
+                self.io.init_out_of_pipeline_variables(pred, block, self._blockMeta[pred].needsControl and m.needsControl)
 
     def finalize_out_of_pipeline_variables(self, blocks: Sequence[SsaBasicBlock]):
         assert self._current_block is None
@@ -236,7 +236,7 @@ class SsaToHwtHlsNetlist():
         # [todo] check if does not lead to a deadlock if there is only as single predecessor
         # and the predecessor block has some extrenal io
         for pred in block.predecessors:
-            #if self._blockMeta[pred].needsControl:
+            # if self._blockMeta[pred].needsControl:
             en = self._to_hls_cache.get(BranchControlLabel(pred, block, INTF_DIRECTION.SLAVE))
             en_from_pred.append(en)
 
