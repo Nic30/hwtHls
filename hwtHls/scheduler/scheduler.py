@@ -1,5 +1,5 @@
 from itertools import chain, zip_longest
-from math import ceil, inf
+from math import ceil
 from typing import Dict, Tuple
 
 from hwtHls.clk_math import start_clk
@@ -8,9 +8,11 @@ from hwtHls.scheduler.asap import asap
 from hwtHls.scheduler.errors import TimeConstraintError
 
 
-# from hwtHls.scheduler.alap import alap
 class HlsScheduler():
-
+    """
+    A class which holds the 
+    """
+    
     def __init__(self, parentHls: "HlsPipeline"):
         self.parentHls = parentHls
 
@@ -36,15 +38,8 @@ class HlsScheduler():
                 continue
             else:
                 assert isinstance(node, AbstractHlsOp), node
-                time_start = []
-                for i in node._inputs:
-                    s = sched[i]
-                    time_start.append(s)
-
-                time_end = []
-                for o in node._outputs:
-                    e = sched[o]
-                    time_end.append(e)
+                time_start = tuple(sched[i] for i in node._inputs)
+                time_end = tuple(sched[o] for o in node._outputs)
 
                 # assert (time_start is not None
                 #        and time_start >= 0
@@ -57,18 +52,18 @@ class HlsScheduler():
 
             schedulization[clk_index].append(node)
             node.scheduledIn = time_start
-            node.scheduledInEnd = time_end
-            # assert node.scheduledIn <= node.scheduledInEnd
+            node.scheduledOut = time_end
+            # assert node.scheduledIn <= node.scheduledOut
 
         for node in constants:
             node: AbstractHlsOp
             # [TODO] constants are cheduled multiple times
             parent = node.usedBy[0]
             p_input = parent[0]
-            node.scheduledInEnd = node.scheduledIn = [
+            node.scheduledOut = node.scheduledIn = [
                 p_input.obj.scheduledIn[p_input.in_i], ]
 
-            time_start, _ = node.scheduledIn, node.scheduledInEnd
+            time_start, _ = node.scheduledIn, node.scheduledOut
             clk_index = start_clk(time_start[0], clk_period)
             schedulization[clk_index].append(node)
 

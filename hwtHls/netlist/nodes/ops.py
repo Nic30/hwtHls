@@ -28,7 +28,7 @@ class AbstractHlsOp():
     :ivar alap_start: scheduled time of start of operation using ALAP scheduler for each input
     :ivar alap_end: scheduled time of end of operation using ALAP scheduler for each output
     :ivar scheduledIn: final scheduled time of start of operation for each input
-    :ivar scheduledInEnd: final scheduled time of end of operation for each output
+    :ivar scheduledOut: final scheduled time of end of operation for each output
 
     :attention: inputs must be soted 1st must have lowest latency
 
@@ -61,7 +61,7 @@ class AbstractHlsOp():
         # True if scheduled to specific time
         self.fixed_schedulation = False
         self.scheduledIn: Optional[TimeSpec] = None
-        self.scheduledInEnd: Optional[TimeSpec] = None
+        self.scheduledOut: Optional[TimeSpec] = None
 
     def scheduleAsap(self, clk_period: float, pathForDebug: Optional[UniqList["AbstractHlsOp"]]) -> List[float]:
         """
@@ -158,6 +158,12 @@ class AbstractHlsOp():
         return self
 
     def resolve_realization(self):
+        raise NotImplementedError(
+            "Override this method in derived class", self)
+
+    def allocate_instance(self,
+            allocator:"HlsAllocator",
+            used_signals:UniqList[TimeIndependentRtlResourceItem]):
         raise NotImplementedError(
             "Override this method in derived class", self)
 
@@ -309,7 +315,7 @@ class HlsOperation(AbstractHlsOp):
 
         else:
             # create RTL signal expression base on operator type
-            t = self.scheduledInEnd[0] + epsilon
+            t = self.scheduledOut[0] + epsilon
             if s.hasGenericName:
                 if self.name is not None:
                     s.name = self.name

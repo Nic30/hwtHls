@@ -34,7 +34,7 @@ class HlsMux(HlsOperation):
         assert self.elifs, ("Mux has to have operands", self)
         name = self.name
         mux_out_s = allocator._sig(name, self.elifs[0][1].obj.instantiateHlsOperationInTime(
-            allocator, self.scheduledInEnd[0], used_signals).data._dtype)
+            allocator, self.scheduledOut[0], used_signals).data._dtype)
         mux_top = None
         for elif_i, (c, v) in enumerate(self.elifs):
             if c is not None:
@@ -53,7 +53,7 @@ class HlsMux(HlsOperation):
                 mux_top.Else(mux_out_s(v.data))
 
         # create RTL signal expression base on operator type
-        t = self.scheduledInEnd[0] + epsilon
+        t = self.scheduledOut[0] + epsilon
         mux_out_s = TimeIndependentRtlResource(mux_out_s, t, allocator)
         allocator._registerSignal(op_out, mux_out_s, used_signals)
         return mux_out_s

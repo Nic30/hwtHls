@@ -36,7 +36,7 @@ class HlsProgramStarter(AbstractHlsOp):
         starter_reg(0)
 
         # create RTL signal expression base on operator type
-        t = self.scheduledInEnd[0] + epsilon
+        t = self.scheduledOut[0] + epsilon
         status_reg_s = TimeIndependentRtlResource(starter_reg, t, allocator)
         allocator._registerSignal(op_out, status_reg_s, used_signals)
         return status_reg_s

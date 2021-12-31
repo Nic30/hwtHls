@@ -46,7 +46,7 @@ class HlsWriteBackwardEdge(HlsWrite):
         src_write = self
         dst_read: HlsReadBackwardEdge = self.associated_read
         assert dst_read is not None
-        dst_t = dst_read.scheduledInEnd[0]
+        dst_t = dst_read.scheduledOut[0]
         src_t = src_write.scheduledIn[0]
         assert dst_t <= src_t, ("This was supposed to be backward edge", src_write, dst_read)
         # 1 register at minimum, because we need to break a comibnational path

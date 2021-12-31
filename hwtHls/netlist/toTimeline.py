@@ -36,10 +36,10 @@ class HwtHlsNetlistToTimeline():
             if obj.scheduledIn:
                 start = min(obj.scheduledIn)
             else:
-                start = max(obj.scheduledInEnd)
+                start = max(obj.scheduledOut)
 
-            if obj.scheduledInEnd:
-                finish = max(obj.scheduledInEnd)
+            if obj.scheduledOut:
+                finish = max(obj.scheduledOut)
             else:
                 finish = start
 
