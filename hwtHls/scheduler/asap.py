@@ -1,15 +1,10 @@
-from typing import List, Optional
+from typing import List
 
-from hwtHls.clk_math import start_of_next_clk_period
-from hwtHls.netlist.nodes.io import HlsWrite
-from hwtHls.netlist.nodes.ops import AbstractHlsOp
 from hwt.pyUtils.uniqList import UniqList
+from hwtHls.netlist.nodes.ops import AbstractHlsOp
 
 
-
-
-
-def asap(outputs: List[HlsWrite], clk_period: float):
+def asap(nodes: List[AbstractHlsOp], clk_period: float):
     """
     As Soon As Possible scheduler
     * The graph must not contain cycles.
@@ -17,7 +12,7 @@ def asap(outputs: List[HlsWrite], clk_period: float):
     """
     try:
         # normal run without checking for cycles
-        for o in outputs:
+        for o in nodes:
             o.scheduleAsap(clk_period, None)
         return
     except RecursionError:
@@ -25,6 +20,6 @@ def asap(outputs: List[HlsWrite], clk_period: float):
 
     # debug run which will raise an exception containing cycle node ids
     path = UniqList()
-    for o in outputs:
+    for o in nodes:
         o.scheduleAsap(clk_period, path)
 
