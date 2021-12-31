@@ -2,6 +2,7 @@ from collections import defaultdict
 from typing import List, Dict, Set
 
 from hdlConvertorAst.hdlAst import HdlStmWhile, HdlValueId, HdlStmIf
+from hdlConvertorAst.hdlAst._bases import iHdlStatement
 from hdlConvertorAst.hdlAst._statements import HdlStmBreak, HdlStmContinue
 from hdlConvertorAst.translate.verilog_to_basic_hdl_sim_model.utils import hdl_call, \
     hdl_getattr
@@ -14,7 +15,6 @@ from hwtHls.hlsStreamProc.statements import HlsStreamProcWhile, \
     HlsStreamProcCodeBlock, HlsStreamProcWrite, HlsStreamProcIf, \
     HlsStreamProcBreak, HlsStreamProcContinue
 from hwtHls.ssa.basicBlock import SsaBasicBlock
-from hdlConvertorAst.hdlAst._bases import iHdlStatement
 
 
 class ToHdlAstHlsStreamProcDebugCode(ToHdlAstDebugHwt):
@@ -25,7 +25,7 @@ class ToHdlAstHlsStreamProcDebugCode(ToHdlAstDebugHwt):
 
     def as_hdl_statements(self, stm_list) -> iHdlStatement:
         res = ToHdlAstDebugHwt.as_hdl_statements(self, stm_list)
-        if res is not None:
+        if res is not None and hasattr(res, "in_preproc"):
             res.in_preproc = True
         return res
         
