@@ -1,4 +1,4 @@
-from typing import List, Set, Tuple, Dict
+from typing import List, Set, Tuple
 
 from hwt.code import SwitchLogic, Switch
 from hwt.hdl.statements.statement import HdlStatement
@@ -23,7 +23,9 @@ class FsmContainer(AllocatorArchitecturalElement):
         self.fsm = fsm
 
     def _initNopValsOfIo(self):
-        # initialize nop value which will drive the IO when not used
+        """
+        initialize nop value which will drive the IO when not used
+        """
         for nodes in self.fsm.states:
             for node in nodes:
                 if isinstance(node, HlsWrite):
@@ -42,11 +44,18 @@ class FsmContainer(AllocatorArchitecturalElement):
                         setNopValIfNotSet(s, 0, ())
 
     def allocateDataPath(self):
+        """
+        instantiate logic in the states
+
+        :note: This function does not perform efficient register allocations.
+            Instead each value is store in idividual register.
+            The register is created when value (TimeIndependentRtlResource) is first used from other state/clock cycle.
+        """
         allocator = self.allocator
         clk_period = allocator.parentHls.clk_period
         fsm = self.fsm
+        assert fsm.states, fsm
 
-        # instantiate logic in the states
         fsmEndClk_i = int(max(max(*node.scheduledIn, *node.scheduledOut, 0) for node in fsm.states[-1]) // clk_period)
         stateCons = self.connections
         for nodes in self.fsm.states:
@@ -76,12 +85,6 @@ class FsmContainer(AllocatorArchitecturalElement):
                         s.persistenceRanges.append((nextClkI, fsmEndClk_i))
 
     def allocateSync(self):
-        """
-        :note: This function does not perform efficient register allocations.
-            Instead each value is store in idividual register.
-            The register is created when value (TimeIndependentRtlResource) is first used from other state/clock cycle.
-            
-        """
         fsm = self.fsm
         assert fsm.states, fsm
         allocator = self.allocator
