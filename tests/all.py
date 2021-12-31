@@ -3,11 +3,12 @@
 
 from unittest import TestLoader, TextTestRunner, TestSuite
 
-from tests.bitonicSort import BitonicSorterHLS_TCs
-from tests.mac import HlsMAC_example_TC
 from tests.alapAsapDiffExample import AlapAsapDiffExample_TC
+from tests.bitonicSort import BitonicSorterHLS_TCs
 from tests.concatOfSlices_test import ConcatOfSlicesTC
 from tests.expr_tree3 import HlsExprTree3_example_TC
+from tests.ioFsm_test import IoFsm_TC
+from tests.mac import HlsMAC_example_TC
 from tests.read_if import ReadIfTc
 from tests.slicing import HlsSlicingTC
 from tests.syntehesis_checks import HlsSynthesisChecksTC
@@ -37,6 +38,7 @@ suite = testSuiteFromTCs(
     TwoTimesA_TC,
     HlsStreamMachineTrivial_TC,
     HlsStreamMachineWhileIf_TC,
+    IoFsm_TC,
 )
 
 if __name__ == '__main__':
