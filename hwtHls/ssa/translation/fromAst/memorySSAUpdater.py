@@ -9,9 +9,9 @@ from hwt.serializer.utils import RtlSignal_sort_key
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.hlsStreamProc.statements import HlsStreamProcRead
 from hwtHls.ssa.basicBlock import SsaBasicBlock
+from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.phi import SsaPhi
 from hwtHls.ssa.value import SsaValue
-from hwtHls.ssa.instr import SsaInstr
 
 
 class MemorySSAUpdater():
@@ -48,6 +48,7 @@ class MemorySSAUpdater():
 
         :returns: unique index of tmp variable for phi function
         """
+           
         assert isinstance(variable, RtlSignal), variable
         defs = self.currentDef.setdefault(variable, {})
         new_bb = block
@@ -93,7 +94,6 @@ class MemorySSAUpdater():
                 value = new_var
 
         defs[new_bb] = value
-        return new_bb
 
     def readVariable(self, variable: RtlSignal, block: SsaBasicBlock) -> SsaPhi:
         try:
