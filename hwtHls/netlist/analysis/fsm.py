@@ -1,4 +1,4 @@
-from typing import List, Set, Union, Tuple, Dict
+from typing import List, Set, Union, Dict
 
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName

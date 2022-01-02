@@ -1,6 +1,8 @@
 from io import StringIO
 from hwtHls.netlist.transformations.rtlNetlistPass import RtlNetlistPass
 from hwtHls.allocator.allocator import ConnectionsOfStage
+from hwtHls.allocator.pipelineContainer import PipelineContainer
+from hwtHls.allocator.fsmContainer import FsmContainer
 
 
 class RtlNetlistPassDumpStreamNodes(RtlNetlistPass):
@@ -17,13 +19,18 @@ class RtlNetlistPassDumpStreamNodes(RtlNetlistPass):
                 self.out.write("\n")
 
             self.out.write("\n")
-
-        for st_i, st in enumerate(to_hw.hls.allocator._connections_of_stage):
-            st: ConnectionsOfStage
-            self.out.write(f"########## st {st_i:d} ##########\n")
-            if st.sync_node is not None:
-                self.out.write(repr(st.sync_node))
-                self.out.write("\n")
-
+        for elem_i, elm in enumerate(to_hw.hls.allocator._archElements):
+            self.out.write(f"########## {elm.__class__.__name__:s} {elem_i:d} ##########\n")
+            if isinstance(elm, (FsmContainer, PipelineContainer)):
+                elm: PipelineContainer
+                for st_i, st in enumerate(elm.connections):
+                    st: ConnectionsOfStage
+                    self.out.write(f" ########## st {st_i:d} ##########\n")
+                    if st.sync_node is not None:
+                        self.out.write(repr(st.sync_node))
+                        self.out.write("\n")
+            else:
+                raise NotImplementedError(elm)
+                
         if self.close:
             self.out.close()

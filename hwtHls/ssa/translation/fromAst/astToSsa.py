@@ -110,7 +110,7 @@ class AstToSsa():
             elif isinstance(o, HlsStreamProcBreak):
                 block = self.visit_Break(block, o)
             elif isinstance(o, HlsStreamProcContinue):
-                block = self.visit_Coninue(block, o)
+                block = self.visit_Continue(block, o)
             else:
                 raise NotImplementedError(o)
 

@@ -11,13 +11,15 @@ from hwtHls.allocator.fsmContainer import FsmContainer
 from hwtHls.allocator.pipelineContainer import PipelineContainer
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource, \
     TimeIndependentRtlResourceItem
-from hwtHls.netlist.analysis.fsm import HlsNetlistAnalysisPassDiscoverFsm
+from hwtHls.netlist.analysis.fsm import HlsNetlistAnalysisPassDiscoverFsm, IoFsm
 from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
 from hwtHls.netlist.nodes.io import HlsRead, HlsWrite, HlsExplicitSyncNode, \
     HlsReadSync
 from hwtHls.netlist.nodes.ops import AbstractHlsOp
 from hwtHls.netlist.nodes.ports import HlsOperationOut
 from hwtLib.handshaked.streamNode import StreamNode
+from hwtHls.netlist.analysis.pipeline import HlsNetlistAnalysisPassDiscoverPipelines,\
+    NetlistPipeline
 
 
 class HlsAllocator():
@@ -81,22 +83,23 @@ class HlsAllocator():
         """
         Allocate scheduled circuit in RTL
         """
-        scheduler = self.parentHls.scheduler
-        io_aggregation = self.parentHls.requestAnalysis(HlsNetlistAnalysisPassDiscoverIo).io_by_interface
-        fsms: HlsNetlistAnalysisPassDiscoverFsm = self.parentHls.requestAnalysis(HlsNetlistAnalysisPassDiscoverFsm)
-        fsmNodes = fsms.collectInFsmNodes()
-        scheduler.schedulization = [
-            [n for n in sch if n not in fsmNodes]
-            for sch in scheduler.schedulization
-        ]
+        hls = self.parentHls
+        fsms: HlsNetlistAnalysisPassDiscoverFsm = hls.requestAnalysis(HlsNetlistAnalysisPassDiscoverFsm)
+        pipelines: HlsNetlistAnalysisPassDiscoverPipelines = hls.requestAnalysis(HlsNetlistAnalysisPassDiscoverPipelines)
+        
         for fsm in fsms.fsms:
+            fsm: IoFsm
             fsmCont = FsmContainer(self, fsm)
             fsmCont.allocateDataPath()
             fsmCont.allocateSync()
+            self._archElements.append(fsmCont)
 
-        pipeCont = PipelineContainer(self, scheduler.schedulization, io_aggregation)
-        pipeCont.allocateDataPath()
-        pipeCont.allocateSync()
+        for pipe in pipelines.pipelines:
+            pipe: NetlistPipeline
+            pipeCont = PipelineContainer(self, pipe.stages)
+            pipeCont.allocateDataPath()
+            pipeCont.allocateSync()
+            self._archElements.append(pipeCont)
 
     def _copy_sync_single(self, node: Union[HlsRead, HlsWrite], node_inI: int,
                            res: Dict[Interface, TimeIndependentRtlResourceItem],

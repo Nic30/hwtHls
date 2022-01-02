@@ -16,14 +16,11 @@ from hwtHls.netlist.nodes.ops import AbstractHlsOp
 
 class PipelineContainer(AllocatorArchitecturalElement):
 
-    def __init__(self, allocator: "HlsAllocator", stages: List[List[AbstractHlsOp]],
-                 io_by_interface: Dict[Interface, List[Union["HlsRead", "HlsWrite"]]]):
+    def __init__(self, allocator: "HlsAllocator", stages: List[List[AbstractHlsOp]]):
         AllocatorArchitecturalElement.__init__(self, allocator)
         self.stages = stages
-        self.io_by_interface = io_by_interface
 
     def allocateDataPath(self):
-        io_aggregation = self.io_by_interface
         connections_of_stage = self.connections
         allocator = self.allocator
 
@@ -38,19 +35,11 @@ class PipelineContainer(AllocatorArchitecturalElement):
                 allocator._instantiate(node, con.signals)
 
                 if isinstance(node, HlsRead):
-                    if len(io_aggregation[node.src]) > 1:
-                        raise AssertionError("In this phase each IO operation should already have separate gate"
-                                             " if it wants to access same interface", node.src, io_aggregation[node.src])
-
                     con.inputs.append(node.src)
                     # if node.src in allocator.parentHls.coherency_checked_io:
                     allocator._copy_sync(node.src, node, con.io_skipWhen, con.io_extraCond, con.signals)
 
                 elif isinstance(node, HlsWrite):
-                    if len(io_aggregation[node.dst]) > 1:
-                        raise AssertionError("In this phase each IO operation should already have separate gate"
-                                             " if it wants to access same interface")
-
                     con.outputs.append(node.dst)
                     # if node.dst in allocator.parentHls.coherency_checked_io:
                     allocator._copy_sync(node.dst, node, con.io_skipWhen, con.io_extraCond, con.signals)
