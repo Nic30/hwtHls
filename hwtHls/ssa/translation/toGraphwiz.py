@@ -124,14 +124,22 @@ class SsaToGraphwiz():
 
 class SsaPassDumpToDot(SsaPass):
 
-    def __init__(self, file_name:str):
+    def __init__(self, file_name:str, extract_pipeline: bool=True):
         self.file_name = file_name
+        self.extract_pipeline = extract_pipeline
 
     def apply(self, hls: "HlsStreamProc", to_ssa: "AstToSsa"):
         to_graphwiz = SsaToGraphwiz(Path(self.file_name).stem)
-        to_hw = SsaSegmentToHwPipeline(to_ssa.start, to_ssa.original_code_for_debug)
-        to_hw.extract_pipeline()
+        if self.extract_pipeline:
+            to_hw = SsaSegmentToHwPipeline(to_ssa.start, to_ssa.original_code_for_debug)
+            to_hw.extract_pipeline()
+            pipelines = [to_hw.pipeline, ]
+            edge_var_live = to_hw.edge_var_live
+        else:
+            pipelines = None
+            edge_var_live = None
+
         with open(self.file_name, "w") as f:
-            to_graphwiz.construct(to_ssa.start, to_ssa.original_code_for_debug, [to_hw.pipeline, ],
-                                  to_hw.edge_var_live)
+            to_graphwiz.construct(to_ssa.start, to_ssa.original_code_for_debug,
+                                  pipelines, edge_var_live)
             f.write(to_graphwiz.dumps())
