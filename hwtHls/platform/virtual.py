@@ -90,9 +90,9 @@ def makeDebugPasses(debug_file_directory: Union[str, Path]):
     debug_file_directory = Path(debug_file_directory)
     return {
         "ssa_passes": [
+            SsaPassDumpToDot(debug_file_directory / "top0.dot", extract_pipeline=False),
             SsaPassConsystencyCheck(),
             SsaPassExtractPartDrivers(),
-            #SsaPassDumpToDot(debug_file_directory / "top0.dot"),
             SsaPassToLlvm(),
             #SsaPassDumpToLl(open(debug_file_directory / "top1.ll", "w"), close=True),
             SsaPassRunLlvmOpt(),
