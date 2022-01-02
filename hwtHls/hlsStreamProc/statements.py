@@ -4,26 +4,30 @@ from typing import Union, Optional, List
 from hdlConvertorAst.translate.common.name_scope import NameScope
 from hwt.doc_markers import internal
 from hwt.hdl.statements.codeBlockContainer import HdlStmCodeBlockContainer
+from hwt.hdl.statements.ifContainter import IfContainer
 from hwt.hdl.statements.statement import HdlStatement, HwtSyntaxError
-from hwt.hdl.types.defs import BOOL
+from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.hdlType import HdlType
-from hwt.hdl.types.typeCast import toHVal
 from hwt.hdl.value import HValue
 from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.interfaces.signalOps import SignalOps
 from hwt.interfaces.std import Handshaked, Signal, VldSynced
-from hwt.interfaces.structIntf import StructIntf
+from hwt.interfaces.structIntf import StructIntf, HdlType_to_Interface
 from hwt.interfaces.unionIntf import UnionSink, UnionSource
-from hwt.pyUtils.arrayQuery import flatten
 from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
-from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
+from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName, \
+    Interface_without_registration
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr, OP_ASSIGN
 from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axis import AxiStream
-from hwt.hdl.statements.ifContainter import IfContainer
+from hwt.hdl.statements.switchContainer import SwitchContainer
+from hwtLib.amba.axis_comp.strformat import HdlType_to_Interface_with_AxiStream
+from hwt.hdl.types.bits import Bits
+from hwt.synthesizer.interfaceLevel.interfaceUtils.utils import walkPhysInterfaces
+from hwt.synthesizer.interface import Interface
 
 
 class HlsStreamProcStm(HdlStatement):
@@ -81,7 +85,7 @@ class HlsStreamProcRead(HdlStatement, SignalOps, InterfaceBase, SsaInstr):
         self._src = src
         self.block: Optional[SsaBasicBlock] = None
 
-        ctx = parent.ctx
+        var = parent.var
         if isinstance(src, (Handshaked, HsStructIntf)):
             assert (type_or_size is NOT_SPECIFIED or
                     type_or_size == src.data._dtype), (
@@ -96,12 +100,21 @@ class HlsStreamProcRead(HdlStatement, SignalOps, InterfaceBase, SsaInstr):
             type_or_size = src._dtype
 
         assert isinstance(type_or_size, HdlType), type_or_size
-        self._sig = ctx.sig(f"{getSignalName(src):s}_read", type_or_size)
-        self._sig.drivers.append(self)
-        self._sig.origin = self
+        intfName = getSignalName(src)
+        sig = var(f"{intfName:s}_read", type_or_size)
+        if isinstance(sig, Interface):
+            for i in walkPhysInterfaces(sig):
+                i._sig.drivers.append(self)
+                i._sig.origin = self
+    
+        else:
+            sig.drivers.append(self)
+            sig.origin = self
+        self._sig = sig
+        self._valid = var(f"{intfName:s}_read_valid", BIT)
 
         SsaInstr.__init__(self, parent.ssaCtx, type_or_size, OP_ASSIGN, (),
-                          name=self._sig.name, origin=self._sig)
+                          name=intfName, origin=self._sig)
         # self._out: Optional[ANY_HLS_STREAM_INTF_TYPE] = None
 
         if isinstance(self._sig, StructIntf):
@@ -110,6 +123,7 @@ class HlsStreamProcRead(HdlStatement, SignalOps, InterfaceBase, SsaInstr):
             for field_path, field_intf in sig._fieldsToInterfaces.items():
                 if len(field_path) == 1:
                     n = field_path[0]
+                    assert not hasattr(self, n), (self, n)
                     setattr(self, n, field_intf)
 
     @internal
@@ -181,6 +195,30 @@ class HlsStreamProcIf(HlsStreamProcStm, IfContainer):
                 "Else on this if-then-else statement was already used")
 
         self.ifFalse = statements
+        return self
+
+
+class  HlsStreamProcSwitch(HlsStreamProcStm, SwitchContainer):
+
+    def __init__(self, parent: "HlsStreamProc", switchOn: Union[RtlSignal, HValue]):
+        HlsStreamProcStm.__init__(self, parent)
+        assert isinstance(switchOn, (RtlSignal, HValue)), switchOn
+        self.switchOn = switchOn
+        self.cases = []
+        self.default = None
+
+        self._case_value_index = {}
+
+    def Case(self, val, *statements):
+        self.cases.append((val, statements))
+        return self
+
+    def Default(self, *statements):
+        if self.default is not None:
+            raise HwtSyntaxError(
+                "Default on this switch-case statement was already used")
+
+        self.default = statements
         return self
 
 

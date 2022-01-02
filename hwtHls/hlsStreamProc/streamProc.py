@@ -5,7 +5,7 @@ from collections import deque
 from typing import Union, List, Optional, Tuple
 
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
-from hwt.hdl.types.defs import BOOL
+from hwt.hdl.types.defs import BOOL, BIT
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.types.typeCast import toHVal
 from hwt.hdl.value import HValue
@@ -19,7 +19,7 @@ from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.statements import HlsStreamProcRead, \
     HlsStreamProcWrite, HlsStreamProcWhile, HlsStreamProcCodeBlock, \
     HlsStreamProcIf, HlsStreamProcStm, HlsStreamProcFor, HlsStreamProcBreak, \
-    HlsStreamProcContinue
+    HlsStreamProcContinue, HlsStreamProcSwitch
 from hwtHls.netlist.transformations.hlsNetlistPass import HlsNetlistPass
 from hwtHls.netlist.transformations.rtlNetlistPass import RtlNetlistPass
 from hwtHls.ssa.context import SsaContext
@@ -51,7 +51,7 @@ class HlsStreamProc():
         if freq is None:
             freq = parentUnit.clk.FREQ
         self.freq = freq
-        self.ctx = RtlNetlist()
+        self._ctx = RtlNetlist()
         self.ssaCtx = SsaContext()
         p = parentUnit._target_platform
         if ssa_passes is None:
@@ -64,11 +64,17 @@ class HlsStreamProc():
             rtlnetlist_passes = p.rtlnetlist_passes
         self.rtlnetlist_passes = rtlnetlist_passes
 
+    def _sig(self, name: str,
+             dtype: HdlType=BIT,
+             def_val: Union[int, None, dict, list]=None,
+             nop_val: Union[int, None, dict, list, "NOT_SPECIFIED"]=NOT_SPECIFIED) -> RtlSignal:
+        return Unit._sig(self, name, dtype, def_val, nop_val)
+    
     def var(self, name:str, dtype:HdlType):
         """
         Create a thread local variable.
         """
-        return self.ctx.sig(name, dtype)
+        return Unit._sig(self, name, dtype)
 
     def read(self,
              src: Union[AxiStream, Handshaked],
@@ -77,7 +83,7 @@ class HlsStreamProc():
         Create a read statement in thread.
         """
         if isinstance(src, RtlSignal):
-            assert src.ctx is not self.ctx, ("Read should be used only for IO, it is not required for hls variables")
+            assert src._ctx is not self._ctx, ("Read should be used only for IO, it is not required for hls variables")
         return HlsStreamProcRead(self, src, type_or_size)
 
     def write(self,
@@ -117,7 +123,10 @@ class HlsStreamProc():
 
     def If(self, cond: Union[RtlSignal, bool], *body: AnyStm):
         return HlsStreamProcIf(self, toHVal(cond, BOOL), list(body))
-
+    
+    def Switch(self, switchOn):
+        return HlsStreamProcSwitch(self, toHVal(switchOn))
+    
     def _format_code(self, code: List[AnyStm], label:str="hls_top") -> HlsStreamProcCodeBlock:
         """
         Normalize an input code.
@@ -127,15 +136,8 @@ class HlsStreamProc():
         _code._sensitivity = UniqList()
         _code.statements.extend(flatten(code))
         return _code
-
-    def thread(self, *code: AnyStm):
-        """
-        Create a thread from a code which will be translated to hw.
-        """
-        _code = self._format_code(code)
-        to_ssa = AstToSsa(self.ssaCtx, "top", _code)
-        to_ssa.visit_top_CodeBlock(_code)
-        to_ssa.finalize()
+    
+    def _thread(self, to_ssa: AstToSsa, _code: HlsStreamProcCodeBlock):
         for ssa_pass in self.ssa_passes:
             ssa_pass.apply(self, to_ssa)
 
@@ -166,3 +168,13 @@ class HlsStreamProc():
         #     next(interpret)
         # print(io)
 
+    def thread(self, *code: AnyStm):
+        """
+        Create a thread from a code which will be translated to hw.
+        """
+        _code = self._format_code(code)
+        to_ssa = AstToSsa(self.ssaCtx, "top", _code)
+        to_ssa.visit_top_CodeBlock(_code)
+        to_ssa.finalize()
+        self._thread(to_ssa, _code)
+        
