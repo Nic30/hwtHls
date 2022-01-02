@@ -7,9 +7,9 @@ top_whC:
 top_wh:
   %2 = INDEX %1, <HSliceVal slice(<BitsVal 16>, <BitsVal 0>, <BitsVal -1>)>
   %3 = CONCAT <BitsVal 16>, %2
-  a_read = call <Bits, 16bits, unsigned> @hls.read(a)
+  a = call <Bits, 16bits, unsigned> @hls.read(a)
   %4 = INDEX %3, <HSliceVal slice(<BitsVal 32>, <BitsVal 16>, <BitsVal -1>)>
-  %5 = CONCAT %4, a_read
+  %5 = CONCAT %4, a
   void call <Bits, 32bits, unsigned> @hls.write(tmp)
   br [label %top_whC ]
 }

@@ -11,8 +11,8 @@ top_wh_whC:
   br [label %top_wh_wh %2]
   [label %top_wh_whE ]
 top_wh_wh:
-  dataIn_read = call <Bits, 8bits, unsigned> @hls.read(dataIn)
-  %3 = SUB %1, dataIn_read
+  dataIn = call <Bits, 8bits, unsigned> @hls.read(dataIn)
+  %3 = SUB %1, dataIn
   void call <Bits, 8bits, unsigned> @hls.write(x)
   br [label %top_wh_whC ]
 top_wh_whE:

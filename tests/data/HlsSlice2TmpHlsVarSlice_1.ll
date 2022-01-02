@@ -4,8 +4,8 @@ top:
 top_whC:
   br [label %top_wh ]
 top_wh:
-  a_read = call <Bits, 16bits, unsigned> @hls.read(a)
-  %5 = CONCAT <BitsVal 16>, a_read
+  a = call <Bits, 16bits, unsigned> @hls.read(a)
+  %5 = CONCAT <BitsVal 16>, a
   void call <Bits, 32bits, unsigned> @hls.write(tmp)
   br [label %top_whC ]
 }

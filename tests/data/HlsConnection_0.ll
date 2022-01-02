@@ -4,7 +4,7 @@ top:
 top_whC:
   br [label %top_wh ]
 top_wh:
-  a_read = call <Bits, 32bits, unsigned> @hls.read(a)
-  void call <Bits, 32bits, unsigned> @hls.write(a_read)
+  a = call <Bits, 32bits, unsigned> @hls.read(a)
+  void call <Bits, 32bits, unsigned> @hls.write(a)
   br [label %top_whC ]
 }
