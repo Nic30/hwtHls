@@ -10,6 +10,10 @@ from hwtHls.clk_math import start_clk
 
 
 class NetlistPipeline():
+    """
+    Container about the nodes in a single pipeline which are suitable for
+    an implementation in pipeline due favorable data dependencies.
+    """
 
     def __init__(self, stages: List[List[AbstractHlsOp]]):
         self.stages = stages
@@ -49,5 +53,6 @@ class HlsNetlistAnalysisPassDiscoverPipelines(HlsNetlistAnalysisPass):
                     for _ in range(clk_index - len(globalPipeline) + 1):
                         globalPipeline.append([])
                 globalPipeline[clk_index].append(node)
-        
-        self.pipelines.append(NetlistPipeline(globalPipeline))
+
+        if globalPipeline:
+            self.pipelines.append(NetlistPipeline(globalPipeline))

@@ -1,9 +1,8 @@
 from typing import List, Tuple, Optional, Union
 
 from hwt.code import If, Or
-from hwt.pyUtils.uniqList import UniqList
-from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource, \
-    TimeIndependentRtlResourceItem
+from hwtHls.allocator.connectionsOfStage import SignalsOfStages
+from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.clk_math import epsilon
 from hwtHls.hlsPipeline import HlsPipeline
 from hwtHls.netlist.nodes.io import HlsExplicitSyncNode, IO_COMB_REALIZATION
@@ -29,7 +28,7 @@ class HlsLoopGateStatus(AbstractHlsOp):
 
     def allocate_instance(self,
                           allocator: "HlsAllocator",
-                          used_signals: UniqList[TimeIndependentRtlResourceItem]
+                          used_signals: SignalsOfStages
                           ) -> TimeIndependentRtlResource:
         op_out = self._outputs[0]
 
@@ -44,7 +43,7 @@ class HlsLoopGateStatus(AbstractHlsOp):
         # create RTL signal expression base on operator type
         t = self.scheduledOut[0] + epsilon
         status_reg_s = TimeIndependentRtlResource(status_reg, t, allocator)
-        allocator._registerSignal(op_out, status_reg_s, used_signals)
+        allocator._registerSignal(op_out, status_reg_s, used_signals.getForTime(t))
 
         # [todo] set this register based on how data flows on control channels
         # (breaks returns token, predec takes token)
@@ -164,8 +163,7 @@ class HlsLoopGate(AbstractHlsOp):
             if toHls._blockMeta[pred].needsControl:
                 control_key = BranchControlLabel(pred, block, INTF_DIRECTION.SLAVE)
                 control = to_hls_cache.get(control_key)
-                esn, control = HlsExplicitSyncNode.replace_variable(hls, control_key, control, to_hls_cache, en, not_en)
-                nodes.append(esn)
+                _, control = HlsExplicitSyncNode.replace_variable(hls, control_key, control, to_hls_cache, en, not_en)
             else:
                 control = None
 
@@ -173,8 +171,7 @@ class HlsLoopGate(AbstractHlsOp):
             for v in io.edge_var_live.get(pred, {}).get(block, ()):
                 cache_key = (block, v)
                 v = to_hls_cache.get(cache_key)
-                esn, _ = HlsExplicitSyncNode.replace_variable(hls, cache_key, v, to_hls_cache, en, not_en)
-                nodes.append(esn)
+                _, _ = HlsExplicitSyncNode.replace_variable(hls, cache_key, v, to_hls_cache, en, not_en)
                 # variables.append(v)
 
             if control is not None:
@@ -256,7 +253,7 @@ class HlsLoopGate(AbstractHlsOp):
 
     def allocate_instance(self,
             allocator:"HlsAllocator",
-            used_signals:UniqList[TimeIndependentRtlResourceItem]):
+            used_signals: SignalsOfStages):
         pass
 
 

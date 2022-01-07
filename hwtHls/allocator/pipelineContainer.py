@@ -1,5 +1,5 @@
 from itertools import chain
-from typing import List, Dict, Union, Type, Optional
+from typing import List, Type, Optional
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.code import If
@@ -8,43 +8,69 @@ from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import Interface_without_registration
 from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
 from hwtHls.allocator.architecturalElement import AllocatorArchitecturalElement
-from hwtHls.allocator.connectionsOfStage import ConnectionsOfStage, resolveStrongestSyncType
+from hwtHls.allocator.connectionsOfStage import ConnectionsOfStage, resolveStrongestSyncType, \
+    SignalsOfStages
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.io import HlsRead, HlsWrite
 from hwtHls.netlist.nodes.ops import AbstractHlsOp
 
 
 class PipelineContainer(AllocatorArchitecturalElement):
+    """
+    A container of informations about hw pipeline allocation.
+    """
 
     def __init__(self, allocator: "HlsAllocator", stages: List[List[AbstractHlsOp]]):
         AllocatorArchitecturalElement.__init__(self, allocator)
         self.stages = stages
 
+    def getMinTime(self):
+        minTime = None
+        emptyCycles = 0
+        for nodes in  self.stages:
+            for node in nodes:
+                if minTime is None:
+                    minTime = min(node.scheduledIn)
+                else:
+                    _min = min(node.scheduledIn)
+                    if _min < minTime:
+                        minTime = _min
+            if minTime is not None:
+                break
+            else:
+                emptyCycles += 1
+        assert minTime is not None, self.stages
+        t = minTime - emptyCycles * self.allocator.parentHls.clk_period
+        assert t >= 0.0
+        return t
+
     def allocateDataPath(self):
-        connections_of_stage = self.connections
+        stageCons = self.connections = [ConnectionsOfStage() for _ in self.stages]
+
+        stageSignals = SignalsOfStages(self.allocator.parentHls.clk_period,
+                                       self.getMinTime(),
+                                       (con.signals for con in stageCons))
         allocator = self.allocator
 
         # is_first_in_pipeline = True
-        for nodes in self.stages:
-            con = ConnectionsOfStage()
+        for nodes, con in zip(self.stages, stageCons):
             # assert nodes
             for node in nodes:
+                node: AbstractHlsOp
                 # this is one level of nodes,
                 # node can not be dependent on nodes behind in this list
                 # because this engine does not support backward edges in DFG
-                allocator._instantiate(node, con.signals)
+                node.allocate_instance(allocator, stageSignals)
 
                 if isinstance(node, HlsRead):
                     con.inputs.append(node.src)
                     # if node.src in allocator.parentHls.coherency_checked_io:
-                    allocator._copy_sync(node.src, node, con.io_skipWhen, con.io_extraCond, con.signals)
+                    allocator._copy_sync(node.src, node, con.io_skipWhen, con.io_extraCond, stageSignals)
 
                 elif isinstance(node, HlsWrite):
                     con.outputs.append(node.dst)
                     # if node.dst in allocator.parentHls.coherency_checked_io:
-                    allocator._copy_sync(node.dst, node, con.io_skipWhen, con.io_extraCond, con.signals)
-
-            connections_of_stage.append(con)
+                    allocator._copy_sync(node.dst, node, con.io_skipWhen, con.io_extraCond, stageSignals)
 
     def allocateSync(self):
         prev_st_sync_input = None

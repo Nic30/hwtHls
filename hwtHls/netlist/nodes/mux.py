@@ -2,9 +2,8 @@ from typing import List, Tuple, Optional, Union
 
 from hwt.code import If
 from hwt.hdl.operatorDefs import AllOps
-from hwt.pyUtils.uniqList import UniqList
-from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResourceItem, \
-    TimeIndependentRtlResource
+from hwtHls.allocator.connectionsOfStage import SignalsOfStages
+from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.clk_math import epsilon
 from hwtHls.netlist.nodes.ops import HlsOperation, AbstractHlsOp
 from hwtHls.netlist.nodes.ports import HlsOperationOut, HlsOperationOutLazy, \
@@ -23,7 +22,7 @@ class HlsMux(HlsOperation):
 
     def allocate_instance(self,
                           allocator: "HlsAllocator",
-                          used_signals: UniqList[TimeIndependentRtlResourceItem]
+                          used_signals: SignalsOfStages
                           ) -> TimeIndependentRtlResource:
         op_out = self._outputs[0]
 
@@ -33,15 +32,14 @@ class HlsMux(HlsOperation):
             pass
         assert self.elifs, ("Mux has to have operands", self)
         name = self.name
-        mux_out_s = allocator._sig(name, self.elifs[0][1].obj.instantiateHlsOperationInTime(
-            allocator, self.scheduledOut[0], used_signals).data._dtype)
+        v0 = allocator.instantiateHlsOperationOutInTime(self.elifs[0][1], self.scheduledOut[0], used_signals)
+        mux_out_s = allocator._sig(name, v0.data._dtype)
         mux_top = None
         for elif_i, (c, v) in enumerate(self.elifs):
             if c is not None:
-                c = c.obj.instantiateHlsOperationInTime(
-                    allocator, self.scheduledIn[elif_i * 2], used_signals)
-            v = v.obj.instantiateHlsOperationInTime(
-                allocator,
+                c = allocator.instantiateHlsOperationOutInTime(c, self.scheduledIn[elif_i * 2], used_signals)
+            v = allocator.instantiateHlsOperationOutInTime(
+                v,
                 self.scheduledIn[elif_i * 2 + (1 if c is not None else 0)],
                 used_signals)
 
@@ -55,7 +53,8 @@ class HlsMux(HlsOperation):
         # create RTL signal expression base on operator type
         t = self.scheduledOut[0] + epsilon
         mux_out_s = TimeIndependentRtlResource(mux_out_s, t, allocator)
-        allocator._registerSignal(op_out, mux_out_s, used_signals)
+        allocator._registerSignal(op_out, mux_out_s, used_signals.getForTime(self.scheduledOut[0]))
+
         return mux_out_s
 
     def _add_input_and_link(self, src: Union[HlsOperationOut, HlsOperationOutLazy]):

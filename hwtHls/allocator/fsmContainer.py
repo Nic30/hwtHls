@@ -9,7 +9,7 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.allocator.allocator import ConnectionsOfStage
 from hwtHls.allocator.architecturalElement import AllocatorArchitecturalElement
 from hwtHls.allocator.connectionsOfStage import getIntfSyncSignals, \
-    setNopValIfNotSet
+    setNopValIfNotSet, SignalsOfStages
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.clk_math import start_clk
 from hwtHls.netlist.analysis.fsm import IoFsm
@@ -17,6 +17,9 @@ from hwtHls.netlist.nodes.io import HlsWrite, HlsRead
 
 
 class FsmContainer(AllocatorArchitecturalElement):
+    """
+    Contaner class for FSM allocation objects.
+    """
 
     def __init__(self, allocator: "HlsAllocator", fsm: IoFsm):
         AllocatorArchitecturalElement.__init__(self, allocator)
@@ -57,23 +60,26 @@ class FsmContainer(AllocatorArchitecturalElement):
         assert fsm.states, fsm
 
         fsmEndClk_i = int(max(max(*node.scheduledIn, *node.scheduledOut, 0) for node in fsm.states[-1]) // clk_period)
-        stateCons = self.connections
-        for nodes in self.fsm.states:
-            con = ConnectionsOfStage()
-            stateCons.append(con)
+        stateCons = self.connections = [ConnectionsOfStage() for _ in self.fsm.states]
+        stateSignals = SignalsOfStages(clk_period,
+                                       min(min(node.scheduledIn) for node in fsm.states[0]),
+                                       (con.signals for con in stateCons))
+        for nodes, con in zip(self.fsm.states, stateCons):
             for node in nodes:
-                rtl = allocator._instantiate(node, con.signals)
+                rtl = node.allocate_instance(allocator, stateSignals)
 
                 if isinstance(node, HlsRead):
                     if not isinstance(node.src, (Signal, RtlSignal)):
+                        # if it has some synchronization
                         con.inputs.append(node.src)
-                    allocator._copy_sync(node.src, node, con.io_skipWhen, con.io_extraCond, con.signals)
+                    allocator._copy_sync(node.src, node, con.io_skipWhen, con.io_extraCond, stateSignals)
 
                 elif isinstance(node, HlsWrite):
                     con.stDependentDrives.append(rtl)
                     if not isinstance(node.src, (Signal, RtlSignal)):
+                        # if it has some synchronization
                         con.outputs.append(node.dst)
-                    allocator._copy_sync(node.dst, node, con.io_skipWhen, con.io_extraCond, con.signals)
+                    allocator._copy_sync(node.dst, node, con.io_skipWhen, con.io_extraCond, stateSignals)
 
             # mark value in register as persisten until the end of fsm
             for s in con.signals:
@@ -91,11 +97,16 @@ class FsmContainer(AllocatorArchitecturalElement):
         clk_period = allocator.parentHls.clk_period
         self._initNopValsOfIo()
         
-        st = allocator._reg(f"fsm_st_{fsm.intf._name}", Bits(log2ceil(len(fsm.states)), signed=False), def_val=0)
+        st = allocator._reg(f"fsm_st_{fsm.intf._name}",
+                            Bits(log2ceil(len(fsm.states)), signed=False), def_val=0)
         
         fsmBeginClk_i = int(min(min(node.scheduledIn) for node in fsm.states[0]) // clk_period)
         # instantiate control of the FSM
+
+        # used to prevent duplication of registes which are just latching the value
+        # without modification throught multiple stages
         seenRegs: Set[TimeIndependentRtlResource] = set()
+        
         stateTrans: List[Tuple[RtlSignal, List[HdlStatement]]] = []
         for stI, con in enumerate(self.connections):
             for s in con.signals:

@@ -1,10 +1,9 @@
 from typing import Union, Optional, Generator
 
-from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResourceItem, \
-    TimeIndependentRtlResource
+from hwtHls.allocator.connectionsOfStage import SignalsOfStages
+from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.io import HlsRead, HlsWrite
 from hwtHls.ssa.value import SsaValue
 from hwtLib.handshaked.builder import HsBuilder
@@ -41,7 +40,8 @@ class HlsWriteBackwardEdge(HlsWrite):
 
     def allocate_instance(self,
             allocator:"HlsAllocator",
-            used_signals:UniqList[TimeIndependentRtlResourceItem]) -> TimeIndependentRtlResource:
+            used_signals: SignalsOfStages
+            ) -> TimeIndependentRtlResource:
         res = HlsWrite.allocate_instance(self, allocator, used_signals)
         src_write = self
         dst_read: HlsReadBackwardEdge = self.associated_read

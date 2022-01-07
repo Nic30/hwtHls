@@ -1,25 +1,21 @@
-from typing import Union, List, Dict, Tuple
+from typing import Union, List, Dict, Tuple, Deque
 
-from hwt.interfaces.std import HandshakeSync, Signal
-from hwt.interfaces.structIntf import StructIntf
+from hwt.interfaces.std import HandshakeSync
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
-from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.allocator.connectionsOfStage import ConnectionsOfStage, \
-    extract_control_sig_of_interface
+    extract_control_sig_of_interface, SignalsOfStages
 from hwtHls.allocator.fsmContainer import FsmContainer
 from hwtHls.allocator.pipelineContainer import PipelineContainer
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource, \
     TimeIndependentRtlResourceItem
 from hwtHls.netlist.analysis.fsm import HlsNetlistAnalysisPassDiscoverFsm, IoFsm
-from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
+from hwtHls.netlist.analysis.pipeline import HlsNetlistAnalysisPassDiscoverPipelines, \
+    NetlistPipeline
 from hwtHls.netlist.nodes.io import HlsRead, HlsWrite, HlsExplicitSyncNode, \
     HlsReadSync
-from hwtHls.netlist.nodes.ops import AbstractHlsOp
 from hwtHls.netlist.nodes.ports import HlsOperationOut
 from hwtLib.handshaked.streamNode import StreamNode
-from hwtHls.netlist.analysis.pipeline import HlsNetlistAnalysisPassDiscoverPipelines,\
-    NetlistPipeline
 
 
 class HlsAllocator():
@@ -44,15 +40,6 @@ class HlsAllocator():
         self._sig = parentHls.parentUnit._sig
         self._archElements: List[Union[FsmContainer, PipelineContainer]] = []
 
-    def _instantiate(self, node: Union[AbstractHlsOp,
-                                       TimeIndependentRtlResource],
-                           used_signals: UniqList[TimeIndependentRtlResourceItem]
-                           ) -> TimeIndependentRtlResource:
-        """
-        Universal RTL instanciation method for all types
-        """
-        return node.allocate_instance(self, used_signals)
-
     def _registerSignal(self, origin: HlsOperationOut,
                         s: TimeIndependentRtlResource,
                         used_signals: UniqList[TimeIndependentRtlResourceItem]):
@@ -63,21 +50,31 @@ class HlsAllocator():
 
     def instantiateHlsOperationOut(self,
                                    o: HlsOperationOut,
-                                   used_signals: UniqList[TimeIndependentRtlResourceItem]
+                                   used_signals: SignalsOfStages
                                    ) -> TimeIndependentRtlResource:
         assert isinstance(o, HlsOperationOut), o
         _o = self.node2instance.get(o, None)
 
         if _o is None:
-            _o = self._instantiate(o.obj, used_signals)
-            if _o is not None:
-                return _o
-            else:
+            # new allocation, use registered automatically
+            _o = o.obj.allocate_instance(self, used_signals)
+            if _o is None:
                 return self.node2instance[o]
+            else:
+                return _o
         else:
+            # used and previously allocated
             used_signals.append(_o)
 
         return _o
+
+    def instantiateHlsOperationOutInTime(self,
+                                   o: HlsOperationOut,
+                                   time:float,
+                                   used_signals: SignalsOfStages
+                                   ) -> TimeIndependentRtlResourceItem:
+        _o = self.instantiateHlsOperationOut(o, used_signals)
+        return _o.get(time)
 
     def allocate(self):
         """
@@ -142,7 +139,7 @@ class HlsAllocator():
                         break
 
             if isinstance(onlySuc, HlsExplicitSyncNode) and not isinstance(onlySuc, HlsWrite):
-                self._instantiate(onlySuc, used_signals)
+                onlySuc.allocate_instance(self, used_signals)
                 self._copy_sync_all(onlySuc, res_skipWhen, res_extraCond, intf, sync_time)
 
         else:

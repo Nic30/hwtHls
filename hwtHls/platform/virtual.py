@@ -7,24 +7,26 @@ from hwt.hdl.operator import Operator
 from hwt.hdl.operatorDefs import AllOps, OpDefinition
 from hwt.synthesizer.dummyPlatform import DummyPlatform
 from hwtHls.allocator.allocator import HlsAllocator
-from hwtHls.ssa.translation.fromLlvm import SsaPassFromLlvm
-from hwtHls.ssa.translation.toLlvm import SsaPassToLlvm
-from hwtHls.netlist.toGraphwiz import HlsNetlistPassDumpToDot
-from hwtHls.netlist.toTimeline import HlsNetlistPassShowTimeline
-from hwtHls.netlist.transformations.hlsNetlistPass import HlsNetlistPass
-from hwtHls.netlist.transformations.mergeExplicitSync import HlsNetlistPassMergeExplicitSync
+from hwtHls.netlist.transformation.aggregateBitwiseOps import HlsNetlistPassAggregateBitwiseOps
+from hwtHls.netlist.transformation.dce import HlsNetlistPassDCE
+from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
+from hwtHls.netlist.transformation.mergeExplicitSync import HlsNetlistPassMergeExplicitSync
+from hwtHls.netlist.translation.dumpStreamNodes import RtlNetlistPassDumpStreamNodes
+from hwtHls.netlist.translation.toGraphwiz import HlsNetlistPassDumpToDot
+from hwtHls.netlist.translation.toTimeline import HlsNetlistPassShowTimeline
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
+from hwtHls.scheduler.scheduler import HlsScheduler
 from hwtHls.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
+from hwtHls.ssa.analysis.dumpPipelines import SsaPassDumpPipelines
 from hwtHls.ssa.instr import OP_ASSIGN
 from hwtHls.ssa.transformation.extractPartDrivers import SsaPassExtractPartDrivers
 from hwtHls.ssa.transformation.removeTrivialBlocks import SsaPassRemoveTrivialBlocks
 from hwtHls.ssa.transformation.runLlvmOpt import SsaPassRunLlvmOpt
 from hwtHls.ssa.transformation.ssaPass import SsaPass
+from hwtHls.ssa.translation.fromLlvm import SsaPassFromLlvm
 from hwtHls.ssa.translation.toGraphwiz import SsaPassDumpToDot
 from hwtHls.ssa.translation.toLl import SsaPassDumpToLl
-from hwtHls.netlist.dumpStreamNodes import RtlNetlistPassDumpStreamNodes
-from hwtHls.ssa.analysis.dumpPipelines import SsaPassDumpPipelines
-from hwtHls.scheduler.scheduler import HlsScheduler
+from hwtHls.ssa.translation.toLlvm import SsaPassToLlvm
 
 _OPS_T_GROWING_EXP = {
     AllOps.DIV,
@@ -70,7 +72,9 @@ DEFAULT_SSA_PASSES = [
     SsaPassConsystencyCheck(),
 ]
 DEFAULT_HLSNETLIST_PASSES = [
+    HlsNetlistPassDCE(),
     HlsNetlistPassMergeExplicitSync(),
+    HlsNetlistPassAggregateBitwiseOps(),
 ]
 DEFAULT_RTLNETLIST_PASSES = [
 ]
@@ -94,7 +98,7 @@ def makeDebugPasses(debug_file_directory: Union[str, Path]):
             SsaPassConsystencyCheck(),
             SsaPassExtractPartDrivers(),
             SsaPassToLlvm(),
-            #SsaPassDumpToLl(open(debug_file_directory / "top1.ll", "w"), close=True),
+            # SsaPassDumpToLl(open(debug_file_directory / "top1.ll", "w"), close=True),
             SsaPassRunLlvmOpt(),
             SsaPassDumpToLl(open(debug_file_directory / "top2.ll", "w"), close=True),
             SsaPassFromLlvm(),
@@ -102,10 +106,12 @@ def makeDebugPasses(debug_file_directory: Union[str, Path]):
             SsaPassDumpPipelines(open(debug_file_directory / "top.pipeline.txt", "w"), close=True),
             SsaPassConsystencyCheck(),
         ],
-        "hlsnetlist_passes":[
-            #HlsNetlistPassDumpToDot(debug_file_directory / "top_p0.dot"),
+        "hlsnetlist_passes": [
+            HlsNetlistPassDCE(),
+            # HlsNetlistPassDumpToDot(debug_file_directory / "top_p0.dot"),
             HlsNetlistPassMergeExplicitSync(),
-            #HlsNetlistPassDumpToDot(debug_file_directory / "top_p1.dot"),
+            HlsNetlistPassAggregateBitwiseOps(),
+            # HlsNetlistPassDumpToDot(debug_file_directory / "top_p1.dot"),
             HlsNetlistPassShowTimeline(debug_file_directory / "top.schedule.html"),
         ],
         "rtlnetlist_passes":[

@@ -1,9 +1,8 @@
-from hwt.pyUtils.uniqList import UniqList
-from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResourceItem, \
-    TimeIndependentRtlResource
+from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.clk_math import epsilon
 from hwtHls.netlist.nodes.io import IO_COMB_REALIZATION
 from hwtHls.netlist.nodes.ops import AbstractHlsOp
+from hwtHls.allocator.connectionsOfStage import SignalsOfStages
 
 
 class HlsProgramStarter(AbstractHlsOp):
@@ -20,7 +19,7 @@ class HlsProgramStarter(AbstractHlsOp):
 
     def allocate_instance(self,
                           allocator: "HlsAllocator",
-                          used_signals: UniqList[TimeIndependentRtlResourceItem]
+                          used_signals: SignalsOfStages
                           ) -> TimeIndependentRtlResource:
         op_out = self._outputs[0]
 
@@ -38,7 +37,7 @@ class HlsProgramStarter(AbstractHlsOp):
         # create RTL signal expression base on operator type
         t = self.scheduledOut[0] + epsilon
         status_reg_s = TimeIndependentRtlResource(starter_reg, t, allocator)
-        allocator._registerSignal(op_out, status_reg_s, used_signals)
+        allocator._registerSignal(op_out, status_reg_s, used_signals.getForTime(t))
         return status_reg_s
 
     def __repr__(self):

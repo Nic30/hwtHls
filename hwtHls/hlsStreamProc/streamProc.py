@@ -20,8 +20,8 @@ from hwtHls.hlsStreamProc.statements import HlsStreamProcRead, \
     HlsStreamProcWrite, HlsStreamProcWhile, HlsStreamProcCodeBlock, \
     HlsStreamProcIf, HlsStreamProcStm, HlsStreamProcFor, HlsStreamProcBreak, \
     HlsStreamProcContinue, HlsStreamProcSwitch
-from hwtHls.netlist.transformations.hlsNetlistPass import HlsNetlistPass
-from hwtHls.netlist.transformations.rtlNetlistPass import RtlNetlistPass
+from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
+from hwtHls.netlist.transformation.rtlNetlistPass import RtlNetlistPass
 from hwtHls.ssa.context import SsaContext
 from hwtHls.ssa.transformation.ssaPass import SsaPass
 from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa, AnyStm

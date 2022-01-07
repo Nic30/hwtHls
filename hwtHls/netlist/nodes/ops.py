@@ -4,13 +4,13 @@ from typing import List, Union, Optional, Tuple, Generator
 from hwt.hdl.operatorDefs import OpDefinition, AllOps
 from hwt.hdl.value import HValue
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource, \
-    TimeIndependentRtlResourceItem
+from hwtHls.allocator.connectionsOfStage import SignalsOfStages
+from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.clk_math import epsilon, start_of_next_clk_period
-from hwtHls.clk_math import start_clk
 from hwtHls.netlist.nodes.ports import HlsOperationIn, HlsOperationOut, \
     _reprMinify
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
+from hwtHls.scheduler.errors import TimeConstraintError
 
 TimeSpec = Union[float, Tuple[float, ...]]
 
@@ -74,16 +74,20 @@ class AbstractHlsOp():
                         raise AssertionError("Cycle in graph", self, [n._id for n in pathForDebug[pathForDebug.index(self):]])
                     else:
                         pathForDebug.append(self)
-    
-                # print(node)
+
                 input_times = (d.obj.scheduleAsap(clk_period, pathForDebug)[d.out_i] for d in self.dependsOn)
+                self.resolve_realization()
+
                 # now we have times when the value is available on input
                 # and we must resolve the minimal time so each input timing constraints are satisfied
                 time_when_all_inputs_present = 0.0
-                latest_input_i = None
     
-                for in_i, (available_in_time, in_delay, in_cycles) in enumerate(
-                        zip(input_times, self.latency_pre, self.in_cycles_offset)):
+                for (available_in_time, in_delay, in_cycles) in zip(input_times, self.latency_pre, self.in_cycles_offset):
+                    if in_delay >= clk_period:
+                        raise TimeConstraintError(
+                            "Impossible scheduling, clk_period too low for ",
+                            self.latency_pre, self.latency_post, self)
+                    
                     next_clk_time = start_of_next_clk_period(available_in_time, clk_period)
                     time_budget = next_clk_time - available_in_time
     
@@ -95,14 +99,11 @@ class AbstractHlsOp():
                                        +in_cycles * clk_period)
     
                     if normalized_time >= time_when_all_inputs_present:
-                        latest_input_i = in_i
+                        # latest_input_i = in_i
                         time_when_all_inputs_present = normalized_time
     
-                node_zero_time = (time_when_all_inputs_present
-                                  -self.in_cycles_offset[latest_input_i] * clk_period
-                                  -self.latency_pre[latest_input_i])
                 self.asap_start = tuple(
-                    node_zero_time + in_delay + in_cycles * clk_period
+                    time_when_all_inputs_present - (in_delay + in_cycles * clk_period)
                     for (in_delay, in_cycles) in zip(self.latency_pre, self.in_cycles_offset)
                 )
     
@@ -133,18 +134,18 @@ class AbstractHlsOp():
 
     def _numberForEachInput(self, val: Union[float, Tuple[float]]):
         if isinstance(val, (float, int)):
-            return [val for _ in self.dependsOn]
+            return [val for _ in self._inputs]
         else:
             val = list(val)
-            assert len(val) == self.dependsOn, (val, self.dependsOn)
+            assert len(val) == len(self._inputs), (self, val, self._inputs)
             return val
 
     def _numberForEachOutput(self, val: Union[float, Tuple[float]]):
         if isinstance(val, (float, int)):
-            return tuple(val for _ in self.usedBy)
+            return tuple(val for _ in self._outputs)
         else:
             val = list(val)
-            assert len(val) == self.usedBy
+            assert len(val) == len(self._outputs)
             return val
 
     def assignRealization(self, r: OpRealizationMeta):
@@ -162,58 +163,13 @@ class AbstractHlsOp():
             "Override this method in derived class", self)
 
     def allocate_instance(self,
-            allocator:"HlsAllocator",
-            used_signals:UniqList[TimeIndependentRtlResourceItem]):
+            allocator: "HlsAllocator",
+            used_signals: SignalsOfStages):
         raise NotImplementedError(
             "Override this method in derived class", self)
 
-    def get_earliest_clk(self):
-        """Earliest schedule step (by ASAP)"""
-        return start_clk(self.asap_start, self.hls.clk_period)
-
-    def get_latest_clk(self):
-        """Earliest schedule step (by ALAP)"""
-        return start_clk(self.alap_start, self.hls.clk_period)
-
-    def get_mobility(self):
-        """
-        :return: number of clk periods between earliest and latest schedulization time
-        """
-        m = self.get_latest_clk() - self.get_earliest_clk()
-        assert m >= 0, (self, self.get_earliest_clk(),
-                        self.get_latest_clk(),
-                        self.asap_start / self.hls.clk_period,
-                        self.alap_start / self.hls.clk_period)
-        return m
-
-    def get_probability(self, step):
-        """Calculate probability of scheduling operation to this step"""
-        if step < self.get_earliest_clk() or step > self.get_latest_clk():
-            return 0.0
-
-        return 1 / (self.get_mobility() + 1)
-
     def _get_rtl_context(self):
         return self.hls.ctx
-
-    def instantiateHlsOperationInTime(self,
-                                   allocator: "HlsAllocator",
-                                   time:float,
-                                   used_signals: UniqList[TimeIndependentRtlResourceItem]
-                                   ) -> TimeIndependentRtlResourceItem:
-        try:
-            _o = allocator.node2instance[self]
-        except KeyError:
-            _o = None
-
-        if _o is None:
-            # if dependency of this node is not instantiated yet
-            # instantiate it
-            _o = allocator._instantiate(self, used_signals)
-        else:
-            used_signals.append(_o)
-
-        return _o.get(time)
 
     def debug_iter_shadow_connection_dst(self) -> Generator["AbstractHlsOp", None, None]:
         """
@@ -239,7 +195,7 @@ class HlsConst(AbstractHlsOp):
 
     def allocate_instance(self,
                           allocator: "HlsAllocator",
-                          used_signals: UniqList[TimeIndependentRtlResourceItem]
+                          used_signals: SignalsOfStages
                           ) -> TimeIndependentRtlResource:
         s = self.val
         t = TimeIndependentRtlResource.INVARIANT_TIME
@@ -296,19 +252,19 @@ class HlsOperation(AbstractHlsOp):
 
     def allocate_instance(self,
                           allocator: "HlsAllocator",
-                          used_signals: UniqList[TimeIndependentRtlResourceItem]
+                          used_signals: SignalsOfStages
                           ) -> TimeIndependentRtlResource:
-        op_out = HlsOperationOut(self, 0)
+        op_out = self._outputs[0]
         try:
             return allocator.node2instance[op_out]
         except KeyError:
             pass
 
         operands = []
-        for in_i, dep in enumerate(self.dependsOn):
-            o = dep.obj
-            _o = o.instantiateHlsOperationInTime(allocator, self.scheduledIn[in_i], used_signals)
+        for (dep, t) in zip(self.dependsOn, self.scheduledIn):
+            _o = allocator.instantiateHlsOperationOutInTime(dep, t, used_signals)
             operands.append(_o)
+
         s = self.operator._evalFn(*(o.data for o in operands))
         if isinstance(s, HValue):
             t = TimeIndependentRtlResource.INVARIANT_TIME
@@ -323,7 +279,7 @@ class HlsOperation(AbstractHlsOp):
                     s.name = f"v{self._id:d}"
 
         tis = TimeIndependentRtlResource(s, t, allocator)
-        allocator._registerSignal(op_out, tis, used_signals)
+        allocator._registerSignal(op_out, tis, used_signals.getForTime(t))
         return tis
 
     def __repr__(self, minify=False):

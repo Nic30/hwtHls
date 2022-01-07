@@ -1,17 +1,19 @@
-from typing import Type, Dict, Optional, List, Tuple, Union, Sequence
+from collections import deque
+from typing import Type, Dict, Optional, List, Tuple, Union, Sequence, Deque
 
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.interfaces.std import HandshakeSync, Handshaked, VldSynced, RdSynced, \
     Signal
+from hwt.interfaces.structIntf import StructIntf
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
+from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResourceItem
+from hwtHls.clk_math import clk_period_diff, epsilon
 from hwtLib.amba.axi_intf_common import Axi_hs
 from hwtLib.handshaked.streamNode import StreamNode
-from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
-from hwt.interfaces.structIntf import StructIntf
 
 
 def get_sync_type(intf: Interface) -> Type[Interface]:
@@ -43,6 +45,20 @@ class ConnectionsOfStage():
         self.io_extraCond: Dict[Interface, TimeIndependentRtlResourceItem] = {}
         self.sync_node: Optional[StreamNode] = None
         self.stDependentDrives: List[HdlStatement] = []
+
+
+class SignalsOfStages(Deque[UniqList[TimeIndependentRtlResourceItem]]):
+    """
+    Container of signals in :class:`~ConnectionsOfStage` instances.
+    """
+
+    def __init__(self, clk_period: float, startTime: float, *args):
+        self.startTime = startTime
+        self.clk_period = clk_period
+        deque.__init__(self, *args)
+
+    def getForTime(self, t):
+        return self[clk_period_diff(self.startTime, t + epsilon, self.clk_period)]
 
 
 def setNopValIfNotSet(intf: Interface, nopVal, exclude: List[Interface]):

@@ -1,6 +1,7 @@
 from typing import Union, Optional, List
 
 from hwt.doc_markers import internal
+from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.defs import BIT
 from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.interfaces.std import Signal, HandshakeSync, Handshaked, VldSynced, \
@@ -10,9 +11,10 @@ from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResourceItem, \
-    TimeIndependentRtlResource
+from hwtHls.allocator.connectionsOfStage import SignalsOfStages
+from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.clk_math import epsilon, start_of_next_clk_period, start_clk
+from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
 from hwtHls.netlist.nodes.ops import AbstractHlsOp
 from hwtHls.netlist.nodes.ports import HlsOperationIn, HlsOperationOut, \
     link_hls_nodes, HlsOperationOutLazy, HlsOperationOutLazyIndirect
@@ -21,7 +23,7 @@ from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.ssa.translation.toHwtHlsNetlist.opCache import SsaToHwtHlsNetlistOpCache
 from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axis import AxiStream
-from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
+
 
 IO_COMB_REALIZATION = OpRealizationMeta(latency_post=epsilon)
 
@@ -54,7 +56,7 @@ class HlsExplicitSyncNode(AbstractHlsOp):
 
     def allocate_instance(self,
                           allocator: "HlsAllocator",
-                          used_signals: UniqList[TimeIndependentRtlResourceItem]
+                          used_signals: SignalsOfStages
                           ) -> TimeIndependentRtlResource:
         assert type(self) is HlsExplicitSyncNode, self
         op_out = self._outputs[0]
@@ -65,9 +67,10 @@ class HlsExplicitSyncNode(AbstractHlsOp):
             pass
         # synchronization applied in allocator additionally, we just pass the data
         v = allocator.instantiateHlsOperationOut(self.dependsOn[0], used_signals)
-        allocator._registerSignal(op_out, v, used_signals)
+        allocator._registerSignal(op_out, v, used_signals.getForTime(self.scheduledOut[0]))
         for conrol in self.dependsOn[1:]:
-            allocator.instantiateHlsOperationOut(conrol, used_signals)
+            conrol.obj.allocate_instance(allocator, used_signals)
+
         return v
 
     def _unregisterLazyInput(self, cur: HlsOperationOutLazy, inI: int):
@@ -170,7 +173,7 @@ class HlsRead(HlsExplicitSyncNode, InterfaceBase):
 
     def allocate_instance(self,
                           allocator: "HlsAllocator",
-                          used_signals: UniqList[TimeIndependentRtlResourceItem]
+                          used_signals: SignalsOfStages
                           ) -> TimeIndependentRtlResource:
         """
         Instantiate read operation on RTL level
@@ -180,17 +183,18 @@ class HlsRead(HlsExplicitSyncNode, InterfaceBase):
             return allocator.node2instance[r_out]
         except KeyError:
             pass
-
+        
+        t = self.scheduledOut[0]
         _o = TimeIndependentRtlResource(
             self.getRtlDataSig(),
-            self.scheduledOut[0],
+            t,
             allocator)
-        allocator._registerSignal(r_out, _o, used_signals)
+        allocator._registerSignal(r_out, _o, used_signals.getForTime(t))
         for sync in self.dependsOn:
             assert isinstance(sync, HlsOperationOut), (self, self.dependsOn)
             # prepare sync intputs but do not connect it because we do not implemet synchronization
             # in this step we are building only datapath
-            allocator.instantiateHlsOperationOut(sync, used_signals)
+            sync.obj.allocate_instance(allocator, used_signals)
 
         return _o
 
@@ -255,7 +259,7 @@ class HlsReadSync(AbstractHlsOp, InterfaceBase):
 
     def allocate_instance(self,
                           allocator: "HlsAllocator",
-                          used_signals: UniqList[TimeIndependentRtlResourceItem]
+                          used_signals: SignalsOfStages
                           ) -> TimeIndependentRtlResource:
         """
         Instantiate read operation on RTL level
@@ -266,11 +270,12 @@ class HlsReadSync(AbstractHlsOp, InterfaceBase):
         except KeyError:
             pass
 
+        t = self.scheduledOut[0]
         _o = TimeIndependentRtlResource(
             self.getRtlControlEn(),
-            self.scheduledOut[0],
+            t,
             allocator)
-        allocator._registerSignal(r_out, _o, used_signals)
+        allocator._registerSignal(r_out, _o, used_signals.getForTime(t))
 
         # for sync in self.dependsOn:
         #    assert isinstance(sync, HlsOperationOut), (self, self.dependsOn)
@@ -367,20 +372,20 @@ class HlsWrite(HlsExplicitSyncNode):
         
     def allocate_instance(self,
                           allocator: "HlsAllocator",
-                          used_signals: UniqList[TimeIndependentRtlResourceItem]
-                          ) -> TimeIndependentRtlResource:
+                          used_signals: SignalsOfStages
+                          ) -> List[HdlStatement]:
         """
         Instantiate write operation on RTL level
         """
         assert len(self.dependsOn) >= 1, self.dependsOn
         # [0] - data, [1:] control dependencies
-        for sync in self.dependsOn[1:]:
+        for sync, t in zip(self.dependsOn[1:], self.scheduledIn[1:]):
             # prepare sync intputs but do not connect it because we do not implemet synchronization
             # in this step we are building only datapath
-            allocator.instantiateHlsOperationOut(sync, used_signals)
+            allocator.instantiateHlsOperationOutInTime(sync, t, used_signals)
 
         dep = self.dependsOn[0]
-        _o = allocator.instantiateHlsOperationOut(dep, used_signals)
+        _o = allocator.instantiateHlsOperationOutInTime(dep, self.scheduledIn[0], used_signals)
 
         # apply indexes before assignments
         dst = self.dst
@@ -396,8 +401,6 @@ class HlsWrite(HlsExplicitSyncNode):
             return allocator.node2instance[(dep, dst)]
         except KeyError:
             pass
-
-        _o = _o.get(dep.obj.scheduledOut[0])
 
         rtlObj = dst(_o.data)
         # allocator.node2instance[o] = rtlObj
