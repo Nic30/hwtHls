@@ -30,5 +30,5 @@ def clk_period_diff(start: float, end: float, clk_period: float):
     """
     assert start <= end, (start, end)
     d = end_clk(end, clk_period) - start_clk(start, clk_period)
-    assert d >= 0, (start, end)
+    assert d >= 0.0, (start, end)
     return d
