@@ -5,7 +5,7 @@ from typing import List, Union, Dict, Optional, Tuple
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwtHls.hlsStreamProc.debugCodeSerializer import CopyBasicBlockLabelsToCode
 from hwtHls.hlsStreamProc.statements import HlsStreamProcCodeBlock
-from hwtHls.netlist.toGraphwiz import GraphwizNode, GraphwizLink, \
+from hwtHls.netlist.translation.toGraphwiz import GraphwizNode, GraphwizLink, \
     HwtHlsNetlistToGraphwiz
 from hwtHls.ssa.analysis.liveness import EdgeLivenessDict
 from hwtHls.ssa.basicBlock import SsaBasicBlock

@@ -6,7 +6,7 @@ from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwtHls.netlist.nodes.io import HlsRead, HlsWrite
 from hwtHls.netlist.nodes.ops import AbstractHlsOp, HlsConst, HlsOperation
 from hwtHls.netlist.nodes.ports import HlsOperationOut
-from hwtHls.netlist.transformations.hlsNetlistPass import HlsNetlistPass
+from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 
 
 class GraphwizNode():

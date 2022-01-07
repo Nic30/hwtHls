@@ -1,5 +1,5 @@
 from io import StringIO
-from hwtHls.netlist.transformations.rtlNetlistPass import RtlNetlistPass
+from hwtHls.netlist.transformation.rtlNetlistPass import RtlNetlistPass
 from hwtHls.allocator.allocator import ConnectionsOfStage
 from hwtHls.allocator.pipelineContainer import PipelineContainer
 from hwtHls.allocator.fsmContainer import FsmContainer
