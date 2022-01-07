@@ -88,7 +88,7 @@ class TimeIndependentRtlResource():
         index = dst_clk_period - \
             start_clk(self.timeOffset, clk_period)
 
-        assert index >= 0, (self.timeOffset, time, self.valuesInTime[0])
+        assert index >= 0, (index, self.timeOffset, time, self.valuesInTime[0])
         try:
             return self.valuesInTime[index]
         except IndexError:

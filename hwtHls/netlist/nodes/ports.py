@@ -133,3 +133,4 @@ def link_hls_nodes(parent: Union[HlsOperationOut, HlsOperationOutLazy], child: H
     child.obj.dependsOn[child.in_i] = parent
     if isinstance(parent, HlsOperationOut) and isinstance(child, HlsOperationOut):
         assert parent.obj is not child.obj
+
