@@ -1,8 +1,8 @@
 from typing import List, Set, Dict, Callable
 
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.netlist.nodes.ops import AbstractHlsOp
-from hwtHls.netlist.nodes.ports import HlsOperationIn, HlsOperationOut, \
+from hwtHls.netlist.nodes.ops import HlsNetNode
+from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
     link_hls_nodes
 
 
@@ -14,14 +14,14 @@ class HlsNetlistClusterSearch():
 
     def __init__(self):
         # output ports of outside nodes
-        self.inputs: List[HlsOperationOut] = []
-        self.inputsDict: Dict[HlsOperationOut, UniqList[HlsOperationIn]] = {}
+        self.inputs: List[HlsNetNodeOut] = []
+        self.inputsDict: Dict[HlsNetNodeOut, UniqList[HlsNetNodeIn]] = {}
         # output ports of inside nodes
-        self.outputs: UniqList[HlsOperationOut] = UniqList()
-        self.nodes: UniqList[AbstractHlsOp] = UniqList()
+        self.outputs: UniqList[HlsNetNodeOut] = UniqList()
+        self.nodes: UniqList[HlsNetNode] = UniqList()
         
-    def _discover(self, n: AbstractHlsOp, seen: Set[AbstractHlsOp],
-                 predicateFn: Callable[[AbstractHlsOp], bool]):
+    def _discover(self, n: HlsNetNode, seen: Set[HlsNetNode],
+                 predicateFn: Callable[[HlsNetNode], bool]):
         """
         :attention: the inuts and outputs may by falsely detected if there are connections
             which are crossing the layers of the circuit (which usually the case)
@@ -29,7 +29,7 @@ class HlsNetlistClusterSearch():
         self.nodes.append(n)
         seen.add(n)
         for inp, dep in zip(n._inputs, n.dependsOn):
-            dep: HlsOperationOut
+            dep: HlsNetNodeOut
             depObj = dep.obj
             if depObj not in seen and predicateFn(depObj):
                 self._discover(depObj, seen, predicateFn)
@@ -44,7 +44,7 @@ class HlsNetlistClusterSearch():
         
         for outp, users in zip(n._outputs, n.usedBy):
             for u in users:
-                u: HlsOperationIn
+                u: HlsNetNodeIn
                 uObj = u.obj
                 if uObj not in seen and predicateFn(uObj):
                     self._discover(uObj, seen, predicateFn)            
@@ -52,8 +52,8 @@ class HlsNetlistClusterSearch():
                     if outp not in self.outputs:
                         self.outputs.append(outp)
 
-    def discover(self, n: AbstractHlsOp, seen: Set[AbstractHlsOp],
-                 predicateFn: Callable[[AbstractHlsOp], bool]):
+    def discover(self, n: HlsNetNode, seen: Set[HlsNetNode],
+                 predicateFn: Callable[[HlsNetNode], bool]):
         """
         Discover the cluster from the node n.
         """
@@ -61,7 +61,7 @@ class HlsNetlistClusterSearch():
         self.inputs = [i for i in self.inputs if i.obj not in self.nodes]
         # self.outputs = [o for o in self.outputs if o.obj not in self.nodes]
     
-    def substituteWithNode(self, n: AbstractHlsOp):
+    def substituteWithNode(self, n: HlsNetNode):
         """
         Substitute all nodes with the cluster with a single node. All nodes are removed from netlists and disconnected on outer side.
         On inner side the information about connection is kept.
@@ -69,7 +69,7 @@ class HlsNetlistClusterSearch():
         assert len(self.inputs) == len(n._inputs)
         assert len(self.outputs) == len(n._outputs)
         for boundaryIn, outerOutput in zip(n._inputs, self.inputs):
-            outerOutput: HlsOperationOut
+            outerOutput: HlsNetNodeOut
             interInputs = self.inputsDict[outerOutput]
             usedBy = outerOutput.obj.usedBy[outerOutput.out_i]
             usedBy = outerOutput.obj.usedBy[outerOutput.out_i] = [
@@ -93,17 +93,17 @@ class HlsNetlistClusterSearch():
                     in_.obj.dependsOn[in_.in_i] = boundaryOut
             interOutput.obj.usedBy[interOutput.out_i] = [in_ for in_ in usedBy if in_.obj in clusterNodes]
     
-    def doesOutputLeadsToInputOfCluster(self, node: AbstractHlsOp,
-                                        seenNodes: Set[HlsOperationOut]) -> bool:
+    def doesOutputLeadsToInputOfCluster(self, node: HlsNetNode,
+                                        seenNodes: Set[HlsNetNodeOut]) -> bool:
         """
         Transitively check if the node outputs leads to some input of this cluster.
         """
         seenNodes.add(node)
         # print(node)
         for o, usedBy in zip(node._outputs, node.usedBy):
-            o: HlsOperationOut
+            o: HlsNetNodeOut
             for u in usedBy:
-                u: HlsOperationIn
+                u: HlsNetNodeIn
                 if u.obj in self.nodes:
                     # this output leads back to some input of this cluster
                     if node not in self.nodes:
@@ -117,7 +117,7 @@ class HlsNetlistClusterSearch():
                             return True
         return False
 
-    def collectPredecesorsInCluster(self, node: AbstractHlsOp):
+    def collectPredecesorsInCluster(self, node: HlsNetNode):
         """
         Transitively collect all nodes which drive inputs of this node until cluster boundary is meet.
         """
@@ -132,9 +132,9 @@ class HlsNetlistClusterSearch():
         """
         # >1 because if tere was just 1 output the cycle has been there even before this cluster was generated. 
         if len(self.outputs) > 1:
-            outputsCausingLoop: List[HlsOperationOut] = []
+            outputsCausingLoop: List[HlsNetNodeOut] = []
             for o in self.outputs:
-                seenNodes: Set[AbstractHlsOp] = set()
+                seenNodes: Set[HlsNetNode] = set()
                 if self.doesOutputLeadsToInputOfCluster(o.obj, seenNodes):
                     outputsCausingLoop.append(o)
 
@@ -170,7 +170,7 @@ class HlsNetlistClusterSearch():
                 self.inputs = newInputs
                 # nodes and outputs can not be shared
                 self.nodes = UniqList(n for n in self.nodes if n not in predCluster.nodes)
-                newOutputs: UniqList[HlsOperationOut] = UniqList()
+                newOutputs: UniqList[HlsNetNodeOut] = UniqList()
                 for o in self.outputs:
                     if o.obj in self.nodes:
                         newOutputs.append(o)

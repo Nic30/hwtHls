@@ -11,8 +11,8 @@ from hwtHls.allocator.architecturalElement import AllocatorArchitecturalElement
 from hwtHls.allocator.connectionsOfStage import ConnectionsOfStage, resolveStrongestSyncType, \
     SignalsOfStages
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
-from hwtHls.netlist.nodes.io import HlsRead, HlsWrite
-from hwtHls.netlist.nodes.ops import AbstractHlsOp
+from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
+from hwtHls.netlist.nodes.ops import HlsNetNode
 
 
 class PipelineContainer(AllocatorArchitecturalElement):
@@ -20,7 +20,7 @@ class PipelineContainer(AllocatorArchitecturalElement):
     A container of informations about hw pipeline allocation.
     """
 
-    def __init__(self, allocator: "HlsAllocator", stages: List[List[AbstractHlsOp]]):
+    def __init__(self, allocator: "HlsAllocator", stages: List[List[HlsNetNode]]):
         AllocatorArchitecturalElement.__init__(self, allocator)
         self.stages = stages
 
@@ -56,18 +56,18 @@ class PipelineContainer(AllocatorArchitecturalElement):
         for nodes, con in zip(self.stages, stageCons):
             # assert nodes
             for node in nodes:
-                node: AbstractHlsOp
+                node: HlsNetNode
                 # this is one level of nodes,
                 # node can not be dependent on nodes behind in this list
                 # because this engine does not support backward edges in DFG
                 node.allocate_instance(allocator, stageSignals)
 
-                if isinstance(node, HlsRead):
+                if isinstance(node, HlsNetNodeRead):
                     con.inputs.append(node.src)
                     # if node.src in allocator.parentHls.coherency_checked_io:
                     allocator._copy_sync(node.src, node, con.io_skipWhen, con.io_extraCond, stageSignals)
 
-                elif isinstance(node, HlsWrite):
+                elif isinstance(node, HlsNetNodeWrite):
                     con.outputs.append(node.dst)
                     # if node.dst in allocator.parentHls.coherency_checked_io:
                     allocator._copy_sync(node.dst, node, con.io_skipWhen, con.io_extraCond, stageSignals)

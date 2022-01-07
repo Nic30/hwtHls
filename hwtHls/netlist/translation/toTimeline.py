@@ -8,10 +8,10 @@ import plotly.offline
 from hwt.hdl.types.bitsVal import BitsVal
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
-from hwtHls.netlist.nodes.io import HlsWrite, HlsRead, HlsExplicitSyncNode
-from hwtHls.netlist.nodes.ops import AbstractHlsOp, HlsOperation, HlsConst
+from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeRead, HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.ops import HlsNetNode, HlsNetNodeOperator, HlsNetNodeConst
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
-from hwtHls.ssa.translation.toHwtHlsNetlist.nodes.backwardEdge import HlsWriteBackwardEdge
+from hwtHls.ssa.translation.toHwtHlsNetlist.nodes.backwardEdge import HlsNetNodeWriteBackwardEdge
 
 
 # [todo] pandas is overkill in this case, rm, plotly does not have it as dependencies
@@ -21,17 +21,17 @@ class HwtHlsNetlistToTimeline():
     """
 
     def __init__(self, clk_period: float):
-        self.obj_to_row: Dict[AbstractHlsOp, dict] = {}
+        self.obj_to_row: Dict[HlsNetNode, dict] = {}
         self.rows: List[dict] = []
         self.time_scale = 1e9  # to ns
         self.clk_period = self.time_scale * clk_period
         self.min_duration = 0.5e-9 * self.time_scale  # minimum width of boexes representing operations
 
-    def construct(self, nodes: List[AbstractHlsOp]):
+    def construct(self, nodes: List[HlsNetNode]):
         rows = self.rows
         io_group_ids: Dict[Interface, int] = {}
         for row_i, obj in enumerate(nodes):
-            obj: AbstractHlsOp
+            obj: HlsNetNode
             obj_group_id = row_i
             if obj.scheduledIn:
                 start = min(obj.scheduledIn)
@@ -53,21 +53,21 @@ class HwtHlsNetlistToTimeline():
                 finish += to_add / 2
 
             color = "purple"
-            if isinstance(obj, HlsOperation):
+            if isinstance(obj, HlsNetNodeOperator):
                 label = f"{obj.operator.id:s} {obj._id:d}"
 
-            elif isinstance(obj, HlsWrite):
+            elif isinstance(obj, HlsNetNodeWrite):
                 label = f"{getSignalName(obj.dst)}.write()  {obj._id:d}"
-                if isinstance(obj, HlsWriteBackwardEdge):
+                if isinstance(obj, HlsNetNodeWriteBackwardEdge):
                     obj_group_id = io_group_ids.setdefault(obj.associated_read.src, obj_group_id)
                 color = "green"
 
-            elif isinstance(obj, HlsRead):
+            elif isinstance(obj, HlsNetNodeRead):
                 label = f"{getSignalName(obj.src)}.read()  {obj._id:d}"
                 obj_group_id = io_group_ids.setdefault(obj.src, obj_group_id)
                 color = "green"
 
-            elif isinstance(obj, HlsConst):
+            elif isinstance(obj, HlsNetNodeConst):
                 val = obj.val
                 if isinstance(val, BitsVal):
                     if val._is_full_valid():
@@ -77,7 +77,7 @@ class HwtHlsNetlistToTimeline():
                 else:
                     label = repr(val)
 
-            elif isinstance(obj, HlsExplicitSyncNode):
+            elif isinstance(obj, HlsNetNodeExplicitSync):
                 label = f"{obj.__class__.__name__:s}  {obj._id:d}"
 
             else:
@@ -88,7 +88,7 @@ class HwtHlsNetlistToTimeline():
             self.obj_to_row[obj] = (row, row_i)
 
         for row_i, (row, obj) in enumerate(zip(rows, nodes)):
-            obj: AbstractHlsOp
+            obj: HlsNetNode
             row["deps"].extend(self.obj_to_row[dep.obj][1] for dep in obj.dependsOn)
             for bdep_obj in obj.debug_iter_shadow_connection_dst():
                 bdep = self.obj_to_row[bdep_obj][0]

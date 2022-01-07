@@ -1,17 +1,17 @@
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.clk_math import epsilon
 from hwtHls.netlist.nodes.io import IO_COMB_REALIZATION
-from hwtHls.netlist.nodes.ops import AbstractHlsOp
+from hwtHls.netlist.nodes.ops import HlsNetNode
 from hwtHls.allocator.connectionsOfStage import SignalsOfStages
 
 
-class HlsProgramStarter(AbstractHlsOp):
+class HlsProgramStarter(HlsNetNode):
     """
     A node with produces just a single sync token to start the program after reset.
     """
 
     def __init__(self, parentHls:"HlsPipeline", name:str=None):
-        AbstractHlsOp.__init__(self, parentHls, name=name)
+        HlsNetNode.__init__(self, parentHls, name=name)
         self._add_output()
 
     def resolve_realization(self):

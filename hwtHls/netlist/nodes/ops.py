@@ -7,7 +7,7 @@ from hwt.pyUtils.uniqList import UniqList
 from hwtHls.allocator.connectionsOfStage import SignalsOfStages
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.clk_math import epsilon, start_of_next_clk_period
-from hwtHls.netlist.nodes.ports import HlsOperationIn, HlsOperationOut, \
+from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
     _reprMinify
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.scheduler.errors import TimeConstraintError
@@ -15,7 +15,7 @@ from hwtHls.scheduler.errors import TimeConstraintError
 TimeSpec = Union[float, Tuple[float, ...]]
 
 
-class AbstractHlsOp():
+class HlsNetNode():
     """
     Abstract class for nodes in circuit which are subject to HLS scheduling
 
@@ -49,10 +49,10 @@ class AbstractHlsOp():
         self.hls = parentHls
         self._id = parentHls.nodeCtx.getUniqId()
 
-        self.usedBy: List[List[HlsOperationIn]] = []
-        self.dependsOn: List[HlsOperationOut] = []
-        self._inputs: List[HlsOperationIn] = []
-        self._outputs: List[HlsOperationOut] = []
+        self.usedBy: List[List[HlsNetNodeIn]] = []
+        self.dependsOn: List[HlsNetNodeOut] = []
+        self._inputs: List[HlsNetNodeIn] = []
+        self._outputs: List[HlsNetNodeOut] = []
 
         self.asap_start: Optional[TimeSpec] = None
         self.asap_end: Optional[TimeSpec] = None
@@ -63,7 +63,7 @@ class AbstractHlsOp():
         self.scheduledIn: Optional[TimeSpec] = None
         self.scheduledOut: Optional[TimeSpec] = None
 
-    def scheduleAsap(self, clk_period: float, pathForDebug: Optional[UniqList["AbstractHlsOp"]]) -> List[float]:
+    def scheduleAsap(self, clk_period: float, pathForDebug: Optional[UniqList["HlsNetNode"]]) -> List[float]:
         """
         The recursive function of ASAP scheduling
         """
@@ -120,15 +120,15 @@ class AbstractHlsOp():
     
         return self.asap_end
         
-    def _add_input(self) -> HlsOperationIn:
-        i = HlsOperationIn(self, len(self._inputs))
+    def _add_input(self) -> HlsNetNodeIn:
+        i = HlsNetNodeIn(self, len(self._inputs))
         self.dependsOn.append(None)
         self._inputs.append(i)
         return i
 
     def _add_output(self):
         self.usedBy.append([])
-        o = HlsOperationOut(self, len(self._outputs))
+        o = HlsNetNodeOut(self, len(self._outputs))
         self._outputs.append(o)
         return o
 
@@ -171,7 +171,7 @@ class AbstractHlsOp():
     def _get_rtl_context(self):
         return self.hls.ctx
 
-    def debug_iter_shadow_connection_dst(self) -> Generator["AbstractHlsOp", None, None]:
+    def debug_iter_shadow_connection_dst(self) -> Generator["HlsNetNode", None, None]:
         """
         Iter nodes which are not connected or somehow related to this but do not use a standard connection.
         (The information is used for visualization.)
@@ -180,14 +180,14 @@ class AbstractHlsOp():
         yield
 
 
-class HlsConst(AbstractHlsOp):
+class HlsNetNodeConst(HlsNetNode):
     """
     Wrapper around constant value for HLS sybsystem
     """
 
     def __init__(self, parentHls: "HlsPipeline", val: HValue):
         self.val = val
-        AbstractHlsOp.__init__(self, parentHls, None)
+        HlsNetNode.__init__(self, parentHls, None)
         self._add_output()
 
     def get(self, time: float):
@@ -214,7 +214,7 @@ class HlsConst(AbstractHlsOp):
             return f"<{self.__class__.__name__:s} {self._id:d} {self.val}>"
 
 
-class HlsOperation(AbstractHlsOp):
+class HlsNetNodeOperator(HlsNetNode):
     """
     Abstract implementation of RTL operator
 
@@ -226,15 +226,15 @@ class HlsOperation(AbstractHlsOp):
                  operand_cnt: int,
                  bit_length: int,
                  name=None):
-        super(HlsOperation, self).__init__(parentHls, name=name)
+        super(HlsNetNodeOperator, self).__init__(parentHls, name=name)
         self.bit_length = bit_length
         self.operator = operator
         for i in range(operand_cnt):
             self.dependsOn.append(None)
-            self._inputs.append(HlsOperationIn(self, i))
+            self._inputs.append(HlsNetNodeIn(self, i))
         # add containers for io pins
         self.usedBy.append([])
-        self._outputs.append(HlsOperationOut(self, 0))
+        self._outputs.append(HlsNetNodeOut(self, 0))
 
     def resolve_realization(self):
         hls = self.hls
@@ -262,7 +262,7 @@ class HlsOperation(AbstractHlsOp):
 
         operands = []
         for (dep, t) in zip(self.dependsOn, self.scheduledIn):
-            _o = allocator.instantiateHlsOperationOutInTime(dep, t, used_signals)
+            _o = allocator.instantiateHlsNetNodeOutInTime(dep, t, used_signals)
             operands.append(_o)
 
         s = self.operator._evalFn(*(o.data for o in operands))

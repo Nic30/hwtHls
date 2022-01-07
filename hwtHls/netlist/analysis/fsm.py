@@ -6,16 +6,16 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.clk_math import start_clk
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
-from hwtHls.netlist.nodes.io import HlsRead, HlsWrite
-from hwtHls.netlist.nodes.ops import AbstractHlsOp
-from hwtHls.netlist.nodes.ports import HlsOperationOut, HlsOperationIn
+from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
+from hwtHls.netlist.nodes.ops import HlsNetNode
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 
 
 class IoFsm():
 
     def __init__(self, intf: Interface):
         self.intf = intf
-        self.states: List[List[AbstractHlsOp]] = []
+        self.states: List[List[HlsNetNode]] = []
         self.transitionTable: Dict[int, Dict[int, Union[bool, RtlSignal]]] = {}
 
 
@@ -29,12 +29,12 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
         HlsNetlistAnalysisPass.__init__(self, hls)
         self.fsms: List[IoFsm] = []
     
-    def _floodNetInSameCycle(self, clk_i: int, o: AbstractHlsOp, seen:Set[AbstractHlsOp]):
+    def _floodNetInSameCycle(self, clk_i: int, o: HlsNetNode, seen:Set[HlsNetNode]):
         seen.add(o)
         yield o
         clk_period = self.hls.clk_period
         for dep in o.dependsOn:
-            dep: HlsOperationOut
+            dep: HlsNetNodeOut
             obj = dep.obj
             if obj not in seen:
                 if obj.scheduledOut[dep.out_i] // clk_period == clk_i:
@@ -42,15 +42,15 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
 
         for uses in o.usedBy:
             for use in uses:
-                use: HlsOperationIn
+                use: HlsNetNodeIn
                 obj = use.obj
                 if obj not in seen:
                     if obj.scheduledIn[use.in_i] // clk_period == clk_i:
                         yield from self._floodNetInSameCycle(clk_i, obj, seen)
 
-    def collectInFsmNodes(self) -> Set[AbstractHlsOp]:
+    def collectInFsmNodes(self) -> Set[HlsNetNode]:
         "Collect nodes which are part of some fsm"
-        inFsm: Set[AbstractHlsOp] = set()
+        inFsm: Set[HlsNetNode] = set()
         for fsm in self.fsms:
             for nodes in fsm.states:
                 inFsm.update(nodes)
@@ -63,9 +63,9 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
                 # all accesses which are not in same clock cycle must be mapped to individual FSM state
                 # every interface may spot a FSM
                 fsm = IoFsm(i)
-                seenClks: Dict[int, Set[AbstractHlsOp]] = {}
+                seenClks: Dict[int, Set[HlsNetNode]] = {}
                 for a in sorted(accesses, key=lambda a: a.scheduledIn[0]):
-                    a: Union[HlsRead, HlsWrite]
+                    a: Union[HlsNetNodeRead, HlsNetNodeWrite]
                     clkI = start_clk(a.scheduledIn[0], self.hls.clk_period)
                     seen = seenClks.get(clkI, None)
                     # there can be multiple IO operations on same IO in same clock cycle, if this is the case

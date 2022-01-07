@@ -7,8 +7,8 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.unit import Unit
 from hwtHls.allocator.allocator import HlsAllocator
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
-from hwtHls.netlist.nodes.io import HlsRead, HlsWrite
-from hwtHls.netlist.nodes.ops import AbstractHlsOp
+from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
+from hwtHls.netlist.nodes.ops import HlsNetNode
 from hwtHls.scheduler.scheduler import HlsScheduler
 
 
@@ -32,8 +32,8 @@ class HlsPipeline():
     :ivar platform: platform with configuration of this HLS context
     :ivar freq: target frequency for RTL (in Hz)
     :ivar resource_constrain: optional resource constrains
-    :ivar inputs: list of HlsRead operations in this pipeline
-    :ivar outputs: list of HlsWrite operations in this pipeline
+    :ivar inputs: list of HlsNetNodeRead operations in this pipeline
+    :ivar outputs: list of HlsNetNodeWrite operations in this pipeline
     :ivar nodes: list of all schedulization nodes present in this pipeline (except inputs/outputs)
     :ivar ctx: RtlNetlist (container of RTL signals for this HLS context)
         the purpose of objects in this ctx is only to store the input code
@@ -54,9 +54,9 @@ class HlsPipeline():
             raise ValueError("HLS requires platform to be specified")
 
         self.clk_period = 1 / int(freq)
-        self.inputs: List[HlsRead] = []
-        self.outputs: List[HlsWrite] = []
-        self.nodes: List[AbstractHlsOp] = []
+        self.inputs: List[HlsNetNodeRead] = []
+        self.outputs: List[HlsNetNodeWrite] = []
+        self.nodes: List[HlsNetNode] = []
 
         self.ctx = RtlNetlist()
         if coherency_checked_io is None:

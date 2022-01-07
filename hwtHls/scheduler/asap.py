@@ -1,10 +1,10 @@
 from typing import List
 
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.netlist.nodes.ops import AbstractHlsOp
+from hwtHls.netlist.nodes.ops import HlsNetNode
 
 
-def asap(nodes: List[AbstractHlsOp], clk_period: float):
+def asap(nodes: List[HlsNetNode], clk_period: float):
     """
     As Soon As Possible scheduler
     * The graph must not contain cycles.

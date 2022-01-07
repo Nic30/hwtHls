@@ -15,9 +15,9 @@ from hwtHls.allocator.connectionsOfStage import SignalsOfStages
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.clk_math import epsilon, start_of_next_clk_period, start_clk
 from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
-from hwtHls.netlist.nodes.ops import AbstractHlsOp
-from hwtHls.netlist.nodes.ports import HlsOperationIn, HlsOperationOut, \
-    link_hls_nodes, HlsOperationOutLazy, HlsOperationOutLazyIndirect
+from hwtHls.netlist.nodes.ops import HlsNetNode
+from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
+    link_hls_nodes, HlsNetNodeOutLazy, HlsNetNodeOutLazyIndirect
 from hwtHls.netlist.utils import hls_op_and, hls_op_or
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.ssa.translation.toHwtHlsNetlist.opCache import SsaToHwtHlsNetlistOpCache
@@ -28,7 +28,7 @@ from hwtLib.amba.axis import AxiStream
 IO_COMB_REALIZATION = OpRealizationMeta(latency_post=epsilon)
 
 
-class HlsExplicitSyncNode(AbstractHlsOp):
+class HlsNetNodeExplicitSync(HlsNetNode):
     """
     This node represents just wire in scheduled graph which has an extra synchronization conditions.
     :see: :class:`hwtLib.handshaked.streamNode.StreamNode`
@@ -43,22 +43,22 @@ class HlsExplicitSyncNode(AbstractHlsOp):
     """
 
     def __init__(self, parentHls: "HlsPipeline"):
-        AbstractHlsOp.__init__(self, parentHls, None)
+        HlsNetNode.__init__(self, parentHls, None)
         self._init_extraCond_skipWhen()
         self._add_input()
         self._add_output()
 
     def _init_extraCond_skipWhen(self):
-        self.extraCond: Optional[HlsOperationOut] = None
+        self.extraCond: Optional[HlsNetNodeOut] = None
         self.extraCond_inI: Optional[int] = None
-        self.skipWhen: Optional[HlsOperationOut] = None
+        self.skipWhen: Optional[HlsNetNodeOut] = None
         self.skipWhen_inI: Optional[int] = None
 
     def allocate_instance(self,
                           allocator: "HlsAllocator",
                           used_signals: SignalsOfStages
                           ) -> TimeIndependentRtlResource:
-        assert type(self) is HlsExplicitSyncNode, self
+        assert type(self) is HlsNetNodeExplicitSync, self
         op_out = self._outputs[0]
 
         try:
@@ -66,17 +66,17 @@ class HlsExplicitSyncNode(AbstractHlsOp):
         except KeyError:
             pass
         # synchronization applied in allocator additionally, we just pass the data
-        v = allocator.instantiateHlsOperationOut(self.dependsOn[0], used_signals)
+        v = allocator.instantiateHlsNetNodeOut(self.dependsOn[0], used_signals)
         allocator._registerSignal(op_out, v, used_signals.getForTime(self.scheduledOut[0]))
         for conrol in self.dependsOn[1:]:
             conrol.obj.allocate_instance(allocator, used_signals)
 
         return v
 
-    def _unregisterLazyInput(self, cur: HlsOperationOutLazy, inI: int):
+    def _unregisterLazyInput(self, cur: HlsNetNodeOutLazy, inI: int):
         found = False
         for i, dep in enumerate(cur.dependent_inputs):
-            if isinstance(dep, HlsOperationPropertyInputRef) and\
+            if isinstance(dep, HlsNetNodeOperatorPropertyInputRef) and\
                     dep.updated_obj is self and\
                     dep.in_i == inI:
                 cur.dependent_inputs.pop(i)
@@ -84,7 +84,7 @@ class HlsExplicitSyncNode(AbstractHlsOp):
                 break
         assert found, (self, cur.dependent_inputs)
 
-    def add_control_extraCond(self, en: Union[HlsOperationOut, HlsOperationOutLazy]):
+    def add_control_extraCond(self, en: Union[HlsNetNodeOut, HlsNetNodeOutLazy]):
         if self.extraCond is None:
             i = self._add_input()
             self.extraCond_inI = i.in_i
@@ -92,7 +92,7 @@ class HlsExplicitSyncNode(AbstractHlsOp):
         else:
             # create "and" of existing and new extraCond and use it instead
             cur = self.extraCond
-            if isinstance(cur, HlsOperationOutLazy):
+            if isinstance(cur, HlsNetNodeOutLazy):
                 self._unregisterLazyInput(cur, self.extraCond_inI)
 
             en = hls_op_and(self.hls, self.extraCond, en)
@@ -100,35 +100,35 @@ class HlsExplicitSyncNode(AbstractHlsOp):
 
         self.extraCond = en
         link_hls_nodes(en, i)
-        if isinstance(en, HlsOperationOutLazy):
-            en.dependent_inputs.append(HlsOperationPropertyInputRef(self, "extraCond", i.in_i, en))
+        if isinstance(en, HlsNetNodeOutLazy):
+            en.dependent_inputs.append(HlsNetNodeOperatorPropertyInputRef(self, "extraCond", i.in_i, en))
 
-    def add_control_skipWhen(self, skipWhen: Union[HlsOperationOut, HlsOperationOutLazy]):
+    def add_control_skipWhen(self, skipWhen: Union[HlsNetNodeOut, HlsNetNodeOutLazy]):
         if self.skipWhen is None:
             self.skipWhen = skipWhen
             i = self._add_input()
             self.skipWhen_inI = i.in_i
         else:
             cur = self.skipWhen
-            if isinstance(cur, HlsOperationOutLazy):
+            if isinstance(cur, HlsNetNodeOutLazy):
                 self._unregisterLazyInput(cur, self.skipWhen_inI)
 
             skipWhen = hls_op_or(self.hls, cur, skipWhen)
             i = self._inputs[self.skipWhen_inI]
 
         link_hls_nodes(skipWhen, i)
-        if isinstance(skipWhen, HlsOperationOutLazy):
-            skipWhen.dependent_inputs.append(HlsOperationPropertyInputRef(self, "skipWhen", i.in_i, skipWhen))
+        if isinstance(skipWhen, HlsNetNodeOutLazy):
+            skipWhen.dependent_inputs.append(HlsNetNodeOperatorPropertyInputRef(self, "skipWhen", i.in_i, skipWhen))
 
     def resolve_realization(self):
         self.assignRealization(IO_COMB_REALIZATION)
 
     @classmethod
     def replace_variable(cls, parentHls: "HlsPipeline", cache_key,
-                         var: Union[HlsOperationOut, HlsOperationOutLazy],
+                         var: Union[HlsNetNodeOut, HlsNetNodeOutLazy],
                          to_hls_cache: SsaToHwtHlsNetlistOpCache,
-                         extraCond: HlsOperationOut,
-                         skipWhen: HlsOperationOut):
+                         extraCond: HlsNetNodeOut,
+                         skipWhen: HlsNetNodeOut):
         """
         Prepend the synchronization to an operation output representing variable.
         """
@@ -137,8 +137,8 @@ class HlsExplicitSyncNode(AbstractHlsOp):
         o = self._outputs[0]
         link_hls_nodes(var, self._inputs[0])
         assert to_hls_cache._to_hls_cache[cache_key] is var, (cache_key, to_hls_cache._to_hls_cache[cache_key], var)
-        if isinstance(var, HlsOperationOutLazy):
-            o = HlsOperationOutLazyIndirect(to_hls_cache, var, o)
+        if isinstance(var, HlsNetNodeOutLazy):
+            o = HlsNetNodeOutLazyIndirect(to_hls_cache, var, o)
         else:
             to_hls_cache._to_hls_cache[cache_key] = o
 
@@ -151,7 +151,7 @@ class HlsExplicitSyncNode(AbstractHlsOp):
         return f"<{self.__class__.__name__:s} {self._id:d} in={self.dependsOn[0]}, extraCond={self.extraCond}>"
 
 
-class HlsRead(HlsExplicitSyncNode, InterfaceBase):
+class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
     """
     Hls plane to read from interface
 
@@ -163,7 +163,7 @@ class HlsRead(HlsExplicitSyncNode, InterfaceBase):
 
     def __init__(self, parentHls: "HlsPipeline",
                  src: Union[RtlSignal, Interface]):
-        AbstractHlsOp.__init__(self, parentHls, None)
+        HlsNetNode.__init__(self, parentHls, None)
         self._init_extraCond_skipWhen()
         self._add_output()  # slot for data consummer
 
@@ -191,15 +191,15 @@ class HlsRead(HlsExplicitSyncNode, InterfaceBase):
             allocator)
         allocator._registerSignal(r_out, _o, used_signals.getForTime(t))
         for sync in self.dependsOn:
-            assert isinstance(sync, HlsOperationOut), (self, self.dependsOn)
+            assert isinstance(sync, HlsNetNodeOut), (self, self.dependsOn)
             # prepare sync intputs but do not connect it because we do not implemet synchronization
             # in this step we are building only datapath
             sync.obj.allocate_instance(allocator, used_signals)
 
         return _o
 
-    def scheduleAsap(self, clk_period: float, pathForDebug: Optional[UniqList["AbstractHlsOp"]]) -> List[float]:
-        AbstractHlsOp.scheduleAsap(self, clk_period, pathForDebug)
+    def scheduleAsap(self, clk_period: float, pathForDebug: Optional[UniqList["HlsNetNode"]]) -> List[float]:
+        HlsNetNode.scheduleAsap(self, clk_period, pathForDebug)
         otherIoOps = self.hls.requestAnalysis(HlsNetlistAnalysisPassDiscoverIo).io_by_interface[self.src]
 
         while True:
@@ -237,7 +237,7 @@ class HlsRead(HlsExplicitSyncNode, InterfaceBase):
         return f"<{self.__class__.__name__:s} {self._id:d} {self.src}>"
 
 
-class HlsReadSync(AbstractHlsOp, InterfaceBase):
+class HlsNetNodeReadSync(HlsNetNode, InterfaceBase):
     """
     Hls plane to read a synchronization from an interface.
     e.g. signal valid for handshaked input, signal ready for handshaked output.
@@ -249,7 +249,7 @@ class HlsReadSync(AbstractHlsOp, InterfaceBase):
     """
 
     def __init__(self, parentHls: "HlsPipeline"):
-        AbstractHlsOp.__init__(self, parentHls, None)
+        HlsNetNode.__init__(self, parentHls, None)
         self._add_input()
         self._add_output()
         self.operator = "read_sync"
@@ -278,15 +278,15 @@ class HlsReadSync(AbstractHlsOp, InterfaceBase):
         allocator._registerSignal(r_out, _o, used_signals.getForTime(t))
 
         # for sync in self.dependsOn:
-        #    assert isinstance(sync, HlsOperationOut), (self, self.dependsOn)
+        #    assert isinstance(sync, HlsNetNodeOut), (self, self.dependsOn)
         #    # prepare sync intputs but do not connect it because we do not implemet synchronization
         #    # in this step we are building only datapath
-        #    allocator.instantiateHlsOperationOut(sync, used_signals)
+        #    allocator.instantiateHlsNetNodeOut(sync, used_signals)
         return _o
 
     def getRtlControlEn(self):
         d = self.dependsOn[0]
-        if isinstance(d.obj, HlsRead):
+        if isinstance(d.obj, HlsNetNodeRead):
             intf = d.obj.src
             if isinstance(intf, (Handshaked, HandshakeSync, VldSynced)):
                 return intf.vld
@@ -297,7 +297,7 @@ class HlsReadSync(AbstractHlsOp, InterfaceBase):
             else:
                 raise NotImplementedError(intf)
 
-        elif isinstance(d.obj, HlsWrite):
+        elif isinstance(d.obj, HlsNetNodeWrite):
             intf = d.obj.dst
             if isinstance(intf, (Handshaked, HandshakeSync, RdSynced)):
                 return intf.rd
@@ -315,7 +315,7 @@ class HlsReadSync(AbstractHlsOp, InterfaceBase):
         return f"<{self.__class__.__name__:s} {self._id:d}>"
 
 
-class HlsWrite(HlsExplicitSyncNode):
+class HlsNetNodeWrite(HlsNetNodeExplicitSync):
     """
     :ivar src: const value or HlsVariable
     :ivar dst: output interface not relatet to HLS
@@ -324,7 +324,7 @@ class HlsWrite(HlsExplicitSyncNode):
     """
 
     def __init__(self, parentHls: "HlsPipeline", src, dst: Union[RtlSignal, Interface, SsaValue]):
-        AbstractHlsOp.__init__(self, parentHls, None)
+        HlsNetNode.__init__(self, parentHls, None)
         self._init_extraCond_skipWhen()
         self._add_input()
         self.operator = "write"
@@ -337,17 +337,17 @@ class HlsWrite(HlsExplicitSyncNode):
                 if tmp:
                     dst, indexCascade, _ = tmp
 
-        assert isinstance(dst, (HlsOperationIn, HsStructIntf, Signal, RtlSignalBase)), dst
+        assert isinstance(dst, (HlsNetNodeIn, HsStructIntf, Signal, RtlSignalBase)), dst
         self.dst = dst
 
         self.indexes = indexCascade
         self.maxIosPerClk = 1
 
-    def scheduleAsap(self, clk_period: float, pathForDebug: Optional[UniqList["AbstractHlsOp"]]) -> List[float]:
-        # [todo] duplicit code with HlsRead
+    def scheduleAsap(self, clk_period: float, pathForDebug: Optional[UniqList["HlsNetNode"]]) -> List[float]:
+        # [todo] duplicit code with HlsNetNodeRead
         # [todo] mv to scheduler as the generic resource constraint
         assert self.dependsOn, self
-        AbstractHlsOp.scheduleAsap(self, clk_period, pathForDebug)
+        HlsNetNode.scheduleAsap(self, clk_period, pathForDebug)
         otherIoOps = self.hls.requestAnalysis(HlsNetlistAnalysisPassDiscoverIo).io_by_interface[self.dst]
 
         while True:
@@ -382,10 +382,10 @@ class HlsWrite(HlsExplicitSyncNode):
         for sync, t in zip(self.dependsOn[1:], self.scheduledIn[1:]):
             # prepare sync intputs but do not connect it because we do not implemet synchronization
             # in this step we are building only datapath
-            allocator.instantiateHlsOperationOutInTime(sync, t, used_signals)
+            allocator.instantiateHlsNetNodeOutInTime(sync, t, used_signals)
 
         dep = self.dependsOn[0]
-        _o = allocator.instantiateHlsOperationOutInTime(dep, self.scheduledIn[0], used_signals)
+        _o = allocator.instantiateHlsNetNodeOutInTime(dep, self.scheduledIn[0], used_signals)
 
         # apply indexes before assignments
         dst = self.dst
@@ -421,27 +421,27 @@ class HlsWrite(HlsExplicitSyncNode):
         return f"<{self.__class__.__name__:s} {self._id:d} {self.dst}{indexes:s} <- {self.src}>"
 
 
-class HlsOperationPropertyInputRef():
+class HlsNetNodeOperatorPropertyInputRef():
     """
-    An object which is used in HlsOperationOutLazy dependencies to update also HlsRead/HlsWrite object
+    An object which is used in HlsNetNodeOutLazy dependencies to update also HlsNetNodeRead/HlsNetNodeWrite object
     once the lazy output of some node on input is resolved.
     """
 
-    def __init__(self, updated_obj: Union[HlsRead, HlsWrite], property_name:str, in_i:int, obj: HlsOperationOutLazy):
+    def __init__(self, updated_obj: Union[HlsNetNodeRead, HlsNetNodeWrite], property_name:str, in_i:int, obj: HlsNetNodeOutLazy):
         self.updated_obj = updated_obj
         self.property_name = property_name
         self.in_i = in_i
         self.obj = obj
         self.replacedBy = None
 
-    def replace_driver(self, new_obj: HlsOperationOut):
+    def replace_driver(self, new_obj: HlsNetNodeOut):
         assert self.replacedBy is None, self
-        if isinstance(new_obj, HlsOperationOutLazy):
+        if isinstance(new_obj, HlsNetNodeOutLazy):
             assert self.obj is not new_obj, (self, new_obj)
             assert self not in new_obj.dependent_inputs, new_obj
             new_obj.dependent_inputs.append(self)
         else:
-            assert isinstance(new_obj, HlsOperationOut), ("Must be a final out port", new_obj)
+            assert isinstance(new_obj, HlsNetNodeOut), ("Must be a final out port", new_obj)
 
         assert getattr(self.updated_obj, self.property_name) is self.obj, (getattr(self.updated_obj, self.property_name), self.obj)
         cur = self.updated_obj.dependsOn[self.in_i]

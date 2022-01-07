@@ -7,14 +7,14 @@ from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsPipeline import HlsPipeline
-from hwtHls.netlist.nodes.io import HlsWrite, HlsRead
-from hwtHls.netlist.nodes.ports import HlsOperationOut, link_hls_nodes, \
-    HlsOperationOutLazy
+from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeRead
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut, link_hls_nodes, \
+    HlsNetNodeOutLazy
 from hwtHls.ssa.analysis.liveness import EdgeLivenessDict
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.branchControlLabel import BranchControlLabel
-from hwtHls.ssa.translation.toHwtHlsNetlist.nodes.backwardEdge import HlsWriteBackwardEdge, \
-    HlsReadBackwardEdge
+from hwtHls.ssa.translation.toHwtHlsNetlist.nodes.backwardEdge import HlsNetNodeWriteBackwardEdge, \
+    HlsNetNodeReadBackwardEdge
 from hwtHls.ssa.translation.toHwtHlsNetlist.nodes.programStarter import HlsProgramStarter
 from hwtHls.ssa.value import SsaValue
 from hwtLib.abstract.componentBuilder import AbstractComponentBuilder
@@ -23,7 +23,7 @@ from ipCorePackager.constants import INTF_DIRECTION
 
 class BlockPortsRecord():
 
-    def __init__(self, has_control, port_list:List[Tuple[HlsReadBackwardEdge, Tuple[SsaBasicBlock, SsaBasicBlock]]]):
+    def __init__(self, has_control, port_list:List[Tuple[HlsNetNodeReadBackwardEdge, Tuple[SsaBasicBlock, SsaBasicBlock]]]):
         self.has_control = has_control
         self.port_list = port_list
 
@@ -43,15 +43,15 @@ class SsaToHwtHlsNetlistSyncAndIo():
                  edge_var_live: EdgeLivenessDict):
         self.hls: HlsPipeline = parent.hls
         self.parent = parent
-        self.inputs: List[HlsRead] = parent.hls.inputs
-        self.outputs: List[HlsWrite] = parent.hls.outputs
+        self.inputs: List[HlsNetNodeRead] = parent.hls.inputs
+        self.outputs: List[HlsNetNodeWrite] = parent.hls.outputs
         self.out_of_pipeline_edges = out_of_pipeline_edges
         # a list of unique interfaces which connects this hls component to outside word and which needs to be coherency checked
         self._out_of_hls_io: UniqList[Interface] = UniqList()
 
         self._block_io: Dict[Tuple[SsaBasicBlock, SsaBasicBlock], BlockPortsRecord] = {}
         self.edge_var_live = edge_var_live
-        self.start_block_en: Optional[HlsOperationOut] = None
+        self.start_block_en: Optional[HlsNetNodeOut] = None
 
     def _add_HlsProgramStarter(self):
         """
@@ -64,7 +64,7 @@ class SsaToHwtHlsNetlistSyncAndIo():
 
     def init_out_of_pipeline_variables(self,
             src_block: SsaBasicBlock, dst_block: SsaBasicBlock,
-            add_control:bool) -> List[Tuple[HlsReadBackwardEdge, Tuple[SsaBasicBlock, SsaBasicBlock]]]:
+            add_control:bool) -> List[Tuple[HlsNetNodeReadBackwardEdge, Tuple[SsaBasicBlock, SsaBasicBlock]]]:
         """
         Initialize all input interfaces for every input variables and control.
 
@@ -118,7 +118,7 @@ class SsaToHwtHlsNetlistSyncAndIo():
         newly_added_ports = []
         if add_control:
             _, r_from_in = self._add_hs_intf_and_read(
-                f"c_{src_block.label:s}_to_{dst_block.label:s}_in", BIT, HlsReadBackwardEdge)
+                f"c_{src_block.label:s}_to_{dst_block.label:s}_in", BIT, HlsNetNodeReadBackwardEdge)
             label = BranchControlLabel(src_block, dst_block, INTF_DIRECTION.SLAVE)
             op_cache.add(label, r_from_in, False)
             newly_added_ports.append((r_from_in.obj, (src_block, dst_block)))
@@ -128,10 +128,10 @@ class SsaToHwtHlsNetlistSyncAndIo():
             opv: SsaValue
             # The input interface is required for every input which is not just passing data
             # inside of pipeline this involves backward edges and external IO
-            _, from_in = self._add_hs_intf_and_read(f"{opv._name:s}_in", opv._dtype, HlsReadBackwardEdge)
+            _, from_in = self._add_hs_intf_and_read(f"{opv._name:s}_in", opv._dtype, HlsNetNodeReadBackwardEdge)
             op_cache.add((dst_block, opv), from_in, False)
 
-            # HlsWrite set to None because write port will be addet later
+            # HlsNetNodeWrite set to None because write port will be addet later
             newly_added_ports.append((from_in.obj, (src_block, dst_block)))
 
         assert (src_block, dst_block) not in self._block_io
@@ -153,10 +153,10 @@ class SsaToHwtHlsNetlistSyncAndIo():
             control_ext_ports = next(ports_it)
             end_val = self.parent._to_hls_cache.get(control_cache_key)
             end_val = self.parent.to_hls_expr(end_val)
-            assert isinstance(end_val, HlsOperationOut), ("Must be already existing output", control_cache_key, end_val)
+            assert isinstance(end_val, HlsNetNodeOut), ("Must be already existing output", control_cache_key, end_val)
             # w_to_out = self._add_to_to_hls_cache(cache_key, end_val)
             _, w_to_out = self._add_hs_intf_and_write(f"c_{src_block.label:s}_to_{dst_block.label:s}_out", BIT,
-                                                      end_val, HlsWriteBackwardEdge)
+                                                      end_val, HlsNetNodeWriteBackwardEdge)
             w_to_out.associate_read(control_ext_ports[0])
         else:
             assert control_cache_key not in self.parent._to_hls_cache._to_hls_cache, "The control must not be used anywhere if it should not exists."
@@ -166,24 +166,24 @@ class SsaToHwtHlsNetlistSyncAndIo():
             opv: SsaValue
             # take the value of variable on the end and write it to a newly generated port
             _, w_to_out = self._add_hs_intf_and_write(f"{opv._name:s}_out", opv._dtype,
-                                                      self.parent.to_hls_expr(opv), HlsWriteBackwardEdge)
+                                                      self.parent.to_hls_expr(opv), HlsNetNodeWriteBackwardEdge)
             var_ext_ports = next(ports_it)
             w_to_out.associate_read(var_ext_ports[0])
 
     def _add_hs_intf_and_write(self, suggested_name: str, dtype:HdlType,
-                               val: Union[HlsOperationOut, HlsOperationOutLazy],
-                               write_cls:Type[HlsWrite]=HlsWrite):
+                               val: Union[HlsNetNodeOut, HlsNetNodeOutLazy],
+                               write_cls:Type[HlsNetNodeWrite]=HlsNetNodeWrite):
         intf = HsStructIntf()
         intf.T = dtype
         self._add_intf_instance(intf, suggested_name)
         return intf, self._write_to_io(intf, val, write_cls=write_cls)
 
-    def _add_hs_intf_and_read(self, suggested_name: str, dtype:HdlType, read_cls:Type[HlsRead]=HlsRead):
+    def _add_hs_intf_and_read(self, suggested_name: str, dtype:HdlType, read_cls:Type[HlsNetNodeRead]=HlsNetNodeRead):
         intf = HsStructIntf()
         intf.T = dtype
         return intf, self._add_intf_and_read(intf, suggested_name, read_cls=read_cls)
 
-    def _add_intf_and_read(self, intf: Interface, suggested_name: str, read_cls:Type[HlsRead]=HlsRead) -> Interface:
+    def _add_intf_and_read(self, intf: Interface, suggested_name: str, read_cls:Type[HlsNetNodeRead]=HlsNetNodeRead) -> Interface:
         self._add_intf_instance(intf, suggested_name)
         return self._read_from_io(intf, read_cls=read_cls)
 
@@ -197,10 +197,10 @@ class SsaToHwtHlsNetlistSyncAndIo():
         return intf
 
     def _write_to_io(self, intf: Interface,
-                     val: Union[HlsOperationOut, HlsOperationOutLazy],
-                     write_cls:Type[HlsWrite]=HlsWrite) -> HlsWrite:
+                     val: Union[HlsNetNodeOut, HlsNetNodeOutLazy],
+                     write_cls:Type[HlsNetNodeWrite]=HlsNetNodeWrite) -> HlsNetNodeWrite:
         """
-        Instanciate HlsWrite operation for this specific interface.
+        Instanciate HlsNetNodeWrite operation for this specific interface.
         """
         write = write_cls(self.hls, val, intf)
         if self.parent._current_block is not None and intf in self._out_of_hls_io:
@@ -211,9 +211,9 @@ class SsaToHwtHlsNetlistSyncAndIo():
 
         return write
 
-    def _read_from_io(self, intf: Interface, read_cls:Type[HlsRead]=HlsRead) -> HlsOperationOut:
+    def _read_from_io(self, intf: Interface, read_cls:Type[HlsNetNodeRead]=HlsNetNodeRead) -> HlsNetNodeOut:
         """
-        Instantiate HlsRead operation for this specific interface.
+        Instantiate HlsNetNodeRead operation for this specific interface.
         """
         read = read_cls(self.hls, intf)
         if self.parent._current_block is not None and intf in self._out_of_hls_io:

@@ -4,23 +4,23 @@ from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.allocator.connectionsOfStage import SignalsOfStages
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
-from hwtHls.netlist.nodes.io import HlsRead, HlsWrite
+from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
 from hwtHls.ssa.value import SsaValue
 from hwtLib.handshaked.builder import HsBuilder
 
 
-class HlsReadBackwardEdge(HlsRead):
+class HlsNetNodeReadBackwardEdge(HlsNetNodeRead):
     """
     The read from HLS pipeline which is binded to a buffer for data/sync on backward edge in dataflow graph.
     """
 
     def __init__(self, parentHls:"HlsPipeline",
         src:Union[RtlSignal, Interface]):
-        HlsRead.__init__(self, parentHls, src)
-        self.associated_write: Optional[HlsWriteBackwardEdge] = None
+        HlsNetNodeRead.__init__(self, parentHls, src)
+        self.associated_write: Optional[HlsNetNodeWriteBackwardEdge] = None
 
 
-class HlsWriteBackwardEdge(HlsWrite):
+class HlsNetNodeWriteBackwardEdge(HlsNetNodeWrite):
     """
     The read from HLS pipeline which is binded to a buffer for data/sync on backward edge in dataflow graph.
     """
@@ -29,12 +29,12 @@ class HlsWriteBackwardEdge(HlsWrite):
                  src,
                  dst:Union[RtlSignal, Interface, SsaValue],
                  channel_init_values=()):
-        HlsWrite.__init__(self, parentHls, src, dst)
-        self.associated_read: Optional[HlsReadBackwardEdge] = None
+        HlsNetNodeWrite.__init__(self, parentHls, src, dst)
+        self.associated_read: Optional[HlsNetNodeReadBackwardEdge] = None
         self.channel_init_values = channel_init_values
 
-    def associate_read(self, read: HlsReadBackwardEdge):
-        assert isinstance(read, HlsReadBackwardEdge), read
+    def associate_read(self, read: HlsNetNodeReadBackwardEdge):
+        assert isinstance(read, HlsNetNodeReadBackwardEdge), read
         self.associated_read = read
         read.associated_write = self
 
@@ -42,9 +42,9 @@ class HlsWriteBackwardEdge(HlsWrite):
             allocator:"HlsAllocator",
             used_signals: SignalsOfStages
             ) -> TimeIndependentRtlResource:
-        res = HlsWrite.allocate_instance(self, allocator, used_signals)
+        res = HlsNetNodeWrite.allocate_instance(self, allocator, used_signals)
         src_write = self
-        dst_read: HlsReadBackwardEdge = self.associated_read
+        dst_read: HlsNetNodeReadBackwardEdge = self.associated_read
         assert dst_read is not None
         dst_t = dst_read.scheduledOut[0]
         src_t = src_write.scheduledIn[0]
@@ -61,5 +61,5 @@ class HlsWriteBackwardEdge(HlsWrite):
         dst_read.src(buffs)
         return res
 
-    def debug_iter_shadow_connection_dst(self) -> Generator["AbstractHlsOp", None, None]:
+    def debug_iter_shadow_connection_dst(self) -> Generator["HlsNetNode", None, None]:
         yield self.associated_read

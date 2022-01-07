@@ -5,9 +5,9 @@ from hwtHls.allocator.connectionsOfStage import SignalsOfStages
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.clk_math import epsilon
 from hwtHls.hlsPipeline import HlsPipeline
-from hwtHls.netlist.nodes.io import HlsExplicitSyncNode, IO_COMB_REALIZATION
-from hwtHls.netlist.nodes.ops import AbstractHlsOp
-from hwtHls.netlist.nodes.ports import HlsOperationOut, link_hls_nodes, HlsOperationOutLazy
+from hwtHls.netlist.nodes.io import HlsNetNodeExplicitSync, IO_COMB_REALIZATION
+from hwtHls.netlist.nodes.ops import HlsNetNode
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut, link_hls_nodes, HlsNetNodeOutLazy
 from hwtHls.netlist.utils import hls_op_not
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.branchControlLabel import BranchControlLabel
@@ -16,10 +16,10 @@ from hwtHls.ssa.translation.toHwtHlsNetlist.syncAndIo import SsaToHwtHlsNetlistS
 from ipCorePackager.constants import INTF_DIRECTION
 
 
-class HlsLoopGateStatus(AbstractHlsOp):
+class HlsLoopGateStatus(HlsNetNode):
 
     def __init__(self, parentHls:"HlsPipeline", loop_gate: "HlsLoopGate", name:str=None):
-        AbstractHlsOp.__init__(self, parentHls, name=name)
+        HlsNetNode.__init__(self, parentHls, name=name)
         self._loop_gate = loop_gate
         self._add_output()
 
@@ -48,11 +48,11 @@ class HlsLoopGateStatus(AbstractHlsOp):
         # [todo] set this register based on how data flows on control channels
         # (breaks returns token, predec takes token)
         # returns the controll token
-        from_break = [allocator.instantiateHlsOperationOut(i, used_signals) for i in  self._loop_gate.from_break]
+        from_break = [allocator.instantiateHlsNetNodeOut(i, used_signals) for i in  self._loop_gate.from_break]
         # takes the control token
-        from_predec = [allocator.instantiateHlsOperationOut(i, used_signals) for i in self._loop_gate.from_predec]
+        from_predec = [allocator.instantiateHlsNetNodeOut(i, used_signals) for i in self._loop_gate.from_predec]
         # has the priority and does not require sync token (because it already owns it)
-        from_reenter = [allocator.instantiateHlsOperationOut(i, used_signals) for i in self._loop_gate.from_reenter]
+        from_reenter = [allocator.instantiateHlsNetNodeOut(i, used_signals) for i in self._loop_gate.from_reenter]
 
         if not from_break and not from_predec and from_reenter:
             # this is infinite loop without predecessor, it will run infinitely but in just one instance
@@ -68,7 +68,7 @@ class HlsLoopGateStatus(AbstractHlsOp):
         return status_reg_s
 
 
-class HlsLoopGate(AbstractHlsOp):
+class HlsLoopGate(HlsNetNode):
     """
     This operation represents a start of a loop, not all loops necessary need this.
     This operation tells the allocator that the start_inputs after the processing
@@ -127,11 +127,11 @@ class HlsLoopGate(AbstractHlsOp):
 
     def __init__(self, parentHls:HlsPipeline,
             name:Optional[str]=None):
-        AbstractHlsOp.__init__(self, parentHls, name=name)
-        self.from_predec: List[HlsOperationOut] = []
-        self.from_reenter: List[HlsOperationOut] = []
-        self.from_break: List[HlsOperationOut] = []
-        self.to_loop: List[HlsOperationOut] = []
+        HlsNetNode.__init__(self, parentHls, name=name)
+        self.from_predec: List[HlsNetNodeOut] = []
+        self.from_reenter: List[HlsNetNodeOut] = []
+        self.from_break: List[HlsNetNodeOut] = []
+        self.to_loop: List[HlsNetNodeOut] = []
         # another node with the output representing the presence of sync token (we can not add it here
         # because it would create a cycle)
         self._sync_token_status = HlsLoopGateStatus(parentHls, self)
@@ -140,7 +140,7 @@ class HlsLoopGate(AbstractHlsOp):
     def inset_before_block(cls, toHls: "SsaToHwtHlsNetlist", block: SsaBasicBlock,
                            io: SsaToHwtHlsNetlistSyncAndIo,
                            to_hls_cache: SsaToHwtHlsNetlistOpCache,
-                           nodes: List[AbstractHlsOp],
+                           nodes: List[HlsNetNode],
                            ):
         hls = toHls.hls
         self = cls(hls, block.label)
@@ -163,7 +163,7 @@ class HlsLoopGate(AbstractHlsOp):
             if toHls._blockMeta[pred].needsControl:
                 control_key = BranchControlLabel(pred, block, INTF_DIRECTION.SLAVE)
                 control = to_hls_cache.get(control_key)
-                _, control = HlsExplicitSyncNode.replace_variable(hls, control_key, control, to_hls_cache, en, not_en)
+                _, control = HlsNetNodeExplicitSync.replace_variable(hls, control_key, control, to_hls_cache, en, not_en)
             else:
                 control = None
 
@@ -171,7 +171,7 @@ class HlsLoopGate(AbstractHlsOp):
             for v in io.edge_var_live.get(pred, {}).get(block, ()):
                 cache_key = (block, v)
                 v = to_hls_cache.get(cache_key)
-                _, _ = HlsExplicitSyncNode.replace_variable(hls, cache_key, v, to_hls_cache, en, not_en)
+                _, _ = HlsNetNodeExplicitSync.replace_variable(hls, cache_key, v, to_hls_cache, en, not_en)
                 # variables.append(v)
 
             if control is not None:
@@ -192,21 +192,21 @@ class HlsLoopGate(AbstractHlsOp):
         # in_list = self.from_reenter
         # if len(in_list) > 1:
         #     for inp0_i, inp0 in enumerate(in_list):
-        #         inp0: HlsOperationOut
+        #         inp0: HlsNetNodeOut
         #         anyOtherValid = []
         #         for inp1 in in_list:
         #             if inp1 is inp0:
         #                 continue
         #
-        #             vld = HlsReadSync(self.hls)
+        #             vld = HlsNetNodeReadSync(self.hls)
         #             self.hls.nodes.append(vld)
         #             otherInSyncNode = inp1.obj
-        #             assert isinstance(otherInSyncNode, HlsExplicitSyncNode), otherInSyncNode
+        #             assert isinstance(otherInSyncNode, HlsNetNodeExplicitSync), otherInSyncNode
         #             link_hls_nodes(otherInSyncNode.dependsOn[0], vld._inputs[0])
         #             anyOtherValid.append(vld._outputs[0])
         #
-        #         inSyncNode: HlsExplicitSyncNode = inp0.obj
-        #         assert isinstance(inSyncNode, HlsExplicitSyncNode), inSyncNode
+        #         inSyncNode: HlsNetNodeExplicitSync = inp0.obj
+        #         assert isinstance(inSyncNode, HlsNetNodeExplicitSync), inSyncNode
         #
         #         # any other valid
         #         skipWhen = hls_op_and_variadic(self.hls, *anyOtherValid)
@@ -218,29 +218,29 @@ class HlsLoopGate(AbstractHlsOp):
         #                                               for o in anyOtherValid[:inp0_i]])
         #             inSyncNode.add_control_extraCond(extraCond)
 
-    def _connect(self, control:HlsOperationOut, in_list: List[HlsOperationOut]):
+    def _connect(self, control:HlsNetNodeOut, in_list: List[HlsNetNodeOut]):
         in_list.append(control)
         i = self._add_input()
         link_hls_nodes(control, i)
-        if isinstance(control, HlsOperationOutLazy):
+        if isinstance(control, HlsNetNodeOutLazy):
             control.dependent_inputs.append(HlsLoopGateInputRef(self, in_list,
                                                                 len(in_list) - 1, control))
 
-    def connect_predec(self, control:HlsOperationOut):
+    def connect_predec(self, control:HlsNetNodeOut):
         """
         Register connection of control and data from some block which causes the loop to to execute.
         :note: allocating the sync token
         """
         self._connect(control, self.from_predec)
 
-    def connect_reenter(self, control:HlsOperationOut):
+    def connect_reenter(self, control:HlsNetNodeOut):
         """
         Register connection of control and data from some block where controlflow gets back block where the cycle starts.
         :note: reusing sync token
         """
         self._connect(control, self.from_reenter)
 
-    def connect_break(self, control: HlsOperationOut):
+    def connect_break(self, control: HlsNetNodeOut):
         """
         Register connection of control which causes to break current execution of the loop.
         :note: deallocating the sync token
@@ -259,25 +259,25 @@ class HlsLoopGate(AbstractHlsOp):
 
 class HlsLoopGateInputRef():
     """
-    An object which is used in HlsOperationOutLazy dependencies to update also HlsLoopGate object
+    An object which is used in HlsNetNodeOutLazy dependencies to update also HlsLoopGate object
     once the lazy output of some node on input is resolved.
 
     :note: This is an additional input storage dependency. The input in dependsOn should be replaced separately.
 
     :ivar parent: an object where the we want to replace output connected to some of its input
-    :ivar in_list: an list where is the input (HlsOperationOut object) stored additionally
+    :ivar in_list: an list where is the input (HlsNetNodeOut object) stored additionally
     :ivar in_list_i: an index in in_list
     :ivar obj: an output object which was supposed to be on referenced place
     """
 
-    def __init__(self, parent: HlsLoopGate, in_list: List[Union[HlsOperationOut, Tuple[HlsOperationOut, ...]]], in_list_i: int,
-                 obj: HlsOperationOutLazy):
+    def __init__(self, parent: HlsLoopGate, in_list: List[Union[HlsNetNodeOut, Tuple[HlsNetNodeOut, ...]]], in_list_i: int,
+                 obj: HlsNetNodeOutLazy):
         self.parent = parent
         self.in_list = in_list
         self.in_list_i = in_list_i
         self.obj = obj
         assert self.in_list[self.in_list_i] is self.obj
 
-    def replace_driver(self, new_obj: HlsOperationOut):
+    def replace_driver(self, new_obj: HlsNetNodeOut):
         assert self.in_list[self.in_list_i] is self.obj
         self.in_list[self.in_list_i] = new_obj

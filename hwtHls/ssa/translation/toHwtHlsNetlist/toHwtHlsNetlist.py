@@ -8,11 +8,11 @@ from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwtHls.hlsPipeline import HlsPipeline
 from hwtHls.hlsStreamProc.statements import HlsStreamProcRead, HlsStreamProcWrite
-from hwtHls.netlist.nodes.io import HlsRead, HlsWrite
-from hwtHls.netlist.nodes.mux import HlsMux
-from hwtHls.netlist.nodes.ops import AbstractHlsOp, HlsConst, HlsOperation
-from hwtHls.netlist.nodes.ports import HlsOperationOutLazy, link_hls_nodes, \
-    HlsOperationOut
+from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
+from hwtHls.netlist.nodes.mux import HlsNetNodeMux
+from hwtHls.netlist.nodes.ops import HlsNetNode, HlsNetNodeConst, HlsNetNodeOperator
+from hwtHls.netlist.nodes.ports import HlsNetNodeOutLazy, link_hls_nodes, \
+    HlsNetNodeOut
 from hwtHls.netlist.utils import hls_op_or, hls_op_not, hls_op_and
 from hwtHls.ssa.analysis.blockSyncType import BlockMeta
 from hwtHls.ssa.analysis.liveness import EdgeLivenessDict
@@ -45,14 +45,14 @@ class SsaToHwtHlsNetlist():
         self.hls = hls
         self.start_block = start_block
 
-        self.nodes: List[AbstractHlsOp] = hls.nodes
+        self.nodes: List[HlsNetNode] = hls.nodes
         self.io = SsaToHwtHlsNetlistSyncAndIo(self, out_of_pipeline_edges, edge_var_live)
 
         self._to_hls_cache = SsaToHwtHlsNetlistOpCache()
         self._current_block:Optional[SsaBasicBlock] = None
         self._blockMeta = blockMeta
         self._block_ens: Dict[SsaBasicBlock,
-                              Union[HlsOperationOut, HlsOperationOutLazy, None]] = {}
+                              Union[HlsNetNodeOut, HlsNetNodeOutLazy, None]] = {}
 
     def _prepare_SsaBasicBlockControl(self, block: SsaBasicBlock):
         # prepare HlsOutputLazy and input interface for variables which are live on
@@ -92,10 +92,10 @@ class SsaToHwtHlsNetlist():
             self._current_block = None
 
         for k, v in self._block_ens.items():
-            assert not isinstance(v, HlsOperationOutLazy) or v.replaced_by, ("All outputs should be already resolved", k, v)
+            assert not isinstance(v, HlsNetNodeOutLazy) or v.replaced_by, ("All outputs should be already resolved", k, v)
 
         for k, v in self._to_hls_cache.items():
-            assert not isinstance(v, HlsOperationOutLazy), ("All outputs should be already resolved", k, v)
+            assert not isinstance(v, HlsNetNodeOutLazy), ("All outputs should be already resolved", k, v)
 
     def to_hls_SsaBasicBlock(self, block: SsaBasicBlock):
         try:
@@ -142,21 +142,21 @@ class SsaToHwtHlsNetlist():
 
     def _to_hls_expr_op(self,
                         fn:OpDefinition,
-                        args: List[Union[HValue, RtlSignalBase, HlsOperationOut, SsaValue]]
-                        ) -> HlsOperationOut:
+                        args: List[Union[HValue, RtlSignalBase, HlsNetNodeOut, SsaValue]]
+                        ) -> HlsNetNodeOut:
         """
         Construct and link the operator node from operator and arguments.
         """
         a0 = args[0]
-        if isinstance(a0, HlsOperationOut):
-            if isinstance(a0.obj, HlsRead):
+        if isinstance(a0, HlsNetNodeOut):
+            if isinstance(a0.obj, HlsNetNodeRead):
                 w = a0.obj.src.T.bit_length()
             else:
                 raise NotImplementedError()
         else:
             w = a0._dtype.bit_length()
 
-        c = HlsOperation(self.hls, fn, len(args), w)
+        c = HlsNetNodeOperator(self.hls, fn, len(args), w)
         self.nodes.append(c)
         for i, arg in zip(c._inputs, args):
             a = self.to_hls_expr(arg)
@@ -164,16 +164,16 @@ class SsaToHwtHlsNetlist():
 
         return c._outputs[0]
 
-    def to_hls_expr(self, obj: Union[HValue, SsaValue, RtlSignalBase, HlsOperationOut]) -> HlsOperationOut:
+    def to_hls_expr(self, obj: Union[HValue, SsaValue, RtlSignalBase, HlsNetNodeOut]) -> HlsNetNodeOut:
         if isinstance(obj, SsaValue):
             return self._to_hls_cache.get((self._current_block, obj))
         elif isinstance(obj, HValue) or (isinstance(obj, RtlSignalBase) and obj._const):
-            _obj = HlsConst(self.hls, obj)
+            _obj = HlsNetNodeConst(self.hls, obj)
             self._to_hls_cache.add(_obj, _obj, False)
             self.nodes.append(_obj)
             return _obj._outputs[0]
 
-        elif isinstance(obj, (HlsOperationOut, HlsOperationOutLazy)):
+        elif isinstance(obj, (HlsNetNodeOut, HlsNetNodeOutLazy)):
             return obj
 
         else:
@@ -191,19 +191,19 @@ class SsaToHwtHlsNetlist():
     def _construct_in_mux_for_phi(self,
                                   phi: SsaPhi,
                                   block_predecessors: List[SsaBasicBlock],
-                                  en_from_pred_OH:List[HlsOperationOut]):
+                                  en_from_pred_OH:List[HlsNetNodeOut]):
         """
         The phi may appear only if the block has multiple predecessors.
         The value needs to be selected based on predecessor block of current block.
         """
         # variable value is selected based on predecessor block
-        mux = HlsMux(self.hls, phi._dtype.bit_length(), phi._name)
+        mux = HlsNetNodeMux(self.hls, phi._dtype.bit_length(), phi._name)
         self.nodes.append(mux)
 
         mux_out = mux._outputs[0]
         self._to_hls_cache.add((phi.block, phi), mux_out, phi in self._blockMeta[phi.block].phiCyclicArgs)
         # cur_dst = self._to_hls_cache._to_hls_cache.get(phi, None)
-        # assert cur_dst is None or isinstance(cur_dst, HlsOperationOutLazy), (phi, cur_dst)
+        # assert cur_dst is None or isinstance(cur_dst, HlsNetNodeOutLazy), (phi, cur_dst)
         self._to_hls_cache._to_hls_cache.get((self._current_block, phi), mux_out)
 
         for lastSrc, (src, src_block) in iter_with_last(phi.operands):
@@ -222,7 +222,7 @@ class SsaToHwtHlsNetlist():
 
         return mux_out
 
-    def _add_block_en_to_control_if_required(self, op: Union[HlsRead, HlsWrite]):
+    def _add_block_en_to_control_if_required(self, op: Union[HlsNetNodeRead, HlsNetNodeWrite]):
         if self._blockMeta[self._current_block].needsControl:
             extraCond, skipWhen = self._collect_en_from_predecessor(self._current_block)
             if extraCond is not None:
@@ -249,7 +249,7 @@ class SsaToHwtHlsNetlist():
         assert block is self._current_block
         cur = self._block_ens.get(block, NOT_SPECIFIED)
         if cur is not NOT_SPECIFIED:
-            while isinstance(cur, HlsOperationOutLazy) and cur.replaced_by is not None:
+            while isinstance(cur, HlsNetNodeOutLazy) and cur.replaced_by is not None:
                 # lazy update of _block_ens if something got resolved
                 cur = cur.replaced_by
                 self._block_ens[block] = cur
@@ -365,8 +365,8 @@ class SsaToHwtHlsNetlist():
                     cur_in_suc_v = self._to_hls_cache.oldPhiCyclicArgs.get((suc_block, v), None)
                     if cur_in_suc_v is not None:
                         # the successor block was already translated
-                        assert isinstance(cur_in_suc_v, HlsOperationOutLazy), (cur_in_suc_v, "Must be lazy output because there was nothing to generate it")
-                        cur_in_suc_v: HlsOperationOutLazy
+                        assert isinstance(cur_in_suc_v, HlsNetNodeOutLazy), (cur_in_suc_v, "Must be lazy output because there was nothing to generate it")
+                        cur_in_suc_v: HlsNetNodeOutLazy
                         # we are replacing all uses before real definition of a variable
                         cur_in_suc_v.replace_driver(cur_v)
                     else:

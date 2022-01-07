@@ -13,7 +13,7 @@ from hwtHls.allocator.connectionsOfStage import getIntfSyncSignals, \
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.clk_math import start_clk
 from hwtHls.netlist.analysis.fsm import IoFsm
-from hwtHls.netlist.nodes.io import HlsWrite, HlsRead
+from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeRead
 
 
 class FsmContainer(AllocatorArchitecturalElement):
@@ -31,12 +31,12 @@ class FsmContainer(AllocatorArchitecturalElement):
         """
         for nodes in self.fsm.states:
             for node in nodes:
-                if isinstance(node, HlsWrite):
+                if isinstance(node, HlsNetNodeWrite):
                     intf = node.dst
                     # to prevent latching when interface is not used
                     syncSignals = getIntfSyncSignals(intf)
                     setNopValIfNotSet(intf, None, syncSignals)
-                elif isinstance(node, HlsRead):
+                elif isinstance(node, HlsNetNodeRead):
                     intf = node.src
                     syncSignals = getIntfSyncSignals(intf)
                 else:
@@ -68,13 +68,13 @@ class FsmContainer(AllocatorArchitecturalElement):
             for node in nodes:
                 rtl = node.allocate_instance(allocator, stateSignals)
 
-                if isinstance(node, HlsRead):
+                if isinstance(node, HlsNetNodeRead):
                     if not isinstance(node.src, (Signal, RtlSignal)):
                         # if it has some synchronization
                         con.inputs.append(node.src)
                     allocator._copy_sync(node.src, node, con.io_skipWhen, con.io_extraCond, stateSignals)
 
-                elif isinstance(node, HlsWrite):
+                elif isinstance(node, HlsNetNodeWrite):
                     con.stDependentDrives.append(rtl)
                     if not isinstance(node.src, (Signal, RtlSignal)):
                         # if it has some synchronization

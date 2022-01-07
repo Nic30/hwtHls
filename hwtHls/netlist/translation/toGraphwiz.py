@@ -3,9 +3,9 @@ from itertools import zip_longest
 from typing import List, Union, Dict
 
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
-from hwtHls.netlist.nodes.io import HlsRead, HlsWrite
-from hwtHls.netlist.nodes.ops import AbstractHlsOp, HlsConst, HlsOperation
-from hwtHls.netlist.nodes.ports import HlsOperationOut
+from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
+from hwtHls.netlist.nodes.ops import HlsNetNode, HlsNetNodeConst, HlsNetNodeOperator
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 
 
@@ -50,13 +50,13 @@ class HwtHlsNetlistToGraphwiz():
         self.name = name
         self.nodes: List[GraphwizNode] = []
         self.links: List[GraphwizLink] = []
-        self.obj_to_node: Dict[AbstractHlsOp, GraphwizNode] = {}
+        self.obj_to_node: Dict[HlsNetNode, GraphwizNode] = {}
 
-    def construct(self, nodes: List[AbstractHlsOp]):
+    def construct(self, nodes: List[HlsNetNode]):
         for n in nodes:
-            self._node_from_AbstractHlsOp(n)
+            self._node_from_HlsNetNode(n)
 
-    def _node_from_AbstractHlsOp(self, obj: AbstractHlsOp):
+    def _node_from_HlsNetNode(self, obj: HlsNetNode):
         try:
             return self.obj_to_node[obj]
         except KeyError:
@@ -73,32 +73,32 @@ class HwtHlsNetlistToGraphwiz():
             for node_in_i, drv in enumerate(obj.dependsOn):
                 input_rows.append(f"<td port='i{node_in_i:d}'>i{node_in_i:d}</td>")
                 if drv is not None:
-                    drv: HlsOperationOut
-                    drv_node = self._node_from_AbstractHlsOp(drv.obj)
+                    drv: HlsNetNodeOut
+                    drv_node = self._node_from_HlsNetNode(drv.obj)
                     self.links.append(GraphwizLink(f"{drv_node.label:s}:o{drv.out_i:d}", f"{node.label:s}:i{node_in_i:d}"))
 
             for shadow_dst in obj.debug_iter_shadow_connection_dst():
-                shadow_dst_node = self._node_from_AbstractHlsOp(shadow_dst)
+                shadow_dst_node = self._node_from_HlsNetNode(shadow_dst)
                 self.links.append(GraphwizLink(f"{node.label:s}", f"{shadow_dst_node.label:s}", style="[style=dashed, color=grey]"))
         except:
             raise AssertionError("defective node", obj)
 
         output_rows = []
         for node_out_i, _ in enumerate(obj.usedBy):
-            # dsts: List[HlsOperationIn]
+            # dsts: List[HlsNetNodeIn]
             output_rows.append(f"<td port='o{node_out_i:d}'>o{node_out_i:d}</td>")
 
         buff = []
         buff.append('''[shape=plaintext
     label=<
         <table border="0" cellborder="1" cellspacing="0">\n''')
-        if isinstance(obj, HlsConst):
+        if isinstance(obj, HlsNetNodeConst):
             label = repr(obj.val)
-        elif isinstance(obj, HlsOperation):
+        elif isinstance(obj, HlsNetNodeOperator):
             label = obj.operator.id
-        elif isinstance(obj, HlsRead):
+        elif isinstance(obj, HlsNetNodeRead):
             label = repr(obj)
-        elif isinstance(obj, HlsWrite):
+        elif isinstance(obj, HlsNetNodeWrite):
             label = f"<{obj.__class__.__name__} {getSignalName(obj.dst)}>"
         else:
             label = obj.__class__.__name__

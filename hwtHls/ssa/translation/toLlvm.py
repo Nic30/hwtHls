@@ -40,7 +40,7 @@ class ToLlvmIrTranslator():
       * all x/z/u are replaced with 0
     2. LLVM does not have bit slicing and concatenation operators.
       * all replaced by shifting and masking
-    3. LLVM does not have equivalent of HlsRead/HlsWrite
+    3. LLVM does not have equivalent of HlsNetNodeRead/HlsNetNodeWrite
       * all read/write expressions are replaced with a function unique for each interface.
 
     :ivar _branchTmpBlocks: dictionary to keep track of BasicBlocks generated during conversion of branch instruction

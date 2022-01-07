@@ -5,27 +5,27 @@ from hwt.pyUtils.uniqList import UniqList
 from hwtHls.allocator.connectionsOfStage import SignalsOfStages
 from hwtHls.clk_math import start_of_next_clk_period
 from hwtHls.netlist.analysis.clusterSearch import HlsNetlistClusterSearch
-from hwtHls.netlist.nodes.ops import AbstractHlsOp, HlsOperation
-from hwtHls.netlist.nodes.ports import HlsOperationOut
+from hwtHls.netlist.nodes.ops import HlsNetNode, HlsNetNodeOperator
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.scheduler.errors import TimeConstraintError
 
 
-class HlsNetlistNodeBitwiseOps(AbstractHlsOp):
+class HlsNetlistNodeBitwiseOps(HlsNetNode):
     """
     Container of cluster of bitwise operators.
     """
 
     def __init__(self, parentHls:"HlsPipeline", subNodes: HlsNetlistClusterSearch, name:str=None):
-        AbstractHlsOp.__init__(self, parentHls, name=name)
+        HlsNetNode.__init__(self, parentHls, name=name)
         self._subNodes = subNodes
         for _ in subNodes.inputs:
             self._add_input()
         for _ in subNodes.outputs:
             self._add_output()
-        self._totalInputCnt: Dict[HlsOperation, int] = {}
+        self._totalInputCnt: Dict[HlsNetNodeOperator, int] = {}
 
-    def resolve_subnode_realization(self, node: HlsOperation, input_cnt: int):
+    def resolve_subnode_realization(self, node: HlsNetNodeOperator, input_cnt: int):
         hls = self.hls
         clk_period = hls.clk_period
         bit_length = node.bit_length
@@ -39,7 +39,7 @@ class HlsNetlistNodeBitwiseOps(AbstractHlsOp):
         inp_latency = []
         assert len(node._inputs) >= len(node.dependsOn), (len(node._inputs), node.dependsOn)
         for dep in node.dependsOn:
-            dep: HlsOperationOut
+            dep: HlsNetNodeOut
             if dep.obj in self._subNodes.nodes:
                 t = max(dep.obj.latency_pre)
             else:
@@ -54,7 +54,7 @@ class HlsNetlistNodeBitwiseOps(AbstractHlsOp):
         )
         node.assignRealization(r)
 
-    def scheduleAsapWithQuantization(self, node: HlsOperation, clk_period: float, pathForDebug: Optional[UniqList["AbstractHlsOp"]]):
+    def scheduleAsapWithQuantization(self, node: HlsNetNodeOperator, clk_period: float, pathForDebug: Optional[UniqList["HlsNetNode"]]):
         if node.asap_end is None:
             if pathForDebug is not None:
                 if node in pathForDebug:
@@ -118,7 +118,7 @@ class HlsNetlistNodeBitwiseOps(AbstractHlsOp):
 
         return node.asap_end, totalInputCnt
 
-    def scheduleAsap(self, clk_period: float, pathForDebug: Optional[UniqList["AbstractHlsOp"]]) -> List[float]:
+    def scheduleAsap(self, clk_period: float, pathForDebug: Optional[UniqList["HlsNetNode"]]) -> List[float]:
         """
         ASAP scheduling with compaction
         """
@@ -132,7 +132,7 @@ class HlsNetlistNodeBitwiseOps(AbstractHlsOp):
             scheduleOut = []
 
             for o in self._subNodes.outputs:
-                o: HlsOperationOut
+                o: HlsNetNodeOut
                 _scheduleOut, _ = self.scheduleAsapWithQuantization(o.obj, clk_period, pathForDebug)
                 scheduleOut.append(_scheduleOut[0])
             self.asap_start = tuple(dep.obj.asap_end[dep.out_i] for dep in self.dependsOn)
@@ -155,13 +155,13 @@ class HlsNetlistNodeBitwiseOps(AbstractHlsOp):
         Instantiate layers of bitwise operators. (Just delegation to sub nodes)
         """
         for outerO, o, t in zip(self._outputs, self._subNodes.outputs, self.scheduledOut):
-            outerO: HlsOperationOut
-            o: HlsOperationOut
+            outerO: HlsNetNodeOut
+            o: HlsNetNodeOut
             if outerO in allocator.node2instance:
                 # this node was already allocated
                 return
 
-            o = allocator.instantiateHlsOperationOut(o, used_signals)
+            o = allocator.instantiateHlsNetNodeOut(o, used_signals)
             allocator._registerSignal(outerO, o, used_signals.getForTime(t))
 
     def __repr__(self, minify=False):
@@ -173,12 +173,12 @@ class HlsNetlistPassAggregateBitwiseOps(HlsNetlistPass):
     Extract cluster of bitwise operators as a single node to simplify scheduling.
     """
 
-    def _isBitwiseOperator(self, n: AbstractHlsOp):
-        return isinstance(n, HlsOperation) and n.operator in BITWISE_OPS
+    def _isBitwiseOperator(self, n: HlsNetNode):
+        return isinstance(n, HlsNetNodeOperator) and n.operator in BITWISE_OPS
         
     def apply(self, hls: "HlsStreamProc", to_hw: "SsaSegmentToHwPipeline"):
         bitwiseOpsClusters: List[HlsNetlistClusterSearch] = []
-        seen: Set[HlsOperation] = set()
+        seen: Set[HlsNetNodeOperator] = set()
         # discovert clusters of bitwise operators
         for n in to_hw.hls.nodes:
             if n not in seen and self._isBitwiseOperator(n):
@@ -189,7 +189,7 @@ class HlsNetlistPassAggregateBitwiseOps(HlsNetlistPass):
                             if len(c.nodes) > 1:
                                 bitwiseOpsClusters.append(c)
 
-        removedNodes: Set[AbstractHlsOp] = set()
+        removedNodes: Set[HlsNetNode] = set()
         for cluster in bitwiseOpsClusters:
             cluster: HlsNetlistClusterSearch
             clusterNode = HlsNetlistNodeBitwiseOps(to_hw.hls, cluster)

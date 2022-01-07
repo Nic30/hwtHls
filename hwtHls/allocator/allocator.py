@@ -12,9 +12,9 @@ from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlRes
 from hwtHls.netlist.analysis.fsm import HlsNetlistAnalysisPassDiscoverFsm, IoFsm
 from hwtHls.netlist.analysis.pipeline import HlsNetlistAnalysisPassDiscoverPipelines, \
     NetlistPipeline
-from hwtHls.netlist.nodes.io import HlsRead, HlsWrite, HlsExplicitSyncNode, \
-    HlsReadSync
-from hwtHls.netlist.nodes.ports import HlsOperationOut
+from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeExplicitSync, \
+    HlsNetNodeReadSync
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtLib.handshaked.streamNode import StreamNode
 
 
@@ -31,8 +31,8 @@ class HlsAllocator():
         self.parentHls = parentHls
         self.node2instance: Dict[
             Union[
-                HlsOperationOut,  # any operation output
-                Tuple[HlsOperationOut, Interface]  # write
+                HlsNetNodeOut,  # any operation output
+                Tuple[HlsNetNodeOut, Interface]  # write
             ],
             TimeIndependentRtlResource] = {}
         # function to create register/signal on RTL level
@@ -40,19 +40,19 @@ class HlsAllocator():
         self._sig = parentHls.parentUnit._sig
         self._archElements: List[Union[FsmContainer, PipelineContainer]] = []
 
-    def _registerSignal(self, origin: HlsOperationOut,
+    def _registerSignal(self, origin: HlsNetNodeOut,
                         s: TimeIndependentRtlResource,
                         used_signals: UniqList[TimeIndependentRtlResourceItem]):
         assert isinstance(s, TimeIndependentRtlResource), s
-        assert isinstance(origin, HlsOperationOut), origin
+        assert isinstance(origin, HlsNetNodeOut), origin
         used_signals.append(s)
         self.node2instance[origin] = s
 
-    def instantiateHlsOperationOut(self,
-                                   o: HlsOperationOut,
+    def instantiateHlsNetNodeOut(self,
+                                   o: HlsNetNodeOut,
                                    used_signals: SignalsOfStages
                                    ) -> TimeIndependentRtlResource:
-        assert isinstance(o, HlsOperationOut), o
+        assert isinstance(o, HlsNetNodeOut), o
         _o = self.node2instance.get(o, None)
 
         if _o is None:
@@ -68,12 +68,12 @@ class HlsAllocator():
 
         return _o
 
-    def instantiateHlsOperationOutInTime(self,
-                                   o: HlsOperationOut,
+    def instantiateHlsNetNodeOutInTime(self,
+                                   o: HlsNetNodeOut,
                                    time:float,
                                    used_signals: SignalsOfStages
                                    ) -> TimeIndependentRtlResourceItem:
-        _o = self.instantiateHlsOperationOut(o, used_signals)
+        _o = self.instantiateHlsNetNodeOut(o, used_signals)
         return _o.get(time)
 
     def allocate(self):
@@ -98,14 +98,14 @@ class HlsAllocator():
             pipeCont.allocateSync()
             self._archElements.append(pipeCont)
 
-    def _copy_sync_single(self, node: Union[HlsRead, HlsWrite], node_inI: int,
+    def _copy_sync_single(self, node: Union[HlsNetNodeRead, HlsNetNodeWrite], node_inI: int,
                            res: Dict[Interface, TimeIndependentRtlResourceItem],
                            intf: Interface, sync_time: float):
         e = node.dependsOn[node_inI]
         assert intf not in res, intf
         res[intf] = self.node2instance[e].get(sync_time)
 
-    def _copy_sync_all(self, node: Union[HlsRead, HlsWrite, HlsExplicitSyncNode],
+    def _copy_sync_all(self, node: Union[HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeExplicitSync],
                         res_skipWhen: Dict[Interface, TimeIndependentRtlResourceItem],
                         res_extraCond: Dict[Interface, TimeIndependentRtlResourceItem],
                         intf: Interface, sync_time: float):
@@ -117,33 +117,33 @@ class HlsAllocator():
             self._copy_sync_single(node, node.extraCond_inI, res_extraCond, intf, sync_time)
 
     def _copy_sync(self, intf: Interface,
-                   node: Union[HlsRead, HlsWrite],
+                   node: Union[HlsNetNodeRead, HlsNetNodeWrite],
                    res_skipWhen: Dict[Interface, TimeIndependentRtlResourceItem],
                    res_extraCond: Dict[Interface, TimeIndependentRtlResourceItem],
                    used_signals):
 
-        if isinstance(node, HlsRead):
-            node: HlsRead
+        if isinstance(node, HlsNetNodeRead):
+            node: HlsNetNodeRead
             sync_time = node.scheduledOut[0]
-            # the node may have only HlsReadSync and HlsExplicitSyncNode users
-            # in this case we have to copy the sync from HlsExplicitSyncNode
+            # the node may have only HlsNetNodeReadSync and HlsNetNodeExplicitSync users
+            # in this case we have to copy the sync from HlsNetNodeExplicitSync
             onlySuc = None
             for u in node.usedBy[0]:
-                u: HlsOperationOut
-                if not isinstance(u.obj, HlsReadSync):
+                u: HlsNetNodeOut
+                if not isinstance(u.obj, HlsNetNodeReadSync):
                     if onlySuc is None:
                         onlySuc = u.obj
                     else:
-                        # we found out some other non HlsReadSync user, we can not copy sync
+                        # we found out some other non HlsNetNodeReadSync user, we can not copy sync
                         onlySuc = None
                         break
 
-            if isinstance(onlySuc, HlsExplicitSyncNode) and not isinstance(onlySuc, HlsWrite):
+            if isinstance(onlySuc, HlsNetNodeExplicitSync) and not isinstance(onlySuc, HlsNetNodeWrite):
                 onlySuc.allocate_instance(self, used_signals)
                 self._copy_sync_all(onlySuc, res_skipWhen, res_extraCond, intf, sync_time)
 
         else:
-            assert isinstance(node, (HlsWrite, HlsExplicitSyncNode)), node
+            assert isinstance(node, (HlsNetNodeWrite, HlsNetNodeExplicitSync)), node
             sync_time = node.scheduledIn[0]
 
         self._copy_sync_all(node, res_skipWhen, res_extraCond, intf, sync_time)
