@@ -9,12 +9,14 @@ from hwt.hdl.types.defs import BIT
 from hwt.hdl.value import HValue
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
+from hwtHls.hlsStreamProc.statements import HlsStreamProcWrite, \
+    HlsStreamProcRead
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
 from hwtHls.ssa.value import SsaValue
-# import inspect
 
+# import inspect
 UN_OPS = {
     'UNARY_NEGATIVE': operator.neg,
     'UNARY_NOT': operator.not_,
@@ -124,10 +126,7 @@ def pyFunctionToSsa(hls: HlsStreamProc, fn: FunctionType):
         curBlockCode.clear()
 
     def checkIoRead(src):
-        if isinstance(src, Interface):
-            src = hls.read(src)
-            curBlockCode.append(src)
-        elif src is None or isinstance(src, (RtlSignal, int, HValue, SsaValue)):
+        if src is None or isinstance(src, (Interface, RtlSignal, int, HValue, SsaValue)):
             pass
         else:
             raise NotImplementedError(instr, src)
@@ -196,7 +195,13 @@ def pyFunctionToSsa(hls: HlsStreamProc, fn: FunctionType):
             for _ in range(instr.arg):
                 args.append(checkIoRead(stack.pop()))
             m = stack.pop()
-            stack.append(m(*args))
+            res = m(*reversed(args))
+            stack.append(res)
+
+        elif opname == "POP_TOP":
+            res = stack.pop()
+            if isinstance(res, (HlsStreamProcWrite, HlsStreamProcRead)):
+                curBlockCode.append(res)
 
         elif opname == 'RETURN_VALUE':
             # finalizeBlock()
@@ -214,7 +219,10 @@ def pyFunctionToSsa(hls: HlsStreamProc, fn: FunctionType):
             blockToSsa()
             cond = checkIoRead(stack.pop())
             if cond._dtype != BIT:
-                cond = cond != 0
+                cond = cond._eq(0)
+            else:
+                cond = ~cond
+
             curBlock, cond = to_ssa.visit_expr(curBlock, cond)
             sucIfTrueBlock = blocks.get(instr.offset + 2)
             sucIfFalseBlock = blocks.get(instr.argval)
