@@ -6,7 +6,7 @@ from hwtHls.allocator.connectionsOfStage import SignalsOfStages
 from hwtHls.clk_math import start_of_next_clk_period
 from hwtHls.netlist.analysis.clusterSearch import HlsNetlistClusterSearch
 from hwtHls.netlist.nodes.ops import HlsNetNode, HlsNetNodeOperator
-from hwtHls.netlist.nodes.ports import HlsNetNodeOut
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.scheduler.errors import TimeConstraintError
 
@@ -14,6 +14,8 @@ from hwtHls.scheduler.errors import TimeConstraintError
 class HlsNetlistNodeBitwiseOps(HlsNetNode):
     """
     Container of cluster of bitwise operators.
+    :ivar _totalInputCnt: the dictionary mapping the nodes of cluster to a number of transitive inputs
+        from outside of cluster.
     """
 
     def __init__(self, parentHls:"HlsPipeline", subNodes: HlsNetlistClusterSearch, name:str=None):
@@ -55,13 +57,13 @@ class HlsNetlistNodeBitwiseOps(HlsNetNode):
         node.assignRealization(r)
 
     def scheduleAsapWithQuantization(self, node: HlsNetNodeOperator, clk_period: float, pathForDebug: Optional[UniqList["HlsNetNode"]]):
+        assert node in self._subNodes.nodes, (node, self._subNodes)
         if node.asap_end is None:
             if pathForDebug is not None:
                 if node in pathForDebug:
                     raise AssertionError("Cycle in graph", self, [n._id for n in pathForDebug[pathForDebug.index(node):]])
                 else:
                     pathForDebug.append(self)
-            
             totalInputCnt = 0
             input_times = []
             for d in node.dependsOn:
@@ -69,12 +71,14 @@ class HlsNetlistNodeBitwiseOps(HlsNetNode):
                 if obj in self._subNodes.nodes:
                     _sch, _inp_cnt = self.scheduleAsapWithQuantization(obj, clk_period, pathForDebug)
                     totalInputCnt += _inp_cnt
+
                 else:
                     _sch = obj.scheduleAsap(clk_period, pathForDebug)
                     totalInputCnt += 1
-
+                   
                 t = _sch[d.out_i]
                 input_times.append(t)
+
             self._totalInputCnt[node] = totalInputCnt
             self.resolve_subnode_realization(node, totalInputCnt)
             # now we have times when the value is available on input
@@ -114,7 +118,10 @@ class HlsNetlistNodeBitwiseOps(HlsNetNode):
                 pathForDebug.pop()
 
         else:
-            totalInputCnt = self._totalInputCnt[node]
+            try:
+                totalInputCnt = self._totalInputCnt[node]
+            except:
+                raise
 
         return node.asap_end, totalInputCnt
 
@@ -130,11 +137,11 @@ class HlsNetlistNodeBitwiseOps(HlsNetNode):
                     pathForDebug.append(self)
 
             scheduleOut = []
-
             for o in self._subNodes.outputs:
                 o: HlsNetNodeOut
                 _scheduleOut, _ = self.scheduleAsapWithQuantization(o.obj, clk_period, pathForDebug)
                 scheduleOut.append(_scheduleOut[0])
+            
             self.asap_start = tuple(dep.obj.asap_end[dep.out_i] for dep in self.dependsOn)
             self.asap_end = tuple(scheduleOut)
             # input_times = (d.obj.scheduleAsap(clk_period, pathForDebug)[d.out_i] for d in self.dependsOn)
@@ -147,7 +154,17 @@ class HlsNetlistNodeBitwiseOps(HlsNetNode):
             # between the time when shared subexpression result is evaluate and the time when other inputs are available 
         
         return self.asap_end
-
+    
+    def replaceAllOuterInputsPlaceholders(self, outputMap: Optional[Dict[HlsNetNodeOut, HlsNetNodeOut]]):
+        for n in self._subNodes.nodes:
+            for i, dep in enumerate(n.dependsOn):
+                if isinstance(dep, HlsNetNodeIn):
+                    assert dep.obj is self, (self, dep.obj, n._id)
+                    o = self.dependsOn[dep.in_i]
+                    if outputMap:
+                        o = outputMap.get(o, o)
+                    n.dependsOn[i] = o
+        
     def allocate_instance(self,
             allocator:"HlsAllocator",
             used_signals: SignalsOfStages):
@@ -177,8 +194,10 @@ class HlsNetlistPassAggregateBitwiseOps(HlsNetlistPass):
         return isinstance(n, HlsNetNodeOperator) and n.operator in BITWISE_OPS
         
     def apply(self, hls: "HlsStreamProc", to_hw: "SsaSegmentToHwPipeline"):
-        bitwiseOpsClusters: List[HlsNetlistClusterSearch] = []
         seen: Set[HlsNetNodeOperator] = set()
+        removedNodes: Set[HlsNetNode] = set()
+        newOutMap: Dict[HlsNetNodeOut, HlsNetNodeOut] = {}
+        clusterNodes: List[HlsNetlistNodeBitwiseOps] = []
         # discovert clusters of bitwise operators
         for n in to_hw.hls.nodes:
             if n not in seen and self._isBitwiseOperator(n):
@@ -187,14 +206,14 @@ class HlsNetlistPassAggregateBitwiseOps(HlsNetlistPass):
                     if len(cluster.nodes) > 1:
                         for c in cluster.splitToPreventOuterCycles():
                             if len(c.nodes) > 1:
-                                bitwiseOpsClusters.append(c)
-
-        removedNodes: Set[HlsNetNode] = set()
-        for cluster in bitwiseOpsClusters:
-            cluster: HlsNetlistClusterSearch
-            clusterNode = HlsNetlistNodeBitwiseOps(to_hw.hls, cluster)
-            cluster.substituteWithNode(clusterNode)
-            to_hw.hls.nodes.append(clusterNode)
-            removedNodes.update(cluster.nodes)
+                                c.updateOuterInputs(newOutMap)
+                                clusterNode = HlsNetlistNodeBitwiseOps(to_hw.hls, c)
+                                c.substituteWithNode(clusterNode)
+                                clusterNodes.append(clusterNode)
+                                removedNodes.update(c.nodes)
+                                for o, internO in zip(clusterNode._outputs, c.outputs):
+                                    newOutMap[internO] = o
+                                clusterNode.replaceAllOuterInputsPlaceholders(newOutMap)
 
         to_hw.hls.nodes = [n for n in to_hw.hls.nodes if n not in removedNodes]
+        to_hw.hls.nodes.extend(clusterNodes)

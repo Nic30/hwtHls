@@ -59,29 +59,29 @@ class HlsNetlistClusterSearch():
         """
         self._discover(n, seen, predicateFn)
         self.inputs = [i for i in self.inputs if i.obj not in self.nodes]
+        self.inputsDict = {k: v for k, v in self.inputsDict.items() if k.obj not in self.nodes}
         # self.outputs = [o for o in self.outputs if o.obj not in self.nodes]
+        self.consystencyCheck()
     
     def substituteWithNode(self, n: HlsNetNode):
         """
         Substitute all nodes with the cluster with a single node. All nodes are removed from netlists and disconnected on outer side.
-        On inner side the information about connection is kept.
+        On inner side the nodes are connected to input of new node.
         """
         assert len(self.inputs) == len(n._inputs)
         assert len(self.outputs) == len(n._outputs)
         for boundaryIn, outerOutput in zip(n._inputs, self.inputs):
             outerOutput: HlsNetNodeOut
-            interInputs = self.inputsDict[outerOutput]
+            internInputs = self.inputsDict[outerOutput]
             usedBy = outerOutput.obj.usedBy[outerOutput.out_i]
             usedBy = outerOutput.obj.usedBy[outerOutput.out_i] = [
                 i
                 for i in usedBy
-                if i not in interInputs
+                if i not in internInputs
             ]
             link_hls_nodes(outerOutput, boundaryIn)
-            # :note: the inputs still have the record in dependsOn which tells them that
-            # they are still connected to output
-            # howere all nodes in cluster should be removed from the netlist and we keep this information
-            # about where the removed nodes were connected
+            for i in internInputs:
+                i.obj.dependsOn[i.in_i] = boundaryIn
         
         clusterNodes = self.nodes
         for boundaryOut, interOutput in zip(n._outputs, self.outputs):
@@ -91,6 +91,7 @@ class HlsNetlistClusterSearch():
             for in_ in usedBy:
                 if in_.obj not in clusterNodes:
                     in_.obj.dependsOn[in_.in_i] = boundaryOut
+
             interOutput.obj.usedBy[interOutput.out_i] = [in_ for in_ in usedBy if in_.obj in clusterNodes]
     
     def doesOutputLeadsToInputOfCluster(self, node: HlsNetNode,
@@ -99,7 +100,6 @@ class HlsNetlistClusterSearch():
         Transitively check if the node outputs leads to some input of this cluster.
         """
         seenNodes.add(node)
-        # print(node)
         for o, usedBy in zip(node._outputs, node.usedBy):
             o: HlsNetNodeOut
             for u in usedBy:
@@ -125,11 +125,28 @@ class HlsNetlistClusterSearch():
         for dep in node.dependsOn:
             if dep.obj in self.nodes:
                 yield from self.collectPredecesorsInCluster(dep.obj)
-   
+
+    def consystencyCheck(self):
+        try:
+            assert len(self.inputs) == len(set(self.inputs)), [(o.obj._id, o.out_i) for o in self.inputs]
+            assert len(self.inputsDict) == len(self.inputs), (
+                [(o.obj._id, o.out_i) for o in self.inputsDict.keys()],
+                [(o.obj._id, o.out_i) for o in self.inputs])
+        except:
+            raise
+
+    def updateOuterInputs(self, outerInputMap: Dict[HlsNetNodeOut, HlsNetNodeOut]):
+        for i_i, i in enumerate(self.inputs):
+            oi = outerInputMap.get(i, i)
+            if oi is not i:
+                self.inputs[i_i] = oi
+                self.inputsDict[oi] = self.inputsDict.pop(i)
+        
     def splitToPreventOuterCycles(self):
         """
         If the cluster construction resulted into an outer cycle cut this cluster so the cycle dissapears.
         """
+        self.consystencyCheck()
         # >1 because if tere was just 1 output the cycle has been there even before this cluster was generated. 
         if len(self.outputs) > 1:
             outputsCausingLoop: List[HlsNetNodeOut] = []
@@ -143,33 +160,43 @@ class HlsNetlistClusterSearch():
                 predCluster = HlsNetlistClusterSearch()
                 for o in outputsCausingLoop:
                     predCluster.nodes.extend(self.collectPredecesorsInCluster(o.obj))
+                # nodes and outputs can not be shared
+                self.nodes = UniqList(n for n in self.nodes if n not in predCluster.nodes)
 
+                # construct new inputs and inputsDict for self and predCluster
                 newInputs = []
-                for i in self.inputs:
+                newInputsDict = {}
+                for outerInp in self.inputs:
                     added0 = False
                     added1 = False
                     newInternalInputs = UniqList()
                     predInternalInputs = UniqList()
-                    for u in self.inputsDict[i]:
+                    for internInp in self.inputsDict[outerInp]:
+                        internInp: HlsNetNodeOut
                         # the input can actually be input of bouth new clusters
                         # we have to check all in order to build newInputsDict and predCluster.inputDict
-                        if u.obj in self.nodes:
+                        if internInp.obj in self.nodes:
+                            assert internInp.obj not in predCluster.nodes
                             if not added0:
-                                newInputs.append(i)
+                                newInputs.append(outerInp)
                                 added0 = True
-                            newInternalInputs.append(u)
-                        if u.obj in predCluster.nodes:
+                            newInternalInputs.append(internInp)
+                        elif internInp.obj in predCluster.nodes:
                             if not added1:
-                                predCluster.inputs.append(i)
+                                predCluster.inputs.append(outerInp)
                                 added1 = True
-                            predInternalInputs.append(u)
+                            predInternalInputs.append(internInp)
 
-                    self.inputsDict[i] = newInternalInputs
-                    predCluster.inputsDict[i] = predInternalInputs
+                    if newInternalInputs:
+                        newInputsDict[outerInp] = newInternalInputs
+                    if predInternalInputs:
+                        assert outerInp not in predCluster.inputsDict, outerInp
+                        predCluster.inputsDict[outerInp] = predInternalInputs
                     
                 self.inputs = newInputs
-                # nodes and outputs can not be shared
-                self.nodes = UniqList(n for n in self.nodes if n not in predCluster.nodes)
+                self.inputsDict = newInputsDict
+
+                # construct new outputs for self and predCluster
                 newOutputs: UniqList[HlsNetNodeOut] = UniqList()
                 for o in self.outputs:
                     if o.obj in self.nodes:
@@ -182,16 +209,20 @@ class HlsNetlistClusterSearch():
                     for i, dep in zip(n._inputs, n.dependsOn):
                         if dep.obj in predCluster.nodes:
                             o = dep.obj._outputs[dep.out_i]
-                            inputsForOutput = self.inputsDict.get(o, None)
-                            if inputsForOutput is None:
-                                inputsForOutput = self.inputsDict[o] = UniqList()
-                            if i not in inputsForOutput:
-                                inputsForOutput.append(i) 
-                                assert o not in predCluster.outputs
+                            inputsDependentOnOutput = self.inputsDict.get(o, None)
+                            if inputsDependentOnOutput is None:
+                                inputsDependentOnOutput = self.inputsDict[o] = UniqList()
+                                self.inputs.append(o)
+
+                            if i not in inputsDependentOnOutput:
+                                inputsDependentOnOutput.append(i) 
+                                # assert o not in predCluster.outputs, o
                                 predCluster.outputs.append(o)
                 
+                self.consystencyCheck()
                 yield from predCluster.splitToPreventOuterCycles()
-                yield self
-                return 
+                yield self  # self is guaranted to not have outer cycle because we removed all outputs which caused such a thing
+                return
 
+        self.consystencyCheck()
         yield self
