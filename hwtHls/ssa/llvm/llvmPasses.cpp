@@ -279,10 +279,10 @@ void runOpt(llvm::Function &fn) {
 //	for (auto &C : ScalarOptimizerLateEPCallbacks)
 //		C(FPM, Level);
 
-	FPM.addPass(llvm::SimplifyCFGPass(
-	//llvm::SimplifyCFGOptions().hoistCommonInsts(true).sinkCommonInsts(
-	//		true)
-			));
+	FPM.addPass(
+			llvm::SimplifyCFGPass(
+					llvm::SimplifyCFGOptions().hoistCommonInsts(true).sinkCommonInsts(
+							true)));
 	//FPM.addPass(InstCombinePass());
 	//invokePeepholeEPCallbacks(FPM, Level);
 
