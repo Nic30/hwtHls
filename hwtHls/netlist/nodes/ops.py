@@ -12,6 +12,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.scheduler.errors import TimeConstraintError
 
+
 TimeSpec = Union[float, Tuple[float, ...]]
 
 
