@@ -7,6 +7,7 @@ from tests.alapAsapDiffExample import AlapAsapDiffExample_TC
 from tests.bitonicSort import BitonicSorterHLS_TCs
 from tests.concatOfSlices_test import ConcatOfSlicesTC
 from tests.expr_tree3 import HlsExprTree3_example_TC
+from tests.fromPythonBasics_test import FromPythonBasics_TC
 from tests.ioFsm_test import IoFsm_TC
 from tests.mac import HlsMAC_example_TC
 from tests.read_if import ReadIfTc
@@ -39,6 +40,7 @@ suite = testSuiteFromTCs(
     HlsStreamMachineTrivial_TC,
     HlsStreamMachineWhileIf_TC,
     IoFsm_TC,
+    FromPythonBasics_TC,
 )
 
 if __name__ == '__main__':

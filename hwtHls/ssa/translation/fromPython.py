@@ -5,7 +5,7 @@ from typing import Dict
 
 from hwt.code import In
 from hwt.hdl.operatorDefs import AllOps
-from hwt.hdl.types.defs import BIT
+from hwt.hdl.types.defs import BIT, BOOL
 from hwt.hdl.value import HValue
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
@@ -66,7 +66,7 @@ INPLACE_OPS = {
     'INPLACE_OR': operator.or_,
 }
 
-
+# https://www.synopsys.com/blogs/software-security/understanding-python-bytecode/
 def pyFunctionToSsa(hls: HlsStreamProc, fn: FunctionType):
     co = fn.__code__
     cell_names = co.co_cellvars + co.co_freevars
@@ -78,7 +78,7 @@ def pyFunctionToSsa(hls: HlsStreamProc, fn: FunctionType):
     blocks: Dict[int, SsaBasicBlock] = {}
     curBlockCode = []
     # print(lines)
-    print(dis(fn))
+    # print(dis(fn))
     stack = []
     localVars = [None for _ in range(fn.__code__.co_nlocals)]
     instructions = tuple(_get_instructions_bytes(
@@ -218,11 +218,6 @@ def pyFunctionToSsa(hls: HlsStreamProc, fn: FunctionType):
         elif opname == 'POP_JUMP_IF_FALSE':
             blockToSsa()
             cond = checkIoRead(stack.pop())
-            if cond._dtype != BIT:
-                cond = cond._eq(0)
-            else:
-                cond = ~cond
-
             curBlock, cond = to_ssa.visit_expr(curBlock, cond)
             sucIfTrueBlock = blocks.get(instr.offset + 2)
             sucIfFalseBlock = blocks.get(instr.argval)
