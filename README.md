@@ -21,6 +21,11 @@ and provides variety of existing ones (from LLVM/hwt) in order to build efficien
 * This library is in alpha phase.
 
 * Features
+  * Python bytecode -> LLVM -> hwt -> vhdl/verilog/IP-exact
+    * no exceptions, function calls must be explicitely marked for hw otherwise evaluated compile time
+    * only static typing, limited use of iterators
+    * (meant to be used for simple things, for the rest thre are "statement-like objects")
+
   * Python statement-like objects -> LLVM -> hwt -> vhdl/verilog/IP-exact
     * Support for multithreaded programs
       (multiple hls programs with shared resources cooperating using shared memory or streams and
