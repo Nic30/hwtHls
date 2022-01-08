@@ -27,6 +27,7 @@ from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from hwtHls.ssa.value import SsaValue
 from ipCorePackager.constants import INTF_DIRECTION
 from pyMathBitPrecise.bit_utils import ValidityError, mask
+from hwt.hdl.types.bitsVal import BitsVal
 
 
 def getValAndShift(v: Value):
@@ -129,20 +130,37 @@ class FromLlvmIrTranslator():
             else:
                 BinaryOps = Instruction.BinaryOps
                 if op == BinaryOps.Shl.value:
-                    onlyConcatOr = True
+                    # <<
+                    onlyConcatOrOrZExt = True
                     for u in instr.users():
                         i = UserToInstruction(u)
                         if i is None:
-                            onlyConcatOr = False
+                            onlyConcatOrOrZExt = False
                             break
                         o = i.getOpcode()
-                        if o != BinaryOps.Or.value:
-                            onlyConcatOr = False
+                        if o != BinaryOps.Or.value and o != Instruction.CastOps.ZExt.value:
+                            onlyConcatOrOrZExt = False
+                            break
 
-                    if onlyConcatOr:
+                    if onlyConcatOrOrZExt:
                         continue
                     else:
-                        raise NotImplementedError()
+                        # coud be cocatenation with 0
+                        # %0 = zext i4 %a1 to i8
+                        # %1 = shl nuw i8 %0, 4
+                        mainVar, sh = instr.iterOperands()
+                        mainVar_i = ValueToInstruction(mainVar.get())
+                        sh = self._translateExpr(sh)
+                        if mainVar_i is not None and mainVar_i.getOpcode() == Instruction.CastOps.ZExt.value and isinstance(sh, BitsVal):
+                            sh = int(sh)
+                            o0, = mainVar_i.iterOperands()
+                            o0 = self._translateExpr(o0)
+                            res_t = self._translateType(instr.getType())
+                            assert sh + o0._dtype.bit_length() == res_t.bit_length(), (instr, sh,  o0._dtype.bit_length(), res_t)
+                            _instr = SsaInstr(self.ssaCtx, res_t, AllOps.CONCAT,
+                                              [o0, Bits(sh).from_py(0)])
+                        else:
+                            raise NotImplementedError()
 
                 elif op == BinaryOps.LShr.value:
                     # >>

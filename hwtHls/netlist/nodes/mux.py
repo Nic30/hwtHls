@@ -25,7 +25,7 @@ class HlsNetNodeMux(HlsNetNodeOperator):
                           used_signals: SignalsOfStages
                           ) -> TimeIndependentRtlResource:
         op_out = self._outputs[0]
-
+        
         try:
             return allocator.node2instance[op_out]
         except KeyError:
@@ -34,22 +34,31 @@ class HlsNetNodeMux(HlsNetNodeOperator):
         name = self.name
         v0 = allocator.instantiateHlsNetNodeOutInTime(self.elifs[0][1], self.scheduledOut[0], used_signals)
         mux_out_s = allocator._sig(name, v0.data._dtype)
-        mux_top = None
-        for elif_i, (c, v) in enumerate(self.elifs):
-            if c is not None:
-                c = allocator.instantiateHlsNetNodeOutInTime(c, self.scheduledIn[elif_i * 2], used_signals)
+        if len(self.elifs) == 1:
+            c, v = self.elifs[0]
+            assert c is None, c
             v = allocator.instantiateHlsNetNodeOutInTime(
-                v,
-                self.scheduledIn[elif_i * 2 + (1 if c is not None else 0)],
-                used_signals)
-
-            if mux_top is None:
-                mux_top = If(c.data, mux_out_s(v.data))
-            elif c is not None:
-                mux_top.Elif(c.data, mux_out_s(v.data))
-            else:
-                mux_top.Else(mux_out_s(v.data))
-
+                    v,
+                    self.scheduledIn[0],
+                    used_signals)
+            mux_out_s(v.data)       
+        else:
+            mux_top = None
+            for elif_i, (c, v) in enumerate(self.elifs):
+                if c is not None:
+                    c = allocator.instantiateHlsNetNodeOutInTime(c, self.scheduledIn[elif_i * 2], used_signals)
+                v = allocator.instantiateHlsNetNodeOutInTime(
+                    v,
+                    self.scheduledIn[elif_i * 2 + (1 if c is not None else 0)],
+                    used_signals)
+                    
+                if mux_top is None:
+                    mux_top = If(c.data, mux_out_s(v.data))
+                elif c is not None:
+                    mux_top.Elif(c.data, mux_out_s(v.data))
+                else:
+                    mux_top.Else(mux_out_s(v.data))
+    
         # create RTL signal expression base on operator type
         t = self.scheduledOut[0] + epsilon
         mux_out_s = TimeIndependentRtlResource(mux_out_s, t, allocator)
