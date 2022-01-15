@@ -20,6 +20,17 @@ class SsaInstrBranch():
         if cond is not None:
             cond.users.append(self)
 
+    def replaceInput(self, orig_expr: SsaValue, new_expr: Union[SsaValue, HValue]):
+        assert isinstance(new_expr, (SsaValue, HValue)), (self, orig_expr, new_expr)
+        assert self in orig_expr.users
+        self.targets = [
+            (new_expr if o is orig_expr else o, t)
+            for o, t in self.targets
+        ]
+        orig_expr.users.remove(self)
+        if isinstance(new_expr, SsaValue):
+            new_expr.users.append(self)
+
     def replaceTargetBlock(self, orig_block:"SsaBasicBlock", new_block:"SsaBasicBlock"):
         for i, (c, b) in enumerate(self.targets):
             if b is orig_block:
