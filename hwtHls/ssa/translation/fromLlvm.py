@@ -102,10 +102,7 @@ class FromLlvmIrTranslator():
             val = int(c.getValue())
             return self._translateType(v.getType()).from_py(val)
 
-        try:
-            return self.newValues[v]
-        except KeyError:
-            raise
+        return self.newValues[v]
 
     def translateBasicBlock(self, block: BasicBlock):
         newBlock: SsaBasicBlock = self.newBlocks[block]

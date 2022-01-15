@@ -118,10 +118,7 @@ class HlsNetlistNodeBitwiseOps(HlsNetNode):
                 pathForDebug.pop()
 
         else:
-            try:
-                totalInputCnt = self._totalInputCnt[node]
-            except:
-                raise
+            totalInputCnt = self._totalInputCnt[node]
 
         return node.asap_end, totalInputCnt
 
