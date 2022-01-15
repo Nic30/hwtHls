@@ -37,7 +37,7 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
             dep: HlsNetNodeOut
             obj = dep.obj
             if obj not in seen:
-                if obj.scheduledOut[dep.out_i] // clk_period == clk_i:
+                if int((obj.scheduledOut[dep.out_i]) // clk_period) == clk_i:
                     yield from self._floodNetInSameCycle(clk_i, obj, seen)
 
         for uses in o.usedBy:
@@ -45,7 +45,7 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
                 use: HlsNetNodeIn
                 obj = use.obj
                 if obj not in seen:
-                    if obj.scheduledIn[use.in_i] // clk_period == clk_i:
+                    if start_clk(obj.scheduledIn[use.in_i], clk_period) == clk_i:
                         yield from self._floodNetInSameCycle(clk_i, obj, seen)
 
     def collectInFsmNodes(self) -> Set[HlsNetNode]:
@@ -58,6 +58,7 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
 
     def run(self):
         io_aggregation = self.hls.requestAnalysis(HlsNetlistAnalysisPassDiscoverIo).io_by_interface
+        clk_period = self.hls.clk_period
         for i, accesses in sorted(io_aggregation.items(), key=lambda x: getSignalName(x[0])):
             if len(accesses) > 1:
                 # all accesses which are not in same clock cycle must be mapped to individual FSM state
@@ -66,7 +67,7 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
                 seenClks: Dict[int, Set[HlsNetNode]] = {}
                 for a in sorted(accesses, key=lambda a: a.scheduledIn[0]):
                     a: Union[HlsNetNodeRead, HlsNetNodeWrite]
-                    clkI = start_clk(a.scheduledIn[0], self.hls.clk_period)
+                    clkI = start_clk(a.scheduledIn[0], clk_period)
                     seen = seenClks.get(clkI, None)
                     # there can be multiple IO operations on same IO in same clock cycle, if this is the case
                     # we must avoid adding duplicit nodes
