@@ -24,7 +24,6 @@ from hwtHls.ssa.translation.toHwtHlsNetlist.opCache import SsaToHwtHlsNetlistOpC
 from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axis import AxiStream
 
-
 IO_COMB_REALIZATION = OpRealizationMeta(latency_post=epsilon)
 
 
@@ -166,6 +165,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
         HlsNetNode.__init__(self, parentHls, None)
         self._init_extraCond_skipWhen()
         self._add_output()  # slot for data consummer
+        self._add_output()  # slot for ordering
 
         self.operator = "read"
         self.src = src
@@ -205,8 +205,16 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
         while True:
             curClk = start_clk(self.asap_start[0], clk_period)
             iosInThisClk = 0
+            mustBeScheduled = True
             for io in otherIoOps:
+                if io is self:
+                    mustBeScheduled = False
+
                 end = io.asap_end
+                if mustBeScheduled and end is None:
+                    io.scheduleAsap(clk_period, pathForDebug)
+                    end = io.asap_end
+                    
                 if end is not None:
                     c = start_clk(io.asap_start[0], clk_period)
                     if c == curClk:
@@ -219,7 +227,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
                 self.asap_end = tuple(t + off for t in self.asap_end)
             else:
                 break
-            
+        
         return self.asap_end
 
     def getRtlDataSig(self):
@@ -327,6 +335,8 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         HlsNetNode.__init__(self, parentHls, None)
         self._init_extraCond_skipWhen()
         self._add_input()
+        self._add_output()  # slot for ordering
+        
         self.operator = "write"
         self.src = src
 
