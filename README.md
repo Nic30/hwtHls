@@ -154,6 +154,11 @@ pip3 install git+git://github.com/Nic30/hwtHls.git
 * [Light-HLS](https://github.com/zslwyuan/Light-HLS) -, C++/LLVM, experimental HLS framework
 * [DASS](https://github.com/JianyiCheng/DSS) - combination of dynamic and static scheduling
 * [phism](https://github.com/kumasento/phism) - Python/C++/LLVM, Polyhedral High-Level Synthesis in MLIR
+* [ICSC](https://github.com/intel/systemc-compiler) - C++/LLVM, systemC compiler
+* [Xilinx/Vitis HLS](https://github.com/Xilinx/HLS) - C++/LLVM, partially opensource
+* [circt-hls](https://github.com/circt-hls/circt-hls) - C++/LLVM/Python, set of hls libraries for circt
+* [ScaleHLS](https://github.com/hanchenye/scalehls) - C++/LLVM, MLIR based HLS compiler, ML focused
+* [DuroHLS](https://github.com/corelab-src/DuroHLS-opt) - C++/LLVM, set of hls passes
 
 ## Useful publications
 * [Efficient Pipelining of Nested Loops: Unroll-and-Squash](https://people.csail.mit.edu/saman/student_thesis/petkov-01.pdf)
