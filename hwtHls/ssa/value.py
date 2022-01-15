@@ -11,7 +11,7 @@ class SsaValue():
     """
     :ivar origin: an object which was this generated from
     """
-    GEN_NAME_PREFIX = "%"
+    _GEN_NAME_PREFIX = "%"
 
     def __init__(self, ctx: SsaContext, dtype: HdlType, name:str, origin):
         self.origin = origin
