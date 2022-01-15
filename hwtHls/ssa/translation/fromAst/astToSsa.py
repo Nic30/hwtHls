@@ -1,4 +1,4 @@
-from typing import Union, List, Optional, Tuple, Set
+from typing import Union, List, Optional, Tuple
 
 from hwt.hdl.operator import Operator
 from hwt.hdl.operatorDefs import AllOps
@@ -17,6 +17,8 @@ from hwtHls.ssa.context import SsaContext
 from hwtHls.ssa.instr import SsaInstr, SsaInstrBranch
 from hwtHls.ssa.translation.fromAst.memorySSAUpdater import MemorySSAUpdater
 from hwtHls.ssa.value import SsaValue
+from hwt.synthesizer.interface import Interface
+from hwt.interfaces.std import Signal
 
 AnyStm = Union[HdlAssignmentContainer, HlsStreamProcStm]
 
@@ -117,6 +119,9 @@ class AstToSsa():
         return block
 
     def visit_expr(self, block: SsaBasicBlock, var: Union[RtlSignal, HValue]) -> Tuple[SsaBasicBlock, Union[SsaValue, HValue]]:
+        if isinstance(var, Signal):
+            var = var._sig
+
         if isinstance(var, RtlSignal):
             try:
                 op = var.singleDriver()
@@ -126,14 +131,19 @@ class AstToSsa():
             if op is None or not isinstance(op, Operator):
                 if isinstance(op, HdlPortItem):
                     raise NotImplementedError(op)
+                
                 elif isinstance(op, HlsStreamProcRead):
                     if op.block is None:
+                        # read first used there else already visited
                         block.appendInstruction(op)
                         # HlsStreamProcRead is a SsaValue and thus represents "variable"
                         self.m_ssa_u.writeVariable(var, (), block, op)
+
                     return block, op
+
                 elif isinstance(op, (HlsStreamProcBreak, HlsStreamProcContinue)):
                     raise NotImplementedError()
+
                 else:
                     return block, self.m_ssa_u.readVariable(var, block)
 
@@ -163,6 +173,7 @@ class AstToSsa():
                     # HlsStreamProcRead is a SsaValue and thus represents "variable"
                     self.m_ssa_u.writeVariable(var._sig, (), block, var)
                 var = var._sig
+
             return block, self.m_ssa_u.readVariable(var, block)
 
     def visit_For(self, block: SsaBasicBlock, o: HlsStreamProcFor) -> SsaBasicBlock:

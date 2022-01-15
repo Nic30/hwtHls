@@ -26,6 +26,7 @@ from hwtHls.ssa.translation.fromLlvm import SsaPassFromLlvm
 from hwtHls.ssa.translation.toGraphwiz import SsaPassDumpToDot
 from hwtHls.ssa.translation.toLl import SsaPassDumpToLl
 from hwtHls.ssa.translation.toLlvm import SsaPassToLlvm
+from hwtHls.ssa.transformation.axiStreamReadLowering import SsaPassAxiStreamReadLowering
 
 _OPS_T_GROWING_EXP = {
     AllOps.DIV,
@@ -64,6 +65,7 @@ _OPS_T_GROWING_CONST = {
 
 DEFAULT_SSA_PASSES = [
     SsaPassConsystencyCheck(),
+    SsaPassAxiStreamReadLowering(),
     SsaPassExtractPartDrivers(),
     SsaPassToLlvm(),
     SsaPassRunLlvmOpt(),
@@ -91,11 +93,15 @@ def makeDebugPasses(debug_file_directory: Union[str, Path]):
 
     """
     debug_file_directory = Path(debug_file_directory)
+    if not debug_file_directory.exists():
+        debug_file_directory.mkdir()
     return {
         "ssa_passes": [
             SsaPassDumpToDot(debug_file_directory / "top0.dot", extract_pipeline=False),
             SsaPassConsystencyCheck(),
+            SsaPassAxiStreamReadLowering(),
             SsaPassExtractPartDrivers(),
+            SsaPassDumpToDot(debug_file_directory / "top1.dot", extract_pipeline=False),
             SsaPassToLlvm(),
             # SsaPassDumpToLl(open(debug_file_directory / "top1.ll", "w"), close=True),
             SsaPassRunLlvmOpt(),

@@ -52,6 +52,7 @@ class SsaToHwtHlsNetlistSyncAndIo():
         self._block_io: Dict[Tuple[SsaBasicBlock, SsaBasicBlock], BlockPortsRecord] = {}
         self.edge_var_live = edge_var_live
         self.start_block_en: Optional[HlsNetNodeOut] = None
+        self._latestAccessOfIo: Dict[Interface, UniqList[Union[HlsNetNodeRead, HlsNetNodeWrite]]] = {}
 
     def _add_HlsProgramStarter(self):
         """
@@ -196,6 +197,19 @@ class SsaToHwtHlsNetlistSyncAndIo():
         setattr(u, name, intf)
         return intf
 
+    def _mark_io_sequence_dep(self, block, intf, io: Union[HlsNetNodeRead, HlsNetNodeWrite]):
+        prevAccess = self._latestAccessOfIo.get((block, intf), None)
+        if prevAccess is not None:
+            prevAccess: HlsNetNodeRead
+            i = io._add_input()
+            if not prevAccess._outputs:
+                o = prevAccess._add_output()
+            else:
+                o = prevAccess._outputs[-1]
+            link_hls_nodes(o, i)
+
+        self._latestAccessOfIo[(block, intf)] = io
+
     def _write_to_io(self, intf: Interface,
                      val: Union[HlsNetNodeOut, HlsNetNodeOutLazy],
                      write_cls:Type[HlsNetNodeWrite]=HlsNetNodeWrite) -> HlsNetNodeWrite:
@@ -203,11 +217,13 @@ class SsaToHwtHlsNetlistSyncAndIo():
         Instanciate HlsNetNodeWrite operation for this specific interface.
         """
         write = write_cls(self.hls, val, intf)
-        if self.parent._current_block is not None and intf in self._out_of_hls_io:
+        block = self.parent._current_block
+        if block is not None and intf in self._out_of_hls_io:
             self.parent._add_block_en_to_control_if_required(write)
 
         link_hls_nodes(val, write._inputs[0])
         self.outputs.append(write)
+        self._mark_io_sequence_dep(block, intf, write)
 
         return write
 
@@ -215,10 +231,12 @@ class SsaToHwtHlsNetlistSyncAndIo():
         """
         Instantiate HlsNetNodeRead operation for this specific interface.
         """
-        read = read_cls(self.hls, intf)
-        if self.parent._current_block is not None and intf in self._out_of_hls_io:
+        read: HlsNetNodeRead = read_cls(self.hls, intf)
+        block = self.parent._current_block
+        if block is not None and intf in self._out_of_hls_io:
             self.parent._add_block_en_to_control_if_required(read)
         self.inputs.append(read)
+        self._mark_io_sequence_dep(block, intf, read)
 
         return read._outputs[0]
 

@@ -16,6 +16,7 @@ from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeE
     HlsNetNodeReadSync
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtLib.handshaked.streamNode import StreamNode
+from hwt.hdl.statements.statement import HdlStatement
 
 
 class HlsAllocator():
@@ -72,9 +73,12 @@ class HlsAllocator():
                                    o: HlsNetNodeOut,
                                    time:float,
                                    used_signals: SignalsOfStages
-                                   ) -> TimeIndependentRtlResourceItem:
+                                   ) -> Union[TimeIndependentRtlResourceItem, List[HdlStatement]]:
         _o = self.instantiateHlsNetNodeOut(o, used_signals)
-        return _o.get(time)
+        if isinstance(_o, TimeIndependentRtlResource):
+            return _o.get(time)
+        else:
+            return _o
 
     def allocate(self):
         """
@@ -102,7 +106,7 @@ class HlsAllocator():
                            res: Dict[Interface, TimeIndependentRtlResourceItem],
                            intf: Interface, sync_time: float):
         e = node.dependsOn[node_inI]
-        assert intf not in res, intf
+        assert intf not in res, (intf, "already has sync in this stage")
         res[intf] = self.node2instance[e].get(sync_time)
 
     def _copy_sync_all(self, node: Union[HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeExplicitSync],

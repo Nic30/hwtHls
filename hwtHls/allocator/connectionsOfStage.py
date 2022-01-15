@@ -94,10 +94,10 @@ def extract_control_sig_of_interface(
 
 
 def getIntfSyncSignals(intf: Interface) -> Tuple[Interface, ...]:
-    if isinstance(intf, (HandshakeSync, Handshaked)):
-        return (intf.rd, intf.vld)
-    elif isinstance(intf, Axi_hs):
+    if isinstance(intf, Axi_hs):
         return (intf.ready, intf.valid)
+    elif isinstance(intf, (HandshakeSync, Handshaked)):
+        return (intf.rd, intf.vld)
     elif isinstance(intf, (RtlSignal, Signal, StructIntf)):
         return ()
     elif isinstance(intf, VldSynced):

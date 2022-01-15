@@ -28,6 +28,8 @@ from hwtLib.amba.axis_comp.strformat import HdlType_to_Interface_with_AxiStream
 from hwt.hdl.types.bits import Bits
 from hwt.synthesizer.interfaceLevel.interfaceUtils.utils import walkPhysInterfaces
 from hwt.synthesizer.interface import Interface
+from hwt.hdl.types.struct import HStruct
+from hwt.synthesizer.vectorUtils import iterBits, BitWalker
 
 
 class HlsStreamProcStm(HdlStatement):
@@ -78,14 +80,15 @@ class HlsStreamProcRead(HdlStatement, SignalOps, InterfaceBase, SsaInstr):
     def __init__(self,
                  parent: "HlsStreamProc",
                  src: ANY_HLS_STREAM_INTF_TYPE,
-                 type_or_size: Union[HdlType, RtlSignal, int]):
+                 type_or_size: Union[HdlType, RtlSignal, int],
+                 endOfStream:bool=True):
         super(HlsStreamProcRead, self).__init__()
         self._isAccessible = True
+        self._endOfStream = endOfStream
         self._parent = parent
         self._src = src
         self.block: Optional[SsaBasicBlock] = None
 
-        var = parent.var
         if isinstance(src, (Handshaked, HsStructIntf)):
             assert (type_or_size is NOT_SPECIFIED or
                     type_or_size == src.data._dtype), (
@@ -100,38 +103,49 @@ class HlsStreamProcRead(HdlStatement, SignalOps, InterfaceBase, SsaInstr):
             type_or_size = src._dtype
 
         assert isinstance(type_or_size, HdlType), type_or_size
+            
         intfName = getSignalName(src)
+        var = parent.var
         sig = var(f"{intfName:s}_read", type_or_size)
         if isinstance(sig, Interface):
+            sig_flat = var(f"{intfName:s}_read", Bits(type_or_size.bit_length()))
+            # use flat signal and make type member fields out of slices of that signal
+            bw = BitWalker(sig_flat)
             for i in walkPhysInterfaces(sig):
-                i._sig.drivers.append(self)
-                i._sig.origin = self
+                i._sig = bw.get(i._sig._dtype.bit_length())
+
+            sig_flat.drivers.append(self)
+            sig_flat.origin = self
     
         else:
+            sig_flat = sig
             sig.drivers.append(self)
             sig.origin = self
-        self._sig = sig
-        self._valid = var(f"{intfName:s}_read_valid", BIT)
 
+        self._sig = sig_flat
+        self._valid = var(f"{intfName:s}_read_valid", BIT)
+        self._GEN_NAME_PREFIX = intfName
         SsaInstr.__init__(self, parent.ssaCtx, type_or_size, OP_ASSIGN, (),
-                          name=intfName, origin=self._sig)
+                          origin=sig)
         # self._out: Optional[ANY_HLS_STREAM_INTF_TYPE] = None
 
-        if isinstance(self._sig, StructIntf):
-            sig = self._sig
+        if isinstance(sig, StructIntf):
+            self._interfaces = sig._interfaces
             # copy all members on this object
             for field_path, field_intf in sig._fieldsToInterfaces.items():
                 if len(field_path) == 1:
                     n = field_path[0]
                     assert not hasattr(self, n), (self, n)
                     setattr(self, n, field_intf)
-
+        else:
+            self._interfaces = []
+            
     @internal
     def _get_rtl_context(self) -> 'RtlNetlist':
         return self._parent.ctx
 
     def __repr__(self):
-        return f"<{self.__class__.__name__} {getSignalName(self._src):s}, {self._dtype}>"
+        return f"<{self.__class__.__name__} {self._name:s} {getSignalName(self._src):s}, {self._dtype}>"
 
 
 class HlsStreamProcWrite(HlsStreamProcStm, SsaInstr):

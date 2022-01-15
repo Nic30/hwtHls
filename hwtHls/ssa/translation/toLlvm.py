@@ -26,6 +26,8 @@ from hwtHls.ssa.transformation.utils.blockAnalysis import collect_all_blocks
 from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
 from hwtHls.ssa.value import SsaValue
 from ipCorePackager.constants import INTF_DIRECTION
+from hwtLib.amba.axi_intf_common import Axi_hs
+from hwtLib.amba.axis import AxiStream
 
 RE_NUMBER = re.compile('[^0-9]+|[0-9]+')
 
@@ -261,7 +263,7 @@ class ToLlvmIrTranslator():
 
     @staticmethod
     def _getNativeInterfaceType(i: Interface):
-        if i.__class__ in (Handshaked, RdSynced, VldSynced):
+        if i.__class__ in (Handshaked, RdSynced, VldSynced, AxiStream):
             return i.data._dtype
         elif isinstance(i, (HsStructIntf, Signal, RtlSignal)):
             return i._dtype

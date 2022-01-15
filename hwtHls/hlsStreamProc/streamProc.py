@@ -78,13 +78,14 @@ class HlsStreamProc():
 
     def read(self,
              src: Union[AxiStream, Handshaked],
-             type_or_size: Union[HdlType, RtlSignal, int]=NOT_SPECIFIED):
+             type_or_size: Union[HdlType, RtlSignal, int]=NOT_SPECIFIED,
+             endOfStream=True):
         """
         Create a read statement in thread.
         """
         if isinstance(src, RtlSignal):
             assert src._ctx is not self._ctx, ("Read should be used only for IO, it is not required for hls variables")
-        return HlsStreamProcRead(self, src, type_or_size)
+        return HlsStreamProcRead(self, src, type_or_size, endOfStream)
 
     def write(self,
               src:Union[HlsStreamProcRead, Handshaked, AxiStream, bytes, HValue],
