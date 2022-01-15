@@ -127,13 +127,10 @@ class HlsNetlistClusterSearch():
                 yield from self.collectPredecesorsInCluster(dep.obj)
 
     def consystencyCheck(self):
-        try:
-            assert len(self.inputs) == len(set(self.inputs)), [(o.obj._id, o.out_i) for o in self.inputs]
-            assert len(self.inputsDict) == len(self.inputs), (
-                [(o.obj._id, o.out_i) for o in self.inputsDict.keys()],
-                [(o.obj._id, o.out_i) for o in self.inputs])
-        except:
-            raise
+        assert len(self.inputs) == len(set(self.inputs)), [(o.obj._id, o.out_i) for o in self.inputs]
+        assert len(self.inputsDict) == len(self.inputs), (
+            [(o.obj._id, o.out_i) for o in self.inputsDict.keys()],
+            [(o.obj._id, o.out_i) for o in self.inputs])
 
     def updateOuterInputs(self, outerInputMap: Dict[HlsNetNodeOut, HlsNetNodeOut]):
         for i_i, i in enumerate(self.inputs):

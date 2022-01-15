@@ -96,6 +96,7 @@ class MemorySSAUpdater():
         defs[new_bb] = value
 
     def readVariable(self, variable: RtlSignal, block: SsaBasicBlock) -> SsaPhi:
+        assert isinstance(variable, RtlSignal), variable
         try:
             # local value numbering
             return self.currentDef[variable][block]

@@ -155,7 +155,7 @@ class SsaToHwtHlsNetlist():
                 raise NotImplementedError()
         else:
             w = a0._dtype.bit_length()
-
+        
         c = HlsNetNodeOperator(self.hls, fn, len(args), w)
         self.nodes.append(c)
         for i, arg in zip(c._inputs, args):
