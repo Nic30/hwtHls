@@ -14,6 +14,7 @@ from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlRes
 from hwtHls.clk_math import start_clk
 from hwtHls.netlist.analysis.fsm import IoFsm
 from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeRead
+from hwtHls.netlist.nodes.ops import HlsNetNode
 
 
 class FsmContainer(AllocatorArchitecturalElement):
@@ -65,7 +66,14 @@ class FsmContainer(AllocatorArchitecturalElement):
                                        min(min(node.scheduledIn) for node in fsm.states[0]),
                                        (con.signals for con in stateCons))
         for nodes, con in zip(self.fsm.states, stateCons):
+            clkI = None
             for node in nodes:
+                node: HlsNetNode
+                _clkI = start_clk(node.scheduledIn[0], clk_period)
+                if clkI is None:
+                    clkI = _clkI
+                else:
+                    assert clkI == _clkI, (node, "is from different clock cycle/state", clkI, _clkI)
                 rtl = node.allocate_instance(allocator, stateSignals)
 
                 if isinstance(node, HlsNetNodeRead):
