@@ -12,7 +12,6 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.scheduler.errors import TimeConstraintError
 
-
 TimeSpec = Union[float, Tuple[float, ...]]
 
 
@@ -117,7 +116,7 @@ class HlsNetNode():
     
             else:
                 self.asap_start = (0.0,)
-                self.asap_end = (0.0,)
+                self.asap_end = tuple(0.0 for _ in self._outputs)
     
         return self.asap_end
         
@@ -265,7 +264,7 @@ class HlsNetNodeOperator(HlsNetNode):
         for (dep, t) in zip(self.dependsOn, self.scheduledIn):
             _o = allocator.instantiateHlsNetNodeOutInTime(dep, t, used_signals)
             operands.append(_o)
-
+        
         s = self.operator._evalFn(*(o.data for o in operands))
         if isinstance(s, HValue):
             t = TimeIndependentRtlResource.INVARIANT_TIME
