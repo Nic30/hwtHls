@@ -114,7 +114,7 @@ class HwtHlsNetlistToGraphwiz():
 
     @staticmethod
     def _escape(s: str) -> str:
-        return s.replace("<", "\\<").replace(">", "\\>").replace("|", "\\|").replace('"', '\\"')
+        return s.replace("<", "\\<").replace(">", "\\>").replace("|", "\\|").replace('"', '\\"').replace("{", "\\{").replace("}", "\\}")
 
     def dumps(self):
         buff = ["digraph ", self.name, " {\n", ]

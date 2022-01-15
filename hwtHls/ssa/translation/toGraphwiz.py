@@ -13,6 +13,7 @@ from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.phi import SsaPhi
 from hwtHls.ssa.translation.toHwtHlsNetlist.pipelineMaterialization import SsaSegmentToHwPipeline
 from hwtHls.ssa.transformation.ssaPass import SsaPass
+from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 
 
 class SsaToGraphwiz():
@@ -75,7 +76,8 @@ class SsaToGraphwiz():
 
         for i, (cond, dst_bb) in enumerate(bb.successors.targets):
             branch_label = f"br{i:d}"
-            cond_str = "" if cond is None else self._escape(cond._name)
+            cond_str = "" if cond is None\
+                else self._escape(cond._name) if isinstance(cond, RtlSignal) else self._escape(repr(cond))
             body_rows.append(f"{{\\<{branch_label:s}\\> | <{branch_label:s}> {cond_str:s} }}")
             dst_node = self._node_from_SsaBasicBlock(dst_bb, False, edge_var_live)
             _src = f"{node.label:s}:{branch_label:s}"
