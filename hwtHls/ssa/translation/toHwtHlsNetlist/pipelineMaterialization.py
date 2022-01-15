@@ -73,8 +73,8 @@ class SsaSegmentToHwPipeline():
         self.is_scheduled = False
 
     def schedulerRun(self):
-        self.is_scheduled = True
         self.hls.schedule()
+        self.is_scheduled = True
 
     def construct_rtlnetlist(self):
         self.hls.allocate()
