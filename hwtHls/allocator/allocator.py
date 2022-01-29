@@ -1,12 +1,12 @@
-from typing import Union, List, Dict, Tuple, Deque
+from typing import Union, List, Dict, Tuple
 
 from hwt.interfaces.std import HandshakeSync
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwtHls.allocator.connectionsOfStage import ConnectionsOfStage, \
     extract_control_sig_of_interface, SignalsOfStages
-from hwtHls.allocator.fsmContainer import FsmContainer
-from hwtHls.allocator.pipelineContainer import PipelineContainer
+from hwtHls.allocator.fsmContainer import AllocatorFsmContainer
+from hwtHls.allocator.pipelineContainer import AllocatorPipelineContainer
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource, \
     TimeIndependentRtlResourceItem
 from hwtHls.netlist.analysis.fsm import HlsNetlistAnalysisPassDiscoverFsm, IoFsm
@@ -24,13 +24,13 @@ class HlsAllocator():
     Convert virtual operation instances to real RTL code
 
     :ivar parentHls: parent HLS context for this allocator
-    :ivar node2instance: dictionary {hls node: rtl instance}
+    :ivar netNodeToRtl: dictionary {hls node: rtl instance}
     """
 
     def __init__(self, parentHls: "HlsPipeline", name_prefix:str="hls_"):
         self.name_prefix = name_prefix
         self.parentHls = parentHls
-        self.node2instance: Dict[
+        self.netNodeToRtl: Dict[
             Union[
                 HlsNetNodeOut,  # any operation output
                 Tuple[HlsNetNodeOut, Interface]  # write
@@ -39,7 +39,7 @@ class HlsAllocator():
         # function to create register/signal on RTL level
         self._reg = parentHls.parentUnit._reg
         self._sig = parentHls.parentUnit._sig
-        self._archElements: List[Union[FsmContainer, PipelineContainer]] = []
+        self._archElements: List[Union[AllocatorFsmContainer, AllocatorPipelineContainer]] = []
 
     def _registerSignal(self, origin: HlsNetNodeOut,
                         s: TimeIndependentRtlResource,
@@ -47,25 +47,24 @@ class HlsAllocator():
         assert isinstance(s, TimeIndependentRtlResource), s
         assert isinstance(origin, HlsNetNodeOut), origin
         used_signals.append(s)
-        self.node2instance[origin] = s
+        self.netNodeToRtl[origin] = s
 
     def instantiateHlsNetNodeOut(self,
                                    o: HlsNetNodeOut,
                                    used_signals: SignalsOfStages
                                    ) -> TimeIndependentRtlResource:
         assert isinstance(o, HlsNetNodeOut), o
-        _o = self.node2instance.get(o, None)
+        _o = self.netNodeToRtl.get(o, None)
 
         if _o is None:
             # new allocation, use registered automatically
-            _o = o.obj.allocate_instance(self, used_signals)
+            _o = o.obj.allocateRtlInstance(self, used_signals)
             if _o is None:
-                return self.node2instance[o]
-            else:
-                return _o
+                return self.netNodeToRtl[o]
         else:
             # used and previously allocated
-            used_signals.append(_o)
+            # used_signals.getForTime(t).append(_o)
+            pass
 
         return _o
 
@@ -90,24 +89,30 @@ class HlsAllocator():
         
         for fsm in fsms.fsms:
             fsm: IoFsm
-            fsmCont = FsmContainer(self, fsm)
-            fsmCont.allocateDataPath()
-            fsmCont.allocateSync()
+            fsmCont = AllocatorFsmContainer(self, fsm)
             self._archElements.append(fsmCont)
 
         for pipe in pipelines.pipelines:
             pipe: NetlistPipeline
-            pipeCont = PipelineContainer(self, pipe.stages)
-            pipeCont.allocateDataPath()
-            pipeCont.allocateSync()
+            pipeCont = AllocatorPipelineContainer(self, pipe.stages)
             self._archElements.append(pipeCont)
+
+        if len(self._archElements) > 1:
+            for e in self._archElements:
+                # [todo] first boundary signals needs to be declared, then the body of fsm/pipeline can be constructed
+                #    because there is no topological order in how the elements are connected
+                e.declareIo()
+
+        for e in self._archElements:
+            e.allocateDataPath()
+            e.allocateSync()
 
     def _copy_sync_single(self, node: Union[HlsNetNodeRead, HlsNetNodeWrite], node_inI: int,
                            res: Dict[Interface, TimeIndependentRtlResourceItem],
                            intf: Interface, sync_time: float):
         e = node.dependsOn[node_inI]
         assert intf not in res, (intf, "already has sync in this stage")
-        res[intf] = self.node2instance[e].get(sync_time)
+        res[intf] = self.netNodeToRtl[e].get(sync_time)
 
     def _copy_sync_all(self, node: Union[HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeExplicitSync],
                         res_skipWhen: Dict[Interface, TimeIndependentRtlResourceItem],
@@ -143,7 +148,7 @@ class HlsAllocator():
                         break
 
             if isinstance(onlySuc, HlsNetNodeExplicitSync) and not isinstance(onlySuc, HlsNetNodeWrite):
-                onlySuc.allocate_instance(self, used_signals)
+                onlySuc.allocateRtlInstance(self, used_signals)
                 self._copy_sync_all(onlySuc, res_skipWhen, res_extraCond, intf, sync_time)
 
         else:

@@ -38,11 +38,11 @@ class HlsNetNodeWriteBackwardEdge(HlsNetNodeWrite):
         self.associated_read = read
         read.associated_write = self
 
-    def allocate_instance(self,
+    def allocateRtlInstance(self,
             allocator:"HlsAllocator",
             used_signals: SignalsOfStages
             ) -> TimeIndependentRtlResource:
-        res = HlsNetNodeWrite.allocate_instance(self, allocator, used_signals)
+        res = HlsNetNodeWrite.allocateRtlInstance(self, allocator, used_signals)
         src_write = self
         dst_read: HlsNetNodeReadBackwardEdge = self.associated_read
         assert dst_read is not None

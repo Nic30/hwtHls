@@ -2,10 +2,12 @@ from typing import List, Tuple, Optional, Union
 
 from hwt.code import If
 from hwt.hdl.operatorDefs import AllOps
+from hwt.hdl.types.hdlType import HdlType
 from hwtHls.allocator.connectionsOfStage import SignalsOfStages
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.clk_math import epsilon
-from hwtHls.netlist.nodes.ops import HlsNetNodeOperator, HlsNetNode
+from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
     link_hls_nodes
 
@@ -15,19 +17,19 @@ class HlsNetNodeMux(HlsNetNodeOperator):
     Multiplexer operation with one-hot encoded select signal
     """
 
-    def __init__(self, parentHls, bit_length: int, name: str=None):
+    def __init__(self, parentHls: "HlsPipeline", dtype: HdlType, name: str=None):
         super(HlsNetNodeMux, self).__init__(
-            parentHls, AllOps.TERNARY, 0, bit_length, name=name)
+            parentHls, AllOps.TERNARY, 0, dtype, name=name)
         self.elifs: List[Tuple[Optional[HlsNetNode], HlsNetNode]] = []
 
-    def allocate_instance(self,
+    def allocateRtlInstance(self,
                           allocator: "HlsAllocator",
                           used_signals: SignalsOfStages
                           ) -> TimeIndependentRtlResource:
         op_out = self._outputs[0]
         
         try:
-            return allocator.node2instance[op_out]
+            return allocator.netNodeToRtl[op_out]
         except KeyError:
             pass
         assert self.elifs, ("Mux has to have operands", self)
@@ -85,7 +87,7 @@ class HlsNetNodeMuxInputRef():
         self.in_i = in_i
         self.obj = obj
 
-    def replace_driver(self, new_obj: HlsNetNodeOut):
+    def replace_driver(self, new_obj: Union[HlsNetNodeOut, HlsNetNodeOutLazy]):
         assert isinstance(new_obj, HlsNetNodeOut), ("Must be a final out port")
         c, v = self.updated_obj.elifs[self.elif_i]
         if c is self.obj:
@@ -94,4 +96,10 @@ class HlsNetNodeMuxInputRef():
             v = new_obj
         self.updated_obj.elifs[self.elif_i] = (c, v)
         self.updated_obj.dependsOn[self.in_i] = new_obj
+
+        if isinstance(new_obj, HlsNetNodeOut):
+            usedBy = new_obj.obj.usedBy[new_obj.out_i]
+            i = self.updated_obj._inputs[self.in_i]
+            if i not in usedBy:
+                usedBy.append(i)
 

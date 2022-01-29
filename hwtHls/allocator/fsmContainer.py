@@ -1,3 +1,4 @@
+from itertools import chain
 from typing import List, Set, Tuple
 
 from hwt.code import SwitchLogic, Switch
@@ -14,10 +15,10 @@ from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlRes
 from hwtHls.clk_math import start_clk
 from hwtHls.netlist.analysis.fsm import IoFsm
 from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeRead
-from hwtHls.netlist.nodes.ops import HlsNetNode
+from hwtHls.netlist.nodes.node import HlsNetNode
 
 
-class FsmContainer(AllocatorArchitecturalElement):
+class AllocatorFsmContainer(AllocatorArchitecturalElement):
     """
     Contaner class for FSM allocation objects.
     """
@@ -25,6 +26,15 @@ class FsmContainer(AllocatorArchitecturalElement):
     def __init__(self, allocator: "HlsAllocator", fsm: IoFsm):
         AllocatorArchitecturalElement.__init__(self, allocator)
         self.fsm = fsm
+
+    def declareIo(self):
+        allNodes = set()
+        for nodes in self.fsm.states:
+            allNodes.update(nodes)
+
+        for nodes in self.fsm.states:
+            for node in nodes:
+                self._declareIo(node, allNodes)
 
     def _initNopValsOfIo(self):
         """
@@ -49,7 +59,7 @@ class FsmContainer(AllocatorArchitecturalElement):
 
     def allocateDataPath(self):
         """
-        instantiate logic in the states
+        Instantiate logic in the states
 
         :note: This function does not perform efficient register allocations.
             Instead each value is store in idividual register.
@@ -62,8 +72,8 @@ class FsmContainer(AllocatorArchitecturalElement):
 
         fsmEndClk_i = int(max(max(*node.scheduledIn, *node.scheduledOut, 0) for node in fsm.states[-1]) // clk_period)
         stateCons = self.connections = [ConnectionsOfStage() for _ in self.fsm.states]
-        stateSignals = SignalsOfStages(clk_period,
-                                       min(min(node.scheduledIn) for node in fsm.states[0]),
+        startTime = min(min(chain(node.scheduledIn, node.scheduledOut)) for node in fsm.states[0])
+        stateSignals = SignalsOfStages(clk_period, startTime,
                                        (con.signals for con in stateCons))
         for nodes, con in zip(self.fsm.states, stateCons):
             clkI = None
@@ -74,7 +84,7 @@ class FsmContainer(AllocatorArchitecturalElement):
                     clkI = _clkI
                 else:
                     assert clkI == _clkI, (node, "is from different clock cycle/state", clkI, _clkI)
-                rtl = node.allocate_instance(allocator, stateSignals)
+                rtl = node.allocateRtlInstance(allocator, stateSignals)
 
                 if isinstance(node, HlsNetNodeRead):
                     if not isinstance(node.src, (Signal, RtlSignal)):

@@ -1,12 +1,13 @@
 from typing import List, Tuple, Optional, Union
 
 from hwt.code import If, Or
+from hwt.hdl.types.defs import BIT
 from hwtHls.allocator.connectionsOfStage import SignalsOfStages
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.clk_math import epsilon
 from hwtHls.hlsPipeline import HlsPipeline
 from hwtHls.netlist.nodes.io import HlsNetNodeExplicitSync, IO_COMB_REALIZATION
-from hwtHls.netlist.nodes.ops import HlsNetNode
+from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, link_hls_nodes, HlsNetNodeOutLazy
 from hwtHls.netlist.utils import hls_op_not
 from hwtHls.ssa.basicBlock import SsaBasicBlock
@@ -21,19 +22,19 @@ class HlsLoopGateStatus(HlsNetNode):
     def __init__(self, parentHls:"HlsPipeline", loop_gate: "HlsLoopGate", name:str=None):
         HlsNetNode.__init__(self, parentHls, name=name)
         self._loop_gate = loop_gate
-        self._add_output()
+        self._add_output(BIT)
 
     def resolve_realization(self):
         self.assignRealization(IO_COMB_REALIZATION)
 
-    def allocate_instance(self,
+    def allocateRtlInstance(self,
                           allocator: "HlsAllocator",
                           used_signals: SignalsOfStages
                           ) -> TimeIndependentRtlResource:
         op_out = self._outputs[0]
 
         try:
-            return allocator.node2instance[op_out]
+            return allocator.netNodeToRtl[op_out]
         except KeyError:
             pass
 
@@ -251,7 +252,7 @@ class HlsLoopGate(HlsNetNode):
     def resolve_realization(self):
         self.assignRealization(IO_COMB_REALIZATION)
 
-    def allocate_instance(self,
+    def allocateRtlInstance(self,
             allocator:"HlsAllocator",
             used_signals: SignalsOfStages):
         pass

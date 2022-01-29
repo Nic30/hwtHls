@@ -52,12 +52,16 @@ class SignalsOfStages(Deque[UniqList[TimeIndependentRtlResourceItem]]):
     Container of signals in :class:`~ConnectionsOfStage` instances.
     """
 
-    def __init__(self, clk_period: float, startTime: float, *args):
+    def __init__(self, clk_period: float, startTime: float, initVals=None):
         self.startTime = startTime
         self.clk_period = clk_period
-        deque.__init__(self, *args)
+        deque.__init__(self)
+        if initVals:
+            for v in initVals:
+                assert isinstance(v, UniqList), v
+                self.append(v)
 
-    def getForTime(self, t):
+    def getForTime(self, t: float):
         return self[clk_period_diff(self.startTime, t + epsilon, self.clk_period)]
 
 

@@ -12,10 +12,10 @@ from hwtHls.allocator.connectionsOfStage import ConnectionsOfStage, resolveStron
     SignalsOfStages
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
-from hwtHls.netlist.nodes.ops import HlsNetNode
+from hwtHls.netlist.nodes.node import HlsNetNode
 
 
-class PipelineContainer(AllocatorArchitecturalElement):
+class AllocatorPipelineContainer(AllocatorArchitecturalElement):
     """
     A container of informations about hw pipeline allocation.
     """
@@ -23,6 +23,15 @@ class PipelineContainer(AllocatorArchitecturalElement):
     def __init__(self, allocator: "HlsAllocator", stages: List[List[HlsNetNode]]):
         AllocatorArchitecturalElement.__init__(self, allocator)
         self.stages = stages
+
+    def declareIo(self):
+        allNodes = set()
+        for nodes in self.stages:
+            allNodes.update(nodes)
+
+        for nodes in self.stages:
+            for node in nodes:
+                self._declareIo(node, allNodes)
 
     def getMinTime(self):
         minTime = None
@@ -60,7 +69,7 @@ class PipelineContainer(AllocatorArchitecturalElement):
                 # this is one level of nodes,
                 # node can not be dependent on nodes behind in this list
                 # because this engine does not support backward edges in DFG
-                node.allocate_instance(allocator, stageSignals)
+                node.allocateRtlInstance(allocator, stageSignals)
 
                 if isinstance(node, HlsNetNodeRead):
                     con.inputs.append(node.src)
@@ -124,15 +133,6 @@ class PipelineContainer(AllocatorArchitecturalElement):
 
             if con.inputs or con.outputs:
                 sync = con.sync_node = allocator._makeSyncNode(con)
-                # print(f"############# stage {pipeline_st_i:d} #############")
-                # print("extra_conds")
-                # for i, c in sorted([(i._name, c) for i, c in extra_conds.items()], key=lambda x: x[0]):
-                #    print(f"\t{i}: \t{c}")
-                #
-                # print("skip_when")
-                # for i, c in sorted([(i._name, c) for i, c in skip_when.items()], key=lambda x: x[0]):
-                #    print(f"\t{i}: \t{c}")
-
                 en = prev_st_valid
 
                 # check if results of this stage do validity register
