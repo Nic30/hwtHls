@@ -31,12 +31,13 @@ def get_nodes_degree_dict(g: DiGraph, nodes: List[Node]) -> Dict[Node, Tuple[flo
     for node in nodes:
         in_d = in_degrees[node]
         out_d = out_degrees[node]
-        if in_d >= out_d:
+        if in_d > out_d:
             value = in_d / out_d
             f = DIRECTION.IN
         else:
             value = out_d / in_d
             f = DIRECTION.OUT
+
         degree_dict[node] = (value, f)
 
     return degree_dict
@@ -46,12 +47,13 @@ def greedy_local_heuristic(g: DiGraph, sccs: List[Set[Node]], degree_dict: Dict[
     while sccs:
         scc = sccs.pop()
 
-        max_value, max_node = max(((degree_dict[node][0], node)
+        (_, max_value), max_node = max(((degree_dict[node], node)
                                     for node in scc),
-                                    key=lambda x: x[0])
+                                    key=lambda x: x[0][0])
 
         # degrees = [(node,degree_dict[node]) for node in list(graph.nodes())]
         # max_node,max_value = max(degrees,key = lambda x: x[1][0])
+        assert isinstance(max_value, DIRECTION), max_value
         if max_value == DIRECTION.IN:
             # indegree > outdegree, remove out-edges
             edges = ((max_node, o) for o in g.succ[max_node])
