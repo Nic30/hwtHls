@@ -27,6 +27,7 @@ from hwtHls.ssa.translation.toGraphwiz import SsaPassDumpToDot
 from hwtHls.ssa.translation.toLl import SsaPassDumpToLl
 from hwtHls.ssa.translation.toLlvm import SsaPassToLlvm
 from hwtHls.ssa.transformation.axiStreamReadLowering import SsaPassAxiStreamReadLowering
+from hwtHls.netlist.analysis.consystencyCheck import HlsNetlistPassConsystencyCheck
 
 _OPS_T_GROWING_EXP = {
     AllOps.DIV,
@@ -100,22 +101,26 @@ def makeDebugPasses(debug_file_directory: Union[str, Path]):
             SsaPassDumpToDot(debug_file_directory / "top0.dot", extract_pipeline=False),
             SsaPassConsystencyCheck(),
             SsaPassAxiStreamReadLowering(),
-            SsaPassExtractPartDrivers(),
             SsaPassDumpToDot(debug_file_directory / "top1.dot", extract_pipeline=False),
+            SsaPassExtractPartDrivers(),
+            SsaPassDumpToDot(debug_file_directory / "top2.dot", extract_pipeline=False),
             SsaPassToLlvm(),
             # SsaPassDumpToLl(open(debug_file_directory / "top1.ll", "w"), close=True),
             SsaPassRunLlvmOpt(),
             SsaPassDumpToLl(open(debug_file_directory / "top2.ll", "w"), close=True),
             SsaPassFromLlvm(),
+            
             SsaPassDumpToDot(debug_file_directory / "top3.dot"),
             SsaPassDumpPipelines(open(debug_file_directory / "top.pipeline.txt", "w"), close=True),
             SsaPassConsystencyCheck(),
         ],
         "hlsnetlist_passes": [
+            HlsNetlistPassConsystencyCheck(),
             HlsNetlistPassDCE(),
             # HlsNetlistPassDumpToDot(debug_file_directory / "top_p0.dot"),
             HlsNetlistPassMergeExplicitSync(),
             HlsNetlistPassAggregateBitwiseOps(),
+            #HlsNetlistPassConsystencyCheck(),
             # HlsNetlistPassDumpToDot(debug_file_directory / "top_p1.dot"),
             HlsNetlistPassShowTimeline(debug_file_directory / "top.schedule.html"),
         ],
