@@ -8,7 +8,7 @@ top_wh_wh:
   dataIn6 = call <Bits, 8bits, unsigned> @hls.read(dataIn)
   %7 = SUB %5, dataIn6
   void call <Bits, 8bits> @hls.write(%7)
-  %9 = NE %7, <BitsVal 0>
-  br [label %top_wh_wh %9]
-  [label %top_whC ]
+  %9 = EQ %7, <BitsVal 0>
+  br [label %top_whC %9]
+  [label %top_wh_wh ]
 }

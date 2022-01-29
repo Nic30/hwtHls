@@ -3,7 +3,8 @@ top:
   br [label %top_whC ]
 top_whC:
   a3 = call <Bits, 8bits> @hls.read(a)
-  %4 = MUL a3, <BitsVal 2>
-  void call <Bits, 8bits> @hls.write(%4)
+  %4 = INDEX a3, <HSliceVal slice(<BitsVal 7>, <BitsVal 0>, <BitsVal -1>)>
+  %5 = CONCAT %4, <BitsVal 0>
+  void call <Bits, 8bits> @hls.write(%5)
   br [label %top_whC ]
 }
