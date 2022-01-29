@@ -1,56 +1,5 @@
 #include "llvmPasses.h"
 
-#include "llvm/ADT/APInt.h"
-#include "llvm/ADT/APSInt.h"
-#include "llvm/ADT/STLExtras.h"
-#include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/Constants.h"
-#include "llvm/IR/DerivedTypes.h"
-#include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/Module.h"
-#include "llvm/IR/Type.h"
-#include "llvm/IR/Verifier.h"
-//#include "llvm/IR/PassManager.h"
-//#include "llvm/IR/LegacyPassManager.h"
-#include "llvm/Passes/PassBuilder.h"
-#include "llvm/Pass.h"
-
-//#include "llvm/Transforms/IPO/PassManagerBuilder.h"
-#include "llvm/Transforms/InstCombine/InstCombine.h"
-#include "llvm/Transforms/AggressiveInstCombine/AggressiveInstCombine.h"
-#include "llvm/Transforms/Scalar.h"
-#include "llvm/Transforms/Scalar/Reassociate.h"
-#include "llvm/Transforms/Scalar/NewGVN.h"
-#include "llvm/Transforms/Scalar/DCE.h"
-#include "llvm/Transforms/Scalar/SCCP.h"
-#include "llvm/Transforms/Scalar/SROA.h"
-#include "llvm/Transforms/Scalar/EarlyCSE.h"
-#include "llvm/Transforms/Scalar/GVN.h"
-#include "llvm/Transforms/Scalar/SpeculativeExecution.h"
-#include "llvm/Transforms/Scalar/JumpThreading.h"
-#include "llvm/Transforms/Scalar/SimplifyCFG.h"
-#include "llvm/Transforms/Scalar/CorrelatedValuePropagation.h"
-
-#include "llvm/Transforms/Scalar/LoopInstSimplify.h"
-#include "llvm/Transforms/Scalar/LoopSimplifyCFG.h"
-#include "llvm/Transforms/Scalar/LICM.h"
-#include "llvm/Transforms/Scalar/LoopRotation.h"
-#include "llvm/Transforms/Scalar/LoopIdiomRecognize.h"
-#include "llvm/Transforms/Scalar/IndVarSimplify.h"
-#include "llvm/Transforms/Scalar/LoopDeletion.h"
-#include "llvm/Transforms/Scalar/MergedLoadStoreMotion.h"
-#include "llvm/Transforms/Scalar/BDCE.h"
-//#include "llvm/Transforms/Scalar/DFAJumpThreading.h"
-#include "llvm/Transforms/Scalar/ADCE.h"
-#include "llvm/Transforms/Scalar/MemCpyOptimizer.h"
-#include "llvm/Transforms/Scalar/DeadStoreElimination.h"
-
-#include "llvm/Transforms/Utils.h"
-
-//#include "llvm/Support/TargetSelect.h"
-//#include "llvm/Target/TargetMachine.h"
-
 #include <algorithm>
 #include <cctype>
 #include <cstdio>
@@ -66,15 +15,92 @@
 #include <pybind11/stl.h>
 #include <pybind11/stl_bind.h>
 
+#include <llvm/ADT/APInt.h>
+#include <llvm/ADT/APSInt.h>
+#include <llvm/ADT/STLExtras.h>
+#include <llvm/IR/BasicBlock.h>
+#include <llvm/IR/Constants.h>
+#include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/IR/Module.h>
+#include <llvm/IR/Type.h>
+#include <llvm/IR/Verifier.h>
+//#include <llvm/IR/PassManager.h>
+//#include <llvm/IR/LegacyPassManager.h>
+#include <llvm/Passes/PassBuilder.h>
+#include <llvm/Pass.h>
+
+//#include <llvm/Transforms/IPO/PassManagerBuilder.h>
+#include <llvm/Transforms/InstCombine/InstCombine.h>
+#include <llvm/Transforms/AggressiveInstCombine/AggressiveInstCombine.h>
+#include <llvm/Transforms/Scalar.h>
+#include <llvm/Transforms/Scalar/Reassociate.h>
+#include <llvm/Transforms/Scalar/NewGVN.h>
+#include <llvm/Transforms/Scalar/DCE.h>
+#include <llvm/Transforms/Scalar/SCCP.h>
+#include <llvm/Transforms/Scalar/SROA.h>
+#include <llvm/Transforms/Scalar/EarlyCSE.h>
+#include <llvm/Transforms/Scalar/GVN.h>
+#include <llvm/Transforms/Scalar/SpeculativeExecution.h>
+#include <llvm/Transforms/Scalar/JumpThreading.h>
+#include <llvm/Transforms/Scalar/SimplifyCFG.h>
+#include <llvm/Transforms/Scalar/CorrelatedValuePropagation.h>
+
+#include <llvm/Transforms/Scalar/LoopInstSimplify.h>
+#include <llvm/Transforms/Scalar/LoopSimplifyCFG.h>
+#include <llvm/Transforms/Scalar/LICM.h>
+#include <llvm/Transforms/Scalar/LoopRotation.h>
+#include <llvm/Transforms/Scalar/LoopIdiomRecognize.h>
+#include <llvm/Transforms/Scalar/IndVarSimplify.h>
+#include <llvm/Transforms/Scalar/LoopDeletion.h>
+#include <llvm/Transforms/Scalar/MergedLoadStoreMotion.h>
+#include <llvm/Transforms/Scalar/BDCE.h>
+//#include <llvm/Transforms/Scalar/DFAJumpThreading.h>
+#include <llvm/Transforms/Scalar/ADCE.h>
+#include <llvm/Transforms/Scalar/MemCpyOptimizer.h>
+#include <llvm/Transforms/Scalar/DeadStoreElimination.h>
+
+#include <llvm/Transforms/Utils.h>
+
+//#include <llvm/Support/TargetSelect.h>
+#include <llvm/Target/TargetMachine.h>
+#include <llvm/Support/TargetRegistry.h>
+
+#include "targets/TargetInfo/genericFpgaTargetInfo.h"
+#include "Transforms/extractBitConcatAndSliceOpsPass.h"
+
+
 namespace py = pybind11;
 
 void runOpt(llvm::Function &fn) {
 	// https://stackoverflow.com/questions/34255383/llvm-3-5-passmanager-vs-legacypassmanager
 	// https://stackoverflow.com/questions/51934964/function-optimization-pass
 	// @see PassBuilder::buildFunctionSimplificationPipeline
+
+	std::string Error;
+	std::string TargetTriple = "genericFpga-unknown-linux-gnu";
+
+	const llvm::Target * Target = &getTheGenericFpgaTarget(); //llvm::TargetRegistry::targets()[0];
+
+	auto CPU = "";
+	auto Features = "";
+
+	llvm::TargetOptions opt;
+	auto RM = llvm::Optional<llvm::Reloc::Model>();
+	auto TheTargetMachine = Target->createTargetMachine(TargetTriple, CPU,
+			Features, opt, RM);
+
+	//module->setDataLayout(TheTargetMachine->createDataLayout());
+
 	llvm::PipelineTuningOptions PTO;
 
-	llvm::PassBuilder PB;
+	llvm::PassBuilder PB(
+	/*DebugLogging =*/false,
+	/*TargetMachine *TM = */TheTargetMachine, PTO,
+	/*Optional<PGOOptions> PGOOpt =*/llvm::None,
+	/*PassInstrumentationCallbacks *PIC =*/nullptr);
+
 	//llvm::LLVMInitializeX86TargetMC();
 	//llvm::FunctionAnalysisManager FAM;
 	//PB.registerFunctionAnalyses(FAM);
@@ -130,7 +156,7 @@ void runOpt(llvm::Function &fn) {
 
 	FPM.addPass(llvm::SimplifyCFGPass());
 	FPM.addPass(llvm::AggressiveInstCombinePass());
-	//FPM.addPass(llvm::InstCombinePass());
+	FPM.addPass(llvm::InstCombinePass());
 
 	//invokePeepholeEPCallbacks(FPM, Level);
 
@@ -215,7 +241,7 @@ void runOpt(llvm::Function &fn) {
 	/*EnableMSSALoopDependency=*/true,
 	/*UseBlockFrequencyInfo=*/true));
 	FPM.addPass(llvm::SimplifyCFGPass());
-	//FPM.addPass(llvm::InstCombinePass());
+	FPM.addPass(llvm::InstCombinePass());
 	//if (EnableLoopFlatten)
 	//  FPM.addPass(createFunctionToLoopPassAdaptor(LoopFlattenPass()));
 	// The loop passes in LPM2 (LoopIdiomRecognizePass, IndVarSimplifyPass,
@@ -247,7 +273,7 @@ void runOpt(llvm::Function &fn) {
 
 	// Run instcombine after redundancy and dead bit elimination to exploit
 	// opportunities opened up by them.
-	//FPM.addPass(llvm::InstCombinePass());
+	FPM.addPass(llvm::InstCombinePass());
 	//invokePeepholeEPCallbacks(FPM, Level);
 
 	// Re-consider control flow based optimizations after redundancy elimination,
@@ -283,8 +309,10 @@ void runOpt(llvm::Function &fn) {
 			llvm::SimplifyCFGPass(
 					llvm::SimplifyCFGOptions().hoistCommonInsts(true).sinkCommonInsts(
 							true)));
-	//FPM.addPass(InstCombinePass());
+	FPM.addPass(llvm::InstCombinePass());
 	//invokePeepholeEPCallbacks(FPM, Level);
+	FPM.addPass(hwtHls::ExtractBitConcatAndSliceOpsPass());
+	FPM.addPass(llvm::InstCombinePass()); // for DCE for previous pass
 
 	//if (EnableCHR && Level == OptimizationLevel::O3 && PGOOpt
 	//		&& (PGOOpt->Action == PGOOptions::IRUse

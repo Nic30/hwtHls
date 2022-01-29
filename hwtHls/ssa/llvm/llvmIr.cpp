@@ -4,14 +4,15 @@
 #include "llvmIrStrings.h"
 #include "llvmIrValues.h"
 #include "llvmPasses.h"
+#include "targets/genericFpga.h"
 
-#include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/DerivedTypes.h"
-#include "llvm/IR/Function.h"
-#include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/Module.h"
-#include "llvm/IR/Type.h"
-#include "llvm/IR/Verifier.h"
+#include <llvm/IR/BasicBlock.h>
+#include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/Function.h>
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/IR/Module.h>
+#include <llvm/IR/Type.h>
+#include <llvm/IR/Verifier.h>
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
@@ -139,7 +140,7 @@ void register_Attribute_and_MDNode(pybind11::module_ & m) {
 // https://github.com/PointCloudLibrary/clang-bind
 // http://nondot.org/~sabre/LLVMNotes/TypeSystemChanges.txt
 PYBIND11_MODULE(llvmIr, m) {
-
+	genericFpgaTargetInitialize();
 	py::class_<llvm::LLVMContext>(m, "LLVMContext")
 			.def(py::init<>());
 	py::class_<llvm::Module>(m, "Module")

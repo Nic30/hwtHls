@@ -1,6 +1,7 @@
 #include "llvmIrBuilder.h"
 
-#include "llvm/IR/IRBuilder.h"
+#include <llvm/IR/IRBuilder.h>
+#include "targets/intrinsic/bitrange.h"
 namespace py = pybind11;
 
 
@@ -59,5 +60,7 @@ void register_IRBuilder(pybind11::module_ & m) {
 				llvm::Instruction *MDSrc) {
 				self->CreateCondBr(Cond, True, False, MDSrc);
 			}, py::return_value_policy::reference)
-		.def("CreateSwitch", &llvm::IRBuilder<>::CreateSwitch, py::return_value_policy::reference);
+		.def("CreateSwitch", &llvm::IRBuilder<>::CreateSwitch, py::return_value_policy::reference)
+		.def("CreateBitRangeGet", CreateBitRangeGet)
+		.def("CreateBitConcat", CreateBitConcat);
 }

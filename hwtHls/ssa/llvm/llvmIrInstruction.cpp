@@ -1,9 +1,9 @@
 #include "llvmIrInstruction.h"
 
-#include "llvm/IR/InstrTypes.h"
-#include "llvm/IR/Instruction.h"
-#include "llvm/IR/Instructions.h"
-#include "llvm/IR/IntrinsicInst.h"
+#include <llvm/IR/InstrTypes.h>
+#include <llvm/IR/Instruction.h>
+#include <llvm/IR/Instructions.h>
+#include <llvm/IR/IntrinsicInst.h>
 
 namespace py = pybind11;
 
@@ -167,6 +167,15 @@ void register_Instruction(pybind11::module_ & m) {
 		  return Inst;
 		} else {
 		  return (llvm::ICmpInst *) nullptr;
+		}
+	});
+	py::class_<llvm::CallBase, std::unique_ptr<llvm::CallBase, py::nodelete>, llvm::Instruction>(m, "CallBase");
+	py::class_<llvm::CallInst, std::unique_ptr<llvm::CallInst, py::nodelete>, llvm::CallBase>(m, "CallInst");
+	m.def("InstructionToCallInst", [](llvm::Instruction * I) {
+		if (llvm::CallInst *Inst = llvm::dyn_cast<llvm::CallInst>(I)) {
+		  return Inst;
+		} else {
+		  return (llvm::CallInst *) nullptr;
 		}
 	});
 

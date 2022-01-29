@@ -1,7 +1,7 @@
 #include "llvmIrStrings.h"
 
-#include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Twine.h"
+#include <llvm/ADT/StringRef.h>
+#include <llvm/ADT/Twine.h>
 
 namespace py = pybind11;
 

@@ -2,9 +2,9 @@
 #include "llvmIrCommon.h"
 
 
-#include "llvm/ADT/APInt.h"
-#include "llvm/ADT/APSInt.h"
-#include "llvm/IR/Constants.h"
+#include <llvm/ADT/APInt.h>
+#include <llvm/ADT/APSInt.h>
+#include <llvm/IR/Constants.h>
 
 namespace py = pybind11;
 
