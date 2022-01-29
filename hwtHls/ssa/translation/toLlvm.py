@@ -16,6 +16,7 @@ from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.hlsStreamProc.statements import HlsStreamProcRead, \
     HlsStreamProcWrite
+from hwtHls.netlist.typeUtils import dtypeEqualSignAprox
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.llvm.llvmIr import LLVMContext, Module, IRBuilder, LLVMStringContext, Value, \
@@ -25,9 +26,9 @@ from hwtHls.ssa.phi import SsaPhi
 from hwtHls.ssa.transformation.utils.blockAnalysis import collect_all_blocks
 from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
 from hwtHls.ssa.value import SsaValue
-from ipCorePackager.constants import INTF_DIRECTION
-from hwtLib.amba.axi_intf_common import Axi_hs
 from hwtLib.amba.axis import AxiStream
+from ipCorePackager.constants import INTF_DIRECTION
+
 
 RE_NUMBER = re.compile('[^0-9]+|[0-9]+')
 
@@ -104,7 +105,7 @@ class ToLlvmIrTranslator():
                 raise NotImplementedError(v)
             return v
 
-        return self.varMap[v]
+        return self.varMap[v]  # if variable was defined it must be there
 
     def _translateInstr(self, instr: SsaInstr):
         b = self.b
@@ -134,24 +135,21 @@ class ToLlvmIrTranslator():
                 self.strCtx.addTwine(self._formatVarName(instr._name)),
             )
 
-        elif instr.operator == AllOps.INDEX and isinstance(instr._dtype, Bits):
+        elif instr.operator == AllOps.INDEX and isinstance(instr.operands[0]._dtype, Bits):
             op0, op1 = instr.operands
-            # (res_t)(op0 >> op1)
-            e = self._translateExpr(op0)
-            res_t = self._translateType(instr._dtype)
+            op0 = self._translateExpr(op0)
+            # res_t = self._translateType(instr._dtype)
             if isinstance(op1._dtype, HSlice):
-                low = int(op1.val.stop)
-                if low != 0:
-                    _op1 = self._translateExprInt(int(op1.val.stop), TypeToIntegerType(e.getType()))
+                op1 = self._translateExprInt(int(op1.val.stop), TypeToIntegerType(op0.getType()))
             else:
-                low = int(op1)
-                if low != 0:
-                    _op1 = self._translateExprInt(int(op1), TypeToIntegerType(e.getType()))
+                op1 = self._translateExprInt(int(op1), TypeToIntegerType(op0.getType()))
 
-            if low != 0:
-                e = b.CreateLShr(e, _op1, self.strCtx.addTwine(self._formatVarName(instr._name)), False)
-
-            return b.CreateTrunc(e, res_t, self.strCtx.addTwine(""))
+            # (res_t)(op0 >> op1)
+            #if low != 0:
+            #    e = b.CreateLShr(e, _op1, self.strCtx.addTwine(self._formatVarName(instr._name)), False)
+            #
+            #return b.CreateTrunc(e, res_t, self.strCtx.addTwine(""))
+            return b.CreateBitRangeGet(op0, op1, instr._dtype.bit_length())
 
         else:
             args = (self._translateExpr(a) for a in instr.operands)
@@ -317,14 +315,22 @@ class SsaPassToLlvm():
             for instr in block.body:
                 # [todo] the io can be bi-directional e.g. bram port
                 if isinstance(instr, HlsStreamProcRead):
+                    instr: HlsStreamProcRead
                     cur_dir = io.get(instr._src, None)
                     assert cur_dir is None or INTF_DIRECTION.SLAVE
                     io[instr._src] = INTF_DIRECTION.SLAVE
+                    assert instr._dtype == ToLlvmIrTranslator._getNativeInterfaceType(instr._src), (
+                        "In this stages the read operations must read only native type of interface",
+                        instr, ToLlvmIrTranslator._getNativeInterfaceType(instr._src))
 
                 elif isinstance(instr, HlsStreamProcWrite):
+                    instr: HlsStreamProcWrite
                     cur_dir = io.get(instr.dst, None)
                     assert cur_dir is None or INTF_DIRECTION.MASTER
                     io[instr.dst] = INTF_DIRECTION.MASTER
+                    assert dtypeEqualSignAprox(instr.operands[0]._dtype, ToLlvmIrTranslator._getNativeInterfaceType(instr.dst)), (
+                        "In this stages the read operations must read only native type of interface",
+                        instr, instr.operands[0]._dtype, ToLlvmIrTranslator._getNativeInterfaceType(instr.dst))
 
         toLlvm = ToLlvmIrTranslator(to_ssa.start.label, io)
         toLlvm.translate(to_ssa.start)

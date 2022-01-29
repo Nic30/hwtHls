@@ -2,7 +2,7 @@ from hwt.hdl.operatorDefs import OpDefinition, AllOps
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.value import SsaValue
-from typing import Optional, Union
+from typing import Optional, Union, List
 from hwt.hdl.value import HValue
 
 
@@ -113,3 +113,32 @@ class SsaExprBuilder():
     def var(self, v: SsaValue):
         return SsaExprBuilderProxy(self, v)
 
+    def insertBlocks(self, branchConditions: List[Optional[SsaValue]]):
+        pos = self.possition
+        b = self.block
+        blocks = [SsaBasicBlock(b.ctx, f"{b.label:s}_br{i}") for i in range(len(branchConditions))]
+        
+        if pos is None or pos + 1 == len(b.body) and not b.successors.targets:
+            # can directly append the blocks
+            raise NotImplementedError()
+            sequel = None
+        else:
+            # must spot a sequel block, copy all instructions after this position and move all successors from original block
+            sequel = SsaBasicBlock(b.ctx, b.label + "_sequel")
+            if pos is not None:
+                for instr in b.body[pos + 1:]:
+                    instr.block = None
+                    sequel.appendInstruction(instr)
+                del b.body[pos + 1:]
+
+            for c, t in b.successors.targets:
+                t: SsaBasicBlock
+                t.predecessors.remove(b)
+                sequel.successors.addTarget(c, t)
+
+            b.successors.targets.clear()
+            for c, t in zip(branchConditions, blocks):
+                b.successors.addTarget(c, t)
+                t.successors.addTarget(None, sequel)
+
+        return blocks, sequel
