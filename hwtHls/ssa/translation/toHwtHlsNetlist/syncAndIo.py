@@ -7,7 +7,8 @@ from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsPipeline import HlsPipeline
-from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeRead
+from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeRead, \
+    HOrderingVoidT
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, link_hls_nodes, \
     HlsNetNodeOutLazy
 from hwtHls.ssa.analysis.liveness import EdgeLivenessDict
@@ -203,7 +204,7 @@ class SsaToHwtHlsNetlistSyncAndIo():
             prevAccess: HlsNetNodeRead
             i = io._add_input()
             if not prevAccess._outputs:
-                o = prevAccess._add_output()
+                o = prevAccess._add_output(HOrderingVoidT)
             else:
                 o = prevAccess._outputs[-1]
             link_hls_nodes(o, i)
@@ -231,6 +232,7 @@ class SsaToHwtHlsNetlistSyncAndIo():
         """
         Instantiate HlsNetNodeRead operation for this specific interface.
         """
+
         read: HlsNetNodeRead = read_cls(self.hls, intf)
         block = self.parent._current_block
         if block is not None and intf in self._out_of_hls_io:

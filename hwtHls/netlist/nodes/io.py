@@ -1,6 +1,5 @@
-from typing import Union, Optional, List
+from typing import Union, Optional, List, Tuple
 
-from hwt.doc_markers import internal
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.defs import BIT
 from hwt.interfaces.hsStructIntf import HsStructIntf
@@ -15,7 +14,7 @@ from hwtHls.allocator.connectionsOfStage import SignalsOfStages
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.clk_math import epsilon, start_of_next_clk_period, start_clk
 from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
-from hwtHls.netlist.nodes.ops import HlsNetNode
+from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
     link_hls_nodes, HlsNetNodeOutLazy, HlsNetNodeOutLazyIndirect
 from hwtHls.netlist.utils import hls_op_and, hls_op_or
@@ -23,8 +22,16 @@ from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.ssa.translation.toHwtHlsNetlist.opCache import SsaToHwtHlsNetlistOpCache
 from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axis import AxiStream
+from hwt.hdl.types.hdlType import HdlType
 
 IO_COMB_REALIZATION = OpRealizationMeta(latency_post=epsilon)
+
+
+class _HOrderingVoidT(HdlType):
+    pass
+
+
+HOrderingVoidT = _HOrderingVoidT()
 
 
 class HlsNetNodeExplicitSync(HlsNetNode):
@@ -41,11 +48,11 @@ class HlsNetNodeExplicitSync(HlsNetNode):
     :ivar skipWhen_inI: index of skipWhen input
     """
 
-    def __init__(self, parentHls: "HlsPipeline"):
+    def __init__(self, parentHls: "HlsPipeline", dtype: HdlType):
         HlsNetNode.__init__(self, parentHls, None)
         self._init_extraCond_skipWhen()
         self._add_input()
-        self._add_output()
+        self._add_output(dtype)
 
     def _init_extraCond_skipWhen(self):
         self.extraCond: Optional[HlsNetNodeOut] = None
@@ -53,7 +60,12 @@ class HlsNetNodeExplicitSync(HlsNetNode):
         self.skipWhen: Optional[HlsNetNodeOut] = None
         self.skipWhen_inI: Optional[int] = None
 
-    def allocate_instance(self,
+    # def allocateRtlInstanceOutDeclr(self, allocator: "HlsAllocator", o: HlsNetNodeOut):
+    #    subO: HlsNetNodeOut = self.dependsOn[0]
+    #    subv = subO.obj.allocateRtlInstanceOutDeclr(subO)
+    #    allocator.netNodeToRtl[o] = subv
+        
+    def allocateRtlInstance(self,
                           allocator: "HlsAllocator",
                           used_signals: SignalsOfStages
                           ) -> TimeIndependentRtlResource:
@@ -61,14 +73,14 @@ class HlsNetNodeExplicitSync(HlsNetNode):
         op_out = self._outputs[0]
 
         try:
-            return allocator.node2instance[op_out]
+            return allocator.netNodeToRtl[op_out]
         except KeyError:
             pass
         # synchronization applied in allocator additionally, we just pass the data
         v = allocator.instantiateHlsNetNodeOut(self.dependsOn[0], used_signals)
         allocator._registerSignal(op_out, v, used_signals.getForTime(self.scheduledOut[0]))
         for conrol in self.dependsOn[1:]:
-            conrol.obj.allocate_instance(allocator, used_signals)
+            conrol.obj.allocateRtlInstance(allocator, used_signals)
 
         return v
 
@@ -131,7 +143,7 @@ class HlsNetNodeExplicitSync(HlsNetNode):
         """
         Prepend the synchronization to an operation output representing variable.
         """
-        self = cls(parentHls)
+        self = cls(parentHls, var._dtype)
         parentHls.nodes.append(self)
         o = self._outputs[0]
         link_hls_nodes(var, self._inputs[0])
@@ -163,15 +175,15 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
     def __init__(self, parentHls: "HlsPipeline",
                  src: Union[RtlSignal, Interface]):
         HlsNetNode.__init__(self, parentHls, None)
-        self._init_extraCond_skipWhen()
-        self._add_output()  # slot for data consummer
-        self._add_output()  # slot for ordering
-
         self.operator = "read"
         self.src = src
         self.maxIosPerClk = 1
 
-    def allocate_instance(self,
+        self._init_extraCond_skipWhen()
+        self._add_output(self.getRtlDataSig()._dtype)  # slot for data consummer
+        self._add_output(HOrderingVoidT)  # slot for ordering
+
+    def allocateRtlInstance(self,
                           allocator: "HlsAllocator",
                           used_signals: SignalsOfStages
                           ) -> TimeIndependentRtlResource:
@@ -180,7 +192,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
         """
         r_out = self._outputs[0]
         try:
-            return allocator.node2instance[r_out]
+            return allocator.netNodeToRtl[r_out]
         except KeyError:
             pass
         
@@ -194,7 +206,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
             assert isinstance(sync, HlsNetNodeOut), (self, self.dependsOn)
             # prepare sync intputs but do not connect it because we do not implemet synchronization
             # in this step we are building only datapath
-            sync.obj.allocate_instance(allocator, used_signals)
+            sync.obj.allocateRtlInstance(allocator, used_signals)
 
         return _o
 
@@ -237,10 +249,6 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
         else:
             return src
 
-    @internal
-    def _destroy(self):
-        self.hls.inputs.remove(self)
-
     def __repr__(self):
         return f"<{self.__class__.__name__:s} {self._id:d} {self.src}>"
 
@@ -259,13 +267,13 @@ class HlsNetNodeReadSync(HlsNetNode, InterfaceBase):
     def __init__(self, parentHls: "HlsPipeline"):
         HlsNetNode.__init__(self, parentHls, None)
         self._add_input()
-        self._add_output()
+        self._add_output(BIT)
         self.operator = "read_sync"
 
     def resolve_realization(self):
         self.assignRealization(IO_COMB_REALIZATION)
 
-    def allocate_instance(self,
+    def allocateRtlInstance(self,
                           allocator: "HlsAllocator",
                           used_signals: SignalsOfStages
                           ) -> TimeIndependentRtlResource:
@@ -274,7 +282,7 @@ class HlsNetNodeReadSync(HlsNetNode, InterfaceBase):
         """
         r_out = self._outputs[0]
         try:
-            return allocator.node2instance[r_out]
+            return allocator.netNodeToRtl[r_out]
         except KeyError:
             pass
 
@@ -335,7 +343,7 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         HlsNetNode.__init__(self, parentHls, None)
         self._init_extraCond_skipWhen()
         self._add_input()
-        self._add_output()  # slot for ordering
+        self._add_output(HOrderingVoidT)  # slot for ordering
         
         self.operator = "write"
         self.src = src
@@ -380,7 +388,7 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
             
         return self.asap_end
         
-    def allocate_instance(self,
+    def allocateRtlInstance(self,
                           allocator: "HlsAllocator",
                           used_signals: SignalsOfStages
                           ) -> List[HdlStatement]:
@@ -408,19 +416,15 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
                 dst = dst[i]
         try:
             # skip instantiation of writes in the same mux
-            return allocator.node2instance[(dep, dst)]
+            return allocator.netNodeToRtl[(dep, dst)]
         except KeyError:
             pass
 
         rtlObj = dst(_o.data)
-        # allocator.node2instance[o] = rtlObj
-        allocator.node2instance[(dep, dst)] = rtlObj
+        # allocator.netNodeToRtl[o] = rtlObj
+        allocator.netNodeToRtl[(dep, dst)] = rtlObj
 
         return rtlObj
-
-    @internal
-    def _destroy(self):
-        self.hls.outputs.remove(self)
 
     def __repr__(self):
         if self.indexes:
@@ -452,6 +456,10 @@ class HlsNetNodeOperatorPropertyInputRef():
             new_obj.dependent_inputs.append(self)
         else:
             assert isinstance(new_obj, HlsNetNodeOut), ("Must be a final out port", new_obj)
+            usedBy = new_obj.obj.usedBy[new_obj.out_i]
+            i = self.updated_obj._inputs[self.in_i]
+            if i not in usedBy:
+                usedBy.append(i)
 
         assert getattr(self.updated_obj, self.property_name) is self.obj, (getattr(self.updated_obj, self.property_name), self.obj)
         cur = self.updated_obj.dependsOn[self.in_i]

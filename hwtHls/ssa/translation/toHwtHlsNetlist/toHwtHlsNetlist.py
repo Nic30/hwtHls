@@ -8,9 +8,11 @@ from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwtHls.hlsPipeline import HlsPipeline
 from hwtHls.hlsStreamProc.statements import HlsStreamProcRead, HlsStreamProcWrite
+from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
-from hwtHls.netlist.nodes.ops import HlsNetNode, HlsNetNodeConst, HlsNetNodeOperator
+from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutLazy, link_hls_nodes, \
     HlsNetNodeOut
 from hwtHls.netlist.utils import hls_op_or, hls_op_not, hls_op_and
@@ -25,6 +27,7 @@ from hwtHls.ssa.translation.toHwtHlsNetlist.opCache import SsaToHwtHlsNetlistOpC
 from hwtHls.ssa.translation.toHwtHlsNetlist.syncAndIo import SsaToHwtHlsNetlistSyncAndIo
 from hwtHls.ssa.value import SsaValue
 from ipCorePackager.constants import INTF_DIRECTION
+from hwt.hdl.types.hdlType import HdlType
 
 
 class SsaToHwtHlsNetlist():
@@ -125,7 +128,7 @@ class SsaToHwtHlsNetlist():
                     elif isinstance(stm, SsaInstr):
                         # arbitrary arithmetic instructions
                         stm: SsaInstr
-                        src = self._to_hls_expr_op(stm.operator, stm.operands)
+                        src = self._to_hls_expr_op(stm.operator, stm.operands, stm._dtype)
                         # variable can be potentially input and output variable of the block if it is used
                         # because it can be used only in phi under the condition which is not met on first pass
                         # trough the block
@@ -142,21 +145,13 @@ class SsaToHwtHlsNetlist():
 
     def _to_hls_expr_op(self,
                         fn:OpDefinition,
-                        args: List[Union[HValue, RtlSignalBase, HlsNetNodeOut, SsaValue]]
+                        args: List[Union[HValue, RtlSignalBase, HlsNetNodeOut, SsaValue]],
+                        resT: HdlType
                         ) -> HlsNetNodeOut:
         """
         Construct and link the operator node from operator and arguments.
         """
-        a0 = args[0]
-        if isinstance(a0, HlsNetNodeOut):
-            if isinstance(a0.obj, HlsNetNodeRead):
-                w = a0.obj.src.T.bit_length()
-            else:
-                raise NotImplementedError()
-        else:
-            w = a0._dtype.bit_length()
-        
-        c = HlsNetNodeOperator(self.hls, fn, len(args), w)
+        c = HlsNetNodeOperator(self.hls, fn, len(args), resT)
         self.nodes.append(c)
         for i, arg in zip(c._inputs, args):
             a = self.to_hls_expr(arg)
@@ -197,14 +192,14 @@ class SsaToHwtHlsNetlist():
         The value needs to be selected based on predecessor block of current block.
         """
         # variable value is selected based on predecessor block
-        mux = HlsNetNodeMux(self.hls, phi._dtype.bit_length(), phi._name)
+        mux = HlsNetNodeMux(self.hls, phi._dtype, phi._name)
         self.nodes.append(mux)
 
         mux_out = mux._outputs[0]
         self._to_hls_cache.add((phi.block, phi), mux_out, phi in self._blockMeta[phi.block].phiCyclicArgs)
         # cur_dst = self._to_hls_cache._to_hls_cache.get(phi, None)
         # assert cur_dst is None or isinstance(cur_dst, HlsNetNodeOutLazy), (phi, cur_dst)
-        self._to_hls_cache._to_hls_cache.get((self._current_block, phi), mux_out)
+        # self._to_hls_cache._to_hls_cache.get((self._current_block, phi), mux_out)
 
         for lastSrc, (src, src_block) in iter_with_last(phi.operands):
             if not self._blockMeta[src_block].needsControl:
@@ -281,10 +276,36 @@ class SsaToHwtHlsNetlist():
         return en_by_pred
 
     def to_hls_SsaBasicBlock_phis(self, block: SsaBasicBlock):
+        m: BlockMeta = self._blockMeta[block]
+        if block.phis or m.inLiveVarsWithMultipleSrcBlocks:
+            en_from_pred_OH = self._collect_en_from_predecessor_one_hot(block)
+
+        for v in m.inLiveVarsWithMultipleSrcBlocks:
+            # variable value is selected based on predecessor block
+            mux = HlsNetNodeMux(self.hls, v._dtype, v._name)
+            self.nodes.append(mux)
+    
+            mux_out = mux._outputs[0]
+            self._to_hls_cache.add((block, v), mux_out, v in self._blockMeta[block].phiCyclicArgs)
+            # mux inputs will be filled later once we know 
+            originBlocksOfVariable = (b for b in block.predecessors if v in self.io.edge_var_live[b][block])
+            for lastSrc, src_block in iter_with_last(originBlocksOfVariable):
+                if not self._blockMeta[src_block].needsControl:
+                    continue
+             
+                if lastSrc:
+                    c = None
+                else:
+                    c = en_from_pred_OH[self._blockControlIndex(block.predecessors, src_block)]
+                    mux._add_input_and_link(c)
+             
+                src = self._to_hls_cache.get((src_block, v))  # self.to_hls_expr(v)
+                mux._add_input_and_link(src)
+                mux.elifs.append((c, src))
+
         # single predecessor, and marked to re-exec after end
         # is_just_reexecuting_itself = block is self.start_block and len(block.predecessors) == 2 and block in block.predecessors
         if block.phis:
-            en_from_pred = self._collect_en_from_predecessor_one_hot(block)
             # construct input muxes
             # this exists because of branching in original code and may appear in 2 variants
             #    * branching which involves loop (contains input from some later pipeline stage)
@@ -292,7 +313,7 @@ class SsaToHwtHlsNetlist():
             # :note: this probel is described in :mod:`hwtHls.hlsStreamProc.pipelineMaterialization`
             for phi in block.phis:
                 phi: SsaPhi
-                self._construct_in_mux_for_phi(phi, block.predecessors, en_from_pred)
+                self._construct_in_mux_for_phi(phi, block.predecessors, en_from_pred_OH)
 
     def to_hls_SsaBasicBlock_successors(self, block: SsaBasicBlock):
         # require token from all predecessors
@@ -311,7 +332,10 @@ class SsaToHwtHlsNetlist():
         cond = None
         block_var_live = self.io.edge_var_live.get(block, {})
         for c, suc_block in block.successors.targets:
-            if not self._blockMeta[suc_block].needsControl:
+            c: Optional[SsaValue]
+            suc_block: SsaBasicBlock
+            suc_meta: BlockMeta = self._blockMeta[suc_block]
+            if not suc_meta.needsControl:
                 continue
             # cummulatively build the condition for the branching
             if c is not None:
@@ -335,7 +359,7 @@ class SsaToHwtHlsNetlist():
             # produce tokens for all successors depending on brach condition on the end of this block
             is_out_of_pipeline = (block, suc_block) in self.io.out_of_pipeline_edges
             if br_cond is not None:
-                assert self._blockMeta[suc_block].needsControl, suc_block
+                assert suc_meta.needsControl, suc_block
 
                 label = BranchControlLabel(block, suc_block, INTF_DIRECTION.SLAVE)
                 if is_out_of_pipeline:
@@ -362,6 +386,9 @@ class SsaToHwtHlsNetlist():
                 # propagete variables on suc_block input
                 for v in block_var_live.get(suc_block, ()):
                     cur_v = self._to_hls_cache.get((block, v))
+                    if v in suc_meta.inLiveVarsWithMultipleSrcBlocks:
+                        continue
+
                     cur_in_suc_v = self._to_hls_cache.oldPhiCyclicArgs.get((suc_block, v), None)
                     if cur_in_suc_v is not None:
                         # the successor block was already translated
