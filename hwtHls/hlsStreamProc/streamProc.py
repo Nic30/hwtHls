@@ -19,7 +19,7 @@ from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.statements import HlsStreamProcRead, \
     HlsStreamProcWrite, HlsStreamProcWhile, HlsStreamProcCodeBlock, \
     HlsStreamProcIf, HlsStreamProcStm, HlsStreamProcFor, HlsStreamProcBreak, \
-    HlsStreamProcContinue, HlsStreamProcSwitch
+    HlsStreamProcContinue, HlsStreamProcSwitch, IN_STREAM_POS
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.netlist.transformation.rtlNetlistPass import RtlNetlistPass
 from hwtHls.ssa.context import SsaContext
@@ -79,13 +79,13 @@ class HlsStreamProc():
     def read(self,
              src: Union[AxiStream, Handshaked],
              type_or_size: Union[HdlType, RtlSignal, int]=NOT_SPECIFIED,
-             endOfStream=True):
+             inStreamPos=IN_STREAM_POS.BODY):
         """
         Create a read statement in thread.
         """
         if isinstance(src, RtlSignal):
             assert src._ctx is not self._ctx, ("Read should be used only for IO, it is not required for hls variables")
-        return HlsStreamProcRead(self, src, type_or_size, endOfStream)
+        return HlsStreamProcRead(self, src, type_or_size, inStreamPos)
 
     def write(self,
               src:Union[HlsStreamProcRead, Handshaked, AxiStream, bytes, HValue],
@@ -144,8 +144,6 @@ class HlsStreamProc():
 
         to_hw = SsaSegmentToHwPipeline(to_ssa.start, _code)
         to_hw.extract_pipeline()
-        # print("backward_edges", [(e[0].label, e[1].label) for e in to_hw.backward_edges])
-        # print("pipeline", [n.label for n in to_hw.pipeline])
 
         to_hw.extract_hlsnetlist(self.parentUnit, self.freq)
         for hlsnetlist_pass in self.hlsnetlist_passes:
@@ -161,13 +159,6 @@ class HlsStreamProc():
             rtlnetlist_pass.apply(self, to_hw)
 
         return to_hw
-
-        # [debug]
-        # io = {}
-        # interpret = SsaInterpret(io, ssa)
-        # for _ in range(40):
-        #     next(interpret)
-        # print(io)
 
     def thread(self, *code: AnyStm):
         """

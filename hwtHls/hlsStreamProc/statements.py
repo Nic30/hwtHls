@@ -30,6 +30,7 @@ from hwt.synthesizer.interfaceLevel.interfaceUtils.utils import walkPhysInterfac
 from hwt.synthesizer.interface import Interface
 from hwt.hdl.types.struct import HStruct
 from hwt.synthesizer.vectorUtils import iterBits, BitWalker
+from enum import Enum
 
 
 class HlsStreamProcStm(HdlStatement):
@@ -72,6 +73,23 @@ ANY_HLS_STREAM_INTF_TYPE = Union[AxiStream, Handshaked, VldSynced,
                                  UnionSink, UnionSource]
 
 
+class IN_STREAM_POS(Enum):
+    """
+    Enum for position of chunk of data inside of stream.
+    """
+    BEGIN = "BEGIN"  # if first but not last data chunk in frame
+    BEGIN_END = "BEGIN_END"  # is first and last data chunk in frame
+    BODY = "BODY"  # is not first not last data chunk in frame
+    END_OR_BODY = "END_OR_BODY"  # could be at last data chunk in frame
+    END = "END"  # is last data chunk in frame
+
+    def isBegin(self):
+        return self in (IN_STREAM_POS.BEGIN, IN_STREAM_POS.BEGIN_END)
+
+    def isEnd(self):
+        return self in (IN_STREAM_POS.BEGIN_END, IN_STREAM_POS.END)
+
+
 class HlsStreamProcRead(HdlStatement, SignalOps, InterfaceBase, SsaInstr):
     """
     Container of informations about read from some stream
@@ -81,10 +99,10 @@ class HlsStreamProcRead(HdlStatement, SignalOps, InterfaceBase, SsaInstr):
                  parent: "HlsStreamProc",
                  src: ANY_HLS_STREAM_INTF_TYPE,
                  type_or_size: Union[HdlType, RtlSignal, int],
-                 endOfStream:bool=True):
+                 inStreamPos=IN_STREAM_POS.BODY):
         super(HlsStreamProcRead, self).__init__()
         self._isAccessible = True
-        self._endOfStream = endOfStream
+        self._inStreamPos = inStreamPos
         self._parent = parent
         self._src = src
         self.block: Optional[SsaBasicBlock] = None
@@ -145,7 +163,11 @@ class HlsStreamProcRead(HdlStatement, SignalOps, InterfaceBase, SsaInstr):
         return self._parent.ctx
 
     def __repr__(self):
-        return f"<{self.__class__.__name__} {self._name:s} {getSignalName(self._src):s}, {self._dtype}>"
+        t = self._dtype
+        tName = getattr(t, "name")
+        if tName is not None:
+            t = tName
+        return f"<{self.__class__.__name__} {self._name:s} {getSignalName(self._src):s}, {t}>"
 
 
 class HlsStreamProcWrite(HlsStreamProcStm, SsaInstr):
