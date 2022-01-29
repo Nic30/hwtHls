@@ -50,6 +50,7 @@ coverage.xml
 *.vcd
 tests/tmp
 tests/io/tmp
+tests/io/axiStream/tmp
 tests/pythonFrontend/tmp
 tests/syntaxElements/tmp
 tests/utils/tmp
