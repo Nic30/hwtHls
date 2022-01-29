@@ -1,5 +1,6 @@
-# Normal build and install (from locally downloaded repo)
+# Default build and install (from locally downloaded repo)
 
+`apt install build-essential python3-dev llvm-12-dev`
 `pip3 install .`
 
 
@@ -8,6 +9,35 @@
 `meson build .`
 `ninja -C build`
 `cd hwtHls/ssa/llvm/ && ln -s ../../build/hwtHls/ssa/llvm/*.so`
+
+# How to debug C++ in python module?
+Use GDB on python binary (/usr/bin/python3 or your venv/bin/python), append local dependencies to PYTHONPATH if not istalled, specify script to execute (e.g.  `-m tests.all`)
+In eclipse you can append ${workspace_project_locations} in environment tab in Debug Configurations properties to add everything at once.
+
+# Using local llvm build
+* https://www.linuxfromscratch.org/blfs/view/cvs/general/llvm.html
+`cd llvm-project/llvm && git checkout llvmorg-12.0.0`
+`mkdir build && cd build`
+```
+cmake -G Ninja  .. -DCMAKE_BUILD_TYPE=Debug\
+	-DLLVM_ENABLE_ASSERTIONS=ON\
+	-DLLVM_OPTIMIZED_TABLEGEN=ON\
+	-DLLVM_LINK_LLVM_DYLIB=ON\
+	-DLLVM_ENABLE_RTTI=ON\
+	-DCMAKE_INSTALL_PREFIX=$PWD/../llvm_install
+```
+* LLVM_OPTIMIZED_TABLEGEN to speedup the build
+* LLVM_LINK_LLVM_DYLIB to generate libLLVM.so because meson depnedency is using it
+* LLVM_ENABLE_RTTI to provide typeinfo
+`ninja # Note that the llvm build is memory hungry you may require to limit number of threads using -j1 where 1 represents number of threads.`
+`cd hwtHls`
+`meson build/ --native-file utils/custom-llvm.ini`
+* When executing you need to use LD_PRELOAD=$PWD/../llvm_install/lib/libLLVM.so in order to actually use the custom build otherwise a system wide installed library will be used.
+* Note that once executed it takes ~20s for gdb to start because size of LLVM debug meta.
+
+# Using -dbg package of llvm
+* This is more simple and faster than build local llvm
+https://wiki.ubuntu.com/Debug%20Symbol%20Packages
 
 # LLVM/clang
 
