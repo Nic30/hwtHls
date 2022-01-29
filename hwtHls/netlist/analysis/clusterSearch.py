@@ -1,7 +1,7 @@
 from typing import List, Set, Dict, Callable
 
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.netlist.nodes.ops import HlsNetNode
+from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
     link_hls_nodes
 
@@ -72,6 +72,7 @@ class HlsNetlistClusterSearch():
         assert len(self.outputs) == len(n._outputs)
         for boundaryIn, outerOutput in zip(n._inputs, self.inputs):
             outerOutput: HlsNetNodeOut
+            # assert outerOutput.obj in outerOutput.obj.hls.nodes or outerOutput.obj in outerOutput.obj.hls.inputs or outerOutput.obj in outerOutput.obj.hls.outputs, outerOutput
             internInputs = self.inputsDict[outerOutput]
             usedBy = outerOutput.obj.usedBy[outerOutput.out_i]
             usedBy = outerOutput.obj.usedBy[outerOutput.out_i] = [

@@ -1,15 +1,14 @@
-from typing import List, Dict, Union, Optional, Type
+from typing import List, Union, Optional, Type
 
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
-from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.unit import Unit
 from hwtHls.allocator.allocator import HlsAllocator
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
-from hwtHls.netlist.nodes.ops import HlsNetNode
 from hwtHls.scheduler.scheduler import HlsScheduler
+from hwtHls.netlist.nodes.node import HlsNetNode
 
 
 class HlsPipelineNodeContext():

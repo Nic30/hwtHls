@@ -3,8 +3,10 @@ from itertools import zip_longest
 from typing import List, Union, Dict
 
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
+from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
-from hwtHls.netlist.nodes.ops import HlsNetNode, HlsNetNodeConst, HlsNetNodeOperator
+from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 

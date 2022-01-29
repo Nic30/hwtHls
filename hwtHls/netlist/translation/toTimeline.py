@@ -9,9 +9,11 @@ from hwt.hdl.types.bitsVal import BitsVal
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeRead, HlsNetNodeExplicitSync
-from hwtHls.netlist.nodes.ops import HlsNetNode, HlsNetNodeOperator, HlsNetNodeConst
+from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.ssa.translation.toHwtHlsNetlist.nodes.backwardEdge import HlsNetNodeWriteBackwardEdge
+from hwtHls.netlist.nodes.const import HlsNetNodeConst
 
 
 # [todo] pandas is overkill in this case, rm, plotly does not have it as dependencies

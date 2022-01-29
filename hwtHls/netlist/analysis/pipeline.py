@@ -3,10 +3,10 @@ from typing import List, Set
 
 from hwtHls.netlist.analysis.fsm import HlsNetlistAnalysisPassDiscoverFsm
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
-from hwtHls.netlist.nodes.ops import HlsNetNode
 from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
 from hwtHls.clk_math import start_clk
+from hwtHls.netlist.nodes.node import HlsNetNode
 
 
 class NetlistPipeline():

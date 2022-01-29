@@ -1,9 +1,9 @@
 from itertools import chain
 from typing import Set
 
-from hwtHls.netlist.nodes.ops import HlsNetNode
-from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeRead, HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.ssa.translation.toHwtHlsNetlist.nodes.loopHeader import HlsLoopGate
 
 
@@ -27,9 +27,6 @@ class HlsNetlistPassDCE(HlsNetlistPass):
             self._walkDependencies(io, used)
         
         if len(used) != len(hlsPip.nodes) + len(hlsPip.inputs) + len(hlsPip.outputs):
-            # for n in hlsPip.nodes:
-            #     if n not in used:
-            #         print("rm", n) 
             hlsPip.nodes = [n for n in hlsPip.nodes if n in used]
             for n in hlsPip.nodes:
                 n: HlsNetNode

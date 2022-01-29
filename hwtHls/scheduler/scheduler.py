@@ -1,7 +1,8 @@
 from itertools import chain, zip_longest
 from typing import Dict, Tuple
 
-from hwtHls.netlist.nodes.ops import HlsNetNodeConst, HlsNetNode
+from hwtHls.netlist.nodes.const import HlsNetNodeConst
+from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.scheduler.asap import asap
 
 
