@@ -1,4 +1,5 @@
 from dis import findlinestarts, _get_instructions_bytes, Instruction, dis
+import inspect
 import operator
 from types import FunctionType
 from typing import Dict
@@ -15,6 +16,7 @@ from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
 from hwtHls.ssa.value import SsaValue
+from hwt.pyUtils.arrayQuery import flatten
 
 # import inspect
 UN_OPS = {
@@ -66,8 +68,9 @@ INPLACE_OPS = {
     'INPLACE_OR': operator.or_,
 }
 
+
 # https://www.synopsys.com/blogs/software-security/understanding-python-bytecode/
-def pyFunctionToSsa(hls: HlsStreamProc, fn: FunctionType):
+def pyFunctionToSsa(hls: HlsStreamProc, fn: FunctionType, *fnArgs, **fnKwargs):
     co = fn.__code__
     cell_names = co.co_cellvars + co.co_freevars
     linestarts = dict(findlinestarts(co))
@@ -77,10 +80,17 @@ def pyFunctionToSsa(hls: HlsStreamProc, fn: FunctionType):
     curBlock = to_ssa.start
     blocks: Dict[int, SsaBasicBlock] = {}
     curBlockCode = []
-    # print(lines)
     # print(dis(fn))
     stack = []
     localVars = [None for _ in range(fn.__code__.co_nlocals)]
+    if inspect.ismethod(fn):
+        fnArgs = tuple((fn.__self__, *fnArgs))
+    assert len(fnArgs) == co.co_argcount, ("Must have the correct number of arguments", len(fnArgs), co.co_argcount)
+    for i, v in enumerate(fnArgs):
+        localVars[i] = v
+    if fnKwargs:
+        raise NotImplementedError()
+
     instructions = tuple(_get_instructions_bytes(
         co.co_code, co.co_varnames, co.co_names,
         co.co_consts, cell_names, linestarts))
@@ -122,14 +132,14 @@ def pyFunctionToSsa(hls: HlsStreamProc, fn: FunctionType):
             to_ssa._onAllPredecsKnown(blockSuccessor)
 
     def blockToSsa():
-        to_ssa.visit_CodeBlock_list(curBlock, curBlockCode)
+        to_ssa.visit_CodeBlock_list(curBlock, flatten(curBlockCode))
         curBlockCode.clear()
 
     def checkIoRead(src):
-        if src is None or isinstance(src, (Interface, RtlSignal, int, HValue, SsaValue)):
-            pass
-        else:
-            raise NotImplementedError(instr, src)
+        # if src is None or isinstance(src, (Interface, RtlSignal, int, HValue, SsaValue)):
+        #    pass
+        # else:
+        #    raise NotImplementedError(instr, src)
 
         return src
    
@@ -197,7 +207,21 @@ def pyFunctionToSsa(hls: HlsStreamProc, fn: FunctionType):
             m = stack.pop()
             res = m(*reversed(args))
             stack.append(res)
+        elif opname == 'CALL_FUNCTION_KW':
+            args = []
+            kwNames = stack.pop()
+            assert isinstance(kwNames, tuple), kwNames
+            for _ in range(instr.arg):
+                args.append(checkIoRead(stack.pop()))
 
+            kwArgs = {}
+            for kwName, a in zip(kwNames, args[:len(args) - len(kwNames)]):
+                kwArgs[kwName] = a
+            del args[:len(kwNames)]
+
+            m = stack.pop()
+            res = m(*reversed(args), **kwArgs)
+            stack.append(res)
         elif opname == "POP_TOP":
             res = stack.pop()
             if isinstance(res, (HlsStreamProcWrite, HlsStreamProcRead)):
