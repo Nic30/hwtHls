@@ -1,4 +1,5 @@
 from typing import List, Union
+from hwt.hdl.types.hdlType import HdlType
 
 
 def _reprMinify(o):
@@ -13,9 +14,10 @@ class HlsNetNodeOut():
     A class for object which do represents output of HlsNetNode instance.
     """
 
-    def __init__(self, obj: "HlsNetNode", out_i: int):
+    def __init__(self, obj: "HlsNetNode", out_i: int, dtype: HdlType):
         self.obj = obj
         self.out_i = out_i
+        self._dtype = dtype
 
     def __hash__(self):
         return hash((self.obj, self.out_i))
@@ -46,8 +48,13 @@ class HlsNetNodeIn():
     def __eq__(self, other):
         return self is other or (self.__class__ is other.__class__ and self.obj == other.obj and self.in_i == other.in_i)
 
-    def replace_driver(self, obj: HlsNetNodeOut):
-        self.obj.dependsOn[self.in_i] = obj
+    def replace_driver(self, o: HlsNetNodeOut):
+        self.obj.dependsOn[self.in_i] = o
+        if isinstance(o, HlsNetNodeOut):
+            usedBy = o.obj.usedBy[o.out_i]
+            i = self.obj._inputs[self.in_i]
+            if i not in usedBy:
+                usedBy.append(i)
 
     def __repr__(self, minify=False):
         if minify:
@@ -70,16 +77,16 @@ class HlsNetNodeOutLazy():
         self.keys_of_self_in_cache = [key_of_self_in_cache, ]
         self.op_cache = op_cache
 
-    def replace_driver(self, obj:HlsNetNodeOut):
-        assert self is not obj, self
+    def replace_driver(self, o:HlsNetNodeOut):
+        assert self is not o, self
         assert self.replaced_by is None, (self, self.replaced_by)
         for k in self.keys_of_self_in_cache:
-            self.op_cache._to_hls_cache[k] = obj
+            self.op_cache._to_hls_cache[k] = o
 
         for c in self.dependent_inputs:
-            c.replace_driver(obj)
+            c.replace_driver(o)
 
-        self.replaced_by = obj
+        self.replaced_by = o
 
     def __repr__(self):
         return f"<{self.__class__.__name__:s} 0x{id(self):x}>"
