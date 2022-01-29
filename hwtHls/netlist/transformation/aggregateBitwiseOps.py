@@ -3,12 +3,14 @@ from typing import List, Set, Dict, Optional
 from hwt.hdl.operatorDefs import BITWISE_OPS, AllOps
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.allocator.connectionsOfStage import SignalsOfStages
-from hwtHls.clk_math import start_of_next_clk_period
+from hwtHls.clk_math import start_of_next_clk_period, epsilon
 from hwtHls.netlist.analysis.clusterSearch import HlsNetlistClusterSearch
-from hwtHls.netlist.nodes.ops import HlsNetNode, HlsNetNodeOperator
+from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.scheduler.errors import TimeConstraintError
+from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 
 
 class HlsNetlistNodeBitwiseOps(HlsNetNode):
@@ -23,14 +25,15 @@ class HlsNetlistNodeBitwiseOps(HlsNetNode):
         self._subNodes = subNodes
         for _ in subNodes.inputs:
             self._add_input()
-        for _ in subNodes.outputs:
-            self._add_output()
+        for o in subNodes.outputs:
+            self._add_output(o._dtype)
         self._totalInputCnt: Dict[HlsNetNodeOperator, int] = {}
+        self._forwardRtlDeclaredOutputs: Set[HlsNetNodeOut] = set()
 
     def resolve_subnode_realization(self, node: HlsNetNodeOperator, input_cnt: int):
         hls = self.hls
         clk_period = hls.clk_period
-        bit_length = node.bit_length
+        bit_length = node._outputs[0]._dtype.bit_length()
 
         if node.operator is AllOps.TERNARY:
             input_cnt = input_cnt // 2 + 1
@@ -141,15 +144,6 @@ class HlsNetlistNodeBitwiseOps(HlsNetNode):
             
             self.asap_start = tuple(dep.obj.asap_end[dep.out_i] for dep in self.dependsOn)
             self.asap_end = tuple(scheduleOut)
-            # input_times = (d.obj.scheduleAsap(clk_period, pathForDebug)[d.out_i] for d in self.dependsOn)
-            # schedule nodes using ASAP but use total number of inputs
-            # to compute delay for whole subgraph instead just adding time from individual nodes
-        
-            # the problem is that this cluster may have more than a single output, that means that there is some shared subexpression
-            # this subexpression could be potentially evaluated in different times for a different output.
-            # If this is the case we need to use minimal time and optionally reset the the colapsing if the time difference is too large
-            # between the time when shared subexpression result is evaluate and the time when other inputs are available 
-        
         return self.asap_end
     
     def replaceAllOuterInputsPlaceholders(self, outputMap: Optional[Dict[HlsNetNodeOut, HlsNetNodeOut]]):
@@ -161,8 +155,14 @@ class HlsNetlistNodeBitwiseOps(HlsNetNode):
                     if outputMap:
                         o = outputMap.get(o, o)
                     n.dependsOn[i] = o
-        
-    def allocate_instance(self,
+
+    def allocateRtlInstanceOutDeclr(self, allocator: "HlsAllocator", o: HlsNetNodeOut):
+        assert allocator.netNodeToRtl.get(o, None) is None, ("Must not be redeclared", o)
+        s = allocator._sig(f"forwardDeclr{self.name}_{o.out_i:d}", o._dtype)
+        allocator.netNodeToRtl[o] = TimeIndependentRtlResource(s, self.scheduledOut[o.out_i] + epsilon, allocator)
+        self._forwardRtlDeclaredOutputs.add(o)
+                
+    def allocateRtlInstance(self,
             allocator:"HlsAllocator",
             used_signals: SignalsOfStages):
         """
@@ -171,7 +171,10 @@ class HlsNetlistNodeBitwiseOps(HlsNetNode):
         for outerO, o, t in zip(self._outputs, self._subNodes.outputs, self.scheduledOut):
             outerO: HlsNetNodeOut
             o: HlsNetNodeOut
-            if outerO in allocator.node2instance:
+            if outerO in self._forwardRtlDeclaredOutputs:
+                raise NotImplementedError()
+
+            if outerO in allocator.netNodeToRtl:
                 # this node was already allocated
                 return
 
@@ -194,7 +197,6 @@ class HlsNetlistPassAggregateBitwiseOps(HlsNetlistPass):
         seen: Set[HlsNetNodeOperator] = set()
         removedNodes: Set[HlsNetNode] = set()
         newOutMap: Dict[HlsNetNodeOut, HlsNetNodeOut] = {}
-        clusterNodes: List[HlsNetlistNodeBitwiseOps] = []
         # discovert clusters of bitwise operators
         for n in to_hw.hls.nodes:
             if n not in seen and self._isBitwiseOperator(n):
@@ -205,12 +207,11 @@ class HlsNetlistPassAggregateBitwiseOps(HlsNetlistPass):
                             if len(c.nodes) > 1:
                                 c.updateOuterInputs(newOutMap)
                                 clusterNode = HlsNetlistNodeBitwiseOps(to_hw.hls, c)
+                                to_hw.hls.nodes.append(clusterNode)
                                 c.substituteWithNode(clusterNode)
-                                clusterNodes.append(clusterNode)
                                 removedNodes.update(c.nodes)
                                 for o, internO in zip(clusterNode._outputs, c.outputs):
                                     newOutMap[internO] = o
                                 clusterNode.replaceAllOuterInputsPlaceholders(newOutMap)
 
         to_hw.hls.nodes = [n for n in to_hw.hls.nodes if n not in removedNodes]
-        to_hw.hls.nodes.extend(clusterNodes)
