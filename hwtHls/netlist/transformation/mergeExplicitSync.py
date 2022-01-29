@@ -1,7 +1,7 @@
 from typing import List
 
 from hwtHls.netlist.nodes.io import HlsNetNodeExplicitSync, HlsNetNodeRead, HlsNetNodeWrite
-from hwtHls.netlist.nodes.ops import HlsNetNode
+from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 
 
@@ -34,7 +34,7 @@ class HlsNetlistPassMergeExplicitSync(HlsNetlistPass):
                     for o in dep0._outputs:
                         o.obj = dep0
                     assert len(n.usedBy) == 1, (n, n.usedBy)
-                    dep0.usedBy[0] = n.usedBy[0]
+                    dep0.usedBy = n.usedBy
 
                     to_rm.add(n)
                 else:
