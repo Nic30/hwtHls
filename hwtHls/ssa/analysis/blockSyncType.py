@@ -5,6 +5,7 @@ from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.transformation.utils.blockAnalysis import collect_all_blocks
 from hwtHls.ssa.value import SsaValue
 from hwtHls.ssa.analysis.threadMining import SsaPassThreadMining
+from hwt.pyUtils.uniqList import UniqList
 
 
 class BlockMeta():
@@ -14,6 +15,8 @@ class BlockMeta():
     :ivar requiresStarter: This block requires a provider of initial sync token for its functionality.
     :ivar isInitialization: This block is run just once on the beginning of the program.
     :ivar phiCyclicArgs: Set of varialbes which are writen in this block but also read by some phi.
+    :ivar inLiveVarsWithMultipleSrcBlocks: values which may come from multiple predecessor blocks
+        and the mux needs to be generated if this shuld be in pipeline
     """
 
     def __init__(self,
@@ -21,12 +24,14 @@ class BlockMeta():
                  needsControl: bool,
                  requiresStarter: bool,
                  isInitialization:bool,
-                 phiCyclicArgs: Set[SsaValue]):
+                 phiCyclicArgs: Set[SsaValue],
+                 inLiveVarsWithMultipleSrcBlocks: UniqList[SsaValue]):
         self.isCycleEntryPoint = isCycleEntryPoint
         self.needsControl = needsControl
         self.requiresStarter = requiresStarter
         self.isInitialization = isInitialization
         self.phiCyclicArgs = phiCyclicArgs
+        self.inLiveVarsWithMultipleSrcBlocks = inLiveVarsWithMultipleSrcBlocks
 
     def __repr__(self):
         flags = []
@@ -211,6 +216,18 @@ class SaaGetBlockSyncType():
             else:
                 break
 
+    def collectLiveInVarsWithMultipleSrcBlocks(self, block: SsaBasicBlock):
+        seenInLiveVars: UniqList[SsaValue] = UniqList()
+        inLiveVarsWithMultipleSrcBlocks: UniqList[SsaValue] = UniqList()
+        for pred in block.predecessors:
+            block_var_live = self.edge_var_live.get(pred, {})
+            for v in block_var_live.get(block, ()):
+                if v in seenInLiveVars:
+                    inLiveVarsWithMultipleSrcBlocks.append(v)
+                else:
+                    seenInLiveVars.append(v)
+        return inLiveVarsWithMultipleSrcBlocks
+        
     def apply(self):
         threadMining = SsaPassThreadMining(self.out_of_pipeline_edges)
         threadMining.apply(self.start_block)
@@ -219,14 +236,12 @@ class SaaGetBlockSyncType():
         blocks = list(collect_all_blocks(self.start_block, set()))
 
         for block in blocks:
-            m = self._blockMeta[block] = BlockMeta(False, False, False, False, set())
+            m = self._blockMeta[block] = BlockMeta(False, False, False, False,
+                                                   set(), self.collectLiveInVarsWithMultipleSrcBlocks(block))
             self.collectCycles(block, m)
         self.markInitializations()
 
         for b in blocks:
             self._get_SsaBasicBlock_meta(b)
-
-        # for block in blocks:
-        #     print(block.label, self._blockMeta[block])
 
         return self._blockMeta
