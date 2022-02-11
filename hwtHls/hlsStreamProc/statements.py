@@ -102,6 +102,7 @@ class HlsStreamProcRead(HdlStatement, SignalOps, InterfaceBase, SsaInstr):
                  inStreamPos=IN_STREAM_POS.BODY):
         super(HlsStreamProcRead, self).__init__()
         self._isAccessible = True
+        assert isinstance(inStreamPos, IN_STREAM_POS), inStreamPos
         self._inStreamPos = inStreamPos
         self._parent = parent
         self._src = src
@@ -167,7 +168,7 @@ class HlsStreamProcRead(HdlStatement, SignalOps, InterfaceBase, SsaInstr):
         tName = getattr(t, "name")
         if tName is not None:
             t = tName
-        return f"<{self.__class__.__name__} {self._name:s} {getSignalName(self._src):s}, {t}>"
+        return f"<{self.__class__.__name__} {self._name:s} {getSignalName(self._src):s}, {t}, {self._inStreamPos.name}>"
 
 
 class HlsStreamProcWrite(HlsStreamProcStm, SsaInstr):

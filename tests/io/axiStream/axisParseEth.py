@@ -8,6 +8,7 @@ from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 from hwtLib.amba.axis import AxiStream
 from hwtLib.types.net.ethernet import Eth2Header_t, eth_mac_t
+from hwtHls.hlsStreamProc.statements import IN_STREAM_POS
 
 
 class AxiSParseEth(Unit):
@@ -31,7 +32,7 @@ class AxiSParseEth(Unit):
         # because it needs to have a code location where it happens
         # we declare it as python variable so we do not need to use tmp
         # variable in hls
-        eth = hls.read(self.i, Eth2Header_t)
+        eth = hls.read(self.i, Eth2Header_t, inStreamPos=IN_STREAM_POS.BEGIN_END)
 
         hls.thread(
             hls.While(True,
