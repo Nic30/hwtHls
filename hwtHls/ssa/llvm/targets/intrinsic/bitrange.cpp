@@ -102,21 +102,13 @@ std::string Intrinsic_getName(const std::string &baseName,
 	return Result;
 }
 
-Function* Intrinsic_getDeclaration(Module *M, const std::string &name,
-		ArrayRef<Type*> Tys, Type *ResT) {
-	// There can never be multiple globals with the same name of different types,
-	// because intrinsics must be a specific type.
-	return cast<Function>(
-			M->getOrInsertFunction(
-					Tys.empty() ? name : Intrinsic_getName(name, Tys), ResT).getCallee());
-}
-
 void AddDefaultFunctionAttributes(Function &TheFn) {
 	//TheFn.addFnAttr(Attribute::ArgMemOnly);
 	TheFn.addFnAttr(Attribute::NoFree);
 	TheFn.addFnAttr(Attribute::NoUnwind);
 	TheFn.addFnAttr(Attribute::WillReturn);
 	TheFn.addFnAttr(Attribute::ReadNone);
+	TheFn.setCallingConv(CallingConv::C);
 }
 
 const std::string BitRangeGetName = "hwtHls.bitRangeGet";
@@ -131,14 +123,15 @@ CallInst* CreateBitRangeGet(IRBuilder<> *Builder, Value *bitVec,
 			M->getOrInsertFunction(
 					Intrinsic_getName(BitRangeGetName, TysForName), ResT,
 					Tys[0], Tys[1]).getCallee());
-
 	AddDefaultFunctionAttributes(*TheFn);
-
-	TheFn->setCallingConv(CallingConv::C);
 	CallInst *CI = Builder->CreateCall(TheFn, Ops, BitRangeGetName);
-
 	return CI;
 }
+
+bool IsBitRangeGet(const llvm::CallInst *C) {
+	return C->getCalledFunction()->getName().str().rfind(BitRangeGetName, 0)== 0;
+}
+
 const std::string BitConcatName = "hwtHls.bitConcat";
 llvm::CallInst* CreateBitConcat(llvm::IRBuilder<> *Builder,
 		llvm::ArrayRef<llvm::Value*> OpsHighFirst) {
@@ -160,8 +153,13 @@ llvm::CallInst* CreateBitConcat(llvm::IRBuilder<> *Builder,
 	Function *TheFn = cast<Function>(
 			M->getOrInsertFunction(Intrinsic_getName(BitConcatName, ArgTys),
 					FunctionType::get(RetTy, ArgTys, false)).getCallee());
-
 	AddDefaultFunctionAttributes(*TheFn);
 	CallInst *CI = Builder->CreateCall(TheFn, OpsHighFirst, BitConcatName);
+
 	return CI;
 }
+
+bool IsBitConcat(const llvm::CallInst *C) {
+	return C->getCalledFunction()->getName().str().rfind(BitConcatName, 0)== 0;
+}
+
