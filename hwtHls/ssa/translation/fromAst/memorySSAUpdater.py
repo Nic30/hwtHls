@@ -50,6 +50,9 @@ class MemorySSAUpdater():
         """
            
         assert isinstance(variable, RtlSignal), variable
+        assert isinstance(block, SsaBasicBlock), block
+        if isinstance(value, SsaInstr):
+            assert value.block is not None, (value, "Must not be removed from SSA")
         defs = self.currentDef.setdefault(variable, {})
         new_bb = block
         if indexes:
@@ -97,6 +100,7 @@ class MemorySSAUpdater():
 
     def readVariable(self, variable: RtlSignal, block: SsaBasicBlock) -> SsaPhi:
         assert isinstance(variable, RtlSignal), variable
+        assert isinstance(block, SsaBasicBlock), block
         try:
             # local value numbering
             return self.currentDef[variable][block]

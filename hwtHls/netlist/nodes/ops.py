@@ -94,7 +94,6 @@ class HlsNetNodeOperator(HlsNetNode):
             else:
                 raise AssertionError("The HlsNetNode a signals of wrong type", s, op_out, s._dtype, op_out._dtype)
             tis = TimeIndependentRtlResource(s, t, allocator)
-        
         allocator._registerSignal(op_out, tis, used_signals.getForTime(t))
         self._usedDummyRtlDeclr = False
         return tis
