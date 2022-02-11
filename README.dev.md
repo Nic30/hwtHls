@@ -10,6 +10,13 @@
 `ninja -C build`
 `cd hwtHls/ssa/llvm/ && ln -s ../../build/hwtHls/ssa/llvm/*.so`
 
+* use `LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libSegFault.so` to get better segfault reports
+  libSegFault is a part of glibc but it may have a different loacation on your machine
+* https://stackoverflow.com/questions/54273632/llvm-linking-commandline-error-option-help-list-registered-more-than-once-l
+
+# Doc generator
+* https://devblogs.microsoft.com/cppblog/clear-functional-c-documentation-with-sphinx-breathe-doxygen-cmake/
+
 # How to debug C++ in python module?
 Use GDB on python binary (/usr/bin/python3 or your venv/bin/python), append local dependencies to PYTHONPATH if not istalled, specify script to execute (e.g.  `-m tests.all`)
 In eclipse you can append ${workspace_project_locations} in environment tab in Debug Configurations properties to add everything at once.
@@ -52,7 +59,7 @@ docker
 `clang -cc1 main.c -emit-llvm` produces  LLVM IR `main.ll`
 `llc main.ll` produces assembly `main.s`
 
-https://releases.llvm.org/11.0.0/docs/LangRef.html
+https://releases.llvm.org/12.0.0/docs/LangRef.html
 
 Dump all used passes
 `clang -mllvm -debug-pass=Arguments main.c`
@@ -80,9 +87,11 @@ Pass Arguments:  -tti -targetlibinfo -targetpassconfig -machinemoduleinfo -colle
 
 https://www.llvm.org/docs/Passes.html#introduction
 https://www.llvm.org/docs/LoopTerminology.html
+https://blog.regehr.org/archives/1603
 Llvm pass execution (`-disable-llvm-passes` is required otherwise `optnone` attribute is added and nothing happens during `opt`)
 `clang -cc1 -Os -disable-llvm-passes -emit-llvm main.c -o - | opt -S -mem2reg`
 
+* exec multiple branches but store only on some selected: "if conversion". This transformation predicates instructions. See e.g. ARM as an example
 
 ## In IR debugging metainformations
 

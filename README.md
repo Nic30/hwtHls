@@ -132,6 +132,7 @@ pip3 install git+git://github.com/Nic30/hwtHls.git
 * :skull: [streamit-hls](https://github.com/stenzek/streamit-hls) - 2017, custom lang, based on micro kernels
 * :skull: [TAPAS](https://github.com/sfu-arch/TAPAS) - 2018-2019, c++, Generating Parallel Accelerators fromParallel Programs
 * :skull: [xronos](https://github.com/endrix/xronos) [git2](https://github.com/endrix/xronos) - 2012-2016, java, simple HLS
+* [ahir](https://github.com/madhavPdesai/ahir) - LLVM, c->vhdl
 * [abc](https://people.eecs.berkeley.edu/~alanmi/abc/) <2008-?, A System for Sequential Synthesis and Verification
 * [blarney](https://github.com/blarney-lang/blarney)
 * [calyx](https://github.com/cucapra/calyx) - , Rust - compiler infrastructure with custom lang focused on ML accelerators
