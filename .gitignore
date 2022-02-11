@@ -48,6 +48,7 @@ coverage.xml
 *.dot
 *.html
 *.vcd
+tmp/
 tests/tmp
 tests/bitOpt/tmp
 tests/io/tmp
