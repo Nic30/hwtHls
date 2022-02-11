@@ -162,8 +162,8 @@ unsigned GenericFpgaTTIImpl::getRegisterBitWidth(bool Vector) const {
 	return std::numeric_limits<unsigned>::max() >> 2;
 }
 
-unsigned GenericFpgaTTIImpl::getShuffleCost(TTI::ShuffleKind Kind, VectorType *Ty, int Index,
-        VectorType *SubTp) const {
+unsigned GenericFpgaTTIImpl::getShuffleCost(TTI::ShuffleKind Kind,
+		VectorType *Ty, int Index, VectorType *SubTp) const {
 	return TTI::TCC_Free;
 }
 
