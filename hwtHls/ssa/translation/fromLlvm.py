@@ -121,6 +121,7 @@ class FromLlvmIrTranslator():
             raise NotImplementedError(t)
 
     def _translateExpr(self, v: Union[Value, Use]):
+        assert isinstance(v,  (Value, Use)), v
         if isinstance(v, Use):
             v = v.get()
         if not isinstance(v, Value):
@@ -132,7 +133,7 @@ class FromLlvmIrTranslator():
             val = int(c.getValue())
             return self._translateType(v.getType()).from_py(val)
 
-        return self.newValues[v]
+        return self.newValues[v] # if not in this dict. the value was not defined before use
 
     def _translateSignedExpr(self, v):
         v = self._translateExpr(v)
@@ -400,11 +401,10 @@ class FromLlvmIrTranslator():
                                 
                                 caseBlocks, sequel = eb.insertBlocks(caseVals)
                                 sequel: SsaBasicBlock
-                                _mainVar = self._translateExpr(base)
                                 phi = SsaPhi(sequel.ctx, res_t)
                                 for i, c, br in zip(range(noOfValues), caseVals, caseBlocks):
                                     br: SsaBasicBlock
-                                    sel = SsaInstr(self.ssaCtx, res_t, AllOps.INDEX, [_mainVar, SLICE.from_py(slice(res_w * (i + 1), res_w * i, -1))])
+                                    sel = SsaInstr(self.ssaCtx, res_t, AllOps.INDEX, [base, SLICE.from_py(slice(res_w * (i + 1), res_w * i, -1))])
                                     newBlock.appendInstruction(sel)
                                     phi.appendOperand(sel, br)
                                 sequel.appendPhi(phi)

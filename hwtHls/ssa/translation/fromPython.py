@@ -31,7 +31,7 @@ BIN_OPS = {
     'BINARY_MODULO': operator.mod,
     'BINARY_ADD': operator.add,
     'BINARY_SUBTRACT': operator.sub,
-    'BINARY_SUBSCR': operator.index,
+    'BINARY_SUBSCR': operator.getitem,
     'BINARY_FLOOR_DIVIDE': operator.floordiv,
     'BINARY_TRUE_DIVIDE': operator.truediv,
 
@@ -255,6 +255,12 @@ def pyFunctionToSsa(hls: HlsStreamProc, fn: FunctionType, *fnArgs, **fnKwargs):
             b = checkIoRead(stack.pop())
             a = checkIoRead(stack.pop())
             stack.append(binOp(a, b))
+        
+        elif opname == "BUILD_SLICE":
+            b = checkIoRead(stack.pop())
+            a = checkIoRead(stack.pop())
+            stack.append(slice(a,b))
+            
         else:
             binOp = BIN_OPS.get(opname, None)
             if binOp is not None:
