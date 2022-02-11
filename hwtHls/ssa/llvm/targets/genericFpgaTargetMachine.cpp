@@ -26,7 +26,7 @@ extern "C" void LLVMInitializeGenericFpgaTarget() {
 static std::string computeDataLayout(const Triple &TT) {
 	// 64b address up to 4096b regs, based on spir
 	return "e-m:e-"
-			"i64:64-i128:128-i256:256-i512:512-i1024:1024-i2048:2048-i4096:4096-"
+			"i8:8-i16:16-i32:32-i64:64-i128:128-i256:256-i512:512-i1024:1024-i2048:2048-i4096:4096-"
 			"n8:16:32:64-S128-"
 			"v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024";
 }
