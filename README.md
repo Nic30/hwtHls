@@ -41,6 +41,7 @@ and provides variety of existing ones (from LLVM/hwt) in order to build efficien
 
   * All optimizations aware of independent slice drivers
     * SsaPassExtractPartDrivers - splits the slices to individual variables to exploit real dependencies, splits also bitwise operations and casts
+    * ConstantBitPropagationPass - recursively minimizes the number of bits used by variables
 
   * Any loop type with special care for:
     * Infinite top loops - with/without internal/external sync beeing involved
@@ -74,9 +75,8 @@ and provides variety of existing ones (from LLVM/hwt) in order to build efficien
 
 * Not done yet:
   * Complex operation reducing (DSP)
-  * Abstract stream operation translation
   * All platforms
-  * Memory access pattern, partition use
+  * Memory access pattern, partition API between Python and LLVM
 
 
 ## How it works?
