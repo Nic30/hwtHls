@@ -117,8 +117,7 @@ static OperandOffsetInfo getOperandOffsetAndBaseValue(Value *v) {
 			return res;
 		}
 	} else if (auto *Call = dyn_cast<CallInst>(v)) {
-		if (Call->getCalledFunction()->getName().str().rfind(BitConcatName, 0)
-				== 0) {
+		if (IsBitConcat(Call)) {
 			// find offset from left (high bit)
 			// find offset from right (low bit)
 			OperandOffsetInfo res = { 0, nullptr, 0 };
@@ -359,6 +358,7 @@ PreservedAnalyses ExtractBitConcatAndSliceOpsPass::run(llvm::Function &F,
 			for (Instruction *I : toRemove) {
 				I->eraseFromParent();
 			}
+			toRemove.clear();
 		}
 		if (toRemove.empty()) {
 			break;
