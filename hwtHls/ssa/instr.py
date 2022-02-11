@@ -72,6 +72,7 @@ class SsaInstr(SsaValue):
         assert isinstance(operands, (tuple, list)), operands
         for op in operands:
             if isinstance(op, SsaValue):
+                assert op.block is not None, (op, "Must not be removed from SSA")
                 op.users.append(self)
             else:
                 assert isinstance(op, HValue), op
@@ -89,6 +90,11 @@ class SsaInstr(SsaValue):
         orig_expr.users.remove(self)
         if isinstance(new_expr, SsaValue):
             new_expr.users.append(self)
+
+    def replaceBy(self, replacement: Union[SsaValue, HValue]):
+        assert replacement._dtype.bit_length() == self._dtype.bit_length(), ("Must have same type", self, replacement, self._dtype, replacement._dtype)
+        for u in tuple(self.users):
+            u.replaceInput(self, replacement)
 
     def __repr__(self):
         _src = ", ".join(s._name if isinstance(s, SsaInstr) else repr(s) for s in self.operands)

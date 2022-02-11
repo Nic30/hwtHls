@@ -184,7 +184,7 @@ class SsaPassExtractPartDrivers(SsaPass):
             dst_segments.driver_ranges.append(VarBitSegmentDriverInfo(src, dst_range, src_range))
             dst_offset += src_width
 
-        assert dst_offset == dst._dtype.bit_length()
+        assert dst_offset == dst._dtype.bit_length(), (dst, dst_offset, dst._dtype.bit_length())
 
     def _register_var_load_from_slice(self,
                                       dst: SsaValue, src: Union[SsaValue, HValue],
@@ -470,34 +470,43 @@ class SsaPassExtractPartDrivers(SsaPass):
             else:
                 replacement = varBitAlises.get(v, None)
                 if replacement is None:
-                    assert v.operator in BITWISE_OPS, v.operator
-                    args = []
-                    for a in v.operands:
-                        _a = self.resolveFinalReplacedVarValue(a, bitRange, variableForRange, varEntirelyReplaced, varBitAlises)
-                        args.append(_a)
-
-                    # :note: instructionindex must be resolved after all inputs are resolved
-                    # because generating inputs may change the code possition
-                    startIndex = 0
-                    for _a in args:
-                        if isinstance(_a, HValue):
-                            continue
-
-                        _a: SsaValue
-                        if v.block is not _a.block:
-                            continue
-
-                        startIndex = max(startIndex, v.block.body.index(_a))
-
-                    b = SsaExprBuilder(v.block, possition=startIndex + 1)
-                    if len(args) == 1:
-                        replacement = b._unaryOp(args[0], v.operator)
-                    elif len(args) == 2:
-                        o0, o1 = args
-                        replacement = b._binaryOp(o0, v.operator, o1)
+                    if isinstance(v, SsaPhi):
+                        v: SsaPhi
+                        args: List[Tuple[SsaValue, SsaBasicBlock]] = []
+                        for a, bl in v.operands:
+                            _a = self.resolveFinalReplacedVarValue(a, bitRange, variableForRange, varEntirelyReplaced, varBitAlises)
+                            args.append((_a, bl))
+                        b = SsaExprBuilder(v.block, possition=v.block.phis.index(v))
+                        replacement = b.phi(args)
                     else:
-                        raise NotImplementedError(v, args)
+                        args: List[SsaValue] = []
+                        assert v.operator in BITWISE_OPS, v.operator
+                        for a in v.operands:
+                            _a = self.resolveFinalReplacedVarValue(a, bitRange, variableForRange, varEntirelyReplaced, varBitAlises)
+                            args.append(_a)
 
+                        # :note: instructionindex must be resolved after all inputs are resolved
+                        # because generating inputs may change the code possition
+                        startIndex = 0
+                        for _a in args:
+                            if isinstance(_a, HValue):
+                                continue
+    
+                            _a: SsaValue
+                            if v.block is not _a.block:
+                                continue
+    
+                            startIndex = max(startIndex, v.block.body.index(_a))
+    
+                        b = SsaExprBuilder(v.block, possition=startIndex + 1)
+                        if len(args) == 1:
+                            replacement = b._unaryOp(args[0], v.operator)
+                        elif len(args) == 2:
+                            o0, o1 = args
+                            replacement = b._binaryOp(o0, v.operator, o1)
+                        else:
+                            raise NotImplementedError(v, args)
+    
                     variableForRange[var_range_key] = replacement
 
                     return replacement

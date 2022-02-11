@@ -2,8 +2,9 @@ from hwt.hdl.operatorDefs import OpDefinition, AllOps
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.value import SsaValue
-from typing import Optional, Union, List
+from typing import Optional, Union, List, Tuple
 from hwt.hdl.value import HValue
+from hwtHls.ssa.phi import SsaPhi
 
 
 class SsaExprBuilderProxy():
@@ -82,7 +83,7 @@ class SsaExprBuilder():
         self._insertInstr(instr)
         return instr
 
-    def _insertInstr(self, instr):
+    def _insertInstr(self, instr: SsaValue):
         pos = self.possition
         b = self.block
         if pos is None:
@@ -91,6 +92,15 @@ class SsaExprBuilder():
             b.insertInstruction(pos, instr)
             self.possition += 1
 
+    def _insertPhi(self, instr: SsaPhi):
+        pos = self.possition
+        b = self.block
+        if pos is None:
+            b.appendPhi(instr)
+        else:
+            b.insertPhi(pos, instr)
+            self.possition += 1
+        
     def unaryOp(self, o: Union[SsaValue, HValue], operator: OpDefinition) -> SsaExprBuilderProxy:
         return self.var(self._unaryOp(o.var, operator))
 
@@ -113,6 +123,26 @@ class SsaExprBuilder():
     def var(self, v: SsaValue):
         return SsaExprBuilderProxy(self, v)
 
+    def concat(self, *args):
+        assert args
+        res = None
+        for p in args:
+            if res is None:
+                res = p
+            else:
+                # left must be latest, right the first
+                res = self._binaryOp(p, AllOps.CONCAT, res)
+        return res
+
+    def phi(self, args: List[Tuple[SsaValue, SsaBasicBlock]], dtype=None):
+        if dtype is None:
+            dtype = args[0][0]._dtype
+        instr = SsaPhi(self.block.ctx, dtype)
+        for val, pred in args:
+            instr.appendOperand(val, pred)
+        self._insertPhi(instr)
+        return instr
+        
     def insertBlocks(self, branchConditions: List[Optional[SsaValue]]):
         pos = self.possition
         b = self.block
