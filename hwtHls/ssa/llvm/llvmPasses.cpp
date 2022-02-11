@@ -60,6 +60,8 @@
 #include <llvm/Transforms/Scalar/ADCE.h>
 #include <llvm/Transforms/Scalar/MemCpyOptimizer.h>
 #include <llvm/Transforms/Scalar/DeadStoreElimination.h>
+#include <llvm/Transforms/Scalar/ConstraintElimination.h>
+#include <llvm/Transforms/Utils/AssumeBundleBuilder.h>
 
 #include <llvm/Transforms/Utils.h>
 
@@ -69,23 +71,18 @@
 
 #include "targets/TargetInfo/genericFpgaTargetInfo.h"
 #include "Transforms/extractBitConcatAndSliceOpsPass.h"
-
+#include "Transforms/constBitPropagation/constBitPropagationPass.h"
 
 namespace py = pybind11;
 
 void runOpt(llvm::Function &fn) {
-	// https://stackoverflow.com/questions/34255383/llvm-3-5-passmanager-vs-legacypassmanager
 	// https://stackoverflow.com/questions/51934964/function-optimization-pass
 	// @see PassBuilder::buildFunctionSimplificationPipeline
-
 	std::string Error;
 	std::string TargetTriple = "genericFpga-unknown-linux-gnu";
-
-	const llvm::Target * Target = &getTheGenericFpgaTarget(); //llvm::TargetRegistry::targets()[0];
-
+	const llvm::Target *Target = &getTheGenericFpgaTarget(); //llvm::TargetRegistry::targets()[0];
 	auto CPU = "";
 	auto Features = "";
-
 	llvm::TargetOptions opt;
 	auto RM = llvm::Optional<llvm::Reloc::Model>();
 	auto TheTargetMachine = Target->createTargetMachine(TargetTriple, CPU,
@@ -94,20 +91,11 @@ void runOpt(llvm::Function &fn) {
 	//module->setDataLayout(TheTargetMachine->createDataLayout());
 
 	llvm::PipelineTuningOptions PTO;
-
 	llvm::PassBuilder PB(
 	/*DebugLogging =*/false,
 	/*TargetMachine *TM = */TheTargetMachine, PTO,
 	/*Optional<PGOOptions> PGOOpt =*/llvm::None,
 	/*PassInstrumentationCallbacks *PIC =*/nullptr);
-
-	//llvm::LLVMInitializeX86TargetMC();
-	//llvm::FunctionAnalysisManager FAM;
-	//PB.registerFunctionAnalyses(FAM);
-	////llvm::FunctionPassManager FPM;
-	//llvm::FunctionPassManager FPM = PB.buildFunctionSimplificationPipeline(
-	//		llvm::PassBuilder::OptimizationLevel::O3, llvm::ThinOrFullLTOPhase::None);
-	//auto & DL = fn.getParent()->getDataLayout();
 	auto LAM = llvm::LoopAnalysisManager { };
 	auto cgscc_manager = llvm::CGSCCAnalysisManager { };
 	auto MAM = llvm::ModuleAnalysisManager { };
@@ -117,12 +105,9 @@ void runOpt(llvm::Function &fn) {
 	PB.registerCGSCCAnalyses(cgscc_manager);
 	PB.registerFunctionAnalyses(FAM);
 	PB.registerLoopAnalyses(LAM);
-
 	PB.crossRegisterProxies(LAM, FAM, cgscc_manager, MAM);
-	llvm::FunctionPassManager FPM;
 
-	// Promote allocas to registers.
-	//Builder.addPass(llvm::PromoteMemoryToRegisterPass());
+	llvm::FunctionPassManager FPM;
 
 	// Form SSA out of local memory accesses after breaking apart aggregates into
 	// scalars.
@@ -131,7 +116,7 @@ void runOpt(llvm::Function &fn) {
 	// Catch trivial redundancies
 	FPM.addPass(llvm::EarlyCSEPass(true /* Enable mem-ssa. */));
 	//if (EnableKnowledgeRetention)
-	//  FPM.addPass(AssumeSimplifyPass());
+	FPM.addPass(llvm::AssumeSimplifyPass());
 
 	// Hoisting of scalars and load expressions.
 	//if (EnableGVNHoist)
@@ -144,7 +129,7 @@ void runOpt(llvm::Function &fn) {
 	//}
 
 	//if (EnableConstraintElimination)
-	//  FPM.addPass(llvm::ConstraintEliminationPass());
+	FPM.addPass(llvm::ConstraintEliminationPass());
 
 	// Speculative execution if the target has divergent branches; otherwise nop.
 	FPM.addPass(
@@ -164,7 +149,7 @@ void runOpt(llvm::Function &fn) {
 	// using the size value profile. Don't perform this when optimizing for size.
 	//if (PGOOpt && PGOOpt->Action == PGOOptions::IRUse &&
 	//    !Level.isOptimizingForSize())
-	//  FPM.addPass(PGOMemOPSizeOpt());
+	//  FPM.addPass(llvm::PGOMemOPSizeOpt());
 
 	//FPM.addPass(TailCallElimPass());
 	FPM.addPass(llvm::SimplifyCFGPass());
@@ -216,7 +201,7 @@ void runOpt(llvm::Function &fn) {
 	LPM2.addPass(llvm::LoopDeletionPass());
 
 	//if (EnableLoopInterchange)
-	//  LPM2.addPass(llvm::LoopInterchangePass());
+	//LPM2.addPass(llvm::LoopInterchangePass());
 
 	// Do not enable unrolling in PreLinkThinLTO phase during sample PGO
 	// because it changes IR to makes profile annotation in back compile
@@ -278,10 +263,7 @@ void runOpt(llvm::Function &fn) {
 
 	// Re-consider control flow based optimizations after redundancy elimination,
 	// redo DCE, etc.
-	//if (EnableDFAJumpThreading && Level.getSizeLevel() == 0)
-	//FPM.addPass(llvm::DFAJumpThreadingPass());
-
-	//FPM.addPass(llvm::JumpThreadingPass());
+	//FPM.addPass(llvm::JumpThreadingPass()); // segfauld on insert to internal set in non debug builds
 	FPM.addPass(llvm::CorrelatedValuePropagationPass());
 
 	// Finally, do an expensive DCE pass to catch all the dead code exposed by
@@ -312,12 +294,19 @@ void runOpt(llvm::Function &fn) {
 	FPM.addPass(llvm::InstCombinePass());
 	//invokePeepholeEPCallbacks(FPM, Level);
 	FPM.addPass(hwtHls::ExtractBitConcatAndSliceOpsPass());
-	FPM.addPass(llvm::InstCombinePass()); // for DCE for previous pass
+	FPM.addPass(llvm::InstCombinePass()); // mostly for DCE for previous pass
+	FPM.addPass(llvm::AggressiveInstCombinePass());
+	FPM.addPass(hwtHls::ConstantBitPropagationPass());
+	FPM.addPass(llvm::InstCombinePass()); // mostly for DCE for previous pass
+
+	//FPM.addPass(llvm::GVNHoistPass());
+	//FPM.addPass(llvm::GVNSinkPass());
+	//FPM.addPass(llvm::SimplifyCFGPass());
 
 	//if (EnableCHR && Level == OptimizationLevel::O3 && PGOOpt
 	//		&& (PGOOpt->Action == PGOOptions::IRUse
 	//				|| PGOOpt->Action == PGOOptions::SampleUse))
-	//	FPM.addPass(ControlHeightReductionPass());
+	//	FPM.addPass(llvm::ControlHeightReductionPass());
 
 	FPM.run(fn, FAM);
 }
