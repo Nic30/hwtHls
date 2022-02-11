@@ -49,6 +49,7 @@ coverage.xml
 *.html
 *.vcd
 tests/tmp
+tests/bitOpt/tmp
 tests/io/tmp
 tests/io/axiStream/tmp
 tests/pythonFrontend/tmp
