@@ -104,14 +104,15 @@ def makeDebugPasses(debug_file_directory: Union[str, Path]):
             SsaPassDumpToDot(debug_file_directory / "top1.dot", extract_pipeline=False),
             SsaPassExtractPartDrivers(),
             SsaPassDumpToDot(debug_file_directory / "top2.dot", extract_pipeline=False),
+
             SsaPassToLlvm(),
-            # SsaPassDumpToLl(open(debug_file_directory / "top1.ll", "w"), close=True),
+            SsaPassDumpToLl(open(debug_file_directory / "top3.ll", "w"), close=True),
             SsaPassRunLlvmOpt(),
-            SsaPassDumpToLl(open(debug_file_directory / "top2.ll", "w"), close=True),
+            SsaPassDumpToLl(open(debug_file_directory / "top4.ll", "w"), close=True),
             SsaPassFromLlvm(),
             
-            SsaPassDumpToDot(debug_file_directory / "top3.dot"),
-            SsaPassDumpPipelines(open(debug_file_directory / "top.pipeline.txt", "w"), close=True),
+            SsaPassDumpToDot(debug_file_directory / "top5.dot"),
+            SsaPassDumpPipelines(open(debug_file_directory / "top6.pipeline.txt", "w"), close=True),
             SsaPassConsystencyCheck(),
         ],
         "hlsnetlist_passes": [
@@ -122,10 +123,10 @@ def makeDebugPasses(debug_file_directory: Union[str, Path]):
             HlsNetlistPassAggregateBitwiseOps(),
             #HlsNetlistPassConsystencyCheck(),
             # HlsNetlistPassDumpToDot(debug_file_directory / "top_p1.dot"),
-            HlsNetlistPassShowTimeline(debug_file_directory / "top.schedule.html"),
+            HlsNetlistPassShowTimeline(debug_file_directory / "top7.schedule.html"),
         ],
         "rtlnetlist_passes":[
-            RtlNetlistPassDumpStreamNodes(open(debug_file_directory / "top.sync.txt", "w"), close=True)
+            RtlNetlistPassDumpStreamNodes(open(debug_file_directory / "top8.sync.txt", "w"), close=True)
         ],
 
     }
