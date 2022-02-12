@@ -19,7 +19,7 @@ from hwtHls.scheduler.scheduler import HlsScheduler
 from hwtHls.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
 from hwtHls.ssa.analysis.dumpPipelines import SsaPassDumpPipelines
 from hwtHls.ssa.instr import OP_ASSIGN
-from hwtHls.ssa.transformation.extractPartDrivers import SsaPassExtractPartDrivers
+from hwtHls.ssa.transformation.extractPartDrivers.extractPartDriversPass import SsaPassExtractPartDrivers
 from hwtHls.ssa.transformation.runLlvmOpt import SsaPassRunLlvmOpt
 from hwtHls.ssa.transformation.ssaPass import SsaPass
 from hwtHls.ssa.translation.fromLlvm import SsaPassFromLlvm

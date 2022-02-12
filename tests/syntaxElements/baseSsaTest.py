@@ -5,7 +5,7 @@ from hwt.synthesizer.unit import Unit
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
 from hwtHls.ssa.analysis.dumpPipelines import SsaPassDumpPipelines
-from hwtHls.ssa.transformation.extractPartDrivers import SsaPassExtractPartDrivers
+from hwtHls.ssa.transformation.extractPartDrivers.extractPartDriversPass import SsaPassExtractPartDrivers
 from hwtHls.ssa.transformation.runFn import SsaPassRunFn
 from hwtHls.ssa.transformation.runLlvmOpt import SsaPassRunLlvmOpt
 from hwtHls.ssa.translation.fromLlvm import SsaPassFromLlvm
