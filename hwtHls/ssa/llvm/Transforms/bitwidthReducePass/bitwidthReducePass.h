@@ -9,6 +9,7 @@ namespace hwtHls {
  * A pass which performs a task similar to a logic minimization.
  * This it builds an information which bit ranges do have some known value and then cuts of these
  * ranges from original values if it leads to minimization of bitwidth of some operation.
+ * (This pass can reduce any bit from value, not just prefix or suffix.)
  *
  * Similar to:
  *   * A generic logic minimizer like ABC
@@ -28,15 +29,15 @@ namespace hwtHls {
  *     - custom version of llvm 6.0.1
  *     - worklist driven = reduced search distance
  **/
-class ConstantBitPropagationPass: public llvm::PassInfoMixin<
-		ConstantBitPropagationPass> {
+class BitwidthReductionPass: public llvm::PassInfoMixin<
+		BitwidthReductionPass> {
 
 public:
 	static llvm::StringRef name() {
-		return "ConstantBitPropagationPass";
+		return "BitwidthReductionPass";
 	}
 
-	explicit ConstantBitPropagationPass() {
+	explicit BitwidthReductionPass() {
 	}
 
 	llvm::PreservedAnalyses run(llvm::Function &F,

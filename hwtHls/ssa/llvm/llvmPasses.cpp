@@ -71,7 +71,7 @@
 
 #include "targets/TargetInfo/genericFpgaTargetInfo.h"
 #include "Transforms/extractBitConcatAndSliceOpsPass.h"
-#include "Transforms/constBitPropagation/constBitPropagationPass.h"
+#include "Transforms/bitwidthReducePass/bitwidthReducePass.h"
 
 namespace py = pybind11;
 
@@ -296,7 +296,7 @@ void runOpt(llvm::Function &fn) {
 	FPM.addPass(hwtHls::ExtractBitConcatAndSliceOpsPass());
 	FPM.addPass(llvm::InstCombinePass()); // mostly for DCE for previous pass
 	FPM.addPass(llvm::AggressiveInstCombinePass());
-	FPM.addPass(hwtHls::ConstantBitPropagationPass());
+	FPM.addPass(hwtHls::BitwidthReductionPass());
 	FPM.addPass(llvm::InstCombinePass()); // mostly for DCE for previous pass
 
 	//FPM.addPass(llvm::GVNHoistPass());

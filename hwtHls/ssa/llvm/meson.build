@@ -18,11 +18,11 @@ py3.extension_module(
      
      'Transforms/extractBitConcatAndSliceOpsPass.cpp',
      
-     'Transforms/constBitPropagation/bitPartsUseAnalysis.cpp',
-     'Transforms/constBitPropagation/bitRewriter.cpp',
-     'Transforms/constBitPropagation/constBitPartsAnalysis.cpp',
-     'Transforms/constBitPropagation/constBitPropagationPass.cpp',
-     'Transforms/constBitPropagation/utils.cpp',
+     'Transforms/bitwidthReducePass/bitPartsUseAnalysis.cpp',
+     'Transforms/bitwidthReducePass/bitRewriter.cpp',
+     'Transforms/bitwidthReducePass/constBitPartsAnalysis.cpp',
+     'Transforms/bitwidthReducePass/bitwidthReducePass.cpp',
+     'Transforms/bitwidthReducePass/utils.cpp',
      ],
     dependencies : [py3_dep, llvm_dep, pybind11_dep],
     install: true,

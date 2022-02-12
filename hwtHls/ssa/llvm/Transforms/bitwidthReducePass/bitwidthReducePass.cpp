@@ -1,4 +1,4 @@
-#include "constBitPropagationPass.h"
+#include "bitwidthReducePass.h"
 #include "utils.h"
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/Analysis/GlobalsModRef.h>
@@ -73,7 +73,7 @@ static bool runCBP(Function &F) {
 	return didModify;
 }
 
-llvm::PreservedAnalyses ConstantBitPropagationPass::run(llvm::Function &F,
+llvm::PreservedAnalyses BitwidthReductionPass::run(llvm::Function &F,
 		llvm::FunctionAnalysisManager &AM) {
 	if (!runCBP(F)) {
 		return PreservedAnalyses::all();
