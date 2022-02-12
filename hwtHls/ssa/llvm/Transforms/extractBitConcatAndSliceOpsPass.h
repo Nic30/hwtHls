@@ -5,10 +5,11 @@
 
 namespace hwtHls {
 
-/// A pass to extract bit replications, concatenations and slices as a hwtHls.bit* call.
-///
+/**
+ *  A pass to extract bit replications, concatenations and slices as a hwtHls.bit* call.
+ */
 class ExtractBitConcatAndSliceOpsPass: public llvm::PassInfoMixin<
-ExtractBitConcatAndSliceOpsPass> {
+		ExtractBitConcatAndSliceOpsPass> {
 
 public:
 	static llvm::StringRef name() {
