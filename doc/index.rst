@@ -124,12 +124,16 @@ After this point we do have a complete HWT netlist which can be translated to VH
 
 In various tools the problem of SSA to RTL translation and the problem of synchronization resolution is accessed differently.
 For example:
-[ctoverilog][ahaHLS] - uses a Verilog template hardcoded in backend.
-[LegUp] - Also depends on rendering of templates. However in the case of [LegUp] there is larger variety of primitives compare to [ctoverilog] ranging from various sychronization elements
- to a PPL and DSP instances. However interfaces synchoronization types as well as the type of control implementation in the circuit is limited to the style defined in the compiler backend.
-[Shang] - Shang user LLVM on machine level. And thus the code generator is based on pattern rewrites however it does not have equivalent of an additional instruction synchronization.
-	and any extra synchronization has to be explicitely specified in user code.
-[Dynamic] - Uses one ready-valid handshake which may result in high overhead in the simple parts of the program. In addition the handshake is integrated with
+
+* [ctoverilog][ahaHLS] - uses a Verilog template hardcoded in backend.
+
+* [LegUp] - Also depends on rendering of templates. However in the case of [LegUp] there is larger variety of primitives compare to [ctoverilog] ranging from various sychronization elements
+   to a PPL and DSP instances. However interfaces synchoronization types as well as the type of control implementation in the circuit is limited to the style defined in the compiler backend.
+
+* [Shang] - Shang user LLVM on machine level. And thus the code generator is based on pattern rewrites however it does not have equivalent of an additional instruction synchronization.
+  and any extra synchronization has to be explicitely specified in user code.
+
+* [Dynamic] - Uses one ready-valid handshake which may result in high overhead in the simple parts of the program. In addition the handshake is integrated with
   speculation and out-of-order execution only under strict conditions. Namely two mentioned techniques only work for a single external memory using LSU.
 
 
