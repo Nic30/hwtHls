@@ -133,7 +133,7 @@ For example:
 * [Shang] - Shang user LLVM on machine level. And thus the code generator is based on pattern rewrites however it does not have equivalent of an additional instruction synchronization.
   and any extra synchronization has to be explicitely specified in user code.
 
-* [Dynamic] - Uses one ready-valid handshake which may result in high overhead in the simple parts of the program. In addition the handshake is integrated with
+* [Dynamic][SpecDataFlow] - Uses one ready-valid handshake which may result in high overhead in the simple parts of the program. In addition the handshake is integrated with
   speculation and out-of-order execution only under strict conditions. Namely two mentioned techniques only work for a single external memory using LSU.
 
 
@@ -162,4 +162,8 @@ For example:
     Combining Dynamic & Static Scheduling in High-level Synthesis. In Proceedings of the 2020 ACM/SIGDA International Symposium on Field-Programmable Gate Arrays (FPGA '20).
     Association for Computing Machinery, New York, NY, USA, 288–298. DOI:https://doi.org/10.1145/3373087.3375297
      
-     
+.. [SpecDataFlow] Lana Josipovic, Andrea Guerrieri, and Paolo Ienne. 2019. Speculative Dataflow Circuits. In Proceedings of the 2019 ACM/SIGDA International Symposium on Field-Programmable Gate Arrays (FPGA '19).
+    Association for Computing Machinery, New York, NY, USA, 162–171. DOI:https://doi.org/10.1145/3289602.3293914
+
+      
+
