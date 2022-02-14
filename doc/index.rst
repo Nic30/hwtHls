@@ -134,20 +134,26 @@ For example:
 
 
 .. [ctoverilog] https://github.com/udif/ctoverilog.git 
+
 .. [LegUp] https://github.com/wincle626/HLS_Legup.git
     Andrew Canis, Jongsok Choi, Mark Aldham, Victor Zhang, Ahmed Kammoona, Tomasz Czajkowski, Stephen D. Brown, and Jason H. Anderson. 2013.
     LegUp: An open-source high-level synthesis tool for FPGA-based processor/accelerator systems. ACM Trans.
     Embed. Comput. Syst. 13, 2, Article 24 (September 2013), 27 pages. DOI:https://doi.org/10.1145/2514740
+
 .. [Shang] https://github.com/etherzhhb/Shang.git
+
 .. [Maxeler] C. Kritikakis and D. Koch, "End-to-end Dynamic Stream Processing on Maxeler HLS Platforms,"
     2019 IEEE 30th International Conference on Application-specific Systems, Architectures and Processors (ASAP), 2019, pp. 59-66,
     doi: 10.1109/ASAP.2019.00-29.
+
 .. [simpleToSSA] Matthias Braun, Sebastian Buchwald, Sebastian Hack, Roland Leißa, Christoph Mallon, and Andreas Zwinkau. 2013.
 	Simple and efficient construction of static single assignment form. In Proceedings of the 22nd international conference on Compiler Construction (CC'13).
 	Springer-Verlag, Berlin, Heidelberg, 102–122. DOI:https://doi.org/10.1007/978-3-642-37051-9_6
+
 .. [feedbackarc] Peter Eades, Xuemin Lin, W.F. Smyth, A fast and effective heuristic for the feedback arc set problem,
     Information Processing Letters, Volume 47, Issue 6, 1993, Pages 319-323, ISSN 0020-0190,
     https://doi.org/10.1016/0020-0190(93)90079-O.
+
 .. [Dynamic] Jianyi Cheng, Lana Josipovic, George A. Constantinides, Paolo Ienne, and John Wickerson. 2020.
     Combining Dynamic & Static Scheduling in High-level Synthesis. In Proceedings of the 2020 ACM/SIGDA International Symposium on Field-Programmable Gate Arrays (FPGA '20).
     Association for Computing Machinery, New York, NY, USA, 288–298. DOI:https://doi.org/10.1145/3373087.3375297
