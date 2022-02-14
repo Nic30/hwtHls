@@ -29,7 +29,7 @@ The pripary goal of this library is to provide an infrastructure for user-provid
 This library contains a simple python frontend which could translate a limited subset of python bytecode and a AST like objects which could be used to generate more complex codes.
 The library uses an LLVM SSA thus is generaly compatible with all tools which are using the same Internal Representation (IR).
 This library takes in account the premise that each application will actually need to extend the compiler core itself because the architecture or special optimization
-are the product of an user. To support this ideology this library unlike other HLS libraries is not a compiler and each part is mostly independent.
+are the product of an user. To support this ideology this library unlike other HLS libraries is build as a set of mostly independent SSA transformations.
 The side-effect of this design is that the individual transformations are compatible with other LLVM based compilers and the compiler core itself is just a pipeline
 of easy to underestand passes.
 
@@ -166,4 +166,6 @@ For example:
     Association for Computing Machinery, New York, NY, USA, 162–171. DOI:https://doi.org/10.1145/3289602.3293914
 
       
-
+.. [Boyi] Jiantong Jiang, Zeke Wang, Xue Liu, Juan Gómez-Luna, Nan Guan, Qingxu Deng, Wei Zhang, and Onur Mutlu. 2020.
+    Boyi: A Systematic Framework for Automatically Deciding the Right Execution Model of OpenCL Applications on FPGAs. In Proceedings of the 2020 ACM/SIGDA International Symposium on Field-Programmable Gate Arrays (FPGA '20).
+    Association for Computing Machinery, New York, NY, USA, 299–309. DOI:https://doi.org/10.1145/3373087.3375313
