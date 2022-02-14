@@ -55,7 +55,9 @@ Each step is optional and can be also disabled with fine level granularity.
 After the code is optimized we extract several intrinsic to make next translations more simple.
 
 The next step is to translate SSA to netlist for scheduling and ultimately the scheduled netlist to HWT (RTL like) netlist for code generator.
+
 .. image:: _static/ssaToRtl.png
+
 This step does not modify input SSA but collects own metadata which are generated from SSA features and could be generated also from user specified attributes.
 The goal of this transformation is to translate input SSA to RTL netlist with minimum amount of resources, minimum control complexity and maximum throughput and minimum latency.
 However without additional specification the goal would be infeasible (It is not generally possible to achieve all mentioned at once.)
