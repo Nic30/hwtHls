@@ -27,7 +27,7 @@ Main goal of this library
 =========================
 The pripary goal of this library is to provide an infrastructure for user-provided code transformations which gradually transforms the input code to RTL description.
 This library contains a simple python frontend which could translate a limited subset of python bytecode and a AST like objects which could be used to generate more complex codes.
-The library uses an LLVM SSA thus is generaly compatible which all tools which are using the same.
+The library uses an LLVM SSA thus is generaly compatible with all tools which are using the same Internal Representation (IR).
 This library takes in account the premise that each application will actually need to extend the compiler core itself because the architecture or special optimization
 are the product of an user. To support this ideology this library unlike other HLS libraries is not a compiler and each part is mostly independent.
 The side-effect of this design is that the individual transformations are compatible with other LLVM based compilers and the compiler core itself is just a pipeline
