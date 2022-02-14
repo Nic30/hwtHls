@@ -25,7 +25,7 @@ Indices and tables
 
 Main goal of this library
 =========================
-The pripary goal of this library is to provide an infrastructure for user-provided code transformations which gradually transforms the input code to RTL description.
+The primary goal of this library is to provide an infrastructure for user-provided code transformations which gradually transforms the input code to RTL description.
 This library contains a simple python frontend which could translate a limited subset of python bytecode and a AST like objects which could be used to generate more complex codes.
 The library uses an LLVM SSA thus is generaly compatible with all tools which are using the same Internal Representation (IR).
 This library takes in account the premise that each application will actually need to extend the compiler core itself because the architecture or special optimization
@@ -141,6 +141,13 @@ For example:
 * [Dynamic][SpecDataFlow] - Uses only ready-valid handshake. In addition the handshake is integrated with
   speculation and out-of-order execution only under strict conditions. Namely two mentioned techniques only work for a single external memory using LSU.
 
+* [Calyx] - Calyx is a custom language which specifices the synchronization directly thus there is no implicit synchronization generation or optimization.
+	The generating of the HDL is based on [CIRCT] a HDL code generator library and works as an iterrative rewrite of the SSA to a AST of a target language.
+
+
+
+
+
 .. [ctoverilog] https://github.com/udif/ctoverilog.git 
 
 .. [LegUp] https://github.com/wincle626/HLS_Legup.git
@@ -177,3 +184,10 @@ For example:
 .. [Boyi] Jiantong Jiang, Zeke Wang, Xue Liu, Juan Gómez-Luna, Nan Guan, Qingxu Deng, Wei Zhang, and Onur Mutlu. 2020.
     Boyi: A Systematic Framework for Automatically Deciding the Right Execution Model of OpenCL Applications on FPGAs. In Proceedings of the 2020 ACM/SIGDA International Symposium on Field-Programmable Gate Arrays (FPGA '20).
     Association for Computing Machinery, New York, NY, USA, 299–309. DOI:https://doi.org/10.1145/3373087.3375313
+
+.. [Calyx] Rachit Nigam, Samuel Thomas, Zhijing Li, and Adrian Sampson. 2021. A compiler infrastructure for accelerator generators.
+    Proceedings of the 26th ACM International Conference on Architectural Support for Programming Languages and Operating Systems.
+    Association for Computing Machinery, New York, NY, USA, 804–817. DOI:https://doi.org/10.1145/3445814.3446712
+
+.. [CIRCT] https://github.com/llvm/circt  
+
