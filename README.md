@@ -116,6 +116,7 @@ pip3 install git+git://github.com/Nic30/hwtHls.git
 * :skull: [augh](http://tima.imag.fr/sls/research-projects/augh/) - c->verilog, DSP support
 * :skull: [c-ll-verilog](https://github.com/sabbaghm/c-ll-verilog) 2017-2017, C++, An LLVM based mini-C to Verilog High-level Synthesis tool
 * :skull: [Chips-2.0](https://github.com/dawsonjon/Chips-2.0) - 2011-2019, Python, C->Verilog HLS
+* :skull: [COMBA](https://github.com/zjru/COMBA) - 2017-2020, C++/LLVM, focused on resource constrained scheduling
 * :skull: [ctoverilog](https://github.com/udif/ctoverilog) ?-2015 - A C to verilog compiler, LLVM
 * :skull: [DelayGraph](https://github.com/ni/DelayGraph) - 2016, C#, register assignment alghorithms
 * :skull: [DHLS](https://github.com/dillonhuff/DHLS) - 2019-?, C++, A Basic High Level Synthesis System Using LLVM
