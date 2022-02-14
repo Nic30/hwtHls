@@ -109,6 +109,9 @@ The result is an approximative scheduling and the information about if the synch
 about resource (and external IO) constraints to detect the individual architectural elements for rescheduling and technology mapping.
 Currently we detect only segments which should be implemented as FSM due constraints or explicit user specification.
 The FSMs are then rescheduled. The rest of the circuit is divided to individual pipelines.
+Note that the method of division to a pipelines and FSMs is not perfect. For programs with multiple separate kernel which are communication using shared memory
+there are better methods [Boyi]. However we remaind the reader that the user can directly overrride which and how the individual architectural ements are extracted
+and translated. The current method is suitable for controllers and network applications which do not require strip mining, tiling and polyhedral transformations in general.
 
 After this stage we do have assigned realization of each node and an exact time when it should happen and what synchronization it should use.
 The next step is translate this information to a HWT netlist for RTL codegen. Because the dependency between architectural elements can still be cyclic
@@ -121,11 +124,10 @@ us to modify register and other write statements to happen conditionally once we
 After this point we do have a complete HWT netlist which can be translated to VHDL/SystemVerilog/SystemC using standard HWT functions.
 
 
-
-In various tools the problem of SSA to RTL translation and the problem of synchronization resolution is accessed differently.
+In various tools the problem of SSA to RTL translation and the problem of synchronization resolution is addressed differently.
 For example:
 
-* [ctoverilog][ahaHLS] - uses a Verilog template hardcoded in backend.
+* [ctoverilog][ahaHLS] - Uses a Verilog template hardcoded in backend.
 
 * [LegUp] - Also depends on rendering of templates. However in the case of [LegUp] there is larger variety of primitives compare to [ctoverilog] ranging from various sychronization elements
    to a PPL and DSP instances. However interfaces synchoronization types as well as the type of control implementation in the circuit is limited to the style defined in the compiler backend.
@@ -133,9 +135,11 @@ For example:
 * [Shang] - Shang user LLVM on machine level. And thus the code generator is based on pattern rewrites however it does not have equivalent of an additional instruction synchronization.
   and any extra synchronization has to be explicitely specified in user code.
 
-* [Dynamic][SpecDataFlow] - Uses one ready-valid handshake which may result in high overhead in the simple parts of the program. In addition the handshake is integrated with
-  speculation and out-of-order execution only under strict conditions. Namely two mentioned techniques only work for a single external memory using LSU.
+* [AHIR] - Uses only ready-valid handshake which may result in high overhead in the simple parts of the program. 
+  Hardcodes the implementation of control passing between SSA block segments.
 
+* [Dynamic][SpecDataFlow] - Uses only ready-valid handshake. In addition the handshake is integrated with
+  speculation and out-of-order execution only under strict conditions. Namely two mentioned techniques only work for a single external memory using LSU.
 
 .. [ctoverilog] https://github.com/udif/ctoverilog.git 
 
@@ -158,6 +162,11 @@ For example:
     Information Processing Letters, Volume 47, Issue 6, 1993, Pages 319-323, ISSN 0020-0190,
     https://doi.org/10.1016/0020-0190(93)90079-O.
 
+.. [AHIR] S. D. Sahasrabuddhe, H. Raja, K. Arya and M. P. Desai, 
+   "AHIR: A Hardware Intermediate Representation for Hardware Generation from High-level Programs,"
+   20th International Conference on VLSI Design held jointly with 6th International Conference on Embedded Systems (VLSID'07), 2007, pp. 245-250,
+   doi: 10.1109/VLSID.2007.28.
+
 .. [Dynamic] Jianyi Cheng, Lana Josipovic, George A. Constantinides, Paolo Ienne, and John Wickerson. 2020.
     Combining Dynamic & Static Scheduling in High-level Synthesis. In Proceedings of the 2020 ACM/SIGDA International Symposium on Field-Programmable Gate Arrays (FPGA '20).
     Association for Computing Machinery, New York, NY, USA, 288–298. DOI:https://doi.org/10.1145/3373087.3375297
@@ -165,7 +174,6 @@ For example:
 .. [SpecDataFlow] Lana Josipovic, Andrea Guerrieri, and Paolo Ienne. 2019. Speculative Dataflow Circuits. In Proceedings of the 2019 ACM/SIGDA International Symposium on Field-Programmable Gate Arrays (FPGA '19).
     Association for Computing Machinery, New York, NY, USA, 162–171. DOI:https://doi.org/10.1145/3289602.3293914
 
-      
 .. [Boyi] Jiantong Jiang, Zeke Wang, Xue Liu, Juan Gómez-Luna, Nan Guan, Qingxu Deng, Wei Zhang, and Onur Mutlu. 2020.
     Boyi: A Systematic Framework for Automatically Deciding the Right Execution Model of OpenCL Applications on FPGAs. In Proceedings of the 2020 ACM/SIGDA International Symposium on Field-Programmable Gate Arrays (FPGA '20).
     Association for Computing Machinery, New York, NY, USA, 299–309. DOI:https://doi.org/10.1145/3373087.3375313
