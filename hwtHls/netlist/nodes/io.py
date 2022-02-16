@@ -23,6 +23,8 @@ from hwtHls.ssa.translation.toHwtHlsNetlist.opCache import SsaToHwtHlsNetlistOpC
 from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axis import AxiStream
 from hwt.hdl.types.hdlType import HdlType
+from hwt.interfaces.structIntf import StructIntf
+from hwtLib.amba.axi_intf_common import Axi_hs
 
 IO_COMB_REALIZATION = OpRealizationMeta(latency_post=epsilon)
 
@@ -355,7 +357,7 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
                 if tmp:
                     dst, indexCascade, _ = tmp
 
-        assert isinstance(dst, (HlsNetNodeIn, HsStructIntf, Signal, RtlSignalBase)), dst
+        assert isinstance(dst, (HlsNetNodeIn, HsStructIntf, Signal, RtlSignalBase, Handshaked)), dst
         self.dst = dst
 
         self.indexes = indexCascade
@@ -420,7 +422,18 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         except KeyError:
             pass
 
-        rtlObj = dst(_o.data)
+        if isinstance(dst, (Handshaked, Axi_hs)):
+            if isinstance(_o.data, StructIntf):
+                if isinstance(dst, Handshaked):
+                    rd, vld = dst.rd, dst.vld
+                else:
+                    rd, vld = dst.ready, dst.valid
+                rtlObj = dst(_o.data, exclude=(rd, vld))
+            else:
+                assert len(dst._interfaces) == 3, (dst, "Must have just ready,valid and data signal because the source is just a data signal", _o.data)
+                rtlObj = dst.data(_o.data)
+        else:
+            rtlObj = dst(_o.data)
         # allocator.netNodeToRtl[o] = rtlObj
         allocator.netNodeToRtl[(dep, dst)] = rtlObj
 

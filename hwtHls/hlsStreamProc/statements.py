@@ -129,10 +129,8 @@ class HlsStreamProcRead(HdlStatement, SignalOps, InterfaceBase, SsaInstr):
         if isinstance(sig, Interface):
             sig_flat = var(f"{intfName:s}_read", Bits(type_or_size.bit_length()))
             # use flat signal and make type member fields out of slices of that signal
-            bw = BitWalker(sig_flat)
-            for i in walkPhysInterfaces(sig):
-                i._sig = bw.get(i._sig._dtype.bit_length())
-
+            sig = sig_flat._reinterpret_cast(type_or_size)
+            sig._name = f"{intfName:s}_read"
             sig_flat.drivers.append(self)
             sig_flat.origin = self
     
@@ -158,7 +156,7 @@ class HlsStreamProcRead(HdlStatement, SignalOps, InterfaceBase, SsaInstr):
                     setattr(self, n, field_intf)
         else:
             self._interfaces = []
-            
+
     @internal
     def _get_rtl_context(self) -> 'RtlNetlist':
         return self._parent.ctx
