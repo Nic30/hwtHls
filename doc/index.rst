@@ -48,6 +48,7 @@ transformations on demand. The passes are registered in your HlsPlatform specifi
 
 .. image:: _static/genericSsaOptPasses.png
 
+
 Mentioned optimizations are responsible for most common optimizations like Common Sub-expression Elimination (CSE), code hoisting/sinking, CFG simplifications,
 Corelated value propagation, Sparse Constant Propagation (SCP), Jump threading, Speculations, Algebraic simplifications, bitwidth reduction, load/store reductions and various loop idiom optimizations.
 Each step is optional and can be also disabled with fine level granularity.
@@ -62,13 +63,12 @@ This step does not modify input SSA but collects own metadata which are generate
 The goal of this transformation is to translate input SSA to RTL netlist with minimum amount of resources, minimum control complexity and maximum throughput and minimum latency.
 However without additional specification the goal would be infeasible (It is not generally possible to achieve all mentioned at once.)
 In addition the user code may require optimizations which are specific to an application, for example some some applications are using a dynamic reconfiguration
-which allows to dynamically reconfigure part of the chip to perform a different function. If this is the case it is neccessary to detect or select segments which
-could be loaded to a reconfiguration site and which do not need to work at the same time [Maxeler].
+which allows to dynamically reconfigure part of the chip to perform a different function. If this is the case it is necessary to detect or select segments which could be loaded to a reconfiguration site and which do not need to work at the same time \cite{Maxeler}.
 In order to provide sufficient flexibility and to simplify the use several heuristic are implemented to cut circuit on sites which
 are processed separately.
 
 First back-edges in data and control flow are detected (in SSA). The detection of back-edges corresponds to a minimum feedback arc set problem.
-We are using greedy heuristic with a linear run time which is based on search of strongly connected componets and then removal of the edge which is
+We are using greedy heuristic with a linear run time which is based on search of strongly connected components and then removal of the edge which is
 probably closing least of cycles in the graph [feedbackarc]. We used this heuristic because we find it fast enough and sufficiently performing for network and controller applications.
 
 Once back-edges are detected we can proceed to next phase. We resolve the most likely synchronization relations between threads in the SSA.
@@ -87,8 +87,8 @@ At this point we resolved that some sort of synchronization is required or not. 
 and IO interfaces. By default primitive synchronizations are supported ( ready-valid handshake, only ready, only valid, only signal without any synchronization).
 If the consumer can never block and has constant latency we can cancel synchronization as it is not required.
 
-Once we resolved that a synchronization is required and synchronization type we construct a HlsNetlist nodes for scheduling purposes.
-We use the synchronization meta information to implement synchronization logic but temporary exlude it from scheduling
+Once we resolved that a synchronization is required and synchronization type we construct a HLS netlist nodes for scheduling purposes.
+We use the synchronization meta information to implement synchronization logic but temporary exclude it from scheduling
 in order to get minimal latency of the operations later. Note that the disabling of synchronization logic is faster than generating
 of a whole new netlist once we resolve that the synchronization was required.
 
@@ -102,15 +102,12 @@ As the scheduling is just an approximation it is not precise, this is because of
 
 Once we do have have nodes aggregated we can run scheduler. The initial scheduling for an approximation is done by ASAP/ALAP scheduler.
 The scheduling function is specific to each node. The node may rewrite itself in order to fit better in schedule.
-Once it is detected that some node from a different synchronization group happen in a different clock cycle we reschedule all nodes in coliding synchronization
-groups with synchronization logic enabled.
+Once it is detected that some node from a different synchronization group happen in a different clock cycle we reschedule all nodes in colliding synchronization groups with synchronization logic enabled.
 
-The result is an approximative scheduling and the information about if the synchronization is trully required. We use this information and the information
-about resource (and external IO) constraints to detect the individual architectural elements for rescheduling and technology mapping.
+The result is an approximate scheduling and the information about if the synchronization is truly required. We use this information and the information about resource (and external IO) constraints to detect the individual architectural elements for rescheduling and technology mapping.
 Currently we detect only segments which should be implemented as FSM due constraints or explicit user specification.
 The FSMs are then rescheduled. The rest of the circuit is divided to individual pipelines.
-Note that the method of division to a pipelines and FSMs is not perfect. For programs with multiple separate kernel which are communication using shared memory
-there are better methods [Boyi]. However we remaind the reader that the user can directly overrride which and how the individual architectural ements are extracted
+Note that the method of division to a pipelines and FSMs is not perfect. For programs with multiple separate kernel which are communication using shared memory there are better methods \cite{Boyi}. However we remind the reader that the user can directly override which and how the individual architectural elements are extracted
 and translated. The current method is suitable for controllers and network applications which do not require strip mining, tiling and polyhedral transformations in general.
 
 After this stage we do have assigned realization of each node and an exact time when it should happen and what synchronization it should use.
@@ -130,10 +127,10 @@ For example:
 * [ctoverilog][ahaHLS] - Uses a Verilog template hardcoded in backend.
 
 * [LegUp] - Also depends on rendering of templates. However in the case of [LegUp] there is larger variety of primitives compare to [ctoverilog] ranging from various sychronization elements
-   to a PPL and DSP instances. However interfaces synchoronization types as well as the type of control implementation in the circuit is limited to the style defined in the compiler backend.
+   to a PPL and DSP instances. However interfaces synchronization types as well as the type of control implementation in the circuit is limited to the style defined in the compiler backend.
 
-* [Shang] - Shang user LLVM on machine level. And thus the code generator is based on pattern rewrites however it does not have equivalent of an additional instruction synchronization.
-  and any extra synchronization has to be explicitely specified in user code.
+* [Shang] - Shang uses LLVM on machine level. And thus the code generator is based on pattern rewrites however it does not have equivalent of an additional instruction synchronization.
+  and any extra synchronization has to be explicitly specified in user code.
 
 * [AHIR] - Uses only ready-valid handshake which may result in high overhead in the simple parts of the program. 
   Hardcodes the implementation of control passing between SSA block segments.
@@ -141,8 +138,8 @@ For example:
 * [Dynamic][SpecDataFlow] - Uses only ready-valid handshake. In addition the handshake is integrated with
   speculation and out-of-order execution only under strict conditions. Namely two mentioned techniques only work for a single external memory using LSU.
 
-* [Calyx] - Calyx is a custom language which specifices the synchronization directly thus there is no implicit synchronization generation or optimization.
-	The generating of the HDL is based on [CIRCT] a HDL code generator library and works as an iterrative rewrite of the SSA to a AST of a target language.
+* [Calyx] - Calyx is a custom language which specifies the synchronization directly thus there is no implicit synchronization generation or optimization.
+	The generating of the HDL is based on [CIRCT] a HDL code generator library and works as an iterative rewrite of the SSA to a AST of a target language.
 
 
 
