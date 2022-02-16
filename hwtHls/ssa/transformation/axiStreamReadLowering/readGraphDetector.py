@@ -1,6 +1,6 @@
 from _collections import defaultdict
 from itertools import chain
-from typing import DefaultDict, Tuple, List, Optional, Set
+from typing import DefaultDict, Tuple, List, Optional, Set, Dict
 
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.hlsStreamProc.statements import HlsStreamProcRead
@@ -21,13 +21,19 @@ class ReadGraphDetector():
                          allReads: UniqList[HlsStreamProcRead]):
         self.DATA_WIDTH = DATA_WIDTH
         self.allReads = allReads
-        self.cfg: DefaultDict[HlsStreamProcRead, UniqList[Tuple[int, HlsStreamProcRead]]] = defaultdict(UniqList)
+        self.cfg: Dict[HlsStreamProcRead, UniqList[Tuple[int, HlsStreamProcRead]]] = {}
         self.cfg[None] = UniqList()
         self.inWordOffset: DefaultDict[List[int]] = defaultdict(list)
         self.predecessors: DefaultDict[UniqList[Optional[HlsStreamProcRead]]] = defaultdict(UniqList)
     
     def addTransition(self, src: HlsStreamProcRead, dstInWordOffset: int, dst: HlsStreamProcRead):
-        self.cfg[src].append((dstInWordOffset, dst))
+        assert isinstance(src, HlsStreamProcRead) or src is None, src
+        assert isinstance(dst, HlsStreamProcRead) or dst is None, dst
+        
+        sucs = self.cfg.get(src, None)
+        if sucs is None:
+            sucs = self.cfg[src] = []
+        sucs.append((dstInWordOffset, dst))
         self.cfg[dst] = UniqList()
     
     def detectReadGraphs(self,
