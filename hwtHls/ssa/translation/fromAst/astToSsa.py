@@ -156,10 +156,11 @@ class AstToSsa():
             for o in op.operands:
                 block, _o = self.visit_expr(block, o)
                 ops.append(_o)
-
-            self.m_ssa_u.writeVariable(var, (), block, tuple(ops))
+            
+            sig = var
             var = SsaInstr(block.ctx, var._dtype, op.operator, ops, origin=var)
             block.appendInstruction(var)
+            self.m_ssa_u.writeVariable(sig, (), block, var)
             # we know for sure that this in in this block that is why we do not need to use readVariable
             return block, var
 
