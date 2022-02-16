@@ -170,7 +170,7 @@ class SsaPassAxiStreamReadLowering(SsaPass):
                 offsetBranches, sequelBlock = exprBuilder.insertBlocks(offsetCaseCond)
             else:
                 offsetBranches, sequelBlock = [read.block], read.block
-
+            
             resVar = hls._ctx.sig(read._name, read._dtype)
             # [todo] agreate rewrite for all reads in this same block to reduce number of branches because of offset
             for off, br in zip(possibleOffsets, offsetBranches):
@@ -186,12 +186,12 @@ class SsaPassAxiStreamReadLowering(SsaPass):
                 end = off + w
                 inWordOffset = off % DATA_WIDTH
                 _w = w
-                wordCnt = ceil((end - off) / DATA_WIDTH)
+                wordCnt = ceil(max(0, end - 1) / DATA_WIDTH)
                 if inWordOffset == 0 and len(possibleOffsets) > 1:
                     # now not reading last word of predecessor but other offsets variant are using it
                     chunkWords = prevWordVars[1:]
                 else:
-                    chunkWords = prevWordVars
+                    chunkWords = prevWordVars[:]
 
                 assert len(chunkWords) == wordCnt, (read, wordCnt, chunkWords)
                 for wordI in range(wordCnt):
@@ -208,12 +208,14 @@ class SsaPassAxiStreamReadLowering(SsaPass):
                         # read a new word
                         if bitsToTake != DATA_WIDTH:
                             assert bitsToTake > 0, bitsToTake
-                            partRead = _exprBuilder._binaryOp(partRead, AllOps.INDEX, SLICE.from_py(slice(off + bitsToTake, off, -1)))
+                            partRead = _exprBuilder._binaryOp(partRead, AllOps.INDEX, SLICE.from_py(slice(inWordOffset + bitsToTake, inWordOffset, -1)))
         
                     _w -= bitsToTake
                     parts.append(partRead)
                 
                 readRes = _exprBuilder.concat(*parts)
+                assert readRes._dtype.bit_length() == resVar._dtype.bit_length(), (readRes, resVar._dtype)
+
                 memUpdater.writeVariable(resVar, (), br, readRes)
                 memUpdater.writeVariable(currentOffsetVar, (), br, currentOffsetVar._dtype.from_py(end % DATA_WIDTH))
                 memUpdater.writeVariable(predWordVar, (), br, chunkWords[-1])
