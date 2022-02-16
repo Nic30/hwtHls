@@ -3,7 +3,9 @@
 
 from unittest import TestLoader, TextTestRunner, TestSuite
 
+from tests.bitOpt.bitWidthReductionCmp_test import BitWidthReductionCmp_example_TC
 from tests.io.axiStream.axisParseEth_test import AxiSParseEthTC
+from tests.io.axiStream.axisParseLinear_test import AxiSParseLinearTC
 from tests.io.ioFsm_test import IoFsm_TC
 from tests.pythonFrontend.basics_test import FromPythonBasics_TC
 from tests.syntaxElements.bitonicSort import BitonicSorterHLS_TCs
@@ -17,7 +19,6 @@ from tests.syntaxElements.while_if_test import HlsStreamMachineWhileIf_TC
 from tests.syntehesis_checks import HlsSynthesisChecksTC
 from tests.utils.alapAsapDiffExample import AlapAsapDiffExample_TC
 from tests.utils.concatOfSlices_test import ConcatOfSlicesTC
-from tests.bitOpt.bitWidthReductionCmp_test import BitWidthReductionCmp_example_TC
 
 
 def testSuiteFromTCs(*tcs):
@@ -45,6 +46,7 @@ suite = testSuiteFromTCs(
     IoFsm_TC,
     FromPythonBasics_TC,
     AxiSParseEthTC,
+    AxiSParseLinearTC,
 )
 
 if __name__ == '__main__':
