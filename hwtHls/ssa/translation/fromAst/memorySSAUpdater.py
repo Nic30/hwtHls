@@ -12,6 +12,7 @@ from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.phi import SsaPhi
 from hwtHls.ssa.value import SsaValue
+from hwtHls.netlist.typeUtils import dtypeEqualSignIgnore
 
 
 class MemorySSAUpdater():
@@ -95,6 +96,8 @@ class MemorySSAUpdater():
                 assert v._dtype.bit_length() == variable._dtype.bit_length()
                 new_bb, new_var = self._hwtExprToSsa(block, v)
                 value = new_var
+        else:
+            assert value._dtype.bit_length() == variable._dtype.bit_length(), (variable, value._dtype)
 
         defs[new_bb] = value
 
