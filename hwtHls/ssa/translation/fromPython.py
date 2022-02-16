@@ -17,6 +17,7 @@ from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
 from hwtHls.ssa.value import SsaValue
 from hwt.pyUtils.arrayQuery import flatten
+from hwtHls.errors import HlsSyntaxError
 
 # import inspect
 UN_OPS = {
@@ -155,132 +156,145 @@ def pyFunctionToSsa(hls: HlsStreamProc, fn: FunctionType, *fnArgs, **fnKwargs):
                 curBlock = nextBlock
                 if not prevBlock.successors.targets or prevBlock.successors.targets[-1][0] is not None:
                     prevBlock.successors.addTarget(None, curBlock)
+        try:
+            opname = instr.opname
+            if opname == 'LOAD_DEREF':
+                v = fn.__closure__[instr.arg].cell_contents
+                stack.append(v)
+    
+            elif opname == 'LOAD_ATTR':
+                v = stack[-1]
+                v = getattr(v, instr.argval)
+                stack[-1] = v
+    
+            elif opname == 'STORE_ATTR':
+                dst = stack.pop()
+                dst = getattr(dst, instr.argval)
+                src = checkIoRead(stack.pop())
+    
+                if isinstance(dst, (Interface, RtlSignal)):
+                    curBlockCode.append(hls.write(src, dst))
+                else:
+                    raise NotImplementedError(instr)
+    
+            elif opname == 'STORE_FAST':
+                vVal = checkIoRead(stack.pop())
+                v = localVars[instr.arg]
+                if v is None:
+                    v = hls.var(instr.argval, vVal._dtype)
+                    localVars[instr.arg] = v
+                curBlockCode.append(v(vVal))
+    
+            elif opname == 'LOAD_FAST':
+                v = localVars[instr.arg]
+                assert v is not None, (instr.argval, "used before defined")
+                stack.append(v)
+      
+            elif opname == 'LOAD_CONST':
+                stack.append(instr.argval)
+    
+            elif opname == 'LOAD_GLOBAL':
+                stack.append(fn.__globals__[instr.argval])
+    
+            elif opname == 'LOAD_METHOD':
+                v = stack.pop()
+                v = getattr(v, instr.argval)
+                stack.append(v)
+    
+            elif opname == 'CALL_METHOD' or opname == "CALL_FUNCTION":
+                args = []
+                for _ in range(instr.arg):
+                    args.append(checkIoRead(stack.pop()))
+                m = stack.pop()
+                res = m(*reversed(args))
+                stack.append(res)
+            elif opname == 'CALL_FUNCTION_KW':
+                args = []
+                kwNames = stack.pop()
+                assert isinstance(kwNames, tuple), kwNames
+                for _ in range(instr.arg):
+                    args.append(checkIoRead(stack.pop()))
+    
+                kwArgs = {}
+                for kwName, a in zip(kwNames, args[:len(args) - len(kwNames)]):
+                    kwArgs[kwName] = a
+                del args[:len(kwNames)]
+    
+                m = stack.pop()
+                res = m(*reversed(args), **kwArgs)
+                stack.append(res)
+            elif opname == "POP_TOP":
+                res = stack.pop()
+                if isinstance(res, (HlsStreamProcWrite, HlsStreamProcRead)):
+                    curBlockCode.append(res)
+    
+            elif opname == 'RETURN_VALUE':
+                # finalizeBlock()
+                continue
+            
+            elif opname == 'JUMP_ABSOLUTE':
+                blockToSsa()
+                sucBlock = blocks.get(instr.argval)
+                addBlockSuccessor(curBlock, None, sucBlock)
                 
-        opname = instr.opname
-        if opname == 'LOAD_DEREF':
-            v = fn.__closure__[instr.arg].cell_contents
-            stack.append(v)
-
-        elif opname == 'LOAD_ATTR':
-            v = stack[-1]
-            v = getattr(v, instr.argval)
-            stack[-1] = v
-
-        elif opname == 'STORE_ATTR':
-            dst = stack.pop()
-            dst = getattr(dst, instr.argval)
-            src = checkIoRead(stack.pop())
-
-            if isinstance(dst, (Interface, RtlSignal)):
-                curBlockCode.append(hls.write(src, dst))
-            else:
-                raise NotImplementedError(instr)
-
-        elif opname == 'STORE_FAST':
-            vVal = checkIoRead(stack.pop())
-            v = localVars[instr.arg]
-            if v is None:
-                v = hls.var(instr.argval, vVal._dtype)
-                localVars[instr.arg] = v
-            curBlockCode.append(v(vVal))
-
-        elif opname == 'LOAD_FAST':
-            v = localVars[instr.arg]
-            assert v is not None, (instr.argval, "used before defined")
-            stack.append(v)
-  
-        elif opname == 'LOAD_CONST':
-            stack.append(instr.argval)
-
-        elif opname == 'LOAD_GLOBAL':
-            stack.append(fn.__globals__[instr.argval])
-
-        elif opname == 'LOAD_METHOD':
-            v = stack.pop()
-            v = getattr(v, instr.argval)
-            stack.append(v)
-
-        elif opname == 'CALL_METHOD' or opname == "CALL_FUNCTION":
-            args = []
-            for _ in range(instr.arg):
-                args.append(checkIoRead(stack.pop()))
-            m = stack.pop()
-            res = m(*reversed(args))
-            stack.append(res)
-        elif opname == 'CALL_FUNCTION_KW':
-            args = []
-            kwNames = stack.pop()
-            assert isinstance(kwNames, tuple), kwNames
-            for _ in range(instr.arg):
-                args.append(checkIoRead(stack.pop()))
-
-            kwArgs = {}
-            for kwName, a in zip(kwNames, args[:len(args) - len(kwNames)]):
-                kwArgs[kwName] = a
-            del args[:len(kwNames)]
-
-            m = stack.pop()
-            res = m(*reversed(args), **kwArgs)
-            stack.append(res)
-        elif opname == "POP_TOP":
-            res = stack.pop()
-            if isinstance(res, (HlsStreamProcWrite, HlsStreamProcRead)):
-                curBlockCode.append(res)
-
-        elif opname == 'RETURN_VALUE':
-            # finalizeBlock()
-            continue
-        
-        elif opname == 'JUMP_ABSOLUTE':
-            blockToSsa()
-            sucBlock = blocks.get(instr.argval)
-            addBlockSuccessor(curBlock, None, sucBlock)
-            
-            curBlock = blocks.get(instr.offset + 2, None)
-            # this could be the None only on the end of the program
- 
-        elif opname == 'POP_JUMP_IF_FALSE':
-            blockToSsa()
-            cond = checkIoRead(stack.pop())
-            curBlock, cond = to_ssa.visit_expr(curBlock, cond)
-            sucIfTrueBlock = blocks.get(instr.offset + 2)
-            sucIfFalseBlock = blocks.get(instr.argval)
-            addBlockSuccessor(curBlock, cond, sucIfTrueBlock)
-            addBlockSuccessor(curBlock, None, sucIfFalseBlock)
-            
-            curBlock = sucIfTrueBlock
-
-        elif opname == 'COMPARE_OP':
-            binOp = CMP_OPS[instr.argval]
-            b = checkIoRead(stack.pop())
-            a = checkIoRead(stack.pop())
-            stack.append(binOp(a, b))
-        
-        elif opname == "BUILD_SLICE":
-            b = checkIoRead(stack.pop())
-            a = checkIoRead(stack.pop())
-            stack.append(slice(a,b))
-            
-        else:
-            binOp = BIN_OPS.get(opname, None)
-            if binOp is not None:
+                curBlock = blocks.get(instr.offset + 2, None)
+                # this could be the None only on the end of the program
+     
+            elif opname == 'POP_JUMP_IF_FALSE':
+                blockToSsa()
+                cond = checkIoRead(stack.pop())
+                curBlock, cond = to_ssa.visit_expr(curBlock, cond)
+                sucIfTrueBlock = blocks.get(instr.offset + 2)
+                sucIfFalseBlock = blocks.get(instr.argval)
+                addBlockSuccessor(curBlock, cond, sucIfTrueBlock)
+                addBlockSuccessor(curBlock, None, sucIfFalseBlock)
+                
+                curBlock = sucIfTrueBlock
+    
+            elif opname == 'COMPARE_OP':
+                binOp = CMP_OPS[instr.argval]
                 b = checkIoRead(stack.pop())
                 a = checkIoRead(stack.pop())
                 stack.append(binOp(a, b))
-                continue
-            unOp = UN_OPS.get(opname, None) 
-            if unOp is not None:
-                a = checkIoRead(stack.pop())
-                stack.append(unOp(a))
-                continue
-            inplaceOp = INPLACE_OPS.get(opname, None)
-            if inplaceOp is not None:
+            
+            elif opname == "BUILD_SLICE":
                 b = checkIoRead(stack.pop())
                 a = checkIoRead(stack.pop())
-                stack.append(inplaceOp(a, b))
+                stack.append(slice(a,b))
+                
             else:
-                raise NotImplementedError(instr)
-
+                binOp = BIN_OPS.get(opname, None)
+                if binOp is not None:
+                    b = checkIoRead(stack.pop())
+                    a = checkIoRead(stack.pop())
+                    stack.append(binOp(a, b))
+                    continue
+                unOp = UN_OPS.get(opname, None) 
+                if unOp is not None:
+                    a = checkIoRead(stack.pop())
+                    stack.append(unOp(a))
+                    continue
+                inplaceOp = INPLACE_OPS.get(opname, None)
+                if inplaceOp is not None:
+                    b = checkIoRead(stack.pop())
+                    a = checkIoRead(stack.pop())
+                    stack.append(inplaceOp(a, b))
+                else:
+                    raise NotImplementedError(instr)
+        except Exception as e:
+            if instr.starts_line is not None:
+                instrLine = instr.starts_line
+            else:
+                instrLine = -1
+                for i in reversed(instructions[:instructions.index(instr)]):
+                    if i.starts_line is not None:
+                        instrLine = i.starts_line
+                        break
+            raise HlsSyntaxError(f"  File \"%s\", line %d, in %s\n    %r" % (fn.__globals__['__file__'],
+                                                                    instrLine,
+                                                                    fn.__name__,
+                                                                    instr))
+            raise e
     to_ssa.finalize()
    
     return to_ssa, None
