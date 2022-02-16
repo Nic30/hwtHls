@@ -6,17 +6,32 @@ from plotly.graph_objs import Figure
 import plotly.offline
 
 from hwt.hdl.types.bitsVal import BitsVal
+from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
+from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeRead, HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.ssa.translation.toHwtHlsNetlist.nodes.backwardEdge import HlsNetNodeWriteBackwardEdge
-from hwtHls.netlist.nodes.const import HlsNetNodeConst
 
 
-# [todo] pandas is overkill in this case, rm, plotly does not have it as dependencies
+class TimelineRow():
+    """
+    A container of data for row in timeline graph.
+    """
+
+    def __init__(self, label:str, group: int, start:float, finish:float, color:str):
+        self.label = label
+        self.group = group
+        self.start = start
+        self.finish = finish
+        self.deps: UniqList[TimelineRow, float] = UniqList()
+        self.backward_deps: UniqList[TimelineRow, float] = UniqList()
+        self.color = color
+        
+
 class HwtHlsNetlistToTimeline():
     """
     Generate a timeline (Gantt) diagram of how operations in curcuti are scheduled in time.
@@ -31,6 +46,7 @@ class HwtHlsNetlistToTimeline():
 
     def construct(self, nodes: List[HlsNetNode]):
         rows = self.rows
+        obj_to_row = self.obj_to_row
         io_group_ids: Dict[Interface, int] = {}
         for row_i, obj in enumerate(nodes):
             obj: HlsNetNode
@@ -85,20 +101,21 @@ class HwtHlsNetlistToTimeline():
             else:
                 label = repr(obj)
 
-            row = {"label": label, "group": obj_group_id, "start":start, "finish": finish, "deps": [], "backward_deps": [], "color": color}
+            row = TimelineRow(label, obj_group_id, start, finish, color)
             rows.append(row)
-            self.obj_to_row[obj] = (row, row_i)
+            obj_to_row[obj] = (row, row_i)
 
         for row_i, (row, obj) in enumerate(zip(rows, nodes)):
             obj: HlsNetNode
-            row["deps"].extend(self.obj_to_row[dep.obj][1] for dep in obj.dependsOn)
+            row.deps.extend((obj_to_row[dep.obj][1], dep.obj.scheduledOut[dep.out_i] * self.time_scale, t * self.time_scale)
+                            for t, dep in zip(obj.scheduledIn, obj.dependsOn))
             for bdep_obj in obj.debug_iter_shadow_connection_dst():
-                bdep = self.obj_to_row[bdep_obj][0]
-                bdep["backward_deps"].append(row_i)
+                bdep = obj_to_row[bdep_obj][0]
+                bdep.backward_deps.append(row_i)
 
     def _draw_clock_boundaries(self, fig: Figure):
         clk_period = self.clk_period
-        last_time = max(r["finish"] for r in self.rows) + clk_period
+        last_time = max(r.finish for r in self.rows) + clk_period
         i = 0.0
         row_cnt = len(self.rows)
         while i < last_time:
@@ -109,13 +126,9 @@ class HwtHlsNetlistToTimeline():
             )
             i += clk_period
 
-    def _draw_arrow(self, fig: Figure, x0:float, y0:float, x1:float, y1:float, color: str, shapesToAdd: List[dict], annotationsToAdd: List[dict]):
+    def _draw_arrow(self, x0:float, y0:float, x1:float, y1:float, color: str, shapesToAdd: List[dict], annotationsToAdd: List[dict]):
         # assert x1 >= x0
         jobs_delta = x1 - x0
-        # fig.add_shape(
-        #    x0=x0, y0=startY,
-        #    x1=x1, y1=endY,
-        #    line=dict(color=color, width=2))
         if jobs_delta > 0 and y0 == y1:
             p = f"M {x0} {y0} L {x1} {y1}"
         else:
@@ -131,32 +144,6 @@ class HwtHlsNetlistToTimeline():
             path=p,
             line_color=color,
         ))
-        # # # horizontal line segment
-        # fig.add_shape(
-        #    x0=x0, y0=startY,
-        #    x1=x0 + jobs_delta / 2, y1=startY,
-        #    line=dict(color=color, width=2)
-        # )
-        # # # vertical line segment
-        # fig.add_shape(
-        #    x0=x0 + jobs_delta / 2, y0=startY,
-        #    x1=x0 + jobs_delta / 2, y1=endY,
-        #    line=dict(color="blue", width=2)
-        # )
-        # # # horizontal line segment
-        # fig.add_shape(
-        #    x0=x0 + jobs_delta / 2, y0=endY,
-        #    x1=x1, y1=endY,
-        #    line=dict(color=color, width=2)
-        # )
-        # Add shapes
-        # fig.update_layout(
-        #    shapes=[
-        #        dict(type="line", xref="x", yref="y",
-        #            x0=3, y0=0.5, x1=5, y1=0.8, line_width=3),
-        #        dict(type="rect", xref="x2", yref='y2',
-        #             x0=4, y0=2, x1=5, y1=6),
-        #     ])
 
         # # draw an arrow
         # fig.add_annotation(
@@ -171,27 +158,29 @@ class HwtHlsNetlistToTimeline():
             arrowhead=2,
         ))
 
-    def _draw_arrow_between_jobs(self, fig: Figure, shapesToAdd: List[dict], annotationsToAdd: List[dict]):
+    def _draw_arrow_between_jobs(self, shapesToAdd: List[dict], annotationsToAdd: List[dict]):
         # # draw an arrow from the end of the first job to the start of the second job
         # # retrieve tick text and tick vals
         # job_yaxis_mapping = dict(zip(fig.layout.yaxis.ticktext, fig.layout.yaxis.tickvals))
-        for second_job_dict in self.rows:
-            endX = second_job_dict['start']
-            endY = second_job_dict['group']
+        for second_job in self.rows:
+            second_job: TimelineRow
+            endX = second_job.start
+            endY = second_job.group
 
-            for start_i in second_job_dict['deps']:
-                first_job_dict = self.rows[start_i]
-                startX = first_job_dict['finish']
-                startY = first_job_dict['group']
-                self._draw_arrow(fig, startX, startY, endX, endY, "blue", shapesToAdd, annotationsToAdd)
+            for start_i, start_t, finish_t in second_job.deps:
+                first_job = self.rows[start_i]
+                startX = first_job.finish
+                startX = start_t
+                assert start_t >= first_job.start and start_t <= first_job.finish
+                startY = first_job.group
+                assert finish_t >= second_job.start and finish_t <= second_job.finish, (finish_t, (second_job.start, second_job.finish))
+                self._draw_arrow(startX, startY, finish_t, endY, "blue", shapesToAdd, annotationsToAdd)
 
-            for start_i in second_job_dict["backward_deps"]:
-                first_job_dict = self.rows[start_i]
-                startX = first_job_dict['finish']
-                startY = first_job_dict['group']
-                self._draw_arrow(fig, startX, startY, endX, endY, "gray", shapesToAdd, annotationsToAdd)
-
-        return fig
+            for start_i in second_job.backward_deps:
+                first_job = self.rows[start_i]
+                startX = first_job.finish
+                startY = first_job.group
+                self._draw_arrow(startX, startY, endX, endY, "gray", shapesToAdd, annotationsToAdd)
 
     def _generate_fig(self):
         # df = self.df
@@ -200,7 +189,7 @@ class HwtHlsNetlistToTimeline():
         # https://plotly.com/python/bar-charts/
         rows_by_color = {}
         for row in self.rows:
-            c = row['color']
+            c = row.color
             _rows = rows_by_color.get(c, None)
             if _rows is None:
                 _rows = rows_by_color[c] = []
@@ -208,13 +197,14 @@ class HwtHlsNetlistToTimeline():
             
         bars = []
         for color, rows in sorted(rows_by_color.items(), key=lambda x: x[0]):
-            b = go.Bar(x=[r['finish'] - r['start'] for r in rows],
-                       base=[r["start"] for r in rows],
-                       y=[r["group"] for r in rows],
+            rows: List[TimelineRow]
+            b = go.Bar(x=[r.finish - r.start for r in rows],
+                       base=[r.start for r in rows],
+                       y=[r.group for r in rows],
                        width=[1 for _ in rows],
                        marker_color=color,
                        orientation='h',
-                       customdata=[r["label"] for r in rows],
+                       customdata=[r.label for r in rows],
                        showlegend=False,
                        texttemplate="%{customdata}",
                        textangle=0,
@@ -231,7 +221,7 @@ class HwtHlsNetlistToTimeline():
         fig.update_xaxes(title="Time[ns]")
         shapesToAdd: List[dict] = []
         annotationsToAdd: List[dict] = []
-        self._draw_arrow_between_jobs(fig, shapesToAdd, annotationsToAdd)
+        self._draw_arrow_between_jobs(shapesToAdd, annotationsToAdd)
         fig.layout.update({
             "annotations": annotationsToAdd,
             "shapes": shapesToAdd,
