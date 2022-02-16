@@ -17,6 +17,7 @@ from tests.syntaxElements.while_if_test import HlsStreamMachineWhileIf_TC
 from tests.syntehesis_checks import HlsSynthesisChecksTC
 from tests.utils.alapAsapDiffExample import AlapAsapDiffExample_TC
 from tests.utils.concatOfSlices_test import ConcatOfSlicesTC
+from tests.bitOpt.bitWidthReductionCmp_test import BitWidthReductionCmp_example_TC
 
 
 def testSuiteFromTCs(*tcs):
@@ -31,6 +32,7 @@ def testSuiteFromTCs(*tcs):
 suite = testSuiteFromTCs(
     ConcatOfSlicesTC,
     HlsSlicingTC,
+    BitWidthReductionCmp_example_TC,
     ReadIfTc,
     HlsMAC_example_TC,
     *BitonicSorterHLS_TCs,

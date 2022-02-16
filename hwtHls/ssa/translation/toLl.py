@@ -11,6 +11,7 @@ from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from hwtHls.ssa.phi import SsaPhi
+from hwt.hdl.value import HValue
 
 
 class SsaToLl():
@@ -73,7 +74,10 @@ class SsaToLl():
                     w("void call ")
                     w(self._escape(repr(stm._dtype)))
                     w(" @hls.write(")
-                    w(getSignalName(stm._orig_src))
+                    if isinstance(stm._orig_src, HValue):
+                        w(repr(stm._orig_src))
+                    else:
+                        w(getSignalName(stm._orig_src))
                     w(")\n")
                 else:
                     w(self._escape(repr(stm)))

@@ -9,7 +9,7 @@ from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from pyMathBitPrecise.bit_utils import mask
-from tests.syntaxElements.baseSsaTest import BaseSsaTC
+from tests.baseSsaTest import BaseSsaTC
 
 
 class HlsConnection(Unit):

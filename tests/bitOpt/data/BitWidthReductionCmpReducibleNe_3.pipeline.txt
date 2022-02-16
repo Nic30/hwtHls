@@ -1,0 +1,5 @@
+########## pipeline ##########
+  entry <BlockMeta needsControl, requiresStarter, isInitialization>
+  block0 <BlockMeta isCycleEntryPoint, needsControl>
+########## backward_edges ##########
+  block0 -> block0

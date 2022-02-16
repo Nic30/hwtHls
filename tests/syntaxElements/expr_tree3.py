@@ -8,7 +8,7 @@ from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 from hwtHls.platform.virtual import VirtualHlsPlatform
-from tests.syntaxElements.baseSsaTest import BaseSsaTC
+from tests.baseSsaTest import BaseSsaTC
 
 
 class HlsExprTree3_example(Unit):

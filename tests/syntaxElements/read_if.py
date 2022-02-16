@@ -8,7 +8,7 @@ from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtSimApi.utils import freq_to_period
-from tests.syntaxElements.baseSsaTest import BaseSsaTC
+from tests.baseSsaTest import BaseSsaTC
 from tests.syntaxElements.trivial_test import HlsStreamMachineTrivial_TC
 
 

@@ -3,7 +3,7 @@
 
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtSimApi.utils import freq_to_period
-from tests.syntaxElements.baseSsaTest import BaseSsaTC
+from tests.baseSsaTest import BaseSsaTC
 from tests.syntaxElements.trivial_test import HlsStreamMachineTrivial_TC
 from tests.syntaxElements.while_if import WhileAndIf0, WhileAndIf2, WhileAndIf3
 
