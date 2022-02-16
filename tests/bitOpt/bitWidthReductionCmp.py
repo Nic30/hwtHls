@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from typing import Union
+
 from hwt.code import Concat
+from hwt.hdl.value import HValue
 from hwt.interfaces.std import VectSignal, Signal
 from hwt.interfaces.utils import addClkRstn
+from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 from hwtHls.ssa.translation.fromPython import pyFunctionToSsa
 from hwtLib.types.ctypes import uint8_t
-from typing import Union
-from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwt.hdl.value import HValue
 
 
 class BitWidthReductionCmp2Values(Unit):
@@ -45,6 +46,7 @@ class BitWidthReductionCmpReducibleEq(Unit):
         self.a = VectSignal(8, signed=False)
         self.b = VectSignal(8, signed=False)
         self.res = Signal()._m()
+        self.res_same = Signal()._m()
         self.res_prefix_same = Signal()._m()
         self.res_prefix_same_1 = Signal()._m()
         self.res_prefix_0vs1 = Signal()._m()
@@ -68,6 +70,7 @@ class BitWidthReductionCmpReducibleEq(Unit):
                 a = hls.read(self.a)
                 b = hls.read(self.b)
                 hls.write(p(a, b), self.res)
+                hls.write(p(a, a), self.res_same)
                 hls.write(p(Concat(zero8b, a), Concat(zero8b, b)), self.res_prefix_same)  # resolved as a==b
                 hls.write(p(Concat(one8b, a), Concat(one8b, b)), self.res_prefix_same_1)  # resolved as a==b
                 hls.write(p(Concat(zero8b, a), Concat(one8b, b)), self.res_prefix_0vs1)  # resolved as 0

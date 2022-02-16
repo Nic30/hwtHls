@@ -2,36 +2,37 @@ define dso_local i32 @main() #0 {
 entry:
   br [label %block0 ]
 block0:
-  a40 = call <Bits, 8bits, unsigned> @hls.read(a)
-  b41 = call <Bits, 8bits, unsigned> @hls.read(b)
-  %42 = LT a40, b41
-  void call <Bits, 1bit> @hls.write(%42)
-  void call <Bits, 1bit> @hls.write(%42)
-  %45 = CONCAT <BitsVal 1>, a40
-  %46 = CONCAT <BitsVal 1>, b41
-  %47 = LT %45, %46
-  void call <Bits, 1bit> @hls.write(%47)
+  a41 = call <Bits, 8bits, unsigned> @hls.read(a)
+  b42 = call <Bits, 8bits, unsigned> @hls.read(b)
+  %43 = LT a41, b42
+  void call <Bits, 1bit> @hls.write(%43)
+  void call <Bits, 1bit> @hls.write(<BitsVal 0>)
+  void call <Bits, 1bit> @hls.write(%43)
+  %47 = CONCAT <BitsVal 1>, a41
+  %48 = CONCAT <BitsVal 1>, b42
+  %49 = LT %47, %48
+  void call <Bits, 1bit> @hls.write(%49)
   void call <Bits, 1bit> @hls.write(<BitsVal 1>)
   void call <Bits, 1bit> @hls.write(<BitsVal 1>)
-  %51 = INDEX a40, <HSliceVal slice(<BitsVal 8>, <BitsVal 4>, <BitsVal -1>)>
-  %52 = INDEX a40, <HSliceVal slice(<BitsVal 4>, <BitsVal 0>, <BitsVal -1>)>
-  %53 = CONCAT <BitsVal 0>, %52
-  %54 = CONCAT %51, %53
-  %55 = INDEX b41, <HSliceVal slice(<BitsVal 8>, <BitsVal 4>, <BitsVal -1>)>
-  %56 = INDEX b41, <HSliceVal slice(<BitsVal 4>, <BitsVal 0>, <BitsVal -1>)>
-  %57 = CONCAT <BitsVal 0>, %56
-  %58 = CONCAT %55, %57
-  %59 = LT %54, %58
-  void call <Bits, 1bit> @hls.write(%59)
-  %61 = INDEX a40, <HSliceVal slice(<BitsVal 8>, <BitsVal 4>, <BitsVal -1>)>
-  %62 = INDEX a40, <HSliceVal slice(<BitsVal 4>, <BitsVal 0>, <BitsVal -1>)>
-  %63 = CONCAT <BitsVal 0>, %62
-  %64 = CONCAT %61, %63
-  %65 = INDEX b41, <HSliceVal slice(<BitsVal 8>, <BitsVal 4>, <BitsVal -1>)>
-  %66 = INDEX b41, <HSliceVal slice(<BitsVal 4>, <BitsVal 0>, <BitsVal -1>)>
-  %67 = CONCAT <BitsVal 255>, %66
-  %68 = CONCAT %65, %67
-  %69 = LT %64, %68
-  void call <Bits, 1bit> @hls.write(%69)
+  %53 = INDEX a41, <HSliceVal slice(<BitsVal 8>, <BitsVal 4>, <BitsVal -1>)>
+  %54 = INDEX a41, <HSliceVal slice(<BitsVal 4>, <BitsVal 0>, <BitsVal -1>)>
+  %55 = CONCAT <BitsVal 0>, %54
+  %56 = CONCAT %53, %55
+  %57 = INDEX b42, <HSliceVal slice(<BitsVal 8>, <BitsVal 4>, <BitsVal -1>)>
+  %58 = INDEX b42, <HSliceVal slice(<BitsVal 4>, <BitsVal 0>, <BitsVal -1>)>
+  %59 = CONCAT <BitsVal 0>, %58
+  %60 = CONCAT %57, %59
+  %61 = LT %56, %60
+  void call <Bits, 1bit> @hls.write(%61)
+  %63 = INDEX a41, <HSliceVal slice(<BitsVal 8>, <BitsVal 4>, <BitsVal -1>)>
+  %64 = INDEX a41, <HSliceVal slice(<BitsVal 4>, <BitsVal 0>, <BitsVal -1>)>
+  %65 = CONCAT <BitsVal 0>, %64
+  %66 = CONCAT %63, %65
+  %67 = INDEX b42, <HSliceVal slice(<BitsVal 8>, <BitsVal 4>, <BitsVal -1>)>
+  %68 = INDEX b42, <HSliceVal slice(<BitsVal 4>, <BitsVal 0>, <BitsVal -1>)>
+  %69 = CONCAT <BitsVal 255>, %68
+  %70 = CONCAT %67, %69
+  %71 = LT %66, %70
+  void call <Bits, 1bit> @hls.write(%71)
   br [label %block0 ]
 }
