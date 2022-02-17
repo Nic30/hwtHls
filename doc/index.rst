@@ -112,7 +112,13 @@ and translated. The current method is suitable for controllers and network appli
 
 After this stage we do have assigned realization of each node and an exact time when it should happen and what synchronization it should use.
 The next step is translate this information to a HWT netlist for RTL codegen. Because the dependency between architectural elements can still be cyclic
-we need to declare all io of all architectural elements in advance. Once specified we can translate the body of the elements. Note that the HWT uses structural hashing
+we need to declare all io of all architectural elements in advance. Once specified we can translate the body of the elements.
+Due to support for components spanning over multiple clock cycles and due to split on idividual architectural elements we need to analyze the placement
+of virtual registers in advance in order to find out which element will be responsible for handling of implicitely used and synchronized value as described in following figure.
+
+.. image:: _static/nodeBetweenArchElements.png
+
+Note that the HWT uses structural hashing
 and can handle algebraic optimizations thus we can just rewrite the nodes to HWT netlist without any optimizations.
 Every time when the output of node is accessed the access time is checked and the registers are generated on demand.
 Once datapath is generated a synchronization is allocated and injected to data-path. Note that this is a functionality of HWT netlist which allows
