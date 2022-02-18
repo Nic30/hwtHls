@@ -6,7 +6,8 @@ orbs:
 
 jobs:
   install-test-deploy:
-    executor: python/default
+    docker:
+      - image: cimg/python:3.10.2
     resource_class: large
     steps:
       - checkout
