@@ -4,7 +4,7 @@
 [![Python version](https://img.shields.io/pypi/pyversions/hwtHls.svg)](https://img.shields.io/pypi/pyversions/hwtHls.svg)
 
 
-A library for an anutomatic translation of algorithmic code to a hardware realization
+A library for an automatic translation of algorithmic code to a hardware realization
 based on [hwt](https://github.com/Nic30/hwt) (hwt is a library for circuit construction) and
 [LLVM](https://llvm.org/) (a compiler infrastructure).
 
