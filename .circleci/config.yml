@@ -17,7 +17,7 @@ jobs:
             # because of tzdata
             export DEBIAN_FRONTEND=noninteractive
             export TZ=America/USA
-            apt install build-essential python3-dev llvm-13-dev python3 python3-pip -y
+            apt install build-essential python3-dev llvm-13-dev python3 python3-pip git -y
       # - python/load-cache
       - py/install-setup-py
       # - python/save-cache
