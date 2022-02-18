@@ -20,8 +20,7 @@ jobs:
             apt install build-essential python3-dev llvm-13-dev python3 python3-pip git -y
             # because of coverage (tool named coverage)
             echo 'export PATH=$PATH:/root/.local/bin' >> $BASH_ENV
-            echo "alias python='python3'" >>  $BASH_ENV
-            echo "alias pip='pip3'" >>  $BASH_ENV
+            update-alternatives  --set python /usr/bin/python3
             source $BASH_ENV
 
       # - python/load-cache
