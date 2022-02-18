@@ -2,11 +2,11 @@ from typing import Union, Optional, Generator
 
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.allocator.connectionsOfStage import SignalsOfStages
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
 from hwtHls.ssa.value import SsaValue
 from hwtLib.handshaked.builder import HsBuilder
+from hwtHls.allocator.fsmContainer import AllocatorFsmContainer
 
 
 class HlsNetNodeReadBackwardEdge(HlsNetNodeRead):
@@ -38,11 +38,16 @@ class HlsNetNodeWriteBackwardEdge(HlsNetNodeWrite):
         self.associated_read = read
         read.associated_write = self
 
-    def allocateRtlInstance(self,
-            allocator:"HlsAllocator",
-            used_signals: SignalsOfStages
-            ) -> TimeIndependentRtlResource:
-        res = HlsNetNodeWrite.allocateRtlInstance(self, allocator, used_signals)
+    def isLocalToFsm(self, allocator:"AllocatorArchitecturalElement"):
+        return isinstance(allocator, AllocatorFsmContainer) and self.associated_read in allocator.allNodes
+        
+    def allocateRtlInstance(self, allocator:"AllocatorArchitecturalElement") -> TimeIndependentRtlResource:
+        # [todo] check to prevent re instantiation
+        # [todo] instantiate also ports there (currently they are instantiated when translating to HlsNetlist)
+        #if self.isLocalToFsm(allocator):
+        #    raise NotImplementedError("Do not instantiate buffer use just register")
+
+        res = HlsNetNodeWrite.allocateRtlInstance(self, allocator)
         src_write = self
         dst_read: HlsNetNodeReadBackwardEdge = self.associated_read
         assert dst_read is not None

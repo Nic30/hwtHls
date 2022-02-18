@@ -4,6 +4,7 @@ from typing import List, Type, Optional
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.code import If
 from hwt.interfaces.std import Signal, HandshakeSync
+from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import Interface_without_registration
 from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
@@ -13,6 +14,7 @@ from hwtHls.allocator.connectionsOfStage import ConnectionsOfStage, resolveStron
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
 from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.clk_math import epsilon
 
 
 class AllocatorPipelineContainer(AllocatorArchitecturalElement):
@@ -20,23 +22,52 @@ class AllocatorPipelineContainer(AllocatorArchitecturalElement):
     A container of informations about hw pipeline allocation.
     """
 
-    def __init__(self, allocator: "HlsAllocator", stages: List[List[HlsNetNode]]):
-        AllocatorArchitecturalElement.__init__(self, allocator)
+    def __init__(self, parentHls: "HlsPipeline", namePrefix:str, stages: List[List[HlsNetNode]]):
+        allNodes = UniqList()
+        for nodes in stages:
+            allNodes.extend(nodes)
+            
         self.stages = stages
+        stageCons = [ConnectionsOfStage() for _ in self.stages]
+        stageSignals = SignalsOfStages(parentHls.clk_period,
+                                       self._getMinTime(stages, parentHls.clk_period),
+                                       (con.signals for con in stageCons))
+        AllocatorArchitecturalElement.__init__(self, parentHls, namePrefix, allNodes, stageCons, stageSignals)
 
-    def declareIo(self):
-        allNodes = set()
-        for nodes in self.stages:
-            allNodes.update(nodes)
+    def _afterNodeInstantiated(self, n: HlsNetNode, rtl: Optional[TimeIndependentRtlResource]):
+        # mark value in register as persisten until the end of fsm
+        if rtl is None or not isinstance(rtl, TimeIndependentRtlResource):
+            cons = (self.netNodeToRtl[o] for o in n._outputs if o in self.netNodeToRtl)
+        else:
+            cons = (rtl,)
 
-        for nodes in self.stages:
-            for node in nodes:
-                self._declareIo(node, allNodes)
-
-    def getMinTime(self):
+        for o in cons:
+            o: TimeIndependentRtlResource
+            # register all uses
+            if o.timeOffset is not TimeIndependentRtlResource.INVARIANT_TIME:
+                self.stageSignals.getForTime(o.timeOffset).append(o)
+        clk_period = self.parentHls.clk_period
+        for dep in n.dependsOn:
+            depRtl = self.netNodeToRtl.get(dep, None)
+            if depRtl is not None:
+                depRtl: TimeIndependentRtlResource
+                if depRtl.timeOffset is not TimeIndependentRtlResource.INVARIANT_TIME:
+                    continue
+                # in in this arch. element
+                # registers uses in new times
+                t = o.timeOffset + len(depRtl.valuesInTime) * clk_period + epsilon
+                for t, tir in reversed(depRtl.valuesInTime):
+                    sigs = self.stageSignals.getForTime(t)
+                    if tir in sigs:
+                        break
+                    sigs.append(tir)
+                    t -= clk_period
+            
+    @classmethod
+    def _getMinTime(cls, stages: List[List[HlsNetNode]], clk_period:float):
         minTime = None
         emptyCycles = 0
-        for nodes in  self.stages:
+        for nodes in  stages:
             for node in nodes:
                 if minTime is None:
                     minTime = min(node.scheduledIn)
@@ -48,38 +79,31 @@ class AllocatorPipelineContainer(AllocatorArchitecturalElement):
                 break
             else:
                 emptyCycles += 1
-        assert minTime is not None, self.stages
-        t = minTime - emptyCycles * self.allocator.parentHls.clk_period
+
+        assert minTime is not None, stages
+        t = minTime - emptyCycles * clk_period
         assert t >= 0.0
         return t
 
     def allocateDataPath(self):
-        stageCons = self.connections = [ConnectionsOfStage() for _ in self.stages]
-
-        stageSignals = SignalsOfStages(self.allocator.parentHls.clk_period,
-                                       self.getMinTime(),
-                                       (con.signals for con in stageCons))
-        allocator = self.allocator
-
-        # is_first_in_pipeline = True
-        for nodes, con in zip(self.stages, stageCons):
+        for nodes, con in zip(self.stages, self.connections):
             # assert nodes
             for node in nodes:
                 node: HlsNetNode
                 # this is one level of nodes,
                 # node can not be dependent on nodes behind in this list
                 # because this engine does not support backward edges in DFG
-                node.allocateRtlInstance(allocator, stageSignals)
+                node.allocateRtlInstance(self)
 
                 if isinstance(node, HlsNetNodeRead):
                     con.inputs.append(node.src)
                     # if node.src in allocator.parentHls.coherency_checked_io:
-                    allocator._copy_sync(node.src, node, con.io_skipWhen, con.io_extraCond, stageSignals)
+                    self._copy_sync(node.src, node, con.io_skipWhen, con.io_extraCond)
 
                 elif isinstance(node, HlsNetNodeWrite):
                     con.outputs.append(node.dst)
                     # if node.dst in allocator.parentHls.coherency_checked_io:
-                    allocator._copy_sync(node.dst, node, con.io_skipWhen, con.io_extraCond, stageSignals)
+                    self._copy_sync(node.dst, node, con.io_skipWhen, con.io_extraCond)
 
     def allocateSync(self):
         prev_st_sync_input = None
@@ -106,7 +130,6 @@ class AllocatorPipelineContainer(AllocatorArchitecturalElement):
         :note: pipeline registers are placed at the end of the stage
         """
         current_sync = resolveStrongestSyncType(current_sync, chain(con.inputs, con.outputs))
-        allocator = self.allocator
 
         if current_sync is not Signal:
             # :note: Collect registers at the end of this stage
@@ -125,14 +148,14 @@ class AllocatorPipelineContainer(AllocatorArchitecturalElement):
             else:
                 # does not need a synchronization with next stage in pipeline
                 to_next_stage = Interface_without_registration(
-                    allocator, HandshakeSync(), f"{allocator.name_prefix:s}stage_sync_{pipeline_st_i:d}_to_{pipeline_st_i+1:d}")
+                    self, HandshakeSync(), f"{self.namePrefix:s}stage_sync_{pipeline_st_i:d}_to_{pipeline_st_i+1:d}")
                 con.outputs.append(to_next_stage)
                 # if not is_first_in_pipeline:
                 # :note: that the register 0 is behind the first stage of pipeline
-                stage_valid = allocator._reg(f"{allocator.name_prefix:s}stage{pipeline_st_i:d}_valid", def_val=0)
+                stage_valid = self._reg(f"{self.namePrefix:s}stage{pipeline_st_i:d}_valid", def_val=0)
 
             if con.inputs or con.outputs:
-                sync = con.sync_node = allocator._makeSyncNode(con)
+                sync = con.sync_node = self._makeSyncNode(con)
                 en = prev_st_valid
 
                 # check if results of this stage do validity register

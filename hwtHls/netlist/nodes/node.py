@@ -8,6 +8,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.scheduler.errors import TimeConstraintError
 from hwt.hdl.types.hdlType import HdlType
+from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 
 TimeSpec = Union[float, Tuple[float, ...]]
 
@@ -162,13 +163,12 @@ class HlsNetNode():
         raise NotImplementedError(
             "Override this method in derived class", self)
 
-    def allocateRtlInstanceOutDeclr(self, allocator: "HlsAllocator", o: HlsNetNodeOut):
-        raise NotImplementedError(
-            "Override this method in derived class", self)
-
-    def allocateRtlInstance(self,
-            allocator: "HlsAllocator",
-            used_signals: SignalsOfStages):
+    def allocateRtlInstanceOutDeclr(self, allocator: "AllocatorArchitecturalElement", o: HlsNetNodeOut, startTime: float):
+        assert allocator.netNodeToRtl.get(o, None) is None, ("Must not be redeclared", o)
+        s = allocator._sig(f"{allocator.namePrefix}forwardDeclr{self.name}_{o.out_i:d}", o._dtype)
+        allocator.netNodeToRtl[o] = TimeIndependentRtlResource(s, startTime, allocator)
+      
+    def allocateRtlInstance(self, allocator: "AllocatorArchitecturalElement"):
         raise NotImplementedError(
             "Override this method in derived class", self)
 

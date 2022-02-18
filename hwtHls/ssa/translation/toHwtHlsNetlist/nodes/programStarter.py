@@ -1,5 +1,4 @@
 from hwt.hdl.types.defs import BIT
-from hwtHls.allocator.connectionsOfStage import SignalsOfStages
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.clk_math import epsilon
 from hwtHls.netlist.nodes.io import IO_COMB_REALIZATION
@@ -18,10 +17,7 @@ class HlsProgramStarter(HlsNetNode):
     def resolve_realization(self):
         self.assignRealization(IO_COMB_REALIZATION)
 
-    def allocateRtlInstance(self,
-                          allocator: "HlsAllocator",
-                          used_signals: SignalsOfStages
-                          ) -> TimeIndependentRtlResource:
+    def allocateRtlInstance(self, allocator: "AllocatorArchitecturalElement") -> TimeIndependentRtlResource:
         op_out = self._outputs[0]
 
         try:
@@ -38,7 +34,8 @@ class HlsProgramStarter(HlsNetNode):
         # create RTL signal expression base on operator type
         t = self.scheduledOut[0] + epsilon
         status_reg_s = TimeIndependentRtlResource(starter_reg, t, allocator)
-        allocator._registerSignal(op_out, status_reg_s, used_signals.getForTime(t))
+        allocator.netNodeToRtl[op_out] = status_reg_s
+
         return status_reg_s
 
     def __repr__(self):

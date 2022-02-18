@@ -16,7 +16,18 @@ class IoFsm():
     def __init__(self, intf: Interface):
         self.intf = intf
         self.states: List[List[HlsNetNode]] = []
+        self.stateClkI: Dict[int, int] = {}
         self.transitionTable: Dict[int, Dict[int, Union[bool, RtlSignal]]] = {}
+    
+    def addState(self, clkI: int):
+        """
+        :param clkI: an index of clk cycle where this state was scheduled
+        """
+        nodes = []
+        self.stateClkI[len(self.states)] = clkI
+        self.states.append(nodes)
+        
+        return nodes
 
 
 class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
@@ -74,8 +85,7 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
                     if seen is None:
                         seen = set()
                         seenClks[clkI] = seen
-                        st = []
-                        fsm.states.append(st)
+                        st = fsm.addState(clkI)
                     else:
                         st = fsm.states[-1]
 

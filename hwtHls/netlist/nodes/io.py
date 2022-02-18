@@ -62,14 +62,8 @@ class HlsNetNodeExplicitSync(HlsNetNode):
         self.skipWhen: Optional[HlsNetNodeOut] = None
         self.skipWhen_inI: Optional[int] = None
 
-    # def allocateRtlInstanceOutDeclr(self, allocator: "HlsAllocator", o: HlsNetNodeOut):
-    #    subO: HlsNetNodeOut = self.dependsOn[0]
-    #    subv = subO.obj.allocateRtlInstanceOutDeclr(subO)
-    #    allocator.netNodeToRtl[o] = subv
-        
     def allocateRtlInstance(self,
-                          allocator: "HlsAllocator",
-                          used_signals: SignalsOfStages
+                          allocator: "AllocatorArchitecturalElement",
                           ) -> TimeIndependentRtlResource:
         assert type(self) is HlsNetNodeExplicitSync, self
         op_out = self._outputs[0]
@@ -79,10 +73,10 @@ class HlsNetNodeExplicitSync(HlsNetNode):
         except KeyError:
             pass
         # synchronization applied in allocator additionally, we just pass the data
-        v = allocator.instantiateHlsNetNodeOut(self.dependsOn[0], used_signals)
-        allocator._registerSignal(op_out, v, used_signals.getForTime(self.scheduledOut[0]))
+        v = allocator.instantiateHlsNetNodeOut(self.dependsOn[0])
+        allocator.netNodeToRtl[op_out] = v
         for conrol in self.dependsOn[1:]:
-            conrol.obj.allocateRtlInstance(allocator, used_signals)
+            conrol.obj.allocateRtlInstance(allocator)
 
         return v
 
@@ -186,8 +180,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
         self._add_output(HOrderingVoidT)  # slot for ordering
 
     def allocateRtlInstance(self,
-                          allocator: "HlsAllocator",
-                          used_signals: SignalsOfStages
+                          allocator: "AllocatorArchitecturalElement",
                           ) -> TimeIndependentRtlResource:
         """
         Instantiate read operation on RTL level
@@ -203,12 +196,13 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
             self.getRtlDataSig(),
             t,
             allocator)
-        allocator._registerSignal(r_out, _o, used_signals.getForTime(t))
+
+        allocator.netNodeToRtl[r_out] = _o
         for sync in self.dependsOn:
             assert isinstance(sync, HlsNetNodeOut), (self, self.dependsOn)
             # prepare sync intputs but do not connect it because we do not implemet synchronization
             # in this step we are building only datapath
-            sync.obj.allocateRtlInstance(allocator, used_signals)
+            sync.obj.allocateRtlInstance(allocator)
 
         return _o
 
@@ -276,8 +270,7 @@ class HlsNetNodeReadSync(HlsNetNode, InterfaceBase):
         self.assignRealization(IO_COMB_REALIZATION)
 
     def allocateRtlInstance(self,
-                          allocator: "HlsAllocator",
-                          used_signals: SignalsOfStages
+                          allocator: "AllocatorArchitecturalElement",
                           ) -> TimeIndependentRtlResource:
         """
         Instantiate read operation on RTL level
@@ -293,13 +286,7 @@ class HlsNetNodeReadSync(HlsNetNode, InterfaceBase):
             self.getRtlControlEn(),
             t,
             allocator)
-        allocator._registerSignal(r_out, _o, used_signals.getForTime(t))
-
-        # for sync in self.dependsOn:
-        #    assert isinstance(sync, HlsNetNodeOut), (self, self.dependsOn)
-        #    # prepare sync intputs but do not connect it because we do not implemet synchronization
-        #    # in this step we are building only datapath
-        #    allocator.instantiateHlsNetNodeOut(sync, used_signals)
+        allocator.netNodeToRtl[r_out] = _o
         return _o
 
     def getRtlControlEn(self):
@@ -391,8 +378,7 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         return self.asap_end
         
     def allocateRtlInstance(self,
-                          allocator: "HlsAllocator",
-                          used_signals: SignalsOfStages
+                            allocator: "AllocatorArchitecturalElement",
                           ) -> List[HdlStatement]:
         """
         Instantiate write operation on RTL level
@@ -402,10 +388,10 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         for sync, t in zip(self.dependsOn[1:], self.scheduledIn[1:]):
             # prepare sync intputs but do not connect it because we do not implemet synchronization
             # in this step we are building only datapath
-            allocator.instantiateHlsNetNodeOutInTime(sync, t, used_signals)
+            allocator.instantiateHlsNetNodeOutInTime(sync, t)
 
         dep = self.dependsOn[0]
-        _o = allocator.instantiateHlsNetNodeOutInTime(dep, self.scheduledIn[0], used_signals)
+        _o = allocator.instantiateHlsNetNodeOutInTime(dep, self.scheduledIn[0])
 
         # apply indexes before assignments
         dst = self.dst

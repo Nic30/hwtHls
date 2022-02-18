@@ -49,7 +49,7 @@ class ConnectionsOfStage():
 
 class SignalsOfStages(Deque[UniqList[TimeIndependentRtlResourceItem]]):
     """
-    Container of signals in :class:`~ConnectionsOfStage` instances.
+    Container of signals in :class:`~.ConnectionsOfStage` instances.
     """
 
     def __init__(self, clk_period: float, startTime: float, initVals=None):
@@ -58,11 +58,17 @@ class SignalsOfStages(Deque[UniqList[TimeIndependentRtlResourceItem]]):
         deque.__init__(self)
         if initVals:
             for v in initVals:
-                assert isinstance(v, UniqList), v
+                assert isinstance(v, UniqList) or v is None, v
                 self.append(v)
 
     def getForTime(self, t: float):
-        return self[clk_period_diff(self.startTime, t + epsilon, self.clk_period)]
+        i = clk_period_diff(self.startTime, t + epsilon, self.clk_period)
+        try:
+            if i < 0:
+                raise IndexError()
+            return self[i]
+        except IndexError:
+            raise IndexError("Asking for an object which si scheduled by a different region", self.startTime, t, i, len(self), self, i) from None
 
 
 def setNopValIfNotSet(intf: Interface, nopVal, exclude: List[Interface]):

@@ -3,7 +3,6 @@ from typing import List, Tuple, Optional, Union
 from hwt.code import If
 from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.types.hdlType import HdlType
-from hwtHls.allocator.connectionsOfStage import SignalsOfStages
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.clk_math import epsilon
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -23,8 +22,7 @@ class HlsNetNodeMux(HlsNetNodeOperator):
         self.elifs: List[Tuple[Optional[HlsNetNode], HlsNetNode]] = []
 
     def allocateRtlInstance(self,
-                          allocator: "HlsAllocator",
-                          used_signals: SignalsOfStages
+                          allocator: "AllocatorArchitecturalElement",
                           ) -> TimeIndependentRtlResource:
         op_out = self._outputs[0]
         
@@ -34,25 +32,23 @@ class HlsNetNodeMux(HlsNetNodeOperator):
             pass
         assert self.elifs, ("Mux has to have operands", self)
         name = self.name
-        v0 = allocator.instantiateHlsNetNodeOutInTime(self.elifs[0][1], self.scheduledOut[0], used_signals)
+        v0 = allocator.instantiateHlsNetNodeOutInTime(self.elifs[0][1], self.scheduledOut[0])
         mux_out_s = allocator._sig(name, v0.data._dtype)
         if len(self.elifs) == 1:
             c, v = self.elifs[0]
             assert c is None, c
             v = allocator.instantiateHlsNetNodeOutInTime(
                     v,
-                    self.scheduledIn[0],
-                    used_signals)
+                    self.scheduledIn[0])
             mux_out_s(v.data)       
         else:
             mux_top = None
             for elif_i, (c, v) in enumerate(self.elifs):
                 if c is not None:
-                    c = allocator.instantiateHlsNetNodeOutInTime(c, self.scheduledIn[elif_i * 2], used_signals)
+                    c = allocator.instantiateHlsNetNodeOutInTime(c, self.scheduledIn[elif_i * 2])
                 v = allocator.instantiateHlsNetNodeOutInTime(
                     v,
-                    self.scheduledIn[elif_i * 2 + (1 if c is not None else 0)],
-                    used_signals)
+                    self.scheduledIn[elif_i * 2 + (1 if c is not None else 0)])
                     
                 if mux_top is None:
                     mux_top = If(c.data, mux_out_s(v.data))
@@ -64,7 +60,7 @@ class HlsNetNodeMux(HlsNetNodeOperator):
         # create RTL signal expression base on operator type
         t = self.scheduledOut[0] + epsilon
         mux_out_s = TimeIndependentRtlResource(mux_out_s, t, allocator)
-        allocator._registerSignal(op_out, mux_out_s, used_signals.getForTime(self.scheduledOut[0]))
+        allocator.netNodeToRtl[op_out] = mux_out_s
 
         return mux_out_s
 

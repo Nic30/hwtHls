@@ -49,7 +49,7 @@ class HlsNetNodeOperator(HlsNetNode):
             input_cnt, clk_period)
         self.assignRealization(r)
 
-    def allocateRtlInstanceOutDeclr(self, allocator: "HlsAllocator", o: HlsNetNodeOut):
+    def allocateRtlInstanceOutDeclr(self, allocator: "AllocatorArchitecturalElement", o: HlsNetNodeOut):
         # [todo] the output dtype is unknown, it is probably best if we add dtype to each output/input
         assert allocator.netNodeToRtl.get(o, None) is None, ("Must not be redeclared", o)
         s = allocator._sig(f"forwardDeclr{self.name}_{o.out_i:d}", o._dtype)
@@ -57,8 +57,7 @@ class HlsNetNodeOperator(HlsNetNode):
         self._usedDummyRtlDeclr = True
 
     def allocateRtlInstance(self,
-                          allocator: "HlsAllocator",
-                          used_signals: SignalsOfStages
+                          allocator: "AllocatorArchitecturalElement",
                           ) -> TimeIndependentRtlResource:
         op_out = self._outputs[0]
         if not self._usedDummyRtlDeclr:
@@ -69,7 +68,7 @@ class HlsNetNodeOperator(HlsNetNode):
 
         operands = []
         for (dep, t) in zip(self.dependsOn, self.scheduledIn):
-            _o = allocator.instantiateHlsNetNodeOutInTime(dep, t, used_signals)
+            _o = allocator.instantiateHlsNetNodeOutInTime(dep, t)
             operands.append(_o)
         
         s = self.operator._evalFn(*(o.data for o in operands))
@@ -92,10 +91,12 @@ class HlsNetNodeOperator(HlsNetNode):
                 if s._dtype.signed != op_out._dtype.signed:
                     s = s._convSign(op_out._dtype.signed)
             else:
-                raise AssertionError("The HlsNetNode a signals of wrong type", s, op_out, s._dtype, op_out._dtype)
+                raise AssertionError("The ", self.__class__.__name__, " a signals of wrong type", s, op_out, s._dtype, op_out._dtype)
             tis = TimeIndependentRtlResource(s, t, allocator)
-        allocator._registerSignal(op_out, tis, used_signals.getForTime(t))
+        
+        allocator.netNodeToRtl[op_out] = tis
         self._usedDummyRtlDeclr = False
+
         return tis
 
     def __repr__(self, minify=False):

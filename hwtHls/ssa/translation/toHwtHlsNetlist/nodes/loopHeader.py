@@ -27,10 +27,7 @@ class HlsLoopGateStatus(HlsNetNode):
     def resolve_realization(self):
         self.assignRealization(IO_COMB_REALIZATION)
 
-    def allocateRtlInstance(self,
-                          allocator: "HlsAllocator",
-                          used_signals: SignalsOfStages
-                          ) -> TimeIndependentRtlResource:
+    def allocateRtlInstance(self, allocator: "AllocatorArchitecturalElement") -> TimeIndependentRtlResource:
         op_out = self._outputs[0]
 
         try:
@@ -44,16 +41,16 @@ class HlsLoopGateStatus(HlsNetNode):
         # create RTL signal expression base on operator type
         t = self.scheduledOut[0] + epsilon
         status_reg_s = TimeIndependentRtlResource(status_reg, t, allocator)
-        allocator._registerSignal(op_out, status_reg_s, used_signals.getForTime(t))
+        allocator.netNodeToRtl[op_out] = status_reg_s
 
         # [todo] set this register based on how data flows on control channels
         # (breaks returns token, predec takes token)
         # returns the controll token
-        from_break = [allocator.instantiateHlsNetNodeOut(i, used_signals) for i in  self._loop_gate.from_break]
+        from_break = [allocator.instantiateHlsNetNodeOut(i) for i in  self._loop_gate.from_break]
         # takes the control token
-        from_predec = [allocator.instantiateHlsNetNodeOut(i, used_signals) for i in self._loop_gate.from_predec]
+        from_predec = [allocator.instantiateHlsNetNodeOut(i) for i in self._loop_gate.from_predec]
         # has the priority and does not require sync token (because it already owns it)
-        from_reenter = [allocator.instantiateHlsNetNodeOut(i, used_signals) for i in self._loop_gate.from_reenter]
+        from_reenter = [allocator.instantiateHlsNetNodeOut(i) for i in self._loop_gate.from_reenter]
 
         if not from_break and not from_predec and from_reenter:
             # this is infinite loop without predecessor, it will run infinitely but in just one instance
@@ -252,9 +249,7 @@ class HlsLoopGate(HlsNetNode):
     def resolve_realization(self):
         self.assignRealization(IO_COMB_REALIZATION)
 
-    def allocateRtlInstance(self,
-            allocator:"HlsAllocator",
-            used_signals: SignalsOfStages):
+    def allocateRtlInstance(self, allocator:"AllocatorArchitecturalElement"):
         pass
 
 

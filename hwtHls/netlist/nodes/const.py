@@ -1,5 +1,4 @@
 from hwt.hdl.value import HValue
-from hwtHls.allocator.connectionsOfStage import SignalsOfStages
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.node import HlsNetNode
 
@@ -17,10 +16,7 @@ class HlsNetNodeConst(HlsNetNode):
     def get(self, time: float):
         return self.val
 
-    def allocateRtlInstance(self,
-                          allocator: "HlsAllocator",
-                          used_signals: SignalsOfStages
-                          ) -> TimeIndependentRtlResource:
+    def allocateRtlInstance(self, allocator: "AllocatorArchitecturalElement") -> TimeIndependentRtlResource:
         s = self.val
         t = TimeIndependentRtlResource.INVARIANT_TIME
         return TimeIndependentRtlResource(s, t, allocator)

@@ -2,15 +2,14 @@ from typing import List, Set, Dict, Optional
 
 from hwt.hdl.operatorDefs import BITWISE_OPS, AllOps
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.allocator.connectionsOfStage import SignalsOfStages
-from hwtHls.clk_math import start_of_next_clk_period, epsilon
+from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResourceItem
+from hwtHls.clk_math import start_of_next_clk_period
 from hwtHls.netlist.analysis.clusterSearch import HlsNetlistClusterSearch
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.scheduler.errors import TimeConstraintError
-from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 
 
 class HlsNetlistNodeBitwiseOps(HlsNetNode):
@@ -28,7 +27,6 @@ class HlsNetlistNodeBitwiseOps(HlsNetNode):
         for o in subNodes.outputs:
             self._add_output(o._dtype)
         self._totalInputCnt: Dict[HlsNetNodeOperator, int] = {}
-        self._forwardRtlDeclaredOutputs: Set[HlsNetNodeOut] = set()
 
     def resolve_subnode_realization(self, node: HlsNetNodeOperator, input_cnt: int):
         hls = self.hls
@@ -156,30 +154,31 @@ class HlsNetlistNodeBitwiseOps(HlsNetNode):
                         o = outputMap.get(o, o)
                     n.dependsOn[i] = o
 
-    def allocateRtlInstanceOutDeclr(self, allocator: "HlsAllocator", o: HlsNetNodeOut):
-        assert allocator.netNodeToRtl.get(o, None) is None, ("Must not be redeclared", o)
-        s = allocator._sig(f"forwardDeclr{self.name}_{o.out_i:d}", o._dtype)
-        allocator.netNodeToRtl[o] = TimeIndependentRtlResource(s, self.scheduledOut[o.out_i] + epsilon, allocator)
-        self._forwardRtlDeclaredOutputs.add(o)
-                
-    def allocateRtlInstance(self,
-            allocator:"HlsAllocator",
-            used_signals: SignalsOfStages):
+    def allocateRtlInstance(self, allocator:"AllocatorArchitecturalElement"):
         """
         Instantiate layers of bitwise operators. (Just delegation to sub nodes)
         """
-        for outerO, o, t in zip(self._outputs, self._subNodes.outputs, self.scheduledOut):
+        if self._outputs[0] in allocator.netNodeToRtl:
+            return  # already instantiated
+
+        for outerO, o in zip(self._outputs, self._subNodes.outputs):
             outerO: HlsNetNodeOut
             o: HlsNetNodeOut
-            if outerO in self._forwardRtlDeclaredOutputs:
-                raise NotImplementedError()
 
             if outerO in allocator.netNodeToRtl:
                 # this node was already allocated
                 return
 
-            o = allocator.instantiateHlsNetNodeOut(o, used_signals)
-            allocator._registerSignal(outerO, o, used_signals.getForTime(t))
+            o = allocator.instantiateHlsNetNodeOut(o)
+            allocator.netNodeToRtl[outerO] = o
+
+    def collectSignalsInTime(self, allocator:"AllocatorArchitecturalElement", begin:float, end:float, signals: UniqList[TimeIndependentRtlResourceItem]):
+        """
+        <begin, end) interval
+        """
+        for outerO, t in zip(self._outputs, self.scheduledOut):
+            if begin >= t and t < end:
+                signals.append(allocator.netNodeToRtl[outerO])
 
     def __repr__(self, minify=False):
         return f"<{self.__class__.__name__:s} {self._id:d} {[n._id for n in self._subNodes.nodes]}>"
