@@ -10,11 +10,11 @@ from hwtHls.ssa.phi import SsaPhi
 from hwtHls.ssa.value import SsaValue
 from hwtHls.ssa.transformation.utils.blockAnalysis import collect_all_blocks
 
-
 # * Boissinot, B., Hack, S., Grund, D., de Dinechin, B. D., & Rastello, F. (2008). Fast Liveness Checking for SSA-Form Programs. CGO.
 # * Domaine, & Brandner, Florian & Boissinot, Benoit & Darte, Alain & Dinechin, Benoît & Rastello, Fabrice. (2011).
 #   Computing Liveness Sets for SSA-Form Programs.
 # * https://github.com/lijiansong/clang-llvm-tutorial/blob/master/live-variable-analysis/Liveness.md
+
 
 def collect_direct_provieds_and_requires(block: SsaBasicBlock):
     provides: UniqList[SsaValue] = UniqList()

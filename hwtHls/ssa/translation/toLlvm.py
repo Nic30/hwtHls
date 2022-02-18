@@ -29,7 +29,6 @@ from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axis import AxiStream
 from ipCorePackager.constants import INTF_DIRECTION
 
-
 RE_NUMBER = re.compile('[^0-9]+|[0-9]+')
 
 
@@ -145,10 +144,10 @@ class ToLlvmIrTranslator():
                 op1 = self._translateExprInt(int(op1), TypeToIntegerType(op0.getType()))
 
             # (res_t)(op0 >> op1)
-            #if low != 0:
+            # if low != 0:
             #    e = b.CreateLShr(e, _op1, self.strCtx.addTwine(self._formatVarName(instr._name)), False)
             #
-            #return b.CreateTrunc(e, res_t, self.strCtx.addTwine(""))
+            # return b.CreateTrunc(e, res_t, self.strCtx.addTwine(""))
             return b.CreateBitRangeGet(op0, op1, instr._dtype.bit_length())
 
         else:

@@ -32,6 +32,7 @@ class WhileAndIf0(WhileTrueWrite):
             )
         )
 
+
 class WhileAndIf0b(WhileAndIf0):
 
     def _impl(self) -> None:
@@ -101,6 +102,7 @@ class WhileAndIf2(WhileTrueReadWrite):
             )
         )
 
+
 class WhileAndIf3(WhileTrueReadWrite):
 
     def _impl(self) -> None:
@@ -123,6 +125,7 @@ class WhileAndIf3(WhileTrueReadWrite):
                 ),
             )
         )
+
 
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str

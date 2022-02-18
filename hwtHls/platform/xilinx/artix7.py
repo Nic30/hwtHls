@@ -8,6 +8,7 @@ from hwtHls.platform.xilinx.abstract import AbstractXilinxPlatform
 
 
 class Artix7Slow(AbstractXilinxPlatform):
+
     def _init_coefs(self):
         AddSubnS = ResourceSplineBundle(Spline(
             (2.0, 4.0, 8.0, 16.0, 32.0, 40.0, 50.0, 64.0, 128.0, 190.0, 256.0, 320.0, 384.0, 448.0, 512.0, 640.0, 768.0, 896.0, 1024.0, 1280.0, 1536.0, 1792.0, 2048.0, 2560.0, 3072.0, 3584.0, 4096.0),
@@ -50,7 +51,9 @@ class Artix7Slow(AbstractXilinxPlatform):
             ResourceFF: Sel
         }
 
+
 class Artix7Medium(AbstractXilinxPlatform):
+
     def _init_coefs(self):
         AddSubnS = ResourceSplineBundle(Spline(
             (2.0, 4.0, 8.0, 16.0, 32.0, 40.0, 50.0, 64.0, 128.0, 190.0, 256.0, 320.0, 384.0, 448.0, 512.0, 640.0, 768.0, 896.0, 1024.0, 1280.0, 1536.0, 1792.0, 2048.0, 2560.0, 3072.0, 3584.0, 4096.0),
@@ -93,7 +96,9 @@ class Artix7Medium(AbstractXilinxPlatform):
             ResourceFF: Sel
         }
 
+
 class Artix7Fast(AbstractXilinxPlatform):
+
     def _init_coefs(self):
         AddSubnS = ResourceSplineBundle(Spline(
             (2.0, 4.0, 8.0, 16.0, 32.0, 40.0, 50.0, 64.0, 128.0, 190.0, 256.0, 320.0, 384.0, 448.0, 512.0, 640.0, 768.0, 896.0, 1024.0, 1280.0, 1536.0, 1792.0, 2048.0, 2560.0, 3072.0, 4096.0),

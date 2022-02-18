@@ -24,7 +24,7 @@ class DebugHlsPlatform():
         AllOps.AND: 0.2,
         AllOps.OR: 0.2,
 
-        AllOps.EQ:  0.1,
+        AllOps.EQ: 0.1,
         AllOps.NE: 0.1,
         AllOps.GT: 0.2,
         AllOps.GE: 0.2,

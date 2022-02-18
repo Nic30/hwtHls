@@ -36,9 +36,12 @@ class AxiSParse2If(AxiSParse2fields):
                 ).Elif(v0._eq(4),
                        v1b,
                        hls.write(v1b._reinterpret_cast(o._dtype), o),
+                ).Else(
+                    hls.read(self.i, Bits(8), inStreamPos=IN_STREAM_POS.END)
                 )
             )
         )
+
 
 class AxiSParse2IfAndSequel(AxiSParse2fields):
 
@@ -79,5 +82,6 @@ if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
 
     u = AxiSParse2IfAndSequel()
+    u.CLK_FREQ = int(40e6)
     p = VirtualHlsPlatform(**makeDebugPasses("tmp"))
     print(to_rtl_str(u, target_platform=p))

@@ -22,7 +22,6 @@ project = 'hwtGraph'
 copyright = '2016-%d, Michal Orsak' % datetime.now().year
 author = 'Michal Orsak'
 
-
 # -- General configuration ---------------------------------------------------
 
 # Add any Sphinx extension module names here, as strings. They can be
@@ -40,7 +39,6 @@ templates_path = ['_templates']
 # This pattern also affects html_static_path and html_extra_path.
 exclude_patterns = []
 
-
 # -- Options for HTML output -------------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
@@ -48,7 +46,6 @@ exclude_patterns = []
 #
 html_theme = 'bootstrap'
 html_theme_path = sphinx_bootstrap_theme.get_html_theme_path()
-
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -60,7 +57,6 @@ for file in glob.glob("*.rst"):
     if file != "index.rst":
         print("removing: ", file)
         os.remove(file)
-
 
 apidoc_main(["--module-first", "--full", "--maxdepth", "-1",
              "--output-dir", "../doc", "../hwtGraph"])

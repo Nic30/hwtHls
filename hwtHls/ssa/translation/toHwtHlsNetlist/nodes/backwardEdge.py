@@ -44,7 +44,7 @@ class HlsNetNodeWriteBackwardEdge(HlsNetNodeWrite):
     def allocateRtlInstance(self, allocator:"AllocatorArchitecturalElement") -> TimeIndependentRtlResource:
         # [todo] check to prevent re instantiation
         # [todo] instantiate also ports there (currently they are instantiated when translating to HlsNetlist)
-        #if self.isLocalToFsm(allocator):
+        # if self.isLocalToFsm(allocator):
         #    raise NotImplementedError("Do not instantiate buffer use just register")
 
         res = HlsNetNodeWrite.allocateRtlInstance(self, allocator)

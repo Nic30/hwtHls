@@ -29,7 +29,6 @@ from hwtHls.ssa.translation.toGraphwiz import SsaPassDumpToDot
 from hwtHls.ssa.translation.toLl import SsaPassDumpToLl
 from hwtHls.ssa.translation.toLlvm import SsaPassToLlvm
 
-
 _OPS_T_GROWING_EXP = {
     AllOps.DIV,
     AllOps.POW,
@@ -122,7 +121,7 @@ def makeDebugPasses(debug_file_directory: Union[str, Path]):
             # HlsNetlistPassDumpToDot(debug_file_directory / "top_p0.dot"),
             HlsNetlistPassMergeExplicitSync(),
             HlsNetlistPassAggregateBitwiseOps(),
-            #HlsNetlistPassConsystencyCheck(),
+            # HlsNetlistPassConsystencyCheck(),
             # HlsNetlistPassDumpToDot(debug_file_directory / "top_p1.dot"),
             HlsNetlistPassShowTimeline(debug_file_directory / "top7.schedule.html"),
         ],

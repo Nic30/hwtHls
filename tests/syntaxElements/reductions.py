@@ -31,7 +31,7 @@ class SumReduce(Unit):
         hls.thread(
             hls.While(True,
                 res(0),
-                hls.For(i(0), i<3, i(i+1),
+                hls.For(i(0), i < 3, i(i + 1),
                     hls.If(i._eq(0),
                         i(hls.read(din[0])),
                     ).Elif(i._eq(1),

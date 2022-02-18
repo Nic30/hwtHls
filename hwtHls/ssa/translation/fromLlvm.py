@@ -121,7 +121,7 @@ class FromLlvmIrTranslator():
             raise NotImplementedError(t)
 
     def _translateExpr(self, v: Union[Value, Use]):
-        assert isinstance(v,  (Value, Use)), v
+        assert isinstance(v, (Value, Use)), v
         if isinstance(v, Use):
             v = v.get()
         if not isinstance(v, Value):
@@ -133,7 +133,7 @@ class FromLlvmIrTranslator():
             val = int(c.getValue())
             return self._translateType(v.getType()).from_py(val)
 
-        return self.newValues[v] # if not in this dict. the value was not defined before use
+        return self.newValues[v]  # if not in this dict. the value was not defined before use
 
     def _translateSignedExpr(self, v):
         v = self._translateExpr(v)
@@ -291,8 +291,8 @@ class FromLlvmIrTranslator():
                     # if this a part of concatenation only we need to skip it and convert the concatenation
                     # only later when visiting top | instruction
                     # the concatenation is realized as ((res_t)high<<offset | (res_t)low)
-                    #onlyConcatOrShift = True
-                    #for u in instr.users():
+                    # onlyConcatOrShift = True
+                    # for u in instr.users():
                     #    i = UserToInstruction(u)
                     #    if i is None:
                     #        onlyConcatOrShift = False
@@ -301,9 +301,9 @@ class FromLlvmIrTranslator():
                     #    if o != BinaryOps.Or.value and o != BinaryOps.Shl:
                     #        onlyConcatOrShift = False
                     #
-                    #if onlyConcatOrShift:
+                    # if onlyConcatOrShift:
                     #    continue
-                    #else:
+                    # else:
                     res_t = self._translateType(instr.getType())
                     a, = (self._translateExpr(o) for o in instr.iterOperands())
                     _instr = SsaInstr(self.ssaCtx, res_t, AllOps.CONCAT,
@@ -371,9 +371,9 @@ class FromLlvmIrTranslator():
                         res_w = res_t.bit_length()
                         if res_w == 1:
                             if isinstance(lowBitI, BitsVal) and lowBitI._dtype != INT:
-                                _lowBitI =  int(lowBitI)
-                                if _lowBitI >= 0 and _lowBitI < 2**(INT.bit_length() - 1):
-                                    lowBitI = INT.from_py(_lowBitI) # convert directly to int to avoid unnecessary casts
+                                _lowBitI = int(lowBitI)
+                                if _lowBitI >= 0 and _lowBitI < 2 ** (INT.bit_length() - 1):
+                                    lowBitI = INT.from_py(_lowBitI)  # convert directly to int to avoid unnecessary casts
                             _instr = SsaInstr(self.ssaCtx, res_t, AllOps.INDEX, [base, lowBitI])
                         else:
                             res_w = res_t.bit_length()

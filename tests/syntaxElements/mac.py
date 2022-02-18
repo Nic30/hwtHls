@@ -157,7 +157,7 @@ if __name__ == "__main__":
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(**makeDebugPasses("tmp"))))
 
     suite = unittest.TestSuite()
-    #suite.addTest(HlsMAC_example_TC('test_simple_handshaked'))
+    # suite.addTest(HlsMAC_example_TC('test_simple_handshaked'))
     suite.addTest(unittest.makeSuite(HlsMAC_example_TC))
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

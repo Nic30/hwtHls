@@ -260,7 +260,7 @@ def pyFunctionToSsa(hls: HlsStreamProc, fn: FunctionType, *fnArgs, **fnKwargs):
             elif opname == "BUILD_SLICE":
                 b = checkIoRead(stack.pop())
                 a = checkIoRead(stack.pop())
-                stack.append(slice(a,b))
+                stack.append(slice(a, b))
                 
             else:
                 binOp = BIN_OPS.get(opname, None)

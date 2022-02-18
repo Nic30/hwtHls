@@ -51,7 +51,6 @@ class SsaToHwtHlsNetlistOpCache():
                 cur.replace_driver(v)
                 return
 
-
         self._to_hls_cache[k] = v
 
     def get(self, k) -> Union[HlsNetNodeOut, HlsNetNodeOutLazy]:

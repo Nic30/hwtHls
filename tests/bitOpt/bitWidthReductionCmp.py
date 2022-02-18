@@ -65,6 +65,7 @@ class BitWidthReductionCmpReducibleEq(Unit):
         all8b = uint8_t.from_py(0xff)
 
         p = self.predicate
+
         def mainThread():
             while True:
                 a = hls.read(self.a)

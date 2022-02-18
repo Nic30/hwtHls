@@ -48,7 +48,6 @@ class SsaInterpret():
                         break
                 assert phi_value_found, (phi, phi.operands, pred)
 
-
         for code in current.body:
             if isinstance(code, HlsStreamProcWrite):
                 code: HlsStreamProcWrite

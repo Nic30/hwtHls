@@ -107,7 +107,7 @@ class AxiSParseLinearTC(SimTestCase):
 if __name__ == '__main__':
 
     suite = unittest.TestSuite()
-    #suite.addTest(AxiSParseLinearTC('test_AxiSParseStructManyInts1_48b'))
+    # suite.addTest(AxiSParseLinearTC('test_AxiSParseStructManyInts1_48b'))
     suite.addTest(unittest.makeSuite(AxiSParseLinearTC))
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
