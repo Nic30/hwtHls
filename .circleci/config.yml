@@ -7,7 +7,7 @@ orbs:
 jobs:
   install-test-deploy:
     docker:
-      - image: cimg/python:3.10.2
+      - image: ubuntu:latest
     resource_class: large
     steps:
       - checkout
