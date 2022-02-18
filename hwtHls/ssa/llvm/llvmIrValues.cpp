@@ -4,6 +4,7 @@
 
 #include <llvm/ADT/APInt.h>
 #include <llvm/ADT/APSInt.h>
+#include <llvm/ADT/SmallString.h>
 #include <llvm/IR/Constants.h>
 
 namespace py = pybind11;
@@ -49,7 +50,9 @@ void register_Values_and_Use(pybind11::module_ & m) {
 		.def_static("getAllOnesValue", llvm::APInt::getAllOnesValue)
 		.def_static("getBitsSet", llvm::APInt::getBitsSet)
 		.def("__int__", [](llvm::APInt* I) {
-			auto str = I->toString(16, false);
+		 	 llvm::SmallString<256> str;
+
+			I->toString(str, 16, false);
 			return pybind11::int_fromStr(str.c_str());
 		});
 

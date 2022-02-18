@@ -1,6 +1,6 @@
 # Default build and install (from locally downloaded repo)
 
-`apt install build-essential python3-dev llvm-12-dev`
+`apt install build-essential python3-dev llvm-13-dev`
 `pip3 install .`
 
 
@@ -23,7 +23,7 @@ In eclipse you can append ${workspace_project_locations} in environment tab in D
 
 # Using local llvm build
 * https://www.linuxfromscratch.org/blfs/view/cvs/general/llvm.html
-`cd llvm-project/llvm && git checkout llvmorg-12.0.0`
+`cd llvm-project/llvm && git checkout llvmorg-13.0.0`
 `mkdir build && cd build`
 ```
 cmake -G Ninja  .. -DCMAKE_BUILD_TYPE=Debug\
@@ -59,7 +59,7 @@ docker
 `clang -cc1 main.c -emit-llvm` produces  LLVM IR `main.ll`
 `llc main.ll` produces assembly `main.s`
 
-https://releases.llvm.org/12.0.0/docs/LangRef.html
+https://releases.llvm.org/13.0.0/docs/LangRef.html
 
 Dump all used passes
 `clang -mllvm -debug-pass=Arguments main.c`

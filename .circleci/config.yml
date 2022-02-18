@@ -13,7 +13,7 @@ jobs:
       - run:
           command: |
             sudo apt update
-            sudo apt install build-essential python3-dev llvm-12-dev -y
+            sudo apt install build-essential python3-dev llvm-13-dev -y
       # - python/load-cache
       - py/install-setup-py
       # - python/save-cache
