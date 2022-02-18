@@ -160,7 +160,7 @@ pip3 install git+git://github.com/Nic30/hwtHls.git
 * [Xilinx/Vitis HLS](https://github.com/Xilinx/HLS) - C++/LLVM, partially opensource
 * [circt-hls](https://github.com/circt-hls/circt-hls) - C++/LLVM/Python, set of hls libraries for circt
 * [ScaleHLS](https://github.com/hanchenye/scalehls) - C++/LLVM, MLIR based HLS compiler, ML focused
-* [DuroHLS](https://github.com/corelab-src/DuroHLS-opt) - C++/LLVM, set of hls passes
+* [DuroHLS](https://github.com/corelab-src/DuroHLS-opt) [CorelabVerilog](https://github.com/corelab-src/CorelabVerilog) - C++/LLVM, set of hls passes
 * [domino-compiler](https://github.com/packet-transactions/domino-compiler) 2016 -> C++, c like packet processing language and compiler
 * [orcc](https://github.com/orcc/orcc) - C++/LLVM, Open RVC-CAL Compiler hw/sw dataflow and img processing focused
 
