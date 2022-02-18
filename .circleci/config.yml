@@ -13,8 +13,8 @@ jobs:
       - checkout
       - run:
           command: |
-            sudo apt update
-            sudo apt install build-essential python3-dev llvm-13-dev -y
+            apt update
+            apt install build-essential python3-dev llvm-13-dev -y
       # - python/load-cache
       - py/install-setup-py
       # - python/save-cache
