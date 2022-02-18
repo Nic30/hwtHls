@@ -101,3 +101,7 @@ Llvm pass execution (`-disable-llvm-passes` is required otherwise `optnone` attr
 ## Other LLVM bindings
 
 * https://github.com/numba/llvmlite
+
+## LLVM attributes and metadata
+
+* https://blog.yossarian.net/2021/11/29/LLVM-internals-part-4-attributes-and-attribute-groups
