@@ -14,6 +14,8 @@ jobs:
       - run:
           command: |
             apt update
+            # because of tzdata
+            export DEBIAN_FRONTEND=noninteractive
             export TZ=America/USA
             apt install build-essential python3-dev llvm-13-dev -y
       # - python/load-cache
