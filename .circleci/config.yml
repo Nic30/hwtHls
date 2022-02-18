@@ -18,7 +18,10 @@ jobs:
             export DEBIAN_FRONTEND=noninteractive
             export TZ=America/USA
             apt install build-essential python3-dev llvm-13-dev python3 python3-pip git -y
-            export PATH=PATH:/root/.local/bin
+            # because of coverage (tool named coverage)
+            echo 'export PATH=$PATH:/root/.local/bin' >> $BASH_ENV
+            source $BASH_ENV
+
       # - python/load-cache
       - py/install-setup-py
       # - python/save-cache
