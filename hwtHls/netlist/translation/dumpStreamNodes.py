@@ -1,8 +1,9 @@
 from io import StringIO
-from hwtHls.netlist.transformation.rtlNetlistPass import RtlNetlistPass
-from hwtHls.allocator.allocator import ConnectionsOfStage
-from hwtHls.allocator.pipelineContainer import AllocatorPipelineContainer
+
+from hwtHls.allocator.connectionsOfStage import ConnectionsOfStage
 from hwtHls.allocator.fsmContainer import AllocatorFsmContainer
+from hwtHls.allocator.pipelineContainer import AllocatorPipelineContainer
+from hwtHls.netlist.transformation.rtlNetlistPass import RtlNetlistPass
 
 
 class RtlNetlistPassDumpStreamNodes(RtlNetlistPass):
