@@ -89,9 +89,11 @@ class HlsNetlistClusterSearch():
             # disconnect interOutput from all external inputs
             # and connect them to bounary output of node
             usedBy = interOutput.obj.usedBy[interOutput.out_i]
+            newUsedBy = n.usedBy[boundaryOut.out_i]
             for in_ in usedBy:
                 if in_.obj not in clusterNodes:
                     in_.obj.dependsOn[in_.in_i] = boundaryOut
+                    newUsedBy.append(in_)
 
             interOutput.obj.usedBy[interOutput.out_i] = [in_ for in_ in usedBy if in_.obj in clusterNodes]
     
