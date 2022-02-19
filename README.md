@@ -104,7 +104,7 @@ and provides variety of existing ones (from LLVM/hwt) in order to build efficien
 
 Linux:
 ```
-apt install build-essential python3-dev llvm-12-dev
+apt install build-essential python3-dev llvm-13-dev
 pip3 install -r https://raw.githubusercontent.com/Nic30/hwtHls/master/doc/requirements.txt
 pip3 install git+git://github.com/Nic30/hwtHls.git
 ```

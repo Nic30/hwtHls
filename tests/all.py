@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import sys
 from unittest import TestLoader, TextTestRunner, TestSuite
 
 from tests.bitOpt.bitWidthReductionCmp_test import BitWidthReductionCmp_example_TC
@@ -49,7 +50,9 @@ suite = testSuiteFromTCs(
     AxiSParseLinearTC,
 )
 
-if __name__ == '__main__':
+
+def main():
+    # runner = TextTestRunner(verbosity=2, failfast=True)
     runner = TextTestRunner(verbosity=2)
 
     try:
@@ -58,10 +61,17 @@ if __name__ == '__main__':
     except ImportError:
         # concurrencytest is not installed, use regular test runner
         useParallerlTest = False
+    # useParallerlTest = False
 
     if useParallerlTest:
-        # Run same tests across 4 processes
         concurrent_suite = ConcurrentTestSuite(suite, fork_for_tests())
-        runner.run(concurrent_suite)
+        res = runner.run(concurrent_suite)
     else:
-        runner.run(suite)
+        res = runner.run(suite)
+    if not res.wasSuccessful():
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()
+

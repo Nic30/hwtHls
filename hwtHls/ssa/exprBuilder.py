@@ -69,9 +69,9 @@ class SsaExprBuilderProxy():
 
 class SsaExprBuilder():
 
-    def __init__(self, block:SsaBasicBlock, possition: Optional[int]=None):
+    def __init__(self, block:SsaBasicBlock, position: Optional[int]=None):
         self.block = block
-        self.possition = possition
+        self.position = position
         # [todo] operator cache
 
     def _unaryOp(self, o: Union[SsaValue, HValue], operator: OpDefinition) -> SsaValue:
@@ -84,22 +84,22 @@ class SsaExprBuilder():
         return instr
 
     def _insertInstr(self, instr: SsaValue):
-        pos = self.possition
+        pos = self.position
         b = self.block
         if pos is None:
             b.appendInstruction(instr)
         else:
             b.insertInstruction(pos, instr)
-            self.possition += 1
+            self.position += 1
 
     def _insertPhi(self, instr: SsaPhi):
-        pos = self.possition
+        pos = self.position
         b = self.block
         if pos is None:
             b.appendPhi(instr)
         else:
             b.insertPhi(pos, instr)
-            self.possition += 1
+            self.position += 1
         
     def unaryOp(self, o: Union[SsaValue, HValue], operator: OpDefinition) -> SsaExprBuilderProxy:
         return self.var(self._unaryOp(o.var, operator))
@@ -144,7 +144,7 @@ class SsaExprBuilder():
         return instr
         
     def insertBlocks(self, branchConditions: List[Optional[SsaValue]]):
-        pos = self.possition
+        pos = self.position
         b = self.block
         blocks = [SsaBasicBlock(b.ctx, f"{b.label:s}_br{i}") for i in range(len(branchConditions))]
         

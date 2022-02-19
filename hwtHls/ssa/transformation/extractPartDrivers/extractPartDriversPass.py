@@ -260,56 +260,22 @@ class SsaPassExtractPartDrivers(SsaPass):
         # filter out variables which are not beeing split
         return {k: v for k, v in splitPointsOfVariable.items() if v}
 
-    def _splitVariablesOnSplitPointsAndUpdateObjList(self,
-                                                     ctx: SsaContext,
-                                                     objList: Union[List[SsaPhi], List[SsaInstr]],
-                                                     insertFn: Callable[[Union[SsaPhi, SsaInstr]], None],
-                                                     splitPointsOfVariable:Dict[SsaValue, Set[int]],
-                                                     variableForRange: Dict[Tuple[SsaValue, int, int], SsaValue],
-                                                     varEntirelyReplaced: Dict[SsaValue, bool]
-                                                     ):
+    def _removeEntirelyRemovedFromList(self, objList: Union[List[SsaPhi], List[SsaInstr]],
+                                             varEntirelyReplaced: Dict[SsaValue, bool]
+                                             ):
         if not objList:
             return
 
-        # isphi = isinstance(objList[0], SsaPhi)
         offset = 0
         for i in range(len(objList)):
             o = objList[offset + i]
-            # splits = splitPointsOfVariable.get(o, None)
-            wasReplaced = varEntirelyReplaced[o]
+            # there could be new instructions thats why varEntirelyReplaced does not need to contain it
+            wasReplaced = varEntirelyReplaced.get(o, False)
             if wasReplaced:
                 objList.pop(offset + i)
                 offset -= 1
                 continue
 
-            # if splits:
-            #    # generate variables for each part
-            #    var = o.origin
-            #    prevSplitPoint = 0
-            #
-            #    for splitPoint in chain(sorted(splits), (var._dtype.bit_length(),)):
-            #        newRtlVar = var[splitPoint:prevSplitPoint]
-            #        vfrKey = (o, splitPoint, prevSplitPoint)
-            #        if isinstance(newRtlVar, HValue):
-            #            variableForRange[vfrKey] = newRtlVar
-            #            continue
-            #
-            #        newHlsVar = variableForRange.get(vfrKey, None)
-            #        if newHlsVar is None:
-            #            # if was not already generated before
-            #            t = newRtlVar._dtype
-            #            if isphi:
-            #                subO = SsaPhi(ctx, t, origin=newRtlVar)
-            #            else:
-            #                sub0 = None
-            #                # subO = SsaInstr(ctx, t, OP_ASSIGN, (t.from_py(None),), origin=newRtlVar)
-            #            if sub0 is not None:
-            #                insertFn(offset + i + 1, subO)
-            #                offset += 1
-            #
-            #            variableForRange[vfrKey] = newHlsVar
-            #            prevSplitPoint = splitPoint
-            #
     def _isConstantSlice(self, o: SsaValue):
         return isinstance(o, SsaInstr) and o.operator == AllOps.INDEX and isinstance(o.operands[1], HValue)
 
@@ -383,7 +349,7 @@ class SsaPassExtractPartDrivers(SsaPass):
     def checkIfUsedOnlyByReplaced(self, allBlocks: List[SsaBasicBlock],
                                   splitPointsOfVariable: Dict[SsaValue, Set[int]]):
         """
-        Chceck if variable was entirely replaced byt its splited parts (for each variable).
+        Check if variable was entirely replaced by its split parts (for each variable).
         """
         varEntirelyReplaced: Dict[SsaValue, Optional[SsaValue]] = {}
         varBitAlises: Dict[SsaValue, Optional[ConcatOfSlices]] = {}
@@ -416,7 +382,7 @@ class SsaPassExtractPartDrivers(SsaPass):
                     return v[bitRange[0]:bitRange[1]]
             elif not v_varEntirelyReplaced:
                 if v._dtype.bit_length() != bitRange[0] - bitRange[1]:
-                    b = SsaExprBuilder(v.block, possition=v.block.body.index(v) + 1)
+                    b = SsaExprBuilder(v.block, position=v.block.body.index(v) + 1)
                     replacement = b._binaryOp(v, AllOps.INDEX, SLICE.from_py(slice(bitRange[0], bitRange[1], -1)))
                     # print(var_range_key, replacement)
                     variableForRange[var_range_key] = replacement
@@ -432,7 +398,8 @@ class SsaPassExtractPartDrivers(SsaPass):
                         for a, bl in v.operands:
                             _a = self.resolveFinalReplacedVarValue(a, bitRange, variableForRange, varEntirelyReplaced, varBitAlises)
                             args.append((_a, bl))
-                        b = SsaExprBuilder(v.block, possition=v.block.phis.index(v))
+                        phiI = v.block.phis.index(v)
+                        b = SsaExprBuilder(v.block, position=phiI)
                         replacement = b.phi(args)
                     else:
                         args: List[SsaValue] = []
@@ -441,8 +408,8 @@ class SsaPassExtractPartDrivers(SsaPass):
                             _a = self.resolveFinalReplacedVarValue(a, bitRange, variableForRange, varEntirelyReplaced, varBitAlises)
                             args.append(_a)
 
-                        # :note: instructionindex must be resolved after all inputs are resolved
-                        # because generating inputs may change the code possition
+                        # :note: instruction index must be resolved after all inputs are resolved
+                        # because generating inputs may change the code position
                         startIndex = 0
                         for _a in args:
                             if isinstance(_a, HValue):
@@ -454,7 +421,7 @@ class SsaPassExtractPartDrivers(SsaPass):
     
                             startIndex = max(startIndex, v.block.body.index(_a))
     
-                        b = SsaExprBuilder(v.block, possition=startIndex + 1)
+                        b = SsaExprBuilder(v.block, position=startIndex + 1)
                         if len(args) == 1:
                             replacement = b._unaryOp(args[0], v.operator)
                         elif len(args) == 2:
@@ -495,7 +462,7 @@ class SsaPassExtractPartDrivers(SsaPass):
                                 continue
                             startIndex = max(startIndex, v.block.body.index(vPart[0]))
 
-                        b = SsaExprBuilder(v.block, possition=startIndex + 1)
+                        b = SsaExprBuilder(v.block, position=startIndex + 1)
                         ops = []
                         for (sv, high, low) in expanded.slices:
                             assert high == sv._dtype.bit_length() and low == 0, (sv, high, low)
@@ -532,7 +499,7 @@ class SsaPassExtractPartDrivers(SsaPass):
             we need to duplicate the instruction for each part.
             If there are some uses which can not be split (e.g. multiplication operator)
             we we need to keep the original variable. However if the variable is a SsaPhi
-            we need to downgrade it to a regular variable and we need to downgrade it to a regular
+            we need to down grade it to a regular variable and we need to down grade it to a regular
             variable and move the concatenation into block body. (This is because we want to allow fine graded
             optimization of phi functions.)
         """
@@ -547,16 +514,6 @@ class SsaPassExtractPartDrivers(SsaPass):
         # [todo] rm using of RTL objects, 1. it does not have to be present, 2. we need to replace only in scope of the original variable
 
         variableForRange: Dict[Tuple[SsaValue, int, int], SsaValue] = {}
-        for b in allBlocks:
-            b: SsaBasicBlock
-            # :note: we need to use index because we are modifying the collection
-            self._splitVariablesOnSplitPointsAndUpdateObjList(
-                b.ctx, b.phis, b.insertPhi, splitPointsOfVariable,
-                variableForRange, varEntirelyReplaced)
-            self._splitVariablesOnSplitPointsAndUpdateObjList(
-                b.ctx, b.body, b.insertInstruction, splitPointsOfVariable,
-                variableForRange, varEntirelyReplaced)
-
         # replace variable with new ones in all instructions
         for v, replace in sorted(varEntirelyReplaced.items(), key=lambda x: x[0]._name):
             if replace and v.users:
@@ -570,43 +527,15 @@ class SsaPassExtractPartDrivers(SsaPass):
                                 variableForRange, varEntirelyReplaced, varBitAlises)
 
                         # print("replace ", v, "in", u, "with", replacement)
-
                         u.replaceInput(v, replacement)
 
-        # for b in allBlocks:
-        #    b: SsaBasicBlock
-        #    for phi in b.phis:
-        #        phi: SsaPhi
-        #        newOps = []
-        #        for c, dstBlock in phi.operands:
-        #            if isinstance(c, SsaValue):
-        #                repl = variableForRange.get(c.origin, None)
-        #                if repl is not None:
-        #                    c.users.discard(phi)
-        #                    c = repl
-        #
-        #            newOps.append((c, dstBlock))
-        #        phi.operands = tuple(newOps)
-        #
-        #    for instr in b.body:
-        #        instr: SsaInstr
-        #        newOps = []
-        #        for argI, arg in enumerate(instr.operands):
-        #            if not isinstance(arg, SsaValue):
-        #                continue
-        #            repl = variableForRange.get(arg.origin, None)
-        #            if repl is not None:
-        #                arg.users.discard(instr)
-        #                instr.operands[argI] = repl
-
-        # copy the value initializations for new values
-        # if we requre slice/concat we already should have it from previous steps
-        # we search the value using rtl object in .origin property
-
-        # print("variableForRange", pformat(variableForRange, sort_dicts=False))
-
-        # 2. resolve varialbe aliases of newly created and existing vars., place in the block as soon as all dependencies ready
-        # 3. replace the operands of instructions to use new variables
+        for b in allBlocks:
+            b: SsaBasicBlock
+            # :note: we need to use index because we are modifying the collection
+            self._removeEntirelyRemovedFromList(
+                b.phis, varEntirelyReplaced)
+            self._removeEntirelyRemovedFromList(
+                b.body, varEntirelyReplaced)
 
     def apply(self, hls: "HlsStreamProc", to_ssa: AstToSsa):
         self.var_segments: Dict[SsaValue, VarBitSegments] = {}

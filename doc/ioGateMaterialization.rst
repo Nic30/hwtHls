@@ -50,7 +50,7 @@ For read operations there are 4 cases based on speculativity and variable access
 4. For a speculative multi point read we need to construct look ahead buffer which will load all data and copy it into speculative branches.
    The depth of buffer depends on max degree of speculation and is generaly specified in number of data words.
    The read data after speculatively read data is also speculative read even if the read itself is not speculative.
-   This is because the current possition in data may be shifted due to some previous speculative read
+   This is because the current position in data may be shifted due to some previous speculative read
 
    .. code-block::Python
 

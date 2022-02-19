@@ -43,10 +43,10 @@ public:
 					std::move(Arg.ST)) {
 	}
 
-	unsigned getIntImmCostInst(unsigned Opcode, unsigned Idx, const APInt &Imm,
+	InstructionCost getIntImmCostInst(unsigned Opcode, unsigned Idx, const APInt &Imm,
 			Type *Ty, TTI::TargetCostKind CostKind,
 			Instruction *Inst = nullptr) const;
-	unsigned getUserCost(const User *U, ArrayRef<const Value*> Operands,
+	InstructionCost getUserCost(const User *U, ArrayRef<const Value*> Operands,
 			TTI::TargetCostKind CostKind);
 
 	unsigned getNumberOfRegisters(unsigned ClassID) const;
@@ -62,15 +62,17 @@ public:
 	bool isTypeLegal(Type *Ty);
 	bool shouldBuildLookupTables();
 	TTI::PopcntSupportKind getPopcntSupport(unsigned IntTyWidthInBit);
-	unsigned getRegisterBitWidth(bool Vector) const;
-	unsigned getShuffleCost(TTI::ShuffleKind Kind, VectorType *Ty, int Index,
+	TypeSize getRegisterBitWidth(bool Vector) const;
+
+
+	InstructionCost getShuffleCost(TTI::ShuffleKind Kind, VectorType *Ty, ArrayRef<int> Mask, int Index,
 			VectorType *SubTp) const;
-	unsigned getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
+	InstructionCost getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
 			TTI::CastContextHint CCH, TTI::TargetCostKind CostKind,
 			const Instruction *I) const;
-	unsigned getExtractWithExtendCost(unsigned Opcode, Type *Dst,
+	InstructionCost getExtractWithExtendCost(unsigned Opcode, Type *Dst,
 			VectorType *VecTy, unsigned Index);
-	unsigned getVectorInstrCost(unsigned Opcode, Type *Val, unsigned Index);
+	InstructionCost getVectorInstrCost(unsigned Opcode, Type *Val, unsigned Index);
 	Type* getMemcpyLoopLoweringType(LLVMContext &Context, Value *Length,
 			unsigned SrcAddrSpace, unsigned DestAddrSpace, unsigned SrcAlign,
 			unsigned DestAlign) const;

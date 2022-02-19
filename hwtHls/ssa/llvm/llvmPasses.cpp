@@ -92,8 +92,8 @@ void runOpt(llvm::Function &fn) {
 
 	llvm::PipelineTuningOptions PTO;
 	llvm::PassBuilder PB(
-	/*DebugLogging =*/false,
-	/*TargetMachine *TM = */TheTargetMachine, PTO,
+	/*TargetMachine *TM = */TheTargetMachine,
+	/* PipelineTuningOptions PTO = */PTO,
 	/*Optional<PGOOptions> PGOOpt =*/llvm::None,
 	/*PassInstrumentationCallbacks *PIC =*/nullptr);
 	auto LAM = llvm::LoopAnalysisManager { };

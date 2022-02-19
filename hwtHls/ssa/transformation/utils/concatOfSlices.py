@@ -58,7 +58,7 @@ class ConcatOfSlices():
             return ConcatOfSlices(copy(self.slices))
 
         res = []
-        hOffset = self.bit_length  # current possition in vecttor from h side
+        hOffset = self.bit_length  # current position in vecttor from h side
         for v, _high, _low in self.slices:
             absHigh = hOffset
             w = _high - _low

@@ -101,7 +101,7 @@ bool GenericFpgaTTIImpl::isSourceOfDivergence(const Value *V) {
 //
 //===----------------------------------------------------------------------===//
 
-unsigned GenericFpgaTTIImpl::getIntImmCostInst(unsigned Opcode, unsigned Idx,
+InstructionCost GenericFpgaTTIImpl::getIntImmCostInst(unsigned Opcode, unsigned Idx,
 		const APInt &Imm, Type *Ty, TTI::TargetCostKind CostKind,
 		Instruction *Inst) const {
 	switch (Opcode) {
@@ -158,27 +158,27 @@ unsigned GenericFpgaTTIImpl::getNumberOfRegisters(unsigned ClassID) const {
 	return std::numeric_limits<unsigned>::max() >> 2;
 }
 
-unsigned GenericFpgaTTIImpl::getRegisterBitWidth(bool Vector) const {
-	return std::numeric_limits<unsigned>::max() >> 2;
+TypeSize GenericFpgaTTIImpl::getRegisterBitWidth(bool Vector) const {
+	return TypeSize::getScalable(std::numeric_limits<unsigned>::max() >> 2);
 }
 
-unsigned GenericFpgaTTIImpl::getShuffleCost(TTI::ShuffleKind Kind,
-		VectorType *Ty, int Index, VectorType *SubTp) const {
+InstructionCost GenericFpgaTTIImpl::getShuffleCost(TTI::ShuffleKind Kind,
+		VectorType *Ty, ArrayRef<int> Mask, int Index, VectorType *SubTp) const {
 	return TTI::TCC_Free;
 }
 
-unsigned GenericFpgaTTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst,
+InstructionCost GenericFpgaTTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst,
 		Type *Src, TTI::CastContextHint CCH, TTI::TargetCostKind CostKind,
 		const Instruction *I) const {
 	return TTI::TCC_Free;
 }
 
-unsigned GenericFpgaTTIImpl::getExtractWithExtendCost(unsigned Opcode,
+InstructionCost GenericFpgaTTIImpl::getExtractWithExtendCost(unsigned Opcode,
 		Type *Dst, VectorType *VecTy, unsigned Index) {
 	return TTI::TCC_Free;
 }
 
-unsigned GenericFpgaTTIImpl::getVectorInstrCost(unsigned Opcode, Type *Val,
+InstructionCost GenericFpgaTTIImpl::getVectorInstrCost(unsigned Opcode, Type *Val,
 		unsigned Index) {
 	return TTI::TCC_Free;
 }
@@ -217,7 +217,7 @@ static bool IsFreeOperator(const User *U) {
 	return false;
 }
 
-unsigned GenericFpgaTTIImpl::getUserCost(const User *U,
+InstructionCost GenericFpgaTTIImpl::getUserCost(const User *U,
 		ArrayRef<const Value*> Operands, TTI::TargetCostKind CostKind) {
 	if (IsFreeOperator(U))
 		return TTI::TCC_Free;
