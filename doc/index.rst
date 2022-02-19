@@ -64,7 +64,7 @@ This step does not modify input SSA but collects own metadata which are generate
 The goal of this transformation is to translate input SSA to RTL netlist with minimum amount of resources, minimum control complexity and maximum throughput and minimum latency.
 However without additional specification the goal would be infeasible (It is not generally possible to achieve all mentioned at once.)
 In addition the user code may require optimizations which are specific to an application, for example some some applications are using a dynamic reconfiguration
-which allows to dynamically reconfigure part of the chip to perform a different function. If this is the case it is necessary to detect or select segments which could be loaded to a reconfiguration site and which do not need to work at the same time \cite{Maxeler}.
+which allows to dynamically reconfigure part of the chip to perform a different function. If this is the case it is necessary to detect or select segments which could be loaded to a reconfiguration site and which do not need to work at the same time [Maxeler]_.
 In order to provide sufficient flexibility and to simplify the use several heuristic are implemented to cut circuit on sites which
 are processed separately.
 
@@ -108,7 +108,7 @@ Once it is detected that some node from a different synchronization group happen
 The result is an approximate scheduling and the information about if the synchronization is truly required. We use this information and the information about resource (and external IO) constraints to detect the individual architectural elements for rescheduling and technology mapping.
 Currently we detect only segments which should be implemented as FSM due constraints or explicit user specification.
 The FSMs are then rescheduled. The rest of the circuit is divided to individual pipelines.
-Note that the method of division to a pipelines and FSMs is not perfect. For programs with multiple separate kernel which are communication using shared memory there are better methods \cite{Boyi}. However we remind the reader that the user can directly override which and how the individual architectural elements are extracted
+Note that the method of division to a pipelines and FSMs is not perfect. For programs with multiple separate kernel which are communication using shared memory there are better methods [Boyi]_. However we remind the reader that the user can directly override which and how the individual architectural elements are extracted
 and translated. The current method is suitable for controllers and network applications which do not require strip mining, tiling and polyhedral transformations in general.
 
 After this stage we do have assigned realization of each node and an exact time when it should happen and what synchronization it should use.
