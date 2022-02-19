@@ -16,7 +16,6 @@ class HlsNetNodeOperator(HlsNetNode):
 
     :ivar operator: parent RTL operator for this hsl operator
     :ivar _dtype: RTL data type of output
-    :ivar _usedDummyRtlDeclr: when True the outputs signals are just dummy signals and the body of this node was not allocated yet
     """
 
     def __init__(self, parentHls: "HlsPipeline",
@@ -31,7 +30,6 @@ class HlsNetNodeOperator(HlsNetNode):
             self._inputs.append(HlsNetNodeIn(self, i))
         # add containers for io pins
         self._add_output(dtype)
-        self._usedDummyRtlDeclr = False
 
     def resolve_realization(self):
         hls = self.hls
@@ -49,22 +47,20 @@ class HlsNetNodeOperator(HlsNetNode):
             input_cnt, clk_period)
         self.assignRealization(r)
 
-    def allocateRtlInstanceOutDeclr(self, allocator: "AllocatorArchitecturalElement", o: HlsNetNodeOut):
+    def allocateRtlInstanceOutDeclr(self, allocator: "AllocatorArchitecturalElement", o: HlsNetNodeOut, startTime: float):
         # [todo] the output dtype is unknown, it is probably best if we add dtype to each output/input
         assert allocator.netNodeToRtl.get(o, None) is None, ("Must not be redeclared", o)
         s = allocator._sig(f"forwardDeclr{self.name}_{o.out_i:d}", o._dtype)
         allocator.netNodeToRtl[o] = TimeIndependentRtlResource(s, self.scheduledOut[0] + epsilon, allocator)
-        self._usedDummyRtlDeclr = True
 
     def allocateRtlInstance(self,
                           allocator: "AllocatorArchitecturalElement",
                           ) -> TimeIndependentRtlResource:
         op_out = self._outputs[0]
-        if not self._usedDummyRtlDeclr:
-            try:
-                return allocator.netNodeToRtl[op_out]
-            except KeyError:
-                pass
+        try:
+            return allocator.netNodeToRtl[op_out]
+        except KeyError:
+            pass
 
         operands = []
         for (dep, t) in zip(self.dependsOn, self.scheduledIn):
@@ -83,19 +79,15 @@ class HlsNetNodeOperator(HlsNetNode):
                     s.name = self.name
                 else:
                     s.name = f"v{self._id:d}"
-        if self._usedDummyRtlDeclr:
-            tis = allocator.netNodeToRtl[op_out]
-            raise NotImplementedError()
+
+        if dtypeEqualSignIgnore(s._dtype, op_out._dtype):
+            if s._dtype.signed != op_out._dtype.signed:
+                s = s._convSign(op_out._dtype.signed)
         else:
-            if dtypeEqualSignIgnore(s._dtype, op_out._dtype):
-                if s._dtype.signed != op_out._dtype.signed:
-                    s = s._convSign(op_out._dtype.signed)
-            else:
-                raise AssertionError("The ", self.__class__.__name__, " a signals of wrong type", s, op_out, s._dtype, op_out._dtype)
-            tis = TimeIndependentRtlResource(s, t, allocator)
+            raise AssertionError("The ", self.__class__.__name__, " a signals of wrong type", s, op_out, s._dtype, op_out._dtype)
+        tis = TimeIndependentRtlResource(s, t, allocator)
         
         allocator.netNodeToRtl[op_out] = tis
-        self._usedDummyRtlDeclr = False
 
         return tis
 
