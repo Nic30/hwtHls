@@ -2,7 +2,7 @@ Welcome to hwtHls documentation!
 ================================
 
 Readme File
-===========
+-----------
 
 Library for high-level synthesis for HWT framework.
 
@@ -16,15 +16,16 @@ Library for high-level synthesis for HWT framework.
 
 
 Indices and tables
-==================
+------------------
 
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
 
+* :ref:`README-dev`
 
 Main goal of this library
-=========================
+-------------------------
 The primary goal of this library is to provide an infrastructure for user-provided code transformations which gradually transforms the input code to RTL description.
 This library contains a simple python frontend which could translate a limited subset of python bytecode and a AST like objects which could be used to generate more complex codes.
 The library uses an LLVM SSA thus is generaly compatible with all tools which are using the same Internal Representation (IR).
@@ -35,7 +36,7 @@ of easy to underestand passes.
 
 
 What actually this library does?
-================================
+--------------------------------
 This library has 2 frontends to transform input Python code to LLVM SSA. However these parts are just generic translation based on [simpleToSSA].
 After the code is in LLVM SSA form any LLVM transformation can be applied. However the LLVM optimizations do not usually analyze the code on bit level
 but rather on variable/instruction level. This means if the code contains intense slicing a and concatenations it is more likely that LLVM will not be able to
@@ -193,4 +194,6 @@ For example:
     Association for Computing Machinery, New York, NY, USA, 804–817. DOI:https://doi.org/10.1145/3445814.3446712
 
 .. [CIRCT] https://github.com/llvm/circt  
+
+
 
