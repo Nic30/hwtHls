@@ -29,7 +29,8 @@ class HlsNetlistAnalysisPassDiscoverPipelines(HlsNetlistAnalysisPass):
         HlsNetlistAnalysisPass.__init__(self, hls)
         self.pipelines: List[NetlistPipeline] = []
     
-    def iterNodeScheduledClocks(self, node: HlsNetNode, clk_period: float):
+    @staticmethod
+    def iterNodeScheduledClocks(node: HlsNetNode, clk_period: float):
         seen = []
         for i in node.scheduledIn:
             clkI = start_clk(i, clk_period)
@@ -42,7 +43,8 @@ class HlsNetlistAnalysisPassDiscoverPipelines(HlsNetlistAnalysisPass):
                 yield clkI
             seen.append(clkI)
 
-    def _extendIfRequired(self, list_, lastIndex):
+    @staticmethod
+    def _extendIfRequired(list_, lastIndex):
         if len(list_) <= lastIndex:
             for _ in range(lastIndex - len(list_) + 1):
                 list_.append([])
