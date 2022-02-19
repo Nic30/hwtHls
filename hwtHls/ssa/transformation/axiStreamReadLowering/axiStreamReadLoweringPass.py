@@ -24,7 +24,7 @@ class SsaPassAxiStreamReadLowering(SsaPass):
     """
     Lower the read of abstract datatype from AMBA AXI-stream interfaces to a read of words.
     
-    1. Build CFG of parsing and in stream chunk possitions
+    1. Build CFG of parsing and in stream chunk positions
         * DFS search the SSA for reads and compute the offset
     2. Rewrite reads of ADTs to read of words
     
@@ -230,7 +230,7 @@ class SsaPassAxiStreamReadLowering(SsaPass):
             #        index = 0
             #    else:
             #        index = readRes.body.index(readRes)
-            #    _exprBuilder = SsaExprBuilder(readRes.block, possition=index)
+            #    _exprBuilder = SsaExprBuilder(readRes.block, position=index)
             #    readRes = _exprBuilder.var(readRes)._reinterpret_cast()
             read.replaceBy(readRes)
             read.block.body.remove(read)
