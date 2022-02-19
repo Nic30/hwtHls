@@ -1,7 +1,6 @@
 from hwt.hdl.operatorDefs import OpDefinition, AllOps
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.value import HValue
-from hwtHls.allocator.connectionsOfStage import SignalsOfStages
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.clk_math import epsilon
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -48,10 +47,9 @@ class HlsNetNodeOperator(HlsNetNode):
         self.assignRealization(r)
 
     def allocateRtlInstanceOutDeclr(self, allocator: "AllocatorArchitecturalElement", o: HlsNetNodeOut, startTime: float):
-        # [todo] the output dtype is unknown, it is probably best if we add dtype to each output/input
         assert allocator.netNodeToRtl.get(o, None) is None, ("Must not be redeclared", o)
         s = allocator._sig(f"forwardDeclr{self.name}_{o.out_i:d}", o._dtype)
-        allocator.netNodeToRtl[o] = TimeIndependentRtlResource(s, self.scheduledOut[0] + epsilon, allocator)
+        allocator.netNodeToRtl[o] = TimeIndependentRtlResource(s, startTime, allocator)
 
     def allocateRtlInstance(self,
                           allocator: "AllocatorArchitecturalElement",
