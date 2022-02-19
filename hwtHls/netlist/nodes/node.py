@@ -1,14 +1,14 @@
 from copy import copy
 from typing import List, Optional, Union, Tuple, Generator
 
+from hwt.hdl.types.hdlType import HdlType
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.allocator.connectionsOfStage import SignalsOfStages
+from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.clk_math import start_of_next_clk_period
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.scheduler.errors import TimeConstraintError
-from hwt.hdl.types.hdlType import HdlType
-from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
+
 
 TimeSpec = Union[float, Tuple[float, ...]]
 

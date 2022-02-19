@@ -2,7 +2,6 @@ from typing import List, Tuple, Optional, Union
 
 from hwt.code import If, Or
 from hwt.hdl.types.defs import BIT
-from hwtHls.allocator.connectionsOfStage import SignalsOfStages
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.clk_math import epsilon
 from hwtHls.hlsPipeline import HlsPipeline

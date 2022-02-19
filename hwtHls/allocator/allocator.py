@@ -1,5 +1,5 @@
 from cmath import inf
-from typing import Union, List, Dict, Tuple
+from typing import Union, List, Dict, Tuple, Set
 
 from hwt.interfaces.std import HandshakeSync
 from hwt.pyUtils.uniqList import UniqList
@@ -108,9 +108,13 @@ class HlsAllocator():
             if boundaryPorts:
                 # first boundary signals needs to be declared, then the body of fsm/pipeline can be constructed
                 # because there is no topological order in how the elements are connected
+                seenOs: Set[HlsNetNodeOut] = set()
                 for o, i in boundaryPorts:
                     o: HlsNetNodeOut
                     i: HlsNetNodeIn
+                    if o in seenOs:
+                        continue
+                    seenOs.add(o)
                     srcElm = ownerOfNode[o.obj]
                     if len(srcElm) > 1:
                         raise NotImplementedError("multiOwnerNode")
@@ -126,7 +130,7 @@ class HlsAllocator():
                     #        As last as possible should result in better sharing.
                     #        As soon as possible may result in better performance on fsm-pipe boundaries.
                     #        If element are not directly connected?
-                    #        It could be the case that the value is connected to this block multiple times, we ned to propagate just first value
+                    #        It could be the case that the value is connected to this block multiple times, we need to propagate just first value
                     fuT = firstUseTimeOfOutInElem[(dstElm, o)]
                     o.obj.allocateRtlInstanceOutDeclr(dstElm, o, fuT)
             

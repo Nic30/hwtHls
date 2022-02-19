@@ -68,7 +68,7 @@ class SignalsOfStages(Deque[UniqList[TimeIndependentRtlResourceItem]]):
                 raise IndexError()
             return self[i]
         except IndexError:
-            raise IndexError("Asking for an object which si scheduled by a different region", self.startTime, t, i, len(self), self, i) from None
+            raise IndexError("Asking for an object which is scheduled by a different region", self.startTime, t, i, len(self), self, i) from None
 
 
 def setNopValIfNotSet(intf: Interface, nopVal, exclude: List[Interface]):
