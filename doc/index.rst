@@ -131,7 +131,7 @@ After this point we do have a complete HWT netlist which can be translated to VH
 In various tools the problem of SSA to RTL translation and the problem of synchronization resolution is addressed differently.
 For example:
 
-* [ctoverilog]_ [ahaHLS]_ - Uses a Verilog template hardcoded in backend.
+* [ctoverilog]_, [ahaHLS]_ - Uses a Verilog template hardcoded in backend.
 
 * [LegUp]_ - Also depends on rendering of templates. However in the case of [LegUp]_ there is larger variety of primitives compare to [ctoverilog]_ ranging from various sychronization elements
    to a PPL and DSP instances. However interfaces synchronization types as well as the type of control implementation in the circuit is limited to the style defined in the compiler backend.
