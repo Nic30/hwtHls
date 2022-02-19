@@ -12,17 +12,20 @@ py3.extension_module(
      'targets/MCTargetDesc/genericFpgaMCTargetDesc.cpp',
      'targets/TargetInfo/genericFpgaTargetInfo.cpp',
      'targets/intrinsic/bitrange.cpp',
+
      'targets/genericFpgaSubtarget.cpp',
 	 'targets/genericFpgaTargetMachine.cpp',
      'targets/genericFpgaTargetTransformInfo.cpp',
-     
-     'Transforms/extractBitConcatAndSliceOpsPass.cpp',
      
      'Transforms/bitwidthReducePass/bitPartsUseAnalysis.cpp',
      'Transforms/bitwidthReducePass/bitRewriter.cpp',
      'Transforms/bitwidthReducePass/constBitPartsAnalysis.cpp',
      'Transforms/bitwidthReducePass/bitwidthReducePass.cpp',
      'Transforms/bitwidthReducePass/utils.cpp',
+     
+     'Transforms/extractBitConcatAndSliceOpsPass.cpp',
+
+     'Transforms/shiftToSelectOfConstShifts.cpp',
      ],
     dependencies : [py3_dep, llvm_dep, pybind11_dep],
     install: true,
