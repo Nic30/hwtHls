@@ -1,5 +1,6 @@
 from typing import List, Set, Union, Dict
 
+from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
@@ -32,7 +33,7 @@ class IoFsm():
 
 class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
     """
-    Collect a scheuled netlist nodes which do have a constraint which prevents them to be scheduled as a pipeline and
+    Collect a scheduled netlist nodes which do have a constraint which prevents them to be scheduled as a pipeline and
     collect also all nodes which are tied with them into FSM states.
     """
 
@@ -59,12 +60,17 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
                     if start_clk(obj.scheduledIn[use.in_i], clk_period) == clk_i:
                         yield from self._floodNetInSameCycle(clk_i, obj, seen)
 
-    def collectInFsmNodes(self) -> Set[HlsNetNode]:
+    def collectInFsmNodes(self) -> Dict[HlsNetNode, UniqList[IoFsm]]:
         "Collect nodes which are part of some fsm"
-        inFsm: Set[HlsNetNode] = set()
+        inFsm: Dict[HlsNetNode, UniqList[IoFsm]] = {}
         for fsm in self.fsms:
             for nodes in fsm.states:
-                inFsm.update(nodes)
+                for n in nodes:
+                    cur = inFsm.get(n, None)
+                    if cur is None:
+                        cur = inFsm[n] = UniqList()
+                    cur.append(fsm)
+
         return inFsm
 
     def run(self):

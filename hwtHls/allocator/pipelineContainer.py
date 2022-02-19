@@ -12,9 +12,9 @@ from hwtHls.allocator.architecturalElement import AllocatorArchitecturalElement
 from hwtHls.allocator.connectionsOfStage import ConnectionsOfStage, resolveStrongestSyncType, \
     SignalsOfStages
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
+from hwtHls.clk_math import epsilon
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.clk_math import epsilon
 
 
 class AllocatorPipelineContainer(AllocatorArchitecturalElement):
@@ -30,7 +30,6 @@ class AllocatorPipelineContainer(AllocatorArchitecturalElement):
         self.stages = stages
         stageCons = [ConnectionsOfStage() for _ in self.stages]
         stageSignals = SignalsOfStages(parentHls.clk_period,
-                                       self._getMinTime(stages, parentHls.clk_period),
                                        (con.signals for con in stageCons))
         AllocatorArchitecturalElement.__init__(self, parentHls, namePrefix, allNodes, stageCons, stageSignals)
 

@@ -68,6 +68,8 @@ class AllocatorArchitecturalElement():
         _o = self.netNodeToRtl.get(o, None)
 
         if _o is None:
+            if self.stageSignals[int(o.obj.scheduledOut[o.out_i] // self.parentHls.clk_period)] is None:
+                raise AssertionError("Asking for node output which should have forward declaration but it is missing", self, o)
             # new allocation, use registered automatically
             _o = o.obj.allocateRtlInstance(self)
             self._afterNodeInstantiated(o.obj, _o)

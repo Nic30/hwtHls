@@ -1,5 +1,5 @@
 from collections import deque
-from typing import Type, Dict, Optional, List, Tuple, Union, Sequence, Deque
+from typing import Type, Dict, Optional, List, Tuple, Union, Sequence
 
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.interfaces.std import HandshakeSync, Handshaked, VldSynced, RdSynced, \
@@ -11,7 +11,6 @@ from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResourceItem
-from hwtHls.clk_math import clk_period_diff, epsilon
 from hwtLib.amba.axi_intf_common import Axi_hs
 from hwtLib.handshaked.streamNode import StreamNode
 
@@ -47,28 +46,31 @@ class ConnectionsOfStage():
         self.stDependentDrives: List[HdlStatement] = []
 
 
-class SignalsOfStages(Deque[UniqList[TimeIndependentRtlResourceItem]]):
+class SignalsOfStages(List[UniqList[TimeIndependentRtlResourceItem]]):
     """
     Container of signals in :class:`~.ConnectionsOfStage` instances.
     """
 
-    def __init__(self, clk_period: float, startTime: float, initVals=None):
-        self.startTime = startTime
+    def __init__(self, clk_period: float, initVals=None):
         self.clk_period = clk_period
-        deque.__init__(self)
+        list.__init__(self)
         if initVals:
             for v in initVals:
                 assert isinstance(v, UniqList) or v is None, v
                 self.append(v)
 
     def getForTime(self, t: float):
-        i = clk_period_diff(self.startTime, t + epsilon, self.clk_period)
+        i = int(t // self.clk_period)
         try:
             if i < 0:
                 raise IndexError()
-            return self[i]
+            res = self[i]
         except IndexError:
-            raise IndexError("Asking for an object which is scheduled by a different region", self.startTime, t, i, len(self), self, i) from None
+            raise IndexError("Asking for an object which is scheduled by a different region", t, i, len(self), self, i) from None
+        if res is None:
+            raise IndexError("Asking for an object in time which is not managed by this architectural element", t, i, [int(item is not None) for item in self])
+
+        return res
 
 
 def setNopValIfNotSet(intf: Interface, nopVal, exclude: List[Interface]):

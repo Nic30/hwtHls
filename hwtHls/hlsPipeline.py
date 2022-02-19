@@ -1,3 +1,4 @@
+from itertools import chain
 from typing import List, Union, Optional, Type
 
 from hwt.pyUtils.uniqList import UniqList
@@ -7,8 +8,8 @@ from hwt.synthesizer.unit import Unit
 from hwtHls.allocator.allocator import HlsAllocator
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
-from hwtHls.scheduler.scheduler import HlsScheduler
 from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.scheduler.scheduler import HlsScheduler
 
 
 class HlsPipelineNodeContext():
@@ -67,6 +68,9 @@ class HlsPipeline():
         
         self.scheduler: HlsScheduler = self.platform.scheduler(self)
         self.allocator: HlsAllocator = self.platform.allocator(self)
+
+    def iterAllNodes(self):
+        return chain(self.inputs, self.nodes, self.outputs)
 
     def invalidateAnalysis(self, analysis_cls:Type[HlsNetlistAnalysisPass]):
         a = self._analysis_cache.pop(analysis_cls, None)

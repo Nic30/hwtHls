@@ -21,7 +21,7 @@ from ipCorePackager.constants import INTF_DIRECTION
 
 class AllocatorFsmContainer(AllocatorArchitecturalElement):
     """
-    Contaner class for FSM allocation objects.
+    Container class for FSM allocation objects.
     """
 
     def __init__(self, parentHls: "HlsPipeline", namePrefix:str, fsm: IoFsm):
@@ -33,13 +33,12 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
         assert fsm.states, fsm
 
         self.fsmEndClk_i = max(fsm.stateClkI.values())
-        startTime = min(min(chain(node.scheduledIn, node.scheduledOut)) for node in fsm.states[0])
-        self.fsmBeginClk_i = int(startTime // clk_period)
+        self.fsmBeginClk_i = min(fsm.stateClkI.values())
         self.clkIToStateI = clkIToStateI = {v:k for k, v in fsm.stateClkI.items()}
 
         stateCons = [ConnectionsOfStage() for _ in fsm.states]
-        stageSignals = SignalsOfStages(clk_period, startTime,
-                                       (
+        stageSignals = SignalsOfStages(clk_period,
+                                        (
                                            stateCons[clkIToStateI[clkI]].signals if clkI in clkIToStateI else None
                                            for clkI in range(self.fsmEndClk_i + 1)
                                         ))
@@ -54,7 +53,7 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
             con.inputs.append(intf)
         
     def _afterNodeInstantiated(self, n: HlsNetNode, rtl: Optional[TimeIndependentRtlResource]):
-        # mark value in register as persisten until the end of fsm
+        # mark value in register as persistent until the end of FSM
         isTir = isinstance(rtl, TimeIndependentRtlResource)
         if rtl is None or not isTir:
             cons = (self.netNodeToRtl[o] for o in n._outputs if o in self.netNodeToRtl)
@@ -67,10 +66,10 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
         fsmEndClk_i = self.fsmEndClk_i
         for s in cons:
             s: TimeIndependentRtlResource
-            self.stageSignals.getForTime(s.timeOffset).append(s)
             
             if not s.persistenceRanges and s.timeOffset is not TimeIndependentRtlResource.INVARIANT_TIME:
-                # val for the first clock behind this is int the register and the rest is persistent
+                self.stageSignals.getForTime(s.timeOffset).append(s)
+                # value for the first clock behind this clock period and the rest is persistent in this register
                 nextClkI = start_clk(s.timeOffset, clk_period) + 2
                 if nextClkI <= fsmEndClk_i:
                     s.persistenceRanges.append((nextClkI, fsmEndClk_i))

@@ -108,22 +108,25 @@ class HlsAllocator():
             if boundaryPorts:
                 # first boundary signals needs to be declared, then the body of fsm/pipeline can be constructed
                 # because there is no topological order in how the elements are connected
-                seenOs: Set[HlsNetNodeOut] = set()
+                seenOs: Set[Tuple[AllocatorArchitecturalElement, HlsNetNodeOut]] = set()
                 for o, i in boundaryPorts:
                     o: HlsNetNodeOut
                     i: HlsNetNodeIn
-                    if o in seenOs:
-                        continue
-                    seenOs.add(o)
+   
                     srcElm = ownerOfNode[o.obj]
                     if len(srcElm) > 1:
                         raise NotImplementedError("multiOwnerNode")
 
                     dstElm = ownerOfNode[i.obj]
                     if len(dstElm) > 1:
-                        raise NotImplementedError("multiOwnerNode")
+                        raise NotImplementedError("multiOwnerNode", i.obj, dstElm)
                     srcElm: AllocatorArchitecturalElement = srcElm[0]
                     dstElm: AllocatorArchitecturalElement = dstElm[0]
+
+                    if (dstElm, o) in seenOs:
+                        continue
+                    
+                    seenOs.add((dstElm, o))
                     # [todo] How many registers should be in srcElm and dstElm?
                     #        Need to check other uses of the output.
                     #        Copy to dst as soon as possible? or at last as possible if still used  in src.
