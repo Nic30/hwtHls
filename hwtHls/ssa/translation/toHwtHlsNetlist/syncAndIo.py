@@ -86,7 +86,7 @@ class SsaToHwtHlsNetlistSyncAndIo():
         # all consumers of a variable must take it from a same source
         # the variable is always writen on a single place in code,
         # however for example due multiple breaks in a loop the veriable may have multiple
-        # paths how to get out of pipeline and also inside. This case has to be explicitely handled.
+        # paths how to get out of pipeline and also inside. This case has to be explicitly handled.
         # In addition each variable alive on out of pipeline edge:
         #  * must have a single input interface
         #    * such a variables are because of cycle

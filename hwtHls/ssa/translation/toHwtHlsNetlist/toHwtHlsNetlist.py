@@ -104,7 +104,7 @@ class SsaToHwtHlsNetlist():
         try:
             self._prepare_SsaBasicBlockControl(block)
             self.to_hls_SsaBasicBlock_phis(block)
-            # propagate also for variables which are not explicitely used
+            # propagate also for variables which are not explicitly used
 
             for stm in block.body:
                 if isinstance(stm, HlsStreamProcWrite):

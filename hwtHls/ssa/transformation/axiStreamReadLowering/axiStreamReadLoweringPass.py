@@ -120,7 +120,7 @@ class SsaPassAxiStreamReadLowering(SsaPass):
             w = read._dtype.bit_length()
     
             # if number of words differs in offset varvariants we need to insert a new block which is entered conditionally for specific offset values
-            # :note: the information about which word is last is stored in offset variable and does not need to be explicitely specified 
+            # :note: the information about which word is last is stored in offset variable and does not need to be explicitly specified 
 
             # shared words for offset variants
             minOffset = min(possibleOffsets)

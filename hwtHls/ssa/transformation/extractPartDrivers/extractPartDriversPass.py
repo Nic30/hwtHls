@@ -338,7 +338,7 @@ class SsaPassExtractPartDrivers(SsaPass):
 
                     varBitAlises[o] = ConcatOfSlices(((v, high, low),))
 
-                    # update also the parent input because this o is an alias of it but parent will not check for it explicitely
+                    # update also the parent input because this o is an alias of it but parent will not check for it explicitly
                     # parAlias = varBitAlises.get(v, ConcatOfSlices((v, )))
                     # parAlias.overwrite(high, low, o)
                     # print(parAlias)
