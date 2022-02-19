@@ -165,7 +165,7 @@ class HlsNetNode():
 
     def allocateRtlInstanceOutDeclr(self, allocator: "AllocatorArchitecturalElement", o: HlsNetNodeOut, startTime: float):
         assert allocator.netNodeToRtl.get(o, None) is None, ("Must not be redeclared", o)
-        s = allocator._sig(f"{allocator.namePrefix}forwardDeclr{self.name}_{o.out_i:d}", o._dtype)
+        s = allocator._sig(f"{allocator.namePrefix}forwardDeclr{self._id:d}_{o.out_i:d}", o._dtype)
         allocator.netNodeToRtl[o] = TimeIndependentRtlResource(s, startTime, allocator)
       
     def allocateRtlInstance(self, allocator: "AllocatorArchitecturalElement"):
