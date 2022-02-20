@@ -8,7 +8,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
 
 class HlsNetlistClusterSearch():
     """
-    This class implements bidirectional floding of the net while predicate is satisfied.
+    This class implements bidirectional flooding of the net while predicate is satisfied.
     Collects nodes and inputs/outputs, has methods for manipulation with selection.
     """
 
@@ -147,7 +147,7 @@ class HlsNetlistClusterSearch():
         If the cluster construction resulted into an outer cycle cut this cluster so the cycle dissapears.
         """
         self.consystencyCheck()
-        # >1 because if tere was just 1 output the cycle has been there even before this cluster was generated. 
+        # >1 because if there was just 1 output the cycle has been there even before this cluster was generated. 
         if len(self.outputs) > 1:
             outputsCausingLoop: List[HlsNetNodeOut] = []
             for o in self.outputs:
