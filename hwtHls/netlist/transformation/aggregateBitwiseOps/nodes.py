@@ -150,7 +150,7 @@ class HlsNetlistNodeBitwiseOps(HlsNetNode):
                 _scheduleOut, _ = self.scheduleAsapWithQuantization(o.obj, clk_period, pathForDebug)
                 scheduleOut.append(_scheduleOut[0])
             
-            self._asapBegin = tuple(dep.obj._asapEnd[dep.out_i] for dep in self.dependsOn)
+            self._asapBegin = tuple(min(use.obj._asapBegin[use.in_i] for use in self._subNodes.inputsDict[i]) for i in self._subNodes.inputs)
             self._asapEnd = tuple(scheduleOut)
 
         return self._asapEnd
@@ -187,7 +187,7 @@ class HlsNetlistNodeBitwiseOps(HlsNetNode):
                 allocator.netNodeToRtl[outerO] = o
 
     def createSubNodeRefrenceFromPorts(self, beginTime: float, endTime: float,
-                                       inputs: List[HlsNetNodeIn], outputs: List[HlsNetNodeOut]) -> 'HlsNetlistNodeBitwiseOpsPartRef':
+                                       inputs: List[HlsNetNodeIn], outputs: List[HlsNetNodeOut]) -> Optional['HlsNetlistNodeBitwiseOpsPartRef']:
         """
         :see: :meth:`~.HlsNetNode.partsComplement`
         """
@@ -203,12 +203,14 @@ class HlsNetlistNodeBitwiseOps(HlsNetNode):
         for i in subNodes.inputs:
             # for nodes internally in the subNodes, transitively discover
             # things connected to this input until the boundary is meet
-            for use in i.obj.usedBy[i.out_i]:
-                obj = use.obj
-                if obj in subNodes.nodes:
-                    n._discoverFromIn(obj)
-        
-        for o in subNodes.outputs:
+            atLeastOnceUsed = False
+            usesInCluster = self._subNodes.inputsDict[i]
+            for use in usesInCluster:
+                if use.obj.scheduledIn[use.in_i] <= endTime:
+                    n._discoverFromIn(use.obj)
+                    atLeastOnceUsed  = True
+            assert atLeastOnceUsed, (i, "Must be at least once used because if it was used only later it should be also scheduled only later")
+         for o in subNodes.outputs:
             n._discoverFromOut(o)
         
         for node in subNodes.nodes:
@@ -220,9 +222,10 @@ class HlsNetlistNodeBitwiseOps(HlsNetNode):
                 if dep.obj not in subNodes.nodes:
                     subNodes.inputs.append(dep)
 
+        assert subNodes.nodes
         # all inputs of some used node but not connected to any used node are treated ans new inputs
-        assert subNodes.inputs
-        assert subNodes.outputs
+        assert subNodes.inputs, (beginTime, endTime, self, [n._id for n in subNodes.nodes])
+        assert subNodes.outputs, (beginTime, endTime, self, [n._id for n in subNodes.nodes])
         allNodes = self._subNodes.nodes
         for sn in subNodes.nodes:
             assert sn in allNodes
@@ -323,19 +326,19 @@ class HlsNetlistNodeBitwiseOpsPartRef(HlsNetNodePartRef, HlsNetlistNodeBitwiseOp
                 # this input is connected to something external
                 # :note: this should not be the case because we already should have all inputs and we are 
                 # going in the direction ->
-                raise NotImplementedError()
+                continue
 
-            for ot, o, uses  in zip(obj.scheduledOut, obj._outputs, obj.usedBy):
-                if ot <= self.endTime:
-                    usedByExtern = False
-                    for it2, i2 in zip(o.obj.scheduledIn, uses):
-                        if i2.obj in self._subNodes.nodes and it2 < self.endTime:
-                            self._discoverFromIn(i2.obj)
-                        else:
-                            usedByExtern = True
+        for ot, o, uses  in zip(obj.scheduledOut, obj._outputs, obj.usedBy):
+            if ot <= self.endTime:
+                usedByExtern = False
+                for it2, i2 in zip(o.obj.scheduledIn, uses):
+                    if i2.obj in self._subNodes.nodes and it2 < self.endTime:
+                        self._discoverFromIn(i2.obj)
+                    else:
+                        usedByExtern = True
 
-                    if usedByExtern:
-                        self._subNodes.outputs.append(o)
+                if usedByExtern:
+                    self._subNodes.outputs.append(o)
 
     def _discoverFromOut(self, out_: HlsNetNodeOut):
         """

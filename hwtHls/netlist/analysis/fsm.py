@@ -46,10 +46,11 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
         clk_period = self.hls.clk_period
         allNodeClks = tuple(o.iterScheduledClocks(clk_period))
         if len(allNodeClks) > 1:
-            yield o.createSubNodeRefrenceFromPorts(clk_i * clk_period, (clk_i + 1) * clk_period,
-                [i for t, i in zip(o.scheduledIn, o._inputs) if int(t // clk_period) == clk_i],
-                [o for t, o in zip(o.scheduledOut, o._outputs) if int(t // clk_period) == clk_i]
-            )
+            inClkInputs = [i for t, i in zip(o.scheduledIn, o._inputs) if start_clk(t, clk_period) == clk_i]
+            inClkOutputs = [o for t, o in zip(o.scheduledOut, o._outputs) if start_clk(t, clk_period) == clk_i]
+            subO = o.createSubNodeRefrenceFromPorts(clk_i * clk_period, (clk_i + 1) * clk_period,
+                inClkInputs, inClkOutputs)
+            yield subO
         else:
             yield o
 
@@ -57,7 +58,7 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
             dep: HlsNetNodeOut
             obj = dep.obj
             if obj not in seen:
-                if int((obj.scheduledOut[dep.out_i]) // clk_period) == clk_i:
+                if start_clk(obj.scheduledOut[dep.out_i], clk_period) == clk_i:
                     yield from self._floodNetInSameCycle(clk_i, obj, seen)
 
         for uses in o.usedBy:
