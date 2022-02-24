@@ -4,8 +4,7 @@ from hwt.hdl.value import HValue
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.clk_math import epsilon
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
-    _reprMinify
+from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.typeUtils import dtypeEqualSignIgnore
 
 
@@ -46,10 +45,11 @@ class HlsNetNodeOperator(HlsNetNode):
             input_cnt, clk_period)
         self.assignRealization(r)
 
-    def allocateRtlInstanceOutDeclr(self, allocator: "AllocatorArchitecturalElement", o: HlsNetNodeOut, startTime: float):
+    def allocateRtlInstanceOutDeclr(self, allocator: "AllocatorArchitecturalElement", o: HlsNetNodeOut, startTime: float) -> TimeIndependentRtlResource:
         assert allocator.netNodeToRtl.get(o, None) is None, ("Must not be redeclared", o)
-        s = allocator._sig(f"forwardDeclr{self.name}_{o.out_i:d}", o._dtype)
-        allocator.netNodeToRtl[o] = TimeIndependentRtlResource(s, startTime, allocator)
+        s = allocator._sig(f"forwardDeclr{self._id}_{o.out_i:d}", o._dtype)
+        res = allocator.netNodeToRtl[o] = TimeIndependentRtlResource(s, startTime, allocator)
+        return res
 
     def allocateRtlInstance(self,
                           allocator: "AllocatorArchitecturalElement",
@@ -93,6 +93,6 @@ class HlsNetNodeOperator(HlsNetNode):
         if minify:
             return f"<{self.__class__.__name__:s} {self._id:d} {self.operator.id:s}>"
         else:
-            deps = ", ".join([_reprMinify(o) for o in self.dependsOn])
+            deps = ", ".join([f"{o.obj._id:d}:{o.out_i}" for o in self.dependsOn])
             return f"<{self.__class__.__name__:s} {self._id:d} {self.operator.id:s} [{deps:s}]>"
 

@@ -30,6 +30,7 @@ class AllocatorArchitecturalElement():
     :ivar allNodes: list in this arch element
     :ivar connections: list of rtl object allocated for each specific clock stage
     :ivar stageSignals: an object which makes connections list accessible by time
+    :ivar interArchAnalysis: an object of inter architecture element sharing analysis which is set after allocation starts
     """
 
     def __init__(self, parentHls: "HlsPipeline", namePrefix:str,
@@ -51,6 +52,7 @@ class AllocatorArchitecturalElement():
         self.allNodes = allNodes
         assert isinstance(stageSignals, SignalsOfStages), stageSignals
         self.stageSignals = stageSignals
+        self.interArchAnalysis: Optional["InterArchElementNodeSharingAnalysis"] = None
 
     def _afterNodeInstantiated(self, n: HlsNetNode, rtl: Optional[TimeIndependentRtlResource]):
         pass
@@ -68,8 +70,9 @@ class AllocatorArchitecturalElement():
         _o = self.netNodeToRtl.get(o, None)
 
         if _o is None:
-            if self.stageSignals[int(o.obj.scheduledOut[o.out_i] // self.parentHls.clk_period)] is None:
-                raise AssertionError("Asking for node output which should have forward declaration but it is missing", self, o)
+            clkI = int(o.obj.scheduledOut[o.out_i] // self.parentHls.clk_period)
+            if len(self.stageSignals) <= clkI or self.stageSignals[clkI] is None:
+                raise AssertionError("Asking for node output which should have forward declaration but it is missing", self, o, clkI)
             # new allocation, use registered automatically
             _o = o.obj.allocateRtlInstance(self)
             self._afterNodeInstantiated(o.obj, _o)
@@ -173,7 +176,7 @@ class AllocatorArchitecturalElement():
         con.sync_node = sync
         return sync
 
-    def allocateDataPath(self):
+    def allocateDataPath(self, iea: "InterArchElementNodeSharingAnalysis"):
         """
         Allocate main RTL object which are required from HlsNetNode instances assigned to this element.
         """

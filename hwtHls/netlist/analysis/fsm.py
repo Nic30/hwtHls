@@ -1,14 +1,14 @@
-from typing import List, Set, Union, Dict
+from typing import List, Set, Union, Dict, Tuple
 
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.clk_math import start_clk
+from hwtHls.clk_math import start_clk, end_clk
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
-from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.node import HlsNetNode, HlsNetNodePartRef
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 
 
@@ -43,8 +43,16 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
     
     def _floodNetInSameCycle(self, clk_i: int, o: HlsNetNode, seen:Set[HlsNetNode]):
         seen.add(o)
-        yield o
         clk_period = self.hls.clk_period
+        allNodeClks = tuple(o.iterScheduledClocks(clk_period))
+        if len(allNodeClks) > 1:
+            yield o.createSubNodeRefrenceFromPorts(clk_i * clk_period, (clk_i + 1) * clk_period,
+                [i for t, i in zip(o.scheduledIn, o._inputs) if int(t // clk_period) == clk_i],
+                [o for t, o in zip(o.scheduledOut, o._outputs) if int(t // clk_period) == clk_i]
+            )
+        else:
+            yield o
+
         for dep in o.dependsOn:
             dep: HlsNetNodeOut
             obj = dep.obj
@@ -60,9 +68,12 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
                     if start_clk(obj.scheduledIn[use.in_i], clk_period) == clk_i:
                         yield from self._floodNetInSameCycle(clk_i, obj, seen)
 
-    def collectInFsmNodes(self) -> Dict[HlsNetNode, UniqList[IoFsm]]:
+    def collectInFsmNodes(self) -> Tuple[
+            Dict[HlsNetNode, UniqList[IoFsm]],
+            Dict[HlsNetNode, UniqList[Tuple[IoFsm, HlsNetNodePartRef]]]]:
         "Collect nodes which are part of some fsm"
         inFsm: Dict[HlsNetNode, UniqList[IoFsm]] = {}
+        inFsmNodeParts: Dict[HlsNetNode, UniqList[Tuple[IoFsm, HlsNetNodePartRef]]] = {}
         for fsm in self.fsms:
             for nodes in fsm.states:
                 for n in nodes:
@@ -70,8 +81,14 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
                     if cur is None:
                         cur = inFsm[n] = UniqList()
                     cur.append(fsm)
+                    if isinstance(n, HlsNetNodePartRef):
+                        n: HlsNetNodePartRef
+                        otherParts = inFsmNodeParts.get(n.parentNode, None)
+                        if otherParts is None:
+                            otherParts = inFsmNodeParts[n.parentNode] = UniqList()
+                        otherParts.append((fsm, n))
 
-        return inFsm
+        return inFsm, inFsmNodeParts
 
     def run(self):
         io_aggregation = self.hls.requestAnalysis(HlsNetlistAnalysisPassDiscoverIo).io_by_interface
@@ -95,7 +112,20 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
                     else:
                         st = fsm.states[-1]
 
-                    st.extend(self._floodNetInSameCycle(clkI, a, seen))
+                    for n in self._floodNetInSameCycle(clkI, a, seen):
+                        if isinstance(n, HlsNetNodePartRef):
+                            for i in n._subNodes.inputs:
+                                for use in i.obj.usedBy[i.out_i]:
+                                    if use.obj in n._subNodes.nodes:
+                                        assert (use.obj.scheduledIn[use.in_i] // clk_period) == clkI, (n, use)
+
+                        else:
+                            for t in n.scheduledIn:
+                                assert start_clk(t, clk_period) == clkI, n
+                            for t in n.scheduledOut:
+                                assert int(t // clk_period) == clkI, n
+                                    
+                        st.append(n)
 
                 stCnt = len(fsm.states)
                 if stCnt > 1:

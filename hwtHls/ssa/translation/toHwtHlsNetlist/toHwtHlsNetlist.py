@@ -213,7 +213,6 @@ class SsaToHwtHlsNetlist():
 
             src = self.to_hls_expr(src)
             mux._add_input_and_link(src)
-            mux.elifs.append((c, src))
 
         return mux_out
 
@@ -301,7 +300,6 @@ class SsaToHwtHlsNetlist():
              
                 src = self._to_hls_cache.get((src_block, v))  # self.to_hls_expr(v)
                 mux._add_input_and_link(src)
-                mux.elifs.append((c, src))
 
         # single predecessor, and marked to re-exec after end
         # is_just_reexecuting_itself = block is self.start_block and len(block.predecessors) == 2 and block in block.predecessors

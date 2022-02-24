@@ -8,7 +8,7 @@ def asap(nodes: List[HlsNetNode], clk_period: float):
     """
     As Soon As Possible scheduler
     * The graph must not contain cycles.
-    * DFS from outputs, decorate nodes with asap_start,asap_end time.
+    * DFS from outputs, decorate nodes with _asapBegin,_asapEnd time.
     """
     try:
         # normal run without checking for cycles

@@ -210,32 +210,32 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
         otherIoOps = self.hls.requestAnalysis(HlsNetlistAnalysisPassDiscoverIo).io_by_interface[self.src]
 
         while True:
-            curClk = start_clk(self.asap_start[0], clk_period)
+            curClk = start_clk(self._asapBegin[0], clk_period)
             iosInThisClk = 0
             mustBeScheduled = True
             for io in otherIoOps:
                 if io is self:
                     mustBeScheduled = False
 
-                end = io.asap_end
+                end = io._asapEnd
                 if mustBeScheduled and end is None:
                     io.scheduleAsap(clk_period, pathForDebug)
-                    end = io.asap_end
+                    end = io._asapEnd
                     
                 if end is not None:
-                    c = start_clk(io.asap_start[0], clk_period)
+                    c = start_clk(io._asapBegin[0], clk_period)
                     if c == curClk:
                         iosInThisClk += 1
     
             if iosInThisClk > self.maxIosPerClk:
                 # move to next clock cycle
-                off = start_of_next_clk_period(self.asap_start[0], clk_period) - self.asap_start[0]
-                self.asap_start = tuple(t + off for t in self.asap_start)
-                self.asap_end = tuple(t + off for t in self.asap_end)
+                off = start_of_next_clk_period(self._asapBegin[0], clk_period) - self._asapBegin[0]
+                self._asapBegin = tuple(t + off for t in self._asapBegin)
+                self._asapEnd = tuple(t + off for t in self._asapEnd)
             else:
                 break
         
-        return self.asap_end
+        return self._asapEnd
 
     def getRtlDataSig(self):
         src = self.src
@@ -357,24 +357,24 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         otherIoOps = self.hls.requestAnalysis(HlsNetlistAnalysisPassDiscoverIo).io_by_interface[self.dst]
 
         while True:
-            curClk = start_clk(self.asap_start[0], clk_period)
+            curClk = start_clk(self._asapBegin[0], clk_period)
             iosInThisClk = 0
             for io in otherIoOps:
-                end = io.asap_end
+                end = io._asapEnd
                 if end is not None:
-                    c = start_clk(io.asap_start[0], clk_period)
+                    c = start_clk(io._asapBegin[0], clk_period)
                     if c == curClk:
                         iosInThisClk += 1
     
             if iosInThisClk > self.maxIosPerClk:
                 # move to next clock cycle
-                off = start_of_next_clk_period(self.asap_start[0], clk_period) - self.asap_start[0]
-                self.asap_start = tuple(t + off for t in self.asap_start)
-                self.asap_end = tuple(t + off for t in self.asap_end)
+                off = start_of_next_clk_period(self._asapBegin[0], clk_period) - self._asapBegin[0]
+                self._asapBegin = tuple(t + off for t in self._asapBegin)
+                self._asapEnd = tuple(t + off for t in self._asapEnd)
             else:
                 break
             
-        return self.asap_end
+        return self._asapEnd
         
     def allocateRtlInstance(self,
                             allocator: "AllocatorArchitecturalElement",

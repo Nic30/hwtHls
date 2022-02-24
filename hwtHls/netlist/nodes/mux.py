@@ -1,11 +1,11 @@
-from typing import List, Tuple, Optional, Union
+from typing import Union
 
 from hwt.code import If
 from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.types.hdlType import HdlType
+from hwt.pyUtils.arrayQuery import grouper
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.clk_math import epsilon
-from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
     link_hls_nodes
@@ -19,7 +19,6 @@ class HlsNetNodeMux(HlsNetNodeOperator):
     def __init__(self, parentHls: "HlsPipeline", dtype: HdlType, name: str=None):
         super(HlsNetNodeMux, self).__init__(
             parentHls, AllOps.TERNARY, 0, dtype, name=name)
-        self.elifs: List[Tuple[Optional[HlsNetNode], HlsNetNode]] = []
 
     def allocateRtlInstance(self,
                           allocator: "AllocatorArchitecturalElement",
@@ -30,25 +29,32 @@ class HlsNetNodeMux(HlsNetNodeOperator):
             return allocator.netNodeToRtl[op_out]
         except KeyError:
             pass
-        assert self.elifs, ("Mux has to have operands", self)
+        assert self._inputs, ("Mux has to have operands", self)
         name = self.name
-        v0 = allocator.instantiateHlsNetNodeOutInTime(self.elifs[0][1], self.scheduledOut[0])
+        v0 = allocator.instantiateHlsNetNodeOutInTime(self.dependsOn[1], self.scheduledIn[1])
         mux_out_s = allocator._sig(name, v0.data._dtype)
-        if len(self.elifs) == 1:
-            c, v = self.elifs[0]
+        if len(self._inputs) == 2:
+            c, v = self._inputs
             assert c is None, c
             v = allocator.instantiateHlsNetNodeOutInTime(
                     v,
                     self.scheduledIn[0])
             mux_out_s(v.data)       
         else:
+            assert len(self._inputs) > 2, self
             mux_top = None
-            for elif_i, (c, v) in enumerate(self.elifs):
+            for (c, v) in grouper(2, zip(self.dependsOn, self.scheduledIn), padvalue=None):
+                if v is None:
+                    # handle the case where the is only value without condition at the end
+                    v = c
+                    c = None
+                
                 if c is not None:
-                    c = allocator.instantiateHlsNetNodeOutInTime(c, self.scheduledIn[elif_i * 2])
-                v = allocator.instantiateHlsNetNodeOutInTime(
-                    v,
-                    self.scheduledIn[elif_i * 2 + (1 if c is not None else 0)])
+                    c, ct = c
+                    c = allocator.instantiateHlsNetNodeOutInTime(c, ct)
+                
+                v, vt = v
+                v = allocator.instantiateHlsNetNodeOutInTime(v, vt)
                     
                 if mux_top is None:
                     mux_top = If(c.data, mux_out_s(v.data))
@@ -68,7 +74,7 @@ class HlsNetNodeMux(HlsNetNodeOperator):
         i = self._add_input()
         link_hls_nodes(src, i)
         if isinstance(src, HlsNetNodeOutLazy):
-            src.dependent_inputs.append(HlsNetNodeMuxInputRef(self, len(self.elifs), i.in_i, src))
+            src.dependent_inputs.append(HlsNetNodeMuxInputRef(self, i.in_i, src))
 
 
 class HlsNetNodeMuxInputRef():
@@ -77,20 +83,13 @@ class HlsNetNodeMuxInputRef():
     once the lazy output of some node on input is resolved.
     """
 
-    def __init__(self, updated_obj: "HlsNetNodeMux", elif_i: int, in_i: int, obj: HlsNetNodeOutLazy):
+    def __init__(self, updated_obj: "HlsNetNodeMux", in_i: int, obj: HlsNetNodeOutLazy):
         self.updated_obj = updated_obj
-        self.elif_i = elif_i
         self.in_i = in_i
         self.obj = obj
 
     def replace_driver(self, new_obj: Union[HlsNetNodeOut, HlsNetNodeOutLazy]):
         assert isinstance(new_obj, HlsNetNodeOut), ("Must be a final out port")
-        c, v = self.updated_obj.elifs[self.elif_i]
-        if c is self.obj:
-            c = new_obj
-        if v is self.obj:
-            v = new_obj
-        self.updated_obj.elifs[self.elif_i] = (c, v)
         self.updated_obj.dependsOn[self.in_i] = new_obj
 
         if isinstance(new_obj, HlsNetNodeOut):

@@ -54,14 +54,14 @@ class HlsScheduler():
         sched = {}
         for n in chain(hls.inputs, hls.nodes, hls.outputs):
             n: HlsNetNode
-            for t, i in zip_longest(n.asap_start, n._inputs):
+            for t, i in zip_longest(n._asapBegin, n._inputs):
                 assert t is not None, n
                 if i is not None:
                     sched[i] = t
                 else:
                     assert not n._inputs, n
 
-            for t, o in zip_longest(n.asap_end, n._outputs):
+            for t, o in zip_longest(n._asapEnd, n._outputs):
                 assert t is not None, n
                 assert o is not None, n
                 sched[o] = t

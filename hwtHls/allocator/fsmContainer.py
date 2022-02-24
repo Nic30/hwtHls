@@ -11,6 +11,7 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.allocator.architecturalElement import AllocatorArchitecturalElement
 from hwtHls.allocator.connectionsOfStage import getIntfSyncSignals, \
     setNopValIfNotSet, SignalsOfStages, ConnectionsOfStage
+from hwtHls.allocator.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.clk_math import start_clk
 from hwtHls.netlist.analysis.fsm import IoFsm
@@ -35,7 +36,7 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
         self.fsmEndClk_i = max(fsm.stateClkI.values())
         self.fsmBeginClk_i = min(fsm.stateClkI.values())
         self.clkIToStateI = clkIToStateI = {v:k for k, v in fsm.stateClkI.items()}
-
+        
         stateCons = [ConnectionsOfStage() for _ in fsm.states]
         stageSignals = SignalsOfStages(clk_period,
                                         (
@@ -45,7 +46,13 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
         AllocatorArchitecturalElement.__init__(self, parentHls, namePrefix, allNodes, stateCons, stageSignals)
 
     def connectSync(self, clkI: int, intf: HandshakeSync, intfDir: INTF_DIRECTION):
-        con = self.connections[self.clkIToStateI[clkI]]
+        try:
+            stateI = self.clkIToStateI[clkI]
+        except KeyError:
+            raise AssertionError("Asking for a sync in an element which is not scheduled in this clk period", self, clkI, self.clkIToStateI)
+
+        con = self.connections[stateI]
+            
         if intfDir == INTF_DIRECTION.MASTER:
             con.outputs.append(intf)
         else:
@@ -97,14 +104,15 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
                     for s in syncSignals:
                         setNopValIfNotSet(s, 0, ())
 
-    def allocateDataPath(self):
+    def allocateDataPath(self, iea: InterArchElementNodeSharingAnalysis):
         """
         Instantiate logic in the states
 
         :note: This function does not perform efficient register allocations.
-            Instead each value is store in idividual register.
+            Instead each value is store in individual register.
             The register is created when value (TimeIndependentRtlResource) is first used from other state/clock cycle.
         """
+        self.interArchAnalysis = iea
         for (nodes, con) in zip(self.fsm.states, self.connections):
             for node in nodes:
                 node: HlsNetNode

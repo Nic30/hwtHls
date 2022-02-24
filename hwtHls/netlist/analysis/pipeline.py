@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, Tuple
 
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.clk_math import start_clk
@@ -6,7 +6,7 @@ from hwtHls.netlist.analysis.fsm import HlsNetlistAnalysisPassDiscoverFsm, IoFsm
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
-from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.node import HlsNetNode, HlsNetNodePartRef
 
 
 class NetlistPipeline():
@@ -30,37 +30,46 @@ class HlsNetlistAnalysisPassDiscoverPipelines(HlsNetlistAnalysisPass):
         self.pipelines: List[NetlistPipeline] = []
     
     @staticmethod
-    def iterNodeScheduledClocks(node: HlsNetNode, clk_period: float):
-        seen = []
-        for i in node.scheduledIn:
-            clkI = start_clk(i, clk_period)
-            if clkI not in seen:
-                yield clkI
-            seen.append(clkI)
-        for o in node.scheduledOut:
-            clkI = int(o // clk_period)
-            if clkI not in seen:
-                yield clkI
-            seen.append(clkI)
-
-    @staticmethod
-    def _extendIfRequired(list_, lastIndex):
+    def _extendIfRequired(list_: List[list], lastIndex: int):
         if len(list_) <= lastIndex:
             for _ in range(lastIndex - len(list_) + 1):
                 list_.append([])
+    
+    @classmethod
+    def _addNodeToPipeline(cls, node: HlsNetNode, clk_period: float, pipeline: List[List[HlsNetNode]]):
+        for clk_index in node.iterScheduledClocks(clk_period):
+            clk_index = start_clk(node.scheduledIn[0], clk_period)
+            cls._extendIfRequired(pipeline, clk_index)
+            pipeline[clk_index].append(node)
 
     def run(self):
         fsms: HlsNetlistAnalysisPassDiscoverFsm = self.hls.requestAnalysis(HlsNetlistAnalysisPassDiscoverFsm)
         io_aggregation = self.hls.requestAnalysis(HlsNetlistAnalysisPassDiscoverIo).io_by_interface
-        allFsmNodes: Dict[HlsNetNode, UniqList[IoFsm]] = fsms.collectInFsmNodes()
+        allFsmNodes, inFsmNodeParts = fsms.collectInFsmNodes()
+        allFsmNodes: Dict[HlsNetNode, UniqList[IoFsm]]
+        inFsmNodeParts: Dict[HlsNetNode, UniqList[Tuple[IoFsm, HlsNetNodePartRef]]]
         clk_period = self.hls.clk_period
         globalPipeline = []
 
         for node in self.hls.iterAllNodes():
             node: HlsNetNode
+            assert not isinstance(node, HlsNetNodePartRef), node
+            _node = node
+
             fsms = allFsmNodes.get(node, None)
             if fsms is None:
-                if isinstance(node, HlsNetNodeRead):
+                parts = inFsmNodeParts.get(node, None)
+                if parts is not None:
+                    parts: UniqList[Tuple[IoFsm, HlsNetNodePartRef]]
+                    # if this is the first part of the node seen
+                    # for all parts which are not in any fsm 
+                    for part in node.partsComplement([p for _, p in parts]):
+                        for clkI in part.iterScheduledClocks(clk_period):
+                            self._extendIfRequired(globalPipeline, clkI)
+                            globalPipeline[clkI].append(part)                    
+                    continue
+                    
+                elif isinstance(node, HlsNetNodeRead):
                     if len(io_aggregation[node.src]) > 1:
                         raise AssertionError("In this phase each IO operation should already have separate gate"
                                              " if it wants to access same interface", node.src, io_aggregation[node.src])
@@ -69,20 +78,11 @@ class HlsNetlistAnalysisPassDiscoverPipelines(HlsNetlistAnalysisPass):
                     if len(io_aggregation[node.dst]) > 1:
                         raise AssertionError("In this phase each IO operation should already have separate gate"
                                              " if it wants to access same interface")
-                
-                for clk_index in self.iterNodeScheduledClocks(node, clk_period):
-                    clk_index = start_clk(node.scheduledIn[0], clk_period)
-                    self._extendIfRequired(globalPipeline, clk_index)
-                    globalPipeline[clk_index].append(node)
-            else:
-                allClks = tuple(self.iterNodeScheduledClocks(node, clk_period))
-                if len(allClks) > 1:
-                    for clk_index in allClks:
-                        for fsm in fsms:
-                            fsm: IoFsm
-                            if clk_index not in fsm.stateClkI.values():
-                                self._extendIfRequired(globalPipeline, clk_index)
-                                globalPipeline[clk_index].append(node)
-                
+
+                # this is just node which is part of no FSM,
+                # we add it to global pipeline for each clock cycle where it is defined
+                self._addNodeToPipeline(node, clk_period, globalPipeline)
+                    
         if globalPipeline:
+            # [todo] extract pipelines which do have no common src/dst and no common node
             self.pipelines.append(NetlistPipeline(globalPipeline))

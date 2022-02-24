@@ -4,11 +4,11 @@ from typing import List, Optional, Union, Tuple, Generator
 from hwt.hdl.types.hdlType import HdlType
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
-from hwtHls.clk_math import start_of_next_clk_period
+from hwtHls.clk_math import start_of_next_clk_period, start_clk, epsilon
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.scheduler.errors import TimeConstraintError
-
+from math import inf
 
 TimeSpec = Union[float, Tuple[float, ...]]
 
@@ -21,8 +21,8 @@ class HlsNetNode():
     :ivar usedBy: for each output list of operation and its input index which are using this output
     :ivar dependsOn: for each input operation and index of its output with data required
         to perform this operation
-    :ivar asap_start: scheduled time of start of operation using ASAP scheduler for each input
-    :ivar asap_end: scheduled time of end of operation using ASAP scheduler for each output
+    :ivar _asapBegin: scheduled time of start of operation using ASAP scheduler for each input
+    :ivar _asapEnd: scheduled time of end of operation using ASAP scheduler for each output
     :ivar alap_start: scheduled time of start of operation using ALAP scheduler for each input
     :ivar alap_end: scheduled time of end of operation using ALAP scheduler for each output
     :ivar scheduledIn: final scheduled time of start of operation for each input
@@ -52,8 +52,8 @@ class HlsNetNode():
         self._inputs: List[HlsNetNodeIn] = []
         self._outputs: List[HlsNetNodeOut] = []
 
-        self.asap_start: Optional[TimeSpec] = None
-        self.asap_end: Optional[TimeSpec] = None
+        self._asapBegin: Optional[TimeSpec] = None
+        self._asapEnd: Optional[TimeSpec] = None
         self.alap_start: Optional[TimeSpec] = None
         self.alap_end: Optional[TimeSpec] = None
         # True if scheduled to specific time
@@ -68,7 +68,7 @@ class HlsNetNode():
         """
         The recursive function of ASAP scheduling
         """
-        if self.asap_end is None:
+        if self._asapEnd is None:
             if self.dependsOn:
                 if pathForDebug is not None:
                     if self in pathForDebug:
@@ -103,12 +103,12 @@ class HlsNetNode():
                         # latest_input_i = in_i
                         time_when_all_inputs_present = normalized_time
     
-                self.asap_start = tuple(
+                self._asapBegin = tuple(
                     time_when_all_inputs_present - (in_delay + in_cycles * clk_period)
                     for (in_delay, in_cycles) in zip(self.latency_pre, self.in_cycles_offset)
                 )
     
-                self.asap_end = tuple(
+                self._asapEnd = tuple(
                     time_when_all_inputs_present + out_delay + out_cycles * clk_period
                     for (out_delay, out_cycles) in zip(self.latency_post, self.cycles_latency)
                 )
@@ -116,11 +116,24 @@ class HlsNetNode():
                     pathForDebug.pop()
     
             else:
-                self.asap_start = (0.0,)
-                self.asap_end = tuple(0.0 for _ in self._outputs)
+                self._asapBegin = (0.0,)
+                self._asapEnd = tuple(0.0 for _ in self._outputs)
     
-        return self.asap_end
+        return self._asapEnd
+
+    def iterScheduledClocks(self, clk_period: float):
+        beginTime = inf
+        endTime = 0.0
+        for i in self.scheduledIn:
+            beginTime = min(beginTime, i)
+            
+        for o in self.scheduledOut:
+            endTime = max(endTime, o)
         
+        startClkI = start_clk(beginTime, clk_period)
+        endClkI = int(endTime // clk_period)
+        yield from range(startClkI, endClkI + 1)
+
     def _add_input(self) -> HlsNetNodeIn:
         i = HlsNetNodeIn(self, len(self._inputs))
         self.dependsOn.append(None)
@@ -163,15 +176,28 @@ class HlsNetNode():
         raise NotImplementedError(
             "Override this method in derived class", self)
 
-    def allocateRtlInstanceOutDeclr(self, allocator: "AllocatorArchitecturalElement", o: HlsNetNodeOut, startTime: float):
+    def allocateRtlInstanceOutDeclr(self, allocator: "AllocatorArchitecturalElement", o: HlsNetNodeOut, startTime: float) -> TimeIndependentRtlResource:
         assert allocator.netNodeToRtl.get(o, None) is None, ("Must not be redeclared", o)
         s = allocator._sig(f"{allocator.namePrefix}forwardDeclr{self._id:d}_{o.out_i:d}", o._dtype)
-        allocator.netNodeToRtl[o] = TimeIndependentRtlResource(s, startTime, allocator)
+        res = allocator.netNodeToRtl[o] = TimeIndependentRtlResource(s, startTime, allocator)
+        return res
       
     def allocateRtlInstance(self, allocator: "AllocatorArchitecturalElement"):
         raise NotImplementedError(
             "Override this method in derived class", self)
 
+    def createSubNodeRefrenceFromPorts(self, beginTime: float, endTime: float,
+                                       inputs: List[HlsNetNodeIn], outputs: List[HlsNetNodeOut]) -> "HlsNetNodePartRef":
+        raise NotImplementedError(
+            "Override this method in derived class", self)
+
+    def partsComplement(self, otherParts: List["HlsNetNodePartRef"]):
+        """
+        Create a parts which contains the rest of node not contained in otherParts.
+        """
+        raise NotImplementedError(
+            "Override this method in derived class", self)
+        
     def _get_rtl_context(self):
         return self.hls.ctx
 
@@ -182,3 +208,23 @@ class HlsNetNode():
         """
         return
         yield
+
+
+class HlsNetNodePartRef(HlsNetNode):
+    """
+    Abstract class for references of :class:`~.HlsNetNode` parts.
+
+    :note: The reason for this class is that we need to split nodes during analysis passes when we can not modify the nodes.
+    """
+
+    def __init__(self, parentHls:"HlsPipeline", parentNode: HlsNetNode, name:str=None):
+        HlsNetNode.__init__(self, parentHls, name=name)
+        self.parentNode = parentNode
+        # deleting because real value is stored in parent node and this is just reference
+        self._inputs = None
+        self._outputs = None
+        self.dependsOn = None
+        self.usedBy = None
+        self.scheduledIn = None
+        self.scheduledOut = None
+

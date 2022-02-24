@@ -10,6 +10,11 @@ class HlsNetlistClusterSearch():
     """
     This class implements bidirectional flooding of the net while predicate is satisfied.
     Collects nodes and inputs/outputs, has methods for manipulation with selection.
+    
+    :ivar inputs: all external outputs which are inputs of this cluster
+    :ivar inputsDict: maps the external output to all connected inputs in this cluster
+    :ivar outputs: all internal outputs which are also outputs of this cluster
+    :ivar nodes: all nodes in this cluster
     """
 
     def __init__(self):
@@ -23,7 +28,7 @@ class HlsNetlistClusterSearch():
     def _discover(self, n: HlsNetNode, seen: Set[HlsNetNode],
                  predicateFn: Callable[[HlsNetNode], bool]):
         """
-        :attention: the inuts and outputs may by falsely detected if there are connections
+        :attention: the inputs and outputs may by falsely detected if there are connections
             which are crossing the layers of the circuit (which usually the case)
         """
         self.nodes.append(n)

@@ -24,8 +24,8 @@ class HlsNetNodeConst(HlsNetNode):
     def resolve_realization(self):
         self.latency_pre = ()
         self.latency_post = (0.0,)
-        self.asap_start = (0.0,)
-        self.asap_end = (0.0,)
+        self._asapBegin = (0.0,)
+        self._asapEnd = (0.0,)
 
     def __repr__(self, minify=False):
         if minify:
