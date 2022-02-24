@@ -19,6 +19,7 @@ and provides variety of existing ones (from LLVM/hwt) in order to build efficien
 ### Current state
 
 * This library is in alpha phase.
+* You can try it online at [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Nic30/hwtHls/HEAD) (From jupyterlab you can also run examples in tests.)
 
 * Features
   * Python bytecode -> LLVM -> hwt -> vhdl/verilog/IP-exact
