@@ -208,9 +208,10 @@ class HlsNetlistNodeBitwiseOps(HlsNetNode):
             for use in usesInCluster:
                 if use.obj.scheduledIn[use.in_i] <= endTime:
                     n._discoverFromIn(use.obj)
-                    atLeastOnceUsed  = True
+                    atLeastOnceUsed = True
             assert atLeastOnceUsed, (i, "Must be at least once used because if it was used only later it should be also scheduled only later")
-         for o in subNodes.outputs:
+
+        for o in subNodes.outputs:
             n._discoverFromOut(o)
         
         for node in subNodes.nodes:
