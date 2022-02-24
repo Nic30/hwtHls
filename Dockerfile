@@ -31,6 +31,7 @@ RUN pip3 install jupyterlab
 RUN python3 --version
 RUN jupyter --version
 RUN node --version
+RUN free
 
 # [mybinder specific]
 # Make sure the contents of our repo are in ${HOME}
