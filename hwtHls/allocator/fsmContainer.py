@@ -11,9 +11,8 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.allocator.architecturalElement import AllocatorArchitecturalElement
 from hwtHls.allocator.connectionsOfStage import getIntfSyncSignals, \
     setNopValIfNotSet, SignalsOfStages, ConnectionsOfStage
-from hwtHls.allocator.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
-from hwtHls.clk_math import start_clk
+from hwtHls.clk_math import start_clk, epsilon
 from hwtHls.netlist.analysis.fsm import IoFsm
 from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeRead
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -75,7 +74,7 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
             s: TimeIndependentRtlResource
             
             if not s.persistenceRanges and s.timeOffset is not TimeIndependentRtlResource.INVARIANT_TIME:
-                self.stageSignals.getForTime(s.timeOffset).append(s)
+                self.stageSignals.getForTime(s.timeOffset + epsilon).append(s)
                 # value for the first clock behind this clock period and the rest is persistent in this register
                 nextClkI = start_clk(s.timeOffset, clk_period) + 2
                 if nextClkI <= fsmEndClk_i:
@@ -104,7 +103,7 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
                     for s in syncSignals:
                         setNopValIfNotSet(s, 0, ())
 
-    def allocateDataPath(self, iea: InterArchElementNodeSharingAnalysis):
+    def allocateDataPath(self, iea: "InterArchElementNodeSharingAnalysis"):
         """
         Instantiate logic in the states
 

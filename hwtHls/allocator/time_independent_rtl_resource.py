@@ -89,7 +89,7 @@ class TimeIndependentRtlResource():
 
         # else try to look up register for this signal in valuesInTime cache
         clk_period = self.allocator.parentHls.clk_period
-        dst_clk_period = end_clk(time, clk_period)
+        dst_clk_period = start_clk(time, clk_period)
         index = dst_clk_period - \
             start_clk(self.timeOffset, clk_period)
 

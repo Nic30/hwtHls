@@ -15,6 +15,7 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtLib.handshaked.streamNode import StreamNode
 from ipCorePackager.constants import INTF_DIRECTION
+from hwtHls.clk_math import epsilon, start_clk
 
 
 class AllocatorArchitecturalElement():
@@ -70,7 +71,7 @@ class AllocatorArchitecturalElement():
         _o = self.netNodeToRtl.get(o, None)
 
         if _o is None:
-            clkI = int(o.obj.scheduledOut[o.out_i] // self.parentHls.clk_period)
+            clkI = start_clk(o.obj.scheduledOut[o.out_i], self.parentHls.clk_period)
             if len(self.stageSignals) <= clkI or self.stageSignals[clkI] is None:
                 raise AssertionError("Asking for node output which should have forward declaration but it is missing", self, o, clkI)
             # new allocation, use registered automatically
@@ -78,7 +79,11 @@ class AllocatorArchitecturalElement():
             self._afterNodeInstantiated(o.obj, _o)
             if _o is None:
                 # to support the return of the value directly to avoid lookup from dict
-                return self.netNodeToRtl[o]
+                try:
+                    return self.netNodeToRtl[o]
+                except KeyError:
+                    # {v:k for k, v in o.obj.internOutToOut.items()}[o]
+                    raise AssertionError(self, "Node did not instantiate its output", o.obj, o)
         else:
             # used and previously allocated
             # used_signals.getForTime(t).append(_o)

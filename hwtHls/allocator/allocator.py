@@ -48,8 +48,8 @@ class HlsAllocator():
     def _getFirstUseTime(self, iea: InterArchElementNodeSharingAnalysis, dstElm: AllocatorArchitecturalElement, o: HlsNetNodeOut):
         clk_period = self.parentHls.clk_period
         useT = iea.firstUseTimeOfOutInElem[(dstElm, o)]
-        srcStartClkI = int(o.obj.scheduledOut[o.out_i] // clk_period)
-        dstUseClkI = int(useT // clk_period)
+        srcStartClkI = start_clk(o.obj.scheduledOut[o.out_i], clk_period)
+        dstUseClkI = start_clk(useT, clk_period)
         if isinstance(dstElm, AllocatorFsmContainer):
             assert dstUseClkI in dstElm.clkIToStateI, (dstUseClkI, dstElm.clkIToStateI, o, "Output must be scheduled to some cycle corresponding to fsm state")
         if srcStartClkI != dstUseClkI:
@@ -82,7 +82,7 @@ class HlsAllocator():
             dstElms = iea.ownerOfInput[i]
             for dstElm in dstElms:
                 dstElm: AllocatorArchitecturalElement
-                if (dstElm, o) in seenOutputsConnectedToElm:
+                if (dstElm, o) in seenOutputsConnectedToElm or dstElm is iea.ownerOfOutput[o]:
                     continue
                 seenOutputsConnectedToElm.add((dstElm, o))
                 # declare output and all its synonyms 
@@ -95,7 +95,7 @@ class HlsAllocator():
                     synRtl = dstElm.netNodeToRtl.get(syn, None)
                     if synRtl is not None:
                         assert oRes is None or oRes is synRtl, ("All synonyms must have same RTL realization", o, oRes, syn, synRtl)
-                        assert int(synRtl.timeOffset // clk_period) == int(useT // clk_period) , (synRtl.timeOffset, useT, syn, o)
+                        assert start_clk(synRtl.timeOffset, clk_period) == start_clk(useT, clk_period) , (synRtl.timeOffset, useT, syn, o)
                         oRes = synRtl
     
                 # now optionally declare and set all synonyms at input of dstElm
@@ -238,7 +238,7 @@ class HlsAllocator():
         * Each arch element explicitly queries the node for the specific time (and input/output combination if node spans over more arch. elements).
         """
         self._discoverArchElements()
-        iea = InterArchElementNodeSharingAnalysis()
+        iea = InterArchElementNodeSharingAnalysis(self.parentHls.clk_period)
         if len(self._archElements) > 1:
             iea._analyzeInterElementsNodeSharing(self._archElements)
             if iea.interElemConnections:

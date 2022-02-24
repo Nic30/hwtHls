@@ -175,10 +175,11 @@ class HlsNetlistNodeBitwiseOps(HlsNetNode):
                 if part in allocator.allNodes:
                     part.allocateRtlInstance(allocator)
         else:
+            assert len(self._outputs) == len(self._subNodes.outputs)
             for outerO, o in zip(self._outputs, self._subNodes.outputs):
                 outerO: HlsNetNodeOut
                 o: HlsNetNodeOut
-                
+                assert outerO.obj is self
                 if outerO in allocator.netNodeToRtl:
                     continue
     
@@ -212,7 +213,7 @@ class HlsNetlistNodeBitwiseOps(HlsNetNode):
         
         for node in subNodes.nodes:
             for o, uses in zip(node._outputs, node.usedBy):
-                if any(u.obj not in subNodes.nodes for u in uses):
+                if o in self._subNodes.outputs or any(u.obj not in subNodes.nodes for u in uses):
                     subNodes.outputs.append(o)
             
             for dep in node.dependsOn:
@@ -235,13 +236,13 @@ class HlsNetlistNodeBitwiseOps(HlsNetNode):
         :see: :meth:`~.HlsNetNode.partsComplement`
         """
         allNodes: Set[HlsNetNode] = set()
-        allIo: Set[HlsNetNodeOut] = set()
+        allPartsIo: Set[HlsNetNodeOut] = set()
         for p in otherParts:
             p: HlsNetlistNodeBitwiseOpsPartRef
             assert p.parentNode is self, (self, p)
             allNodes.update(p._subNodes.nodes)
-            allIo.update(p._subNodes.inputs)
-            allIo.update(p._subNodes.outputs)
+            allPartsIo.update(p._subNodes.inputs)
+            allPartsIo.update(p._subNodes.outputs)
         
         c = HlsNetlistClusterSearch()
         c.nodes.extend(n for n in self._subNodes.nodes if n not in allNodes)
@@ -252,14 +253,14 @@ class HlsNetlistNodeBitwiseOps(HlsNetNode):
             n: HlsNetNode
             for iT, o in zip(n.scheduledIn, n.dependsOn):
                 # external input or newly generated internal cluster input
-                if o in allIo or o.obj not in c.nodes:
+                if o in self._subNodes.inputs or o in allPartsIo or o.obj not in c.nodes:
                     # input is any internal input if it is driven by something external
                     c.inputs.append(o)
                     beginTime = min(endTime, iT)
 
             for o, oT, uses in zip(n._outputs, n.scheduledOut, n.usedBy):
                 # :note: works only for subnodes which can fit in single clock period
-                if o in allIo or any(u.obj not in c.nodes for u in uses):
+                if o in self._subNodes.outputs or o in allPartsIo or any(u.obj not in c.nodes for u in uses):
                     # output is any internal output if the output is used by something external
                     c.outputs.append(o)
                     endTime = max(endTime, oT)
@@ -373,6 +374,7 @@ class HlsNetlistNodeBitwiseOpsPartRef(HlsNetNodePartRef, HlsNetlistNodeBitwiseOp
         """
         Instantiate layers of bitwise operators. (Just delegation to sub nodes)
         """
+        
         assert self._subNodes.outputs, self
         for o in self._subNodes.outputs:
             o: HlsNetNodeOut

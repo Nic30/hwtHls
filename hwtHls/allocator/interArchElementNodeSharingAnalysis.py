@@ -5,6 +5,9 @@ from hwt.pyUtils.uniqList import UniqList
 from hwtHls.allocator.architecturalElement import AllocatorArchitecturalElement
 from hwtHls.netlist.nodes.node import HlsNetNode, HlsNetNodePartRef
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
+from hwtHls.netlist.nodes.const import HlsNetNodeConst
+from hwtHls.allocator.fsmContainer import AllocatorFsmContainer
+from hwtHls.clk_math import start_clk
 
 
 class InterArchElementNodeSharingAnalysis():
@@ -26,7 +29,8 @@ class InterArchElementNodeSharingAnalysis():
         instance for the first time
     """
 
-    def __init__(self):
+    def __init__(self, clk_period: float):
+        self.clk_period = clk_period
         self.interElemConnections: UniqList[Tuple[HlsNetNodeOut, HlsNetNodeIn]] = UniqList()
         self.multiOwnerNodes: UniqList[HlsNetNode] = UniqList()
         self.nodePartToPort: Dict[Union[HlsNetNodeIn, HlsNetNodeOut], HlsNetNodePartRef]
@@ -39,17 +43,23 @@ class InterArchElementNodeSharingAnalysis():
         self.portSynonyms: Union[Dict[HlsNetNodeIn, UniqList[HlsNetNodeIn]], Dict[HlsNetNodeOut, UniqList[HlsNetNodeOut]]] = {}
 
     def _analyzeInterElementsNodeSharingCheckInputDriver(self, o: HlsNetNodeOut, i: HlsNetNodeIn, inT: float, dstElm: AllocatorArchitecturalElement):
+        if isinstance(o.obj, HlsNetNodeConst):
+            return  # sharing not required
         assert dstElm in self.ownerOfInput[i], (dstElm, i, self.ownerOfInput[i])
         oOwner = self.ownerOfOutput[o]
         if dstElm is oOwner:
             return
+        if isinstance(dstElm, AllocatorFsmContainer):
+            useClkI = start_clk(inT, self.clk_period)
+            assert useClkI in dstElm.clkIToStateI, (useClkI, dstElm.clkIToStateI, o, dstElm,
+                                                    "Input must be scheduled to some cycle corresponding to FSM state", inT, self.clk_period)
         # this input is connected to something outside of this arch. element
         firstUseTimeKey = (dstElm, o)
         curT = self.firstUseTimeOfOutInElem.get(firstUseTimeKey, inf)
         if curT > inT:
             # earlier time of use discovered
             self.firstUseTimeOfOutInElem[firstUseTimeKey] = inT
-            print("_analyzeInterElementsNodeSharingCheckInputDriver", o, inT)
+
         self.interElemConnections.append((o, i))
     
     def _addPortSynonym(self, p0, p1):
@@ -88,7 +98,6 @@ class InterArchElementNodeSharingAnalysis():
 
                 if isinstance(n, HlsNetNodePartRef):
                     n: HlsNetNodePartRef
-                    # print("seen part", n)
                     for e in archElements:
                         assert n.parentNode not in e.allNodes, ("If node is fragmented only parts should be used", n, e)
                     self.partsOfNode.setdefault(n.parentNode, []).append(n)
@@ -116,14 +125,11 @@ class InterArchElementNodeSharingAnalysis():
                                     curOwner.append(dstElm)
                                 
                         for o in subNode._outputs:
-                            # print("    seen o", o)
                             self.ownerOfOutput[o] = dstElm
                             parOut = n.parentNode.internOutToOut.get(o, None)
                             if parOut is not None:
-                                # print("    seen par o", parOut)
                                 assert parOut not in self.ownerOfOutput
                                 self.ownerOfOutput[parOut] = dstElm
-                                # print("adding synonym", dstElm, o, parOut)
                                 self._addPortSynonym(o, parOut)
                         
                 else: 
