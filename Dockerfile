@@ -45,6 +45,8 @@ WORKDIR ${HOME}
 RUN pip3 install -r doc/requirements.txt
 # install this library
 RUN pip3 install .
+# rm main package folder so it does not interfere with the installation
+RUN rm hwtHls/ -r
 
 # [mybinder specific]
 #USER ${NB_USER}
