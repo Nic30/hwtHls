@@ -6,6 +6,7 @@ from unittest import TestLoader, TextTestRunner, TestSuite
 
 from tests.bitOpt.bitWidthReductionCmp_test import BitWidthReductionCmp_example_TC
 from tests.io.axiStream.axisParseEth_test import AxiSParseEthTC
+from tests.io.axiStream.axisParseIf_test import AxiSParseIfTC
 from tests.io.axiStream.axisParseLinear_test import AxiSParseLinearTC
 from tests.io.ioFsm_test import IoFsm_TC
 from tests.pythonFrontend.basics_test import FromPythonBasics_TC
@@ -48,6 +49,7 @@ suite = testSuiteFromTCs(
     FromPythonBasics_TC,
     AxiSParseEthTC,
     AxiSParseLinearTC,
+    AxiSParseIfTC,
 )
 
 
