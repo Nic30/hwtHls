@@ -20,7 +20,7 @@ from hwtSimApi.utils import freq_to_period
 class HlsMAC_example(Unit):
 
     def _config(self):
-        self.CLK_FREQ = Param(int(25e6))
+        self.CLK_FREQ = Param(int(20e6))
         self.INPUT_CNT = Param(4)
         self.DATA_WIDTH = Param(32)
 
@@ -87,7 +87,7 @@ class HlsMAC_example_handshake(HlsMAC_example2):
 
     def _config(self):
         super(HlsMAC_example_handshake, self)._config()
-        self.CLK_FREQ = int(25e6)
+        self.CLK_FREQ = int(20e6)
         self.INPUT_CNT = 4
 
     def _declr(self):
@@ -152,7 +152,7 @@ if __name__ == "__main__":
     from hwtHls.platform.virtual import makeDebugPasses
     u = HlsMAC_example_handshake()
     u.DATA_WIDTH = 32
-    u.CLK_FREQ = int(50e6)
+    u.CLK_FREQ = int(20e6)
     u.INPUT_CNT = 4
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(**makeDebugPasses("tmp"))))
 

@@ -67,6 +67,8 @@ class CrcCombHls(CrcComb):
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform, makeDebugPasses
+    # import sys
+    # sys.setrecursionlimit(10**5)
 
     u = CrcCombHls()
     u.setConfig(CRC_5_USB)

@@ -14,7 +14,7 @@ class PidControllerHalfHls(PidController):
 
     def _config(self):
         super(PidControllerHalfHls, self)._config()
-        self.CLK_FREQ = Param(int(100e6))
+        self.CLK_FREQ = Param(int(50e6))
 
     def _declr(self):
         PidController._declr(self)

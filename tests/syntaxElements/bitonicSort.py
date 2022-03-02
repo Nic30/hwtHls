@@ -13,7 +13,7 @@ class BitonicSorterHLS(BitonicSorter):
 
     def _config(self):
         BitonicSorter._config(self)
-        self.CLK_FREQ = Param(int(100e6))
+        self.CLK_FREQ = Param(int(50e6))
 
     def _declr(self):
         addClkRstn(self)

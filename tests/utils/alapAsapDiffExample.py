@@ -14,7 +14,7 @@ from hwtSimApi.utils import freq_to_period
 class AlapAsapDiffExample(Unit):
 
     def _config(self):
-        self.CLK_FREQ = int(500e6)
+        self.CLK_FREQ = int(400e6)
 
     def _declr(self):
         addClkRstn(self)
@@ -49,8 +49,8 @@ def neg_8b(a):
 
 class AlapAsapDiffExample_TC(SimTestCase):
 
-    def test_500MHz(self):
-        self._test_simple(500e6)
+    def test_400MHz(self):
+        self._test_simple(400e6)
 
     def test_200MHz(self):
         self._test_simple(200e6)
@@ -83,10 +83,11 @@ if __name__ == "__main__":
     import unittest
     from hwt.synthesizer.utils import to_rtl_str
     u = AlapAsapDiffExample()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform()))
+    from hwtHls.platform.virtual import makeDebugPasses
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(**makeDebugPasses("tmp"))))
 
-    suite = unittest.TestSuite()
-    # suite.addTest(FrameTmplTC('test_frameHeader'))
-    suite.addTest(unittest.makeSuite(AlapAsapDiffExample_TC))
-    runner = unittest.TextTestRunner(verbosity=3)
-    runner.run(suite)
+    #suite = unittest.TestSuite()
+    ## suite.addTest(FrameTmplTC('test_frameHeader'))
+    #suite.addTest(unittest.makeSuite(AlapAsapDiffExample_TC))
+    #runner = unittest.TextTestRunner(verbosity=3)
+    #runner.run(suite)

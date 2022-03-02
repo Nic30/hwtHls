@@ -107,14 +107,14 @@ if __name__ == '__main__':
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.virtual import makeDebugPasses
     u = ReadIfOtherEqual()
-    u.DATA_WIDTH = 8
-    u.FREQ = int(50e6)
+    #u.DATA_WIDTH = 8
+    u.FREQ = int(150e6)
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(**makeDebugPasses("tmp"))))
 
     import unittest
-
+    
     suite = unittest.TestSuite()
-    suite.addTest(ReadIfTc('testReadIfOtherEqual_50M'))
+    suite.addTest(ReadIfTc('testReadIfOtherEqual_150M'))
     # suite.addTest(unittest.makeSuite(ReadIfTc))
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

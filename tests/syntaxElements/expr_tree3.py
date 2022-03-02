@@ -14,7 +14,7 @@ from tests.baseSsaTest import BaseSsaTC
 class HlsExprTree3_example(Unit):
 
     def _config(self):
-        self.CLK_FREQ = Param(int(50e6))
+        self.CLK_FREQ = Param(int(40e6))
 
     def _declr(self):
         addClkRstn(self)
@@ -36,18 +36,19 @@ class HlsExprTree3_example(Unit):
 
     def _impl(self):
         hls = HlsStreamProc(self)
-        a, b, c, d = self.a, self.b, self.c, self.d
-        x, y, z, w = self.x, self.y, self.z, self.w
-
         r = hls.read
-        f1 = (r(a) + r(b) + r(c)) * r(d)
-        xy = r(x) + r(y)
-        f2 = xy * r(z)
-        f3 = xy * r(w)
+        a, b, c, d = r(self.a), r(self.b), r(self.c), r(self.d)
+        x, y, z, w = r(self.x), r(self.y), r(self.z), r(self.w)
+
+        f1 = (a + b + c) * d
+        xy = x + y
+        f2 = xy * z
+        f3 = xy * w
 
         wr = hls.write
         hls.thread(
             hls.While(True,
+                a, b, c, d,
                 wr(f1, self.f1),
                 wr(f2, self.f2),
                 wr(f3, self.f3),

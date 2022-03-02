@@ -54,6 +54,6 @@ if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
 
     u = AxiSParseUdpIpv4()
-    u.CLK_FREQ = int(50e6)
+    u.CLK_FREQ = int(150e6)
     p = VirtualHlsPlatform(**makeDebugPasses("tmp"))
     print(to_rtl_str(u, target_platform=p))

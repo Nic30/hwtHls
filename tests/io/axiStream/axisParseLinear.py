@@ -2,17 +2,17 @@
 # -*- coding: utf-8 -*-
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
+from hwt.hdl.types.struct import HStruct
 from hwt.interfaces.std import Handshaked
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.hObjList import HObjList
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
+from hwtHls.hlsStreamProc.statements import IN_STREAM_POS
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 from hwtLib.amba.axis import AxiStream
 from hwtLib.amba.axis_comp.frame_parser.test_types import structManyInts
 from hwtLib.types.ctypes import uint16_t, uint32_t
-from hwtHls.hlsStreamProc.statements import IN_STREAM_POS
-from hwt.hdl.types.struct import HStruct
 
 
 class AxiSParseStructManyInts0(Unit):
@@ -123,6 +123,6 @@ if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
 
     u = AxiSParseStructManyInts1()
-    u.DATA_WIDTH = 48
+    u.DATA_WIDTH = 512
     p = VirtualHlsPlatform(**makeDebugPasses("tmp"))
     print(to_rtl_str(u, target_platform=p))
