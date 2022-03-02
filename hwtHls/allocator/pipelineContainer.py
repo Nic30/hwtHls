@@ -14,7 +14,6 @@ from hwtHls.allocator.connectionsOfStage import ConnectionsOfStage, resolveStron
     SignalsOfStages
 from hwtHls.allocator.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
-from hwtHls.clk_math import epsilon
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
 from hwtHls.netlist.nodes.node import HlsNetNode
 
@@ -35,7 +34,7 @@ class AllocatorPipelineContainer(AllocatorArchitecturalElement):
             
         self.stages = stages
         stageCons = [ConnectionsOfStage() for _ in self.stages]
-        stageSignals = SignalsOfStages(parentHls.clk_period,
+        stageSignals = SignalsOfStages(parentHls.normalizedClkPeriod,
                                        (con.signals for con in stageCons))
         AllocatorArchitecturalElement.__init__(self, parentHls, namePrefix, allNodes, stageCons, stageSignals)
         self._syncAllocated = False
@@ -54,7 +53,7 @@ class AllocatorPipelineContainer(AllocatorArchitecturalElement):
             if o.timeOffset is not TimeIndependentRtlResource.INVARIANT_TIME:
                 self.stageSignals.getForTime(o.timeOffset).append(o)
 
-        clk_period = self.parentHls.clk_period
+        clkPeriod = self.parentHls.normalizedClkPeriod
         for dep in n.dependsOn:
             depRtl = self.netNodeToRtl.get(dep, None)
             if depRtl is not None:
@@ -63,14 +62,14 @@ class AllocatorPipelineContainer(AllocatorArchitecturalElement):
                     continue
                 # in in this arch. element
                 # registers uses in new times
-                t = o.timeOffset + (len(depRtl.valuesInTime) - 1) * clk_period + epsilon
+                t = o.timeOffset + (len(depRtl.valuesInTime) - 1) * clkPeriod + self.parentHls.schedulerepsilon
                 # :note: done in reverse so we do not have to always iterater over registered prequel
                 for tir in reversed(depRtl.valuesInTime):
                     sigs = self.stageSignals.getForTime(t)
                     if tir in sigs:
                         break
                     sigs.append(tir)
-                    t -= clk_period
+                    t -= clkPeriod
 
     def allocateDataPath(self, iea: InterArchElementNodeSharingAnalysis):
         assert not self._dataPathAllocated
@@ -102,23 +101,29 @@ class AllocatorPipelineContainer(AllocatorArchitecturalElement):
         assert tir.timeOffset is not TimeIndependentRtlResource.INVARIANT_TIME
         assert endTime > tir.timeOffset, (tir, tir.timeOffset, endTime)
 
-        clk_period = self.parentHls.clk_period
-        t = tir.timeOffset + (len(tir.valuesInTime) - 1) * clk_period + epsilon
+        clkPeriod = self.parentHls.normalizedClkPeriod
+        t = tir.timeOffset + (len(tir.valuesInTime) - 1) * clkPeriod + self.parentHls.scheduler.epsilon
         assert t < endTime
         # :note: done in reverse so we do not have to always iterater over registered prequel
         while t <= endTime:
-            t += clk_period
+            t += clkPeriod
+            i = int(t // clkPeriod)
+            if i >= len(self.stageSignals):
+                self.stageSignals.append(UniqList())
+                self.stages.append([])
+                self.connections.append(ConnectionsOfStage())
+
             sigs = self.stageSignals.getForTime(t)
             assert tir not in sigs
             tir.get(t)
             sigs.append(tir)
     
     def rtlResourceInputSooner(self, tir: TimeIndependentRtlResource, newFirstClkIndex: int):
-        clk_period = self.parentHls.clk_period
-        curFirstClkI = int(tir.timeOffset // clk_period)
+        clkPeriod = self.parentHls.normalizedClkPeriod
+        curFirstClkI = int(tir.timeOffset // clkPeriod)
         prequelLen = curFirstClkI - newFirstClkIndex
         assert prequelLen > 0, ("New time must be sooner otherwise there is no point in calling this function")
-        tir.timeOffset = newFirstClkIndex * clk_period + epsilon
+        tir.timeOffset = newFirstClkIndex * clkPeriod + self.parentHls.scheduler.epsilon
         assert len(tir.valuesInTime) == 1, "Value has to have initial data signal, but can not be used yet"
         valIt = iter(tir.valuesInTime)
         for clkI in range(newFirstClkIndex, curFirstClkI):

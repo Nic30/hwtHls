@@ -1,6 +1,5 @@
 from hwt.hdl.types.defs import BIT
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
-from hwtHls.clk_math import epsilon
 from hwtHls.netlist.nodes.io import IO_COMB_REALIZATION
 from hwtHls.netlist.nodes.node import HlsNetNode
 
@@ -32,7 +31,7 @@ class HlsProgramStarter(HlsNetNode):
         starter_reg(0)
 
         # create RTL signal expression base on operator type
-        t = self.scheduledOut[0] + epsilon
+        t = self.scheduledOut[0] + self.hls.scheduler.epsilon
         status_reg_s = TimeIndependentRtlResource(starter_reg, t, allocator)
         allocator.netNodeToRtl[op_out] = status_reg_s
 

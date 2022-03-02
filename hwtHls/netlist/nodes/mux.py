@@ -5,7 +5,6 @@ from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.types.hdlType import HdlType
 from hwt.pyUtils.arrayQuery import grouper
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
-from hwtHls.clk_math import epsilon
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
     link_hls_nodes
@@ -64,7 +63,7 @@ class HlsNetNodeMux(HlsNetNodeOperator):
                     mux_top.Else(mux_out_s(v.data))
     
         # create RTL signal expression base on operator type
-        t = self.scheduledOut[0] + epsilon
+        t = self.scheduledOut[0] + self.hls.scheduler.epsilon
         mux_out_s = TimeIndependentRtlResource(mux_out_s, t, allocator)
         allocator.netNodeToRtl[op_out] = mux_out_s
 

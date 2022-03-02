@@ -51,22 +51,22 @@ class SignalsOfStages(List[UniqList[TimeIndependentRtlResourceItem]]):
     Container of signals in :class:`~.ConnectionsOfStage` instances.
     """
 
-    def __init__(self, clk_period: float, initVals=None):
-        self.clk_period = clk_period
+    def __init__(self, normalizedClkPeriod: int, initVals=None):
+        self.normalizedClkPeriod = normalizedClkPeriod
         list.__init__(self)
         if initVals:
             for v in initVals:
                 assert isinstance(v, UniqList) or v is None, v
                 self.append(v)
 
-    def getForTime(self, t: float):
-        i = int(t // self.clk_period)
+    def getForTime(self, t: int):
+        i = int(t // self.normalizedClkPeriod)
         try:
             if i < 0:
                 raise IndexError()
             res = self[i]
         except IndexError:
-            raise IndexError("Asking for an object which is scheduled by a different region", t, i, len(self), self, i) from None
+            raise IndexError("Asking for an object which is scheduled by a different region", t, i, len(self), self) from None
         if res is None:
             raise IndexError("Asking for an object in time which is not managed by this architectural element", t, i, [int(item is not None) for item in self])
 

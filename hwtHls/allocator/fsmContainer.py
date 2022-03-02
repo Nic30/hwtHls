@@ -12,7 +12,7 @@ from hwtHls.allocator.architecturalElement import AllocatorArchitecturalElement
 from hwtHls.allocator.connectionsOfStage import getIntfSyncSignals, \
     setNopValIfNotSet, SignalsOfStages, ConnectionsOfStage
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
-from hwtHls.clk_math import start_clk, epsilon
+from hwtHls.clk_math import start_clk
 from hwtHls.netlist.analysis.fsm import IoFsm
 from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeRead
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -29,7 +29,7 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
         for nodes in fsm.states:
             allNodes.extend(nodes)
         self.fsm = fsm
-        clk_period = self.clk_period = parentHls.clk_period
+        clkPeriod = self.normalizedClkPeriod = parentHls.normalizedClkPeriod
         assert fsm.states, fsm
 
         self.fsmEndClk_i = max(fsm.stateClkI.values())
@@ -37,7 +37,7 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
         self.clkIToStateI = clkIToStateI = {v:k for k, v in fsm.stateClkI.items()}
         
         stateCons = [ConnectionsOfStage() for _ in fsm.states]
-        stageSignals = SignalsOfStages(clk_period,
+        stageSignals = SignalsOfStages(clkPeriod,
                                         (
                                            stateCons[clkIToStateI[clkI]].signals if clkI in clkIToStateI else None
                                            for clkI in range(self.fsmEndClk_i + 1)
@@ -68,15 +68,16 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
         else:
             cons = (rtl,)
 
-        clk_period = self.clk_period
+        clkPeriod = self.normalizedClkPeriod
         fsmEndClk_i = self.fsmEndClk_i
+        epsilon = self.parentHls.scheduler.epsilon
         for s in cons:
             s: TimeIndependentRtlResource
             
             if not s.persistenceRanges and s.timeOffset is not TimeIndependentRtlResource.INVARIANT_TIME:
                 self.stageSignals.getForTime(s.timeOffset + epsilon).append(s)
                 # value for the first clock behind this clock period and the rest is persistent in this register
-                nextClkI = start_clk(s.timeOffset, clk_period) + 2
+                nextClkI = start_clk(s.timeOffset, clkPeriod) + 2
                 if nextClkI <= fsmEndClk_i:
                     s.persistenceRanges.append((nextClkI, fsmEndClk_i))
 

@@ -9,13 +9,13 @@ from hwtHls.allocator.connectionsOfStage import ConnectionsOfStage, \
     extract_control_sig_of_interface, SignalsOfStages
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource, \
     TimeIndependentRtlResourceItem
+from hwtHls.clk_math import start_clk
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeExplicitSync, \
     HlsNetNodeReadSync
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtLib.handshaked.streamNode import StreamNode
 from ipCorePackager.constants import INTF_DIRECTION
-from hwtHls.clk_math import epsilon, start_clk
 
 
 class AllocatorArchitecturalElement():
@@ -71,7 +71,7 @@ class AllocatorArchitecturalElement():
         _o = self.netNodeToRtl.get(o, None)
 
         if _o is None:
-            clkI = start_clk(o.obj.scheduledOut[o.out_i], self.parentHls.clk_period)
+            clkI = start_clk(o.obj.scheduledOut[o.out_i], self.parentHls.normalizedClkPeriod)
             if len(self.stageSignals) <= clkI or self.stageSignals[clkI] is None:
                 raise AssertionError("Asking for node output which should have forward declaration but it is missing", self, o, clkI)
             # new allocation, use registered automatically

@@ -5,7 +5,7 @@ from hwtHls.netlist.analysis.clusterSearch import HlsNetlistClusterSearch
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
-from hwtHls.netlist.transformation.aggregateBitwiseOps.nodes import HlsNetlistNodeBitwiseOps
+from hwtHls.netlist.nodes.aggregatedBitwiseOps import HlsNetNodeBitwiseOps
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 
 
@@ -30,7 +30,7 @@ class HlsNetlistPassAggregateBitwiseOps(HlsNetlistPass):
                         for c in cluster.splitToPreventOuterCycles():
                             if len(c.nodes) > 1:
                                 c.updateOuterInputs(newOutMap)
-                                clusterNode = HlsNetlistNodeBitwiseOps(to_hw.hls, c)
+                                clusterNode = HlsNetNodeBitwiseOps(to_hw.hls, c)
                                 to_hw.hls.nodes.append(clusterNode)
                                 c.substituteWithNode(clusterNode)
                                 removedNodes.update(c.nodes)

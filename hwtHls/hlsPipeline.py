@@ -10,6 +10,7 @@ from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPas
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.scheduler.scheduler import HlsScheduler
+from math import ceil
 
 
 class HlsPipelineNodeContext():
@@ -43,9 +44,11 @@ class HlsPipeline():
 
     def __init__(self, parentUnit: Unit,
                  freq: Union[float, int],
-                 coherency_checked_io:Optional[UniqList[Interface]]=None):
+                 coherency_checked_io:Optional[UniqList[Interface]]=None,
+                 schedulerResolution:float=0.01e-9):
         """
         :see: For parameter meaning see doc of this class.
+        :ivar schedulerResolution: The time resolution for time in scheduler specified in seconds (1e-9 is 1ns). 
         """
         self.parentUnit = parentUnit
         self.platform = parentUnit._target_platform
@@ -53,7 +56,8 @@ class HlsPipeline():
         if self.platform is None:
             raise ValueError("HLS requires platform to be specified")
 
-        self.clk_period = 1 / int(freq)
+        self.realTimeClkPeriod = 1 / int(freq)
+        self.normalizedClkPeriod = int(ceil(self.realTimeClkPeriod / schedulerResolution)) 
         self.inputs: List[HlsNetNodeRead] = []
         self.outputs: List[HlsNetNodeWrite] = []
         self.nodes: List[HlsNetNode] = []
@@ -66,7 +70,7 @@ class HlsPipeline():
         
         self._analysis_cache = {}
         
-        self.scheduler: HlsScheduler = self.platform.scheduler(self)
+        self.scheduler: HlsScheduler = self.platform.scheduler(self, schedulerResolution)
         self.allocator: HlsAllocator = self.platform.allocator(self)
 
     def iterAllNodes(self):

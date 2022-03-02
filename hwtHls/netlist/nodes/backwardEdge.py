@@ -2,11 +2,11 @@ from typing import Union, Optional, Generator
 
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
+from hwtHls.allocator.fsmContainer import AllocatorFsmContainer
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
 from hwtHls.ssa.value import SsaValue
 from hwtLib.handshaked.builder import HsBuilder
-from hwtHls.allocator.fsmContainer import AllocatorFsmContainer
 
 
 class HlsNetNodeReadBackwardEdge(HlsNetNodeRead):
@@ -42,11 +42,14 @@ class HlsNetNodeWriteBackwardEdge(HlsNetNodeWrite):
         return isinstance(allocator, AllocatorFsmContainer) and self.associated_read in allocator.allNodes
         
     def allocateRtlInstance(self, allocator:"AllocatorArchitecturalElement") -> TimeIndependentRtlResource:
-        # [todo] check to prevent re instantiation
         # [todo] instantiate also ports there (currently they are instantiated when translating to HlsNetlist)
         # if self.isLocalToFsm(allocator):
         #    raise NotImplementedError("Do not instantiate buffer use just register")
-
+        try:
+            return allocator.netNodeToRtl[self]
+        except KeyError:
+            pass
+            
         res = HlsNetNodeWrite.allocateRtlInstance(self, allocator)
         src_write = self
         dst_read: HlsNetNodeReadBackwardEdge = self.associated_read
@@ -56,7 +59,7 @@ class HlsNetNodeWriteBackwardEdge(HlsNetNodeWrite):
         assert dst_t <= src_t, ("This was supposed to be backward edge", src_write, dst_read)
         # 1 register at minimum, because we need to break a comibnational path
         # the size of buffer is derived from the latency of operations between the io ports
-        reg_cnt = max((src_t - dst_t) / allocator.parentHls.clk_period, 1)
+        reg_cnt = max((src_t - dst_t) / allocator.parentHls.normalizedClkPeriod, 1)
 
         # :note: latency is 1-2 to break ready chain (it is not always required, but the check is not implemented)
         buffs = HsBuilder(allocator.parentHls.parentUnit, src_write.dst,
@@ -64,6 +67,8 @@ class HlsNetNodeWriteBackwardEdge(HlsNetNodeWrite):
             .buff(reg_cnt, latency=(1, 2), init_data=self.channel_init_values)\
             .end
         dst_read.src(buffs)
+        allocator.netNodeToRtl[self] = res
+
         return res
 
     def debug_iter_shadow_connection_dst(self) -> Generator["HlsNetNode", None, None]:

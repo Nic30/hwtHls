@@ -1,16 +1,17 @@
 from copy import copy
-from typing import List, Optional, Union, Tuple, Generator
+from math import inf, isfinite
+from typing import List, Optional, Union, Tuple, Generator, Dict
 
 from hwt.hdl.types.hdlType import HdlType
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
-from hwtHls.clk_math import start_of_next_clk_period, start_clk, epsilon
+from hwtHls.clk_math import start_of_next_clk_period, start_clk
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.scheduler.errors import TimeConstraintError
-from math import inf
 
-TimeSpec = Union[float, Tuple[float, ...]]
+TimeSpec = Union[float, Tuple[int, ...]]
+SchedulizationDict = Dict["HlsNetNode", Tuple[Tuple[int, ...], Tuple[int, ...]]]
 
 
 class HlsNetNode():
@@ -21,10 +22,6 @@ class HlsNetNode():
     :ivar usedBy: for each output list of operation and its input index which are using this output
     :ivar dependsOn: for each input operation and index of its output with data required
         to perform this operation
-    :ivar _asapBegin: scheduled time of start of operation using ASAP scheduler for each input
-    :ivar _asapEnd: scheduled time of end of operation using ASAP scheduler for each output
-    :ivar alap_start: scheduled time of start of operation using ALAP scheduler for each input
-    :ivar alap_end: scheduled time of end of operation using ALAP scheduler for each output
     :ivar scheduledIn: final scheduled time of start of operation for each input
     :ivar scheduledOut: final scheduled time of end of operation for each output
 
@@ -52,23 +49,25 @@ class HlsNetNode():
         self._inputs: List[HlsNetNodeIn] = []
         self._outputs: List[HlsNetNodeOut] = []
 
-        self._asapBegin: Optional[TimeSpec] = None
-        self._asapEnd: Optional[TimeSpec] = None
-        self.alap_start: Optional[TimeSpec] = None
-        self.alap_end: Optional[TimeSpec] = None
         # True if scheduled to specific time
-        self.fixed_schedulation = False
         self.scheduledIn: Optional[TimeSpec] = None
         self.scheduledOut: Optional[TimeSpec] = None
     
     def getInputDtype(self, i:int) -> HdlType:
         return self.dependsOn[i]._dtype
 
-    def scheduleAsap(self, clk_period: float, pathForDebug: Optional[UniqList["HlsNetNode"]]) -> List[float]:
+    def copyScheduling(self, schedule: SchedulizationDict):
+        schedule[self] = (self.scheduledIn, self.scheduledOut)
+    
+    def resetScheduling(self):
+        self.scheduledIn = None
+        self.scheduledOut = None
+    
+    def scheduleAsap(self, pathForDebug: Optional[UniqList["HlsNetNode"]]) -> List[float]:
         """
         The recursive function of ASAP scheduling
         """
-        if self._asapEnd is None:
+        if self.scheduledOut is None:
             if self.dependsOn:
                 if pathForDebug is not None:
                     if self in pathForDebug:
@@ -76,20 +75,20 @@ class HlsNetNode():
                     else:
                         pathForDebug.append(self)
 
-                input_times = (d.obj.scheduleAsap(clk_period, pathForDebug)[d.out_i] for d in self.dependsOn)
+                input_times = (d.obj.scheduleAsap(pathForDebug)[d.out_i] for d in self.dependsOn)
                 self.resolve_realization()
 
                 # now we have times when the value is available on input
                 # and we must resolve the minimal time so each input timing constraints are satisfied
-                time_when_all_inputs_present = 0.0
-    
+                time_when_all_inputs_present = 0
+                clkPeriod = self.hls.normalizedClkPeriod
                 for (available_in_time, in_delay, in_cycles) in zip(input_times, self.latency_pre, self.in_cycles_offset):
-                    if in_delay >= clk_period:
+                    if in_delay >= clkPeriod:
                         raise TimeConstraintError(
-                            "Impossible scheduling, clk_period too low for ",
+                            "Impossible scheduling, clkPeriod too low for ",
                             self.latency_pre, self.latency_post, self)
                     
-                    next_clk_time = start_of_next_clk_period(available_in_time, clk_period)
+                    next_clk_time = start_of_next_clk_period(available_in_time, clkPeriod)
                     time_budget = next_clk_time - available_in_time
     
                     if in_delay >= time_budget:
@@ -97,41 +96,118 @@ class HlsNetNode():
     
                     normalized_time = (available_in_time
                                        +in_delay
-                                       +in_cycles * clk_period)
+                                       +in_cycles * clkPeriod)
     
                     if normalized_time >= time_when_all_inputs_present:
                         # latest_input_i = in_i
                         time_when_all_inputs_present = normalized_time
     
-                self._asapBegin = tuple(
-                    time_when_all_inputs_present - (in_delay + in_cycles * clk_period)
+                self.scheduledIn = tuple(
+                    time_when_all_inputs_present - (in_delay + in_cycles * clkPeriod)
                     for (in_delay, in_cycles) in zip(self.latency_pre, self.in_cycles_offset)
                 )
     
-                self._asapEnd = tuple(
-                    time_when_all_inputs_present + out_delay + out_cycles * clk_period
+                self.scheduledOut = tuple(
+                    time_when_all_inputs_present + out_delay + out_cycles * clkPeriod
                     for (out_delay, out_cycles) in zip(self.latency_post, self.cycles_latency)
                 )
                 if pathForDebug is not None:
                     pathForDebug.pop()
     
             else:
-                self._asapBegin = (0.0,)
-                self._asapEnd = tuple(0.0 for _ in self._outputs)
+                self.resolve_realization()
+                self.scheduledIn = tuple(0 for _ in self._inputs)
+                self.scheduledOut = self.latency_post[:]
     
-        return self._asapEnd
+        return self.scheduledOut
 
-    def iterScheduledClocks(self, clk_period: float):
+    def scheduleAlapCompaction(self, asapSchedule: SchedulizationDict):
+        # if all dependencies have inputs scheduled we shedule this node and try successors
+        if self.scheduledIn is not None:
+            return self.scheduledIn
+
+        assert self.usedBy, ("Compaction should be called only for nodes with dependencies, others should be moved only manually", self)
+        asapIn, asapOut = asapSchedule[self]
+        outTimes = []
+        ffdelay = self.hls.platform.get_ff_store_time(self.hls.realTimeClkPeriod, self.hls.scheduler.resolution)
+        oMinTime = inf
+        for asapOutT, uses in zip(asapOut, self.usedBy):
+            asapOutT: float
+            # find earliest time where this output is used
+            if uses:
+                oT = inf 
+                for dependentIn in uses:
+                    dependentIn: HlsNetNodeIn
+                    iT = dependentIn.obj.scheduleAlapCompaction(asapSchedule)[dependentIn.in_i]
+                    oT = min(oT, iT)
+                oMinTime = min(oMinTime, oT)
+            else:
+                # the port is unused we must first check other outputs
+                oT = inf
+            outTimes.append(oT)
+        
+        clkPeriod = self.hls.normalizedClkPeriod
+        epsilon = self.hls.scheduler.epsilon
+        # resolve time for unused outputs
+        for oI, (asapOutT, oT) in enumerate(zip(asapOut, outTimes)):
+            asapOutT: float
+            if isfinite(oT):
+                continue
+            oTSuggestedByAsap = start_of_next_clk_period(asapOutT, clkPeriod) - ffdelay - epsilon
+            if isfinite(oMinTime):
+                oT = max(oTSuggestedByAsap, oMinTime)
+            else:
+                oT = oTSuggestedByAsap
+                oMinTime = oTSuggestedByAsap
+
+            outTimes[oI] = oT
+
+        if outTimes:
+            timeWhenEarliesOutputRequired = min(ot - lp for (ot, lp) in zip(outTimes, self.latency_post))
+            # we have to check if every input has enought time for its delay
+            # and optionally move this node to previous vlock cycle
+            for (in_delay, in_cycles) in zip(self.latency_pre, self.in_cycles_offset):
+                if in_delay + ffdelay >= clkPeriod:
+                    raise TimeConstraintError(
+                        "Impossible scheduling, clkPeriod too low for ",
+                        self.latency_pre, self.latency_post, self)
+                inTime = timeWhenEarliesOutputRequired - in_delay - in_cycles * clkPeriod
+                prevClkEndTime = start_clk(timeWhenEarliesOutputRequired, clkPeriod) * clkPeriod
+                
+                if inTime <= prevClkEndTime:
+                    # must shift whole node sooner in time because the input of input can not be satisfied
+                    # in a clock cycle where the input is currently scheduled
+                    timeWhenEarliesOutputRequired = start_clk(timeWhenEarliesOutputRequired, clkPeriod) * clkPeriod - ffdelay - epsilon
+        else:
+            # no outputs, we must use some asap input time and move to end of the clock
+            assert self._inputs, (self, "Node without any port")
+            timeWhenEarliesOutputRequired = start_of_next_clk_period(asapIn[0], clkPeriod) - ffdelay - epsilon
+        
+        self.scheduledIn = tuple(
+            timeWhenEarliesOutputRequired - (in_delay + in_cycles * clkPeriod)
+            for (in_delay, in_cycles) in zip(self.latency_pre, self.in_cycles_offset)
+        )
+    
+        self.scheduledOut = tuple(
+            timeWhenEarliesOutputRequired + out_delay + out_cycles * clkPeriod
+            for (out_delay, out_cycles) in zip(self.latency_post, self.cycles_latency)
+        )
+        return self.scheduledIn
+        
+    def iterScheduledClocks(self):
+        clkPeriod = self.hls.normalizedClkPeriod
         beginTime = inf
-        endTime = 0.0
+        endTime = 0
         for i in self.scheduledIn:
             beginTime = min(beginTime, i)
             
         for o in self.scheduledOut:
             endTime = max(endTime, o)
+        if not self.scheduledIn:
+            beginTime = endTime
         
-        startClkI = start_clk(beginTime, clk_period)
-        endClkI = int(endTime // clk_period)
+        startClkI = start_clk(beginTime, clkPeriod)
+        endClkI = int(endTime // clkPeriod)
         yield from range(startClkI, endClkI + 1)
 
     def _add_input(self) -> HlsNetNodeIn:
@@ -146,29 +222,14 @@ class HlsNetNode():
         self._outputs.append(o)
         return o
 
-    def _numberForEachInput(self, val: Union[float, Tuple[float]]):
-        if isinstance(val, (float, int)):
-            return [val for _ in self._inputs]
-        else:
-            val = list(val)
-            assert len(val) == len(self._inputs), (self, val, self._inputs)
-            return val
-
-    def _numberForEachOutput(self, val: Union[float, Tuple[float]]):
-        if isinstance(val, (float, int)):
-            return tuple(val for _ in self._outputs)
-        else:
-            val = list(val)
-            assert len(val) == len(self._outputs)
-            return val
-
     def assignRealization(self, r: OpRealizationMeta):
+        schedulerResolution: float = self.hls.scheduler.resolution
         self.realization = r
-        self.in_cycles_offset = self._numberForEachInput(copy(r.latency_pre))
-        self.latency_pre = self._numberForEachInput(copy(r.latency_pre))
-        self.latency_post = self._numberForEachOutput(copy(r.latency_post))
-        self.cycles_latency = self._numberForEachOutput(copy(r.cycles_latency))
-        self.cycles_delay = self._numberForEachOutput(copy(r.cycles_delay))
+        self.in_cycles_offset = HlsNetNode_numberForEachInput(self, r.in_cycles_offset)
+        self.latency_pre = HlsNetNode_numberForEachInputNormalized(self, r.latency_pre, schedulerResolution)
+        self.latency_post = HlsNetNode_numberForEachOutputNormalized(self, r.latency_post, schedulerResolution)
+        self.cycles_latency = HlsNetNode_numberForEachOutputNormalized(self, r.cycles_latency, schedulerResolution)
+        self.cycles_delay = HlsNetNode_numberForEachOutput(self, r.cycles_delay)
 
         return self
 
@@ -176,7 +237,7 @@ class HlsNetNode():
         raise NotImplementedError(
             "Override this method in derived class", self)
 
-    def allocateRtlInstanceOutDeclr(self, allocator: "AllocatorArchitecturalElement", o: HlsNetNodeOut, startTime: float) -> TimeIndependentRtlResource:
+    def allocateRtlInstanceOutDeclr(self, allocator: "AllocatorArchitecturalElement", o: HlsNetNodeOut, startTime: int) -> TimeIndependentRtlResource:
         assert allocator.netNodeToRtl.get(o, None) is None, ("Must not be redeclared", o)
         s = allocator._sig(f"{allocator.namePrefix}forwardDeclr{self._id:d}_{o.out_i:d}", o._dtype)
         res = allocator.netNodeToRtl[o] = TimeIndependentRtlResource(s, startTime, allocator)
@@ -208,6 +269,42 @@ class HlsNetNode():
         """
         return
         yield
+
+
+def HlsNetNode_numberForEachInput(node: HlsNetNode, val: Union[float, Tuple[float]]) -> Tuple[Union[int, float]]:
+    if isinstance(val, (float, int)):
+        return tuple(val for _ in node._inputs)
+    else:
+        val = list(val)
+        assert len(val) == len(node._inputs), (node, val, node._inputs)
+        return val
+
+
+def HlsNetNode_numberForEachOutput(node: HlsNetNode, val: Union[float, Tuple[float]]) -> Tuple[Union[int, float]]:
+    if isinstance(val, (float, int)):
+        return tuple(val for _ in node._outputs)
+    else:
+        val = tuple(val)
+        assert len(val) == len(node._outputs)
+        return val
+
+
+def HlsNetNode_numberForEachInputNormalized(node: HlsNetNode, val: Union[float, Tuple[float]], scale: float) -> Tuple[int]:
+    if isinstance(val, (float, int)):
+        return tuple(int(val // scale) for _ in node._inputs)
+    else:
+        val = tuple(val)
+        assert len(val) == len(node._inputs), (node, val, node._inputs)
+        return tuple(int(v // scale) for v in val)
+
+
+def HlsNetNode_numberForEachOutputNormalized(node: HlsNetNode, val: Union[float, Tuple[float]], scale: float) -> Tuple[int]:
+    if isinstance(val, (float, int)):
+        return tuple(int(val // scale) for _ in node._outputs)
+    else:
+        val = list(val)
+        assert len(val) == len(node._outputs)
+        return tuple(int(v // scale) for v in val)
 
 
 class HlsNetNodePartRef(HlsNetNode):

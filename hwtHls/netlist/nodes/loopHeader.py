@@ -3,8 +3,6 @@ from typing import List, Tuple, Optional, Union
 from hwt.code import If, Or
 from hwt.hdl.types.defs import BIT
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
-from hwtHls.clk_math import epsilon
-from hwtHls.hlsPipeline import HlsPipeline
 from hwtHls.netlist.nodes.io import HlsNetNodeExplicitSync, IO_COMB_REALIZATION
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, link_hls_nodes, HlsNetNodeOutLazy
@@ -12,7 +10,6 @@ from hwtHls.netlist.utils import hls_op_not
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.branchControlLabel import BranchControlLabel
 from hwtHls.ssa.translation.toHwtHlsNetlist.opCache import SsaToHwtHlsNetlistOpCache
-from hwtHls.ssa.translation.toHwtHlsNetlist.syncAndIo import SsaToHwtHlsNetlistSyncAndIo
 from ipCorePackager.constants import INTF_DIRECTION
 
 
@@ -38,7 +35,7 @@ class HlsLoopGateStatus(HlsNetNode):
         status_reg = allocator._reg(name if name else "loop_gate_status", def_val=0)
 
         # create RTL signal expression base on operator type
-        t = self.scheduledOut[0] + epsilon
+        t = self.scheduledOut[0] + self.hls.scheduler.epsilon
         status_reg_s = TimeIndependentRtlResource(status_reg, t, allocator)
         allocator.netNodeToRtl[op_out] = status_reg_s
 
@@ -63,6 +60,9 @@ class HlsLoopGateStatus(HlsNetNode):
             raise NotImplementedError()
 
         return status_reg_s
+
+    def __repr__(self):
+        return f"<{self.__class__.__name__:s} {self._id:d}>"
 
 
 class HlsLoopGate(HlsNetNode):
@@ -122,7 +122,7 @@ class HlsLoopGate(HlsNetNode):
     :note: if this gate has synchronization token it accepts only data from the from_predec then it accepts only from from_reenter/from_break
     """
 
-    def __init__(self, parentHls:HlsPipeline,
+    def __init__(self, parentHls:"HlsPipeline",
             name:Optional[str]=None):
         HlsNetNode.__init__(self, parentHls, name=name)
         self.from_predec: List[HlsNetNodeOut] = []
@@ -135,7 +135,7 @@ class HlsLoopGate(HlsNetNode):
 
     @classmethod
     def inset_before_block(cls, toHls: "SsaToHwtHlsNetlist", block: SsaBasicBlock,
-                           io: SsaToHwtHlsNetlistSyncAndIo,
+                           io: "SsaToHwtHlsNetlistSyncAndIo",
                            to_hls_cache: SsaToHwtHlsNetlistOpCache,
                            nodes: List[HlsNetNode],
                            ):
@@ -251,6 +251,9 @@ class HlsLoopGate(HlsNetNode):
     def allocateRtlInstance(self, allocator:"AllocatorArchitecturalElement"):
         pass
 
+    def __repr__(self):
+        return f"<{self.__class__.__name__:s} {self._id:d}>"
+        
 
 class HlsLoopGateInputRef():
     """

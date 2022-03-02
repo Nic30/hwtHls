@@ -2,7 +2,6 @@ from hwt.hdl.operatorDefs import OpDefinition, AllOps
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.value import HValue
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
-from hwtHls.clk_math import epsilon
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.typeUtils import dtypeEqualSignIgnore
@@ -31,7 +30,6 @@ class HlsNetNodeOperator(HlsNetNode):
 
     def resolve_realization(self):
         hls = self.hls
-        clk_period = hls.clk_period
         input_cnt = len(self.dependsOn)
 
         if self.operator is AllOps.TERNARY:
@@ -42,7 +40,7 @@ class HlsNetNodeOperator(HlsNetNode):
 
         r = hls.platform.get_op_realization(
             self.operator, bit_length,
-            input_cnt, clk_period)
+            input_cnt, hls.realTimeClkPeriod)
         self.assignRealization(r)
 
     def allocateRtlInstanceOutDeclr(self, allocator: "AllocatorArchitecturalElement", o: HlsNetNodeOut, startTime: float) -> TimeIndependentRtlResource:
@@ -71,7 +69,7 @@ class HlsNetNodeOperator(HlsNetNode):
 
         else:
             # create RTL signal expression base on operator type
-            t = self.scheduledOut[0] + epsilon
+            t = self.scheduledOut[0] + self.hls.scheduler.epsilon
             if s.hasGenericName:
                 if self.name is not None:
                     s.name = self.name

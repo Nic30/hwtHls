@@ -2,27 +2,25 @@ from typing import Union, Optional, List
 
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.defs import BIT
+from hwt.hdl.types.hdlType import HdlType
 from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.interfaces.std import Signal, HandshakeSync, Handshaked, VldSynced, \
     RdSynced
+from hwt.interfaces.structIntf import StructIntf
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
-from hwtHls.clk_math import epsilon, start_of_next_clk_period, start_clk
-from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
-from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.clk_math import start_of_next_clk_period, start_clk, epsilon
+from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
     link_hls_nodes, HlsNetNodeOutLazy, HlsNetNodeOutLazyIndirect
 from hwtHls.netlist.utils import hls_op_and, hls_op_or
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.ssa.translation.toHwtHlsNetlist.opCache import SsaToHwtHlsNetlistOpCache
 from hwtHls.ssa.value import SsaValue
-from hwtLib.amba.axis import AxiStream
-from hwt.hdl.types.hdlType import HdlType
-from hwt.interfaces.structIntf import StructIntf
 from hwtLib.amba.axi_intf_common import Axi_hs
 
 IO_COMB_REALIZATION = OpRealizationMeta(latency_post=epsilon)
@@ -54,6 +52,7 @@ class HlsNetNodeExplicitSync(HlsNetNode):
         self._init_extraCond_skipWhen()
         self._add_input()
         self._add_output(dtype)
+        self._add_output(HOrderingVoidT)  # slot for ordering
 
     def _init_extraCond_skipWhen(self):
         self.extraCond: Optional[HlsNetNodeOut] = None
@@ -61,6 +60,11 @@ class HlsNetNodeExplicitSync(HlsNetNode):
         self.skipWhen: Optional[HlsNetNodeOut] = None
         self.skipWhen_inI: Optional[int] = None
 
+    def iterOrderingInputs(self):
+        for i in self._inputs:
+            if i.in_i != 0 and i.in_i != self.extraCond_inI and i.in_i != self.skipWhen_inI:
+                yield i
+        
     def allocateRtlInstance(self,
                           allocator: "AllocatorArchitecturalElement",
                           ) -> TimeIndependentRtlResource:
@@ -178,6 +182,14 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
         self._add_output(self.getRtlDataSig()._dtype)  # slot for data consummer
         self._add_output(HOrderingVoidT)  # slot for ordering
 
+    def getOrderingOutPort(self):
+        return self._outputs[1]
+
+    def iterOrderingInputs(self):
+        for i in self._inputs:
+            if i.in_i != self.extraCond_inI and i.in_i != self.skipWhen_inI:
+                yield i
+
     def allocateRtlInstance(self,
                           allocator: "AllocatorArchitecturalElement",
                           ) -> TimeIndependentRtlResource:
@@ -205,37 +217,71 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
 
         return _o
 
-    def scheduleAsap(self, clk_period: float, pathForDebug: Optional[UniqList["HlsNetNode"]]) -> List[float]:
-        HlsNetNode.scheduleAsap(self, clk_period, pathForDebug)
-        otherIoOps = self.hls.requestAnalysis(HlsNetlistAnalysisPassDiscoverIo).io_by_interface[self.src]
+    def _getNumberOfIoInThisClkPeriod(self, intf: Interface, searchFromSrcToDst: bool):
+        """
+        Collect the total number of IO operations which may happen concurrently in this clock period.
 
-        while True:
-            curClk = start_clk(self._asapBegin[0], clk_period)
-            iosInThisClk = 0
-            mustBeScheduled = True
-            for io in otherIoOps:
-                if io is self:
-                    mustBeScheduled = False
+        :note: This is not a total number of scheduled IO oprerations in this clock.
+            It uses the information about if the operations may happen concurrently.
+        """
+        clkPeriod: int = self.hls.normalizedClkPeriod
+        if isinstance(self, HlsNetNodeRead):
+            thisClkI = start_clk(self.scheduledOut[0], clkPeriod)
+            sameIntf = intf is self.src
+        else:
+            thisClkI = start_clk(self.scheduledIn[0], clkPeriod)
+            sameIntf = intf is self.dst
+       
+        ioCnt = 0
+        if searchFromSrcToDst:
+            for orderingIn in self.iterOrderingInputs():
+                dep = self.dependsOn[orderingIn.in_i]
+                assert isinstance(dep.obj, HlsNetNodeExplicitSync), ("ordering dependencies should be just between IO nodes", dep, self)
+                if start_clk(dep.obj.scheduledOut[dep.out_i], clkPeriod) == thisClkI:
+                    ioCnt = max(ioCnt, dep.obj._getNumberOfIoInThisClkPeriod(intf, True))
+        else:
+            orderingOut = self.getOrderingOutPort()
+            for dep in self.usedBy[orderingOut.out_i]:
+                assert isinstance(dep.obj, HlsNetNodeExplicitSync), ("ordering dependencies should be just between IO nodes", dep, self)
+                if start_clk(dep.obj.scheduledIn[dep.in_i], clkPeriod) == thisClkI:
+                    ioCnt = max(ioCnt, dep.obj._getNumberOfIoInThisClkPeriod(intf, False))
+            
+        if sameIntf:
+            return ioCnt + 1
+        else:
+            return ioCnt
 
-                end = io._asapEnd
-                if mustBeScheduled and end is None:
-                    io.scheduleAsap(clk_period, pathForDebug)
-                    end = io._asapEnd
-                    
-                if end is not None:
-                    c = start_clk(io._asapBegin[0], clk_period)
-                    if c == curClk:
-                        iosInThisClk += 1
+    def scheduleAlapCompaction(self, asapSchedule: SchedulizationDict):
+        HlsNetNodeExplicitSync.scheduleAlapCompaction(self, asapSchedule)
+        curIoCnt = self._getNumberOfIoInThisClkPeriod(self.src if isinstance(self, HlsNetNodeRead) else self.dst, False)
+        if curIoCnt > self.maxIosPerClk:
+            # move to next clock cycle if IO constraint requires it
+            ffdelay = self.hls.platform.get_ff_store_time(self.hls.realTimeClkPeriod, self.hls.scheduler.resolution)
+            clkPeriod = self.hls.normalizedClkPeriod
+            while curIoCnt > self.maxIosPerClk:
+                if self.scheduledIn:
+                    startT = self.scheduledIn[0]
+                else:
+                    startT = self.scheduledOut[0]
+
+                off = start_of_next_clk_period(startT, clkPeriod) - startT - clkPeriod - ffdelay - self.hls.scheduler.epsilon
+                self.scheduledIn = tuple(t + off for t in self.scheduledIn)
+                self.scheduledOut = tuple(t + off for t in self.scheduledOut)
+                curIoCnt = self._getNumberOfIoInThisClkPeriod(self.src if isinstance(self, HlsNetNodeRead) else self.dst, False)
     
-            if iosInThisClk > self.maxIosPerClk:
-                # move to next clock cycle
-                off = start_of_next_clk_period(self._asapBegin[0], clk_period) - self._asapBegin[0]
-                self._asapBegin = tuple(t + off for t in self._asapBegin)
-                self._asapEnd = tuple(t + off for t in self._asapEnd)
-            else:
-                break
-        
-        return self._asapEnd
+        return self.scheduledIn
+
+    def scheduleAsap(self, pathForDebug: Optional[UniqList["HlsNetNode"]]) -> List[float]:
+        # schedule all dependencies
+        HlsNetNode.scheduleAsap(self, pathForDebug)
+        curIoCnt = self._getNumberOfIoInThisClkPeriod(self.src if isinstance(self, HlsNetNodeRead) else self.dst, True)
+        if curIoCnt > self.maxIosPerClk:
+            # move to next clock cycle if IO constraint requires it
+            off = start_of_next_clk_period(self.scheduledIn[0], self.hls.normalizedClkPeriod) - self.scheduledIn[0]
+            self.scheduledIn = tuple(t + off for t in self.scheduledIn)
+            self.scheduledOut = tuple(t + off for t in self.scheduledOut)
+    
+        return self.scheduledOut
 
     def getRtlDataSig(self):
         src = self.src
@@ -296,7 +342,7 @@ class HlsNetNodeReadSync(HlsNetNode, InterfaceBase):
                 return intf.vld
             elif isinstance(intf, (Signal, RtlSignalBase, RdSynced)):
                 return BIT.from_py(1)
-            elif isinstance(intf, AxiStream):
+            elif isinstance(intf, Axi_hs):
                 return intf.valid
             else:
                 raise NotImplementedError(intf)
@@ -307,7 +353,7 @@ class HlsNetNodeReadSync(HlsNetNode, InterfaceBase):
                 return intf.rd
             elif isinstance(intf, (Signal, RtlSignalBase, VldSynced)):
                 return BIT.from_py(1)
-            elif isinstance(intf, AxiStream):
+            elif isinstance(intf, Axi_hs):
                 return intf.ready
             else:
                 raise NotImplementedError(intf)
@@ -349,33 +395,19 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         self.indexes = indexCascade
         self.maxIosPerClk = 1
 
-    def scheduleAsap(self, clk_period: float, pathForDebug: Optional[UniqList["HlsNetNode"]]) -> List[float]:
-        # [todo] duplicit code with HlsNetNodeRead
-        # [todo] mv to scheduler as the generic resource constraint
-        assert self.dependsOn, self
-        HlsNetNode.scheduleAsap(self, clk_period, pathForDebug)
-        otherIoOps = self.hls.requestAnalysis(HlsNetlistAnalysisPassDiscoverIo).io_by_interface[self.dst]
+    def getOrderingOutPort(self):
+        return self._outputs[0]
 
-        while True:
-            curClk = start_clk(self._asapBegin[0], clk_period)
-            iosInThisClk = 0
-            for io in otherIoOps:
-                end = io._asapEnd
-                if end is not None:
-                    c = start_clk(io._asapBegin[0], clk_period)
-                    if c == curClk:
-                        iosInThisClk += 1
+    def scheduleAsap(self, pathForDebug: Optional[UniqList["HlsNetNode"]]) -> List[float]:
+        assert self.dependsOn, self
+        return HlsNetNodeRead.scheduleAsap(self, pathForDebug)
     
-            if iosInThisClk > self.maxIosPerClk:
-                # move to next clock cycle
-                off = start_of_next_clk_period(self._asapBegin[0], clk_period) - self._asapBegin[0]
-                self._asapBegin = tuple(t + off for t in self._asapBegin)
-                self._asapEnd = tuple(t + off for t in self._asapEnd)
-            else:
-                break
-            
-        return self._asapEnd
-        
+    def scheduleAlapCompaction(self, asapSchedule: SchedulizationDict):
+        return HlsNetNodeRead.scheduleAlapCompaction(self, asapSchedule)
+    
+    def _getNumberOfIoInThisClkPeriod(self, intf: Interface, searchFromSrcToDst: bool):
+        return HlsNetNodeRead._getNumberOfIoInThisClkPeriod(self, intf, searchFromSrcToDst)
+
     def allocateRtlInstance(self,
                             allocator: "AllocatorArchitecturalElement",
                           ) -> List[HdlStatement]:

@@ -36,9 +36,9 @@ class HlsNetlistAnalysisPassDiscoverPipelines(HlsNetlistAnalysisPass):
                 list_.append([])
     
     @classmethod
-    def _addNodeToPipeline(cls, node: HlsNetNode, clk_period: float, pipeline: List[List[HlsNetNode]]):
-        for clk_index in node.iterScheduledClocks(clk_period):
-            clk_index = start_clk(node.scheduledIn[0], clk_period)
+    def _addNodeToPipeline(cls, node: HlsNetNode, clkPeriod: int, pipeline: List[List[HlsNetNode]]):
+        for clk_index in node.iterScheduledClocks():
+            clk_index = start_clk(node.scheduledIn[0] if node.scheduledIn else node.scheduledOut[0], clkPeriod)
             cls._extendIfRequired(pipeline, clk_index)
             pipeline[clk_index].append(node)
 
@@ -48,7 +48,7 @@ class HlsNetlistAnalysisPassDiscoverPipelines(HlsNetlistAnalysisPass):
         allFsmNodes, inFsmNodeParts = fsms.collectInFsmNodes()
         allFsmNodes: Dict[HlsNetNode, UniqList[IoFsm]]
         inFsmNodeParts: Dict[HlsNetNode, UniqList[Tuple[IoFsm, HlsNetNodePartRef]]]
-        clk_period = self.hls.clk_period
+        clkPeriod = self.hls.normalizedClkPeriod
         globalPipeline = []
 
         for node in self.hls.iterAllNodes():
@@ -64,7 +64,7 @@ class HlsNetlistAnalysisPassDiscoverPipelines(HlsNetlistAnalysisPass):
                     # if this is the first part of the node seen
                     # for all parts which are not in any fsm 
                     for part in node.partsComplement([p for _, p in parts]):
-                        for clkI in part.iterScheduledClocks(clk_period):
+                        for clkI in part.iterScheduledClocks():
                             self._extendIfRequired(globalPipeline, clkI)
                             globalPipeline[clkI].append(part)                    
                     continue
@@ -81,7 +81,7 @@ class HlsNetlistAnalysisPassDiscoverPipelines(HlsNetlistAnalysisPass):
 
                 # this is just node which is part of no FSM,
                 # we add it to global pipeline for each clock cycle where it is defined
-                self._addNodeToPipeline(node, clk_period, globalPipeline)
+                self._addNodeToPipeline(node, clkPeriod, globalPipeline)
                     
         if globalPipeline:
             # [todo] extract pipelines which do have no common src/dst and no common node

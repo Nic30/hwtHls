@@ -3,11 +3,23 @@ from typing import Union, List, Dict, Tuple
 
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.allocator.architecturalElement import AllocatorArchitecturalElement
-from hwtHls.netlist.nodes.node import HlsNetNode, HlsNetNodePartRef
-from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
-from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.allocator.fsmContainer import AllocatorFsmContainer
 from hwtHls.clk_math import start_clk
+from hwtHls.netlist.nodes.const import HlsNetNodeConst
+from hwtHls.netlist.nodes.io import HOrderingVoidT
+from hwtHls.netlist.nodes.node import HlsNetNode, HlsNetNodePartRef
+from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
+
+
+class ValuePathSpecItem():
+
+    def __init__(self, element: AllocatorArchitecturalElement, beginTime: float, endTime: float):
+        self.element = element
+        self.beginTime = beginTime
+        self.endTime = endTime
+
+    def __repr__(self):
+        return f"<{self.__class__.__name__:s} {self.element.namePrefix} {self.beginTime:f}->{self.endTime:f}>"
 
 
 class InterArchElementNodeSharingAnalysis():
@@ -25,12 +37,15 @@ class InterArchElementNodeSharingAnalysis():
         instance
     :ivar ownerOfOutput: a dictionary mapping node output to list of :class:`hwtHls.allocator.architecturalElement.AllocatorArchitecturalElement`
         instance
-    :ivar firstUseTimeOfOutInElem: information about when each node output is used in :class:`hwtHls.allocator.architecturalElement.AllocatorArchitecturalElement`
-        instance for the first time
+    :ivar explicitPathSpec: An additional specfification for output to input path which must pass some element where the output is not directly used.
+    :note: Source and destionation elemnt are not specified in explicitPathSpec because it can be derived from the owner of port.
+        For connections which are just from the source element to destination element this dictionary holds no record.
+    :ivar firstUseTimeOfOutInElem: Information about when each node output is used in :class:`hwtHls.allocator.architecturalElement.AllocatorArchitecturalElement`
+        instance for the first time.
     """
 
-    def __init__(self, clk_period: float):
-        self.clk_period = clk_period
+    def __init__(self, normalizedClkPeriod: int):
+        self.normalizedClkPeriod = normalizedClkPeriod
         self.interElemConnections: UniqList[Tuple[HlsNetNodeOut, HlsNetNodeIn]] = UniqList()
         self.multiOwnerNodes: UniqList[HlsNetNode] = UniqList()
         self.nodePartToPort: Dict[Union[HlsNetNodeIn, HlsNetNodeOut], HlsNetNodePartRef]
@@ -38,21 +53,22 @@ class InterArchElementNodeSharingAnalysis():
         self.partsOfNode: Dict[HlsNetNode, List[HlsNetNodePartRef]] = {}
         self.ownerOfInput: Dict[HlsNetNodeIn, UniqList[AllocatorArchitecturalElement]] = {}
         self.ownerOfOutput: Dict[HlsNetNodeOut, AllocatorArchitecturalElement] = {}
+        self.explicitPathSpec: Dict[Tuple[HlsNetNodeOut, HlsNetNodeIn, AllocatorArchitecturalElement], ValuePathSpecItem] = {}
         # because output value could be used in element multiple times but we need only the first use
-        self.firstUseTimeOfOutInElem: Dict[Tuple[AllocatorArchitecturalElement, HlsNetNodeOut], float] = {}
+        self.firstUseTimeOfOutInElem: Dict[Tuple[AllocatorArchitecturalElement, HlsNetNodeOut], int] = {}
         self.portSynonyms: Union[Dict[HlsNetNodeIn, UniqList[HlsNetNodeIn]], Dict[HlsNetNodeOut, UniqList[HlsNetNodeOut]]] = {}
 
-    def _analyzeInterElementsNodeSharingCheckInputDriver(self, o: HlsNetNodeOut, i: HlsNetNodeIn, inT: float, dstElm: AllocatorArchitecturalElement):
-        if isinstance(o.obj, HlsNetNodeConst):
+    def _analyzeInterElementsNodeSharingCheckInputDriver(self, o: HlsNetNodeOut, i: HlsNetNodeIn, inT: int, dstElm: AllocatorArchitecturalElement):
+        if isinstance(o.obj, HlsNetNodeConst) or o._dtype is HOrderingVoidT:
             return  # sharing not required
         assert dstElm in self.ownerOfInput[i], (dstElm, i, self.ownerOfInput[i])
         oOwner = self.ownerOfOutput[o]
         if dstElm is oOwner:
             return
         if isinstance(dstElm, AllocatorFsmContainer):
-            useClkI = start_clk(inT, self.clk_period)
+            useClkI = start_clk(inT, self.normalizedClkPeriod)
             assert useClkI in dstElm.clkIToStateI, (useClkI, dstElm.clkIToStateI, o, dstElm,
-                                                    "Input must be scheduled to some cycle corresponding to FSM state", inT, self.clk_period)
+                                                    "Input must be scheduled to some cycle corresponding to FSM state", inT, self.normalizedClkPeriod)
         # this input is connected to something outside of this arch. element
         firstUseTimeKey = (dstElm, o)
         curT = self.firstUseTimeOfOutInElem.get(firstUseTimeKey, inf)

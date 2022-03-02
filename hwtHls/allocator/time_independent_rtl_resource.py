@@ -4,7 +4,7 @@ from hwt.hdl.value import HValue
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
-from hwtHls.clk_math import start_clk, end_clk, epsilon
+from hwtHls.clk_math import start_clk
 
 
 class TimeIndependentRtlResourceItem():
@@ -77,21 +77,21 @@ class TimeIndependentRtlResource():
             
         return False
         
-    def get(self, time: float) -> TimeIndependentRtlResourceItem:
+    def get(self, time: int) -> TimeIndependentRtlResourceItem:
         """
         Get value of signal in specified time (clk period)
         """
 
         # if time is first time in live of this value return original signal
-        time += epsilon
+        time += self.allocator.parentHls.scheduler.epsilon
         if self.timeOffset is self.INVARIANT_TIME or self.timeOffset == time:
             return self.valuesInTime[0]
 
         # else try to look up register for this signal in valuesInTime cache
-        clk_period = self.allocator.parentHls.clk_period
-        dst_clk_period = start_clk(time, clk_period)
-        index = dst_clk_period - \
-            start_clk(self.timeOffset, clk_period)
+        clkPeriod = self.allocator.parentHls.normalizedClkPeriod
+        dstClkPeriod = start_clk(time, clkPeriod)
+        index = dstClkPeriod - \
+            start_clk(self.timeOffset, clkPeriod)
 
         assert index >= 0, (index, self.timeOffset, time, self.valuesInTime[0])
         try:
@@ -113,11 +113,11 @@ class TimeIndependentRtlResource():
         # allocate specified number of registers to pass value to specified pieline stage
         regsToAdd = requestedRegCnt - actualTimesCnt
         for i in reversed(range(regsToAdd)):
-            if self._isInPersistenceRanges(dst_clk_period - i):
+            if self._isInPersistenceRanges(dstClkPeriod - i):
                 cur = self.valuesInTime[-1]
                 assert cur.is_rlt_register(), cur
             else:
-                reg = self.allocator._reg(f"{name:s}_delayTo{dst_clk_period - i:d}",
+                reg = self.allocator._reg(f"{name:s}_delayTo{dstClkPeriod - i:d}",
                                           dtype=sig.data._dtype)
                 reg(prev.data)
                 cur = TimeIndependentRtlResourceItem(self, reg)
@@ -130,8 +130,8 @@ class TimeIndependentRtlResource():
         if self.timeOffset is self.INVARIANT_TIME:
             index = 0
         else:
-            clk_period = self.allocator.parentHls.clk_period
-            index = clkCyleI - start_clk(self.timeOffset, clk_period)
+            clkPeriod = self.allocator.parentHls.normalizedClkPeriod
+            index = clkCyleI - start_clk(self.timeOffset, clkPeriod)
             if index < 0 or index >= len(self.valuesInTime):
                 return None
 

@@ -1,14 +1,14 @@
-from typing import Union, List, Tuple, Set
+from typing import Union, List, Tuple, Set, Optional
 
 from hwt.interfaces.std import HandshakeSync
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import Interface_without_registration
 from hwtHls.allocator.architecturalElement import AllocatorArchitecturalElement
 from hwtHls.allocator.fsmContainer import AllocatorFsmContainer
-from hwtHls.allocator.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis
+from hwtHls.allocator.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis, ValuePathSpecItem
 from hwtHls.allocator.pipelineContainer import AllocatorPipelineContainer
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
-from hwtHls.clk_math import start_clk, epsilon
+from hwtHls.clk_math import start_clk
 from hwtHls.netlist.analysis.fsm import HlsNetlistAnalysisPassDiscoverFsm, IoFsm
 from hwtHls.netlist.analysis.pipeline import HlsNetlistAnalysisPassDiscoverPipelines, \
     NetlistPipeline
@@ -28,7 +28,12 @@ class HlsAllocator():
         self.parentHls = parentHls
         self.namePrefix = namePrefix
         self._archElements: List[Union[AllocatorFsmContainer, AllocatorPipelineContainer]] = []
+        self._iea: Optional[InterArchElementNodeSharingAnalysis] = None 
 
+    def _getArchElmBaseName(self, elm:AllocatorArchitecturalElement) -> str:
+        namePrefixLen = len(self.namePrefix)
+        return elm.namePrefix[namePrefixLen:]
+        
     def _discoverArchElements(self):
         hls = self.parentHls
         fsms: HlsNetlistAnalysisPassDiscoverFsm = hls.requestAnalysis(HlsNetlistAnalysisPassDiscoverFsm)
@@ -45,11 +50,11 @@ class HlsAllocator():
             pipeCont = AllocatorPipelineContainer(hls, namePrefix if onlySingleElem else f"{namePrefix:s}pipe{i:d}_", pipe.stages)
             self._archElements.append(pipeCont)
     
-    def _getFirstUseTime(self, iea: InterArchElementNodeSharingAnalysis, dstElm: AllocatorArchitecturalElement, o: HlsNetNodeOut):
-        clk_period = self.parentHls.clk_period
+    def _getFirstUseTime(self, iea: InterArchElementNodeSharingAnalysis, dstElm: AllocatorArchitecturalElement, o: HlsNetNodeOut, i: HlsNetNodeIn):
+        clkPeriod = self.parentHls.normalizedClkPeriod
         useT = iea.firstUseTimeOfOutInElem[(dstElm, o)]
-        srcStartClkI = start_clk(o.obj.scheduledOut[o.out_i], clk_period)
-        dstUseClkI = start_clk(useT, clk_period)
+        srcStartClkI = start_clk(o.obj.scheduledOut[o.out_i], clkPeriod)
+        dstUseClkI = start_clk(useT, clkPeriod)
         if isinstance(dstElm, AllocatorFsmContainer):
             assert dstUseClkI in dstElm.clkIToStateI, (dstUseClkI, dstElm.clkIToStateI, o, "Output must be scheduled to some cycle corresponding to fsm state")
         if srcStartClkI != dstUseClkI:
@@ -64,17 +69,48 @@ class HlsAllocator():
                     for clkI in range(srcStartClkI, dstUseClkI + 1):
                         if clkI in srcElm.clkIToStateI:
                             closestClockIWithState = clkI
-                    useT = closestClockIWithState * clk_period + epsilon
+                    useT = closestClockIWithState * clkPeriod + self.parentHls.scheduler.epsilon
                     iea.firstUseTimeOfOutInElem[(dstElm, o)] = useT
+                elif isinstance(dstElm, AllocatorFsmContainer):
+                    # Need to add extra buffer between FSMs or move value load/store in states
+                    # We add new pipeline to architecture adn register this pair to interElemConnections
+                    srcBaseName = self._getArchElmBaseName(srcElm)
+                    dstBaseName = self._getArchElmBaseName(dstElm)
+                    bufferPipelineName = f"{self.namePrefix:s}buffer_{srcBaseName:s}{srcStartClkI}_to_{dstBaseName:s}{dstUseClkI}"
+                    p = AllocatorPipelineContainer(self.parentHls, bufferPipelineName, [])
+                    self._archElements.append(p)
+                    iea.explicitPathSpec[(o, i, dstElm)] = [ValuePathSpecItem(p, o.obj.scheduledOut[o.out_i], useT)]
                 else:
-                    raise NotImplementedError("Need to add extra buffer between FSMs or move value load/store in states", srcStartClkI, dstUseClkI, o, srcElm, dstElm)
+                    raise NotImplementedError("Propagating the value to element of unknown type", dstElm)
 
         return useT
+    
+    def _addOutputAndAllSynonymsToElement(self, o: HlsNetNodeOut, useT: float, synonyms: UniqList[Union[HlsNetNodeOut, HlsNetNodeIn]], dstElm: AllocatorArchitecturalElement):
+        # check if any synonym is already declared
+        oRes = None
+        for syn in synonyms:
+            synRtl = dstElm.netNodeToRtl.get(syn, None)
+            if synRtl is not None:
+                assert oRes is None or oRes is synRtl, ("All synonyms must have same RTL realization", o, oRes, syn, synRtl)
+                assert start_clk(synRtl.timeOffset, self.parentHls.normalizedClkPeriod) == start_clk(useT, self.parentHls.normalizedClkPeriod) , (synRtl.timeOffset, useT, syn, o)
+                oRes = synRtl
+    
+        # now optionally declare and set all synonyms at input of dstElm
+        if oRes is None:
+            # if no synonym declared create a new declaration
+            oRes = o.obj.allocateRtlInstanceOutDeclr(dstElm, o, useT)
+            for syn in synonyms:
+                dstElm.netNodeToRtl[syn] = oRes
+        else:
+            # declare also rest of the synonyms
+            for syn in synonyms:
+                synRtl = dstElm.netNodeToRtl.get(syn, None)
+                if synRtl is None:
+                    dstElm.netNodeToRtl[o] = oRes
         
     def _declareInterElemenetBoundarySignals(self, iea: InterArchElementNodeSharingAnalysis):
         # first boundary signals needs to be declared, then the body of fsm/pipeline can be constructed
         # because there is no topological order in how the elements are connected
-        clk_period = self.parentHls.clk_period
         seenOutputsConnectedToElm: Set[Tuple[AllocatorArchitecturalElement, HlsNetNodeOut]] = set()
         for o, i in iea.interElemConnections:
             o: HlsNetNodeOut
@@ -84,32 +120,24 @@ class HlsAllocator():
                 dstElm: AllocatorArchitecturalElement
                 if (dstElm, o) in seenOutputsConnectedToElm or dstElm is iea.ownerOfOutput[o]:
                     continue
+
                 seenOutputsConnectedToElm.add((dstElm, o))
                 # declare output and all its synonyms 
-                useT = self._getFirstUseTime(iea, dstElm, o)
                 synonyms = iea.portSynonyms.get(o, ())
+                explicitPath = iea.explicitPathSpec.get((o, i, dstElm), None)
+                if explicitPath is not None:
+                    # we must explicitely pass the value through all elements at specific times
+                    # for each element in path add output, input pair and connect them inside of element
+                    for elmSpec in explicitPath:
+                        elmSpec: ValuePathSpecItem
+                        if (dstElm, o) in seenOutputsConnectedToElm:
+                            assert not dstElm is iea.ownerOfOutput[o]
+                            continue
+                        self._addOutputAndAllSynonymsToElement(o, elmSpec.beginTime, synonyms, elmSpec.element)
+                        seenOutputsConnectedToElm.add((elmSpec.element, o))
                 
-                # check if any synonym is already declared
-                oRes = None
-                for syn in synonyms:
-                    synRtl = dstElm.netNodeToRtl.get(syn, None)
-                    if synRtl is not None:
-                        assert oRes is None or oRes is synRtl, ("All synonyms must have same RTL realization", o, oRes, syn, synRtl)
-                        assert start_clk(synRtl.timeOffset, clk_period) == start_clk(useT, clk_period) , (synRtl.timeOffset, useT, syn, o)
-                        oRes = synRtl
-    
-                # now optionally declare and set all synonyms at input of dstElm
-                if oRes is None:
-                    # if no synonym declared create a new declaration
-                    oRes = o.obj.allocateRtlInstanceOutDeclr(dstElm, o, useT)
-                    for syn in synonyms:
-                        dstElm.netNodeToRtl[syn] = oRes
-                else:
-                    # declare also rest of the synonyms
-                    for syn in synonyms:
-                        synRtl = dstElm.netNodeToRtl.get(syn, None)
-                        if synRtl is None:
-                            dstElm.netNodeToRtl[o] = oRes
+                useT = self._getFirstUseTime(iea, dstElm, o, i)
+                self._addOutputAndAllSynonymsToElement(o, useT, synonyms, dstElm)
     
     def _getSrcElm(self, iea: InterArchElementNodeSharingAnalysis, o: HlsNetNodeOut) -> AllocatorArchitecturalElement:
         srcElm = iea.ownerOfOutput.get(o, None)
@@ -133,9 +161,8 @@ class HlsAllocator():
             dstElms = dstElm
     
         return srcElm, dstElms
-        
-    def _finalizeInterElementsConnections(self, iea: InterArchElementNodeSharingAnalysis):
-        hls = self.parentHls
+    
+    def _expandAllOutputSynonymsInElement(self, iea: InterArchElementNodeSharingAnalysis):
         # a set used to avoid adding another sync channel if same is already present
         seenOuts: Set[HlsNetNodeOut] = set()
         for o, _ in iea.interElemConnections:
@@ -163,7 +190,11 @@ class HlsAllocator():
                 else:
                     seenOuts.add(o)
                     assert o in srcElm.netNodeToRtl
-        
+
+    def _finalizeInterElementsConnections(self, iea: InterArchElementNodeSharingAnalysis):
+        hls = self.parentHls
+        self._expandAllOutputSynonymsInElement(iea)
+        clkPeriod:int = self.parentHls.normalizedClkPeriod
         syncAdded: Set[Tuple[int, AllocatorArchitecturalElement, AllocatorArchitecturalElement]] = set()
         tirsConnected: Set[Tuple[TimeIndependentRtlResource, TimeIndependentRtlResource]] = set()
         for o, i in iea.interElemConnections:
@@ -171,8 +202,7 @@ class HlsAllocator():
             i: HlsNetNodeIn
             srcElm, dstElms = self._getSrcDstsElement(iea, o, i)
             for dstElm in dstElms:
-                if srcElm is dstElm:
-                    continue
+                assert srcElm is not dstElm, (i, o, srcElm, "Must be a different element otherwise this is not inter element connection.")
                 # dst should be already delcared from _declareInterElemenetBoundarySignals       
                 dstTir: TimeIndependentRtlResource = dstElm.netNodeToRtl[o]
                 # src should be already declared form AllocatorArchitecturalElement.allocateDataPath
@@ -181,32 +211,46 @@ class HlsAllocator():
                     continue
                 else:
                     tirsConnected.add((srcTir, dstTir))
+                
+                explicitPath = iea.explicitPathSpec.get((o, i, dstElm), None)
+                if explicitPath is not None:
+                    # we must explicitely pass the value through all elements at specific times
+                    # for each element in path add output, input pair and connect them inside of element
+                    for elmSpec in explicitPath:
+                        elmSpec: ValuePathSpecItem
+                        raise NotImplementedError("Propagate value in specifid element and complete the path.")
+                        # if (dstElm, o) in seenOutputsConnectedToElm:
+                        #    assert not dstElm is iea.ownerOfOutput[o]
+                        #    continue
+                        # self._addOutputAndAllSynonymsToElement(o, elmSpec.beginTime, synonyms, elmSpec.element)
 
-                dstUseClkI = start_clk(dstTir.timeOffset, hls.clk_period)
-                srcStartClkI = start_clk(srcTir.timeOffset, hls.clk_period)
-                assert srcElm is not dstElm, (i, o, srcElm)
+                dstUseClkI = start_clk(dstTir.timeOffset, clkPeriod)
+                srcStartClkI = start_clk(srcTir.timeOffset, clkPeriod)
                 assert srcTir is not dstTir, (i, o, srcTir)
-                assert dstUseClkI >= srcStartClkI
                 srcOff = dstUseClkI - srcStartClkI
-                assert srcStartClkI <= dstUseClkI
+                assert srcStartClkI <= dstUseClkI, (srcStartClkI, dstUseClkI, "Source must be before first use because otherwise this should be a backedge instead.")
                 if len(srcTir.valuesInTime) <= srcOff:
                     if isinstance(srcElm, AllocatorPipelineContainer):
                         # extend the value register pipeline to get data in time when other elemnt requires it
                         # potentially also extend the src pipeline
                         srcElm.extendValidityOfRtlResource(srcTir, dstTir.timeOffset)
                         # assert len(srcTir.valuesInTime) == srcOff + 1  
+                    elif isinstance(srcElm, AllocatorFsmContainer):
+                        assert dstUseClkI in srcElm.clkIToStateI, ("Must be the case otherwise the pipeline should already been extended.")
                     else:
                         raise NotImplementedError("Need to add extra buffer between fsms", srcStartClkI, dstUseClkI, o, srcElm, dstElm)
     
-                srcSig = srcTir.get(dstUseClkI * hls.clk_period).data
-                assert not dstTir.valuesInTime[0].data.drivers, ("Forward declaration already has a driver", dstTir, dstTir.valuesInTime[0].data.drivers)
+                srcSig = srcTir.get(dstUseClkI * clkPeriod).data
+                assert not dstTir.valuesInTime[0].data.drivers, ("Forward declaration signal must not have a driver yet.", dstTir, dstTir.valuesInTime[0].data.drivers)
                 dstTir.valuesInTime[0].data(srcSig)
     
                 if (dstUseClkI, srcElm, dstElm) not in syncAdded:
                     interElmSync = HandshakeSync()
+                    srcBaseName = self._getArchElmBaseName(srcElm)
+                    dstBaseName = self._getArchElmBaseName(dstElm)
                     interElmSync = Interface_without_registration(
                         hls.parentUnit, interElmSync,
-                        f"{self.namePrefix}sync_{srcElm.namePrefix}_{dstElm.namePrefix}")
+                        f"{self.namePrefix:s}sync_{srcBaseName:s}_{dstBaseName:s}")
                     srcElm.connectSync(dstUseClkI, interElmSync, INTF_DIRECTION.MASTER)
                     dstElm.connectSync(dstUseClkI, interElmSync, INTF_DIRECTION.SLAVE)
                     syncAdded.add((dstUseClkI, srcElm, dstElm))
@@ -238,7 +282,7 @@ class HlsAllocator():
         * Each arch element explicitly queries the node for the specific time (and input/output combination if node spans over more arch. elements).
         """
         self._discoverArchElements()
-        iea = InterArchElementNodeSharingAnalysis(self.parentHls.clk_period)
+        iea = InterArchElementNodeSharingAnalysis(self.parentHls.normalizedClkPeriod)
         if len(self._archElements) > 1:
             iea._analyzeInterElementsNodeSharing(self._archElements)
             if iea.interElemConnections:
@@ -252,4 +296,5 @@ class HlsAllocator():
 
         for e in self._archElements:
             e.allocateSync()
+        self._iea = iea
 
