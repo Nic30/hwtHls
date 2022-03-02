@@ -132,7 +132,6 @@ class HwtHlsNetlistToTimeline():
                     dep = dep.obj._subNodes.outputs[dep.out_i]
                 depObj = dep.obj
                 depOutI = dep.out_i
-                print()
                 row.deps.append((
                     obj_to_row[depObj][1], # src
                     depObj.scheduledOut[depOutI] * self.time_scale, # start
