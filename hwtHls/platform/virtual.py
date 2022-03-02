@@ -28,6 +28,8 @@ from hwtHls.ssa.translation.fromLlvm import SsaPassFromLlvm
 from hwtHls.ssa.translation.toGraphwiz import SsaPassDumpToDot
 from hwtHls.ssa.translation.toLl import SsaPassDumpToLl
 from hwtHls.ssa.translation.toLlvm import SsaPassToLlvm
+from hwtHls.netlist.translation.toTimelineArchLevel import HlsNetlistPassShowTimelineArchLevel
+from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF
 
 _OPS_T_GROWING_EXP = {
     AllOps.DIV,
@@ -62,6 +64,7 @@ _OPS_T_GROWING_CONST = {
     AllOps.AND,
     AllOps.OR,
     *_OPS_T_ZERO_LATENCY,
+    ResourceFF,
 }
 
 DEFAULT_SSA_PASSES = [
@@ -90,7 +93,7 @@ def makeDebugPasses(debug_file_directory: Union[str, Path]):
 
     .. code-block::
 
-        print(to_rtl_str(u, target_platform=VirtualHlsPlatform(**make_debug_passes("tmp"))))
+        print(to_rtl_str(u, target_platform=VirtualHlsPlatform(**makeDebugPasses("tmp"))))
 
     """
     debug_file_directory = Path(debug_file_directory)
@@ -110,7 +113,7 @@ def makeDebugPasses(debug_file_directory: Union[str, Path]):
             SsaPassRunLlvmOpt(),
             SsaPassDumpToLl(open(debug_file_directory / "top4.ll", "w"), close=True),
             SsaPassFromLlvm(),
-            
+
             SsaPassDumpToDot(debug_file_directory / "top5.dot"),
             SsaPassDumpPipelines(open(debug_file_directory / "top6.pipeline.txt", "w"), close=True),
             SsaPassConsystencyCheck(),
@@ -123,10 +126,11 @@ def makeDebugPasses(debug_file_directory: Union[str, Path]):
             HlsNetlistPassAggregateBitwiseOps(),
             # HlsNetlistPassConsystencyCheck(),
             # HlsNetlistPassDumpToDot(debug_file_directory / "top_p1.dot"),
-            HlsNetlistPassShowTimeline(debug_file_directory / "top7.schedule.html"),
+            HlsNetlistPassShowTimeline(debug_file_directory / "top7.schedule.html", expandCompositeNodes=True),
         ],
         "rtlnetlist_passes":[
-            RtlNetlistPassDumpStreamNodes(open(debug_file_directory / "top8.sync.txt", "w"), close=True)
+            RtlNetlistPassDumpStreamNodes(open(debug_file_directory / "top8.sync.txt", "w"), close=True),
+            HlsNetlistPassShowTimelineArchLevel(debug_file_directory / "top9.archschedule.html"),
         ],
 
     }
@@ -183,6 +187,7 @@ class VirtualHlsPlatform(DummyPlatform):
             AllOps.BitsAsSigned: 0,
             AllOps.BitsAsVec: 0,
             AllOps.BitsAsUnsigned: 0,
+            ResourceFF: 1.2e-9,
             OP_ASSIGN: 0,
         }
         self.ssa_passes = ssa_passes
@@ -191,7 +196,7 @@ class VirtualHlsPlatform(DummyPlatform):
 
     @lru_cache()
     def get_op_realization(self, op: OpDefinition, bit_width: int,
-                           input_cnt: int, clk_period: float) -> OpRealizationMeta:
+                           input_cnt: int, clkPeriod: float) -> OpRealizationMeta:
         base_delay = self._OP_DELAYS[op]
         if op in _OPS_T_GROWING_CONST:
             latency_pre = base_delay
@@ -210,3 +215,6 @@ class VirtualHlsPlatform(DummyPlatform):
 
         return OpRealizationMeta(latency_pre=latency_pre)
 
+    @lru_cache()
+    def get_ff_store_time(self, realTimeClkPeriod: float, schedulerResolution: float):
+        return int(self.get_op_realization(ResourceFF, 1, 1, realTimeClkPeriod).latency_pre // schedulerResolution)
