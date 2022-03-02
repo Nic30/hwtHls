@@ -24,7 +24,7 @@ class HlsNetlistClusterSearch():
         # output ports of inside nodes
         self.outputs: UniqList[HlsNetNodeOut] = UniqList()
         self.nodes: UniqList[HlsNetNode] = UniqList()
-        
+
     def _discover(self, n: HlsNetNode, seen: Set[HlsNetNode],
                  predicateFn: Callable[[HlsNetNode], bool]):
         """
@@ -46,13 +46,15 @@ class HlsNetlistClusterSearch():
                     self.inputsDict[o] = otherConnectedInputs
                     self.inputs.append(dep)
                 otherConnectedInputs.add(inp)
-        
+
         for outp, users in zip(n._outputs, n.usedBy):
             for u in users:
                 u: HlsNetNodeIn
                 uObj = u.obj
-                if uObj not in seen and predicateFn(uObj):
-                    self._discover(uObj, seen, predicateFn)            
+                if uObj in seen:
+                    continue
+                elif predicateFn(uObj):
+                    self._discover(uObj, seen, predicateFn)
                 else:
                     if outp not in self.outputs:
                         self.outputs.append(outp)
@@ -67,7 +69,7 @@ class HlsNetlistClusterSearch():
         self.inputsDict = {k: v for k, v in self.inputsDict.items() if k.obj not in self.nodes}
         # self.outputs = [o for o in self.outputs if o.obj not in self.nodes]
         self.consystencyCheck()
-    
+
     def substituteWithNode(self, n: HlsNetNode):
         """
         Substitute all nodes with the cluster with a single node. All nodes are removed from netlists and disconnected on outer side.
@@ -79,16 +81,16 @@ class HlsNetlistClusterSearch():
             outerOutput: HlsNetNodeOut
             # assert outerOutput.obj in outerOutput.obj.hls.nodes or outerOutput.obj in outerOutput.obj.hls.inputs or outerOutput.obj in outerOutput.obj.hls.outputs, outerOutput
             internInputs = self.inputsDict[outerOutput]
-            usedBy = outerOutput.obj.usedBy[outerOutput.out_i]
+            oldUsedBy = outerOutput.obj.usedBy[outerOutput.out_i]
             usedBy = outerOutput.obj.usedBy[outerOutput.out_i] = [
                 i
-                for i in usedBy
+                for i in oldUsedBy
                 if i not in internInputs
             ]
             link_hls_nodes(outerOutput, boundaryIn)
             for i in internInputs:
                 i.obj.dependsOn[i.in_i] = boundaryIn
-        
+
         clusterNodes = self.nodes
         for boundaryOut, interOutput in zip(n._outputs, self.outputs):
             # disconnect interOutput from all external inputs
@@ -99,9 +101,11 @@ class HlsNetlistClusterSearch():
                 if in_.obj not in clusterNodes:
                     in_.obj.dependsOn[in_.in_i] = boundaryOut
                     newUsedBy.append(in_)
+            assert newUsedBy, (boundaryOut, "If the port is unused outside of cluster it should not be in cluster boundary at the first place")
+            interOutput.obj.usedBy[interOutput.out_i] = [
+                in_ for in_ in usedBy
+                if in_.obj in clusterNodes]
 
-            interOutput.obj.usedBy[interOutput.out_i] = [in_ for in_ in usedBy if in_.obj in clusterNodes]
-    
     def doesOutputLeadsToInputOfCluster(self, node: HlsNetNode,
                                         seenNodes: Set[HlsNetNodeOut]) -> bool:
         """
@@ -139,6 +143,10 @@ class HlsNetlistClusterSearch():
         assert len(self.inputsDict) == len(self.inputs), (
             [(o.obj._id, o.out_i) for o in self.inputsDict.keys()],
             [(o.obj._id, o.out_i) for o in self.inputs])
+        for o in self.outputs:
+            assert any(u.obj not in self.nodes for u in o.obj.usedBy[o.out_i]), (o, "If this is an ontput of cluster it must be used outside")
+        for i in self.inputs:
+            assert i.obj not in self.nodes, ("If this ian input it must originate from outside of cluster")
 
     def updateOuterInputs(self, outerInputMap: Dict[HlsNetNodeOut, HlsNetNodeOut]):
         for i_i, i in enumerate(self.inputs):
@@ -146,13 +154,13 @@ class HlsNetlistClusterSearch():
             if oi is not i:
                 self.inputs[i_i] = oi
                 self.inputsDict[oi] = self.inputsDict.pop(i)
-        
+
     def splitToPreventOuterCycles(self):
         """
         If the cluster construction resulted into an outer cycle cut this cluster so the cycle dissapears.
         """
         self.consystencyCheck()
-        # >1 because if there was just 1 output the cycle has been there even before this cluster was generated. 
+        # >1 because if there was just 1 output the cycle has been there even before this cluster was generated.
         if len(self.outputs) > 1:
             outputsCausingLoop: List[HlsNetNodeOut] = []
             for o in self.outputs:
@@ -197,7 +205,7 @@ class HlsNetlistClusterSearch():
                     if predInternalInputs:
                         assert outerInp not in predCluster.inputsDict, outerInp
                         predCluster.inputsDict[outerInp] = predInternalInputs
-                    
+
                 self.inputs = newInputs
                 self.inputsDict = newInputsDict
 
@@ -220,10 +228,10 @@ class HlsNetlistClusterSearch():
                                 self.inputs.append(o)
 
                             if i not in inputsDependentOnOutput:
-                                inputsDependentOnOutput.append(i) 
+                                inputsDependentOnOutput.append(i)
                                 # assert o not in predCluster.outputs, o
                                 predCluster.outputs.append(o)
-                
+
                 self.consystencyCheck()
                 yield from predCluster.splitToPreventOuterCycles()
                 yield self  # self is guaranted to not have outer cycle because we removed all outputs which caused such a thing
