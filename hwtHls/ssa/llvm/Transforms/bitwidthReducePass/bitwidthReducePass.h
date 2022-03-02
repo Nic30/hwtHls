@@ -12,6 +12,8 @@ namespace hwtHls {
  * (This pass can reduce any bit from value, not just prefix or suffix.)
  *
  * Similar to:
+ *   * llvm::BDCEPass
+ *     - works only on shifts and extensions
  *   * A generic logic minimizer like ABC
  *     + performs complete minimization
  *     - computationally complex, destroys the information about used operands and thus prevents other optimization
