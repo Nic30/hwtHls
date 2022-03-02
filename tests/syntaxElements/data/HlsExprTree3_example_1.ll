@@ -6,10 +6,10 @@ top_whC:
 top_wh:
   a0 = call <Bits, 32bits, unsigned> @hls.read(a)
   b1 = call <Bits, 32bits, unsigned> @hls.read(b)
-  %11 = ADD a0, b1
   c2 = call <Bits, 32bits, unsigned> @hls.read(c)
-  %12 = ADD %11, c2
   d3 = call <Bits, 32bits, unsigned> @hls.read(d)
+  %11 = ADD a0, b1
+  %12 = ADD %11, c2
   %13 = MUL %12, d3
   void call <Bits, 32bits, unsigned> @hls.write(sig_)
   x4 = call <Bits, 32bits, unsigned> @hls.read(x)

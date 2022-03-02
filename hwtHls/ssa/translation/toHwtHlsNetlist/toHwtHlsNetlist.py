@@ -2,6 +2,7 @@ from typing import List, Dict, Union, Set, Tuple, Optional, Sequence
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.hdl.operatorDefs import OpDefinition
+from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.value import HValue
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
@@ -10,6 +11,7 @@ from hwtHls.hlsPipeline import HlsPipeline
 from hwtHls.hlsStreamProc.statements import HlsStreamProcRead, HlsStreamProcWrite
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
+from hwtHls.netlist.nodes.loopHeader import HlsLoopGate
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
@@ -22,12 +24,10 @@ from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.branchControlLabel import BranchControlLabel
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.phi import SsaPhi
-from hwtHls.ssa.translation.toHwtHlsNetlist.nodes.loopHeader import HlsLoopGate
 from hwtHls.ssa.translation.toHwtHlsNetlist.opCache import SsaToHwtHlsNetlistOpCache
 from hwtHls.ssa.translation.toHwtHlsNetlist.syncAndIo import SsaToHwtHlsNetlistSyncAndIo
 from hwtHls.ssa.value import SsaValue
 from ipCorePackager.constants import INTF_DIRECTION
-from hwt.hdl.types.hdlType import HdlType
 
 
 class SsaToHwtHlsNetlist():
@@ -37,7 +37,13 @@ class SsaToHwtHlsNetlist():
 
     :ivar hls: parent hls synthetizer which is used to generate scheduling graph
     :ivar start_block: a basic block where program begins
-    :ivar edge_var_live: dictionary which maps which variable is live on block transition
+    :ivar nodes: list of all nodes generated from this SSA translation
+    :ivar io: an object to keep track of IO related informations
+    :ivar _to_hls_cache: An object to assert that the node is allocated only once and to support
+        use of output of node before node itself is allocated.
+    :ivar _current_block: Current block which is beeing translated.
+    :ivar _blockMeta: A dictionary mapping block to its metainformations.
+    :ivar _block_ens: A dictionary mapping block to its control flow channel.
     """
 
     def __init__(self, hls: HlsPipeline,
@@ -47,10 +53,8 @@ class SsaToHwtHlsNetlist():
                  blockMeta: Dict[SsaBasicBlock, BlockMeta]):
         self.hls = hls
         self.start_block = start_block
-
         self.nodes: List[HlsNetNode] = hls.nodes
         self.io = SsaToHwtHlsNetlistSyncAndIo(self, out_of_pipeline_edges, edge_var_live)
-
         self._to_hls_cache = SsaToHwtHlsNetlistOpCache()
         self._current_block:Optional[SsaBasicBlock] = None
         self._blockMeta = blockMeta
@@ -99,11 +103,14 @@ class SsaToHwtHlsNetlist():
 
         for k, v in self._to_hls_cache.items():
             assert not isinstance(v, HlsNetNodeOutLazy), ("All outputs should be already resolved", k, v)
-
+        
     def to_hls_SsaBasicBlock(self, block: SsaBasicBlock):
         try:
+            # [todo] for all IO we need the predecessors from all blocks which are not part of self.io.out_of_pipeline_edges
             self._prepare_SsaBasicBlockControl(block)
             self.to_hls_SsaBasicBlock_phis(block)
+            self.io.collectBlockOrderingDependencies(block)
+            self.io._firstIoAccesOfBlock[block] = None
             # propagate also for variables which are not explicitly used
 
             for stm in block.body:
@@ -114,7 +121,7 @@ class SsaToHwtHlsNetlist():
                     dst = stm.dst
                     assert isinstance(dst, (Interface, RtlSignalBase)), dst
                     self.io._out_of_hls_io.append(dst)
-                    self.io._write_to_io(dst, src)
+                    self.io._write_to_io(dst, src, ordered=True)
                 else:
                     isPhiCyclicArg = stm in self._blockMeta[stm.block].phiCyclicArgs
                     if isinstance(stm, HlsStreamProcRead):
@@ -122,7 +129,7 @@ class SsaToHwtHlsNetlist():
                         alreadySeen = (block, stm) in self._to_hls_cache._to_hls_cache
                         if not alreadySeen:
                             self.io._out_of_hls_io.append(stm._src)
-                            o = self.io._read_from_io(stm._src)
+                            o = self.io._read_from_io(stm._src, ordered=True)
                             self._to_hls_cache.add((block, stm), o, isPhiCyclicArg)
 
                     elif isinstance(stm, SsaInstr):
@@ -137,9 +144,10 @@ class SsaToHwtHlsNetlist():
                     else:
                         raise NotImplementedError(stm)
 
+            self.io._afterBlockOrderingDependenciesComplete(block)
             if block.successors:
                 self.to_hls_SsaBasicBlock_successors(block)
-
+            
         finally:
             self._current_block = None
 
@@ -398,3 +406,6 @@ class SsaToHwtHlsNetlist():
                         # the successor block was not translated yet, we prepare this input variable for it
                         self._to_hls_cache.add((suc_block, v), cur_v, False)
 
+                newDeps = self.io.collectBlockOrderingDependencies(suc_block)
+                if newDeps is not None:
+                    self.io. _afterBlockOrderingDependenciesComplete(suc_block)   

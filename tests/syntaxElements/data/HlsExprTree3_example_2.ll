@@ -4,11 +4,11 @@ top:
 top_whC:
   a18 = call <Bits, 32bits, unsigned> @hls.read(a)
   b19 = call <Bits, 32bits, unsigned> @hls.read(b)
-  %20 = ADD b19, a18
-  c21 = call <Bits, 32bits, unsigned> @hls.read(c)
-  %22 = ADD %20, c21
-  d23 = call <Bits, 32bits, unsigned> @hls.read(d)
-  %24 = MUL %22, d23
+  c20 = call <Bits, 32bits, unsigned> @hls.read(c)
+  d21 = call <Bits, 32bits, unsigned> @hls.read(d)
+  %22 = ADD b19, a18
+  %23 = ADD %22, c20
+  %24 = MUL %23, d21
   void call <Bits, 32bits> @hls.write(%24)
   x26 = call <Bits, 32bits, unsigned> @hls.read(x)
   y27 = call <Bits, 32bits, unsigned> @hls.read(y)

@@ -14,12 +14,13 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut, link_hls_nodes, \
 from hwtHls.ssa.analysis.liveness import EdgeLivenessDict
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.branchControlLabel import BranchControlLabel
-from hwtHls.ssa.translation.toHwtHlsNetlist.nodes.backwardEdge import HlsNetNodeWriteBackwardEdge, \
+from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeWriteBackwardEdge, \
     HlsNetNodeReadBackwardEdge
-from hwtHls.ssa.translation.toHwtHlsNetlist.nodes.programStarter import HlsProgramStarter
+from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
 from hwtHls.ssa.value import SsaValue
 from hwtLib.abstract.componentBuilder import AbstractComponentBuilder
 from ipCorePackager.constants import INTF_DIRECTION
+from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 
 
 class BlockPortsRecord():
@@ -35,8 +36,11 @@ class SsaToHwtHlsNetlistSyncAndIo():
     does not need to care about differnces between local data and data from ports which were constructed
     to avoid circuit cycles for scheduler.
 
-
-    :ivar start_block_en: optionaly port to trigger the program execution
+    :ivar start_block_en: optional port to trigger the program execution
+    :ivar edge_var_live: A dictionary which maps all live variables on block transition.
+    :ivar _blockOrderingSync: A dictionary mapping block to a list of ordering output ports for the successor of this block.
+    :attention: Ordering is tracked only for block transition edges which are not in io.out_of_pipeline_edges.
+        As a consequence the ordering dependence is cycle free.
     """
 
     def __init__(self, parent: "SsaToHwtHlsNetlist",
@@ -53,7 +57,59 @@ class SsaToHwtHlsNetlistSyncAndIo():
         self._block_io: Dict[Tuple[SsaBasicBlock, SsaBasicBlock], BlockPortsRecord] = {}
         self.edge_var_live = edge_var_live
         self.start_block_en: Optional[HlsNetNodeOut] = None
-        self._latestAccessOfIo: Dict[Interface, UniqList[Union[HlsNetNodeRead, HlsNetNodeWrite]]] = {}
+        self._blockOrderingSync: Dict[SsaBasicBlock, HlsNetNodeOut] = {}
+        self._firstIoAccesOfBlock: Dict[SsaBasicBlock, Union[HlsNetNodeRead, HlsNetNodeWrite, None]] = {}
+
+    def _addOrderingDependence(self, io0: Union[HlsNetNodeRead, HlsNetNodeWrite], io1: Union[HlsNetNodeRead, HlsNetNodeWrite]):
+        o: HlsNetNodeOut = io0.getOrderingOutPort()
+        assert o._dtype is HOrderingVoidT, (o, o._dtype)
+        i = io1._add_input()
+        link_hls_nodes(o, i)
+
+    def _afterBlockOrderingDependenciesComplete(self, block: SsaBasicBlock):
+        for suc in block.successors.iter_blocks():
+            if (block, suc) in self.out_of_pipeline_edges:
+                continue
+            sucFirstIo = self._firstIoAccesOfBlock.get(suc, NOT_SPECIFIED)
+            if sucFirstIo is NOT_SPECIFIED:
+                # this block was not translated yet
+                continue
+            
+            elif sucFirstIo is None:
+                # has no IO we have to transitively propagate to all successors
+                assert suc not in self._blockOrderingSync, ("Overspecification", (block, suc), self._blockOrderingSync[suc])
+                newDeps = self.collectBlockOrderingDependencies(suc)
+                if newDeps is not None:
+                    self._afterBlockOrderingDependenciesComplete(suc)
+            else:
+                # how some IO which is alredy used by successor for ordering
+                # now we need to just synchoronize first IO in block which is first in ordering line
+                for dep in self._blockOrderingSync[block]:
+                    self._addOrderingDependence(dep, sucFirstIo)
+
+    def collectBlockOrderingDependencies(self, block: SsaBasicBlock) -> Optional[UniqList[HlsNetNodeOut]]:
+        """
+        Collect latest ordering output ports from all IO instructions from all previous blocks.
+        """
+        try:
+            return self._blockOrderingSync[block]
+        except:
+            pass
+
+        deps = UniqList()
+        for pred in block.predecessors:
+            if (pred, block) in self.out_of_pipeline_edges:
+                # skip because ordering is managed by CFG control
+                continue
+            predDeps = self._blockOrderingSync.get(pred, None)
+            if predDeps is None:
+                # something is missing we have to add ordering info once everything is ready later
+                return None
+            else:
+                deps.extend(predDeps)
+        self._blockOrderingSync[block] = deps
+        
+        return deps
 
     def _add_HlsProgramStarter(self):
         """
@@ -120,7 +176,10 @@ class SsaToHwtHlsNetlistSyncAndIo():
         newly_added_ports = []
         if add_control:
             _, r_from_in = self._add_hs_intf_and_read(
-                f"c_{src_block.label:s}_to_{dst_block.label:s}_in", BIT, HlsNetNodeReadBackwardEdge)
+                f"c_{src_block.label:s}_to_{dst_block.label:s}_in",
+                BIT,
+                HlsNetNodeReadBackwardEdge,
+                ordered=False)
             label = BranchControlLabel(src_block, dst_block, INTF_DIRECTION.SLAVE)
             op_cache.add(label, r_from_in, False)
             newly_added_ports.append((r_from_in.obj, (src_block, dst_block)))
@@ -130,7 +189,11 @@ class SsaToHwtHlsNetlistSyncAndIo():
             opv: SsaValue
             # The input interface is required for every input which is not just passing data
             # inside of pipeline this involves backward edges and external IO
-            _, from_in = self._add_hs_intf_and_read(f"{opv._name:s}_in", opv._dtype, HlsNetNodeReadBackwardEdge)
+            _, from_in = self._add_hs_intf_and_read(
+                f"{opv._name:s}_in",
+                opv._dtype,
+                HlsNetNodeReadBackwardEdge,
+                ordered=False)
             op_cache.add((dst_block, opv), from_in, False)
 
             # HlsNetNodeWrite set to None because write port will be addet later
@@ -174,20 +237,21 @@ class SsaToHwtHlsNetlistSyncAndIo():
 
     def _add_hs_intf_and_write(self, suggested_name: str, dtype:HdlType,
                                val: Union[HlsNetNodeOut, HlsNetNodeOutLazy],
-                               write_cls:Type[HlsNetNodeWrite]=HlsNetNodeWrite):
+                               write_cls:Type[HlsNetNodeWrite]=HlsNetNodeWrite,
+                               ordered=True):
         intf = HsStructIntf()
         intf.T = dtype
         self._add_intf_instance(intf, suggested_name)
-        return intf, self._write_to_io(intf, val, write_cls=write_cls)
+        return intf, self._write_to_io(intf, val, write_cls=write_cls, ordered=ordered)
 
-    def _add_hs_intf_and_read(self, suggested_name: str, dtype:HdlType, read_cls:Type[HlsNetNodeRead]=HlsNetNodeRead):
+    def _add_hs_intf_and_read(self, suggested_name: str, dtype:HdlType, read_cls:Type[HlsNetNodeRead]=HlsNetNodeRead, ordered=True):
         intf = HsStructIntf()
         intf.T = dtype
-        return intf, self._add_intf_and_read(intf, suggested_name, read_cls=read_cls)
+        return intf, self._add_intf_and_read(intf, suggested_name, read_cls=read_cls, ordered=ordered)
 
-    def _add_intf_and_read(self, intf: Interface, suggested_name: str, read_cls:Type[HlsNetNodeRead]=HlsNetNodeRead) -> Interface:
+    def _add_intf_and_read(self, intf: Interface, suggested_name: str, read_cls:Type[HlsNetNodeRead]=HlsNetNodeRead, ordered=True) -> Interface:
         self._add_intf_instance(intf, suggested_name)
-        return self._read_from_io(intf, read_cls=read_cls)
+        return self._read_from_io(intf, read_cls=read_cls, ordered=ordered)
 
     def _add_intf_instance(self, intf: Interface, suggested_name: str) -> Interface:
         """
@@ -198,22 +262,24 @@ class SsaToHwtHlsNetlistSyncAndIo():
         setattr(u, name, intf)
         return intf
 
-    def _mark_io_sequence_dep(self, block, intf, io: Union[HlsNetNodeRead, HlsNetNodeWrite]):
-        prevAccess = self._latestAccessOfIo.get((block, intf), None)
-        if prevAccess is not None:
-            prevAccess: HlsNetNodeRead
-            i = io._add_input()
-            if not prevAccess._outputs:
-                o = prevAccess._add_output(HOrderingVoidT)
-            else:
-                o = prevAccess._outputs[-1]
-            link_hls_nodes(o, i)
+    def _addOrderingToIoInBlock(self, block: SsaBasicBlock, io: Union[HlsNetNodeRead, HlsNetNodeWrite]):
+        assert isinstance(io, (HlsNetNodeRead, HlsNetNodeWrite)), io
+        prevIos = self._blockOrderingSync.get(block, None)
+        if not prevIos:
+            assert self._firstIoAccesOfBlock[block] is None, (block, self._firstIoAccesOfBlock[block], io)
+            self._firstIoAccesOfBlock[block] = io
+        else:
+            for prevIo in prevIos:
+                assert isinstance(prevIo, (HlsNetNodeRead, HlsNetNodeWrite)), prevIo
+                self._addOrderingDependence(prevIo, io)
 
-        self._latestAccessOfIo[(block, intf)] = io
+        # the oredring in this block is tied only to this specific io access
+        self._blockOrderingSync[block] = UniqList((io,))
 
     def _write_to_io(self, intf: Interface,
                      val: Union[HlsNetNodeOut, HlsNetNodeOutLazy],
-                     write_cls:Type[HlsNetNodeWrite]=HlsNetNodeWrite) -> HlsNetNodeWrite:
+                     write_cls:Type[HlsNetNodeWrite]=HlsNetNodeWrite,
+                     ordered=True) -> HlsNetNodeWrite:
         """
         Instanciate HlsNetNodeWrite operation for this specific interface.
         """
@@ -224,11 +290,12 @@ class SsaToHwtHlsNetlistSyncAndIo():
 
         link_hls_nodes(val, write._inputs[0])
         self.outputs.append(write)
-        self._mark_io_sequence_dep(block, intf, write)
+        if ordered:
+            self._addOrderingToIoInBlock(block, write)
 
         return write
 
-    def _read_from_io(self, intf: Interface, read_cls:Type[HlsNetNodeRead]=HlsNetNodeRead) -> HlsNetNodeOut:
+    def _read_from_io(self, intf: Interface, read_cls:Type[HlsNetNodeRead]=HlsNetNodeRead, ordered=True) -> HlsNetNodeOut:
         """
         Instantiate HlsNetNodeRead operation for this specific interface.
         """
@@ -238,7 +305,8 @@ class SsaToHwtHlsNetlistSyncAndIo():
         if block is not None and intf in self._out_of_hls_io:
             self.parent._add_block_en_to_control_if_required(read)
         self.inputs.append(read)
-        self._mark_io_sequence_dep(block, intf, read)
+        if ordered:
+            self._addOrderingToIoInBlock(block, read)
 
         return read._outputs[0]
 
