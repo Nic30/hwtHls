@@ -10,11 +10,13 @@ from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
-from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeRead, HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeRead, HlsNetNodeExplicitSync, \
+    HOrderingVoidT
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
-from hwtHls.ssa.translation.toHwtHlsNetlist.nodes.backwardEdge import HlsNetNodeWriteBackwardEdge
+from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeWriteBackwardEdge
+from hwtHls.netlist.nodes.aggregatedBitwiseOps import HlsNetNodeBitwiseOps
 
 
 class TimelineRow():
@@ -30,92 +32,120 @@ class TimelineRow():
         self.deps: UniqList[TimelineRow, float] = UniqList()
         self.backward_deps: UniqList[TimelineRow, float] = UniqList()
         self.color = color
-        
+
 
 class HwtHlsNetlistToTimeline():
     """
-    Generate a timeline (Gantt) diagram of how operations in curcuti are scheduled in time.
+    Generate a timeline (Gantt) diagram of how operations in circuit are scheduled in time.
+    
+    :ivar time_scale: Specified how to format time numbers in output.
     """
 
-    def __init__(self, clk_period: float):
+    def __init__(self, normalizedClkPeriod: int, resolution: float, expandCompositeNodes=True):
         self.obj_to_row: Dict[HlsNetNode, dict] = {}
         self.rows: List[dict] = []
-        self.time_scale = 1e9  # to ns
-        self.clk_period = self.time_scale * clk_period
-        self.min_duration = 0.5e-9 * self.time_scale  # minimum width of boexes representing operations
+        self.time_scale = resolution / 1e-9  # to ns
+        self.clkPeriod = self.time_scale * normalizedClkPeriod
+        self.min_duration = 0.05 * normalizedClkPeriod * self.time_scale  # minimum width of boexes representing operations
+        self.expandCompositeNodes = expandCompositeNodes
+
+    def translateNodeToRow(self, obj: HlsNetNode, row_i: int, io_group_ids: Dict[Interface, int]):
+        obj_group_id = row_i
+        if obj.scheduledIn:
+            start = min(obj.scheduledIn)
+        else:
+            start = max(obj.scheduledOut)
+
+        if obj.scheduledOut:
+            finish = max(obj.scheduledOut)
+        else:
+            finish = start
+
+        start *= self.time_scale
+        finish *= self.time_scale
+
+        assert start <= finish, (start, finish, obj)
+        duration = finish - start
+        if duration < self.min_duration:
+            to_add = self.min_duration - duration
+            start -= to_add / 2
+            finish += to_add / 2
+
+        color = "purple"
+        if isinstance(obj, HlsNetNodeOperator):
+            label = f"{obj.operator.id:s} {obj._id:d}"
+
+        elif isinstance(obj, HlsNetNodeWrite):
+            label = f"{getSignalName(obj.dst)}.write()  {obj._id:d}"
+            if isinstance(obj, HlsNetNodeWriteBackwardEdge):
+                obj_group_id = io_group_ids.setdefault(obj.associated_read.src, obj_group_id)
+            color = "green"
+
+        elif isinstance(obj, HlsNetNodeRead):
+            label = f"{getSignalName(obj.src)}.read()  {obj._id:d}"
+            obj_group_id = io_group_ids.setdefault(obj.src, obj_group_id)
+            color = "green"
+
+        elif isinstance(obj, HlsNetNodeConst):
+            val = obj.val
+            if isinstance(val, BitsVal):
+                if val._is_full_valid():
+                    label = "0x%x" % int(val)
+                else:
+                    label = repr(val)
+            else:
+                label = repr(val)
+            color = "plum"
+
+        elif isinstance(obj, HlsNetNodeExplicitSync):
+            label = f"{obj.__class__.__name__:s}  {obj._id:d}"
+
+        else:
+            label = repr(obj)
+
+        row = TimelineRow(label, obj_group_id, start, finish, color)
+        self.rows.append(row)
+        self.obj_to_row[obj] = (row, row_i)
 
     def construct(self, nodes: List[HlsNetNode]):
         rows = self.rows
         obj_to_row = self.obj_to_row
         io_group_ids: Dict[Interface, int] = {}
+        offset = 0
+        nodesFlat = []
+        compositeNodes = set()
         for row_i, obj in enumerate(nodes):
+            if self.expandCompositeNodes and isinstance(obj, HlsNetNodeBitwiseOps):
+                compositeNodes.add(obj)
+                for subNode in obj._subNodes.nodes:
+                    self.translateNodeToRow(subNode, offset + row_i, io_group_ids)
+                    nodesFlat.append(subNode)
+                    offset += 1
+            else:
+                self.translateNodeToRow(obj, offset + row_i, io_group_ids)
+                nodesFlat.append(obj)
+        
+        for row_i, (row, obj) in enumerate(zip(rows, nodesFlat)):
             obj: HlsNetNode
-            obj_group_id = row_i
-            if obj.scheduledIn:
-                start = min(obj.scheduledIn)
-            else:
-                start = max(obj.scheduledOut)
-
-            if obj.scheduledOut:
-                finish = max(obj.scheduledOut)
-            else:
-                finish = start
-
-            start *= self.time_scale
-            finish *= self.time_scale
-            assert start <= finish, (start, finish, obj)
-            duration = finish - start
-            if duration < self.min_duration:
-                to_add = self.min_duration - duration
-                start -= to_add / 2
-                finish += to_add / 2
-
-            color = "purple"
-            if isinstance(obj, HlsNetNodeOperator):
-                label = f"{obj.operator.id:s} {obj._id:d}"
-
-            elif isinstance(obj, HlsNetNodeWrite):
-                label = f"{getSignalName(obj.dst)}.write()  {obj._id:d}"
-                if isinstance(obj, HlsNetNodeWriteBackwardEdge):
-                    obj_group_id = io_group_ids.setdefault(obj.associated_read.src, obj_group_id)
-                color = "green"
-
-            elif isinstance(obj, HlsNetNodeRead):
-                label = f"{getSignalName(obj.src)}.read()  {obj._id:d}"
-                obj_group_id = io_group_ids.setdefault(obj.src, obj_group_id)
-                color = "green"
-
-            elif isinstance(obj, HlsNetNodeConst):
-                val = obj.val
-                if isinstance(val, BitsVal):
-                    if val._is_full_valid():
-                        label = "0x%x" % int(val)
-                    else:
-                        label = repr(val)
-                else:
-                    label = repr(val)
-
-            elif isinstance(obj, HlsNetNodeExplicitSync):
-                label = f"{obj.__class__.__name__:s}  {obj._id:d}"
-
-            else:
-                label = repr(obj)
-
-            row = TimelineRow(label, obj_group_id, start, finish, color)
-            rows.append(row)
-            obj_to_row[obj] = (row, row_i)
-
-        for row_i, (row, obj) in enumerate(zip(rows, nodes)):
-            obj: HlsNetNode
-            row.deps.extend((obj_to_row[dep.obj][1], dep.obj.scheduledOut[dep.out_i] * self.time_scale, t * self.time_scale)
-                            for t, dep in zip(obj.scheduledIn, obj.dependsOn))
+            for t, dep in zip(obj.scheduledIn, obj.dependsOn):
+                if dep.obj in compositeNodes:
+                    dep = dep.obj._subNodes.outputs[dep.out_i]
+                depObj = dep.obj
+                depOutI = dep.out_i
+                print()
+                row.deps.append((
+                    obj_to_row[depObj][1], # src
+                    depObj.scheduledOut[depOutI] * self.time_scale, # start
+                    t * self.time_scale, # finish
+                    dep._dtype) # type
+                )
             for bdep_obj in obj.debug_iter_shadow_connection_dst():
                 bdep = obj_to_row[bdep_obj][0]
                 bdep.backward_deps.append(row_i)
 
     def _draw_clock_boundaries(self, fig: Figure):
-        clk_period = self.clk_period
-        last_time = max(r.finish for r in self.rows) + clk_period
+        clkPeriod = self.clkPeriod
+        last_time = max(r.finish for r in self.rows) + clkPeriod
         i = 0.0
         row_cnt = len(self.rows)
         while i < last_time:
@@ -124,7 +154,7 @@ class HwtHlsNetlistToTimeline():
                 x1=i, y1=row_cnt,
                 line=dict(color="gray", dash='dash', width=2)
             )
-            i += clk_period
+            i += clkPeriod
 
     def _draw_arrow(self, x0:float, y0:float, x1:float, y1:float, color: str, shapesToAdd: List[dict], annotationsToAdd: List[dict]):
         # assert x1 >= x0
@@ -137,7 +167,7 @@ class HwtHlsNetlistToTimeline():
                 p = f"M {x0} {y0} C {middleX} {y0}, {middleX} {y1}, {x1} {y1}"
             else:
                 # x0 is on right, x1 on left
-                p = f"M {x0} {y0} C {x0 + self.min_duration} {y0}, {x1-self.min_duration} {y1}, {x1} {y1}"
+                p = f"M {x0} {y0} C {x0 + 4*self.min_duration} {y0}, {x1-4*self.min_duration} {y1}, {x1} {y1}"
         # fig.add_shape(
         shapesToAdd.append(dict(
             type="path",
@@ -167,14 +197,14 @@ class HwtHlsNetlistToTimeline():
             endX = second_job.start
             endY = second_job.group
 
-            for start_i, start_t, finish_t in second_job.deps:
+            for start_i, start_t, finish_t, dtype in second_job.deps:
                 first_job = self.rows[start_i]
                 startX = first_job.finish
                 startX = start_t
-                assert start_t >= first_job.start and start_t <= first_job.finish
+                # assert start_t >= first_job.start and start_t <= first_job.finish, (start_t, first_job.start, first_job.finish)
                 startY = first_job.group
-                assert finish_t >= second_job.start and finish_t <= second_job.finish, (finish_t, (second_job.start, second_job.finish))
-                self._draw_arrow(startX, startY, finish_t, endY, "blue", shapesToAdd, annotationsToAdd)
+                # assert finish_t >= second_job.start and finish_t <= second_job.finish, (finish_t, (second_job.start, second_job.finish))
+                self._draw_arrow(startX, startY, finish_t, endY, "green" if dtype is HOrderingVoidT else "blue", shapesToAdd, annotationsToAdd)
 
             for start_i in second_job.backward_deps:
                 first_job = self.rows[start_i]
@@ -194,7 +224,7 @@ class HwtHlsNetlistToTimeline():
             if _rows is None:
                 _rows = rows_by_color[c] = []
             _rows.append(row)
-            
+
         bars = []
         for color, rows in sorted(rows_by_color.items(), key=lambda x: x[0]):
             rows: List[TimelineRow]
@@ -222,10 +252,11 @@ class HwtHlsNetlistToTimeline():
         shapesToAdd: List[dict] = []
         annotationsToAdd: List[dict] = []
         self._draw_arrow_between_jobs(shapesToAdd, annotationsToAdd)
-        fig.layout.update({
-            "annotations": annotationsToAdd,
-            "shapes": shapesToAdd,
-        })
+        if annotationsToAdd or shapesToAdd:
+            fig.layout.update({
+                "annotations": annotationsToAdd,
+                "shapes": shapesToAdd,
+            })
         self._draw_clock_boundaries(fig)
         return fig
 
@@ -243,15 +274,18 @@ class HwtHlsNetlistToTimeline():
 
 class HlsNetlistPassShowTimeline(HlsNetlistPass):
 
-    def __init__(self, filename:Optional[str]=None, auto_open=False):
+    def __init__(self, filename:Optional[str]=None, auto_open=False, expandCompositeNodes=False):
         self.filename = filename
         self.auto_open = auto_open
+        self.expandCompositeNodes = expandCompositeNodes
 
     def apply(self, hls: "HlsStreamProc", to_hw: "SsaSegmentToHwPipeline"):
         if not to_hw.is_scheduled:
             to_hw.schedulerRun()
 
-        to_timeline = HwtHlsNetlistToTimeline(to_hw.hls.clk_period)
+        to_timeline = HwtHlsNetlistToTimeline(to_hw.hls.normalizedClkPeriod,
+                                              to_hw.hls.scheduler.resolution,
+                                              expandCompositeNodes=self.expandCompositeNodes)
         to_timeline.construct(to_hw.hls.inputs + to_hw.hls.nodes + to_hw.hls.outputs)
         if self.filename is not None:
             to_timeline.save_html(self.filename, self.auto_open)
