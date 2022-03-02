@@ -19,7 +19,7 @@ class IoFsm():
         self.states: List[List[HlsNetNode]] = []
         self.stateClkI: Dict[int, int] = {}
         self.transitionTable: Dict[int, Dict[int, Union[bool, RtlSignal]]] = {}
-    
+
     def addState(self, clkI: int):
         """
         :param clkI: an index of clk cycle where this state was scheduled
@@ -27,7 +27,7 @@ class IoFsm():
         nodes = []
         self.stateClkI[len(self.states)] = clkI
         self.states.append(nodes)
-        
+
         return nodes
 
 
@@ -40,7 +40,7 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
     def __init__(self, hls: "HlsPipeline"):
         HlsNetlistAnalysisPass.__init__(self, hls)
         self.fsms: List[IoFsm] = []
-    
+
     def _floodNetInSameCycle(self, clk_i: int, o: HlsNetNode, seen:Set[HlsNetNode], alreadyUsed: Set[HlsNetNode], predicate: Callable[[HlsNetNode], bool]):
         seen.add(o)
         alreadyUsed.add(o)
@@ -107,8 +107,8 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
                 if accesses and len(accesses) > 1:
                     return False
             return True
- 
-        alreadyUsed: Set[HlsNetNode] = set()  
+
+        alreadyUsed: Set[HlsNetNode] = set()
         for i, accesses in sorted(io_aggregation.items(), key=lambda x: getSignalName(x[0])):
             if len(accesses) > 1:
                 # all accesses which are not in same clock cycle must be mapped to individual FSM state
@@ -141,12 +141,15 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
                                 assert start_clk(t, clkPeriod) == clkI, n
                             for t in n.scheduledOut:
                                 assert int(t // clkPeriod) == clkI, n
-                                    
+
                         st.append(n)
 
                 stCnt = len(fsm.states)
                 if stCnt > 1:
                     for i in range(stCnt):
                         fsm.transitionTable[i] = {(i + 1) % stCnt: 1}
-    
+
+                    # for i in range(stCnt - 1):
+                    #    fsm.transitionTable[i] = {(i + 1): 1}
+                    # fsm.transitionTable[stCnt - 1] = {}
                     self.fsms.append(fsm)

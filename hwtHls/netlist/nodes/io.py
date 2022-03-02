@@ -64,7 +64,7 @@ class HlsNetNodeExplicitSync(HlsNetNode):
         for i in self._inputs:
             if i.in_i != 0 and i.in_i != self.extraCond_inI and i.in_i != self.skipWhen_inI:
                 yield i
-        
+
     def allocateRtlInstance(self,
                           allocator: "AllocatorArchitecturalElement",
                           ) -> TimeIndependentRtlResource:
@@ -171,8 +171,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
     :ivar dependsOn: list of dependencies for scheduling composed of extraConds and skipWhen
     """
 
-    def __init__(self, parentHls: "HlsPipeline",
-                 src: Union[RtlSignal, Interface]):
+    def __init__(self, parentHls: "HlsPipeline", src: Union[RtlSignal, Interface]):
         HlsNetNode.__init__(self, parentHls, None)
         self.operator = "read"
         self.src = src
@@ -201,7 +200,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
             return allocator.netNodeToRtl[r_out]
         except KeyError:
             pass
-        
+
         t = self.scheduledOut[0]
         _o = TimeIndependentRtlResource(
             self.getRtlDataSig(),
@@ -231,7 +230,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
         else:
             thisClkI = start_clk(self.scheduledIn[0], clkPeriod)
             sameIntf = intf is self.dst
-       
+
         ioCnt = 0
         if searchFromSrcToDst:
             for orderingIn in self.iterOrderingInputs():
@@ -245,7 +244,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
                 assert isinstance(dep.obj, HlsNetNodeExplicitSync), ("ordering dependencies should be just between IO nodes", dep, self)
                 if start_clk(dep.obj.scheduledIn[dep.in_i], clkPeriod) == thisClkI:
                     ioCnt = max(ioCnt, dep.obj._getNumberOfIoInThisClkPeriod(intf, False))
-            
+
         if sameIntf:
             return ioCnt + 1
         else:
@@ -268,7 +267,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
                 self.scheduledIn = tuple(t + off for t in self.scheduledIn)
                 self.scheduledOut = tuple(t + off for t in self.scheduledOut)
                 curIoCnt = self._getNumberOfIoInThisClkPeriod(self.src if isinstance(self, HlsNetNodeRead) else self.dst, False)
-    
+
         return self.scheduledIn
 
     def scheduleAsap(self, pathForDebug: Optional[UniqList["HlsNetNode"]]) -> List[float]:
@@ -280,7 +279,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
             off = start_of_next_clk_period(self.scheduledIn[0], self.hls.normalizedClkPeriod) - self.scheduledIn[0]
             self.scheduledIn = tuple(t + off for t in self.scheduledIn)
             self.scheduledOut = tuple(t + off for t in self.scheduledOut)
-    
+
         return self.scheduledOut
 
     def getRtlDataSig(self):
@@ -378,7 +377,7 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         self._init_extraCond_skipWhen()
         self._add_input()
         self._add_output(HOrderingVoidT)  # slot for ordering
-        
+
         self.operator = "write"
         self.src = src
 
@@ -401,10 +400,10 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
     def scheduleAsap(self, pathForDebug: Optional[UniqList["HlsNetNode"]]) -> List[float]:
         assert self.dependsOn, self
         return HlsNetNodeRead.scheduleAsap(self, pathForDebug)
-    
+
     def scheduleAlapCompaction(self, asapSchedule: SchedulizationDict):
         return HlsNetNodeRead.scheduleAlapCompaction(self, asapSchedule)
-    
+
     def _getNumberOfIoInThisClkPeriod(self, intf: Interface, searchFromSrcToDst: bool):
         return HlsNetNodeRead._getNumberOfIoInThisClkPeriod(self, intf, searchFromSrcToDst)
 

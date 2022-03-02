@@ -1,5 +1,4 @@
-from itertools import chain
-from typing import List, Set, Tuple, Optional
+from typing import List, Set, Tuple, Optional, Union, Dict
 
 from hwt.code import SwitchLogic, Switch
 from hwt.hdl.statements.statement import HdlStatement
@@ -17,6 +16,8 @@ from hwtHls.netlist.analysis.fsm import IoFsm
 from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeRead
 from hwtHls.netlist.nodes.node import HlsNetNode
 from ipCorePackager.constants import INTF_DIRECTION
+from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
+    HlsNetNodeWriteBackwardEdge
 
 
 class AllocatorFsmContainer(AllocatorArchitecturalElement):
@@ -35,7 +36,7 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
         self.fsmEndClk_i = max(fsm.stateClkI.values())
         self.fsmBeginClk_i = min(fsm.stateClkI.values())
         self.clkIToStateI = clkIToStateI = {v:k for k, v in fsm.stateClkI.items()}
-        
+
         stateCons = [ConnectionsOfStage() for _ in fsm.states]
         stageSignals = SignalsOfStages(clkPeriod,
                                         (
@@ -51,20 +52,20 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
             raise AssertionError("Asking for a sync in an element which is not scheduled in this clk period", self, clkI, self.clkIToStateI)
 
         con = self.connections[stateI]
-            
+
         if intfDir == INTF_DIRECTION.MASTER:
             con.outputs.append(intf)
         else:
             assert intfDir == INTF_DIRECTION.SLAVE, intfDir
             con.inputs.append(intf)
-        
+
     def _afterNodeInstantiated(self, n: HlsNetNode, rtl: Optional[TimeIndependentRtlResource]):
         # mark value in register as persistent until the end of FSM
         isTir = isinstance(rtl, TimeIndependentRtlResource)
         if rtl is None or not isTir:
             cons = (self.netNodeToRtl[o] for o in n._outputs if o in self.netNodeToRtl)
         elif isTir and rtl.timeOffset == TimeIndependentRtlResource.INVARIANT_TIME:
-            return 
+            return
         else:
             cons = (rtl,)
 
@@ -73,7 +74,7 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
         epsilon = self.parentHls.scheduler.epsilon
         for s in cons:
             s: TimeIndependentRtlResource
-            
+
             if not s.persistenceRanges and s.timeOffset is not TimeIndependentRtlResource.INVARIANT_TIME:
                 self.stageSignals.getForTime(s.timeOffset + epsilon).append(s)
                 # value for the first clock behind this clock period and the rest is persistent in this register
@@ -99,10 +100,46 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
 
                 else:
                     syncSignals = None
-                
+
                 if syncSignals is not None:
                     for s in syncSignals:
                         setNopValIfNotSet(s, 0, ())
+
+    def _detectStateTransitions(self):
+        localControlReads: UniqList[HlsNetNodeReadBackwardEdge] = UniqList()
+        controlToStateI: Dict[Union[HlsNetNodeReadBackwardEdge, HlsNetNodeWriteBackwardEdge]] = {}
+        for stI, nodes in enumerate(self.fsm.states):
+            for node in nodes:
+                node: HlsNetNode
+                if isinstance(node, HlsNetNodeReadBackwardEdge):
+                    node: HlsNetNodeReadBackwardEdge
+                    if node.associated_write in self.allNodes:
+                        localControlReads.append(node)
+                        node.associated_write.allocateAsBuffer = False # allocate as a register because this is just local controll channel
+                        controlToStateI[node] = stI
+
+                elif isinstance(node, HlsNetNodeWriteBackwardEdge):
+                    if node.associated_read in self.allNodes:
+                        controlToStateI[node] = stI
+
+        for r in localControlReads:
+            r: HlsNetNodeReadBackwardEdge
+            srcStI = controlToStateI[r.associated_write]
+            dstStI = controlToStateI[r]
+            curTrans = self.fsm.transitionTable[srcStI].get(dstStI, None)
+            cond = self.instantiateHlsNetNodeOut(r._outputs[0]).valuesInTime[0].data.next
+            if curTrans is not None:
+                cond = cond | curTrans
+            self.fsm.transitionTable[srcStI][dstStI] = cond
+        # detect the state propagation logic and resolve how to replace it wit a state bit
+        # * state bit will be just stored as a register in this fsm
+        # * read will just read this bit
+        # * write will set this bit to a value specified in write src if all write conditions are meet
+        
+        # * if the value writen to channel is 1 it means that fsm jump to state where associated read is
+        #   There could be multiple channels written but the 1 should be writen to just 1
+        # * Because the control channel is just local it is safe to replace it
+        #   However we must keep it in allNodes list so the node is still registered for this element
 
     def allocateDataPath(self, iea: "InterArchElementNodeSharingAnalysis"):
         """
@@ -113,18 +150,23 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
             The register is created when value (TimeIndependentRtlResource) is first used from other state/clock cycle.
         """
         self.interArchAnalysis = iea
+        self._detectStateTransitions()
         for (nodes, con) in zip(self.fsm.states, self.connections):
             for node in nodes:
                 node: HlsNetNode
                 rtl = node.allocateRtlInstance(self)
 
                 if isinstance(node, HlsNetNodeRead):
+                    if isinstance(node, HlsNetNodeReadBackwardEdge) and not node.associated_write.allocateAsBuffer:
+                        continue
                     if not isinstance(node.src, (Signal, RtlSignal)):
                         # if it has some synchronization
                         con.inputs.append(node.src)
                     self._copy_sync(node.src, node, con.io_skipWhen, con.io_extraCond)
 
                 elif isinstance(node, HlsNetNodeWrite):
+                    if isinstance(node, HlsNetNodeWriteBackwardEdge) and not node.allocateAsBuffer:
+                        continue
                     con.stDependentDrives.append(rtl)
                     if not isinstance(node.dst, (Signal, RtlSignal)):
                         # if it has some synchronization
@@ -137,13 +179,13 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
         st = self._reg(f"{self.namePrefix}st_{fsm.intf._name}",
                        Bits(log2ceil(len(fsm.states)), signed=False),
                        def_val=0)
-        
+
         # instantiate control of the FSM
 
         # used to prevent duplication of registes which are just latching the value
         # without modification throught multiple stages
         seenRegs: Set[TimeIndependentRtlResource] = set()
-        
+
         stateTrans: List[Tuple[RtlSignal, List[HdlStatement]]] = []
         for stI, con in enumerate(self.connections):
             for s in con.signals:
@@ -159,12 +201,17 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
             sync = self._makeSyncNode(con)
             for dstSt, c in sorted(fsm.transitionTable[stI].items(), key=lambda x: x[0]):
                 assert not unconditionalTransSeen
-                c = sync.ack() & c
+                ack = sync.ack()
+                if isinstance(ack, (bool, int)):
+                    c = c & ack
+                else:
+                    c = ack & c
                 if c == 1:
                     unconditionalTransSeen = True
                     inStateTrans.append((c, st(dstSt)))
                 else:
                     inStateTrans.append((c, st(dstSt)))
+
             stateTrans.append((stI, [SwitchLogic(inStateTrans),
                                      con.stDependentDrives,
                                      sync.sync()]))

@@ -118,6 +118,6 @@ if __name__ == "__main__":
     from hwtHls.platform.virtual import VirtualHlsPlatform, makeDebugPasses
     from hwt.synthesizer.utils import to_rtl_str
 
-    u = WriteFsm0()
+    u = WriteFsm1Once()
     p = VirtualHlsPlatform(**makeDebugPasses("tmp"))
     print(to_rtl_str(u, target_platform=p))
