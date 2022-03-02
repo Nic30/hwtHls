@@ -137,10 +137,12 @@ Transformation passes
 * https://www.llvm.org/docs/Passes.html#introduction
 * https://www.llvm.org/docs/LoopTerminology.html
 * https://blog.regehr.org/archives/1603
+* https://compilergym.com/llvm/index.html
 * Llvm pass execution (`-disable-llvm-passes` is required otherwise `optnone` attribute is added and nothing happens during `opt`)
 `clang -cc1 -Os -disable-llvm-passes -emit-llvm main.c -o - | opt -S -mem2reg`
 
 * exec multiple branches but store only on some selected: "if conversion". This transformation predicates instructions. See e.g. ARM as an example
+
 
 In IR debugging metainformations
 --------------------------------
@@ -157,3 +159,8 @@ LLVM attributes and metadata
 ----------------------------
 
 * https://blog.yossarian.net/2021/11/29/LLVM-internals-part-4-attributes-and-attribute-groups
+
+LLVM alias analysis
+-------------------
+
+* https://sites.google.com/site/parallelizationforllvm/building-the-dependence-graph

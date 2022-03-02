@@ -133,6 +133,8 @@ For example:
 
 * [ctoverilog]_, [ahaHLS]_ - Uses a Verilog template hardcoded in backend.
 
+* [spark]
+
 * [LegUp]_ - Also depends on rendering of templates. However in the case of [LegUp]_ there is larger variety of primitives compare to [ctoverilog]_ ranging from various sychronization elements
    to a PPL and DSP instances. However interfaces synchronization types as well as the type of control implementation in the circuit is limited to the style defined in the compiler backend.
 
@@ -153,6 +155,10 @@ For example:
 
 
 .. [ctoverilog] https://github.com/udif/ctoverilog.git 
+
+.. [spark] S. Gupta, N. Dutt, R. Gupta and A. Nicolau, "SPARK: a high-level synthesis framework for applying parallelizing compiler transformations,"
+   16th International Conference on VLSI Design, 2003. Proceedings., 2003, pp. 461-466, doi: 10.1109/ICVD.2003.1183177.
+   https://vlsicad.eecs.umich.edu/BK/Slots/cache/www.cecs.uci.edu/~spark/
 
 .. [LegUp] https://github.com/wincle626/HLS_Legup.git
     Andrew Canis, Jongsok Choi, Mark Aldham, Victor Zhang, Ahmed Kammoona, Tomasz Czajkowski, Stephen D. Brown, and Jason H. Anderson. 2013.
