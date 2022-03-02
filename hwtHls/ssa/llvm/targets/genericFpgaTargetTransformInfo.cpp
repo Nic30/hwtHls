@@ -111,6 +111,9 @@ InstructionCost GenericFpgaTTIImpl::getIntImmCostInst(unsigned Opcode, unsigned 
 	case Instruction::PtrToInt:
 	case Instruction::Trunc:
 		return TTI::TCC_Free;
+	case Instruction::Load:
+	case Instruction::Store:
+		return TTI::TCC_Expensive;
 	default:
 		return BaseT::getIntImmCostInst(Opcode, Idx, Imm, Ty, CostKind, Inst);
 	}
