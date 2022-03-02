@@ -5,22 +5,22 @@ from hwt.hdl.types.hdlType import HdlType
 from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
+from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsPipeline import HlsPipeline
+from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeWriteBackwardEdge, \
+    HlsNetNodeReadBackwardEdge
 from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeRead, \
     HOrderingVoidT
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, link_hls_nodes, \
     HlsNetNodeOutLazy
+from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
 from hwtHls.ssa.analysis.liveness import EdgeLivenessDict
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.branchControlLabel import BranchControlLabel
-from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeWriteBackwardEdge, \
-    HlsNetNodeReadBackwardEdge
-from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
 from hwtHls.ssa.value import SsaValue
 from hwtLib.abstract.componentBuilder import AbstractComponentBuilder
 from ipCorePackager.constants import INTF_DIRECTION
-from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 
 
 class BlockPortsRecord():
