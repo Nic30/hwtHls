@@ -25,7 +25,7 @@ class HlsProgramStarter(HlsNetNode):
             pass
 
         name = self.name
-        starter_reg = allocator._reg(name if name else "program_starter", def_val=1)
+        starter_reg = allocator._reg(name if name else f"{allocator.namePrefix:s}program_starter", def_val=1)
 
         # sync added later
         starter_reg(0)
