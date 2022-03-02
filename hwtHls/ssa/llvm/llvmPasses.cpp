@@ -56,7 +56,7 @@
 #include <llvm/Transforms/Scalar/LoopDeletion.h>
 #include <llvm/Transforms/Scalar/MergedLoadStoreMotion.h>
 #include <llvm/Transforms/Scalar/BDCE.h>
-//#include <llvm/Transforms/Scalar/DFAJumpThreading.h>
+#include <llvm/Transforms/Scalar/DFAJumpThreading.h>
 #include <llvm/Transforms/Scalar/ADCE.h>
 #include <llvm/Transforms/Scalar/MemCpyOptimizer.h>
 #include <llvm/Transforms/Scalar/DeadStoreElimination.h>
@@ -78,6 +78,7 @@ namespace py = pybind11;
 void runOpt(llvm::Function &fn) {
 	// https://stackoverflow.com/questions/51934964/function-optimization-pass
 	// @see PassBuilder::buildFunctionSimplificationPipeline
+	// [todo] PassBuilder::addVectorPasses
 	std::string Error;
 	std::string TargetTriple = "genericFpga-unknown-linux-gnu";
 	const llvm::Target *Target = &getTheGenericFpgaTarget(); //llvm::TargetRegistry::targets()[0];
@@ -136,7 +137,7 @@ void runOpt(llvm::Function &fn) {
 			llvm::SpeculativeExecutionPass(/* OnlyIfDivergentTarget =*/true));
 
 	// Optimize based on known information about branches, and cleanup afterward.
-	//FPM.addPass(llvm::JumpThreadingPass());
+	FPM.addPass(llvm::JumpThreadingPass());
 	FPM.addPass(llvm::CorrelatedValuePropagationPass());
 
 	FPM.addPass(llvm::SimplifyCFGPass());
@@ -240,7 +241,7 @@ void runOpt(llvm::Function &fn) {
 	FPM.addPass(llvm::SROA());
 
 	// Eliminate redundancies.
-	FPM.addPass(llvm::MergedLoadStoreMotionPass());
+	FPM.addPass(llvm::MergedLoadStoreMotionPass(llvm::MergedLoadStoreMotionOptions(/*SplitFooterBB=*/true)));
 	//if (RunNewGVN)
 	FPM.addPass(llvm::NewGVNPass());
 	//else
@@ -263,7 +264,10 @@ void runOpt(llvm::Function &fn) {
 
 	// Re-consider control flow based optimizations after redundancy elimination,
 	// redo DCE, etc.
-	//FPM.addPass(llvm::JumpThreadingPass()); // segfauld on insert to internal set in non debug builds
+	//  if (EnableDFAJumpThreading && Level.getSizeLevel() == 0)
+	FPM.addPass(llvm::DFAJumpThreadingPass());
+
+	FPM.addPass(llvm::JumpThreadingPass()); // segfauld on insert to internal set in non debug builds
 	FPM.addPass(llvm::CorrelatedValuePropagationPass());
 
 	// Finally, do an expensive DCE pass to catch all the dead code exposed by
@@ -298,7 +302,8 @@ void runOpt(llvm::Function &fn) {
 	FPM.addPass(llvm::AggressiveInstCombinePass());
 	FPM.addPass(hwtHls::BitwidthReductionPass());
 	FPM.addPass(llvm::InstCombinePass()); // mostly for DCE for previous pass
-
+	FPM.addPass(llvm::MergedLoadStoreMotionPass(llvm::MergedLoadStoreMotionOptions(/*SplitFooterBB=*/true)));
+	// LowerSwitchPass
 	//FPM.addPass(llvm::GVNHoistPass());
 	//FPM.addPass(llvm::GVNSinkPass());
 	//FPM.addPass(llvm::SimplifyCFGPass());
