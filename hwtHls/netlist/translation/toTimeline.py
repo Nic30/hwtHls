@@ -41,7 +41,7 @@ class HwtHlsNetlistToTimeline():
     :ivar time_scale: Specified how to format time numbers in output.
     """
 
-    def __init__(self, normalizedClkPeriod: int, resolution: float, expandCompositeNodes=True):
+    def __init__(self, normalizedClkPeriod: int, resolution: float, expandCompositeNodes: bool):
         self.obj_to_row: Dict[HlsNetNode, dict] = {}
         self.rows: List[dict] = []
         self.time_scale = resolution / 1e-9  # to ns
@@ -49,7 +49,8 @@ class HwtHlsNetlistToTimeline():
         self.min_duration = 0.05 * normalizedClkPeriod * self.time_scale  # minimum width of boexes representing operations
         self.expandCompositeNodes = expandCompositeNodes
 
-    def translateNodeToRow(self, obj: HlsNetNode, row_i: int, io_group_ids: Dict[Interface, int]):
+    def translateNodeToRow(self, obj: HlsNetNode, io_group_ids: Dict[Interface, int]):
+        row_i = len(self.rows)
         obj_group_id = row_i
         if obj.scheduledIn:
             start = min(obj.scheduledIn)
@@ -111,18 +112,16 @@ class HwtHlsNetlistToTimeline():
         rows = self.rows
         obj_to_row = self.obj_to_row
         io_group_ids: Dict[Interface, int] = {}
-        offset = 0
         nodesFlat = []
         compositeNodes = set()
         for row_i, obj in enumerate(nodes):
             if self.expandCompositeNodes and isinstance(obj, HlsNetNodeBitwiseOps):
                 compositeNodes.add(obj)
                 for subNode in obj._subNodes.nodes:
-                    self.translateNodeToRow(subNode, offset + row_i, io_group_ids)
+                    self.translateNodeToRow(subNode, io_group_ids)
                     nodesFlat.append(subNode)
-                    offset += 1
             else:
-                self.translateNodeToRow(obj, offset + row_i, io_group_ids)
+                self.translateNodeToRow(obj, io_group_ids)
                 nodesFlat.append(obj)
         
         for row_i, (row, obj) in enumerate(zip(rows, nodesFlat)):
