@@ -103,7 +103,7 @@ class SsaToHwtHlsNetlist():
 
         for k, v in self._to_hls_cache.items():
             assert not isinstance(v, HlsNetNodeOutLazy), ("All outputs should be already resolved", k, v)
-        
+
     def to_hls_SsaBasicBlock(self, block: SsaBasicBlock):
         try:
             # [todo] for all IO we need the predecessors from all blocks which are not part of self.io.out_of_pipeline_edges
@@ -144,10 +144,17 @@ class SsaToHwtHlsNetlist():
                     else:
                         raise NotImplementedError(stm)
 
-            self.io._afterBlockOrderingDependenciesComplete(block)
+            allPredsOfSucResolved = True
+            for pred in block.predecessors:
+                if pred not in self.io._blockOrderingSync:
+                    allPredsOfSucResolved = False
+            if allPredsOfSucResolved:
+                # if ordering syn from all predecessors is known or this block contains some synced instruction (IO)
+                self.io._afterBlockOrderingDependenciesComplete(block)
+
             if block.successors:
                 self.to_hls_SsaBasicBlock_successors(block)
-            
+
         finally:
             self._current_block = None
 
@@ -291,21 +298,21 @@ class SsaToHwtHlsNetlist():
             # variable value is selected based on predecessor block
             mux = HlsNetNodeMux(self.hls, v._dtype, v._name)
             self.nodes.append(mux)
-    
+
             mux_out = mux._outputs[0]
             self._to_hls_cache.add((block, v), mux_out, v in self._blockMeta[block].phiCyclicArgs)
-            # mux inputs will be filled later once we know 
+            # mux inputs will be filled later once we know
             originBlocksOfVariable = (b for b in block.predecessors if v in self.io.edge_var_live[b][block])
             for lastSrc, src_block in iter_with_last(originBlocksOfVariable):
                 if not self._blockMeta[src_block].needsControl:
                     continue
-             
+
                 if lastSrc:
                     c = None
                 else:
                     c = en_from_pred_OH[self._blockControlIndex(block.predecessors, src_block)]
                     mux._add_input_and_link(c)
-             
+
                 src = self._to_hls_cache.get((src_block, v))  # self.to_hls_expr(v)
                 mux._add_input_and_link(src)
 
@@ -406,6 +413,6 @@ class SsaToHwtHlsNetlist():
                         # the successor block was not translated yet, we prepare this input variable for it
                         self._to_hls_cache.add((suc_block, v), cur_v, False)
 
-                newDeps = self.io.collectBlockOrderingDependencies(suc_block)
-                if newDeps is not None:
-                    self.io. _afterBlockOrderingDependenciesComplete(suc_block)   
+                #newDeps = self.io.collectBlockOrderingDependencies(suc_block)
+                #if newDeps is not None:
+                #    self.io. _afterBlockOrderingDependenciesComplete(suc_block)
