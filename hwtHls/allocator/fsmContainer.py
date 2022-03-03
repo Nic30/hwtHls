@@ -46,20 +46,6 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
                                         ))
         AllocatorArchitecturalElement.__init__(self, parentHls, namePrefix, allNodes, stateCons, stageSignals)
 
-    def connectSync(self, clkI: int, intf: HandshakeSync, intfDir: INTF_DIRECTION):
-        try:
-            stateI = self.clkIToStateI[clkI]
-        except KeyError:
-            raise AssertionError("Asking for a sync in an element which is not scheduled in this clk period", self, clkI, self.clkIToStateI)
-
-        con = self.connections[stateI]
-
-        if intfDir == INTF_DIRECTION.MASTER:
-            con.outputs.append(intf)
-        else:
-            assert intfDir == INTF_DIRECTION.SLAVE, intfDir
-            con.inputs.append(intf)
-
     def _afterNodeInstantiated(self, n: HlsNetNode, rtl: Optional[TimeIndependentRtlResource]):
         # mark value in register as persistent until the end of FSM
         isTir = isinstance(rtl, TimeIndependentRtlResource)
@@ -87,6 +73,33 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
         for dep in n.dependsOn:
             self._afterOutputUsed(dep)
 
+    def connectSync(self, clkI: int, intf: HandshakeSync, intfDir: INTF_DIRECTION):
+        try:
+            stateI = self.clkIToStateI[clkI]
+        except KeyError:
+            raise AssertionError("Asking for a sync in an element which is not scheduled in this clk period", self, clkI, self.clkIToStateI)
+
+        con = self.connections[stateI]
+
+        if intfDir == INTF_DIRECTION.MASTER:
+            con.outputs.append(intf)
+        else:
+            assert intfDir == INTF_DIRECTION.SLAVE, intfDir
+            con.inputs.append(intf)
+        self._initNopValsOfIoForIntf(intf, intfDir)
+
+    def _initNopValsOfIoForIntf(self, intf: Interface, intfDir: INTF_DIRECTION):
+        if intfDir == INTF_DIRECTION.MASTER:
+            # to prevent latching when interface is not used
+            syncSignals = getIntfSyncSignals(intf)
+            setNopValIfNotSet(intf, None, syncSignals)
+        else:
+            assert intfDir == INTF_DIRECTION.SLAVE, (intf, intfDir)
+            syncSignals = getIntfSyncSignals(intf)
+
+        for s in syncSignals:
+            setNopValIfNotSet(s, 0, ())
+
     def _initNopValsOfIo(self):
         """
         initialize nop value which will drive the IO when not used
@@ -94,21 +107,10 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
         for nodes in self.fsm.states:
             for node in nodes:
                 if isinstance(node, HlsNetNodeWrite):
-                    intf = node.dst
-                    # to prevent latching when interface is not used
-                    syncSignals = getIntfSyncSignals(intf)
-                    setNopValIfNotSet(intf, None, syncSignals)
+                    self._initNopValsOfIoForIntf(node.dst, INTF_DIRECTION.MASTER)
 
                 elif isinstance(node, HlsNetNodeRead):
-                    intf = node.src
-                    syncSignals = getIntfSyncSignals(intf)
-
-                else:
-                    syncSignals = None
-
-                if syncSignals is not None:
-                    for s in syncSignals:
-                        setNopValIfNotSet(s, 0, ())
+                    self._initNopValsOfIoForIntf(node.src, INTF_DIRECTION.SLAVE)
 
     def _detectStateTransitions(self):
         localControlReads: UniqList[HlsNetNodeReadBackwardEdge] = UniqList()
