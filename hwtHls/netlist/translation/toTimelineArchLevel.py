@@ -40,7 +40,7 @@ class HwtHlsNetlistToTimelineArchLevel(HwtHlsNetlistToTimeline):
                 assert isfinite(finish)
             elif not isfinite(finish):
                 assert isfinite(finish)
-            
+
             start *= time_scale
             finish *= time_scale
             assert start <= finish, (start, finish, archElm)
@@ -51,7 +51,7 @@ class HwtHlsNetlistToTimelineArchLevel(HwtHlsNetlistToTimeline):
                 finish += to_add / 2
 
             color = "purple"
-            label = " ".join([repr(archElm), ", ".join(f"{n._id}" for n in archElm.allNodes)]) 
+            label = " ".join([repr(archElm), ", ".join(f"{n._id}" for n in archElm.allNodes)])
 
             row = TimelineRow(label, obj_group_id, start, finish, color)
             rows.append(row)
@@ -59,10 +59,13 @@ class HwtHlsNetlistToTimelineArchLevel(HwtHlsNetlistToTimeline):
 
         iea: InterArchElementNodeSharingAnalysis = allocator._iea
         for o, i in iea.interElemConnections:
+            srcElm = iea.getSrcElm(o)
             for dstElm in iea.ownerOfInput[i]:
+                if srcElm is dstElm:
+                    continue
                 path = iea.explicitPathSpec.get((o, i, dstElm), None)
                 if path is None:
-                    dstRow: TimelineRow = obj_to_row[dstElm][0] 
+                    dstRow: TimelineRow = obj_to_row[dstElm][0]
                     dstRow.deps.append((
                         obj_to_row[iea.ownerOfOutput[o]][1],
                         o.obj.scheduledOut[o.out_i] * time_scale,
@@ -84,20 +87,20 @@ class HwtHlsNetlistToTimelineArchLevel(HwtHlsNetlistToTimeline):
                     for last, (pi, p) in iter_with_last(enumerate(path)):
                         p: ValuePathSpecItem
                         if last:
-                            dstRow = obj_to_row[dstElm] 
+                            dstRow = obj_to_row[dstElm]
                             dstTime = iea.firstUseTimeOfOutInElem[(dstElm, o)]
                         else:
                             nextP = path[pi + 1]
                             dstRow = obj_to_row[nextP.element]
                             dstTime = nextP.beginTime
-                             
+
                         dstRow.deps.append((
                             srcRow,
                             p.endTime * time_scale,
                             dstTime * time_scale
                         ))
                         srcRow = dstRow
-        
+
         #                    for t, dep in zip(obj.scheduledIn, obj.dependsOn))
         #    for bdep_obj in obj.debug_iter_shadow_connection_dst():
         #        bdep = obj_to_row[bdep_obj][0]
@@ -106,14 +109,15 @@ class HwtHlsNetlistToTimelineArchLevel(HwtHlsNetlistToTimeline):
 
 class HlsNetlistPassShowTimelineArchLevel(RtlNetlistPass):
 
-    def __init__(self, filename:Optional[str]=None, auto_open=False):
+    def __init__(self, filename:Optional[str]=None, auto_open=False, expandCompositeNodes=False):
         self.filename = filename
         self.auto_open = auto_open
+        self.expandCompositeNodes = expandCompositeNodes
 
     def apply(self, hls: "HlsStreamProc", to_hw: "SsaSegmentToHwPipeline"):
         assert to_hw.is_scheduled
 
-        to_timeline = HwtHlsNetlistToTimelineArchLevel(to_hw.hls.normalizedClkPeriod, to_hw.hls.scheduler.resolution)
+        to_timeline = HwtHlsNetlistToTimelineArchLevel(to_hw.hls.normalizedClkPeriod, to_hw.hls.scheduler.resolution, self.expandCompositeNodes)
         to_timeline.construct(to_hw.hls.allocator)
         if self.filename is not None:
             to_timeline.save_html(self.filename, self.auto_open)
