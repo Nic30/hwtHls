@@ -95,8 +95,10 @@ class HlsNetNodeWriteBackwardEdge(HlsNetNodeWrite):
                 .end
             dst_read.src(buffs)
         else:
+            assert self.associated_read in allocator.allNodes, (self, allocator)
             reg: TimeIndependentRtlResource = allocator.netNodeToRtl[self.associated_read._outputs[0]]
-            res = reg.valuesInTime[0].data(allocator.instantiateHlsNetNodeOut(self.src).get(reg.timeOffset).data)
+            src = allocator.instantiateHlsNetNodeOut(self.src)
+            res = reg.valuesInTime[0].data(src.get(self.scheduledOut[0]).data)
 
         allocator.netNodeToRtl[self] = res
 
