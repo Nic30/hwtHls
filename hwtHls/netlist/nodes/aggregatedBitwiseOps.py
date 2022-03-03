@@ -74,7 +74,11 @@ class HlsNetNodeBitwiseOps(HlsNetNode):
                 outT = self._getAlapOutsideOutTime(outerOut, asapSchedule)
             for pou in parentOutUses:
                 pou: HlsNetNodeIn
-                if pou.obj.scheduledIn is not None:
+                if pou.obj.scheduledIn is None:
+                    outT = None
+                    break
+
+                else:
                     t = pou.obj.scheduledIn[pou.in_i]
                     if outT is None:
                         outT = t
@@ -82,8 +86,10 @@ class HlsNetNodeBitwiseOps(HlsNetNode):
                         outT = min(outT, t)
 
             if outT is not None:
-                assert parentOut.obj.scheduledOut is None or parentOut.obj.scheduledOut[0] == outT, (parentOut, outT, parentOut.obj.scheduledOut[0])
-                assert len(parentOut.obj._outputs) == 1, parentOut
+                assert parentOut.obj.scheduledOut is None or parentOut.obj.scheduledOut[0] == outT, (
+                    "The node was not supposed to be scheduled because we should not see this use of this output yet",
+                    parentOut, outT, parentOut.obj.scheduledOut[0])
+                assert len(parentOut.obj._outputs) == 1, (parentOut.obj._outputs, "Only operators with a single output expected")
                 self.resolveSubnodeRealization(parentOut.obj, len(currentInputs) + len(parentOut.obj._inputs))
                 if outT - parentOut.obj.latency_pre[0] <= clkBoundaryTime:
                     newClkStartBoundary = start_clk(outT, clkPeriod) * clkPeriod
