@@ -19,6 +19,7 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtLib.handshaked.streamNode import StreamNode
 from ipCorePackager.constants import INTF_DIRECTION
+from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 
 
 class AllocatorArchitecturalElement():
@@ -258,8 +259,12 @@ class AllocatorArchitecturalElement():
                                 caseCond = caseCond & _caseCond
 
                         rtlMuxCases.append((caseCond, stms))
-
-                    yield SwitchLogic(rtlMuxCases)
+                    stms = rtlMuxCases[0][1]
+                    if isinstance(stms, HdlAssignmentContainer):
+                        defaultCase = stms.dst(None)
+                    else:
+                        defaultCase = [asig.dst(None) for asig in stms]
+                    yield SwitchLogic(rtlMuxCases, default=defaultCase)
                 else:
                     assert isinstance(muxCases[0][0], HlsNetNodeRead), muxCases
                     # no mux needen and we already merged the synchronization
