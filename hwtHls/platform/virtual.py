@@ -85,7 +85,7 @@ DEFAULT_RTLNETLIST_PASSES = [
 ]
 
 
-def makeDebugPasses(debug_file_directory: Union[str, Path]):
+def makeDebugPasses(debug_file_directory: Union[str, Path], expandCompositeNodes=False):
     """
     Adds passes which are dumping the intermediate results during the compilation.
 
@@ -126,7 +126,7 @@ def makeDebugPasses(debug_file_directory: Union[str, Path]):
             HlsNetlistPassAggregateBitwiseOps(),
             # HlsNetlistPassConsystencyCheck(),
             # HlsNetlistPassDumpToDot(debug_file_directory / "top_p1.dot"),
-            HlsNetlistPassShowTimeline(debug_file_directory / "top7.schedule.html", expandCompositeNodes=True),
+            HlsNetlistPassShowTimeline(debug_file_directory / "top7.schedule.html", expandCompositeNodes=expandCompositeNodes),
         ],
         "rtlnetlist_passes":[
             RtlNetlistPassDumpStreamNodes(open(debug_file_directory / "top8.sync.txt", "w"), close=True),
