@@ -58,17 +58,43 @@ class InterArchElementNodeSharingAnalysis():
         self.firstUseTimeOfOutInElem: Dict[Tuple[AllocatorArchitecturalElement, HlsNetNodeOut], int] = {}
         self.portSynonyms: Union[Dict[HlsNetNodeIn, UniqList[HlsNetNodeIn]], Dict[HlsNetNodeOut, UniqList[HlsNetNodeOut]]] = {}
 
+    def getSrcElm(self, o: HlsNetNodeOut) -> AllocatorArchitecturalElement:
+        srcElm = self.ownerOfOutput.get(o, None)
+        if srcElm is None:
+            srcElm = self.ownerOfNode[o.obj]
+
+        return srcElm
+
+    def getSrcDstsElement(self, o: HlsNetNodeOut, i: HlsNetNodeIn)\
+            ->Tuple[AllocatorArchitecturalElement, AllocatorArchitecturalElement]:
+        srcElm = self.getSrcElm(o)
+
+        dstElm = self.ownerOfInput.get(i, None)
+        if dstElm is None:
+            dstElm = self.ownerOfNode[i.obj]
+
+        if isinstance(dstElm, AllocatorArchitecturalElement):
+            dstElms = (dstElm,)
+        else:
+            assert isinstance(dstElm, UniqList), dstElm
+            dstElms = dstElm
+
+        return srcElm, dstElms
+
     def _analyzeInterElementsNodeSharingCheckInputDriver(self, o: HlsNetNodeOut, i: HlsNetNodeIn, inT: int, dstElm: AllocatorArchitecturalElement):
         if isinstance(o.obj, HlsNetNodeConst) or o._dtype is HOrderingVoidT:
             return  # sharing not required
         assert dstElm in self.ownerOfInput[i], (dstElm, i, self.ownerOfInput[i])
-        oOwner = self.ownerOfOutput[o]
-        if dstElm is oOwner:
+        srcElm = self.getSrcElm(o)
+        if dstElm is srcElm:
+            # in the same element
             return
+
         if isinstance(dstElm, AllocatorFsmContainer):
             useClkI = start_clk(inT, self.normalizedClkPeriod)
             assert useClkI in dstElm.clkIToStateI, (useClkI, dstElm.clkIToStateI, o, dstElm,
-                                                    "Input must be scheduled to some cycle corresponding to FSM state", inT, self.normalizedClkPeriod)
+                                                    "Input must be scheduled to some cycle corresponding to FSM state",
+                                                    inT, self.normalizedClkPeriod)
         # this input is connected to something outside of this arch. element
         firstUseTimeKey = (dstElm, o)
         curT = self.firstUseTimeOfOutInElem.get(firstUseTimeKey, inf)
@@ -77,7 +103,7 @@ class InterArchElementNodeSharingAnalysis():
             self.firstUseTimeOfOutInElem[firstUseTimeKey] = inT
 
         self.interElemConnections.append((o, i))
-    
+
     def _addPortSynonym(self, p0, p1):
         syn0 = self.portSynonyms.get(p0, None)
         syn1 = self.portSynonyms.get(p1, None)
@@ -89,12 +115,15 @@ class InterArchElementNodeSharingAnalysis():
         elif syn0 is None:
             self.portSynonyms[p0] = syn1
             syn1.append(p0)
+
         elif syn1 is None:
             self.portSynonyms[p1] = syn0
             syn1.append(p1)
+
         elif len(syn0) < len(syn1):
             syn1.extend(syn0)
             self.portSynonyms[p0] = syn1
+
         else:
             syn0.extend(syn1)
             self.portSynonyms[p1] = syn0
@@ -139,7 +168,7 @@ class InterArchElementNodeSharingAnalysis():
                                 else:
                                     assert isinstance(curOwner, UniqList), curOwner
                                     curOwner.append(dstElm)
-                                
+
                         for o in subNode._outputs:
                             self.ownerOfOutput[o] = dstElm
                             parOut = n.parentNode.internOutToOut.get(o, None)
@@ -147,32 +176,32 @@ class InterArchElementNodeSharingAnalysis():
                                 assert parOut not in self.ownerOfOutput
                                 self.ownerOfOutput[parOut] = dstElm
                                 self._addPortSynonym(o, parOut)
-                        
-                else: 
+
+                else:
                     for i in n._inputs:
-                        assert i not in  self.ownerOfInput 
+                        assert i not in  self.ownerOfInput
                         self.ownerOfInput[i] = UniqList((dstElm,))
 
                     for o in n._outputs:
                         assert o not in  self.ownerOfOutput
                         self.ownerOfOutput[o] = dstElm
-            
+
         for dstElm in archElements:
             # for each input check if value originates from other arch element,
-            # if it does and was not been resolved yet, declare it on element of origin and add it at starting time to this element 
+            # if it does and was not been resolved yet, declare it on element of origin and add it at starting time to this element
             dstElm: AllocatorArchitecturalElement
             for n in dstElm.allNodes:
                 n: HlsNetNode
                 if isinstance(n, HlsNetNodePartRef):
                     n: HlsNetNodePartRef
                     for extOut in n._subNodes.inputs:
-                        assert extOut.obj not in n._subNodes.nodes, ("If this is an external input it must not originate from this node", extOut, n, dstElm) 
+                        assert extOut.obj not in n._subNodes.nodes, ("If this is an external input it must not originate from this node", extOut, n, dstElm)
                         outerIn = n.parentNode.outerOutToIn.get(extOut, None)
                         if outerIn is not None:
                             connectedInputs = n.parentNode._subNodes.inputsDict[extOut]
                         else:
                             connectedInputs = tuple(u for u in extOut.obj.usedBy[extOut.out_i])
-                            
+
                         fistUseTime = None
                         for i in connectedInputs:
                             if i.obj not in n._subNodes.nodes:
@@ -186,8 +215,8 @@ class InterArchElementNodeSharingAnalysis():
                         assert fistUseTime is not None, ("If it is unused it should not be in inputs at the first place", extOut, n, connectedInputs)
                         if outerIn is not None:
                             self._analyzeInterElementsNodeSharingCheckInputDriver(extOut, outerIn, fistUseTime, dstElm)
-                            
-                else: 
+
+                else:
                     for t, i, o in zip(n.scheduledIn, n._inputs, n.dependsOn):
                         self._analyzeInterElementsNodeSharingCheckInputDriver(o, i, t, dstElm)
 

@@ -78,9 +78,15 @@ class SsaToHwtHlsNetlistSyncAndIo():
             elif sucFirstIo is None:
                 # has no IO we have to transitively propagate to all successors
                 assert suc not in self._blockOrderingSync, ("Overspecification", (block, suc), self._blockOrderingSync[suc])
-                newDeps = self.collectBlockOrderingDependencies(suc)
-                if newDeps is not None:
-                    self._afterBlockOrderingDependenciesComplete(suc)
+                allPredsOfSucResolved = True
+                for pred in suc.predecessors:
+                    if pred not in self._blockOrderingSync:
+                        allPredsOfSucResolved = False
+
+                if allPredsOfSucResolved:
+                    newDeps = self.collectBlockOrderingDependencies(suc)
+                    if newDeps is not None:
+                        self._afterBlockOrderingDependenciesComplete(suc)
             else:
                 # how some IO which is alredy used by successor for ordering
                 # now we need to just synchoronize first IO in block which is first in ordering line
@@ -107,6 +113,7 @@ class SsaToHwtHlsNetlistSyncAndIo():
                 return None
             else:
                 deps.extend(predDeps)
+
         self._blockOrderingSync[block] = deps
         
         return deps

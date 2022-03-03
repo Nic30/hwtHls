@@ -1,6 +1,6 @@
-from collections import deque
 from typing import Type, Dict, Optional, List, Tuple, Union, Sequence
 
+from hwt.code import And
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.interfaces.std import HandshakeSync, Handshaked, VldSynced, RdSynced, \
     Signal
@@ -31,6 +31,51 @@ def get_sync_type(intf: Interface) -> Type[Interface]:
         return Signal
 
 
+class SkipWhenMemberList(TimeIndependentRtlResourceItem):
+
+    def __init__(self, data:List[TimeIndependentRtlResourceItem]):
+        self.data = data
+
+    def resolve(self) -> RtlSignal:
+        assert self.data
+        return And(*(d.data for d in self.data))
+
+    def is_rlt_register(self) -> bool:
+        raise NotImplementedError()
+
+
+class ExtraCondMemberList(TimeIndependentRtlResourceItem):
+    """
+    Container of tuples skipWhen, extraCond flags for stream synchronization.
+    """
+
+    def __init__(self, data:List[Tuple[Optional[TimeIndependentRtlResourceItem], TimeIndependentRtlResourceItem]]):
+        self.data = data
+
+    def resolve(self) -> RtlSignal:
+        assert self.data
+        if len(self.data) == 1:
+            return self.data[0][1].data
+
+        extraCond = None
+        for skipWhen, curExtraCond in self.data:
+            if skipWhen is None:
+                if extraCond is None:
+                    extraCond = curExtraCond.data
+                else:
+                    extraCond = extraCond | curExtraCond.data
+            else:
+                if extraCond is None:
+                    extraCond = ~skipWhen.data & curExtraCond.data
+                else:
+                    extraCond = extraCond | (~skipWhen.data & curExtraCond.data)
+
+        return extraCond
+
+    def is_rlt_register(self) -> bool:
+        raise NotImplementedError()
+
+
 class ConnectionsOfStage():
     """
     Container of connections of pipeline stage or FSM state
@@ -40,8 +85,8 @@ class ConnectionsOfStage():
         self.inputs: UniqList[Interface] = UniqList()
         self.outputs: UniqList[Interface] = UniqList()
         self.signals: UniqList[TimeIndependentRtlResourceItem] = UniqList()
-        self.io_skipWhen: Dict[Interface, TimeIndependentRtlResourceItem] = {}
-        self.io_extraCond: Dict[Interface, TimeIndependentRtlResourceItem] = {}
+        self.io_skipWhen: Dict[Interface, SkipWhenMemberList] = {}
+        self.io_extraCond: Dict[Interface, ExtraCondMemberList] = {}
         self.sync_node: Optional[StreamNode] = None
         self.stDependentDrives: List[HdlStatement] = []
 
@@ -80,7 +125,7 @@ def setNopValIfNotSet(intf: Interface, nopVal, exclude: List[Interface]):
         for _intf in intf._interfaces:
             setNopValIfNotSet(_intf, nopVal, exclude)
     elif intf._sig._nop_val is NOT_SPECIFIED:
-        intf._sig._nop_val = intf._dtype.from_py(nopVal) 
+        intf._sig._nop_val = intf._dtype.from_py(nopVal)
 
 
 def extract_control_sig_of_interface(

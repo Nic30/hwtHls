@@ -1,12 +1,15 @@
 
 from typing import Union, List, Dict, Tuple, Optional
 
+from hwt.code import SwitchLogic
 from hwt.hdl.statements.statement import HdlStatement
-from hwt.interfaces.std import HandshakeSync
+from hwt.interfaces.std import HandshakeSync, Signal
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
+from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.allocator.connectionsOfStage import ConnectionsOfStage, \
-    extract_control_sig_of_interface, SignalsOfStages
+    extract_control_sig_of_interface, SignalsOfStages, ExtraCondMemberList, \
+    SkipWhenMemberList
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource, \
     TimeIndependentRtlResourceItem
 from hwtHls.clk_math import start_clk
@@ -58,6 +61,25 @@ class AllocatorArchitecturalElement():
     def _afterNodeInstantiated(self, n: HlsNetNode, rtl: Optional[TimeIndependentRtlResource]):
         pass
 
+    def _afterOutputUsed(self, o: HlsNetNode):
+        clkPeriod = self.parentHls.normalizedClkPeriod
+        epsilon = self.parentHls.scheduler.epsilon
+        depRtl = self.netNodeToRtl.get(o, None)
+        if depRtl is not None:
+            depRtl: TimeIndependentRtlResource
+            if depRtl.timeOffset is TimeIndependentRtlResource.INVARIANT_TIME:
+                return
+            # in in this arch. element
+            # registers uses in new times
+            t = depRtl.timeOffset + (len(depRtl.valuesInTime) - 1) * clkPeriod + epsilon
+            # :note: done in reverse so we do not have to always iterater over registered prequel
+            for _ in reversed(depRtl.valuesInTime):
+                sigs = self.stageSignals.getForTime(t)
+                if depRtl in sigs:
+                    break
+                sigs.append(depRtl)
+                t -= clkPeriod
+
     def connectSync(self, clkI: int, intf: HandshakeSync, intfDir: INTF_DIRECTION):
         con = self.connections[clkI]
         if intfDir == INTF_DIRECTION.MASTER:
@@ -65,7 +87,7 @@ class AllocatorArchitecturalElement():
         else:
             assert intfDir == INTF_DIRECTION.SLAVE, intfDir
             con.inputs.append(intf)
-        
+
     def instantiateHlsNetNodeOut(self, o: HlsNetNodeOut) -> TimeIndependentRtlResource:
         assert isinstance(o, HlsNetNodeOut), o
         _o = self.netNodeToRtl.get(o, None)
@@ -99,28 +121,36 @@ class AllocatorArchitecturalElement():
         else:
             return _o
 
-    def _copy_sync_single(self, node: Union[HlsNetNodeRead, HlsNetNodeWrite], node_inI: int,
-                           res: Dict[Interface, TimeIndependentRtlResourceItem],
-                           intf: Interface, sync_time: float):
-        e = node.dependsOn[node_inI]
-        assert intf not in res, (intf, "already has sync in this stage")
-        res[intf] = self.netNodeToRtl[e].get(sync_time)
-
-    def _copy_sync_all(self, node: Union[HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeExplicitSync],
-                        res_skipWhen: Dict[Interface, TimeIndependentRtlResourceItem],
-                        res_extraCond: Dict[Interface, TimeIndependentRtlResourceItem],
+    def _copyChannelSyncAll(self, node: Union[HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeExplicitSync],
+                        res_skipWhen: Dict[Interface, SkipWhenMemberList],
+                        res_extraCond: Dict[Interface, ExtraCondMemberList],
                         intf: Interface, sync_time: float):
 
         if node.skipWhen is not None:
-            self._copy_sync_single(node, node.skipWhen_inI, res_skipWhen, intf, sync_time)
+            e = node.dependsOn[node.skipWhen_inI]
+            skipWhen = self.netNodeToRtl[e].get(sync_time)
+            curSkipWhen = res_skipWhen.get(intf, None)
+            if curSkipWhen is not None:
+                curSkipWhen.data.append(skipWhen)
+            else:
+                res_skipWhen[intf] = SkipWhenMemberList([skipWhen, ])
+        else:
+            skipWhen = None
 
         if node.extraCond is not None:
-            self._copy_sync_single(node, node.extraCond_inI, res_extraCond, intf, sync_time)
+            e = node.dependsOn[node.extraCond_inI]
+            extraCond = self.netNodeToRtl[e].get(sync_time)
+            curExtraCond = res_extraCond.get(intf, None)
+            if curExtraCond is not None:
+                curExtraCond.data.append((skipWhen, extraCond))
+            else:
+                extraCond = ExtraCondMemberList([(skipWhen, extraCond), ])
+                res_extraCond[intf] = extraCond
 
-    def _copy_sync(self, intf: Interface,
+    def _copyChannelSync(self, intf: Interface,
                    node: Union[HlsNetNodeRead, HlsNetNodeWrite],
-                   res_skipWhen: Dict[Interface, TimeIndependentRtlResourceItem],
-                   res_extraCond: Dict[Interface, TimeIndependentRtlResourceItem]):
+                   res_skipWhen: Dict[Interface, SkipWhenMemberList],
+                   res_extraCond: Dict[Interface, ExtraCondMemberList]):
 
         if isinstance(node, HlsNetNodeRead):
             node: HlsNetNodeRead
@@ -139,36 +169,42 @@ class AllocatorArchitecturalElement():
                         break
 
             if isinstance(onlySuc, HlsNetNodeExplicitSync) and not isinstance(onlySuc, HlsNetNodeWrite):
-                _o = onlySuc.allocateRtlInstance(self)  # to assert that the sync signal is constructed
-                self._afterNodeInstantiated(onlySuc, _o)
-                self._copy_sync_all(onlySuc, res_skipWhen, res_extraCond, intf, sync_time)
+                if onlySuc._outputs[0] not in self.netNodeToRtl:
+                    _o = onlySuc.allocateRtlInstance(self)  # to assert that the sync signal is constructed
+                    self._afterNodeInstantiated(onlySuc, _o)
+                self._copyChannelSyncAll(onlySuc, res_skipWhen, res_extraCond, intf, sync_time)
 
         else:
             assert isinstance(node, (HlsNetNodeWrite, HlsNetNodeExplicitSync)), node
             sync_time = node.scheduledIn[0]
 
-        self._copy_sync_all(node, res_skipWhen, res_extraCond, intf, sync_time)
+        self._copyChannelSyncAll(node, res_skipWhen, res_extraCond, intf, sync_time)
 
-    def _collect_rlt_sync(self, sync_per_io: Dict[Interface, TimeIndependentRtlResourceItem], cur_inputs: List[Interface]):
-        sync = {}
+    def _collectChannelRtlSync(self,
+                          sync_per_io: Dict[Interface, Union[SkipWhenMemberList, ExtraCondMemberList]],
+                          cur_inputs: List[Interface]):
+        sync: Dict[Interface, RtlSignal] = {}
         # ens_of_stage = []
         for intf, sync_source in sync_per_io.items():
             intf = extract_control_sig_of_interface(intf)
-            if sync_source:
-                if intf == (1, 1):
-                    continue
-                en = sync_source.data
-                if isinstance(en, HandshakeSync):
-                    if en not in cur_inputs:
-                        cur_inputs.append(en)
-                else:
-                    sync[intf] = en  # current block en=1
+            if intf == (1, 1):
+                # does not have any sync
+                continue
+
+            assert sync_source
+            en = sync_source.resolve()
+            assert isinstance(en, RtlSignal), en
+            # if isinstance(en, HandshakeSync):
+            #    if en not in cur_inputs:
+            #        cur_inputs.append(en)
+            # else:
+            sync[intf] = en  # current block en=1
 
         return sync
-    
+
     def _makeSyncNode(self, con: ConnectionsOfStage):
-        extra_conds = self._collect_rlt_sync(con.io_extraCond, con.inputs)
-        skip_when = self._collect_rlt_sync(con.io_skipWhen, con.inputs)
+        extra_conds = self._collectChannelRtlSync(con.io_extraCond, con.inputs)
+        skip_when = self._collectChannelRtlSync(con.io_skipWhen, con.inputs)
 
         masters = [extract_control_sig_of_interface(intf) for intf in con.inputs]
         slaves = [extract_control_sig_of_interface(intf) for intf in con.outputs]
@@ -181,19 +217,66 @@ class AllocatorArchitecturalElement():
         con.sync_node = sync
         return sync
 
+    def _allocateIo(self, intf: Interface, node: Union[HlsNetNodeRead, HlsNetNodeWrite],
+                    con: ConnectionsOfStage,
+                    ioMuxes: Dict[Interface, Tuple[Union[HlsNetNodeRead, HlsNetNodeWrite], List[HdlStatement]]],
+                    ioSeen: UniqList[Interface], rtl: List[HdlStatement]):
+        ioSeen.append(intf)
+        ioMuxes.setdefault(intf, []).append((node, rtl))
+
+        if not isinstance(intf, (Signal, RtlSignal)):
+            # if it has some synchronization
+            if isinstance(node, HlsNetNodeRead):
+                con.inputs.append(intf)
+            else:
+                con.outputs.append(intf)
+
+        self._copyChannelSync(intf, node, con.io_skipWhen, con.io_extraCond)
+
+    def _allocateIoMux(self, ioMuxes: Dict[Interface, Tuple[Union[HlsNetNodeRead, HlsNetNodeWrite], List[HdlStatement]]],
+                             ioSeen: UniqList[Interface]):
+        for io in ioSeen:
+            muxCases = ioMuxes[io]
+            if len(muxCases) == 1:
+                if isinstance(muxCases[0][0], HlsNetNodeWrite):
+                    yield muxCases[0][1]
+            else:
+                if isinstance(muxCases[0][0], HlsNetNodeWrite):
+                    # create a write mux
+                    rtlMuxCases = []
+                    for w, stms in muxCases:
+                        t = w.scheduledOut[0]
+                        caseCond = None
+                        if w.extraCond is not None:
+                            caseCond = self.instantiateHlsNetNodeOutInTime(w.extraCond, t).data
+
+                        if w.skipWhen is not None:
+                            _caseCond = ~self.instantiateHlsNetNodeOutInTime(w.skipWhen, t).data
+                            if caseCond is None:
+                                caseCond = _caseCond
+                            else:
+                                caseCond = caseCond & _caseCond
+
+                        rtlMuxCases.append((caseCond, stms))
+
+                    yield SwitchLogic(rtlMuxCases)
+                else:
+                    assert isinstance(muxCases[0][0], HlsNetNodeRead), muxCases
+                    # no mux needen and we already merged the synchronization
+
     def allocateDataPath(self, iea: "InterArchElementNodeSharingAnalysis"):
         """
         Allocate main RTL object which are required from HlsNetNode instances assigned to this element.
         """
         raise NotImplementedError("Implement in child class")
-    
+
     def allocateSync(self):
         """
         Instantiate an additional RTL objects to implement the synchronization of the element
         which are not direclty present in input HlsNetNode instances.
         """
         raise NotImplementedError("Implement in child class")
-    
+
     def __repr__(self):
         return f"<{self.__class__.__name__:s} {self.namePrefix:s}>"
 

@@ -1,8 +1,9 @@
 from itertools import chain
-from typing import List, Type, Optional
+from typing import List, Type, Optional, Dict, Tuple, Union
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.code import If
+from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.defs import BIT
 from hwt.interfaces.std import Signal, HandshakeSync
 from hwt.pyUtils.uniqList import UniqList
@@ -31,7 +32,7 @@ class AllocatorPipelineContainer(AllocatorArchitecturalElement):
         allNodes = UniqList()
         for nodes in stages:
             allNodes.extend(nodes)
-            
+
         self.stages = stages
         stageCons = [ConnectionsOfStage() for _ in self.stages]
         stageSignals = SignalsOfStages(parentHls.normalizedClkPeriod,
@@ -53,46 +54,48 @@ class AllocatorPipelineContainer(AllocatorArchitecturalElement):
             if o.timeOffset is not TimeIndependentRtlResource.INVARIANT_TIME:
                 self.stageSignals.getForTime(o.timeOffset).append(o)
 
-        clkPeriod = self.parentHls.normalizedClkPeriod
         for dep in n.dependsOn:
-            depRtl = self.netNodeToRtl.get(dep, None)
-            if depRtl is not None:
-                depRtl: TimeIndependentRtlResource
-                if depRtl.timeOffset is not TimeIndependentRtlResource.INVARIANT_TIME:
-                    continue
-                # in in this arch. element
-                # registers uses in new times
-                t = o.timeOffset + (len(depRtl.valuesInTime) - 1) * clkPeriod + self.parentHls.schedulerepsilon
-                # :note: done in reverse so we do not have to always iterater over registered prequel
-                for tir in reversed(depRtl.valuesInTime):
-                    sigs = self.stageSignals.getForTime(t)
-                    if tir in sigs:
-                        break
-                    sigs.append(tir)
-                    t -= clkPeriod
+            self._afterOutputUsed(dep)
 
     def allocateDataPath(self, iea: InterArchElementNodeSharingAnalysis):
         assert not self._dataPathAllocated
         assert not self._syncAllocated
         self.interArchAnalysis = iea
+
+        ioToCon: Dict[Interface, ConnectionsOfStage] = {}
         for nodes, con in zip(self.stages, self.connections):
+            con: ConnectionsOfStage
             # assert nodes
+            ioMuxes: Dict[Interface, Tuple[Union[HlsNetNodeRead, HlsNetNodeWrite], List[HdlStatement]]] = {}
+            ioSeen: UniqList[Interface] = UniqList()
             for node in nodes:
                 node: HlsNetNode
                 # this is one level of nodes,
                 # node can not be dependent on nodes behind in this list
                 # because this engine does not support backward edges in DFG
-                node.allocateRtlInstance(self)
+                wasInstantiated = node._outputs and node._outputs[0] not in self.netNodeToRtl
+                rtl = node.allocateRtlInstance(self)
+                if wasInstantiated:
+                    self._afterNodeInstantiated(node, rtl)
 
                 if isinstance(node, HlsNetNodeRead):
+                    currentStageForIo = ioToCon.get(node.src, con)
+                    assert currentStageForIo is con, ("If the access to IO is from different stage, this should already have IO gate generated", node, con)
                     con.inputs.append(node.src)
-                    # if node.src in allocator.parentHls.coherency_checked_io:
-                    self._copy_sync(node.src, node, con.io_skipWhen, con.io_extraCond)
+                    self._allocateIo(node.src, node, con, ioMuxes, ioSeen, rtl)
+                    ioToCon[node.src] = con
 
                 elif isinstance(node, HlsNetNodeWrite):
+                    currentStageForIo = ioToCon.get(node.dst, con)
+                    assert currentStageForIo is con, ("If the access to IO is from different stage, this should already have IO gate generated", node, con)
                     con.outputs.append(node.dst)
                     # if node.dst in allocator.parentHls.coherency_checked_io:
-                    self._copy_sync(node.dst, node, con.io_skipWhen, con.io_extraCond)
+                    self._allocateIo(node.dst, node, con, ioMuxes, ioSeen, rtl)
+                    ioToCon[node.dst] = con
+
+            for rtl in self._allocateIoMux(ioMuxes, ioSeen):
+                pass
+
         self._dataPathAllocated = True
 
     def extendValidityOfRtlResource(self, tir: TimeIndependentRtlResource, endTime: float):
@@ -117,7 +120,7 @@ class AllocatorPipelineContainer(AllocatorArchitecturalElement):
             assert tir not in sigs
             tir.get(t)
             sigs.append(tir)
-    
+
     def rtlResourceInputSooner(self, tir: TimeIndependentRtlResource, newFirstClkIndex: int):
         clkPeriod = self.parentHls.normalizedClkPeriod
         curFirstClkI = int(tir.timeOffset // clkPeriod)
@@ -132,7 +135,7 @@ class AllocatorPipelineContainer(AllocatorArchitecturalElement):
             except StopIteration:
                 break  # the rest will be added later when value is used
             self.stageSignals[clkI].append(v)
-    
+
     def allocateSync(self):
         assert self._dataPathAllocated
         assert not self._syncAllocated
@@ -243,4 +246,4 @@ class AllocatorPipelineContainer(AllocatorArchitecturalElement):
             prev_st_sync_input = to_next_stage
             prev_st_valid = stage_valid
 
-        return prev_st_sync_input, prev_st_valid, current_sync            
+        return prev_st_sync_input, prev_st_valid, current_sync

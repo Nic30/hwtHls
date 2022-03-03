@@ -3,9 +3,10 @@ from typing import List, Set, Tuple, Optional, Union, Dict
 from hwt.code import SwitchLogic, Switch
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.bits import Bits
-from hwt.interfaces.std import Signal, HandshakeSync
+from hwt.interfaces.std import HandshakeSync
 from hwt.math import log2ceil
 from hwt.pyUtils.uniqList import UniqList
+from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.allocator.architecturalElement import AllocatorArchitecturalElement
 from hwtHls.allocator.connectionsOfStage import getIntfSyncSignals, \
@@ -13,11 +14,11 @@ from hwtHls.allocator.connectionsOfStage import getIntfSyncSignals, \
 from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.clk_math import start_clk
 from hwtHls.netlist.analysis.fsm import IoFsm
+from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
+    HlsNetNodeWriteBackwardEdge
 from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeRead
 from hwtHls.netlist.nodes.node import HlsNetNode
 from ipCorePackager.constants import INTF_DIRECTION
-from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
-    HlsNetNodeWriteBackwardEdge
 
 
 class AllocatorFsmContainer(AllocatorArchitecturalElement):
@@ -71,16 +72,20 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
 
         clkPeriod = self.normalizedClkPeriod
         fsmEndClk_i = self.fsmEndClk_i
-        epsilon = self.parentHls.scheduler.epsilon
+
         for s in cons:
             s: TimeIndependentRtlResource
+            assert len(s.valuesInTime) == 1, ("Value must not be used yet because we need to set persistence ranges first.", s)
 
             if not s.persistenceRanges and s.timeOffset is not TimeIndependentRtlResource.INVARIANT_TIME:
-                self.stageSignals.getForTime(s.timeOffset + epsilon).append(s)
+                self.stageSignals.getForTime(s.timeOffset).append(s)
                 # value for the first clock behind this clock period and the rest is persistent in this register
                 nextClkI = start_clk(s.timeOffset, clkPeriod) + 2
                 if nextClkI <= fsmEndClk_i:
                     s.persistenceRanges.append((nextClkI, fsmEndClk_i))
+
+        for dep in n.dependsOn:
+            self._afterOutputUsed(dep)
 
     def _initNopValsOfIo(self):
         """
@@ -115,7 +120,7 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
                     node: HlsNetNodeReadBackwardEdge
                     if node.associated_write in self.allNodes:
                         localControlReads.append(node)
-                        node.associated_write.allocateAsBuffer = False # allocate as a register because this is just local controll channel
+                        node.associated_write.allocateAsBuffer = False  # allocate as a register because this is just local controll channel
                         controlToStateI[node] = stI
 
                 elif isinstance(node, HlsNetNodeWriteBackwardEdge):
@@ -135,7 +140,7 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
         # * state bit will be just stored as a register in this fsm
         # * read will just read this bit
         # * write will set this bit to a value specified in write src if all write conditions are meet
-        
+
         # * if the value writen to channel is 1 it means that fsm jump to state where associated read is
         #   There could be multiple channels written but the 1 should be writen to just 1
         # * Because the control channel is just local it is safe to replace it
@@ -152,26 +157,28 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
         self.interArchAnalysis = iea
         self._detectStateTransitions()
         for (nodes, con) in zip(self.fsm.states, self.connections):
+            ioMuxes: Dict[Interface, Tuple[Union[HlsNetNodeRead, HlsNetNodeWrite], List[HdlStatement]]] = {}
+            ioSeen: UniqList[Interface] = UniqList()
             for node in nodes:
                 node: HlsNetNode
+                wasInstantiated = node._outputs and node._outputs[0] not in self.netNodeToRtl
                 rtl = node.allocateRtlInstance(self)
+                if wasInstantiated:
+                    self._afterNodeInstantiated(node, rtl)
 
                 if isinstance(node, HlsNetNodeRead):
                     if isinstance(node, HlsNetNodeReadBackwardEdge) and not node.associated_write.allocateAsBuffer:
                         continue
-                    if not isinstance(node.src, (Signal, RtlSignal)):
-                        # if it has some synchronization
-                        con.inputs.append(node.src)
-                    self._copy_sync(node.src, node, con.io_skipWhen, con.io_extraCond)
+                    self._allocateIo(node.src, node, con, ioMuxes, ioSeen, rtl)
 
                 elif isinstance(node, HlsNetNodeWrite):
                     if isinstance(node, HlsNetNodeWriteBackwardEdge) and not node.allocateAsBuffer:
+                        con.stDependentDrives.append(rtl)
                         continue
-                    con.stDependentDrives.append(rtl)
-                    if not isinstance(node.dst, (Signal, RtlSignal)):
-                        # if it has some synchronization
-                        con.outputs.append(node.dst)
-                    self._copy_sync(node.dst, node, con.io_skipWhen, con.io_extraCond)
+                    self._allocateIo(node.dst, node, con, ioMuxes, ioSeen, rtl)
+
+            for rtl in self._allocateIoMux(ioMuxes, ioSeen):
+                con.stDependentDrives.append(rtl)
 
     def allocateSync(self):
         fsm = self.fsm
@@ -199,9 +206,9 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
             unconditionalTransSeen = False
             inStateTrans: List[Tuple[RtlSignal, List[HdlStatement]]] = []
             sync = self._makeSyncNode(con)
+            ack = sync.ack()
             for dstSt, c in sorted(fsm.transitionTable[stI].items(), key=lambda x: x[0]):
-                assert not unconditionalTransSeen
-                ack = sync.ack()
+                assert not unconditionalTransSeen, "If there is an unconditional transition it must be last"
                 if isinstance(ack, (bool, int)):
                     c = c & ack
                 else:

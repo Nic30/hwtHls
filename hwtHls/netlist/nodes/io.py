@@ -263,7 +263,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
                 else:
                     startT = self.scheduledOut[0]
 
-                off = start_of_next_clk_period(startT, clkPeriod) - startT - clkPeriod - ffdelay - self.hls.scheduler.epsilon
+                off = start_of_next_clk_period(startT, clkPeriod) - startT - clkPeriod - ffdelay
                 self.scheduledIn = tuple(t + off for t in self.scheduledIn)
                 self.scheduledOut = tuple(t + off for t in self.scheduledOut)
                 curIoCnt = self._getNumberOfIoInThisClkPeriod(self.src if isinstance(self, HlsNetNodeRead) else self.dst, False)
