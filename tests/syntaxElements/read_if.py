@@ -65,7 +65,7 @@ class ReadIfTc(BaseSsaTC):
         self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
         u.a._ag.data.extend([0, 3, 3, 0, 3, 0, 0, ])
         u.b._ag.data.extend(range(10))
-        self.runSim((len(u.a._ag.data) + 10) * int(freq_to_period(f)))
+        self.runSim((len(u.a._ag.data) + 15) * int(freq_to_period(f)))
         HlsStreamMachineTrivial_TC._test_no_comb_loops(self)
         self.assertSequenceEqual(u.a._ag.data, [])
         self.assertSequenceEqual(u.b._ag.data, [4, 5, 6, 7, 8, 9])

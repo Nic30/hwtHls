@@ -113,7 +113,7 @@ class AxiSParseIfTC(SimTestCase):
 if __name__ == '__main__':
 
     suite = unittest.TestSuite()
-    suite.addTest(AxiSParseIfTC('test_AxiSParse2If_8b_1MHz'))
-    # suite.addTest(unittest.makeSuite(AxiSParseIfTC))
+    # suite.addTest(AxiSParseIfTC('test_AxiSParse2If_8b_1MHz'))
+    suite.addTest(unittest.makeSuite(AxiSParseIfTC))
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

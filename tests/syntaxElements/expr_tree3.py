@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.hdl.constants import Time
 from hwt.interfaces.std import VectSignal
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 from hwtHls.platform.virtual import VirtualHlsPlatform
+from hwtSimApi.utils import freq_to_period
 from tests.baseSsaTest import BaseSsaTC
 
 
@@ -74,7 +74,7 @@ class HlsExprTree3_example_TC(BaseSsaTC):
         u.z._ag.data.append(9)
         u.w._ag.data.append(10)
 
-        self.runSim(40 * Time.ns)
+        self.runSim(int(7 * freq_to_period(u.CLK_FREQ)))
 
         self.assertValEqual(u.f1._ag.data[-1], (3 + 4 + 5) * 6)
         self.assertValEqual(u.f2._ag.data[-1], (7 + 8) * 9)
