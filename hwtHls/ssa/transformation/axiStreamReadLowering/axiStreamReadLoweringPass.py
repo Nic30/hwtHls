@@ -29,8 +29,8 @@ class SsaPassAxiStreamReadLowering(SsaPass):
     2. Rewrite reads of ADTs to read of words
     
     :note: Problematic features
-        * SSA CFG does nore corresponds to read CFG
-            * blocks may not constain reads, there can be multiple paths between same reads
+        * SSA CFG does not correspond to read CFG
+            * blocks may not contain reads, there can be multiple paths between same reads
             * cycles in SSA does not necessary mean a cycle in read CFG
     """
 
@@ -99,7 +99,7 @@ class SsaPassAxiStreamReadLowering(SsaPass):
 
         possibleOffsets = readCfg.inWordOffset[read]
         if not possibleOffsets:
-            raise AssertionError("This is anaccessible read, it should be already removed", read)
+            raise AssertionError("This is an accessible read, it should be already removed", read)
 #        if len(successors) > 1:
 #            raise NotImplementedError(successors)
         
@@ -119,7 +119,7 @@ class SsaPassAxiStreamReadLowering(SsaPass):
             sequelBlock = read.block
             w = read._dtype.bit_length()
     
-            # if number of words differs in offset varvariants we need to insert a new block which is entered conditionally for specific offset values
+            # if number of words differs in offset variants we need to insert a new block which is entered conditionally for specific offset values
             # :note: the information about which word is last is stored in offset variable and does not need to be explicitly specified 
 
             # shared words for offset variants
@@ -155,7 +155,7 @@ class SsaPassAxiStreamReadLowering(SsaPass):
                     memUpdater.writeVariable(predWordVar, (), read.block, partRead)
             
             if len(possibleOffsets) > 1:
-                # create branck for each offset variant
+                # create branch for each offset variant
                 offsetCaseCond = []
                 _currentOffsetVar = memUpdater.readVariable(currentOffsetVar, read.block)
                 for last, off in iter_with_last(possibleOffsets):
@@ -168,15 +168,16 @@ class SsaPassAxiStreamReadLowering(SsaPass):
                     offsetCaseCond.append(offEn)
 
                 offsetBranches, sequelBlock = exprBuilder.insertBlocks(offsetCaseCond)
+                memUpdater.sealBlock(sequelBlock)
             else:
                 offsetBranches, sequelBlock = [read.block], read.block
             
             resVar = hls._ctx.sig(read._name, read._dtype)
-            # [todo] agreate rewrite for all reads in this same block to reduce number of branches because of offset
+            # [todo] aggregate rewrite for all reads in this same block to reduce number of branches because of offset
             for off, br in zip(possibleOffsets, offsetBranches):
                 off: int
                 br: SsaBasicBlock
-                memUpdater.sealBlock(br)
+                #memUpdater.sealBlock(br)
                 if br is not read.block:
                     _exprBuilder = SsaExprBuilder(br)
                 else:
@@ -237,7 +238,7 @@ class SsaPassAxiStreamReadLowering(SsaPass):
 
         if read is not None:
             sequelBlock = sequelBlock if sequelBlock is not None else read.block
-            memUpdater.sealBlock(sequelBlock)
+            
         
         for _, suc in readCfg.cfg[read]:
             self.rewriteAdtReadToReadOfWords(hls, memUpdater, startBlock, suc, DATA_WIDTH,
@@ -245,9 +246,8 @@ class SsaPassAxiStreamReadLowering(SsaPass):
                                              currentOffsetVar, predWordVar)
     
     def _sealBlocksUntilStart(self, memUpdater: MemorySSAUpdater, startBlock: SsaBasicBlock, curBlock: SsaBasicBlock):
-        if startBlock is curBlock:
+        if startBlock is curBlock or curBlock in memUpdater.sealedBlocks:
             return
-
         memUpdater.sealBlock(curBlock)
         for pred in curBlock.predecessors:
             self._sealBlocksUntilStart(memUpdater, startBlock, pred)

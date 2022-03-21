@@ -12,7 +12,6 @@ from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.phi import SsaPhi
 from hwtHls.ssa.value import SsaValue
-from hwtHls.netlist.typeUtils import dtypeEqualSignIgnore
 
 
 class MemorySSAUpdater():
@@ -179,6 +178,7 @@ class MemorySSAUpdater():
         return same
 
     def sealBlock(self, block: SsaBasicBlock):
+        assert block not in self.sealedBlocks, block
         phis = self.incompletePhis.pop(block, None)
 
         if phis:

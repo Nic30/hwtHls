@@ -15,7 +15,7 @@ class SsaInstrBranch():
 
     def addTarget(self, cond: Optional[SsaValue], target: "SsaBasicBlock"):
         self.targets.append((cond, target))
-        assert self.parent not in target.predecessors
+        assert self.parent not in target.predecessors, (self.parent, target, target.predecessors)
         target.predecessors.append(self.parent)
         if cond is not None:
             cond.users.append(self)

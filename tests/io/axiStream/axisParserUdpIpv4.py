@@ -8,12 +8,13 @@ from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.statements import IN_STREAM_POS
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
-from hwtHls.ssa.translation.fromPython import pyFunctionToSsa
 from hwtLib.amba.axis import AxiStream
 from hwtLib.types.ctypes import uint16_t, uint8_t
 from hwtLib.types.net.ethernet import Eth2Header_t, ETHER_TYPE
 from hwtLib.types.net.ip import IPv4Header_t, IP_PROTOCOL, ipv4_t
 from hwtLib.types.net.udp import UDP_header_t
+from hwt.hdl.types.defs import BIT
+from hwtHls.ssa.translation.fromPython.fromPython import pyFunctionToSsa
 
 
 class AxiSParseUdpIpv4(Unit):
@@ -34,7 +35,7 @@ class AxiSParseUdpIpv4(Unit):
             self.srcp.T = Bits(16)
     
     def parseEth(self, hls: HlsStreamProc):
-        while True:
+        while BIT.from_py(1):
             eth = hls.read(self.i, Eth2Header_t, inStreamPos=IN_STREAM_POS.BEGIN)
             if eth.type._eq(ETHER_TYPE.IPv4):
                 ipv4 = hls.read(self.i, IPv4Header_t)

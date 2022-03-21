@@ -10,8 +10,9 @@ from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
-from hwtHls.ssa.translation.fromPython import pyFunctionToSsa
+from hwtHls.ssa.translation.fromPython.fromPython import pyFunctionToSsa
 from hwtLib.types.ctypes import uint8_t
+from hwt.hdl.types.defs import BIT
 
 
 class BitWidthReductionCmp2Values(Unit):
@@ -24,7 +25,7 @@ class BitWidthReductionCmp2Values(Unit):
         hls = HlsStreamProc(self, freq=int(100e6))
  
         def mainThread():
-            while True:
+            while BIT.from_py(1):
                 i = hls.read(self.i)
                 # 1. only bits [5:0] should be compared
                 # and the cmp of other bits should be shared
@@ -67,7 +68,7 @@ class BitWidthReductionCmpReducibleEq(Unit):
         p = self.predicate
 
         def mainThread():
-            while True:
+            while BIT.from_py(1):
                 a = hls.read(self.a)
                 b = hls.read(self.b)
                 hls.write(p(a, b), self.res)

@@ -89,7 +89,7 @@ class AstToSsa():
 
     def visit_top_CodeBlock(self, obj: HdlStmCodeBlockContainer) -> SsaBasicBlock:
         block = self.visit_CodeBlock(self.start, obj)
-        self._onAllPredecsKnown(block)
+        #self._onAllPredecsKnown(block)
         return block
 
     def visit_CodeBlock(self, block: SsaBasicBlock, obj: HdlStmCodeBlockContainer) -> SsaBasicBlock:
