@@ -1,10 +1,10 @@
 import operator
-
-from hwt.code import In
-from hwt.hdl.operatorDefs import AllOps
+from dis import Instruction
+from typing import Type
 
 # https://docs.python.org/3/library/dis.html
 UN_OPS = {
+    'UNARY_POSITIVE': operator.pos,
     'UNARY_NEGATIVE': operator.neg,
     'UNARY_NOT': operator.not_,
     'UNARY_INVERT': operator.invert,
@@ -12,13 +12,14 @@ UN_OPS = {
 BIN_OPS = {
     'BINARY_POWER': operator.pow,
     'BINARY_MULTIPLY': operator.mul,
+    'BINARY_MATRIX_MULTIPLY': operator.matmul,
+    'BINARY_FLOOR_DIVIDE': operator.floordiv,
+    'BINARY_TRUE_DIVIDE': operator.truediv,
 
     'BINARY_MODULO': operator.mod,
     'BINARY_ADD': operator.add,
     'BINARY_SUBTRACT': operator.sub,
     'BINARY_SUBSCR': operator.getitem,
-    'BINARY_FLOOR_DIVIDE': operator.floordiv,
-    'BINARY_TRUE_DIVIDE': operator.truediv,
 
     'BINARY_LSHIFT': operator.lshift,
     'BINARY_RSHIFT': operator.rshift,
@@ -37,20 +38,24 @@ CMP_OPS = {
     'not in': lambda x, col: not operator.contains(x, col),
 }
 INPLACE_OPS = {
+    'INPLACE_POWER': operator.pow,
+    'INPLACE_MULTIPLY': operator.mul,
+    'INPLACE_MATRIX_MULTIPLY': operator.imatmul,
+    
     'INPLACE_FLOOR_DIVIDE': operator.floordiv,
     'INPLACE_TRUE_DIVIDE': operator.truediv,
-    'INPLACE_ADD': operator.add,
-    'INPLACE_SUBTRACT': operator.sub,
-    'INPLACE_MULTIPLY': operator.mul,
-
     'INPLACE_MODULO': operator.mod,
 
-    'INPLACE_POWER': operator.pow,
+    'INPLACE_ADD': operator.add,
+    'INPLACE_SUBTRACT': operator.sub,
+
     'INPLACE_LSHIFT': operator.lshift,
     'INPLACE_RSHIFT': operator.rshift,
     'INPLACE_AND': operator.and_,
     'INPLACE_XOR': operator.xor,
     'INPLACE_OR': operator.or_,
+    'STORE_SUBSCR': operator.setitem,
+    'DELETE_SUBSCR': operator.delitem,
 }
 JUMP_OPS = {
     'JUMP_ABSOLUTE',
@@ -60,3 +65,63 @@ JUMP_OPS = {
     'POP_JUMP_IF_FALSE',
     'POP_JUMP_IF_TRUE',
 }
+
+
+def rot_two(stack):
+    # Swaps the two top-most stack items.
+    v0 = stack.pop()
+    v1 = stack.pop()
+    stack.append(v0)
+    stack.append(v1)
+
+
+def rot_three(stack):
+    # Lifts second and third stack item one position up, moves top down to position three.
+    v0 = stack.pop()
+    v1 = stack.pop()
+    v2 = stack.pop()
+    stack.append(v0)
+    stack.append(v2)   
+    stack.append(v1)
+
+
+def rot_four(stack):
+    # Lifts second, third and fourth stack items one position up, moves top down to position four.
+    v0 = stack.pop()
+    v1 = stack.pop()
+    v2 = stack.pop()
+    v3 = stack.pop()
+    stack.append(v0)
+    stack.append(v3)
+    stack.append(v2) 
+    stack.append(v1)
+
+
+ROT_OPS = {
+    'ROT_TWO': rot_two,
+    'ROT_THREE': rot_three,
+    'ROT_FOUR': rot_four,
+}
+
+
+def _buildCollection(instr: Instruction, stack: list, collectionType: Type):
+    v = stack[len(stack) - instr.argval:]
+    if collectionType is not list:
+        v = collectionType(v)
+    for _ in range(instr.argval):
+        stack.pop()
+    stack.append(v)
+
+
+def _buildSlice(instr: Instruction, stack: list):
+    b = stack.pop()
+    a = stack.pop()
+    stack.append(slice(a, b))
+
+
+BUILD_OPS = {
+    "BUILD_SLICE":_buildSlice,
+    "BUILD_TUPLE": lambda instr, stack: _buildCollection(instr, stack, tuple),
+    "BUILD_LIST": lambda instr, stack: _buildCollection(instr, stack, list),
+    "BUILD_SET": lambda instr, stack: _buildCollection(instr, stack, set),
+}      

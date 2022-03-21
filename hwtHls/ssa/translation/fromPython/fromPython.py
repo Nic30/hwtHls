@@ -2,7 +2,7 @@ import builtins
 from collections import deque
 from dis import findlinestarts, _get_instructions_bytes, Instruction, dis
 import inspect
-from types import FunctionType
+from types import FunctionType, CellType
 from typing import Dict, Optional, List, Tuple, Union, Deque
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
@@ -20,24 +20,62 @@ from hwtHls.ssa.translation.fromPython.blockLabel import generateBlockLabel
 from hwtHls.ssa.translation.fromPython.blockPredecessorTracker import BlockLabel, \
     BlockPredecessorTracker
 from hwtHls.ssa.translation.fromPython.bytecodeBlockAnalysis import extractBytecodeBlocks
-from hwtHls.ssa.translation.fromPython.instructions import CMP_OPS, BIN_OPS, UN_OPS, INPLACE_OPS, JUMP_OPS
+from hwtHls.ssa.translation.fromPython.instructions import CMP_OPS, BIN_OPS, UN_OPS, \
+    INPLACE_OPS, JUMP_OPS, ROT_OPS, BUILD_OPS
 from hwtHls.ssa.translation.fromPython.loopsDetect import PyBytecodeLoop, \
     PreprocLoopScope
 from hwtHls.ssa.value import SsaValue
 
 
+# assert sys.version_info >= (3, 10, 0), ("Python3.10 is minimum requirement", sys.version_info)
+class PythonBytecodeFrame():
+
+    def __init__(self, locals_:list, cellVarI:Dict[int, int], stack:list):
+        self.locals = locals_
+        self.stack = stack
+        self.cellVarI = cellVarI
+    
+    @classmethod
+    def fromFunction(cls, fn: FunctionType, fnArgs: tuple, fnKwargs:dict):
+        co = fn.__code__
+        localVars = [None for _ in range(fn.__code__.co_nlocals)]
+        if inspect.ismethod(fn):
+            fnArgs = tuple((fn.__self__, *fnArgs))
+        assert len(fnArgs) == co.co_argcount, ("Must have the correct number of arguments", len(fnArgs), co.co_argcount)
+        for i, v in enumerate(fnArgs):
+            localVars[i] = v
+        if fnKwargs:
+            raise NotImplementedError()
+
+        varNameToI = {n: i for i, n in enumerate(fn.__code__.co_varnames)}
+        cellVarI = {}
+        for i, name in enumerate(fn.__code__.co_cellvars):
+            cellVarI[i] = varNameToI[name]
+
+        return PythonBytecodeFrame(localVars, cellVarI, [])
+
+        
 class PythonBytecodeToSsa():
     """
     This class translates Python bytecode to hwtHls.ssa
     
     The SSA basic blocks are constructed from jump targets in instruction list.
     A single jump target may generate multiple basic blocks if it is part of the cycle.
+    
+    Description of python bytecode:
+        https://docs.python.org/3/library/dis.html
+        https://towardsdatascience.com/understanding-python-bytecode-e7edaae8734d
+    
+    Custom python interprets:
+        https://github.com/pypyjs/pypy
+        https://github.com/kentdlee/CoCo
 
     :note: The block is generated for every jump target, even if it is just in preprocessor.
         If it is used just in preprocessor the jumps conditions of this block are resolved compile time.
         (Because for cycles we may find out that the cycle is hw evaluated somewhere inside of cycle body)
         And thus the blocks which were generated in preprocessor are entry points of clusters of blocks generated for HW
         connected in linear sequence or are entirely disconnected because preprocessor optimized them out. 
+    
     """
 
     def __init__(self, hls: HlsStreamProc, fn: FunctionType):
@@ -49,19 +87,6 @@ class PythonBytecodeToSsa():
         self.instructions: Tuple[Instruction] = ()
         self.bytecodeBlocks: Dict[int, List[Instruction]] = {}
         self.fn = fn
-
-    def _initInterpretVars(self, fn: FunctionType, fnArgs: tuple, fnKwargs:dict):
-        co = fn.__code__
-        localVars = [None for _ in range(fn.__code__.co_nlocals)]
-        if inspect.ismethod(fn):
-            fnArgs = tuple((fn.__self__, *fnArgs))
-        assert len(fnArgs) == co.co_argcount, ("Must have the correct number of arguments", len(fnArgs), co.co_argcount)
-        for i, v in enumerate(fnArgs):
-            localVars[i] = v
-        if fnKwargs:
-            raise NotImplementedError()
-
-        return localVars
 
     # https://www.synopsys.com/blogs/software-security/understanding-python-bytecode/
 
@@ -105,9 +130,8 @@ class PythonBytecodeToSsa():
         for _ in self.blockTracker.addGenerated((0,)):
             pass
 
-        localVars = self._initInterpretVars(fn, fnArgs, fnKwargs)
-        stack = []
-        self._translateBytecodeBlock(self.bytecodeBlocks[0], stack, localVars, curBlock)
+        frame = PythonBytecodeFrame.fromFunction(fn, fnArgs, fnKwargs)
+        self._translateBytecodeBlock(self.bytecodeBlocks[0], frame, curBlock)
         self.to_ssa.finalize()
         if curBlock.predecessors:
             # because for LLVM entry point must not have predecessors
@@ -118,22 +142,21 @@ class PythonBytecodeToSsa():
         return self.to_ssa, None
 
     def _translateBytecodeBlockInstruction(self, instr: Instruction, last: bool,
-                                           stack: list,
-                                           localVars:list,
+                                           frame: PythonBytecodeFrame,
                                            curBlock: SsaBasicBlock):
         if last and instr.opname in JUMP_OPS:
-            self._translateInstructionJumpHw(instr, stack, localVars, curBlock)
+            self._translateInstructionJumpHw(instr, frame, curBlock)
 
         elif instr.opname == "RETURN_VALUE":
             assert last, instr
             return
 
         else:
-            self._translateInstruction(instr, stack, localVars, curBlock)
+            self._translateInstruction(instr, frame, curBlock)
             if last:
                 # jump to next block, there was no explicit jump because this is regular code flow, but the next instruction
                 # is jump target
-                self._getOrCreateSsaBasicBlockAndJump(curBlock, instr.offset + 2, None, stack, localVars)
+                self._getOrCreateSsaBasicBlockAndJump(curBlock, instr.offset + 2, None, frame)
 
     def _addBlockSuccessor(self, block: SsaBasicBlock, cond: Union[RtlSignal, None, SsaValue], blockSuccessor: SsaBasicBlock):
         block.successors.addTarget(cond, blockSuccessor)
@@ -163,8 +186,7 @@ class PythonBytecodeToSsa():
                                          curBlock: SsaBasicBlock,
                                          sucBlockOffset: int,
                                          cond: Union[None, RtlSignal, SsaValue],
-                                         stack: list,
-                                         localVars: list):
+                                         frame: PythonBytecodeFrame):
         # print("jmp", curBlock.label, sucBlockOffset, cond)
         prevLoopMeta: Deque[PreprocLoopScope] = deque()
         # if this is a jump out of current loop
@@ -174,7 +196,7 @@ class PythonBytecodeToSsa():
             assert cond, (cond, "If this was not True the jump should not be evaluated at the first place")
             cond = None  # always jump
         elif isinstance(cond, (RtlSignal, SsaValue)):
-            # regular hw evalueated jump
+            # regular hw evaluated jump
             pass
         else:
             # preproc evaluated jump
@@ -237,7 +259,7 @@ class PythonBytecodeToSsa():
             for bl in self.blockTracker.addGenerated(self.blockToLabel[sucBlock]):
                 self.to_ssa._onAllPredecsKnown(self.offsetToBlock[bl])
 
-            self._translateBytecodeBlock(self.bytecodeBlocks[sucBlockOffset], stack, localVars, sucBlock)
+            self._translateBytecodeBlock(self.bytecodeBlocks[sucBlockOffset], frame, sucBlock)
 
             if loopMeta is not None:
                 assert preprocLoopScope[-1] is loopMeta, (preprocLoopScope[-1], loopMeta)
@@ -248,8 +270,7 @@ class PythonBytecodeToSsa():
                 preprocLoopScope.extend(prevLoopMeta)
 
     def _translateBytecodeBlock(self, instructions: List[Instruction],
-                                stack: list,
-                                localVars:list,
+                                frame: PythonBytecodeFrame,
                                 curBlock: SsaBasicBlock):
         """
         Evaluate instruction list and translate to SSA all which is using HW types and which can not be evaluated compile time.
@@ -259,20 +280,20 @@ class PythonBytecodeToSsa():
             assert len(instructions) == 1, ("It is expected that FOR_ITER opcode is alone in the block", instructions)
             forIter: Instruction = instructions[0]
             # preproc eval for loop
-            a = stack[-1]
+            a = frame.stack[-1]
             try:
                 v = next(a)
-                stack.append(v)
+                frame.stack.append(v)
             except StopIteration:
                 # jump behind the loop
-                stack.pop()
-                self._getOrCreateSsaBasicBlockAndJump(curBlock, forIter.argval, None, stack, localVars)
+                frame.stack.pop()
+                self._getOrCreateSsaBasicBlockAndJump(curBlock, forIter.argval, None, frame)
                 return
             # jump into loop body
-            self._getOrCreateSsaBasicBlockAndJump(curBlock, forIter.offset + 2, None, stack, localVars)
+            self._getOrCreateSsaBasicBlockAndJump(curBlock, forIter.offset + 2, None, frame)
         else:
             for last, instr in iter_with_last(instructions):
-                self._translateBytecodeBlockInstruction(instr, last, stack, localVars, curBlock)
+                self._translateBytecodeBlockInstruction(instr, last, frame, curBlock)
 
     def _onBlockNotGenerated(self, curBlock: SsaBasicBlock, blockOffset: int):
         for loopScope in reversed(self.blockTracker.preprocLoopScope):
@@ -287,8 +308,7 @@ class PythonBytecodeToSsa():
             self.to_ssa._onAllPredecsKnown(self.offsetToBlock[bl])
 
     def _translateInstructionJumpHw(self, instr: Instruction,
-                                    stack: list,
-                                    localVars: list,
+                                    frame: PythonBytecodeFrame,
                                     curBlock: SsaBasicBlock):
         try:
             assert curBlock
@@ -297,7 +317,7 @@ class PythonBytecodeToSsa():
                 return None
 
             elif opname == 'JUMP_ABSOLUTE' or opname == 'JUMP_FORWARD':
-                self._getOrCreateSsaBasicBlockAndJump(curBlock, instr.argval, None, stack, localVars)
+                self._getOrCreateSsaBasicBlockAndJump(curBlock, instr.argval, None, frame)
 
             elif opname in (
                     'JUMP_IF_FALSE_OR_POP',
@@ -307,7 +327,7 @@ class PythonBytecodeToSsa():
                 if opname in ('JUMP_IF_FALSE_OR_POP', 'JUMP_IF_TRUE_OR_POP'):
                     raise NotImplementedError("stack pop may depend on hw evaluated condition")
 
-                cond = stack.pop()
+                cond = frame.stack.pop()
                 compileTimeResolved = not isinstance(cond, (RtlSignal, HValue, SsaValue))
                 if not compileTimeResolved:
                     curBlock, cond = self.to_ssa.visit_expr(curBlock, cond)
@@ -321,22 +341,22 @@ class PythonBytecodeToSsa():
                 if compileTimeResolved:
                     if cond:
                         self._onBlockNotGenerated(curBlock, ifFalseOffset)
-                        self._getOrCreateSsaBasicBlockAndJump(curBlock, ifTrueOffset, None, stack, localVars)
+                        self._getOrCreateSsaBasicBlockAndJump(curBlock, ifTrueOffset, None, frame)
                     else:
                         self._onBlockNotGenerated(curBlock, ifTrueOffset)
-                        self._getOrCreateSsaBasicBlockAndJump(curBlock, ifFalseOffset, None, stack, localVars)
+                        self._getOrCreateSsaBasicBlockAndJump(curBlock, ifFalseOffset, None, frame)
 
                 else:
                     if isinstance(cond, HValue):
                         if cond:
-                            self._getOrCreateSsaBasicBlockAndJump(curBlock, ifTrueOffset, cond, stack, localVars)
+                            self._getOrCreateSsaBasicBlockAndJump(curBlock, ifTrueOffset, cond, frame)
                         else:
-                            self._getOrCreateSsaBasicBlockAndJump(curBlock, ifFalseOffset, ~cond, stack, localVars)
+                            self._getOrCreateSsaBasicBlockAndJump(curBlock, ifFalseOffset, ~cond, frame)
                             
                     else:
-                        self._getOrCreateSsaBasicBlockAndJump(curBlock, ifTrueOffset, cond, stack, localVars)
+                        self._getOrCreateSsaBasicBlockAndJump(curBlock, ifTrueOffset, cond, frame)
                         # cond = None because we did check in ifTrue branch and this is "else branch"
-                        self._getOrCreateSsaBasicBlockAndJump(curBlock, ifFalseOffset, None, stack, localVars)
+                        self._getOrCreateSsaBasicBlockAndJump(curBlock, ifFalseOffset, None, frame)
 
             else:
                 raise NotImplementedError(instr)
@@ -349,50 +369,45 @@ class PythonBytecodeToSsa():
 
     def _translateInstruction(self,
                               instr: Instruction,
-                              stack: list,
-                              localVars:list,
+                              frame: PythonBytecodeFrame,
                               curBlock: SsaBasicBlock):
+        stack = frame.stack
+        locals_ = frame.locals
         try:
+            # Python assigns each name in a scope to exactly one category:
+            #  local, enclosing, or global/builtin.
+            # CPython, implements that rule by using:
+            #  FAST locals, DEREF closure cells, and NAME or GLOBAL lookups.
+            
             opname = instr.opname
-            # https://docs.python.org/3/library/dis.html
-            if opname == 'LOAD_DEREF':
-                v = self.fn.__closure__[instr.arg].cell_contents
+            if opname == 'NOP':
+                # Do nothing code. Used as a placeholder by the bytecode optimizer.
+                return
+            elif opname == "POP_TOP":
+                # Removes the top-of-stack (TOS) item.
+                res = stack.pop()
+                if isinstance(res, (HlsStreamProcWrite, HlsStreamProcRead)):
+                    self._blockToSsa(curBlock, res)
+
+            elif opname == 'LOAD_DEREF':
+                # nested scopes: access a variable through its cell object
+                closure = self.fn.__closure__
+                if closure is None:
+                    # [todo] check what is the relation between function without closure
+                    #  and child function closure
+                    v = frame.locals[frame.cellVarI[instr.arg]]
+                else:
+                    v = closure[instr.arg].cell_contents
+                # closure[instr.arg] = None
                 stack.append(v)
 
             elif opname == 'LOAD_ATTR':
                 v = stack[-1]
                 v = getattr(v, instr.argval)
                 stack[-1] = v
-
-            elif opname == 'STORE_ATTR':
-                dst = stack.pop()
-                dst = getattr(dst, instr.argval)
-                src = stack.pop()
-
-                if isinstance(dst, (Interface, RtlSignal)):
-                    stm = self.hls.write(src, dst)
-                    self._blockToSsa(curBlock, stm)
-                else:
-                    raise NotImplementedError(instr)
-
-            elif opname == 'STORE_FAST':
-                vVal = stack.pop()
-                v = localVars[instr.arg]
-                if v is None:
-                    if isinstance(vVal, (HValue, RtlSignal, SsaValue)):
-                        # only if it is a value which generates hw variable
-                        v = self.hls.var(instr.argval, vVal._dtype)
-                    localVars[instr.arg] = v
-
-                if isinstance(v, RtlSignal):
-                    # only if it is a hw variable
-                    stm = v(vVal)
-                    self._blockToSsa(curBlock, stm)
-                else:
-                    localVars[instr.arg] = vVal
-
+            
             elif opname == 'LOAD_FAST':
-                v = localVars[instr.arg]
+                v = locals_[instr.arg]
                 assert v is not None, (instr.argval, "used before defined")
                 stack.append(v)
 
@@ -411,6 +426,42 @@ class PythonBytecodeToSsa():
                 v = stack.pop()
                 v = getattr(v, instr.argval)
                 stack.append(v)
+
+            elif opname == 'LOAD_CLOSURE':
+                # nested scopes: access the cell object
+                v = locals_[frame.cellVarI[instr.arg]]
+                stack.append(CellType(v))
+
+            elif opname == 'STORE_ATTR':
+                dst = stack.pop()
+                dst = getattr(dst, instr.argval)
+                src = stack.pop()
+
+                if isinstance(dst, (Interface, RtlSignal)):
+                    stm = self.hls.write(src, dst)
+                    self._blockToSsa(curBlock, stm)
+                else:
+                    raise NotImplementedError(instr)
+
+            elif opname == 'STORE_FAST':
+                vVal = stack.pop()
+                v = locals_[instr.arg]
+                if v is None:
+                    if isinstance(vVal, (HValue, RtlSignal, SsaValue)):
+                        # only if it is a value which generates hw variable
+                        v = self.hls.var(instr.argval, vVal._dtype)
+                    locals_[instr.arg] = v
+
+                if isinstance(v, RtlSignal):
+                    # only if it is a hw variable
+                    stm = v(vVal)
+                    self._blockToSsa(curBlock, stm)
+                else:
+                    locals_[instr.arg] = vVal
+
+            elif opname == 'STORE_DEREF':
+                # nested scopes: access a variable through its cell object
+                raise NotImplementedError()
 
             elif opname == 'CALL_METHOD' or opname == "CALL_FUNCTION":
                 args = []
@@ -436,27 +487,45 @@ class PythonBytecodeToSsa():
                 res = m(*reversed(args), **kwArgs)
                 stack.append(res)
 
-            elif opname == "POP_TOP":
-                res = stack.pop()
-                if isinstance(res, (HlsStreamProcWrite, HlsStreamProcRead)):
-                    self._blockToSsa(curBlock, res)
-
             elif opname == 'COMPARE_OP':
                 binOp = CMP_OPS[instr.argval]
                 b = stack.pop()
                 a = stack.pop()
                 stack.append(binOp(a, b))
 
-            elif opname == "BUILD_SLICE":
-                b = stack.pop()
-                a = stack.pop()
-                stack.append(slice(a, b))
-
             elif opname == "GET_ITER":
                 a = stack.pop()
                 stack.append(iter(a))
             elif opname == "EXTENDED_ARG":
-                pass   
+                pass
+            elif opname == "MAKE_FUNCTION":
+                # MAKE_FUNCTION_FLAGS = ('defaults', 'kwdefaults', 'annotations', 'closure')
+                name = stack.pop()
+                assert isinstance(name, str), name
+                code = stack.pop()
+                if instr.arg & 1:
+                    # a tuple of default values for positional-only and positional-or-keyword parameters in positional order
+                    defaults = stack.pop()
+                else:
+                    defaults = ()
+                if instr.arg & (1 << 1):
+                    # a dictionary of keyword-only parameters’ default values
+                    raise NotImplementedError()
+
+                if instr.arg & (1 << 2):
+                    # a tuple of strings containing parameters’ annotations
+                    # Changed in version 3.10: Flag value 0x04 is a tuple of strings instead of dictionary
+                    raise NotImplementedError()
+
+                if instr.arg & (1 << 3):
+                    closure = stack.pop()
+                else:
+                    closure = ()
+
+                # PyCodeObject *code, PyObject *globals, 
+                # PyObject *name, PyObject *defaults, PyObject *closure
+                newFn = FunctionType(code, {}, name, defaults, closure)
+                stack.append(newFn)
             else:
                 binOp = BIN_OPS.get(opname, None)
                 if binOp is not None:
@@ -471,6 +540,16 @@ class PythonBytecodeToSsa():
                     stack.append(unOp(a))
                     return
 
+                rotOp = ROT_OPS.get(opname, None)
+                if rotOp is not None:
+                    rotOp(stack)
+                    return
+
+                buildOp = BUILD_OPS.get(opname, None)
+                if buildOp is not None:
+                    buildOp(instr, stack)
+                    return
+                
                 inplaceOp = INPLACE_OPS.get(opname, None)
                 if inplaceOp is not None:
                     b = stack.pop()
@@ -478,6 +557,7 @@ class PythonBytecodeToSsa():
                     stack.append(inplaceOp(a, b))
                 else:
                     raise NotImplementedError(instr)
+
         except HlsSyntaxError:
             raise
         except Exception:
