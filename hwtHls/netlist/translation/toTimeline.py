@@ -143,6 +143,7 @@ class HwtHlsNetlistToTimeline():
 
     def _draw_clock_boundaries(self, fig: Figure):
         clkPeriod = self.clkPeriod
+        assert self.rows, "Diagram must not be empty"
         last_time = max(r.finish for r in self.rows) + clkPeriod
         i = 0.0
         row_cnt = len(self.rows)
