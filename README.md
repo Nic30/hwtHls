@@ -107,7 +107,7 @@ Linux:
 ```
 apt install build-essential python3-dev llvm-13-dev
 pip3 install -r https://raw.githubusercontent.com/Nic30/hwtHls/master/doc/requirements.txt
-pip3 install git+git://github.com/Nic30/hwtHls.git
+pip3 install git+https://github.com/Nic30/hwtHls.git
 ```
 
 
