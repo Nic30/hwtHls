@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import tempfile
+
 from hwt.simulator.simTestCase import SimTestCase
-from hwtHls.platform.virtual import VirtualHlsPlatform
+from hwtHls.platform.virtual import VirtualHlsPlatform, makeDebugPasses
 from hwtHls.platform.xilinx.artix7 import Artix7Slow
 from hwtHls.scheduler.errors import TimeConstraintError
 from hwtLib.logic.crcPoly import CRC_32
@@ -14,6 +16,10 @@ from tests.syntaxElements.pid import PidControllerHls
 class HlsSynthesisChecksTC(SimTestCase):
 
     def test_PidControllerHls(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            self.compileSimAndStart(PidControllerHls(), target_platform=VirtualHlsPlatform(**makeDebugPasses(tmp_dir)))
+
+    def test_PidControllerHlsDebug(self):
         self._test(PidControllerHls())
 
     def test_PidControllerHls_unschedulable(self):
