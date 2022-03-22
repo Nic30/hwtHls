@@ -78,28 +78,6 @@ class ConcatOfSlices():
 
         return ConcatOfSlices(res)
 
-    def overwrite(self, high, low, v: Union[HValue, SsaValue, Tuple[Union[HValue, SsaValue], int, int]]):
-        if isinstance(v, tuple):
-            w = v[0]._dtype.bit_length()
-        else:
-            w = v._dtype.bit_length()
-            v = (v, w, 0)
-        assert high > low
-        assert high - low == w
-        assert high <= self.bit_length
-
-        if high != self.bit_length:
-            parts = self.slice(self.bit_length, high).slices
-        else:
-            parts = []
-
-        parts.append(v)
-
-        if low > 0:
-            parts.extend(self.slice(low, 0).slices)
-
-        self.slices = parts
-
     def __eq__(self, other: "ConcatOfSlices"):
         return self is other or (
             isinstance(other, ConcatOfSlices) and
