@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 from hwt.hdl.types.defs import BIT
 from hwt.interfaces.std import VectSignal
 from hwt.synthesizer.unit import Unit

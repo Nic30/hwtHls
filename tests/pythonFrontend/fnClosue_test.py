@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 from tests.baseSsaTest import BaseSsaTC
 from tests.pythonFrontend.fnClosure import FnClosureSingleItem, FnClosureNone0, \
     FnClosureNone1

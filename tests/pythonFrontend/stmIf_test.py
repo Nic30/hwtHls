@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 from tests.baseSsaTest import BaseSsaTC
 from tests.pythonFrontend.stmIf import HlsConnectionFromPyIf, \
     HlsConnectionFromPyIfElse, HlsConnectionFromPyIfElsePreproc, \
