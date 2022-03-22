@@ -2,6 +2,7 @@ import builtins
 from collections import deque
 from dis import findlinestarts, _get_instructions_bytes, Instruction, dis
 import inspect
+import operator
 from types import FunctionType, CellType
 from typing import Dict, Optional, List, Tuple, Union, Deque
 
@@ -496,8 +497,14 @@ class PythonBytecodeToSsa():
             elif opname == "GET_ITER":
                 a = stack.pop()
                 stack.append(iter(a))
+
             elif opname == "EXTENDED_ARG":
                 pass
+
+            elif opname == "UNPACK_SEQUENCE":
+                seq = stack.pop()
+                stack.extend(reversed(tuple(seq)))
+
             elif opname == "MAKE_FUNCTION":
                 # MAKE_FUNCTION_FLAGS = ('defaults', 'kwdefaults', 'annotations', 'closure')
                 name = stack.pop()
@@ -531,6 +538,8 @@ class PythonBytecodeToSsa():
                 if binOp is not None:
                     b = stack.pop()
                     a = stack.pop()
+                    #if binOp is operator.getitem:
+                    #    raise NotImplementedError()
                     stack.append(binOp(a, b))
                     return
 

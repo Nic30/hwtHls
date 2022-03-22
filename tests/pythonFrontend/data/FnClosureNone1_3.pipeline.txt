@@ -1,0 +1,5 @@
+########## pipeline ##########
+  entry <BlockMeta isInitialization>
+  mainThread <BlockMeta isCycleEntryPoint>
+########## backward_edges ##########
+  mainThread -> mainThread
