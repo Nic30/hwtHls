@@ -13,6 +13,7 @@ from tests.pythonFrontend.basics_test import FromPythonBasics_TC
 from tests.pythonFrontend.fnClosue_test import FnClosure_TC
 from tests.pythonFrontend.stmFor_test import StmFor_TC
 from tests.pythonFrontend.stmIf_test import StmIf_TC
+from tests.pythonFrontend.variableChain_test import VariableChain_TC
 from tests.syntaxElements.bitonicSort import BitonicSorterHLS_TCs
 from tests.syntaxElements.expr_tree3 import HlsExprTree3_example_TC
 from tests.syntaxElements.mac import HlsMAC_example_TC
@@ -53,6 +54,7 @@ suite = testSuiteFromTCs(
     FnClosure_TC,
     StmIf_TC,
     StmFor_TC,
+    VariableChain_TC,
     AxiSParseEthTC,
     AxiSParseLinearTC,
     AxiSParseIfTC,

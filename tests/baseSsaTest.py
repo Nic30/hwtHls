@@ -35,7 +35,7 @@ class BaseSsaTC(BaseSerializationTC):
             self.compileSimAndStart(unit_cls, target_platform=VirtualHlsPlatform(ssa_passes=ssa_passes))
         self.rmSim()
 
-    def _test_ll(self, unit_constructor: Unit):
+    def _test_ll(self, unit_constructor: Unit, name=None):
         buff = [StringIO() for _ in range(4)]
         ssa_passes = [
             SsaPassConsystencyCheck(),
@@ -54,8 +54,10 @@ class BaseSsaTC(BaseSerializationTC):
         unit = unit_constructor()
         self._runTranslation(unit, ssa_passes)
         val = [b.getvalue() for b in buff]
+        if name is None:
+            name = unit.__class__.__name__
 
-        self.assert_same_as_file(val[0], os.path.join("data", unit.__class__.__name__ + "_0.ll"))
-        self.assert_same_as_file(val[1], os.path.join("data", unit.__class__.__name__ + "_1.ll"))
-        self.assert_same_as_file(val[2], os.path.join("data", unit.__class__.__name__ + "_2.ll"))
-        self.assert_same_as_file(val[3], os.path.join("data", unit.__class__.__name__ + "_3.pipeline.txt"))
+        self.assert_same_as_file(val[0], os.path.join("data", name + "_0.ll"))
+        self.assert_same_as_file(val[1], os.path.join("data", name + "_1.ll"))
+        self.assert_same_as_file(val[2], os.path.join("data", name + "_2.ll"))
+        self.assert_same_as_file(val[3], os.path.join("data", name + "_3.pipeline.txt"))
