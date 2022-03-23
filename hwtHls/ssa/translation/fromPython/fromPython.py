@@ -140,8 +140,8 @@ class PythonBytecodeToSsa():
         }
 
         self.blockTracker = BlockPredecessorTracker(cfg)
-        with open("tmp/cfg.dot", "w") as f:
-            self.blockTracker.dumpCfgToDot(f)
+        #with open("tmp/cfg.dot", "w") as f:
+        #    self.blockTracker.dumpCfgToDot(f)
 
         # print(self.loops)
         # print(cfg._adj)
