@@ -121,21 +121,6 @@ class AllocatorPipelineContainer(AllocatorArchitecturalElement):
             tir.get(t)
             sigs.append(tir)
 
-    def rtlResourceInputSooner(self, tir: TimeIndependentRtlResource, newFirstClkIndex: int):
-        clkPeriod = self.parentHls.normalizedClkPeriod
-        curFirstClkI = int(tir.timeOffset // clkPeriod)
-        prequelLen = curFirstClkI - newFirstClkIndex
-        assert prequelLen > 0, ("New time must be sooner otherwise there is no point in calling this function")
-        tir.timeOffset = newFirstClkIndex * clkPeriod + self.parentHls.scheduler.epsilon
-        assert len(tir.valuesInTime) == 1, "Value has to have initial data signal, but can not be used yet"
-        valIt = iter(tir.valuesInTime)
-        for clkI in range(newFirstClkIndex, curFirstClkI):
-            try:
-                v = next(valIt)
-            except StopIteration:
-                break  # the rest will be added later when value is used
-            self.stageSignals[clkI].append(v)
-
     def allocateSync(self):
         assert self._dataPathAllocated
         assert not self._syncAllocated
