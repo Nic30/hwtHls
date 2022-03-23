@@ -20,7 +20,7 @@ class PyBytecodeLoop():
         "Detect edges which are jumping to loop entrypoint from the loop body"
         res = set()
         for pred in cfg.predecessors(entryPoint):
-            if pred not in loop:
+            if pred in loop:
                 res.add(pred)
 
         return res
