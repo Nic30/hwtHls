@@ -27,6 +27,7 @@ from hwtHls.ssa.translation.fromPython.instructions import CMP_OPS, BIN_OPS, UN_
 from hwtHls.ssa.translation.fromPython.loopsDetect import PyBytecodeLoop, \
     PreprocLoopScope
 from hwtHls.ssa.value import SsaValue
+import operator
 
 
 class PythonBytecodeInPreproc():
@@ -338,7 +339,16 @@ class PythonBytecodeToSsa():
 
         else:
             for last, instr in iter_with_last(instructions):
-                self._translateBytecodeBlockInstruction(instr, last, frame, curBlock)
+                if last and instr.opname in JUMP_OPS:
+                    self._translateInstructionJumpHw(instr, frame, curBlock)
+                elif instr.opname == "RETURN_VALUE":
+                    assert last, instr
+                else:
+                    self._translateBytecodeBlockInstruction(instr, frame, curBlock)
+                    if last:
+                        # jump to next block, there was no explicit jump because this is regular code flow, but the next instruction
+                        # is jump target
+                        self._getOrCreateSsaBasicBlockAndJump(curBlock, instr.offset + 2, None, frame)
 
     def _onBlockNotGenerated(self, curBlock: SsaBasicBlock, blockOffset: int):
         for loopScope in reversed(self.blockTracker.preprocLoopScope):
@@ -354,17 +364,8 @@ class PythonBytecodeToSsa():
 
     def _translateBytecodeBlockInstruction(self,
             instr: Instruction,
-            last: bool,
             frame: PythonBytecodeFrame,
             curBlock: SsaBasicBlock):
-
-        if last and instr.opname in JUMP_OPS:
-            self._translateInstructionJumpHw(instr, frame, curBlock)
-            return
-
-        elif instr.opname == "RETURN_VALUE":
-            assert last, instr
-            return
         
         stack = frame.stack
         locals_ = frame.locals
@@ -541,9 +542,11 @@ class PythonBytecodeToSsa():
                 if binOp is not None:
                     b = stack.pop()
                     a = stack.pop()
-                    # if binOp is operator.getitem:
-                    #    if this is indexing using hw value on non hw object we need to expand it to a switch on individual cases
-                    #    raise NotImplementedError()
+                    if binOp is operator.getitem and isinstance(b, (RtlSignal, SsaValue)) and not isinstance(a, (RtlSignal, SsaValue)):
+                        # if this is indexing using hw value on non hw object we need to expand it to a switch-case on individual cases
+                        raise NotImplementedError(
+                            "must generate blocks for switch cases,"
+                            " for this we need a to keep track of start/end for each block because we do not have this newly generated blocks in original CFG")
                     stack.append(binOp(a, b))
                     return
 
@@ -576,11 +579,6 @@ class PythonBytecodeToSsa():
 
         except Exception:
             raise self._createInstructionException(instr)
-
-        if last:
-            # jump to next block, there was no explicit jump because this is regular code flow, but the next instruction
-            # is jump target
-            self._getOrCreateSsaBasicBlockAndJump(curBlock, instr.offset + 2, None, frame)
 
     def _translateInstructionJumpHw(self, instr: Instruction,
                                     frame: PythonBytecodeFrame,
