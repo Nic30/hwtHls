@@ -1,0 +1,28 @@
+strict digraph  {
+"(0,)" [fillcolor=green, style=filled];
+"(40,)" [fillcolor=green, style=filled];
+"(110,)" [fillcolor=gray, style=filled];
+"(50,)" [fillcolor=green, style=filled];
+"(26i0, 28)" [fillcolor=green, style=filled];
+"(26i0, 26)" [fillcolor=green, style=filled];
+"(26i1, 26)" [fillcolor=green, style=filled];
+"(26i1, 28)" [fillcolor=green, style=filled];
+"(26i2, 26)" [fillcolor=green, style=filled];
+"(26i2, 28)" [fillcolor=green, style=filled];
+"(26i3, 26)" [fillcolor=green, style=filled];
+"(26i3, 28)" [fillcolor=green, style=filled];
+"(26i4, 26)" [fillcolor=green, style=filled];
+"(0,)" -> "(26i0, 26)";
+"(40,)" -> "(110,)";
+"(40,)" -> "(50,)";
+"(50,)" -> "(40,)";
+"(26i0, 28)" -> "(26i1, 26)";
+"(26i0, 26)" -> "(26i0, 28)";
+"(26i1, 26)" -> "(26i1, 28)";
+"(26i1, 28)" -> "(26i2, 26)";
+"(26i2, 26)" -> "(26i2, 28)";
+"(26i2, 28)" -> "(26i3, 26)";
+"(26i3, 26)" -> "(26i3, 28)";
+"(26i3, 28)" -> "(26i4, 26)";
+"(26i4, 26)" -> "(40,)";
+}

@@ -19,8 +19,10 @@ class CntrArrayWithCfgDotDump(CntrArray):
     def _impl(self):
         hls = HlsStreamProc(self, freq=int(100e6))
         c = PythonBytecodeToSsa(hls, self.mainThread)
-        hls._thread(*c.translateFunction(hls))
-        self.blockTracker.dumpCfgToDot(self.CFG_FILE)
+        try:
+            hls._thread(*c.translateFunction(hls))
+        finally:
+            c.blockTracker.dumpCfgToDot(self.CFG_FILE)
 
 
 class PyArrHwIndex_TC(BaseSsaTC):
@@ -37,7 +39,7 @@ class PyArrHwIndex_TC(BaseSsaTC):
         ssa_passes = [
             SsaPassRunFn(TestFinishedSuccessfuly.raise_)
         ]
-        u = CntrArray()
+        u = CntrArrayWithCfgDotDump()
         u.CFG_FILE = buff
         self._runTranslation(u, ssa_passes)
         self.assert_same_as_file(buff.getvalue(), os.path.join("data", "CntrArray_cfg.dot"))
