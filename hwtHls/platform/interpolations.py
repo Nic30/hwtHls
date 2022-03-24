@@ -1,23 +1,18 @@
 # https://stackoverflow.com/questions/46040382/spline-interpolation-in-3d-in-python
 from itertools import islice
 from pprint import pformat
-from scipy.interpolate import UnivariateSpline
-from typing import Tuple, Optional
+from typing import Tuple
 
 from hwtHls.scheduler.errors import TimeConstraintError
+from scipy.interpolate._interpolate import interp1d
 
 
-class Spline(UnivariateSpline):
+class Spline(interp1d):
 
-    def __init__(self, *args, **kwargs):
-        if "k" not in kwargs:
-            kwargs["k"] = 1
-        super(Spline, self).__init__(*args, **kwargs)
-
-    def __repr__(self):
-        knots = tuple(self.get_knots())
-        coefs = tuple(self.get_coeffs())
-        return f"Spline(\n            {knots},\n            {coefs})"
+    def __init__(self, x, y, kind='linear', axis=-1,
+                 copy=False, bounds_error=False, fill_value="extrapolate",
+                 assume_sorted=True):
+        super(Spline, self).__init__(x, y, kind=kind, axis=axis, copy=copy, bounds_error=bounds_error, fill_value=fill_value, assume_sorted=assume_sorted)
 
 
 class ResourceSplineBundle():
@@ -36,7 +31,7 @@ class ResourceSplineBundle():
             if v <= max_val:
                 return (latency, v)
 
-        raise TimeConstraintError("No operation realizations statisfying the constrain", arg_cnt, arg_bit_width, min_latency, max_val)
+        raise TimeConstraintError("No operation realizations satisfying the constrain", arg_cnt, arg_bit_width, min_latency, max_val)
 
     def __repr__(self):
         return f"{self.__class__.__name__:s}{pformat(tuple(self.splines))}"
