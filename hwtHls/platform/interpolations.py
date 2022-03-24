@@ -1,7 +1,7 @@
 # https://stackoverflow.com/questions/46040382/spline-interpolation-in-3d-in-python
 from itertools import islice
 from pprint import pformat
-from typing import Tuple
+from typing import Tuple, Optional
 
 from hwtHls.scheduler.errors import TimeConstraintError
 from scipy.interpolate._interpolate import interp1d
