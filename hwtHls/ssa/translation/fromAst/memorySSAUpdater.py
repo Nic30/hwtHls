@@ -178,7 +178,7 @@ class MemorySSAUpdater():
         return same
 
     def sealBlock(self, block: SsaBasicBlock):
-        assert block not in self.sealedBlocks, block
+        assert block not in self.sealedBlocks, ("Block can be sealed only once", block)
         phis = self.incompletePhis.pop(block, None)
 
         if phis:
