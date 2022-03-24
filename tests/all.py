@@ -11,6 +11,7 @@ from tests.io.axiStream.axisParseLinear_test import AxiSParseLinearTC
 from tests.io.ioFsm_test import IoFsm_TC
 from tests.pythonFrontend.basics_test import FromPythonBasics_TC
 from tests.pythonFrontend.fnClosue_test import FnClosure_TC
+from tests.pythonFrontend.pyArrHwIndex_test import PyArrHwIndex_TC
 from tests.pythonFrontend.stmFor_test import StmFor_TC
 from tests.pythonFrontend.stmIf_test import StmIf_TC
 from tests.pythonFrontend.variableChain_test import VariableChain_TC
@@ -54,6 +55,7 @@ suite = testSuiteFromTCs(
     FnClosure_TC,
     StmIf_TC,
     StmFor_TC,
+    PyArrHwIndex_TC,
     VariableChain_TC,
     AxiSParseEthTC,
     AxiSParseLinearTC,
