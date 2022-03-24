@@ -146,7 +146,7 @@ class FromLlvmIrTranslator():
             resT = Bits(v._dtype.bit_length(), signed=True)
             castInstr = SsaInstr(v.block.ctx, resT, AllOps.BitsAsSigned, [v])
             v.block.appendInstruction(castInstr)
-            return v
+            return castInstr
 
     def translateBasicBlock(self, block: BasicBlock):
         newBlock: SsaBasicBlock = self.newBlocksBegin[block]
