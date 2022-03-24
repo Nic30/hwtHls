@@ -1,9 +1,9 @@
 import builtins
 from collections import deque
 from dis import findlinestarts, _get_instructions_bytes, Instruction, dis
-import inspect
+import operator
 from types import FunctionType, CellType
-from typing import Dict, Optional, List, Tuple, Union, Deque, Set
+from typing import Dict, Optional, List, Tuple, Union, Deque, Sequence
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
@@ -23,55 +23,21 @@ from hwtHls.ssa.translation.fromPython.blockPredecessorTracker import BlockLabel
     BlockPredecessorTracker
 from hwtHls.ssa.translation.fromPython.bytecodeBlockAnalysis import extractBytecodeBlocks
 from hwtHls.ssa.translation.fromPython.instructions import CMP_OPS, BIN_OPS, UN_OPS, \
-    INPLACE_OPS, JUMP_OPS, ROT_OPS, BUILD_OPS
+    INPLACE_BIN_OPS, JUMP_OPS, ROT_OPS, BUILD_OPS
 from hwtHls.ssa.translation.fromPython.loopsDetect import PyBytecodeLoop, \
     PreprocLoopScope
+from hwtHls.ssa.translation.fromPython.markers import PythonBytecodeInPreproc
 from hwtHls.ssa.value import SsaValue
-import operator
+from hwtHls.ssa.translation.fromPython.frame import PythonBytecodeFrame
 
 
-class PythonBytecodeInPreproc():
-    """
-    A container of hw object marked that the immediate store is store of preproc variable only
-    """
+class SsaBlockGroup():
 
-    def __init__(self, ref: Union[SsaValue, HValue, RtlSignal]):
-        self.ref = ref
-    
-    def __iter__(self):
-        for i in self.ref:
-            yield PythonBytecodeInPreproc(i)
-
+    def __init__(self, begin: SsaBasicBlock):
+        self.begin = begin
+        self.end = begin
 
 # assert sys.version_info >= (3, 10, 0), ("Python3.10 is minimum requirement", sys.version_info)
-class PythonBytecodeFrame():
-
-    def __init__(self, locals_: list, cellVarI: Dict[int, int], stack: list):
-        self.locals = locals_
-        self.stack = stack
-        self.cellVarI = cellVarI
-        self.preprocVars: Set[int] = set() 
-
-    @classmethod
-    def fromFunction(cls, fn: FunctionType, fnArgs: tuple, fnKwargs: dict):
-        co = fn.__code__
-        localVars = [None for _ in range(fn.__code__.co_nlocals)]
-        if inspect.ismethod(fn):
-            fnArgs = tuple((fn.__self__, *fnArgs))
-
-        assert len(fnArgs) == co.co_argcount, ("Must have the correct number of arguments",
-                                               len(fnArgs), co.co_argcount)
-        for i, v in enumerate(fnArgs):
-            localVars[i] = v
-        if fnKwargs:
-            raise NotImplementedError()
-
-        varNameToI = {n: i for i, n in enumerate(fn.__code__.co_varnames)}
-        cellVarI = {}
-        for i, name in enumerate(fn.__code__.co_cellvars):
-            cellVarI[i] = varNameToI[name]
-
-        return PythonBytecodeFrame(localVars, cellVarI, [])
 
 
 class PythonBytecodeToSsa():
@@ -101,7 +67,7 @@ class PythonBytecodeToSsa():
         self.fn = fn
         self.to_ssa: Optional[AstToSsa] = None
         self.blockToLabel: Dict[SsaBasicBlock, BlockLabel] = {}
-        self.offsetToBlock: Dict[BlockLabel, SsaBasicBlock] = {}
+        self.labelToBlock: Dict[BlockLabel, SsaBlockGroup] = {}
         self.instructions: Tuple[Instruction] = ()
         self.bytecodeBlocks: Dict[int, List[Instruction]] = {}
 
@@ -140,7 +106,7 @@ class PythonBytecodeToSsa():
         }
 
         self.blockTracker = BlockPredecessorTracker(cfg)
-        #with open("tmp/cfg.dot", "w") as f:
+        # with open("tmp/cfg.dot", "w") as f:
         #    self.blockTracker.dumpCfgToDot(f)
 
         # print(self.loops)
@@ -151,7 +117,7 @@ class PythonBytecodeToSsa():
         # self.to_ssa._onAllPredecsKnown(self.to_ssa.start)
         curBlock = self.to_ssa.start
         self.blockToLabel[curBlock] = (0,)
-        self.offsetToBlock[(0,)] = curBlock
+        self.labelToBlock[(0,)] = SsaBlockGroup(curBlock)
         for _ in self.blockTracker.addGenerated((0,)):
             pass  # should yield only entry block which should be already sealed
 
@@ -162,6 +128,7 @@ class PythonBytecodeToSsa():
             entry = SsaBasicBlock(self.to_ssa.ssaCtx, "entry")
             entry.successors.addTarget(None, curBlock)
             self.to_ssa.start = entry
+
         # with open("tmp/cfg_final.dot", "w") as f:
         #    self.blockTracker.dumpCfgToDot(f)
 
@@ -174,28 +141,16 @@ class PythonBytecodeToSsa():
             curBlockCode: Union[SsaValue, List[SsaValue]]) -> SsaBasicBlock:
         return self.to_ssa.visit_CodeBlock_list(curBlock, flatten(curBlockCode))
 
-    def _jumpToNextBlock(self,
-            instr: Instruction,
-            curBlock: SsaBasicBlock,
-            blocks: Dict[BlockLabel, SsaBasicBlock]):
-        nextBlock = blocks[self.blockTracker._getBlockLabel(instr.offset)]
-        if curBlock is not nextBlock:
-            prevBlock = curBlock
-            curBlock = nextBlock
-            if not prevBlock.successors.targets or prevBlock.successors.targets[-1][0] is not None:
-                prevBlock.successors.addTarget(None, curBlock)
-
-        return curBlock
-
     def _getOrCreateSsaBasicBlock(self, dstLabel: BlockLabel):
-        block = self.offsetToBlock.get(dstLabel, None)
+        block = self.labelToBlock.get(dstLabel, None)
         if block is None:
-            block = self.offsetToBlock[dstLabel] = SsaBasicBlock(
+            block = SsaBasicBlock(
                 self.to_ssa.ssaCtx, f"block{'_'.join(str(o) for o in dstLabel)}")
+            self.labelToBlock[dstLabel] = SsaBlockGroup(block)
             self.blockToLabel[block] = dstLabel
             return block, True
 
-        return block, False
+        return block.begin, False
 
     def _getOrCreateSsaBasicBlockAndJump(self,
             curBlock: SsaBasicBlock,
@@ -274,7 +229,7 @@ class PythonBytecodeToSsa():
                         oldLabel = self.blockToLabel[curBlock]
                         newLabel = generateBlockLabel(preprocLoopScope, oldLabel[-1])
                         self.blockToLabel[curBlock] = newLabel
-                        self.offsetToBlock[newLabel] = curBlock
+                        self.labelToBlock[newLabel] = SsaBlockGroup(curBlock)
                         
                         # prepare blocks first loop body in cfg
                         blockWithAllPredecessorsNewlyKnown = list(
@@ -291,17 +246,17 @@ class PythonBytecodeToSsa():
                     #    self.blockTracker.dumpCfgToDot(f)
             
         # if this is a jump just in linear code or inside body of the loop
-        target = self.blockTracker._getBlockLabel(sucBlockOffset)
-        sucBlock, sucBlockIsNew = self._getOrCreateSsaBasicBlock(target)
+        sucBlockLabel = self.blockTracker._getBlockLabel(sucBlockOffset)
+        sucBlock, sucBlockIsNew = self._getOrCreateSsaBasicBlock(sucBlockLabel)
         curBlock.successors.addTarget(cond, sucBlock)
-    
+ 
         if blockWithAllPredecessorsNewlyKnown is not None:
             for bl in blockWithAllPredecessorsNewlyKnown:
-                self.to_ssa._onAllPredecsKnown(self.offsetToBlock[bl])
+                self.to_ssa._onAllPredecsKnown(self.labelToBlock[bl].begin)
 
         if sucBlockIsNew:
-            for bl in self.blockTracker.addGenerated(target):
-                self.to_ssa._onAllPredecsKnown(self.offsetToBlock[bl])
+            for bl in self.blockTracker.addGenerated(sucBlockLabel):
+                self.to_ssa._onAllPredecsKnown(self.labelToBlock[bl]. begin)
 
             self._translateBytecodeBlock(self.bytecodeBlocks[sucBlockOffset], frame, sucBlock)
 
@@ -313,6 +268,10 @@ class PythonBytecodeToSsa():
                 # will be removed by parent call
                 preprocLoopScope.extend(prevLoopMeta)
 
+        elif sucBlock not in self.to_ssa.m_ssa_u.sealedBlocks and self.blockTracker.hasAllPredecessorsKnown(sucBlockLabel):
+            # if just added predecessor sealed this already existing successor block
+            self.to_ssa._onAllPredecsKnown(sucBlock)
+           
     def _translateBytecodeBlock(self,
             instructions: List[Instruction],
             frame: PythonBytecodeFrame,
@@ -344,7 +303,7 @@ class PythonBytecodeToSsa():
                 elif instr.opname == "RETURN_VALUE":
                     assert last, instr
                 else:
-                    self._translateBytecodeBlockInstruction(instr, frame, curBlock)
+                    curBlock = self._translateBytecodeBlockInstruction(instr, frame, curBlock)
                     if last:
                         # jump to next block, there was no explicit jump because this is regular code flow, but the next instruction
                         # is jump target
@@ -360,13 +319,113 @@ class PythonBytecodeToSsa():
         srcBlockLabel = self.blockToLabel[curBlock]
         dstBlockLabel = self.blockTracker._getBlockLabel(blockOffset)
         for bl in self.blockTracker.addNotGenerated(srcBlockLabel, dstBlockLabel):
-            self.to_ssa._onAllPredecsKnown(self.offsetToBlock[bl])
+            # sealing begin should be sufficient because all block behind begin in this
+            # group should already have all predecessors known
+            self.to_ssa._onAllPredecsKnown(self.labelToBlock[bl].begin)
+
+    def _expandIndexOnPyObjAsSwitchCase(self, curBlock: SsaBasicBlock,
+                                        offsetForLabels: int,
+                                        sequence:Sequence,
+                                        index: Union[RtlSignal, SsaValue],
+                                        stack: list):
+        res = None
+        sucBlock = SsaBasicBlock(self.to_ssa.ssaCtx, f"{curBlock.label:s}_getSwEnd")
+        curLabel = self.blockToLabel[curBlock]
+        self.labelToBlock[curLabel].end = sucBlock
+        self.blockToLabel[sucBlock] = curLabel
+
+        for last, (i, v) in iter_with_last(enumerate(sequence)):
+            if res is None:
+                # in first iteration create result variable in the previous block
+                res = self.hls.var(f"tmp_seq{offsetForLabels}", v._dtype)
+            else:
+                assert res._dtype == v._dtype, ("Type of items in sequence must be same", i, res._dtype, v._dtype)
+
+            if last:
+                cond = None
+            else:
+                curBlock, cond = self.to_ssa.visit_expr(curBlock, index._eq(i))
+            
+            caseBlock = SsaBasicBlock(self.to_ssa.ssaCtx, f"{curBlock.label:s}_{offsetForLabels:d}_c{i:d}")
+            self.blockToLabel[caseBlock] = curLabel
+            curBlock.successors.addTarget(cond, caseBlock)
+            self.to_ssa._onAllPredecsKnown(caseBlock)
+            self._blockToSsa(caseBlock, [
+                res(v)
+            ])
+            caseBlock.successors.addTarget(None, sucBlock)
+
+        if res is None:
+            raise IndexError("Indexing using HW object on Python object of zero size", sequence, index)
+
+        self.to_ssa._onAllPredecsKnown(sucBlock)
+        # put variable with result of the indexing on top of stack
+        stack.append(res)
+        return sucBlock
+
+    def _expandSetitemOnPytObjAsSwitchCase(self, curBlock: SsaBasicBlock, offsetForLabels: int, sequence:Sequence, index: Union[RtlSignal, SsaValue], val, stack: list):
+        sucBlock = SsaBasicBlock(self.to_ssa.ssaCtx, f"{curBlock.label:s}_{offsetForLabels:d}_setSwEnd")
+        curLabel = self.blockToLabel[curBlock]
+        self.labelToBlock[curLabel].end = sucBlock
+        self.blockToLabel[sucBlock] = curLabel
+
+        for last, (i, v) in iter_with_last(enumerate(sequence)):
+            if last:
+                cond = None
+            else:
+                curBlock, cond = self.to_ssa.visit_expr(curBlock, index._eq(i))
+            
+            caseBlock = SsaBasicBlock(self.to_ssa.ssaCtx, f"{curBlock.label:s}_{offsetForLabels:d}_c{i:d}")
+            self.blockToLabel[caseBlock] = curLabel
+
+            curBlock.successors.addTarget(cond, caseBlock)
+            self.to_ssa._onAllPredecsKnown(caseBlock)
+
+            self._blockToSsa(caseBlock, [
+                v(val)
+            ])
+            caseBlock.successors.addTarget(None, sucBlock)
+
+        self.to_ssa._onAllPredecsKnown(sucBlock)
+        # put variable with result of the indexing on top of stack
+        return sucBlock
+
+    def _makeFunction(self, instr: Instruction, stack: list):
+        # MAKE_FUNCTION_FLAGS = ('defaults', 'kwdefaults', 'annotations', 'closure')
+        name = stack.pop()
+        assert isinstance(name, str), name
+        code = stack.pop()
+
+        if instr.arg & 1:
+            # a tuple of default values for positional-only and positional-or-keyword parameters in positional order
+            defaults = stack.pop()
+        else:
+            defaults = ()
+
+        if instr.arg & (1 << 1):
+            # a dictionary of keyword-only parameters’ default values
+            raise NotImplementedError()
+
+        if instr.arg & (1 << 2):
+            # a tuple of strings containing parameters’ annotations
+            # Changed in version 3.10: Flag value 0x04 is a tuple of strings instead of dictionary
+            raise NotImplementedError()
+
+        if instr.arg & (1 << 3):
+            closure = stack.pop()
+        else:
+            closure = ()
+
+        # PyCodeObject *code, PyObject *globals, 
+        # PyObject *name, PyObject *defaults, PyObject *closure
+        newFn = FunctionType(code, self.fn.__globals__, name, defaults, closure)
+        stack.append(newFn)
 
     def _translateBytecodeBlockInstruction(self,
             instr: Instruction,
             frame: PythonBytecodeFrame,
-            curBlock: SsaBasicBlock):
-        
+            curBlock: SsaBasicBlock) -> SsaBasicBlock:
+
         stack = frame.stack
         locals_ = frame.locals
         try:
@@ -378,7 +437,7 @@ class PythonBytecodeToSsa():
             opname = instr.opname
             if opname == 'NOP':
                 # Do nothing code. Used as a placeholder by the bytecode optimizer.
-                return
+                return curBlock
 
             elif opname == "POP_TOP":
                 # Removes the top-of-stack (TOS) item.
@@ -507,35 +566,16 @@ class PythonBytecodeToSsa():
                 stack.extend(reversed(tuple(seq)))
 
             elif opname == "MAKE_FUNCTION":
-                # MAKE_FUNCTION_FLAGS = ('defaults', 'kwdefaults', 'annotations', 'closure')
-                name = stack.pop()
-                assert isinstance(name, str), name
-                code = stack.pop()
-
-                if instr.arg & 1:
-                    # a tuple of default values for positional-only and positional-or-keyword parameters in positional order
-                    defaults = stack.pop()
-                else:
-                    defaults = ()
-
-                if instr.arg & (1 << 1):
-                    # a dictionary of keyword-only parameters’ default values
-                    raise NotImplementedError()
-
-                if instr.arg & (1 << 2):
-                    # a tuple of strings containing parameters’ annotations
-                    # Changed in version 3.10: Flag value 0x04 is a tuple of strings instead of dictionary
-                    raise NotImplementedError()
-
-                if instr.arg & (1 << 3):
-                    closure = stack.pop()
-                else:
-                    closure = ()
-
-                # PyCodeObject *code, PyObject *globals, 
-                # PyObject *name, PyObject *defaults, PyObject *closure
-                newFn = FunctionType(code, {}, name, defaults, closure)
-                stack.append(newFn)
+                self._makeFunction(instr, stack)
+                
+            elif opname == 'STORE_SUBSCR':
+                operator.setitem
+                index = stack.pop()
+                sequence = stack.pop()
+                val = stack.pop()
+                if isinstance(index, (RtlSignal, SsaValue)) and not isinstance(sequence, (RtlSignal, SsaValue)):
+                    return self._expandSetitemOnPytObjAsSwitchCase(curBlock, instr.offset, sequence, index, val, stack)
+                stack.append(operator.setitem(sequence, index, val))
 
             else:
                 binOp = BIN_OPS.get(opname, None)
@@ -544,35 +584,37 @@ class PythonBytecodeToSsa():
                     a = stack.pop()
                     if binOp is operator.getitem and isinstance(b, (RtlSignal, SsaValue)) and not isinstance(a, (RtlSignal, SsaValue)):
                         # if this is indexing using hw value on non hw object we need to expand it to a switch-case on individual cases
-                        raise NotImplementedError(
-                            "must generate blocks for switch cases,"
-                            " for this we need a to keep track of start/end for each block because we do not have this newly generated blocks in original CFG")
+                        # must generate blocks for switch cases,
+                        # for this we need a to keep track of start/end for each block because we do not have this newly generated blocks in original CFG
+                        return self._expandIndexOnPyObjAsSwitchCase(curBlock, instr.offset, a, b, stack)
+
                     stack.append(binOp(a, b))
-                    return
+                    return curBlock
 
                 unOp = UN_OPS.get(opname, None)
                 if unOp is not None:
                     a = stack.pop()
                     stack.append(unOp(a))
-                    return
+                    return curBlock
 
                 rotOp = ROT_OPS.get(opname, None)
                 if rotOp is not None:
                     rotOp(stack)
-                    return
+                    return curBlock
 
                 buildOp = BUILD_OPS.get(opname, None)
                 if buildOp is not None:
                     buildOp(instr, stack)
-                    return
+                    return curBlock
                 
-                inplaceOp = INPLACE_OPS.get(opname, None)
+                inplaceOp = INPLACE_BIN_OPS.get(opname, None)
                 if inplaceOp is not None:
                     b = stack.pop()
                     a = stack.pop()
                     stack.append(inplaceOp(a, b))
-                else:
-                    raise NotImplementedError(instr)
+                    return curBlock
+            
+                raise NotImplementedError(instr)
 
         except HlsSyntaxError:
             raise
@@ -580,6 +622,8 @@ class PythonBytecodeToSsa():
         except Exception:
             raise self._createInstructionException(instr)
 
+        return curBlock
+        
     def _translateInstructionJumpHw(self, instr: Instruction,
                                     frame: PythonBytecodeFrame,
                                     curBlock: SsaBasicBlock):
@@ -626,6 +670,7 @@ class PythonBytecodeToSsa():
                         if cond:
                             self._getOrCreateSsaBasicBlockAndJump(curBlock, ifTrueOffset, cond, frame)
                             self._onBlockNotGenerated(curBlock, ifFalseOffset)
+                     
                         else:
                             self._getOrCreateSsaBasicBlockAndJump(curBlock, ifFalseOffset, ~cond, frame)
                             self._onBlockNotGenerated(curBlock, ifTrueOffset)

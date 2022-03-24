@@ -9,6 +9,7 @@ UN_OPS = {
     'UNARY_NOT': operator.not_,
     'UNARY_INVERT': operator.invert,
 }
+
 BIN_OPS = {
     'BINARY_POWER': operator.pow,
     'BINARY_MULTIPLY': operator.mul,
@@ -27,6 +28,7 @@ BIN_OPS = {
     'BINARY_XOR': operator.xor,
     'BINARY_OR': operator.or_,
 }
+
 CMP_OPS = {
     '<': operator.lt,
     '<=': operator.le,
@@ -37,7 +39,8 @@ CMP_OPS = {
     'in': operator.contains,
     'not in': lambda x, col: not operator.contains(x, col),
 }
-INPLACE_OPS = {
+
+INPLACE_BIN_OPS = {
     'INPLACE_POWER': operator.pow,
     'INPLACE_MULTIPLY': operator.mul,
     'INPLACE_MATRIX_MULTIPLY': operator.imatmul,
@@ -54,9 +57,9 @@ INPLACE_OPS = {
     'INPLACE_AND': operator.and_,
     'INPLACE_XOR': operator.xor,
     'INPLACE_OR': operator.or_,
-    'STORE_SUBSCR': operator.setitem,
     'DELETE_SUBSCR': operator.delitem,
 }
+
 JUMP_OPS = {
     'JUMP_ABSOLUTE',
     'JUMP_FORWARD',
@@ -97,10 +100,22 @@ def rot_four(stack):
     stack.append(v1)
 
 
+def dup_top(stack):
+    stack.append(stack[-1])
+
+
+def dup_top_two(stack):
+    stack.append(stack[-2])
+    stack.append(stack[-2])
+
+
 ROT_OPS = {
     'ROT_TWO': rot_two,
     'ROT_THREE': rot_three,
-    'ROT_FOUR': rot_four,
+    'ROT_FOUR': rot_four,  # 3.8+
+    
+    'DUP_TOP': dup_top,  # 3.2 - 3.11
+    'DUP_TOP_TWO': dup_top_two,  # 3.2 - 3.11
 }
 
 
