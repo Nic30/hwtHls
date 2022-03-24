@@ -440,6 +440,10 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitCmpInst(const CmpInst *I) {
 	bool is0 = false;
 	bool is1 = false;
 	unsigned offset = 0;
+	// [todo] if sign_val > -1 -> ~sign_val[MSB]
+	// [todo] if sign_val >= 0 -> ~sign_val[MSB]
+	// [todo] if sign_val < 0 -> sign_val[MSB]
+
 	// check if it is possible to immediately evaluate based on known const bits
 	for (const auto &item : (RangeSequenceIterator()).uniqueRanges(
 			lhs.replacements, rhs.replacements)) {
