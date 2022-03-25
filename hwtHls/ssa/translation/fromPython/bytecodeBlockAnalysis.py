@@ -3,7 +3,9 @@ from typing import Tuple, Dict
 
 from networkx.classes.digraph import DiGraph
 
-from hwtHls.ssa.translation.fromPython.instructions import JUMP_OPS
+from hwtHls.ssa.translation.fromPython.instructions import JUMP_OPS, \
+    JUMP_ABSOLUTE, JUMP_FORWARD, JUMP_IF_FALSE_OR_POP, JUMP_IF_TRUE_OR_POP, \
+    POP_JUMP_IF_FALSE, POP_JUMP_IF_TRUE, FOR_ITER
 
 
 def extractBytecodeBlocks(instructions: Tuple[Instruction, ...]):
@@ -22,7 +24,7 @@ def extractBytecodeBlocks(instructions: Tuple[Instruction, ...]):
                 skipIfNotJumpTarget = False
 
         if (instr.is_jump_target and instr.offset != 0) or lastWasJump:
-            if curBlock[-1].opname not in JUMP_OPS:
+            if curBlock[-1].opcode not in JUMP_OPS:
                 src = (curBlock[0].offset,)
                 dst = (instr.offset,)
                 cfg.add_edge(src, dst)
@@ -32,22 +34,22 @@ def extractBytecodeBlocks(instructions: Tuple[Instruction, ...]):
             lastWasJump = False
         else:
             curBlock.append(instr)
-            if instr.opname in JUMP_OPS:
+            if instr.opcode in JUMP_OPS:
                 lastWasJump = True
             else:
                 lastWasJump = False
 
-        if instr.opname in ('JUMP_ABSOLUTE', 'JUMP_FORWARD'):
+        if instr.opcode in (JUMP_ABSOLUTE, JUMP_FORWARD):
             src = (curBlock[0].offset,)
             dst = (instr.argval,)
             cfg.add_edge(src, dst)
             skipIfNotJumpTarget = True
 
-        elif instr.opname in ('JUMP_IF_FALSE_OR_POP',
-                'JUMP_IF_TRUE_OR_POP',
-                'POP_JUMP_IF_FALSE',
-                'POP_JUMP_IF_TRUE',
-                'FOR_ITER',):
+        elif instr.opcode in (JUMP_IF_FALSE_OR_POP,
+                JUMP_IF_TRUE_OR_POP,
+                POP_JUMP_IF_FALSE,
+                POP_JUMP_IF_TRUE,
+                FOR_ITER,):
             src = (curBlock[0].offset,)
             cfg.add_edge(src, (instr.argval,))
             cfg.add_edge(src, (instr.offset + 2,))

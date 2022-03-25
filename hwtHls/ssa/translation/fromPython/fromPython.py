@@ -23,7 +23,13 @@ from hwtHls.ssa.translation.fromPython.blockPredecessorTracker import BlockLabel
     BlockPredecessorTracker
 from hwtHls.ssa.translation.fromPython.bytecodeBlockAnalysis import extractBytecodeBlocks
 from hwtHls.ssa.translation.fromPython.instructions import CMP_OPS, BIN_OPS, UN_OPS, \
-    INPLACE_BIN_OPS, JUMP_OPS, ROT_OPS, BUILD_OPS
+    INPLACE_BIN_OPS, JUMP_OPS, ROT_OPS, BUILD_OPS, FOR_ITER, RETURN_VALUE, NOP,\
+    POP_TOP, LOAD_DEREF, LOAD_ATTR, LOAD_FAST, LOAD_CONST, LOAD_GLOBAL,\
+    LOAD_METHOD, LOAD_CLOSURE, STORE_ATTR, STORE_FAST, STORE_DEREF, CALL_METHOD,\
+    CALL_FUNCTION, CALL_FUNCTION_KW, COMPARE_OP, GET_ITER, UNPACK_SEQUENCE,\
+    MAKE_FUNCTION, STORE_SUBSCR, EXTENDED_ARG, JUMP_ABSOLUTE, JUMP_FORWARD,\
+    JUMP_IF_FALSE_OR_POP, JUMP_IF_TRUE_OR_POP, POP_JUMP_IF_FALSE,\
+    POP_JUMP_IF_TRUE
 from hwtHls.ssa.translation.fromPython.loopsDetect import PyBytecodeLoop, \
     PreprocLoopScope
 from hwtHls.ssa.translation.fromPython.markers import PythonBytecodeInPreproc
@@ -280,7 +286,7 @@ class PythonBytecodeToSsa():
         Evaluate instruction list and translate to SSA all which is using HW types and which can not be evaluated compile time.
         """
         # print(instructions[0].offset)
-        if instructions[0].opname == "FOR_ITER":
+        if instructions[0].opcode == FOR_ITER:
             assert len(instructions) == 1, ("It is expected that FOR_ITER opcode is alone in the block", instructions)
             forIter: Instruction = instructions[0]
             # preproc eval for loop
@@ -298,9 +304,9 @@ class PythonBytecodeToSsa():
 
         else:
             for last, instr in iter_with_last(instructions):
-                if last and instr.opname in JUMP_OPS:
+                if last and instr.opcode in JUMP_OPS:
                     self._translateInstructionJumpHw(instr, frame, curBlock)
-                elif instr.opname == "RETURN_VALUE":
+                elif instr.opcode == RETURN_VALUE:
                     assert last, instr
                 else:
                     curBlock = self._translateBytecodeBlockInstruction(instr, frame, curBlock)
@@ -434,18 +440,18 @@ class PythonBytecodeToSsa():
             # CPython, implements that rule by using:
             #  FAST locals, DEREF closure cells, and NAME or GLOBAL lookups.
             
-            opname = instr.opname
-            if opname == 'NOP':
+            opcode = instr.opcode
+            if opcode == NOP:
                 # Do nothing code. Used as a placeholder by the bytecode optimizer.
                 return curBlock
 
-            elif opname == "POP_TOP":
+            elif opcode == POP_TOP:
                 # Removes the top-of-stack (TOS) item.
                 res = stack.pop()
                 if isinstance(res, (HlsStreamProcWrite, HlsStreamProcRead, HdlAssignmentContainer)):
                     self._blockToSsa(curBlock, res)
 
-            elif opname == 'LOAD_DEREF':
+            elif opcode == LOAD_DEREF:
                 # nested scopes: access a variable through its cell object
                 closure = self.fn.__closure__
                 if closure is None:
@@ -457,20 +463,20 @@ class PythonBytecodeToSsa():
                 # closure[instr.arg] = None
                 stack.append(v)
 
-            elif opname == 'LOAD_ATTR':
+            elif opcode == LOAD_ATTR:
                 v = stack[-1]
                 v = getattr(v, instr.argval)
                 stack[-1] = v
 
-            elif opname == 'LOAD_FAST':
+            elif opcode == LOAD_FAST:
                 v = locals_[instr.arg]
                 assert v is not None, (instr.argval, "used before defined")
                 stack.append(v)
 
-            elif opname == 'LOAD_CONST':
+            elif opcode == LOAD_CONST:
                 stack.append(instr.argval)
 
-            elif opname == 'LOAD_GLOBAL':
+            elif opcode == LOAD_GLOBAL:
                 if instr.argval in self.fn.__globals__:
                     v = self.fn.__globals__[instr.argval]
                 else:
@@ -478,17 +484,17 @@ class PythonBytecodeToSsa():
                     v = builtins.__dict__[instr.argval]
                 stack.append(v)
 
-            elif opname == 'LOAD_METHOD':
+            elif opcode == LOAD_METHOD:
                 v = stack.pop()
                 v = getattr(v, instr.argval)
                 stack.append(v)
 
-            elif opname == 'LOAD_CLOSURE':
+            elif opcode == LOAD_CLOSURE:
                 # nested scopes: access the cell object
                 v = locals_[frame.cellVarI[instr.arg]]
                 stack.append(CellType(v))
 
-            elif opname == 'STORE_ATTR':
+            elif opcode == STORE_ATTR:
                 dst = stack.pop()
                 dst = getattr(dst, instr.argval)
                 src = stack.pop()
@@ -499,7 +505,7 @@ class PythonBytecodeToSsa():
                 else:
                     raise NotImplementedError(instr)
 
-            elif opname == 'STORE_FAST':
+            elif opcode == STORE_FAST:
                 vVal = stack.pop()
                 v = locals_[instr.arg]
                 if v is None:
@@ -520,11 +526,11 @@ class PythonBytecodeToSsa():
 
                     locals_[instr.arg] = vVal
 
-            elif opname == 'STORE_DEREF':
+            elif opcode == STORE_DEREF:
                 # nested scopes: access a variable through its cell object
                 raise NotImplementedError()
 
-            elif opname == 'CALL_METHOD' or opname == "CALL_FUNCTION":
+            elif opcode == CALL_METHOD or opcode == CALL_FUNCTION:
                 args = []
                 for _ in range(instr.arg):
                     args.append(stack.pop())
@@ -532,7 +538,7 @@ class PythonBytecodeToSsa():
                 res = m(*reversed(args))
                 stack.append(res)
 
-            elif opname == 'CALL_FUNCTION_KW':
+            elif opcode == CALL_FUNCTION_KW:
                 args = []
                 kwNames = stack.pop()
                 assert isinstance(kwNames, tuple), kwNames
@@ -548,27 +554,27 @@ class PythonBytecodeToSsa():
                 res = m(*reversed(args), **kwArgs)
                 stack.append(res)
 
-            elif opname == 'COMPARE_OP':
-                binOp = CMP_OPS[instr.argval]
+            elif opcode == COMPARE_OP:
+                binOp = CMP_OPS[instr.arg]
                 b = stack.pop()
                 a = stack.pop()
                 stack.append(binOp(a, b))
 
-            elif opname == "GET_ITER":
+            elif opcode == GET_ITER:
                 a = stack.pop()
                 stack.append(iter(a))
 
-            elif opname == "EXTENDED_ARG":
+            elif opcode == EXTENDED_ARG:
                 pass
 
-            elif opname == "UNPACK_SEQUENCE":
+            elif opcode == UNPACK_SEQUENCE:
                 seq = stack.pop()
                 stack.extend(reversed(tuple(seq)))
 
-            elif opname == "MAKE_FUNCTION":
+            elif opcode == MAKE_FUNCTION:
                 self._makeFunction(instr, stack)
                 
-            elif opname == 'STORE_SUBSCR':
+            elif opcode == STORE_SUBSCR:
                 operator.setitem
                 index = stack.pop()
                 sequence = stack.pop()
@@ -578,7 +584,7 @@ class PythonBytecodeToSsa():
                 stack.append(operator.setitem(sequence, index, val))
 
             else:
-                binOp = BIN_OPS.get(opname, None)
+                binOp = BIN_OPS.get(opcode, None)
                 if binOp is not None:
                     b = stack.pop()
                     a = stack.pop()
@@ -591,23 +597,23 @@ class PythonBytecodeToSsa():
                     stack.append(binOp(a, b))
                     return curBlock
 
-                unOp = UN_OPS.get(opname, None)
+                unOp = UN_OPS.get(opcode, None)
                 if unOp is not None:
                     a = stack.pop()
                     stack.append(unOp(a))
                     return curBlock
 
-                rotOp = ROT_OPS.get(opname, None)
+                rotOp = ROT_OPS.get(opcode, None)
                 if rotOp is not None:
                     rotOp(stack)
                     return curBlock
 
-                buildOp = BUILD_OPS.get(opname, None)
+                buildOp = BUILD_OPS.get(opcode, None)
                 if buildOp is not None:
                     buildOp(instr, stack)
                     return curBlock
                 
-                inplaceOp = INPLACE_BIN_OPS.get(opname, None)
+                inplaceOp = INPLACE_BIN_OPS.get(opcode, None)
                 if inplaceOp is not None:
                     b = stack.pop()
                     a = stack.pop()
@@ -629,21 +635,21 @@ class PythonBytecodeToSsa():
                                     curBlock: SsaBasicBlock):
         try:
             assert curBlock
-            opname = instr.opname
+            opcode = instr.opcode
 
-            if opname == 'RETURN_VALUE':
+            if opcode == RETURN_VALUE:
                 return None
 
-            elif opname == 'JUMP_ABSOLUTE' or opname == 'JUMP_FORWARD':
+            elif opcode == JUMP_ABSOLUTE or opcode == JUMP_FORWARD:
                 self._getOrCreateSsaBasicBlockAndJump(curBlock, instr.argval, None, frame)
 
-            elif opname in (
-                    'JUMP_IF_FALSE_OR_POP',
-                    'JUMP_IF_TRUE_OR_POP',
-                    'POP_JUMP_IF_FALSE',
-                    'POP_JUMP_IF_TRUE'):
-                if opname in ('JUMP_IF_FALSE_OR_POP',
-                              'JUMP_IF_TRUE_OR_POP'):
+            elif opcode in (
+                    JUMP_IF_FALSE_OR_POP,
+                    JUMP_IF_TRUE_OR_POP,
+                    POP_JUMP_IF_FALSE,
+                    POP_JUMP_IF_TRUE):
+                if opcode in (JUMP_IF_FALSE_OR_POP,
+                              JUMP_IF_TRUE_OR_POP):
                     raise NotImplementedError("stack pop may depend on hw evaluated condition")
 
                 cond = frame.stack.pop()
@@ -653,7 +659,7 @@ class PythonBytecodeToSsa():
 
                 ifFalseOffset = instr.offset + 2
                 ifTrueOffset = instr.argval
-                if opname in ('JUMP_IF_FALSE_OR_POP', 'POP_JUMP_IF_FALSE'):
+                if opcode in (JUMP_IF_FALSE_OR_POP, POP_JUMP_IF_FALSE):
                     # swap targets because condition is reversed
                     ifTrueOffset, ifFalseOffset = ifFalseOffset, ifTrueOffset
 
