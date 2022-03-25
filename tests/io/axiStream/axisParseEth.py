@@ -5,10 +5,10 @@ from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
+from hwtHls.hlsStreamProc.statements import IN_STREAM_POS
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 from hwtLib.amba.axis import AxiStream
 from hwtLib.types.net.ethernet import Eth2Header_t, eth_mac_t
-from hwtHls.hlsStreamProc.statements import IN_STREAM_POS
 
 
 class AxiSParseEth(Unit):

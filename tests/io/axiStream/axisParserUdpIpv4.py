@@ -2,19 +2,19 @@
 # -*- coding: utf-8 -*-
 
 from hwt.hdl.types.bits import Bits
+from hwt.hdl.types.defs import BIT
 from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.statements import IN_STREAM_POS
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
+from hwtHls.ssa.translation.fromPython.fromPython import pyFunctionToSsa
 from hwtLib.amba.axis import AxiStream
 from hwtLib.types.ctypes import uint16_t, uint8_t
 from hwtLib.types.net.ethernet import Eth2Header_t, ETHER_TYPE
 from hwtLib.types.net.ip import IPv4Header_t, IP_PROTOCOL, ipv4_t
 from hwtLib.types.net.udp import UDP_header_t
-from hwt.hdl.types.defs import BIT
-from hwtHls.ssa.translation.fromPython.fromPython import pyFunctionToSsa
 
 
 class AxiSParseUdpIpv4(Unit):

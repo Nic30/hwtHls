@@ -9,9 +9,9 @@ from hwt.hdl.types.struct import HStruct
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtLib.amba.axis import axis_send_bytes
+from hwtSimApi.utils import freq_to_period
 from pyMathBitPrecise.bit_utils import  int_to_int_list, mask
 from tests.io.axiStream.axisParseIf import AxiSParse2If
-from hwtSimApi.utils import freq_to_period
 
 
 class AxiSParseIfTC(SimTestCase):
