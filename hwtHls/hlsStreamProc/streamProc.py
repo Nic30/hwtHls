@@ -9,17 +9,18 @@ from hwt.hdl.types.defs import BOOL, BIT
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.types.typeCast import toHVal
 from hwt.hdl.value import HValue
-from hwt.interfaces.std import Handshaked
+from hwt.interfaces.std import Handshaked, Signal
 from hwt.pyUtils.arrayQuery import flatten
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.unit import Unit
-from hwtHls.hlsStreamProc.statements import HlsStreamProcRead, \
-    HlsStreamProcWrite, HlsStreamProcWhile, HlsStreamProcCodeBlock, \
+from hwtHls.hlsStreamProc.statements import HlsStreamProcWhile, HlsStreamProcCodeBlock, \
     HlsStreamProcIf, HlsStreamProcStm, HlsStreamProcFor, HlsStreamProcBreak, \
-    HlsStreamProcContinue, HlsStreamProcSwitch, IN_STREAM_POS
+    HlsStreamProcContinue, HlsStreamProcSwitch
+from hwtHls.hlsStreamProc.statementsIo import HlsStreamProcRead, \
+    HlsStreamProcWrite, IN_STREAM_POS, HlsStreamProcReadAxiStream
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.netlist.transformation.rtlNetlistPass import RtlNetlistPass
 from hwtHls.ssa.context import SsaContext
@@ -27,6 +28,7 @@ from hwtHls.ssa.transformation.ssaPass import SsaPass
 from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa, AnyStm
 from hwtHls.ssa.translation.toHwtHlsNetlist.pipelineMaterialization import SsaSegmentToHwPipeline
 from hwtLib.amba.axis import AxiStream
+from hwt.interfaces.hsStructIntf import HsStructIntf
 
 
 class HlsStreamProc():
@@ -44,8 +46,8 @@ class HlsStreamProc():
                  rtlnetlist_passes:Optional[List[RtlNetlistPass]]=None,
                  freq: Optional[Union[int, float]]=None):
         """
-        :note: ssa_passes, hlsnetlist_passes, rtlnetlist_passes parameters are meant as an onverrride to specification from target platform
-        :param freq: override of the clock frequiency, if None the frequency of clock associated with paret is used
+        :note: ssa_passes, hlsnetlist_passes, rtlnetlist_passes parameters are meant as an override to specification from target platform
+        :param freq: override of the clock frequency, if None the frequency of clock associated with parent is used
         """
         self.parentUnit = parentUnit
         if freq is None:
@@ -83,9 +85,26 @@ class HlsStreamProc():
         """
         Create a read statement in thread.
         """
-        if isinstance(src, RtlSignal):
-            assert src._ctx is not self._ctx, ("Read should be used only for IO, it is not required for hls variables")
-        return HlsStreamProcRead(self, src, type_or_size, inStreamPos)
+        
+        if isinstance(src, AxiStream):
+            return HlsStreamProcReadAxiStream(self, src, type_or_size, inStreamPos)
+        else:
+            if isinstance(src, RtlSignal):
+                assert src._ctx is not self._ctx, ("Read should be used only for IO, it is not required for hls variables")
+            if isinstance(src, (Handshaked, HsStructIntf)):
+                dtype = src.data._dtype
+            elif isinstance(src, (Signal, RtlSignal)):
+                dtype = src._dtype
+            else:
+                raise NotImplementedError(src)    
+
+            if type_or_size is NOT_SPECIFIED:
+                type_or_size = dtype
+            else:
+                assert type_or_size == dtype
+
+            assert inStreamPos is IN_STREAM_POS.BODY
+            return HlsStreamProcRead(self, src, dtype)
 
     def write(self,
               src:Union[HlsStreamProcRead, Handshaked, AxiStream, bytes, HValue],
@@ -150,7 +169,7 @@ class HlsStreamProc():
             hlsnetlist_pass.apply(self, to_hw)
 
         # some optimization could call scheduling and everything after could let
-        # the netwlist without modifications
+        # the netlist without modifications
         if not to_hw.is_scheduled:
             to_hw.schedulerRun()
 

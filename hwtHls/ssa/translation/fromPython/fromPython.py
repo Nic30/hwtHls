@@ -13,7 +13,7 @@ from hwt.pyUtils.arrayQuery import flatten
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.errors import HlsSyntaxError
-from hwtHls.hlsStreamProc.statements import HlsStreamProcWrite, \
+from hwtHls.hlsStreamProc.statementsIo import HlsStreamProcWrite, \
     HlsStreamProcRead
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 from hwtHls.ssa.basicBlock import SsaBasicBlock

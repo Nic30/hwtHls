@@ -8,7 +8,7 @@ from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwtHls.hlsPipeline import HlsPipeline
-from hwtHls.hlsStreamProc.statements import HlsStreamProcRead, HlsStreamProcWrite
+from hwtHls.hlsStreamProc.statementsIo import HlsStreamProcRead, HlsStreamProcWrite
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
 from hwtHls.netlist.nodes.loopHeader import HlsLoopGate

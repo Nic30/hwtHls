@@ -9,7 +9,7 @@ from hwt.hdl.types.defs import SLICE
 from hwt.math import log2ceil
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.hlsStreamProc.statements import HlsStreamProcRead, IN_STREAM_POS
+from hwtHls.hlsStreamProc.statementsIo import HlsStreamProcReadAxiStream, IN_STREAM_POS
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.exprBuilder import SsaExprBuilder
 from hwtHls.ssa.transformation.axiStreamReadLowering.readGraphDetector import ReadGraphDetector
@@ -35,7 +35,7 @@ class SsaPassAxiStreamReadLowering(SsaPass):
     """
 
     def collectAllReachableReadsFromBlockEnd(self, b: SsaBasicBlock, seen: Set[SsaBasicBlock],
-                                             firstReadInBlock: Dict[SsaBasicBlock, HlsStreamProcRead]):
+                                             firstReadInBlock: Dict[SsaBasicBlock, HlsStreamProcReadAxiStream]):
         seen.add(b)
 
         r = firstReadInBlock.get(b, None)
@@ -51,10 +51,10 @@ class SsaPassAxiStreamReadLowering(SsaPass):
                                     hls: "HlsStreamProc",
                                     memUpdater: MemorySSAUpdater,
                                     startBlock,
-                                    read: Optional[HlsStreamProcRead],
+                                    read: Optional[HlsStreamProcReadAxiStream],
                                     DATA_WIDTH: int,
                                     readCfg: ReadGraphDetector,
-                                    predecessorsSeen: Dict[HlsStreamProcRead, int],
+                                    predecessorsSeen: Dict[HlsStreamProcReadAxiStream, int],
                                     currentOffsetVar: RtlSignal,
                                     predWordVar: RtlSignal):
         """
@@ -109,7 +109,7 @@ class SsaPassAxiStreamReadLowering(SsaPass):
                 # read words to satisfy initial offset
                 # for last, _ in iter_with_last(range(ceil(max(possibleOffsets) / DATA_WIDTH))):
                 #    endOfStream = last and not successors
-                #    r = HlsStreamProcRead(read._parent, read._src, Bits(DATA_WIDTH), endOfStream)
+                #    r = HlsStreamProcReadAxiStream(read._parent, read._src, Bits(DATA_WIDTH), endOfStream)
                 #    prevWordVars.append(r)
                 raise NotImplementedError("Use first word mask to resolve the offsetVar", possibleOffsets)
             else:
@@ -131,7 +131,7 @@ class SsaPassAxiStreamReadLowering(SsaPass):
                 raise NotImplementedError("Create a block which reads an extra last word and create a transitions from it to all blocks for that offsets")
             
             # collect/construct all reads common for every successor branch
-            prevWordVars: List[HlsStreamProcRead] = [] 
+            prevWordVars: List[HlsStreamProcReadAxiStream] = [] 
             # load last word
             if possibleOffsets != [0, ]:
                 prevWordVars.append(memUpdater.readVariable(predWordVar, read.block))
@@ -145,7 +145,7 @@ class SsaPassAxiStreamReadLowering(SsaPass):
 
             for last, _ in iter_with_last(range(minNoOfWords)):
                 endOfStream = last and read._inStreamPos.isEnd()
-                partRead = HlsStreamProcRead(read._parent, read._src, Bits(DATA_WIDTH),
+                partRead = HlsStreamProcReadAxiStream(read._parent, read._src, Bits(DATA_WIDTH),
                                              IN_STREAM_POS.END if endOfStream else
                                              IN_STREAM_POS.BEGIN if readCfg.predecessors[read] == [None, ] else
                                              IN_STREAM_POS.BODY)
@@ -253,11 +253,11 @@ class SsaPassAxiStreamReadLowering(SsaPass):
             self._sealBlocksUntilStart(memUpdater, startBlock, pred)
         
     def _detectReads(self, startBlock: SsaBasicBlock):
-        reads: UniqList[HlsStreamProcRead] = UniqList()
+        reads: UniqList[HlsStreamProcReadAxiStream] = UniqList()
         for block in collect_all_blocks(startBlock, set()):
             for instr in block.body:
-                if isinstance(instr, HlsStreamProcRead):
-                    instr: HlsStreamProcRead
+                if isinstance(instr, HlsStreamProcReadAxiStream):
+                    instr: HlsStreamProcReadAxiStream
                     intf = instr._src
                     if isinstance(intf, AxiStream):
                         reads.append(instr)

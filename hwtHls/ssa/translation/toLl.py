@@ -5,7 +5,7 @@ from typing import Set
 from hdlConvertorAst.to.hdlUtils import Indent, \
     AutoIndentingStream
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
-from hwtHls.hlsStreamProc.statements import HlsStreamProcRead, \
+from hwtHls.hlsStreamProc.statementsIo import HlsStreamProcRead, \
     HlsStreamProcWrite
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr

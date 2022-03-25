@@ -9,7 +9,7 @@ from hwt.hdl.value import HValue
 from hwt.pyUtils.arrayQuery import grouper
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
-from hwtHls.hlsStreamProc.statements import HlsStreamProcRead, \
+from hwtHls.hlsStreamProc.statementsIo import HlsStreamProcRead, \
     HlsStreamProcWrite
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 from hwtHls.ssa.basicBlock import SsaBasicBlock

@@ -8,7 +8,7 @@ from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.hObjList import HObjList
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
-from hwtHls.hlsStreamProc.statements import IN_STREAM_POS
+from hwtHls.hlsStreamProc.statementsIo import IN_STREAM_POS
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 from hwtLib.amba.axis import AxiStream
 from hwtLib.amba.axis_comp.frame_parser.test_types import structManyInts

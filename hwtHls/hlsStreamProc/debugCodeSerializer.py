@@ -12,8 +12,9 @@ from hwt.hdl.statements.statement import HdlStatement
 from hwt.serializer.hwt import HwtDebugSerializer, ToHdlAstDebugHwt
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwtHls.hlsStreamProc.statements import HlsStreamProcWhile, \
-    HlsStreamProcCodeBlock, HlsStreamProcWrite, HlsStreamProcIf, \
+    HlsStreamProcCodeBlock, HlsStreamProcIf, \
     HlsStreamProcBreak, HlsStreamProcContinue
+from hwtHls.hlsStreamProc.statementsIo import HlsStreamProcWrite
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 
 

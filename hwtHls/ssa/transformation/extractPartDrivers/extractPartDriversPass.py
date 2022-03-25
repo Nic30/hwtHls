@@ -1,5 +1,5 @@
 from itertools import chain
-from typing import List, Tuple, Set, Sequence, Union, Dict, Callable, Optional
+from typing import List, Tuple, Set, Sequence, Union, Dict, Optional
 
 from hwt.hdl.operatorDefs import AllOps, CAST_OPS, BITWISE_OPS
 from hwt.hdl.types.bits import Bits
@@ -8,9 +8,8 @@ from hwt.hdl.types.slice import HSlice
 from hwt.hdl.value import HValue
 from hwt.pyUtils.arrayQuery import balanced_reduce
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.hlsStreamProc.statements import HlsStreamProcRead
+from hwtHls.hlsStreamProc.statementsIo import HlsStreamProcRead
 from hwtHls.ssa.basicBlock import SsaBasicBlock
-from hwtHls.ssa.context import SsaContext
 from hwtHls.ssa.exprBuilder import SsaExprBuilder
 from hwtHls.ssa.instr import SsaInstr, OP_ASSIGN, SsaInstrBranch
 from hwtHls.ssa.phi import SsaPhi

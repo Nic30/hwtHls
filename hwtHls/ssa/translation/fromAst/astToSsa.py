@@ -7,18 +7,19 @@ from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.statements.codeBlockContainer import HdlStmCodeBlockContainer
 from hwt.hdl.statements.ifContainter import IfContainer
 from hwt.hdl.value import HValue
+from hwt.interfaces.std import Signal
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.rtlLevel.signalUtils.exceptions import SignalDriverErr
 from hwtHls.hlsStreamProc.statements import HlsStreamProcStm, HlsStreamProcWhile, \
-    HlsStreamProcWrite, HlsStreamProcRead, HlsStreamProcCodeBlock, \
-    HlsStreamProcIf, HlsStreamProcFor, HlsStreamProcContinue, HlsStreamProcBreak
+    HlsStreamProcCodeBlock, HlsStreamProcIf, HlsStreamProcFor, HlsStreamProcContinue, \
+    HlsStreamProcBreak
+from hwtHls.hlsStreamProc.statementsIo import HlsStreamProcWrite, HlsStreamProcRead
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.context import SsaContext
 from hwtHls.ssa.instr import SsaInstr, SsaInstrBranch
 from hwtHls.ssa.translation.fromAst.memorySSAUpdater import MemorySSAUpdater
 from hwtHls.ssa.value import SsaValue
-from hwt.synthesizer.interface import Interface
-from hwt.interfaces.std import Signal
+
 
 AnyStm = Union[HdlAssignmentContainer, HlsStreamProcStm]
 
@@ -89,7 +90,7 @@ class AstToSsa():
 
     def visit_top_CodeBlock(self, obj: HdlStmCodeBlockContainer) -> SsaBasicBlock:
         block = self.visit_CodeBlock(self.start, obj)
-        #self._onAllPredecsKnown(block)
+        # self._onAllPredecsKnown(block)
         return block
 
     def visit_CodeBlock(self, block: SsaBasicBlock, obj: HdlStmCodeBlockContainer) -> SsaBasicBlock:

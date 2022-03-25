@@ -14,7 +14,7 @@ from hwt.interfaces.std import Signal, RdSynced, VldSynced, Handshaked
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.hlsStreamProc.statements import HlsStreamProcRead, \
+from hwtHls.hlsStreamProc.statementsIo import HlsStreamProcRead, \
     HlsStreamProcWrite
 from hwtHls.netlist.typeUtils import dtypeEqualSignAprox
 from hwtHls.ssa.basicBlock import SsaBasicBlock
