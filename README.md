@@ -1,7 +1,6 @@
 # hwtHls
 
 [![CircleCI](https://circleci.com/gh/Nic30/hwtHls/tree/master.svg?style=svg)](https://circleci.com/gh/Nic30/hwtHls/tree/master)[![PyPI version](https://badge.fury.io/py/hwtHls.svg)](http://badge.fury.io/py/hwtHls)[![Coverage Status](https://coveralls.io/repos/github/Nic30/hwtHls/badge.svg?branch=master)](https://coveralls.io/github/Nic30/hwtHls?branch=master)
-[![Python version](https://img.shields.io/pypi/pyversions/hwtHls.svg)](https://img.shields.io/pypi/pyversions/hwtHls.svg)
 
 
 A library for an automatic translation of algorithmic code to a hardware realization
