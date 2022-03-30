@@ -5,17 +5,17 @@
 What is in this module?
 =======================
 
-:mod:`hwtHls.frameMachine` is not a complete HLS enegine because it ignores the specific of target platform and it has not a generic use.
-It is designed to translate opration on streams and other handshake like interfaces.
+:mod:`hwtHls.frameMachine` is not a complete HLS engine because it ignores the specific of target platform and it has not a generic use.
+It is designed to translate operation on streams and other handshake like interfaces.
 
 It's main benefits are:
 * The user does not need to care about exact latency of the data arrival or dispatch.
-  It performs the buffer instanciation, deadlock analysis and automatic buffer instanciation.
-* The frames can be threated just as a content of variable.
-* The circuit is automatically pipelined and the statements and loops are merged and unrolled to maximize troughput for specified data width.
+  It performs the buffer instantiation, deadlock analysis and automatic buffer instantiation.
+* The frames can be treated just as a content of variable.
+* The circuit is automatically pipelined and the statements and loops are merged and unrolled to maximize throughput for specified data width.
 
 Goal:
-* Write algorithm in latency insensitive manner and ignore spcifics of data packing in bus words.
+* Write algorithm in latency insensitive manner and ignore specifics of data packing in bus words.
   The manual instantiation of parsers/deparsers and latency compensation registers and manual synchronization
   of IO channels is avoided. This makes the code more easy to read, error proof and much shorter.
 
@@ -33,12 +33,12 @@ Problems:
 Possible flow:
 * Translate packet level code to word level code.
     * The problem is how to detect the relations between the operations on same input/output
-      and how to discover the actual arriaval/dispatch time for each frament of read data
+      and how to discover the actual arrival/dispatch time for each fragment of read data
       and what latency the operations have so we need to buffer them or not.
 
 * Translate word level code to SSA.
 
-* Extract staticaly scheduleable segments, schedule and instanciate them.
+* Extract statically schedulable segments, schedule and instantiate them.
 * Instanciate dynamic scheduling nodes and buffers.
     * L. Josipovic, A. Guerrieri and P. Ienne, "Synthesizing General-Purpose Code Into Dynamically Scheduled Circuits,"
       in IEEE Circuits and Systems Magazine, vol. 21, no. 2, pp. 97-118, Secondquarter 2021, doi: 10.1109/MCAS.2021.3071631.
@@ -49,16 +49,16 @@ Mapping of generic code to hardware architectures without harcoding of architect
 ===================================================================================================
 
 Translation of linear code to a hw pipeline in nearly a simple task, but arbitrary user code has rarely this format.
-It typicaly contains a loops with multicycle body, which must be modified and even after it the data and control flow
+It typically contains a loops with multi-cycle body, which must be modified and even after it the data and control flow
 must be speculated and everything needs to be pipelined to achieve sufficient performance.
-The hardware naturaly supports the paralelism and thus speculation and non-constant length operation could be potentially
+The hardware naturally supports the paralelism and thus speculation and non-constant length operation could be potentially
 support easily. However the support logic for speculation and data conflict solving can grow incredibly complex and costly.
 There are many unique architectures which are optimal for some very specific case, all together are complex enough to consume
 more time than available not mentioning that some of them are probably unknown or never used in real app.
 
 This leaves us in the situation where we can not afford to have a single architecture because its cost would make it impractical
 and we can not also use optimal architectures because it is not doable in realistic time even for the most common cases.
-Because of this we focus on finding of hyperparameters and independently applicable transformations.
+Because of this we focus on finding of hyper-parameters and independently applicable transformations.
 The basic idea formulated bellow is based on tagging and speculation on demand decoration of partially scheduled circuit to increase its performance.
 All steps like pipelining, loop transformations should be already performed before this pass.
 
@@ -80,8 +80,8 @@ All steps like pipelining, loop transformations should be already performed befo
         * branches of constant approximately same length can be efficiently transformed to this format by writing to output
           variables at the end and padding of clock difference.
    * otherwise It is important that each tag combination is unique in system
-        * can be achieved using fifo counters for in/out gate (in writter, out out-of-order reader)
-        * in the case of parent tag gets droped the message is also broadcasted to a tagging in-gate of children
+        * can be achieved using fifo counters for in/out gate (in writer, out out-of-order reader)
+        * in the case of parent tag gets dropped the message is also broadcasted to a tagging in-gate of children
           there it is translated to a child tag which was used and this tag cancel must be broadcasted
         * (also to child tagging-out gate, together with original tag which should be forwarded behind tagging out-gate)
         * This also means that each node can check only tag confirm broadcasts from its parent and does need to check broadcasts
@@ -99,7 +99,7 @@ All steps like pipelining, loop transformations should be already performed befo
    * the data may have multiple tag records, where each corresponds to a tag for specific predecessor branching node
       the tagging out-gate pops the lastly assigned
 
-* Data flows into cycle based on availability, where data from previous interation do have higher priority
+* Data flows into cycle based on availability, where data from previous iteration do have higher priority
 * Upon receive of speculation result from branch node each node which does have data with this tag marks its it confirmed or drops it
   based on branch message
 * IO node based on inputs from branch nodes switches to sub-fsm for specified branch and starts pulling the data
@@ -110,8 +110,8 @@ Elements of HlsStreamProc circuits
 
 * operation pipeline
     * multiple inputs/outputs
-    * each input/output has assigned some clock cycle when it consummes/produces the data
-    * all inputs must be consummed, all outputs must be produced
+    * each input/output has assigned some clock cycle when it consumes/produces the data
+    * all inputs must be consumed, all outputs must be produced
     * operation may be cancelable (may have a hidden input which marks outputs as invalidated, optionally a transaction id can be specified
       if the operation may process multiple transaction at once)
 
@@ -120,9 +120,9 @@ Elements of HlsStreamProc circuits
         * condition of the branch takes too long to evaluate
         * in lopps
             * if dependencies have known value (or there is limited number of possible values)
-              but it is not known if current iterration is last or not
+              but it is not known if current iteration is last or not
 * tagging - allows for running of operations out of order
-    * userful for:
+    * useful for:
         * operations of unequal latency in parallel, then reorder the results to match input order
 `
 """

@@ -17,8 +17,8 @@ it potentially blocks other branches which could otherwise be a subject to a spe
 Instead the FSM must be private to each IO port and the rest of the code must run freely in the pipeline.
 
 Speculative writes in general are very expensive in terms of resources because each speculative write
-leads to all reads to be speculative and all requiring later confirmation resulting in exponencially
-growing number of pipelines for max troughput.
+leads to all reads to be speculative and all requiring later confirmation resulting in exponentially
+growing number of pipelines for max throughput.
 
 
 For read operations there are 4 cases based on speculativity and variable access:
@@ -34,7 +34,7 @@ For read operations there are 4 cases based on speculativity and variable access
 
 2. For a non speculative multiple read we should construct a a pipeline + FSM or just FSM where each read will be an independent interface
    connected to a stage of pipeline on based on its order in code and the inputs are enabled based on FSM of original code.
-   The just FSM is sufficient if the latency of other operations is small enough and input is consumet at high enough rate.
+   The just FSM is sufficient if the latency of other operations is small enough and input is consumed at high enough rate.
 
    .. code-block::Python
 
@@ -48,7 +48,7 @@ For read operations there are 4 cases based on speculativity and variable access
           c  = b.read()
 
 4. For a speculative multi point read we need to construct look ahead buffer which will load all data and copy it into speculative branches.
-   The depth of buffer depends on max degree of speculation and is generaly specified in number of data words.
+   The depth of buffer depends on max degree of speculation and is generally specified in number of data words.
    The read data after speculatively read data is also speculative read even if the read itself is not speculative.
    This is because the current position in data may be shifted due to some previous speculative read
 
@@ -66,7 +66,7 @@ In the detail for output:
 * discover the output channels
 * move each write down (in the direction to successor) in basic blocks as possible
   * if all predecessor contains write to this channel, move the write into successor
-* resolve latest write location and instanciate a buffers of size of minimal latency between that location and the latest location
+* resolve latest write location and instantiate a buffers of size of minimal latency between that location and the latest location
 * the data into this buffer should be put only if confirmed
 * this data also needs to have some ordering information
   * we use will be composed of bits which will represent an iteration index of each loop

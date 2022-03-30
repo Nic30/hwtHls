@@ -30,7 +30,7 @@ class AllocatorArchitecturalElement():
     :ivar parentHls: parent HLS context for this element
     :ivar namePrefix: name prefix for debug purposes
     :ivar netNodeToRtl: dictionary {hls node: rtl instance}
-    :ivar connections: list of connections in idividual stage in this arch. element, user for registration
+    :ivar connections: list of connections in individual stage in this arch. element, user for registration
         of products of nodes for sync generator
     :ivar allNodes: list in this arch element
     :ivar connections: list of rtl object allocated for each specific clock stage
