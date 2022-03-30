@@ -9,6 +9,7 @@ from hwt.hdl.types.defs import BOOL, BIT
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.types.typeCast import toHVal
 from hwt.hdl.value import HValue
+from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.interfaces.std import Handshaked, Signal
 from hwt.pyUtils.arrayQuery import flatten
 from hwt.pyUtils.uniqList import UniqList
@@ -28,7 +29,6 @@ from hwtHls.ssa.transformation.ssaPass import SsaPass
 from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa, AnyStm
 from hwtHls.ssa.translation.toHwtHlsNetlist.pipelineMaterialization import SsaSegmentToHwPipeline
 from hwtLib.amba.axis import AxiStream
-from hwt.interfaces.hsStructIntf import HsStructIntf
 
 
 class HlsStreamProc():
@@ -184,8 +184,9 @@ class HlsStreamProc():
         Create a thread from a code which will be translated to hw.
         """
         _code = self._format_code(code)
-        to_ssa = AstToSsa(self.ssaCtx, "top", _code)
-        to_ssa.visit_top_CodeBlock(_code)
-        to_ssa.finalize()
-        self._thread(to_ssa, _code)
+        toSsa = AstToSsa(self.ssaCtx, "top", _code)
+        toSsa._onAllPredecsKnown(toSsa.start)
+        toSsa.visit_top_CodeBlock(_code)
+        toSsa.finalize()
+        self._thread(toSsa, _code)
         

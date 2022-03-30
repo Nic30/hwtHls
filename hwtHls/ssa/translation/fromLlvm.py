@@ -331,7 +331,7 @@ class FromLlvmIrTranslator():
                     exprBuilder = SsaExprBuilder(newBlock)
                     for v, dst in grouper(2, islice(ops, 2, None)):
                         v = self._translateExpr(v)
-                        v = exprBuilder._binaryOp(switchOn, AllOps.EQ, v)
+                        v = exprBuilder._binaryOp(switchOn, AllOps.EQ, v.cast_sign(switchOn._dtype.signed))
                         condDst.append((v, self.newBlocksBegin[dst.get()]))
                     condDst.append((None, self.newBlocksBegin[defaultDst.get()]))
 

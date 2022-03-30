@@ -43,7 +43,7 @@ class AxiSParseStructManyInts0(Unit):
             hls.While(True,
                 v,
                 *(
-                    hls.write(getattr(v, f"i{i:d}"), dst)
+                    hls.write(getattr(v.data, f"i{i:d}"), dst)
                     for i, dst in enumerate(self.o)
                 )
             )
@@ -68,10 +68,11 @@ class AxiSParseStructManyInts1(AxiSParseStructManyInts0):
 
         def write():
             oIt = iter(self.o)
+            assert len(v) == len(structManyInts.fields)
             for src, f in zip(v, structManyInts.fields):
                 if f.name is not None:
                     dst = next(oIt)
-                    yield hls.write(src, dst)
+                    yield hls.write(src.data, dst)
 
         hls.thread(
             hls.While(True,
@@ -111,7 +112,7 @@ class AxiSParse2fields(AxiSParseStructManyInts0):
             hls.While(True,
                *v,
                 *(
-                    hls.write(src, dst)
+                    hls.write(src.data, dst)
                     for src, dst in zip(v, self.o)
                 )
             )

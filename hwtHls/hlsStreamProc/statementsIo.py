@@ -1,4 +1,5 @@
 from enum import Enum
+from math import ceil
 from typing import Optional, Union
 
 from hwt.doc_markers import internal
@@ -6,11 +7,12 @@ from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.hdlType import HdlType
+from hwt.hdl.types.struct import HStruct
 from hwt.hdl.value import HValue
 from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.interfaces.signalOps import SignalOps
 from hwt.interfaces.std import Handshaked, Signal, VldSynced
-from hwt.interfaces.structIntf import StructIntf
+from hwt.interfaces.structIntf import StructIntf, Interface_to_HdlType
 from hwt.interfaces.unionIntf import UnionSink, UnionSource
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
@@ -80,7 +82,7 @@ class HlsStreamProcRead(HdlStatement, SignalOps, InterfaceBase, SsaInstr):
 
         self._sig = sig_flat
         self._GEN_NAME_PREFIX = intfName
-        SsaInstr.__init__(self, parent.ssaCtx, dtype, OP_ASSIGN, (),
+        SsaInstr.__init__(self, parent.ssaCtx, sig_flat._dtype, OP_ASSIGN, (),
                           origin=sig)
 
         if isinstance(sig, StructIntf):
@@ -108,11 +110,11 @@ class HlsStreamProcRead(HdlStatement, SignalOps, InterfaceBase, SsaInstr):
 
 
 class HlsStreamProcReadAxiStream(HlsStreamProcRead):
-
+        
     def __init__(self,
                  parent: "HlsStreamProc",
                  src: AxiStream,
-                 type_or_size: Union[HdlType, RtlSignal, int],
+                 dtype: HdlType,
                  inStreamPos=IN_STREAM_POS.BODY):
         super(HlsStreamProcRead, self).__init__()
         self._isAccessible = True
@@ -121,41 +123,64 @@ class HlsStreamProcReadAxiStream(HlsStreamProcRead):
         self._parent = parent
         self._src = src
         self.block: Optional[SsaBasicBlock] = None
-        assert isinstance(type_or_size, HdlType), type_or_size
+        assert isinstance(dtype, HdlType), dtype
             
         intfName = getSignalName(src)
         var = parent.var
         name = f"{intfName:s}_read"
-        sig = var(name, type_or_size)
-        if isinstance(sig, Interface):
-            sig_flat = var(name, Bits(type_or_size.bit_length()))
-            # use flat signal and make type member fields out of slices of that signal
-            sig = sig_flat._reinterpret_cast(type_or_size)
-            sig._name = name
-            sig_flat.drivers.append(self)
-            sig_flat.origin = self
-    
-        else:
-            sig_flat = sig
-            sig.drivers.append(self)
-            sig.origin = self
+        if src.DEST_WIDTH:
+            raise NotImplementedError()
+        
+        if src.ID_WIDTH:
+            raise NotImplementedError()
+        
+        if src.USE_KEEP or src.USE_STRB:
+            data_w = dtype.bit_length()
+            assert data_w % 8 == 0, data_w
+            mask_w = ceil(dtype.bit_length() / 8)
+            maskT = Bits(mask_w)
 
+        trueDtype = HStruct(
+            (dtype, "data"),
+            *((maskT, "keep") if src.USE_KEEP else ()),
+            *((maskT, "strb") if src.USE_STRB else ()),
+            (BIT, "last"),  # we do not know how many words this read could be last is disjunction of last signals from each word
+        )
+        
+        sig_flat = var(name, Bits(trueDtype.bit_length()))
+        sig_flat.drivers.append(self)
+        sig_flat.origin = self
         self._sig = sig_flat
-        self._valid = var(f"{intfName:s}_read_valid", BIT)
+        self._last = None 
         self._GEN_NAME_PREFIX = intfName
-        SsaInstr.__init__(self, parent.ssaCtx, type_or_size, OP_ASSIGN, (),
-                          origin=sig)
+        SsaInstr.__init__(self, parent.ssaCtx, sig_flat._dtype, OP_ASSIGN, (),
+                          origin=sig_flat)
+        self._dtypeOrig = dtype
 
-        if isinstance(sig, StructIntf):
-            self._interfaces = sig._interfaces
-            # copy all members on this object
-            for field_path, field_intf in sig._fieldsToInterfaces.items():
-                if len(field_path) == 1:
-                    n = field_path[0]
-                    assert not hasattr(self, n), (self, n)
-                    setattr(self, n, field_intf)
-        else:
-            self._interfaces = []
+        sig: Interface = sig_flat._reinterpret_cast(trueDtype)
+        sig._name = name
+        sig._parent = parent.parentUnit
+        self._interfaces = sig._interfaces
+        # copy all members on this object
+        for field_path, field_intf in sig._fieldsToInterfaces.items():
+            if len(field_path) == 1:
+                n = field_path[0]
+                assert not hasattr(self, n), (self, n)
+                setattr(self, n, field_intf)
+
+
+    @staticmethod
+    def _getWordType(intf: AxiStream):
+        return Interface_to_HdlType().apply(intf, exclude={intf.ready, intf.valid})
+
+    def _isLast(self):
+        """
+        :return: an expression which is 1 if this is a last word in the frame
+        """
+        if self._last is None:
+            self._last = self._sig[self._sig._dtype.bit_length() - 1]
+
+        return self._last
 
     def __repr__(self):
         t = self._dtype

@@ -1,14 +1,14 @@
 define dso_local i32 @main() #0 {
 mainThread:
-  i6 = call <Bits, 8bits, unsigned> @hls.read(i)
-  %7 = EQ i6, <BitsVal 10>
-  %8 = EQ i6, <BitsVal 2>
-  %9 = CONCAT <BitsVal 1>, %7
-  %10 = TERNARY %8, <BitsVal 1>, %9
-  %11 = INDEX %10, <BitsVal 0>
-  %12 = INDEX %10, <BitsVal 0>
-  %13 = CONCAT <BitsVal 1>, %11
-  %14 = CONCAT %12, %13
-  %15 = CONCAT <BitsVal 0>, %14
-  void call <Bits, 8bits> @hls.write(%15)
+  i7 = call <Bits, 8bits, unsigned> @hls.read(i)
+  %8 = EQ i7, <BitsVal 10>
+  %9 = EQ i7, <BitsVal 2>
+  %10 = CONCAT <BitsVal 1>, %8
+  %11 = TERNARY %9, <BitsVal 1>, %10
+  %12 = INDEX %11, <BitsVal 0>
+  %13 = INDEX %11, <BitsVal 0>
+  %14 = CONCAT <BitsVal 1>, %12
+  %15 = CONCAT %13, %14
+  %16 = CONCAT <BitsVal 0>, %15
+  void call <Bits, 8bits> @hls.write(%16)
 }

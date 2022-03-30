@@ -22,6 +22,7 @@ from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.ssa.translation.toHwtHlsNetlist.opCache import SsaToHwtHlsNetlistOpCache
 from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axi_intf_common import Axi_hs
+from hwt.synthesizer.interfaceLevel.interfaceUtils.utils import packIntf
 
 IO_COMB_REALIZATION = OpRealizationMeta(latency_post=epsilon)
 
@@ -210,8 +211,8 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
         allocator.netNodeToRtl[r_out] = _o
         for sync in self.dependsOn:
             assert isinstance(sync, HlsNetNodeOut), (self, self.dependsOn)
-            # prepare sync intputs but do not connect it because we do not implemet synchronization
-            # in this step we are building only datapath
+            # prepare sync inputs but do not connect it because we do not implement synchronization
+            # in this step we are building only data path
             sync.obj.allocateRtlInstance(allocator)
 
         return _o
@@ -220,7 +221,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
         """
         Collect the total number of IO operations which may happen concurrently in this clock period.
 
-        :note: This is not a total number of scheduled IO oprerations in this clock.
+        :note: This is not a total number of scheduled IO operations in this clock.
             It uses the information about if the operations may happen concurrently.
         """
         clkPeriod: int = self.hls.normalizedClkPeriod
@@ -284,8 +285,16 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
 
     def getRtlDataSig(self):
         src = self.src
-        if isinstance(src, (HsStructIntf, Handshaked, HandshakeSync, VldSynced, RdSynced)):
+        if isinstance(src, HsStructIntf):
             return src.data
+        elif isinstance(src, (Axi_hs)):
+            return packIntf(src, exclude=(src.valid, src.ready))
+        elif isinstance(src, (Handshaked, HandshakeSync)):
+            return packIntf(src, exclude=(src.vld, src.rd))
+        elif isinstance(src, VldSynced):
+            return packIntf(src, exclude=(src.vld))
+        elif isinstance(src, RdSynced):
+            return packIntf(src, exclude=(src.rd))
         else:
             return src
 
@@ -416,9 +425,10 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         assert len(self.dependsOn) >= 1, self.dependsOn
         # [0] - data, [1:] control dependencies
         for sync, t in zip(self.dependsOn[1:], self.scheduledIn[1:]):
-            # prepare sync intputs but do not connect it because we do not implemet synchronization
+            # prepare sync intputs but do not connect it because we do not implement synchronization
             # in this step we are building only datapath
-            allocator.instantiateHlsNetNodeOutInTime(sync, t)
+            if sync._dtype != HOrderingVoidT:
+                allocator.instantiateHlsNetNodeOutInTime(sync, t)
 
         dep = self.dependsOn[0]
         _o = allocator.instantiateHlsNetNodeOutInTime(dep, self.scheduledIn[0])

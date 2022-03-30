@@ -60,9 +60,9 @@ class ReadGraphDetector():
                     predEndOffset = 0
                 else:
                     predecessor = instr
-                    predEndOffset = (predEndOffset + instr._dtype.bit_length()) % self.DATA_WIDTH
+                    predEndOffset = (predEndOffset + instr._dtypeOrig.bit_length()) % self.DATA_WIDTH
         
-        for suc in block.successors.iter_blocks():
+        for suc in block.successors.iterBlocks():
             self.detectReadGraphs(predecessor, predEndOffset, suc)
 
     def resolvePossibleOffset(self):
@@ -111,7 +111,7 @@ class ReadGraphDetector():
         _preds = []
         for p in preds:
             p: SsaBasicBlock
-            sucs = set(p.successors.iter_blocks()).difference(preds)
+            sucs = set(p.successors.iterBlocks()).difference(preds)
             if not sucs:
                 _preds.append(p)
             elif len(sucs) == 1:

@@ -19,6 +19,7 @@ class SsaPhi(SsaInstr):
         super(SsaPhi, self).__init__(ctx, dtype, AllOps.TERNARY, (), name=name, origin=origin)
         self.block: Optional["SsaBasicBlock"] = None
         self.operands:Tuple[Union[HValue, SsaValue], "SsaBasicBlock"] = ()
+        self.replacedBy: Optional[Union[SsaValue, HValue]] = None
 
     def replaceInput(self, orig_expr: SsaValue, new_expr: Union[SsaValue, HValue]):
         somethingReplaced = False
@@ -33,12 +34,14 @@ class SsaPhi(SsaInstr):
         self.operands = tuple(ops)
 
     def replaceUseBy(self, v: "SsaPhi"):
-        for u in self.users:
+        for u in tuple(self.users):
             u.replaceInput(self, v)
+        self.replacedBy = v
 
     def appendOperand(self,
                       val: Union["SsaPhi", RtlSignalBase, HValue],
                       predecessor_block: "SsaBasicBlock"):
+        assert self.replacedBy is None
         new_op = (val, predecessor_block)
         if new_op in self.operands:
             return
@@ -49,6 +52,7 @@ class SsaPhi(SsaInstr):
     def replacePredecessorBlockByMany(self,
                                       predecessor_block: "SsaBasicBlock",
                                       new_predecessor_blocks: List["SsaBasicBlock"]):
+        assert self.replacedBy is None
         operands = []
         for (val, b) in self.operands:
             if b is predecessor_block:
@@ -66,4 +70,4 @@ class SsaPhi(SsaInstr):
         self.operands = tuple(operands)
 
     def __repr__(self):
-        return f"<{self.__class__.__name__:s} {self._name}>"
+        return f"<{self.__class__.__name__:s} {self._name} {'deleted' if self.replacedBy is not None else ''}>"

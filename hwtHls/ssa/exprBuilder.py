@@ -1,10 +1,15 @@
+from typing import Optional, Union, List, Tuple
+
+from hwt.hdl.operator import Operator
 from hwt.hdl.operatorDefs import OpDefinition, AllOps
+from hwt.hdl.value import HValue
+from hwt.synthesizer.interface import Interface
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
-from hwtHls.ssa.value import SsaValue
-from typing import Optional, Union, List, Tuple
-from hwt.hdl.value import HValue
 from hwtHls.ssa.phi import SsaPhi
+from hwtHls.ssa.value import SsaValue
+from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
+from hwt.interfaces.std import Signal
 
 
 class SsaExprBuilderProxy():
@@ -75,8 +80,9 @@ class SsaExprBuilder():
         # [todo] operator cache
 
     def _unaryOp(self, o: Union[SsaValue, HValue], operator: OpDefinition) -> SsaValue:
-        res = operator._evalFn(o.origin if o.origin is not None else o._dtype.from_py(None))
-        if isinstance(o, HValue):
+        o, oForTypeInference = self._normalizeOperandForOperatorResTypeEval(o)
+        res = operator._evalFn(oForTypeInference)
+        if o is oForTypeInference and isinstance(res, HValue):
             return res
 
         instr = SsaInstr(self.block.ctx, res._dtype, operator, [o, ], origin=res)
@@ -104,20 +110,72 @@ class SsaExprBuilder():
     def unaryOp(self, o: Union[SsaValue, HValue], operator: OpDefinition) -> SsaExprBuilderProxy:
         return self.var(self._unaryOp(o.var, operator))
 
-    def _binaryOp(self, o0: Union[SsaValue, HValue], operator: OpDefinition, o1: Union[SsaValue, HValue]) -> SsaValue:
-        is_o0_value = isinstance(o0, HValue)
-        is_o1_value = isinstance(o1, HValue)
+    def _normalizeOperandForOperatorResTypeEval(self,
+                                                o: Union[SsaValue, HValue, RtlSignal, Signal]
+                                                ) -> Tuple[Union[SsaValue, HValue], Union[SsaValue, HValue]]:
+        """
+        :returns: tuple (object for expressing, object for type inference)
+        """
+        if isinstance(o, Interface):
+            o = o._sig
+        
+        if isinstance(o, HValue):
+            return o, o
+
+        elif isinstance(o, SsaValue):
+            while isinstance(o, SsaPhi) and o.replacedBy is not None:
+                o = o.replacedBy
+            return o, o._dtype.from_py(None)
+
+        elif o.origin is not None:
+            origin = o.origin
+            if isinstance(origin, SsaValue):
+                return origin, o._dtype.from_py(None)
+
+            elif isinstance(origin, Operator):
+                origin: Operator
+                ops = origin.operands
+
+                if len(ops) == 1:
+                    res = self._unaryOp(ops[0], origin.operator)
+                elif len(ops) == 2:
+                    res = self._binaryOp(ops[0], origin.operator, ops[1])
+                else:
+                    raise NotImplementedError(o.origin)
+
+                if isinstance(res, HValue):
+                    return res, res
+                else:
+                    while isinstance(res, SsaPhi) and res.replacedBy is not None:
+                        res = res.replacedBy
+                    return res, res._dtype.from_py(None)
+
+            else:
+                raise NotImplementedError(o.origin)
+
+        else:
+            return o, o._dtype.from_py(None)
+
+    def _binaryOp(self, o0: Union[SsaValue, HValue, RtlSignal, Signal],
+                        operator: OpDefinition,
+                        o1: Union[SsaValue, HValue, RtlSignal, Signal]) -> SsaValue:
+        o0, o0ForTypeInference = self._normalizeOperandForOperatorResTypeEval(o0)
+        o1, o1ForTypeInference = self._normalizeOperandForOperatorResTypeEval(o1)
+
         res = operator._evalFn(
-            o0 if is_o0_value else o0.origin if o0.origin is not None else o0._dtype.from_py(None),
-            o1 if is_o1_value else o1.origin if o1.origin is not None else o1._dtype.from_py(None))
-        if is_o0_value and is_o1_value:
+            o0ForTypeInference,
+            o1ForTypeInference,
+        )
+        if o0 is o0ForTypeInference and o1 is o1ForTypeInference and isinstance(res, HValue):
             return res
 
         instr = SsaInstr(self.block.ctx, res._dtype, operator, [o0, o1])
         self._insertInstr(instr)
         return instr
 
-    def binaryOp(self, o0: Union[SsaValue, HValue], operator: OpDefinition, o1: SsaValue) -> SsaExprBuilderProxy:
+    def binaryOp(self, o0: Union[SsaValue, HValue, RtlSignal, Signal],
+                 operator: OpDefinition,
+                 o1: Union[SsaValue, HValue, RtlSignal, Signal]) -> SsaExprBuilderProxy:
         return self.var(self._binaryOp(o0.var, operator, o1.var))
 
     def var(self, v: SsaValue):

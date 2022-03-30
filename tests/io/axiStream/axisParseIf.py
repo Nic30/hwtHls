@@ -30,12 +30,12 @@ class AxiSParse2If(AxiSParse2fields):
         hls.thread(
             hls.While(True,
                 v0,
-                hls.If(v0._eq(2),
+                hls.If(v0.data._eq(2),
                        v1a, # read 2B, output
-                       hls.write(v1a._reinterpret_cast(o._dtype), o),
-                ).Elif(v0._eq(4),
+                       hls.write(v1a.data._reinterpret_cast(o._dtype), o),
+                ).Elif(v0.data._eq(4),
                        v1b, # read 4B, output
-                       hls.write(v1b._reinterpret_cast(o._dtype), o),
+                       hls.write(v1b.data._reinterpret_cast(o._dtype), o),
                 ).Else(
                     # read 1B only
                     hls.read(self.i, Bits(8), inStreamPos=IN_STREAM_POS.END)
@@ -83,7 +83,7 @@ if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
 
     u = AxiSParse2If()
-    u.DATA_WIDTH = 8
-    u.CLK_FREQ = int(100e6)
+    u.DATA_WIDTH = 512
+    u.CLK_FREQ = int(1e6)
     p = VirtualHlsPlatform(**makeDebugPasses("tmp"))
     print(to_rtl_str(u, target_platform=p))

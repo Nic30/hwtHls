@@ -130,7 +130,7 @@ class PipelineExtractor():
     #        for i0, c0 in enumerate(c):
     #            c0:SsaBasicBlock
     #
-    #            for pred in c0.successors.iter_blocks():
+    #            for pred in c0.successors.iterBlocks():
     #                try:
     #                    i1 = c.index(pred)
     #                except ValueError:
@@ -159,7 +159,7 @@ class PipelineExtractor():
         dg = DiGraph()
         for b0_i, b0 in enumerate(blocks):
             b0: SsaBasicBlock
-            for b1 in b0.successors.iter_blocks():
+            for b1 in b0.successors.iterBlocks():
                 b1_i = block_to_id[b1]
                 dg.add_edge(b0_i, b1_i)
 

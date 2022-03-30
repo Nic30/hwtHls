@@ -26,7 +26,7 @@ from tests.syntaxElements.while_if_test import HlsStreamMachineWhileIf_TC
 from tests.syntehesis_checks import HlsSynthesisChecksTC
 from tests.utils.alapAsapDiffExample import AlapAsapDiffExample_TC
 from tests.utils.concatOfSlices_test import ConcatOfSlicesTC
-
+from tests.utils.phiConstructions_test import PhiConstruction_TC
 
 def testSuiteFromTCs(*tcs):
     loader = TestLoader()
@@ -51,6 +51,7 @@ suite = testSuiteFromTCs(
     HlsStreamMachineTrivial_TC,
     HlsStreamMachineWhileIf_TC,
     IoFsm_TC,
+    PhiConstruction_TC,
     FromPythonBasics_TC,
     FnClosure_TC,
     StmIf_TC,

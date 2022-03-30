@@ -116,11 +116,11 @@ class SaaGetBlockSyncType():
 
                     if not m.needsControl:
                         sucThreads = sum((len(self.threadsPerBlock[suc])
-                                          for suc in block.successors.iter_blocks()))
+                                          for suc in block.successors.iterBlocks()))
                         if sucThreads > 1:
                             m.needsControl = True
 
-                        # and not any(bool(suc.phis) for suc in block.successors.iter_blocks()):
+                        # and not any(bool(suc.phis) for suc in block.successors.iterBlocks()):
                         # pred = block.predecessors[0]
                         # if (pred, block) in self.out_of_pipeline_edges:
                         #    pred = block.predecessors[1]
@@ -144,7 +144,7 @@ class SaaGetBlockSyncType():
                     len(block.successors) != 1
                 )
             )
-            # sucThreadCnt = sum((len(self.threadsPerBlock[suc]) for suc in block.successors.iter_blocks()))
+            # sucThreadCnt = sum((len(self.threadsPerBlock[suc]) for suc in block.successors.iterBlocks()))
             # predThreadCnt = sum((len(self.threadsPerBlock[suc]) for suc in block.predecessors))
             if not m.needsControl:
                 m.needsControl = (
@@ -157,7 +157,7 @@ class SaaGetBlockSyncType():
                     (bool(threads) and
                         (
                             any(self._blockMeta[pred].needsControl for pred in block.predecessors) or
-                            any(self._blockMeta[suc].needsControl for suc in block.successors.iter_blocks())
+                            any(self._blockMeta[suc].needsControl for suc in block.successors.iterBlocks())
                         )
                     )
                 )
@@ -174,7 +174,7 @@ class SaaGetBlockSyncType():
 
                 self._onBlockNeedsControl(pred)
 
-        for suc in block.successors.iter_blocks():
+        for suc in block.successors.iterBlocks():
             m: BlockMeta = self._blockMeta[suc]
             if not m.needsControl:
                 m.needsControl = True
@@ -191,7 +191,7 @@ class SaaGetBlockSyncType():
         liveOut = set()
         for pred in block.predecessors:
             liveIn.update(self.edge_var_live[pred][block])
-        for suc in block.successors.iter_blocks():
+        for suc in block.successors.iterBlocks():
             liveOut.update(self.edge_var_live[block][suc])
         for v in liveIn.intersection(liveOut):
             if v.block is block:

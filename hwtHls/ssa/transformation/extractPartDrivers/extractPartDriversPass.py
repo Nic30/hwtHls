@@ -287,6 +287,8 @@ class SsaPassExtractPartDrivers(SsaPass):
         elif isinstance(o, HlsStreamProcRead):
             # can not reduce the read as it can not be split to parts
             usedOnlyByReplaced = False
+        elif isinstance(o, SsaInstrBranch):
+            usedOnlyByReplaced = False
         else:
             usedOnlyByReplaced = bool(o.users)
             for u in o.users:
@@ -379,15 +381,17 @@ class SsaPassExtractPartDrivers(SsaPass):
                     return v
                 else:
                     return v[bitRange[0]:bitRange[1]]
+
             elif not v_varEntirelyReplaced:
-                if v._dtype.bit_length() != bitRange[0] - bitRange[1]:
+                if v._dtype.bit_length() != bitRange[0] - bitRange[1]:  # if slicing required
                     b = SsaExprBuilder(v.block, position=v.block.body.index(v) + 1)
                     replacement = b._binaryOp(v, AllOps.INDEX, SLICE.from_py(slice(bitRange[0], bitRange[1], -1)))
                     # print(var_range_key, replacement)
                     variableForRange[var_range_key] = replacement
-
                     return replacement
+
                 return v
+
             else:
                 replacement = varBitAlises.get(v, None)
                 if replacement is None:
@@ -400,6 +404,7 @@ class SsaPassExtractPartDrivers(SsaPass):
                         phiI = v.block.phis.index(v)
                         b = SsaExprBuilder(v.block, position=phiI)
                         replacement = b.phi(args)
+
                     else:
                         args: List[SsaValue] = []
                         assert v.operator in BITWISE_OPS, v.operator
@@ -423,9 +428,11 @@ class SsaPassExtractPartDrivers(SsaPass):
                         b = SsaExprBuilder(v.block, position=startIndex + 1)
                         if len(args) == 1:
                             replacement = b._unaryOp(args[0], v.operator)
+
                         elif len(args) == 2:
                             o0, o1 = args
                             replacement = b._binaryOp(o0, v.operator, o1)
+
                         else:
                             raise NotImplementedError(v, args)
     
@@ -514,9 +521,9 @@ class SsaPassExtractPartDrivers(SsaPass):
 
         variableForRange: Dict[Tuple[SsaValue, int, int], SsaValue] = {}
         # replace variable with new ones in all instructions
-        for v, replace in sorted(varEntirelyReplaced.items(), key=lambda x: x[0]._name):
+        for v, replace in sorted(varEntirelyReplaced.items(), key=lambda x: x[0].parent.label if isinstance(x[0], SsaInstrBranch) else x[0]._name):
             if replace and v.users:
-                replacement: Optional[SsaValue] = None  # lazy loaded
+                replacement: Optional[SsaValue] = None  # lazy evaluated
                 for u in v.users:
                     if not varEntirelyReplaced[u]:
                         u: SsaInstr

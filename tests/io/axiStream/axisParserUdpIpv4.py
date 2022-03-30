@@ -15,6 +15,7 @@ from hwtLib.types.ctypes import uint16_t, uint8_t
 from hwtLib.types.net.ethernet import Eth2Header_t, ETHER_TYPE
 from hwtLib.types.net.ip import IPv4Header_t, IP_PROTOCOL, ipv4_t
 from hwtLib.types.net.udp import UDP_header_t
+from hwtHls.ssa.translation.fromPython.markers import PythonBytecodeInPreproc
 
 
 class AxiSParseUdpIpv4(Unit):
@@ -36,11 +37,11 @@ class AxiSParseUdpIpv4(Unit):
     
     def parseEth(self, hls: HlsStreamProc):
         while BIT.from_py(1):
-            eth = hls.read(self.i, Eth2Header_t, inStreamPos=IN_STREAM_POS.BEGIN)
+            eth = PythonBytecodeInPreproc(hls.read(self.i, Eth2Header_t, inStreamPos=IN_STREAM_POS.BEGIN))
             if eth.type._eq(ETHER_TYPE.IPv4):
-                ipv4 = hls.read(self.i, IPv4Header_t)
+                ipv4 = PythonBytecodeInPreproc(hls.read(self.i, IPv4Header_t))
                 if ipv4.protocol._eq(IP_PROTOCOL.UDP):
-                    udp = hls.read(self.i, UDP_header_t)
+                    udp = PythonBytecodeInPreproc(hls.read(self.i, UDP_header_t))
                     hls.write(ipv4.src, self.src_ip)
                     hls.write(udp.srcp, self.srcp)
             hls.read(self.i, uint8_t, inStreamPos=IN_STREAM_POS.END)

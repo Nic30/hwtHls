@@ -78,6 +78,8 @@ class HlsNetNodeWriteBackwardEdge(HlsNetNodeWrite):
 
         if self.allocateAsBuffer:
             res = HlsNetNodeWrite.allocateRtlInstance(self, allocator)
+            allocator._afterNodeInstantiated(self, res)
+
             src_write = self
             dst_read: HlsNetNodeReadBackwardEdge = self.associated_read
             assert dst_read is not None

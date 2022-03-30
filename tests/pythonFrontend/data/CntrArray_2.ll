@@ -2,45 +2,45 @@ define dso_local i32 @main() #0 {
 mainThread:
   br [label %block40 ]
 block40:
-  %35 = phi <Bits, 32bits> [<BitsVal 0>, mainThread], [%54, block50_getSwEnd_getSwEnd_106_setSwEnd]
-  %36 = phi <Bits, 32bits> [<BitsVal 0>, mainThread], [%55, block50_getSwEnd_getSwEnd_106_setSwEnd]
-  %37 = phi <Bits, 32bits> [<BitsVal 0>, mainThread], [%56, block50_getSwEnd_getSwEnd_106_setSwEnd]
-  %38 = phi <Bits, 32bits> [<BitsVal 0>, mainThread], [%57, block50_getSwEnd_getSwEnd_106_setSwEnd]
-  o_addr39 = call <Bits, 2bits, unsigned> @hls.read(o_addr)
-  %40 = EQ o_addr39, <BitsVal 0>
-  %41 = EQ o_addr39, <BitsVal 1>
-  %42 = EQ o_addr39, <BitsVal 2>
-  br [label %block50_getSwEnd %40]
-  [label %block50_getSwEnd.fold.split %41]
-  [label %block50_getSwEnd.fold.split7 %42]
+  %39 = phi <Bits, 32bits> [<BitsVal 0>, mainThread], [%58, block50_getSwEnd_getSwEnd_106_setSwEnd]
+  %40 = phi <Bits, 32bits> [<BitsVal 0>, mainThread], [%59, block50_getSwEnd_getSwEnd_106_setSwEnd]
+  %41 = phi <Bits, 32bits> [<BitsVal 0>, mainThread], [%60, block50_getSwEnd_getSwEnd_106_setSwEnd]
+  %42 = phi <Bits, 32bits> [<BitsVal 0>, mainThread], [%61, block50_getSwEnd_getSwEnd_106_setSwEnd]
+  o_addr43 = call <Bits, 2bits, unsigned> @hls.read(o_addr)
+  %44 = EQ o_addr43, <BitsVal 0>
+  %45 = EQ o_addr43, <BitsVal 1>
+  %46 = EQ o_addr43, <BitsVal 2>
+  br [label %block50_getSwEnd %44]
+  [label %block50_getSwEnd.fold.split %45]
+  [label %block50_getSwEnd.fold.split7 %46]
   [label %block50_62_c3 ]
 block50_getSwEnd:
-  %43 = phi <Bits, 32bits> [%38, block50_62_c3], [%35, block40], [%36, block50_getSwEnd.fold.split], [%37, block50_getSwEnd.fold.split7]
-  void call <Bits, 32bits> @hls.write(%43)
-  i45 = call <Bits, 2bits, unsigned> @hls.read(i)
-  %46 = EQ i45, <BitsVal 0>
-  %47 = EQ i45, <BitsVal 2>
-  %48 = TERNARY %46, %35, %36
-  %49 = BitsAsSigned i45
-  %50 = GT %49, <BitsVal -1>
-  %51 = TERNARY %47, %37, %38
-  %52 = TERNARY %50, %48, %51
-  %53 = ADD %52, <BitsVal 1>
-  br [label %block50_getSwEnd_getSwEnd_106_setSwEnd %46]
+  %47 = phi <Bits, 32bits> [%42, block50_62_c3], [%39, block40], [%40, block50_getSwEnd.fold.split], [%41, block50_getSwEnd.fold.split7]
+  void call <Bits, 32bits> @hls.write(%47)
+  i49 = call <Bits, 2bits, unsigned> @hls.read(i)
+  %50 = EQ i49, <BitsVal 0>
+  %51 = EQ i49, <BitsVal 2>
+  %52 = TERNARY %50, %39, %40
+  %53 = BitsAsSigned i49
+  %54 = GT %53, <BitsVal -1>
+  %55 = TERNARY %51, %41, %42
+  %56 = TERNARY %54, %52, %55
+  %57 = ADD %56, <BitsVal 1>
+  br [label %block50_getSwEnd_getSwEnd_106_setSwEnd %50]
   [label %block50_getSwEnd_getSwEnd5 ]
 block50_getSwEnd_getSwEnd_106_setSwEnd:
-  %54 = phi <Bits, 32bits> [%53, block50_getSwEnd], [%35, block50_getSwEnd_getSwEnd5], [%35, block50_getSwEnd_getSwEnd6]
-  %55 = phi <Bits, 32bits> [%36, block50_getSwEnd], [%53, block50_getSwEnd_getSwEnd5], [%36, block50_getSwEnd_getSwEnd6]
-  %56 = phi <Bits, 32bits> [%37, block50_getSwEnd], [%37, block50_getSwEnd_getSwEnd5], [%60, block50_getSwEnd_getSwEnd6]
-  %57 = phi <Bits, 32bits> [%38, block50_getSwEnd], [%38, block50_getSwEnd_getSwEnd5], [%59, block50_getSwEnd_getSwEnd6]
+  %58 = phi <Bits, 32bits> [%57, block50_getSwEnd], [%39, block50_getSwEnd_getSwEnd5], [%39, block50_getSwEnd_getSwEnd6]
+  %59 = phi <Bits, 32bits> [%40, block50_getSwEnd], [%57, block50_getSwEnd_getSwEnd5], [%40, block50_getSwEnd_getSwEnd6]
+  %60 = phi <Bits, 32bits> [%41, block50_getSwEnd], [%41, block50_getSwEnd_getSwEnd5], [%64, block50_getSwEnd_getSwEnd6]
+  %61 = phi <Bits, 32bits> [%42, block50_getSwEnd], [%42, block50_getSwEnd_getSwEnd5], [%63, block50_getSwEnd_getSwEnd6]
   br [label %block40 ]
 block50_getSwEnd_getSwEnd5:
-  %58 = EQ i45, <BitsVal 1>
-  br [label %block50_getSwEnd_getSwEnd_106_setSwEnd %58]
+  %62 = EQ i49, <BitsVal 1>
+  br [label %block50_getSwEnd_getSwEnd_106_setSwEnd %62]
   [label %block50_getSwEnd_getSwEnd6 ]
 block50_getSwEnd_getSwEnd6:
-  %59 = TERNARY %47, %38, %53
-  %60 = TERNARY %47, %53, %37
+  %63 = TERNARY %51, %42, %57
+  %64 = TERNARY %51, %57, %41
   br [label %block50_getSwEnd_getSwEnd_106_setSwEnd ]
 block50_getSwEnd.fold.split:
   br [label %block50_getSwEnd ]

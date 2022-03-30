@@ -74,7 +74,7 @@ def ssa_liveness_edge_variables(start: SsaBasicBlock) -> EdgeLivenessDict:
     # initialization
     for block in blocks:
         provides[block], requires[block] = collect_direct_provieds_and_requires(block)
-        live[block] = {suc: set() for suc in block.successors.iter_blocks()}
+        live[block] = {suc: set() for suc in block.successors.iterBlocks()}
 
     # transitive enclosure of requires relation
     for block in blocks:

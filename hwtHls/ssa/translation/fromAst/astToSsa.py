@@ -1,3 +1,4 @@
+from itertools import chain
 from typing import Union, List, Optional, Tuple
 
 from hwt.hdl.operator import Operator
@@ -59,15 +60,14 @@ class AstToSsa():
     :ivar _break_target: list of basic blocks where code should jump on break statement
     :ivar _loop_stack: list of loop where the AST visitor actually is to resolve
         the continue/break and loop association. The record is a tuple (loop statement, entry block, list of blocks ending with break).
-        The blocks ending with break will have its breanch destination assigned after the loop is processed (in loop parsing fn.).
+        The blocks ending with break will have its branch destination assigned after the loop is processed (in loop parsing fn.).
     """
 
     def __init__(self, ssaCtx: SsaContext, startBlockName:str, original_code_for_debug: Optional[HlsStreamProcCodeBlock]):
         self.ssaCtx = ssaCtx
         self.start = SsaBasicBlock(ssaCtx, startBlockName)
         self.m_ssa_u = MemorySSAUpdater(self._onBlockReduce, self.visit_expr)
-        # all predecesors known (because this is an entry point)
-        self._onAllPredecsKnown(self.start)
+        # all predecessors known (because this is an entry point)
         self._continue_target: List[SsaBasicBlock] = []
         self._break_target: List[SsaBasicBlock] = []
         self.original_code_for_debug = original_code_for_debug
@@ -303,7 +303,7 @@ class AstToSsa():
         block.origins.append(o)
         # this may result in:
         # * store instruction
-        # * just the registration of the varialbe for the symbol
+        # * just the registration of the variable for the symbol
         #   * only a segment in bit vector can be assigned, this result in the assignment of the concatenation of previous and new value
         self.m_ssa_u.writeVariable(o.dst, o.indexes, block, src)
         # ld = SsaInstr(o.dst, src)
@@ -325,4 +325,11 @@ class AstToSsa():
         return block
 
     def finalize(self):
+        sealedBlocks = self.m_ssa_u.sealedBlocks
+        for b in chain((self.start,), sealedBlocks):
+            for p in b.predecessors:
+                assert p in sealedBlocks, (p, "was not sealed")
+            for s in b.successors.iterBlocks():
+                assert s in sealedBlocks, (s, "was not sealed")
+
         assert not self.m_ssa_u.incompletePhis, self.m_ssa_u.incompletePhis

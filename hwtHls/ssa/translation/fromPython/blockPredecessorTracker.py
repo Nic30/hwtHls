@@ -68,6 +68,9 @@ class BlockPredecessorTracker():
         assert block not in self.notGenerated, block
         self.generated.add(block)
         yield from self.checkAllNewlyResolvedBlocks(block)
+        for suc in self.cfg.successors(block):
+            if suc in self.generated:
+                yield from self.checkAllNewlyResolvedBlocks(suc)
 
     def _getBlockLabel(self, blockOffset:int) -> BlockLabel:
         # the block can be outside of current loop body, if this is the case we have to pop several loop scopes
@@ -181,15 +184,15 @@ class BlockPredecessorTracker():
         for origNode, newNode in blockMap.items():
             isEntry = origNode[-1] == loop.entryPoint[-1]
             if isEntry:
-                assert origNode in self.generated, (origNode, "Entrypoint should be generated because we are generating this loop body")
-                self.generated.add(newNode)
-                allPredecsKnown = True
+                #assert origNode in self.generated, (origNode, "Entrypoint should be generated because we are generating this loop body")
+                #self.generated.add(newNode)
+                #allPredecsKnown = True
 
                 for pred in cfg.predecessors(origNode):
-                    if (pred not in self.generated and
-                            pred not in self.notGenerated and
-                            (pred[-1],) not in loop.allBlocks):
-                        allPredecsKnown = False
+                    #if (pred not in self.generated and
+                    #        pred not in self.notGenerated and
+                    #        (pred[-1],) not in loop.allBlocks):
+                        #allPredecsKnown = False
                     # add edges to loop header from outside of loop
                     inLoop = pred in blockMap
                     if not inLoop:
@@ -199,10 +202,10 @@ class BlockPredecessorTracker():
                     if suc not in blockMap:
                         cfg.add_edge(nextEntry, suc)
 
-                if not allEntryPredecAlreadyKnown:
-                    if allPredecsKnown:
-                        # after remove of backedges entry block now have all predecessors known
-                        yield newNode
+                #if not allEntryPredecAlreadyKnown:
+                #    if allPredecsKnown:
+                #        # after remove of backedges entry block now have all predecessors known
+                #        yield newNode
 
             for suc in cfg.successors(origNode):
                 if suc == oldEntry:
@@ -228,6 +231,8 @@ class BlockPredecessorTracker():
 
         # remove original nodes and left only replacements
         cfg.remove_nodes_from(blockMap.keys())
+        return
+        yield
 
     def cfgCopyLoopBody(self, loop: PyBytecodeLoop, newPrefix: BlockLabel):
         cfg = self.cfg

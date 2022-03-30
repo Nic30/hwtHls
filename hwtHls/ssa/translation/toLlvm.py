@@ -1,5 +1,3 @@
-
-# from hwtHls..ssallvm.toLlvm import initializeModule
 import re
 from typing import List, Tuple, Dict, Union, Optional
 
@@ -26,10 +24,10 @@ from hwtHls.ssa.phi import SsaPhi
 from hwtHls.ssa.transformation.utils.blockAnalysis import collect_all_blocks
 from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
 from hwtHls.ssa.value import SsaValue
-from hwtLib.amba.axis import AxiStream
+from hwtLib.amba.axi_intf_common import Axi_hs
 from ipCorePackager.constants import INTF_DIRECTION
 
-RE_NUMBER = re.compile('[^0-9]+|[0-9]+')
+RE_ID_WITH_NUMBER = re.compile('[^0-9]+|[0-9]+')
 
 
 class ToLlvmIrTranslator():
@@ -235,7 +233,7 @@ class ToLlvmIrTranslator():
                 assert c is None
                 b.CreateBr(self.varMap[sucBb])
                 branchTmpBlocks.append((llvmBb, [sucBb, ]))
-                break  # would break on its own, added just to improve dode readabiliby
+                break  # would break on its own, added just to improve code readability
             else:
                 # need to generate a new block
                 branchTmpBlocks.append((llvmBb, [sucBb, ]))
@@ -251,7 +249,7 @@ class ToLlvmIrTranslator():
     @staticmethod
     def splitStrToStrsAndInts(name):
         key = []
-        for part in RE_NUMBER.findall(name):
+        for part in RE_ID_WITH_NUMBER.findall(name):
             try:
                 key.append(int(part))
             except ValueError:
@@ -260,15 +258,17 @@ class ToLlvmIrTranslator():
 
     @staticmethod
     def _getNativeInterfaceType(i: Interface):
-        if i.__class__ in (Handshaked, RdSynced, VldSynced, AxiStream):
-            return i.data._dtype
-        elif isinstance(i, (HsStructIntf, Signal, RtlSignal)):
+        if isinstance(i, (Handshaked, Axi_hs, HsStructIntf)):
+            return Bits(i._bit_length() - 2)
+        elif isinstance(i, (RdSynced, VldSynced)):
+            return Bits(i._bit_length() - 1)
+        elif isinstance(i, (Signal, RtlSignal)):
             return i._dtype
         else:
             raise NotImplementedError(i)
 
     def translate(self, start_bb: SsaBasicBlock):
-        # create a function where we place the code and the argumets for a io interfaces
+        # create a function where we place the code and the arguments for a io interfaces
         io_sorted = sorted(self.topIo.items(), key=lambda x: self.splitStrToStrsAndInts(getSignalName(x[0])))
         params = [(getSignalName(i), self._translateType(self._getNativeInterfaceType(i), ptr=True))
                    for i, _ in io_sorted]
@@ -318,7 +318,7 @@ class SsaPassToLlvm():
                     cur_dir = io.get(instr._src, None)
                     assert cur_dir is None or INTF_DIRECTION.SLAVE
                     io[instr._src] = INTF_DIRECTION.SLAVE
-                    assert instr._dtype == ToLlvmIrTranslator._getNativeInterfaceType(instr._src), (
+                    assert dtypeEqualSignAprox(instr._dtype, ToLlvmIrTranslator._getNativeInterfaceType(instr._src)), (
                         "In this stages the read operations must read only native type of interface",
                         instr, ToLlvmIrTranslator._getNativeInterfaceType(instr._src))
 

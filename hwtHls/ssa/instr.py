@@ -39,7 +39,7 @@ class SsaInstrBranch():
     def __len__(self):
         return len(self.targets)
 
-    def iter_blocks(self):
+    def iterBlocks(self):
         for (_, t) in self.targets:
             yield t
 
@@ -72,7 +72,7 @@ class SsaInstr(SsaValue):
         assert isinstance(operands, (tuple, list)), operands
         for op in operands:
             if isinstance(op, SsaValue):
-                assert op.block is not None, (op, "Must not be removed from SSA")
+                assert op.block is not None, (op, "Must not construct instruction with operands which are not in SSA")
                 op.users.append(self)
             else:
                 assert isinstance(op, HValue), op

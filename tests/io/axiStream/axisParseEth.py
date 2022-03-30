@@ -37,7 +37,7 @@ class AxiSParseEth(Unit):
         hls.thread(
             hls.While(True,
                 eth,
-                hls.write(eth.dst, self.dst_mac)
+                hls.write(eth.data.dst, self.dst_mac)
             )
         )
 

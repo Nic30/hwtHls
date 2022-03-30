@@ -5,6 +5,7 @@ from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.bitsVal import BitsVal
 from hwt.hdl.types.sliceVal import HSliceVal
 from hwt.hdl.value import HValue
+from hwt.pyUtils.uniqList import UniqList
 from hwt.serializer.utils import RtlSignal_sort_key
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.hlsStreamProc.statementsIo import HlsStreamProcRead
@@ -31,6 +32,7 @@ class MemorySSAUpdater():
         :param onBlockReduce: function (old, new) called if some block is reduced
         """
         self.currentDef: Dict[RtlSignal, Dict[SsaBasicBlock, Union[SsaValue, HValue]]] = {}
+        self.currentDefRev: Dict[Union[SsaValue, HValue], Dict[SsaBasicBlock, UniqList[RtlSignal]]] = {} 
         self.sealedBlocks: Set[SsaBasicBlock] = set()
         self.incompletePhis: Dict[SsaBasicBlock, Dict[RtlSignal, SsaPhi]] = {}
         self._onBlockReduce = onBlockReduce
@@ -41,19 +43,19 @@ class MemorySSAUpdater():
                       block: SsaBasicBlock,
                       value: Union[SsaPhi, SsaValue, HValue]) -> int:
         """
-        :param variable: A variable which is beeing written to.
+        :param variable: A variable which is being written to.
         :param indexes: A list of indexes where in the variable is written.
-        :param block: A bock where this is taking place.
-        :param value: A value which is beeing written.
+        :param block: A block where this is taking place.
+        :param value: A value which is being written.
 
-        :returns: unique index of tmp variable for phi function
+        :returns: unique index of tmp variable for PHI function
         """
            
         assert isinstance(variable, RtlSignal), variable
         assert isinstance(block, SsaBasicBlock), block
         if isinstance(value, SsaInstr):
             assert value.block is not None, (value, "Must not be removed from SSA")
-        defs = self.currentDef.setdefault(variable, {})
+
         new_bb = block
         if indexes:
             if len(indexes) != 1 or not isinstance(variable._dtype, Bits):
@@ -96,16 +98,22 @@ class MemorySSAUpdater():
                 new_bb, new_var = self._hwtExprToSsa(block, v)
                 value = new_var
         else:
-            assert value._dtype.bit_length() == variable._dtype.bit_length(), (variable, value._dtype)
+            assert value._dtype.bit_length() == variable._dtype.bit_length(), (variable, value._dtype, variable._dtype)
 
+        defs = self.currentDef.setdefault(variable, {})
         defs[new_bb] = value
-
+        self.currentDefRev.setdefault(value, {}).setdefault(new_bb, UniqList()).append(variable)
+        
     def readVariable(self, variable: RtlSignal, block: SsaBasicBlock) -> SsaPhi:
         assert isinstance(variable, RtlSignal), variable
         assert isinstance(block, SsaBasicBlock), block
         try:
             # local value numbering
-            return self.currentDef[variable][block]
+            v = self.currentDef[variable][block]
+            assert isinstance(v, HValue) or v.block is not None, (v, "was already removed from SSA and should not be there")
+            # if this assert fails it may be consequence of wrong block sealing which resulted in a situation where the PHI
+            # was optimized out before block which used this PHI was added
+            return v
         except KeyError:
             pass
 
@@ -118,29 +126,30 @@ class MemorySSAUpdater():
         """
         if block not in self.sealedBlocks:
             # Incomplete CFG
-            phi = SsaPhi(block.ctx, variable._dtype, origin=variable)
-            block.appendPhi(phi)
-            self.incompletePhis.setdefault(block, {})[variable] = phi
+            v = SsaPhi(block.ctx, variable._dtype, origin=variable)
+            block.appendPhi(v)
+            self.incompletePhis.setdefault(block, {})[variable] = v
 
         elif len(block.predecessors) == 1:
             # Optimize the common case of one predecessor: No phi needed
-            phi = self.readVariable(variable, block.predecessors[0])
+            v = self.readVariable(variable, block.predecessors[0])
 
         else:
             # Break potential cycles with operandless phi
-            phi = SsaPhi(block.ctx, variable._dtype, origin=variable)
-            block.appendPhi(phi)
-            self.writeVariable(variable, (), block, phi)
-            phi = self.addPhiOperands(variable, phi)
+            v = SsaPhi(block.ctx, variable._dtype, origin=variable)
+            block.appendPhi(v)
+            self.writeVariable(variable, (), block, v)
+            v = self.addPhiOperands(variable, v)
 
-        if isinstance(phi, (SsaPhi, SsaInstr)):
-            self.writeVariable(variable, (), block, phi)
-        elif isinstance(phi, (HValue, HlsStreamProcRead)):
+        if isinstance(v, (SsaPhi, SsaInstr)):
+            self.writeVariable(variable, (), block, v)
+        elif isinstance(v, (HValue, HlsStreamProcRead)):
             pass
         else:
-            raise TypeError(phi.__class__)
-
-        return phi
+            raise TypeError(v.__class__)
+        
+        assert isinstance(v, HValue) or v.block is not None, (v, "was already removed from SSA and should not be there")
+        return v
 
     def addPhiOperands(self, variable: RtlSignal, phi: SsaPhi):
         # Determine operands from predecessors
@@ -169,6 +178,14 @@ class MemorySSAUpdater():
         phi.replaceUseBy(same)  # Reroute all uses of phi to same and remove phi
         phi.block.phis.remove(phi)
         phi.block = None
+        sameIsAlsoPhi = isinstance(same, SsaPhi)
+        for b, varList in self.currentDefRev[phi].items():
+            for v in varList:
+                self.currentDef.setdefault(v, {})[b] = same
+                if sameIsAlsoPhi:
+                    self.currentDefRev[same].setdefault(b, UniqList()).append(v)
+        del self.currentDefRev[phi]
+
         # Try to recursively remove all phi users, which might have become trivial
         for use in users:
             if isinstance(use, SsaPhi) and use.block is not None:

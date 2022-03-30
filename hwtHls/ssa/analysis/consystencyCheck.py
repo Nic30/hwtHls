@@ -7,8 +7,8 @@ from hwtHls.hlsStreamProc.statementsIo import HlsStreamProcRead
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.phi import SsaPhi
-from hwtHls.ssa.value import SsaValue
 from hwtHls.ssa.transformation.ssaPass import SsaPass
+from hwtHls.ssa.value import SsaValue
 
 _ValOrVal = (HValue, SsaValue)
 
@@ -21,11 +21,11 @@ class SsaPassConsystencyCheck(SsaPass):
         blocks.append(bb)
         for phi in bb.phis:
             phi: SsaPhi
-            assert phi not in phis, ("phi has to be defined only once", phi, bb)
-            assert phi.block is bb, ("phi has parent block correct", phi, phi.block, bb)
+            assert phi not in phis, ("PHI has to be defined only once", phi, bb)
+            assert phi.block is bb, ("PHI has parent block correct", phi, phi.block, bb)
             phis.append(phi)
-            assert phi not in variables, ("Each phi has to use unique value", phi, variables[phi])
-            # assert len(phi.operands) >= 2, ("Each phi is not trivial", phi, phi.operands)
+            assert phi not in variables, ("Each PHI has to use unique value", phi, variables[phi])
+            assert len(phi.operands) == len(bb.predecessors), ("Each PHI has arg. for each predecessor", phi, phi.operands, bb.predecessors)
             variables[phi] = phi
             for _, src_block in  phi.operands:
                 assert src_block in bb.predecessors, (phi, src_block, bb.predecessors)
@@ -80,7 +80,7 @@ class SsaPassConsystencyCheck(SsaPass):
 
         for _bb in bb.predecessors:
             assert _bb in blocks, (_bb, "Missing reference on block")
-            assert bb in _bb.successors.iter_blocks(), ("Missing successor", _bb, bb)
+            assert bb in _bb.successors.iterBlocks(), ("Missing successor", _bb, bb)
             if _bb not in seen:
                 self.visit_check(_bb, blocks, phis, variables, seen)
 

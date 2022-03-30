@@ -12,8 +12,8 @@ block32:
   void call <Bits, 16bits, unsigned> @hls.write(<BitsVal 20>)
   br [label %mainThread ]
 block48:
-  %3 = EQ i0, <BitsVal 11>
-  br [label %block58 %3]
+  %4 = EQ i0, <BitsVal 11>
+  br [label %block58 %4]
   [label %block74 ]
 block58:
   void call <Bits, 16bits, unsigned> @hls.write(<BitsVal 25>)

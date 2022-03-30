@@ -9,8 +9,8 @@ block22:
   br [label %block78 ]
 block78:
 block38:
-  %3 = EQ i0, <BitsVal 10>
-  br [label %block48 %3]
+  %4 = EQ i0, <BitsVal 10>
+  br [label %block48 %4]
   [label %block64 ]
 block48:
   void call <Bits, 8bits, unsigned> @hls.write(<BitsVal 11>)

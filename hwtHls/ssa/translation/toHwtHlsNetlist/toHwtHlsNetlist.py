@@ -91,7 +91,7 @@ class SsaToHwtHlsNetlist():
         assert self._current_block is None
         try:
             for block in blocks:
-                for dst_block in block.successors.iter_blocks():
+                for dst_block in block.successors.iterBlocks():
                     if (block, dst_block) in self.io.out_of_pipeline_edges:
                         self._current_block = block
                         self.io.finalize_block_out_of_pipeline_variable_outputs(block, dst_block)

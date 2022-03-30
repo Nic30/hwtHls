@@ -67,7 +67,7 @@ class SsaToHwtHlsNetlistSyncAndIo():
         link_hls_nodes(o, i)
 
     def _afterBlockOrderingDependenciesComplete(self, block: SsaBasicBlock):
-        for suc in block.successors.iter_blocks():
+        for suc in block.successors.iterBlocks():
             if (block, suc) in self.out_of_pipeline_edges:
                 continue
             sucFirstIo = self._firstIoAccesOfBlock.get(suc, NOT_SPECIFIED)
