@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import List, Union, Dict, Optional, Tuple
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
+from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.hlsStreamProc.debugCodeSerializer import CopyBasicBlockLabelsToCode
 from hwtHls.hlsStreamProc.statements import HlsStreamProcCodeBlock
 from hwtHls.netlist.translation.toGraphwiz import GraphwizNode, GraphwizLink, \
@@ -11,9 +12,9 @@ from hwtHls.ssa.analysis.liveness import EdgeLivenessDict
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.phi import SsaPhi
-from hwtHls.ssa.translation.toHwtHlsNetlist.pipelineMaterialization import SsaSegmentToHwPipeline
 from hwtHls.ssa.transformation.ssaPass import SsaPass
-from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
+from hwtHls.ssa.translation.toHwtHlsNetlist.pipelineMaterialization import SsaSegmentToHwPipeline
+from hwtHls.ssa.value import SsaValue
 
 
 class SsaToGraphwiz():
@@ -77,7 +78,8 @@ class SsaToGraphwiz():
         for i, (cond, dst_bb) in enumerate(bb.successors.targets):
             branch_label = f"br{i:d}"
             cond_str = "" if cond is None\
-                else self._escape(cond._name) if isinstance(cond, RtlSignal) else self._escape(repr(cond))
+                else self._escape(cond._name) if isinstance(cond, RtlSignal) else\
+                self._escape(cond._name) if isinstance(cond, SsaValue) and cond._name else self._escape(repr(cond))
             body_rows.append(f"{{\\<{branch_label:s}\\> | <{branch_label:s}> {cond_str:s} }}")
             dst_node = self._node_from_SsaBasicBlock(dst_bb, False, edge_var_live)
             _src = f"{node.label:s}:{branch_label:s}"
