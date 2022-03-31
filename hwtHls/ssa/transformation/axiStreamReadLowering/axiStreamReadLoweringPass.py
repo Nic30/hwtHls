@@ -90,7 +90,7 @@ class SsaPassAxiStreamReadLowering(SsaPass):
         for intf in intfs:
             intf: AxiStream
             readCfg = ReadGraphDetector(intf.DATA_WIDTH, readsForIntf[intf])
-            readCfg.detectReadGraphs(None, 0, to_ssa.start)
+            readCfg.detectReadGraphs(None, 0, to_ssa.start, set())
             readCfg.resolvePossibleOffset()
 
             offsetVar = hls._ctx.sig(f"{intf._name}_offset", Bits(log2ceil(intf.DATA_WIDTH - 1)))
@@ -170,10 +170,10 @@ class SsaPassAxiStreamReadLowering(SsaPass):
                 data = self._applyConcateAdd(exprBuilder, data, self._applySlice(exprBuilder, part, DW, 0))
                 off = DW
                 if intf.USE_STRB:
-                    strb = self._applyConcateAdd(exprBuilder, data, self._applySlice(exprBuilder, part, off + DW // 8, off))
+                    strb = self._applyConcateAdd(exprBuilder, strb, self._applySlice(exprBuilder, part, off + DW // 8, off))
                     off += DW // 8
                 if intf.USE_KEEP:
-                    keep = self._applyConcateAdd(exprBuilder, data, self._applySlice(exprBuilder, part, off + DW // 8, off))
+                    keep = self._applyConcateAdd(exprBuilder, keep, self._applySlice(exprBuilder, part, off + DW // 8, off))
                     off += DW // 8
 
             last = self._applyOrAdd(exprBuilder, last, self._applySlice(exprBuilder, part, off + 1, off))

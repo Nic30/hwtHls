@@ -40,14 +40,16 @@ class ReadGraphDetector():
                          predecessor: Optional[HlsStreamProcRead],
                          predEndOffset: int,
                          block: SsaBasicBlock,
+                         seenBlocks: Set[SsaBasicBlock],
                          ):
         """
         DFS search all read sequences
         
-        :note: 1 read instance can actualy be readed multiple times e.g. in cycle
+        :param seenBlocks: set of blocks which were seen for this specific position in packet
+        :note: 1 read instance can actually be read multiple times e.g. in cycle
             however the thing what we care about are possible successor reads of a read
         """
-
+        endWasModified = False
         for instr in block.body:
             if instr in self.allReads:
                 if instr in self.cfg and (predEndOffset, instr) in self.cfg[predecessor]:
@@ -61,9 +63,14 @@ class ReadGraphDetector():
                 else:
                     predecessor = instr
                     predEndOffset = (predEndOffset + instr._dtypeOrig.bit_length()) % self.DATA_WIDTH
-        
+                endWasModified = True
+                if seenBlocks:
+                    seenBlocks = set()
+
+        seenBlocks.add(block)
         for suc in block.successors.iterBlocks():
-            self.detectReadGraphs(predecessor, predEndOffset, suc)
+            if suc not in seenBlocks or (suc is block and endWasModified):
+                self.detectReadGraphs(predecessor, predEndOffset, suc, seenBlocks)
 
     def resolvePossibleOffset(self):
         self.inWordOffset[None].append(0)
