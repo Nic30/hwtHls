@@ -142,8 +142,8 @@ class HlsStreamProcReadAxiStream(HlsStreamProcRead):
 
         trueDtype = HStruct(
             (dtype, "data"),
-            *((maskT, "keep") if src.USE_KEEP else ()),
-            *((maskT, "strb") if src.USE_STRB else ()),
+            *(((maskT, "keep"), ) if src.USE_KEEP else ()),
+            *(((maskT, "strb"), ) if src.USE_STRB else ()),
             (BIT, "last"),  # we do not know how many words this read could be last is disjunction of last signals from each word
         )
         
