@@ -173,6 +173,8 @@ class MemorySSAUpdater():
 
         if same is None:
             same = phi._dtype.from_py(None)  # The phi is unreachable or in the start block
+        elif isinstance(same, SsaValue):
+            assert same.block is not None
 
         users = [use for use in phi.users if use is not phi]  # Remember all users except the phi itself
         phi.replaceUseBy(same)  # Reroute all uses of phi to same and remove phi
@@ -181,9 +183,11 @@ class MemorySSAUpdater():
         sameIsAlsoPhi = isinstance(same, SsaPhi)
         for b, varList in self.currentDefRev[phi].items():
             for v in varList:
-                self.currentDef.setdefault(v, {})[b] = same
-                if sameIsAlsoPhi:
-                    self.currentDefRev[same].setdefault(b, UniqList()).append(v)
+                d = self.currentDef.setdefault(v, {})
+                if d[b] is phi:
+                    d[b] = same
+                    if sameIsAlsoPhi:
+                        self.currentDefRev[same].setdefault(b, UniqList()).append(v)
         del self.currentDefRev[phi]
 
         # Try to recursively remove all phi users, which might have become trivial
