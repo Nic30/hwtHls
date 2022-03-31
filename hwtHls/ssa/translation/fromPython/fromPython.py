@@ -3,7 +3,7 @@ from collections import deque
 from dis import findlinestarts, _get_instructions_bytes, Instruction, dis
 import operator
 from types import FunctionType, CellType
-from typing import Dict, Optional, List, Tuple, Union, Deque, Sequence
+from typing import Dict, Optional, List, Tuple, Union, Deque, Sequence, Set
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
@@ -35,6 +35,9 @@ from hwtHls.ssa.translation.fromPython.loopsDetect import PyBytecodeLoop, \
 from hwtHls.ssa.translation.fromPython.markers import PythonBytecodeInPreproc
 from hwtHls.ssa.value import SsaValue
 from hwtHls.ssa.translation.fromPython.frame import PythonBytecodeFrame
+from hwtHls.ssa.translation.fromPython.indexExpansion import expandSetitemOnPytObjAsSwitchCase, \
+    expandIndexOnPyObjAsSwitchCase
+from hwt.pyUtils.uniqList import UniqList
 
 
 class SsaBlockGroup():
@@ -112,8 +115,7 @@ class PythonBytecodeToSsa():
         }
 
         self.blockTracker = BlockPredecessorTracker(cfg)
-        # with open("tmp/cfg.dot", "w") as f:
-        #    self.blockTracker.dumpCfgToDot(f)
+        self.hwEvaluatedLoops: UniqList[BlockLabel] = UniqList()
 
         # print(self.loops)
         # print(cfg._adj)
@@ -145,11 +147,6 @@ class PythonBytecodeToSsa():
 
         return self.to_ssa, None
 
-    def _blockToSsa(self,
-            curBlock: SsaBasicBlock,
-            curBlockCode: Union[SsaValue, List[SsaValue]]) -> SsaBasicBlock:
-        return self.to_ssa.visit_CodeBlock_list(curBlock, flatten(curBlockCode))
-
     def _getOrCreateSsaBasicBlock(self, dstLabel: BlockLabel):
         block = self.labelToBlock.get(dstLabel, None)
         if block is None:
@@ -175,110 +172,123 @@ class PythonBytecodeToSsa():
         loopMeta = None
         loopMetaAdded = False
         blockWithAllPredecessorsNewlyKnown = None
-        
         if isinstance(cond, HValue):
             assert cond, (cond, "If this was not True the jump should not be evaluated at the first place")
             cond = None  # always jump, but we need this value to know that this will be unconditional jump only in HW
-
+            isHwEvaluatedCond = True
         elif isinstance(cond, (RtlSignal, SsaValue)):
             # regular hw evaluated jump
-            pass
+            isHwEvaluatedCond = True
 
         else:
             assert cond is None, cond
-            # potentially preproc evaluated jump
-            # it is a preproc loop if we are jumping from loop header unconditionally (cond is None is this case)
-            curBlockOffset = self.blockToLabel[curBlock][-1]
-            loop = self.loops.get(curBlockOffset, None)
-            sucLoop = self.loops.get(sucBlockOffset, None)
-            reenteringLoopBody = any(s.loop is loop for s in preprocLoopScope)
-            isJumpFromLoopEntryToBody = (
-                loop is not None and  # src is loop header
-                (sucBlockOffset,) in loop.allBlocks  # dst is in loop body
-            )
-            isJumpFromPreprocLoopBodyToLoopEntry = (
-                sucLoop is not None and
-                any((sucBlockOffset,) == s.loop.entryPoint for s in preprocLoopScope)
-            )
-            # if jumping from body of the current loop and this loop does not have a preproc scope it means
-            # that it is completely HW evaluated and we should not touch preproc scopes
-            # :note: if loop is not None the curBlock is a header of that loop
+            isHwEvaluatedCond = False
+        
+        # potentially preproc evaluated jump
+        # it is a preproc loop if we are jumping from loop header unconditionally (cond is None is this case)
+        curBlockLabel = self.blockToLabel[curBlock]
+        curBlockOffset = curBlockLabel[-1]
+        loop = self.loops.get(curBlockOffset, None)
+        sucLoop = self.loops.get(sucBlockOffset, None)
+        reenteringLoopBody = any(s.loop is loop for s in preprocLoopScope)
+        isJumpFromLoopHeaderToBody = (
+            loop is not None and  # src is loop header
+            (sucBlockOffset,) in loop.allBlocks  # dst is in loop body
+        )
+        isJumpFromPreprocLoopHeaderToBody = isJumpFromLoopHeaderToBody and not isHwEvaluatedCond
+        isJumpFromPreprocLoopBodyToLoopHeader = (
+            sucLoop is not None and
+            any((sucBlockOffset,) == s.loop.entryPoint for s in preprocLoopScope)
+        )
+        # if jumping from body of the current loop and this loop does not have a preproc scope it means
+        # that it is completely HW evaluated and we should not touch preproc scopes
+        # :note: if loop is not None the curBlock is a header of that loop
+        if isJumpFromLoopHeaderToBody and isHwEvaluatedCond:
+            self.hwEvaluatedLoops.append(curBlockLabel)
 
-            # if this is a jump to a header of some currently evaluated loop
-            if isJumpFromLoopEntryToBody or isJumpFromPreprocLoopBodyToLoopEntry:
-                if isJumpFromPreprocLoopBodyToLoopEntry:
-                    # prepare scope for start of new iteration
-                    while preprocLoopScope:
-                        curLoop: PyBytecodeLoop = preprocLoopScope[-1].loop
-                        if (sucBlockOffset,) in curLoop.allBlocks:
-                            break  # in current loop
-                        else:
-                            prevLoopMeta.appendleft(preprocLoopScope.pop())
-
-                # if this is a jump to a header of new loop
-                if isJumpFromLoopEntryToBody and not reenteringLoopBody:
-                    # jump from first header to body
-                    loopMeta = PreprocLoopScope(loop, 0)
-                    preprocLoopScope.append(loopMeta)
-                    loopMetaAdded = True
-
-                elif isJumpFromPreprocLoopBodyToLoopEntry:
-                    # isJumpFromPreprocLoopBodyToLoopEntry
-                    # this must be jump to a new body of already executed loop  
-                    prevLoopMeta.appendleft(preprocLoopScope.pop())
-                    loopMeta = PreprocLoopScope(loop if isJumpFromLoopEntryToBody else sucLoop, prevLoopMeta[0].iterationIndex + 1)
-                    preprocLoopScope.append(loopMeta)
-                    loopMetaAdded = True
-                else:
-                    loopMeta = preprocLoopScope[-1]
-
-                if isJumpFromLoopEntryToBody or reenteringLoopBody:
-                    if loopMeta.iterationIndex == 0:
-                        assert not reenteringLoopBody
-                        # update cycle entry point label for label prefix adding
-                        oldLabel = self.blockToLabel[curBlock]
-                        newLabel = generateBlockLabel(preprocLoopScope, oldLabel[-1])
-                        self.blockToLabel[curBlock] = newLabel
-                        self.labelToBlock[newLabel] = SsaBlockGroup(curBlock)
-                        
-                        # prepare blocks first loop body in cfg
-                        blockWithAllPredecessorsNewlyKnown = list(
-                            self.blockTracker.cfgAddPrefixToLoopBody(loopMeta.loop, preprocLoopScope))
-                        
+        # if this is a jump to a header of some currently evaluated loop
+        if isJumpFromPreprocLoopHeaderToBody or isJumpFromPreprocLoopBodyToLoopHeader:
+            if isJumpFromPreprocLoopBodyToLoopHeader:
+                # prepare scope for start of new iteration
+                while preprocLoopScope:
+                    curLoop: PyBytecodeLoop = preprocLoopScope[-1].loop
+                    if (sucBlockOffset,) in curLoop.allBlocks:
+                        break  # in current loop
                     else:
-                        assert reenteringLoopBody
-                        # this is a jump to a next iteration of preproc loop
-                        blockWithAllPredecessorsNewlyKnown = list(
-                            self.blockTracker.cfgCopyLoopBody(loopMeta.loop, preprocLoopScope))
-                    # with open(f"tmp/cfg_{preprocLoopScope}.dot", "w") as f:
-                    #    self.blockTracker.dumpCfgToDot(f)
-            
+                        prevLoopMeta.appendleft(preprocLoopScope.pop())
+
+            # if this is a jump to a header of new loop
+            if isJumpFromPreprocLoopHeaderToBody and not reenteringLoopBody:
+                # jump from first header to body
+                loopMeta = PreprocLoopScope(loop, 0)
+                preprocLoopScope.append(loopMeta)
+                loopMetaAdded = True
+
+            elif isJumpFromPreprocLoopBodyToLoopHeader:
+                # isJumpFromPreprocLoopBodyToLoopHeader
+                # this must be jump to a new body of already executed loop  
+                prevLoopMeta.appendleft(preprocLoopScope.pop())
+                loopMeta = PreprocLoopScope(loop if isJumpFromPreprocLoopHeaderToBody else sucLoop,
+                                            prevLoopMeta[0].iterationIndex + 1)
+                preprocLoopScope.append(loopMeta)
+                loopMetaAdded = True
+            else:
+                loopMeta = preprocLoopScope[-1]
+
+            if isJumpFromPreprocLoopHeaderToBody or reenteringLoopBody:
+                if loopMeta.iterationIndex == 0:
+                    assert not reenteringLoopBody
+                    # update cycle entry point label for label prefix adding
+                    oldLabel = self.blockToLabel[curBlock]
+                    newLabel = generateBlockLabel(preprocLoopScope, oldLabel[-1])
+                    self.blockToLabel[curBlock] = newLabel
+                    self.labelToBlock[newLabel] = SsaBlockGroup(curBlock)
+                    
+                    # prepare blocks first loop body in cfg
+                    blockWithAllPredecessorsNewlyKnown = list(
+                        self.blockTracker.cfgAddPrefixToLoopBody(loopMeta.loop, preprocLoopScope))
+                    
+                else:
+                    assert reenteringLoopBody
+                    # this is a jump to a next iteration of preproc loop
+                    blockWithAllPredecessorsNewlyKnown = list(
+                        self.blockTracker.cfgCopyLoopBody(loopMeta.loop, preprocLoopScope))
+                # with open(f"tmp/cfg_{preprocLoopScope}.dot", "w") as f:
+                #    self.blockTracker.dumpCfgToDot(f)
+        
         # if this is a jump just in linear code or inside body of the loop
         sucBlockLabel = self.blockTracker._getBlockLabel(sucBlockOffset)
         sucBlock, sucBlockIsNew = self._getOrCreateSsaBasicBlock(sucBlockLabel)
         curBlock.successors.addTarget(cond, sucBlock)
-        if isLastJumpFromCur:
-            self._onBlockGenerated(self.blockToLabel[curBlock])
 
         if blockWithAllPredecessorsNewlyKnown is not None:
             for bl in blockWithAllPredecessorsNewlyKnown:
-                self._onAllPredecsKnown(self.labelToBlock[bl].begin)
+                if bl not in self.hwEvaluatedLoops:
+                    # :attention: The header of hardware loop can be sealed only after all body blocks were generated
+                    #             Otherwise some PHI arguments can be lost
+                    self._onAllPredecsKnown(self.labelToBlock[bl].begin)
+
+        if isLastJumpFromCur:
+            self._onBlockGenerated(self.blockToLabel[curBlock])
         
         # if (not sucBlockIsNew and sucBlock not in self.to_ssa.m_ssa_u.sealedBlocks and
         #    self.blockTracker.hasAllPredecessorsKnown(sucBlockLabel)):
         #    # if just added predecessor sealed this already existing successor block
         #    self._onAllPredecsKnown(sucBlock)
-
         if sucBlockIsNew:
             self._translateBytecodeBlock(self.bytecodeBlocks[sucBlockOffset], frame, sucBlock)
 
-            if loopMetaAdded:
-                assert preprocLoopScope[-1] is loopMeta, (preprocLoopScope[-1], loopMeta)
-                preprocLoopScope.pop()
+        if loop is not None and curBlockLabel in self.hwEvaluatedLoops and self.blockTracker.hasAllPredecessorsKnown(curBlockLabel):
+            # if this was hw loop we have to close header after all body blocks were generated
+            self._onAllPredecsKnown(curBlock)
 
-            if prevLoopMeta:
-                # will be removed by parent call
-                preprocLoopScope.extend(prevLoopMeta)
+        if loopMetaAdded:
+            assert preprocLoopScope[-1] is loopMeta, (preprocLoopScope[-1], loopMeta)
+            preprocLoopScope.pop()
+
+        if prevLoopMeta:
+            # will be removed by parent call
+            preprocLoopScope.extend(prevLoopMeta)
 
     def _translateBytecodeBlock(self,
             instructions: List[Instruction],
@@ -359,7 +369,6 @@ class PythonBytecodeToSsa():
                     else:
                         self._getOrCreateSsaBasicBlockAndJump(curBlock, True, ifFalseOffset, None, frame)
                         self._onBlockNotGenerated(curBlock, ifTrueOffset)
-
                 else:
                     if isinstance(cond, HValue):
                         if cond:
@@ -374,7 +383,6 @@ class PythonBytecodeToSsa():
                         self._getOrCreateSsaBasicBlockAndJump(curBlock, False, ifTrueOffset, cond, frame)
                         # cond = 1 because we did check in ifTrue branch and this is "else branch"
                         self._getOrCreateSsaBasicBlockAndJump(curBlock, True, ifFalseOffset, BIT.from_py(1), frame)
-
             else:
                 raise NotImplementedError(instr)
 
@@ -388,7 +396,10 @@ class PythonBytecodeToSsa():
     def _onBlockGenerated(self, label: BlockLabel):
         for bl in self.blockTracker.addGenerated(label):
             # we can seal the block only after body was generated
-            self._onAllPredecsKnown(self.labelToBlock[bl].begin)
+            if bl not in self.hwEvaluatedLoops:
+                # :attention: The header of hardware loop can be sealed only after all body blocks were generated
+                #             Otherwise some PHI arguments can be lost
+                self._onAllPredecsKnown(self.labelToBlock[bl].begin)
 
     def _onBlockNotGenerated(self, curBlock: SsaBasicBlock, blockOffset: int):
         for loopScope in reversed(self.blockTracker.preprocLoopScope):
@@ -402,13 +413,17 @@ class PythonBytecodeToSsa():
         for bl in self.blockTracker.addNotGenerated(srcBlockLabel, dstBlockLabel):
             # sealing begin should be sufficient because all block behind begin in this
             # group should already have all predecessors known
-            self._onAllPredecsKnown(self.labelToBlock[bl].begin)
+            if bl not in self.hwEvaluatedLoops:
+                # :attention: The header of hardware loop can be sealed only after all body blocks were generated
+                #             Otherwise some PHI arguments can be lost
+            
+                self._onAllPredecsKnown(self.labelToBlock[bl].begin)
 
     def _onAllPredecsKnown(self, block: SsaBasicBlock):
-        # print("seal", block.label)
-        self.to_ssa._onAllPredecsKnown(block)
         label = self.blockToLabel[block]
+        # print("seal", block.label)
         loop = self.loops.get(label[-1], None)
+        self.to_ssa._onAllPredecsKnown(block)
         if loop is not None:
             # if the value of phi have branch in loop body where it is not modified it results in the case
             # where phi would be its own argument, this is illegal and we fix it by adding block between loop body end and loop header
@@ -416,79 +431,7 @@ class PythonBytecodeToSsa():
             predecCnt = len(block.predecessors)
             if any(len(phi.operands) != predecCnt for phi in block.phis):
                 raise NotImplementedError(loop)
-        
-    def _expandIndexOnPyObjAsSwitchCase(self, curBlock: SsaBasicBlock,
-                                        offsetForLabels: int,
-                                        sequence:Sequence,
-                                        index: Union[RtlSignal, SsaValue],
-                                        stack: list):
-        res = None
-        sucBlock = SsaBasicBlock(self.to_ssa.ssaCtx, f"{curBlock.label:s}_getSwEnd")
-        curLabel = self.blockToLabel[curBlock]
-        self.labelToBlock[curLabel].end = sucBlock
-        self.blockToLabel[sucBlock] = curLabel
-
-        for last, (i, v) in iter_with_last(enumerate(sequence)):
-            if res is None:
-                # in first iteration create result variable in the previous block
-                res = self.hls.var(f"tmp_seq{offsetForLabels}", v._dtype)
-            else:
-                assert res._dtype == v._dtype, ("Type of items in sequence must be same", i, res._dtype, v._dtype)
-
-            if last:
-                cond = None
-            else:
-                curBlock, cond = self.to_ssa.visit_expr(curBlock, index._eq(i))
-            
-            caseBlock = SsaBasicBlock(self.to_ssa.ssaCtx, f"{curBlock.label:s}_{offsetForLabels:d}_c{i:d}")
-            self.blockToLabel[caseBlock] = curLabel
-            curBlock.successors.addTarget(cond, caseBlock)
-            self._onAllPredecsKnown(caseBlock)
-            self._blockToSsa(caseBlock, [
-                res(v)
-            ])
-            caseBlock.successors.addTarget(None, sucBlock)
-
-        if res is None:
-            raise IndexError("Indexing using HW object on Python object of zero size", sequence, index)
-
-        self._onAllPredecsKnown(sucBlock)
-        # put variable with result of the indexing on top of stack
-        stack.append(res)
-        return sucBlock
-
-    def _expandSetitemOnPytObjAsSwitchCase(self, curBlock: SsaBasicBlock,
-                                           offsetForLabels: int,
-                                           sequence:Sequence,
-                                           index: Union[RtlSignal, SsaValue],
-                                           val,
-                                           stack: list):
-        sucBlock = SsaBasicBlock(self.to_ssa.ssaCtx, f"{curBlock.label:s}_{offsetForLabels:d}_setSwEnd")
-        curLabel = self.blockToLabel[curBlock]
-        self.labelToBlock[curLabel].end = sucBlock
-        self.blockToLabel[sucBlock] = curLabel
-
-        for last, (i, v) in iter_with_last(enumerate(sequence)):
-            if last:
-                cond = None
-            else:
-                curBlock, cond = self.to_ssa.visit_expr(curBlock, index._eq(i))
-            
-            caseBlock = SsaBasicBlock(self.to_ssa.ssaCtx, f"{curBlock.label:s}_{offsetForLabels:d}_c{i:d}")
-            self.blockToLabel[caseBlock] = curLabel
-
-            curBlock.successors.addTarget(cond, caseBlock)
-            self._onAllPredecsKnown(caseBlock)
-
-            self._blockToSsa(caseBlock, [
-                v(val)
-            ])
-            caseBlock.successors.addTarget(None, sucBlock)
-
-        self._onAllPredecsKnown(sucBlock)
-        # put variable with result of the indexing on top of stack
-        return sucBlock
-
+     
     def _makeFunction(self, instr: Instruction, stack: list):
         # MAKE_FUNCTION_FLAGS = ('defaults', 'kwdefaults', 'annotations', 'closure')
         name = stack.pop()
@@ -542,7 +485,7 @@ class PythonBytecodeToSsa():
                 # Removes the top-of-stack (TOS) item.
                 res = stack.pop()
                 if isinstance(res, (HlsStreamProcWrite, HlsStreamProcRead, HdlAssignmentContainer)):
-                    self._blockToSsa(curBlock, res)
+                    self.to_ssa.visit_CodeBlock_list(curBlock, [res, ])
 
             elif opcode == LOAD_DEREF:
                 # nested scopes: access a variable through its cell object
@@ -594,7 +537,7 @@ class PythonBytecodeToSsa():
 
                 if isinstance(dst, (Interface, RtlSignal)):
                     stm = self.hls.write(src, dst)
-                    self._blockToSsa(curBlock, stm)
+                    self.to_ssa.visit_CodeBlock_list(curBlock, flatten([stm, ]))
                 else:
                     raise NotImplementedError(instr)
 
@@ -611,7 +554,7 @@ class PythonBytecodeToSsa():
                 if instr.arg not in frame.preprocVars and isinstance(v, RtlSignal):
                     # only if it is a hw variable
                     stm = v(vVal)
-                    self._blockToSsa(curBlock, stm)
+                    self.to_ssa.visit_CodeBlock_list(curBlock, flatten([stm, ]))
                 else:
                     if isinstance(vVal, PythonBytecodeInPreproc):
                         vVal = vVal.ref
@@ -673,7 +616,7 @@ class PythonBytecodeToSsa():
                 sequence = stack.pop()
                 val = stack.pop()
                 if isinstance(index, (RtlSignal, SsaValue)) and not isinstance(sequence, (RtlSignal, SsaValue)):
-                    return self._expandSetitemOnPytObjAsSwitchCase(curBlock, instr.offset, sequence, index, val, stack)
+                    return expandSetitemOnPytObjAsSwitchCase(self, curBlock, instr.offset, sequence, index, val, stack)
                 stack.append(operator.setitem(sequence, index, val))
 
             else:
@@ -685,7 +628,7 @@ class PythonBytecodeToSsa():
                         # if this is indexing using hw value on non hw object we need to expand it to a switch-case on individual cases
                         # must generate blocks for switch cases,
                         # for this we need a to keep track of start/end for each block because we do not have this newly generated blocks in original CFG
-                        return self._expandIndexOnPyObjAsSwitchCase(curBlock, instr.offset, a, b, stack)
+                        return expandIndexOnPyObjAsSwitchCase(self, curBlock, instr.offset, a, b, stack)
 
                     stack.append(binOp(a, b))
                     return curBlock
