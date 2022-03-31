@@ -22,6 +22,10 @@ class SsaPhi(SsaInstr):
         self.replacedBy: Optional[Union[SsaValue, HValue]] = None
 
     def replaceInput(self, orig_expr: SsaValue, new_expr: Union[SsaValue, HValue]):
+        if isinstance(new_expr, SsaValue):
+            assert new_expr.block is not None, (self, new_expr, "Operand must be somewhere in SSA first")
+            new_expr.users.append(self)
+        
         somethingReplaced = False
         ops = []
         for (c, b) in self.operands:
@@ -33,21 +37,27 @@ class SsaPhi(SsaInstr):
         assert somethingReplaced, (self, orig_expr, new_expr)
         self.operands = tuple(ops)
 
-    def replaceUseBy(self, v: "SsaPhi"):
+    def replaceUseBy(self, v: Union[SsaValue, RtlSignalBase, HValue]):
+        if isinstance(v, SsaValue):
+            assert v.block is not None, (self, v, "Operand must be somewhere in SSA first")
         for u in tuple(self.users):
             u.replaceInput(self, v)
         self.replacedBy = v
+        self.users.clear()
+        
 
     def appendOperand(self,
-                      val: Union["SsaPhi", RtlSignalBase, HValue],
+                      val: Union[SsaValue, RtlSignalBase, HValue],
                       predecessor_block: "SsaBasicBlock"):
         assert self.replacedBy is None
         new_op = (val, predecessor_block)
         if new_op in self.operands:
             return
-        self.operands = (*self.operands, new_op)
         if isinstance(val, SsaValue):
+            assert val.block is not None
             val.users.append(self)
+        self.operands = (*self.operands, new_op)
+
 
     def replacePredecessorBlockByMany(self,
                                       predecessor_block: "SsaBasicBlock",
