@@ -27,8 +27,9 @@ class SsaPassConsystencyCheck(SsaPass):
             assert phi not in variables, ("Each PHI has to use unique value", phi, variables[phi])
             assert len(phi.operands) == len(bb.predecessors), ("Each PHI has arg. for each predecessor", phi, phi.operands, bb.predecessors)
             variables[phi] = phi
-            for _, src_block in  phi.operands:
+            for v, src_block in  phi.operands:
                 assert src_block in bb.predecessors, (phi, src_block, bb.predecessors)
+                assert isinstance(v, HValue) or v.block is not None, ("PHI operand was removed from SSA but it is still there", phi, v)
 
         for stm in bb.body:
             if isinstance(stm, SsaInstr):
