@@ -5,6 +5,7 @@ import sys
 from unittest import TestLoader, TextTestRunner, TestSuite
 
 from tests.bitOpt.bitWidthReductionCmp_test import BitWidthReductionCmp_example_TC
+from tests.io.axiStream.axisPacketCntr_test import AxiSPacketCntrTC
 from tests.io.axiStream.axisParseEth_test import AxiSParseEthTC
 from tests.io.axiStream.axisParseIf_test import AxiSParseIfTC
 from tests.io.axiStream.axisParseLinear_test import AxiSParseLinearTC
@@ -27,6 +28,7 @@ from tests.syntehesis_checks import HlsSynthesisChecksTC
 from tests.utils.alapAsapDiffExample import AlapAsapDiffExample_TC
 from tests.utils.concatOfSlices_test import ConcatOfSlicesTC
 from tests.utils.phiConstructions_test import PhiConstruction_TC
+
 
 def testSuiteFromTCs(*tcs):
     loader = TestLoader()
@@ -58,6 +60,7 @@ suite = testSuiteFromTCs(
     StmFor_TC,
     PyArrHwIndex_TC,
     VariableChain_TC,
+    AxiSPacketCntrTC,
     AxiSParseEthTC,
     AxiSParseLinearTC,
     AxiSParseIfTC,

@@ -8,6 +8,8 @@ from copy import copy
 class ConcatOfSlices():
     """
     :note: in high to low format
+    
+    :ivar slices: list of tuples (variable, high bit number, low bit number)
     """
 
     def __init__(self, slices: List[Union[Tuple[Union[HValue, SsaValue], int, int], Union[HValue, SsaValue]]]):
@@ -58,7 +60,7 @@ class ConcatOfSlices():
             return ConcatOfSlices(copy(self.slices))
 
         res = []
-        hOffset = self.bit_length  # current position in vecttor from h side
+        hOffset = self.bit_length  # current position in vector from h side
         for v, _high, _low in self.slices:
             absHigh = hOffset
             w = _high - _low
@@ -69,8 +71,8 @@ class ConcatOfSlices():
             # current high in interval high-low  (cut a piece from current v and exit)
             if high > absLow:
                 # not entirely before
-                relHigh = min(absHigh, high) - absLow
-                relLow = max(absLow, low) - absLow
+                relHigh = _low + min(absHigh, high) - absLow
+                relLow = _low + max(absLow, low) - absLow
                 res.append((v, relHigh, relLow))
                 if absLow <= low:
                     break

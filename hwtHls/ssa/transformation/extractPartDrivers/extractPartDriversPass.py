@@ -128,8 +128,9 @@ class SsaPassExtractPartDrivers(SsaPass):
 
     def _register_var_load_from_concat(self, dst: SsaValue, srcs: List[Union[SsaValue, HValue]]):
         dst_segments, dst = self._get_var_segments(dst)
+        dst_segments: VarBitSegments
         dst_offset = 0
-        for src in srcs:
+        for src in reversed(srcs):
             src_segments, src = self._get_var_segments(src)
             src_width = src._dtype.bit_length()
             src_range = (src_width, 0)
@@ -221,7 +222,7 @@ class SsaPassExtractPartDrivers(SsaPass):
         while open_set:
             v = open_set.pop()
             vinfo: VarBitSegments = var_segments[v]
-            # if I am beeing sliced than propagate my slice parts to a successor
+            # if I am being sliced than propagate my slice parts to a successor
             # to let them know that it can be split
             srcSplitPoints = splitPointsOfVariable[v]
             # transitively propagate slices from predecessor to sucessor
@@ -236,7 +237,7 @@ class SsaPassExtractPartDrivers(SsaPass):
 
                 for srcSplitPoint in srcSplitPoints:
                     if srcSplitPoint < srcOffset or srcSplitPoint > srcEnd:
-                        # is out of sub range of dst which is beeing used
+                        # is out of sub range of dst which is being used
                         continue
 
                     s = srcSplitPoint - srcOffset
@@ -256,7 +257,7 @@ class SsaPassExtractPartDrivers(SsaPass):
         #    print(v.endpoint_ranges)
         #    print("")
 
-        # filter out variables which are not beeing split
+        # filter out variables which are not being split
         return {k: v for k, v in splitPointsOfVariable.items() if v}
 
     def _removeEntirelyRemovedFromList(self, objList: Union[List[SsaPhi], List[SsaInstr]],
