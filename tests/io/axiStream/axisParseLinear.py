@@ -48,6 +48,8 @@ class AxiSParseStructManyInts0(Unit):
                 )
             )
         )
+        hls.compile()
+
 
 
 class AxiSParseStructManyInts1(AxiSParseStructManyInts0):
@@ -80,6 +82,8 @@ class AxiSParseStructManyInts1(AxiSParseStructManyInts0):
                 *write(),
             )
         )
+        hls.compile()
+
 
 
 struct_i16_i32 = HStruct(
@@ -117,6 +121,8 @@ class AxiSParse2fields(AxiSParseStructManyInts0):
                 )
             )
         )
+        hls.compile()
+
 
 
 if __name__ == "__main__":

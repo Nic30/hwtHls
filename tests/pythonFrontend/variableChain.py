@@ -35,6 +35,7 @@ class VariableChain(Unit):
     def _impl(self):
         hls = HlsStreamProc(self, freq=int(100e6))
         hls._thread(*pyFunctionToSsa(hls, self.mainThread, hls))
+        hls.compile()
 
 
 if __name__ == "__main__":

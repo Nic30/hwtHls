@@ -34,6 +34,8 @@ class ReadIfOtherEqual(Unit):
                 )
             )
         )
+        hls.compile()
+
 
 
 class ReadIfOtherEqualOnce(ReadIfOtherEqual):
@@ -45,6 +47,8 @@ class ReadIfOtherEqualOnce(ReadIfOtherEqual):
                hls.read(self.b),
             )
         )
+        hls.compile()
+
 
 
 class ReadIfTc(BaseSsaTC):

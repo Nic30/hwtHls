@@ -51,6 +51,8 @@ class HlsMAC_example(Unit):
                 hls.write(e, self.dataOut),
             )
         )
+        hls.compile()
+
 
 
 class HlsMAC_example2(HlsMAC_example):
@@ -81,6 +83,8 @@ class HlsMAC_example2(HlsMAC_example):
                       hls.write(adds, self.dataOut),
             )
         )
+        hls.compile()
+
 
 
 class HlsMAC_example_handshake(HlsMAC_example2):

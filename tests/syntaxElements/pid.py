@@ -50,6 +50,8 @@ class PidControllerHalfHls(PidController):
                 hls.write(_u, u.next)
             )
         )
+        hls.compile()
+
 
         # propagate output value register to output
         self.output(u)
@@ -97,6 +99,7 @@ class PidControllerHls(PidControllerHalfHls):
                 y[1](y[0]),
             )
         )
+        hls.compile()
 
 
 if __name__ == "__main__":

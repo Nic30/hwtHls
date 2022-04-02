@@ -40,6 +40,7 @@ class AxiSParseEth(Unit):
                 hls.write(eth.data.dst, self.dst_mac)
             )
         )
+        hls.compile()
 
 
 if __name__ == "__main__":

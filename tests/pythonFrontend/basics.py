@@ -25,6 +25,7 @@ class HlsConnectionFromPyFn0(Unit):
     def _impl(self):
         hls = HlsStreamProc(self, freq=int(100e6))
         hls._thread(*pyFunctionToSsa(hls, self.mainThread, hls))
+        hls.compile()
 
 
 class HlsConnectionFromPyFnTmpVar(HlsConnectionFromPyFn0):
@@ -144,6 +145,7 @@ class HlsConnectionFromPyFnKwArgs(Unit):
     def _impl(self):
         hls = HlsStreamProc(self, freq=int(100e6))
         hls._thread(*pyFunctionToSsa(hls, self.mainThread, hls, kwArg=10))
+        hls.compile()
 
 
 if __name__ == "__main__":

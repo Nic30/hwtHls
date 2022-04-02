@@ -32,6 +32,8 @@ class WriteFsm0(Unit):
                 hls.write(3, self.o),
             )
         )
+        hls.compile()
+
 
 
 class WriteFsm0Once(WriteFsm0):
@@ -43,6 +45,7 @@ class WriteFsm0Once(WriteFsm0):
             hls.write(2, self.o),
             hls.write(3, self.o),
         )
+        hls.compile()
 
 
 class WriteFsm1(WriteFsm0):
@@ -83,6 +86,8 @@ class ReadFsm0(Unit):
                 hls.write(Concat(*reversed(r)), self.o),
             )
         )
+        hls.compile()
+
 
 
 class ReadFsm0Once(ReadFsm0):
@@ -94,6 +99,8 @@ class ReadFsm0Once(ReadFsm0):
             *r,
             hls.write(Concat(*reversed(r)), self.o),
         )
+        hls.compile()
+
 
 
 class ReadFsm1(ReadFsm0):

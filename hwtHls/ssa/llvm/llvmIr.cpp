@@ -145,7 +145,8 @@ PYBIND11_MODULE(llvmIr, m) {
 			.def(py::init<>());
 	py::class_<llvm::Module>(m, "Module")
 			.def(py::init<llvm::StringRef, llvm::LLVMContext&>(), py::keep_alive<1, 2>(), py::keep_alive<1, 3>())
-			.def("__repr__", &Module__repr__);
+			.def("__repr__", &Module__repr__)
+			.def("getName", &llvm::Module::getName);
 	register_VectorOfTypePtr(m);
 	register_IRBuilder(m);
 	register_strings(m);

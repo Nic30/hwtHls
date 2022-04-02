@@ -41,6 +41,8 @@ class TwoTimesFiniteWhileInWhileTrue(Unit):
                 ),
             )
         )
+        hls.compile()
+
 
 
 class TwoTimesFiniteWhile(TwoTimesFiniteWhileInWhileTrue):
@@ -60,6 +62,8 @@ class TwoTimesFiniteWhile(TwoTimesFiniteWhileInWhileTrue):
                 i1(i1 + 1)
             ),
         )
+        hls.compile()
+
 
 
 class FiniteWhileIf0(TwoTimesFiniteWhileInWhileTrue):
@@ -86,6 +90,8 @@ class FiniteWhileIf0(TwoTimesFiniteWhileInWhileTrue):
                 hls.write(7, self.dataOut1),
             ),
         )
+        hls.compile()
+
 
 
 class FiniteWhileIf1(TwoTimesFiniteWhileInWhileTrue):
@@ -115,6 +121,8 @@ class FiniteWhileIf1(TwoTimesFiniteWhileInWhileTrue):
                 hls.write(6, self.dataOut1),
             ),
         )
+        hls.compile()
+
 
 
 if __name__ == "__main__":

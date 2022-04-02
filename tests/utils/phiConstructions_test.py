@@ -17,6 +17,7 @@ from hwtHls.ssa.translation.fromPython.fromPython import pyFunctionToSsa
 from hwtLib.types.ctypes import uint8_t
 from tests.baseSsaTest import TestFinishedSuccessfuly
 from hwtHls.ssa.translation.toGraphwiz import SsaPassDumpToDot
+from hwtHls.platform.fileUtils import outputFileGetter
 
 
 class PhiConstruction_TC(unittest.TestCase):
@@ -68,10 +69,10 @@ class PhiConstruction_TC(unittest.TestCase):
                             i += 1
 
                 hls._thread(*pyFunctionToSsa(hls, main))
-        
+                hls.compile()
         try:
             to_rtl_str(U0(), target_platform=VirtualHlsPlatform(ssa_passes=[
-                SsaPassDumpToDot("tmp/top0.dot", extract_pipeline=False),
+                SsaPassDumpToDot(outputFileGetter("tmp", "0.dot"), extractPipeline=False),
                 SsaPassConsystencyCheck(),
                 SsaPassRunFn(TestFinishedSuccessfuly.raise_)
             ]))

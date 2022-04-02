@@ -39,16 +39,16 @@ class BaseSsaTC(BaseSerializationTC):
         buff = [StringIO() for _ in range(4)]
         ssa_passes = [
             SsaPassConsystencyCheck(),
-            SsaPassDumpToLl(buff[0]),
+            SsaPassDumpToLl(lambda name: (buff[0], False)),
             SsaPassExtractPartDrivers(),
             SsaPassConsystencyCheck(),
-            SsaPassDumpToLl(buff[1]),
+            SsaPassDumpToLl(lambda name: (buff[1], False)),
             SsaPassToLlvm(),
             SsaPassRunLlvmOpt(),
             SsaPassFromLlvm(),
             SsaPassConsystencyCheck(),
-            SsaPassDumpToLl(buff[2]),
-            SsaPassDumpPipelines(buff[3]),
+            SsaPassDumpToLl(lambda name: (buff[2], False)),
+            SsaPassDumpPipelines(lambda name: (buff[3], False)),
             SsaPassRunFn(TestFinishedSuccessfuly.raise_)
         ]
         unit = unit_constructor()

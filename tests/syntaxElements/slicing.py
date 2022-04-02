@@ -25,6 +25,8 @@ class HlsConnection(Unit):
                 hls.write(hls.read(self.a), self.b)
             )
         )
+        hls.compile()
+
 
 
 class HlsSlice(Unit):
@@ -40,6 +42,8 @@ class HlsSlice(Unit):
                 hls.write(hls.read(self.a)[16:], self.b)
             )
         )
+        hls.compile()
+
 
 
 class HlsSlice2TmpHlsVarConcat(Unit):
@@ -57,6 +61,8 @@ class HlsSlice2TmpHlsVarConcat(Unit):
                 hls.write(tmp, self.b)
             )
         )
+        hls.compile()
+
 
 # class HlsSlice2(HlsSlice2TmpHlsVarConcat):
 #
@@ -82,6 +88,8 @@ class HlsSlice2TmpHlsVarSlice(HlsSlice2TmpHlsVarConcat):
                 hls.write(tmp, self.b)
             )
         )
+        hls.compile()
+
 
 
 class HlsSlicingTC(BaseSsaTC):

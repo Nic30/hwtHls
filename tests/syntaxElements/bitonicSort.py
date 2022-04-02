@@ -52,6 +52,7 @@ class BitonicSorterHLS(BitonicSorter):
                     for otmp, o in zip(outs, self.outputs)
                 )
             ))
+        hls.compile()
 
 
 class BitonicSorterHLS_TC(BitonicSorterTC):

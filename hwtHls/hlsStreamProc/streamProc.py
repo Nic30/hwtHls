@@ -10,7 +10,9 @@ from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.types.typeCast import toHVal
 from hwt.hdl.value import HValue
 from hwt.interfaces.hsStructIntf import HsStructIntf
-from hwt.interfaces.std import Handshaked, Signal
+from hwt.interfaces.std import Handshaked, Signal, HandshakeSync, VldSynced, \
+    RdSynced
+from hwt.interfaces.structIntf import Interface_to_HdlType
 from hwt.pyUtils.arrayQuery import flatten
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
@@ -28,7 +30,19 @@ from hwtHls.ssa.context import SsaContext
 from hwtHls.ssa.transformation.ssaPass import SsaPass
 from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa, AnyStm
 from hwtHls.ssa.translation.toHwtHlsNetlist.pipelineMaterialization import SsaSegmentToHwPipeline
+from hwtLib.amba.axi_intf_common import Axi_hs
 from hwtLib.amba.axis import AxiStream
+
+
+class HlsStreamProcThread():
+    """
+    A container of a thread which will be compiled later.
+    """
+
+    def __init__(self, hls: "HlsStreamProc", to_ssa: AstToSsa, code: HlsStreamProcCodeBlock):
+        self.hls = hls
+        self.to_ssa = to_ssa
+        self.code = code
 
 
 class HlsStreamProc():
@@ -65,6 +79,7 @@ class HlsStreamProc():
         if rtlnetlist_passes is None:
             rtlnetlist_passes = p.rtlnetlist_passes
         self.rtlnetlist_passes = rtlnetlist_passes
+        self._threads: List[HlsStreamProcThread] = []
 
     def _sig(self, name: str,
              dtype: HdlType=BIT,
@@ -88,23 +103,44 @@ class HlsStreamProc():
         
         if isinstance(src, AxiStream):
             return HlsStreamProcReadAxiStream(self, src, type_or_size, inStreamPos)
-        else:
-            if isinstance(src, RtlSignal):
-                assert src._ctx is not self._ctx, ("Read should be used only for IO, it is not required for hls variables")
-            if isinstance(src, (Handshaked, HsStructIntf)):
+
+        elif isinstance(src, (Handshaked, HsStructIntf, HandshakeSync, Axi_hs)):
+            if len(src._interfaces) == 3 and hasattr(src, "data"):
                 dtype = src.data._dtype
-            elif isinstance(src, (Signal, RtlSignal)):
-                dtype = src._dtype
             else:
-                raise NotImplementedError(src)    
+                if isinstance(src, Axi_hs):
+                    exclude = (src.ready, src.valid)
+                else:
+                    exclude = (src.rd, src.vld)
+                dtype = Interface_to_HdlType().apply(src, exclude=exclude)
 
-            if type_or_size is NOT_SPECIFIED:
-                type_or_size = dtype
+        elif isinstance(src, VldSynced):
+            if len(src._interfaces) == 2 and hasattr(src, "data"):
+                dtype = src.data._dtype
             else:
-                assert type_or_size == dtype
+                dtype = Interface_to_HdlType().apply(src, exclude=(src.vld,))
 
-            assert inStreamPos is IN_STREAM_POS.BODY
-            return HlsStreamProcRead(self, src, dtype)
+        elif isinstance(src, RdSynced):
+            if len(src._interfaces) == 2 and hasattr(src, "data"):
+                dtype = src.data._dtype
+            else:
+                dtype = Interface_to_HdlType().apply(src, exclude=(src.rd,))
+
+        elif isinstance(src, RtlSignal):
+            assert src._ctx is not self._ctx, ("Read should be used only for IO, it is not required for hls variables")
+            dtype = src._dtype
+
+        elif isinstance(src, Signal):
+            dtype = src._dtype
+
+        else:
+            raise NotImplementedError(src)    
+
+        if type_or_size is not NOT_SPECIFIED:
+            assert type_or_size == dtype
+
+        assert inStreamPos is IN_STREAM_POS.BODY
+        return HlsStreamProcRead(self, src, dtype)
 
     def write(self,
               src:Union[HlsStreamProcRead, Handshaked, AxiStream, bytes, HValue],
@@ -158,26 +194,9 @@ class HlsStreamProc():
         return _code
     
     def _thread(self, to_ssa: AstToSsa, _code: HlsStreamProcCodeBlock):
-        for ssa_pass in self.ssa_passes:
-            ssa_pass.apply(self, to_ssa)
-
-        to_hw = SsaSegmentToHwPipeline(to_ssa.start, _code)
-        to_hw.extract_pipeline()
-
-        to_hw.extract_hlsnetlist(self.parentUnit, self.freq)
-        for hlsnetlist_pass in self.hlsnetlist_passes:
-            hlsnetlist_pass.apply(self, to_hw)
-
-        # some optimization could call scheduling and everything after could let
-        # the netlist without modifications
-        if not to_hw.is_scheduled:
-            to_hw.schedulerRun()
-
-        to_hw.construct_rtlnetlist()
-        for rtlnetlist_pass in self.rtlnetlist_passes:
-            rtlnetlist_pass.apply(self, to_hw)
-
-        return to_hw
+        t = HlsStreamProcThread(self, to_ssa, _code)
+        self._threads.append(t)
+        return t
 
     def thread(self, *code: AnyStm):
         """
@@ -188,5 +207,30 @@ class HlsStreamProc():
         toSsa._onAllPredecsKnown(toSsa.start)
         toSsa.visit_top_CodeBlock(_code)
         toSsa.finalize()
-        self._thread(toSsa, _code)
+        return self._thread(toSsa, _code)
+    
+    def compile(self):
+        for t in self._threads:
+            to_ssa = t.to_ssa
+            code = t.code
+            for ssa_pass in self.ssa_passes:
+                ssa_pass.apply(self, to_ssa)
+    
+            to_hw = SsaSegmentToHwPipeline(to_ssa.start, code)
+            to_hw.extract_pipeline()
+    
+            to_hw.extract_hlsnetlist(self.parentUnit, self.freq)
+            for hlsnetlist_pass in self.hlsnetlist_passes:
+                hlsnetlist_pass.apply(self, to_hw)
+    
+            if not to_hw.is_scheduled:
+                to_hw.schedulerRun()
+
+            # some optimization could call scheduling and everything after could let
+            # the netlist without modifications
         
+        for t in self._threads:
+            to_hw.construct_rtlnetlist()
+            for rtlnetlist_pass in self.rtlnetlist_passes:
+                rtlnetlist_pass.apply(self, to_hw)
+              

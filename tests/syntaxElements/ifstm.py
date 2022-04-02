@@ -37,6 +37,8 @@ class SimpleIfStatementHls(SimpleIfStatement):
                 hls.write(tmp, self.d)
             )
         )
+        hls.compile()
+
 
 
 if __name__ == "__main__":

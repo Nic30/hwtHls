@@ -14,6 +14,8 @@ class WhileTrueReadWriteExpr(WhileTrueReadWrite):
                 hls.write((hls.read(self.dataIn, self.dataIn.T) * 8 + 2) * 3, self.dataOut)
             )
         )
+        hls.compile()
+
 
 
 class WhileSendSequence(WhileTrueReadWrite):
@@ -31,6 +33,8 @@ class WhileSendSequence(WhileTrueReadWrite):
                 ),
             )
         )
+        hls.compile()
+
 
 
 if __name__ == "__main__":

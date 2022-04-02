@@ -12,6 +12,7 @@ from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from hwtHls.ssa.phi import SsaPhi
 from hwt.hdl.value import HValue
+from hwtHls.platform.fileUtils import OutputStreamGetter
 
 
 class SsaToLl():
@@ -99,17 +100,28 @@ class SsaToLl():
 
 class SsaPassDumpToLl():
 
-    def __init__(self, output:StringIO=sys.stdout, close=False):
-        self.close = close
-        self.output = AutoIndentingStream(output, "  ")
+    def __init__(self, outStreamGetter:OutputStreamGetter):
+        self.outStreamGetter = outStreamGetter
 
     def apply(self, hls: "HlsStreamProc", to_ssa: "AstToSsa"):
         if isinstance(to_ssa.start, SsaBasicBlock):
-            toLl = SsaToLl(self.output)
-            toLl.construct(to_ssa.start)
+            name = to_ssa.start.label
         elif isinstance(to_ssa.start, ToLlvmIrTranslator):
-            toLlvmIr: ToLlvmIrTranslator = to_ssa.start
-            self.output.write(str(toLlvmIr.main))
-
-        if self.close:
-            self.output.close()
+            name = to_ssa.start.mod.getName().str()
+        else:
+            raise NotImplementedError(to_ssa.start)
+        
+        output, doClose = self.outStreamGetter(name) 
+        output = AutoIndentingStream(output, "  ")
+        try:
+            if isinstance(to_ssa.start, SsaBasicBlock):
+                toLl = SsaToLl(output)
+                toLl.construct(to_ssa.start)
+            elif isinstance(to_ssa.start, ToLlvmIrTranslator):
+                toLlvmIr: ToLlvmIrTranslator = to_ssa.start
+                output.write(str(toLlvmIr.main))
+            else:
+                raise NotImplementedError(to_ssa.start)
+        finally:
+            if doClose:
+                output.close()

@@ -26,6 +26,8 @@ class WriteOnce(Unit):
         hls.thread(
             hls.write(1, self.dataOut)
         )
+        hls.compile()
+
 
 
 class ReadWriteOnce0(WriteOnce):
@@ -40,6 +42,8 @@ class ReadWriteOnce0(WriteOnce):
         hls.thread(
             hls.write(hls.read(self.dataIn), self.dataOut)
         )
+        hls.compile()
+
 
 
 class ReadWriteOnce1(ReadWriteOnce0):
@@ -51,6 +55,8 @@ class ReadWriteOnce1(ReadWriteOnce0):
             tmp(hls.read(self.dataIn)),
             hls.write(tmp, self.dataOut),
         )
+        hls.compile()
+
 
 
 class ReadWriteOnce2(ReadWriteOnce0):
@@ -62,6 +68,8 @@ class ReadWriteOnce2(ReadWriteOnce0):
             tmp(hls.read(self.dataIn)),
             hls.write(tmp + 1, self.dataOut),
         )
+        hls.compile()
+
 
 
 class WhileTrueWrite(Unit):
@@ -84,6 +92,8 @@ class WhileTrueWrite(Unit):
                 hls.write(10, dout)
             )
         )
+        hls.compile()
+
 
 
 class WhileTrueWriteCntr0(WhileTrueWrite):
@@ -99,6 +109,8 @@ class WhileTrueWriteCntr0(WhileTrueWrite):
                 cntr(cntr + 1),
             )
         )
+        hls.compile()
+
 
 
 class WhileTrueWriteCntr1(WhileTrueWrite):
@@ -114,6 +126,8 @@ class WhileTrueWriteCntr1(WhileTrueWrite):
                 hls.write(cntr, dout),
             )
         )
+        hls.compile()
+
 
 
 class WhileTrueReadWrite(WhileTrueWrite):
@@ -130,6 +144,8 @@ class WhileTrueReadWrite(WhileTrueWrite):
                 hls.write(hls.read(self.dataIn, self.dataIn.T), self.dataOut)
             )
         )
+        hls.compile()
+
 
 
 if __name__ == "__main__":

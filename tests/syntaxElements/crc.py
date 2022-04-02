@@ -62,6 +62,8 @@ class CrcCombHls(CrcComb):
                 hls.write(result, self.dataOut)
             )
         )
+        hls.compile()
+
 
 
 if __name__ == "__main__":

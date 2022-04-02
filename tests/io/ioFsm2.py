@@ -21,6 +21,8 @@ class WriteFsmFor(WriteFsm1):
                 hls.write(3, self.o),
             )
         )
+        hls.compile()
+
 
 
 class WriteFsmPrequel(WriteFsm1):
@@ -40,6 +42,8 @@ class WriteFsmPrequel(WriteFsm1):
                 hls.write(i + 3, self.o),
             )
         )
+        hls.compile()
+
 
 
 class WriteFsmIf(WriteFsm1):
@@ -60,6 +64,8 @@ class WriteFsmIf(WriteFsm1):
                 ),
             ),
         )
+        hls.compile()
+
 
 
 if __name__ == "__main__":

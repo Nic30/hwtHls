@@ -41,6 +41,8 @@ class AlapAsapDiffExample(Unit):
                 hls.write(d, self.d)
             )
         )
+        hls.compile()
+
 
 
 def neg_8b(a):

@@ -3,13 +3,14 @@ from collections import deque
 from dis import findlinestarts, _get_instructions_bytes, Instruction, dis
 import operator
 from types import FunctionType, CellType
-from typing import Dict, Optional, List, Tuple, Union, Deque, Sequence, Set
+from typing import Dict, Optional, List, Tuple, Union, Deque
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.value import HValue
 from hwt.pyUtils.arrayQuery import flatten
+from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.errors import HlsSyntaxError
@@ -22,6 +23,9 @@ from hwtHls.ssa.translation.fromPython.blockLabel import generateBlockLabel
 from hwtHls.ssa.translation.fromPython.blockPredecessorTracker import BlockLabel, \
     BlockPredecessorTracker
 from hwtHls.ssa.translation.fromPython.bytecodeBlockAnalysis import extractBytecodeBlocks
+from hwtHls.ssa.translation.fromPython.frame import PythonBytecodeFrame
+from hwtHls.ssa.translation.fromPython.indexExpansion import expandSetitemOnPytObjAsSwitchCase, \
+    expandIndexOnPyObjAsSwitchCase
 from hwtHls.ssa.translation.fromPython.instructions import CMP_OPS, BIN_OPS, UN_OPS, \
     INPLACE_BIN_OPS, JUMP_OPS, ROT_OPS, BUILD_OPS, FOR_ITER, RETURN_VALUE, NOP, \
     POP_TOP, LOAD_DEREF, LOAD_ATTR, LOAD_FAST, LOAD_CONST, LOAD_GLOBAL, \
@@ -29,15 +33,11 @@ from hwtHls.ssa.translation.fromPython.instructions import CMP_OPS, BIN_OPS, UN_
     CALL_FUNCTION, CALL_FUNCTION_KW, COMPARE_OP, GET_ITER, UNPACK_SEQUENCE, \
     MAKE_FUNCTION, STORE_SUBSCR, EXTENDED_ARG, JUMP_ABSOLUTE, JUMP_FORWARD, \
     JUMP_IF_FALSE_OR_POP, JUMP_IF_TRUE_OR_POP, POP_JUMP_IF_FALSE, \
-    POP_JUMP_IF_TRUE
+    POP_JUMP_IF_TRUE, CALL_FUNCTION_EX
 from hwtHls.ssa.translation.fromPython.loopsDetect import PyBytecodeLoop, \
     PreprocLoopScope
 from hwtHls.ssa.translation.fromPython.markers import PythonBytecodeInPreproc
 from hwtHls.ssa.value import SsaValue
-from hwtHls.ssa.translation.fromPython.frame import PythonBytecodeFrame
-from hwtHls.ssa.translation.fromPython.indexExpansion import expandSetitemOnPytObjAsSwitchCase, \
-    expandIndexOnPyObjAsSwitchCase
-from hwt.pyUtils.uniqList import UniqList
 
 
 class SsaBlockGroup():
@@ -536,8 +536,8 @@ class PythonBytecodeToSsa():
                 src = stack.pop()
 
                 if isinstance(dst, (Interface, RtlSignal)):
-                    stm = self.hls.write(src, dst)
-                    self.to_ssa.visit_CodeBlock_list(curBlock, flatten([stm, ]))
+                    #stm = self.hls.write(src, dst)
+                    self.to_ssa.visit_CodeBlock_list(curBlock, flatten(dst(src)))
                 else:
                     raise NotImplementedError(instr)
 
@@ -547,7 +547,8 @@ class PythonBytecodeToSsa():
                 if v is None:
                     if isinstance(vVal, (HValue, RtlSignal, SsaValue)):
                         # only if it is a value which generates hw variable
-                        v = self.hls.var(instr.argval, vVal._dtype)
+                        t = getattr(vVal, "_dtypeOrig", vVal._dtype)
+                        v = self.hls.var(instr.argval, t)
 
                     locals_[instr.arg] = v
 
@@ -590,6 +591,16 @@ class PythonBytecodeToSsa():
                 res = m(*reversed(args), **kwArgs)
                 stack.append(res)
 
+            elif opcode == CALL_FUNCTION_EX:
+                if instr.arg:
+                    kw_args = stack.pop()
+                    raise NotImplementedError(instr)
+
+                args = stack.pop()
+                m = stack.pop()
+                res = m(*reversed(tuple(args)))
+                stack.append(res)
+                
             elif opcode == COMPARE_OP:
                 binOp = CMP_OPS[instr.arg]
                 b = stack.pop()
@@ -624,7 +635,7 @@ class PythonBytecodeToSsa():
                 if binOp is not None:
                     b = stack.pop()
                     a = stack.pop()
-                    if binOp is operator.getitem and isinstance(b, (RtlSignal, SsaValue)) and not isinstance(a, (RtlSignal, SsaValue)):
+                    if binOp is operator.getitem and isinstance(b, (RtlSignal, Interface, SsaValue)) and not isinstance(a, (RtlSignal, SsaValue)):
                         # if this is indexing using hw value on non hw object we need to expand it to a switch-case on individual cases
                         # must generate blocks for switch cases,
                         # for this we need a to keep track of start/end for each block because we do not have this newly generated blocks in original CFG

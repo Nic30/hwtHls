@@ -54,6 +54,8 @@ class HlsExprTree3_example(Unit):
                 wr(f3, self.f3),
             )
         )
+        hls.compile()
+
 
 
 class HlsExprTree3_example_TC(BaseSsaTC):

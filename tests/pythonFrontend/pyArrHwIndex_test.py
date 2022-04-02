@@ -19,11 +19,12 @@ class CntrArrayWithCfgDotDump(CntrArray):
     def _impl(self):
         hls = HlsStreamProc(self, freq=int(100e6))
         c = PythonBytecodeToSsa(hls, self.mainThread)
+        hls._thread(*c.translateFunction(hls))
         try:
-            hls._thread(*c.translateFunction(hls))
+            hls.compile()
         finally:
             c.blockTracker.dumpCfgToDot(self.CFG_FILE)
-
+            
 
 class PyArrHwIndex_TC(BaseSsaTC):
     __FILE__ = __file__

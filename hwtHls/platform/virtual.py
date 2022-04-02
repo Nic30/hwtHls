@@ -30,6 +30,7 @@ from hwtHls.ssa.translation.toLl import SsaPassDumpToLl
 from hwtHls.ssa.translation.toLlvm import SsaPassToLlvm
 from hwtHls.netlist.translation.toTimelineArchLevel import HlsNetlistPassShowTimelineArchLevel
 from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF
+from hwtHls.platform.fileUtils import outputFileGetter
 
 _OPS_T_GROWING_EXP = {
     AllOps.DIV,
@@ -101,21 +102,21 @@ def makeDebugPasses(debug_file_directory: Union[str, Path], expandCompositeNodes
         debug_file_directory.mkdir()
     return {
         "ssa_passes": [
-            SsaPassDumpToDot(debug_file_directory / "top0.dot", extract_pipeline=False),
+            SsaPassDumpToDot(outputFileGetter(debug_file_directory, ".0.dot"), extractPipeline=False),
             SsaPassConsystencyCheck(),
             SsaPassAxiStreamReadLowering(),
-            SsaPassDumpToDot(debug_file_directory / "top1.dot", extract_pipeline=False),
+            SsaPassDumpToDot(outputFileGetter(debug_file_directory, ".1.dot"), extractPipeline=False),
             SsaPassExtractPartDrivers(),
-            SsaPassDumpToDot(debug_file_directory / "top2.dot", extract_pipeline=False),
+            SsaPassDumpToDot(outputFileGetter(debug_file_directory, ".2.dot"), extractPipeline=False),
 
             SsaPassToLlvm(),
-            SsaPassDumpToLl(open(debug_file_directory / "top3.ll", "w"), close=True),
+            SsaPassDumpToLl(outputFileGetter(debug_file_directory, ".3.ll")),
             SsaPassRunLlvmOpt(),
-            SsaPassDumpToLl(open(debug_file_directory / "top4.ll", "w"), close=True),
+            SsaPassDumpToLl(outputFileGetter(debug_file_directory, ".4.ll")),
             SsaPassFromLlvm(),
 
-            SsaPassDumpToDot(debug_file_directory / "top5.dot"),
-            SsaPassDumpPipelines(open(debug_file_directory / "top6.pipeline.txt", "w"), close=True),
+            SsaPassDumpToDot(outputFileGetter(debug_file_directory, ".5.dot")),
+            SsaPassDumpPipelines(outputFileGetter(debug_file_directory, ".6.pipeline.txt")),
             SsaPassConsystencyCheck(),
         ],
         "hlsnetlist_passes": [
@@ -126,13 +127,13 @@ def makeDebugPasses(debug_file_directory: Union[str, Path], expandCompositeNodes
             HlsNetlistPassAggregateBitwiseOps(),
             # HlsNetlistPassConsystencyCheck(),
             # HlsNetlistPassDumpToDot(debug_file_directory / "top_p1.dot"),
-            HlsNetlistPassShowTimeline(debug_file_directory / "top7.schedule.html", expandCompositeNodes=expandCompositeNodes),
+            HlsNetlistPassShowTimeline(outputFileGetter(debug_file_directory, ".7.schedule.html"),
+                                       expandCompositeNodes=expandCompositeNodes),
         ],
         "rtlnetlist_passes":[
-            RtlNetlistPassDumpStreamNodes(open(debug_file_directory / "top8.sync.txt", "w"), close=True),
-            HlsNetlistPassShowTimelineArchLevel(debug_file_directory / "top9.archschedule.html"),
+            RtlNetlistPassDumpStreamNodes(outputFileGetter(debug_file_directory, ".8.sync.txt")),
+            HlsNetlistPassShowTimelineArchLevel(outputFileGetter(debug_file_directory, ".9.archschedule.html")),
         ],
-
     }
 
 

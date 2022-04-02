@@ -84,7 +84,7 @@ class HlsStreamProcRead(HdlStatement, SignalOps, InterfaceBase, SsaInstr):
         self._GEN_NAME_PREFIX = intfName
         SsaInstr.__init__(self, parent.ssaCtx, sig_flat._dtype, OP_ASSIGN, (),
                           origin=sig)
-
+        self._dtypeOrig = dtype
         if isinstance(sig, StructIntf):
             self._interfaces = sig._interfaces
             # copy all members on this object
@@ -92,6 +92,7 @@ class HlsStreamProcRead(HdlStatement, SignalOps, InterfaceBase, SsaInstr):
                 if len(field_path) == 1:
                     n = field_path[0]
                     assert not hasattr(self, n), (self, n)
+                    assert not hasattr(self, n), ("name collision of ", self.__class__.__name__, "and read type member", n)
                     setattr(self, n, field_intf)
         else:
             self._interfaces = []
@@ -142,8 +143,8 @@ class HlsStreamProcReadAxiStream(HlsStreamProcRead):
 
         trueDtype = HStruct(
             (dtype, "data"),
-            *(((maskT, "keep"), ) if src.USE_KEEP else ()),
-            *(((maskT, "strb"), ) if src.USE_STRB else ()),
+            *(((maskT, "keep"),) if src.USE_KEEP else ()),
+            *(((maskT, "strb"),) if src.USE_STRB else ()),
             (BIT, "last"),  # we do not know how many words this read could be last is disjunction of last signals from each word
         )
         
@@ -167,7 +168,6 @@ class HlsStreamProcReadAxiStream(HlsStreamProcRead):
                 n = field_path[0]
                 assert not hasattr(self, n), (self, n)
                 setattr(self, n, field_intf)
-
 
     @staticmethod
     def _getWordType(intf: AxiStream):

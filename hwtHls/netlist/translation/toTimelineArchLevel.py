@@ -11,6 +11,7 @@ from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlRes
 from hwtHls.netlist.transformation.rtlNetlistPass import RtlNetlistPass
 from hwtHls.netlist.translation.toTimeline import HwtHlsNetlistToTimeline, \
     TimelineRow
+from hwtHls.platform.fileUtils import OutputStreamGetter
 
 
 class HwtHlsNetlistToTimelineArchLevel(HwtHlsNetlistToTimeline):
@@ -109,8 +110,8 @@ class HwtHlsNetlistToTimelineArchLevel(HwtHlsNetlistToTimeline):
 
 class HlsNetlistPassShowTimelineArchLevel(RtlNetlistPass):
 
-    def __init__(self, filename:Optional[str]=None, auto_open=False, expandCompositeNodes=False):
-        self.filename = filename
+    def __init__(self, outStreamGetter:Optional[OutputStreamGetter]=None, auto_open=False, expandCompositeNodes=False):
+        self.outStreamGetter = outStreamGetter
         self.auto_open = auto_open
         self.expandCompositeNodes = expandCompositeNodes
 
@@ -119,8 +120,13 @@ class HlsNetlistPassShowTimelineArchLevel(RtlNetlistPass):
 
         to_timeline = HwtHlsNetlistToTimelineArchLevel(to_hw.hls.normalizedClkPeriod, to_hw.hls.scheduler.resolution, self.expandCompositeNodes)
         to_timeline.construct(to_hw.hls.allocator)
-        if self.filename is not None:
-            to_timeline.save_html(self.filename, self.auto_open)
+        if self.outStreamGetter is not None:
+            out, doClose = self.outStreamGetter(to_hw.start.label)
+            try:
+                to_timeline.save_html(out, self.auto_open)
+            finally:
+                if doClose:
+                    out.close()
         else:
             assert self.auto_open, "Must be True because we can not show figure without opening it"
             to_timeline.show()

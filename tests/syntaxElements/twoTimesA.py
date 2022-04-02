@@ -31,6 +31,8 @@ class TwoTimesA0(Unit):
                 hls.write(a + a, self.b)
             )
         )
+        hls.compile()
+
         # hls.thread(
         #    hls.While(True,
         #        hls.write(a + a, self.b)
@@ -48,6 +50,8 @@ class TwoTimesA1(TwoTimesA0):
                hls.write(a + a, self.b)
            )
         )
+        hls.compile()
+
 
 
 class TwoTimesA_TC(BaseSsaTC):

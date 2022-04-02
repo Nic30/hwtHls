@@ -43,6 +43,8 @@ class SumReduce(Unit):
                 hls.write(res, self.dataOut0),
             )
         )
+        hls.compile()
+
 
 
 if __name__ == "__main__":

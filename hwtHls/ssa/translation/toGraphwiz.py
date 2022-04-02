@@ -15,6 +15,7 @@ from hwtHls.ssa.phi import SsaPhi
 from hwtHls.ssa.transformation.ssaPass import SsaPass
 from hwtHls.ssa.translation.toHwtHlsNetlist.pipelineMaterialization import SsaSegmentToHwPipeline
 from hwtHls.ssa.value import SsaValue
+from hwtHls.platform.fileUtils import OutputStreamGetter
 
 
 class SsaToGraphwiz():
@@ -128,13 +129,14 @@ class SsaToGraphwiz():
 
 class SsaPassDumpToDot(SsaPass):
 
-    def __init__(self, file_name:str, extract_pipeline: bool=True):
-        self.file_name = file_name
-        self.extract_pipeline = extract_pipeline
+    def __init__(self, outStreamGetter:OutputStreamGetter, extractPipeline: bool=True):
+        self.outStreamGetter = outStreamGetter
+        self.extractPipeline = extractPipeline
 
     def apply(self, hls: "HlsStreamProc", to_ssa: "AstToSsa"):
-        to_graphwiz = SsaToGraphwiz(Path(self.file_name).stem)
-        if self.extract_pipeline:
+        name = to_ssa.start.label
+        to_graphwiz = SsaToGraphwiz(name)
+        if self.extractPipeline:
             to_hw = SsaSegmentToHwPipeline(to_ssa.start, to_ssa.original_code_for_debug)
             to_hw.extract_pipeline()
             pipelines = [to_hw.pipeline, ]
@@ -142,8 +144,11 @@ class SsaPassDumpToDot(SsaPass):
         else:
             pipelines = None
             edge_var_live = None
-
-        with open(self.file_name, "w") as f:
+        out, doClose = self.outStreamGetter(name)
+        try:
             to_graphwiz.construct(to_ssa.start, to_ssa.original_code_for_debug,
                                   pipelines, edge_var_live)
-            f.write(to_graphwiz.dumps())
+            out.write(to_graphwiz.dumps())
+        finally:
+            if doClose:
+                out.close()

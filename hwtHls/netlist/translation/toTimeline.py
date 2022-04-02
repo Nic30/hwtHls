@@ -4,6 +4,7 @@ from typing import Dict, List, Optional, Union
 from plotly import graph_objs as go
 from plotly.graph_objs import Figure
 import plotly.offline
+from plotly import tools
 
 from hwt.hdl.types.bitsVal import BitsVal
 from hwt.pyUtils.uniqList import UniqList
@@ -17,6 +18,10 @@ from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeWriteBackwardEdge
 from hwtHls.netlist.nodes.aggregatedBitwiseOps import HlsNetNodeBitwiseOps
+from io import StringIO
+import plotly.io as pio
+from plotly.offline.offline import build_save_image_post_script
+from hwtHls.platform.fileUtils import OutputStreamGetter
 
 
 class TimelineRow():
@@ -132,10 +137,10 @@ class HwtHlsNetlistToTimeline():
                 depObj = dep.obj
                 depOutI = dep.out_i
                 row.deps.append((
-                    obj_to_row[depObj][1], # src
-                    depObj.scheduledOut[depOutI] * self.time_scale, # start
-                    t * self.time_scale, # finish
-                    dep._dtype) # type
+                    obj_to_row[depObj][1],  # src
+                    depObj.scheduledOut[depOutI] * self.time_scale,  # start
+                    t * self.time_scale,  # finish
+                    dep._dtype)  # type
                 )
             for bdep_obj in obj.debug_iter_shadow_connection_dst():
                 bdep = obj_to_row[bdep_obj][0]
@@ -263,18 +268,58 @@ class HwtHlsNetlistToTimeline():
         fig = self._generate_fig()
         plotly.offline.iplot(fig, config={"scrollZoom":True})
 
-    def save_html(self, filename: Union[str, Path], auto_open):
+    def save_html(self, file: StringIO,
+                  show_link=False,
+                  link_text="Export to plot.ly",
+                  validate=True,
+                  output_type="file",
+                  include_plotlyjs=True,
+                  auto_open=True,
+                  image=None,
+                  image_filename="plot_image",
+                  image_width=800,
+                  image_height=600,
+                  config=None,
+                  include_mathjax=False,
+                  auto_play=True,
+                  animation_opts=None,):
         fig = self._generate_fig()
-        if isinstance(filename, Path):
-            filename = filename.as_posix()
-
-        plotly.offline.plot(fig, filename=filename, auto_open=auto_open, config={"scrollZoom":True})
+        config = {"scrollZoom":True}
+        config = dict(config) if config else {}
+        config.setdefault("showLink", show_link)
+        config.setdefault("linkText", link_text)
+    
+        figure = tools.return_figure_from_figure_or_data(fig, validate)
+        width = figure.get("layout", {}).get("width", "100%")
+        height = figure.get("layout", {}).get("height", "100%")
+    
+        if width == "100%" or height == "100%":
+            config.setdefault("responsive", True)
+    
+        # Handle image request
+        post_script = build_save_image_post_script(
+            image, image_filename, image_height, image_width, "plot"
+        )
+    
+        pio.write_html(
+            figure,
+            file,
+            config=config,
+            auto_play=auto_play,
+            include_plotlyjs=include_plotlyjs,
+            include_mathjax=include_mathjax,
+            post_script=post_script,
+            full_html=True,
+            validate=validate,
+            animation_opts=animation_opts,
+            auto_open=auto_open,
+        )
 
 
 class HlsNetlistPassShowTimeline(HlsNetlistPass):
 
-    def __init__(self, filename:Optional[str]=None, auto_open=False, expandCompositeNodes=False):
-        self.filename = filename
+    def __init__(self, outStreamGetter:Optional[OutputStreamGetter]=None, auto_open=False, expandCompositeNodes=False):
+        self.outStreamGetter = outStreamGetter
         self.auto_open = auto_open
         self.expandCompositeNodes = expandCompositeNodes
 
@@ -286,8 +331,13 @@ class HlsNetlistPassShowTimeline(HlsNetlistPass):
                                               to_hw.hls.scheduler.resolution,
                                               expandCompositeNodes=self.expandCompositeNodes)
         to_timeline.construct(to_hw.hls.inputs + to_hw.hls.nodes + to_hw.hls.outputs)
-        if self.filename is not None:
-            to_timeline.save_html(self.filename, self.auto_open)
+        if self.outStreamGetter is not None:
+            out, doClose = self.outStreamGetter(to_hw.start.label)
+            try:
+                to_timeline.save_html(out, self.auto_open)
+            finally:
+                if doClose:
+                    out.close()
         else:
             assert self.auto_open, "Must be True because we can not show figure without opening it"
             to_timeline.show()

@@ -38,6 +38,7 @@ class BitWidthReductionCmp2Values(Unit):
                     hls.write(26, self.o)
 
         hls._thread(*pyFunctionToSsa(hls, mainThread))
+        hls.compile()
 
 
 class BitWidthReductionCmpReducibleEq(Unit):
@@ -81,6 +82,7 @@ class BitWidthReductionCmpReducibleEq(Unit):
                 hls.write(p(Concat(a[:4], zero8b, a[4:]), Concat(b[:4], all8b, b[4:])), self.res_prefix_differentInMiddle)  # resolved as 0
 
         hls._thread(*pyFunctionToSsa(hls, mainThread))
+        hls.compile()
 
 
 class BitWidthReductionCmpReducibleNe(BitWidthReductionCmpReducibleEq):

@@ -23,6 +23,7 @@ class HlsConnectionFromPyIf(Unit):
     def _impl(self):
         hls = HlsStreamProc(self)
         hls._thread(*pyFunctionToSsa(hls, self.mainThread, hls))
+        hls.compile()
 
 
 class HlsConnectionFromPyIfElse(HlsConnectionFromPyIf):
@@ -51,7 +52,8 @@ class HlsConnectionFromPyIfElsePreproc(HlsConnectionFromPyIf):
     def _impl(self):
         hls = HlsStreamProc(self)
         hls._thread(*pyFunctionToSsa(hls, self.mainThread, hls, True))
-            
+        hls.compile()
+
 
 class HlsConnectionFromPyIfElifElse(HlsConnectionFromPyIf):
 

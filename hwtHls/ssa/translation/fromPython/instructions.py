@@ -3,6 +3,7 @@ from dis import Instruction
 from typing import Type
 from opcode import opmap, cmp_op
 
+# https://docs.python.org/3/library/dis.html
 NOP = opmap['NOP']
 POP_TOP = opmap['POP_TOP']
 LOAD_DEREF = opmap['LOAD_DEREF']      
@@ -18,6 +19,7 @@ STORE_DEREF = opmap['STORE_DEREF']
 CALL_METHOD = opmap['CALL_METHOD']     
 CALL_FUNCTION = opmap['CALL_FUNCTION']   
 CALL_FUNCTION_KW = opmap['CALL_FUNCTION_KW']
+CALL_FUNCTION_EX = opmap['CALL_FUNCTION_EX']
 
 COMPARE_OP = opmap['COMPARE_OP']      
 GET_ITER = opmap['GET_ITER']        
@@ -86,7 +88,6 @@ BUILD_TUPLE = opmap['BUILD_TUPLE']
 BUILD_LIST = opmap['BUILD_LIST']
 BUILD_SET = opmap['BUILD_SET']
 
-# https://docs.python.org/3/library/dis.html
 UN_OPS = {
     UNARY_POSITIVE: operator.pos,
     UNARY_NEGATIVE: operator.neg,

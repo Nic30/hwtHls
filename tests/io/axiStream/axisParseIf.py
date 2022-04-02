@@ -42,6 +42,7 @@ class AxiSParse2If(AxiSParse2fields):
                 )
             )
         )
+        hls.compile()
 
 
 class AxiSParse2IfAndSequel(AxiSParse2fields):
@@ -76,6 +77,8 @@ class AxiSParse2IfAndSequel(AxiSParse2fields):
                 hls.write(v2._reinterpret_cast(o._dtype), o),
             )
         )
+        hls.compile()
+
 
 
 if __name__ == "__main__":

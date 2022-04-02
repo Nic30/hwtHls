@@ -31,6 +31,8 @@ class WhileAndIf0(WhileTrueWrite):
                 ),
             )
         )
+        hls.compile()
+
 
 
 class WhileAndIf0b(WhileAndIf0):
@@ -52,6 +54,8 @@ class WhileAndIf0b(WhileAndIf0):
                 ),
             )
         )
+        hls.compile()
+
 
 
 class WhileAndIf1(WhileTrueWrite):
@@ -80,6 +84,8 @@ class WhileAndIf1(WhileTrueWrite):
                 hls.write(x, dout)
             )
         )
+        hls.compile()
+
 
 
 class WhileAndIf2(WhileTrueReadWrite):
@@ -101,6 +107,8 @@ class WhileAndIf2(WhileTrueReadWrite):
                 ),
             )
         )
+        hls.compile()
+
 
 
 class WhileAndIf3(WhileTrueReadWrite):
@@ -125,6 +133,8 @@ class WhileAndIf3(WhileTrueReadWrite):
                 ),
             )
         )
+        hls.compile()
+
 
 
 if __name__ == "__main__":

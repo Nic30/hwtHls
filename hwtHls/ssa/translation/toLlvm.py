@@ -8,7 +8,8 @@ from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.types.slice import HSlice
 from hwt.hdl.value import HValue
 from hwt.interfaces.hsStructIntf import HsStructIntf
-from hwt.interfaces.std import Signal, RdSynced, VldSynced, Handshaked
+from hwt.interfaces.std import Signal, RdSynced, VldSynced, Handshaked,\
+    HandshakeSync
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
@@ -258,7 +259,7 @@ class ToLlvmIrTranslator():
 
     @staticmethod
     def _getNativeInterfaceType(i: Interface):
-        if isinstance(i, (Handshaked, Axi_hs, HsStructIntf)):
+        if isinstance(i, (Handshaked, Axi_hs, HsStructIntf, HandshakeSync)):
             return Bits(i._bit_length() - 2)
         elif isinstance(i, (RdSynced, VldSynced)):
             return Bits(i._bit_length() - 1)

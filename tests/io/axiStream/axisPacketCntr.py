@@ -44,6 +44,7 @@ class AxiSPacketCntr(Unit):
     def _impl(self):
         hls = HlsStreamProc(self)
         hls._thread(*pyFunctionToSsa(hls, self.mainThread, hls))
+        hls.compile()
 
 
 class AxiSPacketByteCntr0(AxiSPacketCntr):
@@ -102,6 +103,6 @@ if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
 
     u = AxiSPacketByteCntr0()
-    u.DATA_WIDTH = 16
+    u.DATA_WIDTH = 32
     p = VirtualHlsPlatform(**makeDebugPasses("tmp"))
     print(to_rtl_str(u, target_platform=p))
