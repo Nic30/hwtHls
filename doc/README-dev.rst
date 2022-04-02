@@ -3,7 +3,7 @@ Readme for developers of this library
 
 .. README-dev:
 
-List of useful tips for debug and explanation of realted internal structures.
+List of useful tips for debug and explanation of related internal structures.
 
 
 Debug build
@@ -19,7 +19,7 @@ Debug build
 	cd hwtHls/ssa/llvm/ && ln -s ../../build/hwtHls/ssa/llvm/*.so
 
 * use `LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libSegFault.so` to get better segfault reports
-  libSegFault is a part of glibc but it may have a different loacation on your machine
+  libSegFault is a part of glibc but it may have a different location on your machine
 * https://stackoverflow.com/questions/54273632/llvm-linking-commandline-error-option-help-list-registered-more-than-once-l
 
 Doc generator
@@ -30,7 +30,7 @@ Doc generator
 How to debug C++ in python module?
 ----------------------------------
 
-Use GDB on python binary (/usr/bin/python3 or your venv/bin/python), append local dependencies to PYTHONPATH if not istalled, specify script to execute (e.g.  `-m tests.all`)
+Use GDB on python binary (/usr/bin/python3 or your venv/bin/python), append local dependencies to PYTHONPATH if not installed, specify script to execute (e.g.  `-m tests.all`)
 In eclipse you can append ${workspace_project_locations} in environment tab in Debug Configurations properties to add everything at once.
 
 Using local llvm build
