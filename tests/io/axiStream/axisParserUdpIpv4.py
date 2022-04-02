@@ -9,7 +9,7 @@ from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.statementsIo import IN_STREAM_POS
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
-from hwtHls.ssa.translation.fromPython.fromPython import pyFunctionToSsa
+from hwtHls.ssa.translation.fromPython.fromPython import HlsStreamProcPyThread
 from hwtHls.ssa.translation.fromPython.markers import PythonBytecodeInPreproc
 from hwtLib.amba.axis import AxiStream
 from hwtLib.types.ctypes import uint16_t, uint8_t
@@ -48,7 +48,7 @@ class AxiSParseUdpIpv4(Unit):
 
     def _impl(self) -> None:
         hls = HlsStreamProc(self)
-        hls._thread(*pyFunctionToSsa(hls, self.parseEth, hls))
+        hls.thread(HlsStreamProcPyThread(hls, self.parseEth, hls))
         hls.compile()
 
 

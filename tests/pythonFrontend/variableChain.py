@@ -7,7 +7,7 @@ from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
-from hwtHls.ssa.translation.fromPython.fromPython import pyFunctionToSsa
+from hwtHls.ssa.translation.fromPython.fromPython import HlsStreamProcPyThread
 
 
 class VariableChain(Unit):
@@ -21,6 +21,7 @@ class VariableChain(Unit):
         self.o = VectSignal(8, signed=False)._m()
 
     def mainThread(self, hls: HlsStreamProc):
+        # :note: all variables are supposed to be reduced out and just direct connection should remain
         path = [hls.var(f"i{i}", self.i._dtype) for i in range(self.LEN)]
         while BIT.from_py(1):
             for i, p in enumerate(path):
@@ -34,7 +35,7 @@ class VariableChain(Unit):
 
     def _impl(self):
         hls = HlsStreamProc(self, freq=int(100e6))
-        hls._thread(*pyFunctionToSsa(hls, self.mainThread, hls))
+        hls.thread(HlsStreamProcPyThread(hls, self.mainThread, hls))
         hls.compile()
 
 

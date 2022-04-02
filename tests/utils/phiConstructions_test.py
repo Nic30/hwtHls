@@ -13,7 +13,7 @@ from hwtHls.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
 from hwtHls.ssa.context import SsaContext
 from hwtHls.ssa.transformation.runFn import SsaPassRunFn
 from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
-from hwtHls.ssa.translation.fromPython.fromPython import pyFunctionToSsa
+from hwtHls.ssa.translation.fromPython.fromPython import HlsStreamProcPyThread
 from hwtLib.types.ctypes import uint8_t
 from tests.baseSsaTest import TestFinishedSuccessfuly
 from hwtHls.ssa.translation.toGraphwiz import SsaPassDumpToDot
@@ -68,7 +68,7 @@ class PhiConstruction_TC(unittest.TestCase):
                         if i < 3:
                             i += 1
 
-                hls._thread(*pyFunctionToSsa(hls, main))
+                hls.thread(HlsStreamProcPyThread(hls, main))
                 hls.compile()
         try:
             to_rtl_str(U0(), target_platform=VirtualHlsPlatform(ssa_passes=[

@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from io import StringIO
+import os
+
+from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
+from hwtHls.ssa.transformation.runFn import SsaPassRunFn
 from tests.baseSsaTest import BaseSsaTC, TestFinishedSuccessfuly
 from tests.pythonFrontend.pyArrHwIndex import Rom, CntrArray
-from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
-from hwtHls.ssa.translation.fromPython.fromPython import PythonBytecodeToSsa
-import os
-from _io import StringIO
-from hwtHls.ssa.transformation.runFn import SsaPassRunFn
+from hwtHls.ssa.translation.fromPython.fromPython import HlsStreamProcPyThread
 
 
 class CntrArrayWithCfgDotDump(CntrArray):
@@ -18,12 +19,11 @@ class CntrArrayWithCfgDotDump(CntrArray):
 
     def _impl(self):
         hls = HlsStreamProc(self, freq=int(100e6))
-        c = PythonBytecodeToSsa(hls, self.mainThread)
-        hls._thread(*c.translateFunction(hls))
+        t = hls.thread(HlsStreamProcPyThread(hls, self.mainThread, hls))
         try:
             hls.compile()
         finally:
-            c.blockTracker.dumpCfgToDot(self.CFG_FILE)
+            t.bytecodeToAst.blockTracker.dumpCfgToDot(self.CFG_FILE)
             
 
 class PyArrHwIndex_TC(BaseSsaTC):

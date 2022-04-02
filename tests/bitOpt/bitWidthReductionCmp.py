@@ -10,7 +10,7 @@ from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
-from hwtHls.ssa.translation.fromPython.fromPython import pyFunctionToSsa
+from hwtHls.ssa.translation.fromPython.fromPython import HlsStreamProcPyThread
 from hwtLib.types.ctypes import uint8_t
 from hwt.hdl.types.defs import BIT
 
@@ -37,7 +37,7 @@ class BitWidthReductionCmp2Values(Unit):
                 else:
                     hls.write(26, self.o)
 
-        hls._thread(*pyFunctionToSsa(hls, mainThread))
+        hls.thread(HlsStreamProcPyThread(hls, mainThread))
         hls.compile()
 
 
@@ -81,7 +81,7 @@ class BitWidthReductionCmpReducibleEq(Unit):
                 hls.write(p(Concat(a[:4], zero8b, a[4:]), Concat(b[:4], zero8b, b[4:])), self.res_prefix_sameInMiddle)  # resolved as a==b
                 hls.write(p(Concat(a[:4], zero8b, a[4:]), Concat(b[:4], all8b, b[4:])), self.res_prefix_differentInMiddle)  # resolved as 0
 
-        hls._thread(*pyFunctionToSsa(hls, mainThread))
+        hls.thread(HlsStreamProcPyThread(hls, mainThread))
         hls.compile()
 
 

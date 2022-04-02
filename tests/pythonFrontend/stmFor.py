@@ -4,7 +4,7 @@
 from hwt.synthesizer.unit import Unit
 from hwt.interfaces.std import VectSignal
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
-from hwtHls.ssa.translation.fromPython.fromPython import pyFunctionToSsa
+from hwtHls.ssa.translation.fromPython.fromPython import HlsStreamProcPyThread
 from hwt.interfaces.utils import addClkRstn
 
 
@@ -20,7 +20,7 @@ class HlsPythonPreprocFor(Unit):
 
     def _impl(self):
         hls = HlsStreamProc(self, freq=int(100e6))
-        hls._thread(*pyFunctionToSsa(hls, self.mainThread, hls))
+        hls.thread(HlsStreamProcPyThread(hls, self.mainThread, hls))
         hls.compile()
 
 

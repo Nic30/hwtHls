@@ -16,7 +16,7 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.errors import HlsSyntaxError
 from hwtHls.hlsStreamProc.statementsIo import HlsStreamProcWrite, \
     HlsStreamProcRead
-from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
+from hwtHls.hlsStreamProc.streamProc import HlsStreamProc, HlsStreamProcThread
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
 from hwtHls.ssa.translation.fromPython.blockLabel import generateBlockLabel
@@ -135,7 +135,8 @@ class PythonBytecodeToSsa():
         self._translateBytecodeBlock(self.bytecodeBlocks[0], frame, curBlock)
         if curBlock.predecessors:
             # because for LLVM entry point must not have predecessors
-            entry = SsaBasicBlock(self.to_ssa.ssaCtx, "entry")
+            self.to_ssa.start.label += "_0"
+            entry = SsaBasicBlock(self.to_ssa.ssaCtx, fn.__name__)
             self.to_ssa._onAllPredecsKnown(entry)
             entry.successors.addTarget(None, curBlock)
             self.to_ssa.start = entry
@@ -144,8 +145,6 @@ class PythonBytecodeToSsa():
         #     self.blockTracker.dumpCfgToDot(f)
 
         self.to_ssa.finalize()
-
-        return self.to_ssa, None
 
     def _getOrCreateSsaBasicBlock(self, dstLabel: BlockLabel):
         block = self.labelToBlock.get(dstLabel, None)
@@ -176,6 +175,7 @@ class PythonBytecodeToSsa():
             assert cond, (cond, "If this was not True the jump should not be evaluated at the first place")
             cond = None  # always jump, but we need this value to know that this will be unconditional jump only in HW
             isHwEvaluatedCond = True
+
         elif isinstance(cond, (RtlSignal, SsaValue)):
             # regular hw evaluated jump
             isHwEvaluatedCond = True
@@ -536,7 +536,7 @@ class PythonBytecodeToSsa():
                 src = stack.pop()
 
                 if isinstance(dst, (Interface, RtlSignal)):
-                    #stm = self.hls.write(src, dst)
+                    # stm = self.hls.write(src, dst)
                     self.to_ssa.visit_CodeBlock_list(curBlock, flatten(dst(src)))
                 else:
                     raise NotImplementedError(instr)
@@ -694,6 +694,17 @@ class PythonBytecodeToSsa():
                                                                 instr))
 
 
-def pyFunctionToSsa(hls: HlsStreamProc, fn: FunctionType, *fnArgs, **fnKwargs):
-    c = PythonBytecodeToSsa(hls, fn)
-    return c.translateFunction(*fnArgs, **fnKwargs)
+class HlsStreamProcPyThread(HlsStreamProcThread):
+
+    def __init__(self, hls: HlsStreamProc, fn: FunctionType, *fnArgs, **fnKwargs):
+        self.hls = hls
+        self.bytecodeToAst = PythonBytecodeToSsa(hls, fn)
+        self.fnArgs = fnArgs
+        self.fnKwargs = fnKwargs
+        self.toSsa: Optional[AstToSsa] = None
+        self.code = None
+
+    def compileToSsa(self):
+        self.bytecodeToAst.translateFunction(*self.fnArgs, **self.fnKwargs)
+        self.toSsa: Optional[AstToSsa] = self.bytecodeToAst.to_ssa
+    

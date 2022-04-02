@@ -14,9 +14,10 @@ from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 from hwtHls.platform.xilinx.artix7 import Artix7Medium
-from hwtHls.ssa.translation.fromPython.fromPython import pyFunctionToSsa
 from hwtLib.common_nonstd_interfaces.addr_data_hs import AddrDataVldHs
 from hwtLib.types.ctypes import uint32_t
+from hwt.hdl.constants import READ
+from hwtHls.ssa.translation.fromPython.fromPython import HlsStreamProcPyThread
 
 
 class Rom(Unit):
@@ -36,7 +37,7 @@ class Rom(Unit):
 
     def _impl(self):
         hls = HlsStreamProc(self, freq=int(100e6))
-        hls._thread(*pyFunctionToSsa(hls, self.mainThread, hls))
+        hls.thread(HlsStreamProcPyThread(hls, self.mainThread, hls))
         hls.compile()
 
 
@@ -112,8 +113,12 @@ class Cam(Unit):
         )
         keys = [hls.var(f"k{i:d}", record_t) for i in range(self.ITEMS)]
         
-        hls._thread(*pyFunctionToSsa(hls, self.updateThread, hls, keys))
-        hls._thread(*pyFunctionToSsa(hls, self.matchThread, hls, keys))
+        w = hls.thread(HlsStreamProcPyThread(hls, self.updateThread, hls, keys))
+        m = hls.thread(HlsStreamProcPyThread(hls, self.matchThread, hls, keys))
+        for k in keys:
+            w.addExport(k, READ)
+            m.addImport(k, READ)
+
         hls.compile()
 
 

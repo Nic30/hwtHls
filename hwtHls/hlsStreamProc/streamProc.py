@@ -39,10 +39,28 @@ class HlsStreamProcThread():
     A container of a thread which will be compiled later.
     """
 
-    def __init__(self, hls: "HlsStreamProc", to_ssa: AstToSsa, code: HlsStreamProcCodeBlock):
+    def __init__(self, hls: "HlsStreamProc", code: List[AnyStm]):
         self.hls = hls
-        self.to_ssa = to_ssa
         self.code = code
+        self.toSsa: Optional[AstToSsa] = None
+
+    def _formatCode(self, code: List[AnyStm], label:str="hls_top") -> HlsStreamProcCodeBlock:
+        """
+        Normalize an input code.
+        """
+        _code = HlsStreamProcCodeBlock(self)
+        _code.name = label
+        _code._sensitivity = UniqList()
+        _code.statements.extend(flatten(code))
+        return _code
+
+    def compileToSsa(self):
+        _code = self._formatCode(self.code)
+        toSsa = AstToSsa(self.hls.ssaCtx, "top", _code)
+        toSsa._onAllPredecsKnown(toSsa.start)
+        toSsa.visit_top_CodeBlock(_code)
+        toSsa.finalize()
+        self.toSsa = toSsa
 
 
 class HlsStreamProc():
@@ -182,36 +200,25 @@ class HlsStreamProc():
     
     def Switch(self, switchOn):
         return HlsStreamProcSwitch(self, toHVal(switchOn))
-    
-    def _format_code(self, code: List[AnyStm], label:str="hls_top") -> HlsStreamProcCodeBlock:
-        """
-        Normalize an input code.
-        """
-        _code = HlsStreamProcCodeBlock(self)
-        _code.name = label
-        _code._sensitivity = UniqList()
-        _code.statements.extend(flatten(code))
-        return _code
-    
-    def _thread(self, to_ssa: AstToSsa, _code: HlsStreamProcCodeBlock):
-        t = HlsStreamProcThread(self, to_ssa, _code)
-        self._threads.append(t)
-        return t
 
-    def thread(self, *code: AnyStm):
+    def thread(self, *code: Union[AnyStm, HlsStreamProcThread]):
         """
         Create a thread from a code which will be translated to hw.
         """
-        _code = self._format_code(code)
-        toSsa = AstToSsa(self.ssaCtx, "top", _code)
-        toSsa._onAllPredecsKnown(toSsa.start)
-        toSsa.visit_top_CodeBlock(_code)
-        toSsa.finalize()
-        return self._thread(toSsa, _code)
+        if len(code) == 1 and isinstance(code[0], HlsStreamProcThread):
+            t = code[0]
+        else:
+            t = HlsStreamProcThread(self, code)
+
+        t.compileToSsa()
+        self._threads.append(t)
+
+        return t
     
     def compile(self):
         for t in self._threads:
-            to_ssa = t.to_ssa
+            t: HlsStreamProcThread
+            to_ssa = t.toSsa
             code = t.code
             for ssa_pass in self.ssa_passes:
                 ssa_pass.apply(self, to_ssa)

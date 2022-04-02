@@ -8,7 +8,7 @@ from hwt.interfaces.std import VectSignal
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
-from hwtHls.ssa.translation.fromPython.fromPython import pyFunctionToSsa
+from hwtHls.ssa.translation.fromPython.fromPython import HlsStreamProcPyThread
 from hwtLib.types.ctypes import uint32_t, uint8_t
 
 
@@ -24,7 +24,7 @@ class HlsConnectionFromPyFn0(Unit):
 
     def _impl(self):
         hls = HlsStreamProc(self, freq=int(100e6))
-        hls._thread(*pyFunctionToSsa(hls, self.mainThread, hls))
+        hls.thread(HlsStreamProcPyThread(hls, self.mainThread, hls))
         hls.compile()
 
 
@@ -144,7 +144,7 @@ class HlsConnectionFromPyFnKwArgs(Unit):
 
     def _impl(self):
         hls = HlsStreamProc(self, freq=int(100e6))
-        hls._thread(*pyFunctionToSsa(hls, self.mainThread, hls, kwArg=10))
+        hls.thread(HlsStreamProcPyThread(hls, self.mainThread, hls, kwArg=10))
         hls.compile()
 
 

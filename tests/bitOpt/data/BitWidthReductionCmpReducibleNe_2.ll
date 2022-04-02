@@ -1,7 +1,7 @@
 define dso_local i32 @main() #0 {
-entry:
-  br [label %mainThread ]
 mainThread:
+  br [label %mainThread_0 ]
+mainThread_0:
   a41 = call <Bits, 8bits, unsigned> @hls.read(a)
   b42 = call <Bits, 8bits, unsigned> @hls.read(b)
   %43 = NE a41, b42
@@ -15,5 +15,5 @@ mainThread:
   %51 = NE a41, b42
   void call <Bits, 1bit> @hls.write(%51)
   void call <Bits, 1bit> @hls.write(<BitsVal 1>)
-  br [label %mainThread ]
+  br [label %mainThread_0 ]
 }
