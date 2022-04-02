@@ -16,7 +16,7 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.errors import HlsSyntaxError
 from hwtHls.hlsStreamProc.statementsIo import HlsStreamProcWrite, \
     HlsStreamProcRead
-from hwtHls.hlsStreamProc.streamProc import HlsStreamProc, HlsStreamProcThread
+from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
 from hwtHls.ssa.translation.fromPython.blockLabel import generateBlockLabel
@@ -38,6 +38,8 @@ from hwtHls.ssa.translation.fromPython.loopsDetect import PyBytecodeLoop, \
     PreprocLoopScope
 from hwtHls.ssa.translation.fromPython.markers import PythonBytecodeInPreproc
 from hwtHls.ssa.value import SsaValue
+from ipCorePackager.constants import DIRECTION
+from hwtHls.ssa.translation.toHwtHlsNetlist.pipelineMaterialization import SsaSegmentToHwPipeline
 
 
 class SsaBlockGroup():
@@ -693,18 +695,3 @@ class PythonBytecodeToSsa():
                                                                 fn.__name__,
                                                                 instr))
 
-
-class HlsStreamProcPyThread(HlsStreamProcThread):
-
-    def __init__(self, hls: HlsStreamProc, fn: FunctionType, *fnArgs, **fnKwargs):
-        self.hls = hls
-        self.bytecodeToAst = PythonBytecodeToSsa(hls, fn)
-        self.fnArgs = fnArgs
-        self.fnKwargs = fnKwargs
-        self.toSsa: Optional[AstToSsa] = None
-        self.code = None
-
-    def compileToSsa(self):
-        self.bytecodeToAst.translateFunction(*self.fnArgs, **self.fnKwargs)
-        self.toSsa: Optional[AstToSsa] = self.bytecodeToAst.to_ssa
-    

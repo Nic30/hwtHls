@@ -13,7 +13,7 @@ from hwtHls.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
 from hwtHls.ssa.context import SsaContext
 from hwtHls.ssa.transformation.runFn import SsaPassRunFn
 from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
-from hwtHls.ssa.translation.fromPython.fromPython import HlsStreamProcPyThread
+from hwtHls.ssa.translation.fromPython.thread import HlsStreamProcPyThread
 from hwtLib.types.ctypes import uint8_t
 from tests.baseSsaTest import TestFinishedSuccessfuly
 from hwtHls.ssa.translation.toGraphwiz import SsaPassDumpToDot

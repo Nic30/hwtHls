@@ -7,7 +7,7 @@ from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
-from hwtHls.ssa.translation.fromPython.fromPython import HlsStreamProcPyThread
+from hwtHls.ssa.translation.fromPython.thread import HlsStreamProcPyThread
 
 
 class VariableChain(Unit):

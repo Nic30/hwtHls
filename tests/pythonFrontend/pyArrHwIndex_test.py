@@ -8,7 +8,7 @@ from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 from hwtHls.ssa.transformation.runFn import SsaPassRunFn
 from tests.baseSsaTest import BaseSsaTC, TestFinishedSuccessfuly
 from tests.pythonFrontend.pyArrHwIndex import Rom, CntrArray
-from hwtHls.ssa.translation.fromPython.fromPython import HlsStreamProcPyThread
+from hwtHls.ssa.translation.fromPython.thread import HlsStreamProcPyThread
 
 
 class CntrArrayWithCfgDotDump(CntrArray):

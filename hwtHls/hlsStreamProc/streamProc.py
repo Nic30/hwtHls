@@ -32,6 +32,8 @@ from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa, AnyStm
 from hwtHls.ssa.translation.toHwtHlsNetlist.pipelineMaterialization import SsaSegmentToHwPipeline
 from hwtLib.amba.axi_intf_common import Axi_hs
 from hwtLib.amba.axis import AxiStream
+from hwt.synthesizer.interface import Interface
+from ipCorePackager.constants import DIRECTION
 
 
 class HlsStreamProcThread():
@@ -43,7 +45,16 @@ class HlsStreamProcThread():
         self.hls = hls
         self.code = code
         self.toSsa: Optional[AstToSsa] = None
+        self.toHw: Optional[SsaSegmentToHwPipeline] = None
+        self._imports: List[Tuple[Union[RtlSignal, Interface], DIRECTION.IN]] = [] 
+        self._exports: List[Tuple[Union[RtlSignal, Interface], DIRECTION.IN]] = [] 
+    
+    def addImport(self, var: Union[RtlSignal, Interface], direction:DIRECTION):
+        self._imports.append((var, direction))
 
+    def addExport(self, var: Union[RtlSignal, Interface], direction:DIRECTION):
+        self._exports.append((var, direction))
+            
     def _formatCode(self, code: List[AnyStm], label:str="hls_top") -> HlsStreamProcCodeBlock:
         """
         Normalize an input code.
@@ -103,6 +114,9 @@ class HlsStreamProc():
              dtype: HdlType=BIT,
              def_val: Union[int, None, dict, list]=None,
              nop_val: Union[int, None, dict, list, "NOT_SPECIFIED"]=NOT_SPECIFIED) -> RtlSignal:
+        """
+        :note: only for forwarding purpose, use :meth:`~HlsStreamProc.var` instead.
+        """
         return Unit._sig(self, name, dtype, def_val, nop_val)
     
     def var(self, name:str, dtype:HdlType):
@@ -210,20 +224,21 @@ class HlsStreamProc():
         else:
             t = HlsStreamProcThread(self, code)
 
-        t.compileToSsa()
         self._threads.append(t)
-
         return t
     
     def compile(self):
         for t in self._threads:
             t: HlsStreamProcThread
+            # we have to wait with compilation until here
+            # because we need all IO and sharing constraints specified
+            t.compileToSsa()
             to_ssa = t.toSsa
             code = t.code
             for ssa_pass in self.ssa_passes:
                 ssa_pass.apply(self, to_ssa)
     
-            to_hw = SsaSegmentToHwPipeline(to_ssa.start, code)
+            t.toHw = to_hw = SsaSegmentToHwPipeline(to_ssa.start, code)
             to_hw.extract_pipeline()
     
             to_hw.extract_hlsnetlist(self.parentUnit, self.freq)
@@ -237,7 +252,7 @@ class HlsStreamProc():
             # the netlist without modifications
         
         for t in self._threads:
-            to_hw.construct_rtlnetlist()
+            t.toHw.construct_rtlnetlist()
             for rtlnetlist_pass in self.rtlnetlist_passes:
-                rtlnetlist_pass.apply(self, to_hw)
+                rtlnetlist_pass.apply(self, t.toHw)
               

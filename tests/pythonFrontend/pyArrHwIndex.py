@@ -17,7 +17,7 @@ from hwtHls.platform.xilinx.artix7 import Artix7Medium
 from hwtLib.common_nonstd_interfaces.addr_data_hs import AddrDataVldHs
 from hwtLib.types.ctypes import uint32_t
 from hwt.hdl.constants import READ
-from hwtHls.ssa.translation.fromPython.fromPython import HlsStreamProcPyThread
+from hwtHls.ssa.translation.fromPython.thread import HlsStreamProcPyThread
 
 
 class Rom(Unit):

@@ -5,7 +5,7 @@ from hwt.interfaces.std import VectSignal
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
-from hwtHls.ssa.translation.fromPython.fromPython import HlsStreamProcPyThread
+from hwtHls.ssa.translation.fromPython.thread import HlsStreamProcPyThread
 
 
 class HlsConnectionFromPyIf(Unit):

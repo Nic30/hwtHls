@@ -4,7 +4,7 @@
 from hwt.synthesizer.unit import Unit
 from hwt.interfaces.std import VectSignal
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
-from hwtHls.ssa.translation.fromPython.fromPython import HlsStreamProcPyThread
+from hwtHls.ssa.translation.fromPython.thread import HlsStreamProcPyThread
 from hwt.interfaces.utils import addClkRstn
 
 
