@@ -144,7 +144,7 @@ Transformation passes
 * exec multiple branches but store only on some selected: "if conversion". This transformation predicates instructions. See e.g. ARM as an example
 
 
-In IR debugging metainformations
+In IR debugging meta-information
 --------------------------------
 
 * https://wiki.aalto.fi/display/t1065450/LLVM+DebugInfo
