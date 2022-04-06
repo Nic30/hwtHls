@@ -38,6 +38,10 @@ def collect_direct_provieds_and_requires(block: SsaBasicBlock):
 
             if v not in provides:
                 requires.append((v, None))
+    
+    for c, _ in block.successors.targets:
+        if c is not None and c not in provides:
+            requires.append((c, None))
 
     return provides, requires
 
