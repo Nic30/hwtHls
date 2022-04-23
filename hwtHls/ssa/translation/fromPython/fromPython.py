@@ -2,6 +2,7 @@ import builtins
 from collections import deque
 from dis import findlinestarts, _get_instructions_bytes, Instruction, dis
 import operator
+import sys
 from types import FunctionType, CellType
 from typing import Dict, Optional, List, Tuple, Union, Deque
 
@@ -24,8 +25,7 @@ from hwtHls.ssa.translation.fromPython.blockPredecessorTracker import BlockLabel
     BlockPredecessorTracker
 from hwtHls.ssa.translation.fromPython.bytecodeBlockAnalysis import extractBytecodeBlocks
 from hwtHls.ssa.translation.fromPython.frame import PythonBytecodeFrame
-from hwtHls.ssa.translation.fromPython.indexExpansion import expandSetitemOnPytObjAsSwitchCase, \
-    expandIndexOnPyObjAsSwitchCase
+from hwtHls.ssa.translation.fromPython.indexExpansion import PyObjectHwSubscriptRef
 from hwtHls.ssa.translation.fromPython.instructions import CMP_OPS, BIN_OPS, UN_OPS, \
     INPLACE_BIN_OPS, JUMP_OPS, ROT_OPS, BUILD_OPS, FOR_ITER, RETURN_VALUE, NOP, \
     POP_TOP, LOAD_DEREF, LOAD_ATTR, LOAD_FAST, LOAD_CONST, LOAD_GLOBAL, \
@@ -38,8 +38,6 @@ from hwtHls.ssa.translation.fromPython.loopsDetect import PyBytecodeLoop, \
     PreprocLoopScope
 from hwtHls.ssa.translation.fromPython.markers import PythonBytecodeInPreproc
 from hwtHls.ssa.value import SsaValue
-from ipCorePackager.constants import DIRECTION
-from hwtHls.ssa.translation.toHwtHlsNetlist.pipelineMaterialization import SsaSegmentToHwPipeline
 
 
 class SsaBlockGroup():
@@ -48,7 +46,13 @@ class SsaBlockGroup():
         self.begin = begin
         self.end = begin
 
-# assert sys.version_info >= (3, 10, 0), ("Python3.10 is minimum requirement", sys.version_info)
+
+def expandBeforeUse(o, curBlock: SsaBasicBlock):
+    if isinstance(o, PyObjectHwSubscriptRef):
+        o: PyObjectHwSubscriptRef
+        return o.expandOnUse(curBlock)
+    
+    return o, curBlock
 
 
 class PythonBytecodeToSsa():
@@ -74,6 +78,7 @@ class PythonBytecodeToSsa():
     """
 
     def __init__(self, hls: HlsStreamProc, fn: FunctionType):
+        assert sys.version_info >= (3, 9, 0), ("Python3.9 is minimum requirement", sys.version_info)
         self.hls = hls
         self.fn = fn
         self.to_ssa: Optional[AstToSsa] = None
@@ -127,9 +132,6 @@ class PythonBytecodeToSsa():
         curBlock = self.to_ssa.start
         self.blockToLabel[curBlock] = (0,)
         self.labelToBlock[(0,)] = SsaBlockGroup(curBlock)
-        # for _ in self.blockTracker.addGenerated((0,)):
-        #    pass  # should yield only entry block which should be already sealed
-
         frame = PythonBytecodeFrame.fromFunction(fn, fnArgs, fnKwargs)
         # with open("tmp/cfg_begin.dot", "w") as f:
         #     self.blockTracker.dumpCfgToDot(f)
@@ -313,6 +315,7 @@ class PythonBytecodeToSsa():
                 frame.stack.pop()
                 self._getOrCreateSsaBasicBlockAndJump(curBlock, True, forIter.argval, None, frame)
                 return
+
             # jump into loop body
             self._getOrCreateSsaBasicBlockAndJump(curBlock, True, forIter.offset + 2, None, frame)
 
@@ -351,9 +354,10 @@ class PythonBytecodeToSsa():
                     POP_JUMP_IF_TRUE):
                 if opcode in (JUMP_IF_FALSE_OR_POP,
                               JUMP_IF_TRUE_OR_POP):
-                    raise NotImplementedError("stack pop may depend on hw evaluated condition")
+                    raise NotImplementedError("stack pop depends on hw evaluated condition")
 
                 cond = frame.stack.pop()
+                cond, curBlock = expandBeforeUse(cond, curBlock)
                 compileTimeResolved = not isinstance(cond, (RtlSignal, HValue, SsaValue))
                 if not compileTimeResolved:
                     curBlock, cond = self.to_ssa.visit_expr(curBlock, cond)
@@ -427,8 +431,8 @@ class PythonBytecodeToSsa():
         loop = self.loops.get(label[-1], None)
         self.to_ssa._onAllPredecsKnown(block)
         if loop is not None:
-            # if the value of phi have branch in loop body where it is not modified it results in the case
-            # where phi would be its own argument, this is illegal and we fix it by adding block between loop body end and loop header
+            # if the value of PHI have branch in loop body where it is not modified it results in the case
+            # where PHI would be its own argument, this is illegal and we fix it by adding block between loop body end and loop header
             # However we have to also transplant some other PHIs or create a new PHIs and move some args as we are modifying the predecessors
             predecCnt = len(block.predecessors)
             if any(len(phi.operands) != predecCnt for phi in block.phis):
@@ -486,6 +490,14 @@ class PythonBytecodeToSsa():
             elif opcode == POP_TOP:
                 # Removes the top-of-stack (TOS) item.
                 res = stack.pop()
+                res, curBlock = expandBeforeUse(res, curBlock)
+                if isinstance(res, HlsStreamProcWrite):
+                    res: HlsStreamProcWrite
+                    if isinstance(res.dst, PyObjectHwSubscriptRef):
+                        hls = self.hls
+                        return res.dst.expandSetitemAsSwitchCase(curBlock,
+                                                                 lambda i, dst: hls.write(res._orig_src, dst))
+                    
                 if isinstance(res, (HlsStreamProcWrite, HlsStreamProcRead, HdlAssignmentContainer)):
                     self.to_ssa.visit_CodeBlock_list(curBlock, [res, ])
 
@@ -533,37 +545,40 @@ class PythonBytecodeToSsa():
                 stack.append(CellType(v))
 
             elif opcode == STORE_ATTR:
-                dst = stack.pop()
-                dst = getattr(dst, instr.argval)
+                dstParent = stack.pop()
+                dst = getattr(dstParent, instr.argval)
                 src = stack.pop()
+                src, curBlock = expandBeforeUse(src, curBlock)
 
                 if isinstance(dst, (Interface, RtlSignal)):
                     # stm = self.hls.write(src, dst)
                     self.to_ssa.visit_CodeBlock_list(curBlock, flatten(dst(src)))
                 else:
-                    raise NotImplementedError(instr)
+                    raise NotImplementedError(instr, dst)
 
             elif opcode == STORE_FAST:
                 vVal = stack.pop()
+                vVal, curBlock = expandBeforeUse(vVal, curBlock)
                 v = locals_[instr.arg]
-                if v is None:
-                    if isinstance(vVal, (HValue, RtlSignal, SsaValue)):
-                        # only if it is a value which generates hw variable
+
+                if instr.arg not in frame.preprocVars:
+                    if v is None and isinstance(vVal, (HValue, RtlSignal, SsaValue)):
+                        # only if it is a value which generates HW variable
                         t = getattr(vVal, "_dtypeOrig", vVal._dtype)
                         v = self.hls.var(instr.argval, t)
+                        locals_[instr.arg] = v
 
-                    locals_[instr.arg] = v
+                    if isinstance(v, (RtlSignal, Interface)):
+                        # only if it is a hw variable, create assignment to HW variable
+                        stm = v(vVal)
+                        self.to_ssa.visit_CodeBlock_list(curBlock, flatten([stm, ]))
+                        return curBlock
 
-                if instr.arg not in frame.preprocVars and isinstance(v, RtlSignal):
-                    # only if it is a hw variable
-                    stm = v(vVal)
-                    self.to_ssa.visit_CodeBlock_list(curBlock, flatten([stm, ]))
-                else:
-                    if isinstance(vVal, PythonBytecodeInPreproc):
-                        vVal = vVal.ref
-                        frame.preprocVars.add(instr.arg)
+                if isinstance(vVal, PythonBytecodeInPreproc):
+                    vVal = vVal.ref
+                    frame.preprocVars.add(instr.arg)
 
-                    locals_[instr.arg] = vVal
+                locals_[instr.arg] = vVal    
 
             elif opcode == STORE_DEREF:
                 # nested scopes: access a variable through its cell object
@@ -607,10 +622,13 @@ class PythonBytecodeToSsa():
                 binOp = CMP_OPS[instr.arg]
                 b = stack.pop()
                 a = stack.pop()
+                a, curBlock = expandBeforeUse(a, curBlock)
+                b, curBlock = expandBeforeUse(b, curBlock)
                 stack.append(binOp(a, b))
 
             elif opcode == GET_ITER:
                 a = stack.pop()
+                a, curBlock = expandBeforeUse(a, curBlock)
                 stack.append(iter(a))
 
             elif opcode == EXTENDED_ARG:
@@ -626,10 +644,15 @@ class PythonBytecodeToSsa():
             elif opcode == STORE_SUBSCR:
                 operator.setitem
                 index = stack.pop()
+                index, curBlock = expandBeforeUse(index, curBlock)
                 sequence = stack.pop()
                 val = stack.pop()
+                val, curBlock = expandBeforeUse(val, curBlock)
                 if isinstance(index, (RtlSignal, SsaValue)) and not isinstance(sequence, (RtlSignal, SsaValue)):
-                    return expandSetitemOnPytObjAsSwitchCase(self, curBlock, instr.offset, sequence, index, val, stack)
+                    if not isinstance(sequence, PyObjectHwSubscriptRef):
+                        sequence = PyObjectHwSubscriptRef(self, sequence, index, instr.offset)
+                    return sequence.expandSetitemAsSwitchCase(curBlock, lambda i, dst: dst(val))
+
                 stack.append(operator.setitem(sequence, index, val))
 
             else:
@@ -637,11 +660,16 @@ class PythonBytecodeToSsa():
                 if binOp is not None:
                     b = stack.pop()
                     a = stack.pop()
+                    a, curBlock = expandBeforeUse(a, curBlock)
+                    b, curBlock = expandBeforeUse(b, curBlock)
+                
                     if binOp is operator.getitem and isinstance(b, (RtlSignal, Interface, SsaValue)) and not isinstance(a, (RtlSignal, SsaValue)):
                         # if this is indexing using hw value on non hw object we need to expand it to a switch-case on individual cases
                         # must generate blocks for switch cases,
                         # for this we need a to keep track of start/end for each block because we do not have this newly generated blocks in original CFG
-                        return expandIndexOnPyObjAsSwitchCase(self, curBlock, instr.offset, a, b, stack)
+                        o = PyObjectHwSubscriptRef(self, a, b, instr.offset)
+                        stack.append(o)
+                        return curBlock
 
                     stack.append(binOp(a, b))
                     return curBlock
@@ -649,6 +677,7 @@ class PythonBytecodeToSsa():
                 unOp = UN_OPS.get(opcode, None)
                 if unOp is not None:
                     a = stack.pop()
+                    a, curBlock = expandBeforeUse(a, curBlock)
                     stack.append(unOp(a))
                     return curBlock
 
@@ -665,8 +694,18 @@ class PythonBytecodeToSsa():
                 inplaceOp = INPLACE_BIN_OPS.get(opcode, None)
                 if inplaceOp is not None:
                     b = stack.pop()
+                    b, curBlock = expandBeforeUse(b, curBlock)
+                
                     a = stack.pop()
-                    stack.append(inplaceOp(a, b))
+                    if isinstance(a, PyObjectHwSubscriptRef):
+                        a: PyObjectHwSubscriptRef
+                        # we expand as a regular bin op, and store later in store_subscript
+                        a, curBlock = a.expandIndexOnPyObjAsSwitchCase(curBlock)
+                        #.expandSetitemAsSwitchCase(curBlock, lambda _, dst: dst(inplaceOp(dst, b)))
+                    res = inplaceOp(a, b)
+
+                    stack.append(res)
+                    
                     return curBlock
             
                 raise NotImplementedError(instr)

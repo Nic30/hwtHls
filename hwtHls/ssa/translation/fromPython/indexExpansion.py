@@ -1,82 +1,103 @@
-from typing import Sequence, Union
+from typing import Sequence, Union, Callable, List, Tuple
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.pyUtils.arrayQuery import flatten
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.value import SsaValue
+from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
+from hwt.hdl.value import HValue
+from hwt.synthesizer.interface import Interface
+from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 
 
-def expandIndexOnPyObjAsSwitchCase(pyBytecodeToSsa: "PythonBytecodeToSsa", curBlock: SsaBasicBlock,
-                                    offsetForLabels: int,
-                                    sequence:Sequence,
-                                    index: Union[RtlSignal, SsaValue],
-                                    stack: list):
-    res = None
-    sucBlock = SsaBasicBlock(pyBytecodeToSsa.to_ssa.ssaCtx, f"{curBlock.label:s}_getSwEnd")
-    curLabel = pyBytecodeToSsa.blockToLabel[curBlock]
-    pyBytecodeToSsa.labelToBlock[curLabel].end = sucBlock
-    pyBytecodeToSsa.blockToLabel[sucBlock] = curLabel
+class PyObjectHwSubscriptRef():
+    """
+    An object which is a reference to an object in python array which is indexed in HW.
+    This object must be expanded before used in expression or before it is written to.
+    This object is not expanded immediately because when we construct the slice we do not know where it is used and if it only read or write access.
+    """
 
-    for last, (i, v) in iter_with_last(enumerate(sequence)):
+    def __init__(self, pyBytecodeToSsa: "PythonBytecodeToSsa",
+                       sequence: Sequence,
+                       index: Union[RtlSignal, SsaValue],
+                       originalInstrOffsetForLabels: int):
+        self.pyBytecodeToSsa = pyBytecodeToSsa
+        self.sequence = sequence
+        self.index = index
+        self.originalInstrOffsetForLabels = originalInstrOffsetForLabels
+    
+    def expandOnUse(self, curBlock: SsaBasicBlock):
+        return self.expandIndexOnPyObjAsSwitchCase(curBlock)
+
+    def expandIndexOnPyObjAsSwitchCase(self, curBlock: SsaBasicBlock) -> Tuple[SsaValue, SsaBasicBlock]:
+        res = None
+        toSsa = self.pyBytecodeToSsa
+        sucBlock = SsaBasicBlock(toSsa.to_ssa.ssaCtx, f"{curBlock.label:s}_getSwEnd")
+        curLabel = toSsa.blockToLabel[curBlock]
+        toSsa.labelToBlock[curLabel].end = sucBlock
+        toSsa.blockToLabel[sucBlock] = curLabel
+        offsetForLabels = self.originalInstrOffsetForLabels
+
+        for last, (i, v) in iter_with_last(enumerate(self.sequence)):
+            if res is None:
+                # in first iteration create result variable in the previous block
+                res = toSsa.hls.var(f"tmp_seq{offsetForLabels}", v._dtype)
+            else:
+                assert res._dtype == v._dtype, ("Type of items in sequence must be same", i, res._dtype, v._dtype)
+    
+            if last:
+                cond = None
+            else:
+                curBlock, cond = toSsa.to_ssa.visit_expr(curBlock, self.index._eq(i))
+            
+            caseBlock = SsaBasicBlock(toSsa.to_ssa.ssaCtx, f"{curBlock.label:s}_{offsetForLabels:d}_c{i:d}")
+            toSsa.blockToLabel[caseBlock] = curLabel
+            curBlock.successors.addTarget(cond, caseBlock)
+            toSsa._onAllPredecsKnown(caseBlock)
+            toSsa.to_ssa.visit_CodeBlock_list(caseBlock, flatten([
+                res(v)
+            ]))
+            caseBlock.successors.addTarget(None, sucBlock)
+    
         if res is None:
-            # in first iteration create result variable in the previous block
-            res = pyBytecodeToSsa.hls.var(f"tmp_seq{offsetForLabels}", v._dtype)
-        else:
-            assert res._dtype == v._dtype, ("Type of items in sequence must be same", i, res._dtype, v._dtype)
+            raise IndexError("Indexing using HW object on Python object of zero size, it is impossible to resolve result type for HW", self.sequence, self.index)
+    
+        toSsa._onAllPredecsKnown(sucBlock)
+        return res, sucBlock
 
-        if last:
-            cond = None
-        else:
-            curBlock, cond = pyBytecodeToSsa.to_ssa.visit_expr(curBlock, index._eq(i))
+    def expandSetitemAsSwitchCase(self,
+                                  curBlock: SsaBasicBlock,
+                                  assignFn: Callable[[int, Union[RtlSignal, Interface, HValue, SsaValue]], 
+                                                     List[Union[SsaValue, HdlAssignmentContainer]]]) -> SsaBasicBlock:
         
-        caseBlock = SsaBasicBlock(pyBytecodeToSsa.to_ssa.ssaCtx, f"{curBlock.label:s}_{offsetForLabels:d}_c{i:d}")
-        pyBytecodeToSsa.blockToLabel[caseBlock] = curLabel
-        curBlock.successors.addTarget(cond, caseBlock)
-        pyBytecodeToSsa._onAllPredecsKnown(caseBlock)
-        pyBytecodeToSsa.to_ssa.visit_CodeBlock_list(caseBlock, flatten([
-            res(v)
-        ]))
-        caseBlock.successors.addTarget(None, sucBlock)
+        """
+        :param assignFn: function with index and dst as argument
+        """
+        toSsa = self.pyBytecodeToSsa
+        offsetForLabels = self.originalInstrOffsetForLabels
+        sucBlock = SsaBasicBlock(toSsa.to_ssa.ssaCtx, f"{curBlock.label:s}_{offsetForLabels:d}_setSwEnd")
+        curLabel = toSsa.blockToLabel[curBlock]
+        toSsa.labelToBlock[curLabel].end = sucBlock
+        toSsa.blockToLabel[sucBlock] = curLabel
 
-    if res is None:
-        raise IndexError("Indexing using HW object on Python object of zero size", sequence, index)
-
-    pyBytecodeToSsa._onAllPredecsKnown(sucBlock)
-    # put variable with result of the indexing on top of stack
-    stack.append(res)
-    return sucBlock
-
-
-def expandSetitemOnPytObjAsSwitchCase(pyBytecodeToSsa: "PythonBytecodeToSsa",
-                                      curBlock: SsaBasicBlock,
-                                      offsetForLabels: int,
-                                      sequence:Sequence,
-                                      index: Union[RtlSignal, SsaValue],
-                                      val,
-                                      stack: list):
-    sucBlock = SsaBasicBlock(pyBytecodeToSsa.to_ssa.ssaCtx, f"{curBlock.label:s}_{offsetForLabels:d}_setSwEnd")
-    curLabel = pyBytecodeToSsa.blockToLabel[curBlock]
-    pyBytecodeToSsa.labelToBlock[curLabel].end = sucBlock
-    pyBytecodeToSsa.blockToLabel[sucBlock] = curLabel
-
-    for last, (i, v) in iter_with_last(enumerate(sequence)):
-        if last:
-            cond = None
-        else:
-            curBlock, cond = pyBytecodeToSsa.to_ssa.visit_expr(curBlock, index._eq(i))
-        
-        caseBlock = SsaBasicBlock(pyBytecodeToSsa.to_ssa.ssaCtx, f"{curBlock.label:s}_{offsetForLabels:d}_c{i:d}")
-        pyBytecodeToSsa.blockToLabel[caseBlock] = curLabel
-
-        curBlock.successors.addTarget(cond, caseBlock)
-        pyBytecodeToSsa._onAllPredecsKnown(caseBlock)
-
-        pyBytecodeToSsa.to_ssa.visit_CodeBlock_list(caseBlock, flatten([
-            v(val)
-        ]))
-        caseBlock.successors.addTarget(None, sucBlock)
-
-    pyBytecodeToSsa._onAllPredecsKnown(sucBlock)
-    # put variable with result of the indexing on top of stack
-    return sucBlock
+        for last, (i, v) in iter_with_last(enumerate(self.sequence)):
+            if last:
+                cond = None
+            else:
+                curBlock, cond = toSsa.to_ssa.visit_expr(curBlock, self.index._eq(i))
+            
+            caseBlock = SsaBasicBlock(toSsa.to_ssa.ssaCtx, f"{curBlock.label:s}_{offsetForLabels:d}_c{i:d}")
+            toSsa.blockToLabel[caseBlock] = curLabel
+    
+            curBlock.successors.addTarget(cond, caseBlock)
+            toSsa._onAllPredecsKnown(caseBlock)
+    
+            toSsa.to_ssa.visit_CodeBlock_list(caseBlock, flatten([
+                assignFn(i, v)
+            ]))
+            caseBlock.successors.addTarget(None, sucBlock)
+    
+        toSsa._onAllPredecsKnown(sucBlock)
+        # put variable with result of the indexing on top of stack
+        return sucBlock

@@ -37,12 +37,12 @@ class PyArrHwIndex_TC(BaseSsaTC):
 
     def test_CntrArray_cfgDot(self):
         buff = StringIO()
-        ssa_passes = [
+        ssaPasses = [
             SsaPassRunFn(TestFinishedSuccessfuly.raise_)
         ]
         u = CntrArrayWithCfgDotDump()
         u.CFG_FILE = buff
-        self._runTranslation(u, ssa_passes)
+        self._runTranslation(u, ssaPasses)
         self.assert_same_as_file(buff.getvalue(), os.path.join("data", "CntrArray_cfg.dot"))
 
 

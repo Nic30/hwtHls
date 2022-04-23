@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
 from typing import List
 
 from hwt.code import Concat
@@ -14,10 +13,9 @@ from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 from hwtHls.platform.xilinx.artix7 import Artix7Medium
+from hwtHls.ssa.translation.fromPython.thread import HlsStreamProcPyThread
 from hwtLib.common_nonstd_interfaces.addr_data_hs import AddrDataVldHs
 from hwtLib.types.ctypes import uint32_t
-from hwt.hdl.constants import READ
-from hwtHls.ssa.translation.fromPython.thread import HlsStreamProcPyThread
 
 
 class Rom(Unit):
@@ -43,15 +41,19 @@ class Rom(Unit):
 
 class CntrArray(Unit):
 
+    def _config(self) -> None:
+        self.ITEMS = Param(4)
+
     def _declr(self):
         addClkRstn(self)
-        self.i = VectSignal(2, signed=False)
+        ADDR_WIDTH = log2ceil(self.ITEMS - 1)
+        self.i = VectSignal(ADDR_WIDTH, signed=False)
 
-        self.o_addr = VectSignal(2, signed=False)
+        self.o_addr = VectSignal(ADDR_WIDTH, signed=False)
         self.o = VectSignal(32, signed=False)._m()
 
     def mainThread(self, hls: HlsStreamProc):
-        mem = [hls.var(f"v{i:d}", uint32_t) for i in range(4)]
+        mem = [hls.var(f"v{i:d}", uint32_t) for i in range(self.ITEMS)]
         for v in mem:
             v(0)  # we are using () instead of = because v is preproc variable
 
@@ -91,7 +93,8 @@ class Cam(Unit):
             m = hls.read(self.match)
             match_bits = []
             for k in keys:
-                match_bits.append(k.vld & k.key._eq(m))
+                _k = hls.read(k)
+                match_bits.append(_k.vld & _k.key._eq(m))
 
             hls.write(Concat(*reversed(match_bits)), self.out)
 
@@ -102,8 +105,13 @@ class Cam(Unit):
 
         while BIT.from_py(1):
             w = hls.read(self.write)
-            keys[w.addr].vld(w.vld_flag)
-            keys[w.addr].key(w.data)
+            newKey = keys[0]._dtype.from_py(None)
+            newKey.vld = w.vld_flag
+            newKey.key = w.data
+            # the result of HW index on python object is only reference
+            # and the item select is constructed when item is used first time 
+            # or write switch-case  is constructed if the item is written
+            hls.write(newKey, keys[w.addr])
 
     def _impl(self) -> None:
         hls = HlsStreamProc(self, freq=int(100e6))
@@ -111,13 +119,9 @@ class Cam(Unit):
             (self.match.data._dtype, "key"),
             (BIT, "vld")
         )
-        keys = [hls.var(f"k{i:d}", record_t) for i in range(self.ITEMS)]
-        
-        w = hls.thread(HlsStreamProcPyThread(hls, self.updateThread, hls, keys))
-        m = hls.thread(HlsStreamProcPyThread(hls, self.matchThread, hls, keys))
-        for k in keys:
-            w.addExport(k, READ)
-            m.addImport(k, READ)
+        keys = [hls.varShared(f"k{i:d}", record_t) for i in range(self.ITEMS)]
+        hls.thread(HlsStreamProcPyThread(hls, self.updateThread, hls, [k.getWritePort() for k in keys]))
+        hls.thread(HlsStreamProcPyThread(hls, self.matchThread, hls, [k.getReadPort() for k in keys]))
 
         hls.compile()
 
@@ -125,5 +129,5 @@ class Cam(Unit):
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.virtual import makeDebugPasses, VirtualHlsPlatform
-    u = Cam()
+    u = CntrArray()
     print(to_rtl_str(u, target_platform=Artix7Medium(**makeDebugPasses("tmp"))))
