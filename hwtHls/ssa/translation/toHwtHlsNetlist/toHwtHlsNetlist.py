@@ -63,7 +63,7 @@ class SsaToHwtHlsNetlist():
 
     def _prepare_SsaBasicBlockControl(self, block: SsaBasicBlock):
         # prepare HlsOutputLazy and input interface for variables which are live on
-        # edges which are corssing pipeline boundaries
+        # edges which are crossing pipeline boundaries
         self._current_block = block
         m = self._blockMeta[block]
 
