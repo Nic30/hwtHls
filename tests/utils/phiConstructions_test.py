@@ -71,7 +71,7 @@ class PhiConstruction_TC(unittest.TestCase):
                 hls.thread(HlsStreamProcPyThread(hls, main))
                 hls.compile()
         try:
-            to_rtl_str(U0(), target_platform=VirtualHlsPlatform(ssa_passes=[
+            to_rtl_str(U0(), target_platform=VirtualHlsPlatform(ssaPasses=[
                 SsaPassDumpToDot(outputFileGetter("tmp", "0.dot"), extractPipeline=False),
                 SsaPassConsystencyCheck(),
                 SsaPassRunFn(TestFinishedSuccessfuly.raise_)

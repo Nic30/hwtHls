@@ -101,7 +101,7 @@ def makeDebugPasses(debug_file_directory: Union[str, Path], expandCompositeNodes
     if not debug_file_directory.exists():
         debug_file_directory.mkdir()
     return {
-        "ssa_passes": [
+        "ssaPasses": [
             SsaPassDumpToDot(outputFileGetter(debug_file_directory, ".0.dot"), extractPipeline=False),
             SsaPassConsystencyCheck(),
             SsaPassAxiStreamReadLowering(),
@@ -119,7 +119,7 @@ def makeDebugPasses(debug_file_directory: Union[str, Path], expandCompositeNodes
             SsaPassDumpPipelines(outputFileGetter(debug_file_directory, ".6.pipeline.txt")),
             SsaPassConsystencyCheck(),
         ],
-        "hlsnetlist_passes": [
+        "hlsNetlistPasses": [
             HlsNetlistPassConsystencyCheck(),
             HlsNetlistPassDCE(),
             # HlsNetlistPassDumpToDot(debug_file_directory / "top_p0.dot"),
@@ -130,7 +130,7 @@ def makeDebugPasses(debug_file_directory: Union[str, Path], expandCompositeNodes
             HlsNetlistPassShowTimeline(outputFileGetter(debug_file_directory, ".7.schedule.html"),
                                        expandCompositeNodes=expandCompositeNodes),
         ],
-        "rtlnetlist_passes":[
+        "rtlNetlistPasses":[
             RtlNetlistPassDumpStreamNodes(outputFileGetter(debug_file_directory, ".8.sync.txt")),
             HlsNetlistPassShowTimelineArchLevel(outputFileGetter(debug_file_directory, ".9.archschedule.html")),
         ],
@@ -146,9 +146,9 @@ class VirtualHlsPlatform(DummyPlatform):
     """
 
     def __init__(self, allocator=HlsAllocator, scheduler=HlsScheduler,
-                 ssa_passes:Optional[List[SsaPass]]=DEFAULT_SSA_PASSES,
-                 hlsnetlist_passes: Optional[List[HlsNetlistPass]]=DEFAULT_HLSNETLIST_PASSES,
-                 rtlnetlist_passes=DEFAULT_RTLNETLIST_PASSES,
+                 ssaPasses:Optional[List[SsaPass]]=DEFAULT_SSA_PASSES,
+                 hlsNetlistPasses: Optional[List[HlsNetlistPass]]=DEFAULT_HLSNETLIST_PASSES,
+                 rtlNetlistPasses=DEFAULT_RTLNETLIST_PASSES,
             ):
         super(VirtualHlsPlatform, self).__init__()
         self.allocator = allocator
@@ -191,9 +191,9 @@ class VirtualHlsPlatform(DummyPlatform):
             ResourceFF: 1.2e-9,
             OP_ASSIGN: 0,
         }
-        self.ssa_passes = ssa_passes
-        self.hlsnetlist_passes = hlsnetlist_passes
-        self.rtlnetlist_passes = rtlnetlist_passes
+        self.ssaPasses = ssaPasses
+        self.hlsNetlistPasses = hlsNetlistPasses
+        self.rtlNetlistPasses = rtlNetlistPasses
 
     @lru_cache()
     def get_op_realization(self, op: OpDefinition, bit_width: int,

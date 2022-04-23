@@ -29,15 +29,15 @@ class BaseSsaTC(BaseSerializationTC):
     def tearDown(self):
         self.rmSim()
 
-    def _runTranslation(self, unit_cls, ssa_passes):
+    def _runTranslation(self, unit_cls, ssaPasses):
         self.rmSim()
         with self.assertRaises(TestFinishedSuccessfuly):
-            self.compileSimAndStart(unit_cls, target_platform=VirtualHlsPlatform(ssa_passes=ssa_passes))
+            self.compileSimAndStart(unit_cls, target_platform=VirtualHlsPlatform(ssaPasses=ssaPasses))
         self.rmSim()
 
     def _test_ll(self, unit_constructor: Unit, name=None):
         buff = [StringIO() for _ in range(4)]
-        ssa_passes = [
+        ssaPasses = [
             SsaPassConsystencyCheck(),
             SsaPassDumpToLl(lambda name: (buff[0], False)),
             SsaPassExtractPartDrivers(),
@@ -52,7 +52,7 @@ class BaseSsaTC(BaseSerializationTC):
             SsaPassRunFn(TestFinishedSuccessfuly.raise_)
         ]
         unit = unit_constructor()
-        self._runTranslation(unit, ssa_passes)
+        self._runTranslation(unit, ssaPasses)
         val = [b.getvalue() for b in buff]
         if name is None:
             name = unit.__class__.__name__

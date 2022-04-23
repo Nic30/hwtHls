@@ -19,16 +19,16 @@ class AbstractXilinxPlatform(DummyPlatform):
 
     def __init__(self, allocator=HlsAllocator,
                  scheduler=HlsScheduler,
-                 ssa_passes=DEFAULT_SSA_PASSES,
-                 hlsnetlist_passes=DEFAULT_HLSNETLIST_PASSES,
-                 rtlnetlist_passes=DEFAULT_RTLNETLIST_PASSES
+                 ssaPasses=DEFAULT_SSA_PASSES,
+                 hlsNetlistPasses=DEFAULT_HLSNETLIST_PASSES,
+                 rtlNetlistPasses=DEFAULT_RTLNETLIST_PASSES
                  ):
         super(AbstractXilinxPlatform, self).__init__()
         self.allocator = allocator
         self.scheduler = scheduler  # HlsScheduler #ForceDirectedScheduler
-        self.ssa_passes = ssa_passes
-        self.hlsnetlist_passes = hlsnetlist_passes
-        self.rtlnetlist_passes = rtlnetlist_passes
+        self.ssaPasses = ssaPasses
+        self.hlsNetlistPasses = hlsNetlistPasses
+        self.rtlNetlistPasses = rtlNetlistPasses
 
         self._init_coefs()
 

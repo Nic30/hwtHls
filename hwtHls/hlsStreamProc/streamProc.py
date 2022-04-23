@@ -12,66 +12,26 @@ from hwt.hdl.value import HValue
 from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.interfaces.std import Handshaked, Signal, HandshakeSync, VldSynced, \
     RdSynced
-from hwt.interfaces.structIntf import Interface_to_HdlType
-from hwt.pyUtils.arrayQuery import flatten
-from hwt.pyUtils.uniqList import UniqList
+from hwt.interfaces.structIntf import Interface_to_HdlType, StructIntf
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.unit import Unit
-from hwtHls.hlsStreamProc.statements import HlsStreamProcWhile, HlsStreamProcCodeBlock, \
+from hwtHls.hlsStreamProc.statements import HlsStreamProcWhile, \
     HlsStreamProcIf, HlsStreamProcStm, HlsStreamProcFor, HlsStreamProcBreak, \
     HlsStreamProcContinue, HlsStreamProcSwitch
 from hwtHls.hlsStreamProc.statementsIo import HlsStreamProcRead, \
     HlsStreamProcWrite, IN_STREAM_POS, HlsStreamProcReadAxiStream
+from hwtHls.hlsStreamProc.thread import HlsStreamProcThread, \
+    HlsStreamProcSharedVarThread, HlsStreamProcThreadFromAst
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.netlist.transformation.rtlNetlistPass import RtlNetlistPass
 from hwtHls.ssa.context import SsaContext
 from hwtHls.ssa.transformation.ssaPass import SsaPass
-from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa, AnyStm
+from hwtHls.ssa.translation.fromAst.astToSsa import AnyStm
 from hwtHls.ssa.translation.toHwtHlsNetlist.pipelineMaterialization import SsaSegmentToHwPipeline
 from hwtLib.amba.axi_intf_common import Axi_hs
 from hwtLib.amba.axis import AxiStream
-from hwt.synthesizer.interface import Interface
-from ipCorePackager.constants import DIRECTION
-
-
-class HlsStreamProcThread():
-    """
-    A container of a thread which will be compiled later.
-    """
-
-    def __init__(self, hls: "HlsStreamProc", code: List[AnyStm]):
-        self.hls = hls
-        self.code = code
-        self.toSsa: Optional[AstToSsa] = None
-        self.toHw: Optional[SsaSegmentToHwPipeline] = None
-        self._imports: List[Tuple[Union[RtlSignal, Interface], DIRECTION.IN]] = [] 
-        self._exports: List[Tuple[Union[RtlSignal, Interface], DIRECTION.IN]] = [] 
-    
-    def addImport(self, var: Union[RtlSignal, Interface], direction:DIRECTION):
-        self._imports.append((var, direction))
-
-    def addExport(self, var: Union[RtlSignal, Interface], direction:DIRECTION):
-        self._exports.append((var, direction))
-            
-    def _formatCode(self, code: List[AnyStm], label:str="hls_top") -> HlsStreamProcCodeBlock:
-        """
-        Normalize an input code.
-        """
-        _code = HlsStreamProcCodeBlock(self)
-        _code.name = label
-        _code._sensitivity = UniqList()
-        _code.statements.extend(flatten(code))
-        return _code
-
-    def compileToSsa(self):
-        _code = self._formatCode(self.code)
-        toSsa = AstToSsa(self.hls.ssaCtx, "top", _code)
-        toSsa._onAllPredecsKnown(toSsa.start)
-        toSsa.visit_top_CodeBlock(_code)
-        toSsa.finalize()
-        self.toSsa = toSsa
 
 
 class HlsStreamProc():
@@ -84,12 +44,12 @@ class HlsStreamProc():
     """
 
     def __init__(self, parentUnit: Unit,
-                 ssa_passes:Optional[List[SsaPass]]=None,
-                 hlsnetlist_passes:Optional[List[HlsNetlistPass]]=None,
-                 rtlnetlist_passes:Optional[List[RtlNetlistPass]]=None,
+                 ssaPasses:Optional[List[SsaPass]]=None,
+                 hlsNetlistPasses:Optional[List[HlsNetlistPass]]=None,
+                 rtlNetlistPasses:Optional[List[RtlNetlistPass]]=None,
                  freq: Optional[Union[int, float]]=None):
         """
-        :note: ssa_passes, hlsnetlist_passes, rtlnetlist_passes parameters are meant as an override to specification from target platform
+        :note: ssaPasses, hlsNetlistPasses, rtlNetlistPasses parameters are meant as an override to specification from target platform
         :param freq: override of the clock frequency, if None the frequency of clock associated with parent is used
         """
         self.parentUnit = parentUnit
@@ -99,15 +59,15 @@ class HlsStreamProc():
         self._ctx = RtlNetlist()
         self.ssaCtx = SsaContext()
         p = parentUnit._target_platform
-        if ssa_passes is None:
-            ssa_passes = p.ssa_passes
-        self.ssa_passes = ssa_passes
-        if hlsnetlist_passes is None:
-            hlsnetlist_passes = p.hlsnetlist_passes
-        self.hlsnetlist_passes = hlsnetlist_passes
-        if rtlnetlist_passes is None:
-            rtlnetlist_passes = p.rtlnetlist_passes
-        self.rtlnetlist_passes = rtlnetlist_passes
+        if ssaPasses is None:
+            ssaPasses = p.ssaPasses
+        self.ssaPasses = ssaPasses
+        if hlsNetlistPasses is None:
+            hlsNetlistPasses = p.hlsNetlistPasses
+        self.hlsNetlistPasses = hlsNetlistPasses
+        if rtlNetlistPasses is None:
+            rtlNetlistPasses = p.rtlNetlistPasses
+        self.rtlNetlistPasses = rtlNetlistPasses
         self._threads: List[HlsStreamProcThread] = []
 
     def _sig(self, name: str,
@@ -124,6 +84,15 @@ class HlsStreamProc():
         Create a thread local variable.
         """
         return Unit._sig(self, name, dtype)
+
+    def varShared(self, name:str, dtype:HdlType) -> HlsStreamProcSharedVarThread:
+        """
+        Create a variable with own access management thread.
+        """
+        v = self.var(name, dtype)
+        t = HlsStreamProcSharedVarThread(self, v)
+        self._threads.append(t)
+        return t
 
     def read(self,
              src: Union[AxiStream, Handshaked],
@@ -162,7 +131,7 @@ class HlsStreamProc():
             assert src._ctx is not self._ctx, ("Read should be used only for IO, it is not required for hls variables")
             dtype = src._dtype
 
-        elif isinstance(src, Signal):
+        elif isinstance(src, (Signal, StructIntf)):
             dtype = src._dtype
 
         else:
@@ -211,48 +180,48 @@ class HlsStreamProc():
 
     def If(self, cond: Union[RtlSignal, bool], *body: AnyStm):
         return HlsStreamProcIf(self, toHVal(cond, BOOL), list(body))
-    
+
     def Switch(self, switchOn):
         return HlsStreamProcSwitch(self, toHVal(switchOn))
 
     def thread(self, *code: Union[AnyStm, HlsStreamProcThread]):
         """
-        Create a thread from a code which will be translated to hw.
+        Create a thread from a code which will be translated to HW.
         """
         if len(code) == 1 and isinstance(code[0], HlsStreamProcThread):
             t = code[0]
         else:
-            t = HlsStreamProcThread(self, code)
+            t = HlsStreamProcThreadFromAst(self, code, f"top{len(self._threads)}")
 
         self._threads.append(t)
         return t
-    
+
     def compile(self):
         for t in self._threads:
             t: HlsStreamProcThread
             # we have to wait with compilation until here
             # because we need all IO and sharing constraints specified
             t.compileToSsa()
-            to_ssa = t.toSsa
+            toSsa = t.toSsa
             code = t.code
-            for ssa_pass in self.ssa_passes:
-                ssa_pass.apply(self, to_ssa)
-    
-            t.toHw = to_hw = SsaSegmentToHwPipeline(to_ssa.start, code)
-            to_hw.extract_pipeline()
-    
-            to_hw.extract_hlsnetlist(self.parentUnit, self.freq)
-            for hlsnetlist_pass in self.hlsnetlist_passes:
-                hlsnetlist_pass.apply(self, to_hw)
-    
-            if not to_hw.is_scheduled:
-                to_hw.schedulerRun()
+            for ssaPass in self.ssaPasses:
+                ssaPass.apply(self, toSsa)
+
+            t.toHw = toHw = SsaSegmentToHwPipeline(toSsa.start, code)
+            toHw.extract_pipeline()
+
+            toHw.extract_hlsnetlist(self.parentUnit, self.freq)
+            for hlsnetlist_pass in self.hlsNetlistPasses:
+                hlsnetlist_pass.apply(self, toHw)
+
+            if not toHw.is_scheduled:
+                toHw.schedulerRun()
 
             # some optimization could call scheduling and everything after could let
             # the netlist without modifications
         
         for t in self._threads:
             t.toHw.construct_rtlnetlist()
-            for rtlnetlist_pass in self.rtlnetlist_passes:
+            for rtlnetlist_pass in self.rtlNetlistPasses:
                 rtlnetlist_pass.apply(self, t.toHw)
               
