@@ -51,8 +51,7 @@ void register_Values_and_Use(pybind11::module_ & m) {
 		.def_static("getBitsSet", llvm::APInt::getBitsSet)
 		.def("__int__", [](llvm::APInt* I) {
 		 	 llvm::SmallString<256> str;
-
-			I->toString(str, 16, false);
+			I->toString(str, 16, I->isNegative());
 			return pybind11::int_fromStr(str.c_str());
 		});
 

@@ -1,11 +1,14 @@
 from itertools import islice
 from typing import Dict, Union, Tuple, List
 
+from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.code import Concat
 from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.types.bits import Bits
+from hwt.hdl.types.bitsVal import BitsVal
 from hwt.hdl.types.defs import SLICE, INT
 from hwt.hdl.value import HValue
+from hwt.math import log2ceil
 from hwt.pyUtils.arrayQuery import grouper
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
@@ -27,65 +30,7 @@ from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from hwtHls.ssa.value import SsaValue
 from ipCorePackager.constants import INTF_DIRECTION
 from pyMathBitPrecise.bit_utils import ValidityError, mask
-from hwt.hdl.types.bitsVal import BitsVal
-from hdlConvertorAst.to.hdlUtils import iter_with_last
-from hwt.math import log2ceil
 
-# def getValAndShift(v: Value) -> Tuple[SsaValue, int]:
-#    """
-#    :returns: tuple base value and its ofset (<<)
-#    """
-#    i = ValueToInstruction(v)
-#    if i is not None:
-#        op = i.getOpcode()
-#        if op == Instruction.BinaryOps.Shl:
-#            base, sh = tuple(o.get() for o in i.iterOperands())
-#            sh = ValueToConstantInt(sh)
-#            if sh is None:
-#                # has no shift
-#                return (v, 0)
-#            sh = int(sh.getValue())
-#            _base = ValueToInstruction(base)
-#            if _base is not None and _base.getOpcode() == Instruction.CastOps.ZExt:
-#                # pop ZExt
-#                base, = (o.get() for o in _base.iterOperands())
-#            return (base, sh)
-#        elif op == Instruction.CastOps.ZExt:
-#            o, = (o.get() for o in i.iterOperands())
-#            return getValAndShift(o)
-#        # elif op == Instruction.Call:
-#        #    ops = list(i.iterOperands())
-#        #    fn = ops.pop().get()
-#        #    fn_name = fn.getName().str()
-#        #    if fn_name == 'llvm.fshl.i2':
-#        #        # funnel shift left
-#        #        a, b, sh = ops
-#        #        sh = ValueToConstantInt(sh.get())
-#        #        if sh is not None:
-#        #            sh = int(sh)
-#        #            b = b.get()
-#        #            raise NotImplementedError()
-#    else:
-#        c = ValueToConstantInt(v)
-#        if c is not None:
-#            c = int(c.getValue())
-#            # find offset of a value
-#            assert c != 0, "This can not be 0 because this would be already optimized out"
-#            sh = 0
-#            while True:
-#                if (1 << sh) & c:
-#                    break
-#                sh += 1
-#            base = Bits(TypeToIntegerType(v.getType()).getBitWidth() - sh).from_py(c >> sh)
-#            return (base, sh)
-#
-#    return (v, 0)
-
-# def bit_len(v: Union[HValue, Value]):
-#    if isinstance(v, HValue):
-#        return v._dtype.bit_length()
-#    else:
-#        return TypeToIntegerType(v.getType()).getBitWidth()
 
 SIGNED_CMP_OPS = (
     CmpInst.Predicate.ICMP_SGT,
@@ -131,7 +76,10 @@ class FromLlvmIrTranslator():
 
         if c is not None:
             val = int(c.getValue())
-            return self._translateType(v.getType()).from_py(val)
+            t = self._translateType(v.getType())
+            if not t.signed and val < 0:
+                val = t.all_mask() + val + 1
+            return t.from_py(val)
 
         return self.newValues[v]  # if not in this dict. the value was not defined before use
 
@@ -157,9 +105,13 @@ class FromLlvmIrTranslator():
                 a = tuple(instr.iterOperands())[0].get()
                 io = self.argToIntf[a]
                 res_t = self._translateType(instr.getType())
-                if ToLlvmIrTranslator._getNativeInterfaceType(io).signed is not None:
-                    res_t = Bits(res_t.bit_length(), io._dtype.signed)
-
+                _res_t = ToLlvmIrTranslator._getNativeInterfaceType(io)
+                if isinstance(_res_t, Bits):
+                    if _res_t.signed is not None:
+                        res_t = Bits(res_t.bit_length(), io._dtype.signed)
+                #else:
+                #    res_t = Bits(res_t.bit_length())
+                    
                 _instr = HlsStreamProcRead(self.hls, io, res_t)
 
             elif op == Instruction.MemoryOps.Store.value:
@@ -175,135 +127,17 @@ class FromLlvmIrTranslator():
                     mainVar, sh = (self._translateExpr(v) for v in instr.iterOperands())
                     assert not isinstance(sh, BitsVal), (sh, "If this was constant it should already be converted")
                     raise NotImplementedError("Non constant shift", instr)
-                    # onlyConcatOrOrZExt = True
-                    # for u in instr.users():
-                    #    i = UserToInstruction(u)
-                    #    if i is None:
-                    #        onlyConcatOrOrZExt = False
-                    #        break
-                    #    o = i.getOpcode()
-                    #    if o != BinaryOps.Or.value and o != Instruction.CastOps.ZExt.value:
-                    #        onlyConcatOrOrZExt = False
-                    #        break
-                    #
-                    # if onlyConcatOrOrZExt:
-                    #    continue
-                    # else:
-                    #    # coud be cocatenation with 0
-                    #    # %0 = zext i4 %a1 to i8
-                    #    # %1 = shl nuw i8 %0, 4
-                    #    mainVar, sh = instr.iterOperands()
-                    #    mainVar_i = ValueToInstruction(mainVar.get())
-                    #    sh = self._translateExpr(sh)
-                    #    if mainVar_i is not None and mainVar_i.getOpcode() == Instruction.CastOps.ZExt.value and isinstance(sh, BitsVal):
-                    #        sh = int(sh)
-                    #        o0, = mainVar_i.iterOperands()
-                    #        o0 = self._translateExpr(o0)
-                    #        res_t = self._translateType(instr.getType())
-                    #        assert sh + o0._dtype.bit_length() == res_t.bit_length(), (instr, sh, o0._dtype.bit_length(), res_t)
-                    #        _instr = SsaInstr(self.ssaCtx, res_t, AllOps.CONCAT,
-                    #                          [o0, Bits(sh).from_py(0)])
-                    #    else:
-                    #        raise NotImplementedError()
 
                 elif op == BinaryOps.LShr.value:
                     raise NotImplementedError(instr, "Should be converted to hwtHls.bitRangeGet")
-                    # >>
-                    # if users are just truncatenations this is a slice
-                    # onlyTruncats = True
-                    # for u in instr.users():
-                    #    i = UserToInstruction(u)
-                    #    if i is None or i.getOpcode() != Instruction.CastOps.Trunc.value:
-                    #        onlyTruncats = False
-                    #        break
-                    #
-                    # if onlyTruncats:
-                    #    # will convert to slice later when converting truncat
-                    #    continue
-                    # else:
-                    #    raise NotImplementedError(instr)
 
                 elif op == BinaryOps.AShr.value:
                     raise NotImplementedError(instr)
 
                 elif op == Instruction.CastOps.Trunc:
                     raise NotImplementedError(instr, "Should be converted to hwtHls.bitConcat")
-                #   ops = list(instr.iterOperands())
-                #   assert len(ops) == 1
-                #   a = ValueToInstruction(ops[0].get())
-                #   res_t = self._translateType(instr.getType())
-                #   sliceWidth = res_t.bit_length()
-                #   if a is not None and a.getOpcode() == BinaryOps.LShr.value:
-                #       mainVar, indexLow = a.iterOperands()
-                #       index = self._translateExpr(indexLow)
-                #   else:
-                #       index = 0
-                #       mainVar = a
-                #
-                #   if sliceWidth != 1:
-                #       if isinstance(index, (int, BitsVal)):
-                #           # constant selection of bits
-                #           index = SLICE.from_py(slice(index + sliceWidth, index, -1))
-                #       else: 
-                #           # mux using bit select, need to rewrite to switch-case like structure
-                #           if isinstance(mainVar, Use):
-                #               t = mainVar.get().getType()
-                #           else:
-                #               t = mainVar.getType()
-                #
-                #           res_w = res_t.bit_length()
-                #           w = self._translateType(t).bit_length()
-                #           noOfValues = min(w // int(sliceWidth), 2 ** index._dtype.bit_length())
-                #           eb = SsaExprBuilder(newBlock, len(newBlock.body))
-                #           # [todo] there is a premise that the index selects non overlapping slices, this may not be guaranted
-                #           index = eb._binaryOp(index, AllOps.INDEX, SLICE.from_py(slice(index._dtype.bit_length(),
-                #                                                                         log2ceil(res_w - 1),
-                #                                                                         -1)))
-                #           caseVals = []
-                #           for last, i in iter_with_last(range(noOfValues)):
-                #               if last:
-                #                   c = None
-                #               else:
-                #                   c = eb._binaryOp(index, AllOps.EQ, index._dtype.from_py(i))
-                #               caseVals.append(c)
-                #
-                #           caseBlocks, sequel = eb.insertBlocks(caseVals)
-                #           sequel: SsaBasicBlock
-                #           _mainVar = self._translateExpr(mainVar)
-                #           phi = SsaPhi(sequel.ctx, res_t)
-                #           for i, c, br in zip(range(noOfValues), caseVals, caseBlocks):
-                #               br: SsaBasicBlock
-                #               sel = SsaInstr(self.ssaCtx, res_t, AllOps.INDEX, [_mainVar, SLICE.from_py(slice(res_w * (i + 1), res_w * i, -1))])
-                #               newBlock.appendInstruction(sel)
-                #               phi.appendOperand(sel, br)
-                #           sequel.appendPhi(phi)
-                #           
-                #           self.newValues[instr] = phi
-                #           newBlock = self.newBlocksEnd[block] = sequel
-                #           continue
-                #
-                #   else:
-                #       index = INT.from_py(index)
-                #
-                #   _instr = SsaInstr(self.ssaCtx, res_t, AllOps.INDEX, [self._translateExpr(mainVar), index])
-
+                
                 elif op == Instruction.CastOps.ZExt.value:
-                    # if this a part of concatenation only we need to skip it and convert the concatenation
-                    # only later when visiting top | instruction
-                    # the concatenation is realized as ((res_t)high<<offset | (res_t)low)
-                    # onlyConcatOrShift = True
-                    # for u in instr.users():
-                    #    i = UserToInstruction(u)
-                    #    if i is None:
-                    #        onlyConcatOrShift = False
-                    #        break
-                    #    o = i.getOpcode()
-                    #    if o != BinaryOps.Or.value and o != BinaryOps.Shl:
-                    #        onlyConcatOrShift = False
-                    #
-                    # if onlyConcatOrShift:
-                    #    continue
-                    # else:
                     res_t = self._translateType(instr.getType())
                     a, = (self._translateExpr(o) for o in instr.iterOperands())
                     _instr = SsaInstr(self.ssaCtx, res_t, AllOps.CONCAT,
@@ -481,42 +315,6 @@ class FromLlvmIrTranslator():
                         if operator is None:
                             raise NotImplementedError(instr)
 
-                        # elif operator is AllOps.OR:
-                        #    # detect OR for concatenations
-                        #    (left, leftSh), (right, rightSh) = (getValAndShift(o.get()) for o in instr.iterOperands())
-                        #    if leftSh != rightSh:
-                        #        if leftSh < rightSh:
-                        #            # swap so right is lower
-                        #            left, right = right, left
-                        #            leftSh, rightSh = rightSh, leftSh
-                        #        ops = []
-                        #        resW = res_t.bit_length()
-                        #        leftWidth = bit_len(left)
-                        #        leftPad = resW - (leftWidth + leftSh)
-                        #        rightWidth = bit_len(right)
-                        #        middlePad = leftSh - (rightWidth + rightSh)
-                        #        if leftPad >= 0 and middlePad >= 0:
-                        #            if leftPad:
-                        #                ops.append(Bits(leftPad).from_py(0))
-                        #            ops.append(left if isinstance(left, HValue) else self._translateExpr(left))
-                        #            if middlePad:
-                        #                ops.append(Bits(middlePad).from_py(0))
-                        #            ops.append(right if isinstance(right, HValue) else self._translateExpr(right))
-                        #            if rightSh:
-                        #                ops.append(Bits(rightSh).from_py(0))
-                        #        if ops:
-                        #            _instr = ops[0]
-                        #            for o in ops[1:]:
-                        #                if isinstance(_instr, HValue) and isinstance(o, HValue):
-                        #                    _instr = Concat(_instr, o)
-                        #                else:
-                        #                    ops = [o if isinstance(o, (HValue, SsaValue)) else self._translateExpr(o) for o in (_instr, o)]
-                        #                    _instr = SsaInstr(self.ssaCtx, res_t, AllOps.CONCAT, ops)
-                        #                    newBlock.appendInstruction(_instr)
-                        #
-                        #                self.newValues[instr] = _instr
-                        #            continue
-                        #
                     ops = [translateOperand(o) for o in instr.iterOperands()]
                     op1 = 0
                     if operator is AllOps.XOR and isinstance(ops[1], HValue):
