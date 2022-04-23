@@ -17,7 +17,7 @@ and provides variety of existing ones (from LLVM/hwt) in order to build efficien
 
 ### Current state
 
-* This library is in alpha phase.
+* This library is in an alpha phase.
 * You can try it online at [![Binder](https://mybinder.org/badge_logo.svg)](https://notebooks.gesis.org/binder/v2/gh/Nic30/hwtHls/HEAD) (From jupyterlab you can also run examples in tests.)
 
 * Features
@@ -163,6 +163,10 @@ pip3 install git+https://github.com/Nic30/hwtHls.git
 * [DuroHLS](https://github.com/corelab-src/DuroHLS-opt) [CorelabVerilog](https://github.com/corelab-src/CorelabVerilog) - C++/LLVM, set of hls passes
 * [domino-compiler](https://github.com/packet-transactions/domino-compiler) 2016 -> C++, c like packet processing language and compiler
 * [orcc](https://github.com/orcc/orcc) - C++/LLVM, Open RVC-CAL Compiler hw/sw dataflow and img processing focused
+* [ROCCC](https://github.com/nxt4hll/roccc-2.0), http://roccc.cs.ucr.edu/ - 2009-2013, C++/LLVM c -> vhdl
+* [TCE](https://github.com/cpc/tce)- C++/LLVM, environment for development of application specific processors
+* [FloPoCo](https://gitlab.com/flopoco/flopoco) - C++, arithmetic core generator
+
 
 ## Useful publications
 * [Efficient Pipelining of Nested Loops: Unroll-and-Squash](https://people.csail.mit.edu/saman/student_thesis/petkov-01.pdf)
@@ -170,6 +174,7 @@ pip3 install git+https://github.com/Nic30/hwtHls.git
 * [Parallel Programming for FPGAs](https://github.com/KastnerRG/pp4fpgas)
 * [Speculative Dataflow Circuits](https://dl.acm.org/citation.cfm?id=3293914)
 * 2004 [Algorithm Synthesis by Lazy Thinking: Examples and Implementation in Theorema](https://doi.org/10.1016/j.entcs.2003.12.027)
+* 2010 [Impact of High-Level Transformations within the ROCCC Framework](https://www.cs.ucr.edu/~najjar/papers/2010/TACO-2010.pdf)
 * 2012 [An overview of today's high-level synthesis tools](https://www.researchgate.net/publication/260432684_An_overview_of_today's_high-level_synthesis_tools)
 * 2015 [A Survey and Evaluation of FPGA High-Level Synthesis Tools](https://ieeexplore.ieee.org/document/7368920)
 * 2019 [Are We There Yet? A Study on the State of High-Level Synthesis](https://ieeexplore.ieee.org/document/8356004)
