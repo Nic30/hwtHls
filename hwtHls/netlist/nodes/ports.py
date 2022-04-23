@@ -80,6 +80,7 @@ class HlsNetNodeOutLazy():
     def replace_driver(self, o:HlsNetNodeOut):
         assert self is not o, self
         assert self.replaced_by is None, (self, self.replaced_by)
+        assert self._dtype == o._dtype,  (self, o, self._dtype, o._dtype)
         for k in self.keys_of_self_in_cache:
             self.op_cache._to_hls_cache[k] = o
 

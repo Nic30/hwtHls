@@ -17,7 +17,7 @@ from hwtLib.handshaked.streamNode import StreamNode
 
 def get_sync_type(intf: Interface) -> Type[Interface]:
     """
-    resolve wich primitive type of synchronization is the interface using
+    resolve which primitive type of synchronization is the interface using
     """
 
     if isinstance(intf, HandshakeSync):
@@ -27,7 +27,7 @@ def get_sync_type(intf: Interface) -> Type[Interface]:
     elif isinstance(intf, RdSynced):
         return RdSynced
     else:
-        assert isinstance(intf, (Signal, RtlSignal)), intf
+        assert isinstance(intf, (Signal, RtlSignal, StructIntf)), intf
         return Signal
 
 

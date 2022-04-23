@@ -20,6 +20,8 @@ from hwtHls.ssa.context import SsaContext
 from hwtHls.ssa.instr import SsaInstr, SsaInstrBranch
 from hwtHls.ssa.translation.fromAst.memorySSAUpdater import MemorySSAUpdater
 from hwtHls.ssa.value import SsaValue
+from hwt.interfaces.structIntf import StructIntf
+from hwt.synthesizer.interfaceLevel.interfaceUtils.utils import packIntf
 
 
 AnyStm = Union[HdlAssignmentContainer, HlsStreamProcStm]
@@ -175,6 +177,9 @@ class AstToSsa():
                     # HlsStreamProcRead is a SsaValue and thus represents "variable"
                     self.m_ssa_u.writeVariable(var._sig, (), block, var)
                 var = var._sig
+            elif isinstance(var, StructIntf):
+                var = packIntf(var)
+                return self.visit_expr(block, var)
 
             return block, self.m_ssa_u.readVariable(var, block)
 

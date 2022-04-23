@@ -8,7 +8,7 @@ from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.types.slice import HSlice
 from hwt.hdl.value import HValue
 from hwt.interfaces.hsStructIntf import HsStructIntf
-from hwt.interfaces.std import Signal, RdSynced, VldSynced, Handshaked,\
+from hwt.interfaces.std import Signal, RdSynced, VldSynced, Handshaked, \
     HandshakeSync
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
@@ -27,6 +27,8 @@ from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
 from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axi_intf_common import Axi_hs
 from ipCorePackager.constants import INTF_DIRECTION
+from hwt.interfaces.structIntf import StructIntf
+from hwt.hdl.types.struct import HStruct
 
 RE_ID_WITH_NUMBER = re.compile('[^0-9]+|[0-9]+')
 
@@ -76,7 +78,7 @@ class ToLlvmIrTranslator():
         return name.replace("%", "")
 
     def _translateType(self, hdlType: HdlType, ptr=False):
-        if isinstance(hdlType, Bits):
+        if isinstance(hdlType, (Bits, HStruct)):
             if ptr:
                 return Type.getIntNPtrTy(self.ctx, hdlType.bit_length(), 0)
             else:
@@ -263,7 +265,7 @@ class ToLlvmIrTranslator():
             return Bits(i._bit_length() - 2)
         elif isinstance(i, (RdSynced, VldSynced)):
             return Bits(i._bit_length() - 1)
-        elif isinstance(i, (Signal, RtlSignal)):
+        elif isinstance(i, (Signal, RtlSignal, StructIntf)):
             return i._dtype
         else:
             raise NotImplementedError(i)
@@ -319,7 +321,7 @@ class SsaPassToLlvm():
                     cur_dir = io.get(instr._src, None)
                     assert cur_dir is None or INTF_DIRECTION.SLAVE
                     io[instr._src] = INTF_DIRECTION.SLAVE
-                    assert dtypeEqualSignAprox(instr._dtype, ToLlvmIrTranslator._getNativeInterfaceType(instr._src)), (
+                    assert instr._dtype.bit_length() == ToLlvmIrTranslator._getNativeInterfaceType(instr._src).bit_length(), (
                         "In this stages the read operations must read only native type of interface",
                         instr, ToLlvmIrTranslator._getNativeInterfaceType(instr._src))
 
@@ -328,7 +330,7 @@ class SsaPassToLlvm():
                     cur_dir = io.get(instr.dst, None)
                     assert cur_dir is None or INTF_DIRECTION.MASTER
                     io[instr.dst] = INTF_DIRECTION.MASTER
-                    assert dtypeEqualSignAprox(instr.operands[0]._dtype, ToLlvmIrTranslator._getNativeInterfaceType(instr.dst)), (
+                    assert instr.operands[0]._dtype.bit_length() == ToLlvmIrTranslator._getNativeInterfaceType(instr.dst).bit_length(), (
                         "In this stages the read operations must read only native type of interface",
                         instr, instr.operands[0]._dtype, ToLlvmIrTranslator._getNativeInterfaceType(instr.dst))
 

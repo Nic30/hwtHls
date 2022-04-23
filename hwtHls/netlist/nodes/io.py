@@ -9,6 +9,7 @@ from hwt.interfaces.std import Signal, HandshakeSync, Handshaked, VldSynced, \
 from hwt.interfaces.structIntf import StructIntf
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
+from hwt.synthesizer.interfaceLevel.interfaceUtils.utils import packIntf
 from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
@@ -22,7 +23,7 @@ from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.ssa.translation.toHwtHlsNetlist.opCache import SsaToHwtHlsNetlistOpCache
 from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axi_intf_common import Axi_hs
-from hwt.synthesizer.interfaceLevel.interfaceUtils.utils import packIntf
+
 
 IO_COMB_REALIZATION = OpRealizationMeta(latency_post=epsilon)
 
@@ -143,7 +144,7 @@ class HlsNetNodeExplicitSync(HlsNetNode):
         """
         Prepend the synchronization to an operation output representing variable.
         """
-        self = cls(parentHls, var._dtype)
+        self = cls(parentHls, BIT)
         parentHls.nodes.append(self)
         o = self._outputs[0]
         link_hls_nodes(var, self._inputs[0])
@@ -179,7 +180,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
         self.maxIosPerClk = 1
 
         self._init_extraCond_skipWhen()
-        self._add_output(self.getRtlDataSig()._dtype)  # slot for data consummer
+        self._add_output(self.getRtlDataSig()._dtype)  # slot for data consumer
         self._add_output(HOrderingVoidT)  # slot for ordering
 
     def getOrderingOutPort(self):
@@ -292,11 +293,11 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
         elif isinstance(src, (Handshaked, HandshakeSync)):
             return packIntf(src, exclude=(src.vld, src.rd))
         elif isinstance(src, VldSynced):
-            return packIntf(src, exclude=(src.vld))
+            return packIntf(src, exclude=(src.vld, ))
         elif isinstance(src, RdSynced):
-            return packIntf(src, exclude=(src.rd))
+            return packIntf(src, exclude=(src.rd, ))
         else:
-            return src
+            return packIntf(src)
 
     def __repr__(self):
         return f"<{self.__class__.__name__:s} {self._id:d} {self.src}>"
@@ -397,7 +398,7 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
                 if tmp:
                     dst, indexCascade, _ = tmp
 
-        assert isinstance(dst, (HlsNetNodeIn, HsStructIntf, Signal, RtlSignalBase, Handshaked)), dst
+        assert isinstance(dst, (HlsNetNodeIn, HsStructIntf, Signal, RtlSignalBase, Handshaked, StructIntf)), dst
         self.dst = dst
 
         self.indexes = indexCascade
