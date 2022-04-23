@@ -38,19 +38,20 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitSelectInst(
 
 VarBitConstraint& ConstBitPartsAnalysisContext::visitPHINode(const PHINode *I) {
 	// propagate from ops to this, union of masks an known values
-	constraints[I] = std::make_unique<VarBitConstraint>(
-			I->getType()->getIntegerBitWidth());
+	assert(constraints.find(I) == constraints.end());
+	constraints[I] = std::make_unique<VarBitConstraint>(I); // Must be initialized to self
+	// because there can be cycle in PHI dependencies so if we meet this value when resolving this
+	// we will know that it is this PHI.
 	VarBitConstraint &c = *constraints[I];
 	bool first = true;
 	for (auto op : I->operand_values()) {
 		auto &_c = visitValue(op);
 		if (first) {
 			first = false;
+			assert(_c.consystencyCheck());
 			c = _c; // intended copy of _c to c
 
-			assert(_c.consystencyCheck());
 		} else {
-
 			assert(c.consystencyCheck());
 			c.srcUnionInplace(_c, I);
 			assert(c.consystencyCheck());
