@@ -44,7 +44,7 @@ class SsaToHwtHlsNetlistOpCache():
                     return
 
             else:
-                assert isinstance(cur, HlsNetNodeOutLazy), ("redefinig already defined", k, cur, v)
+                assert isinstance(cur, HlsNetNodeOutLazy), ("redefining already defined", k, cur, v)
                 # however it is possible to redefine variable if the variable was live on input of the block and
                 # it comes from body of this block
                 assert cur is not v, ("redefining to the same", k, v)
