@@ -1,27 +1,31 @@
 #include "genericFpgaTargetMachine.h"
-#include "genericFpgaTargetTransformInfo.h"
+
 #include <llvm/CodeGen/Passes.h>
-#include <llvm/CodeGen/TargetPassConfig.h>
+//#include <llvm/CodeGen/SelectionDAGISel.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/Support/CommandLine.h>
 #include <llvm/Support/FormattedStream.h>
 #include <llvm/Support/TargetRegistry.h>
 #include <llvm/Target/TargetOptions.h>
-#include "genericFpga.h"
-#include "TargetInfo/genericFpgaTargetInfo.h"
+#include <llvm/MC/MCAsmInfo.h>
 
-using namespace llvm;
+#include "genericFpga.h"
+#include "genericFpgaTargetTransformInfo.h"
+#include "genericFpgaTargetPassConfig.h"
+#include "genericFpgaTargetInfo.h"
+#include "genericFpgaTargetSubtarget.h"
 
 extern "C" void LLVMInitializeGenericFpgaTarget() {
 	// Register the target.
-	RegisterTargetMachine<GenericFpgaTargetMachine> tmp(
+	llvm::RegisterTargetMachine<llvm::GenericFpgaTargetMachine> tmp(
 			getTheGenericFpgaTarget());
 
 	// Initialize target specific passes
-	PassRegistry &PR = *PassRegistry::getPassRegistry();
+	llvm::PassRegistry &PR = *llvm::PassRegistry::getPassRegistry();
 	(void) PR;
 }
+namespace llvm {
 
 static std::string computeDataLayout(const Triple &TT) {
 	// 64b address up to 4096b regs, based on spir
@@ -42,12 +46,13 @@ GenericFpgaTargetMachine::GenericFpgaTargetMachine(const Target &T,
 		Optional<CodeModel::Model> CM, CodeGenOpt::Level OL, bool JIT) :
 		LLVMTargetMachine(T, computeDataLayout(TT), TT, CPU, TuneCPU, Options,
 				getEffectiveRelocModel(TT, RM), CodeModel::Large, OL) {
+	AsmInfo.reset(new llvm::MCAsmInfo());
 }
 
 GenericFpgaTargetMachine::~GenericFpgaTargetMachine() {
 }
 
-const GenericFpgaSubtarget*
+const GenericFpgaTargetSubtarget*
 GenericFpgaTargetMachine::getSubtargetImpl(const Function &F) const {
 	Attribute CPUAttr = F.getFnAttribute("target-cpu");
 	Attribute TuneAttr = F.getFnAttribute("tune-cpu");
@@ -71,8 +76,8 @@ GenericFpgaTargetMachine::getSubtargetImpl(const Function &F) const {
 				F.getParent()->getModuleFlag("target-abi"))) {
 			ABIName = ModuleTargetABI->getString();
 		}
-		I = std::make_unique<GenericFpgaSubtarget>(TargetTriple, CPU, TuneCPU,
-				FS, ABIName, *this);
+		I = std::make_unique<GenericFpgaTargetSubtarget>(TargetTriple, CPU,
+				TuneCPU, FS, ABIName, *this);
 	}
 	return I.get();
 
@@ -91,19 +96,9 @@ TargetTransformInfo GenericFpgaTargetMachine::getTargetTransformInfo(
 	return TargetTransformInfo(GenericFpgaTTIImpl(this, F));
 }
 
-/// GenericFpga Code Generator Pass Configuration Options.
-class GenericFpgaPassConfig: public TargetPassConfig {
-public:
-	GenericFpgaPassConfig(GenericFpgaTargetMachine &TM, PassManagerBase &PM) :
-			TargetPassConfig(TM, PM) {
-	}
-
-	GenericFpgaTargetMachine& getGenericFpgaTargetMachine() const {
-		return getTM<GenericFpgaTargetMachine>();
-	}
-};
-
 TargetPassConfig* GenericFpgaTargetMachine::createPassConfig(
 		PassManagerBase &PM) {
-	return new GenericFpgaPassConfig(*this, PM);
+	return new GenericFpgaTargetPassConfig(*this, PM);
+}
+
 }

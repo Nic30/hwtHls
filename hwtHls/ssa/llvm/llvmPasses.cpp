@@ -69,11 +69,20 @@
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Support/TargetRegistry.h>
 
-#include "targets/TargetInfo/genericFpgaTargetInfo.h"
+#include "targets/genericFpgaTargetInfo.h"
+#include "targets/genericFpgaTargetMachine.h"
 #include "Transforms/extractBitConcatAndSliceOpsPass.h"
 #include "Transforms/bitwidthReducePass/bitwidthReducePass.h"
 
+#include <llvm/CodeGen/MachinePassManager.h>
+
+#include <llvm/IR/LegacyPassManager.h>
+#include <llvm/CodeGen/Passes.h>
+#include <llvm/CodeGen/MachineModuleInfo.h>
+#include <llvm/CodeGen/TargetPassConfig.h>
+
 namespace py = pybind11;
+
 
 void runOpt(llvm::Function &fn) {
 	// https://stackoverflow.com/questions/51934964/function-optimization-pass
@@ -82,14 +91,17 @@ void runOpt(llvm::Function &fn) {
 	std::string Error;
 	std::string TargetTriple = "genericFpga-unknown-linux-gnu";
 	const llvm::Target *Target = &getTheGenericFpgaTarget(); //llvm::TargetRegistry::targets()[0];
+
 	auto CPU = "";
 	auto Features = "";
 	llvm::TargetOptions opt;
+	// useless for this target
+	opt.XCOFFTracebackTable = false;
 	auto RM = llvm::Optional<llvm::Reloc::Model>();
 	auto TheTargetMachine = Target->createTargetMachine(TargetTriple, CPU,
 			Features, opt, RM);
 
-	//module->setDataLayout(TheTargetMachine->createDataLayout());
+	fn.getParent()->setDataLayout(TheTargetMachine->createDataLayout());
 
 	llvm::PipelineTuningOptions PTO;
 	llvm::PassBuilder PB(
@@ -116,8 +128,10 @@ void runOpt(llvm::Function &fn) {
 
 	// Catch trivial redundancies
 	FPM.addPass(llvm::EarlyCSEPass(true /* Enable mem-ssa. */));
+
 	//if (EnableKnowledgeRetention)
 	FPM.addPass(llvm::AssumeSimplifyPass());
+	FPM.addPass(llvm::SimplifyCFGPass());
 
 	// Hoisting of scalars and load expressions.
 	//if (EnableGVNHoist)
@@ -241,7 +255,9 @@ void runOpt(llvm::Function &fn) {
 	FPM.addPass(llvm::SROA());
 
 	// Eliminate redundancies.
-	FPM.addPass(llvm::MergedLoadStoreMotionPass(llvm::MergedLoadStoreMotionOptions(/*SplitFooterBB=*/true)));
+	FPM.addPass(
+			llvm::MergedLoadStoreMotionPass(llvm::MergedLoadStoreMotionOptions(
+			/*SplitFooterBB=*/true)));
 	//if (RunNewGVN)
 	FPM.addPass(llvm::NewGVNPass());
 	//else
@@ -300,19 +316,78 @@ void runOpt(llvm::Function &fn) {
 	FPM.addPass(hwtHls::ExtractBitConcatAndSliceOpsPass());
 	FPM.addPass(llvm::InstCombinePass()); // mostly for DCE for previous pass
 	FPM.addPass(llvm::AggressiveInstCombinePass());
+	//llvm::errs() << fn << "\n";
 	FPM.addPass(hwtHls::BitwidthReductionPass());
 	FPM.addPass(llvm::InstCombinePass()); // mostly for DCE for previous pass
-	FPM.addPass(llvm::MergedLoadStoreMotionPass(llvm::MergedLoadStoreMotionOptions(/*SplitFooterBB=*/true)));
+	FPM.addPass(
+			llvm::MergedLoadStoreMotionPass(llvm::MergedLoadStoreMotionOptions(
+			/*SplitFooterBB=*/true)));
 	// LowerSwitchPass
 	//FPM.addPass(llvm::GVNHoistPass());
 	//FPM.addPass(llvm::GVNSinkPass());
-	//FPM.addPass(llvm::SimplifyCFGPass());
-
+	FPM.addPass(
+			llvm::SimplifyCFGPass(
+					llvm::SimplifyCFGOptions().hoistCommonInsts(true).sinkCommonInsts(
+							true)));
 	//if (EnableCHR && Level == OptimizationLevel::O3 && PGOOpt
 	//		&& (PGOOpt->Action == PGOOptions::IRUse
 	//				|| PGOOpt->Action == PGOOptions::SampleUse))
 	//	FPM.addPass(llvm::ControlHeightReductionPass());
 
 	FPM.run(fn, FAM);
+
+	//std::cout << "before MachineFunctionAnalysisManager\n";
+	//llvm::MachineFunctionAnalysisManager MFAM;
+	//llvm::MachineFunctionPassManager MPM;
+	//
+	//std::cout << "before MPM.run\n";
+	//if (auto e = MPM.run(*fn.getParent(), MFAM)) {
+	//	throw std::runtime_error("Error during running MachineFunctionPassManager");
+	//}
+
+	//llvm::StringMap<llvm::cl::Option*> &Map = llvm::cl::getRegisteredOptions();
+	//Map["view-dag-combine1-dags"]->addOccurrence(0, "", "true");
+	//Map["view-legalize-types-dags"]->addOccurrence(0, "", "true");
+	//Map["view-dag-combine-lt-dags"]->addOccurrence(0, "", "true");
+	//Map["view-legalize-dags"]->addOccurrence(0, "", "true");
+	//Map["view-dag-combine2-dags"]->addOccurrence(0, "", "true");
+	//Map["view-isel-dags"]->addOccurrence(0, "", "true");
+	//Map["view-sched-dags"]->addOccurrence(0, "", "true");
+	//Map["view-sunit-dags"]->addOccurrence(0, "", "true");
+	//Map["print-after-isel"]->addOccurrence(0, "", "true");
+
+	//Map["print-lsr-output"]->setValueStr("true");
+
+	//llvm::cl::ParseCommandLineOptions(argc, argv, "This is a small program to demo the LLVM CommandLine API");
+	// use CodeGenPassBuilder once complete
+	// :info: based on llc.cpp
+	llvm::LLVMTargetMachine &LLVMTM =
+			static_cast<llvm::LLVMTargetMachine&>(*TheTargetMachine);
+	llvm::MachineModuleInfoWrapperPass *MMIWP =
+			new llvm::MachineModuleInfoWrapperPass(&LLVMTM);
+	llvm::legacy::PassManager PM;
+	PM.add(MMIWP);
+	llvm::TargetPassConfig &TPC = *LLVMTM.createPassConfig(PM);
+	if (TPC.hasLimitedCodeGenPipeline()) {
+		llvm::errs() << "run-pass cannot be used with "
+				<< TPC.getLimitedCodeGenPipelineReason(" and ") << ".\n";
+		throw std::runtime_error("run-pass cannot be used with ...");
+	}
+	PM.add(&TPC);
+
+	if (TPC.addISelPasses())
+		throw std::runtime_error("Can not addISelPasses");
+	//TPC.addMachinePasses();
+	// place for custom machine passes
+	TPC.printAndVerify("");
+	TPC.setInitialized();
+
+	//PM.dumpPasses();
+	//PM.add(llvm::createFreeMachineFunctionPass());
+	PM.run(*fn.getParent());
+	auto &MMI = MMIWP->getMMI();
+	llvm::errs() << "getMachineFunction(): " << MMI.getMachineFunction(fn) << "\n";
+	MMI.getMachineFunction(fn)->print(llvm::errs());
+	llvm::errs() << "\n";
 }
 

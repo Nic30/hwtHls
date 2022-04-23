@@ -2,6 +2,9 @@
 
 #include <llvm/MC/MCStreamer.h>
 #include <llvm/Support/DataTypes.h>
+#include <llvm/Support/DataTypes.h>
+#include <llvm/CodeGen/TargetSubtargetInfo.h>
+
 #include <string>
 
 namespace llvm {
@@ -16,3 +19,12 @@ class StringRef;
 //MCSubtargetInfo* createGenericFpgaMCSubtargetInfo(const Triple &TT,
 //		StringRef CPU, StringRef FS);
 }
+
+#define GET_REGINFO_ENUM
+#include "GenericFpgaGenRegisterInfo.inc"
+
+#define GET_INSTRINFO_ENUM
+#include "GenericFpgaGenInstrInfo.inc"
+
+#define GET_SUBTARGETINFO_ENUM
+#include "GenericFpgaGenSubtargetInfo.inc"

@@ -21,13 +21,15 @@
 
 using namespace llvm;
 
-#define DEBUG_TYPE "fpgatti"
+#define DEBUG_TYPE "genericfpgatti"
 
 //===----------------------------------------------------------------------===//
 //
 // GenericFpga spmd/simt execution.
 //
 //===----------------------------------------------------------------------===//
+
+namespace llvm {
 
 bool GenericFpgaTTIImpl::hasBranchDivergence() {
 	return true;
@@ -101,8 +103,8 @@ bool GenericFpgaTTIImpl::isSourceOfDivergence(const Value *V) {
 //
 //===----------------------------------------------------------------------===//
 
-InstructionCost GenericFpgaTTIImpl::getIntImmCostInst(unsigned Opcode, unsigned Idx,
-		const APInt &Imm, Type *Ty, TTI::TargetCostKind CostKind,
+InstructionCost GenericFpgaTTIImpl::getIntImmCostInst(unsigned Opcode,
+		unsigned Idx, const APInt &Imm, Type *Ty, TTI::TargetCostKind CostKind,
 		Instruction *Inst) const {
 	switch (Opcode) {
 	// Bit functions are free
@@ -114,8 +116,13 @@ InstructionCost GenericFpgaTTIImpl::getIntImmCostInst(unsigned Opcode, unsigned 
 	case Instruction::Load:
 	case Instruction::Store:
 		return TTI::TCC_Expensive;
+	case Instruction::ICmp:
+		if (Ty->getIntegerBitWidth() > 1)
+			return TTI::TCC_Basic;
+		else
+			return TTI::TCC_Free;
 	default:
-		return BaseT::getIntImmCostInst(Opcode, Idx, Imm, Ty, CostKind, Inst);
+		return TTI::TCC_Basic;
 	}
 }
 
@@ -144,7 +151,10 @@ bool GenericFpgaTTIImpl::isTruncateFree(Type *Ty1, Type *Ty2) {
 }
 
 bool GenericFpgaTTIImpl::isTypeLegal(Type *Ty) {
-	return true;
+	if (Ty->isIntegerTy())
+		return true;
+	else
+		return false;
 }
 
 // Switch as lookup tables is not desired
@@ -166,7 +176,8 @@ TypeSize GenericFpgaTTIImpl::getRegisterBitWidth(bool Vector) const {
 }
 
 InstructionCost GenericFpgaTTIImpl::getShuffleCost(TTI::ShuffleKind Kind,
-		VectorType *Ty, ArrayRef<int> Mask, int Index, VectorType *SubTp) const {
+		VectorType *Ty, ArrayRef<int> Mask, int Index,
+		VectorType *SubTp) const {
 	return TTI::TCC_Free;
 }
 
@@ -181,8 +192,8 @@ InstructionCost GenericFpgaTTIImpl::getExtractWithExtendCost(unsigned Opcode,
 	return TTI::TCC_Free;
 }
 
-InstructionCost GenericFpgaTTIImpl::getVectorInstrCost(unsigned Opcode, Type *Val,
-		unsigned Index) {
+InstructionCost GenericFpgaTTIImpl::getVectorInstrCost(unsigned Opcode,
+		Type *Val, unsigned Index) {
 	return TTI::TCC_Free;
 }
 
@@ -251,7 +262,7 @@ Type* GenericFpgaTTIImpl::getMemcpyLoopLoweringType(LLVMContext &Context,
 
 unsigned GenericFpgaTTIImpl::getLoadStoreVecRegBitWidth(
 		unsigned AddrSpace) const {
-	return 512;
+	return 1<<16;
 }
 
 bool GenericFpgaTTIImpl::isLegalToVectorizeLoadChain(unsigned ChainSizeInBytes,
@@ -262,4 +273,5 @@ bool GenericFpgaTTIImpl::isLegalToVectorizeLoadChain(unsigned ChainSizeInBytes,
 bool GenericFpgaTTIImpl::isLegalToVectorizeStoreChain(unsigned ChainSizeInBytes,
 		Align Alignment, unsigned AddrSpace) const {
 	return true;
+}
 }

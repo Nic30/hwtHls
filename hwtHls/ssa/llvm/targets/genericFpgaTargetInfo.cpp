@@ -1,7 +1,9 @@
 #include "genericFpgaTargetInfo.h"
-#include "../MCTargetDesc/genericFpgaMCTargetDesc.h"
+
 #include <llvm/Support/TargetRegistry.h>
-#include "../genericFpga.h"
+
+#include "genericFpgaMCTargetDesc.h"
+#include "genericFpga.h"
 
 using namespace llvm;
 

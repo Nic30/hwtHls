@@ -1,8 +1,8 @@
 #pragma once
-#include "genericFpgaSubtarget.h"
+
 #include <llvm/Analysis/TargetTransformInfo.h>
-#include <llvm/IR/DataLayout.h>
 #include <llvm/Target/TargetMachine.h>
+#include "genericFpgaTargetSubtarget.h"
 
 namespace llvm {
 
@@ -11,21 +11,23 @@ class StringRef;
 /**
  * An LLVM representation of the target for an GenericFpga
  * */
-class GenericFpgaTargetMachine final : public LLVMTargetMachine {
-	mutable StringMap<std::unique_ptr<GenericFpgaSubtarget>> SubtargetMap;
+class GenericFpgaTargetMachine final : public llvm::LLVMTargetMachine {
+	mutable llvm::StringMap<std::unique_ptr<GenericFpgaTargetSubtarget>> SubtargetMap;
 public:
-	GenericFpgaTargetMachine(const Target &T, const Triple &TT, StringRef CPU,
-			StringRef FS, const TargetOptions &Options,
-			Optional<Reloc::Model> RM, Optional<CodeModel::Model> CM,
-			CodeGenOpt::Level OL, bool JIT);
+	GenericFpgaTargetMachine(const llvm::Target &T, const llvm::Triple &TT,
+			llvm::StringRef CPU, llvm::StringRef FS,
+			const llvm::TargetOptions &Options,
+			llvm::Optional<llvm::Reloc::Model> RM,
+			llvm::Optional<llvm::CodeModel::Model> CM,
+			llvm::CodeGenOpt::Level OL, bool JIT);
 	~GenericFpgaTargetMachine() override;
-	const GenericFpgaSubtarget* getSubtargetImpl(const Function &F) const
+	const GenericFpgaTargetSubtarget* getSubtargetImpl(
+			const llvm::Function &F) const override;
+	llvm::TargetTransformInfo getTargetTransformInfo(const llvm::Function &F)
 			override;
-
-	TargetTransformInfo getTargetTransformInfo(const Function &F) override;
-
 	// Set up the pass pipeline.
-	TargetPassConfig* createPassConfig(PassManagerBase &PM) override;
+	llvm::TargetPassConfig* createPassConfig(llvm::PassManagerBase &PM)
+			override;
 };
 
 }

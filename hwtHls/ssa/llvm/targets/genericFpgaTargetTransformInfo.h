@@ -9,27 +9,27 @@ namespace llvm {
 /**
  * Container of informations about the target.
  * */
-class GenericFpgaTTIImpl final: public TargetTransformInfoImplCRTPBase<
+class GenericFpgaTTIImpl final: public llvm::TargetTransformInfoImplCRTPBase<
 		GenericFpgaTTIImpl> {
 protected:
 	typedef TargetTransformInfoImplCRTPBase<GenericFpgaTTIImpl> BaseT;
 	friend BaseT;
 
 	const GenericFpgaTargetMachine *TM;
-	const GenericFpgaSubtarget *ST;
+	const GenericFpgaTargetSubtarget *ST;
 
 	const GenericFpgaTargetMachine* getTM() const {
 		return TM;
 	}
-	const GenericFpgaSubtarget* getST() const {
+	const GenericFpgaTargetSubtarget* getST() const {
 		return ST;
 	}
 
 public:
-	typedef TargetTransformInfo TTI;
+	typedef llvm::TargetTransformInfo TTI;
 
 	explicit GenericFpgaTTIImpl(const GenericFpgaTargetMachine *TM,
-			const Function &F) :
+			const llvm::Function &F) :
 			BaseT(F.getParent()->getDataLayout()), TM(TM), ST(
 					TM->getSubtargetImpl(F)) {
 	}
@@ -43,45 +43,48 @@ public:
 					std::move(Arg.ST)) {
 	}
 
-	InstructionCost getIntImmCostInst(unsigned Opcode, unsigned Idx, const APInt &Imm,
-			Type *Ty, TTI::TargetCostKind CostKind,
-			Instruction *Inst = nullptr) const;
-	InstructionCost getUserCost(const User *U, ArrayRef<const Value*> Operands,
+	llvm::InstructionCost getIntImmCostInst(unsigned Opcode, unsigned Idx,
+			const llvm::APInt &Imm, llvm::Type *Ty,
+			TTI::TargetCostKind CostKind,
+			llvm::Instruction *Inst = nullptr) const;
+	llvm::InstructionCost getUserCost(const llvm::User *U,
+			llvm::ArrayRef<const llvm::Value*> Operands,
 			TTI::TargetCostKind CostKind);
 
 	unsigned getNumberOfRegisters(unsigned ClassID) const;
 	bool hasBranchDivergence();
-	bool isSourceOfDivergence(const Value *V);
-	void getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
+	bool isSourceOfDivergence(const llvm::Value *V);
+	void getUnrollingPreferences(llvm::Loop *L, llvm::ScalarEvolution &SE,
 			TTI::UnrollingPreferences &UP);
 	bool isLegalAddImmediate(int64_t Imm);
 	bool isLegalICmpImmediate(int64_t Imm);
-	bool isLegalMaskedStore(Type *DataType, Align Alignment);
-	bool isLegalMaskedLoad(Type *DataType, Align Alignment);
-	bool isTruncateFree(Type *Ty1, Type *Ty2);
-	bool isTypeLegal(Type *Ty);
+	bool isLegalMaskedStore(llvm::Type *DataType, llvm::Align Alignment);
+	bool isLegalMaskedLoad(llvm::Type *DataType, llvm::Align Alignment);
+	bool isTruncateFree(llvm::Type *Ty1, llvm::Type *Ty2);
+	bool isTypeLegal(llvm::Type *Ty);
 	bool shouldBuildLookupTables();
 	TTI::PopcntSupportKind getPopcntSupport(unsigned IntTyWidthInBit);
-	TypeSize getRegisterBitWidth(bool Vector) const;
+	llvm::TypeSize getRegisterBitWidth(bool Vector) const;
 
-
-	InstructionCost getShuffleCost(TTI::ShuffleKind Kind, VectorType *Ty, ArrayRef<int> Mask, int Index,
-			VectorType *SubTp) const;
-	InstructionCost getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
-			TTI::CastContextHint CCH, TTI::TargetCostKind CostKind,
-			const Instruction *I) const;
-	InstructionCost getExtractWithExtendCost(unsigned Opcode, Type *Dst,
-			VectorType *VecTy, unsigned Index);
-	InstructionCost getVectorInstrCost(unsigned Opcode, Type *Val, unsigned Index);
-	Type* getMemcpyLoopLoweringType(LLVMContext &Context, Value *Length,
-			unsigned SrcAddrSpace, unsigned DestAddrSpace, unsigned SrcAlign,
-			unsigned DestAlign) const;
+	llvm::InstructionCost getShuffleCost(TTI::ShuffleKind Kind,
+			llvm::VectorType *Ty, llvm::ArrayRef<int> Mask, int Index,
+			llvm::VectorType *SubTp) const;
+	llvm::InstructionCost getCastInstrCost(unsigned Opcode, llvm::Type *Dst,
+			llvm::Type *Src, TTI::CastContextHint CCH,
+			TTI::TargetCostKind CostKind, const llvm::Instruction *I) const;
+	llvm::InstructionCost getExtractWithExtendCost(unsigned Opcode,
+			llvm::Type *Dst, llvm::VectorType *VecTy, unsigned Index);
+	llvm::InstructionCost getVectorInstrCost(unsigned Opcode, llvm::Type *Val,
+			unsigned Index);
+	llvm::Type* getMemcpyLoopLoweringType(llvm::LLVMContext &Context,
+			llvm::Value *Length, unsigned SrcAddrSpace, unsigned DestAddrSpace,
+			unsigned SrcAlign, unsigned DestAlign) const;
 
 	unsigned getLoadStoreVecRegBitWidth(unsigned AddrSpace) const;
-	bool isLegalToVectorizeLoadChain(unsigned ChainSizeInBytes, Align Alignment,
-			unsigned AddrSpace) const;
+	bool isLegalToVectorizeLoadChain(unsigned ChainSizeInBytes,
+			llvm::Align Alignment, unsigned AddrSpace) const;
 	bool isLegalToVectorizeStoreChain(unsigned ChainSizeInBytes,
-			Align Alignment, unsigned AddrSpace) const;
+			llvm::Align Alignment, unsigned AddrSpace) const;
 };
 
 }
