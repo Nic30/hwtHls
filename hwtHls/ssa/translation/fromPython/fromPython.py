@@ -78,7 +78,7 @@ class PythonBytecodeToSsa():
     """
 
     def __init__(self, hls: HlsStreamProc, fn: FunctionType):
-        assert sys.version_info >= (3, 9, 0), ("Python3.9 is minimum requirement", sys.version_info)
+        assert sys.version_info >= (3, 10, 0), ("Python3.10 is minimum requirement", sys.version_info)
         self.hls = hls
         self.fn = fn
         self.to_ssa: Optional[AstToSsa] = None
@@ -133,8 +133,8 @@ class PythonBytecodeToSsa():
         self.blockToLabel[curBlock] = (0,)
         self.labelToBlock[(0,)] = SsaBlockGroup(curBlock)
         frame = PythonBytecodeFrame.fromFunction(fn, fnArgs, fnKwargs)
-        # with open("tmp/cfg_begin.dot", "w") as f:
-        #     self.blockTracker.dumpCfgToDot(f)
+        with open("tmp/cfg_begin.dot", "w") as f:
+            self.blockTracker.dumpCfgToDot(f)
 
         self._translateBytecodeBlock(self.bytecodeBlocks[0], frame, curBlock)
         if curBlock.predecessors:
@@ -257,7 +257,7 @@ class PythonBytecodeToSsa():
                     # this is a jump to a next iteration of preproc loop
                     blockWithAllPredecessorsNewlyKnown = list(
                         self.blockTracker.cfgCopyLoopBody(loopMeta.loop, preprocLoopScope))
-                # with open(f"tmp/cfg_{preprocLoopScope}.dot", "w") as f:
+                #with open(f"tmp/cfg_{preprocLoopScope}.dot", "w") as f:
                 #    self.blockTracker.dumpCfgToDot(f)
         
         # if this is a jump just in linear code or inside body of the loop
@@ -282,9 +282,14 @@ class PythonBytecodeToSsa():
         if sucBlockIsNew:
             self._translateBytecodeBlock(self.bytecodeBlocks[sucBlockOffset], frame, sucBlock)
 
-        if loop is not None and curBlockLabel in self.hwEvaluatedLoops and self.blockTracker.hasAllPredecessorsKnown(curBlockLabel):
+        if (loop is not None and
+            curBlockLabel in self.hwEvaluatedLoops and
+            self.blockTracker.hasAllPredecessorsKnown(curBlockLabel)# and
+            #curBlock not in self.to_ssa.m_ssa_u.sealedBlocks
+            ):
             # if this was hw loop we have to close header after all body blocks were generated
-            self._onAllPredecsKnown(curBlock)
+            _curBlock = self.labelToBlock[curBlockLabel].begin
+            self._onAllPredecsKnown(_curBlock)
 
         if loopMetaAdded:
             assert preprocLoopScope[-1] is loopMeta, (preprocLoopScope[-1], loopMeta)
