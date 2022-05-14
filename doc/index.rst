@@ -201,5 +201,8 @@ For example:
 
 .. [CIRCT] https://github.com/llvm/circt  
 
+.. [hercules] http://www.nkavvadias.com/hercules/
+
+.. [ROCCC] https://github.com/nxt4hll/roccc-2.0
 
 
