@@ -8,18 +8,24 @@ py3.extension_module(
      'llvmIrInstruction.cpp',
      'llvmIrValues.cpp',
      'llvmIrStrings.cpp',
-     'llvmPasses.cpp',
+     'llvmIrMachineFunction.cpp',
+     'llvmCompilationBundle.cpp',
      
      'llvmSrc/CodeGenPrepare.cpp',
      
      'targets/intrinsic/bitrange.cpp',
 
-	 'targets/genericFpgaCallLoweringInfo.cpp',
+	 'targets/GISel/genericFpgaCallLoweringInfo.cpp',
+	 'targets/GISel/genericFpgaInstructionSelector.cpp',
+	 'targets/GISel/genericFpgaLegalizerInfo.cpp',
+	 'targets/GISel/genericFpgaPreLegalizerCombiner.cpp',
+	 'targets/GISel/genericFpgaPreRegAllocCombiner.cpp',
+	 'targets/GISel/genericFpgaPreToNetlistCombiner.cpp',
+     'targets/GISel/genericFpgaRegisterBankInfo.cpp',
+
 	 'targets/genericFpgaInstrInfo.cpp',
 	 'targets/genericFpgaMCTargetDesc.cpp',
      'targets/genericFpgaTargetInfo.cpp',
-     'targets/genericFpgaISelDAGToDAG.cpp',
-     'targets/genericFpgaRegisterBankInfo.cpp',
      'targets/genericFpgaRegisterInfo.cpp',
 	 'targets/genericFpgaTargetLowering.cpp',
      'targets/genericFpgaTargetSubtarget.cpp',
@@ -28,6 +34,7 @@ py3.extension_module(
      'targets/genericFpgaTargetPassConfig.cpp',
      
      'targets/Transforms/hwtHlsCodeGenPrepare.cpp',
+     'targets/Transforms/EarlyMachineCopyPropagation.cpp',
      
      'Transforms/bitwidthReducePass/bitPartsUseAnalysis.cpp',
      'Transforms/bitwidthReducePass/bitRewriter.cpp',
