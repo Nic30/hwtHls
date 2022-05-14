@@ -18,6 +18,7 @@ class StringRef;
 /// do not need to go through TargetRegistry.
 //MCSubtargetInfo* createGenericFpgaMCSubtargetInfo(const Triple &TT,
 //		StringRef CPU, StringRef FS);
+
 }
 
 #define GET_REGINFO_ENUM
@@ -28,3 +29,6 @@ class StringRef;
 
 #define GET_SUBTARGETINFO_ENUM
 #include "GenericFpgaGenSubtargetInfo.inc"
+
+llvm::MCInstrInfo* createGenericFpgaMCInstrInfo();
+

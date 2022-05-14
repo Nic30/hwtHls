@@ -239,8 +239,8 @@ InstructionCost GenericFpgaTTIImpl::getUserCost(const User *U,
 	return BaseT::getUserCost(U, Operands, CostKind);
 }
 
-void GenericFpgaTTIImpl::getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
-		TTI::UnrollingPreferences &UP) {
+void GenericFpgaTTIImpl::getUnrollingPreferences(Loop*, ScalarEvolution&,
+		TTI::UnrollingPreferences& UP, OptimizationRemarkEmitter*) const {
 	UP.Threshold = 0;
 	UP.PartialThreshold = 0;
 	UP.Count = 1;
@@ -262,7 +262,7 @@ Type* GenericFpgaTTIImpl::getMemcpyLoopLoweringType(LLVMContext &Context,
 
 unsigned GenericFpgaTTIImpl::getLoadStoreVecRegBitWidth(
 		unsigned AddrSpace) const {
-	return 1<<16;
+	return 1 << 16;
 }
 
 bool GenericFpgaTTIImpl::isLegalToVectorizeLoadChain(unsigned ChainSizeInBytes,

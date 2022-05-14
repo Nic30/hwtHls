@@ -54,8 +54,9 @@ public:
 	unsigned getNumberOfRegisters(unsigned ClassID) const;
 	bool hasBranchDivergence();
 	bool isSourceOfDivergence(const llvm::Value *V);
-	void getUnrollingPreferences(llvm::Loop *L, llvm::ScalarEvolution &SE,
-			TTI::UnrollingPreferences &UP);
+	void getUnrollingPreferences(llvm::Loop *, llvm::ScalarEvolution &,
+	                               llvm::TTI::UnrollingPreferences &,
+	                               llvm::OptimizationRemarkEmitter *) const;
 	bool isLegalAddImmediate(int64_t Imm);
 	bool isLegalICmpImmediate(int64_t Imm);
 	bool isLegalMaskedStore(llvm::Type *DataType, llvm::Align Alignment);

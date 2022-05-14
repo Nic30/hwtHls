@@ -21,6 +21,9 @@ GenericFpgaTargetLowering::GenericFpgaTargetLowering(
 	// Compute derived properties from the register classes.
 	computeRegisterProperties(Subtarget.getRegisterInfo());
 
+	// :note: def of legal instruction is in LegalizerInfo
+    //setOperationAction(G_SELECT, MVT::Any, Legal);
+
 	setBooleanContents(UndefinedBooleanContent);
 	setJumpIsExpensive(true);
 	setBooleanVectorContents(UndefinedBooleanContent);
@@ -39,7 +42,7 @@ const llvm::TargetRegisterClass* GenericFpgaTargetLowering::getRegClassFor(
 
 unsigned GenericFpgaTargetLowering::getNumRegisters(llvm::LLVMContext &Context,
 		llvm::EVT VT, llvm::Optional<llvm::MVT> RegisterVT) const {
-	return 1 << 4;
+	return 4096;
 }
 llvm::MVT GenericFpgaTargetLowering::getRegisterTypeForCallingConv(
 		llvm::LLVMContext &Context, llvm::CallingConv::ID CC,

@@ -9,7 +9,8 @@ class GenericFpgaReg<string n> : Register<n> {
 // one register, so we define a few for the integer register
 // classes since we otherwise don't need a physical register in those classes.
 // These are also used a "types" in the generated assembly matcher.
-def DUMMY_REG_0 : GenericFpgaReg<"%dummyreg.0">;
+foreach I = 0-4096 in
+	def DUMMY_REG_#I : GenericFpgaReg<"%dummyreg."#I>;
 
 
 //===----------------------------------------------------------------------===//
@@ -19,5 +20,5 @@ def DUMMY_REG_0 : GenericFpgaReg<"%dummyreg.0">;
 class GenericFpgaRegClass<list<ValueType> regTypes, int alignment, dag regList>
      : RegisterClass<"GenericFpga", regTypes, alignment, regList>;
 
-
-def AnyRegCls : GenericFpgaRegClass<[i128], 8, (add DUMMY_REG_0)>;
+// v1024i32 is largest working type available (smaller types do require reg. spliting more ofter, wider types do not work due LLVM bug)
+def AnyRegCls : GenericFpgaRegClass<[v1024i32], 1, (add (sequence "DUMMY_REG_%u", 0, 4096))>;

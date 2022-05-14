@@ -2,19 +2,26 @@
 
 #include <llvm/CodeGen/Passes.h>
 //#include <llvm/CodeGen/SelectionDAGISel.h>
+#include <llvm/InitializePasses.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/Support/CommandLine.h>
 #include <llvm/Support/FormattedStream.h>
-#include <llvm/Support/TargetRegistry.h>
+#include <llvm/MC/TargetRegistry.h>
 #include <llvm/Target/TargetOptions.h>
 #include <llvm/MC/MCAsmInfo.h>
+
 
 #include "genericFpga.h"
 #include "genericFpgaTargetTransformInfo.h"
 #include "genericFpgaTargetPassConfig.h"
 #include "genericFpgaTargetInfo.h"
 #include "genericFpgaTargetSubtarget.h"
+#include "GISel/genericFpgaPreLegalizerCombiner.h"
+#include "../llvmSrc/CodeGenPrepare.h"
+#include "Transforms/EarlyMachineCopyPropagation.h"
+
+
 
 extern "C" void LLVMInitializeGenericFpgaTarget() {
 	// Register the target.
@@ -23,8 +30,17 @@ extern "C" void LLVMInitializeGenericFpgaTarget() {
 
 	// Initialize target specific passes
 	llvm::PassRegistry &PR = *llvm::PassRegistry::getPassRegistry();
-	(void) PR;
+	llvm::initializeGlobalISel(PR);
+	llvm::initializeAggressiveInstCombine(PR);
+	llvm::initializeBranchFolderPassPass(PR);
+	llvm::initializeBranchProbabilityInfoWrapperPassPass(PR);
+	llvm::initializeBranchRelaxationPass(PR);
+	llvm::initializeRegAllocFastPass(PR);
+	llvm::initializeGenericFpgaPreLegalizerCombinerPass(PR);
+	hwtHls::llvmSrc::initializeCodeGenPreparePass(PR);
+	llvm::initializeEarlyMachineCopyPropagationPass(PR);
 }
+
 namespace llvm {
 
 static std::string computeDataLayout(const Triple &TT) {

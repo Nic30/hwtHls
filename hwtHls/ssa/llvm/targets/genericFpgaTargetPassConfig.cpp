@@ -1,11 +1,53 @@
 #include "genericFpgaTargetPassConfig.h"
 
-#include "Transforms/hwtHlsCodeGenPrepare.h"
-#include "genericFpgaISelDAGToDAG.h"
+#include <llvm/CodeGen/GlobalISel/IRTranslator.h>
+#include <llvm/CodeGen/GlobalISel/InstructionSelect.h>
+#include <llvm/CodeGen/GlobalISel/RegBankSelect.h>
+#include <llvm/CodeGen/GlobalISel/Legalizer.h>
 
-using namespace llvm;
+#include <llvm/CodeGen/StackProtector.h>
+#include <llvm/CodeGen/Passes.h>
+#include <llvm/Transforms/Scalar.h>
+#include <llvm/Transforms/Scalar/GVN.h>
+
+#include "Transforms/hwtHlsCodeGenPrepare.h"
+#include "Transforms/EarlyMachineCopyPropagation.h"
+#include "GISel/genericFpgaPreLegalizerCombiner.h"
+#include "GISel/genericFpgaPreRegAllocCombiner.h"
+#include "GISel/genericFpgaPreToNetlistCombiner.h"
+
+#include <iostream>
 
 namespace llvm {
+
+void GenericFpgaTargetPassConfig::addStraightLineScalarOptimizationPasses() {
+	// from AMDGPU
+	addPass(createLICMPass());
+	addPass(createSeparateConstOffsetFromGEPPass());
+	addPass(createSpeculativeExecutionPass());
+	// ReassociateGEPs exposes more opportunites for SLSR. See
+	// the example in reassociate-geps-and-slsr.ll.
+	addPass(createStraightLineStrengthReducePass());
+	// SeparateConstOffsetFromGEP and SLSR creates common expressions which GVN or
+	// EarlyCSE can reuse.
+	addPass(createGVNPass());
+	// Run NaryReassociate after EarlyCSE/GVN to be more effective.
+	addPass(createNaryReassociatePass());
+	// NaryReassociate on GEPs creates redundant common expressions, so run
+	// EarlyCSE after it.
+	addPass(createEarlyCSEPass());
+}
+
+void GenericFpgaTargetPassConfig::addIRPasses() {
+	// based on AMDGPU
+	const auto &TM = getGenericFpgaTargetMachine();
+	if (TM.getOptLevel() > CodeGenOpt::None) {
+		addPass(createSROAPass());
+		addStraightLineScalarOptimizationPasses();
+	}
+	TargetPassConfig::addIRPasses();
+	addPass(createGVNPass());
+}
 
 void GenericFpgaTargetPassConfig::addCodeGenPrepare() {
 	if (getOptLevel() != llvm::CodeGenOpt::None)
@@ -13,187 +55,158 @@ void GenericFpgaTargetPassConfig::addCodeGenPrepare() {
 }
 bool GenericFpgaTargetPassConfig::addInstSelector() {
 	// No instruction selector to install.
-	addPass(
-			createGenericFpgaISelDag(getGenericFpgaTargetMachine(),
-					getOptLevel()));
+	llvm_unreachable(
+			"Only GlobalISel should be used using addGlobalInstructionSelect");
+	return true;
+}
+bool GenericFpgaTargetPassConfig::addPreISel() {
+	// Add both the safe stack and the stack protection passes: each of them will
+	// only protect functions that have corresponding attributes.
+	//addPass(new SafeStackPass());
+	addPass(new StackProtector());
+	if (TM->getOptLevel() > CodeGenOpt::None) {
+		addPass(createFlattenCFGPass()); // from AMDGPU
+	}
 	return false;
 }
+bool GenericFpgaTargetPassConfig::addIRTranslator() {
+	addPass(new IRTranslator(getOptLevel()));
+	return false;
+}
+
+void GenericFpgaTargetPassConfig::addPreLegalizeMachineIR() {
+
+}
+bool GenericFpgaTargetPassConfig::addLegalizeMachineIR() {
+	// concat, slice calls to instructions
+	addPass(createGenericFpgaPreLegalizerCombiner());
+	addPass(new Legalizer());
+	return false;
+}
+bool GenericFpgaTargetPassConfig::addRegBankSelect() {
+	addPass(new RegBankSelect());
+	return false;
+}
+bool GenericFpgaTargetPassConfig::addGlobalInstructionSelect() {
+	addPass(new InstructionSelect(getOptLevel()));
+	//llvm_unreachable("not implemented");
+	return false;
+}
+bool GenericFpgaTargetPassConfig::addILPOpts() {
+	// selection of AArch64PassConfig::addILPOpts()
+	return false;
+}
+void GenericFpgaTargetPassConfig::addOptimizedRegAlloc() {
+	// :note: nearly same as TargetPassConfig::addOptimizedRegAlloc()
+	//   but we do not call scheduler
+	addPass(&DetectDeadLanesID);
+	addPass(&ProcessImplicitDefsID);
+
+	// LiveVariables currently requires pure SSA form.
+	//
+	// FIXME: Once TwoAddressInstruction pass no longer uses kill flags,
+	// LiveVariables can be removed completely, and LiveIntervals can be directly
+	// computed. (We still either need to regenerate kill flags after regalloc, or
+	// preferably fix the scavenger to not depend on them).
+	// FIXME: UnreachableMachineBlockElim is a dependant pass of LiveVariables.
+	// When LiveVariables is removed this has to be removed/moved either.
+	// Explicit addition of UnreachableMachineBlockElim allows stopping before or
+	// after it with -stop-before/-stop-after.
+	addPass(&UnreachableMachineBlockElimID);
+	addPass(&LiveVariablesID);
+
+	// Edge splitting is smarter with machine loop info.
+	addPass(&MachineLoopInfoID);
+	addPass(&OptimizePHIsID);
+	addPass(&PeepholeOptimizerID);
+	addPass(&MIRCanonicalizerID);
+	addPass(&PHIEliminationID); // now it becomes NonSSA
+
+	// Eventually, we want to run LiveIntervals before PHI elimination.
+	//if (EarlyLiveIntervals)
+	addPass(&LiveIntervalsID); // add killed and other attributes
+
+	//addPass(&TwoAddressInstructionPassID, false);
+	//addPass(&RegisterCoalescerID);
+
+	// The machine scheduler may accidentally create disconnected components
+	// when moving subregister definitions around, avoid this by splitting them to
+	// separate vregs before. Splitting can also improve reg. allocation quality.
+	addPass(&RenameIndependentSubregsID);
+
+	// PreRA instruction scheduling.
+	//addPass(&MachineSchedulerID);
+
+	//if (addRegAssignAndRewriteOptimized()) {
+	// Perform stack slot coloring and post-ra machine LICM.
+	//
+	// FIXME: Re-enable coloring with register when it's capable of adding
+	// kill markers.
+	//addPass(&StackSlotColoringID);
+
+	// Allow targets to expand pseudo instructions depending on the choice of
+	// registers before MachineCopyPropagation.
+	//addPostRewrite();
+
+	// Copy propagate to forward register uses and try to eliminate COPYs that
+	// were not coalesced.
+	//addPass(&hwtHls::EarlyMachineCopyPropagationID);
+
+	// Run post-ra machine LICM to hoist reloads / remats.
+	//addPass(&EarlyMachineLICMID);
+	//}
+	addPass(&BranchFolderPassID);
+	addPass(&MachineCombinerID);
+	addPass(&DeadMachineInstructionElimID); // requires explicit undefs
+	//addPass(createMachineVerifierPass("After GenericFpgaTargetPassConfig::addOptimizedRegAlloc"));
+
+	//addPass(createIfConverter([](const MachineFunction &MF) {
+	//  return true;
+	//}));
+	addPass(&MachineCSEID);
+	addPass(&LiveIntervalsID); // add killed and other attributes
+	addPass(createGenericFpgaPreRegAllocCombiner());
+	addPass(&EarlyIfPredicatorID);
+	addPass(&EarlyIfConverterID);
+	addPass(&DeadMachineInstructionElimID); // requires explicit undefs
+	addPass(createGenericFpgaPreToNetlistCombiner());
+}
+void GenericFpgaTargetPassConfig::addPreNetlistCombinerCallback(std::function<bool(MachineInstr & I)> combineCallback) {
+	combineCallbacks.push_back(combineCallback);
+}
 void GenericFpgaTargetPassConfig::addMachinePasses() {
-	//AddingMachinePasses = true;
+	// based on TargetPassConfig::addMachinePasses();
 
 	// Add passes that optimize machine instructions in SSA form.
-//	if (getOptLevel() != CodeGenOpt::None) {
-//		addMachineSSAOptimization();
-	// Pre-ra tail duplication.
-	//addPass(&EarlyTailDuplicateID);
+	addMachineSSAOptimization();
 
-	// Optimize PHIs before DCE: removing dead PHI cycles may make more
-	// instructions dead.
-	//addPass(&OptimizePHIsID);
+	if (TM->Options.EnableIPRA)
+		addPass(createRegUsageInfoPropPass());
 
-	// This pass merges large allocas. StackSlotColoring is a different pass
-	// which merges spill slots.
-	//addPass(&StackColoringID);
+	// Run pre-ra passes.
+	addPreRegAlloc();
+	addOptimizedRegAlloc();
 
-	// If the target requests it, assign local variables to stack slots relative
-	// to one another and simplify frame index references where possible.
-	//addPass(&LocalStackSlotAllocationID);
+	addPass(&RemoveRedundantDebugValuesID);
+	addPass(&FixupStatepointCallerSavedID);
 
-	// With optimization, dead code should already be eliminated. However
-	// there is one known exception: lowered code for arguments that are only
-	// used by tail calls, where the tail calls reuse the incoming stack
-	// arguments directly (see t11 in test/CodeGen/X86/sibcall.ll).
-	//addPass(&DeadMachineInstructionElimID);
-	//
-	// Allow targets to insert passes that improve instruction level parallelism,
-	// like if-conversion. Such passes will typically need dominator trees and
-	// loop info, just like LICM and CSE below.
-	//addILPOpts();
+	// Run pre-sched2 passes.
+	addPreSched2();
 
-	//addPass(&EarlyMachineLICMID);
-	//addPass(&MachineCSEID);
-	//
-	//addPass(&MachineSinkingID);
-	//
-	//addPass(&PeepholeOptimizerID);
-	// Clean-up the dead code that may have been generated by peephole
-	// rewriting.
-	//addPass(&DeadMachineInstructionElimID);
+	// Insert before XRay Instrumentation.
+	addPass(&FEntryInserterID);
+}
 
-//	} else {
-//		// If the target requests it, assign local variables to stack slots relative
-//		// to one another and simplify frame index references where possible.
-//		addPass(&LocalStackSlotAllocationID);
-//	}
-//
-//	if (TM->Options.EnableIPRA)
-//		addPass(createRegUsageInfoPropPass());
-//
-//	// Run pre-ra passes.
-//	addPreRegAlloc();
-//
-//	// Debugifying the register allocator passes seems to provoke some
-//	// non-determinism that affects CodeGen and there doesn't seem to be a point
-//	// where it becomes safe again so stop debugifying here.
-//	//DebugifyIsSafe = false;
-//
-//	// Run register allocation and passes that are tightly coupled with it,
-//	// including phi elimination and scheduling.
-//	if (getOptimizeRegAlloc())
-//		addOptimizedRegAlloc();
-//	else
-//		addFastRegAlloc();
-//
-//	// Run post-ra passes.
-//	addPostRegAlloc();
-//
-//	addPass(&RemoveRedundantDebugValuesID, false);
-//
-//	addPass(&FixupStatepointCallerSavedID);
-//
-//	// Insert prolog/epilog code.  Eliminate abstract frame index references...
-//	if (getOptLevel() != CodeGenOpt::None) {
-//		addPass(&PostRAMachineSinkingID);
-//		addPass(&ShrinkWrapID);
-//	}
-//
-//	// Prolog/Epilog inserter needs a TargetMachine to instantiate. But only
-//	// do so if it hasn't been disabled, substituted, or overridden.
-////	if (!isPassSubstitutedOrOverridden(&PrologEpilogCodeInserterID))
-////		addPass(createPrologEpilogInserterPass());
-////
-//	/// Add passes that optimize machine instructions after register allocation.
-//	if (getOptLevel() != CodeGenOpt::None)
-//		addMachineLateOptimization();
-//
-//	// Expand pseudo instructions before second scheduling pass.
-//	addPass(&ExpandPostRAPseudosID);
-//
-//	// Run pre-sched2 passes.
-//	addPreSched2();
-//
-//	//if (EnableImplicitNullChecks)
-//	//  addPass(&ImplicitNullChecksID);
-//
-//	// Second pass scheduler.
-//	// Let Target optionally insert this pass by itself at some other
-//	// point.
-//	if (getOptLevel() != CodeGenOpt::None
-//			&& !TM->targetSchedulesPostRAScheduling()) {
-//		//if (MISchedPostRA)
-//		//  addPass(&PostMachineSchedulerID);
-//		//else
-//		addPass(&PostRASchedulerID);
-//	}
-//
-//	// GC
-//	if (addGCPasses()) {
-//		//if (PrintGCInfo)
-//		//  addPass(createGCInfoPrinter(dbgs()), false);
-//	}
-//
-//	// Basic block placement.
-//	if (getOptLevel() != CodeGenOpt::None)
-//		addBlockPlacement();
-//
-//	// Insert before XRay Instrumentation.
-//	addPass(&FEntryInserterID);
-//
-//	addPass(&XRayInstrumentationID);
-//	addPass(&PatchableFunctionID);
-//
-//	if (EnableFSDiscriminator) //  && !FSNoFinalDiscrim
-//		// Add FS discriminators here so that all the instruction duplicates
-//		// in different BBs get their own discriminators. With this, we can "sum"
-//		// the SampleFDO counters instead of using MAX. This will improve the
-//		// SampleFDO profile quality.
-//		addPass(
-//				createMIRAddFSDiscriminatorsPass(
-//						sampleprof::FSDiscriminatorPass::PassLast));
-//
-//	addPreEmitPass();
-//
-//	if (TM->Options.EnableIPRA)
-//		// Collect register usage information and produce a register mask of
-//		// clobbered registers, to be used to optimize call sites.
-//		addPass(createRegUsageInfoCollector());
-//
-//	// FIXME: Some backends are incompatible with running the verifier after
-//	// addPreEmitPass.  Maybe only pass "false" here for those targets?
-//	addPass(&FuncletLayoutID, false);
-//
-//	addPass(&StackMapLivenessID, false);
-//	addPass(&LiveDebugValuesID, false);
-//
-//	//if (TM->Options.EnableMachineOutliner && getOptLevel() != CodeGenOpt::None &&
-//	//    EnableMachineOutliner != RunOutliner::NeverOutline) {
-//	//  bool RunOnAllFunctions =
-//	//      (EnableMachineOutliner == RunOutliner::AlwaysOutline);
-//	//  bool AddOutliner =
-//	//      RunOnAllFunctions || TM->Options.SupportsDefaultOutlining;
-//	//  if (AddOutliner)
-//	//    addPass(createMachineOutlinerPass(RunOnAllFunctions));
-//	//}
-//
-//	// Machine function splitter uses the basic block sections feature. Both
-//	// cannot be enabled at the same time. Basic block sections takes precedence.
-//	// FIXME: In principle, BasicBlockSection::Labels and splitting can used
-//	// together. Update this check once we have addressed any issues.
-//	//if (TM->getBBSectionsType() != llvm::BasicBlockSection::None) {
-//	//  addPass(llvm::createBasicBlockSectionsPass(TM->getBBSectionsFuncListBuf()));
-//	//} else if (TM->Options.EnableMachineFunctionSplitter ||
-//	//           EnableMachineFunctionSplitter) {
-//	//  addPass(createMachineFunctionSplitterPass());
-//	//}
-//
-//	// Add passes that directly emit MI after all other MI passes.
-//	addPreEmitPass2();
-//
-//	// Insert pseudo probe annotation for callsite profiling
-//	if (TM->Options.PseudoProbeForProfiling)
-//		addPass(createPseudoProbeInserter());
+// [todo] handling of register allocation, maybe similar to WebAssemblyPassConfig::addPostRegAlloc()
+void GenericFpgaTargetPassConfig::addPreSched2() {
+}
 
-	//AddingMachinePasses = false;
+FunctionPass* GenericFpgaTargetPassConfig::createTargetRegisterAllocator(
+		bool Optimized) {
+	llvm_unreachable(
+			"createTargetRegisterAllocator should not be called because there is no RegisterAllocator");
+	//return createFastRegisterAllocator();
+	return nullptr; // No reg alloc, same as WebAssembly
 }
 
 }

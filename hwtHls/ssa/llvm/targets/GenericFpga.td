@@ -20,6 +20,7 @@ include "GenericFpgaRegisterInfo.td"
 //===---------------------------------------------------------------------===//
 
 include "GenericFpgaInstrInfo.td"
+include "GenericFpgaCombine.td"
 
 
 def GenericFpgaInstrInfo : InstrInfo;

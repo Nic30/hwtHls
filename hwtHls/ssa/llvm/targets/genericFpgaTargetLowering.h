@@ -16,25 +16,7 @@ public:
 	explicit GenericFpgaTargetLowering(const llvm::TargetMachine &TM,
 			const llvm::GenericFpgaTargetSubtarget &STI);
 
-	bool isMaskAndCmp0FoldingBeneficial(const Instruction &AndI) const
-			override {
-		return true;
-	}
-	bool convertSetCCLogicToBitwiseLogic(EVT VT) const override {
-		return true;
-	}
-	bool hasAndNotCompare(SDValue Y) const override {
-		return true;
-	}
-	bool hasAndNot(SDValue X) const {
-		return true;
-	}
-	bool hasBitTest(SDValue X, SDValue Y) const override {
-		return true;
-	}
-	bool preferIncOfAddToSubOfNot(EVT VT) const override {
-		return false;
-	}
+
 	bool isSuitableForJumpTable(const SwitchInst *SI, uint64_t NumCases,
 			uint64_t Range, ProfileSummaryInfo *PSI,
 			BlockFrequencyInfo *BFI) const override {

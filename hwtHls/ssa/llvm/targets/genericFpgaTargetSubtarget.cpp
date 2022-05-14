@@ -1,6 +1,7 @@
 #include "genericFpgaTargetSubtarget.h"
 
 #include "genericFpgaTargetMachine.h"
+#include <llvm/CodeGen/TargetInstrInfo.h>
 #include <llvm/IR/Attributes.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/GlobalValue.h>
@@ -11,11 +12,11 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Target/TargetOptions.h>
-#include <llvm/CodeGen/TargetInstrInfo.h>
 
-#include "genericFpgaRegisterBankInfo.h"
 #include "genericFpgaInstrInfo.h"
-
+#include "GISel/genericFpgaRegisterBankInfo.h"
+#include "GISel/genericFpgaLegalizerInfo.h"
+#include "GISel/genericFpgaInstructionSelector.h"
 
 #define DEBUG_TYPE "genericfpga-subtarget"
 
@@ -29,36 +30,51 @@ GenericFpgaTargetSubtarget::GenericFpgaTargetSubtarget(const Triple &TT,
 		StringRef CPU, StringRef TuneCPU, StringRef FS, StringRef ABIName,
 		const TargetMachine &TM) :
 		GenericFpgaTargetGenSubtargetInfo(TT, CPU, TuneCPU, FS) {
-	TLI.reset(new llvm::GenericFpgaTargetLowering(TM, *this));
-	// TTI(TM.createDataLayout())
-	CallLoweringInfo.reset(new llvm::GenericFpgaCallLowering(*TLI));
-	//InstSelector.reset(nullptr);
-	Legalizer.reset(nullptr);
+	TLI.reset(new GenericFpgaTargetLowering(TM, *this));
+	TII.reset(new GenericFpgaInstrInfo());
+	CallLoweringInfo.reset(new GenericFpgaCallLowering(*TLI));
+	Legalizer.reset(new GenericFpgaLegalizerInfo(*this));
 	TargetFrameLoweringInfo.reset(
-			new llvm::GenericFpgaTargetFrameLowering(
+			new GenericFpgaTargetFrameLowering(
 					TargetFrameLowering::StackDirection::StackGrowsDown,
 					Align(1), -2));
-	SelectionDAGTargetInfoInfo.reset(new SelectionDAGTargetInfo());
 	RegBankInfo.reset(&llvm::genericFpgaRegisterBankInfo);
+	IS.reset(
+			createGenericFpgaInstructionSelector(
+					static_cast<const GenericFpgaTargetMachine&>(TM), *this,
+					static_cast<GenericFpgaRegisterBankInfo&>(*RegBankInfo)));
 }
 
 const llvm::TargetLowering* GenericFpgaTargetSubtarget::getTargetLowering() const {
 	return TLI.get();
 }
+
 const TargetRegisterInfo* GenericFpgaTargetSubtarget::getRegisterInfo() const {
 	return &TRI;
 }
-const llvm::SelectionDAGTargetInfo* GenericFpgaTargetSubtarget::getSelectionDAGInfo() const {
-	return SelectionDAGTargetInfoInfo.get();
+
+const TargetInstrInfo* GenericFpgaTargetSubtarget::getInstrInfo() const {
+	return TII.get();
 }
 
-llvm::GenericFpgaInstrInfo GenericFpgaSubtargetTII;
-const TargetInstrInfo* GenericFpgaTargetSubtarget::getInstrInfo() const {
-	return &GenericFpgaSubtargetTII;
+const llvm::CallLowering* GenericFpgaTargetSubtarget::getCallLowering() const {
+	return CallLoweringInfo.get();
 }
-std::vector<SubtargetSubTypeKV> GenericFpgaTargetSubtarget::_PD;
-std::vector<MCWriteProcResEntry> GenericFpgaTargetSubtarget::_WPR;
-std::vector<MCWriteLatencyEntry> GenericFpgaTargetSubtarget::_WL;
-std::vector<MCReadAdvanceEntry> GenericFpgaTargetSubtarget::_RA;
+
+llvm::InstructionSelector* GenericFpgaTargetSubtarget::getInstructionSelector() const {
+	return IS.get();
+}
+
+const llvm::LegalizerInfo* GenericFpgaTargetSubtarget::getLegalizerInfo() const {
+	return Legalizer.get();
+}
+
+const llvm::TargetFrameLowering* GenericFpgaTargetSubtarget::getFrameLowering() const {
+	return TargetFrameLoweringInfo.get();
+}
+
+const llvm::RegisterBankInfo* GenericFpgaTargetSubtarget::getRegBankInfo() const {
+	return RegBankInfo.get();
+}
 
 }
