@@ -1,5 +1,25 @@
+generated_llvm_backend_files = [
+	['GenericFpgaGenGlobalISel.inc', ['-gen-global-isel', ]],
+	['GenericFpgaGenInstrInfo.inc', ['-gen-instr-info', ]],
+	['GenericFpgaGenRegisterInfo.inc', ['-gen-register-info', ]],
+	['GenericFpgaGenSubtargetInfo.inc', ['-gen-subtarget', ]],
+	['GenericFpgaGenPreLegalizeGICombiner.inc', ['-gen-global-isel-combiner', '-combiners=GenericFpgaGenPreLegalizeGICombinerHelper']],
+	['GenericFpgaGenPreRegAllocGICombiner.inc', ['-gen-global-isel-combiner', '-combiners=GenericFpgaGenPreRegAllocGICombinerHelper']],
+	['GenericFpgaGenPreToNetlistGICombiner.inc', ['-gen-global-isel-combiner', '-combiners=GenericFpgaGenPreToNetlistGICombinerHelper']],
+]
 
-subdir('targets')
+all_llvm_backend_gen_files = []
+foreach f : generated_llvm_backend_files
+	gen_src = custom_target(f[0],
+	                        input : ['targets/GenericFpgaInstrInfo.td', 'targets/GenericFpgaRegisterInfo.td',
+	                                 'targets/GenericFpgaCombine.td', 'targets/GenericFpga.td'],
+	                        output : [f[0], ],
+	                        command : [llvm_tblgen,
+	                        	'-I', llvm_includedir,
+	                            '-I', meson.current_source_dir() + '/targets/',
+	                        	meson.current_source_dir() + '/targets/GenericFpga.td'] + f[1] + ['-o=@OUTPUT0@', ])
+    all_llvm_backend_gen_files += gen_src 
+endforeach
 
 py3.extension_module(
     'llvmIr',
@@ -47,6 +67,6 @@ py3.extension_module(
     dependencies : [py3_dep, llvm_dep, pybind11_dep],
     install: true,
     cpp_args: ['-Wno-comment', '-Wno-non-virtual-dtor'], # because of LLVM
-    subdir: 'hwtHls/ssa/llvm',
+    subdir: 'hwtHls/llvm',
 )
 

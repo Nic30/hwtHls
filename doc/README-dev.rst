@@ -31,7 +31,7 @@ Debug build
 	pip3 install .
 	meson build .
 	ninja -C build
-	cd hwtHls/ssa/llvm/ && ln -s ../../build/hwtHls/ssa/llvm/*.so
+	cd hwtHls/llvm/ && ln -s ../../build/hwtHls/llvm/*.so
 	# you must link the c++ library file in order to find it from python using "import"
 	# this is required becase we are not installing the library but using repo directly as a python package 
 
@@ -84,6 +84,7 @@ Using local llvm build
 
 * When executing you need to use `LD_PRELOAD=$PWD/../llvm_install/lib/libLLVM.so` in order to actually use the custom build otherwise a system wide installed library will be used.
 * Note that once executed it takes >4m for gdb-11.1 and requires >16G of RAM to start because of the LLVM debug meta size.
+  If you do not use debug build of llvm you still will be able to debug c++ code in this project and gdb will start in <1s.
 * It is highly recommended to index llvm libraries in order to lower gdb start time `gdb-add-index llvm_install/lib/libLLVM-14.so`
 
 Using -dbg package of llvm

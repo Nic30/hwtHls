@@ -7,7 +7,7 @@ project(
   # https://stackoverflow.com/questions/59201214/can-the-meson-project-version-be-assigned-dynamically
   version: '0.0', # FIXME: git hash (see URL above).
   license: 'MIT',
-  meson_version: '>= 0.60.1',
+  meson_version: '>= 0.62.1',
   default_options: [],
 )
 
@@ -29,6 +29,7 @@ pybind11_dep = declare_dependency(
 
 llvm_dep = dependency('llvm', version : '>=14.0.0')
 llvm_bin = llvm_dep.get_variable('bindir', default_value:'/usr/lib/llvm-14/bin')
+llvm_includedir = llvm_dep.get_variable('includedir', default_value: '/usr/lib/llvm-14/include')
 llvm_tblgen = find_program(llvm_bin + '/llvm-tblgen', required: true)
 
 subdir('hwtHls')

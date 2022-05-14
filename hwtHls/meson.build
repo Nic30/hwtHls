@@ -16,4 +16,4 @@ foreach submodule_path: hwtHls_modules
     )
 endforeach
 
-subdir('ssa/llvm')
+subdir('llvm')
