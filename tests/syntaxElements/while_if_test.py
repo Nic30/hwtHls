@@ -74,6 +74,9 @@ class HlsStreamMachineWhileIf_TC(BaseSsaTC):
     def test_WhileAndIf2_ll(self):
         self._test_ll(WhileAndIf2)
 
+    def test_WhileAndIf4(self):
+        raise NotImplementedError()
+
 
 if __name__ == "__main__":
     import unittest
