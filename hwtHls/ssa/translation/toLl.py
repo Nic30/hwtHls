@@ -119,7 +119,7 @@ class SsaPassDumpToLl():
                 toLl.construct(to_ssa.start)
             elif isinstance(to_ssa.start, ToLlvmIrTranslator):
                 toLlvmIr: ToLlvmIrTranslator = to_ssa.start
-                output.write(str(toLlvmIr.main))
+                output.write(str(toLlvmIr.llvm.main))
             else:
                 raise NotImplementedError(to_ssa.start)
         finally:
