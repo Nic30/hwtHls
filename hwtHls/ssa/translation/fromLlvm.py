@@ -21,7 +21,7 @@ from hwtHls.ssa.exprBuilder import SsaExprBuilder
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.llvm.llvmIr import LLVMContext, Module, IRBuilder, LLVMStringContext, IntegerType, Value, \
     Type, FunctionType, Function, VectorOfTypePtr, BasicBlock, Argument, PointerType, TypeToPointerType, \
-    ConstantInt, APInt, runOpt, verifyFunction, verifyModule, TypeToIntegerType, LoadInst, StoreInst, Instruction, \
+    ConstantInt, APInt, verifyFunction, verifyModule, TypeToIntegerType, LoadInst, StoreInst, Instruction, \
     UserToInstruction, ValueToInstruction, Use, ValueToConstantInt, InstructionToICmpInst, ICmpInst, CmpInst, \
     PHINode, InstructionToPHINode
 from hwtHls.ssa.phi import SsaPhi
@@ -30,7 +30,6 @@ from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from hwtHls.ssa.value import SsaValue
 from ipCorePackager.constants import INTF_DIRECTION
 from pyMathBitPrecise.bit_utils import ValidityError, mask
-
 
 SIGNED_CMP_OPS = (
     CmpInst.Predicate.ICMP_SGT,
@@ -109,7 +108,7 @@ class FromLlvmIrTranslator():
                 if isinstance(_res_t, Bits):
                     if _res_t.signed is not None:
                         res_t = Bits(res_t.bit_length(), io._dtype.signed)
-                #else:
+                # else:
                 #    res_t = Bits(res_t.bit_length())
                     
                 _instr = HlsStreamProcRead(self.hls, io, res_t)
@@ -379,6 +378,7 @@ class SsaPassFromLlvm():
     def apply(self, hls: "HlsStreamProc", to_ssa: AstToSsa):
         toLlvm: ToLlvmIrTranslator = to_ssa.start
         fromLlvm = FromLlvmIrTranslator(hls, to_ssa.ssaCtx, toLlvm.topIo)
-        # print(toLlvm.main)
-        to_ssa.start = fromLlvm.translate(toLlvm.main)
+        # mf = toLlvm.llvm.getMachineFunction(toLlvm.llvm.main)
+        # print(mf)
+        to_ssa.start = fromLlvm.translate(toLlvm.llvm.main)
 
