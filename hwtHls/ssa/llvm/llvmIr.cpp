@@ -3,7 +3,8 @@
 #include "llvmIrInstruction.h"
 #include "llvmIrStrings.h"
 #include "llvmIrValues.h"
-#include "llvmPasses.h"
+#include "llvmIrMachineFunction.h"
+#include "llvmCompilationBundle.h"
 #include "targets/genericFpga.h"
 
 #include <llvm/IR/BasicBlock.h>
@@ -13,6 +14,7 @@
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Type.h>
 #include <llvm/IR/Verifier.h>
+#include <llvm/CodeGen/MachineInstr.h>
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
@@ -102,7 +104,7 @@ void register_Types(pybind11::module_ & m) {
 			.def("getIntNPtrTy", &llvm::Type::getIntNPtrTy, py::return_value_policy::reference);
 
 	py::class_<llvm::PointerType, std::unique_ptr<llvm::PointerType, py::nodelete>, llvm::Type>(m, "PointerType")
-			.def("getElementType", &llvm::PointerType::getElementType, py::return_value_policy::reference);
+			.def("getPointerElementType", &llvm::PointerType::getPointerElementType, py::return_value_policy::reference);
 	m.def("TypeToPointerType", [](llvm::Type & t) {
 				if (t.isPointerTy())
 					return (llvm::PointerType*) &t;
@@ -141,8 +143,29 @@ void register_Attribute_and_MDNode(pybind11::module_ & m) {
 // http://nondot.org/~sabre/LLVMNotes/TypeSystemChanges.txt
 PYBIND11_MODULE(llvmIr, m) {
 	genericFpgaTargetInitialize();
-	py::class_<llvm::LLVMContext>(m, "LLVMContext")
-			.def(py::init<>());
+	py::class_<hwtHls::LlvmCompilationBundle>(m, "LlvmCompilationBundle")
+		.def(py::init<const std::string &>())
+		.def("runOpt", [](hwtHls::LlvmCompilationBundle * LCB, const py::object & o) {
+				if (o.is_none()) {
+					LCB->runOpt([](llvm::MachineInstr &I) -> bool {
+						return false;
+					});
+				} else {
+					LCB->runOpt([o](llvm::MachineInstr &I) -> bool {
+						py::object ret = o.operator() <py::return_value_policy::reference, llvm::MachineInstr &>(I);
+						return ret.cast<bool>();
+					});
+				}
+
+		})
+		.def("getMachineFunction", &hwtHls::LlvmCompilationBundle::getMachineFunction)
+		.def_readonly("ctx", &hwtHls::LlvmCompilationBundle::ctx)
+		.def_readonly("strCtx", &hwtHls::LlvmCompilationBundle::strCtx)
+		.def_readonly("mod", &hwtHls::LlvmCompilationBundle::mod)
+		.def_readonly("builder", &hwtHls::LlvmCompilationBundle::builder)
+		.def_readwrite("main", &hwtHls::LlvmCompilationBundle::main);
+
+	py::class_<llvm::LLVMContext,  std::unique_ptr<llvm::LLVMContext, py::nodelete>>(m, "LLVMContext"); // construct using LlvmCompilationBundle
 	py::class_<llvm::Module>(m, "Module")
 			.def(py::init<llvm::StringRef, llvm::LLVMContext&>(), py::keep_alive<1, 2>(), py::keep_alive<1, 3>())
 			.def("__repr__", &Module__repr__)
@@ -167,7 +190,7 @@ PYBIND11_MODULE(llvmIr, m) {
 	m.def("errs", &llvm::errs);
 
 	py::class_<llvm::FunctionPass>(m, "FunctionPass");
-	m.def("runOpt", &runOpt);
+
 	m.def("verifyFunction", [](const llvm::Function &F) {
 		auto & e = llvm::errs();
 		return llvm::verifyFunction(F, &e);
@@ -176,5 +199,6 @@ PYBIND11_MODULE(llvmIr, m) {
 		auto & e = llvm::errs();
 		return llvm::verifyModule(M, &e);
 	});
+	register_MachineFunction(m);
 }
 
