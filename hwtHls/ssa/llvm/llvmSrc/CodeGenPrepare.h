@@ -88,7 +88,6 @@
 #include <vector>
 
 namespace hwtHls {
-
 namespace llvmSrc {
 
 enum ExtType {
@@ -275,7 +274,6 @@ class TypePromotionTransaction;
     void verifyBFIUpdates(llvm::Function &F);
   };
 
-} // end anonymous namespace
-
-
+  void initializeCodeGenPreparePass(llvm::PassRegistry &Registry);
+}
 }
