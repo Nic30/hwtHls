@@ -129,7 +129,10 @@ CallInst* CreateBitRangeGet(IRBuilder<> *Builder, Value *bitVec,
 }
 
 bool IsBitRangeGet(const llvm::CallInst *C) {
-	return C->getCalledFunction()->getName().str().rfind(BitRangeGetName, 0)== 0;
+	return IsBitRangeGet(C->getCalledFunction());
+}
+bool IsBitRangeGet(const llvm::Function *F) {
+	return F->getName().str().rfind(BitRangeGetName, 0) == 0;
 }
 
 const std::string BitConcatName = "hwtHls.bitConcat";
@@ -160,6 +163,8 @@ llvm::CallInst* CreateBitConcat(llvm::IRBuilder<> *Builder,
 }
 
 bool IsBitConcat(const llvm::CallInst *C) {
-	return C->getCalledFunction()->getName().str().rfind(BitConcatName, 0)== 0;
+	return IsBitConcat(C->getCalledFunction());
 }
-
+bool IsBitConcat(const llvm::Function *F) {
+	return F->getName().str().rfind(BitConcatName, 0) == 0;
+}
