@@ -104,8 +104,9 @@ and provides variety of existing ones (from LLVM/hwt) in order to build efficien
 
 Linux:
 ```
-apt install build-essential python3-dev llvm-13-dev
+apt install build-essential python3-dev llvm-14 llvm-14-dev
 pip3 install -r https://raw.githubusercontent.com/Nic30/hwtHls/master/doc/requirements.txt
+# if you do not run previous command you will install dependencies from pip which may outdated
 pip3 install git+https://github.com/Nic30/hwtHls.git
 ```
 
@@ -133,6 +134,8 @@ pip3 install git+https://github.com/Nic30/hwtHls.git
 * :skull: [streamit-hls](https://github.com/stenzek/streamit-hls) - 2017, custom lang, based on micro kernels
 * :skull: [TAPAS](https://github.com/sfu-arch/TAPAS) - 2018-2019, c++, Generating Parallel Accelerators fromParallel Programs
 * :skull: [xronos](https://github.com/endrix/xronos) [git2](https://github.com/endrix/xronos) - 2012-2016, java, simple HLS
+* :skull: [Trident](https://sourceforge.net/projects/trident/) - 2006, java/C++/LLVM
+* :skull: [FPGA C Compiler](https://sourceforge.net/projects/fpgac/) - 2005-2006, trivial 1:1 c->vhdl
 * [ahir](https://github.com/madhavPdesai/ahir) - LLVM, c->vhdl
 * [abc](https://people.eecs.berkeley.edu/~alanmi/abc/) <2008-?, A System for Sequential Synthesis and Verification
 * [blarney](https://github.com/blarney-lang/blarney)
@@ -163,7 +166,7 @@ pip3 install git+https://github.com/Nic30/hwtHls.git
 * [DuroHLS](https://github.com/corelab-src/DuroHLS-opt) [CorelabVerilog](https://github.com/corelab-src/CorelabVerilog) - C++/LLVM, set of hls passes
 * [domino-compiler](https://github.com/packet-transactions/domino-compiler) 2016 -> C++, c like packet processing language and compiler
 * [orcc](https://github.com/orcc/orcc) - C++/LLVM, Open RVC-CAL Compiler hw/sw dataflow and img processing focused
-* [ROCCC](https://github.com/nxt4hll/roccc-2.0), http://roccc.cs.ucr.edu/ - 2009-2013, C++/LLVM c -> vhdl
+* [ROCCC](https://github.com/nxt4hll/roccc-2.0), http://roccc.cs.ucr.edu/ - 2009-2013, C++/LLVM/suif c -> vhdl
 * [TCE](https://github.com/cpc/tce)- C++/LLVM, environment for development of application specific processors
 * [FloPoCo](https://gitlab.com/flopoco/flopoco) - C++, arithmetic core generator
 

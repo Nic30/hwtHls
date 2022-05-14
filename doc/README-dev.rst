@@ -184,6 +184,7 @@ Transformation passes
 * https://blog.regehr.org/archives/1603
 * GlobalISel Combine rules https://groups.google.com/g/llvm-dev/c/kVwGJ2xs76w
 * https://github.com/nael8r/How-To-Write-An-LLVM-Register-Allocator/blob/master/HowToWriteAnLLVMRegisterAllocator.rst
+* https://www.cs.cornell.edu/courses/cs6120/2020fa/blog/pipeline-ii-analysis/
 
 In IR debugging meta-information
 --------------------------------
