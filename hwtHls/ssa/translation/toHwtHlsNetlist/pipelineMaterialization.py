@@ -15,21 +15,21 @@ class SsaSegmentToHwPipeline():
     We know the variables which are crossing pipeline boundary
     from backward_edges and edge_var_live.
     These variables usually appear because of cycle which means
-    that there could exists a code section which uses the value from a previous cycle iterration
+    that there could exists a code section which uses the value from a previous cycle iteration
     and a section which uses a newly generate value.
     This means that a single variable may appear in multiple versions even if it is written only once.
-    The cycle may be entered only on a single place (header, because of structured programing).
+    The cycle may be entered only on a single place (header, because of structured programming).
     However the cycle may be entered from a multiple places and exited to multiple places.
     Which means that the value of variables alive on such a transitions can potentially
     come from multiple places.
     We can potentially instantiate buffers on every path. This however leads to resource wasting.
-    Instead we want to output the variable value as soon as we are sure that variable will be consummed.
+    Instead we want to output the variable value as soon as we are sure that variable will be consumed.
     This means that we need to walk the blocks instruction by instruction and resolve where the value
     from a previous cycle should be used and where new value may be mixed in or used exclusively.
     On each place where multiple values may appear due to branching we need to add multiplexer
     and use it in following expressions.
 
-   :ivar start: a block where the program excecution starts
+   :ivar start: a block where the program execution starts
    :ivar original_code: an original code for debug purposes
     """
 
