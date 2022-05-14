@@ -15,7 +15,6 @@ from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 from hwtHls.platform.xilinx.artix7 import Artix7Medium
 from hwtHls.ssa.translation.fromPython.thread import HlsStreamProcPyThread
 from hwtLib.common_nonstd_interfaces.addr_data_hs import AddrDataVldHs
-from hwtLib.types.ctypes import uint32_t
 
 
 class Rom(Unit):
@@ -27,7 +26,7 @@ class Rom(Unit):
 
     def mainThread(self, hls: HlsStreamProc):
         # must be hw type otherwise we won't be able to resolve type of o
-        mem = [uint32_t.from_py(1 << i) for i in range(4)]
+        mem = [self.o._dtype.from_py(1 << i) for i in range(4)]
         while BIT.from_py(1):
             i = hls.read(self.i)
             o = mem[i]
@@ -42,7 +41,7 @@ class Rom(Unit):
 class CntrArray(Unit):
 
     def _config(self) -> None:
-        self.ITEMS = Param(4)
+        self.ITEMS = Param(1)
 
     def _declr(self):
         addClkRstn(self)
@@ -50,10 +49,10 @@ class CntrArray(Unit):
         self.i = VectSignal(ADDR_WIDTH, signed=False)
 
         self.o_addr = VectSignal(ADDR_WIDTH, signed=False)
-        self.o = VectSignal(32, signed=False)._m()
+        self.o = VectSignal(512, signed=False)._m()
 
     def mainThread(self, hls: HlsStreamProc):
-        mem = [hls.var(f"v{i:d}", uint32_t) for i in range(self.ITEMS)]
+        mem = [hls.var(f"v{i:d}", self.o._dtype) for i in range(self.ITEMS)]
         for v in mem:
             v(0)  # we are using () instead of = because v is preproc variable
 
