@@ -33,7 +33,7 @@ from ipCorePackager.constants import INTF_DIRECTION
 class SsaToHwtHlsNetlist():
     """
     A class used to translate :mod:`hwtHls.ssa` to objects from :mod:`hwtHls.netlist.nodes.ops`.
-    These objects are typicaly used for scheduling and circuit generating.
+    These objects are typically used for scheduling and circuit generating.
 
     :ivar hls: parent hls synthetizer which is used to generate scheduling graph
     :ivar start_block: a basic block where program begins
@@ -41,7 +41,7 @@ class SsaToHwtHlsNetlist():
     :ivar io: an object to keep track of IO related informations
     :ivar _to_hls_cache: An object to assert that the node is allocated only once and to support
         use of output of node before node itself is allocated.
-    :ivar _current_block: Current block which is beeing translated.
+    :ivar _current_block: Current block which is being translated.
     :ivar _blockMeta: A dictionary mapping block to its metainformations.
     :ivar _block_ens: A dictionary mapping block to its control flow channel.
     """
