@@ -1,6 +1,6 @@
 #pragma once
 
-#include <llvm/Support/TargetRegistry.h>
 #include "genericFpga.h"
+#include <llvm/MC/TargetRegistry.h>
 
 llvm::Target& getTheGenericFpgaTarget();
