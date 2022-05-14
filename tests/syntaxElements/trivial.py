@@ -29,7 +29,6 @@ class WriteOnce(Unit):
         hls.compile()
 
 
-
 class ReadWriteOnce0(WriteOnce):
 
     def _declr(self):
@@ -45,7 +44,6 @@ class ReadWriteOnce0(WriteOnce):
         hls.compile()
 
 
-
 class ReadWriteOnce1(ReadWriteOnce0):
 
     def _impl(self) -> None:
@@ -58,7 +56,6 @@ class ReadWriteOnce1(ReadWriteOnce0):
         hls.compile()
 
 
-
 class ReadWriteOnce2(ReadWriteOnce0):
 
     def _impl(self) -> None:
@@ -69,7 +66,6 @@ class ReadWriteOnce2(ReadWriteOnce0):
             hls.write(tmp + 1, self.dataOut),
         )
         hls.compile()
-
 
 
 class WhileTrueWrite(Unit):
@@ -95,7 +91,6 @@ class WhileTrueWrite(Unit):
         hls.compile()
 
 
-
 class WhileTrueWriteCntr0(WhileTrueWrite):
 
     def _impl(self) -> None:
@@ -112,7 +107,6 @@ class WhileTrueWriteCntr0(WhileTrueWrite):
         hls.compile()
 
 
-
 class WhileTrueWriteCntr1(WhileTrueWrite):
 
     def _impl(self) -> None:
@@ -127,7 +121,6 @@ class WhileTrueWriteCntr1(WhileTrueWrite):
             )
         )
         hls.compile()
-
 
 
 class WhileTrueReadWrite(WhileTrueWrite):
@@ -147,10 +140,10 @@ class WhileTrueReadWrite(WhileTrueWrite):
         hls.compile()
 
 
-
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
+    from hwtHls.platform.virtual import makeDebugPasses
     u = WhileTrueWriteCntr0()
     u.FREQ = int(150e6)
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform()))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(**makeDebugPasses("tmp"))))
