@@ -205,7 +205,9 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitCallInst(
 		}
 
 		assert(cur.consystencyCheck() && "Concat in correct format");
+
 		return cur;
+
 	} else if (IsBitRangeGet(C)) {
 		constraints[C] = std::make_unique<VarBitConstraint>(C);
 		VarBitConstraint &cur = *constraints[C];
@@ -232,73 +234,83 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitCallInst(
 		return visitAsAllInputBitsUsedAllOutputBitsKnown(C);
 	}
 }
-void ConstBitPartsAnalysisContext::visitBinaryOperatorReduceAnd(
-		std::vector<KnownBitRangeInfo> &newParts, const BinaryOperator *parentI,
-		unsigned width, unsigned dstOffset, const APInt &c,
-		const KnownBitRangeInfo &v) {
+std::vector<std::pair<bool, unsigned>> ConstBitPartsAnalysisContext::iter1and0sequences(
+		const llvm::APInt &c, unsigned offset, unsigned width) {
+	assert(
+			width + offset <= c.getBitWidth()
+					&& "offset and width is there to slice the APInt value");
 	// if the bit in c is 0 the output bit should be also 0 else it is bit from v
-	IRBuilder<> b(const_cast<BinaryOperator*>(parentI));
 	int l_1 = -1; // start of 1 sequence, -1 as invalid value
 	int l_0 = -1; // start of 0 sequence, -1 as invalid value
-	for (unsigned h = 0; h < c.getBitWidth(); ++h) {
+	unsigned endIndex = offset + width;
+	std::vector<std::pair<bool, unsigned>> res;
+	for (unsigned h = offset; h < endIndex; ++h) {
 		if (l_1 == -1 && c[h]) {
 			l_1 = h; // start of 1 sequence
 		} else if (l_0 == -1 && !c[h]) {
 			l_0 = h; // start of 0 sequence
 		}
 
-		if (l_1 != -1 && (h == c.getBitWidth() - 1 || !c[h + 1])) {
+		bool last = h == endIndex - 1;
+		if (l_1 != -1 && (last || !c[h + 1])) {
 			// end of 1 sequence found
 			unsigned w = h - l_1 + 1;
-			KnownBitRangeInfo i = v.slice(&b, static_cast<unsigned>(l_1), w);
-			i.dstBeginBitI = dstOffset;
-			VarBitConstraint::srcUnionPushBackWithMerge(newParts, i);
-			dstOffset += w;
+			res.push_back( { 1, w });
 			l_1 = -1; // reset start;
-		} else if (l_0 != -1 && (h == c.getBitWidth() - 1 || c[h + 1])) {
+		} else if (l_0 != -1 && (last || c[h + 1])) {
 			// end of 0 sequence found
 			unsigned w = h - l_0 + 1;
+			res.push_back( { 0, w });
+			l_0 = -1; // reset start;
+		}
+	}
+	return res;
+}
+
+void ConstBitPartsAnalysisContext::visitBinaryOperatorReduceAnd(
+		std::vector<KnownBitRangeInfo> &newParts, const BinaryOperator *parentI,
+		unsigned width, unsigned srcOffset, unsigned dstOffset, const APInt &c,
+		const KnownBitRangeInfo &v) {
+	IRBuilder<> b(const_cast<BinaryOperator*>(parentI));
+	for (auto seq : iter1and0sequences(c, srcOffset, width)) {
+		unsigned w = seq.second;
+		if (seq.first) {
+			// 1 sequence found
+			KnownBitRangeInfo i = v.slice(&b, srcOffset, w);
+			i.dstBeginBitI = dstOffset;
+			VarBitConstraint::srcUnionPushBackWithMerge(newParts, i);
+		} else {
+			// 0 sequence found
 			KnownBitRangeInfo i = KnownBitRangeInfo(b.getInt(APInt(w, 0)));
 			i.dstBeginBitI = dstOffset;
 			VarBitConstraint::srcUnionPushBackWithMerge(newParts, i);
-			dstOffset += w;
-			l_0 = -1; // reset start;
 		}
+		dstOffset += w;
+		srcOffset += w;
 	}
 }
 void ConstBitPartsAnalysisContext::visitBinaryOperatorReduceOr(
 		std::vector<KnownBitRangeInfo> &newParts, const BinaryOperator *parentI,
-		unsigned width, unsigned dstOffset, const APInt &c,
+		unsigned width, unsigned srcOffset, unsigned dstOffset, const APInt &c,
 		const KnownBitRangeInfo &v) {
-	// if the bit in c is 0 the output bit should be also 0 else it is bit from v
 	IRBuilder<> b(const_cast<BinaryOperator*>(parentI));
-	int l_1 = -1; // start of 1 sequence, -1 as invalid value
-	int l_0 = -1; // start of 0 sequence, -1 as invalid value
-	for (unsigned h = 0; h < c.getBitWidth(); ++h) {
-		if (l_1 == -1 && c[h]) {
-			l_1 = h; // start of 1 sequence
-		} else if (l_0 == -1 && !c[h]) {
-			l_0 = h; // start of 0 sequence
-		}
-
-		if (l_1 != -1 && (h == c.getBitWidth() - 1 || !c[h + 1])) {
+	for (auto seq : iter1and0sequences(c, srcOffset, width)) {
+		unsigned w = seq.second;
+		if (seq.first) {
 			// end of 1 sequence found
-			unsigned w = h - l_1 + 1;
 			KnownBitRangeInfo i = KnownBitRangeInfo(
 					b.getInt(APInt::getAllOnesValue(w)));
 			i.dstBeginBitI = dstOffset;
 			VarBitConstraint::srcUnionPushBackWithMerge(newParts, i);
-			dstOffset += w;
-			l_1 = -1; // reset start;
-		} else if (l_0 != -1 && (h == c.getBitWidth() - 1 || c[h + 1])) {
+		} else {
 			// end of 0 sequence found
-			unsigned w = h - l_0 + 1;
-			KnownBitRangeInfo i = v.slice(&b, static_cast<unsigned>(l_0), w);
+			KnownBitRangeInfo i = v.slice(&b, srcOffset, w);
 			i.dstBeginBitI = dstOffset;
 			VarBitConstraint::srcUnionPushBackWithMerge(newParts, i);
-			dstOffset += w;
-			l_0 = -1; // reset start;
 		}
+
+		dstOffset += w;
+		srcOffset += w;
 	}
 }
 VarBitConstraint& ConstBitPartsAnalysisContext::visitBinaryOperator(
@@ -331,26 +343,36 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitBinaryOperator(
 	for (const auto &item : (RangeSequenceIterator()).uniqueRanges(
 			lhs.replacements, rhs.replacements)) {
 		assert(item.v0 && item.v1);
-		assert(item.width);
+		assert(item.width > 0);
+		assert(item.begin == offset);
 
 		auto _v0 = dyn_cast<ConstantInt>(item.v0->src);
 		auto _v1 = dyn_cast<ConstantInt>(item.v1->src);
-
+		unsigned v0srcOffset = item.v0->srcBeginBitI
+				+ (item.begin - item.v0->dstBeginBitI);
+		unsigned v1srcOffset = item.v1->srcBeginBitI
+				+ (item.begin - item.v1->dstBeginBitI);
+		if (offset == 0)
+			assert(newParts.size() == 0);
+		else
+			assert(newParts.back().dstEndBitI() == offset);
 		if ((opCode == Instruction::BinaryOps::Or
 				|| opCode == Instruction::BinaryOps::And)
 				&& ((_v0 && _v1 && _v0 == _v1) || *item.v0 == *item.v1)) {
 			// or, and: if segments equal
-			newParts.push_back(*item.v0);
+			// nothing to reduce just add as is
+			KnownBitRangeInfo kbri(item.width);
+			kbri.src = item.v0->src;
+			kbri.srcBeginBitI = v0srcOffset;
+			kbri.dstBeginBitI = offset;
+			kbri.srcWidth = item.width;
+			newParts.push_back(kbri);
 		} else if (_v0 && _v1) {
 			// if both are constants we just resolve them
 			assert(item.begin >= item.v0->dstBeginBitI);
 			assert(item.begin >= item.v1->dstBeginBitI);
-			auto v0 = _v0->getValue().extractBits(item.width,
-					item.v0->srcBeginBitI
-							+ (item.begin - item.v0->dstBeginBitI));
-			auto v1 = _v1->getValue().extractBits(item.width,
-					item.v1->srcBeginBitI
-							+ (item.begin - item.v1->dstBeginBitI));
+			auto v0 = _v0->getValue().extractBits(item.width, v0srcOffset);
+			auto v1 = _v1->getValue().extractBits(item.width, v1srcOffset);
 			IRBuilder<> b(const_cast<BinaryOperator*>(I));
 			if (opCode == Instruction::BinaryOps::Or) {
 				newParts.push_back(KnownBitRangeInfo(b.getInt(v0 | v1)));
@@ -361,6 +383,7 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitBinaryOperator(
 			} else {
 				assert(false && "Unknown operator, should never get there");
 			}
+			newParts.back().dstBeginBitI = offset;
 		} else if ((_v0 || _v1)
 				&& (opCode == Instruction::BinaryOps::Or
 						|| opCode == Instruction::BinaryOps::And)) {
@@ -368,26 +391,26 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitBinaryOperator(
 			if (opCode == Instruction::BinaryOps::Or) {
 				// if other is known reduce set bits
 				if (_v0) {
-					visitBinaryOperatorReduceOr(newParts, I, item.width, offset,
-							_v0->getValue(), *item.v1);
+					visitBinaryOperatorReduceOr(newParts, I, item.width,
+							v0srcOffset, offset, _v0->getValue(), *item.v1);
 				} else {
-					visitBinaryOperatorReduceOr(newParts, I, item.width, offset,
-							_v1->getValue(), *item.v0);
+					visitBinaryOperatorReduceOr(newParts, I, item.width,
+							v1srcOffset, offset, _v1->getValue(), *item.v0);
 				}
 			} else if (opCode == Instruction::BinaryOps::And) {
 				// if other is known reduce cleared bits
 				if (_v0) {
 					visitBinaryOperatorReduceAnd(newParts, I, item.width,
-							offset, _v0->getValue(), *item.v1);
+							v0srcOffset, offset, _v0->getValue(), *item.v1);
 				} else {
 					visitBinaryOperatorReduceAnd(newParts, I, item.width,
-							offset, _v1->getValue(), *item.v0);
+							v1srcOffset, offset, _v1->getValue(), *item.v0);
 				}
 			} else {
 				assert(false && "Unknown operator, should never get there");
 			}
 		} else {
-			// nothing to reduce just add as is
+			// nothing to reduce just add this instruction value as is
 			KnownBitRangeInfo kbri(item.width);
 			kbri.src = I;
 			kbri.srcBeginBitI = kbri.dstBeginBitI = offset;

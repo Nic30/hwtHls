@@ -44,7 +44,11 @@ void KnownBitRangeInfo::print(raw_ostream &O, bool IsForDebug) const {
 	if (dyn_cast<ConstantInt>(src)) {
 		O << *src;
 	} else {
-		O << "%" << src->getName();
+		if (src->hasName())
+			O << "%" << src->getName();
+		else {
+			O << "%" << src;
+		}
 	}
 	O << ")[" << (srcBeginBitI + srcWidth) << ":" << srcBeginBitI << "]";
 }
@@ -88,27 +92,26 @@ std::vector<UniqRangeSequence> RangeSequenceIterator::uniqueRanges(
 	auto v0 = vec0.begin();
 	auto v1 = vec1.begin();
 	// last offset for input
-	unsigned v0End = 0;
-	unsigned v1End = 0;
-
+	unsigned lastEnd = 0;
+	assert(vec0.back().dstEndBitI() == vec1.back().dstEndBitI() && "data must be of same total width");
 	for (; v0 != vec0.end() || v1 != vec1.end();) {
 		if (v0 == vec0.end()) {
 			assert(
-					v1->dstBeginBitI == v1End
+					v1->dstBeginBitI == lastEnd
 							&& "vec1 must be continuous sequence");
-			appendNoCheck(v1, v1End, res, true);
+			appendNoCheck(v1, lastEnd, res, true);
 			continue;
 		} else if (v1 == vec1.end()) {
 			assert(
-					v0->dstBeginBitI == v0End
+					v0->dstBeginBitI == lastEnd
 							&& "vec0 must be continuous sequence");
-			appendNoCheck(v0, v0End, res, false);
+			appendNoCheck(v0, lastEnd, res, false);
 			continue;
 		}
-		// 1 interval of a may span over multiple interval from b an same for b to a
+		// 1 interval of "a" may span over multiple interval from "b" and same for "b" to "a"
 		// following alg. always goes 1 boundary in any interval at the time
-		unsigned v0Begin = std::max(v0End, v0->dstBeginBitI);
-		unsigned v1Begin = std::max(v1End, v1->dstBeginBitI);
+		unsigned v0Begin = std::max(lastEnd, v0->dstBeginBitI);
+		unsigned v1Begin = std::max(lastEnd, v1->dstBeginBitI);
 		unsigned curBegin = std::min(v0Begin, v1Begin);
 		unsigned curEnd; // the second lowest number in  v0Begin, v1Begin, v0->dstEndBitI(), v1->dstEndBitI()
 		if (v0Begin == v1Begin) {
@@ -126,7 +129,7 @@ std::vector<UniqRangeSequence> RangeSequenceIterator::uniqueRanges(
 		if (isInInterval(curBegin, curEnd, v0Begin)) {
 			_v0 = &*v0;
 			assert(
-					v0->dstBeginBitI <= v0End
+					v0->dstBeginBitI <= lastEnd
 							&& "vec0 must be continuous sequence");
 			if (curEnd == v0->dstEndBitI())
 				++v0;
@@ -134,7 +137,7 @@ std::vector<UniqRangeSequence> RangeSequenceIterator::uniqueRanges(
 		if (isInInterval(curBegin, curEnd, v1Begin)) {
 			_v1 = &*v1;
 			assert(
-					v1->dstBeginBitI <= v1End
+					v1->dstBeginBitI <= lastEnd
 							&& "vec1 must be continuous sequence");
 			if (curEnd == v1->dstEndBitI())
 				++v1;
@@ -143,8 +146,7 @@ std::vector<UniqRangeSequence> RangeSequenceIterator::uniqueRanges(
 		assert(_v1 && "vec1 must be continuous interval sequence");
 		res.push_back(
 				UniqRangeSequence( { curBegin, curEnd - curBegin, _v0, _v1 }));
-		v0End = curEnd;
-		v1End = curEnd;
+		lastEnd = curEnd;
 		// v0 <-->
 		// v1 <-->
 

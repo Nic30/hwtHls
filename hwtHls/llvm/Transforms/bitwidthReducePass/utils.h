@@ -43,6 +43,9 @@ public:
 		// left enclosed interval variant, point in? <left, right)
 		return point >= left && point < right;
 	}
+	// :attention: this creates an unique intervals from two vectors of ranges,
+	//  however the original src values presented in original ranges are not modified and
+	//  may require some bit slicing to get the value actually specified by final range
 	std::vector<UniqRangeSequence> uniqueRanges(
 			const std::vector<KnownBitRangeInfo> &vec0,
 			const std::vector<KnownBitRangeInfo> &vec1);
