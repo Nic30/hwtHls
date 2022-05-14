@@ -15,12 +15,11 @@ from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.hlsStreamProc.statementsIo import HlsStreamProcRead, \
     HlsStreamProcWrite
-from hwtHls.netlist.typeUtils import dtypeEqualSignAprox
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.llvm.llvmIr import LLVMContext, Module, IRBuilder, LLVMStringContext, Value, \
     Type, FunctionType, Function, VectorOfTypePtr, BasicBlock, Argument, PointerType, TypeToPointerType, \
-    ConstantInt, APInt, verifyFunction, verifyModule, TypeToIntegerType, PHINode
+    ConstantInt, APInt, verifyFunction, verifyModule, TypeToIntegerType, PHINode, MachineFunction, LlvmCompilationBundle
 from hwtHls.ssa.phi import SsaPhi
 from hwtHls.ssa.transformation.utils.blockAnalysis import collect_all_blocks
 from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
@@ -52,12 +51,12 @@ class ToLlvmIrTranslator():
     """
 
     def __init__(self, name: str, topIo: Dict[Interface, INTF_DIRECTION]):
-        self.ctx = LLVMContext()
-        self.strCtx = LLVMStringContext()
-        self.mod = Module(self.strCtx.addStringRef(name), self.ctx)
-        self.b = IRBuilder(self.ctx)
+        self.llvm = LlvmCompilationBundle(name)
+        self.ctx = self.llvm.ctx
+        self.strCtx = self.llvm.strCtx
+        self.mod = self.llvm.mod
+        self.b = self.llvm.builder
         self.topIo = topIo
-        self.main: Optional[Function] = None
         self._branchTmpBlocks: Dict[SsaBasicBlock, List[Tuple[BasicBlock, List[SsaBasicBlock]]]] = {}
 
     def createFunctionPrototype(self, name: str, args:List[Tuple[Type, str]], returnType: Type):
@@ -113,7 +112,7 @@ class ToLlvmIrTranslator():
             src: Argument = self.ioToVar[instr._src]
             t: PointerType = TypeToPointerType(src.getType())
             assert t is not None, src.getType()
-            return b.CreateLoad(t.getElementType(), src, True,
+            return b.CreateLoad(t.getPointerElementType(), src, True,
                                      self.strCtx.addTwine(self._formatVarName(instr._name)))
 
         elif isinstance(instr, HlsStreamProcWrite):
@@ -240,7 +239,7 @@ class ToLlvmIrTranslator():
             else:
                 # need to generate a new block
                 branchTmpBlocks.append((llvmBb, [sucBb, ]))
-                newLlvmBb = BasicBlock.Create(self.ctx, self.strCtx.addTwine(bb.label), self.main, None)
+                newLlvmBb = BasicBlock.Create(self.ctx, self.strCtx.addTwine(bb.label), self.llvm.main, None)
                 b.SetInsertPoint(llvmBb)
                 b.CreateCondBr(self._translateExpr(c), self.varMap[sucBb], newLlvmBb, None)
                 llvmBb = newLlvmBb
@@ -275,7 +274,7 @@ class ToLlvmIrTranslator():
         io_sorted = sorted(self.topIo.items(), key=lambda x: self.splitStrToStrsAndInts(getSignalName(x[0])))
         params = [(getSignalName(i), self._translateType(self._getNativeInterfaceType(i), ptr=True))
                    for i, _ in io_sorted]
-        self.main = main = self.createFunctionPrototype("main", params, Type.getVoidTy(self.ctx))
+        self.llvm.main = main = self.createFunctionPrototype("main", params, Type.getVoidTy(self.ctx))
         ioToVar: Dict[Interface, Argument] = {}
         for a, (i, _) in zip(main.args(), io_sorted):
             ioToVar[i] = a
