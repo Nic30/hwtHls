@@ -377,11 +377,9 @@ void LlvmCompilationBundle::runOpt(std::function<bool(llvm::MachineInstr&)> comb
 
 	FPM.run(fn, FAM);
 
-	//std::cout << "before MachineFunctionAnalysisManager\n";
 	//llvm::MachineFunctionAnalysisManager MFAM;
 	//llvm::MachineFunctionPassManager MPM;
 	//
-	//std::cout << "before MPM.run\n";
 	//if (auto e = MPM.run(*fn.getParent(), MFAM)) {
 	//	throw std::runtime_error("Error during running MachineFunctionPassManager");
 	//}
@@ -390,26 +388,26 @@ void LlvmCompilationBundle::runOpt(std::function<bool(llvm::MachineInstr&)> comb
 	// use CodeGenPassBuilder once complete
 	// :info: based on llc.cpp
 
-	//PM.add(MMIWP);
-	//llvm::TargetPassConfig &TPC =
-	//		*static_cast<llvm::LLVMTargetMachine&>(*TM).createPassConfig(PM);
-	//if (TPC.hasLimitedCodeGenPipeline()) {
-	//	llvm::errs() << "run-pass cannot be used with "
-	//			<< TPC.getLimitedCodeGenPipelineReason(" and ") << ".\n";
-	//	throw std::runtime_error("run-pass cannot be used with ...");
-	//}
-    //
-	//PM.add(&TPC);
-	//if (TPC.addISelPasses())
-	//	llvm_unreachable("Can not addISelPasses");
-	//TPC.printAndVerify("before addMachinePasses");
-	//TPC.addMachinePasses();
-	//dynamic_cast<llvm::GenericFpgaTargetPassConfig*>(&TPC)->addPreNetlistCombinerCallback(combinerCallback);
-	//// place for custom machine passes
-	//TPC.printAndVerify("after addMachinePasses");
-	//TPC.setInitialized();
-	////PM.add(llvm::createFreeMachineFunctionPass());
-	//PM.run(*fn.getParent());
+	PM.add(MMIWP);
+	llvm::TargetPassConfig &TPC =
+			*static_cast<llvm::LLVMTargetMachine&>(*TM).createPassConfig(PM);
+	if (TPC.hasLimitedCodeGenPipeline()) {
+		llvm::errs() << "run-pass cannot be used with "
+				<< TPC.getLimitedCodeGenPipelineReason(" and ") << ".\n";
+		throw std::runtime_error("run-pass cannot be used with ...");
+	}
+
+	PM.add(&TPC);
+	if (TPC.addISelPasses())
+		llvm_unreachable("Can not addISelPasses");
+	TPC.printAndVerify("before addMachinePasses");
+	TPC.addMachinePasses();
+	dynamic_cast<llvm::GenericFpgaTargetPassConfig*>(&TPC)->addPreNetlistCombinerCallback(combinerCallback);
+	// place for custom machine passes
+	TPC.printAndVerify("after addMachinePasses");
+	TPC.setInitialized();
+	//PM.add(llvm::createFreeMachineFunctionPass());
+	PM.run(*fn.getParent());
 }
 
 llvm::MachineFunction* LlvmCompilationBundle::getMachineFunction(
