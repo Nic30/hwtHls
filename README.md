@@ -15,6 +15,17 @@ and provides variety of existing ones (from LLVM/hwt) in order to build efficien
 * Integration with HWT: SystemVerilog/VHDL export, various interfaces and components, verification API
 
 
+A typical project where you would use this project is a hash table in HBM2 memory with cache.
+* HBM2 may have 32 AXI4 ports, you need to use eta 64*32 transactions at once to saturate memory throughput.
+* All transactions must assert consistency.
+* Due to timing everything needs to be pipelined and the hash table must support multiple operations in a single clock.
+
+In this case you would just write a generic algorithm of a hash table and then configure numbers of ports, latencies
+coherency domains and it is all done. Take look at FlowCache example. Because everything is generated, it is asserted that
+no consistency check is missing and any deadlock or synchronization error may happen internally.
+This is a big difference from hand crafted hardware where it is assured that you would make mistakes of this type.
+
+
 ### Current state
 
 * This library is in an alpha phase.
@@ -22,11 +33,16 @@ and provides variety of existing ones (from LLVM/hwt) in order to build efficien
 
 * Features
   * Python bytecode -> LLVM -> hwt -> vhdl/verilog/IP-exact
-    * no exceptions, function calls must be explicitly marked for hw otherwise evaluated compile time
-    * only static typing, limited use of iterators
-    * (meant to be used for simple things, for the rest there are "statement-like objects")
+    * Bytecode of any Python can be translated to hardware
+       * Bytecode is symbolically executed and the code which does not depend on HW evaluated value is executed immediately.
+         This means that the python runs as a preprocessors and it generates HW code.
+       * As this part translates bytecode to SSA the input syntax does not matter.
 
-  * Python statement-like objects -> LLVM -> hwt -> vhdl/verilog/IP-exact
+    * No exception handling, function calls must be explicitly marked to be translated to HW otherwise calls are evaluated compile time
+    * Only static typing for HW code, limited use of iterators
+    * (meant to be used for simple things, for the rest you should construct AST or SSA directly.)
+
+  * Python statement-like objects/AST -> LLVM -> hwt -> vhdl/verilog/IP-exact
     * Support for multithreaded programs
       (multiple hls programs with shared resources cooperating using shared memory or streams and
        with automatic constrains propagation on shared resource)
@@ -34,14 +50,16 @@ and provides variety of existing ones (from LLVM/hwt) in order to build efficien
      (e.g. bus mapped registers where bus mapping is done in HDL (hwt))
 
   * Support for precise latency/resources tuning
-    * FSM/dataflow fine graded architecture
-     (strategy specified as a sequence of transformations)
+    * Operation chaining
+    * FSM/dataflow fine-graded architecture extraction with different optimization strategies
+     (extraction strategy specified as a sequence of transformations)
 
   * Precise operation scheduling using target device timing characteristics (any Xilinx, Intel and others after benchmark)
 
-  * All optimizations aware of independent slice drivers
+  * Fine-graded HW resource optimizations
     * SsaPassExtractPartDrivers - splits the slices to individual variables to exploit real dependencies, splits also bitwise operations and casts
     * ConstantBitPropagationPass - recursively minimizes the number of bits used by variables
+
 
   * Any loop type with special care for:
     * Infinite top loops - with/without internal/external sync beeing involved
