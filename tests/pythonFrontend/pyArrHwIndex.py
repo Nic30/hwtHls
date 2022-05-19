@@ -41,7 +41,7 @@ class Rom(Unit):
 class CntrArray(Unit):
 
     def _config(self) -> None:
-        self.ITEMS = Param(1)
+        self.ITEMS = Param(4)
 
     def _declr(self):
         addClkRstn(self)
