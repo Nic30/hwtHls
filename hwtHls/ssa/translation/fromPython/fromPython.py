@@ -38,9 +38,13 @@ from hwtHls.ssa.translation.fromPython.loopsDetect import PyBytecodeLoop, \
     PreprocLoopScope
 from hwtHls.ssa.translation.fromPython.markers import PythonBytecodeInPreproc
 from hwtHls.ssa.value import SsaValue
+from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 
 
 class SsaBlockGroup():
+    """
+    Represents a set of block for a specific block label.
+    """
 
     def __init__(self, begin: SsaBasicBlock):
         self.begin = begin
@@ -55,12 +59,38 @@ def expandBeforeUse(o, curBlock: SsaBasicBlock):
     return o, curBlock
 
 
+class PyBytecodePragmaUnroll():
+    """
+    This pragma tells that current loop should be evaluated in preprocessor.
+    It must be placed inside of loop at the beginning of the body
+    to ensure non-ambiguity for nested loops on bytecode level.
+    """
+    pass
+
+
+class LoopExitRegistry():
+    """
+    :ivar exitPoints: list of points where CFG leaves the loop body in format: condition, srcBlock, dstBlockOffset
+    
+    :note: The loop is HW loop if there are multiple jump destination locations from the body of the loop after preprocessing.
+        There may be multiple jump destinations in general and this still can be just preprocessor loop but if there
+        are multiple jump destinations after preprocessing it means that the loop iteration scheme is driven by HW condition.
+
+    """
+
+    def __init__(self):
+        self.exitPoints: List[Tuple[Union[SsaValue, HValue, RtlSignalBase, None], SsaBasicBlock, int]] = []
+
+    def isHwLoop(self):
+        return len(set(dstOffset for _, _, dstOffset in self.exitPoints))
+
+
 class PythonBytecodeToSsa():
     """
     This class translates Python bytecode to hwtHls.ssa
     
     The SSA basic blocks are constructed from jump targets in instruction list.
-    A single jump target may generate multiple basic blocks if it is part of the cycle.
+    A single jump target may generate multiple basic blocks if it is part of the preprocessor evaluated loop.
     
     Description of Python bytecode:
         * https://docs.python.org/3/library/dis.html
@@ -71,10 +101,14 @@ class PythonBytecodeToSsa():
         * https://github.com/kentdlee/CoCo
 
     :note: The block is generated for every jump target, even if it is just in preprocessor.
-        If it is used just in preprocessor the jumps conditions of this block are resolved compile time.
-        (Because for cycles we may find out that the cycle is HW evaluated somewhere inside of cycle body)
+        If it is used just in preprocessor the jump condition of this block is resolved compile time.
+        (Because for loops we may find out that the loop is HW evaluated somewhere inside of cycle body)
         And thus the blocks which were generated in preprocessor are entry points of clusters of blocks generated for HW
         connected in linear sequence or are entirely disconnected because preprocessor optimized them out. 
+ 
+    :note: HW evaluated loop is an opposite of preprocessor loop. It is not evaluated during translation.
+        The preprocessor loop is evaluated during the translation and each iteration replicates all block of the loop
+        to create new iteration.
     """
 
     def __init__(self, hls: HlsStreamProc, fn: FunctionType):
@@ -86,6 +120,7 @@ class PythonBytecodeToSsa():
         self.labelToBlock: Dict[BlockLabel, SsaBlockGroup] = {}
         self.instructions: Tuple[Instruction] = ()
         self.bytecodeBlocks: Dict[int, List[Instruction]] = {}
+        self.debug = False
 
     # https://www.synopsys.com/blogs/software-security/understanding-python-bytecode/
     def translateFunction(self, *fnArgs, **fnKwargs):
@@ -106,7 +141,10 @@ class PythonBytecodeToSsa():
         :ivar fnKwargs: keyword arguments for function fn
         """
         fn = self.fn
-        # dis(fn)
+        if self.debug:
+            with open("tmp/cfg_bytecode.txt", "w") as f:
+                dis(fn, file=f)
+            
         co = fn.__code__
         cell_names = co.co_cellvars + co.co_freevars
         linestarts = dict(findlinestarts(co))
@@ -133,8 +171,9 @@ class PythonBytecodeToSsa():
         self.blockToLabel[curBlock] = (0,)
         self.labelToBlock[(0,)] = SsaBlockGroup(curBlock)
         frame = PythonBytecodeFrame.fromFunction(fn, fnArgs, fnKwargs)
-        with open("tmp/cfg_begin.dot", "w") as f:
-            self.blockTracker.dumpCfgToDot(f)
+        if self.debug:
+            with open("tmp/cfg_begin.dot", "w") as f:
+                self.blockTracker.dumpCfgToDot(f)
 
         self._translateBytecodeBlock(self.bytecodeBlocks[0], frame, curBlock)
         if curBlock.predecessors:
@@ -144,9 +183,9 @@ class PythonBytecodeToSsa():
             self.to_ssa._onAllPredecsKnown(entry)
             entry.successors.addTarget(None, curBlock)
             self.to_ssa.start = entry
-
-        # with open("tmp/cfg_final.dot", "w") as f:
-        #     self.blockTracker.dumpCfgToDot(f)
+        if self.debug:
+            with open("tmp/cfg_final.dot", "w") as f:
+                self.blockTracker.dumpCfgToDot(f)
 
         self.to_ssa.finalize()
 
@@ -166,8 +205,19 @@ class PythonBytecodeToSsa():
             isLastJumpFromCur: bool,
             sucBlockOffset: int,
             cond: Union[None, RtlSignal, SsaValue],
-            frame: PythonBytecodeFrame):
-
+            frame: PythonBytecodeFrame,
+            hasCondition: bool):
+        """
+        When resolving a new block we need to check if this block is in some loop and if this loop is HW evaluated or expanded in preprocessor.
+        The loop must be HW evaluated if any break/jump condition is HW evaluated expression.
+        This involves conditions for jumps:
+        * from body to behind loop
+        * from body to header
+        * from header to body or behind the loop
+        
+        Problem there is that the code branches are processes in DFS manner. That means that we may step upon non HW condition
+        but there may be a HW condition which drives the loop iteration scheme.
+        """
         # print("jmp", curBlock.label, sucBlockOffset, cond)
         prevLoopMeta: Deque[PreprocLoopScope] = deque()
         # if this is a jump out of current loop
@@ -192,12 +242,12 @@ class PythonBytecodeToSsa():
         # it is a preproc loop if we are jumping from loop header unconditionally (cond is None is this case)
         curBlockLabel = self.blockToLabel[curBlock]
         curBlockOffset = curBlockLabel[-1]
-        loop = self.loops.get(curBlockOffset, None)
+        curLoop = self.loops.get(curBlockOffset, None)
         sucLoop = self.loops.get(sucBlockOffset, None)
-        reenteringLoopBody = any(s.loop is loop for s in preprocLoopScope)
+        reenteringLoopBody = any(s.loop is curLoop for s in preprocLoopScope)
         isJumpFromLoopHeaderToBody = (
-            loop is not None and  # src is loop header
-            (sucBlockOffset,) in loop.allBlocks  # dst is in loop body
+            curLoop is not None and  # src is loop header
+            (sucBlockOffset,) in curLoop.allBlocks  # dst is in loop body
         )
         isJumpFromPreprocLoopHeaderToBody = isJumpFromLoopHeaderToBody and not isHwEvaluatedCond
         isJumpFromPreprocLoopBodyToLoopHeader = (
@@ -224,7 +274,7 @@ class PythonBytecodeToSsa():
             # if this is a jump to a header of new loop
             if isJumpFromPreprocLoopHeaderToBody and not reenteringLoopBody:
                 # jump from first header to body
-                loopMeta = PreprocLoopScope(loop, 0)
+                loopMeta = PreprocLoopScope(curLoop, 0)
                 preprocLoopScope.append(loopMeta)
                 loopMetaAdded = True
 
@@ -232,7 +282,7 @@ class PythonBytecodeToSsa():
                 # isJumpFromPreprocLoopBodyToLoopHeader
                 # this must be jump to a new body of already executed loop  
                 prevLoopMeta.appendleft(preprocLoopScope.pop())
-                loopMeta = PreprocLoopScope(loop if isJumpFromPreprocLoopHeaderToBody else sucLoop,
+                loopMeta = PreprocLoopScope(curLoop if isJumpFromPreprocLoopHeaderToBody else sucLoop,
                                             prevLoopMeta[0].iterationIndex + 1)
                 preprocLoopScope.append(loopMeta)
                 loopMetaAdded = True
@@ -257,8 +307,9 @@ class PythonBytecodeToSsa():
                     # this is a jump to a next iteration of preproc loop
                     blockWithAllPredecessorsNewlyKnown = list(
                         self.blockTracker.cfgCopyLoopBody(loopMeta.loop, preprocLoopScope))
-                #with open(f"tmp/cfg_{preprocLoopScope}.dot", "w") as f:
-                #    self.blockTracker.dumpCfgToDot(f)
+                if self.debug:
+                    with open(f"tmp/cfg_{preprocLoopScope}.dot", "w") as f:
+                        self.blockTracker.dumpCfgToDot(f)
         
         # if this is a jump just in linear code or inside body of the loop
         sucBlockLabel = self.blockTracker._getBlockLabel(sucBlockOffset)
@@ -274,6 +325,14 @@ class PythonBytecodeToSsa():
 
         if isLastJumpFromCur:
             self._onBlockGenerated(self.blockToLabel[curBlock])
+            if (curLoop is not None and
+                curBlockLabel in self.hwEvaluatedLoops and
+                self.blockTracker.hasAllPredecessorsKnown(curBlockLabel)  # and
+                # curBlock not in self.to_ssa.m_ssa_u.sealedBlocks
+                ):
+                # if this was hw loop we have to close header after all body blocks were generated
+                _curBlock = self.labelToBlock[curBlockLabel].begin
+                self._onAllPredecsKnown(_curBlock)
         
         # if (not sucBlockIsNew and sucBlock not in self.to_ssa.m_ssa_u.sealedBlocks and
         #    self.blockTracker.hasAllPredecessorsKnown(sucBlockLabel)):
@@ -281,15 +340,6 @@ class PythonBytecodeToSsa():
         #    self._onAllPredecsKnown(sucBlock)
         if sucBlockIsNew:
             self._translateBytecodeBlock(self.bytecodeBlocks[sucBlockOffset], frame, sucBlock)
-
-        if (loop is not None and
-            curBlockLabel in self.hwEvaluatedLoops and
-            self.blockTracker.hasAllPredecessorsKnown(curBlockLabel)# and
-            #curBlock not in self.to_ssa.m_ssa_u.sealedBlocks
-            ):
-            # if this was hw loop we have to close header after all body blocks were generated
-            _curBlock = self.labelToBlock[curBlockLabel].begin
-            self._onAllPredecsKnown(_curBlock)
 
         if loopMetaAdded:
             assert preprocLoopScope[-1] is loopMeta, (preprocLoopScope[-1], loopMeta)
@@ -317,12 +367,12 @@ class PythonBytecodeToSsa():
                 frame.stack.append(PythonBytecodeInPreproc(v))
             except StopIteration:
                 # jump behind the loop
-                frame.stack.pop()
-                self._getOrCreateSsaBasicBlockAndJump(curBlock, True, forIter.argval, None, frame)
+                frame.stack.pop()  # pop empty iterator
+                self._getOrCreateSsaBasicBlockAndJump(curBlock, True, forIter.argval, None, frame, False)
                 return
 
             # jump into loop body
-            self._getOrCreateSsaBasicBlockAndJump(curBlock, True, forIter.offset + 2, None, frame)
+            self._getOrCreateSsaBasicBlockAndJump(curBlock, True, forIter.offset + 2, None, frame, True)
 
         else:
             for last, instr in iter_with_last(instructions):
@@ -336,7 +386,7 @@ class PythonBytecodeToSsa():
                     if last:
                         # jump to next block, there was no explicit jump because this is regular code flow, but the next instruction
                         # is jump target
-                        self._getOrCreateSsaBasicBlockAndJump(curBlock, True, instr.offset + 2, None, frame)
+                        self._getOrCreateSsaBasicBlockAndJump(curBlock, True, instr.offset + 2, None, frame, False)
 
     def _translateInstructionJumpHw(self, instr: Instruction,
                                     frame: PythonBytecodeFrame,
@@ -350,7 +400,7 @@ class PythonBytecodeToSsa():
                 return None
 
             elif opcode == JUMP_ABSOLUTE or opcode == JUMP_FORWARD:
-                self._getOrCreateSsaBasicBlockAndJump(curBlock, True, instr.argval, None, frame)
+                self._getOrCreateSsaBasicBlockAndJump(curBlock, True, instr.argval, None, frame, False)
 
             elif opcode in (
                     JUMP_IF_FALSE_OR_POP,
@@ -375,25 +425,25 @@ class PythonBytecodeToSsa():
 
                 if compileTimeResolved:
                     if cond:
-                        self._getOrCreateSsaBasicBlockAndJump(curBlock, True, ifTrueOffset, None, frame)
+                        self._getOrCreateSsaBasicBlockAndJump(curBlock, True, ifTrueOffset, None, frame, True)
                         self._onBlockNotGenerated(curBlock, ifFalseOffset)
                     else:
-                        self._getOrCreateSsaBasicBlockAndJump(curBlock, True, ifFalseOffset, None, frame)
+                        self._getOrCreateSsaBasicBlockAndJump(curBlock, True, ifFalseOffset, None, frame, True)
                         self._onBlockNotGenerated(curBlock, ifTrueOffset)
                 else:
                     if isinstance(cond, HValue):
                         if cond:
-                            self._getOrCreateSsaBasicBlockAndJump(curBlock, True, ifTrueOffset, cond, frame)
+                            self._getOrCreateSsaBasicBlockAndJump(curBlock, True, ifTrueOffset, cond, frame, True)
                             self._onBlockNotGenerated(curBlock, ifFalseOffset)
                      
                         else:
-                            self._getOrCreateSsaBasicBlockAndJump(curBlock, True, ifFalseOffset, ~cond, frame)
+                            self._getOrCreateSsaBasicBlockAndJump(curBlock, True, ifFalseOffset, ~cond, frame, True)
                             self._onBlockNotGenerated(curBlock, ifTrueOffset)
 
                     else:
-                        self._getOrCreateSsaBasicBlockAndJump(curBlock, False, ifTrueOffset, cond, frame)
+                        self._getOrCreateSsaBasicBlockAndJump(curBlock, False, ifTrueOffset, cond, frame, True)
                         # cond = 1 because we did check in ifTrue branch and this is "else branch"
-                        self._getOrCreateSsaBasicBlockAndJump(curBlock, True, ifFalseOffset, BIT.from_py(1), frame)
+                        self._getOrCreateSsaBasicBlockAndJump(curBlock, True, ifFalseOffset, BIT.from_py(1), frame, True)
             else:
                 raise NotImplementedError(instr)
 
@@ -706,7 +756,7 @@ class PythonBytecodeToSsa():
                         a: PyObjectHwSubscriptRef
                         # we expand as a regular bin op, and store later in store_subscript
                         a, curBlock = a.expandIndexOnPyObjAsSwitchCase(curBlock)
-                        #.expandSetitemAsSwitchCase(curBlock, lambda _, dst: dst(inplaceOp(dst, b)))
+                        # .expandSetitemAsSwitchCase(curBlock, lambda _, dst: dst(inplaceOp(dst, b)))
                     res = inplaceOp(a, b)
 
                     stack.append(res)
