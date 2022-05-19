@@ -31,7 +31,7 @@ class HlsScheduler():
                 assert isinstance(iT, int), (i, iT)
                 oT = dep.obj.scheduledOut[dep.out_i]
                 assert isinstance(oT, int), (dep, oT)
-                assert iT >= oT, (dep, i, oT, iT)
+                assert iT >= oT, (dep, "->", i, iT, oT, "output connected to this input must be scheduled before this input so value is available")
 
     def _scheduleAsap(self):
         """
