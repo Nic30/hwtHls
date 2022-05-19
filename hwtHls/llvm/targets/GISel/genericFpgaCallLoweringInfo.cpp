@@ -19,13 +19,12 @@ bool GenericFpgaCallLowering::lowerReturn(MachineIRBuilder &MIRBuilder,
 		const Value *Val, ArrayRef<Register> VRegs,
 		FunctionLoweringInfo &FLI) const {
 
-	//MachineInstrBuilder Ret = MIRBuilder.buildInstrNoInsert(GenericFpga::PseudoRET);
-	//
-	//if (Val != nullptr) {
-	//  return false;
-	//}
-	//MIRBuilder.insertInstr(Ret);
-	return false;
+	MachineInstrBuilder Ret = MIRBuilder.buildInstrNoInsert(GenericFpga::PseudoRET);
+	if (Val != nullptr) {
+	  return false;
+	}
+	MIRBuilder.insertInstr(Ret);
+	return true;
 }
 
 bool GenericFpgaCallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder,

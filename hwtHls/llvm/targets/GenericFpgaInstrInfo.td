@@ -49,4 +49,7 @@ def GENFPGA_CSTORE : GenFpgaInst<
 }
 
 
+let isBarrier = 1, isReturn = 1, isTerminator = 1, isPseudo = 1, isCodeGenOnly = 1 in
+def PseudoRET :  GenFpgaInst<(outs), (ins variable_ops), []>;
+
 
