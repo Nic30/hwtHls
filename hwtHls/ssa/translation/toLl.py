@@ -1,18 +1,16 @@
-from io import StringIO
-import sys
 from typing import Set
 
 from hdlConvertorAst.to.hdlUtils import Indent, \
     AutoIndentingStream
+from hwt.hdl.value import HValue
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwtHls.hlsStreamProc.statementsIo import HlsStreamProcRead, \
     HlsStreamProcWrite
+from hwtHls.platform.fileUtils import OutputStreamGetter
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
-from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from hwtHls.ssa.phi import SsaPhi
-from hwt.hdl.value import HValue
-from hwtHls.platform.fileUtils import OutputStreamGetter
+from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 
 
 class SsaToLl():

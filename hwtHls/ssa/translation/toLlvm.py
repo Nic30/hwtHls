@@ -17,7 +17,7 @@ from hwtHls.hlsStreamProc.statementsIo import HlsStreamProcRead, \
     HlsStreamProcWrite
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
-from hwtHls.ssa.llvm.llvmIr import LLVMContext, Module, IRBuilder, LLVMStringContext, Value, \
+from hwtHls.llvm.llvmIr import LLVMContext, Module, IRBuilder, LLVMStringContext, Value, \
     Type, FunctionType, Function, VectorOfTypePtr, BasicBlock, Argument, PointerType, TypeToPointerType, \
     ConstantInt, APInt, verifyFunction, verifyModule, TypeToIntegerType, PHINode, MachineFunction, LlvmCompilationBundle
 from hwtHls.ssa.phi import SsaPhi
