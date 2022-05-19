@@ -19,7 +19,7 @@ from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.context import SsaContext
 from hwtHls.ssa.exprBuilder import SsaExprBuilder
 from hwtHls.ssa.instr import SsaInstr
-from hwtHls.ssa.llvm.llvmIr import LLVMContext, Module, IRBuilder, LLVMStringContext, IntegerType, Value, \
+from hwtHls.llvm.llvmIr import LLVMContext, Module, IRBuilder, LLVMStringContext, IntegerType, Value, \
     Type, FunctionType, Function, VectorOfTypePtr, BasicBlock, Argument, PointerType, TypeToPointerType, \
     ConstantInt, APInt, verifyFunction, verifyModule, TypeToIntegerType, LoadInst, StoreInst, Instruction, \
     UserToInstruction, ValueToInstruction, Use, ValueToConstantInt, InstructionToICmpInst, ICmpInst, CmpInst, \
