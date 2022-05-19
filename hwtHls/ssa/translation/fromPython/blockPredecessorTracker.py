@@ -169,11 +169,11 @@ class BlockPredecessorTracker():
         cfg = self.cfg
         
         oldEntry = (*oldPrefix, *loop.entryPoint)
-        allEntryPredecAlreadyKnown = True
-        for p in self.cfg.predecessors(oldEntry):
-            isNotGenerated = p in self.notGenerated
-            if p not in self.generated and not isNotGenerated:
-                allEntryPredecAlreadyKnown = False
+        #allEntryPredecAlreadyKnown = True
+        #for p in self.cfg.predecessors(oldEntry):
+        #    isNotGenerated = p in self.notGenerated
+        #    if p not in self.generated and not isNotGenerated:
+        #        allEntryPredecAlreadyKnown = False
 
         # for each node create a new one with updated name and also generate all edges
         for newNode in blockMap.values():
