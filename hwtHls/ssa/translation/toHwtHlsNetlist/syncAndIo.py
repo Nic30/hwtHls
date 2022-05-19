@@ -223,7 +223,7 @@ class SsaToHwtHlsNetlistSyncAndIo():
         control_cache_key = BranchControlLabel(src_block, dst_block, INTF_DIRECTION.MASTER)
         if block_ports.has_control:
             control_ext_ports = next(ports_it)
-            end_val = self.parent._to_hls_cache.get(control_cache_key)
+            end_val = self.parent._to_hls_cache.get(control_cache_key, BIT)
             end_val = self.parent.to_hls_expr(end_val)
             assert isinstance(end_val, HlsNetNodeOut), ("Must be already existing output", control_cache_key, end_val)
             # w_to_out = self._add_to_to_hls_cache(cache_key, end_val)

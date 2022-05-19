@@ -28,6 +28,7 @@ from hwtHls.ssa.translation.toHwtHlsNetlist.opCache import SsaToHwtHlsNetlistOpC
 from hwtHls.ssa.translation.toHwtHlsNetlist.syncAndIo import SsaToHwtHlsNetlistSyncAndIo
 from hwtHls.ssa.value import SsaValue
 from ipCorePackager.constants import INTF_DIRECTION
+from hwt.hdl.types.defs import BIT
 
 
 class SsaToHwtHlsNetlist():
@@ -176,7 +177,7 @@ class SsaToHwtHlsNetlist():
 
     def to_hls_expr(self, obj: Union[HValue, SsaValue, RtlSignalBase, HlsNetNodeOut]) -> HlsNetNodeOut:
         if isinstance(obj, SsaValue):
-            return self._to_hls_cache.get((self._current_block, obj))
+            return self._to_hls_cache.get((self._current_block, obj), obj._dtype)
         elif isinstance(obj, HValue) or (isinstance(obj, RtlSignalBase) and obj._const):
             _obj = HlsNetNodeConst(self.hls, obj)
             self._to_hls_cache.add(_obj, _obj, False)
@@ -246,7 +247,7 @@ class SsaToHwtHlsNetlist():
         # and the predecessor block has some extrenal io
         for pred in block.predecessors:
             # if self._blockMeta[pred].needsControl:
-            en = self._to_hls_cache.get(BranchControlLabel(pred, block, INTF_DIRECTION.SLAVE))
+            en = self._to_hls_cache.get(BranchControlLabel(pred, block, INTF_DIRECTION.SLAVE), BIT)
             en_from_pred.append(en)
 
         return en_from_pred
@@ -313,7 +314,7 @@ class SsaToHwtHlsNetlist():
                     c = en_from_pred_OH[self._blockControlIndex(block.predecessors, src_block)]
                     mux._add_input_and_link(c)
 
-                src = self._to_hls_cache.get((src_block, v))  # self.to_hls_expr(v)
+                src = self._to_hls_cache.get((src_block, v), v._dtype)  # self.to_hls_expr(v)
                 mux._add_input_and_link(src)
 
         # single predecessor, and marked to re-exec after end
@@ -398,7 +399,7 @@ class SsaToHwtHlsNetlist():
             if not is_out_of_pipeline:
                 # propagete variables on suc_block input
                 for v in block_var_live.get(suc_block, ()):
-                    cur_v = self._to_hls_cache.get((block, v))
+                    cur_v = self._to_hls_cache.get((block, v), v._dtype)
                     if v in suc_meta.inLiveVarsWithMultipleSrcBlocks:
                         continue
 

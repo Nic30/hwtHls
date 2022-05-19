@@ -3,6 +3,7 @@ from typing import Union, Tuple, Dict
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy
 from hwtHls.ssa.value import SsaValue
 from hwtHls.ssa.basicBlock import SsaBasicBlock
+from hwt.hdl.types.hdlType import HdlType
 
 
 class SsaToHwtHlsNetlistOpCache():
@@ -53,7 +54,7 @@ class SsaToHwtHlsNetlistOpCache():
 
         self._to_hls_cache[k] = v
 
-    def get(self, k) -> Union[HlsNetNodeOut, HlsNetNodeOutLazy]:
+    def get(self, k, dtype: HdlType) -> Union[HlsNetNodeOut, HlsNetNodeOutLazy]:
         """
         Load object form _to_hls_cache dictionary, if the object is not preset temporary placeholder (HlsNetNodeOutLazy)
         is returned instead (and must be replaced later).
@@ -63,6 +64,6 @@ class SsaToHwtHlsNetlistOpCache():
             assert not isinstance(v, HlsNetNodeOutLazy) or v.replaced_by is None, (k, v)
             return v
         except KeyError:
-            o = HlsNetNodeOutLazy(k, self)
+            o = HlsNetNodeOutLazy(k, self, dtype)
             self._to_hls_cache[k] = o
             return o

@@ -71,11 +71,12 @@ class HlsNetNodeOutLazy():
     :ivar dependent_inputs: information about children where new object should be replaced
     """
 
-    def __init__(self, key_of_self_in_cache, op_cache:"SsaToHwtHlsNetlistOpCache"):
+    def __init__(self, key_of_self_in_cache, op_cache:"SsaToHwtHlsNetlistOpCache", dtype: HdlType):
         self.dependent_inputs: List[HlsNetNodeIn, HlsNetNodeOutLazyIndirect] = []
         self.replaced_by = None
         self.keys_of_self_in_cache = [key_of_self_in_cache, ]
         self.op_cache = op_cache
+        self._dtype = dtype
 
     def replace_driver(self, o:HlsNetNodeOut):
         assert self is not o, self

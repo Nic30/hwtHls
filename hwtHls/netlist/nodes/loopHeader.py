@@ -159,7 +159,7 @@ class HlsLoopGate(HlsNetNode):
 
             if toHls._blockMeta[pred].needsControl:
                 control_key = BranchControlLabel(pred, block, INTF_DIRECTION.SLAVE)
-                control = to_hls_cache.get(control_key)
+                control = to_hls_cache.get(control_key, BIT)
                 _, control = HlsNetNodeExplicitSync.replace_variable(hls, control_key, control, to_hls_cache, en, not_en)
             else:
                 control = None
@@ -167,7 +167,7 @@ class HlsLoopGate(HlsNetNode):
             # variables = []
             for v in io.edge_var_live.get(pred, {}).get(block, ()):
                 cache_key = (block, v)
-                v = to_hls_cache.get(cache_key)
+                v = to_hls_cache.get(cache_key, v._dtype)
                 _, _ = HlsNetNodeExplicitSync.replace_variable(hls, cache_key, v, to_hls_cache, en, not_en)
                 # variables.append(v)
 
