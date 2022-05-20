@@ -21,6 +21,11 @@ foreach f : generated_llvm_backend_files
     all_llvm_backend_gen_files += gen_src 
 endforeach
 
+llmvIr_extraDefs = []
+if not llvm_is_debug_build
+	llmvIr_extraDefs += ['-DLLVM_NDEBUG=1']
+endif
+
 py3.extension_module(
     'llvmIr',
     ['llvmIr.cpp',
@@ -66,7 +71,7 @@ py3.extension_module(
      ] + all_llvm_backend_gen_files,
     dependencies : [py3_dep, llvm_dep, pybind11_dep],
     install: true,
-    cpp_args: ['-Wno-comment', '-Wno-non-virtual-dtor'], # because of LLVM
+    cpp_args: ['-Wno-comment', '-Wno-non-virtual-dtor'] + llmvIr_extraDefs, # because of LLVM
     subdir: 'hwtHls/llvm',
 )
 

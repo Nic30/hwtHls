@@ -1,11 +1,15 @@
 #include "genericFpgaLegalizerInfo.h"
+#include "../genericFpgaTargetSubtarget.h"
+
+#ifdef LLVM_NDEBUG
+#define NDEBUG 1
+#endif
 
 namespace llvm {
 
 GenericFpgaLegalizerInfo::GenericFpgaLegalizerInfo(
-		const GenericFpgaTargetSubtarget &ST) {
-	getLegacyLegalizerInfo().computeTables();
-
+		const GenericFpgaTargetSubtarget &ST): LegalizerInfo() {
+	//auto & LLI = getLegacyLegalizerInfo();
 	using namespace TargetOpcode;
 	// add natively supported ops as legal
 	for (auto op : { G_IMPLICIT_DEF, G_CONSTANT, G_SELECT, G_BRCOND, G_ICMP, G_ADD, G_SUB,
@@ -14,7 +18,9 @@ GenericFpgaLegalizerInfo::GenericFpgaLegalizerInfo(
 		getActionDefinitionsBuilder(op) //
 		.alwaysLegal();
 	}
-
+	//LLI.computeTables();
+	getLegacyLegalizerInfo().computeTables();
+	verify(*ST.getInstrInfo());
 }
 
 }

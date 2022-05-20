@@ -31,5 +31,6 @@ llvm_dep = dependency('llvm', version : '>=14.0.0')
 llvm_bin = llvm_dep.get_variable('bindir', default_value:'/usr/lib/llvm-14/bin')
 llvm_includedir = llvm_dep.get_variable('includedir', default_value: '/usr/lib/llvm-14/include')
 llvm_tblgen = find_program(llvm_bin + '/llvm-tblgen', required: true)
+llvm_is_debug_build = llvm_dep.get_variable('--build-mode',  default_value: 'Release') == 'Debug'
 
 subdir('hwtHls')
