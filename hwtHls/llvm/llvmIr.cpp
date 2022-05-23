@@ -52,6 +52,7 @@ void register_Function(pybind11::module_ & m) {
 			}, //py::keep_alive<0, 1>(), py::keep_alive<0, 2>(),
 			   //py::keep_alive<0, 3>(), py::keep_alive<0, 4>()
 			py::return_value_policy::reference) /*keep dependencies alive while Function exists */
+		.def("getGlobalIdentifier", [](llvm::Function *self) { return self->getGlobalIdentifier();})
 		.def("args", [](llvm::Function *self) {
 				return py::make_iterator(self->arg_begin(), self->arg_end(),
 						py::return_value_policy::reference);
