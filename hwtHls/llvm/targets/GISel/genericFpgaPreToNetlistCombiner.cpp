@@ -70,28 +70,49 @@ public:
 
 	void convertGENFPGA_CCOPY_to_GENFPGA_MUX(MachineRegisterInfo &MRI,
 			CombinerHelper &Helper, MachineInstr &MI) const;
-	void convertG_SELECT_to_GENFPGA_MUX(CombinerHelper &Helper,
-			MachineInstr &MI) const;
+	void convertG_SELECT_to_GENFPGA_MUX(MachineRegisterInfo &MRI,
+			CombinerHelper &Helper, MachineInstr &MI) const;
+	static void convertPHI_to_GENFPGA_MUX(MachineIRBuilder &Builder);
 };
 void GenericFpgaPreToNetlistCombinerInfo::convertGENFPGA_CCOPY_to_GENFPGA_MUX(
 		MachineRegisterInfo &MRI, CombinerHelper &Helper,
 		MachineInstr &MI) const {
 	// dst, val, cond
-	unsigned OpNum = MI.getNumOperands();
-	if (OpNum == 3) {
-		auto c = MI.getOperand(2).getReg();
-		Helper.replaceRegOpWith(MRI, MI.getOperand(2),
-				MI.getOperand(1).getReg());
-		Helper.replaceRegOpWith(MRI, MI.getOperand(1), c);
-	} else {
-		assert(OpNum == 2);
-	}
 	Helper.replaceOpcodeWith(MI, GenericFpga::GENFPGA_MUX);
 }
 void GenericFpgaPreToNetlistCombinerInfo::convertG_SELECT_to_GENFPGA_MUX(
-		CombinerHelper &Helper, MachineInstr &MI) const {
-	// dst, cond, a, b
+		MachineRegisterInfo &MRI, CombinerHelper &Helper,
+		MachineInstr &MI) const {
+	// dst, cond, a, b -> dst, a, cond, b
+	if (MI.getNumOperands() != 3)
+		llvm_unreachable("NotImplemented");
+
+	auto a = MI.getOperand(2).getReg();
+	Helper.replaceRegOpWith(MRI, MI.getOperand(2), MI.getOperand(1).getReg()); // mv cond
+	Helper.replaceRegOpWith(MRI, MI.getOperand(1), a);
 	Helper.replaceOpcodeWith(MI, GenericFpga::GENFPGA_MUX);
+}
+void GenericFpgaPreToNetlistCombinerInfo::convertPHI_to_GENFPGA_MUX(MachineIRBuilder &Builder) {
+	MachineInstr &MI = *Builder.getInsertPt();
+	MachineInstrBuilder MIB = Builder.buildInstr(GenericFpga::GENFPGA_MUX);
+	MachineBasicBlock &MBB = *MI.getParent();
+	MachineFunction &MF = *MBB.getParent();
+	MachineRegisterInfo &MRI = MF.getRegInfo();
+	for (auto MO : MI.operands()) {
+		if (MO.isReg() && MO.isDef()) {
+			MIB.addDef(MO.getReg(), MO.getTargetFlags());
+			continue;
+		} else if (MO.isReg() && MO.getReg()) {
+			if (auto VRegVal = getAnyConstantVRegValWithLookThrough(MO.getReg(),
+					MRI)) {
+				auto &C = MF.getFunction().getContext();
+				auto *CI = ConstantInt::get(C, VRegVal->Value);
+				MIB.addCImm(CI);
+				continue;
+			}
+		}
+		MIB.add(MO);
+	}
 }
 bool GenericFpgaPreToNetlistCombinerInfo::combine(GISelChangeObserver &Observer,
 		MachineInstr &MI, MachineIRBuilder &B) const {
@@ -104,6 +125,16 @@ bool GenericFpgaPreToNetlistCombinerInfo::combine(GISelChangeObserver &Observer,
 
 	unsigned Opc = MI.getOpcode();
 	switch (Opc) {
+	case TargetOpcode::IMPLICIT_DEF:
+	case TargetOpcode::G_IMPLICIT_DEF:
+		MI.eraseFromParent();
+		return true;
+	case TargetOpcode::PHI: {
+		std::function<void(llvm::MachineIRBuilder&)> _phiToMux = convertPHI_to_GENFPGA_MUX;
+		Helper.applyBuildFn(MI, _phiToMux);
+		return true;
+	}
+
 	case TargetOpcode::G_CONCAT_VECTORS:
 		return Helper.tryCombineConcatVectors(MI);
 	case TargetOpcode::G_SHUFFLE_VECTOR:
@@ -114,7 +145,7 @@ bool GenericFpgaPreToNetlistCombinerInfo::combine(GISelChangeObserver &Observer,
 		convertGENFPGA_CCOPY_to_GENFPGA_MUX(*B.getMRI(), Helper, MI);
 		return true;
 	case llvm::GenericFpga::G_SELECT:
-		convertG_SELECT_to_GENFPGA_MUX(Helper, MI);
+		convertG_SELECT_to_GENFPGA_MUX(*B.getMRI(), Helper, MI);
 		return true;
 	}
 

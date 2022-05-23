@@ -124,6 +124,8 @@ void selectInstrArgs(MachineInstr &I, MachineInstrBuilder &MIB,
 			continue;
 		}
 		if (MO.isReg() && MO.getReg()) {
+			if (MO.isDef())
+				llvm_unreachable("NotImplemented");
 			if (auto VRegVal = getAnyConstantVRegValWithLookThrough(MO.getReg(),
 					MRI)) {
 				assert(!(OpI == 0 && firstIsDef));
@@ -154,8 +156,8 @@ bool GenericFpgaTargetInstructionSelector::select(MachineInstr &I) {
 	auto &MBB = *I.getParent();
 	auto &MF = *MBB.getParent();
 	auto &MRI = MF.getRegInfo();
-
-	if (!isPreISelGenericOpcode(I.getOpcode())) {
+	auto Opc = I.getOpcode();
+	if (!isPreISelGenericOpcode(Opc)) {
 		// Certain non-generic instructions also need some special handling.
 		return true;
 	}
@@ -164,12 +166,27 @@ bool GenericFpgaTargetInstructionSelector::select(MachineInstr &I) {
 		return true;
 
 	const TargetRegisterClass &RC = GenericFpga::AnyRegClsRegClass;
-	auto Opc = I.getOpcode();
+
 	//llvm::errs() << "GenericFpgaTargetInstructionSelector::select: "
 	//		<< TII.getName(Opc) << "\n";
 	using namespace TargetOpcode;
 	switch (Opc) {
 	case G_PHI: {
+		// PHI value args must be registers otherwise OptimizePHIs will fail.
+		//MachineIRBuilder Builder(I);
+		//auto MIB = Builder.buildInstr(PHI);
+		//MIB.getInstr()->setDesc(TII.get(PHI));
+		//I.setDesc(TII.get(PHI));
+        //
+		//Register DstReg = I.getOperand(0).getReg();
+		//
+		//selectInstrArgs(I, MIB, true);
+		//if (!RBI.constrainGenericRegister(DstReg, RC, MRI)) {
+		//	break;
+		//}
+		//if (!constrainInstRegOperands(*MIB.getInstr(), TII, TRI, RBI))
+		//	return false;
+		//I.eraseFromParent();
 		I.setDesc(TII.get(PHI));
 
 		Register DstReg = I.getOperand(0).getReg();

@@ -169,7 +169,7 @@ void GenericFpgaTargetPassConfig::addOptimizedRegAlloc() {
 	addPass(&EarlyIfPredicatorID);
 	addPass(&EarlyIfConverterID);
 	addPass(&DeadMachineInstructionElimID); // requires explicit undefs
-	addPass(createGenericFpgaPreToNetlistCombiner());
+
 }
 void GenericFpgaTargetPassConfig::addPreNetlistCombinerCallback(std::function<bool(MachineInstr & I)> combineCallback) {
 	combineCallbacks.push_back(combineCallback);
@@ -195,6 +195,7 @@ void GenericFpgaTargetPassConfig::addMachinePasses() {
 
 	// Insert before XRay Instrumentation.
 	addPass(&FEntryInserterID);
+	addPass(createGenericFpgaPreToNetlistCombiner());
 }
 
 // [todo] handling of register allocation, maybe similar to WebAssemblyPassConfig::addPostRegAlloc()
