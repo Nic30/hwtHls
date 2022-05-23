@@ -1,4 +1,3 @@
-from copy import copy
 from math import inf, isfinite
 from typing import List, Optional, Union, Tuple, Generator, Dict
 
@@ -9,6 +8,7 @@ from hwtHls.clk_math import start_of_next_clk_period, start_clk
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.scheduler.errors import TimeConstraintError
+from itertools import zip_longest
 
 TimeSpec = Union[float, Tuple[int, ...]]
 SchedulizationDict = Dict["HlsNetNode", Tuple[Tuple[int, ...], Tuple[int, ...]]]
@@ -58,10 +58,28 @@ class HlsNetNode():
 
     def copyScheduling(self, schedule: SchedulizationDict):
         schedule[self] = (self.scheduledIn, self.scheduledOut)
-    
+
+    def checkScheduling(self):
+        """
+        Assert that the scheduling is consistent.
+        """
+        assert self.scheduledIn is not None, self
+        assert self.scheduledOut is not None, self
+        for i, iT, dep in zip_longest(self._inputs, self.scheduledIn, self.dependsOn):
+            assert isinstance(iT, int), (i, iT)
+            oT = dep.obj.scheduledOut[dep.out_i]
+            assert isinstance(oT, int), (dep, oT)
+            assert iT >= oT, (dep, "->", i, iT, oT, "output connected to this input must be scheduled before this input so value is available")
+            assert iT >= 0, (iT, self, i, "Scheduled before start of the time")
+            assert oT >= 0, (oT, dep, "Scheduled before start of the time")
+
     def resetScheduling(self):
         self.scheduledIn = None
         self.scheduledOut = None
+    
+    def moveSchedulingTime(self, offset: int):
+        self.scheduledIn = tuple(t + offset for t in self.scheduledIn)
+        self.scheduledOut = tuple(t + offset for t in self.scheduledOut)
     
     def scheduleAsap(self, pathForDebug: Optional[UniqList["HlsNetNode"]]) -> List[float]:
         """

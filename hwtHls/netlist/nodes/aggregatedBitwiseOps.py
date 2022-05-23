@@ -38,6 +38,16 @@ class HlsNetNodeBitwiseOps(HlsNetNode):
         for n in self._subNodes.nodes:
             n.copyScheduling(schedule)
         schedule[self] = (self.scheduledIn, self.scheduledOut)
+    
+    def moveSchedulingTime(self, offset:int):
+        HlsNetNode.moveSchedulingTime(self, offset)
+        for n in self._subNodes.nodes:
+            n.moveSchedulingTime(offset)
+
+    def checkScheduling(self):
+        HlsNetNode.checkScheduling(self)
+        for n in self._subNodes.nodes:
+            n.checkScheduling()
 
     def resetScheduling(self):
         for n in self._subNodes.nodes:
@@ -435,6 +445,9 @@ class HlsNetNodeBitwiseOpsPartRef(HlsNetNodePartRef, HlsNetNodeBitwiseOps):
         self.parentNode = parentNode
         self.beginTime = beginTime
         self.endTime = endTime
+ 
+    def moveSchedulingTime(self, offset:int):
+        raise AssertionError("This node should not be scheduled because parent node should be scheduled instead")
 
     def scheduleAsap(self, pathForDebug: Optional[UniqList["HlsNetNode"]]) -> List[float]:
         """

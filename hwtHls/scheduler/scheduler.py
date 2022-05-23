@@ -15,7 +15,7 @@ class HlsScheduler():
     :ivar epsilon: The minimal step of time allowed.
     """
     
-    def __init__(self, parentHls: "HlsPipeline", resolution):
+    def __init__(self, parentHls: "HlsPipeline", resolution: float):
         self.parentHls = parentHls
         self.resolution = resolution
         self.epsilon = 1
@@ -25,13 +25,7 @@ class HlsScheduler():
         Check that all nodes do have some time resolved by scheduler.
         """
         for node in self.parentHls.iterAllNodes():
-            assert node.scheduledIn is not None, node
-            assert node.scheduledOut is not None, node
-            for i, iT, dep in zip(node._inputs, node.scheduledIn, node.dependsOn):
-                assert isinstance(iT, int), (i, iT)
-                oT = dep.obj.scheduledOut[dep.out_i]
-                assert isinstance(oT, int), (dep, oT)
-                assert iT >= oT, (dep, "->", i, iT, oT, "output connected to this input must be scheduled before this input so value is available")
+            node.checkScheduling()
 
     def _scheduleAsap(self):
         """
@@ -67,7 +61,8 @@ class HlsScheduler():
             if not node.usedBy or not any(node.usedBy):
                 # if it is terminator move to end of clk period
                 if isinstance(node, HlsLoopGate):
-                    node.scheduledIn, node.scheduledOut = asapSchedule[node] 
+                    node.scheduledIn, node.scheduledOut = asapSchedule[node]
+
         consts = UniqList()
         minTime = inf       
         for node in self.parentHls.iterAllNodes():
@@ -90,16 +85,19 @@ class HlsScheduler():
             c.scheduledOut = (min(u.obj.scheduledIn[u.in_i] for u in c.usedBy[0]),)
             if node.scheduledOut:
                 minTime = min(minTime, min(node.scheduledOut))
+
         if minTime < 0:
-            offset = -ceil(minTime / normalizedClkPeriod) * normalizedClkPeriod
+            # move everything forward in time so there is nothing scheduled in negative time, the move must be aligned to clock boundaries
+            offset = ceil(-minTime / normalizedClkPeriod) * normalizedClkPeriod
         elif minTime >= normalizedClkPeriod:
             offset = -(minTime // normalizedClkPeriod) * normalizedClkPeriod 
         else:
             offset = None
+
         if offset is not None:
             for node in self.parentHls.iterAllNodes():
-                node.scheduledIn = tuple(max(t + offset, 0) for t in node.scheduledIn)
-                node.scheduledOut = tuple(max(t + offset, 0) for t in node.scheduledOut)
+                node: HlsNetNode
+                node.moveSchedulingTime(offset)
 
     def schedule(self):
         self._scheduleAsap()
