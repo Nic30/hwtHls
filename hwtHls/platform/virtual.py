@@ -31,6 +31,7 @@ from hwtHls.ssa.translation.toLlvm import SsaPassToLlvm
 from hwtHls.netlist.translation.toTimelineArchLevel import HlsNetlistPassShowTimelineArchLevel
 from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF
 from hwtHls.platform.fileUtils import outputFileGetter
+from hwtHls.ssa.analysis.dumpMIR import SsaPassDumpMIR
 
 _OPS_T_GROWING_EXP = {
     AllOps.DIV,
@@ -113,10 +114,11 @@ def makeDebugPasses(debug_file_directory: Union[str, Path], expandCompositeNodes
             SsaPassDumpToLl(outputFileGetter(debug_file_directory, ".3.ll")),
             SsaPassRunLlvmOpt(),
             SsaPassDumpToLl(outputFileGetter(debug_file_directory, ".4.ll")),
+            SsaPassDumpMIR(outputFileGetter(debug_file_directory, ".5.ll")),
             SsaPassFromLlvm(),
 
-            SsaPassDumpToDot(outputFileGetter(debug_file_directory, ".5.dot")),
-            SsaPassDumpPipelines(outputFileGetter(debug_file_directory, ".6.pipeline.txt")),
+            SsaPassDumpToDot(outputFileGetter(debug_file_directory, ".6.dot")),
+            SsaPassDumpPipelines(outputFileGetter(debug_file_directory, ".7.pipeline.txt")),
             SsaPassConsystencyCheck(),
         ],
         "hlsNetlistPasses": [
@@ -127,12 +129,12 @@ def makeDebugPasses(debug_file_directory: Union[str, Path], expandCompositeNodes
             HlsNetlistPassAggregateBitwiseOps(),
             # HlsNetlistPassConsystencyCheck(),
             # HlsNetlistPassDumpToDot(debug_file_directory / "top_p1.dot"),
-            HlsNetlistPassShowTimeline(outputFileGetter(debug_file_directory, ".7.schedule.html"),
+            HlsNetlistPassShowTimeline(outputFileGetter(debug_file_directory, ".8.schedule.html"),
                                        expandCompositeNodes=expandCompositeNodes),
         ],
         "rtlNetlistPasses":[
-            RtlNetlistPassDumpStreamNodes(outputFileGetter(debug_file_directory, ".8.sync.txt")),
-            HlsNetlistPassShowTimelineArchLevel(outputFileGetter(debug_file_directory, ".9.archschedule.html")),
+            RtlNetlistPassDumpStreamNodes(outputFileGetter(debug_file_directory, ".9.sync.txt")),
+            HlsNetlistPassShowTimelineArchLevel(outputFileGetter(debug_file_directory, ".10.archschedule.html")),
         ],
     }
 
