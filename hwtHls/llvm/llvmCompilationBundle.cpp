@@ -389,6 +389,7 @@ void LlvmCompilationBundle::runOpt(std::function<bool(llvm::MachineInstr&)> comb
 	// :info: based on llc.cpp
 
 	PM.add(MMIWP);
+	// check for incompatible passes
 	llvm::TargetPassConfig &TPC =
 			*static_cast<llvm::LLVMTargetMachine&>(*TM).createPassConfig(PM);
 	if (TPC.hasLimitedCodeGenPipeline()) {
@@ -398,10 +399,12 @@ void LlvmCompilationBundle::runOpt(std::function<bool(llvm::MachineInstr&)> comb
 	}
 
 	PM.add(&TPC);
+
+	// add passes which convert llvm::Function to llvm::MachineFunction
 	if (TPC.addISelPasses())
 		llvm_unreachable("Can not addISelPasses");
 	TPC.printAndVerify("before addMachinePasses");
-	TPC.addMachinePasses();
+	TPC.addMachinePasses(); // add main bundle of Machine level optimizations
 	dynamic_cast<llvm::GenericFpgaTargetPassConfig*>(&TPC)->addPreNetlistCombinerCallback(combinerCallback);
 	// place for custom machine passes
 	TPC.printAndVerify("after addMachinePasses");
