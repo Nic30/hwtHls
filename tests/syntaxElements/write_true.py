@@ -3,7 +3,7 @@
 
 from hwtHls.hlsStreamProc.streamProc  import HlsStreamProc
 from tests.syntaxElements.trivial import WhileTrueReadWrite
-
+from hwtHls.platform.virtual import makeDebugPasses
 
 class WhileTrueReadWriteExpr(WhileTrueReadWrite):
 
@@ -40,6 +40,6 @@ class WhileSendSequence(WhileTrueReadWrite):
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
-    u = WhileSendSequence()
+    u = WhileTrueReadWriteExpr()
     u.FREQ = int(150e6)
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform()))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(**makeDebugPasses("tmp"))))
