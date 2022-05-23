@@ -2,6 +2,7 @@
 from typing import Union, List, Dict, Tuple, Optional
 
 from hwt.code import SwitchLogic
+from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.interfaces.std import HandshakeSync, Signal
 from hwt.pyUtils.uniqList import UniqList
@@ -19,7 +20,6 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtLib.handshaked.streamNode import StreamNode
 from ipCorePackager.constants import INTF_DIRECTION
-from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 
 
 class AllocatorArchitecturalElement():
