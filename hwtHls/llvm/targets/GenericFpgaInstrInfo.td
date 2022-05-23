@@ -15,12 +15,19 @@ class GenFpgaInst<
   let Pattern = pattern;
 }
 
+
 let hasSideEffects = 0, isPredicable = 1, isAsCheapAsAMove = 1 in {
 // conditional copy, pseudo instruction used before final combiner
 def GENFPGA_CCOPY : GenFpgaInst<
     (outs AnyRegCls:$dst),
 	(ins AnyRegCls:$src1, AnyRegCls:$cond),
 	[]>;
+
+def GENFPGA_ARG_GET : GenFpgaInst<
+    (outs AnyRegCls:$dst),
+	(ins i64imm:$src1),
+	[]>;
+
 }
 
 let mayLoad = 0, mayStore = 0, hasSideEffects = 0, isPredicable = 1, isSelect = 1, isAsCheapAsAMove = 1  in {
@@ -28,7 +35,9 @@ let mayLoad = 0, mayStore = 0, hasSideEffects = 0, isPredicable = 1, isSelect = 
 // which manages conditional copy driven by predicate or predecessor block
 def GENFPGA_MUX : GenFpgaInst<
     (outs AnyRegCls:$dst),
-	(ins variable_ops), // ins are variadic, in format (cond value)* value?; cond can be register, value or BB
+	(ins variable_ops), // ins are variadic, in format (value cond)* value?;
+	                    // (format is same as for LLVM PHI) cond can be register, value or BB
+	                    // but in final optimized form cond it is only register or BB
 	[]>; // no pattern because we match in C++
 }
 

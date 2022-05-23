@@ -32,7 +32,8 @@ bool GenericFpgaCallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder,
 		FunctionLoweringInfo &FLI) const {
 	if (F.arg_empty())
 		llvm_unreachable(
-				"GenericFpgaCallLowering::lowerFormalArguments is meant for functions realized in hardware, args. represents IO and there must be some IO.");
+				"GenericFpgaCallLowering::lowerFormalArguments is meant for functions realized in hardware,"
+				" args. represents IO and there must be some IO.");
 
 	MachineFunction &MF = MIRBuilder.getMF();
 	MachineRegisterInfo &MRI = MF.getRegInfo();
@@ -52,8 +53,8 @@ bool GenericFpgaCallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder,
 		MRI.setRegClass(DstReg, &GenericFpga::AnyRegClsRegClass);
 
 		///MRI.addLiveIn(SrcReg, DstReg);
-		MIRBuilder.buildInstr(TargetOpcode::G_IMPLICIT_DEF)//
-				.addDef(DstReg);
+		MachineInstrBuilder MIB = MIRBuilder.buildInstr(GenericFpga::GENFPGA_ARG_GET);
+		MIB.addDef(DstReg).addImm(i);
 		//MRI.setType(SrcReg, LLT::pointer(i, 64));
 		//MRI.setType(DstReg, LLT::pointer(i, 64));
 		// FIXME: Unfortunately it's necessary to emit a copy from the livein copy.
