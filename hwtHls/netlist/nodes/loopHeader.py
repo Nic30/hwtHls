@@ -41,7 +41,7 @@ class HlsLoopGateStatus(HlsNetNode):
 
         # [todo] set this register based on how data flows on control channels
         # (breaks returns token, predec takes token)
-        # returns the controll token
+        # returns the control token
         from_break = [allocator.instantiateHlsNetNodeOut(i) for i in  self._loop_gate.from_break]
         # takes the control token
         from_predec = [allocator.instantiateHlsNetNodeOut(i) for i in self._loop_gate.from_predec]
@@ -53,7 +53,8 @@ class HlsLoopGateStatus(HlsNetNode):
             status_reg(1)
         elif not from_break and from_predec and from_reenter:
             # this is an infinite loop which has a predecessor, once started it will be closed for new starts
-            If(Or(*(p.get(t).data for p in from_predec)),
+            # :attention: we pick the data from any time because this is kind of back edge
+            If(Or(*(p.get(p.timeOffset).data for p in from_predec)),
                status_reg(1)
             )
         else:
