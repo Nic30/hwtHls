@@ -280,7 +280,7 @@ class SsaToHwtHlsNetlistSyncAndIo():
                 assert isinstance(prevIo, (HlsNetNodeRead, HlsNetNodeWrite)), prevIo
                 self._addOrderingDependence(prevIo, io)
 
-        # the oredring in this block is tied only to this specific io access
+        # the ordering in this block is tied only to this specific io access
         self._blockOrderingSync[block] = UniqList((io,))
 
     def _write_to_io(self, intf: Interface,
@@ -288,7 +288,7 @@ class SsaToHwtHlsNetlistSyncAndIo():
                      write_cls:Type[HlsNetNodeWrite]=HlsNetNodeWrite,
                      ordered=True) -> HlsNetNodeWrite:
         """
-        Instanciate HlsNetNodeWrite operation for this specific interface.
+        Instantiate HlsNetNodeWrite operation for this specific interface.
         """
         write = write_cls(self.hls, val, intf)
         block = self.parent._current_block

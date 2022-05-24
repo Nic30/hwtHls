@@ -23,7 +23,7 @@ class SsaToHwtHlsNetlistOpCache():
         Register object in _to_hls_cache dictionary, which is used to avoid duplication of object in the circuit.
 
         :param isDefOfPhiCyclicArg: True if we are adding the definition of a variable which is also a phi argument in some predecessor
-            and is virtually used in phi before its definition.
+            and is virtually used in PHI before its definition.
             For this type of variables we need to keep 2 values (before def. and after).
             This happens for variables in cycles which are defined somewhere in loop body and are used in cycle header PHIs.
         """
