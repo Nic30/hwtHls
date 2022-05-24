@@ -171,9 +171,6 @@ void GenericFpgaTargetPassConfig::addOptimizedRegAlloc() {
 	addPass(&DeadMachineInstructionElimID); // requires explicit undefs
 
 }
-void GenericFpgaTargetPassConfig::addPreNetlistCombinerCallback(std::function<bool(MachineInstr & I)> combineCallback) {
-	combineCallbacks.push_back(combineCallback);
-}
 void GenericFpgaTargetPassConfig::addMachinePasses() {
 	// based on TargetPassConfig::addMachinePasses();
 

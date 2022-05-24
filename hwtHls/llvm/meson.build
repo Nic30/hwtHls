@@ -37,6 +37,7 @@ py3.extension_module(
      'llvmCompilationBundle.cpp',
      
      'llvmSrc/CodeGenPrepare.cpp',
+     'targets/Analysis/liveVariableForEdge.cpp',
      
      'targets/intrinsic/bitrange.cpp',
 
@@ -58,6 +59,7 @@ py3.extension_module(
      'targets/genericFpgaTargetTransformInfo.cpp',
      'targets/genericFpgaTargetPassConfig.cpp',
      
+     'targets/Transforms/genericFpgaToNetlist.cpp',
      'targets/Transforms/hwtHlsCodeGenPrepare.cpp',
      'targets/Transforms/EarlyMachineCopyPropagation.cpp',
      

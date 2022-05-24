@@ -24,6 +24,7 @@
 #include <string>
 #include <vector>
 
+#include "targets/Transforms/genericFpgaToNetlist.h"
 
 PYBIND11_MAKE_OPAQUE(std::vector<llvm::Type*>);
 
@@ -147,16 +148,12 @@ PYBIND11_MODULE(llvmIr, m) {
 	py::class_<hwtHls::LlvmCompilationBundle>(m, "LlvmCompilationBundle")
 		.def(py::init<const std::string &>())
 		.def("runOpt", [](hwtHls::LlvmCompilationBundle * LCB, const py::object & o) {
-				if (o.is_none()) {
-					LCB->runOpt([](llvm::MachineInstr &I) -> bool {
-						return false;
-					});
-				} else {
-					LCB->runOpt([o](llvm::MachineInstr &I) -> bool {
-						py::object ret = o.operator() <py::return_value_policy::reference, llvm::MachineInstr &>(I);
-						return ret.cast<bool>();
-					});
-				}
+			LCB->runOpt([o](llvm::MachineFunction &MF,
+					std::set<hwtHls::GenericFpgaToNetlist::MachineBasicBlockEdge>& backedges,
+					hwtHls::EdgeLivenessDict & liveness,
+					std::vector<llvm::Register> & ioRegs) {
+				o.operator() <py::return_value_policy::reference, llvm::MachineFunction &>(MF, backedges, liveness, ioRegs);
+			});
 
 		})
 		.def("getMachineFunction", &hwtHls::LlvmCompilationBundle::getMachineFunction)

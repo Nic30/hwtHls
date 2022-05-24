@@ -8,6 +8,7 @@
 #include <llvm/MC/TargetRegistry.h>
 
 #include "llvmIrStrings.h"
+#include "targets/Transforms/genericFpgaToNetlist.h"
 
 namespace hwtHls {
 
@@ -35,7 +36,7 @@ public:
 	LlvmCompilationBundle(const std::string &moduleName);
 	// :param combinerCallback: is an optional callback function called during last state of
 	//        instruction combining
-	void runOpt(std::function<bool(llvm::MachineInstr&)> combinerCallback);
+	void runOpt(hwtHls::GenericFpgaToNetlist::ConvesionFnT toNetlist);
 	llvm::MachineFunction* getMachineFunction(llvm::Function &fn);
 };
 

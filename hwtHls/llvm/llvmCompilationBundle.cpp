@@ -126,7 +126,7 @@ LlvmCompilationBundle::LlvmCompilationBundle(const std::string &moduleName) :
 //
 //}
 
-void LlvmCompilationBundle::runOpt(std::function<bool(llvm::MachineInstr&)> combinerCallback) {
+void LlvmCompilationBundle::runOpt(hwtHls::GenericFpgaToNetlist::ConvesionFnT toNetlist) {
 	assert(
 			main
 					&& "a main function must be created before call of this function");
@@ -405,7 +405,7 @@ void LlvmCompilationBundle::runOpt(std::function<bool(llvm::MachineInstr&)> comb
 		llvm_unreachable("Can not addISelPasses");
 	TPC.printAndVerify("before addMachinePasses");
 	TPC.addMachinePasses(); // add main bundle of Machine level optimizations
-	dynamic_cast<llvm::GenericFpgaTargetPassConfig*>(&TPC)->addPreNetlistCombinerCallback(combinerCallback);
+	PM.add(new hwtHls::GenericFpgaToNetlist(toNetlist));
 	// place for custom machine passes
 	TPC.printAndVerify("after addMachinePasses");
 	TPC.setInitialized();

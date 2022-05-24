@@ -54,7 +54,7 @@ bool GenericFpgaCallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder,
 
 		///MRI.addLiveIn(SrcReg, DstReg);
 		MachineInstrBuilder MIB = MIRBuilder.buildInstr(GenericFpga::GENFPGA_ARG_GET);
-		MIB.addDef(DstReg).addImm(i);
+		MIB.addDef(DstReg).addImm(i - 1);
 		//MRI.setType(SrcReg, LLT::pointer(i, 64));
 		//MRI.setType(DstReg, LLT::pointer(i, 64));
 		// FIXME: Unfortunately it's necessary to emit a copy from the livein copy.

@@ -52,15 +52,13 @@ class GenericFpgaPreToNetlistCombinerInfo: public CombinerInfo {
 	GISelKnownBits *KB;
 	MachineDominatorTree *MDT;
 	GenericFpgaGenPreToNetlistGICombinerHelperRuleConfig GeneratedRuleCfg;
-	SmallVectorImpl<std::function<bool(MachineInstr &I)>> &combineCallbacks;
 public:
 	GenericFpgaPreToNetlistCombinerInfo(bool EnableOpt, bool OptSize,
-			bool MinSize, GISelKnownBits *KB, MachineDominatorTree *MDT,
-			SmallVectorImpl<std::function<bool(MachineInstr &I)>> &_combineCallbacks) :
+			bool MinSize, GISelKnownBits *KB, MachineDominatorTree *MDT) :
 			CombinerInfo(/*AllowIllegalOps*/true, /*ShouldToNetlistIllegal*/
 			false,
 			/*ToNetlistInfo*/nullptr, EnableOpt, OptSize, MinSize), KB(KB), MDT(
-					MDT), combineCallbacks(_combineCallbacks) {
+					MDT) {
 		if (!GeneratedRuleCfg.parseCommandLineOption())
 			report_fatal_error("Invalid rule identifier");
 	}
@@ -92,7 +90,8 @@ void GenericFpgaPreToNetlistCombinerInfo::convertG_SELECT_to_GENFPGA_MUX(
 	Helper.replaceRegOpWith(MRI, MI.getOperand(1), a);
 	Helper.replaceOpcodeWith(MI, GenericFpga::GENFPGA_MUX);
 }
-void GenericFpgaPreToNetlistCombinerInfo::convertPHI_to_GENFPGA_MUX(MachineIRBuilder &Builder) {
+void GenericFpgaPreToNetlistCombinerInfo::convertPHI_to_GENFPGA_MUX(
+		MachineIRBuilder &Builder) {
 	MachineInstr &MI = *Builder.getInsertPt();
 	MachineInstrBuilder MIB = Builder.buildInstr(GenericFpga::GENFPGA_MUX);
 	MachineBasicBlock &MBB = *MI.getParent();
@@ -130,7 +129,8 @@ bool GenericFpgaPreToNetlistCombinerInfo::combine(GISelChangeObserver &Observer,
 		MI.eraseFromParent();
 		return true;
 	case TargetOpcode::PHI: {
-		std::function<void(llvm::MachineIRBuilder&)> _phiToMux = convertPHI_to_GENFPGA_MUX;
+		std::function<void(llvm::MachineIRBuilder&)> _phiToMux =
+				convertPHI_to_GENFPGA_MUX;
 		Helper.applyBuildFn(MI, _phiToMux);
 		return true;
 	}
@@ -149,11 +149,6 @@ bool GenericFpgaPreToNetlistCombinerInfo::combine(GISelChangeObserver &Observer,
 		return true;
 	}
 
-	for (auto &CB : combineCallbacks) {
-		if (CB(MI)) {
-			return true;
-		}
-	}
 	return false;
 }
 
@@ -205,7 +200,6 @@ bool GenericFpgaPreToNetlistCombiner::runOnMachineFunction(
 			MachineFunctionProperties::Property::FailedISel))
 		return false;
 	auto &TPC = getAnalysis<TargetPassConfig>();
-	auto *GenFpga_TPC = dynamic_cast<llvm::GenericFpgaTargetPassConfig*>(&TPC);
 
 	// Enable CSE.
 	GISelCSEAnalysisWrapper &Wrapper =
@@ -218,7 +212,7 @@ bool GenericFpgaPreToNetlistCombiner::runOnMachineFunction(
 	GISelKnownBits *KB = &getAnalysis<GISelKnownBitsAnalysis>().get(MF);
 	MachineDominatorTree *MDT = &getAnalysis<MachineDominatorTree>();
 	GenericFpgaPreToNetlistCombinerInfo PCInfo(EnableOpt, F.hasOptSize(),
-			F.hasMinSize(), KB, MDT, GenFpga_TPC->combineCallbacks);
+			F.hasMinSize(), KB, MDT);
 	Combiner C(PCInfo, &TPC);
 
 	return C.combineMachineInstrs(MF, CSEInfo);

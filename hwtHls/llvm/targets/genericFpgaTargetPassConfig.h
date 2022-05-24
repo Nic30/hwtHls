@@ -8,8 +8,6 @@ namespace llvm {
 /// GenericFpga Code Generator Pass Configuration Options.
 class GenericFpgaTargetPassConfig: public llvm::TargetPassConfig {
 public:
-	SmallVector<std::function<bool(MachineInstr & I)>, 4> combineCallbacks; // used from GenericFpgaPreToNetlistCombiner
-
 	GenericFpgaTargetPassConfig(GenericFpgaTargetMachine &TM,
 			llvm::PassManagerBase &PM) :
 			llvm::TargetPassConfig(TM, PM) {
@@ -34,7 +32,6 @@ public:
 	bool addILPOpts() override; // added from addMachineSSAOptimization which is added from addMachinePasses
 	void addOptimizedRegAlloc() override;
 	void addMachinePasses() override;
-	void addPreNetlistCombinerCallback(std::function<bool(MachineInstr & I)> combineCallback);
 	// No reg alloc
 	//bool addRegAssignAndRewriteFast() override {
 	//	return false;
