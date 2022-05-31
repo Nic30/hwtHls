@@ -38,6 +38,8 @@ py3.extension_module(
      
      'llvmSrc/CodeGenPrepare.cpp',
      'targets/Analysis/liveVariableForEdge.cpp',
+     'targets/Analysis/registerBitWidth.cpp',
+     
      
      'targets/intrinsic/bitrange.cpp',
 
