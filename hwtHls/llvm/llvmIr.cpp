@@ -6,6 +6,7 @@
 #include "llvmIrMachineFunction.h"
 #include "llvmCompilationBundle.h"
 #include "targets/genericFpga.h"
+#include "targets/Transforms/genericFpgaToNetlist.h"
 
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/DerivedTypes.h>
@@ -24,7 +25,6 @@
 #include <string>
 #include <vector>
 
-#include "targets/Transforms/genericFpgaToNetlist.h"
 
 PYBIND11_MAKE_OPAQUE(std::vector<llvm::Type*>);
 
@@ -148,13 +148,14 @@ PYBIND11_MODULE(llvmIr, m) {
 	py::class_<hwtHls::LlvmCompilationBundle>(m, "LlvmCompilationBundle")
 		.def(py::init<const std::string &>())
 		.def("runOpt", [](hwtHls::LlvmCompilationBundle * LCB, const py::object & o) {
+			// :note: lambda specified explicitly so we can modify reference handling
 			LCB->runOpt([o](llvm::MachineFunction &MF,
 					std::set<hwtHls::GenericFpgaToNetlist::MachineBasicBlockEdge>& backedges,
 					hwtHls::EdgeLivenessDict & liveness,
-					std::vector<llvm::Register> & ioRegs) {
-				o.operator() <py::return_value_policy::reference, llvm::MachineFunction &>(MF, backedges, liveness, ioRegs);
+					std::vector<llvm::Register> & ioRegs,
+					std::map<llvm::Register, unsigned> & registerTypes) {
+				o.operator() <py::return_value_policy::reference, llvm::MachineFunction &>(MF, backedges, liveness, ioRegs, registerTypes);
 			});
-
 		})
 		.def("getMachineFunction", &hwtHls::LlvmCompilationBundle::getMachineFunction)
 		.def_readonly("ctx", &hwtHls::LlvmCompilationBundle::ctx)

@@ -9,6 +9,7 @@
 
 #include "llvmIrStrings.h"
 #include "targets/Transforms/genericFpgaToNetlist.h"
+#include "targets/genericFpgaTargetPassConfig.h"
 
 namespace hwtHls {
 
@@ -25,6 +26,7 @@ public:
 	llvm::PassBuilder PB; // for IR passes
 	llvm::legacy::PassManager PM; // for machine code generator
 	const llvm::Target *Target;
+	llvm::GenericFpgaTargetPassConfig *TPC;
 	llvm::OptimizationLevel Level;
 	bool EnableO3NonTrivialUnswitching;
 	bool EnableGVNHoist;
@@ -36,7 +38,7 @@ public:
 	LlvmCompilationBundle(const std::string &moduleName);
 	// :param combinerCallback: is an optional callback function called during last state of
 	//        instruction combining
-	void runOpt(hwtHls::GenericFpgaToNetlist::ConvesionFnT toNetlist);
+	void runOpt(hwtHls::GenericFpgaToNetlist::ConvesionFnT toNetlistConversionFn);
 	llvm::MachineFunction* getMachineFunction(llvm::Function &fn);
 };
 

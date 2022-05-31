@@ -67,7 +67,6 @@
 
 #include "targets/genericFpgaTargetInfo.h"
 #include "targets/genericFpgaTargetMachine.h"
-#include "targets/genericFpgaTargetPassConfig.h"
 #include "Transforms/extractBitConcatAndSliceOpsPass.h"
 #include "Transforms/bitwidthReducePass/bitwidthReducePass.h"
 
@@ -94,6 +93,7 @@ LlvmCompilationBundle::LlvmCompilationBundle(const std::string &moduleName) :
 	// only GlobalISel implemented (No FastISel, SelectionDAGISel)
 	opt.EnableGlobalISel = true;
 
+	TPC = nullptr;
 	auto RM = llvm::Optional<llvm::Reloc::Model>();
 	TM = Target->createTargetMachine(TargetTriple, CPU, Features, opt, RM);
 	TM->setOptLevel(llvm::CodeGenOpt::Level::Aggressive);
@@ -126,7 +126,7 @@ LlvmCompilationBundle::LlvmCompilationBundle(const std::string &moduleName) :
 //
 //}
 
-void LlvmCompilationBundle::runOpt(hwtHls::GenericFpgaToNetlist::ConvesionFnT toNetlist) {
+void LlvmCompilationBundle::runOpt(hwtHls::GenericFpgaToNetlist::ConvesionFnT toNetlistConversionFn) {
 	assert(
 			main
 					&& "a main function must be created before call of this function");
@@ -390,25 +390,29 @@ void LlvmCompilationBundle::runOpt(hwtHls::GenericFpgaToNetlist::ConvesionFnT to
 
 	PM.add(MMIWP);
 	// check for incompatible passes
-	llvm::TargetPassConfig &TPC =
-			*static_cast<llvm::LLVMTargetMachine&>(*TM).createPassConfig(PM);
-	if (TPC.hasLimitedCodeGenPipeline()) {
+	TPC = static_cast<llvm::GenericFpgaTargetPassConfig*>(
+			static_cast<llvm::LLVMTargetMachine&>(*TM).createPassConfig(PM)
+	);
+	// :note: we can not use pass constructor to pass toNetlistConversionFn because
+	//        because constructor must be callable withou arguments because of INITIALIZE_PASS macros
+	// :note: we can not call pass explicitly after PM.run() because addRequired/getAnalysis will not work
+	TPC->toNetlistConversionFn = &toNetlistConversionFn;
+	if (TPC->hasLimitedCodeGenPipeline()) {
 		llvm::errs() << "run-pass cannot be used with "
-				<< TPC.getLimitedCodeGenPipelineReason(" and ") << ".\n";
+				<< TPC->getLimitedCodeGenPipelineReason(" and ") << ".\n";
 		throw std::runtime_error("run-pass cannot be used with ...");
 	}
 
-	PM.add(&TPC);
+	PM.add(TPC);
 
 	// add passes which convert llvm::Function to llvm::MachineFunction
-	if (TPC.addISelPasses())
+	if (TPC->addISelPasses())
 		llvm_unreachable("Can not addISelPasses");
-	TPC.printAndVerify("before addMachinePasses");
-	TPC.addMachinePasses(); // add main bundle of Machine level optimizations
-	PM.add(new hwtHls::GenericFpgaToNetlist(toNetlist));
+	TPC->printAndVerify("before addMachinePasses");
+	TPC->addMachinePasses(); // add main bundle of Machine level optimizations
 	// place for custom machine passes
-	TPC.printAndVerify("after addMachinePasses");
-	TPC.setInitialized();
+	TPC->printAndVerify("after addMachinePasses");
+	TPC->setInitialized();
 	//PM.add(llvm::createFreeMachineFunctionPass());
 	PM.run(*fn.getParent());
 }

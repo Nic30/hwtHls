@@ -123,8 +123,8 @@ void register_Instruction(pybind11::module_ & m) {
 		.value("Freeze", llvm::Instruction::OtherOps::Freeze)
 		.export_values();
 
-	py::class_<llvm::CmpInst, std::unique_ptr<llvm::CmpInst, py::nodelete>, llvm::Instruction> CmpInstr(m, "CmpInst");
-	py::enum_<llvm::CmpInst::Predicate>(CmpInstr, "Predicate")
+	py::class_<llvm::CmpInst, std::unique_ptr<llvm::CmpInst, py::nodelete>, llvm::Instruction> CmpInst(m, "CmpInst");
+	py::enum_<llvm::CmpInst::Predicate>(CmpInst, "Predicate")
 	    .value("FCMP_FALSE", llvm::CmpInst::Predicate::FCMP_FALSE)
 	    .value("FCMP_OEQ", llvm::CmpInst::Predicate::FCMP_OEQ)
 	    .value("FCMP_OGT", llvm::CmpInst::Predicate::FCMP_OGT)
@@ -158,7 +158,7 @@ void register_Instruction(pybind11::module_ & m) {
 	    .value("LAST_ICMP_PREDICATE", llvm::CmpInst::Predicate::LAST_ICMP_PREDICATE)
 	    .value("BAD_ICMP_PREDICATE", llvm::CmpInst::Predicate::BAD_ICMP_PREDICATE)
 		.export_values();
-	CmpInstr
+	CmpInst
 		.def("getPredicate", &llvm::CmpInst::getPredicate);
 
 	py::class_<llvm::ICmpInst, std::unique_ptr<llvm::ICmpInst, py::nodelete>, llvm::CmpInst>(m, "ICmpInst");

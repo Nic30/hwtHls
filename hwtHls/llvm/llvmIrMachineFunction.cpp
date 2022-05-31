@@ -24,21 +24,47 @@ void register_MachineFunction(pybind11::module_ &m) {
 
 	py::class_<llvm::MachineBasicBlock, std::unique_ptr<llvm::MachineBasicBlock, py::nodelete>> MachineBasicBlock(m, "MachineBasicBlock");
 	MachineBasicBlock
+		.def("getName", &llvm::MachineBasicBlock::getName)
+	    .def("predecessors", [](llvm::MachineBasicBlock &MB) {
+	    		return py::make_iterator(MB.predecessors().begin(), MB.predecessors().end());
+	    	}, py::keep_alive<0, 1>()) /* Keep vector alive while iterator is used */
+	    .def("successors", [](llvm::MachineBasicBlock &MB) {
+				auto succ = MB.successors();
+	    	    return py::make_iterator(succ.begin(), succ.end());
+	    	}, py::keep_alive<0, 1>()) /* Keep vector alive while iterator is used */
+		.def("succ_size", &llvm::MachineBasicBlock::succ_size)
+		.def("pred_size", &llvm::MachineBasicBlock::pred_size)
+		.def("terminators", [](llvm::MachineBasicBlock &MB) {
+				auto term = MB.terminators();
+				return py::make_iterator(term.begin(), term.end());
+	    	}, py::keep_alive<0, 1>())
 		.def("__repr__",  [](llvm::MachineBasicBlock*MB) {
 			return "<llvm::MachineBasicBlock " + MB->getName().str() + ">";
 		})
-		.def("getName", &llvm::MachineBasicBlock::getName)
 		.def("__str__",  &printToStr<llvm::MachineBasicBlock>)
-	    .def("__iter__", [](llvm::MachineBasicBlock &F) {
-	    		return py::make_iterator(F.begin(), F.end());
-	    	}, py::keep_alive<0, 1>()); /* Keep vector alive while iterator is used */
+	    .def("__iter__", [](llvm::MachineBasicBlock &MB) {
+	    		return py::make_iterator(MB.begin(), MB.end());
+	    	}, py::keep_alive<0, 1>())
+		.def("__eq__", [](llvm::MachineBasicBlock & LHS, llvm::MachineBasicBlock & RHS) {
+		    return &LHS == &RHS;
+	     })
+		.def("__hash__", [](llvm::MachineBasicBlock * self) {
+			return reinterpret_cast<intptr_t>(self);
+		});; /* Keep vector alive while iterator is used */
 
 	py::class_<llvm::MachineOperand, std::unique_ptr<llvm::MachineOperand, py::nodelete>> MachineOperand(m, "MachineOperand");
 	MachineOperand
 		.def("getReg", &llvm::MachineOperand::getReg)
 		.def("getCImm", &llvm::MachineOperand::getCImm)
+		.def("getMBB", &llvm::MachineOperand::getMBB)
+		.def("getImm", &llvm::MachineOperand::getImm)
+		.def("getPredicate", &llvm::MachineOperand::getPredicate)
 		.def("isReg", &llvm::MachineOperand::isReg)
+		.def("isDef", &llvm::MachineOperand::isDef)
+		.def("isMBB", &llvm::MachineOperand::isMBB)
 		.def("isCImm", &llvm::MachineOperand::isCImm, py::return_value_policy::reference)
+		.def("isImm", &llvm::MachineOperand::isImm)
+		.def("isPredicate", &llvm::MachineOperand::isPredicate)
 		.def("__repr__",  &printToStr<llvm::MachineOperand>);
 
 	py::class_<llvm::MachineInstr, std::unique_ptr<llvm::MachineInstr, py::nodelete>> MachineInstr(m, "MachineInstr");
@@ -50,7 +76,10 @@ void register_MachineFunction(pybind11::module_ &m) {
 		.def("getOpcode", [](const llvm::MachineInstr & I) {
 			return static_cast<TargetOpcode>(I.getOpcode());
 		})
-		.def("__repr__",  &printToStr<llvm::MachineInstr>);
+		.def("__repr__",  &printToStr<llvm::MachineInstr>)
+		.def("operands", [](llvm::MachineInstr & I) {
+						return py::make_iterator(I.operands().begin(), I.operands().end());
+					 }, py::keep_alive<0, 1>()); /* Keep vector alive while iterator is used */
 
 	auto MCII = createGenericFpgaMCInstrInfo();
 	py::enum_<TargetOpcode> _TargetOpcode(m, "TargetOpcode");
@@ -69,6 +98,10 @@ void register_MachineFunction(pybind11::module_ &m) {
 		})
 		.def("id", &llvm::Register::id)
 		.def("isVirtual", &llvm::Register::isVirtual)
-		.def("isPhysical", &llvm::Register::isPhysical);
+		.def("isPhysical", &llvm::Register::isPhysical)
+		.def("__eq__", [](llvm::Register & LHS, llvm::Register & RHS) {
+		    return LHS == RHS;
+	     })
+		.def("__hash__", &llvm::Register::id);
 
 }
