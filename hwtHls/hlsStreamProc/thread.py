@@ -11,8 +11,8 @@ from hwt.synthesizer.interfaceLevel.unitImplHelpers import Interface_without_reg
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.hlsStreamProc.statements import HlsStreamProcCodeBlock
+from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.ssa.translation.fromAst.astToSsa import AnyStm, AstToSsa
-from hwtHls.ssa.translation.toHwtHlsNetlist.pipelineMaterialization import SsaSegmentToHwPipeline
 from ipCorePackager.constants import DIRECTION
 
 
@@ -24,7 +24,7 @@ class HlsStreamProcThread():
     def __init__(self, hls: "HlsStreamProc"):
         self.hls = hls
         self.toSsa: Optional[AstToSsa] = None
-        self.toHw: Optional[SsaSegmentToHwPipeline] = None
+        self.toHw: Optional[HlsNetlistCtx] = None
 
     def compileToSsa(self):
         raise NotImplementedError("Must be implemented in child class", self)

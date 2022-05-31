@@ -1,22 +1,22 @@
 from typing import Set, Tuple, Dict
 
+from hwt.pyUtils.uniqList import UniqList
 from hwtHls.ssa.analysis.liveness import EdgeLivenessDict
+from hwtHls.ssa.analysis.threadMining import SsaPassThreadMining
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.transformation.utils.blockAnalysis import collect_all_blocks
 from hwtHls.ssa.value import SsaValue
-from hwtHls.ssa.analysis.threadMining import SsaPassThreadMining
-from hwt.pyUtils.uniqList import UniqList
 
 
 class BlockMeta():
     """
     :ivar isCycleEntryPoint: This block is a header of the cycle.
-    :ivar needsControl: This bolock needs the control channel on the input for its functionality.
+    :ivar needsControl: This block needs the control channel on the input for its functionality.
     :ivar requiresStarter: This block requires a provider of initial sync token for its functionality.
     :ivar isInitialization: This block is run just once on the beginning of the program.
-    :ivar phiCyclicArgs: Set of varialbes which are writen in this block but also read by some phi.
+    :ivar phiCyclicArgs: Set of variables which are written in this block but also read by some PHI.
     :ivar inLiveVarsWithMultipleSrcBlocks: values which may come from multiple predecessor blocks
-        and the mux needs to be generated if this shuld be in pipeline
+        and the MUX needs to be generated if this should be in pipeline
     """
 
     def __init__(self,
@@ -56,7 +56,7 @@ class SaaGetBlockSyncType():
             br label while
 
     In this case the synchronization is not needed because body contains
-    a single thread and phis can be reduced using reset value extraction.
+    a single thread and PHIs can be reduced using reset value extraction.
 
 
     .. code-block:: llvm
@@ -86,8 +86,8 @@ class SaaGetBlockSyncType():
 
     def _get_SsaBasicBlock_meta(self, block: SsaBasicBlock) -> BlockMeta:
         """
-        The code needs a sychronization if it starts a new thread without data dependencies and has predecessor thread.
-        :note: They synchronization is always marked fot the start of the thread.
+        The code needs a synchronization if it starts a new thread without data dependencies and has predecessor thread.
+        :note: They synchronization is always marked for the start of the thread.
         """
         m: BlockMeta = self._blockMeta[block]
 
@@ -100,7 +100,7 @@ class SaaGetBlockSyncType():
         if m.isCycleEntryPoint:
             # The synchronization is not required if it could be only by the data itself.
             # It can be done by data itself if there is an single output/write which has all
-            # input as transitive dependencies (uncoditionally.) And if this is an infinite cycle.
+            # input as transitive dependencies (unconditionally.) And if this is an infinite cycle.
             # So we do not need to check the number of executions.
             needsControlOld = m.needsControl
             if not m.needsControl:

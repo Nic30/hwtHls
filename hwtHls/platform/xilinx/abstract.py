@@ -3,11 +3,10 @@ from typing import Dict, Callable, Tuple
 
 from hwt.hdl.operatorDefs import OpDefinition
 from hwt.synthesizer.dummyPlatform import DummyPlatform
-from hwtHls.allocator.allocator import HlsAllocator
+from hwtHls.netlist.allocator.allocator import HlsAllocator
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
-from hwtHls.platform.virtual import _OPS_T_ZERO_LATENCY, DEFAULT_SSA_PASSES, \
-    DEFAULT_HLSNETLIST_PASSES, DEFAULT_RTLNETLIST_PASSES
-from hwtHls.scheduler.scheduler import HlsScheduler
+from hwtHls.platform.virtual import _OPS_T_ZERO_LATENCY
+from hwtHls.netlist.scheduler.scheduler import HlsScheduler
 from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF
 
 
@@ -17,19 +16,8 @@ class AbstractXilinxPlatform(DummyPlatform):
 
     """
 
-    def __init__(self, allocator=HlsAllocator,
-                 scheduler=HlsScheduler,
-                 ssaPasses=DEFAULT_SSA_PASSES,
-                 hlsNetlistPasses=DEFAULT_HLSNETLIST_PASSES,
-                 rtlNetlistPasses=DEFAULT_RTLNETLIST_PASSES
-                 ):
+    def __init__(self):
         super(AbstractXilinxPlatform, self).__init__()
-        self.allocator = allocator
-        self.scheduler = scheduler  # HlsScheduler #ForceDirectedScheduler
-        self.ssaPasses = ssaPasses
-        self.hlsNetlistPasses = hlsNetlistPasses
-        self.rtlNetlistPasses = rtlNetlistPasses
-
         self._init_coefs()
 
     def _init_coefs(self):

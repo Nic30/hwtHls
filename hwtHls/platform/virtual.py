@@ -1,37 +1,14 @@
 from functools import lru_cache
 from math import log2
 from pathlib import Path
-from typing import Dict, Union, Optional, List
+from typing import Dict, Optional, Union
 
 from hwt.hdl.operator import Operator
 from hwt.hdl.operatorDefs import AllOps, OpDefinition
-from hwt.synthesizer.dummyPlatform import DummyPlatform
-from hwtHls.allocator.allocator import HlsAllocator
-from hwtHls.netlist.analysis.consystencyCheck import HlsNetlistPassConsystencyCheck
-from hwtHls.netlist.transformation.aggregateBitwiseOpsPass import HlsNetlistPassAggregateBitwiseOps
-from hwtHls.netlist.transformation.dce import HlsNetlistPassDCE
-from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
-from hwtHls.netlist.transformation.mergeExplicitSync import HlsNetlistPassMergeExplicitSync
-from hwtHls.netlist.translation.dumpStreamNodes import RtlNetlistPassDumpStreamNodes
-from hwtHls.netlist.translation.toGraphwiz import HlsNetlistPassDumpToDot
-from hwtHls.netlist.translation.toTimeline import HlsNetlistPassShowTimeline
-from hwtHls.platform.opRealizationMeta import OpRealizationMeta
-from hwtHls.scheduler.scheduler import HlsScheduler
-from hwtHls.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
-from hwtHls.ssa.analysis.dumpPipelines import SsaPassDumpPipelines
-from hwtHls.ssa.instr import OP_ASSIGN
-from hwtHls.ssa.transformation.axiStreamReadLowering.axiStreamReadLoweringPass import SsaPassAxiStreamReadLowering
-from hwtHls.ssa.transformation.extractPartDrivers.extractPartDriversPass import SsaPassExtractPartDrivers
-from hwtHls.ssa.transformation.runLlvmOpt import SsaPassRunLlvmOpt
-from hwtHls.ssa.transformation.ssaPass import SsaPass
-from hwtHls.ssa.translation.fromLlvm import SsaPassFromLlvm
-from hwtHls.ssa.translation.toGraphwiz import SsaPassDumpToDot
-from hwtHls.ssa.translation.toLl import SsaPassDumpToLl
-from hwtHls.ssa.translation.toLlvm import SsaPassToLlvm
-from hwtHls.netlist.translation.toTimelineArchLevel import HlsNetlistPassShowTimelineArchLevel
 from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF
-from hwtHls.platform.fileUtils import outputFileGetter
-from hwtHls.ssa.analysis.dumpMIR import SsaPassDumpMIR
+from hwtHls.platform.opRealizationMeta import OpRealizationMeta
+from hwtHls.platform.platform import DefaultHlsPlatform
+from hwtHls.ssa.instr import OP_ASSIGN
 
 _OPS_T_GROWING_EXP = {
     AllOps.DIV,
@@ -69,77 +46,8 @@ _OPS_T_GROWING_CONST = {
     ResourceFF,
 }
 
-DEFAULT_SSA_PASSES = [
-    SsaPassConsystencyCheck(),
-    SsaPassAxiStreamReadLowering(),
-    SsaPassExtractPartDrivers(),
-    SsaPassToLlvm(),
-    SsaPassRunLlvmOpt(),
-    SsaPassFromLlvm(),
-    SsaPassConsystencyCheck(),
-]
-DEFAULT_HLSNETLIST_PASSES = [
-    HlsNetlistPassDCE(),
-    HlsNetlistPassMergeExplicitSync(),
-    HlsNetlistPassAggregateBitwiseOps(),
-]
-DEFAULT_RTLNETLIST_PASSES = [
-]
 
-
-def makeDebugPasses(debug_file_directory: Union[str, Path], expandCompositeNodes=False):
-    """
-    Adds passes which are dumping the intermediate results during the compilation.
-
-    Example of use:
-
-    .. code-block::
-
-        print(to_rtl_str(u, target_platform=VirtualHlsPlatform(**makeDebugPasses("tmp"))))
-
-    """
-    debug_file_directory = Path(debug_file_directory)
-    if not debug_file_directory.exists():
-        debug_file_directory.mkdir()
-    return {
-        "ssaPasses": [
-            SsaPassDumpToDot(outputFileGetter(debug_file_directory, ".0.dot"), extractPipeline=False),
-            SsaPassConsystencyCheck(),
-            SsaPassAxiStreamReadLowering(),
-            SsaPassDumpToDot(outputFileGetter(debug_file_directory, ".1.dot"), extractPipeline=False),
-            SsaPassExtractPartDrivers(),
-            SsaPassDumpToDot(outputFileGetter(debug_file_directory, ".2.dot"), extractPipeline=False),
-
-            SsaPassToLlvm(),
-            SsaPassDumpToLl(outputFileGetter(debug_file_directory, ".3.ll")),
-            SsaPassRunLlvmOpt(),
-            SsaPassDumpToLl(outputFileGetter(debug_file_directory, ".4.ll")),
-            SsaPassDumpMIR(outputFileGetter(debug_file_directory, ".5.ll")),
-            SsaPassFromLlvm(),
-
-            SsaPassDumpToDot(outputFileGetter(debug_file_directory, ".6.dot")),
-            SsaPassDumpPipelines(outputFileGetter(debug_file_directory, ".7.pipeline.txt")),
-            SsaPassConsystencyCheck(),
-        ],
-        "hlsNetlistPasses": [
-            HlsNetlistPassConsystencyCheck(),
-            HlsNetlistPassDCE(),
-            # HlsNetlistPassDumpToDot(debug_file_directory / "top_p0.dot"),
-            HlsNetlistPassMergeExplicitSync(),
-            HlsNetlistPassAggregateBitwiseOps(),
-            # HlsNetlistPassConsystencyCheck(),
-            # HlsNetlistPassDumpToDot(debug_file_directory / "top_p1.dot"),
-            HlsNetlistPassShowTimeline(outputFileGetter(debug_file_directory, ".8.schedule.html"),
-                                       expandCompositeNodes=expandCompositeNodes),
-        ],
-        "rtlNetlistPasses":[
-            RtlNetlistPassDumpStreamNodes(outputFileGetter(debug_file_directory, ".9.sync.txt")),
-            HlsNetlistPassShowTimelineArchLevel(outputFileGetter(debug_file_directory, ".10.archschedule.html")),
-        ],
-    }
-
-
-class VirtualHlsPlatform(DummyPlatform):
+class VirtualHlsPlatform(DefaultHlsPlatform):
     """
     Platform with informations about target platform
     and configuration of HLS
@@ -147,14 +55,8 @@ class VirtualHlsPlatform(DummyPlatform):
     :note: latencies like in average 28nm FPGA
     """
 
-    def __init__(self, allocator=HlsAllocator, scheduler=HlsScheduler,
-                 ssaPasses:Optional[List[SsaPass]]=DEFAULT_SSA_PASSES,
-                 hlsNetlistPasses: Optional[List[HlsNetlistPass]]=DEFAULT_HLSNETLIST_PASSES,
-                 rtlNetlistPasses=DEFAULT_RTLNETLIST_PASSES,
-            ):
-        super(VirtualHlsPlatform, self).__init__()
-        self.allocator = allocator
-        self.scheduler = scheduler  # HlsScheduler #ForceDirectedScheduler
+    def __init__(self, debugDir:Optional[Union[str, Path]]=None):
+        super(VirtualHlsPlatform, self).__init__(debugDir=debugDir)
 
         # operator: seconds to perform
         self._OP_DELAYS: Dict[Operator, float] = {
@@ -193,9 +95,6 @@ class VirtualHlsPlatform(DummyPlatform):
             ResourceFF: 1.2e-9,
             OP_ASSIGN: 0,
         }
-        self.ssaPasses = ssaPasses
-        self.hlsNetlistPasses = hlsNetlistPasses
-        self.rtlNetlistPasses = rtlNetlistPasses
 
     @lru_cache()
     def get_op_realization(self, op: OpDefinition, bit_width: int,

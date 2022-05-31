@@ -24,29 +24,29 @@ from hwtHls.hlsStreamProc.statementsIo import HlsStreamProcRead, \
     HlsStreamProcWrite, IN_STREAM_POS, HlsStreamProcReadAxiStream
 from hwtHls.hlsStreamProc.thread import HlsStreamProcThread, \
     HlsStreamProcSharedVarThread, HlsStreamProcThreadFromAst
-from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
-from hwtHls.netlist.transformation.rtlNetlistPass import RtlNetlistPass
 from hwtHls.ssa.context import SsaContext
-from hwtHls.ssa.transformation.ssaPass import SsaPass
-from hwtHls.ssa.translation.fromAst.astToSsa import AnyStm
-from hwtHls.ssa.translation.toHwtHlsNetlist.pipelineMaterialization import SsaSegmentToHwPipeline
+from hwtHls.ssa.translation.fromAst.astToSsa import AnyStm, AstToSsa
 from hwtLib.amba.axi_intf_common import Axi_hs
 from hwtLib.amba.axis import AxiStream
+from hwtHls.platform.platform import DefaultHlsPlatform
 
 
+        
 class HlsStreamProc():
     """
     A HLS synthetizer with support for loops and packet level operations
 
-    * code -> SSA -> HLS netlist -> RTL netlist
+    * code -> SSA -> LLVM SSA -> LLVM MIR -> HLS netlist -> RTL netlist
 
+    :ivar parentUnit: A RTL object where this HLS thread are being synthetized in.
+    :ivar freq: Default target frequency for circuit synthesis
     :ivar ctx: a RTL context for a signals used in input code
+    :ivar ssaCtx: context for building of SSA
+    :ivar passConfig: An object which holds info about all transformations which should be performed.
+    :ivar _threads: a list of threads which are being synthetized by this HLS synthetizer
     """
 
     def __init__(self, parentUnit: Unit,
-                 ssaPasses:Optional[List[SsaPass]]=None,
-                 hlsNetlistPasses:Optional[List[HlsNetlistPass]]=None,
-                 rtlNetlistPasses:Optional[List[RtlNetlistPass]]=None,
                  freq: Optional[Union[int, float]]=None):
         """
         :note: ssaPasses, hlsNetlistPasses, rtlNetlistPasses parameters are meant as an override to specification from target platform
@@ -58,16 +58,6 @@ class HlsStreamProc():
         self.freq = freq
         self._ctx = RtlNetlist()
         self.ssaCtx = SsaContext()
-        p = parentUnit._target_platform
-        if ssaPasses is None:
-            ssaPasses = p.ssaPasses
-        self.ssaPasses = ssaPasses
-        if hlsNetlistPasses is None:
-            hlsNetlistPasses = p.hlsNetlistPasses
-        self.hlsNetlistPasses = hlsNetlistPasses
-        if rtlNetlistPasses is None:
-            rtlNetlistPasses = p.rtlNetlistPasses
-        self.rtlNetlistPasses = rtlNetlistPasses
         self._threads: List[HlsStreamProcThread] = []
 
     def _sig(self, name: str,
@@ -203,25 +193,30 @@ class HlsStreamProc():
             # because we need all IO and sharing constraints specified
             t.compileToSsa()
             toSsa = t.toSsa
-            code = t.code
-            for ssaPass in self.ssaPasses:
-                ssaPass.apply(self, toSsa)
+            #code = t.code
+            
+            p: DefaultHlsPlatform = self.parentUnit._target_platform
+            p.runSsaPasses(self, toSsa)
 
-            t.toHw = toHw = SsaSegmentToHwPipeline(toSsa.start, code)
-            toHw.extract_pipeline()
+            # t.toHw = toHw = SsaSegmentToHwPipeline(toSsa.start, code)
+            # toHw.extract_pipeline()
 
-            toHw.extract_hlsnetlist(self.parentUnit, self.freq)
-            for hlsnetlist_pass in self.hlsNetlistPasses:
-                hlsnetlist_pass.apply(self, toHw)
+            #toHw.extract_hlsnetlist(self.parentUnit, self.freq)
+            t.toHw = netlist = p.runSsaToNetlist(self, toSsa)
+            p.runHlsNetlistPasses(self, netlist)
 
-            if not toHw.is_scheduled:
-                toHw.schedulerRun()
+            # if not toHw.is_scheduled:
+            #     toHw.schedulerRun()
 
             # some optimization could call scheduling and everything after could let
             # the netlist without modifications
         
         for t in self._threads:
-            t.toHw.construct_rtlnetlist()
-            for rtlnetlist_pass in self.rtlNetlistPasses:
-                rtlnetlist_pass.apply(self, t.toHw)
-              
+            t.toHw.allocate()
+            p.runRtlNetlistPasses(self, t.toHw)
+
+    def pragma(self, pragmaObj):
+        """
+        This function does nothing, it is meant for frontend to to patch when compiling
+        the code. 
+        """
