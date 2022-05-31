@@ -15,6 +15,14 @@ def copy_to_genfpga_copy : GICombineRule<
   (match (COPY $d, $s):$mi),
   (apply [{ Helper.replaceOpcodeWith(*${mi}, GenericFpga::GENFPGA_CCOPY); }])>;
 
+// Fold (x G_XOR allOnes) - > GENFPGA_NOT x 
+def xor_right_allOnes: GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode G_XOR):$root,
+    [{ return Helper.matchOperandIsAllOnes(*${root}, 2); }]),
+  (apply [{ return Helper.rewriteXorToNot(*${root}); }])
+>;
+
 // rewrite generic opcodes to GENFPGA_* where beneficial
 def GenericFpgaGenPreRegAllocGICombinerHelper: GICombinerHelper<
   "GenericFpgaGenPreRegAllocGICombinerHelper", [copy_to_genfpga_copy]> {
@@ -23,10 +31,14 @@ def GenericFpgaGenPreRegAllocGICombinerHelper: GICombinerHelper<
   let AdditionalArguments = [];
 }
 
-// extract muxes to simplify thread detection
+// at this point all optimizations should be done and we only format the instructions form more simple conversion to netlist
+// * extract muxes to simplify thread detection
+// * extract GENFPGA_NOT
+// * extract/merge bit concatenations and slices
 def GenericFpgaGenPreToNetlistGICombinerHelper: GICombinerHelper<
-  "GenericFpgaGenPreToNetlistGICombinerHelper", []> {
+  "GenericFpgaGenPreToNetlistGICombinerHelper", [xor_right_allOnes, ]> {
   let DisableRuleOption = "GenericFpgaGenPreToNetlistGICombinerHelper-disable-rule";
   let StateClass = "GenericFpgaGenPreToNetlistGICombinerHelperState";
   let AdditionalArguments = [];
 }
+

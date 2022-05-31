@@ -23,9 +23,18 @@ def GENFPGA_CCOPY : GenFpgaInst<
 	(ins AnyRegCls:$src1, AnyRegCls:$cond),
 	[]>;
 
+// an instruction which gets the argument of the function
 def GENFPGA_ARG_GET : GenFpgaInst<
     (outs AnyRegCls:$dst),
 	(ins i64imm:$src1),
+	[]>;
+}
+
+let hasSideEffects = 0, isPredicable = 1 in {
+// bitwise inversion
+def GENFPGA_NOT : GenFpgaInst<
+    (outs AnyRegCls:$dst),
+	(ins AnyRegCls:$src1),
 	[]>;
 
 }

@@ -29,12 +29,38 @@
 using namespace llvm;
 using namespace MIPatternMatch;
 
+class GenFpgaPreToNetlistCombinerHelper: public CombinerHelper {
+public:
+	using CombinerHelper::CombinerHelper;
+	bool matchAllOnesConstantOp(const MachineOperand &MOP) {
+		if (!MOP.isReg())
+			return false;
+		auto *MI = MRI.getVRegDef(MOP.getReg());
+		auto MaybeCst = isConstantOrConstantSplatVector(*MI, MRI);
+		return MaybeCst.hasValue() && MaybeCst->isAllOnes();
+	}
+	bool matchOperandIsAllOnes(MachineInstr &MI, unsigned OpIdx) {
+		return matchAllOnesConstantOp(MI.getOperand(OpIdx))
+				&& canReplaceReg(MI.getOperand(0).getReg(),
+						MI.getOperand(OpIdx).getReg(), MRI);
+	}
+	bool rewriteXorToNot(MachineInstr &MI) {
+		Builder.setInstrAndDebugLoc(MI);
+		Builder.buildInstr(GenericFpga::GENFPGA_NOT,
+				{ MI.getOperand(0).getReg() }, { MI.getOperand(1).getReg() },
+				MI.getFlags());
+		MI.eraseFromParent();
+		return true;
+	}
+};
+
 class GenericFpgaGenPreToNetlistGICombinerHelperState {
 protected:
-	CombinerHelper &Helper;
+	GenFpgaPreToNetlistCombinerHelper &Helper;
 
 public:
-	GenericFpgaGenPreToNetlistGICombinerHelperState(CombinerHelper &Helper) :
+	GenericFpgaGenPreToNetlistGICombinerHelperState(
+			GenFpgaPreToNetlistCombinerHelper &Helper) :
 			Helper(Helper) {
 	}
 };
@@ -66,17 +92,15 @@ public:
 	virtual bool combine(GISelChangeObserver &Observer, MachineInstr &MI,
 			MachineIRBuilder &B) const override;
 
-	void convertGENFPGA_CCOPY_to_GENFPGA_MUX(MachineRegisterInfo &MRI,
-			CombinerHelper &Helper, MachineInstr &MI) const;
+	static void convertGENFPGA_CCOPY_to_GENFPGA_MUX(MachineIRBuilder &Builder);
 	void convertG_SELECT_to_GENFPGA_MUX(MachineRegisterInfo &MRI,
 			CombinerHelper &Helper, MachineInstr &MI) const;
 	static void convertPHI_to_GENFPGA_MUX(MachineIRBuilder &Builder);
 };
 void GenericFpgaPreToNetlistCombinerInfo::convertGENFPGA_CCOPY_to_GENFPGA_MUX(
-		MachineRegisterInfo &MRI, CombinerHelper &Helper,
-		MachineInstr &MI) const {
+		MachineIRBuilder &Builder) {
 	// dst, val, cond
-	Helper.replaceOpcodeWith(MI, GenericFpga::GENFPGA_MUX);
+	convertPHI_to_GENFPGA_MUX(Builder);
 }
 void GenericFpgaPreToNetlistCombinerInfo::convertG_SELECT_to_GENFPGA_MUX(
 		MachineRegisterInfo &MRI, CombinerHelper &Helper,
@@ -97,6 +121,7 @@ void GenericFpgaPreToNetlistCombinerInfo::convertPHI_to_GENFPGA_MUX(
 	MachineBasicBlock &MBB = *MI.getParent();
 	MachineFunction &MF = *MBB.getParent();
 	MachineRegisterInfo &MRI = MF.getRegInfo();
+
 	for (auto MO : MI.operands()) {
 		if (MO.isReg() && MO.isDef()) {
 			MIB.addDef(MO.getReg(), MO.getTargetFlags());
@@ -115,7 +140,7 @@ void GenericFpgaPreToNetlistCombinerInfo::convertPHI_to_GENFPGA_MUX(
 }
 bool GenericFpgaPreToNetlistCombinerInfo::combine(GISelChangeObserver &Observer,
 		MachineInstr &MI, MachineIRBuilder &B) const {
-	CombinerHelper Helper(Observer, B, KB, MDT);
+	GenFpgaPreToNetlistCombinerHelper Helper(Observer, B, KB, MDT);
 	GenericFpgaGenPreToNetlistGICombinerHelper Generated(GeneratedRuleCfg,
 			Helper);
 
@@ -134,16 +159,18 @@ bool GenericFpgaPreToNetlistCombinerInfo::combine(GISelChangeObserver &Observer,
 		Helper.applyBuildFn(MI, _phiToMux);
 		return true;
 	}
-
 	case TargetOpcode::G_CONCAT_VECTORS:
 		return Helper.tryCombineConcatVectors(MI);
 	case TargetOpcode::G_SHUFFLE_VECTOR:
 		return Helper.tryCombineShuffleVector(MI);
 	case TargetOpcode::G_MEMCPY_INLINE:
 		return Helper.tryEmitMemcpyInline(MI);
-	case llvm::GenericFpga::GENFPGA_CCOPY:
-		convertGENFPGA_CCOPY_to_GENFPGA_MUX(*B.getMRI(), Helper, MI);
+	case llvm::GenericFpga::GENFPGA_CCOPY: {
+		std::function<void(llvm::MachineIRBuilder&)> _ccopyToMux =
+				convertGENFPGA_CCOPY_to_GENFPGA_MUX;
+		Helper.applyBuildFn(MI, _ccopyToMux);
 		return true;
+	}
 	case llvm::GenericFpga::G_SELECT:
 		convertG_SELECT_to_GENFPGA_MUX(*B.getMRI(), Helper, MI);
 		return true;
@@ -215,7 +242,7 @@ bool GenericFpgaPreToNetlistCombiner::runOnMachineFunction(
 			F.hasMinSize(), KB, MDT);
 	Combiner C(PCInfo, &TPC);
 
-	return C.combineMachineInstrs(MF, CSEInfo);
+	return  C.combineMachineInstrs(MF, CSEInfo);
 }
 
 char GenericFpgaPreToNetlistCombiner::ID = 0;
