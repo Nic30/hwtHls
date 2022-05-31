@@ -2,17 +2,18 @@
 
 #include <llvm/CodeGen/TargetPassConfig.h>
 #include "genericFpgaTargetMachine.h"
+#include "Transforms/genericFpgaToNetlist.h"
 
 namespace llvm {
 
 /// GenericFpga Code Generator Pass Configuration Options.
 class GenericFpgaTargetPassConfig: public llvm::TargetPassConfig {
 public:
+	hwtHls::GenericFpgaToNetlist::ConvesionFnT * toNetlistConversionFn;
 	GenericFpgaTargetPassConfig(GenericFpgaTargetMachine &TM,
 			llvm::PassManagerBase &PM) :
-			llvm::TargetPassConfig(TM, PM) {
+			llvm::TargetPassConfig(TM, PM), toNetlistConversionFn(nullptr) {
 	}
-
 	GenericFpgaTargetMachine& getGenericFpgaTargetMachine() const {
 		return getTM<GenericFpgaTargetMachine>();
 	}

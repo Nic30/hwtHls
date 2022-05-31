@@ -11,19 +11,22 @@ namespace hwtHls {
 class GenericFpgaToNetlist: public llvm::MachineFunctionPass {
 public:
 	using MachineBasicBlockEdge = std::pair<llvm::MachineBasicBlock*, llvm::MachineBasicBlock*>;
-	// MF, backedges, live_edge_variables, io_registers
+	// MF,
+	// backedges (CFG transitions from loop body to its header),
+	// live_edge_variables (set of registers alive on specific CFG transition),
+	// io_registers (a register for each argument of a function),
+	// registerTypes (a bitwidth for register if specified)
 	using ConvesionFnT = std::function<void(llvm::MachineFunction&,
 			std::set<MachineBasicBlockEdge>&,
-			EdgeLivenessDict&,
-			std::vector<llvm::Register>&)>;
-
-protected:
-	ConvesionFnT conversionFn;
+			hwtHls::EdgeLivenessDict&,
+			std::vector<llvm::Register>&,
+			std::map<llvm::Register, unsigned> & registerTypes
+			)>;
 
 public:
 	static char ID;
-	GenericFpgaToNetlist(ConvesionFnT _conversionFn) :
-			MachineFunctionPass(ID), conversionFn(_conversionFn) {
+	GenericFpgaToNetlist() :
+			MachineFunctionPass(ID){
 	}
 	void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 	bool runOnMachineFunction(llvm::MachineFunction &MF) override;
@@ -32,5 +35,7 @@ public:
 	}
 
 };
+
+void initializeGenericFpgaToNetlist(llvm::PassRegistry &Registry);
 
 }

@@ -15,6 +15,7 @@
 #include "GISel/genericFpgaPreLegalizerCombiner.h"
 #include "GISel/genericFpgaPreRegAllocCombiner.h"
 #include "GISel/genericFpgaPreToNetlistCombiner.h"
+#include "Analysis/registerBitWidth.h"
 
 #include <iostream>
 
@@ -114,12 +115,11 @@ void GenericFpgaTargetPassConfig::addOptimizedRegAlloc() {
 	// after it with -stop-before/-stop-after.
 	addPass(&UnreachableMachineBlockElimID);
 	addPass(&LiveVariablesID);
-
 	// Edge splitting is smarter with machine loop info.
 	addPass(&MachineLoopInfoID);
 	addPass(&OptimizePHIsID);
 	addPass(&PeepholeOptimizerID);
-	addPass(&MIRCanonicalizerID);
+	//addPass(&MIRCanonicalizerID); // from some reason generates corrupted PHIs with non-existing blocks
 	addPass(&PHIEliminationID); // now it becomes NonSSA
 
 	// Eventually, we want to run LiveIntervals before PHI elimination.
@@ -193,6 +193,9 @@ void GenericFpgaTargetPassConfig::addMachinePasses() {
 	// Insert before XRay Instrumentation.
 	addPass(&FEntryInserterID);
 	addPass(createGenericFpgaPreToNetlistCombiner());
+	addPass(new hwtHls::GenFpgaRegisterBitWidth());
+	addPass(&MachineLoopInfoID);
+	addPass(new hwtHls::GenericFpgaToNetlist());
 }
 
 // [todo] handling of register allocation, maybe similar to WebAssemblyPassConfig::addPostRegAlloc()

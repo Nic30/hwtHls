@@ -20,6 +20,7 @@
 #include "GISel/genericFpgaPreLegalizerCombiner.h"
 #include "../llvmSrc/CodeGenPrepare.h"
 #include "Transforms/EarlyMachineCopyPropagation.h"
+#include "Transforms/genericFpgaToNetlist.h"
 
 
 
@@ -38,6 +39,7 @@ extern "C" void LLVMInitializeGenericFpgaTarget() {
 	llvm::initializeRegAllocFastPass(PR);
 	llvm::initializeGenericFpgaPreLegalizerCombinerPass(PR);
 	hwtHls::llvmSrc::initializeCodeGenPreparePass(PR);
+	hwtHls::initializeGenericFpgaToNetlist(PR);
 	llvm::initializeEarlyMachineCopyPropagationPass(PR);
 }
 
