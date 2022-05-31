@@ -109,11 +109,10 @@ class ReadIfTc(BaseSsaTC):
 
 if __name__ == '__main__':
     from hwt.synthesizer.utils import to_rtl_str
-    from hwtHls.platform.virtual import makeDebugPasses
     u = ReadIfOtherEqual()
     #u.DATA_WIDTH = 8
     u.FREQ = int(150e6)
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(**makeDebugPasses("tmp"))))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
 
     import unittest
     

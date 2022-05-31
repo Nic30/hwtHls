@@ -126,10 +126,10 @@ class AxiSParse2fields(AxiSParseStructManyInts0):
 
 
 if __name__ == "__main__":
-    from hwtHls.platform.virtual import VirtualHlsPlatform, makeDebugPasses
+    from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwt.synthesizer.utils import to_rtl_str
 
     u = AxiSParseStructManyInts1()
     u.DATA_WIDTH = 512
-    p = VirtualHlsPlatform(**makeDebugPasses("tmp"))
+    p = VirtualHlsPlatform(debugDir="tmp")
     print(to_rtl_str(u, target_platform=p))

@@ -153,12 +153,11 @@ class HlsMAC_example_TC(SimTestCase):
 if __name__ == "__main__":
     import unittest
     from hwt.synthesizer.utils import to_rtl_str
-    from hwtHls.platform.virtual import makeDebugPasses
     u = HlsMAC_example_handshake()
     u.DATA_WIDTH = 32
     u.CLK_FREQ = int(20e6)
     u.INPUT_CNT = 4
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(**makeDebugPasses("tmp"))))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
 
     suite = unittest.TestSuite()
     # suite.addTest(HlsMAC_example_TC('test_simple_handshaked'))

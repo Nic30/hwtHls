@@ -82,11 +82,11 @@ class AxiSParse2IfAndSequel(AxiSParse2fields):
 
 
 if __name__ == "__main__":
-    from hwtHls.platform.virtual import VirtualHlsPlatform, makeDebugPasses
+    from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwt.synthesizer.utils import to_rtl_str
 
     u = AxiSParse2If()
     u.DATA_WIDTH = 512
     u.CLK_FREQ = int(1e6)
-    p = VirtualHlsPlatform(**makeDebugPasses("tmp"))
+    p = VirtualHlsPlatform(debugDir="tmp")
     print(to_rtl_str(u, target_platform=p))

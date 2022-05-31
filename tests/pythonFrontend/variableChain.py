@@ -41,6 +41,6 @@ class VariableChain(Unit):
 
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
-    from hwtHls.platform.virtual import makeDebugPasses, VirtualHlsPlatform
+    from hwtHls.platform.virtual import VirtualHlsPlatform
     u = VariableChain()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(**makeDebugPasses("tmp"))))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))

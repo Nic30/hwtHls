@@ -86,9 +86,8 @@ class HlsExprTree3_example_TC(BaseSsaTC):
 if __name__ == "__main__":
     import unittest
     from hwt.synthesizer.utils import to_rtl_str
-    from hwtHls.platform.virtual import makeDebugPasses
     u = HlsExprTree3_example()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(**makeDebugPasses("tmp"))))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
 
     suite = unittest.TestSuite()
     # suite.addTest(FrameTmplTC('test_frameHeader'))

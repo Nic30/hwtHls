@@ -1,23 +1,22 @@
 from functools import lru_cache
-from typing import Dict, Callable, Tuple
+from pathlib import Path
+from typing import Dict, Callable, Tuple, Optional, Union
 
 from hwt.hdl.operatorDefs import OpDefinition
-from hwt.synthesizer.dummyPlatform import DummyPlatform
-from hwtHls.netlist.allocator.allocator import HlsAllocator
-from hwtHls.platform.opRealizationMeta import OpRealizationMeta
-from hwtHls.platform.virtual import _OPS_T_ZERO_LATENCY
-from hwtHls.netlist.scheduler.scheduler import HlsScheduler
 from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF
+from hwtHls.platform.opRealizationMeta import OpRealizationMeta
+from hwtHls.platform.platform import DefaultHlsPlatform
+from hwtHls.platform.virtual import _OPS_T_ZERO_LATENCY
 
 
-class AbstractXilinxPlatform(DummyPlatform):
+class AbstractXilinxPlatform(DefaultHlsPlatform):
     """
     :ivar _OP_DELAYS: dict operator -> function (number of args, bitwidth input, min latency in cycles, maximum_time_budget) -> delay in seconds
 
     """
 
-    def __init__(self):
-        super(AbstractXilinxPlatform, self).__init__()
+    def __init__(self, debugDir:Optional[Union[str, Path]]=None):
+        super(AbstractXilinxPlatform, self).__init__(debugDir=debugDir)
         self._init_coefs()
 
     def _init_coefs(self):

@@ -4,6 +4,8 @@ from typing import Optional, Union
 from hwt.synthesizer.dummyPlatform import DummyPlatform
 from hwtHls.netlist.allocator.allocator import HlsAllocator
 from hwtHls.netlist.analysis.consystencyCheck import HlsNetlistPassConsystencyCheck
+from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.scheduler.scheduler import HlsScheduler
 from hwtHls.netlist.transformation.aggregateBitwiseOpsPass import HlsNetlistPassAggregateBitwiseOps
 from hwtHls.netlist.transformation.dce import HlsNetlistPassDCE
 from hwtHls.netlist.transformation.mergeExplicitSync import HlsNetlistPassMergeExplicitSync
@@ -11,7 +13,6 @@ from hwtHls.netlist.translation.dumpStreamNodes import RtlNetlistPassDumpStreamN
 from hwtHls.netlist.translation.toTimeline import HlsNetlistPassShowTimeline
 from hwtHls.netlist.translation.toTimelineArchLevel import HlsNetlistPassShowTimelineArchLevel
 from hwtHls.platform.fileUtils import outputFileGetter
-from hwtHls.netlist.scheduler.scheduler import HlsScheduler
 from hwtHls.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
 from hwtHls.ssa.analysis.dumpMIR import SsaPassDumpMIR
 from hwtHls.ssa.transformation.axiStreamReadLowering.axiStreamReadLoweringPass import SsaPassAxiStreamReadLowering
@@ -21,7 +22,6 @@ from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.llvmToMirAndMirToHlsNetl
 from hwtHls.ssa.translation.toGraphwiz import SsaPassDumpToDot
 from hwtHls.ssa.translation.toLl import SsaPassDumpToLl
 from hwtHls.ssa.translation.toLlvm import SsaPassToLlvm
-from hwtHls.netlist.context import HlsNetlistCtx
 
 
 class DefaultHlsPlatform(DummyPlatform):

@@ -44,9 +44,9 @@ class AxiSParseEth(Unit):
 
 
 if __name__ == "__main__":
-    from hwtHls.platform.virtual import VirtualHlsPlatform, makeDebugPasses
+    from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwt.synthesizer.utils import to_rtl_str
 
     u = AxiSParseEth()
-    p = VirtualHlsPlatform(**makeDebugPasses("tmp"))
+    p = VirtualHlsPlatform(debugDir="tmp")
     print(to_rtl_str(u, target_platform=p))

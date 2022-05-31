@@ -141,6 +141,5 @@ if __name__ == "__main__":
     runner.run(suite)
 
     from hwt.synthesizer.utils import to_rtl_str
-    from hwtHls.platform.virtual import makeDebugPasses
     u = HlsSlice2TmpHlsVarSlice()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(**makeDebugPasses("tmp"))))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))

@@ -4,7 +4,6 @@
 from hwt.hdl.types.bits import Bits
 from hwtHls.hlsStreamProc.streamProc  import HlsStreamProc
 from tests.syntaxElements.trivial import WhileTrueWrite, WhileTrueReadWrite
-from hwtHls.platform.virtual import makeDebugPasses
 
 
 class WhileAndIf0(WhileTrueWrite):
@@ -166,4 +165,4 @@ if __name__ == "__main__":
     u = WhileAndIf4()
     u.DATA_WIDTH = 4
     u.FREQ = int(130e6)
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(**makeDebugPasses("tmp"))))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))

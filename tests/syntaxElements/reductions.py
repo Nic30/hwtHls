@@ -1,8 +1,8 @@
-from hwt.synthesizer.hObjList import HObjList
-from hwt.interfaces.hsStructIntf import HsStructIntf
-from hwt.synthesizer.param import Param
-from hwt.interfaces.utils import addClkRstn
 from hwt.hdl.types.bits import Bits
+from hwt.interfaces.hsStructIntf import HsStructIntf
+from hwt.interfaces.utils import addClkRstn
+from hwt.synthesizer.hObjList import HObjList
+from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 from hwtLib.types.ctypes import uint8_t
@@ -49,7 +49,7 @@ class SumReduce(Unit):
 
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
-    from hwtHls.platform.virtual import VirtualHlsPlatform, makeDebugPasses
+    from hwtHls.platform.virtual import VirtualHlsPlatform
     u = SumReduce()
     u.FREQ = int(150e6)
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(**makeDebugPasses("tmp"))))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))

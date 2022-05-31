@@ -68,7 +68,7 @@ class CrcCombHls(CrcComb):
 
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
-    from hwtHls.platform.virtual import VirtualHlsPlatform, makeDebugPasses
+    from hwtHls.platform.virtual import VirtualHlsPlatform
     # import sys
     # sys.setrecursionlimit(10**5)
 
@@ -78,4 +78,4 @@ if __name__ == "__main__":
     u.CLK_FREQ = int(200e6)
     u.DATA_WIDTH = 8
 
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(**makeDebugPasses("tmp"))))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))

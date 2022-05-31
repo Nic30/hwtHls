@@ -81,11 +81,10 @@ BitonicSorterHLS_TCs = [
 if __name__ == "__main__":
     import unittest
     from hwt.synthesizer.utils import to_rtl_str
-    from hwtHls.platform.virtual import makeDebugPasses
 
     u = BitonicSorterHLS()
     u.ITEMS = 8
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(**makeDebugPasses("tmp"))))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
 
     suite = unittest.TestSuite()
     # suite.addTest(BitonicSorterHLS_large_TC('test_reversed'))

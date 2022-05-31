@@ -53,10 +53,10 @@ class AxiSParseUdpIpv4(Unit):
 
 
 if __name__ == "__main__":
-    from hwtHls.platform.virtual import VirtualHlsPlatform, makeDebugPasses
+    from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwt.synthesizer.utils import to_rtl_str
 
     u = AxiSParseUdpIpv4()
     u.CLK_FREQ = int(130e6)
-    p = VirtualHlsPlatform(**makeDebugPasses("tmp"))
+    p = VirtualHlsPlatform(debugDir="tmp")
     print(to_rtl_str(u, target_platform=p))

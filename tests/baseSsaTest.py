@@ -8,7 +8,6 @@ from hwtHls.ssa.analysis.dumpPipelines import SsaPassDumpPipelines
 from hwtHls.ssa.transformation.extractPartDrivers.extractPartDriversPass import SsaPassExtractPartDrivers
 from hwtHls.ssa.transformation.runFn import SsaPassRunFn
 from hwtHls.ssa.transformation.runLlvmOpt import SsaPassRunLlvmOpt
-from hwtHls.ssa.translation.fromLlvm import SsaPassFromLlvm
 from hwtHls.ssa.translation.toLl import SsaPassDumpToLl
 from hwtHls.ssa.translation.toLlvm import SsaPassToLlvm
 from hwtLib.examples.base_serialization_TC import BaseSerializationTC
