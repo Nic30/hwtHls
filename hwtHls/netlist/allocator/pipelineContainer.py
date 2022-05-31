@@ -10,11 +10,11 @@ from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import Interface_without_registration
 from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
-from hwtHls.allocator.architecturalElement import AllocatorArchitecturalElement
-from hwtHls.allocator.connectionsOfStage import ConnectionsOfStage, resolveStrongestSyncType, \
+from hwtHls.netlist.allocator.architecturalElement import AllocatorArchitecturalElement
+from hwtHls.netlist.allocator.connectionsOfStage import ConnectionsOfStage, resolveStrongestSyncType, \
     SignalsOfStages
-from hwtHls.allocator.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis
-from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
+from hwtHls.netlist.allocator.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis
+from hwtHls.netlist.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
 from hwtHls.netlist.nodes.node import HlsNetNode
 
@@ -28,16 +28,16 @@ class AllocatorPipelineContainer(AllocatorArchitecturalElement):
         This is to have uniform index when we scope into some other element.
     """
 
-    def __init__(self, parentHls: "HlsPipeline", namePrefix:str, stages: List[List[HlsNetNode]]):
+    def __init__(self, netlist: "HlsNetlistCtx", namePrefix:str, stages: List[List[HlsNetNode]]):
         allNodes = UniqList()
         for nodes in stages:
             allNodes.extend(nodes)
 
         self.stages = stages
         stageCons = [ConnectionsOfStage() for _ in self.stages]
-        stageSignals = SignalsOfStages(parentHls.normalizedClkPeriod,
+        stageSignals = SignalsOfStages(netlist.normalizedClkPeriod,
                                        (con.signals for con in stageCons))
-        AllocatorArchitecturalElement.__init__(self, parentHls, namePrefix, allNodes, stageCons, stageSignals)
+        AllocatorArchitecturalElement.__init__(self, netlist, namePrefix, allNodes, stageCons, stageSignals)
         self._syncAllocated = False
         self._dataPathAllocated = False
 
@@ -89,7 +89,7 @@ class AllocatorPipelineContainer(AllocatorArchitecturalElement):
                     currentStageForIo = ioToCon.get(node.dst, con)
                     assert currentStageForIo is con, ("If the access to IO is from different stage, this should already have IO gate generated", node, con)
                     con.outputs.append(node.dst)
-                    # if node.dst in allocator.parentHls.coherency_checked_io:
+                    # if node.dst in allocator.netlist.coherency_checked_io:
                     self._allocateIo(node.dst, node, con, ioMuxes, ioSeen, rtl)
                     ioToCon[node.dst] = con
 
@@ -104,8 +104,8 @@ class AllocatorPipelineContainer(AllocatorArchitecturalElement):
         assert tir.timeOffset is not TimeIndependentRtlResource.INVARIANT_TIME
         assert endTime > tir.timeOffset, (tir, tir.timeOffset, endTime)
 
-        clkPeriod = self.parentHls.normalizedClkPeriod
-        t = tir.timeOffset + (len(tir.valuesInTime) - 1) * clkPeriod + self.parentHls.scheduler.epsilon
+        clkPeriod = self.netlist.normalizedClkPeriod
+        t = tir.timeOffset + (len(tir.valuesInTime) - 1) * clkPeriod + self.netlist.scheduler.epsilon
         assert t < endTime
         # :note: done in reverse so we do not have to always iterater over registered prequel
         while t <= endTime:

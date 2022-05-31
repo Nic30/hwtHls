@@ -1,7 +1,7 @@
 from typing import List, Dict, Tuple, Set
 
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.clk_math import start_clk
+from hwtHls.netlist.scheduler.clk_math import start_clk
 from hwtHls.netlist.analysis.fsm import HlsNetlistAnalysisPassDiscoverFsm, IoFsm
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
@@ -26,8 +26,8 @@ class HlsNetlistAnalysisPassDiscoverPipelines(HlsNetlistAnalysisPass):
     This pass collect largest continuous segments of the netlist.
     """
 
-    def __init__(self, hls: "HlsPipeline"):
-        HlsNetlistAnalysisPass.__init__(self, hls)
+    def __init__(self, netlist: "HlsNetlistCtx"):
+        HlsNetlistAnalysisPass.__init__(self, netlist)
         self.pipelines: List[NetlistPipeline] = []
 
     @staticmethod
@@ -44,17 +44,17 @@ class HlsNetlistAnalysisPassDiscoverPipelines(HlsNetlistAnalysisPass):
             pipeline[clk_index].append(node)
 
     def run(self):
-        fsms: HlsNetlistAnalysisPassDiscoverFsm = self.hls.requestAnalysis(HlsNetlistAnalysisPassDiscoverFsm)
-        io_aggregation = self.hls.requestAnalysis(HlsNetlistAnalysisPassDiscoverIo).io_by_interface
+        fsms: HlsNetlistAnalysisPassDiscoverFsm = self.netlist.requestAnalysis(HlsNetlistAnalysisPassDiscoverFsm)
+        io_aggregation = self.netlist.requestAnalysis(HlsNetlistAnalysisPassDiscoverIo).io_by_interface
         allFsmNodes, inFsmNodeParts = fsms.collectInFsmNodes()
         allFsmNodes: Dict[HlsNetNode, UniqList[IoFsm]]
         inFsmNodeParts: Dict[HlsNetNode, UniqList[Tuple[IoFsm, HlsNetNodePartRef]]]
-        clkPeriod = self.hls.normalizedClkPeriod
+        clkPeriod = self.netlist.normalizedClkPeriod
         globalPipeline = []
 
         # interfaces which were checked to be accessed correctly
         alreadyCheckedIo: Set[Interface] = set()
-        for node in self.hls.iterAllNodes():
+        for node in self.netlist.iterAllNodes():
             node: HlsNetNode
             assert not isinstance(node, HlsNetNodePartRef), node
             _node = node

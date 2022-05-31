@@ -7,7 +7,7 @@ from hwt.simulator.simTestCase import SimTestCase
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 from hwtHls.platform.virtual import VirtualHlsPlatform
-from hwtHls.scheduler.errors import TimeConstraintError
+from hwtHls.netlist.scheduler.errors import TimeConstraintError
 from hwtSimApi.utils import freq_to_period
 
 

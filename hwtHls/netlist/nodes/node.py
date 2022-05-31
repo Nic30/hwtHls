@@ -3,11 +3,11 @@ from typing import List, Optional, Union, Tuple, Generator, Dict
 
 from hwt.hdl.types.hdlType import HdlType
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
-from hwtHls.clk_math import start_of_next_clk_period, start_clk
+from hwtHls.netlist.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
+from hwtHls.netlist.scheduler.clk_math import start_of_next_clk_period, start_clk
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
-from hwtHls.scheduler.errors import TimeConstraintError
+from hwtHls.netlist.scheduler.errors import TimeConstraintError
 from itertools import zip_longest
 
 TimeSpec = Union[float, Tuple[int, ...]]
@@ -18,19 +18,19 @@ class HlsNetNode():
     """
     Abstract class for nodes in circuit which are subject to HLS scheduling
 
-    :ivar name: optional suggested name for this object (for debbuging purposes)
+    :ivar name: optional suggested name for this object (for debugging purposes)
     :ivar usedBy: for each output list of operation and its input index which are using this output
     :ivar dependsOn: for each input operation and index of its output with data required
         to perform this operation
     :ivar scheduledIn: final scheduled time of start of operation for each input
     :ivar scheduledOut: final scheduled time of end of operation for each output
 
-    :attention: inputs must be soted 1st must have lowest latency
+    :attention: inputs must be sorted 1st must have lowest latency
 
     :ivar latency_pre: combinational latency before first register
-        in compoent for this operation (for each input)
+        in component for this operation (for each input)
     :ivar latency_post: combinational latency after last register
-        in compoent for this operation (for each output, 0 corresponds to a same time as input[0])
+        in component for this operation (for each output, 0 corresponds to a same time as input[0])
     :ivar cycles_latency: number of clk cycles for data to get from input
         to output (for each output, 0 corresponds to a same clock cycle as input[0])
     :ivar cycles_dealy: number of clk cycles required to process data
@@ -39,10 +39,10 @@ class HlsNetNode():
     :ivar _outputs: list of inputs of this node
     """
 
-    def __init__(self, parentHls: "HlsPipeline", name: str=None):
+    def __init__(self, netlist: "HlsNetlistCtx", name: str=None):
         self.name = name
-        self.hls = parentHls
-        self._id = parentHls.nodeCtx.getUniqId()
+        self.netlist = netlist
+        self._id = netlist.nodeCtx.getUniqId()
 
         self.usedBy: List[List[HlsNetNodeIn]] = []
         self.dependsOn: List[HlsNetNodeOut] = []
@@ -99,7 +99,7 @@ class HlsNetNode():
                 # now we have times when the value is available on input
                 # and we must resolve the minimal time so each input timing constraints are satisfied
                 time_when_all_inputs_present = 0
-                clkPeriod = self.hls.normalizedClkPeriod
+                clkPeriod = self.netlist.normalizedClkPeriod
                 for (available_in_time, in_delay, in_cycles) in zip(input_times, self.latency_pre, self.in_cycles_offset):
                     if in_delay >= clkPeriod:
                         raise TimeConstraintError(
@@ -147,7 +147,7 @@ class HlsNetNode():
         assert self.usedBy, ("Compaction should be called only for nodes with dependencies, others should be moved only manually", self)
         asapIn, asapOut = asapSchedule[self]
         outTimes = []
-        ffdelay = self.hls.platform.get_ff_store_time(self.hls.realTimeClkPeriod, self.hls.scheduler.resolution)
+        ffdelay = self.netlist.platform.get_ff_store_time(self.netlist.realTimeClkPeriod, self.netlist.scheduler.resolution)
         oMinTime = inf
         for asapOutT, uses in zip(asapOut, self.usedBy):
             asapOutT: float
@@ -164,8 +164,8 @@ class HlsNetNode():
                 oT = inf
             outTimes.append(oT)
         
-        clkPeriod = self.hls.normalizedClkPeriod
-        epsilon = self.hls.scheduler.epsilon
+        clkPeriod = self.netlist.normalizedClkPeriod
+        epsilon = self.netlist.scheduler.epsilon
         # resolve time for unused outputs
         for oI, (asapOutT, oT) in enumerate(zip(asapOut, outTimes)):
             asapOutT: float
@@ -213,7 +213,7 @@ class HlsNetNode():
         return self.scheduledIn
         
     def iterScheduledClocks(self):
-        clkPeriod = self.hls.normalizedClkPeriod
+        clkPeriod = self.netlist.normalizedClkPeriod
         beginTime = inf
         endTime = 0
         for i in self.scheduledIn:
@@ -228,6 +228,16 @@ class HlsNetNode():
         endClkI = int(endTime // clkPeriod)
         yield from range(startClkI, endClkI + 1)
 
+
+    def _removeInput(self, i:int):
+        """
+        :attention: does not disconnect the input
+        """
+        self._inputs.pop(i)
+        self.dependsOn.pop(i)
+        for i in self._inputs[i:]:
+            i.in_i -= 1
+
     def _add_input(self) -> HlsNetNodeIn:
         i = HlsNetNodeIn(self, len(self._inputs))
         self.dependsOn.append(None)
@@ -241,7 +251,7 @@ class HlsNetNode():
         return o
 
     def assignRealization(self, r: OpRealizationMeta):
-        schedulerResolution: float = self.hls.scheduler.resolution
+        schedulerResolution: float = self.netlist.scheduler.resolution
         self.realization = r
         self.in_cycles_offset = HlsNetNode_numberForEachInput(self, r.in_cycles_offset)
         self.latency_pre = HlsNetNode_numberForEachInputNormalized(self, r.latency_pre, schedulerResolution)
@@ -278,7 +288,7 @@ class HlsNetNode():
             "Override this method in derived class", self)
         
     def _get_rtl_context(self):
-        return self.hls.ctx
+        return self.netlist.ctx
 
     def debug_iter_shadow_connection_dst(self) -> Generator["HlsNetNode", None, None]:
         """
@@ -332,8 +342,8 @@ class HlsNetNodePartRef(HlsNetNode):
     :note: The reason for this class is that we need to split nodes during analysis passes when we can not modify the nodes.
     """
 
-    def __init__(self, parentHls:"HlsPipeline", parentNode: HlsNetNode, name:str=None):
-        HlsNetNode.__init__(self, parentHls, name=name)
+    def __init__(self, netlist:"HlsNetlistCtx", parentNode: HlsNetNode, name:str=None):
+        HlsNetNode.__init__(self, netlist, name=name)
         self.parentNode = parentNode
         # deleting because real value is stored in parent node and this is just reference
         self._inputs = None

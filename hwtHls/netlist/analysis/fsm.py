@@ -4,7 +4,7 @@ from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.clk_math import start_clk
+from hwtHls.netlist.scheduler.clk_math import start_clk
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
@@ -37,8 +37,8 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
     collect also all nodes which are tied with them into FSM states.
     """
 
-    def __init__(self, hls: "HlsPipeline"):
-        HlsNetlistAnalysisPass.__init__(self, hls)
+    def __init__(self, netlist: "HlsNetlistCtx"):
+        HlsNetlistAnalysisPass.__init__(self, netlist)
         self.fsms: List[IoFsm] = []
 
     def _floodNetInSameCycle(self, clk_i: int, o: HlsNetNode, seen:Set[HlsNetNode], alreadyUsed: Set[HlsNetNode], predicate: Callable[[HlsNetNode], bool]):
@@ -46,7 +46,7 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
         alreadyUsed.add(o)
 
         allNodeClks = tuple(o.iterScheduledClocks())
-        clkPeriod = self.hls.normalizedClkPeriod
+        clkPeriod = self.netlist.normalizedClkPeriod
         if len(allNodeClks) > 1:
             inClkInputs = [i for t, i in zip(o.scheduledIn, o._inputs) if start_clk(t, clkPeriod) == clk_i]
             inClkOutputs = [o for t, o in zip(o.scheduledOut, o._outputs) if start_clk(t, clkPeriod) == clk_i]
@@ -92,8 +92,8 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
         return inFsm, inFsmNodeParts
 
     def run(self):
-        io_aggregation = self.hls.requestAnalysis(HlsNetlistAnalysisPassDiscoverIo).io_by_interface
-        clkPeriod = self.hls.normalizedClkPeriod
+        io_aggregation = self.netlist.requestAnalysis(HlsNetlistAnalysisPassDiscoverIo).io_by_interface
+        clkPeriod = self.netlist.normalizedClkPeriod
 
         def floodPredicateExcludeOtherIoWithOwnFsm(n: HlsNetNode):
             if isinstance(n, HlsNetNodeRead):

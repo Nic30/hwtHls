@@ -2,21 +2,20 @@ from typing import List, Tuple, Optional, Union
 
 from hwt.code import If, Or
 from hwt.hdl.types.defs import BIT
-from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
+from hwtHls.netlist.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.io import HlsNetNodeExplicitSync, IO_COMB_REALIZATION
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, link_hls_nodes, HlsNetNodeOutLazy
 from hwtHls.netlist.utils import hls_op_not
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.branchControlLabel import BranchControlLabel
-from hwtHls.ssa.translation.toHwtHlsNetlist.opCache import SsaToHwtHlsNetlistOpCache
 from ipCorePackager.constants import INTF_DIRECTION
 
 
 class HlsLoopGateStatus(HlsNetNode):
 
-    def __init__(self, parentHls:"HlsPipeline", loop_gate: "HlsLoopGate", name:str=None):
-        HlsNetNode.__init__(self, parentHls, name=name)
+    def __init__(self, netlist:"HlsNetlistCtx", loop_gate: "HlsLoopGate", name:str=None):
+        HlsNetNode.__init__(self, netlist, name=name)
         self._loop_gate = loop_gate
         self._add_output(BIT)
 
@@ -35,7 +34,7 @@ class HlsLoopGateStatus(HlsNetNode):
         status_reg = allocator._reg(name if name else "loop_gate_status", def_val=0)
 
         # create RTL signal expression base on operator type
-        t = self.scheduledOut[0] + self.hls.scheduler.epsilon
+        t = self.scheduledOut[0] + self.netlist.scheduler.epsilon
         status_reg_s = TimeIndependentRtlResource(status_reg, t, allocator)
         allocator.netNodeToRtl[op_out] = status_reg_s
 
@@ -112,7 +111,7 @@ class HlsLoopGate(HlsNetNode):
     :ivar from_predec: for each direct predecessor which is not in cycle body a tuple input for control and variable values.
         Signalizes that the loop has data to be executed.
     :ivar from_reenter: For each direct predecessor which is a part of a cycle body a tuple control input and associated variables.
-        Note that the channels are usually connected to out of pipeline interface because the HlsPipeline does not support cycles.
+        Note that the channels are usually connected to out of pipeline interface because the HlsNetlistCtx does not support cycles.
     :ivar from_break: For each block wich is part of the cycle body and does have transition outside of the cycle a control input
         to mark the retun of the synchronization token.
     :ivar to_loop: The control and variable channels which are entering the loop condition eval.
@@ -123,98 +122,98 @@ class HlsLoopGate(HlsNetNode):
     :note: if this gate has synchronization token it accepts only data from the from_predec then it accepts only from from_reenter/from_break
     """
 
-    def __init__(self, parentHls:"HlsPipeline",
+    def __init__(self, netlist:"HlsNetlistCtx",
             name:Optional[str]=None):
-        HlsNetNode.__init__(self, parentHls, name=name)
+        HlsNetNode.__init__(self, netlist, name=name)
         self.from_predec: List[HlsNetNodeOut] = []
         self.from_reenter: List[HlsNetNodeOut] = []
         self.from_break: List[HlsNetNodeOut] = []
         self.to_loop: List[HlsNetNodeOut] = []
         # another node with the output representing the presence of sync token (we can not add it here
         # because it would create a cycle)
-        self._sync_token_status = HlsLoopGateStatus(parentHls, self)
+        self._sync_token_status = HlsLoopGateStatus(netlist, self)
 
-    @classmethod
-    def inset_before_block(cls, toHls: "SsaToHwtHlsNetlist", block: SsaBasicBlock,
-                           io: "SsaToHwtHlsNetlistSyncAndIo",
-                           to_hls_cache: SsaToHwtHlsNetlistOpCache,
-                           nodes: List[HlsNetNode],
-                           ):
-        hls = toHls.hls
-        self = cls(hls, block.label)
-        # Mark all inputs from predec as not required and stalled while we do not have sync token ready.
-        # Mark all inputs from reenter as not required and stalled while we have a sync token ready.
-        nodes.append(self._sync_token_status)
-        nodes.append(self)
-        for pred in block.predecessors:
-            is_reenter = (pred, block) in io.out_of_pipeline_edges
-            en = self._sync_token_status._outputs[0]
-            not_en = hls_op_not(hls, en)
-
-            if is_reenter:
-                # en if has sync token
-                pass
-            else:
-                # en if has no sync token
-                en, not_en = not_en, en
-
-            if toHls._blockMeta[pred].needsControl:
-                control_key = BranchControlLabel(pred, block, INTF_DIRECTION.SLAVE)
-                control = to_hls_cache.get(control_key, BIT)
-                _, control = HlsNetNodeExplicitSync.replace_variable(hls, control_key, control, to_hls_cache, en, not_en)
-            else:
-                control = None
-
-            # variables = []
-            for v in io.edge_var_live.get(pred, {}).get(block, ()):
-                cache_key = (block, v)
-                v = to_hls_cache.get(cache_key, v._dtype)
-                _, _ = HlsNetNodeExplicitSync.replace_variable(hls, cache_key, v, to_hls_cache, en, not_en)
-                # variables.append(v)
-
-            if control is not None:
-                if is_reenter:
-                    self.connect_reenter(control)
-                else:
-                    self.connect_predec(control)
-        self._finalizeConnnections()
-
-    def _finalizeConnnections(self):
-        pass
-        # if self.from_predec:
-        #    raise NotImplementedError()
-        # if self.from_break:
-        #    raise NotImplementedError()
-
-        # allow to execute loop with just a single value from reenter
-        # in_list = self.from_reenter
-        # if len(in_list) > 1:
-        #     for inp0_i, inp0 in enumerate(in_list):
-        #         inp0: HlsNetNodeOut
-        #         anyOtherValid = []
-        #         for inp1 in in_list:
-        #             if inp1 is inp0:
-        #                 continue
-        #
-        #             vld = HlsNetNodeReadSync(self.hls)
-        #             self.hls.nodes.append(vld)
-        #             otherInSyncNode = inp1.obj
-        #             assert isinstance(otherInSyncNode, HlsNetNodeExplicitSync), otherInSyncNode
-        #             link_hls_nodes(otherInSyncNode.dependsOn[0], vld._inputs[0])
-        #             anyOtherValid.append(vld._outputs[0])
-        #
-        #         inSyncNode: HlsNetNodeExplicitSync = inp0.obj
-        #         assert isinstance(inSyncNode, HlsNetNodeExplicitSync), inSyncNode
-        #
-        #         # any other valid
-        #         skipWhen = hls_op_and_variadic(self.hls, *anyOtherValid)
-        #         inSyncNode.add_control_skipWhen(skipWhen)
-        #         # all previous not valid
-        #         if inp0_i > 0:
-        #             extraCond = hls_op_and_variadic(self.hls,
-        #                                             *[hls_op_not(self.hls, o)
-        #                                               for o in anyOtherValid[:inp0_i]])
-        #             inSyncNode.add_control_extraCond(extraCond)
+    #@classmethod
+    #def inset_before_block(cls, toHls: "SsaToHwtHlsNetlist", block: SsaBasicBlock,
+    #                       io: "SsaToHwtHlsNetlistSyncAndIo",
+    #                       to_hls_cache: SsaToHwtHlsNetlistOpCache,
+    #                       nodes: List[HlsNetNode],
+    #                       ):
+    #    hls = toHls.hls
+    #    self = cls(hls, block.label)
+    #    # Mark all inputs from predec as not required and stalled while we do not have sync token ready.
+    #    # Mark all inputs from reenter as not required and stalled while we have a sync token ready.
+    #    nodes.append(self._sync_token_status)
+    #    nodes.append(self)
+    #    for pred in block.predecessors:
+    #        is_reenter = (pred, block) in io.out_of_pipeline_edges
+    #        en = self._sync_token_status._outputs[0]
+    #        not_en = hls_op_not(hls, en)
+    #
+    #        if is_reenter:
+    #            # en if has sync token
+    #            pass
+    #        else:
+    #            # en if has no sync token
+    #            en, not_en = not_en, en
+    #
+    #        if toHls._blockMeta[pred].needsControl:
+    #            control_key = BranchControlLabel(pred, block, INTF_DIRECTION.SLAVE)
+    #            control = to_hls_cache.get(control_key, BIT)
+    #            _, control = HlsNetNodeExplicitSync.replace_variable(hls, control_key, control, to_hls_cache, en, not_en)
+    #        else:
+    #            control = None
+    #
+    #        # variables = []
+    #        for v in io.edge_var_live.get(pred, {}).get(block, ()):
+    #            cache_key = (block, v)
+    #            v = to_hls_cache.get(cache_key, v._dtype)
+    #            _, _ = HlsNetNodeExplicitSync.replace_variable(hls, cache_key, v, to_hls_cache, en, not_en)
+    #            # variables.append(v)
+    #
+    #        if control is not None:
+    #            if is_reenter:
+    #                self.connect_reenter(control)
+    #            else:
+    #                self.connect_predec(control)
+    #    self._finalizeConnnections()
+    #
+    #def _finalizeConnnections(self):
+    #    pass
+    #    # if self.from_predec:
+    #    #    raise NotImplementedError()
+    #    # if self.from_break:
+    #    #    raise NotImplementedError()
+    #
+    #    # allow to execute loop with just a single value from reenter
+    #    # in_list = self.from_reenter
+    #    # if len(in_list) > 1:
+    #    #     for inp0_i, inp0 in enumerate(in_list):
+    #    #         inp0: HlsNetNodeOut
+    #    #         anyOtherValid = []
+    #    #         for inp1 in in_list:
+    #    #             if inp1 is inp0:
+    #    #                 continue
+    #    #
+    #    #             vld = HlsNetNodeReadSync(self.hls)
+    #    #             self.hls.nodes.append(vld)
+    #    #             otherInSyncNode = inp1.obj
+    #    #             assert isinstance(otherInSyncNode, HlsNetNodeExplicitSync), otherInSyncNode
+    #    #             link_hls_nodes(otherInSyncNode.dependsOn[0], vld._inputs[0])
+    #    #             anyOtherValid.append(vld._outputs[0])
+    #    #
+    #    #         inSyncNode: HlsNetNodeExplicitSync = inp0.obj
+    #    #         assert isinstance(inSyncNode, HlsNetNodeExplicitSync), inSyncNode
+    #    #
+    #    #         # any other valid
+    #    #         skipWhen = hls_op_and_variadic(self.hls, *anyOtherValid)
+    #    #         inSyncNode.add_control_skipWhen(skipWhen)
+    #    #         # all previous not valid
+    #    #         if inp0_i > 0:
+    #    #             extraCond = hls_op_and_variadic(self.hls,
+    #    #                                             *[hls_op_not(self.hls, o)
+    #    #                                               for o in anyOtherValid[:inp0_i]])
+    #    #             inSyncNode.add_control_extraCond(extraCond)
 
     def _connect(self, control:HlsNetNodeOut, in_list: List[HlsNetNodeOut]):
         in_list.append(control)

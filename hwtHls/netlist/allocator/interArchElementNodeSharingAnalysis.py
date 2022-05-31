@@ -2,9 +2,9 @@ from cmath import inf
 from typing import Union, List, Dict, Tuple
 
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.allocator.architecturalElement import AllocatorArchitecturalElement
-from hwtHls.allocator.fsmContainer import AllocatorFsmContainer
-from hwtHls.clk_math import start_clk
+from hwtHls.netlist.allocator.architecturalElement import AllocatorArchitecturalElement
+from hwtHls.netlist.allocator.fsmContainer import AllocatorFsmContainer
+from hwtHls.netlist.scheduler.clk_math import start_clk
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.io import HOrderingVoidT
 from hwtHls.netlist.nodes.node import HlsNetNode, HlsNetNodePartRef
@@ -24,23 +24,23 @@ class ValuePathSpecItem():
 
 class InterArchElementNodeSharingAnalysis():
     """
-    :ivar interElemConnections: the port tuples which are crossing the boundaries of :class:`hwtHls.allocator.architecturalElement.AllocatorArchitecturalElement`
+    :ivar interElemConnections: the port tuples which are crossing the boundaries of :class:`hwtHls.netlist.allocator.architecturalElement.AllocatorArchitecturalElement`
         instances
-    :ivar multiOwnerNodes: a list of nodes which are owned by multiple :class:`hwtHls.allocator.architecturalElement.AllocatorArchitecturalElement` instances
+    :ivar multiOwnerNodes: a list of nodes which are owned by multiple :class:`hwtHls.netlist.allocator.architecturalElement.AllocatorArchitecturalElement` instances
     :ivar nodePartToPort: a dictionary which maps the port of multi part node to a specific part
-    :ivar ownerOfNode: a dictionary mapping node to list of :class:`hwtHls.allocator.architecturalElement.AllocatorArchitecturalElement`
+    :ivar ownerOfNode: a dictionary mapping node to list of :class:`hwtHls.netlist.allocator.architecturalElement.AllocatorArchitecturalElement`
         instance
     :ivar partsOfNode: dictionary mapping the node to its parts in individual architecture elements
     :note: if node has multiple owners the owners are using only :class:`hwtHls.netlist.nodes.node.HlsNetNodePartRef` instances and ownerOfNode is also using only parts
         However the port itsef does use original node.
-    :ivar ownerOfInput: a dictionary mapping node input to list of :class:`hwtHls.allocator.architecturalElement.AllocatorArchitecturalElement`
+    :ivar ownerOfInput: a dictionary mapping node input to list of :class:`hwtHls.netlist.allocator.architecturalElement.AllocatorArchitecturalElement`
         instance
-    :ivar ownerOfOutput: a dictionary mapping node output to list of :class:`hwtHls.allocator.architecturalElement.AllocatorArchitecturalElement`
+    :ivar ownerOfOutput: a dictionary mapping node output to list of :class:`hwtHls.netlist.allocator.architecturalElement.AllocatorArchitecturalElement`
         instance
     :ivar explicitPathSpec: An additional specfification for output to input path which must pass some element where the output is not directly used.
     :note: Source and destionation elemnt are not specified in explicitPathSpec because it can be derived from the owner of port.
         For connections which are just from the source element to destination element this dictionary holds no record.
-    :ivar firstUseTimeOfOutInElem: Information about when each node output is used in :class:`hwtHls.allocator.architecturalElement.AllocatorArchitecturalElement`
+    :ivar firstUseTimeOfOutInElem: Information about when each node output is used in :class:`hwtHls.netlist.allocator.architecturalElement.AllocatorArchitecturalElement`
         instance for the first time.
     """
 

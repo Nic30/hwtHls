@@ -13,14 +13,13 @@ from hwt.synthesizer.interfaceLevel.interfaceUtils.utils import packIntf
 from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
-from hwtHls.clk_math import start_of_next_clk_period, start_clk, epsilon
+from hwtHls.netlist.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
+from hwtHls.netlist.scheduler.clk_math import start_of_next_clk_period, start_clk, epsilon
 from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
     link_hls_nodes, HlsNetNodeOutLazy, HlsNetNodeOutLazyIndirect
 from hwtHls.netlist.utils import hls_op_and, hls_op_or
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
-from hwtHls.ssa.translation.toHwtHlsNetlist.opCache import SsaToHwtHlsNetlistOpCache
 from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axi_intf_common import Axi_hs
 
@@ -42,29 +41,26 @@ class HlsNetNodeExplicitSync(HlsNetNode):
 
     This node is used to stall/drop/not-require some data based on external conditions.
 
-    :ivar extraCond: a flag which must be true to allow the transaction (is blocking until 1)
-    :ivar extraCond_inI: index of extraCond input
-    :ivar skipWhen: a flag which marks that this write should be skipped and transaction
+    :ivar extraCond: an input for a flag which must be true to allow the transaction (is blocking until 1)
+    :ivar skipWhen: an input for a flag which marks that this write should be skipped and transaction
                     will not be performed but the control flow will continue
-    :ivar skipWhen_inI: index of skipWhen input
     """
 
-    def __init__(self, parentHls: "HlsPipeline", dtype: HdlType):
-        HlsNetNode.__init__(self, parentHls, None)
+    def __init__(self, netlist: "HlsNetlistCtx", dtype: HdlType):
+        HlsNetNode.__init__(self, netlist, None)
         self._init_extraCond_skipWhen()
         self._add_input()
         self._add_output(dtype)
         self._add_output(HOrderingVoidT)  # slot for ordering
 
+
     def _init_extraCond_skipWhen(self):
-        self.extraCond: Optional[HlsNetNodeOut] = None
-        self.extraCond_inI: Optional[int] = None
-        self.skipWhen: Optional[HlsNetNodeOut] = None
-        self.skipWhen_inI: Optional[int] = None
+        self.extraCond: Optional[HlsNetNodeIn] = None
+        self.skipWhen: Optional[HlsNetNodeIn] = None
 
     def iterOrderingInputs(self):
         for i in self._inputs:
-            if i.in_i != 0 and i.in_i != self.extraCond_inI and i.in_i != self.skipWhen_inI:
+            if i.in_i != 0 and i not in (self.extraCond, self.skipWhen):
                 yield i
 
     def allocateRtlInstance(self,
@@ -97,70 +93,63 @@ class HlsNetNodeExplicitSync(HlsNetNode):
         assert found, (self, cur.dependent_inputs)
 
     def add_control_extraCond(self, en: Union[HlsNetNodeOut, HlsNetNodeOutLazy]):
-        if self.extraCond is None:
-            i = self._add_input()
-            self.extraCond_inI = i.in_i
-
+        i = self.extraCond
+        if i is None:
+            self.extraCond = i = self._add_input()
         else:
             # create "and" of existing and new extraCond and use it instead
-            cur = self.extraCond
+            cur = self.dependsOn[i.in_i]
             if isinstance(cur, HlsNetNodeOutLazy):
-                self._unregisterLazyInput(cur, self.extraCond_inI)
+                self._unregisterLazyInput(cur, i.in_i)
 
-            en = hls_op_and(self.hls, self.extraCond, en)
-            i = self._inputs[self.extraCond_inI]
+            en = hls_op_and(self.netlist, cur, en)
 
-        self.extraCond = en
         link_hls_nodes(en, i)
-        if isinstance(en, HlsNetNodeOutLazy):
-            en.dependent_inputs.append(HlsNetNodeOperatorPropertyInputRef(self, "extraCond", i.in_i, en))
 
     def add_control_skipWhen(self, skipWhen: Union[HlsNetNodeOut, HlsNetNodeOutLazy]):
-        if self.skipWhen is None:
-            self.skipWhen = skipWhen
-            i = self._add_input()
-            self.skipWhen_inI = i.in_i
+        i = self.skipWhen
+        if i is None:
+            self.skipWhen = i = self._add_input()
         else:
-            cur = self.skipWhen
+            cur = self.dependsOn[i.in_i]
             if isinstance(cur, HlsNetNodeOutLazy):
-                self._unregisterLazyInput(cur, self.skipWhen_inI)
+                self._unregisterLazyInput(cur, i.in_i)
 
-            skipWhen = hls_op_or(self.hls, cur, skipWhen)
-            i = self._inputs[self.skipWhen_inI]
+            skipWhen = hls_op_or(self.netlist, cur, skipWhen)
 
         link_hls_nodes(skipWhen, i)
-        if isinstance(skipWhen, HlsNetNodeOutLazy):
-            skipWhen.dependent_inputs.append(HlsNetNodeOperatorPropertyInputRef(self, "skipWhen", i.in_i, skipWhen))
 
     def resolve_realization(self):
         self.assignRealization(IO_COMB_REALIZATION)
 
-    @classmethod
-    def replace_variable(cls, parentHls: "HlsPipeline", cache_key,
-                         var: Union[HlsNetNodeOut, HlsNetNodeOutLazy],
-                         to_hls_cache: SsaToHwtHlsNetlistOpCache,
-                         extraCond: HlsNetNodeOut,
-                         skipWhen: HlsNetNodeOut):
-        """
-        Prepend the synchronization to an operation output representing variable.
-        """
-        self = cls(parentHls, BIT)
-        parentHls.nodes.append(self)
-        o = self._outputs[0]
-        link_hls_nodes(var, self._inputs[0])
-        assert to_hls_cache._to_hls_cache[cache_key] is var, (cache_key, to_hls_cache._to_hls_cache[cache_key], var)
-        if isinstance(var, HlsNetNodeOutLazy):
-            o = HlsNetNodeOutLazyIndirect(to_hls_cache, var, o)
-        else:
-            to_hls_cache._to_hls_cache[cache_key] = o
-
-        self.add_control_extraCond(extraCond)
-        self.add_control_skipWhen(skipWhen)
-
-        return self, o
+    #@classmethod
+    #def replace_variable(cls, netlist: "HlsNetlistCtx", cache_key,
+    #                     var: Union[HlsNetNodeOut, HlsNetNodeOutLazy],
+    #                     to_hls_cache: SsaToHwtHlsNetlistOpCache,
+    #                     extraCond: HlsNetNodeOut,
+    #                     skipWhen: HlsNetNodeOut):
+    #    """
+    #    Prepend the synchronization to an operation output representing variable.
+    #    """
+    #    self = cls(netlist, BIT)
+    #    netlist.nodes.append(self)
+    #    o = self._outputs[0]
+    #    link_hls_nodes(var, self._inputs[0])
+    #    assert to_hls_cache._to_hls_cache[cache_key] is var, (cache_key, to_hls_cache._to_hls_cache[cache_key], var)
+    #    if isinstance(var, HlsNetNodeOutLazy):
+    #        o = HlsNetNodeOutLazyIndirect(to_hls_cache, var, o)
+    #    else:
+    #        to_hls_cache._to_hls_cache[cache_key] = o
+    #
+    #    self.add_control_extraCond(extraCond)
+    #    self.add_control_skipWhen(skipWhen)
+    #
+    #    return self, o
 
     def __repr__(self):
-        return f"<{self.__class__.__name__:s} {self._id:d} in={self.dependsOn[0]}, extraCond={self.extraCond}>"
+        return (f"<{self.__class__.__name__:s} {self._id:d} in={self.dependsOn[0]}, "
+                f"extraCond={None if self.extraCond is None else self.dependsOn[self.extraCond.in_i]}, "
+                f"skipWhen={None if self.skipWhen is None else self.dependsOn[self.skipWhen.in_i]}>")
 
 
 class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
@@ -173,8 +162,8 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
     :ivar dependsOn: list of dependencies for scheduling composed of extraConds and skipWhen
     """
 
-    def __init__(self, parentHls: "HlsPipeline", src: Union[RtlSignal, Interface]):
-        HlsNetNode.__init__(self, parentHls, None)
+    def __init__(self, netlist: "HlsNetlistCtx", src: Union[RtlSignal, Interface]):
+        HlsNetNode.__init__(self, netlist, None)
         self.operator = "read"
         self.src = src
         self.maxIosPerClk = 1
@@ -182,13 +171,13 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
         self._init_extraCond_skipWhen()
         self._add_output(self.getRtlDataSig()._dtype)  # slot for data consumer
         self._add_output(HOrderingVoidT)  # slot for ordering
-
-    def getOrderingOutPort(self):
+            
+    def getOrderingOutPort(self) -> HlsNetNodeOut:
         return self._outputs[1]
 
     def iterOrderingInputs(self):
         for i in self._inputs:
-            if i.in_i != self.extraCond_inI and i.in_i != self.skipWhen_inI:
+            if i not in (self.extraCond, self.skipWhen):
                 yield i
 
     def allocateRtlInstance(self,
@@ -225,7 +214,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
         :note: This is not a total number of scheduled IO operations in this clock.
             It uses the information about if the operations may happen concurrently.
         """
-        clkPeriod: int = self.hls.normalizedClkPeriod
+        clkPeriod: int = self.netlist.normalizedClkPeriod
         if isinstance(self, HlsNetNodeRead):
             thisClkI = start_clk(self.scheduledOut[0], clkPeriod)
             sameIntf = intf is self.src
@@ -257,8 +246,8 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
         curIoCnt = self._getNumberOfIoInThisClkPeriod(self.src if isinstance(self, HlsNetNodeRead) else self.dst, False)
         if curIoCnt > self.maxIosPerClk:
             # move to next clock cycle if IO constraint requires it
-            ffdelay = self.hls.platform.get_ff_store_time(self.hls.realTimeClkPeriod, self.hls.scheduler.resolution)
-            clkPeriod = self.hls.normalizedClkPeriod
+            ffdelay = self.netlist.platform.get_ff_store_time(self.netlist.realTimeClkPeriod, self.netlist.scheduler.resolution)
+            clkPeriod = self.netlist.normalizedClkPeriod
             while curIoCnt > self.maxIosPerClk:
                 if self.scheduledIn:
                     startT = self.scheduledIn[0]
@@ -278,7 +267,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
         curIoCnt = self._getNumberOfIoInThisClkPeriod(self.src if isinstance(self, HlsNetNodeRead) else self.dst, True)
         if curIoCnt > self.maxIosPerClk:
             # move to next clock cycle if IO constraint requires it
-            off = start_of_next_clk_period(self.scheduledIn[0], self.hls.normalizedClkPeriod) - self.scheduledIn[0]
+            off = start_of_next_clk_period(self.scheduledIn[0], self.netlist.normalizedClkPeriod) - self.scheduledIn[0]
             self.scheduledIn = tuple(t + off for t in self.scheduledIn)
             self.scheduledOut = tuple(t + off for t in self.scheduledOut)
 
@@ -293,9 +282,9 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
         elif isinstance(src, (Handshaked, HandshakeSync)):
             return packIntf(src, exclude=(src.vld, src.rd))
         elif isinstance(src, VldSynced):
-            return packIntf(src, exclude=(src.vld, ))
+            return packIntf(src, exclude=(src.vld,))
         elif isinstance(src, RdSynced):
-            return packIntf(src, exclude=(src.rd, ))
+            return packIntf(src, exclude=(src.rd,))
         else:
             return packIntf(src)
 
@@ -314,8 +303,8 @@ class HlsNetNodeReadSync(HlsNetNode, InterfaceBase):
     :ivar dependsOn: list of dependencies for scheduling composed of extraConds and skipWhen
     """
 
-    def __init__(self, parentHls: "HlsPipeline"):
-        HlsNetNode.__init__(self, parentHls, None)
+    def __init__(self, netlist: "HlsNetlistCtx"):
+        HlsNetNode.__init__(self, netlist, None)
         self._add_input()
         self._add_output(BIT)
         self.operator = "read_sync"
@@ -382,14 +371,16 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
     :ivar dependsOn: list of dependencies for scheduling composed of data input, extraConds and skipWhen
     """
 
-    def __init__(self, parentHls: "HlsPipeline", src, dst: Union[RtlSignal, Interface, SsaValue]):
-        HlsNetNode.__init__(self, parentHls, None)
+    def __init__(self, netlist: "HlsNetlistCtx", src, dst: Union[RtlSignal, Interface, SsaValue]):
+        HlsNetNode.__init__(self, netlist, None)
         self._init_extraCond_skipWhen()
         self._add_input()
         self._add_output(HOrderingVoidT)  # slot for ordering
 
         self.operator = "write"
         self.src = src
+        if isinstance(src, (HlsNetNodeOut, HlsNetNodeOutLazy)):
+            link_hls_nodes(src, self._inputs[0])
 
         indexCascade = None
         if isinstance(dst, RtlSignal):
@@ -404,7 +395,7 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         self.indexes = indexCascade
         self.maxIosPerClk = 1
 
-    def getOrderingOutPort(self):
+    def getOrderingOutPort(self) -> HlsNetNodeOut:
         return self._outputs[0]
 
     def scheduleAsap(self, pathForDebug: Optional[UniqList["HlsNetNode"]]) -> List[float]:

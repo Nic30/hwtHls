@@ -1,19 +1,19 @@
 from itertools import chain
+from math import ceil
 from typing import List, Union, Optional, Type
 
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.unit import Unit
-from hwtHls.allocator.allocator import HlsAllocator
+from hwtHls.netlist.allocator.allocator import HlsAllocator
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.scheduler.scheduler import HlsScheduler
-from math import ceil
+from hwtHls.netlist.scheduler.scheduler import HlsScheduler
 
 
-class HlsPipelineNodeContext():
+class HlsNetlistCtxNodeContext():
 
     def __init__(self):
         self.cntr = 0
@@ -24,7 +24,7 @@ class HlsPipelineNodeContext():
         return c
 
 
-class HlsPipeline():
+class HlsNetlistCtx():
     """
     High level synthesiser context.
     Convert sequential code without data dependency cycles to RTL.
@@ -38,8 +38,8 @@ class HlsPipeline():
     :ivar nodes: list of all schedulization nodes present in this pipeline (except inputs/outputs)
     :ivar ctx: RtlNetlist (container of RTL signals for this HLS context)
         the purpose of objects in this ctx is only to store the input code
-        these objecs are not present in output circuit and are only form of code
-        themplate which must be translated
+        these objects are not present in output circuit and are only form of code
+        template which must be translated
     """
 
     def __init__(self, parentUnit: Unit,
@@ -52,7 +52,7 @@ class HlsPipeline():
         """
         self.parentUnit = parentUnit
         self.platform = parentUnit._target_platform
-        self.nodeCtx = HlsPipelineNodeContext()
+        self.nodeCtx = HlsNetlistCtxNodeContext()
         if self.platform is None:
             raise ValueError("HLS requires platform to be specified")
 

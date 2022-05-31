@@ -3,16 +3,16 @@ from typing import Union, List, Tuple, Set, Optional, Dict
 from hwt.interfaces.std import HandshakeSync
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import Interface_without_registration
-from hwtHls.allocator.architecturalElement import AllocatorArchitecturalElement
-from hwtHls.allocator.fsmContainer import AllocatorFsmContainer
-from hwtHls.allocator.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis, ValuePathSpecItem
-from hwtHls.allocator.pipelineContainer import AllocatorPipelineContainer
-from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
-from hwtHls.clk_math import start_clk
+from hwtHls.netlist.allocator.architecturalElement import AllocatorArchitecturalElement
+from hwtHls.netlist.allocator.fsmContainer import AllocatorFsmContainer
+from hwtHls.netlist.allocator.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis, ValuePathSpecItem
+from hwtHls.netlist.allocator.pipelineContainer import AllocatorPipelineContainer
+from hwtHls.netlist.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.netlist.analysis.fsm import HlsNetlistAnalysisPassDiscoverFsm, IoFsm
 from hwtHls.netlist.analysis.pipeline import HlsNetlistAnalysisPassDiscoverPipelines, \
     NetlistPipeline
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
+from hwtHls.netlist.scheduler.clk_math import start_clk
 from ipCorePackager.constants import INTF_DIRECTION
 
 
@@ -24,8 +24,8 @@ class HlsAllocator():
     :ivar parentHls: parent HLS context for this allocator
     """
 
-    def __init__(self, parentHls: "HlsPipeline", namePrefix:str="hls_"):
-        self.parentHls = parentHls
+    def __init__(self, netlist: "HlsNetlistCtx", namePrefix:str="hls_"):
+        self.netlist = netlist
         self.namePrefix = namePrefix
         self._archElements: List[Union[AllocatorFsmContainer, AllocatorPipelineContainer]] = []
         self._iea: Optional[InterArchElementNodeSharingAnalysis] = None
@@ -35,19 +35,19 @@ class HlsAllocator():
         return elm.namePrefix[namePrefixLen:]
 
     def _discoverArchElements(self):
-        hls = self.parentHls
-        fsms: HlsNetlistAnalysisPassDiscoverFsm = hls.requestAnalysis(HlsNetlistAnalysisPassDiscoverFsm)
-        pipelines: HlsNetlistAnalysisPassDiscoverPipelines = hls.requestAnalysis(HlsNetlistAnalysisPassDiscoverPipelines)
+        netlist = self.netlist
+        fsms: HlsNetlistAnalysisPassDiscoverFsm = netlist.requestAnalysis(HlsNetlistAnalysisPassDiscoverFsm)
+        pipelines: HlsNetlistAnalysisPassDiscoverPipelines = netlist.requestAnalysis(HlsNetlistAnalysisPassDiscoverPipelines)
         onlySingleElem = (len(fsms.fsms) + len(pipelines.pipelines)) == 1
         namePrefix = self.namePrefix
         for i, fsm in enumerate(fsms.fsms):
             fsm: IoFsm
-            fsmCont = AllocatorFsmContainer(hls, namePrefix if onlySingleElem else f"{namePrefix:s}fsm{i:d}_", fsm)
+            fsmCont = AllocatorFsmContainer(netlist, namePrefix if onlySingleElem else f"{namePrefix:s}fsm{i:d}_", fsm)
             self._archElements.append(fsmCont)
 
         for i, pipe in enumerate(pipelines.pipelines):
             pipe: NetlistPipeline
-            pipeCont = AllocatorPipelineContainer(hls, namePrefix if onlySingleElem else f"{namePrefix:s}pipe{i:d}_", pipe.stages)
+            pipeCont = AllocatorPipelineContainer(netlist, namePrefix if onlySingleElem else f"{namePrefix:s}pipe{i:d}_", pipe.stages)
             self._archElements.append(pipeCont)
 
     def _getFirstUseTime(self, iea: InterArchElementNodeSharingAnalysis, dstElm: AllocatorArchitecturalElement, o: HlsNetNodeOut, i: HlsNetNodeIn):
@@ -271,7 +271,7 @@ class HlsAllocator():
         * Each arch element explicitly queries the node for the specific time (and input/output combination if node spans over more arch. elements).
         """
         self._discoverArchElements()
-        iea = InterArchElementNodeSharingAnalysis(self.parentHls.normalizedClkPeriod)
+        iea = InterArchElementNodeSharingAnalysis(self.netlist.normalizedClkPeriod)
         if len(self._archElements) > 1:
             iea._analyzeInterElementsNodeSharing(self._archElements)
             if iea.interElemConnections:

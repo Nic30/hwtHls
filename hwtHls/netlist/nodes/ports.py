@@ -71,10 +71,10 @@ class HlsNetNodeOutLazy():
     :ivar dependent_inputs: information about children where new object should be replaced
     """
 
-    def __init__(self, key_of_self_in_cache, op_cache:"SsaToHwtHlsNetlistOpCache", dtype: HdlType):
-        self.dependent_inputs: List[HlsNetNodeIn, HlsNetNodeOutLazyIndirect] = []
+    def __init__(self, keys_of_self_in_cache: list, op_cache:"SsaToHwtHlsNetlistOpCache", dtype: HdlType):
+        self.dependent_inputs: List[Union[HlsNetNodeIn, HlsNetNodeOutLazyIndirect]] = []
         self.replaced_by = None
-        self.keys_of_self_in_cache = [key_of_self_in_cache, ]
+        self.keys_of_self_in_cache = keys_of_self_in_cache
         self.op_cache = op_cache
         self._dtype = dtype
 
@@ -83,7 +83,7 @@ class HlsNetNodeOutLazy():
         assert self.replaced_by is None, (self, self.replaced_by)
         assert self._dtype == o._dtype,  (self, o, self._dtype, o._dtype)
         for k in self.keys_of_self_in_cache:
-            self.op_cache._to_hls_cache[k] = o
+            self.op_cache._toHlsCache[k] = o
 
         for c in self.dependent_inputs:
             c.replace_driver(o)
@@ -136,7 +136,9 @@ class HlsNetNodeOutLazyIndirect(HlsNetNodeOutLazy):
         self.replaced_by = self.final_value
 
 
-def link_hls_nodes(parent: Union[HlsNetNodeOut, HlsNetNodeOutLazy], child: HlsNetNodeIn) -> None:
+HlsNetNodeOutAny = Union[HlsNetNodeOut, HlsNetNodeOutLazy, HlsNetNodeOutLazyIndirect]
+
+def link_hls_nodes(parent: HlsNetNodeOutAny, child: HlsNetNodeIn) -> None:
     assert isinstance(child, HlsNetNodeIn), child
 
     if isinstance(parent, HlsNetNodeOutLazy):

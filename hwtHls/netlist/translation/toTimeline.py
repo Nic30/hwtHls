@@ -1,27 +1,27 @@
-from pathlib import Path
-from typing import Dict, List, Optional, Union
-
+from io import StringIO
 from plotly import graph_objs as go
+from plotly import tools
 from plotly.graph_objs import Figure
 import plotly.offline
-from plotly import tools
+from plotly.offline.offline import build_save_image_post_script
+from typing import Dict, List, Optional
 
 from hwt.hdl.types.bitsVal import BitsVal
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
+from hwtHls.netlist.analysis.schedule import HlsNetlistAnalysisPassRunScheduler
+from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.nodes.aggregatedBitwiseOps import HlsNetNodeBitwiseOps
+from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeWriteBackwardEdge
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeRead, HlsNetNodeExplicitSync, \
     HOrderingVoidT
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
-from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeWriteBackwardEdge
-from hwtHls.netlist.nodes.aggregatedBitwiseOps import HlsNetNodeBitwiseOps
-from io import StringIO
-import plotly.io as pio
-from plotly.offline.offline import build_save_image_post_script
 from hwtHls.platform.fileUtils import OutputStreamGetter
+import plotly.io as pio
 
 
 class TimelineRow():
@@ -323,16 +323,14 @@ class HlsNetlistPassShowTimeline(HlsNetlistPass):
         self.auto_open = auto_open
         self.expandCompositeNodes = expandCompositeNodes
 
-    def apply(self, hls: "HlsStreamProc", to_hw: "SsaSegmentToHwPipeline"):
-        if not to_hw.is_scheduled:
-            to_hw.schedulerRun()
-
-        to_timeline = HwtHlsNetlistToTimeline(to_hw.hls.normalizedClkPeriod,
-                                              to_hw.hls.scheduler.resolution,
+    def apply(self, hls: "HlsStreamProc", netlist: HlsNetlistCtx):
+        netlist.requestAnalysis(HlsNetlistAnalysisPassRunScheduler)
+        to_timeline = HwtHlsNetlistToTimeline(netlist.normalizedClkPeriod,
+                                              netlist.scheduler.resolution,
                                               expandCompositeNodes=self.expandCompositeNodes)
-        to_timeline.construct(to_hw.hls.inputs + to_hw.hls.nodes + to_hw.hls.outputs)
+        to_timeline.construct(netlist.inputs + netlist.nodes + netlist.outputs)
         if self.outStreamGetter is not None:
-            out, doClose = self.outStreamGetter(to_hw.start.label)
+            out, doClose = self.outStreamGetter(netlist.parentUnit._getDefaultName())
             try:
                 to_timeline.save_html(out, self.auto_open)
             finally:

@@ -2,12 +2,14 @@ from math import inf, isfinite
 from typing import  Optional
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
-from hwtHls.allocator.allocator import HlsAllocator
-from hwtHls.allocator.architecturalElement import AllocatorArchitecturalElement
-from hwtHls.allocator.connectionsOfStage import ConnectionsOfStage
-from hwtHls.allocator.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis, \
+from hwtHls.netlist.allocator.allocator import HlsAllocator
+from hwtHls.netlist.allocator.architecturalElement import AllocatorArchitecturalElement
+from hwtHls.netlist.allocator.connectionsOfStage import ConnectionsOfStage
+from hwtHls.netlist.allocator.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis, \
     ValuePathSpecItem
-from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
+from hwtHls.netlist.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
+from hwtHls.netlist.analysis.schedule import HlsNetlistAnalysisPassRunScheduler
+from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.transformation.rtlNetlistPass import RtlNetlistPass
 from hwtHls.netlist.translation.toTimeline import HwtHlsNetlistToTimeline, \
     TimelineRow
@@ -115,13 +117,13 @@ class HlsNetlistPassShowTimelineArchLevel(RtlNetlistPass):
         self.auto_open = auto_open
         self.expandCompositeNodes = expandCompositeNodes
 
-    def apply(self, hls: "HlsStreamProc", to_hw: "SsaSegmentToHwPipeline"):
-        assert to_hw.is_scheduled
+    def apply(self, hls: "HlsStreamProc", netlist: HlsNetlistCtx):
+        netlist.requestAnalysis(HlsNetlistAnalysisPassRunScheduler)
 
-        to_timeline = HwtHlsNetlistToTimelineArchLevel(to_hw.hls.normalizedClkPeriod, to_hw.hls.scheduler.resolution, self.expandCompositeNodes)
-        to_timeline.construct(to_hw.hls.allocator)
+        to_timeline = HwtHlsNetlistToTimelineArchLevel(netlist.normalizedClkPeriod, netlist.scheduler.resolution, self.expandCompositeNodes)
+        to_timeline.construct(netlist.allocator)
         if self.outStreamGetter is not None:
-            out, doClose = self.outStreamGetter(to_hw.start.label)
+            out, doClose = self.outStreamGetter(netlist.parentUnit._getDefaultName())
             try:
                 to_timeline.save_html(out, self.auto_open)
             finally:

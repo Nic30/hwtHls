@@ -1,9 +1,10 @@
+from itertools import chain
 from typing import List
 
+from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.io import HlsNetNodeExplicitSync, HlsNetNodeRead, HlsNetNodeWrite
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
-from itertools import chain
 
 
 class HlsNetlistPassMergeExplicitSync(HlsNetlistPass):
@@ -24,11 +25,11 @@ class HlsNetlistPassMergeExplicitSync(HlsNetlistPass):
                     # check if we did not generate cycle because sync was dependent on value of previous read
                     dep0: HlsNetNodeRead
                     if n.extraCond is not None:
-                        n.extraCond.obj.usedBy[n.extraCond.out_i].remove(n._inputs[n.extraCond_inI])
+                        n.extraCond.obj.usedBy[n.extraCond.out_i].remove(n.extraCond)
                         dep0.add_control_extraCond(n.extraCond)
                         
                     if n.skipWhen is not None:
-                        n.skipWhen.obj.usedBy[n.skipWhen.out_i].remove(n._inputs[n.skipWhen_inI])
+                        n.skipWhen.obj.usedBy[n.skipWhen.out_i].remove(n.skipWhen)
                         dep0.add_control_skipWhen(n.skipWhen)
                     
                     for orderIn in n.iterOrderingInputs():
@@ -65,5 +66,5 @@ class HlsNetlistPassMergeExplicitSync(HlsNetlistPass):
                 if (n not in to_rm)
             ]
 
-    def apply(self, hls: "HlsStreamProc", to_hw: "SsaSegmentToHwPipeline"):
-        self._apply(to_hw.hls.nodes)
+    def apply(self, hls: "HlsStreamProc", netlist: HlsNetlistCtx):
+        self._apply(netlist.nodes)

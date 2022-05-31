@@ -10,7 +10,7 @@ from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResourceItem
+from hwtHls.netlist.allocator.time_independent_rtl_resource import TimeIndependentRtlResourceItem
 from hwtLib.amba.axi_intf_common import Axi_hs
 from hwtLib.handshaked.streamNode import StreamNode
 

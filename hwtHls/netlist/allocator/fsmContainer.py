@@ -8,11 +8,11 @@ from hwt.math import log2ceil
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.allocator.architecturalElement import AllocatorArchitecturalElement
-from hwtHls.allocator.connectionsOfStage import getIntfSyncSignals, \
+from hwtHls.netlist.allocator.architecturalElement import AllocatorArchitecturalElement
+from hwtHls.netlist.allocator.connectionsOfStage import getIntfSyncSignals, \
     setNopValIfNotSet, SignalsOfStages, ConnectionsOfStage
-from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
-from hwtHls.clk_math import start_clk
+from hwtHls.netlist.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
+from hwtHls.netlist.scheduler.clk_math import start_clk
 from hwtHls.netlist.analysis.fsm import IoFsm
 from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
     HlsNetNodeWriteBackwardEdge
@@ -26,12 +26,12 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
     Container class for FSM allocation objects.
     """
 
-    def __init__(self, parentHls: "HlsPipeline", namePrefix:str, fsm: IoFsm):
+    def __init__(self, netlist: "HlsNetlistCtx", namePrefix:str, fsm: IoFsm):
         allNodes = UniqList()
         for nodes in fsm.states:
             allNodes.extend(nodes)
         self.fsm = fsm
-        clkPeriod = self.normalizedClkPeriod = parentHls.normalizedClkPeriod
+        clkPeriod = self.normalizedClkPeriod = netlist.normalizedClkPeriod
         assert fsm.states, fsm
 
         self.fsmEndClk_i = max(fsm.stateClkI.values())
@@ -44,7 +44,7 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
                                            stateCons[clkIToStateI[clkI]].signals if clkI in clkIToStateI else None
                                            for clkI in range(self.fsmEndClk_i + 1)
                                         ))
-        AllocatorArchitecturalElement.__init__(self, parentHls, namePrefix, allNodes, stateCons, stageSignals)
+        AllocatorArchitecturalElement.__init__(self, netlist, namePrefix, allNodes, stateCons, stageSignals)
 
     def _afterNodeInstantiated(self, n: HlsNetNode, rtl: Optional[TimeIndependentRtlResource]):
         # mark value in register as persistent until the end of FSM

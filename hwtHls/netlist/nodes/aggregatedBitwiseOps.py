@@ -4,12 +4,12 @@ from typing import List, Set, Dict, Optional
 
 from hwt.hdl.operatorDefs import  AllOps
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.clk_math import start_of_next_clk_period, start_clk
+from hwtHls.netlist.scheduler.clk_math import start_of_next_clk_period, start_clk
 from hwtHls.netlist.analysis.clusterSearch import HlsNetlistClusterSearch
 from hwtHls.netlist.nodes.node import HlsNetNode, HlsNetNodePartRef, SchedulizationDict, HlsNetNode_numberForEachInput
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
-from hwtHls.scheduler.errors import TimeConstraintError
+from hwtHls.netlist.scheduler.errors import TimeConstraintError
 
 
 class HlsNetNodeBitwiseOps(HlsNetNode):
@@ -22,8 +22,8 @@ class HlsNetNodeBitwiseOps(HlsNetNode):
         of this whole object.
     """
 
-    def __init__(self, parentHls:"HlsPipeline", subNodes: HlsNetlistClusterSearch, name:str=None):
-        HlsNetNode.__init__(self, parentHls, name=name)
+    def __init__(self, netlist:"HlsNetlistCtx", subNodes: HlsNetlistClusterSearch, name:str=None):
+        HlsNetNode.__init__(self, netlist, name=name)
         self._subNodes = subNodes
         for _ in subNodes.inputs:
             self._add_input()
@@ -70,7 +70,7 @@ class HlsNetNodeBitwiseOps(HlsNetNode):
         currentInputs.extend(internalOut.obj._inputs)
         timeOffset = internalOut.obj.scheduledOut[internalOut.out_i]
         internalOut.obj.scheduledIn = tuple(timeOffset - lat for lat in internalOut.obj.latency_pre)
-        ffdelay = self.hls.platform.get_ff_store_time(self.hls.realTimeClkPeriod, self.hls.scheduler.resolution)
+        ffdelay = self.hls.platform.get_ff_store_time(self.hls.realTimeClkPeriod, self.netlist.scheduler.resolution)
         clkPeriod = self.hls.normalizedClkPeriod
         # 2. resolve which nodes we can add to cluster because they have all successors known
         #    and adding it will not cause time to overflow clkBoundaryTime
@@ -148,7 +148,7 @@ class HlsNetNodeBitwiseOps(HlsNetNode):
                     self.resolveSubnodeRealization(o.obj, len(o.obj._inputs))
                     clkStartBoundary = start_clk(t, self.hls.normalizedClkPeriod) * self.hls.normalizedClkPeriod
                     if t - o.obj.latency_pre[0] <= clkStartBoundary:
-                        ffdelay = self.hls.platform.get_ff_store_time(self.hls.realTimeClkPeriod, self.hls.scheduler.resolution)
+                        ffdelay = self.hls.platform.get_ff_store_time(self.hls.realTimeClkPeriod, self.netlist.scheduler.resolution)
                         t = clkStartBoundary - ffdelay
                         clkStartBoundary -= self.hls.normalizedClkPeriod
                     o.obj.scheduledOut = (t,)
@@ -234,7 +234,7 @@ class HlsNetNodeBitwiseOps(HlsNetNode):
             time_when_all_inputs_present = 0
 
             clkPeriod = self.hls.normalizedClkPeriod
-            epsilon = self.hls.scheduler.epsilon
+            epsilon = self.netlist.scheduler.epsilon
             for (available_in_time, in_delay, in_cycles) in zip(input_times, node.latency_pre, node.in_cycles_offset):
                 if in_delay >= clkPeriod:
                     raise TimeConstraintError(
@@ -432,8 +432,8 @@ class HlsNetNodeBitwiseOpsPartRef(HlsNetNodePartRef, HlsNetNodeBitwiseOps):
     This node thus can not be scheduled and relies on the scheduling from the parent node.
     """
 
-    def __init__(self, parentHls:"HlsPipeline", parentNode:HlsNetNode, subNodes: HlsNetlistClusterSearch, beginTime:float, endTime:float, name:str=None):
-        HlsNetNodeBitwiseOps.__init__(self, parentHls, subNodes, name=name)
+    def __init__(self, netlist:"HlsNetlistCtx", parentNode:HlsNetNode, subNodes: HlsNetlistClusterSearch, beginTime:float, endTime:float, name:str=None):
+        HlsNetNodeBitwiseOps.__init__(self, netlist, subNodes, name=name)
         # not using this as this is just reference and real value is stored in parent
         self._inputs = None
         self._outputs = None

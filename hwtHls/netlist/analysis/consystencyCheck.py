@@ -1,5 +1,6 @@
 from itertools import chain
 
+from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
@@ -10,12 +11,12 @@ class HlsNetlistPassConsystencyCheck(HlsNetlistPass):
     Check if connection of nodes is error free.
     """
 
-    def apply(self, hls:"HlsStreamProc", to_hw:"SsaSegmentToHwPipeline"):
-        allNodes = set(to_hw.hls.nodes)
-        allNodes.update(to_hw.hls.inputs)
-        allNodes.update(to_hw.hls.outputs)
+    def apply(self, hls:"HlsStreamProc", netlist: HlsNetlistCtx):
+        allNodes = set(netlist.nodes)
+        allNodes.update(netlist.inputs)
+        allNodes.update(netlist.outputs)
         
-        for n in chain(to_hw.hls.inputs, to_hw.hls.nodes, to_hw.hls.outputs):
+        for n in chain(netlist.inputs, netlist.nodes, netlist.outputs):
             n: HlsNetNode
             inCnt = len(n._inputs)
             assert inCnt == len(n.dependsOn), n
@@ -24,7 +25,7 @@ class HlsNetlistPassConsystencyCheck(HlsNetlistPass):
                 i: HlsNetNodeIn
                 assert i.obj is n, (n, i)
                 assert i.in_i == in_i, (n, i)
-                assert isinstance(d, HlsNetNodeOut), d
+                assert isinstance(d, HlsNetNodeOut), (d, "->", i)
                 assert d.obj in allNodes, ("Driven by something which is not in netlist", n, d.obj)
                 assert d.obj._outputs[d.out_i] is d, ("Broken HlsNetNodeOut object", n, in_i, d)
                 

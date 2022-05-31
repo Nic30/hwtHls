@@ -1,5 +1,5 @@
 from hwt.hdl.value import HValue
-from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
+from hwtHls.netlist.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.node import HlsNetNode
 
 
@@ -8,9 +8,9 @@ class HlsNetNodeConst(HlsNetNode):
     Wrapper around constant value for HLS sybsystem
     """
 
-    def __init__(self, parentHls: "HlsPipeline", val: HValue):
+    def __init__(self, netlist: "HlsNetlistCtx", val: HValue):
         self.val = val
-        HlsNetNode.__init__(self, parentHls, None)
+        HlsNetNode.__init__(self, netlist, None)
         self._add_output(val._dtype)
 
     def get(self, time: float):

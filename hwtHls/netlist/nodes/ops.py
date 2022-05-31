@@ -1,7 +1,7 @@
 from hwt.hdl.operatorDefs import OpDefinition, AllOps
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.value import HValue
-from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
+from hwtHls.netlist.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.typeUtils import dtypeEqualSignIgnore
@@ -15,12 +15,12 @@ class HlsNetNodeOperator(HlsNetNode):
     :ivar _dtype: RTL data type of output
     """
 
-    def __init__(self, parentHls: "HlsPipeline",
+    def __init__(self, netlist: "HlsNetlistCtx",
                  operator: OpDefinition,
                  operand_cnt: int,
                  dtype: Bits,
                  name=None):
-        super(HlsNetNodeOperator, self).__init__(parentHls, name=name)
+        super(HlsNetNodeOperator, self).__init__(netlist, name=name)
         self.operator = operator
         for i in range(operand_cnt):
             self.dependsOn.append(None)
@@ -29,7 +29,7 @@ class HlsNetNodeOperator(HlsNetNode):
         self._add_output(dtype)
 
     def resolve_realization(self):
-        hls = self.hls
+        self.netlist = self.netlist
         input_cnt = len(self.dependsOn)
 
         if self.operator is AllOps.TERNARY:
@@ -38,9 +38,9 @@ class HlsNetNodeOperator(HlsNetNode):
         else:
             bit_length = self.getInputDtype(0).bit_length()
 
-        r = hls.platform.get_op_realization(
+        r = self.netlist.platform.get_op_realization(
             self.operator, bit_length,
-            input_cnt, hls.realTimeClkPeriod)
+            input_cnt, self.netlist.realTimeClkPeriod)
         self.assignRealization(r)
 
     def allocateRtlInstanceOutDeclr(self, allocator: "AllocatorArchitecturalElement", o: HlsNetNodeOut, startTime: float) -> TimeIndependentRtlResource:
@@ -69,7 +69,7 @@ class HlsNetNodeOperator(HlsNetNode):
 
         else:
             # create RTL signal expression base on operator type
-            t = self.scheduledOut[0] + self.hls.scheduler.epsilon
+            t = self.scheduledOut[0] + self.netlist.scheduler.epsilon
             if s.hasGenericName:
                 if self.name is not None:
                     s.name = self.name

@@ -4,7 +4,7 @@ from hwt.hdl.value import HValue
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
-from hwtHls.clk_math import start_clk
+from hwtHls.netlist.scheduler.clk_math import start_clk
 
 
 class TimeIndependentRtlResourceItem():
@@ -83,12 +83,12 @@ class TimeIndependentRtlResource():
         """
 
         # if time is first time in live of this value return original signal
-        time += self.allocator.parentHls.scheduler.epsilon
+        time += self.allocator.netlist.scheduler.epsilon
         if self.timeOffset is self.INVARIANT_TIME or self.timeOffset == time:
             return self.valuesInTime[0]
 
         # else try to look up register for this signal in valuesInTime cache
-        clkPeriod = self.allocator.parentHls.normalizedClkPeriod
+        clkPeriod = self.allocator.netlist.normalizedClkPeriod
         dstClkPeriod = start_clk(time, clkPeriod)
         index = dstClkPeriod - \
             start_clk(self.timeOffset, clkPeriod)
@@ -130,7 +130,7 @@ class TimeIndependentRtlResource():
         if self.timeOffset is self.INVARIANT_TIME:
             index = 0
         else:
-            clkPeriod = self.allocator.parentHls.normalizedClkPeriod
+            clkPeriod = self.allocator.netlist.normalizedClkPeriod
             index = clkCyleI - start_clk(self.timeOffset, clkPeriod)
             if index < 0 or index >= len(self.valuesInTime):
                 return None

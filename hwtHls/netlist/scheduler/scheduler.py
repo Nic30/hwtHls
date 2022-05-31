@@ -10,13 +10,13 @@ class HlsScheduler():
     """
     A class which executes the scheduling of netlist nodes.
     
-    :ivar parentHls: The reference on parent HLS context which is this scheduler for.
+    :ivar netlist: The reference on parent HLS netlist context which is this scheduler for.
     :ivar resolution: The time resolution specified in seconds (1e-9 is 1ns). 
     :ivar epsilon: The minimal step of time allowed.
     """
     
-    def __init__(self, parentHls: "HlsPipeline", resolution: float):
-        self.parentHls = parentHls
+    def __init__(self, netlist: "HlsNetlistCtx", resolution: float):
+        self.netlist = netlist
         self.resolution = resolution
         self.epsilon = 1
 
@@ -24,7 +24,7 @@ class HlsScheduler():
         """
         Check that all nodes do have some time resolved by scheduler.
         """
-        for node in self.parentHls.iterAllNodes():
+        for node in self.netlist.iterAllNodes():
             node.checkScheduling()
 
     def _scheduleAsap(self):
@@ -35,7 +35,7 @@ class HlsScheduler():
         """
         try:
             # normal run without checking for cycles
-            for o in self.parentHls.iterAllNodes():
+            for o in self.netlist.iterAllNodes():
                 o.scheduleAsap(None)
             return
         except RecursionError:
@@ -43,12 +43,12 @@ class HlsScheduler():
     
         # debug run which will raise an exception containing cycle node ids
         debugPath = UniqList()
-        for o in self.parentHls.iterAllNodes():
+        for o in self.netlist.iterAllNodes():
             o.scheduleAsap(debugPath)
 
     def _copyAndResetScheduling(self):
         currentSchedule: SchedulizationDict = {}
-        for node in self.parentHls.iterAllNodes():
+        for node in self.netlist.iterAllNodes():
             node:HlsNetNode
             node.copyScheduling(currentSchedule)
             node.resetScheduling()
@@ -56,8 +56,8 @@ class HlsScheduler():
         return currentSchedule
         
     def _scheduleAlapCompaction(self, asapSchedule: SchedulizationDict):
-        normalizedClkPeriod: int = self.parentHls.normalizedClkPeriod
-        for node in self.parentHls.iterAllNodes():
+        normalizedClkPeriod: int = self.netlist.normalizedClkPeriod
+        for node in self.netlist.iterAllNodes():
             if not node.usedBy or not any(node.usedBy):
                 # if it is terminator move to end of clk period
                 if isinstance(node, HlsLoopGate):
@@ -65,7 +65,7 @@ class HlsScheduler():
 
         consts = UniqList()
         minTime = inf       
-        for node in self.parentHls.iterAllNodes():
+        for node in self.netlist.iterAllNodes():
             if isinstance(node, HlsNetNodeConst):
                 consts.append(node)
                 continue
@@ -95,7 +95,7 @@ class HlsScheduler():
             offset = None
 
         if offset is not None:
-            for node in self.parentHls.iterAllNodes():
+            for node in self.netlist.iterAllNodes():
                 node: HlsNetNode
                 node.moveSchedulingTime(offset)
 

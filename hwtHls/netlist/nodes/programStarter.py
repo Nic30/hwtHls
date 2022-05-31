@@ -1,5 +1,5 @@
 from hwt.hdl.types.defs import BIT
-from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
+from hwtHls.netlist.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.io import IO_COMB_REALIZATION
 from hwtHls.netlist.nodes.node import HlsNetNode
 
@@ -9,8 +9,8 @@ class HlsProgramStarter(HlsNetNode):
     A node with produces just a single sync token to start the program after reset.
     """
 
-    def __init__(self, parentHls:"HlsPipeline", name:str=None):
-        HlsNetNode.__init__(self, parentHls, name=name)
+    def __init__(self, netlist:"HlsNetlistCtx", name:str=None):
+        HlsNetNode.__init__(self, netlist, name=name)
         self._add_output(BIT)
 
     def resolve_realization(self):
@@ -31,7 +31,7 @@ class HlsProgramStarter(HlsNetNode):
         starter_reg(0)
 
         # create RTL signal expression base on operator type
-        t = self.scheduledOut[0] + self.hls.scheduler.epsilon
+        t = self.scheduledOut[0] + self.netlist.scheduler.epsilon
         status_reg_s = TimeIndependentRtlResource(starter_reg, t, allocator)
         allocator.netNodeToRtl[op_out] = status_reg_s
 

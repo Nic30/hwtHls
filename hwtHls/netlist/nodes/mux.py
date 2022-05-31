@@ -4,7 +4,7 @@ from hwt.code import If
 from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.types.hdlType import HdlType
 from hwt.pyUtils.arrayQuery import grouper
-from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
+from hwtHls.netlist.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
     link_hls_nodes
@@ -15,9 +15,9 @@ class HlsNetNodeMux(HlsNetNodeOperator):
     Multiplexer operation with one-hot encoded select signal
     """
 
-    def __init__(self, parentHls: "HlsPipeline", dtype: HdlType, name: str=None):
+    def __init__(self, netlist: "HlsNetlistCtx", dtype: HdlType, name: str=None):
         super(HlsNetNodeMux, self).__init__(
-            parentHls, AllOps.TERNARY, 0, dtype, name=name)
+            netlist, AllOps.TERNARY, 0, dtype, name=name)
 
     def allocateRtlInstance(self,
                           allocator: "AllocatorArchitecturalElement",
@@ -63,7 +63,7 @@ class HlsNetNodeMux(HlsNetNodeOperator):
                     mux_top.Else(mux_out_s(v.data))
     
         # create RTL signal expression base on operator type
-        t = self.scheduledOut[0] + self.hls.scheduler.epsilon
+        t = self.scheduledOut[0] + self.netlist.scheduler.epsilon
         mux_out_s = TimeIndependentRtlResource(mux_out_s, t, allocator)
         allocator.netNodeToRtl[op_out] = mux_out_s
 

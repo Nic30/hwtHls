@@ -75,8 +75,7 @@ class HlsNetlistPassDCE(HlsNetlistPass):
 
         return False
 
-    def apply(self, hls:"HlsStreamProc", to_hw:"SsaSegmentToHwPipeline"):
-        hlsPip = to_hw.hls
+    def apply(self, hls:"HlsStreamProc", hlsPip:"HlsPipenine"):
 
         while True:
             used: Set[HlsNetNode] = set()

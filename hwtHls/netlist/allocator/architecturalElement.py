@@ -8,12 +8,12 @@ from hwt.interfaces.std import HandshakeSync, Signal
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.allocator.connectionsOfStage import ConnectionsOfStage, \
+from hwtHls.netlist.allocator.connectionsOfStage import ConnectionsOfStage, \
     extract_control_sig_of_interface, SignalsOfStages, ExtraCondMemberList, \
     SkipWhenMemberList
-from hwtHls.allocator.time_independent_rtl_resource import TimeIndependentRtlResource, \
+from hwtHls.netlist.allocator.time_independent_rtl_resource import TimeIndependentRtlResource, \
     TimeIndependentRtlResourceItem
-from hwtHls.clk_math import start_clk
+from hwtHls.netlist.scheduler.clk_math import start_clk
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeExplicitSync, \
     HlsNetNodeReadSync
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -27,7 +27,7 @@ class AllocatorArchitecturalElement():
     An element which represents a group of netlist nodes synchronized by same synchronization type
     It is used as context for allocator.
 
-    :ivar parentHls: parent HLS context for this element
+    :ivar netlist: parent HLS netlist context for this element
     :ivar namePrefix: name prefix for debug purposes
     :ivar netNodeToRtl: dictionary {hls node: rtl instance}
     :ivar connections: list of connections in individual stage in this arch. element, user for registration
@@ -38,12 +38,12 @@ class AllocatorArchitecturalElement():
     :ivar interArchAnalysis: an object of inter architecture element sharing analysis which is set after allocation starts
     """
 
-    def __init__(self, parentHls: "HlsPipeline", namePrefix:str,
+    def __init__(self, netlist: "HlsNetlistCtx", namePrefix:str,
                  allNodes: UniqList[HlsNetNode],
                  connections: List[ConnectionsOfStage],
                  stageSignals: SignalsOfStages):
         self.namePrefix = namePrefix
-        self.parentHls = parentHls
+        self.netlist = netlist
         self.netNodeToRtl: Dict[
             Union[
                 HlsNetNodeOut,  # any operation output
@@ -51,8 +51,8 @@ class AllocatorArchitecturalElement():
             ],
             TimeIndependentRtlResource] = {}
         # function to create register/signal on RTL level
-        self._reg = parentHls.parentUnit._reg
-        self._sig = parentHls.parentUnit._sig
+        self._reg = netlist.parentUnit._reg
+        self._sig = netlist.parentUnit._sig
         self.connections = connections
         self.allNodes = allNodes
         assert isinstance(stageSignals, SignalsOfStages), stageSignals
@@ -63,8 +63,8 @@ class AllocatorArchitecturalElement():
         pass
 
     def _afterOutputUsed(self, o: HlsNetNode):
-        clkPeriod = self.parentHls.normalizedClkPeriod
-        epsilon = self.parentHls.scheduler.epsilon
+        clkPeriod = self.netlist.normalizedClkPeriod
+        epsilon = self.netlist.scheduler.epsilon
         depRtl = self.netNodeToRtl.get(o, None)
         if depRtl is not None:
             depRtl: TimeIndependentRtlResource
@@ -94,7 +94,7 @@ class AllocatorArchitecturalElement():
         _o = self.netNodeToRtl.get(o, None)
 
         if _o is None:
-            clkI = start_clk(o.obj.scheduledOut[o.out_i], self.parentHls.normalizedClkPeriod)
+            clkI = start_clk(o.obj.scheduledOut[o.out_i], self.netlist.normalizedClkPeriod)
             if len(self.stageSignals) <= clkI or self.stageSignals[clkI] is None:
                 raise AssertionError("Asking for node output which should have forward declaration but it is missing", self, o, clkI)
             # new allocation, use registered automatically
@@ -128,7 +128,7 @@ class AllocatorArchitecturalElement():
                         intf: Interface, sync_time: float):
 
         if node.skipWhen is not None:
-            e = node.dependsOn[node.skipWhen_inI]
+            e = node.dependsOn[node.skipWhen.in_i]
             skipWhen = self.netNodeToRtl[e].get(sync_time)
             curSkipWhen = res_skipWhen.get(intf, None)
             if curSkipWhen is not None:
@@ -139,7 +139,7 @@ class AllocatorArchitecturalElement():
             skipWhen = None
 
         if node.extraCond is not None:
-            e = node.dependsOn[node.extraCond_inI]
+            e = node.dependsOn[node.extraCond.in_i]
             extraCond = self.netNodeToRtl[e].get(sync_time)
             curExtraCond = res_extraCond.get(intf, None)
             if curExtraCond is not None:

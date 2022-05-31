@@ -5,8 +5,8 @@ class HlsNetlistAnalysisPass():
     A base class for hls netlist analysis classes
     """
 
-    def __init__(self, hls: "HlsPipeline"):
-        self.hls = hls
+    def __init__(self, netlist: "HlsNetlistCtx"):
+        self.netlist = netlist
     
     def run(self):
         "Perform the analysis on the netlis"
