@@ -144,7 +144,8 @@ bool resolveTypes(MachineInstr &MI) {
 		auto a = MF.getFunction().getArg(fnArgI);
 		auto bitWidth =
 				a->getType()->getNonOpaquePointerElementType()->getIntegerBitWidth();
-		MRI.setType(MI.getOperand(0).getReg(), LLT::scalar(bitWidth));
+		if (MI.getOperand(0).isReg())
+			MRI.setType(MI.getOperand(0).getReg(), LLT::scalar(bitWidth));
 		auto &cond = MI.getOperand(1);
 		if (cond.isReg()) {
 			Register R = cond.getReg();
