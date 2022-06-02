@@ -80,7 +80,7 @@ class HlsNetlistAnalysisPassDiscoverPipelines(HlsNetlistAnalysisPass):
                         if clkI is None:
                             clkI = _clkI
                         elif clkI != _clkI:
-                            raise AssertionError("In this phase each IO operation in differnt clock cycle should already have separate gate"
+                            raise AssertionError("In this phase each IO operation in different clock cycle should already have separate gate"
                                                  " if it wants to access same interface", node.src, io_aggregation[node.src])
 
                 elif isinstance(node, HlsNetNodeWrite) and node.dst not in alreadyCheckedIo:
@@ -91,7 +91,7 @@ class HlsNetlistAnalysisPassDiscoverPipelines(HlsNetlistAnalysisPass):
                         if clkI is None:
                             clkI = _clkI
                         elif clkI != _clkI:
-                            raise AssertionError("In this phase each IO operation in differnt clock cycle should already have separate gate"
+                            raise AssertionError("In this phase each IO operation in different clock cycle should already have separate gate"
                                                  " if it wants to access same interface", node.dst, io_aggregation[node.dst])
 
                 # this is just node which is part of no FSM,
