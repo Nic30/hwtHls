@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.synthesizer.unit import Unit
 from hwt.interfaces.std import VectSignal
+from hwt.interfaces.utils import addClkRstn
+from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
 from hwtHls.ssa.translation.fromPython.thread import HlsStreamProcPyThread
-from hwt.interfaces.utils import addClkRstn
 
 
 class HlsPythonPreprocFor(Unit):

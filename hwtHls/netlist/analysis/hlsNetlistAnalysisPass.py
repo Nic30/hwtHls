@@ -2,14 +2,14 @@
 
 class HlsNetlistAnalysisPass():
     """
-    A base class for hls netlist analysis classes
+    A base class for HLS netlist analysis classes
     """
 
     def __init__(self, netlist: "HlsNetlistCtx"):
         self.netlist = netlist
     
     def run(self):
-        "Perform the analysis on the netlis"
+        "Perform the analysis on the netlist"
         raise NotImplementedError("Implement this in implementation of this abstract class")
 
     def invalidate(self):
