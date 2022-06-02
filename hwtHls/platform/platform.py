@@ -55,12 +55,14 @@ class DefaultHlsPlatform(DummyPlatform):
         SsaPassToLlvm().apply(hls, toSsa)
         if debugDir:
             SsaPassDumpToLl(outputFileGetter(debugDir, ".3.ll")).apply(hls, toSsa)
-            SsaPassDumpMIR(outputFileGetter(debugDir, ".5.ll")).apply(hls, toSsa)
 
         # SsaPassConsystencyCheck().apply(hls, toSsa)
    
     def runSsaToNetlist(self, hls: "HlsStreamProc", toSsa: AstToSsa) -> HlsNetlistCtx:
-        return SsaPassLlvmToMirAndMirToNetlist().apply(hls, toSsa)
+        netlist = SsaPassLlvmToMirAndMirToNetlist().apply(hls, toSsa)
+        if self._debugDir:
+            SsaPassDumpMIR(outputFileGetter(self._debugDir, ".5.mir.ll")).apply(hls, toSsa)
+        return netlist
 
     def runHlsNetlistPasses(self, hls: "HlsStreamProc", netlist: HlsNetlistCtx):
         debugDir = self._debugDir
