@@ -11,6 +11,7 @@ class SsaPassDumpMIR():
         tr: ToLlvmIrTranslator = to_ssa.start
         assert isinstance(tr, ToLlvmIrTranslator), tr
         mf = tr.llvm.getMachineFunction(tr.llvm.main)
+        assert mf
         out, doClose = self.outStreamGetter(tr.llvm.main.getGlobalIdentifier())
         try:
             out.write(str(mf))
