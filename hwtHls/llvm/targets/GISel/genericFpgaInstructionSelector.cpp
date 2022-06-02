@@ -153,9 +153,9 @@ bool GenericFpgaTargetInstructionSelector::select(MachineInstr &I) {
 			I.getParent()->getParent()
 					&& "Instruction should be in a function!");
 
-	auto &MBB = *I.getParent();
-	auto &MF = *MBB.getParent();
-	auto &MRI = MF.getRegInfo();
+	MachineBasicBlock &MBB = *I.getParent();
+	MachineFunction &MF = *MBB.getParent();
+	MachineRegisterInfo &MRI = MF.getRegInfo();
 	auto Opc = I.getOpcode();
 	if (!isPreISelGenericOpcode(Opc)) {
 		// Certain non-generic instructions also need some special handling.
@@ -229,32 +229,55 @@ bool GenericFpgaTargetInstructionSelector::select(MachineInstr &I) {
 		I.eraseFromParent();
 		return true;
 	}
-	case G_IMPLICIT_DEF: // used for function arguments
-	case G_ICMP:
 	case G_ADD:
-	case G_SUB:
 	case G_AND:
+	case G_BR:
+	case G_BRCOND:
+	case G_EXTRACT:
+	case G_ICMP:
+	case G_IMPLICIT_DEF: // used for function arguments
+	case G_INDEXED_LOAD:
+	case G_INDEXED_STORE:
+	case G_MERGE_VALUES:
 	case G_MUL:
 	case G_OR:
-	case G_XOR:
 	case G_SELECT:
-	case G_INDEXED_STORE:
-	case G_INDEXED_LOAD:
-	case G_MERGE_VALUES:
-	case G_EXTRACT:
-	case G_ZEXT:
 	case G_SEXT:
-	case G_BRCOND:
-	case G_BR: {
+	case G_SUB:
+	case G_XOR:
+	case G_ZEXT:
+	{
 		MachineIRBuilder Builder(I);
-		auto MIB = Builder.buildInstr(Opc);
+		auto _Opc = Opc;
+		switch (Opc) {
+		case G_EXTRACT:
+			_Opc = GenericFpga::GENFPGA_EXTRACT;
+			break;
+		case G_MERGE_VALUES:
+			_Opc = GenericFpga::GENFPGA_MERGE_VALUES;
+			break;
+		}
+		auto MIB = Builder.buildInstr(_Opc);
 		selectInstrArgs(I, MIB, Opc != G_BRCOND && Opc != G_BR);
 		auto newI = Builder.getInsertPt();
+
+		// add extra type spec operands if required
+		if (Opc == G_EXTRACT) {
+			// dst, offset, dstWidth, (dst and offset already added)
+			MIB.addImm(MRI.getType(I.getOperand(0).getReg()).getSizeInBits()); // add dstWidth
+		}else if (Opc == G_MERGE_VALUES) {
+			// dst, src0, src1, width0, width1, (dst, src0, src1 already added)
+			for (unsigned i = 1; i < 3; i++) {
+				MIB.addImm(MRI.getType(I.getOperand(i).getReg()).getSizeInBits()); // add dstWidth
+			}
+		}
+
 		if (!constrainInstRegOperands(*newI, TII, TRI, RBI))
 			return false;
 		I.eraseFromParent();
 		return true;
 	}
+
 	default:
 		return false; // some unknown operands (on error it will be printed immediately by caller)
 	}

@@ -6,6 +6,22 @@
 using namespace llvm;
 namespace hwtHls {
 
+bool checkOrSetWidth(MachineRegisterInfo &MRI, MachineOperand &op,
+		unsigned width) {
+	if (op.isReg()) {
+		Register dstReg = op.getReg();
+		LLT dstT = MRI.getType(dstReg);
+		if (dstT.isValid()) {
+			return dstT.getSizeInBits() == width;
+		} else {
+			MRI.setType(dstReg, LLT::scalar(width));
+			return true;
+		}
+	} else {
+		unsigned opWidth = op.getCImm()->getType()->getIntegerBitWidth();
+		return opWidth <= width;
+	}
+}
 /*
  * Analyze type of operands and resolve type of other operands if possible
  * :returns: true if resolution was successful and all operands have known type
@@ -22,7 +38,8 @@ bool resolveTypes(MachineInstr &MI) {
 		// no resolving needed
 		return true;
 	case TargetOpcode::G_CONSTANT:
-		MRI.setType(MI.getOperand(0).getReg(), LLT::scalar(MI.getOperand(1).getCImm()->getBitWidth()));
+		MRI.setType(MI.getOperand(0).getReg(),
+				LLT::scalar(MI.getOperand(1).getCImm()->getBitWidth()));
 		return true;
 	case TargetOpcode::G_ICMP:
 		MRI.setType(MI.getOperand(0).getReg(), LLT::scalar(1));
@@ -109,11 +126,14 @@ bool resolveTypes(MachineInstr &MI) {
 				if (T.isValid()) {
 					if (isValueOp) {
 						if (T.getSizeInBits() != bitWidth) {
-							errs() << R << " bitWidth:" << T.getSizeInBits() << " previous bitWidth:" << bitWidth << "\n";
+							errs() << R << " bitWidth:" << T.getSizeInBits()
+									<< " previous bitWidth:" << bitWidth
+									<< "\n";
 							errs() << MI << "\n";
 							MF.print(errs());
 							errs() << "\n";
-							llvm_unreachable("All values for register must be of same type");
+							llvm_unreachable(
+									"All values for register must be of same type");
 						}
 					} else {
 						assert(
@@ -160,15 +180,45 @@ bool resolveTypes(MachineInstr &MI) {
 		}
 		return true;
 	}
+	case GenericFpga::GENFPGA_MERGE_VALUES: {
+		// $dst $src0, $src1, $width0, $width1
+		auto width0 = MI.getOperand(3).getImm();
+		auto width1 = MI.getOperand(4).getImm();
+		assert(checkOrSetWidth(MRI, MI.getOperand(0), width0 + width1));
+		assert(checkOrSetWidth(MRI, MI.getOperand(1), width0));
+		assert(checkOrSetWidth(MRI, MI.getOperand(2), width1));
+		return true;
+	}
+	case GenericFpga::GENFPGA_EXTRACT: {
+		// $dst $src $offset $dstWidth
+		auto dstWidth = MI.getOperand(3).getImm();
+		assert(checkOrSetWidth(MRI, MI.getOperand(0), dstWidth));
+		auto offset = MI.getOperand(3).getImm();
+		auto &src = MI.getOperand(1);
+
+		if (src.isReg()) {
+			LLT srcT = MRI.getType(src.getReg());
+			if (srcT.isValid()) {
+				assert(unsigned(offset + dstWidth) <= srcT.getSizeInBits());
+				return true;
+			}
+		} else {
+			unsigned srcWidth = src.getCImm()->getType()->getIntegerBitWidth();
+			assert(offset + dstWidth <= srcWidth);
+			return true;
+		}
+
+		return false;
+	}
 	default: {
-		const auto *TII = MF.getSubtarget().getInstrInfo();
-		errs() << "Not implemented for this instruction: " << TII->getName(Opc)
-				<< "\n";
+		//const auto *TII = MF.getSubtarget().getInstrInfo();
+		errs() << "Not implemented for this instruction: " << MI << "\n";
 		llvm_unreachable("Not implemented for this instruction");
 	}
 	}
 	return false;
 }
+
 char GenFpgaRegisterBitWidth::ID = 0;
 GenFpgaRegisterBitWidth::GenFpgaRegisterBitWidth() :
 		MachineFunctionPass(ID) {

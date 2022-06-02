@@ -90,7 +90,6 @@ bool GenericFpgaTargetPassConfig::addRegBankSelect() {
 }
 bool GenericFpgaTargetPassConfig::addGlobalInstructionSelect() {
 	addPass(new InstructionSelect(getOptLevel()));
-	//llvm_unreachable("not implemented");
 	return false;
 }
 bool GenericFpgaTargetPassConfig::addILPOpts() {
@@ -193,6 +192,8 @@ void GenericFpgaTargetPassConfig::addMachinePasses() {
 	// Insert before XRay Instrumentation.
 	addPass(&FEntryInserterID);
 	addPass(createGenericFpgaPreToNetlistCombiner());
+	// because InstructionSelect::runOnMachineFunction() intentionally removes all types using MRI.clearVirtRegTypes();
+	// we need to regenerate this information
 	addPass(new hwtHls::GenFpgaRegisterBitWidth());
 	addPass(&MachineLoopInfoID);
 	addPass(new hwtHls::GenericFpgaToNetlist());

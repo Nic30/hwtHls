@@ -3,7 +3,7 @@ from typing import Set, Tuple, Dict, List, Union, Type
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.types.bits import Bits
-from hwt.hdl.types.defs import BIT
+from hwt.hdl.types.defs import BIT, SLICE
 from hwt.hdl.types.hdlType import HdlType
 from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.pyUtils.arrayQuery import grouper
@@ -196,6 +196,30 @@ class MirToNetlist():
 
                     pass  # will be translated in next step when control is generated
 
+                elif opc == TargetOpcode.GENFPGA_EXTRACT:
+                    src, offset, width = ops
+                    if isinstance(offset.obj, HlsNetNodeConst):
+                        offset = int(offset.obj.val)
+                        n = HlsNetNodeOperator(netlist, AllOps.INDEX, 2, Bits(width))
+                        self.nodes.append(n)
+                        i = HlsNetNodeConst(self.netlist, SLICE.from_py(slice(offset+width, offset, -1)))
+                        self.nodes.append(i)
+                    else:
+                        raise NotImplementedError()
+
+                    link_hls_nodes(src, n._inputs[0])
+                    link_hls_nodes(src, n._inputs[1])
+
+                    valCache.add(mb, dst, n._outputs[0], True)
+
+                elif opc == TargetOpcode.GENFPGA_MERGE_VALUES:
+                    src0, src1, width0, width1 = ops
+                    n = HlsNetNodeOperator(netlist, AllOps.CONCAT, 2, Bits(width0 + width1))
+                    self.nodes.append(n)
+                    for i, arg in zip(n._inputs, (src0, src1)):
+                        link_hls_nodes(arg, i)
+                    valCache.add(mb, dst, n._outputs[0], True)
+                    
                 else:
                     raise NotImplementedError(instr)
 

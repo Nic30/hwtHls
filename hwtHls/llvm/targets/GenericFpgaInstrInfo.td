@@ -15,30 +15,40 @@ class GenFpgaInst<
   let Pattern = pattern;
 }
 
+let hasSideEffects = 0, isAsCheapAsAMove = 1 in {
+// an instruction which gets the argument of the function
+def GENFPGA_ARG_GET : GenFpgaInst<
+    (outs AnyRegCls:$dst),
+	(ins i64imm:$src),
+	[]>;
+
+def GENFPGA_EXTRACT : GenFpgaInst<
+    (outs AnyRegCls:$dst),
+	(ins AnyRegCls:$src, i64imm:$offset, i64imm:$dstWidth),
+	[]>;
+
+def GENFPGA_MERGE_VALUES : GenFpgaInst<
+    (outs AnyRegCls:$dst),
+	(ins AnyRegCls:$src0, AnyRegCls:$src1, i64imm:$width0, i64imm:$width1),
+	[]>;
+}
+
+let hasSideEffects = 0 in {
+// bitwise inversion
+def GENFPGA_NOT : GenFpgaInst<
+    (outs AnyRegCls:$dst),
+	(ins AnyRegCls:$src),
+	[]>;
+
+}
 
 let hasSideEffects = 0, isPredicable = 1, isAsCheapAsAMove = 1 in {
 // conditional copy, pseudo instruction used before final combiner
 def GENFPGA_CCOPY : GenFpgaInst<
     (outs AnyRegCls:$dst),
-	(ins AnyRegCls:$src1, AnyRegCls:$cond),
-	[]>;
-
-// an instruction which gets the argument of the function
-def GENFPGA_ARG_GET : GenFpgaInst<
-    (outs AnyRegCls:$dst),
-	(ins i64imm:$src1),
+	(ins AnyRegCls:$src, AnyRegCls:$cond),
 	[]>;
 }
-
-let hasSideEffects = 0, isPredicable = 1 in {
-// bitwise inversion
-def GENFPGA_NOT : GenFpgaInst<
-    (outs AnyRegCls:$dst),
-	(ins AnyRegCls:$src1),
-	[]>;
-
-}
-
 let mayLoad = 0, mayStore = 0, hasSideEffects = 0, isPredicable = 1, isSelect = 1, isAsCheapAsAMove = 1  in {
 // generic multiplexor - combines copy, select and phi to a single instructions
 // which manages conditional copy driven by predicate or predecessor block
