@@ -153,8 +153,11 @@ PYBIND11_MODULE(llvmIr, m) {
 					std::set<hwtHls::GenericFpgaToNetlist::MachineBasicBlockEdge>& backedges,
 					hwtHls::EdgeLivenessDict & liveness,
 					std::vector<llvm::Register> & ioRegs,
-					std::map<llvm::Register, unsigned> & registerTypes) {
-				o.operator() <py::return_value_policy::reference, llvm::MachineFunction &>(MF, backedges, liveness, ioRegs, registerTypes);
+					std::map<llvm::Register, unsigned> & registerTypes,
+					llvm::MachineLoopInfo & loops) {
+				o.operator() <py::return_value_policy::reference, llvm::MachineFunction &>(
+						MF, backedges, liveness, ioRegs, registerTypes, loops
+				);
 			});
 		})
 		.def("getMachineFunction", &hwtHls::LlvmCompilationBundle::getMachineFunction)

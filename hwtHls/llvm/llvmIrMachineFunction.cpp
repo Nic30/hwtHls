@@ -1,12 +1,14 @@
 #include "llvmIrMachineFunction.h"
-#include "llvmIrCommon.h"
+#include <sstream>
 #include <llvm/CodeGen/MachineFunction.h>
 #include <llvm/CodeGen/MachineBasicBlock.h>
 #include <llvm/CodeGen/MachineInstr.h>
+#include <llvm/CodeGen/MachineLoopInfo.h>
 #include <llvm/IR/Constants.h>
 #include <llvm/MC/MCInstrInfo.h>
+
+#include "llvmIrCommon.h"
 #include "targets/genericFpgaMCTargetDesc.h"
-#include <sstream>
 
 namespace py = pybind11;
 enum TargetOpcode: unsigned {};
@@ -98,10 +100,35 @@ void register_MachineFunction(pybind11::module_ &m) {
 		})
 		.def("id", &llvm::Register::id)
 		.def("isVirtual", &llvm::Register::isVirtual)
+		.def("virtRegIndex", &llvm::Register::virtRegIndex)
 		.def("isPhysical", &llvm::Register::isPhysical)
 		.def("__eq__", [](llvm::Register & LHS, llvm::Register & RHS) {
 		    return LHS == RHS;
 	     })
 		.def("__hash__", &llvm::Register::id);
+
+	py::class_<llvm::MachineLoopInfo, std::unique_ptr<llvm::MachineLoopInfo, py::nodelete>> MachineLoopInfo(m, "MachineLoopInfo");
+	MachineLoopInfo
+		.def("isLoopHeader", &llvm::MachineLoopInfo::isLoopHeader)
+		.def("getLoopFor", &llvm::MachineLoopInfo::getLoopFor)
+		.def("__iter__", [](llvm::MachineLoopInfo &MB) {
+				return py::make_iterator(MB.begin(), MB.end());
+    	}, py::keep_alive<0, 1>());
+	py::class_<llvm::MachineLoop, std::unique_ptr<llvm::MachineLoop, py::nodelete>> MachineLoop(m, "MachineLoop");
+	MachineLoop
+		.def("getParentLoop", &llvm::MachineLoop::getParentLoop)
+		.def("getHeader", &llvm::MachineLoop::getHeader)
+		.def("getLoopDepth", &llvm::MachineLoop::getLoopDepth)
+		.def("hasNoExitBlocks", &llvm::MachineLoop::hasNoExitBlocks)
+		.def("isInnermost", &llvm::MachineLoop::isInnermost)
+		.def("isOutermost", &llvm::MachineLoop::isOutermost)
+		.def("containsBlock", [](llvm::MachineLoop & L, llvm::MachineBasicBlock & MBB) {
+			return L.contains(&MBB);
+		})
+		.def("getBlocks", [](llvm::MachineLoop &ML) {
+				return py::make_iterator(ML.block_begin(), ML.block_end());
+    	}, py::keep_alive<0, 1>())
+		.def("__str__",  &printToStr<llvm::MachineLoop>)
+		;
 
 }

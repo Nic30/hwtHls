@@ -97,7 +97,7 @@ bool GenericFpgaToNetlist::runOnMachineFunction(llvm::MachineFunction &MF) {
 	}
 	auto &TPC = getAnalysis<TargetPassConfig>();
 	auto &GenFpga_TPC = *dynamic_cast<llvm::GenericFpgaTargetPassConfig*>(&TPC);
-	(*GenFpga_TPC.toNetlistConversionFn)(MF, backedges, liveness, ioRegs, registerTypes);
+	(*GenFpga_TPC.toNetlistConversionFn)(MF, backedges, liveness, ioRegs, registerTypes, Loops);
 	return true;
 }
 

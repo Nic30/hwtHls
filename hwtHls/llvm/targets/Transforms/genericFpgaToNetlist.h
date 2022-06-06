@@ -1,5 +1,7 @@
 #pragma once
 #include <llvm/CodeGen/MachineFunctionPass.h>
+#include <llvm/CodeGen/MachineLoopInfo.h>
+
 #include "../Analysis/liveVariableForEdge.h"
 
 namespace hwtHls {
@@ -13,14 +15,16 @@ public:
 	using MachineBasicBlockEdge = std::pair<llvm::MachineBasicBlock*, llvm::MachineBasicBlock*>;
 	// MF,
 	// backedges (CFG transitions from loop body to its header),
-	// live_edge_variables (set of registers alive on specific CFG transition),
-	// io_registers (a register for each argument of a function),
+	// liveEdgeVariables (set of registers alive on specific CFG transition),
+	// ioRegisters (a register for each argument of a function),
 	// registerTypes (a bitwidth for register if specified)
-	using ConvesionFnT = std::function<void(llvm::MachineFunction&,
-			std::set<MachineBasicBlockEdge>&,
-			hwtHls::EdgeLivenessDict&,
-			std::vector<llvm::Register>&,
-			std::map<llvm::Register, unsigned> & registerTypes
+	// loops (information)
+	using ConvesionFnT = std::function<void(llvm::MachineFunction& MF,
+			std::set<MachineBasicBlockEdge>& backedges,
+			hwtHls::EdgeLivenessDict& liveEdgeVariables,
+			std::vector<llvm::Register>& ioRegisters,
+			std::map<llvm::Register, unsigned> & registerTypes,
+			llvm::MachineLoopInfo & loops
 			)>;
 
 public:
