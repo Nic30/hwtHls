@@ -1,7 +1,7 @@
 from typing import Set, Dict
 
 from hwt.hdl.operatorDefs import BITWISE_OPS
-from hwtHls.netlist.analysis.clusterSearch import HlsNetlistClusterSearch
+from hwtHls.netlist.clusterSearch import HlsNetlistClusterSearch
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.aggregatedBitwiseOps import HlsNetNodeBitwiseOps
 from hwtHls.netlist.nodes.node import HlsNetNode
