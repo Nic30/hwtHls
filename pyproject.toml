@@ -1,7 +1,7 @@
 [build-system]
 requires = [
    "wheel",
-   "meson>=0.60.1",
+   "meson>=0.62.1",
    "mesonpep517",
    "pybind11>=2.8.1",
    "ninja",
