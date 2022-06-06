@@ -1,18 +1,20 @@
 from itertools import chain
 from typing import Set
 
+from hwt.pyUtils.uniqList import UniqList
+from hwtHls.netlist.nodes.aggregatedBitwiseOps import HlsNetNodeBitwiseOps
 from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeRead, HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.loopHeader import HlsLoopGate
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
-from hwtHls.netlist.nodes.loopHeader import HlsLoopGate
-from hwtHls.netlist.nodes.aggregatedBitwiseOps import HlsNetNodeBitwiseOps
-from hwt.pyUtils.uniqList import UniqList
+from hwtHls.netlist.context import HlsNetlistCtx
 
 
 class HlsNetlistPassDCE(HlsNetlistPass):
     """
     Dead Code Elimination for hls netlist
-    :note: IO operations are never removed
+
+    :note: volatile IO operations are never removed
     """
 
     def _walkDependencies(self, n: HlsNetNode, seen: Set[HlsNetNode]):
@@ -75,20 +77,20 @@ class HlsNetlistPassDCE(HlsNetlistPass):
 
         return False
 
-    def apply(self, hls:"HlsStreamProc", hlsPip:"HlsPipenine"):
+    def apply(self, hls:"HlsStreamProc", neltist: HlsNetlistCtx):
 
         while True:
             used: Set[HlsNetNode] = set()
-            # assert len(set(hlsPip.nodes)) == len(hlsPip.nodes)
-            for io in chain(hlsPip.inputs, hlsPip.outputs, (
-                    n for n in hlsPip.nodes 
+            # assert len(set(neltist.nodes)) == len(neltist.nodes)
+            for io in chain(neltist.inputs, neltist.outputs, (
+                    n for n in neltist.nodes 
                     if isinstance(n, (HlsNetNodeRead, HlsNetNodeWrite, HlsLoopGate, HlsNetNodeExplicitSync)))):
                 self._walkDependencies(io, used)
 
             nodesWithReducedOutputs = []
-            if len(used) != len(hlsPip.nodes) + len(hlsPip.inputs) + len(hlsPip.outputs):
-                hlsPip.nodes = [n for n in hlsPip.nodes if n in used]
-                for n in hlsPip.nodes:
+            if len(used) != len(neltist.nodes) + len(neltist.inputs) + len(neltist.outputs):
+                neltist.nodes = [n for n in neltist.nodes if n in used]
+                for n in neltist.nodes:
                     n: HlsNetNode
                     outReduced = False
                     for i, uses in enumerate(n.usedBy):
