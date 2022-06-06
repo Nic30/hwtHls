@@ -364,7 +364,7 @@ class SsaPassExtractPartDrivers(SsaPass):
         return varEntirelyReplaced, varBitAlises
 
     def resolveFinalReplacedVarValue(self,
-                                     v: SsaValue,
+                                     v: Union[SsaValue, HValue],
                                      bitRange: Tuple[int, int],
                                      variableForRange: Dict[Tuple[SsaValue, int, int], SsaValue],
                                      varEntirelyReplaced: Dict[SsaValue, Optional[SsaValue]],
@@ -454,7 +454,9 @@ class SsaPassExtractPartDrivers(SsaPass):
                 assert resW == expanded.bit_length
 
                 if v_varEntirelyReplaced:
+                    # this means we must use parts of this variable because variable itself will not exists
                     if len(expanded.slices) == 1:
+                        # we have a single part so we use it
                         assert expanded.slices[0][1] == expanded.slices[0][0]._dtype.bit_length() and expanded.slices[0][2] == 0
                         return expanded.slices[0][0]
                     else:
@@ -484,6 +486,7 @@ class SsaPassExtractPartDrivers(SsaPass):
                         return replacement
 
                 else:
+                    # variable will exist 
                     assert len(expanded.slices) == 1, ("Each unique part has have a custom variable, this should expand so it", expanded)
                     s = expanded.slices[0]
 
