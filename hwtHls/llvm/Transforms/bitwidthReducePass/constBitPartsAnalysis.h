@@ -17,11 +17,11 @@ protected:
 			const llvm::APInt &c, unsigned offset, unsigned width);
 	void visitBinaryOperatorReduceAnd(std::vector<KnownBitRangeInfo> &newParts,
 			const llvm::BinaryOperator *parentI, unsigned width,
-			unsigned srcOffset, unsigned dstOffset, const llvm::APInt &c,
+			unsigned vSrcOffset, unsigned cSrcOffset, unsigned dstOffset, const llvm::APInt &c,
 			const KnownBitRangeInfo &v);
 	void visitBinaryOperatorReduceOr(std::vector<KnownBitRangeInfo> &newParts,
 			const llvm::BinaryOperator *parentI, unsigned width,
-			unsigned srcOffset, unsigned dstOffset, const llvm::APInt &c,
+			unsigned vSrcOffset, unsigned cSrcOffset, unsigned dstOffset, const llvm::APInt &c,
 			const KnownBitRangeInfo &v);
 
 	// visit functions to discover which bits are constant in value

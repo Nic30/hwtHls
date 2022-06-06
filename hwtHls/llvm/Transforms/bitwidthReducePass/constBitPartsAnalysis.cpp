@@ -196,11 +196,12 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitCallInst(
 			}
 		}
 		cur.replacements.clear();
+		// to lowest first
 		unsigned dstOff = 0;
 		for (auto opop = newParts.rbegin(); opop != newParts.rend(); ++opop) {
 			KnownBitRangeInfo i = *opop;
 			i.dstBeginBitI = dstOff;
-			cur.replacements.push_back(i); // to lowest first
+			cur.replacements.push_back(i);
 			dstOff += i.srcWidth;
 		}
 
@@ -269,14 +270,14 @@ std::vector<std::pair<bool, unsigned>> ConstBitPartsAnalysisContext::iter1and0se
 
 void ConstBitPartsAnalysisContext::visitBinaryOperatorReduceAnd(
 		std::vector<KnownBitRangeInfo> &newParts, const BinaryOperator *parentI,
-		unsigned width, unsigned srcOffset, unsigned dstOffset, const APInt &c,
+		unsigned width, unsigned vSrcOffset, unsigned cSrcOffset, unsigned dstOffset, const APInt &c,
 		const KnownBitRangeInfo &v) {
 	IRBuilder<> b(const_cast<BinaryOperator*>(parentI));
-	for (auto seq : iter1and0sequences(c, srcOffset, width)) {
+	for (auto seq : iter1and0sequences(c, cSrcOffset, width)) {
 		unsigned w = seq.second;
 		if (seq.first) {
 			// 1 sequence found
-			KnownBitRangeInfo i = v.slice(&b, srcOffset, w);
+			KnownBitRangeInfo i = v.slice(&b, vSrcOffset, w);
 			i.dstBeginBitI = dstOffset;
 			VarBitConstraint::srcUnionPushBackWithMerge(newParts, i);
 		} else {
@@ -286,15 +287,16 @@ void ConstBitPartsAnalysisContext::visitBinaryOperatorReduceAnd(
 			VarBitConstraint::srcUnionPushBackWithMerge(newParts, i);
 		}
 		dstOffset += w;
-		srcOffset += w;
+		cSrcOffset += w;
+		vSrcOffset += w;
 	}
 }
 void ConstBitPartsAnalysisContext::visitBinaryOperatorReduceOr(
 		std::vector<KnownBitRangeInfo> &newParts, const BinaryOperator *parentI,
-		unsigned width, unsigned srcOffset, unsigned dstOffset, const APInt &c,
+		unsigned width, unsigned vSrcOffset, unsigned cSrcOffset, unsigned dstOffset, const APInt &c,
 		const KnownBitRangeInfo &v) {
 	IRBuilder<> b(const_cast<BinaryOperator*>(parentI));
-	for (auto seq : iter1and0sequences(c, srcOffset, width)) {
+	for (auto seq : iter1and0sequences(c, cSrcOffset, width)) {
 		unsigned w = seq.second;
 		if (seq.first) {
 			// end of 1 sequence found
@@ -304,13 +306,14 @@ void ConstBitPartsAnalysisContext::visitBinaryOperatorReduceOr(
 			VarBitConstraint::srcUnionPushBackWithMerge(newParts, i);
 		} else {
 			// end of 0 sequence found
-			KnownBitRangeInfo i = v.slice(&b, srcOffset, w);
+			KnownBitRangeInfo i = v.slice(&b, vSrcOffset, w);
 			i.dstBeginBitI = dstOffset;
 			VarBitConstraint::srcUnionPushBackWithMerge(newParts, i);
 		}
 
 		dstOffset += w;
-		srcOffset += w;
+		cSrcOffset += w;
+		vSrcOffset += w;
 	}
 }
 VarBitConstraint& ConstBitPartsAnalysisContext::visitBinaryOperator(
@@ -392,19 +395,19 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitBinaryOperator(
 				// if other is known reduce set bits
 				if (_v0) {
 					visitBinaryOperatorReduceOr(newParts, I, item.width,
-							v0srcOffset, offset, _v0->getValue(), *item.v1);
+							 v1srcOffset, v0srcOffset, offset, _v0->getValue(), *item.v1);
 				} else {
 					visitBinaryOperatorReduceOr(newParts, I, item.width,
-							v1srcOffset, offset, _v1->getValue(), *item.v0);
+							v0srcOffset, v1srcOffset, offset, _v1->getValue(), *item.v0);
 				}
 			} else if (opCode == Instruction::BinaryOps::And) {
 				// if other is known reduce cleared bits
 				if (_v0) {
 					visitBinaryOperatorReduceAnd(newParts, I, item.width,
-							v0srcOffset, offset, _v0->getValue(), *item.v1);
+							v1srcOffset, v0srcOffset, offset, _v0->getValue(), *item.v1);
 				} else {
 					visitBinaryOperatorReduceAnd(newParts, I, item.width,
-							v1srcOffset, offset, _v1->getValue(), *item.v0);
+							v0srcOffset, v1srcOffset, offset, _v1->getValue(), *item.v0);
 				}
 			} else {
 				assert(false && "Unknown operator, should never get there");

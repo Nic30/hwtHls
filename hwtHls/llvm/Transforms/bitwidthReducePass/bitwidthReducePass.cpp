@@ -58,12 +58,14 @@ static bool runCBP(Function &F) {
 	for (BasicBlock &BB : F) {
 		for (Instruction &I : BB) {
 			rew.rewriteIfRequired(&I);
+			didModify = true;
 		}
 	}
 	for (BasicBlock &BB : F) {
 		for (Instruction &I : BB) {
 			if (auto *PHI = dyn_cast<PHINode>(&I)) {
 				rew.rewritePHINodeArgsIfRequired(PHI);
+				didModify = true;
 			} else {
 				break; // no more PHIs in this block
 			}
@@ -78,6 +80,7 @@ llvm::PreservedAnalyses BitwidthReductionPass::run(llvm::Function &F,
 	if (!runCBP(F)) {
 		return PreservedAnalyses::all();
 	}
+
 	auto PA = PreservedAnalyses();
 	PA.preserve<GlobalsAA>();
 	PA.preserveSet<CFGAnalyses>();
