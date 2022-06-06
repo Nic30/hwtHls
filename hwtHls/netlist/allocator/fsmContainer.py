@@ -12,12 +12,12 @@ from hwtHls.netlist.allocator.architecturalElement import AllocatorArchitectural
 from hwtHls.netlist.allocator.connectionsOfStage import getIntfSyncSignals, \
     setNopValIfNotSet, SignalsOfStages, ConnectionsOfStage
 from hwtHls.netlist.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
-from hwtHls.netlist.scheduler.clk_math import start_clk
 from hwtHls.netlist.analysis.fsm import IoFsm
 from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
     HlsNetNodeWriteBackwardEdge
 from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeRead
 from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.scheduler.clk_math import start_clk
 from ipCorePackager.constants import INTF_DIRECTION
 
 

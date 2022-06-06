@@ -52,7 +52,7 @@ class HlsNetNodeWriteBackwardEdge(HlsNetNodeWrite):
     
     :ivar allocateAsBuffer: A flag which specifies how this object should be allocated.
         If True this object allocates a buffer of length specified by time difference between read/write or register if the value is False.
-    :ivar channel_init_values: Optional tuple for value intialization.
+    :ivar channel_init_values: Optional tuple for value initialization.
     """
 
     def __init__(self, netlist:"HlsNetlistCtx",
