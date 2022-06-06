@@ -16,6 +16,7 @@ enum TargetOpcode: unsigned {};
 void register_MachineFunction(pybind11::module_ &m) {
 	py::class_<llvm::MachineFunction, std::unique_ptr<llvm::MachineFunction, py::nodelete>> MachineFunction(m, "MachineFunction");
 	MachineFunction
+		.def("getName", &llvm::MachineFunction::getName)
 		.def("__repr__",  [](llvm::MachineFunction*MF) {
 			return "<llvm::MachineFunction " + MF->getName().str() + ">";
 		})
