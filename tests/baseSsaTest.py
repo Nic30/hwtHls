@@ -13,7 +13,6 @@ from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
 from hwtHls.ssa.analysis.dumpMIR import SsaPassDumpMIR
 from hwtHls.ssa.transformation.extractPartDrivers.extractPartDriversPass import SsaPassExtractPartDrivers
-from hwtHls.ssa.transformation.runFn import SsaPassRunFn
 from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
 from hwtHls.ssa.translation.toLl import SsaPassDumpToLl
