@@ -10,7 +10,7 @@ class HlsNetNodeConst(HlsNetNode):
 
     def __init__(self, netlist: "HlsNetlistCtx", val: HValue):
         self.val = val
-        HlsNetNode.__init__(self, netlist, None)
+        HlsNetNode.__init__(self, netlist, name=None)
         self._add_output(val._dtype)
 
     def get(self, time: float):

@@ -23,7 +23,6 @@ from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axi_intf_common import Axi_hs
 
-
 IO_COMB_REALIZATION = OpRealizationMeta(latency_post=epsilon)
 
 
@@ -47,12 +46,11 @@ class HlsNetNodeExplicitSync(HlsNetNode):
     """
 
     def __init__(self, netlist: "HlsNetlistCtx", dtype: HdlType):
-        HlsNetNode.__init__(self, netlist, None)
+        HlsNetNode.__init__(self, netlist, name=None)
         self._init_extraCond_skipWhen()
         self._add_input()
         self._add_output(dtype)
         self._add_output(HOrderingVoidT)  # slot for ordering
-
 
     def _init_extraCond_skipWhen(self):
         self.extraCond: Optional[HlsNetNodeIn] = None
@@ -122,8 +120,8 @@ class HlsNetNodeExplicitSync(HlsNetNode):
     def resolve_realization(self):
         self.assignRealization(IO_COMB_REALIZATION)
 
-    #@classmethod
-    #def replace_variable(cls, netlist: "HlsNetlistCtx", cache_key,
+    # @classmethod
+    # def replace_variable(cls, netlist: "HlsNetlistCtx", cache_key,
     #                     var: Union[HlsNetNodeOut, HlsNetNodeOutLazy],
     #                     to_hls_cache: SsaToHwtHlsNetlistOpCache,
     #                     extraCond: HlsNetNodeOut,

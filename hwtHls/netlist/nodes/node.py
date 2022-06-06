@@ -1,14 +1,15 @@
+from itertools import zip_longest
 from math import inf, isfinite
 from typing import List, Optional, Union, Tuple, Generator, Dict
 
 from hwt.hdl.types.hdlType import HdlType
 from hwt.pyUtils.uniqList import UniqList
+from hwtHls.llvm.llvmIr import MachineBasicBlock
 from hwtHls.netlist.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
-from hwtHls.netlist.scheduler.clk_math import start_of_next_clk_period, start_clk
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
-from hwtHls.platform.opRealizationMeta import OpRealizationMeta
+from hwtHls.netlist.scheduler.clk_math import start_of_next_clk_period, start_clk
 from hwtHls.netlist.scheduler.errors import TimeConstraintError
-from itertools import zip_longest
+from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 
 TimeSpec = Union[float, Tuple[int, ...]]
 SchedulizationDict = Dict["HlsNetNode", Tuple[Tuple[int, ...], Tuple[int, ...]]]
@@ -19,6 +20,7 @@ class HlsNetNode():
     Abstract class for nodes in circuit which are subject to HLS scheduling
 
     :ivar name: optional suggested name for this object (for debugging purposes)
+    :ivar netlist: reference on parent netlist
     :ivar usedBy: for each output list of operation and its input index which are using this output
     :ivar dependsOn: for each input operation and index of its output with data required
         to perform this operation
@@ -227,7 +229,6 @@ class HlsNetNode():
         startClkI = start_clk(beginTime, clkPeriod)
         endClkI = int(endTime // clkPeriod)
         yield from range(startClkI, endClkI + 1)
-
 
     def _removeInput(self, i:int):
         """

@@ -91,6 +91,6 @@ class HlsNetNodeOperator(HlsNetNode):
         if minify:
             return f"<{self.__class__.__name__:s} {self._id:d} {self.operator.id:s}>"
         else:
-            deps = ", ".join([f"{o.obj._id:d}:{o.out_i}" for o in self.dependsOn])
+            deps = ", ".join([f"{o.obj._id:d}:{o.out_i}" if isinstance(o, HlsNetNodeOut) else repr(o) for o in self.dependsOn])
             return f"<{self.__class__.__name__:s} {self._id:d} {self.operator.id:s} [{deps:s}]>"
 

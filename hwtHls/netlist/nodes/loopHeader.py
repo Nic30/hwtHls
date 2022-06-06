@@ -8,7 +8,6 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, link_hls_nodes, HlsNetNodeOutLazy
 from hwtHls.netlist.utils import hls_op_not
 from hwtHls.ssa.basicBlock import SsaBasicBlock
-from hwtHls.ssa.branchControlLabel import BranchControlLabel
 from ipCorePackager.constants import INTF_DIRECTION
 
 
