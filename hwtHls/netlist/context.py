@@ -44,12 +44,14 @@ class HlsNetlistCtx():
 
     def __init__(self, parentUnit: Unit,
                  freq: Union[float, int],
+                 label: str,
                  coherency_checked_io:Optional[UniqList[Interface]]=None,
                  schedulerResolution:float=0.01e-9):
         """
         :see: For parameter meaning see doc of this class.
         :ivar schedulerResolution: The time resolution for time in scheduler specified in seconds (1e-9 is 1ns). 
         """
+        self.label = label
         self.parentUnit = parentUnit
         self.platform = parentUnit._target_platform
         self.nodeCtx = HlsNetlistCtxNodeContext()

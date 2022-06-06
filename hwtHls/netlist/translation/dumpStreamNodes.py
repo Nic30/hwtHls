@@ -13,7 +13,7 @@ class RtlNetlistPassDumpStreamNodes(RtlNetlistPass):
         self.outStreamGetter = outStreamGetter
 
     def apply(self, hls: "HlsStreamProc", netlist: HlsNetlistCtx):
-        out, doClose = self.outStreamGetter(netlist.parentUnit._getDefaultName())
+        out, doClose = self.outStreamGetter(netlist.label)
         try:
             for elem_i, elm in enumerate(netlist.allocator._archElements):
                 out.write(f"########## {elm.__class__.__name__:s} {elem_i:d} ##########\n")

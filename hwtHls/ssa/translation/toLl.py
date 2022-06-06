@@ -102,14 +102,7 @@ class SsaPassDumpToLl():
         self.outStreamGetter = outStreamGetter
 
     def apply(self, hls: "HlsStreamProc", to_ssa: "AstToSsa"):
-        if isinstance(to_ssa.start, SsaBasicBlock):
-            name = to_ssa.start.label
-        elif isinstance(to_ssa.start, ToLlvmIrTranslator):
-            name = to_ssa.start.mod.getName().str()
-        else:
-            raise NotImplementedError(to_ssa.start)
-        
-        output, doClose = self.outStreamGetter(name) 
+        output, doClose = self.outStreamGetter(to_ssa.label) 
         output = AutoIndentingStream(output, "  ")
         try:
             if isinstance(to_ssa.start, SsaBasicBlock):

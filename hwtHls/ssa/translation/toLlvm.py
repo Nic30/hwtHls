@@ -1,33 +1,33 @@
 import re
-from typing import List, Tuple, Dict, Union, Optional
+from typing import List, Tuple, Dict, Union
 
 from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.bitsVal import BitsVal
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.types.slice import HSlice
+from hwt.hdl.types.struct import HStruct
 from hwt.hdl.value import HValue
 from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.interfaces.std import Signal, RdSynced, VldSynced, Handshaked, \
     HandshakeSync
+from hwt.interfaces.structIntf import StructIntf
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.hlsStreamProc.statementsIo import HlsStreamProcRead, \
     HlsStreamProcWrite
+from hwtHls.llvm.llvmIr import Value, Type, FunctionType, Function, VectorOfTypePtr, BasicBlock, Argument, \
+    PointerType, TypeToPointerType, ConstantInt, APInt, verifyFunction, verifyModule, TypeToIntegerType, \
+    PHINode, LlvmCompilationBundle
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
-from hwtHls.llvm.llvmIr import LLVMContext, Module, IRBuilder, LLVMStringContext, Value, \
-    Type, FunctionType, Function, VectorOfTypePtr, BasicBlock, Argument, PointerType, TypeToPointerType, \
-    ConstantInt, APInt, verifyFunction, verifyModule, TypeToIntegerType, PHINode, MachineFunction, LlvmCompilationBundle
 from hwtHls.ssa.phi import SsaPhi
 from hwtHls.ssa.transformation.utils.blockAnalysis import collect_all_blocks
 from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
 from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axi_intf_common import Axi_hs
 from ipCorePackager.constants import INTF_DIRECTION
-from hwt.interfaces.structIntf import StructIntf
-from hwt.hdl.types.struct import HStruct
 
 RE_ID_WITH_NUMBER = re.compile('[^0-9]+|[0-9]+')
 
@@ -50,8 +50,9 @@ class ToLlvmIrTranslator():
         original block to list of tuples LLVM basic block and list of original successors
     """
 
-    def __init__(self, name: str, topIo: Dict[Interface, INTF_DIRECTION]):
-        self.llvm = LlvmCompilationBundle(name)
+    def __init__(self, label: str, topIo: Dict[Interface, INTF_DIRECTION]):
+        self.label = label
+        self.llvm = LlvmCompilationBundle(label)
         self.ctx = self.llvm.ctx
         self.strCtx = self.llvm.strCtx
         self.mod = self.llvm.mod
@@ -274,7 +275,7 @@ class ToLlvmIrTranslator():
         io_sorted = sorted(self.topIo.items(), key=lambda x: self.splitStrToStrsAndInts(getSignalName(x[0])))
         params = [(getSignalName(i), self._translateType(self._getNativeInterfaceType(i), ptr=True))
                    for i, _ in io_sorted]
-        self.llvm.main = main = self.createFunctionPrototype("main", params, Type.getVoidTy(self.ctx))
+        self.llvm.main = main = self.createFunctionPrototype(self.label, params, Type.getVoidTy(self.ctx))
         ioToVar: Dict[Interface, Argument] = {}
         for a, (i, _) in zip(main.args(), io_sorted):
             ioToVar[i] = a
@@ -333,6 +334,6 @@ class SsaPassToLlvm():
                         "In this stages the read operations must read only native type of interface",
                         instr, instr.operands[0]._dtype, ToLlvmIrTranslator._getNativeInterfaceType(instr.dst))
 
-        toLlvm = ToLlvmIrTranslator(to_ssa.start.label, io)
+        toLlvm = ToLlvmIrTranslator(to_ssa.label, io)
         toLlvm.translate(to_ssa.start)
         to_ssa.start = toLlvm

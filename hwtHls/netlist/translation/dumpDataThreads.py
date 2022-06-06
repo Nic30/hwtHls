@@ -48,7 +48,7 @@ class HlsNetlistPassDumpDataThreads(HlsNetlistPass):
         from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
         threads = netlist.requestAnalysis(HlsNetlistAnalysisPassDataThreads)
         mf: MachineFunction = netlist.requestAnalysis(HlsNetlistAnalysisPassMirToNetlist).mf
-        out, doClose = self.outStreamGetter(netlist.parentUnit._getDefaultName())
+        out, doClose = self.outStreamGetter(netlist.label)
         try:
             self._printThreads(mf, threads, out)
         finally:

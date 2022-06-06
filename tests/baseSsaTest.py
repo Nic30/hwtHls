@@ -11,8 +11,8 @@ from hwtHls.netlist.translation.dumpBlockSync import HlsNetlistPassDumpBlockSync
 from hwtHls.netlist.translation.dumpDataThreads import HlsNetlistPassDumpDataThreads
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
-from hwtHls.ssa.analysis.dumpMIR import SsaPassDumpMIR
 from hwtHls.ssa.transformation.extractPartDrivers.extractPartDriversPass import SsaPassExtractPartDrivers
+from hwtHls.ssa.translation.dumpMIR import SsaPassDumpMIR
 from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
 from hwtHls.ssa.translation.toLl import SsaPassDumpToLl
@@ -108,9 +108,9 @@ class BaseSsaTC(BaseSerializationTC):
         if name is None:
             name = unit.__class__.__name__
         
-        self.assert_same_as_file(p.preOpt, os.path.join("data", name + ".0.preOpt.ll"))
-        self.assert_same_as_file(p.postPyOpt, os.path.join("data", name + ".1.postPyOpt.ll"))
-        self.assert_same_as_file(p.mir, os.path.join("data", name + ".0.mir.ll"))
-        self.assert_same_as_file(p.dataThreads, os.path.join("data", name + ".0.dataThreads.ll"))
-        self.assert_same_as_file(p.blockSync, os.path.join("data", name + ".0.blockSync.ll"))
+        self.assert_same_as_file(p.preOpt.getvalue(), os.path.join("data", name + ".0.preOpt.ll"))
+        self.assert_same_as_file(p.postPyOpt.getvalue(), os.path.join("data", name + ".1.postPyOpt.ll"))
+        self.assert_same_as_file(p.mir.getvalue(), os.path.join("data", name + ".0.mir.ll"))
+        self.assert_same_as_file(p.dataThreads.getvalue(), os.path.join("data", name + ".0.dataThreads.ll"))
+        self.assert_same_as_file(p.blockSync.getvalue(), os.path.join("data", name + ".0.blockSync.ll"))
         

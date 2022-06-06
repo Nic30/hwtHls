@@ -26,6 +26,10 @@ class HlsStreamProcThread():
         self.toSsa: Optional[AstToSsa] = None
         self.toHw: Optional[HlsNetlistCtx] = None
 
+    def getLabel(self) -> str:
+        i = self.hls._threads.index(self)
+        return f"t{i:d}"
+
     def compileToSsa(self):
         raise NotImplementedError("Must be implemented in child class", self)
 
@@ -37,6 +41,10 @@ class HlsStreamProcThreadFromAst(HlsStreamProcThread):
         self.code = code
         self.name = name
     
+    def getLabel(self) -> str:
+        i = self.hls._threads.index(self)
+        return f"t{i:d}_{self.name}"
+
     def _formatCode(self, code: List[AnyStm]) -> HlsStreamProcCodeBlock:
         """
         Normalize an input code.
@@ -49,7 +57,7 @@ class HlsStreamProcThreadFromAst(HlsStreamProcThread):
 
     def compileToSsa(self):
         _code = self._formatCode(self.code)
-        toSsa = AstToSsa(self.hls.ssaCtx, self.name, _code)
+        toSsa = AstToSsa(self.hls.ssaCtx, self.getLabel(), _code)
         toSsa._onAllPredecsKnown(toSsa.start)
         toSsa.visit_top_CodeBlock(_code)
         toSsa.finalize()

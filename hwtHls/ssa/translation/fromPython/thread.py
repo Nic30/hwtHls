@@ -13,12 +13,16 @@ class HlsStreamProcPyThread(HlsStreamProcThread):
 
     def __init__(self, hls: HlsStreamProc, fn: FunctionType, *fnArgs, **fnKwargs):
         super(HlsStreamProcPyThread, self).__init__(hls)
-        self.bytecodeToAst = PythonBytecodeToSsa(hls, fn)
+        self.bytecodeToAst = PythonBytecodeToSsa(self.hls, self.fn)
         self.fnArgs = fnArgs
         self.fnKwargs = fnKwargs
         self.code = None
         self._imports: List[Tuple[Union[RtlSignal, Interface], DIRECTION.IN]] = [] 
-        self._exports: List[Tuple[Union[RtlSignal, Interface], DIRECTION.IN]] = [] 
+        self._exports: List[Tuple[Union[RtlSignal, Interface], DIRECTION.IN]] = []
+
+    def getLabel(self) -> str:
+        i = self.hls._threads.index(self)
+        return f"t{i:d}_{self.bytecodeToAst.fn.__name__:s}"
 
     def compileToSsa(self):
         self.bytecodeToAst.translateFunction(*self.fnArgs, **self.fnKwargs)

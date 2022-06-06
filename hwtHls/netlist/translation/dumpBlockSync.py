@@ -22,7 +22,7 @@ class HlsNetlistPassDumpBlockSync(HlsNetlistPass):
     def apply(self, hls: "HlsStreamProc", netlist: HlsNetlistCtx):
         from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
         toNetlist: HlsNetlistAnalysisPassMirToNetlist = netlist.requestAnalysis(HlsNetlistAnalysisPassMirToNetlist)
-        out, doClose = self.outStreamGetter(netlist.parentUnit._getDefaultName())
+        out, doClose = self.outStreamGetter(netlist.label)
         try:
             self._printBlockSync(toNetlist.mf, toNetlist.blockSync, out)
         finally:

@@ -13,6 +13,7 @@ from hwtHls.netlist.scheduler.scheduler import HlsScheduler
 from hwtHls.netlist.transformation.aggregateBitwiseOpsPass import HlsNetlistPassAggregateBitwiseOps
 from hwtHls.netlist.transformation.dce import HlsNetlistPassDCE
 from hwtHls.netlist.transformation.mergeExplicitSync import HlsNetlistPassMergeExplicitSync
+from hwtHls.netlist.transformation.simplify import HlsNetlistPassSimplify
 from hwtHls.netlist.translation.dumpBlockSync import HlsNetlistPassDumpBlockSync
 from hwtHls.netlist.translation.dumpDataThreads import HlsNetlistPassDumpDataThreads
 from hwtHls.netlist.translation.dumpStreamNodes import RtlNetlistPassDumpStreamNodes
@@ -21,15 +22,14 @@ from hwtHls.netlist.translation.toTimeline import HlsNetlistPassShowTimeline
 from hwtHls.netlist.translation.toTimelineArchLevel import HlsNetlistPassShowTimelineArchLevel
 from hwtHls.platform.fileUtils import outputFileGetter
 from hwtHls.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
-from hwtHls.ssa.analysis.dumpMIR import SsaPassDumpMIR
 from hwtHls.ssa.transformation.axiStreamReadLowering.axiStreamReadLoweringPass import SsaPassAxiStreamReadLowering
 from hwtHls.ssa.transformation.extractPartDrivers.extractPartDriversPass import SsaPassExtractPartDrivers
+from hwtHls.ssa.translation.dumpMIR import SsaPassDumpMIR
 from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
 from hwtHls.ssa.translation.toGraphwiz import SsaPassDumpToDot
 from hwtHls.ssa.translation.toLl import SsaPassDumpToLl
 from hwtHls.ssa.translation.toLlvm import SsaPassToLlvm, ToLlvmIrTranslator
-from hwtHls.netlist.transformation.simplify import HlsNetlistPassSimplify
 
 
 class DefaultHlsPlatform(DummyPlatform):
@@ -96,10 +96,10 @@ class DefaultHlsPlatform(DummyPlatform):
             toNetlist.netlist.requestAnalysis(HlsNetlistAnalysisPassBlockSyncType)
             if self._debugDir:
                 HlsNetlistPassDumpBlockSync(outputFileGetter(self._debugDir, ".7.blockSync.txt")).apply(hls, netlist)
-                HlsNetlistPassDumpToDot(outputFileGetter(self._debugDir, ".preSync.dot"))
+                HlsNetlistPassDumpToDot(outputFileGetter(self._debugDir, ".preSync.dot")).apply(hls, netlist)
 
             toNetlist._resolveBlockEn(mf, backedges, threads)
-            toNetlist.netlist.invalidateAnalysis(HlsNetlistAnalysisPassDataThreads)  # because we modified the netlist
+            #toNetlist.netlist.invalidateAnalysis(HlsNetlistAnalysisPassDataThreads)  # because we modified the netlist
             toNetlist._connectOrderingPorts(mf, backedges)
 
         tr.llvm.runOpt(runNetlistTranslation)

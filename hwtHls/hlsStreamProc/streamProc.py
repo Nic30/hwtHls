@@ -181,7 +181,7 @@ class HlsStreamProc():
         if len(code) == 1 and isinstance(code[0], HlsStreamProcThread):
             t = code[0]
         else:
-            t = HlsStreamProcThreadFromAst(self, code, f"top{len(self._threads)}")
+            t = HlsStreamProcThreadFromAst(self, code, self.parentUnit._name)
 
         self._threads.append(t)
         return t

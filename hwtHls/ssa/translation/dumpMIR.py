@@ -1,8 +1,9 @@
 from hwtHls.platform.fileUtils import OutputStreamGetter
+from hwtHls.ssa.transformation.ssaPass import SsaPass
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 
 
-class SsaPassDumpMIR():
+class SsaPassDumpMIR(SsaPass):
 
     def __init__(self, outStreamGetter:OutputStreamGetter):
         self.outStreamGetter = outStreamGetter

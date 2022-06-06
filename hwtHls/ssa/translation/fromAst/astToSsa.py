@@ -24,7 +24,6 @@ from hwtHls.ssa.instr import SsaInstr, SsaInstrBranch
 from hwtHls.ssa.translation.fromAst.memorySSAUpdater import MemorySSAUpdater
 from hwtHls.ssa.value import SsaValue
 
-
 AnyStm = Union[HdlAssignmentContainer, HlsStreamProcStm]
 
 
@@ -68,6 +67,7 @@ class AstToSsa():
 
     def __init__(self, ssaCtx: SsaContext, startBlockName:str, original_code_for_debug: Optional[HlsStreamProcCodeBlock]):
         self.ssaCtx = ssaCtx
+        self.label = startBlockName
         self.start = SsaBasicBlock(ssaCtx, startBlockName)
         self.m_ssa_u = MemorySSAUpdater(self._onBlockReduce, self.visit_expr)
         # all predecessors known (because this is an entry point)

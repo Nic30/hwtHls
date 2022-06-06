@@ -135,14 +135,14 @@ class SsaPassDumpToDot(SsaPass):
         self.extractPipeline = extractPipeline
 
     def apply(self, hls: "HlsStreamProc", to_ssa: "AstToSsa"):
-        name = to_ssa.start.label
+        name = to_ssa.label
         to_graphwiz = SsaToGraphwiz(name)
-        #if self.extractPipeline:
+        # if self.extractPipeline:
         #    to_hw = SsaSegmentToHwPipeline(to_ssa.start, to_ssa.original_code_for_debug)
         #    to_hw.extract_pipeline()
         #    pipelines = [to_hw.pipeline, ]
         #    edge_var_live = to_hw.edge_var_live
-        #else:
+        # else:
         pipelines = None
         edge_var_live = None
         out, doClose = self.outStreamGetter(name)
