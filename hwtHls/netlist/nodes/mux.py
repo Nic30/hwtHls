@@ -13,6 +13,8 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
 class HlsNetNodeMux(HlsNetNodeOperator):
     """
     Multiplexer operation with one-hot encoded select signal
+    
+    :note: inputs in format value, (condition, value)*
     """
 
     def __init__(self, netlist: "HlsNetlistCtx", dtype: HdlType, name: str=None):
@@ -30,11 +32,10 @@ class HlsNetNodeMux(HlsNetNodeOperator):
             pass
         assert self._inputs, ("Mux has to have operands", self)
         name = self.name
-        v0 = allocator.instantiateHlsNetNodeOutInTime(self.dependsOn[1], self.scheduledIn[1])
+        v0 = allocator.instantiateHlsNetNodeOutInTime(self.dependsOn[0], self.scheduledIn[0])
         mux_out_s = allocator._sig(name, v0.data._dtype)
-        if len(self._inputs) == 2:
-            c, v = self._inputs
-            assert c is None, c
+        if len(self._inputs) == 1:
+            v = self.dependsOn[0]
             v = allocator.instantiateHlsNetNodeOutInTime(
                     v,
                     self.scheduledIn[0])
@@ -42,12 +43,7 @@ class HlsNetNodeMux(HlsNetNodeOperator):
         else:
             assert len(self._inputs) > 2, self
             mux_top = None
-            for (c, v) in grouper(2, zip(self.dependsOn, self.scheduledIn), padvalue=None):
-                if v is None:
-                    # handle the case where the is only value without condition at the end
-                    v = c
-                    c = None
-                
+            for (v, c) in grouper(2, zip(self.dependsOn, self.scheduledIn), padvalue=None):
                 if c is not None:
                     c, ct = c
                     c = allocator.instantiateHlsNetNodeOutInTime(c, ct)
@@ -75,6 +71,13 @@ class HlsNetNodeMux(HlsNetNodeOperator):
         if isinstance(src, HlsNetNodeOutLazy):
             src.dependent_inputs.append(HlsNetNodeMuxInputRef(self, i.in_i, src))
 
+
+    def __repr__(self, minify=False):
+        if minify:
+            return f"<{self.__class__.__name__:s} {self._id:d}>"
+        else:
+            deps = ", ".join([f"{o.obj._id:d}:{o.out_i}" if isinstance(o, HlsNetNodeOut) else repr(o) for o in self.dependsOn])
+            return f"<{self.__class__.__name__:s} {self._id:d} [{deps:s}]>"
 
 class HlsNetNodeMuxInputRef():
     """

@@ -32,11 +32,9 @@ class HlsNetNodeOperator(HlsNetNode):
         self.netlist = self.netlist
         input_cnt = len(self.dependsOn)
 
+        bit_length = self.getInputDtype(0).bit_length()
         if self.operator is AllOps.TERNARY:
-            bit_length = self.getInputDtype(1).bit_length()
             input_cnt = input_cnt // 2 + 1
-        else:
-            bit_length = self.getInputDtype(0).bit_length()
 
         r = self.netlist.platform.get_op_realization(
             self.operator, bit_length,

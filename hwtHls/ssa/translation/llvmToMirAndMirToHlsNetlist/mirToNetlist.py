@@ -1,3 +1,4 @@
+from itertools import chain
 from typing import Set, Tuple, Dict, List, Union, Optional
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
@@ -9,25 +10,24 @@ from hwt.pyUtils.arrayQuery import grouper
 from hwt.synthesizer.interface import Interface
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, MachineOperand, Register, \
     MachineInstr, TargetOpcode, CmpInst, MachineLoop
-from hwtHls.netlist.analysis.blockSyncType import HlsNetlistAnalysisPassBlockSyncType
 from hwtHls.netlist.analysis.dataThreads import HlsNetlistAnalysisPassDataThreads
 from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.io import HOrderingVoidT, HlsNetNodeRead, \
     HlsNetNodeWrite, HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
+from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutLazy, \
-    link_hls_nodes, HlsNetNodeOutAny, HlsNetNodeIn, HlsNetNodeOutLazyIndirect, \
+    link_hls_nodes, unlink_hls_nodes, HlsNetNodeOutAny, HlsNetNodeIn, HlsNetNodeOutLazyIndirect, \
     HlsNetNodeOut
 from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
 from hwtHls.netlist.utils import hls_op_and, hls_op_or_variadic, hls_op_not
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlistLowLevel import HlsNetlistAnalysisPassMirToNetlistLowLevel
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.opCache import MirToHwtHlsNetlistOpCache
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer
-from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge
-from itertools import chain
-from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.translation.toGraphwiz import HwtHlsNetlistToGraphwiz
 
 
 class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistLowLevel):
@@ -100,14 +100,13 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistLowLe
                         mux = HlsNetNodeMux(self.netlist, resT)
                         self.nodes.append(mux)
                         if argCnt % 2 != 1:
+                            # add current value as a default option in MUX
                             ops.append(self._translateRegister(mb, dst))
 
                         for (src, cond) in grouper(2, ops):
-                            if cond is not None:
-                                # [todo] inject block en to cond
-                                mux._add_input_and_link(cond)
-
                             mux._add_input_and_link(src)
+                            if cond is not None:
+                                mux._add_input_and_link(cond)
                             
                         valCache.add(mb, dst, mux._outputs[0], True)
 
@@ -232,11 +231,10 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistLowLe
                     self.nodes.append(mux)
 
                     for last, (src, cond) in iter_with_last(cases):
+                        mux._add_input_and_link(src)
                         if not last:
                             # last case must be always satisfied because the block must have been entered somehow
                             mux._add_input_and_link(cond)
-
-                        mux._add_input_and_link(src)
                         
                     v = mux._outputs[0]
 
@@ -331,38 +329,44 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistLowLe
             assert isinstance(mux, HlsNetNodeMux), mux
             mux: HlsNetNodeMux
             # pop reset value to initialization of the channel
-            rstCondI = None
-            rstValI = None
             backedgeBuffRead: Optional[HlsNetNodeReadBackwardEdge] = None
-            for (_cond, _src) in grouper(2, enumerate(mux._inputs)):
-                if _src is not None:
-                    srcI, src = _cond
-                    condI, cond = None, None
-                else:
-                    condI, cond = _cond
-                    srcI, src = _src
-                
-                if cond is resetPredEn:
-                    rstCondI = condI
-                    rstValI = srcI
-                else:
-                    assert cond is None or cond is otherPredEn
-                    while isinstance(src, HlsNetNodeOut) and isinstance(src.obj, HlsNetNodeExplicitSync):
-                        src = src.obj.dependsOn[0]
-                    assert isinstance(src, HlsNetNodeOut) and isinstance(src.obj, HlsNetNodeReadBackwardEdge), src
-                    backedgeBuffRead = src.obj
+            assert len(mux.dependsOn) == 3, mux
+            (v0I, v0), (condI, cond), (vRstI, vRst) = zip(mux._inputs, mux.dependsOn)
+            if cond is resetPredEn:
+                # vRst cond v0
+                (v0, v0I), (vRst, vRstI) = (vRst, vRstI), (v0, v0I)  
+            elif cond is otherPredEn:
+                # v0 cond vRst
+                pass
+            else:
+                raise AssertionError("Can not recognize reset value in mux in loop header")
 
-            assert rstValI is not None
+            # find backedge buffer on value from loop body
+            while (isinstance(v0, HlsNetNodeOut) and 
+                   isinstance(v0.obj, HlsNetNodeExplicitSync) and
+                   not isinstance(v0.obj, HlsNetNodeReadBackwardEdge)):
+                v0 = v0.obj.dependsOn[0]
+            assert isinstance(v0, HlsNetNodeOut) and isinstance(v0.obj, HlsNetNodeReadBackwardEdge), (mb, v0)
+            backedgeBuffRead = v0.obj
+
             assert backedgeBuffRead is not None
             backedgeBuffRead: HlsNetNodeReadBackwardEdge
-            rstValObj = mux.dependsOn[rstValI].obj
+            rstValObj = vRst.obj
             assert isinstance(rstValObj, HlsNetNodeConst), (
-                "must be consts otherwise it is impossible to extract this as reset",
+                "must be const otherwise it is impossible to extract this as reset",
                 rstValObj)
-            
-            backedgeBuffRead.associated_write.channel_init_values = (
-                rstValObj.val, *backedgeBuffRead.associated_write.channel_init_values)
-            raise NotImplementedError()
+            # add reset value to backedge buffer init
+            init = backedgeBuffRead.associated_write.channel_init_values
+            if init:
+                raise NotImplementedError("Merge init values")
+            else:
+                backedgeBuffRead.associated_write.channel_init_values = ((rstValObj.val,),)
+
+            # pop mux inputs for reset
+            unlink_hls_nodes(vRst, vRstI)
+            mux._removeInput(vRstI.in_i)  # remove reset input which was moved to backedge buffer init
+            unlink_hls_nodes(cond, condI)
+            mux._removeInput(condI.in_i)  # remove condition because we are not using it
             alreadyUpdated.add(mux)
 
     def _resolveEnFromPredecessors(self, mb: MachineBasicBlock,
@@ -371,6 +375,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistLowLe
         """
         :returns: list of control en flag from any predecessor
         """
+        
         valCache: MirToHwtHlsNetlistOpCache = self.valCache
         # construct CFG flags
         enFromPredccs = []
@@ -428,7 +433,6 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistLowLe
     def _resolveBlockEn(self, mf: MachineFunction,
                         backedges: Set[Tuple[MachineBasicBlock, MachineBasicBlock]],
                         threads: HlsNetlistAnalysisPassDataThreads):
-
         class Reset():
             pass
 
@@ -469,7 +473,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistLowLe
                 dependentInputs = mbSync.blockEn.dependent_inputs
                 replaced: Set[HlsNetNodeIn] = set()
                 for i in mbSync.blockEn.dependent_inputs:
-                    assert isinstance(i.obj, (HlsNetNodeRead, HlsNetNodeWrite)), i.obj
+                    assert isinstance(i.obj, (HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeOperator)), i.obj
                     self._replaceInputWithConst1(i, threads)
                     replaced.add(i)
  

@@ -155,3 +155,16 @@ def link_hls_nodes(parent: HlsNetNodeOutAny, child: HlsNetNodeIn) -> None:
     if isinstance(parent, HlsNetNodeOut) and isinstance(child, HlsNetNodeOut):
         assert parent.obj is not child.obj
 
+
+def unlink_hls_nodes(parent: HlsNetNodeOutAny, child: HlsNetNodeIn) -> None:
+    assert isinstance(child, HlsNetNodeIn), child
+
+    if isinstance(parent, HlsNetNodeOutLazy):
+        parent.dependent_inputs.remove(child)
+    else:
+        assert isinstance(parent, HlsNetNodeOut), parent
+        parent.obj.usedBy[parent.out_i].remove(child)
+
+    child.obj.dependsOn[child.in_i] = None
+    if isinstance(parent, HlsNetNodeOut) and isinstance(child, HlsNetNodeOut):
+        assert parent.obj is not child.obj
