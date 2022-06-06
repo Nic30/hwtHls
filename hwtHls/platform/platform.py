@@ -130,5 +130,5 @@ class DefaultHlsPlatform(DummyPlatform):
         debugDir = self._debugDir
         if debugDir:
             RtlNetlistPassDumpStreamNodes(outputFileGetter(debugDir, ".10.sync.txt")).apply(hls, netlist)
-            HlsNetlistPassShowTimelineArchLevel(outputFileGetter(debugDir, ".11.archschedule.html")).apply(hls, netlist)
+            HlsNetlistPassShowTimelineArchLevel(outputFileGetter(debugDir, ".11.archSchedule.html")).apply(hls, netlist)
 
