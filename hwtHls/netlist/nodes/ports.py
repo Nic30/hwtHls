@@ -71,7 +71,8 @@ class HlsNetNodeOutLazy():
     :ivar dependent_inputs: information about children where new object should be replaced
     """
 
-    def __init__(self, keys_of_self_in_cache: list, op_cache:"SsaToHwtHlsNetlistOpCache", dtype: HdlType):
+    def __init__(self, netlist: "HlsNetlistCtx", keys_of_self_in_cache: list, op_cache:"SsaToHwtHlsNetlistOpCache", dtype: HdlType):
+        self._id = netlist.nodeCtx.getUniqId()
         self.dependent_inputs: List[Union[HlsNetNodeIn, HlsNetNodeOutLazyIndirect]] = []
         self.replaced_by = None
         self.keys_of_self_in_cache = keys_of_self_in_cache
@@ -81,7 +82,7 @@ class HlsNetNodeOutLazy():
     def replace_driver(self, o:HlsNetNodeOut):
         assert self is not o, self
         assert self.replaced_by is None, (self, self.replaced_by)
-        assert self._dtype == o._dtype,  (self, o, self._dtype, o._dtype)
+        assert self._dtype == o._dtype or self._dtype.bit_length() == o._dtype.bit_length(),  (self, o, self._dtype, o._dtype)
         for k in self.keys_of_self_in_cache:
             self.op_cache._toHlsCache[k] = o
 
@@ -91,9 +92,10 @@ class HlsNetNodeOutLazy():
         self.replaced_by = o
 
     def __repr__(self):
-        return f"<{self.__class__.__name__:s} 0x{id(self):x}>"
+        return f"<{self.__class__.__name__:s} {self._id:d}>"
 
 
+# [todo] possibly useless
 class HlsNetNodeOutLazyIndirect(HlsNetNodeOutLazy):
     """
     A placeholder for HlsNetNodeOut.
@@ -104,10 +106,12 @@ class HlsNetNodeOutLazyIndirect(HlsNetNodeOutLazy):
     """
 
     def __init__(self,
+                 netlist: "HlsNetlistCtx",
                  op_cache:"SsaToHwtHlsNetlistOpCache",
                  original_lazy_out: HlsNetNodeOutLazy,
                  final_value: HlsNetNodeOut):
         assert original_lazy_out.replaced_by is None
+        self._id = netlist.nodeCtx.getUniqId()
         self.dependent_inputs: List[HlsNetNodeIn] = []
         self.replaced_by = None
         self.keys_of_self_in_cache = [*original_lazy_out.keys_of_self_in_cache, ]
