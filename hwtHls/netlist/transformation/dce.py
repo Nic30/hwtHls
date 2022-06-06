@@ -77,20 +77,20 @@ class HlsNetlistPassDCE(HlsNetlistPass):
 
         return False
 
-    def apply(self, hls:"HlsStreamProc", neltist: HlsNetlistCtx):
+    def apply(self, hls:"HlsStreamProc", netlist: HlsNetlistCtx):
 
         while True:
             used: Set[HlsNetNode] = set()
-            # assert len(set(neltist.nodes)) == len(neltist.nodes)
-            for io in chain(neltist.inputs, neltist.outputs, (
-                    n for n in neltist.nodes 
+            # assert len(set(netlist.nodes)) == len(netlist.nodes)
+            for io in chain(netlist.inputs, netlist.outputs, (
+                    n for n in netlist.nodes 
                     if isinstance(n, (HlsNetNodeRead, HlsNetNodeWrite, HlsLoopGate, HlsNetNodeExplicitSync)))):
                 self._walkDependencies(io, used)
 
             nodesWithReducedOutputs = []
-            if len(used) != len(neltist.nodes) + len(neltist.inputs) + len(neltist.outputs):
-                neltist.nodes = [n for n in neltist.nodes if n in used]
-                for n in neltist.nodes:
+            if len(used) != len(netlist.nodes) + len(netlist.inputs) + len(netlist.outputs):
+                netlist.nodes = [n for n in netlist.nodes if n in used]
+                for n in netlist.nodes:
                     n: HlsNetNode
                     outReduced = False
                     for i, uses in enumerate(n.usedBy):
