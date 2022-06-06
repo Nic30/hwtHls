@@ -18,12 +18,12 @@ and provides variety of existing ones (from LLVM/hwt) in order to build efficien
 A typical project where you would use this project is a hash table in HBM2 memory with cache.
 * HBM2 may have 32 AXI4 ports, you need to use eta 64*32 transactions at once to saturate memory throughput.
 * All transactions must assert consistency.
-* Due to timing everything needs to be pipelined and the hash table must support multiple operations in a single clock.
+* Due to timing, everything needs to be pipelined and the hash table must support multiple operations in a single clock.
 
 In this case you would just write a generic algorithm of a hash table and then configure numbers of ports, latencies
 coherency domains and it is all done. Take look at FlowCache example. Because everything is generated, it is asserted that
 no consistency check is missing and any deadlock or synchronization error may happen internally.
-This is a big difference from hand crafted hardware where it is assured that you would make mistakes of this type.
+This is a big difference from hand crafted hardware, where it is assured, that you would make mistakes of this type.
 
 
 ### Current state
@@ -108,14 +108,6 @@ This is a big difference from hand crafted hardware where it is assured that you
   uses HDL objects from [hwt](https://github.com/Nic30/hwt).
 * Secheduled netlist is then translated to [hwt](https://github.com/Nic30/hwt) netlist which handles all SystemVerilog/VHDL/simulator/verification related things.
 
-
-### Why hwtHls is not a compiler?
-
-* Nearly all HLS synthesizers performing conversion from source language and constraints to a target language.
-  But there are many cases where a complex preprocessor code is required to generate efficient hardware because
-  it is not possible to interfere everything and constraint computation may also be complex.
-  Because of this this library uses python as a preprocessor and the input code is build from statement-like objects.
-  The benefit of Python object is that user can generate/analyze/modify it on demand.
 
 
 ### Installation
@@ -206,14 +198,14 @@ pip3 install git+https://github.com/Nic30/hwtHls.git
 * [Stackifier algorithm](https://medium.com/leaningtech/solving-the-structured-control-flow-problem-once-and-for-all-5123117b1ee2) converts SSA back to cycles and conditions
 * [DASS: Combining Dynamic and Static Scheduling in High-level Synthesis](https://www.researchgate.net/publication/350081168_DASS_Combining_Dynamic_and_Static_Scheduling_in_High-level_Synthesis)
 * [Enabling adaptive loop pipelining in high-level synthesis](https://doi.org/10.1109/ACSSC.2017.8335152)
-* SODA [Chi, ICCAD 18]
-* Darkroom [Hegarty, TOG 14]
-* Aetherling [Durst, PLDI 20]
-* Polymage-FPGA [Chugh, PACT 16]
-* Rigel [Hegarty, TOG 16]
-* Halide-HLS [Pu, TACO 17]
-* Hipacc-FPGA [Reiche, CODES + ISS 14] https://github.com/hipacc/hipacc-fpga
-* Clokwork [Huff, FCCM 21] https://github.com/dillonhuff/clockwork
+* SODA (Chi, ICCAD 18)
+* Darkroom (Hegarty, TOG 14)
+* Aetherling (Durst, PLDI 20)
+* Polymage-FPGA (Chugh, PACT 16)
+* Rigel (Hegarty, TOG 16)
+* Halide-HLS (Pu, TACO 17)
+* [Hipacc-FPGA (Reiche, CODES + ISS 14)](https://github.com/hipacc/hipacc-fpga)
+* [Clokwork (Huff, FCCM 21)](https://github.com/dillonhuff/clockwork)
 
 ## Timing database generator scripts
 
