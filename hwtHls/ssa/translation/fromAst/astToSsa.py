@@ -7,8 +7,11 @@ from hwt.hdl.portItem import HdlPortItem
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.statements.codeBlockContainer import HdlStmCodeBlockContainer
 from hwt.hdl.statements.ifContainter import IfContainer
+from hwt.hdl.types.bitsVal import BitsVal
 from hwt.hdl.value import HValue
 from hwt.interfaces.std import Signal
+from hwt.interfaces.structIntf import StructIntf
+from hwt.synthesizer.interfaceLevel.interfaceUtils.utils import packIntf
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.rtlLevel.signalUtils.exceptions import SignalDriverErr
 from hwtHls.hlsStreamProc.statements import HlsStreamProcStm, HlsStreamProcWhile, \
@@ -20,8 +23,6 @@ from hwtHls.ssa.context import SsaContext
 from hwtHls.ssa.instr import SsaInstr, SsaInstrBranch
 from hwtHls.ssa.translation.fromAst.memorySSAUpdater import MemorySSAUpdater
 from hwtHls.ssa.value import SsaValue
-from hwt.interfaces.structIntf import StructIntf
-from hwt.synthesizer.interfaceLevel.interfaceUtils.utils import packIntf
 
 
 AnyStm = Union[HdlAssignmentContainer, HlsStreamProcStm]
@@ -153,6 +154,10 @@ class AstToSsa():
             if op.operator in (AllOps.BitsAsVec, AllOps.BitsAsUnsigned) and not var._dtype.signed:
                 # skip implicit conversions
                 assert len(op.operands) == 1
+                return self.visit_expr(block, op.operands[0])
+
+            if (op.operator == AllOps.INDEX and var._dtype.bit_length() == 1 and len(op.operands) == 2 and isinstance(op.operands[1], BitsVal) and int(op.operands[1]) == 0):
+                # skip indexing on 1b vectors/ 1b bits
                 return self.visit_expr(block, op.operands[0])
 
             ops = []
