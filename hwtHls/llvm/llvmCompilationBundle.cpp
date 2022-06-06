@@ -357,7 +357,6 @@ void LlvmCompilationBundle::runOpt(hwtHls::GenericFpgaToNetlist::ConvesionFnT to
 	FPM.addPass(hwtHls::ExtractBitConcatAndSliceOpsPass());
 	FPM.addPass(llvm::InstCombinePass()); // mostly for DCE for previous pass
 	FPM.addPass(llvm::AggressiveInstCombinePass());
-	//llvm::errs() << fn << "\n";
 	FPM.addPass(hwtHls::BitwidthReductionPass());
 	FPM.addPass(llvm::InstCombinePass()); // mostly for DCE for previous pass
 	FPM.addPass(
