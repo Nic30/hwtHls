@@ -1,105 +1,118 @@
-from typing import Dict, Set, Tuple, List, Union, Optional
+from typing import Dict, Set, List, Union
 
-from hwt.hdl.value import HValue
-from hwtHls.ssa.basicBlock import SsaBasicBlock
-from hwtHls.ssa.transformation.utils.blockAnalysis import collect_all_blocks
-from hwtHls.ssa.value import SsaValue
-from hwtHls.ssa.phi import SsaPhi
+from hwt.pyUtils.arrayQuery import flatten
+from hwt.pyUtils.uniqList import UniqList
+from hwtHls.llvm.llvmIr import MachineBasicBlock
+from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
+from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.nodes.io import HOrderingVoidT
+from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOutLazy, \
+    HlsNetNodeOutAny
 
 
-class SsaPassThreadMining():
+class HlsNetlistAnalysisPassDataThreads(HlsNetlistAnalysisPass):
     """
-    Walk the instruction in the block and find the independent code thread
+    Walk nodes and find the independent dataflow threads.
+    Dataflow thread is a subset of netlist nodes where each node is reachable from any node (= a single graph component).
+    The original netlist contains also no-data dependencies and nodes which must be excluded.
 
     :ivar threads: a dictionary which is mapping an instruction to a thread
-    :ivar toCheckLater: list of tuples (src, dst) which could not be resolved because dependency was not yet resolved
+    :ivar threadPerNode: a thread for each node
+    :ivar threadsPerBlock: for each block threads which do have some node from this block
     """
 
-    def __init__(self, out_of_pipeline_edges:Set[Tuple[SsaBasicBlock, SsaBasicBlock]]):
-        self.threadsPerInstr: Dict[SsaValue, Set[SsaValue]] = {}
-        self.threadsPerBlock: Dict[SsaBasicBlock, List[Set[SsaValue]]] = {}
-        self.out_of_pipeline_edges = out_of_pipeline_edges
-        self.toCheckLater: List[Tuple[SsaValue, SsaValue]] = []
+    def __init__(self, netlist: HlsNetlistCtx):
+        super(HlsNetlistAnalysisPassDataThreads, self).__init__(netlist)
+        self.threadPerNode: Dict[HlsNetNode, Set[Union[HlsNetNode, HlsNetNodeOutLazy]]] = {}
+        self.threadsPerBlock: Dict[MachineBasicBlock, List[Set[HlsNetNode]]] = {}
 
-    def mergeThreads(self, t0: Set[SsaValue], t1: Set[SsaValue]):
-        "Merge t0 into t1 and replace it in self.threads"
-        threads = self.threadsPerInstr
-        for i1 in t1:
-            threads[i1] = t0
+    def mergeThreads(self, t0: Set[HlsNetNode], t1: Set[HlsNetNode]):
+        "Merge t0 into t1 and replace t1 with t0 in self.threadPerNode"
+        threads = self.threadPerNode
+        for n in t1:
+            threads[n] = t0
         t0.update(t1)
 
-    def mergeInNextOperand(self,
-                           parent: SsaValue, op: Union[SsaValue, HValue],
-                           otherMembersOfThread: Optional[Set[SsaValue]]) -> Optional[Set[SsaValue]]:
-        if isinstance(op, HValue):
-            return otherMembersOfThread
+    def searchForThreads(self, obj: HlsNetNode):
+        """
+        :returns: the data-flow thread for this object, flag which tells if this is newly discovered thread
+        """
+        try:
+            return self.threadPerNode[obj], False
+        except KeyError:
+            pass
 
-        _otherMembersOfThread = self.threadsPerInstr.get(op, None)
-        if _otherMembersOfThread is None:
-            self.toCheckLater.append((op, parent))
-        elif otherMembersOfThread is None:
-            otherMembersOfThread = _otherMembersOfThread
-        else:
-            self.mergeThreads(otherMembersOfThread, _otherMembersOfThread)
-        return otherMembersOfThread
-
-    def apply_SsaBasicBlock(self, block: SsaBasicBlock):
-        threads = self.threadsPerInstr
-        for phi in block.phis:
-            phi: SsaPhi
-            otherMembersOfThread = None
-            for (c, b) in phi.operands:
-
-                if (b, block) not in self.out_of_pipeline_edges:
-                    otherMembersOfThread = self.mergeInNextOperand(phi, c, otherMembersOfThread)
-
-            if otherMembersOfThread is None:
-                otherMembersOfThread = set()
-
-            otherMembersOfThread.add(phi)
-            threads[phi] = otherMembersOfThread
-
-        for ins in block.body:
-
-            otherMembersOfThread = None
-            for o in ins.operands:
-                otherMembersOfThread = self.mergeInNextOperand(ins, o, otherMembersOfThread)
-
-            if otherMembersOfThread is None:
-                otherMembersOfThread = set()
-
-            otherMembersOfThread.add(ins)
-            threads[ins] = otherMembersOfThread
-
-    def finalize(self):
-        for src, dst in self.toCheckLater:
-            self.mergeThreads(self.threadsPerInstr[src], self.threadsPerInstr[dst])
-        self.toCheckLater.clear()
-
-    def apply(self, start: SsaBasicBlock):
-        blocks = list(collect_all_blocks(start, set()))
-        for b in blocks:
-            self.apply_SsaBasicBlock(b)
-
-        self.finalize()
-        seen: Set[int] = set()
-        for thread in self.threadsPerInstr.values():
-            if id(thread) in seen:
+        # collect all nodes which are tied through data dependency
+        allMembersOfThread: Set[HlsNetNode] = set()
+        toSearch = [obj, ]
+        while toSearch:
+            obj = toSearch.pop()
+            if obj in allMembersOfThread:
                 continue
-            else:
-                seen.add(id(thread))
-
-            for ins in thread:
-                ins: SsaValue
-                blockThreads: List[Set[SsaValue]] = self.threadsPerBlock.get(ins.block, None)
-                if blockThreads is None:
-                    blockThreads = []
-                    self.threadsPerBlock[ins.block] = blockThreads
-                elif thread in blockThreads:
+            allMembersOfThread.add(obj)
+            self.threadPerNode[obj] = allMembersOfThread
+    
+            for o, uses in zip(obj._outputs, obj.usedBy):
+                if o._dtype == HOrderingVoidT:
+                    continue
+                for use in uses:
+                    use: HlsNetNodeIn
+                    useObj = use.obj
+                    if useObj not in allMembersOfThread:
+                        toSearch.append(useObj)
+    
+            for dep in obj.dependsOn:
+                if isinstance(dep, HlsNetNodeOutLazy):
+                    allMembersOfThread.add(dep)
+                    self.threadPerNode[dep] = allMembersOfThread
                     continue
 
-                blockThreads.append(thread)
-        # there maybe blocks without any instruction
-        for b in blocks:
-            if not b.phis and not b.body:
-                self.threadsPerBlock[b] = []
+                depObj = dep.obj
+                if dep._dtype == HOrderingVoidT:
+                    continue
+                if depObj not in allMembersOfThread:
+                    toSearch.append(depObj)
+
+
+        return allMembersOfThread, True
+
+    def searchEnForDrivenThreads(self, en: HlsNetNodeOutLazy, liveIns: List[HlsNetNodeOutAny]):
+        """
+        Walk all nodes affected by this en signal and aggregate them into dataflow threads.
+        """
+        threads = []
+        for use in en.dependent_inputs:
+            use: HlsNetNodeIn
+            thread, isNew = self.searchForThreads(use.obj)
+            if isNew or not any(t is thread for t in threads):
+                threads.append(thread)
+
+        for liveIn in liveIns:
+            if isinstance(liveIn, HlsNetNodeOutLazy):
+                for use in en.dependent_inputs:
+                    use: HlsNetNodeIn
+                    thread, isNew = self.searchForThreads(use.obj)
+                    if isNew or not any(t is thread for t in threads):
+                        threads.append(thread)
+            else:
+                thread, isNew = self.searchForThreads(liveIn.obj)
+                if isNew or not any(t is thread for t in threads):
+                    threads.append(thread)
+                
+            
+        return threads
+
+    def run(self):
+        from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
+        originalMir: HlsNetlistAnalysisPassMirToNetlist = self.netlist.requestAnalysis(HlsNetlistAnalysisPassMirToNetlist)
+
+        for mb in originalMir.mf:
+            mb: MachineBasicBlock
+            en: HlsNetNodeOutLazy = originalMir.blockSync[mb].blockEn
+            assert isinstance(en, HlsNetNodeOutLazy), ("This analysis works only if control is not instantiated yet", en)
+            liveInGroups = list(originalMir.liveness[pred][mb] for pred in mb.predecessors())
+            liveIns = UniqList(flatten(liveInGroups, 1))
+            liveIns = [originalMir.valCache._toHlsCache[(mb, li)] for li in liveIns if li not in originalMir.regToIo]
+            self.threadsPerBlock[mb] = self.searchEnForDrivenThreads(en, liveIns)
+
