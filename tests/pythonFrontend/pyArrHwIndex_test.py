@@ -5,10 +5,10 @@ from io import StringIO
 import os
 
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
-from hwtHls.ssa.transformation.runFn import SsaPassRunFn
-from tests.baseSsaTest import BaseSsaTC, TestFinishedSuccessfuly
-from tests.pythonFrontend.pyArrHwIndex import Rom, CntrArray
+from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
 from hwtHls.ssa.translation.fromPython.thread import HlsStreamProcPyThread
+from tests.baseSsaTest import BaseSsaTC, TestFinishedSuccessfuly, BaseTestPlatform
+from tests.pythonFrontend.pyArrHwIndex import Rom, CntrArray
 
 
 class CntrArrayWithCfgDotDump(CntrArray):
@@ -37,12 +37,15 @@ class PyArrHwIndex_TC(BaseSsaTC):
 
     def test_CntrArray_cfgDot(self):
         buff = StringIO()
-        ssaPasses = [
-            SsaPassRunFn(TestFinishedSuccessfuly.raise_)
-        ]
+
+        class FrontendTestPlatform(BaseTestPlatform):
+
+            def runSsaPasses(self, hls:"HlsStreamProc", toSsa:AstToSsa):
+                raise TestFinishedSuccessfuly()
+
         u = CntrArrayWithCfgDotDump()
         u.CFG_FILE = buff
-        self._runTranslation(u, ssaPasses)
+        self._runTranslation(u, FrontendTestPlatform())
         self.assert_same_as_file(buff.getvalue(), os.path.join("data", "CntrArray_cfg.dot"))
 
 
