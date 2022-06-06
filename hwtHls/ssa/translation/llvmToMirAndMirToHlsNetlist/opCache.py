@@ -1,9 +1,11 @@
-from typing import Union, Dict, Tuple, Set
-from hwtHls.llvm.llvmIr import MachineBasicBlock, Register
+from typing import Union, Dict, Tuple
 
-from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy,\
-    HlsNetNodeOutAny
 from hwt.hdl.types.hdlType import HdlType
+from hwtHls.llvm.llvmIr import MachineBasicBlock, Register
+from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
+    HlsNetNodeOutAny
+
 
 MirValue = Union[Register, MachineBasicBlock]
 
@@ -13,7 +15,8 @@ class MirToHwtHlsNetlistOpCache():
     :ivar _unresolvedBlockInputs: container of HlsNetNodeOutLazy object which are inputs inputs to block
         and needs to be replaced once the value is resolved in the predecessor block
     """
-    def __init__(self):
+    def __init__(self, netlist: HlsNetlistCtx):
+        self._netlist = netlist
         self._toHlsCache: Dict[object, Union[HlsNetNodeOut, HlsNetNodeOutLazy]] = {}
         self._unresolvedBlockInputs: Dict[MachineBasicBlock, Dict[object, HlsNetNodeOutLazy]] = {}
 
@@ -80,6 +83,6 @@ class MirToHwtHlsNetlistOpCache():
             return v
 
         except KeyError:
-            o = HlsNetNodeOutLazy([k], self, dtype)
+            o = HlsNetNodeOutLazy(self._netlist, [k], self, dtype)
             self._toHlsCache[k] = o
             return o
