@@ -16,6 +16,7 @@ from hwtHls.netlist.transformation.mergeExplicitSync import HlsNetlistPassMergeE
 from hwtHls.netlist.translation.dumpBlockSync import HlsNetlistPassDumpBlockSync
 from hwtHls.netlist.translation.dumpDataThreads import HlsNetlistPassDumpDataThreads
 from hwtHls.netlist.translation.dumpStreamNodes import RtlNetlistPassDumpStreamNodes
+from hwtHls.netlist.translation.toGraphwiz import HlsNetlistPassDumpToDot
 from hwtHls.netlist.translation.toTimeline import HlsNetlistPassShowTimeline
 from hwtHls.netlist.translation.toTimelineArchLevel import HlsNetlistPassShowTimelineArchLevel
 from hwtHls.platform.fileUtils import outputFileGetter
@@ -28,6 +29,7 @@ from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsN
 from hwtHls.ssa.translation.toGraphwiz import SsaPassDumpToDot
 from hwtHls.ssa.translation.toLl import SsaPassDumpToLl
 from hwtHls.ssa.translation.toLlvm import SsaPassToLlvm, ToLlvmIrTranslator
+from hwtHls.netlist.transformation.simplify import HlsNetlistPassSimplify
 
 
 class DefaultHlsPlatform(DummyPlatform):
@@ -94,6 +96,7 @@ class DefaultHlsPlatform(DummyPlatform):
             toNetlist.netlist.requestAnalysis(HlsNetlistAnalysisPassBlockSyncType)
             if self._debugDir:
                 HlsNetlistPassDumpBlockSync(outputFileGetter(self._debugDir, ".7.blockSync.txt")).apply(hls, netlist)
+                HlsNetlistPassDumpToDot(outputFileGetter(self._debugDir, ".preSync.dot"))
 
             toNetlist._resolveBlockEn(mf, backedges, threads)
             toNetlist.netlist.invalidateAnalysis(HlsNetlistAnalysisPassDataThreads)  # because we modified the netlist
@@ -110,6 +113,7 @@ class DefaultHlsPlatform(DummyPlatform):
             HlsNetlistPassConsystencyCheck().apply(hls, netlist)
             
         HlsNetlistPassDCE().apply(hls, netlist)
+        HlsNetlistPassSimplify().apply(hls, netlist)
         # if debugDir:
         #   HlsNetlistPassDumpToDot(debugDir / "top_p0.dot").apply(hls, pipeline)
            
