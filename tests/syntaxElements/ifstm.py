@@ -29,7 +29,7 @@ class SimpleIfStatementHls(SimpleIfStatement):
                 a, b, c,
                 hls.If(a,
                     tmp(b),
-                ).Elif(b,
+                ).Elif(b, # this elif is redundant
                     tmp(c),
                 ).Else(
                     tmp(c)
