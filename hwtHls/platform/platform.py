@@ -50,20 +50,20 @@ class DefaultHlsPlatform(DummyPlatform):
         if debugDir and not debugDir.exists():
             debugDir.mkdir()
         if debugDir:
-            SsaPassDumpToDot(outputFileGetter(debugDir, ".0.dot"), extractPipeline=False).apply(hls, toSsa)
+            SsaPassDumpToDot(outputFileGetter(debugDir, ".0.preSsaOpt.dot"), extractPipeline=False).apply(hls, toSsa)
         
         SsaPassConsystencyCheck().apply(hls, toSsa)
         SsaPassAxiStreamReadLowering().apply(hls, toSsa)
         if debugDir:
-            SsaPassDumpToDot(outputFileGetter(debugDir, ".1.dot"), extractPipeline=False).apply(hls, toSsa)
+            SsaPassDumpToDot(outputFileGetter(debugDir, ".1.frontend.dot"), extractPipeline=False).apply(hls, toSsa)
 
         SsaPassExtractPartDrivers().apply(hls, toSsa)
         if debugDir:
-            SsaPassDumpToDot(outputFileGetter(debugDir, ".2.dot"), extractPipeline=False).apply(hls, toSsa)
+            SsaPassDumpToDot(outputFileGetter(debugDir, ".2.sliceBreak.dot"), extractPipeline=False).apply(hls, toSsa)
 
         SsaPassToLlvm().apply(hls, toSsa)
         if debugDir:
-            SsaPassDumpToLl(outputFileGetter(debugDir, ".3.ll")).apply(hls, toSsa)
+            SsaPassDumpToLl(outputFileGetter(debugDir, ".3.preLlvm.ll")).apply(hls, toSsa)
    
     def runSsaToNetlist(self, hls: "HlsStreamProc", toSsa: AstToSsa) -> HlsNetlistCtx:
         tr: ToLlvmIrTranslator = toSsa.start
@@ -96,7 +96,7 @@ class DefaultHlsPlatform(DummyPlatform):
             toNetlist.netlist.requestAnalysis(HlsNetlistAnalysisPassBlockSyncType)
             if self._debugDir:
                 HlsNetlistPassDumpBlockSync(outputFileGetter(self._debugDir, ".7.blockSync.txt")).apply(hls, netlist)
-                HlsNetlistPassDumpToDot(outputFileGetter(self._debugDir, ".preSync.dot")).apply(hls, netlist)
+                HlsNetlistPassDumpToDot(outputFileGetter(self._debugDir, ".8.preSync.dot")).apply(hls, netlist)
 
             toNetlist._resolveBlockEn(mf, backedges, threads)
             #toNetlist.netlist.invalidateAnalysis(HlsNetlistAnalysisPassDataThreads)  # because we modified the netlist
@@ -122,13 +122,13 @@ class DefaultHlsPlatform(DummyPlatform):
         if debugDir:
             # HlsNetlistPassConsystencyCheck().apply(hls, pipeline)
             # HlsNetlistPassDumpToDot(debugDir / "top_p1.dot").apply(hls, pipeline)
-            HlsNetlistPassShowTimeline(outputFileGetter(debugDir, ".8.schedule.html"),
+            HlsNetlistPassShowTimeline(outputFileGetter(debugDir, ".9.schedule.html"),
                                            expandCompositeNodes=self._debugExpandCompositeNodes).apply(hls, netlist)
         netlist.requestAnalysis(HlsNetlistAnalysisPassRunScheduler)
 
     def runRtlNetlistPasses(self, hls: "HlsStreamProc", netlist: HlsNetlistCtx):
         debugDir = self._debugDir
         if debugDir:
-            RtlNetlistPassDumpStreamNodes(outputFileGetter(debugDir, ".9.sync.txt")).apply(hls, netlist)
-            HlsNetlistPassShowTimelineArchLevel(outputFileGetter(debugDir, ".10.archschedule.html")).apply(hls, netlist)
+            RtlNetlistPassDumpStreamNodes(outputFileGetter(debugDir, ".10.sync.txt")).apply(hls, netlist)
+            HlsNetlistPassShowTimelineArchLevel(outputFileGetter(debugDir, ".11.archschedule.html")).apply(hls, netlist)
 
