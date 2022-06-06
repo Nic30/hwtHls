@@ -19,7 +19,7 @@ static std::string getMangledTypeStr(Type *Ty) {
 	std::string Result;
 	if (PointerType *PTyp = dyn_cast<PointerType>(Ty)) {
 		Result += "p" + utostr(PTyp->getAddressSpace())
-				+ getMangledTypeStr(PTyp->getElementType());
+				+ getMangledTypeStr(PTyp->getNonOpaquePointerElementType());
 	} else if (ArrayType *ATyp = dyn_cast<ArrayType>(Ty)) {
 		Result += "a" + utostr(ATyp->getNumElements())
 				+ getMangledTypeStr(ATyp->getElementType());
@@ -114,6 +114,10 @@ void AddDefaultFunctionAttributes(Function &TheFn) {
 const std::string BitRangeGetName = "hwtHls.bitRangeGet";
 CallInst* CreateBitRangeGet(IRBuilder<> *Builder, Value *bitVec,
 		Value *lowBitNo, size_t bitWidth) {
+	if (auto *lowBitNoC = dyn_cast<ConstantInt>(lowBitNo)) {
+		assert(!lowBitNoC->isNegative());
+		assert(lowBitNoC->getZExtValue() + bitWidth <= bitVec->getType()->getIntegerBitWidth());
+	}
 	Value *Ops[] = { bitVec, lowBitNo };
 	Type *ResT = Builder->getIntNTy(bitWidth);
 	Type *Tys[] = { bitVec->getType(), lowBitNo->getType() };
