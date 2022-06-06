@@ -1,14 +1,20 @@
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional, Union, Set, Tuple, Dict, List
 
 from hwt.synthesizer.dummyPlatform import DummyPlatform
+from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, MachineLoopInfo
 from hwtHls.netlist.allocator.allocator import HlsAllocator
+from hwtHls.netlist.analysis.blockSyncType import HlsNetlistAnalysisPassBlockSyncType
 from hwtHls.netlist.analysis.consystencyCheck import HlsNetlistPassConsystencyCheck
+from hwtHls.netlist.analysis.dataThreads import HlsNetlistAnalysisPassDataThreads
+from hwtHls.netlist.analysis.schedule import HlsNetlistAnalysisPassRunScheduler
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.scheduler.scheduler import HlsScheduler
 from hwtHls.netlist.transformation.aggregateBitwiseOpsPass import HlsNetlistPassAggregateBitwiseOps
 from hwtHls.netlist.transformation.dce import HlsNetlistPassDCE
 from hwtHls.netlist.transformation.mergeExplicitSync import HlsNetlistPassMergeExplicitSync
+from hwtHls.netlist.translation.dumpBlockSync import HlsNetlistPassDumpBlockSync
+from hwtHls.netlist.translation.dumpDataThreads import HlsNetlistPassDumpDataThreads
 from hwtHls.netlist.translation.dumpStreamNodes import RtlNetlistPassDumpStreamNodes
 from hwtHls.netlist.translation.toTimeline import HlsNetlistPassShowTimeline
 from hwtHls.netlist.translation.toTimelineArchLevel import HlsNetlistPassShowTimelineArchLevel
@@ -18,10 +24,10 @@ from hwtHls.ssa.analysis.dumpMIR import SsaPassDumpMIR
 from hwtHls.ssa.transformation.axiStreamReadLowering.axiStreamReadLoweringPass import SsaPassAxiStreamReadLowering
 from hwtHls.ssa.transformation.extractPartDrivers.extractPartDriversPass import SsaPassExtractPartDrivers
 from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
-from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.llvmToMirAndMirToHlsNetlist import SsaPassLlvmToMirAndMirToNetlist
+from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
 from hwtHls.ssa.translation.toGraphwiz import SsaPassDumpToDot
 from hwtHls.ssa.translation.toLl import SsaPassDumpToLl
-from hwtHls.ssa.translation.toLlvm import SsaPassToLlvm
+from hwtHls.ssa.translation.toLlvm import SsaPassToLlvm, ToLlvmIrTranslator
 
 
 class DefaultHlsPlatform(DummyPlatform):
@@ -39,7 +45,7 @@ class DefaultHlsPlatform(DummyPlatform):
 
     def runSsaPasses(self, hls: "HlsStreamProc", toSsa: AstToSsa):
         debugDir = self._debugDir
-        if not debugDir.exists():
+        if debugDir and not debugDir.exists():
             debugDir.mkdir()
         if debugDir:
             SsaPassDumpToDot(outputFileGetter(debugDir, ".0.dot"), extractPipeline=False).apply(hls, toSsa)
@@ -48,6 +54,7 @@ class DefaultHlsPlatform(DummyPlatform):
         SsaPassAxiStreamReadLowering().apply(hls, toSsa)
         if debugDir:
             SsaPassDumpToDot(outputFileGetter(debugDir, ".1.dot"), extractPipeline=False).apply(hls, toSsa)
+
         SsaPassExtractPartDrivers().apply(hls, toSsa)
         if debugDir:
             SsaPassDumpToDot(outputFileGetter(debugDir, ".2.dot"), extractPipeline=False).apply(hls, toSsa)
@@ -55,13 +62,46 @@ class DefaultHlsPlatform(DummyPlatform):
         SsaPassToLlvm().apply(hls, toSsa)
         if debugDir:
             SsaPassDumpToLl(outputFileGetter(debugDir, ".3.ll")).apply(hls, toSsa)
-
-        # SsaPassConsystencyCheck().apply(hls, toSsa)
    
     def runSsaToNetlist(self, hls: "HlsStreamProc", toSsa: AstToSsa) -> HlsNetlistCtx:
-        netlist = SsaPassLlvmToMirAndMirToNetlist().apply(hls, toSsa)
-        if self._debugDir:
-            SsaPassDumpMIR(outputFileGetter(self._debugDir, ".5.mir.ll")).apply(hls, toSsa)
+        tr: ToLlvmIrTranslator = toSsa.start
+        assert isinstance(tr, ToLlvmIrTranslator), tr
+        netlist = None
+
+        def runNetlistTranslation(mf: MachineFunction,
+                     backedges: Set[Tuple[MachineBasicBlock, MachineBasicBlock]],
+                     liveness: Dict[MachineBasicBlock, Dict[MachineBasicBlock, Set[Register]]],
+                     ioRegs: List[Register],
+                     registerTypes: Dict[Register, int],
+                     loops: MachineLoopInfo):
+            nonlocal netlist
+            toNetlist = HlsNetlistAnalysisPassMirToNetlist(
+                hls, tr, mf, backedges, liveness, ioRegs, registerTypes, loops)
+            netlist = toNetlist.netlist
+    
+            if self._debugDir:
+                SsaPassDumpMIR(outputFileGetter(self._debugDir, ".5.mir.ll")).apply(hls, toSsa)
+            
+            toNetlist._translateDatapathInBlocks(mf)
+            toNetlist._constructLiveInMuxes(mf, backedges, liveness)
+            # thread analysis must be done before we connect control, because once we do that
+            # everything will blend together 
+            threads = toNetlist.netlist.requestAnalysis(HlsNetlistAnalysisPassDataThreads)
+            toNetlist._updateThreadsOnPhiMuxes(threads)
+            if self._debugDir:
+                HlsNetlistPassDumpDataThreads(outputFileGetter(self._debugDir, ".6.dthreads.txt")).apply(hls, netlist)
+
+            toNetlist.netlist.requestAnalysis(HlsNetlistAnalysisPassBlockSyncType)
+            if self._debugDir:
+                HlsNetlistPassDumpBlockSync(outputFileGetter(self._debugDir, ".7.blockSync.txt")).apply(hls, netlist)
+
+            toNetlist._resolveBlockEn(mf, backedges, threads)
+            toNetlist.netlist.invalidateAnalysis(HlsNetlistAnalysisPassDataThreads)  # because we modified the netlist
+            toNetlist._connectOrderingPorts(mf, backedges)
+
+        tr.llvm.runOpt(runNetlistTranslation)
+        assert netlist is not None
+        
         return netlist
 
     def runHlsNetlistPasses(self, hls: "HlsStreamProc", netlist: HlsNetlistCtx):
@@ -80,6 +120,7 @@ class DefaultHlsPlatform(DummyPlatform):
             # HlsNetlistPassDumpToDot(debugDir / "top_p1.dot").apply(hls, pipeline)
             HlsNetlistPassShowTimeline(outputFileGetter(debugDir, ".8.schedule.html"),
                                            expandCompositeNodes=self._debugExpandCompositeNodes).apply(hls, netlist)
+        netlist.requestAnalysis(HlsNetlistAnalysisPassRunScheduler)
 
     def runRtlNetlistPasses(self, hls: "HlsStreamProc", netlist: HlsNetlistCtx):
         debugDir = self._debugDir
