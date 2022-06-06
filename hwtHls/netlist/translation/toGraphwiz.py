@@ -9,6 +9,8 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
+from hwtHls.platform.fileUtils import OutputStreamGetter
+from hwtHls.netlist.context import HlsNetlistCtx
 
 
 class GraphwizNode():
@@ -130,12 +132,16 @@ class HwtHlsNetlistToGraphwiz():
 
 class HlsNetlistPassDumpToDot(HlsNetlistPass):
 
-    def __init__(self, file_name:str):
-        self.file_name = file_name
+    def __init__(self, outStreamGetter: OutputStreamGetter):
+        self.outStreamGetter = outStreamGetter
 
-    def apply(self, hls: "HlsStreamProc", to_hw: "SsaSegmentToHwPipeline"):
-        to_graphwiz = HwtHlsNetlistToGraphwiz("top")
-        with open(self.file_name, "w") as f:
-            to_graphwiz.construct(to_hw.hls.inputs + to_hw.hls.nodes + to_hw.hls.outputs)
-            f.write(to_graphwiz.dumps())
+    def apply(self, hls: "HlsStreamProc", netlist: HlsNetlistCtx):
+        toGraphwiz = HwtHlsNetlistToGraphwiz("top")
+        out, doClose = self.outStreamGetter(netlist.parentUnit._getDefaultName())
+        try:
+            toGraphwiz.construct(netlist.inputs + netlist.nodes + netlist.outputs)
+            out.write(toGraphwiz.dumps())
+        finally:
+            if doClose:
+                out.close()
 
