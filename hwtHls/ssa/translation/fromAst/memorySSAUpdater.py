@@ -81,8 +81,10 @@ class MemorySSAUpdater():
                 width = variable._dtype.bit_length()
                 parts = []
                 if high < width:
+                    # append upper bits which are not modified
                     parts.append(variable[width:high])
 
+                # append modified bits
                 if isinstance(value, SsaValue) and not isinstance(value, HlsStreamProcRead):
                     assert value.origin is not None
                     parts.append(value.origin)
@@ -90,6 +92,7 @@ class MemorySSAUpdater():
                 else:
                     parts.append(value)
 
+                # append lower unmodified bits
                 if low > 0:
                     parts.append(variable[low:0])
 
