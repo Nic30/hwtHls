@@ -4,6 +4,7 @@ from typing import Union, List, Dict, Tuple, Optional
 from hwt.code import SwitchLogic
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.statements.statement import HdlStatement
+from hwt.hdl.types.bitsVal import BitsVal
 from hwt.interfaces.std import HandshakeSync, Signal
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
@@ -13,11 +14,11 @@ from hwtHls.netlist.allocator.connectionsOfStage import ConnectionsOfStage, \
     SkipWhenMemberList
 from hwtHls.netlist.allocator.time_independent_rtl_resource import TimeIndependentRtlResource, \
     TimeIndependentRtlResourceItem
-from hwtHls.netlist.scheduler.clk_math import start_clk
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeExplicitSync, \
     HlsNetNodeReadSync
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
+from hwtHls.netlist.scheduler.clk_math import start_clk
 from hwtLib.handshaked.streamNode import StreamNode
 from ipCorePackager.constants import INTF_DIRECTION
 
@@ -129,7 +130,7 @@ class AllocatorArchitecturalElement():
 
         if node.skipWhen is not None:
             e = node.dependsOn[node.skipWhen.in_i]
-            skipWhen = self.netNodeToRtl[e].get(sync_time)
+            skipWhen = self.instantiateHlsNetNodeOutInTime(e, sync_time)
             curSkipWhen = res_skipWhen.get(intf, None)
             if curSkipWhen is not None:
                 curSkipWhen.data.append(skipWhen)
@@ -140,7 +141,7 @@ class AllocatorArchitecturalElement():
 
         if node.extraCond is not None:
             e = node.dependsOn[node.extraCond.in_i]
-            extraCond = self.netNodeToRtl[e].get(sync_time)
+            extraCond = self.instantiateHlsNetNodeOutInTime(e, sync_time)
             curExtraCond = res_extraCond.get(intf, None)
             if curExtraCond is not None:
                 curExtraCond.data.append((skipWhen, extraCond))
@@ -194,12 +195,15 @@ class AllocatorArchitecturalElement():
 
             assert sync_source
             en = sync_source.resolve()
-            assert isinstance(en, RtlSignal), en
-            # if isinstance(en, HandshakeSync):
-            #    if en not in cur_inputs:
-            #        cur_inputs.append(en)
-            # else:
-            sync[intf] = en  # current block en=1
+            if isinstance(en, BitsVal):
+                assert int(en) == 1, en
+            else:
+                assert isinstance(en, RtlSignal), en
+                # if isinstance(en, HandshakeSync):
+                #    if en not in cur_inputs:
+                #        cur_inputs.append(en)
+                # else:
+                sync[intf] = en  # current block en=1
 
         return sync
 
