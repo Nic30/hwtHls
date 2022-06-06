@@ -29,7 +29,7 @@ def GENFPGA_EXTRACT : GenFpgaInst<
 
 def GENFPGA_MERGE_VALUES : GenFpgaInst<
     (outs AnyRegCls:$dst),
-	(ins AnyRegCls:$src0, AnyRegCls:$src1, i64imm:$width0, i64imm:$width1),
+	(ins variable_ops), // specified in format AnyRegCls:$src{N}, i64imm:$width{N}
 	[]>;
 }
 
@@ -57,6 +57,7 @@ def GENFPGA_MUX : GenFpgaInst<
 	(ins variable_ops), // ins are variadic, in format (value cond)* value?;
 	                    // (format is same as for LLVM PHI) cond can be register, value or BB
 	                    // but in final optimized form cond it is only register or BB
+	                    // high bits first
 	[]>; // no pattern because we match in C++
 }
 

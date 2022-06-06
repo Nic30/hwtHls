@@ -35,6 +35,7 @@ bool resolveTypes(MachineInstr &MI) {
 	case GenericFpga::GENFPGA_ARG_GET:
 	case TargetOpcode::G_BR:
 	case TargetOpcode::G_BRCOND:
+	case GenericFpga::PseudoRET:
 		// no resolving needed
 		return true;
 	case TargetOpcode::G_CONSTANT:
@@ -181,19 +182,22 @@ bool resolveTypes(MachineInstr &MI) {
 		return true;
 	}
 	case GenericFpga::GENFPGA_MERGE_VALUES: {
-		// $dst $src0, $src1, $width0, $width1
-		auto width0 = MI.getOperand(3).getImm();
-		auto width1 = MI.getOperand(4).getImm();
-		assert(checkOrSetWidth(MRI, MI.getOperand(0), width0 + width1));
-		assert(checkOrSetWidth(MRI, MI.getOperand(1), width0));
-		assert(checkOrSetWidth(MRI, MI.getOperand(2), width1));
+		// $dst $src{N}, $width{N}
+		unsigned srcCnt = (MI.getNumOperands() - 1) / 2;
+		unsigned totalWidth = 0;
+		for (unsigned i = 0; i < srcCnt; i++) {
+			auto width = MI.getOperand(1 + srcCnt + i).getImm();
+			assert(checkOrSetWidth(MRI, MI.getOperand(1 + i), width));
+			totalWidth += width;
+		}
+		assert(checkOrSetWidth(MRI, MI.getOperand(0), totalWidth));
 		return true;
 	}
 	case GenericFpga::GENFPGA_EXTRACT: {
 		// $dst $src $offset $dstWidth
 		auto dstWidth = MI.getOperand(3).getImm();
 		assert(checkOrSetWidth(MRI, MI.getOperand(0), dstWidth));
-		auto offset = MI.getOperand(3).getImm();
+		auto offset = MI.getOperand(2).getCImm()->getZExtValue();
 		auto &src = MI.getOperand(1);
 
 		if (src.isReg()) {
