@@ -108,6 +108,25 @@ bool constrainInstRegOperands(MachineInstr &I, const TargetInstrInfo &TII,
 	}
 	return true;
 }
+
+void selectInstrArg(MachineFunction &MF, MachineInstr &I,
+		MachineInstrBuilder &MIB, MachineRegisterInfo &MRI,
+		MachineOperand &MO) {
+	if (MO.isReg() && MO.getReg()) {
+		if (MO.isDef()) {
+			MIB.addDef(MO.getReg());
+		} else if (auto VRegVal = getAnyConstantVRegValWithLookThrough(
+				MO.getReg(), MRI)) {
+			auto &C = MF.getFunction().getContext();
+			auto *CI = ConstantInt::get(C, VRegVal->Value);
+			MIB.addCImm(CI);
+		} else {
+			MIB.addUse(MO.getReg());
+		}
+	} else {
+		MIB.add(MO);
+	}
+}
 void selectInstrArgs(MachineInstr &I, MachineInstrBuilder &MIB,
 		bool firstIsDef) {
 	MachineBasicBlock &MBB = *I.getParent();
@@ -120,26 +139,11 @@ void selectInstrArgs(MachineInstr &I, MachineInstrBuilder &MIB,
 		// if operand is a constant value use constant value directly
 		if (OpI == 0 && firstIsDef) {
 			assert(MO.isReg());
+			assert(MO.isDef());
 			MIB.addDef(MO.getReg());
 			continue;
 		}
-		if (MO.isReg() && MO.getReg()) {
-			if (MO.isDef())
-				llvm_unreachable("NotImplemented");
-			if (auto VRegVal = getAnyConstantVRegValWithLookThrough(MO.getReg(),
-					MRI)) {
-				assert(!(OpI == 0 && firstIsDef));
-				auto &C = MF.getFunction().getContext();
-				auto *CI = ConstantInt::get(C, VRegVal->Value);
-				MIB.addCImm(CI);
-				continue;
-			}
-			if (OpI != 0 || !firstIsDef) {
-				MIB.addUse(MO.getReg());
-				continue;
-			}
-		}
-		MIB.add(MO);
+		selectInstrArg(MF, I, MIB, MRI, MO);
 	}
 	MIB.cloneMemRefs(I); // copy part behind :: in "G_LOAD %0:anyregcls :: (volatile load (s4) from %ir.dataIn)"
 }
@@ -167,6 +171,7 @@ bool GenericFpgaTargetInstructionSelector::select(MachineInstr &I) {
 
 	const TargetRegisterClass &RC = GenericFpga::AnyRegClsRegClass;
 
+	MachineIRBuilder Builder(I);
 	//llvm::errs() << "GenericFpgaTargetInstructionSelector::select: "
 	//		<< TII.getName(Opc) << "\n";
 	using namespace TargetOpcode;
@@ -177,7 +182,7 @@ bool GenericFpgaTargetInstructionSelector::select(MachineInstr &I) {
 		//auto MIB = Builder.buildInstr(PHI);
 		//MIB.getInstr()->setDesc(TII.get(PHI));
 		//I.setDesc(TII.get(PHI));
-        //
+		//
 		//Register DstReg = I.getOperand(0).getReg();
 		//
 		//selectInstrArgs(I, MIB, true);
@@ -200,7 +205,6 @@ bool GenericFpgaTargetInstructionSelector::select(MachineInstr &I) {
 	case G_CONSTANT:
 	case G_LOAD:
 	case G_STORE: {
-		MachineIRBuilder Builder(I);
 		unsigned NewOpc;
 		switch (Opc) {
 		case G_CONSTANT:
@@ -219,7 +223,8 @@ bool GenericFpgaTargetInstructionSelector::select(MachineInstr &I) {
 		selectInstrArgs(I, MIB, Opc != G_STORE);
 		if (Opc == G_CONSTANT) {
 			auto o0 = MIB.getInstr()->getOperand(0).getReg();
-			MRI.setType(o0, LLT::scalar(I.getOperand(1).getCImm()->getBitWidth()));
+			MRI.setType(o0,
+					LLT::scalar(I.getOperand(1).getCImm()->getBitWidth()));
 		} else {
 			MIB.addImm(1);
 		}
@@ -242,12 +247,8 @@ bool GenericFpgaTargetInstructionSelector::select(MachineInstr &I) {
 	case G_MUL:
 	case G_OR:
 	case G_SELECT:
-	case G_SEXT:
 	case G_SUB:
-	case G_XOR:
-	case G_ZEXT:
-	{
-		MachineIRBuilder Builder(I);
+	case G_XOR: {
 		auto _Opc = Opc;
 		switch (Opc) {
 		case G_EXTRACT:
@@ -265,16 +266,45 @@ bool GenericFpgaTargetInstructionSelector::select(MachineInstr &I) {
 		if (Opc == G_EXTRACT) {
 			// dst, offset, dstWidth, (dst and offset already added)
 			MIB.addImm(MRI.getType(I.getOperand(0).getReg()).getSizeInBits()); // add dstWidth
-		}else if (Opc == G_MERGE_VALUES) {
-			// dst, src0, src1, width0, width1, (dst, src0, src1 already added)
-			for (unsigned i = 1; i < 3; i++) {
-				MIB.addImm(MRI.getType(I.getOperand(i).getReg()).getSizeInBits()); // add dstWidth
+		} else if (Opc == G_MERGE_VALUES) {
+			// dst, src{N}, width{N}, (dst, srcs were already added)
+			for (unsigned i = 1; i < I.getNumOperands(); i++) {
+				MIB.addImm(
+						MRI.getType(I.getOperand(i).getReg()).getSizeInBits()); // add dstWidth
 			}
 		}
 
 		if (!constrainInstRegOperands(*newI, TII, TRI, RBI))
 			return false;
 		I.eraseFromParent();
+		return true;
+	}
+	//case G_SEXT:
+	case G_ZEXT: {
+		MachineBasicBlock &MBB = *I.getParent();
+		MachineFunction &MF = *MBB.getParent();
+		MachineRegisterInfo &MRI = MF.getRegInfo();
+
+		auto MIB = Builder.buildInstr(GenericFpga::GENFPGA_MERGE_VALUES);
+		auto &Op0 = I.getOperand(0);
+		MIB.addDef(Op0.getReg(), Op0.getTargetFlags());
+		unsigned dstWidth = MRI.getType(Op0.getReg()).getSizeInBits();
+		unsigned srcWidth =
+				MRI.getType(I.getOperand(1).getReg()).getSizeInBits();
+		// add leading 0s
+		auto &C = MF.getFunction().getContext();
+		unsigned PrefixWidth = dstWidth - srcWidth;
+		APInt _Prefix(PrefixWidth, 0);
+		auto *Prefix = ConstantInt::get(C, _Prefix);
+		MIB.addCImm(Prefix);
+		selectInstrArg(MF, I, MIB, MRI, I.getOperand(1));
+		MIB.addImm(PrefixWidth);
+		MIB.addImm(srcWidth);
+		auto newI = Builder.getInsertPt();
+		if (!constrainInstRegOperands(*newI, TII, TRI, RBI))
+			return false;
+		I.eraseFromParent();
+
 		return true;
 	}
 
