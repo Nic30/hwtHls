@@ -66,7 +66,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
                  registerTypes: Dict[Register, int],
                  loops: MachineLoopInfo
                  ):
-        super(HlsNetlistAnalysisPassMirToNetlistLowLevel, self).__init__(HlsNetlistCtx(hls.parentUnit, hls.freq))
+        super(HlsNetlistAnalysisPassMirToNetlistLowLevel, self).__init__(HlsNetlistCtx(hls.parentUnit, hls.freq, tr.label))
         # :note: value of a block in block0 means that the control flow was passed to block0 from block 
         netlist = self.netlist
         self.valCache = MirToHwtHlsNetlistOpCache(netlist)
@@ -96,7 +96,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
             HlsNetNodeReadBackwardEdge)
         self.valCache.add(dstBlock, cacheKey, r_from_in, False)
         
-        _, w_to_out = self._add_hs_intf_and_write(f"c_buff_{srcName:s}_to_{dstName:s}_in", val._dtype,
+        _, w_to_out = self._add_hs_intf_and_write(f"{name:s}_{srcName:s}_to_{dstName:s}_in", val._dtype,
                                                   val, HlsNetNodeWriteBackwardEdge)
         w_to_out.associate_read(r_from_in.obj)
         return r_from_in
