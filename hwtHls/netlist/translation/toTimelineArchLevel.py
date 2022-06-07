@@ -123,7 +123,7 @@ class HlsNetlistPassShowTimelineArchLevel(RtlNetlistPass):
         to_timeline = HwtHlsNetlistToTimelineArchLevel(netlist.normalizedClkPeriod, netlist.scheduler.resolution, self.expandCompositeNodes)
         to_timeline.construct(netlist.allocator)
         if self.outStreamGetter is not None:
-            out, doClose = self.outStreamGetter(netlist.parentUnit._getDefaultName())
+            out, doClose = self.outStreamGetter(netlist.label)
             try:
                 to_timeline.save_html(out, self.auto_open)
             finally:
