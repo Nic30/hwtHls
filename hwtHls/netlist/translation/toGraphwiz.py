@@ -7,7 +7,7 @@ from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwtHls.netlist.nodes.ports import HlsNetNodeOut
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.platform.fileUtils import OutputStreamGetter
 from hwtHls.netlist.context import HlsNetlistCtx
@@ -60,7 +60,7 @@ class HwtHlsNetlistToGraphwiz():
         for n in nodes:
             self._node_from_HlsNetNode(n)
 
-    def _node_from_HlsNetNode(self, obj: HlsNetNode):
+    def _node_from_HlsNetNode(self, obj: Union[HlsNetNode, HlsNetNodeOutLazy]):
         try:
             return self.obj_to_node[obj]
         except KeyError:
@@ -73,24 +73,35 @@ class HwtHlsNetlistToGraphwiz():
 
         # construct new node
         input_rows = []
-        try:
-            for node_in_i, drv in enumerate(obj.dependsOn):
-                input_rows.append(f"<td port='i{node_in_i:d}'>i{node_in_i:d}</td>")
-                if drv is not None:
-                    drv: HlsNetNodeOut
-                    drv_node = self._node_from_HlsNetNode(drv.obj)
-                    self.links.append(GraphwizLink(f"{drv_node.label:s}:o{drv.out_i:d}", f"{node.label:s}:i{node_in_i:d}"))
-
-            for shadow_dst in obj.debug_iter_shadow_connection_dst():
-                shadow_dst_node = self._node_from_HlsNetNode(shadow_dst)
-                self.links.append(GraphwizLink(f"{node.label:s}", f"{shadow_dst_node.label:s}", style="[style=dashed, color=grey]"))
-        except:
-            raise AssertionError("defective node", obj)
-
+        if isinstance(obj, HlsNetNode):
+            try:
+                for node_in_i, drv in enumerate(obj.dependsOn):
+                    input_rows.append(f"<td port='i{node_in_i:d}'>i{node_in_i:d}</td>")
+                    if drv is not None:
+                        drv: Union[HlsNetNodeOut, HlsNetNodeOutLazy]
+                        if isinstance(drv, HlsNetNodeOut):
+                            drv_node = self._node_from_HlsNetNode(drv.obj)
+                            src = f"{drv_node.label:s}:o{drv.out_i:d}"
+                        else:
+                            drv_node = self._node_from_HlsNetNode(drv)
+                            src = f"{drv_node.label:s}:o0"
+    
+                        self.links.append(GraphwizLink(src, f"{node.label:s}:i{node_in_i:d}"))
+    
+                for shadow_dst in obj.debug_iter_shadow_connection_dst():
+                    shadow_dst_node = self._node_from_HlsNetNode(shadow_dst)
+                    self.links.append(GraphwizLink(f"{node.label:s}", f"{shadow_dst_node.label:s}", style="[style=dashed, color=grey]"))
+            except:
+                raise AssertionError("defective node", obj)
+        else:
+            assert isinstance(obj, HlsNetNodeOutLazy), obj
         output_rows = []
-        for node_out_i, _ in enumerate(obj.usedBy):
-            # dsts: List[HlsNetNodeIn]
-            output_rows.append(f"<td port='o{node_out_i:d}'>o{node_out_i:d}</td>")
+        if isinstance(obj, HlsNetNode):
+            for node_out_i, _ in enumerate(obj.usedBy):
+                # dsts: List[HlsNetNodeIn]
+                output_rows.append(f"<td port='o{node_out_i:d}'>o{node_out_i:d}</td>")
+        else:
+            output_rows.append("<td port='o0'>o0</td>")
 
         buff = []
         buff.append('''[shape=plaintext
@@ -136,8 +147,9 @@ class HlsNetlistPassDumpToDot(HlsNetlistPass):
         self.outStreamGetter = outStreamGetter
 
     def apply(self, hls: "HlsStreamProc", netlist: HlsNetlistCtx):
-        toGraphwiz = HwtHlsNetlistToGraphwiz("top")
-        out, doClose = self.outStreamGetter(netlist.parentUnit._getDefaultName())
+        name = netlist.label
+        toGraphwiz = HwtHlsNetlistToGraphwiz(name)
+        out, doClose = self.outStreamGetter(name)
         try:
             toGraphwiz.construct(netlist.inputs + netlist.nodes + netlist.outputs)
             out.write(toGraphwiz.dumps())
