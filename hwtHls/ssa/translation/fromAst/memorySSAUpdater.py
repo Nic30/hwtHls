@@ -58,6 +58,8 @@ class MemorySSAUpdater():
 
         new_bb = block
         if indexes:
+            _intf, _indexes, _sign_cast_seen = variable._getIndexCascade()
+            assert not _indexes, (variable, "Must tot be a slice of signal")
             if len(indexes) != 1 or not isinstance(variable._dtype, Bits):
                 raise NotImplementedError(block, variable, indexes, value)
 
@@ -68,6 +70,7 @@ class MemorySSAUpdater():
             else:
                 assert isinstance(i, HValue), (block, variable, indexes, value)
                 if isinstance(i, BitsVal):
+                    assert value._dtype.bit_length() == 1, value
                     low = int(i)
                     high = low + 1
 
@@ -97,7 +100,7 @@ class MemorySSAUpdater():
                     parts.append(variable[low:0])
 
                 v = Concat(*parts)
-                assert v._dtype.bit_length() == variable._dtype.bit_length()
+                assert v._dtype.bit_length() == variable._dtype.bit_length(), (v, variable)
                 new_bb, new_var = self._hwtExprToSsa(block, v)
                 value = new_var
         else:
