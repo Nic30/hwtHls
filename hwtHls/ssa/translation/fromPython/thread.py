@@ -13,7 +13,7 @@ class HlsStreamProcPyThread(HlsStreamProcThread):
 
     def __init__(self, hls: HlsStreamProc, fn: FunctionType, *fnArgs, **fnKwargs):
         super(HlsStreamProcPyThread, self).__init__(hls)
-        self.bytecodeToAst = PythonBytecodeToSsa(self.hls, self.fn)
+        self.bytecodeToAst = PythonBytecodeToSsa(self.hls, fn)
         self.fnArgs = fnArgs
         self.fnKwargs = fnKwargs
         self.code = None
