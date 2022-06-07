@@ -9,8 +9,10 @@ from hwtHls.netlist.nodes.io import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
+from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut,\
+    link_hls_nodes
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
+from hwtHls.netlist.analysis.dataThreads import HlsNetlistAnalysisPassDataThreads
 
 
 class HlsNetlistPassSimplify(HlsNetlistPass):
@@ -23,6 +25,8 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
     """
 
     def apply(self, hls:"HlsStreamProc", netlist: HlsNetlistCtx):
+        threads: HlsNetlistAnalysisPassDataThreads = netlist.requestAnalysis(HlsNetlistAnalysisPassDataThreads)
+        
         worklist: UniqList[HlsNetNode] = UniqList(chain(netlist.iterAllNodes()))
         removed: Set[HlsNetNode] = set()
         while worklist:
@@ -65,6 +69,18 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                         worklist.append(dep.obj)
                         n._removeInput(n.extraCond.in_i)
                         n.extraCond = None
+                        
+                # remove ordering if it is redundant information
+                for orderingI in tuple(n.iterOrderingInputs()):
+                    orderingI: HlsNetNodeIn
+                    t0 = threads.threadPerNode[n]
+                    t1 = threads.threadPerNode[orderingI.obj]
+                    if t0 is t1:
+                        dep = n.dependsOn[orderingI.in_i]
+                        dep.obj.usedBy[dep.out_i].remove(orderingI)
+                        n._removeInput(orderingI.in_i)
+                    
+                    
         if removed:
             nodes = netlist.nodes
             netlist.nodes = [n for n in nodes if n not in removed]
@@ -177,8 +193,9 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                 if bitWidth == 1:
                     if int(o1.obj.val):
                         # x ^ 1 = ~x
-                        newN = HlsNetNodeOperator(netlist, AllOps.NOT, 2, o0._dtype, n.name)
+                        newN = HlsNetNodeOperator(netlist, AllOps.NOT, 1, o0._dtype, n.name)
                         netlist.nodes.append(newN)
+                        link_hls_nodes(o0, newN._inputs[0])
                         newO = newN._outputs[0]
                     else:
                         # x ^ 0 = x
