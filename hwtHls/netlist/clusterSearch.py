@@ -35,6 +35,7 @@ class HlsNetlistClusterSearch():
         seen.add(n)
         for inp, dep in zip(n._inputs, n.dependsOn):
             dep: HlsNetNodeOut
+            assert dep is not None, ("Disconnected input", inp)
             depObj = dep.obj
             if depObj not in seen and predicateFn(depObj):
                 self._discover(depObj, seen, predicateFn)
