@@ -85,6 +85,8 @@ class HwtHlsNetlistToTimeline():
             label = f"{getSignalName(obj.dst)}.write()  {obj._id:d}"
             if isinstance(obj, HlsNetNodeWriteBackwardEdge):
                 obj_group_id = io_group_ids.setdefault(obj.associated_read.src, obj_group_id)
+                if obj.channel_init_values:
+                    label = f"{label:s} init:{obj.channel_init_values}"
             color = "green"
 
         elif isinstance(obj, HlsNetNodeRead):
@@ -330,7 +332,7 @@ class HlsNetlistPassShowTimeline(HlsNetlistPass):
                                               expandCompositeNodes=self.expandCompositeNodes)
         to_timeline.construct(netlist.inputs + netlist.nodes + netlist.outputs)
         if self.outStreamGetter is not None:
-            out, doClose = self.outStreamGetter(netlist.parentUnit._getDefaultName())
+            out, doClose = self.outStreamGetter(netlist.label)
             try:
                 to_timeline.save_html(out, self.auto_open)
             finally:
