@@ -156,7 +156,12 @@ class AstToSsa():
                 assert len(op.operands) == 1
                 return self.visit_expr(block, op.operands[0])
 
-            if (op.operator == AllOps.INDEX and var._dtype.bit_length() == 1 and len(op.operands) == 2 and isinstance(op.operands[1], BitsVal) and int(op.operands[1]) == 0):
+            if (op.operator == AllOps.INDEX
+                and var._dtype.bit_length() == 1
+                and len(op.operands) == 2
+                and isinstance(op.operands[1], BitsVal)
+                and int(op.operands[1]) == 0
+                and op.operands[0]._dtype.bit_length() == 1):
                 # skip indexing on 1b vectors/ 1b bits
                 return self.visit_expr(block, op.operands[0])
 
