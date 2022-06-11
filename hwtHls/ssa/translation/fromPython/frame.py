@@ -15,11 +15,13 @@ class BranchTargetPlaceholder():
     def __init__(self, block: SsaBasicBlock, index: int):
         self.block = block
         self.index = index
+        self._isReplaced = False
 
     def replace(self, cond: Optional[SsaValue], dstBlock: SsaBasicBlock):
+        assert not self._isReplaced, self
         assert cond is None or isinstance(cond, SsaValue), cond
         targets = self.block.successors.targets
-        assert targets[self.index] is self
+        assert targets[self.index] is self, (targets[self.index], self)
         targets[self.index] = (cond, dstBlock)
         src = self.block
         assert src not in dstBlock.predecessors, (src, dstBlock, dstBlock.predecessors)
@@ -28,6 +30,7 @@ class BranchTargetPlaceholder():
             cond.users.append(self)
         else:
             assert len(targets) == self.index + 1
+        self._isReplaced =  True
         
     @classmethod
     def create(cls, block: SsaBasicBlock) -> "BranchTargetPlaceholder":
@@ -36,7 +39,7 @@ class BranchTargetPlaceholder():
         return ph
 
     def __repr__(self):
-        return f"<{self.__class__.__name__} from {self.block.label:s} {self.i}>"
+        return f"<{self.__class__.__name__} from {self.block.label:s} {self.index:d}>"
 
 class PyBytecodeLoopInfo():
     """
@@ -54,6 +57,7 @@ class PyBytecodeLoopInfo():
     def __init__(self, loop: PyBytecodeLoop):
         self.loop = loop
         self.iteraionI = 0
+        self.mustBeEvaluatedInPreproc = False
         self.jumpsFromLoopBody: List[LoopExitJumpInfo] = []
 
     def isJumpFromLoopBody(self, dstBlockOffset: int) -> bool:
@@ -72,6 +76,8 @@ class PyBytecodeLoopInfo():
         """
         if there are multiple src blocks or the jump depends on hw evaluated condition this loop must be evaluated in HW
         """
+        if self.mustBeEvaluatedInPreproc:
+            return False
         if len(set((j.srcBlock, j.dstBlockOffset) for j in self.jumpsFromLoopBody)) > 1:
             return True
         if any(isinstance(j.cond, HValue) or isinstance(j.cond, SsaValue) for j in self.jumpsFromLoopBody):
@@ -94,7 +100,8 @@ class LoopExitJumpInfo():
                  dstBlockOffset:int,
                  dstBlockLoops: Optional[List[PyBytecodeLoopInfo]],
                  isExplicitLoopReenter: Optional[bool],
-                 branchPlaceholder: Optional[BranchTargetPlaceholder]):
+                 branchPlaceholder: Optional[BranchTargetPlaceholder],
+                 frame: "PyBytecodeFrame"):
         self.dstBlockIsNew = dstBlockIsNew
         self.srcBlock = srcBlock
         self.cond = cond
@@ -103,6 +110,7 @@ class LoopExitJumpInfo():
         self.dstBlockLoops = dstBlockLoops                   
         self.isExplicitLoopReenter = isExplicitLoopReenter
         self.branchPlaceholder = branchPlaceholder
+        self.frame = frame
 
     def __repr__(self):
         if self.dstBlock is None:

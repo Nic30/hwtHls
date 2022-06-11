@@ -282,10 +282,10 @@ class BlockPredecessorTracker():
             for suc in originalCfg.successors(originalNode):
                 inLoop = (suc[-1],) in loop.allBlocks
                 isJmpToEntry = suc == loop.entryPoint
-                if isJmpToEntry or not inLoop:
+                if isJmpToEntry:
                     continue # skip because we add this edge once we jump from loop body
 
-                if inLoop and not isJmpToEntry:
+                if inLoop:
                     suc = (*newPrefix, suc[-1])
                 else:
                     suc = self._labelForBlockOutOfLoop(newPrefix, suc[-1], True)
