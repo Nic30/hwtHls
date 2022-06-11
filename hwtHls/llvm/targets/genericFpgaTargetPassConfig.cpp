@@ -76,11 +76,10 @@ bool GenericFpgaTargetPassConfig::addIRTranslator() {
 }
 
 void GenericFpgaTargetPassConfig::addPreLegalizeMachineIR() {
-
-}
-bool GenericFpgaTargetPassConfig::addLegalizeMachineIR() {
 	// concat, slice calls to instructions
 	addPass(createGenericFpgaPreLegalizerCombiner());
+}
+bool GenericFpgaTargetPassConfig::addLegalizeMachineIR() {
 	addPass(new Legalizer());
 	return false;
 }
