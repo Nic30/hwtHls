@@ -337,6 +337,7 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
                 v = next(a)
                 frame.stack.append(PyBytecodeInPreproc(v))
             except StopIteration:
+                # create only branch placehloder to delegate processiong of this jump from the loop to a _translateBlockBody on a loop header
                 branchPlaceholder = BranchTargetPlaceholder.create(curBlock)
                 lei = LoopExitJumpInfo(None, curBlock, None, None, forIter.argval, None, None, branchPlaceholder)
                 frame.markJumpFromBodyOfCurrentLoop(lei)
