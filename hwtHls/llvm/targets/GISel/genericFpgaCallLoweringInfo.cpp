@@ -3,6 +3,8 @@
 #include "../genericFpgaRegisterInfo.h"
 #include <llvm/CodeGen/MachineFunction.h>
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
+#include <llvm/CodeGen/GlobalISel/Utils.h>
+
 #include <llvm/CodeGen/MachineInstrBuilder.h>
 #include "../intrinsic/bitrange.h"
 
@@ -88,18 +90,22 @@ bool GenericFpgaCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
 			return true;
 		} else if (IsBitRangeGet(F)) {
 			assert(Info.OrigRet.Regs.size() == 1);
-			auto MBI = MIRBuilder.buildInstr(TargetOpcode::G_EXTRACT)	 //
+			// dst, src, offset in bits (same in BitRangeGet and G_EXTRACT), offset must be imm
+			auto MIB = MIRBuilder.buildInstr(TargetOpcode::G_EXTRACT)	 //
 			.addReg(Info.OrigRet.Regs[0], RegState::Define);
-			// dst, src, offset in bits (same in BitRangeGet and G_EXTRACT)
-			bool first = true;
-			for (ArgInfo &op : Info.OrigArgs) {
-				assert(op.Regs.size() == 1);
-				if (first) {
-					first = false;
-					continue;
-				}
-				MBI.addUse(op.Regs[0]);
+
+			MIB.addUse(Info.OrigArgs[1].Regs[0]);
+			Register offset = Info.OrigArgs[2].Regs[0];
+
+			if (Optional<ValueAndVReg> VRegVal = getAnyConstantVRegValWithLookThrough(offset, *MIRBuilder.getMRI())) {
+				auto offsetVal = VRegVal.getValue().Value;
+				assert(offsetVal.isNonNegative());
+				MIB.addImm(VRegVal.getValue().Value.getZExtValue());
+			} else {
+				llvm_unreachable(
+						"hwtHls.bitRangeGet offset operand must be constant");
 			}
+
 			return true;
 		} else {
 			llvm_unreachable(

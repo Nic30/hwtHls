@@ -111,13 +111,15 @@ void AddDefaultFunctionAttributes(Function &TheFn) {
 	TheFn.setCallingConv(CallingConv::C);
 }
 
+// lowBitNo must be constant and must be added into the name of function so variants with different lowBitNo will not get merged to a single instruction
 const std::string BitRangeGetName = "hwtHls.bitRangeGet";
 CallInst* CreateBitRangeGet(IRBuilder<> *Builder, Value *bitVec,
 		Value *lowBitNo, size_t bitWidth) {
-	if (auto *lowBitNoC = dyn_cast<ConstantInt>(lowBitNo)) {
-		assert(!lowBitNoC->isNegative());
-		assert(lowBitNoC->getZExtValue() + bitWidth <= bitVec->getType()->getIntegerBitWidth());
-	}
+	auto *lowBitNoC = dyn_cast<ConstantInt>(lowBitNo);
+	assert(lowBitNoC && "CreateBitRangeGet lowBitNo must be a constant");
+	assert(!lowBitNoC->isNegative());
+	assert(lowBitNoC->getZExtValue() + bitWidth <= bitVec->getType()->getIntegerBitWidth());
+
 	Value *Ops[] = { bitVec, lowBitNo };
 	Type *ResT = Builder->getIntNTy(bitWidth);
 	Type *Tys[] = { bitVec->getType(), lowBitNo->getType() };
@@ -125,7 +127,7 @@ CallInst* CreateBitRangeGet(IRBuilder<> *Builder, Value *bitVec,
 	Module *M = Builder->GetInsertBlock()->getParent()->getParent();
 	Function *TheFn = cast<Function>(
 			M->getOrInsertFunction(
-					Intrinsic_getName(BitRangeGetName, TysForName), ResT,
+					Intrinsic_getName(BitRangeGetName, TysForName) + "." + std::to_string(lowBitNoC->getZExtValue()), ResT,
 					Tys[0], Tys[1]).getCallee());
 	AddDefaultFunctionAttributes(*TheFn);
 	CallInst *CI = Builder->CreateCall(TheFn, Ops, BitRangeGetName);

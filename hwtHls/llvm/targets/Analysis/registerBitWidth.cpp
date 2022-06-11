@@ -197,7 +197,7 @@ bool resolveTypes(MachineInstr &MI) {
 		// $dst $src $offset $dstWidth
 		auto dstWidth = MI.getOperand(3).getImm();
 		assert(checkOrSetWidth(MRI, MI.getOperand(0), dstWidth));
-		auto offset = MI.getOperand(2).getCImm()->getZExtValue();
+		auto offset = MI.getOperand(2).getImm();
 		auto &src = MI.getOperand(1);
 
 		if (src.isReg()) {
