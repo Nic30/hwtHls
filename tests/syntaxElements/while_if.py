@@ -14,7 +14,7 @@ class WhileAndIf0(WhileTrueWrite):
         hls.thread(
             hls.While(True,
                 x(10),
-                # add counter of pending trasactions on enter to while
+                # add counter of pending transactions on enter to while
                 # if there is not pending transaction we do not require the control token
                 # from while body end to push data in while body, otherwise we need to wait for one
                 hls.While(x,
@@ -23,9 +23,9 @@ class WhileAndIf0(WhileTrueWrite):
                     ).Else(
                        x(x - 3),
                     ),
-                    # the branches does not contains dynamicaly scheduled code,
+                    # the branches does not contains dynamically scheduled code,
                     # no need to manage control tokens
-                    # use just regular pipeline with muxes
+                    # use just regular pipeline with MUXes
                     hls.write(x, self.dataOut)
                 ),
             )
@@ -66,7 +66,7 @@ class WhileAndIf1(WhileTrueWrite):
         hls.thread(
             hls.While(True,
                 x(10),
-                # add counter of pending trasactions on enter to while
+                # add counter of pending transactions on enter to while
                 # if there is not pending transaction we do not require the control token
                 # from while body end to push data in while body, otherwise we need to wait for one
                 hls.While(x,
@@ -75,9 +75,9 @@ class WhileAndIf1(WhileTrueWrite):
                     ).Else(
                        x(x - 3),
                     ),
-                    # the branches does not contains dynamicaly scheduled code,
+                    # the branches does not contains dynamically scheduled code,
                     # no need to manage control tokens
-                    # use just regular pipeline with muxes
+                    # use just regular pipeline with MUXes
                     hls.write(x, dout)
                 ),
                 hls.write(x, dout)
@@ -96,7 +96,7 @@ class WhileAndIf2(WhileTrueReadWrite):
         hls.thread(
             hls.While(True,
                 x(10),
-                # add counter of pending trasactions on enter to while
+                # add counter of pending transactions on enter to while
                 # if there is not pending transaction we do not require the control token
                 # from while body end to push data in while body, otherwise we need to wait for one
                 hls.While(x,
@@ -119,7 +119,7 @@ class WhileAndIf3(WhileTrueReadWrite):
         hls.thread(
             hls.While(True,
                 x(10),
-                # add counter of pending trasactions on enter to while
+                # add counter of pending transactions on enter to while
                 # if there is not pending transaction we do not require the control token
                 # from while body end to push data in while body, otherwise we need to wait for one
                 hls.While(True,
@@ -144,7 +144,7 @@ class WhileAndIf4(WhileTrueReadWrite):
         hls.thread(
             hls.While(True,
                 x(10),
-                # add counter of pending trasactions on enter to while
+                # add counter of pending transactions on enter to while
                 # if there is not pending transaction we do not require the control token
                 # from while body end to push data in while body, otherwise we need to wait for one
                 hls.While(True,
