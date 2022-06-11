@@ -23,7 +23,7 @@ class CntrArrayWithCfgDotDump(CntrArray):
         try:
             hls.compile()
         finally:
-            t.bytecodeToAst.blockTracker.dumpCfgToDot(self.CFG_FILE)
+            t.bytecodeToSsa.blockTracker.dumpCfgToDot(self.CFG_FILE)
             
 
 class PyArrHwIndex_TC(BaseSsaTC):
