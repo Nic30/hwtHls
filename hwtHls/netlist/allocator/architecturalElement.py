@@ -253,10 +253,10 @@ class AllocatorArchitecturalElement():
                         t = w.scheduledOut[0]
                         caseCond = None
                         if w.extraCond is not None:
-                            caseCond = self.instantiateHlsNetNodeOutInTime(w.extraCond, t).data
+                            caseCond = self.instantiateHlsNetNodeOutInTime(w.dependsOn[w.extraCond.in_i], t).data
 
                         if w.skipWhen is not None:
-                            _caseCond = ~self.instantiateHlsNetNodeOutInTime(w.skipWhen, t).data
+                            _caseCond = ~self.instantiateHlsNetNodeOutInTime(w.dependsOn[w.skipWhen.in_i], t).data
                             if caseCond is None:
                                 caseCond = _caseCond
                             else:
