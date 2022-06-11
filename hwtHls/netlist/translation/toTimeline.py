@@ -4,7 +4,7 @@ from plotly import tools
 from plotly.graph_objs import Figure
 import plotly.offline
 from plotly.offline.offline import build_save_image_post_script
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 from hwt.hdl.types.bitsVal import BitsVal
 from hwt.pyUtils.uniqList import UniqList
@@ -34,8 +34,8 @@ class TimelineRow():
         self.group = group
         self.start = start
         self.finish = finish
-        self.deps: UniqList[TimelineRow, float] = UniqList()
-        self.backward_deps: UniqList[TimelineRow, float] = UniqList()
+        self.deps: UniqList[Union[TimelineRow, float]] = UniqList()
+        self.backward_deps: UniqList[Union[TimelineRow, float]] = UniqList()
         self.color = color
 
 
