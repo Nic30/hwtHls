@@ -228,12 +228,12 @@ class ToLlvmIrTranslator():
         for i, (c, sucBb) in enumerate(bb.successors.targets):
             if i == preLastTargetsI:
                 nextC, nextB = bb.successors.targets[i + 1]
-                assert nextC is None
+                assert nextC is None, ("last jump from block must be unconditional", bb, bb.successors)
                 b.CreateCondBr(self._translateExpr(c), self.varMap[sucBb], self.varMap[nextB], None)
                 branchTmpBlocks.append((llvmBb, [sucBb, nextB]))
                 break
             elif i == lastTargetsI:
-                assert c is None
+                assert c is None, ("last jump from block must be unconditional", bb, bb.successors)
                 b.CreateBr(self.varMap[sucBb])
                 branchTmpBlocks.append((llvmBb, [sucBb, ]))
                 break  # would break on its own, added just to improve code readability
