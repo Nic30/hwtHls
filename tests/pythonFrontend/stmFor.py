@@ -20,7 +20,9 @@ class HlsPythonPreprocFor(Unit):
 
     def _impl(self):
         hls = HlsStreamProc(self, freq=int(100e6))
-        hls.thread(HlsStreamProcPyThread(hls, self.mainThread, hls))
+        mainThread = HlsStreamProcPyThread(hls, self.mainThread, hls)
+        # mainThread.bytecodeToSsa.debug = True
+        hls.thread(mainThread)
         hls.compile()
 
 
