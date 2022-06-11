@@ -1,4 +1,4 @@
-from typing import Set, List
+from typing import Set, List, Union
 
 from hwtHls.llvm.llvmIr import MachineBasicBlock, MachineLoopInfo, MachineLoop
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
@@ -6,6 +6,9 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer
 from hwtHls.netlist.analysis.dataThreads import HlsNetlistAnalysisPassDataThreads
+from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
+from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
+from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeRead
 
 
 class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
@@ -43,6 +46,21 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
     However this is not implemented yet and control channels are generated instead.
     '''
 
+    def _threadContainsNonConcurrentIo(self, thread: Set[HlsNetNode]):
+        seenIos: Set[Union[InterfaceBase, RtlSignalBase]] = set()
+        for n in thread:
+            if isinstance(n, HlsNetNodeWrite):
+                i = n.dst
+            elif isinstance(n, HlsNetNodeRead):
+                i = n.src
+            else:
+                i = None
+            if i is not None:
+                if i in seenIos:
+                    return True
+                else:
+                    seenIos.add(i)
+
     def _getBlockMeta(self, mb: MachineBasicBlock):
         """
         The code needs a synchronization if it starts a new thread without data dependencies and has predecessor thread.
@@ -62,16 +80,16 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
         if mb.pred_size() == 0:
             mbSync.needsStarter = True
 
+        needsControlOld = mbSync.needsControl
         if self.loops.isLoopHeader(mb):
             loop: MachineLoop = loops.getLoopFor(mb)
             # The synchronization is not required if it could be only by the data itself.
             # It can be done by data itself if there is an single output/write which has all
             # input as transitive dependencies (unconditionally.) And if this is an infinite cycle.
             # So we do not need to check the number of executions.
-            needsControlOld = mbSync.needsControl
             if not mbSync.needsControl:
                 
-                if len(mbThreads) > 1 or mb.pred_size() > 1:
+                if len(mbThreads) > 1 or mb.pred_size() > 1 or self._threadContainsNonConcurrentIo(mbThreads[0]):
                     # multiple independent threads in body or more entry points to a loop
                     loopBodySelfSynchronized = True
                     for pred in mb.predecessors():
@@ -95,12 +113,10 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                         if sucThreads > 1:
                             mbSync.needsControl = True
 
-            if not needsControlOld and mbSync.needsControl:
-                self._onBlockNeedsControl(mb)
-
         elif not mbSync.needsControl:
             mbSync.needsControl = (
                 len(threadsStartingThere) > 1 or
+                any(self._threadContainsNonConcurrentIo(t) for t in threadsStartingThere) or
                 (bool(mbThreads) and
                     (
                         any(self.blockSync[pred].needsControl for pred in mb.predecessors()) or
@@ -108,8 +124,9 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                     )
                 )
             )
-            if mbSync.needsControl:
-                self._onBlockNeedsControl(mb)
+
+        if not needsControlOld and mbSync.needsControl:
+            self._onBlockNeedsControl(mb)
 
     def _onBlockNeedsControl(self, mb: SsaBasicBlock):
         for pred in mb.predecessors():
@@ -126,7 +143,6 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
             if not mbSync.needsControl:
                 mbSync.needsControl = True
                 self._onBlockNeedsControl(suc)
-
 
     def run(self):
         from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist

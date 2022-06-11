@@ -63,6 +63,8 @@ class HlsNetlistAnalysisPassDataThreads(HlsNetlistAnalysisPass):
                         toSearch.append(useObj)
     
             for dep in obj.dependsOn:
+                if dep._dtype == HOrderingVoidT:
+                    continue
                 if isinstance(dep, HlsNetNodeOutLazy):
                     allMembersOfThread.add(dep)
                     self.threadPerNode[dep] = allMembersOfThread

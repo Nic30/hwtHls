@@ -5,7 +5,8 @@ from hwt.hdl.operatorDefs import AllOps
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
-from hwtHls.netlist.nodes.io import HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.io import HlsNetNodeExplicitSync, HlsNetNodeRead,\
+    HlsNetNodeWrite
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
@@ -74,9 +75,19 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                 for orderingI in tuple(n.iterOrderingInputs()):
                     orderingI: HlsNetNodeIn
                     t0 = threads.threadPerNode[n]
-                    t1 = threads.threadPerNode[orderingI.obj]
+                    dep = n.dependsOn[orderingI.in_i]
+                    t1 = threads.threadPerNode[dep.obj]
                     if t0 is t1:
-                        dep = n.dependsOn[orderingI.in_i]
+                        if isinstance(n, HlsNetNodeRead) and isinstance(dep.obj, HlsNetNodeRead):
+                            n: HlsNetNodeRead
+                            if n.src is dep.obj.src:
+                                # can not ignore order of reads from same volatile source
+                                continue
+                        elif isinstance(n, HlsNetNodeWrite) and isinstance(dep.obj, HlsNetNodeWrite):
+                            n: HlsNetNodeWrite
+                            if n.dst is dep.obj.dst:
+                                # can not ignore order of writes to same volatile destination
+                                continue
                         dep.obj.usedBy[dep.out_i].remove(orderingI)
                         n._removeInput(orderingI.in_i)
                     
