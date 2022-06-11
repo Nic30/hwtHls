@@ -18,7 +18,7 @@ class PyObjectHwSubscriptRef():
     This object is not expanded immediately because when we construct the slice we do not know where it is used and if it only read or write access.
     """
 
-    def __init__(self, pyBytecodeToSsa: "PythonBytecodeToSsa",
+    def __init__(self, pyBytecodeToSsa: "PyBytecodeToSsa",
                        sequence: Sequence,
                        index: Union[RtlSignal, SsaValue],
                        originalInstrOffsetForLabels: int):
@@ -101,3 +101,11 @@ class PyObjectHwSubscriptRef():
         toSsa._onAllPredecsKnown(sucBlock)
         # put variable with result of the indexing on top of stack
         return sucBlock
+
+
+def expandBeforeUse(o, curBlock: SsaBasicBlock):
+    if isinstance(o, PyObjectHwSubscriptRef):
+        o: PyObjectHwSubscriptRef
+        return o.expandOnUse(curBlock)
+    
+    return o, curBlock

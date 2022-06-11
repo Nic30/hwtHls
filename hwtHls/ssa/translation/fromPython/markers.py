@@ -5,7 +5,7 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.ssa.value import SsaValue
 
 
-class PythonBytecodeInPreproc():
+class PyBytecodeInPreproc():
     """
     A container of hw object marked that the immediate store is store of preproc variable only
     """
@@ -18,5 +18,5 @@ class PythonBytecodeInPreproc():
         Used in in UNPACK_SEQUENCE
         """
         for i in self.ref:
-            yield PythonBytecodeInPreproc(i)
+            yield PyBytecodeInPreproc(i)
 
