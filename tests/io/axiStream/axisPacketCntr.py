@@ -50,6 +50,9 @@ class AxiSPacketCntr(Unit):
 
 
 class AxiSPacketByteCntr0(AxiSPacketCntr):
+    """
+    Counts a total number of bytes in any word seen.
+    """
 
     def _declr(self):
         addClkRstn(self)
@@ -87,24 +90,72 @@ class AxiSPacketByteCntr1(AxiSPacketCntr):
         byte_cnt = uint16_t.from_py(0)
         while BIT.from_py(1):
             hls.write(byte_cnt, self.byte_cnt)
-            wordBytes = Bits(log2ceil(self.i.strb._dtype.bit_length() + 1), signed=False).from_py(0)
+            wordByteCnt = Bits(log2ceil(self.i.strb._dtype.bit_length() + 1), signed=False).from_py(0)
             for i, strbBit in enumerate(
                     hls.read(self.i, self.i.data._dtype,
                              inStreamPos=IN_STREAM_POS.BEGIN_OR_BODY_OR_END).strb
                     ):
                 if strbBit:
                     # There we generate ROM of len(strb) values where item is selected based on last 1 bit in srtb
-                    # This would not work if the prefi of strb contains some 0 bits before first 1.
-                    wordBytes = i + 1
+                    # This would not work if the prefix of strb contains some 0 bits before first 1.
+                    wordByteCnt = i + 1
             # there is just 1 adder
-            byte_cnt += wordBytes._reinterpret_cast(byte_cnt._dtype)
+            byte_cnt += wordByteCnt._reinterpret_cast(byte_cnt._dtype)
+
+
+class AxiSPacketByteCntr2(AxiSPacketByteCntr1):
+
+    def mainThread(self, hls: HlsStreamProc):
+        byte_cnt = uint16_t.from_py(0)
+        strbWidth = self.i.strb._dtype.bit_length()
+        while BIT.from_py(1):
+            hls.write(byte_cnt, self.byte_cnt)
+            
+            # this for is just MUX
+            wordByteCnt = Bits(log2ceil(strbWidth + 1), signed=False).from_py(strbWidth)
+            for i, strbBit in enumerate(
+                    hls.read(self.i, self.i.data._dtype,
+                             inStreamPos=IN_STREAM_POS.BEGIN_OR_BODY_OR_END).strb
+                    ):
+                # this is hw evaluated condition, but for iterator specifies that the loop must be unrolled in preprocessor
+                # so this expands to sequence of if-then-else which do check each bit
+                if ~strbBit:
+                    wordByteCnt = i
+                    break
+
+            # there is just 1 adder
+            byte_cnt += wordByteCnt._reinterpret_cast(byte_cnt._dtype)
+
+class AxiSPacketByteCntr3(AxiSPacketByteCntr1):
+
+    def mainThread(self, hls: HlsStreamProc):
+        byte_cnt = uint16_t.from_py(0)
+        strbWidth = self.i.strb._dtype.bit_length()
+        while BIT.from_py(1):
+            # this for is just MUX
+            word = hls.read(self.i, self.i.data._dtype,
+                             inStreamPos=IN_STREAM_POS.BEGIN_OR_BODY_OR_END)
+            wordByteCnt = Bits(log2ceil(strbWidth + 1), signed=False).from_py(strbWidth)
+            for i, strbBit in enumerate(word.strb):
+                # this is hw evaluated condition, but for iterator specifies that the loop must be unrolled in preprocessor
+                # so this expands to sequence of if-then-else which do check each bit
+                if ~strbBit:
+                    wordByteCnt = i
+                    break
+
+            # there is just 1 adder
+            byte_cnt += wordByteCnt._reinterpret_cast(byte_cnt._dtype)
+            if word.last:
+                hls.write(byte_cnt, self.byte_cnt)
+                byte_cnt = 0
 
 
 if __name__ == "__main__":
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwt.synthesizer.utils import to_rtl_str
 
-    u = AxiSPacketByteCntr0()
-    u.DATA_WIDTH = 32
+    u = AxiSPacketByteCntr3()
+    u.DATA_WIDTH = 16
+    u.CLK_FREQ = int(100e6)
     p = VirtualHlsPlatform(debugDir="tmp")
     print(to_rtl_str(u, target_platform=p))
