@@ -10,7 +10,7 @@ from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.statementsIo import IN_STREAM_POS
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
-from hwtHls.ssa.translation.fromPython.markers import PythonBytecodeInPreproc
+from hwtHls.ssa.translation.fromPython.markers import PyBytecodeInPreproc
 from hwtHls.ssa.translation.fromPython.thread import HlsStreamProcPyThread
 from hwtLib.amba.axis import AxiStream
 from hwtLib.types.ctypes import uint16_t
@@ -33,7 +33,7 @@ class AxiSPacketCntr(Unit):
         pkts = uint16_t.from_py(0)
         while BIT.from_py(1):
             hls.write(pkts, self.pkt_cnt)
-            word = PythonBytecodeInPreproc(# PythonBytecodeInPreproc is used because otherwise 
+            word = PyBytecodeInPreproc(# PyBytecodeInPreproc is used because otherwise 
                                             # the read object is converted to a RtlSignal because word= is a store to a word variable
                 hls.read(self.i, self.i.data._dtype,
                 inStreamPos=IN_STREAM_POS.BEGIN_OR_BODY_OR_END))
