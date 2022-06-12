@@ -8,6 +8,7 @@ from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.translation.fromPython.loopsDetect import PyBytecodeLoop
 from hwtHls.ssa.value import SsaValue
+from hwtHls.ssa.translation.fromPython.blockLabel import BlockLabel
 
 
 class BranchTargetPlaceholder():
@@ -30,7 +31,7 @@ class BranchTargetPlaceholder():
             cond.users.append(self)
         else:
             assert len(targets) == self.index + 1
-        self._isReplaced =  True
+        self._isReplaced = True
         
     @classmethod
     def create(cls, block: SsaBasicBlock) -> "BranchTargetPlaceholder":
@@ -40,6 +41,7 @@ class BranchTargetPlaceholder():
 
     def __repr__(self):
         return f"<{self.__class__.__name__} from {self.block.label:s} {self.index:d}>"
+
 
 class PyBytecodeLoopInfo():
     """
@@ -59,6 +61,7 @@ class PyBytecodeLoopInfo():
         self.iteraionI = 0
         self.mustBeEvaluatedInPreproc = False
         self.jumpsFromLoopBody: List[LoopExitJumpInfo] = []
+        self.notGeneratedExits: List[BlockLabel, BlockLabel] = []
 
     def isJumpFromLoopBody(self, dstBlockOffset: int) -> bool:
         return (dstBlockOffset,) not in self.loop.allBlocks or (dstBlockOffset,) == self.loop.entryPoint

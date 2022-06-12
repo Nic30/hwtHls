@@ -71,7 +71,7 @@ class BlockPredecessorTracker():
         self.generated.add(block)
         yield from self.checkAllNewlyResolvedBlocks(block)
         for suc in self.cfg.successors(block):
-            if suc in self.generated:
+            if suc in self.generated and suc != block:
                 yield from self.checkAllNewlyResolvedBlocks(suc)
 
     def _getBlockLabelPrefix(self, blockOffset:int) -> Generator[PreprocLoopScope, None, None]:
@@ -137,8 +137,8 @@ class BlockPredecessorTracker():
         if dstBlockLabel not in self.cfg.nodes:
             return
 
-        #isNotGenerated = True
-        #for pred in self.cfg.predecessors(dstBlockLabel):
+        # isNotGenerated = True
+        # for pred in self.cfg.predecessors(dstBlockLabel):
         #    if (pred, dstBlockLabel) not in self.notGeneratedEdges:
         #        if pred in self.generated:
         #            isNotGenerated = False
@@ -150,24 +150,25 @@ class BlockPredecessorTracker():
         if isNotGenerated:
             self.notGenerated.add(dstBlockLabel)
 
-        for suc in self.cfg.successors(dstBlockLabel):
-            allPredecKnown = True
-            allPredecNotGenerated = True
-            for p in self.cfg.predecessors(suc):
-                isNotGenerated = p in self.notGenerated
-                if p not in self.generated and not isNotGenerated:
-                    allPredecKnown = False
-
-                if not isNotGenerated:
-                    allPredecNotGenerated = False
-
-            if allPredecKnown:
-                # recursively yield all successors which just got all predecessors resolved
-                if suc in self.generated:
-                    yield from self.checkAllNewlyResolvedBlocks(suc)
-
-                elif allPredecNotGenerated:
-                    yield from self.addNotGenerated(dstBlockLabel, suc)
+            for suc in self.cfg.successors(dstBlockLabel):
+                allPredecKnown = True
+                allPredecNotGenerated = True
+                for p in self.cfg.predecessors(suc):
+                    isNotGenerated = p in self.notGenerated
+                    if p not in self.generated and not isNotGenerated:
+                        allPredecKnown = False
+    
+                    if not isNotGenerated:
+                        allPredecNotGenerated = False
+    
+                if allPredecKnown:
+                    # recursively yield all successors which just got all predecessors resolved
+                    if suc in self.generated:
+                        yield from self.checkAllNewlyResolvedBlocks(suc)
+    
+                    elif allPredecNotGenerated:
+                        yield from self.addNotGenerated(dstBlockLabel, suc)
+    
 # , loopExitPlaceholder: BlockLabel
     def cfgAddPrefixToLoopBlocks(self, loop: PyBytecodeLoop, newPrefix: BlockLabel) -> Generator[BlockLabel, None, None]:
         """
@@ -196,7 +197,7 @@ class BlockPredecessorTracker():
         for newNode in blockMap.values():
             cfg.add_node(newNode)
 
-        #nextEntry = self._labelForBlockOutOfLoop(newPrefix, loop.entryPoint[-1], True)
+        # nextEntry = self._labelForBlockOutOfLoop(newPrefix, loop.entryPoint[-1], True)
         
         for origNode, newNode in blockMap.items():
             isSrcEntry = origNode[-1] == loop.entryPoint[-1]
@@ -211,8 +212,8 @@ class BlockPredecessorTracker():
                     #        (pred[-1],) not in loop.allBlocks):
                         # allPredecsKnown = False
                     # add edges to loop header from outside of loop
-                    #inLoop = pred in blockMap
-                    #if not inLoop:
+                    # inLoop = pred in blockMap
+                    # if not inLoop:
                     cfg.add_edge(pred, newNode)
 
                 # for suc in cfg.successors(origNode):
@@ -228,7 +229,7 @@ class BlockPredecessorTracker():
                 if suc == oldEntry:
                     # jump to next iteration of this loop body
                     # suc = nextEntry
-                    continue # we skip it because it will be added once we reach end of loop body
+                    continue  # we skip it because it will be added once we reach end of loop body
 
                 else:
                     _suc = blockMap.get(suc, None)
@@ -236,7 +237,7 @@ class BlockPredecessorTracker():
                         # if we are jumping in  loop we just use blockMap
                         suc = _suc
 
-                    #elif isSrcEntry:
+                    # elif isSrcEntry:
                     #    ## if this edge was transplanted to next entry point we skip it
                     #    continue # we skip it because it will be added once we reach end of loop body
 
@@ -263,14 +264,14 @@ class BlockPredecessorTracker():
         # * all edges from the loop body to loop header are redirected to next loop body header
         # * because the loop body can be in some other loop body and thus it can be renamed we have to
         #   use block labels from predecessor loop body for blocks outside of the loop
-        #loopItLabel:PreprocLoopScope = newPrefix[-1]
+        # loopItLabel:PreprocLoopScope = newPrefix[-1]
         # prevItLabel = PreprocLoopScope(loop, loopItLabel.iterationIndex - 1)
         # oldPrefix: BlockLabel = (*newPrefix[:-1], prevItLabel)
-        #curEntryPoint = (*newPrefix, *loop.entryPoint)
+        # curEntryPoint = (*newPrefix, *loop.entryPoint)
         # newEntryPoint = (*newPrefix, *loop.entryPoint)
-        #nextEntry = self._labelForBlockOutOfLoop(newPrefix, loopItLabel.loop.entryPoint[-1], True)
+        # nextEntry = self._labelForBlockOutOfLoop(newPrefix, loopItLabel.loop.entryPoint[-1], True)
         
-        #for suc in tuple(cfg.successors(curEntryPoint)):
+        # for suc in tuple(cfg.successors(curEntryPoint)):
         #    cfg.remove_edge(curEntryPoint, suc)
         
         for nodeOffset in loop.allBlocks:
@@ -278,28 +279,27 @@ class BlockPredecessorTracker():
 
         for originalNode in loop.allBlocks:
             newNode = (*newPrefix, *originalNode)
-            #isFromEntry = originalNode[-1] == loop.entryPoint[-1] 
+            # isFromEntry = originalNode[-1] == loop.entryPoint[-1] 
             for suc in originalCfg.successors(originalNode):
                 inLoop = (suc[-1],) in loop.allBlocks
                 isJmpToEntry = suc == loop.entryPoint
                 if isJmpToEntry:
-                    continue # skip because we add this edge once we jump from loop body
+                    continue  # skip because we add this edge once we jump from loop body
 
                 if inLoop:
                     suc = (*newPrefix, suc[-1])
                 else:
                     suc = self._labelForBlockOutOfLoop(newPrefix, suc[-1], True)
     
-                #if isFromEntry and not inLoop:
+                # if isFromEntry and not inLoop:
                 #    cfg.add_edge(nextEntry, suc)
-                #else:
+                # else:
                 cfg.add_edge(newNode, suc)
-                
 
         yield from []
-        #yield from self.checkAllNewlyResolvedBlocks(nextEntry)
+        # yield from self.checkAllNewlyResolvedBlocks(nextEntry)
 
-    def dumpCfgToDot(self, file: StringIO):
+    def dumpCfgToDot(self, file: StringIO, sealedBlocks: Set[BlockLabel]):
         N = self.cfg
         graph_type = "digraph"
         strict = networkx.number_of_selfloops(N) == 0 and not N.is_multigraph()
@@ -309,16 +309,26 @@ class BlockPredecessorTracker():
         
         legendTable = """<
 <table border="0" cellborder="1" cellspacing="0">
-  <tr><td bgcolor="green">generated</td></tr>
+  <tr><td bgcolor="LightGreen">sealed</td></tr>
+  <tr><td bgcolor="LightBlue">generated</td></tr>
   <tr><td bgcolor="gray">notGenerated</td></tr>
   <tr><td bgcolor="white">generating</td></tr>
+  <tr><td bgcolor="LightCoral">sealed not in generated</td></tr>
 </table>>"""
         legend = pydot.Node("legend", label=legendTable, style='filled', shape="plain")
         P.add_node(legend)
 
         for n in N.nodes():
-            if n in self.generated:
-                color = "green"
+            if n in sealedBlocks:
+                if n in self.generated:
+                    color = "LightGreen"
+                else:
+                    assert n not in self.notGenerated, n
+                    color = "LightCoral"
+                
+            elif n in self.generated:
+                assert n not in self.notGenerated, n
+                color = "LightBlue"
             elif n in self.notGenerated:
                 color = "gray"
             else:

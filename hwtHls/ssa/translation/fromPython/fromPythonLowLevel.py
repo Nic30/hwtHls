@@ -100,11 +100,12 @@ class PyBytecodeToSsaLowLevel():
         curBlock = self.to_ssa.start
         self.blockToLabel[curBlock] = (0,)
         self.labelToBlock[(0,)] = SsaBlockGroup(curBlock)
-        self._debugDump()
+        self._debugDump("_begin")
         try:
             self._translateBytecodeBlock(self.bytecodeBlocks[0], frame, curBlock)
+            assert not frame.loopStack, ("All loops must be exited", frame.loopStack)
         finally:
-            self._debugDump()
+            self._debugDump("_final")
             
         if curBlock.predecessors:
             # because for LLVM entry point must not have predecessors
@@ -116,10 +117,11 @@ class PyBytecodeToSsaLowLevel():
 
         self.to_ssa.finalize()
 
-    def _debugDump(self):
+    def _debugDump(self, label=None):
         if self.debug:
-            with open(f"tmp/{self.label:s}_cfg_{self.debugGraphCntr:d}.dot", "w") as f:
-                self.blockTracker.dumpCfgToDot(f)
+            with open(f"tmp/{self.label:s}_cfg_{self.debugGraphCntr:d}{label if label else ''}.dot", "w") as f:
+                sealedBlocks = set(self.blockToLabel[b] for b in self.to_ssa.m_ssa_u.sealedBlocks)
+                self.blockTracker.dumpCfgToDot(f, sealedBlocks)
                 self.debugGraphCntr += 1
 
     def _getOrCreateSsaBasicBlock(self, dstLabel: BlockLabel):
