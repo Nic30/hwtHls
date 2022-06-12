@@ -243,7 +243,7 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
     
             # process the jumps to next iteration and mark jumps from the loop for later processing
             if len(successorsToTranslate) > 1:
-                assert len(set(id(j.frame) for j in successorsToTranslate)) == len(successorsToTranslate), (
+                assert len(set(id(j[1].frame) for j in successorsToTranslate)) == len(successorsToTranslate), (
                     "Each jump must have own version of frame because multiple jumps could be only generated for HW evaluated jumps which do require copy of frame"
                     )
             for isLoopReenter, sucInfo in successorsToTranslate:
