@@ -8,7 +8,7 @@ class SsaPassDumpMIR(SsaPass):
     def __init__(self, outStreamGetter:OutputStreamGetter):
         self.outStreamGetter = outStreamGetter
 
-    def apply(self, hls: "HlsStreamProc", to_ssa: "HlsAstToSsa"):
+    def apply(self, hls: "HlsScope", to_ssa: "HlsAstToSsa"):
         tr: ToLlvmIrTranslator = to_ssa.start
         assert isinstance(tr, ToLlvmIrTranslator), tr
         mf = tr.llvm.getMachineFunction(tr.llvm.main)

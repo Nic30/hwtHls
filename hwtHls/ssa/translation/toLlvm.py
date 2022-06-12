@@ -15,8 +15,8 @@ from hwt.interfaces.structIntf import StructIntf
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.hlsStreamProc.statementsIo import HlsStreamProcRead, \
-    HlsStreamProcWrite
+from hwtHls.frontend.ast.statementsIo import HlsRead, \
+    HlsWrite
 from hwtHls.llvm.llvmIr import Value, Type, FunctionType, Function, VectorOfTypePtr, BasicBlock, Argument, \
     PointerType, TypeToPointerType, ConstantInt, APInt, verifyFunction, verifyModule, TypeToIntegerType, \
     PHINode, LlvmCompilationBundle
@@ -109,14 +109,14 @@ class ToLlvmIrTranslator():
 
     def _translateInstr(self, instr: SsaInstr):
         b = self.b
-        if isinstance(instr, HlsStreamProcRead):
+        if isinstance(instr, HlsRead):
             src: Argument = self.ioToVar[instr._src]
             t: PointerType = TypeToPointerType(src.getType())
             assert t is not None, src.getType()
             return b.CreateLoad(t.getPointerElementType(), src, True,
                                      self.strCtx.addTwine(self._formatVarName(instr._name)))
 
-        elif isinstance(instr, HlsStreamProcWrite):
+        elif isinstance(instr, HlsWrite):
             dst = self.ioToVar[instr.dst]
             src = self._translateExpr(instr.operands[0])
             b.CreateStore(src, dst, True)
@@ -311,13 +311,13 @@ class ToLlvmIrTranslator():
 
 class SsaPassToLlvm():
 
-    def apply(self, hls: "HlsStreamProc", to_ssa: HlsAstToSsa):
+    def apply(self, hls: "HlsScope", to_ssa: HlsAstToSsa):
         io: Dict[Interface, INTF_DIRECTION] = {}
         for block in collect_all_blocks(to_ssa.start, set()):
             for instr in block.body:
                 # [todo] the io can be bi-directional e.g. bram port
-                if isinstance(instr, HlsStreamProcRead):
-                    instr: HlsStreamProcRead
+                if isinstance(instr, HlsRead):
+                    instr: HlsRead
                     cur_dir = io.get(instr._src, None)
                     assert cur_dir is None or INTF_DIRECTION.SLAVE
                     io[instr._src] = INTF_DIRECTION.SLAVE
@@ -325,8 +325,8 @@ class SsaPassToLlvm():
                         "In this stages the read operations must read only native type of interface",
                         instr, ToLlvmIrTranslator._getNativeInterfaceType(instr._src))
 
-                elif isinstance(instr, HlsStreamProcWrite):
-                    instr: HlsStreamProcWrite
+                elif isinstance(instr, HlsWrite):
+                    instr: HlsWrite
                     cur_dir = io.get(instr.dst, None)
                     assert cur_dir is None or INTF_DIRECTION.MASTER
                     io[instr.dst] = INTF_DIRECTION.MASTER

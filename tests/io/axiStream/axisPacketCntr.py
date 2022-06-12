@@ -8,10 +8,10 @@ from hwt.interfaces.utils import addClkRstn
 from hwt.math import log2ceil
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
-from hwtHls.hlsStreamProc.statementsIo import IN_STREAM_POS
-from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
+from hwtHls.frontend.ast.statementsIo import IN_STREAM_POS
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc
-from hwtHls.frontend.pyBytecode.thread import HlsStreamProcPyThread
+from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
+from hwtHls.scope import HlsScope
 from hwtLib.amba.axis import AxiStream
 from hwtLib.types.ctypes import uint16_t
 
@@ -29,7 +29,7 @@ class AxiSPacketCntr(Unit):
             self.i = AxiStream()
             self.pkt_cnt: VectSignal = VectSignal(16, signed=False)._m()
 
-    def mainThread(self, hls: HlsStreamProc):
+    def mainThread(self, hls: HlsScope):
         pkts = uint16_t.from_py(0)
         while BIT.from_py(1):
             hls.write(pkts, self.pkt_cnt)
@@ -42,10 +42,10 @@ class AxiSPacketCntr(Unit):
                 pkts += 1
 
     def _impl(self):
-        hls = HlsStreamProc(self)
-        mainThread = HlsStreamProcPyThread(hls, self.mainThread, hls)
+        hls = HlsScope(self)
+        mainThread = HlsThreadFromPy(hls, self.mainThread, hls)
         mainThread.bytecodeToSsa.debug = True
-        hls.thread(mainThread)
+        hls.addThread(mainThread)
         hls.compile()
 
 
@@ -62,7 +62,7 @@ class AxiSPacketByteCntr0(AxiSPacketCntr):
             self.i.USE_STRB = True
             self.byte_cnt: VectSignal = VectSignal(16, signed=False)._m()
 
-    def mainThread(self, hls: HlsStreamProc):
+    def mainThread(self, hls: HlsScope):
         byte_cnt = uint16_t.from_py(0)
         while BIT.from_py(1):
             hls.write(byte_cnt, self.byte_cnt)
@@ -86,7 +86,7 @@ class AxiSPacketByteCntr1(AxiSPacketCntr):
             self.i.USE_STRB = True
             self.byte_cnt: VectSignal = VectSignal(16, signed=False)._m()
 
-    def mainThread(self, hls: HlsStreamProc):
+    def mainThread(self, hls: HlsScope):
         byte_cnt = uint16_t.from_py(0)
         while BIT.from_py(1):
             hls.write(byte_cnt, self.byte_cnt)
@@ -105,7 +105,7 @@ class AxiSPacketByteCntr1(AxiSPacketCntr):
 
 class AxiSPacketByteCntr2(AxiSPacketByteCntr1):
 
-    def mainThread(self, hls: HlsStreamProc):
+    def mainThread(self, hls: HlsScope):
         byte_cnt = uint16_t.from_py(0)
         strbWidth = self.i.strb._dtype.bit_length()
         while BIT.from_py(1):
@@ -128,7 +128,7 @@ class AxiSPacketByteCntr2(AxiSPacketByteCntr1):
 
 class AxiSPacketByteCntr3(AxiSPacketByteCntr1):
 
-    def mainThread(self, hls: HlsStreamProc):
+    def mainThread(self, hls: HlsScope):
         byte_cnt = uint16_t.from_py(0)
         strbWidth = self.i.strb._dtype.bit_length()
         while BIT.from_py(1):

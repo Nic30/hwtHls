@@ -3,7 +3,7 @@ from itertools import chain
 from typing import DefaultDict, Tuple, List, Optional, Set, Dict
 
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.hlsStreamProc.statementsIo import HlsStreamProcRead
+from hwtHls.frontend.ast.statementsIo import HlsRead
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 
 
@@ -18,17 +18,17 @@ class ReadGraphDetector():
     """
 
     def __init__(self, DATA_WIDTH: int,
-                         allReads: UniqList[HlsStreamProcRead]):
+                         allReads: UniqList[HlsRead]):
         self.DATA_WIDTH = DATA_WIDTH
         self.allReads = allReads
-        self.cfg: Dict[HlsStreamProcRead, UniqList[Tuple[int, HlsStreamProcRead]]] = {}
+        self.cfg: Dict[HlsRead, UniqList[Tuple[int, HlsRead]]] = {}
         self.cfg[None] = UniqList()
         self.inWordOffset: DefaultDict[List[int]] = defaultdict(list)
-        self.predecessors: DefaultDict[UniqList[Optional[HlsStreamProcRead]]] = defaultdict(UniqList)
+        self.predecessors: DefaultDict[UniqList[Optional[HlsRead]]] = defaultdict(UniqList)
     
-    def addTransition(self, src: HlsStreamProcRead, dstInWordOffset: int, dst: HlsStreamProcRead):
-        assert isinstance(src, HlsStreamProcRead) or src is None, src
-        assert isinstance(dst, HlsStreamProcRead) or dst is None, dst
+    def addTransition(self, src: HlsRead, dstInWordOffset: int, dst: HlsRead):
+        assert isinstance(src, HlsRead) or src is None, src
+        assert isinstance(dst, HlsRead) or dst is None, dst
         
         sucs = self.cfg.get(src, None)
         if sucs is None:
@@ -37,7 +37,7 @@ class ReadGraphDetector():
         self.cfg[dst] = UniqList()
     
     def detectReadGraphs(self,
-                         predecessor: Optional[HlsStreamProcRead],
+                         predecessor: Optional[HlsRead],
                          predEndOffset: int,
                          block: SsaBasicBlock,
                          seenBlocks: Set[SsaBasicBlock],
@@ -55,7 +55,7 @@ class ReadGraphDetector():
                 if instr in self.cfg and (predEndOffset, instr) in self.cfg[predecessor]:
                     # already seen with this offset and already resolved
                     return
-                instr: HlsStreamProcRead
+                instr: HlsRead
                 self.addTransition(predecessor, predEndOffset, instr)
                 if instr is not None and instr._inStreamPos.isEnd():
                     predecessor = None
@@ -86,7 +86,7 @@ class ReadGraphDetector():
     def findReadStartBlock(self):
         return self._findReadStartBlock(self.cfg[None])
 
-    def _findReadStartBlock(self, firstReadInstrs: List[HlsStreamProcRead]):
+    def _findReadStartBlock(self, firstReadInstrs: List[HlsRead]):
         startBlocks = [i.block for _, i in firstReadInstrs]
         if len(set(startBlocks)) == 1:
             return startBlocks[0]

@@ -6,18 +6,17 @@ from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.unit import Unit
 from hwt.synthesizer.utils import to_rtl_str
-from hwtHls.hlsStreamProc.statements import HlsStreamProcWhile, HlsStreamProcIf
-from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
+from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
+from hwtHls.frontend.ast.statements import HlsStmWhile, HlsStmIf
+from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
+from hwtHls.platform.fileUtils import outputFileGetter
 from hwtHls.platform.virtual import VirtualHlsPlatform
+from hwtHls.scope import HlsScope
 from hwtHls.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
 from hwtHls.ssa.context import SsaContext
-from hwtHls.ssa.transformation.runFn import SsaPassRunFn
-from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
-from hwtHls.frontend.pyBytecode.thread import HlsStreamProcPyThread
+from hwtHls.ssa.translation.toGraphwiz import SsaPassDumpToDot
 from hwtLib.types.ctypes import uint8_t
 from tests.baseSsaTest import TestFinishedSuccessfuly
-from hwtHls.ssa.translation.toGraphwiz import SsaPassDumpToDot
-from hwtHls.platform.fileUtils import outputFileGetter
 
 
 class PhiConstruction_TC(unittest.TestCase):
@@ -35,9 +34,9 @@ class PhiConstruction_TC(unittest.TestCase):
         i = netlist.sig("i", uint8_t)
         toSsa.visit_CodeBlock_list(toSsa.start, [
             i(0),
-            HlsStreamProcWhile(None, BIT.from_py(1),
+            HlsStmWhile(None, BIT.from_py(1),
                                [
-                                    HlsStreamProcIf(None, i < 3,
+                                    HlsStmIf(None, i < 3,
                                                     [
                                                         i(i + 1)
                                                     ]
@@ -59,7 +58,7 @@ class PhiConstruction_TC(unittest.TestCase):
                 self.o = VectSignal(8, signed=True)._m()
 
             def _impl(self):
-                hls = HlsStreamProc(self)
+                hls = HlsScope(self)
 
                 def main():
                     i = uint8_t.from_py(0)
@@ -68,14 +67,18 @@ class PhiConstruction_TC(unittest.TestCase):
                         if i < 3:
                             i += 1
 
-                hls.thread(HlsStreamProcPyThread(hls, main))
+                hls.addThread(HlsThreadFromPy(hls, main))
                 hls.compile()
+
+        class TestPlatform(VirtualHlsPlatform):
+
+            def runSsaPasses(self, hls:"HlsScope", toSsa:HlsAstToSsa):
+                SsaPassDumpToDot(outputFileGetter("tmp", "0.dot"), extractPipeline=False).apply(hls, toSsa)
+                SsaPassConsystencyCheck().apply(hls, toSsa)
+                raise TestFinishedSuccessfuly()
+
         try:
-            to_rtl_str(U0(), target_platform=VirtualHlsPlatform(ssaPasses=[
-                SsaPassDumpToDot(outputFileGetter("tmp", "0.dot"), extractPipeline=False),
-                SsaPassConsystencyCheck(),
-                SsaPassRunFn(TestFinishedSuccessfuly.raise_)
-            ]))
+            to_rtl_str(U0(), target_platform=TestPlatform())
         except TestFinishedSuccessfuly:
             pass
 

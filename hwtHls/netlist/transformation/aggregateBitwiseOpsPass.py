@@ -18,7 +18,7 @@ class HlsNetlistPassAggregateBitwiseOps(HlsNetlistPass):
     def _isBitwiseOperator(self, n: HlsNetNode):
         return isinstance(n, HlsNetNodeOperator) and n.operator in BITWISE_OPS
         
-    def apply(self, hls: "HlsStreamProc", netlist: HlsNetlistCtx):
+    def apply(self, hls: "HlsScope", netlist: HlsNetlistCtx):
         seen: Set[HlsNetNodeOperator] = set()
         removedNodes: Set[HlsNetNode] = set()
         newOutMap: Dict[HlsNetNodeOut, HlsNetNodeOut] = {}

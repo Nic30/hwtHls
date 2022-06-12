@@ -3,16 +3,16 @@ from typing import Optional, List, Tuple, Union
 
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.hlsStreamProc.streamProc import HlsStreamProcThread, HlsStreamProc
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.frontend.pyBytecode.fromPython import PyBytecodeToSsa
+from hwtHls.scope import HlsThread, HlsScope
 from ipCorePackager.constants import DIRECTION
 
 
-class HlsStreamProcPyThread(HlsStreamProcThread):
+class HlsThreadFromPy(HlsThread):
 
-    def __init__(self, hls: HlsStreamProc, fn: FunctionType, *fnArgs, **fnKwargs):
-        super(HlsStreamProcPyThread, self).__init__(hls)
+    def __init__(self, hls: HlsScope, fn: FunctionType, *fnArgs, **fnKwargs):
+        super(HlsThreadFromPy, self).__init__(hls)
         self.bytecodeToSsa = PyBytecodeToSsa(self.hls, fn, fn.__name__)
         self.fnArgs = fnArgs
         self.fnKwargs = fnKwargs

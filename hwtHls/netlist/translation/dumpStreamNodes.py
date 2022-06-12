@@ -12,7 +12,7 @@ class RtlNetlistPassDumpStreamNodes(RtlNetlistPass):
     def __init__(self, outStreamGetter:OutputStreamGetter):
         self.outStreamGetter = outStreamGetter
 
-    def apply(self, hls: "HlsStreamProc", netlist: HlsNetlistCtx):
+    def apply(self, hls: "HlsScope", netlist: HlsNetlistCtx):
         out, doClose = self.outStreamGetter(netlist.label)
         try:
             for elem_i, elm in enumerate(netlist.allocator._archElements):

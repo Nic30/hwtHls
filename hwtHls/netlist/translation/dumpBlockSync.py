@@ -19,7 +19,7 @@ class HlsNetlistPassDumpBlockSync(HlsNetlistPass):
             mbSync: MachineBasicBlockSyncContainer = blockSync[mb]
             out.write(f"{mb.getName().str():s}: {mbSync}\n")
         
-    def apply(self, hls: "HlsStreamProc", netlist: HlsNetlistCtx):
+    def apply(self, hls: "HlsScope", netlist: HlsNetlistCtx):
         from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
         toNetlist: HlsNetlistAnalysisPassMirToNetlist = netlist.requestAnalysis(HlsNetlistAnalysisPassMirToNetlist)
         out, doClose = self.outStreamGetter(netlist.label)

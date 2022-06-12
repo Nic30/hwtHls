@@ -3,7 +3,7 @@ from typing import Set, Dict, Union
 from hwt.hdl.operatorDefs import OpDefinition
 from hwt.hdl.value import HValue
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.hlsStreamProc.statementsIo import HlsStreamProcRead
+from hwtHls.frontend.ast.statementsIo import HlsRead
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.phi import SsaPhi
@@ -48,7 +48,7 @@ class SsaPassConsystencyCheck(SsaPass):
     def _check_variable_definition_for_use(self, var: Union[SsaValue, HValue],
                                            phis: UniqList[SsaPhi],
                                            variables: Dict[SsaValue, SsaBasicBlock]):
-        if isinstance(var, (HValue, HlsStreamProcRead)):
+        if isinstance(var, (HValue, HlsRead)):
             pass
         elif isinstance(var, SsaPhi):
             assert var in phis, ("Variable never defined", var)
@@ -85,7 +85,7 @@ class SsaPassConsystencyCheck(SsaPass):
             if _bb not in seen:
                 self.visit_check(_bb, blocks, phis, variables, seen)
 
-    def apply(self, hls: "HlsStreamProc", to_ssa: "HlsAstToSsa"):
+    def apply(self, hls: "HlsScope", to_ssa: "HlsAstToSsa"):
         bb = to_ssa.start
         blocks: UniqList[SsaBasicBlock] = UniqList()
         phis: UniqList[SsaPhi] = UniqList()

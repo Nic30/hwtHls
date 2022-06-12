@@ -8,7 +8,9 @@ from hwt.interfaces.std import VectSignal
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
-from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
+from hwtHls.frontend.ast.builder import HlsAstBuilder
+from hwtHls.frontend.ast.thread import HlsThreadFromAst
+from hwtHls.scope import HlsScope
 
 
 class WriteFsm0(Unit):
@@ -24,13 +26,16 @@ class WriteFsm0(Unit):
         self.o: VectSignal = VectSignal(self.DATA_WIDTH, signed=False)._m()
 
     def _impl(self) -> None:
-        hls = HlsStreamProc(self)
-        hls.thread(
-            hls.While(True,
+        hls = HlsScope(self)
+        ast = HlsAstBuilder(hls)
+        hls.addThread(HlsThreadFromAst(hls,
+            ast.While(True,
                 hls.write(1, self.o),
                 hls.write(2, self.o),
                 hls.write(3, self.o),
-            )
+            ),
+            self._name)
+            
         )
         hls.compile()
 
@@ -39,11 +44,14 @@ class WriteFsm0(Unit):
 class WriteFsm0Once(WriteFsm0):
 
     def _impl(self) -> None:
-        hls = HlsStreamProc(self)
-        hls.thread(
-            hls.write(1, self.o),
-            hls.write(2, self.o),
-            hls.write(3, self.o),
+        hls = HlsScope(self)
+        hls.addThread(
+            HlsThreadFromAst(hls, [
+                hls.write(1, self.o),
+                hls.write(2, self.o),
+                hls.write(3, self.o),
+            ],
+            self._name)
         )
         hls.compile()
 
@@ -78,13 +86,15 @@ class ReadFsm0(Unit):
         self.o = VectSignal(3 * self.DATA_WIDTH)._m()
 
     def _impl(self) -> None:
-        hls = HlsStreamProc(self)
+        hls = HlsScope(self)
         r = [hls.read(self.i) for _ in range(3)]
-        hls.thread(
-            hls.While(True,
+        ast = HlsAstBuilder(hls)
+        hls.addThread(HlsThreadFromAst(hls, 
+            ast.While(True,
                 *r,
                 hls.write(Concat(*reversed(r)), self.o),
-            )
+            ),
+            self._name)
         )
         hls.compile()
 
@@ -93,11 +103,13 @@ class ReadFsm0(Unit):
 class ReadFsm0Once(ReadFsm0):
 
     def _impl(self) -> None:
-        hls = HlsStreamProc(self)
+        hls = HlsScope(self)
         r = [hls.read(self.i) for _ in range(3)]
-        hls.thread(
-            *r,
-            hls.write(Concat(*reversed(r)), self.o),
+        hls.addThread(HlsThreadFromAst(hls, [
+                *r,
+                hls.write(Concat(*reversed(r)), self.o),
+            ],
+            self._name)
         )
         hls.compile()
 
@@ -125,6 +137,6 @@ if __name__ == "__main__":
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwt.synthesizer.utils import to_rtl_str
 
-    u = ReadFsm0Once()
+    u = WriteFsm0()
     p = VirtualHlsPlatform(debugDir="tmp")
     print(to_rtl_str(u, target_platform=p))

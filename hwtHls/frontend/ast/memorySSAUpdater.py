@@ -8,7 +8,7 @@ from hwt.hdl.value import HValue
 from hwt.pyUtils.uniqList import UniqList
 from hwt.serializer.utils import RtlSignal_sort_key
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.hlsStreamProc.statementsIo import HlsStreamProcRead
+from hwtHls.frontend.ast.statementsIo import HlsRead
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.phi import SsaPhi
@@ -88,7 +88,7 @@ class MemorySSAUpdater():
                     parts.append(variable[width:high])
 
                 # append modified bits
-                if isinstance(value, SsaValue) and not isinstance(value, HlsStreamProcRead):
+                if isinstance(value, SsaValue) and not isinstance(value, HlsRead):
                     assert value.origin is not None
                     parts.append(value.origin)
 
@@ -149,7 +149,7 @@ class MemorySSAUpdater():
 
         if isinstance(v, (SsaPhi, SsaInstr)):
             self.writeVariable(variable, (), block, v)
-        elif isinstance(v, (HValue, HlsStreamProcRead)):
+        elif isinstance(v, (HValue, HlsRead)):
             pass
         else:
             raise TypeError(v.__class__)

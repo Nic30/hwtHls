@@ -5,7 +5,7 @@ from hwt.pyUtils.arrayQuery import flatten
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.value import SsaValue
-from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
+from hwtHls.scope import HlsScope
 from hwt.hdl.value import HValue
 from hwt.synthesizer.interface import Interface
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer

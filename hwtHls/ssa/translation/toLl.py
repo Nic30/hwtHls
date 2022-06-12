@@ -4,8 +4,8 @@ from hdlConvertorAst.to.hdlUtils import Indent, \
     AutoIndentingStream
 from hwt.hdl.value import HValue
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
-from hwtHls.hlsStreamProc.statementsIo import HlsStreamProcRead, \
-    HlsStreamProcWrite
+from hwtHls.frontend.ast.statementsIo import HlsRead, \
+    HlsWrite
 from hwtHls.platform.fileUtils import OutputStreamGetter
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
@@ -62,14 +62,14 @@ class SsaToLl():
                 w(f"{self._escape(phi._name)} = phi {self._escape(repr(phi._dtype))} {ops:s}\n")
 
             for stm in bb.body:
-                if isinstance(stm, HlsStreamProcRead):
+                if isinstance(stm, HlsRead):
                     w(stm._name)
                     w(" = call ")
                     w(self._escape(repr(stm._dtype)))
                     w(" @hls.read(")
                     w(getSignalName(stm._src))
                     w(")\n")
-                elif isinstance(stm, HlsStreamProcWrite):
+                elif isinstance(stm, HlsWrite):
                     w("void call ")
                     w(self._escape(repr(stm._dtype)))
                     w(" @hls.write(")
@@ -101,7 +101,7 @@ class SsaPassDumpToLl():
     def __init__(self, outStreamGetter:OutputStreamGetter):
         self.outStreamGetter = outStreamGetter
 
-    def apply(self, hls: "HlsStreamProc", to_ssa: "HlsAstToSsa"):
+    def apply(self, hls: "HlsScope", to_ssa: "HlsAstToSsa"):
         output, doClose = self.outStreamGetter(to_ssa.label) 
         output = AutoIndentingStream(output, "  ")
         try:

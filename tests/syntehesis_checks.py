@@ -8,9 +8,9 @@ from hwtHls.netlist.scheduler.errors import TimeConstraintError
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.platform.xilinx.artix7 import Artix7Slow
 from hwtLib.logic.crcPoly import CRC_32
-from tests.syntaxElements.crc import CrcCombHls
-from tests.syntaxElements.ifstm import SimpleIfStatementHls
-from tests.syntaxElements.pid import PidControllerHls
+from tests.frontend.ast.crc import CrcCombHls
+from tests.frontend.ast.ifstm import SimpleIfStatementHls
+from tests.frontend.ast.pid import PidControllerHls
 
 
 class HlsSynthesisChecksTC(SimTestCase):

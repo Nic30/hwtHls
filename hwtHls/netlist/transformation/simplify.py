@@ -25,7 +25,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
     * remove HlsNetNodeExplicitSync (and subclasses like HlsNetNodeRead,HlsNetNodeWrite) skipWhen and extraCond connected to const  
     """
 
-    def apply(self, hls:"HlsStreamProc", netlist: HlsNetlistCtx):
+    def apply(self, hls:"HlsScope", netlist: HlsNetlistCtx):
         threads: HlsNetlistAnalysisPassDataThreads = netlist.requestAnalysis(HlsNetlistAnalysisPassDataThreads)
         
         worklist: UniqList[HlsNetNode] = UniqList(chain(netlist.iterAllNodes()))

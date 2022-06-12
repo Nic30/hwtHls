@@ -8,7 +8,7 @@ from hwt.hdl.types.slice import HSlice
 from hwt.hdl.value import HValue
 from hwt.pyUtils.arrayQuery import balanced_reduce
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.hlsStreamProc.statementsIo import HlsStreamProcRead
+from hwtHls.frontend.ast.statementsIo import HlsRead
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.exprBuilder import SsaExprBuilder
 from hwtHls.ssa.instr import SsaInstr, OP_ASSIGN, SsaInstrBranch
@@ -179,7 +179,7 @@ class SsaPassExtractPartDrivers(SsaPass):
                     if op in CAST_OPS:
                         assert len(args) == 1
                         a = args[0]
-                        if isinstance(a, HlsStreamProcRead):
+                        if isinstance(a, HlsRead):
                             continue
                         assert isinstance(a, (SsaValue, HValue)), (a, a.__class__, stm)
                         self._register_var_load(stm, a)
@@ -285,7 +285,7 @@ class SsaPassExtractPartDrivers(SsaPass):
         if self._isConstantSlice(o) and (o in splitPointsOfVariable or
                                          varEntirelyReplaced.get(o.operands[0], False)):
             usedOnlyByReplaced = True
-        elif isinstance(o, HlsStreamProcRead):
+        elif isinstance(o, HlsRead):
             # can not reduce the read as it can not be split to parts
             usedOnlyByReplaced = False
         elif isinstance(o, SsaInstrBranch):
@@ -547,7 +547,7 @@ class SsaPassExtractPartDrivers(SsaPass):
             self._removeEntirelyRemovedFromList(
                 b.body, varEntirelyReplaced)
 
-    def apply(self, hls: "HlsStreamProc", to_ssa: HlsAstToSsa):
+    def apply(self, hls: "HlsScope", to_ssa: HlsAstToSsa):
         self.var_segments: Dict[SsaValue, VarBitSegments] = {}
         allBlocksSet = set()
         allBlocks = list(collect_all_blocks(to_ssa.start, allBlocksSet))

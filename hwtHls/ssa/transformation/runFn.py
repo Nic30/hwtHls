@@ -9,8 +9,8 @@ class SsaPassRunFn(SsaPass):
     A simple pass which just runs a predefined function.
     """
 
-    def __init__(self, fnToRun: Callable[["HlsStreamProc", HlsAstToSsa], None]):
+    def __init__(self, fnToRun: Callable[["HlsScope", HlsAstToSsa], None]):
         self.fnToRun = fnToRun
 
-    def apply(self, hls: "HlsStreamProc", to_ssa: HlsAstToSsa):
+    def apply(self, hls: "HlsScope", to_ssa: HlsAstToSsa):
         self.fnToRun(hls, to_ssa)

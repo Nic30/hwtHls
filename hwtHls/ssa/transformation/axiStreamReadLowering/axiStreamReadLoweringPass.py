@@ -9,8 +9,8 @@ from hwt.hdl.types.defs import SLICE
 from hwt.math import log2ceil
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.hlsStreamProc.statementsIo import HlsStreamProcReadAxiStream, IN_STREAM_POS, \
-    HlsStreamProcRead
+from hwtHls.frontend.ast.statementsIo import HlsReadAxiStream, IN_STREAM_POS, \
+    HlsRead
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.exprBuilder import SsaExprBuilder
 from hwtHls.ssa.transformation.axiStreamReadLowering.readGraphDetector import ReadGraphDetector
@@ -27,7 +27,7 @@ class SliceOfStreamWord():
     :note: highBitNo and lowBitNo are related only to data part, masks and other word signals slices are deduced from this
     """
 
-    def __init__(self, word: HlsStreamProcRead, highBitNo: int, lowBitNo: int):
+    def __init__(self, word: HlsRead, highBitNo: int, lowBitNo: int):
         self.word = word
         self.highBitNo = highBitNo
         self.lowBitNo = lowBitNo
@@ -49,7 +49,7 @@ class SsaPassAxiStreamReadLowering(SsaPass):
 
     @classmethod
     def collectAllReachableReadsFromBlockEnd(cls, b: SsaBasicBlock, seen: Set[SsaBasicBlock],
-                                             firstReadInBlock: Dict[SsaBasicBlock, HlsStreamProcReadAxiStream]):
+                                             firstReadInBlock: Dict[SsaBasicBlock, HlsReadAxiStream]):
         seen.add(b)
         r = firstReadInBlock.get(b, None)
         if r is not None:
@@ -68,17 +68,17 @@ class SsaPassAxiStreamReadLowering(SsaPass):
             self._sealBlocksUntilStart(memUpdater, startBlock, pred)
         
     def _detectReads(self, startBlock: SsaBasicBlock):
-        reads: UniqList[HlsStreamProcReadAxiStream] = UniqList()
+        reads: UniqList[HlsReadAxiStream] = UniqList()
         for block in collect_all_blocks(startBlock, set()):
             for instr in block.body:
-                if isinstance(instr, HlsStreamProcReadAxiStream):
-                    instr: HlsStreamProcReadAxiStream
+                if isinstance(instr, HlsReadAxiStream):
+                    instr: HlsReadAxiStream
                     intf = instr._src
                     if isinstance(intf, AxiStream):
                         reads.append(instr)
         return reads
 
-    def apply(self, hls: "HlsStreamProc", to_ssa: HlsAstToSsa):
+    def apply(self, hls: "HlsScope", to_ssa: HlsAstToSsa):
         reads = self._detectReads(to_ssa.start)
         intfs = UniqList()
         readsForIntf = defaultdict(UniqList)
@@ -117,7 +117,7 @@ class SsaPassAxiStreamReadLowering(SsaPass):
             self.rewriteAdtReadToReadOfWords(hls, memUpdater, startBlock, None, intf.DATA_WIDTH, readCfg,
                                              predecessorsSeen, offsetVar, predWordVar)
 
-    def _applySlice(self, exprBuilder: SsaExprBuilder, read: HlsStreamProcRead, highBitNo: int, lowBitNo: int):
+    def _applySlice(self, exprBuilder: SsaExprBuilder, read: HlsRead, highBitNo: int, lowBitNo: int):
         # :note: this method is used to select the part from word read which belongs to some ADT read
         return exprBuilder._binaryOp(read, AllOps.INDEX, SLICE.from_py(slice(highBitNo, lowBitNo, -1)))
 
@@ -135,7 +135,7 @@ class SsaPassAxiStreamReadLowering(SsaPass):
         else:
             return exprBuilder._binaryOp(_toAdd, AllOps.OR, curent)
 
-    def _applyConcat(self, exprBuilder: SsaExprBuilder, read: HlsStreamProcRead, parts: List[Union[HlsStreamProcRead, SliceOfStreamWord]]):
+    def _applyConcat(self, exprBuilder: SsaExprBuilder, read: HlsRead, parts: List[Union[HlsRead, SliceOfStreamWord]]):
         intf = read._src
         if intf.DEST_WIDTH or intf.ID_WIDTH or intf.USER_WIDTH:
             raise NotImplementedError(read)
@@ -166,7 +166,7 @@ class SsaPassAxiStreamReadLowering(SsaPass):
                     off += DW // 8
 
             else:
-                assert isinstance(part, HlsStreamProcRead), part
+                assert isinstance(part, HlsRead), part
                 data = self._applyConcateAdd(exprBuilder, data, self._applySlice(exprBuilder, part, DW, 0))
                 off = DW
                 if intf.USE_STRB:
@@ -184,13 +184,13 @@ class SsaPassAxiStreamReadLowering(SsaPass):
                                   last)
 
     def rewriteAdtReadToReadOfWords(self,
-                                    hls: "HlsStreamProc",
+                                    hls: "HlsScope",
                                     memUpdater: MemorySSAUpdater,
                                     startBlock,
-                                    read: Optional[HlsStreamProcReadAxiStream],
+                                    read: Optional[HlsReadAxiStream],
                                     DATA_WIDTH: int,
                                     readCfg: ReadGraphDetector,
-                                    predecessorsSeen: Dict[HlsStreamProcReadAxiStream, int],
+                                    predecessorsSeen: Dict[HlsReadAxiStream, int],
                                     currentOffsetVar: RtlSignal,
                                     predWordVar: RtlSignal):
         """
@@ -243,7 +243,7 @@ class SsaPassAxiStreamReadLowering(SsaPass):
                 # read words to satisfy initial offset
                 # for last, _ in iter_with_last(range(ceil(max(possibleOffsets) / DATA_WIDTH))):
                 #    endOfStream = last and not successors
-                #    r = HlsStreamProcReadAxiStream(read._parent, read._src, Bits(DATA_WIDTH), endOfStream)
+                #    r = HlsReadAxiStream(read._parent, read._src, Bits(DATA_WIDTH), endOfStream)
                 #    prevWordVars.append(r)
                 raise NotImplementedError("Use first word mask to resolve the offsetVar", possibleOffsets)
             else:
@@ -265,7 +265,7 @@ class SsaPassAxiStreamReadLowering(SsaPass):
                 raise NotImplementedError("Create a block which reads an extra last word and create a transitions from it to all blocks for that offsets")
             
             # collect/construct all reads common for every successor branch
-            prevWordVars: List[HlsStreamProcRead] = [] 
+            prevWordVars: List[HlsRead] = [] 
             # load last word
             if possibleOffsets != [0, ]:
                 prevWordVars.append(memUpdater.readVariable(predWordVar, read.block))
@@ -278,13 +278,13 @@ class SsaPassAxiStreamReadLowering(SsaPass):
                 minNoOfWords = ceil(max(0, (w - (DATA_WIDTH - minOffset))) / DATA_WIDTH)
 
             if minNoOfWords != 0:
-                word_t = HlsStreamProcReadAxiStream._getWordType(read._src)
+                word_t = HlsReadAxiStream._getWordType(read._src)
             else:
                 word_t = None
 
             for last, _ in iter_with_last(range(minNoOfWords)):
                 # endOfStream = last and read._inStreamPos.isEnd()
-                partRead = HlsStreamProcRead(read._parent, read._src, word_t)
+                partRead = HlsRead(read._parent, read._src, word_t)
                 prevWordVars.append(partRead)
                 exprBuilder._insertInstr(partRead)
                 if last:

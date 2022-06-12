@@ -11,7 +11,7 @@ class HlsNetlistPassConsystencyCheck(HlsNetlistPass):
     Check if connection of nodes is error free.
     """
 
-    def apply(self, hls:"HlsStreamProc", netlist: HlsNetlistCtx):
+    def apply(self, hls:"HlsScope", netlist: HlsNetlistCtx):
         allNodes = set(netlist.nodes)
         allNodes.update(netlist.inputs)
         allNodes.update(netlist.outputs)

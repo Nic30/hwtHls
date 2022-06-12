@@ -7,10 +7,10 @@ from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
-from hwtHls.hlsStreamProc.statementsIo import IN_STREAM_POS
-from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
-from hwtHls.frontend.pyBytecode.thread import HlsStreamProcPyThread
+from hwtHls.frontend.ast.statementsIo import IN_STREAM_POS
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc
+from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
+from hwtHls.scope import HlsScope
 from hwtLib.amba.axis import AxiStream
 from hwtLib.types.ctypes import uint16_t, uint8_t
 from hwtLib.types.net.ethernet import Eth2Header_t, ETHER_TYPE
@@ -35,7 +35,7 @@ class AxiSParseUdpIpv4(Unit):
             self.srcp: HsStructIntf[uint16_t] = HsStructIntf()._m()
             self.srcp.T = Bits(16)
     
-    def parseEth(self, hls: HlsStreamProc):
+    def parseEth(self, hls: HlsScope):
         while BIT.from_py(1):
             eth = PyBytecodeInPreproc(hls.read(self.i, Eth2Header_t, inStreamPos=IN_STREAM_POS.BEGIN))
             if eth.type._eq(ETHER_TYPE.IPv4):
@@ -47,8 +47,8 @@ class AxiSParseUdpIpv4(Unit):
             hls.read(self.i, uint8_t, inStreamPos=IN_STREAM_POS.END)
 
     def _impl(self) -> None:
-        hls = HlsStreamProc(self)
-        hls.thread(HlsStreamProcPyThread(hls, self.parseEth, hls))
+        hls = HlsScope(self)
+        hls.addThread(HlsThreadFromPy(hls, self.parseEth, hls))
         hls.compile()
 
 

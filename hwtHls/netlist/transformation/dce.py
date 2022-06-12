@@ -77,7 +77,7 @@ class HlsNetlistPassDCE(HlsNetlistPass):
 
         return False
 
-    def apply(self, hls:"HlsStreamProc", netlist: HlsNetlistCtx):
+    def apply(self, hls:"HlsScope", netlist: HlsNetlistCtx):
 
         while True:
             used: Set[HlsNetNode] = set()

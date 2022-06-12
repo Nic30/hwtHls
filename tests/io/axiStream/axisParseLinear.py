@@ -8,8 +8,10 @@ from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.hObjList import HObjList
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
-from hwtHls.hlsStreamProc.statementsIo import IN_STREAM_POS
-from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
+from hwtHls.frontend.ast.builder import HlsAstBuilder
+from hwtHls.frontend.ast.statementsIo import IN_STREAM_POS
+from hwtHls.frontend.ast.thread import HlsThreadFromAst
+from hwtHls.scope import HlsScope
 from hwtLib.amba.axis import AxiStream
 from hwtLib.amba.axis_comp.frame_parser.test_types import structManyInts
 from hwtLib.types.ctypes import uint16_t, uint32_t
@@ -36,20 +38,21 @@ class AxiSParseStructManyInts0(Unit):
         self.o = o
 
     def _impl(self) -> None:
-        hls = HlsStreamProc(self)
+        hls = HlsScope(self)
         v = hls.read(self.i, structManyInts, inStreamPos=IN_STREAM_POS.BEGIN_END)
 
-        hls.thread(
-            hls.While(True,
+        ast = HlsAstBuilder(hls)
+        hls.addThread(HlsThreadFromAst(hls,
+            ast.While(True,
                 v,
                 *(
                     hls.write(getattr(v.data, f"i{i:d}"), dst)
                     for i, dst in enumerate(self.o)
                 )
-            )
+            ),
+            self._name)
         )
         hls.compile()
-
 
 
 class AxiSParseStructManyInts1(AxiSParseStructManyInts0):
@@ -58,7 +61,7 @@ class AxiSParseStructManyInts1(AxiSParseStructManyInts0):
     """
 
     def _impl(self) -> None:
-        hls = HlsStreamProc(self)
+        hls = HlsScope(self)
         v = [
             hls.read(self.i, f.dtype, inStreamPos=
                      IN_STREAM_POS.BEGIN_END if i == 0 and last else 
@@ -76,14 +79,15 @@ class AxiSParseStructManyInts1(AxiSParseStructManyInts0):
                     dst = next(oIt)
                     yield hls.write(src.data, dst)
 
-        hls.thread(
-            hls.While(True,
+        ast = HlsAstBuilder(hls)
+        hls.addThread(HlsThreadFromAst(hls,
+            ast.While(True,
                *v,
                 *write(),
-            )
+            ),
+            self._name)
         )
         hls.compile()
-
 
 
 struct_i16_i32 = HStruct(
@@ -106,23 +110,24 @@ class AxiSParse2fields(AxiSParseStructManyInts0):
         self.o = o
 
     def _impl(self) -> None:
-        hls = HlsStreamProc(self)
+        hls = HlsScope(self)
         v = [
             hls.read(self.i, uint16_t, inStreamPos=IN_STREAM_POS.BEGIN),
             hls.read(self.i, uint32_t, inStreamPos=IN_STREAM_POS.END),
         ]
 
-        hls.thread(
-            hls.While(True,
+        ast = HlsAstBuilder(hls)
+        hls.addThread(HlsThreadFromAst(hls,
+            ast.While(True,
                *v,
                 *(
                     hls.write(src.data, dst)
                     for src, dst in zip(v, self.o)
                 )
-            )
+            ),
+            self._name)
         )
         hls.compile()
-
 
 
 if __name__ == "__main__":

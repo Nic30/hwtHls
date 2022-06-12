@@ -146,7 +146,7 @@ class HlsNetlistPassDumpToDot(HlsNetlistPass):
     def __init__(self, outStreamGetter: OutputStreamGetter):
         self.outStreamGetter = outStreamGetter
 
-    def apply(self, hls: "HlsStreamProc", netlist: HlsNetlistCtx):
+    def apply(self, hls: "HlsScope", netlist: HlsNetlistCtx):
         name = netlist.label
         toGraphwiz = HwtHlsNetlistToGraphwiz(name)
         out, doClose = self.outStreamGetter(name)

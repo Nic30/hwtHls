@@ -7,9 +7,9 @@ from hwt.simulator.simTestCase import SimTestCase
 from hwt.synthesizer.unit import Unit
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtSimApi.constants import CLK_PERIOD
+from tests.frontend.ast.trivial_test import HlsStreamMachineTrivial_TC
 from tests.io.ioFsm import WriteFsm0, WriteFsm0Once, WriteFsm1, WriteFsm1Once, \
     ReadFsm0, ReadFsm0Once, ReadFsm1, ReadFsm1Once
-from tests.syntaxElements.trivial_test import HlsStreamMachineTrivial_TC
 
 
 class IoFsm_TC(SimTestCase):

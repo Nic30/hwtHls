@@ -5,8 +5,10 @@ from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
-from hwtHls.hlsStreamProc.statementsIo import IN_STREAM_POS
-from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
+from hwtHls.frontend.ast.builder import HlsAstBuilder
+from hwtHls.frontend.ast.statementsIo import IN_STREAM_POS
+from hwtHls.frontend.ast.thread import HlsThreadFromAst
+from hwtHls.scope import HlsScope
 from hwtLib.amba.axis import AxiStream
 from hwtLib.types.net.ethernet import Eth2Header_t, eth_mac_t
 
@@ -26,19 +28,20 @@ class AxiSParseEth(Unit):
             self.dst_mac.T = eth_mac_t
 
     def _impl(self) -> None:
-        hls = HlsStreamProc(self)
+        hls = HlsScope(self)
 
         # :note: the read has to be put somewhere in the code later
         # because it needs to have a code location where it happens
         # we declare it as python variable so we do not need to use tmp
         # variable in hls
         eth = hls.read(self.i, Eth2Header_t, inStreamPos=IN_STREAM_POS.BEGIN_END)
-
-        hls.thread(
-            hls.While(True,
+        ast = HlsAstBuilder(hls)
+        hls.addThread(HlsThreadFromAst(hls, 
+            ast.While(True,
                 eth,
                 hls.write(eth.data.dst, self.dst_mac)
-            )
+            ),
+            self._name)
         )
         hls.compile()
 

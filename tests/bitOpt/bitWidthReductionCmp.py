@@ -9,8 +9,8 @@ from hwt.interfaces.std import VectSignal, Signal
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.unit import Unit
-from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
-from hwtHls.frontend.pyBytecode.thread import HlsStreamProcPyThread
+from hwtHls.scope import HlsScope
+from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtLib.types.ctypes import uint8_t
 from hwt.hdl.types.defs import BIT
 
@@ -22,7 +22,7 @@ class BitWidthReductionCmp2Values(Unit):
         self.o = VectSignal(16, signed=False)._m()
 
     def _impl(self):
-        hls = HlsStreamProc(self, freq=int(100e6))
+        hls = HlsScope(self, freq=int(100e6))
  
         def mainThread():
             while BIT.from_py(1):
@@ -37,7 +37,7 @@ class BitWidthReductionCmp2Values(Unit):
                 else:
                     hls.write(26, self.o)
 
-        hls.thread(HlsStreamProcPyThread(hls, mainThread))
+        hls.addThread(HlsThreadFromPy(hls, mainThread))
         hls.compile()
 
 
@@ -60,7 +60,7 @@ class BitWidthReductionCmpReducibleEq(Unit):
         return a._eq(b)
 
     def _impl(self):
-        hls = HlsStreamProc(self, freq=int(50e6))
+        hls = HlsScope(self, freq=int(50e6))
  
         zero8b = uint8_t.from_py(0)
         one8b = uint8_t.from_py(1)
@@ -81,7 +81,7 @@ class BitWidthReductionCmpReducibleEq(Unit):
                 hls.write(p(Concat(a[:4], zero8b, a[4:]), Concat(b[:4], zero8b, b[4:])), self.res_prefix_sameInMiddle)  # resolved as a==b
                 hls.write(p(Concat(a[:4], zero8b, a[4:]), Concat(b[:4], all8b, b[4:])), self.res_prefix_differentInMiddle)  # resolved as 0
 
-        hls.thread(HlsStreamProcPyThread(hls, mainThread))
+        hls.addThread(HlsThreadFromPy(hls, mainThread))
         hls.compile()
 
 

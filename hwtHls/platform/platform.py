@@ -45,7 +45,7 @@ class DefaultHlsPlatform(DummyPlatform):
         self._debugDir = None if debugDir is None else Path(debugDir)
         self._debugExpandCompositeNodes = False
 
-    def runSsaPasses(self, hls: "HlsStreamProc", toSsa: HlsAstToSsa):
+    def runSsaPasses(self, hls: "HlsScope", toSsa: HlsAstToSsa):
         debugDir = self._debugDir
         if debugDir and not debugDir.exists():
             debugDir.mkdir()
@@ -65,7 +65,7 @@ class DefaultHlsPlatform(DummyPlatform):
         if debugDir:
             SsaPassDumpToLl(outputFileGetter(debugDir, ".3.preLlvm.ll")).apply(hls, toSsa)
    
-    def runSsaToNetlist(self, hls: "HlsStreamProc", toSsa: HlsAstToSsa) -> HlsNetlistCtx:
+    def runSsaToNetlist(self, hls: "HlsScope", toSsa: HlsAstToSsa) -> HlsNetlistCtx:
         tr: ToLlvmIrTranslator = toSsa.start
         assert isinstance(tr, ToLlvmIrTranslator), tr
         netlist = None
@@ -107,7 +107,7 @@ class DefaultHlsPlatform(DummyPlatform):
         
         return netlist
 
-    def runHlsNetlistPasses(self, hls: "HlsStreamProc", netlist: HlsNetlistCtx):
+    def runHlsNetlistPasses(self, hls: "HlsScope", netlist: HlsNetlistCtx):
         debugDir = self._debugDir
         if debugDir:
             HlsNetlistPassConsystencyCheck().apply(hls, netlist)
@@ -126,7 +126,7 @@ class DefaultHlsPlatform(DummyPlatform):
                                            expandCompositeNodes=self._debugExpandCompositeNodes).apply(hls, netlist)
         netlist.requestAnalysis(HlsNetlistAnalysisPassRunScheduler)
 
-    def runRtlNetlistPasses(self, hls: "HlsStreamProc", netlist: HlsNetlistCtx):
+    def runRtlNetlistPasses(self, hls: "HlsScope", netlist: HlsNetlistCtx):
         debugDir = self._debugDir
         if debugDir:
             RtlNetlistPassDumpStreamNodes(outputFileGetter(debugDir, ".10.sync.txt")).apply(hls, netlist)

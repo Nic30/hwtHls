@@ -100,7 +100,7 @@ This is a big difference from hand crafted hardware, where it is assured, that y
 ## How it works?
 
 * The input code is parsed into SSA objects defined in `hwtHls.ssa`.
-  (The code is loaded using `HlsStreamProc` object in [hwt](https://github.com/Nic30/hwt) component (`Unit` class),
+  (The code is loaded using `HlsScope` object in [hwt](https://github.com/Nic30/hwt) component (`Unit` class),
    the constraints and interface types are specified as [hwt](https://github.com/Nic30/hwt) objects.)
 * There are several optimization SSA passes (common subexpression elimination, dead code elimination
   instruction combining, control optimization, ...). Full list of optimizations is specified in HlsPlatform.

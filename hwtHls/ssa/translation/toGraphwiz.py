@@ -1,20 +1,19 @@
 import html
-from pathlib import Path
 from typing import List, Union, Dict, Optional, Tuple
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.hlsStreamProc.debugCodeSerializer import CopyBasicBlockLabelsToCode
-from hwtHls.hlsStreamProc.statements import HlsStreamProcCodeBlock
+from hwtHls.frontend.ast.debugCodeSerializer import CopyBasicBlockLabelsToCode
+from hwtHls.frontend.ast.statements import HlsStmCodeBlock
 from hwtHls.netlist.translation.toGraphwiz import GraphwizNode, GraphwizLink, \
     HwtHlsNetlistToGraphwiz
+from hwtHls.platform.fileUtils import OutputStreamGetter
 from hwtHls.ssa.analysis.liveness import EdgeLivenessDict
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.phi import SsaPhi
 from hwtHls.ssa.transformation.ssaPass import SsaPass
 from hwtHls.ssa.value import SsaValue
-from hwtHls.platform.fileUtils import OutputStreamGetter
 
 
 class SsaToGraphwiz():
@@ -29,7 +28,7 @@ class SsaToGraphwiz():
         self.obj_to_node: Dict[Union[SsaBasicBlock, Tuple[SsaBasicBlock, SsaBasicBlock]], GraphwizNode] = {}
 
     def construct(self, begin: SsaBasicBlock,
-                  code: Optional[HlsStreamProcCodeBlock],
+                  code: Optional[HlsStmCodeBlock],
                   pipelines: Optional[List[List[SsaBasicBlock]]],
                   edge_var_live: Optional[EdgeLivenessDict]):
         self._node_from_SsaBasicBlock(begin, True, edge_var_live)
@@ -134,7 +133,7 @@ class SsaPassDumpToDot(SsaPass):
             raise NotImplementedError()
         self.extractPipeline = extractPipeline
 
-    def apply(self, hls: "HlsStreamProc", to_ssa: "HlsAstToSsa"):
+    def apply(self, hls: "HlsScope", to_ssa: "HlsAstToSsa"):
         name = to_ssa.label
         to_graphwiz = SsaToGraphwiz(name)
         # if self.extractPipeline:

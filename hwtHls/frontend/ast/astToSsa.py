@@ -15,17 +15,17 @@ from hwt.synthesizer.interfaceLevel.interfaceUtils.utils import packIntf
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.rtlLevel.signalUtils.exceptions import SignalDriverErr
 from hwtHls.frontend.ast.memorySSAUpdater import MemorySSAUpdater
-from hwtHls.hlsStreamProc.statements import HlsStreamProcStm, HlsStreamProcWhile, \
-    HlsStreamProcCodeBlock, HlsStreamProcIf, HlsStreamProcFor, HlsStreamProcContinue, \
-    HlsStreamProcBreak
-from hwtHls.hlsStreamProc.statementsIo import HlsStreamProcWrite, HlsStreamProcRead
+from hwtHls.frontend.ast.statements import HlsStm, HlsStmWhile, \
+    HlsStmCodeBlock, HlsStmIf, HlsStmFor, HlsStmContinue, \
+    HlsStmBreak
+from hwtHls.frontend.ast.statementsIo import HlsWrite, HlsRead
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.context import SsaContext
 from hwtHls.ssa.instr import SsaInstr, SsaInstrBranch
 from hwtHls.ssa.value import SsaValue
 
 
-AnyStm = Union[HdlAssignmentContainer, HlsStreamProcStm]
+AnyStm = Union[HdlAssignmentContainer, HlsStm]
 
 
 class SsaInstrBranchUnreachable(SsaInstrBranch):
@@ -66,7 +66,7 @@ class HlsAstToSsa():
         The blocks ending with break will have its branch destination assigned after the loop is processed (in loop parsing fn.).
     """
 
-    def __init__(self, ssaCtx: SsaContext, startBlockName:str, original_code_for_debug: Optional[HlsStreamProcCodeBlock]):
+    def __init__(self, ssaCtx: SsaContext, startBlockName:str, original_code_for_debug: Optional[HlsStmCodeBlock]):
         self.ssaCtx = ssaCtx
         self.label = startBlockName
         self.start = SsaBasicBlock(ssaCtx, startBlockName)
@@ -75,7 +75,7 @@ class HlsAstToSsa():
         self._continue_target: List[SsaBasicBlock] = []
         self._break_target: List[SsaBasicBlock] = []
         self.original_code_for_debug = original_code_for_debug
-        self._loop_stack: List[Tuple[HlsStreamProcWhile, SsaBasicBlock, List[SsaBasicBlock]]] = []
+        self._loop_stack: List[Tuple[HlsStmWhile, SsaBasicBlock, List[SsaBasicBlock]]] = []
 
     def _onBlockReduce(self, block: SsaBasicBlock, replacement: SsaBasicBlock):
         if block is self.start:
@@ -104,19 +104,19 @@ class HlsAstToSsa():
         for o in obj:
             if isinstance(o, HdlAssignmentContainer):
                 block = self.visit_Assignment(block, o)
-            elif isinstance(o, HlsStreamProcWrite):
+            elif isinstance(o, HlsWrite):
                 block = self.visit_Write(block, o)
-            elif isinstance(o, HlsStreamProcWhile):
+            elif isinstance(o, HlsStmWhile):
                 block = self.visit_While(block, o)
-            elif isinstance(o, HlsStreamProcFor):
+            elif isinstance(o, HlsStmFor):
                 block = self.visit_For(block, o)
-            elif isinstance(o, (HlsStreamProcIf, IfContainer)):
+            elif isinstance(o, (HlsStmIf, IfContainer)):
                 block = self.visit_If(block, o)
-            elif isinstance(o, HlsStreamProcRead):
+            elif isinstance(o, HlsRead):
                 block, _ = self.visit_expr(block, o)
-            elif isinstance(o, HlsStreamProcBreak):
+            elif isinstance(o, HlsStmBreak):
                 block = self.visit_Break(block, o)
-            elif isinstance(o, HlsStreamProcContinue):
+            elif isinstance(o, HlsStmContinue):
                 block = self.visit_Continue(block, o)
             else:
                 raise NotImplementedError(o)
@@ -137,16 +137,16 @@ class HlsAstToSsa():
                 if isinstance(op, HdlPortItem):
                     raise NotImplementedError(op)
                 
-                elif isinstance(op, HlsStreamProcRead):
+                elif isinstance(op, HlsRead):
                     if op.block is None:
                         # read first used there else already visited
                         block.appendInstruction(op)
-                        # HlsStreamProcRead is a SsaValue and thus represents "variable"
+                        # HlsRead is a SsaValue and thus represents "variable"
                         self.m_ssa_u.writeVariable(var, (), block, op)
 
                     return block, op
 
-                elif isinstance(op, (HlsStreamProcBreak, HlsStreamProcContinue)):
+                elif isinstance(op, (HlsStmBreak, HlsStmContinue)):
                     raise NotImplementedError()
 
                 else:
@@ -182,10 +182,10 @@ class HlsAstToSsa():
             return block, var
 
         else:
-            if isinstance(var, HlsStreamProcRead):
+            if isinstance(var, HlsRead):
                 if var.block is None:
                     block.appendInstruction(var)
-                    # HlsStreamProcRead is a SsaValue and thus represents "variable"
+                    # HlsRead is a SsaValue and thus represents "variable"
                     self.m_ssa_u.writeVariable(var._sig, (), block, var)
                 var = var._sig
             elif isinstance(var, StructIntf):
@@ -194,11 +194,11 @@ class HlsAstToSsa():
 
             return block, self.m_ssa_u.readVariable(var, block)
 
-    def visit_For(self, block: SsaBasicBlock, o: HlsStreamProcFor) -> SsaBasicBlock:
+    def visit_For(self, block: SsaBasicBlock, o: HlsStmFor) -> SsaBasicBlock:
         block = self.visit_CodeBlock_list(block, o.init)
-        return self.visit_While(block, HlsStreamProcWhile(o.parent, o.cond, o.body + o.step))
+        return self.visit_While(block, HlsStmWhile(o.parent, o.cond, o.body + o.step))
 
-    def visit_While(self, block: SsaBasicBlock, o: HlsStreamProcWhile) -> SsaBasicBlock:
+    def visit_While(self, block: SsaBasicBlock, o: HlsStmWhile) -> SsaBasicBlock:
         if isinstance(o.cond, HValue):
             if o.cond:
                 # while True
@@ -259,7 +259,7 @@ class HlsAstToSsa():
 
         return end_block
     
-    def visit_Continue(self, block: SsaBasicBlock, o: HlsStreamProcContinue) -> SsaBasicBlock:
+    def visit_Continue(self, block: SsaBasicBlock, o: HlsStmContinue) -> SsaBasicBlock:
         assert self._loop_stack, (o, "Must be in loop")
         _, loop_entry, _ = self._loop_stack[-1]
         block.successors.addTarget(None, loop_entry)
@@ -272,7 +272,7 @@ class HlsAstToSsa():
         self._onAllPredecsKnown(end_block)
         return end_block
         
-    def visit_Break(self, block: SsaBasicBlock, o: HlsStreamProcContinue) -> SsaBasicBlock:
+    def visit_Break(self, block: SsaBasicBlock, o: HlsStmContinue) -> SsaBasicBlock:
         assert self._loop_stack, (o, "Must be in loop")
         _, _, break_blocks = self._loop_stack[-1]
         break_blocks.append(block)
@@ -296,7 +296,7 @@ class HlsAstToSsa():
         else:
             cond_block.successors.addTarget(cond, end_if_block)
 
-    def visit_If(self, block: SsaBasicBlock, o: HlsStreamProcIf) -> SsaBasicBlock:
+    def visit_If(self, block: SsaBasicBlock, o: HlsStmIf) -> SsaBasicBlock:
         cond_block = self._addNewTargetBb(block, None, f"{block.label:s}_IfC", o)
         self._onAllPredecsKnown(cond_block)
         cond_block, cond = self.visit_expr(cond_block, o.cond)
@@ -329,7 +329,7 @@ class HlsAstToSsa():
 
         return block
 
-    def visit_Write(self, block: SsaBasicBlock, o: HlsStreamProcWrite) -> SsaBasicBlock:
+    def visit_Write(self, block: SsaBasicBlock, o: HlsWrite) -> SsaBasicBlock:
         block, src = self.visit_expr(block, o.getSrc())
         o.operands = (src,)
         block.appendInstruction(o)

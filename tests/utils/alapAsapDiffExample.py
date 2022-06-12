@@ -5,10 +5,12 @@ from hwt.interfaces.std import VectSignal
 from hwt.interfaces.utils import addClkRstn
 from hwt.simulator.simTestCase import SimTestCase
 from hwt.synthesizer.unit import Unit
-from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
-from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.netlist.scheduler.errors import TimeConstraintError
+from hwtHls.platform.virtual import VirtualHlsPlatform
+from hwtHls.scope import HlsScope
 from hwtSimApi.utils import freq_to_period
+from hwtHls.frontend.ast.builder import HlsAstBuilder
+from hwtHls.frontend.ast.thread import HlsThreadFromAst
 
 
 class AlapAsapDiffExample(Unit):
@@ -25,7 +27,7 @@ class AlapAsapDiffExample(Unit):
         self.d = VectSignal(8)._m()
 
     def _impl(self):
-        hls = HlsStreamProc(self)
+        hls = HlsScope(self)
         # inputs has to be readed to enter hls scope
         # (without read() operation will not be schedueled by HLS
         #  but they will be directly synthesized)
@@ -35,11 +37,12 @@ class AlapAsapDiffExample(Unit):
         # no constrains are specified => default strategy is
         # to achieve zero delay and minimum latency, for this CLK_FREQ
         d = ~(~a & ~b) & ~c
-
-        hls.thread(
-            hls.While(True,
+        ast = HlsAstBuilder(hls)
+        hls.addThread(HlsThreadFromAst(hls,
+            ast.While(True,
                 hls.write(d, self.d)
-            )
+            ),
+            self._name)
         )
         hls.compile()
 

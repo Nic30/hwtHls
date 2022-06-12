@@ -66,5 +66,5 @@ class HlsNetlistPassMergeExplicitSync(HlsNetlistPass):
                 if (n not in to_rm)
             ]
 
-    def apply(self, hls: "HlsStreamProc", netlist: HlsNetlistCtx):
+    def apply(self, hls: "HlsScope", netlist: HlsNetlistCtx):
         self._apply(netlist.nodes)

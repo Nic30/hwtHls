@@ -12,9 +12,9 @@ from hwt.pyUtils.arrayQuery import flatten
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.errors import HlsSyntaxError
-from hwtHls.hlsStreamProc.statementsIo import HlsStreamProcWrite, \
-    HlsStreamProcRead
-from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
+from hwtHls.frontend.ast.statementsIo import HlsWrite, \
+    HlsRead
+from hwtHls.scope import HlsScope
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.frontend.pyBytecode.blockLabel import BlockLabel
@@ -46,7 +46,7 @@ class SsaBlockGroup():
 
 class PyBytecodeToSsaLowLevel():
 
-    def __init__(self, hls: HlsStreamProc, fn: FunctionType, label: str):
+    def __init__(self, hls: HlsScope, fn: FunctionType, label: str):
         assert sys.version_info >= (3, 10, 0), ("Python3.10 is minimum requirement", sys.version_info)
         self.hls = hls
         self.fn = fn
@@ -248,14 +248,14 @@ class PyBytecodeToSsaLowLevel():
                 # Removes the top-of-stack (TOS) item.
                 res = stack.pop()
                 res, curBlock = expandBeforeUse(res, curBlock)
-                if isinstance(res, HlsStreamProcWrite):
-                    res: HlsStreamProcWrite
+                if isinstance(res, HlsWrite):
+                    res: HlsWrite
                     if isinstance(res.dst, PyObjectHwSubscriptRef):
                         hls = self.hls
                         return res.dst.expandSetitemAsSwitchCase(curBlock,
                                                                  lambda i, dst: hls.write(res._orig_src, dst))
                     
-                if isinstance(res, (HlsStreamProcWrite, HlsStreamProcRead, HdlAssignmentContainer)):
+                if isinstance(res, (HlsWrite, HlsRead, HdlAssignmentContainer)):
                     self.to_ssa.visit_CodeBlock_list(curBlock, [res, ])
 
             elif opcode == LOAD_DEREF:

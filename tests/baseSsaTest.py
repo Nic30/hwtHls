@@ -37,7 +37,7 @@ class BaseTestPlatform(VirtualHlsPlatform):
         self.dataThreads = StringIO()
         self.blockSync = StringIO()
 
-    def runSsaPasses(self, hls:"HlsStreamProc", toSsa:HlsAstToSsa):
+    def runSsaPasses(self, hls:"HlsScope", toSsa:HlsAstToSsa):
         SsaPassConsystencyCheck().apply(hls, toSsa)
         SsaPassDumpToLl(lambda name: (self.preOpt, False)).apply(hls, toSsa)
         SsaPassExtractPartDrivers().apply(hls, toSsa)
@@ -45,7 +45,7 @@ class BaseTestPlatform(VirtualHlsPlatform):
         SsaPassDumpToLl(lambda name: (self.postPyOpt, False)).apply(hls, toSsa)
         SsaPassToLlvm().apply(hls, toSsa)
 
-    def runSsaToNetlist(self, hls:"HlsStreamProc", toSsa:HlsAstToSsa) -> HlsNetlistCtx:
+    def runSsaToNetlist(self, hls:"HlsScope", toSsa:HlsAstToSsa) -> HlsNetlistCtx:
         tr: ToLlvmIrTranslator = toSsa.start
         assert isinstance(tr, ToLlvmIrTranslator), tr
         netlist = None
@@ -83,7 +83,7 @@ class BaseTestPlatform(VirtualHlsPlatform):
         
         return netlist
 
-    def runHlsNetlistPasses(self, hls:"HlsStreamProc", netlist:HlsNetlistCtx):
+    def runHlsNetlistPasses(self, hls:"HlsScope", netlist:HlsNetlistCtx):
         raise TestFinishedSuccessfuly()
 
 
