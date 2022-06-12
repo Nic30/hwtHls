@@ -109,7 +109,7 @@ class IoFsm_TC(SimTestCase):
 if __name__ == "__main__":
     import unittest
     suite = unittest.TestSuite()
-    # suite.addTest(IoFsm_TC('test_ReadFsm0'))
+    #suite.addTest(IoFsm_TC('test_ReadFsm1Once'))
     suite.addTest(unittest.makeSuite(IoFsm_TC))
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

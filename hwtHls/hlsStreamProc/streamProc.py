@@ -25,7 +25,7 @@ from hwtHls.hlsStreamProc.statementsIo import HlsStreamProcRead, \
 from hwtHls.hlsStreamProc.thread import HlsStreamProcThread, \
     HlsStreamProcSharedVarThread, HlsStreamProcThreadFromAst
 from hwtHls.ssa.context import SsaContext
-from hwtHls.ssa.translation.fromAst.astToSsa import AnyStm, AstToSsa
+from hwtHls.frontend.ast.astToSsa import AnyStm
 from hwtLib.amba.axi_intf_common import Axi_hs
 from hwtLib.amba.axis import AxiStream
 from hwtHls.platform.platform import DefaultHlsPlatform

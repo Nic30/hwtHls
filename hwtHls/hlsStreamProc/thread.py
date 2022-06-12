@@ -12,7 +12,7 @@ from hwt.synthesizer.param import Param
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.hlsStreamProc.statements import HlsStreamProcCodeBlock
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.ssa.translation.fromAst.astToSsa import AnyStm, AstToSsa
+from hwtHls.frontend.ast.astToSsa import AnyStm, HlsAstToSsa
 from ipCorePackager.constants import DIRECTION
 
 
@@ -23,7 +23,7 @@ class HlsStreamProcThread():
 
     def __init__(self, hls: "HlsStreamProc"):
         self.hls = hls
-        self.toSsa: Optional[AstToSsa] = None
+        self.toSsa: Optional[HlsAstToSsa] = None
         self.toHw: Optional[HlsNetlistCtx] = None
 
     def getLabel(self) -> str:
@@ -57,7 +57,7 @@ class HlsStreamProcThreadFromAst(HlsStreamProcThread):
 
     def compileToSsa(self):
         _code = self._formatCode(self.code)
-        toSsa = AstToSsa(self.hls.ssaCtx, self.getLabel(), _code)
+        toSsa = HlsAstToSsa(self.hls.ssaCtx, self.getLabel(), _code)
         toSsa._onAllPredecsKnown(toSsa.start)
         toSsa.visit_top_CodeBlock(_code)
         toSsa.finalize()

@@ -10,8 +10,8 @@ from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.statementsIo import IN_STREAM_POS
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
-from hwtHls.ssa.translation.fromPython.markers import PyBytecodeInPreproc
-from hwtHls.ssa.translation.fromPython.thread import HlsStreamProcPyThread
+from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc
+from hwtHls.frontend.pyBytecode.thread import HlsStreamProcPyThread
 from hwtLib.amba.axis import AxiStream
 from hwtLib.types.ctypes import uint16_t
 

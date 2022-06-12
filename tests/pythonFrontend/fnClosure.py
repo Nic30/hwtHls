@@ -5,7 +5,7 @@ from hwt.hdl.types.defs import BIT
 from hwt.interfaces.std import VectSignal
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
-from hwtHls.ssa.translation.fromPython.thread import HlsStreamProcPyThread
+from hwtHls.frontend.pyBytecode.thread import HlsStreamProcPyThread
 
 
 class FnClosureSingleItem(Unit):

@@ -101,7 +101,7 @@ class SsaPassDumpToLl():
     def __init__(self, outStreamGetter:OutputStreamGetter):
         self.outStreamGetter = outStreamGetter
 
-    def apply(self, hls: "HlsStreamProc", to_ssa: "AstToSsa"):
+    def apply(self, hls: "HlsStreamProc", to_ssa: "HlsAstToSsa"):
         output, doClose = self.outStreamGetter(to_ssa.label) 
         output = AutoIndentingStream(output, "  ")
         try:

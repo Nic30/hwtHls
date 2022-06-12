@@ -18,7 +18,7 @@ from hwtHls.ssa.transformation.extractPartDrivers.utils import VarBitSegmentEndp
 from hwtHls.ssa.transformation.ssaPass import SsaPass
 from hwtHls.ssa.transformation.utils.blockAnalysis import collect_all_blocks
 from hwtHls.ssa.transformation.utils.concatOfSlices import ConcatOfSlices
-from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
+from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.ssa.value import SsaValue
 
 
@@ -547,7 +547,7 @@ class SsaPassExtractPartDrivers(SsaPass):
             self._removeEntirelyRemovedFromList(
                 b.body, varEntirelyReplaced)
 
-    def apply(self, hls: "HlsStreamProc", to_ssa: AstToSsa):
+    def apply(self, hls: "HlsStreamProc", to_ssa: HlsAstToSsa):
         self.var_segments: Dict[SsaValue, VarBitSegments] = {}
         allBlocksSet = set()
         allBlocks = list(collect_all_blocks(to_ssa.start, allBlocksSet))

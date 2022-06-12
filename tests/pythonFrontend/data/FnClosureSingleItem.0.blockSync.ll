@@ -1,0 +1,2 @@
+mainThread: <MachineBasicBlockSyncContainer block=mainThread, needsStarter, blockEn=<HlsNetNodeOutLazy 0>, orderingIn=<HlsNetNodeOutLazy 1>, orderingOut=<HlsNetNodeOutLazy 1>>
+blockL22i0_22: <MachineBasicBlockSyncContainer block=blockL22i0_22, blockEn=<HlsNetNodeOutLazy 2>, orderingIn=<HlsNetNodeOutLazy 3>, orderingOut=<HlsNetNodeOut <HlsNetNodeWrite 5 <Signal o <Bits, 8bits, unsigned>> <- <HlsNetNodeOut <HlsNetNodeRead 4 <Signal i <Bits, 8bits, unsigned>>> [0]>> [0]>>

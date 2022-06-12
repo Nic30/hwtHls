@@ -134,7 +134,7 @@ class SsaPassDumpToDot(SsaPass):
             raise NotImplementedError()
         self.extractPipeline = extractPipeline
 
-    def apply(self, hls: "HlsStreamProc", to_ssa: "AstToSsa"):
+    def apply(self, hls: "HlsStreamProc", to_ssa: "HlsAstToSsa"):
         name = to_ssa.label
         to_graphwiz = SsaToGraphwiz(name)
         # if self.extractPipeline:

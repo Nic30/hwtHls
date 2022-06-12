@@ -25,7 +25,7 @@ from hwtHls.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
 from hwtHls.ssa.transformation.axiStreamReadLowering.axiStreamReadLoweringPass import SsaPassAxiStreamReadLowering
 from hwtHls.ssa.transformation.extractPartDrivers.extractPartDriversPass import SsaPassExtractPartDrivers
 from hwtHls.ssa.translation.dumpMIR import SsaPassDumpMIR
-from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
+from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
 from hwtHls.ssa.translation.toGraphwiz import SsaPassDumpToDot
 from hwtHls.ssa.translation.toLl import SsaPassDumpToLl
@@ -45,7 +45,7 @@ class DefaultHlsPlatform(DummyPlatform):
         self._debugDir = None if debugDir is None else Path(debugDir)
         self._debugExpandCompositeNodes = False
 
-    def runSsaPasses(self, hls: "HlsStreamProc", toSsa: AstToSsa):
+    def runSsaPasses(self, hls: "HlsStreamProc", toSsa: HlsAstToSsa):
         debugDir = self._debugDir
         if debugDir and not debugDir.exists():
             debugDir.mkdir()
@@ -65,7 +65,7 @@ class DefaultHlsPlatform(DummyPlatform):
         if debugDir:
             SsaPassDumpToLl(outputFileGetter(debugDir, ".3.preLlvm.ll")).apply(hls, toSsa)
    
-    def runSsaToNetlist(self, hls: "HlsStreamProc", toSsa: AstToSsa) -> HlsNetlistCtx:
+    def runSsaToNetlist(self, hls: "HlsStreamProc", toSsa: HlsAstToSsa) -> HlsNetlistCtx:
         tr: ToLlvmIrTranslator = toSsa.start
         assert isinstance(tr, ToLlvmIrTranslator), tr
         netlist = None

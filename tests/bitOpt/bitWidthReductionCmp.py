@@ -10,7 +10,7 @@ from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
-from hwtHls.ssa.translation.fromPython.thread import HlsStreamProcPyThread
+from hwtHls.frontend.pyBytecode.thread import HlsStreamProcPyThread
 from hwtLib.types.ctypes import uint8_t
 from hwt.hdl.types.defs import BIT
 

@@ -3,6 +3,7 @@ import os
 from typing import Set, Tuple, Dict, List
 
 from hwt.synthesizer.unit import Unit
+from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, MachineLoopInfo
 from hwtHls.netlist.analysis.blockSyncType import HlsNetlistAnalysisPassBlockSyncType
 from hwtHls.netlist.analysis.dataThreads import HlsNetlistAnalysisPassDataThreads
@@ -13,7 +14,6 @@ from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
 from hwtHls.ssa.transformation.extractPartDrivers.extractPartDriversPass import SsaPassExtractPartDrivers
 from hwtHls.ssa.translation.dumpMIR import SsaPassDumpMIR
-from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
 from hwtHls.ssa.translation.toLl import SsaPassDumpToLl
 from hwtHls.ssa.translation.toLlvm import SsaPassToLlvm, ToLlvmIrTranslator
@@ -37,7 +37,7 @@ class BaseTestPlatform(VirtualHlsPlatform):
         self.dataThreads = StringIO()
         self.blockSync = StringIO()
 
-    def runSsaPasses(self, hls:"HlsStreamProc", toSsa:AstToSsa):
+    def runSsaPasses(self, hls:"HlsStreamProc", toSsa:HlsAstToSsa):
         SsaPassConsystencyCheck().apply(hls, toSsa)
         SsaPassDumpToLl(lambda name: (self.preOpt, False)).apply(hls, toSsa)
         SsaPassExtractPartDrivers().apply(hls, toSsa)
@@ -45,7 +45,7 @@ class BaseTestPlatform(VirtualHlsPlatform):
         SsaPassDumpToLl(lambda name: (self.postPyOpt, False)).apply(hls, toSsa)
         SsaPassToLlvm().apply(hls, toSsa)
 
-    def runSsaToNetlist(self, hls:"HlsStreamProc", toSsa:AstToSsa) -> HlsNetlistCtx:
+    def runSsaToNetlist(self, hls:"HlsStreamProc", toSsa:HlsAstToSsa) -> HlsNetlistCtx:
         tr: ToLlvmIrTranslator = toSsa.start
         assert isinstance(tr, ToLlvmIrTranslator), tr
         netlist = None

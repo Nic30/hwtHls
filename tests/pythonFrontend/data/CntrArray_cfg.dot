@@ -1,28 +1,47 @@
-strict digraph  {
-"(0,)" [fillcolor=green, style=filled];
-"(40,)" [fillcolor=green, style=filled];
-"(110,)" [fillcolor=gray, style=filled];
-"(50,)" [fillcolor=green, style=filled];
-"(26i0, 28)" [fillcolor=green, style=filled];
-"(26i0, 26)" [fillcolor=green, style=filled];
-"(26i1, 26)" [fillcolor=green, style=filled];
-"(26i1, 28)" [fillcolor=green, style=filled];
-"(26i2, 26)" [fillcolor=green, style=filled];
-"(26i2, 28)" [fillcolor=green, style=filled];
-"(26i3, 26)" [fillcolor=green, style=filled];
-"(26i3, 28)" [fillcolor=green, style=filled];
-"(26i4, 26)" [fillcolor=green, style=filled];
-"(0,)" -> "(26i0, 26)";
-"(40,)" -> "(110,)";
-"(40,)" -> "(50,)";
-"(50,)" -> "(40,)";
-"(26i0, 28)" -> "(26i1, 26)";
-"(26i0, 26)" -> "(26i0, 28)";
-"(26i1, 26)" -> "(26i1, 28)";
-"(26i1, 28)" -> "(26i2, 26)";
-"(26i2, 26)" -> "(26i2, 28)";
-"(26i2, 28)" -> "(26i3, 26)";
-"(26i3, 26)" -> "(26i3, 28)";
-"(26i3, 28)" -> "(26i4, 26)";
-"(26i4, 26)" -> "(40,)";
+digraph  {
+legend [label=<
+<table border="0" cellborder="1" cellspacing="0">
+  <tr><td bgcolor="LightGreen">sealed</td></tr>
+  <tr><td bgcolor="LightBlue">generated</td></tr>
+  <tr><td bgcolor="gray">notGenerated</td></tr>
+  <tr><td bgcolor="white">generating</td></tr>
+  <tr><td bgcolor="LightCoral">sealed not in generated</td></tr>
+</table>>, shape=plain, style=filled];
+"(0,)" [fillcolor=LightGreen, style=filled];
+"(44,)" [fillcolor=LightGreen, style=filled];
+"(126,)" [fillcolor=gray, style=filled];
+"(122,)" [fillcolor=gray, style=filled];
+"(L30i0, 30)" [fillcolor=LightGreen, style=filled];
+"(L30i0, 32)" [fillcolor=LightGreen, style=filled];
+"(L30i1, 30)" [fillcolor=LightGreen, style=filled];
+"(L30i1, 32)" [fillcolor=LightGreen, style=filled];
+"(L30i2, 30)" [fillcolor=LightGreen, style=filled];
+"(L30i2, 32)" [fillcolor=LightGreen, style=filled];
+"(L30i3, 30)" [fillcolor=LightGreen, style=filled];
+"(L30i3, 32)" [fillcolor=LightGreen, style=filled];
+"(L30i4, 30)" [fillcolor=LightGreen, style=filled];
+"(L30i4, 32)" [fillcolor=gray, style=filled];
+"(L54i0, 54)" [fillcolor=LightGreen, style=filled];
+"(L54i1, 54)" [fillcolor=gray, style=filled];
+"(0,)" -> "(L30i0, 30)";
+"(44,)" -> "(126,)"  [color=gray];
+"(44,)" -> "(L54i0, 54)";
+"(122,)" -> "(126,)";
+"(L30i0, 30)" -> "(44,)"  [color=gray];
+"(L30i0, 30)" -> "(L30i0, 32)";
+"(L30i0, 32)" -> "(L30i1, 30)";
+"(L30i1, 30)" -> "(44,)"  [color=gray];
+"(L30i1, 30)" -> "(L30i1, 32)";
+"(L30i1, 32)" -> "(L30i2, 30)";
+"(L30i2, 30)" -> "(44,)"  [color=gray];
+"(L30i2, 30)" -> "(L30i2, 32)";
+"(L30i2, 32)" -> "(L30i3, 30)";
+"(L30i3, 30)" -> "(44,)"  [color=gray];
+"(L30i3, 30)" -> "(L30i3, 32)";
+"(L30i3, 32)" -> "(L30i4, 30)";
+"(L30i4, 30)" -> "(44,)";
+"(L30i4, 30)" -> "(L30i4, 32)"  [color=gray];
+"(L54i0, 54)" -> "(122,)"  [color=gray];
+"(L54i0, 54)" -> "(L54i1, 54)"  [color=gray];
+"(L54i0, 54)" -> "(L54i0, 54)";
 }

@@ -16,8 +16,8 @@ from hwtHls.ssa.exprBuilder import SsaExprBuilder
 from hwtHls.ssa.transformation.axiStreamReadLowering.readGraphDetector import ReadGraphDetector
 from hwtHls.ssa.transformation.ssaPass import SsaPass
 from hwtHls.ssa.transformation.utils.blockAnalysis import collect_all_blocks
-from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
-from hwtHls.ssa.translation.fromAst.memorySSAUpdater import MemorySSAUpdater
+from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
+from hwtHls.frontend.ast.memorySSAUpdater import MemorySSAUpdater
 from hwtLib.amba.axis import AxiStream
 from hwtHls.ssa.value import SsaValue
 
@@ -78,7 +78,7 @@ class SsaPassAxiStreamReadLowering(SsaPass):
                         reads.append(instr)
         return reads
 
-    def apply(self, hls: "HlsStreamProc", to_ssa: AstToSsa):
+    def apply(self, hls: "HlsStreamProc", to_ssa: HlsAstToSsa):
         reads = self._detectReads(to_ssa.start)
         intfs = UniqList()
         readsForIntf = defaultdict(UniqList)

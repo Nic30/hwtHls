@@ -85,7 +85,7 @@ class SsaPassConsystencyCheck(SsaPass):
             if _bb not in seen:
                 self.visit_check(_bb, blocks, phis, variables, seen)
 
-    def apply(self, hls: "HlsStreamProc", to_ssa: "AstToSsa"):
+    def apply(self, hls: "HlsStreamProc", to_ssa: "HlsAstToSsa"):
         bb = to_ssa.start
         blocks: UniqList[SsaBasicBlock] = UniqList()
         phis: UniqList[SsaPhi] = UniqList()

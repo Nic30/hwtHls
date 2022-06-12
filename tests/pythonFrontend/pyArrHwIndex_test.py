@@ -5,8 +5,8 @@ from io import StringIO
 import os
 
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
-from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
-from hwtHls.ssa.translation.fromPython.thread import HlsStreamProcPyThread
+from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
+from hwtHls.frontend.pyBytecode.thread import HlsStreamProcPyThread
 from tests.baseSsaTest import BaseSsaTC, TestFinishedSuccessfuly, BaseTestPlatform
 from tests.pythonFrontend.pyArrHwIndex import Rom, CntrArray
 
@@ -23,7 +23,8 @@ class CntrArrayWithCfgDotDump(CntrArray):
         try:
             hls.compile()
         finally:
-            t.bytecodeToSsa.blockTracker.dumpCfgToDot(self.CFG_FILE)
+            sealedBlocks = set(t.bytecodeToSsa.blockToLabel[b] for b in t.bytecodeToSsa.to_ssa.m_ssa_u.sealedBlocks)
+            t.bytecodeToSsa.blockTracker.dumpCfgToDot(self.CFG_FILE, sealedBlocks)
             
 
 class PyArrHwIndex_TC(BaseSsaTC):
@@ -40,7 +41,7 @@ class PyArrHwIndex_TC(BaseSsaTC):
 
         class FrontendTestPlatform(BaseTestPlatform):
 
-            def runSsaPasses(self, hls:"HlsStreamProc", toSsa:AstToSsa):
+            def runSsaPasses(self, hls:"HlsStreamProc", toSsa:HlsAstToSsa):
                 raise TestFinishedSuccessfuly()
 
         u = CntrArrayWithCfgDotDump()

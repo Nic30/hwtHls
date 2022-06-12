@@ -8,7 +8,7 @@ from hwt.interfaces.std import VectSignal
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
-from hwtHls.ssa.translation.fromPython.thread import HlsStreamProcPyThread
+from hwtHls.frontend.pyBytecode.thread import HlsStreamProcPyThread
 from hwtLib.types.ctypes import uint32_t, uint8_t
 
 

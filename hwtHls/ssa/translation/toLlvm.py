@@ -24,7 +24,7 @@ from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.phi import SsaPhi
 from hwtHls.ssa.transformation.utils.blockAnalysis import collect_all_blocks
-from hwtHls.ssa.translation.fromAst.astToSsa import AstToSsa
+from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axi_intf_common import Axi_hs
 from ipCorePackager.constants import INTF_DIRECTION
@@ -311,7 +311,7 @@ class ToLlvmIrTranslator():
 
 class SsaPassToLlvm():
 
-    def apply(self, hls: "HlsStreamProc", to_ssa: AstToSsa):
+    def apply(self, hls: "HlsStreamProc", to_ssa: HlsAstToSsa):
         io: Dict[Interface, INTF_DIRECTION] = {}
         for block in collect_all_blocks(to_ssa.start, set()):
             for instr in block.body:

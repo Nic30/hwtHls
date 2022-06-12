@@ -12,7 +12,7 @@ from hwt.math import log2ceil
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
 from hwtHls.hlsStreamProc.streamProc import HlsStreamProc
-from hwtHls.ssa.translation.fromPython.thread import HlsStreamProcPyThread
+from hwtHls.frontend.pyBytecode.thread import HlsStreamProcPyThread
 from hwtLib.common_nonstd_interfaces.addr_data_hs import AddrDataVldHs
 
 
@@ -33,7 +33,9 @@ class Rom(Unit):
 
     def _impl(self):
         hls = HlsStreamProc(self, freq=int(100e6))
-        hls.thread(HlsStreamProcPyThread(hls, self.mainThread, hls))
+        t = HlsStreamProcPyThread(hls, self.mainThread, hls)
+        #t.bytecodeToSsa.debug = True
+        hls.thread(t)
         hls.compile()
 
 
