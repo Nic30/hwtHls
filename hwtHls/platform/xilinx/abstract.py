@@ -32,7 +32,7 @@ class AbstractXilinxPlatform(DefaultHlsPlatform):
                            input_cnt: int, clkPeriod: float) -> OpRealizationMeta:
         if op in _OPS_T_ZERO_LATENCY:
             return OpRealizationMeta()
-        (cycles_latency, latency_pre) = self._OP_DELAYS[op](bit_width, input_cnt, 0, clkPeriod)
+        (cycles_latency, latency_pre) = self._OP_DELAYS[op](input_cnt, bit_width, 0, clkPeriod)
         return OpRealizationMeta(latency_pre=float(latency_pre), cycles_latency=float(cycles_latency))
 
     @lru_cache()
