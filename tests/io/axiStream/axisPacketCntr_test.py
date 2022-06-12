@@ -6,7 +6,8 @@ from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtLib.amba.axis import axis_send_bytes
 from hwtSimApi.constants import CLK_PERIOD
 from hwtSimApi.utils import freq_to_period
-from tests.io.axiStream.axisPacketCntr import AxiSPacketCntr, AxiSPacketByteCntr0, AxiSPacketByteCntr1
+from tests.io.axiStream.axisPacketCntr import AxiSPacketCntr, AxiSPacketByteCntr0, AxiSPacketByteCntr1, \
+    AxiSPacketByteCntr2, AxiSPacketByteCntr3
 
 
 class AxiSPacketCntrTC(SimTestCase):
@@ -71,6 +72,30 @@ class AxiSPacketCntrTC(SimTestCase):
 
     def test_AxiSPacketByteCntr1_48b(self):
         self._test_byte_cnt(48, cls=AxiSPacketByteCntr1)
+
+    def test_AxiSPacketByteCntr2_8b(self):
+        self._test_byte_cnt(8, cls=AxiSPacketByteCntr2)
+
+    def test_AxiSPacketByteCntr2_16b(self):
+        self._test_byte_cnt(16, cls=AxiSPacketByteCntr2)
+
+    def test_AxiSPacketByteCntr2_24b(self):
+        self._test_byte_cnt(24, cls=AxiSPacketByteCntr2)
+
+    def test_AxiSPacketByteCntr2_48b(self):
+        self._test_byte_cnt(48, cls=AxiSPacketByteCntr2)
+
+    def test_AxiSPacketByteCntr3_8b(self):
+        self._test_byte_cnt(8, cls=AxiSPacketByteCntr3)
+
+    def test_AxiSPacketByteCntr3_16b(self):
+        self._test_byte_cnt(16, cls=AxiSPacketByteCntr3)
+
+    def test_AxiSPacketByteCntr3_24b(self):
+        self._test_byte_cnt(24, cls=AxiSPacketByteCntr3)
+
+    def test_AxiSPacketByteCntr3_48b(self):
+        self._test_byte_cnt(48, cls=AxiSPacketByteCntr3)
 
 
 if __name__ == '__main__':
