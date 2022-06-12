@@ -152,7 +152,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                 if bitWidth == 1:
                     if int(o1.obj.val):
                         # x & 1 = x
-                        newO = o0._outputs[0]
+                        newO = o0
                     else:
                         # x & 0 = 0
                         newN = HlsNetNodeConst(netlist, o0._dtype.from_py(0))
@@ -183,7 +183,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                         newO = newN._outputs[0]
                     else:
                         # x | 0 = x
-                        newO = o0._outputs[0]
+                        newO = o0
 
                     self._replaceOperatorNodeWith(n, newO, worklist, removed)
                 else:
@@ -210,7 +210,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                         newO = newN._outputs[0]
                     else:
                         # x ^ 0 = x
-                        newO = o0._outputs[0]
+                        newO = o0
 
                     self._replaceOperatorNodeWith(n, newO, worklist, removed)
                 else:
