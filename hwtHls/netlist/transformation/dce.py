@@ -2,12 +2,13 @@ from itertools import chain
 from typing import Set
 
 from hwt.pyUtils.uniqList import UniqList
+from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.aggregatedBitwiseOps import HlsNetNodeBitwiseOps
 from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeRead, HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.loopHeader import HlsLoopGate
 from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.ports import HlsNetNodeOutLazy
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
-from hwtHls.netlist.context import HlsNetlistCtx
 
 
 class HlsNetlistPassDCE(HlsNetlistPass):
@@ -20,6 +21,8 @@ class HlsNetlistPassDCE(HlsNetlistPass):
     def _walkDependencies(self, n: HlsNetNode, seen: Set[HlsNetNode]):
         seen.add(n)
         for dep in n.dependsOn:
+            if isinstance(dep, HlsNetNodeOutLazy):
+                raise AssertionError(self.__class__.__name__, "does not support", dep)
             if dep.obj not in seen:
                 self._walkDependencies(dep.obj, seen)
 
