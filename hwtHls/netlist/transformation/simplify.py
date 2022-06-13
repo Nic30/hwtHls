@@ -1,20 +1,65 @@
 from itertools import chain
-from typing import Set
+from typing import Set, Generator, Tuple, Literal
 
 from hwt.hdl.operatorDefs import AllOps
+from hwt.hdl.types.bits import Bits
+from hwt.hdl.types.bitsVal import BitsVal
+from hwt.hdl.types.hdlType import HdlType
+from hwt.hdl.value import HValue
 from hwt.pyUtils.uniqList import UniqList
+from hwtHls.netlist.analysis.dataThreads import HlsNetlistAnalysisPassDataThreads
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
-from hwtHls.netlist.nodes.io import HlsNetNodeExplicitSync, HlsNetNodeRead,\
+from hwtHls.netlist.nodes.io import HlsNetNodeExplicitSync, HlsNetNodeRead, \
     HlsNetNodeWrite
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut,\
+from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
     link_hls_nodes
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
-from hwtHls.netlist.analysis.dataThreads import HlsNetlistAnalysisPassDataThreads
+from hwtHls.netlist.utils import hls_op_not, hls_op_const_index_slice, \
+    hls_op_concat_variadic
+from pyMathBitPrecise.bit_utils import get_bit, mask
 
+
+def iter1and0sequences(v: BitsVal) -> Generator[Tuple[Literal[1, 0], int], None, None]:
+    """
+    :note: same as ConstBitPartsAnalysisContext::iter1and0sequences
+    :note: lower first
+    :returns: generators of tuples in format 0/1, width
+    """
+    # if the bit in c is 0 the output bit should be also 0 else it is bit from v
+    l_1: int = -1  # start of 1 sequence, -1 as invalid value
+    l_0: int = -1  # start of 0 sequence, -1 as invalid value
+    endIndex = v._dtype.bit_length() - 1
+    if not v._isFullVld():
+        raise NotImplementedError(v)
+    _v = v.val
+    for h in range(endIndex + 1):
+        curBit = get_bit(_v, h)
+        if l_1 == -1 and curBit:
+            l_1 = h  # start of 1 sequence
+        elif l_0 == -1 and not curBit:
+            l_0 = h  # start of 0 sequence
+
+        last = h == endIndex
+        if l_1 != -1 and (last or not get_bit(_v, h + 1)):
+            # end of 1 sequence found
+            w = h - l_1 + 1
+            yield (1, w)
+            l_1 = -1  # reset start
+        elif l_0 != -1 and (last or get_bit(_v, h + 1)):
+            # end of 0 sequence found
+            w = h - l_0 + 1
+            yield (0, w)
+            l_0 = -1  # reset start
+
+
+def isAll0OrAll1(v: BitsVal):
+    vInt = int(v)
+    return vInt == 0 or vInt == mask(v._dtype.bit_length())
+                
 
 class HlsNetlistPassSimplify(HlsNetlistPass):
     """
@@ -91,7 +136,6 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                         dep.obj.usedBy[dep.out_i].remove(orderingI)
                         n._removeInput(orderingI.in_i)
                     
-                    
         if removed:
             nodes = netlist.nodes
             netlist.nodes = [n for n in nodes if n not in removed]
@@ -128,97 +172,128 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                     return False
             return True
 
+    def _addConstPy(self, netlist: HlsNetlistCtx, dtype: HdlType, v):
+        c = HlsNetNodeConst(netlist, dtype.from_py(v))
+        netlist.nodes.append(c)
+        return c._outputs[0]
+    
+    def _addConst(self, netlist: HlsNetlistCtx, v: HValue):
+        c = HlsNetNodeConst(netlist, v)
+        netlist.nodes.append(c)
+        return c._outputs[0]
+        
     def _reduceAndOrXor(self, n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]):
         netlist: HlsNetlistCtx = n.netlist
         # search for const in for commutative operator
         o0, o1 = n.dependsOn
         o0Const = isinstance(o0.obj, HlsNetNodeConst)
         o1Const = isinstance(o1.obj, HlsNetNodeConst)
+        newO = None
+
         if o0Const and not o1Const:
             # make sure const is o1 if const is in operands
             o0, o1 = o1, o0
             o0Const = False
             o1Const = True
-        bitWidth = o0._dtype.bit_length()
+
         if n.operator == AllOps.AND:
             if o0Const and o1Const:
-                v = o0.obj.val & o1.obj.val
-                newN = HlsNetNodeConst(netlist, v)
-                netlist.nodes.append(newN)
-                self._replaceOperatorNodeWith(n, newN._outputs[0], worklist, removed)
+                newO = self._addConst(netlist, o0.obj.val & o1.obj.val)
 
             elif o1Const:
                 # to concatenation of o0 bits and 0s after const mask is applied 
-                if bitWidth == 1:
+                if isAll0OrAll1(o1.obj.val):
                     if int(o1.obj.val):
                         # x & 1 = x
                         newO = o0
                     else:
                         # x & 0 = 0
-                        newN = HlsNetNodeConst(netlist, o0._dtype.from_py(0))
-                        netlist.nodes.append(newN)
-                        newO = newN._outputs[0]
+                        newO = self._addConstPy(netlist, o0._dtype, 9)
 
-                    self._replaceOperatorNodeWith(n, newO, worklist, removed)
                 else:
-                    raise NotImplementedError()
+                    concatMembers = []
+                    offset = 0
+                    for bitVal, width in iter1and0sequences(o1.obj.val):
+                        if bitVal:
+                            # x & 1 = x
+                            v0 = hls_op_const_index_slice(netlist, o0, offset + width, offset)
+                        else:
+                            # x & 0 = 0
+                            v0 = self._addConstPy(netlist, Bits(width), 0)
+
+                        concatMembers.append(v0)
+                            
+                        offset += width
+                    newO = hls_op_concat_variadic(netlist, *reversed(concatMembers))
 
             elif o0 == o1:
                 # x & x = x
-                self._replaceOperatorNodeWith(n, o0, worklist, removed)
+                newO = o0
 
         elif n.operator == AllOps.OR:
             if o0Const and o1Const:
-                v = o0.obj.val | o1.obj.val
-                newN = HlsNetNodeConst(netlist, v)
-                netlist.nodes.append(newN)
-                self._replaceOperatorNodeWith(n, newN._outputs[0], worklist, removed)
+                newO = self._addConst(netlist, o0.obj.val | o1.obj.val)
 
             elif o1Const:
-                if bitWidth == 1:
+                if isAll0OrAll1(o1.obj.val):
                     if int(o1.obj.val):
                         # x | 1 = 1
-                        newN = HlsNetNodeConst(netlist, o0._dtype.from_py(1))
-                        netlist.nodes.append(newN)
-                        newO = newN._outputs[0]
+                        newO = self._addConstPy(netlist, o0._dtype, mask(o0._dtype.bit_length()))
                     else:
                         # x | 0 = x
                         newO = o0
 
-                    self._replaceOperatorNodeWith(n, newO, worklist, removed)
                 else:
-                    raise NotImplementedError()
+                    concatMembers = []
+                    offset = 0
+                    for bitVal, width in iter1and0sequences(o1.obj.val):
+                        if bitVal:
+                            # x | 1 = 1
+                            v0 = self._addConstPy(netlist, Bits(width), mask(width))
+                        else:
+                            # x | 0 = x
+                            v0 = hls_op_const_index_slice(netlist, o0, offset + width, offset)
+
+                        concatMembers.append(v0)
+                            
+                        offset += width
+                    newO = hls_op_concat_variadic(netlist, *reversed(concatMembers))
 
             elif o0 == o1:
                 # x | x = x
-                self._replaceOperatorNodeWith(n, o0, worklist, removed)
+                newO = o0
 
         elif n.operator == AllOps.XOR:
+
             if o0Const and o1Const:
-                v = o0.obj.val ^ o1.obj.val
-                newN = HlsNetNodeConst(netlist, v)
-                netlist.nodes.append(newN)
-                self._replaceOperatorNodeWith(n, newN._outputs[0], worklist, removed)
+                newO = self._addConst(netlist, o0.obj.val ^ o1.obj.val)
 
             elif o1Const:
-                if bitWidth == 1:
+                # perform reduction by constant
+                if isAll0OrAll1(o1.obj.val):
                     if int(o1.obj.val):
                         # x ^ 1 = ~x
-                        newN = HlsNetNodeOperator(netlist, AllOps.NOT, 1, o0._dtype, n.name)
-                        netlist.nodes.append(newN)
-                        link_hls_nodes(o0, newN._inputs[0])
-                        newO = newN._outputs[0]
+                        newO = hls_op_not(netlist, o0)
                     else:
                         # x ^ 0 = x
                         newO = o0
-
-                    self._replaceOperatorNodeWith(n, newO, worklist, removed)
                 else:
-                    raise NotImplementedError()
-
+                    concatMembers = []
+                    offset = 0
+                    for bitVal, width in iter1and0sequences(o1.obj.val):
+                        v0 = hls_op_const_index_slice(netlist, o0, offset + width, offset)
+                        if bitVal:
+                            v0 = hls_op_not(netlist, v0)
+                        concatMembers.append(v0)
+                            
+                        offset += width
+                    newO = hls_op_concat_variadic(netlist, *reversed(concatMembers))
+            
             elif o0 == o1:
                 # x ^ x = 0
                 newN = HlsNetNodeConst(netlist, o0._dtype.from_py(0))
                 netlist.nodes.append(newN)
                 newO = newN._outputs[0]
-                self._replaceOperatorNodeWith(n, newO, worklist, removed)
+            
+        if newO is not None:
+            self._replaceOperatorNodeWith(n, newO, worklist, removed)
