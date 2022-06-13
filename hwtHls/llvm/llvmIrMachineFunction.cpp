@@ -28,6 +28,7 @@ void register_MachineFunction(pybind11::module_ &m) {
 	py::class_<llvm::MachineBasicBlock, std::unique_ptr<llvm::MachineBasicBlock, py::nodelete>> MachineBasicBlock(m, "MachineBasicBlock");
 	MachineBasicBlock
 		.def("getName", &llvm::MachineBasicBlock::getName)
+		.def("getNumber", &llvm::MachineBasicBlock::getNumber)
 	    .def("predecessors", [](llvm::MachineBasicBlock &MB) {
 	    		return py::make_iterator(MB.predecessors().begin(), MB.predecessors().end());
 	    	}, py::keep_alive<0, 1>()) /* Keep vector alive while iterator is used */
