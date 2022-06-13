@@ -68,8 +68,7 @@ class HlsNetNodeMux(HlsNetNodeOperator):
     def _add_input_and_link(self, src: Union[HlsNetNodeOut, HlsNetNodeOutLazy]):
         i = self._add_input()
         link_hls_nodes(src, i)
-        if isinstance(src, HlsNetNodeOutLazy):
-            src.dependent_inputs.append(HlsNetNodeMuxInputRef(self, i.in_i, src))
+        return i
 
 
     def __repr__(self, minify=False):
@@ -78,25 +77,4 @@ class HlsNetNodeMux(HlsNetNodeOperator):
         else:
             deps = ", ".join([f"{o.obj._id:d}:{o.out_i}" if isinstance(o, HlsNetNodeOut) else repr(o) for o in self.dependsOn])
             return f"<{self.__class__.__name__:s} {self._id:d} [{deps:s}]>"
-
-class HlsNetNodeMuxInputRef():
-    """
-    An object which is used in HlsNetNodeOutLazy dependencies to update also HlsNetNodeMux object
-    once the lazy output of some node on input is resolved.
-    """
-
-    def __init__(self, updated_obj: "HlsNetNodeMux", in_i: int, obj: HlsNetNodeOutLazy):
-        self.updated_obj = updated_obj
-        self.in_i = in_i
-        self.obj = obj
-
-    def replace_driver(self, new_obj: Union[HlsNetNodeOut, HlsNetNodeOutLazy]):
-        assert isinstance(new_obj, HlsNetNodeOut), ("Must be a final out port")
-        self.updated_obj.dependsOn[self.in_i] = new_obj
-
-        if isinstance(new_obj, HlsNetNodeOut):
-            usedBy = new_obj.obj.usedBy[new_obj.out_i]
-            i = self.updated_obj._inputs[self.in_i]
-            if i not in usedBy:
-                usedBy.append(i)
 
