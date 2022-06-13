@@ -55,6 +55,8 @@ class HlsNetNodeIn():
             i = self.obj._inputs[self.in_i]
             if i not in usedBy:
                 usedBy.append(i)
+        if isinstance(o, HlsNetNodeOutLazy):
+            o.dependent_inputs.append(self)
 
     def __repr__(self, minify=False):
         if minify:
@@ -86,9 +88,12 @@ class HlsNetNodeOutLazy():
         for k in self.keys_of_self_in_cache:
             self.op_cache._toHlsCache[k] = o
 
+        l0 = len(self.dependent_inputs)
         for c in self.dependent_inputs:
             c.replace_driver(o)
-
+        assert len(self.dependent_inputs) == l0, "Must not modify dependent_inputs during replace"
+        self.dependent_inputs.clear()
+        
         self.replaced_by = o
 
     def __repr__(self):
@@ -146,6 +151,7 @@ def link_hls_nodes(parent: HlsNetNodeOutAny, child: HlsNetNodeIn) -> None:
     assert isinstance(child, HlsNetNodeIn), child
 
     if isinstance(parent, HlsNetNodeOutLazy):
+        assert parent.replaced_by is None, (parent, parent.replaced_by, child)
         parent.dependent_inputs.append(child)
     else:
         assert isinstance(parent, HlsNetNodeOut), parent
