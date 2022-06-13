@@ -147,23 +147,11 @@ class HlsScope():
             # because we need all IO and sharing constraints specified
             t.compileToSsa()
             toSsa = t.toSsa
-            # code = t.code
             
             p: DefaultHlsPlatform = self.parentUnit._target_platform
             p.runSsaPasses(self, toSsa)
-
-            # t.toHw = toHw = SsaSegmentToHwPipeline(toSsa.start, code)
-            # toHw.extract_pipeline()
-
-            # toHw.extract_hlsnetlist(self.parentUnit, self.freq)
             t.toHw = netlist = p.runSsaToNetlist(self, toSsa)
             p.runHlsNetlistPasses(self, netlist)
-
-            # if not toHw.is_scheduled:
-            #     toHw.schedulerRun()
-
-            # some optimization could call scheduling and everything after could let
-            # the netlist without modifications
         
         for t in self._threads:
             t.toHw.allocate()
