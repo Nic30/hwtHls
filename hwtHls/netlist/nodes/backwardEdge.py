@@ -86,7 +86,7 @@ class HlsNetNodeWriteBackwardEdge(HlsNetNodeWrite):
             dst_t = dst_read.scheduledOut[0]
             src_t = src_write.scheduledIn[0]
             assert dst_t <= src_t, ("This was supposed to be backward edge", src_write, dst_read)
-            # 1 register at minimum, because we need to break a comibnational path
+            # 1 register at minimum, because we need to break a combinational path
             # the size of buffer is derived from the latency of operations between the io ports
             reg_cnt = max((src_t - dst_t) / allocator.netlist.normalizedClkPeriod, 1)
 
@@ -99,7 +99,7 @@ class HlsNetNodeWriteBackwardEdge(HlsNetNodeWrite):
         else:
             assert self.associated_read in allocator.allNodes, (self, allocator)
             reg: TimeIndependentRtlResource = allocator.netNodeToRtl[self.associated_read._outputs[0]]
-            src = allocator.instantiateHlsNetNodeOut(self.src)
+            src = allocator.instantiateHlsNetNodeOut(self.dependsOn[0])
             res = reg.valuesInTime[0].data(src.get(self.scheduledOut[0]).data)
 
         allocator.netNodeToRtl[self] = res
