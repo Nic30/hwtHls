@@ -19,11 +19,12 @@ from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
-    link_hls_nodes, HlsNetNodeOutAny
+    link_hls_nodes, HlsNetNodeOutAny, HlsNetNodeIn
 from hwtHls.netlist.utils import hls_op_and
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.opCache import MirToHwtHlsNetlistOpCache
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
+from hwtHls.netlist.analysis.dataThreads import HlsNetlistAnalysisPassDataThreads
 
 
 class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
@@ -58,7 +59,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         CmpInst.Predicate.ICMP_SLE:AllOps.LE,
     }
 
-    def __init__(self, hls: "HlsStreamProc", tr: ToLlvmIrTranslator,
+    def __init__(self, hls: "HlsScope", tr: ToLlvmIrTranslator,
                  mf: MachineFunction,
                  backedges: Set[Tuple[MachineBasicBlock, MachineBasicBlock]],
                  liveness: Dict[MachineBasicBlock, Dict[MachineBasicBlock, Set[Register]]],
@@ -88,8 +89,8 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
 
     def _constructBackedgeBuffer(self, name: str, srcBlock: MachineBasicBlock, dstBlock: MachineBasicBlock, cacheKey, val: HlsNetNodeOutAny) -> HlsNetNodeOut:
         # we need to insert backedge buffer to get block en flag from pred to mb
-        srcName = srcBlock.getName().str()
-        dstName = dstBlock.getName().str()
+        srcName = f"bb{srcBlock.getNumber():d}"
+        dstName = f"bb{dstBlock.getNumber():d}"
         _, r_from_in = self._add_hs_intf_and_read(
             f"{name:s}_{srcName:s}_to_{dstName:s}_out",
             val._dtype,
@@ -198,3 +199,22 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         else:
             cond = hls_op_and(self.netlist, blockEn, cond)
         n.add_control_extraCond(cond)
+    
+    def _replaceInputWithConst1(self, i: HlsNetNodeIn, threads: HlsNetlistAnalysisPassDataThreads):
+        c = self._translateIntBit(1)
+        i.replace_driver(c)
+        threads.mergeThreads(threads.threadPerNode[i.obj], {c.obj, })
+
+    def _getThreadOfReg(self, threads: HlsNetlistAnalysisPassDataThreads, mb: MachineBasicBlock, reg: Register, dtype: HdlType):
+        """
+        Get thread where the register is used.
+        """
+        nodeOut: HlsNetNodeOutAny = self.valCache.get(mb, reg, dtype)
+        try:
+            return threads.threadPerNode[nodeOut if isinstance(nodeOut, HlsNetNodeOutLazy) else nodeOut.obj]
+        except KeyError:
+            pass
+        assert isinstance(nodeOut, HlsNetNodeOut) and isinstance(nodeOut.obj, HlsNetNodeConst), nodeOut
+        t = {nodeOut.obj}
+        threads.threadPerNode[nodeOut.obj] = t
+        return t

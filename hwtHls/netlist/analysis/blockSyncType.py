@@ -81,20 +81,38 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
             mbSync.needsStarter = True
 
         needsControlOld = mbSync.needsControl
+
         if self.loops.isLoopHeader(mb):
             loop: MachineLoop = loops.getLoopFor(mb)
             # The synchronization is not required if it could be only by the data itself.
             # It can be done by data itself if there is an single output/write which has all
             # input as transitive dependencies (unconditionally.) And if this is an infinite cycle.
             # So we do not need to check the number of executions.
-            if not mbSync.needsControl:
+            if mbSync.rstPredeccessor is None and mb.pred_size() == 2:
+                # one of predecessors may possibly be suitable for reset extraction
+                p0, p1 = mb.predecessors()
+                if p1.getNumber() == 0:
+                    p0, p1 = p1, p0
+                if p0.getNumber() == 0:
+                    mbSync.rstPredeccessor = p0
                 
-                if len(mbThreads) > 1 or mb.pred_size() > 1 or self._threadContainsNonConcurrentIo(mbThreads[0]):
+            if not mbSync.needsControl:
+                if not loop.hasNoExitBlocks():
+                    # need sync to synchronize code behind the loop
+                    mbSync.needsControl = True
+    
+                elif (len(mbThreads) > 1 or
+                      (mb.pred_size() > 1 and (mb.pred_size() != 2 or not mbSync.rstPredeccessor)) or
+                      not mbThreads or
+                      self._threadContainsNonConcurrentIo(mbThreads[0])):
                     # multiple independent threads in body or more entry points to a loop
                     loopBodySelfSynchronized = True
                     for pred in mb.predecessors():
                         pred: MachineBasicBlock
-                        if not loop.containsBlock(pred) and not self.blockSync[pred].needsStarter:
+                        isLoopReenter = loop.containsBlock(pred)
+                        # reenter does not need explicit sync because it is synced by data
+                        # rstPredeccessor does not need explicit sync because it will be inlined to reset values
+                        if not isLoopReenter and mbSync.rstPredeccessor is not pred:
                             loopBodySelfSynchronized = False
                             break
                             
@@ -102,17 +120,16 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                         pass
                     else:
                         mbSync.needsControl = True
-
+        
+                elif mb.succ_size() > 1:
+                    mbSync.needsControl = True
+        
                 else:
-                    if mb.succ_size() > 1:
+                    sucThreads = sum((len(self.threadsPerBlock[suc])
+                                      for suc in mb.successors()))
+                    if sucThreads > 1:
                         mbSync.needsControl = True
-
-                    if not mbSync.needsControl:
-                        sucThreads = sum((len(self.threadsPerBlock[suc])
-                                          for suc in mb.successors.iterBlocks()))
-                        if sucThreads > 1:
-                            mbSync.needsControl = True
-
+    
         elif not mbSync.needsControl:
             mbSync.needsControl = (
                 len(threadsStartingThere) > 1 or
@@ -155,4 +172,13 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
         for mb in originalMir.mf:
             mb: MachineBasicBlock
             self._getBlockMeta(mb)
+
+        entry: MachineBasicBlock = next(iter(originalMir.mf))
+        entrySync: MachineBasicBlockSyncContainer = self.blockSync[entry]
+        # if everything from entry was inlined to reset values and the successor is infinite loop we do not need starter
+        if entrySync.needsStarter and not entrySync.needsControl and entry.succ_size() == 1:
+            suc = next(iter(entry.successors()))
+            sucSync: MachineBasicBlockSyncContainer = self.blockSync[suc]
+            if self.loops.isLoopHeader(suc) and self.blockSync[suc].rstPredeccessor is entry and not sucSync.needsControl:
+                entrySync.needsStarter = False
 
