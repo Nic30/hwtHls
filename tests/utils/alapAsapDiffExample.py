@@ -5,12 +5,12 @@ from hwt.interfaces.std import VectSignal
 from hwt.interfaces.utils import addClkRstn
 from hwt.simulator.simTestCase import SimTestCase
 from hwt.synthesizer.unit import Unit
+from hwtHls.frontend.ast.builder import HlsAstBuilder
+from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.netlist.scheduler.errors import TimeConstraintError
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtSimApi.utils import freq_to_period
-from hwtHls.frontend.ast.builder import HlsAstBuilder
-from hwtHls.frontend.ast.thread import HlsThreadFromAst
 
 
 class AlapAsapDiffExample(Unit):
