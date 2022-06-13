@@ -11,37 +11,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.platform.fileUtils import OutputStreamGetter
 from hwtHls.netlist.context import HlsNetlistCtx
-
-
-class GraphwizNode():
-
-    def __init__(self, label:str, body: Union[None, str]):
-        self.label = label
-        self.body = body
-
-    def dumps(self, buff):
-        label = self.label
-        body = self.body
-        if body is None:
-            buff.append(f" {label:s};\n")
-        else:
-            buff.append(f' {label:s} {body:s};\n')
-
-
-class GraphwizLink():
-
-    def __init__(self, src, dst, style=""):
-        self.src = src
-        self.dst = dst
-        self.style = style
-
-    def dumps(self, buff):
-        buff.append(" ")
-        buff.append(self.src)
-        buff.append("->")
-        buff.append(self.dst)
-        buff.append(self.style)
-        buff.append(";\n")
+import pydot
 
 
 class HwtHlsNetlistToGraphwiz():
@@ -52,13 +22,23 @@ class HwtHlsNetlistToGraphwiz():
 
     def __init__(self, name: str):
         self.name = name
-        self.nodes: List[GraphwizNode] = []
-        self.links: List[GraphwizLink] = []
-        self.obj_to_node: Dict[HlsNetNode, GraphwizNode] = {}
+        self.graph = pydot.Dot(f'"{name}"')
+        self.obj_to_node: Dict[HlsNetNode, pydot.Node] = {}
 
     def construct(self, nodes: List[HlsNetNode]):
         for n in nodes:
             self._node_from_HlsNetNode(n)
+        
+        legendTable = """<
+<table border="0" cellborder="1" cellspacing="0">
+  <tr><td bgcolor="LightGreen">HlsNetNodeRead</td></tr>
+  <tr><td bgcolor="LightBlue">HlsNetNodeWrite</td></tr>
+  <tr><td bgcolor="plum">HlsNetNodeConst</td></tr>
+  <tr><td bgcolor="gray">shadow connection</td></tr>
+  <tr><td bgcolor="LightCoral">HlsNetNodeOutLazy</td></tr>
+</table>>"""
+        legend = pydot.Node("legend", label=legendTable, style='filled', shape="plain")
+        self.graph.add_node(legend)
 
     def _node_from_HlsNetNode(self, obj: Union[HlsNetNode, HlsNetNodeOutLazy]):
         try:
@@ -66,10 +46,22 @@ class HwtHlsNetlistToGraphwiz():
         except KeyError:
             pass
 
+        g = self.graph
+        if isinstance(obj, HlsNetNodeOutLazy):
+            color = "LightCoral"
+        elif isinstance(obj, HlsNetNodeRead):
+            color = "LightGreen"
+        elif isinstance(obj, HlsNetNodeWrite):
+            color = "LightBlue"
+        elif isinstance(obj, HlsNetNodeConst):
+            color = "plum"
+        else:
+            color = "white"
         # node needs to be constructed before connecting because graph may contain loops
-        node = GraphwizNode(f"n{len(self.nodes)}", None)
+        node = pydot.Node(f"n{len(g.obj_dict['nodes'])}", fillcolor=color, style='filled', shape="plaintext")
+        g.add_node(node)
+
         self.obj_to_node[obj] = node
-        self.nodes.append(node)
 
         # construct new node
         input_rows = []
@@ -81,16 +73,19 @@ class HwtHlsNetlistToGraphwiz():
                         drv: Union[HlsNetNodeOut, HlsNetNodeOutLazy]
                         if isinstance(drv, HlsNetNodeOut):
                             drv_node = self._node_from_HlsNetNode(drv.obj)
-                            src = f"{drv_node.label:s}:o{drv.out_i:d}"
+                            src = f"{drv_node.get_name():s}:o{drv.out_i:d}"
                         else:
                             drv_node = self._node_from_HlsNetNode(drv)
-                            src = f"{drv_node.label:s}:o0"
+                            src = f"{drv_node.get_name():s}:o0"
     
-                        self.links.append(GraphwizLink(src, f"{node.label:s}:i{node_in_i:d}"))
+                        e = pydot.Edge(src, f"{node.get_name():s}:i{node_in_i:d}")
+                        g.add_edge(e)
     
                 for shadow_dst in obj.debug_iter_shadow_connection_dst():
                     shadow_dst_node = self._node_from_HlsNetNode(shadow_dst)
-                    self.links.append(GraphwizLink(f"{node.label:s}", f"{shadow_dst_node.label:s}", style="[style=dashed, color=grey]"))
+                    e = pydot.Edge(f"{node.get_name():s}", f"{shadow_dst_node.get_name():s}", style="dashed", color="gray")
+                    g.add_edge(e)
+    
             except:
                 raise AssertionError("defective node", obj)
         else:
@@ -104,8 +99,7 @@ class HwtHlsNetlistToGraphwiz():
             output_rows.append("<td port='o0'>o0</td>")
 
         buff = []
-        buff.append('''[shape=plaintext
-    label=<
+        buff.append('''<
         <table border="0" cellborder="1" cellspacing="0">\n''')
         if isinstance(obj, HlsNetNodeConst):
             label = repr(obj.val)
@@ -123,8 +117,7 @@ class HwtHlsNetlistToGraphwiz():
             buff.append(f"            <tr>{i:s}{o:s}</tr>\n")
         buff.append('        </table>>')
 
-        buff.append(']')
-        node.body = "".join(buff)
+        node.set("label", "".join(buff))
         return node
 
     @staticmethod
@@ -132,13 +125,7 @@ class HwtHlsNetlistToGraphwiz():
         return s.replace("<", "\\<").replace(">", "\\>").replace("|", "\\|").replace('"', '\\"').replace("{", "\\{").replace("}", "\\}")
 
     def dumps(self):
-        buff = ["digraph ", self.name, " {\n", ]
-        for n in self.nodes:
-            n.dumps(buff)
-        for link in self.links:
-            link.dumps(buff)
-        buff.append("}\n")
-        return "".join(buff)
+        return self.graph.to_string()
 
 
 class HlsNetlistPassDumpToDot(HlsNetlistPass):

@@ -1,12 +1,12 @@
 import html
+import pydot
 from typing import List, Union, Dict, Optional, Tuple
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.ast.debugCodeSerializer import CopyBasicBlockLabelsToCode
 from hwtHls.frontend.ast.statements import HlsStmCodeBlock
-from hwtHls.netlist.translation.toGraphwiz import GraphwizNode, GraphwizLink, \
-    HwtHlsNetlistToGraphwiz
+from hwtHls.netlist.translation.toGraphwiz import HwtHlsNetlistToGraphwiz
 from hwtHls.platform.fileUtils import OutputStreamGetter
 from hwtHls.ssa.analysis.liveness import EdgeLivenessDict
 from hwtHls.ssa.basicBlock import SsaBasicBlock
@@ -23,14 +23,14 @@ class SsaToGraphwiz():
 
     def __init__(self, name: str):
         self.name = name
-        self.nodes: List[GraphwizNode] = []
-        self.links: List[GraphwizLink] = []
-        self.obj_to_node: Dict[Union[SsaBasicBlock, Tuple[SsaBasicBlock, SsaBasicBlock]], GraphwizNode] = {}
+        self.graph = pydot.Dot(f'"{name}"')
+        self.obj_to_node: Dict[Union[SsaBasicBlock, Tuple[SsaBasicBlock, SsaBasicBlock]], pydot.Node] = {}
 
     def construct(self, begin: SsaBasicBlock,
                   code: Optional[HlsStmCodeBlock],
                   pipelines: Optional[List[List[SsaBasicBlock]]],
                   edge_var_live: Optional[EdgeLivenessDict]):
+        g = self.graph
         self._node_from_SsaBasicBlock(begin, True, edge_var_live)
         if pipelines is not None:
             bb_to_pipe_i = {}
@@ -46,19 +46,18 @@ class SsaToGraphwiz():
 
         if code is not None:
             CopyBasicBlockLabelsToCode().visit(begin)
-            code_body = '[shape=plaintext,fontname=monospace,label="' + self._escape(repr(code)).replace("\n", "\\l\\\n") + '\l"]'
-            self.nodes.append(GraphwizNode("code", code_body))
+            g.add_node(pydot.Node("code", shape="plaintext", fontname="monospace", label='"' + self._escape(repr(code)).replace("\n", "\\l\\\n") + '\l"'))
 
     def _node_from_SsaBasicBlock(self, bb: SsaBasicBlock, is_start: bool, edge_var_live: Optional[EdgeLivenessDict]):
         try:
             return self.obj_to_node[bb]
         except KeyError:
             pass
-
+        g = self.graph
         # node needs to be constructed before connecting because graph may contain loops
-        node = GraphwizNode(f"bb{len(self.nodes)}", None)
+        node = pydot.Node(f"bb{len(g.obj_dict['nodes'])}", shape="record", fontname="monospace")
+        g.add_node(node)
         self.obj_to_node[bb] = node
-        self.nodes.append(node)
 
         # construct new node
         top_str = '\<start\> ' if is_start else ''
@@ -81,34 +80,34 @@ class SsaToGraphwiz():
                 self._escape(cond._name) if isinstance(cond, SsaValue) and cond._name else self._escape(repr(cond))
             body_rows.append(f"{{\\<{branch_label:s}\\> | <{branch_label:s}> {cond_str:s} }}")
             dst_node = self._node_from_SsaBasicBlock(dst_bb, False, edge_var_live)
-            _src = f"{node.label:s}:{branch_label:s}"
-            _dst = f"{dst_node.label}:begin"
+            _src = f"{node.get_name():s}:{branch_label:s}"
+            _dst = f"{dst_node.get_name()}:begin"
             if edge_var_live is None:
-                self.links.append(GraphwizLink(_src, _dst))
+                e = pydot.Edge(_src, _dst)
+                g.add_edge(e)
             else:
                 var_rows = []
                 for var in edge_var_live.get(bb, {}).get(dst_bb, ()):
                     n = html.escape(var._name)
                     var_rows.append(f"<tr><td>{n:s}</td></tr>")
                 if var_rows:
-                    link_var_node = GraphwizNode(f"bb{len(self.nodes)}", None)
-                    link_var_node.body = '[shape=plaintext,fontname=monospace,label=<\n    <table color="gray">%s</table>\n>]' % "\n".join(var_rows)
+                    link_var_node = pydot.Node(f"bb{len(self.nodes):d}", shape="plaintext", fontname="monospace", label='<\n    <table color="gray">%s</table>' % "\n".join(var_rows))
                     self.obj_to_node[(bb, dst_bb)] = link_var_node
-                    self.nodes.append(link_var_node)
-                    self.links.append(GraphwizLink(_src, f"{link_var_node.label:s}"))
-                    self.links.append(GraphwizLink(f"{link_var_node.label:s}", _dst))
+                    g.add_node(link_var_node)
+                    g.add_edge(pydot.Edge(_src, f"{link_var_node.get_name():s}"))
+                    g.add_edge(pydot.Edge(f"{link_var_node.get_name():s}", _dst))
                 else:
-                    self.links.append(GraphwizLink(_src, _dst))
+                    g.add_edge(pydot.Edge(_src, _dst))
 
         buff = []
-        buff.append('[shape=record,fontname=monospace,label="{')
+        buff.append('"{')
         for last, row in iter_with_last(body_rows):
             buff.append(row)
             if not last:
                 buff.append("|\n")
 
-        buff.append('}"]')
-        node.body = "".join(buff)
+        buff.append('}"')
+        node.set("label", "".join(buff)) 
         return node
 
     @staticmethod
@@ -116,13 +115,7 @@ class SsaToGraphwiz():
         return HwtHlsNetlistToGraphwiz._escape(s)
 
     def dumps(self):
-        buff = ["digraph ", self.name, " {\n", " graph []\n"]
-        for n in self.nodes:
-            n.dumps(buff)
-        for link in self.links:
-            link.dumps(buff)
-        buff.append("}\n")
-        return "".join(buff)
+        return self.graph.to_string()
 
 
 class SsaPassDumpToDot(SsaPass):
