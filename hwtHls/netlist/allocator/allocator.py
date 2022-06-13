@@ -21,7 +21,7 @@ class HlsAllocator():
     Convert the HlsNetlist to architectural elements and delegate the conversion of elements to RLT.
 
     :ivar namePrefix: name prefix for debug purposes
-    :ivar parentHls: parent HLS context for this allocator
+    :ivar netlist: parent HLS context for this allocator
     """
 
     def __init__(self, netlist: "HlsNetlistCtx", namePrefix:str="hls_"):
@@ -51,7 +51,7 @@ class HlsAllocator():
             self._archElements.append(pipeCont)
 
     def _getFirstUseTime(self, iea: InterArchElementNodeSharingAnalysis, dstElm: AllocatorArchitecturalElement, o: HlsNetNodeOut, i: HlsNetNodeIn):
-        clkPeriod = self.parentHls.normalizedClkPeriod
+        clkPeriod = self.netlist.normalizedClkPeriod
         useT = iea.firstUseTimeOfOutInElem[(dstElm, o)]
         srcStartClkI = start_clk(o.obj.scheduledOut[o.out_i], clkPeriod)
         dstUseClkI = start_clk(useT, clkPeriod)
@@ -69,7 +69,7 @@ class HlsAllocator():
                     for clkI in range(srcStartClkI, dstUseClkI + 1):
                         if clkI in srcElm.clkIToStateI:
                             closestClockIWithState = clkI
-                    useT = closestClockIWithState * clkPeriod + self.parentHls.scheduler.epsilon
+                    useT = closestClockIWithState * clkPeriod + self.netlist.scheduler.epsilon
                     iea.firstUseTimeOfOutInElem[(dstElm, o)] = useT
                 elif isinstance(dstElm, AllocatorFsmContainer):
                     # Need to add extra buffer between FSMs or move value load/store in states
@@ -77,7 +77,7 @@ class HlsAllocator():
                     srcBaseName = self._getArchElmBaseName(srcElm)
                     dstBaseName = self._getArchElmBaseName(dstElm)
                     bufferPipelineName = f"{self.namePrefix:s}buffer_{srcBaseName:s}{srcStartClkI}_to_{dstBaseName:s}{dstUseClkI}"
-                    p = AllocatorPipelineContainer(self.parentHls, bufferPipelineName, [])
+                    p = AllocatorPipelineContainer(self.netlist, bufferPipelineName, [])
                     self._archElements.append(p)
                     iea.explicitPathSpec[(o, i, dstElm)] = [ValuePathSpecItem(p, o.obj.scheduledOut[o.out_i], useT)]
                 else:
@@ -92,7 +92,7 @@ class HlsAllocator():
             synRtl = dstElm.netNodeToRtl.get(syn, None)
             if synRtl is not None:
                 assert oRes is None or oRes is synRtl, ("All synonyms must have same RTL realization", o, oRes, syn, synRtl)
-                assert start_clk(synRtl.timeOffset, self.parentHls.normalizedClkPeriod) == start_clk(useT, self.parentHls.normalizedClkPeriod) , (synRtl.timeOffset, useT, syn, o)
+                assert start_clk(synRtl.timeOffset, self.netlist.normalizedClkPeriod) == start_clk(useT, self.netlist.normalizedClkPeriod) , (synRtl.timeOffset, useT, syn, o)
                 oRes = synRtl
 
         # now optionally declare and set all synonyms at input of dstElm
@@ -172,9 +172,9 @@ class HlsAllocator():
                     assert o in srcElm.netNodeToRtl
 
     def _finalizeInterElementsConnections(self, iea: InterArchElementNodeSharingAnalysis):
-        hls = self.parentHls
+        netlist = self.netlist
         self._expandAllOutputSynonymsInElement(iea)
-        clkPeriod:int = self.parentHls.normalizedClkPeriod
+        clkPeriod:int = self.netlist.normalizedClkPeriod
         syncAdded: Set[Tuple[int, AllocatorArchitecturalElement, AllocatorArchitecturalElement]] = set()
         tirsConnected: Set[Tuple[TimeIndependentRtlResource, TimeIndependentRtlResource]] = set()
         elementIndex: Dict[AllocatorArchitecturalElement, int] = {a: i for i, a in enumerate(self._archElements)}
@@ -238,7 +238,7 @@ class HlsAllocator():
                     srcBaseName = self._getArchElmBaseName(srcElm)
                     dstBaseName = self._getArchElmBaseName(dstElm)
                     interElmSync = Interface_without_registration(
-                        hls.parentUnit, interElmSync,
+                        netlist.parentUnit, interElmSync,
                         f"{self.namePrefix:s}sync_{srcBaseName:s}_{dstBaseName:s}")
                     srcElm.connectSync(dstUseClkI, interElmSync, INTF_DIRECTION.MASTER)
                     dstElm.connectSync(dstUseClkI, interElmSync, INTF_DIRECTION.SLAVE)
