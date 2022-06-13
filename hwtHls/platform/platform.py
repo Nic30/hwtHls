@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Optional, Union, Set, Tuple, Dict, List
 
 from hwt.synthesizer.dummyPlatform import DummyPlatform
+from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, MachineLoopInfo
 from hwtHls.netlist.allocator.allocator import HlsAllocator
 from hwtHls.netlist.analysis.blockSyncType import HlsNetlistAnalysisPassBlockSyncType
@@ -25,7 +26,7 @@ from hwtHls.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
 from hwtHls.ssa.transformation.axiStreamReadLowering.axiStreamReadLoweringPass import SsaPassAxiStreamReadLowering
 from hwtHls.ssa.transformation.extractPartDrivers.extractPartDriversPass import SsaPassExtractPartDrivers
 from hwtHls.ssa.translation.dumpMIR import SsaPassDumpMIR
-from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
+from hwtHls.ssa.translation.dumpMirCfg import SsaPassDumpMirCfg
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
 from hwtHls.ssa.translation.toGraphwiz import SsaPassDumpToDot
 from hwtHls.ssa.translation.toLl import SsaPassDumpToLl
@@ -83,6 +84,7 @@ class DefaultHlsPlatform(DummyPlatform):
     
             if self._debugDir:
                 SsaPassDumpMIR(outputFileGetter(self._debugDir, ".5.mir.ll")).apply(hls, toSsa)
+                SsaPassDumpMirCfg(outputFileGetter(self._debugDir, ".5.mirCfg.dot")).apply(hls, toSsa)
             
             toNetlist._translateDatapathInBlocks(mf)
             toNetlist._constructLiveInMuxes(mf, backedges, liveness)
@@ -95,12 +97,14 @@ class DefaultHlsPlatform(DummyPlatform):
 
             toNetlist.netlist.requestAnalysis(HlsNetlistAnalysisPassBlockSyncType)
             if self._debugDir:
-                HlsNetlistPassDumpBlockSync(outputFileGetter(self._debugDir, ".7.blockSync.txt")).apply(hls, netlist)
+                HlsNetlistPassDumpBlockSync(outputFileGetter(self._debugDir, ".7.blockSync.dot")).apply(hls, netlist)
                 HlsNetlistPassDumpToDot(outputFileGetter(self._debugDir, ".8.preSync.dot")).apply(hls, netlist)
 
             toNetlist._resolveBlockEn(mf, backedges, threads)
             #toNetlist.netlist.invalidateAnalysis(HlsNetlistAnalysisPassDataThreads)  # because we modified the netlist
             toNetlist._connectOrderingPorts(mf, backedges)
+            if self._debugDir:
+                HlsNetlistPassDumpBlockSync(outputFileGetter(self._debugDir, ".9.postSync.dot")).apply(hls, netlist)
 
         tr.llvm.runOpt(runNetlistTranslation)
         assert netlist is not None
@@ -108,8 +112,12 @@ class DefaultHlsPlatform(DummyPlatform):
         return netlist
 
     def runHlsNetlistPasses(self, hls: "HlsScope", netlist: HlsNetlistCtx):
+        """
+        :note: now we can not touch MIR because it was deallocated
+        """
         debugDir = self._debugDir
         if debugDir:
+            HlsNetlistPassDumpToDot(outputFileGetter(self._debugDir, ".10.netlist.dot")).apply(hls, netlist)
             HlsNetlistPassConsystencyCheck().apply(hls, netlist)
             
         HlsNetlistPassDCE().apply(hls, netlist)
@@ -122,13 +130,13 @@ class DefaultHlsPlatform(DummyPlatform):
         if debugDir:
             # HlsNetlistPassConsystencyCheck().apply(hls, pipeline)
             # HlsNetlistPassDumpToDot(debugDir / "top_p1.dot").apply(hls, pipeline)
-            HlsNetlistPassShowTimeline(outputFileGetter(debugDir, ".9.schedule.html"),
+            HlsNetlistPassShowTimeline(outputFileGetter(debugDir, ".11.schedule.html"),
                                            expandCompositeNodes=self._debugExpandCompositeNodes).apply(hls, netlist)
         netlist.requestAnalysis(HlsNetlistAnalysisPassRunScheduler)
 
     def runRtlNetlistPasses(self, hls: "HlsScope", netlist: HlsNetlistCtx):
         debugDir = self._debugDir
         if debugDir:
-            RtlNetlistPassDumpStreamNodes(outputFileGetter(debugDir, ".10.sync.txt")).apply(hls, netlist)
-            HlsNetlistPassShowTimelineArchLevel(outputFileGetter(debugDir, ".11.archSchedule.html")).apply(hls, netlist)
+            RtlNetlistPassDumpStreamNodes(outputFileGetter(debugDir, ".12.sync.txt")).apply(hls, netlist)
+            HlsNetlistPassShowTimelineArchLevel(outputFileGetter(debugDir, ".13.archSchedule.html")).apply(hls, netlist)
 
