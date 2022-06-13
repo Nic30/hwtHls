@@ -36,6 +36,21 @@ void GenericFpgaToNetlist::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
 
 	MachineFunctionPass::getAnalysisUsage(AU);
 }
+
+void collectBackedges(
+		std::set<GenericFpgaToNetlist::MachineBasicBlockEdge> &backedges,
+		const MachineLoop &loop) {
+	MachineBasicBlock *H = loop.getHeader();
+	for (auto HPred : H->predecessors()) {
+		if (loop.contains(HPred)) {
+			backedges.insert( { HPred, H });
+		}
+	}
+	for (const MachineLoop *chLoop : loop) {
+		collectBackedges(backedges, *chLoop);
+	}
+}
+
 bool GenericFpgaToNetlist::runOnMachineFunction(llvm::MachineFunction &MF) {
 	LLVM_DEBUG(
 			dbgs() << "********** GenericFpgaToNetlist **********\n"
@@ -56,24 +71,18 @@ bool GenericFpgaToNetlist::runOnMachineFunction(llvm::MachineFunction &MF) {
 	MachineLoopInfo &Loops = getAnalysis<MachineLoopInfo>();
 	//Traces = &getAnalysis<MachineTraceMetrics>();
 	std::set<MachineBasicBlockEdge> backedges;
-	//errs() << "Loops:" << "\n";
 	for (auto loop : Loops) {
-		MachineBasicBlock *H = loop->getHeader();
-		//errs() << *H << "\n";
-		for (auto HPred : H->predecessors()) {
-			if (loop->contains(HPred)) {
-				backedges.insert( { HPred, H });
-			}
-		}
+		collectBackedges(backedges, *loop);
 	}
+
 	auto liveness = hwtHls::getLiveVariablesForBlockEdge(MF);
 	std::vector<Register> ioRegs(MF.getFunction().arg_size());
-	for (auto & R: ioRegs) {
+	for (auto &R : ioRegs) {
 		R = 0;
 	}
 	std::vector<MachineInstr*> toRm;
-	for (auto & MB: MF) {
-		for (auto & MI: MB) {
+	for (auto &MB : MF) {
+		for (auto &MI : MB) {
 			if (MI.getOpcode() == GenericFpga::GENFPGA_ARG_GET) {
 				uint64_t arg = MI.getOperand(1).getImm();
 				assert(ioRegs[arg] == 0);
@@ -82,7 +91,7 @@ bool GenericFpgaToNetlist::runOnMachineFunction(llvm::MachineFunction &MF) {
 			}
 		}
 	}
-	for (auto * MI: toRm) {
+	for (auto *MI : toRm) {
 		MI->eraseFromParent();
 	}
 
@@ -97,26 +106,29 @@ bool GenericFpgaToNetlist::runOnMachineFunction(llvm::MachineFunction &MF) {
 	}
 	auto &TPC = getAnalysis<TargetPassConfig>();
 	auto &GenFpga_TPC = *dynamic_cast<llvm::GenericFpgaTargetPassConfig*>(&TPC);
-	(*GenFpga_TPC.toNetlistConversionFn)(MF, backedges, liveness, ioRegs, registerTypes, Loops);
+	(*GenFpga_TPC.toNetlistConversionFn)(MF, backedges, liveness, ioRegs,
+			registerTypes, Loops);
 	return true;
 }
 
 INITIALIZE_PASS_BEGIN(GenericFpgaToNetlist, DEBUG_TYPE, "GenericFpgaToNetlist", false,
-                false)
-INITIALIZE_PASS_DEPENDENCY(MachineLoopInfo)
-INITIALIZE_PASS_DEPENDENCY(TargetPassConfig)
+		false)
+	INITIALIZE_PASS_DEPENDENCY(MachineLoopInfo)
+	INITIALIZE_PASS_DEPENDENCY(TargetPassConfig)
 //INITIALIZE_PASS_END expanded
-  PassInfo *PI = new PassInfo(
-  	  "Run python callback to translate MIR to HlsNetlist", DEBUG_TYPE, &GenericFpgaToNetlist::ID,
-      PassInfo::NormalCtor_t(callDefaultCtor<GenericFpgaToNetlist>), false, false);
-  Registry.registerPass(*PI, true);
-  return PI;
+	PassInfo *PI = new PassInfo(
+			"Run python callback to translate MIR to HlsNetlist", DEBUG_TYPE,
+			&GenericFpgaToNetlist::ID,
+			PassInfo::NormalCtor_t(callDefaultCtor<GenericFpgaToNetlist>),
+			false, false);
+	Registry.registerPass(*PI, true);
+	return PI;
 }
 static llvm::once_flag InitializeGenericFpgaToNetlistFlag;
 
 void initializeGenericFpgaToNetlist(PassRegistry &Registry) {
-    llvm::call_once(InitializeGenericFpgaToNetlistFlag,
-    		hwtHls::initializeGenericFpgaToNetlistPassOnce, std::ref(Registry));
+	llvm::call_once(InitializeGenericFpgaToNetlistFlag,
+			hwtHls::initializeGenericFpgaToNetlistPassOnce, std::ref(Registry));
 }
 
 }
