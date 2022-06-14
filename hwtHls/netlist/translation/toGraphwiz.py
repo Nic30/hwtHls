@@ -1,8 +1,10 @@
 import html
 from itertools import zip_longest
+import pydot
 from typing import List, Union, Dict
 
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
+from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -10,8 +12,6 @@ from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.platform.fileUtils import OutputStreamGetter
-from hwtHls.netlist.context import HlsNetlistCtx
-import pydot
 
 
 class HwtHlsNetlistToGraphwiz():

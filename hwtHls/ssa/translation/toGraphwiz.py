@@ -126,20 +126,14 @@ class SsaPassDumpToDot(SsaPass):
             raise NotImplementedError()
         self.extractPipeline = extractPipeline
 
-    def apply(self, hls: "HlsScope", to_ssa: "HlsAstToSsa"):
-        name = to_ssa.label
+    def apply(self, hls: "HlsScope", toSsa: "HlsAstToSsa"):
+        name = toSsa.label
         to_graphwiz = SsaToGraphwiz(name)
-        # if self.extractPipeline:
-        #    to_hw = SsaSegmentToHwPipeline(to_ssa.start, to_ssa.original_code_for_debug)
-        #    to_hw.extract_pipeline()
-        #    pipelines = [to_hw.pipeline, ]
-        #    edge_var_live = to_hw.edge_var_live
-        # else:
         pipelines = None
         edge_var_live = None
         out, doClose = self.outStreamGetter(name)
         try:
-            to_graphwiz.construct(to_ssa.start, to_ssa.original_code_for_debug,
+            to_graphwiz.construct(toSsa.start, toSsa.original_code_for_debug,
                                   pipelines, edge_var_live)
             out.write(to_graphwiz.dumps())
         finally:
