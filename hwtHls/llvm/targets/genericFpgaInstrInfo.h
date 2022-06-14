@@ -97,18 +97,23 @@ public:
 	bool PredicateInstruction(MachineInstr &MI,
 			ArrayRef<MachineOperand> Pred) const {
 		auto opc = MI.getOpcode();
+		if (Pred.size() != 1)
+			llvm_unreachable("NotImplemented");
 		//unsigned predicateI = -1;
 		switch (opc) {
 		case GenericFpga::GENFPGA_CLOAD:
 		case GenericFpga::GENFPGA_CCOPY:
 		case GenericFpga::GENFPGA_CSTORE:
-			if (MI.getNumOperands() == 3)
+			if (MI.getNumOperands() == 3) {
+				if (MI.getOperand(2).isReg()) {
+					llvm_unreachable("NotImplemented");
+				}
 				MI.RemoveOperand(2);
+			}
 			break;
 		default:
 			return false;
 		}
-		assert(Pred.size() == 1);
 		MI.addOperand(Pred[0]);
 		//llvm_unreachable("not implemented");
 		return true;

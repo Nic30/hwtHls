@@ -130,6 +130,8 @@ unsigned GenericFpgaInstrInfo::removeBranch(MachineBasicBlock &MBB,
 	return 2;
 }
 
+// :note: the reversed condition must be set explicitely to operand and its register
+//    because the parent instruction itself will be likely removed
 bool GenericFpgaInstrInfo::reverseBranchCondition(
 		SmallVectorImpl<MachineOperand> &Cond) const {
 	assert(Cond.size() == 1);
@@ -140,62 +142,27 @@ bool GenericFpgaInstrInfo::reverseBranchCondition(
 	auto & C = BR->getOperand(0); // [attention] original Cond[0] object probably moved
 	MachineFunction & MF = *BR->getParent()->getParent();
 	MachineRegisterInfo &MRI = MF.getRegInfo();
-	////const auto * TII = MF.getSubtarget().getInstrInfo();
 	Register BR_n = MRI.cloneVirtualRegister(C.getReg()); //MRI.createVirtualRegister(&GenericFpga::AnyRegClsRegClass);//(Cond[0].getReg());
 	//MRI.setRegClass(BR_n, &GenericFpga::AnyRegClsRegClass);
 	MRI.setType(BR_n, LLT::scalar(1));
-	MRI.setType(Cond[0].getReg(), LLT::scalar(1));
+	MRI.setType(C.getReg(), LLT::scalar(1));
 
 	MachineIRBuilder Builder(*BR);
 	auto NegOne = Builder.buildConstant(LLT::scalar(1), 1);
 	MRI.setRegClass(NegOne.getInstr()->getOperand(0).getReg(), &GenericFpga::AnyRegClsRegClass);
     //MRI.invalidateLiveness();
 	Builder.buildInstr(TargetOpcode::G_XOR, {BR_n}, {C.getReg(), NegOne});
-	BR->getOperand(0).setReg(BR_n);
-	//Cond[0].setReg(BR_n);
-    //Cond[0].setIsUse();
-    //Cond[0].ChangeToRegister(BR_n, false);
-    MRI.verifyUseLists();
+	//BR->getOperand(0).setReg(BR_n);
+	//C.ChangeToRegister(BR_n, false);
+	C.setReg(BR_n);
+	//C.setIsUse();
+    //C.ChangeToRegister(BR_n, false);
+    Cond.pop_back();
+    Cond.push_back(C);
+
+	MRI.verifyUseLists();
 
     return false;
-	//errs() << Cond[0] << ", Cond.size():" << Cond.size() << "\n";
-	//CmpInst::Predicate CC = (CmpInst::Predicate) (int) Cond[0].getImm();
-	//CmpInst::Predicate CC_n;
-	//switch (CC) {
-	//case CmpInst::Predicate::ICMP_EQ: ///< equal
-	//	CC_n = CmpInst::Predicate::ICMP_NE;
-	//	break;
-	//case CmpInst::Predicate::ICMP_NE: ///< not equal
-	//	CC_n = CmpInst::Predicate::ICMP_EQ;
-	//	break;
-	//case CmpInst::Predicate::ICMP_UGT: ///< unsigned greater than
-	//	CC_n = CmpInst::Predicate::ICMP_ULE;
-	//	break;
-	//case CmpInst::Predicate::ICMP_UGE: ///< unsigned greater or equal
-	//	CC_n = CmpInst::Predicate::ICMP_ULT;
-	//	break;
-	//case CmpInst::Predicate::ICMP_ULT: ///< unsigned less than
-	//	CC_n = CmpInst::Predicate::ICMP_UGE;
-	//	break;
-	//case CmpInst::Predicate::ICMP_ULE: ///< unsigned less or equal
-	//	CC_n = CmpInst::Predicate::ICMP_UGT;
-	//	break;
-	//case CmpInst::Predicate::ICMP_SGT: ///< signed greater than
-	//	CC_n = CmpInst::Predicate::ICMP_SLE;
-	//	break;
-	//case CmpInst::Predicate::ICMP_SGE: ///< signed greater or equal
-	//	CC_n = CmpInst::Predicate::ICMP_SLT;
-	//	break;
-	//case CmpInst::Predicate::ICMP_SLT: ///< signed less than
-	//	CC_n = CmpInst::Predicate::ICMP_SGE;
-	//	break;
-	//case CmpInst::Predicate::ICMP_SLE: ///< signed less or equal
-	//	CC_n = CmpInst::Predicate::ICMP_SGT;
-	//	break;
-	//default:
-	//	llvm_unreachable("Unsupported compare predicate");
-	//}
-	//Cond[0].setImm(CC_n);
 }
 
 // based on ARCInstrInfo::insertBranch
