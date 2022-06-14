@@ -121,7 +121,7 @@ if __name__ == '__main__':
     import unittest
     
     suite = unittest.TestSuite()
-    suite.addTest(ReadIfTc('testReadIfOtherEqual_150M'))
-    # suite.addTest(unittest.makeSuite(ReadIfTc))
+    #suite.addTest(ReadIfTc('testReadIfOtherEqual_150M'))
+    suite.addTest(unittest.makeSuite(ReadIfTc))
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
