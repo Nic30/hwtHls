@@ -299,13 +299,14 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistLowLe
                 
         assert resetPredEn is None or isinstance(resetPredEn, HlsNetNodeOutLazy), (resetPredEn, "Must not be resolved yet.")
         assert otherPredEn is None or isinstance(otherPredEn, HlsNetNodeOutLazy), (otherPredEn, "Must not be resolved yet.")
-            
+        
+        # must copy because we are updating it
         if resetPredEn is None:
-            dependentOnControlInput = otherPredEn.dependent_inputs
+            dependentOnControlInput = tuple(otherPredEn.dependent_inputs)
         elif otherPredEn is None:
-            dependentOnControlInput = resetPredEn.dependent_inputs
+            dependentOnControlInput = tuple(resetPredEn.dependent_inputs)
         else:
-            dependentOnControlInput = chain(resetPredEn.dependent_inputs, otherPredEn.dependent_inputs)
+            dependentOnControlInput = resetPredEn.dependent_inputs + otherPredEn.dependent_inputs
         
         alreadyUpdated: Set[HlsNetNode] = set()
         for i in dependentOnControlInput:
