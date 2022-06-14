@@ -15,8 +15,7 @@ from hwtHls.netlist.nodes.io import HlsNetNodeExplicitSync, HlsNetNodeRead, \
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
-    link_hls_nodes
+from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.netlist.utils import hls_op_not, hls_op_const_index_slice, \
     hls_op_concat_variadic
@@ -86,16 +85,20 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                 continue
                 
             if isinstance(n, HlsNetNodeOperator):
+                n: HlsNetNodeOperator
                 if isinstance(n, HlsNetNodeMux):
                     n: HlsNetNodeMux
                     if len(n._inputs) == 1:
+                        # mux x = x
                         i: HlsNetNodeOut = n.dependsOn[0]
                         self._replaceOperatorNodeWith(n, i, worklist, removed)
 
-                else:
-                    n: HlsNetNodeOperator
-                    if n.operator in (AllOps.AND, AllOps.OR, AllOps.XOR):
-                        self._reduceAndOrXor(n, worklist, removed)
+                elif n.operator == AllOps.NOT:
+                    self._reduceNot(n, worklist, removed)
+
+                elif n.operator in (AllOps.AND, AllOps.OR, AllOps.XOR):
+                    self._reduceAndOrXor(n, worklist, removed)
+                        
             elif isinstance(n, HlsNetNodeExplicitSync):
                 n: HlsNetNodeExplicitSync
                 if n.skipWhen is not None:
@@ -149,7 +152,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
             worklist.append(dep.obj)
 
     def _replaceOperatorNodeWith(self, n: HlsNetNodeOperator, o: HlsNetNodeOut, worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]):
-        assert len(n.usedBy) == 1, n
+        assert len(n.usedBy) == 1, (n, "implement only for single output nodes")
         self._disconnectAllInputs(n, worklist)
         self._addAllUsersToWorklist(worklist, n)
         # reconnect all dependencies to an only driver of this mux
@@ -181,7 +184,21 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
         c = HlsNetNodeConst(netlist, v)
         netlist.nodes.append(c)
         return c._outputs[0]
+    
+    def _reduceNot(self, n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]):
+        netlist: HlsNetlistCtx = n.netlist
+        o0, = n.dependsOn
+        o0Const = isinstance(o0.obj, HlsNetNodeConst)
+        newO = None
+        if o0Const:
+            newO = self._addConst(netlist, ~o0.obj.val)
+        elif isinstance(o0, HlsNetNodeOut) and isinstance(o0.obj, HlsNetNodeOperator) and o0.obj.operator == AllOps.NOT:
+            # ~~x = x
+            newO = o0.obj.dependsOn[0]
         
+        if newO is not None:
+            self._replaceOperatorNodeWith(n, newO, worklist, removed)
+
     def _reduceAndOrXor(self, n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]):
         netlist: HlsNetlistCtx = n.netlist
         # search for const in for commutative operator
