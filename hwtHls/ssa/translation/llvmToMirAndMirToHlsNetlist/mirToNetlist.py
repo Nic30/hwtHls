@@ -125,13 +125,20 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistLowLe
                 elif opc == TargetOpcode.G_ICMP:
                     predicate, lhs, rhs = ops
                     opDef = self.CMP_PREDICATE_TO_OP[predicate]
-                    if predicate in self.SIGNED_CMP_OPS:
-                        raise NotImplementedError()
+                    signed = predicate in self.SIGNED_CMP_OPS
+                    if signed:
+                        lhs = self._castSign(netlist, lhs, True)
+                        rhs = self._castSign(netlist, rhs, True)
+
                     n = HlsNetNodeOperator(netlist, opDef, 2, BIT)
                     self.nodes.append(n)
                     for i, arg in zip(n._inputs, (lhs, rhs)):
                         link_hls_nodes(arg, i)
-                    valCache.add(mb, dst, n._outputs[0], True)
+                    res = n._outputs[0]
+                    if signed:
+                        res = self._castSign(netlist, res, None)
+                        
+                    valCache.add(mb, dst, res, True)
 
                 elif opc == TargetOpcode.G_BR or opc == TargetOpcode.G_BRCOND:
                     pass  # will be translated in next step when control is generated, (condition was already translated)
@@ -547,7 +554,6 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistLowLe
                             # create a new input for ordering connection
                             depI2 = depI.obj._add_input()
                             link_hls_nodes(i, depI2)
-            
 
     def run(self):
         raise NotImplementedError("This class does not have run() method because it is"

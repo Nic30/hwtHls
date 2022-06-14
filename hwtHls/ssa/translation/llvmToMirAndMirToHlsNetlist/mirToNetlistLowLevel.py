@@ -1,4 +1,4 @@
-from typing import Set, Tuple, Dict, List, Union, Type
+from typing import Set, Tuple, Dict, List, Union, Type, Optional
 
 from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.types.bits import Bits
@@ -25,6 +25,7 @@ from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.opCache import MirToHwtH
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from hwtHls.netlist.analysis.dataThreads import HlsNetlistAnalysisPassDataThreads
+from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 
 
 class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
@@ -218,3 +219,17 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         t = {nodeOut.obj}
         threads.threadPerNode[nodeOut.obj] = t
         return t
+
+    def _castSign(self, netlist: HlsNetlistCtx, o: HlsNetNodeOut, signed: Optional[bool]) -> HlsNetNodeOut:
+        if signed:
+            op = AllOps.BitsAsSigned
+        elif signed is None:
+            op = AllOps.BitsAsVec
+        else:
+            op = AllOps.BitsAsUnsigned
+
+        s = HlsNetNodeOperator(netlist, op, 1, Bits(o._dtype.bit_length(), signed=signed))
+        link_hls_nodes(o, s._inputs[0])
+        netlist.nodes.append(s)
+        return s._outputs[0]
+        
