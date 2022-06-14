@@ -93,14 +93,17 @@ class HlsNetlistPassDCE(HlsNetlistPass):
             nodesWithReducedOutputs = []
             if len(used) != len(netlist.nodes) + len(netlist.inputs) + len(netlist.outputs):
                 netlist.nodes = [n for n in netlist.nodes if n in used]
-                for n in netlist.nodes:
+                for n in netlist.iterAllNodes():
                     n: HlsNetNode
-                    outReduced = False
+                    # IO can not be reduced, but always update usedBy
+                    outReduced = not isinstance(n, (HlsNetNodeRead, HlsNetNodeWrite))
                     for i, uses in enumerate(n.usedBy):
                         newUses = [u for u in uses if u.obj in used]
                         n.usedBy[i] = newUses
-                        outReduced |= not newUses
-                    n.dependsOn = [d for d in n.dependsOn if d.obj in used]
+                        outReduced &= not newUses
+                    for dep in n.dependsOn:
+                        assert dep.obj in used
+                    #n.dependsOn = [d for d in n.dependsOn if d.obj in used]
                     if not outReduced:
                         nodesWithReducedOutputs.append(n)
 
