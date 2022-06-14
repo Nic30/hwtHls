@@ -12,6 +12,18 @@
 
 namespace py = pybind11;
 enum TargetOpcode: unsigned {};
+PYBIND11_MAKE_OPAQUE(std::pair<llvm::MachineBasicBlock*, llvm::MachineBasicBlock*>);
+
+template<typename ITEM_T>
+void register_SmallVector(pybind11::module_ &m, const std::string & name ){
+	using vec_t = llvm::SmallVector<ITEM_T>;
+	py::class_<vec_t> v(m, name.c_str(), py::module_local(false));
+	v
+		.def("__iter__", [](vec_t &V) {
+				return py::make_iterator(V.begin(), V.end());
+		}, py::keep_alive<0, 1>())
+		.def("size", &vec_t::size);
+}
 
 void register_MachineFunction(pybind11::module_ &m) {
 	py::class_<llvm::MachineFunction, std::unique_ptr<llvm::MachineFunction, py::nodelete>> MachineFunction(m, "MachineFunction");
@@ -22,8 +34,8 @@ void register_MachineFunction(pybind11::module_ &m) {
 		})
 		.def("__str__",  &printToStr<llvm::MachineFunction>)
 		.def("__iter__", [](llvm::MachineFunction &F) {
-						return py::make_iterator(F.begin(), F.end());
-					 }, py::keep_alive<0, 1>()); /* Keep vector alive while iterator is used */
+			return py::make_iterator(F.begin(), F.end());
+		}, py::keep_alive<0, 1>()); /* Keep vector alive while iterator is used */
 
 	py::class_<llvm::MachineBasicBlock, std::unique_ptr<llvm::MachineBasicBlock, py::nodelete>> MachineBasicBlock(m, "MachineBasicBlock");
 	MachineBasicBlock
@@ -116,6 +128,8 @@ void register_MachineFunction(pybind11::module_ &m) {
 		.def("__iter__", [](llvm::MachineLoopInfo &MB) {
 				return py::make_iterator(MB.begin(), MB.end());
     	}, py::keep_alive<0, 1>());
+	register_SmallVector<llvm::MachineBasicBlock *>(m, "MachineBasicBlockSmallVector");
+	register_SmallVector<llvm::MachineLoop::Edge>(m, "MachineEdgeSmallVector");
 	py::class_<llvm::MachineLoop, std::unique_ptr<llvm::MachineLoop, py::nodelete>> MachineLoop(m, "MachineLoop");
 	MachineLoop
 		.def("getParentLoop", &llvm::MachineLoop::getParentLoop)
@@ -124,13 +138,21 @@ void register_MachineFunction(pybind11::module_ &m) {
 		.def("hasNoExitBlocks", &llvm::MachineLoop::hasNoExitBlocks)
 		.def("isInnermost", &llvm::MachineLoop::isInnermost)
 		.def("isOutermost", &llvm::MachineLoop::isOutermost)
+		.def("getExitingBlocks", [](llvm::MachineLoop * self) {
+			llvm::SmallVector<llvm::MachineBasicBlock *> ExitingBlocks;
+			self->getExitingBlocks(ExitingBlocks);
+			return ExitingBlocks;
+		})
+		.def("getExitEdges", [](llvm::MachineLoop * self) {
+			llvm::SmallVector<llvm::MachineLoop::Edge> ExitingEdges;
+			self->getExitEdges(ExitingEdges);
+			return ExitingEdges;
+		})
 		.def("containsBlock", [](llvm::MachineLoop & L, llvm::MachineBasicBlock & MBB) {
 			return L.contains(&MBB);
 		})
 		.def("getBlocks", [](llvm::MachineLoop &ML) {
 				return py::make_iterator(ML.block_begin(), ML.block_end());
     	}, py::keep_alive<0, 1>())
-		.def("__str__",  &printToStr<llvm::MachineLoop>)
-		;
-
+		.def("__str__",  &printToStr<llvm::MachineLoop>);
 }
