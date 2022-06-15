@@ -1,5 +1,6 @@
 #include "llvmIrMachineFunction.h"
 #include <sstream>
+#include <pybind11/stl.h>
 #include <llvm/CodeGen/MachineFunction.h>
 #include <llvm/CodeGen/MachineBasicBlock.h>
 #include <llvm/CodeGen/MachineInstr.h>
@@ -12,7 +13,6 @@
 
 namespace py = pybind11;
 enum TargetOpcode: unsigned {};
-PYBIND11_MAKE_OPAQUE(std::pair<llvm::MachineBasicBlock*, llvm::MachineBasicBlock*>);
 
 template<typename ITEM_T>
 void register_SmallVector(pybind11::module_ &m, const std::string & name ){
