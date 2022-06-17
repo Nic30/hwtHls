@@ -20,6 +20,7 @@ from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.netlist.utils import hls_op_not, hls_op_const_index_slice, \
     hls_op_concat_variadic
 from pyMathBitPrecise.bit_utils import get_bit, mask
+from hwtHls.netlist.transformation.dce import HlsNetlistPassDCE
 
 
 def iter1and0sequences(v: BitsVal) -> Generator[Tuple[Literal[1, 0], int], None, None]:
@@ -104,7 +105,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                 if n.skipWhen is not None:
                     dep = n.dependsOn[n.skipWhen.in_i]
                     if isinstance(dep.obj, HlsNetNodeConst):
-                        assert int(dep.obj.val) == 0, ("Bust be 0 because otherwise this is should not be used at all", n, dep.obj)
+                        assert int(dep.obj.val) == 0, ("Must be 0 because otherwise this is should not be used at all", n, dep.obj)
                         dep.obj.usedBy[dep.out_i].remove(n.skipWhen)
                         worklist.append(dep.obj)
                         n._removeInput(n.skipWhen.in_i)
@@ -113,7 +114,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                 if n.extraCond is not None:
                     dep = n.dependsOn[n.extraCond.in_i]
                     if isinstance(dep.obj, HlsNetNodeConst):
-                        assert int(dep.obj.val) == 1, ("Bust be 1 because otherwise this is should not be used at all", n, dep.obj)
+                        assert int(dep.obj.val) == 1, ("Must be 1 because otherwise this is should not be used at all", n, dep.obj)
                         dep.obj.usedBy[dep.out_i].remove(n.extraCond)
                         worklist.append(dep.obj)
                         n._removeInput(n.extraCond.in_i)
@@ -138,7 +139,15 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                                 continue
                         dep.obj.usedBy[dep.out_i].remove(orderingI)
                         n._removeInput(orderingI.in_i)
-                    
+
+                if n.__class__ is HlsNetNodeExplicitSync:
+                    # remove whole node if not synchronizing anything
+                    if not n.usedBy[0] and isinstance(n.dependsOn[0].obj, HlsNetNodeConst):
+                        for i in n._inputs:
+                            dep = n.dependsOn[i.in_i]
+                            dep.obj.usedBy[dep.out_i].remove(i)
+                            worklist.append(dep.obj)
+                        removed.add(n)
         if removed:
             nodes = netlist.nodes
             netlist.nodes = [n for n in nodes if n not in removed]
@@ -158,7 +167,8 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
         # reconnect all dependencies to an only driver of this mux
         for u in n.usedBy[0]:
             u: HlsNetNodeIn
-            u.replace_driver(o)
+            u.replaceDriverInInputOnly(o)
+        n.usedBy[0].clear()
         removed.add(n)
 
     def _addAllUsersToWorklist(self, worklist: UniqList[HlsNetNode], n: HlsNetNodeOperator):
@@ -167,7 +177,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                 worklist.append(u.obj)
 
     def _isTriviallyDead(self, n: HlsNetNode):
-        if isinstance(n, HlsNetNodeExplicitSync):
+        if isinstance(n, HlsNetlistPassDCE.NON_REMOVABLE_CLS):
             return False
         else:
             for uses in n.usedBy:
