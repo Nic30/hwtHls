@@ -264,7 +264,7 @@ class PyBytecodeToSsaLowLevel():
                 if closure is None:
                     # [todo] check what is the relation between function without closure
                     #  and child function closure
-                    v = frame.locals[frame.cellVarI[instr.arg]]
+                    v = locals_[frame.cellVarI[instr.arg]]
                 else:
                     v = closure[instr.arg].cell_contents
                 # closure[instr.arg] = None
@@ -287,7 +287,7 @@ class PyBytecodeToSsaLowLevel():
                 if instr.argval in self.fn.__globals__:
                     v = self.fn.__globals__[instr.argval]
                 else:
-                    assert instr.argval in builtins.__dict__, instr.argval
+                    # assert instr.argval in builtins.__dict__, instr.argval
                     v = builtins.__dict__[instr.argval]
                 stack.append(v)
 
@@ -317,13 +317,13 @@ class PyBytecodeToSsaLowLevel():
                 vVal = stack.pop()
                 vVal, curBlock = expandBeforeUse(vVal, curBlock)
                 v = locals_[instr.arg]
-
-                if instr.arg not in frame.preprocVars:
+                varIndex = instr.arg
+                if varIndex not in frame.preprocVars:
                     if v is None and isinstance(vVal, (HValue, RtlSignal, SsaValue)):
                         # only if it is a value which generates HW variable
                         t = getattr(vVal, "_dtypeOrig", vVal._dtype)
                         v = self.hls.var(instr.argval, t)
-                        locals_[instr.arg] = v
+                        locals_[varIndex] = v
 
                     if isinstance(v, (RtlSignal, Interface)):
                         # only if it is a hw variable, create assignment to HW variable
@@ -333,13 +333,61 @@ class PyBytecodeToSsaLowLevel():
 
                 if isinstance(vVal, PyBytecodeInPreproc):
                     vVal = vVal.ref
-                    frame.preprocVars.add(instr.arg)
+                    frame.preprocVars.add(varIndex)
 
-                locals_[instr.arg] = vVal    
+                locals_[varIndex] = vVal
 
             elif opcode == STORE_DEREF:
                 # nested scopes: access a variable through its cell object
-                raise NotImplementedError(instr)
+                vVal = stack.pop()
+                vVal, curBlock = expandBeforeUse(vVal, curBlock)
+                closure = self.fn.__closure__
+                if closure is None:
+                    # [todo] check what is the relation between function without closure
+                    #  and child function closure
+                    varIndex = frame.cellVarI[instr.arg]
+                    v = locals_[varIndex]
+                    
+                    if varIndex not in frame.preprocVars:
+                        if v is None and isinstance(vVal, (HValue, RtlSignal, SsaValue)):
+                            # only if it is a value which generates HW variable
+                            t = getattr(vVal, "_dtypeOrig", vVal._dtype)
+                            v = self.hls.var(instr.argval, t)
+                            locals_[varIndex] = v
+    
+                        if isinstance(v, (RtlSignal, Interface)):
+                            # only if it is a hw variable, create assignment to HW variable
+                            stm = v(vVal)
+                            self.to_ssa.visit_CodeBlock_list(curBlock, flatten([stm, ]))
+                            return curBlock
+
+                    if isinstance(vVal, PyBytecodeInPreproc):
+                        vVal = vVal.ref
+                        frame.preprocVars.add(varIndex)
+
+                    locals_[varIndex] = vVal
+                    
+                else:
+                    v = closure[varIndex].cell_contents
+                    varIndex = instr.arg
+                    if varIndex not in frame.preprocVars:
+                        if v is None and isinstance(vVal, (HValue, RtlSignal, SsaValue)):
+                            # only if it is a value which generates HW variable
+                            t = getattr(vVal, "_dtypeOrig", vVal._dtype)
+                            v = self.hls.var(instr.argval, t)
+                            closure[varIndex].cell_contents = v
+    
+                        if isinstance(v, (RtlSignal, Interface)):
+                            # only if it is a hw variable, create assignment to HW variable
+                            stm = v(vVal)
+                            self.to_ssa.visit_CodeBlock_list(curBlock, flatten([stm, ]))
+                            return curBlock
+    
+                    if isinstance(vVal, PyBytecodeInPreproc):
+                        vVal = vVal.ref
+                        frame.preprocVars.add(varIndex)
+    
+                    closure[varIndex].cell_contents = vVal
 
             elif opcode == CALL_METHOD or opcode == CALL_FUNCTION:
                 args = []

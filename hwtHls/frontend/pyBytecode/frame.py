@@ -201,8 +201,16 @@ class PyBytecodeFrame():
 
         varNameToI = {n: i for i, n in enumerate(fn.__code__.co_varnames)}
         cellVarI = {}
+        # cellvars:  names of local variables that are referenced by nested functions
         for i, name in enumerate(fn.__code__.co_cellvars):
-            cellVarI[i] = varNameToI[name]
+            # variables accessed using LOAD_DEREF/STORE_DEREF LOAD_CLOSURE/STORE_CLOSURE
+            index = varNameToI.get(name, None)
+            if index is None:
+                # cell var which is not local, we allocate extra space in locals 
+                index = len(localVars)
+                localVars.append(None)
+
+            cellVarI[i] = index
 
         return PyBytecodeFrame(localVars, cellVarI, [])
 
