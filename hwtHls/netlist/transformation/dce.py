@@ -17,6 +17,7 @@ class HlsNetlistPassDCE(HlsNetlistPass):
 
     :note: volatile IO operations are never removed
     """
+    NON_REMOVABLE_CLS = (HlsNetNodeRead, HlsNetNodeWrite, HlsLoopGate, HlsNetNodeExplicitSync)
 
     def _walkDependencies(self, n: HlsNetNode, seen: Set[HlsNetNode]):
         seen.add(n)
@@ -87,7 +88,7 @@ class HlsNetlistPassDCE(HlsNetlistPass):
             # assert len(set(netlist.nodes)) == len(netlist.nodes)
             for io in chain(netlist.inputs, netlist.outputs, (
                     n for n in netlist.nodes 
-                    if isinstance(n, (HlsNetNodeRead, HlsNetNodeWrite, HlsLoopGate, HlsNetNodeExplicitSync)))):
+                    if isinstance(n, self.NON_REMOVABLE_CLS))):
                 self._walkDependencies(io, used)
 
             nodesWithReducedOutputs = []
@@ -96,14 +97,14 @@ class HlsNetlistPassDCE(HlsNetlistPass):
                 for n in netlist.iterAllNodes():
                     n: HlsNetNode
                     # IO can not be reduced, but always update usedBy
-                    outReduced = not isinstance(n, (HlsNetNodeRead, HlsNetNodeWrite))
+                    outReduced = not isinstance(n, self.NON_REMOVABLE_CLS)
                     for i, uses in enumerate(n.usedBy):
                         newUses = [u for u in uses if u.obj in used]
                         n.usedBy[i] = newUses
                         outReduced &= not newUses
                     for dep in n.dependsOn:
                         assert dep.obj in used
-                    #n.dependsOn = [d for d in n.dependsOn if d.obj in used]
+                    # n.dependsOn = [d for d in n.dependsOn if d.obj in used]
                     if not outReduced:
                         nodesWithReducedOutputs.append(n)
 
