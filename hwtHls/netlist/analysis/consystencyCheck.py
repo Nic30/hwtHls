@@ -42,5 +42,4 @@ class HlsNetlistPassConsystencyCheck(HlsNetlistPass):
                     assert isinstance(u, HlsNetNodeIn), (n, o, u)
                     assert u.obj in allNodes, ("Drives something which is not in netlist", n, o, u)
                     assert u.obj._inputs[u.in_i] is u, ("Broken HlsNetNodeIn object", n, o, u)
-
                     assert u.obj.dependsOn[u.in_i] is o, ("Input must know about connected output", n, u, o)
