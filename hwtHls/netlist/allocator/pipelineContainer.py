@@ -42,7 +42,6 @@ class AllocatorPipelineContainer(AllocatorArchitecturalElement):
         self._dataPathAllocated = False
 
     def _afterNodeInstantiated(self, n: HlsNetNode, rtl: Optional[TimeIndependentRtlResource]):
-        # mark value in register as persisten until the end of fsm
         if rtl is None or not isinstance(rtl, TimeIndependentRtlResource):
             cons = (self.netNodeToRtl[o] for o in n._outputs if o in self.netNodeToRtl)
         else:
