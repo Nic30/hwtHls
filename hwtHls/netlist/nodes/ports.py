@@ -11,14 +11,17 @@ def _reprMinify(o):
 
 class HlsNetNodeOut():
     """
-    A class for object which do represents output of HlsNetNode instance.
+    A class for object which represents output of :class:`HlsNetNode` instance.
     """
 
     def __init__(self, obj: "HlsNetNode", out_i: int, dtype: HdlType):
         self.obj = obj
         self.out_i = out_i
         self._dtype = dtype
-
+    
+    def replaceDriverObj(self, o:"HlsNetNodeOut"):
+        raise NotImplementedError()
+        
     def __hash__(self):
         return hash((self.obj, self.out_i))
 
@@ -33,9 +36,51 @@ class HlsNetNodeOut():
         return f"<{self.__class__.__name__} {objStr:s} [{self.out_i:d}]>"
 
 
+class HlsNetNodeOutLazy():
+    """
+    A placeholder for future :class:`HlsNetNodeOut`.
+
+    :ivar dependent_inputs: information about children where new object should be replaced
+    """
+
+    def __init__(self, netlist: "HlsNetlistCtx", keys_of_self_in_cache: list, op_cache:"SsaToHwtHlsNetlistOpCache", dtype: HdlType):
+        self._id = netlist.nodeCtx.getUniqId()
+        self.dependent_inputs: List[HlsNetNodeIn] = []
+        self.replaced_by = None
+        self.keys_of_self_in_cache = keys_of_self_in_cache
+        self.op_cache = op_cache
+        self._dtype = dtype
+
+    def replaceDriverObj(self, o:HlsNetNodeOut):
+        """
+        Replace this output in all connected inputs.
+        """
+        assert self is not o, self
+        assert self.replaced_by is None, (self, self.replaced_by)
+        assert self._dtype == o._dtype or self._dtype.bit_length() == o._dtype.bit_length(), (self, o, self._dtype, o._dtype)
+        for k in self.keys_of_self_in_cache:
+            self.op_cache._toHlsCache[k] = o
+
+        l0 = len(self.dependent_inputs)
+        for i in self.dependent_inputs:
+            i: HlsNetNodeIn
+            i.replaceDriverInInputOnly(o)
+
+        assert len(self.dependent_inputs) == l0, "Must not modify dependent_inputs during replace"
+        self.dependent_inputs.clear()
+        
+        self.replaced_by = o
+
+    def __repr__(self):
+        return f"<{self.__class__.__name__:s} {self._id:d}>"
+
+
+HlsNetNodeOutAny = Union[HlsNetNodeOut, HlsNetNodeOutLazy]
+
+
 class HlsNetNodeIn():
     """
-    A class for object which do represents input of HlsNetNode instance.
+    A class for object which represents input of :class:`HlsNetNode` instance.
     """
 
     def __init__(self, obj: "HlsNetNode", in_i: int):
@@ -48,15 +93,38 @@ class HlsNetNodeIn():
     def __eq__(self, other):
         return self is other or (self.__class__ is other.__class__ and self.obj == other.obj and self.in_i == other.in_i)
 
-    def replace_driver(self, o: HlsNetNodeOut):
+    def replace_driver(self, o: HlsNetNodeOutAny) -> HlsNetNodeOutAny:
+        """
+        Disconnect old output object and connect new output object to this input while updating all.
+        """
+        oldO = self.replaceDriverInInputOnly(o)
+        if oldO is None:
+            pass
+        elif isinstance(oldO, HlsNetNodeOut):
+            oldO: HlsNetNodeOut
+            oldO.obj.usedBy[oldO.out_i].remove(self)
+        else:
+            assert isinstance(oldO, HlsNetNodeOutLazy), oldO
+            oldO: HlsNetNodeOutLazy
+            oldO.dependent_inputs.remove(self)
+        return oldO
+
+    def replaceDriverInInputOnly(self, o: HlsNetNodeOutAny) -> HlsNetNodeOutAny:
+        """
+        :attention: does not disconnect old output if there was any
+        """
+        oldO = self.obj.dependsOn[self.in_i]
         self.obj.dependsOn[self.in_i] = o
         if isinstance(o, HlsNetNodeOut):
             usedBy = o.obj.usedBy[o.out_i]
             i = self.obj._inputs[self.in_i]
             if i not in usedBy:
                 usedBy.append(i)
-        if isinstance(o, HlsNetNodeOutLazy):
+        else:
+            assert isinstance(o, HlsNetNodeOutLazy), o
             o.dependent_inputs.append(self)
+
+        return oldO
 
     def __repr__(self, minify=False):
         if minify:
@@ -65,87 +133,6 @@ class HlsNetNodeIn():
             objStr = repr(self.obj)
         return f"<{self.__class__.__name__} {objStr:s} [{self.in_i:d}]>"
 
-
-class HlsNetNodeOutLazy():
-    """
-    A placeholder for future HlsNetNodeOut.
-
-    :ivar dependent_inputs: information about children where new object should be replaced
-    """
-
-    def __init__(self, netlist: "HlsNetlistCtx", keys_of_self_in_cache: list, op_cache:"SsaToHwtHlsNetlistOpCache", dtype: HdlType):
-        self._id = netlist.nodeCtx.getUniqId()
-        self.dependent_inputs: List[Union[HlsNetNodeIn, HlsNetNodeOutLazyIndirect]] = []
-        self.replaced_by = None
-        self.keys_of_self_in_cache = keys_of_self_in_cache
-        self.op_cache = op_cache
-        self._dtype = dtype
-
-    def replace_driver(self, o:HlsNetNodeOut):
-        assert self is not o, self
-        assert self.replaced_by is None, (self, self.replaced_by)
-        assert self._dtype == o._dtype or self._dtype.bit_length() == o._dtype.bit_length(),  (self, o, self._dtype, o._dtype)
-        for k in self.keys_of_self_in_cache:
-            self.op_cache._toHlsCache[k] = o
-
-        l0 = len(self.dependent_inputs)
-        for c in self.dependent_inputs:
-            c.replace_driver(o)
-        assert len(self.dependent_inputs) == l0, "Must not modify dependent_inputs during replace"
-        self.dependent_inputs.clear()
-        
-        self.replaced_by = o
-
-    def __repr__(self):
-        return f"<{self.__class__.__name__:s} {self._id:d}>"
-
-
-# [todo] possibly useless
-class HlsNetNodeOutLazyIndirect(HlsNetNodeOutLazy):
-    """
-    A placeholder for HlsNetNodeOut.
-    Once this object is resolved and replaced the original HlsNetNodeOutLazy is replaced with a replacement.
-    However the value defined in constructor is used as a final value left in op_cache.
-
-    :note: This object is used if we want to replace some HlsNetNodeOutLazy (an output which does not exist yet).
-    """
-
-    def __init__(self,
-                 netlist: "HlsNetlistCtx",
-                 op_cache:"SsaToHwtHlsNetlistOpCache",
-                 original_lazy_out: HlsNetNodeOutLazy,
-                 final_value: HlsNetNodeOut):
-        assert original_lazy_out.replaced_by is None
-        self._id = netlist.nodeCtx.getUniqId()
-        self.dependent_inputs: List[HlsNetNodeIn] = []
-        self.replaced_by = None
-        self.keys_of_self_in_cache = [*original_lazy_out.keys_of_self_in_cache, ]
-        self.op_cache = op_cache
-        self.original_lazy_out = original_lazy_out
-        self.final_value = final_value
-        assert self.original_lazy_out.replaced_by is None, (self, self.original_lazy_out.replaced_by)
-        for k in self.original_lazy_out.keys_of_self_in_cache:
-            self.op_cache._to_hls_cache[k] = self
-
-    def replace_driver(self, obj:HlsNetNodeOut):
-        """
-        Replace the original_lazy_out with the obj and replace self with final_value.
-        """
-        assert self.replaced_by is None, (self, self.replaced_by)
-        # replace original HlsNetNodeOutLazy to a resolved value
-        self.original_lazy_out.replace_driver(obj)
-
-        # replace self to a final value
-        for k in self.keys_of_self_in_cache:
-            self.op_cache._to_hls_cache[k] = self.final_value
-
-        for c in self.dependent_inputs:
-            c.replace_driver(self.final_value)
-
-        self.replaced_by = self.final_value
-
-
-HlsNetNodeOutAny = Union[HlsNetNodeOut, HlsNetNodeOutLazy, HlsNetNodeOutLazyIndirect]
 
 def link_hls_nodes(parent: HlsNetNodeOutAny, child: HlsNetNodeIn) -> None:
     assert isinstance(child, HlsNetNodeIn), child
@@ -156,6 +143,7 @@ def link_hls_nodes(parent: HlsNetNodeOutAny, child: HlsNetNodeIn) -> None:
     else:
         assert isinstance(parent, HlsNetNodeOut), parent
         parent.obj.usedBy[parent.out_i].append(child)
+        assert child.obj.dependsOn[child.in_i] is None, ("child is already connected to " , child.obj.dependsOn[child.in_i], "when connecting" , parent, "->", child)
 
     child.obj.dependsOn[child.in_i] = parent
     if isinstance(parent, HlsNetNodeOut) and isinstance(child, HlsNetNodeOut):
