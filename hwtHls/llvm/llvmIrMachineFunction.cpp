@@ -55,7 +55,7 @@ void register_MachineFunction(pybind11::module_ &m) {
 				return py::make_iterator(term.begin(), term.end());
 	    	}, py::keep_alive<0, 1>())
 		.def("__repr__",  [](llvm::MachineBasicBlock*MB) {
-			return "<llvm::MachineBasicBlock " + MB->getName().str() + ">";
+			return "<llvm::MachineBasicBlock bb." + std::to_string(MB->getNumber()) + "." + MB->getName().str() + ">";
 		})
 		.def("__str__",  &printToStr<llvm::MachineBasicBlock>)
 	    .def("__iter__", [](llvm::MachineBasicBlock &MB) {
