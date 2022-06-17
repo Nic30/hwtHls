@@ -116,6 +116,6 @@ if __name__ == "__main__":
 
     suite = unittest.TestSuite()
     #suite.addTest(HlsAstWhileIf_TC('test_WhileAndIf0'))
-     suite.addTest(unittest.makeSuite(HlsAstWhileIf_TC))
+    suite.addTest(unittest.makeSuite(HlsAstWhileIf_TC))
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
