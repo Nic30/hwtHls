@@ -4,6 +4,7 @@ from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.loopHeader import HlsLoopGate
 from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict
+from hwtHls.netlist.scheduler.clk_math import start_of_next_clk_period
 
 
 class HlsScheduler():
@@ -57,12 +58,6 @@ class HlsScheduler():
         
     def _scheduleAlapCompaction(self, asapSchedule: SchedulizationDict):
         normalizedClkPeriod: int = self.netlist.normalizedClkPeriod
-        for node in self.netlist.iterAllNodes():
-            if not node.usedBy or not any(node.usedBy):
-                # if it is terminator move to end of clk period
-                if isinstance(node, HlsLoopGate):
-                    node.scheduledIn, node.scheduledOut = asapSchedule[node]
-
         consts = UniqList()
         minTime = inf       
         for node in self.netlist.iterAllNodes():
