@@ -9,7 +9,7 @@ from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.platform.xilinx.artix7 import Artix7Slow
 from hwtLib.logic.crcPoly import CRC_32
 from tests.frontend.ast.crc import CrcCombHls
-from tests.frontend.ast.ifstm import SimpleIfStatementHls
+from tests.frontend.ast.ifstm import HlsSimpleIfStatement
 from tests.frontend.ast.pid import PidControllerHls
 
 
@@ -17,7 +17,8 @@ class HlsSynthesisChecksTC(SimTestCase):
 
     def test_PidControllerHls(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
-            self.compileSimAndStart(PidControllerHls(), target_platform=VirtualHlsPlatform(debugDir=tmp_dir))
+            self.compileSimAndStart(PidControllerHls(),
+                                    target_platform=VirtualHlsPlatform(debugDir=tmp_dir))
 
     def test_PidControllerHlsDebug(self):
         self._test(PidControllerHls())
@@ -28,8 +29,8 @@ class HlsSynthesisChecksTC(SimTestCase):
         with self.assertRaises(TimeConstraintError):
             self._test(u)
 
-    def test_SimpleIfStatementHls(self):
-        self._test(SimpleIfStatementHls())
+    def test_HlsSimpleIfStatement(self):
+        self._test(HlsSimpleIfStatement())
 
     def test_CrcCombHls_crc32_128b_200MHz(self):
         u = CrcCombHls()

@@ -13,7 +13,7 @@ from hwtSimApi.utils import freq_to_period
 from tests.baseSsaTest import BaseSsaTC
 
 
-class HlsExprTree3_example(Unit):
+class HlsAstExprTree3_example(Unit):
 
     def _config(self):
         self.CLK_FREQ = Param(int(40e6))
@@ -62,14 +62,14 @@ class HlsExprTree3_example(Unit):
 
 
 
-class HlsExprTree3_example_TC(BaseSsaTC):
+class HlsAstExprTree3_example_TC(BaseSsaTC):
     __FILE__ = __file__
 
     def test_ll(self):
-        self._test_ll(HlsExprTree3_example)
+        self._test_ll(HlsAstExprTree3_example)
 
     def test_simple(self):
-        u = HlsExprTree3_example()
+        u = HlsAstExprTree3_example()
         self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
         u.a._ag.data.append(3)
         u.b._ag.data.append(4)
@@ -90,11 +90,11 @@ class HlsExprTree3_example_TC(BaseSsaTC):
 if __name__ == "__main__":
     import unittest
     from hwt.synthesizer.utils import to_rtl_str
-    u = HlsExprTree3_example()
+    u = HlsAstExprTree3_example()
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
 
     suite = unittest.TestSuite()
-    # suite.addTest(FrameTmplTC('test_frameHeader'))
-    suite.addTest(unittest.makeSuite(HlsExprTree3_example_TC))
+    # suite.addTest(HlsAstExprTree3_example_TC('test_simple'))
+    suite.addTest(unittest.makeSuite(HlsAstExprTree3_example_TC))
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

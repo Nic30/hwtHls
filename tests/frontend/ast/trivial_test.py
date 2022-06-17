@@ -5,12 +5,13 @@ from hwt.serializer.combLoopAnalyzer import CombLoopAnalyzer
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtLib.examples.errors.combLoops import freeze_set_of_sets
+from hwtLib.types.ctypes import uint8_t
 from hwtSimApi.constants import CLK_PERIOD
-from tests.frontend.ast.trivial import WriteOnce, ReadWriteOnce0, \
-    ReadWriteOnce1, WhileTrueWrite, WhileTrueReadWrite, ReadWriteOnce2
+from tests.frontend.ast.trivial import WriteOnce, ReadWriteOnce0, ReadWriteOnce1, WhileTrueWrite, \
+    WhileTrueReadWrite, ReadWriteOnce2, WhileTrueReadWriteExpr
 
 
-class HlsStreamMachineTrivial_TC(SimTestCase):
+class HlsAstTrivial_TC(SimTestCase):
 
     def _test_no_comb_loops(self):
         s = CombLoopAnalyzer()
@@ -71,8 +72,8 @@ class HlsStreamMachineTrivial_TC(SimTestCase):
 
         self.assertValSequenceEqual(u.dataOut._ag.data, [10 for _ in range(CLK - 1) ])
 
-    def test_WhileTrueReadWrite(self):
-        u = WhileTrueReadWrite()
+    def test_WhileTrueReadWrite(self, cls=WhileTrueReadWrite, model=lambda x: x):
+        u = cls()
         self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
         CLK = 4
         for i in range(CLK):
@@ -82,13 +83,16 @@ class HlsStreamMachineTrivial_TC(SimTestCase):
         self._test_no_comb_loops()
 
         self.assertValSequenceEqual(u.dataOut._ag.data,
-                                    [i for i in range(CLK - 1)])
+                                    [model(i) for i in range(CLK - 1)])
+
+    def test_WhileTrueReadWriteExpr(self):
+        self.test_WhileTrueReadWrite(cls=WhileTrueReadWriteExpr, model=lambda x: int((uint8_t.from_py(x) * 8 + 2) * 3))
 
 
 if __name__ == "__main__":
     import unittest
     suite = unittest.TestSuite()
-    # suite.addTest(HlsStreamMachineTrivial_TC('test_WhileTrueWrite'))
-    suite.addTest(unittest.makeSuite(HlsStreamMachineTrivial_TC))
+    # suite.addTest(HlsAstTrivial_TC('test_WhileTrueWrite'))
+    suite.addTest(unittest.makeSuite(HlsAstTrivial_TC))
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

@@ -56,11 +56,11 @@ class TwoTimesA1(TwoTimesA0):
 class TwoTimesA_TC(BaseSsaTC):
     __FILE__ = __file__
 
-    def test0(self):
+    def test_TwoTimesA0(self):
         self._test_simple(TwoTimesA0)
         self._test_ll(TwoTimesA0)
 
-    def test1(self):
+    def test_TwoTimesA1(self):
         self._test_simple(TwoTimesA1)
         self._test_ll(TwoTimesA1)
 

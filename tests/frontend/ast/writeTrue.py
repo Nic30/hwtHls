@@ -4,22 +4,43 @@
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.scope  import HlsScope
-from tests.frontend.ast.trivial import WhileTrueReadWrite
+from tests.frontend.ast.trivial import WhileTrueReadWrite, WhileTrueWrite
 
 
-class WhileTrueReadWriteExpr(WhileTrueReadWrite):
+class WhileTrueWriteCntr0(WhileTrueWrite):
 
     def _impl(self) -> None:
+        dout = self.dataOut
         hls = HlsScope(self)
+        cntr = hls.var("cntr", dout.data._dtype)
         ast = HlsAstBuilder(hls)
-        hls.addThread(HlsThreadFromAst(hls,
+        hls.addThread(HlsThreadFromAst(hls, [
+            cntr(0),
             ast.While(True,
-                hls.write((hls.read(self.dataIn, self.dataIn.T) * 8 + 2) * 3, self.dataOut)
-            ),
-            self._name)
+                hls.write(cntr, dout),
+                cntr(cntr + 1),
+            )
+            ], self._name)
         )
         hls.compile()
 
+
+class WhileTrueWriteCntr1(WhileTrueWrite):
+
+    def _impl(self) -> None:
+        dout = self.dataOut
+        hls = HlsScope(self)
+        cntr = hls.var("cntr", dout.data._dtype)
+        ast = HlsAstBuilder(hls)
+        hls.addThread(HlsThreadFromAst(hls, [
+            cntr(0),
+            ast.While(True,
+                cntr(cntr + 1),
+                hls.write(cntr, dout),
+            )
+            ], self._name)
+        )
+        hls.compile()
 
 
 class WhileSendSequence(WhileTrueReadWrite):
@@ -40,7 +61,6 @@ class WhileSendSequence(WhileTrueReadWrite):
             self._name)
         )
         hls.compile()
-
 
 
 if __name__ == "__main__":

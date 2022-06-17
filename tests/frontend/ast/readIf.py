@@ -11,7 +11,7 @@ from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtSimApi.utils import freq_to_period
 from tests.baseSsaTest import BaseSsaTC
-from tests.frontend.ast.trivial_test import HlsStreamMachineTrivial_TC
+from tests.frontend.ast.trivial_test import HlsAstTrivial_TC
 
 
 class ReadIfOtherEqual(Unit):
@@ -55,7 +55,7 @@ class ReadIfOtherEqualOnce(ReadIfOtherEqual):
         hls.compile()
 
 
-class ReadIfTc(BaseSsaTC):
+class HlsAstReadIfTc(BaseSsaTC):
     __FILE__ = __file__
 
     def test_ReadIfOtherEqual_ll(self):
@@ -74,7 +74,7 @@ class ReadIfTc(BaseSsaTC):
         u.a._ag.data.extend([0, 3, 3, 0, 3, 0, 0, ])
         u.b._ag.data.extend(range(10))
         self.runSim((len(u.a._ag.data) + 15) * int(freq_to_period(f)))
-        HlsStreamMachineTrivial_TC._test_no_comb_loops(self)
+        HlsAstTrivial_TC._test_no_comb_loops(self)
         self.assertSequenceEqual(u.a._ag.data, [])
         self.assertSequenceEqual(u.b._ag.data, [4, 5, 6, 7, 8, 9])
 
@@ -88,7 +88,7 @@ class ReadIfTc(BaseSsaTC):
         u.a._ag.data.append(a)
         u.b._ag.data.extend(range(5))
         self.runSim(5 * int(freq_to_period(f)))
-        HlsStreamMachineTrivial_TC._test_no_comb_loops(self)
+        HlsAstTrivial_TC._test_no_comb_loops(self)
         self.assertSequenceEqual(u.a._ag.data, [])
         self.assertSequenceEqual(u.b._ag.data, res)
 
@@ -121,7 +121,7 @@ if __name__ == '__main__':
     import unittest
     
     suite = unittest.TestSuite()
-    #suite.addTest(ReadIfTc('testReadIfOtherEqual_150M'))
-    suite.addTest(unittest.makeSuite(ReadIfTc))
+    # suite.addTest(HlsAstReadIfTc('testReadIfOtherEqualOnce_noread_50M'))
+    suite.addTest(unittest.makeSuite(HlsAstReadIfTc))
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

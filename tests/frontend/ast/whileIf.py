@@ -4,7 +4,7 @@
 from hwt.hdl.types.bits import Bits
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
-from hwtHls.scope  import HlsScope
+from hwtHls.scope import HlsScope
 from tests.frontend.ast.trivial import WhileTrueWrite, WhileTrueReadWrite
 
 
@@ -37,7 +37,6 @@ class WhileAndIf0(WhileTrueWrite):
         hls.compile()
 
 
-
 class WhileAndIf0b(WhileAndIf0):
 
     def _impl(self) -> None:
@@ -60,7 +59,6 @@ class WhileAndIf0b(WhileAndIf0):
             self._name)
         )
         hls.compile()
-
 
 
 class WhileAndIf1(WhileTrueWrite):
@@ -94,7 +92,6 @@ class WhileAndIf1(WhileTrueWrite):
         hls.compile()
 
 
-
 class WhileAndIf2(WhileTrueReadWrite):
 
     def _impl(self) -> None:
@@ -117,7 +114,6 @@ class WhileAndIf2(WhileTrueReadWrite):
             self._name)
         )
         hls.compile()
-
 
 
 class WhileAndIf3(WhileTrueReadWrite):
@@ -176,7 +172,7 @@ class WhileAndIf4(WhileTrueReadWrite):
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
-    u = WhileAndIf4()
+    u = WhileAndIf0()
     u.DATA_WIDTH = 4
-    u.FREQ = int(130e6)
+    u.FREQ = int(50e6)
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))

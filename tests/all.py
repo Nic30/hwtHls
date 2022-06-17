@@ -6,13 +6,14 @@ from unittest import TestLoader, TextTestRunner, TestSuite
 
 from tests.bitOpt.bitWidthReductionCmp_test import BitWidthReductionCmp_example_TC
 from tests.frontend.ast.bitonicSort import BitonicSorterHLS_TCs
-from tests.frontend.ast.expr_tree3 import HlsExprTree3_example_TC
+from tests.frontend.ast.exprTree3 import HlsAstExprTree3_example_TC
 from tests.frontend.ast.mac import HlsMAC_example_TC
-from tests.frontend.ast.read_if import ReadIfTc
+from tests.frontend.ast.readIf import HlsAstReadIfTc
 from tests.frontend.ast.slicing import HlsSlicingTC
-from tests.frontend.ast.trivial_test import HlsStreamMachineTrivial_TC
+from tests.frontend.ast.trivial_test import HlsAstTrivial_TC
 from tests.frontend.ast.twoTimesA import TwoTimesA_TC
-from tests.frontend.ast.while_if_test import HlsStreamMachineWhileIf_TC
+from tests.frontend.ast.whileIf_test import HlsAstWhileIf_TC
+from tests.frontend.ast.whileTrue_test import HlsAstWhileTrue_TC
 from tests.frontend.pyBytecode.basics_test import FromPythonBasics_TC
 from tests.frontend.pyBytecode.fnClosue_test import FnClosure_TC
 from tests.frontend.pyBytecode.pyArrHwIndex_test import PyArrHwIndex_TC
@@ -43,15 +44,16 @@ suite = testSuiteFromTCs(
     ConcatOfSlicesTC,
     HlsSlicingTC,
     BitWidthReductionCmp_example_TC,
-    ReadIfTc,
+    HlsAstReadIfTc,
     HlsMAC_example_TC,
     *BitonicSorterHLS_TCs,
-    HlsExprTree3_example_TC,
+    HlsAstExprTree3_example_TC,
     AlapAsapDiffExample_TC,
     HlsSynthesisChecksTC,
     TwoTimesA_TC,
-    HlsStreamMachineTrivial_TC,
-    HlsStreamMachineWhileIf_TC,
+    HlsAstTrivial_TC,
+    HlsAstWhileIf_TC,
+    HlsAstWhileTrue_TC,
     IoFsm_TC,
     PhiConstruction_TC,
     FromPythonBasics_TC,
