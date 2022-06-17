@@ -63,6 +63,7 @@ class HlsNetNodeWriteBackwardEdge(HlsNetNodeWrite):
         self.associated_read: Optional[HlsNetNodeReadBackwardEdge] = None
         self.channel_init_values = channel_init_values
         self.allocateAsBuffer = True
+        self.buff_name = None
 
     def associate_read(self, read: HlsNetNodeReadBackwardEdge):
         assert isinstance(read, HlsNetNodeReadBackwardEdge), read
@@ -70,7 +71,6 @@ class HlsNetNodeWriteBackwardEdge(HlsNetNodeWrite):
         read.associated_write = self
 
     def allocateRtlInstance(self, allocator:"AllocatorArchitecturalElement") -> TimeIndependentRtlResource:
-        # [todo] instantiate also ports there (currently they are instantiated when translating to HlsNetlist)
         try:
             return allocator.netNodeToRtl[self]
         except KeyError:
@@ -85,14 +85,14 @@ class HlsNetNodeWriteBackwardEdge(HlsNetNodeWrite):
             assert dst_read is not None
             dst_t = dst_read.scheduledOut[0]
             src_t = src_write.scheduledIn[0]
-            assert dst_t <= src_t, ("This was supposed to be backward edge", src_write, dst_read)
+            assert dst_t <= src_t, ("This was supposed to be backward edge", dst_t, src_t, src_write, dst_read)
             # 1 register at minimum, because we need to break a combinational path
             # the size of buffer is derived from the latency of operations between the io ports
             reg_cnt = max((src_t - dst_t) / allocator.netlist.normalizedClkPeriod, 1)
 
             # :note: latency is 1-2 to break ready chain (it is not always required, but the check is not implemented)
             buffs = HsBuilder(allocator.netlist.parentUnit, src_write.dst,
-                              "hls_backward_buff")\
+                              self.buff_name if self.buff_name else "hls_backward_buff")\
                 .buff(reg_cnt, latency=(1, 2), init_data=self.channel_init_values)\
                 .end
             dst_read.src(buffs)
