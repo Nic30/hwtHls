@@ -14,6 +14,7 @@ from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
 from hwtHls.ssa.transformation.extractPartDrivers.extractPartDriversPass import SsaPassExtractPartDrivers
 from hwtHls.ssa.translation.dumpMIR import SsaPassDumpMIR
+from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.datapath import BlockLiveInMuxSyncDict
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
 from hwtHls.ssa.translation.toLl import SsaPassDumpToLl
 from hwtHls.ssa.translation.toLlvm import SsaPassToLlvm, ToLlvmIrTranslator
@@ -64,7 +65,7 @@ class BaseTestPlatform(VirtualHlsPlatform):
             SsaPassDumpMIR(lambda name: (self.mir, False)).apply(hls, toSsa)
             
             toNetlist._translateDatapathInBlocks(mf)
-            toNetlist._constructLiveInMuxes(mf, backedges, liveness)
+            blockLiveInMuxInputSync: BlockLiveInMuxSyncDict = toNetlist._constructLiveInMuxes(mf, backedges, liveness)
             # thread analysis must be done before we connect control, because once we do that
             # everything will blend together 
             threads = toNetlist.netlist.requestAnalysis(HlsNetlistAnalysisPassDataThreads)
@@ -74,6 +75,8 @@ class BaseTestPlatform(VirtualHlsPlatform):
             toNetlist.netlist.requestAnalysis(HlsNetlistAnalysisPassBlockSyncType)
             HlsNetlistPassDumpBlockSync(lambda name: (self.blockSync, False)).apply(hls, netlist)
 
+            toNetlist._extractRstValues(mf, threads)
+            toNetlist._resolveLoopHeaders(mf, blockLiveInMuxInputSync)
             toNetlist._resolveBlockEn(mf, backedges, threads)
             toNetlist.netlist.invalidateAnalysis(HlsNetlistAnalysisPassDataThreads)  # because we modified the netlist
             toNetlist._connectOrderingPorts(mf, backedges)
@@ -111,6 +114,6 @@ class BaseSsaTC(BaseSerializationTC):
         self.assert_same_as_file(p.preOpt.getvalue(), os.path.join("data", name + ".0.preOpt.ll"))
         self.assert_same_as_file(p.postPyOpt.getvalue(), os.path.join("data", name + ".1.postPyOpt.ll"))
         self.assert_same_as_file(p.mir.getvalue(), os.path.join("data", name + ".0.mir.ll"))
-        self.assert_same_as_file(p.dataThreads.getvalue(), os.path.join("data", name + ".0.dataThreads.ll"))
-        self.assert_same_as_file(p.blockSync.getvalue(), os.path.join("data", name + ".0.blockSync.ll"))
+        self.assert_same_as_file(p.dataThreads.getvalue(), os.path.join("data", name + ".0.dataThreads.txt"))
+        self.assert_same_as_file(p.blockSync.getvalue(), os.path.join("data", name + ".0.blockSync.dot"))
         
