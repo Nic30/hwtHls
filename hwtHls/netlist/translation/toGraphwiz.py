@@ -6,7 +6,9 @@ from typing import List, Union, Dict
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
-from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
+from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, \
+    HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.loopHeader import HlsLoopGate, HlsLoopGateStatus
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy
@@ -16,8 +18,7 @@ from hwtHls.platform.fileUtils import OutputStreamGetter
 
 class HwtHlsNetlistToGraphwiz():
     """
-
-    https://renenyffenegger.ch/notes/tools/Graphviz/examples/index
+    Generate a Graphwiz (dot) diagram of the netlist.
     """
 
     def __init__(self, name: str):
@@ -29,24 +30,22 @@ class HwtHlsNetlistToGraphwiz():
         for n in nodes:
             self._node_from_HlsNetNode(n)
         
+        self.graph.add_node(self._constructLegend())
+    
+    def _constructLegend(self):
         legendTable = """<
 <table border="0" cellborder="1" cellspacing="0">
   <tr><td bgcolor="LightGreen">HlsNetNodeRead</td></tr>
   <tr><td bgcolor="LightBlue">HlsNetNodeWrite</td></tr>
   <tr><td bgcolor="plum">HlsNetNodeConst</td></tr>
+  <tr><td bgcolor="Chartreuse">HlsNetNodeExplicitSync</td></tr>
+  <tr><td bgcolor="MediumSpringGreen">HlsLoopGate, HlsLoopGateStatus</td></tr>
   <tr><td bgcolor="gray">shadow connection</td></tr>
   <tr><td bgcolor="LightCoral">HlsNetNodeOutLazy</td></tr>
 </table>>"""
-        legend = pydot.Node("legend", label=legendTable, style='filled', shape="plain")
-        self.graph.add_node(legend)
+        return pydot.Node("legend", label=legendTable, style='filled', shape="plain")
 
-    def _node_from_HlsNetNode(self, obj: Union[HlsNetNode, HlsNetNodeOutLazy]):
-        try:
-            return self.obj_to_node[obj]
-        except KeyError:
-            pass
-
-        g = self.graph
+    def _getColor(self, obj: Union[HlsNetNode, HlsNetNodeOutLazy]):
         if isinstance(obj, HlsNetNodeOutLazy):
             color = "LightCoral"
         elif isinstance(obj, HlsNetNodeRead):
@@ -55,8 +54,22 @@ class HwtHlsNetlistToGraphwiz():
             color = "LightBlue"
         elif isinstance(obj, HlsNetNodeConst):
             color = "plum"
+        elif isinstance(obj, HlsNetNodeExplicitSync):
+            color = "Chartreuse"
+        elif isinstance(obj, (HlsLoopGate, HlsLoopGateStatus)):
+            color = "MediumSpringGreen"
         else:
             color = "white"
+        return color
+
+    def _node_from_HlsNetNode(self, obj: Union[HlsNetNode, HlsNetNodeOutLazy]):
+        try:
+            return self.obj_to_node[obj]
+        except KeyError:
+            pass
+
+        g = self.graph
+        color = self._getColor(obj)
         # node needs to be constructed before connecting because graph may contain loops
         node = pydot.Node(f"n{len(g.obj_dict['nodes'])}", fillcolor=color, style='filled', shape="plaintext")
         g.add_node(node)
@@ -102,17 +115,17 @@ class HwtHlsNetlistToGraphwiz():
         buff.append('''<
         <table border="0" cellborder="1" cellspacing="0">\n''')
         if isinstance(obj, HlsNetNodeConst):
-            label = repr(obj.val)
+            label = f"{obj.val} {obj._id}"
         elif isinstance(obj, HlsNetNodeOperator):
-            label = obj.operator.id
+            label = f"{obj.operator.id} {obj._id}"
         elif isinstance(obj, HlsNetNodeRead):
             label = repr(obj)
         elif isinstance(obj, HlsNetNodeWrite):
-            label = f"<{obj.__class__.__name__} {getSignalName(obj.dst)}>"
+            label = f"<{obj.__class__.__name__} {obj._id:d} {getSignalName(obj.dst)}>"
         else:
             label = obj.__class__.__name__
 
-        buff.append(f'            <tr><td colspan="2">{html.escape(label):s} {obj._id}</td></tr>\n')
+        buff.append(f'            <tr><td colspan="2">{html.escape(label):s}</td></tr>\n')
         for i, o in zip_longest(input_rows, output_rows, fillvalue="<td></td>"):
             buff.append(f"            <tr>{i:s}{o:s}</tr>\n")
         buff.append('        </table>>')
