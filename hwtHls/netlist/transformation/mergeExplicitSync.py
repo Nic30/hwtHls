@@ -2,7 +2,8 @@ from itertools import chain
 from typing import List
 
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.nodes.io import HlsNetNodeExplicitSync, HlsNetNodeRead, HlsNetNodeWrite
+from hwtHls.netlist.nodes.io import HlsNetNodeExplicitSync, HlsNetNodeRead, HlsNetNodeWrite, \
+    HOrderingVoidT
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 
@@ -12,9 +13,30 @@ class HlsNetlistPassMergeExplicitSync(HlsNetlistPass):
     Merge nodes with explicit synchronization (HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeExplicitSync) together
     if possible to reduce the number of places where we need to solve the synchronisation.
     """
-
+    
     @staticmethod
-    def _apply(nodes: List[HlsNetNode]):
+    def _trasferHlsNetNodeExplicitSyncFlags(src: HlsNetNodeExplicitSync, dst: HlsNetNodeExplicitSync):
+        if src.extraCond is not None:
+            ec = src.dependsOn[src.extraCond.in_i]
+            ec.obj.usedBy[ec.out_i].remove(src.extraCond)
+            dst.add_control_extraCond(ec)
+            
+        if src.skipWhen is not None:
+            sw = src.dependsOn[src.skipWhen.in_i]
+            sw.obj.usedBy[sw.out_i].remove(src.skipWhen)
+            dst.add_control_skipWhen(sw)
+        
+        for orderIn in src.iterOrderingInputs():
+            orderDep = src.dependsOn[orderIn.in_i]
+            if orderDep.obj is not dst and not any(depOfDep is orderDep
+                                                   for depOfDep in orderDep.obj.dependsOn):
+                orderIn.obj = dst
+                orderIn.in_i = len(dst._inputs)
+                dst._inputs.append(orderIn)
+                dst.dependsOn.append(orderDep)
+
+    @classmethod
+    def _apply(cls, nodes: List[HlsNetNode]):
         to_rm = set()
         for n in nodes:
             if n not in to_rm and n.__class__ is HlsNetNodeExplicitSync:
@@ -24,21 +46,7 @@ class HlsNetlistPassMergeExplicitSync(HlsNetlistPass):
                 if isinstance(dep0, HlsNetNodeRead) and len(dep0.usedBy[0]) == 1:
                     # check if we did not generate cycle because sync was dependent on value of previous read
                     dep0: HlsNetNodeRead
-                    if n.extraCond is not None:
-                        n.extraCond.obj.usedBy[n.extraCond.out_i].remove(n.extraCond)
-                        dep0.add_control_extraCond(n.extraCond)
-                        
-                    if n.skipWhen is not None:
-                        n.skipWhen.obj.usedBy[n.skipWhen.out_i].remove(n.skipWhen)
-                        dep0.add_control_skipWhen(n.skipWhen)
-                    
-                    for orderIn in n.iterOrderingInputs():
-                        orderDep = n.dependsOn[orderIn.in_i]
-                        if orderDep is not dep0 and not any(depOfDep is orderDep for depOfDep in orderDep.obj.dependsOn):
-                            orderIn.obj = dep0
-                            orderIn.in_i = len(dep0._inputs)
-                            dep0._inputs.append(orderIn)
-                            dep0.dependsOn.append(orderDep)
+                    cls._trasferHlsNetNodeExplicitSyncFlags(n, dep0)
 
                     # transfer output from this HlsNetNodeExplicitSync to HlsNetNodeRead (to avoid modificaion of potentially unknown objects behind HlsNetNodeExplicitSync)
                     dep0._outputs = n._outputs
@@ -52,13 +60,17 @@ class HlsNetlistPassMergeExplicitSync(HlsNetlistPass):
                     to_rm.add(n)
                 else:
                     # merge this node into successor if possible
-                    sucs, order = n.usedBy
+                    sucs = n.usedBy[0]
                     if len(sucs) == 1:
-                        suc0 = sucs[0].obj
-                        if isinstance(suc0, HlsNetNodeExplicitSync):
-                            raise NotImplementedError()
-                        elif isinstance(suc0, HlsNetNodeWrite):
-                            raise NotImplementedError()
+                        suc0: HlsNetNodeExplicitSync = sucs[0].obj
+                        if isinstance(suc0, (HlsNetNodeExplicitSync, HlsNetNodeWrite)):
+                            cls._trasferHlsNetNodeExplicitSyncFlags(n, suc0)
+                            o = n.dependsOn[0]
+                            prevI = n._inputs[0]
+                            newI = suc0._inputs[0]
+                            newI.replace_driver(o)
+                            o.obj.usedBy[0].remove(prevI)
+                            to_rm.add(n)
                     
         if to_rm:
             nodes[:] = [
