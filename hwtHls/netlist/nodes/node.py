@@ -4,7 +4,6 @@ from typing import List, Optional, Union, Tuple, Generator, Dict
 
 from hwt.hdl.types.hdlType import HdlType
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.llvm.llvmIr import MachineBasicBlock
 from hwtHls.netlist.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.scheduler.clk_math import start_of_next_clk_period, start_clk
