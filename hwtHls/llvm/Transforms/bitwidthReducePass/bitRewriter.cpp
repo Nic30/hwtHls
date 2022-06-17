@@ -157,12 +157,34 @@ llvm::Value* BitPartsRewriter::expandConstBits(IRBuilder<> *b,
 void BitPartsRewriter::rewriteInstructionOperands(llvm::Instruction *I) {
 	// store volatile i16 %val, i16* %ptr, align 2
 	unsigned opI = 0;
+	PHINode* phi = dyn_cast<PHINode>(I);
 	for (Value *_val : I->operands()) {
 		auto v = constraints.find(_val);
 		if (v != constraints.end()) { // if operand is a subject for replacement
+			// [fixme] phi instructions must always remain at the top of the block
 			auto newVal = rewriteIfRequired(_val);
 			if (_val != newVal) {
 				IRBuilder<> b(I);
+				if (phi) {
+					// at the end of the block where this value comes from
+					BasicBlock * pred = phi->getIncomingBlock(opI);
+					assert(pred);
+					Instruction * insertPoint = nullptr;
+					for (BasicBlock::reverse_iterator pi = pred->rbegin(); pi != pred->rend(); ++pi) {
+						BasicBlock::reverse_iterator predI = pi;
+						++predI;
+						if (pi == pred->rend() || predI == pred->rend() || !predI->isTerminator()) {
+							// if is first terminator
+							insertPoint = &*pi;
+							break;
+						}
+					}
+					if (insertPoint == nullptr) {
+						b.SetInsertPoint(&*pred->getFirstInsertionPt());
+					} else {
+						b.SetInsertPoint(insertPoint);
+					}
+				}
 				_val = expandConstBits(&b, _val, newVal, *v->second);
 				I->setOperand(opI, _val);
 			}
