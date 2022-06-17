@@ -131,16 +131,20 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                         mbSync.needsControl = True
     
         elif not mbSync.needsControl:
-            mbSync.needsControl = (
-                len(threadsStartingThere) > 1 or
-                any(self._threadContainsNonConcurrentIo(t) for t in threadsStartingThere) or
-                (bool(mbThreads) and
+            needsControl = False
+            if (len(threadsStartingThere) > 1 or 
+                any(self._threadContainsNonConcurrentIo(t) for t in threadsStartingThere)):
+                needsControl = True
+            elif (bool(mbThreads) and
                     (
                         any(self.blockSync[pred].needsControl for pred in mb.predecessors()) or
                         any(self.blockSync[suc].needsControl for suc in mb.successors())
                     )
-                )
-            )
+                ):
+                needsControl = True
+            elif mbSync.needsStarter and (mb.succ_size() == 0 or any(loops.getLoopFor(suc) is None for suc in mb.successors())):
+                needsControl = True
+            mbSync.needsControl = needsControl
 
         if not needsControlOld and mbSync.needsControl:
             self._onBlockNeedsControl(mb)
