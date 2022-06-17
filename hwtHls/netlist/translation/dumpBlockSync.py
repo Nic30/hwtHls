@@ -1,6 +1,6 @@
 import html
 import pydot
-from typing import Dict, Set
+from typing import Dict, Set, Tuple
 
 from hwtHls.llvm.llvmIr import MachineBasicBlock, MachineFunction, Register
 from hwtHls.netlist.context import HlsNetlistCtx
@@ -18,9 +18,18 @@ class HlsNetlistPassDumpBlockSync(HlsNetlistPass):
     @staticmethod
     def dumpBlockSyncToDot(mf: MachineFunction,
                            blockSync: Dict[MachineBasicBlock, MachineBasicBlockSyncContainer],
+                           backedges: Set[Tuple[MachineBasicBlock, MachineBasicBlock]],
                            liveness: Dict[MachineBasicBlock, Dict[MachineBasicBlock, Set[Register]]],
                            regToIo:  Dict[Register, Interface]):
         P = pydot.Dot(f'"{mf.getName().str()}"', graph_type="digraph")
+        
+        legendTable = """<
+<table border="0" cellborder="1" cellspacing="0">
+  <tr><td bgcolor="blue">backedge</td></tr>
+</table>>"""
+        legend = pydot.Node("legend", label=legendTable, style='filled', shape="plain")
+        P.add_node(legend)
+        
         blockNames = {}
         for i, b in  enumerate(mf):
             b: MachineBasicBlock
@@ -60,13 +69,18 @@ class HlsNetlistPassDumpBlockSync(HlsNetlistPass):
                     f'            <tr><td>{",".join(lives)}</td></tr>\n'
                     '        </table>'
                 )
+                if (b, suc) in backedges:
+                    attrs = {"color": "blue"}
+                else:
+                    attrs = {}
+
                 liveVarNodeLabel = f'e{b.getNumber():d}to{suc.getNumber():d}'
-                p = pydot.Node(liveVarNodeLabel, fillcolor=color, style='filled', shape="plaintext", label=f"<\n{body:s}\n>")
+                p = pydot.Node(liveVarNodeLabel, fillcolor=color, style='filled', shape="plaintext", label=f"<\n{body:s}\n>", **attrs)
                 P.add_node(p)
      
-                e0 = pydot.Edge(blockNames[b], liveVarNodeLabel)
+                e0 = pydot.Edge(blockNames[b], liveVarNodeLabel, **attrs)
                 P.add_edge(e0)
-                e1 = pydot.Edge(liveVarNodeLabel, blockNames[suc])
+                e1 = pydot.Edge(liveVarNodeLabel, blockNames[suc], **attrs)
                 P.add_edge(e1)
 
         return P
@@ -77,7 +91,7 @@ class HlsNetlistPassDumpBlockSync(HlsNetlistPass):
         out, doClose = self.outStreamGetter(netlist.label)
         
         try:
-            P = self.dumpBlockSyncToDot(toNetlist.mf, toNetlist.blockSync, toNetlist.liveness, toNetlist.regToIo)
+            P = self.dumpBlockSyncToDot(toNetlist.mf, toNetlist.blockSync, toNetlist.backedges, toNetlist.liveness, toNetlist.regToIo)
             out.write(P.to_string())
         finally:
             if doClose:
