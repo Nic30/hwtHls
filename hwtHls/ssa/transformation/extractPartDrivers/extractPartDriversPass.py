@@ -398,13 +398,15 @@ class SsaPassExtractPartDrivers(SsaPass):
                 if replacement is None:
                     if isinstance(v, SsaPhi):
                         v: SsaPhi
-                        args: List[Tuple[SsaValue, SsaBasicBlock]] = []
+                        # must use forward declaration of phi because of cycles
+                        phiI = v.block.phis.index(v)
+                        b = SsaExprBuilder(v.block, position=phiI + 1)
+                        replacement: SsaPhi = b.phi([], dtype=Bits(bitRange[0] - bitRange[1]))
+                        variableForRange[var_range_key] = replacement
+
                         for a, bl in v.operands:
                             _a = self.resolveFinalReplacedVarValue(a, bitRange, variableForRange, varEntirelyReplaced, varBitAlises)
-                            args.append((_a, bl))
-                        phiI = v.block.phis.index(v)
-                        b = SsaExprBuilder(v.block, position=phiI)
-                        replacement = b.phi(args)
+                            replacement.appendOperand(_a, bl)
 
                     else:
                         args: List[SsaValue] = []
@@ -418,11 +420,13 @@ class SsaPassExtractPartDrivers(SsaPass):
                         startIndex = 0
                         for _a in args:
                             if isinstance(_a, HValue):
-                                continue
+                                continue  # not in body because it is constant
     
                             _a: SsaValue
                             if v.block is not _a.block:
-                                continue
+                                continue  # surely before this body because it is in predecessor block
+                            if isinstance(_a, SsaPhi):
+                                continue  # surely before body because it is phi
     
                             startIndex = max(startIndex, v.block.body.index(_a))
     
