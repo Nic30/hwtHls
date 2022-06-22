@@ -8,7 +8,7 @@ from hwtHls.frontend.pyBytecode.instructions import JUMP_OPS, \
     POP_JUMP_IF_FALSE, POP_JUMP_IF_TRUE, FOR_ITER
 
 
-def extractBytecodeBlocks(instructions: Tuple[Instruction, ...]):
+def extractBytecodeBlocks(instructions: Tuple[Instruction, ...]) -> Tuple[Dict[int, Tuple[Instruction, ...]], DiGraph]:
     cfg = DiGraph()
     curBlock = []
     blocks: Dict[int, Tuple[Instruction, ...]] = {}
@@ -54,5 +54,9 @@ def extractBytecodeBlocks(instructions: Tuple[Instruction, ...]):
             cfg.add_edge(src, (instr.argval,))
             cfg.add_edge(src, (instr.offset + 2,))
             lastWasJump = True
+
+    if not cfg.nodes:
+        # case with a single block without any jump
+        cfg.add_node((0, ))
 
     return blocks, cfg

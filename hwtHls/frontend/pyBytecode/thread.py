@@ -13,7 +13,8 @@ class HlsThreadFromPy(HlsThread):
 
     def __init__(self, hls: HlsScope, fn: FunctionType, *fnArgs, **fnKwargs):
         super(HlsThreadFromPy, self).__init__(hls)
-        self.bytecodeToSsa = PyBytecodeToSsa(self.hls, fn, fn.__name__)
+        self.fn = fn
+        self.bytecodeToSsa = PyBytecodeToSsa(self.hls, fn.__name__)
         self.fnArgs = fnArgs
         self.fnKwargs = fnKwargs
         self.code = None
@@ -25,6 +26,6 @@ class HlsThreadFromPy(HlsThread):
         return f"t{i:d}_{self.bytecodeToSsa.fn.__name__:s}"
 
     def compileToSsa(self):
-        self.bytecodeToSsa.translateFunction(*self.fnArgs, **self.fnKwargs)
-        self.toSsa: Optional[HlsAstToSsa] = self.bytecodeToSsa.to_ssa
+        self.bytecodeToSsa.translateFunction(self.fn, *self.fnArgs, **self.fnKwargs)
+        self.toSsa: Optional[HlsAstToSsa] = self.bytecodeToSsa.toSsa
     

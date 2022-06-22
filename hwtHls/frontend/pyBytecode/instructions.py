@@ -50,6 +50,9 @@ BINARY_AND = opmap['BINARY_AND']
 BINARY_XOR = opmap['BINARY_XOR']
 BINARY_OR = opmap['BINARY_OR']
 
+IS_OP = opmap['IS_OP']
+CONTAINS_OP = opmap['CONTAINS_OP']
+
 INPLACE_POWER = opmap['INPLACE_POWER']
 INPLACE_MULTIPLY = opmap['INPLACE_MULTIPLY']
 INPLACE_MATRIX_MULTIPLY = opmap['INPLACE_MATRIX_MULTIPLY']
@@ -112,6 +115,8 @@ BIN_OPS = {
     BINARY_AND: operator.and_,
     BINARY_XOR: operator.xor,
     BINARY_OR: operator.or_,
+    IS_OP: operator.is_,
+    CONTAINS_OP: operator.contains,
 }
 
 CMP_OP_LT = cmp_op.index('<')

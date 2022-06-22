@@ -7,7 +7,7 @@ from hwtHls.ssa.value import SsaValue
 
 class PyBytecodeInPreproc():
     """
-    A container of hw object marked that the immediate store is store of preproc variable only
+    A marker of hw object that the immediate store is store of preproc variable only.
     """
 
     def __init__(self, ref: Union[SsaValue, HValue, RtlSignal]):
@@ -20,3 +20,12 @@ class PyBytecodeInPreproc():
         for i in self.ref:
             yield PyBytecodeInPreproc(i)
 
+
+class PyBytecodeInline():
+    """
+    Inline function body to a callsite.
+    """
+
+    def __init__(self, ref: Union[SsaValue, HValue, RtlSignal]):
+        self.ref = ref
+   

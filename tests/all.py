@@ -5,6 +5,7 @@ import sys
 from unittest import TestLoader, TextTestRunner, TestSuite
 
 from tests.bitOpt.bitWidthReductionCmp_test import BitWidthReductionCmp_example_TC
+from tests.bitOpt.disjunctionTriangle import DisjunctionTriangle_TC
 from tests.frontend.ast.bitonicSort import BitonicSorterHLS_TCs
 from tests.frontend.ast.exprTree3 import HlsAstExprTree3_example_TC
 from tests.frontend.ast.mac import HlsMAC_example_TC
@@ -29,6 +30,8 @@ from tests.syntehesis_checks import HlsSynthesisChecksTC
 from tests.utils.alapAsapDiffExample import AlapAsapDiffExample_TC
 from tests.utils.concatOfSlices_test import ConcatOfSlicesTC
 from tests.utils.phiConstructions_test import PhiConstruction_TC
+from tests.frontend.pyBytecode.errors_test import PyBytecodeErrors_TC
+from tests.frontend.pyBytecode.pragmaInline_test import PyBytecodeInline_TC
 
 
 def testSuiteFromTCs(*tcs):
@@ -51,12 +54,15 @@ suite = testSuiteFromTCs(
     AlapAsapDiffExample_TC,
     HlsSynthesisChecksTC,
     TwoTimesA_TC,
+    DisjunctionTriangle_TC,
     HlsAstTrivial_TC,
     HlsAstWhileIf_TC,
     HlsAstWhileTrue_TC,
     IoFsm_TC,
     PhiConstruction_TC,
     FromPythonBasics_TC,
+    PyBytecodeErrors_TC,
+    PyBytecodeInline_TC,
     FnClosure_TC,
     StmIf_TC,
     StmFor_TC,

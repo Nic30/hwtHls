@@ -1,14 +1,15 @@
 from typing import Sequence, Union, Callable, List, Tuple
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
+from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
+from hwt.hdl.value import HValue
 from hwt.pyUtils.arrayQuery import flatten
+from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.value import SsaValue
-from hwtHls.scope import HlsScope
-from hwt.hdl.value import HValue
-from hwt.synthesizer.interface import Interface
-from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
+from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
+from hwtHls.frontend.pyBytecode.frame import PyBytecodeFrame
 
 
 class PyObjectHwSubscriptRef():
@@ -27,13 +28,14 @@ class PyObjectHwSubscriptRef():
         self.index = index
         self.originalInstrOffsetForLabels = originalInstrOffsetForLabels
     
-    def expandOnUse(self, curBlock: SsaBasicBlock):
-        return self.expandIndexOnPyObjAsSwitchCase(curBlock)
+    def expandOnUse(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock):
+        return self.expandIndexOnPyObjAsSwitchCase(frame, curBlock)
 
-    def expandIndexOnPyObjAsSwitchCase(self, curBlock: SsaBasicBlock) -> Tuple[SsaValue, SsaBasicBlock]:
+    def expandIndexOnPyObjAsSwitchCase(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock) -> Tuple[SsaValue, SsaBasicBlock]:
         res = None
         toSsa = self.pyBytecodeToSsa
-        sucBlock = SsaBasicBlock(toSsa.to_ssa.ssaCtx, f"{curBlock.label:s}_getSwEnd")
+        astToSsa: HlsAstToSsa = toSsa.toSsa
+        sucBlock = SsaBasicBlock(astToSsa.ssaCtx, f"{curBlock.label:s}_getSwEnd")
         curLabel = toSsa.blockToLabel[curBlock]
         toSsa.labelToBlock[curLabel].end = sucBlock
         toSsa.blockToLabel[sucBlock] = curLabel
@@ -49,13 +51,13 @@ class PyObjectHwSubscriptRef():
             if last:
                 cond = None
             else:
-                curBlock, cond = toSsa.to_ssa.visit_expr(curBlock, self.index._eq(i))
+                curBlock, cond = astToSsa.visit_expr(curBlock, self.index._eq(i))
             
-            caseBlock = SsaBasicBlock(toSsa.to_ssa.ssaCtx, f"{curBlock.label:s}_{offsetForLabels:d}_c{i:d}")
+            caseBlock = SsaBasicBlock(astToSsa.ssaCtx, f"{curBlock.label:s}_{offsetForLabels:d}_c{i:d}")
             toSsa.blockToLabel[caseBlock] = curLabel
             curBlock.successors.addTarget(cond, caseBlock)
-            toSsa._onAllPredecsKnown(caseBlock)
-            toSsa.to_ssa.visit_CodeBlock_list(caseBlock, flatten([
+            toSsa._onAllPredecsKnown(frame, caseBlock)
+            astToSsa.visit_CodeBlock_list(caseBlock, flatten([
                 res(v)
             ]))
             caseBlock.successors.addTarget(None, sucBlock)
@@ -63,20 +65,22 @@ class PyObjectHwSubscriptRef():
         if res is None:
             raise IndexError("Indexing using HW object on Python object of zero size, it is impossible to resolve result type for HW", self.sequence, self.index)
     
-        toSsa._onAllPredecsKnown(sucBlock)
+        toSsa._onAllPredecsKnown(frame, sucBlock)
         return res, sucBlock
 
     def expandSetitemAsSwitchCase(self,
+                                  frame: PyBytecodeFrame,
                                   curBlock: SsaBasicBlock,
-                                  assignFn: Callable[[int, Union[RtlSignal, Interface, HValue, SsaValue]], 
+                                  assignFn: Callable[[int, Union[RtlSignal, Interface, HValue, SsaValue]],
                                                      List[Union[SsaValue, HdlAssignmentContainer]]]) -> SsaBasicBlock:
         
         """
         :param assignFn: function with index and dst as argument
         """
         toSsa = self.pyBytecodeToSsa
+        astToSsa: HlsAstToSsa = toSsa.toSsa
         offsetForLabels = self.originalInstrOffsetForLabels
-        sucBlock = SsaBasicBlock(toSsa.to_ssa.ssaCtx, f"{curBlock.label:s}_{offsetForLabels:d}_setSwEnd")
+        sucBlock = SsaBasicBlock(astToSsa.ssaCtx, f"{curBlock.label:s}_{offsetForLabels:d}_setSwEnd")
         curLabel = toSsa.blockToLabel[curBlock]
         toSsa.labelToBlock[curLabel].end = sucBlock
         toSsa.blockToLabel[sucBlock] = curLabel
@@ -85,27 +89,27 @@ class PyObjectHwSubscriptRef():
             if last:
                 cond = None
             else:
-                curBlock, cond = toSsa.to_ssa.visit_expr(curBlock, self.index._eq(i))
+                curBlock, cond = astToSsa.visit_expr(curBlock, self.index._eq(i))
             
-            caseBlock = SsaBasicBlock(toSsa.to_ssa.ssaCtx, f"{curBlock.label:s}_{offsetForLabels:d}_c{i:d}")
+            caseBlock = SsaBasicBlock(astToSsa.ssaCtx, f"{curBlock.label:s}_{offsetForLabels:d}_c{i:d}")
             toSsa.blockToLabel[caseBlock] = curLabel
     
             curBlock.successors.addTarget(cond, caseBlock)
-            toSsa._onAllPredecsKnown(caseBlock)
+            toSsa._onAllPredecsKnown(frame, caseBlock)
     
-            toSsa.to_ssa.visit_CodeBlock_list(caseBlock, flatten([
+            astToSsa.visit_CodeBlock_list(caseBlock, flatten([
                 assignFn(i, v)
             ]))
             caseBlock.successors.addTarget(None, sucBlock)
     
-        toSsa._onAllPredecsKnown(sucBlock)
+        toSsa._onAllPredecsKnown(frame, sucBlock)
         # put variable with result of the indexing on top of stack
         return sucBlock
 
 
-def expandBeforeUse(o, curBlock: SsaBasicBlock):
+def expandBeforeUse(frame: PyBytecodeFrame, o, curBlock: SsaBasicBlock):
     if isinstance(o, PyObjectHwSubscriptRef):
         o: PyObjectHwSubscriptRef
-        return o.expandOnUse(curBlock)
+        return o.expandOnUse(frame, curBlock)
     
     return o, curBlock

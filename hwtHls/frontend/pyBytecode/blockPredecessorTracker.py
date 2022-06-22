@@ -7,16 +7,17 @@ from typing import Set, List, Tuple, Generator
 
 from hwtHls.frontend.pyBytecode.blockLabel import BlockLabel, \
     generateBlockLabel
-from hwtHls.frontend.pyBytecode.frame import PyBytecodeLoopInfo
+from hwtHls.frontend.pyBytecode.loopMeta import PyBytecodeLoopInfo
 from hwtHls.frontend.pyBytecode.loopsDetect import PreprocLoopScope, \
     PyBytecodeLoop
+from hdlConvertorAst.to.hdlUtils import iter_with_last
 
 
 class BlockPredecessorTracker():
     """
     An object used to track if all predecessors were resolved for SSA where blocks are generated conditionally and some blocks may be duplicated.
 
-    :note: to_ssa._onAllPredecsKnown causes block to be sealed for PHIs and all PHIs are constructed and simplified when this function is called.
+    :note: PyBytecodeToSsa._onAllPredecsKnown causes block to be sealed for PHIs and all PHIs are constructed and simplified when this function is called.
     However the blocks are generated conditionally based on if the jump values can be resolved compile time or in hw.
 
     This means that if we reach the block we know that there may be multiple predecessors from original CFG but some branches may be reduced
@@ -37,13 +38,21 @@ class BlockPredecessorTracker():
       This unique label is generated from scope of currently evaluated loops and their iteration indexes and the label of original block.
     """
 
-    def __init__(self, cfg: DiGraph, loopStack: List[PyBytecodeLoopInfo]):
+    def __init__(self, cfg: DiGraph, callStack: List["PyBytecodeFrame"]):
         self.originalCfg = cfg
-        self.cfg: DiGraph = deepcopy(cfg)
         self.generated: Set[BlockLabel] = set()
         self.notGenerated: Set[BlockLabel] = set()
         self.notGeneratedEdges: Set[Tuple[BlockLabel, BlockLabel]] = set()
-        self.loopStack = loopStack
+        self.callStack = callStack
+
+        assert callStack
+        prefix = tuple(self._getBlockLabelPrefix(0))
+        curCfg = self.cfg = DiGraph()
+        for n in cfg.nodes:
+            curCfg.add_node((*prefix, *n))
+
+        for src, dst in cfg.edges:
+            curCfg.add_edge((*prefix, *src), (*prefix, *dst))
 
     def hasAllPredecessorsKnown(self, blockLabel: BlockLabel) -> bool:
         allPredecKnown = True
@@ -76,14 +85,29 @@ class BlockPredecessorTracker():
 
     def _getBlockLabelPrefix(self, blockOffset:int) -> Generator[PreprocLoopScope, None, None]:
         # the block can be outside of current loop body, if this is the case we have to pop several loop scopes
-        for scope in self.loopStack:
-            scope: PyBytecodeLoopInfo
-            curLoop: PyBytecodeLoop = scope.loop
-            if (blockOffset,) in curLoop.allBlocks:
-                # in current loop
-                yield PreprocLoopScope(scope.loop, scope.iteraionI)
+        isFirstFrame = True
+        for isLastFrame, frame in iter_with_last(self.callStack):
+            frame: "PyBytecodeFrame"
+            if isLastFrame:
+                for scope in frame.loopStack: 
+                    curLoop: PyBytecodeLoop = scope.loop
+                    scope: PyBytecodeLoopInfo
+                    if (blockOffset,) in curLoop.allBlocks:
+                        # in current loop
+                        yield PreprocLoopScope(scope.loop, scope.iteraionI)
+                    else:
+                        break
             else:
-                break
+                if isFirstFrame:
+                    isFirstFrame = False
+                else:
+                    yield frame.fn
+                
+                for scope in frame.loopStack: 
+                    curLoop: PyBytecodeLoop = scope.loop
+                    scope: PyBytecodeLoopInfo
+                    # in loop somewhere in parent function
+                    yield PreprocLoopScope(scope.loop, scope.iteraionI)
 
     def _getBlockLabel(self, blockOffset:int) -> BlockLabel:
         return generateBlockLabel(self._getBlockLabelPrefix(blockOffset), blockOffset)
