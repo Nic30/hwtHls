@@ -23,7 +23,7 @@ class HlsConnectionFromPyFn0(Unit):
             hls.write(hls.read(self.i), self.o)
 
     def _impl(self):
-        hls = HlsScope(self, freq=int(100e6))
+        hls = HlsScope(self, freq=int(10e6))
         hls.addThread(HlsThreadFromPy(hls, self.mainThread, hls))
         hls.compile()
 
@@ -151,5 +151,5 @@ class HlsConnectionFromPyFnKwArgs(Unit):
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
-    u = HlsConnectionFromPyFnPreprocTmpVar1()
+    u = HlsConnectionFromPyFnElif()
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
