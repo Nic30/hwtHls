@@ -6,8 +6,23 @@ from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
     HlsNetNodeOutAny
 
-
 MirValue = Union[Register, MachineBasicBlock]
+
+
+class BranchOutLabel():
+    """
+    A label used in :class:`MirToHwtHlsNetlistOpCache` as a key for value which is 1 if the control is passed from src to dst.
+    """
+
+    def __init__(self, src: MachineBasicBlock, dst: MachineBasicBlock):
+        self.src = src
+        self.dst = dst
+
+    def __hash__(self):
+        return hash((self.__class__, self.src, self.dst))
+
+    def __eq__(self, other):
+        return type(self) is type(other) and self.src == other.src and self.dst == other.dst
 
 
 class MirToHwtHlsNetlistOpCache():
@@ -15,6 +30,7 @@ class MirToHwtHlsNetlistOpCache():
     :ivar _unresolvedBlockInputs: container of HlsNetNodeOutLazy object which are inputs inputs to block
         and needs to be replaced once the value is resolved in the predecessor block
     """
+
     def __init__(self, netlist: HlsNetlistCtx):
         self._netlist = netlist
         self._toHlsCache: Dict[object, Union[HlsNetNodeOut, HlsNetNodeOutLazy]] = {}
@@ -43,32 +59,40 @@ class MirToHwtHlsNetlistOpCache():
             if isFromInsideOfBlock:
                 # we can not replace the input itself, we need to just replace the current value
                 if isinstance(cur, HlsNetNodeOutLazy):
-                    ubi = self._unresolvedBlockInputs.get(block, None)
-                    if ubi is None:
-                        ubi = self._unresolvedBlockInputs[block] = {}
-                    assert reg not in ubi
-                    ubi[reg] = cur
-                    cur.keys_of_self_in_cache.remove(k)
+                    self._moveLazyOutToUnresolvedBlockInputs(block, reg, cur, k)
             else:
-                try:
-                    ubi = self._unresolvedBlockInputs[block][reg]
-                except KeyError:
-                    ubi = None
-
-                if ubi is not None:
-                    ubi: HlsNetNodeOutLazy
-                    ubi.replace_driver(v)
-                    self._unresolvedBlockInputs[block].pop(reg)
-                    return
-                else:
-                    assert isinstance(cur, HlsNetNodeOutLazy), ("redefining already defined", k, cur, v)
-                    # however it is possible to redefine variable if the variable was live on input of the block and
-                    # it comes from body of this block
-                    assert cur is not v, ("redefining to the same", k, v)
-                    cur.replace_driver(v)
-                    return
+                self._replaceOutOnInputOfBlock(block, reg, cur, k, v)
+                return
 
         self._toHlsCache[k] = v
+
+    def _moveLazyOutToUnresolvedBlockInputs(self, block: MachineBasicBlock, reg: MirValue, lazyOut: HlsNetNodeOutLazy, k):
+        ubi = self._unresolvedBlockInputs.get(block, None)
+        if ubi is None:
+            ubi = self._unresolvedBlockInputs[block] = {}
+        assert reg not in ubi
+        ubi[reg] = lazyOut
+        if k is not None:
+            lazyOut.keys_of_self_in_cache.remove(k)
+
+    def _replaceOutOnInputOfBlock(self, block: MachineBasicBlock, reg: MirValue, cur: HlsNetNodeOutLazy, k, v: HlsNetNodeOut):
+        try:
+            ubi = self._unresolvedBlockInputs[block][reg]
+        except KeyError:
+            ubi = None
+
+        if ubi is not None:
+            ubi: HlsNetNodeOutLazy
+            ubi.replaceDriverObj(v)
+            self._unresolvedBlockInputs[block].pop(reg) # rm ubi
+        else:
+            assert isinstance(cur, HlsNetNodeOutLazy), ("redefining already defined", k, cur, v)
+            # however it is possible to redefine variable if the variable was live on input of the block and
+            # it comes from body of this block
+            assert cur is not v, ("redefining to the same", k, v)
+            cur.replaceDriverObj(v)
+            if self._toHlsCache[k] is cur:
+                self._toHlsCache[k] = v
 
     def get(self, block: MachineBasicBlock, v: MirValue, dtype: HdlType) -> HlsNetNodeOutAny:
         """

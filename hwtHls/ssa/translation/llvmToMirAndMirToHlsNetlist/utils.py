@@ -1,9 +1,11 @@
-from typing import Union, Optional
+from typing import Union, Optional, List, Tuple
 
-from hwtHls.llvm.llvmIr import  MachineBasicBlock
-from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
+from hwtHls.llvm.llvmIr import MachineBasicBlock, MachineLoop
+from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, \
+    HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes, \
-    HlsNetNodeOutLazy
+    HlsNetNodeOutLazy, HlsNetNodeIn
+from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.opCache import MirToHwtHlsNetlistOpCache
 
 
 class MachineBasicBlockSyncContainer():
@@ -47,7 +49,7 @@ class MachineBasicBlockSyncContainer():
             curI = self.orderingIn
             assert isinstance(curI, HlsNetNodeOutLazy), curI
             curI: HlsNetNodeOutLazy
-            curI.replace_driver(n.getOrderingOutPort())
+            curI.replaceDriverObj(n.getOrderingOutPort())
             self.orderingIn = i
 
     def __repr__(self):
@@ -55,4 +57,64 @@ class MachineBasicBlockSyncContainer():
                 f"{' needsStarter,' if self.needsStarter else ''}"
                 f"{' needsControl,' if self.needsControl else ''}"
                 f" blockEn={self.blockEn}, orderingIn={self.orderingIn}, orderingOut={self.orderingOut}>")
-        
+
+
+class LiveInMuxMeta():
+    
+    def __init__(self):
+        self.values: List[Tuple[HlsNetNodeOutAny, HlsNetNodeOutAny]] = []
+
+
+def getTopLoopForBlock(mb: MachineBasicBlock, loop: MachineLoop) -> MachineLoop:
+    loop: MachineLoop
+    topLoop = loop
+    while True:
+        p: Optional[MachineLoop] = topLoop.getParentLoop()
+        if p and p.getHeader() == mb:
+            topLoop = loop
+        else:
+            break
+    return topLoop
+
+
+class BranchOutLabel():
+    """
+    A label used in :class:`MirToHwtHlsNetlistOpCache` as a key for value which is 1 if the control is passed from src to dst.
+    """
+
+    def __init__(self, dst: MachineBasicBlock):
+        self.dst = dst
+
+    def __hash__(self):
+        return hash((self.__class__, self.dst))
+
+    def __eq__(self, other):
+        return type(self) is type(other) and self.dst == other.dst
+
+
+def HlsNetNodeExplicitSyncInsertBehindLazyOut(netlist: "HlsNetlistCtx", valCache: MirToHwtHlsNetlistOpCache, var: HlsNetNodeOutLazy):
+    """
+    Prepend the synchronization to an operation output representing variable.
+    """
+    assert isinstance(var, HlsNetNodeOutLazy), var
+    self = HlsNetNodeExplicitSync(netlist, var._dtype)
+    netlist.nodes.append(self)
+    assert len(var.keys_of_self_in_cache) == 1, "Implemented only for case where the input var was not propagated anywhere"
+
+    # add original var as valCache unresolvedBlockInputs
+    k = var.keys_of_self_in_cache[0]
+    block, reg = k
+    o = self._outputs[0]
+    # copy endpoints of var to newly generated sync node 
+    valCache._replaceOutOnInputOfBlock(block, reg, var, k, o)
+    var.replaced_by = None # reset because we will still use the object
+    
+    # put original lazy out back to cache so once
+    # we resolve input we replace the input to this control and not the explicit sync which we just created
+    valCache._moveLazyOutToUnresolvedBlockInputs(block, reg, var, k)
+    valCache._toHlsCache[k] = o
+    
+    # connect original var to the input of sync node
+    link_hls_nodes(var, self._inputs[0])
+    
+    return self

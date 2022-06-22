@@ -20,12 +20,13 @@ from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
     link_hls_nodes, HlsNetNodeOutAny, HlsNetNodeIn
-from hwtHls.netlist.utils import hls_op_and
+from hwtHls.netlist.utils import hls_op_and, hls_op_not
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.opCache import MirToHwtHlsNetlistOpCache
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from hwtHls.netlist.analysis.dataThreads import HlsNetlistAnalysisPassDataThreads
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
+from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 
 
 class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
@@ -92,15 +93,21 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         # we need to insert backedge buffer to get block en flag from pred to mb
         srcName = f"bb{srcBlock.getNumber():d}"
         dstName = f"bb{dstBlock.getNumber():d}"
+        namePrefix = f"{name:s}_{srcName:s}_to_{dstName:s}"
         _, r_from_in = self._add_hs_intf_and_read(
-            f"{name:s}_{srcName:s}_to_{dstName:s}_out",
+            f"{namePrefix:s}_out",
             val._dtype,
             HlsNetNodeReadBackwardEdge)
-        self.valCache.add(dstBlock, cacheKey, r_from_in, False)
+        if cacheKey is not None:
+            self.valCache.add(dstBlock, cacheKey, r_from_in, False)
         
-        _, w_to_out = self._add_hs_intf_and_write(f"{name:s}_{srcName:s}_to_{dstName:s}_in", val._dtype,
+        _, w_to_out = self._add_hs_intf_and_write(f"{namePrefix:s}_in", val._dtype,
                                                   val, HlsNetNodeWriteBackwardEdge)
         w_to_out.associate_read(r_from_in.obj)
+        w_to_out.buff_name = f"{namePrefix:s}_backedge_buff"
+        if cacheKey is not None:
+            # because we need to use latest value not the input value which we just added (r_from_in)
+            return self.valCache.get(dstBlock, cacheKey, r_from_in._dtype)
         return r_from_in
         
     def _translateType(self, t: LlvmType):
@@ -154,7 +161,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
 
     def _add_hs_intf_and_write(self, suggested_name: str, dtype:HdlType,
                                val: Union[HlsNetNodeOut, HlsNetNodeOutLazy],
-                               write_cls:Type[HlsNetNodeWrite]=HlsNetNodeWrite):
+                               write_cls:Type[HlsNetNodeWrite]=HlsNetNodeWrite) -> HlsNetNodeWrite:
         intf = HsStructIntf()
         intf.T = dtype
         self._add_intf_instance(intf, suggested_name)
@@ -188,7 +195,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         """
         Instantiate HlsNetNodeWrite operation for this specific interface.
         """
-        write = write_cls(self.netlist, val, intf)
+        write = write_cls(self.netlist, NOT_SPECIFIED, intf)
         link_hls_nodes(val, write._inputs[0])
         self.outputs.append(write)
         return write
@@ -200,6 +207,18 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         else:
             cond = hls_op_and(self.netlist, blockEn, cond)
         n.add_control_extraCond(cond)
+    
+    def _addSkipWhen_n(self, n: Union[HlsNetNodeRead, HlsNetNodeWrite], cond_n: Union[int, HlsNetNodeOutAny], blockEn: HlsNetNodeOutLazy):
+        """
+        add skipWhen condition to read or write, the condition itself is negated
+        """
+        if isinstance(cond_n, int):
+            assert cond_n == 1, cond_n
+            return
+        else:
+            cond = hls_op_not(self.netlist, cond_n)
+            cond = hls_op_and(self.netlist, blockEn, cond)
+            n.add_control_skipWhen(cond)
     
     def _replaceInputWithConst1(self, i: HlsNetNodeIn, threads: HlsNetlistAnalysisPassDataThreads):
         c = self._translateIntBit(1)
