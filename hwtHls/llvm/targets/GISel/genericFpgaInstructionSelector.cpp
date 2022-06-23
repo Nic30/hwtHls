@@ -117,6 +117,7 @@ void selectInstrArg(MachineFunction &MF, MachineInstr &I,
 			MIB.addDef(MO.getReg());
 		} else if (auto VRegVal = getAnyConstantVRegValWithLookThrough(
 				MO.getReg(), MRI)) {
+			assert(VRegVal.hasValue());
 			auto &C = MF.getFunction().getContext();
 			auto *CI = ConstantInt::get(C, VRegVal->Value);
 			MIB.addCImm(CI);
