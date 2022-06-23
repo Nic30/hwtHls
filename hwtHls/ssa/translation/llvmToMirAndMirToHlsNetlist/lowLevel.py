@@ -7,10 +7,12 @@ from hwt.hdl.types.hdlType import HdlType
 from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import Interface_without_registration
+from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.unit import Unit
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, \
     TargetOpcode, CmpInst, ConstantInt, TypeToIntegerType, IntegerType, Type as LlvmType, \
     MachineLoopInfo
+from hwtHls.netlist.analysis.dataThreads import HlsNetlistAnalysisPassDataThreads
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
@@ -18,15 +20,13 @@ from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
 from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
     link_hls_nodes, HlsNetNodeOutAny, HlsNetNodeIn
 from hwtHls.netlist.utils import hls_op_and, hls_op_not
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.opCache import MirToHwtHlsNetlistOpCache
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
-from hwtHls.netlist.analysis.dataThreads import HlsNetlistAnalysisPassDataThreads
-from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 
 
 class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
