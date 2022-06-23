@@ -5,7 +5,7 @@ from hwt.code import SwitchLogic
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.bitsVal import BitsVal
-from hwt.interfaces.std import HandshakeSync, Signal
+from hwt.interfaces.std import HandshakeSync, Signal, Handshaked
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
@@ -21,6 +21,8 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.scheduler.clk_math import start_clk
 from hwtLib.handshaked.streamNode import StreamNode
 from ipCorePackager.constants import INTF_DIRECTION
+from itertools import chain
+from hwtLib.amba.axi_intf_common import Axi_hs
 
 
 class AllocatorArchitecturalElement():
@@ -183,10 +185,8 @@ class AllocatorArchitecturalElement():
         self._copyChannelSyncAll(node, res_skipWhen, res_extraCond, intf, sync_time)
 
     def _collectChannelRtlSync(self,
-                          sync_per_io: Dict[Interface, Union[SkipWhenMemberList, ExtraCondMemberList]],
-                          cur_inputs: List[Interface]):
+                          sync_per_io: Dict[Interface, Union[SkipWhenMemberList, ExtraCondMemberList]]):
         sync: Dict[Interface, RtlSignal] = {}
-        # ens_of_stage = []
         for intf, sync_source in sync_per_io.items():
             intf = extract_control_sig_of_interface(intf)
             if intf == (1, 1):
@@ -196,28 +196,75 @@ class AllocatorArchitecturalElement():
             assert sync_source
             en = sync_source.resolve()
             if isinstance(en, BitsVal):
+                # current block en=1
                 assert int(en) == 1, en
             else:
                 assert isinstance(en, RtlSignal), en
-                # if isinstance(en, HandshakeSync):
-                #    if en not in cur_inputs:
-                #        cur_inputs.append(en)
-                # else:
-                sync[intf] = en  # current block en=1
+                sync[intf] = en
 
         return sync
 
     def _makeSyncNode(self, con: ConnectionsOfStage):
-        extra_conds = self._collectChannelRtlSync(con.io_extraCond, con.inputs)
-        skip_when = self._collectChannelRtlSync(con.io_skipWhen, con.inputs)
 
         masters = [extract_control_sig_of_interface(intf) for intf in con.inputs]
         slaves = [extract_control_sig_of_interface(intf) for intf in con.outputs]
+        if not masters and not slaves:
+            extraConds = None
+            skipWhen = None
+        else:
+            extraConds = self._collectChannelRtlSync(con.io_extraCond)
+            # skipWhen conditions may only be valid if all data in this stage are valid
+            # this may not be the case because the data may come directly from interface itself.
+            # Because of this we need to add additional condition to skipWhen expression which makes it 0
+            # if there is some unsatisfied IO dependency in this stage. 
+            _skipWhen = self._collectChannelRtlSync(con.io_skipWhen)
+            skipWhen = {}
+            for intf in chain(masters, slaves):
+                intfSkipWhen = _skipWhen.get(intf, None)
+                if intfSkipWhen is None:
+                    # this interface does not have skip when condition
+                    continue
+                # we have to extend intfSkipWhen condition
+                for otherIntfDir, otherIntf in chain(zip((INTF_DIRECTION.MASTER for _ in masters), masters),
+                                                     zip((INTF_DIRECTION.SLAVE for _ in slaves), slaves),
+                                       ):
+                    if otherIntf is intf:
+                        continue
+                    otherSkipWhen = _skipWhen.get(otherIntf, None)
+                    isM = otherIntfDir == INTF_DIRECTION.MASTER
+                    if isinstance(otherIntf, (Handshaked, HandshakeSync)):
+                        if isM:
+                            ack = otherIntf.vld
+                        else:
+                            ack = otherIntf.rd
+                    elif isinstance(otherIntf, Axi_hs):
+                        if isM:
+                            ack = otherIntf.valid
+                        else:
+                            ack = otherIntf.ready
+                    else:
+                        assert isinstance(otherIntf, tuple), otherIntf
+                        if isM:
+                            ack = otherIntf[0]
+                        else:
+                            ack = otherIntf[1]
+
+                    if isinstance(ack, int):
+                        # always valid no otherSkipWhen or otherSkipWhen with no effect -> no extra sync required
+                        assert ack == 1, ack
+                    else:
+                        if otherSkipWhen is None:
+                            intfSkipWhen = intfSkipWhen & ack
+                        else:
+                            intfSkipWhen = intfSkipWhen & (otherSkipWhen | ack)
+                            
+                skipWhen[intf] = intfSkipWhen        
+                
         sync = StreamNode(
             masters,
             slaves,
-            extraConds=extra_conds if masters or slaves else None,
-            skipWhen=skip_when if masters or slaves else None,
+            extraConds=extraConds,
+            skipWhen=skipWhen,
         )
         con.sync_node = sync
         return sync
