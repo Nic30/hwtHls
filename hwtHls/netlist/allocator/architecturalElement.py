@@ -1,4 +1,5 @@
 
+from itertools import chain
 from typing import Union, List, Dict, Tuple, Optional
 
 from hwt.code import SwitchLogic
@@ -19,10 +20,9 @@ from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeE
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.scheduler.clk_math import start_clk
+from hwtLib.amba.axi_intf_common import Axi_hs
 from hwtLib.handshaked.streamNode import StreamNode
 from ipCorePackager.constants import INTF_DIRECTION
-from itertools import chain
-from hwtLib.amba.axi_intf_common import Axi_hs
 
 
 class AllocatorArchitecturalElement():
@@ -232,16 +232,17 @@ class AllocatorArchitecturalElement():
                         continue
                     otherSkipWhen = _skipWhen.get(otherIntf, None)
                     isM = otherIntfDir == INTF_DIRECTION.MASTER
-                    if isinstance(otherIntf, (Handshaked, HandshakeSync)):
-                        if isM:
-                            ack = otherIntf.vld
-                        else:
-                            ack = otherIntf.rd
-                    elif isinstance(otherIntf, Axi_hs):
+                    if isinstance(otherIntf, Axi_hs):
                         if isM:
                             ack = otherIntf.valid
                         else:
                             ack = otherIntf.ready
+                    
+                    elif isinstance(otherIntf, (Handshaked, HandshakeSync)):
+                        if isM:
+                            ack = otherIntf.vld
+                        else:
+                            ack = otherIntf.rd
                     else:
                         assert isinstance(otherIntf, tuple), otherIntf
                         if isM:
