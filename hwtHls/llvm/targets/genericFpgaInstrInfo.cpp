@@ -132,11 +132,8 @@ unsigned GenericFpgaInstrInfo::removeBranch(MachineBasicBlock &MBB,
 
 Register negateRegister(MachineRegisterInfo &MRI, MachineIRBuilder &Builder,
 		Register reg) {
-	errs() << "negateRegister " << reg.virtRegIndex() << "\n";
 	if (MRI.hasOneDef(reg)) {
-		errs() << "hasOneDef" << "\n";
 		for (auto &I : MRI.def_instructions(reg)) {
-			errs() << "I:" << I << "\n";
 			switch (I.getOpcode()) {
 			case TargetOpcode::G_XOR: {
 				auto &O1 = I.getOperand(2);
