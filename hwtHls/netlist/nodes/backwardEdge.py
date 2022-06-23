@@ -2,7 +2,7 @@ from typing import Union, Optional, Generator
 
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.netlist.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
+from hwtHls.netlist.allocator.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
 from hwtHls.ssa.value import SsaValue
 from hwtLib.handshaked.builder import HsBuilder

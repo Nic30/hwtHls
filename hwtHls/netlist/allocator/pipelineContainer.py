@@ -14,7 +14,7 @@ from hwtHls.netlist.allocator.architecturalElement import AllocatorArchitectural
 from hwtHls.netlist.allocator.connectionsOfStage import ConnectionsOfStage, resolveStrongestSyncType, \
     SignalsOfStages
 from hwtHls.netlist.allocator.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis
-from hwtHls.netlist.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
+from hwtHls.netlist.allocator.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
 from hwtHls.netlist.nodes.node import HlsNetNode
 

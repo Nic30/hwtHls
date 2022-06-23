@@ -2,7 +2,7 @@ from typing import List, Optional, Generator
 
 from hwt.code import If, Or
 from hwt.hdl.types.defs import BIT
-from hwtHls.netlist.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
+from hwtHls.netlist.allocator.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.io import IO_COMB_REALIZATION, HlsNetNodeReadSync, \
     HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict

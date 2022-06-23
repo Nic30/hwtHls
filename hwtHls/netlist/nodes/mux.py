@@ -4,7 +4,7 @@ from hwt.code import If
 from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.types.hdlType import HdlType
 from hwt.pyUtils.arrayQuery import grouper
-from hwtHls.netlist.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
+from hwtHls.netlist.allocator.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
     link_hls_nodes

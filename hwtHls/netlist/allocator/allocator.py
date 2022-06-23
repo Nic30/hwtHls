@@ -7,7 +7,7 @@ from hwtHls.netlist.allocator.architecturalElement import AllocatorArchitectural
 from hwtHls.netlist.allocator.fsmContainer import AllocatorFsmContainer
 from hwtHls.netlist.allocator.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis, ValuePathSpecItem
 from hwtHls.netlist.allocator.pipelineContainer import AllocatorPipelineContainer
-from hwtHls.netlist.allocator.time_independent_rtl_resource import TimeIndependentRtlResource
+from hwtHls.netlist.allocator.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.analysis.fsm import HlsNetlistAnalysisPassDiscoverFsm, IoFsm
 from hwtHls.netlist.analysis.pipeline import HlsNetlistAnalysisPassDiscoverPipelines, \
     NetlistPipeline

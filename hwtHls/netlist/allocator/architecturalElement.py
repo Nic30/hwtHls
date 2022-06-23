@@ -13,7 +13,7 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.netlist.allocator.connectionsOfStage import ConnectionsOfStage, \
     extract_control_sig_of_interface, SignalsOfStages, ExtraCondMemberList, \
     SkipWhenMemberList
-from hwtHls.netlist.allocator.time_independent_rtl_resource import TimeIndependentRtlResource, \
+from hwtHls.netlist.allocator.timeIndependentRtlResource import TimeIndependentRtlResource, \
     TimeIndependentRtlResourceItem
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeExplicitSync, \
     HlsNetNodeReadSync
