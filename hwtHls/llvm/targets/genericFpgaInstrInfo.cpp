@@ -130,6 +130,46 @@ unsigned GenericFpgaInstrInfo::removeBranch(MachineBasicBlock &MBB,
 	return 2;
 }
 
+Register negateRegister(MachineRegisterInfo &MRI, MachineIRBuilder &Builder,
+		Register reg) {
+	errs() << "negateRegister " << reg.virtRegIndex() << "\n";
+	if (MRI.hasOneDef(reg)) {
+		errs() << "hasOneDef" << "\n";
+		for (auto &I : MRI.def_instructions(reg)) {
+			errs() << "I:" << I << "\n";
+			switch (I.getOpcode()) {
+			case TargetOpcode::G_XOR: {
+				auto &O1 = I.getOperand(2);
+				if (O1.isCImm() && O1.getCImm()->getBitWidth() == 1
+						&& O1.getCImm()->equalsInt(1)) {
+					return I.getOperand(1).getReg();
+				} else if (auto VRegVal = getAnyConstantVRegValWithLookThrough(O1.getReg(), MRI)) {
+					if (VRegVal.hasValue() && VRegVal.getValue().Value == 1) {
+						return I.getOperand(1).getReg();
+					}
+				}
+				break;
+			}
+			case GenericFpga::GENFPGA_NOT: {
+				return I.getOperand(1).getReg();
+			}
+			}
+		}
+	}
+	Register BR_n = MRI.cloneVirtualRegister(reg); //MRI.createVirtualRegister(&GenericFpga::AnyRegClsRegClass);//(Cond[0].getReg());
+	//MRI.setRegClass(BR_n, &GenericFpga::AnyRegClsRegClass);
+	MRI.setType(BR_n, LLT::scalar(1));
+	MRI.setType(reg, LLT::scalar(1));
+
+	auto NegOne = Builder.buildConstant(LLT::scalar(1), 1);
+	MRI.setRegClass(NegOne.getInstr()->getOperand(0).getReg(),
+			&GenericFpga::AnyRegClsRegClass);
+	//MRI.invalidateLiveness();
+	Builder.buildInstr(TargetOpcode::G_XOR, { BR_n }, { reg, NegOne });
+
+	return BR_n;
+}
+
 // :note: the reversed condition must be set explicitely to operand and its register
 //    because the parent instruction itself will be likely removed
 bool GenericFpgaInstrInfo::reverseBranchCondition(
@@ -138,31 +178,25 @@ bool GenericFpgaInstrInfo::reverseBranchCondition(
 	assert(Cond[0].isReg());
 	assert(Cond[0].isUse());
 
-	auto * BR = Cond[0].getParent();
-	auto & C = BR->getOperand(0); // [attention] original Cond[0] object probably moved
-	MachineFunction & MF = *BR->getParent()->getParent();
+	auto *BR = Cond[0].getParent();
+	auto &C = BR->getOperand(0); // [attention] original Cond[0] object probably moved, modifying it will break use lists
+	MachineFunction &MF = *BR->getParent()->getParent();
 	MachineRegisterInfo &MRI = MF.getRegInfo();
-	Register BR_n = MRI.cloneVirtualRegister(C.getReg()); //MRI.createVirtualRegister(&GenericFpga::AnyRegClsRegClass);//(Cond[0].getReg());
-	//MRI.setRegClass(BR_n, &GenericFpga::AnyRegClsRegClass);
-	MRI.setType(BR_n, LLT::scalar(1));
-	MRI.setType(C.getReg(), LLT::scalar(1));
 
 	MachineIRBuilder Builder(*BR);
-	auto NegOne = Builder.buildConstant(LLT::scalar(1), 1);
-	MRI.setRegClass(NegOne.getInstr()->getOperand(0).getReg(), &GenericFpga::AnyRegClsRegClass);
-    //MRI.invalidateLiveness();
-	Builder.buildInstr(TargetOpcode::G_XOR, {BR_n}, {C.getReg(), NegOne});
+	Register BR_n = negateRegister(MRI, Builder, C.getReg());
+
 	//BR->getOperand(0).setReg(BR_n);
 	//C.ChangeToRegister(BR_n, false);
 	C.setReg(BR_n);
 	//C.setIsUse();
-    //C.ChangeToRegister(BR_n, false);
-    Cond.pop_back();
-    Cond.push_back(C);
+	//C.ChangeToRegister(BR_n, false);
+	Cond.pop_back();
+	Cond.push_back(C);
 
 	MRI.verifyUseLists();
 
-    return false;
+	return false;
 }
 
 // based on ARCInstrInfo::insertBranch
