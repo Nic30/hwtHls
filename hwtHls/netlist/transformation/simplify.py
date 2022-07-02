@@ -139,16 +139,51 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                         n._removeInput(orderingI.in_i)
 
                 if n.__class__ is HlsNetNodeExplicitSync:
+                    n: HlsNetNodeExplicitSync
                     # remove whole node if not synchronizing anything
-                    if not n.usedBy[0] and isinstance(n.dependsOn[0].obj, HlsNetNodeConst):
+                    if not n.usedBy[0]:
+                        if n._isHlsNetNodeExplicitSyncFlagsRequred(n):
+                            continue
                         for i in n._inputs:
                             dep = n.dependsOn[i.in_i]
                             dep.obj.usedBy[dep.out_i].remove(i)
                             worklist.append(dep.obj)
+                        
                         removed.add(n)
+                    elif self._getConstDriverOf(n._inputs[0]) is not None and all(not use for use in islice(n.usedBy, 1, None)):
+                        for _ in range(len(n.usedBy) - 1):
+                            n.usedBy.pop()
+                            n._outputs.pop()
+
+                        self._replaceOperatorNodeWith(n, n.dependsOn[0], worklist, removed)
+
         if removed:
             nodes = netlist.nodes
             netlist.nodes = [n for n in nodes if n not in removed]
+
+    def _isHlsNetNodeExplicitSyncFlagsRequred(self, n: HlsNetNodeExplicitSync) -> bool:
+        if n.extraCond is not None:
+            c = self._getConstDriverOf(n.extraCond)
+            if c is None or int(c) != 1:
+                if n.skipWhen is not None:
+                    c = self._getConstDriverOf(n.skipWhen)
+                    if c is not  None and int(c) == 1:
+                        # always skipped extraCond does not matter
+                        return False
+                    else:
+                        # not always skipped with some extraCond, can not remove
+                        return True
+                else:
+                    # not always skipped with some extraCond, can not remove
+                    return True
+        return False
+     
+    def _getConstDriverOf(self, inputObj: HlsNetNodeIn) -> Optional[HValue]:
+        dep = inputObj.obj.dependsOn[inputObj.in_i]
+        if isinstance(dep.obj, HlsNetNodeConst):
+            return dep.obj.val
+        else:
+            return None
 
     def _disconnectAllInputs(self, n: HlsNetNode, worklist: UniqList[HlsNetNode]):
         for i, dep in zip(n._inputs, n.dependsOn):
