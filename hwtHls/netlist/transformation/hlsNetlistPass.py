@@ -1,6 +1,7 @@
+from hwtHls.netlist.context import HlsNetlistCtx
 
 
 class HlsNetlistPass():
 
-    def apply(self, hls: "HlsScope", to_hw: "SsaSegmentToHwPipeline"):
-        raise NotImplementedError("Should be implemented in inheriting class", self)
+    def apply(self, hls: "HlsScope", netlist: HlsNetlistCtx):
+        raise NotImplementedError("Should be implemented in child class", self)
