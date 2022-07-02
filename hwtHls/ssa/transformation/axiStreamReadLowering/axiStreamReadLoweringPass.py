@@ -9,7 +9,7 @@ from hwt.hdl.types.defs import SLICE
 from hwt.math import log2ceil
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.frontend.ast.statementsIo import HlsReadAxiStream, IN_STREAM_POS, \
+from hwtHls.frontend.ast.statementsRead import HlsReadAxiStream, IN_STREAM_POS, \
     HlsRead
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.exprBuilder import SsaExprBuilder

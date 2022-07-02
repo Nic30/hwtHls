@@ -3,7 +3,7 @@ from itertools import chain
 from typing import DefaultDict, Tuple, List, Optional, Set, Dict
 
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.frontend.ast.statementsIo import HlsRead
+from hwtHls.frontend.ast.statementsRead import HlsRead
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 
 

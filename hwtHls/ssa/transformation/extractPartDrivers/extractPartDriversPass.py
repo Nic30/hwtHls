@@ -8,7 +8,7 @@ from hwt.hdl.types.slice import HSlice
 from hwt.hdl.value import HValue
 from hwt.pyUtils.arrayQuery import balanced_reduce
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.frontend.ast.statementsIo import HlsRead
+from hwtHls.frontend.ast.statementsRead import HlsRead
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.exprBuilder import SsaExprBuilder
 from hwtHls.ssa.instr import SsaInstr, OP_ASSIGN, SsaInstrBranch
