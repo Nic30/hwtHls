@@ -4,6 +4,7 @@
 #include "llvmIrStrings.h"
 #include "llvmIrValues.h"
 #include "llvmIrMachineFunction.h"
+#include "llvmIrMetadata.h"
 #include "llvmCompilationBundle.h"
 #include "targets/genericFpga.h"
 #include "targets/Transforms/genericFpgaToNetlist.h"
@@ -25,10 +26,10 @@
 #include <string>
 #include <vector>
 
-
+namespace py = pybind11;
 PYBIND11_MAKE_OPAQUE(std::vector<llvm::Type*>);
 
-namespace py = pybind11;
+namespace hwtHls {
 
 // https://pybind11.readthedocs.io/en/stable/advanced/classes.html
 // https://github.com/llvm/circt/blob/main/lib/Bindings/Python/MSFTModule.cpp
@@ -103,22 +104,39 @@ void register_Types(pybind11::module_ & m) {
 	py::class_<llvm::Type, std::unique_ptr<llvm::Type, py::nodelete>>(m, "Type")
 			.def("getVoidTy", &llvm::Type::getVoidTy, py::return_value_policy::reference)
 			.def("getIntNTy", &llvm::Type::getIntNTy, py::return_value_policy::reference)
-			.def("getIntNPtrTy", &llvm::Type::getIntNPtrTy, py::return_value_policy::reference);
+			.def("getIntNPtrTy", &llvm::Type::getIntNPtrTy, py::return_value_policy::reference)
+			.def("__repr__",  &printToStr<llvm::Type>);;
 
 	py::class_<llvm::PointerType, std::unique_ptr<llvm::PointerType, py::nodelete>, llvm::Type>(m, "PointerType")
-			.def("getPointerElementType", &llvm::PointerType::getPointerElementType, py::return_value_policy::reference);
+		.def("get", [](llvm::Type *ElementType, unsigned AddressSpace) {
+			return llvm::PointerType::get(ElementType, AddressSpace);
+		},  py::return_value_policy::reference)
+		.def("getPointerElementType", &llvm::PointerType::getPointerElementType, py::return_value_policy::reference)
+		.def("__repr__",  &printToStr<llvm::PointerType>);
 	m.def("TypeToPointerType", [](llvm::Type & t) {
 				if (t.isPointerTy())
 					return (llvm::PointerType*) &t;
 				else
 					return (llvm::PointerType*) nullptr;
 			}, py::return_value_policy::reference)
-		.def("TypeToIntegerType",[](llvm::Type & t) {
-				if (t.isIntegerTy())
-					return (llvm::IntegerType*) &t;
+	 .def("TypeToIntegerType",[](llvm::Type & t) {
+	 		if (t.isIntegerTy())
+	 			return (llvm::IntegerType*) &t;
+	 		else
+	 			return (llvm::IntegerType*) nullptr;
+	 	}, py::return_value_policy::reference);
+	py::class_<llvm::ArrayType, std::unique_ptr<llvm::ArrayType, py::nodelete>, llvm::Type>(m, "ArrayType")
+			.def("get", &llvm::ArrayType::get)
+			.def("getElementType", &llvm::ArrayType::getElementType, py::return_value_policy::reference)
+			.def("getNumElements", &llvm::ArrayType::getNumElements)
+			.def("__repr__",  &printToStr<llvm::ArrayType>);
+	m.def("TypeToArrayType", [](llvm::Type & t) {
+				if (t.isArrayTy())
+					return (llvm::ArrayType*) &t;
 				else
-					return (llvm::IntegerType*) nullptr;
+					return (llvm::ArrayType*) nullptr;
 			}, py::return_value_policy::reference);
+
 
 	py::class_<llvm::FunctionType, std::unique_ptr<llvm::FunctionType, py::nodelete>>(m, "FunctionType")
 		.def("get", [](llvm::Type *Result, const std::vector<llvm::Type*> &Params,
@@ -131,34 +149,35 @@ void register_Types(pybind11::module_ & m) {
 	py::implicitly_convertible<llvm::IntegerType, llvm::Type>();
 }
 
-void register_Attribute_and_MDNode(pybind11::module_ & m) {
-	//llvm::AttributeSet
-	//py::class_<llvm::Attribute, std::unique_ptr<llvm::Value, py::nodelete>>(m, "Value")
-	py::class_<llvm::Metadata, std::unique_ptr<llvm::Metadata, py::nodelete>>(m, "Metadata");
-	py::class_<llvm::MDString, llvm::Metadata>(m, "MDString")
-		.def("get", [](llvm::LLVMContext &Context, llvm::StringRef Str) {
-			llvm::MDString::get(Context, Str);
-		}, py::return_value_policy::reference);
-}
-
 // https://github.com/PointCloudLibrary/clang-bind
 // http://nondot.org/~sabre/LLVMNotes/TypeSystemChanges.txt
 PYBIND11_MODULE(llvmIr, m) {
 	genericFpgaTargetInitialize();
 	py::class_<hwtHls::LlvmCompilationBundle>(m, "LlvmCompilationBundle")
 		.def(py::init<const std::string &>())
-		.def("runOpt", [](hwtHls::LlvmCompilationBundle * LCB, const py::object & o) {
-			// :note: lambda specified explicitly so we can modify reference handling
-			LCB->runOpt([o](llvm::MachineFunction &MF,
+		.def("runOpt", [](hwtHls::LlvmCompilationBundle * LCB, py::function & callbackFn, py::object & hls, py::object & toSsa) {
+			py::object returnObj;
+			LCB->runOpt([callbackFn, &hls, &toSsa, &returnObj](llvm::MachineFunction &MF,
 					std::set<hwtHls::GenericFpgaToNetlist::MachineBasicBlockEdge>& backedges,
 					hwtHls::EdgeLivenessDict & liveness,
 					std::vector<llvm::Register> & ioRegs,
 					std::map<llvm::Register, unsigned> & registerTypes,
 					llvm::MachineLoopInfo & loops) {
-				o.operator() <py::return_value_policy::reference, llvm::MachineFunction &>(
-						MF, backedges, liveness, ioRegs, registerTypes, loops
+				// :note: specified explicitly so we can modify reference handling and pass python objects without
+				//        spoiling C++ llvm code with pybind11
+				returnObj = callbackFn.operator() <py::return_value_policy::reference,
+						py::object &,
+						py::object &,
+						llvm::MachineFunction &,
+						std::set<hwtHls::GenericFpgaToNetlist::MachineBasicBlockEdge>&,
+					    hwtHls::EdgeLivenessDict &,
+					    std::vector<llvm::Register> &,
+					    std::map<llvm::Register, unsigned> &,
+					    llvm::MachineLoopInfo &>(
+					    		hls, toSsa,MF, backedges, liveness, ioRegs, registerTypes, loops
 				);
 			});
+			return returnObj;
 		})
 		.def("getMachineFunction", &hwtHls::LlvmCompilationBundle::getMachineFunction)
 		.def_readonly("ctx", &hwtHls::LlvmCompilationBundle::ctx)
@@ -186,8 +205,9 @@ PYBIND11_MODULE(llvmIr, m) {
 
 	register_Function(m);
 	register_Types(m);
+	register_Attribute(m);
+	register_MDNode(m);
 	register_Instruction(m);
-	register_Attribute_and_MDNode(m);
 
 	m.def("errs", &llvm::errs);
 
@@ -203,4 +223,4 @@ PYBIND11_MODULE(llvmIr, m) {
 	});
 	register_MachineFunction(m);
 }
-
+}

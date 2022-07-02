@@ -14,14 +14,17 @@ from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.unit import Unit
-from hwtHls.frontend.ast.statementsIo import HlsRead, \
-    HlsWrite, IN_STREAM_POS, HlsReadAxiStream
+from hwtHls.frontend.ast.statementsRead import HlsRead, \
+    IN_STREAM_POS, HlsReadAxiStream, HlsReadAddressed
 from hwtHls.frontend.ast.thread import HlsThreadForSharedVar
+from hwtHls.frontend.pyBytecode.addressedIo import AddressedIoProxy
+from hwtHls.frontend.pyBytecode.indexExpansion import PyObjectHwSubscriptRef
 from hwtHls.platform.platform import DefaultHlsPlatform
 from hwtHls.ssa.context import SsaContext
 from hwtHls.thread import HlsThread
 from hwtLib.amba.axi_intf_common import Axi_hs
 from hwtLib.amba.axis import AxiStream
+from hwtHls.frontend.ast.statementsWrite import HlsWrite
 
 
 class HlsScope():
@@ -154,7 +157,7 @@ class HlsScope():
             p.runHlsNetlistPasses(self, netlist)
         
         for t in self._threads:
-            t.toHw.allocate()
+            p.runHlsNetlistToRtlNetlist(self, t.toHw)
             p.runRtlNetlistPasses(self, t.toHw)
 
     def pragma(self, pragmaObj):
