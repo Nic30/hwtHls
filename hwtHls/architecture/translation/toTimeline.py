@@ -2,15 +2,15 @@ from math import inf, isfinite
 from typing import  Optional
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
-from hwtHls.netlist.allocator.allocator import HlsAllocator
-from hwtHls.netlist.allocator.architecturalElement import AllocatorArchitecturalElement
-from hwtHls.netlist.allocator.connectionsOfStage import ConnectionsOfStage
-from hwtHls.netlist.allocator.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis, \
+from hwtHls.architecture.allocator import HlsAllocator
+from hwtHls.architecture.architecturalElement import AllocatorArchitecturalElement
+from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage
+from hwtHls.architecture.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis, \
     ValuePathSpecItem
-from hwtHls.netlist.allocator.timeIndependentRtlResource import TimeIndependentRtlResource
+from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.analysis.schedule import HlsNetlistAnalysisPassRunScheduler
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.transformation.rtlNetlistPass import RtlNetlistPass
+from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
 from hwtHls.netlist.translation.toTimeline import HwtHlsNetlistToTimeline, \
     TimelineRow
 from hwtHls.platform.fileUtils import OutputStreamGetter
@@ -110,7 +110,7 @@ class HwtHlsNetlistToTimelineArchLevel(HwtHlsNetlistToTimeline):
         #        bdep.backward_deps.append(row_i)
 
 
-class HlsNetlistPassShowTimelineArchLevel(RtlNetlistPass):
+class RtlArchPassShowTimeline(RtlArchPass):
 
     def __init__(self, outStreamGetter:Optional[OutputStreamGetter]=None, auto_open=False, expandCompositeNodes=False):
         self.outStreamGetter = outStreamGetter

@@ -8,10 +8,10 @@ from hwt.math import log2ceil
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.netlist.allocator.architecturalElement import AllocatorArchitecturalElement
-from hwtHls.netlist.allocator.connectionsOfStage import getIntfSyncSignals, \
+from hwtHls.architecture.architecturalElement import AllocatorArchitecturalElement
+from hwtHls.architecture.connectionsOfStage import getIntfSyncSignals, \
     setNopValIfNotSet, SignalsOfStages, ConnectionsOfStage
-from hwtHls.netlist.allocator.timeIndependentRtlResource import TimeIndependentRtlResource
+from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.analysis.fsm import IoFsm
 from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
     HlsNetNodeWriteBackwardEdge
@@ -158,6 +158,7 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
         """
         self.interArchAnalysis = iea
         self._detectStateTransitions()
+
         for (nodes, con) in zip(self.fsm.states, self.connections):
             ioMuxes: Dict[Interface, Tuple[Union[HlsNetNodeRead, HlsNetNodeWrite], List[HdlStatement]]] = {}
             ioSeen: UniqList[Interface] = UniqList()
@@ -181,7 +182,7 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
 
             for rtl in self._allocateIoMux(ioMuxes, ioSeen):
                 con.stDependentDrives.append(rtl)
-
+        
     def allocateSync(self):
         fsm = self.fsm
         self._initNopValsOfIo()

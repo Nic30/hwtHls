@@ -3,14 +3,14 @@ from typing import Type, Dict, Optional, List, Tuple, Union, Sequence
 from hwt.code import And
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.interfaces.std import HandshakeSync, Handshaked, VldSynced, RdSynced, \
-    Signal
+    Signal, BramPort_withoutClk
 from hwt.interfaces.structIntf import StructIntf
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.netlist.allocator.timeIndependentRtlResource import TimeIndependentRtlResourceItem
+from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResourceItem
 from hwtLib.amba.axi_intf_common import Axi_hs
 from hwtLib.handshaked.streamNode import StreamNode
 
@@ -22,7 +22,7 @@ def get_sync_type(intf: Interface) -> Type[Interface]:
 
     if isinstance(intf, HandshakeSync):
         return Handshaked
-    elif isinstance(intf, VldSynced):
+    elif isinstance(intf, (VldSynced, BramPort_withoutClk)):
         return VldSynced
     elif isinstance(intf, RdSynced):
         return RdSynced
@@ -142,6 +142,8 @@ def extract_control_sig_of_interface(
         # return (intf.vld, intf.rd)
     elif isinstance(intf, VldSynced):
         return (intf.vld, 1)
+    elif isinstance(intf, BramPort_withoutClk):
+        return (intf.en, 1)
     elif isinstance(intf, RdSynced):
         return (1, intf.rd)
     elif isinstance(intf, (RtlSignalBase, Signal, StructIntf)):

@@ -10,10 +10,10 @@ from hwt.interfaces.std import HandshakeSync, Signal, Handshaked
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.netlist.allocator.connectionsOfStage import ConnectionsOfStage, \
+from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage, \
     extract_control_sig_of_interface, SignalsOfStages, ExtraCondMemberList, \
     SkipWhenMemberList
-from hwtHls.netlist.allocator.timeIndependentRtlResource import TimeIndependentRtlResource, \
+from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, \
     TimeIndependentRtlResourceItem
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeExplicitSync, \
     HlsNetNodeReadSync
@@ -221,6 +221,11 @@ class AllocatorArchitecturalElement():
             skipWhen = {}
             for intf in chain(masters, slaves):
                 intfSkipWhen = _skipWhen.get(intf, None)
+                print(intf)
+                print("extraCond", extraConds.get(intf, None))
+                print("skipWhen", intfSkipWhen)
+                print("")
+                
                 if intfSkipWhen is None:
                     # this interface does not have skip when condition
                     continue
@@ -230,34 +235,34 @@ class AllocatorArchitecturalElement():
                                        ):
                     if otherIntf is intf:
                         continue
-                    otherSkipWhen = _skipWhen.get(otherIntf, None)
-                    isM = otherIntfDir == INTF_DIRECTION.MASTER
-                    if isinstance(otherIntf, Axi_hs):
-                        if isM:
-                            ack = otherIntf.valid
-                        else:
-                            ack = otherIntf.ready
-                    
-                    elif isinstance(otherIntf, (Handshaked, HandshakeSync)):
-                        if isM:
-                            ack = otherIntf.vld
-                        else:
-                            ack = otherIntf.rd
-                    else:
-                        assert isinstance(otherIntf, tuple), otherIntf
-                        if isM:
-                            ack = otherIntf[0]
-                        else:
-                            ack = otherIntf[1]
-
-                    if isinstance(ack, int):
-                        # always valid no otherSkipWhen or otherSkipWhen with no effect -> no extra sync required
-                        assert ack == 1, ack
-                    else:
-                        if otherSkipWhen is None:
-                            intfSkipWhen = intfSkipWhen & ack
-                        else:
-                            intfSkipWhen = intfSkipWhen & (otherSkipWhen | ack)
+                    # otherSkipWhen = _skipWhen.get(otherIntf, None)
+                    # isM = otherIntfDir == INTF_DIRECTION.MASTER
+                    # if isinstance(otherIntf, Axi_hs):
+                    #    if isM:
+                    #        ack = otherIntf.valid
+                    #    else:
+                    #        ack = otherIntf.ready
+                    #
+                    # elif isinstance(otherIntf, (Handshaked, HandshakeSync)):
+                    #    if isM:
+                    #        ack = otherIntf.vld
+                    #    else:
+                    #        ack = otherIntf.rd
+                    # else:
+                    #    assert isinstance(otherIntf, tuple), otherIntf
+                    #    if isM:
+                    #        ack = otherIntf[0]
+                    #    else:
+                    #        ack = otherIntf[1]
+                    #
+                    # if isinstance(ack, int):
+                    #    # always valid no otherSkipWhen or otherSkipWhen with no effect -> no extra sync required
+                    #    assert ack == 1, ack
+                    # else:
+                    #    if otherSkipWhen is None:
+                    #        intfSkipWhen = intfSkipWhen & ack
+                    #    else:
+                    #        intfSkipWhen = intfSkipWhen | (otherSkipWhen & ~ack)
                             
                 skipWhen[intf] = intfSkipWhen        
                 
@@ -267,13 +272,15 @@ class AllocatorArchitecturalElement():
             extraConds=extraConds,
             skipWhen=skipWhen,
         )
+        print("---------------------------------------------------")
         con.sync_node = sync
         return sync
 
     def _allocateIo(self, intf: Interface, node: Union[HlsNetNodeRead, HlsNetNodeWrite],
                     con: ConnectionsOfStage,
                     ioMuxes: Dict[Interface, Tuple[Union[HlsNetNodeRead, HlsNetNodeWrite], List[HdlStatement]]],
-                    ioSeen: UniqList[Interface], rtl: List[HdlStatement]):
+                    ioSeen: UniqList[Interface],
+                    rtl: List[HdlStatement]):
         ioSeen.append(intf)
         ioMuxes.setdefault(intf, []).append((node, rtl))
 

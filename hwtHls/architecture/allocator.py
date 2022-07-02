@@ -3,11 +3,11 @@ from typing import Union, List, Tuple, Set, Optional, Dict
 from hwt.interfaces.std import HandshakeSync
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import Interface_without_registration
-from hwtHls.netlist.allocator.architecturalElement import AllocatorArchitecturalElement
-from hwtHls.netlist.allocator.fsmContainer import AllocatorFsmContainer
-from hwtHls.netlist.allocator.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis, ValuePathSpecItem
-from hwtHls.netlist.allocator.pipelineContainer import AllocatorPipelineContainer
-from hwtHls.netlist.allocator.timeIndependentRtlResource import TimeIndependentRtlResource
+from hwtHls.architecture.architecturalElement import AllocatorArchitecturalElement
+from hwtHls.architecture.fsmContainer import AllocatorFsmContainer
+from hwtHls.architecture.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis, ValuePathSpecItem
+from hwtHls.architecture.pipelineContainer import AllocatorPipelineContainer
+from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.analysis.fsm import HlsNetlistAnalysisPassDiscoverFsm, IoFsm
 from hwtHls.netlist.analysis.pipeline import HlsNetlistAnalysisPassDiscoverPipelines, \
     NetlistPipeline
@@ -20,6 +20,8 @@ class HlsAllocator():
     """
     Convert the HlsNetlist to architectural elements and delegate the conversion of elements to RLT.
 
+    :note: this class contains only methods for allocation which are used by HlsPlatform class to perform the allocation
+    :see: :meth:`hwtHls.platform.platform.DefaultHlsPlatform.runRtlNetlistPasses`
     :ivar namePrefix: name prefix for debug purposes
     :ivar netlist: parent HLS context for this allocator
     """
@@ -243,47 +245,3 @@ class HlsAllocator():
                     srcElm.connectSync(dstUseClkI, interElmSync, INTF_DIRECTION.MASTER)
                     dstElm.connectSync(dstUseClkI, interElmSync, INTF_DIRECTION.SLAVE)
                     syncAdded.add(syncCacheKey)
-
-    def allocate(self):
-        """
-        Translate scheduled circuit to RTL
-        
-        Problems:
-
-          1. When resolving logic in clock cycle we do not know about registers which will be constucted later.
-             Because we did not seen use of this value yet.
-          
-          2. If the node spans over multiple clock cycles and some part is not in this arch element
-              we do not know about it explicitly from node list.
-          
-          3. We can not just insert register object because it does not solve nodes spaning multiple clock cycles.
-        
-        
-        * We walk the netlist and discover in which time the value is live (in netlist format the connection could lead to any time)
-          and we need to find out in which times we should construct registers and most inportantly in which arch. element we should construct them.
-
-        * For each node which is crossing arch element boundary or spans multiple cycles we also have mark the individual parts for clock cycles
-          if the node is crossing arch. elem. boundary we also must ask it to declare its io so the node can be constructed from any 
-          arch element.
-
-        * First arch element which sees the node allocates it, the alocation is marked in allocator and happens only once.
-
-        * Each arch element explicitly queries the node for the specific time (and input/output combination if node spans over more arch. elements).
-        """
-        self._discoverArchElements()
-        iea = InterArchElementNodeSharingAnalysis(self.netlist.normalizedClkPeriod)
-        if len(self._archElements) > 1:
-            iea._analyzeInterElementsNodeSharing(self._archElements)
-            if iea.interElemConnections:
-                self._declareInterElemenetBoundarySignals(iea)
-
-        for e in self._archElements:
-            e.allocateDataPath(iea)
-
-        if iea.interElemConnections:
-            self._finalizeInterElementsConnections(iea)
-
-        for e in self._archElements:
-            e.allocateSync()
-        self._iea = iea
-

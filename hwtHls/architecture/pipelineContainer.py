@@ -10,11 +10,11 @@ from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import Interface_without_registration
 from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
-from hwtHls.netlist.allocator.architecturalElement import AllocatorArchitecturalElement
-from hwtHls.netlist.allocator.connectionsOfStage import ConnectionsOfStage, resolveStrongestSyncType, \
+from hwtHls.architecture.architecturalElement import AllocatorArchitecturalElement
+from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage, resolveStrongestSyncType, \
     SignalsOfStages
-from hwtHls.netlist.allocator.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis
-from hwtHls.netlist.allocator.timeIndependentRtlResource import TimeIndependentRtlResource
+from hwtHls.architecture.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis
+from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
 from hwtHls.netlist.nodes.node import HlsNetNode
 
