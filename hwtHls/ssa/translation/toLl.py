@@ -4,13 +4,13 @@ from hdlConvertorAst.to.hdlUtils import Indent, \
     AutoIndentingStream
 from hwt.hdl.value import HValue
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
-from hwtHls.frontend.ast.statementsIo import HlsRead, \
-    HlsWrite
+from hwtHls.frontend.ast.statementsRead import HlsRead
 from hwtHls.platform.fileUtils import OutputStreamGetter
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.phi import SsaPhi
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
+from hwtHls.frontend.ast.statementsWrite import HlsWrite, HlsWriteAddressed
 
 
 class SsaToLl():
@@ -73,10 +73,16 @@ class SsaToLl():
                     w("void call ")
                     w(self._escape(repr(stm._dtype)))
                     w(" @hls.write(")
-                    if isinstance(stm._orig_src, HValue):
-                        w(repr(stm._orig_src))
+                    if isinstance(stm._origSrc, HValue):
+                        w(repr(stm._origSrc))
                     else:
-                        w(getSignalName(stm._orig_src))
+                        w(getSignalName(stm._origSrc))
+                    if isinstance(stm, HlsWriteAddressed):
+                        w(", ")
+                        if isinstance(stm._origIndex, HValue):
+                            w(repr(stm._origIndex))
+                        else:
+                            w(getSignalName(stm._origIndex))
                     w(")\n")
                 else:
                     w(self._escape(repr(stm)))
