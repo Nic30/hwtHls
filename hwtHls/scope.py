@@ -119,6 +119,12 @@ class HlsScope():
         elif isinstance(src, (Signal, StructIntf)):
             dtype = src._dtype
 
+        elif isinstance(src, PyObjectHwSubscriptRef):
+            src: PyObjectHwSubscriptRef
+            assert isinstance(src.sequence, AddressedIoProxy), src.sequence
+            mem: AddressedIoProxy = src.sequence
+            return mem.READ_CLS(self, mem.interface, src.index, mem.nativeType.element_t)
+
         else:
             raise NotImplementedError(src)    
 
@@ -134,7 +140,15 @@ class HlsScope():
         """
         Create a write statement in thread.
         """
-        return HlsWrite(self, src, dst)
+        if isinstance(src, int):
+            dtype = getattr(dst, "_dtype", None)
+            if dtype is None:
+                dtype = dst.data._dtype
+            src = dtype.from_py(src)
+        else:
+            dtype = src._dtype
+
+        return HlsWrite(self, src, dst, dtype)
 
     def addThread(self, t):
         """

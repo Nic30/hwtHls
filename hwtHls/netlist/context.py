@@ -6,7 +6,7 @@ from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.unit import Unit
-from hwtHls.netlist.allocator.allocator import HlsAllocator
+from hwtHls.architecture.allocator import HlsAllocator
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -95,10 +95,3 @@ class HlsNetlistCtx():
 
     def schedule(self):
         self.scheduler.schedule()
-
-    def allocate(self):
-        """
-        Convert the HLS netlist to RTL netlist
-        """
-        self.allocator.allocate()
-
