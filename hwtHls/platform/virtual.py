@@ -101,22 +101,22 @@ class VirtualHlsPlatform(DefaultHlsPlatform):
                            input_cnt: int, clkPeriod: float) -> OpRealizationMeta:
         base_delay = self._OP_DELAYS[op]
         if op in _OPS_T_GROWING_CONST:
-            latency_pre = base_delay
+            inputWireDelay = base_delay
 
         elif op in _OPS_T_GROWING_LIN:
-            latency_pre = base_delay * log2(bit_width)
+            inputWireDelay = base_delay * log2(bit_width)
 
         elif op in _OPS_T_GROWING_EXP:
-            latency_pre = base_delay * bit_width
+            inputWireDelay = base_delay * bit_width
 
         elif op == AllOps.TERNARY:
-            latency_pre = base_delay * log2(bit_width * input_cnt)
+            inputWireDelay = base_delay * log2(bit_width * input_cnt)
 
         else:
             raise NotImplementedError(op)
 
-        return OpRealizationMeta(latency_pre=latency_pre)
+        return OpRealizationMeta(inputWireDelay=inputWireDelay)
 
     @lru_cache()
     def get_ff_store_time(self, realTimeClkPeriod: float, schedulerResolution: float):
-        return int(self.get_op_realization(ResourceFF, 1, 1, realTimeClkPeriod).latency_pre // schedulerResolution)
+        return int(self.get_op_realization(ResourceFF, 1, 1, realTimeClkPeriod).inputWireDelay // schedulerResolution)

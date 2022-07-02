@@ -69,7 +69,7 @@ class HlsNetNodeBitwiseOps(HlsNetNode):
         # inputCntWithoutThisNode = min(1, len(currentInputs))
         currentInputs.extend(internalOut.obj._inputs)
         timeOffset = internalOut.obj.scheduledOut[internalOut.out_i]
-        internalOut.obj.scheduledIn = tuple(timeOffset - lat for lat in internalOut.obj.latency_pre)
+        internalOut.obj.scheduledIn = tuple(timeOffset - lat for lat in internalOut.obj.inputWireDelay)
         ffdelay = self.netlist.platform.get_ff_store_time(self.netlist.realTimeClkPeriod, self.netlist.scheduler.resolution)
         clkPeriod = self.netlist.normalizedClkPeriod
         # 2. resolve which nodes we can add to cluster because they have all successors known
@@ -101,7 +101,7 @@ class HlsNetNodeBitwiseOps(HlsNetNode):
                     parentOut, outT, parentOut.obj.scheduledOut[0])
                 assert len(parentOut.obj._outputs) == 1, (parentOut.obj._outputs, "Only operators with a single output expected")
                 self.resolveSubnodeRealization(parentOut.obj, len(currentInputs) + len(parentOut.obj._inputs))
-                if outT - parentOut.obj.latency_pre[0] <= clkBoundaryTime:
+                if outT - parentOut.obj.inputWireDelay[0] <= clkBoundaryTime:
                     newClkStartBoundary = start_clk(outT, clkPeriod) * clkPeriod
                     # can not fit this node inside current clock cycle
                     parentOut.obj.scheduledOut = (clkBoundaryTime - ffdelay,)  # move to start of clock cycle - ffdealy
@@ -148,7 +148,7 @@ class HlsNetNodeBitwiseOps(HlsNetNode):
                     assert len(o.obj.usedBy) == 1, ("Should be only bitwise operator wit a single output", o)
                     self.resolveSubnodeRealization(o.obj, len(o.obj._inputs))
                     clkStartBoundary = start_clk(t, netlist.normalizedClkPeriod) * netlist.normalizedClkPeriod
-                    if t - o.obj.latency_pre[0] <= clkStartBoundary:
+                    if t - o.obj.inputWireDelay[0] <= clkStartBoundary:
                         ffdelay = netlist.platform.get_ff_store_time(self.netlist.realTimeClkPeriod, self.netlist.scheduler.resolution)
                         t = clkStartBoundary - ffdelay
                         clkStartBoundary -= netlist.normalizedClkPeriod
@@ -186,21 +186,21 @@ class HlsNetNodeBitwiseOps(HlsNetNode):
             input_cnt - 2, netlist.realTimeClkPeriod)
 
         # substract the latency which is counted in some input latency
-        if not isinstance(rWithThisNode.in_cycles_offset, int):
-            rWithThisNode.in_cycles_offset = rWithoutThisNode.in_cycles_offset[:2]
+        if not isinstance(rWithThisNode.inputClkTickOffset, int):
+            rWithThisNode.inputClkTickOffset = rWithoutThisNode.inputClkTickOffset[:2]
 
-        latency_pre_with = rWithThisNode.latency_pre
-        if not isinstance(latency_pre_with, (int, float)):
-            latency_pre_with = latency_pre_with[:2]
+        inputWireDelay_with = rWithThisNode.inputWireDelay
+        if not isinstance(inputWireDelay_with, (int, float)):
+            inputWireDelay_with = inputWireDelay_with[:2]
 
-        latency_pre_without = rWithoutThisNode.latency_pre
-        if not isinstance(latency_pre_without, (int, float)):
-            latency_pre_without = latency_pre_without[:2]
+        inputWireDelay_without = rWithoutThisNode.inputWireDelay
+        if not isinstance(inputWireDelay_without, (int, float)):
+            inputWireDelay_without = inputWireDelay_without[:2]
 
-        rWithThisNode.latency_pre = tuple(
+        rWithThisNode.inputWireDelay = tuple(
             max((latWith - latWithout, 0))
-            for latWith, latWithout in zip(HlsNetNode_numberForEachInput(node, latency_pre_without),
-                                           HlsNetNode_numberForEachInput(node, latency_pre_without))
+            for latWith, latWithout in zip(HlsNetNode_numberForEachInput(node, inputWireDelay_without),
+                                           HlsNetNode_numberForEachInput(node, inputWireDelay_without))
         )
         node.assignRealization(rWithThisNode)
 
@@ -236,11 +236,11 @@ class HlsNetNodeBitwiseOps(HlsNetNode):
 
             clkPeriod = self.netlist.normalizedClkPeriod
             epsilon = self.netlist.scheduler.epsilon
-            for (available_in_time, in_delay, in_cycles) in zip(input_times, node.latency_pre, node.in_cycles_offset):
+            for (available_in_time, in_delay, in_cycles) in zip(input_times, node.inputWireDelay, node.inputClkTickOffset):
                 if in_delay >= clkPeriod:
                     raise TimeConstraintError(
                         "Impossible scheduling, clkPeriod too low for ",
-                        node.latency_pre, node.latency_post, node)
+                        node.inputWireDelay, node.outputWireDelay, node)
 
                 next_clk_time = start_of_next_clk_period(available_in_time, clkPeriod)
                 time_budget = next_clk_time - available_in_time
@@ -257,12 +257,12 @@ class HlsNetNodeBitwiseOps(HlsNetNode):
 
             node.scheduledIn = tuple(
                 time_when_all_inputs_present - (in_delay + in_cycles * clkPeriod) + epsilon
-                for (in_delay, in_cycles) in zip(node.latency_pre, node.in_cycles_offset)
+                for (in_delay, in_cycles) in zip(node.inputWireDelay, node.inputClkTickOffset)
             )
 
             node.scheduledOut = tuple(
                 time_when_all_inputs_present + out_delay + out_cycles * clkPeriod + epsilon
-                for (out_delay, out_cycles) in zip(node.latency_post, node.cycles_latency)
+                for (out_delay, out_cycles) in zip(node.outputWireDelay, node.outputClkTickOffset)
             )
             for ot in node.scheduledOut:
                 for it in node.scheduledIn:

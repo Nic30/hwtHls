@@ -32,9 +32,9 @@ class AbstractXilinxPlatform(DefaultHlsPlatform):
                            input_cnt: int, clkPeriod: float) -> OpRealizationMeta:
         if op in _OPS_T_ZERO_LATENCY:
             return OpRealizationMeta()
-        (cycles_latency, latency_pre) = self._OP_DELAYS[op](input_cnt, bit_width, 0, clkPeriod)
-        return OpRealizationMeta(latency_pre=float(latency_pre), cycles_latency=float(cycles_latency))
+        (outputClkTickOffset, inputWireDelay) = self._OP_DELAYS[op](input_cnt, bit_width, 0, clkPeriod)
+        return OpRealizationMeta(inputWireDelay=float(inputWireDelay), outputClkTickOffset=float(outputClkTickOffset))
 
     @lru_cache()
     def get_ff_store_time(self, realTimeClkPeriod: float, schedulerResolution: float):
-        return int(self.get_op_realization(ResourceFF, 1, 1, realTimeClkPeriod).latency_pre // schedulerResolution)
+        return int(self.get_op_realization(ResourceFF, 1, 1, realTimeClkPeriod).inputWireDelay // schedulerResolution)
