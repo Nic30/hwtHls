@@ -1,5 +1,5 @@
 from itertools import chain
-from typing import Union, List, Optional, Tuple
+from typing import Union, List, Optional, Tuple, Dict, Callable
 
 from hwt.hdl.operator import Operator
 from hwt.hdl.operatorDefs import AllOps
@@ -18,13 +18,16 @@ from hwtHls.frontend.ast.memorySSAUpdater import MemorySSAUpdater
 from hwtHls.frontend.ast.statements import HlsStm, HlsStmWhile, \
     HlsStmCodeBlock, HlsStmIf, HlsStmFor, HlsStmContinue, \
     HlsStmBreak
-from hwtHls.frontend.ast.statementsIo import HlsWrite, HlsRead
+from hwtHls.frontend.ast.statementsRead import HlsRead, HlsReadAddressed
+from hwtHls.frontend.ast.statementsWrite import HlsWrite, HlsWriteAddressed
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.context import SsaContext
 from hwtHls.ssa.instr import SsaInstr, SsaInstrBranch
 from hwtHls.ssa.value import SsaValue
-
-
+from hwtHls.ssa.transformation.utils.blockAnalysis import collect_all_blocks
+from hwt.synthesizer.interface import Interface
+from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny
+from hwtHls.llvm.llvmIr import Register, LoadInst, StoreInst
 AnyStm = Union[HdlAssignmentContainer, HlsStm]
 
 
@@ -40,6 +43,25 @@ class SsaBasicBlockUnreachable(SsaBasicBlock):
         SsaBasicBlock.__init__(self, ctx, label)
         self.successors = SsaInstrBranchUnreachable(self)
 
+NetlistReadNodeConsructorT = Callable[[
+        "HlsNetlistAnalysisPassMirToNetlist",
+        "MachineBasicBlockSyncContainer",
+        LoadInst,
+        Interface, # srcIo
+        Union[int, HlsNetNodeOutAny], # index
+        HlsNetNodeOutAny, # cond
+        Register, #instrDstReg
+    ], None]
+NetlistWriteNodeConsructorT = Callable[[
+    "HlsNetlistAnalysisPassMirToNetlist",
+    "MachineBasicBlockSyncContainer",
+    StoreInst,
+    HlsNetNodeOutAny, # srcVal
+    Interface, # dstIo
+    Union[int, HlsNetNodeOutAny], # index
+    HlsNetNodeOutAny, #cond
+], None]
+NetlistIoConstructorDictT = Dict[Interface, Tuple[Optional[NetlistReadNodeConsructorT], Optional[NetlistWriteNodeConsructorT]]]
 
 class HlsAstToSsa():
     """
@@ -64,6 +86,7 @@ class HlsAstToSsa():
     :ivar _loop_stack: list of loop where the AST visitor actually is to resolve
         the continue/break and loop association. The record is a tuple (loop statement, entry block, list of blocks ending with break).
         The blocks ending with break will have its branch destination assigned after the loop is processed (in loop parsing fn.).
+    :ivar ioNodeConstructors: a 
     """
 
     def __init__(self, ssaCtx: SsaContext, startBlockName:str, original_code_for_debug: Optional[HlsStmCodeBlock]):
@@ -76,6 +99,7 @@ class HlsAstToSsa():
         self._break_target: List[SsaBasicBlock] = []
         self.original_code_for_debug = original_code_for_debug
         self._loop_stack: List[Tuple[HlsStmWhile, SsaBasicBlock, List[SsaBasicBlock]]] = []
+        self.ioNodeConstructors: Optional[NetlistIoConstructorDictT] = None
 
     def _onBlockReduce(self, block: SsaBasicBlock, replacement: SsaBasicBlock):
         if block is self.start:
@@ -139,6 +163,8 @@ class HlsAstToSsa():
                 
                 elif isinstance(op, HlsRead):
                     if op.block is None:
+                        if isinstance(op, HlsReadAddressed):
+                            block, op._index = self.visit_expr(block, op._index)
                         # read first used there else already visited
                         block.appendInstruction(op)
                         # HlsRead is a SsaValue and thus represents "variable"
@@ -184,10 +210,16 @@ class HlsAstToSsa():
         else:
             if isinstance(var, HlsRead):
                 if var.block is None:
+                    if isinstance(var, HlsReadAddressed):
+                        block, var._index = self.visit_expr(block, var._index)
+                        # var.operands = (i, )
+                        
                     block.appendInstruction(var)
                     # HlsRead is a SsaValue and thus represents "variable"
                     self.m_ssa_u.writeVariable(var._sig, (), block, var)
+
                 var = var._sig
+
             elif isinstance(var, StructIntf):
                 var = packIntf(var)
                 return self.visit_expr(block, var)
@@ -330,13 +362,21 @@ class HlsAstToSsa():
         return block
 
     def visit_Write(self, block: SsaBasicBlock, o: HlsWrite) -> SsaBasicBlock:
+        if isinstance(o, HlsWriteAddressed):
+            block, index = self.visit_expr(block, o.getIndex())
+        else:
+            index = None
         block, src = self.visit_expr(block, o.getSrc())
-        o.operands = (src,)
         block.appendInstruction(o)
         block.origins.append(o)
-
-        if isinstance(src, SsaValue):
-            src.users.append(o)
+        
+        if index is not None:
+            o.operands = (src, index)
+        else:
+            o.operands = (src,)
+        for op in o.operands:
+            if isinstance(op, SsaValue):
+                src.users.append(o)
 
         return block
 
@@ -349,3 +389,32 @@ class HlsAstToSsa():
                 assert s in sealedBlocks, (s, "was not sealed")
 
         assert not self.m_ssa_u.incompletePhis, self.m_ssa_u.incompletePhis
+
+    def collectIo(self) -> Dict[Interface, Tuple[List[HlsRead], List[HlsWrite]]]:
+        io: Dict[Interface, Tuple[List[HlsRead], List[HlsWrite]]] = {}
+        for block in collect_all_blocks(self.start, set()):
+            for instr in block.body:
+                if isinstance(instr, HlsRead):
+                    instr: HlsRead
+                    cur = io.get(instr._src, None)
+                    if cur is None:
+                        io[instr._src] = ([instr], [])
+                    else:
+                        otherReads, _ = cur
+                        otherReads.append(instr)
+
+                elif isinstance(instr, HlsWrite):
+                    instr: HlsWrite
+                    cur = io.get(instr.dst, None)
+                    if cur is None:
+                        io[instr.dst] = ([], [instr])
+                    else:
+                        _, otherWrites = cur
+                        otherWrites.append(instr)
+        return io
+
+    def resolveIoNetlistConstructors(self, io: Dict[Interface, Tuple[List[HlsRead], List[HlsWrite]]]):
+        ioNodeConstructors= self.ioNodeConstructors = {}
+        for i, (reads, writes) in io.items():
+            ioNodeConstructors[i] = (reads[0]._translateMirToNetlist if reads else None,
+                                     writes[0]._translateMirToNetlist if writes else None)

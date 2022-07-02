@@ -13,8 +13,8 @@ from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.errors import HlsSyntaxError
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
-from hwtHls.frontend.ast.statementsIo import HlsWrite, \
-    HlsRead
+from hwtHls.frontend.ast.statementsRead import HlsRead
+from hwtHls.frontend.ast.statementsWrite import HlsWrite
 from hwtHls.frontend.pyBytecode.blockLabel import BlockLabel
 from hwtHls.frontend.pyBytecode.frame import PyBytecodeFrame, \
     PyBytecodeLoopInfo, _PyBytecodeUnitialized
@@ -271,7 +271,7 @@ class PyBytecodeToSsaLowLevel():
                     if isinstance(res.dst, PyObjectHwSubscriptRef):
                         hls = self.hls
                         return res.dst.expandSetitemAsSwitchCase(frame, curBlock,
-                                                                 lambda i, dst: hls.write(res._orig_src, dst))
+                                                                 lambda i, dst: hls.write(res._origSrc, dst))
                     
                 if isinstance(res, (HlsWrite, HlsRead, HdlAssignmentContainer)):
                     self.toSsa.visit_CodeBlock_list(curBlock, [res, ])
@@ -475,18 +475,18 @@ class PyBytecodeToSsaLowLevel():
                 self._makeFunction(frame, instr, stack)
                 
             elif opcode == STORE_SUBSCR:
-                operator.setitem
                 index = stack.pop()
-                index, curBlock = expandBeforeUse(frame, index, curBlock)
                 sequence = stack.pop()
                 val = stack.pop()
+                index, curBlock = expandBeforeUse(frame, index, curBlock)
                 val, curBlock = expandBeforeUse(frame, val, curBlock)
                 if isinstance(index, (RtlSignal, SsaValue)) and not isinstance(sequence, (RtlSignal, SsaValue)):
                     if not isinstance(sequence, PyObjectHwSubscriptRef):
                         sequence = PyObjectHwSubscriptRef(self, sequence, index, instr.offset)
                     return sequence.expandSetitemAsSwitchCase(frame, curBlock, lambda i, dst: dst(val))
 
-                stack.append(operator.setitem(sequence, index, val))
+                operator.setitem(sequence, index, val)
+                #stack.append()
 
             else:
                 binOp = BIN_OPS.get(opcode, None)
@@ -544,9 +544,10 @@ class PyBytecodeToSsaLowLevel():
                 raise NotImplementedError(instr)
 
         except HlsSyntaxError:
-            raise
+            raise  # already decorated exception, just propagate
 
         except Exception:
+            # a new exception generated directly from user code
             raise self._createInstructionException(frame, instr)
 
         return curBlock

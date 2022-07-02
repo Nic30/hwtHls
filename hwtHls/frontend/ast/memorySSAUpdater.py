@@ -8,7 +8,7 @@ from hwt.hdl.value import HValue
 from hwt.pyUtils.uniqList import UniqList
 from hwt.serializer.utils import RtlSignal_sort_key
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.frontend.ast.statementsIo import HlsRead
+from hwtHls.frontend.ast.statementsRead import HlsRead
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.phi import SsaPhi

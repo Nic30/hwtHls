@@ -14,7 +14,7 @@ from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwtHls.frontend.ast.statements import HlsStmWhile, \
     HlsStmCodeBlock, HlsStmIf, \
     HlsStmBreak, HlsStmContinue
-from hwtHls.frontend.ast.statementsIo import HlsWrite
+from hwtHls.frontend.ast.statementsWrite import HlsWrite, HlsWriteAddressed
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 
 
@@ -65,7 +65,9 @@ class ToHdlAstHlsAstDebugCode(ToHdlAstDebugHwt):
     def as_hdl_HlsWrite(self, o: HlsWrite):
         return hdl_call(
             hdl_getattr(HdlValueId(getSignalName(o.dst)), "write"),
-            [self.as_hdl(o._orig_src), ]
+            [self.as_hdl(o._origSrc), self.as_hdl(o._origIndex)]
+                if isinstance(o, HlsWriteAddressed) else
+            [self.as_hdl(o._origSrc), ]
         )
 
     def as_hdl_HdlAssignmentContainer(self, o:HdlAssignmentContainer):
