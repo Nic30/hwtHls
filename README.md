@@ -181,6 +181,7 @@ pip3 install git+https://github.com/Nic30/hwtHls.git
 * [ROCCC](https://github.com/nxt4hll/roccc-2.0), http://roccc.cs.ucr.edu/ - 2009-2013, C++/LLVM/suif c -> vhdl
 * [TCE](https://github.com/cpc/tce)- C++/LLVM, environment for development of application specific processors
 * [FloPoCo](https://gitlab.com/flopoco/flopoco) - C++, arithmetic core generator
+* [DPC++](https://github.com/intel/llvm/tree/sycl) - C++/LLVM, 
 
 
 ## Useful publications
