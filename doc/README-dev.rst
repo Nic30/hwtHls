@@ -207,6 +207,7 @@ LLVM alias analysis
 -------------------
 
 * https://sites.google.com/site/parallelizationforllvm/building-the-dependence-graph
+* https://blog.tartanllama.xyz/llvm-alias-analysis/
 
 LLVM tutorials
 --------------
