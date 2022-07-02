@@ -7,13 +7,14 @@ from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, \
-    HlsNetNodeExplicitSync
+    HlsNetNodeExplicitSync, HlsNetNodeReadSync
 from hwtHls.netlist.nodes.loopHeader import HlsLoopGate, HlsLoopGateStatus
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.platform.fileUtils import OutputStreamGetter
+from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
 
 
 class HwtHlsNetlistToGraphwiz():
@@ -35,11 +36,11 @@ class HwtHlsNetlistToGraphwiz():
     def _constructLegend(self):
         legendTable = """<
 <table border="0" cellborder="1" cellspacing="0">
-  <tr><td bgcolor="LightGreen">HlsNetNodeRead</td></tr>
+  <tr><td bgcolor="LightGreen">HlsNetNodeRead, HlsNetNodeReadSync</td></tr>
   <tr><td bgcolor="LightBlue">HlsNetNodeWrite</td></tr>
   <tr><td bgcolor="plum">HlsNetNodeConst</td></tr>
   <tr><td bgcolor="Chartreuse">HlsNetNodeExplicitSync</td></tr>
-  <tr><td bgcolor="MediumSpringGreen">HlsLoopGate, HlsLoopGateStatus</td></tr>
+  <tr><td bgcolor="MediumSpringGreen">HlsLoopGate, HlsLoopGateStatus, HlsProgramStarter</td></tr>
   <tr><td bgcolor="gray">shadow connection</td></tr>
   <tr><td bgcolor="LightCoral">HlsNetNodeOutLazy</td></tr>
 </table>>"""
@@ -48,7 +49,7 @@ class HwtHlsNetlistToGraphwiz():
     def _getColor(self, obj: Union[HlsNetNode, HlsNetNodeOutLazy]):
         if isinstance(obj, HlsNetNodeOutLazy):
             color = "LightCoral"
-        elif isinstance(obj, HlsNetNodeRead):
+        elif isinstance(obj, (HlsNetNodeRead, HlsNetNodeReadSync)):
             color = "LightGreen"
         elif isinstance(obj, HlsNetNodeWrite):
             color = "LightBlue"
@@ -56,7 +57,7 @@ class HwtHlsNetlistToGraphwiz():
             color = "plum"
         elif isinstance(obj, HlsNetNodeExplicitSync):
             color = "Chartreuse"
-        elif isinstance(obj, (HlsLoopGate, HlsLoopGateStatus)):
+        elif isinstance(obj, (HlsLoopGate, HlsLoopGateStatus, HlsProgramStarter)):
             color = "MediumSpringGreen"
         else:
             color = "white"
@@ -123,7 +124,7 @@ class HwtHlsNetlistToGraphwiz():
         elif isinstance(obj, HlsNetNodeWrite):
             label = f"<{obj.__class__.__name__} {obj._id:d} {getSignalName(obj.dst)}>"
         else:
-            label = obj.__class__.__name__
+            label = f"{obj.__class__.__name__} {obj._id}"
 
         buff.append(f'            <tr><td colspan="2">{html.escape(label):s}</td></tr>\n')
         for i, o in zip_longest(input_rows, output_rows, fillvalue="<td></td>"):
