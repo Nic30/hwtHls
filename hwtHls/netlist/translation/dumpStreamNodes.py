@@ -1,7 +1,7 @@
 
-from hwtHls.netlist.allocator.connectionsOfStage import ConnectionsOfStage
-from hwtHls.netlist.allocator.fsmContainer import AllocatorFsmContainer
-from hwtHls.netlist.allocator.pipelineContainer import AllocatorPipelineContainer
+from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage
+from hwtHls.architecture.fsmContainer import AllocatorFsmContainer
+from hwtHls.architecture.pipelineContainer import AllocatorPipelineContainer
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.transformation.rtlNetlistPass import RtlNetlistPass
 from hwtHls.platform.fileUtils import OutputStreamGetter
