@@ -1,5 +1,5 @@
-from itertools import chain
-from typing import Set, Generator, Tuple, Literal
+from itertools import chain, islice
+from typing import Set, Generator, Tuple, Literal, Optional
 
 from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.types.bits import Bits
@@ -88,18 +88,16 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
             if isinstance(n, HlsNetNodeOperator):
                 n: HlsNetNodeOperator
                 if isinstance(n, HlsNetNodeMux):
-                    n: HlsNetNodeMux
-                    if len(n._inputs) == 1:
-                        # mux x = x
-                        i: HlsNetNodeOut = n.dependsOn[0]
-                        self._replaceOperatorNodeWith(n, i, worklist, removed)
-
+                    if self._reduceMux(n, worklist, removed):
+                        continue
                 elif n.operator == AllOps.NOT:
-                    self._reduceNot(n, worklist, removed)
+                    if self._reduceNot(n, worklist, removed):
+                        continue
 
                 elif n.operator in (AllOps.AND, AllOps.OR, AllOps.XOR):
-                    self._reduceAndOrXor(n, worklist, removed)
-                        
+                    if self._reduceAndOrXor(n, worklist, removed):
+                        continue
+
             elif isinstance(n, HlsNetNodeExplicitSync):
                 n: HlsNetNodeExplicitSync
                 if n.skipWhen is not None:
@@ -195,6 +193,14 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
         netlist.nodes.append(c)
         return c._outputs[0]
     
+    def _reduceMux(self, n: HlsNetNodeMux, worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]):
+        if len(n._inputs) == 1:
+            # mux x = x
+            i: HlsNetNodeOut = n.dependsOn[0]
+            self._replaceOperatorNodeWith(n, i, worklist, removed)
+            return True
+        return False
+
     def _reduceNot(self, n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]):
         netlist: HlsNetlistCtx = n.netlist
         o0, = n.dependsOn
@@ -208,6 +214,8 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
         
         if newO is not None:
             self._replaceOperatorNodeWith(n, newO, worklist, removed)
+            return True
+        return False
 
     def _reduceAndOrXor(self, n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]):
         netlist: HlsNetlistCtx = n.netlist
@@ -324,3 +332,10 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
             
         if newO is not None:
             self._replaceOperatorNodeWith(n, newO, worklist, removed)
+            return True
+        return False
+
+    # def _hoistCommonOperands(self, n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]):
+    #    # [todo] it is not clear if such a optimization would be beneficial because some subexpression could be computed sooner
+    #             and by this we may genereate a new functional unit 
+        
