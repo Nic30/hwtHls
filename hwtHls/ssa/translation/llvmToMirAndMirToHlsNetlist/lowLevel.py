@@ -1,4 +1,4 @@
-from typing import Set, Tuple, Dict, List, Union, Type, Optional
+from typing import Set, Tuple, Dict, List, Union, Type, Optional, Literal
 
 from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.types.bits import Bits
@@ -16,14 +16,15 @@ from hwtHls.netlist.analysis.dataThreads import HlsNetlistAnalysisPassDataThread
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
-    HlsNetNodeWriteBackwardEdge
+    HlsNetNodeWriteBackwardEdge, HlsNetNodeReadControlBackwardEdge, \
+    HlsNetNodeWriteControlBackwardEdge
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
     link_hls_nodes, HlsNetNodeOutAny, HlsNetNodeIn
-from hwtHls.netlist.utils import hls_op_and, hls_op_not
+from hwtHls.netlist.utils import hls_op_and, hls_op_not, hls_op_or
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.opCache import MirToHwtHlsNetlistOpCache
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
@@ -79,17 +80,21 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         self.nodes: List[HlsNetNode] = netlist.nodes
         self.inputs: List[HlsNetNodeRead] = netlist.inputs
         self.outputs: List[HlsNetNodeWrite] = netlist.outputs
-        self.regToIo: Dict[Register, Interface] = {}
         self.mf = mf
         self.backedges = backedges
         self.liveness = liveness
         self.registerTypes = registerTypes
-        self.regToIo = {ioRegs[ai]: io for (ai, io) in self._argIToIo.items()}
+        self.regToIo: Dict[Register, Interface] = {ioRegs[ai]: io for (ai, io) in self._argIToIo.items()}
         self.loops = loops
         # register self in netlist analysis cache
         netlist._analysis_cache[self.__class__] = self
 
-    def _constructBackedgeBuffer(self, name: str, srcBlock: MachineBasicBlock, dstBlock: MachineBasicBlock, cacheKey, val: HlsNetNodeOutAny) -> HlsNetNodeOut:
+    def _constructBackedgeBuffer(self, name: str,
+                                 srcBlock: MachineBasicBlock,
+                                 dstBlock: MachineBasicBlock,
+                                 cacheKey,
+                                 val: HlsNetNodeOutAny,
+                                 isControl: bool=False) -> HlsNetNodeOut:
         # we need to insert backedge buffer to get block en flag from pred to mb
         srcName = f"bb{srcBlock.getNumber():d}"
         dstName = f"bb{dstBlock.getNumber():d}"
@@ -97,17 +102,21 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         _, r_from_in = self._add_hs_intf_and_read(
             f"{namePrefix:s}_out",
             val._dtype,
-            HlsNetNodeReadBackwardEdge)
+            HlsNetNodeReadControlBackwardEdge if isControl else HlsNetNodeReadBackwardEdge)
         if cacheKey is not None:
             self.valCache.add(dstBlock, cacheKey, r_from_in, False)
         
-        _, w_to_out = self._add_hs_intf_and_write(f"{namePrefix:s}_in", val._dtype,
-                                                  val, HlsNetNodeWriteBackwardEdge)
+        _, w_to_out = self._add_hs_intf_and_write(
+            f"{namePrefix:s}_in", val._dtype,
+            val,
+            HlsNetNodeWriteControlBackwardEdge if isControl else HlsNetNodeWriteBackwardEdge)
         w_to_out.associate_read(r_from_in.obj)
         w_to_out.buff_name = f"{namePrefix:s}_backedge_buff"
+
         if cacheKey is not None:
             # because we need to use latest value not the input value which we just added (r_from_in)
             return self.valCache.get(dstBlock, cacheKey, r_from_in._dtype)
+
         return r_from_in
         
     def _translateType(self, t: LlvmType):
@@ -129,12 +138,15 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         # mbSync.nodes.append(n)
         return n._outputs[0]
 
-    def _translateIntBit(self, val: int):
-        v = BIT.from_py(val)
+    def _translateIntBits(self, val: int, dtype: Bits):
+        v = dtype.from_py(val)
         n = HlsNetNodeConst(self.netlist, v)
         self.nodes.append(n)
         # mbSync.nodes.append(n)
         return n._outputs[0]
+
+    def _translateIntBit(self, val: int):
+        return self._translateIntBits(val, BIT)
 
     def _translateRegister(self, block: MachineBasicBlock, r: Register):
         io = self.regToIo.get(r, None)

@@ -33,6 +33,7 @@ from hwtHls.ssa.translation.toGraphwiz import SsaPassDumpToDot
 from hwtHls.ssa.translation.toLl import SsaPassDumpToLl
 from hwtHls.ssa.translation.toLlvm import SsaPassToLlvm, ToLlvmIrTranslator
 from hwtHls.architecture.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis
+from hwtHls.architecture.transformation.singleStagePipelineToFsm import RtlArchPassSingleStagePipelineToFsm
 
 
 class DefaultHlsPlatform(DummyPlatform):
@@ -172,7 +173,7 @@ class DefaultHlsPlatform(DummyPlatform):
         """
         allocator = netlist.allocator
         allocator._discoverArchElements()
-        
+        RtlArchPassSingleStagePipelineToFsm().apply(self, allocator)
         iea = InterArchElementNodeSharingAnalysis(netlist.normalizedClkPeriod)
         if len(allocator._archElements) > 1:
             iea._analyzeInterElementsNodeSharing(allocator._archElements)

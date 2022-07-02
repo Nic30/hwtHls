@@ -14,7 +14,8 @@ from hwtHls.architecture.connectionsOfStage import getIntfSyncSignals, \
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.analysis.fsm import IoFsm
 from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
-    HlsNetNodeWriteBackwardEdge
+    HlsNetNodeWriteBackwardEdge, HlsNetNodeReadControlBackwardEdge, \
+    HlsNetNodeWriteControlBackwardEdge
 from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeRead
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.scheduler.clk_math import start_clk
@@ -113,31 +114,33 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
                     self._initNopValsOfIoForIntf(node.src, INTF_DIRECTION.SLAVE)
 
     def _detectStateTransitions(self):
-        localControlReads: UniqList[HlsNetNodeReadBackwardEdge] = UniqList()
-        controlToStateI: Dict[Union[HlsNetNodeReadBackwardEdge, HlsNetNodeWriteBackwardEdge]] = {}
+        localControlReads: UniqList[HlsNetNodeReadControlBackwardEdge] = UniqList()
+        controlToStateI: Dict[Union[HlsNetNodeReadControlBackwardEdge, HlsNetNodeWriteControlBackwardEdge]] = {}
         for stI, nodes in enumerate(self.fsm.states):
             for node in nodes:
                 node: HlsNetNode
                 if isinstance(node, HlsNetNodeReadBackwardEdge):
                     node: HlsNetNodeReadBackwardEdge
                     if node.associated_write in self.allNodes:
-                        localControlReads.append(node)
                         node.associated_write.allocateAsBuffer = False  # allocate as a register because this is just local controll channel
-                        controlToStateI[node] = stI
+                        if isinstance(node, HlsNetNodeReadControlBackwardEdge):
+                            localControlReads.append(node)
+                            controlToStateI[node] = stI
 
-                elif isinstance(node, HlsNetNodeWriteBackwardEdge):
+                elif isinstance(node, HlsNetNodeWriteControlBackwardEdge):
                     if node.associated_read in self.allNodes:
                         controlToStateI[node] = stI
 
+        transitionTable = self.fsm.transitionTable
         for r in localControlReads:
-            r: HlsNetNodeReadBackwardEdge
+            r: HlsNetNodeReadControlBackwardEdge
             srcStI = controlToStateI[r.associated_write]
             dstStI = controlToStateI[r]
-            curTrans = self.fsm.transitionTable[srcStI].get(dstStI, None)
+            curTrans = transitionTable[srcStI].get(dstStI, None)
             cond = self.instantiateHlsNetNodeOut(r._outputs[0]).valuesInTime[0].data.next
             if curTrans is not None:
                 cond = cond | curTrans
-            self.fsm.transitionTable[srcStI][dstStI] = cond
+            transitionTable[srcStI][dstStI] = cond
         # detect the state propagation logic and resolve how to replace it wit a state bit
         # * state bit will be just stored as a register in this fsm
         # * read will just read this bit
@@ -186,7 +189,7 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
     def allocateSync(self):
         fsm = self.fsm
         self._initNopValsOfIo()
-        st = self._reg(f"{self.namePrefix}st_{fsm.intf._name}",
+        st = self._reg(f"{self.namePrefix}st_",
                        Bits(log2ceil(len(fsm.states)), signed=False),
                        def_val=0)
 
