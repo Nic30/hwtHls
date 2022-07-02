@@ -2,9 +2,7 @@ from math import inf, ceil
 
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
-from hwtHls.netlist.nodes.loopHeader import HlsLoopGate
 from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict
-from hwtHls.netlist.scheduler.clk_math import start_of_next_clk_period
 
 
 class HlsScheduler():
@@ -20,6 +18,7 @@ class HlsScheduler():
         self.netlist = netlist
         self.resolution = resolution
         self.epsilon = 1
+        self.debug = False
 
     def _checkAllNodesScheduled(self):
         """
@@ -34,16 +33,13 @@ class HlsScheduler():
         * The graph must not contain cycles.
         * DFS from outputs, decorate nodes with scheduledIn,scheduledOut time.
         """
-        try:
+        if self.debug:
+            # debug run which will raise an exception containing cycle node ids
+            debugPath = UniqList() 
+        else:
             # normal run without checking for cycles
-            for o in self.netlist.iterAllNodes():
-                o.scheduleAsap(None)
-            return
-        except RecursionError:
-            pass
-    
-        # debug run which will raise an exception containing cycle node ids
-        debugPath = UniqList()
+            debugPath = None
+
         for o in self.netlist.iterAllNodes():
             o.scheduleAsap(debugPath)
 
