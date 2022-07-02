@@ -23,9 +23,17 @@ def xor_right_allOnes: GICombineRule<
   (apply [{ return Helper.rewriteXorToNot(*${root}); }])
 >;
 
+// Fold (GENFPGA_EXTRACT (GENFPGA_MERGE_VALUES ...)) -> GENFPGA_MERGE_VALUES of just selected parts
+def extract_on_merge_values: GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode GENFPGA_EXTRACT):$root,
+    [{ return Helper.matchIsExtractOnMergeValues(*${root}); }]),
+  (apply [{ return Helper.rewriteExtractOnMergeValues(*${root}); }])
+>;
+
 // rewrite generic opcodes to GENFPGA_* where beneficial
 def GenericFpgaGenPreRegAllocGICombinerHelper: GICombinerHelper<
-  "GenericFpgaGenPreRegAllocGICombinerHelper", [copy_to_genfpga_copy]> {
+  "GenericFpgaGenPreRegAllocGICombinerHelper", [copy_to_genfpga_copy, extract_on_merge_values]> {
   let DisableRuleOption = "GenericFpgaGenPreRegAllocGICombinerHelper-disable-rule";
   let StateClass = "GenericFpgaGenPreRegAllocGICombinerHelperState";
   let AdditionalArguments = [];
@@ -36,7 +44,7 @@ def GenericFpgaGenPreRegAllocGICombinerHelper: GICombinerHelper<
 // * extract GENFPGA_NOT
 // * extract/merge bit concatenations and slices
 def GenericFpgaGenPreToNetlistGICombinerHelper: GICombinerHelper<
-  "GenericFpgaGenPreToNetlistGICombinerHelper", [xor_right_allOnes, ]> {
+  "GenericFpgaGenPreToNetlistGICombinerHelper", [xor_right_allOnes, extract_on_merge_values]> {
   let DisableRuleOption = "GenericFpgaGenPreToNetlistGICombinerHelper-disable-rule";
   let StateClass = "GenericFpgaGenPreToNetlistGICombinerHelperState";
   let AdditionalArguments = [];

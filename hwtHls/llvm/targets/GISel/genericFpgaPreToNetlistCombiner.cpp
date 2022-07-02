@@ -23,44 +23,20 @@
 
 #include <llvm/IR/Instructions.h>
 #include <llvm/Support/Debug.h>
+#include "genericFpgaCombinerHelper.h"
 
 #define DEBUG_TYPE "genericfpga-pretonetlist-combiner"
 
 using namespace llvm;
 using namespace MIPatternMatch;
 
-class GenFpgaPreToNetlistCombinerHelper: public CombinerHelper {
-public:
-	using CombinerHelper::CombinerHelper;
-	bool matchAllOnesConstantOp(const MachineOperand &MOP) {
-		if (!MOP.isReg())
-			return false;
-		auto *MI = MRI.getVRegDef(MOP.getReg());
-		auto MaybeCst = isConstantOrConstantSplatVector(*MI, MRI);
-		return MaybeCst.hasValue() && MaybeCst->isAllOnes();
-	}
-	bool matchOperandIsAllOnes(MachineInstr &MI, unsigned OpIdx) {
-		return matchAllOnesConstantOp(MI.getOperand(OpIdx))
-				&& canReplaceReg(MI.getOperand(0).getReg(),
-						MI.getOperand(OpIdx).getReg(), MRI);
-	}
-	bool rewriteXorToNot(MachineInstr &MI) {
-		Builder.setInstrAndDebugLoc(MI);
-		Builder.buildInstr(GenericFpga::GENFPGA_NOT,
-				{ MI.getOperand(0).getReg() }, { MI.getOperand(1).getReg() },
-				MI.getFlags());
-		MI.eraseFromParent();
-		return true;
-	}
-};
-
 class GenericFpgaGenPreToNetlistGICombinerHelperState {
 protected:
-	GenFpgaPreToNetlistCombinerHelper &Helper;
+	GenFpgaCombinerHelper &Helper;
 
 public:
 	GenericFpgaGenPreToNetlistGICombinerHelperState(
-			GenFpgaPreToNetlistCombinerHelper &Helper) :
+			GenFpgaCombinerHelper &Helper) :
 			Helper(Helper) {
 	}
 };
@@ -154,7 +130,7 @@ void GenericFpgaPreToNetlistCombinerInfo::convertPHI_to_GENFPGA_MUX(
 
 bool GenericFpgaPreToNetlistCombinerInfo::combine(GISelChangeObserver &Observer,
 		MachineInstr &MI, MachineIRBuilder &B) const {
-	GenFpgaPreToNetlistCombinerHelper Helper(Observer, B, KB, MDT);
+	GenFpgaCombinerHelper Helper(Observer, B, KB, MDT);
 	GenericFpgaGenPreToNetlistGICombinerHelper Generated(GeneratedRuleCfg,
 			Helper);
 

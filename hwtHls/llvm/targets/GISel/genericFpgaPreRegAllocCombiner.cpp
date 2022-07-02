@@ -21,6 +21,8 @@
 #include <llvm/IR/Instructions.h>
 #include <llvm/Support/Debug.h>
 
+#include "genericFpgaCombinerHelper.h"
+
 #define DEBUG_TYPE "genericfpga-preregalloc-combiner"
 
 using namespace llvm;
@@ -28,10 +30,10 @@ using namespace MIPatternMatch;
 
 class GenericFpgaGenPreRegAllocGICombinerHelperState {
 protected:
-	CombinerHelper &Helper;
+	GenFpgaCombinerHelper &Helper;
 
 public:
-	GenericFpgaGenPreRegAllocGICombinerHelperState(CombinerHelper &Helper) :
+	GenericFpgaGenPreRegAllocGICombinerHelperState(GenFpgaCombinerHelper &Helper) :
 			Helper(Helper) {
 	}
 };
@@ -67,7 +69,7 @@ public:
 
 bool GenericFpgaPreRegAllocCombinerInfo::combine(GISelChangeObserver &Observer,
 		MachineInstr &MI, MachineIRBuilder &B) const {
-	CombinerHelper Helper(Observer, B, KB, MDT);
+	GenFpgaCombinerHelper Helper(Observer, B, KB, MDT);
 	GenericFpgaGenPreRegAllocGICombinerHelper Generated(GeneratedRuleCfg,
 			Helper);
 
