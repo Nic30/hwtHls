@@ -1,9 +1,11 @@
 #include "llvmIrBuilder.h"
 
+#include <pybind11/stl.h>
 #include <llvm/IR/IRBuilder.h>
 #include "targets/intrinsic/bitrange.h"
 namespace py = pybind11;
 
+namespace hwtHls {
 
 void register_IRBuilder(pybind11::module_ & m) {
 	py::class_<llvm::IRBuilder<>>(m, "IRBuilder")
@@ -58,9 +60,14 @@ void register_IRBuilder(pybind11::module_ & m) {
 		.def("CreateBr", &llvm::IRBuilder<>::CreateBr, py::return_value_policy::reference)
 		.def("CreateCondBr", [](llvm::IRBuilder<> * self, llvm::Value *Cond, llvm::BasicBlock *True, llvm::BasicBlock *False,
 				llvm::Instruction *MDSrc) {
-				self->CreateCondBr(Cond, True, False, MDSrc);
+				return self->CreateCondBr(Cond, True, False, MDSrc);
 			}, py::return_value_policy::reference)
 		.def("CreateSwitch", &llvm::IRBuilder<>::CreateSwitch, py::return_value_policy::reference)
 		.def("CreateBitRangeGet", CreateBitRangeGet)
-		.def("CreateBitConcat", CreateBitConcat);
+		.def("CreateBitConcat", CreateBitConcat)
+		.def("CreateGEP",  [](llvm::IRBuilder<> * self, llvm::Type *Ty, llvm::Value *Ptr, std::vector<llvm::Value *>& IdxList) {
+			return self->CreateGEP(Ty, Ptr, IdxList, "");
+		}, py::return_value_policy::reference);
+}
+
 }

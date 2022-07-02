@@ -12,6 +12,9 @@
 #include "targets/genericFpgaMCTargetDesc.h"
 
 namespace py = pybind11;
+
+namespace hwtHls {
+
 enum TargetOpcode: unsigned {};
 
 template<typename ITEM_T>
@@ -82,7 +85,7 @@ void register_MachineFunction(pybind11::module_ &m) {
 		.def("isImm", &llvm::MachineOperand::isImm)
 		.def("isPredicate", &llvm::MachineOperand::isPredicate)
 		.def("__repr__",  &printToStr<llvm::MachineOperand>);
-
+	py::class_<llvm::MachineMemOperand, std::unique_ptr<llvm::MachineMemOperand, py::nodelete>> MachineMemOperand(m, "MachineMemOperand");
 	py::class_<llvm::MachineInstr, std::unique_ptr<llvm::MachineInstr, py::nodelete>> MachineInstr(m, "MachineInstr");
 	MachineInstr
 		.def("getNumOperands", &llvm::MachineInstr::getNumOperands)
@@ -94,8 +97,11 @@ void register_MachineFunction(pybind11::module_ &m) {
 		})
 		.def("__repr__",  &printToStr<llvm::MachineInstr>)
 		.def("operands", [](llvm::MachineInstr & I) {
-						return py::make_iterator(I.operands().begin(), I.operands().end());
-					 }, py::keep_alive<0, 1>()); /* Keep vector alive while iterator is used */
+						return py::make_iterator(I.operands_begin(), I.operands_end());
+					 }, py::keep_alive<0, 1>())
+		.def("memoperands", [](llvm::MachineInstr & I) {
+			return py::make_iterator(I.memoperands_begin(), I.memoperands_end());
+		 }, py::keep_alive<0, 1>()); /* Keep vector alive while iterator is used */
 
 	auto MCII = createGenericFpgaMCInstrInfo();
 	py::enum_<TargetOpcode> _TargetOpcode(m, "TargetOpcode");
@@ -155,4 +161,6 @@ void register_MachineFunction(pybind11::module_ &m) {
 				return py::make_iterator(ML.block_begin(), ML.block_end());
     	}, py::keep_alive<0, 1>())
 		.def("__str__",  &printToStr<llvm::MachineLoop>);
+}
+
 }

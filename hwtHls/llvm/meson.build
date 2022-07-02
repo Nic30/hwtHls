@@ -34,6 +34,7 @@ py3.extension_module(
      'llvmIrValues.cpp',
      'llvmIrStrings.cpp',
      'llvmIrMachineFunction.cpp',
+     'llvmIrMetadata.cpp',
      'llvmCompilationBundle.cpp',
      
      'llvmSrc/CodeGenPrepare.cpp',
@@ -50,6 +51,7 @@ py3.extension_module(
 	 'targets/GISel/genericFpgaPreRegAllocCombiner.cpp',
 	 'targets/GISel/genericFpgaPreToNetlistCombiner.cpp',
      'targets/GISel/genericFpgaRegisterBankInfo.cpp',
+     'targets/GISel/genericFpgaCombinerHelper.cpp',
 
 	 'targets/genericFpgaInstrInfo.cpp',
 	 'targets/genericFpgaMCTargetDesc.cpp',

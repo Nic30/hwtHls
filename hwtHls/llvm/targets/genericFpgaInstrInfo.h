@@ -80,10 +80,10 @@ public:
 		unsigned predicateI = -1;
 		switch (opc) {
 		case GenericFpga::GENFPGA_CLOAD:
-			predicateI = 2;
+		case GenericFpga::GENFPGA_CSTORE:
+			predicateI = 3;
 			break;
 		case GenericFpga::GENFPGA_CCOPY:
-		case GenericFpga::GENFPGA_CSTORE:
 			predicateI = 2;
 			break;
 		default:
@@ -104,18 +104,18 @@ public:
 		case GenericFpga::GENFPGA_CLOAD:
 		case GenericFpga::GENFPGA_CCOPY:
 		case GenericFpga::GENFPGA_CSTORE:
-			if (MI.getNumOperands() == 3) {
-				if (MI.getOperand(2).isReg()) {
+			// dst/val, addr, index, predicate
+			if (MI.getNumOperands() == 4) {
+				if (MI.getOperand(3).isReg()) {
 					llvm_unreachable("NotImplemented");
 				}
-				MI.RemoveOperand(2);
+				MI.RemoveOperand(3);
 			}
 			break;
 		default:
 			return false;
 		}
 		MI.addOperand(Pred[0]);
-		//llvm_unreachable("not implemented");
 		return true;
 	}
 

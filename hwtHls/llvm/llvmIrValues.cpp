@@ -19,6 +19,7 @@ namespace pybind11 __attribute__((visibility("hidden"))) {
 	};
 }
 
+namespace hwtHls {
 
 void register_Values_and_Use(pybind11::module_ & m) {
 	py::class_<llvm::Value, std::unique_ptr<llvm::Value, py::nodelete>>(m, "Value")
@@ -69,5 +70,6 @@ void register_Values_and_Use(pybind11::module_ & m) {
 			  return (llvm::ConstantInt *) nullptr;
 		  }
 	});
+}
 
 }

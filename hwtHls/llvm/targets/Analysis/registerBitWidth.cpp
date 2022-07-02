@@ -51,6 +51,7 @@ bool resolveTypes(MachineInstr &MI) {
 	case TargetOpcode::G_AND:
 	case TargetOpcode::G_OR:
 	case TargetOpcode::G_XOR:
+	case TargetOpcode::G_PTR_ADD:
 	case GenericFpga::GENFPGA_NOT: {
 		// all operands of same type
 		unsigned bitWidth = 0;
@@ -156,18 +157,26 @@ bool resolveTypes(MachineInstr &MI) {
 
 	case GenericFpga::GENFPGA_CSTORE:
 	case GenericFpga::GENFPGA_CLOAD: {
-		// val/dst, addr, cond
+		// val/dst, addr, index, cond
 		auto *addrDef = MRI.getVRegDef(MI.getOperand(1).getReg());
-		assert(
-				addrDef->getOpcode() == GenericFpga::GENFPGA_ARG_GET
-						&& "Address for GENFPGA_CLOAD should be provided from function argument only");
+		if (addrDef->getOpcode() != GenericFpga::GENFPGA_ARG_GET) {
+			errs() << MI << "address defined in:\n" << *addrDef;
+			llvm_unreachable("Address for GENFPGA_CLOAD should be provided from function argument only");
+		}
 		auto fnArgI = addrDef->getOperand(1).getImm();
 		auto a = MF.getFunction().getArg(fnArgI);
-		auto bitWidth =
-				a->getType()->getNonOpaquePointerElementType()->getIntegerBitWidth();
+		auto argT = a->getType()->getNonOpaquePointerElementType();
+		unsigned bitWidth;
+		if (argT->isArrayTy()) {
+			bitWidth = argT->getArrayElementType()->getIntegerBitWidth();
+		} else {
+			bitWidth = argT->getIntegerBitWidth();
+		}
+
 		if (MI.getOperand(0).isReg())
 			MRI.setType(MI.getOperand(0).getReg(), LLT::scalar(bitWidth));
-		auto &cond = MI.getOperand(1);
+
+		auto &cond = MI.getOperand(3);
 		if (cond.isReg()) {
 			Register R = cond.getReg();
 			LLT T = MRI.getType(R);

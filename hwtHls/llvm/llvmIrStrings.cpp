@@ -1,9 +1,11 @@
 #include "llvmIrStrings.h"
-
+#include <iostream>
 namespace py = pybind11;
 
-std::string StringRef__repr__(llvm::StringRef *self) {
-	return std::string("<StringRef ") + self->str() + ">";
+namespace hwtHls {
+
+std::string StringRef__repr__(llvm::StringRef self) {
+	return std::string("<StringRef ") + self.str() + ">";
 }
 
 std::string Twine__repr__(llvm::Twine *self) {
@@ -12,6 +14,13 @@ std::string Twine__repr__(llvm::Twine *self) {
 
 LLVMStringContext::LLVMStringContext() {
 }
+//void LLVMStringContext::printAllStrings() const {
+//	size_t i = 0;
+//	for (const auto &s : _all_strings) {
+//		std::cout << std::dec << i << ": 0x" << std::hex <<(intptr_t) s.data() << "  " << s << "\n";
+//		++i;
+//	}
+//}
 llvm::StringRef LLVMStringContext::addStringRef(const std::string &str) {
 	// copy string to cache to make it persistent in C/C++
 	_all_strings.push_back(str);
@@ -29,8 +38,11 @@ void register_strings(pybind11::module_ & m) {
 	py::class_<llvm::Twine>(m, "Twine")
 		.def("__repr__", &Twine__repr__)
 		.def("str", & llvm::Twine::str);
-	py::class_<LLVMStringContext>(m, "LLVMStringContext")
+	py::class_<LLVMStringContext, std::unique_ptr<LLVMStringContext>>(m, "LLVMStringContext")
 		.def(py::init<>())
+		//.def("printAllStrings", &LLVMStringContext::printAllStrings)
 		.def("addStringRef", &LLVMStringContext::addStringRef, py::return_value_policy::reference)
 		.def("addTwine", &LLVMStringContext::addTwine, py::return_value_policy::reference);
+}
+
 }

@@ -14,7 +14,7 @@ GenericFpgaLegalizerInfo::GenericFpgaLegalizerInfo(
 	// add natively supported ops as legal
 	for (auto op : { G_IMPLICIT_DEF, G_CONSTANT, G_SELECT, G_BRCOND, G_ICMP, G_ADD, G_SUB,
 			G_MUL, G_LOAD, G_STORE, G_PHI, G_AND, G_OR, G_XOR, G_EXTRACT,
-			G_MERGE_VALUES, G_ZEXT, G_SEXT }) {
+			G_MERGE_VALUES, G_ZEXT, G_SEXT, G_PTR_ADD, G_SHL }) {
 		getActionDefinitionsBuilder(op) //
 		.alwaysLegal();
 	}

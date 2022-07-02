@@ -29,7 +29,7 @@ def GENFPGA_EXTRACT : GenFpgaInst<
 
 def GENFPGA_MERGE_VALUES : GenFpgaInst<
     (outs AnyRegCls:$dst),
-	(ins variable_ops), // specified in format AnyRegCls:$src{N}, i64imm:$width{N}
+	(ins variable_ops), // specified in format AnyRegCls:$src{N}, i64imm:$width{N}, The input operands are always ordered from lowest bits to highest, (same as G_MERGE_VALUES)
 	[]>;
 }
 
@@ -65,7 +65,7 @@ let mayLoad = 1, canFoldAsLoad=1, hasSideEffects = 0, isPredicable = 1, isNotDup
 // conditional load
 def GENFPGA_CLOAD : GenFpgaInst<
     (outs AnyRegCls:$dst),
-	(ins AnyRegCls:$addr, AnyRegCls:$cond),
+	(ins AnyRegCls:$addr, AnyRegCls: $index, AnyRegCls:$cond),
 	[]>; // no pattern because we match in C++
 }
 
@@ -73,7 +73,7 @@ let mayLoad = 0, mayStore = 1, hasSideEffects = 0, isPredicable = 1, isNotDuplic
 // conditional load
 def GENFPGA_CSTORE : GenFpgaInst<
     (outs),
-	(ins AnyRegCls:$val, AnyRegCls:$addr, AnyRegCls:$cond),
+	(ins AnyRegCls:$val, AnyRegCls:$addr, AnyRegCls: $index, AnyRegCls:$cond),
 	[]>; // no pattern because we match in C++
 }
 

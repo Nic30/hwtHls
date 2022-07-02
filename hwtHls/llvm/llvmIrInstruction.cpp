@@ -5,8 +5,12 @@
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/IntrinsicInst.h>
 
+#include "llvmIrMetadata.h"
+
+
 namespace py = pybind11;
 
+namespace hwtHls {
 
 void register_Instruction(pybind11::module_ & m) {
 	py::class_<llvm::Instruction, std::unique_ptr<llvm::Instruction, py::nodelete>, llvm::User> Instruction(m, "Instruction");
@@ -16,10 +20,10 @@ void register_Instruction(pybind11::module_ & m) {
 				return self->getOpcodeName();
 			}, py::return_value_policy::reference)
 		.def("getMetadata", [](llvm::Instruction * I, llvm::StringRef Kind) {
-				return I->getMetadata(Kind);
+				return reinterpret_cast<MDNodeWithDeletedDelete*>(I->getMetadata(Kind));
 		})
-		.def("setMetadata", [](llvm::Instruction * I, llvm::StringRef Kind, llvm::MDNode *Node) {
-			return I->setMetadata(Kind, Node);
+		.def("setMetadata", [](llvm::Instruction * I, llvm::StringRef Kind, MDNodeWithDeletedDelete *Node) {
+			I->setMetadata(Kind, Node);
 		});
 	m.def("ValueToInstruction", [](llvm::Value* V) {
 		  if (llvm::Instruction *Inst = llvm::dyn_cast<llvm::Instruction>(V)) {
@@ -183,6 +187,7 @@ void register_Instruction(pybind11::module_ & m) {
 	py::class_<llvm::LoadInst, std::unique_ptr<llvm::LoadInst, py::nodelete>, llvm::UnaryInstruction>(m, "LoadInst")
 		.def("isVolatile", &llvm::LoadInst::isVolatile);
 	py::class_<llvm::StoreInst, std::unique_ptr<llvm::StoreInst, py::nodelete>, llvm::Instruction>(m, "StoreInst");
+	py::implicitly_convertible<llvm::StoreInst, llvm::Instruction>();
 	py::class_<llvm::ReturnInst, std::unique_ptr<llvm::ReturnInst, py::nodelete>, llvm::Instruction>(m, "ReturnInst");
 	py::class_<llvm::BranchInst, std::unique_ptr<llvm::BranchInst, py::nodelete>, llvm::Instruction>(m, "BranchInst");
 	//llvm::Instruction::get
@@ -202,4 +207,13 @@ void register_Instruction(pybind11::module_ & m) {
 		  return (llvm::PHINode *) nullptr;
 		}
 	});
+	py::class_<llvm::GetElementPtrInst,  std::unique_ptr<llvm::GetElementPtrInst, py::nodelete>, llvm::Instruction>(m, "GetElementPtrInst");
+	m.def("InstructionToGetElementPtrInst", [](llvm::Instruction * I) {
+		if (llvm::GetElementPtrInst *Inst = llvm::dyn_cast<llvm::GetElementPtrInst>(I)) {
+		  return Inst;
+		} else {
+		  return (llvm::GetElementPtrInst *) nullptr;
+		}
+	});
+}
 }
