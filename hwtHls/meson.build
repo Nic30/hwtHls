@@ -17,3 +17,4 @@ foreach submodule_path: hwtHls_modules
 endforeach
 
 subdir('llvm')
+subdir('netlist/abc')

@@ -4,6 +4,7 @@
 import sys
 from unittest import TestLoader, TextTestRunner, TestSuite
 
+from tests.bitOpt.abc_test import AbcTC
 from tests.bitOpt.bitWidthReductionCmp_test import BitWidthReductionCmp_example_TC
 from tests.bitOpt.disjunctionTriangle import DisjunctionTriangle_TC
 from tests.frontend.ast.bitonicSort import BitonicSorterHLS_TCs
@@ -16,8 +17,12 @@ from tests.frontend.ast.twoTimesA import TwoTimesA_TC
 from tests.frontend.ast.whileIf_test import HlsAstWhileIf_TC
 from tests.frontend.ast.whileTrue_test import HlsAstWhileTrue_TC
 from tests.frontend.pyBytecode.basics_test import FromPythonBasics_TC
+from tests.frontend.pyBytecode.errors_test import PyBytecodeErrors_TC
 from tests.frontend.pyBytecode.fnClosue_test import FnClosure_TC
+from tests.frontend.pyBytecode.pragmaInline_test import PyBytecodeInline_TC
+from tests.frontend.pyBytecode.preprocLoopMultiExit_test import PreprocLoopMultiExit_TCs
 from tests.frontend.pyBytecode.pyArrHwIndex_test import PyArrHwIndex_TC
+from tests.frontend.pyBytecode.pyArrShift_test import PyArrShift_TC
 from tests.frontend.pyBytecode.stmFor_test import StmFor_TC
 from tests.frontend.pyBytecode.stmIf_test import StmIf_TC
 from tests.frontend.pyBytecode.variableChain_test import VariableChain_TC
@@ -30,8 +35,6 @@ from tests.syntehesis_checks import HlsSynthesisChecksTC
 from tests.utils.alapAsapDiffExample import AlapAsapDiffExample_TC
 from tests.utils.concatOfSlices_test import ConcatOfSlicesTC
 from tests.utils.phiConstructions_test import PhiConstruction_TC
-from tests.frontend.pyBytecode.errors_test import PyBytecodeErrors_TC
-from tests.frontend.pyBytecode.pragmaInline_test import PyBytecodeInline_TC
 
 
 def testSuiteFromTCs(*tcs):
@@ -47,6 +50,7 @@ suite = testSuiteFromTCs(
     ConcatOfSlicesTC,
     HlsSlicingTC,
     BitWidthReductionCmp_example_TC,
+    AbcTC,
     HlsAstReadIfTc,
     HlsMAC_example_TC,
     *BitonicSorterHLS_TCs,
@@ -63,6 +67,8 @@ suite = testSuiteFromTCs(
     FromPythonBasics_TC,
     PyBytecodeErrors_TC,
     PyBytecodeInline_TC,
+    PyArrShift_TC,
+    *PreprocLoopMultiExit_TCs,
     FnClosure_TC,
     StmIf_TC,
     StmFor_TC,
@@ -85,7 +91,7 @@ def main():
     except ImportError:
         # concurrencytest is not installed, use regular test runner
         useParallerlTest = False
-    # useParallerlTest = False
+    useParallerlTest = False
 
     if useParallerlTest:
         concurrent_suite = ConcurrentTestSuite(suite, fork_for_tests())
