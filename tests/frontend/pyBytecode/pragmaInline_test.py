@@ -7,11 +7,10 @@ from hwtSimApi.utils import freq_to_period
 from tests.frontend.pyBytecode.pragmaInline import PragmaInline_singleBlock, \
     PragmaInline_NestedLoop, PragmaInline_return1_0, PragmaInline_return1_1, \
     PragmaInline_return1_1hw, PragmaInline_writeCntr0, PragmaInline_writeCntr1, \
-    PragmaInline_writeCntr2
+    PragmaInline_writeCntr2, PragmaInline_writeCntr3
 
 
 class PyBytecodeInline_TC(SimTestCase):
-    __FILE__ = __file__
 
     def _test_writes1(self, unitCls):
         u = unitCls()
@@ -52,6 +51,9 @@ class PyBytecodeInline_TC(SimTestCase):
 
     def test_PragmaInline_writeCntr2(self):
         self._test_writesCntr(PragmaInline_writeCntr2)
+
+    def test_PragmaInline_writeCntr3(self):
+        self._test_writesCntr(PragmaInline_writeCntr3)
 
 
 if __name__ == "__main__":

@@ -27,7 +27,7 @@ class PragmaInline_singleBlock(Unit):
     def _impl(self):
         hls = HlsScope(self, freq=int(100e6))
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls)
-        mainThread.bytecodeToSsa.debug = True
+        # mainThread.bytecodeToSsa.debug = True
         hls.addThread(mainThread)
         hls.compile()
 
@@ -116,11 +116,7 @@ class PragmaInline_writeCntr1(PragmaInline_return1_0):
             fn(cntr)
 
 
-class PragmaInline_writeCntr2(PragmaInline_return1_0):
-
-    def _declr(self):
-        PragmaInline_return1_0._declr(self)
-        addClkRstn(self)
+class PragmaInline_writeCntr2(PragmaInline_writeCntr1):
 
     def mainThread(self, hls: HlsScope):
         cntr = uint8_t.from_py(0)
@@ -133,6 +129,20 @@ class PragmaInline_writeCntr2(PragmaInline_return1_0):
 
         while BIT.from_py(1):
             fn()
+
+
+class PragmaInline_writeCntr3(PragmaInline_writeCntr1):
+    
+    def writeAndIncrement(self, hls, cntr):
+        hls.write(cntr, self.o)
+        cntr += 1
+        return cntr
+
+    def mainThread(self, hls: HlsScope):
+        cntr = uint8_t.from_py(0)
+
+        while BIT.from_py(1):
+            cntr = PyBytecodeInline(self.writeAndIncrement)(hls, cntr)
 
 
 if __name__ == "__main__":
