@@ -46,44 +46,38 @@ class BaseTestPlatform(VirtualHlsPlatform):
         SsaPassDumpToLl(lambda name: (self.postPyOpt, False)).apply(hls, toSsa)
         SsaPassToLlvm().apply(hls, toSsa)
 
-    def runSsaToNetlist(self, hls:"HlsScope", toSsa:HlsAstToSsa) -> HlsNetlistCtx:
+    def runNetlistTranslation(self,
+                              hls: "HlsScope", toSsa: HlsAstToSsa,
+                              mf: MachineFunction,
+                              backedges: Set[Tuple[MachineBasicBlock, MachineBasicBlock]],
+                              liveness: Dict[MachineBasicBlock, Dict[MachineBasicBlock, Set[Register]]],
+                              ioRegs: List[Register],
+                              registerTypes: Dict[Register, int],
+                              loops: MachineLoopInfo):
         tr: ToLlvmIrTranslator = toSsa.start
         assert isinstance(tr, ToLlvmIrTranslator), tr
-        netlist = None
-
-        def runNetlistTranslation(mf: MachineFunction,
-                     backedges: Set[Tuple[MachineBasicBlock, MachineBasicBlock]],
-                     liveness: Dict[MachineBasicBlock, Dict[MachineBasicBlock, Set[Register]]],
-                     ioRegs: List[Register],
-                     registerTypes: Dict[Register, int],
-                     loops: MachineLoopInfo):
-            nonlocal netlist
-            toNetlist = HlsNetlistAnalysisPassMirToNetlist(
-                hls, tr, mf, backedges, liveness, ioRegs, registerTypes, loops)
-            netlist = toNetlist.netlist
+        toNetlist = HlsNetlistAnalysisPassMirToNetlist(
+            hls, tr, mf, backedges, liveness, ioRegs, registerTypes, loops)
+        netlist = toNetlist.netlist
     
-            SsaPassDumpMIR(lambda name: (self.mir, False)).apply(hls, toSsa)
-            
-            toNetlist._translateDatapathInBlocks(mf)
-            blockLiveInMuxInputSync: BlockLiveInMuxSyncDict = toNetlist._constructLiveInMuxes(mf, backedges, liveness)
-            # thread analysis must be done before we connect control, because once we do that
-            # everything will blend together 
-            threads = toNetlist.netlist.requestAnalysis(HlsNetlistAnalysisPassDataThreads)
-            toNetlist._updateThreadsOnPhiMuxes(threads)
-            HlsNetlistPassDumpDataThreads(lambda name: (self.dataThreads, False)).apply(hls, netlist)
-
-            toNetlist.netlist.requestAnalysis(HlsNetlistAnalysisPassBlockSyncType)
-            HlsNetlistPassDumpBlockSync(lambda name: (self.blockSync, False)).apply(hls, netlist)
-
-            toNetlist._extractRstValues(mf, threads)
-            toNetlist._resolveLoopHeaders(mf, blockLiveInMuxInputSync)
-            toNetlist._resolveBlockEn(mf, backedges, threads)
-            toNetlist.netlist.invalidateAnalysis(HlsNetlistAnalysisPassDataThreads)  # because we modified the netlist
-            toNetlist._connectOrderingPorts(mf, backedges)
-
-        tr.llvm.runOpt(runNetlistTranslation)
-        assert netlist is not None
+        SsaPassDumpMIR(lambda name: (self.mir, False)).apply(hls, toSsa)
         
+        toNetlist._translateDatapathInBlocks(mf, toSsa.ioNodeConstructors)
+        blockLiveInMuxInputSync: BlockLiveInMuxSyncDict = toNetlist._constructLiveInMuxes(mf, backedges, liveness)
+        # thread analysis must be done before we connect control, because once we do that
+        # everything will blend together 
+        threads = toNetlist.netlist.requestAnalysis(HlsNetlistAnalysisPassDataThreads)
+        toNetlist._updateThreadsOnPhiMuxes(threads)
+        HlsNetlistPassDumpDataThreads(lambda name: (self.dataThreads, False)).apply(hls, netlist)
+
+        toNetlist.netlist.requestAnalysis(HlsNetlistAnalysisPassBlockSyncType)
+        HlsNetlistPassDumpBlockSync(lambda name: (self.blockSync, False)).apply(hls, netlist)
+
+        toNetlist._extractRstValues(mf, threads)
+        toNetlist._resolveLoopHeaders(mf, blockLiveInMuxInputSync)
+        toNetlist._resolveBlockEn(mf, backedges, threads)
+        toNetlist.netlist.invalidateAnalysis(HlsNetlistAnalysisPassDataThreads)  # because we modified the netlist
+        toNetlist._connectOrderingPorts(mf, backedges)
         return netlist
 
     def runHlsNetlistPasses(self, hls:"HlsScope", netlist:HlsNetlistCtx):
