@@ -132,14 +132,28 @@ def extract_control_sig_of_interface(
         intf: Union[HandshakeSync, RdSynced, VldSynced, RtlSignalBase, Signal,
                     Tuple[Union[int, RtlSignalBase, Signal],
                           Union[int, RtlSignalBase, Signal]]]
-        ) -> Tuple[Union[int, RtlSignalBase, Signal],
-                   Union[int, RtlSignalBase, Signal]]:
+        ) -> Union[
+            Handshaked, HandshakeSync, Axi_hs,
+            Tuple[Union[int, RtlSignalBase, Signal],
+                   Union[int, RtlSignalBase, Signal]]]:
+    if isinstance(intf, (Handshaked, HandshakeSync, Axi_hs)):
+        return intf
+    else:
+        return extractControlSigOfInterfaceTuple(intf)
+
+    
+def extractControlSigOfInterfaceTuple(
+        intf: Union[HandshakeSync, RdSynced, VldSynced, RtlSignalBase, Signal,
+                    Tuple[Union[int, RtlSignalBase, Signal],
+                          Union[int, RtlSignalBase, Signal]]]) -> Tuple[Union[int, RtlSignalBase, Signal],
+                                                                        Union[int, RtlSignalBase, Signal]]:
     if isinstance(intf, tuple):
         assert len(intf) == 2
         return intf
-    elif isinstance(intf, (Handshaked, HandshakeSync, Axi_hs)):
-        return intf
-        # return (intf.vld, intf.rd)
+    elif isinstance(intf, Axi_hs):
+        return (intf.valid, intf.ready)
+    elif isinstance(intf, (Handshaked, HandshakeSync)):
+        return (intf.vld, intf.rd)
     elif isinstance(intf, VldSynced):
         return (intf.vld, 1)
     elif isinstance(intf, BramPort_withoutClk):
