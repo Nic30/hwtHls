@@ -70,9 +70,9 @@ class HwtHlsNetlistToGraphwiz():
             pass
 
         g = self.graph
-        color = self._getColor(obj)
         # node needs to be constructed before connecting because graph may contain loops
-        node = pydot.Node(f"n{len(g.obj_dict['nodes'])}", fillcolor=color, style='filled', shape="plaintext")
+        # fillcolor=color, style='filled', 
+        node = pydot.Node(f"n{len(g.obj_dict['nodes'])}", shape="plaintext")
         g.add_node(node)
 
         self.obj_to_node[obj] = node
@@ -113,8 +113,10 @@ class HwtHlsNetlistToGraphwiz():
             output_rows.append("<td port='o0'>o0</td>")
 
         buff = []
-        buff.append('''<
-        <table border="0" cellborder="1" cellspacing="0">\n''')
+        
+        color = self._getColor(obj)
+        buff.append(f'''<
+        <table bgcolor="{color:s}" border="0" cellborder="1" cellspacing="0">\n''')
         if isinstance(obj, HlsNetNodeConst):
             label = f"{obj.val} {obj._id}"
         elif isinstance(obj, HlsNetNodeOperator):
