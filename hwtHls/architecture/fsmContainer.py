@@ -1,6 +1,6 @@
 from typing import List, Set, Tuple, Optional, Union, Dict
 
-from hwt.code import SwitchLogic, Switch
+from hwt.code import SwitchLogic, Switch, If
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.bits import Bits
 from hwt.interfaces.std import HandshakeSync
@@ -20,6 +20,7 @@ from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeRead
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.scheduler.clk_math import start_clk
 from ipCorePackager.constants import INTF_DIRECTION
+from hwt.code_utils import rename_signal
 
 
 class AllocatorFsmContainer(AllocatorArchitecturalElement):
@@ -189,10 +190,13 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
     def allocateSync(self):
         fsm = self.fsm
         self._initNopValsOfIo()
-        st = self._reg(f"{self.namePrefix}st_",
-                       Bits(log2ceil(len(fsm.states)), signed=False),
-                       def_val=0)
-
+        if len(fsm.states) > 1:
+            st = self._reg(f"{self.namePrefix}st_",
+                           Bits(log2ceil(len(fsm.states)), signed=False),
+                           def_val=0)
+        else:
+            # because there is just a single state, the state value has no meaning
+            st = None
         # instantiate control of the FSM
 
         # used to prevent duplication of registes which are just latching the value
@@ -212,21 +216,37 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
             unconditionalTransSeen = False
             inStateTrans: List[Tuple[RtlSignal, List[HdlStatement]]] = []
             sync = self._makeSyncNode(con)
-            ack = sync.ack()
+            stateAck = sync.ack()
+            if isinstance(stateAck, (bool, int)):
+                assert bool(stateAck) == 1
+            else:
+                stateAck = rename_signal(self.netlist.parentUnit, stateAck, f"{self.namePrefix}st_{stI:d}_ack")
+
             for dstSt, c in sorted(fsm.transitionTable[stI].items(), key=lambda x: x[0]):
-                assert not unconditionalTransSeen, "If there is an unconditional transition it must be last"
-                if isinstance(ack, (bool, int)):
-                    c = c & ack
+                assert not unconditionalTransSeen, "If there is an unconditional transition from this state it must be the last one"
+                if isinstance(stateAck, (bool, int)):
+                    c = c & stateAck
                 else:
-                    c = ack & c
+                    c = stateAck & c
                 if c == 1:
                     unconditionalTransSeen = True
+
+                if st is not None:
                     inStateTrans.append((c, st(dstSt)))
-                else:
-                    inStateTrans.append((c, st(dstSt)))
+            
+            stDependentDrives = con.stDependentDrives
+
+            if isinstance(stateAck, (bool, int)):
+                assert bool(stateAck) == 1
+            else:
+                stDependentDrives = If(stateAck, stDependentDrives)
 
             stateTrans.append((stI, [SwitchLogic(inStateTrans),
-                                     con.stDependentDrives,
+                                     stDependentDrives,
                                      sync.sync()]))
 
-        return Switch(st).add_cases(stateTrans)
+        if st is None:
+            assert len(stateTrans) == 1
+            return stateTrans[0][1]
+        else:
+            return Switch(st).add_cases(stateTrans)
