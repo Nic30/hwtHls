@@ -13,6 +13,9 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 
 
 class IoFsm():
+    """
+    :ivar stateClkI: maps the state index to an index of clk tick where the state was originally scheduled
+    """
 
     def __init__(self, intf: Interface):
         self.intf = intf
@@ -41,7 +44,10 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
         HlsNetlistAnalysisPass.__init__(self, netlist)
         self.fsms: List[IoFsm] = []
 
-    def _floodNetInSameCycle(self, clk_i: int, o: HlsNetNode, seen:Set[HlsNetNode], alreadyUsed: Set[HlsNetNode], predicate: Callable[[HlsNetNode], bool]):
+    def _floodNetInSameCycle(self, clk_i: int, o: HlsNetNode,
+                             seen:Set[HlsNetNode],
+                             alreadyUsed: Set[HlsNetNode],
+                             predicate: Callable[[HlsNetNode], bool]):
         seen.add(o)
         alreadyUsed.add(o)
 
@@ -135,13 +141,13 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
                                 for use in i.obj.usedBy[i.out_i]:
                                     if use.obj in n._subNodes.nodes:
                                         assert (use.obj.scheduledIn[use.in_i] // clkPeriod) == clkI, (n, use)
-
+ 
                         else:
                             for t in n.scheduledIn:
                                 assert start_clk(t, clkPeriod) == clkI, n
                             for t in n.scheduledOut:
                                 assert int(t // clkPeriod) == clkI, n
-
+ 
                         st.append(n)
 
                 stCnt = len(fsm.states)
