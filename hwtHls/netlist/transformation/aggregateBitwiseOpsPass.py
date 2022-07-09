@@ -13,6 +13,8 @@ from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 class HlsNetlistPassAggregateBitwiseOps(HlsNetlistPass):
     """
     Extract cluster of bitwise operators as a single node to simplify scheduling.
+    
+    :attention: If the netlist contains unused nodes it may cause problems during scheduling.
     """
 
     def _isBitwiseOperator(self, n: HlsNetNode):
