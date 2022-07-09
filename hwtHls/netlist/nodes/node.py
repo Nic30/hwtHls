@@ -166,7 +166,7 @@ class HlsNetNode():
         ffdelay = self.netlist.platform.get_ff_store_time(self.netlist.realTimeClkPeriod, self.netlist.scheduler.resolution)
         
         clkPeriod = self.netlist.normalizedClkPeriod
-        epsilon = self.netlist.scheduler.epsilon
+        # epsilon = self.netlist.scheduler.epsilon
 
         # resolve a minimal time where the output can be scheduler and translate it to nodeZeroTime
         nodeZeroTime = inf
@@ -191,7 +191,7 @@ class HlsNetNode():
                     oZeroT = min(oZeroT, zeroTFromInput)
             else:
                 # the port is unused we must first check other outputs
-                oTSuggestedByAsap = start_of_next_clk_period(asapOutT, clkPeriod) - ffdelay - epsilon
+                oTSuggestedByAsap = start_of_next_clk_period(asapOutT, clkPeriod) - ffdelay
                 oZeroT = oTSuggestedByAsap
 
             nodeZeroTime = min(nodeZeroTime, oZeroT)
@@ -207,13 +207,13 @@ class HlsNetNode():
                         self.inputWireDelay, self)
                 inTime = nodeZeroTime - in_delay
                 nodeZeroTime = self._schedulerJumpToPrevCycleIfRequired(
-                    nodeZeroTime, inTime, clkPeriod, ffdelay + epsilon + maxOutputLatency)
+                    nodeZeroTime, inTime, clkPeriod, ffdelay + maxOutputLatency)
                 # must shift whole node sooner in time because the input of input can not be satisfied
                 # in a clock cycle where the input is currently scheduled
         else:
             # no outputs, we must use some asap input time and move to end of the clock
             assert self._inputs, (self, "Node must have at least some port")
-            nodeZeroTime = start_of_next_clk_period(asapIn[0], clkPeriod) - ffdelay - epsilon - maxOutputLatency
+            nodeZeroTime = start_of_next_clk_period(asapIn[0], clkPeriod) - (ffdelay + maxOutputLatency)
         
         self.scheduledIn = tuple(
             nodeZeroTime - in_delay
