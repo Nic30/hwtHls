@@ -4,7 +4,6 @@
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtLib.amba.axis import axis_send_bytes
-from hwtSimApi.constants import CLK_PERIOD
 from hwtSimApi.utils import freq_to_period
 from tests.io.axiStream.axisPacketCntr import AxiSPacketCntr, AxiSPacketByteCntr0, AxiSPacketByteCntr1, \
     AxiSPacketByteCntr2, AxiSPacketByteCntr3
@@ -12,22 +11,23 @@ from tests.io.axiStream.axisPacketCntr import AxiSPacketCntr, AxiSPacketByteCntr
 
 class AxiSPacketCntrTC(SimTestCase):
 
-    def _test_pkt_cnt(self, DATA_WIDTH:int, cls=AxiSPacketCntr, LENS=[1, 2, 3]):
+    def _test_pkt_cnt(self, DATA_WIDTH:int, cls=AxiSPacketCntr, LENS=[1, 2, 3], f=int(1e6)):
         u = cls()
+        u.CLK_FREQ = f
         u.DATA_WIDTH = DATA_WIDTH
         self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
         
         for LEN in LENS:
             axis_send_bytes(u.i, list(range(LEN)))
 
-        t = CLK_PERIOD * (len(u.i._ag.data) + 10) 
+        t = int(freq_to_period(u.clk.FREQ)) * (len(u.i._ag.data) + 10) 
         self.runSim(t)
         self.assertValEqual(u.pkt_cnt._ag.data[-1], len(LENS))
     
-    def _test_byte_cnt(self, DATA_WIDTH:int, cls=AxiSPacketByteCntr0, LENS=[1, 2, 3], T_MUL=1):
+    def _test_byte_cnt(self, DATA_WIDTH:int, cls=AxiSPacketByteCntr0, LENS=[1, 2, 3], T_MUL=1, CLK_FREQ=int(1e6)):
         u = cls()
         u.DATA_WIDTH = DATA_WIDTH
-        u.CLK_FREQ = int(1e6)
+        u.CLK_FREQ = CLK_FREQ
         self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
         
         for LEN in LENS:
