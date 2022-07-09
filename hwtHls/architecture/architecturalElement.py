@@ -185,7 +185,8 @@ class AllocatorArchitecturalElement():
         self._copyChannelSyncAll(node, res_skipWhen, res_extraCond, intf, sync_time)
 
     def _collectChannelRtlSync(self,
-                          sync_per_io: Dict[Interface, Union[SkipWhenMemberList, ExtraCondMemberList]]):
+                          sync_per_io: Dict[Interface, Union[SkipWhenMemberList, ExtraCondMemberList]],
+                          defaultVal: int):
         sync: Dict[Interface, RtlSignal] = {}
         for intf, sync_source in sync_per_io.items():
             intf = extract_control_sig_of_interface(intf)
@@ -197,73 +198,72 @@ class AllocatorArchitecturalElement():
             en = sync_source.resolve()
             if isinstance(en, BitsVal):
                 # current block en=1
-                assert int(en) == 1, en
+                assert int(en) == defaultVal, en
             else:
                 assert isinstance(en, RtlSignal), en
                 sync[intf] = en
 
         return sync
 
-    def _makeSyncNode(self, con: ConnectionsOfStage):
-
+    def _makeSyncNode(self, con: ConnectionsOfStage) -> StreamNode:
         masters = [extract_control_sig_of_interface(intf) for intf in con.inputs]
         slaves = [extract_control_sig_of_interface(intf) for intf in con.outputs]
         if not masters and not slaves:
             extraConds = None
             skipWhen = None
         else:
-            extraConds = self._collectChannelRtlSync(con.io_extraCond)
+            extraConds = self._collectChannelRtlSync(con.io_extraCond, 1)
             # skipWhen conditions may only be valid if all data in this stage are valid
             # this may not be the case because the data may come directly from interface itself.
             # Because of this we need to add additional condition to skipWhen expression which makes it 0
             # if there is some unsatisfied IO dependency in this stage. 
-            _skipWhen = self._collectChannelRtlSync(con.io_skipWhen)
+            _skipWhen = self._collectChannelRtlSync(con.io_skipWhen, 0)
             skipWhen = {}
             for intf in chain(masters, slaves):
                 intfSkipWhen = _skipWhen.get(intf, None)
-                print(intf)
-                print("extraCond", extraConds.get(intf, None))
-                print("skipWhen", intfSkipWhen)
-                print("")
+                #print(intf)
+                #print("extraCond", extraConds.get(intf, None))
+                #print("skipWhen", intfSkipWhen)
+                #print("")
                 
                 if intfSkipWhen is None:
                     # this interface does not have skip when condition
                     continue
                 # we have to extend intfSkipWhen condition
-                for otherIntfDir, otherIntf in chain(zip((INTF_DIRECTION.MASTER for _ in masters), masters),
-                                                     zip((INTF_DIRECTION.SLAVE for _ in slaves), slaves),
-                                       ):
-                    if otherIntf is intf:
-                        continue
-                    # otherSkipWhen = _skipWhen.get(otherIntf, None)
-                    # isM = otherIntfDir == INTF_DIRECTION.MASTER
-                    # if isinstance(otherIntf, Axi_hs):
-                    #    if isM:
-                    #        ack = otherIntf.valid
-                    #    else:
-                    #        ack = otherIntf.ready
-                    #
-                    # elif isinstance(otherIntf, (Handshaked, HandshakeSync)):
-                    #    if isM:
-                    #        ack = otherIntf.vld
-                    #    else:
-                    #        ack = otherIntf.rd
-                    # else:
-                    #    assert isinstance(otherIntf, tuple), otherIntf
-                    #    if isM:
-                    #        ack = otherIntf[0]
-                    #    else:
-                    #        ack = otherIntf[1]
-                    #
-                    # if isinstance(ack, int):
-                    #    # always valid no otherSkipWhen or otherSkipWhen with no effect -> no extra sync required
-                    #    assert ack == 1, ack
-                    # else:
-                    #    if otherSkipWhen is None:
-                    #        intfSkipWhen = intfSkipWhen & ack
-                    #    else:
-                    #        intfSkipWhen = intfSkipWhen | (otherSkipWhen & ~ack)
-                            
+                #for otherIntfDir, otherIntf in chain(zip((INTF_DIRECTION.MASTER for _ in masters), masters),
+                #                                     zip((INTF_DIRECTION.SLAVE for _ in slaves), slaves),
+                #                       ):
+                #    if otherIntf is intf:
+                #        continue
+                #    otherSkipWhen = _skipWhen.get(otherIntf, None)
+                #    isM = otherIntfDir == INTF_DIRECTION.MASTER
+                #    if isinstance(otherIntf, Axi_hs):
+                #        if isM:
+                #            ack = otherIntf.valid
+                #        else:
+                #            ack = otherIntf.ready
+                #    
+                #    elif isinstance(otherIntf, (Handshaked, HandshakeSync)):
+                #        if isM:
+                #            ack = otherIntf.vld
+                #        else:
+                #            ack = otherIntf.rd
+                #    else:
+                #        assert isinstance(otherIntf, tuple), otherIntf
+                #        if isM:
+                #            ack = otherIntf[0]
+                #        else:
+                #            ack = otherIntf[1]
+                #    
+                #    if isinstance(ack, int):
+                #        # always valid no otherSkipWhen or otherSkipWhen with no effect -> no extra sync required
+                #        assert ack == 1, ack
+                #    else:
+                #        if otherSkipWhen is None:
+                #            intfSkipWhen = intfSkipWhen & ack
+                #        else:
+                #            intfSkipWhen = intfSkipWhen | (otherSkipWhen & ~ack)
+                             
                 skipWhen[intf] = intfSkipWhen        
                 
         sync = StreamNode(
@@ -272,7 +272,6 @@ class AllocatorArchitecturalElement():
             extraConds=extraConds,
             skipWhen=skipWhen,
         )
-        print("---------------------------------------------------")
         con.sync_node = sync
         return sync
 
