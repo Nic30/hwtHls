@@ -8,7 +8,7 @@ from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.scope import HlsScope
 from hwtLib.logic.crcComb import CrcComb
-from hwtLib.logic.crcPoly import CRC_32, CRC_5_USB
+from hwtLib.logic.crcPoly import CRC_32
 from pyMathBitPrecise.bit_utils import get_bit, bit_list_reversed_bits_in_bytes, \
     bit_list_reversed_endianity
 
@@ -69,12 +69,12 @@ class CrcCombHls(CrcComb):
         hls.compile()
 
 
-
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
+    from hwtLib.logic.crcPoly import CRC_5_USB
     # import sys
-    # sys.setrecursionlimit(10**5)
+    # sys.setrecursionlimit(10 ** 5)
 
     u = CrcCombHls()
     u.setConfig(CRC_5_USB)
