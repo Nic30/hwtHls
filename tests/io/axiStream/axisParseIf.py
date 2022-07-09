@@ -5,7 +5,7 @@ from hwt.hdl.types.bits import Bits
 from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.interfaces.utils import addClkRstn
 from hwtHls.frontend.ast.builder import HlsAstBuilder
-from hwtHls.frontend.ast.statementsIo import IN_STREAM_POS
+from hwtHls.frontend.ast.statementsRead import IN_STREAM_POS
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axis import AxiStream

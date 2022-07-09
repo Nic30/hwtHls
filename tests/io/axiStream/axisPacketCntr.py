@@ -8,7 +8,7 @@ from hwt.interfaces.utils import addClkRstn
 from hwt.math import log2ceil
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
-from hwtHls.frontend.ast.statementsIo import IN_STREAM_POS
+from hwtHls.frontend.ast.statementsRead import IN_STREAM_POS
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
@@ -44,7 +44,7 @@ class AxiSPacketCntr(Unit):
     def _impl(self):
         hls = HlsScope(self)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls)
-        mainThread.bytecodeToSsa.debug = True
+        # mainThread.bytecodeToSsa.debug = True
         hls.addThread(mainThread)
         hls.compile()
 
@@ -91,6 +91,7 @@ class AxiSPacketByteCntr1(AxiSPacketCntr):
         while BIT.from_py(1):
             hls.write(byte_cnt, self.byte_cnt)
             wordByteCnt = Bits(log2ceil(self.i.strb._dtype.bit_length() + 1), signed=False).from_py(0)
+            # this for is just MUX
             for i, strbBit in enumerate(
                     hls.read(self.i, self.i.data._dtype,
                              inStreamPos=IN_STREAM_POS.BEGIN_OR_BODY_OR_END).strb
@@ -111,15 +112,15 @@ class AxiSPacketByteCntr2(AxiSPacketByteCntr1):
         while BIT.from_py(1):
             hls.write(byte_cnt, self.byte_cnt)
             
-            # this for is just MUX
             wordByteCnt = Bits(log2ceil(strbWidth + 1), signed=False).from_py(strbWidth)
+            # this for is just MUX
             for i, strbBit in enumerate(
                     hls.read(self.i, self.i.data._dtype,
                              inStreamPos=IN_STREAM_POS.BEGIN_OR_BODY_OR_END).strb
                     ):
-                # this is hw evaluated condition, but for iterator specifies that the loop must be unrolled in preprocessor
-                # so this expands to sequence of if-then-else which do check each bit
                 if ~strbBit:
+                    # this is hw evaluated condition, but for iterator specifies that the loop must be unrolled in preprocessor
+                    # so this expands to sequence of if-then-else which do check each bit
                     wordByteCnt = i
                     break
 
@@ -132,13 +133,11 @@ class AxiSPacketByteCntr3(AxiSPacketByteCntr1):
         byte_cnt = uint16_t.from_py(0)
         strbWidth = self.i.strb._dtype.bit_length()
         while BIT.from_py(1):
-            # this for is just MUX
             word = hls.read(self.i, self.i.data._dtype,
                              inStreamPos=IN_STREAM_POS.BEGIN_OR_BODY_OR_END)
             wordByteCnt = Bits(log2ceil(strbWidth + 1), signed=False).from_py(strbWidth)
+            # this for is just MUX
             for i, strbBit in enumerate(word.strb):
-                # this is hw evaluated condition, but for iterator specifies that the loop must be unrolled in preprocessor
-                # so this expands to sequence of if-then-else which do check each bit
                 if ~strbBit:
                     wordByteCnt = i
                     break

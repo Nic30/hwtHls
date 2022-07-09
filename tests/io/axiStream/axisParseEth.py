@@ -6,7 +6,7 @@ from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.ast.builder import HlsAstBuilder
-from hwtHls.frontend.ast.statementsIo import IN_STREAM_POS
+from hwtHls.frontend.ast.statementsRead import IN_STREAM_POS
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axis import AxiStream
