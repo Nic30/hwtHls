@@ -1,5 +1,7 @@
 from typing import Union, Optional, Generator
 
+from hwt.code import If
+from hwt.hdl.types.defs import BIT
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
@@ -29,21 +31,30 @@ class HlsNetNodeReadBackwardEdge(HlsNetNodeRead):
             return HlsNetNodeRead.allocateRtlInstance(self, allocator)
         else:
             # allocate as a register
-            name = self.name
 
             init = self.associated_write.channel_init_values
             if init:
                 if len(init) > 1:
                     raise NotImplementedError(self, init)
             else:
-                init = (0,)
-            reg = allocator._reg(name if name else f"{allocator.namePrefix:s}program_starter", self.getRtlDataSig()._dtype, def_val=init[0])
+                init = ((0,),)
+
+            name = self.name
+            assert name is not None, self
+            dtype = self.getRtlDataSig()._dtype
+            reg = allocator._reg(f"{allocator.namePrefix:s}{name:s}", dtype, def_val=init[0][0])
 
             # create RTL signal expression base on operator type
             regTir = TimeIndependentRtlResource(reg, self.scheduledOut[0], allocator)
             allocator.netNodeToRtl[op_out] = regTir
 
             return regTir
+
+
+class HlsNetNodeReadControlBackwardEdge(HlsNetNodeReadBackwardEdge):
+    """
+    Same as :class:`~.HlsNetNodeReadBackwardEdge` but for control channels
+    """
 
 
 class HlsNetNodeWriteBackwardEdge(HlsNetNodeWrite):
@@ -98,13 +109,44 @@ class HlsNetNodeWriteBackwardEdge(HlsNetNodeWrite):
             dst_read.src(buffs)
         else:
             assert self.associated_read in allocator.allNodes, (self, allocator)
+            t0 = self.scheduledOut[0]
             reg: TimeIndependentRtlResource = allocator.netNodeToRtl[self.associated_read._outputs[0]]
             src = allocator.instantiateHlsNetNodeOut(self.dependsOn[0])
-            res = reg.valuesInTime[0].data(src.get(self.scheduledOut[0]).data)
-
+            res = reg.valuesInTime[0].data(src.get(t0).data)
+            if self.extraCond is not None or self.skipWhen is not None:
+                c = BIT.from_py(1)
+                if self.extraCond is not None:
+                    ec = allocator.instantiateHlsNetNodeOut(self.dependsOn[self.extraCond.in_i]).get(t0)
+                    c = ec.data
+                if self.skipWhen is not None:
+                    sw = allocator.instantiateHlsNetNodeOut(self.dependsOn[self.skipWhen.in_i]).get(t0)
+                    c = c & ~sw.data
+                res = If(c, res)
+                
         allocator.netNodeToRtl[self] = res
 
         return res
 
     def debug_iter_shadow_connection_dst(self) -> Generator["HlsNetNode", None, None]:
         yield self.associated_read
+
+
+class HlsNetNodeWriteControlBackwardEdge(HlsNetNodeWriteBackwardEdge):
+    """
+    Same as :class:`~.HlsNetNodeWriteBackwardEdge` but for control channels
+    """
+
+    def allocateRtlInstance(self, allocator:"AllocatorArchitecturalElement") -> TimeIndependentRtlResource:
+        try:
+            return allocator.netNodeToRtl[self]
+        except KeyError:
+            pass
+        res = super(HlsNetNodeWriteControlBackwardEdge, self).allocateRtlInstance(allocator)
+        if not self.allocateAsBuffer:
+            if isinstance(res, If):
+                # in FSM we have to clear the control flag if it was not set in this write
+                res.Else(
+                    res.ifTrue[0].dst(0)
+                )
+
+        return res
