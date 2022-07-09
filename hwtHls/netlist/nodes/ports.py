@@ -17,6 +17,7 @@ class HlsNetNodeOut():
     def __init__(self, obj: "HlsNetNode", out_i: int, dtype: HdlType):
         self.obj = obj
         self.out_i = out_i
+        assert isinstance(dtype, HdlType), dtype
         self._dtype = dtype
     
     def replaceDriverObj(self, o:"HlsNetNodeOut"):
@@ -44,7 +45,8 @@ class HlsNetNodeOutLazy():
     """
 
     def __init__(self, netlist: "HlsNetlistCtx", keys_of_self_in_cache: list, op_cache:"SsaToHwtHlsNetlistOpCache", dtype: HdlType):
-        self._id = netlist.nodeCtx.getUniqId()
+        self.netlist = netlist
+        self._id = netlist.getUniqId()
         self.dependent_inputs: List[HlsNetNodeIn] = []
         self.replaced_by = None
         self.keys_of_self_in_cache = keys_of_self_in_cache
@@ -60,12 +62,14 @@ class HlsNetNodeOutLazy():
         assert self._dtype == o._dtype or self._dtype.bit_length() == o._dtype.bit_length(), (self, o, self._dtype, o._dtype)
         for k in self.keys_of_self_in_cache:
             self.op_cache._toHlsCache[k] = o
-
+        builder = self.netlist.builder
         l0 = len(self.dependent_inputs)
         for i in self.dependent_inputs:
             i: HlsNetNodeIn
+            builder.unregisterNode(i.obj)
             i.replaceDriverInInputOnly(o)
-
+            builder.registerNode(i.obj)
+        
         assert len(self.dependent_inputs) == l0, "Must not modify dependent_inputs during replace"
         self.dependent_inputs.clear()
         

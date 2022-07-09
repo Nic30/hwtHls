@@ -42,7 +42,7 @@ class HlsNetNode():
     def __init__(self, netlist: "HlsNetlistCtx", name: str=None):
         self.name = name
         self.netlist = netlist
-        self._id = netlist.nodeCtx.getUniqId()
+        self._id = netlist.getUniqId()
 
         self.usedBy: List[List[HlsNetNodeIn]] = []
         self.dependsOn: List[HlsNetNodeOut] = []
@@ -69,9 +69,9 @@ class HlsNetNode():
             assert isinstance(iT, int), (i, iT)
             oT = dep.obj.scheduledOut[dep.out_i]
             assert isinstance(oT, int), (dep, oT)
-            assert iT >= oT, (dep, "->", i, iT, oT, "output connected to this input must be scheduled before this input so value is available")
-            assert iT >= 0, (iT, self, i, "Scheduled before start of the time")
-            assert oT >= 0, (oT, dep, "Scheduled before start of the time")
+            assert iT >= oT, (iT, oT, "Input must be scheduled after connected output port.", dep, "->", i)
+            assert iT >= 0, (iT, self, i, "Scheduled before start of the time.")
+            assert oT >= 0, (oT, dep, "Scheduled before start of the time.")
 
     def resetScheduling(self):
         self.scheduledIn = None
@@ -156,13 +156,11 @@ class HlsNetNode():
         # if all dependencies have inputs scheduled we shedule this node and try successors
         if self.scheduledIn is not None:
             return self.scheduledIn
-        try:
-            for iClkOff in self.inputClkTickOffset:
-                assert iClkOff == 0, iClkOff
-            for oClkOff in self.outputClkTickOffset:
-                assert oClkOff == 0, oClkOff
-        except:
-            raise
+        for iClkOff in self.inputClkTickOffset:
+            assert iClkOff == 0, (iClkOff, "this node should use scheduleAlapCompactionMultiClock instead")
+        for oClkOff in self.outputClkTickOffset:
+            assert oClkOff == 0, (oClkOff, "this node should use scheduleAlapCompactionMultiClock instead")
+
         assert self.usedBy, ("Compaction should be called only for nodes with dependencies, others should be moved only manually", self)
         asapIn, asapOut = asapSchedule[self]
         ffdelay = self.netlist.platform.get_ff_store_time(self.netlist.realTimeClkPeriod, self.netlist.scheduler.resolution)
@@ -357,7 +355,6 @@ class HlsNetNode():
 
         self.outputWireDelay = HlsNetNode_numberForEachOutputNormalized(self, r.outputWireDelay, schedulerResolution)
         self.outputClkTickOffset = HlsNetNode_numberForEachOutput(self, r.outputClkTickOffset)
-
 
         return self
 

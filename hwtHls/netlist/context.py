@@ -13,17 +13,6 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.scheduler.scheduler import HlsScheduler
 
 
-class HlsNetlistCtxNodeContext():
-
-    def __init__(self):
-        self.cntr = 0
-
-    def getUniqId(self):
-        c = self.cntr
-        self.cntr += 1
-        return c
-
-
 class HlsNetlistCtx():
     """
     High level synthesiser context.
@@ -54,7 +43,9 @@ class HlsNetlistCtx():
         self.label = label
         self.parentUnit = parentUnit
         self.platform = parentUnit._target_platform
-        self.nodeCtx = HlsNetlistCtxNodeContext()
+        self.builder: Optional["HlsNetlistBuilder"] = None
+        self._uniqNodeCntr = 0
+
         if self.platform is None:
             raise ValueError("HLS requires platform to be specified")
 
@@ -74,6 +65,14 @@ class HlsNetlistCtx():
         
         self.scheduler: HlsScheduler = self.platform.scheduler(self, schedulerResolution)
         self.allocator: HlsAllocator = self.platform.allocator(self)
+
+    def _setBuilder(self, b: "HlsNetlistBuilder"):
+        self.builder = b
+
+    def getUniqId(self):
+        n = self._uniqNodeCntr
+        self._uniqNodeCntr += 1
+        return n
 
     def iterAllNodes(self):
         return chain(self.inputs, self.nodes, self.outputs)

@@ -7,7 +7,6 @@ from hwtHls.netlist.nodes.io import IO_COMB_REALIZATION, HlsNetNodeReadSync, \
     HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, link_hls_nodes, HlsNetNodeIn
-from hwtHls.netlist.utils import hls_op_and, hls_op_not
 from hwtHls.netlist.scheduler.clk_math import start_of_next_clk_period
 
 
@@ -181,8 +180,8 @@ class HlsLoopGate(HlsNetNode):
         vld = HlsNetNodeReadSync(self.netlist)
         self.netlist.nodes.append(vld)
         link_hls_nodes(control.obj.dependsOn[0], vld._inputs[0])
-        control.obj.add_control_skipWhen(hls_op_not(self.netlist, vld._outputs[0]))
-        en = hls_op_and(self.netlist, control, vld._outputs[0])
+        control.obj.add_control_skipWhen(self.netlist.builder.buildNot(vld._outputs[0]))
+        en = self.netlist.builder.buildAnd(control, vld._outputs[0])
         self._connect(en, self.from_break)
 
     def debug_iter_shadow_connection_dst(self) -> Generator["HlsNetNode", None, None]:

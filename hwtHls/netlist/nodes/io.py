@@ -1,6 +1,7 @@
 from typing import Union, Optional, List, Generator, Tuple
 
 from hwt.hdl.statements.statement import HdlStatement
+from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.hdlType import HdlType
 from hwt.interfaces.hsStructIntf import HsStructIntf
@@ -19,12 +20,9 @@ from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict, TimeSpec
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
     link_hls_nodes, HlsNetNodeOutLazy, HlsNetNodeOutAny
 from hwtHls.netlist.scheduler.clk_math import start_of_next_clk_period, start_clk, epsilon
-from hwtHls.netlist.utils import hls_op_and, hls_op_or
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axi_intf_common import Axi_hs
-from hwt.hdl.types.bits import Bits
-from ipCorePackager.constants import DIRECTION
 
 IO_COMB_REALIZATION = OpRealizationMeta(outputWireDelay=epsilon)
 
@@ -88,7 +86,7 @@ class HlsNetNodeExplicitSync(HlsNetNode):
         else:
             # create "and" of existing and new extraCond and use it instead
             cur = self.dependsOn[i.in_i]
-            en = hls_op_and(self.netlist, cur, en)
+            en = self.netlist.builder.buildAnd(cur, en)
             i.replace_driver(en)
 
     def add_control_skipWhen(self, skipWhen: Union[HlsNetNodeOut, HlsNetNodeOutLazy]):
@@ -98,7 +96,7 @@ class HlsNetNodeExplicitSync(HlsNetNode):
             link_hls_nodes(skipWhen, i)
         else:
             cur = self.dependsOn[i.in_i]
-            skipWhen = hls_op_or(self.netlist, cur, skipWhen)
+            skipWhen = self.netlist.builder.buildOr(cur, skipWhen)
             i.replace_driver(skipWhen)
 
     def resolve_realization(self):

@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Generator
 
 from hwt.code import If
 from hwt.hdl.operatorDefs import AllOps
@@ -7,7 +7,7 @@ from hwt.pyUtils.arrayQuery import grouper
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
-    link_hls_nodes
+    link_hls_nodes, HlsNetNodeIn
 
 
 class HlsNetNodeMux(HlsNetNodeOperator):
@@ -65,10 +65,9 @@ class HlsNetNodeMux(HlsNetNodeOperator):
 
         return mux_out_s
 
-    def _add_input_and_link(self, src: Union[HlsNetNodeOut, HlsNetNodeOutLazy]):
-        i = self._add_input()
-        link_hls_nodes(src, i)
-        return i
+    def _iterValueConditionPairs(self) -> Generator[HlsNetNodeIn, None, None]:
+        for (v, c) in grouper(2, self._inputs, padvalue=None):
+            yield (v, c)
 
 
     def __repr__(self, minify=False):
