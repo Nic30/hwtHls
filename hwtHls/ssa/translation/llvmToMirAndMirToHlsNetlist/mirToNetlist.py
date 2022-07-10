@@ -6,7 +6,8 @@ from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, \
     MachineInstr, TargetOpcode, MachineLoop
 from hwtHls.netlist.analysis.dataThreads import HlsNetlistAnalysisPassDataThreads
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge
+from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
+    HlsNetNodeWriteBackwardEdge
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.loopHeader import HlsLoopGate
@@ -16,8 +17,6 @@ from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutLazy, \
     link_hls_nodes, unlink_hls_nodes, HlsNetNodeOutAny, HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
-from hwtHls.netlist.utils import hls_op_and, hls_op_or_variadic, hls_op_not, \
-    hls_op_and_variadic
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.datapath import HlsNetlistAnalysisPassMirToNetlistDatapath, \
     BlockLiveInMuxSyncDict
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.opCache import MirToHwtHlsNetlistOpCache
@@ -25,9 +24,42 @@ from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasi
     getTopLoopForBlock, BranchOutLabel, HlsNetNodeExplicitSyncInsertBehindLazyOut
 
 
+
 class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatapath):
     """
     This object translates LLVM MIR to hwtHls HlsNetlist (this class specifically contains control related things)
+    
+    The problem of channel synchronization when translating from MIR:
+    * In MIR is assembler like, control flow is specified as a position in code, and data is globally visible.
+      Reads and writes do happen one by one.
+    * In netlist the control flow is represented as a enable flag, any instruction can run in parallel if restrictions allow it.
+      In some cases the whole program can be realized as a 1 stage FSM which loops infinitely on its only state.
+      However there may be multiple internal conditions in this FSM which controls if the data from the channel should be taken
+      or if the FSM transition should not wait for this interface.
+      Now lets suppose that the FSM reads from all input channels only and only if all channels are providing the data
+      else it transits to a next state without reading from any interface.
+    
+    .. code-block:: Python
+ 
+        x = 0
+        while True:
+            # to keep value of 'x' we need extra backedge buffer which is a hidden IO of he loop body
+            # We also need a flag which describes the predecessor of this block, for this we need:
+            #  * a backedge buffer from the end of loop body which will be read only if the loop is running
+            #  * a flag from predecessor of the loop which will be read only if loop is not running
+            if all(ch.hasData() for ch in channels):
+                for ch in channels:
+                    x += ch.read()
+            out.write(x)
+    
+    * The :class:`hwtLib.handshaked.streamNode.StreamNode` uses extraCond,skipWhen notation to build arbitrary
+      IO synchronization.
+    * The problem is how to specify these condition so we can build a StremNode from any IO nodes as scheduler specifies.
+      Because if we specify all the conditions from block enable signals some instructions may endup with unsatisfiable conditions.
+      This is because original the order of IO operations was sequential and now everything is happening at once
+      and now the read and read sync operations are tied in cycle which makes the condition for FSM transiion unsatisfiable and thus
+      StreamNode will never activate and everything is stalled.
+      [TODO] Requires more insight.
     """
 
     def _rewriteControlOfInfLoopWithReset(self, mb: MachineBasicBlock, rstPred: MachineBasicBlock):
@@ -78,6 +110,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
         else:
             dependentOnControlInput = resetPredEn.dependent_inputs + otherPredEn.dependent_inputs
         
+        builder = self.builder
         alreadyUpdated: Set[HlsNetNode] = set()
         for i in dependentOnControlInput:
             # en from predecessor should now be connected to all MUXes as some selector/condition
@@ -131,10 +164,12 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                 backedgeBuffRead.associated_write.channel_init_values = ((int(rstValObj.val),),)
 
             # pop mux inputs for reset
+            builder.unregisterOperatorNode(mux)
             unlink_hls_nodes(vRst, vRstI)
             mux._removeInput(vRstI.in_i)  # remove reset input which was moved to backedge buffer init
             unlink_hls_nodes(cond, condI)
             mux._removeInput(condI.in_i)  # remove condition because we are not using it
+            builder.registerOperatorNode(mux)
             alreadyUpdated.add(mux)
 
     def _extractRstValues(self, mf: MachineFunction, threads: HlsNetlistAnalysisPassDataThreads):
@@ -146,11 +181,50 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
             if mbSync.rstPredeccessor:
                 self._rewriteControlOfInfLoopWithReset(mb, mbSync.rstPredeccessor)
                 
-                c1 = self._translateIntBit(1)
                 for i in tuple(mbSync.blockEn.dependent_inputs):
                     i: HlsNetNodeIn
                     assert isinstance(i.obj, (HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeOperator)), i.obj
-                    i.replace_driver(c1)
+                    self._replaceInputWithConst1(i, threads)
+
+    def _resolveBranchEnFromPredecessor(self, pred: MachineBasicBlock, mb: MachineBasicBlock):
+        builder = self.builder
+        fromPredBrCond = None  # condition which controls if the control moves to mb block
+        predEn = self.blockSync[pred].blockEn  # condition which specifies if the control is in pred block
+        # :note: there can be multiple terminators in each block and we have to resolve
+        #        fromPredBrCond from all of them
+        for ter in pred.terminators():
+            ter: MachineInstr
+            opc = ter.getOpcode()
+            # predEn = self.blockSync[pred].blockEn
+        
+            if opc == TargetOpcode.G_BR:
+                # mb is only successor of pred, we can use en of pred block
+                assert mb == ter.getOperand(0).getMBB(), ("This must be branch to mb", mb, ter)
+
+            elif opc == TargetOpcode.G_BRCOND:
+                # mb is conditional successor of pred, we need to use end of pred and branch cond to get en fo mb
+                c, dstBlock = ter.operands()
+                assert c.isReg(), c 
+                assert dstBlock.isMBB(), dstBlock
+                c = self._translateRegister(pred, c.getReg())
+                dstBlock = dstBlock.getMBB()
+                if dstBlock != mb:
+                    c = builder.buildNot(c)
+
+                if fromPredBrCond is None:
+                    fromPredBrCond = builder.buildAnd(predEn, c)
+                else:
+                    fromPredBrCond = builder.buildNot(fromPredBrCond)
+                    fromPredBrCond = builder.buildAndVariadic((fromPredBrCond, predEn, c))
+
+                if dstBlock == mb:
+                    break
+
+            elif opc == TargetOpcode.PseudoRET:
+                raise AssertionError("This block is not predecessor of mb if it ends with return.", pred, mb)
+            else:
+                raise NotImplementedError("Unknown terminator", ter)
+        return fromPredBrCond, predEn 
 
     def _resolveEnFromPredecessors(self, mb: MachineBasicBlock,
                                    mbSync: MachineBasicBlockSyncContainer,
@@ -162,78 +236,58 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
         """
         
         valCache: MirToHwtHlsNetlistOpCache = self.valCache
-        netlist: HlsNetlistCtx = self.netlist
         # construct CFG flags
         enFromPredccs = []
+        brCond = None
         for pred in mb.predecessors():
             pred: MachineBasicBlock
-            
-            predEn = None  # condition which specifies if the control is in pred block
-            brCond = None  # condition which controls if the control moves to mb block
+            fromPredBrCond = None  # condition which controls if the control moves to mb block
+            predEn = self.blockSync[pred].blockEn  # condition which specifies if the control is in pred block
             if mbSync.needsControl:
-                predEn = self.blockSync[pred].blockEn
-                # :note: there can be multiple terminators in each block and we have to resolve
-                #        brCond from all of them
-                for ter in pred.terminators():
-                    ter: MachineInstr
-                    opc = ter.getOpcode()
-                    predEn = self.blockSync[pred].blockEn
-                
-                    if opc == TargetOpcode.G_BR:
-                        # mb is only successor of pred, we can use en of pred block
-                        assert mb == ter.getOperand(0).getMBB(), ("This must be branch to mb", mb, ter)
-
-                    elif opc == TargetOpcode.G_BRCOND:
-                        # mb is conditional successor of pred, we need to use end of pred and branch cond to get en fo mb
-                        c, dstBlock = ter.operands()
-                        assert c.isReg(), c 
-                        assert dstBlock.isMBB(), dstBlock
-                        c = self._translateRegister(pred, c.getReg())
-                        dstBlock = dstBlock.getMBB()
-                        if dstBlock != mb:
-                            c = hls_op_not(netlist, c)
-
-                        if brCond is None:
-                            brCond = hls_op_and(netlist, predEn, c)
-                        else:
-                            brCond = hls_op_not(netlist, brCond)
-                            brCond = hls_op_and_variadic(netlist, brCond, predEn, c)
-
-                        if dstBlock == mb:
-                            break
-
-                    elif opc == TargetOpcode.PseudoRET:
-                        raise AssertionError("This block is not predecessor of mb if it ends with return.", pred, mb)
-                    else:
-                        raise NotImplementedError("Unknown terminator", ter)
+                fromPredBrCond, predEn = self._resolveBranchEnFromPredecessor(pred, mb)
         
-            if brCond is None and mbSync.needsControl:
-                brCond = predEn
+            if fromPredBrCond is None and mbSync.needsControl:
+                fromPredBrCond = predEn
     
-            if (pred, mb) in backedges and mbSync.needsControl:
-                # we need to insert backedge buffer to get block en flag from pred to mb
-                # [fixme] write order must be asserted because we can not release a control token until all block operations finished
-                assert brCond is not None, brCond
-                valCache.add(pred, BranchOutLabel(mb), brCond, False)  # the BranchOutLabel is set only once
-                brCond = self._constructBackedgeBuffer("c", pred, mb, None, brCond)
+            if (pred, mb) in backedges:
+                _fromPredBrCond = fromPredBrCond
+                if mbSync.needsControl:
+                    # we need to insert backedge buffer to get block en flag from pred to mb
+                    # [fixme] write order must be asserted because we can not release a control token until all block operations finished
+                    assert fromPredBrCond is not None, fromPredBrCond
+                    valCache.add(pred, BranchOutLabel(mb), fromPredBrCond, False)  # the BranchOutLabel is set only once
+                    fromPredBrCond = self._constructBackedgeBuffer("c", pred, mb, None, fromPredBrCond, isControl=True)
+                    wn: HlsNetNodeWriteBackwardEdge = fromPredBrCond.obj.associated_write
+                    self._addExtraCond(wn, _fromPredBrCond, predEn)
+                    self._addSkipWhen_n(wn, _fromPredBrCond, predEn)
+
+                for _, srcMb, srcVal in mbSync.backedgeBuffers:
+                    srcMb: MachineBasicBlock
+                    srcVal: HlsNetNodeReadBackwardEdge
+                    if srcMb != pred:
+                        continue
+                    wn: HlsNetNodeWriteBackwardEdge = srcVal.obj.associated_write
+                    self._addExtraCond(wn, 1, _fromPredBrCond)
+                    self._addSkipWhen_n(wn, 1, _fromPredBrCond)
     
-            elif mbSync.needsControl and brCond is not None:
+            elif mbSync.needsControl and fromPredBrCond is not None:
                 # brCond is a normal branch signal
-                valCache.add(pred, BranchOutLabel(mb), brCond, False)  # the BranchOutLabel is set only once
+                valCache.add(pred, BranchOutLabel(mb), fromPredBrCond, False)  # the BranchOutLabel is set only once
 
             elif mbSync.needsControl:
                 raise NotImplementedError("No control from predecessor but block needs control")
                 
             if mbSync.needsControl:
-                assert brCond is not None, (mb.getName(), mb.getNumber())
-                valCache.add(mb, pred, brCond, False)
+                assert fromPredBrCond is not None, (mb.getName(), mb.getNumber())
+                valCache.add(mb, pred, fromPredBrCond, False)
                 # because we need to use latest value not the input value which we just added (r_from_in)
-                brCond = valCache.get(mb, pred, brCond._dtype)
+                brCond = valCache.get(mb, pred, fromPredBrCond._dtype)
                 enFromPredccs.append(brCond)
             else:
                 assert brCond is None, brCond
                 brCond = self._translateIntBit(1)
                 valCache.add(mb, pred, brCond, False)
+                brCond = None
             
         return enFromPredccs
 
@@ -242,6 +296,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                             blockLiveInMuxInputSync: BlockLiveInMuxSyncDict):
         valCache: MirToHwtHlsNetlistOpCache = self.valCache
         netlist: HlsNetlistCtx = self.netlist
+        builder = self.builder
         for mb in mf:
             mb: MachineBasicBlock
             mbSync: MachineBasicBlockSyncContainer = self.blockSync[mb]
@@ -262,13 +317,17 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                         # if exiting loop return token to HlsLoopGate
                         control = valCache.get(exitBloc, BranchOutLabel(exitSucBlock), BIT)
                         control = self._constructBackedgeBuffer("c_loopExit", exitBloc, mb, None, control)
+                        # wn: HlsNetNodeWriteBackwardEdge = control.obj.associated_write
+                        # self._addExtraCond(wn, control, mbSync.blockEn)
+                        # self._addSkipWhen_n(wn, control, mbSync.blockEn)
+                        
                         controlSync = HlsNetNodeExplicitSync(netlist, control._dtype)
                         self.nodes.append(controlSync)
                         link_hls_nodes(control, controlSync._inputs[0])
                         loopGate.connect_break(controlSync._outputs[0])
                     
                     loopBusy = loopGate._sync_token_status._outputs[0] 
-                    loopBusy_n = hls_op_not(netlist, loopBusy)
+                    loopBusy_n = builder.buildNot(loopBusy)
                     for pred in mb.predecessors():
                         if mbSync.rstPredeccessor and pred == mbSync.rstPredeccessor:
                             # :note: rstPredeccessor will is inlined
@@ -312,6 +371,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
     def _resolveBlockEn(self, mf: MachineFunction,
                         backedges: Set[Tuple[MachineBasicBlock, MachineBasicBlock]],
                         threads: HlsNetlistAnalysisPassDataThreads):
+        builder = self.builder
         for mb in mf:
             mb: MachineBasicBlock
             # resolve control enable flag for a block
@@ -332,7 +392,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                 if enFromPredccs and mbSync.needsControl:
                     if None in enFromPredccs:
                         raise AssertionError(enFromPredccs)
-                    blockEn = hls_op_or_variadic(self.netlist, *enFromPredccs)
+                    blockEn = builder.buildOrVariadic(enFromPredccs)
                 else:
                     blockEn = None
 

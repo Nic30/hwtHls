@@ -1,4 +1,4 @@
-from typing import Set, Tuple, Dict, List, Union, Type, Optional, Literal
+from typing import Set, Tuple, Dict, List, Union, Type, Optional
 
 from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.types.bits import Bits
@@ -14,6 +14,7 @@ from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, \
     MachineLoopInfo
 from hwtHls.netlist.analysis.dataThreads import HlsNetlistAnalysisPassDataThreads
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
+from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
     HlsNetNodeWriteBackwardEdge, HlsNetNodeReadControlBackwardEdge, \
@@ -21,10 +22,8 @@ from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
     link_hls_nodes, HlsNetNodeOutAny, HlsNetNodeIn
-from hwtHls.netlist.utils import hls_op_and, hls_op_not, hls_op_or
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.opCache import MirToHwtHlsNetlistOpCache
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
@@ -73,6 +72,8 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         super(HlsNetlistAnalysisPassMirToNetlistLowLevel, self).__init__(HlsNetlistCtx(hls.parentUnit, hls.freq, tr.label))
         # :note: value of a block in block0 means that the control flow was passed to block0 from block 
         netlist = self.netlist
+        self.builder = HlsNetlistBuilder(netlist)
+        netlist._setBuilder(self.builder)
         self.valCache = MirToHwtHlsNetlistOpCache(netlist)
         aargToArgIndex = {a: i for (i, a) in enumerate(tr.llvm.main.args())}
         self._argIToIo = {aargToArgIndex[a]: io for (io, a) in tr.ioToVar.items()}
@@ -103,6 +104,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
             f"{namePrefix:s}_out",
             val._dtype,
             HlsNetNodeReadControlBackwardEdge if isControl else HlsNetNodeReadBackwardEdge)
+        r_from_in.obj.name = namePrefix
         if cacheKey is not None:
             self.valCache.add(dstBlock, cacheKey, r_from_in, False)
         
@@ -110,6 +112,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
             f"{namePrefix:s}_in", val._dtype,
             val,
             HlsNetNodeWriteControlBackwardEdge if isControl else HlsNetNodeWriteBackwardEdge)
+        w_to_out.name = namePrefix
         w_to_out.associate_read(r_from_in.obj)
         w_to_out.buff_name = f"{namePrefix:s}_backedge_buff"
 
@@ -133,17 +136,11 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         if not t.signed and val < 0:  # convert to unsigned
             val = t.all_mask() + val + 1
         v = t.from_py(val)
-        n = HlsNetNodeConst(self.netlist, v)
-        self.nodes.append(n)
-        # mbSync.nodes.append(n)
-        return n._outputs[0]
+        return self.builder.buildConst(v)
 
     def _translateIntBits(self, val: int, dtype: Bits):
         v = dtype.from_py(val)
-        n = HlsNetNodeConst(self.netlist, v)
-        self.nodes.append(n)
-        # mbSync.nodes.append(n)
-        return n._outputs[0]
+        return self.builder.buildConst(v)
 
     def _translateIntBit(self, val: int):
         return self._translateIntBits(val, BIT)
@@ -215,26 +212,33 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
     def _addExtraCond(self, n: Union[HlsNetNodeRead, HlsNetNodeWrite], cond: Union[int, HlsNetNodeOutAny], blockEn: HlsNetNodeOutLazy):
         if isinstance(cond, int):
             assert cond == 1, cond
+            if blockEn is None:
+                return
             cond = blockEn
         else:
-            cond = hls_op_and(self.netlist, blockEn, cond)
+            cond = self.builder.buildOp(AllOps.AND, BIT, blockEn, cond)
+
         n.add_control_extraCond(cond)
     
     def _addSkipWhen_n(self, n: Union[HlsNetNodeRead, HlsNetNodeWrite], cond_n: Union[int, HlsNetNodeOutAny], blockEn: HlsNetNodeOutLazy):
         """
         add skipWhen condition to read or write, the condition itself is negated
         """
+        b = self.builder
+        blockEn_n = None if blockEn is None else b.buildOp(AllOps.NOT, BIT, blockEn)
         if isinstance(cond_n, int):
             assert cond_n == 1, cond_n
-            return
+            if blockEn_n is None:
+                return
+            cond = blockEn_n
         else:
-            cond = hls_op_not(self.netlist, cond_n)
-            cond = hls_op_and(self.netlist, blockEn, cond)
-            n.add_control_skipWhen(cond)
+            cond = b.buildOp(AllOps.NOT, BIT, cond_n)
+            if blockEn_n is not None:
+                cond = b.buildOp(AllOps.OR, BIT, blockEn_n, cond)
+        n.add_control_skipWhen(cond)
     
     def _replaceInputWithConst1(self, i: HlsNetNodeIn, threads: HlsNetlistAnalysisPassDataThreads):
-        c = self._translateIntBit(1)
-        i.replace_driver(c)
+        c = self.builder._replaceInputWithConst1b(i)
         threads.mergeThreads(threads.threadPerNode[i.obj], {c.obj, })
 
     def _getThreadOfReg(self, threads: HlsNetlistAnalysisPassDataThreads, mb: MachineBasicBlock, reg: Register, dtype: HdlType):
@@ -251,16 +255,3 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         threads.threadPerNode[nodeOut.obj] = t
         return t
 
-    def _castSign(self, netlist: HlsNetlistCtx, o: HlsNetNodeOut, signed: Optional[bool]) -> HlsNetNodeOut:
-        if signed:
-            op = AllOps.BitsAsSigned
-        elif signed is None:
-            op = AllOps.BitsAsVec
-        else:
-            op = AllOps.BitsAsUnsigned
-
-        s = HlsNetNodeOperator(netlist, op, 1, Bits(o._dtype.bit_length(), signed=signed))
-        link_hls_nodes(o, s._inputs[0])
-        netlist.nodes.append(s)
-        return s._outputs[0]
-        

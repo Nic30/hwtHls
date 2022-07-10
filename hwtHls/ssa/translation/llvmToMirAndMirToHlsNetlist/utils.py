@@ -1,11 +1,12 @@
 from typing import Union, Optional, List, Tuple
 
-from hwtHls.llvm.llvmIr import MachineBasicBlock, MachineLoop
+from hwtHls.llvm.llvmIr import MachineBasicBlock, MachineLoop, Register
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, \
     HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes, \
     HlsNetNodeOutLazy, HlsNetNodeIn
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.opCache import MirToHwtHlsNetlistOpCache
+from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge
 
 
 class MachineBasicBlockSyncContainer():
@@ -25,6 +26,7 @@ class MachineBasicBlockSyncContainer():
     #    (because loop body does not need to wait on previous iteration)
     :note: If the control backedge is useless it does not imply that the control is useless it may be still required
         if there are multiple threads.
+    :ivar backedgeBuffers: A list of tuples (liveIn var register, src machine basic block, buffer read object)
     """
 
     def __init__(self,
@@ -38,6 +40,7 @@ class MachineBasicBlockSyncContainer():
         self.blockEn = blockEn
         self.orderingIn = orderingIn
         self.orderingOut = orderingIn
+        self.backedgeBuffers: List[Tuple[Register, MachineBasicBlock, HlsNetNodeReadBackwardEdge]] = []
         # self.uselessControlBackedgesFrom: Set[MachineBasicBlock] = set() 
 
     def addOrderedNode(self, n: Union[HlsNetNodeRead, HlsNetNodeWrite], atEnd=True):
@@ -107,7 +110,7 @@ def HlsNetNodeExplicitSyncInsertBehindLazyOut(netlist: "HlsNetlistCtx", valCache
     o = self._outputs[0]
     # copy endpoints of var to newly generated sync node 
     valCache._replaceOutOnInputOfBlock(block, reg, var, k, o)
-    var.replaced_by = None # reset because we will still use the object
+    var.replaced_by = None  # reset because we will still use the object
     
     # put original lazy out back to cache so once
     # we resolve input we replace the input to this control and not the explicit sync which we just created

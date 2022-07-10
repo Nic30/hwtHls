@@ -4,39 +4,35 @@ from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.defs import BIT, SLICE, INT
-from hwt.pyUtils.arrayQuery import grouper
-from hwt.synthesizer.interface import Interface
-from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
+from hwtHls.frontend.ast.astToSsa import NetlistIoConstructorDictT
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, MachineInstr, MachineOperand, CmpInst, TargetOpcode
 from hwtHls.netlist.analysis.dataThreads import HlsNetlistAnalysisPassDataThreads
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.nodes.const import HlsNetNodeConst
-from hwtHls.netlist.nodes.io import HOrderingVoidT, HlsNetNodeRead, \
-    HlsNetNodeWrite, HlsNetNodeExplicitSync
-from hwtHls.netlist.nodes.mux import HlsNetNodeMux
-from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
+from hwtHls.netlist.nodes.io import HOrderingVoidT, HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutLazy, link_hls_nodes, \
     HlsNetNodeOutAny
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.lowLevel import HlsNetlistAnalysisPassMirToNetlistLowLevel
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.opCache import MirToHwtHlsNetlistOpCache
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer, \
     LiveInMuxMeta
-
+from hwtHls.netlist.builder import HlsNetlistBuilder
 
 BlockLiveInMuxSyncDict = Dict[Tuple[MachineBasicBlock, MachineBasicBlock, Register], HlsNetNodeExplicitSync]
+
 
 class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetlistLowLevel):
     """
     This object translates LLVM MIR to hwtHls HlsNetlist
     """
 
-    def _translateDatapathInBlocks(self, mf: MachineFunction):
+    def _translateDatapathInBlocks(self, mf: MachineFunction, ioNodeConstructors: NetlistIoConstructorDictT):
         """
         Translate all non control instructions which are entirely in some block.
         (Excluding connections between blocks)
         """
         valCache: MirToHwtHlsNetlistOpCache = self.valCache 
         netlist: HlsNetlistCtx = self.netlist
+        builder: HlsNetlistBuilder = self.builder
         for mb in mf:
             mb: MachineBasicBlock
             mbSync = MachineBasicBlockSyncContainer(
@@ -73,12 +69,8 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                 opDef = self.OPC_TO_OP.get(opc, None)
                 if opDef is not None:
                     resT = ops[0]._dtype
-                    n = HlsNetNodeOperator(netlist, opDef, len(ops), resT)
-                    self.nodes.append(n)
-                    for i, arg in zip(n._inputs, ops):
-                        # a = self.to_hls_expr(arg)
-                        link_hls_nodes(arg, i)
-                    valCache.add(mb, dst, n._outputs[0], True)
+                    o = builder.buildOp(opDef, resT, *ops)
+                    valCache.add(mb, dst, o, True)
                     continue
 
                 elif opc == TargetOpcode.GENFPGA_MUX:
@@ -88,55 +80,36 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                         valCache.add(mb, dst, ops[0], True)
 
                     else:
-                        mux = HlsNetNodeMux(self.netlist, resT)
-                        self.nodes.append(mux)
                         if argCnt % 2 != 1:
                             # add current value as a default option in MUX
                             ops.append(self._translateRegister(mb, dst))
 
-                        for (src, cond) in grouper(2, ops):
-                            mux._add_input_and_link(src)
-                            if cond is not None:
-                                mux._add_input_and_link(cond)
-                            
-                        valCache.add(mb, dst, mux._outputs[0], True)
+                        o = builder.buildMux(resT, tuple(ops))
+                        valCache.add(mb, dst, o, True)
 
                 elif opc == TargetOpcode.GENFPGA_CLOAD:
-                    src, cond = ops
-                    assert isinstance(src, Interface), src
-                    n = HlsNetNodeRead(netlist, src)
-                    self._addExtraCond(n, cond, mbSync.blockEn)
-                    self._addSkipWhen_n(n, cond, mbSync.blockEn)
-                    mbSync.addOrderedNode(n)
-                    self.inputs.append(n)
-                    valCache.add(mb, dst, n._outputs[0], True)
+                    srcIo, index, cond = ops
+                    constructorFn = ioNodeConstructors[srcIo][0]
+                    if constructorFn is None:
+                        raise AssertionError("The io without any read somehow requires read", srcIo, instr)
+                    constructorFn(self, mbSync, instr, srcIo, index, cond, dst)
 
                 elif opc == TargetOpcode.GENFPGA_CSTORE:
-                    srcVal, dstIo, cond = ops
-                    assert isinstance(dstIo, Interface), dstIo
-                    n = HlsNetNodeWrite(netlist, NOT_SPECIFIED, dstIo)
-                    link_hls_nodes(srcVal, n._inputs[0])
-                    self._addExtraCond(n, cond, mbSync.blockEn)
-                    self._addSkipWhen_n(n, cond, mbSync.blockEn)
-                    mbSync.addOrderedNode(n)
-                    self.outputs.append(n)
+                    srcVal, dstIo, index, cond = ops
+                    constructorFn = ioNodeConstructors[dstIo][1]
+                    if constructorFn is None:
+                        raise AssertionError("The io without any write somehow requires write", dstIo, instr)
+                    constructorFn(self, mbSync, instr, srcVal, dstIo, index, cond)
 
                 elif opc == TargetOpcode.G_ICMP:
                     predicate, lhs, rhs = ops
                     opDef = self.CMP_PREDICATE_TO_OP[predicate]
                     signed = predicate in self.SIGNED_CMP_OPS
                     if signed:
-                        lhs = self._castSign(netlist, lhs, True)
-                        rhs = self._castSign(netlist, rhs, True)
+                        lhs = builder.buildSignCast(lhs, True)
+                        rhs = builder.buildSignCast(rhs, True)
 
-                    n = HlsNetNodeOperator(netlist, opDef, 2, BIT)
-                    self.nodes.append(n)
-                    for i, arg in zip(n._inputs, (lhs, rhs)):
-                        link_hls_nodes(arg, i)
-                    res = n._outputs[0]
-                    if signed:
-                        res = self._castSign(netlist, res, None)
-                        
+                    res = builder.buildOp(opDef, BIT, lhs, rhs)
                     valCache.add(mb, dst, res, True)
 
                 elif opc == TargetOpcode.G_BR or opc == TargetOpcode.G_BRCOND:
@@ -145,25 +118,18 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                 elif opc == TargetOpcode.GENFPGA_EXTRACT:
                     src, offset, width = ops
                     if isinstance(offset, int):
-                        n = HlsNetNodeOperator(netlist, AllOps.INDEX, 2, Bits(width))
-                        self.nodes.append(n)
                         if width == 1:
                             # to prefer more simple notation
                             index = INT.from_py(offset)
                         else:
                             index = SLICE.from_py(slice(offset + width, offset, -1))
-                        i = HlsNetNodeConst(self.netlist, index)
-                        self.nodes.append(i)
                     else:
                         raise NotImplementedError()
-
-                    link_hls_nodes(src, n._inputs[0])
-                    link_hls_nodes(i._outputs[0], n._inputs[1])
-
-                    valCache.add(mb, dst, n._outputs[0], True)
+                    res = builder.buildOp(AllOps.INDEX, Bits(width), src, index)
+                    valCache.add(mb, dst, res, True)
 
                 elif opc == TargetOpcode.GENFPGA_MERGE_VALUES:
-                    # src{N}, width{N}
+                    # src{N}, width{N} - lowest bits first
                     assert len(ops) % 2 == 0, ops
                     half = len(ops) // 2
                     cur = builder.buildConcatVariadic(ops[:half])
@@ -180,10 +146,12 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
         """
         For each block for each live in register create a MUX which will select value of register for this block.
         (Or just propagate value from predecessor if there is just a single one)
+        If the value comes from backedge create also a backedge buffer for it.
         """
         valCache: MirToHwtHlsNetlistOpCache = self.valCache
         netlist: HlsNetlistCtx = self.netlist
         blockLiveInMuxInputSync: BlockLiveInMuxSyncDict = {}
+        builder: HlsNetlistBuilder = self.builder
         for mb in mf:
             mb: MachineBasicBlock
             # Construct block input MUXes.
@@ -217,7 +185,9 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                     dtype = Bits(self.registerTypes[liveIn])
                     v = valCache.get(pred, liveIn, dtype)
                     if isBackedge:
-                        v = self._constructBackedgeBuffer(f"r_{liveIn.virtRegIndex():d}", pred, mb, (pred, liveIn), v)
+                        v = self._constructBackedgeBuffer(f"r_{liveIn.virtRegIndex():d}",
+                                                          pred, mb, (pred, liveIn), v)
+                        self.blockSync[pred].backedgeBuffers.append((liveIn, pred, v))
                     c = valCache.get(mb, pred, BIT)
                     if loop:
                         es = HlsNetNodeExplicitSync(netlist, dtype)
@@ -238,18 +208,16 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                     v, _ = cases[0]
                 else:
                     dtype = Bits(self.registerTypes[liveIn])
-                    mux = HlsNetNodeMux(netlist, dtype)
-                    self.nodes.append(mux)
-
+                    _operands = []
                     for last, (src, cond) in iter_with_last(cases):
-                        mux._add_input_and_link(src)
+                        _operands.append(src)
                         if not last:
                             # last case must be always satisfied because the block must have been entered somehow
-                            mux._add_input_and_link(cond)
-
-                    v = mux._outputs[0]
+                            _operands.append(cond)
+                    v = builder.buildMux(dtype, tuple(_operands))
 
                 valCache.add(mb, liveIn, v, False)
+
         return blockLiveInMuxInputSync
 
     def _updateThreadsOnPhiMuxes(self, threads: HlsNetlistAnalysisPassDataThreads):
