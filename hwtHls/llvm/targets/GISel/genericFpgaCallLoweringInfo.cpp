@@ -75,17 +75,20 @@ bool GenericFpgaCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
 	auto *F = dyn_cast_or_null<llvm::Function>(Info.Callee.getGlobal());
 	if (F) {
 		if (IsBitConcat(F)) {
+			// BitConcat has higher bits first
 			assert(Info.OrigRet.Regs.size() == 1);
-			auto MBI = MIRBuilder.buildInstr(TargetOpcode::G_MERGE_VALUES)	 //
+			auto MBI = MIRBuilder.buildInstr(TargetOpcode::G_MERGE_VALUES)	 // lower bits first
 			.addReg(Info.OrigRet.Regs[0], RegState::Define);
-			bool first = true;
-			for (ArgInfo &op : Info.OrigArgs) {
-				assert(op.Regs.size() == 1);
-				if (first) {
-					first = false;
-					continue;
+			size_t i = 0;
+			size_t last = Info.OrigArgs.size() - 1;
+			for (auto op = Info.OrigArgs.rbegin(); op != Info.OrigArgs.rend(); ++op) {
+				assert(op->Regs.size() == 1);
+				if (i == last) {
+					// skip first item because it is destination which was already added
+					break;
 				}
-				MBI.addUse(op.Regs[0]);
+				MBI.addUse(op->Regs[0]);
+				i++;
 			}
 			return true;
 		} else if (IsBitRangeGet(F)) {

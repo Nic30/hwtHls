@@ -140,7 +140,7 @@ class HlsNetlistBuilder():
         """
         assert ops, "Must have operands because the output can not be void"
         res = None
-        for o in reversed(ops):
+        for o in ops:
             if res is None:
                 res = o
             else:
