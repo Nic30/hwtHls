@@ -73,7 +73,6 @@ py3.extension_module(
      'Transforms/bitwidthReducePass/bitwidthReducePass.cpp',
      'Transforms/bitwidthReducePass/utils.cpp',
      'Transforms/extractBitConcatAndSliceOpsPass.cpp',
-     'Transforms/shiftToSelectOfConstShifts.cpp',
      ] + all_llvm_backend_gen_files,
     dependencies : [py3_dep, llvm_dep, pybind11_dep],
     install: true,
