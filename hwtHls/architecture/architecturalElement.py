@@ -6,7 +6,7 @@ from hwt.code import SwitchLogic
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.bitsVal import BitsVal
-from hwt.interfaces.std import HandshakeSync, Signal, Handshaked
+from hwt.interfaces.std import HandshakeSync, Signal
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
@@ -20,7 +20,6 @@ from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeE
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.scheduler.clk_math import start_clk
-from hwtLib.amba.axi_intf_common import Axi_hs
 from hwtLib.handshaked.streamNode import StreamNode
 from ipCorePackager.constants import INTF_DIRECTION
 
@@ -32,11 +31,11 @@ class AllocatorArchitecturalElement():
 
     :ivar netlist: parent HLS netlist context for this element
     :ivar namePrefix: name prefix for debug purposes
-    :ivar netNodeToRtl: dictionary {hls node: rtl instance}
+    :ivar netNodeToRtl: dictionary {HLS node: RTL instance}
     :ivar connections: list of connections in individual stage in this arch. element, user for registration
         of products of nodes for sync generator
     :ivar allNodes: list in this arch element
-    :ivar connections: list of rtl object allocated for each specific clock stage
+    :ivar connections: list of RTL object allocated for each specific clock stage
     :ivar stageSignals: an object which makes connections list accessible by time
     :ivar interArchAnalysis: an object of inter architecture element sharing analysis which is set after allocation starts
     """
@@ -221,16 +220,16 @@ class AllocatorArchitecturalElement():
             skipWhen = {}
             for intf in chain(masters, slaves):
                 intfSkipWhen = _skipWhen.get(intf, None)
-                #print(intf)
-                #print("extraCond", extraConds.get(intf, None))
-                #print("skipWhen", intfSkipWhen)
-                #print("")
+                # print(intf)
+                # print("extraCond", extraConds.get(intf, None))
+                # print("skipWhen", intfSkipWhen)
+                # print("")
                 
                 if intfSkipWhen is None:
                     # this interface does not have skip when condition
                     continue
                 # we have to extend intfSkipWhen condition
-                #for otherIntfDir, otherIntf in chain(zip((INTF_DIRECTION.MASTER for _ in masters), masters),
+                # for otherIntfDir, otherIntf in chain(zip((INTF_DIRECTION.MASTER for _ in masters), masters),
                 #                                     zip((INTF_DIRECTION.SLAVE for _ in slaves), slaves),
                 #                       ):
                 #    if otherIntf is intf:
