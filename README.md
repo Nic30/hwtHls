@@ -192,6 +192,7 @@ pip3 install git+https://github.com/Nic30/hwtHls.git
 * 2004 [Algorithm Synthesis by Lazy Thinking: Examples and Implementation in Theorema](https://doi.org/10.1016/j.entcs.2003.12.027)
 * 2010 [Impact of High-Level Transformations within the ROCCC Framework](https://www.cs.ucr.edu/~najjar/papers/2010/TACO-2010.pdf)
 * 2012 [An overview of today's high-level synthesis tools](https://www.researchgate.net/publication/260432684_An_overview_of_today's_high-level_synthesis_tools)
+* [c-to-verilog publications](https://cs.haifa.ac.il/~rotemn/pubs.html)
 * 2015 [A Survey and Evaluation of FPGA High-Level Synthesis Tools](https://ieeexplore.ieee.org/document/7368920)
 * 2019 [Are We There Yet? A Study on the State of High-Level Synthesis](https://ieeexplore.ieee.org/document/8356004)
 * [LLVM dialect overview](https://llvm.discourse.group/t/codegen-dialect-overview/2723)
