@@ -1,5 +1,5 @@
 
-from typing import Tuple, Union, Dict
+from typing import Tuple, Union, Dict, Optional
 
 from hwt.hdl.operatorDefs import OpDefinition, AllOps
 from hwt.hdl.types.defs import BIT, SLICE
@@ -13,6 +13,7 @@ from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, link_hls_nodes, \
     HlsNetNodeIn, HlsNetNodeOutLazy, HlsNetNodeOutAny
 from hwtHls.netlist.nodes.node import HlsNetNode
+from hwt.hdl.types.bits import Bits
 
 
 class HlsNetlistBuilder():
@@ -130,9 +131,12 @@ class HlsNetlistBuilder():
         self.operatorCache[keyWithHValues] = o
         return o
 
+    def buildConcat(self, lsbs: Union[HlsNetNodeOut, HValue], msbs: Union[HlsNetNodeOut, HValue]) -> HlsNetNodeOut:
+        return self.buildOp(AllOps.CONCAT, Bits(lsbs._dtype.bit_length() + msbs._dtype.bit_length()), lsbs, msbs)
+
     def buildConcatVariadic(self, ops: Tuple[Union[HlsNetNodeOut, HValue], ...]):
         """
-        :param ops: operands to concatenate, higher bits first 
+        :param ops: operands to concatenate, lower bits first 
         """
         assert ops, "Must have operands because the output can not be void"
         res = None
@@ -140,9 +144,19 @@ class HlsNetlistBuilder():
             if res is None:
                 res = o
             else:
-                res = self.buildConcat(o, res)
+                res = self.buildConcat(res, o)
         return res
     
+    def buildSignCast(self, o: HlsNetNodeOut, signed: Optional[bool]) -> HlsNetNodeOut:
+        if signed:
+            op = AllOps.BitsAsSigned
+        elif signed is None:
+            op = AllOps.BitsAsVec
+        else:
+            op = AllOps.BitsAsUnsigned
+
+        return self.buildOp(op, Bits(o._dtype.bit_length(), signed=signed), o)
+        
     def buildIndexConstSlice(self, resT: HdlType, a: HlsNetNodeOut, high: int, low: int):
         assert high > low, (high, low)
         i = self.buildConst(SLICE.from_py(slice(high, low, -1)))
