@@ -11,8 +11,10 @@ class HlsNetNodeOperator(HlsNetNode):
     """
     Abstract implementation of RTL operator
 
-    :ivar operator: parent RTL operator for this hsl operator
+    :ivar operator: parent RTL operator for this hls operator
     :ivar _dtype: RTL data type of output
+    
+    :note: concatenation operands are in lowest bits first format
     """
 
     def __init__(self, netlist: "HlsNetlistCtx",
@@ -60,7 +62,8 @@ class HlsNetNodeOperator(HlsNetNode):
         for (dep, t) in zip(self.dependsOn, self.scheduledIn):
             _o = allocator.instantiateHlsNetNodeOutInTime(dep, t)
             operands.append(_o)
-        
+        if self.operator == AllOps.CONCAT:
+            operands = reversed(operands)
         s = self.operator._evalFn(*(o.data for o in operands))
         if isinstance(s, HValue):
             t = TimeIndependentRtlResource.INVARIANT_TIME

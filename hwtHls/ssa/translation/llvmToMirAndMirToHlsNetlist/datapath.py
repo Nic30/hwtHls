@@ -166,18 +166,9 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                     # src{N}, width{N}
                     assert len(ops) % 2 == 0, ops
                     half = len(ops) // 2
-                    
-                    cur: HlsNetNodeOutAny = ops[0]
-                    curWidth: int = ops[half]
-                    for o, w in zip(ops[1:half], ops[half + 1:]):
-                        n = HlsNetNodeOperator(netlist, AllOps.CONCAT, 2, Bits(curWidth + w))
-                        self.nodes.append(n)
-                        for i, arg in zip(n._inputs, (cur, o)):
-                            link_hls_nodes(arg, i)
-                        cur = n._outputs[0]
-                        curWidth += w
-
+                    cur = builder.buildConcatVariadic(ops[:half])
                     valCache.add(mb, dst, cur, True)
+
                 elif opc == TargetOpcode.PseudoRET:
                     pass
                 else:

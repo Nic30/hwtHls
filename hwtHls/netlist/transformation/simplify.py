@@ -386,7 +386,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                         concatMembers.append(v0)
                             
                         offset += width
-                    newO = builder.buildConcatVariadic(tuple(reversed(concatMembers)))
+                    newO = builder.buildConcatVariadic(tuple(concatMembers))
 
             elif o0 == o1:
                 # x & x = x
@@ -419,7 +419,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                         concatMembers.append(v0)
                             
                         offset += width
-                    newO = builder.buildConcatVariadic(tuple(reversed(concatMembers)))
+                    newO = builder.buildConcatVariadic(tuple(concatMembers))
 
             elif o0 == o1:
                 # x | x = x
@@ -448,7 +448,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                         concatMembers.append(v0)
                         offset += width
 
-                    newO = builder.buildConcatVariadic(tuple(reversed(concatMembers)))
+                    newO = builder.buildConcatVariadic(tuple(concatMembers))
             
             elif o0 == o1:
                 # x ^ x = 0
