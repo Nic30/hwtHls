@@ -1,6 +1,8 @@
+from itertools import chain
 from typing import List, Set, Tuple, Optional, Union, Dict
 
 from hwt.code import SwitchLogic, Switch, If
+from hwt.code_utils import rename_signal
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.bits import Bits
 from hwt.interfaces.std import HandshakeSync
@@ -10,7 +12,7 @@ from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.architecturalElement import AllocatorArchitecturalElement
 from hwtHls.architecture.connectionsOfStage import getIntfSyncSignals, \
-    setNopValIfNotSet, SignalsOfStages, ConnectionsOfStage
+    setNopValIfNotSet, SignalsOfStages, ConnectionsOfStage, SkipWhenMemberList
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.analysis.fsm import IoFsm
 from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
@@ -20,7 +22,6 @@ from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeRead
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.scheduler.clk_math import start_clk
 from ipCorePackager.constants import INTF_DIRECTION
-from hwt.code_utils import rename_signal
 
 
 class AllocatorFsmContainer(AllocatorArchitecturalElement):
@@ -81,13 +82,8 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
         except KeyError:
             raise AssertionError("Asking for a sync in an element which is not scheduled in this clk period", self, clkI, self.clkIToStateI)
 
-        con = self.connections[stateI]
-
-        if intfDir == INTF_DIRECTION.MASTER:
-            con.outputs.append(intf)
-        else:
-            assert intfDir == INTF_DIRECTION.SLAVE, intfDir
-            con.inputs.append(intf)
+        con: ConnectionsOfStage = self.connections[stateI]
+        self._connectSync(con, intf, intfDir)
         self._initNopValsOfIoForIntf(intf, intfDir)
 
     def _initNopValsOfIoForIntf(self, intf: Interface, intfDir: INTF_DIRECTION):
@@ -199,8 +195,8 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
             st = None
         # instantiate control of the FSM
 
-        # used to prevent duplication of registes which are just latching the value
-        # without modification throught multiple stages
+        # used to prevent duplication of registers which are just latching the value
+        # without modification through multiple stages
         seenRegs: Set[TimeIndependentRtlResource] = set()
 
         stateTrans: List[Tuple[RtlSignal, List[HdlStatement]]] = []

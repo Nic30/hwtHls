@@ -83,13 +83,21 @@ class AllocatorArchitecturalElement():
                 sigs.append(depRtl)
                 t -= clkPeriod
 
-    def connectSync(self, clkI: int, intf: HandshakeSync, intfDir: INTF_DIRECTION):
-        con = self.connections[clkI]
+    def _connectSync(self, con: ConnectionsOfStage, intf: HandshakeSync, intfDir: INTF_DIRECTION):
         if intfDir == INTF_DIRECTION.MASTER:
             con.outputs.append(intf)
         else:
             assert intfDir == INTF_DIRECTION.SLAVE, intfDir
             con.inputs.append(intf)
+            for i in chain(con.inputs, con.outputs):
+                sw = con.io_skipWhen.get(i, None)
+                if sw is not None:
+                    sw: SkipWhenMemberList
+                    sw.data.append(TimeIndependentRtlResourceItem(None, intf.vld))
+
+    def connectSync(self, clkI: int, intf: HandshakeSync, intfDir: INTF_DIRECTION):
+        con: ConnectionsOfStage = self.connections[clkI]
+        return self._connectSync(con, intf, intfDir)
 
     def instantiateHlsNetNodeOut(self, o: HlsNetNodeOut) -> TimeIndependentRtlResource:
         assert isinstance(o, HlsNetNodeOut), o
