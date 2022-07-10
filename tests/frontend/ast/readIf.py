@@ -112,16 +112,16 @@ class HlsAstReadIfTc(BaseSsaTC):
 
 
 if __name__ == '__main__':
-    from hwt.synthesizer.utils import to_rtl_str
-    u = ReadIfOtherEqual()
-    # u.DATA_WIDTH = 8
-    u.FREQ = int(150e6)
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
+    #from hwt.synthesizer.utils import to_rtl_str
+    #u = ReadIfOtherEqualOnce()
+    ## u.DATA_WIDTH = 8
+    #u.FREQ = int(150e6)
+    #print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
 
     import unittest
     
     suite = unittest.TestSuite()
-    # suite.addTest(HlsAstReadIfTc('testReadIfOtherEqualOnce_noread_50M'))
+    # suite.addTest(HlsAstReadIfTc('testReadIfOtherEqualOnce_noread_150M'))
     suite.addTest(unittest.makeSuite(HlsAstReadIfTc))
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

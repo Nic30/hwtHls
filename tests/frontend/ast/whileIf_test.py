@@ -44,7 +44,7 @@ class HlsAstWhileIf_TC(BaseSsaTC):
 
     def test_WhileAndIf2(self, cls=WhileAndIf2):
         u = cls()
-        u.FREQ = int(10e6)
+        u.FREQ = int(40e6)
 
         self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
         clk_period = freq_to_period(u.FREQ)
@@ -100,7 +100,6 @@ class HlsAstWhileIf_TC(BaseSsaTC):
         self.runSim((CLK + 10) * int(clk_period))
         HlsAstTrivial_TC._test_no_comb_loops(self)
         self.assertValSequenceEqual(u.dataOut._ag.data, expected)
-    
 
     def test_WhileAndIf4_ll(self):
         self._test_ll(WhileAndIf4)
@@ -108,14 +107,14 @@ class HlsAstWhileIf_TC(BaseSsaTC):
 
 if __name__ == "__main__":
     import unittest
-    from hwt.synthesizer.utils import to_rtl_str
-    u = WhileAndIf0()
+    # from hwt.synthesizer.utils import to_rtl_str
+    # u = WhileAndIf2()
     # u.DATA_WIDTH = 4
-    u.FREQ = int(40e6)
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
+    # u.FREQ = int(40e6)
+    # print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
 
     suite = unittest.TestSuite()
-    #suite.addTest(HlsAstWhileIf_TC('test_WhileAndIf0'))
+    #suite.addTest(HlsAstWhileIf_TC('test_WhileAndIf2'))
     suite.addTest(unittest.makeSuite(HlsAstWhileIf_TC))
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

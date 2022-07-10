@@ -89,9 +89,9 @@ class HlsAstExprTree3_example_TC(BaseSsaTC):
 
 if __name__ == "__main__":
     import unittest
-    from hwt.synthesizer.utils import to_rtl_str
-    u = HlsAstExprTree3_example()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
+    # from hwt.synthesizer.utils import to_rtl_str
+    # u = HlsAstExprTree3_example()
+    # print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
 
     suite = unittest.TestSuite()
     # suite.addTest(HlsAstExprTree3_example_TC('test_simple'))

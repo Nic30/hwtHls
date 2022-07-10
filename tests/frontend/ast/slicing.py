@@ -152,6 +152,6 @@ if __name__ == "__main__":
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
 
-    from hwt.synthesizer.utils import to_rtl_str
-    u = HlsSlice2TmpHlsVarSlice()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
+    #from hwt.synthesizer.utils import to_rtl_str
+    #u = HlsSlice2TmpHlsVarSlice()
+    #print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
