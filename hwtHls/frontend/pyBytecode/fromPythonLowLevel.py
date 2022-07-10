@@ -1,37 +1,19 @@
-import builtins
 from dis import Instruction, dis
 from future.moves import sys
-import operator
-from types import CellType
 from types import FunctionType
 from typing import Optional, Dict, List
 
-from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
-from hwt.hdl.value import HValue
-from hwt.pyUtils.arrayQuery import flatten
-from hwt.synthesizer.interface import Interface
-from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.errors import HlsSyntaxError
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
-from hwtHls.frontend.ast.statementsRead import HlsRead
-from hwtHls.frontend.ast.statementsWrite import HlsWrite
 from hwtHls.frontend.pyBytecode.blockLabel import BlockLabel
 from hwtHls.frontend.pyBytecode.frame import PyBytecodeFrame, \
-    PyBytecodeLoopInfo, _PyBytecodeUnitialized
-from hwtHls.frontend.pyBytecode.indexExpansion import PyObjectHwSubscriptRef, expandBeforeUse
-from hwtHls.frontend.pyBytecode.instructions import CMP_OPS, BIN_OPS, UN_OPS, \
-    INPLACE_BIN_OPS, ROT_OPS, BUILD_OPS, NOP, \
-    POP_TOP, LOAD_DEREF, LOAD_ATTR, LOAD_FAST, LOAD_CONST, LOAD_GLOBAL, \
-    LOAD_METHOD, LOAD_CLOSURE, STORE_ATTR, STORE_FAST, STORE_DEREF, CALL_METHOD, \
-    CALL_FUNCTION, CALL_FUNCTION_KW, COMPARE_OP, GET_ITER, UNPACK_SEQUENCE, \
-    MAKE_FUNCTION, STORE_SUBSCR, EXTENDED_ARG, CALL_FUNCTION_EX
-from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc, \
-    PyBytecodeInline
+    PyBytecodeLoopInfo
+from hwtHls.frontend.pyBytecode.fromPythonLowLevelOpcodes import PyBytecodeToSsaLowLevelOpcodes
 from hwtHls.scope import HlsScope
 from hwtHls.ssa.basicBlock import SsaBasicBlock
-from hwtHls.ssa.value import SsaValue
 
 
+# from types import CellType
 class SsaBlockGroup():
     """
     Represents a set of block for a specific block label.
@@ -42,9 +24,10 @@ class SsaBlockGroup():
         self.end = begin
 
 
-class PyBytecodeToSsaLowLevel():
+class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
 
     def __init__(self, hls: HlsScope, label: str):
+        super(PyBytecodeToSsaLowLevel, self).__init__()
         assert sys.version_info >= (3, 10, 0), ("Python3.10 is minimum requirement", sys.version_info)
         self.hls = hls
         self.label = label
@@ -165,71 +148,6 @@ class PyBytecodeToSsaLowLevel():
             if any(len(phi.operands) != predecCnt for phi in block.phis):
                 raise NotImplementedError(loop)
      
-    def _makeFunction(self, frame: PyBytecodeFrame, instr: Instruction, stack: list):
-        # MAKE_FUNCTION_FLAGS = ('defaults', 'kwdefaults', 'annotations', 'closure')
-        name = stack.pop()
-        assert isinstance(name, str), name
-        code = stack.pop()
-
-        if instr.arg & 1:
-            # a tuple of default values for positional-only and positional-or-keyword parameters in positional order
-            defaults = stack.pop()
-        else:
-            defaults = ()
-
-        if instr.arg & (1 << 1):
-            # a dictionary of keyword-only parameters’ default values
-            raise NotImplementedError()
-
-        if instr.arg & (1 << 2):
-            # a tuple of strings containing parameters’ annotations
-            # Changed in version 3.10: Flag value 0x04 is a tuple of strings instead of dictionary
-            raise NotImplementedError()
-
-        if instr.arg & (1 << 3):
-            closure = stack.pop()
-        else:
-            closure = ()
-
-        # PyCodeObject *code, PyObject *globals, 
-        # PyObject *name, PyObject *defaults, PyObject *closure
-        newFn = FunctionType(code, frame.fn.__globals__, name, defaults, closure)
-        stack.append(newFn)
-
-    def _translateCallInlined(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock,
-                              fn: FunctionType, fnArgs: list, fnKwargs: dict):
-        # create function entry point block, assign to all function parameters and prepare frame where we initialize preproc/hw variable meta
-        # for variables from arguments
-        callFrame = PyBytecodeFrame.fromFunction(fn, fnArgs, fnKwargs, self.callStack)
-
-        curBlockLabel = self.blockToLabel[curBlock]
-        fnEntryBlockLabel = callFrame.blockTracker._getBlockLabel(0)
-        fnEntryBlock, fnEntryBlockIsNew = self._getOrCreateSsaBasicBlock(fnEntryBlockLabel)
-        curBlock.successors.addTarget(None, fnEntryBlock)
-        assert fnEntryBlockIsNew
-        self._debugDump(callFrame, label=callFrame.fn.__name__)
-        self._translateBytecodeBlock(callFrame, callFrame.bytecodeBlocks[0], fnEntryBlock)
-        self._debugDump(callFrame, label=callFrame.fn.__name__)
-        
-        curBlockAfterCall = SsaBasicBlock(self.toSsa.ssaCtx, f"{curBlock.label:s}_afterCall")
-        self.labelToBlock[curBlockLabel].end = curBlockAfterCall
-        self.blockToLabel[curBlockAfterCall] = curBlockLabel
-        # [todo] iterate return points in frame and jump to curBlockAfterCall
-        finalRetVal = None
-        for (_, retBlock, retVal) in callFrame.returnPoints:
-            if retVal is not None:
-                assert len(callFrame.returnPoints) == 1, "If this is not hardware object, the function has to have exactly a single return"
-                finalRetVal = retVal
-
-            retBlock.successors.addTarget(None, curBlockAfterCall)
-        
-        frame.stack.append(finalRetVal)
-        # todo process return points and connected to curBlockAfterCall block in cfg
-        self.callStack.pop()
-        self._onAllPredecsKnown(frame, curBlockAfterCall)
-
-        return curBlockAfterCall
-        
     def _createInstructionException(self, frame: PyBytecodeFrame, instr: Instruction):
         if instr.starts_line is not None:
             instrLine = instr.starts_line
@@ -249,299 +167,17 @@ class PyBytecodeToSsaLowLevel():
             curBlock: SsaBasicBlock,
             instr: Instruction) -> SsaBasicBlock:
 
-        stack = frame.stack
-        locals_ = frame.locals
         try:
             # Python assigns each name in a scope to exactly one category:
             #  local, enclosing, or global/builtin.
             # CPython, implements that rule by using:
             #  FAST locals, DEREF closure cells, and NAME or GLOBAL lookups.
-            
-            opcode = instr.opcode
-            if opcode == NOP:
-                # Do nothing code. Used as a placeholder by the bytecode optimizer.
-                return curBlock
-
-            elif opcode == POP_TOP:
-                # Removes the top-of-stack (TOS) item.
-                res = stack.pop()
-                res, curBlock = expandBeforeUse(frame, res, curBlock)
-                if isinstance(res, HlsWrite):
-                    res: HlsWrite
-                    if isinstance(res.dst, PyObjectHwSubscriptRef):
-                        hls = self.hls
-                        return res.dst.expandSetitemAsSwitchCase(frame, curBlock,
-                                                                 lambda i, dst: hls.write(res._origSrc, dst))
-                    
-                if isinstance(res, (HlsWrite, HlsRead, HdlAssignmentContainer)):
-                    self.toSsa.visit_CodeBlock_list(curBlock, [res, ])
-
-            elif opcode == LOAD_DEREF:
-                # nested scopes: access a variable through its cell object
-                closure = frame.fn.__closure__
-                if closure is None:
-                    # [todo] check what is the relation between function without closure
-                    #  and child function closure
-                    v = locals_[frame.cellVarI[instr.arg]]
-                else:
-                    v = closure[instr.arg].cell_contents
-                # closure[instr.arg] = None
-                assert v is not _PyBytecodeUnitialized, (instr.argval, "used before defined")
-                stack.append(v)
-
-            elif opcode == LOAD_ATTR:
-                v = stack[-1]
-                v = getattr(v, instr.argval)
-                stack[-1] = v
-
-            elif opcode == LOAD_FAST:
-                v = locals_[instr.arg]
-                assert v is not _PyBytecodeUnitialized, (instr.argval, "used before defined")
-                stack.append(v)
-
-            elif opcode == LOAD_CONST:
-                stack.append(instr.argval)
-
-            elif opcode == LOAD_GLOBAL:
-                if instr.argval in frame.fn.__globals__:
-                    v = frame.fn.__globals__[instr.argval]
-                else:
-                    # assert instr.argval in builtins.__dict__, instr.argval
-                    v = builtins.__dict__[instr.argval]
-                assert v is not _PyBytecodeUnitialized, (instr.argval, "used before defined")
-                stack.append(v)
-
-            elif opcode == LOAD_METHOD:
-                v = stack.pop()
-                v = getattr(v, instr.argval)
-                stack.append(v)
-
-            elif opcode == LOAD_CLOSURE:
-                # nested scopes: access the cell object
-                v = locals_[frame.cellVarI[instr.arg]]
-                stack.append(CellType(v))
-
-            elif opcode == STORE_ATTR:
-                dstParent = stack.pop()
-                dst = getattr(dstParent, instr.argval)
-                src = stack.pop()
-                src, curBlock = expandBeforeUse(frame, src, curBlock)
-
-                if isinstance(dst, (Interface, RtlSignal)):
-                    # stm = self.hls.write(src, dst)
-                    self.toSsa.visit_CodeBlock_list(curBlock, flatten(dst(src)))
-                else:
-                    raise NotImplementedError(instr, dst)
-
-            elif opcode == STORE_FAST:
-                vVal = stack.pop()
-                vVal, curBlock = expandBeforeUse(frame, vVal, curBlock)
-                v = locals_[instr.arg]
-                varIndex = instr.arg
-                if varIndex not in frame.preprocVars:
-                    if v is _PyBytecodeUnitialized and isinstance(vVal, (HValue, RtlSignal, SsaValue)):
-                        # only if it is a value which generates HW variable
-                        t = getattr(vVal, "_dtypeOrig", vVal._dtype)
-                        v = self.hls.var(instr.argval, t)
-                        locals_[varIndex] = v
-
-                    if isinstance(v, (RtlSignal, Interface)):
-                        # only if it is a hw variable, create assignment to HW variable
-                        stm = v(vVal)
-                        self.toSsa.visit_CodeBlock_list(curBlock, flatten([stm, ]))
-                        return curBlock
-
-                if isinstance(vVal, PyBytecodeInPreproc):
-                    vVal = vVal.ref
-                    frame.preprocVars.add(varIndex)
-
-                locals_[varIndex] = vVal
-
-            elif opcode == STORE_DEREF:
-                # nested scopes: access a variable through its cell object
-                vVal = stack.pop()
-                vVal, curBlock = expandBeforeUse(frame, vVal, curBlock)
-                closure = frame.fn.__closure__
-                varIndex = frame.cellVarI[instr.arg]
-                if closure is None:
-                    # [todo] check what is the relation between function without closure
-                    #  and child function closure
-                    v = locals_[varIndex]
-                    
-                    if varIndex not in frame.preprocVars:
-                        if v is _PyBytecodeUnitialized and isinstance(vVal, (HValue, RtlSignal, SsaValue)):
-                            # only if it is a value which generates HW variable
-                            t = getattr(vVal, "_dtypeOrig", vVal._dtype)
-                            v = self.hls.var(instr.argval, t)
-                            locals_[varIndex] = v
-    
-                        if isinstance(v, (RtlSignal, Interface)):
-                            # only if it is a hw variable, create assignment to HW variable
-                            stm = v(vVal)
-                            self.toSsa.visit_CodeBlock_list(curBlock, flatten([stm, ]))
-                            return curBlock
-
-                    if isinstance(vVal, PyBytecodeInPreproc):
-                        vVal = vVal.ref
-                        frame.preprocVars.add(varIndex)
-
-                    locals_[varIndex] = vVal
-                    
-                else:
-                    v = closure[varIndex].cell_contents
-                    varIndex = instr.arg
-                    if varIndex not in frame.preprocVars:
-                        if v is _PyBytecodeUnitialized and isinstance(vVal, (HValue, RtlSignal, SsaValue)):
-                            # only if it is a value which generates HW variable
-                            t = getattr(vVal, "_dtypeOrig", vVal._dtype)
-                            v = self.hls.var(instr.argval, t)
-                            closure[varIndex].cell_contents = v
-    
-                        if isinstance(v, (RtlSignal, Interface)):
-                            # only if it is a hw variable, create assignment to HW variable
-                            stm = v(vVal)
-                            self.toSsa.visit_CodeBlock_list(curBlock, flatten([stm, ]))
-                            return curBlock
-    
-                    if isinstance(vVal, PyBytecodeInPreproc):
-                        vVal = vVal.ref
-                        frame.preprocVars.add(varIndex)
-    
-                    closure[varIndex].cell_contents = vVal
-
-            elif opcode == CALL_METHOD or opcode == CALL_FUNCTION:
-                argCnt = instr.arg
-                if argCnt == 0:
-                    args = []
-                else:
-                    args = stack[-argCnt:]
-                for _ in range(argCnt):
-                    stack.pop()
-                m = stack.pop()
-                if isinstance(m, PyBytecodeInline):
-                    kwargs = {}
-                    return self._translateCallInlined(frame, curBlock, m.ref, args, kwargs)
-
-                res = m(*args)
-                stack.append(res)
-
-            elif opcode == CALL_FUNCTION_KW:
-                args = []
-                kwNames = stack.pop()
-                assert isinstance(kwNames, tuple), kwNames
-                for _ in range(instr.arg):
-                    args.append(stack.pop())
-
-                kwArgs = {}
-                for kwName, a in zip(kwNames, args[:len(args) - len(kwNames)]):
-                    kwArgs[kwName] = a
-                del args[:len(kwNames)]
-
-                m = stack.pop()
-                res = m(*reversed(args), **kwArgs)
-                stack.append(res)
-
-            elif opcode == CALL_FUNCTION_EX:
-                if instr.arg:
-                    kw_args = stack.pop()
-                    raise NotImplementedError(instr, kw_args)
-
-                args = stack.pop()
-                m = stack.pop()
-                res = m(*reversed(tuple(args)))
-                stack.append(res)
-                
-            elif opcode == COMPARE_OP:
-                binOp = CMP_OPS[instr.arg]
-                b = stack.pop()
-                a = stack.pop()
-                a, curBlock = expandBeforeUse(frame, a, curBlock)
-                b, curBlock = expandBeforeUse(frame, b, curBlock)
-                stack.append(binOp(a, b))
-
-            elif opcode == GET_ITER:
-                a = stack.pop()
-                a, curBlock = expandBeforeUse(frame, a, curBlock)
-                stack.append(iter(a))
-
-            elif opcode == EXTENDED_ARG:
-                pass
-
-            elif opcode == UNPACK_SEQUENCE:
-                seq = stack.pop()
-                stack.extend(reversed(tuple(seq)))
-
-            elif opcode == MAKE_FUNCTION:
-                self._makeFunction(frame, instr, stack)
-                
-            elif opcode == STORE_SUBSCR:
-                index = stack.pop()
-                sequence = stack.pop()
-                val = stack.pop()
-                index, curBlock = expandBeforeUse(frame, index, curBlock)
-                val, curBlock = expandBeforeUse(frame, val, curBlock)
-                if isinstance(index, (RtlSignal, SsaValue)) and not isinstance(sequence, (RtlSignal, SsaValue)):
-                    if not isinstance(sequence, PyObjectHwSubscriptRef):
-                        sequence = PyObjectHwSubscriptRef(self, sequence, index, instr.offset)
-                    return sequence.expandSetitemAsSwitchCase(frame, curBlock, lambda i, dst: dst(val))
-
-                operator.setitem(sequence, index, val)
-                #stack.append()
-
-            else:
-                binOp = BIN_OPS.get(opcode, None)
-                if binOp is not None:
-                    b = stack.pop()
-                    a = stack.pop()
-                    a, curBlock = expandBeforeUse(frame, a, curBlock)
-                    b, curBlock = expandBeforeUse(frame, b, curBlock)
-                
-                    if binOp is operator.getitem and isinstance(b, (RtlSignal, Interface, SsaValue)) and not isinstance(a, (RtlSignal, SsaValue)):
-                        # if this is indexing using hw value on non hw object we need to expand it to a switch-case on individual cases
-                        # must generate blocks for switch cases,
-                        # for this we need a to keep track of start/end for each block because we do not have this newly generated blocks in original CFG
-                        o = PyObjectHwSubscriptRef(self, a, b, instr.offset)
-                        stack.append(o)
-                        return curBlock
-
-                    stack.append(binOp(a, b))
-                    return curBlock
-
-                unOp = UN_OPS.get(opcode, None)
-                if unOp is not None:
-                    a = stack.pop()
-                    a, curBlock = expandBeforeUse(frame, a, curBlock)
-                    stack.append(unOp(a))
-                    return curBlock
-
-                rotOp = ROT_OPS.get(opcode, None)
-                if rotOp is not None:
-                    rotOp(stack)
-                    return curBlock
-
-                buildOp = BUILD_OPS.get(opcode, None)
-                if buildOp is not None:
-                    buildOp(instr, stack)
-                    return curBlock
-                
-                inplaceOp = INPLACE_BIN_OPS.get(opcode, None)
-                if inplaceOp is not None:
-                    b = stack.pop()
-                    b, curBlock = expandBeforeUse(frame, b, curBlock)
-                
-                    a = stack.pop()
-                    if isinstance(a, PyObjectHwSubscriptRef):
-                        a: PyObjectHwSubscriptRef
-                        # we expand as a regular bin op, and store later in store_subscript
-                        a, curBlock = a.expandIndexOnPyObjAsSwitchCase(frame, curBlock)
-                        # .expandSetitemAsSwitchCase(frame, curBlock, lambda _, dst: dst(inplaceOp(dst, b)))
-                    res = inplaceOp(a, b)
-
-                    stack.append(res)
-                    
-                    return curBlock
-            
+            # https://github.com/python/cpython/blob/main/Python/ceval.c
+            op = self.opcodeDispatch.get(instr.opcode, None)
+            if op is None:
                 raise NotImplementedError(instr)
+            else:
+                return op(frame, curBlock, instr)
 
         except HlsSyntaxError:
             raise  # already decorated exception, just propagate
@@ -549,5 +185,3 @@ class PyBytecodeToSsaLowLevel():
         except Exception:
             # a new exception generated directly from user code
             raise self._createInstructionException(frame, instr)
-
-        return curBlock

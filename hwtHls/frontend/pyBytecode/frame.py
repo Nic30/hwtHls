@@ -2,7 +2,7 @@ from copy import copy
 from dis import Instruction, _get_instructions_bytes, findlinestarts
 import inspect
 from networkx.classes.digraph import DiGraph
-from types import FunctionType
+from types import FunctionType, CellType
 from typing import Dict, Set, Tuple, List, Optional
 
 from hwtHls.frontend.pyBytecode.blockPredecessorTracker import BlockPredecessorTracker
@@ -11,6 +11,7 @@ from hwtHls.frontend.pyBytecode.loopMeta import PyBytecodeLoopInfo, \
     LoopExitJumpInfo
 from hwtHls.frontend.pyBytecode.loopsDetect import PyBytecodeLoop
 from hwtHls.ssa.basicBlock import SsaBasicBlock
+from itertools import chain
 
 
 class _PyBytecodeUnitialized():
@@ -44,8 +45,8 @@ class PyBytecodeFrame():
                  instructions: Tuple[Instruction, ...],
                  bytecodeBlocks: Dict[int, List[Instruction]],
                  loops: Dict[int, List["PyBytecodeLoop"]],
-                 cellVarI: Dict[int, int],
                  locals_: list,
+                 freevars: List[CellType],
                  stack: list):
         self.fn = fn
         self.loopStack: List[PyBytecodeLoopInfo] = []
@@ -55,7 +56,7 @@ class PyBytecodeFrame():
         self.blockTracker: Optional[BlockPredecessorTracker] = None
         self.loops = loops
         self.locals = locals_
-        self.cellVarI = cellVarI
+        self.freevars = freevars
         self.stack = stack
         self.returnPoints: List[Tuple[PyBytecodeFrame, SsaBasicBlock, tuple]] = []
  
@@ -94,6 +95,9 @@ class PyBytecodeFrame():
     #    pass
     @classmethod
     def fromFunction(cls, fn: FunctionType, fnArgs: tuple, fnKwargs: dict, callStack: List["PyBytecodeFrame"]):
+        """
+        :note: based on cpython/Python/ceval.c/_PyEval_MakeFrameVector
+        """
         co = fn.__code__
         localVars = [_PyBytecodeUnitialized for _ in range(fn.__code__.co_nlocals)]
         if inspect.ismethod(fn):
@@ -101,23 +105,32 @@ class PyBytecodeFrame():
 
         assert len(fnArgs) == co.co_argcount, ("Function call must have the correct number of arguments",
                                                len(fnArgs), co.co_argcount)
-        for i, v in enumerate(fnArgs):
-            localVars[i] = v
+        for i, argVal in enumerate(fnArgs):
+            localVars[i] = argVal 
+
         if fnKwargs:
             raise NotImplementedError()
 
-        varNameToI = {n: i for i, n in enumerate(fn.__code__.co_varnames)}
-        cellVarI = {}
-        # cellvars:  names of local variables that are referenced by nested functions
-        for i, name in enumerate(fn.__code__.co_cellvars):
-            # variables accessed using LOAD_DEREF/STORE_DEREF LOAD_CLOSURE/STORE_CLOSURE
-            index = varNameToI.get(name, None)
-            if index is None:
-                # cell var which is not local, we allocate extra space in locals 
-                index = len(localVars)
-                localVars.append(None)
-
-            cellVarI[i] = index
+        freevars = []
+        if co.co_cellvars:
+            argToI = {argName: i for i, argName in enumerate(co.co_varnames[:co.co_argcount])}
+            # cellvars:  names of local variables that are referenced by nested functions
+            # freevars: all non local variables, the cellvars are prefix of freevars 
+            # Allocate and initialize storage for cell vars, and copy free vars into frame.
+            for cellVarName in co.co_cellvars:
+                # Possibly account for the cell variable being an argument.
+                argI = argToI.get(cellVarName, None)
+                if argI is not None:
+                    cellVarVal = localVars[argI]
+                    # Clear the local copy.
+                    localVars[argI] = _PyBytecodeUnitialized
+                else:
+                    cellVarVal = _PyBytecodeUnitialized
+                freevars.append(CellType(cellVarVal))
+        
+        # Copy closure variables to free variables
+        if fn.__closure__:
+            freevars.extend(fn.__closure__)
 
         cell_names = co.co_cellvars + co.co_freevars
         linestarts = dict(findlinestarts(co))
@@ -127,16 +140,15 @@ class PyBytecodeFrame():
         bytecodeBlocks, cfg = extractBytecodeBlocks(instructions)
         loops = PyBytecodeLoop.collectLoopsPerBlock(cfg)
         frame = PyBytecodeFrame(fn, instructions, bytecodeBlocks,
-                               loops, cellVarI, localVars, [])
+                               loops, localVars, freevars, [])
 
         callStack.append(frame)
         frame.constructBlockTracker(cfg, callStack)
         return frame
 
     def __copy__(self):
-        o = self.__class__(self.fn, self.instructions, self.bytecodeBlocks,
-                           self.loops, self.cellVarI,
-                           copy(self.locals), copy(self.stack))
+        o = self.__class__(self.fn, self.instructions, self.bytecodeBlocks, self.loops, 
+                           copy(self.locals), self.freevars, copy(self.stack))
         o.loopStack = self.loopStack
         o.preprocVars = self.preprocVars
         o.bytecodeBlocks = self.bytecodeBlocks
