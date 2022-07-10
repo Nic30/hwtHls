@@ -56,8 +56,13 @@ class FromPythonBasics_TC(SimTestCase):
 
 if __name__ == "__main__":
     import unittest
+    #from hwt.synthesizer.utils import to_rtl_str
+    #
+    #u = HlsConnectionFromPyFnIf()
+    #print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
+
     suite = unittest.TestSuite()
-    # suite.addTest(IoFsm_TC('test_ReadFsm0'))
+    # suite.addTest(FromPythonBasics_TC('test_HlsConnectionFromPyFnIf'))
     suite.addTest(unittest.makeSuite(FromPythonBasics_TC))
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
