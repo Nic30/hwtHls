@@ -125,17 +125,21 @@ class AllocatorPipelineContainer(AllocatorArchitecturalElement):
         assert not self._syncAllocated
         prev_st_sync_input = None
         prev_st_valid = None
-        current_sync = Signal
+        
+        syncType = Signal
+        for con in self.connections:
+            syncType = resolveStrongestSyncType(syncType, chain(con.inputs, con.outputs))
+
         for is_last_in_pipeline, (pipeline_st_i, con) in iter_with_last(enumerate(self.connections)):
-            prev_st_sync_input, prev_st_valid, current_sync = self.allocateSyncForStage(
-                con, current_sync,
+            prev_st_sync_input, prev_st_valid = self.allocateSyncForStage(
+                con, syncType,
                 is_last_in_pipeline, pipeline_st_i,
                 prev_st_sync_input, prev_st_valid)
         self._syncAllocated = True
 
     def allocateSyncForStage(self,
                       con: ConnectionsOfStage,
-                      current_sync: Type[Interface],
+                      syncType: Type[Interface],
                       is_last_in_pipeline:bool,
                       pipeline_st_i:int,
                       prev_st_sync_input: Optional[HandshakeSync],
@@ -147,11 +151,10 @@ class AllocatorPipelineContainer(AllocatorArchitecturalElement):
 
         :note: pipeline registers are placed at the end of the stage
         """
-        current_sync = resolveStrongestSyncType(current_sync, chain(con.inputs, con.outputs))
 
-        if current_sync is not Signal:
+        if syncType is not Signal:
             # :note: Collect registers at the end of this stage
-            # because additioal synchronization needs to be added
+            # because additional synchronization needs to be added
             cur_registers = []
             for s in con.signals:
                 s: TimeIndependentRtlResource
@@ -230,4 +233,4 @@ class AllocatorPipelineContainer(AllocatorArchitecturalElement):
             prev_st_sync_input = to_next_stage
             prev_st_valid = stage_valid
 
-        return prev_st_sync_input, prev_st_valid, current_sync
+        return prev_st_sync_input, prev_st_valid
