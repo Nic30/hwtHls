@@ -143,6 +143,7 @@ class HlsNetNodeWriteControlBackwardEdge(HlsNetNodeWriteBackwardEdge):
             pass
         res = super(HlsNetNodeWriteControlBackwardEdge, self).allocateRtlInstance(allocator)
         if not self.allocateAsBuffer:
+            # if it is just register and both read and write are in same architectural element
             if isinstance(res, If):
                 # in FSM we have to clear the control flag if it was not set in this write
                 res.Else(
