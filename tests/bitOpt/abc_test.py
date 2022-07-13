@@ -26,7 +26,11 @@ class AbcTC(unittest.TestCase):
             ~a,     # 4
             a & ~a, # 5
             a | ~a, # 6
-            ~(a | b | c) # 7
+            ~(a | b | c), # 7
+            a._eq(1), # 8
+            a._eq(0), # 9
+            a != 1,
+            a != 0,
             ])
         net = abcCmd_resyn2(net)
         net = abcCmd_compress2(net)
@@ -41,7 +45,12 @@ class AbcTC(unittest.TestCase):
             ~a,        # 4
             BIT.from_py(0), # 5
             BIT.from_py(1), # 6
-            ~c & (~a & ~b)])  # 7
+            ~c & (~a & ~b), # 7
+            a, # 8
+            ~a, # 9
+            a ^ 1, # 10
+            a ^ 0, # 11
+            ])  
         
 
 if __name__ == "__main__":
