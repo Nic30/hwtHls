@@ -4,7 +4,10 @@ from typing import Optional, Union, Set, Tuple, Dict, List
 from hwt.synthesizer.dummyPlatform import DummyPlatform
 from hwtHls.architecture.allocator import HlsAllocator
 from hwtHls.architecture.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis
+from hwtHls.architecture.transformation.controlLogicMinimize import RtlNetlistPassControlLogicMinimize
 from hwtHls.architecture.transformation.singleStagePipelineToFsm import RtlArchPassSingleStagePipelineToFsm
+from hwtHls.architecture.translation.dumpStreamNodes import RtlNetlistPassDumpStreamNodes
+from hwtHls.architecture.translation.toGraphwiz import RtlArchPassToGraphwiz
 from hwtHls.architecture.translation.toTimeline import RtlArchPassShowTimeline
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, MachineLoopInfo
@@ -15,13 +18,11 @@ from hwtHls.netlist.analysis.schedule import HlsNetlistAnalysisPassRunScheduler
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.scheduler.scheduler import HlsScheduler
 from hwtHls.netlist.transformation.aggregateBitwiseOpsPass import HlsNetlistPassAggregateBitwiseOps
-from hwtHls.netlist.transformation.controlLogicMinimize import RtlNetlistPassControlLogicMinimize
 from hwtHls.netlist.transformation.dce import HlsNetlistPassDCE
 from hwtHls.netlist.transformation.mergeExplicitSync import HlsNetlistPassMergeExplicitSync
 from hwtHls.netlist.transformation.simplify import HlsNetlistPassSimplify
 from hwtHls.netlist.translation.dumpBlockSync import HlsNetlistPassDumpBlockSync
 from hwtHls.netlist.translation.dumpDataThreads import HlsNetlistPassDumpDataThreads
-from hwtHls.netlist.translation.dumpStreamNodes import RtlNetlistPassDumpStreamNodes
 from hwtHls.netlist.translation.toGraphwiz import HlsNetlistPassDumpToDot
 from hwtHls.netlist.translation.toTimeline import HlsNetlistPassShowTimeline
 from hwtHls.platform.fileUtils import outputFileGetter
@@ -180,7 +181,7 @@ class DefaultHlsPlatform(DummyPlatform):
         iea = InterArchElementNodeSharingAnalysis(netlist.normalizedClkPeriod)
         if len(allocator._archElements) > 1:
             iea._analyzeInterElementsNodeSharing(allocator._archElements)
-            if iea.interElemConnections:
+            if iea.interElemConnections:  # it could be the case that the elements are completely independent
                 allocator._declareInterElemenetBoundarySignals(iea)
 
         for e in allocator._archElements:
@@ -191,6 +192,7 @@ class DefaultHlsPlatform(DummyPlatform):
 
         for e in allocator._archElements:
             e.allocateSync()
+
         allocator._iea = iea         
 
     def runRtlNetlistPasses(self, hls: "HlsScope", netlist: HlsNetlistCtx):
@@ -198,5 +200,6 @@ class DefaultHlsPlatform(DummyPlatform):
         RtlNetlistPassControlLogicMinimize().apply(hls, netlist)
         if debugDir:
             RtlNetlistPassDumpStreamNodes(outputFileGetter(debugDir, ".12.sync.txt")).apply(hls, netlist)
-            RtlArchPassShowTimeline(outputFileGetter(debugDir, ".13.archSchedule.html")).apply(hls, netlist)
+            RtlArchPassToGraphwiz(outputFileGetter(debugDir, ".13.arch.dot")).apply(hls, netlist)
+            RtlArchPassShowTimeline(outputFileGetter(debugDir, ".14.archSchedule.html")).apply(hls, netlist)
 
