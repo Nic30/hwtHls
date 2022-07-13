@@ -165,7 +165,7 @@ void GenericFpgaTargetPassConfig::addOptimizedRegAlloc() {
 	addPass(&LiveIntervalsID); // add killed and other attributes
 	addPass(createGenericFpgaPreRegAllocCombiner());
 	addPass(&EarlyIfPredicatorID);
-	addPass(&EarlyIfConverterID);
+	addPass(&EarlyIfConverterID); // [FIXME] does not work for AxiSParse2If@16b@40MHz
 	addPass(&DeadMachineInstructionElimID); // requires explicit undefs
 
 }
