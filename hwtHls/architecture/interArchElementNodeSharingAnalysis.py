@@ -27,18 +27,17 @@ class InterArchElementNodeSharingAnalysis():
     :ivar interElemConnections: the port tuples which are crossing the boundaries of :class:`hwtHls.architecture.architecturalElement.AllocatorArchitecturalElement`
         instances
     :ivar multiOwnerNodes: a list of nodes which are owned by multiple :class:`hwtHls.architecture.architecturalElement.AllocatorArchitecturalElement` instances
-    :ivar nodePartToPort: a dictionary which maps the port of multi part node to a specific part
     :ivar ownerOfNode: a dictionary mapping node to list of :class:`hwtHls.architecture.architecturalElement.AllocatorArchitecturalElement`
         instance
     :ivar partsOfNode: dictionary mapping the node to its parts in individual architecture elements
     :note: if node has multiple owners the owners are using only :class:`hwtHls.netlist.nodes.node.HlsNetNodePartRef` instances and ownerOfNode is also using only parts
-        However the port itsef does use original node.
+        However the port itself does use original node.
     :ivar ownerOfInput: a dictionary mapping node input to list of :class:`hwtHls.architecture.architecturalElement.AllocatorArchitecturalElement`
         instance
     :ivar ownerOfOutput: a dictionary mapping node output to list of :class:`hwtHls.architecture.architecturalElement.AllocatorArchitecturalElement`
         instance
-    :ivar explicitPathSpec: An additional specfification for output to input path which must pass some element where the output is not directly used.
-    :note: Source and destionation elemnt are not specified in explicitPathSpec because it can be derived from the owner of port.
+    :ivar explicitPathSpec: An additional specification for output to input path which must pass some element where the output is not directly used.
+    :note: Source and destination element are not specified in explicitPathSpec because it can be derived from the owner of port.
         For connections which are just from the source element to destination element this dictionary holds no record.
     :ivar firstUseTimeOfOutInElem: Information about when each node output is used in :class:`hwtHls.architecture.architecturalElement.AllocatorArchitecturalElement`
         instance for the first time.
@@ -48,7 +47,6 @@ class InterArchElementNodeSharingAnalysis():
         self.normalizedClkPeriod = normalizedClkPeriod
         self.interElemConnections: UniqList[Tuple[HlsNetNodeOut, HlsNetNodeIn]] = UniqList()
         self.multiOwnerNodes: UniqList[HlsNetNode] = UniqList()
-        self.nodePartToPort: Dict[Union[HlsNetNodeIn, HlsNetNodeOut], HlsNetNodePartRef]
         self.ownerOfNode: Dict[HlsNetNode, AllocatorArchitecturalElement] = {}
         self.partsOfNode: Dict[HlsNetNode, List[HlsNetNodePartRef]] = {}
         self.ownerOfInput: Dict[HlsNetNodeIn, UniqList[AllocatorArchitecturalElement]] = {}
@@ -108,6 +106,7 @@ class InterArchElementNodeSharingAnalysis():
         syn0 = self.portSynonyms.get(p0, None)
         syn1 = self.portSynonyms.get(p1, None)
 
+        # merge synonym lists as efficiently as possible
         if syn0 is None and syn1 is None:
             syn = self.portSynonyms[p0] = self.portSynonyms[p1] = UniqList()
             syn.append(p0)

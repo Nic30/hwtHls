@@ -1,4 +1,4 @@
-from typing import Type, Dict, Optional, List, Tuple, Union, Sequence
+from typing import Type, Dict, Optional, List, Tuple, Union, Sequence, Literal
 
 from hwt.code import And
 from hwt.hdl.statements.statement import HdlStatement
@@ -88,6 +88,7 @@ class ConnectionsOfStage():
         self.io_skipWhen: Dict[Interface, SkipWhenMemberList] = {}
         self.io_extraCond: Dict[Interface, ExtraCondMemberList] = {}
         self.sync_node: Optional[StreamNode] = None
+        self.syncNodeAck: Optional[Union[RtlSignal, Literal[1], None]] = None
         self.stDependentDrives: List[HdlStatement] = []
 
 

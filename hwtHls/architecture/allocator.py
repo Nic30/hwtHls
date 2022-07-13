@@ -37,6 +37,10 @@ class HlsAllocator():
         return elm.namePrefix[namePrefixLen:]
 
     def _discoverArchElements(self):
+        """
+        Query HlsNetlistAnalysisPassDiscoverFsm and HlsNetlistAnalysisPassDiscoverPipelines to search AllocatorArchitecturalElement instances
+        in current HlsNetlist.
+        """
         netlist = self.netlist
         fsms: HlsNetlistAnalysisPassDiscoverFsm = netlist.requestAnalysis(HlsNetlistAnalysisPassDiscoverFsm)
         pipelines: HlsNetlistAnalysisPassDiscoverPipelines = netlist.requestAnalysis(HlsNetlistAnalysisPassDiscoverPipelines)
@@ -75,7 +79,7 @@ class HlsAllocator():
                     iea.firstUseTimeOfOutInElem[(dstElm, o)] = useT
                 elif isinstance(dstElm, AllocatorFsmContainer):
                     # Need to add extra buffer between FSMs or move value load/store in states
-                    # We add new pipeline to architecture adn register this pair to interElemConnections
+                    # We add new pipeline to architecture and register this pair to interElemConnections
                     srcBaseName = self._getArchElmBaseName(srcElm)
                     dstBaseName = self._getArchElmBaseName(dstElm)
                     bufferPipelineName = f"{self.namePrefix:s}buffer_{srcBaseName:s}{srcStartClkI}_to_{dstBaseName:s}{dstUseClkI}"
@@ -122,8 +126,8 @@ class HlsAllocator():
             for dstElm in dstElms:
                 dstElm: AllocatorArchitecturalElement
 
-                if (dstElm, o) in seenOutputsConnectedToElm or srcElm is dstElm:
-                    # already instantiated, or does not need explicit instantiation because the port is directly present in element
+                if srcElm is dstElm or (dstElm, o) in seenOutputsConnectedToElm:
+                    # already instantiated, or does not need explicit instantiation, because the port is directly present in element
                     continue
 
                 seenOutputsConnectedToElm.add((dstElm, o))
@@ -131,7 +135,7 @@ class HlsAllocator():
                 synonyms = iea.portSynonyms.get(o, ())
                 explicitPath = iea.explicitPathSpec.get((o, i, dstElm), None)
                 if explicitPath is not None:
-                    # we must explicitely pass the value through all elements at specific times
+                    # we must explicitly pass the value through all elements at specific times
                     # for each element in path add output, input pair and connect them inside of element
                     for elmSpec in explicitPath:
                         elmSpec: ValuePathSpecItem
@@ -145,7 +149,7 @@ class HlsAllocator():
                 self._addOutputAndAllSynonymsToElement(o, useT, synonyms, dstElm)
 
     def _expandAllOutputSynonymsInElement(self, iea: InterArchElementNodeSharingAnalysis):
-        # a set used to avoid adding another sync channel if same is already present
+        # a set used to avoid adding another sync channel if same if is already present
         seenOuts: Set[HlsNetNodeOut] = set()
         for o, _ in iea.interElemConnections:
             srcElm = iea.getSrcElm(o)
@@ -188,7 +192,7 @@ class HlsAllocator():
             for dstElm in dstElms:
                 if srcElm is dstElm:
                     continue
-                # dst should be already delcared from _declareInterElemenetBoundarySignals
+                # dst should be already declared from _declareInterElemenetBoundarySignals
                 dstTir: TimeIndependentRtlResource = dstElm.netNodeToRtl[o]
                 # src should be already declared form AllocatorArchitecturalElement.allocateDataPath
                 srcTir: TimeIndependentRtlResource = srcElm.netNodeToRtl[o]
@@ -199,11 +203,11 @@ class HlsAllocator():
 
                 explicitPath = iea.explicitPathSpec.get((o, i, dstElm), None)
                 if explicitPath is not None:
-                    # we must explicitely pass the value through all elements at specific times
+                    # we must explicitly pass the value through all elements at specific times
                     # for each element in path add output, input pair and connect them inside of element
                     for elmSpec in explicitPath:
                         elmSpec: ValuePathSpecItem
-                        raise NotImplementedError("Propagate value in specifid element and complete the path.")
+                        raise NotImplementedError("Propagate value in specified element and complete the path.")
                         # if (dstElm, o) in seenOutputsConnectedToElm:
                         #    assert not dstElm is iea.ownerOfOutput[o]
                         #    continue
@@ -216,14 +220,14 @@ class HlsAllocator():
                 assert srcStartClkI <= dstUseClkI, (srcStartClkI, dstUseClkI, "Source must be before first use because otherwise this should be a backedge instead.")
                 if len(srcTir.valuesInTime) <= srcOff:
                     if isinstance(srcElm, AllocatorPipelineContainer):
-                        # extend the value register pipeline to get data in time when other elemnt requires it
+                        # extend the value register pipeline to get data in time when other element requires it
                         # potentially also extend the src pipeline
                         srcElm.extendValidityOfRtlResource(srcTir, dstTir.timeOffset)
                         # assert len(srcTir.valuesInTime) == srcOff + 1
                     elif isinstance(srcElm, AllocatorFsmContainer):
                         assert dstUseClkI in srcElm.clkIToStateI, ("Must be the case otherwise the pipeline should already been extended.")
                     else:
-                        raise NotImplementedError("Need to add extra buffer between fsms", srcStartClkI, dstUseClkI, o, srcElm, dstElm)
+                        raise NotImplementedError("Need to add extra buffer between FSMs", srcStartClkI, dstUseClkI, o, srcElm, dstElm)
 
                 srcSig = srcTir.get(dstUseClkI * clkPeriod).data
                 assert not dstTir.valuesInTime[0].data.drivers, ("Forward declaration signal must not have a driver yet.", dstTir, dstTir.valuesInTime[0].data.drivers)
