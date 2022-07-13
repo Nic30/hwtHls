@@ -43,12 +43,6 @@ class HlsNetNodeOperator(HlsNetNode):
             input_cnt, self.netlist.realTimeClkPeriod)
         self.assignRealization(r)
 
-    def allocateRtlInstanceOutDeclr(self, allocator: "AllocatorArchitecturalElement", o: HlsNetNodeOut, startTime: float) -> TimeIndependentRtlResource:
-        assert allocator.netNodeToRtl.get(o, None) is None, ("Must not be redeclared", o)
-        s = allocator._sig(f"forwardDeclr{self._id}_{o.out_i:d}", o._dtype)
-        res = allocator.netNodeToRtl[o] = TimeIndependentRtlResource(s, startTime, allocator)
-        return res
-
     def allocateRtlInstance(self,
                           allocator: "AllocatorArchitecturalElement",
                           ) -> TimeIndependentRtlResource:
