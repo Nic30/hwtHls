@@ -12,7 +12,7 @@ from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.architecturalElement import AllocatorArchitecturalElement
 from hwtHls.architecture.connectionsOfStage import getIntfSyncSignals, \
-    setNopValIfNotSet, SignalsOfStages, ConnectionsOfStage, SkipWhenMemberList
+    setNopValIfNotSet, SignalsOfStages, ConnectionsOfStage
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.analysis.fsm import IoFsm
 from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
@@ -118,8 +118,8 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
                 node: HlsNetNode
                 if isinstance(node, HlsNetNodeReadBackwardEdge):
                     node: HlsNetNodeReadBackwardEdge
-                    if node.associated_write in self.allNodes:
-                        node.associated_write.allocateAsBuffer = False  # allocate as a register because this is just local controll channel
+                    if node.associated_write in self.allNodes:  # is in the same arch. element
+                        node.associated_write.allocateAsBuffer = False  # allocate as a register because this is just local control channel
                         if isinstance(node, HlsNetNodeReadControlBackwardEdge):
                             localControlReads.append(node)
                             controlToStateI[node] = stI
@@ -201,6 +201,7 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
 
         stateTrans: List[Tuple[RtlSignal, List[HdlStatement]]] = []
         for stI, con in enumerate(self.connections):
+            con: ConnectionsOfStage
             for s in con.signals:
                 s: TimeIndependentRtlResource
                 # if the value has a register at the end of this stage
@@ -217,7 +218,8 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
                 assert bool(stateAck) == 1
             else:
                 stateAck = rename_signal(self.netlist.parentUnit, stateAck, f"{self.namePrefix}st_{stI:d}_ack")
-
+            con.syncNodeAck = stateAck
+            
             for dstSt, c in sorted(fsm.transitionTable[stI].items(), key=lambda x: x[0]):
                 assert not unconditionalTransSeen, "If there is an unconditional transition from this state it must be the last one"
                 if isinstance(stateAck, (bool, int)):

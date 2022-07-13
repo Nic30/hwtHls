@@ -220,7 +220,8 @@ class AllocatorPipelineContainer(AllocatorArchitecturalElement):
                     ack = ack & prev_st_valid
             else:
                 ack = BIT.from_py(1)
-
+            
+            con.syncNodeAck = ack
             if to_next_stage is not None:
                 If(to_next_stage.rd,
                    stage_valid(to_next_stage.vld)
