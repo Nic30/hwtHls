@@ -12,9 +12,9 @@ from hwtHls.netlist.nodes.loopHeader import HlsLoopGate, HlsLoopGateStatus
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy
+from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.platform.fileUtils import OutputStreamGetter
-from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
 
 
 class HwtHlsNetlistToGraphwiz():
@@ -135,10 +135,6 @@ class HwtHlsNetlistToGraphwiz():
 
         node.set("label", "".join(buff))
         return node
-
-    @staticmethod
-    def _escape(s: str) -> str:
-        return s.replace("<", "\\<").replace(">", "\\>").replace("|", "\\|").replace('"', '\\"').replace("{", "\\{").replace("}", "\\}")
 
     def dumps(self):
         return self.graph.to_string()
