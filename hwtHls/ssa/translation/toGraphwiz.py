@@ -6,7 +6,6 @@ from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.ast.debugCodeSerializer import CopyBasicBlockLabelsToCode
 from hwtHls.frontend.ast.statements import HlsStmCodeBlock
-from hwtHls.netlist.translation.toGraphwiz import HwtHlsNetlistToGraphwiz
 from hwtHls.platform.fileUtils import OutputStreamGetter
 from hwtHls.ssa.analysis.liveness import EdgeLivenessDict
 from hwtHls.ssa.basicBlock import SsaBasicBlock
@@ -112,7 +111,7 @@ class SsaToGraphwiz():
 
     @staticmethod
     def _escape(s: str) -> str:
-        return HwtHlsNetlistToGraphwiz._escape(s)
+        return s.replace("<", "\\<").replace(">", "\\>").replace("|", "\\|").replace('"', '\\"').replace("{", "\\{").replace("}", "\\}")
 
     def dumps(self):
         return self.graph.to_string()
