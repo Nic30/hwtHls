@@ -23,6 +23,7 @@ from hwtHls.netlist.transformation.dce import HlsNetlistPassDCE
 from hwtHls.netlist.abc.hlsNetlistToAbcAig import HlsNetlistToAbcAig
 from hwtHls.netlist.abc.abcAigToHlsNetlist import AbcAigToHlsNetlist
 from hwtHls.netlist.builder import HlsNetlistBuilder
+from hwtHls.netlist.abc.optScripts import abcCmd_resyn2, abcCmd_compress2
 
 
 def iter1and0sequences(v: BitsVal) -> Generator[Tuple[Literal[1, 0], int], None, None]:
@@ -236,6 +237,10 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
             outputs = [o for o in outputs if o not in inTreeOutputs]
             abcFrame, abcNet, abcAig = toAbcAig.translate(inputs, outputs)
             abcAig.Cleanup()
+
+            abcNet = abcCmd_resyn2(abcNet)
+            abcNet = abcCmd_compress2(abcNet)
+
             toHlsNetlist = AbcAigToHlsNetlist(abcFrame, abcNet, abcAig, builder)
             newOutputs = toHlsNetlist.translate()
             assert len(outputs) == len(newOutputs)

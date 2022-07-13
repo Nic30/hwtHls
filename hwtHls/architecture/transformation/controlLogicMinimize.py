@@ -1,5 +1,5 @@
 
-from typing import Union, Set
+from typing import Union, Set, Generator
 
 from hwt.hdl.operator import Operator
 from hwt.hdl.operatorDefs import COMPARE_OPS, AllOps
@@ -14,9 +14,10 @@ from hwtHls.architecture.architecturalElement import AllocatorArchitecturalEleme
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage, \
     extractControlSigOfInterfaceTuple
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.transformation.rtlNetlistPass import RtlNetlistPass
+from hwtHls.architecture.transformation.rtlNetlistPass import RtlNetlistPass
 from hwtHls.netlist.abc.rtlNetlistToAbcAig import RtlNetlistToAbcAig
 from hwtHls.netlist.abc.abcAigToRtlNetlist import AbcAigToRtlNetlist
+from hwtHls.netlist.abc.optScripts import abcCmd_resyn2, abcCmd_compress2
 
 
 class RtlNetlistPassControlLogicMinimize(RtlNetlistPass):
@@ -45,7 +46,8 @@ class RtlNetlistPassControlLogicMinimize(RtlNetlistPass):
         elif d.operator == AllOps.TERNARY:
             assert o._dtype.bit_length() != 1, o
 
-        elif d.operator == AllOps.INDEX:
+        elif d.operator not in (AllOps.AND, AllOps.OR, AllOps.XOR, AllOps.NOT):
+            # exclude this operator from logic optimizations
             inputs.append(o)
             return False
 
@@ -53,20 +55,8 @@ class RtlNetlistPassControlLogicMinimize(RtlNetlistPass):
             if not isinstance(i, HValue):
                 cls._collect1bOpTree(i, inputs, inTreeOutputs)
                 inTreeOutputs.add(i)
-            
         return True
 
-    @classmethod
-    def collectControlDrivingTree(cls, sig: Union[RtlSignal, Interface, int, HValue],
-                                  allControlIoOutputs: UniqList[RtlSignal],
-                                  inputs: UniqList[RtlSignal],
-                                  inTreeOutputs: Set[RtlSignal]):
-        if isinstance(sig, (int, HValue)):
-            return
-        for s in cls.iterDriverSignals(sig):
-            if s not in allControlIoOutputs and cls._collect1bOpTree(s, inputs, inTreeOutputs):
-                allControlIoOutputs.append(s)
-        
     @classmethod
     def iterConditions(cls, stm: HdlStatement):
         if isinstance(stm, HdlAssignmentContainer):
@@ -74,9 +64,15 @@ class RtlNetlistPassControlLogicMinimize(RtlNetlistPass):
         elif isinstance(stm, IfContainer):
             stm: IfContainer
             yield stm.cond
+            for subStm in stm.ifTrue:
+                yield from cls.iterConditions(subStm)
+    
             for c, subStms in stm.elIfs:
                 yield c
                 for subStm in subStms:
+                    yield from cls.iterConditions(subStm)
+            if stm.ifFalse:
+                for subStm in stm.ifFalse:
                     yield from cls.iterConditions(subStm)
     
         else:
@@ -84,7 +80,7 @@ class RtlNetlistPassControlLogicMinimize(RtlNetlistPass):
                 yield from cls.iterConditions(subStm)
 
     @classmethod
-    def iterDriverSignalsRec(cls, stm: HdlStatement, sig: RtlSignal):
+    def iterDriverSignalsRec(cls, stm: HdlStatement, sig: RtlSignal) -> Generator[RtlSignal, None, None]:
         if isinstance(stm, HdlAssignmentContainer):
             src = stm.src
             if not isinstance(src, HValue):
@@ -94,13 +90,27 @@ class RtlNetlistPassControlLogicMinimize(RtlNetlistPass):
                 yield from cls.iterDriverSignalsRec(subStm, sig)
 
     @classmethod
-    def iterDriverSignals(cls, sig: Union[RtlSignal, Interface]):
+    def iterDriverSignals(cls, sig: Union[RtlSignal, Interface]) -> Generator[RtlSignal, None, None]:
         if isinstance(sig, Interface):
             sig = sig._sig
         d = sig.singleDriver()
         if isinstance(d, HdlStatement):
             yield from cls.iterDriverSignalsRec(d, sig)
+        else:
+            yield sig
       
+    @classmethod
+    def collectControlDrivingTree(cls, sig: Union[RtlSignal, Interface, int, HValue],
+                                  allControlIoOutputs: UniqList[RtlSignal],
+                                  inputs: UniqList[RtlSignal],
+                                  inTreeOutputs: Set[RtlSignal]):
+        if isinstance(sig, (int, HValue)):
+            return
+            
+        for s in cls.iterDriverSignals(sig):
+            if s not in allControlIoOutputs and cls._collect1bOpTree(s, inputs, inTreeOutputs):
+                allControlIoOutputs.append(s)
+        
     def apply(self, hls: "HlsScope", netlist: HlsNetlistCtx):
         allControlIoOutputs: UniqList[RtlSignal] = UniqList()
         inputs: UniqList[RtlSignal] = []
@@ -109,10 +119,14 @@ class RtlNetlistPassControlLogicMinimize(RtlNetlistPass):
             elm: AllocatorArchitecturalElement
             for con in elm.connections:
                 con: ConnectionsOfStage
+                if isinstance(con.syncNodeAck, RtlSignal):
+                    self.collectControlDrivingTree(con.syncNodeAck.singleDriver().src, allControlIoOutputs, inputs, inTreeOutputs)
+                    
                 if con.sync_node:
                     for m in con.sync_node.masters:
                         _, rd = extractControlSigOfInterfaceTuple(m)
                         self.collectControlDrivingTree(rd, allControlIoOutputs, inputs, inTreeOutputs)
+
                     for s in con.sync_node.slaves:
                         vld, _ = extractControlSigOfInterfaceTuple(s)
                         self.collectControlDrivingTree(vld, allControlIoOutputs, inputs, inTreeOutputs)
@@ -121,12 +135,17 @@ class RtlNetlistPassControlLogicMinimize(RtlNetlistPass):
         for stm in netlist.parentUnit._ctx.statements:
             for c in self.iterConditions(stm):
                 self.collectControlDrivingTree(c, allControlIoOutputs, inputs, inTreeOutputs)
+
         _collect = self._collect1bOpTree
 
         if allControlIoOutputs:
             toAbcAig = RtlNetlistToAbcAig()
             abcFrame, abcNet, abcAig = toAbcAig.translate(inputs, allControlIoOutputs)
             abcAig.Cleanup()
+            
+            abcNet = abcCmd_resyn2(abcNet)
+            abcNet = abcCmd_compress2(abcNet)
+
             toHlsNetlist = AbcAigToRtlNetlist(abcFrame, abcNet, abcAig)
             newOutputs = toHlsNetlist.translate()
             assert len(allControlIoOutputs) == len(newOutputs)
@@ -141,6 +160,9 @@ class RtlNetlistPassControlLogicMinimize(RtlNetlistPass):
                             # ep._replace_input(o, newO)
                         elif isinstance(ep, HdlStatement):
                             ep: HdlStatement
+                            if newO._dtype.negated:
+                                newO = (~newO)
+                            newO = newO._isOn()
                             ep._replace_input(o, newO)
                         else:
                             raise NotImplementedError(ep, o)
