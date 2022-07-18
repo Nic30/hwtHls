@@ -106,15 +106,15 @@ class HlsAstWhileIf_TC(BaseSsaTC):
 
 
 if __name__ == "__main__":
-    import unittest
     # from hwt.synthesizer.utils import to_rtl_str
     # u = WhileAndIf2()
     # u.DATA_WIDTH = 4
     # u.FREQ = int(40e6)
     # print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
 
+    import unittest
     suite = unittest.TestSuite()
-    #suite.addTest(HlsAstWhileIf_TC('test_WhileAndIf2'))
+    # suite.addTest(HlsAstWhileIf_TC('test_WhileAndIf2'))
     suite.addTest(unittest.makeSuite(HlsAstWhileIf_TC))
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

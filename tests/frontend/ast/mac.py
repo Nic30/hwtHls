@@ -136,10 +136,12 @@ class HlsMAC_example_TC(SimTestCase):
 
     def test_2_16simple(self, u_cls=HlsMAC_example2):
         u = u_cls()
+        #u.INPUT_CNT = 16
+        # u.CLK_FREQ = int(40e6)
         u.INPUT_CNT = 16
         self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
 
-        inputs = [i for i in range(16)]
+        inputs = [i for i in range(u.INPUT_CNT)]
         for intf, d in zip(u.dataIn, inputs):
             intf._ag.data.append(d)
 
@@ -161,12 +163,12 @@ if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     u = HlsMAC_example_handshake()
     u.DATA_WIDTH = 32
-    u.CLK_FREQ = int(20e6)
-    u.INPUT_CNT = 4
+    u.CLK_FREQ = int(40e6)
+    u.INPUT_CNT = 16
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
 
     suite = unittest.TestSuite()
-    # suite.addTest(HlsMAC_example_TC('test_simple_handshaked'))
+    #suite.addTest(HlsMAC_example_TC('test_2_16simple_handshaked'))
     suite.addTest(unittest.makeSuite(HlsMAC_example_TC))
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
