@@ -10,6 +10,7 @@ from hwtHls.architecture.architecturalElement import AllocatorArchitecturalEleme
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage
 from hwtHls.architecture.fsmContainer import AllocatorFsmContainer
 from hwtHls.architecture.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis
+from hwtHls.architecture.interArchElementHandshakeSync import InterArchElementHandshakeSync
 from hwtHls.architecture.pipelineContainer import AllocatorPipelineContainer
 from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
 from hwtHls.netlist.context import HlsNetlistCtx
@@ -36,7 +37,16 @@ class RtlArchToGraphwiz():
         nodeId = len(self.graph.obj_dict['nodes'])
         n = Node(f"n{nodeId:d}", shape="plaintext")
         name = html.escape(getSignalName(i))
-        label = f'<<table border="0" cellborder="1" cellspacing="0"><tr port="0"><td>{name:s}</td></tr></table>>'
+        bodyRows = []
+        if isinstance(i, InterArchElementHandshakeSync):
+            bodyRows.append(f'<tr port="0"><td colspan="2">{name:s}</td><td>{html.escape(i.__class__.__name__)}</td></tr>')
+            for _, dst in i.data:
+                bodyRows.append(f"<tr><td></td><td>{html.escape(dst.data.name):s}</td><td>{html.escape(repr(dst.data._dtype))}</td></tr>")
+        else:
+            bodyRows.append(f'<tr port="0"><td>{name:s}</td><td>{html.escape(i.__class__.__name__)}</td></tr>')
+
+        bodyStr = "\n".join(bodyRows)
+        label = f'<<table border="0" cellborder="1" cellspacing="0">{bodyStr:s}</table>>'
         n.set("label", label)
         self.graph.add_node(n)
         self.interfaceToNodes[i] = n
@@ -68,28 +78,26 @@ class RtlArchToGraphwiz():
             g.add_node(elmNode)
             self.archElementToNode[elm] = elmNode
 
-            if isinstance(elm, AllocatorFsmContainer):
-                elm: AllocatorFsmContainer
-                nodeRows = ['<<table border="0" cellborder="1" cellspacing="0">\n']
-                name = html.escape(elm.namePrefix)
-                nodeRows.append(f"    <tr><td colspan='3'>{name:s}</td></tr>\n")
-                for i, con in enumerate(elm.connections):
-                    nodeRows.append(f"    <tr><td port='i{i:d}'>i{i:d}</td><td>st{i:d}</td><td port='o{i:d}'>o{i:d}</td></tr>\n")
-                    con: ConnectionsOfStage
-                    for intf in con.inputs:
-                        iN = self._getInterfaceNode(intf)
-                        e = Edge(f"{iN.get_name():s}:0", f"n{nodeId:d}:i{i:d}")
-                        g.add_edge(e)
-                    
-                    for intf in con.outputs:
-                        oN = self._getInterfaceNode(intf)
-                        e = Edge(f"n{nodeId:d}:o{i:d}", f"{oN.get_name():s}:0")
-                        g.add_edge(e)
-                    
-                nodeRows.append('</table>>')
-            else:
-                raise NotImplementedError()
-            
+            nodeRows = ['<<table border="0" cellborder="1" cellspacing="0">\n']
+            name = html.escape(elm.namePrefix)
+            nodeRows.append(f"    <tr><td colspan='3'>{name:s}</td></tr>\n")
+            for i, con in enumerate(elm.connections):
+                nodeRows.append(f"    <tr><td port='i{i:d}'>i{i:d}</td><td>st{i:d}</td><td port='o{i:d}'>o{i:d}</td></tr>\n")
+                con: ConnectionsOfStage
+                # [todo] global inputs with bgcolor ligtred global outputs with lightblue color
+                
+                for intf in con.inputs:
+                    iN = self._getInterfaceNode(intf)
+                    e = Edge(f"{iN.get_name():s}:0", f"n{nodeId:d}:i{i:d}")
+                    g.add_edge(e)
+                
+                for intf in con.outputs:
+                    oN = self._getInterfaceNode(intf)
+                    e = Edge(f"n{nodeId:d}:o{i:d}", f"{oN.get_name():s}:0")
+                    g.add_edge(e)
+                
+            nodeRows.append('</table>>')
+        
             elmNode.set("label", "".join(nodeRows))
             for n in elm.allNodes:
                 if isinstance(n, HlsNetNodeWriteBackwardEdge):
@@ -97,7 +105,7 @@ class RtlArchToGraphwiz():
                     if n.allocateAsBuffer:
                         wN = self._getInterfaceNode(n.dst)
                         rN = self._getInterfaceNode(n.associated_read.src)
-                        e = Edge(f"{wN.get_name():s}:0", f"{rN.get_name():s}:0")
+                        e = Edge(f"{wN.get_name():s}:0", f"{rN.get_name():s}:0", style="dashed", color="gray")
                         g.add_edge(e)
                     else:
                         t0 = self._getElementIndexOfTime(elm, n.scheduledIn[0])
@@ -109,51 +117,51 @@ class RtlArchToGraphwiz():
                             interElementConnectionsOrder.append(key)
                         vals.append((n.buff_name, n._outputs[0]._dtype))
 
-        iea: InterArchElementNodeSharingAnalysis = allocator._iea
-        for o, i in iea.interElemConnections:
-            o: HlsNetNodeOut
-            srcElm = iea.getSrcElm(o)
-            for dstElm in iea.ownerOfInput[i]:
-                if srcElm is dstElm:
-                    continue
-                path = iea.explicitPathSpec.get((o, i, dstElm), None)
-                if path is None:
-                    realSrcElm: AllocatorArchitecturalElement = iea.ownerOfOutput[o]
-                    assert srcElm is realSrcElm, (srcElm, realSrcElm)
-                    srcT = o.obj.scheduledOut[o.out_i]
-                    dstT = iea.firstUseTimeOfOutInElem[(dstElm, o)]
-                    
-                    key = (srcElm, self._getElementIndexOfTime(srcElm, srcT), dstElm, self._getElementIndexOfTime(dstElm, dstT))
-                    vals = interElementConnections.get(key, None)
-                    if vals is None:
-                        vals = interElementConnections[key] = []
-                        interElementConnectionsOrder.append(key)
-
-                    vals.append((f"{o.obj._id}:{o.out_i}", o._dtype))
-
-                else:
-                    raise NotImplementedError()
-        
-        for key in interElementConnectionsOrder:
-            srcElm, srcStI, dstElm, dstStI = key
-            srcNode = self.archElementToNode[srcElm]
-            dstNode = self.archElementToNode[dstElm]
-            variableNodeRows = ['<<table border="0" cellborder="1" cellspacing="0">\n']
-            for name, dtype in interElementConnections[key]:
-                dtypeStr = html.escape(repr(dtype))
-                name = html.escape(name)
-                variableNodeRows.append(f'    <tr><td>{name:s}</td><td>{dtypeStr}</td></tr>\n')
-            
-            variableNodeRows.append('</table>>')
-            nodeId = len(g.obj_dict['nodes'])
-            variableTableNode = Node(f"n{nodeId:d}", shape="plaintext", label="".join(variableNodeRows))
-            g.add_node(variableTableNode)          
-            
-            tn = variableTableNode.get_name()
-            e0 = Edge(f"{srcNode.get_name():s}:o{srcStI:d}", tn)
-            g.add_edge(e0)
-            e1 = Edge(tn, f"{dstNode.get_name():s}:i{dstStI:d}")
-            g.add_edge(e1)
+        #iea: InterArchElementNodeSharingAnalysis = allocator._iea
+        #for o, i in iea.interElemConnections:
+        #    o: HlsNetNodeOut
+        #    srcElm = iea.getSrcElm(o)
+        #    for dstElm in iea.ownerOfInput[i]:
+        #        if srcElm is dstElm:
+        #            continue
+        #        path = iea.explicitPathSpec.get((o, i, dstElm), None)
+        #        if path is None:
+        #            realSrcElm: AllocatorArchitecturalElement = iea.ownerOfOutput[o]
+        #            assert srcElm is realSrcElm, (srcElm, realSrcElm)
+        #            srcT = o.obj.scheduledOut[o.out_i]
+        #            dstT = iea.firstUseTimeOfOutInElem[(dstElm, o)]
+        #            
+        #            key = (srcElm, self._getElementIndexOfTime(srcElm, srcT), dstElm, self._getElementIndexOfTime(dstElm, dstT))
+        #            vals = interElementConnections.get(key, None)
+        #            if vals is None:
+        #                vals = interElementConnections[key] = []
+        #                interElementConnectionsOrder.append(key)
+        #
+        #            vals.append((f"{o.obj._id}:{o.out_i}", o._dtype))
+        #
+        #        else:
+        #            raise NotImplementedError()
+        #
+        #for key in interElementConnectionsOrder:
+        #    srcElm, srcStI, dstElm, dstStI = key
+        #    srcNode = self.archElementToNode[srcElm]
+        #    dstNode = self.archElementToNode[dstElm]
+        #    variableNodeRows = ['<<table border="0" cellborder="1" cellspacing="0">\n']
+        #    for name, dtype in interElementConnections[key]:
+        #        dtypeStr = html.escape(repr(dtype))
+        #        name = html.escape(name)
+        #        variableNodeRows.append(f'    <tr><td>{name:s}</td><td>{dtypeStr}</td></tr>\n')
+        #    
+        #    variableNodeRows.append('</table>>')
+        #    nodeId = len(g.obj_dict['nodes'])
+        #    variableTableNode = Node(f"n{nodeId:d}", shape="plaintext", label="".join(variableNodeRows))
+        #    g.add_node(variableTableNode)          
+        #    
+        #    tn = variableTableNode.get_name()
+        #    e0 = Edge(f"{srcNode.get_name():s}:o{srcStI:d}", tn)
+        #    g.add_edge(e0)
+        #    e1 = Edge(tn, f"{dstNode.get_name():s}:i{dstStI:d}")
+        #    g.add_edge(e1)
 
     def dumps(self):
         return self.graph.to_string()

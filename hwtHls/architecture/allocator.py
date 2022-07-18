@@ -1,13 +1,14 @@
 from typing import Union, List, Tuple, Set, Optional, Dict
 
-from hwt.interfaces.std import HandshakeSync
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import Interface_without_registration
 from hwtHls.architecture.architecturalElement import AllocatorArchitecturalElement
 from hwtHls.architecture.fsmContainer import AllocatorFsmContainer
+from hwtHls.architecture.interArchElementHandshakeSync import InterArchElementHandshakeSync
 from hwtHls.architecture.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis, ValuePathSpecItem
 from hwtHls.architecture.pipelineContainer import AllocatorPipelineContainer
-from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
+from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, \
+    TimeIndependentRtlResourceItem
 from hwtHls.netlist.analysis.fsm import HlsNetlistAnalysisPassDiscoverFsm, IoFsm
 from hwtHls.netlist.analysis.pipeline import HlsNetlistAnalysisPassDiscoverPipelines, \
     NetlistPipeline
@@ -91,7 +92,7 @@ class HlsAllocator():
 
         return useT
 
-    def _addOutputAndAllSynonymsToElement(self, o: HlsNetNodeOut, useT: float, synonyms: UniqList[Union[HlsNetNodeOut, HlsNetNodeIn]], dstElm: AllocatorArchitecturalElement):
+    def _addOutputAndAllSynonymsToElement(self, o: HlsNetNodeOut, useT: int, synonyms: UniqList[Union[HlsNetNodeOut, HlsNetNodeIn]], dstElm: AllocatorArchitecturalElement):
         # check if any synonym is already declared
         oRes = None
         for syn in synonyms:
@@ -178,10 +179,9 @@ class HlsAllocator():
                     assert o in srcElm.netNodeToRtl
 
     def _finalizeInterElementsConnections(self, iea: InterArchElementNodeSharingAnalysis):
-        netlist = self.netlist
         self._expandAllOutputSynonymsInElement(iea)
         clkPeriod:int = self.netlist.normalizedClkPeriod
-        syncAdded: Set[Tuple[int, AllocatorArchitecturalElement, AllocatorArchitecturalElement]] = set()
+        syncAdded: Dict[Tuple[int, AllocatorArchitecturalElement, AllocatorArchitecturalElement], InterArchElementHandshakeSync] = {}
         tirsConnected: Set[Tuple[TimeIndependentRtlResource, TimeIndependentRtlResource]] = set()
         elementIndex: Dict[AllocatorArchitecturalElement, int] = {a: i for i, a in enumerate(self._archElements)}
 
@@ -197,6 +197,7 @@ class HlsAllocator():
                 # src should be already declared form AllocatorArchitecturalElement.allocateDataPath
                 srcTir: TimeIndependentRtlResource = srcElm.netNodeToRtl[o]
                 if (srcTir, dstTir) in tirsConnected:
+                    # because the signal may have aliases there may be signals of same value which are sing same TimeIndependentRtlResource
                     continue
                 else:
                     tirsConnected.add((srcTir, dstTir))
@@ -217,7 +218,8 @@ class HlsAllocator():
                 srcStartClkI = start_clk(srcTir.timeOffset, clkPeriod)
                 assert srcTir is not dstTir, (i, o, srcTir)
                 srcOff = dstUseClkI - srcStartClkI
-                assert srcStartClkI <= dstUseClkI, (srcStartClkI, dstUseClkI, "Source must be before first use because otherwise this should be a backedge instead.")
+                assert srcStartClkI <= dstUseClkI, (srcStartClkI, dstUseClkI, "Source must be available before first use "
+                                                    "because otherwise this should be a backedge instead.")
                 if len(srcTir.valuesInTime) <= srcOff:
                     if isinstance(srcElm, AllocatorPipelineContainer):
                         # extend the value register pipeline to get data in time when other element requires it
@@ -228,24 +230,36 @@ class HlsAllocator():
                         assert dstUseClkI in srcElm.clkIToStateI, ("Must be the case otherwise the pipeline should already been extended.")
                     else:
                         raise NotImplementedError("Need to add extra buffer between FSMs", srcStartClkI, dstUseClkI, o, srcElm, dstElm)
-
-                srcSig = srcTir.get(dstUseClkI * clkPeriod).data
+                
+                srcTiri = srcTir.get(dstUseClkI * clkPeriod)
                 assert not dstTir.valuesInTime[0].data.drivers, ("Forward declaration signal must not have a driver yet.", dstTir, dstTir.valuesInTime[0].data.drivers)
                 srcElm._afterOutputUsed(o)
-                dstTir.valuesInTime[0].data(srcSig)
+                dstTir.valuesInTime[0].data(srcTiri.data)
+                self._registerSyncForInterElementConnection(srcTiri, dstTir.valuesInTime[0], syncAdded,
+                                                            elementIndex[srcElm], elementIndex[dstElm],
+                                                            srcElm, dstElm, srcStartClkI, dstUseClkI)
 
-                if elementIndex[srcElm] > elementIndex[dstElm]:
-                    syncCacheKey = (dstUseClkI, dstElm, srcElm)
-                else:
-                    syncCacheKey = (dstUseClkI, srcElm, dstElm)
-
-                if syncCacheKey not in syncAdded:
-                    interElmSync = HandshakeSync()
-                    srcBaseName = self._getArchElmBaseName(srcElm)
-                    dstBaseName = self._getArchElmBaseName(dstElm)
-                    interElmSync = Interface_without_registration(
-                        netlist.parentUnit, interElmSync,
-                        f"{self.namePrefix:s}sync_{srcBaseName:s}_{dstBaseName:s}")
-                    srcElm.connectSync(dstUseClkI, interElmSync, INTF_DIRECTION.MASTER)
-                    dstElm.connectSync(dstUseClkI, interElmSync, INTF_DIRECTION.SLAVE)
-                    syncAdded.add(syncCacheKey)
+    def _registerSyncForInterElementConnection(self,
+                                               srcTiri: TimeIndependentRtlResourceItem, dstTiri: TimeIndependentRtlResourceItem,
+                                               syncAdded: Dict[Tuple[int, AllocatorArchitecturalElement, AllocatorArchitecturalElement],
+                                                               InterArchElementHandshakeSync],
+                                               srcElmIndex:int, dstElmIndex:int,
+                                               srcElm: AllocatorArchitecturalElement, dstElm: AllocatorArchitecturalElement,
+                                               srcStartClkI:int, dstUseClkI:int):
+        if srcElmIndex > dstElmIndex:
+            syncCacheKey = (dstUseClkI, dstElm, srcElm)
+        else:
+            syncCacheKey = (dstUseClkI, srcElm, dstElm)
+        
+        interElmSync = syncAdded.get(syncCacheKey, None)
+        if interElmSync is None:
+            interElmSync = InterArchElementHandshakeSync(dstUseClkI, srcElm, dstElm)
+            srcBaseName = self._getArchElmBaseName(srcElm)
+            dstBaseName = self._getArchElmBaseName(dstElm)
+            interElmSync = Interface_without_registration(
+                self.netlist.parentUnit, interElmSync,
+                f"{self.namePrefix:s}sync_{srcBaseName:s}_{srcStartClkI}clk_to_{dstBaseName:s}_{dstUseClkI}clk")
+            srcElm.connectSync(dstUseClkI, interElmSync, INTF_DIRECTION.MASTER)
+            dstElm.connectSync(dstUseClkI, interElmSync, INTF_DIRECTION.SLAVE)
+            syncAdded[syncCacheKey] = interElmSync
+        interElmSync.data.append((srcTiri, dstTiri))

@@ -22,6 +22,7 @@ from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeRead
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.scheduler.clk_math import start_clk
 from ipCorePackager.constants import INTF_DIRECTION
+from hwt.hdl.value import HValue
 
 
 class AllocatorFsmContainer(AllocatorArchitecturalElement):
@@ -187,7 +188,7 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
         fsm = self.fsm
         self._initNopValsOfIo()
         if len(fsm.states) > 1:
-            st = self._reg(f"{self.namePrefix}st_",
+            st = self._reg(f"{self.namePrefix}st",
                            Bits(log2ceil(len(fsm.states)), signed=False),
                            def_val=0)
         else:
@@ -212,9 +213,9 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
 
             unconditionalTransSeen = False
             inStateTrans: List[Tuple[RtlSignal, List[HdlStatement]]] = []
-            sync = self._makeSyncNode(con)
+            sync = self._makeSyncNode(None, con)
             stateAck = sync.ack()
-            if isinstance(stateAck, (bool, int)):
+            if isinstance(stateAck, (bool, int, HValue)):
                 assert bool(stateAck) == 1
             else:
                 stateAck = rename_signal(self.netlist.parentUnit, stateAck, f"{self.namePrefix}st_{stI:d}_ack")

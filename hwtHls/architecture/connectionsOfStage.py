@@ -10,6 +10,7 @@ from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
+from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResourceItem
 from hwtLib.amba.axi_intf_common import Axi_hs
 from hwtLib.handshaked.streamNode import StreamNode
@@ -78,7 +79,21 @@ class ExtraCondMemberList(TimeIndependentRtlResourceItem):
 
 class ConnectionsOfStage():
     """
-    Container of connections of pipeline stage or FSM state
+    This object is a container of meta-information for synchronization generation for a single clock pipeline stage pipeline stage or FSM state.
+
+    :ivar inputs: all input channels to this stage.
+    :ivar outputs: all output channels from this stage.
+    :ivar signals: all TimeIndependentRtlResourceItem instances generated in this pipeline stage/FSM state 
+    :ivar io_skipWhen: skipWhen condition for inputs/outputs which specifies when the synchronization should wait for this channel
+    :ivar io_extraCond: extraCond condition for inputs/outputs which specifies when the data should be send/received from channel 
+    :ivar sync_node: optional StreamNode instance which was used to generate synchronization
+    :ivar syncNodeAck: optional signal which is 1 if this stage is working
+    :ivar stageDataVld: optional synchronous signal which is 1 if this stage is loaded with the data
+    :ivar stDependentDrives: list of HdlStatement which should be wrapped under the condition that this state is enabled in FSM
+    :ivar syncIn: An interface for synchronization with the predecessor in the pipeline.
+    :ivar syncOut: An interface for synchronization with the successor in the pipeline.
+    :note: syncIn and syncOut are also in inputs/outputs, there are used for detection for association of data
+        from previous stage to a synchronization interface
     """
 
     def __init__(self):
@@ -89,7 +104,10 @@ class ConnectionsOfStage():
         self.io_extraCond: Dict[Interface, ExtraCondMemberList] = {}
         self.sync_node: Optional[StreamNode] = None
         self.syncNodeAck: Optional[Union[RtlSignal, Literal[1], None]] = None
+        self.stageDataVld: Optional[RtlSyncSignal] = None
         self.stDependentDrives: List[HdlStatement] = []
+        self.syncIn: Optional[HandshakeSync] = None
+        self.syncOut: Optional[HandshakeSync] = None
 
 
 class SignalsOfStages(List[UniqList[TimeIndependentRtlResourceItem]]):
@@ -129,14 +147,14 @@ def setNopValIfNotSet(intf: Interface, nopVal, exclude: List[Interface]):
         intf._sig._nop_val = intf._dtype.from_py(nopVal)
 
 
+InterfaceSyncTuple = Tuple[Union[int, RtlSignalBase, Signal],
+                  Union[int, RtlSignalBase, Signal]]
+SyncOfInterface = Union[Handshaked, HandshakeSync, Axi_hs, InterfaceSyncTuple]
+
+
 def extract_control_sig_of_interface(
-        intf: Union[HandshakeSync, RdSynced, VldSynced, RtlSignalBase, Signal,
-                    Tuple[Union[int, RtlSignalBase, Signal],
-                          Union[int, RtlSignalBase, Signal]]]
-        ) -> Union[
-            Handshaked, HandshakeSync, Axi_hs,
-            Tuple[Union[int, RtlSignalBase, Signal],
-                   Union[int, RtlSignalBase, Signal]]]:
+            intf: Union[HandshakeSync, RdSynced, VldSynced, RtlSignalBase, Signal, SyncOfInterface]
+            ) -> SyncOfInterface:
     if isinstance(intf, (Handshaked, HandshakeSync, Axi_hs)):
         return intf
     else:
@@ -144,10 +162,8 @@ def extract_control_sig_of_interface(
 
     
 def extractControlSigOfInterfaceTuple(
-        intf: Union[HandshakeSync, RdSynced, VldSynced, RtlSignalBase, Signal,
-                    Tuple[Union[int, RtlSignalBase, Signal],
-                          Union[int, RtlSignalBase, Signal]]]) -> Tuple[Union[int, RtlSignalBase, Signal],
-                                                                        Union[int, RtlSignalBase, Signal]]:
+            intf: Union[HandshakeSync, RdSynced, VldSynced, RtlSignalBase, Signal, InterfaceSyncTuple]
+            ) -> InterfaceSyncTuple:
     if isinstance(intf, tuple):
         assert len(intf) == 2
         return intf

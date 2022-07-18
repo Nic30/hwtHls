@@ -3,6 +3,7 @@ from typing import List, Type, Optional, Dict, Tuple, Union
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.code import If
+from hwt.code_utils import rename_signal
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.defs import BIT
 from hwt.interfaces.std import Signal, HandshakeSync
@@ -12,9 +13,10 @@ from hwt.synthesizer.interfaceLevel.unitImplHelpers import Interface_without_reg
 from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
 from hwtHls.architecture.architecturalElement import AllocatorArchitecturalElement
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage, resolveStrongestSyncType, \
-    SignalsOfStages
+    SignalsOfStages, ExtraCondMemberList, SkipWhenMemberList
 from hwtHls.architecture.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis
-from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
+from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, \
+    TimeIndependentRtlResourceItem
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
 from hwtHls.netlist.nodes.node import HlsNetNode
 
@@ -123,33 +125,36 @@ class AllocatorPipelineContainer(AllocatorArchitecturalElement):
     def allocateSync(self):
         assert self._dataPathAllocated
         assert not self._syncAllocated
-        prev_st_sync_input = None
-        prev_st_valid = None
         
         syncType = Signal
         for con in self.connections:
             syncType = resolveStrongestSyncType(syncType, chain(con.inputs, con.outputs))
 
+        prev_st_valid = None
         for is_last_in_pipeline, (pipeline_st_i, con) in iter_with_last(enumerate(self.connections)):
-            prev_st_sync_input, prev_st_valid = self.allocateSyncForStage(
+            con: ConnectionsOfStage
+            self.allocateSyncForStage(
+                prev_st_valid,
                 con, syncType,
-                is_last_in_pipeline, pipeline_st_i,
-                prev_st_sync_input, prev_st_valid)
+                None if is_last_in_pipeline else self.connections[pipeline_st_i + 1],
+                pipeline_st_i)
+            prev_st_valid = con.stageDataVld
         self._syncAllocated = True
 
     def allocateSyncForStage(self,
+                      prevStageDataVld: Optional[RtlSyncSignal],
                       con: ConnectionsOfStage,
                       syncType: Type[Interface],
-                      is_last_in_pipeline:bool,
-                      pipeline_st_i:int,
-                      prev_st_sync_input: Optional[HandshakeSync],
-                      prev_st_valid: Optional[RtlSyncSignal]):
+                      nextCon: Optional[ConnectionsOfStage],
+                      pipeline_st_i:int):
         """
         Allocate synchronization for a single stage of pipeline.
-        However the single stage of pipeline may have multiple sections with own validity flag.
-        This happens if inputs to this section are driven from the inputs which may be skipped.
-
-        :note: pipeline registers are placed at the end of the stage
+        Each pipeline represents only a straight pipeline. Each non-last stage is equipped with a stage_N_valid register.
+        The 1 in this stage represents that the stage registers are occupied and can accept data only if data can be flushed to successor stage.
+        There is stage_sync_N_to_N+1 synchronization channel which synhronizes the data movement between stages.
+        The channel is ready if next stage is able to process new data. And valid if data are provided from this stage.
+        
+        :note: pipeline registers are placed visually at the end of the non-last stage
         """
 
         if syncType is not Signal:
@@ -163,75 +168,55 @@ class AllocatorPipelineContainer(AllocatorArchitecturalElement):
                 if v is not None and v.is_rlt_register():
                     cur_registers.append(v)
 
-            if is_last_in_pipeline:
-                to_next_stage = None
-                stage_valid = None
+            if nextCon is None:
+                toNextStSource = None
+                toNextStSink = None
+                stValid = None
             else:
-                # does not need a synchronization with next stage in pipeline
-                to_next_stage = Interface_without_registration(
-                    self, HandshakeSync(), f"{self.namePrefix:s}stage_sync_{pipeline_st_i:d}_to_{pipeline_st_i+1:d}")
-                con.outputs.append(to_next_stage)
+                # need a synchronization if there is a next stage in the pipeline
+                toNextStSource = Interface_without_registration(
+                    self, HandshakeSync(), f"{self.namePrefix:s}stSync_st{pipeline_st_i:d}_{pipeline_st_i:d}_to_{pipeline_st_i+1:d}")
+                con.outputs.append(toNextStSource)
+                con.syncOut = toNextStSource
+
+                toNextStSink = Interface_without_registration(
+                    self, HandshakeSync(), f"{self.namePrefix:s}stSync_st{pipeline_st_i+1:d}_{pipeline_st_i:d}_to_{pipeline_st_i+1:d}")
+                nextCon.inputs.append(toNextStSink)
+                nextCon.syncIn = toNextStSink
                 # if not is_first_in_pipeline:
                 # :note: that the register 0 is behind the first stage of pipeline
-                stage_valid = self._reg(f"{self.namePrefix:s}stage{pipeline_st_i:d}_valid", def_val=0)
+                con.stageDataVld = stValid = self._reg(f"{self.namePrefix:s}st{pipeline_st_i:d}_valid", def_val=0)
+
+                # must wait on next stage if stValid is set (= data registers are full)
+                # con.io_extraCond[toNextSt] = ExtraCondMemberList([
+                #    (None,  # TimeIndependentRtlResourceItem(None, ~stValid),
+                #     TimeIndependentRtlResourceItem(None, stValid)), ])  # do not send valid to next stage if data is not loaded yet
+                # con.io_skipWhen[toNextSt] = SkipWhenMemberList([
+                #    TimeIndependentRtlResourceItem(None, ~stValid), ])  # wait only if data is loaded
+                # nextCon.io_skipWhen[toNextSt] = SkipWhenMemberList([
+                #    TimeIndependentRtlResourceItem(None, stValid & ~toNextSt.vld), ])  # do not require if sync from predecessor if there is already the data
 
             if con.inputs or con.outputs:
-                sync = con.sync_node = self._makeSyncNode(con)
-                en = prev_st_valid
-
+                sync = con.sync_node = self._makeSyncNode(prevStageDataVld, con)
                 # check if results of this stage do validity register
-                if stage_valid is None:
-                    if en is None:
-                        sync.sync()
-                        ack = sync.ack()
-                    else:
-                        sync.sync(en)
-                        ack = sync.ack() & en
-
-                else:
-                    if to_next_stage is None:
-                        pass
-                    else:
-                        _en = en
-                        en = (~stage_valid | to_next_stage.rd)
-                        if _en is not None:
-                            en = en & _en
-
-                    if en is None:
-                        sync.sync()
-                        ack = sync.ack()
-                    else:
-                        sync.sync(en)
-                        ack = sync.ack() & en
-
+                sync.sync()
+                ack = sync.ack()
+                ack = rename_signal(self.netlist.parentUnit, ack, f"{self.namePrefix}st{pipeline_st_i:d}_ack")
                 if cur_registers:
                     # add enable signal for register load derived from synchronization of stage
                     If(ack,
                        *(r.data.next.drivers[0] for r in cur_registers),
                     )
 
-            elif to_next_stage is not None:
-                # if is not last
-                ack = to_next_stage.rd
-                if stage_valid is not None:
-                    ack = ack | ~stage_valid
-
-                if prev_st_valid is not None:
-                    ack = ack & prev_st_valid
             else:
+                # 1 stage no input/output
                 ack = BIT.from_py(1)
             
             con.syncNodeAck = ack
-            if to_next_stage is not None:
-                If(to_next_stage.rd,
-                   stage_valid(to_next_stage.vld)
+            if toNextStSource is not None:
+                If(toNextStSink.rd | ~stValid,
+                    stValid(ack)
                 )
+                toNextStSource.rd(toNextStSink.rd | ~stValid)
+                toNextStSink.vld(stValid)  # valid only if data is in registers
 
-            if prev_st_sync_input is not None:
-                # valid is required because otherwise current stage is undefined
-                prev_st_sync_input.rd(ack | ~prev_st_valid)
-
-            prev_st_sync_input = to_next_stage
-            prev_st_valid = stage_valid
-
-        return prev_st_sync_input, prev_st_valid

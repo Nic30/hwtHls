@@ -1,24 +1,30 @@
 
+from copy import copy
 from itertools import chain
-from typing import Union, List, Dict, Tuple, Optional
+from typing import Union, List, Dict, Tuple, Optional, Set
 
 from hwt.code import SwitchLogic
+from hwt.hdl.operator import Operator
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.bitsVal import BitsVal
-from hwt.interfaces.std import HandshakeSync, Signal
+from hwt.hdl.value import HValue
+from hwt.interfaces.std import HandshakeSync
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
+from hwt.synthesizer.interfaceLevel.interfaceUtils.utils import walkPhysInterfaces
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
+from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage, \
     extract_control_sig_of_interface, SignalsOfStages, ExtraCondMemberList, \
-    SkipWhenMemberList, extractControlSigOfInterfaceTuple
+    SkipWhenMemberList, extractControlSigOfInterfaceTuple, SyncOfInterface
+from hwtHls.architecture.interArchElementHandshakeSync import InterArchElementHandshakeSync
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, \
     TimeIndependentRtlResourceItem
-from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeExplicitSync, \
-    HlsNetNodeReadSync
+from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
+from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.scheduler.clk_math import start_clk
 from hwtLib.handshaked.streamNode import StreamNode
 from ipCorePackager.constants import INTF_DIRECTION
@@ -37,7 +43,7 @@ class AllocatorArchitecturalElement():
     :ivar allNodes: list in this arch element
     :ivar connections: list of RTL object allocated for each specific clock stage
     :ivar stageSignals: an object which makes connections list accessible by time
-    :ivar interArchAnalysis: an object of inter architecture element sharing analysis which is set after allocation starts
+    :ivar interArchAnalysis: an object of inter-architecture element sharing analysis which is set after allocation starts
     """
 
     def __init__(self, netlist: "HlsNetlistCtx", namePrefix:str,
@@ -89,11 +95,11 @@ class AllocatorArchitecturalElement():
         else:
             assert intfDir == INTF_DIRECTION.SLAVE, intfDir
             con.inputs.append(intf)
-            for i in chain(con.inputs, con.outputs):
-                sw = con.io_skipWhen.get(i, None)
-                if sw is not None:
-                    sw: SkipWhenMemberList
-                    sw.data.append(TimeIndependentRtlResourceItem(None, intf.vld))
+            # for i in chain(con.inputs, con.outputs):
+            #    sw = con.io_skipWhen.get(i, None)
+            #    if sw is not None:
+            #        sw: SkipWhenMemberList
+            #        sw.data.append(TimeIndependentRtlResourceItem(None, intf.vld))
 
     def connectSync(self, clkI: int, intf: HandshakeSync, intfDir: INTF_DIRECTION):
         con: ConnectionsOfStage = self.connections[clkI]
@@ -212,56 +218,170 @@ class AllocatorArchitecturalElement():
 
         return sync
 
-    def _makeSyncNode(self, con: ConnectionsOfStage) -> StreamNode:
+    def _makeSyncNodeSearchSource(self, affectingSources: Dict[SyncOfInterface, Set[RtlSignal]],
+                                  syncIn: Optional[HandshakeSync], sig: RtlSignal):
+        try:
+            return affectingSources[sig]
+        except KeyError:
+            pass
+        
+        syncSet = None
+        syncSetCreated = False
+        d = sig.singleDriver()
+        if isinstance(d, Operator):
+            for o in d.operands:
+                if isinstance(o, HValue):
+                    continue
+                oSyncSet = self._makeSyncNodeSearchSource(affectingSources, syncIn, o)
+            
+                # to prevent unnecessary building and copy of dependency set
+                if syncSet is None:
+                    syncSet = oSyncSet
+                elif not syncSetCreated:
+                    syncSet = copy(syncSet)
+                    syncSetCreated = True
+            
+                syncSet.update(oSyncSet)
+        else:
+            assert isinstance(d, HdlStatement), d
+            if syncIn is None:
+                # assert isinstance(self, AllocatorFsmContainer) or (isinstance(sig, RtlSyncSignal) and sig.def_val._is_full_valid()), (sig, "value of this signal must be initialized to a defined state")
+                syncSet = set()
+            else:
+                syncSet = {syncIn, }
+        
+        affectingSources[sig] = syncSet
+        return syncSet
+
+    def _makeSyncNodeResolveSyncDependenciesForSkipWhenConditions(self,
+            prevStageDataVld: Optional[RtlSyncSignal],
+            syncIn: Optional[HandshakeSync],
+            masters: List[SyncOfInterface],
+            slaves: List[SyncOfInterface],
+            io_skipWhen: Dict[Interface, SkipWhenMemberList]) -> Dict[RtlSignal, Set[SyncOfInterface]]:
+        """
+        Collect every input signals and mark its synchronization interface to find out if the value of signal is valid. 
+        """
+        affectingSources: Dict[RtlSignal, Set[SyncOfInterface]] = {prevStageDataVld: set()}
+        # discover boundary signals
+        for i in chain(slaves, masters):
+            if isinstance(i, tuple):
+                intf = None
+                for sig in i:
+                    if isinstance(sig, Interface):
+                        intf = sig._parent
+                        assert intf is not None, sig
+                        break
+                    elif isinstance(sig, (int, HValue)):
+                        pass
+                    else:
+                        raise NotImplementedError()
+                if intf is None:
+                    continue
+            else:
+                intf = i
+            for sig in walkPhysInterfaces(intf):
+                affectingSources[sig._sig] = {i, }
+        for i in masters:
+            if isinstance(i, InterArchElementHandshakeSync):
+                for _, dst in i.data:
+                    dst: TimeIndependentRtlResourceItem
+                    assert dst.data not in affectingSources, (dst.data, i, affectingSources, affectingSources[dst.data])
+                    affectingSources[dst.data] = {i, }
+
+        # for every skipWhen condition resolve its sync. dependencies
+        for intf in chain(masters, slaves):
+            intfSkipWhen = io_skipWhen.get(intf, None)
+            
+            if intfSkipWhen is None or not intfSkipWhen.data:
+                # this interface does not have skip when condition
+                continue
+            for sw in intfSkipWhen.data:
+                if sw.parent is not None and len(sw.parent.valuesInTime) > 1:
+                    # if this is a register, this data comes from previous stage
+                    syncSet = affectingSources.get(sw.data, None)
+                    if syncSet is None:
+                        syncSet = affectingSources[sw.data] = set()
+
+                    if syncIn is not None:
+                        syncSet.add(syncIn)
+                    # else: assert isinstance(self, AllocatorFsmContainer)
+                else:
+                    # we have to search the expression to find its source
+                    self._makeSyncNodeSearchSource(affectingSources, syncIn, sw.data)
+        return affectingSources
+
+    def _makeSyncNodeInjectInputVldToSkipWhenConditions(self,
+                                                        prevStageDataVld: Optional[RtlSyncSignal],
+                                                        syncIn: Optional[HandshakeSync],
+                                                        masters: List[SyncOfInterface],
+                                                        slaves: List[SyncOfInterface],
+                                                        io_skipWhen: Dict[Interface, SkipWhenMemberList]):
+        # skipWhen conditions can depend on external data and validity of data in this stage
+        # skipWhen condition can not be in undefined state because it would break the handshake synchonization
+        # Because of this we need to and skipWhen condition with the signal which describes if it is valid.
+        # To get this signal we need to walk the expression and find its sources.
+        affectingSources = self._makeSyncNodeResolveSyncDependenciesForSkipWhenConditions(prevStageDataVld, syncIn, masters, slaves, io_skipWhen)
+        for intf in chain(masters, slaves):
+            intfSkipWhen = io_skipWhen.get(intf, None)
+            
+            if intfSkipWhen is None or not intfSkipWhen.data:
+                # this interface does not have skip when condition
+                continue
+            
+            intfSkipWhen: SkipWhenMemberList
+            # we have to extend intfSkipWhen condition
+            for otherIntfDir, otherIntf in chain(
+                    zip((INTF_DIRECTION.MASTER for _ in masters), masters),
+                    zip((INTF_DIRECTION.SLAVE for _ in slaves), slaves),
+                    ):
+                isAffected = False
+                for sw in intfSkipWhen.data:
+                    d = sw.data
+                    if isinstance(d, Interface):
+                        d = d._sig
+                    if otherIntf in affectingSources[d]:
+                        isAffected = True
+                        break
+                if not isAffected:
+                    continue
+
+                # otherSkipWhen = io_skipWhen.get(otherIntf, None)
+                isM = otherIntfDir == INTF_DIRECTION.MASTER
+                otherIntfSync = extractControlSigOfInterfaceTuple(otherIntf)
+                if isM:
+                    ack = otherIntfSync[0]
+                else:
+                    ack = otherIntfSync[1]
+            
+                if isinstance(ack, int):
+                    # always valid no otherSkipWhen or otherSkipWhen with no effect -> no extra sync required
+                    assert ack == 1, ack
+                else:
+                    # [todo] collect ack, sw in advance
+                    # if otherSkipWhen is None or not otherSkipWhen.data:
+                        intfSkipWhen.data.append(TimeIndependentRtlResourceItem(None, ack))
+                    # else:
+                    #    otherSkipWhen: SkipWhenMemberList
+                    #    sw = otherSkipWhen.resolve()
+                    #    intfSkipWhen.data.append(TimeIndependentRtlResourceItem(None, ack | (~ack & sw)))
+                         
+            # print(intf)
+            # print(intfSkipWhen)
+            # print("")
+
+    def _makeSyncNode(self, prevStageDataVld: Optional[RtlSyncSignal], con: ConnectionsOfStage) -> StreamNode:
         masters = [extract_control_sig_of_interface(intf) for intf in con.inputs]
+        masters = [m for m in masters if not m == (1, 1)]
         slaves = [extract_control_sig_of_interface(intf) for intf in con.outputs]
+        slaves = [s for s in slaves if not s == (1, 1)]
         if not masters and not slaves:
             extraConds = None
             skipWhen = None
         else:
+            self._makeSyncNodeInjectInputVldToSkipWhenConditions(prevStageDataVld, con.syncIn, masters, slaves, con.io_skipWhen)
             extraConds = self._collectChannelRtlSync(con.io_extraCond, 1)
-            # skipWhen conditions may only be valid if all data in this stage are valid
-            # this may not be the case because the data may come directly from interface itself.
-            # Because of this we need to add additional condition to skipWhen expression which makes it 0
-            # if there is some unsatisfied IO dependency in this stage. 
-            _skipWhen = self._collectChannelRtlSync(con.io_skipWhen, 0)
-            skipWhen = {}
-            for intf in chain(masters, slaves):
-                intfSkipWhen = _skipWhen.get(intf, None)
-                #print(intf)
-                #print("extraCond", extraConds.get(intf, None))
-                #print("skipWhen", intfSkipWhen)
-                
-                if intfSkipWhen is None:
-                    # this interface does not have skip when condition
-                    continue
-                # we have to extend intfSkipWhen condition
-                for otherIntfDir, otherIntf in chain(
-                                        zip((INTF_DIRECTION.MASTER for _ in masters), masters),
-                                        #zip((INTF_DIRECTION.SLAVE for _ in slaves), slaves),
-                                      ):
-                    if otherIntf is intf:
-                        continue
-                    otherSkipWhen = _skipWhen.get(otherIntf, None)
-                    isM = otherIntfDir == INTF_DIRECTION.MASTER
-                    otherIntfSync = extractControlSigOfInterfaceTuple(otherIntf)
-                    if isM:
-                        ack = otherIntfSync[0]
-                    else:
-                        ack = otherIntfSync[1]
-                
-                    if isinstance(ack, int):
-                        # always valid no otherSkipWhen or otherSkipWhen with no effect -> no extra sync required
-                        assert ack == 1, ack
-                    else:
-                        if otherSkipWhen is None:
-                            intfSkipWhen = intfSkipWhen & ack
-                        else:
-                            intfSkipWhen = intfSkipWhen & (ack | (otherSkipWhen & ~ack))
-                             
-                skipWhen[intf] = intfSkipWhen
-                #print(intfSkipWhen)
-                #print("")
+            skipWhen = self._collectChannelRtlSync(con.io_skipWhen, 0)
 
         sync = StreamNode(
             masters,
@@ -280,12 +400,11 @@ class AllocatorArchitecturalElement():
         ioSeen.append(intf)
         ioMuxes.setdefault(intf, []).append((node, rtl))
 
-        if not isinstance(intf, (Signal, RtlSignal)):
-            # if it has some synchronization
-            if isinstance(node, HlsNetNodeRead):
-                con.inputs.append(intf)
-            else:
-                con.outputs.append(intf)
+        # if it has some synchronization
+        if isinstance(node, HlsNetNodeRead):
+            con.inputs.append(intf)
+        else:
+            con.outputs.append(intf)
 
         self._copyChannelSync(intf, node, con.io_skipWhen, con.io_extraCond)
 
@@ -298,7 +417,7 @@ class AllocatorArchitecturalElement():
                     yield muxCases[0][1]
             else:
                 if isinstance(muxCases[0][0], HlsNetNodeWrite):
-                    # create a write mux
+                    # create a write MUX
                     rtlMuxCases = []
                     for w, stms in muxCases:
                         t = w.scheduledOut[0]
@@ -322,7 +441,7 @@ class AllocatorArchitecturalElement():
                     yield SwitchLogic(rtlMuxCases, default=defaultCase)
                 else:
                     assert isinstance(muxCases[0][0], HlsNetNodeRead), muxCases
-                    # no mux needen and we already merged the synchronization
+                    # no MUX needed and we already merged the synchronization
 
     def allocateDataPath(self, iea: "InterArchElementNodeSharingAnalysis"):
         """
@@ -333,7 +452,7 @@ class AllocatorArchitecturalElement():
     def allocateSync(self):
         """
         Instantiate an additional RTL objects to implement the synchronization of the element
-        which are not direclty present in input HlsNetNode instances.
+        which are not directly present in input HlsNetNode instances.
         """
         raise NotImplementedError("Implement in child class")
 
