@@ -24,7 +24,7 @@ class AxiSPacketCntrTC(SimTestCase):
         self.runSim(t)
         self.assertValEqual(u.pkt_cnt._ag.data[-1], len(LENS))
     
-    def _test_byte_cnt(self, DATA_WIDTH:int, cls=AxiSPacketByteCntr0, LENS=[1, 2, 3], T_MUL=1, CLK_FREQ=int(1e6)):
+    def _test_byte_cnt(self, DATA_WIDTH:int, cls=AxiSPacketByteCntr0, LENS=[1, 2, 3, 4], T_MUL=1, CLK_FREQ=int(1e6)):
         u = cls()
         u.DATA_WIDTH = DATA_WIDTH
         u.CLK_FREQ = CLK_FREQ
@@ -100,14 +100,14 @@ class AxiSPacketCntrTC(SimTestCase):
 
 if __name__ == '__main__':
     import unittest
-    from hwt.synthesizer.utils import to_rtl_str
-    u = AxiSPacketCntr()
-    u.CLK_FREQ = int(1e6)
-    u.DATA_WIDTH = 8
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
+    #from hwt.synthesizer.utils import to_rtl_str
+    #u = AxiSPacketCntr()
+    #u.CLK_FREQ = int(1e6)
+    #u.DATA_WIDTH = 8
+    #print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
     
     suite = unittest.TestSuite()
-    suite.addTest(AxiSPacketCntrTC('test_AxiSPacketCntr_8b'))
-    # suite.addTest(unittest.makeSuite(AxiSPacketCntrTC))
+    # suite.addTest(AxiSPacketCntrTC('test_AxiSPacketByteCntr1_16b'))
+    suite.addTest(unittest.makeSuite(AxiSPacketCntrTC))
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
