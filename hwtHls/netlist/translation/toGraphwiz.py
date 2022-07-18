@@ -7,12 +7,13 @@ from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, \
-    HlsNetNodeExplicitSync, HlsNetNodeReadSync
+    HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.loopHeader import HlsLoopGate, HlsLoopGateStatus
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy
 from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
+from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.platform.fileUtils import OutputStreamGetter
 

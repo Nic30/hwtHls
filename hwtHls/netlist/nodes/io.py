@@ -1,8 +1,7 @@
-from typing import Union, Optional, List, Generator, Tuple
+from typing import Union, Optional, List, Generator
 
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.bits import Bits
-from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.hdlType import HdlType
 from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.interfaces.std import Signal, HandshakeSync, Handshaked, VldSynced, \
@@ -280,77 +279,6 @@ class HlsNetNodeReadIndexed(HlsNetNodeRead):
 
     def __repr__(self):
         return f"<{self.__class__.__name__:s} {self._id:d} {self.src}{self._strFormatIndexes(self.indexes)}>"
-
-
-class HlsNetNodeReadSync(HlsNetNode, InterfaceBase):
-    """
-    Hls plane to read a synchronization from an interface.
-    e.g. signal valid for handshaked input, signal ready for handshaked output.
-
-    :ivar _sig: RTL signal in HLS context used for HLS code description
-    :ivar src: original interface from which read should be performed
-
-    :ivar dependsOn: list of dependencies for scheduling composed of extraConds and skipWhen
-    """
-
-    def __init__(self, netlist: "HlsNetlistCtx"):
-        HlsNetNode.__init__(self, netlist, None)
-        self._add_input()
-        self._add_output(BIT)
-        self.operator = "read_sync"
-
-    def resolve_realization(self):
-        self.assignRealization(IO_COMB_REALIZATION)
-
-    def allocateRtlInstance(self,
-                          allocator: "AllocatorArchitecturalElement",
-                          ) -> TimeIndependentRtlResource:
-        """
-        Instantiate read operation on RTL level
-        """
-        r_out = self._outputs[0]
-        try:
-            return allocator.netNodeToRtl[r_out]
-        except KeyError:
-            pass
-
-        t = self.scheduledOut[0]
-        _o = TimeIndependentRtlResource(
-            self.getRtlControlEn(),
-            t,
-            allocator)
-        allocator.netNodeToRtl[r_out] = _o
-        return _o
-
-    def getRtlControlEn(self):
-        d = self.dependsOn[0]
-        if isinstance(d.obj, HlsNetNodeRead):
-            intf = d.obj.src
-            if isinstance(intf, (Handshaked, HandshakeSync, VldSynced)):
-                return intf.vld
-            elif isinstance(intf, (Signal, RtlSignalBase, RdSynced)):
-                return BIT.from_py(1)
-            elif isinstance(intf, Axi_hs):
-                return intf.valid
-            else:
-                raise NotImplementedError(intf)
-
-        elif isinstance(d.obj, HlsNetNodeWrite):
-            intf = d.obj.dst
-            if isinstance(intf, (Handshaked, HandshakeSync, RdSynced)):
-                return intf.rd
-            elif isinstance(intf, (Signal, RtlSignalBase, VldSynced)):
-                return BIT.from_py(1)
-            elif isinstance(intf, Axi_hs):
-                return intf.ready
-            else:
-                raise NotImplementedError(intf)
-
-        else:
-            raise NotImplementedError(d)
-
-    def __repr__(self):
-        return f"<{self.__class__.__name__:s} {self._id:d}>"
 
 
 class HlsNetNodeWrite(HlsNetNodeExplicitSync):

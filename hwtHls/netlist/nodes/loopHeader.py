@@ -3,10 +3,10 @@ from typing import List, Optional, Generator
 from hwt.code import If, Or
 from hwt.hdl.types.defs import BIT
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
-from hwtHls.netlist.nodes.io import IO_COMB_REALIZATION, HlsNetNodeReadSync, \
-    HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.io import IO_COMB_REALIZATION, HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, link_hls_nodes, HlsNetNodeIn
+from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.scheduler.clk_math import start_of_next_clk_period
 
 
