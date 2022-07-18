@@ -136,18 +136,19 @@ class DefaultHlsPlatform(DummyPlatform):
             
         HlsNetlistPassDCE().apply(hls, netlist)
         HlsNetlistPassSimplify().apply(hls, netlist)
-        HlsNetlistPassConsystencyCheck().apply(hls, netlist)
         
         if debugDir:
-            HlsNetlistPassDumpToDot(outputFileGetter(debugDir, "top_p0.dot")).apply(hls, netlist)
+            HlsNetlistPassDumpToDot(outputFileGetter(debugDir, ".11.netlistSimplified.dot")).apply(hls, netlist)
+            HlsNetlistPassConsystencyCheck().apply(hls, netlist)
            
         HlsNetlistPassMergeExplicitSync().apply(hls, netlist)
         HlsNetlistPassAggregateBitwiseOps().apply(hls, netlist)
         if debugDir:
-            # HlsNetlistPassConsystencyCheck().apply(hls, netlist)
-            HlsNetlistPassDumpToDot(outputFileGetter(debugDir, ".11.netlist.dot")).apply(hls, netlist)
-            HlsNetlistPassShowTimeline(outputFileGetter(debugDir, ".11.schedule.html"),
+            HlsNetlistPassDumpToDot(outputFileGetter(debugDir, ".12.netlistAggregated.dot")).apply(hls, netlist)
+            HlsNetlistPassShowTimeline(outputFileGetter(debugDir, ".13.schedule.html"),
                                        expandCompositeNodes=self._debugExpandCompositeNodes).apply(hls, netlist)
+            HlsNetlistPassConsystencyCheck().apply(hls, netlist)
+
         netlist.requestAnalysis(HlsNetlistAnalysisPassRunScheduler)
 
     def runHlsNetlistToRtlNetlist(self, hls: "HlsScope", netlist: HlsNetlistCtx):
@@ -179,6 +180,7 @@ class DefaultHlsPlatform(DummyPlatform):
         allocator._discoverArchElements()
         RtlArchPassSingleStagePipelineToFsm().apply(self, allocator)
         iea = InterArchElementNodeSharingAnalysis(netlist.normalizedClkPeriod)
+        allocator._iea = iea         
         if len(allocator._archElements) > 1:
             iea._analyzeInterElementsNodeSharing(allocator._archElements)
             if iea.interElemConnections:  # it could be the case that the elements are completely independent
@@ -189,17 +191,16 @@ class DefaultHlsPlatform(DummyPlatform):
 
         if iea.interElemConnections:
             allocator._finalizeInterElementsConnections(iea)
-
+        if self._debugDir:
+            RtlArchPassToGraphwiz(outputFileGetter(self._debugDir, ".14.arch.dot")).apply(hls, netlist)
         for e in allocator._archElements:
             e.allocateSync()
 
-        allocator._iea = iea         
 
     def runRtlNetlistPasses(self, hls: "HlsScope", netlist: HlsNetlistCtx):
         debugDir = self._debugDir
         RtlNetlistPassControlLogicMinimize().apply(hls, netlist)
         if debugDir:
-            RtlNetlistPassDumpStreamNodes(outputFileGetter(debugDir, ".12.sync.txt")).apply(hls, netlist)
-            RtlArchPassToGraphwiz(outputFileGetter(debugDir, ".13.arch.dot")).apply(hls, netlist)
-            RtlArchPassShowTimeline(outputFileGetter(debugDir, ".14.archSchedule.html")).apply(hls, netlist)
+            RtlNetlistPassDumpStreamNodes(outputFileGetter(debugDir, ".15.sync.txt")).apply(hls, netlist)
+            RtlArchPassShowTimeline(outputFileGetter(debugDir, ".16.archSchedule.html")).apply(hls, netlist)
 
