@@ -119,9 +119,14 @@ class RtlNetlistPassControlLogicMinimize(RtlNetlistPass):
             elm: AllocatorArchitecturalElement
             for con in elm.connections:
                 con: ConnectionsOfStage
+                # [todo] con.stageDataVld 
                 if isinstance(con.syncNodeAck, RtlSignal):
-                    self.collectControlDrivingTree(con.syncNodeAck.singleDriver().src, allControlIoOutputs, inputs, inTreeOutputs)
-                    
+                    if con.syncNodeAck.hidden:
+                        src = con.syncNodeAck
+                    else:
+                        src = con.syncNodeAck.singleDriver().src
+                    self.collectControlDrivingTree(src, allControlIoOutputs, inputs, inTreeOutputs)
+  
                 if con.sync_node:
                     for m in con.sync_node.masters:
                         _, rd = extractControlSigOfInterfaceTuple(m)
