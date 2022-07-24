@@ -50,10 +50,7 @@ class HlsNetlistBuilder():
     
     def buildConst(self, v: HValue):
         netlist = self.netlist
-        try:
-            c = HlsNetNodeConst(netlist, v)
-        except:
-            raise
+        c = HlsNetNodeConst(netlist, v)
         netlist.nodes.append(c)
         return c._outputs[0]
 
