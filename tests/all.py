@@ -26,10 +26,13 @@ from tests.frontend.pyBytecode.pyArrShift_test import PyArrShift_TC
 from tests.frontend.pyBytecode.stmFor_test import StmFor_TC
 from tests.frontend.pyBytecode.stmIf_test import StmIf_TC
 from tests.frontend.pyBytecode.variableChain_test import VariableChain_TC
+from tests.hlsNetlist.readSync import HlsNetlistReadSyncTC
+from tests.hlsNetlist.wire import HlsNetlistWireTC
 from tests.io.axiStream.axisPacketCntr_test import AxiSPacketCntrTC
 from tests.io.axiStream.axisParseEth_test import AxiSParseEthTC
 from tests.io.axiStream.axisParseIf_test import AxiSParseIfTC
 from tests.io.axiStream.axisParseLinear_test import AxiSParseLinearTC
+from tests.io.bram.bramRead_test import BramRead_TC
 from tests.io.ioFsm_test import IoFsm_TC
 from tests.syntehesis_checks import HlsSynthesisChecksTC
 from tests.utils.alapAsapDiffExample import AlapAsapDiffExample_TC
@@ -47,6 +50,7 @@ def testSuiteFromTCs(*tcs):
 
 
 suite = testSuiteFromTCs(
+    HlsNetlistWireTC,
     ConcatOfSlicesTC,
     HlsSlicingTC,
     BitWidthReductionCmp_example_TC,
@@ -78,6 +82,7 @@ suite = testSuiteFromTCs(
     AxiSParseEthTC,
     AxiSParseLinearTC,
     AxiSParseIfTC,
+    BramRead_TC,
 )
 
 
