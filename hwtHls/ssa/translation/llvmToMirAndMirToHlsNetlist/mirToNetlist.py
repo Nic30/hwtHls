@@ -1,6 +1,7 @@
 from typing import Set, Tuple, Dict, List, Union, Optional
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
+from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.types.defs import BIT
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, \
     MachineInstr, TargetOpcode, MachineLoop
@@ -454,7 +455,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                         for depI in mbSync.orderingIn.dependent_inputs:
                             depI: HlsNetNodeIn
                             # create a new input for ordering connection
-                            depI2 = depI.obj._add_input()
+                            depI2 = depI.obj._addInput("orderingIn")
                             link_hls_nodes(i, depI2)
 
     def run(self):

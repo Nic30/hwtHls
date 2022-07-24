@@ -6,7 +6,6 @@ from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlRes
 from hwtHls.netlist.nodes.io import IO_COMB_REALIZATION, HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, link_hls_nodes, HlsNetNodeIn
-from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.scheduler.clk_math import start_of_next_clk_period
 
 
@@ -21,7 +20,7 @@ class HlsLoopGateStatus(HlsNetNode):
     def __init__(self, netlist:"HlsNetlistCtx", loop_gate: "HlsLoopGate", name:str=None):
         HlsNetNode.__init__(self, netlist, name=name)
         self._loop_gate = loop_gate
-        self._add_output(BIT)
+        self._addOutput(BIT, "status")
 
     def resolve_realization(self):
         self.assignRealization(IO_COMB_REALIZATION)
@@ -77,7 +76,7 @@ class HlsLoopGateStatus(HlsNetNode):
                statusBusyReg(0)  # finished work
             )
         else:
-            raise AssertionError("All cases whould be covered in this if", self, g)
+            raise AssertionError("All cases should already be covered in this if", self, g)
 
         return statusBusyReg_s
 
@@ -151,24 +150,24 @@ class HlsLoopGate(HlsNetNode):
     def _removeInput(self, i:int):
         raise NotImplementedError()
 
-    def _connect(self, control:HlsNetNodeOut, in_list: List[HlsNetNodeIn]):
-        i = self._add_input()
+    def _connect(self, control:HlsNetNodeOut, inList: List[HlsNetNodeIn], name: str):
+        i = self._addInput(name)
         link_hls_nodes(control, i)
-        in_list.append(i)
+        inList.append(i)
 
     def connect_predec(self, control:HlsNetNodeOut):
         """
         Register connection of control and data from some block which causes the loop to to execute.
         :note: allocating the sync token
         """
-        self._connect(control, self.from_predec)
+        self._connect(control, self.from_predec, f"predec{len(self.from_predec)}")
 
     def connect_reenter(self, control:HlsNetNodeOut):
         """
-        Register connection of control and data from some block where controlflow gets back block where the cycle starts.
+        Register connection of control and data from some block where control flow gets back block where the cycle starts.
         :note: reusing sync token
         """
-        self._connect(control, self.from_reenter)
+        self._connect(control, self.from_reenter, f"reenter{len(self.from_reenter)}")
 
     def connect_break(self, control: HlsNetNodeOut):
         """
@@ -177,12 +176,12 @@ class HlsLoopGate(HlsNetNode):
         :note: the loop may not end this implies that this may not be used at all
         """
         assert isinstance(control.obj, HlsNetNodeExplicitSync), control
-        vld = HlsNetNodeReadSync(self.netlist)
-        self.netlist.nodes.append(vld)
-        link_hls_nodes(control.obj.dependsOn[0], vld._inputs[0])
-        control.obj.add_control_skipWhen(self.netlist.builder.buildNot(vld._outputs[0]))
-        en = self.netlist.builder.buildAnd(control, vld._outputs[0])
-        self._connect(en, self.from_break)
+        netlist = self.netlist
+        vld = netlist.builder.buildReadSync(control.obj.dependsOn[0]) 
+        control.obj.add_control_skipWhen(netlist.builder.buildNot(vld))
+        
+        en = self.netlist.builder.buildAnd(control, vld)
+        self._connect(en, self.from_break, f"break{len(self.from_break)}")
 
     def debug_iter_shadow_connection_dst(self) -> Generator["HlsNetNode", None, None]:
         yield self._sync_token_status

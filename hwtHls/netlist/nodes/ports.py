@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import List, Union, Optional
 from hwt.hdl.types.hdlType import HdlType
 
 
@@ -14,11 +14,12 @@ class HlsNetNodeOut():
     A class for object which represents output of :class:`HlsNetNode` instance.
     """
 
-    def __init__(self, obj: "HlsNetNode", out_i: int, dtype: HdlType):
+    def __init__(self, obj: "HlsNetNode", out_i: int, dtype: HdlType, name: Optional[str]):
         self.obj = obj
         self.out_i = out_i
         assert isinstance(dtype, HdlType), dtype
         self._dtype = dtype
+        self.name = name
     
     def replaceDriverObj(self, o:"HlsNetNodeOut"):
         raise NotImplementedError()
@@ -34,7 +35,10 @@ class HlsNetNodeOut():
             objStr = _reprMinify(self.obj)
         else:
             objStr = repr(self.obj)
-        return f"<{self.__class__.__name__} {objStr:s} [{self.out_i:d}]>"
+        if self.name is None:
+            return f"<{self.__class__.__name__} {objStr:s} [{self.out_i:d}]>"
+        else:
+            return f"<{self.__class__.__name__} {objStr:s} [{self.out_i:d}-{self.name:s}]>"
 
 
 class HlsNetNodeOutLazy():
@@ -87,9 +91,10 @@ class HlsNetNodeIn():
     A class for object which represents input of :class:`HlsNetNode` instance.
     """
 
-    def __init__(self, obj: "HlsNetNode", in_i: int):
+    def __init__(self, obj: "HlsNetNode", in_i: int, name: Optional[str]):
         self.obj = obj
         self.in_i = in_i
+        self.name = name
 
     def __hash__(self):
         return hash((self.obj, self.in_i))
@@ -97,7 +102,7 @@ class HlsNetNodeIn():
     def __eq__(self, other):
         return self is other or (self.__class__ is other.__class__ and self.obj == other.obj and self.in_i == other.in_i)
 
-    def replace_driver(self, o: HlsNetNodeOutAny) -> HlsNetNodeOutAny:
+    def replaceDriver(self, o: HlsNetNodeOutAny) -> HlsNetNodeOutAny:
         """
         Disconnect old output object and connect new output object to this input while updating all.
         """
@@ -118,6 +123,7 @@ class HlsNetNodeIn():
         :attention: does not disconnect old output if there was any
         """
         oldO = self.obj.dependsOn[self.in_i]
+        assert oldO is not o
         self.obj.dependsOn[self.in_i] = o
         if isinstance(o, HlsNetNodeOut):
             usedBy = o.obj.usedBy[o.out_i]
@@ -135,8 +141,11 @@ class HlsNetNodeIn():
             objStr = _reprMinify(self.obj)
         else:
             objStr = repr(self.obj)
-        return f"<{self.__class__.__name__} {objStr:s} [{self.in_i:d}]>"
-
+        if self.name is None:
+            return f"<{self.__class__.__name__} {objStr:s} [{self.in_i:d}]>"
+        else:
+            return f"<{self.__class__.__name__} {objStr:s} [{self.in_i:d}-{self.name:s}]>"
+            
 
 def link_hls_nodes(parent: HlsNetNodeOutAny, child: HlsNetNodeIn) -> None:
     assert isinstance(child, HlsNetNodeIn), child

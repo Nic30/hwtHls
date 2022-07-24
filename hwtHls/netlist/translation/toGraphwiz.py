@@ -82,8 +82,12 @@ class HwtHlsNetlistToGraphwiz():
         input_rows = []
         if isinstance(obj, HlsNetNode):
             try:
-                for node_in_i, drv in enumerate(obj.dependsOn):
-                    input_rows.append(f"<td port='i{node_in_i:d}'>i{node_in_i:d}</td>")
+                for node_in_i, (inp, drv) in enumerate(zip(obj._inputs, obj.dependsOn)):
+                    if inp.name is not None:
+                        inpName = inp.name
+                    else:
+                        inpName = f"i{node_in_i:d}"
+                    input_rows.append(f"<td port='i{node_in_i:d}'>{inpName:s}</td>")
                     if drv is not None:
                         drv: Union[HlsNetNodeOut, HlsNetNodeOutLazy]
                         if isinstance(drv, HlsNetNodeOut):
@@ -107,9 +111,12 @@ class HwtHlsNetlistToGraphwiz():
             assert isinstance(obj, HlsNetNodeOutLazy), obj
         output_rows = []
         if isinstance(obj, HlsNetNode):
-            for node_out_i, _ in enumerate(obj.usedBy):
-                # dsts: List[HlsNetNodeIn]
-                output_rows.append(f"<td port='o{node_out_i:d}'>o{node_out_i:d}</td>")
+            for node_out_i, out in enumerate(obj._outputs):
+                if out.name is not None:
+                    outName = out.name
+                else:
+                    outName = f"o{node_out_i:d}"
+                output_rows.append(f"<td port='o{node_out_i:d}'>{outName:s}</td>")
         else:
             output_rows.append("<td port='o0'>o0</td>")
 

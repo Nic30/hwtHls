@@ -44,7 +44,7 @@ class MachineBasicBlockSyncContainer():
         # self.uselessControlBackedgesFrom: Set[MachineBasicBlock] = set() 
 
     def addOrderedNode(self, n: Union[HlsNetNodeRead, HlsNetNodeWrite], atEnd=True):
-        i = n._add_input()
+        i = n._addInput("orderingIn")
         if atEnd:
             link_hls_nodes(self.orderingOut, i)
             self.orderingOut = n.getOrderingOutPort()

@@ -8,6 +8,7 @@ from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlRes
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
     link_hls_nodes, HlsNetNodeIn
+from hwt.hdl.value import HValue
 
 
 class HlsNetNodeMux(HlsNetNodeOperator):
@@ -65,8 +66,12 @@ class HlsNetNodeMux(HlsNetNodeOperator):
 
         return mux_out_s
 
-    def _iterValueConditionPairs(self) -> Generator[HlsNetNodeIn, None, None]:
+    def _iterValueConditionInputPairs(self) -> Generator[HlsNetNodeIn, None, None]:
         for (v, c) in grouper(2, self._inputs, padvalue=None):
+            yield (v, c)
+
+    def _iterValueConditionDriverPairs(self) -> Generator[HlsNetNodeIn, None, None]:
+        for (v, c) in grouper(2, self.dependsOn, padvalue=None):
             yield (v, c)
 
 

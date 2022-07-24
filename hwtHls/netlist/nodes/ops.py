@@ -1,9 +1,9 @@
 from hwt.hdl.operatorDefs import OpDefinition, AllOps
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.value import HValue
-from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
+from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, INVARIANT_TIME
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.typeUtils import dtypeEqualSignIgnore
 
 
@@ -14,7 +14,7 @@ class HlsNetNodeOperator(HlsNetNode):
     :ivar operator: parent RTL operator for this hls operator
     :ivar _dtype: RTL data type of output
     
-    :note: concatenation operands are in lowest bits first format
+    :note: CONCAT operands are in lowest bits first format
     """
 
     def __init__(self, netlist: "HlsNetlistCtx",
@@ -24,11 +24,10 @@ class HlsNetNodeOperator(HlsNetNode):
                  name=None):
         super(HlsNetNodeOperator, self).__init__(netlist, name=name)
         self.operator = operator
-        for i in range(operand_cnt):
-            self.dependsOn.append(None)
-            self._inputs.append(HlsNetNodeIn(self, i))
+        for _ in range(operand_cnt):
+            self._addInput(None)
         # add containers for io pins
-        self._add_output(dtype)
+        self._addOutput(dtype, None)
 
     def resolve_realization(self):
         self.netlist = self.netlist
@@ -60,7 +59,7 @@ class HlsNetNodeOperator(HlsNetNode):
             operands = reversed(operands)
         s = self.operator._evalFn(*(o.data for o in operands))
         if isinstance(s, HValue):
-            t = TimeIndependentRtlResource.INVARIANT_TIME
+            t = INVARIANT_TIME
 
         else:
             # create RTL signal expression base on operator type

@@ -25,8 +25,8 @@ class HlsNetNodeReadSync(HlsNetNode, InterfaceBase):
 
     def __init__(self, netlist: "HlsNetlistCtx"):
         HlsNetNode.__init__(self, netlist, None)
-        self._add_input()
-        self._add_output(BIT)
+        self._addInput("io")
+        self._addOutput(BIT, "ack")
         self.operator = "read_sync"
 
     def resolve_realization(self):

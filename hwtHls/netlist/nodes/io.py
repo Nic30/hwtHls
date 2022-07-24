@@ -5,14 +5,13 @@ from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.hdlType import HdlType
 from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.interfaces.std import Signal, HandshakeSync, Handshaked, VldSynced, \
-    RdSynced, BramPort_withoutClk
+    RdSynced
 from hwt.interfaces.structIntf import StructIntf
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.interfaceUtils.utils import packIntf
 from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
-from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict, TimeSpec
@@ -27,7 +26,9 @@ IO_COMB_REALIZATION = OpRealizationMeta(outputWireDelay=epsilon)
 
 
 class _HOrderingVoidT(HdlType):
-    pass
+
+    def bit_length(self):
+        return 0
 
 
 HOrderingVoidT = _HOrderingVoidT()
@@ -43,14 +44,16 @@ class HlsNetNodeExplicitSync(HlsNetNode):
     :ivar extraCond: an input for a flag which must be true to allow the transaction (is blocking until 1)
     :ivar skipWhen: an input for a flag which marks that this write should be skipped and transaction
                     will not be performed but the control flow will continue
+    :ivar _associatedReadSync: a node which reads if this node is activated and working
     """
 
     def __init__(self, netlist: "HlsNetlistCtx", dtype: HdlType):
         HlsNetNode.__init__(self, netlist, name=None)
+        self._associatedReadSync: Optional["HlsNetNodeReadSync"] = None
         self._init_extraCond_skipWhen()
-        self._add_input()
-        self._add_output(dtype)
-        self._add_output(HOrderingVoidT)  # slot for ordering
+        self._addInput("dataIn")
+        self._addOutput(dtype, "dataOut")
+        self._addOutput(HOrderingVoidT, "orderingOut")
 
     def _init_extraCond_skipWhen(self):
         self.extraCond: Optional[HlsNetNodeIn] = None
@@ -80,23 +83,23 @@ class HlsNetNodeExplicitSync(HlsNetNode):
     def add_control_extraCond(self, en: Union[HlsNetNodeOut, HlsNetNodeOutLazy]):
         i = self.extraCond
         if i is None:
-            self.extraCond = i = self._add_input()
+            self.extraCond = i = self._addInput("extraCond")
             link_hls_nodes(en, i)
         else:
             # create "and" of existing and new extraCond and use it instead
             cur = self.dependsOn[i.in_i]
             en = self.netlist.builder.buildAnd(cur, en)
-            i.replace_driver(en)
+            i.replaceDriver(en)
 
     def add_control_skipWhen(self, skipWhen: Union[HlsNetNodeOut, HlsNetNodeOutLazy]):
         i = self.skipWhen
         if i is None:
-            self.skipWhen = i = self._add_input()
+            self.skipWhen = i = self._addInput("skipWhen")
             link_hls_nodes(skipWhen, i)
         else:
             cur = self.dependsOn[i.in_i]
             skipWhen = self.netlist.builder.buildOr(cur, skipWhen)
-            i.replace_driver(skipWhen)
+            i.replaceDriver(skipWhen)
 
     def resolve_realization(self):
         self.assignRealization(IO_COMB_REALIZATION)
@@ -112,7 +115,7 @@ class HlsNetNodeExplicitSync(HlsNetNode):
 
 class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
     """
-    Hls plane to read from interface
+    Hls plan to read from interface
 
     :ivar _sig: RTL signal in HLS context used for HLS code description
     :ivar src: original interface from which read should be performed
@@ -125,10 +128,11 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
         self.operator = "read"
         self.src = src
         self.maxIosPerClk = 1
+        self._associatedReadSync: Optional["HlsNetNodeReadSync"] = None
 
         self._init_extraCond_skipWhen()
-        self._add_output(self.getRtlDataSig()._dtype)  # slot for data consumer
-        self._add_output(HOrderingVoidT)  # slot for ordering
+        self._addOutput(self.getRtlDataSig()._dtype, "dataOut")
+        self._addOutput(HOrderingVoidT, "orderingOut")
             
     def getOrderingOutPort(self) -> HlsNetNodeOut:
         return self._outputs[1]
@@ -243,8 +247,6 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
             return packIntf(src, masterDirEqTo=src._masterDir, exclude=(src.vld,))
         elif isinstance(src, RdSynced):
             return packIntf(src, masterDirEqTo=src._masterDir, exclude=(src.rd,))
-        elif isinstance(src, BramPort_withoutClk):
-            return src.dout
         else:
             return packIntf(src, masterDirEqTo=src._masterDir)
 
@@ -259,7 +261,7 @@ class HlsNetNodeReadIndexed(HlsNetNodeRead):
 
     def __init__(self, netlist:"HlsNetlistCtx", src:Union[RtlSignal, Interface]):
         HlsNetNodeRead.__init__(self, netlist, src)
-        self.indexes = [self._add_input(), ]
+        self.indexes = [self._addInput("index0"), ]
     
     @staticmethod
     def _strFormatIndexes(indexes: List[HlsNetNodeIn]):
@@ -289,11 +291,14 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
     :ivar dependsOn: list of dependencies for scheduling composed of data input, extraConds and skipWhen
     """
 
-    def __init__(self, netlist: "HlsNetlistCtx", src, dst: Union[RtlSignal, Interface, SsaValue]):
+    def __init__(self, netlist: "HlsNetlistCtx", src, dst: Union[RtlSignal, Interface, SsaValue], addOrderingOut=True):
         HlsNetNode.__init__(self, netlist, None)
+        self._associatedReadSync: Optional["HlsNetNodeReadSync"] = None
+
         self._init_extraCond_skipWhen()
-        self._add_input()
-        self._add_output(HOrderingVoidT)  # slot for ordering
+        self._addInput("src")
+        if addOrderingOut:
+            self._addOutput(HOrderingVoidT, "orderingOut")  # slot for ordering
 
         self.operator = "write"
         self.src = src
@@ -306,7 +311,7 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
                 if tmp:
                     dst, indexCascade, _ = tmp
         assert not indexCascade, ("There should not be any index, for indexed writes use :class:`~.HlsNetNodeWrite` node", src, dst, indexCascade)
-        assert isinstance(dst, (HlsNetNodeIn, HsStructIntf, Signal, RtlSignalBase, Handshaked, StructIntf, VldSynced, RdSynced)), dst
+        # assert isinstance(dst, (HlsNetNodeIn, HsStructIntf, Signal, RtlSignalBase, Handshaked, StructIntf, VldSynced, RdSynced)), dst
         self.dst = dst
         self.maxIosPerClk = 1
 
@@ -332,7 +337,7 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         assert len(self.dependsOn) >= 1, self.dependsOn
         # [0] - data, [1:] control dependencies
         for sync, t in zip(self.dependsOn[1:], self.scheduledIn[1:]):
-            # prepare sync intputs but do not connect it because we do not implement synchronization
+            # prepare sync inputs but do not connect it because we do not implement synchronization
             # in this step we are building only datapath
             if sync._dtype != HOrderingVoidT:
                 allocator.instantiateHlsNetNodeOutInTime(sync, t)
@@ -342,21 +347,18 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
 
         # apply indexes before assignments
         dst = self.dst
-        _dst = dst
         if isinstance(dst, HsStructIntf):
             dst = dst.data
 
-        # if self.indexes is not None:
-        #    for i in self.indexes:
-        #        dst = dst[i]
         try:
             # skip instantiation of writes in the same mux
             return allocator.netNodeToRtl[(dep, dst)]
         except KeyError:
             pass
 
+        srcIsStructIntf = isinstance(_o.data, StructIntf)
         if isinstance(dst, (Handshaked, Axi_hs)):
-            if isinstance(_o.data, StructIntf):
+            if srcIsStructIntf:
                 if isinstance(dst, Handshaked, HandshakeSync):
                     rd, vld = dst.rd, dst.vld
                 else:
@@ -368,9 +370,18 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
                 rtlObj = dst.data(_o.data)
 
         elif isinstance(dst, VldSynced):
-            rtlObj = dst(_o.data, exclude=(dst.vld,))
+            if srcIsStructIntf:
+                rtlObj = dst(_o.data, exclude=(dst.vld,))
+            else:
+                assert len(dst._interfaces) == 2, (dst, "Must have just valid and data signal because the source is just a data signal", _o.data)
+                rtlObj = dst.data(_o.data)
+
         elif isinstance(dst, RdSynced):
-            rtlObj = dst(_o.data, exclude=(dst.rd,))
+            if srcIsStructIntf:
+                rtlObj = dst(_o.data, exclude=(dst.rd,))
+            else:
+                assert len(dst._interfaces) == 2, (dst, "Must have just ready and data signal because the source is just a data signal", _o.data)
+                rtlObj = dst.data(_o.data)
         else:
             rtlObj = dst(_o.data)
         # allocator.netNodeToRtl[o] = rtlObj
@@ -391,13 +402,13 @@ class HlsNetNodeWriteIndexed(HlsNetNodeWrite):
     Same as :class:`~.HlsNetNodeWrite` but for memory mapped interfaces with address or index.
     """
 
-    def __init__(self, netlist:"HlsNetlistCtx", src, dst:Union[RtlSignal, Interface, SsaValue]):
-        HlsNetNodeWrite.__init__(self, netlist, src, dst)
-        self.indexes = [self._add_input(), ]
+    def __init__(self, netlist:"HlsNetlistCtx", src, dst:Union[RtlSignal, Interface, SsaValue], addOrderingOut=True):
+        HlsNetNodeWrite.__init__(self, netlist, src, dst, addOrderingOut=addOrderingOut)
+        self.indexes = [self._addInput("index0"), ]
         
     def __repr__(self):
         src = self.src
         if src is NOT_SPECIFIED:
             src = self.dependsOn[0]
 
-        return f"<{self.__class__.__name__:s} {self._id:d} {self.dst}{self._strFormatIndexes(self.indexes)} <- {src}>"
+        return f"<{self.__class__.__name__:s} {self._id:d} {self.dst}{HlsNetNodeReadIndexed._strFormatIndexes(self.indexes)} <- {src}>"

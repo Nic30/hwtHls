@@ -1,5 +1,5 @@
 from hwt.hdl.value import HValue
-from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
+from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, INVARIANT_TIME
 from hwtHls.netlist.nodes.node import HlsNetNode
 
 
@@ -11,15 +11,14 @@ class HlsNetNodeConst(HlsNetNode):
     def __init__(self, netlist: "HlsNetlistCtx", val: HValue):
         self.val = val
         HlsNetNode.__init__(self, netlist, name=None)
-        self._add_output(val._dtype)
+        self._addOutput(val._dtype, "val")
 
     def get(self, time: float):
         return self.val
 
     def allocateRtlInstance(self, allocator: "AllocatorArchitecturalElement") -> TimeIndependentRtlResource:
         s = self.val
-        t = TimeIndependentRtlResource.INVARIANT_TIME
-        return TimeIndependentRtlResource(s, t, allocator)
+        return TimeIndependentRtlResource(s, INVARIANT_TIME, allocator)
 
     def resolve_realization(self):
         self.inputWireDelay = ()

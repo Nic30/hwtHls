@@ -86,7 +86,6 @@ class HlsNetNode():
         The recursive function of ASAP scheduling
         """
         if self.scheduledOut is None:
-            
             clkPeriod = self.netlist.normalizedClkPeriod
             if self.dependsOn:
                 if pathForDebug is not None:
@@ -327,15 +326,15 @@ class HlsNetNode():
         for i in self._inputs[i:]:
             i.in_i -= 1
 
-    def _add_input(self) -> HlsNetNodeIn:
-        i = HlsNetNodeIn(self, len(self._inputs))
+    def _addInput(self, name: Optional[str]) -> HlsNetNodeIn:
+        i = HlsNetNodeIn(self, len(self._inputs), name)
         self.dependsOn.append(None)
         self._inputs.append(i)
         return i
 
-    def _add_output(self, t: HdlType):
+    def _addOutput(self, t: HdlType, name: Optional[str]):
         self.usedBy.append([])
-        o = HlsNetNodeOut(self, len(self._outputs), t)
+        o = HlsNetNodeOut(self, len(self._outputs), t, name)
         self._outputs.append(o)
         return o
 

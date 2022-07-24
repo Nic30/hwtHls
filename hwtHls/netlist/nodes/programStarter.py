@@ -11,7 +11,7 @@ class HlsProgramStarter(HlsNetNode):
 
     def __init__(self, netlist:"HlsNetlistCtx", name:str=None):
         HlsNetNode.__init__(self, netlist, name=name)
-        self._add_output(BIT)
+        self._addOutput(BIT, "start")
 
     def resolve_realization(self):
         self.assignRealization(IO_COMB_REALIZATION)
@@ -25,14 +25,14 @@ class HlsProgramStarter(HlsNetNode):
             pass
 
         name = self.name
-        starter_reg = allocator._reg(name if name else f"{allocator.namePrefix:s}program_starter", def_val=1)
+        starterReg = allocator._reg(name if name else f"{allocator.namePrefix:s}programStarter{self._id}", def_val=1)
 
         # sync added later
-        starter_reg(0)
+        starterReg(0)
 
         # create RTL signal expression base on operator type
         t = self.scheduledOut[0] + self.netlist.scheduler.epsilon
-        status_reg_s = TimeIndependentRtlResource(starter_reg, t, allocator)
+        status_reg_s = TimeIndependentRtlResource(starterReg, t, allocator)
         allocator.netNodeToRtl[op_out] = status_reg_s
 
         return status_reg_s

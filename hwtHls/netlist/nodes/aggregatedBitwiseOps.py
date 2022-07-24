@@ -26,9 +26,9 @@ class HlsNetNodeBitwiseOps(HlsNetNode):
         HlsNetNode.__init__(self, netlist, name=name)
         self._subNodes = subNodes
         for _ in subNodes.inputs:
-            self._add_input()
+            self._addInput(None)
         for o in subNodes.outputs:
-            self._add_output(o._dtype)
+            self._addOutput(o._dtype, None)
         self._totalInputCnt: Dict[HlsNetNodeOperator, int] = {}
         self._isFragmented = False
         self.internOutToOut = {intern:outer for intern, outer in zip(self._subNodes.outputs, self._outputs)}
