@@ -2,28 +2,33 @@ from itertools import chain, islice
 from typing import Set, Generator, Tuple, Literal, Optional, Sequence, List, \
     Union, Dict
 
-from hwt.hdl.operatorDefs import AllOps, OpDefinition
+from hwt.code import Concat
+from hwt.hdl.operatorDefs import AllOps, OpDefinition, COMPARE_OPS, CAST_OPS
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.bitsVal import BitsVal
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.value import HValue
 from hwt.pyUtils.uniqList import UniqList
+from hwtHls.netlist.abc.abcAigToHlsNetlist import AbcAigToHlsNetlist
+from hwtHls.netlist.abc.hlsNetlistToAbcAig import HlsNetlistToAbcAig
+from hwtHls.netlist.abc.optScripts import abcCmd_resyn2, abcCmd_compress2
 from hwtHls.netlist.analysis.dataThreads import HlsNetlistAnalysisPassDataThreads
+from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
-from hwtHls.netlist.nodes.io import HlsNetNodeExplicitSync, HlsNetNodeRead, \
-    HlsNetNodeWrite
+from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, \
+    HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
+from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
+    link_hls_nodes
+from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from pyMathBitPrecise.bit_utils import get_bit, mask
-from hwtHls.netlist.transformation.dce import HlsNetlistPassDCE
-from hwtHls.netlist.abc.hlsNetlistToAbcAig import HlsNetlistToAbcAig
-from hwtHls.netlist.abc.abcAigToHlsNetlist import AbcAigToHlsNetlist
-from hwtHls.netlist.builder import HlsNetlistBuilder
-from hwtHls.netlist.abc.optScripts import abcCmd_resyn2, abcCmd_compress2
+from hwtHls.architecture.connectionsOfStage import extractControlSigOfInterfaceTuple
+from hwtHls.netlist.analysis.consystencyCheck import HlsNetlistPassConsystencyCheck
+from hwtHls.netlist.nodes.loopHeader import HlsLoopGate
 
 
 def iter1and0sequences(v: BitsVal) -> Generator[Tuple[Literal[1, 0], int], None, None]:
@@ -36,7 +41,7 @@ def iter1and0sequences(v: BitsVal) -> Generator[Tuple[Literal[1, 0], int], None,
     l_1: int = -1  # start of 1 sequence, -1 as invalid value
     l_0: int = -1  # start of 0 sequence, -1 as invalid value
     endIndex = v._dtype.bit_length() - 1
-    if not v._isFullVld():
+    if not v._is_full_valid():
         raise NotImplementedError(v)
     _v = v.val
     for h in range(endIndex + 1):
@@ -72,6 +77,9 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
     * reduce and/or/xor
     * remove HlsNetNodeExplicitSync (and subclasses like HlsNetNodeRead,HlsNetNodeWrite) skipWhen and extraCond connected to const  
     """
+    REST_OF_EVALUABLE_OPS = {AllOps.CONCAT, AllOps.ADD, AllOps.SUB, AllOps.DIV, AllOps.MUL, AllOps.INDEX, *COMPARE_OPS, *CAST_OPS}
+    OPS_AND_OR_XOR = (AllOps.AND, AllOps.OR, AllOps.XOR)
+    NON_REMOVABLE_CLS = (HlsNetNodeRead, HlsNetNodeWrite, HlsLoopGate, HlsNetNodeExplicitSync)
 
     def apply(self, hls:"HlsScope", netlist: HlsNetlistCtx):
         threads: HlsNetlistAnalysisPassDataThreads = netlist.getAnalysis(HlsNetlistAnalysisPassDataThreads)
@@ -80,12 +88,13 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
         builder = netlist.builder
         firstTime = True
         while True:
-            didModifyExpr = False
+            # [todo] it would be more beneficial to use worklist as FIFO because we want to first run DCE and more complex reductions later 
+            didModifyExpr = False  # flag which is True if we modified some expression and the ABC should be run
             while worklist:
                 n = worklist.pop()
                 if n in removed:
                     continue
-    
+
                 if self._isTriviallyDead(n):
                     builder.unregisterNode(n)
                     self._disconnectAllInputs(n, worklist)
@@ -94,26 +103,43 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                     
                 if isinstance(n, HlsNetNodeOperator):
                     n: HlsNetNodeOperator
+                    o = n.operator
                     if isinstance(n, HlsNetNodeMux):
                         if self._reduceMux(n, worklist, removed):
                             didModifyExpr = True
                             continue
-                    elif n.operator == AllOps.NOT:
+                    elif o == AllOps.NOT:
                         if self._reduceNot(n, worklist, removed):
                             didModifyExpr = True
                             continue
                 
-                    elif n.operator in (AllOps.AND, AllOps.OR, AllOps.XOR):
+                    elif o in self.OPS_AND_OR_XOR:
                         if self._reduceAndOrXor(n, worklist, removed):
                             didModifyExpr = True
                             continue
-                
+                    elif o in self.REST_OF_EVALUABLE_OPS:
+                        c0 = self._getConstDriverOf(n._inputs[0])
+                        if c0 is None:
+                            continue
+                        c1 = self._getConstDriverOf(n._inputs[1])
+                        if c1 is None:
+                            continue
+                        
+                        if o == AllOps.CONCAT:
+                            v = Concat(c1, c0)
+                        else:
+                            v = o._evalFn(c0, c1)
+
+                        self._replaceOperatorNodeWith(n, builder.buildConst(v), worklist, removed)
+                        didModifyExpr = True
+                        continue
+
                 elif isinstance(n, HlsNetNodeExplicitSync):
                     n: HlsNetNodeExplicitSync
                     if n.skipWhen is not None:
                         dep = n.dependsOn[n.skipWhen.in_i]
                         if isinstance(dep.obj, HlsNetNodeConst):
-                            assert int(dep.obj.val) == 0, ("Must be 0 because otherwise this is should not be used at all", n, dep.obj)
+                            assert int(dep.obj.val) == 0, ("Constant skipWhen condition must be 0 because otherwise this is should not be used at all", n, dep.obj)
                             dep.obj.usedBy[dep.out_i].remove(n.skipWhen)
                             worklist.append(dep.obj)
                             n._removeInput(n.skipWhen.in_i)
@@ -122,7 +148,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                     if n.extraCond is not None:
                         dep = n.dependsOn[n.extraCond.in_i]
                         if isinstance(dep.obj, HlsNetNodeConst):
-                            assert int(dep.obj.val) == 1, ("Must be 1 because otherwise this is should not be used at all", n, dep.obj)
+                            assert int(dep.obj.val) == 1, ("Constant extraCond must be 1 because otherwise this is should not be used at all", n, dep.obj)
                             dep.obj.usedBy[dep.out_i].remove(n.extraCond)
                             worklist.append(dep.obj)
                             n._removeInput(n.extraCond.in_i)
@@ -162,14 +188,58 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                                 worklist.append(dep.obj)
                             
                             removed.add(n)
-                    
+                            continue
+
                         elif self._getConstDriverOf(n._inputs[0]) is not None and all(not use for use in islice(n.usedBy, 1, None)):
                             for _ in range(len(n.usedBy) - 1):
                                 n.usedBy.pop()
                                 n._outputs.pop()
-                    
+                            if n._associatedReadSync is not None:
+                                raise NotImplementedError(n)
+
                             self._replaceOperatorNodeWith(n, n.dependsOn[0], worklist, removed)
-            
+                            didModifyExpr = True
+                            continue
+
+                        elif (n.skipWhen is None or self._getConstDriverOf(n.skipWhen) is not None) and (n.skipWhen is None or self._getConstDriverOf(n.skipWhen) is not None):
+                            # synchronization node without any synchronization flag specified
+                            _, orderingOutUses = n._outputs.pop(), n.usedBy.pop()
+                            if orderingOutUses:
+                                for orderingIn in n.iterOrderingInputs():
+                                    orderingDep = n.dependsOn[orderingIn.in_i]
+                                    for u in orderingOutUses:
+                                        u: HlsNetNodeIn
+                                        u.replaceDriverInInputOnly(orderingDep)
+                                 
+                            self._replaceOperatorNodeWith(n, n.dependsOn[0], worklist, removed)
+                            didModifyExpr = True
+                            continue
+
+                elif isinstance(n, HlsNetNodeReadSync):
+                    # rm this if the source data is constant
+                    if self._getConstDriverOf(n._inputs[0]):
+                        self._replaceOperatorNodeWith(n, builder.buildConstBit(1), worklist, removed)
+                        didModifyExpr = True
+                        continue
+                    # rm this if the source object does not have sync
+                    dep = n.dependsOn[0].obj
+                    if isinstance(dep, HlsNetNodeRead):
+                        dep: HlsNetNodeRead
+                        vld, _ = extractControlSigOfInterfaceTuple(dep.src)
+                        if isinstance(vld, int):
+                            assert vld == 1, (dep, vld)
+                            self._replaceOperatorNodeWith(n, builder.buildConstBit(1), worklist, removed)
+                            didModifyExpr = True
+                            continue
+                            
+                    elif isinstance(dep, HlsNetNodeRead):
+                        _, rd = extractControlSigOfInterfaceTuple(dep.src)
+                        if isinstance(rd, int):
+                            assert rd == 1, (dep, vld)
+                            self._replaceOperatorNodeWith(n, builder.buildConstBit(1), worklist, removed)
+                            didModifyExpr = True
+                            continue
+
             if firstTime or didModifyExpr:
                 self._runAbcControlpathOpt(netlist.builder, worklist, removed, netlist.iterAllNodes())
                 firstTime = False
@@ -178,12 +248,16 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                 break 
                 
         if removed:
+            # HlsNetlistPassConsystencyCheck().apply(hls, netlist)
             nodes = netlist.nodes
             netlist.nodes = [n for n in nodes if n not in removed]
+            HlsNetlistPassConsystencyCheck().apply(hls, netlist)
 
     @classmethod
     def _collect1bOpTree(cls, o: HlsNetNodeOut, inputs: UniqList[HlsNetNodeOut], inTreeOutputs: Set[HlsNetNodeOut]):
         """
+        Collect tree of 1b operators ending from specified output
+
         :returns: True if it is a non trivial output (output is trivial if driven by const or non-translated node,
             if the output is trivial it can not be optimized further)
         """
@@ -205,7 +279,11 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
         inputs.append(o)
         return False
         
-    def _runAbcControlpathOpt(self, builder: HlsNetlistBuilder, worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode], allNodeIt: Sequence[HlsNetNode]):
+    def _runAbcControlpathOpt(self, builder: HlsNetlistBuilder, worklist: UniqList[HlsNetNode],
+                              removed: Set[HlsNetNode], allNodeIt: Sequence[HlsNetNode]):
+        """
+        Run berkeley-ABC to optimize control path.
+        """
         inputs: UniqList[HlsNetNodeOut] = []
         inTreeOutputs: Set[HlsNetNodeOut] = set()
         outputs: List[HlsNetNodeOut] = []
@@ -229,7 +307,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                 if n.skipWhen is not None:
                     collect(n, n.skipWhen)
             elif isinstance(n, HlsNetNodeMux):
-                for _, c in n._iterValueConditionPairs():
+                for _, c in n._iterValueConditionInputPairs():
                     if c is not None:
                         collect(n, c)
         if outputs:
@@ -250,6 +328,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                     if isinstance(newO, HValue):
                         newO = builder.buildConst(newO)
                     builder.replaceOutput(o, newO)
+                    # we can remove "o" immediately because its parent node may have multiple outputs
                     worklist.append(newO.obj)
                     anyChangeSeen = True
 
@@ -290,8 +369,9 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
             dep.obj.usedBy[dep.out_i].remove(i)
             worklist.append(dep.obj)
 
-    def _replaceOperatorNodeWith(self, n: HlsNetNodeOperator, newO: HlsNetNodeOut, worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]):
-        assert len(n.usedBy) == 1, (n, "implement only for single output nodes")
+    def _replaceOperatorNodeWith(self, n: HlsNetNodeOperator, newO: HlsNetNodeOut,
+                                 worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]):
+        assert len(n.usedBy) == 1, (n, "implemented only for single output nodes")
         builder: HlsNetlistBuilder = n.netlist.builder
         # opUsers: List[HlsNetNodeOperator] = []
         # for user in n.usedBy[0]:
@@ -301,9 +381,10 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
         #        opUsers.append(u)
         #        builder.unregisterOperatorNode(u)
 
+        builder.unregisterNode(n)
         self._disconnectAllInputs(n, worklist)
         self._addAllUsersToWorklist(worklist, n)
-        # reconnect all dependencies to an only driver of this mux
+        # reconnect all dependencies to an only driver of this MUX
         builder.replaceOutput(n._outputs[0], newO)
         # for u in opUsers:
         #    builder.registerOperatorNode(u)
@@ -315,7 +396,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                 worklist.append(u.obj)
 
     def _isTriviallyDead(self, n: HlsNetNode):
-        if isinstance(n, HlsNetlistPassDCE.NON_REMOVABLE_CLS):
+        if isinstance(n, self.NON_REMOVABLE_CLS):
             return False
         else:
             for uses in n.usedBy:
@@ -330,6 +411,27 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
             self._replaceOperatorNodeWith(n, i, worklist, removed)
             return True
 
+        # resolve constant conditions
+        newOps = []
+        for (v, c) in n._iterValueConditionDriverPairs():
+            if c is not None and isinstance(c.obj, HlsNetNodeConst):
+                if c.obj.val:
+                    newOps.append(v)
+                    break
+            else:
+                newOps.append(v)
+                if c is not None:
+                    newOps.append(c)
+
+        if len(newOps) != len(n._inputs):
+            if len(newOps) == 1:
+                i: HlsNetNodeOut = newOps[0]
+            else:
+                i = n.netlist.builder.buildMux(n._outputs[0]._dtype, tuple(newOps))
+
+            self._replaceOperatorNodeWith(n, i, worklist, removed)
+            return True
+                
         return False
 
     def _reduceNot(self, n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]):
