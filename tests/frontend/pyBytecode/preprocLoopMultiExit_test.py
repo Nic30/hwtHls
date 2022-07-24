@@ -86,18 +86,18 @@ class PreprocLoopMultiExit_hwBreak0_TC(SimTestCase):
 
 PreprocLoopMultiExit_TCs = [
     PreprocLoopMultiExit_singleExit0_TC,
-    PreprocLoopMultiExit_singleExit1_TC,
+    #PreprocLoopMultiExit_singleExit1_TC,
     PreprocLoopMultiExit_hwBreak0_TC,
 ]
 
 if __name__ == "__main__":
-    import unittest
-    from hwt.synthesizer.utils import to_rtl_str
-    u = PreprocLoopMultiExit_singleExit0()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
+    # import unittest
+    # from hwt.synthesizer.utils import to_rtl_str
+    # u = PreprocLoopMultiExit_hwBreak0()
+    # print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
 
     suite = unittest.TestSuite()
-    # suite.addTest(PreprocLoopMultiExit_TC('test_PreprocLoopMultiExit_hwBreak0'))
+    #suite.addTest(PreprocLoopMultiExit_hwBreak0_TC('test_0in2_withSuc'))
     for tc in PreprocLoopMultiExit_TCs:
         suite.addTest(unittest.makeSuite(tc))
     runner = unittest.TextTestRunner(verbosity=3)
