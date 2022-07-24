@@ -81,8 +81,14 @@ class HlsNetlistCtx():
         a = self._analysis_cache.pop(analysis_cls, None)
         if a is not None:
             a.invalidate()
-        
-    def requestAnalysis(self, analysis_cls:Type[HlsNetlistAnalysisPass]):
+
+    def getAnalysisIfAvailable(self, analysis_cls:Type[HlsNetlistAnalysisPass]):
+        try:
+            return self._analysis_cache[analysis_cls]
+        except KeyError:
+            return None
+  
+    def getAnalysis(self, analysis_cls:Type[HlsNetlistAnalysisPass]):
         try:
             return self._analysis_cache[analysis_cls]
         except KeyError:

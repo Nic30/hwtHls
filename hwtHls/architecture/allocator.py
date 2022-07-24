@@ -43,8 +43,8 @@ class HlsAllocator():
         in current HlsNetlist.
         """
         netlist = self.netlist
-        fsms: HlsNetlistAnalysisPassDiscoverFsm = netlist.requestAnalysis(HlsNetlistAnalysisPassDiscoverFsm)
-        pipelines: HlsNetlistAnalysisPassDiscoverPipelines = netlist.requestAnalysis(HlsNetlistAnalysisPassDiscoverPipelines)
+        fsms: HlsNetlistAnalysisPassDiscoverFsm = netlist.getAnalysis(HlsNetlistAnalysisPassDiscoverFsm)
+        pipelines: HlsNetlistAnalysisPassDiscoverPipelines = netlist.getAnalysis(HlsNetlistAnalysisPassDiscoverPipelines)
         onlySingleElem = (len(fsms.fsms) + len(pipelines.pipelines)) == 1
         namePrefix = self.namePrefix
         for i, fsm in enumerate(fsms.fsms):

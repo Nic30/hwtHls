@@ -100,12 +100,12 @@ class DefaultHlsPlatform(DummyPlatform):
         blockLiveInMuxInputSync: BlockLiveInMuxSyncDict = toNetlist._constructLiveInMuxes(mf, backedges, liveness)
         # thread analysis must be done before we connect control, because once we do that
         # everything will blend together 
-        threads = toNetlist.netlist.requestAnalysis(HlsNetlistAnalysisPassDataThreads)
+        threads = toNetlist.netlist.getAnalysis(HlsNetlistAnalysisPassDataThreads)
         toNetlist._updateThreadsOnPhiMuxes(threads)
         if debugDir:
             HlsNetlistPassDumpDataThreads(outputFileGetter(debugDir, ".6.dthreads.txt")).apply(hls, netlist)
 
-        toNetlist.netlist.requestAnalysis(HlsNetlistAnalysisPassBlockSyncType)
+        toNetlist.netlist.getAnalysis(HlsNetlistAnalysisPassBlockSyncType)
         if debugDir:
             HlsNetlistPassDumpBlockSync(outputFileGetter(debugDir, ".7.blockSync.dot")).apply(hls, netlist)
             HlsNetlistPassDumpToDot(outputFileGetter(debugDir, ".8.preSync.dot")).apply(hls, netlist)
@@ -130,6 +130,8 @@ class DefaultHlsPlatform(DummyPlatform):
         :note: now we can not touch MIR because it was deallocated
         """
         debugDir = self._debugDir
+        if debugDir and not debugDir.exists():
+            debugDir.mkdir()
         if debugDir:
             HlsNetlistPassDumpToDot(outputFileGetter(debugDir, ".10.netlist.dot")).apply(hls, netlist)
             HlsNetlistPassConsystencyCheck().apply(hls, netlist)
@@ -149,7 +151,7 @@ class DefaultHlsPlatform(DummyPlatform):
                                        expandCompositeNodes=self._debugExpandCompositeNodes).apply(hls, netlist)
             HlsNetlistPassConsystencyCheck().apply(hls, netlist)
 
-        netlist.requestAnalysis(HlsNetlistAnalysisPassRunScheduler)
+        netlist.getAnalysis(HlsNetlistAnalysisPassRunScheduler)
 
     def runHlsNetlistToRtlNetlist(self, hls: "HlsScope", netlist: HlsNetlistCtx):
         """

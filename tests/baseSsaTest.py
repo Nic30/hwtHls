@@ -66,11 +66,11 @@ class BaseTestPlatform(VirtualHlsPlatform):
         blockLiveInMuxInputSync: BlockLiveInMuxSyncDict = toNetlist._constructLiveInMuxes(mf, backedges, liveness)
         # thread analysis must be done before we connect control, because once we do that
         # everything will blend together 
-        threads = toNetlist.netlist.requestAnalysis(HlsNetlistAnalysisPassDataThreads)
+        threads = toNetlist.netlist.getAnalysis(HlsNetlistAnalysisPassDataThreads)
         toNetlist._updateThreadsOnPhiMuxes(threads)
         HlsNetlistPassDumpDataThreads(lambda name: (self.dataThreads, False)).apply(hls, netlist)
 
-        toNetlist.netlist.requestAnalysis(HlsNetlistAnalysisPassBlockSyncType)
+        toNetlist.netlist.getAnalysis(HlsNetlistAnalysisPassBlockSyncType)
         HlsNetlistPassDumpBlockSync(lambda name: (self.blockSync, False)).apply(hls, netlist)
 
         toNetlist._extractRstValues(mf, threads)

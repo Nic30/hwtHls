@@ -167,8 +167,8 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
 
     def run(self):
         from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
-        originalMir: HlsNetlistAnalysisPassMirToNetlist = self.netlist.requestAnalysis(HlsNetlistAnalysisPassMirToNetlist)
-        threads: HlsNetlistAnalysisPassDataThreads = self.netlist.requestAnalysis(HlsNetlistAnalysisPassDataThreads)
+        originalMir: HlsNetlistAnalysisPassMirToNetlist = self.netlist.getAnalysis(HlsNetlistAnalysisPassMirToNetlist)
+        threads: HlsNetlistAnalysisPassDataThreads = self.netlist.getAnalysis(HlsNetlistAnalysisPassDataThreads)
         self.threadsPerBlock = threads.threadsPerBlock
         self.blockSync = originalMir.blockSync
         self.loops: MachineLoopInfo = originalMir.loops

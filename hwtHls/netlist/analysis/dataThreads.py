@@ -1,4 +1,4 @@
-from typing import Dict, Set, List, Union
+from typing import Dict, Set, List, Union, Optional
 
 from hwt.pyUtils.arrayQuery import flatten
 from hwt.pyUtils.uniqList import UniqList
@@ -107,7 +107,7 @@ class HlsNetlistAnalysisPassDataThreads(HlsNetlistAnalysisPass):
 
     def run(self):
         from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
-        originalMir: HlsNetlistAnalysisPassMirToNetlist = self.netlist.requestAnalysis(HlsNetlistAnalysisPassMirToNetlist)
+        originalMir: HlsNetlistAnalysisPassMirToNetlist = self.netlist.getAnalysisIfAvailable(HlsNetlistAnalysisPassMirToNetlist)
 
         for mb in originalMir.mf:
             mb: MachineBasicBlock

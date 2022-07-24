@@ -74,7 +74,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
     """
 
     def apply(self, hls:"HlsScope", netlist: HlsNetlistCtx):
-        threads: HlsNetlistAnalysisPassDataThreads = netlist.requestAnalysis(HlsNetlistAnalysisPassDataThreads)
+        threads: HlsNetlistAnalysisPassDataThreads = netlist.getAnalysis(HlsNetlistAnalysisPassDataThreads)
         worklist: UniqList[HlsNetNode] = UniqList(netlist.iterAllNodes())
         removed: Set[HlsNetNode] = set()
         builder = netlist.builder

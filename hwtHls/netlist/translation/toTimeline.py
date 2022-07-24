@@ -326,7 +326,7 @@ class HlsNetlistPassShowTimeline(HlsNetlistPass):
         self.expandCompositeNodes = expandCompositeNodes
 
     def apply(self, hls: "HlsScope", netlist: HlsNetlistCtx):
-        netlist.requestAnalysis(HlsNetlistAnalysisPassRunScheduler)
+        netlist.getAnalysis(HlsNetlistAnalysisPassRunScheduler)
         to_timeline = HwtHlsNetlistToTimeline(netlist.normalizedClkPeriod,
                                               netlist.scheduler.resolution,
                                               expandCompositeNodes=self.expandCompositeNodes)

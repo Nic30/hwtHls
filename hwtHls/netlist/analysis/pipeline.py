@@ -44,8 +44,8 @@ class HlsNetlistAnalysisPassDiscoverPipelines(HlsNetlistAnalysisPass):
             pipeline[clk_index].append(node)
 
     def run(self):
-        fsms: HlsNetlistAnalysisPassDiscoverFsm = self.netlist.requestAnalysis(HlsNetlistAnalysisPassDiscoverFsm)
-        io_aggregation = self.netlist.requestAnalysis(HlsNetlistAnalysisPassDiscoverIo).io_by_interface
+        fsms: HlsNetlistAnalysisPassDiscoverFsm = self.netlist.getAnalysis(HlsNetlistAnalysisPassDiscoverFsm)
+        ioByInterface = self.netlist.getAnalysis(HlsNetlistAnalysisPassDiscoverIo).ioByInterface
         allFsmNodes, inFsmNodeParts = fsms.collectInFsmNodes()
         allFsmNodes: Dict[HlsNetNode, UniqList[IoFsm]]
         inFsmNodeParts: Dict[HlsNetNode, UniqList[Tuple[IoFsm, HlsNetNodePartRef]]]

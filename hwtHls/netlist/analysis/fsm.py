@@ -98,7 +98,8 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
         return inFsm, inFsmNodeParts
 
     def run(self):
-        io_aggregation = self.netlist.requestAnalysis(HlsNetlistAnalysisPassDiscoverIo).io_by_interface
+        ioDiscovery: HlsNetlistAnalysisPassDiscoverIo = self.netlist.getAnalysis(HlsNetlistAnalysisPassDiscoverIo)
+        ioByInterface = ioDiscovery.ioByInterface
         clkPeriod = self.netlist.normalizedClkPeriod
 
         def floodPredicateExcludeOtherIoWithOwnFsm(n: HlsNetNode):

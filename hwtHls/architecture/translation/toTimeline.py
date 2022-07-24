@@ -7,7 +7,7 @@ from hwtHls.architecture.architecturalElement import AllocatorArchitecturalEleme
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage
 from hwtHls.architecture.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis, \
     ValuePathSpecItem
-from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
+from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, INVARIANT_TIME
 from hwtHls.netlist.analysis.schedule import HlsNetlistAnalysisPassRunScheduler
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
@@ -118,7 +118,7 @@ class RtlArchPassShowTimeline(RtlArchPass):
         self.expandCompositeNodes = expandCompositeNodes
 
     def apply(self, hls: "HlsScope", netlist: HlsNetlistCtx):
-        netlist.requestAnalysis(HlsNetlistAnalysisPassRunScheduler)
+        netlist.getAnalysis(HlsNetlistAnalysisPassRunScheduler)
 
         to_timeline = HwtHlsNetlistToTimelineArchLevel(netlist.normalizedClkPeriod, netlist.scheduler.resolution, self.expandCompositeNodes)
         to_timeline.construct(netlist.allocator)
