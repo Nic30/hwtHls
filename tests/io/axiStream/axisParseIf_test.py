@@ -55,7 +55,7 @@ class AxiSParseIfTC(SimTestCase):
             data = int_to_int_list(v, 8, ceil(T.bit_length() / 8))
             axis_send_bytes(u.i, data)
 
-        t = int(freq_to_period(freq)) * (len(u.i._ag.data) + 5) * 2
+        t = int(freq_to_period(freq)) * (len(u.i._ag.data) + 10) * 2
         self.runSim(t)
 
         self.assertValSequenceEqual(u.o._ag.data, ref, "%r [%s] != [%s]" % (
@@ -111,13 +111,13 @@ class AxiSParseIfTC(SimTestCase):
 
 
 if __name__ == '__main__':
-    from hwt.synthesizer.utils import to_rtl_str
-    u = AxiSParse2If()
-    u.DATA_WIDTH = 16
-    u.CLK_FREQ = int(40e6)
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
+    # from hwt.synthesizer.utils import to_rtl_str
+    # u = AxiSParse2If()
+    # u.DATA_WIDTH = 16
+    # u.CLK_FREQ = int(40e6)
+    # print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
     suite = unittest.TestSuite()
-    # suite.addTest(AxiSParseIfTC('test_AxiSParse2If_16b_40MHz'))
+    #suite.addTest(AxiSParseIfTC('test_AxiSParse2If_16b_40MHz'))
     suite.addTest(unittest.makeSuite(AxiSParseIfTC))
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
