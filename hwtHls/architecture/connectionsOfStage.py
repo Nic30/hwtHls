@@ -152,7 +152,7 @@ InterfaceSyncTuple = Tuple[Union[int, RtlSignalBase, Signal],
 SyncOfInterface = Union[Handshaked, HandshakeSync, Axi_hs, InterfaceSyncTuple]
 
 
-def extract_control_sig_of_interface(
+def extractControlSigOfInterface(
             intf: Union[HandshakeSync, RdSynced, VldSynced, RtlSignalBase, Signal, SyncOfInterface]
             ) -> SyncOfInterface:
     if isinstance(intf, (Handshaked, HandshakeSync, Axi_hs)):
@@ -180,7 +180,7 @@ def extractControlSigOfInterfaceTuple(
     elif isinstance(intf, (RtlSignalBase, Signal, StructIntf)):
         return (1, 1)
     else:
-        raise TypeError("Unknown synchronisation of ", intf)
+        raise TypeError("Unknown synchronization of ", intf)
 
 
 def getIntfSyncSignals(intf: Interface) -> Tuple[Interface, ...]:
