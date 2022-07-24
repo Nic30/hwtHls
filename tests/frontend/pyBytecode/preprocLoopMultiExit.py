@@ -50,7 +50,7 @@ class PreprocLoopMultiExit_singleExit0(Unit):
         for i in range(3):  # this for is unrolled in preprocessor
             if hls.read(self.i) != i:
                 hls.write(i, self.o)
-                # [todo] add variant with the braak because this one des not actually generate error
+                # [todo] add variant with the braak because this one does not actually generate error
             # in each iteration this block will exist only once because divergence is not marked
 
     def _impl(self):
@@ -100,17 +100,17 @@ class PreprocLoopMultiExit_hwBreak0(PreprocLoopMultiExit_singleExit0):
 
         .. code-block:: Python
 
-            if hls.read(self.i) != 0:
+            if hls.read(self.i)._eq(0):
                 hls.write(2, self.o)
             else:
-                if hls.read(self.i) != 0:
+                if hls.read(self.i)._eq(0):
                     hls.write(2, self.o)
-                elif hls.read(self.i) != 0:
+                elif hls.read(self.i)._eq(0):
                     hls.write(2, self.o)
         
         """
         for i in range(3):  # this for statement is unrolled in preprocessor
-            if hls.read(self.i) != 0:
+            if hls.read(self.i)._eq(0):
                 # this block is duplicated for every possibility of break from previous for statement
                 hls.write(i, self.o)
                 break
