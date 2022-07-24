@@ -1,4 +1,4 @@
-from typing import Union, List, Tuple
+from typing import Union, List, Tuple, Literal
 
 from hwt.hdl.value import HValue
 from hwt.synthesizer.interface import Interface
@@ -21,6 +21,10 @@ class TimeIndependentRtlResourceItem():
     def __repr__(self):
         return f"<{self.__class__.__name__:s} {self.data}>"
 
+class INVARIANT_TIME():
+
+    def __init__(self):
+        raise AssertionError("Should not be instantiated this is used as a constant")
 
 class TimeIndependentRtlResource():
     """
@@ -41,21 +45,19 @@ class TimeIndependentRtlResource():
         (uses enclosed intervals, 0,1 means clock 0 and 1)
     """
 
-    class INVARIANT_TIME():
-
-        def __init__(self):
-            raise AssertionError("Should not be instantiated this is used as a constant")
 
     # time constant, which means that item is not time dependent
     # and can be accessed any time
     __slots__ = ["timeOffset", "allocator", "valuesInTime", "persistenceRanges"]
 
     def __init__(self, data: Union[RtlSignal, Interface, HValue],
-                 timeOffset: Union[int, "TimeIndependentRtlResource.INVARIANT_TIME"],
+                 timeOffset: Union[int, Literal[INVARIANT_TIME]],
                  allocator: "AllocatorArchitecturalElement"):
         """
         :param data: signal with value in initial time
         """
+        if isinstance(data, HValue):
+            assert timeOffset == INVARIANT_TIME
         self.timeOffset = timeOffset
         self.allocator = allocator
         self.valuesInTime: List[TimeIndependentRtlResourceItem] = [
@@ -84,7 +86,7 @@ class TimeIndependentRtlResource():
 
         # if time is first time in live of this value return original signal
         time += self.allocator.netlist.scheduler.epsilon
-        if self.timeOffset is self.INVARIANT_TIME or self.timeOffset == time:
+        if self.timeOffset is INVARIANT_TIME or self.timeOffset == time:
             return self.valuesInTime[0]
 
         # else try to look up register for this signal in valuesInTime cache
@@ -127,7 +129,7 @@ class TimeIndependentRtlResource():
         return cur
 
     def checkIfExistsInClockCycle(self, clkCyleI: int):
-        if self.timeOffset is self.INVARIANT_TIME:
+        if self.timeOffset is INVARIANT_TIME:
             index = 0
         else:
             clkPeriod = self.allocator.netlist.normalizedClkPeriod
