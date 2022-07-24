@@ -232,72 +232,60 @@ class HlsNetNode():
 
         assert self.usedBy, ("Compaction should be called only for nodes with dependencies, others should be moved only manually", self)
         asapIn, asapOut = asapSchedule[self]
-        outTimes = []
         ffdelay = self.netlist.platform.get_ff_store_time(self.netlist.realTimeClkPeriod, self.netlist.scheduler.resolution)
-        oMinTime = inf
-        for asapOutT, uses in zip(asapOut, self.usedBy):
-            asapOutT: float
+        clkPeriod = self.netlist.normalizedClkPeriod
+        epsilon = self.netlist.scheduler.epsilon
+        
+        # move back in time to satisfy all output timing requirements
+        timeOffset = inf
+        for uses, oDelay, oTicks in zip(self.usedBy, self.outputWireDelay, self.outputClkTickOffset):
             # find earliest time where this output is used
             if uses:
                 oT = inf 
-                for dependentIn in uses:
-                    dependentIn: HlsNetNodeIn
-                    iT = dependentIn.obj.scheduleAlapCompaction(asapSchedule)[dependentIn.in_i]
-                    oT = min(oT, iT)
-                oMinTime = min(oMinTime, oT)
+                if uses:
+                    for dependentIn in uses:
+                        dependentIn: HlsNetNodeIn
+                        iT = dependentIn.obj.scheduleAlapCompaction(asapSchedule)[dependentIn.in_i]
+                        oT = min(oT, iT - oDelay)
+
+                    if oTicks:
+                        # resolve timeOffset as a latest time in this clock cycle - oTicks
+                        oT = start_of_next_clk_period(oT, clkPeriod) - clkPeriod * oTicks - ffdelay - epsilon
             else:
                 # the port is unused we must first check other outputs
                 oT = inf
-            outTimes.append(oT)
-        
-        clkPeriod = self.netlist.normalizedClkPeriod
-        epsilon = self.netlist.scheduler.epsilon
-        # resolve time for unused outputs
-        for oI, (asapOutT, oT,) in enumerate(zip(asapOut, outTimes, self.outputWireDelay)):
-            asapOutT: float
-            if isfinite(oT):
-                continue
-            oTSuggestedByAsap = start_of_next_clk_period(asapOutT, clkPeriod) - ffdelay - epsilon
-            if isfinite(oMinTime):
-                oT = max(oTSuggestedByAsap, oMinTime)
-            else:
-                oT = oTSuggestedByAsap
-                oMinTime = oTSuggestedByAsap
 
-            outTimes[oI] = oT
+            timeOffset = min(timeOffset, oT)
 
-        if outTimes:
-            timeWhenEarliesOutputRequired = min((
-                (ot - lp, outI)
-                for outI, (ot, lp) in enumerate(zip(outTimes, self.outputWireDelay))),
-                key=lambda x: x[0])
-            # we have to check if every input has enought time for its delay
+        if isfinite(timeOffset):
+            # we have to check if every input has enough time for its delay
             # and optionally move this node to previous vlock cycle
-            for (in_delay, in_cycles) in zip(self.inputWireDelay, self.inputClkTickOffset):
-                if in_delay + ffdelay >= clkPeriod:
+            for (iDelay, iTicks) in zip(self.inputWireDelay, self.inputClkTickOffset):
+                if iDelay + ffdelay >= clkPeriod:
                     raise TimeConstraintError(
                         "Impossible scheduling, clkPeriod too low for ",
                         self.inputWireDelay, self.outputWireDelay, self)
-                inTime = timeWhenEarliesOutputRequired - in_delay - in_cycles * clkPeriod
-                prevClkEndTime = start_clk(timeWhenEarliesOutputRequired, clkPeriod) * clkPeriod
+                inTime = timeOffset - iDelay - iTicks * clkPeriod
+                prevClkEndTime = start_clk(timeOffset, clkPeriod) * clkPeriod
                 
                 if inTime <= prevClkEndTime:
                     # must shift whole node sooner in time because the input of input can not be satisfied
                     # in a clock cycle where the input is currently scheduled
-                    timeWhenEarliesOutputRequired = start_clk(timeWhenEarliesOutputRequired, clkPeriod) * clkPeriod - ffdelay - epsilon
+                    timeOffset = start_clk(timeOffset, clkPeriod) * clkPeriod - ffdelay - epsilon
         else:
+            raise NotImplementedError()
             # no outputs, we must use some asap input time and move to end of the clock
             assert self._inputs, (self, "Node must have at least some port")
-            timeWhenEarliesOutputRequired = start_of_next_clk_period(asapIn[0], clkPeriod) - ffdelay - epsilon
+            timeOffset = start_of_next_clk_period(asapIn[0], clkPeriod) - ffdelay - epsilon
         
         self.scheduledIn = tuple(
-            timeWhenEarliesOutputRequired - (in_delay + in_cycles * clkPeriod)
-            for (in_delay, in_cycles) in zip(self.inputWireDelay, self.inputClkTickOffset)
+            timeOffset - (iDelay + iTicks * clkPeriod)
+            for (iDelay, iTicks) in zip(self.inputWireDelay, self.inputClkTickOffset)
         )
     
         self.scheduledOut = tuple(
-            timeWhenEarliesOutputRequired + out_delay + out_cycles * clkPeriod
-            for (out_delay, out_cycles) in zip(self.outputWireDelay, self.outputClkTickOffset)
+            timeOffset + oDelay + oTicks * clkPeriod
+            for (oDelay, oTicks) in zip(self.outputWireDelay, self.outputClkTickOffset)
         )
         return self.scheduledIn
         
