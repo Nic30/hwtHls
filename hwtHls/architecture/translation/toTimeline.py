@@ -35,7 +35,7 @@ class HwtHlsNetlistToTimelineArchLevel(HwtHlsNetlistToTimeline):
                 tirs: ConnectionsOfStage
                 for tir in tirs.signals:
                     tir: TimeIndependentRtlResource
-                    if tir.timeOffset is not TimeIndependentRtlResource.INVARIANT_TIME:
+                    if tir.timeOffset is not INVARIANT_TIME:
                         start = min(start, tir.timeOffset)
                         finish = max(finish, tir.timeOffset + (len(tir.valuesInTime) - 1) * clkPeriod)
             if not isfinite(start):
