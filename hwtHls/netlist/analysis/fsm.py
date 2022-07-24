@@ -105,18 +105,19 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
         def floodPredicateExcludeOtherIoWithOwnFsm(n: HlsNetNode):
             if isinstance(n, HlsNetNodeRead):
                 n: HlsNetNodeRead
-                accesses = io_aggregation.get(n.src, None)
+                accesses = ioByInterface.get(n.src, None)
                 if accesses and len(accesses) > 1:
                     return False
             elif isinstance(n, HlsNetNodeWrite):
                 n: HlsNetNodeWrite
-                accesses = io_aggregation.get(n.dst, None)
+                accesses = ioByInterface.get(n.dst, None)
                 if accesses and len(accesses) > 1:
                     return False
             return True
 
         alreadyUsed: Set[HlsNetNode] = set()
-        for i, accesses in sorted(io_aggregation.items(), key=lambda x: getSignalName(x[0])):
+        for i in ioDiscovery.interfaceList:
+            accesses = ioByInterface[i]
             if len(accesses) > 1:
                 # all accesses which are not in same clock cycle must be mapped to individual FSM state
                 # every interface may spot a FSM

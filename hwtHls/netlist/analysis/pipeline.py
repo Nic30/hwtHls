@@ -1,13 +1,13 @@
 from typing import List, Dict, Tuple, Set
 
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.netlist.scheduler.clk_math import start_clk
+from hwt.synthesizer.interface import Interface
 from hwtHls.netlist.analysis.fsm import HlsNetlistAnalysisPassDiscoverFsm, IoFsm
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
 from hwtHls.netlist.nodes.node import HlsNetNode, HlsNetNodePartRef
-from hwt.synthesizer.interface import Interface
+from hwtHls.netlist.scheduler.clk_math import start_clk
 
 
 class NetlistPipeline():
@@ -74,25 +74,25 @@ class HlsNetlistAnalysisPassDiscoverPipelines(HlsNetlistAnalysisPass):
 
                 elif isinstance(node, HlsNetNodeRead) and node.src not in alreadyCheckedIo:
                     clkI = None
-                    for r in io_aggregation[node.src]:
+                    for r in ioByInterface[node.src]:
                         r: HlsNetNodeRead
                         _clkI = r.scheduledOut[0] // clkPeriod
                         if clkI is None:
                             clkI = _clkI
                         elif clkI != _clkI:
                             raise AssertionError("In this phase each IO operation in different clock cycle should already have separate gate"
-                                                 " if it wants to access same interface", node.src, io_aggregation[node.src])
+                                                 " if it wants to access same interface", node.src, ioByInterface[node.src])
 
                 elif isinstance(node, HlsNetNodeWrite) and node.dst not in alreadyCheckedIo:
                     clkI = None
-                    for w in io_aggregation[node.dst]:
+                    for w in ioByInterface[node.dst]:
                         w: HlsNetNodeWrite
                         _clkI = w.scheduledIn[0] // clkPeriod
                         if clkI is None:
                             clkI = _clkI
                         elif clkI != _clkI:
                             raise AssertionError("In this phase each IO operation in different clock cycle should already have separate gate"
-                                                 " if it wants to access same interface", node.dst, io_aggregation[node.dst])
+                                                 " if it wants to access same interface", node.dst, ioByInterface[node.dst])
 
                 # this is just node which is part of no FSM,
                 # we add it to global pipeline for each clock cycle where it is defined
