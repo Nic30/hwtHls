@@ -18,7 +18,6 @@ from hwtHls.netlist.analysis.schedule import HlsNetlistAnalysisPassRunScheduler
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.scheduler.scheduler import HlsScheduler
 from hwtHls.netlist.transformation.aggregateBitwiseOpsPass import HlsNetlistPassAggregateBitwiseOps
-from hwtHls.netlist.transformation.dce import HlsNetlistPassDCE
 from hwtHls.netlist.transformation.mergeExplicitSync import HlsNetlistPassMergeExplicitSync
 from hwtHls.netlist.transformation.simplify import HlsNetlistPassSimplify
 from hwtHls.netlist.translation.dumpBlockSync import HlsNetlistPassDumpBlockSync
@@ -136,7 +135,6 @@ class DefaultHlsPlatform(DummyPlatform):
             HlsNetlistPassDumpToDot(outputFileGetter(debugDir, ".10.netlist.dot")).apply(hls, netlist)
             HlsNetlistPassConsystencyCheck().apply(hls, netlist)
             
-        HlsNetlistPassDCE().apply(hls, netlist)
         HlsNetlistPassSimplify().apply(hls, netlist)
         
         if debugDir:
@@ -148,7 +146,7 @@ class DefaultHlsPlatform(DummyPlatform):
         if debugDir:
             HlsNetlistPassDumpToDot(outputFileGetter(debugDir, ".12.netlistAggregated.dot")).apply(hls, netlist)
             HlsNetlistPassShowTimeline(outputFileGetter(debugDir, ".13.schedule.html"),
-                                       expandCompositeNodes=self._debugExpandCompositeNodes).apply(hls, netlist)
+                                      expandCompositeNodes=self._debugExpandCompositeNodes).apply(hls, netlist)
             HlsNetlistPassConsystencyCheck().apply(hls, netlist)
 
         netlist.getAnalysis(HlsNetlistAnalysisPassRunScheduler)
@@ -180,24 +178,27 @@ class DefaultHlsPlatform(DummyPlatform):
         """
         allocator = netlist.allocator
         allocator._discoverArchElements()
+        
         RtlArchPassSingleStagePipelineToFsm().apply(self, allocator)
+        
         iea = InterArchElementNodeSharingAnalysis(netlist.normalizedClkPeriod)
         allocator._iea = iea         
         if len(allocator._archElements) > 1:
             iea._analyzeInterElementsNodeSharing(allocator._archElements)
             if iea.interElemConnections:  # it could be the case that the elements are completely independent
-                allocator._declareInterElemenetBoundarySignals(iea)
+                allocator.declareInterElemenetBoundarySignals(iea)
 
         for e in allocator._archElements:
             e.allocateDataPath(iea)
 
         if iea.interElemConnections:
-            allocator._finalizeInterElementsConnections(iea)
+            allocator.finalizeInterElementsConnections(iea)
+        # :note: must be after finalizeInterElementsConnections because it needs inter element sync channels
+        # RtlArchPassFsmShareTiedStateTransitions().apply(self, allocator)
         if self._debugDir:
             RtlArchPassToGraphwiz(outputFileGetter(self._debugDir, ".14.arch.dot")).apply(hls, netlist)
         for e in allocator._archElements:
             e.allocateSync()
-
 
     def runRtlNetlistPasses(self, hls: "HlsScope", netlist: HlsNetlistCtx):
         debugDir = self._debugDir

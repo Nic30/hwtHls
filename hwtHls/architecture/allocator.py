@@ -115,9 +115,11 @@ class HlsAllocator():
                 if synRtl is None:
                     dstElm.netNodeToRtl[o] = oRes
 
-    def _declareInterElemenetBoundarySignals(self, iea: InterArchElementNodeSharingAnalysis):
-        # first boundary signals needs to be declared, then the body of fsm/pipeline can be constructed
-        # because there is no topological order in how the elements are connected
+    def declareInterElemenetBoundarySignals(self, iea: InterArchElementNodeSharingAnalysis):
+        """
+        Boundary signals needs to be declared before body of fsm/pipeline is constructed
+        because there is no topological order in how the elements are connected.
+        """
         seenOutputsConnectedToElm: Set[Tuple[AllocatorArchitecturalElement, HlsNetNodeOut]] = set()
         for o, i in iea.interElemConnections:
             o: HlsNetNodeOut
@@ -178,10 +180,14 @@ class HlsAllocator():
                     seenOuts.add(o)
                     assert o in srcElm.netNodeToRtl
 
-    def _finalizeInterElementsConnections(self, iea: InterArchElementNodeSharingAnalysis):
+    def finalizeInterElementsConnections(self, iea: InterArchElementNodeSharingAnalysis):
+        """
+        Resolve a final value whe the data will be exchanged between arch. element instances
+        """
         self._expandAllOutputSynonymsInElement(iea)
         clkPeriod:int = self.netlist.normalizedClkPeriod
-        syncAdded: Dict[Tuple[int, AllocatorArchitecturalElement, AllocatorArchitecturalElement], InterArchElementHandshakeSync] = {}
+        SyncCacheKey = Tuple[int, AllocatorArchitecturalElement, AllocatorArchitecturalElement]
+        syncAdded: Dict[SyncCacheKey, InterArchElementHandshakeSync] = {}
         tirsConnected: Set[Tuple[TimeIndependentRtlResource, TimeIndependentRtlResource]] = set()
         elementIndex: Dict[AllocatorArchitecturalElement, int] = {a: i for i, a in enumerate(self._archElements)}
 
@@ -192,7 +198,7 @@ class HlsAllocator():
             for dstElm in dstElms:
                 if srcElm is dstElm:
                     continue
-                # dst should be already declared from _declareInterElemenetBoundarySignals
+                # dst should be already declared from declareInterElemenetBoundarySignals
                 dstTir: TimeIndependentRtlResource = dstElm.netNodeToRtl[o]
                 # src should be already declared form AllocatorArchitecturalElement.allocateDataPath
                 srcTir: TimeIndependentRtlResource = srcElm.netNodeToRtl[o]
@@ -208,7 +214,7 @@ class HlsAllocator():
                     # for each element in path add output, input pair and connect them inside of element
                     for elmSpec in explicitPath:
                         elmSpec: ValuePathSpecItem
-                        raise NotImplementedError("Propagate value in specified element and complete the path.")
+                        raise NotImplementedError("[todo] Propagate value in specified element and complete the path.", explicitPath)
                         # if (dstElm, o) in seenOutputsConnectedToElm:
                         #    assert not dstElm is iea.ownerOfOutput[o]
                         #    continue
@@ -232,7 +238,8 @@ class HlsAllocator():
                         raise NotImplementedError("Need to add extra buffer between FSMs", srcStartClkI, dstUseClkI, o, srcElm, dstElm)
                 
                 srcTiri = srcTir.get(dstUseClkI * clkPeriod)
-                assert not dstTir.valuesInTime[0].data.drivers, ("Forward declaration signal must not have a driver yet.", dstTir, dstTir.valuesInTime[0].data.drivers)
+                assert not dstTir.valuesInTime[0].data.drivers, ("Forward declaration signal must not have a driver yet.",
+                                                                 dstTir, dstTir.valuesInTime[0].data.drivers)
                 srcElm._afterOutputUsed(o)
                 dstTir.valuesInTime[0].data(srcTiri.data)
                 self._registerSyncForInterElementConnection(srcTiri, dstTir.valuesInTime[0], syncAdded,

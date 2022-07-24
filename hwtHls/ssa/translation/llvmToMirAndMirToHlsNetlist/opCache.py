@@ -5,6 +5,8 @@ from hwtHls.llvm.llvmIr import MachineBasicBlock, Register
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
     HlsNetNodeOutAny
+from hwtHls.netlist.nodes.io import HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 
 MirValue = Union[Register, MachineBasicBlock]
 
@@ -81,15 +83,32 @@ class MirToHwtHlsNetlistOpCache():
         except KeyError:
             ubi = None
 
+        searchForSyncRead = False
+        if isinstance(v, HlsNetNodeOut) and isinstance(v.obj, HlsNetNodeExplicitSync):
+            assert v.obj._associatedReadSync is None
+            searchForSyncRead = True
+            
         if ubi is not None:
             ubi: HlsNetNodeOutLazy
+            if searchForSyncRead:
+                for user in ubi.dependent_inputs:
+                    if isinstance(user.obj, HlsNetNodeReadSync):
+                        v.obj._associatedReadSync = user.obj
+                        break
+                    
             ubi.replaceDriverObj(v)
-            self._unresolvedBlockInputs[block].pop(reg) # rm ubi
+            self._unresolvedBlockInputs[block].pop(reg)  # rm ubi
         else:
             assert isinstance(cur, HlsNetNodeOutLazy), ("redefining already defined", k, cur, v)
             # however it is possible to redefine variable if the variable was live on input of the block and
             # it comes from body of this block
             assert cur is not v, ("redefining to the same", k, v)
+            if searchForSyncRead:
+                for user in cur.dependent_inputs:
+                    if isinstance(user.obj, HlsNetNodeReadSync):
+                        v.obj._associatedReadSync = user.obj
+                        break
+                    
             cur.replaceDriverObj(v)
             if self._toHlsCache[k] is cur:
                 self._toHlsCache[k] = v

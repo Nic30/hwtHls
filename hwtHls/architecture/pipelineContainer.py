@@ -16,9 +16,10 @@ from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage, resolveSt
     SignalsOfStages, ExtraCondMemberList, SkipWhenMemberList
 from hwtHls.architecture.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, \
-    TimeIndependentRtlResourceItem
+    TimeIndependentRtlResourceItem, INVARIANT_TIME
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
 from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
 
 
 class AllocatorPipelineContainer(AllocatorArchitecturalElement):
@@ -52,7 +53,7 @@ class AllocatorPipelineContainer(AllocatorArchitecturalElement):
         for o in cons:
             o: TimeIndependentRtlResource
             # register all uses
-            if o.timeOffset is not TimeIndependentRtlResource.INVARIANT_TIME:
+            if o.timeOffset is not INVARIANT_TIME:
                 self.stageSignals.getForTime(o.timeOffset).append(o)
 
         for dep in n.dependsOn:
@@ -62,8 +63,10 @@ class AllocatorPipelineContainer(AllocatorArchitecturalElement):
         assert not self._dataPathAllocated
         assert not self._syncAllocated
         self.interArchAnalysis = iea
+        ioDiscovery: HlsNetlistAnalysisPassDiscoverIo = self.netlist.getAnalysis(HlsNetlistAnalysisPassDiscoverIo)
 
         ioToCon: Dict[Interface, ConnectionsOfStage] = {}
+        allIoObjSeen = set()
         for nodes, con in zip(self.stages, self.connections):
             con: ConnectionsOfStage
             # assert nodes
@@ -79,20 +82,26 @@ class AllocatorPipelineContainer(AllocatorArchitecturalElement):
                 if wasInstantiated:
                     self._afterNodeInstantiated(node, rtl)
 
+                if node in allIoObjSeen:
+                    # io mux constructed in previous stage
+                    continue
+
                 if isinstance(node, HlsNetNodeRead):
                     currentStageForIo = ioToCon.get(node.src, con)
                     assert currentStageForIo is con, ("If the access to IO is from different stage, this should already have IO gate generated", node, con)
                     con.inputs.append(node.src)
-                    self._allocateIo(node.src, node, con, ioMuxes, ioSeen, rtl)
+                    self._allocateIo(ioDiscovery, node.src, node, con, ioMuxes, ioSeen, rtl)
                     ioToCon[node.src] = con
+                    allIoObjSeen.add(node)
 
                 elif isinstance(node, HlsNetNodeWrite):
                     currentStageForIo = ioToCon.get(node.dst, con)
                     assert currentStageForIo is con, ("If the access to IO is from different stage, this should already have IO gate generated", node, con)
                     con.outputs.append(node.dst)
                     # if node.dst in allocator.netlist.coherency_checked_io:
-                    self._allocateIo(node.dst, node, con, ioMuxes, ioSeen, rtl)
+                    self._allocateIo(ioDiscovery, node.dst, node, con, ioMuxes, ioSeen, rtl)
                     ioToCon[node.dst] = con
+                    allIoObjSeen.add(node)
 
             for rtl in self._allocateIoMux(ioMuxes, ioSeen):
                 pass
@@ -102,7 +111,7 @@ class AllocatorPipelineContainer(AllocatorArchitecturalElement):
     def extendValidityOfRtlResource(self, tir: TimeIndependentRtlResource, endTime: float):
         assert self._dataPathAllocated
         assert not self._syncAllocated
-        assert tir.timeOffset is not TimeIndependentRtlResource.INVARIANT_TIME
+        assert tir.timeOffset is not INVARIANT_TIME
         assert endTime > tir.timeOffset, (tir, tir.timeOffset, endTime)
 
         clkPeriod = self.netlist.normalizedClkPeriod

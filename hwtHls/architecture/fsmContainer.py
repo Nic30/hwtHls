@@ -1,10 +1,10 @@
-from itertools import chain
 from typing import List, Set, Tuple, Optional, Union, Dict
 
 from hwt.code import SwitchLogic, Switch, If
 from hwt.code_utils import rename_signal
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.bits import Bits
+from hwt.hdl.value import HValue
 from hwt.interfaces.std import HandshakeSync
 from hwt.math import log2ceil
 from hwt.pyUtils.uniqList import UniqList
@@ -13,7 +13,7 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.architecturalElement import AllocatorArchitecturalElement
 from hwtHls.architecture.connectionsOfStage import getIntfSyncSignals, \
     setNopValIfNotSet, SignalsOfStages, ConnectionsOfStage
-from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
+from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, INVARIANT_TIME
 from hwtHls.netlist.analysis.fsm import IoFsm
 from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
     HlsNetNodeWriteBackwardEdge, HlsNetNodeReadControlBackwardEdge, \
@@ -22,7 +22,9 @@ from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeRead
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.scheduler.clk_math import start_clk
 from ipCorePackager.constants import INTF_DIRECTION
-from hwt.hdl.value import HValue
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut
+from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
+from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
 
 
 class AllocatorFsmContainer(AllocatorArchitecturalElement):
@@ -53,9 +55,15 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
     def _afterNodeInstantiated(self, n: HlsNetNode, rtl: Optional[TimeIndependentRtlResource]):
         # mark value in register as persistent until the end of FSM
         isTir = isinstance(rtl, TimeIndependentRtlResource)
+        if isinstance(n, HlsProgramStarter):
+            assert isTir, n
+            # because we want to consume token from the starter only on transition in this FSM
+            con: ConnectionsOfStage = self.connections[0]
+            con.stDependentDrives.append(rtl.valuesInTime[0].data.next.drivers[0])
+
         if rtl is None or not isTir:
             cons = (self.netNodeToRtl[o] for o in n._outputs if o in self.netNodeToRtl)
-        elif isTir and rtl.timeOffset == TimeIndependentRtlResource.INVARIANT_TIME:
+        elif isTir and rtl.timeOffset == INVARIANT_TIME:
             return
         else:
             cons = (rtl,)
@@ -67,7 +75,7 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
             s: TimeIndependentRtlResource
             assert len(s.valuesInTime) == 1, ("Value must not be used yet because we need to set persistence ranges first.", s)
 
-            if not s.persistenceRanges and s.timeOffset is not TimeIndependentRtlResource.INVARIANT_TIME:
+            if not s.persistenceRanges and s.timeOffset is not INVARIANT_TIME:
                 self.stageSignals.getForTime(s.timeOffset).append(s)
                 # value for the first clock behind this clock period and the rest is persistent in this register
                 nextClkI = start_clk(s.timeOffset, clkPeriod) + 2
@@ -112,8 +120,23 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
                     self._initNopValsOfIoForIntf(node.src, INTF_DIRECTION.SLAVE)
 
     def _detectStateTransitions(self):
+        """
+        Detect the state propagation logic and resolve how to replace it wit a state bit
+        * state bit will be just stored as a register in this FSM
+        * read will just read this bit
+        * write will set this bit to a value specified in write src if all write conditions are meet
+        * if the value written to channel is 1 it means that FSM jump to state where associated read is
+          There could be multiple channels written but the 1 should be written to just single one
+        * All control channel registers which are not written but do have scheduled potential write in this state must be set to 0
+        * Because the control channel is just local it is safe to replace it
+          However we must keep it in allNodes list so the node is still registered for this element
+        
+        :note: This must be called before construction of data-path because we need to resolve how control channels will be realized
+        :note: The state transition can not be extracted if there is communication with some other FSM
+            which already have some communication with this FSM. (In order to prevent deadlock.)
+        """
         localControlReads: UniqList[HlsNetNodeReadControlBackwardEdge] = UniqList()
-        controlToStateI: Dict[Union[HlsNetNodeReadControlBackwardEdge, HlsNetNodeWriteControlBackwardEdge]] = {}
+        controlToStateI: Dict[Union[HlsNetNodeReadControlBackwardEdge, HlsNetNodeWriteControlBackwardEdge], int] = {}
         for stI, nodes in enumerate(self.fsm.states):
             for node in nodes:
                 node: HlsNetNode
@@ -128,26 +151,56 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
                 elif isinstance(node, HlsNetNodeWriteControlBackwardEdge):
                     if node.associated_read in self.allNodes:
                         controlToStateI[node] = stI
+        
+        # element: clockTickIndex
+        clkPeriod = self.normalizedClkPeriod
+        nonSkipableStateI: Set[int] = set()
+        otherElmConnectionFirstTimeSeen: Dict[AllocatorArchitecturalElement, int] = {}
+        iea = self.interArchAnalysis
+        for o, i in self.interArchAnalysis.interElemConnections:
+            o: HlsNetNodeOut
+            if self is iea.ownerOfOutput[o]:
+                outTime = o.obj.scheduledOut[o.out_i]
+                clkI = start_clk(outTime, clkPeriod)
+                stI = self.clkIToStateI[clkI]
+                for otherElm in self.interArchAnalysis.ownerOfInput[i]:
+                    curFistCommunicationStI = otherElmConnectionFirstTimeSeen.get(otherElm, None)
+                    if curFistCommunicationStI is None:
+                        otherElmConnectionFirstTimeSeen[otherElm] = stI
+                    elif curFistCommunicationStI == stI:
+                        continue
+                    else:
+                        if curFistCommunicationStI > stI:
+                            otherElmConnectionFirstTimeSeen[otherElm] = stI
+                            nonSkipableStateI.add(curFistCommunicationStI)
+                        else:
+                            nonSkipableStateI.add(stI)
 
         transitionTable = self.fsm.transitionTable
         for r in localControlReads:
             r: HlsNetNodeReadControlBackwardEdge
             srcStI = controlToStateI[r.associated_write]
             dstStI = controlToStateI[r]
+            possible = True
+            if dstStI >= srcStI:
+                # check if there is any state between these two which can not be skipped
+                for i in range(srcStI, dstStI):
+                    if i in nonSkipableStateI:
+                        possible = False
+                        break
+            else:
+                # check that there is no non optional state behind this state
+                for i in range(srcStI, len(self.fsm.states)):
+                    if i in nonSkipableStateI:
+                        possible = False
+                        break
+            if not possible:
+                continue
             curTrans = transitionTable[srcStI].get(dstStI, None)
             cond = self.instantiateHlsNetNodeOut(r._outputs[0]).valuesInTime[0].data.next
             if curTrans is not None:
                 cond = cond | curTrans
             transitionTable[srcStI][dstStI] = cond
-        # detect the state propagation logic and resolve how to replace it wit a state bit
-        # * state bit will be just stored as a register in this fsm
-        # * read will just read this bit
-        # * write will set this bit to a value specified in write src if all write conditions are meet
-
-        # * if the value writen to channel is 1 it means that fsm jump to state where associated read is
-        #   There could be multiple channels written but the 1 should be writen to just 1
-        # * Because the control channel is just local it is safe to replace it
-        #   However we must keep it in allNodes list so the node is still registered for this element
 
     def allocateDataPath(self, iea: "InterArchElementNodeSharingAnalysis"):
         """
@@ -159,6 +212,7 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
         """
         self.interArchAnalysis = iea
         self._detectStateTransitions()
+        ioDiscovery: HlsNetlistAnalysisPassDiscoverIo = self.netlist.getAnalysis(HlsNetlistAnalysisPassDiscoverIo)
 
         for (nodes, con) in zip(self.fsm.states, self.connections):
             ioMuxes: Dict[Interface, Tuple[Union[HlsNetNodeRead, HlsNetNodeWrite], List[HdlStatement]]] = {}
@@ -173,13 +227,20 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
                 if isinstance(node, HlsNetNodeRead):
                     if isinstance(node, HlsNetNodeReadBackwardEdge) and not node.associated_write.allocateAsBuffer:
                         continue
-                    self._allocateIo(node.src, node, con, ioMuxes, ioSeen, rtl)
+                    self._allocateIo(ioDiscovery, node.src, node, con, ioMuxes, ioSeen, rtl)
 
                 elif isinstance(node, HlsNetNodeWrite):
                     if isinstance(node, HlsNetNodeWriteBackwardEdge) and not node.allocateAsBuffer:
                         con.stDependentDrives.append(rtl)
                         continue
-                    self._allocateIo(node.dst, node, con, ioMuxes, ioSeen, rtl)
+                    self._allocateIo(ioDiscovery, node.dst, node, con, ioMuxes, ioSeen, rtl)
+                #elif isinstance(node, HlsNetNodeExplicitSync):
+                    # * this sync is not associated with any IO and thus no sync is required
+                    #   * if this sync is associated with multiple reads this is an invalid state
+                    # * this sync is associated with read scheduled in this clock cycle
+                    # if this sync is associated with read in prev clock cycle, this may result in deadlock due to need for read
+                    # if this sync is associated with write, this should already have been merged
+                    #raise NotImplementedError()
 
             for rtl in self._allocateIoMux(ioMuxes, ioSeen):
                 con.stDependentDrives.append(rtl)

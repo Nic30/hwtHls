@@ -2,8 +2,7 @@ from itertools import chain
 from typing import List
 
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.nodes.io import HlsNetNodeExplicitSync, HlsNetNodeRead, HlsNetNodeWrite, \
-    HOrderingVoidT
+from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 
@@ -11,7 +10,7 @@ from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 class HlsNetlistPassMergeExplicitSync(HlsNetlistPass):
     """
     Merge nodes with explicit synchronization (HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeExplicitSync) together
-    if possible to reduce the number of places where we need to solve the synchronisation.
+    if possible to reduce the number of places where we need to solve the synchronization.
     """
     
     @staticmethod
@@ -68,7 +67,7 @@ class HlsNetlistPassMergeExplicitSync(HlsNetlistPass):
                             o = n.dependsOn[0]
                             prevI = n._inputs[0]
                             newI = suc0._inputs[0]
-                            newI.replace_driver(o)
+                            newI.replaceDriver(o)
                             o.obj.usedBy[0].remove(prevI)
                             to_rm.add(n)
                     

@@ -115,6 +115,8 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         w_to_out.name = namePrefix
         w_to_out.associate_read(r_from_in.obj)
         w_to_out.buff_name = f"{namePrefix:s}_backedge_buff"
+        srcMbSync = self.blockSync[srcBlock]
+        srcMbSync.addOrderedNode(w_to_out)
 
         if cacheKey is not None:
             # because we need to use latest value not the input value which we just added (r_from_in)
@@ -219,7 +221,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
             cond = self.builder.buildOp(AllOps.AND, BIT, blockEn, cond)
 
         n.add_control_extraCond(cond)
-    
+
     def _addSkipWhen_n(self, n: Union[HlsNetNodeRead, HlsNetNodeWrite], cond_n: Union[int, HlsNetNodeOutAny], blockEn: HlsNetNodeOutLazy):
         """
         add skipWhen condition to read or write, the condition itself is negated
@@ -237,8 +239,8 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
                 cond = b.buildOp(AllOps.OR, BIT, blockEn_n, cond)
         n.add_control_skipWhen(cond)
     
-    def _replaceInputWithConst1(self, i: HlsNetNodeIn, threads: HlsNetlistAnalysisPassDataThreads):
-        c = self.builder._replaceInputWithConst1b(i)
+    def _replaceInputDriverWithConst1(self, i: HlsNetNodeIn, threads: HlsNetlistAnalysisPassDataThreads):
+        c = self.builder._replaceInputDriverWithConst1b(i)
         threads.mergeThreads(threads.threadPerNode[i.obj], {c.obj, })
 
     def _getThreadOfReg(self, threads: HlsNetlistAnalysisPassDataThreads, mb: MachineBasicBlock, reg: Register, dtype: HdlType):

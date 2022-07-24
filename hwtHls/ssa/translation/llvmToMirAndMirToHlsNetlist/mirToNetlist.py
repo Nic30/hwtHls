@@ -18,12 +18,13 @@ from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutLazy, \
     link_hls_nodes, unlink_hls_nodes, HlsNetNodeOutAny, HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
+from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.datapath import HlsNetlistAnalysisPassMirToNetlistDatapath, \
     BlockLiveInMuxSyncDict
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.opCache import MirToHwtHlsNetlistOpCache
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer, \
     getTopLoopForBlock, BranchOutLabel, HlsNetNodeExplicitSyncInsertBehindLazyOut
-
+from hwtHls.netlist.builder import HlsNetlistBuilder
 
 
 class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatapath):
@@ -185,7 +186,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                 for i in tuple(mbSync.blockEn.dependent_inputs):
                     i: HlsNetNodeIn
                     assert isinstance(i.obj, (HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeOperator)), i.obj
-                    self._replaceInputWithConst1(i, threads)
+                    self._replaceInputDriverWithConst1(i, threads)
 
     def _resolveBranchEnFromPredecessor(self, pred: MachineBasicBlock, mb: MachineBasicBlock):
         builder = self.builder
@@ -306,7 +307,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                 # The loop gate is required if this block is loop and body can be entered from multiple blocks
                 # we need this component to manage status of the loop and to assert order of loop body executions
                 loop = self.loops.getLoopFor(mb)
-                if loop is not None:
+                if loop is not None and loop.getHeader() == mb:
                     loop: MachineLoop
                     topLoop = getTopLoopForBlock(mb, loop)
                     # build 1 HlsLoopGate for all loops which do have this block as a header
@@ -326,15 +327,16 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                         self.nodes.append(controlSync)
                         link_hls_nodes(control, controlSync._inputs[0])
                         loopGate.connect_break(controlSync._outputs[0])
-                    
-                    loopBusy = loopGate._sync_token_status._outputs[0] 
-                    loopBusy_n = builder.buildNot(loopBusy)
+
+                    # in a format of tuples (control, allInputDataChannels)
+                    loopReenters: List[Tuple[HlsNetNodeExplicitSync, List[HlsNetNodeExplicitSync]]] = []
+                    loopExecs: List[Tuple[HlsNetNodeExplicitSync, List[HlsNetNodeExplicitSync]]] = [] 
                     for pred in mb.predecessors():
                         if mbSync.rstPredeccessor and pred == mbSync.rstPredeccessor:
                             # :note: rstPredeccessor will is inlined
                             continue
                         
-                        # insert explict sync on control input
+                        # insert explicit sync on control input
                         control = valCache.get(mb, pred, BIT)
                         if isinstance(control, HlsNetNodeOut):
                             assert isinstance(control, HlsNetNodeReadBackwardEdge), control
@@ -345,29 +347,77 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                             _control = HlsNetNodeExplicitSyncInsertBehindLazyOut(netlist, valCache, control)
                             control = _control
                         
-                        allInputChannels: List[HlsNetNodeExplicitSync] = [control, ]
+                        allInputDataChannels: List[HlsNetNodeExplicitSync] = []
                         for liveIn in self.liveness[pred][mb]:
                             if liveIn in self.regToIo:
                                 continue
                             
                             liveInSync: HlsNetNodeExplicitSync = blockLiveInMuxInputSync[(pred, mb, liveIn)]
-                            # inp: HlsNetNodeOutAny = liveInSync.dependsOn[0]
-                            # assert len(inp.obj.usedBy[inp.out_i]) == 1, (inp, inp.obj.usedBy[inp.out_i])
-                            allInputChannels.append(liveInSync)
+                            allInputDataChannels.append(liveInSync)
 
                         if loop.containsBlock(pred):
-                            # is loop re-entry
                             loopGate.connect_reenter(control._outputs[0])
-                            for liveInSync in allInputChannels:
-                                liveInSync.add_control_extraCond(loopBusy)
-                                liveInSync.add_control_skipWhen(loopBusy_n)
-                                
+                            loopReenters.append((control, allInputDataChannels))                                
                         else:
-                            # is loop execution
                             loopGate.connect_predec(control._outputs[0])
-                            for liveInSync in allInputChannels:
-                                liveInSync.add_control_extraCond(loopBusy_n)
-                                liveInSync.add_control_skipWhen(loopBusy)
+                            loopExecs.append((control, allInputDataChannels))
+                    
+                    # loopBussy select if loop should process inputs from loopReenters or from loopExecs
+                    loopBusy = loopGate._sync_token_status._outputs[0] 
+                    loopBusy_n = builder.buildNot(loopBusy)
+                    self._createSyncForAnyInputSelector(builder, loopReenters, loopBusy, loopBusy_n)
+                    self._createSyncForAnyInputSelector(builder, loopExecs, loopBusy_n, loopBusy)
+
+    @staticmethod
+    def _createSyncForAnyInputSelector(builder: HlsNetlistBuilder,
+                                       inputCases: List[Tuple[HlsNetNodeExplicitSync, List[HlsNetNodeExplicitSync]]],
+                                       externalEn: HlsNetNodeOut,
+                                       externalEn_n: HlsNetNodeOut):
+        """
+        Create a logic circuit which select a first control input which is valid and enables all its associated data inputs.
+        :param inputCases: list of case tuple (control channel, all input data channels)
+        """
+        anyPrevVld = None
+        for last, (control, data) in iter_with_last(inputCases):
+            controlSrc = control.dependsOn[0]
+            vld = builder.buildReadSync(controlSrc)
+            vld_n = builder.buildNot(vld)
+            control.add_control_extraCond(externalEn)
+            if anyPrevVld is None:
+                if last:
+                    cEn = 1
+                else:
+                    cEn = vld_n
+
+                # first item
+                if data:
+                    dEn = builder.buildAnd(externalEn_n, vld)
+                    dSw = builder.buildOr(externalEn, builder.buildNot(vld))
+                anyPrevVld = vld
+            else:
+                if last:
+                    cEn = anyPrevVld
+                else:
+                    cEn = builder.buildOr(anyPrevVld, vld_n)
+                    
+                if data:
+                    en = builder.buildAnd(builder.buildNot(anyPrevVld), vld)
+                    dEn = builder.buildAnd(externalEn_n, en)
+                    dSw = builder.buildOr(externalEn, builder.buildNot(en))
+                anyPrevVld = builder.buildOr(anyPrevVld, vld)
+
+            if isinstance(cEn, int):
+                assert cEn == 1, cEn
+                cEn = externalEn_n
+            else:
+                cEn = builder.buildOr(externalEn_n, cEn)
+
+            control.add_control_skipWhen(cEn)
+            for liveInSync in data:
+                liveInSync.add_control_extraCond(dEn)
+                liveInSync.add_control_skipWhen(dSw)
+
+        return anyPrevVld
 
     def _resolveBlockEn(self, mf: MachineFunction,
                         backedges: Set[Tuple[MachineBasicBlock, MachineBasicBlock]],
@@ -407,7 +457,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                 for i in mbSync.blockEn.dependent_inputs:
                     i: HlsNetNodeIn
                     if isinstance(i, HlsNetNodeIn):
-                        self._replaceInputWithConst1(i, threads)
+                        self._replaceInputDriverWithConst1(i, threads)
                     else:
                         raise NotImplementedError(i)
                     
@@ -421,6 +471,74 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
 
             assert mbSync.blockEn.replaced_by is blockEn or not mbSync.blockEn.dependent_inputs, (mbSync.blockEn, blockEn)
             mbSync.blockEn = blockEn
+        self._injectVldMaskToSkipWhenConditions()
+
+    def _injectVldMaskToExpr(self, out: HlsNetNodeOut) -> HlsNetNodeOut:
+        outObj = out.obj
+        builder = self.builder
+        if isinstance(outObj, HlsNetNodeReadSync):
+            return out, None
+
+        elif isinstance(outObj, (HlsNetNodeRead, HlsNetNodeWrite)):
+            maskToApply = builder.buildReadSync(out)
+
+        elif isinstance(outObj, HlsNetNodeOperator):
+            ops = []
+            needsRebuild = False
+            maskToApply = None
+            for o in outObj.dependsOn:
+                _o, _maskToApply = self._injectVldMaskToExpr(o)
+                ops.append(_o)
+                if _o is not o:
+                    needsRebuild = True
+                if _maskToApply is not None:
+                    if maskToApply is None:
+                        maskToApply = _maskToApply
+                    elif maskToApply is not _maskToApply:
+                        maskToApply = builder.buildAnd(maskToApply, _maskToApply)
+                    else:
+                        pass
+
+            if needsRebuild:
+                if outObj.operator == AllOps.AND:
+                    out = builder.buildAnd(*ops)
+                elif isinstance(outObj, HlsNetNodeMux):
+                    out = builder.buildMux(out._dtype, tuple(ops))
+                else:
+                    out = builder.buildOp(outObj.operator, out._dtype, *ops)
+
+        elif isinstance(outObj, HlsNetNodeExplicitSync):
+            # inject mask to expression on other side of this node
+            oldI = outObj.dependsOn[0]
+            newI, maskToApply = self._injectVldMaskToExpr(outObj.dependsOn[0])
+            if newI is not oldI:
+                builder.replaceInputDriver(outObj._inputs[0], newI)
+            # return original out because we did not modify the node itself
+        else:
+            maskToApply = None
+
+        if maskToApply is not None and out._dtype.bit_length() == 1:
+            return builder.buildAnd(out, maskToApply), None
+        else:
+            return out, maskToApply
+        
+    def _injectVldMaskToSkipWhenConditions(self):
+        """
+        We need to assert that the skipWhen condition is never in invalid state.
+        Because it drives if the channel is used during synchronization.
+        To assert this we need to and each value with a validity flag for each source of value.
+        To have expression as simple as possible we add this "and" to top most 1b signal generated from the input.
+        (There must be some because the original condition is 1b wide.)
+        """
+        for n in self.netlist.iterAllNodes():
+            if isinstance(n, HlsNetNodeExplicitSync):
+                n: HlsNetNodeExplicitSync
+                if n.skipWhen is not None:
+                    o = n.dependsOn[n.skipWhen.in_i]
+                    _o, maskToApply = self._injectVldMaskToExpr(o)
+                    assert maskToApply is None, "Should be already applied, because this should be 1b signal"
+                    if o is not _o:
+                        self.builder.replaceInputDriver(n.skipWhen, _o)
 
     def _connectOrderingPorts(self,
                               mf: MachineFunction,
