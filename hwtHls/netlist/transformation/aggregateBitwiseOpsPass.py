@@ -42,3 +42,5 @@ class HlsNetlistPassAggregateBitwiseOps(HlsNetlistPass):
                                 clusterNode._replaceAllOuterInputsPlaceholders(newOutMap)
 
         netlist.nodes = [n for n in netlist.nodes if n not in removedNodes]
+        # drop builder.operatorCache because we removed most of bitwise operator from the circuit
+        netlist.builder.operatorCache.clear()
