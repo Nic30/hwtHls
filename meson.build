@@ -36,11 +36,11 @@ llvm_is_debug_build = llvm_dep.get_variable('build-mode',  default_value: 'Relea
 # berkeley-abc related
 # dependency('readline') # to trigger error sooner if readline is not installed for berkeley-abc
 cmake = import('cmake')
-berkeley_abc_opt_var = cmake.subproject_options()
+# berkeley_abc_opt_var = cmake.subproject_options()
 # berkeley_abc_opt_var.add_cmake_defines({'ABC_NAMESPACE': 'abc'})
-berkeley_abc_opt_var.add_cmake_defines({'ABC_USE_NO_READLINE': 1})
+# berkeley_abc_opt_var.add_cmake_defines({'ABC_USE_NO_READLINE': 1})
 berkeley_abc_proj = cmake.subproject('berkeley-abc' #, options: berkeley_abc_opt_var
-)
+	)
 berkeley_abc_dep = berkeley_abc_proj.dependency('libabc-pic')
 
 subdir('hwtHls')
