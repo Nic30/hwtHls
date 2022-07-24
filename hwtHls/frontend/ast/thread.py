@@ -44,7 +44,7 @@ class HlsThreadFromAst(HlsThread):
         toSsa._onAllPredecsKnown(toSsa.start)
         toSsa.visit_top_CodeBlock(_code)
         toSsa.finalize()
-        self.toSsa = toSsa  
+        self.toSsa = toSsa
 
 
 class VldSyncedStructIntf(VldSynced):
