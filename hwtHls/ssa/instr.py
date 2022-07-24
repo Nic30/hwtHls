@@ -61,7 +61,7 @@ class SsaInstr(SsaValue):
     def __init__(self,
                  ctx: SsaContext,
                  dtype: HdlType,
-                 operator: Union[OpDefinition],
+                 operator: OpDefinition,
                  operands: Tuple[Union[SsaValue, HValue], ...],
                  name: str=None,
                  origin=None):
