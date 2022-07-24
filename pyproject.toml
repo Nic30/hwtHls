@@ -1,29 +1,28 @@
+# https://meson-python.readthedocs.io/en/stable/usage/start.html
+
 [build-system]
 requires = [
    "wheel",
-   "meson>=0.62.1",
-   "mesonpep517",
+   "meson>=0.63.0",
+   'meson-python',
    "pybind11>=2.8.1",
    "ninja",
 ]
-build-backend = "mesonpep517.buildapi"
+build-backend = 'mesonpy'
 
 
-[tool.mesonpep517.metadata]
-author="Michal Orsak"
-author-email="Nic30original@gmail.com"
-summary="LLVM based HLS compiler"
-requires  = [
-   'hwtLib>=2.9',
-   'scipy>=1.5.2',
-   'networkx',
-   'plotly',
-   'pydot',
+[project]
+name = 'hwtHls'
+dynamic = [
+  'version',
 ]
-home-page="https://github.com/Nic30/hwtHls"
-requires-python="py3"
-description-file="README.md"
-platforms="any"
+description = 'A library for automated translation of an algorithmic description to hardware architectures.'
+readme="README.md"
+license = { file = 'LICENSE' }
+keyword = ['fpga', 'compiler', 'hls', 'llvm', 'vhdl', 'verification', 'verilog', 'systemverilog']
+authors = [
+  { name = 'Michal Orsak', email = 'Nic30original@gmail.com' },
+]
 classifiers = [
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
@@ -37,3 +36,17 @@ classifiers = [
         "Topic :: System :: Emulators",
         "Topic :: Utilities"
 ]
+requires-python = '>=3.10'
+dependencies  = [
+   'hwtLib>=2.9', # primitive hardware components
+   'scipy>=1.5.2', # interpolations and other complex math
+   'networkx', # graph algorithms
+   'plotly', # debug timeline graphs
+   'pydot', # debug graphwiz graphs
+]
+
+[project.urls]
+homepage = 'https://github.com/Nic30/hwtHls'
+repository = 'https://github.com/Nic30/hwtHls'
+
+

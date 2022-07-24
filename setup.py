@@ -2,7 +2,7 @@
 # -*- coding: UTF-8 -*-
 
 print("This project uses PEP517 use `pip install .` etc insead of executing setup.py")
-
+exit(1)
 # from setuptools import setup, find_packages
 # from Cython.Build import cythonize
 # #import distutils.command.build_ext
