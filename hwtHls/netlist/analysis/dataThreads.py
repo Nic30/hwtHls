@@ -76,45 +76,52 @@ class HlsNetlistAnalysisPassDataThreads(HlsNetlistAnalysisPass):
                 if depObj not in allMembersOfThread:
                     toSearch.append(depObj)
 
-
         return allMembersOfThread, True
 
-    def searchEnForDrivenThreads(self, en: HlsNetNodeOutLazy, liveIns: List[HlsNetNodeOutAny]):
+    def searchEnForDrivenThreads(self, en: Optional[HlsNetNodeOutLazy], liveIns: List[HlsNetNodeOutAny]):
         """
         Walk all nodes affected by this en signal and aggregate them into dataflow threads.
         """
         threads = []
-        for use in en.dependent_inputs:
-            use: HlsNetNodeIn
-            thread, isNew = self.searchForThreads(use.obj)
-            if isNew or not any(t is thread for t in threads):
-                threads.append(thread)
+        if en is not None:
+            for use in en.dependent_inputs:
+                use: HlsNetNodeIn
+                thread, isNew = self.searchForThreads(use.obj)
+                if isNew or not any(t is thread for t in threads):
+                    threads.append(thread)
 
         for liveIn in liveIns:
             if isinstance(liveIn, HlsNetNodeOutLazy):
-                for use in en.dependent_inputs:
-                    use: HlsNetNodeIn
-                    thread, isNew = self.searchForThreads(use.obj)
-                    if isNew or not any(t is thread for t in threads):
-                        threads.append(thread)
+                if en is not None:
+                    for use in en.dependent_inputs:
+                        use: HlsNetNodeIn
+                        thread, isNew = self.searchForThreads(use.obj)
+                        if isNew or not any(t is thread for t in threads):
+                            threads.append(thread)
             else:
                 thread, isNew = self.searchForThreads(liveIn.obj)
                 if isNew or not any(t is thread for t in threads):
                     threads.append(thread)
-                
             
         return threads
 
     def run(self):
         from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
         originalMir: HlsNetlistAnalysisPassMirToNetlist = self.netlist.getAnalysisIfAvailable(HlsNetlistAnalysisPassMirToNetlist)
+        if originalMir is None:
+            # we do not have MIR because this netlist was not generated from it, we have to search everything and we can not distinguish between control and data path
+            liveIns = []
+            for i in self.netlist.inputs:
+                liveIns.extend(i._outputs)
+            self.threadsPerBlock[None] = self.searchEnForDrivenThreads(None, liveIns)
 
-        for mb in originalMir.mf:
-            mb: MachineBasicBlock
-            en: HlsNetNodeOutLazy = originalMir.blockSync[mb].blockEn
-            assert isinstance(en, HlsNetNodeOutLazy), ("This analysis works only if control is not instantiated yet", en)
-            liveInGroups = list(originalMir.liveness[pred][mb] for pred in mb.predecessors())
-            liveIns = UniqList(flatten(liveInGroups, 1))
-            liveIns = [originalMir.valCache._toHlsCache[(mb, li)] for li in liveIns if li not in originalMir.regToIo]
-            self.threadsPerBlock[mb] = self.searchEnForDrivenThreads(en, liveIns)
+        else:
+            for mb in originalMir.mf:
+                mb: MachineBasicBlock
+                en: HlsNetNodeOutLazy = originalMir.blockSync[mb].blockEn
+                assert isinstance(en, HlsNetNodeOutLazy), ("This analysis works only if control is not instantiated yet", en)
+                liveInGroups = list(originalMir.liveness[pred][mb] for pred in mb.predecessors())
+                liveIns = UniqList(flatten(liveInGroups, 1))
+                liveIns = [originalMir.valCache._toHlsCache[(mb, li)] for li in liveIns if li not in originalMir.regToIo]
+                self.threadsPerBlock[mb] = self.searchEnForDrivenThreads(en, liveIns)
 

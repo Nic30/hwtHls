@@ -2,6 +2,11 @@ from typing import Optional
 
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.platform.platform import DefaultHlsPlatform
+
+
+class HlsThreadDoesNotUseSsa(Exception):
+    pass
 
 
 class HlsThread():
@@ -21,3 +26,6 @@ class HlsThread():
     def compileToSsa(self):
         raise NotImplementedError("Must be implemented in child class", self)
 
+    def compileToNetlist(self, platform: DefaultHlsPlatform):
+        self.toHw = platform.runSsaToNetlist(self.hls, self.toSsa)
+        return self.toHw
