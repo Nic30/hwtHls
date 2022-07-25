@@ -20,7 +20,7 @@ jobs:
             export DEBIAN_FRONTEND=noninteractive
             export TZ=America/USA
             sudo apt install build-essential python3-dev llvm-14-dev python3 python3-pip git ninja-build cmake libreadline8 libreadline-dev -y
-            sudo pip uninstall virtualenv
+            sudo rm /opt/circleci/.pyenv/shims/virtualenv            
             pip3 install pip meson virtualenv --upgrade
             # because of coverage (tool named coverage)
             echo 'export PATH=$PATH:/root/.local/bin' >> $BASH_ENV
@@ -30,6 +30,7 @@ jobs:
             
       - run:
           command: |
+            echo $PATH
             whereis pip
             pip --version
             whereis python
