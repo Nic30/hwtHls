@@ -1,5 +1,5 @@
 from dis import Instruction, dis
-from future.moves import sys
+import sys
 from types import FunctionType
 from typing import Optional, Dict, List
 
