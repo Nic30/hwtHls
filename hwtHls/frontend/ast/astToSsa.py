@@ -43,25 +43,27 @@ class SsaBasicBlockUnreachable(SsaBasicBlock):
         SsaBasicBlock.__init__(self, ctx, label)
         self.successors = SsaInstrBranchUnreachable(self)
 
+
 NetlistReadNodeConsructorT = Callable[[
         "HlsNetlistAnalysisPassMirToNetlist",
         "MachineBasicBlockSyncContainer",
         LoadInst,
-        Interface, # srcIo
-        Union[int, HlsNetNodeOutAny], # index
-        HlsNetNodeOutAny, # cond
-        Register, #instrDstReg
+        Interface,  # srcIo
+        Union[int, HlsNetNodeOutAny],  # index
+        HlsNetNodeOutAny,  # cond
+        Register,  # instrDstReg
     ], None]
 NetlistWriteNodeConsructorT = Callable[[
     "HlsNetlistAnalysisPassMirToNetlist",
     "MachineBasicBlockSyncContainer",
     StoreInst,
-    HlsNetNodeOutAny, # srcVal
-    Interface, # dstIo
-    Union[int, HlsNetNodeOutAny], # index
-    HlsNetNodeOutAny, #cond
+    HlsNetNodeOutAny,  # srcVal
+    Interface,  # dstIo
+    Union[int, HlsNetNodeOutAny],  # index
+    HlsNetNodeOutAny,  # cond
 ], None]
 NetlistIoConstructorDictT = Dict[Interface, Tuple[Optional[NetlistReadNodeConsructorT], Optional[NetlistWriteNodeConsructorT]]]
+
 
 class HlsAstToSsa():
     """
@@ -414,7 +416,7 @@ class HlsAstToSsa():
         return io
 
     def resolveIoNetlistConstructors(self, io: Dict[Interface, Tuple[List[HlsRead], List[HlsWrite]]]):
-        ioNodeConstructors= self.ioNodeConstructors = {}
+        ioNodeConstructors = self.ioNodeConstructors = {}
         for i, (reads, writes) in io.items():
             ioNodeConstructors[i] = (reads[0]._translateMirToNetlist if reads else None,
                                      writes[0]._translateMirToNetlist if writes else None)
