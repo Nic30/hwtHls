@@ -194,12 +194,12 @@ class PyBytecodeToSsaLowLevelOpcodes():
         dst = getattr(dstParent, instr.argval)
         src = stack.pop()
         src, curBlock = expandBeforeUse(frame, src, curBlock)
-
         if isinstance(dst, (Interface, RtlSignal)):
             # stm = self.hls.write(src, dst)
             self.toSsa.visit_CodeBlock_list(curBlock, flatten(dst(src)))
         else:
             raise NotImplementedError(instr, dst)
+
         return curBlock
 
     def opcode_STORE_FAST(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:
@@ -210,7 +210,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
         v = locals_[instr.arg]
         varIndex = instr.arg
         if varIndex not in frame.preprocVars:
-            if v is _PyBytecodeUnitialized and isinstance(vVal, (HValue, RtlSignal, SsaValue)):
+            if v is _PyBytecodeUnitialized and isinstance(vVal, (HValue, RtlSignal, Interface, SsaValue, Interface)):
                 # only if it is a value which generates HW variable
                 t = getattr(vVal, "_dtypeOrig", vVal._dtype)
                 v = self.hls.var(instr.argval, t)
