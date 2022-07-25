@@ -24,7 +24,7 @@ jobs:
             # because of coverage (tool named coverage)
             echo 'export PATH=$PATH:/root/.local/bin' >> $BASH_ENV
             source $BASH_ENV
-            python3 -m virtualenv /opt/circleci/.pyenv3
+            python3 -m virtualenv --system-site-packages /opt/circleci/.pyenv3
             echo 'source /opt/circleci/.pyenv3/bin/activate' >> $BASH_ENV
             source /opt/circleci/.pyenv3/bin/activate
             
