@@ -10,12 +10,12 @@ jobs:
       image: ubuntu-2204:2022.04.1
     #docker:
     #  - image: ubuntu:rolling
-    #resource_class: large
+    resource_class: large
     steps:
       - checkout
       - run:
           command: |
-            apt update
+            sudo apt update
             # because of tzdata
             export DEBIAN_FRONTEND=noninteractive
             export TZ=America/USA
