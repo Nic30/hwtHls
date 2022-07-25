@@ -16,7 +16,7 @@ class HlsNetNodeConst(HlsNetNode):
     def get(self, time: float):
         return self.val
 
-    def allocateRtlInstance(self, allocator: "AllocatorArchitecturalElement") -> TimeIndependentRtlResource:
+    def allocateRtlInstance(self, allocator: "ArchElement") -> TimeIndependentRtlResource:
         s = self.val
         return TimeIndependentRtlResource(s, INVARIANT_TIME, allocator)
 

@@ -38,7 +38,7 @@ class TimeIndependentRtlResource():
     :ivar timeOffset: number of clock form start when valid data appears on "signal"
         (constant INVARIANT_TIME is used if input signal is constant
         and does not require any registers and synchronizations)
-    :ivar allocator: AllocatorArchitecturalElement instance to generate registers an synchronization logic
+    :ivar allocator: ArchElement instance to generate registers an synchronization logic
     :ivar valuesInTime: list (chain) of signals (register outputs) for clk periods specified by index
     :ivar persistenceRanges: sorted list of ranges of clock period indexes where the value may stay in previous register
         and new register is not required (and will not be allocated, the previous value will be used instead).
@@ -52,7 +52,7 @@ class TimeIndependentRtlResource():
 
     def __init__(self, data: Union[RtlSignal, Interface, HValue],
                  timeOffset: Union[int, Literal[INVARIANT_TIME]],
-                 allocator: "AllocatorArchitecturalElement"):
+                 allocator: "ArchElement"):
         """
         :param data: signal with value in initial time
         """

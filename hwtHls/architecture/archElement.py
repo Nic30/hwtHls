@@ -15,6 +15,7 @@ from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.interfaceUtils.utils import walkPhysInterfaces
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
+from hwt.synthesizer.rtlLevel.signalUtils.exceptions import SignalDriverErr
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage, \
     extractControlSigOfInterface, SignalsOfStages, ExtraCondMemberList, \
     SkipWhenMemberList, extractControlSigOfInterfaceTuple, SyncOfInterface, \
@@ -22,6 +23,7 @@ from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage, \
 from hwtHls.architecture.interArchElementHandshakeSync import InterArchElementHandshakeSync
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, \
     TimeIndependentRtlResourceItem, INVARIANT_TIME
+from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
@@ -29,11 +31,9 @@ from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.scheduler.clk_math import start_clk
 from hwtLib.handshaked.streamNode import StreamNode
 from ipCorePackager.constants import INTF_DIRECTION
-from hwt.synthesizer.rtlLevel.signalUtils.exceptions import SignalDriverErr
-from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
 
 
-class AllocatorArchitecturalElement():
+class ArchElement():
     """
     An element which represents a group of netlist nodes synchronized by same synchronization type
     It is used as context for allocator.
@@ -243,7 +243,7 @@ class AllocatorArchitecturalElement():
     #    else:
     #        assert isinstance(d, HdlStatement), d
     #        if syncIn is None:
-    #            # assert isinstance(self, AllocatorFsmContainer) or (isinstance(sig, RtlSyncSignal) and sig.def_val._is_full_valid()), (sig, "value of this signal must be initialized to a defined state")
+    #            # assert isinstance(self, ArchElementFsm) or (isinstance(sig, RtlSyncSignal) and sig.def_val._is_full_valid()), (sig, "value of this signal must be initialized to a defined state")
     #            syncSet = set()
     #        else:
     #            syncSet = {syncIn, }
@@ -310,7 +310,7 @@ class AllocatorArchitecturalElement():
     #            #
     #            #    if syncIn is not None:
     #            #        syncSet.add(syncIn)
-    #            #    # else: assert isinstance(self, AllocatorFsmContainer)
+    #            #    # else: assert isinstance(self, ArchElementFsm)
     #            #else:
     #            # we have to search the expression to find its source
     #            self._makeSyncNodeSearchSource(affectingSources, syncIn, sw.data)

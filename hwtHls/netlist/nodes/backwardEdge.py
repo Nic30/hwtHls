@@ -19,7 +19,7 @@ class HlsNetNodeReadBackwardEdge(HlsNetNodeRead):
         HlsNetNodeRead.__init__(self, netlist, src)
         self.associated_write: Optional[HlsNetNodeWriteBackwardEdge] = None
 
-    def allocateRtlInstance(self, allocator:"AllocatorArchitecturalElement") -> TimeIndependentRtlResource:
+    def allocateRtlInstance(self, allocator:"ArchElement") -> TimeIndependentRtlResource:
         op_out = self._outputs[0]
         try:
             return allocator.netNodeToRtl[op_out]
@@ -81,7 +81,7 @@ class HlsNetNodeWriteBackwardEdge(HlsNetNodeWrite):
         self.associated_read = read
         read.associated_write = self
 
-    def allocateRtlInstance(self, allocator:"AllocatorArchitecturalElement") -> TimeIndependentRtlResource:
+    def allocateRtlInstance(self, allocator:"ArchElement") -> TimeIndependentRtlResource:
         try:
             return allocator.netNodeToRtl[self]
         except KeyError:
@@ -136,7 +136,7 @@ class HlsNetNodeWriteControlBackwardEdge(HlsNetNodeWriteBackwardEdge):
     Same as :class:`~.HlsNetNodeWriteBackwardEdge` but for control channels
     """
 
-    def allocateRtlInstance(self, allocator:"AllocatorArchitecturalElement") -> TimeIndependentRtlResource:
+    def allocateRtlInstance(self, allocator:"ArchElement") -> TimeIndependentRtlResource:
         try:
             return allocator.netNodeToRtl[self]
         except KeyError:

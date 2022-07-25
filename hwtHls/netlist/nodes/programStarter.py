@@ -16,7 +16,7 @@ class HlsProgramStarter(HlsNetNode):
     def resolve_realization(self):
         self.assignRealization(IO_COMB_REALIZATION)
 
-    def allocateRtlInstance(self, allocator: "AllocatorArchitecturalElement") -> TimeIndependentRtlResource:
+    def allocateRtlInstance(self, allocator: "ArchElement") -> TimeIndependentRtlResource:
         op_out = self._outputs[0]
 
         try:

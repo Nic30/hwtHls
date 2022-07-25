@@ -64,7 +64,7 @@ class HlsNetNodeExplicitSync(HlsNetNode):
             if i.in_i != 0 and i not in (self.extraCond, self.skipWhen):
                 yield i
 
-    def allocateRtlInstance(self, allocator: "AllocatorArchitecturalElement") -> TimeIndependentRtlResource:
+    def allocateRtlInstance(self, allocator: "ArchElement") -> TimeIndependentRtlResource:
         assert type(self) is HlsNetNodeExplicitSync, self
         op_out = self._outputs[0]
 
@@ -142,7 +142,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
             if i not in (self.extraCond, self.skipWhen):
                 yield i
 
-    def allocateRtlInstance(self, allocator: "AllocatorArchitecturalElement") -> TimeIndependentRtlResource:
+    def allocateRtlInstance(self, allocator: "ArchElement") -> TimeIndependentRtlResource:
         """
         Instantiate read operation on RTL level
         """
@@ -329,7 +329,7 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         return HlsNetNodeRead._getNumberOfIoInThisClkPeriod(self, intf, searchFromSrcToDst)
 
     def allocateRtlInstance(self,
-                            allocator: "AllocatorArchitecturalElement",
+                            allocator: "ArchElement",
                           ) -> List[HdlStatement]:
         """
         Instantiate write operation on RTL level

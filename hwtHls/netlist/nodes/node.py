@@ -349,7 +349,7 @@ class HlsNetNode():
         raise NotImplementedError(
             "Override this method in derived class", self)
 
-    def allocateRtlInstanceOutDeclr(self, allocator: "AllocatorArchitecturalElement", o: HlsNetNodeOut, startTime: int) -> TimeIndependentRtlResource:
+    def allocateRtlInstanceOutDeclr(self, allocator: "ArchElement", o: HlsNetNodeOut, startTime: int) -> TimeIndependentRtlResource:
         assert allocator.netNodeToRtl.get(o, None) is None, ("Must not be redeclared", o)
         if len(self._outputs) == 1:
             assert o.out_i == 0, o
@@ -360,7 +360,7 @@ class HlsNetNode():
         res = allocator.netNodeToRtl[o] = TimeIndependentRtlResource(s, startTime, allocator)
         return res
       
-    def allocateRtlInstance(self, allocator: "AllocatorArchitecturalElement"):
+    def allocateRtlInstance(self, allocator: "ArchElement"):
         raise NotImplementedError(
             "Override this method in derived class", self)
 

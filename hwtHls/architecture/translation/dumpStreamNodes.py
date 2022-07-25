@@ -1,7 +1,7 @@
 
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage
-from hwtHls.architecture.fsmContainer import AllocatorFsmContainer
-from hwtHls.architecture.pipelineContainer import AllocatorPipelineContainer
+from hwtHls.architecture.archElementFsm import ArchElementFsm
+from hwtHls.architecture.archElementPipeline import ArchElementPipeline
 from hwtHls.architecture.transformation.rtlNetlistPass import RtlNetlistPass
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.platform.fileUtils import OutputStreamGetter
@@ -17,8 +17,8 @@ class RtlNetlistPassDumpStreamNodes(RtlNetlistPass):
         try:
             for elem_i, elm in enumerate(netlist.allocator._archElements):
                 out.write(f"########## {elm.__class__.__name__:s} {elem_i:d} ##########\n")
-                if isinstance(elm, (AllocatorFsmContainer, AllocatorPipelineContainer)):
-                    elm: AllocatorPipelineContainer
+                if isinstance(elm, (ArchElementFsm, ArchElementPipeline)):
+                    elm: ArchElementPipeline
                     for st_i, st in enumerate(elm.connections):
                         st: ConnectionsOfStage
                         out.write(f" ########## st {st_i:d} ##########\n")

@@ -3,7 +3,7 @@ from typing import  Optional
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwtHls.architecture.allocator import HlsAllocator
-from hwtHls.architecture.architecturalElement import AllocatorArchitecturalElement
+from hwtHls.architecture.archElement import ArchElement
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage
 from hwtHls.architecture.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis, \
     ValuePathSpecItem
@@ -27,7 +27,7 @@ class HwtHlsNetlistToTimelineArchLevel(HwtHlsNetlistToTimeline):
         time_scale: float = self.time_scale
         clkPeriod = self.clkPeriod
         for row_i, archElm in enumerate(allocator._archElements):
-            archElm: AllocatorArchitecturalElement
+            archElm: ArchElement
             obj_group_id = row_i
             start = inf
             finish = 0.0

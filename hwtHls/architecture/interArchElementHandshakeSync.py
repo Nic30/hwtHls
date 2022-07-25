@@ -12,8 +12,8 @@ class InterArchElementHandshakeSync(HandshakeSync):
 
     def __init__(self,
                  clkIndex: int,
-                 srcElm: "AllocatorArchitecturalElement",
-                 dstElm: "AllocatorArchitecturalElement",
+                 srcElm: "ArchElement",
+                 dstElm: "ArchElement",
                  masterDir=DIRECTION.OUT, hdl_name:Optional[Union[str, Dict[str, str]]]=None, loadConfig=True):
         HandshakeSync.__init__(self, masterDir=masterDir, hdl_name=hdl_name, loadConfig=loadConfig)
         self.clkIndex = clkIndex

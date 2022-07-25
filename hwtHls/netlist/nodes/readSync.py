@@ -35,7 +35,7 @@ class HlsNetNodeReadSync(HlsNetNode):
         self.assignRealization(IO_COMB_REALIZATION)
 
     def allocateRtlInstance(self,
-                          allocator: "AllocatorArchitecturalElement",
+                          allocator: "ArchElement",
                           ) -> TimeIndependentRtlResource:
         """
         Instantiate read operation on RTL level
@@ -55,10 +55,10 @@ class HlsNetNodeReadSync(HlsNetNode):
         allocator.netNodeToRtl[r_out] = _o
         return _o
 
-    def _getRtlSigForInput(self, allocator: "AllocatorArchitecturalElement", i: HlsNetNodeIn):
+    def _getRtlSigForInput(self, allocator: "ArchElement", i: HlsNetNodeIn):
         return allocator.instantiateHlsNetNodeOutInTime(i.obj.dependsOn[i.in_i], self.scheduledOut[0]).data
         
-    def getRtlControlEn(self, allocator: "AllocatorArchitecturalElement"):
+    def getRtlControlEn(self, allocator: "ArchElement"):
         d = self.dependsOn[0]
         dObj = d.obj
         if isinstance(dObj, HlsNetNodeRead):

@@ -10,7 +10,7 @@ from hwt.hdl.value import HValue
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.architecture.architecturalElement import AllocatorArchitecturalElement
+from hwtHls.architecture.archElement import ArchElement
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage, \
     extractControlSigOfInterfaceTuple
 from hwtHls.netlist.context import HlsNetlistCtx
@@ -116,7 +116,7 @@ class RtlNetlistPassControlLogicMinimize(RtlNetlistPass):
         inputs: UniqList[RtlSignal] = []
         inTreeOutputs: Set[RtlSignal] = set()
         for elm in netlist.allocator._archElements:
-            elm: AllocatorArchitecturalElement
+            elm: ArchElement
             for con in elm.connections:
                 con: ConnectionsOfStage
                 # [todo] con.stageDataVld 

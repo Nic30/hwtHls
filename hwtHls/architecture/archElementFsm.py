@@ -10,24 +10,24 @@ from hwt.math import log2ceil
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.architecture.architecturalElement import AllocatorArchitecturalElement
+from hwtHls.architecture.archElement import ArchElement
 from hwtHls.architecture.connectionsOfStage import getIntfSyncSignals, \
     setNopValIfNotSet, SignalsOfStages, ConnectionsOfStage
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, INVARIANT_TIME
 from hwtHls.netlist.analysis.fsm import IoFsm
+from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
 from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
     HlsNetNodeWriteBackwardEdge, HlsNetNodeReadControlBackwardEdge, \
     HlsNetNodeWriteControlBackwardEdge
 from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeRead
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.scheduler.clk_math import start_clk
-from ipCorePackager.constants import INTF_DIRECTION
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
-from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
+from hwtHls.netlist.scheduler.clk_math import start_clk
+from ipCorePackager.constants import INTF_DIRECTION
 
 
-class AllocatorFsmContainer(AllocatorArchitecturalElement):
+class ArchElementFsm(ArchElement):
     """
     Container class for FSM allocation objects.
     """
@@ -50,7 +50,7 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
                                            stateCons[clkIToStateI[clkI]].signals if clkI in clkIToStateI else None
                                            for clkI in range(self.fsmEndClk_i + 1)
                                         ))
-        AllocatorArchitecturalElement.__init__(self, netlist, namePrefix, allNodes, stateCons, stageSignals)
+        ArchElement.__init__(self, netlist, namePrefix, allNodes, stateCons, stageSignals)
 
     def _afterNodeInstantiated(self, n: HlsNetNode, rtl: Optional[TimeIndependentRtlResource]):
         # mark value in register as persistent until the end of FSM
@@ -155,7 +155,7 @@ class AllocatorFsmContainer(AllocatorArchitecturalElement):
         # element: clockTickIndex
         clkPeriod = self.normalizedClkPeriod
         nonSkipableStateI: Set[int] = set()
-        otherElmConnectionFirstTimeSeen: Dict[AllocatorArchitecturalElement, int] = {}
+        otherElmConnectionFirstTimeSeen: Dict[ArchElement, int] = {}
         iea = self.interArchAnalysis
         for o, i in self.interArchAnalysis.interElemConnections:
             o: HlsNetNodeOut

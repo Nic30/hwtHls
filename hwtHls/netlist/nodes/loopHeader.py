@@ -25,7 +25,7 @@ class HlsLoopGateStatus(HlsNetNode):
     def resolve_realization(self):
         self.assignRealization(IO_COMB_REALIZATION)
 
-    def allocateRtlInstance(self, allocator: "AllocatorArchitecturalElement") -> TimeIndependentRtlResource:
+    def allocateRtlInstance(self, allocator: "ArchElement") -> TimeIndependentRtlResource:
         op_out = self._outputs[0]
 
         try:
@@ -200,7 +200,7 @@ class HlsLoopGate(HlsNetNode):
         self.scheduledIn = tuple(start_of_next_clk_period(t, normalizedClkPeriod) - ffdelay for t in self.scheduledIn)
         return self.scheduledIn
 
-    def allocateRtlInstance(self, allocator:"AllocatorArchitecturalElement"):
+    def allocateRtlInstance(self, allocator:"ArchElement"):
         """
         All circuits generated from :class:`~.HlsLoopGateStatus`
         """

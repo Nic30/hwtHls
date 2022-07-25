@@ -11,18 +11,18 @@ from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import Interface_without_registration
 from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
-from hwtHls.architecture.architecturalElement import AllocatorArchitecturalElement
+from hwtHls.architecture.archElement import ArchElement
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage, resolveStrongestSyncType, \
     SignalsOfStages, ExtraCondMemberList, SkipWhenMemberList
 from hwtHls.architecture.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, \
     TimeIndependentRtlResourceItem, INVARIANT_TIME
+from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
 
 
-class AllocatorPipelineContainer(AllocatorArchitecturalElement):
+class ArchElementPipeline(ArchElement):
     """
     A container of informations about hw pipeline allocation.
     
@@ -40,7 +40,7 @@ class AllocatorPipelineContainer(AllocatorArchitecturalElement):
         stageCons = [ConnectionsOfStage() for _ in self.stages]
         stageSignals = SignalsOfStages(netlist.normalizedClkPeriod,
                                        (con.signals for con in stageCons))
-        AllocatorArchitecturalElement.__init__(self, netlist, namePrefix, allNodes, stageCons, stageSignals)
+        ArchElement.__init__(self, netlist, namePrefix, allNodes, stageCons, stageSignals)
         self._syncAllocated = False
         self._dataPathAllocated = False
 

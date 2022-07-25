@@ -23,7 +23,7 @@ class HlsNetNodeMux(HlsNetNodeOperator):
             netlist, AllOps.TERNARY, 0, dtype, name=name)
 
     def allocateRtlInstance(self,
-                          allocator: "AllocatorArchitecturalElement",
+                          allocator: "ArchElement",
                           ) -> TimeIndependentRtlResource:
         op_out = self._outputs[0]
         

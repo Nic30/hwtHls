@@ -2,18 +2,18 @@ from cmath import inf
 from typing import Union, List, Dict, Tuple
 
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.architecture.architecturalElement import AllocatorArchitecturalElement
-from hwtHls.architecture.fsmContainer import AllocatorFsmContainer
-from hwtHls.netlist.scheduler.clk_math import start_clk
+from hwtHls.architecture.archElement import ArchElement
+from hwtHls.architecture.archElementFsm import ArchElementFsm
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.io import HOrderingVoidT
 from hwtHls.netlist.nodes.node import HlsNetNode, HlsNetNodePartRef
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
+from hwtHls.netlist.scheduler.clk_math import start_clk
 
 
 class ValuePathSpecItem():
 
-    def __init__(self, element: AllocatorArchitecturalElement, beginTime: float, endTime: float):
+    def __init__(self, element: ArchElement, beginTime: float, endTime: float):
         self.element = element
         self.beginTime = beginTime
         self.endTime = endTime
@@ -24,22 +24,22 @@ class ValuePathSpecItem():
 
 class InterArchElementNodeSharingAnalysis():
     """
-    :ivar interElemConnections: the port tuples which are crossing the boundaries of :class:`hwtHls.architecture.architecturalElement.AllocatorArchitecturalElement`
+    :ivar interElemConnections: the port tuples which are crossing the boundaries of :class:`hwtHls.architecture.archElement.ArchElement`
         instances
-    :ivar multiOwnerNodes: a list of nodes which are owned by multiple :class:`hwtHls.architecture.architecturalElement.AllocatorArchitecturalElement` instances
-    :ivar ownerOfNode: a dictionary mapping node to list of :class:`hwtHls.architecture.architecturalElement.AllocatorArchitecturalElement`
+    :ivar multiOwnerNodes: a list of nodes which are owned by multiple :class:`hwtHls.architecture.archElement.ArchElement` instances
+    :ivar ownerOfNode: a dictionary mapping node to list of :class:`hwtHls.architecture.archElement.ArchElement`
         instance
     :ivar partsOfNode: dictionary mapping the node to its parts in individual architecture elements
     :note: if node has multiple owners the owners are using only :class:`hwtHls.netlist.nodes.node.HlsNetNodePartRef` instances and ownerOfNode is also using only parts
         However the port itself does use original node.
-    :ivar ownerOfInput: a dictionary mapping node input to list of :class:`hwtHls.architecture.architecturalElement.AllocatorArchitecturalElement`
+    :ivar ownerOfInput: a dictionary mapping node input to list of :class:`hwtHls.architecture.archElement.ArchElement`
         instance
-    :ivar ownerOfOutput: a dictionary mapping node output to list of :class:`hwtHls.architecture.architecturalElement.AllocatorArchitecturalElement`
+    :ivar ownerOfOutput: a dictionary mapping node output to list of :class:`hwtHls.architecture.archElement.ArchElement`
         instance
     :ivar explicitPathSpec: An additional specification for output to input path which must pass some element where the output is not directly used.
     :note: Source and destination element are not specified in explicitPathSpec because it can be derived from the owner of port.
         For connections which are just from the source element to destination element this dictionary holds no record.
-    :ivar firstUseTimeOfOutInElem: Information about when each node output is used in :class:`hwtHls.architecture.architecturalElement.AllocatorArchitecturalElement`
+    :ivar firstUseTimeOfOutInElem: Information about when each node output is used in :class:`hwtHls.architecture.archElement.ArchElement`
         instance for the first time.
     """
 
@@ -47,16 +47,16 @@ class InterArchElementNodeSharingAnalysis():
         self.normalizedClkPeriod = normalizedClkPeriod
         self.interElemConnections: UniqList[Tuple[HlsNetNodeOut, HlsNetNodeIn]] = UniqList()
         self.multiOwnerNodes: UniqList[HlsNetNode] = UniqList()
-        self.ownerOfNode: Dict[HlsNetNode, AllocatorArchitecturalElement] = {}
+        self.ownerOfNode: Dict[HlsNetNode, ArchElement] = {}
         self.partsOfNode: Dict[HlsNetNode, List[HlsNetNodePartRef]] = {}
-        self.ownerOfInput: Dict[HlsNetNodeIn, UniqList[AllocatorArchitecturalElement]] = {}
-        self.ownerOfOutput: Dict[HlsNetNodeOut, AllocatorArchitecturalElement] = {}
-        self.explicitPathSpec: Dict[Tuple[HlsNetNodeOut, HlsNetNodeIn, AllocatorArchitecturalElement], ValuePathSpecItem] = {}
+        self.ownerOfInput: Dict[HlsNetNodeIn, UniqList[ArchElement]] = {}
+        self.ownerOfOutput: Dict[HlsNetNodeOut, ArchElement] = {}
+        self.explicitPathSpec: Dict[Tuple[HlsNetNodeOut, HlsNetNodeIn, ArchElement], ValuePathSpecItem] = {}
         # because output value could be used in element multiple times but we need only the first use
-        self.firstUseTimeOfOutInElem: Dict[Tuple[AllocatorArchitecturalElement, HlsNetNodeOut], int] = {}
+        self.firstUseTimeOfOutInElem: Dict[Tuple[ArchElement, HlsNetNodeOut], int] = {}
         self.portSynonyms: Union[Dict[HlsNetNodeIn, UniqList[HlsNetNodeIn]], Dict[HlsNetNodeOut, UniqList[HlsNetNodeOut]]] = {}
 
-    def getSrcElm(self, o: HlsNetNodeOut) -> AllocatorArchitecturalElement:
+    def getSrcElm(self, o: HlsNetNodeOut) -> ArchElement:
         srcElm = self.ownerOfOutput.get(o, None)
         if srcElm is None:
             srcElm = self.ownerOfNode[o.obj]
@@ -64,14 +64,14 @@ class InterArchElementNodeSharingAnalysis():
         return srcElm
 
     def getSrcDstsElement(self, o: HlsNetNodeOut, i: HlsNetNodeIn)\
-            ->Tuple[AllocatorArchitecturalElement, AllocatorArchitecturalElement]:
+            ->Tuple[ArchElement, ArchElement]:
         srcElm = self.getSrcElm(o)
 
         dstElm = self.ownerOfInput.get(i, None)
         if dstElm is None:
             dstElm = self.ownerOfNode[i.obj]
 
-        if isinstance(dstElm, AllocatorArchitecturalElement):
+        if isinstance(dstElm, ArchElement):
             dstElms = (dstElm,)
         else:
             assert isinstance(dstElm, UniqList), dstElm
@@ -79,7 +79,7 @@ class InterArchElementNodeSharingAnalysis():
 
         return srcElm, dstElms
 
-    def _analyzeInterElementsNodeSharingCheckInputDriver(self, o: HlsNetNodeOut, i: HlsNetNodeIn, inT: int, dstElm: AllocatorArchitecturalElement):
+    def _analyzeInterElementsNodeSharingCheckInputDriver(self, o: HlsNetNodeOut, i: HlsNetNodeIn, inT: int, dstElm: ArchElement):
         if isinstance(o.obj, HlsNetNodeConst) or o._dtype is HOrderingVoidT:
             return  # sharing not required
         assert dstElm in self.ownerOfInput[i], (dstElm, i, self.ownerOfInput[i])
@@ -88,7 +88,7 @@ class InterArchElementNodeSharingAnalysis():
             # in the same element
             return
 
-        if isinstance(dstElm, AllocatorFsmContainer):
+        if isinstance(dstElm, ArchElementFsm):
             useClkI = start_clk(inT, self.normalizedClkPeriod)
             assert useClkI in dstElm.clkIToStateI, (useClkI, dstElm.clkIToStateI, o, dstElm,
                                                     "Input must be scheduled to some cycle corresponding to FSM state",
@@ -127,10 +127,10 @@ class InterArchElementNodeSharingAnalysis():
             syn0.extend(syn1)
             self.portSynonyms[p1] = syn0
 
-    def _analyzeInterElementsNodeSharing(self, archElements: List[AllocatorArchitecturalElement]):
+    def _analyzeInterElementsNodeSharing(self, archElements: List[ArchElement]):
         # resolve port and node owners
         for dstElm in archElements:
-            dstElm: AllocatorArchitecturalElement
+            dstElm: ArchElement
             for n in dstElm.allNodes:
                 n: HlsNetNode
 
@@ -188,7 +188,7 @@ class InterArchElementNodeSharingAnalysis():
         for dstElm in archElements:
             # for each input check if value originates from other arch element,
             # if it does and was not been resolved yet, declare it on element of origin and add it at starting time to this element
-            dstElm: AllocatorArchitecturalElement
+            dstElm: ArchElement
             for n in dstElm.allNodes:
                 n: HlsNetNode
                 if isinstance(n, HlsNetNodePartRef):

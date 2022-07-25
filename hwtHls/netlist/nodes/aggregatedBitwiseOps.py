@@ -308,7 +308,7 @@ class HlsNetNodeBitwiseOps(HlsNetNode):
                         o = outputMap.get(o, o)
                     n.dependsOn[i] = o
 
-    def allocateRtlInstance(self, allocator:"AllocatorArchitecturalElement"):
+    def allocateRtlInstance(self, allocator:"ArchElement"):
         """
         Instantiate layers of bitwise operators. (Just delegation to sub nodes)
         """
@@ -521,7 +521,7 @@ class HlsNetNodeBitwiseOpsPartRef(HlsNetNodePartRef, HlsNetNodeBitwiseOps):
         endClkI = int(self.endTime // clkPeriod)
         yield from range(startClkI, endClkI + 1)
 
-    def allocateRtlInstance(self, allocator:"AllocatorArchitecturalElement"):
+    def allocateRtlInstance(self, allocator:"ArchElement"):
         """
         Instantiate layers of bitwise operators. (Just delegation to sub nodes)
         """

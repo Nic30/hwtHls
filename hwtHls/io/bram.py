@@ -58,7 +58,7 @@ class HlsNetNodeWriteCommandBram(HlsNetNodeWriteIndexed):
         self.assignRealization(re)
 
     def allocateRtlInstance(self,
-                            allocator: "AllocatorArchitecturalElement",
+                            allocator: "ArchElement",
                           ) -> List[HdlStatement]:
         """
         Instantiate write operation on RTL level

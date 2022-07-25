@@ -43,7 +43,7 @@ class HlsNetNodeOperator(HlsNetNode):
         self.assignRealization(r)
 
     def allocateRtlInstance(self,
-                          allocator: "AllocatorArchitecturalElement",
+                          allocator: "ArchElement",
                           ) -> TimeIndependentRtlResource:
         op_out = self._outputs[0]
         try:

@@ -6,12 +6,12 @@ from hwt.hdl.types.hdlType import HdlType
 from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwtHls.architecture.allocator import HlsAllocator
-from hwtHls.architecture.architecturalElement import AllocatorArchitecturalElement
+from hwtHls.architecture.archElement import ArchElement
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage
-from hwtHls.architecture.fsmContainer import AllocatorFsmContainer
+from hwtHls.architecture.archElementFsm import ArchElementFsm
 from hwtHls.architecture.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis
 from hwtHls.architecture.interArchElementHandshakeSync import InterArchElementHandshakeSync
-from hwtHls.architecture.pipelineContainer import AllocatorPipelineContainer
+from hwtHls.architecture.archElementPipeline import ArchElementPipeline
 from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeWriteBackwardEdge
@@ -26,7 +26,7 @@ class RtlArchToGraphwiz():
         self.graph = Dot(name)
         self.allocator = allocator
         self.interfaceToNodes: Dict[InterfaceBase, Node] = {}
-        self.archElementToNode: Dict[AllocatorArchitecturalElement, Node] = {}
+        self.archElementToNode: Dict[ArchElement, Node] = {}
 
     def _getInterfaceNode(self, i: InterfaceBase):
         try:
@@ -52,13 +52,13 @@ class RtlArchToGraphwiz():
         self.interfaceToNodes[i] = n
         return n
 
-    def _getElementIndexOfTime(self, elm: AllocatorArchitecturalElement, t: int):
-        if isinstance(elm, AllocatorFsmContainer):
-            elm: AllocatorFsmContainer
+    def _getElementIndexOfTime(self, elm: ArchElement, t: int):
+        if isinstance(elm, ArchElementFsm):
+            elm: ArchElementFsm
             return elm.clkIToStateI[start_clk(t, self.allocator.netlist.normalizedClkPeriod)]
 
-        elif isinstance(elm, AllocatorPipelineContainer):
-            elm: AllocatorPipelineContainer
+        elif isinstance(elm, ArchElementPipeline):
+            elm: ArchElementPipeline
             # return elm.stageSignals
             raise NotImplementedError()
             
@@ -69,10 +69,10 @@ class RtlArchToGraphwiz():
         g = self.graph
         allocator: HlsAllocator = self.allocator
         
-        interElementConnections: Dict[Tuple[AllocatorArchitecturalElement, int, AllocatorArchitecturalElement, int], List[str, HdlType]] = {}
+        interElementConnections: Dict[Tuple[ArchElement, int, ArchElement, int], List[str, HdlType]] = {}
         interElementConnectionsOrder = []
         for elm in allocator._archElements:
-            elm: AllocatorArchitecturalElement
+            elm: ArchElement
             nodeId = len(g.obj_dict['nodes'])
             elmNode = Node(f"n{nodeId:d}", shape="plaintext")
             g.add_node(elmNode)
@@ -126,7 +126,7 @@ class RtlArchToGraphwiz():
         #            continue
         #        path = iea.explicitPathSpec.get((o, i, dstElm), None)
         #        if path is None:
-        #            realSrcElm: AllocatorArchitecturalElement = iea.ownerOfOutput[o]
+        #            realSrcElm: ArchElement = iea.ownerOfOutput[o]
         #            assert srcElm is realSrcElm, (srcElm, realSrcElm)
         #            srcT = o.obj.scheduledOut[o.out_i]
         #            dstT = iea.firstUseTimeOfOutInElem[(dstElm, o)]
