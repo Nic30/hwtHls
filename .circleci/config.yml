@@ -34,6 +34,8 @@ jobs:
             pip --version
             whereis python
             python --version
+            whereis virtualenv
+
 
       # - python/load-cache
       - py/install-setup-py:
