@@ -20,12 +20,11 @@ jobs:
             export DEBIAN_FRONTEND=noninteractive
             export TZ=America/USA
             sudo apt install build-essential python3-dev llvm-14-dev python3 python3-pip git ninja-build cmake libreadline8 libreadline-dev -y
-            sudo rm /opt/circleci/.pyenv/shims/virtualenv            
             pip3 install pip meson virtualenv --upgrade
             # because of coverage (tool named coverage)
             echo 'export PATH=$PATH:/root/.local/bin' >> $BASH_ENV
             source $BASH_ENV
-            virtualenv /opt/circleci/.pyenv3
+            virtualenv3 /opt/circleci/.pyenv3
             echo 'source /opt/circleci/.pyenv3/bin/activate' >> $BASH_ENV
             
       - run:
