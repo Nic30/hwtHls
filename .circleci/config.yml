@@ -25,7 +25,7 @@ jobs:
             echo 'export PATH=$PATH:/root/.local/bin' >> $BASH_ENV
             sudo update-alternatives --install /usr/bin/python python /usr/bin/python3 1
             sudo update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1
-            sudo update-alternatives --install /usr/local/bin/pip pip /usr/local/bin/pip3 1
+            sudo rm /usr/local/bin/pip
             source $BASH_ENV
 
 
