@@ -6,9 +6,11 @@ orbs:
 
 jobs:
   install-test-deploy:
-    docker:
-      - image: ubuntu:rolling
-    resource_class: xlarge
+    machine:
+      image: ubuntu-2204:2022.04.1
+    #docker:
+    #  - image: ubuntu:rolling
+    #resource_class: large
     steps:
       - checkout
       - run:
