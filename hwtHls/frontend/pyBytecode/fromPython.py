@@ -21,6 +21,7 @@ from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc, \
     PyBytecodePreprocDivergence
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.value import SsaValue
+from hwt.synthesizer.interface import Interface
 
 
 class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
@@ -484,6 +485,8 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
                 else:
                     duplicateCodeUntilConvergencePoint = False
                 cond, curBlock = expandBeforeUse(frame, cond, curBlock)
+                if isinstance(cond, Interface):
+                    cond = cond._sig
 
                 compileTimeResolved = not isinstance(cond, (RtlSignal, HValue, SsaValue))
                 if not compileTimeResolved:
