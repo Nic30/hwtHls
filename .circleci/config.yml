@@ -27,7 +27,8 @@ jobs:
 
       # - python/load-cache
       - py/install-setup-py
-         no_output_timeout: 30m
+          build-args: --progress-bar off
+         #no_output_timeout: 30m
       # - python/save-cache
       - py/test-and-coverage
       - py/deploy-pypi-on-tag:
