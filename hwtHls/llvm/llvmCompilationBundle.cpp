@@ -357,7 +357,7 @@ void LlvmCompilationBundle::runOpt(hwtHls::GenericFpgaToNetlist::ConvesionFnT to
 	FPM.addPass(hwtHls::ExtractBitConcatAndSliceOpsPass());
 	FPM.addPass(llvm::InstCombinePass()); // mostly for DCE for previous pass
 	FPM.addPass(llvm::AggressiveInstCombinePass());
-	FPM.addPass(hwtHls::BitwidthReductionPass());
+	//FPM.addPass(hwtHls::BitwidthReductionPass());
 	FPM.addPass(llvm::InstCombinePass()); // mostly for DCE for previous pass
 	FPM.addPass(
 			llvm::MergedLoadStoreMotionPass(llvm::MergedLoadStoreMotionOptions(
@@ -388,6 +388,8 @@ void LlvmCompilationBundle::runOpt(hwtHls::GenericFpgaToNetlist::ConvesionFnT to
 	// :info: based on llc.cpp
 
 	PM.add(MMIWP);
+	//llvm::StringMap<llvm::cl::Option*> &Map = llvm::cl::getRegisteredOptions();
+	//Map["print-before-all"]->addOccurrence(0, "", "true");
 	// check for incompatible passes
 	TPC = static_cast<llvm::GenericFpgaTargetPassConfig*>(
 			static_cast<llvm::LLVMTargetMachine&>(*TM).createPassConfig(PM)
