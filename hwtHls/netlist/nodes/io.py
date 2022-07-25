@@ -9,7 +9,8 @@ from hwt.interfaces.std import Signal, HandshakeSync, Handshaked, VldSynced, \
 from hwt.interfaces.structIntf import StructIntf
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
-from hwt.synthesizer.interfaceLevel.interfaceUtils.utils import packIntf
+from hwt.synthesizer.interfaceLevel.interfaceUtils.utils import packIntf, \
+    connectPacked
 from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
@@ -347,8 +348,6 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
 
         # apply indexes before assignments
         dst = self.dst
-        if isinstance(dst, HsStructIntf):
-            dst = dst.data
 
         try:
             # skip instantiation of writes in the same mux
@@ -356,34 +355,22 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         except KeyError:
             pass
 
-        srcIsStructIntf = isinstance(_o.data, StructIntf)
-        if isinstance(dst, (Handshaked, Axi_hs)):
-            if srcIsStructIntf:
-                if isinstance(dst, Handshaked, HandshakeSync):
-                    rd, vld = dst.rd, dst.vld
-                else:
-                    rd, vld = dst.ready, dst.valid
-
-                rtlObj = dst(_o.data, exclude=(rd, vld))
-            else:
-                assert len(dst._interfaces) == 3, (dst, "Must have just ready,valid and data signal because the source is just a data signal", _o.data)
-                rtlObj = dst.data(_o.data)
-
+        if isinstance(dst, Axi_hs):
+            exclude = dst.ready, dst.valid
+        elif isinstance(dst, (Handshaked, HandshakeSync)):
+            exclude = dst.rd, dst.vld
         elif isinstance(dst, VldSynced):
-            if srcIsStructIntf:
-                rtlObj = dst(_o.data, exclude=(dst.vld,))
-            else:
-                assert len(dst._interfaces) == 2, (dst, "Must have just valid and data signal because the source is just a data signal", _o.data)
-                rtlObj = dst.data(_o.data)
-
+            exclude = (dst.vld,)
         elif isinstance(dst, RdSynced):
-            if srcIsStructIntf:
-                rtlObj = dst(_o.data, exclude=(dst.rd,))
-            else:
-                assert len(dst._interfaces) == 2, (dst, "Must have just ready and data signal because the source is just a data signal", _o.data)
-                rtlObj = dst.data(_o.data)
+            exclude = (dst.rd,)
         else:
-            rtlObj = dst(_o.data)
+            exclude = ()
+
+        if isinstance(_o.data, StructIntf):
+            rtlObj = dst(_o.data, exclude=exclude)
+        else:
+            rtlObj = connectPacked(_o.data, dst, exclude=exclude)
+
         # allocator.netNodeToRtl[o] = rtlObj
         allocator.netNodeToRtl[(dep, dst)] = rtlObj
 
