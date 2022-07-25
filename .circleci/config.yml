@@ -8,6 +8,8 @@ jobs:
   install-test-deploy:
     machine:
       image: ubuntu-2204:2022.04.1
+      python:
+        version: 3.10.0
     #docker:
     #  - image: ubuntu:rolling
     resource_class: large
@@ -23,13 +25,9 @@ jobs:
             pip3 install pip meson --upgrade
             # because of coverage (tool named coverage)
             echo 'export PATH=$PATH:/root/.local/bin' >> $BASH_ENV
-            sudo update-alternatives --install /usr/bin/python python /usr/bin/python3 40
-            sudo update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 40
             source $BASH_ENV
       - run:
           command: |
-            update-alternatives --query python
-            update-alternatives --query pip
             whereis pip
             pip --version
             whereis python
