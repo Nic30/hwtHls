@@ -1,15 +1,13 @@
 version: 2.1
 
 orbs:
-  python: circleci/python@1.5.0
+  python: circleci/python@2.0.3
   py: nic30/python-all-in-1@0.2.48
 
 jobs:
   install-test-deploy:
     machine:
-      image: ubuntu-2204:2022.04.1
-      python:
-        version: 3.10.0
+      - image: ubuntu-2204:2022.04.1
     #docker:
     #  - image: ubuntu:rolling
     resource_class: large
