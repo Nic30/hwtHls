@@ -92,6 +92,8 @@ BUILD_SLICE = opmap['BUILD_SLICE']
 BUILD_TUPLE = opmap['BUILD_TUPLE']
 BUILD_LIST = opmap['BUILD_LIST']
 BUILD_SET = opmap['BUILD_SET']
+FORMAT_VALUE = opmap['FORMAT_VALUE']
+BUILD_STRING = opmap['BUILD_STRING']
 
 UN_OPS = {
     UNARY_POSITIVE: operator.pos,
@@ -135,8 +137,8 @@ CMP_OPS = {
     CMP_OP_NE: operator.ne,
     CMP_OP_GT: operator.gt,
     CMP_OP_GE: operator.ge,
-    #'in': operator.contains,
-    #'not in': lambda x, col: not operator.contains(x, col),
+    # 'in': operator.contains,
+    # 'not in': lambda x, col: not operator.contains(x, col),
 }
 
 INPLACE_BIN_OPS = {

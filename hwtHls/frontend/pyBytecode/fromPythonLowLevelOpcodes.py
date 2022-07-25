@@ -20,14 +20,19 @@ from hwtHls.frontend.pyBytecode.instructions import CMP_OPS, BIN_OPS, UN_OPS, \
     POP_TOP, LOAD_DEREF, LOAD_ATTR, LOAD_FAST, LOAD_CONST, LOAD_GLOBAL, \
     LOAD_METHOD, LOAD_CLOSURE, STORE_ATTR, STORE_FAST, STORE_DEREF, CALL_METHOD, \
     CALL_FUNCTION, CALL_FUNCTION_KW, COMPARE_OP, GET_ITER, UNPACK_SEQUENCE, \
-    MAKE_FUNCTION, STORE_SUBSCR, EXTENDED_ARG, CALL_FUNCTION_EX, DELETE_DEREF, DELETE_FAST
+    MAKE_FUNCTION, STORE_SUBSCR, EXTENDED_ARG, CALL_FUNCTION_EX, DELETE_DEREF, DELETE_FAST, \
+    FORMAT_VALUE, BUILD_STRING
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc, \
     PyBytecodeInline
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.value import SsaValue
+from io import StringIO
 
 
 class PyBytecodeToSsaLowLevelOpcodes():
+    """
+    https://docs.python.org/3/library/dis.html
+    """
 
     def __init__(self):
         self.opcodeDispatch: Dict[int, Callable[[], SsaBasicBlock]] = {
@@ -55,7 +60,8 @@ class PyBytecodeToSsaLowLevelOpcodes():
             UNPACK_SEQUENCE: self.opcode_UNPACK_SEQUENCE,
             MAKE_FUNCTION: self.opcode_MAKE_FUNCTION,
             STORE_SUBSCR: self.opcode_STORE_SUBSCR,
-            
+            FORMAT_VALUE: self.opcode_FORMAT_VALUE,
+            BUILD_STRING: self.opcode_BUILD_STRING,
         }
         opD = self.opcodeDispatch
         for createFn, opcodes in [
@@ -84,6 +90,8 @@ class PyBytecodeToSsaLowLevelOpcodes():
             
         if isinstance(res, (HlsWrite, HlsRead, HdlAssignmentContainer)):
             self.toSsa.visit_CodeBlock_list(curBlock, [res, ])
+        elif isinstance(res, list) and len(res) > 0 and  isinstance(res[0], (HlsWrite, HlsRead, HdlAssignmentContainer)):
+            self.toSsa.visit_CodeBlock_list(curBlock, res)
         return curBlock
 
     def opcode_DELETE_FAST(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:
@@ -450,3 +458,48 @@ class PyBytecodeToSsaLowLevelOpcodes():
             return curBlock
 
         return opcode_INPLACE_OP
+
+    def opcode_FORMAT_VALUE(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:
+        """
+        Used for implementing formatted literal strings (f-strings). Pops an optional fmt_spec from the stack, then a required value. flags is interpreted as follows:
+            (flags & 0x03) == 0x00: value is formatted as-is.
+            (flags & 0x03) == 0x01: call str() on value before formatting it.
+            (flags & 0x03) == 0x02: call repr() on value before formatting it.
+            (flags & 0x03) == 0x03: call ascii() on value before formatting it.
+            (flags & 0x04) == 0x04: pop fmt_spec from the stack and use it, else use an empty fmt_spec.
+    
+        Formatting is performed using PyObject_Format(). The result is pushed on the stack.
+        New in version 3.6.
+        """
+        flags = instr.arg
+        v = frame.stack.pop()
+        if flags & 0x03 == 0x00:
+            pass
+        elif (flags & 0x03) == 0x01:
+            v = str(v)
+        elif (flags & 0x03) == 0x02:
+            v = repr(v)
+        elif (flags & 0x03) == 0x03:
+            v = ascii(v)
+        else:
+            raise NotImplementedError(instr)
+        
+        frame.stack.append(v)
+        return curBlock
+    
+    def opcode_BUILD_STRING(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:
+        """
+        Concatenates count strings from the stack and pushes the resulting string onto the stack.
+
+        New in version 3.6.
+        """
+        parts = frame.stack[-instr.argval:]
+        del frame.stack[-instr.argval:]
+        buf = StringIO()
+        for p in parts:
+            if not isinstance(p, str):
+                p = str(p)
+            buf.write(p)
+        frame.stack.append(buf.getvalue())
+        return curBlock
+        
