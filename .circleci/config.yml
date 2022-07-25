@@ -27,7 +27,7 @@ jobs:
 
       # - python/load-cache
       - py/install-setup-py
-          build-args: --verbose --progress-bar off 
+          build-args: "--verbose --progress-bar off"
          #no_output_timeout: 30m
       # - python/save-cache
       - py/test-and-coverage
