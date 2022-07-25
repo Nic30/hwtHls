@@ -21,7 +21,7 @@ from hwtHls.frontend.pyBytecode.instructions import CMP_OPS, BIN_OPS, UN_OPS, \
     LOAD_METHOD, LOAD_CLOSURE, STORE_ATTR, STORE_FAST, STORE_DEREF, CALL_METHOD, \
     CALL_FUNCTION, CALL_FUNCTION_KW, COMPARE_OP, GET_ITER, UNPACK_SEQUENCE, \
     MAKE_FUNCTION, STORE_SUBSCR, EXTENDED_ARG, CALL_FUNCTION_EX, DELETE_DEREF, DELETE_FAST, \
-    FORMAT_VALUE, BUILD_STRING
+    FORMAT_VALUE, BUILD_STRING, BUILD_CONST_KEY_MAP
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc, \
     PyBytecodeInline
 from hwtHls.ssa.basicBlock import SsaBasicBlock
@@ -61,7 +61,6 @@ class PyBytecodeToSsaLowLevelOpcodes():
             MAKE_FUNCTION: self.opcode_MAKE_FUNCTION,
             STORE_SUBSCR: self.opcode_STORE_SUBSCR,
             FORMAT_VALUE: self.opcode_FORMAT_VALUE,
-            BUILD_STRING: self.opcode_BUILD_STRING,
         }
         opD = self.opcodeDispatch
         for createFn, opcodes in [
@@ -487,19 +486,3 @@ class PyBytecodeToSsaLowLevelOpcodes():
         frame.stack.append(v)
         return curBlock
     
-    def opcode_BUILD_STRING(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:
-        """
-        Concatenates count strings from the stack and pushes the resulting string onto the stack.
-
-        New in version 3.6.
-        """
-        parts = frame.stack[-instr.argval:]
-        del frame.stack[-instr.argval:]
-        buf = StringIO()
-        for p in parts:
-            if not isinstance(p, str):
-                p = str(p)
-            buf.write(p)
-        frame.stack.append(buf.getvalue())
-        return curBlock
-        

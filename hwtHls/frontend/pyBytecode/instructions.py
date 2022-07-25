@@ -1,7 +1,9 @@
-import operator
 from dis import Instruction
-from typing import Type
+from io import StringIO
 from opcode import opmap, cmp_op
+import operator
+from typing import Type
+from hwt.pyUtils.arrayQuery import grouper
 
 # https://docs.python.org/3/library/dis.html
 NOP = opmap['NOP']
@@ -92,7 +94,9 @@ BUILD_SLICE = opmap['BUILD_SLICE']
 BUILD_TUPLE = opmap['BUILD_TUPLE']
 BUILD_LIST = opmap['BUILD_LIST']
 BUILD_SET = opmap['BUILD_SET']
+BUILD_MAP = opmap['BUILD_MAP']
 FORMAT_VALUE = opmap['FORMAT_VALUE']
+BUILD_CONST_KEY_MAP = opmap["BUILD_CONST_KEY_MAP"]
 BUILD_STRING = opmap['BUILD_STRING']
 
 UN_OPS = {
@@ -235,9 +239,52 @@ def _buildSlice(instr: Instruction, stack: list):
     stack.append(slice(a, b))
 
 
+def _BUILD_MAP(instr: Instruction, stack: list):
+    """
+    Pushes a new dictionary object onto the stack. Pops 2 * count items so that the dictionary holds count entries: {..., TOS3: TOS2, TOS1: TOS}.
+
+    Changed in version 3.5: The dictionary is created from stack items instead of creating an empty dictionary pre-sized to hold count items.
+    """
+    keyValues = stack[-instr.argval * 2:]
+    del stack[-instr.argval * 2:]
+    stack.append({k: v for k, v in grouper(2, keyValues)})
+
+    
+def _BUILD_CONST_KEY_MAP(instr: Instruction, stack: list):
+    """
+    The version of BUILD_MAP specialized for constant keys. Pops the top element on the stack which contains a tuple of keys, then starting from TOS1, pops count values to form values in the built dictionary.
+
+    New in version 3.6.
+    """
+    keys = stack.pop()
+    values = stack[-instr.argval:]
+    del stack[-instr.argval:]
+    stack.append({k: v for k, v in zip(keys, values)})
+
+
+def _BUILD_STRING(instr: Instruction, stack: list):
+    """
+    Concatenates count strings from the stack and pushes the resulting string onto the stack.
+
+    New in version 3.6.
+    """
+    parts = stack[-instr.argval:]
+    del stack[-instr.argval:]
+    buf = StringIO()
+    for p in parts:
+        if not isinstance(p, str):
+            p = str(p)
+        buf.write(p)
+    stack.append(buf.getvalue())
+
+
 BUILD_OPS = {
     BUILD_SLICE: _buildSlice,
     BUILD_TUPLE: lambda instr, stack: _buildCollection(instr, stack, tuple),
     BUILD_LIST: lambda instr, stack: _buildCollection(instr, stack, list),
     BUILD_SET: lambda instr, stack: _buildCollection(instr, stack, set),
+    BUILD_CONST_KEY_MAP: BUILD_CONST_KEY_MAP,
+    BUILD_STRING: _BUILD_STRING,
+    BUILD_MAP: _BUILD_MAP,
+    BUILD_CONST_KEY_MAP: _BUILD_CONST_KEY_MAP,
 }      
