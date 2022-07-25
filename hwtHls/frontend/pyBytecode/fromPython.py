@@ -17,7 +17,8 @@ from hwtHls.frontend.pyBytecode.instructions import JUMP_ABSOLUTE, JUMP_FORWARD,
     POP_JUMP_IF_TRUE, FOR_ITER, JUMP_OPS, RETURN_VALUE
 from hwtHls.frontend.pyBytecode.loopMeta import PyBytecodeLoopInfo, \
     BranchTargetPlaceholder, LoopExitJumpInfo
-from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc
+from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc, \
+    PyBytecodePreprocDivergence
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.value import SsaValue
 
@@ -428,7 +429,7 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
                 frame.markJumpFromBodyOfCurrentLoop(lei)
                 bodyBlockLabel = frame.blockTracker._getBlockLabel(bodyBlockOffset)
                 self._addNotGeneratedBlock(frame, curBlockLabel, bodyBlockLabel)
-                frame.stack.pop()
+                frame.stack.pop()  # pop iterator itself
                 return
 
             # jump into loop body
@@ -477,6 +478,13 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
 
                 cond = frame.stack.pop()
                 cond, curBlock = expandBeforeUse(frame, cond, curBlock)
+                if isinstance(cond, PyBytecodePreprocDivergence):
+                    duplicateCodeUntilConvergencePoint = True
+                    cond = cond.cond
+                else:
+                    duplicateCodeUntilConvergencePoint = False
+                cond, curBlock = expandBeforeUse(frame, cond, curBlock)
+
                 compileTimeResolved = not isinstance(cond, (RtlSignal, HValue, SsaValue))
                 if not compileTimeResolved:
                     curBlock, cond = self.toSsa.visit_expr(curBlock, cond)
@@ -488,6 +496,7 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
                     ifTrueOffset, ifFalseOffset = ifFalseOffset, ifTrueOffset
 
                 if compileTimeResolved:
+                    assert not duplicateCodeUntilConvergencePoint
                     if cond:
                         self._getOrCreateSsaBasicBlockAndJumpRecursively(frame, curBlock, True, ifTrueOffset, None, None)
                         self._onBlockNotGenerated(frame, curBlock, ifFalseOffset)
@@ -496,6 +505,7 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
                         self._onBlockNotGenerated(frame, curBlock, ifTrueOffset)
                 else:
                     if isinstance(cond, HValue):
+                        assert not duplicateCodeUntilConvergencePoint
                         if cond:
                             self._getOrCreateSsaBasicBlockAndJumpRecursively(frame, curBlock, True, ifTrueOffset, cond, None)
                             self._onBlockNotGenerated(frame, curBlock, ifFalseOffset)
@@ -505,6 +515,8 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
                             self._onBlockNotGenerated(frame, curBlock, ifTrueOffset)
 
                     else:
+                        if duplicateCodeUntilConvergencePoint:
+                            raise NotImplementedError()
                         secondBranchFrame = copy(frame)
                         self._getOrCreateSsaBasicBlockAndJumpRecursively(frame, curBlock, False, ifTrueOffset, cond, None)
                         # cond = 1 because we did check in ifTrue branch and this is "else branch"
