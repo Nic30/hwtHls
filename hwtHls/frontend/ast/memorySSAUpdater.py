@@ -50,7 +50,6 @@ class MemorySSAUpdater():
 
         :returns: unique index of tmp variable for PHI function
         """
-           
         assert isinstance(variable, RtlSignal), variable
         assert isinstance(block, SsaBasicBlock), block
         if isinstance(value, SsaInstr):
