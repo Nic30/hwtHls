@@ -12,6 +12,13 @@ public:
 
 	using llvm::CombinerHelper::CombinerHelper;
 
+	bool hashOnlyConstUses(llvm::MachineInstr &MI);
+	bool rewriteConstExtract(llvm::MachineInstr &MI);
+	bool rewriteConstMergeValues(llvm::MachineInstr &MI);
+
+	bool hasG_CONSTANTasUse(llvm::MachineInstr &MI);
+	bool rewriteG_CONSTANTasUseAsCImm(llvm::MachineInstr &MI);
+
 	bool matchAllOnesConstantOp(const llvm::MachineOperand &MOP);
 	bool matchOperandIsAllOnes(llvm::MachineInstr &MI, unsigned OpIdx);
 	bool rewriteXorToNot(llvm::MachineInstr &MI);

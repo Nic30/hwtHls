@@ -1,8 +1,68 @@
 #include "genericFpgaCombinerHelper.h"
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
 #include "../genericFpgaInstrInfo.h"
+#include "genericFpgaInstructionSelectorUtils.h"
 
 namespace llvm {
+
+bool GenFpgaCombinerHelper::hashOnlyConstUses(llvm::MachineInstr &MI) {
+	for (auto &op : MI.uses()) {
+		if (op.isReg())
+			return false;
+	}
+	return true;
+}
+
+bool GenFpgaCombinerHelper::rewriteConstExtract(llvm::MachineInstr &MI) {
+	auto _v = MI.getOperand(1).getCImm();
+	const APInt &v = _v->getValue();
+	auto bitPosition = MI.getOperand(2).getImm();
+	auto numBits = MI.getOperand(3).getImm();
+	replaceInstWithConstant(MI, v.extractBits(numBits, bitPosition));
+	return true;
+}
+
+bool GenFpgaCombinerHelper::hasG_CONSTANTasUse(llvm::MachineInstr &MI) {
+	auto &Context = MI.getMF()->getFunction().getContext();
+	for (auto &MO : MI.uses()) {
+		if (hwtHls::GenericFpgaInstructionSelector::machineOperandTryGetConst(
+				Context, MRI, MO)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+bool GenFpgaCombinerHelper::rewriteG_CONSTANTasUseAsCImm(
+		llvm::MachineInstr &MI) {
+	Builder.setInstrAndDebugLoc(MI);
+	auto MIB = Builder.buildInstr(MI.getOpcode());
+	auto & newMI = *MIB.getInstr();
+	Observer.changingInstr(newMI);
+	hwtHls::GenericFpgaInstructionSelector::selectInstrArgs(MI, MIB, MI.getOperand(0).isDef());
+	Observer.changedInstr(newMI);
+	MI.eraseFromParent();
+	return true;
+}
+
+bool GenFpgaCombinerHelper::rewriteConstMergeValues(llvm::MachineInstr &MI) {
+	// $dst $src{N}, $width{N} (lowest bits first)
+	uint64_t srcCnt = (MI.getNumOperands() - 1) / 2;
+	uint64_t totalWidth = 0;
+	for (unsigned i = 0; i < srcCnt; ++i) {
+		uint64_t width = MI.getOperand(1 + srcCnt + i).getImm();
+		totalWidth += width;
+	}
+	APInt res(totalWidth, 0);
+	for (int i = srcCnt - 1; i >= 0; --i) {
+		uint64_t width = MI.getOperand(1 + srcCnt + i).getImm();
+		res <<= width;
+		APInt v = MI.getOperand(1 + i).getCImm()->getValue().zext(totalWidth);
+		res |= v;
+	}
+	replaceInstWithConstant(MI, res);
+	return true;
+}
 
 bool GenFpgaCombinerHelper::matchAllOnesConstantOp(
 		const llvm::MachineOperand &MOP) {
@@ -28,9 +88,12 @@ bool GenFpgaCombinerHelper::rewriteXorToNot(llvm::MachineInstr &MI) {
 
 bool GenFpgaCombinerHelper::matchIsExtractOnMergeValues(
 		llvm::MachineInstr &MI) {
-	if (auto *src = MRI.getOneDef(MI.getOperand(1).getReg())) {
-		return src->getParent()->getOpcode()
-				== GenericFpga::GENFPGA_MERGE_VALUES;
+	auto _src = MI.getOperand(1);
+	if (_src.isReg()) {
+		if (auto *src = MRI.getOneDef(MI.getOperand(1).getReg())) {
+			return src->getParent()->getOpcode()
+					== GenericFpga::GENFPGA_MERGE_VALUES;
+		}
 	}
 	return false;
 }
@@ -75,6 +138,7 @@ bool GenFpgaCombinerHelper::collectConcatMembers(llvm::MachineOperand &MIOp,
 		uint64_t srcCnt = (MI.getNumOperands() - 1) / 2;
 		bool didReduce = false;
 		for (unsigned i = 0; i < srcCnt; ++i) {
+			// [todo] check if thisMemberOffset is computed correctly for more than 2 operands
 			uint64_t thisMemberOffset = 0;
 			uint64_t width = MI.getOperand(1 + srcCnt + i).getImm();
 			if (offsetOfIRes) {

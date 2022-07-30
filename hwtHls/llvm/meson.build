@@ -46,6 +46,7 @@ py3.extension_module(
 
 	 'targets/GISel/genericFpgaCallLoweringInfo.cpp',
 	 'targets/GISel/genericFpgaInstructionSelector.cpp',
+	 'targets/GISel/genericFpgaInstructionSelectorUtils.cpp',
 	 'targets/GISel/genericFpgaLegalizerInfo.cpp',
 	 'targets/GISel/genericFpgaPreLegalizerCombiner.cpp',
 	 'targets/GISel/genericFpgaPreRegAllocCombiner.cpp',

@@ -20,7 +20,7 @@
 #include <llvm/CodeGen/TargetPassConfig.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/Support/Debug.h>
-
+#include "genericFpgaCombinerHelper.h"
 
 #define DEBUG_TYPE "genericfpga-prelegalizer-combiner"
 
@@ -29,10 +29,10 @@ using namespace MIPatternMatch;
 
 class GenericFpgaGenPreLegalizeGICombinerHelperState {
 protected:
-	CombinerHelper &Helper;
+	GenFpgaCombinerHelper &Helper;
 
 public:
-	GenericFpgaGenPreLegalizeGICombinerHelperState(CombinerHelper &Helper) :
+	GenericFpgaGenPreLegalizeGICombinerHelperState(GenFpgaCombinerHelper &Helper) :
 			Helper(Helper) {
 	}
 };
@@ -68,7 +68,7 @@ public:
 
 bool GenericFpgaPreLegalizerCombinerInfo::combine(GISelChangeObserver &Observer,
 		MachineInstr &MI, MachineIRBuilder &B) const {
-	CombinerHelper Helper(Observer, B, KB, MDT);
+	GenFpgaCombinerHelper Helper(Observer, B, KB, MDT);
 	GenericFpgaGenPreLegalizeGICombinerHelper Generated(GeneratedRuleCfg,
 			Helper);
 
