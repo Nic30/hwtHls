@@ -90,9 +90,6 @@ class PyBytecodeFrame():
         assert isinstance(loopExitJumpInfo, LoopExitJumpInfo)
         self.loopStack[-1].markJumpFromBodyOfLoop(loopExitJumpInfo)
 
-    # @classmethod
-    # def fromCallSite(cls, parentFrame: "PyBytecodeFrame", fn: FunctionType, fnArgs: tuple, fnKwargs: dict):
-    #    pass
     @classmethod
     def fromFunction(cls, fn: FunctionType, fnArgs: tuple, fnKwargs: dict, callStack: List["PyBytecodeFrame"]):
         """
@@ -101,15 +98,23 @@ class PyBytecodeFrame():
         co = fn.__code__
         localVars = [_PyBytecodeUnitialized for _ in range(fn.__code__.co_nlocals)]
         if inspect.ismethod(fn):
-            fnArgs = tuple((fn.__self__, *fnArgs))
+            fnArgs = list((fn.__self__, *fnArgs))
+            defaults = [fn.__func__.__defaults__, fn.__func__.__kwdefaults__]
+        else:
+            fnArgs = list(fnArgs)
+            defaults = [fn.__defaults__, fn.__kwdefaults__]
 
+        for defs in defaults:
+            if defs:
+                fnArgs.extend(defs)
         assert len(fnArgs) == co.co_argcount, ("Function call must have the correct number of arguments",
                                                len(fnArgs), co.co_argcount)
+        if fnKwargs:
+            for k, v in fnKwargs.items():
+                fnArgs[co.co_varnames.index(k)] = v
+
         for i, argVal in enumerate(fnArgs):
             localVars[i] = argVal 
-
-        if fnKwargs:
-            raise NotImplementedError()
 
         freevars = []
         if co.co_cellvars:
@@ -147,7 +152,7 @@ class PyBytecodeFrame():
         return frame
 
     def __copy__(self):
-        o = self.__class__(self.fn, self.instructions, self.bytecodeBlocks, self.loops, 
+        o = self.__class__(self.fn, self.instructions, self.bytecodeBlocks, self.loops,
                            copy(self.locals), self.freevars, copy(self.stack))
         o.loopStack = self.loopStack
         o.preprocVars = self.preprocVars
