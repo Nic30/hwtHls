@@ -2,14 +2,15 @@ from typing import Optional, Union, List, Tuple
 
 from hwt.hdl.operator import Operator
 from hwt.hdl.operatorDefs import OpDefinition, AllOps
+from hwt.hdl.types.defs import SLICE
 from hwt.hdl.value import HValue
+from hwt.interfaces.std import Signal
 from hwt.synthesizer.interface import Interface
+from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.phi import SsaPhi
 from hwtHls.ssa.value import SsaValue
-from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwt.interfaces.std import Signal
 
 
 class SsaExprBuilderProxy():
@@ -79,6 +80,10 @@ class SsaExprBuilder():
         self.position = position
         # [todo] operator cache
 
+    def setInsertPoint(self, block:SsaBasicBlock, position: Optional[int]):
+        self.block = block
+        self.position = position
+
     def _unaryOp(self, o: Union[SsaValue, HValue], operator: OpDefinition) -> SsaValue:
         o, oForTypeInference = self._normalizeOperandForOperatorResTypeEval(o)
         res = operator._evalFn(oForTypeInference)
@@ -90,21 +95,35 @@ class SsaExprBuilder():
         return instr
 
     def _insertInstr(self, instr: SsaValue):
+        assert isinstance(instr, SsaValue), instr
         pos = self.position
         b = self.block
+        assert instr.block is None, (instr, instr.block, b)
+        instr.block = b
         if pos is None:
-            b.appendInstruction(instr)
+            b.body.append(instr)
         else:
-            b.insertInstruction(pos, instr)
+            b.body.insert(pos, instr)
             self.position += 1
 
+    @staticmethod
+    def appendPhiToBlock(block: SsaBasicBlock, instr: SsaPhi):
+        assert isinstance(instr, SsaPhi), instr
+        assert instr.block is None, (instr, instr.block, block)
+        instr.block = block
+        block.phis.append(instr)
+        
     def _insertPhi(self, instr: SsaPhi):
         pos = self.position
         b = self.block
+        assert isinstance(instr, SsaPhi)
+        assert instr.block is None, (instr, instr.block, b)
+        instr.block = b
         if pos is None:
-            b.appendPhi(instr)
+            # assert not self.body, ("Adding phi if already have instructions", self, phi)
+            b.phis.append(instr)
         else:
-            b.insertPhi(pos, instr)
+            b.phis.insert(pos, instr)
             self.position += 1
         
     def unaryOp(self, o: Union[SsaValue, HValue], operator: OpDefinition) -> SsaExprBuilderProxy:
@@ -161,35 +180,48 @@ class SsaExprBuilder():
                         o1: Union[SsaValue, HValue, RtlSignal, Signal]) -> SsaValue:
         o0, o0ForTypeInference = self._normalizeOperandForOperatorResTypeEval(o0)
         o1, o1ForTypeInference = self._normalizeOperandForOperatorResTypeEval(o1)
-
-        res = operator._evalFn(
-            o0ForTypeInference,
-            o1ForTypeInference,
-        )
+        
+        if operator == AllOps.CONCAT:
+            res = operator._evalFn(
+                o1ForTypeInference,
+                o0ForTypeInference,
+            )
+        else:
+            res = operator._evalFn(
+                o0ForTypeInference,
+                o1ForTypeInference,
+            )    
         if o0 is o0ForTypeInference and o1 is o1ForTypeInference and isinstance(res, HValue):
             return res
 
-        instr = SsaInstr(self.block.ctx, res._dtype, operator, [o0, o1])
+        instr = SsaInstr(self.block.ctx, res._dtype, operator, [o0, o1], origin=res )
         self._insertInstr(instr)
         return instr
-
+    
     def binaryOp(self, o0: Union[SsaValue, HValue, RtlSignal, Signal],
                  operator: OpDefinition,
                  o1: Union[SsaValue, HValue, RtlSignal, Signal]) -> SsaExprBuilderProxy:
         return self.var(self._binaryOp(o0.var, operator, o1.var))
 
+    def buildSliceConst(self, v: SsaValue, highBitNo: int, lowBitNo: int):
+        i = SLICE.from_py(slice(highBitNo, lowBitNo, -1))
+        return self._binaryOp(v, AllOps.INDEX, i)
+
     def var(self, v: SsaValue):
         return SsaExprBuilderProxy(self, v)
 
-    def concat(self, *args):
+    def concat(self, *args) -> SsaValue:
+        """
+        :param args: operands for concatenation, lowest bits first
+        """
         assert args
         res = None
         for p in args:
             if res is None:
                 res = p
             else:
-                # left must be latest, right the first
-                res = self._binaryOp(p, AllOps.CONCAT, res)
+                # left must be the first, right the latest
+                res = self._binaryOp(res, AllOps.CONCAT, p)
         return res
 
     def phi(self, args: List[Tuple[SsaValue, SsaBasicBlock]], dtype=None):
@@ -216,7 +248,7 @@ class SsaExprBuilder():
             if pos is not None:
                 for instr in b.body[pos + 1:]:
                     instr.block = None
-                    sequel.appendInstruction(instr)
+                    sequel.body.append(instr)
                 del b.body[pos + 1:]
 
             for c, t in b.successors.targets:
@@ -230,3 +262,4 @@ class SsaExprBuilder():
                 t.successors.addTarget(None, sequel)
 
         return blocks, sequel
+
