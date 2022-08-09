@@ -137,12 +137,16 @@ class SignalsOfStages(List[UniqList[TimeIndependentRtlResourceItem]]):
         return res
 
 
-def setNopValIfNotSet(intf: Interface, nopVal, exclude: List[Interface]):
+def setNopValIfNotSet(intf: Union[Interface, RtlSignal], nopVal, exclude: List[Interface]):
     if intf in exclude:
         return
+    elif isinstance(intf, RtlSignal):
+        intf._nop_val = intf._dtype.from_py(nopVal)
+
     elif intf._interfaces:
         for _intf in intf._interfaces:
             setNopValIfNotSet(_intf, nopVal, exclude)
+
     elif intf._sig._nop_val is NOT_SPECIFIED:
         intf._sig._nop_val = intf._dtype.from_py(nopVal)
 
@@ -183,7 +187,7 @@ def extractControlSigOfInterfaceTuple(
         raise TypeError("Unknown synchronization of ", intf)
 
 
-def getIntfSyncSignals(intf: Interface) -> Tuple[Interface, ...]:
+def getIntfSyncSignals(intf: Union[Interface, RtlSignal]) -> Tuple[Interface, ...]:
     if isinstance(intf, Axi_hs):
         return (intf.ready, intf.valid)
     elif isinstance(intf, (HandshakeSync, Handshaked)):

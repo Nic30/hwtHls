@@ -95,7 +95,7 @@ class ArchElementFsm(ArchElement):
         self._connectSync(con, intf, intfDir)
         self._initNopValsOfIoForIntf(intf, intfDir)
 
-    def _initNopValsOfIoForIntf(self, intf: Interface, intfDir: INTF_DIRECTION):
+    def _initNopValsOfIoForIntf(self, intf: Union[Interface], intfDir: INTF_DIRECTION):
         if intfDir == INTF_DIRECTION.MASTER:
             # to prevent latching when interface is not used
             syncSignals = getIntfSyncSignals(intf)
