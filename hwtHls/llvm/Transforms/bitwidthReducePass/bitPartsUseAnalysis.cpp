@@ -78,6 +78,7 @@ void BitPartsUseAnalysisContext::propagateUseMaskInstruction(
 	if (auto *SI = dyn_cast<PHINode>(I)) {
 		propagateUseMaskPHINode(SI, vbc);
 		return;
+		// [todo]
 		//} else if (auto *SI = dyn_cast<SelectInst>(I)) {
 		//	return visitSelectInst(SI);
 	} else if (auto *C = dyn_cast<CallInst>(I)) {
@@ -121,7 +122,8 @@ void BitPartsUseAnalysisContext::propagateUseMaskCallInst(const CallInst *C,
 		const VarBitConstraint &vbc) {
 	if (IsBitConcat(C)) {
 		unsigned off = 0;
-		for (const auto *O : C->operand_values()) {
+		for (const Use &U : C->args()) {
+			const Value *O = U.get();
 			APInt m = vbc.useMask.lshr(off);
 			if (auto *T = dyn_cast<IntegerType>(O->getType())) {
 				auto oWidht = T->getBitWidth();

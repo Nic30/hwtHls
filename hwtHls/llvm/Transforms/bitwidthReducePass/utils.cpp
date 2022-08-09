@@ -93,7 +93,9 @@ std::vector<UniqRangeSequence> RangeSequenceIterator::uniqueRanges(
 	auto v1 = vec1.begin();
 	// last offset for input
 	unsigned lastEnd = 0;
-	assert(vec0.back().dstEndBitI() == vec1.back().dstEndBitI() && "data must be of same total width");
+	assert(
+			vec0.back().dstEndBitI() == vec1.back().dstEndBitI()
+					&& "data must be of same total width");
 	for (; v0 != vec0.end() || v1 != vec1.end();) {
 		if (v0 == vec0.end()) {
 			assert(
@@ -207,12 +209,22 @@ llvm::APInt VarBitConstraint::getNonConstBitMask() const {
 	}
 	return m;
 }
-
+//void VarBitConstraint::_srcUnionInplaceSelf(const llvm::Value *parent,
+//		uint64_t offset, uint64_t width,
+//		std::vector<KnownBitRangeInfo> &newList) {
+//	IRBuilder<> builder(parent->getContext());
+//	KnownBitRangeInfo kbri(width);
+//	kbri.srcBeginBitI = kbri.dstBeginBitI = offset;
+//	srcUnionInplaceAddFillUp(newList, parent, kbri.dstBeginBitI);
+//	srcUnionPushBackWithMerge(newList, kbri);
+//}
 void VarBitConstraint::srcUnionInplace(const VarBitConstraint &other,
 		const llvm::Value *parent) {
 	std::vector<KnownBitRangeInfo> newList;
 	newList.reserve(replacements.size() + other.replacements.size());
 	RangeSequenceIterator rsa;
+	assert(replacements.size());
+	assert(other.replacements.size());
 	for (const auto &item : rsa.uniqueRanges(replacements, other.replacements)) {
 		assert(item.v0 || item.v1);
 		assert(item.width);
@@ -236,29 +248,40 @@ void VarBitConstraint::srcUnionInplace(const VarBitConstraint &other,
 							item.v1->srcBeginBitI
 									+ (item.begin - item.v1->dstBeginBitI));
 					auto equalBits = ~(v0 ^ v1);
-					// extract longest sequences of equal bits
+					// extract longest sequences of equal bits,
+					// for sequences of non equal bits add slice or original value because we can not reduce it entirely
 					int eqSeqStart = -1;
+					//int neSeqStart = 0;
 					auto end = v0.getBitWidth();
 					for (unsigned i = 0; i <= end; ++i) {
 						if (i < end && equalBits[i]) {
 							// start or continue of equal bit sequence
-							if (eqSeqStart == -1)
+							if (eqSeqStart == -1) {
+								//if (neSeqStart != -1 && neSeqStart != (int)i) {
+								//	// end of non equal bit sequence
+								//	srcUnionInplaceAddFillUp(newList, parent, i);
+								//	neSeqStart = -1;
+								//}
 								eqSeqStart = i;
-						} else {
-							// end of equal sequence
-							if (eqSeqStart != -1) {
-								IRBuilder<> builder(item.v0->src->getContext());
-								auto CI = builder.getInt(
-										v0.extractBits(i - eqSeqStart,
-												eqSeqStart));
-								KnownBitRangeInfo kbri(CI);
-								kbri.dstBeginBitI = item.begin + eqSeqStart;
-								srcUnionInplaceAddFillUp(newList, parent,
-										kbri.dstBeginBitI);
-								srcUnionPushBackWithMerge(newList, kbri);
-								eqSeqStart = -1;
-								continue;
 							}
+						} else if (eqSeqStart != -1) {
+							// end of equal sequence
+							IRBuilder<> builder(item.v0->src->getContext());
+							auto CI = builder.getInt(
+									v0.extractBits(i - eqSeqStart, eqSeqStart));
+							KnownBitRangeInfo kbri(CI);
+							kbri.dstBeginBitI = item.begin + eqSeqStart;
+							srcUnionInplaceAddFillUp(newList, parent,
+									kbri.dstBeginBitI);
+							srcUnionPushBackWithMerge(newList, kbri);
+							eqSeqStart = -1;
+							//neSeqStart = i;
+							continue;
+						} else if (i == end) { //  && neSeqStart != -1
+							// remainder of non equal bits
+							srcUnionInplaceAddFillUp(newList, parent,
+									item.v0->dstBeginBitI + end);
+							//neSeqStart = -1;
 						}
 
 					}
@@ -268,6 +291,7 @@ void VarBitConstraint::srcUnionInplace(const VarBitConstraint &other,
 		}
 		srcUnionInplaceAddFillUp(newList, parent, item.begin + item.width);
 	}
+	assert(newList.size());
 	replacements = newList;
 }
 

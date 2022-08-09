@@ -35,7 +35,6 @@ static bool runCBP(Function &F) {
 						Worklist.push_back(u);
 					}
 				}
-
 			}
 		}
 	}

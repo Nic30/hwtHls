@@ -66,13 +66,14 @@ llvm::Value* BitPartsRewriter::rewriteKnownBitRangeInfoVector(
 		// can directly replace, may require slice if src has shift or truncat
 		return rewriteKnownBitRangeInfo(Builder, kbris[0]);
 	} else {
-		std::vector<llvm::Value*> OpsHighFirst;
-		for (auto bi = kbris.rbegin(); bi != kbris.rend(); ++bi) {
-			OpsHighFirst.push_back(rewriteKnownBitRangeInfo(Builder, *bi));
+		std::vector<llvm::Value*> OpsLowFirst;
+		for (auto& bi: kbris) {
+			auto * res = rewriteKnownBitRangeInfo(Builder, bi);
+			OpsLowFirst.push_back(res);
 		}
-		return CreateBitConcat(Builder, OpsHighFirst);
-	}
 
+		return CreateBitConcat(Builder, OpsLowFirst);
+	}
 }
 
 llvm::Value* BitPartsRewriter::rewriteSelect(llvm::SelectInst &I,
@@ -150,7 +151,6 @@ llvm::Value* BitPartsRewriter::expandConstBits(IRBuilder<> *b,
 	if (concatMembers.size() == 1)
 		return concatMembers[0];
 
-	std::reverse(concatMembers.begin(), concatMembers.end());
 	return CreateBitConcat(b, concatMembers);
 }
 

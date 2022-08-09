@@ -54,7 +54,11 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitPHINode(const PHINode *I) {
 		} else {
 			assert(c.consystencyCheck());
 			c.srcUnionInplace(_c, I);
-			assert(c.consystencyCheck());
+			if (!c.consystencyCheck()) {
+				errs() << *I << "\n";
+				errs() << c << "\n";
+				llvm_unreachable("PHINode in inconsistent state");
+			}
 		}
 	}
 	return c;
@@ -155,7 +159,9 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitSExt(const CastInst *I) {
 	IRBuilder<> b(I->getContext()); // only for ints
 	if (origWidth != resWidth) {
 		assert(op.replacements.size());
-
+		cur.replacements.clear();
+		cur.replacements.insert(cur.replacements.begin(),
+				op.replacements.begin(), op.replacements.end());
 		APInt v(resWidth - origWidth, 0);
 		KnownBitRangeInfo &msbs = op.replacements.back();
 		if (const ConstantInt *msb = dyn_cast<ConstantInt>(msbs.src)) {
@@ -176,7 +182,6 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitSExt(const CastInst *I) {
 			}
 		}
 	}
-
 	assert(cur.consystencyCheck());
 	return cur;
 }
@@ -190,16 +195,14 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitCallInst(
 		for (const auto &O : C->args()) {
 			auto &op = visitValue(O);
 			assert(op.consystencyCheck());
-			for (auto opop = op.replacements.rbegin();
-					opop != op.replacements.rend(); ++opop) {
-				newParts.push_back(*opop);
+			for (auto &opop: op.replacements) {
+				newParts.push_back(opop);
 			}
 		}
 		cur.replacements.clear();
 		// to lowest first
 		unsigned dstOff = 0;
-		for (auto opop = newParts.rbegin(); opop != newParts.rend(); ++opop) {
-			KnownBitRangeInfo i = *opop;
+		for (auto &i: newParts) {
 			i.dstBeginBitI = dstOff;
 			cur.replacements.push_back(i);
 			dstOff += i.srcWidth;
@@ -270,8 +273,8 @@ std::vector<std::pair<bool, unsigned>> ConstBitPartsAnalysisContext::iter1and0se
 
 void ConstBitPartsAnalysisContext::visitBinaryOperatorReduceAnd(
 		std::vector<KnownBitRangeInfo> &newParts, const BinaryOperator *parentI,
-		unsigned width, unsigned vSrcOffset, unsigned cSrcOffset, unsigned dstOffset, const APInt &c,
-		const KnownBitRangeInfo &v) {
+		unsigned width, unsigned vSrcOffset, unsigned cSrcOffset,
+		unsigned dstOffset, const APInt &c, const KnownBitRangeInfo &v) {
 	IRBuilder<> b(const_cast<BinaryOperator*>(parentI));
 	for (auto seq : iter1and0sequences(c, cSrcOffset, width)) {
 		unsigned w = seq.second;
@@ -293,8 +296,8 @@ void ConstBitPartsAnalysisContext::visitBinaryOperatorReduceAnd(
 }
 void ConstBitPartsAnalysisContext::visitBinaryOperatorReduceOr(
 		std::vector<KnownBitRangeInfo> &newParts, const BinaryOperator *parentI,
-		unsigned width, unsigned vSrcOffset, unsigned cSrcOffset, unsigned dstOffset, const APInt &c,
-		const KnownBitRangeInfo &v) {
+		unsigned width, unsigned vSrcOffset, unsigned cSrcOffset,
+		unsigned dstOffset, const APInt &c, const KnownBitRangeInfo &v) {
 	IRBuilder<> b(const_cast<BinaryOperator*>(parentI));
 	for (auto seq : iter1and0sequences(c, cSrcOffset, width)) {
 		unsigned w = seq.second;
@@ -395,19 +398,23 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitBinaryOperator(
 				// if other is known reduce set bits
 				if (_v0) {
 					visitBinaryOperatorReduceOr(newParts, I, item.width,
-							 v1srcOffset, v0srcOffset, offset, _v0->getValue(), *item.v1);
+							v1srcOffset, v0srcOffset, offset, _v0->getValue(),
+							*item.v1);
 				} else {
 					visitBinaryOperatorReduceOr(newParts, I, item.width,
-							v0srcOffset, v1srcOffset, offset, _v1->getValue(), *item.v0);
+							v0srcOffset, v1srcOffset, offset, _v1->getValue(),
+							*item.v0);
 				}
 			} else if (opCode == Instruction::BinaryOps::And) {
 				// if other is known reduce cleared bits
 				if (_v0) {
 					visitBinaryOperatorReduceAnd(newParts, I, item.width,
-							v1srcOffset, v0srcOffset, offset, _v0->getValue(), *item.v1);
+							v1srcOffset, v0srcOffset, offset, _v0->getValue(),
+							*item.v1);
 				} else {
 					visitBinaryOperatorReduceAnd(newParts, I, item.width,
-							v0srcOffset, v1srcOffset, offset, _v1->getValue(), *item.v0);
+							v0srcOffset, v1srcOffset, offset, _v1->getValue(),
+							*item.v0);
 				}
 			} else {
 				assert(false && "Unknown operator, should never get there");

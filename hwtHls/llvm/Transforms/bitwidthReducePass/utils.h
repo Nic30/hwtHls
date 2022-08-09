@@ -75,6 +75,9 @@ public:
 	void clearAllOperandMasks(unsigned lowBitI, unsigned highBitI);
 	llvm::APInt getNonConstBitMask() const;
 
+	// fill known bit range as a slice on self
+	//void _srcUnionInplaceSelf(const llvm::Value *parent, uint64_t offset,
+	//		uint64_t width, std::vector<KnownBitRangeInfo> &newList);
 	// parent is used to fill not known holes in bits when doing union
 	void srcUnionInplace(const VarBitConstraint &other,
 			const llvm::Value *parent);
