@@ -186,7 +186,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                 for i in tuple(mbSync.blockEn.dependent_inputs):
                     i: HlsNetNodeIn
                     assert isinstance(i.obj, (HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeOperator)), i.obj
-                    self._replaceInputDriverWithConst1(i, threads)
+                    self._replaceInputDriverWithConst1b(i, threads)
 
     def _resolveBranchEnFromPredecessor(self, pred: MachineBasicBlock, mb: MachineBasicBlock):
         builder = self.builder
@@ -457,7 +457,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                 for i in mbSync.blockEn.dependent_inputs:
                     i: HlsNetNodeIn
                     if isinstance(i, HlsNetNodeIn):
-                        self._replaceInputDriverWithConst1(i, threads)
+                        self._replaceInputDriverWithConst1b(i, threads)
                     else:
                         raise NotImplementedError(i)
                     

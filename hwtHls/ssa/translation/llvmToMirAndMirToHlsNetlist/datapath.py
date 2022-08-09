@@ -7,15 +7,15 @@ from hwt.hdl.types.defs import BIT, SLICE, INT
 from hwtHls.frontend.ast.astToSsa import NetlistIoConstructorDictT
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, MachineInstr, MachineOperand, CmpInst, TargetOpcode
 from hwtHls.netlist.analysis.dataThreads import HlsNetlistAnalysisPassDataThreads
+from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.io import HOrderingVoidT, HlsNetNodeExplicitSync
-from hwtHls.netlist.nodes.ports import HlsNetNodeOutLazy, link_hls_nodes, \
-    HlsNetNodeOutAny
+from hwtHls.netlist.nodes.ports import HlsNetNodeOutLazy, link_hls_nodes
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.lowLevel import HlsNetlistAnalysisPassMirToNetlistLowLevel
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.opCache import MirToHwtHlsNetlistOpCache
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer, \
     LiveInMuxMeta
-from hwtHls.netlist.builder import HlsNetlistBuilder
+
 
 BlockLiveInMuxSyncDict = Dict[Tuple[MachineBasicBlock, MachineBasicBlock, Register], HlsNetNodeExplicitSync]
 

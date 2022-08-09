@@ -239,7 +239,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
                 cond = b.buildOp(AllOps.OR, BIT, blockEn_n, cond)
         n.add_control_skipWhen(cond)
     
-    def _replaceInputDriverWithConst1(self, i: HlsNetNodeIn, threads: HlsNetlistAnalysisPassDataThreads):
+    def _replaceInputDriverWithConst1b(self, i: HlsNetNodeIn, threads: HlsNetlistAnalysisPassDataThreads):
         c = self.builder._replaceInputDriverWithConst1b(i)
         threads.mergeThreads(threads.threadPerNode[i.obj], {c.obj, })
 
