@@ -17,7 +17,7 @@ from hwtSimApi.utils import freq_to_period
 from pyMathBitPrecise.bit_utils import mask
 
 
-class DisjunctionTriangle(Unit):
+class AndShiftInLoop(Unit):
 
     def _config(self) -> None:
         self.FREQ = Param(int(100e6))
@@ -49,7 +49,7 @@ class DisjunctionTriangle(Unit):
         hls.compile()
 
 
-class DisjunctionTriangle_TC(SimTestCase):
+class AndShiftInLoop_TC(SimTestCase):
 
     def _test_no_comb_loops(self):
         s = CombLoopAnalyzer()
@@ -63,8 +63,8 @@ class DisjunctionTriangle_TC(SimTestCase):
 
         self.assertEqual(comb_loops, frozenset(), msg="\n".join(msg_buff))
 
-    def test_DisjunctionTriangle(self):
-        u = DisjunctionTriangle()
+    def test_AndShiftInLoop(self):
+        u = AndShiftInLoop()
         self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
         CLK_PERIOD = int(freq_to_period(u.FREQ))
         CLK = 7
@@ -99,12 +99,12 @@ class DisjunctionTriangle_TC(SimTestCase):
 
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
-    u = DisjunctionTriangle()
+    u = AndShiftInLoop()
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
 
     import unittest
     suite = unittest.TestSuite()
-    # suite.addTest(DisjunctionTriangle_TC('test_DisjunctionTriangle'))
-    suite.addTest(unittest.makeSuite(DisjunctionTriangle_TC))
+    # suite.addTest(AndShiftInLoop('test_AndShiftInLoop'))
+    suite.addTest(unittest.makeSuite(AndShiftInLoop_TC))
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

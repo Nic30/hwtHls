@@ -6,7 +6,7 @@ from unittest import TestLoader, TextTestRunner, TestSuite
 
 from tests.bitOpt.abc_test import AbcTC
 from tests.bitOpt.bitWidthReductionCmp_test import BitWidthReductionCmp_example_TC
-from tests.bitOpt.disjunctionTriangle import DisjunctionTriangle_TC
+from tests.bitOpt.andShiftInLoop import AndShiftInLoop_TC
 from tests.frontend.ast.bitonicSort import BitonicSorterHLS_TCs
 from tests.frontend.ast.exprTree3 import HlsAstExprTree3_example_TC
 from tests.frontend.ast.mac import HlsMAC_example_TC
@@ -62,7 +62,7 @@ suite = testSuiteFromTCs(
     AlapAsapDiffExample_TC,
     HlsSynthesisChecksTC,
     TwoTimesA_TC,
-    DisjunctionTriangle_TC,
+    AndShiftInLoop_TC,
     HlsAstTrivial_TC,
     HlsAstWhileIf_TC,
     HlsAstWhileTrue_TC,
