@@ -1,5 +1,0 @@
-########## pipeline ##########
-  mainThread <BlockMeta needsControl, requiresStarter, isInitialization>
-  mainThread_0 <BlockMeta isCycleEntryPoint, needsControl>
-########## backward_edges ##########
-  mainThread_0 -> mainThread_0

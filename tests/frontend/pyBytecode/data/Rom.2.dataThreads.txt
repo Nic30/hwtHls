@@ -1,0 +1,33 @@
+########### Thread 0 ###########
+blocks:
+    blockL32i0_32
+    blockL32i0_32
+    blockL32i0_32
+    blockL32i0_32_getSwEnd
+nodes:
+    <HlsNetNodeOutLazy 2>
+    <HlsNetNodeRead 4 <Signal i <Bits, 2bits, unsigned>>>
+    <HlsNetNodeOperator 5 NOT [<HlsNetNodeOutLazy 2>]>
+    <HlsNetNodeConst 6 <BitsVal 2>>
+    <HlsNetNodeOperator 7 EQ [4:0, 6:0]>
+    <HlsNetNodeConst 12 <BitsVal 0>>
+    <HlsNetNodeOperator 13 EQ [34:0, 12:0]>
+    <HlsNetNodeConst 14 <BitsVal 1>>
+    <HlsNetNodeConst 19 <BitsVal 1>>
+    <HlsNetNodeOperator 20 NE [36:0, 19:0]>
+    <HlsNetNodeConst 21 <BitsVal 2>>
+    <HlsNetNodeConst 22 <BitsVal 8>>
+    <HlsNetNodeMux 23 [22:0, 20:0, 21:0]>
+    <HlsNetNodeConst 26 <BitsVal 4>>
+    <HlsNetNodeOutLazy 27>
+    <HlsNetNodeWrite 30 <Signal o <Bits, 32bits, unsigned>> <- <HlsNetNodeOut <HlsNetNodeMux 43> [0]>>
+    <HlsNetNodeOperator 31 NOT [<HlsNetNodeOutLazy 27>]>
+    <HlsNetNodeExplicitSync 34 in=<HlsNetNodeOut <HlsNetNodeRead 4 <Signal i <Bits, 2bits, unsigned>>> [0-dataOut]>, extraCond=None, skipWhen=None>
+    <HlsNetNodeExplicitSync 36 in=<HlsNetNodeOut <HlsNetNodeExplicitSync 34 [0-dataOut]>, extraCond=None, skipWhen=None>
+    <HlsNetNodeOutLazy 37>
+    <HlsNetNodeExplicitSync 38 in=<HlsNetNodeOut <BitsVal 1> [0-val]>, extraCond=None, skipWhen=None>
+    <HlsNetNodeOutLazy 39>
+    <HlsNetNodeExplicitSync 40 in=<HlsNetNodeOut <BitsVal 4> [0-val]>, extraCond=None, skipWhen=None>
+    <HlsNetNodeExplicitSync 42 in=<HlsNetNodeOut <HlsNetNodeMux 23> [0]>, extraCond=None, skipWhen=None>
+    <HlsNetNodeMux 43 [38:0, <HlsNetNodeOutLazy 37>, 40:0, <HlsNetNodeOutLazy 39>, 42:0]>
+

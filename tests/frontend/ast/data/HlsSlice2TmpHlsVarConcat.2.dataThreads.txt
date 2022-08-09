@@ -1,0 +1,11 @@
+########### Thread 0 ###########
+blocks:
+    t0_HlsSlicingTC_test_HlsSlice2TmpHlsVarConcat__HlsSlice2TmpHlsVarConcat_whC
+nodes:
+    <HlsNetNodeOutLazy 2>
+    <HlsNetNodeRead 4 <Signal a <Bits, 16bits, unsigned>>>
+    <HlsNetNodeOperator 5 NOT [<HlsNetNodeOutLazy 2>]>
+    <HlsNetNodeConst 6 <BitsVal 16>>
+    <HlsNetNodeOperator 7 CONCAT [4:0, 6:0]>
+    <HlsNetNodeWrite 8 <Signal b <Bits, 32bits, unsigned>> <- <HlsNetNodeOut <HlsNetNodeOperator 7 CONCAT> [0]>>
+

@@ -1,5 +1,0 @@
-########## pipeline ##########
-  mainThread <BlockMeta needsControl, requiresStarter, isInitialization>
-  block22 <BlockMeta needsControl>
-  block36 <BlockMeta needsControl>
-########## backward_edges ##########

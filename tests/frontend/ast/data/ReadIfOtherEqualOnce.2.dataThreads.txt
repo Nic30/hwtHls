@@ -1,0 +1,18 @@
+########### Thread 0 ###########
+blocks:
+    t0_HlsAstReadIfTc_test_ReadIfOtherEqualOnce_ll__ReadIfOtherEqualOnce
+nodes:
+    <HlsNetNodeOutLazy 0>
+    <HlsNetNodeRead 2 <Handshaked a>>
+    <HlsNetNodeOperator 3 NOT [<HlsNetNodeOutLazy 0>]>
+    <HlsNetNodeConst 4 <BitsVal 3>>
+    <HlsNetNodeOperator 5 NE [2:0, 4:0]>
+
+########### Thread 1 ###########
+blocks:
+    t0_HlsAstReadIfTc_test_ReadIfOtherEqualOnce_ll__ReadIfOtherEqualOnce_If
+nodes:
+    <HlsNetNodeOutLazy 7>
+    <HlsNetNodeRead 9 <Handshaked b>>
+    <HlsNetNodeOperator 10 NOT [<HlsNetNodeOutLazy 7>]>
+

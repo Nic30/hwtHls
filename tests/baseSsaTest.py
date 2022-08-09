@@ -100,8 +100,8 @@ class BaseSsaTC(BaseSerializationTC):
         if name is None:
             name = unit.__class__.__name__
         
-        self.assert_same_as_file(p.postPyOpt.getvalue(), os.path.join("data", name + ".1.postPyOpt.ll"))
-        self.assert_same_as_file(p.mir.getvalue(), os.path.join("data", name + ".0.mir.ll"))
-        self.assert_same_as_file(p.dataThreads.getvalue(), os.path.join("data", name + ".0.dataThreads.txt"))
-        self.assert_same_as_file(p.blockSync.getvalue(), os.path.join("data", name + ".0.blockSync.dot"))
+        self.assert_same_as_file(p.postPyOpt.getvalue(), os.path.join("data", name + ".0.postPyOpt.ll"))
+        self.assert_same_as_file(p.mir.getvalue(), os.path.join("data", name + ".1.mir.ll"))
+        self.assert_same_as_file(p.dataThreads.getvalue(), os.path.join("data", name + ".2.dataThreads.txt"))
+        self.assert_same_as_file(p.blockSync.getvalue(), os.path.join("data", name + ".3.blockSync.dot"))
         

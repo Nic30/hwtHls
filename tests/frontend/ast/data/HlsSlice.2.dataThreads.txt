@@ -1,0 +1,11 @@
+########### Thread 0 ###########
+blocks:
+    t0_HlsSlicingTC_test_slice__HlsSlice_whC
+nodes:
+    <HlsNetNodeOutLazy 2>
+    <HlsNetNodeRead 4 <Signal a <Bits, 32bits, unsigned>>>
+    <HlsNetNodeOperator 5 NOT [<HlsNetNodeOutLazy 2>]>
+    <HlsNetNodeConst 6 <HSliceVal slice(16, 0, -1)>>
+    <HlsNetNodeOperator 7 INDEX [4:0, 6:0]>
+    <HlsNetNodeWrite 8 <Signal b <Bits, 16bits, unsigned>> <- <HlsNetNodeOut <HlsNetNodeOperator 7 INDEX> [0]>>
+

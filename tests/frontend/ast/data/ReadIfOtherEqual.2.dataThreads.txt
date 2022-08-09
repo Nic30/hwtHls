@@ -1,0 +1,15 @@
+########### Thread 0 ###########
+blocks:
+    t0_HlsAstReadIfTc_test_ReadIfOtherEqual_ll__ReadIfOtherEqual_whC
+nodes:
+    <HlsNetNodeOutLazy 2>
+    <HlsNetNodeRead 4 <Handshaked a>>
+    <HlsNetNodeOperator 5 NOT [<HlsNetNodeOutLazy 2>]>
+    <HlsNetNodeConst 6 <BitsVal 3>>
+    <HlsNetNodeOperator 7 NE [4:0, 6:0]>
+    <HlsNetNodeOperator 8 NOT [7:0]>
+    <HlsNetNodeRead 9 <Handshaked b>>
+    <HlsNetNodeOperator 10 AND [<HlsNetNodeOutLazy 2>, 8:0]>
+    <HlsNetNodeOperator 11 NOT [8:0]>
+    <HlsNetNodeOperator 12 OR [5:0, 11:0]>
+

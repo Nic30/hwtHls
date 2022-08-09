@@ -1,0 +1,15 @@
+########### Thread 0 ###########
+blocks:
+    mainThread
+nodes:
+    <HlsNetNodeOutLazy 0>
+    <HlsNetNodeConst 2 <BitsVal 0>>
+    <HlsNetNodeWrite 3 <Signal o <Bits, 8bits, unsigned>> <- <HlsNetNodeOut <BitsVal 0> [0-val]>>
+    <HlsNetNodeOperator 4 NOT [<HlsNetNodeOutLazy 0>]>
+    <HlsNetNodeConst 5 <BitsVal 1>>
+    <HlsNetNodeWrite 6 <Signal o <Bits, 8bits, unsigned>> <- <HlsNetNodeOut <BitsVal 1> [0-val]>>
+    <HlsNetNodeConst 7 <BitsVal 2>>
+    <HlsNetNodeWrite 8 <Signal o <Bits, 8bits, unsigned>> <- <HlsNetNodeOut <BitsVal 2> [0-val]>>
+    <HlsNetNodeConst 9 <BitsVal 3>>
+    <HlsNetNodeWrite 10 <Signal o <Bits, 8bits, unsigned>> <- <HlsNetNodeOut <BitsVal 3> [0-val]>>
+

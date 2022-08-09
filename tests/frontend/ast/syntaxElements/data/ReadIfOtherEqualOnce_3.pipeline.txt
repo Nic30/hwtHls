@@ -1,5 +1,0 @@
-########## pipeline ##########
-  top <BlockMeta needsControl, requiresStarter, isInitialization>
-  top_If <BlockMeta needsControl>
-  top_IfE <BlockMeta needsControl>
-########## backward_edges ##########

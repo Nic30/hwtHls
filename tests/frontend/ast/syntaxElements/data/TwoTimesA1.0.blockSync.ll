@@ -1,2 +1,0 @@
-t0_TwoTimesA_TC_test1__TwoTimesA1: <MachineBasicBlockSyncContainer block=t0_TwoTimesA_TC_test1__TwoTimesA1, needsStarter, blockEn=<HlsNetNodeOutLazy 0>, orderingIn=<HlsNetNodeOutLazy 1>, orderingOut=<HlsNetNodeOutLazy 1>>
-t0_TwoTimesA_TC_test1__TwoTimesA1_whC: <MachineBasicBlockSyncContainer block=t0_TwoTimesA_TC_test1__TwoTimesA1_whC, blockEn=<HlsNetNodeOutLazy 2>, orderingIn=<HlsNetNodeOutLazy 3>, orderingOut=<HlsNetNodeOut <HlsNetNodeWrite 9 <Signal b <Bits, 8bits>> <- <HlsNetNodeOut <HlsNetNodeOperator 8 CONCAT> [0]>> [0]>>

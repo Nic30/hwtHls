@@ -1,5 +1,0 @@
-########## pipeline ##########
-  top <BlockMeta isInitialization>
-  top_whC <BlockMeta isCycleEntryPoint>
-########## backward_edges ##########
-  top_whC -> top_whC

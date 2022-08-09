@@ -1,9 +1,0 @@
-########## pipeline ##########
-  mainThread <BlockMeta needsControl, requiresStarter, isInitialization>
-  block18 <BlockMeta isCycleEntryPoint, needsControl>
-  block28_getSwEnd <BlockMeta needsControl>
-  block28_getSwEnd.fold.split <BlockMeta needsControl>
-  block28_getSwEnd.fold.split3 <BlockMeta needsControl>
-  block28_44_c3 <BlockMeta needsControl>
-########## backward_edges ##########
-  block28_getSwEnd -> block18

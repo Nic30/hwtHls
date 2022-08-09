@@ -1,0 +1,13 @@
+########### Thread 0 ###########
+blocks:
+    t0_TwoTimesA_TC_test_TwoTimesA1__TwoTimesA1_whC
+nodes:
+    <HlsNetNodeOutLazy 2>
+    <HlsNetNodeRead 4 <Signal a <Bits, 8bits>>>
+    <HlsNetNodeOperator 5 NOT [<HlsNetNodeOutLazy 2>]>
+    <HlsNetNodeConst 6 <HSliceVal slice(7, 0, -1)>>
+    <HlsNetNodeOperator 7 INDEX [4:0, 6:0]>
+    <HlsNetNodeConst 8 <BitsVal 0>>
+    <HlsNetNodeOperator 9 CONCAT [8:0, 7:0]>
+    <HlsNetNodeWrite 10 <Signal b <Bits, 8bits>> <- <HlsNetNodeOut <HlsNetNodeOperator 9 CONCAT> [0]>>
+

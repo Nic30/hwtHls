@@ -1,0 +1,38 @@
+digraph "t0_HlsAstReadIfTc_test_ReadIfOtherEqual_ll__ReadIfOtherEqual" {
+legend [label=<
+<table border="0" cellborder="1" cellspacing="0">
+  <tr><td bgcolor="blue">backedge</td></tr>
+</table>>, shape=plain, style=filled];
+bb0 [fillcolor=white, label=<
+<table border="0" cellborder="1" cellspacing="0">
+            <tr><td>bb.0.t0_HlsAstReadIfTc_test_ReadIfOtherEqual_ll__ReadIfOtherEqual</td></tr>
+            <tr><td></td></tr>
+            <tr><td>blockEn=&lt;HlsNetNodeOutLazy 0&gt;</td></tr>
+            <tr><td>orderingIn=&lt;HlsNetNodeOutLazy 1&gt;</td></tr>
+            <tr><td>orderingOut=&lt;HlsNetNodeOutLazy 1&gt;</td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+bb1 [fillcolor=white, label=<
+<table border="0" cellborder="1" cellspacing="0">
+            <tr><td>bb.1.t0_HlsAstReadIfTc_test_ReadIfOtherEqual_ll__ReadIfOtherEqual_whC</td></tr>
+            <tr><td>rstPredeccessor=bb.0</td></tr>
+            <tr><td>blockEn=&lt;HlsNetNodeOutLazy 2&gt;</td></tr>
+            <tr><td>orderingIn=&lt;HlsNetNodeOutLazy 3&gt;</td></tr>
+            <tr><td>orderingOut=&lt;HlsNetNodeOut &lt;HlsNetNodeRead 9 &lt;Handshaked b&gt;&gt; [1-orderingOut]&gt;</td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+e0to1 [fillcolor=white, label=<
+<table border="0" cellborder="1" cellspacing="0">
+            <tr><td></td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+bb0 -> e0to1;
+e0to1 -> bb1;
+e1to1 [color=blue, fillcolor=white, label=<
+<table border="0" cellborder="1" cellspacing="0">
+            <tr><td></td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+bb1 -> e1to1  [color=blue];
+e1to1 -> bb1  [color=blue];
+}

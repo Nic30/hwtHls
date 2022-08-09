@@ -1,0 +1,24 @@
+########### Thread 0 ###########
+blocks:
+    t0_HlsAstExprTree3_example_TC_test_ll__HlsAstExprTree3_example_whC
+nodes:
+    <HlsNetNodeOutLazy 2>
+    <HlsNetNodeRead 4 <Signal a <Bits, 32bits, unsigned>>>
+    <HlsNetNodeOperator 5 NOT [<HlsNetNodeOutLazy 2>]>
+    <HlsNetNodeRead 6 <Signal b <Bits, 32bits, unsigned>>>
+    <HlsNetNodeRead 7 <Signal c <Bits, 32bits, unsigned>>>
+    <HlsNetNodeRead 8 <Signal d <Bits, 32bits, unsigned>>>
+    <HlsNetNodeOperator 9 ADD [6:0, 4:0]>
+    <HlsNetNodeOperator 10 ADD [9:0, 7:0]>
+    <HlsNetNodeOperator 11 MUL [10:0, 8:0]>
+    <HlsNetNodeWrite 12 <Signal f1 <Bits, 32bits, unsigned>> <- <HlsNetNodeOut <HlsNetNodeOperator 11 MUL> [0]>>
+    <HlsNetNodeRead 13 <Signal x <Bits, 32bits, unsigned>>>
+    <HlsNetNodeRead 14 <Signal y <Bits, 32bits, unsigned>>>
+    <HlsNetNodeOperator 15 ADD [14:0, 13:0]>
+    <HlsNetNodeRead 16 <Signal z <Bits, 32bits, unsigned>>>
+    <HlsNetNodeOperator 17 MUL [15:0, 16:0]>
+    <HlsNetNodeWrite 18 <Signal f2 <Bits, 32bits, unsigned>> <- <HlsNetNodeOut <HlsNetNodeOperator 17 MUL> [0]>>
+    <HlsNetNodeRead 19 <Signal w <Bits, 32bits, unsigned>>>
+    <HlsNetNodeOperator 20 MUL [19:0, 15:0]>
+    <HlsNetNodeWrite 21 <Signal f3 <Bits, 32bits, unsigned>> <- <HlsNetNodeOut <HlsNetNodeOperator 20 MUL> [0]>>
+

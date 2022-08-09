@@ -1,2 +1,0 @@
-t0_HlsSlicingTC_test_slice__HlsSlice: <MachineBasicBlockSyncContainer block=t0_HlsSlicingTC_test_slice__HlsSlice, needsStarter, blockEn=<HlsNetNodeOutLazy 0>, orderingIn=<HlsNetNodeOutLazy 1>, orderingOut=<HlsNetNodeOutLazy 1>>
-t0_HlsSlicingTC_test_slice__HlsSlice_whC: <MachineBasicBlockSyncContainer block=t0_HlsSlicingTC_test_slice__HlsSlice_whC, blockEn=<HlsNetNodeOutLazy 2>, orderingIn=<HlsNetNodeOutLazy 3>, orderingOut=<HlsNetNodeOut <HlsNetNodeWrite 7 <Signal b <Bits, 16bits, unsigned>> <- <HlsNetNodeOut <HlsNetNodeOperator 5 INDEX> [0]>> [0]>>

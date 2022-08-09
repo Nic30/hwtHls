@@ -1,2 +1,0 @@
-t0_ReadIfTc_test_ReadIfOtherEqual_ll__ReadIfOtherEqual: <MachineBasicBlockSyncContainer block=t0_ReadIfTc_test_ReadIfOtherEqual_ll__ReadIfOtherEqual, needsStarter, blockEn=<HlsNetNodeOutLazy 0>, orderingIn=<HlsNetNodeOutLazy 1>, orderingOut=<HlsNetNodeOutLazy 1>>
-t0_ReadIfTc_test_ReadIfOtherEqual_ll__ReadIfOtherEqual_whC: <MachineBasicBlockSyncContainer block=t0_ReadIfTc_test_ReadIfOtherEqual_ll__ReadIfOtherEqual_whC, blockEn=<HlsNetNodeOutLazy 2>, orderingIn=<HlsNetNodeOutLazy 3>, orderingOut=<HlsNetNodeOut <HlsNetNodeRead 7 <Handshaked b>> [1]>>

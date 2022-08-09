@@ -1,0 +1,162 @@
+digraph "mainThread" {
+legend [label=<
+<table border="0" cellborder="1" cellspacing="0">
+  <tr><td bgcolor="blue">backedge</td></tr>
+</table>>, shape=plain, style=filled];
+bb0 [fillcolor=white, label=<
+<table border="0" cellborder="1" cellspacing="0">
+            <tr><td>bb.0.mainThread</td></tr>
+            <tr><td>needsStarter, needsControl</td></tr>
+            <tr><td>blockEn=&lt;HlsNetNodeOutLazy 0&gt;</td></tr>
+            <tr><td>orderingIn=&lt;HlsNetNodeOutLazy 1&gt;</td></tr>
+            <tr><td>orderingOut=&lt;HlsNetNodeOutLazy 1&gt;</td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+bb1 [fillcolor=white, label=<
+<table border="0" cellborder="1" cellspacing="0">
+            <tr><td>bb.1.blockL54i0_54</td></tr>
+            <tr><td>needsControl</td></tr>
+            <tr><td>blockEn=&lt;HlsNetNodeOutLazy 6&gt;</td></tr>
+            <tr><td>orderingIn=&lt;HlsNetNodeOutLazy 7&gt;</td></tr>
+            <tr><td>orderingOut=&lt;HlsNetNodeOut &lt;HlsNetNodeRead 12 &lt;Signal o_addr &lt;Bits, 2bits, unsigned&gt;&gt;&gt; [1-orderingOut]&gt;</td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+bb2 [fillcolor=white, label=<
+<table border="0" cellborder="1" cellspacing="0">
+            <tr><td>bb.2.blockL54i0_54</td></tr>
+            <tr><td>needsControl</td></tr>
+            <tr><td>blockEn=&lt;HlsNetNodeOutLazy 17&gt;</td></tr>
+            <tr><td>orderingIn=&lt;HlsNetNodeOutLazy 18&gt;</td></tr>
+            <tr><td>orderingOut=&lt;HlsNetNodeOutLazy 18&gt;</td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+bb3 [fillcolor=white, label=<
+<table border="0" cellborder="1" cellspacing="0">
+            <tr><td>bb.3.blockL54i0_54</td></tr>
+            <tr><td>needsControl</td></tr>
+            <tr><td>blockEn=&lt;HlsNetNodeOutLazy 24&gt;</td></tr>
+            <tr><td>orderingIn=&lt;HlsNetNodeOutLazy 25&gt;</td></tr>
+            <tr><td>orderingOut=&lt;HlsNetNodeOutLazy 25&gt;</td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+bb4 [fillcolor=white, label=<
+<table border="0" cellborder="1" cellspacing="0">
+            <tr><td>bb.4.blockL54i0_54_getSwEnd.fold.split7</td></tr>
+            <tr><td>needsControl</td></tr>
+            <tr><td>blockEn=&lt;HlsNetNodeOutLazy 32&gt;</td></tr>
+            <tr><td>orderingIn=&lt;HlsNetNodeOutLazy 33&gt;</td></tr>
+            <tr><td>orderingOut=&lt;HlsNetNodeOutLazy 33&gt;</td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+bb5 [fillcolor=white, label=<
+<table border="0" cellborder="1" cellspacing="0">
+            <tr><td>bb.5.blockL54i0_54_getSwEnd</td></tr>
+            <tr><td>needsControl</td></tr>
+            <tr><td>blockEn=&lt;HlsNetNodeOutLazy 35&gt;</td></tr>
+            <tr><td>orderingIn=&lt;HlsNetNodeOutLazy 36&gt;</td></tr>
+            <tr><td>orderingOut=&lt;HlsNetNodeOut &lt;HlsNetNodeWriteBackwardEdge 97 &lt;HsStructIntf hls_r_31_bb6_to_bb1_in &lt;Bits, 512bits&gt;&gt; &lt;- &lt;HlsNetNodeOut &lt;HlsNetNodeOperator 57 ADD&gt; [0]&gt;&gt; [0-orderingOut]&gt;</td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+bb6 [fillcolor=white, label=<
+<table border="0" cellborder="1" cellspacing="0">
+            <tr><td>bb.6.blockL54i0_54_getSwEnd_getSwEnd5</td></tr>
+            <tr><td>needsControl</td></tr>
+            <tr><td>blockEn=&lt;HlsNetNodeOutLazy 62&gt;</td></tr>
+            <tr><td>orderingIn=&lt;HlsNetNodeOutLazy 63&gt;</td></tr>
+            <tr><td>orderingOut=&lt;HlsNetNodeOut &lt;HlsNetNodeWriteBackwardEdge 110 &lt;HsStructIntf hls_r_31_bb7_to_bb1_in &lt;Bits, 512bits&gt;&gt; &lt;- &lt;HlsNetNodeOut &lt;HlsNetNodeExplicitSync 198 [0-dataOut]&gt;&gt; [0-orderingOut]&gt;</td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+bb7 [fillcolor=white, label=<
+<table border="0" cellborder="1" cellspacing="0">
+            <tr><td>bb.7.blockL54i0_54_getSwEnd_getSwEnd6</td></tr>
+            <tr><td>needsControl</td></tr>
+            <tr><td>blockEn=&lt;HlsNetNodeOutLazy 71&gt;</td></tr>
+            <tr><td>orderingIn=&lt;HlsNetNodeOutLazy 72&gt;</td></tr>
+            <tr><td>orderingOut=&lt;HlsNetNodeOut &lt;HlsNetNodeWriteBackwardEdge 123 &lt;HsStructIntf hls_r_31_bb8_to_bb1_in &lt;Bits, 512bits&gt;&gt; &lt;- &lt;HlsNetNodeOut &lt;HlsNetNodeExplicitSync 206 [0-dataOut]&gt;&gt; [0-orderingOut]&gt;</td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+e0to1 [fillcolor=white, label=<
+<table border="0" cellborder="1" cellspacing="0">
+            <tr><td>31,32,33,34</td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+bb0 -> e0to1;
+e0to1 -> bb1;
+e1to5 [fillcolor=white, label=<
+<table border="0" cellborder="1" cellspacing="0">
+            <tr><td>3,4,5,6,31,32,33,34</td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+bb1 -> e1to5;
+e1to5 -> bb4;
+e1to2 [fillcolor=white, label=<
+<table border="0" cellborder="1" cellspacing="0">
+            <tr><td>3,4,5,6,7,31,32,33,34</td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+bb1 -> e1to2;
+e1to2 -> bb2;
+e2to6 [fillcolor=white, label=<
+<table border="0" cellborder="1" cellspacing="0">
+            <tr><td>3,4,5,6,31,32,33,34,35</td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+bb2 -> e2to6;
+e2to6 -> bb5;
+e2to3 [fillcolor=white, label=<
+<table border="0" cellborder="1" cellspacing="0">
+            <tr><td>3,4,5,6,7,31,32,33,34</td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+bb2 -> e2to3;
+e2to3 -> bb3;
+e3to6 [fillcolor=white, label=<
+<table border="0" cellborder="1" cellspacing="0">
+            <tr><td>3,4,5,6,31,32,33,34,35</td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+bb3 -> e3to6;
+e3to6 -> bb5;
+e5to6 [fillcolor=white, label=<
+<table border="0" cellborder="1" cellspacing="0">
+            <tr><td>3,4,5,6,31,32,33,34,35</td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+bb4 -> e5to6;
+e5to6 -> bb5;
+e6to1 [color=blue, fillcolor=white, label=<
+<table border="0" cellborder="1" cellspacing="0">
+            <tr><td>31,32,33,34</td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+bb5 -> e6to1  [color=blue];
+e6to1 -> bb1  [color=blue];
+e6to7 [fillcolor=white, label=<
+<table border="0" cellborder="1" cellspacing="0">
+            <tr><td>3,4,5,6,15,17,24</td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+bb5 -> e6to7;
+e6to7 -> bb6;
+e7to1 [color=blue, fillcolor=white, label=<
+<table border="0" cellborder="1" cellspacing="0">
+            <tr><td>31,32,33,34</td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+bb6 -> e7to1  [color=blue];
+e7to1 -> bb1  [color=blue];
+e7to8 [fillcolor=white, label=<
+<table border="0" cellborder="1" cellspacing="0">
+            <tr><td>3,4,17,24,33,34</td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+bb6 -> e7to8;
+e7to8 -> bb7;
+e8to1 [color=blue, fillcolor=white, label=<
+<table border="0" cellborder="1" cellspacing="0">
+            <tr><td>31,32,33,34</td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+bb7 -> e8to1  [color=blue];
+e8to1 -> bb1  [color=blue];
+}

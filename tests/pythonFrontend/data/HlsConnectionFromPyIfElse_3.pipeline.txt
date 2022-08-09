@@ -1,3 +1,0 @@
-########## pipeline ##########
-  mainThread <BlockMeta needsControl, requiresStarter, isInitialization>
-########## backward_edges ##########

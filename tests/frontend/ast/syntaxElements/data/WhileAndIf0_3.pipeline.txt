@@ -1,7 +1,0 @@
-########## pipeline ##########
-  top <BlockMeta needsControl, requiresStarter, isInitialization>
-  top_whC <BlockMeta isCycleEntryPoint, needsControl>
-  top_wh_wh_IfC <BlockMeta isCycleEntryPoint, needsControl, phiCyclicArgs={%11 = ADD %10, %7}>
-########## backward_edges ##########
-  top_wh_wh_IfC -> top_whC
-  top_wh_wh_IfC -> top_wh_wh_IfC

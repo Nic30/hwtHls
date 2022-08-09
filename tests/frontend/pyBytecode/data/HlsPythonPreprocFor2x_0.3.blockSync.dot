@@ -1,0 +1,15 @@
+digraph "mainThread" {
+legend [label=<
+<table border="0" cellborder="1" cellspacing="0">
+  <tr><td bgcolor="blue">backedge</td></tr>
+</table>>, shape=plain, style=filled];
+bb0 [fillcolor=white, label=<
+<table border="0" cellborder="1" cellspacing="0">
+            <tr><td>bb.0.mainThread</td></tr>
+            <tr><td>needsStarter, needsControl</td></tr>
+            <tr><td>blockEn=&lt;HlsNetNodeOutLazy 0&gt;</td></tr>
+            <tr><td>orderingIn=&lt;HlsNetNodeOutLazy 1&gt;</td></tr>
+            <tr><td>orderingOut=&lt;HlsNetNodeOut &lt;HlsNetNodeWrite 10 &lt;Signal o &lt;Bits, 8bits, unsigned&gt;&gt; &lt;- &lt;HlsNetNodeOut &lt;BitsVal 3&gt; [0-val]&gt;&gt; [0-orderingOut]&gt;</td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+}

@@ -1,0 +1,54 @@
+digraph "t0_HlsAstReadIfTc_test_ReadIfOtherEqualOnce_ll__ReadIfOtherEqualOnce" {
+legend [label=<
+<table border="0" cellborder="1" cellspacing="0">
+  <tr><td bgcolor="blue">backedge</td></tr>
+</table>>, shape=plain, style=filled];
+bb0 [fillcolor=white, label=<
+<table border="0" cellborder="1" cellspacing="0">
+            <tr><td>bb.0.t0_HlsAstReadIfTc_test_ReadIfOtherEqualOnce_ll__ReadIfOtherEqualOnce</td></tr>
+            <tr><td>needsStarter, needsControl</td></tr>
+            <tr><td>blockEn=&lt;HlsNetNodeOutLazy 0&gt;</td></tr>
+            <tr><td>orderingIn=&lt;HlsNetNodeOutLazy 1&gt;</td></tr>
+            <tr><td>orderingOut=&lt;HlsNetNodeOut &lt;HlsNetNodeRead 2 &lt;Handshaked a&gt;&gt; [1-orderingOut]&gt;</td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+bb1 [fillcolor=white, label=<
+<table border="0" cellborder="1" cellspacing="0">
+            <tr><td>bb.1.t0_HlsAstReadIfTc_test_ReadIfOtherEqualOnce_ll__ReadIfOtherEqualOnce_If</td></tr>
+            <tr><td>needsControl</td></tr>
+            <tr><td>blockEn=&lt;HlsNetNodeOutLazy 7&gt;</td></tr>
+            <tr><td>orderingIn=&lt;HlsNetNodeOutLazy 8&gt;</td></tr>
+            <tr><td>orderingOut=&lt;HlsNetNodeOut &lt;HlsNetNodeRead 9 &lt;Handshaked b&gt;&gt; [1-orderingOut]&gt;</td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+bb2 [fillcolor=white, label=<
+<table border="0" cellborder="1" cellspacing="0">
+            <tr><td>bb.2.t0_HlsAstReadIfTc_test_ReadIfOtherEqualOnce_ll__ReadIfOtherEqualOnce_IfE</td></tr>
+            <tr><td>needsControl</td></tr>
+            <tr><td>blockEn=&lt;HlsNetNodeOutLazy 11&gt;</td></tr>
+            <tr><td>orderingIn=&lt;HlsNetNodeOutLazy 12&gt;</td></tr>
+            <tr><td>orderingOut=&lt;HlsNetNodeOutLazy 12&gt;</td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+e0to1 [fillcolor=white, label=<
+<table border="0" cellborder="1" cellspacing="0">
+            <tr><td></td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+bb0 -> e0to1;
+e0to1 -> bb1;
+e0to2 [fillcolor=white, label=<
+<table border="0" cellborder="1" cellspacing="0">
+            <tr><td></td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+bb0 -> e0to2;
+e0to2 -> bb2;
+e1to2 [fillcolor=white, label=<
+<table border="0" cellborder="1" cellspacing="0">
+            <tr><td></td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+bb1 -> e1to2;
+e1to2 -> bb2;
+}
