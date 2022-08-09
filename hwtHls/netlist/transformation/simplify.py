@@ -373,21 +373,9 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                                  worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]):
         assert len(n.usedBy) == 1, (n, "implemented only for single output nodes")
         builder: HlsNetlistBuilder = n.netlist.builder
-        # opUsers: List[HlsNetNodeOperator] = []
-        # for user in n.usedBy[0]:
-        #    user: HlsNetNodeIn
-        #    u = user.obj
-        #    if isinstance(u, HlsNetNodeOperator):
-        #        opUsers.append(u)
-        #        builder.unregisterOperatorNode(u)
-
-        builder.unregisterNode(n)
-        self._disconnectAllInputs(n, worklist)
         self._addAllUsersToWorklist(worklist, n)
-        # reconnect all dependencies to an only driver of this MUX
         builder.replaceOutput(n._outputs[0], newO)
-        # for u in opUsers:
-        #    builder.registerOperatorNode(u)
+        self._disconnectAllInputs(n, worklist)
         removed.add(n)
 
     def _addAllUsersToWorklist(self, worklist: UniqList[HlsNetNode], n: HlsNetNodeOperator):
