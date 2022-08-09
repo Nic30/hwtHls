@@ -12,7 +12,6 @@ from hwtHls.netlist.translation.dumpBlockSync import HlsNetlistPassDumpBlockSync
 from hwtHls.netlist.translation.dumpDataThreads import HlsNetlistPassDumpDataThreads
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
-from hwtHls.ssa.transformation.extractPartDrivers.extractPartDriversPass import SsaPassExtractPartDrivers
 from hwtHls.ssa.translation.dumpMIR import SsaPassDumpMIR
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.datapath import BlockLiveInMuxSyncDict
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
@@ -32,16 +31,12 @@ class BaseTestPlatform(VirtualHlsPlatform):
 
     def __init__(self):
         VirtualHlsPlatform.__init__(self, debugDir=None)
-        self.preOpt = StringIO()
         self.postPyOpt = StringIO()
         self.mir = StringIO()
         self.dataThreads = StringIO()
         self.blockSync = StringIO()
 
     def runSsaPasses(self, hls:"HlsScope", toSsa:HlsAstToSsa):
-        SsaPassConsystencyCheck().apply(hls, toSsa)
-        SsaPassDumpToLl(lambda name: (self.preOpt, False)).apply(hls, toSsa)
-        SsaPassExtractPartDrivers().apply(hls, toSsa)
         SsaPassConsystencyCheck().apply(hls, toSsa)
         SsaPassDumpToLl(lambda name: (self.postPyOpt, False)).apply(hls, toSsa)
         SsaPassToLlvm().apply(hls, toSsa)
@@ -105,7 +100,6 @@ class BaseSsaTC(BaseSerializationTC):
         if name is None:
             name = unit.__class__.__name__
         
-        self.assert_same_as_file(p.preOpt.getvalue(), os.path.join("data", name + ".0.preOpt.ll"))
         self.assert_same_as_file(p.postPyOpt.getvalue(), os.path.join("data", name + ".1.postPyOpt.ll"))
         self.assert_same_as_file(p.mir.getvalue(), os.path.join("data", name + ".0.mir.ll"))
         self.assert_same_as_file(p.dataThreads.getvalue(), os.path.join("data", name + ".0.dataThreads.txt"))

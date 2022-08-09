@@ -5,8 +5,9 @@ import sys
 from unittest import TestLoader, TextTestRunner, TestSuite
 
 from tests.bitOpt.abc_test import AbcTC
-from tests.bitOpt.bitWidthReductionCmp_test import BitWidthReductionCmp_example_TC
 from tests.bitOpt.andShiftInLoop import AndShiftInLoop_TC
+from tests.bitOpt.bitWidthReductionCmp_test import BitWidthReductionCmp_example_TC
+from tests.bitOpt.sliceBreak_test import SliceBreak_TC
 from tests.frontend.ast.bitonicSort import BitonicSorterHLS_TCs
 from tests.frontend.ast.exprTree3 import HlsAstExprTree3_example_TC
 from tests.frontend.ast.mac import HlsMAC_example_TC
@@ -36,7 +37,6 @@ from tests.io.bram.bramRead_test import BramRead_TC
 from tests.io.ioFsm_test import IoFsm_TC
 from tests.syntehesis_checks import HlsSynthesisChecksTC
 from tests.utils.alapAsapDiffExample import AlapAsapDiffExample_TC
-from tests.utils.concatOfSlices_test import ConcatOfSlicesTC
 from tests.utils.phiConstructions_test import PhiConstruction_TC
 
 
@@ -51,7 +51,7 @@ def testSuiteFromTCs(*tcs):
 
 suite = testSuiteFromTCs(
     HlsNetlistWireTC,
-    ConcatOfSlicesTC,
+    SliceBreak_TC,
     HlsSlicingTC,
     BitWidthReductionCmp_example_TC,
     AbcTC,

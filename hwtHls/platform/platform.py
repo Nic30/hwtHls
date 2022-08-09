@@ -59,6 +59,7 @@ class DefaultHlsPlatform(DummyPlatform):
         
         SsaPassConsystencyCheck().apply(hls, toSsa)
         SsaPassAxiStreamReadLowering().apply(hls, toSsa)
+        SsaPassAxiStreamWriteLowering().apply(hls, toSsa)
         if debugDir:
             SsaPassDumpToDot(outputFileGetter(debugDir, ".1.frontend.dot"), extractPipeline=False).apply(hls, toSsa)
 

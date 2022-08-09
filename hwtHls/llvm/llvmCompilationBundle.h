@@ -38,8 +38,11 @@ public:
 	LlvmCompilationBundle(const std::string &moduleName);
 	// :param combinerCallback: is an optional callback function called during last state of
 	//        instruction combining
-	void runOpt(hwtHls::GenericFpgaToNetlist::ConvesionFnT toNetlistConversionFn);
+	void runOpt(
+			hwtHls::GenericFpgaToNetlist::ConvesionFnT toNetlistConversionFn);
 	llvm::MachineFunction* getMachineFunction(llvm::Function &fn);
+
+	llvm::Function& _testSlicesToIndependentVariablesPass();
 };
 
 }

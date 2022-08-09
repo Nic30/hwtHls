@@ -64,14 +64,13 @@
 #include <llvm/CodeGen/MachineModuleInfo.h>
 #include <llvm/CodeGen/TargetPassConfig.h>
 
-
 #include "targets/genericFpgaTargetInfo.h"
 #include "targets/genericFpgaTargetMachine.h"
 #include "Transforms/extractBitConcatAndSliceOpsPass.h"
 #include "Transforms/bitwidthReducePass/bitwidthReducePass.h"
+#include "Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.h"
 
 #include <llvm/CodeGen/MachinePassManager.h>
-
 
 namespace hwtHls {
 
@@ -126,7 +125,8 @@ LlvmCompilationBundle::LlvmCompilationBundle(const std::string &moduleName) :
 //
 //}
 
-void LlvmCompilationBundle::runOpt(hwtHls::GenericFpgaToNetlist::ConvesionFnT toNetlistConversionFn) {
+void LlvmCompilationBundle::runOpt(
+		hwtHls::GenericFpgaToNetlist::ConvesionFnT toNetlistConversionFn) {
 	assert(
 			main
 					&& "a main function must be created before call of this function");
@@ -135,7 +135,6 @@ void LlvmCompilationBundle::runOpt(hwtHls::GenericFpgaToNetlist::ConvesionFnT to
 	// @see PassBuilder::buildFunctionSimplificationPipeline
 
 	// [todo] PassBuilder::addVectorPasses
-
 	fn.getParent()->setDataLayout(TM->createDataLayout());
 
 	auto LAM = llvm::LoopAnalysisManager { };
@@ -153,6 +152,8 @@ void LlvmCompilationBundle::runOpt(hwtHls::GenericFpgaToNetlist::ConvesionFnT to
 
 	// Form SSA out of local memory accesses after breaking apart aggregates into
 	// scalars.
+	FPM.addPass(hwtHls::SlicesToIndependentVariablesPass());
+	FPM.addPass(llvm::ADCEPass());
 	FPM.addPass(llvm::SROAPass());
 
 	// Catch trivial redundancies
@@ -224,20 +225,18 @@ void LlvmCompilationBundle::runOpt(hwtHls::GenericFpgaToNetlist::ConvesionFnT to
 	// to reduce amount of IR that will have to be duplicated.
 	// TODO: Investigate promotion cap for O1.
 	LPM1.addPass(
-			llvm::LICMPass(PTO.LicmMssaOptCap,
-					PTO.LicmMssaNoAccForPromotionCap,
-					/*AllowSpeculation=*/false));
+			llvm::LICMPass(PTO.LicmMssaOptCap, PTO.LicmMssaNoAccForPromotionCap,
+			/*AllowSpeculation=*/false));
 
 	// Disable header duplication in loop rotation at -Oz.
 	LPM1.addPass(llvm::LoopRotatePass(true));
 	// TODO: Investigate promotion cap for O1.
 	LPM1.addPass(
-			llvm::LICMPass(PTO.LicmMssaOptCap,
-					PTO.LicmMssaNoAccForPromotionCap, /*AllowSpeculation=*/true));
+			llvm::LICMPass(PTO.LicmMssaOptCap, PTO.LicmMssaNoAccForPromotionCap, /*AllowSpeculation=*/
+			true));
 	LPM1.addPass(
 			llvm::SimpleLoopUnswitchPass(
-					/* NonTrivial */Level
-							== llvm::OptimizationLevel::O3
+					/* NonTrivial */Level == llvm::OptimizationLevel::O3
 							&& EnableO3NonTrivialUnswitching));
 	// if (EnableLoopFlatten)
 	//   LPM1.addPass(LoopFlattenPass());
@@ -357,7 +356,7 @@ void LlvmCompilationBundle::runOpt(hwtHls::GenericFpgaToNetlist::ConvesionFnT to
 	FPM.addPass(hwtHls::ExtractBitConcatAndSliceOpsPass());
 	FPM.addPass(llvm::InstCombinePass()); // mostly for DCE for previous pass
 	FPM.addPass(llvm::AggressiveInstCombinePass());
-	//FPM.addPass(hwtHls::BitwidthReductionPass());
+	FPM.addPass(hwtHls::BitwidthReductionPass());
 	FPM.addPass(llvm::InstCombinePass()); // mostly for DCE for previous pass
 	FPM.addPass(
 			llvm::MergedLoadStoreMotionPass(llvm::MergedLoadStoreMotionOptions(
@@ -391,9 +390,9 @@ void LlvmCompilationBundle::runOpt(hwtHls::GenericFpgaToNetlist::ConvesionFnT to
 	//llvm::StringMap<llvm::cl::Option*> &Map = llvm::cl::getRegisteredOptions();
 	//Map["print-before-all"]->addOccurrence(0, "", "true");
 	// check for incompatible passes
-	TPC = static_cast<llvm::GenericFpgaTargetPassConfig*>(
-			static_cast<llvm::LLVMTargetMachine&>(*TM).createPassConfig(PM)
-	);
+	TPC =
+			static_cast<llvm::GenericFpgaTargetPassConfig*>(static_cast<llvm::LLVMTargetMachine&>(*TM).createPassConfig(
+					PM));
 	// :note: we can not use pass constructor to pass toNetlistConversionFn because
 	//        because constructor must be callable withou arguments because of INITIALIZE_PASS macros
 	// :note: we can not call pass explicitly after PM.run() because addRequired/getAnalysis will not work
@@ -423,6 +422,28 @@ llvm::MachineFunction* LlvmCompilationBundle::getMachineFunction(
 	auto &MMI = MMIWP->getMMI();
 	// llvm::LoopAnalysis & LA = MMIWP->getAnalysis<llvm::LoopAnalysis>();
 	return MMI.getMachineFunction(fn);
+}
+
+llvm::Function& LlvmCompilationBundle::_testSlicesToIndependentVariablesPass() {
+	auto &fn = *main;
+	fn.getParent()->setDataLayout(TM->createDataLayout());
+
+	auto LAM = llvm::LoopAnalysisManager { };
+	auto cgscc_manager = llvm::CGSCCAnalysisManager { };
+	auto MAM = llvm::ModuleAnalysisManager { };
+	auto FAM = llvm::FunctionAnalysisManager { };
+
+	PB.registerModuleAnalyses(MAM);
+	PB.registerCGSCCAnalyses(cgscc_manager);
+	PB.registerFunctionAnalyses(FAM);
+	PB.registerLoopAnalyses(LAM);
+	PB.crossRegisterProxies(LAM, FAM, cgscc_manager, MAM);
+
+	llvm::FunctionPassManager FPM;
+	FPM.addPass(hwtHls::SlicesToIndependentVariablesPass());
+	FPM.addPass(llvm::ADCEPass());
+	FPM.run(fn, FAM);
+	return fn;
 }
 
 }

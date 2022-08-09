@@ -180,6 +180,7 @@ PYBIND11_MODULE(llvmIr, m) {
 			return returnObj;
 		})
 		.def("getMachineFunction", &hwtHls::LlvmCompilationBundle::getMachineFunction)
+		.def("_testSlicesToIndependentVariablesPass", &hwtHls::LlvmCompilationBundle::_testSlicesToIndependentVariablesPass)
 		.def_readonly("ctx", &hwtHls::LlvmCompilationBundle::ctx)
 		.def_readonly("strCtx", &hwtHls::LlvmCompilationBundle::strCtx)
 		.def_readonly("mod", &hwtHls::LlvmCompilationBundle::mod)
