@@ -13,6 +13,7 @@ from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.phi import SsaPhi
 from hwtHls.ssa.value import SsaValue
+from hwtHls.ssa.exprBuilder import SsaExprBuilder
 
 
 class MemorySSAUpdater():
@@ -23,7 +24,6 @@ class MemorySSAUpdater():
     """
 
     def __init__(self,
-                 onBlockReduce: Callable[[SsaBasicBlock, SsaBasicBlock], None],
                  hwtExprToSsa: Callable[
                      [SsaBasicBlock, Union[RtlSignal, HValue]],
                      Tuple[SsaBasicBlock, Union[SsaValue, HValue]]
@@ -35,7 +35,6 @@ class MemorySSAUpdater():
         self.currentDefRev: Dict[Union[SsaValue, HValue], Dict[SsaBasicBlock, UniqList[RtlSignal]]] = {} 
         self.sealedBlocks: Set[SsaBasicBlock] = set()
         self.incompletePhis: Dict[SsaBasicBlock, Dict[RtlSignal, SsaPhi]] = {}
-        self._onBlockReduce = onBlockReduce
         self._hwtExprToSsa = hwtExprToSsa
 
     def writeVariable(self, variable: RtlSignal,
@@ -54,6 +53,8 @@ class MemorySSAUpdater():
         assert isinstance(block, SsaBasicBlock), block
         if isinstance(value, SsaInstr):
             assert value.block is not None, (value, "Must not be removed from SSA")
+        else:
+            assert isinstance(value, HValue), value
 
         new_bb = block
         if indexes:
@@ -88,7 +89,7 @@ class MemorySSAUpdater():
 
                 # append modified bits
                 if isinstance(value, SsaValue) and not isinstance(value, HlsRead):
-                    assert value.origin is not None
+                    assert value.origin is not None, value
                     parts.append(value.origin)
 
                 else:
@@ -132,7 +133,7 @@ class MemorySSAUpdater():
         if block not in self.sealedBlocks:
             # Incomplete CFG
             v = SsaPhi(block.ctx, variable._dtype, origin=variable)
-            block.appendPhi(v)
+            SsaExprBuilder.appendPhiToBlock(block, v)
             self.incompletePhis.setdefault(block, {})[variable] = v
 
         elif len(block.predecessors) == 1:
@@ -142,7 +143,7 @@ class MemorySSAUpdater():
         else:
             # Break potential cycles with operandless phi
             v = SsaPhi(block.ctx, variable._dtype, origin=variable)
-            block.appendPhi(v)
+            SsaExprBuilder.appendPhiToBlock(block, v)
             self.writeVariable(variable, (), block, v)
             v = self.addPhiOperands(variable, v)
 

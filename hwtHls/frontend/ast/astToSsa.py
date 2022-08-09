@@ -28,6 +28,7 @@ from hwtHls.ssa.transformation.utils.blockAnalysis import collect_all_blocks
 from hwt.synthesizer.interface import Interface
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny
 from hwtHls.llvm.llvmIr import Register, LoadInst, StoreInst
+from hwtHls.ssa.exprBuilder import SsaExprBuilder
 AnyStm = Union[HdlAssignmentContainer, HlsStm]
 
 
@@ -95,17 +96,14 @@ class HlsAstToSsa():
         self.ssaCtx = ssaCtx
         self.label = startBlockName
         self.start = SsaBasicBlock(ssaCtx, startBlockName)
-        self.m_ssa_u = MemorySSAUpdater(self._onBlockReduce, self.visit_expr)
+        self.m_ssa_u = MemorySSAUpdater(self.visit_expr)
         # all predecessors known (because this is an entry point)
         self._continue_target: List[SsaBasicBlock] = []
         self._break_target: List[SsaBasicBlock] = []
         self.original_code_for_debug = original_code_for_debug
         self._loop_stack: List[Tuple[HlsStmWhile, SsaBasicBlock, List[SsaBasicBlock]]] = []
         self.ioNodeConstructors: Optional[NetlistIoConstructorDictT] = None
-
-    def _onBlockReduce(self, block: SsaBasicBlock, replacement: SsaBasicBlock):
-        if block is self.start:
-            self.start = replacement
+        self.ssaBuilder = SsaExprBuilder(self.start, None)
 
     @staticmethod
     def _addNewTargetBb(predecessor: SsaBasicBlock, cond: Optional[RtlSignal], label: str, origin) -> SsaBasicBlock:
@@ -152,6 +150,9 @@ class HlsAstToSsa():
     def visit_expr(self, block: SsaBasicBlock, var: Union[RtlSignal, HValue]) -> Tuple[SsaBasicBlock, Union[SsaValue, HValue]]:
         if isinstance(var, Signal):
             var = var._sig
+        builder = self.ssaBuilder
+        if builder.block is not block:
+            builder.setInsertPoint(block, None)
 
         if isinstance(var, RtlSignal):
             try:
@@ -168,9 +169,9 @@ class HlsAstToSsa():
                         if isinstance(op, HlsReadAddressed):
                             block, op._index = self.visit_expr(block, op._index)
                         # read first used there else already visited
-                        block.appendInstruction(op)
+                        builder._insertInstr(op)
                         # HlsRead is a SsaValue and thus represents "variable"
-                        self.m_ssa_u.writeVariable(var, (), block, op)
+                        self.m_ssa_u.writeVariable(var, (), builder.block, op)
 
                     return block, op
 
@@ -198,11 +199,13 @@ class HlsAstToSsa():
             for o in op.operands:
                 block, _o = self.visit_expr(block, o)
                 ops.append(_o)
-            
+            if op.operator == AllOps.CONCAT:
+                ops = list(reversed(ops))
+
             sig = var
-            var = SsaInstr(block.ctx, var._dtype, op.operator, ops, origin=var)
-            block.appendInstruction(var)
-            self.m_ssa_u.writeVariable(sig, (), block, var)
+            var = SsaInstr(builder.block.ctx, var._dtype, op.operator, ops, origin=var)
+            builder._insertInstr(var)
+            self.m_ssa_u.writeVariable(sig, (), builder.block, var)
             # we know for sure that this in in this block that is why we do not need to use readVariable
             return block, var
 
@@ -215,10 +218,9 @@ class HlsAstToSsa():
                     if isinstance(var, HlsReadAddressed):
                         block, var._index = self.visit_expr(block, var._index)
                         # var.operands = (i, )
-                        
-                    block.appendInstruction(var)
+                    builder._insertInstr(var)
                     # HlsRead is a SsaValue and thus represents "variable"
-                    self.m_ssa_u.writeVariable(var._sig, (), block, var)
+                    self.m_ssa_u.writeVariable(var._sig, (), builder.block, var)
 
                 var = var._sig
 
@@ -226,7 +228,7 @@ class HlsAstToSsa():
                 var = packIntf(var)
                 return self.visit_expr(block, var)
 
-            return block, self.m_ssa_u.readVariable(var, block)
+            return builder.block, self.m_ssa_u.readVariable(var, builder.block)
 
     def visit_For(self, block: SsaBasicBlock, o: HlsStmFor) -> SsaBasicBlock:
         block = self.visit_CodeBlock_list(block, o.init)
@@ -356,10 +358,6 @@ class HlsAstToSsa():
         # * just the registration of the variable for the symbol
         #   * only a segment in bit vector can be assigned, this result in the assignment of the concatenation of previous and new value
         self.m_ssa_u.writeVariable(o.dst, o.indexes, block, src)
-        # ld = SsaInstr(o.dst, src)
-        # block.appendInstruction(ld)
-        # if isinstance(src, SsaValue):
-        #    src.users.append(ld)
 
         return block
 
@@ -369,9 +367,10 @@ class HlsAstToSsa():
         else:
             index = None
         block, src = self.visit_expr(block, o.getSrc())
-        block.appendInstruction(o)
-        block.origins.append(o)
-        
+        builder = self.ssaBuilder
+        builder._insertInstr(o)
+        builder.block.origins.append(o)
+
         if index is not None:
             o.operands = (src, index)
         else:
