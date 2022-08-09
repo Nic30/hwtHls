@@ -101,8 +101,16 @@ public:
 			llvm_unreachable("NotImplemented");
 		//unsigned predicateI = -1;
 		switch (opc) {
-		case GenericFpga::GENFPGA_CLOAD:
 		case GenericFpga::GENFPGA_CCOPY:
+			// dst, val, predicate
+			if (MI.getNumOperands() == 3) {
+				if (MI.getOperand(2).isReg()) {
+					llvm_unreachable("NotImplemented");
+				}
+				MI.RemoveOperand(2);
+			}
+			break;
+		case GenericFpga::GENFPGA_CLOAD:
 		case GenericFpga::GENFPGA_CSTORE:
 			// dst/val, addr, index, predicate
 			if (MI.getNumOperands() == 4) {
