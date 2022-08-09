@@ -172,6 +172,9 @@ class HlsScope():
                 p.runSsaPasses(self, t.toSsa)
 
             t.compileToNetlist(p)
+            for callback in t.netlistCallbacks:
+                callback(self, t)
+
             p.runHlsNetlistPasses(self, t.toHw)
         
         for t in self._threads:

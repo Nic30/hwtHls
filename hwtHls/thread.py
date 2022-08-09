@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Callable, List
 
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.netlist.context import HlsNetlistCtx
@@ -18,6 +18,7 @@ class HlsThread():
         self.hls = hls
         self.toSsa: Optional[HlsAstToSsa] = None
         self.toHw: Optional[HlsNetlistCtx] = None
+        self.netlistCallbacks: List[Callable[["HlsScope", HlsThread]]] = []
 
     def getLabel(self) -> str:
         i = self.hls._threads.index(self)
