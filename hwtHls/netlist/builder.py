@@ -238,8 +238,11 @@ class HlsNetlistBuilder():
 
     def unregisterOperatorNode(self, n: HlsNetNodeOperator):
         k = tuple(self._getOperatorCacheKey(n))
-        v = self.operatorCache.pop(k)
-        assert v is n._outputs[0], (v, n)
+        v = self.operatorCache[k]
+        if v is n._outputs[0]:
+            # there may be the temporary case when some operand is replaced
+            # and the operator node becomes something which already exits
+            self.operatorCache.pop(k)
 
     def registerNode(self, n):
         if isinstance(n, HlsNetNodeOperator):
@@ -247,5 +250,8 @@ class HlsNetlistBuilder():
 
     def registerOperatorNode(self, n: HlsNetNodeOperator):
         k = tuple(self._getOperatorCacheKey(n))
-        self.operatorCache[k] = n._outputs[0]
+        if k not in self.operatorCache:
+            # there may be the temporary case when some operand is replaced
+            # and the operator node becomes something which already exits
+            self.operatorCache[k] = n._outputs[0]
               
