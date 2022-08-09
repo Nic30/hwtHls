@@ -25,11 +25,12 @@ def g_constant_to_imm: GICombineRule<
 			G_AND,
 			G_BR,
 			G_BRCOND,
-			G_EXTRACT,
 			G_ICMP,
-			G_INDEXED_LOAD,
-			G_INDEXED_STORE,
-			G_MERGE_VALUES,
+			// this opcodes should not appear in this stage
+			// G_EXTRACT,
+			// G_INDEXED_LOAD,
+			// G_INDEXED_STORE,
+			// G_MERGE_VALUES,
 			G_PTR_ADD,
 			G_MUL,
 			G_OR,
@@ -50,9 +51,62 @@ def g_constant_to_imm: GICombineRule<
   (apply [{ return Helper.rewriteG_CONSTANTasUseAsCImm(*${root}); }])
 >;
 
+def const_and_eval: GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode G_AND):$root,
+    [{ return Helper.hashOnlyConstUses(*${root}); }]),
+  (apply [{ return Helper.rewriteConstBinOp(*${root}, [](const APInt & a, const APInt & b) { return a & b; }); }])
+>;
+def const_or_eval: GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode G_OR):$root,
+    [{ return Helper.hashOnlyConstUses(*${root}); }]),
+  (apply [{ return Helper.rewriteConstBinOp(*${root}, [](const APInt & a, const APInt & b) { return a | b; }); }])
+>;
+def const_xor_eval: GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode G_XOR):$root,
+    [{ return Helper.hashOnlyConstUses(*${root}); }]),
+  (apply [{ return Helper.rewriteConstBinOp(*${root}, [](const APInt & a, const APInt & b) { return a ^ b; }); }])
+>;
+
+def const_sub_eval: GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode G_SUB):$root,
+    [{ return Helper.hashOnlyConstUses(*${root}); }]),
+  (apply [{ return Helper.rewriteConstBinOp(*${root}, [](const APInt & a, const APInt & b) { return a - b; }); }])
+>;
+def const_add_eval: GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode G_ADD):$root,
+    [{ return Helper.hashOnlyConstUses(*${root}); }]),
+  (apply [{ return Helper.rewriteConstBinOp(*${root}, [](const APInt & a, const APInt & b) { return a + b; }); }])
+>;
+def const_mul_eval: GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode G_MUL):$root,
+    [{ return Helper.hashOnlyConstUses(*${root}); }]),
+  (apply [{ return Helper.rewriteConstBinOp(*${root}, [](const APInt & a, const APInt & b) { return a * b; }); }])
+>;
+
+def const_mux_eval : GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode GENFPGA_MUX):$root,
+    [{ return Helper.hashSomeConstConditions(*${root}); }]),
+  (apply [{ return Helper.rewriteConstCondMux(*${root}); }])
+>;
+
+def const_eval_combines : GICombineGroup<[
+	extract_const_propagation, merge_values_const_propagation, g_constant_to_imm, const_and_eval, const_or_eval, const_xor_eval,
+	const_sub_eval, const_add_eval, const_mul_eval, const_mux_eval
+]>;
+
+
 // perform all known combinations to simplify the code as much as possible before next step
 def GenericFpgaGenPreLegalizeGICombinerHelper: GICombinerHelper<
-  "GenericFpgaGenPreLegalizeGICombinerHelper", [all_combines, extract_const_propagation, merge_values_const_propagation]> {
+  "GenericFpgaGenPreLegalizeGICombinerHelper", [
+  	all_combines
+  ]> {
   let DisableRuleOption = "GenericFpgaGenPreLegalizeGICombinerHelper-disable-rule";
   let StateClass = "GenericFpgaGenPreLegalizeGICombinerHelperState";
   let AdditionalArguments = [];
@@ -62,7 +116,15 @@ def GenericFpgaGenPreLegalizeGICombinerHelper: GICombinerHelper<
 def copy_to_genfpga_copy : GICombineRule<
   (defs root:$d),
   (match (COPY $d, $s):$mi),
-  (apply [{ Helper.replaceOpcodeWith(*${mi}, GenericFpga::GENFPGA_CCOPY); }])>;
+  (apply [{ 
+	  	Helper.replaceOpcodeWith(*${mi}, GenericFpga::GENFPGA_CCOPY); 
+	  	Observer.changingInstr(*${mi});
+		MachineInstrBuilder builder(*MF, ${mi});
+  		auto &C = MF->getFunction().getContext();
+		auto *CI = ConstantInt::get(C, APInt(1, 1));
+		builder.addCImm(CI);
+		Observer.changedInstr(*${mi});
+  	}])>;
 
 // Fold (x G_XOR allOnes) - > GENFPGA_NOT x 
 def xor_right_allOnes: GICombineRule<
@@ -82,9 +144,10 @@ def extract_on_merge_values: GICombineRule<
 
 // rewrite generic opcodes to GENFPGA_* where beneficial
 def GenericFpgaGenPreRegAllocGICombinerHelper: GICombinerHelper<
-  "GenericFpgaGenPreRegAllocGICombinerHelper", [copy_to_genfpga_copy, extract_on_merge_values,
-                                                extract_const_propagation, merge_values_const_propagation,
-                                                g_constant_to_imm]> {
+  "GenericFpgaGenPreRegAllocGICombinerHelper", [copy_to_genfpga_copy,
+                                                extract_on_merge_values,
+                                                const_eval_combines
+                                                ]> {
   let DisableRuleOption = "GenericFpgaGenPreRegAllocGICombinerHelper-disable-rule";
   let StateClass = "GenericFpgaGenPreRegAllocGICombinerHelperState";
   let AdditionalArguments = [];
@@ -95,9 +158,10 @@ def GenericFpgaGenPreRegAllocGICombinerHelper: GICombinerHelper<
 // * extract GENFPGA_NOT
 // * extract/merge bit concatenations and slices
 def GenericFpgaGenPreToNetlistGICombinerHelper: GICombinerHelper<
-  "GenericFpgaGenPreToNetlistGICombinerHelper", [xor_right_allOnes, extract_on_merge_values,
-                                                 extract_const_propagation, merge_values_const_propagation,
-                                                 g_constant_to_imm]> {
+  "GenericFpgaGenPreToNetlistGICombinerHelper", [xor_right_allOnes,
+  												 extract_on_merge_values,
+                                                 const_eval_combines
+                                                 ]> {
   let DisableRuleOption = "GenericFpgaGenPreToNetlistGICombinerHelper-disable-rule";
   let StateClass = "GenericFpgaGenPreToNetlistGICombinerHelperState";
   let AdditionalArguments = [];

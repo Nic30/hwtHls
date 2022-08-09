@@ -67,8 +67,12 @@ bool GenFpgaCombinerHelper::rewriteConstMergeValues(llvm::MachineInstr &MI) {
 
 bool GenFpgaCombinerHelper::matchAllOnesConstantOp(
 		const llvm::MachineOperand &MOP) {
-	if (!MOP.isReg())
+	if (MOP.isCImm()) {
+		return MOP.getCImm()->getValue().isAllOnes();
+	}
+	if (!MOP.isReg()) {
 		return false;
+	}
 	auto *MI = MRI.getVRegDef(MOP.getReg());
 	auto MaybeCst = isConstantOrConstantSplatVector(*MI, MRI);
 	return MaybeCst.hasValue() && MaybeCst->isAllOnes();
@@ -76,13 +80,74 @@ bool GenFpgaCombinerHelper::matchAllOnesConstantOp(
 bool GenFpgaCombinerHelper::matchOperandIsAllOnes(llvm::MachineInstr &MI,
 		unsigned OpIdx) {
 	return matchAllOnesConstantOp(MI.getOperand(OpIdx))
-			&& canReplaceReg(MI.getOperand(0).getReg(),
-					MI.getOperand(OpIdx).getReg(), MRI);
+			&& (MI.getOperand(OpIdx).isCImm()
+					|| canReplaceReg(MI.getOperand(0).getReg(),
+							MI.getOperand(OpIdx).getReg(), MRI));
 }
 bool GenFpgaCombinerHelper::rewriteXorToNot(llvm::MachineInstr &MI) {
 	Builder.setInstrAndDebugLoc(MI);
 	Builder.buildInstr(GenericFpga::GENFPGA_NOT, { MI.getOperand(0).getReg() },
 			{ MI.getOperand(1).getReg() }, MI.getFlags());
+	MI.eraseFromParent();
+	return true;
+}
+
+bool GenFpgaCombinerHelper::rewriteConstBinOp(llvm::MachineInstr &MI,
+		std::function<APInt(const APInt&, const APInt&)> fn) {
+	auto _v = MI.getOperand(1).getCImm();
+	const APInt &a = _v->getValue();
+	const APInt &b = MI.getOperand(2).getCImm()->getValue();
+	replaceInstWithConstant(MI, fn(a, b));
+	return true;
+}
+
+bool GenFpgaCombinerHelper::hashSomeConstConditions(llvm::MachineInstr &MI) {
+	// dst, a, (cond, b)*
+	assert(MI.getOpcode() == GenericFpga::GENFPGA_MUX);
+	unsigned condCnt = (MI.getNumOperands() - 1) / 2;
+	for (unsigned i = 0; i < condCnt; ++i) {
+		auto &c = MI.getOperand(2 + i * 2);
+		if (c.isCImm()) {
+			return true;
+		}
+	}
+	return false;
+}
+
+bool GenFpgaCombinerHelper::rewriteConstCondMux(llvm::MachineInstr &MI) {
+	assert(MI.getOpcode() == GenericFpga::GENFPGA_MUX);
+	auto opIt = MI.operands_begin();
+	Builder.setInstrAndDebugLoc(MI);
+	auto MIB = Builder.buildInstr(GenericFpga::GENFPGA_MUX);
+	auto &newMI = *MIB.getInstr();
+	Observer.changingInstr(newMI);
+	MIB.add(*opIt); // dst
+	++opIt;
+	for (;;) {
+		auto v0 = opIt++;
+		if (opIt == MI.operands_end()) {
+			// ending  value
+			MIB.add(*v0);
+		} else {
+			auto c = opIt++;
+			if (c->isCImm()) {
+				if (c->getCImm()->getValue().getBoolValue()) {
+					// if 1 the successor operands are never used
+					MIB.add(*v0);
+					break;
+				} else {
+					// if 0 the v0 is never used
+				}
+			} else {
+				MIB.add(*v0);
+				MIB.add(*c);
+			}
+		}
+		if (opIt == MI.operands_end()) {
+			break;
+		}
+	}
+	Observer.changedInstr(newMI);
 	MI.eraseFromParent();
 	return true;
 }

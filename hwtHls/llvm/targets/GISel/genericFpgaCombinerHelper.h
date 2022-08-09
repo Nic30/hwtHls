@@ -23,6 +23,11 @@ public:
 	bool matchOperandIsAllOnes(llvm::MachineInstr &MI, unsigned OpIdx);
 	bool rewriteXorToNot(llvm::MachineInstr &MI);
 
+	bool rewriteConstBinOp(llvm::MachineInstr &MI, std::function<APInt(const APInt &, const APInt &)>);
+
+	bool hashSomeConstConditions(llvm::MachineInstr &MI);
+	bool rewriteConstCondMux(llvm::MachineInstr &MI);
+
 	bool matchIsExtractOnMergeValues(llvm::MachineInstr &MI);
 	bool rewriteExtractOnMergeValues(llvm::MachineInstr &MI);
 	bool collectConcatMembers(llvm::MachineOperand &MIOp, std::vector<ConcatMember> & members,
