@@ -146,18 +146,8 @@ class ToLlvmIrTranslator():
             b.CreateStore(src, dst, True)
 
         elif instr.operator == AllOps.CONCAT and isinstance(instr._dtype, Bits):
-            # "((res_t)op1 << op0.width) | op0
-            res_t = self._translateType(instr._dtype)
-            op0, op1 = instr.operands
-            _op0 = b.CreateZExt(self._translateExpr(op0), res_t, self.strCtx.addTwine(""))
-            sh = self._translateExprInt(op1._dtype.bit_length(), res_t)
-            highPart = b.CreateShl(_op0, sh, self.strCtx.addTwine(""), False, False)
-            lowPart = b.CreateZExt(self._translateExpr(op1), res_t, self.strCtx.addTwine(""))
-            return b.CreateOr(
-                highPart,
-                lowPart,
-                self.strCtx.addTwine(self._formatVarName(instr._name)),
-            )
+            ops = [self._translateExpr(op) for op in instr.operands]
+            return b.CreateBitConcat(ops)
 
         elif instr.operator == AllOps.INDEX and isinstance(instr.operands[0]._dtype, Bits):
             op0, op1 = instr.operands
@@ -168,11 +158,6 @@ class ToLlvmIrTranslator():
             else:
                 op1 = self._translateExprInt(int(op1), TypeToIntegerType(op0.getType()))
 
-            # (res_t)(op0 >> op1)
-            # if low != 0:
-            #    e = b.CreateLShr(e, _op1, self.strCtx.addTwine(self._formatVarName(instr._name)), False)
-            #
-            # return b.CreateTrunc(e, res_t, self.strCtx.addTwine(""))
             return b.CreateBitRangeGet(op0, op1, instr._dtype.bit_length())
 
         else:
