@@ -80,7 +80,9 @@ void GenericFpgaTargetPassConfig::addPreLegalizeMachineIR() {
 	addPass(createGenericFpgaPreLegalizerCombiner());
 }
 bool GenericFpgaTargetPassConfig::addLegalizeMachineIR() {
+	addVerifyPass("before legalize");
 	addPass(new Legalizer());
+	addVerifyPass("after legalize");
 	return false;
 }
 bool GenericFpgaTargetPassConfig::addRegBankSelect() {
