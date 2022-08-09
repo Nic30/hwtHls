@@ -4,7 +4,7 @@ from hwtHls.frontend.ast.statementsRead import HlsReadAddressed
 from hwtHls.frontend.ast.statementsWrite import HlsWriteAddressed
 
 
-class AddressedIoProxy():
+class IoProxyAddressed():
     """
     An base class for object which allow to use memory mapped interface as if it was an array.
     """
@@ -16,19 +16,9 @@ class AddressedIoProxy():
         self.interface = interface
         self.nativeType = nativeType
 
-#    def __getitem__(self, addr):
-#        return self.hls.read(AddressedIoProxyRef(self, addr))
-#  
-#    def __setitem__(self, key, newvalue):
-#        raise NotImplementedError()
-#
-#        
-# class AddressedIoProxyRef():
-#    """
-#    Reference to some item behind the proxy
-#    """
-#
-#    def __init__(self, proxy: AddressedIoProxy, index):
-#        self.proxy = proxy
-#        self.index = index
-    
+    def __getitem__(self, addr):
+        raise AssertionError("This should never be called, instead a frontend should translate this operation")
+  
+    def __setitem__(self, key, newvalue):
+        raise AssertionError("This should never be called, instead a frontend should translate this operation")
+  

@@ -27,6 +27,7 @@ from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc, \
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.value import SsaValue
 from io import StringIO
+from hwt.interfaces.std import Signal
 
 
 class PyBytecodeToSsaLowLevelOpcodes():
@@ -379,11 +380,18 @@ class PyBytecodeToSsaLowLevelOpcodes():
         val = stack.pop()
         index, curBlock = expandBeforeUse(frame, index, curBlock)
         val, curBlock = expandBeforeUse(frame, val, curBlock)
-        if isinstance(index, (RtlSignal, SsaValue)) and not isinstance(sequence, (RtlSignal, SsaValue)):
+        if isinstance(index, (RtlSignal, SsaValue, Signal)) and not isinstance(sequence, (RtlSignal, SsaValue, Signal)):
             if not isinstance(sequence, PyObjectHwSubscriptRef):
                 sequence = PyObjectHwSubscriptRef(self, sequence, index, instr.offset)
             return sequence.expandSetitemAsSwitchCase(frame, curBlock, lambda i, dst: dst(val))
-
+        if isinstance(sequence, (RtlSignal, Signal)):
+            if isinstance(index, (RtlSignal, SsaValue, Signal)):
+                raise NotImplementedError()
+            else:
+                stm = sequence[index](val)
+                self.toSsa.visit_CodeBlock_list(curBlock, flatten([stm, ]))
+                return curBlock
+                
         operator.setitem(sequence, index, val)
         # stack.append()
         return curBlock

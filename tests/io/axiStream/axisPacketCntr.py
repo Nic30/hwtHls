@@ -6,9 +6,9 @@ from hwt.interfaces.std import Handshaked
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
-from hwtHls.frontend.ast.statementsRead import IN_STREAM_POS
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
+from hwtHls.io.axiStream.proxy import IoProxyAxiStream
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axis import AxiStream
 from hwtLib.types.ctypes import uint16_t
@@ -29,21 +29,21 @@ class AxiSPacketCntr(Unit):
         self.pkt_cnt: Handshaked = Handshaked()._m()
         self.pkt_cnt.DATA_WIDTH = 16
 
-    def mainThread(self, hls: HlsScope):
+    def mainThread(self, hls: HlsScope, i: IoProxyAxiStream):
         pkts = uint16_t.from_py(0)
+        i.readStartOfFrame()
         while BIT.from_py(1):
-            word = PyBytecodeInPreproc(# PyBytecodeInPreproc is used because otherwise 
-                                       # the read object is converted to a RtlSignal because word= is a store to a word variable
-                hls.read(self.i, self.i.data._dtype,
-                inStreamPos=IN_STREAM_POS.BEGIN_OR_BODY_OR_END))
-
+            # PyBytecodeInPreproc is used because otherwise 
+            # the read object is converted to a RtlSignal because word= is a store to a word variable
+            word = PyBytecodeInPreproc(i.read(self.i.data._dtype))
             if word._isLast():
                 pkts += 1
             hls.write(pkts, self.pkt_cnt)
 
     def _impl(self):
         hls = HlsScope(self)
-        mainThread = HlsThreadFromPy(hls, self.mainThread, hls)
+        i = IoProxyAxiStream(hls, self.i)
+        mainThread = HlsThreadFromPy(hls, self.mainThread, hls, i)
         # mainThread.bytecodeToSsa.debug = True
         hls.addThread(mainThread)
         hls.compile()

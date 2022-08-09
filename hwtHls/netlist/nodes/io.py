@@ -368,6 +368,10 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
 
         if isinstance(_o.data, StructIntf):
             rtlObj = dst(_o.data, exclude=exclude)
+        elif isinstance(_o.data, RtlSignal) and isinstance(dst, RtlSignal):
+            rtlObj = dst(_o.data)
+        elif isinstance(dst, RtlSignal):
+            rtlObj = dst(packIntf(_o.data, exclude=exclude))
         else:
             rtlObj = connectPacked(_o.data, dst, exclude=exclude)
 

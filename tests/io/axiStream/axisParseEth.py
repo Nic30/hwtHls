@@ -6,11 +6,13 @@ from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.ast.builder import HlsAstBuilder
-from hwtHls.frontend.ast.statementsRead import IN_STREAM_POS
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axis import AxiStream
 from hwtLib.types.net.ethernet import Eth2Header_t, eth_mac_t
+from hwtHls.io.axiStream.stmRead import HlsStmReadAxiStream
+from hwtHls.frontend.ast.statementsRead import HlsStmReadStartOfFrame, \
+    HlsStmReadEndOfFrame
 
 
 class AxiSParseEth(Unit):
@@ -34,11 +36,13 @@ class AxiSParseEth(Unit):
         # because it needs to have a code location where it happens
         # we declare it as python variable so we do not need to use tmp
         # variable in hls
-        eth = hls.read(self.i, Eth2Header_t, inStreamPos=IN_STREAM_POS.BEGIN_END)
+        eth = HlsStmReadAxiStream(hls, self.i, Eth2Header_t, True)
         ast = HlsAstBuilder(hls)
-        hls.addThread(HlsThreadFromAst(hls, 
+        hls.addThread(HlsThreadFromAst(hls,
             ast.While(True,
+                HlsStmReadStartOfFrame(hls, self.i),
                 eth,
+                HlsStmReadEndOfFrame(hls, self.i),
                 hls.write(eth.data.dst, self.dst_mac)
             ),
             self._name)

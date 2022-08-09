@@ -5,8 +5,10 @@ from hwt.hdl.types.bits import Bits
 from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.interfaces.utils import addClkRstn
 from hwtHls.frontend.ast.builder import HlsAstBuilder
-from hwtHls.frontend.ast.statementsRead import IN_STREAM_POS
+from hwtHls.frontend.ast.statementsRead import HlsStmReadStartOfFrame, \
+    HlsStmReadEndOfFrame
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
+from hwtHls.io.axiStream.stmRead import HlsStmReadAxiStream
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axis import AxiStream
 from tests.io.axiStream.axisParseLinear import AxiSParse2fields
@@ -24,14 +26,16 @@ class AxiSParse2If(AxiSParse2fields):
 
     def _impl(self) -> None:
         hls = HlsScope(self)
-        v0 = hls.read(self.i, Bits(16), inStreamPos=IN_STREAM_POS.BEGIN)
-        v1a = hls.read(self.i, Bits(16), inStreamPos=IN_STREAM_POS.END)
-        v1b = hls.read(self.i, Bits(32), inStreamPos=IN_STREAM_POS.END)
+        i = self.i
         o = self.o
+        v0 = HlsStmReadAxiStream(hls, i, Bits(16), True)
+        v1a = HlsStmReadAxiStream(hls, i, Bits(16), True)
+        v1b = HlsStmReadAxiStream(hls, i, Bits(32), True)
 
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
             ast.While(True,
+                HlsStmReadStartOfFrame(hls, i),
                 v0,
                 ast.If(v0.data._eq(2),
                     v1a, # read 2B, output
@@ -41,8 +45,9 @@ class AxiSParse2If(AxiSParse2fields):
                     hls.write(v1b.data._reinterpret_cast(o._dtype), o),
                 ).Else(
                     # read 1B only
-                    hls.read(self.i, Bits(8), inStreamPos=IN_STREAM_POS.END)
-                )
+                    HlsStmReadAxiStream(hls, self.i, Bits(8), True)
+                ),
+                HlsStmReadEndOfFrame(hls, i),
             ),
             self._name)
         )
@@ -61,15 +66,17 @@ class AxiSParse2IfAndSequel(AxiSParse2fields):
 
     def _impl(self) -> None:
         hls = HlsScope(self)
-        v0 = hls.read(self.i, Bits(16), inStreamPos=IN_STREAM_POS.BEGIN)
-        v1a = hls.read(self.i, Bits(24))
-        v1b = hls.read(self.i, Bits(32))
-        v2 = hls.read(self.i, Bits(8), inStreamPos=IN_STREAM_POS.END)
+        i = self.i
         o = self.o
+        v0 =  HlsStmReadAxiStream(hls, i, Bits(16), True)
+        v1a = HlsStmReadAxiStream(hls, i, Bits(24), True)
+        v1b = HlsStmReadAxiStream(hls, i, Bits(32), True)
+        v2 =  HlsStmReadAxiStream(hls, i, Bits(8), True)
 
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
             ast.While(True,
+                HlsStmReadStartOfFrame(hls, i),
                 v0,
                 ast.If(v0._eq(3),
                        v1a,
@@ -80,6 +87,7 @@ class AxiSParse2IfAndSequel(AxiSParse2fields):
                 ),
                 v2,
                 hls.write(v2._reinterpret_cast(o._dtype), o),
+                HlsStmReadEndOfFrame(hls, i),
             ),
             self._name)
         )

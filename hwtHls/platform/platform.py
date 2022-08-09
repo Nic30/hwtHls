@@ -26,8 +26,8 @@ from hwtHls.netlist.translation.toGraphwiz import HlsNetlistPassDumpToDot
 from hwtHls.netlist.translation.toTimeline import HlsNetlistPassShowTimeline
 from hwtHls.platform.fileUtils import outputFileGetter
 from hwtHls.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
-from hwtHls.ssa.transformation.axiStreamReadLowering.axiStreamReadLoweringPass import SsaPassAxiStreamReadLowering
-from hwtHls.ssa.transformation.extractPartDrivers.extractPartDriversPass import SsaPassExtractPartDrivers
+from hwtHls.ssa.transformation.axiStreamLowering.axiStreamReadLoweringPass import SsaPassAxiStreamReadLowering
+from hwtHls.ssa.transformation.axiStreamLowering.axiStreamWriteLowering import SsaPassAxiStreamWriteLowering
 from hwtHls.ssa.translation.dumpMIR import SsaPassDumpMIR
 from hwtHls.ssa.translation.dumpMirCfg import SsaPassDumpMirCfg
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.datapath import BlockLiveInMuxSyncDict
@@ -60,12 +60,9 @@ class DefaultHlsPlatform(DummyPlatform):
         SsaPassConsystencyCheck().apply(hls, toSsa)
         SsaPassAxiStreamReadLowering().apply(hls, toSsa)
         SsaPassAxiStreamWriteLowering().apply(hls, toSsa)
+        
         if debugDir:
             SsaPassDumpToDot(outputFileGetter(debugDir, ".1.frontend.dot"), extractPipeline=False).apply(hls, toSsa)
-
-        SsaPassExtractPartDrivers().apply(hls, toSsa)
-        if debugDir:
-            SsaPassDumpToDot(outputFileGetter(debugDir, ".2.sliceBreak.dot"), extractPipeline=False).apply(hls, toSsa)
 
         SsaPassToLlvm().apply(hls, toSsa)
         if debugDir:

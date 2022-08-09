@@ -1,8 +1,12 @@
 from typing import Union
 
+from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.value import HValue
-from hwt.interfaces.std import Handshaked
+from hwt.interfaces.hsStructIntf import HsStructIntf
+from hwt.interfaces.std import Handshaked, HandshakeSync, VldSynced, RdSynced, \
+    Signal
+from hwt.interfaces.structIntf import StructIntf
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
@@ -15,6 +19,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes
 from hwtHls.ssa.instr import SsaInstr, OP_ASSIGN
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer
 from hwtHls.ssa.value import SsaValue
+from hwtLib.amba.axi_intf_common import Axi_hs
 from hwtLib.amba.axis import AxiStream
 
 
@@ -25,8 +30,8 @@ class HlsWrite(HlsStm, SsaInstr):
 
     def __init__(self,
                  parent: "HlsScope",
-                 src:Union[SsaValue, Handshaked, AxiStream, bytes, HValue],
-                 dst: Union[AxiStream, Handshaked],
+                 src:Union[SsaValue, HValue],
+                 dst: Union[Handshaked, HsStructIntf, HandshakeSync, Axi_hs, VldSynced, RdSynced, Signal, StructIntf, RtlSignal],
                  dtype: HdlType):
         HlsStm.__init__(self, parent)
         if isinstance(dst, RtlSignal):
@@ -53,12 +58,12 @@ class HlsWrite(HlsStm, SsaInstr):
                                mbSync: MachineBasicBlockSyncContainer,
                                instr: MachineInstr,
                                srcVal: HlsNetNodeOutAny,
-                               dstIo: Interface,
+                               dstIo: Union[Interface, RtlSignal],
                                index: Union[int, HlsNetNodeOutAny],
                                cond: HlsNetNodeOutAny):
         netlist: HlsNetlistCtx = mirToNetlist.netlist
         # srcVal, dstIo, index, cond = ops
-        assert isinstance(dstIo, Interface), dstIo
+        assert isinstance(dstIo, (Interface, RtlSignal)), dstIo
         assert isinstance(index, int) and index == 0, (instr, index, "Because this read is not addressed there should not be any index")
         n = HlsNetNodeWrite(netlist, NOT_SPECIFIED, dstIo)
         link_hls_nodes(srcVal, n._inputs[0])
@@ -118,3 +123,22 @@ class HlsWriteAddressed(HlsWrite):
     def __repr__(self):
         src, index = self.operands[0]
         return f"<{self.__class__.__name__} {src if isinstance(src, HValue) else src._name}->{getSignalName(self.dst)}[{index}]>"
+
+
+class HlsStmWriteStartOfFrame(HlsWrite):
+    """
+    Statement which marks a start of frame on specified interface.
+    """
+
+    def __init__(self, parent:"HlsScope", intf:Interface):
+        super(HlsStmWriteStartOfFrame, self).__init__(parent, BIT.from_py(1), intf, BIT)
+
+    
+class HlsStmWriteEndOfFrame(HlsWrite):
+    """
+    Statement which marks an end of frame on specified interface.
+    """
+
+    def __init__(self, parent:"HlsScope", intf:Interface):
+        super(HlsStmWriteEndOfFrame, self).__init__(parent, BIT.from_py(1), intf, BIT)
+   

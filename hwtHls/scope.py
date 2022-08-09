@@ -14,24 +14,23 @@ from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.unit import Unit
-from hwtHls.frontend.ast.statementsRead import HlsRead, \
-    IN_STREAM_POS, HlsReadAxiStream
+from hwtHls.frontend.ast.statementsRead import HlsRead
+from hwtHls.frontend.ast.statementsWrite import HlsWrite
 from hwtHls.frontend.ast.thread import HlsThreadForSharedVar
-from hwtHls.frontend.pyBytecode.addressedIo import AddressedIoProxy
 from hwtHls.frontend.pyBytecode.indexExpansion import PyObjectHwSubscriptRef
+from hwtHls.frontend.pyBytecode.ioProxyAddressed import IoProxyAddressed
 from hwtHls.platform.platform import DefaultHlsPlatform
 from hwtHls.ssa.context import SsaContext
 from hwtHls.thread import HlsThread, HlsThreadDoesNotUseSsa
 from hwtLib.amba.axi_intf_common import Axi_hs
 from hwtLib.amba.axis import AxiStream
-from hwtHls.frontend.ast.statementsWrite import HlsWrite
 
 
 class HlsScope():
     """
     A HLS synthetizer with support for loops and packet level operations
 
-    * code -> SSA -> LLVM SSA -> LLVM MIR -> HLS netlist -> RTL netlist
+    * code -> SSA -> LLVM SSA -> LLVM MIR -> HLS netlist -> RTL architecture -> RTL netlist
 
     :ivar parentUnit: A RTL object where this HLS thread are being synthetized in.
     :ivar freq: Default target frequency for circuit synthesis
@@ -80,17 +79,13 @@ class HlsScope():
         return t
 
     def read(self,
-             src: Union[AxiStream, Handshaked],
-             type_or_size: Union[HdlType, RtlSignal, int]=NOT_SPECIFIED,
-             inStreamPos=IN_STREAM_POS.BODY):
+             src: Union[Handshaked, HsStructIntf, HandshakeSync, Axi_hs, VldSynced, RdSynced, Signal, StructIntf, RtlSignal],
+             type_or_size: Union[HdlType, RtlSignal, int]=NOT_SPECIFIED):
         """
         Create a read statement in thread.
         """
         
-        if isinstance(src, AxiStream):
-            return HlsReadAxiStream(self, src, type_or_size, inStreamPos)
-
-        elif isinstance(src, (Handshaked, HsStructIntf, HandshakeSync, Axi_hs)):
+        if isinstance(src, (Handshaked, HsStructIntf, HandshakeSync, Axi_hs)):
             if len(src._interfaces) == 3 and hasattr(src, "data"):
                 dtype = src.data._dtype
             else:
@@ -121,8 +116,8 @@ class HlsScope():
 
         elif isinstance(src, PyObjectHwSubscriptRef):
             src: PyObjectHwSubscriptRef
-            assert isinstance(src.sequence, AddressedIoProxy), src.sequence
-            mem: AddressedIoProxy = src.sequence
+            assert isinstance(src.sequence, IoProxyAddressed), src.sequence
+            mem: IoProxyAddressed = src.sequence
             return mem.READ_CLS(self, mem.interface, src.index, mem.nativeType.element_t)
 
         else:
@@ -131,12 +126,11 @@ class HlsScope():
         if type_or_size is not NOT_SPECIFIED:
             assert type_or_size == dtype
 
-        assert inStreamPos is IN_STREAM_POS.BODY
         return HlsRead(self, src, dtype)
 
     def write(self,
-              src:Union[HlsRead, Handshaked, AxiStream, bytes, HValue],
-              dst:Union[AxiStream, Handshaked]):
+              src:Union[HlsRead, bytes, HValue],
+              dst:Union[Handshaked, HsStructIntf, HandshakeSync, Axi_hs, VldSynced, RdSynced, Signal, StructIntf, RtlSignal]):
         """
         Create a write statement in thread.
         """

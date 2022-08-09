@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.hdl.types.struct import HStruct
 from hwt.interfaces.std import Handshaked
 from hwt.interfaces.utils import addClkRstn
@@ -9,12 +8,14 @@ from hwt.synthesizer.hObjList import HObjList
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.ast.builder import HlsAstBuilder
-from hwtHls.frontend.ast.statementsRead import IN_STREAM_POS
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axis import AxiStream
 from hwtLib.amba.axis_comp.frame_parser.test_types import structManyInts
 from hwtLib.types.ctypes import uint16_t, uint32_t
+from hwtHls.io.axiStream.stmRead import HlsStmReadAxiStream
+from hwtHls.frontend.ast.statementsRead import HlsStmReadStartOfFrame, \
+    HlsStmReadEndOfFrame
 
 
 class AxiSParseStructManyInts0(Unit):
@@ -39,12 +40,14 @@ class AxiSParseStructManyInts0(Unit):
 
     def _impl(self) -> None:
         hls = HlsScope(self)
-        v = hls.read(self.i, structManyInts, inStreamPos=IN_STREAM_POS.BEGIN_END)
+        v = HlsStmReadAxiStream(hls, self.i, structManyInts, True)
 
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
             ast.While(True,
+                HlsStmReadStartOfFrame(hls, self.i),
                 v,
+                HlsStmReadEndOfFrame(hls, self.i),
                 *(
                     hls.write(getattr(v.data, f"i{i:d}"), dst)
                     for i, dst in enumerate(self.o)
@@ -63,12 +66,8 @@ class AxiSParseStructManyInts1(AxiSParseStructManyInts0):
     def _impl(self) -> None:
         hls = HlsScope(self)
         v = [
-            hls.read(self.i, f.dtype, inStreamPos=
-                     IN_STREAM_POS.BEGIN_END if i == 0 and last else 
-                     IN_STREAM_POS.BEGIN if i == 0 else
-                     IN_STREAM_POS.END if last else
-                     IN_STREAM_POS.BODY)
-            for last, (i, f) in iter_with_last(enumerate(structManyInts.fields))
+            HlsStmReadAxiStream(hls, self.i, f.dtype, True)
+            for f in structManyInts.fields
         ]
 
         def write():
@@ -82,7 +81,9 @@ class AxiSParseStructManyInts1(AxiSParseStructManyInts0):
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
             ast.While(True,
-               *v,
+                HlsStmReadStartOfFrame(hls, self.i),
+                *v,
+                HlsStmReadEndOfFrame(hls, self.i),
                 *write(),
             ),
             self._name)
@@ -112,14 +113,16 @@ class AxiSParse2fields(AxiSParseStructManyInts0):
     def _impl(self) -> None:
         hls = HlsScope(self)
         v = [
-            hls.read(self.i, uint16_t, inStreamPos=IN_STREAM_POS.BEGIN),
-            hls.read(self.i, uint32_t, inStreamPos=IN_STREAM_POS.END),
+            HlsStmReadAxiStream(hls, self.i, uint16_t, True),
+            HlsStmReadAxiStream(hls, self.i, uint32_t, True),
         ]
 
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
             ast.While(True,
-               *v,
+                HlsStmReadStartOfFrame(hls, self.i),
+                *v,
+                HlsStmReadEndOfFrame(hls, self.i),
                 *(
                     hls.write(src.data, dst)
                     for src, dst in zip(v, self.o)

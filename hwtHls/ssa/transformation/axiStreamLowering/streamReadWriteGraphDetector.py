@@ -1,34 +1,37 @@
-from _collections import defaultdict
+from collections import defaultdict
 from itertools import chain
-from typing import DefaultDict, Tuple, List, Optional, Set, Dict
+from typing import DefaultDict, Tuple, List, Set, Dict, Union
 
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.frontend.ast.statementsRead import HlsRead
+from hwtHls.frontend.ast.statementsRead import HlsRead, HlsStmReadStartOfFrame, \
+    HlsStmReadEndOfFrame
+from hwtHls.frontend.ast.statementsWrite import HlsWrite, \
+    HlsStmWriteStartOfFrame, HlsStmWriteEndOfFrame
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 
 
-class ReadGraphDetector():
+class StreamReadWriteGraphDetector():
     """
-    Detector of informations about stream read operations control flow graph
+    Detector of informations about stream read/write operations control flow graph
 
-    :ivar cfg: the depndencies of reads as they appear in code
+    :ivar cfg: the dependencies of reads/writes as they appear in code
     :note: None represents the starting node
     :ivar DATA_WIDTH: number of bits of data in a single stream word
-    :ivar allReads: list of all reads to keep all structures ordered in deterministic order
+    :ivar allStms: list of all reads/writes to keep all structures ordered in deterministic order
     """
 
     def __init__(self, DATA_WIDTH: int,
-                         allReads: UniqList[HlsRead]):
+                         allStms: UniqList[Union[HlsRead, HlsWrite]]):
         self.DATA_WIDTH = DATA_WIDTH
-        self.allReads = allReads
-        self.cfg: Dict[HlsRead, UniqList[Tuple[int, HlsRead]]] = {}
+        self.allStms = allStms
+        self.cfg: Dict[HlsRead, UniqList[Tuple[int, Union[HlsRead, HlsWrite]]]] = {}
         self.cfg[None] = UniqList()
         self.inWordOffset: DefaultDict[List[int]] = defaultdict(list)
-        self.predecessors: DefaultDict[UniqList[Optional[HlsRead]]] = defaultdict(UniqList)
+        self.predecessors: DefaultDict[UniqList[Union[HlsRead, HlsWrite, None]]] = defaultdict(UniqList)
     
-    def addTransition(self, src: HlsRead, dstInWordOffset: int, dst: HlsRead):
-        assert isinstance(src, HlsRead) or src is None, src
-        assert isinstance(dst, HlsRead) or dst is None, dst
+    def addTransition(self, src: Union[HlsRead, HlsWrite], dstInWordOffset: int, dst: Union[HlsRead, HlsWrite]):
+        assert isinstance(src, (HlsRead, HlsWrite)) or src is None, src
+        assert isinstance(dst, (HlsRead, HlsWrite)) or dst is None, dst
         
         sucs = self.cfg.get(src, None)
         if sucs is None:
@@ -36,33 +39,44 @@ class ReadGraphDetector():
         sucs.append((dstInWordOffset, dst))
         self.cfg[dst] = UniqList()
     
-    def detectReadGraphs(self,
-                         predecessor: Optional[HlsRead],
-                         predEndOffset: int,
-                         block: SsaBasicBlock,
-                         seenBlocks: Set[SsaBasicBlock],
-                         ):
+    def detectIoAccessGraphs(self,
+                             predecessor: Union[HlsRead, HlsWrite, None],
+                             predEndOffset: int,
+                             block: SsaBasicBlock,
+                             seenBlocks: Set[SsaBasicBlock]):
         """
-        DFS search all read sequences
+        DFS search all read/write sequences
         
         :param seenBlocks: set of blocks which were seen for this specific position in packet
-        :note: 1 read instance can actually be read multiple times e.g. in cycle
-            however the thing what we care about are possible successor reads of a read
+        :note: 1 read/write instance can actually be read/write multiple times e.g. in cycle
+            however the thing what we care about are possible successor reads/writes of a read/write
         """
         endWasModified = False
         for instr in block.body:
-            if instr in self.allReads:
+            if instr in self.allStms:
                 if instr in self.cfg and (predEndOffset, instr) in self.cfg[predecessor]:
                     # already seen with this offset and already resolved
                     return
-                instr: HlsRead
+                instr: Union[HlsRead, HlsWrite]
                 self.addTransition(predecessor, predEndOffset, instr)
-                if instr is not None and instr._inStreamPos.isEnd():
+                if isinstance(instr, (HlsStmReadEndOfFrame, HlsStmWriteEndOfFrame)):
                     predecessor = None
                     predEndOffset = 0
+                    endWasModified = True
                 else:
                     predecessor = instr
-                    predEndOffset = (predEndOffset + instr._dtypeOrig.bit_length()) % self.DATA_WIDTH
+                    if isinstance(instr, (HlsStmReadStartOfFrame, HlsStmWriteStartOfFrame)):
+                        w = 0
+                    else:
+                        if isinstance(instr, HlsRead):
+                            w = instr._dtypeOrig.bit_length()
+                        else:
+                            w = instr.operands[0]._dtype.bit_length()
+
+                        endWasModified = True
+
+                    predEndOffset = (predEndOffset + w) % self.DATA_WIDTH
+
                 endWasModified = True
                 if seenBlocks:
                     seenBlocks = set()
@@ -70,23 +84,23 @@ class ReadGraphDetector():
         seenBlocks.add(block)
         for suc in block.successors.iterBlocks():
             if suc not in seenBlocks or (suc is block and endWasModified):
-                self.detectReadGraphs(predecessor, predEndOffset, suc, seenBlocks)
+                self.detectIoAccessGraphs(predecessor, predEndOffset, suc, seenBlocks)
 
     def resolvePossibleOffset(self):
         self.inWordOffset[None].append(0)
-        for pred in chain(self.allReads, (None,)):
+        for pred in chain(self.allStms, (None,)):
             successors = self.cfg[pred]
             for sucOffset, suc in successors:
                 self.inWordOffset[suc].append(sucOffset)
                 self.predecessors[suc].append(pred)
-        
+
         for k, v in self.inWordOffset.items():
             self.inWordOffset[k] = sorted(set(v))
-        
-    def findReadStartBlock(self):
-        return self._findReadStartBlock(self.cfg[None])
 
-    def _findReadStartBlock(self, firstReadInstrs: List[HlsRead]):
+    def findStartBlock(self):
+        return self._findStartBlock(self.cfg[None])
+
+    def _findStartBlock(self, firstReadInstrs: List[Union[HlsRead, HlsWrite]]):
         startBlocks = [i.block for _, i in firstReadInstrs]
         if len(set(startBlocks)) == 1:
             return startBlocks[0]
@@ -112,7 +126,7 @@ class ReadGraphDetector():
                 preds = _preds
             else:
                 preds = preds.union(_preds)
-            
+
             assert preds, "Must have some common predecessor"
         # select the predecessors which does not have any predecessor as successor
         _preds = []
@@ -125,7 +139,7 @@ class ReadGraphDetector():
                 sucs = tuple(sucs)
                 if sucs[0] is p:
                     _preds.append(p)
-        
+
         if len(_preds) > 1:
             raise NotImplementedError("Multiple undistinguishable predecessors", _preds)
         elif not _preds:

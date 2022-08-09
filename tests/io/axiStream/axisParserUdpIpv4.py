@@ -7,15 +7,15 @@ from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
-from hwtHls.frontend.ast.statementsRead import IN_STREAM_POS
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axis import AxiStream
-from hwtLib.types.ctypes import uint16_t, uint8_t
+from hwtLib.types.ctypes import uint16_t
 from hwtLib.types.net.ethernet import Eth2Header_t, ETHER_TYPE
 from hwtLib.types.net.ip import IPv4Header_t, IP_PROTOCOL, ipv4_t
 from hwtLib.types.net.udp import UDP_header_t
+from hwtHls.io.axiStream.proxy import IoProxyAxiStream
 
 
 class AxiSParseUdpIpv4(Unit):
@@ -36,15 +36,17 @@ class AxiSParseUdpIpv4(Unit):
             self.srcp.T = Bits(16)
     
     def parseEth(self, hls: HlsScope):
+        i = IoProxyAxiStream(hls, self.i)
         while BIT.from_py(1):
-            eth = PyBytecodeInPreproc(hls.read(self.i, Eth2Header_t, inStreamPos=IN_STREAM_POS.BEGIN))
-            if eth.type._eq(ETHER_TYPE.IPv4):
-                ipv4 = PyBytecodeInPreproc(hls.read(self.i, IPv4Header_t))
-                if ipv4.protocol._eq(IP_PROTOCOL.UDP):
-                    udp = PyBytecodeInPreproc(hls.read(self.i, UDP_header_t))
-                    hls.write(ipv4.src, self.src_ip)
-                    hls.write(udp.srcp, self.srcp)
-            hls.read(self.i, uint8_t, inStreamPos=IN_STREAM_POS.END)
+            i.readStartOfFrame()
+            eth = PyBytecodeInPreproc(i.read(Eth2Header_t))
+            if eth.data.type._eq(ETHER_TYPE.IPv4):
+                ipv4 = PyBytecodeInPreproc(i.read(IPv4Header_t))
+                if ipv4.data.protocol._eq(IP_PROTOCOL.UDP):
+                    udp = PyBytecodeInPreproc(i.read(UDP_header_t))
+                    hls.write(ipv4.data.src, self.src_ip)
+                    hls.write(udp.data.srcp, self.srcp)
+            i.readEndOfFrame()
 
     def _impl(self) -> None:
         hls = HlsScope(self)

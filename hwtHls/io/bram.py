@@ -7,9 +7,8 @@ from hwt.interfaces.std import BramPort_withoutClk
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
-from hwtHls.frontend. pyBytecode.addressedIo import AddressedIoProxy
 from hwtHls.frontend.ast.statementsRead import HlsReadAddressed
-from hwtHls.frontend.ast.statementsWrite import HlsWrite, HlsWriteAddressed
+from hwtHls.frontend.ast.statementsWrite import HlsWriteAddressed
 from hwtHls.llvm.llvmIr import LoadInst, Register
 from hwtHls.llvm.llvmIr import MachineInstr
 from hwtHls.netlist.context import HlsNetlistCtx
@@ -22,6 +21,7 @@ from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.opCache import MirToHwtHlsNetlistOpCache
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer
+from hwtHls.frontend.pyBytecode.ioProxyAddressed import IoProxyAddressed
 
 
 class HlsNetNodeWriteCommandBram(HlsNetNodeWriteIndexed):
@@ -151,6 +151,6 @@ class HlsWriteBram(HlsWriteAddressed):
         mirToNetlist.outputs.append(n)
 
 
-class BramArrayProxy(AddressedIoProxy):
+class BramArrayProxy(IoProxyAddressed):
     READ_CLS = HlsReadBram
     WRITE_CLS = HlsWriteBram

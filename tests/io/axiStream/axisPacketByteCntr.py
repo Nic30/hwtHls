@@ -3,8 +3,8 @@ from hwt.hdl.types.defs import BIT
 from hwt.interfaces.std import Handshaked
 from hwt.interfaces.utils import addClkRstn
 from hwt.math import log2ceil
-from hwtHls.frontend.ast.statementsRead import IN_STREAM_POS
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc
+from hwtHls.io.axiStream.proxy import IoProxyAxiStream
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axis import AxiStream
 from hwtLib.types.ctypes import uint16_t
@@ -25,11 +25,12 @@ class AxiSPacketByteCntr0(AxiSPacketCntr):
             self.byte_cnt: Handshaked = Handshaked()._m()
             self.byte_cnt.DATA_WIDTH = 16
 
-    def mainThread(self, hls: HlsScope):
+    def mainThread(self, hls: HlsScope, i: IoProxyAxiStream):
         byte_cnt = uint16_t.from_py(0)
+        i.readStartOfFrame()
         while BIT.from_py(1):
-            for strbBit in hls.read(self.i, self.i.data._dtype,
-                                    inStreamPos=IN_STREAM_POS.BEGIN_OR_BODY_OR_END).strb:
+            # end of frame is ignored
+            for strbBit in i.read(self.i.data._dtype).strb:
                 if strbBit:
                     # There the problem is that we do not have the information that the sequence of 1 in mask
                     # is consistent and we have to create a circuit with len(strb) adders which will add 1 if bit
@@ -41,15 +42,13 @@ class AxiSPacketByteCntr0(AxiSPacketCntr):
 
 class AxiSPacketByteCntr1(AxiSPacketByteCntr0):
 
-    def mainThread(self, hls: HlsScope):
+    def mainThread(self, hls: HlsScope, i: IoProxyAxiStream):
         byte_cnt = uint16_t.from_py(0)
+        i.readStartOfFrame()
         while BIT.from_py(1):
             wordByteCnt = Bits(log2ceil(self.i.strb._dtype.bit_length() + 1), signed=False).from_py(0)
             # this for is just MUX
-            for i, strbBit in enumerate(
-                    hls.read(self.i, self.i.data._dtype,
-                             inStreamPos=IN_STREAM_POS.BEGIN_OR_BODY_OR_END).strb
-                    ):
+            for i, strbBit in enumerate(i.read(self.i.data._dtype).strb):
                 if strbBit:
                     # There we generate ROM of len(strb) values where item is selected based on last 1 bit in srtb
                     # This would not work if the prefix of strb contains some 0 bits before first 1.
@@ -61,16 +60,14 @@ class AxiSPacketByteCntr1(AxiSPacketByteCntr0):
 
 class AxiSPacketByteCntr2(AxiSPacketByteCntr0):
 
-    def mainThread(self, hls: HlsScope):
+    def mainThread(self, hls: HlsScope, i: IoProxyAxiStream):
         byte_cnt = uint16_t.from_py(0)
         strbWidth = self.i.strb._dtype.bit_length()
+        i.readStartOfFrame()
         while BIT.from_py(1):
             wordByteCnt = Bits(log2ceil(strbWidth + 1), signed=False).from_py(strbWidth)
             # this for is just MUX
-            for i, strbBit in enumerate(
-                    hls.read(self.i, self.i.data._dtype,
-                             inStreamPos=IN_STREAM_POS.BEGIN_OR_BODY_OR_END).strb
-                    ):
+            for i, strbBit in enumerate(i.read(self.i.data._dtype).strb):
                 if ~strbBit:
                     wordByteCnt = i
                     break
@@ -82,15 +79,14 @@ class AxiSPacketByteCntr2(AxiSPacketByteCntr0):
 
 class AxiSPacketByteCntr3(AxiSPacketByteCntr1):
 
-    def mainThread(self, hls: HlsScope):
+    def mainThread(self, hls: HlsScope, i: IoProxyAxiStream):
         byte_cnt = uint16_t.from_py(0)
         strbWidth = self.i.strb._dtype.bit_length()
+        i.readStartOfFrame()
         while BIT.from_py(1):
             # PyBytecodeInPreproc is used because otherwise 
             # the read object is converted to a RtlSignal because word= is a store to a word variable
-            word = PyBytecodeInPreproc(
-                    hls.read(self.i, self.i.data._dtype,
-                             inStreamPos=IN_STREAM_POS.BEGIN_OR_BODY_OR_END))
+            word = PyBytecodeInPreproc(i.read(self.i.data._dtype))
             wordByteCnt = Bits(log2ceil(strbWidth + 1), signed=False).from_py(strbWidth)
             # this for is just MUX
             for i, strbBit in enumerate(word.strb):

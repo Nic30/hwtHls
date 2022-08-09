@@ -27,25 +27,6 @@ from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.opCache import MirToHwtH
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer
 from hwtLib.amba.axis import AxiStream
 
-
-class IN_STREAM_POS(Enum):
-    """
-    Enum for position of chunk of data inside of stream.
-    """
-    BEGIN_OR_BODY_OR_END = "ANY"
-    BEGIN = "BEGIN"  # if first but not last data chunk in frame
-    BEGIN_END = "BEGIN_END"  # is first and last data chunk in frame
-    BODY = "BODY"  # is not first not last data chunk in frame
-    END_OR_BODY = "END_OR_BODY"  # could be at last data chunk in frame
-    END = "END"  # is last data chunk in frame
-
-    def isBegin(self):
-        return self in (IN_STREAM_POS.BEGIN_OR_BODY_OR_END, IN_STREAM_POS.BEGIN, IN_STREAM_POS.BEGIN_END)
-
-    def isEnd(self):
-        return self in (IN_STREAM_POS.BEGIN_OR_BODY_OR_END, IN_STREAM_POS.BEGIN_END, IN_STREAM_POS.END)
-
-
 ANY_HLS_STREAM_INTF_TYPE = Union[AxiStream, Handshaked, VldSynced,
                                  HsStructIntf, RtlSignal, Signal,
                                  UnionSink, UnionSource]
@@ -137,87 +118,6 @@ class HlsRead(HdlStatement, SignalOps, InterfaceBase, SsaInstr):
         return f"<{self.__class__.__name__} {self._name:s} {getSignalName(self._src):s}, {t}>"
 
 
-class HlsReadAxiStream(HlsRead):
-        
-    def __init__(self,
-                 parent: "HlsScope",
-                 src: AxiStream,
-                 dtype: HdlType,
-                 inStreamPos=IN_STREAM_POS.BODY):
-        super(HlsRead, self).__init__()
-        self._isAccessible = True
-        assert isinstance(inStreamPos, IN_STREAM_POS), inStreamPos
-        self._inStreamPos = inStreamPos
-        self._parent = parent
-        self._src = src
-        self.block: Optional[SsaBasicBlock] = None
-        assert isinstance(dtype, HdlType), dtype
-            
-        intfName = getSignalName(src)
-        var = parent.var
-        name = f"{intfName:s}_read"
-        if src.DEST_WIDTH:
-            raise NotImplementedError()
-        
-        if src.ID_WIDTH:
-            raise NotImplementedError()
-        
-        if src.USE_KEEP or src.USE_STRB:
-            data_w = dtype.bit_length()
-            assert data_w % 8 == 0, data_w
-            mask_w = ceil(dtype.bit_length() / 8)
-            maskT = Bits(mask_w)
-
-        trueDtype = HStruct(
-            (dtype, "data"),
-            *(((maskT, "keep"),) if src.USE_KEEP else ()),
-            *(((maskT, "strb"),) if src.USE_STRB else ()),
-            (BIT, "last"),  # we do not know how many words this read could be last is disjunction of last signals from each word
-        )
-        
-        sig_flat = var(name, Bits(trueDtype.bit_length()))
-        sig_flat.drivers.append(self)
-        sig_flat.origin = self
-        self._sig = sig_flat
-        self._last = None 
-        self._GEN_NAME_PREFIX = intfName
-        SsaInstr.__init__(self, parent.ssaCtx, sig_flat._dtype, OP_ASSIGN, (),
-                          origin=sig_flat)
-        self._dtypeOrig = dtype
-
-        sig: Interface = sig_flat._reinterpret_cast(trueDtype)
-        sig._name = name
-        sig._parent = parent.parentUnit
-        self._interfaces = sig._interfaces
-        # copy all members on this object
-        for field_path, field_intf in sig._fieldsToInterfaces.items():
-            if len(field_path) == 1:
-                n = field_path[0]
-                assert not hasattr(self, n), (self, n)
-                setattr(self, n, field_intf)
-
-    @staticmethod
-    def _getWordType(intf: AxiStream):
-        return Interface_to_HdlType().apply(intf, exclude={intf.ready, intf.valid})
-
-    def _isLast(self):
-        """
-        :return: an expression which is 1 if this is a last word in the frame
-        """
-        if self._last is None:
-            self._last = self._sig[self._sig._dtype.bit_length() - 1]
-
-        return self._last
-
-    def __repr__(self):
-        t = self._dtype
-        tName = getattr(t, "name")
-        if tName is not None:
-            t = tName
-
-        return f"<{self.__class__.__name__} {self._name:s} {getSignalName(self._src):s}, {t}, {self._inStreamPos.name}>"
-
-
 class HlsReadAddressed(HlsRead):
 
     def __init__(self,
@@ -256,3 +156,29 @@ class HlsReadAddressed(HlsRead):
             t = tName
 
         return f"<{self.__class__.__name__} {self._name:s} {getSignalName(self._src):s}[{self._index}], {t}>"
+
+
+class HlsStmReadStartOfFrame(HlsRead):
+    """
+    A statement which switches the reader FSM to start of frame state.
+
+    :attention: Does not read SOF flag from interface. (To get EOF you have to read data which contains also EOF flag.)
+    """
+
+    def __init__(self,
+        parent:"HlsScope",
+        src:ANY_HLS_STREAM_INTF_TYPE):
+        HlsRead.__init__(self, parent, src, BIT)
+
+
+class HlsStmReadEndOfFrame(HlsRead):
+    """
+    A statement which switches the reader FSM to end of frame state.
+
+    :attention: Does not read EOF flag from interface. (To get SOF you have to read data which contains also SOF flag.)
+    """
+
+    def __init__(self,
+        parent:"HlsScope",
+        src:ANY_HLS_STREAM_INTF_TYPE):
+        HlsRead.__init__(self, parent, src, BIT)
