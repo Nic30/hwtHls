@@ -91,7 +91,7 @@ PreprocLoopMultiExit_TCs = [
 ]
 
 if __name__ == "__main__":
-    # import unittest
+    import unittest
     # from hwt.synthesizer.utils import to_rtl_str
     # u = PreprocLoopMultiExit_hwBreak0()
     # print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))

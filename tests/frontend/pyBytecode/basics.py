@@ -10,6 +10,7 @@ from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import uint32_t, uint8_t
+from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc
 
 
 class HlsConnectionFromPyFn0(Unit):
@@ -40,14 +41,14 @@ class HlsConnectionFromPyFnPreprocTmpVar0(HlsConnectionFromPyFn0):
 
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
-            o = self.o
+            o = PyBytecodeInPreproc(self.o)
             hls.write(hls.read(self.i), o)
 
 
 class HlsConnectionFromPyFnPreprocTmpVar1(HlsConnectionFromPyFn0):
 
     def mainThread(self, hls: HlsScope):
-        o = self.o
+        o = PyBytecodeInPreproc(self.o)
         while BIT.from_py(1):
             hls.write(hls.read(self.i), o)
 
@@ -151,5 +152,5 @@ class HlsConnectionFromPyFnKwArgs(Unit):
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
-    u = HlsConnectionFromPyFnElif()
+    u = HlsConnectionFromPyFnKwArgs()
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))

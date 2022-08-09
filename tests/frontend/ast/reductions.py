@@ -35,6 +35,8 @@ class SumReduce(Unit):
             ast.While(True,
                 res(0),
                 ast.For(i(0), i < 3, i(i + 1),
+                    # if this for is not unrolled the execution is sequential,
+                    # in each clock only a single input is read
                     ast.If(i._eq(0),
                         i(hls.read(din[0])),
                     ).Elif(i._eq(1),

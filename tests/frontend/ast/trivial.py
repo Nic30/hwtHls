@@ -113,7 +113,7 @@ class WhileTrueReadWrite(WhileTrueWrite):
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
             ast.While(True,
-                hls.write(hls.read(self.dataIn, self.dataIn.T), self.dataOut)
+                hls.write(hls.read(self.dataIn), self.dataOut)
             ),
             self._name)
         )
@@ -127,7 +127,7 @@ class WhileTrueReadWriteExpr(WhileTrueReadWrite):
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
             ast.While(True,
-                hls.write((hls.read(self.dataIn, self.dataIn.T) * 8 + 2) * 3, self.dataOut)
+                hls.write((hls.read(self.dataIn) * 8 + 2) * 3, self.dataOut)
             ),
             self._name)
         )
