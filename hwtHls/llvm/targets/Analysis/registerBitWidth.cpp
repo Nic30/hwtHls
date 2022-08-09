@@ -138,9 +138,15 @@ bool resolveTypes(MachineInstr &MI) {
 									"All values for register must be of same type");
 						}
 					} else {
-						assert(
-								T.getSizeInBits() == 1
-										&& "All conditions must be of i1 type");
+						if (T.getSizeInBits() != 1) {
+							errs() << R << " bitWidth:" << T.getSizeInBits()
+									<< "\n";
+							errs() << MI << "\n";
+							MF.print(errs());
+							errs() << "\n";
+							llvm_unreachable(
+									"All conditions must be of i1 type");
+						}
 					}
 				} else {
 					if (isValueOp) {
@@ -161,7 +167,8 @@ bool resolveTypes(MachineInstr &MI) {
 		auto *addrDef = MRI.getVRegDef(MI.getOperand(1).getReg());
 		if (addrDef->getOpcode() != GenericFpga::GENFPGA_ARG_GET) {
 			errs() << MI << "address defined in:\n" << *addrDef;
-			llvm_unreachable("Address for GENFPGA_CLOAD should be provided from function argument only");
+			llvm_unreachable(
+					"Address for GENFPGA_CLOAD should be provided from function argument only");
 		}
 		auto fnArgI = addrDef->getOperand(1).getImm();
 		auto a = MF.getFunction().getArg(fnArgI);
@@ -196,7 +203,12 @@ bool resolveTypes(MachineInstr &MI) {
 		unsigned totalWidth = 0;
 		for (unsigned i = 0; i < srcCnt; i++) {
 			auto width = MI.getOperand(1 + srcCnt + i).getImm();
-			assert(checkOrSetWidth(MRI, MI.getOperand(1 + i), width));
+			if (!checkOrSetWidth(MRI, MI.getOperand(1 + i), width)) {
+				MF.dump();
+				errs() << MI << " i:" << i << "\n";
+				llvm_unreachable(
+						"GENFPGA_MERGE_VALUES operand specified and actual width differs");
+			}
 			totalWidth += width;
 		}
 		assert(checkOrSetWidth(MRI, MI.getOperand(0), totalWidth));
@@ -212,7 +224,12 @@ bool resolveTypes(MachineInstr &MI) {
 		if (src.isReg()) {
 			LLT srcT = MRI.getType(src.getReg());
 			if (srcT.isValid()) {
-				assert(unsigned(offset + dstWidth) <= srcT.getSizeInBits());
+				if (unsigned(offset + dstWidth) > srcT.getSizeInBits()) {
+					MF.dump();
+					errs() << MI;
+					llvm_unreachable(
+							"GENFPGA_EXTRACT with incorret operands, selecting more bits than is provided from src");
+				}
 				return true;
 			}
 		} else {
