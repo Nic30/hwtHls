@@ -5,6 +5,7 @@
 #include "targets/intrinsic/bitrange.h"
 namespace py = pybind11;
 
+
 namespace hwtHls {
 
 void register_IRBuilder(pybind11::module_ & m) {
@@ -64,7 +65,9 @@ void register_IRBuilder(pybind11::module_ & m) {
 			}, py::return_value_policy::reference)
 		.def("CreateSwitch", &llvm::IRBuilder<>::CreateSwitch, py::return_value_policy::reference)
 		.def("CreateBitRangeGet", CreateBitRangeGet)
-		.def("CreateBitConcat", CreateBitConcat)
+		.def("CreateBitConcat", [](llvm::IRBuilder<> * self, std::vector<llvm::Value*> & OpsLowFirst) {
+			return CreateBitConcat(self, llvm::makeArrayRef(OpsLowFirst));
+		})
 		.def("CreateGEP",  [](llvm::IRBuilder<> * self, llvm::Type *Ty, llvm::Value *Ptr, std::vector<llvm::Value *>& IdxList) {
 			return self->CreateGEP(Ty, Ptr, IdxList, "");
 		}, py::return_value_policy::reference);

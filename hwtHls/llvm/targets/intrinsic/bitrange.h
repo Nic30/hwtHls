@@ -10,7 +10,12 @@ bool IsBitRangeGet(const llvm::CallInst * C);
 bool IsBitRangeGet(const llvm::Function * F);
 
 extern const std::string BitConcatName;
+/*
+ * :note: operands does not have to be of same type
+ * */
 llvm::CallInst* CreateBitConcat(llvm::IRBuilder<> *Builder,
-		llvm::ArrayRef<llvm::Value*> OpsHighFirst);
+		llvm::ArrayRef<llvm::Value*> OpsLowFirst);
+
+
 bool IsBitConcat(const llvm::CallInst * C);
 bool IsBitConcat(const llvm::Function * F);

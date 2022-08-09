@@ -130,7 +130,7 @@ CallInst* CreateBitRangeGet(IRBuilder<> *Builder, Value *bitVec,
 					Intrinsic_getName(BitRangeGetName, TysForName) + "." + std::to_string(lowBitNoC->getZExtValue()), ResT,
 					Tys[0], Tys[1]).getCallee());
 	AddDefaultFunctionAttributes(*TheFn);
-	CallInst *CI = Builder->CreateCall(TheFn, Ops, BitRangeGetName);
+	CallInst *CI = Builder->CreateCall(TheFn, Ops);
 	return CI;
 }
 
@@ -143,16 +143,16 @@ bool IsBitRangeGet(const llvm::Function *F) {
 
 const std::string BitConcatName = "hwtHls.bitConcat";
 llvm::CallInst* CreateBitConcat(llvm::IRBuilder<> *Builder,
-		llvm::ArrayRef<llvm::Value*> OpsHighFirst) {
+		llvm::ArrayRef<llvm::Value*> OpsLowFirst) {
 	size_t bitWidth = 0;
 	std::vector<Type*> ArgTys;
-	ArgTys.reserve(OpsHighFirst.size());
-	for (auto *o : OpsHighFirst) {
+	ArgTys.reserve(OpsLowFirst.size());
+	for (auto *o : OpsLowFirst) {
 		if (auto t = dyn_cast<IntegerType>(o->getType())) {
 			bitWidth += t->getBitWidth();
 		} else {
 			throw std::runtime_error(
-					"CreateBitConcat called with non integer type");
+					"CreateBitConcat called with non-integer type");
 		}
 		ArgTys.push_back(o->getType());
 	}
@@ -163,8 +163,7 @@ llvm::CallInst* CreateBitConcat(llvm::IRBuilder<> *Builder,
 			M->getOrInsertFunction(Intrinsic_getName(BitConcatName, ArgTys),
 					FunctionType::get(RetTy, ArgTys, false)).getCallee());
 	AddDefaultFunctionAttributes(*TheFn);
-	CallInst *CI = Builder->CreateCall(TheFn, OpsHighFirst, BitConcatName);
-
+	CallInst *CI = Builder->CreateCall(TheFn, OpsLowFirst);
 	return CI;
 }
 

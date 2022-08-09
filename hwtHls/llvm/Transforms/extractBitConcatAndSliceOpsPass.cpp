@@ -25,10 +25,10 @@ static bool trySelectInstrToBitConcat(SelectInst *SI) {
 		if (S0 && S1) {
 			APInt S0v = S0->getValue();
 			APInt S1v = S1->getValue();
-			std::vector<Value*> OpsHighFirst;
+			std::vector<Value*> OpsLowFirst;
 			Value *NotC = nullptr;
 			Value *lastV = nullptr;
-			for (int i = RetWidth - 1; i >= 0; i--) {
+			for (unsigned i = 0; i < RetWidth; ++i) {
 				auto b0 = S0v[i];
 				auto b1 = S1v[i];
 				Value *v;
@@ -45,27 +45,28 @@ static bool trySelectInstrToBitConcat(SelectInst *SI) {
 					v = Builder.getInt1(0);
 				}
 				if (lastV) {
-					if (ConstantInt *curVasInt = dyn_cast<ConstantInt>(v)) {
-						if (ConstantInt *lastVasInt = dyn_cast<ConstantInt>(
+					if (ConstantInt *curVarAsInt = dyn_cast<ConstantInt>(v)) {
+						if (ConstantInt *lastVarAsInt = dyn_cast<ConstantInt>(
 								lastV)) {
-							OpsHighFirst.pop_back();
+							// lastVarAsInt |= curVarAsInt << lastVarAsInt.width
+							OpsLowFirst.pop_back();
 							// concatenate integer constants
-							auto lastW = lastVasInt->getType()->getBitWidth();
-							auto curW = curVasInt->getType()->getBitWidth();
-							APInt newV = lastVasInt->getValue();
-							APInt newV2 = newV.zext(lastW + curW);
-							newV2 <<= curW;
-							newV2 |= curVasInt->getValue().zext(lastW + curW);
-							v = Builder.getInt(newV2);
+							auto lastW = lastVarAsInt->getType()->getBitWidth();
+							auto curW = curVarAsInt->getType()->getBitWidth();
+							APInt newV = lastVarAsInt->getValue().zext(
+									lastW + curW);
+							newV |= curVarAsInt->getValue().zext(lastW + curW)
+									<< lastW;
+							v = Builder.getInt(newV);
 						}
 					}
 				}
-				OpsHighFirst.push_back(v);
+				OpsLowFirst.push_back(v);
 				lastV = v;
 
 			}
 			llvm::CallInst *res = CreateBitConcat(&Builder,
-					llvm::makeArrayRef<Value*>(OpsHighFirst));
+					llvm::makeArrayRef<Value*>(OpsLowFirst));
 			SI->replaceAllUsesWith(res);
 			return true;
 		}
@@ -192,39 +193,42 @@ static bool tryOrToBitConcat(BinaryOperator *BO) {
 	// %hwthls.bitConcat = call i2 @hwthls.bitConcat(i1 X, i1 0) (or X << 1)
 	// %1 = zext i1 %0 to i2
 	// %2 = or i2 %hwthls.bitConcat, %1
-	OperandOffsetInfo left = getOperandOffsetAndBaseValue(BO->getOperand(1));
-	OperandOffsetInfo right = getOperandOffsetAndBaseValue(BO->getOperand(0));
+	OperandOffsetInfo highBits = getOperandOffsetAndBaseValue(
+			BO->getOperand(1));
+	OperandOffsetInfo lowBits = getOperandOffsetAndBaseValue(BO->getOperand(0));
 
-	// swap so upper part is in o1
-	if (right.offset != left.offset) {
-		if (right.offset > left.offset) {
-			std::swap(right, left);
+	// swap so upper part is in left
+	if (lowBits.offset != highBits.offset) {
+		if (lowBits.offset > highBits.offset) {
+			std::swap(lowBits, highBits);
 		}
-		std::vector<Value*> OpsHighFirst;
+		std::vector<Value*> OpsLowFirst;
 		unsigned leftWidth =
-				left.val ? left.val->getType()->getIntegerBitWidth() : 0;
+				highBits.val ?
+						highBits.val->getType()->getIntegerBitWidth() : 0;
 		unsigned rightWidth =
-				right.val ? right.val->getType()->getIntegerBitWidth() : 0;
+				lowBits.val ? lowBits.val->getType()->getIntegerBitWidth() : 0;
 		unsigned resW = dyn_cast<IntegerType>(BO->getType())->getBitWidth();
-		int leftPad = (int) resW - int(leftWidth + left.offset);
-		int middlePad = (int) left.offset - int(rightWidth + right.offset);
-		if (leftPad >= 0 && middlePad >= 0) {
+		int highPad = (int) resW - int(leftWidth + highBits.offset);
+		int middlePad = (int) highBits.offset
+				- int(rightWidth + lowBits.offset);
+		if (highPad >= 0 && middlePad >= 0) {
 			// else the left and right overlaps and this is not the concatenation
 			IRBuilder<> Builder(BO);
 
-			if (leftPad)
-				OpsHighFirst.push_back(Builder.getIntN(leftPad, 0));
-			if (left.val)
-				OpsHighFirst.push_back(left.val);
+			if (lowBits.offset)
+				OpsLowFirst.push_back(Builder.getIntN(lowBits.offset, 0));
+			if (lowBits.val)
+				OpsLowFirst.push_back(lowBits.val);
 			if (middlePad)
-				OpsHighFirst.push_back(Builder.getIntN(middlePad, 0));
-			if (right.val)
-				OpsHighFirst.push_back(right.val);
-			if (right.offset)
-				OpsHighFirst.push_back(Builder.getIntN(right.offset, 0));
+				OpsLowFirst.push_back(Builder.getIntN(middlePad, 0));
+			if (highBits.val)
+				OpsLowFirst.push_back(highBits.val);
+			if (highPad)
+				OpsLowFirst.push_back(Builder.getIntN(highPad, 0));
 
 			llvm::CallInst *res = CreateBitConcat(&Builder,
-					llvm::makeArrayRef<Value*>(OpsHighFirst));
+					llvm::makeArrayRef<Value*>(OpsLowFirst));
 			BO->replaceAllUsesWith(res);
 			return true;
 		}
@@ -307,20 +311,20 @@ static bool tryShlToBitConcat(BinaryOperator *BO) {
 			return false; // [todo] need to slice
 		}
 		// swap so upper part is in o1
-		std::vector<Value*> OpsHighFirst;
+		std::vector<Value*> OpsLowFirst;
 		unsigned width =
 				base.val ? base.val->getType()->getIntegerBitWidth() : 0;
-		int leftPad = (int) resW - int(width + base.offset);
-		if (leftPad >= 0) {
-			if (leftPad)
-				OpsHighFirst.push_back(Builder.getIntN(leftPad, 0));
-			if (base.val)
-				OpsHighFirst.push_back(base.val);
+		int highPad = (int) resW - int(width + base.offset);
+		if (highPad >= 0) {
 			if (base.offset)
-				OpsHighFirst.push_back(Builder.getIntN(base.offset, 0));
+				OpsLowFirst.push_back(Builder.getIntN(base.offset, 0));
+			if (base.val)
+				OpsLowFirst.push_back(base.val);
+			if (highPad)
+				OpsLowFirst.push_back(Builder.getIntN(highPad, 0));
 
 			llvm::CallInst *res = CreateBitConcat(&Builder,
-					llvm::makeArrayRef<Value*>(OpsHighFirst));
+					llvm::makeArrayRef<Value*>(OpsLowFirst));
 			BO->replaceAllUsesWith(res);
 			return true;
 		}

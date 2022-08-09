@@ -37,9 +37,10 @@ bool GenFpgaCombinerHelper::rewriteG_CONSTANTasUseAsCImm(
 		llvm::MachineInstr &MI) {
 	Builder.setInstrAndDebugLoc(MI);
 	auto MIB = Builder.buildInstr(MI.getOpcode());
-	auto & newMI = *MIB.getInstr();
+	auto &newMI = *MIB.getInstr();
 	Observer.changingInstr(newMI);
-	hwtHls::GenericFpgaInstructionSelector::selectInstrArgs(MI, MIB, MI.getOperand(0).isDef());
+	hwtHls::GenericFpgaInstructionSelector::selectInstrArgs(MI, MIB,
+			MI.getOperand(0).isDef());
 	Observer.changedInstr(newMI);
 	MI.eraseFromParent();
 	return true;
@@ -184,7 +185,10 @@ bool GenFpgaCombinerHelper::collectConcatMembers(llvm::MachineOperand &MIOp,
 		uint64_t subSliceOffset = MI.getOperand(2).getImm();
 		uint64_t subSliceWidth = MI.getOperand(3).getImm();
 		subSliceOffset += offsetOfIRes;
-		assert(widthOfIRes == subSliceWidth);
+		if (widthOfIRes > subSliceWidth) {
+			errs() << MI <<  " widthOfIRes:" << widthOfIRes << "\n";
+			llvm_unreachable("GENFPGA_EXTRACT provides value of less bits than expected");
+		}
 		//subSliceWidth = std::min(std::min(subSliceWidth - offsetOfIRes,
 		//		mainEnd - currentOffset), );
 		if (auto *src = MRI.getOneDef(MI.getOperand(1).getReg())) {
@@ -204,6 +208,14 @@ bool GenFpgaCombinerHelper::collectConcatMembers(llvm::MachineOperand &MIOp,
 			currentOffset, offsetOfIRes, widthOfIRes);
 }
 
+void addSrcOperand(MachineInstrBuilder &MIB,
+		GenFpgaCombinerHelper::ConcatMember &src) {
+	if (src.op.isReg() && src.op.isDef())
+		MIB.addUse(src.op.getReg());
+	else {
+		MIB.add(src.op);
+	}
+}
 bool GenFpgaCombinerHelper::rewriteExtractOnMergeValues(
 		llvm::MachineInstr &MI) {
 	// MI.operands() == $dst $src $offset $dstWidth
@@ -213,63 +225,58 @@ bool GenFpgaCombinerHelper::rewriteExtractOnMergeValues(
 	uint64_t currentOffset = 0;
 	bool didReduce = collectConcatMembers(MI.getOperand(0), concatMembers, 0,
 			mainWidth, currentOffset, 0, mainWidth);
-	if (didReduce) {
-		assert(
-				concatMembers.size()
-						&& "There must be something which EXTRACT selects");
-		if (concatMembers.size() == 1) {
-			auto &src = concatMembers.back();
-			// we may be able to use item directly of we may build an EXTRACT
-			if (src.offsetOfUse == 0 && src.width == src.widthOfUse) {
-				MRI.replaceRegWith(MI.getOperand(0).getReg(), src.op.getReg()); // [fixme] the src.op can be imm or cost
-				MI.eraseFromParent();
-				return true;
-			} else {
-				Builder.setInstrAndDebugLoc(MI);
-				auto MIB = Builder.buildInstr(GenericFpga::GENFPGA_EXTRACT);
-				// $dst $src $offset $dstWidth
-				MIB.addDef(MI.getOperand(0).getReg(), MI.getFlags());
-				MIB.add(src.op);
-				MIB.addImm(src.offsetOfUse);
-				MIB.addImm(src.widthOfUse);
-				MI.eraseFromParent();
-				return true;
-			}
-		} else {
-			// we must build GENFPGA_MERGE_VALUE for members
-			Builder.setInstrAndDebugLoc(MI);
-			auto currentInsertionPoint = Builder.getInsertPt();
-			auto MIB = Builder.buildInstr(GenericFpga::GENFPGA_MERGE_VALUES);
-			MIB.addDef(MI.getOperand(0).getReg(), MI.getFlags());
+	if (!didReduce)
+		return false;
+	assert(
+			concatMembers.size()
+					&& "There must be something which EXTRACT selects");
+	if (concatMembers.size() == 1) {
+		auto &src = concatMembers.back();
+		// we may be able to use item directly of we may build an EXTRACT
+		if (src.offsetOfUse == 0 && src.width == src.widthOfUse) {
+			MRI.replaceRegWith(MI.getOperand(0).getReg(), src.op.getReg()); // [fixme] the src.op can be imm or cost
 
-			for (auto &src : concatMembers) {
-				if (src.offsetOfUse == 0 && src.width == src.widthOfUse) {
-					// use member directly
-					MIB.add(src.op);
-				} else {
-					// slice the member using GENFPGA_EXTRACT
-					Builder.setInstrAndDebugLoc(MI);
-					Builder.setInsertPt(*MI.getParent(),
-							--currentInsertionPoint);
-					auto memberMIB = Builder.buildInstr(
-							GenericFpga::GENFPGA_EXTRACT);
-					// $dst $src $offset $dstWidth
-					Register memberReg = MRI.createVirtualRegister(
-							&GenericFpga::AnyRegClsRegClass);
-					memberMIB.addDef(memberReg, MI.getFlags());
-					memberMIB.add(src.op);
-					memberMIB.addImm(src.offsetOfUse);
-					memberMIB.addImm(src.widthOfUse);
-					MIB.addReg(memberReg);
-				}
+		} else {
+			Builder.setInstrAndDebugLoc(MI);
+			auto MIB = Builder.buildInstr(GenericFpga::GENFPGA_EXTRACT);
+			// $dst $src $offset $dstWidth
+			MIB.addDef(MI.getOperand(0).getReg(), MI.getFlags());
+			addSrcOperand(MIB, src);
+			MIB.addImm(src.offsetOfUse);
+			MIB.addImm(src.widthOfUse);
+		}
+	} else {
+		// we must build GENFPGA_MERGE_VALUE for members
+		Builder.setInstrAndDebugLoc(MI);
+		auto currentInsertionPoint = Builder.getInsertPt();
+		auto MIB = Builder.buildInstr(GenericFpga::GENFPGA_MERGE_VALUES);
+		MIB.addDef(MI.getOperand(0).getReg(), MI.getFlags());
+
+		for (auto &src : concatMembers) {
+			if (src.offsetOfUse == 0 && src.width == src.widthOfUse) {
+				// use member directly
+				addSrcOperand(MIB, src);
+			} else {
+				// slice the member using GENFPGA_EXTRACT
+				Builder.setInstrAndDebugLoc(MI);
+				Builder.setInsertPt(*MI.getParent(), --currentInsertionPoint);
+				auto memberMIB = Builder.buildInstr(
+						GenericFpga::GENFPGA_EXTRACT);
+				// $dst $src $offset $dstWidth
+				Register memberReg = MRI.createVirtualRegister(
+						&GenericFpga::AnyRegClsRegClass);
+				memberMIB.addDef(memberReg, MI.getFlags());
+				addSrcOperand(memberMIB, src);
+				memberMIB.addImm(src.offsetOfUse);
+				memberMIB.addImm(src.widthOfUse);
+				MIB.addReg(memberReg);
 			}
-			for (auto &src : concatMembers) {
-				MIB.addImm(src.widthOfUse);
-			}
-			MI.eraseFromParent();
-			return true;
+		}
+		for (auto &src : concatMembers) {
+			MIB.addImm(src.widthOfUse);
 		}
 	}
-	return false;
+	MI.eraseFromParent();
+	return true;
 }
 }

@@ -21,9 +21,10 @@ bool GenericFpgaCallLowering::lowerReturn(MachineIRBuilder &MIRBuilder,
 		const Value *Val, ArrayRef<Register> VRegs,
 		FunctionLoweringInfo &FLI) const {
 
-	MachineInstrBuilder Ret = MIRBuilder.buildInstrNoInsert(GenericFpga::PseudoRET);
+	MachineInstrBuilder Ret = MIRBuilder.buildInstrNoInsert(
+			GenericFpga::PseudoRET);
 	if (Val != nullptr) {
-	  return false;
+		return false;
 	}
 	MIRBuilder.insertInstr(Ret);
 	return true;
@@ -35,7 +36,7 @@ bool GenericFpgaCallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder,
 	if (F.arg_empty())
 		llvm_unreachable(
 				"GenericFpgaCallLowering::lowerFormalArguments is meant for functions realized in hardware,"
-				" args. represents IO and there must be some IO.");
+						" args. represents IO and there must be some IO.");
 
 	MachineFunction &MF = MIRBuilder.getMF();
 	MachineRegisterInfo &MRI = MF.getRegInfo();
@@ -55,7 +56,8 @@ bool GenericFpgaCallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder,
 		MRI.setRegClass(DstReg, &GenericFpga::AnyRegClsRegClass);
 
 		///MRI.addLiveIn(SrcReg, DstReg);
-		MachineInstrBuilder MIB = MIRBuilder.buildInstr(GenericFpga::GENFPGA_ARG_GET);
+		MachineInstrBuilder MIB = MIRBuilder.buildInstr(
+				GenericFpga::GENFPGA_ARG_GET);
 		MIB.addDef(DstReg).addImm(i - 1);
 		//MRI.setType(SrcReg, LLT::pointer(i, 64));
 		//MRI.setType(DstReg, LLT::pointer(i, 64));
@@ -72,23 +74,38 @@ bool GenericFpgaCallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder,
 
 bool GenericFpgaCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
 		CallLoweringInfo &Info) const {
-	auto *F = dyn_cast_or_null<llvm::Function>(Info.Callee.getGlobal());
+	auto *F = dyn_cast_or_null<Function>(Info.Callee.getGlobal());
+	MachineRegisterInfo &MRI = *MIRBuilder.getMRI();
 	if (F) {
 		if (IsBitConcat(F)) {
 			// BitConcat has higher bits first
 			assert(Info.OrigRet.Regs.size() == 1);
-			auto MBI = MIRBuilder.buildInstr(TargetOpcode::G_MERGE_VALUES)	 // lower bits first
-			.addReg(Info.OrigRet.Regs[0], RegState::Define);
-			size_t i = 0;
-			size_t last = Info.OrigArgs.size() - 1;
-			for (auto op = Info.OrigArgs.rbegin(); op != Info.OrigArgs.rend(); ++op) {
-				assert(op->Regs.size() == 1);
-				if (i == last) {
+			unsigned DstReg = Info.OrigRet.Regs[0];
+			auto MBI = MIRBuilder.buildInstr(GenericFpga::GENFPGA_MERGE_VALUES)	// lower bits first
+			.addReg(DstReg, RegState::Define);
+			MRI.setRegClass(DstReg, &GenericFpga::AnyRegClsRegClass);
+			// add operands
+			bool first = true;
+			for (auto &op : Info.OrigArgs) {
+				assert(op.Regs.size() == 1);
+				if (first) {
 					// skip first item because it is destination which was already added
-					break;
+					first = false;
+					continue;
 				}
-				MBI.addUse(op->Regs[0]);
-				i++;
+				MBI.addUse(op.Regs[0]);
+			}
+			// add operand widths
+			first = true;
+			for (auto &op : Info.OrigArgs) {
+				assert(op.Regs.size() == 1);
+				if (first) {
+					// skip first item because it is destination which was already added
+					first = false;
+					continue;
+				}
+				uint64_t width = MRI.getType(op.Regs[0]).getSizeInBits();
+				MBI.addImm(width);
 			}
 			return true;
 		} else if (IsBitRangeGet(F)) {
@@ -100,7 +117,9 @@ bool GenericFpgaCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
 			MIB.addUse(Info.OrigArgs[1].Regs[0]);
 			Register offset = Info.OrigArgs[2].Regs[0];
 
-			if (Optional<ValueAndVReg> VRegVal = getAnyConstantVRegValWithLookThrough(offset, *MIRBuilder.getMRI())) {
+			if (Optional<ValueAndVReg> VRegVal =
+					getAnyConstantVRegValWithLookThrough(offset,
+							*MIRBuilder.getMRI())) {
 				auto offsetVal = VRegVal.getValue().Value;
 				assert(offsetVal.isNonNegative());
 				MIB.addImm(VRegVal.getValue().Value.getZExtValue());

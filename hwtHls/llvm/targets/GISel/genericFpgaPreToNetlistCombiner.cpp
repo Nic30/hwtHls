@@ -73,12 +73,6 @@ public:
 	static void convertPHI_to_GENFPGA_MUX(MachineIRBuilder &Builder);
 };
 
-void GenericFpgaPreToNetlistCombinerInfo::convertGENFPGA_CCOPY_to_GENFPGA_MUX(
-		MachineIRBuilder &Builder) {
-	// dst, val, cond
-	convertPHI_to_GENFPGA_MUX(Builder);
-}
-
 void copyOperand(MachineInstrBuilder &MIB, MachineRegisterInfo &MRI,
 		MachineFunction &MF, MachineOperand &MO) {
 	if (MO.isReg() && MO.isDef()) {
@@ -97,6 +91,34 @@ void copyOperand(MachineInstrBuilder &MIB, MachineRegisterInfo &MRI,
 	}
 	MIB.add(MO);
 }
+
+void GenericFpgaPreToNetlistCombinerInfo::convertGENFPGA_CCOPY_to_GENFPGA_MUX(
+		MachineIRBuilder &Builder) {
+	// dst, val, cond
+	MachineInstr &MI = *Builder.getInsertPt();
+	if(MI.getNumOperands() != 3) {
+		errs() << MI;
+		llvm_unreachable("GENFPGA_CCOPY must have 3 operands (dst, src, cond)");
+	}
+	auto dst = MI.getOperand(0);
+	auto &val = MI.getOperand(1);
+	auto &cond = MI.getOperand(2);
+	bool condIsConst = cond.isCImm();
+	if (condIsConst && !cond.getCImm()->getValue()) {
+		// copy never performed
+	} else {
+		MachineInstrBuilder MIB = Builder.buildInstr(GenericFpga::GENFPGA_MUX);
+		MachineBasicBlock &MBB = *MI.getParent();
+		MachineFunction &MF = *MBB.getParent();
+		MachineRegisterInfo &MRI = MF.getRegInfo();
+		copyOperand(MIB, MRI, MF, dst);
+		copyOperand(MIB, MRI, MF, val);
+		if (!condIsConst) {
+			copyOperand(MIB, MRI, MF, cond);
+		}
+	}
+}
+
 void GenericFpgaPreToNetlistCombinerInfo::convertG_SELECT_to_GENFPGA_MUX(
 		MachineIRBuilder &Builder) {
 	// dst, cond, a, b -> dst, a, cond, b

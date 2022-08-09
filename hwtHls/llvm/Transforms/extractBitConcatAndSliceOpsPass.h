@@ -13,7 +13,7 @@ class ExtractBitConcatAndSliceOpsPass: public llvm::PassInfoMixin<
 
 public:
 	static llvm::StringRef name() {
-		return "ExtractReplicationsPass";
+		return "ExtractBitConcatAndSliceOpsPass";
 	}
 
 	explicit ExtractBitConcatAndSliceOpsPass() {

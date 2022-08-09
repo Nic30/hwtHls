@@ -18,6 +18,7 @@ ConstantInt* machineOperandTryGetConst(LLVMContext &Context,
 	}
 	return nullptr;
 }
+
 void selectInstrArg(MachineFunction &MF, MachineInstr &I,
 		MachineInstrBuilder &MIB, MachineRegisterInfo &MRI,
 		MachineOperand &MO) {
@@ -37,14 +38,14 @@ void selectInstrArg(MachineFunction &MF, MachineInstr &I,
 		MIB.add(MO);
 	}
 }
+
 void selectInstrArgs(MachineInstr &I, MachineInstrBuilder &MIB,
 		bool firstIsDef) {
 	MachineBasicBlock &MBB = *I.getParent();
 	MachineFunction &MF = *MBB.getParent();
 	MachineRegisterInfo &MRI = MF.getRegInfo();
-
-	for (unsigned OpI = 0, OpE = I.getNumExplicitOperands(); OpI != OpE;
-			++OpI) {
+	unsigned OpE = I.getNumExplicitOperands();
+	for (unsigned OpI = 0; OpI != OpE; ++OpI) {
 		MachineOperand &MO = I.getOperand(OpI);
 		// if operand is a constant value use constant value directly
 		if (OpI == 0 && firstIsDef) {
@@ -57,4 +58,5 @@ void selectInstrArgs(MachineInstr &I, MachineInstrBuilder &MIB,
 	}
 	MIB.cloneMemRefs(I); // copy part behind :: in "G_LOAD %0:anyregcls :: (volatile load (s4) from %ir.dataIn)"
 }
+
 }
