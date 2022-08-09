@@ -106,3 +106,5 @@ ENV/
 .settings/
 .cproject
 
+# draw.io tmp files
+.$*
