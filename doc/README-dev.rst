@@ -39,6 +39,15 @@ Debug build
   libSegFault is a part of glibc but it may have a different location on your machine
 * https://stackoverflow.com/questions/54273632/llvm-linking-commandline-error-option-help-list-registered-more-than-once-l
 
+* You can enable debug messages for a specific pass programatically using
+
+.. code-block:: cpp
+
+	llvm::StringMap<llvm::cl::Option*> &Map = llvm::cl::getRegisteredOptions();
+	Map["debug-only"]->addOccurrence(0, "", "early-ifcvt"); // early-ifcvt is a name of some pass to debug
+	Map["print-before"]->addOccurrence(0, "", "early-ifcvt"); // you can use this to dump input to specified pass
+
+
 Doc generator
 -------------
 
