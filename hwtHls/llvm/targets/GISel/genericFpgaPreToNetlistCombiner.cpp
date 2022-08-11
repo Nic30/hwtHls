@@ -78,15 +78,13 @@ void copyOperand(MachineInstrBuilder &MIB, MachineRegisterInfo &MRI,
 	if (MO.isReg() && MO.isDef()) {
 		MIB.addDef(MO.getReg(), MO.getTargetFlags());
 		return;
-	} else if (MO.isReg() && MO.getReg()) {
-		if (MRI.hasOneDef(MO.getReg())) {
-			if (auto VRegVal = getAnyConstantVRegValWithLookThrough(MO.getReg(),
-					MRI)) {
-				auto &C = MF.getFunction().getContext();
-				auto *CI = ConstantInt::get(C, VRegVal->Value);
-				MIB.addCImm(CI);
-				return;
-			}
+	} else if (MO.isReg() && MO.getReg() && MRI.hasOneDef(MO.getReg())) {
+		if (auto VRegVal = getAnyConstantVRegValWithLookThrough(MO.getReg(),
+				MRI)) {
+			auto &C = MF.getFunction().getContext();
+			auto *CI = ConstantInt::get(C, VRegVal->Value);
+			MIB.addCImm(CI);
+			return;
 		}
 	}
 	MIB.add(MO);
@@ -96,7 +94,7 @@ void GenericFpgaPreToNetlistCombinerInfo::convertGENFPGA_CCOPY_to_GENFPGA_MUX(
 		MachineIRBuilder &Builder) {
 	// dst, val, cond
 	MachineInstr &MI = *Builder.getInsertPt();
-	if(MI.getNumOperands() != 3) {
+	if (MI.getNumOperands() != 3) {
 		errs() << MI;
 		llvm_unreachable("GENFPGA_CCOPY must have 3 operands (dst, src, cond)");
 	}

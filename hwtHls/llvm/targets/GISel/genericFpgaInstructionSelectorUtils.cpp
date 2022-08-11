@@ -8,7 +8,7 @@ namespace hwtHls::GenericFpgaInstructionSelector {
 
 ConstantInt* machineOperandTryGetConst(LLVMContext &Context,
 		MachineRegisterInfo &MRI, MachineOperand &MO) {
-	if (MO.isReg() && MO.getReg()) {
+	if (MO.isReg() && MO.getReg() && MRI.hasOneDef(MO.getReg())) {
 		if (auto VRegVal = getAnyConstantVRegValWithLookThrough(MO.getReg(),
 				MRI)) {
 			assert(VRegVal.hasValue());
@@ -25,15 +25,19 @@ void selectInstrArg(MachineFunction &MF, MachineInstr &I,
 	if (MO.isReg() && MO.getReg()) {
 		if (MO.isDef()) {
 			MIB.addDef(MO.getReg());
-		} else if (auto VRegVal = getAnyConstantVRegValWithLookThrough(
-				MO.getReg(), MRI)) {
-			assert(VRegVal.hasValue());
-			auto &C = MF.getFunction().getContext();
-			auto *CI = ConstantInt::get(C, VRegVal->Value);
-			MIB.addCImm(CI);
-		} else {
-			MIB.addUse(MO.getReg());
+			return;
 		}
+		if (MRI.hasOneDef(MO.getReg())) {
+			if (auto VRegVal = getAnyConstantVRegValWithLookThrough(MO.getReg(),
+					MRI)) {
+				assert(VRegVal.hasValue());
+				auto &C = MF.getFunction().getContext();
+				auto *CI = ConstantInt::get(C, VRegVal->Value);
+				MIB.addCImm(CI);
+				return;
+			}
+		}
+		MIB.addUse(MO.getReg());
 	} else {
 		MIB.add(MO);
 	}

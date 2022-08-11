@@ -117,6 +117,7 @@ bool GenericFpgaCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
 			MIB.addUse(Info.OrigArgs[1].Regs[0]);
 			Register offset = Info.OrigArgs[2].Regs[0];
 
+			assert(MRI.hasOneDef(offset));
 			if (Optional<ValueAndVReg> VRegVal =
 					getAnyConstantVRegValWithLookThrough(offset,
 							*MIRBuilder.getMRI())) {
