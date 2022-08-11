@@ -20,6 +20,16 @@ GenericFpgaInstrInfo::GenericFpgaInstrInfo() :
 		GenericFpgaTargetGenInstrInfo(-1, -1, -1, -1), RI() {
 }
 
+const GenericFpgaRegisterInfo& GenericFpgaInstrInfo::getRegisterInfo() const {
+	return RI;
+}
+
+const TargetRegisterClass* GenericFpgaInstrInfo::getRegClass(
+		const MCInstrDesc &MCID, unsigned OpNum, const TargetRegisterInfo *TRI,
+		const MachineFunction &MF) const {
+	return &GenericFpga::AnyRegClsRegClass;
+}
+
 // based on `ARCInstrInfo::analyzeBranch`
 bool GenericFpgaInstrInfo::analyzeBranch(MachineBasicBlock &MBB,
 		MachineBasicBlock *&TBB, MachineBasicBlock *&FBB,
@@ -102,6 +112,12 @@ bool GenericFpgaInstrInfo::analyzeBranch(MachineBasicBlock &MBB,
 	return false;
 }
 
+bool GenericFpgaInstrInfo::analyzeBranchPredicate(MachineBasicBlock &MBB,
+		MachineBranchPredicate &MBP, bool AllowModify) const {
+	llvm_unreachable("not implemented");
+	return true;
+}
+
 // based on ARCInstrInfo::removeBranch
 unsigned GenericFpgaInstrInfo::removeBranch(MachineBasicBlock &MBB,
 		int *BytesRemoved) const {
@@ -140,9 +156,14 @@ Register negateRegister(MachineRegisterInfo &MRI, MachineIRBuilder &Builder,
 				if (O1.isCImm() && O1.getCImm()->getBitWidth() == 1
 						&& O1.getCImm()->equalsInt(1)) {
 					return I.getOperand(1).getReg();
-				} else if (auto VRegVal = getAnyConstantVRegValWithLookThrough(O1.getReg(), MRI)) {
-					if (VRegVal.hasValue() && VRegVal.getValue().Value == 1) {
-						return I.getOperand(1).getReg();
+				}
+				if (MRI.hasOneDef(O1.getReg())) {
+					if (auto VRegVal = getAnyConstantVRegValWithLookThrough(
+							O1.getReg(), MRI)) {
+						if (VRegVal.hasValue()
+								&& VRegVal.getValue().Value == 1) {
+							return I.getOperand(1).getReg();
+						}
 					}
 				}
 				break;
@@ -196,6 +217,25 @@ bool GenericFpgaInstrInfo::reverseBranchCondition(
 	return false;
 }
 
+bool GenericFpgaInstrInfo::ClobbersPredicate(MachineInstr &MI,
+		std::vector<MachineOperand> &Pred, bool SkipDead) const {
+	llvm_unreachable("not implemented");
+
+	return false;
+}
+
+unsigned GenericFpgaInstrInfo::getPredicationCost(
+		const MachineInstr &MI) const {
+	//llvm_unreachable("not implemented");
+	return 0;
+}
+
+bool GenericFpgaInstrInfo::SubsumesPredicate(ArrayRef<MachineOperand> Pred1,
+		ArrayRef<MachineOperand> Pred2) const {
+	llvm_unreachable("not implemented");
+	return false;
+}
+
 // based on ARCInstrInfo::insertBranch
 unsigned GenericFpgaInstrInfo::insertBranch(MachineBasicBlock &MBB,
 		MachineBasicBlock *TBB, MachineBasicBlock *FBB,
@@ -225,6 +265,124 @@ unsigned GenericFpgaInstrInfo::insertBranch(MachineBasicBlock &MBB,
 	// Two-way conditional branch.
 	BuildMI(&MBB, DL, get(TargetOpcode::G_BR)).addMBB(FBB);
 	return 2;
+}
+
+bool GenericFpgaInstrInfo::isProfitableToDupForIfCvt(MachineBasicBlock &MBB,
+		unsigned NumCycles, BranchProbability Probability) const {
+	llvm_unreachable("not implemented");
+	return false;
+}
+
+bool GenericFpgaInstrInfo::isProfitableToUnpredicate(MachineBasicBlock &TMBB,
+		MachineBasicBlock &FMBB) const {
+	return false;
+}
+
+bool GenericFpgaInstrInfo::isProfitableToIfCvt(MachineBasicBlock &MBB,
+		unsigned NumCycles, unsigned ExtraPredCycles,
+		BranchProbability Probability) const {
+	return true;
+}
+
+bool GenericFpgaInstrInfo::isProfitableToIfCvt(MachineBasicBlock &TMBB,
+		unsigned NumTCycles, unsigned ExtraTCycles, MachineBasicBlock &FMBB,
+		unsigned NumFCycles, unsigned ExtraFCycles,
+		BranchProbability Probability) const {
+	return true;
+}
+
+void GenericFpgaInstrInfo::insertSelect(MachineBasicBlock &MBB,
+		MachineBasicBlock::iterator I, const DebugLoc &DL, Register DstReg,
+		ArrayRef<MachineOperand> Cond, Register TrueReg,
+		Register FalseReg) const {
+	// based on AArch64InstrInfo::insertSelect
+	if (Cond.size() != 1) {
+		llvm_unreachable("NotImplemented");
+	}
+	MachineRegisterInfo &MRI = MBB.getParent()->getRegInfo();
+	const TargetRegisterClass *RC = &GenericFpga::AnyRegClsRegClass;
+
+	// Pull all virtual register into the appropriate class.
+	MRI.constrainRegClass(TrueReg, RC);
+	MRI.constrainRegClass(FalseReg, RC);
+
+	// Insert the csel.
+	BuildMI(MBB, I, DL, get(GenericFpga::GENFPGA_MUX), DstReg)	//
+	.addReg(TrueReg) //
+	.add(Cond[0]) //
+	.addReg(FalseReg);
+}
+
+bool GenericFpgaInstrInfo::canInsertSelect(const MachineBasicBlock &MBB,
+		ArrayRef<MachineOperand> Cond, Register DstReg, Register TrueReg,
+		Register FalseReg, int &CondCycles, int &TrueCycles,
+		int &FalseCycles) const {
+	return true;
+}
+
+bool GenericFpgaInstrInfo::analyzeSelect(const MachineInstr &MI,
+		SmallVectorImpl<MachineOperand> &Cond, unsigned &TrueOp,
+		unsigned &FalseOp, bool &Optimizable) const {
+	switch (MI.getOpcode()) {
+	case GenericFpga::GENFPGA_MUX: {
+		TrueOp = 1;
+		Cond.push_back(MI.getOperand(2));
+		FalseOp = 3;
+		return false; // success
+	}
+	case TargetOpcode::PHI:
+	case TargetOpcode::G_PHI:
+	case TargetOpcode::G_SELECT:
+		llvm_unreachable("NotImplemented");
+	default:
+		return true; // instruction can be analyzed
+	}
+}
+
+bool GenericFpgaInstrInfo::isPredicated(const MachineInstr &MI) const {
+	auto opc = MI.getOpcode();
+	switch (opc) {
+	case GenericFpga::GENFPGA_CLOAD:
+	case GenericFpga::GENFPGA_CSTORE:
+	case GenericFpga::GENFPGA_CCOPY:
+		return false; // can be predicate infinity times
+	default:
+		return false;
+	}
+	//errs() << "MI.getOperand(predicateI).isImm() " << MI << " " << MI.getOperand(predicateI).isImm() << "\n";
+	// return	!MI.getOperand(predicateI).isImm()
+	// 		&& !MI.getOperand(predicateI).isCImm();
+}
+
+bool GenericFpgaInstrInfo::PredicateInstruction(MachineInstr &MI,
+		ArrayRef<MachineOperand> Pred) const {
+	auto opc = MI.getOpcode();
+	if (Pred.size() != 1)
+		llvm_unreachable("NotImplemented");
+	//unsigned predicateI = -1;
+	switch (opc) {
+	case GenericFpga::GENFPGA_CCOPY:
+		// dst, val, predicate
+		assert(MI.getNumOperands() == 3);
+		if (MI.getOperand(2).isReg()) {
+			llvm_unreachable("NotImplemented");
+		}
+		MI.RemoveOperand(2);
+		break;
+	case GenericFpga::GENFPGA_CLOAD:
+	case GenericFpga::GENFPGA_CSTORE:
+		// dst/val, addr, index, predicate
+		assert(MI.getNumOperands() == 4);
+		if (MI.getOperand(3).isReg()) {
+			llvm_unreachable("NotImplemented");
+		}
+		MI.RemoveOperand(3);
+		break;
+	default:
+		return false;
+	}
+	MI.addOperand(Pred[0]);
+	return true;
 }
 
 }

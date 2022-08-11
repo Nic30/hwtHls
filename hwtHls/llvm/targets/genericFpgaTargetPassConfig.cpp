@@ -93,8 +93,11 @@ bool GenericFpgaTargetPassConfig::addGlobalInstructionSelect() {
 	addPass(new InstructionSelect(getOptLevel()));
 	return false;
 }
+
 bool GenericFpgaTargetPassConfig::addILPOpts() {
-	// selection of AArch64PassConfig::addILPOpts()
+	// selection of X86PassConfig::addILPOpts()
+	addPass(&EarlyIfPredicatorID);
+	addPass(&EarlyIfConverterID); // [FIXME] does not work for AxiSParse2If@16b@40MHz
 	return false;
 }
 void GenericFpgaTargetPassConfig::addOptimizedRegAlloc() {
@@ -166,8 +169,6 @@ void GenericFpgaTargetPassConfig::addOptimizedRegAlloc() {
 	addPass(&MachineCSEID);
 	addPass(&LiveIntervalsID); // add killed and other attributes
 	addPass(createGenericFpgaPreRegAllocCombiner());
-	addPass(&EarlyIfPredicatorID);
-	addPass(&EarlyIfConverterID); // [FIXME] does not work for AxiSParse2If@16b@40MHz
 	addPass(&DeadMachineInstructionElimID); // requires explicit undefs
 
 }

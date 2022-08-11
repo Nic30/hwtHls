@@ -18,19 +18,19 @@ bb1 [fillcolor=white, label=<
             <tr><td>rstPredeccessor=bb.0</td></tr>
             <tr><td>blockEn=&lt;HlsNetNodeOutLazy 3&gt;</td></tr>
             <tr><td>orderingIn=&lt;HlsNetNodeOutLazy 4&gt;</td></tr>
-            <tr><td>orderingOut=&lt;HlsNetNodeOut &lt;HlsNetNodeWriteBackwardEdge 21 &lt;HsStructIntf hls_r_10_bb1_to_bb1_in &lt;Bits, 8bits&gt;&gt; &lt;- &lt;HlsNetNodeOut &lt;HlsNetNodeMux 16&gt; [0]&gt;&gt; [0-orderingOut]&gt;</td></tr>
+            <tr><td>orderingOut=&lt;HlsNetNodeOut &lt;HlsNetNodeWriteBackwardEdge 20 &lt;HsStructIntf hls_r_12_bb1_to_bb1_in &lt;Bits, 8bits&gt;&gt; &lt;- &lt;HlsNetNodeOut &lt;HlsNetNodeOperator 8 SUB&gt; [0]&gt;&gt; [0-orderingOut]&gt;</td></tr>
         </table>
 >, shape=plaintext, style=filled];
 e0to1 [fillcolor=white, label=<
 <table border="0" cellborder="1" cellspacing="0">
-            <tr><td>10</td></tr>
+            <tr><td>12</td></tr>
         </table>
 >, shape=plaintext, style=filled];
 bb0 -> e0to1;
 e0to1 -> bb1;
 e1to1 [color=blue, fillcolor=white, label=<
 <table border="0" cellborder="1" cellspacing="0">
-            <tr><td>10</td></tr>
+            <tr><td>12</td></tr>
         </table>
 >, shape=plaintext, style=filled];
 bb1 -> e1to1  [color=blue];

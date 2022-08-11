@@ -12,7 +12,8 @@ all_llvm_backend_gen_files = []
 foreach f : generated_llvm_backend_files
 	gen_src = custom_target(f[0],
 	                        input : ['targets/GenericFpgaInstrInfo.td', 'targets/GenericFpgaRegisterInfo.td',
-	                                 'targets/GenericFpgaCombine.td', 'targets/GenericFpga.td'],
+	                                 'targets/GenericFpgaCombine.td', 'targets/GenericFpga.td',
+	                                 'targets/GenericFpgaSchedModel.td'],
 	                        output : [f[0], ],
 	                        command : [llvm_tblgen,
 	                        	'-I', llvm_includedir,

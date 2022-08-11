@@ -6,7 +6,7 @@ nodes:
     <HlsNetNodeOutLazy 3>
     <HlsNetNodeRead 5 <HsStructIntf dataIn <Bits, 8bits, unsigned>>>
     <HlsNetNodeOperator 6 NOT [<HlsNetNodeOutLazy 3>]>
-    <HlsNetNodeOperator 8 SUB [23:0, 5:0]>
+    <HlsNetNodeOperator 8 SUB [22:0, 5:0]>
     <HlsNetNodeConst 9 <BitsVal 5>>
     <HlsNetNodeOperator 10 GE [8:0, 9:0]>
     <HlsNetNodeOperator 11 NOT [10:0]>
@@ -14,11 +14,10 @@ nodes:
     <HlsNetNodeOperator 13 AND [<HlsNetNodeOutLazy 3>, 11:0]>
     <HlsNetNodeOperator 14 NOT [11:0]>
     <HlsNetNodeOperator 15 OR [6:0, 14:0]>
-    <HlsNetNodeMux 16 [8:0, 11:0, 8:0]>
-    <HlsNetNodeOutLazy 18>
-    <HlsNetNodeExplicitSync 19 in=<HlsNetNodeOut <BitsVal 10> [0-val]>, extraCond=None, skipWhen=None>
-    <HlsNetNodeReadBackwardEdge 20 <HsStructIntf hls_r_10_bb1_to_bb1_out <Bits, 8bits>>>
-    <HlsNetNodeWriteBackwardEdge 21 <HsStructIntf hls_r_10_bb1_to_bb1_in <Bits, 8bits>> <- <HlsNetNodeOut <HlsNetNodeMux 16> [0]>>
-    <HlsNetNodeExplicitSync 22 in=<HlsNetNodeOut <HlsNetNodeReadBackwardEdge 20 <HsStructIntf hls_r_10_bb1_to_bb1_out <Bits, 8bits>>> [0-dataOut]>, extraCond=None, skipWhen=None>
-    <HlsNetNodeMux 23 [19:0, <HlsNetNodeOutLazy 18>, 22:0]>
+    <HlsNetNodeOutLazy 17>
+    <HlsNetNodeExplicitSync 18 in=<HlsNetNodeOut <BitsVal 10> [0-val]>, extraCond=None, skipWhen=None>
+    <HlsNetNodeReadBackwardEdge 19 <HsStructIntf hls_r_12_bb1_to_bb1_out <Bits, 8bits>>>
+    <HlsNetNodeWriteBackwardEdge 20 <HsStructIntf hls_r_12_bb1_to_bb1_in <Bits, 8bits>> <- <HlsNetNodeOut <HlsNetNodeOperator 8 SUB> [0]>>
+    <HlsNetNodeExplicitSync 21 in=<HlsNetNodeOut <HlsNetNodeReadBackwardEdge 19 <HsStructIntf hls_r_12_bb1_to_bb1_out <Bits, 8bits>>> [0-dataOut]>, extraCond=None, skipWhen=None>
+    <HlsNetNodeMux 22 [18:0, <HlsNetNodeOutLazy 17>, 21:0]>
 

@@ -78,7 +78,7 @@ public:
 	virtual bool enableMachineScheduler() const override {
 		return false;
 	}
-	virtual bool enableMachineSchedDefaultSched() const {
+	virtual bool enableMachineSchedDefaultSched() const override {
 		return false;
 	}
 	virtual bool enableMachinePipeliner() const {

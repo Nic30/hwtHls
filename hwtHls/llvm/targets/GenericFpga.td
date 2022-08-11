@@ -21,7 +21,7 @@ include "GenericFpgaRegisterInfo.td"
 
 include "GenericFpgaInstrInfo.td"
 include "GenericFpgaCombine.td"
-
+include "GenericFpgaSchedModel.td"
 
 def GenericFpgaInstrInfo : InstrInfo;
 //===---------------------------------------------------------------------===//
@@ -37,3 +37,6 @@ def GenericFpgaInstrInfo : InstrInfo;
 def GenericFpgaTarget : Target {
   let InstructionSet  = GenericFpgaInstrInfo;
 }
+
+
+def : ProcessorModel<"model0", GenFpgaSchedModel, []>;

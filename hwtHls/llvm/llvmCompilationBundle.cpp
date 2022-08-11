@@ -84,8 +84,8 @@ LlvmCompilationBundle::LlvmCompilationBundle(const std::string &moduleName) :
 	EnableGVNHoist = true;
 	EnableGVNSink = true;
 
-	auto CPU = "";
-	auto Features = "";
+	auto CPU = "model0";
+	auto Features = "model0";
 	llvm::TargetOptions opt;
 	// useless for this target
 	opt.XCOFFTracebackTable = false;
@@ -136,6 +136,7 @@ void LlvmCompilationBundle::runOpt(
 
 	// [todo] PassBuilder::addVectorPasses
 	fn.getParent()->setDataLayout(TM->createDataLayout());
+
 
 	auto LAM = llvm::LoopAnalysisManager { };
 	auto cgscc_manager = llvm::CGSCCAnalysisManager { };
@@ -388,6 +389,10 @@ void LlvmCompilationBundle::runOpt(
 
 	PM.add(MMIWP);
 	//llvm::StringMap<llvm::cl::Option*> &Map = llvm::cl::getRegisteredOptions();
+	//Map["print-before"]->addOccurrence(0, "", "early-ifcvt");
+	//Map["debug-only"]->addOccurrence(0, "", "early-ifcvt");
+	//Map["print-after"]->addOccurrence(0, "", "early-ifcvt");
+	//Map["debug"]->addOccurrence(0, "", "1");
 	//Map["print-before-all"]->addOccurrence(0, "", "true");
 	// check for incompatible passes
 	TPC =
