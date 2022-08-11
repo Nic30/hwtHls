@@ -238,7 +238,11 @@ class HlsNetlistBuilder():
 
     def unregisterOperatorNode(self, n: HlsNetNodeOperator):
         k = tuple(self._getOperatorCacheKey(n))
-        v = self.operatorCache[k]
+        try:
+            v = self.operatorCache[k]
+        except KeyError:
+            return
+
         if v is n._outputs[0]:
             # there may be the temporary case when some operand is replaced
             # and the operator node becomes something which already exits
