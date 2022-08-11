@@ -238,7 +238,8 @@ public:
 			// this is constant slice it immediately
 			auto *C = dyn_cast<ConstantInt>(v);
 			uint64_t w = highBitNo - lowBitNo;
-			auto *res = builder.getInt(C->getValue().lshr(lowBitNo).trunc(w));
+			APInt v = C->getValue().lshr(lowBitNo);
+			auto *res = builder.getInt(v.getBitWidth() != w ? v.trunc(w) : v);
 			result.push_back( { 0, w, res });
 		}
 	}
