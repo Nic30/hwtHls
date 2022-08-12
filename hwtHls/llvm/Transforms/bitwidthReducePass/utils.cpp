@@ -241,6 +241,7 @@ void VarBitConstraint::srcUnionInplace(const VarBitConstraint &other,
 				if (_v0 && _v1) {
 					assert(item.begin >= item.v0->dstBeginBitI);
 					assert(item.begin >= item.v1->dstBeginBitI);
+					// prepare values exactly selected by this item
 					auto v0 = _v0->getValue().extractBits(item.width,
 							item.v0->srcBeginBitI
 									+ (item.begin - item.v0->dstBeginBitI));
@@ -252,7 +253,7 @@ void VarBitConstraint::srcUnionInplace(const VarBitConstraint &other,
 					// for sequences of non equal bits add slice or original value because we can not reduce it entirely
 					int eqSeqStart = -1;
 					//int neSeqStart = 0;
-					auto end = v0.getBitWidth();
+					auto end = item.width;
 					for (unsigned i = 0; i <= end; ++i) {
 						if (i < end && equalBits[i]) {
 							// start or continue of equal bit sequence
@@ -280,7 +281,7 @@ void VarBitConstraint::srcUnionInplace(const VarBitConstraint &other,
 						} else if (i == end) { //  && neSeqStart != -1
 							// remainder of non equal bits
 							srcUnionInplaceAddFillUp(newList, parent,
-									item.v0->dstBeginBitI + end);
+									item.begin + end);
 							//neSeqStart = -1;
 						}
 
@@ -303,6 +304,7 @@ void VarBitConstraint::srcUnionInplaceAddFillUp(
 	if (newList.size())
 		lastEnd = newList.back().dstEndBitI();
 	if (lastEnd != end) {
+
 		assert(lastEnd < end);
 		KnownBitRangeInfo kbri0(end - lastEnd);
 		kbri0.src = parent;
