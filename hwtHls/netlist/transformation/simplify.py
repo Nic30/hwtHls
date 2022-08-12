@@ -121,14 +121,17 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                         c0 = self._getConstDriverOf(n._inputs[0])
                         if c0 is None:
                             continue
-                        c1 = self._getConstDriverOf(n._inputs[1])
-                        if c1 is None:
-                            continue
-                        
-                        if o == AllOps.CONCAT:
-                            v = Concat(c1, c0)
+                        if len(n._inputs) == 1:
+                            v = o._evalFn(c0)
                         else:
-                            v = o._evalFn(c0, c1)
+                            c1 = self._getConstDriverOf(n._inputs[1])
+                            if c1 is None:
+                                continue
+                            
+                            if o == AllOps.CONCAT:
+                                v = Concat(c1, c0)
+                            else:
+                                v = o._evalFn(c0, c1)
 
                         self._replaceOperatorNodeWith(n, builder.buildConst(v), worklist, removed)
                         didModifyExpr = True
