@@ -51,7 +51,7 @@ class CntrArray(Unit):
         self.i = VectSignal(ADDR_WIDTH, signed=False)
 
         self.o_addr = VectSignal(ADDR_WIDTH, signed=False)
-        self.o = VectSignal(512, signed=False)._m()
+        self.o = VectSignal(16, signed=False)._m()
 
     def mainThread(self, hls: HlsScope):
         mem = [hls.var(f"v{i:d}", self.o._dtype) for i in range(self.ITEMS)]
@@ -131,5 +131,5 @@ if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.xilinx.artix7 import Artix7Medium
     #from hwtHls.platform.virtual import VirtualHlsPlatform
-    u = CntrArray()
+    u = Rom()
     print(to_rtl_str(u, target_platform=Artix7Medium(debugDir="tmp")))
