@@ -24,8 +24,9 @@ class Rom(Unit):
         self.o = VectSignal(32, signed=False)._m()
 
     def mainThread(self, hls: HlsScope):
-        # must be hw type otherwise we won't be able to resolve type of o
-        mem = [self.o._dtype.from_py(1 << i) for i in range(4)]
+        t = self.o._dtype
+        # must be hw type otherwise we won't be able to resolve type of "o" later
+        mem = [t.from_py(1 << i) for i in range(4)]
         while BIT.from_py(1):
             i = hls.read(self.i)
             o = mem[i]
