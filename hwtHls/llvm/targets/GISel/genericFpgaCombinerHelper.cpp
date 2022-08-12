@@ -1,5 +1,6 @@
 #include "genericFpgaCombinerHelper.h"
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
+#include <llvm/CodeGen/GlobalISel/GISelKnownBits.h>
 #include "../genericFpgaInstrInfo.h"
 #include "genericFpgaInstructionSelectorUtils.h"
 
@@ -251,8 +252,9 @@ bool GenFpgaCombinerHelper::collectConcatMembers(llvm::MachineOperand &MIOp,
 		uint64_t subSliceWidth = MI.getOperand(3).getImm();
 		subSliceOffset += offsetOfIRes;
 		if (widthOfIRes > subSliceWidth) {
-			errs() << MI <<  " widthOfIRes:" << widthOfIRes << "\n";
-			llvm_unreachable("GENFPGA_EXTRACT provides value of less bits than expected");
+			errs() << MI << " widthOfIRes:" << widthOfIRes << "\n";
+			llvm_unreachable(
+					"GENFPGA_EXTRACT provides value of less bits than expected");
 		}
 		//subSliceWidth = std::min(std::min(subSliceWidth - offsetOfIRes,
 		//		mainEnd - currentOffset), );
@@ -344,4 +346,154 @@ bool GenFpgaCombinerHelper::rewriteExtractOnMergeValues(
 	MI.eraseFromParent();
 	return true;
 }
+
+/**
+ * rules for merging MUX instructions:
+ * * if conditions are proven to be exclusive the order of pairs condition-value does not matter
+ *   The equality can be checked in using KnownBits :see: `CombinerHelper::matchICmpToTrueFalseKnownBits`
+ *   .. code-block:: cpp
+ *     	auto KnownLHS = KB->getKnownBits(MI.getOperand(2).getReg());
+ * 	  	auto KnownRHS = KB->getKnownBits(MI.getOperand(3).getReg());
+ *      Optional<bool> KnownVal = KnownBits::ne(KnownLHS, KnownRHS);
+ *
+ * * y = MUX v0
+ *   x = MUX y c0 v1
+ *   ->
+ *   x = MUX v0 c0 v1 // this is a trivial case where we just copy V0 no mater in which operand of mux x the y is used
+ *
+ * * y = MUX v1 c1 v2
+ *   x = MUX v0 c0 y
+ *   ->
+ *   x = MUX v0 c0 v1 c1 v2  // merging on "tail" is just copy of arguments from first to second
+ *
+ * * y = MUX v1 c1 v2
+ *   x = MUX y c0 v0
+ *   ->
+ *   x = MUX v1 (c1 & c0) v2 y c0 v0 // or C0 can be reversed to move y at the end
+ *   x = MUX v0 !c0 v1 c1 v2
+ *
+ * * y = MUX v3 c2 v4
+ *   x = MUX v0 c0 y c1 v2
+ *   ->
+ *   x = MUX v0 c0 v3 (c2 & c1) v4 c1 v2
+ *   x = MUX v0 c0 v2 ~c1 v3 c2 v4 // or C1 can be reversed to move y at the end
+ *
+ */
+bool GenFpgaCombinerHelper::matchNestedMux(llvm::MachineInstr &MI) {
+	assert(MI.getOpcode() == GenericFpga::GENFPGA_MUX);
+	// check if is used only by a GENFPGA_MUX and can merge operands into user
+	auto DstRegNo = MI.getOperand(0).getReg();
+	if (!MRI.hasOneUse(DstRegNo))
+		return false;
+	MachineOperand *otherUse = &*MRI.use_begin(DstRegNo);
+	MachineInstr *otherMI = otherUse->getParent();
+	if (otherMI == &MI) {
+		return false; // can not inline operands of self to self
+	}
+	if (otherMI->getOpcode() != GenericFpga::GENFPGA_MUX) {
+		return false;
+	}
+	const MachineBasicBlock &MBB = *MI.getParent();
+	if (otherMI->getParent() != &MBB) {
+		return false; // search of dominance in other blocks not implemented
+	}
+	// check that the operand register are not redefined between this and other
+	auto it = MachineBasicBlock::instr_iterator(&MI);
+	++it;
+	bool compatible = false;
+	for (; it != MBB.instr_end(); ++it) {
+		if (&*it == otherMI) {
+			// found the otherMI as a successor
+			compatible = true;
+			break;
+		}
+		for (auto &O : MI.operands()) {
+			if (O.isReg()) {
+				if (it->definesRegister(O.getReg())) {
+					// the operand register was redefined and we do not have value for operand which we want to inline
+					return false;
+				}
+			}
+		}
+	}
+
+	if (!compatible)
+		return false;
+
+	// if the merged-in MUX:
+	if (MI.getNumOperands() == 2) {
+		// has a single operand -> move it to otherMI mux
+		return true;
+	} else if (MachineInstr::mop_iterator(otherUse) + 1
+			== otherMI->operands_end()) {
+		// is last operand -> move NestedI operands to this mux
+		return true;
+	} else {
+		// is in format similar to:
+		// %MI      = MUX v3 c2 v4
+		// %OtherMI = MUX v0 c0 %MI c1 v2
+		//  check if conditions from NestedI are always satisfied if c1
+		auto c1 = MachineInstr::mop_iterator(otherUse) + 1;
+		if (!c1->isReg()) {
+			return false;// wait with the extraction for removal of constant conditions
+		}
+		KnownBits KnownC1 = KB->getKnownBits(c1->getReg());
+		for (auto NestedValO = MI.operands_begin() + 1;
+				NestedValO != MI.operands_end();) {
+			// if NestedValO or NestedValO has a define between MI and NestedI we can not extract
+
+			auto NestedCondO = NestedValO + 1;
+			if (NestedCondO == MI.operands_end()) {
+				break; // this was last operand
+			}
+			if (!NestedCondO->isReg()) {
+				// wait with the extraction for removal of constant conditions
+				compatible = false;
+				break;
+			}
+			KnownBits KnownNestedC = KB->getKnownBits(NestedCondO->getReg());
+			// c0 is always 1 if NestedCond is 1
+			Optional<bool> CanMergeOperands = KnownBits::uge(KnownC1,
+					KnownNestedC);
+			if (!CanMergeOperands.hasValue() || !CanMergeOperands.getValue()) {
+				compatible = false;
+				break;
+			}
+			NestedValO += 2; // skip condition and jump directly to new value
+		}
+		return compatible;
+	}
+	return false;
+}
+
+bool GenFpgaCombinerHelper::rewriteNestedMuxToMux(llvm::MachineInstr &MI) {
+	assert(MI.getOpcode() == GenericFpga::GENFPGA_MUX);
+	MachineOperand *otherUse = &*MRI.use_begin(MI.getOperand(0).getReg());
+	MachineInstr *otherMI = otherUse->getParent();
+
+	Builder.setInstrAndDebugLoc(*otherMI);
+	auto MIB = Builder.buildInstr(GenericFpga::GENFPGA_MUX);
+	auto &newMI = *MIB.getInstr();
+	Observer.changingInstr(newMI);
+
+	for (auto &Op : otherMI->operands()) {
+		if (&Op == otherUse) {
+			// copy ops from nested MUX
+			bool first = true;
+			for (auto NesOp : MI.operands()) {
+				if (first) {
+					first = false;
+					continue;
+				}
+				MIB.add(NesOp);
+			}
+		} else {
+			MIB.add(Op);
+		}
+	}
+	Observer.changedInstr(newMI);
+	otherMI->eraseFromParent();
+	return true;
+}
+
 }

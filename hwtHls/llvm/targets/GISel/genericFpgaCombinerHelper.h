@@ -35,6 +35,10 @@ public:
 			uint64_t & currentOffset,
 			uint64_t offsetOfIRes,
 			uint64_t widthOfIRes);
+
+	// check if can merge two GENFPGA_MUX instructions
+	bool matchNestedMux(llvm::MachineInstr &MI);
+	bool rewriteNestedMuxToMux(llvm::MachineInstr &MI);
 };
 
 }

@@ -11,12 +11,10 @@ nodes:
     <HlsNetNodeOperator 9 EQ [4:0, 8:0]>
     <HlsNetNodeConst 10 <BitsVal 1>>
     <HlsNetNodeOperator 11 NE [4:0, 10:0]>
-    <HlsNetNodeConst 12 <BitsVal 8>>
-    <HlsNetNodeConst 13 <BitsVal 2>>
-    <HlsNetNodeMux 14 [12:0, 11:0, 13:0]>
-    <HlsNetNodeConst 15 <BitsVal 1>>
-    <HlsNetNodeMux 16 [15:0, 9:0, 14:0]>
-    <HlsNetNodeConst 17 <BitsVal 4>>
-    <HlsNetNodeMux 18 [17:0, 7:0, 16:0]>
-    <HlsNetNodeWrite 19 <Signal o <Bits, 32bits, unsigned>> <- <HlsNetNodeOut <HlsNetNodeMux 18> [0]>>
+    <HlsNetNodeConst 12 <BitsVal 4>>
+    <HlsNetNodeConst 13 <BitsVal 1>>
+    <HlsNetNodeConst 14 <BitsVal 8>>
+    <HlsNetNodeConst 15 <BitsVal 2>>
+    <HlsNetNodeMux 16 [12:0, 7:0, 13:0, 9:0, 14:0, 11:0, 15:0]>
+    <HlsNetNodeWrite 17 <Signal o <Bits, 32bits, unsigned>> <- <HlsNetNodeOut <HlsNetNodeMux 16> [0]>>
 

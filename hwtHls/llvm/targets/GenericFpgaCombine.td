@@ -142,6 +142,15 @@ def extract_on_merge_values: GICombineRule<
   (apply [{ return Helper.rewriteExtractOnMergeValues(*${root}); }])
 >;
 
+// 
+// Fond (GENFPGA_MUX (... GENFPGA_MUX ...)) -> GENFPGA_MUX ...
+def mux_merge: GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode GENFPGA_MUX):$root,
+    [{ return Helper.matchNestedMux(*${root}); }]),
+  (apply [{ return Helper.rewriteNestedMuxToMux(*${root}); }])
+>;
+
 // rewrite generic opcodes to GENFPGA_* where beneficial
 def GenericFpgaGenPreRegAllocGICombinerHelper: GICombinerHelper<
   "GenericFpgaGenPreRegAllocGICombinerHelper", [copy_to_genfpga_copy,
@@ -160,7 +169,8 @@ def GenericFpgaGenPreRegAllocGICombinerHelper: GICombinerHelper<
 def GenericFpgaGenPreToNetlistGICombinerHelper: GICombinerHelper<
   "GenericFpgaGenPreToNetlistGICombinerHelper", [xor_right_allOnes,
   												 extract_on_merge_values,
-                                                 const_eval_combines
+                                                 const_eval_combines,
+                                                 mux_merge
                                                  ]> {
   let DisableRuleOption = "GenericFpgaGenPreToNetlistGICombinerHelper-disable-rule";
   let StateClass = "GenericFpgaGenPreToNetlistGICombinerHelperState";

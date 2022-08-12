@@ -12,9 +12,7 @@ bb.1.blockL40i0_40:
   %4:anyregcls(s1) = G_ICMP intpred(eq), %2:anyregcls(s2), i2 -2
   %6:anyregcls(s1) = G_ICMP intpred(eq), %2:anyregcls(s2), i2 0
   %8:anyregcls(s1) = G_ICMP intpred(ne), %2:anyregcls(s2), i2 1
-  %16:anyregcls(s32) = GENFPGA_MUX i32 8, %8:anyregcls(s1), i32 2
-  %17:anyregcls(s32) = GENFPGA_MUX i32 1, %6:anyregcls(s1), %16:anyregcls(s32)
-  %9:anyregcls(s32) = GENFPGA_MUX i32 4, %4:anyregcls(s1), %17:anyregcls(s32)
+  %9:anyregcls(s32) = GENFPGA_MUX i32 4, %4:anyregcls(s1), i32 1, %6:anyregcls(s1), i32 8, %8:anyregcls(s1), i32 2
   GENFPGA_CSTORE %9:anyregcls(s32), %1:anyregcls, 0, 1 :: (volatile store (s32) into %ir.o, addrspace 1)
   G_BR %bb.1
 
