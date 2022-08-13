@@ -6,6 +6,7 @@ from typing import Callable, Dict
 
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.value import HValue
+from hwt.interfaces.std import Signal
 from hwt.pyUtils.arrayQuery import flatten
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
@@ -21,13 +22,11 @@ from hwtHls.frontend.pyBytecode.instructions import CMP_OPS, BIN_OPS, UN_OPS, \
     LOAD_METHOD, LOAD_CLOSURE, STORE_ATTR, STORE_FAST, STORE_DEREF, CALL_METHOD, \
     CALL_FUNCTION, CALL_FUNCTION_KW, COMPARE_OP, GET_ITER, UNPACK_SEQUENCE, \
     MAKE_FUNCTION, STORE_SUBSCR, EXTENDED_ARG, CALL_FUNCTION_EX, DELETE_DEREF, DELETE_FAST, \
-    FORMAT_VALUE, BUILD_STRING, BUILD_CONST_KEY_MAP
+    FORMAT_VALUE
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc, \
-    PyBytecodeInline
+    PyBytecodeInline, _PyBytecodePragma
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.value import SsaValue
-from io import StringIO
-from hwt.interfaces.std import Signal
 
 
 class PyBytecodeToSsaLowLevelOpcodes():
@@ -90,8 +89,11 @@ class PyBytecodeToSsaLowLevelOpcodes():
             
         if isinstance(res, (HlsWrite, HlsRead, HdlAssignmentContainer)):
             self.toSsa.visit_CodeBlock_list(curBlock, [res, ])
-        elif isinstance(res, list) and len(res) > 0 and  isinstance(res[0], (HlsWrite, HlsRead, HdlAssignmentContainer)):
+        elif isinstance(res, list) and len(res) > 0 and isinstance(res[0], (HlsWrite, HlsRead, HdlAssignmentContainer)):
             self.toSsa.visit_CodeBlock_list(curBlock, res)
+        elif isinstance(res, _PyBytecodePragma):
+            res.apply(self, frame, curBlock, instr)
+
         return curBlock
 
     def opcode_DELETE_FAST(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:

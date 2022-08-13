@@ -150,6 +150,7 @@ TargetMachine
   * https://github.com/frasercrmck/llvm-leg/tree/master/lib/Target/LEG
 * Other projects with FPGA/Verilog/FPGA LLVM backend
   * https://github.com/cpc/tce/tree/master/tce/src/applibs/LLVMBackend/plugin
+* to get original MDNode for MachineInst see  NVPTXAsmPrinter::isLoopHeaderOfNoUnroll 
 
 Interpret
 -------------

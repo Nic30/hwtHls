@@ -83,7 +83,7 @@ class CopyBasicBlockLabelsToCode():
         seen.add(bb)
         for o in bb.origins:
             doc[o].append(bb.label)
-        for (_, t) in bb.successors.targets:
+        for t in bb.successors.iterBlocks():
             if t not in seen:
                 self._visit(t, doc, seen)
 

@@ -42,6 +42,10 @@ public:
 			hwtHls::GenericFpgaToNetlist::ConvesionFnT toNetlistConversionFn);
 	llvm::MachineFunction* getMachineFunction(llvm::Function &fn);
 
+	void _addVectorPasses(llvm::OptimizationLevel Level,
+			llvm::FunctionPassManager &FPM, bool IsFullLTO);
+	void _addMachineCodegenPasses(
+			hwtHls::GenericFpgaToNetlist::ConvesionFnT & toNetlistConversionFn);
 	llvm::Function& _testSlicesToIndependentVariablesPass();
 };
 

@@ -241,14 +241,15 @@ InstructionCost GenericFpgaTTIImpl::getUserCost(const User *U,
 
 void GenericFpgaTTIImpl::getUnrollingPreferences(Loop*, ScalarEvolution&,
 		TTI::UnrollingPreferences& UP, OptimizationRemarkEmitter*) const {
-	UP.Threshold = 0;
-	UP.PartialThreshold = 0;
-	UP.Count = 1;
-	UP.MaxCount = 1;
-	UP.FullUnrollMaxCount = 1;
-	UP.Partial = false;
+	// (unroll nothing by default but allow all)
+	UP.Threshold = 1;
+	UP.PartialThreshold = 1;
+	UP.Count = 0;
+	UP.MaxCount = UINT_MAX;
+	UP.FullUnrollMaxCount = UINT_MAX;
+	UP.Partial = true;
 	UP.Runtime = false;
-	UP.AllowRemainder = false;
+	UP.AllowRemainder = true;
 }
 
 Type* GenericFpgaTTIImpl::getMemcpyLoopLoweringType(LLVMContext &Context,

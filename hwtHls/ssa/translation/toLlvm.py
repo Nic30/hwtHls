@@ -1,5 +1,5 @@
 import re
-from typing import List, Tuple, Dict, Union
+from typing import List, Tuple, Dict, Union, Optional
 
 from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.types.array import HArray
@@ -21,7 +21,7 @@ from hwtHls.frontend.ast.statementsRead import HlsRead, HlsReadAddressed
 from hwtHls.frontend.ast.statementsWrite import HlsWrite, HlsWriteAddressed
 from hwtHls.llvm.llvmIr import Value, Type, FunctionType, Function, VectorOfTypePtr, BasicBlock, Argument, \
     PointerType, TypeToPointerType, ConstantInt, APInt, verifyFunction, verifyModule, TypeToIntegerType, \
-    PHINode, LlvmCompilationBundle, LLVMContext, LLVMStringContext, ArrayType, TypeToArrayType
+    PHINode, LlvmCompilationBundle, LLVMContext, LLVMStringContext, ArrayType, TypeToArrayType, MDNode
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.phi import SsaPhi
@@ -234,26 +234,38 @@ class ToLlvmIrTranslator():
         branchTmpBlocks = self._branchTmpBlocks[bb] = []
 
         # firstPairOfSuccessors = True
-        for i, (c, sucBb) in enumerate(bb.successors.targets):
+        for i, (c, sucBb, meta) in enumerate(bb.successors.targets):
+
+            doBreak = False    
             if i == preLastTargetsI:
-                nextC, nextB = bb.successors.targets[i + 1]
+                nextC, nextB, nextMeta = bb.successors.targets[i + 1]
                 assert nextC is None, ("last jump from block must be unconditional", bb, bb.successors)
-                b.CreateCondBr(self._translateExpr(c), self.varMap[sucBb], self.varMap[nextB], None)
+                br = b.CreateCondBr(self._translateExpr(c), self.varMap[sucBb], self.varMap[nextB], None)
+                if nextMeta is not None:
+                    raise NotImplementedError(nextMeta)
+
                 branchTmpBlocks.append((llvmBb, [sucBb, nextB]))
-                break
+                doBreak = True
             elif i == lastTargetsI:
                 assert c is None, ("last jump from block must be unconditional", bb, bb.successors)
-                b.CreateBr(self.varMap[sucBb])
+                br = b.CreateBr(self.varMap[sucBb])
                 branchTmpBlocks.append((llvmBb, [sucBb, ]))
-                break  # would break on its own, added just to improve code readability
+                doBreak = True  # would break on its own, added just to improve code readability
             else:
                 # need to generate a new block
                 branchTmpBlocks.append((llvmBb, [sucBb, ]))
                 newLlvmBb = BasicBlock.Create(self.ctx, self.strCtx.addTwine(bb.label), self.llvm.main, None)
                 b.SetInsertPoint(llvmBb)
-                b.CreateCondBr(self._translateExpr(c), self.varMap[sucBb], newLlvmBb, None)
+                br = b.CreateCondBr(self._translateExpr(c), self.varMap[sucBb], newLlvmBb, None)
                 llvmBb = newLlvmBb
                 b.SetInsertPoint(llvmBb)
+
+            if meta is not None:
+                for m in meta:
+                    m.toLlvm(self, br)
+
+            if doBreak:
+                break
 
         if not bb.successors.targets:
             b.CreateRetVoid()
@@ -330,6 +342,7 @@ class ToLlvmIrTranslator():
         assert verifyModule(self.mod) is False
 
         return self
+
 
 
 class SsaPassToLlvm():

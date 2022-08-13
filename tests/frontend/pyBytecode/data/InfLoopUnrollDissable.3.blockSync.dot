@@ -1,0 +1,38 @@
+digraph "mainThread" {
+legend [label=<
+<table border="0" cellborder="1" cellspacing="0">
+  <tr><td bgcolor="blue">backedge</td></tr>
+</table>>, shape=plain, style=filled];
+bb0 [fillcolor=white, label=<
+<table border="0" cellborder="1" cellspacing="0">
+            <tr><td>bb.0.mainThread</td></tr>
+            <tr><td></td></tr>
+            <tr><td>blockEn=&lt;HlsNetNodeOutLazy 0&gt;</td></tr>
+            <tr><td>orderingIn=&lt;HlsNetNodeOutLazy 1&gt;</td></tr>
+            <tr><td>orderingOut=&lt;HlsNetNodeOutLazy 1&gt;</td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+bb1 [fillcolor=white, label=<
+<table border="0" cellborder="1" cellspacing="0">
+            <tr><td>bb.1.blockL20i0_20</td></tr>
+            <tr><td>rstPredeccessor=bb.0</td></tr>
+            <tr><td>blockEn=&lt;HlsNetNodeOutLazy 3&gt;</td></tr>
+            <tr><td>orderingIn=&lt;HlsNetNodeOutLazy 4&gt;</td></tr>
+            <tr><td>orderingOut=&lt;HlsNetNodeOut &lt;HlsNetNodeWriteBackwardEdge 14 &lt;HsStructIntf hls_r_5_bb1_to_bb1_in &lt;Bits, 8bits&gt;&gt; &lt;- &lt;HlsNetNodeOut &lt;HlsNetNodeOperator 9 ADD&gt; [0]&gt;&gt; [0-orderingOut]&gt;</td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+e0to1 [fillcolor=white, label=<
+<table border="0" cellborder="1" cellspacing="0">
+            <tr><td>5</td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+bb0 -> e0to1;
+e0to1 -> bb1;
+e1to1 [color=blue, fillcolor=white, label=<
+<table border="0" cellborder="1" cellspacing="0">
+            <tr><td>5</td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+bb1 -> e1to1  [color=blue];
+e1to1 -> bb1  [color=blue];
+}

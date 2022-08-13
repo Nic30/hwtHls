@@ -41,7 +41,7 @@ class SsaPassConsystencyCheck(SsaPass):
             if _bb not in blocks:
                 self.visit_collect(_bb, blocks, phis, variables)
 
-        for (_, _bb) in bb.successors.targets:
+        for (_, _bb, _) in bb.successors.targets:
             if _bb not in blocks:
                 self.visit_collect(_bb, blocks, phis, variables)
 
@@ -74,7 +74,7 @@ class SsaPassConsystencyCheck(SsaPass):
             else:
                 raise NotImplementedError(stm)
 
-        for (_, _bb) in bb.successors.targets:
+        for (_, _bb, _) in bb.successors.targets:
             assert _bb in blocks, (_bb, "Missing reference on block")
             if _bb not in seen:
                 self.visit_check(_bb, blocks, phis, variables, seen)

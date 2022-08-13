@@ -6,6 +6,7 @@ from hwtHls.frontend.pyBytecode.blockLabel import BlockLabel
 from hwtHls.frontend.pyBytecode.loopsDetect import PyBytecodeLoop
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.value import SsaValue
+from hwtHls.ssa.instr import ConditionBlockTuple
 
 
 class BranchTargetPlaceholder():
@@ -22,8 +23,9 @@ class BranchTargetPlaceholder():
         assert not self._isReplaced, self
         assert cond is None or isinstance(cond, SsaValue), cond
         targets = self.block.successors.targets
-        assert targets[self.index] is self, (targets[self.index], self)
-        targets[self.index] = (cond, dstBlock)
+        cur = targets[self.index]
+        assert cur is self
+        targets[self.index] = ConditionBlockTuple(cond, dstBlock, None)
         src = self.block
         assert src not in dstBlock.predecessors, (src, dstBlock, dstBlock.predecessors)
         dstBlock.predecessors.append(src)
@@ -37,8 +39,8 @@ class BranchTargetPlaceholder():
         assert isinstance(new_expr, (SsaValue, HValue)), (self, orig_expr, new_expr)
         assert self in orig_expr.users
         self.targets = [
-            (new_expr if o is orig_expr else o, t)
-            for o, t in self.targets
+            ConditionBlockTuple(new_expr if o is orig_expr else o, t, m)
+            for o, t, m in self.targets
         ]
         orig_expr.users.remove(self)
         if isinstance(new_expr, SsaValue):
@@ -65,6 +67,7 @@ class PyBytecodeLoopInfo():
     :ivar loopMembers: a set of offset of blocks in this loop
     :ivar jumpsFromLoopBody: a list of loop body exit jumps and conditions in format of tuple (condition, srcBlock, dstBlockOffset)
     :note: multiple exits can be generated only if there is some HW evaluated branching.
+    :ivar pragma: list of pragma instances collected for this loop
     """
 
     def __init__(self, loop: PyBytecodeLoop):
@@ -73,6 +76,7 @@ class PyBytecodeLoopInfo():
         self.mustBeEvaluatedInPreproc = False
         self.jumpsFromLoopBody: List[LoopExitJumpInfo] = []
         self.notGeneratedExits: List[BlockLabel, BlockLabel] = []
+        self.pragma: List["_PyBytecodePragma"] = []
 
     def isJumpFromLoopBody(self, dstBlockOffset: int) -> bool:
         return (dstBlockOffset,) not in self.loop.allBlocks or (dstBlockOffset,) == self.loop.entryPoint
@@ -131,6 +135,7 @@ class LoopExitJumpInfo():
             dst = self.dstBlockOffset
         else:
             dst = self.dstBlockOffset
+
         return f"<{self.__class__.__name__} {self.srcBlock.label:s} -> {dst}, c={self.cond}>"
 
    

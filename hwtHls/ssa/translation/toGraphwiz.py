@@ -72,7 +72,7 @@ class SsaToGraphwiz():
         for stm in bb.body:
             body_rows.append(self._escape(repr(stm)) + "\\l")
 
-        for i, (cond, dst_bb) in enumerate(bb.successors.targets):
+        for i, (cond, dst_bb, _) in enumerate(bb.successors.targets):
             branch_label = f"br{i:d}"
             cond_str = "" if cond is None\
                 else self._escape(cond._name) if isinstance(cond, RtlSignal) else\

@@ -20,7 +20,7 @@ public:
 	void operator delete(void*, unsigned) = delete;
 	void operator delete(void*, unsigned, bool) = delete;
 };
-
 void register_Attribute(pybind11::module_ &m);
 void register_MDNode(pybind11::module_ &m);
+
 }

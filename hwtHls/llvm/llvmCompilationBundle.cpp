@@ -54,6 +54,14 @@
 #include <llvm/Transforms/Scalar/DeadStoreElimination.h>
 #include <llvm/Transforms/Scalar/ConstraintElimination.h>
 #include <llvm/Transforms/Scalar/SimpleLoopUnswitch.h>
+#include <llvm/Transforms/Scalar/LoopUnrollPass.h>
+#include <llvm/Transforms/Scalar/LoopUnrollAndJamPass.h>
+#include <llvm/Transforms/Scalar/WarnMissedTransforms.h>
+#include <llvm/Transforms/Scalar/LoopLoadElimination.h>
+#include <llvm/Transforms/Vectorize/LoopVectorize.h>
+#include <llvm/Transforms/Vectorize/SLPVectorizer.h>
+#include <llvm/Transforms/Scalar/AlignmentFromAssumptions.h>
+#include <llvm/Transforms/Vectorize/VectorCombine.h>
 #include <llvm/Transforms/Utils/AssumeBundleBuilder.h>
 #include <llvm/Transforms/Utils.h>
 
@@ -136,7 +144,6 @@ void LlvmCompilationBundle::runOpt(
 
 	// [todo] PassBuilder::addVectorPasses
 	fn.getParent()->setDataLayout(TM->createDataLayout());
-
 
 	auto LAM = llvm::LoopAnalysisManager { };
 	auto cgscc_manager = llvm::CGSCCAnalysisManager { };
@@ -279,6 +286,7 @@ void LlvmCompilationBundle::runOpt(
 					llvm::SimplifyCFGOptions().convertSwitchRangeToICmp(true)));
 	FPM.addPass(llvm::InstCombinePass());
 
+	_addVectorPasses(Level, FPM, false);
 	// The loop passes in LPM2 (LoopIdiomRecognizePass, IndVarSimplifyPass,
 	// LoopDeletionPass and LoopFullUnrollPass) do not preserve MemorySSA.
 	// *All* loop passes must preserve it, in order to be able to use it.
@@ -344,8 +352,8 @@ void LlvmCompilationBundle::runOpt(
 
 	//FPM.addPass(llvm::CoroElidePass());
 
-//	for (auto &C : ScalarOptimizerLateEPCallbacks)
-//		C(FPM, Level);
+	//	for (auto &C : ScalarOptimizerLateEPCallbacks)
+	//		C(FPM, Level);
 
 	FPM.addPass(llvm::SimplifyCFGPass(llvm::SimplifyCFGOptions() //
 	.convertSwitchRangeToICmp(true) //
@@ -376,6 +384,147 @@ void LlvmCompilationBundle::runOpt(
 
 	FPM.run(fn, FAM);
 
+	_addMachineCodegenPasses(toNetlistConversionFn);
+	PM.run(*fn.getParent());
+}
+
+void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
+		llvm::FunctionPassManager &FPM, bool IsFullLTO) {
+	//FPM.addPass(
+	//		llvm::LoopVectorizePass(
+	//				llvm::LoopVectorizeOptions(!PTO.LoopInterleaving,
+	//						!PTO.LoopVectorization)));
+	llvm::StringMap<llvm::cl::Option*> &Map = llvm::cl::getRegisteredOptions();
+	//Map["print-before"]->addOccurrence(0, "", "loop-unroll");
+	//Map["debug-only"]->addOccurrence(0, "", "loop-unroll");
+	//Map["print-after"]->addOccurrence(0, "", "loop-unroll");
+	//if (IsFullLTO) {
+		// The vectorizer may have significantly shortened a loop body; unroll
+		// again. Unroll small loops to hide loop backedge latency and saturate any
+		// parallel execution resources of an out-of-order processor. We also then
+		// need to clean up redundancies and loop invariant code.
+		// FIXME: It would be really good to use a loop-integrated instruction
+		// combiner for cleanup here so that the unrolling and LICM can be pipelined
+		// across the loop nests.
+		// We do UnrollAndJam in a separate LPM to ensure it happens before unroll
+		//if (PTO.LoopUnrolling)
+			FPM.addPass(
+					llvm::createFunctionToLoopPassAdaptor(
+							llvm::LoopUnrollAndJamPass(
+									Level.getSpeedupLevel())));
+		FPM.addPass(
+				llvm::LoopUnrollPass(
+						llvm::LoopUnrollOptions(Level.getSpeedupLevel(), /*OnlyWhenForced=*/
+								!PTO.LoopUnrolling,
+								PTO.ForgetAllSCEVInLoopUnroll)));
+		FPM.addPass(llvm::WarnMissedTransformationsPass());
+	//}
+//
+//  if (!IsFullLTO) {
+//    // Eliminate loads by forwarding stores from the previous iteration to loads
+//    // of the current iteration.
+//    FPM.addPass(llvm::LoopLoadEliminationPass());
+//  }
+//  // Cleanup after the loop optimization passes.
+//  FPM.addPass(llvm::InstCombinePass());
+//
+//  if (Level.getSpeedupLevel() > 1) { //  && ExtraVectorizerPasses
+//	llvm::ExtraVectorPassManager ExtraPasses;
+//    // At higher optimization levels, try to clean up any runtime overlap and
+//    // alignment checks inserted by the vectorizer. We want to track correlated
+//    // runtime checks for two inner loops in the same outer loop, fold any
+//    // common computations, hoist loop-invariant aspects out of any outer loop,
+//    // and unswitch the runtime checks if possible. Once hoisted, we may have
+//    // dead (or speculatable) control flows or more combining opportunities.
+//    ExtraPasses.addPass(llvm::EarlyCSEPass());
+//    ExtraPasses.addPass(llvm::CorrelatedValuePropagationPass());
+//    ExtraPasses.addPass(llvm::InstCombinePass());
+//    llvm::LoopPassManager LPM;
+//    LPM.addPass(llvm::LICMPass(PTO.LicmMssaOptCap, PTO.LicmMssaNoAccForPromotionCap,
+//                         /*AllowSpeculation=*/true));
+//    LPM.addPass(llvm::SimpleLoopUnswitchPass(/* NonTrivial */ Level ==
+//    		llvm::OptimizationLevel::O3));
+//    ExtraPasses.addPass(
+//    		llvm::RequireAnalysisPass<llvm::OptimizationRemarkEmitterAnalysis, llvm::Function>());
+//    ExtraPasses.addPass(
+//        createFunctionToLoopPassAdaptor(std::move(LPM), /*UseMemorySSA=*/true,
+//                                        /*UseBlockFrequencyInfo=*/true));
+//    ExtraPasses.addPass(
+//    		llvm::SimplifyCFGPass(llvm::SimplifyCFGOptions().convertSwitchRangeToICmp(true)));
+//    ExtraPasses.addPass(llvm::InstCombinePass());
+//    FPM.addPass(std::move(ExtraPasses));
+//  }
+//
+//  // Now that we've formed fast to execute loop structures, we do further
+//  // optimizations. These are run afterward as they might block doing complex
+//  // analyses and transforms such as what are needed for loop vectorization.
+//
+//  // Cleanup after loop vectorization, etc. Simplification passes like CVP and
+//  // GVN, loop transforms, and others have already run, so it's now better to
+//  // convert to more optimized IR using more aggressive simplify CFG options.
+//  // The extra sinking transform can create larger basic blocks, so do this
+//  // before SLP vectorization.
+//  FPM.addPass(llvm::SimplifyCFGPass(llvm::SimplifyCFGOptions()
+//                                  .forwardSwitchCondToPhi(true)
+//                                  .convertSwitchRangeToICmp(true)
+//                                  .convertSwitchToLookupTable(true)
+//                                  .needCanonicalLoops(false)
+//                                  .hoistCommonInsts(true)
+//                                  .sinkCommonInsts(true)));
+//
+//  if (IsFullLTO) {
+//    FPM.addPass(llvm::SCCPPass());
+//    FPM.addPass(llvm::InstCombinePass());
+//    FPM.addPass(llvm::BDCEPass());
+//  }
+//
+//  // Optimize parallel scalar instruction chains into SIMD instructions.
+//  if (PTO.SLPVectorization) {
+//    FPM.addPass(llvm::SLPVectorizerPass());
+//    if (Level.getSpeedupLevel() > 1 ) { // && ExtraVectorizerPasses
+//      FPM.addPass(llvm::EarlyCSEPass());
+//    }
+//  }
+//  // Enhance/cleanup vector code.
+//  FPM.addPass(llvm::VectorCombinePass());
+//
+//  if (!IsFullLTO) {
+//    FPM.addPass(llvm::InstCombinePass());
+//    // Unroll small loops to hide loop backedge latency and saturate any
+//    // parallel execution resources of an out-of-order processor. We also then
+//    // need to clean up redundancies and loop invariant code.
+//    // FIXME: It would be really good to use a loop-integrated instruction
+//    // combiner for cleanup here so that the unrolling and LICM can be pipelined
+//    // across the loop nests.
+//    // We do UnrollAndJam in a separate LPM to ensure it happens before unroll
+//    if (PTO.LoopUnrolling) { // EnableUnrollAndJam &&
+//      FPM.addPass(llvm::createFunctionToLoopPassAdaptor(
+//    		  llvm::LoopUnrollAndJamPass(Level.getSpeedupLevel())));
+//    }
+//    FPM.addPass(llvm::LoopUnrollPass(llvm::LoopUnrollOptions(
+//        Level.getSpeedupLevel(), /*OnlyWhenForced=*/!PTO.LoopUnrolling,
+//        PTO.ForgetAllSCEVInLoopUnroll)));
+//    FPM.addPass(llvm::WarnMissedTransformationsPass());
+//    FPM.addPass(llvm::InstCombinePass());
+//    FPM.addPass(
+//    		llvm::RequireAnalysisPass<llvm::OptimizationRemarkEmitterAnalysis, llvm::Function>());
+//    FPM.addPass(createFunctionToLoopPassAdaptor(
+//    		llvm::LICMPass(PTO.LicmMssaOptCap, PTO.LicmMssaNoAccForPromotionCap,
+//                 /*AllowSpeculation=*/true),
+//        /*UseMemorySSA=*/true, /*UseBlockFrequencyInfo=*/true));
+//  }
+//
+//  // Now that we've vectorized and unrolled loops, we may have more refined
+//  // alignment information, try to re-derive it here.
+//  FPM.addPass(llvm::AlignmentFromAssumptionsPass());
+//
+//  if (IsFullLTO)
+//    FPM.addPass(llvm::InstCombinePass());
+}
+
+
+void LlvmCompilationBundle::_addMachineCodegenPasses(
+		hwtHls::GenericFpgaToNetlist::ConvesionFnT & toNetlistConversionFn) {
 	//llvm::MachineFunctionAnalysisManager MFAM;
 	//llvm::MachineFunctionPassManager MPM;
 	//
@@ -389,6 +538,9 @@ void LlvmCompilationBundle::runOpt(
 
 	PM.add(MMIWP);
 	//llvm::StringMap<llvm::cl::Option*> &Map = llvm::cl::getRegisteredOptions();
+	//Map["debug-only"]->addOccurrence(0, "", "loop-unroll");
+	//Map["print-after"]->addOccurrence(0, "", "loop-unroll");
+
 	//Map["print-before"]->addOccurrence(0, "", "early-ifcvt");
 	//Map["debug-only"]->addOccurrence(0, "", "early-ifcvt");
 	//Map["print-after"]->addOccurrence(0, "", "early-ifcvt");
@@ -418,9 +570,10 @@ void LlvmCompilationBundle::runOpt(
 	// place for custom machine passes
 	TPC->printAndVerify("after addMachinePasses");
 	TPC->setInitialized();
+
 	//PM.add(llvm::createFreeMachineFunctionPass());
-	PM.run(*fn.getParent());
 }
+
 
 llvm::MachineFunction* LlvmCompilationBundle::getMachineFunction(
 		llvm::Function &fn) {

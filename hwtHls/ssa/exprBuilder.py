@@ -194,7 +194,7 @@ class SsaExprBuilder():
         if o0 is o0ForTypeInference and o1 is o1ForTypeInference and isinstance(res, HValue):
             return res
 
-        instr = SsaInstr(self.block.ctx, res._dtype, operator, [o0, o1], origin=res )
+        instr = SsaInstr(self.block.ctx, res._dtype, operator, [o0, o1], origin=res)
         self._insertInstr(instr)
         return instr
     
@@ -251,10 +251,10 @@ class SsaExprBuilder():
                     sequel.body.append(instr)
                 del b.body[pos + 1:]
 
-            for c, t in b.successors.targets:
+            for c, t, meta in b.successors.targets:
                 t: SsaBasicBlock
                 t.predecessors.remove(b)
-                sequel.successors.addTarget(c, t)
+                sequel.successors.addTarget(c, t).meta = meta
 
             b.successors.targets.clear()
             for c, t in zip(branchConditions, blocks):

@@ -20,6 +20,7 @@ from tests.frontend.ast.whileTrue_test import HlsAstWhileTrue_TC
 from tests.frontend.pyBytecode.basics_test import FromPythonBasics_TC
 from tests.frontend.pyBytecode.errors_test import PyBytecodeErrors_TC
 from tests.frontend.pyBytecode.fnClosue_test import FnClosure_TC
+from tests.frontend.pyBytecode.llvmLoopUnroll_test import LlvmLoopUnroll_TC
 from tests.frontend.pyBytecode.pragmaInline_test import PyBytecodeInline_TC
 from tests.frontend.pyBytecode.preprocLoopMultiExit_test import PreprocLoopMultiExit_TCs
 from tests.frontend.pyBytecode.pyArrHwIndex_test import PyArrHwIndex_TC
@@ -85,6 +86,7 @@ suite = testSuiteFromTCs(
     AxiSParseIfTC,
     AxiSWriteByteTC,
     BramRead_TC,
+    LlvmLoopUnroll_TC,
 )
 
 

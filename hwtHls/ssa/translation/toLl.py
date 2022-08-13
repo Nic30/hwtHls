@@ -89,12 +89,12 @@ class SsaToLl():
                     w("\n")
             if bb.successors.targets:
                 w("br ")
-            for cond, dst_bb in bb.successors.targets:
+            for cond, dst_bb, _ in bb.successors.targets:
                 cond_str = "" if cond is None else self._escape(cond._name)
                 w(f"[label %{dst_bb.label:s} {cond_str:s}]")
                 w("\n")
 
-        for (_, dst_bb) in bb.successors.targets:
+        for (_, dst_bb, _) in bb.successors.targets:
             self._node_from_SsaBasicBlock(dst_bb)
 
     @staticmethod
@@ -116,9 +116,9 @@ class SsaPassDumpToLl():
                 toLl.construct(to_ssa.start)
             elif isinstance(to_ssa.start, ToLlvmIrTranslator):
                 toLlvmIr: ToLlvmIrTranslator = to_ssa.start
-                main = toLlvmIr.llvm.main
-                assert main is not None
-                output.write(str(main))
+                mod = toLlvmIr.llvm.mod
+                assert mod is not None
+                output.write(str(mod))
             else:
                 raise NotImplementedError(to_ssa.start)
         finally:

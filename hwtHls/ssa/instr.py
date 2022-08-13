@@ -1,3 +1,4 @@
+from collections import namedtuple
 from typing import List, Tuple, Optional, Union
 
 from hwt.hdl.operatorDefs import OpDefinition
@@ -7,6 +8,12 @@ from hwtHls.ssa.context import SsaContext
 from hwtHls.ssa.value import SsaValue
 
 
+class ConditionBlockTuple(namedtuple('ConditionBlockTuple', ['condition', 'dstBlock', 'meta'])):
+
+    def __new__(cls, condition: Optional[SsaValue], dstBlock: "SsaBasicBlock", meta):
+        return super(ConditionBlockTuple, cls).__new__(cls, condition, dstBlock, meta)
+
+
 class SsaInstrBranch():
 
     def __init__(self, parent: "SsaBasicBlock"):
@@ -14,37 +21,39 @@ class SsaInstrBranch():
         self.targets: List[Tuple[Optional[SsaValue], "SsaBasicBlock"]] = []
 
     def addTarget(self, cond: Optional[SsaValue], target: "SsaBasicBlock"):
-        self.targets.append((cond, target))
+        t = ConditionBlockTuple(cond, target, None)
+        self.targets.append(t)
         assert self.parent not in target.predecessors, (self.parent, target, target.predecessors)
         target.predecessors.append(self.parent)
         if cond is not None:
             cond.users.append(self)
+        return t
 
     def replaceInput(self, orig_expr: SsaValue, new_expr: Union[SsaValue, HValue]):
         assert isinstance(new_expr, (SsaValue, HValue)), (self, orig_expr, new_expr)
         assert self in orig_expr.users
         self.targets = [
-            (new_expr if o is orig_expr else o, t)
-            for o, t in self.targets
+            ConditionBlockTuple(new_expr if o is orig_expr else o, t, meta)
+            for o, t, meta in self.targets
         ]
         orig_expr.users.remove(self)
         if isinstance(new_expr, SsaValue):
             new_expr.users.append(self)
 
     def replaceTargetBlock(self, orig_block:"SsaBasicBlock", new_block:"SsaBasicBlock"):
-        for i, (c, b) in enumerate(self.targets):
+        for i, (c, b, meta) in enumerate(self.targets):
             if b is orig_block:
-                self.targets[i] = (c, new_block)
+                self.targets[i] = ConditionBlockTuple(c, new_block, meta)
 
     def __len__(self):
         return len(self.targets)
 
     def iterBlocks(self):
-        for (_, t) in self.targets:
-            yield t
+        for b in self.targets:
+            yield b.dstBlock
 
     def __repr__(self):
-        targets = [(None if c is None else c._name, b.label) for c, b in self.targets]
+        targets = [(None if c is None else c._name, b.label) for c, b, _ in self.targets]
         return f"<{self.__class__.__name__} {targets}>"
 
 

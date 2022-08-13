@@ -6,6 +6,7 @@ from typing import Optional, List, Tuple, Union
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.value import HValue
+from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.errors import HlsSyntaxError
 from hwtHls.frontend.pyBytecode.blockPredecessorTracker import BlockLabel
@@ -20,8 +21,8 @@ from hwtHls.frontend.pyBytecode.loopMeta import PyBytecodeLoopInfo, \
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc, \
     PyBytecodePreprocDivergence
 from hwtHls.ssa.basicBlock import SsaBasicBlock
+from hwtHls.ssa.instr import ConditionBlockTuple
 from hwtHls.ssa.value import SsaValue
-from hwt.synthesizer.interface import Interface
 
 
 class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
@@ -103,7 +104,7 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
         sucLoops = frame.loops.get(sucBlockOffset, None)
         isExplicitLoopReenter = False
         if sucLoops: 
-            # if entering some loop we ned to add prefix to block labels or copy blocks for new iteration
+            # if entering some loop we need to add prefix to block labels or copy blocks for new iteration
             # if this is a preprocessor loop
             isExplicitLoopReenter = frame.isLoopReenter(sucLoops[-1])  # [fixme]
             if not isExplicitLoopReenter:
@@ -137,12 +138,36 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
         return LoopExitJumpInfo(sucBlockIsNew, curBlock, cond,
                                 sucBlock, sucBlockOffset, sucLoops, isExplicitLoopReenter, None, frame)
 
+    def _applyLoopPragma(self, headerBlock: SsaBasicBlock, loopInfo:PyBytecodeLoopInfo):
+        """
+        In LLVM loop metadata are specified on jumps from latch blocks to a loop header.
+        :see: Loop::setLoopID, Loop::getLoopID 
+        """
+        anyJumpToHeaderFound = False
+        latchOrExitBlocks = set(j.srcBlock for j in loopInfo.jumpsFromLoopBody)
+        
+        for pred in headerBlock.predecessors:
+            if pred in latchOrExitBlocks:
+                for i, t in enumerate(pred.successors.targets):
+                    if t.dstBlock is headerBlock:
+                        found = True
+                        meta = t.meta
+                        if meta is None:
+                            meta = []
+                            pred.successors.targets[i] = ConditionBlockTuple(t.condition, t.dstBlock, meta)
+
+                        meta.extend(loopInfo.pragma)
+    
+                assert found, ("Jump from latch block ", pred.label, " to header block ", headerBlock.label,
+                               " was from loop was not found", j.srcBlock.successors.targets)
+                anyJumpToHeaderFound |= found
+
     def _translateBlockBody(self,
             frame: PyBytecodeFrame,
             isExplicitLoopReenter: bool,
             loops: Optional[PyBytecodeLoopInfo],
             blockOffset: int,
-            block: SsaBasicBlock,):
+            block: SsaBasicBlock):
             """
             Translate block from bytecode to SSA and recursively follow all branches from this block.
             """
@@ -155,8 +180,13 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
                     
                 if loopInfo.mustBeEvaluatedInHw():
                     self._finalizeJumpsFromHwLoopBody(frame, block, blockOffset, loopInfo)
+                    if loopInfo.pragma:
+                        self._applyLoopPragma(block, loopInfo)
+
                 else:
                     self._runPreprocessorLoop(frame, loopInfo)
+                    if loopInfo.pragma:
+                        raise NotImplementedError("_runPreprocessorLoop + pragma", loopInfo.pragma)
 
     def _runPreprocessorLoop(self, frame: PyBytecodeFrame, loopInfo: PyBytecodeLoopInfo):
         """
@@ -197,7 +227,7 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
         The use of variable may be in any successor block and may be transitively propagated and the variable itself may be nested
         in object hierarchy and accessed in non-trivial way. Because of this the copy is only safe method of translation.
 
-        However duplication would in many cases result in duplication of whole program with unrepairable unwanted consequences.
+        However duplication would in many cases result in duplication of whole program with irreparable unwanted consequences.
         Because of this we need to limit the scope of what is duplicated, ideally to just AST of the loop as we see it.
         Accessing AST is not doable because of how bytecode is build. Instead we give user ability to limit the scope manually.
         Scope of such a duplication can be limited by encapsulation to a function.
@@ -382,11 +412,13 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
             parentLoop: PyBytecodeLoopInfo = frame.loopStack[-2]
             if (dstBlockOffset,) not in parentLoop.loop.allBlocks or parentLoop.loop.entryPoint[-1] == dstBlockOffset:
                 # if it is jump also from parent block forward handling to parent loop
-                parentLoop.markJumpFromBodyOfLoop(srcBlock, cond, dstBlockOffset, branchPlaceholder)
+                lei = LoopExitJumpInfo(None, srcBlock, cond, None, dstBlockOffset, None, None, branchPlaceholder, frame)
+                parentLoop.markJumpFromBodyOfLoop(lei)
                 return None
 
         if not allowJumpToNextLoopIteration:
             li = frame.loopStack.pop()
+
         if translateImmediately:
             self._getOrCreateSsaBasicBlockAndJumpRecursively(frame,
                 srcBlock, isLastJumpFromSrc, dstBlockOffset, cond, branchPlaceholder,
