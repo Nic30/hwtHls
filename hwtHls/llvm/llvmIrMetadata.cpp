@@ -37,10 +37,15 @@ void register_MDNode(pybind11::module_ & m) {
 	py::class_<MDNodeWithDeletedDelete, std::unique_ptr<MDNodeWithDeletedDelete, py::nodelete>> MDNode(m, "MDNode");
 	MDNode
 		.def_static("get", [](llvm::LLVMContext &Context, std::vector<llvm::Metadata *> &MDs, bool insertTmpAsFirts) {
+				llvm::MDTuple * res = llvm::MDNode::get(Context, MDs);
 				if (insertTmpAsFirts) {
-					MDs.insert(MDs.begin(), 1, llvm::MDNode::getTemporary(Context, {}).get());
+					std::vector<llvm::Metadata *> MDs_tmp;
+					MDs_tmp.push_back(llvm::MDNode::getTemporary(Context, {}).get());
+					MDs_tmp.insert(MDs_tmp.end(), MDs.begin(), MDs.end());
+					res  = llvm::MDNode::get(Context, MDs_tmp);
+				} else {
+					res = llvm::MDNode::get(Context, MDs);
 				}
-				auto * res = llvm::MDNode::get(Context, MDs);
 				return reinterpret_cast<MDTupleWithDeletedDelete*>(res);
 			}, py::return_value_policy::reference, py::arg("Context"), py::arg("MDs"), py::arg("insertTmpAsFirts") = false)
 		.def_static("getTemporary", [](llvm::LLVMContext &Context, const std::vector<llvm::Metadata *> &MDs) {
