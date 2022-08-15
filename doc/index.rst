@@ -4,7 +4,8 @@ Welcome to hwtHls documentation!
 Readme File
 -----------
 
-Library for high-level synthesis for HWT framework.
+Library for automated translation of an algorithm to a hardware architecture (high-level synthesis, HLS).
+Written in C++/Python. 
 
 
 .. toctree::
@@ -24,61 +25,57 @@ Indices and tables
 
 * :ref:`README-dev`
 
-Main goal of this library
--------------------------
-The primary goal of this library is to provide an infrastructure for user-provided code transformations which gradually transforms the input code to RTL description.
-This library contains a simple python frontend which could translate a limited subset of python bytecode and a AST like objects which could be used to generate more complex codes.
-The library uses an LLVM SSA thus is generaly compatible with all tools which are using the same Internal Representation (IR).
-This library takes in account the premise that each application will actually need to extend the compiler core itself because the architecture or special optimization
-are the product of an user. To support this ideology this library unlike other HLS libraries is build as a set of mostly independent SSA transformations.
-The side-effect of this design is that the individual transformations are compatible with other LLVM based compilers and the compiler core itself is just a pipeline
-of easy to underestand passes.
+
+How is hardware design described in using this library?
+-------------------------------------------------------
+Components in this library are described in regular Python. Components are build using Hardware Construction Framework named HWT, which also handles code generator related things.
+HWT framework describes hardware using dataflow like description. This framework is generally used to describe all interfaces, hierarchy, and non algorithmic code.
+HwtHls provides a specific object (HlsScope) which can translate a Python function or manually crafted AST to a hardware architecture described in HWT. 
+The translation is implemented as a set of compiler passes and is build to allow user code to decide how it should be translated and which transformations should be applied.
+This efficiently allows to specify a heuristic for every optimization and to selectively exclude/add transformations during the translation.
 
 
-What actually this library does?
+
+What this library actually does?
 --------------------------------
-This library has 2 frontends to transform input Python code to LLVM SSA. However these parts are just generic translation based on [simpleToSSA]_.
-After the code is in LLVM SSA form any LLVM transformation can be applied. However the LLVM optimizations do not usually analyze the code on bit level
-but rather on variable/instruction level. This means if the code contains intense slicing a and concatenations it is more likely that LLVM will not be able to
-optimize it as it will not inspect individual bits int the value. We can not split each variable on each bit because it would result in infeasible compilation
-times. Instead we utilize :ref:`hwtHls.ssa.transformation.extractPartDrivers.extractPartDriversPass.SsaPassExtractPartDrivers` to recursively split the bit ranges
-with a different driver. This results in code where assignment is always without constant bit index/slice.
-This transformation separates all bitvector parts to a separate variable thus making it accessible for other optimizations.
-By default we use LLVM O3 optimization pipeline. This pipeline has the target machine configured to FPGA like instruction set and it uses attributes and metadata to perform
-transformations on demand. The passes are registered in your HlsPlatform specification and the default config is listed in :ref:`hwtHls.platform.virtual` and /hwtHls/ssa/llvm/llvmPasses.cpp .
+This library has 2 frontends which are translating AST objects or python bytecode to SSA using algorithm based on [simpleToSSA]_.
+After the code is in LLVM SSA form any LLVM analysis/pass can be applied. The next step is usually lowering of frontend related things.
+Next the :ref:`hwtHls::SlicesToIndependentVariablesPass` is used to recursively split the variables to a non-overlapping slices with a single driver to increase efficiency of LLVM passes
+as LLVM interpretation of bit masking/selections/set is limited and generally insufficient for hardware code generators.
+By default we use LLVM O3 like optimization pipeline with additional bit-width reductions.
+This pipeline has the target machine configured to FPGA like instruction set and it uses attributes and metadata to perform transformations on demand.
+The passes are registered in your HlsPlatform specification and the default config is listed in :ref:`hwtHls.platform.platform` and /hwtHls/llvm/llvmCompilationBundle.cpp .
 
-.. image:: _static/genericSsaOptPasses.png
-
+.. image:: _static/hwtHls_overview.png
 
 Mentioned optimizations are responsible for most common optimizations like Common Sub-expression Elimination (CSE), code hoisting/sinking, CFG simplifications,
 Corelated value propagation, Sparse Constant Propagation (SCP), Jump threading, Speculations, Algebraic simplifications, bitwidth reduction, load/store reductions and various loop idiom optimizations.
 Each step is optional and can be also disabled with fine level granularity.
 
-After the code is optimized we extract several intrinsic to make next translations more simple.
+The next step is conversion of LLVM IR to LLVM MIR which is assembly like format. HwtHls defines a custom llvm TargetMachine in hwtHls/llvm/targets/ and uses llvm GlobalISel
+to extract individual instructions.
 
-The next step is to translate SSA to netlist for scheduling and ultimately the scheduled netlist to HWT (RTL like) netlist for code generator.
+The next step is to translate LLVM MIR to netlist for scheduling and ultimately the scheduled netlist to HWT (RTL like) netlist for code generator.
 
 .. image:: _static/ssaToRtl.png
 
-This step does not modify input SSA but collects own metadata which are generated from SSA features and could be generated also from user specified attributes.
-The goal of this transformation is to translate input SSA to RTL netlist with minimum amount of resources, minimum control complexity and maximum throughput and minimum latency.
+This step does not modify input MIR but collects own metadata which are generated from MIR features and could be generated also from user specified attributes.
+The goal of this transformation is to translate input MIR to RTL netlist with minimum amount of target resources, minimum control complexity and maximum throughput and minimum latency.
 However without additional specification the goal would be infeasible (It is not generally possible to achieve all mentioned at once.)
-In addition the user code may require optimizations which are specific to an application, for example some some applications are using a dynamic reconfiguration
-which allows to dynamically reconfigure part of the chip to perform a different function. If this is the case it is necessary to detect or select segments which could be loaded to a reconfiguration site and which do not need to work at the same time [Maxeler]_.
-In order to provide sufficient flexibility and to simplify the use several heuristic are implemented to cut circuit on sites which
-are processed separately.
+
+From this reasons the pipeline of compiler is modifiable and user application can ask for a specific transformations on a specific place and time during the translation.
 
 First back-edges in data and control flow are detected (in SSA). The detection of back-edges corresponds to a minimum feedback arc set problem.
 We are using greedy heuristic with a linear run time which is based on search of strongly connected components and then removal of the edge which is
 probably closing least of cycles in the graph [feedbackarc]_. We used this heuristic because we find it fast enough and sufficiently performing for network and controller applications.
 
-Once back-edges are detected we can proceed to next phase. We resolve the most likely synchronization relations between threads in the SSA.
+Once back-edges are detected we can proceed to next phase. We resolve the most likely synchronization relations between threads in the MIR.
 The thread could be generated by an user but in most of cases it is automatically discovered by liveness analysis. For this purpose we define a thread
 as transitive enclosure of the use and define relation. This means that all instructions in the single thread do not require an additional synchronization
 because synchronization is already done by the data.
 This is necessary because we do not generate any global state by default and any instruction can happen anytime and we need to synchronize individual threads
 to assert correct behavior of the program.
-Once we detected threads we use this information to resolve the synchronization type between threads and SSA Basic Blocks.
+Once we detected threads we use this information to resolve the synchronization type between threads and MIR Basic Blocks.
 The block must have synchronization if any threads inside require synchronization and at least one is starting in this block or if the block have multiple predecessors
 or if successor requires synchronization. In addition a initial sequence of the block requires synchronization because the execution count must be limited to 1.
 Note that this is not a final decision because we do not know exact timing of operations.
@@ -119,13 +116,13 @@ of virtual registers in advance in order to find out which element will be respo
 
 .. image:: _static/nodeBetweenArchElements.png
 
-Note that the HWT uses structural hashing
-and can handle algebraic optimizations thus we can just rewrite the nodes to HWT netlist without any optimizations.
+Note that the HWT uses structural hashing and can handle algebraic optimizations thus we can just rewrite the nodes to HWT netlist without any optimizations.
 Every time when the output of node is accessed the access time is checked and the registers are generated on demand.
 Once datapath is generated a synchronization is allocated and injected to data-path. Note that this is a functionality of HWT netlist which allows
 us to modify register and other write statements to happen conditionally once we have the condition.
 
 After this point we do have a complete HWT netlist which can be translated to VHDL/SystemVerilog/SystemC using standard HWT functions.
+By default a control path is then re-synthetized using berkeley-abc to optimize at a least most ciritical paths on gate level.
 
 
 In various tools the problem of SSA to RTL translation and the problem of synchronization resolution is addressed differently.
