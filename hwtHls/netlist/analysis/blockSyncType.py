@@ -1,14 +1,14 @@
 from typing import Set, List, Union
 
+from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
+from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwtHls.llvm.llvmIr import MachineBasicBlock, MachineLoopInfo, MachineLoop
+from hwtHls.netlist.analysis.dataThreads import HlsNetlistAnalysisPassDataThreads
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
+from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeRead
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer
-from hwtHls.netlist.analysis.dataThreads import HlsNetlistAnalysisPassDataThreads
-from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
-from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
-from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeRead
 
 
 class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
@@ -64,6 +64,7 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
     def _getBlockMeta(self, mb: MachineBasicBlock):
         """
         The code needs a synchronization if it starts a new thread without data dependencies and has predecessor thread.
+        
         :note: They synchronization is always marked for the start of the thread.
         """
         # resolve control enable flag for a block
@@ -129,7 +130,26 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                                       for suc in mb.successors()))
                     if sucThreads > 1:
                         mbSync.needsControl = True
-    
+
+            if mbSync.needsControl and not mbSync.uselessOrderingFrom:
+                loopHasOnly1Thread = True
+                onlyDataThread = None
+                for _mb in loop.getBlocks():
+                    _mbThreads = self.threadsPerBlock[_mb]
+                    if len(_mbThreads) > 1:
+                        loopHasOnly1Thread = True
+                    elif onlyDataThread is None:
+                        if _mbThreads:
+                            onlyDataThread = _mbThreads[0]
+                    elif _mbThreads:
+                        if onlyDataThread is not _mbThreads[0]:
+                            loopHasOnly1Thread = False
+                    
+                if loopHasOnly1Thread:
+                    for pred in mb.predecessors():
+                        if loop.containsBlock(pred):
+                            mbSync.uselessOrderingFrom.add(pred)
+                
         elif not mbSync.needsControl:
             needsControl = False
             if (len(threadsStartingThere) > 1 or 
@@ -142,7 +162,9 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                     )
                 ):
                 needsControl = True
-            elif mbSync.needsStarter and (mb.succ_size() == 0 or any(loops.getLoopFor(suc) is None for suc in mb.successors())):
+            elif (mbSync.needsStarter and 
+                      (mb.succ_size() == 0 or
+                       any(loops.getLoopFor(suc) is None for suc in mb.successors()))):
                 needsControl = True
             mbSync.needsControl = needsControl
 

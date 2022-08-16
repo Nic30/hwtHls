@@ -116,7 +116,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         w_to_out.associate_read(r_from_in.obj)
         w_to_out.buff_name = f"{namePrefix:s}_backedge_buff"
         srcMbSync = self.blockSync[srcBlock]
-        srcMbSync.addOrderedNode(w_to_out)
+        srcMbSync.addOrderedNodeForControlWrite(w_to_out, self.blockSync[dstBlock])
 
         if cacheKey is not None:
             # because we need to use latest value not the input value which we just added (r_from_in)

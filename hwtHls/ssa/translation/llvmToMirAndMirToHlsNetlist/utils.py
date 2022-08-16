@@ -1,12 +1,13 @@
-from typing import Union, Optional, List, Tuple
+from typing import Union, Optional, List, Tuple, Set
 
 from hwtHls.llvm.llvmIr import MachineBasicBlock, MachineLoop, Register
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, \
     HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes, \
-    HlsNetNodeOutLazy, HlsNetNodeIn
+    HlsNetNodeOutLazy
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.opCache import MirToHwtHlsNetlistOpCache
-from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge
+from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
+    HlsNetNodeWriteControlBackwardEdge
 
 
 class MachineBasicBlockSyncContainer():
@@ -27,6 +28,9 @@ class MachineBasicBlockSyncContainer():
     :note: If the control backedge is useless it does not imply that the control is useless it may be still required
         if there are multiple threads.
     :ivar backedgeBuffers: A list of tuples (liveIn var register, src machine basic block, buffer read object)
+    :ivar uselessOrderingFrom: a set of source block from where the propagation of ordering should be cancelled
+        (The ordering of operations between this and destination block will be based only on data dependencies.)
+    :note: Ordering is typically useless if all instructions in block are in same dataflow graph.
     """
 
     def __init__(self,
@@ -41,7 +45,16 @@ class MachineBasicBlockSyncContainer():
         self.orderingIn = orderingIn
         self.orderingOut = orderingIn
         self.backedgeBuffers: List[Tuple[Register, MachineBasicBlock, HlsNetNodeReadBackwardEdge]] = []
+        self.uselessOrderingFrom: Set[MachineBasicBlock] = set() 
         # self.uselessControlBackedgesFrom: Set[MachineBasicBlock] = set() 
+
+    def addOrderedNodeForControlWrite(self, n: HlsNetNodeWriteControlBackwardEdge, dstBlokSync: "MachineBasicBlockSyncContainer"):
+        if self.block in dstBlokSync.uselessOrderingFrom:
+            i = n._addInput("orderingIn")
+            link_hls_nodes(n.associated_read.getOrderingOutPort(), i)
+            self.orderingOut = n.getOrderingOutPort()
+        else:
+            self.addOrderedNode(n)
 
     def addOrderedNode(self, n: Union[HlsNetNodeRead, HlsNetNodeWrite], atEnd=True):
         i = n._addInput("orderingIn")
@@ -95,7 +108,9 @@ class BranchOutLabel():
         return type(self) is type(other) and self.dst == other.dst
 
 
-def HlsNetNodeExplicitSyncInsertBehindLazyOut(netlist: "HlsNetlistCtx", valCache: MirToHwtHlsNetlistOpCache, var: HlsNetNodeOutLazy):
+def HlsNetNodeExplicitSyncInsertBehindLazyOut(netlist: "HlsNetlistCtx",
+                                              valCache: MirToHwtHlsNetlistOpCache,
+                                              var: HlsNetNodeOutLazy):
     """
     Prepend the synchronization to an operation output representing variable.
     """
