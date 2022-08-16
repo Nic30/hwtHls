@@ -6,6 +6,7 @@ from hwt.hdl.types.defs import BIT
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, \
     MachineInstr, TargetOpcode, MachineLoop
 from hwtHls.netlist.analysis.dataThreads import HlsNetlistAnalysisPassDataThreads
+from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
     HlsNetNodeWriteBackwardEdge
@@ -24,7 +25,6 @@ from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.datapath import HlsNetli
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.opCache import MirToHwtHlsNetlistOpCache
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer, \
     getTopLoopForBlock, BranchOutLabel, HlsNetNodeExplicitSyncInsertBehindLazyOut
-from hwtHls.netlist.builder import HlsNetlistBuilder
 
 
 class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatapath):
@@ -59,7 +59,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
     * The problem is how to specify these condition so we can build a StremNode from any IO nodes as scheduler specifies.
       Because if we specify all the conditions from block enable signals some instructions may endup with unsatisfiable conditions.
       This is because original the order of IO operations was sequential and now everything is happening at once
-      and now the read and read sync operations are tied in cycle which makes the condition for FSM transiion unsatisfiable and thus
+      and now the read and read sync operations are tied in cycle which makes the condition for FSM transition unsatisfiable and thus
       StreamNode will never activate and everything is stalled.
       [TODO] Requires more insight.
     """
@@ -175,9 +175,11 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
             alreadyUpdated.add(mux)
 
     def _extractRstValues(self, mf: MachineFunction, threads: HlsNetlistAnalysisPassDataThreads):
+        """
+        Rewrite multiplexor cases for reset to an initialization of channels.
+        """
         for mb in mf:
             mb: MachineBasicBlock
-            # extract rst values
             mbSync: MachineBasicBlockSyncContainer = self.blockSync[mb]
             
             if mbSync.rstPredeccessor:
@@ -189,6 +191,9 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                     self._replaceInputDriverWithConst1b(i, threads)
 
     def _resolveBranchEnFromPredecessor(self, pred: MachineBasicBlock, mb: MachineBasicBlock):
+        """
+        Resolve expression which specifies if CFG jumps to a specified block from specified predecessor.
+        """
         builder = self.builder
         fromPredBrCond = None  # condition which controls if the control moves to mb block
         predEn = self.blockSync[pred].blockEn  # condition which specifies if the control is in pred block
@@ -296,6 +301,9 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
     def _resolveLoopHeaders(self,
                             mf: MachineFunction,
                             blockLiveInMuxInputSync: BlockLiveInMuxSyncDict):
+        """
+        Construct the loop control logic at the header of the loop.
+        """
         valCache: MirToHwtHlsNetlistOpCache = self.valCache
         netlist: HlsNetlistCtx = self.netlist
         builder = self.builder
@@ -422,6 +430,9 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
     def _resolveBlockEn(self, mf: MachineFunction,
                         backedges: Set[Tuple[MachineBasicBlock, MachineBasicBlock]],
                         threads: HlsNetlistAnalysisPassDataThreads):
+        """
+        Resolve control flow enable for instructions in the block.
+        """
         builder = self.builder
         for mb in mf:
             mb: MachineBasicBlock
@@ -474,6 +485,10 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
         self._injectVldMaskToSkipWhenConditions()
 
     def _injectVldMaskToExpr(self, out: HlsNetNodeOut) -> HlsNetNodeOut:
+        """
+        For channels which are read optionally we may have to mask incoming data if the data is used directly in this clock cycle
+        to decide if some IO channel should be enabled.
+        """
         outObj = out.obj
         builder = self.builder
         if isinstance(outObj, HlsNetNodeReadSync):
@@ -543,7 +558,12 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
     def _connectOrderingPorts(self,
                               mf: MachineFunction,
                               backedges: Set[Tuple[MachineBasicBlock, MachineBasicBlock]]):
-        # finalize ordering connections after all IO is instantiated
+        """
+        finalize ordering connections after all IO is instantiated
+        """
+        # cancel ordering between last IO at the end of the loop and write to control channel of that block
+        # this allow for a new iteration to start before the end of previous one if data dependency allows it
+
         for mb in mf:
             mb: MachineBasicBlock
             orderingInputs = []
