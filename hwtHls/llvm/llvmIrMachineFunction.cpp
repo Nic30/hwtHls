@@ -131,8 +131,8 @@ void register_MachineFunction(pybind11::module_ &m) {
 	MachineLoopInfo
 		.def("isLoopHeader", &llvm::MachineLoopInfo::isLoopHeader)
 		.def("getLoopFor", &llvm::MachineLoopInfo::getLoopFor)
-		.def("__iter__", [](llvm::MachineLoopInfo &MB) {
-				return py::make_iterator(MB.begin(), MB.end());
+		.def("__iter__", [](llvm::MachineLoopInfo &MLI) {
+				return py::make_iterator(MLI.begin(), MLI.end());
     	}, py::keep_alive<0, 1>());
 	register_SmallVector<llvm::MachineBasicBlock *>(m, "MachineBasicBlockSmallVector");
 	register_SmallVector<llvm::MachineLoop::Edge>(m, "MachineEdgeSmallVector");
