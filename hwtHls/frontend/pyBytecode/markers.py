@@ -114,13 +114,6 @@ class _PyBytecodeLoopPragma(_PyBytecodePragma):
         loop.pragma.append(self)
 
 
-class PyBytecodePipeline(_PyBytecodeLoopPragma):
-    """
-    Cancel the ordering between io on end->begin control transitions of the loop.
-    Which results in a loop where operations can overlap with a previous iteration.
-    """
-
-
 class PyBytecodeLLVMLoopUnroll(_PyBytecodeLoopPragma):
     """
     https://releases.llvm.org/14.0.0/docs/LangRef.html#id1587
