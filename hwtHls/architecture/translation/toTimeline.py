@@ -68,9 +68,10 @@ class HwtHlsNetlistToTimelineArchLevel(HwtHlsNetlistToTimeline):
                     continue
                 path = iea.explicitPathSpec.get((o, i, dstElm), None)
                 if path is None:
-                    dstRow: TimelineRow = obj_to_row[dstElm][0]
+                    dstRow, dstRowI = obj_to_row[dstElm]
+                    dstRow: TimelineRow
                     dstRow.deps.append((
-                        obj_to_row[iea.ownerOfOutput[o]][1],
+                        dstRowI,
                         o.obj.scheduledOut[o.out_i] * time_scale,
                         iea.firstUseTimeOfOutInElem[(dstElm, o)] * time_scale,
                         o._dtype,
@@ -78,31 +79,32 @@ class HwtHlsNetlistToTimelineArchLevel(HwtHlsNetlistToTimeline):
                 else:
                     # :note: from output through all path elements to input
                     # connect first element in path
-                    dstRow: TimelineRow = obj_to_row[path[0].element][0]
-                    srcRow = obj_to_row[iea.ownerOfOutput[o]][0]
+                    dstRow, dstRowI = obj_to_row[path[0].element]
+                    _, srcRowI = obj_to_row[iea.ownerOfOutput[o]]
+                    dstRow: TimelineRow
                     dstRow.deps.append((
-                            srcRow,
-                            o.obj.scheduledOut[o.out_i] * time_scale,
-                            path[0].beginTime * time_scale
+                        srcRowI,
+                        o.obj.scheduledOut[o.out_i] * time_scale,
+                        path[0].beginTime * time_scale,
+                        o._dtype,
                     ))
-                    srcRow = dstRow
                     # connect rest of elements in path
                     for last, (pi, p) in iter_with_last(enumerate(path)):
                         p: ValuePathSpecItem
                         if last:
-                            dstRow = obj_to_row[dstElm]
-                            dstTime = iea.firstUseTimeOfOutInElem[(dstElm, o)]
+                            dstRow, dstRowI = obj_to_row[dstElm]
                         else:
                             nextP = path[pi + 1]
-                            dstRow = obj_to_row[nextP.element]
-                            dstTime = nextP.beginTime
+                            dstRow, dstRowI = obj_to_row[nextP.element]
 
                         dstRow.deps.append((
-                            srcRow,
+                            srcRowI,
+                            p.beginTime * time_scale,
                             p.endTime * time_scale,
-                            dstTime * time_scale
+                            o._dtype,
                         ))
-                        srcRow = dstRow
+                        srcRowI = dstRowI
+                        
 
         #                    for t, dep in zip(obj.scheduledIn, obj.dependsOn))
         #    for bdep_obj in obj.debug_iter_shadow_connection_dst():
