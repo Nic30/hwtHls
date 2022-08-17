@@ -64,14 +64,15 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
 
         for dep in o.dependsOn:
             dep: HlsNetNodeOut
-            obj = dep.obj
+            obj: HlsNetNode = dep.obj
+            
             if obj not in seen and obj not in alreadyUsed and start_clk(obj.scheduledOut[dep.out_i], clkPeriod) == clk_i and predicate(obj):
                 yield from self._floodNetInSameCycle(clk_i, obj, seen, alreadyUsed, predicate)
 
         for uses in o.usedBy:
             for use in uses:
                 use: HlsNetNodeIn
-                obj = use.obj
+                obj: HlsNetNode = use.obj
                 if obj not in seen and obj not in alreadyUsed and start_clk(obj.scheduledIn[use.in_i], clkPeriod) == clk_i and predicate(obj):
                     yield from self._floodNetInSameCycle(clk_i, obj, seen, alreadyUsed, predicate)
 
@@ -100,7 +101,7 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
     def run(self):
         ioDiscovery: HlsNetlistAnalysisPassDiscoverIo = self.netlist.getAnalysis(HlsNetlistAnalysisPassDiscoverIo)
         ioByInterface = ioDiscovery.ioByInterface
-        clkPeriod = self.netlist.normalizedClkPeriod
+        clkPeriod: int = self.netlist.normalizedClkPeriod
 
         def floodPredicateExcludeOtherIoWithOwnFsm(n: HlsNetNode):
             if isinstance(n, HlsNetNodeRead):
