@@ -104,7 +104,7 @@ class HlsNetNodeBitwiseOps(HlsNetNode):
                 if outT - parentOut.obj.inputWireDelay[0] <= clkBoundaryTime:
                     newClkStartBoundary = start_clk(outT, clkPeriod) * clkPeriod
                     # can not fit this node inside current clock cycle
-                    parentOut.obj.scheduledOut = (clkBoundaryTime - ffdelay,)  # move to start of clock cycle - ffdealy
+                    parentOut.obj.scheduledOut = (min(clkBoundaryTime - ffdelay, outT),)  # move to start of clock cycle - ffdealy
                     # all uses known and time corssing clock boundary, start a new cluster from this output
                     self.scheduleAlapCompactionForOutput(parentOut, asapSchedule, newClkStartBoundary - clkPeriod,
                                                          UniqList())
@@ -126,7 +126,7 @@ class HlsNetNodeBitwiseOps(HlsNetNode):
            * The total delay of subgraph is specified by number of inputs.
            * The graph is cut on clock period boundaries.
            * The problem is that we know the latency once we know the number of inputs, but we need a latency in order
-             to find out when the graph should be cut due to clock period poundary and from there we know the number of inputs.
+             to find out when the graph should be cut due to clock period boundary and from there we know the number of inputs.
            * Problem is that we do not know which output is most constraining.
         2. For each sub node perform ALAP compaction.
            Use external output times a starting points. For each output we have to count inputs from clock boundary
@@ -136,22 +136,24 @@ class HlsNetNodeBitwiseOps(HlsNetNode):
         if self.scheduledIn is None:
             # :note: There must be at least a single output which is not used internally in the cluster
             #        because cluster node graph is cycle free
+            netlist = self.netlist
+            clkPeriod = netlist.normalizedClkPeriod
+            ffdelay = netlist.platform.get_ff_store_time(self.netlist.realTimeClkPeriod, self.netlist.scheduler.resolution)
             for outerO, o in zip(self._outputs, self._subNodes.outputs):
                 o: HlsNetNodeOut
                 insideClusterUses = o.obj.usedBy[o.out_i]
                 if not insideClusterUses:
-                    netlist = self.netlist
                     # this is just output to outside, copy timing from outside input
                     outsideClusterUses = outerO.obj.usedBy[outerO.out_i]
                     assert outsideClusterUses, ("Must be connected to something because otherwise this should be removed because it is unused", outerO)
                     t = min(u.obj.scheduleAlapCompaction(asapSchedule)[u.in_i] for u in outsideClusterUses)
                     assert len(o.obj.usedBy) == 1, ("Should be only bitwise operator wit a single output", o)
                     self.resolveSubnodeRealization(o.obj, len(o.obj._inputs))
-                    clkStartBoundary = start_clk(t, netlist.normalizedClkPeriod) * netlist.normalizedClkPeriod
+                    clkStartBoundary = start_clk(t, clkPeriod) * clkPeriod
                     if t - o.obj.inputWireDelay[0] <= clkStartBoundary:
-                        ffdelay = netlist.platform.get_ff_store_time(self.netlist.realTimeClkPeriod, self.netlist.scheduler.resolution)
                         t = clkStartBoundary - ffdelay
-                        clkStartBoundary -= netlist.normalizedClkPeriod
+                        clkStartBoundary -= clkPeriod
+
                     o.obj.scheduledOut = (t,)
                     self.scheduleAlapCompactionForOutput(o,
                                                          asapSchedule,

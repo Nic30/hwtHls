@@ -52,6 +52,7 @@ class HlsNetNode():
         # True if scheduled to specific time
         self.scheduledIn: Optional[TimeSpec] = None
         self.scheduledOut: Optional[TimeSpec] = None
+        self.realization: Optional[OpRealizationMeta] = None
     
     def getInputDtype(self, i:int) -> HdlType:
         return self.dependsOn[i]._dtype
@@ -87,6 +88,10 @@ class HlsNetNode():
         """
         if self.scheduledOut is None:
             clkPeriod = self.netlist.normalizedClkPeriod
+            if self.realization is None:
+                # resolve realization if it is not already resolved
+                self.resolve_realization()
+
             if self.dependsOn:
                 if pathForDebug is not None:
                     if self in pathForDebug:
@@ -95,7 +100,6 @@ class HlsNetNode():
                         pathForDebug.append(self)
 
                 input_times = (d.obj.scheduleAsap(pathForDebug)[d.out_i] for d in self.dependsOn)
-                self.resolve_realization()
 
                 # now we have times when the value is available on input
                 # and we must resolve the minimal time so each input timing constraints are satisfied
@@ -132,7 +136,6 @@ class HlsNetNode():
                 if pathForDebug is not None:
                     pathForDebug.pop()
             else:
-                self.resolve_realization()
                 self.scheduledIn = tuple(0 for _ in self._inputs)
                 self.scheduledOut = tuple(l + clkPeriod * clkL for l, clkL in zip(self.outputWireDelay, self.outputClkTickOffset))
     
@@ -278,16 +281,31 @@ class HlsNetNode():
             assert self._inputs, (self, "Node must have at least some port")
             timeOffset = start_of_next_clk_period(asapIn[0], clkPeriod) - ffdelay - epsilon
         
+        inTime = self._scheduleAlapCompactionMultiClockInTime
         self.scheduledIn = tuple(
-            timeOffset - (iDelay + iTicks * clkPeriod)
+            inTime(timeOffset, clkPeriod, iTicks, epsilon, ffdelay) - iDelay
             for (iDelay, iTicks) in zip(self.inputWireDelay, self.inputClkTickOffset)
         )
-    
+        outTime = self._scheduleAlapCompactionMultiClockOutTime
         self.scheduledOut = tuple(
-            timeOffset + oDelay + oTicks * clkPeriod
+            outTime(timeOffset, clkPeriod, oTicks) + oDelay
             for (oDelay, oTicks) in zip(self.outputWireDelay, self.outputClkTickOffset)
         )
         return self.scheduledIn
+    
+    @staticmethod
+    def _scheduleAlapCompactionMultiClockInTime(time: int, clkPeriod: int, ticks: int, epsilon: int, ffDelay: int):
+        if ticks == 0:
+            return time  # was checked that this does not cross clk boundary
+        else:
+            # if this we substract the clock periods and we end up at the end of clk, from there we alo need to subtract wire delay, etc
+            return (start_clk(time, clkPeriod) + ticks - 1) * clkPeriod - epsilon - ffDelay
+            
+    def _scheduleAlapCompactionMultiClockOutTime(self, time: int, clkPeriod: int, ticks: int):
+        if ticks == 0:
+            return time
+        else:
+            return start_of_next_clk_period(time, clkPeriod) + (ticks - 1) * clkPeriod
         
     def iterScheduledClocks(self):
         clkPeriod = self.netlist.normalizedClkPeriod
