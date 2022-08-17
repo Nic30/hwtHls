@@ -79,7 +79,7 @@ class RtlArchToGraphwiz():
             self.archElementToNode[elm] = elmNode
 
             nodeRows = ['<<table border="0" cellborder="1" cellspacing="0">\n']
-            name = html.escape(elm.namePrefix)
+            name = html.escape(f"{elm.namePrefix:s}: {elm.__class__.__name__:s}")
             nodeRows.append(f"    <tr><td colspan='3'>{name:s}</td></tr>\n")
             for i, con in enumerate(elm.connections):
                 nodeRows.append(f"    <tr><td port='i{i:d}'>i{i:d}</td><td>st{i:d}</td><td port='o{i:d}'>o{i:d}</td></tr>\n")
