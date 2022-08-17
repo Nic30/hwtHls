@@ -78,21 +78,33 @@ class HlsAllocator():
                             closestClockIWithState = clkI
                     useT = closestClockIWithState * clkPeriod + self.netlist.scheduler.epsilon
                     iea.firstUseTimeOfOutInElem[(dstElm, o)] = useT
+
                 elif isinstance(dstElm, ArchElementFsm):
                     # Need to add extra buffer between FSMs or move value load/store in states
                     # We add new pipeline to architecture and register this pair to interElemConnections
                     srcBaseName = self._getArchElmBaseName(srcElm)
                     dstBaseName = self._getArchElmBaseName(dstElm)
                     bufferPipelineName = f"{self.namePrefix:s}buffer_{srcBaseName:s}{srcStartClkI}_to_{dstBaseName:s}{dstUseClkI}"
-                    p = ArchElementPipeline(self.netlist, bufferPipelineName, [])
+                    stages = [[] for _ in range(start_clk(useT, clkPeriod) + 1)]
+                    p = ArchElementPipeline(self.netlist, bufferPipelineName, stages)
                     self._archElements.append(p)
-                    iea.explicitPathSpec[(o, i, dstElm)] = [ValuePathSpecItem(p, o.obj.scheduledOut[o.out_i], useT)]
+                    # [todo] if src is ArchElementFsm it may be possible (if it is guaranteed that the register will not be written)
+                    #        to extend register life to shorten the buffer
+                    # [todo] it may be possible to move value to dstElm sooner if CFG and scheduling allows this
+                    synonyms = iea.portSynonyms.get(o, ())
+                    defT = o.obj.scheduledOut[o.out_i]
+                    iea.explicitPathSpec[(o, i, dstElm)] = [ValuePathSpecItem(p, defT, useT), ]
+                    iea.firstUseTimeOfOutInElem[(p, o)] = defT
+                    self._addOutputAndAllSynonymsToElement(o, defT, synonyms, p)
+
                 else:
                     raise NotImplementedError("Propagating the value to element of unknown type", dstElm)
 
         return useT
 
-    def _addOutputAndAllSynonymsToElement(self, o: HlsNetNodeOut, useT: int, synonyms: UniqList[Union[HlsNetNodeOut, HlsNetNodeIn]], dstElm: ArchElement):
+    def _addOutputAndAllSynonymsToElement(self, o: HlsNetNodeOut, useT: int,
+                                          synonyms: UniqList[Union[HlsNetNodeOut, HlsNetNodeIn]],
+                                          dstElm: ArchElement):
         # check if any synonym is already declared
         oRes = None
         for syn in synonyms:
@@ -138,15 +150,13 @@ class HlsAllocator():
                 synonyms = iea.portSynonyms.get(o, ())
                 explicitPath = iea.explicitPathSpec.get((o, i, dstElm), None)
                 if explicitPath is not None:
-                    # we must explicitly pass the value through all elements at specific times
-                    # for each element in path add output, input pair and connect them inside of element
                     for elmSpec in explicitPath:
                         elmSpec: ValuePathSpecItem
-                        if (dstElm, o) in seenOutputsConnectedToElm:
-                            assert not dstElm is iea.ownerOfOutput[o]
+                        if (elmSpec.element, o) in seenOutputsConnectedToElm:
+                            assert not elmSpec.element is iea.ownerOfOutput[o]
                             continue
-                        self._addOutputAndAllSynonymsToElement(o, elmSpec.beginTime, synonyms, elmSpec.element)
                         seenOutputsConnectedToElm.add((elmSpec.element, o))
+                        self._addOutputAndAllSynonymsToElement(o, elmSpec.beginTime, synonyms, elmSpec.element)
 
                 useT = self._getFirstUseTime(iea, dstElm, o, i)
                 self._addOutputAndAllSynonymsToElement(o, useT, synonyms, dstElm)
@@ -182,10 +192,10 @@ class HlsAllocator():
 
     def finalizeInterElementsConnections(self, iea: InterArchElementNodeSharingAnalysis):
         """
-        Resolve a final value whe the data will be exchanged between arch. element instances
+        Resolve a final value when the data will be exchanged between arch. element instances
         """
         self._expandAllOutputSynonymsInElement(iea)
-        clkPeriod:int = self.netlist.normalizedClkPeriod
+        
         SyncCacheKey = Tuple[int, ArchElement, ArchElement]
         syncAdded: Dict[SyncCacheKey, InterArchElementHandshakeSync] = {}
         tirsConnected: Set[Tuple[TimeIndependentRtlResource, TimeIndependentRtlResource]] = set()
@@ -197,54 +207,75 @@ class HlsAllocator():
             srcElm, dstElms = iea.getSrcDstsElement(o, i)
             for dstElm in dstElms:
                 if srcElm is dstElm:
+                    # data passed internally in the element
                     continue
-                # dst should be already declared from declareInterElemenetBoundarySignals
-                dstTir: TimeIndependentRtlResource = dstElm.netNodeToRtl[o]
-                # src should be already declared form ArchElement.allocateDataPath
-                srcTir: TimeIndependentRtlResource = srcElm.netNodeToRtl[o]
-                if (srcTir, dstTir) in tirsConnected:
-                    # because the signal may have aliases there may be signals of same value which are sing same TimeIndependentRtlResource
-                    continue
-                else:
-                    tirsConnected.add((srcTir, dstTir))
 
+                dstTir: TimeIndependentRtlResource = dstElm.netNodeToRtl[o]
+                if dstTir.valuesInTime[0].data.drivers:
+                    # the value is already propagated to dstElm
+                    continue
+
+                # src should be already declared form ArchElement.allocateDataPath or declareInterElemenetBoundarySignals
+                srcTir: TimeIndependentRtlResource = srcElm.netNodeToRtl[o]
                 explicitPath = iea.explicitPathSpec.get((o, i, dstElm), None)
                 if explicitPath is not None:
                     # we must explicitly pass the value through all elements at specific times
                     # for each element in path add output, input pair and connect them inside of element
+                    # synonyms = iea.portSynonyms.get(o, ())
                     for elmSpec in explicitPath:
                         elmSpec: ValuePathSpecItem
-                        raise NotImplementedError("[todo] Propagate value in specified element and complete the path.", explicitPath)
-                        # if (dstElm, o) in seenOutputsConnectedToElm:
-                        #    assert not dstElm is iea.ownerOfOutput[o]
-                        #    continue
-                        # self._addOutputAndAllSynonymsToElement(o, elmSpec.beginTime, synonyms, elmSpec.element)
+                        _dstElm = elmSpec.element
+                        dstTir: TimeIndependentRtlResource = _dstElm.netNodeToRtl[o]
+                        self._finalizeInterElementsConnection(o, srcTir, dstTir, srcElm, _dstElm,
+                                                              elementIndex, syncAdded, tirsConnected)
+                        _dstElm.extendValidityOfRtlResource(dstTir, elmSpec.endTime)
+                        srcTir = dstTir
+                        srcElm = _dstElm
 
-                dstUseClkI = start_clk(dstTir.timeOffset, clkPeriod)
-                srcStartClkI = start_clk(srcTir.timeOffset, clkPeriod)
-                assert srcTir is not dstTir, (i, o, srcTir)
-                srcOff = dstUseClkI - srcStartClkI
-                assert srcStartClkI <= dstUseClkI, (srcStartClkI, dstUseClkI, "Source must be available before first use "
-                                                    "because otherwise this should be a backedge instead.")
-                if len(srcTir.valuesInTime) <= srcOff:
-                    if isinstance(srcElm, ArchElementPipeline):
-                        # extend the value register pipeline to get data in time when other element requires it
-                        # potentially also extend the src pipeline
-                        srcElm.extendValidityOfRtlResource(srcTir, dstTir.timeOffset)
-                        # assert len(srcTir.valuesInTime) == srcOff + 1
-                    elif isinstance(srcElm, ArchElementFsm):
-                        assert dstUseClkI in srcElm.clkIToStateI, ("Must be the case otherwise the pipeline should already been extended.")
-                    else:
-                        raise NotImplementedError("Need to add extra buffer between FSMs", srcStartClkI, dstUseClkI, o, srcElm, dstElm)
-                
-                srcTiri = srcTir.get(dstUseClkI * clkPeriod)
-                assert not dstTir.valuesInTime[0].data.drivers, ("Forward declaration signal must not have a driver yet.",
-                                                                 dstTir, dstTir.valuesInTime[0].data.drivers)
-                srcElm._afterOutputUsed(o)
-                dstTir.valuesInTime[0].data(srcTiri.data)
-                self._registerSyncForInterElementConnection(srcTiri, dstTir.valuesInTime[0], syncAdded,
-                                                            elementIndex[srcElm], elementIndex[dstElm],
-                                                            srcElm, dstElm, srcStartClkI, dstUseClkI)
+                # dst should be already declared from declareInterElemenetBoundarySignals
+                dstTir: TimeIndependentRtlResource = dstElm.netNodeToRtl[o]
+                self._finalizeInterElementsConnection(o, srcTir, dstTir, srcElm, dstElm, elementIndex, syncAdded, tirsConnected)
+
+    def _finalizeInterElementsConnection(self, o: HlsNetNodeOut,
+                                         srcTir: TimeIndependentRtlResource, dstTir: TimeIndependentRtlResource,
+                                         srcElm: ArchElement, dstElm: ArchElement,
+                                         elementIndex: Dict[ArchElement, int],
+                                         syncAdded: Dict[Tuple[int, ArchElement, ArchElement],
+                                                         InterArchElementHandshakeSync],
+                                         tirsConnected: Set[Tuple[TimeIndependentRtlResource, TimeIndependentRtlResource]]):
+        if (srcTir, dstTir) in tirsConnected:
+            # because the signal may have aliases there may be signals of same value which are sing same TimeIndependentRtlResource
+            return
+        else:
+            tirsConnected.add((srcTir, dstTir))
+
+        clkPeriod: int = self.netlist.normalizedClkPeriod
+        dstUseClkI = start_clk(dstTir.timeOffset, clkPeriod)
+        srcStartClkI = start_clk(srcTir.timeOffset, clkPeriod)
+        assert srcTir is not dstTir, (o, srcTir)
+        srcOff = dstUseClkI - srcStartClkI
+        assert srcStartClkI <= dstUseClkI, (srcStartClkI, dstUseClkI, "Source must be available before first use "
+                                            "because otherwise this should be a backedge instead.")
+        if len(srcTir.valuesInTime) <= srcOff:
+            if isinstance(srcElm, ArchElementPipeline):
+                # extend the value register pipeline to get data in time when other element requires it
+                # potentially also extend the src pipeline
+                srcElm.extendValidityOfRtlResource(srcTir, dstTir.timeOffset)
+                # assert len(srcTir.valuesInTime) == srcOff + 1
+            elif isinstance(srcElm, ArchElementFsm):
+                assert dstUseClkI in srcElm.clkIToStateI, ("Must be the case otherwise the dstElm should already be configured to accept data sooner.",
+                                                           o, srcElm, "->", dstElm, srcElm.clkIToStateI, "->", dstUseClkI)
+            else:
+                raise NotImplementedError("Need to add extra buffer between FSMs", srcStartClkI, dstUseClkI, o, srcElm, dstElm)
+        
+        srcTiri = srcTir.get(dstUseClkI * clkPeriod)
+        assert not dstTir.valuesInTime[0].data.drivers, ("Forward declaration signal must not have a driver yet.",
+                                                         dstTir, dstTir.valuesInTime[0].data.drivers)
+        srcElm._afterOutputUsed(o)
+        dstTir.valuesInTime[0].data(srcTiri.data)
+        self._registerSyncForInterElementConnection(srcTiri, dstTir.valuesInTime[0], syncAdded,
+                                                    elementIndex[srcElm], elementIndex[dstElm],
+                                                    srcElm, dstElm, srcStartClkI, dstUseClkI)
 
     def _registerSyncForInterElementConnection(self,
                                                srcTiri: TimeIndependentRtlResourceItem, dstTiri: TimeIndependentRtlResourceItem,
