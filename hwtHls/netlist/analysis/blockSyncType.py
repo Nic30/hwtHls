@@ -131,24 +131,27 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                     if sucThreads > 1:
                         mbSync.needsControl = True
 
-            if mbSync.needsControl and not mbSync.uselessOrderingFrom:
-                loopHasOnly1Thread = True
-                onlyDataThread = None
-                for _mb in loop.getBlocks():
-                    _mbThreads = self.threadsPerBlock[_mb]
-                    if len(_mbThreads) > 1:
-                        loopHasOnly1Thread = True
-                    elif onlyDataThread is None:
-                        if _mbThreads:
-                            onlyDataThread = _mbThreads[0]
-                    elif _mbThreads:
-                        if onlyDataThread is not _mbThreads[0]:
-                            loopHasOnly1Thread = False
-                    
-                if loopHasOnly1Thread:
-                    for pred in mb.predecessors():
-                        if loop.containsBlock(pred):
-                            mbSync.uselessOrderingFrom.add(pred)
+            #if mbSync.needsControl and not mbSync.uselessOrderingFrom:
+            #    loopHasOnly1Thread = True
+            #    onlyDataThread = None
+            #    for _mb in loop.getBlocks():
+            #        _mbThreads = self.threadsPerBlock[_mb]
+            #        if len(_mbThreads) > 1:
+            #            loopHasOnly1Thread = True
+            #        elif onlyDataThread is None:
+            #            if _mbThreads:
+            #                onlyDataThread = _mbThreads[0]
+            #        elif _mbThreads:
+            #            if onlyDataThread is not _mbThreads[0]:
+            #                loopHasOnly1Thread = False
+            #    # [fixme] if the block is part of FSM there is a problem caused by storing of control bit to register
+            #    #         the FSM detect state transitions by the time when write happens
+            #    #         if we allow the write of this bit before all IO is finished the FSM transition detection alg.
+            #    #         will resolve IO as to skip if after control bit is written which is incorrect    
+            #    if loopHasOnly1Thread:
+            #        for pred in mb.predecessors():
+            #            if loop.containsBlock(pred):
+            #                mbSync.uselessOrderingFrom.add(pred)
                 
         elif not mbSync.needsControl:
             needsControl = False
