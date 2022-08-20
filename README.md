@@ -182,6 +182,7 @@ pip3 install git+https://github.com/Nic30/hwtHls.git
 * [TCE](https://github.com/cpc/tce)- C++/LLVM, environment for development of application specific processors
 * [FloPoCo](https://gitlab.com/flopoco/flopoco) - C++, arithmetic core generator
 * [DPC++](https://github.com/intel/llvm/tree/sycl) - C++/LLVM, 
+* [CirC](https://github.com/circify/circ) - Rust - compiler infrastructure for HLS
 
 
 ## Useful publications
