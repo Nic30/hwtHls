@@ -31,37 +31,70 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
     """
     This object translates LLVM MIR to hwtHls HlsNetlist (this class specifically contains control related things)
     
+    When converting from MIR we are using:
+    * Forward analysis of block synchronization type to avoid complexities on synchronization type change.
+    * Each ordering between IO is strictly specified (can be specified to none). This is used to generate channel synchronization
+      flags and to improve thread level parallelism.
+    * MIR object may override its translation. This is used to implemented various plugins with minimum effort.
+      For example the read from some interface may lower itself to multiple nodes which will implement bus protocol.
+    * Loops and backedges are handled explicitly. The loop recognizes "break", "continue", "predecessor" branches and has internal state
+      which describes if the loop is bussy or not. This state is used to control individual channels. 
+    
+    Errors in synchronization are usually caused faulty user input. For example if the user code can contain obvious deadlock.
+    But the main problem is that for an user it is nearly impossible to debug this if tool implements
+    the synchronization for the circuit (which is the case). From this reason a translation from MIR to netlist must be done
+    1 to 1 as much as possible. The goal is to be able to find ordering and buffer depletion errors from MIR and from the timeline
+    and to have a method to specify the ordering for any node. 
+      
+    
     The problem of channel synchronization when translating from MIR:
-    * In MIR is assembler like, control flow is specified as a position in code, and data is globally visible.
+    * The MIR is assembler like format, control flow is specified as a position in code and data is globally visible.
       Reads and writes do happen one by one.
     * In netlist the control flow is represented as a enable flag, any instruction can run in parallel if restrictions allow it.
-      In some cases the whole program can be realized as a 1 stage FSM which loops infinitely on its only state.
-      However there may be multiple internal conditions in this FSM which controls if the data from the channel should be taken
-      or if the FSM transition should not wait for this interface.
-      Now lets suppose that the FSM reads from all input channels only and only if all channels are providing the data
-      else it transits to a next state without reading from any interface.
-    
+    * The :class:`hwtLib.handshaked.streamNode.StreamNode` uses extraCond,skipWhen notation to build arbitrary
+      IO synchronization, but the problem is that we have to avoid combinational loops and deadlocks.
+    * Resolving of this condition is hard to debug because the thing does not have any linear code flow.
+       * From this reason we need to 
+
+    Consider this example:
+    * Code simply adds incoming values from "channels" if there is an incoming data from every channel,
+      and continuously writing sum to output "out".
+
     .. code-block:: Python
  
         x = 0
+        # a channel with a control flag from predecessor of the loop which will be read only if loop is not running
+        # to execute the loop
         while True:
-            # to keep value of 'x' we need extra backedge buffer which is a hidden IO of he loop body
+            # value of 'x' is passed from end of the loop to loop header using backedge buffer,
+            # which is a hidden IO of the loop body and header
             # We also need a flag which describes the predecessor of this block, for this we need:
-            #  * a backedge buffer from the end of loop body which will be read only if the loop is running
-            #  * a flag from predecessor of the loop which will be read only if loop is not running
+            #  * a backedge buffer from the end of loop body will be read only if the loop is running
             if all(ch.hasData() for ch in channels):
                 for ch in channels:
                     x += ch.read()
             out.write(x)
-    
-    * The :class:`hwtLib.handshaked.streamNode.StreamNode` uses extraCond,skipWhen notation to build arbitrary
-      IO synchronization.
-    * The problem is how to specify these condition so we can build a StremNode from any IO nodes as scheduler specifies.
-      Because if we specify all the conditions from block enable signals some instructions may endup with unsatisfiable conditions.
-      This is because original the order of IO operations was sequential and now everything is happening at once
-      and now the read and read sync operations are tied in cycle which makes the condition for FSM transition unsatisfiable and thus
-      StreamNode will never activate and everything is stalled.
-      [TODO] Requires more insight.
+
+    * It is easy to see that if everything is scheduled to 1 clock cycle all input channels have to provide the data
+      and out must be ready to accept the data (the hidden channels for "x" and control will be always ready).
+
+    * However consider this modification:
+
+    .. code-block:: Python
+ 
+        x = 0
+        while True:
+            if all(ch.hasData() for ch in channels):
+                for ch in channels:
+                    if x == 10:
+                       delay(2*clkPeriod)
+                    x += ch.read()
+                    
+            out.write(x)
+
+    * With code branches where which do not have a constant duration there is this problem:
+      There are multiple times when "ch" can be read which is likely to result in modification of order in which "channels" are read.
+      This may result in deadlock (e.g. one of the "channels" is "out" and second of "channels" is "out" 1 clk delayed).
     """
 
     def _rewriteControlOfInfLoopWithReset(self, mb: MachineBasicBlock, rstPred: MachineBasicBlock):

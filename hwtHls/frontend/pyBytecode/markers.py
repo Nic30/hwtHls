@@ -117,6 +117,7 @@ class _PyBytecodeLoopPragma(_PyBytecodePragma):
 class PyBytecodeLLVMLoopUnroll(_PyBytecodeLoopPragma):
     """
     https://releases.llvm.org/14.0.0/docs/LangRef.html#id1587
+    llvm/lib/Transforms/Utils/LoopUtils.cpp
 
     This adds llvm.loop.unroll pragma. For example:
 
