@@ -12,6 +12,7 @@ from hwtHls.io.axiStream.stmRead import HlsStmReadAxiStream
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axis import AxiStream
 from tests.io.axiStream.axisParseLinear import AxiSParse2fields
+from hwtLib.amba.axis_comp.builder import AxiSBuilder
 
 
 class AxiSParse2If(AxiSParse2fields):
@@ -26,7 +27,8 @@ class AxiSParse2If(AxiSParse2fields):
 
     def _impl(self) -> None:
         hls = HlsScope(self)
-        i = self.i
+        # add register to prevent zero time data exchange ins sim (to see nicely transaction nicely in wave)
+        i = AxiSBuilder(self, self.i).buff().end
         o = self.o
         v0 = HlsStmReadAxiStream(hls, i, Bits(16), True)
         v1a = HlsStmReadAxiStream(hls, i, Bits(16), True)
@@ -45,7 +47,7 @@ class AxiSParse2If(AxiSParse2fields):
                     hls.write(v1b.data._reinterpret_cast(o._dtype), o),
                 ).Else(
                     # read 1B only
-                    HlsStmReadAxiStream(hls, self.i, Bits(8), True)
+                    HlsStmReadAxiStream(hls, i, Bits(8), True)
                 ),
                 HlsStmReadEndOfFrame(hls, i),
             ),
@@ -100,7 +102,8 @@ if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
 
     u = AxiSParse2If()
-    u.DATA_WIDTH = 512
-    u.CLK_FREQ = int(1e6)
+    u.DATA_WIDTH = 24
+    u.CLK_FREQ = int(40e6)
     p = VirtualHlsPlatform(debugDir="tmp")
+    p._debugExpandCompositeNodes = True
     print(to_rtl_str(u, target_platform=p))
