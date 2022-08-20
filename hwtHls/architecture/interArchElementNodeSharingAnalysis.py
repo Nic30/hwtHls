@@ -195,7 +195,7 @@ class InterArchElementNodeSharingAnalysis():
                     n: HlsNetNodePartRef
                     for extOut in n._subNodes.inputs:
                         assert extOut.obj not in n._subNodes.nodes, ("If this is an external input it must not originate from this node", extOut, n, dstElm)
-                        outerIn = n.parentNode.outerOutToIn.get(extOut, None)
+                        outerIn: HlsNetNodeIn = n.parentNode.outerOutToIn.get(extOut, None)
                         if outerIn is not None:
                             connectedInputs = n.parentNode._subNodes.inputsDict[extOut]
                         else:
