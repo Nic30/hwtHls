@@ -57,46 +57,89 @@ class HlsAllocator():
             pipeCont = ArchElementPipeline(netlist, namePrefix if onlySingleElem else f"{namePrefix:s}pipe{i:d}_", pipe.stages)
             self._archElements.append(pipeCont)
 
-    def _getFirstUseTime(self, iea: InterArchElementNodeSharingAnalysis, dstElm: ArchElement, o: HlsNetNodeOut, i: HlsNetNodeIn):
+    def _getFirstUseTimeAndHandlePropagation(self,
+                                             iea: InterArchElementNodeSharingAnalysis,
+                                             dstElm: ArchElement,
+                                             o: HlsNetNodeOut, i: HlsNetNodeIn,
+                                             interElementBufferPipelines: Dict[Tuple[ArchElement, int, ArchElement, int], ArchElementPipeline]):
         clkPeriod = self.netlist.normalizedClkPeriod
         useT = iea.firstUseTimeOfOutInElem[(dstElm, o)]
         srcStartClkI = start_clk(o.obj.scheduledOut[o.out_i], clkPeriod)
         dstUseClkI = start_clk(useT, clkPeriod)
         if isinstance(dstElm, ArchElementFsm):
-            assert dstUseClkI in dstElm.clkIToStateI, (dstUseClkI, dstElm.clkIToStateI, o, "Output must be scheduled to some cycle corresponding to fsm state")
+            assert dstUseClkI in dstElm.fsm.clkIToStateI, (dstUseClkI, dstElm.fsm.clkIToStateI, o, "Output must be scheduled to some cycle corresponding to fsm state")
         if srcStartClkI != dstUseClkI:
             srcElm: ArchElement = iea.ownerOfOutput[o]
             # it is required to add buffers somewhere to latch the value to that time
             # we prefer adding the registers to pipelines because it may result in better performance
-            if isinstance(srcElm, ArchElementFsm) and dstUseClkI not in srcElm.clkIToStateI:
+            epsilon: int = self.netlist.scheduler.epsilon
+            if isinstance(srcElm, ArchElementFsm) and dstUseClkI not in srcElm.fsm.clkIToStateI:
+                srcElm: ArchElementFsm
                 if isinstance(dstElm, ArchElementPipeline):
-                    # move first use closer to begin of pipeline or even prepend stages for pipeline to be able to accept the src data when it exists
-                    assert srcStartClkI in srcElm.clkIToStateI
+                    # extend the life of the variable in FSM if possible
+                    # optionally move first use closer to begin of pipeline or even prepend stages for pipeline
+                    # to be able to accept the src data when it exists
+                    assert srcStartClkI in srcElm.fsm.clkIToStateI
                     closestClockIWithState = srcStartClkI
                     for clkI in range(srcStartClkI, dstUseClkI + 1):
-                        if clkI in srcElm.clkIToStateI:
+                        if clkI in srcElm.fsm.clkIToStateI:
                             closestClockIWithState = clkI
-                    useT = closestClockIWithState * clkPeriod + self.netlist.scheduler.epsilon
-                    iea.firstUseTimeOfOutInElem[(dstElm, o)] = useT
+                    newUseT = closestClockIWithState * clkPeriod + epsilon
+                    assert newUseT <= useT, (useT, newUseT, o)
+                    iea.firstUseTimeOfOutInElem[(dstElm, o)] = newUseT
+                    return newUseT
 
                 elif isinstance(dstElm, ArchElementFsm):
-                    # Need to add extra buffer between FSMs or move value load/store in states
-                    # We add new pipeline to architecture and register this pair to interElemConnections
-                    srcBaseName = self._getArchElmBaseName(srcElm)
-                    dstBaseName = self._getArchElmBaseName(dstElm)
-                    bufferPipelineName = f"{self.namePrefix:s}buffer_{srcBaseName:s}{srcStartClkI}_to_{dstBaseName:s}{dstUseClkI}"
-                    stages = [[] for _ in range(start_clk(useT, clkPeriod) + 1)]
-                    p = ArchElementPipeline(self.netlist, bufferPipelineName, stages)
-                    self._archElements.append(p)
-                    # [todo] if src is ArchElementFsm it may be possible (if it is guaranteed that the register will not be written)
-                    #        to extend register life to shorten the buffer
-                    # [todo] it may be possible to move value to dstElm sooner if CFG and scheduling allows this
-                    synonyms = iea.portSynonyms.get(o, ())
-                    defT = o.obj.scheduledOut[o.out_i]
-                    iea.explicitPathSpec[(o, i, dstElm)] = [ValuePathSpecItem(p, defT, useT), ]
-                    iea.firstUseTimeOfOutInElem[(p, o)] = defT
-                    self._addOutputAndAllSynonymsToElement(o, defT, synonyms, p)
-
+                    dstElm: ArchElementFsm
+                    # find overlaps in schedulization of FSMs
+                    beginClkI = max(srcElm.fsmBeginClk_i, dstElm.fsmBeginClk_i)
+                    endClkI = min(srcElm.fsmEndClk_i, dstElm.fsmEndClk_i)
+                    sharedClkI = None
+                    if beginClkI > endClkI:
+                        # no overlap
+                        pass
+                    else:
+                        for clkI in range(beginClkI, endClkI + 1):
+                            if clkI in srcElm.fsm.clkIToStateI and clkI in dstElm.fsm.clkIToStateI:
+                                sharedClkI = clkI
+                    if sharedClkI is not None:
+                        # if src and dst FSM overlaps exactly in 1 time we can safely transfer data there
+                        clkT = sharedClkI * clkPeriod
+                        assert clkT <= useT, (o, clkT, useT)
+                        newUseT = max(clkT + epsilon, useT)
+                        iea.firstUseTimeOfOutInElem[(dstElm, o)] = newUseT
+                        assert newUseT <= useT, (useT, newUseT, o)
+                        return newUseT
+                        
+                    else:
+                        # if dst and src FSM does not overlap at all we must create a buffer
+                        # [todo] however we must write to this channel only conditionaly, if it is sure that the CFG will not avoid successor elements
+                        # Need to add extra buffer between FSMs or move value load/store in states
+                        # We add new pipeline to architecture and register this pair to interElemConnections
+                        k = (srcElm, srcStartClkI, dstElm, dstUseClkI)
+                        p = interElementBufferPipelines.get(k, None)
+                        if p is None:
+                            # [todo] this can be used only if there is a common predecessor to multiple arch elements
+                            #        and we want to spare resources
+                            #        it can not be used only if the consumption of this data is un-coditional
+                            #        * This is required because we distibuted CFG to multiple arch elements and once we send
+                            #          data to the element the data must also be consummed in order to avoid deadlock
+                            srcBaseName = self._getArchElmBaseName(srcElm)
+                            dstBaseName = self._getArchElmBaseName(dstElm)
+                            bufferPipelineName = f"{self.namePrefix:s}buffer_{srcBaseName:s}{srcStartClkI}_to_{dstBaseName:s}{dstUseClkI}"
+                            stages = [[] for _ in range(start_clk(useT, clkPeriod) + 1)]
+                            p = ArchElementPipeline(self.netlist, bufferPipelineName, stages)
+                            self._archElements.append(p)
+                            interElementBufferPipelines[k] = p
+                        # [todo] if src is ArchElementFsm it may be possible (if it is guaranteed that the register will not be written)
+                        #        to extend register life to shorten the buffer
+                        # [todo] it may be possible to move value to dstElm sooner if CFG and scheduling allows this
+                        synonyms = iea.portSynonyms.get(o, ())
+                        defT = o.obj.scheduledOut[o.out_i]
+                        iea.explicitPathSpec[(o, i, dstElm)] = [ValuePathSpecItem(p, defT, useT), ]
+                        iea.firstUseTimeOfOutInElem[(p, o)] = defT
+                        self._addOutputAndAllSynonymsToElement(o, defT, synonyms, p)
+                    
                 else:
                     raise NotImplementedError("Propagating the value to element of unknown type", dstElm)
 
@@ -133,6 +176,7 @@ class HlsAllocator():
         because there is no topological order in how the elements are connected.
         """
         seenOutputsConnectedToElm: Set[Tuple[ArchElement, HlsNetNodeOut]] = set()
+        interElementBufferPipelines: Dict[Tuple[ArchElement, int, ArchElement, int], ArchElementPipeline] = {}
         for o, i in iea.interElemConnections:
             o: HlsNetNodeOut
             i: HlsNetNodeIn
@@ -158,7 +202,7 @@ class HlsAllocator():
                         seenOutputsConnectedToElm.add((elmSpec.element, o))
                         self._addOutputAndAllSynonymsToElement(o, elmSpec.beginTime, synonyms, elmSpec.element)
 
-                useT = self._getFirstUseTime(iea, dstElm, o, i)
+                useT = self._getFirstUseTimeAndHandlePropagation(iea, dstElm, o, i, interElementBufferPipelines)
                 self._addOutputAndAllSynonymsToElement(o, useT, synonyms, dstElm)
 
     def _expandAllOutputSynonymsInElement(self, iea: InterArchElementNodeSharingAnalysis):
@@ -263,8 +307,8 @@ class HlsAllocator():
                 srcElm.extendValidityOfRtlResource(srcTir, dstTir.timeOffset)
                 # assert len(srcTir.valuesInTime) == srcOff + 1
             elif isinstance(srcElm, ArchElementFsm):
-                assert dstUseClkI in srcElm.clkIToStateI, ("Must be the case otherwise the dstElm should already be configured to accept data sooner.",
-                                                           o, srcElm, "->", dstElm, srcElm.clkIToStateI, "->", dstUseClkI)
+                assert dstUseClkI in srcElm.fsm.clkIToStateI, ("Must be the case otherwise the dstElm should already be configured to accept data sooner.",
+                                                           o, srcElm, "->", dstElm, srcElm.fsm.clkIToStateI, "->", dstUseClkI)
             else:
                 raise NotImplementedError("Need to add extra buffer between FSMs", srcStartClkI, dstUseClkI, o, srcElm, dstElm)
         
