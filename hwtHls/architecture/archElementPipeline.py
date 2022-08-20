@@ -29,6 +29,7 @@ class ArchElementPipeline(ArchElement):
     :ivar stages: list of lists of nodes representing the nodes managed by this pipeline in individual clock stages
     :note: stages always start in time 0 and empty lists on beginning marking where the pipeline actually starts.
         This is to have uniform index when we scope into some other element.
+    :ivar _beginClkI: index of the first stage where it is some IO or node
     """
 
     def __init__(self, netlist: "HlsNetlistCtx", namePrefix:str, stages: List[List[HlsNetNode]]):
@@ -43,6 +44,7 @@ class ArchElementPipeline(ArchElement):
         ArchElement.__init__(self, netlist, namePrefix, allNodes, stageCons, stageSignals)
         self._syncAllocated = False
         self._dataPathAllocated = False
+        self._beginClkI = 0
 
     def _afterNodeInstantiated(self, n: HlsNetNode, rtl: Optional[TimeIndependentRtlResource]):
         if rtl is None or not isinstance(rtl, TimeIndependentRtlResource):
@@ -67,8 +69,15 @@ class ArchElementPipeline(ArchElement):
 
         ioToCon: Dict[Interface, ConnectionsOfStage] = {}
         allIoObjSeen = set()
-        for nodes, con in zip(self.stages, self.connections):
+        beginFound = False
+        for stI, (nodes, con) in enumerate(zip(self.stages, self.connections)):
             con: ConnectionsOfStage
+            if not beginFound:
+                if not nodes and not con.inputs and not con.outputs:
+                    continue
+                else:
+                    beginFound = True
+                    self._beginClkI = stI
             # assert nodes
             ioMuxes: Dict[Interface, Tuple[Union[HlsNetNodeRead, HlsNetNodeWrite], List[HdlStatement]]] = {}
             ioSeen: UniqList[Interface] = UniqList()
@@ -142,6 +151,8 @@ class ArchElementPipeline(ArchElement):
         prev_st_valid = None
         for is_last_in_pipeline, (pipeline_st_i, con) in iter_with_last(enumerate(self.connections)):
             con: ConnectionsOfStage
+            if pipeline_st_i < self._beginClkI:
+                continue
             self.allocateSyncForStage(
                 prev_st_valid,
                 con, syncType,
