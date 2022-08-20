@@ -27,19 +27,19 @@ class HlsNetlistPassAggregateBitwiseOps(HlsNetlistPass):
         # discover clusters of bitwise operators
         for n in netlist.nodes:
             if n not in seen and self._isBitwiseOperator(n):
-                    cluster = HlsNetlistClusterSearch()
-                    cluster.discover(n, seen, self._isBitwiseOperator)
-                    if len(cluster.nodes) > 1:
-                        for c in cluster.splitToPreventOuterCycles():
-                            if len(c.nodes) > 1:
-                                c.updateOuterInputs(newOutMap)
-                                clusterNode = HlsNetNodeBitwiseOps(netlist, c)
-                                netlist.nodes.append(clusterNode)
-                                c.substituteWithNode(clusterNode)
-                                removedNodes.update(c.nodes)
-                                for o, internO in zip(clusterNode._outputs, c.outputs):
-                                    newOutMap[internO] = o
-                                clusterNode._replaceAllOuterInputsPlaceholders(newOutMap)
+                cluster = HlsNetlistClusterSearch()
+                cluster.discover(n, seen, self._isBitwiseOperator)
+                if len(cluster.nodes) > 1:
+                    for c in cluster.splitToPreventOuterCycles():
+                        if len(c.nodes) > 1:
+                            c.updateOuterInputs(newOutMap)
+                            clusterNode = HlsNetNodeBitwiseOps(netlist, c)
+                            netlist.nodes.append(clusterNode)
+                            c.substituteWithNode(clusterNode)
+                            removedNodes.update(c.nodes)
+                            for o, internO in zip(clusterNode._outputs, c.outputs):
+                                newOutMap[internO] = o
+                            clusterNode._replaceAllOuterInputsPlaceholders(newOutMap)
 
         netlist.nodes = [n for n in netlist.nodes if n not in removedNodes]
         # drop builder.operatorCache because we removed most of bitwise operator from the circuit

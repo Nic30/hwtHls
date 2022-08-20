@@ -54,6 +54,17 @@ class HlsNetNode():
         self.scheduledOut: Optional[TimeSpec] = None
         self.realization: Optional[OpRealizationMeta] = None
     
+    def destroy(self):
+        """
+        Delete properties of this object to prevent unintentional use.
+        """
+        self.usedBy = None
+        self.dependsOn = None
+        self._inputs = None
+        self._outputs = None
+        self.scheduledIn = None
+        self.scheduledOut = None
+    
     def getInputDtype(self, i:int) -> HdlType:
         return self.dependsOn[i]._dtype
 

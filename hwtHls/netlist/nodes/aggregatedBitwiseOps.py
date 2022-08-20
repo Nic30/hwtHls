@@ -20,6 +20,8 @@ class HlsNetNodeBitwiseOps(HlsNetNode):
         from outside of cluster.
     :ivar isFragmented: flag which is True if the node was split on parts and if parts should be used for allocation instead
         of this whole object.
+    :ivar internOutToOut: a dictionary mapping output of internal node to an output of this node
+    :ivar outerOutToIn: a dictionary mapping a 
     """
 
     def __init__(self, netlist:"HlsNetlistCtx", subNodes: HlsNetlistClusterSearch, name:str=None):
@@ -31,9 +33,25 @@ class HlsNetNodeBitwiseOps(HlsNetNode):
             self._addOutput(o._dtype, None)
         self._totalInputCnt: Dict[HlsNetNodeOperator, int] = {}
         self._isFragmented = False
-        self.internOutToOut = {intern:outer for intern, outer in zip(self._subNodes.outputs, self._outputs)}
-        self.outerOutToIn = {o:i for o, i in zip(self._subNodes.inputs, self._inputs)}
+        self.internOutToOut: Dict[HlsNetNodeOut, HlsNetNodeOut] = {
+            intern:outer for intern, outer in zip(self._subNodes.outputs, self._outputs)
+        }
+        self.outerOutToIn: Dict[HlsNetNodeOut, HlsNetNodeIn] = {
+            o:i for o, i in zip(self._subNodes.inputs, self._inputs)
+        }
 
+    def destroy(self):
+        """
+        Delete properties of this object to prevent unintentional use.
+        """
+        HlsNetNode.destroy(self)
+        self._subNodes.destroy()
+        self._subNodes = None
+        self._totalInputCnt = None
+        self.internOutToOut = None
+        self.outerOutToIn = None
+        
+        
     def copyScheduling(self, schedule: SchedulizationDict):
         for n in self._subNodes.nodes:
             n.copyScheduling(schedule)
@@ -48,6 +66,14 @@ class HlsNetNodeBitwiseOps(HlsNetNode):
         HlsNetNode.checkScheduling(self)
         for n in self._subNodes.nodes:
             n.checkScheduling()
+
+        # assert that io of this node has correct times
+        for outer, intern in zip(self._inputs , self._subNodes.inputs):
+            pass
+        for outer, intern in zip(self._outputs, self._subNodes.outputs):
+            assert outer.obj is self
+            assert intern.obj in self._subNodes.nodes
+            assert self.scheduledOut[outer.out_i] == intern.obj.scheduledOut[intern.out_i]
 
     def resetScheduling(self):
         for n in self._subNodes.nodes:
@@ -330,31 +356,70 @@ class HlsNetNodeBitwiseOps(HlsNetNode):
 
                 o = allocator.instantiateHlsNetNodeOut(o)
                 allocator.netNodeToRtl[outerO] = o
+    
+    def _discoverInputsInTime(self, o: HlsNetNodeOut, beginTime: int, endTime: int, allNodes: Set[HlsNetNode]):
+        """
+        Discover the outputs which are in nodes of selected set in selected time, walk def<-use direction 
+        """
+        t = o.obj.scheduledOut[o.out_i]
+        if t <= endTime:
+            if t >= beginTime:
+                yield o
+        else:
+            # walk uses of outputs of this node
+            for uses in o.obj.usedBy: 
+                for u in uses:
+                    if u.obj in allNodes:
+                        for _o in u.obj._outputs:
+                            yield from self._discoverInputsInTime(_o, beginTime, endTime, allNodes)
 
-    def createSubNodeRefrenceFromPorts(self, beginTime: float, endTime: float,
+    def _discoverOutputsInTime(self, o: HlsNetNodeOut, beginTime: int, endTime: int, allNodes: Set[HlsNetNode]):
+        """
+        Discover the outputs which are in nodes of selected set in selected time, walk def->use direction 
+        """
+        t = o.obj.scheduledOut[o.out_i]
+        if t >= beginTime:
+            if t <= endTime:
+                yield o
+        else:
+            # walk dependencies of object which has this output
+            for dep in o.obj.dependsOn:
+                if dep.obj in allNodes:
+                    yield from self._discoverOutputsInTime(dep, beginTime, endTime, allNodes)
+
+    def createSubNodeRefrenceFromPorts(self, beginTime: int, endTime: int,
                                        inputs: List[HlsNetNodeIn], outputs: List[HlsNetNodeOut]) -> Optional['HlsNetNodeBitwiseOpsPartRef']:
         """
         :see: :meth:`~.HlsNetNode.partsComplement`
         """
         assert inputs or outputs, self
         subNodes = HlsNetlistClusterSearch()
+        assert len(self._inputs) == len(self._subNodes.inputs)
+        assert len(self._outputs) == len(self._subNodes.outputs)
         parentNodeInPortMap = {outer: intern for  outer, intern in zip(self._inputs , self._subNodes.inputs)}
         parentNodeOutPortMap = {outer: intern for outer, intern in zip(self._outputs, self._subNodes.outputs)}
-
-        subNodes.inputs.extend(parentNodeInPortMap[i] for i in inputs)
-        subNodes.outputs.extend(parentNodeOutPortMap[o] for o in outputs)
+        allNodes = self._subNodes.nodes
+        for i in inputs:
+            inClusterI = parentNodeInPortMap[i]
+            for _i in self._discoverInputsInTime(inClusterI, beginTime, endTime, allNodes):
+                subNodes.inputs.append(_i)
+        
+        for o in outputs:
+            inClusterO = parentNodeOutPortMap[o]
+            for _o in self._discoverOutputsInTime(inClusterO, beginTime, endTime, allNodes):
+                subNodes.outputs.append(_o)
 
         n = HlsNetNodeBitwiseOpsPartRef(self.netlist, self, subNodes, beginTime, endTime, name=self.name)
         for i in subNodes.inputs:
             # for nodes internally in the subNodes, transitively discover
             # things connected to this input until the boundary is meet
-            atLeastOnceUsed = False
+            usedAtLeastOnce = False
             usesInCluster = self._subNodes.inputsDict[i]
             for use in usesInCluster:
                 if use.obj.scheduledIn[use.in_i] <= endTime:
                     n._discoverFromIn(use.obj)
-                    atLeastOnceUsed = True
-            assert atLeastOnceUsed, (i, "Must be at least once used because if it was used only later it should be also scheduled only later")
+                    usedAtLeastOnce = True
+            assert usedAtLeastOnce, (i, "Must be used once at least because if it was used only later, it should be also scheduled only later")
 
         for o in subNodes.outputs:
             n._discoverFromOut(o)

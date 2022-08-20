@@ -25,6 +25,15 @@ class HlsNetlistClusterSearch():
         self.outputs: UniqList[HlsNetNodeOut] = UniqList()
         self.nodes: UniqList[HlsNetNode] = UniqList()
 
+    def destroy(self):
+        """
+        Delete properties of this object to prevent unintentional use.
+        """
+        self.inputs = None
+        self.inputsDict = None
+        self.outputs = None
+        self.nodes = None
+        
     def _discover(self, n: HlsNetNode, seen: Set[HlsNetNode],
                  predicateFn: Callable[[HlsNetNode], bool]):
         """
@@ -95,7 +104,7 @@ class HlsNetlistClusterSearch():
         clusterNodes = self.nodes
         for boundaryOut, interOutput in zip(n._outputs, self.outputs):
             # disconnect interOutput from all external inputs
-            # and connect them to bounary output of node
+            # and connect them to boundary output of node
             usedBy = interOutput.obj.usedBy[interOutput.out_i]
             newUsedBy = n.usedBy[boundaryOut.out_i]
             for in_ in usedBy:
@@ -106,6 +115,46 @@ class HlsNetlistClusterSearch():
             interOutput.obj.usedBy[interOutput.out_i] = [
                 in_ for in_ in usedBy
                 if in_.obj in clusterNodes]
+
+    def substituteSelfWithInternalNodes(self, n: HlsNetNode, substitutionDict: Dict[HlsNetNodeOut, HlsNetNodeOut]):
+        """
+        A reverse operation for :meth:`~.HlsNetlistClusterSearch.substituteWithNode`
+        :note: only reconnects the nodes internally stored in this cluster, it does not move nodes anywhere
+            (and it may be required to add them to nodes list in netlist if they were removed previously)
+        """
+        assert len(self.inputs) == len(n._inputs)
+        assert len(self.outputs) == len(n._outputs)
+
+        for boundaryIn, outerOutput in zip(n._inputs, self.inputs):
+            # remove boundaryIn from uses of its dependency and add all internal uses instead
+            internInputs = self.inputsDict[outerOutput]
+
+            _outerOutput: HlsNetNodeOut = substitutionDict.get(outerOutput, outerOutput)
+            # if external input was substituted we have to also substituted it in internal nodes
+            if _outerOutput is not outerOutput:
+                for ii in internInputs:
+                    ii.obj.dependsOn[ii.in_i] = _outerOutput
+                outerOutput = _outerOutput
+
+            oldUsedBy = outerOutput.obj.usedBy[outerOutput.out_i]
+            usedBy = outerOutput.obj.usedBy[outerOutput.out_i] = [
+                i
+                for i in oldUsedBy
+                if i is not boundaryIn
+            ]
+            usedBy.extend(internInputs)
+        
+        for boundaryOut, internOutput in zip(n._outputs, self.outputs):
+            internUsedBy = internOutput.obj.usedBy[internOutput.out_i]
+            for u in internUsedBy:
+                assert u.obj in self.nodes
+
+            outerUsedBy = n.usedBy[boundaryOut.out_i]
+            internUsedBy.extend(outerUsedBy)
+            for u in outerUsedBy:
+                u.obj.dependsOn[u.in_i] = internOutput
+
+            substitutionDict[boundaryOut] = internOutput
 
     def doesOutputLeadsToInputOfCluster(self, node: HlsNetNode,
                                         seenNodes: Set[HlsNetNodeOut]) -> bool:

@@ -18,6 +18,7 @@ from hwtHls.netlist.analysis.schedule import HlsNetlistAnalysisPassRunScheduler
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.scheduler.scheduler import HlsScheduler
 from hwtHls.netlist.transformation.aggregateBitwiseOpsPass import HlsNetlistPassAggregateBitwiseOps
+from hwtHls.netlist.transformation.disaggregateBitwiseOps import HlsNetlistPassDisaggregateBitwiseOps
 from hwtHls.netlist.transformation.mergeExplicitSync import HlsNetlistPassMergeExplicitSync
 from hwtHls.netlist.transformation.simplify import HlsNetlistPassSimplify
 from hwtHls.netlist.translation.dumpBlockSync import HlsNetlistPassDumpBlockSync
@@ -174,9 +175,14 @@ class DefaultHlsPlatform(DummyPlatform):
 
         * Each arch element explicitly queries the node for the specific time (and input/output combination if node spans over more arch. elements).
         """
+
+        HlsNetlistPassDisaggregateBitwiseOps().apply(hls, netlist)
+        if self._debugDir is not None:
+            HlsNetlistPassConsystencyCheck().apply(hls, netlist)
+            netlist.scheduler._checkAllNodesScheduled()
+        
         allocator = netlist.allocator
         allocator._discoverArchElements()
-        
         RtlArchPassSingleStagePipelineToFsm().apply(self, allocator)
         
         iea = InterArchElementNodeSharingAnalysis(netlist.normalizedClkPeriod)
