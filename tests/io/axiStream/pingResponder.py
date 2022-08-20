@@ -16,7 +16,6 @@ from hwtLib.types.net.ethernet import Eth2Header_t
 from hwtLib.types.net.icmp import ICMP_echo_header_t, ICMP_TYPE
 from hwtLib.types.net.ip import IPv4Header_t, ipv4_t
 
-
 echoFrame_t = HStruct(
     (Eth2Header_t, "eth"),
     (IPv4Header_t, "ip"),
@@ -40,16 +39,16 @@ class PingResponder(Unit):
     def _config(self):
         self.DATA_WIDTH = Param(256)
         self.USE_STRB = Param(False)
+        self.CLK_FREQ = Param(int(100e6))
 
     def _declr(self):
         addClkRstn(self)
+        self.clk.FREQ = self.CLK_FREQ
 
         self.myIp = Signal(dtype=ipv4_t)
 
         with self._paramsShared():
             self.rx = AxiStream()
-            # self.isEchoReq = Handshaked()._m()
-            # self.isEchoReq.DATA_WIDTH = 1
             self.tx = AxiStream()._m()
 
     def icmp_checksum(self, header):
@@ -75,7 +74,7 @@ class PingResponder(Unit):
                 pd.icmp.checksum = self.icmp_checksum(pd.icmp)
                 pd.ip.src, pd.ip.dst = pd.ip.dst, pd.ip.src
                 pd.eth.src, pd.eth.dst = pd.eth.dst, pd.eth.src
-                # hls.write(BIT.from_py(1), self.isEchoReq)
+
                 tx.writeStartOfFrame()
                 tx.write(pd)
                 tx.writeEndOfFrame()
@@ -96,4 +95,6 @@ if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.xilinx.artix7 import Artix7Slow
     u = PingResponder()
+    u.DATA_WIDTH = 256
+    u.CLK_FREQ = int(200e6)
     print(to_rtl_str(u, target_platform=Artix7Slow(debugDir="tmp")))
