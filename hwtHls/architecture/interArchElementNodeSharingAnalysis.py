@@ -90,7 +90,7 @@ class InterArchElementNodeSharingAnalysis():
 
         if isinstance(dstElm, ArchElementFsm):
             useClkI = start_clk(inT, self.normalizedClkPeriod)
-            assert useClkI in dstElm.clkIToStateI, (useClkI, dstElm.clkIToStateI, o, dstElm,
+            assert useClkI in dstElm.fsm.clkIToStateI, (useClkI, dstElm.fsm.clkIToStateI, o, dstElm,
                                                     "Input must be scheduled to some cycle corresponding to FSM state",
                                                     inT, self.normalizedClkPeriod)
         # this input is connected to something outside of this arch. element

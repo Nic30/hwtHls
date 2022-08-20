@@ -42,12 +42,11 @@ class ArchElementFsm(ArchElement):
 
         self.fsmEndClk_i = max(fsm.stateClkI.values())
         self.fsmBeginClk_i = min(fsm.stateClkI.values())
-        self.clkIToStateI = clkIToStateI = {v:k for k, v in fsm.stateClkI.items()}
 
         stateCons = [ConnectionsOfStage() for _ in fsm.states]
         stageSignals = SignalsOfStages(clkPeriod,
                                         (
-                                           stateCons[clkIToStateI[clkI]].signals if clkI in clkIToStateI else None
+                                           stateCons[fsm.clkIToStateI[clkI]].signals if clkI in fsm.clkIToStateI else None
                                            for clkI in range(self.fsmEndClk_i + 1)
                                         ))
         ArchElement.__init__(self, netlist, namePrefix, allNodes, stateCons, stageSignals)
@@ -87,9 +86,9 @@ class ArchElementFsm(ArchElement):
 
     def connectSync(self, clkI: int, intf: HandshakeSync, intfDir: INTF_DIRECTION):
         try:
-            stateI = self.clkIToStateI[clkI]
+            stateI = self.fsm.clkIToStateI[clkI]
         except KeyError:
-            raise AssertionError("Asking for a sync in an element which is not scheduled in this clk period", self, clkI, self.clkIToStateI)
+            raise AssertionError("Asking for a sync in an element which is not scheduled in this clk period", self, clkI, self.fsm.clkIToStateI)
 
         con: ConnectionsOfStage = self.connections[stateI]
         self._connectSync(con, intf, intfDir)
@@ -128,7 +127,7 @@ class ArchElementFsm(ArchElement):
         * if the value written to channel is 1 it means that FSM jump to state where associated read is
           There could be multiple channels written but the 1 should be written to just single one
         * All control channel registers which are not written but do have scheduled potential write in this state must be set to 0
-        * Because the control channel is just local it is safe to replace it
+        * Because the control channel is just local it is safe to replace it with register.
           However we must keep it in allNodes list so the node is still registered for this element
         
         :note: This must be called before construction of data-path because we need to resolve how control channels will be realized
@@ -162,19 +161,18 @@ class ArchElementFsm(ArchElement):
             if self is iea.ownerOfOutput[o]:
                 outTime = o.obj.scheduledOut[o.out_i]
                 clkI = start_clk(outTime, clkPeriod)
-                stI = self.clkIToStateI[clkI]
+                stI = self.fsm.clkIToStateI[clkI]
                 for otherElm in self.interArchAnalysis.ownerOfInput[i]:
                     curFistCommunicationStI = otherElmConnectionFirstTimeSeen.get(otherElm, None)
                     if curFistCommunicationStI is None:
                         otherElmConnectionFirstTimeSeen[otherElm] = stI
                     elif curFistCommunicationStI == stI:
                         continue
+                    elif curFistCommunicationStI > stI:
+                        otherElmConnectionFirstTimeSeen[otherElm] = stI
+                        nonSkipableStateI.add(curFistCommunicationStI)
                     else:
-                        if curFistCommunicationStI > stI:
-                            otherElmConnectionFirstTimeSeen[otherElm] = stI
-                            nonSkipableStateI.add(curFistCommunicationStI)
-                        else:
-                            nonSkipableStateI.add(stI)
+                        nonSkipableStateI.add(stI)
 
         transitionTable = self.fsm.transitionTable
         for r in localControlReads:
@@ -197,6 +195,8 @@ class ArchElementFsm(ArchElement):
             if not possible:
                 continue
             curTrans = transitionTable[srcStI].get(dstStI, None)
+            # [fixme] we do not for sure that IO in skipped states has cond as a skipWhen condition
+            #         and thus it may be required to enter dstState 
             cond = self.instantiateHlsNetNodeOut(r._outputs[0]).valuesInTime[0].data.next
             if curTrans is not None:
                 cond = cond | curTrans

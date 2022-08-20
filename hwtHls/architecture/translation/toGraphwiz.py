@@ -55,7 +55,7 @@ class RtlArchToGraphwiz():
     def _getElementIndexOfTime(self, elm: ArchElement, t: int):
         if isinstance(elm, ArchElementFsm):
             elm: ArchElementFsm
-            return elm.clkIToStateI[start_clk(t, self.allocator.netlist.normalizedClkPeriod)]
+            return elm.fsm.clkIToStateI[start_clk(t, self.allocator.netlist.normalizedClkPeriod)]
 
         elif isinstance(elm, ArchElementPipeline):
             elm: ArchElementPipeline

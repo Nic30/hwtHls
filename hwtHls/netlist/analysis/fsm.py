@@ -2,7 +2,6 @@ from typing import List, Set, Union, Dict, Tuple, Callable
 
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
-from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.netlist.scheduler.clk_math import start_clk
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
@@ -15,12 +14,14 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 class IoFsm():
     """
     :ivar stateClkI: maps the state index to an index of clk tick where the state was originally scheduled
+    :ivar clkIToStateI: reverse map of stateClkI
     """
 
     def __init__(self, intf: Interface):
         self.intf = intf
         self.states: List[List[HlsNetNode]] = []
         self.stateClkI: Dict[int, int] = {}
+        self.clkIToStateI: Dict[int, int] = {}
         self.transitionTable: Dict[int, Dict[int, Union[bool, RtlSignal]]] = {}
 
     def addState(self, clkI: int):
@@ -28,7 +29,9 @@ class IoFsm():
         :param clkI: an index of clk cycle where this state was scheduled
         """
         nodes = []
-        self.stateClkI[len(self.states)] = clkI
+        stI = len(self.states)
+        self.stateClkI[stI] = clkI
+        self.clkIToStateI[clkI] = stI
         self.states.append(nodes)
 
         return nodes
@@ -44,38 +47,80 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
         HlsNetlistAnalysisPass.__init__(self, netlist)
         self.fsms: List[IoFsm] = []
 
-    def _floodNetInSameCycle(self, clk_i: int, o: HlsNetNode,
-                             seen:Set[HlsNetNode],
-                             alreadyUsed: Set[HlsNetNode],
-                             predicate: Callable[[HlsNetNode], bool]):
-        seen.add(o)
-        alreadyUsed.add(o)
-
-        allNodeClks = tuple(o.iterScheduledClocks())
+    def _floodNetInClockCyclesWalkDepsAndUses(self, node: HlsNetNode,
+                               alreadyUsed: Set[HlsNetNode],
+                               predicate: Callable[[HlsNetNode], bool],
+                               fsm: IoFsm,
+                               seenInClks: Dict[int, Set[HlsNetNode]]):
         clkPeriod = self.netlist.normalizedClkPeriod
-        if len(allNodeClks) > 1:
-            inClkInputs = [i for t, i in zip(o.scheduledIn, o._inputs) if start_clk(t, clkPeriod) == clk_i]
-            inClkOutputs = [o for t, o in zip(o.scheduledOut, o._outputs) if start_clk(t, clkPeriod) == clk_i]
-            subO = o.createSubNodeRefrenceFromPorts(clk_i * clkPeriod, (clk_i + 1) * clkPeriod,
-                inClkInputs, inClkOutputs)
-            yield subO
-        else:
-            yield o
 
-        for dep in o.dependsOn:
+        for dep in node.dependsOn:
             dep: HlsNetNodeOut
             obj: HlsNetNode = dep.obj
-            
-            if obj not in seen and obj not in alreadyUsed and start_clk(obj.scheduledOut[dep.out_i], clkPeriod) == clk_i and predicate(obj):
-                yield from self._floodNetInSameCycle(clk_i, obj, seen, alreadyUsed, predicate)
+            clkI = start_clk(obj.scheduledOut[dep.out_i], clkPeriod)
+            if predicate(obj):
+                self._floodNetInClockCycles(obj, clkI, alreadyUsed, predicate, fsm, seenInClks)
 
-        for uses in o.usedBy:
+        for uses in node.usedBy:
             for use in uses:
                 use: HlsNetNodeIn
                 obj: HlsNetNode = use.obj
-                if obj not in seen and obj not in alreadyUsed and start_clk(obj.scheduledIn[use.in_i], clkPeriod) == clk_i and predicate(obj):
-                    yield from self._floodNetInSameCycle(clk_i, obj, seen, alreadyUsed, predicate)
+                clkI = start_clk(obj.scheduledIn[use.in_i], clkPeriod)
+                if predicate(obj):
+                    self._floodNetInClockCycles(obj, clkI, alreadyUsed, predicate, fsm, seenInClks)
 
+    def _floodNetInClockCycles(self,
+                               node: HlsNetNode,
+                               nodeClkI: int,
+                               alreadyUsed: Set[HlsNetNode],
+                               predicate: Callable[[HlsNetNode], bool],
+                               fsm: IoFsm,
+                               seenInClks: Dict[int, Set[HlsNetNode]]):
+        # check if we truly want to add this node
+        seen = seenInClks.get(nodeClkI, None)
+        if seen is None:
+            # out of this FSM
+            return
+        if node not in seen and node not in alreadyUsed:
+            stateNodeList = fsm.states[fsm.clkIToStateI[nodeClkI]]
+            seen.add(node)
+            alreadyUsed.add(node)
+            allNodeClks = tuple(node.iterScheduledClocks())
+            clkPeriod = self.netlist.normalizedClkPeriod
+            if len(allNodeClks) > 1:
+                # slice a multi-cycle node and pick the parts which belongs to some state of this generated FSM
+                for clkI in allNodeClks:
+                    if clkI not in seenInClks:
+                        continue
+                    # inClkInputs = [i for t, i in zip(node.scheduledIn, node._inputs) if start_clk(t, clkPeriod) == clkI]
+                    # inClkOutputs = [o for t, o in zip(node.scheduledOut, node._outputs) if start_clk(t, clkPeriod) == clkI]
+                    nodePart = node.createSubNodeRefrenceFromPorts(clkI * clkPeriod, (clkI + 1) * clkPeriod,
+                        node._inputs, node._outputs)
+                    stateNodeList = fsm.states[fsm.clkIToStateI[clkI]]
+                    self._appendNodeToState(clkI, nodePart, stateNodeList)
+            else:
+                # append node as it is
+                self._appendNodeToState(allNodeClks[0], node, stateNodeList)
+
+            self._floodNetInClockCyclesWalkDepsAndUses(node, alreadyUsed, predicate, fsm, seenInClks)
+        
+    def _appendNodeToState(self, clkI: int, n: HlsNetNode, stateNodeList: List[HlsNetNode],):
+        clkPeriod: int = self.netlist.normalizedClkPeriod
+        # add nodes to st while asserting that it is from correct time
+        if isinstance(n, HlsNetNodePartRef):
+            for i in n._subNodes.inputs:
+                for use in i.obj.usedBy[i.out_i]:
+                    if use.obj in n._subNodes.nodes:
+                        assert (use.obj.scheduledIn[use.in_i] // clkPeriod) == clkI, (n, use)
+ 
+        else:
+            for t in n.scheduledIn:
+                assert start_clk(t, clkPeriod) == clkI, n
+            for t in n.scheduledOut:
+                assert int(t // clkPeriod) == clkI, n
+ 
+        stateNodeList.append(n)
+        
     def collectInFsmNodes(self) -> Tuple[
             Dict[HlsNetNode, UniqList[IoFsm]],
             Dict[HlsNetNode, UniqList[Tuple[IoFsm, HlsNetNodePartRef]]]]:
@@ -98,6 +143,9 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
 
         return inFsm, inFsmNodeParts
 
+    def _getClkIOfAccess(self, a: Union[HlsNetNodeRead, HlsNetNodeWrite], clkPeriod: int):
+        return start_clk(a.scheduledIn[0] if a.scheduledIn else a.scheduledOut[0], clkPeriod)
+    
     def run(self):
         ioDiscovery: HlsNetlistAnalysisPassDiscoverIo = self.netlist.getAnalysis(HlsNetlistAnalysisPassDiscoverIo)
         ioByInterface = ioDiscovery.ioByInterface
@@ -109,11 +157,13 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
                 accesses = ioByInterface.get(n.src, None)
                 if accesses and len(accesses) > 1:
                     return False
+
             elif isinstance(n, HlsNetNodeWrite):
                 n: HlsNetNodeWrite
                 accesses = ioByInterface.get(n.dst, None)
                 if accesses and len(accesses) > 1:
                     return False
+
             return True
 
         alreadyUsed: Set[HlsNetNode] = set()
@@ -123,35 +173,23 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
                 # all accesses which are not in same clock cycle must be mapped to individual FSM state
                 # every interface may spot a FSM
                 fsm = IoFsm(i)
-                seenClks: Dict[int, Set[HlsNetNode]] = {}
+                seenInClks: Dict[int, Set[HlsNetNode]] = {}
+                allClkI: UniqList[int] = UniqList()
+                for a in accesses:
+                    clkI = self._getClkIOfAccess(a, clkPeriod)
+                    allClkI.append(clkI)
+                allClkI.sort()
+                # prepare fsm states
+                for clkI in allClkI:
+                    seen = seenInClks.get(clkI, None)
+                    seen = set()
+                    seenInClks[clkI] = seen
+                    fsm.addState(clkI)
+
                 for a in sorted(accesses, key=lambda a: a.scheduledIn[0] if a.scheduledIn else a.scheduledOut[0]):
                     a: Union[HlsNetNodeRead, HlsNetNodeWrite]
-                    clkI = start_clk(a.scheduledIn[0] if a.scheduledIn else a.scheduledOut[0], clkPeriod)
-                    seen = seenClks.get(clkI, None)
-                    # there can be multiple IO operations on same IO in same clock cycle, if this is the case
-                    # we must avoid adding duplicit nodes
-                    if seen is None:
-                        seen = set()
-                        seenClks[clkI] = seen
-                        st = fsm.addState(clkI)
-                    else:
-                        st = fsm.states[-1]
-
-                    for n in self._floodNetInSameCycle(clkI, a, seen, alreadyUsed, floodPredicateExcludeOtherIoWithOwnFsm):
-                        # add nodes to st while asseting that it is from correct time
-                        if isinstance(n, HlsNetNodePartRef):
-                            for i in n._subNodes.inputs:
-                                for use in i.obj.usedBy[i.out_i]:
-                                    if use.obj in n._subNodes.nodes:
-                                        assert (use.obj.scheduledIn[use.in_i] // clkPeriod) == clkI, (n, use)
- 
-                        else:
-                            for t in n.scheduledIn:
-                                assert start_clk(t, clkPeriod) == clkI, n
-                            for t in n.scheduledOut:
-                                assert int(t // clkPeriod) == clkI, n
- 
-                        st.append(n)
+                    clkI = self._getClkIOfAccess(a, clkPeriod)
+                    self._floodNetInClockCycles(a, clkI, alreadyUsed, floodPredicateExcludeOtherIoWithOwnFsm, fsm, seenInClks)
 
                 stCnt = len(fsm.states)
                 if stCnt > 1:
