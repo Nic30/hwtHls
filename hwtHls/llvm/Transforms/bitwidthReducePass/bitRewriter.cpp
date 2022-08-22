@@ -54,8 +54,27 @@ llvm::Value* BitPartsRewriter::rewriteKnownBitRangeInfo(IRBuilder<> *Builder,
 			return Builder->getInt(
 					c->getValue().shl(kbri.srcBeginBitI).trunc(kbri.srcWidth));
 		} else {
-			return CreateBitRangeGet(Builder, const_cast<Value*>(kbri.src),
-					Builder->getInt64(kbri.srcBeginBitI), kbri.srcWidth);
+			llvm::Value *src = const_cast<Value*>(kbri.src);
+			unsigned offset = kbri.srcBeginBitI;
+			if (auto *I = dyn_cast<llvm::Instruction>(src)) {
+				auto repl = replacementCache.find(I);
+				if (repl != replacementCache.end()) {
+					// resolve new offset because replacement may have some bits at beginning removed
+					auto constr = constraints.find(I);
+					assert(constr != constraints.end());
+					const auto &useMask = constr->second->useMask;
+					auto noOfZerosInUseMaskBeforeThisSlice = (~useMask.trunc(
+							offset)).countPopulation();
+					offset -= noOfZerosInUseMaskBeforeThisSlice;
+					src = repl->second;
+				}
+			}
+			if (kbri.srcWidth != src->getType()->getIntegerBitWidth()) {
+				return CreateBitRangeGet(Builder, src,
+						Builder->getInt64(offset), kbri.srcWidth);
+			} else {
+				return src;
+			}
 		}
 	}
 }
@@ -67,8 +86,8 @@ llvm::Value* BitPartsRewriter::rewriteKnownBitRangeInfoVector(
 		return rewriteKnownBitRangeInfo(Builder, kbris[0]);
 	} else {
 		std::vector<llvm::Value*> OpsLowFirst;
-		for (auto& bi: kbris) {
-			auto * res = rewriteKnownBitRangeInfo(Builder, bi);
+		for (auto &bi : kbris) {
+			auto *res = rewriteKnownBitRangeInfo(Builder, bi);
 			OpsLowFirst.push_back(res);
 		}
 
@@ -76,10 +95,21 @@ llvm::Value* BitPartsRewriter::rewriteKnownBitRangeInfoVector(
 	}
 }
 
+llvm::Value* BitPartsRewriter::rewritePHINode(llvm::PHINode &I,
+		const VarBitConstraint &vbc) {
+	// rewrite instruction itself, but do not fill the operands, we can not fill operands immediately
+	// because this may result in infinite cycle when recursively replacing operands in cyclic SSA.
+	IRBuilder<> b(&I);
+	llvm::PHINode *res = b.CreatePHI(b.getIntNTy(vbc.useMask.countPopulation()),
+			I.getNumOperands(), I.getName());
+	replacementCache[&I] = res;
+	return res;
+}
+
 llvm::Value* BitPartsRewriter::rewriteSelect(llvm::SelectInst &I,
 		const VarBitConstraint &vbc) {
 	// replace this select with an concatenation of bit which are actually used
-	// if replacement specifies some value which is not this instr. it means
+
 	// @note use mask is guaranteed to be 0 for bits which does not require select
 	//   so we do not need to check if we can reduce something
 	IRBuilder<> b(&I);
@@ -94,6 +124,7 @@ llvm::Value* BitPartsRewriter::rewriteSelect(llvm::SelectInst &I,
 	replacementCache[&I] = res;
 	return res;
 }
+
 llvm::Value* BitPartsRewriter::rewriteBinaryOperatorBitwise(
 		llvm::BinaryOperator &I, const VarBitConstraint &vbc) {
 	IRBuilder<> b(&I);
@@ -157,34 +188,15 @@ llvm::Value* BitPartsRewriter::expandConstBits(IRBuilder<> *b,
 void BitPartsRewriter::rewriteInstructionOperands(llvm::Instruction *I) {
 	// store volatile i16 %val, i16* %ptr, align 2
 	unsigned opI = 0;
-	PHINode* phi = dyn_cast<PHINode>(I);
+	PHINode *phi = dyn_cast<PHINode>(I);
+	assert(!phi);
 	for (Value *_val : I->operands()) {
 		auto v = constraints.find(_val);
 		if (v != constraints.end()) { // if operand is a subject for replacement
-			// [fixme] phi instructions must always remain at the top of the block
+				// [fixme] phi instructions must always remain at the top of the block
 			auto newVal = rewriteIfRequired(_val);
 			if (_val != newVal) {
 				IRBuilder<> b(I);
-				if (phi) {
-					// at the end of the block where this value comes from
-					BasicBlock * pred = phi->getIncomingBlock(opI);
-					assert(pred);
-					Instruction * insertPoint = nullptr;
-					for (BasicBlock::reverse_iterator pi = pred->rbegin(); pi != pred->rend(); ++pi) {
-						BasicBlock::reverse_iterator predI = pi;
-						++predI;
-						if (pi == pred->rend() || predI == pred->rend() || !predI->isTerminator()) {
-							// if is first terminator
-							insertPoint = &*pi;
-							break;
-						}
-					}
-					if (insertPoint == nullptr) {
-						b.SetInsertPoint(&*pred->getFirstInsertionPt());
-					} else {
-						b.SetInsertPoint(insertPoint);
-					}
-				}
 				_val = expandConstBits(&b, _val, newVal, *v->second);
 				I->setOperand(opI, _val);
 			}
@@ -194,7 +206,7 @@ void BitPartsRewriter::rewriteInstructionOperands(llvm::Instruction *I) {
 }
 
 // @note we can not remove instruction immediately when rewritten because
-// it may result in breaking of iterators and would require a everywhere where instr. iterator is used
+// it may result in breaking of iterators and would require an update a everywhere where instr. iterator is used
 llvm::Value* BitPartsRewriter::rewriteIfRequired(llvm::Value *V) {
 	if (auto *I = dyn_cast<llvm::Instruction>(V)) {
 		//	if (!dyn_cast<PHINode>(&I))
@@ -211,13 +223,13 @@ llvm::Value* BitPartsRewriter::rewriteIfRequired(llvm::Value *V) {
 
 			if (auto *CI = dyn_cast<llvm::CmpInst>(I)) {
 				return rewriteCmpInst(*CI, vbc);
-			}
-			if (vbc.useMask.isAllOnesValue()) {
+			} else if (auto *PHI = dyn_cast<PHINode>(I)) {
+				return rewritePHINode(*PHI, vbc);
+			} else if (vbc.useMask.isAllOnesValue()) {
 				replacementCache[I] = I;
 				rewriteInstructionOperands(I);
 				return I;
-			}
-			if (auto *SI = dyn_cast<llvm::SelectInst>(I)) {
+			} else if (auto *SI = dyn_cast<llvm::SelectInst>(I)) {
 				return rewriteSelect(*SI, vbc);
 			} else if (auto *BO = dyn_cast<BinaryOperator>(I)) {
 				auto o = BO->getOpcode();
@@ -232,8 +244,57 @@ llvm::Value* BitPartsRewriter::rewriteIfRequired(llvm::Value *V) {
 	return V;
 }
 
-llvm::Value* BitPartsRewriter::rewritePHINodeArgsIfRequired(llvm::PHINode *P) {
-	return P;
+llvm::Value* BitPartsRewriter::rewritePHINodeArgsIfRequired(
+		llvm::PHINode *phi) {
+	auto _newPhi = replacementCache.find(phi);
+	if (_newPhi == replacementCache.end()) {
+		// The replacement value should be already generated from BitPartsRewriter::rewritePHINode
+		// This must be one of newly generated PHINodes
+		return phi;
+	}
+	llvm::PHINode *newPhi = dyn_cast<PHINode>(_newPhi->second);
+
+	auto phiConstr = constraints.find(phi);
+	if (phiConstr == constraints.end()) {
+		return phi;
+	}
+	VarBitConstraint &vbc = *phiConstr->second;
+	assert(newPhi != nullptr);
+	IRBuilder<> b(phi);
+
+	unsigned opI = 0;
+	for (BasicBlock *pred : phi->blocks()) {
+		Value *val = phi->getIncomingValueForBlock(pred);
+		auto constr = constraints.find(val);
+		if (constr != constraints.end()) { // if operand is a subject for replacement
+				// [fixme] phi instructions must always remain at the top of the block
+				// at the end of the block where this value comes from
+			Instruction *insertPoint = nullptr;
+			for (BasicBlock::reverse_iterator pi = pred->rbegin();
+					pi != pred->rend(); ++pi) {
+				BasicBlock::reverse_iterator predI = pi;
+				++predI;
+				if (pi == pred->rend() || predI == pred->rend()
+						|| !predI->isTerminator()) {
+					// if is first terminator
+					insertPoint = &*pi;
+					break;
+				}
+			}
+			if (insertPoint == nullptr) {
+				b.SetInsertPoint(&*pred->getFirstInsertionPt());
+			} else {
+				b.SetInsertPoint(insertPoint);
+			}
+
+			val = rewriteKnownBitRangeInfoVector(&b,
+					iterUsedBitRanges(&b, vbc.useMask, *constr->second));
+
+		}
+		newPhi->addIncoming(val, pred);
+		opI += 2;
+	}
+	return newPhi;
 }
 
 }

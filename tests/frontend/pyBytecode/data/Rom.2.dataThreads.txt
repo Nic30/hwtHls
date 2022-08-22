@@ -16,5 +16,7 @@ nodes:
     <HlsNetNodeConst 14 <BitsVal 8>>
     <HlsNetNodeConst 15 <BitsVal 2>>
     <HlsNetNodeMux 16 [12:0, 7:0, 13:0, 9:0, 14:0, 11:0, 15:0]>
-    <HlsNetNodeWrite 17 <Signal o <Bits, 32bits, unsigned>> <- <HlsNetNodeOut <HlsNetNodeMux 16> [0]>>
+    <HlsNetNodeConst 17 <BitsVal 0>>
+    <HlsNetNodeOperator 18 CONCAT [16:0, 17:0]>
+    <HlsNetNodeWrite 19 <Signal o <Bits, 32bits, unsigned>> <- <HlsNetNodeOut <HlsNetNodeOperator 18 CONCAT> [0]>>
 

@@ -15,6 +15,10 @@ namespace hwtHls {
  * This is required because of cycles in dependencies.
  *
  * :note: The reduced instructions are not removed from the code.
+ * :note: Individual bits of instructions can be removed no matter the bit position.
+ *        The removal is recursive.
+ *        if VarBitConstraint::replacements specifies some value which is part of this instr.
+ *        it means this instr. will be still required after replacement otherwise the instruction is entirely replaced.
  * */
 class BitPartsRewriter {
 	ConstBitPartsAnalysisContext::InstructionToVarBitConstraintMap &constraints;
@@ -28,6 +32,7 @@ class BitPartsRewriter {
 	llvm::Value* expandConstBits(llvm::IRBuilder<> *b, llvm::Value *origVal,
 			llvm::Value *reducedVal, const VarBitConstraint &vbc);
 
+	llvm::Value* rewritePHINode(llvm::PHINode &I, const VarBitConstraint &vbc);
 	llvm::Value* rewriteSelect(llvm::SelectInst &I,
 			const VarBitConstraint &vbc);
 	llvm::Value* rewriteBinaryOperatorBitwise(llvm::BinaryOperator &I,
