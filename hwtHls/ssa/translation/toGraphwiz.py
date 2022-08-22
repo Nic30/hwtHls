@@ -1,18 +1,19 @@
 import html
 import pydot
-from typing import List, Union, Dict, Optional, Tuple
+from typing import List, Union, Dict, Optional, Tuple, Set
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.ast.debugCodeSerializer import CopyBasicBlockLabelsToCode
 from hwtHls.frontend.ast.statements import HlsStmCodeBlock
 from hwtHls.platform.fileUtils import OutputStreamGetter
-from hwtHls.ssa.analysis.liveness import EdgeLivenessDict
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.phi import SsaPhi
 from hwtHls.ssa.transformation.ssaPass import SsaPass
 from hwtHls.ssa.value import SsaValue
+
+EdgeLivenessDict = Dict[SsaBasicBlock, Dict[SsaBasicBlock, Set[SsaValue]]]
 
 
 class SsaToGraphwiz():
