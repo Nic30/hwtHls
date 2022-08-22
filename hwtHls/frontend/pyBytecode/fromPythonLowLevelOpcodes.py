@@ -2,7 +2,7 @@ import builtins
 from dis import Instruction
 import operator
 from types import FunctionType, CellType
-from typing import Callable, Dict
+from typing import Callable, Dict, Union
 
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.value import HValue
@@ -145,10 +145,8 @@ class PyBytecodeToSsaLowLevelOpcodes():
     
             if isinstance(_v, (RtlSignal, Interface)):
                 # only if it is a hw variable, create assignment to HW variable
-                stm = _v(vVal)
                 v.cell_contents = _v
-                self.toSsa.visit_CodeBlock_list(curBlock, flatten([stm, ]))
-                return curBlock
+                return self._storeToHwSignal(curBlock, _v, vVal)
 
         if isinstance(vVal, PyBytecodeInPreproc):
             vVal = vVal.ref
@@ -191,6 +189,17 @@ class PyBytecodeToSsaLowLevelOpcodes():
         stack.append(v)
         return curBlock
 
+    def _storeToHwSignal(self, curBlock, dst: Union[RtlSignal, InterfaceBase], src):
+        if isinstance(src, SsaValue) and not isinstance(src, InterfaceBase):
+            # :note: HlsRead is for exmple SsaValue and InterfaceBase
+            if isinstance(dst, InterfaceBase):
+                dst = dst._sig
+            self.toSsa.m_ssa_u.writeVariable(dst, [], curBlock, src)
+            return curBlock
+        else:
+            stm = dst(src)
+            return self.toSsa.visit_CodeBlock_list(curBlock, flatten([stm, ]))
+        
     def opcode_STORE_ATTR(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:
         stack = frame.stack
         dstParent = stack.pop()
@@ -199,7 +208,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
         src, curBlock = expandBeforeUse(frame, src, curBlock)
         if isinstance(dst, (Interface, RtlSignal)):
             # stm = self.hls.write(src, dst)
-            self.toSsa.visit_CodeBlock_list(curBlock, flatten(dst(src)))
+            self._storeToHwSignal(curBlock, dst, src)
         else:
             raise NotImplementedError(instr, dst)
 
@@ -221,13 +230,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
 
             if isinstance(v, (RtlSignal, Interface)):
                 # only if it is a hw variable, create assignment to HW variable
-                if isinstance(vVal, SsaValue) and not isinstance(vVal, InterfaceBase):
-                    # :note: HlsRead is for exmple SsaValue and InterfaceBase
-                    self.toSsa.m_ssa_u.writeVariable(v, [], curBlock, vVal)
-                else:
-                    stm = v(vVal)
-                    self.toSsa.visit_CodeBlock_list(curBlock, flatten([stm, ]))
-                return curBlock
+                return self._storeToHwSignal(curBlock, v, vVal)
 
         if isinstance(vVal, PyBytecodeInPreproc):
             vVal = vVal.ref
