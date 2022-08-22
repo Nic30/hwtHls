@@ -36,6 +36,7 @@ from tests.io.axiStream.axisParseEth_test import AxiSParseEthTC
 from tests.io.axiStream.axisParseIf_test import AxiSParseIfTC
 from tests.io.axiStream.axisParseLinear_test import AxiSParseLinearTC
 from tests.io.axiStream.axisWriteByte_test import AxiSWriteByteTC
+from tests.io.axiStream.pingResponder import PingResponderTC
 from tests.io.bram.bramRead_test import BramRead_TC
 from tests.io.ioFsm_test import IoFsm_TC
 from tests.syntehesis_checks import HlsSynthesisChecksTC
@@ -90,6 +91,7 @@ suite = testSuiteFromTCs(
     AxiSWriteByteTC,
     BramRead_TC,
     LlvmLoopUnroll_TC,
+    PingResponderTC,
 )
 
 
