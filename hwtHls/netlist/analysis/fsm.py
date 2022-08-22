@@ -13,8 +13,11 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 
 class IoFsm():
     """
+    :ivar intf: An interface instance for which this FSM is generated for.
+    :ivar states: list of list of nodes for each state
     :ivar stateClkI: maps the state index to an index of clk tick where the state was originally scheduled
     :ivar clkIToStateI: reverse map of stateClkI
+    :ivar transitionTable: a dictionary source stateI to dictionary destination stateI to condition for transition
     """
 
     def __init__(self, intf: Interface):
@@ -28,19 +31,19 @@ class IoFsm():
         """
         :param clkI: an index of clk cycle where this state was scheduled
         """
-        nodes = []
+        stateNodes: List[HlsNetNode] = []
         stI = len(self.states)
         self.stateClkI[stI] = clkI
         self.clkIToStateI[clkI] = stI
-        self.states.append(nodes)
+        self.states.append(stateNodes)
 
-        return nodes
+        return stateNodes
 
 
 class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
     """
     Collect a scheduled netlist nodes which do have a constraint which prevents them to be scheduled as a pipeline and
-    collect also all nodes which are tied with them into FSM states.
+    also collect all nodes which are tied with them into FSM states.
     """
 
     def __init__(self, netlist: "HlsNetlistCtx"):
@@ -81,6 +84,7 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
         if seen is None:
             # out of this FSM
             return
+
         if node not in seen and node not in alreadyUsed:
             stateNodeList = fsm.states[fsm.clkIToStateI[nodeClkI]]
             seen.add(node)
@@ -193,8 +197,9 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
 
                 stCnt = len(fsm.states)
                 if stCnt > 1:
+                    # initialize with tansition table with always jump to next state sequentially
                     for i in range(stCnt):
-                        fsm.transitionTable[i] = {(i + 1) % stCnt: 1}
+                        fsm.transitionTable[i] = {(i + 1) % stCnt: 1} # {next st: cond}
 
                     # for i in range(stCnt - 1):
                     #    fsm.transitionTable[i] = {(i + 1): 1}

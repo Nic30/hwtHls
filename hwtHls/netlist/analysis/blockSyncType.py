@@ -13,7 +13,7 @@ from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasi
 
 class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
     '''
-    This pass updates blockSync dictionary in :class:`HlsNetlistAnalysisPassMirToNetlist` with
+    This pass updates blockSync dictionary in :class:`hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist.HlsNetlistAnalysisPassMirToNetlist` with
     flags which are describing what type of synchronization for block should be used.
     :note: This is thread level synchronization of control flow in blocks not RTL type of synchronization.
 
