@@ -24,9 +24,10 @@ from hwtHls.frontend.pyBytecode.instructions import CMP_OPS, BIN_OPS, UN_OPS, \
     MAKE_FUNCTION, STORE_SUBSCR, EXTENDED_ARG, CALL_FUNCTION_EX, DELETE_DEREF, DELETE_FAST, \
     FORMAT_VALUE
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc, \
-    PyBytecodeInline, _PyBytecodePragma
+    PyBytecodeInline, _PyBytecodePragma, PyBytecodePreprocHwCopy
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.value import SsaValue
+from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
 
 
 class PyBytecodeToSsaLowLevelOpcodes():
@@ -220,8 +221,12 @@ class PyBytecodeToSsaLowLevelOpcodes():
 
             if isinstance(v, (RtlSignal, Interface)):
                 # only if it is a hw variable, create assignment to HW variable
-                stm = v(vVal)
-                self.toSsa.visit_CodeBlock_list(curBlock, flatten([stm, ]))
+                if isinstance(vVal, SsaValue) and not isinstance(vVal, InterfaceBase):
+                    # :note: HlsRead is for exmple SsaValue and InterfaceBase
+                    self.toSsa.m_ssa_u.writeVariable(v, [], curBlock, vVal)
+                else:
+                    stm = v(vVal)
+                    self.toSsa.visit_CodeBlock_list(curBlock, flatten([stm, ]))
                 return curBlock
 
         if isinstance(vVal, PyBytecodeInPreproc):
@@ -276,12 +281,17 @@ class PyBytecodeToSsaLowLevelOpcodes():
             args = stack[-argCnt:]
         for _ in range(argCnt):
             stack.pop()
+
         m = stack.pop()
         if isinstance(m, PyBytecodeInline):
             kwargs = {}
             return self._translateCallInlined(frame, curBlock, m.ref, args, kwargs)
-
-        res = m(*args)
+        elif m is PyBytecodePreprocHwCopy:
+            assert len(args) == 1, args
+            curBlock, res, = self.toSsa.visit_expr(curBlock, args[0])
+        else:
+            res = m(*args)
+        
         stack.append(res)
         return curBlock
 

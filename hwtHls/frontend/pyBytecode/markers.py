@@ -103,6 +103,16 @@ class PyBytecodePreprocDivergence(_PyBytecodePragma):
         self.cond = cond
 
 
+class PyBytecodePreprocHwCopy(_PyBytecodePragma):
+    """
+    Explicitly copy HW-evaluated the value.
+    """
+
+    def __init__(self, v: Union[SsaValue, HValue, RtlSignal]):
+        assert isinstance(v, (SsaValue, HValue, RtlSignal)), (v, "Must be hardware evaluated expression otherwise this marker is useless")
+        self.v = v
+  
+
 class _PyBytecodeLoopPragma(_PyBytecodePragma):
     """
     A type of pragma which is applied to a loop.
