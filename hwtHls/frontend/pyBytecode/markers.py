@@ -158,8 +158,6 @@ class PyBytecodeLLVMLoopUnroll(_PyBytecodeLoopPragma):
         def getTuple(items, insertSelfAsFirts):
             itemsAsMetadata = [i.asMetadata() for i in items]
             res = MDNode.get(irTranslator.ctx, itemsAsMetadata, insertTmpAsFirts=insertSelfAsFirts)
-            if insertSelfAsFirts:
-                res.replaceOperandWith(0, res.asMetadata())
             return res
         
         items = [
