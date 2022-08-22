@@ -68,6 +68,7 @@ class HlsAllocator():
         dstUseClkI = start_clk(useT, clkPeriod)
         if isinstance(dstElm, ArchElementFsm):
             assert dstUseClkI in dstElm.fsm.clkIToStateI, (dstUseClkI, dstElm.fsm.clkIToStateI, o, "Output must be scheduled to some cycle corresponding to fsm state")
+
         if srcStartClkI != dstUseClkI:
             srcElm: ArchElement = iea.ownerOfOutput[o]
             # it is required to add buffers somewhere to latch the value to that time
@@ -102,11 +103,12 @@ class HlsAllocator():
                         for clkI in range(beginClkI, endClkI + 1):
                             if clkI in srcElm.fsm.clkIToStateI and clkI in dstElm.fsm.clkIToStateI:
                                 sharedClkI = clkI
+
                     if sharedClkI is not None:
                         # if src and dst FSM overlaps exactly in 1 time we can safely transfer data there
                         clkT = sharedClkI * clkPeriod
                         assert clkT <= useT, (o, clkT, useT)
-                        newUseT = max(clkT + epsilon, useT)
+                        newUseT = min(clkT + epsilon, useT)
                         iea.firstUseTimeOfOutInElem[(dstElm, o)] = newUseT
                         assert newUseT <= useT, (useT, newUseT, o)
                         return newUseT
