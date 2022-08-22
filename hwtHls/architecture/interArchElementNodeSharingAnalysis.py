@@ -41,6 +41,8 @@ class InterArchElementNodeSharingAnalysis():
         For connections which are just from the source element to destination element this dictionary holds no record.
     :ivar firstUseTimeOfOutInElem: Information about when each node output is used in :class:`hwtHls.architecture.archElement.ArchElement`
         instance for the first time.
+    :ivar portSynonyms: a dictionary mapping port to ports of equivalent meaning, the synonyms are mostly caused by
+        internal hierarchy of nodes where some internal port may be directly connected to outer port
     """
 
     def __init__(self, normalizedClkPeriod: int):
@@ -79,9 +81,11 @@ class InterArchElementNodeSharingAnalysis():
 
         return srcElm, dstElms
 
-    def _analyzeInterElementsNodeSharingCheckInputDriver(self, o: HlsNetNodeOut, i: HlsNetNodeIn, inT: int, dstElm: ArchElement):
+    def _analyzeInterElementsNodeSharingCheckInputDriver(self,
+            o: HlsNetNodeOut, i: HlsNetNodeIn, inT: int, dstElm: ArchElement):
         if isinstance(o.obj, HlsNetNodeConst) or o._dtype is HOrderingVoidT:
             return  # sharing not required
+
         assert dstElm in self.ownerOfInput[i], (dstElm, i, self.ownerOfInput[i])
         srcElm = self.getSrcElm(o)
         if dstElm is srcElm:
@@ -103,29 +107,29 @@ class InterArchElementNodeSharingAnalysis():
         self.interElemConnections.append((o, i))
 
     def _addPortSynonym(self, p0, p1):
-        syn0 = self.portSynonyms.get(p0, None)
-        syn1 = self.portSynonyms.get(p1, None)
+        portSynonyms = self.portSynonyms
+        syn0 = portSynonyms.get(p0, None)
+        syn1 = portSynonyms.get(p1, None)
 
         # merge synonym lists as efficiently as possible
         if syn0 is None and syn1 is None:
-            syn = self.portSynonyms[p0] = self.portSynonyms[p1] = UniqList()
-            syn.append(p0)
-            syn.append(p1)
+            portSynonyms[p0] = portSynonyms[p1] = UniqList([p0, p1])
+
         elif syn0 is None:
-            self.portSynonyms[p0] = syn1
+            portSynonyms[p0] = syn1
             syn1.append(p0)
 
         elif syn1 is None:
-            self.portSynonyms[p1] = syn0
+            portSynonyms[p1] = syn0
             syn1.append(p1)
 
         elif len(syn0) < len(syn1):
             syn1.extend(syn0)
-            self.portSynonyms[p0] = syn1
+            portSynonyms[p0] = syn1
 
         else:
             syn0.extend(syn1)
-            self.portSynonyms[p1] = syn0
+            portSynonyms[p1] = syn0
 
     def _analyzeInterElementsNodeSharing(self, archElements: List[ArchElement]):
         # resolve port and node owners
@@ -211,6 +215,7 @@ class InterArchElementNodeSharingAnalysis():
                             self._analyzeInterElementsNodeSharingCheckInputDriver(o, i, t, dstElm)
                             if fistUseTime is None or fistUseTime > t:
                                 fistUseTime = t
+
                         assert fistUseTime is not None, ("If it is unused it should not be in inputs at the first place", extOut, n, connectedInputs)
                         if outerIn is not None:
                             self._analyzeInterElementsNodeSharingCheckInputDriver(extOut, outerIn, fistUseTime, dstElm)
