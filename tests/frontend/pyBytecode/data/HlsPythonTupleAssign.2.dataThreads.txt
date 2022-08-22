@@ -1,0 +1,26 @@
+########### Thread 0 ###########
+blocks:
+    blockL30i0_30
+nodes:
+    <HlsNetNodeConst 2 <BitsVal 0>>
+    <HlsNetNodeConst 3 <BitsVal 1>>
+    <HlsNetNodeOutLazy 4>
+    <HlsNetNodeConst 7 <BitsVal 0>>
+    <HlsNetNodeOperator 8 CONCAT [25:0, 7:0]>
+    <HlsNetNodeWrite 9 <Signal o0 <Bits, 8bits>> <- <HlsNetNodeOut <HlsNetNodeOperator 8 CONCAT> [0]>>
+    <HlsNetNodeOperator 10 NOT [<HlsNetNodeOutLazy 4>]>
+    <HlsNetNodeConst 12 <BitsVal 0>>
+    <HlsNetNodeOperator 13 CONCAT [26:0, 12:0]>
+    <HlsNetNodeWrite 14 <Signal o1 <Bits, 8bits>> <- <HlsNetNodeOut <HlsNetNodeOperator 13 CONCAT> [0]>>
+    <HlsNetNodeOutLazy 16>
+    <HlsNetNodeExplicitSync 17 in=<HlsNetNodeOut <BitsVal 0> [0-val]>, extraCond=None, skipWhen=None>
+    <HlsNetNodeExplicitSync 18 in=<HlsNetNodeOut <BitsVal 1> [0-val]>, extraCond=None, skipWhen=None>
+    <HlsNetNodeReadBackwardEdge 19 <HsStructIntf hls_r_11_bb1_to_bb1_out <Bits, 1bit>>>
+    <HlsNetNodeWriteBackwardEdge 20 <HsStructIntf hls_r_11_bb1_to_bb1_in <Bits, 1bit>> <- <HlsNetNodeOut <HlsNetNodeMux 26> [0]>>
+    <HlsNetNodeExplicitSync 21 in=<HlsNetNodeOut <HlsNetNodeReadBackwardEdge 19 <HsStructIntf hls_r_11_bb1_to_bb1_out <Bits, 1bit>>> [0-dataOut]>, extraCond=None, skipWhen=None>
+    <HlsNetNodeReadBackwardEdge 22 <HsStructIntf hls_r_12_bb1_to_bb1_out <Bits, 1bit>>>
+    <HlsNetNodeWriteBackwardEdge 23 <HsStructIntf hls_r_12_bb1_to_bb1_in <Bits, 1bit>> <- <HlsNetNodeOut <HlsNetNodeMux 25> [0]>>
+    <HlsNetNodeExplicitSync 24 in=<HlsNetNodeOut <HlsNetNodeReadBackwardEdge 22 <HsStructIntf hls_r_12_bb1_to_bb1_out <Bits, 1bit>>> [0-dataOut]>, extraCond=None, skipWhen=None>
+    <HlsNetNodeMux 25 [17:0, <HlsNetNodeOutLazy 16>, 21:0]>
+    <HlsNetNodeMux 26 [18:0, <HlsNetNodeOutLazy 16>, 24:0]>
+

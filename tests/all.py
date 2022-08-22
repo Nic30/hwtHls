@@ -27,6 +27,7 @@ from tests.frontend.pyBytecode.pyArrHwIndex_test import PyArrHwIndex_TC
 from tests.frontend.pyBytecode.pyArrShift_test import PyArrShift_TC
 from tests.frontend.pyBytecode.stmFor_test import StmFor_TC
 from tests.frontend.pyBytecode.stmIf_test import StmIf_TC
+from tests.frontend.pyBytecode.tupleAssign import HlsPythonTupleAssign_TC
 from tests.frontend.pyBytecode.variableChain_test import VariableChain_TC
 from tests.hlsNetlist.bitwiseOpsAggregation import HlsNetlistBitwiseOpsTC
 from tests.hlsNetlist.readSync import HlsNetlistReadSyncTC
@@ -59,6 +60,7 @@ suite = testSuiteFromTCs(
     HlsNetlistBitwiseOpsTC,
     SliceBreak_TC,
     HlsSlicingTC,
+    HlsPythonTupleAssign_TC,
     BitWidthReductionCmp_example_TC,
     HlsNetlistReadSyncTC,
     HlsAstReadIfTc,
