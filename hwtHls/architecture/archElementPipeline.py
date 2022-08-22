@@ -13,10 +13,9 @@ from hwt.synthesizer.interfaceLevel.unitImplHelpers import Interface_without_reg
 from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
 from hwtHls.architecture.archElement import ArchElement
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage, resolveStrongestSyncType, \
-    SignalsOfStages, ExtraCondMemberList, SkipWhenMemberList
+    SignalsOfStages
 from hwtHls.architecture.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis
-from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, \
-    TimeIndependentRtlResourceItem, INVARIANT_TIME
+from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, INVARIANT_TIME
 from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -44,7 +43,7 @@ class ArchElementPipeline(ArchElement):
         ArchElement.__init__(self, netlist, namePrefix, allNodes, stageCons, stageSignals)
         self._syncAllocated = False
         self._dataPathAllocated = False
-        self._beginClkI = 0
+        self._beginClkI: Optional[int] = None
 
     def _afterNodeInstantiated(self, n: HlsNetNode, rtl: Optional[TimeIndependentRtlResource]):
         if rtl is None or not isinstance(rtl, TimeIndependentRtlResource):
@@ -70,6 +69,7 @@ class ArchElementPipeline(ArchElement):
         ioToCon: Dict[Interface, ConnectionsOfStage] = {}
         allIoObjSeen = set()
         beginFound = False
+        self._beginClkI = 0
         for stI, (nodes, con) in enumerate(zip(self.stages, self.connections)):
             con: ConnectionsOfStage
             if not beginFound:
@@ -206,15 +206,6 @@ class ArchElementPipeline(ArchElement):
                 # if not is_first_in_pipeline:
                 # :note: that the register 0 is behind the first stage of pipeline
                 con.stageDataVld = stValid = self._reg(f"{self.namePrefix:s}st{pipeline_st_i:d}_valid", def_val=0)
-
-                # must wait on next stage if stValid is set (= data registers are full)
-                # con.io_extraCond[toNextSt] = ExtraCondMemberList([
-                #    (None,  # TimeIndependentRtlResourceItem(None, ~stValid),
-                #     TimeIndependentRtlResourceItem(None, stValid)), ])  # do not send valid to next stage if data is not loaded yet
-                # con.io_skipWhen[toNextSt] = SkipWhenMemberList([
-                #    TimeIndependentRtlResourceItem(None, ~stValid), ])  # wait only if data is loaded
-                # nextCon.io_skipWhen[toNextSt] = SkipWhenMemberList([
-                #    TimeIndependentRtlResourceItem(None, stValid & ~toNextSt.vld), ])  # do not require if sync from predecessor if there is already the data
 
             if con.inputs or con.outputs:
                 sync = con.sync_node = self._makeSyncNode(prevStageDataVld, con)
