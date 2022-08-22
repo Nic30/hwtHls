@@ -36,6 +36,7 @@ from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsN
 from hwtHls.ssa.translation.toGraphwiz import SsaPassDumpToDot
 from hwtHls.ssa.translation.toLl import SsaPassDumpToLl
 from hwtHls.ssa.translation.toLlvm import SsaPassToLlvm, ToLlvmIrTranslator
+from hwtHls.architecture.transformation.loopControlPrivatization import RtlArchPassLoopControlPrivatization
 
 
 class DefaultHlsPlatform(DummyPlatform):
@@ -184,6 +185,7 @@ class DefaultHlsPlatform(DummyPlatform):
         allocator = netlist.allocator
         allocator._discoverArchElements()
         RtlArchPassSingleStagePipelineToFsm().apply(self, allocator)
+        RtlArchPassLoopControlPrivatization().apply(self, allocator)
         
         iea = InterArchElementNodeSharingAnalysis(netlist.normalizedClkPeriod)
         allocator._iea = iea         
