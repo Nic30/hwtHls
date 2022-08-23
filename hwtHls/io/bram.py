@@ -114,7 +114,9 @@ class HlsNetNodeWriteCommandBram(HlsNetNodeWriteIndexed):
             if ram.HAS_BE:
                 raise NotImplementedError()
             rtlObj.append(ram.din(_wData.data))
-            rtlObj.append(ram.we(0))
+            we = getattr(ram, "we", None)
+            if we is not None:
+                rtlObj.append(ram.we(0))
             
         allocator.netNodeToRtl[key] = rtlObj
         if ram.HAS_R:
