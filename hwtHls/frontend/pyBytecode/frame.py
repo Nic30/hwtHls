@@ -11,8 +11,6 @@ from hwtHls.frontend.pyBytecode.loopMeta import PyBytecodeLoopInfo, \
     LoopExitJumpInfo
 from hwtHls.frontend.pyBytecode.loopsDetect import PyBytecodeLoop
 from hwtHls.ssa.basicBlock import SsaBasicBlock
-from itertools import chain
-from sphinx.util.inspect import isstaticmethod
 
 
 class _PyBytecodeUnitialized():
