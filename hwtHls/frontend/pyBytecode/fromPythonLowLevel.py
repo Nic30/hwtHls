@@ -60,7 +60,7 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
             with open(f"tmp/{self.label:s}_cfg_bytecode.txt", "w") as f:
                 dis(fn, file=f)
             
-        frame = PyBytecodeFrame.fromFunction(fn, fnArgs, fnKwargs, self.callStack)
+        frame = PyBytecodeFrame.fromFunction(fn, 0, fnArgs, fnKwargs, self.callStack)
         self.toSsa = HlsAstToSsa(self.hls.ssaCtx, fn.__name__, None)
         curBlock = self.toSsa.start
         self._debugDump(frame, "_begin")

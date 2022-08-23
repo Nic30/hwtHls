@@ -12,6 +12,7 @@ from hwtHls.frontend.pyBytecode.loopMeta import PyBytecodeLoopInfo, \
 from hwtHls.frontend.pyBytecode.loopsDetect import PyBytecodeLoop
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from itertools import chain
+from sphinx.util.inspect import isstaticmethod
 
 
 class _PyBytecodeUnitialized():
@@ -41,7 +42,7 @@ class PyBytecodeFrame():
         return points each with a different frame object
     """
 
-    def __init__(self, fn: FunctionType,
+    def __init__(self, fn: FunctionType, callSiteAddress: int,
                  instructions: Tuple[Instruction, ...],
                  bytecodeBlocks: Dict[int, List[Instruction]],
                  loops: Dict[int, List["PyBytecodeLoop"]],
@@ -49,6 +50,7 @@ class PyBytecodeFrame():
                  freevars: List[CellType],
                  stack: list):
         self.fn = fn
+        self.callSiteAddress = callSiteAddress
         self.loopStack: List[PyBytecodeLoopInfo] = []
         self.preprocVars: Set[int] = set()
         self.instructions: Tuple[Instruction, ...] = instructions
@@ -91,10 +93,12 @@ class PyBytecodeFrame():
         self.loopStack[-1].markJumpFromBodyOfLoop(loopExitJumpInfo)
 
     @classmethod
-    def fromFunction(cls, fn: FunctionType, fnArgs: tuple, fnKwargs: dict, callStack: List["PyBytecodeFrame"]):
+    def fromFunction(cls, fn: FunctionType, callSiteAddress: int, fnArgs: tuple, fnKwargs: dict, callStack: List["PyBytecodeFrame"]):
         """
         :note: based on cpython/Python/ceval.c/_PyEval_MakeFrameVector
         """
+        if isinstance(fn, staticmethod):
+            fn = fn.__func__
         co = fn.__code__
         localVars = [_PyBytecodeUnitialized for _ in range(fn.__code__.co_nlocals)]
         if inspect.ismethod(fn):
@@ -144,7 +148,7 @@ class PyBytecodeFrame():
             co.co_consts, cell_names, linestarts))
         bytecodeBlocks, cfg = extractBytecodeBlocks(instructions)
         loops = PyBytecodeLoop.collectLoopsPerBlock(cfg)
-        frame = PyBytecodeFrame(fn, instructions, bytecodeBlocks,
+        frame = PyBytecodeFrame(fn, callSiteAddress, instructions, bytecodeBlocks,
                                loops, localVars, freevars, [])
 
         callStack.append(frame)
@@ -152,7 +156,7 @@ class PyBytecodeFrame():
         return frame
 
     def __copy__(self):
-        o = self.__class__(self.fn, self.instructions, self.bytecodeBlocks, self.loops,
+        o = self.__class__(self.fn, self.callSiteAddress, self.instructions, self.bytecodeBlocks, self.loops,
                            copy(self.locals), self.freevars, copy(self.stack))
         o.loopStack = self.loopStack
         o.preprocVars = self.preprocVars

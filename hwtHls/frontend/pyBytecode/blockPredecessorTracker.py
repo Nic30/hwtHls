@@ -89,6 +89,9 @@ class BlockPredecessorTracker():
         for isLastFrame, frame in iter_with_last(self.callStack):
             frame: "PyBytecodeFrame"
             if isLastFrame:
+                if not isFirstFrame:
+                    yield (frame.fn, frame.callSiteAddress)
+
                 for scope in frame.loopStack: 
                     curLoop: PyBytecodeLoop = scope.loop
                     scope: PyBytecodeLoopInfo
@@ -99,9 +102,10 @@ class BlockPredecessorTracker():
                         break
             else:
                 if isFirstFrame:
+                    # the name of top function is always same, because of this we skip it
                     isFirstFrame = False
                 else:
-                    yield frame.fn
+                    yield (frame.fn, frame.callSiteAddress)
                 
                 for scope in frame.loopStack: 
                     curLoop: PyBytecodeLoop = scope.loop
@@ -117,19 +121,22 @@ class BlockPredecessorTracker():
                                 viewFromLoopBody: bool) -> BlockLabel:
         prefix: List[PreprocLoopScope] = []
         for scope in curScope:
-            scope: PreprocLoopScope
-            if (dstBlockOffset,) in scope.loop.allBlocks:
-                if viewFromLoopBody and dstBlockOffset == scope.loop.entryPoint[-1]:
-                    # backedge pointing to entry point of a new iteration of loop body
-                    scope = PreprocLoopScope(scope.loop, scope.iterationIndex + 1) 
+            if isinstance(scope, PreprocLoopScope):
+                scope: PreprocLoopScope
+                if (dstBlockOffset,) in scope.loop.allBlocks:
+                    if viewFromLoopBody and dstBlockOffset == scope.loop.entryPoint[-1]:
+                        # backedge pointing to entry point of a new iteration of loop body
+                        scope = PreprocLoopScope(scope.loop, scope.iterationIndex + 1) 
+                        prefix.append(scope)
+                        break
+    
                     prefix.append(scope)
+    
+                elif prefix:
+                    # rest of prefix points on some other loop in parent loop
                     break
-
+            else:
                 prefix.append(scope)
-
-            elif prefix:
-                # rest of prefix points on some other loop in parent loop
-                break
 
         return (*prefix, dstBlockOffset)
     
