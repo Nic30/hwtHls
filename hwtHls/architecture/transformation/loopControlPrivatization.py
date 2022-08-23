@@ -99,7 +99,8 @@ class RtlArchPassLoopControlPrivatization(RtlArchPass):
                             raise NotImplementedError("This jump in CFG was not in last state and can be used to optimize tailElm but we now removed it, we should add a local version of this instead", w)
 
                     elif isinstance(headerElm, ArchElementPipeline):
-                        raise NotImplementedError()
+                        tailElm.allNodes.remove(w)
+                        tailElm.stages[wStI].remove(w)
                     else:
                         raise NotImplementedError(headerElm)
                      
