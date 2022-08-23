@@ -25,9 +25,11 @@ from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr, OP_ASSIGN
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.opCache import MirToHwtHlsNetlistOpCache
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer
-from hwtLib.amba.axis import AxiStream
+from hwtLib.amba.axi_intf_common import Axi_hs
+from hwt.hdl.value import HValue
+from hwtHls.ssa.value import SsaValue
 
-ANY_HLS_STREAM_INTF_TYPE = Union[AxiStream, Handshaked, VldSynced,
+ANY_HLS_STREAM_INTF_TYPE = Union[Handshaked, Axi_hs, VldSynced,
                                  HsStructIntf, RtlSignal, Signal,
                                  UnionSink, UnionSource]
 
@@ -40,14 +42,16 @@ class HlsRead(HdlStatement, SignalOps, InterfaceBase, SsaInstr):
     def __init__(self,
                  parent: "HlsScope",
                  src: ANY_HLS_STREAM_INTF_TYPE,
-                 dtype: HdlType):
+                 dtype: HdlType,
+                 intfName:Optional[str]=None):
         super(HlsRead, self).__init__()
         self._isAccessible = True
         self._parent = parent
         self._src = src
         self.block: Optional[SsaBasicBlock] = None
-            
-        intfName = getSignalName(src)
+        
+        if intfName is None:
+            intfName = getSignalName(src)
         var = parent.var
         name = f"{intfName:s}_read"
         sig = var(name, dtype)
@@ -121,10 +125,13 @@ class HlsRead(HdlStatement, SignalOps, InterfaceBase, SsaInstr):
 class HlsReadAddressed(HlsRead):
 
     def __init__(self,
-        parent:"HlsScope",
-        src:Interface, index: RtlSignal, element_t: HdlType):
+            parent:"HlsScope",
+            src:Interface, index: Union[RtlSignal, HValue, Signal, SsaValue], element_t: HdlType):
         super(HlsReadAddressed, self).__init__(parent, src, element_t)
-        self._index = index
+        self.operands = (index,)
+        if isinstance(index, SsaValue):
+            # assert index.block is not None, (index, "Must not construct instruction with operands which are not in SSA")
+            index.users.append(self)
 
     @classmethod
     def _translateMirToNetlist(cls, mirToNetlist: "HlsNetlistAnalysisPassMirToNetlist",
@@ -155,7 +162,7 @@ class HlsReadAddressed(HlsRead):
         if tName is not None:
             t = tName
 
-        return f"<{self.__class__.__name__} {self._name:s} {getSignalName(self._src):s}[{self._index}], {t}>"
+        return f"<{self.__class__.__name__} {self._name:s} {getSignalName(self._src):s}[{self.operands[0]}], {t}>"
 
 
 class HlsStmReadStartOfFrame(HlsRead):
@@ -166,8 +173,8 @@ class HlsStmReadStartOfFrame(HlsRead):
     """
 
     def __init__(self,
-        parent:"HlsScope",
-        src:ANY_HLS_STREAM_INTF_TYPE):
+            parent:"HlsScope",
+            src:ANY_HLS_STREAM_INTF_TYPE):
         HlsRead.__init__(self, parent, src, BIT)
 
 
@@ -179,6 +186,6 @@ class HlsStmReadEndOfFrame(HlsRead):
     """
 
     def __init__(self,
-        parent:"HlsScope",
-        src:ANY_HLS_STREAM_INTF_TYPE):
+            parent:"HlsScope",
+            src:ANY_HLS_STREAM_INTF_TYPE):
         HlsRead.__init__(self, parent, src, BIT)

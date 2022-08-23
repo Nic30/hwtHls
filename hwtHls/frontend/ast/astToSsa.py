@@ -167,7 +167,9 @@ class HlsAstToSsa():
                 elif isinstance(op, HlsRead):
                     if op.block is None:
                         if isinstance(op, HlsReadAddressed):
-                            block, op._index = self.visit_expr(block, op._index)
+                            assert len(op.operands) == 1, (op, op.operands)
+                            block, index = self.visit_expr(block, op.operands[0])
+                            op.operands = (index,)
                         # read first used there else already visited
                         builder._insertInstr(op)
                         # HlsRead is a SsaValue and thus represents "variable"
@@ -377,7 +379,7 @@ class HlsAstToSsa():
             o.operands = (src,)
         for op in o.operands:
             if isinstance(op, SsaValue):
-                src.users.append(o)
+                op.users.append(o)
 
         return block
 

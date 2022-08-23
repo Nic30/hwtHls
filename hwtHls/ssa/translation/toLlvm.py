@@ -121,7 +121,7 @@ class ToLlvmIrTranslator():
             src: Argument = self.ioToVar[instr._src]
             t: PointerType = TypeToPointerType(src.getType())
             if isinstance(instr, HlsReadAddressed):
-                indexes = [self._translateExprInt(0, self._translateType(uint64_t)), self._translateExpr(instr._index), ]
+                indexes = [self._translateExprInt(0, self._translateType(uint64_t)), self._translateExpr(instr.operands[0]), ]
                 arrTy: ArrayType = TypeToArrayType(t.getPointerElementType())
                 elmT = arrTy.getElementType()
                 ptr = b.CreateGEP(arrTy, src, indexes)
@@ -342,7 +342,6 @@ class ToLlvmIrTranslator():
         assert verifyModule(self.mod) is False
 
         return self
-
 
 
 class SsaPassToLlvm():

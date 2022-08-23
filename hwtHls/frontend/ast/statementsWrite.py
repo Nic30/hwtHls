@@ -20,7 +20,6 @@ from hwtHls.ssa.instr import SsaInstr, OP_ASSIGN
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer
 from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axi_intf_common import Axi_hs
-from hwtLib.amba.axis import AxiStream
 
 
 class HlsWrite(HlsStm, SsaInstr):
@@ -43,6 +42,9 @@ class HlsWrite(HlsStm, SsaInstr):
         # [todo] this put this object in temporary inconsistent state,
         #  because src can be more than just SsaValue/HValue instance
         self.operands = (src,)
+        if isinstance(src, SsaValue):
+            #assert src.block is not None, (src, "Must not construct instruction with operands which are not in SSA")
+            src.users.append(self)
         self.parent = parent
 
         # store original source for debugging
@@ -81,12 +83,15 @@ class HlsWriteAddressed(HlsWrite):
 
     def __init__(self,
             parent:"HlsScope",
-            src:Union[SsaValue, Handshaked, AxiStream, bytes, HValue],
-            dst:Union[AxiStream, Handshaked],
-            index: RtlSignal,
+            src:Union[SsaValue, HValue],
+            dst:Interface,
+            index:Union[SsaValue, RtlSignal, HValue],
             element_t: HdlType):
         HlsWrite.__init__(self, parent, src, dst, element_t)
         self.operands = (src, index)
+        if isinstance(index, SsaValue):
+            #assert index.block is not None, (index, "Must not construct instruction with operands which are not in SSA")
+            index.users.append(self)
         # store original index for debugging
         self._origIndex = index
 
@@ -121,8 +126,13 @@ class HlsWriteAddressed(HlsWrite):
         mirToNetlist.outputs.append(n)
 
     def __repr__(self):
-        src, index = self.operands[0]
-        return f"<{self.__class__.__name__} {src if isinstance(src, HValue) else src._name}->{getSignalName(self.dst)}[{index}]>"
+        src, index = self.operands
+        if isinstance(src, (Interface, RtlSignal)):
+            src = getSignalName(src)
+        if isinstance(index, (Interface, RtlSignal)):
+            index = getSignalName(index)
+
+        return f"<{self.__class__.__name__} {src}->{getSignalName(self.dst)}[{index}]>"
 
 
 class HlsStmWriteStartOfFrame(HlsWrite):
