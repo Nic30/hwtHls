@@ -1,49 +1,74 @@
 
-from typing import Union, Literal, List
+from collections import deque
+from inspect import isgenerator
+from typing import Union, Literal, List, Tuple
 
 from hwt.hdl.constants import WRITE, READ
 from hwt.hdl.statements.statement import HdlStatement
+from hwt.hdl.types.hdlType import HdlType
+from hwt.hdl.value import HValue
 from hwt.interfaces.std import BramPort_withoutClk
+from hwt.pyUtils.arrayQuery import single
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
+from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.frontend.ast.statementsRead import HlsReadAddressed
 from hwtHls.frontend.ast.statementsWrite import HlsWriteAddressed
+from hwtHls.frontend.pyBytecode.ioProxyAddressed import IoProxyAddressed
 from hwtHls.llvm.llvmIr import LoadInst, Register
 from hwtHls.llvm.llvmIr import MachineInstr
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.io import HlsNetNodeWriteIndexed, HOrderingVoidT
 from hwtHls.netlist.nodes.node import SchedulizationDict
-from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes
+from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes, \
+    HlsNetNodeOut
 from hwtHls.netlist.scheduler.clk_math import epsilon
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.opCache import MirToHwtHlsNetlistOpCache
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer
-from hwtHls.frontend.pyBytecode.ioProxyAddressed import IoProxyAddressed
+from hwtHls.ssa.value import SsaValue
 
 
 class HlsNetNodeWriteCommandBram(HlsNetNodeWriteIndexed):
+    """
+    A netlist node which is used to represent write of read or write command to BRAM port.
+    """
 
-    def __init__(self, netlist:"HlsNetlistCtx", src:BramPort_withoutClk, cmd: Union[Literal[READ], Literal[WRITE]]):
-        HlsNetNodeWriteIndexed.__init__(self, netlist, NOT_SPECIFIED, src, addOrderingOut=False)
+    def __init__(self, netlist:"HlsNetlistCtx", dst:BramPort_withoutClk, cmd: Union[Literal[READ], Literal[WRITE]]):
+        HlsNetNodeWriteIndexed.__init__(self, netlist, NOT_SPECIFIED, dst, addOrderingOut=False)
         self.cmd = cmd
-        en = src.en
+        en = dst.en
         if en._sig._nop_val is NOT_SPECIFIED:
             en._sig._nop_val = en._sig._dtype.from_py(0)
-        if src.HAS_W:
-            we = src.we
-            if we._sig._nop_val is NOT_SPECIFIED:
+        if dst.HAS_W:
+            # we can still does not have to be present, it can be replaced by just en on write only ports
+            we = getattr(dst, "we", None)
+            if we is not None and we._sig._nop_val is NOT_SPECIFIED:
                 we._sig._nop_val = we._sig._dtype.from_py(0)
-        self._addOutput(src.dout._dtype, "dout")
+        if dst.HAS_R:
+            self._addOutput(dst.dout._dtype, "dout")
         self._addOutput(HOrderingVoidT, "orderingOut")
         
         if cmd == READ:
+            assert dst.HAS_R, dst
             # set write data to None
-            xWrData = HlsNetNodeConst(netlist, src.dout._dtype.from_py(None))
+            xWrData = HlsNetNodeConst(netlist, dst.dout._dtype.from_py(None))
             netlist.nodes.append(xWrData)
             link_hls_nodes(xWrData._outputs[0], self._inputs[0])
+
+        elif cmd == WRITE:
+            assert dst.HAS_W, dst
+
+    def getOrderingOutPort(self) -> HlsNetNodeOut:
+        if self.dst.HAS_R:
+            oo = self._outputs[1]
+        else:
+            oo = self._outputs[0]
+        assert oo._dtype is HOrderingVoidT, oo
+        return oo 
 
     def scheduleAlapCompaction(self, asapSchedule: SchedulizationDict):
         return self.scheduleAlapCompactionMultiClock(asapSchedule)
@@ -100,6 +125,19 @@ class HlsNetNodeWriteCommandBram(HlsNetNodeWriteIndexed):
 
 class HlsReadBram(HlsReadAddressed):
 
+    def __init__(self,
+            parent:"HlsScope",
+            src:Union[BramPort_withoutClk, Tuple[BramPort_withoutClk]], index:RtlSignal, element_t:HdlType):
+        if isinstance(src, (list, deque)) or isgenerator(src):
+            src = tuple(src)
+
+        if isinstance(src, tuple):
+            src = single(src, lambda x: x.HAS_R)  # else not implemented
+        else:
+            assert src.HAS_R
+
+        HlsReadAddressed.__init__(self, parent, src, index, element_t)
+
     @classmethod
     def _translateMirToNetlist(cls, mirToNetlist:HlsNetlistAnalysisPassMirToNetlist,
             mbSync:MachineBasicBlockSyncContainer,
@@ -126,6 +164,22 @@ class HlsReadBram(HlsReadAddressed):
 
 
 class HlsWriteBram(HlsWriteAddressed):
+
+    def __init__(self,
+            parent:"HlsScope",
+            src:Union[SsaValue, RtlSignal, HValue],
+            dst:Union[BramPort_withoutClk, Tuple[BramPort_withoutClk]],
+            index:Union[SsaValue, RtlSignal, HValue],
+            element_t:HdlType):
+        if isinstance(dst, (list, deque)) or isgenerator(dst):
+            dst = tuple(dst)
+
+        if isinstance(dst, tuple):
+            dst = single(dst, lambda x: x.HAS_W)  # else not implemented
+        else:
+            assert dst.HAS_W
+
+        HlsWriteAddressed.__init__(self, parent, src, dst, index, element_t)
 
     @classmethod
     def _translateMirToNetlist(cls, mirToNetlist:"HlsNetlistAnalysisPassMirToNetlist",

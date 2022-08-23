@@ -2,6 +2,7 @@ from hwt.hdl.types.array import HArray
 from hwt.synthesizer.interface import Interface
 from hwtHls.frontend.ast.statementsRead import HlsReadAddressed
 from hwtHls.frontend.ast.statementsWrite import HlsWriteAddressed
+from hwtHls.frontend.pyBytecode.indexExpansion import PyObjectHwSubscriptRef
 
 
 class IoProxyAddressed():
@@ -17,8 +18,8 @@ class IoProxyAddressed():
         self.nativeType = nativeType
 
     def __getitem__(self, addr):
-        raise AssertionError("This should never be called, instead a frontend should translate this operation")
-  
+        return PyObjectHwSubscriptRef(None, self, addr)
+
     def __setitem__(self, key, newvalue):
         raise AssertionError("This should never be called, instead a frontend should translate this operation")
   

@@ -510,13 +510,13 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
                     raise NotImplementedError("stack pop depends on hw evaluated condition")
 
                 cond = frame.stack.pop()
-                cond, curBlock = expandBeforeUse(frame, cond, curBlock)
+                cond, curBlock = expandBeforeUse(self, instr.offset, frame, cond, curBlock)
                 if isinstance(cond, PyBytecodePreprocDivergence):
                     duplicateCodeUntilConvergencePoint = True
                     cond = cond.cond
                 else:
                     duplicateCodeUntilConvergencePoint = False
-                cond, curBlock = expandBeforeUse(frame, cond, curBlock)
+                cond, curBlock = expandBeforeUse(self, instr.offset, frame, cond, curBlock)
                 if isinstance(cond, Interface):
                     cond = cond._sig
 
