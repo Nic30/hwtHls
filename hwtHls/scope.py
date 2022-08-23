@@ -140,8 +140,14 @@ class HlsScope():
             src = dtype.from_py(src)
         else:
             dtype = src._dtype
-
-        return HlsWrite(self, src, dst, dtype)
+        
+        if isinstance(dst, PyObjectHwSubscriptRef):
+            dst: PyObjectHwSubscriptRef
+            mem: IoProxyAddressed = dst.sequence
+            assert isinstance(mem, IoProxyAddressed), (dst, mem)
+            return mem.WRITE_CLS(self, src, mem.interface, dst.index, mem.nativeType.element_t)
+        else:
+            return HlsWrite(self, src, dst, dtype)
 
     def addThread(self, t):
         """
