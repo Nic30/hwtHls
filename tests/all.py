@@ -39,6 +39,7 @@ from tests.io.axiStream.axisParseLinear_test import AxiSParseLinearTC
 from tests.io.axiStream.axisWriteByte_test import AxiSWriteByteTC
 from tests.io.axiStream.pingResponder import PingResponderTC
 from tests.io.bram.bramRead_test import BramRead_TC
+from tests.io.bram.bramWrite_test import BramWrite_TC
 from tests.io.ioFsm_test import IoFsm_TC
 from tests.syntehesis_checks import HlsSynthesisChecksTC
 from tests.utils.alapAsapDiffExample import AlapAsapDiffExample_TC
@@ -92,6 +93,7 @@ suite = testSuiteFromTCs(
     AxiSParseIfTC,
     AxiSWriteByteTC,
     BramRead_TC,
+    BramWrite_TC,
     LlvmLoopUnroll_TC,
     PingResponderTC,
 )
