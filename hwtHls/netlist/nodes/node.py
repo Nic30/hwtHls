@@ -240,7 +240,7 @@ class HlsNetNode():
         return self.scheduledIn
 
     def scheduleAlapCompactionMultiClock(self, asapSchedule: SchedulizationDict):
-        # if all dependencies have inputs scheduled we shedule this node and try successors
+        # if all dependencies have inputs scheduled we schedule this node and try successors
         if self.scheduledIn is not None:
             return self.scheduledIn
 
@@ -273,19 +273,20 @@ class HlsNetNode():
 
         if isfinite(timeOffset):
             # we have to check if every input has enough time for its delay
-            # and optionally move this node to previous vlock cycle
-            for (iDelay, iTicks) in zip(self.inputWireDelay, self.inputClkTickOffset):
+            # and optionally move this node to previous clock cycle
+            for iDelay in self.inputWireDelay:
                 if iDelay + ffdelay >= clkPeriod:
                     raise TimeConstraintError(
                         "Impossible scheduling, clkPeriod too low for ",
                         self.inputWireDelay, self.outputWireDelay, self)
-                inTime = timeOffset - iDelay - iTicks * clkPeriod
+                inTime = timeOffset - iDelay
                 prevClkEndTime = start_clk(timeOffset, clkPeriod) * clkPeriod
-                
+
                 if inTime <= prevClkEndTime:
                     # must shift whole node sooner in time because the input of input can not be satisfied
                     # in a clock cycle where the input is currently scheduled
                     timeOffset = start_clk(timeOffset, clkPeriod) * clkPeriod - ffdelay - epsilon
+
         else:
             raise NotImplementedError()
             # no outputs, we must use some asap input time and move to end of the clock
