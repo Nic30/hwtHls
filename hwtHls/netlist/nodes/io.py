@@ -189,7 +189,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
         if searchFromSrcToDst:
             for orderingIn in self.iterOrderingInputs():
                 dep = self.dependsOn[orderingIn.in_i]
-                assert isinstance(dep.obj, HlsNetNodeExplicitSync), ("ordering dependencies should be just between IO nodes", dep, self)
+                assert isinstance(dep.obj, HlsNetNodeExplicitSync), ("ordering dependencies should be just between IO nodes", orderingIn, dep, self)
                 if start_clk(dep.obj.scheduledOut[dep.out_i], clkPeriod) == thisClkI:
                     ioCnt = max(ioCnt, dep.obj._getNumberOfIoInThisClkPeriod(intf, True))
         else:
@@ -263,7 +263,13 @@ class HlsNetNodeReadIndexed(HlsNetNodeRead):
     def __init__(self, netlist:"HlsNetlistCtx", src:Union[RtlSignal, Interface]):
         HlsNetNodeRead.__init__(self, netlist, src)
         self.indexes = [self._addInput("index0"), ]
-    
+
+    def iterOrderingInputs(self) -> Generator[HlsNetNodeIn, None, None]:
+        allNonOrdering = (self.extraCond, self.skipWhen, *self.indexes)
+        for i in self._inputs:
+            if i not in allNonOrdering:
+                yield i
+
     @staticmethod
     def _strFormatIndexes(indexes: List[HlsNetNodeIn]):
         if indexes:
@@ -396,7 +402,13 @@ class HlsNetNodeWriteIndexed(HlsNetNodeWrite):
     def __init__(self, netlist:"HlsNetlistCtx", src, dst:Union[RtlSignal, Interface, SsaValue], addOrderingOut=True):
         HlsNetNodeWrite.__init__(self, netlist, src, dst, addOrderingOut=addOrderingOut)
         self.indexes = [self._addInput("index0"), ]
-        
+
+    def iterOrderingInputs(self) -> Generator[HlsNetNodeIn, None, None]:
+        allNonOrdering = (self._inputs[0], self.extraCond, self.skipWhen, *self.indexes)
+        for i in self._inputs:
+            if i not in allNonOrdering:
+                yield i
+
     def __repr__(self):
         src = self.src
         if src is NOT_SPECIFIED:

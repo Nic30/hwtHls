@@ -53,7 +53,7 @@ class SsaPassConsystencyCheck(SsaPass):
         elif isinstance(var, SsaPhi):
             assert var in phis, ("Variable never defined", var)
         else:
-            assert isinstance(var, _ValOrVal), var
+            assert isinstance(var, _ValOrVal), (var, "Variable has unsupported value type", var.__class__)
             assert var in variables, ("Variable never defined", var)
 
     def visit_check(self, bb: SsaBasicBlock,
