@@ -46,7 +46,7 @@ class SsaToGraphwiz():
 
         if code is not None:
             CopyBasicBlockLabelsToCode().visit(begin)
-            g.add_node(pydot.Node("code", shape="plaintext", fontname="monospace", label='"' + self._escape(repr(code)).replace("\n", "\\l\\\n") + '\l"'))
+            g.add_node(pydot.Node("code", shape="plaintext", fontname="monospace", label='"' + html.escape(repr(code)).replace("\n", "\\l\\\n") + '\l"'))
 
     def _node_from_SsaBasicBlock(self, bb: SsaBasicBlock, is_start: bool, edge_var_live: Optional[EdgeLivenessDict]):
         try:
@@ -61,23 +61,23 @@ class SsaToGraphwiz():
 
         # construct new node
         top_str = '\<start\> ' if is_start else ''
-        body_rows = [f"<begin> {top_str:s}{bb.label:s}:"]
+        body_rows = [f"<begin> {top_str:s}{html.escape(bb.label):s}:"]
         for phi in bb.phis:
             phi: SsaPhi
             ops = ", ".join(
-                f"[{self._escape(o._name if isinstance(o, SsaInstr) else repr(o))}, {b.label:s}]"
+                f"[{html.escape(o._name if isinstance(o, SsaInstr) else repr(o))}, {b.label:s}]"
                 for (o, b) in phi.operands
             )
-            body_rows.append(f"{self._escape(phi._name)} = phi {self._escape(repr(phi._dtype))} {ops:s}\\l")
+            body_rows.append(f"{html.escape(phi._name)} = phi {html.escape(repr(phi._dtype))} {ops:s}\\l")
 
         for stm in bb.body:
-            body_rows.append(self._escape(repr(stm)) + "\\l")
+            body_rows.append(html.escape(repr(stm)) + "\\l")
 
         for i, (cond, dst_bb, _) in enumerate(bb.successors.targets):
             branch_label = f"br{i:d}"
             cond_str = "" if cond is None\
-                else self._escape(cond._name) if isinstance(cond, RtlSignal) else\
-                self._escape(cond._name) if isinstance(cond, SsaValue) and cond._name else self._escape(repr(cond))
+                else html.escape(cond._name) if isinstance(cond, RtlSignal) else\
+                html.escape(cond._name) if isinstance(cond, SsaValue) and cond._name else html.escape(repr(cond))
             body_rows.append(f"{{\\<{branch_label:s}\\> | <{branch_label:s}> {cond_str:s} }}")
             dst_node = self._node_from_SsaBasicBlock(dst_bb, False, edge_var_live)
             _src = f"{node.get_name():s}:{branch_label:s}"
@@ -109,10 +109,6 @@ class SsaToGraphwiz():
         buff.append('}"')
         node.set("label", "".join(buff)) 
         return node
-
-    @staticmethod
-    def _escape(s: str) -> str:
-        return s.replace("<", "\\<").replace(">", "\\>").replace("|", "\\|").replace('"', '\\"').replace("{", "\\{").replace("}", "\\}")
 
     def dumps(self):
         return self.graph.to_string()
