@@ -43,7 +43,7 @@ class HlsWrite(HlsStm, SsaInstr):
         #  because src can be more than just SsaValue/HValue instance
         self.operands = (src,)
         if isinstance(src, SsaValue):
-            #assert src.block is not None, (src, "Must not construct instruction with operands which are not in SSA")
+            # assert src.block is not None, (src, "Must not construct instruction with operands which are not in SSA")
             src.users.append(self)
         self.parent = parent
 
@@ -56,13 +56,18 @@ class HlsWrite(HlsStm, SsaInstr):
         return self.operands[0]
 
     @classmethod
-    def _translateMirToNetlist(cls, mirToNetlist:"HlsNetlistAnalysisPassMirToNetlist",
-                               mbSync: MachineBasicBlockSyncContainer,
-                               instr: MachineInstr,
-                               srcVal: HlsNetNodeOutAny,
-                               dstIo: Union[Interface, RtlSignal],
-                               index: Union[int, HlsNetNodeOutAny],
-                               cond: HlsNetNodeOutAny):
+    def _translateMirToNetlist(cls,
+            representativeWriteStm: "HlsWrite",
+            mirToNetlist:"HlsNetlistAnalysisPassMirToNetlist",
+            mbSync: MachineBasicBlockSyncContainer,
+            instr: MachineInstr,
+            srcVal: HlsNetNodeOutAny,
+            dstIo: Union[Interface, RtlSignal],
+            index: Union[int, HlsNetNodeOutAny],
+            cond: HlsNetNodeOutAny):
+        """
+        :see: :meth:`hwtHls.frontend.ast.statementsRead.HlsRead._translateMirToNetlist`
+        """
         netlist: HlsNetlistCtx = mirToNetlist.netlist
         # srcVal, dstIo, index, cond = ops
         assert isinstance(dstIo, (Interface, RtlSignal)), dstIo
@@ -90,7 +95,7 @@ class HlsWriteAddressed(HlsWrite):
         HlsWrite.__init__(self, parent, src, dst, element_t)
         self.operands = (src, index)
         if isinstance(index, SsaValue):
-            #assert index.block is not None, (index, "Must not construct instruction with operands which are not in SSA")
+            # assert index.block is not None, (index, "Must not construct instruction with operands which are not in SSA")
             index.users.append(self)
         # store original index for debugging
         self._origIndex = index
@@ -104,13 +109,18 @@ class HlsWriteAddressed(HlsWrite):
         return self.operands[1]
 
     @classmethod
-    def _translateMirToNetlist(cls, mirToNetlist:"HlsNetlistAnalysisPassMirToNetlist",
-                               mbSync: MachineBasicBlockSyncContainer,
-                               instr: MachineInstr,
-                               srcVal: HlsNetNodeOutAny,
-                               dstIo: Interface,
-                               index: Union[int, HlsNetNodeOutAny],
-                               cond: HlsNetNodeOutAny):
+    def _translateMirToNetlist(cls,
+            representativeWriteStm: "HlsWrite",
+            mirToNetlist:"HlsNetlistAnalysisPassMirToNetlist",
+            mbSync: MachineBasicBlockSyncContainer,
+            instr: MachineInstr,
+            srcVal: HlsNetNodeOutAny,
+            dstIo: Interface,
+            index: Union[int, HlsNetNodeOutAny],
+            cond: HlsNetNodeOutAny):
+        """
+        :see: :meth:`hwtHls.frontend.ast.statementsRead.HlsRead._translateMirToNetlist`
+        """
         netlist: HlsNetlistCtx = mirToNetlist.netlist
         # srcVal, dstIo, index, cond = ops
         assert isinstance(dstIo, Interface), dstIo

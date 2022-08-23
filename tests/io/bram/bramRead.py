@@ -40,8 +40,7 @@ class BramRead(Unit):
         
     def _impl(self) -> None:
         hls = HlsScope(self)
-        
-        ram = BramArrayProxy(hls, self.ram, self.ram.dout._dtype[int(2 ** self.ADDR_WIDTH)])
+        ram = BramArrayProxy(hls, self.ram)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, ram)
         # mainThread.bytecodeToSsa.debug = True
         hls.addThread(mainThread)
@@ -62,7 +61,7 @@ class BramReadWithRom(Unit):
             self.reader = BramRead()
 
     def _impl(self) -> None:
-        ITEMS = int(2**self.ADDR_WIDTH)
+        ITEMS = int(2 ** self.ADDR_WIDTH)
         rom = self._sig("rom", Bits(self.DATA_WIDTH)[ITEMS], [i + 1 for i in range(ITEMS)])
         r = self.reader
         self.dataOut(r.dataOut)

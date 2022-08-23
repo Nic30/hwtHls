@@ -117,7 +117,7 @@ class HlsScope():
             src: PyObjectHwSubscriptRef
             assert isinstance(src.sequence, IoProxyAddressed), src.sequence
             mem: IoProxyAddressed = src.sequence
-            return mem.READ_CLS(self, mem.interface, src.index, mem.nativeType.element_t)
+            return mem.READ_CLS(mem, self, mem.interface, src.index, mem.nativeType.element_t)
 
         else:
             raise NotImplementedError(src)    
@@ -145,7 +145,7 @@ class HlsScope():
             dst: PyObjectHwSubscriptRef
             mem: IoProxyAddressed = dst.sequence
             assert isinstance(mem, IoProxyAddressed), (dst, mem)
-            return mem.WRITE_CLS(self, src, mem.interface, dst.index, mem.nativeType.element_t)
+            return mem.WRITE_CLS(mem, self, src, mem.interface, dst.index, mem.nativeType.element_t)
         else:
             return HlsWrite(self, src, dst, dtype)
 

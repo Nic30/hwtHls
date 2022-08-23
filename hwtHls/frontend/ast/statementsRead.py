@@ -90,13 +90,29 @@ class HlsRead(HdlStatement, SignalOps, InterfaceBase, SsaInstr):
         return self._parent.ctx
 
     @classmethod
-    def _translateMirToNetlist(cls, mirToNetlist:"HlsNetlistAnalysisPassMirToNetlist",
+    def _translateMirToNetlist(cls,
+                               representativeReadStm: "HlsRead",
+                               mirToNetlist:"HlsNetlistAnalysisPassMirToNetlist",
                                mbSync: MachineBasicBlockSyncContainer,
                                instr: MachineInstr,
                                srcIo: Interface,
                                index: Union[int, HlsNetNodeOutAny],
                                cond: HlsNetNodeOutAny,
                                instrDstReg: Register):
+        """
+        This method is called to generated HlsNetlist nodes from LLVM MIR.
+        The purpose of this function is to make this translation customizable for specific :class:`hwt.synthesizer.interface.Interface` instances.
+        
+        :param representativeReadStm: Any found read for this interface before LLVM opt.
+            We can not find the original because optimization process may remove and generate new reads and exact mapping can not be found.
+            This may be used to find meta informations about interface.
+        :param mirToNetlist: Main object form LLVM MIR to HlsNetlist translation.
+        :param instr: LLVM MIR instruction which is being translated
+        :param srcIo: An interface used by this instruction.
+        :param index: An index to specify the address used in this read.
+        :param cond: An enable condition for this operation to happen.
+        :param instrDstReg: A register where this instruction stores the read data.
+        """
         valCache: MirToHwtHlsNetlistOpCache = mirToNetlist.valCache
         netlist: HlsNetlistCtx = mirToNetlist.netlist
         assert isinstance(srcIo, Interface), srcIo
@@ -108,10 +124,6 @@ class HlsRead(HdlStatement, SignalOps, InterfaceBase, SsaInstr):
         mbSync.addOrderedNode(n)
         mirToNetlist.inputs.append(n)
         valCache.add(mbSync.block, instrDstReg, n._outputs[0], True)
-
-        # else:
-        #    n = HlsNetNodeReadIndexed(netlist, srcIo)
-        #    link_hls_nodes(index, n.indexes[0])
 
     def __repr__(self):
         t = self._dtype
@@ -141,6 +153,9 @@ class HlsReadAddressed(HlsRead):
                                index: Union[int, HlsNetNodeOutAny],
                                cond: HlsNetNodeOutAny,
                                instrDstReg: Register):
+        """
+        :see: :meth:`~.HlsRead._translateMirToNetlist`
+        """
         valCache: MirToHwtHlsNetlistOpCache = mirToNetlist.valCache
         netlist: HlsNetlistCtx = mirToNetlist.netlist
         assert isinstance(srcIo, Interface), srcIo
@@ -169,7 +184,7 @@ class HlsStmReadStartOfFrame(HlsRead):
     """
     A statement which switches the reader FSM to start of frame state.
 
-    :attention: Does not read SOF flag from interface. (To get EOF you have to read data which contains also EOF flag.)
+    :attention: This does not read SOF flag from interface. (To get EOF you have to read data which contains also SOF flag.)
     """
 
     def __init__(self,
@@ -182,7 +197,7 @@ class HlsStmReadEndOfFrame(HlsRead):
     """
     A statement which switches the reader FSM to end of frame state.
 
-    :attention: Does not read EOF flag from interface. (To get SOF you have to read data which contains also SOF flag.)
+    :attention: Does not read EOF flag from interface. (To get SOF you have to read data which contains also EOF flag.)
     """
 
     def __init__(self,

@@ -128,6 +128,7 @@ class HlsNetNodeWriteCommandBram(HlsNetNodeWriteIndexed):
 class HlsReadBram(HlsReadAddressed):
 
     def __init__(self,
+                 parentProxy: "BramArrayProxy",
             parent:"HlsScope",
             src:Union[BramPort_withoutClk, Tuple[BramPort_withoutClk]], index:RtlSignal, element_t:HdlType):
         if isinstance(src, (list, deque)) or isgenerator(src):
@@ -139,16 +140,21 @@ class HlsReadBram(HlsReadAddressed):
             assert src.HAS_R
 
         HlsReadAddressed.__init__(self, parent, src, index, element_t)
+        self.parentProxy = parentProxy
 
     @classmethod
-    def _translateMirToNetlist(cls, mirToNetlist:HlsNetlistAnalysisPassMirToNetlist,
+    def _translateMirToNetlist(cls,
+            representativeReadStm: "HlsReadBram",
+            mirToNetlist:HlsNetlistAnalysisPassMirToNetlist,
             mbSync:MachineBasicBlockSyncContainer,
             instr:LoadInst,
             srcIo:Interface,
             index:Union[int, HlsNetNodeOutAny],
             cond:HlsNetNodeOutAny,
             instrDstReg:Register):
-    
+        """
+        :see: :meth:`hwtHls.frontend.ast.statementsRead.HlsRead._translateMirToNetlist`
+        """
         valCache: MirToHwtHlsNetlistOpCache = mirToNetlist.valCache
         netlist: HlsNetlistCtx = mirToNetlist.netlist
         assert isinstance(srcIo, BramPort_withoutClk), srcIo
@@ -168,6 +174,7 @@ class HlsReadBram(HlsReadAddressed):
 class HlsWriteBram(HlsWriteAddressed):
 
     def __init__(self,
+                 parentProxy: "BramArrayProxy",
             parent:"HlsScope",
             src:Union[SsaValue, RtlSignal, HValue],
             dst:Union[BramPort_withoutClk, Tuple[BramPort_withoutClk]],
@@ -182,16 +189,21 @@ class HlsWriteBram(HlsWriteAddressed):
             assert dst.HAS_W
 
         HlsWriteAddressed.__init__(self, parent, src, dst, index, element_t)
+        self.parentProxy = parentProxy
 
     @classmethod
-    def _translateMirToNetlist(cls, mirToNetlist:"HlsNetlistAnalysisPassMirToNetlist",
-                               mbSync: MachineBasicBlockSyncContainer,
-                               instr: MachineInstr,
-                               srcVal: HlsNetNodeOutAny,
-                               dstIo: Interface,
-                               index: Union[int, HlsNetNodeOutAny],
-                               cond: HlsNetNodeOutAny):
-    
+    def _translateMirToNetlist(cls,
+            representativeWriteStm: "HlsWrite",
+            mirToNetlist:"HlsNetlistAnalysisPassMirToNetlist",
+            mbSync: MachineBasicBlockSyncContainer,
+            instr: MachineInstr,
+            srcVal: HlsNetNodeOutAny,
+            dstIo: Interface,
+            index: Union[int, HlsNetNodeOutAny],
+            cond: HlsNetNodeOutAny):
+        """
+        :see: :meth:`hwtHls.frontend.ast.statementsRead.HlsRead._translateMirToNetlist`
+        """
         netlist: HlsNetlistCtx = mirToNetlist.netlist
         assert isinstance(dstIo, BramPort_withoutClk), dstIo
         if isinstance(index, int):
@@ -208,5 +220,19 @@ class HlsWriteBram(HlsWriteAddressed):
 
 
 class BramArrayProxy(IoProxyAddressed):
+
+    def __init__(self, hls:"HlsScope", interface:BramPort_withoutClk):
+        if interface.HAS_W:
+            if interface.HAS_BE:
+                raise NotImplementedError()
+            wordType = interface.din._dtype
+
+        else:
+            assert interface.HAS_R, ("Must have atleast one (read/write)", interface)
+            wordType = interface.dout._dtype
+        
+        nativeType = wordType[int(2 ** interface.ADDR_WIDTH)]
+        IoProxyAddressed.__init__(self, hls, interface, nativeType)
+
     READ_CLS = HlsReadBram
     WRITE_CLS = HlsWriteBram
