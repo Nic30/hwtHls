@@ -5,6 +5,8 @@ from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.defs import BIT, SLICE, INT
 from hwtHls.frontend.ast.astToSsa import NetlistIoConstructorDictT
+from hwtHls.frontend.ast.statementsRead import HlsRead
+from hwtHls.frontend.ast.statementsWrite import HlsWrite
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, MachineInstr, MachineOperand, CmpInst, TargetOpcode
 from hwtHls.netlist.analysis.dataThreads import HlsNetlistAnalysisPassDataThreads
 from hwtHls.netlist.builder import HlsNetlistBuilder
@@ -25,7 +27,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
     This object translates LLVM MIR to hwtHls HlsNetlist
     """
 
-    def _translateDatapathInBlocks(self, mf: MachineFunction, ioNodeConstructors: NetlistIoConstructorDictT):
+    def translateDatapathInBlocks(self, mf: MachineFunction, ioNodeConstructors: NetlistIoConstructorDictT):
         """
         Translate all non control instructions which are entirely in some block.
         (Excluding connections between blocks)
@@ -89,17 +91,17 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
 
                 elif opc == TargetOpcode.GENFPGA_CLOAD:
                     srcIo, index, cond = ops
-                    constructorFn = ioNodeConstructors[srcIo][0]
-                    if constructorFn is None:
+                    constructor: HlsRead = ioNodeConstructors[srcIo][0]
+                    if constructor is None:
                         raise AssertionError("The io without any read somehow requires read", srcIo, instr)
-                    constructorFn(self, mbSync, instr, srcIo, index, cond, dst)
+                    constructor._translateMirToNetlist(constructor, self, mbSync, instr, srcIo, index, cond, dst)
 
                 elif opc == TargetOpcode.GENFPGA_CSTORE:
                     srcVal, dstIo, index, cond = ops
-                    constructorFn = ioNodeConstructors[dstIo][1]
-                    if constructorFn is None:
+                    constructor: HlsWrite = ioNodeConstructors[dstIo][1]
+                    if constructor is None:
                         raise AssertionError("The io without any write somehow requires write", dstIo, instr)
-                    constructorFn(self, mbSync, instr, srcVal, dstIo, index, cond)
+                    constructor._translateMirToNetlist(constructor, self, mbSync, instr, srcVal, dstIo, index, cond)
 
                 elif opc == TargetOpcode.G_ICMP:
                     predicate, lhs, rhs = ops
@@ -125,6 +127,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                             index = SLICE.from_py(slice(offset + width, offset, -1))
                     else:
                         raise NotImplementedError()
+
                     res = builder.buildOp(AllOps.INDEX, Bits(width), src, index)
                     valCache.add(mb, dst, res, True)
 
@@ -140,7 +143,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                 else:
                     raise NotImplementedError(instr)
 
-    def _constructLiveInMuxes(self, mf: MachineFunction,
+    def constructLiveInMuxes(self, mf: MachineFunction,
                               backedges: Set[Tuple[MachineBasicBlock, MachineBasicBlock]],
                               liveness: Dict[MachineBasicBlock, Dict[MachineBasicBlock, Set[Register]]]) -> BlockLiveInMuxSyncDict:
         """
@@ -220,7 +223,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
 
         return blockLiveInMuxInputSync
 
-    def _updateThreadsOnPhiMuxes(self, threads: HlsNetlistAnalysisPassDataThreads):
+    def updateThreadsOnPhiMuxes(self, threads: HlsNetlistAnalysisPassDataThreads):
         """
         After we instantiated MUXes for liveIns we need to update threads as the are merged now.
         """

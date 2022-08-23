@@ -207,7 +207,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
             builder.registerOperatorNode(mux)
             alreadyUpdated.add(mux)
 
-    def _extractRstValues(self, mf: MachineFunction, threads: HlsNetlistAnalysisPassDataThreads):
+    def extractRstValues(self, mf: MachineFunction, threads: HlsNetlistAnalysisPassDataThreads):
         """
         Rewrite multiplexor cases for reset to an initialization of channels.
         """
@@ -331,9 +331,9 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
             
         return enFromPredccs
 
-    def _resolveLoopHeaders(self,
-                            mf: MachineFunction,
-                            blockLiveInMuxInputSync: BlockLiveInMuxSyncDict):
+    def resolveLoopHeaders(self,
+                           mf: MachineFunction,
+                           blockLiveInMuxInputSync: BlockLiveInMuxSyncDict):
         """
         Construct the loop control logic at the header of the loop.
         """
@@ -460,7 +460,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
 
         return anyPrevVld
 
-    def _resolveBlockEn(self, mf: MachineFunction,
+    def resolveBlockEn(self, mf: MachineFunction,
                         backedges: Set[Tuple[MachineBasicBlock, MachineBasicBlock]],
                         threads: HlsNetlistAnalysisPassDataThreads):
         """
@@ -515,6 +515,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
 
             assert mbSync.blockEn.replaced_by is blockEn or not mbSync.blockEn.dependent_inputs, (mbSync.blockEn, blockEn)
             mbSync.blockEn = blockEn
+
         self._injectVldMaskToSkipWhenConditions()
 
     def _injectVldMaskToExpr(self, out: HlsNetNodeOut) -> HlsNetNodeOut:
@@ -522,6 +523,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
         For channels which are read optionally we may have to mask incoming data if the data is used directly in this clock cycle
         to decide if some IO channel should be enabled.
         """
+        assert isinstance(out, HlsNetNodeOut), (out, "When this function is called every output should be already resolved")
         outObj = out.obj
         builder = self.builder
         if isinstance(outObj, HlsNetNodeReadSync):
@@ -588,9 +590,9 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                     if o is not _o:
                         self.builder.replaceInputDriver(n.skipWhen, _o)
 
-    def _connectOrderingPorts(self,
-                              mf: MachineFunction,
-                              backedges: Set[Tuple[MachineBasicBlock, MachineBasicBlock]]):
+    def connectOrderingPorts(self,
+                             mf: MachineFunction,
+                             backedges: Set[Tuple[MachineBasicBlock, MachineBasicBlock]]):
         """
         finalize ordering connections after all IO is instantiated
         """

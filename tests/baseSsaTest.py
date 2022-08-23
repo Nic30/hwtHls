@@ -57,22 +57,22 @@ class BaseTestPlatform(VirtualHlsPlatform):
     
         SsaPassDumpMIR(lambda name: (self.mir, False)).apply(hls, toSsa)
         
-        toNetlist._translateDatapathInBlocks(mf, toSsa.ioNodeConstructors)
-        blockLiveInMuxInputSync: BlockLiveInMuxSyncDict = toNetlist._constructLiveInMuxes(mf, backedges, liveness)
+        toNetlist.translateDatapathInBlocks(mf, toSsa.ioNodeConstructors)
+        blockLiveInMuxInputSync: BlockLiveInMuxSyncDict = toNetlist.constructLiveInMuxes(mf, backedges, liveness)
         # thread analysis must be done before we connect control, because once we do that
         # everything will blend together 
-        threads = toNetlist.netlist.getAnalysis(HlsNetlistAnalysisPassDataThreads)
-        toNetlist._updateThreadsOnPhiMuxes(threads)
+        threads = netlist.getAnalysis(HlsNetlistAnalysisPassDataThreads)
+        toNetlist.updateThreadsOnPhiMuxes(threads)
         HlsNetlistPassDumpDataThreads(lambda name: (self.dataThreads, False)).apply(hls, netlist)
 
-        toNetlist.netlist.getAnalysis(HlsNetlistAnalysisPassBlockSyncType)
+        netlist.getAnalysis(HlsNetlistAnalysisPassBlockSyncType)
         HlsNetlistPassDumpBlockSync(lambda name: (self.blockSync, False)).apply(hls, netlist)
 
-        toNetlist._extractRstValues(mf, threads)
-        toNetlist._resolveLoopHeaders(mf, blockLiveInMuxInputSync)
-        toNetlist._resolveBlockEn(mf, backedges, threads)
+        toNetlist.extractRstValues(mf, threads)
+        toNetlist.resolveLoopHeaders(mf, blockLiveInMuxInputSync)
+        toNetlist.resolveBlockEn(mf, backedges, threads)
         toNetlist.netlist.invalidateAnalysis(HlsNetlistAnalysisPassDataThreads)  # because we modified the netlist
-        toNetlist._connectOrderingPorts(mf, backedges)
+        toNetlist.connectOrderingPorts(mf, backedges)
         return netlist
 
     def runHlsNetlistPasses(self, hls:"HlsScope", netlist:HlsNetlistCtx):

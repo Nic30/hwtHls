@@ -5,6 +5,7 @@ from hwt.synthesizer.dummyPlatform import DummyPlatform
 from hwtHls.architecture.allocator import HlsAllocator
 from hwtHls.architecture.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis
 from hwtHls.architecture.transformation.controlLogicMinimize import RtlNetlistPassControlLogicMinimize
+from hwtHls.architecture.transformation.loopControlPrivatization import RtlArchPassLoopControlPrivatization
 from hwtHls.architecture.transformation.singleStagePipelineToFsm import RtlArchPassSingleStagePipelineToFsm
 from hwtHls.architecture.translation.dumpStreamNodes import RtlNetlistPassDumpStreamNodes
 from hwtHls.architecture.translation.toGraphwiz import RtlArchPassToGraphwiz
@@ -36,7 +37,6 @@ from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsN
 from hwtHls.ssa.translation.toGraphwiz import SsaPassDumpToDot
 from hwtHls.ssa.translation.toLl import SsaPassDumpToLl
 from hwtHls.ssa.translation.toLlvm import SsaPassToLlvm, ToLlvmIrTranslator
-from hwtHls.architecture.transformation.loopControlPrivatization import RtlArchPassLoopControlPrivatization
 
 
 class DefaultHlsPlatform(DummyPlatform):
@@ -95,30 +95,30 @@ class DefaultHlsPlatform(DummyPlatform):
             SsaPassDumpMIR(outputFileGetter(debugDir, ".5.mir.ll")).apply(hls, toSsa)
             SsaPassDumpMirCfg(outputFileGetter(debugDir, ".5.mirCfg.dot")).apply(hls, toSsa)
         
-        toNetlist._translateDatapathInBlocks(mf, toSsa.ioNodeConstructors)
-        blockLiveInMuxInputSync: BlockLiveInMuxSyncDict = toNetlist._constructLiveInMuxes(mf, backedges, liveness)
+        toNetlist.translateDatapathInBlocks(mf, toSsa.ioNodeConstructors)
+        blockLiveInMuxInputSync: BlockLiveInMuxSyncDict = toNetlist.constructLiveInMuxes(mf, backedges, liveness)
         # thread analysis must be done before we connect control, because once we do that
         # everything will blend together 
-        threads = toNetlist.netlist.getAnalysis(HlsNetlistAnalysisPassDataThreads)
-        toNetlist._updateThreadsOnPhiMuxes(threads)
+        threads = netlist.getAnalysis(HlsNetlistAnalysisPassDataThreads)
+        toNetlist.updateThreadsOnPhiMuxes(threads)
         if debugDir:
             HlsNetlistPassDumpDataThreads(outputFileGetter(debugDir, ".6.dthreads.txt")).apply(hls, netlist)
 
-        toNetlist.netlist.getAnalysis(HlsNetlistAnalysisPassBlockSyncType)
+        netlist.getAnalysis(HlsNetlistAnalysisPassBlockSyncType)
         if debugDir:
             HlsNetlistPassDumpBlockSync(outputFileGetter(debugDir, ".7.blockSync.dot")).apply(hls, netlist)
             HlsNetlistPassDumpToDot(outputFileGetter(debugDir, ".8.preSync.dot")).apply(hls, netlist)
 
-        toNetlist._extractRstValues(mf, threads)
+        toNetlist.extractRstValues(mf, threads)
         if debugDir:
             HlsNetlistPassDumpToDot(outputFileGetter(debugDir, ".8.postRst.dot")).apply(hls, netlist)
-        toNetlist._resolveLoopHeaders(mf, blockLiveInMuxInputSync)
+        toNetlist.resolveLoopHeaders(mf, blockLiveInMuxInputSync)
         if debugDir:
             HlsNetlistPassDumpToDot(outputFileGetter(debugDir, ".8.postLoop.dot")).apply(hls, netlist)
 
-        toNetlist._resolveBlockEn(mf, backedges, threads)
-        # toNetlist.netlist.invalidateAnalysis(HlsNetlistAnalysisPassDataThreads)  # because we modified the netlist
-        toNetlist._connectOrderingPorts(mf, backedges)
+        toNetlist.resolveBlockEn(mf, backedges, threads)
+        # netlist.invalidateAnalysis(HlsNetlistAnalysisPassDataThreads)  # because we modified the netlist
+        toNetlist.connectOrderingPorts(mf, backedges)
         if debugDir:
             HlsNetlistPassDumpBlockSync(outputFileGetter(debugDir, ".9.postSync.dot")).apply(hls, netlist)
 
