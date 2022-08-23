@@ -22,6 +22,9 @@ from hwtHls.netlist.scheduler.clk_math import start_of_next_clk_period, start_cl
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axi_intf_common import Axi_hs
+from ipCorePackager.constants import INTF_DIRECTION_asDirecton, \
+    DIRECTION_opposite
+
 
 IO_COMB_REALIZATION = OpRealizationMeta(outputWireDelay=epsilon)
 
@@ -238,18 +241,23 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
 
     def getRtlDataSig(self):
         src: Interface = self.src
+
         if isinstance(src, HsStructIntf):
             return src.data._reinterpret_cast(Bits(src.data._dtype.bit_length()))
-        elif isinstance(src, (Axi_hs)):
-            return packIntf(src, masterDirEqTo=src._masterDir, exclude=(src.valid, src.ready))
+        
+        if isinstance(src, Axi_hs):
+            exclude = (src.valid, src.ready)
         elif isinstance(src, (Handshaked, HandshakeSync)):
-            return packIntf(src, masterDirEqTo=src._masterDir, exclude=(src.vld, src.rd))
+            exclude = (src.vld, src.rd)
         elif isinstance(src, VldSynced):
-            return packIntf(src, masterDirEqTo=src._masterDir, exclude=(src.vld,))
+            exclude = (src.vld,)
         elif isinstance(src, RdSynced):
-            return packIntf(src, masterDirEqTo=src._masterDir, exclude=(src.rd,))
+            return packIntf(src, masterDirEqTo=DIRECTION_opposite[INTF_DIRECTION_asDirecton[src.rd._direction]], exclude=(src.rd,))
         else:
             return packIntf(src, masterDirEqTo=src._masterDir)
+
+        masterDirEqTo = INTF_DIRECTION_asDirecton[exclude[0]._direction]
+        return packIntf(src, masterDirEqTo=masterDirEqTo, exclude=exclude)
 
     def __repr__(self):
         return f"<{self.__class__.__name__:s} {self._id:d} {self.src}>"
@@ -309,7 +317,8 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
 
         self.operator = "write"
         self.src = src
-        assert not isinstance(src, (HlsNetNodeOut, HlsNetNodeOutLazy)), src
+        assert not isinstance(src, (HlsNetNodeOut, HlsNetNodeOutLazy)), (src, "src is used for temporary states where node is not entirely constructed,"
+                                                                         " the actual src is realized as _inputs[0]")
 
         indexCascade = None
         if isinstance(dst, RtlSignal):
