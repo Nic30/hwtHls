@@ -458,7 +458,7 @@ class HlsNetNodePartRef(HlsNetNode):
     """
     Abstract class for references of :class:`~.HlsNetNode` parts.
 
-    :note: The reason for this class is that we need to split nodes during analysis passes when we can not modify the nodes.
+    :note: The reason for this class is that we need to split nodes during analysis passes when we can not modify nodes.
     """
 
     def __init__(self, netlist:"HlsNetlistCtx", parentNode: HlsNetNode, name:str=None):
