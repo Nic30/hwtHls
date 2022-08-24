@@ -15,6 +15,7 @@ from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
+from hwtHls.netlist.nodes.delay import HlsNetNodeDelayClkTick
 from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict, TimeSpec
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
     link_hls_nodes, HlsNetNodeOutLazy, HlsNetNodeOutAny
@@ -192,13 +193,13 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
         if searchFromSrcToDst:
             for orderingIn in self.iterOrderingInputs():
                 dep = self.dependsOn[orderingIn.in_i]
-                assert isinstance(dep.obj, HlsNetNodeExplicitSync), ("ordering dependencies should be just between IO nodes", orderingIn, dep, self)
+                assert isinstance(dep.obj, (HlsNetNodeExplicitSync, HlsNetNodeDelayClkTick)), ("ordering dependencies should be just between IO nodes and delays", orderingIn, dep, self)
                 if start_clk(dep.obj.scheduledOut[dep.out_i], clkPeriod) == thisClkI:
                     ioCnt = max(ioCnt, dep.obj._getNumberOfIoInThisClkPeriod(intf, True))
         else:
             orderingOut = self.getOrderingOutPort()
             for dep in self.usedBy[orderingOut.out_i]:
-                assert isinstance(dep.obj, HlsNetNodeExplicitSync), ("ordering dependencies should be just between IO nodes", dep, self)
+                assert isinstance(dep.obj, (HlsNetNodeExplicitSync, HlsNetNodeDelayClkTick)), ("ordering dependencies should be just between IO nodes and delays", dep, self)
                 if start_clk(dep.obj.scheduledIn[dep.in_i], clkPeriod) == thisClkI:
                     ioCnt = max(ioCnt, dep.obj._getNumberOfIoInThisClkPeriod(intf, False))
 

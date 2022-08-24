@@ -16,7 +16,8 @@ from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage, \
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, \
     TimeIndependentRtlResourceItem, INVARIANT_TIME
 from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
-from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeExplicitSync, \
+    HOrderingVoidT
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.scheduler.clk_math import start_clk
@@ -64,7 +65,9 @@ class ArchElement():
     def _afterNodeInstantiated(self, n: HlsNetNode, rtl: Optional[TimeIndependentRtlResource]):
         pass
 
-    def _afterOutputUsed(self, o: HlsNetNode):
+    def _afterOutputUsed(self, o: HlsNetNodeOut):
+        if o._dtype is HOrderingVoidT:
+            return
         clkPeriod = self.netlist.normalizedClkPeriod
         epsilon = self.netlist.scheduler.epsilon
         depRtl = self.netNodeToRtl.get(o, None)

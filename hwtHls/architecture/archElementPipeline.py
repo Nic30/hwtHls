@@ -17,7 +17,8 @@ from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage, resolveSt
 from hwtHls.architecture.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, INVARIANT_TIME
 from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
-from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
+from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite,\
+    HOrderingVoidT
 from hwtHls.netlist.nodes.node import HlsNetNode
 
 
@@ -47,7 +48,7 @@ class ArchElementPipeline(ArchElement):
 
     def _afterNodeInstantiated(self, n: HlsNetNode, rtl: Optional[TimeIndependentRtlResource]):
         if rtl is None or not isinstance(rtl, TimeIndependentRtlResource):
-            cons = (self.netNodeToRtl[o] for o in n._outputs if o in self.netNodeToRtl)
+            cons = (self.netNodeToRtl[o] for o in n._outputs if o in self.netNodeToRtl if o._dtype is not HOrderingVoidT)
         else:
             cons = (rtl,)
 
