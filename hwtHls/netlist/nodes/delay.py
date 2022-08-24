@@ -1,6 +1,7 @@
 from hwt.hdl.types.hdlType import HdlType
 from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
+from hwt.synthesizer.interface import Interface
 
 
 class HlsNetNodeDelayClkTick(HlsNetNode):
@@ -15,12 +16,16 @@ class HlsNetNodeDelayClkTick(HlsNetNode):
 
     def __init__(self, netlist:"HlsNetlistCtx", clkCnt: int, dtype: HdlType, name:str=None):
         HlsNetNode.__init__(self, netlist, name=name)
+        assert clkCnt > 0, clkCnt 
         self._clkCnt = clkCnt
         self._addInput(None)
         self._addOutput(dtype, None)
 
+    def _getNumberOfIoInThisClkPeriod(self, intf: Interface, searchFromSrcToDst: bool) -> int:
+        return 0
+        
     def resolve_realization(self):
-        return OpRealizationMeta((0,), (0,), (0,), (self._clkCnt,))
+        self.assignRealization(OpRealizationMeta((0,), (0,), (0,), (self._clkCnt,)))
 
     def scheduleAlapCompaction(self, asapSchedule:SchedulizationDict):
         return HlsNetNode.scheduleAlapCompactionMultiClock(self, asapSchedule)
