@@ -279,6 +279,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
         # construct CFG flags
         enFromPredccs = []
         brCond = None
+
         for pred in mb.predecessors():
             pred: MachineBasicBlock
             fromPredBrCond = None  # condition which controls if the control moves to mb block
@@ -328,7 +329,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                 brCond = self._translateIntBit(1)
                 valCache.add(mb, pred, brCond, False)
                 brCond = None
-            
+
         return enFromPredccs
 
     def resolveLoopHeaders(self,
@@ -498,7 +499,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                 blockEn = 1
 
             if isinstance(blockEn, int) and blockEn == 1:
-                for i in mbSync.blockEn.dependent_inputs:
+                for i in tuple(mbSync.blockEn.dependent_inputs):
                     i: HlsNetNodeIn
                     if isinstance(i, HlsNetNodeIn):
                         self._replaceInputDriverWithConst1b(i, threads)
