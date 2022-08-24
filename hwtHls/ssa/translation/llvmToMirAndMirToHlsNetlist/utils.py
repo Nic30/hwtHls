@@ -2,12 +2,14 @@ from typing import Union, Optional, List, Tuple, Set
 
 from hwtHls.llvm.llvmIr import MachineBasicBlock, MachineLoop, Register
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, \
-    HlsNetNodeExplicitSync
+    HlsNetNodeExplicitSync, HOrderingVoidT
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes, \
     HlsNetNodeOutLazy
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.opCache import MirToHwtHlsNetlistOpCache
 from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
     HlsNetNodeWriteControlBackwardEdge
+from hwtHls.netlist.nodes.delay import HlsNetNodeDelayClkTick
+from hwtHls.netlist.context import HlsNetlistCtx
 
 
 class MachineBasicBlockSyncContainer():
@@ -45,15 +47,15 @@ class MachineBasicBlockSyncContainer():
         self.orderingIn = orderingIn
         self.orderingOut = orderingIn
         self.backedgeBuffers: List[Tuple[Register, MachineBasicBlock, HlsNetNodeReadBackwardEdge]] = []
-        #self.uselessOrderingFrom: Set[MachineBasicBlock] = set() 
+        # self.uselessOrderingFrom: Set[MachineBasicBlock] = set() 
         # self.uselessControlBackedgesFrom: Set[MachineBasicBlock] = set() 
 
     def addOrderedNodeForControlWrite(self, n: HlsNetNodeWriteControlBackwardEdge, dstBlokSync: "MachineBasicBlockSyncContainer"):
-        #if self.block in dstBlokSync.uselessOrderingFrom:
+        # if self.block in dstBlokSync.uselessOrderingFrom:
         #    i = n._addInput("orderingIn")
         #    link_hls_nodes(n.associated_read.getOrderingOutPort(), i)
         #    self.orderingOut = n.getOrderingOutPort()
-        #else:
+        # else:
         self.addOrderedNode(n)
 
     def addOrderedNode(self, n: Union[HlsNetNodeRead, HlsNetNodeWrite], atEnd=True):
@@ -68,6 +70,19 @@ class MachineBasicBlockSyncContainer():
             curI.replaceDriverObj(n.getOrderingOutPort())
             self.orderingIn = i
 
+    def addOrderingDelay(self, clkTicks: int):
+        oo = self.orderingOut
+        assert oo is not None
+        if isinstance(oo, HlsNetNodeOutLazy):
+            netlist: HlsNetlistCtx = oo.netlist
+        else:
+            netlist: HlsNetlistCtx = oo.obj.netlist
+
+        n = HlsNetNodeDelayClkTick(netlist, clkTicks, HOrderingVoidT)
+        netlist.nodes.append(n)
+        link_hls_nodes(oo, n._inputs[0])
+        self.orderingOut = n._outputs[0]
+        
     def __repr__(self):
         return (f"<{self.__class__.__name__} block={self.block.getName().str():s},"
                 f"{' needsStarter,' if self.needsStarter else ''}"
