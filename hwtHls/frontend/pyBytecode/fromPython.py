@@ -235,6 +235,7 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
         blockTracker = frame.blockTracker
         assert loopInfo.jumpsFromLoopBody, ("Preproc loop must have exit point", loopInfo.loop, frame.loopStack)
         loopExitsToTranslate = []
+        headerBlockLabels = []
         while loopInfo.jumpsFromLoopBody:
             # print("preprocessing loop", loopInfo.loop, loopInfo.jumpsFromLoopBody)
             assert frame.loopStack[-1] is loopInfo, (loopInfo, frame.loopStack)
@@ -259,9 +260,8 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
             _jumpsFromLoopBody.sort(key=lambda x: not x[0])
 
             headerBlockLabel = blockTracker._getBlockLabel(loopInfo.loop.entryPoint[-1])
-            if headerBlockLabel not in blockTracker.generated:
-                self._onBlockGenerated(frame, headerBlockLabel)
-            
+            headerBlockLabels.append(headerBlockLabel)
+
             loopInfo.markNewIteration()
             
             successorsToTranslate: List[Tuple[bool, LoopExitJumpInfo]] = []
@@ -317,7 +317,13 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
                     assert sucInfo.frame.loopStack[-1] is loopInfo, (loopInfo, sucInfo.frame.loopStack)
                 else:
                     loopExitsToTranslate.append(sucInfo)
-            
+
+        for headerBlockLabel in headerBlockLabels:
+            # we must do this after loop is fully expanded
+            # because we must not seal block where something in loop may be predecessor when the loop body does not exist yet
+            if headerBlockLabel not in blockTracker.generated:
+                self._onBlockGenerated(frame, headerBlockLabel)
+               
         if len(loopExitsToTranslate) > 1:
             assert len(set(id(j.frame) for j in loopExitsToTranslate)) == len(loopExitsToTranslate), (
                 "Each jump must have own version of frame because multiple jumps could be only generated for HW evaluated jumps which do require copy of frame"
