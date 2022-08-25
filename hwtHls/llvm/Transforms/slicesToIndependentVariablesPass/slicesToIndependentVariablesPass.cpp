@@ -313,6 +313,7 @@ bool splitOnSplitPoints(
 		}
 	}
 	for (auto *I : toRemove) {
+		I->replaceAllUsesWith(UndefValue::get(I->getType()));
 		I->eraseFromParent();
 	}
 	return Changed;
