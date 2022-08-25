@@ -1,8 +1,8 @@
-from typing import Set, List, Union
+from typing import Set, List, Union, Dict
 
 from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
-from hwtHls.llvm.llvmIr import MachineBasicBlock, MachineLoopInfo, MachineLoop
+from hwtHls.llvm.llvmIr import MachineBasicBlock, MachineLoopInfo, MachineLoop, MachineInstr, Register, TargetOpcode
 from hwtHls.netlist.analysis.dataThreads import HlsNetlistAnalysisPassDataThreads
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeRead
@@ -131,7 +131,7 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                     if sucThreads > 1:
                         mbSync.needsControl = True
 
-            #if mbSync.needsControl and not mbSync.uselessOrderingFrom:
+            # if mbSync.needsControl and not mbSync.uselessOrderingFrom:
             #    loopHasOnly1Thread = True
             #    onlyDataThread = None
             #    for _mb in loop.getBlocks():
@@ -169,10 +169,57 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                       (mb.succ_size() == 0 or
                        any(loops.getLoopFor(suc) is None for suc in mb.successors()))):
                 needsControl = True
+            elif self._isPredecessorOfBlocksWithPotentiallyConcurrentIoAccess(mb):
+                needsControl = True
+            
             mbSync.needsControl = needsControl
 
         if not needsControlOld and mbSync.needsControl:
             self._onBlockNeedsControl(mb)
+
+    def _getPotentiallyConcurrentIoAccessFromSuccessors(self, mb: MachineBasicBlock):
+        backedges = self.backedges
+        accesses: Dict[Register, Set[MachineInstr]] = {}
+        for suc in mb.successors():
+            suc: MachineBasicBlock
+            if (mb, suc) in backedges:
+                # skip because on this edge there will be some sort of synchronization naturally
+                # we do not have to mark it explicitly
+                continue
+
+            sucAccesses = self._getPotentiallyConcurrentIoAccess(suc)
+            for reg, accessSet in sucAccesses.items():
+                accs = accesses.get(reg, None)
+                if accs is None:
+                    accesses[reg] = accs = set()
+                accs.update(accessSet)
+
+        return accesses
+    
+    def _getPotentiallyConcurrentIoAccess(self, mb: MachineBasicBlock):
+        """
+        :note: Potentially concurrent accesses are those which are to same interface and are in different code branches which may execute concurrently.
+        """
+        accesses = self.successorIOParalelism.get(mb, None)
+        if accesses is not None:
+            return accesses
+
+        accesses = self._getPotentiallyConcurrentIoAccessFromSuccessors(mb)
+        for instr in mb:
+            instr: MachineInstr
+            opc = instr.getOpcode()
+            if opc not in (TargetOpcode.GENFPGA_CLOAD, TargetOpcode.GENFPGA_CSTORE):
+                continue
+
+            io = instr.getOperand(1).getReg()
+            # overwrite because now there is a single load/store and all successors load/stores are ordered after it
+            accesses[io] = {instr, }
+
+        return accesses
+
+    def _isPredecessorOfBlocksWithPotentiallyConcurrentIoAccess(self, mb: MachineBasicBlock):
+        accesses = self._getPotentiallyConcurrentIoAccessFromSuccessors(mb)
+        return any(len(accessList) > 1 for accessList in accesses.values())
 
     def _onBlockNeedsControl(self, mb: SsaBasicBlock):
         for pred in mb.predecessors():
@@ -189,7 +236,7 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
             if not mbSync.needsControl:
                 mbSync.needsControl = True
                 self._onBlockNeedsControl(suc)
-
+    
     def run(self):
         from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
         originalMir: HlsNetlistAnalysisPassMirToNetlist = self.netlist.getAnalysis(HlsNetlistAnalysisPassMirToNetlist)
@@ -197,6 +244,8 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
         self.threadsPerBlock = threads.threadsPerBlock
         self.blockSync = originalMir.blockSync
         self.loops: MachineLoopInfo = originalMir.loops
+        self.backedges = originalMir.backedges
+        self.successorIOParalelism: Dict[MachineBasicBlock, Dict[Register, Set[MachineInstr]]] = {}
 
         for mb in originalMir.mf:
             mb: MachineBasicBlock

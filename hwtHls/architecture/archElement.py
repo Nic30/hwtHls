@@ -235,6 +235,7 @@ class ArchElement():
                     ioMuxes: Dict[Interface, Tuple[Union[HlsNetNodeRead, HlsNetNodeWrite], List[HdlStatement]]],
                     ioSeen: UniqList[Interface],
                     rtl: List[HdlStatement]):
+        assert rtl is not None
         ioSeen.append(intf)
         ioMuxes.setdefault(intf, []).append((node, rtl))
 
@@ -253,6 +254,9 @@ class ArchElement():
             if len(muxCases) == 1:
                 if isinstance(muxCases[0][0], HlsNetNodeWrite):
                     yield muxCases[0][1]
+                else:
+                    assert isinstance(muxCases[0][0], HlsNetNodeRead), muxCases
+                    # no MUX needed and we already merged the synchronization
             else:
                 if isinstance(muxCases[0][0], HlsNetNodeWrite):
                     # create a write MUX
@@ -269,7 +273,7 @@ class ArchElement():
                                 caseCond = _caseCond
                             else:
                                 caseCond = caseCond & _caseCond
-
+                        assert caseCond is not None, ("Because write object do not have any condition it is not possible to resolve which value should be MUXed to output interface", muxCases[0][0].dst)
                         rtlMuxCases.append((caseCond, stms))
                     stms = rtlMuxCases[0][1]
                     if isinstance(stms, HdlAssignmentContainer):
