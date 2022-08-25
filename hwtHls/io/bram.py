@@ -1,7 +1,7 @@
 
 from collections import deque
 from inspect import isgenerator
-from typing import Union, Literal, List, Tuple
+from typing import Union, Literal, List, Tuple, Optional
 
 from hwt.hdl.constants import WRITE, READ
 from hwt.hdl.statements.statement import HdlStatement
@@ -21,9 +21,9 @@ from hwtHls.llvm.llvmIr import MachineInstr
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.io import HlsNetNodeWriteIndexed, HOrderingVoidT
-from hwtHls.netlist.nodes.node import SchedulizationDict
+from hwtHls.netlist.nodes.node import SchedulizationDict, HlsNetNodePartRef
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes, \
-    HlsNetNodeOut
+    HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.scheduler.clk_math import epsilon
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
@@ -32,13 +32,14 @@ from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasi
 from hwtHls.ssa.value import SsaValue
 
 
-class HlsNetNodeWriteCommandBram(HlsNetNodeWriteIndexed):
+class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
     """
-    A netlist node which is used to represent write of read or write command to BRAM port.
+    A netlist node which is used to represent read or write command to/from BRAM port.
     """
 
     def __init__(self, netlist:"HlsNetlistCtx", dst:BramPort_withoutClk, cmd: Union[Literal[READ], Literal[WRITE]]):
         HlsNetNodeWriteIndexed.__init__(self, netlist, NOT_SPECIFIED, dst, addOrderingOut=False)
+        assert cmd is READ or cmd is WRITE, cmd
         self.cmd = cmd
         en = dst.en
         if en._sig._nop_val is NOT_SPECIFIED:
@@ -62,6 +63,8 @@ class HlsNetNodeWriteCommandBram(HlsNetNodeWriteIndexed):
         elif cmd == WRITE:
             assert dst.HAS_W, dst
 
+        self._fragments = []
+        
     def getOrderingOutPort(self) -> HlsNetNodeOut:
         if self.dst.HAS_R:
             oo = self._outputs[1]
@@ -88,41 +91,95 @@ class HlsNetNodeWriteCommandBram(HlsNetNodeWriteIndexed):
         """
         Instantiate write operation on RTL level
         """
-        assert len(self.dependsOn) >= 2, self.dependsOn
-        # [0] - data, [1] - addr, [2:] control dependencies
-        for sync, t in zip(self.dependsOn[1:], self.scheduledIn[1:]):
-            # prepare sync inputs but do not connect it because we do not implement synchronization
-            # in this step we are building only datapath
-            if sync._dtype != HOrderingVoidT:
-                allocator.instantiateHlsNetNodeOutInTime(sync, t)
+        if True:
+        # if self._fragments:
+        #    # Parts should be used for allocation instead of this node.
+        #    
+        #    assert len(self._fragments) == 2, self._fragments
+        #    for part in self._fragments:
+        #        if part in allocator.allNodes:
+        #            part.allocateRtlInstance(allocator)
+        # else:
+            assert len(self.dependsOn) >= 2, self.dependsOn
+            # [0] - data, [1] - addr, [2:] control dependencies
+            for sync, t in zip(self.dependsOn[1:], self.scheduledIn[1:]):
+                # prepare sync inputs but do not connect it because we do not implement synchronization
+                # in this step we are building only datapath
+                if sync._dtype != HOrderingVoidT:
+                    allocator.instantiateHlsNetNodeOutInTime(sync, t)
+    
+            ram: BramPort_withoutClk = self.dst
+            wData = self.dependsOn[0]
+            addr = self.dependsOn[1]
+            key = (ram, addr, wData)
+            try:
+                # skip instantiation of writes in the same mux
+                return allocator.netNodeToRtl[key]
+            except KeyError:
+                pass
+            _wData = allocator.instantiateHlsNetNodeOutInTime(wData, self.scheduledIn[0])
+            _addr = allocator.instantiateHlsNetNodeOutInTime(addr, self.scheduledIn[1])
+    
+            rtlObj = []
+            rtlObj.append(ram.addr(_addr.data))
+            if ram.HAS_W:
+                if ram.HAS_BE:
+                    raise NotImplementedError()
+                rtlObj.append(ram.din(_wData.data))
+                we = getattr(ram, "we", None)
+                if we is not None:
+                    rtlObj.append(ram.we(0 if self.cmd is READ else 1))
+                
+            allocator.netNodeToRtl[key] = rtlObj
+            if ram.HAS_R:
+                allocator.netNodeToRtl[self._outputs[0]] = TimeIndependentRtlResource(ram.dout, self.scheduledOut[0], allocator)
+    
+            return rtlObj
 
-        ram: BramPort_withoutClk = self.dst
-        wData = self.dependsOn[0]
-        addr = self.dependsOn[1]
-        key = (ram, addr, wData)
-        try:
-            # skip instantiation of writes in the same mux
-            return allocator.netNodeToRtl[key]
-        except KeyError:
-            pass
-        _wData = allocator.instantiateHlsNetNodeOutInTime(wData, self.scheduledIn[0])
-        _addr = allocator.instantiateHlsNetNodeOutInTime(addr, self.scheduledIn[1])
+    def createSubNodeRefrenceFromPorts(self, beginTime: int, endTime: int,
+                                       inputs: List[HlsNetNodeIn], outputs: List[HlsNetNodeOut]) -> Optional['HlsNetNodeWriteBramCmdPartRef']:
+        """
+        :see: :meth:`~.HlsNetNode.partsComplement`
+        """
+        assert inputs or outputs, self
+        cmdTime = self.scheduledIn[0] 
+        
+        if beginTime <= cmdTime and cmdTime <= endTime:
+            isDataReadPart = False
+        else:
+            dataReadTime = self.scheduledOut[0] 
+            if beginTime <= dataReadTime and dataReadTime <= endTime:
+                isDataReadPart = True
+            else:
+                return None
 
-        rtlObj = []
-        rtlObj.append(ram.addr(_addr.data))
-        if ram.HAS_W:
-            if ram.HAS_BE:
-                raise NotImplementedError()
-            rtlObj.append(ram.din(_wData.data))
-            we = getattr(ram, "we", None)
-            if we is not None:
-                rtlObj.append(ram.we(0))
-            
-        allocator.netNodeToRtl[key] = rtlObj
-        if ram.HAS_R:
-            allocator.netNodeToRtl[self._outputs[0]] = TimeIndependentRtlResource(ram.dout, self.scheduledOut[0], allocator)
+        p = HlsNetNodeWriteBramCmdPartRef(self.netlist, self, isDataReadPart)
+        self._fragments.append(p)
+        return  p
 
-        return rtlObj
+    def partsComplement(self, otherParts: List["HlsNetNodeWriteBramCmdPartRef"]):
+        """
+        :see: :meth:`~.HlsNetNode.partsComplement`
+        """
+        partCnt = len(otherParts)
+        assert partCnt <= 2, otherParts
+        assert partCnt > 0, otherParts
+        if partCnt == 2:
+            return
+        else:
+            p: HlsNetNodeWriteBramCmdPartRef = otherParts[0]
+            assert p.parentNode is self, (self, p)
+            yield HlsNetNodeWriteBramCmdPartRef(self.netlist, self, not p.isDataReadPart)
+
+
+class HlsNetNodeWriteBramCmdPartRef(HlsNetNodePartRef):
+
+    def __init__(self, netlist:"HlsNetlistCtx", parentNode:HlsNetNodeWriteBramCmd, isDataReadPart: bool, name:str=None):
+        HlsNetNodePartRef.__init__(self, netlist, parentNode, name=name)
+        self.isDataReadPart = isDataReadPart
+
+    def __repr__(self):
+        return f"<{self.__class__.__name__:s} {self._id:d} for {'data' if self.isDataReadPart else 'cmd'} {self.parentNode}>"
 
 
 class HlsReadBram(HlsReadAddressed):
@@ -161,7 +218,7 @@ class HlsReadBram(HlsReadAddressed):
         if isinstance(index, int):
             raise AssertionError("If the index is constant it should be an output of a constant node but it is an integer", srcIo, instr)
 
-        n = HlsNetNodeWriteCommandBram(netlist, srcIo, READ)
+        n = HlsNetNodeWriteBramCmd(netlist, srcIo, READ)
         link_hls_nodes(index, n.indexes[0])
 
         mirToNetlist._addExtraCond(n, cond, mbSync.blockEn)
@@ -209,7 +266,7 @@ class HlsWriteBram(HlsWriteAddressed):
         if isinstance(index, int):
             raise AssertionError("If the index is constant it should be an output of a constant node but it is an integer", dstIo, instr)
 
-        n = HlsNetNodeWriteCommandBram(netlist, dstIo, WRITE)
+        n = HlsNetNodeWriteBramCmd(netlist, dstIo, WRITE)
         link_hls_nodes(srcVal, n._inputs[0])
         link_hls_nodes(index, n.indexes[0])
 
@@ -221,17 +278,21 @@ class HlsWriteBram(HlsWriteAddressed):
 
 class BramArrayProxy(IoProxyAddressed):
 
-    def __init__(self, hls:"HlsScope", interface:BramPort_withoutClk):
-        if interface.HAS_W:
-            if interface.HAS_BE:
+    def __init__(self, hls:"HlsScope", interface:Union[BramPort_withoutClk, Tuple[BramPort_withoutClk]]):
+        if isinstance(interface, tuple):
+            i = interface[0]
+        else:
+            i = interface
+        if i.HAS_W:
+            if i.HAS_BE:
                 raise NotImplementedError()
-            wordType = interface.din._dtype
+            wordType = i.din._dtype
 
         else:
-            assert interface.HAS_R, ("Must have atleast one (read/write)", interface)
-            wordType = interface.dout._dtype
+            assert i.HAS_R, ("Must have atleast one (read/write)", interface)
+            wordType = i.dout._dtype
         
-        nativeType = wordType[int(2 ** interface.ADDR_WIDTH)]
+        nativeType = wordType[int(2 ** i.ADDR_WIDTH)]
         IoProxyAddressed.__init__(self, hls, interface, nativeType)
 
     READ_CLS = HlsReadBram

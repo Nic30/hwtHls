@@ -100,6 +100,11 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
                     # inClkOutputs = [o for t, o in zip(node.scheduledOut, node._outputs) if start_clk(t, clkPeriod) == clkI]
                     nodePart = node.createSubNodeRefrenceFromPorts(clkI * clkPeriod, (clkI + 1) * clkPeriod,
                         node._inputs, node._outputs)
+                    if nodePart is None:
+                        # due to internal structure of node there can be the case where we selected nothing
+                        # because original node has only some delay at selected time
+                        continue
+
                     stateNodeList = fsm.states[fsm.clkIToStateI[clkI]]
                     self._appendNodeToState(clkI, nodePart, stateNodeList)
             else:
@@ -112,11 +117,12 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
         clkPeriod: int = self.netlist.normalizedClkPeriod
         # add nodes to st while asserting that it is from correct time
         if isinstance(n, HlsNetNodePartRef):
-            for i in n._subNodes.inputs:
-                for use in i.obj.usedBy[i.out_i]:
-                    if use.obj in n._subNodes.nodes:
-                        assert (use.obj.scheduledIn[use.in_i] // clkPeriod) == clkI, (n, use)
- 
+            if n._subNodes:
+                for i in n._subNodes.inputs:
+                    for use in i.obj.usedBy[i.out_i]:
+                        if use.obj in n._subNodes.nodes:
+                            assert (use.obj.scheduledIn[use.in_i] // clkPeriod) == clkI, (n, use)
+     
         else:
             for t in n.scheduledIn:
                 assert start_clk(t, clkPeriod) == clkI, n
@@ -199,7 +205,7 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
                 if stCnt > 1:
                     # initialize with tansition table with always jump to next state sequentially
                     for i in range(stCnt):
-                        fsm.transitionTable[i] = {(i + 1) % stCnt: 1} # {next st: cond}
+                        fsm.transitionTable[i] = {(i + 1) % stCnt: 1}  # {next st: cond}
 
                     # for i in range(stCnt - 1):
                     #    fsm.transitionTable[i] = {(i + 1): 1}

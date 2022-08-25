@@ -471,4 +471,5 @@ class HlsNetNodePartRef(HlsNetNode):
         self.usedBy = None
         self.scheduledIn = None
         self.scheduledOut = None
+        self._subNodes: Optional["HlsNetlistClusterSearch"] = None
 

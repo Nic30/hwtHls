@@ -29,7 +29,6 @@ class InterArchElementNodeSharingAnalysis():
     :ivar multiOwnerNodes: a list of nodes which are owned by multiple :class:`hwtHls.architecture.archElement.ArchElement` instances
     :ivar ownerOfNode: a dictionary mapping node to list of :class:`hwtHls.architecture.archElement.ArchElement`
         instance
-    :ivar partsOfNode: dictionary mapping the node to its parts in individual architecture elements
     :note: if node has multiple owners the owners are using only :class:`hwtHls.netlist.nodes.node.HlsNetNodePartRef` instances and ownerOfNode is also using only parts
         However the port itself does use original node.
     :ivar ownerOfInput: a dictionary mapping node input to list of :class:`hwtHls.architecture.archElement.ArchElement`
@@ -50,7 +49,6 @@ class InterArchElementNodeSharingAnalysis():
         self.interElemConnections: UniqList[Tuple[HlsNetNodeOut, HlsNetNodeIn]] = UniqList()
         self.multiOwnerNodes: UniqList[HlsNetNode] = UniqList()
         self.ownerOfNode: Dict[HlsNetNode, ArchElement] = {}
-        self.partsOfNode: Dict[HlsNetNode, List[HlsNetNodePartRef]] = {}
         self.ownerOfInput: Dict[HlsNetNodeIn, UniqList[ArchElement]] = {}
         self.ownerOfOutput: Dict[HlsNetNodeOut, ArchElement] = {}
         self.explicitPathSpec: Dict[Tuple[HlsNetNodeOut, HlsNetNodeIn, ArchElement], ValuePathSpecItem] = {}
@@ -148,7 +146,6 @@ class InterArchElementNodeSharingAnalysis():
                     n: HlsNetNodePartRef
                     for e in archElements:
                         assert n.parentNode not in e.allNodes, ("If node is fragmented only parts should be used", n, e)
-                    self.partsOfNode.setdefault(n.parentNode, []).append(n)
                     self.multiOwnerNodes.append(n.parentNode)
 
                     # for extOut in n._subNodes.inputs:
@@ -157,29 +154,30 @@ class InterArchElementNodeSharingAnalysis():
                     #        self.ownerOfInput[i] = dstElm
                     # parentNodeInPortMap = {intern:outer for intern, outer in zip(n.parentNode._subNodes.inputs, n.parentNode._inputs)}
                     # parentNodeOutPortMap = {intern:outer for intern, outer in zip(n.parentNode._subNodes.outputs, n.parentNode._outputs)}
-                    for subNode in n._subNodes.nodes:
-                        for i in subNode._inputs:
-                            assert i not in self.ownerOfInput
-                            self.ownerOfInput[i] = UniqList((dstElm,))
-                            # for outer inputs of original cluster node we must check oter uses because the owner could be multiple elements
-                            # because input could be used in multiple parts
-                            outerIn = n.parentNode.outerOutToIn.get(subNode.dependsOn[i.in_i], None)
-                            if outerIn is not None:
-                                curOwner = self.ownerOfInput.get(outerIn, None)
-                                if curOwner is None:
-                                    self.ownerOfInput[outerIn] = UniqList((dstElm,))
-                                else:
-                                    assert isinstance(curOwner, UniqList), curOwner
-                                    curOwner.append(dstElm)
-
-                        for o in subNode._outputs:
-                            self.ownerOfOutput[o] = dstElm
-                            parOut = n.parentNode.internOutToOut.get(o, None)
-                            if parOut is not None:
-                                assert parOut not in self.ownerOfOutput
-                                self.ownerOfOutput[parOut] = dstElm
-                                self._addPortSynonym(o, parOut)
-
+                    if n._subNodes:
+                        for subNode in n._subNodes.nodes:
+                            for i in subNode._inputs:
+                                assert i not in self.ownerOfInput
+                                self.ownerOfInput[i] = UniqList((dstElm,))
+                                # for outer inputs of original cluster node we must check oter uses because the owner could be multiple elements
+                                # because input could be used in multiple parts
+                                outerIn = n.parentNode.outerOutToIn.get(subNode.dependsOn[i.in_i], None)
+                                if outerIn is not None:
+                                    curOwner = self.ownerOfInput.get(outerIn, None)
+                                    if curOwner is None:
+                                        self.ownerOfInput[outerIn] = UniqList((dstElm,))
+                                    else:
+                                        assert isinstance(curOwner, UniqList), curOwner
+                                        curOwner.append(dstElm)
+    
+                            for o in subNode._outputs:
+                                self.ownerOfOutput[o] = dstElm
+                                parOut = n.parentNode.internOutToOut.get(o, None)
+                                if parOut is not None:
+                                    assert parOut not in self.ownerOfOutput
+                                    self.ownerOfOutput[parOut] = dstElm
+                                    self._addPortSynonym(o, parOut)
+    
                 else:
                     for i in n._inputs:
                         assert i not in  self.ownerOfInput

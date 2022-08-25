@@ -1,12 +1,10 @@
-from math import inf
-import math
-from typing import List, Set, Dict, Optional
+from typing import List, Dict, Optional
 
 from hwt.hdl.operatorDefs import  AllOps
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.scheduler.clk_math import start_of_next_clk_period, start_clk
 from hwtHls.netlist.clusterSearch import HlsNetlistClusterSearch
-from hwtHls.netlist.nodes.node import HlsNetNode, HlsNetNodePartRef, SchedulizationDict, HlsNetNode_numberForEachInput
+from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict, HlsNetNode_numberForEachInput
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.scheduler.errors import TimeConstraintError
