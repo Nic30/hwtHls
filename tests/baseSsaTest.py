@@ -58,7 +58,7 @@ class BaseTestPlatform(VirtualHlsPlatform):
         SsaPassDumpMIR(lambda name: (self.mir, False)).apply(hls, toSsa)
         
         toNetlist.translateDatapathInBlocks(mf, toSsa.ioNodeConstructors)
-        blockLiveInMuxInputSync: BlockLiveInMuxSyncDict = toNetlist.constructLiveInMuxes(mf, backedges, liveness)
+        blockLiveInMuxInputSync: BlockLiveInMuxSyncDict = toNetlist.constructLiveInMuxes(mf)
         # thread analysis must be done before we connect control, because once we do that
         # everything will blend together 
         threads = netlist.getAnalysis(HlsNetlistAnalysisPassDataThreads)
@@ -70,9 +70,9 @@ class BaseTestPlatform(VirtualHlsPlatform):
 
         toNetlist.extractRstValues(mf, threads)
         toNetlist.resolveLoopHeaders(mf, blockLiveInMuxInputSync)
-        toNetlist.resolveBlockEn(mf, backedges, threads)
+        toNetlist.resolveBlockEn(mf, threads)
         toNetlist.netlist.invalidateAnalysis(HlsNetlistAnalysisPassDataThreads)  # because we modified the netlist
-        toNetlist.connectOrderingPorts(mf, backedges)
+        toNetlist.connectOrderingPorts(mf)
         return netlist
 
     def runHlsNetlistPasses(self, hls:"HlsScope", netlist:HlsNetlistCtx):

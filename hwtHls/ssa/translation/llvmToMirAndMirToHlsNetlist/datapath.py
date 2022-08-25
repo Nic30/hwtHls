@@ -18,7 +18,6 @@ from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.opCache import MirToHwtH
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer, \
     LiveInMuxMeta
 
-
 BlockLiveInMuxSyncDict = Dict[Tuple[MachineBasicBlock, MachineBasicBlock, Register], HlsNetNodeExplicitSync]
 
 
@@ -143,9 +142,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                 else:
                     raise NotImplementedError(instr)
 
-    def constructLiveInMuxes(self, mf: MachineFunction,
-                              backedges: Set[Tuple[MachineBasicBlock, MachineBasicBlock]],
-                              liveness: Dict[MachineBasicBlock, Dict[MachineBasicBlock, Set[Register]]]) -> BlockLiveInMuxSyncDict:
+    def constructLiveInMuxes(self, mf: MachineFunction) -> BlockLiveInMuxSyncDict:
         """
         For each block for each live in register create a MUX which will select value of register for this block.
         (Or just propagate value from predecessor if there is just a single one)
@@ -155,6 +152,8 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
         netlist: HlsNetlistCtx = self.netlist
         blockLiveInMuxInputSync: BlockLiveInMuxSyncDict = {}
         builder: HlsNetlistBuilder = self.builder
+        backedges: Set[Tuple[MachineBasicBlock, MachineBasicBlock]] = self.backedges
+        liveness = self.liveness
         for mb in mf:
             mb: MachineBasicBlock
             # Construct block input MUXes.

@@ -96,7 +96,7 @@ class DefaultHlsPlatform(DummyPlatform):
             SsaPassDumpMirCfg(outputFileGetter(debugDir, ".5.mirCfg.dot")).apply(hls, toSsa)
         
         toNetlist.translateDatapathInBlocks(mf, toSsa.ioNodeConstructors)
-        blockLiveInMuxInputSync: BlockLiveInMuxSyncDict = toNetlist.constructLiveInMuxes(mf, backedges, liveness)
+        blockLiveInMuxInputSync: BlockLiveInMuxSyncDict = toNetlist.constructLiveInMuxes(mf)
         # thread analysis must be done before we connect control, because once we do that
         # everything will blend together 
         threads = netlist.getAnalysis(HlsNetlistAnalysisPassDataThreads)
@@ -116,9 +116,9 @@ class DefaultHlsPlatform(DummyPlatform):
         if debugDir:
             HlsNetlistPassDumpToDot(outputFileGetter(debugDir, ".8.postLoop.dot")).apply(hls, netlist)
 
-        toNetlist.resolveBlockEn(mf, backedges, threads)
+        toNetlist.resolveBlockEn(mf, threads)
         # netlist.invalidateAnalysis(HlsNetlistAnalysisPassDataThreads)  # because we modified the netlist
-        toNetlist.connectOrderingPorts(mf, backedges)
+        toNetlist.connectOrderingPorts(mf)
         if debugDir:
             HlsNetlistPassDumpBlockSync(outputFileGetter(debugDir, ".9.postSync.dot")).apply(hls, netlist)
 

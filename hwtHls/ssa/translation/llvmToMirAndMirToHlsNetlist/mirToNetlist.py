@@ -462,12 +462,12 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
         return anyPrevVld
 
     def resolveBlockEn(self, mf: MachineFunction,
-                        backedges: Set[Tuple[MachineBasicBlock, MachineBasicBlock]],
-                        threads: HlsNetlistAnalysisPassDataThreads):
+                       threads: HlsNetlistAnalysisPassDataThreads):
         """
         Resolve control flow enable for instructions in the block.
         """
         builder = self.builder
+        backedges: Set[Tuple[MachineBasicBlock, MachineBasicBlock]] = self.backedges
         for mb in mf:
             mb: MachineBasicBlock
             # resolve control enable flag for a block
@@ -592,14 +592,13 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                         self.builder.replaceInputDriver(n.skipWhen, _o)
 
     def connectOrderingPorts(self,
-                             mf: MachineFunction,
-                             backedges: Set[Tuple[MachineBasicBlock, MachineBasicBlock]]):
+                             mf: MachineFunction):
         """
         finalize ordering connections after all IO is instantiated
         """
         # cancel ordering between last IO at the end of the loop and write to control channel of that block
         # this allow for a new iteration to start before the end of previous one if data dependency allows it
-
+        backedges: Set[Tuple[MachineBasicBlock, MachineBasicBlock]] = self.backedges
         for mb in mf:
             mb: MachineBasicBlock
             orderingInputs = []
