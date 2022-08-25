@@ -80,4 +80,5 @@ class SsaPhi(SsaInstr):
         self.operands = tuple(operands)
 
     def __repr__(self):
-        return f"<{self.__class__.__name__:s} {self._name} {'deleted' if self.replacedBy is not None else ''}>"
+        origin = self.origin
+        return f"<{self.__class__.__name__:s} {self._name} {origin.name + ' ' if origin is not None else ''}{'deleted' if self.replacedBy is not None else ''}>"
