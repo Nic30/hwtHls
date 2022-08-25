@@ -152,6 +152,8 @@ class HlsAstToSsa():
                             assert len(op.operands) == 1, (op, op.operands)
                             block, index = self.visit_expr(block, op.operands[0])
                             op.operands = (index,)
+                            index.users.append(op)
+
                         # read first used there else already visited
                         builder._insertInstr(op)
                         # HlsRead is a SsaValue and thus represents "variable"
