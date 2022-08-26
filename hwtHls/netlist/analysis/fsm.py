@@ -91,6 +91,7 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
             alreadyUsed.add(node)
             allNodeClks = tuple(node.iterScheduledClocks())
             clkPeriod = self.netlist.normalizedClkPeriod
+            assert allNodeClks, node
             if len(allNodeClks) > 1:
                 # slice a multi-cycle node and pick the parts which belongs to some state of this generated FSM
                 for clkI in allNodeClks:

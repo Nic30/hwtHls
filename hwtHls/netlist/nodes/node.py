@@ -323,14 +323,19 @@ class HlsNetNode():
         clkPeriod = self.netlist.normalizedClkPeriod
         beginTime = inf
         endTime = 0
+        assert self.scheduledIn or self.scheduledOut, self
         for i in self.scheduledIn:
             beginTime = min(beginTime, i)
             
         for o in self.scheduledOut:
             endTime = max(endTime, o)
+        
         if not self.scheduledIn:
             beginTime = endTime
-        
+
+        if not self.scheduledOut:
+            endTime = beginTime
+            
         startClkI = start_clk(beginTime, clkPeriod)
         endClkI = int(endTime // clkPeriod)
         yield from range(startClkI, endClkI + 1)
