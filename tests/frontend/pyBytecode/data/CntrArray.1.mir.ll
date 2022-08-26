@@ -12,13 +12,13 @@ bb.1.blockL54i0_54:
 ; predecessors: %bb.0, %bb.1
   successors: %bb.1(0x80000000); %bb.1(100.00%)
 
-  %7:anyregcls(s2) = GENFPGA_CLOAD %2:anyregcls, 0, 1 :: (volatile load (s2) from %ir.o_addr, addrspace 2)
+  %7:anyregcls(s2) = GENFPGA_CLOAD %2:anyregcls, 0, 1 :: (volatile load (s2) from %ir.o_addr, addrspace 3)
   %9:anyregcls(s1) = G_ICMP intpred(eq), %7:anyregcls(s2), i2 -2
   %11:anyregcls(s1) = G_ICMP intpred(eq), %7:anyregcls(s2), i2 0
   %13:anyregcls(s1) = G_ICMP intpred(ne), %7:anyregcls(s2), i2 1
   %14:anyregcls(s16) = GENFPGA_MUX %44:anyregcls(s16), %9:anyregcls(s1), %42:anyregcls(s16), %11:anyregcls(s1), %45:anyregcls(s16), %13:anyregcls(s1), %43:anyregcls(s16)
-  GENFPGA_CSTORE %14:anyregcls(s16), %1:anyregcls, 0, 1 :: (volatile store (s16) into %ir.o, addrspace 1)
-  %15:anyregcls(s2) = GENFPGA_CLOAD %0:anyregcls, 0, 1 :: (volatile load (s2) from %ir.i)
+  GENFPGA_CSTORE %14:anyregcls(s16), %1:anyregcls, 0, 1 :: (volatile store (s16) into %ir.o, addrspace 2)
+  %15:anyregcls(s2) = GENFPGA_CLOAD %0:anyregcls, 0, 1 :: (volatile load (s2) from %ir.i, addrspace 1)
   %16:anyregcls(s1) = G_ICMP intpred(eq), %15:anyregcls(s2), i2 0
   %17:anyregcls(s1) = G_ICMP intpred(eq), %15:anyregcls(s2), i2 -2
   %18:anyregcls(s16) = GENFPGA_MUX %42:anyregcls(s16), %16:anyregcls(s1), %43:anyregcls(s16)

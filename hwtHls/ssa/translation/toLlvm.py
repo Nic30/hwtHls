@@ -300,9 +300,9 @@ class ToLlvmIrTranslator():
         wordType = self._getNativeInterfaceType(i)
         if isinstance(i, BramPort_withoutClk):
             arrTy = self._translateArrayType(wordType[int(2 ** i.ADDR_WIDTH)])
-            return PointerType.get(arrTy, ioIndex) 
+            return PointerType.get(arrTy, ioIndex + 1) 
         else:
-            return self._translatePtrType(wordType, ioIndex)
+            return self._translatePtrType(wordType, ioIndex + 1)
 
     def translate(self, start_bb: SsaBasicBlock):
         # create a function where we place the code and the arguments for a io interfaces

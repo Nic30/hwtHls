@@ -11,10 +11,10 @@ bb.1.t0_TwoTimesA_TC_test_TwoTimesA1__TwoTimesA1_whC:
 ; predecessors: %bb.0, %bb.1
   successors: %bb.1(0x80000000); %bb.1(100.00%)
 
-  %2:anyregcls(s8) = GENFPGA_CLOAD %0:anyregcls, 0, 1 :: (volatile load (s8) from %ir.a)
+  %2:anyregcls(s8) = GENFPGA_CLOAD %0:anyregcls, 0, 1 :: (volatile load (s8) from %ir.a, addrspace 1)
   %3:anyregcls(s7) = GENFPGA_EXTRACT %2:anyregcls(s8), 0, 7
   %6:anyregcls(s8) = GENFPGA_MERGE_VALUES i1 false, %3:anyregcls(s7), 1, 7
-  GENFPGA_CSTORE %6:anyregcls(s8), %1:anyregcls, 0, 1 :: (volatile store (s8) into %ir.b, addrspace 1)
+  GENFPGA_CSTORE %6:anyregcls(s8), %1:anyregcls, 0, 1 :: (volatile store (s8) into %ir.b, addrspace 2)
   G_BR %bb.1
 
 # End machine code for function t0_TwoTimesA_TC_test_TwoTimesA1__TwoTimesA1.

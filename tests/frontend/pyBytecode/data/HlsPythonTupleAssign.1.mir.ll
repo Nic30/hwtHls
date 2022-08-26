@@ -15,9 +15,9 @@ bb.1.blockL30i0_30:
 
   %2:anyregcls(s1) = GENFPGA_MUX %11:anyregcls(s1)
   %4:anyregcls(s8) = GENFPGA_MERGE_VALUES %11:anyregcls(s1), i7 0, 1, 7
-  GENFPGA_CSTORE %4:anyregcls(s8), %0:anyregcls, 0, 1 :: (volatile store (s8) into %ir.o0)
+  GENFPGA_CSTORE %4:anyregcls(s8), %0:anyregcls, 0, 1 :: (volatile store (s8) into %ir.o0, addrspace 1)
   %7:anyregcls(s8) = GENFPGA_MERGE_VALUES %12:anyregcls(s1), i7 0, 1, 7
-  GENFPGA_CSTORE %7:anyregcls(s8), %1:anyregcls, 0, 1 :: (volatile store (s8) into %ir.o1, addrspace 1)
+  GENFPGA_CSTORE %7:anyregcls(s8), %1:anyregcls, 0, 1 :: (volatile store (s8) into %ir.o1, addrspace 2)
   %11:anyregcls(s1) = GENFPGA_MUX %12:anyregcls(s1)
   %12:anyregcls(s1) = GENFPGA_MUX %2:anyregcls(s1)
   G_BR %bb.1

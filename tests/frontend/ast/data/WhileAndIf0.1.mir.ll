@@ -19,7 +19,7 @@ bb.2.t0_HlsAstWhileIf_TC_test_WhileAndIf0_ll__WhileAndIf0_wh_wh_IfC:
   %3:anyregcls(s1) = G_ICMP intpred(ult), %12:anyregcls(s8), i8 3
   %4:anyregcls(s8) = GENFPGA_MERGE_VALUES i1 true, %3:anyregcls(s1), i6 -1, 1, 1, 6
   %8:anyregcls(s8) = G_ADD %4:anyregcls, %12:anyregcls
-  GENFPGA_CSTORE %8:anyregcls(s8), %0:anyregcls, 0, 1 :: (volatile store (s8) into %ir.dataOut)
+  GENFPGA_CSTORE %8:anyregcls(s8), %0:anyregcls, 0, 1 :: (volatile store (s8) into %ir.dataOut, addrspace 1)
   %10:anyregcls(s1) = G_ICMP intpred(eq), %8:anyregcls(s8), i8 0
   %12:anyregcls(s8) = GENFPGA_MUX %8:anyregcls(s8)
   %13:anyregcls(s1) = GENFPGA_NOT %10:anyregcls(s1)
