@@ -47,6 +47,9 @@ namespace llvm {
 
 static std::string computeDataLayout(const Triple &TT) {
 	// 64b address up to 4096b regs, based on spir
+	// https://releases.llvm.org/14.0.0/docs/LangRef.html#data-layout
+	// https://llvm-swift.github.io/LLVMSwift/Structs/AddressSpace.html
+	// :note: '-' is main separator of groups, ':' is a separator between group elements
 	return "e-m:e-"
 			"i8:8-i16:16-i32:32-i64:64-i128:128-i256:256-i512:512-i1024:1024-i2048:2048-i4096:4096-"
 			"n8:16:32:64-S128-"
