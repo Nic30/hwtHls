@@ -188,12 +188,13 @@ llvm::Value* BitPartsRewriter::expandConstBits(IRBuilder<> *b,
 void BitPartsRewriter::rewriteInstructionOperands(llvm::Instruction *I) {
 	// store volatile i16 %val, i16* %ptr, align 2
 	unsigned opI = 0;
-	PHINode *phi = dyn_cast<PHINode>(I);
-	assert(!phi);
+	//PHINode *phi = dyn_cast<PHINode>(I);
+	//assert(!phi);
 	for (Value *_val : I->operands()) {
 		auto v = constraints.find(_val);
-		if (v != constraints.end()) { // if operand is a subject for replacement
-				// [fixme] phi instructions must always remain at the top of the block
+		if (v != constraints.end()) {
+			// if operand is a subject for replacement
+			// [fixme] phi instructions must always remain at the top of the block
 			auto newVal = rewriteIfRequired(_val);
 			if (_val != newVal) {
 				IRBuilder<> b(I);
@@ -239,6 +240,7 @@ llvm::Value* BitPartsRewriter::rewriteIfRequired(llvm::Value *V) {
 					return rewriteBinaryOperatorBitwise(*BO, vbc);
 			}
 		}
+		replacementCache[I] = I;
 		rewriteInstructionOperands(I);
 	}
 	return V;
