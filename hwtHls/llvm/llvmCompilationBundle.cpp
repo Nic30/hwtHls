@@ -142,7 +142,6 @@ void LlvmCompilationBundle::runOpt(
 	// https://stackoverflow.com/questions/51934964/function-optimization-pass
 	// @see PassBuilder::buildFunctionSimplificationPipeline
 
-	// [todo] PassBuilder::addVectorPasses
 	fn.getParent()->setDataLayout(TM->createDataLayout());
 
 	auto LAM = llvm::LoopAnalysisManager { };
