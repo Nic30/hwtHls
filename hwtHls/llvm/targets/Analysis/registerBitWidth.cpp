@@ -7,14 +7,32 @@ using namespace llvm;
 namespace hwtHls {
 
 bool checkOrSetWidth(MachineRegisterInfo &MRI, MachineOperand &op,
-		unsigned width) {
+		unsigned width,
+		llvm::SmallVector<std::pair<unsigned, uint64_t>> *undefsToDuplicate) {
 	if (op.isReg()) {
-		Register dstReg = op.getReg();
-		LLT dstT = MRI.getType(dstReg);
+		Register Reg = op.getReg();
+		LLT dstT = MRI.getType(Reg);
 		if (dstT.isValid()) {
-			return dstT.getSizeInBits() == width;
+			if (dstT.getSizeInBits() == width) {
+				return true;
+			} else if (undefsToDuplicate != nullptr) {
+				// this may be undef which is shared with others and received a different type
+				// we may be able to duplicate G_IMPLICIT_DEF to avoid type collision
+				// at this point there should not be any G_IMPLICIT_DEF
+				if (MachineOperand *Def = MRI.getOneDef(Reg)) {
+					assert(
+							Def->getParent()->getOpcode()
+									!= TargetOpcode::G_IMPLICIT_DEF
+									&& "This instruction should already be removed");
+				} else if (MRI.def_empty(Reg)) {
+					undefsToDuplicate->push_back( {
+							op.getParent()->getOperandNo(&op), width });
+					return true;
+				}
+			}
+			return false;
 		} else {
-			MRI.setType(dstReg, LLT::scalar(width));
+			MRI.setType(Reg, LLT::scalar(width));
 			return true;
 		}
 	} else {
@@ -99,7 +117,9 @@ bool resolveTypes(MachineInstr &MI) {
 			if (MO.isCImm()) {
 				bitWidth = MO.getCImm()->getBitWidth();
 				break;
-			} else if (MO.isReg()) {
+			} else if (MO.isReg() && !MRI.def_empty(MO.getReg())) {
+				// :note: registers without def may be shared undef value and such a register may have wrong type
+				//  (because this register was shared on every place where undef was used)
 				LLT T = MRI.getType(MO.getReg());
 				if (T.isValid()) {
 					bitWidth = T.getSizeInBits();
@@ -128,22 +148,33 @@ bool resolveTypes(MachineInstr &MI) {
 				if (T.isValid()) {
 					if (isValueOp) {
 						if (T.getSizeInBits() != bitWidth) {
-							errs() << R << " bitWidth:" << T.getSizeInBits()
-									<< " previous bitWidth:" << bitWidth
-									<< "\n";
-							errs() << MI << "\n";
-							MF.print(errs());
-							errs() << "\n";
-							llvm_unreachable(
-									"All values for register must be of same type");
+							if (MRI.def_empty(R)) {
+								Register NewReg = MRI.createVirtualRegister(
+										&GenericFpga::AnyRegClsRegClass);
+								MO.setReg(NewReg);
+								if (!checkOrSetWidth(MRI, MO, bitWidth,
+										nullptr)) {
+									llvm_unreachable(
+											"GENFPGA_MERGE_VALUES set of type for register for operand with undefined value failed");
+								}
+							} else {
+								MF.print(errs());
+								errs() << "\n";
+								errs() << R << " bitWidth:" << T.getSizeInBits()
+										<< " previous bitWidth:" << bitWidth
+										<< "\n";
+								errs() << MI << "\n";
+								llvm_unreachable(
+										"All values for register must be of same type");
+							}
 						}
 					} else {
 						if (T.getSizeInBits() != 1) {
+							MF.print(errs());
+							errs() << "\n";
 							errs() << R << " bitWidth:" << T.getSizeInBits()
 									<< "\n";
 							errs() << MI << "\n";
-							MF.print(errs());
-							errs() << "\n";
 							llvm_unreachable(
 									"All conditions must be of i1 type");
 						}
@@ -201,23 +232,40 @@ bool resolveTypes(MachineInstr &MI) {
 		// $dst $src{N}, $width{N}
 		unsigned srcCnt = (MI.getNumOperands() - 1) / 2;
 		unsigned totalWidth = 0;
+		llvm::SmallVector<std::pair<unsigned, uint64_t>> undefsToDuplicate;
 		for (unsigned i = 0; i < srcCnt; i++) {
 			auto width = MI.getOperand(1 + srcCnt + i).getImm();
-			if (!checkOrSetWidth(MRI, MI.getOperand(1 + i), width)) {
+			auto &O = MI.getOperand(1 + i);
+			if (!checkOrSetWidth(MRI, O, width, &undefsToDuplicate)) {
 				MF.dump();
-				errs() << MI << " i:" << i << "\n";
+				errs() << MI << " i:" << i << ", " << O << ", " << width
+						<< "\n";
 				llvm_unreachable(
 						"GENFPGA_MERGE_VALUES operand specified and actual width differs");
 			}
 			totalWidth += width;
 		}
-		assert(checkOrSetWidth(MRI, MI.getOperand(0), totalWidth));
+		if (undefsToDuplicate.size()) {
+			for (auto &v : undefsToDuplicate) {
+				Register Reg = MRI.createVirtualRegister(
+						&GenericFpga::AnyRegClsRegClass);
+				auto &O = MI.getOperand(v.first);
+				O.setReg(Reg);
+				if (!checkOrSetWidth(MRI, O, v.second, nullptr)) {
+					llvm_unreachable(
+							"GENFPGA_MERGE_VALUES set of type for register for operand with undefined value failed");
+				}
+
+			}
+		}
+		assert(checkOrSetWidth(MRI, MI.getOperand(0), totalWidth, nullptr));
 		return true;
 	}
 	case GenericFpga::GENFPGA_EXTRACT: {
 		// $dst $src $offset $dstWidth
 		auto dstWidth = MI.getOperand(3).getImm();
-		assert(checkOrSetWidth(MRI, MI.getOperand(0), dstWidth));
+
+		assert(checkOrSetWidth(MRI, MI.getOperand(0), dstWidth, nullptr));
 		auto offset = MI.getOperand(2).getImm();
 		auto &src = MI.getOperand(1);
 
@@ -267,11 +315,16 @@ bool GenFpgaRegisterBitWidth::runOnMachineFunction(llvm::MachineFunction &MF) {
 			}
 		}
 	}
+
 	size_t cycleDetectionCntr = worklist.size() + 2;
 	while (!worklist.empty()) {
 		MachineInstr *MI = worklist.front();
+		worklist.pop_front();
 		if (!resolveTypes(*MI)) {
-			worklist.pop_front();
+			if (worklist.empty()) {
+				errs() << MI << "\n";
+				llvm_unreachable("There is a single instruction in worklist which can not be resolved");
+			}
 			worklist.push_back(MI);
 			cycleDetectionCntr -= 1;
 		} else {
