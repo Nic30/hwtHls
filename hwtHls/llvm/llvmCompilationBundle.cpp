@@ -393,7 +393,7 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 	//		llvm::LoopVectorizePass(
 	//				llvm::LoopVectorizeOptions(!PTO.LoopInterleaving,
 	//						!PTO.LoopVectorization)));
-	llvm::StringMap<llvm::cl::Option*> &Map = llvm::cl::getRegisteredOptions();
+	//llvm::StringMap<llvm::cl::Option*> &Map = llvm::cl::getRegisteredOptions();
 	//Map["print-before"]->addOccurrence(0, "", "loop-unroll");
 	//Map["debug-only"]->addOccurrence(0, "", "loop-unroll");
 	//Map["print-after"]->addOccurrence(0, "", "loop-unroll");
