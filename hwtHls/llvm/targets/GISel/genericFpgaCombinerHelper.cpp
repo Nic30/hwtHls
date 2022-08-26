@@ -496,4 +496,124 @@ bool GenFpgaCombinerHelper::rewriteNestedMuxToMux(llvm::MachineInstr &MI) {
 	return true;
 }
 
+bool GenFpgaCombinerHelper::hasAll1AndAll0Values(llvm::MachineInstr &MI,
+		CImmOrRegWithNegFlag &matchinfo) {
+	matchinfo.CImm = nullptr;
+	matchinfo.Negate = false;
+
+	if (MI.getNumOperands() == 1 + 3) {
+		auto &v0 = MI.getOperand(1);
+		auto &c0 = MI.getOperand(2);
+		auto &v1 = MI.getOperand(3);
+		LLT Ty = MRI.getType(MI.getOperand(0).getReg());
+		bool is1b = Ty.isScalar() && Ty.getSizeInBits() == 1;
+
+		if (v0.isReg() && v1.isReg()) {
+			if (v0.getReg() == v1.getReg()) {
+				// c ? v:v -> v
+				matchinfo.Reg = v0.getReg();
+				return true;
+
+			} else if (is1b) {
+				if (MachineOperand *v0def = MRI.getOneDef(v0.getReg())) {
+					if (v0def->getParent()->getOpcode()
+							== GenericFpga::GENFPGA_NOT) {
+						auto &v0_n = v0def->getParent()->getOperand(1);
+						if (v0_n.isReg() && v0_n.getReg() == v1.getReg()) {
+							// c ? ~v:v -> ~c
+							if (c0.isReg()) {
+								matchinfo.Reg = c0.getReg();
+							} else {
+								matchinfo.CImm = c0.getCImm();
+							}
+							matchinfo.Negate = true;
+							return true;
+						}
+					}
+
+				} else if (MachineOperand *v1def = MRI.getOneDef(v1.getReg())) {
+					if (v1def->getParent()->getOpcode()
+							== GenericFpga::GENFPGA_NOT) {
+						auto &v1_n = v0def->getParent()->getOperand(1);
+						if (v1_n.isReg() && v1_n.getReg() == v1.getReg()) {
+							// c ? v:~v -> c
+							if (c0.isReg()) {
+								matchinfo.Reg = c0.getReg();
+							} else {
+								matchinfo.CImm = c0.getCImm();
+							}
+							return true;
+						}
+					}
+				}
+			}
+
+		} else if (v0.isCImm() && v1.isCImm()) {
+			auto vc0 = v0.getCImm();
+			auto vc1 = v1.getCImm();
+			if (vc0->getValue() == vc1->getValue()) {
+				matchinfo.CImm = vc0;
+				return true;
+
+			} else if (is1b) {
+				if (vc0->isZero() && vc1->isAllOnesValue()) {
+					// c ? 0:1 -> ~c
+					if (c0.isReg()) {
+						matchinfo.Reg = c0.getReg();
+					} else {
+						matchinfo.CImm = c0.getCImm();
+					}
+					matchinfo.Negate = true;
+					return true;
+
+				} else if (vc1->isZero() && vc0->isAllOnesValue()) {
+					// c ? 1:0 -> c
+					if (c0.isReg()) {
+						matchinfo.Reg = c0.getReg();
+					} else {
+						matchinfo.CImm = c0.getCImm();
+					}
+					return true;
+				}
+			}
+		}
+	}
+
+	return false;
+}
+
+bool GenFpgaCombinerHelper::rewriteConstValMux(llvm::MachineInstr &MI,
+		const CImmOrRegWithNegFlag &matchinfo) {
+	if (matchinfo.CImm) {
+		if (matchinfo.Negate) {
+			replaceInstWithConstant(MI, ~matchinfo.CImm->getValue());
+		} else {
+			replaceInstWithConstant(MI, matchinfo.CImm->getValue());
+		}
+	} else {
+		Register replacement = matchinfo.Reg;
+		if (matchinfo.Negate) {
+			if (MachineOperand *vdef = MRI.getOneDef(matchinfo.Reg)) {
+				if (vdef->getParent()->getOpcode()
+						== GenericFpga::GENFPGA_NOT) {
+					auto &v_n = vdef->getParent()->getOperand(1);
+					if (v_n.isReg()) {
+						replacement = v_n.getReg();
+					} else {
+						replaceInstWithConstant(MI, v_n.getCImm()->getValue());
+
+						MI.eraseFromParent();
+						return true;
+					}
+				}
+			}
+			//replaceSingleDefInstWithReg(MI, );
+		}
+		replaceSingleDefInstWithReg(MI, replacement);
+	}
+
+	MI.eraseFromParent();
+	return true;
+}
+
 }

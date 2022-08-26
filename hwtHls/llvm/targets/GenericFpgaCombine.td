@@ -89,6 +89,7 @@ def const_mul_eval: GICombineRule<
   (apply [{ return Helper.rewriteConstBinOp(*${root}, [](const APInt & a, const APInt & b) { return a * b; }); }])
 >;
 
+// strip mux cases which can be evaluated immedietly
 def const_mux_eval : GICombineRule<
   (defs root:$root),
   (match (wip_match_opcode GENFPGA_MUX):$root,
@@ -96,9 +97,20 @@ def const_mux_eval : GICombineRule<
   (apply [{ return Helper.rewriteConstCondMux(*${root}); }])
 >;
 
+// convert cond ? 1:0 -> cond,
+//         cond ? 0:1 -> GENFPGA_NOT cond,
+//         cond ? x:x -> x
+def const_val_mux_eval_matchdata : GIDefMatchData<"CImmOrRegWithNegFlag">;
+def const_val_mux_eval : GICombineRule<
+  (defs root:$root, const_val_mux_eval_matchdata:$matchinfo),
+  (match (wip_match_opcode GENFPGA_MUX):$root,
+    [{ return Helper.hasAll1AndAll0Values(*${root}, ${matchinfo}); }]),
+  (apply [{ return Helper.rewriteConstValMux(*${root}, ${matchinfo}); }])
+>;
+
 def const_eval_combines : GICombineGroup<[
 	extract_const_propagation, merge_values_const_propagation, g_constant_to_imm, const_and_eval, const_or_eval, const_xor_eval,
-	const_sub_eval, const_add_eval, const_mul_eval, const_mux_eval
+	const_sub_eval, const_add_eval, const_mul_eval, const_mux_eval, const_val_mux_eval
 ]>;
 
 
