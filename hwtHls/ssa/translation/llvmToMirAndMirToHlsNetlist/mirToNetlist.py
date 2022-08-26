@@ -183,7 +183,9 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
             backedgeBuffRead: HlsNetNodeReadBackwardEdge
             rstValObj = vRst.obj
             while rstValObj.__class__ is HlsNetNodeExplicitSync:
-                rstValObj = rstValObj.dependsOn[0].obj
+                dep = rstValObj.dependsOn[0]
+                assert not isinstance(dep, HlsNetNodeOutLazy), (dep, "This port should lead to some constant which should be already known.", dep.keys_of_self_in_cache)
+                rstValObj = dep.obj
 
             assert isinstance(rstValObj, HlsNetNodeConst), (
                 "must be const otherwise it is impossible to extract this as reset",

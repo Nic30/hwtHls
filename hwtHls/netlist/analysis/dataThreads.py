@@ -116,12 +116,14 @@ class HlsNetlistAnalysisPassDataThreads(HlsNetlistAnalysisPass):
             self.threadsPerBlock[None] = self.searchEnForDrivenThreads(None, liveIns)
 
         else:
+            MRI = originalMir.mf.getRegInfo()
             for mb in originalMir.mf:
                 mb: MachineBasicBlock
                 en: HlsNetNodeOutLazy = originalMir.blockSync[mb].blockEn
                 assert isinstance(en, HlsNetNodeOutLazy), ("This analysis works only if control is not instantiated yet", en)
                 liveInGroups = list(originalMir.liveness[pred][mb] for pred in mb.predecessors())
                 liveIns = UniqList(flatten(liveInGroups, 1))
-                liveIns = [originalMir.valCache._toHlsCache[(mb, li)] for li in liveIns if li not in originalMir.regToIo]
+                liveIns = [originalMir.valCache._toHlsCache[(mb, li)] for li in liveIns
+                           if li not in originalMir.regToIo and not MRI.def_empty(li)]
                 self.threadsPerBlock[mb] = self.searchEnForDrivenThreads(en, liveIns)
 

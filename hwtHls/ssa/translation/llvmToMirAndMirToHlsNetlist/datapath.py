@@ -34,6 +34,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
         valCache: MirToHwtHlsNetlistOpCache = self.valCache 
         netlist: HlsNetlistCtx = self.netlist
         builder: HlsNetlistBuilder = self.builder
+        MRI = mf.getRegInfo()
         for mb in mf:
             mb: MachineBasicBlock
             mbSync = MachineBasicBlockSyncContainer(
@@ -49,11 +50,15 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                 for mo in instr.operands():
                     mo: MachineOperand
                     if mo.isReg():
+                        r = mo.getReg()
                         if mo.isDef():
                             assert dst is None, (dst, instr)
-                            dst = mo.getReg()
+                            dst = r
+                        elif r not in self.regToIo and MRI.def_empty(r):
+                            bw = self.registerTypes[r]
+                            ops.append(Bits(bw).from_py(None))
                         else:
-                            ops.append(self._translateRegister(mb, mo.getReg()))
+                            ops.append(self._translateRegister(mb, r))
 
                     elif mo.isMBB():
                         ops.append(self._translateMBB(mo.getMBB()))
@@ -154,6 +159,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
         builder: HlsNetlistBuilder = self.builder
         backedges: Set[Tuple[MachineBasicBlock, MachineBasicBlock]] = self.backedges
         liveness = self.liveness
+        MRI = mf.getRegInfo()
         for mb in mf:
             mb: MachineBasicBlock
             # Construct block input MUXes.
@@ -176,6 +182,8 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                     liveIn: Register
                     if liveIn in self.regToIo:
                         continue  # we will use interface not the value of address where it is mapped
+                    if MRI.def_empty(liveIn):
+                        continue # this is form of undefined value
 
                     meta = liveIns.get(liveIn, None)
                     if meta is None:
@@ -227,6 +235,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
         After we instantiated MUXes for liveIns we need to update threads as the are merged now.
         """
         liveness = self.liveness
+        MRI = self.mf.getRegInfo()
         for mb in self.mf:
             mb: MachineBasicBlock
             for pred in mb.predecessors():
@@ -236,6 +245,8 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                     liveIn: Register
                     if liveIn in self.regToIo:
                         continue  # we will use interface not the value of address where it is mapped
+                    if MRI.def_empty(liveIn):
+                        continue # this is just form of undefined value (which is represented as constant)
 
                     dtype = Bits(self.registerTypes[liveIn])
                     srcThread = self._getThreadOfReg(threads, pred, liveIn, dtype)
