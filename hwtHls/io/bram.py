@@ -279,7 +279,7 @@ class HlsWriteBram(HlsWriteAddressed):
 class BramArrayProxy(IoProxyAddressed):
 
     def __init__(self, hls:"HlsScope", interface:Union[BramPort_withoutClk, Tuple[BramPort_withoutClk]]):
-        if isinstance(interface, tuple):
+        if isinstance(interface, (tuple, list)):
             i = interface[0]
         else:
             i = interface
