@@ -18,7 +18,7 @@ class BramWrite_TC(SimTestCase):
         self.runSim((N + 1) * clkPeriod)
         HlsAstTrivial_TC._test_no_comb_loops(self)
         res = {i: int(v) for i, v in u.ram._ag.mem.items()}
-        self.assertDictEqual({i: i for i in range(4)}, res)
+        self.assertDictEqual({i: i for i in range(N)}, res)
 
 
 if __name__ == "__main__":

@@ -25,6 +25,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
 from hwtHls.netlist.scheduler.clk_math import start_clk
 from ipCorePackager.constants import INTF_DIRECTION
+from hwt.hdl.types.bitsVal import BitsVal
 
 
 class ArchElementFsm(ArchElement):
@@ -296,7 +297,7 @@ class ArchElementFsm(ArchElement):
             
             stDependentDrives = con.stDependentDrives
 
-            if isinstance(stateAck, (bool, int)):
+            if isinstance(stateAck, (bool, int, BitsVal)):
                 assert bool(stateAck) == 1
             else:
                 stDependentDrives = If(stateAck, stDependentDrives)

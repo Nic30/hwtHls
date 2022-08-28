@@ -30,6 +30,7 @@ from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsN
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.opCache import MirToHwtHlsNetlistOpCache
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer
 from hwtHls.ssa.value import SsaValue
+from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF
 
 
 class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
@@ -77,64 +78,56 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
         return self.scheduleAlapCompactionMultiClock(asapSchedule)
 
     def resolve_realization(self):
+        netlist = self.netlist
+        ffdelay = netlist.platform.get_op_realization(ResourceFF, 1, 1, netlist.realTimeClkPeriod).inputWireDelay * 2
+        isRead = self.cmd is READ
         re = OpRealizationMeta(
-            inputWireDelay=0.0,
+            inputWireDelay=ffdelay,
             inputClkTickOffset=0,
-            outputWireDelay=epsilon,
-            outputClkTickOffset=(1, *(0 for _ in range(len(self._outputs) - 1)))
+            outputWireDelay=epsilon if isRead else 0,
+            outputClkTickOffset=(1, *(0 for _ in range(len(self._outputs) - 1))) if isRead else 0 
         )
         self.assignRealization(re)
 
-    def allocateRtlInstance(self,
-                            allocator: "ArchElement",
-                          ) -> List[HdlStatement]:
+    def allocateRtlInstance(self, allocator: "ArchElement") -> List[HdlStatement]:
         """
         Instantiate write operation on RTL level
         """
-        if True:
-        # if self._fragments:
-        #    # Parts should be used for allocation instead of this node.
-        #    
-        #    assert len(self._fragments) == 2, self._fragments
-        #    for part in self._fragments:
-        #        if part in allocator.allNodes:
-        #            part.allocateRtlInstance(allocator)
-        # else:
-            assert len(self.dependsOn) >= 2, self.dependsOn
-            # [0] - data, [1] - addr, [2:] control dependencies
-            for sync, t in zip(self.dependsOn[1:], self.scheduledIn[1:]):
-                # prepare sync inputs but do not connect it because we do not implement synchronization
-                # in this step we are building only datapath
-                if sync._dtype != HOrderingVoidT:
-                    allocator.instantiateHlsNetNodeOutInTime(sync, t)
-    
-            ram: BramPort_withoutClk = self.dst
-            wData = self.dependsOn[0]
-            addr = self.dependsOn[1]
-            key = (ram, addr, wData)
-            try:
-                # skip instantiation of writes in the same mux
-                return allocator.netNodeToRtl[key]
-            except KeyError:
-                pass
-            _wData = allocator.instantiateHlsNetNodeOutInTime(wData, self.scheduledIn[0])
-            _addr = allocator.instantiateHlsNetNodeOutInTime(addr, self.scheduledIn[1])
-    
-            rtlObj = []
-            rtlObj.append(ram.addr(_addr.data))
-            if ram.HAS_W:
-                if ram.HAS_BE:
-                    raise NotImplementedError()
-                rtlObj.append(ram.din(_wData.data))
-                we = getattr(ram, "we", None)
-                if we is not None:
-                    rtlObj.append(ram.we(0 if self.cmd is READ else 1))
-                
-            allocator.netNodeToRtl[key] = rtlObj
-            if ram.HAS_R:
-                allocator.netNodeToRtl[self._outputs[0]] = TimeIndependentRtlResource(ram.dout, self.scheduledOut[0], allocator)
-    
-            return rtlObj
+        assert len(self.dependsOn) >= 2, self.dependsOn
+        # [0] - data, [1] - addr, [2:] control dependencies
+        for sync, t in zip(self.dependsOn[1:], self.scheduledIn[1:]):
+            # prepare sync inputs but do not connect it because we do not implement synchronization
+            # in this step we are building only datapath
+            if sync._dtype != HOrderingVoidT:
+                allocator.instantiateHlsNetNodeOutInTime(sync, t)
+
+        ram: BramPort_withoutClk = self.dst
+        wData = self.dependsOn[0]
+        addr = self.dependsOn[1]
+        key = (ram, addr, wData)
+        try:
+            # skip instantiation of writes in the same mux
+            return allocator.netNodeToRtl[key]
+        except KeyError:
+            pass
+        _wData = allocator.instantiateHlsNetNodeOutInTime(wData, self.scheduledIn[0])
+        _addr = allocator.instantiateHlsNetNodeOutInTime(addr, self.scheduledIn[1])
+
+        rtlObj = []
+        rtlObj.append(ram.addr(_addr.data))
+        if ram.HAS_W:
+            if ram.HAS_BE:
+                raise NotImplementedError()
+            rtlObj.append(ram.din(_wData.data))
+            we = getattr(ram, "we", None)
+            if we is not None:
+                rtlObj.append(ram.we(0 if self.cmd is READ else 1))
+            
+        allocator.netNodeToRtl[key] = rtlObj
+        if ram.HAS_R:
+            allocator.netNodeToRtl[self._outputs[0]] = TimeIndependentRtlResource(ram.dout, self.scheduledOut[0], allocator)
+
+        return rtlObj
 
     def createSubNodeRefrenceFromPorts(self, beginTime: int, endTime: int,
                                        inputs: List[HlsNetNodeIn], outputs: List[HlsNetNodeOut]) -> Optional['HlsNetNodeWriteBramCmdPartRef']:
