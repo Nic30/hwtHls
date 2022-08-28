@@ -110,6 +110,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                         if self._reduceMux(n, worklist, removed):
                             didModifyExpr = True
                             continue
+
                     elif o == AllOps.NOT:
                         if self._reduceNot(n, worklist, removed):
                             didModifyExpr = True
@@ -119,6 +120,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                         if self._reduceAndOrXor(n, worklist, removed):
                             didModifyExpr = True
                             continue
+
                     elif o in self.REST_OF_EVALUABLE_OPS:
                         c0 = self._getConstDriverOf(n._inputs[0])
                         if c0 is None:
