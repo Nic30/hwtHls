@@ -1,7 +1,8 @@
 from hwt.hdl.operatorDefs import OpDefinition, AllOps
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.value import HValue
-from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, INVARIANT_TIME
+from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, INVARIANT_TIME, \
+    TimeIndependentRtlResourceItem
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.typeUtils import dtypeEqualSignIgnore
@@ -54,9 +55,12 @@ class HlsNetNodeOperator(HlsNetNode):
         operands = []
         for (dep, t) in zip(self.dependsOn, self.scheduledIn):
             _o = allocator.instantiateHlsNetNodeOutInTime(dep, t)
+            assert isinstance(_o, TimeIndependentRtlResourceItem), (dep, _o)
             operands.append(_o)
+
         if self.operator == AllOps.CONCAT:
             operands = reversed(operands)
+
         s = self.operator._evalFn(*(o.data for o in operands))
         if isinstance(s, HValue):
             t = INVARIANT_TIME
