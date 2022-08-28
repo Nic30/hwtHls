@@ -46,6 +46,7 @@ public:
 	// :attention: this creates an unique intervals from two vectors of ranges,
 	//  however the original src values presented in original ranges are not modified and
 	//  may require some bit slicing to get the value actually specified by final range
+	// :note: lowest bits first
 	std::vector<UniqRangeSequence> uniqueRanges(
 			const std::vector<KnownBitRangeInfo> &vec0,
 			const std::vector<KnownBitRangeInfo> &vec1);

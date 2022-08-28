@@ -195,14 +195,14 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitCallInst(
 		for (const auto &O : C->args()) {
 			auto &op = visitValue(O);
 			assert(op.consystencyCheck());
-			for (auto &opop: op.replacements) {
+			for (auto &opop : op.replacements) {
 				newParts.push_back(opop);
 			}
 		}
 		cur.replacements.clear();
 		// to lowest first
 		unsigned dstOff = 0;
-		for (auto &i: newParts) {
+		for (auto &i : newParts) {
 			i.dstBeginBitI = dstOff;
 			cur.replacements.push_back(i);
 			dstOff += i.srcWidth;
@@ -471,109 +471,253 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitCmpInst(const CmpInst *I) {
 	auto w = lhs.useMask.getBitWidth();
 	res.addAllSetOperandMask(w);
 	res.addAllSetOperandMask(w);
-	bool is0 = false;
-	bool is1 = false;
-	unsigned offset = 0;
+
+	unsigned lastBitEnd = w; // bit position in operands
 	// [todo] if sign_val > -1 -> ~sign_val[MSB]
 	// [todo] if sign_val >= 0 -> ~sign_val[MSB]
 	// [todo] if sign_val < 0 -> sign_val[MSB]
-
+	bool msbsEqual = true;
+	bool is0 = false;
+	bool is1 = false;
 	// check if it is possible to immediately evaluate based on known const bits
-	for (const auto &item : (RangeSequenceIterator()).uniqueRanges(
-			lhs.replacements, rhs.replacements)) {
+	auto sequences = RangeSequenceIterator().uniqueRanges(lhs.replacements,
+			rhs.replacements);
+	for (auto _item = sequences.rbegin(); _item != sequences.rend(); ++_item) {
+		const auto &item = *_item;
 		assert(item.v0 && item.v1);
 		assert(item.width);
+		assert(lastBitEnd >= item.width);
 		auto _v0 = dyn_cast<ConstantInt>(item.v0->src);
 		auto _v1 = dyn_cast<ConstantInt>(item.v1->src);
-		if (_v0 && _v1) {
+		is0 = false;
+		is1 = false;
+		bool v0IsMin = false;
+		bool v0IsMax = false;
+		bool v1IsMin = false;
+		bool v1IsMax = false;
+
+		APInt v0;
+		APInt v1;
+		if (_v0) {
 			assert(item.begin >= item.v0->dstBeginBitI);
-			assert(item.begin >= item.v1->dstBeginBitI);
-			auto v0 = _v0->getValue().extractBits(item.width,
+			v0 = _v0->getValue().extractBits(item.width,
 					item.v0->srcBeginBitI
 							+ (item.begin - item.v0->dstBeginBitI));
-			auto v1 = _v1->getValue().extractBits(item.width,
+			v0IsMin = v0.isMinValue();
+			v0IsMax = v0.isMinValue();
+
+		}
+		if (_v1) {
+			assert(item.begin >= item.v1->dstBeginBitI);
+			v1 = _v1->getValue().extractBits(item.width,
 					item.v1->srcBeginBitI
 							+ (item.begin - item.v1->dstBeginBitI));
-			if (op == CmpInst::Predicate::ICMP_EQ) {
-				if (v0 != v1) {
-					is0 = true;
-				} else {
-					res.clearAllOperandMasks(offset, offset + item.width);
-				}
-			} else if (op == CmpInst::Predicate::ICMP_NE) {
-				if (v0 != v1) {
-					is1 = true;
-				} else {
-					res.clearAllOperandMasks(offset, offset + item.width);
-				}
-			} else {
-				// signed/unsigned  <, <=, >, >=
-				// if this are top bits and they do not equal we can resolve output value
-				if (item.begin + item.width
-						== I->getType()->getIntegerBitWidth()) {
-					if (v0 == v1) {
-						res.clearAllOperandMasks(offset, offset + item.width);
-					} else {
-						switch (op) {
-						case CmpInst::Predicate::ICMP_UGE:
-						case CmpInst::Predicate::ICMP_UGT:
-							if (v0.ugt(v1)) {
-								is1 = true;
-							} else {
-								is0 = true;
-							}
-							break;
-						case CmpInst::Predicate::ICMP_SGE:
-						case CmpInst::Predicate::ICMP_SGT:
-							if (v0.sgt(v1)) {
-								is1 = true;
-							} else {
-								is0 = true;
-							}
-							break;
+			v1IsMin = v1.isMinValue();
+			v1IsMax = v1.isMinValue();
+		}
 
-						case CmpInst::Predicate::ICMP_ULT:
-						case CmpInst::Predicate::ICMP_ULE:
-							if (v0.ult(v1)) {
-								is1 = true;
-							} else {
-								is0 = true;
-							}
-							break;
-						case CmpInst::Predicate::ICMP_SLT:
-						case CmpInst::Predicate::ICMP_SLE:
-							if (v0.slt(v1)) {
-								is1 = true;
-							} else {
-								is0 = true;
-							}
-							break;
-						default:
-							assert(false && "Unknown compare operator value");
-						}
-						break;
-					}
+		bool eq = item.v0 == item.v1;
+		if (_v0 && _v1) {
+			eq = v0 == v1;
+		}
+
+		bool doesAffectResult = true;
+		if (eq) {
+			doesAffectResult = false;
+		} else {
+			// reductions with 1 constant and 1 non constant
+			// (this switch does not contains check of eq because it was already checked)
+			switch (op) {
+			case CmpInst::Predicate::ICMP_UGE:
+			case CmpInst::Predicate::ICMP_SGE:
+				// o0 >= min -> 1 (if prefix msb equal)
+				// max >= o1 -> 1 (if prefix msb equal)
+				if (v1IsMin || v0IsMax) {
+					doesAffectResult = false;
 				}
-			}
-			if (is0 || is1) {
-				for (auto &m : res.operandUseMask)
-					m.clearAllBits();
 				break;
+
+			case CmpInst::Predicate::ICMP_UGT:
+			case CmpInst::Predicate::ICMP_SGT:
+			case CmpInst::Predicate::ICMP_ULT:
+			case CmpInst::Predicate::ICMP_SLT:
+				//  // we can not do this because o0/i1 may be just the min/max
+				// {
+				// // o0 > max -> 0
+				// // min > o1 -> 0
+				// if (v1IsMax || v0IsMin) {
+				// 	if (msbsEqual) {
+				// 		is0 = true;
+				// 	} else {
+				// 		doesAffectResult = false;
+				// 	}
+				//}
+				//break;
+				// }
+				//{
+				//	// o0 < min -> 0
+				//	// max < o1 -> 0
+				//	if (v1IsMin || v0IsMax) {
+				//		if (msbsEqual) {
+				//			is0 = true;
+				//		} else {
+				//			doesAffectResult = false;
+				//		}
+				//	}
+				//	break;
+				//}
+				break;
+
+			case CmpInst::Predicate::ICMP_ULE:
+			case CmpInst::Predicate::ICMP_SLE:
+				// o0 <= max -> 1 (if prefix msb equal)
+				// min <= o1 -> 1 (if prefix msb equal)
+				if (v1IsMax || v0IsMin) {
+					doesAffectResult = false;
+				}
+				break;
+
+			case CmpInst::Predicate::ICMP_EQ:
+			case CmpInst::Predicate::ICMP_NE:
+				// handled in initial eq check
+				break;
+			default:
+				assert(false && "Unknown compare operator value");
+			}
+			if (doesAffectResult && msbsEqual) {
+				// we just found something different, for same values there would be doesAffectResult==true
+				msbsEqual = false;
 			}
 		}
-		offset += item.width;
+
+		if (doesAffectResult) {
+			// reductions with both constants
+			switch (op) {
+			case CmpInst::Predicate::ICMP_EQ: {
+				if (_v0 && _v1) {
+					if (eq) {
+						doesAffectResult = false;
+					} else {
+						is0 = true;
+					}
+				}
+				break;
+			}
+			case CmpInst::Predicate::ICMP_NE: {
+				if (_v0 && _v1) {
+					if (eq) {
+						doesAffectResult = false;
+					} else {
+						is1 = true;
+					}
+				}
+				break;
+			}
+			case CmpInst::Predicate::ICMP_UGE:
+			case CmpInst::Predicate::ICMP_UGT:
+				if (_v0 && _v1) {
+					if (v0.ugt(v1)) {
+						is1 = true;
+					} else if (eq && op == CmpInst::Predicate::ICMP_UGE) {
+						doesAffectResult = false;
+					} else {
+						is0 = true;
+					}
+				}
+				break;
+			case CmpInst::Predicate::ICMP_SGE:
+			case CmpInst::Predicate::ICMP_SGT:
+				if (_v0 && _v1) {
+					if (v0.sgt(v1)) {
+						is1 = true;
+					} else if (eq && op == CmpInst::Predicate::ICMP_SGE) {
+						doesAffectResult = false;
+					} else {
+						is0 = true;
+					}
+				}
+				break;
+
+			case CmpInst::Predicate::ICMP_ULT:
+			case CmpInst::Predicate::ICMP_ULE:
+				if (_v0 && _v1) {
+					if (v0.ult(v1)) {
+						is1 = true;
+					} else if (eq && op == CmpInst::Predicate::ICMP_ULE) {
+						doesAffectResult = false;
+					} else {
+						is0 = true;
+					}
+				}
+				break;
+			case CmpInst::Predicate::ICMP_SLT:
+			case CmpInst::Predicate::ICMP_SLE:
+				if (_v0 && _v1) {
+					if (v0.slt(v1)) {
+						is1 = true;
+					} else if (eq && op == CmpInst::Predicate::ICMP_SLE) {
+						doesAffectResult = false;
+					} else {
+						is0 = true;
+					}
+				}
+				break;
+			default:
+				assert(false && "Unknown compare operator value");
+			}
+		}
+		if (!doesAffectResult) {
+			// (clear because operands are constants and do not affect result)
+			res.clearAllOperandMasks(lastBitEnd - item.width, lastBitEnd);
+		}
+		lastBitEnd -= item.width;
+
+		// if this are top bits and they do not equal we can resolve output value
+		if (is0 || is1) {
+			break;
+		}
 	}
 	assert(res.replacements.size() == 1 && "Must stay 1b value");
-	IRBuilder<> builder(I->getContext());
-	if (is0) {
-		assert(!is1);
-		res.replacements.pop_back();
-		res.replacements.push_back(KnownBitRangeInfo(builder.getInt1(0)));
-	} else if (is1) {
-		res.replacements.pop_back();
-		res.replacements.push_back(KnownBitRangeInfo(builder.getInt1(1)));
-	}
+	if (msbsEqual) {
+		// whole value is equal
+		switch (op) {
+		case CmpInst::Predicate::ICMP_EQ:
+		case CmpInst::Predicate::ICMP_UGE:
+		case CmpInst::Predicate::ICMP_SGE:
+		case CmpInst::Predicate::ICMP_ULE:
+		case CmpInst::Predicate::ICMP_SLE:
+			assert(!is0);
+			is1 = true;  // every part equals so result is 1
+			break;
 
+		case CmpInst::Predicate::ICMP_NE:
+		case CmpInst::Predicate::ICMP_UGT:
+		case CmpInst::Predicate::ICMP_SGT:
+		case CmpInst::Predicate::ICMP_ULT:
+		case CmpInst::Predicate::ICMP_SLT:
+			assert(!is1);
+			is0 = true; // every part equals so result is 0
+			break;
+
+		default:
+			assert(false && "Unknown compare operator value");
+		}
+	}
+	if (is0 || is1) {
+		for (auto &m : res.operandUseMask)
+			m.clearAllBits();
+
+		IRBuilder<> builder(I->getContext());
+		if (is0) {
+			assert(!is1);
+			res.replacements.pop_back(); // pop self
+			res.replacements.push_back(KnownBitRangeInfo(builder.getInt1(0)));
+		} else if (is1) {
+			res.replacements.pop_back(); // pop self
+			res.replacements.push_back(KnownBitRangeInfo(builder.getInt1(1)));
+		}
+	}
+	assert(res.replacements.size() == 1 && "Must stay 1b value");
 	assert(res.consystencyCheck());
 	return res;
 }

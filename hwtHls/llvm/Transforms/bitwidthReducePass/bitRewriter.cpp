@@ -112,6 +112,7 @@ llvm::Value* BitPartsRewriter::rewriteSelect(llvm::SelectInst &I,
 
 	// @note use mask is guaranteed to be 0 for bits which does not require select
 	//   so we do not need to check if we can reduce something
+	// @note if result is constant this should not be rewritten insteas the constant should be used in every use
 	IRBuilder<> b(&I);
 	auto &T = constraints[I.getTrueValue()];
 	Value *tr = rewriteKnownBitRangeInfoVector(&b,
@@ -156,9 +157,14 @@ llvm::Value* BitPartsRewriter::rewriteCmpInst(llvm::CmpInst &I,
 llvm::Value* BitPartsRewriter::expandConstBits(IRBuilder<> *b,
 		llvm::Value *origVal, llvm::Value *reducedVal,
 		const VarBitConstraint &vbc) {
-	if (origVal->getType()->getIntegerBitWidth()
-			== reducedVal->getType()->getIntegerBitWidth())
+	unsigned reducedValWidth = 0;
+	if (reducedVal) {
+		reducedValWidth = reducedVal->getType()->getIntegerBitWidth();
+	}
+	if (origVal->getType()->getIntegerBitWidth() == reducedValWidth) {
+		assert(reducedVal);
 		return reducedVal; // nothing to pad
+	}
 
 	// iterate through the bit ranges, push known bit ranges and reducedVal bit ranges to a concatenation
 	// low first
@@ -167,13 +173,13 @@ llvm::Value* BitPartsRewriter::expandConstBits(IRBuilder<> *b,
 	for (const KnownBitRangeInfo &kbri : vbc.replacements) {
 		llvm::Value *v;
 		if (kbri.src == origVal) {
-			if (reducedValOffset == 0
-					&& kbri.srcWidth
-							== reducedVal->getType()->getIntegerBitWidth())
+			if (reducedValOffset == 0 && kbri.srcWidth == reducedValWidth)
 				v = const_cast<Value*>(reducedVal);
-			else
+			else {
+				assert(reducedVal);
 				v = CreateBitRangeGet(b, reducedVal,
 						b->getInt64(reducedValOffset), kbri.srcWidth);
+			}
 		} else {
 			v = rewriteKnownBitRangeInfo(b, kbri);
 		}
@@ -204,6 +210,7 @@ void BitPartsRewriter::rewriteInstructionOperands(llvm::Instruction *I) {
 		}
 		opI++;
 	}
+
 }
 
 // @note we can not remove instruction immediately when rewritten because
@@ -219,7 +226,7 @@ llvm::Value* BitPartsRewriter::rewriteIfRequired(llvm::Value *V) {
 		if (v != constraints.end()) {
 			VarBitConstraint &vbc = *v->second;
 			if (vbc.useMask == 0) {
-				return I; // no rewrite required because this will be entirely removed
+				return nullptr; // no rewrite required because this will be entirely removed
 			}
 
 			if (auto *CI = dyn_cast<llvm::CmpInst>(I)) {

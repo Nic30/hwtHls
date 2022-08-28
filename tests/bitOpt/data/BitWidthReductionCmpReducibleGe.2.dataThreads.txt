@@ -10,43 +10,10 @@ nodes:
     <HlsNetNodeWrite 8 <Signal res <Bits, 1bit>> <- <HlsNetNodeOut <HlsNetNodeOperator 7 GE> [0]>>
     <HlsNetNodeConst 9 <BitsVal 1>>
     <HlsNetNodeWrite 10 <Signal res_same <Bits, 1bit>> <- <HlsNetNodeOut <BitsVal 1> [0-val]>>
-    <HlsNetNodeConst 11 <BitsVal 0>>
-    <HlsNetNodeOperator 12 CONCAT [4:0, 11:0]>
-    <HlsNetNodeConst 13 <BitsVal 0>>
-    <HlsNetNodeOperator 14 CONCAT [6:0, 13:0]>
-    <HlsNetNodeOperator 15 GE [12:0, 14:0]>
-    <HlsNetNodeWrite 16 <Signal res_prefix_same <Bits, 1bit>> <- <HlsNetNodeOut <HlsNetNodeOperator 15 GE> [0]>>
-    <HlsNetNodeConst 17 <BitsVal 1>>
-    <HlsNetNodeOperator 18 CONCAT [4:0, 17:0]>
-    <HlsNetNodeConst 19 <BitsVal 1>>
-    <HlsNetNodeOperator 20 CONCAT [6:0, 19:0]>
-    <HlsNetNodeOperator 21 GE [18:0, 20:0]>
-    <HlsNetNodeWrite 22 <Signal res_prefix_same_1 <Bits, 1bit>> <- <HlsNetNodeOut <HlsNetNodeOperator 21 GE> [0]>>
-    <HlsNetNodeOperator 23 GE [12:0, 20:0]>
-    <HlsNetNodeWrite 24 <Signal res_prefix_0vs1 <Bits, 1bit>> <- <HlsNetNodeOut <HlsNetNodeOperator 23 GE> [0]>>
-    <HlsNetNodeConst 25 <BitsVal 255>>
-    <HlsNetNodeOperator 26 CONCAT [6:0, 25:0]>
-    <HlsNetNodeOperator 27 GE [12:0, 26:0]>
-    <HlsNetNodeWrite 28 <Signal res_prefix_0vsAll <Bits, 1bit>> <- <HlsNetNodeOut <HlsNetNodeOperator 27 GE> [0]>>
-    <HlsNetNodeConst 29 <HSliceVal slice(4, 0, -1)>>
-    <HlsNetNodeOperator 30 INDEX [4:0, 29:0]>
-    <HlsNetNodeConst 31 <HSliceVal slice(8, 4, -1)>>
-    <HlsNetNodeOperator 32 INDEX [4:0, 31:0]>
-    <HlsNetNodeConst 33 <BitsVal 0>>
-    <HlsNetNodeOperator 34 CONCAT [30:0, 33:0]>
-    <HlsNetNodeOperator 35 CONCAT [34:0, 32:0]>
-    <HlsNetNodeConst 36 <HSliceVal slice(4, 0, -1)>>
-    <HlsNetNodeOperator 37 INDEX [6:0, 36:0]>
-    <HlsNetNodeConst 38 <HSliceVal slice(8, 4, -1)>>
-    <HlsNetNodeOperator 39 INDEX [6:0, 38:0]>
-    <HlsNetNodeConst 40 <BitsVal 0>>
-    <HlsNetNodeOperator 41 CONCAT [37:0, 40:0]>
-    <HlsNetNodeOperator 42 CONCAT [41:0, 39:0]>
-    <HlsNetNodeOperator 43 GE [35:0, 42:0]>
-    <HlsNetNodeWrite 44 <Signal res_prefix_sameInMiddle <Bits, 1bit>> <- <HlsNetNodeOut <HlsNetNodeOperator 43 GE> [0]>>
-    <HlsNetNodeConst 45 <BitsVal 255>>
-    <HlsNetNodeOperator 46 CONCAT [37:0, 45:0]>
-    <HlsNetNodeOperator 47 CONCAT [46:0, 39:0]>
-    <HlsNetNodeOperator 48 GE [35:0, 47:0]>
-    <HlsNetNodeWrite 49 <Signal res_prefix_differentInMiddle <Bits, 1bit>> <- <HlsNetNodeOut <HlsNetNodeOperator 48 GE> [0]>>
+    <HlsNetNodeWrite 11 <Signal res_prefix_same <Bits, 1bit>> <- <HlsNetNodeOut <HlsNetNodeOperator 7 GE> [0]>>
+    <HlsNetNodeWrite 12 <Signal res_prefix_same_1 <Bits, 1bit>> <- <HlsNetNodeOut <HlsNetNodeOperator 7 GE> [0]>>
+    <HlsNetNodeWrite 13 <Signal res_prefix_0vs1 <Bits, 1bit>> <- <HlsNetNodeOut <HlsNetNodeOperator 7 GE> [0]>>
+    <HlsNetNodeWrite 14 <Signal res_prefix_0vsAll <Bits, 1bit>> <- <HlsNetNodeOut <HlsNetNodeOperator 7 GE> [0]>>
+    <HlsNetNodeWrite 15 <Signal res_prefix_sameInMiddle <Bits, 1bit>> <- <HlsNetNodeOut <HlsNetNodeOperator 7 GE> [0]>>
+    <HlsNetNodeWrite 16 <Signal res_prefix_differentInMiddle <Bits, 1bit>> <- <HlsNetNodeOut <HlsNetNodeOperator 7 GE> [0]>>
 

@@ -18,7 +18,7 @@ bb1 [fillcolor=white, label=<
             <tr><td>rstPredeccessor=bb.0</td></tr>
             <tr><td>blockEn=&lt;HlsNetNodeOutLazy 2&gt;</td></tr>
             <tr><td>orderingIn=&lt;HlsNetNodeOutLazy 3&gt;</td></tr>
-            <tr><td>orderingOut=&lt;HlsNetNodeOut &lt;HlsNetNodeWrite 39 &lt;Signal res_prefix_differentInMiddle &lt;Bits, 1bit&gt;&gt; &lt;- &lt;HlsNetNodeOut &lt;HlsNetNodeOperator 38 EQ&gt; [0]&gt;&gt; [0-orderingOut]&gt;</td></tr>
+            <tr><td>orderingOut=&lt;HlsNetNodeOut &lt;HlsNetNodeWrite 19 &lt;Signal res_prefix_differentInMiddle &lt;Bits, 1bit&gt;&gt; &lt;- &lt;HlsNetNodeOut &lt;BitsVal 0&gt; [0-val]&gt;&gt; [0-orderingOut]&gt;</td></tr>
         </table>
 >, shape=plaintext, style=filled];
 e0to1 [fillcolor=white, label=<
