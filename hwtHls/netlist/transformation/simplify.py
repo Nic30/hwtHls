@@ -73,7 +73,9 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
     """
     Hls netlist simplification:
 
+    * DCE
     * reduce HlsNetNodeMux with a single input
+        * merge HlsNetNodeMux if child mux has parent as only user
     * reduce and/or/xor
     * remove HlsNetNodeExplicitSync (and subclasses like HlsNetNodeRead,HlsNetNodeWrite) skipWhen and extraCond connected to const  
     """
@@ -422,7 +424,24 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
 
             self._replaceOperatorNodeWith(n, i, worklist, removed)
             return True
-                
+
+        # merge mux to only user which is mux if this is the case and it is possible
+        if len(n._inputs) % 2 == 1:
+            assert len(n._outputs) == 1, n
+            if len(n.usedBy[0]) == 1:
+                u: HlsNetNodeIn = n.usedBy[0][0]
+                if isinstance(u.obj, HlsNetNodeMux) and len(u.obj._inputs) % 2 == 1:
+                    # if u.in_i == 0:
+                    #    raise NotImplementedError()
+                    # el
+                    if u.in_i == len(u.obj._inputs) - 1:
+                        newOps = u.obj.dependsOn[:-1] + n.dependsOn
+                        res = n.netlist.builder.buildMux(n._outputs[0]._dtype, tuple(newOps))
+                        self._replaceOperatorNodeWith(u.obj, res, worklist, removed)
+                        self._disconnectAllInputs(n, worklist)
+                        removed.add(n)
+                        return True
+            
         return False
 
     def _reduceNot(self, n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]):
