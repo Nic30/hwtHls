@@ -12,6 +12,7 @@ from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.ast.statements import HlsStm
+from hwtHls.frontend.ast.utils import _getNativeInterfaceWordType
 from hwtHls.llvm.llvmIr import MachineInstr
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeWriteIndexed
@@ -54,6 +55,9 @@ class HlsWrite(HlsStm, SsaInstr):
     def getSrc(self):
         assert len(self.operands) == 1, self
         return self.operands[0]
+
+    def _getNativeInterfaceWordType(self) -> HdlType:
+        return _getNativeInterfaceWordType(self.dst)
 
     @classmethod
     def _translateMirToNetlist(cls,

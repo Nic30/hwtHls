@@ -12,7 +12,7 @@ from hwt.hdl.value import HValue
 from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.interfaces.std import Signal, RdSynced, VldSynced, Handshaked, \
     HandshakeSync, BramPort_withoutClk
-from hwt.interfaces.structIntf import StructIntf
+from hwt.interfaces.structIntf import StructIntf, Interface_to_HdlType
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
@@ -29,6 +29,7 @@ from hwtHls.ssa.transformation.utils.blockAnalysis import collect_all_blocks
 from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axi_intf_common import Axi_hs
 from hwtLib.types.ctypes import uint64_t
+from hwtLib.amba.axi4Lite import Axi4Lite
 
 RE_ID_WITH_NUMBER = re.compile('[^0-9]+|[0-9]+')
 
@@ -280,27 +281,29 @@ class ToLlvmIrTranslator():
                 key.append(part)
         return key
 
-    @staticmethod
-    def _getNativeInterfaceType(i: Interface):
-        if isinstance(i, (Handshaked, Axi_hs, HsStructIntf, HandshakeSync)):
-            return Bits(i._bit_length() - 2)
-        elif isinstance(i, (RdSynced, VldSynced)):
-            return Bits(i._bit_length() - 1)
-        elif isinstance(i, (Signal, RtlSignal, StructIntf)):
-            return i._dtype
-        elif isinstance(i, BramPort_withoutClk):
-            if i.HAS_R:
-                return i.dout._dtype
-            else:
-                return i.din._dtype
-        else:
-            raise NotImplementedError(i)
+    def _getInterfaceTypeForFnArg(self, i: Interface, ioIndex: int, reads: List[HlsRead], writes: List[HlsWrite]):
+        wordType = None
+        if reads:
+            wordType = reads[0]._getNativeInterfaceWordType()
 
-    def _getInterfaceTypeForFnArg(self, i: Interface, ioIndex):
-        wordType = self._getNativeInterfaceType(i)
-        if isinstance(i, BramPort_withoutClk):
-            arrTy = self._translateArrayType(wordType[int(2 ** i.ADDR_WIDTH)])
-            return PointerType.get(arrTy, ioIndex + 1) 
+        if writes:
+            _wordType = writes[0]._getNativeInterfaceWordType()
+            if wordType is None or wordType is _wordType:
+                wordType = _wordType 
+            else:
+                w0 = wordType.bit_length()
+                w1 = _wordType.bit_length()
+                # the type may be different between read and write
+                # this is for example if the write word has write mask and read has not
+                # for LLVM we need just a single pointer, in this case we
+                # we extend the type of pointer to larger type
+                if w0 < w1:
+                    wordType = _wordType
+
+        if isinstance(i, (BramPort_withoutClk, Axi4Lite)):
+            arrTy = wordType[int(2 ** i.ADDR_WIDTH)]
+            llvmArrTy = self._translateArrayType(arrTy)
+            return PointerType.get(llvmArrTy, ioIndex + 1) 
         else:
             return self._translatePtrType(wordType, ioIndex + 1)
 
@@ -308,8 +311,8 @@ class ToLlvmIrTranslator():
         # create a function where we place the code and the arguments for a io interfaces
         io_sorted = sorted(self.topIo.items(), key=lambda x: self.splitStrToStrsAndInts(getSignalName(x[0])))
         params = [
-            (getSignalName(i), self._getInterfaceTypeForFnArg(i, ioIndex))
-            for ioIndex, (i, (_, _)) in enumerate(io_sorted)]
+            (getSignalName(i), self._getInterfaceTypeForFnArg(i, ioIndex, reads, writes))
+            for ioIndex, (i, (reads, writes)) in enumerate(io_sorted)]
         self.llvm.main = main = self.createFunctionPrototype(self.label, params, Type.getVoidTy(self.ctx))
         ioToVar: Dict[Interface, Argument] = {}
         for a, (i, (_, _)) in zip(main.args(), io_sorted):
@@ -355,16 +358,16 @@ class SsaPassToLlvm():
             for instr in reads:
                 instr: HlsRead
                 assert i is instr._src, (i, instr)
-                assert instr._dtype.bit_length() == ToLlvmIrTranslator._getNativeInterfaceType(instr._src).bit_length(), (
+                assert instr._dtype.bit_length() == instr._getNativeInterfaceWordType().bit_length(), (
                     "In this stages the read operations must read only native type of interface",
-                    instr, ToLlvmIrTranslator._getNativeInterfaceType(instr._src))
+                    instr, instr._getNativeInterfaceWordType())
 
             for instr in writes:
                 instr: HlsWrite
                 assert i is instr.dst, (i, instr)
-                assert instr.operands[0]._dtype.bit_length() == ToLlvmIrTranslator._getNativeInterfaceType(instr.dst).bit_length(), (
+                assert instr.operands[0]._dtype.bit_length() == instr._getNativeInterfaceWordType().bit_length(), (
                     "In this stages the read operations must read only native type of interface",
-                    instr, instr.operands[0]._dtype, ToLlvmIrTranslator._getNativeInterfaceType(instr.dst))
+                    instr, instr.operands[0]._dtype, instr._getNativeInterfaceWordType())
 
         toLlvm = ToLlvmIrTranslator(toSsa.label, io)
         toLlvm.translate(toSsa.start)

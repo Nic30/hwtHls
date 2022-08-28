@@ -192,6 +192,9 @@ class HlsReadBram(HlsReadAddressed):
         HlsReadAddressed.__init__(self, parent, src, index, element_t)
         self.parentProxy = parentProxy
 
+    def _getNativeInterfaceWordType(self) -> HdlType:
+        return self._src.dout._dtype
+
     @classmethod
     def _translateMirToNetlist(cls,
             representativeReadStm: "HlsReadBram",
@@ -240,6 +243,9 @@ class HlsWriteBram(HlsWriteAddressed):
 
         HlsWriteAddressed.__init__(self, parent, src, dst, index, element_t)
         self.parentProxy = parentProxy
+
+    def _getNativeInterfaceWordType(self) -> HdlType:
+        return self.dst.din._dtype
 
     @classmethod
     def _translateMirToNetlist(cls,

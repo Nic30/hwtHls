@@ -1,5 +1,3 @@
-from enum import Enum
-from math import ceil
 from typing import Optional, Union
 
 from hwt.doc_markers import internal
@@ -7,16 +5,17 @@ from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.hdlType import HdlType
-from hwt.hdl.types.struct import HStruct
+from hwt.hdl.value import HValue
 from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.interfaces.signalOps import SignalOps
 from hwt.interfaces.std import Handshaked, Signal, VldSynced
-from hwt.interfaces.structIntf import StructIntf, Interface_to_HdlType
+from hwt.interfaces.structIntf import StructIntf
 from hwt.interfaces.unionIntf import UnionSink, UnionSource
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
+from hwtHls.frontend.ast.utils import _getNativeInterfaceWordType
 from hwtHls.llvm.llvmIr import Register, MachineInstr
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeReadIndexed
@@ -25,9 +24,9 @@ from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr, OP_ASSIGN
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.opCache import MirToHwtHlsNetlistOpCache
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer
-from hwtLib.amba.axi_intf_common import Axi_hs
-from hwt.hdl.value import HValue
 from hwtHls.ssa.value import SsaValue
+from hwtLib.amba.axi_intf_common import Axi_hs
+
 
 ANY_HLS_STREAM_INTF_TYPE = Union[Handshaked, Axi_hs, VldSynced,
                                  HsStructIntf, RtlSignal, Signal,
@@ -88,6 +87,9 @@ class HlsRead(HdlStatement, SignalOps, InterfaceBase, SsaInstr):
     @internal
     def _get_rtl_context(self) -> 'RtlNetlist':
         return self._parent.ctx
+
+    def _getNativeInterfaceWordType(self) -> HdlType:
+        return _getNativeInterfaceWordType(self._src)
 
     @classmethod
     def _translateMirToNetlist(cls,
