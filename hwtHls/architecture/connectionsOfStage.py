@@ -198,6 +198,8 @@ def getIntfSyncSignals(intf: Union[Interface, RtlSignal]) -> Tuple[Interface, ..
         return (intf.vld,)
     elif isinstance(intf, RdSynced):
         return (intf.rd,)
+    elif isinstance(intf, BramPort_withoutClk):
+        return (intf.en,)
     else:
         raise NotImplementedError(intf)
 
