@@ -23,7 +23,7 @@ from hwtHls.frontend.pyBytecode.instructions import CMP_OPS, BIN_OPS, UN_OPS, \
     LOAD_METHOD, LOAD_CLOSURE, STORE_ATTR, STORE_FAST, STORE_DEREF, CALL_METHOD, \
     CALL_FUNCTION, CALL_FUNCTION_KW, COMPARE_OP, GET_ITER, UNPACK_SEQUENCE, \
     MAKE_FUNCTION, STORE_SUBSCR, EXTENDED_ARG, CALL_FUNCTION_EX, DELETE_DEREF, DELETE_FAST, \
-    FORMAT_VALUE
+    FORMAT_VALUE, LIST_EXTEND, LIST_TO_TUPLE, LIST_APPEND
 from hwtHls.frontend.pyBytecode.ioProxyAddressed import IoProxyAddressed
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc, \
     PyBytecodeInline, _PyBytecodePragma, PyBytecodePreprocHwCopy
@@ -63,6 +63,9 @@ class PyBytecodeToSsaLowLevelOpcodes():
             MAKE_FUNCTION: self.opcode_MAKE_FUNCTION,
             STORE_SUBSCR: self.opcode_STORE_SUBSCR,
             FORMAT_VALUE: self.opcode_FORMAT_VALUE,
+            LIST_EXTEND: self.opcode_LIST_EXTEND,
+            LIST_TO_TUPLE: self.opcode_LIST_TO_TUPLE,
+            LIST_APPEND: self.opcode_LIST_APPEND,
         }
         opD = self.opcodeDispatch
         for createFn, opcodes in [
@@ -278,6 +281,16 @@ class PyBytecodeToSsaLowLevelOpcodes():
 
         return curBlockAfterCall
 
+    def opcode_LIST_APPEND(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:
+        """
+        Calls list.append(TOS1[-i], TOS). Used to implement list comprehensions.
+        """
+        stack = frame.stack
+        v = stack.pop()
+        list_ = stack[-instr.argval]
+        list.append(list_, v)
+        return curBlock
+        
     # CALL_FUNCTION
     def opcode_CALL_METHOD(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:
         stack = frame.stack
@@ -301,6 +314,27 @@ class PyBytecodeToSsaLowLevelOpcodes():
             res = m(*args)
         
         stack.append(res)
+        return curBlock
+    
+    def opcode_LIST_EXTEND(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:
+        """
+        Calls list.extend(TOS1[-i], TOS). Used to build lists.
+        New in version 3.9.
+        """
+        stack = frame.stack
+        v = stack.pop()
+        list_ = stack[-instr.argval]
+        list.extend(list_, v)
+        return curBlock
+
+    def opcode_LIST_TO_TUPLE(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:
+        """
+        Pops a list from the stack and pushes a tuple containing the same values.
+        New in version 3.9.
+        """
+        stack = frame.stack
+        v = stack.pop()
+        stack.append(tuple(v))
         return curBlock
 
     def opcode_CALL_FUNCTION_KW(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:
