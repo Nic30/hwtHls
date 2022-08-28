@@ -71,6 +71,7 @@ class MachineBasicBlockSyncContainer():
             self.orderingIn = i
 
     def addOrderingDelay(self, clkTicks: int):
+        assert clkTicks > 0, clkTicks
         oo = self.orderingOut
         assert oo is not None
         if isinstance(oo, HlsNetNodeOutLazy):
