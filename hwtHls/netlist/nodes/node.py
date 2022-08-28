@@ -245,7 +245,7 @@ class HlsNetNode():
             return self.scheduledIn
 
         assert self.usedBy, ("Compaction should be called only for nodes with dependencies, others should be moved only manually", self)
-        asapIn, asapOut = asapSchedule[self]
+
         ffdelay = self.netlist.platform.get_ff_store_time(self.netlist.realTimeClkPeriod, self.netlist.scheduler.resolution)
         clkPeriod = self.netlist.normalizedClkPeriod
         epsilon = self.netlist.scheduler.epsilon
@@ -291,6 +291,7 @@ class HlsNetNode():
             raise NotImplementedError()
             # no outputs, we must use some asap input time and move to end of the clock
             assert self._inputs, (self, "Node must have at least some port")
+            asapIn, _ = asapSchedule[self]
             timeOffset = start_of_next_clk_period(asapIn[0], clkPeriod) - ffdelay - epsilon
         
         inTime = self._scheduleAlapCompactionMultiClockInTime
