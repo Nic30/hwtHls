@@ -393,7 +393,7 @@ class HlsNetNode():
         else:
             name = f"{allocator.namePrefix}forwardDeclr{self._id:d}_{o.out_i:d}"
         s = allocator._sig(name, o._dtype)
-        res = allocator.netNodeToRtl[o] = TimeIndependentRtlResource(s, startTime, allocator)
+        res = allocator.netNodeToRtl[o] = TimeIndependentRtlResource(s, startTime, allocator, False)
         return res
       
     def allocateRtlInstance(self, allocator: "ArchElement"):

@@ -78,7 +78,7 @@ class HlsNetNodeOperator(HlsNetNode):
         else:
             raise AssertionError("The ", self.__class__.__name__,
                                  " a signals of wrong type", s, op_out, s._dtype, op_out._dtype)
-        tis = TimeIndependentRtlResource(s, t, allocator)
+        tis = TimeIndependentRtlResource(s, t, allocator, False)
         
         allocator.netNodeToRtl[op_out] = tis
 

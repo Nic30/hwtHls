@@ -41,7 +41,7 @@ class HlsLoopGateStatus(HlsNetNode):
 
         # create RTL signal expression base on operator type
         t = self.scheduledOut[0] + self.netlist.scheduler.epsilon
-        statusBusyReg_s = TimeIndependentRtlResource(statusBusyReg, t, allocator)
+        statusBusyReg_s = TimeIndependentRtlResource(statusBusyReg, t, allocator, False)
         allocator.netNodeToRtl[op_out] = statusBusyReg_s
 
         # returns the control token

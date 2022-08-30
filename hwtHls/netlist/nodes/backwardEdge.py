@@ -45,7 +45,7 @@ class HlsNetNodeReadBackwardEdge(HlsNetNodeRead):
             reg = allocator._reg(f"{allocator.namePrefix:s}{name:s}", dtype, def_val=init[0][0])
 
             # create RTL signal expression base on operator type
-            regTir = TimeIndependentRtlResource(reg, self.scheduledOut[0], allocator)
+            regTir = TimeIndependentRtlResource(reg, self.scheduledOut[0], allocator, False)
             allocator.netNodeToRtl[op_out] = regTir
 
             return regTir

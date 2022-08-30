@@ -8,23 +8,28 @@ from hwtHls.netlist.scheduler.clk_math import start_clk
 
 
 class TimeIndependentRtlResourceItem():
-    __slots__ = ["parent", "data"]
+    __slots__ = ["parent", "data", "isExplicitRegister"]
 
-    def __init__(self, parent:"TimeIndependentRtlResource", data:Interface):
+    def __init__(self, parent:"TimeIndependentRtlResource", data:Interface, isExplicitRegister: bool):
         self.parent = parent
         self.data = data
+        self.isExplicitRegister = isExplicitRegister
 
     def is_rlt_register(self) -> bool:
-        return (self.parent.valuesInTime[0] is not self or
-                isinstance(self.parent.valuesInTime[0].data, RtlSyncSignal))
+        return self.isExplicitRegister or (
+                self.parent.valuesInTime[0] is not self or
+                isinstance(self.parent.valuesInTime[0].data, RtlSyncSignal)
+        )
 
     def __repr__(self):
         return f"<{self.__class__.__name__:s} {self.data}>"
+
 
 class INVARIANT_TIME():
 
     def __init__(self):
         raise AssertionError("Should not be instantiated this is used as a constant")
+
 
 class TimeIndependentRtlResource():
     """
@@ -43,8 +48,10 @@ class TimeIndependentRtlResource():
     :ivar persistenceRanges: sorted list of ranges of clock period indexes where the value may stay in previous register
         and new register is not required (and will not be allocated, the previous value will be used instead).
         (uses enclosed intervals, 0,1 means clock 0 and 1)
+    :ivar isExplicitRegister: A flag which means that the beginning of life of this resource is a register
+        which is instantiated at the time of the beginning and the synchronization from that time should be injected
+        into register load logic.
     """
-
 
     # time constant, which means that item is not time dependent
     # and can be accessed any time
@@ -52,7 +59,8 @@ class TimeIndependentRtlResource():
 
     def __init__(self, data: Union[RtlSignal, Interface, HValue],
                  timeOffset: Union[int, Literal[INVARIANT_TIME]],
-                 allocator: "ArchElement"):
+                 allocator: "ArchElement",
+                 isExplicitRegister: bool):
         """
         :param data: signal with value in initial time
         """
@@ -61,7 +69,7 @@ class TimeIndependentRtlResource():
         self.timeOffset = timeOffset
         self.allocator = allocator
         self.valuesInTime: List[TimeIndependentRtlResourceItem] = [
-            TimeIndependentRtlResourceItem(self, data),
+            TimeIndependentRtlResourceItem(self, data, isExplicitRegister),
         ]
         self.persistenceRanges: List[Tuple[int, int]] = []
 
@@ -122,7 +130,8 @@ class TimeIndependentRtlResource():
                 reg = self.allocator._reg(f"{name:s}_delayTo{dstClkPeriod - i:d}",
                                           dtype=sig.data._dtype)
                 reg(prev.data)
-                cur = TimeIndependentRtlResourceItem(self, reg)
+                cur = TimeIndependentRtlResourceItem(self, reg, False)
+
             self.valuesInTime.append(cur)
             prev = cur
 

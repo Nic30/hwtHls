@@ -17,7 +17,7 @@ from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage, resolveSt
 from hwtHls.architecture.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, INVARIANT_TIME
 from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
-from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite,\
+from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, \
     HOrderingVoidT
 from hwtHls.netlist.nodes.node import HlsNetNode
 
@@ -185,9 +185,13 @@ class ArchElementPipeline(ArchElement):
             for s in con.signals:
                 s: TimeIndependentRtlResource
                 # if the value has a register at the end of this stage
-                v = s.checkIfExistsInClockCycle(pipeline_st_i + 1)
-                if v is not None and v.is_rlt_register():
+                v = s.checkIfExistsInClockCycle(pipeline_st_i)
+                if v.isExplicitRegister:
                     cur_registers.append(v)
+                else:
+                    v = s.checkIfExistsInClockCycle(pipeline_st_i + 1)
+                    if v is not None and v.is_rlt_register():
+                        cur_registers.append(v)
 
             if nextCon is None:
                 toNextStSource = None

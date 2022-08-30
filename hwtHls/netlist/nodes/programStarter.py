@@ -32,7 +32,7 @@ class HlsProgramStarter(HlsNetNode):
 
         # create RTL signal expression base on operator type
         t = self.scheduledOut[0] + self.netlist.scheduler.epsilon
-        status_reg_s = TimeIndependentRtlResource(starterReg, t, allocator)
+        status_reg_s = TimeIndependentRtlResource(starterReg, t, allocator, True)
         allocator.netNodeToRtl[op_out] = status_reg_s
 
         return status_reg_s

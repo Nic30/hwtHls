@@ -51,7 +51,8 @@ class HlsNetNodeReadSync(HlsNetNode):
         _o = TimeIndependentRtlResource(
             en,
             INVARIANT_TIME if isinstance(en, HValue) else t,
-            allocator)
+            allocator,
+            False)
         allocator.netNodeToRtl[r_out] = _o
         return _o
 

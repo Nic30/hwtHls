@@ -18,7 +18,7 @@ class HlsNetNodeConst(HlsNetNode):
 
     def allocateRtlInstance(self, allocator: "ArchElement") -> TimeIndependentRtlResource:
         s = self.val
-        return TimeIndependentRtlResource(s, INVARIANT_TIME, allocator)
+        return TimeIndependentRtlResource(s, INVARIANT_TIME, allocator, False)
 
     def resolve_realization(self):
         self.inputWireDelay = ()

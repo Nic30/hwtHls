@@ -73,7 +73,7 @@ class HlsNetNodeMux(HlsNetNodeOperator):
 
         # create RTL signal expression base on operator type
         t = self.scheduledOut[0] + self.netlist.scheduler.epsilon
-        mux_out_s = TimeIndependentRtlResource(mux_out_s, t, allocator)
+        mux_out_s = TimeIndependentRtlResource(mux_out_s, t, allocator, False)
         allocator.netNodeToRtl[op_out] = mux_out_s
 
         return mux_out_s

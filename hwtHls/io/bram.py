@@ -126,7 +126,7 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
             
         allocator.netNodeToRtl[key] = rtlObj
         if ram.HAS_R:
-            allocator.netNodeToRtl[self._outputs[0]] = TimeIndependentRtlResource(ram.dout, self.scheduledOut[0], allocator)
+            allocator.netNodeToRtl[self._outputs[0]] = TimeIndependentRtlResource(ram.dout, self.scheduledOut[0], allocator, False)
 
         return rtlObj
 

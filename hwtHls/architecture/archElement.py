@@ -156,7 +156,7 @@ class ArchElement():
             if skipWhen is None:
                 skipWhen = extraSkipWhen
             else:
-                skipWhen = TimeIndependentRtlResource(skipWhen.data | extraSkipWhen.data, syncTime, self).get(syncTime)
+                skipWhen = TimeIndependentRtlResource(skipWhen.data | extraSkipWhen.data, syncTime, self, False).get(syncTime)
 
         if skipWhen is not None:
             curSkipWhen = res_skipWhen.get(intf, None)
@@ -176,7 +176,7 @@ class ArchElement():
             if extraCond is None:
                 extraCond = extraExtraCond
             else:
-                extraCond = TimeIndependentRtlResource(extraCond.data & extraExtraCond.data, syncTime, self).get(syncTime)
+                extraCond = TimeIndependentRtlResource(extraCond.data & extraExtraCond.data, syncTime, self, False).get(syncTime)
         
         if extraCond is not None:
             curExtraCond = res_extraCond.get(intf, None)

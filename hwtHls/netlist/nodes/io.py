@@ -170,7 +170,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
         _o = TimeIndependentRtlResource(
             self.getRtlDataSig(),
             t,
-            allocator)
+            allocator, False)
 
         allocator.netNodeToRtl[r_out] = _o
         for sync in self.dependsOn:
