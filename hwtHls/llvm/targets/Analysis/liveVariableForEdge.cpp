@@ -30,7 +30,10 @@ std::pair<UniqList<Register>, UniqList<std::pair<Register, MachineBasicBlock*>>>
 	UniqList<std::pair<Register, MachineBasicBlock*>> requires;
 
 	for (auto &i : block.instrs()) {
-		for (auto &v : i.operands()) {
+		unsigned opCnt = i.getNumOperands();
+		// uses must be seen first, defs after
+		for (unsigned _i = opCnt; _i > 0 ; --_i) {
+			auto & v = i.getOperand(_i - 1);
 			if (!v.isReg()) {
 				continue;
 			}
