@@ -1,7 +1,7 @@
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.value import HValue
 from hwt.interfaces.std import Handshaked, HandshakeSync, VldSynced, Signal, \
-    RdSynced
+    RdSynced, BramPort_withoutClk
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, INVARIANT_TIME
 from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
@@ -78,6 +78,8 @@ class HlsNetNodeReadSync(HlsNetNode):
                 return intf.vld._sig
             elif isinstance(intf, (Signal, RtlSignalBase, RdSynced)):
                 return BIT.from_py(1)
+            elif isinstance(intf, BramPort_withoutClk):
+                return intf.en._sig
             else:
                 raise NotImplementedError(intf)
 
@@ -93,6 +95,8 @@ class HlsNetNodeReadSync(HlsNetNode):
                 return BIT.from_py(1)
             elif isinstance(intf, Axi_hs):
                 return intf.ready._sig
+            elif isinstance(intf, BramPort_withoutClk):
+                return BIT.from_py(1)
             else:
                 raise NotImplementedError(intf)
 
