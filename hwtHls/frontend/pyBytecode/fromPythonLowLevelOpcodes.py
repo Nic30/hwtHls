@@ -23,7 +23,7 @@ from hwtHls.frontend.pyBytecode.instructions import CMP_OPS, BIN_OPS, UN_OPS, \
     LOAD_METHOD, LOAD_CLOSURE, STORE_ATTR, STORE_FAST, STORE_DEREF, CALL_METHOD, \
     CALL_FUNCTION, CALL_FUNCTION_KW, COMPARE_OP, GET_ITER, UNPACK_SEQUENCE, \
     MAKE_FUNCTION, STORE_SUBSCR, EXTENDED_ARG, CALL_FUNCTION_EX, DELETE_DEREF, DELETE_FAST, \
-    FORMAT_VALUE, LIST_EXTEND, LIST_TO_TUPLE, LIST_APPEND
+    FORMAT_VALUE, LIST_EXTEND, LIST_TO_TUPLE, LIST_APPEND, IS_OP
 from hwtHls.frontend.pyBytecode.ioProxyAddressed import IoProxyAddressed
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc, \
     PyBytecodeInline, _PyBytecodePragma, PyBytecodePreprocHwCopy
@@ -66,6 +66,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
             LIST_EXTEND: self.opcode_LIST_EXTEND,
             LIST_TO_TUPLE: self.opcode_LIST_TO_TUPLE,
             LIST_APPEND: self.opcode_LIST_APPEND,
+            IS_OP: self.opcode_IS_OP,
         }
         opD = self.opcodeDispatch
         for createFn, opcodes in [
@@ -165,7 +166,10 @@ class PyBytecodeToSsaLowLevelOpcodes():
     def opcode_LOAD_ATTR(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:
         stack = frame.stack
         v = stack[-1]
-        v = getattr(v, instr.argval)
+        try:
+            v = getattr(v, instr.argval)
+        except:
+            raise
         stack[-1] = v
         return curBlock
 
@@ -290,7 +294,24 @@ class PyBytecodeToSsaLowLevelOpcodes():
         list_ = stack[-instr.argval]
         list.append(list_, v)
         return curBlock
+    
+    def opcode_IS_OP(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:
+        """
+        Performs is comparison, or is not if invert is 1.
+        New in version 3.9.
+        """
+        stack = frame.stack
+        v1 = stack.pop()
+        v0 = stack.pop()
         
+        invert = instr.argval
+        if invert:
+            res = v0 is not v1
+        else:
+            res = v0 is v1
+        stack.append(res)
+        return curBlock
+     
     # CALL_FUNCTION
     def opcode_CALL_METHOD(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:
         stack = frame.stack

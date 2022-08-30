@@ -128,7 +128,7 @@ BIN_OPS = {
     BINARY_AND: operator.and_,
     BINARY_XOR: operator.xor,
     BINARY_OR: operator.or_,
-    IS_OP: operator.is_,
+    # IS_OP: operator.is_, # "is" operator has inversion flag, we have to use a custom evaluator fn.
     CONTAINS_OP: operator.contains,
 }
 
