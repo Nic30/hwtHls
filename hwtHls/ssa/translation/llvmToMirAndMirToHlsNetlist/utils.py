@@ -1,15 +1,15 @@
 from typing import Union, Optional, List, Tuple, Set
 
 from hwtHls.llvm.llvmIr import MachineBasicBlock, MachineLoop, Register
+from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
+    HlsNetNodeWriteControlBackwardEdge
+from hwtHls.netlist.nodes.delay import HlsNetNodeDelayClkTick
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, \
     HlsNetNodeExplicitSync, HOrderingVoidT
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes, \
     HlsNetNodeOutLazy
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.opCache import MirToHwtHlsNetlistOpCache
-from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
-    HlsNetNodeWriteControlBackwardEdge
-from hwtHls.netlist.nodes.delay import HlsNetNodeDelayClkTick
-from hwtHls.netlist.context import HlsNetlistCtx
 
 
 class MachineBasicBlockSyncContainer():
@@ -107,21 +107,6 @@ def getTopLoopForBlock(mb: MachineBasicBlock, loop: MachineLoop) -> MachineLoop:
         else:
             break
     return topLoop
-
-
-class BranchOutLabel():
-    """
-    A label used in :class:`MirToHwtHlsNetlistOpCache` as a key for value which is 1 if the control is passed from src to dst.
-    """
-
-    def __init__(self, dst: MachineBasicBlock):
-        self.dst = dst
-
-    def __hash__(self):
-        return hash((self.__class__, self.dst))
-
-    def __eq__(self, other):
-        return type(self) is type(other) and self.dst == other.dst
 
 
 def HlsNetNodeExplicitSyncInsertBehindLazyOut(netlist: "HlsNetlistCtx",

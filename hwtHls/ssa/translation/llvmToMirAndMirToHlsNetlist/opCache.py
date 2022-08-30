@@ -3,12 +3,13 @@ from typing import Union, Dict, Tuple
 from hwt.hdl.types.hdlType import HdlType
 from hwtHls.llvm.llvmIr import MachineBasicBlock, Register
 from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.nodes.io import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
     HlsNetNodeOutAny
-from hwtHls.netlist.nodes.io import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
+from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.branchOutLabel import BranchOutLabel
 
-MirValue = Union[Register, MachineBasicBlock]
+MirValue = Union[Register, MachineBasicBlock, BranchOutLabel]
 
 
 class BranchOutLabel():
