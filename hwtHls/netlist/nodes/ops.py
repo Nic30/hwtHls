@@ -1,8 +1,8 @@
 from hwt.hdl.operatorDefs import OpDefinition, AllOps
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.value import HValue
-from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, INVARIANT_TIME, \
-    TimeIndependentRtlResourceItem
+from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, \
+    TimeIndependentRtlResourceItem, INVARIANT_TIME
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.typeUtils import dtypeEqualSignIgnore
@@ -43,9 +43,7 @@ class HlsNetNodeOperator(HlsNetNode):
             input_cnt, self.netlist.realTimeClkPeriod)
         self.assignRealization(r)
 
-    def allocateRtlInstance(self,
-                          allocator: "ArchElement",
-                          ) -> TimeIndependentRtlResource:
+    def allocateRtlInstance(self, allocator: "ArchElement") -> TimeIndependentRtlResource:
         op_out = self._outputs[0]
         try:
             return allocator.netNodeToRtl[op_out]
@@ -78,7 +76,8 @@ class HlsNetNodeOperator(HlsNetNode):
             if s._dtype.signed != op_out._dtype.signed:
                 s = s._convSign(op_out._dtype.signed)
         else:
-            raise AssertionError("The ", self.__class__.__name__, " a signals of wrong type", s, op_out, s._dtype, op_out._dtype)
+            raise AssertionError("The ", self.__class__.__name__,
+                                 " a signals of wrong type", s, op_out, s._dtype, op_out._dtype)
         tis = TimeIndependentRtlResource(s, t, allocator)
         
         allocator.netNodeToRtl[op_out] = tis
