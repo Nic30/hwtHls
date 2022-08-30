@@ -32,6 +32,8 @@ from tests.frontend.pyBytecode.variableChain_test import VariableChain_TC
 from tests.hlsNetlist.bitwiseOpsAggregation import HlsNetlistBitwiseOpsTC
 from tests.hlsNetlist.readSync import HlsNetlistReadSyncTC
 from tests.hlsNetlist.wire import HlsNetlistWireTC
+from tests.io.amba.axi4Lite.axi4LiteRead_test import Axi4LiteRead_TC
+from tests.io.amba.axi4Lite.axi4LiteWrite_test import Axi4LiteWrite_TC
 from tests.io.amba.axiStream.axisPacketCntr_test import AxiSPacketCntrTC
 from tests.io.amba.axiStream.axisParseEth_test import AxiSParseEthTC
 from tests.io.amba.axiStream.axisParseIf_test import AxiSParseIfTC
@@ -96,6 +98,8 @@ suite = testSuiteFromTCs(
     BramWrite_TC,
     LlvmLoopUnroll_TC,
     PingResponderTC,
+    Axi4LiteRead_TC,
+    Axi4LiteWrite_TC,
 )
 
 
