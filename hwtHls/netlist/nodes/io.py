@@ -26,7 +26,6 @@ from hwtLib.amba.axi_intf_common import Axi_hs
 from ipCorePackager.constants import INTF_DIRECTION_asDirecton, \
     DIRECTION_opposite
 
-
 IO_COMB_REALIZATION = OpRealizationMeta(outputWireDelay=epsilon)
 
 
@@ -36,7 +35,17 @@ class _HOrderingVoidT(HdlType):
         return 0
 
 
+class _HExternalDataDepT(_HOrderingVoidT):
+    pass
+
+"""
+:var HOrderingVoidT: A type used for connections between HlsNetNode instances to keep its ordering during scheduling.
+    (similar to glue type in LLVM)
+:var HExternalDataDepT: Same as a HOrderingVoidT but in addition it means that there is an external data connection
+    on outside of this component.
+"""
 HOrderingVoidT = _HOrderingVoidT()
+HExternalDataDepT = _HExternalDataDepT()
 
 
 class HlsNetNodeExplicitSync(HlsNetNode):
