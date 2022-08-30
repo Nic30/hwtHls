@@ -20,7 +20,8 @@ from hwtHls.llvm.llvmIr import LoadInst, Register
 from hwtHls.llvm.llvmIr import MachineInstr
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
-from hwtHls.netlist.nodes.io import HlsNetNodeWriteIndexed, HOrderingVoidT
+from hwtHls.netlist.nodes.io import HlsNetNodeWriteIndexed, HOrderingVoidT,\
+    HlsNetNodeReadIndexed
 from hwtHls.netlist.nodes.node import SchedulizationDict, HlsNetNodePartRef
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes, \
     HlsNetNodeOut, HlsNetNodeIn
@@ -164,6 +165,12 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
             assert p.parentNode is self, (self, p)
             yield HlsNetNodeWriteBramCmdPartRef(self.netlist, self, not p.isDataReadPart)
 
+    def __repr__(self):
+        src = self.src
+        if src is NOT_SPECIFIED:
+            src = self.dependsOn[0]
+
+        return f"<{self.__class__.__name__:s} {self._id:d} {self.cmd} {self.dst}{HlsNetNodeReadIndexed._strFormatIndexes(self.indexes)} <- {src}>"
 
 class HlsNetNodeWriteBramCmdPartRef(HlsNetNodePartRef):
 
