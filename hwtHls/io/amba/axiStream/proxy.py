@@ -5,8 +5,8 @@ from hwt.hdl.value import HValue
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.pyBytecode.ioProxyStream import IoProxyStream
-from hwtHls.io.axiStream.stmRead import HlsStmReadAxiStream
-from hwtHls.io.axiStream.stmWrite import HlsStmWriteAxiStream
+from hwtHls.io.amba.axiStream.stmRead import HlsStmReadAxiStream
+from hwtHls.io.amba.axiStream.stmWrite import HlsStmWriteAxiStream
 from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axis import AxiStream
 

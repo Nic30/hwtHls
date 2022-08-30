@@ -13,7 +13,7 @@ from hwtHls.scope import HlsScope
 from hwtLib.amba.axis import AxiStream
 from hwtLib.amba.axis_comp.frame_parser.test_types import structManyInts
 from hwtLib.types.ctypes import uint16_t, uint32_t
-from hwtHls.io.axiStream.stmRead import HlsStmReadAxiStream
+from hwtHls.io.amba.axiStream.stmRead import HlsStmReadAxiStream
 from hwtHls.frontend.ast.statementsRead import HlsStmReadStartOfFrame, \
     HlsStmReadEndOfFrame
 

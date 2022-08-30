@@ -11,7 +11,7 @@ from hwtLib.amba.axis import axis_send_bytes
 from hwtLib.amba.axis_comp.frame_parser.test_types import structManyInts
 from hwtSimApi.constants import CLK_PERIOD
 from pyMathBitPrecise.bit_utils import  int_to_int_list, mask
-from tests.io.axiStream.axisParseLinear import AxiSParseStructManyInts0, \
+from tests.io.amba.axiStream.axisParseLinear import AxiSParseStructManyInts0, \
     AxiSParseStructManyInts1, AxiSParse2fields, struct_i16_i32
 
 

@@ -127,7 +127,10 @@ class ArchElement():
         if isinstance(_o, TimeIndependentRtlResource):
             return _o.get(time)
         else:
-            return _o
+            res = self.netNodeToRtl.get(o, _o)
+            if isinstance(res, TimeIndependentRtlResource):
+                return res.get(time)
+            return res
 
     def _copyChannelSync(self, intf: Interface,
                    node: Union[HlsNetNodeRead, HlsNetNodeWrite],

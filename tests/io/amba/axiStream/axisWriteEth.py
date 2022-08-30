@@ -4,7 +4,7 @@ from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.param import Param
 from hwtHls.scope import HlsScope
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
-from hwtHls.io.axiStream.proxy import IoProxyAxiStream
+from hwtHls.io.amba.axiStream.proxy import IoProxyAxiStream
 from hwt.hdl.types.defs import BIT
 from hwt.interfaces.std import Handshaked
 from hwtLib.types.net.ethernet import eth_mac_t, Eth2Header_t, ETHER_TYPE

@@ -7,7 +7,7 @@ from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtLib.amba.axis import axis_recieve_bytes
 from hwtSimApi.constants import CLK_PERIOD
-from tests.io.axiStream.axisWriteByte import AxiSWriteByte
+from tests.io.amba.axiStream.axisWriteByte import AxiSWriteByte
 
 
 class AxiSWriteByteTC(SimTestCase):

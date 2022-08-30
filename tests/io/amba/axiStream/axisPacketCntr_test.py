@@ -5,7 +5,7 @@ from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtLib.amba.axis import axis_send_bytes
 from hwtSimApi.utils import freq_to_period
-from tests.io.axiStream.axisPacketCntr import AxiSPacketCntr
+from tests.io.amba.axiStream.axisPacketCntr import AxiSPacketCntr
 
 
 class AxiSPacketCntrTC(SimTestCase):

@@ -18,8 +18,8 @@ from hwtHls.frontend.ast.statements import HlsStm
 from hwtHls.frontend.ast.statementsRead import HlsStmReadStartOfFrame, HlsStmReadEndOfFrame
 from hwtHls.frontend.ast.statementsWrite import HlsStmWriteStartOfFrame, HlsStmWriteEndOfFrame, \
     HlsWrite
-from hwtHls.io.axiStream.stmRead import HlsStmReadAxiStream
-from hwtHls.io.axiStream.stmWrite import HlsStmWriteAxiStream
+from hwtHls.io.amba.axiStream.stmRead import HlsStmReadAxiStream
+from hwtHls.io.amba.axiStream.stmWrite import HlsStmWriteAxiStream
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.exprBuilder import SsaExprBuilder
 from hwtHls.ssa.instr import SsaInstr

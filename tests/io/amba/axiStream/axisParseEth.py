@@ -10,7 +10,7 @@ from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axis import AxiStream
 from hwtLib.types.net.ethernet import Eth2Header_t, eth_mac_t
-from hwtHls.io.axiStream.stmRead import HlsStmReadAxiStream
+from hwtHls.io.amba.axiStream.stmRead import HlsStmReadAxiStream
 from hwtHls.frontend.ast.statementsRead import HlsStmReadStartOfFrame, \
     HlsStmReadEndOfFrame
 

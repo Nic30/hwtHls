@@ -9,7 +9,7 @@ from hwtLib.amba.axis import axis_send_bytes
 from hwtLib.types.net.ethernet import Eth2Header_t, ETHER_TYPE
 from hwtSimApi.constants import CLK_PERIOD
 from pyMathBitPrecise.bit_utils import  int_to_int_list
-from tests.io.axiStream.axisParseEth import AxiSParseEth
+from tests.io.amba.axiStream.axisParseEth import AxiSParseEth
 
 
 class AxiSParseEthTC(SimTestCase):

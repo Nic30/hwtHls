@@ -27,7 +27,6 @@ from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasi
 from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axi_intf_common import Axi_hs
 
-
 ANY_HLS_STREAM_INTF_TYPE = Union[Handshaked, Axi_hs, VldSynced,
                                  HsStructIntf, RtlSignal, Signal,
                                  UnionSink, UnionSource]
@@ -55,7 +54,12 @@ class HlsRead(HdlStatement, SignalOps, InterfaceBase, SsaInstr):
         name = f"{intfName:s}_read"
         sig = var(name, dtype)
         if isinstance(sig, Interface):
-            sig_flat = var(name, Bits(dtype.bit_length()))
+            w = dtype.bit_length()
+            force_vector = False
+            if w == 1 and isinstance(dtype, Bits):
+                force_vector = dtype.force_vector
+                
+            sig_flat = var(name, Bits(w, force_vector=force_vector))
             # use flat signal and make type member fields out of slices of that signal
             sig = sig_flat._reinterpret_cast(dtype)
             sig._name = name

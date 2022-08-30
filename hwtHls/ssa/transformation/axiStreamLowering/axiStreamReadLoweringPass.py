@@ -16,7 +16,7 @@ from hwtHls.frontend.ast.statementsRead import HlsRead, HlsStmReadStartOfFrame, 
     HlsStmReadEndOfFrame
 from hwtHls.frontend.ast.statementsWrite import HlsStmWriteStartOfFrame, \
     HlsStmWriteEndOfFrame
-from hwtHls.io.axiStream.stmRead import HlsStmReadAxiStream
+from hwtHls.io.amba.axiStream.stmRead import HlsStmReadAxiStream
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.exprBuilder import SsaExprBuilder
 from hwtHls.ssa.transformation.axiStreamLowering.streamReadWriteGraphDetector import StreamReadWriteGraphDetector

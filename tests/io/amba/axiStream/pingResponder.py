@@ -11,7 +11,7 @@ from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc
 from hwtHls.frontend.pyBytecode.markers import PyBytecodePreprocHwCopy
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
-from hwtHls.io.axiStream.proxy import IoProxyAxiStream
+from hwtHls.io.amba.axiStream.proxy import IoProxyAxiStream
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axis import AxiStream

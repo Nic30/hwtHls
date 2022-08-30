@@ -15,7 +15,7 @@ from hwtLib.types.ctypes import uint16_t
 from hwtLib.types.net.ethernet import Eth2Header_t, ETHER_TYPE
 from hwtLib.types.net.ip import IPv4Header_t, IP_PROTOCOL, ipv4_t
 from hwtLib.types.net.udp import UDP_header_t
-from hwtHls.io.axiStream.proxy import IoProxyAxiStream
+from hwtHls.io.amba.axiStream.proxy import IoProxyAxiStream
 
 
 class AxiSParseUdpIpv4(Unit):

@@ -4,11 +4,11 @@ from hwt.interfaces.std import Handshaked
 from hwt.interfaces.utils import addClkRstn
 from hwt.math import log2ceil
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc
-from hwtHls.io.axiStream.proxy import IoProxyAxiStream
+from hwtHls.io.amba.axiStream.proxy import IoProxyAxiStream
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axis import AxiStream
 from hwtLib.types.ctypes import uint16_t
-from tests.io.axiStream.axisPacketCntr import AxiSPacketCntr
+from tests.io.amba.axiStream.axisPacketCntr import AxiSPacketCntr
 
 
 class AxiSPacketByteCntr0(AxiSPacketCntr):
