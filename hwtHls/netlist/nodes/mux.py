@@ -1,14 +1,13 @@
-from typing import Union, Generator
+from typing import Generator
 
 from hwt.code import If
 from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.types.hdlType import HdlType
+from hwt.hdl.value import HValue
 from hwt.pyUtils.arrayQuery import grouper
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
-    link_hls_nodes, HlsNetNodeIn
-from hwt.hdl.value import HValue
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 
 
 class HlsNetNodeMux(HlsNetNodeOperator):
@@ -51,14 +50,27 @@ class HlsNetNodeMux(HlsNetNodeOperator):
                 
                 v, vt = v
                 v = allocator.instantiateHlsNetNodeOutInTime(v, vt)
-                    
+                
+                if c is not None and isinstance(c.data, HValue):
+                    # The value of condition was resolved to be a constant
+                    if c.data:
+                        if mux_top is None:
+                            mux_top = mux_out_s(v.data)
+                        else:
+                            mux_top.Else(mux_out_s(v.data))
+                        break
+                    else:
+                        # this case has condition always 0 so we can skip it
+                        continue
+                        
                 if mux_top is None:
                     mux_top = If(c.data, mux_out_s(v.data))
                 elif c is not None:
                     mux_top.Elif(c.data, mux_out_s(v.data))
                 else:
                     mux_top.Else(mux_out_s(v.data))
-    
+            assert mux_top is not None, (self, "Every ase of mux was optimized away")
+
         # create RTL signal expression base on operator type
         t = self.scheduledOut[0] + self.netlist.scheduler.epsilon
         mux_out_s = TimeIndependentRtlResource(mux_out_s, t, allocator)
@@ -73,7 +85,6 @@ class HlsNetNodeMux(HlsNetNodeOperator):
     def _iterValueConditionDriverPairs(self) -> Generator[HlsNetNodeIn, None, None]:
         for (v, c) in grouper(2, self.dependsOn, padvalue=None):
             yield (v, c)
-
 
     def __repr__(self, minify=False):
         if minify:
