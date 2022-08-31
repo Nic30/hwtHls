@@ -90,14 +90,14 @@ bool resolveTypes(MachineInstr &MI) {
 			if (MO.isCImm()) {
 				assert(
 						MO.getCImm()->getBitWidth() == bitWidth
-								&& "All values must be of same type");
+								&& "All operands of this operator must be of same type");
 			} else if (MO.isReg()) {
 				Register R = MO.getReg();
 				LLT T = MRI.getType(R);
 				if (T.isValid()) {
 					assert(
 							T.getSizeInBits() == bitWidth
-									&& "All values must be of same type");
+									&& "All operands of this operator must be of same type");
 				} else {
 					MRI.setType(R, LLT::scalar(bitWidth));
 				}
