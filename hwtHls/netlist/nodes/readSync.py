@@ -1,3 +1,5 @@
+from typing import Optional
+
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.value import HValue
 from hwt.interfaces.std import Handshaked, HandshakeSync, VldSynced, Signal, \
@@ -9,7 +11,7 @@ from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.io import IO_COMB_REALIZATION, HlsNetNodeRead, \
     HlsNetNodeWrite, HlsNetNodeExplicitSync
-from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict
+from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict, InputTimeGetter
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn
 from hwtLib.amba.axi_intf_common import Axi_hs
 
@@ -127,20 +129,20 @@ class HlsNetNodeReadSync(HlsNetNode):
         else:
             raise NotImplementedError(d)
 
-    def scheduleAlapCompaction(self, asapSchedule: SchedulizationDict):
+    def scheduleAlapCompaction(self, asapSchedule: SchedulizationDict, inputTimeGetter: Optional[InputTimeGetter]):
         """
         Schedule in same time as parent read/write for which is this readsync for.
         """
-        # if all dependencies have inputs scheduled we shedule this node and try successors
+        # if all dependencies have inputs scheduled we schedule this node and try successors
         if self.scheduledIn is not None:
             return self.scheduledIn
-        super(HlsNetNodeReadSync, self).scheduleAlapCompaction(asapSchedule)
+        # super(HlsNetNodeReadSync, self).scheduleAlapCompaction(asapSchedule)
         parent = self.dependsOn[0].obj
-        if not isinstance(parent, HlsNetNodeConst):
-            assert isinstance(parent, (HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeExplicitSync)), parent
-            parent.scheduleAlapCompaction(asapSchedule)
-            self.scheduledIn = (parent.scheduledOut[0],)
-            self.scheduledOut = (parent.scheduledOut[0] + self.outputWireDelay[0],)
+        assert isinstance(parent, (HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeExplicitSync)), parent
+        parent.scheduleAlapCompaction(asapSchedule, inputTimeGetter)
+        t = parent.scheduledOut[0]
+        self.scheduledIn = (t,)
+        self.scheduledOut = (t + self.outputWireDelay[0],)
         return self.scheduledIn
         
     def __repr__(self):

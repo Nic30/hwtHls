@@ -61,7 +61,7 @@ class HlsScheduler():
                 consts.append(node)
                 continue
             if node.scheduledIn is None:
-                node.scheduleAlapCompaction(asapSchedule)
+                node.scheduleAlapCompaction(asapSchedule, None)
             if node.scheduledIn:
                 minTime = min(minTime, min(node.scheduledIn))
             if node.scheduledOut:

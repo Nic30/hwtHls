@@ -4,7 +4,7 @@ from hwt.code import If, Or
 from hwt.hdl.types.defs import BIT
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.io import IO_COMB_REALIZATION, HlsNetNodeExplicitSync
-from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict
+from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict, InputTimeGetter
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, link_hls_nodes, HlsNetNodeIn
 from hwtHls.netlist.scheduler.clk_math import start_of_next_clk_period
 
@@ -189,7 +189,9 @@ class HlsLoopGate(HlsNetNode):
     def resolve_realization(self):
         self.assignRealization(IO_COMB_REALIZATION)
 
-    def scheduleAlapCompaction(self, asapSchedule:SchedulizationDict):
+    def scheduleAlapCompaction(self, asapSchedule:SchedulizationDict, inputTimeGetter: Optional[InputTimeGetter]):
+        if inputTimeGetter is not None:
+            raise NotImplementedError(inputTimeGetter)
         normalizedClkPeriod: int = self.netlist.normalizedClkPeriod
         if self.scheduledIn is not None:
             return self.scheduledIn

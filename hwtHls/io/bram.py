@@ -9,6 +9,7 @@ from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.value import HValue
 from hwt.interfaces.std import BramPort_withoutClk
 from hwt.pyUtils.arrayQuery import single
+from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
@@ -20,9 +21,9 @@ from hwtHls.llvm.llvmIr import LoadInst, Register
 from hwtHls.llvm.llvmIr import MachineInstr
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
-from hwtHls.netlist.nodes.io import HlsNetNodeWriteIndexed, HOrderingVoidT,\
+from hwtHls.netlist.nodes.io import HlsNetNodeWriteIndexed, HOrderingVoidT, \
     HlsNetNodeReadIndexed
-from hwtHls.netlist.nodes.node import SchedulizationDict, HlsNetNodePartRef
+from hwtHls.netlist.nodes.node import SchedulizationDict, InputTimeGetter, HlsNetNodePartRef
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes, \
     HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.scheduler.clk_math import epsilon
@@ -31,7 +32,6 @@ from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsN
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.opCache import MirToHwtHlsNetlistOpCache
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer
 from hwtHls.ssa.value import SsaValue
-from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF
 
 
 class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
@@ -75,8 +75,10 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
         assert oo._dtype is HOrderingVoidT, oo
         return oo 
 
-    def scheduleAlapCompaction(self, asapSchedule: SchedulizationDict):
-        return self.scheduleAlapCompactionMultiClock(asapSchedule)
+    def scheduleAlapCompaction(self, asapSchedule: SchedulizationDict, inputTimeGetter: Optional[InputTimeGetter]):
+        if inputTimeGetter is None:
+            inputTimeGetter = self._scheduleAlapCompactionInputTimeGetter
+        return self.scheduleAlapCompactionMultiClock(asapSchedule, inputTimeGetter)
 
     def resolve_realization(self):
         netlist = self.netlist

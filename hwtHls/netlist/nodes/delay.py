@@ -1,7 +1,9 @@
+from typing import Optional
+
 from hwt.hdl.types.hdlType import HdlType
-from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict
-from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwt.synthesizer.interface import Interface
+from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict, InputTimeGetter
+from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 
 
 class HlsNetNodeDelayClkTick(HlsNetNode):
@@ -27,8 +29,8 @@ class HlsNetNodeDelayClkTick(HlsNetNode):
     def resolve_realization(self):
         self.assignRealization(OpRealizationMeta((0,), (0,), (0,), (self._clkCnt,)))
 
-    def scheduleAlapCompaction(self, asapSchedule:SchedulizationDict):
-        return HlsNetNode.scheduleAlapCompactionMultiClock(self, asapSchedule)
+    def scheduleAlapCompaction(self, asapSchedule:SchedulizationDict, inputTimeGetter: Optional[InputTimeGetter]):
+        return HlsNetNode.scheduleAlapCompactionMultiClock(self, asapSchedule, inputTimeGetter)
 
     def allocateRtlInstance(self, allocator:"ArchElement"):
         op_out = self._outputs[0]

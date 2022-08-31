@@ -1,6 +1,6 @@
 from itertools import zip_longest
 from math import inf, isfinite
-from typing import List, Optional, Union, Tuple, Generator, Dict
+from typing import List, Optional, Union, Tuple, Generator, Dict, Callable
 
 from hwt.hdl.types.hdlType import HdlType
 from hwt.pyUtils.uniqList import UniqList
@@ -12,6 +12,7 @@ from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 
 TimeSpec = Union[float, Tuple[int, ...]]
 SchedulizationDict = Dict["HlsNetNode", Tuple[Tuple[int, ...], Tuple[int, ...]]]
+InputTimeGetter = Callable[[HlsNetNodeIn, SchedulizationDict], int]
 
 
 class HlsNetNode():
@@ -162,7 +163,9 @@ class HlsNetNode():
 
         return time
 
-    def scheduleAlapCompaction(self, asapSchedule: SchedulizationDict):
+    def scheduleAlapCompaction(self,
+                               asapSchedule: SchedulizationDict,
+                               inputTimeGetter: Optional[InputTimeGetter]):
         """
         Single clock variant (inputClkTickOffset and outputClkTickOffset are all zeros)
         """
@@ -185,6 +188,7 @@ class HlsNetNode():
         nodeZeroTime = inf
         maxLatencyPre = self.inputWireDelay[0] if self.inputWireDelay else 0
         
+        anyUse = any(self.usedBy)
         for (asapOutT, uses, outWireLatency) in zip(asapOut, self.usedBy, self.outputWireDelay):
             if maxLatencyPre + outWireLatency + ffdelay >= clkPeriod:
                     raise TimeConstraintError(
@@ -196,12 +200,18 @@ class HlsNetNode():
                 # find earliest time where this output is used
                 for dependentIn in uses:
                     dependentIn: HlsNetNodeIn
-                    iT = dependentIn.obj.scheduleAlapCompaction(asapSchedule)[dependentIn.in_i]
+                    if inputTimeGetter is None:
+                        iT = dependentIn.obj.scheduleAlapCompaction(asapSchedule, None)[dependentIn.in_i]
+                    else:
+                        iT = inputTimeGetter(dependentIn, asapSchedule)
+
                     zeroTFromInput = iT - outWireLatency
                     zeroTFromInput = self._schedulerJumpToPrevCycleIfRequired(
                         iT, zeroTFromInput, clkPeriod, ffdelay + outWireLatency) - outWireLatency
                     # zeroTFromInput is in previous clk ffdelay + outWireLatency from the end
                     oZeroT = min(oZeroT, zeroTFromInput)
+            elif anyUse:
+                oZeroT = inf
             else:
                 # the port is unused we must first check other outputs
                 oTSuggestedByAsap = start_of_next_clk_period(asapOutT, clkPeriod) - ffdelay
@@ -239,7 +249,9 @@ class HlsNetNode():
         )
         return self.scheduledIn
 
-    def scheduleAlapCompactionMultiClock(self, asapSchedule: SchedulizationDict):
+    def scheduleAlapCompactionMultiClock(self,
+                                         asapSchedule: SchedulizationDict,
+                                         inputTimeGetter: Optional[InputTimeGetter]):
         # if all dependencies have inputs scheduled we schedule this node and try successors
         if self.scheduledIn is not None:
             return self.scheduledIn
@@ -259,7 +271,10 @@ class HlsNetNode():
                 if uses:
                     for dependentIn in uses:
                         dependentIn: HlsNetNodeIn
-                        iT = dependentIn.obj.scheduleAlapCompaction(asapSchedule)[dependentIn.in_i]
+                        if inputTimeGetter is None:
+                            iT = dependentIn.obj.scheduleAlapCompaction(asapSchedule, None)[dependentIn.in_i]
+                        else:
+                            iT = inputTimeGetter(dependentIn, asapSchedule)
                         oT = min(oT, iT - oDelay)
 
                     if oTicks:
@@ -341,7 +356,7 @@ class HlsNetNode():
         endClkI = int(endTime // clkPeriod)
         yield from range(startClkI, endClkI + 1)
 
-    def _removeInput(self, i:int):
+    def _removeInput(self, i: int):
         """
         :attention: does not disconnect the input
         """

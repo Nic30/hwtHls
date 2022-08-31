@@ -4,7 +4,7 @@ from hwt.hdl.operatorDefs import  AllOps
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.scheduler.clk_math import start_of_next_clk_period, start_clk
 from hwtHls.netlist.clusterSearch import HlsNetlistClusterSearch
-from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict, HlsNetNode_numberForEachInput
+from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict, InputTimeGetter, HlsNetNode_numberForEachInput
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.scheduler.errors import TimeConstraintError
@@ -81,7 +81,8 @@ class HlsNetNodeBitwiseOps(HlsNetNode):
     def scheduleAlapCompactionForOutput(self, internalOut: HlsNetNodeOut,
                                         asapSchedule: SchedulizationDict,
                                         clkBoundaryTime: int,
-                                        currentInputs: UniqList[HlsNetNodeIn]):
+                                        currentInputs: UniqList[HlsNetNodeIn],
+                                        inputTimeGetter: Optional[InputTimeGetter]):
         """
         BFS consume all inputs until the start or until the boundary is found
         
@@ -104,7 +105,7 @@ class HlsNetNodeBitwiseOps(HlsNetNode):
             outT = None
             outerOut = self.internOutToOut.get(parentOut, None)
             if outerOut is not None:
-                outT = self._getAlapOutsideOutTime(outerOut, asapSchedule)
+                outT = self._getAlapOutsideOutTime(outerOut, asapSchedule, inputTimeGetter)
             for pou in parentOutUses:
                 pou: HlsNetNodeIn
                 if pou.obj.scheduledIn is None:
@@ -112,7 +113,11 @@ class HlsNetNodeBitwiseOps(HlsNetNode):
                     break
 
                 else:
-                    t = pou.obj.scheduledIn[pou.in_i]
+                    if inputTimeGetter is None:
+                        t = pou.obj.scheduledIn[pou.in_i]
+                    else:
+                        t = inputTimeGetter(pou, asapSchedule)
+
                     if outT is None:
                         outT = t
                     else:
@@ -130,19 +135,23 @@ class HlsNetNodeBitwiseOps(HlsNetNode):
                     parentOut.obj.scheduledOut = (min(clkBoundaryTime - ffdelay, outT),)  # move to start of clock cycle - ffdealy
                     # all uses known and time corssing clock boundary, start a new cluster from this output
                     self.scheduleAlapCompactionForOutput(parentOut, asapSchedule, newClkStartBoundary - clkPeriod,
-                                                         UniqList())
+                                                         UniqList(), inputTimeGetter)
                 else:
                     # somewhere inside clock cycle, no need to modify time
                     parentOut.obj.scheduledOut = (outT,)
-                    self.scheduleAlapCompactionForOutput(parentOut, asapSchedule, clkBoundaryTime, currentInputs)
+                    self.scheduleAlapCompactionForOutput(parentOut, asapSchedule, clkBoundaryTime, currentInputs, inputTimeGetter)
 
-    def _getAlapOutsideOutTime(self, outerOut: HlsNetNodeOut, asapSchedule: SchedulizationDict):
+    def _getAlapOutsideOutTime(self, outerOut: HlsNetNodeOut, asapSchedule: SchedulizationDict, inputTimeGetter: Optional[InputTimeGetter]):
         outsideClusterUses = outerOut.obj.usedBy[outerOut.out_i]
         assert outsideClusterUses, ("Must be connected to something because otherwise this should be removed because it is unused", outerOut)
-        t = min(u.obj.scheduleAlapCompaction(asapSchedule)[u.in_i] for u in outsideClusterUses)
+        if inputTimeGetter is None:
+            t = min(u.obj.scheduleAlapCompaction(asapSchedule, None)[u.in_i] for u in outsideClusterUses)
+        else:
+            t = min(inputTimeGetter(u, asapSchedule) for u in outsideClusterUses)
+        
         return t
 
-    def scheduleAlapCompaction(self, asapSchedule: SchedulizationDict):
+    def scheduleAlapCompaction(self, asapSchedule: SchedulizationDict, inputTimeGetter: Optional[InputTimeGetter]):
         """
         1. Resolve ALAP times for all inputs outside of this node where outputs are connected.
            Note that this time is not the output time of internal output because output value may be required sooner.
@@ -169,7 +178,11 @@ class HlsNetNodeBitwiseOps(HlsNetNode):
                     # this is just output to outside, copy timing from outside input
                     outsideClusterUses = outerO.obj.usedBy[outerO.out_i]
                     assert outsideClusterUses, ("Must be connected to something because otherwise this should be removed because it is unused", outerO)
-                    t = min(u.obj.scheduleAlapCompaction(asapSchedule)[u.in_i] for u in outsideClusterUses)
+                    if inputTimeGetter is None:
+                        t = min(u.obj.scheduleAlapCompaction(asapSchedule, None)[u.in_i] for u in outsideClusterUses)
+                    else:
+                        t = min(inputTimeGetter(u, asapSchedule) for u in outsideClusterUses)
+                        
                     assert len(o.obj.usedBy) == 1, ("Should be only bitwise operator wit a single output", o)
                     self.resolveSubnodeRealization(o.obj, len(o.obj._inputs))
                     clkStartBoundary = start_clk(t, clkPeriod) * clkPeriod
@@ -181,7 +194,8 @@ class HlsNetNodeBitwiseOps(HlsNetNode):
                     self.scheduleAlapCompactionForOutput(o,
                                                          asapSchedule,
                                                          clkStartBoundary,
-                                                         UniqList())
+                                                         UniqList(),
+                                                         inputTimeGetter)
 
             self.scheduledIn = tuple(min(
                                             use.obj.scheduledIn[use.in_i]

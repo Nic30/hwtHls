@@ -16,7 +16,7 @@ from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.delay import HlsNetNodeDelayClkTick
-from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict, TimeSpec
+from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict, InputTimeGetter, TimeSpec
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
     link_hls_nodes, HlsNetNodeOutLazy, HlsNetNodeOutAny
 from hwtHls.netlist.scheduler.clk_math import start_of_next_clk_period, start_clk, epsilon
@@ -25,7 +25,6 @@ from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axi_intf_common import Axi_hs
 from ipCorePackager.constants import INTF_DIRECTION_asDirecton, \
     DIRECTION_opposite, DIRECTION
-
 
 IO_COMB_REALIZATION = OpRealizationMeta(outputWireDelay=epsilon)
 
@@ -118,6 +117,34 @@ class HlsNetNodeExplicitSync(HlsNetNode):
 
     def resolve_realization(self):
         self.assignRealization(IO_COMB_REALIZATION)
+
+    def _scheduleAlapCompactionInputTimeGetter(self, i: HlsNetNodeIn, asapSchedule: SchedulizationDict):
+        if i.obj is self._associatedReadSync:
+            t = None
+            assert len(i.obj.usedBy) == 1
+            for uses in i.obj.usedBy:
+                for dependentIn in uses:
+                    dependentIn: HlsNetNodeIn
+                    iT = dependentIn.obj.scheduleAlapCompaction(asapSchedule, None)[dependentIn.in_i]
+                    if t is None:
+                        t = iT
+                    else:
+                        t = min(t, iT)
+
+            if t is None:
+                t = asapSchedule[self][0]
+            
+            return t
+        else:
+            return i.obj.scheduleAlapCompaction(asapSchedule, None)[i.in_i]
+
+    def scheduleAlapCompaction(self,
+        asapSchedule:SchedulizationDict,
+        inputTimeGetter:Optional[InputTimeGetter]):
+        if inputTimeGetter is None:
+            inputTimeGetter = self._scheduleAlapCompactionInputTimeGetter
+
+        return HlsNetNode.scheduleAlapCompaction(self, asapSchedule, inputTimeGetter)
 
     def __repr__(self, minify=False):
         if minify:
@@ -230,8 +257,8 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
 
         return self.scheduledOut
 
-    def scheduleAlapCompaction(self, asapSchedule: SchedulizationDict) -> TimeSpec:
-        HlsNetNodeExplicitSync.scheduleAlapCompaction(self, asapSchedule)
+    def scheduleAlapCompaction(self, asapSchedule: SchedulizationDict, inputTimeGetter: Optional[InputTimeGetter]) -> TimeSpec:
+        HlsNetNodeExplicitSync.scheduleAlapCompaction(self, asapSchedule, inputTimeGetter)
         curIoCnt = self._getNumberOfIoInThisClkPeriod(self.src if isinstance(self, HlsNetNodeRead) else self.dst, False)
         if curIoCnt > self.maxIosPerClk:
             # move to next clock cycle if IO constraint requires it
@@ -349,8 +376,8 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         assert self.dependsOn, self
         return HlsNetNodeRead.scheduleAsap(self, pathForDebug)
 
-    def scheduleAlapCompaction(self, asapSchedule: SchedulizationDict):
-        return HlsNetNodeRead.scheduleAlapCompaction(self, asapSchedule)
+    def scheduleAlapCompaction(self, asapSchedule: SchedulizationDict, inputTimeGetter: Optional[InputTimeGetter]):
+        return HlsNetNodeRead.scheduleAlapCompaction(self, asapSchedule, inputTimeGetter)
 
     def _getNumberOfIoInThisClkPeriod(self, intf: Interface, searchFromSrcToDst: bool):
         return HlsNetNodeRead._getNumberOfIoInThisClkPeriod(self, intf, searchFromSrcToDst)
