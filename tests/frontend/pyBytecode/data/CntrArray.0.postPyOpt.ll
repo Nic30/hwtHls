@@ -38,11 +38,11 @@ blockL54i0_54_66_c0:
   br [label %blockL54i0_54_getSwEnd ]
 blockL54i0_54_getSwEnd:
   %8 = phi <Bits, 16bits, unsigned> [%2, blockL54i0_54_66_c0], [%4, blockL54i0_54_66_c1], [%6, blockL54i0_54_66_c2], [%7, blockL54i0_54_66_c3]
+  i9 = call <Bits, 2bits, unsigned> @hls.read(i)
   void call <Bits, 16bits, unsigned> @hls.write(o)
-  i10 = call <Bits, 2bits, unsigned> @hls.read(i)
-  %11 = EQ i10, <BitsVal 0>
-  %13 = EQ i10, <BitsVal 1>
-  %15 = EQ i10, <BitsVal 2>
+  %11 = EQ i9, <BitsVal 0>
+  %13 = EQ i9, <BitsVal 1>
+  %15 = EQ i9, <BitsVal 2>
   br [label %blockL54i0_54_getSwEnd_102_c0 %11]
   [label %blockL54i0_54_getSwEnd_102_c1 %13]
   [label %blockL54i0_54_getSwEnd_102_c2 %15]
@@ -51,9 +51,9 @@ blockL54i0_54_getSwEnd_102_c0:
   br [label %blockL54i0_54_getSwEnd_getSwEnd ]
 blockL54i0_54_getSwEnd_getSwEnd:
   %20 = phi <Bits, 16bits, unsigned> [%2, blockL54i0_54_getSwEnd_102_c0], [%4, blockL54i0_54_getSwEnd_102_c1], [%6, blockL54i0_54_getSwEnd_102_c2], [%7, blockL54i0_54_getSwEnd_102_c3]
-  %19 = EQ i10, <BitsVal 0>
-  %22 = EQ i10, <BitsVal 1>
-  %24 = EQ i10, <BitsVal 2>
+  %19 = EQ i9, <BitsVal 0>
+  %22 = EQ i9, <BitsVal 1>
+  %24 = EQ i9, <BitsVal 2>
   br [label %blockL54i0_54_getSwEnd_getSwEnd_110_c0 %19]
   [label %blockL54i0_54_getSwEnd_getSwEnd_110_c1 %22]
   [label %blockL54i0_54_getSwEnd_getSwEnd_110_c2 %24]

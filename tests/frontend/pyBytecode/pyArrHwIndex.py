@@ -60,8 +60,8 @@ class CntrArray(Unit):
 
         while BIT.from_py(1):
             o = mem[hls.read(self.o_addr)]
-            hls.write(o, self.o)
             i = hls.read(self.i)
+            hls.write(o, self.o)
             mem[i] += 1
 
     def _impl(self):
@@ -131,5 +131,5 @@ if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.xilinx.artix7 import Artix7Medium
     #from hwtHls.platform.virtual import VirtualHlsPlatform
-    u = Rom()
+    u = CntrArray()
     print(to_rtl_str(u, target_platform=Artix7Medium(debugDir="tmp")))

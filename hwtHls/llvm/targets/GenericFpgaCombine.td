@@ -156,11 +156,12 @@ def extract_on_merge_values: GICombineRule<
 
 // 
 // Fond (GENFPGA_MUX (... GENFPGA_MUX ...)) -> GENFPGA_MUX ...
+def mux_merge_matchdata : GIDefMatchData<"llvm::SmallVector<bool>">;
 def mux_merge: GICombineRule<
-  (defs root:$root),
+  (defs root:$root, mux_merge_matchdata:$matchinfo),
   (match (wip_match_opcode GENFPGA_MUX):$root,
-    [{ return Helper.matchNestedMux(*${root}); }]),
-  (apply [{ return Helper.rewriteNestedMuxToMux(*${root}); }])
+    [{ return Helper.matchNestedMux(*${root}, ${matchinfo}); }]),
+  (apply [{ return Helper.rewriteNestedMuxToMux(*${root}, ${matchinfo}); }])
 >;
 
 // rewrite generic opcodes to GENFPGA_* where beneficial

@@ -102,57 +102,6 @@ bool GenFpgaCombinerHelper::rewriteConstBinOp(llvm::MachineInstr &MI,
 	return true;
 }
 
-bool GenFpgaCombinerHelper::hashSomeConstConditions(llvm::MachineInstr &MI) {
-	// dst, a, (cond, b)*
-	assert(MI.getOpcode() == GenericFpga::GENFPGA_MUX);
-	unsigned condCnt = (MI.getNumOperands() - 1) / 2;
-	for (unsigned i = 0; i < condCnt; ++i) {
-		auto &c = MI.getOperand(2 + i * 2);
-		if (c.isCImm()) {
-			return true;
-		}
-	}
-	return false;
-}
-
-bool GenFpgaCombinerHelper::rewriteConstCondMux(llvm::MachineInstr &MI) {
-	assert(MI.getOpcode() == GenericFpga::GENFPGA_MUX);
-	auto opIt = MI.operands_begin();
-	Builder.setInstrAndDebugLoc(MI);
-	auto MIB = Builder.buildInstr(GenericFpga::GENFPGA_MUX);
-	auto &newMI = *MIB.getInstr();
-	Observer.changingInstr(newMI);
-	MIB.add(*opIt); // dst
-	++opIt;
-	for (;;) {
-		auto v0 = opIt++;
-		if (opIt == MI.operands_end()) {
-			// ending  value
-			MIB.add(*v0);
-		} else {
-			auto c = opIt++;
-			if (c->isCImm()) {
-				if (c->getCImm()->getValue().getBoolValue()) {
-					// if 1 the successor operands are never used
-					MIB.add(*v0);
-					break;
-				} else {
-					// if 0 the v0 is never used
-				}
-			} else {
-				MIB.add(*v0);
-				MIB.add(*c);
-			}
-		}
-		if (opIt == MI.operands_end()) {
-			break;
-		}
-	}
-	Observer.changedInstr(newMI);
-	MI.eraseFromParent();
-	return true;
-}
-
 bool GenFpgaCombinerHelper::matchIsExtractOnMergeValues(
 		llvm::MachineInstr &MI) {
 	auto _src = MI.getOperand(1);
@@ -347,6 +296,117 @@ bool GenFpgaCombinerHelper::rewriteExtractOnMergeValues(
 	return true;
 }
 
+//bool GenFpgaCombinerHelper::matchMuxWithRedundantCases(llvm::MachineInstr &MI,
+//		llvm::SmallVector<unsigned> &uselessConditions) {
+//	assert(MI.getOpcode() == GenericFpga::GENFPGA_MUX);
+//	unsigned opCnt = MI.getNumOperands();
+//	unsigned condCnt = (opCnt - 1) / 2;
+//	for (unsigned i = 0; i < condCnt; ++i) {
+//		auto &v0 = MI.getOperand(1 + i * 2);
+//		auto &c = MI.getOperand(2 + i * 2);
+//		MachineOperand *v1 = nullptr;
+//		unsigned v1I = 3 + i * 2;
+//		if (v1I < opCnt)
+//			v1 = &MI.getOperand(v1I);
+//		bool muxOfSameVal = false;
+//		if (v1 && c.isReg()) {
+//			if ((v0.isReg() && v1->isReg() && v0.getReg() == v1->getReg())
+//					|| (v0.isCImm() && v1->isCImm()
+//							&& v0.getCImm() == v1->getCImm())) {
+//				// if left and right val is the same and this is one-hot encoded mux
+//				muxOfSameVal = true;
+//			}
+//		} else if (i == 0 && v0.isReg()
+//				&& v0.getReg() == MI.getOperand(0).getReg()) {
+//			muxOfSameVal = true; // conditional write of self to self
+//		}
+//
+//	}
+//}
+//
+//bool GenFpgaCombinerHelper::rewriteMuxWithRedundantCases(llvm::MachineInstr &MI,
+//		const llvm::SmallVector<unsigned> &uselessConditions) {
+//	assert(MI.getOpcode() == GenericFpga::GENFPGA_MUX);
+//
+//}
+
+bool GenFpgaCombinerHelper::hashSomeConstConditions(llvm::MachineInstr &MI) {
+	// dst, a, (cond, b)*
+	assert(MI.getOpcode() == GenericFpga::GENFPGA_MUX);
+	unsigned condCnt = (MI.getNumOperands() - 1) / 2;
+	for (unsigned i = 0; i < condCnt; ++i) {
+		auto &c = MI.getOperand(2 + i * 2);
+		if (c.isCImm()) {
+			return true;
+		}
+	}
+	return false;
+}
+
+bool GenFpgaCombinerHelper::rewriteConstCondMux(llvm::MachineInstr &MI) {
+	assert(MI.getOpcode() == GenericFpga::GENFPGA_MUX);
+	auto opIt = MI.operands_begin();
+	Builder.setInstrAndDebugLoc(MI);
+	auto MIB = Builder.buildInstr(GenericFpga::GENFPGA_MUX);
+	auto &newMI = *MIB.getInstr();
+	Observer.changingInstr(newMI);
+	MIB.add(*opIt); // dst
+	++opIt;
+	for (;;) {
+		auto v0 = opIt++;
+		if (opIt == MI.operands_end()) {
+			// ending  value
+			MIB.add(*v0);
+		} else {
+			auto c = opIt++;
+			if (c->isCImm()) {
+				if (c->getCImm()->getValue().getBoolValue()) {
+					// if 1 the successor operands are never used
+					MIB.add(*v0);
+					break;
+				} else {
+					// if 0 the v0 is never used
+				}
+			} else {
+				MIB.add(*v0);
+				MIB.add(*c);
+			}
+		}
+		if (opIt == MI.operands_end()) {
+			break;
+		}
+	}
+	Observer.changedInstr(newMI);
+	MI.eraseFromParent();
+	return true;
+}
+
+bool checkAnyOperandRedefined(llvm::MachineInstr &MI,
+		llvm::MachineInstr &MIEnd) {
+	const MachineBasicBlock &MBB = *MI.getParent();
+	if (&MBB != MIEnd.getParent()) {
+		return true; // search in a different block not implemented
+	}
+	auto it = MachineBasicBlock::instr_iterator(&MI);
+	++it;
+	for (; it != MBB.instr_end(); ++it) {
+		if (&*it == &MIEnd) {
+			// found the otherMI as a successor
+			return false;
+		}
+		for (auto &O : MI.operands()) {
+			if (O.isReg()) {
+				if (it->definesRegister(O.getReg())) {
+					// the operand register was redefined and we do not have value for operand which we want to inline
+					return true;
+				}
+			}
+		}
+	}
+	// end was not found at all it means that end is actually a predecessor
+	return true;
+}
+
 /**
  * rules for merging MUX instructions:
  * * if conditions are proven to be exclusive the order of pairs condition-value does not matter
@@ -379,47 +439,33 @@ bool GenFpgaCombinerHelper::rewriteExtractOnMergeValues(
  *   x = MUX v0 c0 v2 ~c1 v3 c2 v4 // or C1 can be reversed to move y at the end
  *
  */
-bool GenFpgaCombinerHelper::matchNestedMux(llvm::MachineInstr &MI) {
+bool GenFpgaCombinerHelper::matchNestedMux(llvm::MachineInstr &MI,
+		llvm::SmallVector<bool> &requiresAndWithParentCond) {
 	assert(MI.getOpcode() == GenericFpga::GENFPGA_MUX);
+	requiresAndWithParentCond.clear();
 	// check if is used only by a GENFPGA_MUX and can merge operands into user
 	auto DstRegNo = MI.getOperand(0).getReg();
-	if (!MRI.hasOneUse(DstRegNo))
+	if (!MRI.hasOneUse(DstRegNo)) {
+		// if there are multiple users merging of this register is not beneficial
 		return false;
+	}
+
 	MachineOperand *otherUse = &*MRI.use_begin(DstRegNo);
 	MachineInstr *otherMI = otherUse->getParent();
 	if (otherMI == &MI) {
 		return false; // can not inline operands of self to self
 	}
+
 	if (otherMI->getOpcode() != GenericFpga::GENFPGA_MUX) {
 		return false;
 	}
-	const MachineBasicBlock &MBB = *MI.getParent();
-	if (otherMI->getParent() != &MBB) {
-		return false; // search of dominance in other blocks not implemented
-	}
+
 	// check that the operand register are not redefined between this and other
-	auto it = MachineBasicBlock::instr_iterator(&MI);
-	++it;
-	bool compatible = false;
-	for (; it != MBB.instr_end(); ++it) {
-		if (&*it == otherMI) {
-			// found the otherMI as a successor
-			compatible = true;
-			break;
-		}
-		for (auto &O : MI.operands()) {
-			if (O.isReg()) {
-				if (it->definesRegister(O.getReg())) {
-					// the operand register was redefined and we do not have value for operand which we want to inline
-					return false;
-				}
-			}
-		}
+	if (checkAnyOperandRedefined(MI, *otherMI)) {
+		return false;
 	}
 
-	if (!compatible)
-		return false;
-
+	// check how we can nest this MI to otherMI
 	// if the merged-in MUX:
 	if (MI.getNumOperands() == 2) {
 		// has a single operand -> move it to otherMI mux
@@ -427,6 +473,9 @@ bool GenFpgaCombinerHelper::matchNestedMux(llvm::MachineInstr &MI) {
 	} else if (MachineInstr::mop_iterator(otherUse) + 1
 			== otherMI->operands_end()) {
 		// is last operand -> move NestedI operands to this mux
+		for (unsigned condI = 1 + 1; condI < MI.getNumOperands(); condI += 2) {
+			requiresAndWithParentCond.push_back(false);
+		}
 		return true;
 	} else {
 		// is in format similar to:
@@ -440,59 +489,82 @@ bool GenFpgaCombinerHelper::matchNestedMux(llvm::MachineInstr &MI) {
 		KnownBits KnownC1 = KB->getKnownBits(c1->getReg());
 		for (auto NestedValO = MI.operands_begin() + 1;
 				NestedValO != MI.operands_end();) {
-			// if NestedValO or NestedValO has a define between MI and NestedI we can not extract
 
 			auto NestedCondO = NestedValO + 1;
 			if (NestedCondO == MI.operands_end()) {
-				break; // this was last operand
+				break;
 			}
 			if (!NestedCondO->isReg()) {
 				// wait with the extraction for removal of constant conditions
-				compatible = false;
-				break;
+				return false;
 			}
 			KnownBits KnownNestedC = KB->getKnownBits(NestedCondO->getReg());
-			// c0 is always 1 if NestedCond is 1
+			// c1 is always 1 if NestedCond is 1 (NestedCond implies c1)
 			Optional<bool> CanMergeOperands = KnownBits::uge(KnownC1,
 					KnownNestedC);
-			if (!CanMergeOperands.hasValue() || !CanMergeOperands.getValue()) {
-				compatible = false;
-				break;
-			}
+			bool mustAndWithParentCond = !CanMergeOperands.hasValue()
+					|| !CanMergeOperands.getValue();
+			requiresAndWithParentCond.push_back(mustAndWithParentCond);
 			NestedValO += 2; // skip condition and jump directly to new value
 		}
-		return compatible;
+		return true;
 	}
-	return false;
 }
 
-bool GenFpgaCombinerHelper::rewriteNestedMuxToMux(llvm::MachineInstr &MI) {
+bool GenFpgaCombinerHelper::rewriteNestedMuxToMux(llvm::MachineInstr &MI,
+		const llvm::SmallVector<bool> &requiresAndWithParentCond) {
 	assert(MI.getOpcode() == GenericFpga::GENFPGA_MUX);
-	MachineOperand *otherUse = &*MRI.use_begin(MI.getOperand(0).getReg());
-	MachineInstr *otherMI = otherUse->getParent();
+	MachineOperand *parentUse = &*MRI.use_begin(MI.getOperand(0).getReg());
+	MachineInstr *parentMI = parentUse->getParent();
 
-	Builder.setInstrAndDebugLoc(*otherMI);
-	auto MIB = Builder.buildInstr(GenericFpga::GENFPGA_MUX);
-	auto &newMI = *MIB.getInstr();
+	Builder.setInstrAndDebugLoc(*parentMI);
+	auto MIB0 = Builder.buildInstr(GenericFpga::GENFPGA_MUX);
+	auto &newMI = *MIB0.getInstr();
 	Observer.changingInstr(newMI);
 
-	for (auto &Op : otherMI->operands()) {
-		if (&Op == otherUse) {
+	for (auto &Op : parentMI->operands()) {
+		if (&Op == parentUse) {
 			// copy ops from nested MUX
 			bool first = true;
+			bool isCond = false;
+			unsigned condI = 0;
 			for (auto NesOp : MI.operands()) {
 				if (first) {
 					first = false;
 					continue;
 				}
-				MIB.add(NesOp);
+				if (isCond && requiresAndWithParentCond.size()
+						&& requiresAndWithParentCond[condI]) {
+					llvm::MachineOperand & parentCondOp = parentMI->getOperand(parentMI->getOperandNo(&Op) + 1);
+					Builder.setInstrAndDebugLoc(newMI);
+					auto MIB1 = Builder.buildInstr(TargetOpcode::G_AND);
+					auto &newCondAndMI = *MIB1.getInstr();
+					Observer.changingInstr(newCondAndMI);
+					Register newCondAndReg = MRI.createVirtualRegister(
+							&GenericFpga::AnyRegClsRegClass);
+					MIB1.addDef(newCondAndReg);
+					for (auto & v: {NesOp.getReg(), parentCondOp.getReg()}) {
+						MIB1.addUse(v);
+					}
+					Observer.changedInstr(newCondAndMI);
+
+					Builder.setInstrAndDebugLoc(newMI);
+					MIB0.addUse(newCondAndReg);
+
+				} else {
+					MIB0.add(NesOp);
+				}
+				isCond = !isCond;
 			}
 		} else {
-			MIB.add(Op);
+			// copy rest of non modified operands from parent MUX
+			MIB0.add(Op);
 		}
 	}
+
 	Observer.changedInstr(newMI);
-	otherMI->eraseFromParent();
+	MI.eraseFromParent();
+	parentMI->eraseFromParent();
 	return true;
 }
 

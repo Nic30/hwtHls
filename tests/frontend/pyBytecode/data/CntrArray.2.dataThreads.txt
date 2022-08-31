@@ -16,22 +16,22 @@ nodes:
     <HlsNetNodeConst 14 <BitsVal 1>>
     <HlsNetNodeOperator 15 NE [8:0, 14:0]>
     <HlsNetNodeMux 20 [61:0, 11:0, 59:0, 13:0, 62:0, 15:0, 60:0]>
-    <HlsNetNodeWrite 21 <Signal o <Bits, 16bits, unsigned>> <- <HlsNetNodeOut <HlsNetNodeMux 20> [0]>>
-    <HlsNetNodeRead 22 <Signal i <Bits, 2bits, unsigned>>>
+    <HlsNetNodeRead 21 <Signal i <Bits, 2bits, unsigned>>>
+    <HlsNetNodeWrite 22 <Signal o <Bits, 16bits, unsigned>> <- <HlsNetNodeOut <HlsNetNodeMux 20> [0]>>
     <HlsNetNodeConst 23 <BitsVal 0>>
-    <HlsNetNodeOperator 24 EQ [22:0, 23:0]>
+    <HlsNetNodeOperator 24 EQ [21:0, 23:0]>
     <HlsNetNodeConst 25 <BitsVal 2>>
-    <HlsNetNodeOperator 26 EQ [22:0, 25:0]>
-    <HlsNetNodeMux 27 [59:0, 24:0, 60:0]>
-    <HlsNetNodeConst 28 <BitsVal 3>>
-    <HlsNetNodeOperator 29 BitsAsSigned [22:0]>
-    <HlsNetNodeOperator 30 BitsAsSigned [28:0]>
-    <HlsNetNodeOperator 31 GT [29:0, 30:0]>
-    <HlsNetNodeMux 32 [27:0, 31:0, 61:0, 26:0, 62:0]>
+    <HlsNetNodeOperator 26 EQ [21:0, 25:0]>
+    <HlsNetNodeConst 27 <BitsVal 3>>
+    <HlsNetNodeOperator 28 BitsAsSigned [21:0]>
+    <HlsNetNodeOperator 29 BitsAsSigned [27:0]>
+    <HlsNetNodeOperator 30 GT [28:0, 29:0]>
+    <HlsNetNodeOperator 31 AND [24:0, 30:0]>
+    <HlsNetNodeMux 32 [59:0, 31:0, 60:0, 30:0, 61:0, 26:0, 62:0]>
     <HlsNetNodeConst 33 <BitsVal 1>>
     <HlsNetNodeOperator 34 ADD [32:0, 33:0]>
     <HlsNetNodeConst 35 <BitsVal 1>>
-    <HlsNetNodeOperator 36 EQ [22:0, 35:0]>
+    <HlsNetNodeOperator 36 EQ [21:0, 35:0]>
     <HlsNetNodeMux 37 [34:0, 24:0, 59:0]>
     <HlsNetNodeMux 38 [60:0, 24:0, 34:0, 36:0, 60:0]>
     <HlsNetNodeMux 39 [61:0, 24:0, 61:0, 36:0, 34:0, 26:0, 61:0]>

@@ -32,18 +32,22 @@ public:
 	bool rewriteConstBinOp(llvm::MachineInstr &MI,
 			std::function<APInt(const APInt&, const APInt&)>);
 
-	bool hashSomeConstConditions(llvm::MachineInstr &MI);
-	bool rewriteConstCondMux(llvm::MachineInstr &MI);
-
 	bool matchIsExtractOnMergeValues(llvm::MachineInstr &MI);
 	bool rewriteExtractOnMergeValues(llvm::MachineInstr &MI);
 	bool collectConcatMembers(llvm::MachineOperand &MIOp,
 			std::vector<ConcatMember> &members, uint64_t mainOffset,
 			uint64_t mainWidth, uint64_t &currentOffset, uint64_t offsetOfIRes,
 			uint64_t widthOfIRes);
+
+	//bool matchMuxWithRedundantCases(llvm::MachineInstr &MI, llvm::SmallVector<unsigned> & uselessConditions);
+	//bool rewriteMuxWithRedundantCases(llvm::MachineInstr &MI, const llvm::SmallVector<unsigned> & uselessConditions);
+
+	bool hashSomeConstConditions(llvm::MachineInstr &MI);
+	bool rewriteConstCondMux(llvm::MachineInstr &MI);
+
 	// check if can merge two GENFPGA_MUX instructions
-	bool matchNestedMux(llvm::MachineInstr &MI);
-	bool rewriteNestedMuxToMux(llvm::MachineInstr &MI);
+	bool matchNestedMux(llvm::MachineInstr &MI, llvm::SmallVector<bool> &requiresAndWithParentCond);
+	bool rewriteNestedMuxToMux(llvm::MachineInstr &MI, const llvm::SmallVector<bool> &requiresAndWithParentCond);
 
 	bool hasAll1AndAll0Values(llvm::MachineInstr &MI,
 			CImmOrRegWithNegFlag &matchinfo);
