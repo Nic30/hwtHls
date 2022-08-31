@@ -24,7 +24,8 @@ from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axi_intf_common import Axi_hs
 from ipCorePackager.constants import INTF_DIRECTION_asDirecton, \
-    DIRECTION_opposite
+    DIRECTION_opposite, DIRECTION
+
 
 IO_COMB_REALIZATION = OpRealizationMeta(outputWireDelay=epsilon)
 
@@ -265,9 +266,9 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
             return packIntf(src, masterDirEqTo=DIRECTION_opposite[INTF_DIRECTION_asDirecton[src.rd._direction]], exclude=(src.rd,))
         else:
             return packIntf(src, masterDirEqTo=src._masterDir)
-
-        masterDirEqTo = INTF_DIRECTION_asDirecton[exclude[0]._direction]
-        return packIntf(src, masterDirEqTo=masterDirEqTo, exclude=exclude)
+        
+        assert exclude[0]._masterDir == DIRECTION.OUT, exclude[0]._masterDir
+        return packIntf(src, masterDirEqTo=exclude[0]._masterDir, exclude=exclude)
 
     def __repr__(self):
         return f"<{self.__class__.__name__:s} {self._id:d} {self.src}>"
