@@ -208,7 +208,8 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                             didModifyExpr = True
                             continue
 
-                        elif (n.skipWhen is None or self._getConstDriverOf(n.skipWhen) is not None) and (n.skipWhen is None or self._getConstDriverOf(n.skipWhen) is not None):
+                        elif (n.skipWhen is None or self._getConstDriverOf(n.skipWhen) is not None) and (
+                                n.extraCond is None or self._getConstDriverOf(n.extraCond) is not None):
                             # synchronization node without any synchronization flag specified
                             _, orderingOutUses = n._outputs.pop(), n.usedBy.pop()
                             if orderingOutUses:
@@ -223,29 +224,10 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                             continue
 
                 elif isinstance(n, HlsNetNodeReadSync):
-                    # rm this if the source data is constant
-                    if self._getConstDriverOf(n._inputs[0]):
-                        self._replaceOperatorNodeWith(n, builder.buildConstBit(1), worklist, removed)
+                    if self._reduceReadSync(n, worklist, removed):
                         didModifyExpr = True
                         continue
-                    # rm this if the source object does not have sync
-                    dep = n.dependsOn[0].obj
-                    if isinstance(dep, HlsNetNodeRead):
-                        dep: HlsNetNodeRead
-                        vld, _ = extractControlSigOfInterfaceTuple(dep.src)
-                        if isinstance(vld, int):
-                            assert vld == 1, (dep, vld)
-                            self._replaceOperatorNodeWith(n, builder.buildConstBit(1), worklist, removed)
-                            didModifyExpr = True
-                            continue
-                            
-                    elif isinstance(dep, HlsNetNodeRead):
-                        _, rd = extractControlSigOfInterfaceTuple(dep.src)
-                        if isinstance(rd, int):
-                            assert rd == 1, (dep, vld)
-                            self._replaceOperatorNodeWith(n, builder.buildConstBit(1), worklist, removed)
-                            didModifyExpr = True
-                            continue
+
 
             if firstTime or didModifyExpr:
                 self._runAbcControlpathOpt(netlist.builder, worklist, removed, netlist.iterAllNodes())
@@ -259,6 +241,49 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
             nodes = netlist.nodes
             netlist.nodes = [n for n in nodes if n not in removed]
             HlsNetlistPassConsystencyCheck().apply(hls, netlist)
+
+    def _reduceReadSync(self, n: HlsNetNodeReadSync, worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]):
+        builder: HlsNetlistBuilder = n.netlist.builder
+        # rm this if the source data is constant
+        if self._getConstDriverOf(n._inputs[0]):
+            self._replaceOperatorNodeWith(n, builder.buildConstBit(1), worklist, removed)
+            return True
+        # rm this if the source object does not have sync
+        dep = n.dependsOn[0].obj
+        if isinstance(dep, HlsNetNodeRead):
+            dep: HlsNetNodeRead
+            vld, _ = extractControlSigOfInterfaceTuple(dep.src)
+            if isinstance(vld, int):
+                assert vld == 1, (dep, vld)
+                self._replaceOperatorNodeWith(n, builder.buildConstBit(1), worklist, removed)
+                return True
+            # else:
+            #     # try match HlsNetNodeReadNb node if possible
+            #     rUses = dep.usedBy[0]
+            #     if len(rUses) == 2:
+            #         rUse = None
+            #         for u in rUses:
+            #             if u.obj is not n:
+            #                 rUse = u
+            #                 break
+            #         assert rUse is not None
+            #         if rUse.obj.__class__  is HlsNetNodeExplicitSync:
+            #             sw = dep.dependsOn[dep.skipWhen.in_i]
+            #             if isinstance(sw.obj, HlsNetNodeOperator) and sw.obj.operator is AllOps.NOT and sw.obj.dependsOn[0] is n._outputs[0]:
+            #                 raise NotImplementedError("Rewrite as non blocking read")
+ 
+        elif isinstance(dep, HlsNetNodeWrite):
+            _, rd = extractControlSigOfInterfaceTuple(dep.dst)
+            if isinstance(rd, int):
+                assert rd == 1, (dep, vld)
+                self._replaceOperatorNodeWith(n, builder.buildConstBit(1), worklist, removed)
+                return True
+        elif isinstance(dep, HlsNetNodeConst):
+            self._replaceOperatorNodeWith(n, builder.buildConstBit(1), worklist, removed)
+            
+        #else:
+        #    raise AssertionError("HlsNetNodeReadSync should have only HlsNetNodeExplicitSync/HlsNetNodeRead/HlsNetNodeWrite as predecesspr", n, dep)
+        return False
 
     @classmethod
     def _collect1bOpTree(cls, o: HlsNetNodeOut, inputs: UniqList[HlsNetNodeOut], inTreeOutputs: Set[HlsNetNodeOut]):
