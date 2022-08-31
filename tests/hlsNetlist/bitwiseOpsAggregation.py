@@ -54,6 +54,7 @@ class HlsNetlistBitwiseOpsPreorder0Unit(Unit):
         i2 = HlsNetNodeRead(netlist, self.i2)
         
         # scheduling offset 1clk for i2 from i1
+        link_hls_nodes(i0.getOrderingOutPort(), i1._addInput("orderingIn"))
         link_hls_nodes(i1.getOrderingOutPort(), i2._addInput("orderingIn"))
         i1.assignRealization(OpRealizationMeta(outputClkTickOffset=(0, 1)))
         i1.scheduleAlapCompaction = i1.scheduleAlapCompactionMultiClock
