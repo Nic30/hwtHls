@@ -155,7 +155,7 @@ def extract_on_merge_values: GICombineRule<
 >;
 
 // 
-// Fond (GENFPGA_MUX (... GENFPGA_MUX ...)) -> GENFPGA_MUX ...
+// Fold (GENFPGA_MUX (... GENFPGA_MUX ...)) -> GENFPGA_MUX ...
 def mux_merge_matchdata : GIDefMatchData<"llvm::SmallVector<bool>">;
 def mux_merge: GICombineRule<
   (defs root:$root, mux_merge_matchdata:$matchinfo),
@@ -164,12 +164,34 @@ def mux_merge: GICombineRule<
   (apply [{ return Helper.rewriteNestedMuxToMux(*${root}, ${matchinfo}); }])
 >;
 
+// (MUX  x, c, 0) -> (G_AND x, (SEXT c))
+// (MUX -1, c, x) -> (G_OR x, (SEXT c))
+//  (SEXT is avoided if x.width == 1)
+def mux_mask_to_and_or_mask: GICombineRule<
+  (defs root:$root, build_fn_matchinfo:$matchinfo),
+  (match (wip_match_opcode GENFPGA_MUX):$root,
+    [{ return Helper.matchMuxMask(*${root}, ${matchinfo}); }]),
+  (apply [{ Helper.applyBuildFn(*${root}, ${matchinfo}); }])
+>;
+
+// (SGE x,  0) -> NOT x.msb
+// (SGT x, -1) -> NOT x.msb
+// (SLT x,  0) -> x.msb
+// (SGT x, -1) -> x.msb
+def extract_msb_cmp: GICombineRule<
+  (defs root:$root, build_fn_matchinfo:$info),
+  (match (wip_match_opcode G_ICMP):$root,
+    [{ return Helper.matchCmpToMsbCheck(*${root}, ${info}); }]),
+  (apply [{ Helper.applyBuildFn(*${root}, ${info}); }])
+>;
+
 // rewrite generic opcodes to GENFPGA_* where beneficial
 def GenericFpgaGenPreRegAllocGICombinerHelper: GICombinerHelper<
-  "GenericFpgaGenPreRegAllocGICombinerHelper", [copy_to_genfpga_copy,
-                                                extract_on_merge_values,
-                                                const_eval_combines
-                                                ]> {
+  "GenericFpgaGenPreRegAllocGICombinerHelper", [
+  	copy_to_genfpga_copy,
+    extract_on_merge_values,
+    const_eval_combines
+    ]> {
   let DisableRuleOption = "GenericFpgaGenPreRegAllocGICombinerHelper-disable-rule";
   let StateClass = "GenericFpgaGenPreRegAllocGICombinerHelperState";
   let AdditionalArguments = [];
@@ -180,11 +202,14 @@ def GenericFpgaGenPreRegAllocGICombinerHelper: GICombinerHelper<
 // * extract GENFPGA_NOT
 // * extract/merge bit concatenations and slices
 def GenericFpgaGenPreToNetlistGICombinerHelper: GICombinerHelper<
-  "GenericFpgaGenPreToNetlistGICombinerHelper", [xor_right_allOnes,
-  												 extract_on_merge_values,
-                                                 const_eval_combines,
-                                                 mux_merge
-                                                 ]> {
+  "GenericFpgaGenPreToNetlistGICombinerHelper", [
+    mux_mask_to_and_or_mask,
+  	xor_right_allOnes,
+  	extract_on_merge_values,
+    const_eval_combines,
+    mux_merge,
+    extract_msb_cmp,
+    ]> {
   let DisableRuleOption = "GenericFpgaGenPreToNetlistGICombinerHelper-disable-rule";
   let StateClass = "GenericFpgaGenPreToNetlistGICombinerHelperState";
   let AdditionalArguments = [];

@@ -21,9 +21,10 @@ bb.1.blockL54i0_54:
   GENFPGA_CSTORE %14:anyregcls(s16), %1:anyregcls, 0, 1 :: (volatile store (s16) into %ir.o, addrspace 2)
   %16:anyregcls(s1) = G_ICMP intpred(eq), %15:anyregcls(s2), i2 0
   %17:anyregcls(s1) = G_ICMP intpred(eq), %15:anyregcls(s2), i2 -2
-  %20:anyregcls(s1) = G_ICMP intpred(sgt), %15:anyregcls(s2), i2 -1
-  %46:anyregcls(s1) = G_AND %16:anyregcls, %20:anyregcls
-  %22:anyregcls(s16) = GENFPGA_MUX %42:anyregcls(s16), %46:anyregcls(s1), %43:anyregcls(s16), %20:anyregcls(s1), %44:anyregcls(s16), %17:anyregcls(s1), %45:anyregcls(s16)
+  %46:anyregcls(s1) = GENFPGA_EXTRACT %15:anyregcls(s2), 1, 1
+  %20:anyregcls(s1) = GENFPGA_NOT %46:anyregcls(s1)
+  %47:anyregcls(s1) = G_AND %16:anyregcls, %20:anyregcls
+  %22:anyregcls(s16) = GENFPGA_MUX %42:anyregcls(s16), %47:anyregcls(s1), %43:anyregcls(s16), %20:anyregcls(s1), %44:anyregcls(s16), %17:anyregcls(s1), %45:anyregcls(s16)
   %24:anyregcls(s16) = G_ADD %22:anyregcls, i16 1
   %25:anyregcls(s1) = G_ICMP intpred(eq), %15:anyregcls(s2), i2 1
   %42:anyregcls(s16) = GENFPGA_MUX %24:anyregcls(s16), %16:anyregcls(s1), %42:anyregcls(s16)

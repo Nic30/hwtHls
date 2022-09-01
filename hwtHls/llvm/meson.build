@@ -54,6 +54,7 @@ py3.extension_module(
 	 'targets/GISel/genericFpgaPreToNetlistCombiner.cpp',
      'targets/GISel/genericFpgaRegisterBankInfo.cpp',
      'targets/GISel/genericFpgaCombinerHelper.cpp',
+     'targets/GISel/genericFpgaCombinerHelperMux.cpp',
 
 	 'targets/genericFpgaInstrInfo.cpp',
 	 'targets/genericFpgaMCTargetDesc.cpp',

@@ -15,46 +15,45 @@ nodes:
     <HlsNetNodeOperator 13 EQ [8:0, 12:0]>
     <HlsNetNodeConst 14 <BitsVal 1>>
     <HlsNetNodeOperator 15 NE [8:0, 14:0]>
-    <HlsNetNodeMux 20 [61:0, 11:0, 59:0, 13:0, 62:0, 15:0, 60:0]>
+    <HlsNetNodeMux 20 [60:0, 11:0, 58:0, 13:0, 61:0, 15:0, 59:0]>
     <HlsNetNodeRead 21 <Signal i <Bits, 2bits, unsigned>>>
     <HlsNetNodeWrite 22 <Signal o <Bits, 16bits, unsigned>> <- <HlsNetNodeOut <HlsNetNodeMux 20> [0]>>
     <HlsNetNodeConst 23 <BitsVal 0>>
     <HlsNetNodeOperator 24 EQ [21:0, 23:0]>
     <HlsNetNodeConst 25 <BitsVal 2>>
     <HlsNetNodeOperator 26 EQ [21:0, 25:0]>
-    <HlsNetNodeConst 27 <BitsVal 3>>
-    <HlsNetNodeOperator 28 BitsAsSigned [21:0]>
-    <HlsNetNodeOperator 29 BitsAsSigned [27:0]>
-    <HlsNetNodeOperator 30 GT [28:0, 29:0]>
-    <HlsNetNodeOperator 31 AND [24:0, 30:0]>
-    <HlsNetNodeMux 32 [59:0, 31:0, 60:0, 30:0, 61:0, 26:0, 62:0]>
-    <HlsNetNodeConst 33 <BitsVal 1>>
-    <HlsNetNodeOperator 34 ADD [32:0, 33:0]>
-    <HlsNetNodeConst 35 <BitsVal 1>>
-    <HlsNetNodeOperator 36 EQ [21:0, 35:0]>
-    <HlsNetNodeMux 37 [34:0, 24:0, 59:0]>
-    <HlsNetNodeMux 38 [60:0, 24:0, 34:0, 36:0, 60:0]>
-    <HlsNetNodeMux 39 [61:0, 24:0, 61:0, 36:0, 34:0, 26:0, 61:0]>
-    <HlsNetNodeMux 40 [62:0, 24:0, 62:0, 36:0, 62:0, 26:0, 34:0]>
-    <HlsNetNodeOutLazy 42>
+    <HlsNetNodeConst 27 <BitsVal 1>>
+    <HlsNetNodeOperator 28 INDEX [21:0, 27:0]>
+    <HlsNetNodeOperator 29 NOT [28:0]>
+    <HlsNetNodeOperator 30 AND [24:0, 29:0]>
+    <HlsNetNodeMux 31 [58:0, 30:0, 59:0, 29:0, 60:0, 26:0, 61:0]>
+    <HlsNetNodeConst 32 <BitsVal 1>>
+    <HlsNetNodeOperator 33 ADD [31:0, 32:0]>
+    <HlsNetNodeConst 34 <BitsVal 1>>
+    <HlsNetNodeOperator 35 EQ [21:0, 34:0]>
+    <HlsNetNodeMux 36 [33:0, 24:0, 58:0]>
+    <HlsNetNodeMux 37 [59:0, 24:0, 33:0, 35:0, 59:0]>
+    <HlsNetNodeMux 38 [60:0, 24:0, 60:0, 35:0, 33:0, 26:0, 60:0]>
+    <HlsNetNodeMux 39 [61:0, 24:0, 61:0, 35:0, 61:0, 26:0, 33:0]>
+    <HlsNetNodeOutLazy 41>
+    <HlsNetNodeExplicitSync 42 in=<HlsNetNodeOut <BitsVal 0> [0-val]>, extraCond=None, skipWhen=None>
     <HlsNetNodeExplicitSync 43 in=<HlsNetNodeOut <BitsVal 0> [0-val]>, extraCond=None, skipWhen=None>
     <HlsNetNodeExplicitSync 44 in=<HlsNetNodeOut <BitsVal 0> [0-val]>, extraCond=None, skipWhen=None>
     <HlsNetNodeExplicitSync 45 in=<HlsNetNodeOut <BitsVal 0> [0-val]>, extraCond=None, skipWhen=None>
-    <HlsNetNodeExplicitSync 46 in=<HlsNetNodeOut <BitsVal 0> [0-val]>, extraCond=None, skipWhen=None>
-    <HlsNetNodeReadBackwardEdge 47 <HsStructIntf hls_r_42_bb1_to_bb1_out <Bits, 16bits>>>
-    <HlsNetNodeWriteBackwardEdge 48 <HsStructIntf hls_r_42_bb1_to_bb1_in <Bits, 16bits>> <- <HlsNetNodeOut <HlsNetNodeMux 37> [0]>>
-    <HlsNetNodeExplicitSync 49 in=<HlsNetNodeOut <HlsNetNodeReadBackwardEdge 47 <HsStructIntf hls_r_42_bb1_to_bb1_out <Bits, 16bits>>> [0-dataOut]>, extraCond=None, skipWhen=None>
-    <HlsNetNodeReadBackwardEdge 50 <HsStructIntf hls_r_43_bb1_to_bb1_out <Bits, 16bits>>>
-    <HlsNetNodeWriteBackwardEdge 51 <HsStructIntf hls_r_43_bb1_to_bb1_in <Bits, 16bits>> <- <HlsNetNodeOut <HlsNetNodeMux 38> [0]>>
-    <HlsNetNodeExplicitSync 52 in=<HlsNetNodeOut <HlsNetNodeReadBackwardEdge 50 <HsStructIntf hls_r_43_bb1_to_bb1_out <Bits, 16bits>>> [0-dataOut]>, extraCond=None, skipWhen=None>
-    <HlsNetNodeReadBackwardEdge 53 <HsStructIntf hls_r_44_bb1_to_bb1_out <Bits, 16bits>>>
-    <HlsNetNodeWriteBackwardEdge 54 <HsStructIntf hls_r_44_bb1_to_bb1_in <Bits, 16bits>> <- <HlsNetNodeOut <HlsNetNodeMux 39> [0]>>
-    <HlsNetNodeExplicitSync 55 in=<HlsNetNodeOut <HlsNetNodeReadBackwardEdge 53 <HsStructIntf hls_r_44_bb1_to_bb1_out <Bits, 16bits>>> [0-dataOut]>, extraCond=None, skipWhen=None>
-    <HlsNetNodeReadBackwardEdge 56 <HsStructIntf hls_r_45_bb1_to_bb1_out <Bits, 16bits>>>
-    <HlsNetNodeWriteBackwardEdge 57 <HsStructIntf hls_r_45_bb1_to_bb1_in <Bits, 16bits>> <- <HlsNetNodeOut <HlsNetNodeMux 40> [0]>>
-    <HlsNetNodeExplicitSync 58 in=<HlsNetNodeOut <HlsNetNodeReadBackwardEdge 56 <HsStructIntf hls_r_45_bb1_to_bb1_out <Bits, 16bits>>> [0-dataOut]>, extraCond=None, skipWhen=None>
-    <HlsNetNodeMux 59 [43:0, <HlsNetNodeOutLazy 42>, 49:0]>
-    <HlsNetNodeMux 60 [44:0, <HlsNetNodeOutLazy 42>, 52:0]>
-    <HlsNetNodeMux 61 [45:0, <HlsNetNodeOutLazy 42>, 55:0]>
-    <HlsNetNodeMux 62 [46:0, <HlsNetNodeOutLazy 42>, 58:0]>
+    <HlsNetNodeReadBackwardEdge 46 <HsStructIntf hls_r_42_bb1_to_bb1_out <Bits, 16bits>>>
+    <HlsNetNodeWriteBackwardEdge 47 <HsStructIntf hls_r_42_bb1_to_bb1_in <Bits, 16bits>> <- <HlsNetNodeOut <HlsNetNodeMux 36> [0]>>
+    <HlsNetNodeExplicitSync 48 in=<HlsNetNodeOut <HlsNetNodeReadBackwardEdge 46 <HsStructIntf hls_r_42_bb1_to_bb1_out <Bits, 16bits>>> [0-dataOut]>, extraCond=None, skipWhen=None>
+    <HlsNetNodeReadBackwardEdge 49 <HsStructIntf hls_r_43_bb1_to_bb1_out <Bits, 16bits>>>
+    <HlsNetNodeWriteBackwardEdge 50 <HsStructIntf hls_r_43_bb1_to_bb1_in <Bits, 16bits>> <- <HlsNetNodeOut <HlsNetNodeMux 37> [0]>>
+    <HlsNetNodeExplicitSync 51 in=<HlsNetNodeOut <HlsNetNodeReadBackwardEdge 49 <HsStructIntf hls_r_43_bb1_to_bb1_out <Bits, 16bits>>> [0-dataOut]>, extraCond=None, skipWhen=None>
+    <HlsNetNodeReadBackwardEdge 52 <HsStructIntf hls_r_44_bb1_to_bb1_out <Bits, 16bits>>>
+    <HlsNetNodeWriteBackwardEdge 53 <HsStructIntf hls_r_44_bb1_to_bb1_in <Bits, 16bits>> <- <HlsNetNodeOut <HlsNetNodeMux 38> [0]>>
+    <HlsNetNodeExplicitSync 54 in=<HlsNetNodeOut <HlsNetNodeReadBackwardEdge 52 <HsStructIntf hls_r_44_bb1_to_bb1_out <Bits, 16bits>>> [0-dataOut]>, extraCond=None, skipWhen=None>
+    <HlsNetNodeReadBackwardEdge 55 <HsStructIntf hls_r_45_bb1_to_bb1_out <Bits, 16bits>>>
+    <HlsNetNodeWriteBackwardEdge 56 <HsStructIntf hls_r_45_bb1_to_bb1_in <Bits, 16bits>> <- <HlsNetNodeOut <HlsNetNodeMux 39> [0]>>
+    <HlsNetNodeExplicitSync 57 in=<HlsNetNodeOut <HlsNetNodeReadBackwardEdge 55 <HsStructIntf hls_r_45_bb1_to_bb1_out <Bits, 16bits>>> [0-dataOut]>, extraCond=None, skipWhen=None>
+    <HlsNetNodeMux 58 [42:0, <HlsNetNodeOutLazy 41>, 48:0]>
+    <HlsNetNodeMux 59 [43:0, <HlsNetNodeOutLazy 41>, 51:0]>
+    <HlsNetNodeMux 60 [44:0, <HlsNetNodeOutLazy 41>, 54:0]>
+    <HlsNetNodeMux 61 [45:0, <HlsNetNodeOutLazy 41>, 57:0]>
 

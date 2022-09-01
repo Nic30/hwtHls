@@ -15,6 +15,12 @@ public:
 		MachineOperand &op;
 		uint64_t offsetOfUse, width, widthOfUse;
 	};
+	struct CImmOrReg {
+		const ConstantInt *c;
+		Register reg;
+		CImmOrReg(const MachineOperand &MOP);
+		void addAsUse(MachineInstrBuilder & MIB) const;
+	};
 
 	using llvm::CombinerHelper::CombinerHelper;
 
@@ -46,13 +52,18 @@ public:
 	bool rewriteConstCondMux(llvm::MachineInstr &MI);
 
 	// check if can merge two GENFPGA_MUX instructions
-	bool matchNestedMux(llvm::MachineInstr &MI, llvm::SmallVector<bool> &requiresAndWithParentCond);
-	bool rewriteNestedMuxToMux(llvm::MachineInstr &MI, const llvm::SmallVector<bool> &requiresAndWithParentCond);
+	bool matchNestedMux(llvm::MachineInstr &MI,
+			llvm::SmallVector<bool> &requiresAndWithParentCond);
+	bool rewriteNestedMuxToMux(llvm::MachineInstr &MI,
+			const llvm::SmallVector<bool> &requiresAndWithParentCond);
 
 	bool hasAll1AndAll0Values(llvm::MachineInstr &MI,
 			CImmOrRegWithNegFlag &matchinfo);
 	bool rewriteConstValMux(llvm::MachineInstr &MI,
 			const CImmOrRegWithNegFlag &matchinfo);
+	bool matchMuxMask(llvm::MachineInstr &MI, BuildFnTy &rewriteFn);
+
+	bool matchCmpToMsbCheck(llvm::MachineInstr &MI, BuildFnTy &rewriteFn);
 
 };
 
