@@ -1,3 +1,4 @@
+from itertools import chain
 from typing import Union, Optional, Generator
 
 from hwt.code import If
@@ -43,6 +44,7 @@ class HlsNetNodeReadBackwardEdge(HlsNetNodeRead):
             assert name is not None, self
             dtype = self.getRtlDataSig()._dtype
             reg = allocator._reg(f"{allocator.namePrefix:s}{name:s}", dtype, def_val=init[0][0])
+            reg.hidden = False
 
             # create RTL signal expression base on operator type
             regTir = TimeIndependentRtlResource(reg, self.scheduledOut[0], allocator, False)
@@ -107,6 +109,9 @@ class HlsNetNodeWriteBackwardEdge(HlsNetNodeWrite):
                 .buff(reg_cnt, latency=(1, 2), init_data=self.channel_init_values)\
                 .end
             dst_read.src(buffs)
+            for i in chain(dst_read.src._interfaces, buffs._interfaces):
+                i._sig.hidden = False
+            
         else:
             assert self.associated_read in allocator.allNodes, (self, allocator)
             t0 = self.scheduledOut[0]

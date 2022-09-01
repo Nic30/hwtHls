@@ -26,6 +26,7 @@ class HlsProgramStarter(HlsNetNode):
 
         name = self.name
         starterReg = allocator._reg(name if name else f"{allocator.namePrefix:s}programStarter{self._id}", def_val=1)
+        starterReg.hidden = False
 
         # sync added later
         starterReg(0)
