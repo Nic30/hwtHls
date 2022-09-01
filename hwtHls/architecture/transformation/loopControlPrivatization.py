@@ -1,13 +1,15 @@
+from typing import Dict, Union, Tuple
+
 from hwtHls.architecture.allocator import HlsAllocator
+from hwtHls.architecture.archElement import ArchElement
+from hwtHls.architecture.archElementFsm import ArchElementFsm
+from hwtHls.architecture.archElementPipeline import ArchElementPipeline
+from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage
 from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
 from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeWriteControlBackwardEdge, \
     HlsNetNodeReadControlBackwardEdge
+from hwtHls.netlist.nodes.io import HOrderingVoidT
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
-from hwtHls.architecture.archElement import ArchElement
-from typing import Dict, Union, Tuple
-from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage
-from hwtHls.architecture.archElementFsm import ArchElementFsm
-from hwtHls.architecture.archElementPipeline import ArchElementPipeline
 from hwtHls.netlist.scheduler.clk_math import start_clk
 
 
@@ -70,36 +72,60 @@ class RtlArchPassLoopControlPrivatization(RtlArchPass):
                     # this does not cross element boundary and will be handled internally in FSM
                     continue
                 
+                wMinTime = None  # minimum time for "w" where all requirements are met
+                for wDep in w.dependsOn:
+                    wDep: HlsNetNodeOut
+                    if wDep._dtype is HOrderingVoidT:
+                        t = wDep.obj.scheduledOut[wDep.out_i]
+                        if wMinTime is None:
+                            wMinTime = t
+                        else:
+                            wMinTime = max(wMinTime, t)
+                assert wMinTime is not None, w
+                
                 jumpSrcValStI = start_clk(jumpSrcValT, clkPeriod)
                 removeFromTail = False
                 if isinstance(headerElm, ArchElementFsm):
                     headerElm: ArchElementFsm
-                    if jumpSrcVal.obj in headerElm.allNodes or (jumpSrcValStI >= headerElm.fsmBeginClk_i and jumpSrcValStI <= headerElm.fsmEndClk_i):
-                        headerElm.allNodes.append(w)
-                        headerElm.fsm.states[-1].append(w)
-                        t = (headerElm.fsmEndClk_i + 1) * clkPeriod - ffdelay
-                        w.scheduledIn = tuple(t for _ in w._inputs)
-                        w.scheduledOut = tuple(t + epsilon for _ in w._outputs)
-                        removeFromTail = True
-
+                    if jumpSrcVal.obj in headerElm.allNodes or (
+                            jumpSrcValStI >= headerElm.fsmBeginClk_i and
+                            jumpSrcValStI <= headerElm.fsmEndClk_i):
+                        if headerElm is tailElm and wStI == len(headerElm.fsm.states) - 1:
+                            pass  # skip moving to same stage in same element
+                        else:
+                            headerElm.allNodes.append(w)
+                            headerElm.fsm.states[-1].append(w)
+                            t = (headerElm.fsmEndClk_i + 1) * clkPeriod - ffdelay
+                            assert wMinTime <= t, (w, wMinTime, t) 
+                            w.scheduledIn = tuple(t for _ in w._inputs)
+                            w.scheduledOut = tuple(t + epsilon for _ in w._outputs)
+                            removeFromTail = True
+    
                 elif isinstance(headerElm, ArchElementPipeline):
                     if jumpSrcVal.obj in headerElm.allNodes:
                         headerElm.allNodes.append(w)
-                        headerElm.stages[jumpSrcValStI].append(w)
-                        removeFromTail = True
+                        t = max(wMinTime, jumpSrcValT)
+                        newStI = start_clk(t, clkPeriod)
+                        if newStI != wStI:
+                            w.scheduledIn = tuple(t for _ in w._inputs)
+                            w.scheduledOut = tuple(t + epsilon for _ in w._outputs)
+                            headerElm.stages[newStI].append(w)
+                            removeFromTail = True
                 else:
                     raise NotImplementedError(headerElm)
                 
                 if removeFromTail:
                     if isinstance(tailElm, ArchElementFsm):
                         # rm write node from current element
-                        tailElm.allNodes.remove(w)
+                        if headerElm is not tailElm:
+                            tailElm.allNodes.remove(w)
                         tailElm.fsm.states[wStI].remove(w)
                         if wStI != len(tailElm.fsm.states) - 1:
                             raise NotImplementedError("This jump in CFG was not in last state and can be used to optimize tailElm but we now removed it, we should add a local version of this instead", w)
 
                     elif isinstance(tailElm, ArchElementPipeline):
-                        tailElm.allNodes.remove(w)
+                        if headerElm is not tailElm:
+                            tailElm.allNodes.remove(w)
                         tailElm.stages[wStI].remove(w)
                     else:
                         raise NotImplementedError(headerElm)
