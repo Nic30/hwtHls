@@ -80,6 +80,8 @@ class HlsNetNode():
         assert self.scheduledOut is not None, self
         for i, iT, dep in zip_longest(self._inputs, self.scheduledIn, self.dependsOn):
             assert isinstance(iT, int), (i, iT)
+            assert dep is not None, (self, "Inconsistent input specification")
+            assert i is not None, (self, "Inconsistent input specification")
             oT = dep.obj.scheduledOut[dep.out_i]
             assert isinstance(oT, int), (dep, oT)
             assert iT >= oT, (iT, oT, "Input must be scheduled after connected output port.", dep, "->", i)
@@ -169,7 +171,7 @@ class HlsNetNode():
         """
         Single clock variant (inputClkTickOffset and outputClkTickOffset are all zeros)
         """
-        # if all dependencies have inputs scheduled we shedule this node and try successors
+        # if all dependencies have inputs scheduled we schedule this node and try successors
         if self.scheduledIn is not None:
             return self.scheduledIn
         for iClkOff in self.inputClkTickOffset:
@@ -247,6 +249,7 @@ class HlsNetNode():
             nodeZeroTime + out_delay
             for out_delay in self.outputWireDelay
         )
+
         return self.scheduledIn
 
     def scheduleAlapCompactionMultiClock(self,
@@ -303,7 +306,6 @@ class HlsNetNode():
                     timeOffset = start_clk(timeOffset, clkPeriod) * clkPeriod - ffdelay - epsilon
 
         else:
-            raise NotImplementedError()
             # no outputs, we must use some asap input time and move to end of the clock
             assert self._inputs, (self, "Node must have at least some port")
             asapIn, _ = asapSchedule[self]
@@ -366,12 +368,14 @@ class HlsNetNode():
             i.in_i -= 1
 
     def _addInput(self, name: Optional[str]) -> HlsNetNodeIn:
+        assert self.realization is None, self
         i = HlsNetNodeIn(self, len(self._inputs), name)
         self.dependsOn.append(None)
         self._inputs.append(i)
         return i
 
     def _addOutput(self, t: HdlType, name: Optional[str]):
+        assert self.realization is None, self
         self.usedBy.append([])
         o = HlsNetNodeOut(self, len(self._outputs), t, name)
         self._outputs.append(o)
@@ -393,7 +397,13 @@ class HlsNetNode():
 
         self.outputWireDelay = HlsNetNode_numberForEachOutputNormalized(self, r.outputWireDelay, schedulerResolution)
         self.outputClkTickOffset = HlsNetNode_numberForEachOutput(self, r.outputClkTickOffset)
-
+        iCnt = len(self._inputs)
+        assert len(self.inputWireDelay) == iCnt
+        assert len(self.inputClkTickOffset) == iCnt
+        oCnt = len(self._outputs)
+        assert len(self.outputWireDelay) == oCnt
+        assert len(self.outputClkTickOffset) == oCnt
+        
         return self
 
     def resolve_realization(self):
