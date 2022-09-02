@@ -139,12 +139,13 @@ class ToLlvmIrTranslator():
             src = self._translateExpr(instr.getSrc())
             t: PointerType = TypeToPointerType(dst.getType())
             if isinstance(instr, HlsWriteAddressed):
-                indexes = [self._translateExprInt(0, self._translateType(uint64_t)), self._translateExpr(instr.getIndex()), ]
+                indexes = [self._translateExprInt(0, self._translateType(uint64_t)),
+                                                     self._translateExpr(instr.getIndex()), ]
                 arrTy: ArrayType = TypeToArrayType(t.getPointerElementType())
                 elmT = arrTy.getElementType()
                 dst = b.CreateGEP(arrTy, dst, indexes)
             
-            b.CreateStore(src, dst, True)
+            return b.CreateStore(src, dst, True)
 
         elif instr.operator == AllOps.CONCAT and isinstance(instr._dtype, Bits):
             ops = [self._translateExpr(op) for op in instr.operands]
