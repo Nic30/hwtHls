@@ -179,9 +179,3 @@ class HlsScope():
         for t in self._threads:
             p.runHlsNetlistToRtlNetlist(self, t.toHw)
             p.runRtlNetlistPasses(self, t.toHw)
-
-    def pragma(self, pragmaObj):
-        """
-        This function does nothing, it is meant for frontend to to patch when compiling
-        the code. 
-        """
