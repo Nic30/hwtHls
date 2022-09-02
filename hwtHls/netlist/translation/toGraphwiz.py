@@ -3,6 +3,7 @@ from itertools import zip_longest
 import pydot
 from typing import List, Union, Dict
 
+from hwt.hdl.operatorDefs import COMPARE_OPS
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
@@ -128,7 +129,12 @@ class HwtHlsNetlistToGraphwiz():
         if isinstance(obj, HlsNetNodeConst):
             label = f"{obj.val} {obj._id}"
         elif isinstance(obj, HlsNetNodeOperator):
-            label = f"{obj.operator.id} {obj._id}"
+            if obj.operator in COMPARE_OPS:
+                t = obj.dependsOn[0]._dtype
+            else:
+                t = obj._outputs[0]._dtype
+
+            label = f"{obj.operator.id} {obj._id} {t}"
         elif isinstance(obj, HlsNetNodeRead):
             label = repr(obj)
         elif isinstance(obj, HlsNetNodeWrite):
