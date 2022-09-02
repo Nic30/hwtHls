@@ -73,9 +73,13 @@ class HlsScheduler():
             assert len(c._outputs) == 1, c
             assert not c._inputs, c
             c.scheduledIn = ()
-            c.scheduledOut = (min(u.obj.scheduledIn[u.in_i] for u in c.usedBy[0]),)
-            if node.scheduledOut:
-                minTime = min(minTime, min(node.scheduledOut))
+            uses = c.usedBy[0]
+            if uses:
+                c.scheduledOut = (min(u.obj.scheduledIn[u.in_i] for u in uses),)
+            else:
+                c.scheduledOut = (0,) 
+
+            minTime = min(minTime, min(node.scheduledOut))
 
         if minTime < 0:
             # move everything forward in time so there is nothing scheduled in negative time, the move must be aligned to clock boundaries
