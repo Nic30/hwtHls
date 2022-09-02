@@ -134,13 +134,13 @@ class DefaultHlsPlatform(DummyPlatform):
         if debugDir:
             HlsNetlistPassDumpToDot(outputFileGetter(debugDir, ".10.netlist.dot")).apply(hls, netlist)
             HlsNetlistPassConsystencyCheck().apply(hls, netlist)
-            
+
         HlsNetlistPassSimplify().apply(hls, netlist)
-        
+
         if debugDir:
             HlsNetlistPassDumpToDot(outputFileGetter(debugDir, ".11.netlistSimplified.dot")).apply(hls, netlist)
             HlsNetlistPassConsystencyCheck().apply(hls, netlist)
-           
+
         HlsNetlistPassMergeExplicitSync().apply(hls, netlist)
         HlsNetlistPassAggregateBitwiseOps().apply(hls, netlist)
         if debugDir:
@@ -176,9 +176,9 @@ class DefaultHlsPlatform(DummyPlatform):
 
         * Each arch element explicitly queries the node for the specific time (and input/output combination if node spans over more arch. elements).
         """
-
+        debugDir = self._debugDir
         HlsNetlistPassDisaggregateBitwiseOps().apply(hls, netlist)
-        if self._debugDir is not None:
+        if debugDir is not None:
             HlsNetlistPassConsystencyCheck().apply(hls, netlist)
             netlist.scheduler._checkAllNodesScheduled()
         
@@ -187,6 +187,10 @@ class DefaultHlsPlatform(DummyPlatform):
         RtlArchPassSingleStagePipelineToFsm().apply(self, allocator)
         RtlArchPassLoopControlPrivatization().apply(self, allocator)
         
+        if debugDir is not None:
+            HlsNetlistPassShowTimeline(outputFileGetter(debugDir, ".14.scheduleFinal.html"),
+                              expandCompositeNodes=self._debugExpandCompositeNodes).apply(hls, netlist)
+
         iea = InterArchElementNodeSharingAnalysis(netlist.normalizedClkPeriod)
         allocator._iea = iea         
         if len(allocator._archElements) > 1:
@@ -201,8 +205,9 @@ class DefaultHlsPlatform(DummyPlatform):
             allocator.finalizeInterElementsConnections(iea)
         # :note: must be after finalizeInterElementsConnections because it needs inter element sync channels
         # RtlArchPassFsmShareTiedStateTransitions().apply(self, allocator)
-        if self._debugDir:
-            RtlArchPassToGraphwiz(outputFileGetter(self._debugDir, ".14.arch.dot")).apply(hls, netlist)
+        if debugDir:
+            RtlArchPassToGraphwiz(outputFileGetter(debugDir, ".15.arch.dot")).apply(hls, netlist)
+
         for e in allocator._archElements:
             e.allocateSync()
 
@@ -210,6 +215,6 @@ class DefaultHlsPlatform(DummyPlatform):
         debugDir = self._debugDir
         RtlNetlistPassControlLogicMinimize().apply(hls, netlist)
         if debugDir:
-            RtlNetlistPassDumpStreamNodes(outputFileGetter(debugDir, ".15.sync.txt")).apply(hls, netlist)
-            RtlArchPassShowTimeline(outputFileGetter(debugDir, ".16.archSchedule.html")).apply(hls, netlist)
+            RtlNetlistPassDumpStreamNodes(outputFileGetter(debugDir, ".16.sync.txt")).apply(hls, netlist)
+            RtlArchPassShowTimeline(outputFileGetter(debugDir, ".17.archSchedule.html")).apply(hls, netlist)
 
