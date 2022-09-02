@@ -14,7 +14,8 @@ class BramRead_TC(SimTestCase):
         u = BramReadWithRom()
         self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
         clkPeriod = int(freq_to_period(u.CLK_FREQ))
-        self.runSim((2 * 32 + 1) * clkPeriod)
+        # + 1 for reset, +1 for latency 
+        self.runSim((32 + 1 + 1) * clkPeriod)
         HlsAstTrivial_TC._test_no_comb_loops(self)
         
         ref = []
