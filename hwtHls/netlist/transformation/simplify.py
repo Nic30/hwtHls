@@ -9,15 +9,19 @@ from hwt.hdl.types.bitsVal import BitsVal
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.value import HValue
 from hwt.pyUtils.uniqList import UniqList
+from hwtHls.architecture.connectionsOfStage import extractControlSigOfInterfaceTuple
 from hwtHls.netlist.abc.abcAigToHlsNetlist import AbcAigToHlsNetlist
 from hwtHls.netlist.abc.hlsNetlistToAbcAig import HlsNetlistToAbcAig
 from hwtHls.netlist.abc.optScripts import abcCmd_resyn2, abcCmd_compress2
+from hwtHls.netlist.analysis.consystencyCheck import HlsNetlistPassConsystencyCheck
 from hwtHls.netlist.analysis.dataThreads import HlsNetlistAnalysisPassDataThreads
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeWriteBackwardEdge
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, \
     HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.loopHeader import HlsLoopGate
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
@@ -26,9 +30,6 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
 from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from pyMathBitPrecise.bit_utils import get_bit, mask
-from hwtHls.architecture.connectionsOfStage import extractControlSigOfInterfaceTuple
-from hwtHls.netlist.analysis.consystencyCheck import HlsNetlistPassConsystencyCheck
-from hwtHls.netlist.nodes.loopHeader import HlsLoopGate
 
 
 def iter1and0sequences(v: BitsVal) -> Generator[Tuple[Literal[1, 0], int], None, None]:
@@ -85,6 +86,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
 
     def apply(self, hls:"HlsScope", netlist: HlsNetlistCtx):
         threads: HlsNetlistAnalysisPassDataThreads = netlist.getAnalysis(HlsNetlistAnalysisPassDataThreads)
+        self.threads = threads
         worklist: UniqList[HlsNetNode] = UniqList(netlist.iterAllNodes())
         removed: Set[HlsNetNode] = set()
         builder = netlist.builder
@@ -160,29 +162,8 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                             worklist.append(dep.obj)
                             n._removeInput(n.extraCond.in_i)
                             n.extraCond = None
-                            
-                    # remove ordering if it is redundant information
-    #                for orderingI in tuple(n.iterOrderingInputs()):
-    #                    orderingI: HlsNetNodeIn
-    #                    t0 = threads.threadPerNode[n]
-    #                    dep = n.dependsOn[orderingI.in_i]
-    #                    t1 = threads.threadPerNode[dep.obj]
-    #                    if t0 is t1:
-    #                        if isinstance(n, HlsNetNodeRead) and isinstance(dep.obj, HlsNetNodeRead):
-    #                            n: HlsNetNodeRead
-    #                            if n.src is dep.obj.src:
-    #                                # can not ignore order of reads from same volatile source
-    #                                continue
-    #                        elif isinstance(n, HlsNetNodeWrite) and isinstance(dep.obj, HlsNetNodeWrite):
-    #                            n: HlsNetNodeWrite
-    #                            if n.dst is dep.obj.dst:
-    #                                # can not ignore order of writes to same volatile destination
-    #                                continue
-    #
-    #                        # [todo] instead of simple removal we should transitively check if we should reconnnect to some parent node
-    #                        dep.obj.usedBy[dep.out_i].remove(orderingI)
-    #                        n._removeInput(orderingI.in_i)
-    
+                    self._reduceExplicitSyncOrdering(n)
+
                     if n.__class__ is HlsNetNodeExplicitSync:
                         n: HlsNetNodeExplicitSync
                         # remove whole node if not synchronizing anything
@@ -227,7 +208,6 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                     if self._reduceReadSync(n, worklist, removed):
                         didModifyExpr = True
                         continue
-
 
             if firstTime or didModifyExpr:
                 self._runAbcControlpathOpt(netlist.builder, worklist, removed, netlist.iterAllNodes())
@@ -281,7 +261,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
         elif isinstance(dep, HlsNetNodeConst):
             self._replaceOperatorNodeWith(n, builder.buildConstBit(1), worklist, removed)
             
-        #else:
+        # else:
         #    raise AssertionError("HlsNetNodeReadSync should have only HlsNetNodeExplicitSync/HlsNetNodeRead/HlsNetNodeWrite as predecesspr", n, dep)
         return False
 
@@ -424,6 +404,72 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                     return False
             return True
 
+    def _reduceExplicitSyncOrdering(self, n: HlsNetNodeExplicitSync):
+        threads = self.threads
+        # remove ordering if it is redundant information
+        for orderingI in tuple(n.iterOrderingInputs()):
+            orderingI: HlsNetNodeIn
+            t0 = threads.threadPerNode.get(n, None)
+            if t0 is None:
+                continue
+            dep = n.dependsOn[orderingI.in_i]
+            depObj: HlsNetNodeExplicitSync = dep.obj
+            t1 = threads.threadPerNode.get(depObj, None)
+            if t1 is None:
+                continue
+            if t0 is t1:
+                assert n is not depObj, n
+                
+                if isinstance(n, HlsNetNodeRead) and isinstance(depObj, HlsNetNodeRead):
+                    n: HlsNetNodeRead
+                    if n.src is depObj.src:
+                        # can not ignore order of reads from same volatile source
+                        continue
+
+                elif isinstance(n, HlsNetNodeWrite) and isinstance(depObj, HlsNetNodeWrite):
+                    n: HlsNetNodeWrite
+                    if n.dst is depObj.dst:
+                        # can not ignore order of writes to same volatile destination
+                        continue
+
+                elif isinstance(n, HlsNetNodeWriteBackwardEdge) and depObj is n.associated_read:
+                    continue
+
+                # rm dep -> orderingI
+                depObj.usedBy[dep.out_i].remove(orderingI)
+                n._removeInput(orderingI.in_i)
+                nOrderingUses: Set[HlsNetNodeExplicitSync] = set()
+                for oi in n.iterOrderingInputs():
+                    nOrderingUses.add(n.dependsOn[oi.in_i].obj)
+
+                # and add dependencies from depObj to orderingI.obj
+                for oi in depObj.iterOrderingInputs():
+                    oi: HlsNetNodeIn
+                    depDep = depObj.dependsOn[oi.in_i]
+                    
+                    if depDep.obj in nOrderingUses:
+                        continue
+                    else:
+                        nOrderingUses.add(depDep.obj)
+                        nOi = n._addInput("orderingIn")
+                        link_hls_nodes(depDep, nOi)
+
+                # and add uses from orderingI.obj to depObj
+                oo = n.getOrderingOutPort()
+                depOo = depObj.getOrderingOutPort()
+                depOrderingUses: Set[HlsNetNodeExplicitSync] = set()
+                for u in depObj.usedBy[depOo.out_i]:
+                    depOrderingUses.add(u.obj)
+
+                for u in n.usedBy[oo.out_i]:
+                    u: HlsNetNodeIn
+                    if u.obj in depOrderingUses:
+                        continue
+                    else:
+                        depOrderingUses.add(u.obj)
+                        i = u.obj._addInput("orderingIn")
+                        link_hls_nodes(depOo, i)
+
     def _reduceMux(self, n: HlsNetNodeMux, worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]):
         if len(n._inputs) == 1:
             # mux x = x
@@ -432,19 +478,24 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
             return True
 
         # resolve constant conditions
-        newOps = []
+        newOps: List[HlsNetNodeIn] = []
+        newValSet: Set[HlsNetNodeIn] = set()
         for (v, c) in n._iterValueConditionDriverPairs():
             if c is not None and isinstance(c.obj, HlsNetNodeConst):
                 if c.obj.val:
                     newOps.append(v)
+                    newValSet.add(v)
                     break
             else:
                 newOps.append(v)
+                newValSet.add(v)
                 if c is not None:
                     newOps.append(c)
-
-        if len(newOps) != len(n._inputs):
-            if len(newOps) == 1:
+        
+        singleVal = len(newValSet) == 1 
+        newOpsLen = len(newOps)
+        if newOpsLen != len(n._inputs) or singleVal:
+            if newOpsLen == 1 or (singleVal and newOpsLen % 2 == 1):
                 i: HlsNetNodeOut = newOps[0]
             else:
                 i = n.netlist.builder.buildMux(n._outputs[0]._dtype, tuple(newOps))
