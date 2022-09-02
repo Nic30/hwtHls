@@ -75,12 +75,13 @@ class RtlArchPassLoopControlPrivatization(RtlArchPass):
                 wMinTime = None  # minimum time for "w" where all requirements are met
                 for wDep in w.dependsOn:
                     wDep: HlsNetNodeOut
-                    if wDep._dtype is HOrderingVoidT:
+                    if wDep._dtype is not HOrderingVoidT:
                         t = wDep.obj.scheduledOut[wDep.out_i]
                         if wMinTime is None:
                             wMinTime = t
                         else:
                             wMinTime = max(wMinTime, t)
+
                 assert wMinTime is not None, w
                 
                 jumpSrcValStI = start_clk(jumpSrcValT, clkPeriod)
