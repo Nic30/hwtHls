@@ -1,4 +1,5 @@
 from itertools import chain
+from math import ceil
 from typing import Union, Optional, Generator
 
 from hwt.code import If
@@ -7,6 +8,7 @@ from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
+from hwtHls.netlist.nodes.node import InputTimeGetter, SchedulizationDict
 from hwtHls.ssa.value import SsaValue
 from hwtLib.handshaked.builder import HsBuilder
 
@@ -101,7 +103,7 @@ class HlsNetNodeWriteBackwardEdge(HlsNetNodeWrite):
             assert dst_t <= src_t, ("This was supposed to be backward edge", dst_t, src_t, src_write, dst_read)
             # 1 register at minimum, because we need to break a combinational path
             # the size of buffer is derived from the latency of operations between the io ports
-            reg_cnt = max((src_t - dst_t) / allocator.netlist.normalizedClkPeriod, 1)
+            reg_cnt = max(ceil((src_t - dst_t) / allocator.netlist.normalizedClkPeriod), 1)
 
             # :note: latency is 1-2 to break ready chain (it is not always required, but the check is not implemented)
             buffs = HsBuilder(allocator.netlist.parentUnit, src_write.dst,
@@ -134,6 +136,29 @@ class HlsNetNodeWriteBackwardEdge(HlsNetNodeWrite):
 
     def debug_iter_shadow_connection_dst(self) -> Generator["HlsNetNode", None, None]:
         yield self.associated_read
+
+    def scheduleAlapCompaction(self, asapSchedule:SchedulizationDict, inputTimeGetter:Optional[InputTimeGetter]):
+        if self.scheduledIn is not None:
+            return self.scheduledIn
+        
+        wrSched = HlsNetNodeWrite.scheduleAlapCompaction(self, asapSchedule, inputTimeGetter)
+        rd = self.associated_read
+        rd.scheduleAlapCompaction(asapSchedule, inputTimeGetter)
+        rdSched = rd.scheduledOut
+        # if there are not any uses (which is common case when there is no ordering extra specification)
+        # we want to minimize the size of the buffer. Because of this we place this write just behind associated read
+        if rdSched[0] > wrSched[0]:
+            nodeZeroTime = rdSched[0] - rd.outputWireDelay[0] + self.netlist.scheduler.epsilon
+            self.scheduledIn = tuple(
+                nodeZeroTime - in_delay
+                for in_delay in self.inputWireDelay
+            )
+            
+            self.scheduledOut = tuple(
+                nodeZeroTime + out_delay
+                for out_delay in self.outputWireDelay
+            )
+        return self.scheduledIn
 
 
 class HlsNetNodeWriteControlBackwardEdge(HlsNetNodeWriteBackwardEdge):
