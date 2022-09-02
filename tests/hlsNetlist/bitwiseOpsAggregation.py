@@ -9,7 +9,8 @@ from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.netlist import HlsThreadFromNetlist
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
+from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, \
+    HOrderingVoidT
 from hwtHls.netlist.nodes.ports import link_hls_nodes
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
@@ -19,6 +20,7 @@ from enum import Enum
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwt.hdl.types.defs import BIT
 from pyMathBitPrecise.bit_utils import get_bit
+from hwtHls.netlist.nodes.delay import HlsNetNodeDelayClkTick
 
 
 class TREE_ORDER(Enum):
@@ -55,9 +57,10 @@ class HlsNetlistBitwiseOpsPreorder0Unit(Unit):
         
         # scheduling offset 1clk for i2 from i1
         link_hls_nodes(i0.getOrderingOutPort(), i1._addInput("orderingIn"))
-        link_hls_nodes(i1.getOrderingOutPort(), i2._addInput("orderingIn"))
-        i1.assignRealization(OpRealizationMeta(outputClkTickOffset=(0, 1)))
-        i1.scheduleAlapCompaction = i1.scheduleAlapCompactionMultiClock
+        lat = HlsNetNodeDelayClkTick(netlist, 1, HOrderingVoidT)
+        netlist.nodes.append(lat)
+        link_hls_nodes(i1.getOrderingOutPort(), lat._inputs[0])
+        link_hls_nodes(lat._outputs[0], i2._addInput("orderingIn"))
         netlist.inputs.extend([i0, i1, i2])
         
         o = HlsNetNodeWrite(netlist, NOT_SPECIFIED, self.o)
