@@ -27,7 +27,7 @@ class HlsNetNodeDelayClkTick(HlsNetNode):
         return 0
         
     def resolve_realization(self):
-        self.assignRealization(OpRealizationMeta((0,), (0,), (0,), (self._clkCnt,)))
+        self.assignRealization(OpRealizationMeta(0, 0, 0, self._clkCnt))
 
     def scheduleAlapCompaction(self, asapSchedule:SchedulizationDict, inputTimeGetter: Optional[InputTimeGetter]):
         return HlsNetNode.scheduleAlapCompactionMultiClock(self, asapSchedule, inputTimeGetter)
