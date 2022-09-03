@@ -27,87 +27,58 @@ class SsaToGraphwiz():
         self.obj_to_node: Dict[Union[SsaBasicBlock, Tuple[SsaBasicBlock, SsaBasicBlock]], pydot.Node] = {}
 
     def construct(self, begin: SsaBasicBlock,
-                  code: Optional[HlsStmCodeBlock],
-                  pipelines: Optional[List[List[SsaBasicBlock]]],
-                  edge_var_live: Optional[EdgeLivenessDict]):
+                  code: Optional[HlsStmCodeBlock]):
         g = self.graph
-        self._node_from_SsaBasicBlock(begin, True, edge_var_live)
-        if pipelines is not None:
-            bb_to_pipe_i = {}
-            for i, pipe in enumerate(pipelines):
-                for bb in pipe:
-                    bb_to_pipe_i[bb] = i
-
-            for bb, n in self.obj_to_node.items():
-                if not isinstance(bb, SsaBasicBlock):
-                    continue
-                pipe_i = bb_to_pipe_i[bb]
-                n.body = n.body.replace("<begin> ", f"<begin> p{pipe_i} ")
+        self._node_from_SsaBasicBlock(begin, True)
 
         if code is not None:
             CopyBasicBlockLabelsToCode().visit(begin)
             g.add_node(pydot.Node("code", shape="plaintext", fontname="monospace", label='"' + html.escape(repr(code)).replace("\n", "\\l\\\n") + '\l"'))
 
-    def _node_from_SsaBasicBlock(self, bb: SsaBasicBlock, is_start: bool, edge_var_live: Optional[EdgeLivenessDict]):
+    def _node_from_SsaBasicBlock(self, bb: SsaBasicBlock, is_start: bool):
         try:
             return self.obj_to_node[bb]
         except KeyError:
             pass
         g = self.graph
         # node needs to be constructed before connecting because graph may contain loops
-        node = pydot.Node(f"bb{len(g.obj_dict['nodes'])}", shape="record", fontname="monospace")
+        node = pydot.Node(f"bb{len(g.obj_dict['nodes'])}", shape="plaintext")
         g.add_node(node)
         self.obj_to_node[bb] = node
 
         # construct new node
-        top_str = '\<start\> ' if is_start else ''
-        body_rows = [f"<begin> {top_str:s}{html.escape(bb.label):s}:"]
+        topStr = html.escape('<start> ') if is_start else ''
+        topLabel = html.escape(bb.label).replace('\n', ' ')
+        bodyRows = [f'    <tr port="begin"><td colspan="2">{topStr:s}{topLabel:s}:</td></tr>']
         for phi in bb.phis:
             phi: SsaPhi
             ops = ", ".join(
-                f"[{html.escape(o._name if isinstance(o, SsaInstr) else repr(o))}, {b.label:s}]"
+                f"[{o._name if isinstance(o, SsaInstr) else repr(o)}, {b.label:s}]"
                 for (o, b) in phi.operands
             )
-            body_rows.append(f"{html.escape(phi._name)} = phi {html.escape(repr(phi._dtype))} {ops:s}\\l")
+            bodyRows.append(f'    <tr><td colspan="2">{html.escape(phi._name)} = phi {html.escape(repr(phi._dtype))} {html.escape(ops):s}</td></tr>')
 
         for stm in bb.body:
-            body_rows.append(html.escape(repr(stm)) + "\\l")
+            stmStr = html.escape(repr(stm))
+            bodyRows.append(f'    <tr><td colspan="2">{stmStr}</td></tr>')
 
         for i, (cond, dst_bb, _) in enumerate(bb.successors.targets):
             branch_label = f"br{i:d}"
             cond_str = "" if cond is None\
                 else html.escape(cond._name) if isinstance(cond, RtlSignal) else\
-                html.escape(cond._name) if isinstance(cond, SsaValue) and cond._name else html.escape(repr(cond))
-            body_rows.append(f"{{\\<{branch_label:s}\\> | <{branch_label:s}> {cond_str:s} }}")
-            dst_node = self._node_from_SsaBasicBlock(dst_bb, False, edge_var_live)
+                html.escape(cond._name) if isinstance(cond, SsaValue) and cond._name else repr(cond)
+            cond_str = html.escape(cond_str)
+            bodyRows.append(f'    <tr port="{branch_label:s}"><td>{branch_label}</td><td>{cond_str:s}</td></tr>')
+            dst_node = self._node_from_SsaBasicBlock(dst_bb, False)
             _src = f"{node.get_name():s}:{branch_label:s}"
             _dst = f"{dst_node.get_name()}:begin"
-            if edge_var_live is None:
-                e = pydot.Edge(_src, _dst)
-                g.add_edge(e)
-            else:
-                var_rows = []
-                for var in edge_var_live.get(bb, {}).get(dst_bb, ()):
-                    n = html.escape(var._name)
-                    var_rows.append(f"<tr><td>{n:s}</td></tr>")
-                if var_rows:
-                    link_var_node = pydot.Node(f"bb{len(self.nodes):d}", shape="plaintext", fontname="monospace", label='<\n    <table color="gray">%s</table>' % "\n".join(var_rows))
-                    self.obj_to_node[(bb, dst_bb)] = link_var_node
-                    g.add_node(link_var_node)
-                    g.add_edge(pydot.Edge(_src, f"{link_var_node.get_name():s}"))
-                    g.add_edge(pydot.Edge(f"{link_var_node.get_name():s}", _dst))
-                else:
-                    g.add_edge(pydot.Edge(_src, _dst))
+            e = pydot.Edge(_src, _dst)
+            g.add_edge(e)
+          
 
-        buff = []
-        buff.append('"{')
-        for last, row in iter_with_last(body_rows):
-            buff.append(row)
-            if not last:
-                buff.append("|\n")
-
-        buff.append('}"')
-        node.set("label", "".join(buff)) 
+        bodyStr = "\n".join(bodyRows)
+        label = f'<<table border="0" cellborder="1" cellspacing="0">{bodyStr:s}</table>>'
+        node.set("label", label) 
         return node
 
     def dumps(self):
@@ -125,12 +96,9 @@ class SsaPassDumpToDot(SsaPass):
     def apply(self, hls: "HlsScope", toSsa: "HlsAstToSsa"):
         name = toSsa.label
         to_graphwiz = SsaToGraphwiz(name)
-        pipelines = None
-        edge_var_live = None
         out, doClose = self.outStreamGetter(name)
         try:
-            to_graphwiz.construct(toSsa.start, toSsa.original_code_for_debug,
-                                  pipelines, edge_var_live)
+            to_graphwiz.construct(toSsa.start, toSsa.original_code_for_debug)
             out.write(to_graphwiz.dumps())
         finally:
             if doClose:
