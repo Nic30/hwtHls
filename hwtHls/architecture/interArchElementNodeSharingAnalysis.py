@@ -195,29 +195,30 @@ class InterArchElementNodeSharingAnalysis():
                 n: HlsNetNode
                 if isinstance(n, HlsNetNodePartRef):
                     n: HlsNetNodePartRef
-                    for extOut in n._subNodes.inputs:
-                        assert extOut.obj not in n._subNodes.nodes, ("If this is an external input it must not originate from this node", extOut, n, dstElm)
-                        outerIn: HlsNetNodeIn = n.parentNode.outerOutToIn.get(extOut, None)
-                        if outerIn is not None:
-                            connectedInputs = n.parentNode._subNodes.inputsDict[extOut]
-                        else:
-                            connectedInputs = tuple(u for u in extOut.obj.usedBy[extOut.out_i])
-
-                        fistUseTime = None
-                        for i in connectedInputs:
-                            if i.obj not in n._subNodes.nodes:
-                                continue
-                            t = i.obj.scheduledIn[i.in_i]
-                            o = i.obj.dependsOn[i.in_i]
-                            assert o is extOut
-                            self._analyzeInterElementsNodeSharingCheckInputDriver(o, i, t, dstElm)
-                            if fistUseTime is None or fistUseTime > t:
-                                fistUseTime = t
-
-                        assert fistUseTime is not None, ("If it is unused it should not be in inputs at the first place", extOut, n, connectedInputs)
-                        if outerIn is not None:
-                            self._analyzeInterElementsNodeSharingCheckInputDriver(extOut, outerIn, fistUseTime, dstElm)
-
+                    if n._subNodes is not None:
+                        for extOut in n._subNodes.inputs:
+                            assert extOut.obj not in n._subNodes.nodes, ("If this is an external input it must not originate from this node", extOut, n, dstElm)
+                            outerIn: HlsNetNodeIn = n.parentNode.outerOutToIn.get(extOut, None)
+                            if outerIn is not None:
+                                connectedInputs = n.parentNode._subNodes.inputsDict[extOut]
+                            else:
+                                connectedInputs = tuple(u for u in extOut.obj.usedBy[extOut.out_i])
+    
+                            fistUseTime = None
+                            for i in connectedInputs:
+                                if i.obj not in n._subNodes.nodes:
+                                    continue
+                                t = i.obj.scheduledIn[i.in_i]
+                                o = i.obj.dependsOn[i.in_i]
+                                assert o is extOut
+                                self._analyzeInterElementsNodeSharingCheckInputDriver(o, i, t, dstElm)
+                                if fistUseTime is None or fistUseTime > t:
+                                    fistUseTime = t
+    
+                            assert fistUseTime is not None, ("If it is unused it should not be in inputs at the first place", extOut, n, connectedInputs)
+                            if outerIn is not None:
+                                self._analyzeInterElementsNodeSharingCheckInputDriver(extOut, outerIn, fistUseTime, dstElm)
+    
                 else:
                     for t, i, o in zip(n.scheduledIn, n._inputs, n.dependsOn):
                         self._analyzeInterElementsNodeSharingCheckInputDriver(o, i, t, dstElm)
