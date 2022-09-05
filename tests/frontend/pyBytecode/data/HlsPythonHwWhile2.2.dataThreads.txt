@@ -1,0 +1,40 @@
+########### Thread 0 ###########
+blocks:
+    blockL20i0_20
+    blockL20i0_28
+    blockL20i0_56
+    blockL20i0_44
+nodes:
+    <HlsNetNodeConst 2 <BitsVal 0>>
+    <HlsNetNodeConst 6 <BitsVal 5>>
+    <HlsNetNodeOperator 7 GE [38:0, 6:0]>
+    <HlsNetNodeOutLazy 9>
+    <HlsNetNodeWrite 12 <Signal o <Bits, 8bits, unsigned>> <- <HlsNetNodeOut <HlsNetNodeExplicitSync 40 [0-dataOut]>>
+    <HlsNetNodeOperator 13 NOT [<HlsNetNodeOutLazy 9>]>
+    <HlsNetNodeConst 17 <BitsVal 1>>
+    <HlsNetNodeOperator 18 ADD [46:0, 17:0]>
+    <HlsNetNodeConst 23 <BitsVal 10>>
+    <HlsNetNodeOperator 24 NE [48:0, 23:0]>
+    <HlsNetNodeOutLazy 32>
+    <HlsNetNodeExplicitSync 33 in=<HlsNetNodeOut <BitsVal 0> [0-val]>, extraCond=None, skipWhen=None>
+    <HlsNetNodeReadBackwardEdge 34 <HsStructIntf hls_r_13_bb3_to_bb1_out <Bits, 8bits>>>
+    <HlsNetNodeWriteBackwardEdge 35 <HsStructIntf hls_r_13_bb3_to_bb1_in <Bits, 8bits>> <- <HlsNetNodeOut <HlsNetNodeOperator 18 ADD> [0]>>
+    <HlsNetNodeExplicitSync 37 in=<HlsNetNodeOut <HlsNetNodeReadBackwardEdge 34 <HsStructIntf hls_r_13_bb3_to_bb1_out <Bits, 8bits>>> [0-dataOut]>, extraCond=None, skipWhen=None>
+    <HlsNetNodeMux 38 [33:0, <HlsNetNodeOutLazy 32>, 37:0]>
+    <HlsNetNodeExplicitSync 40 in=<HlsNetNodeOut <HlsNetNodeMux 38> [0]>, extraCond=None, skipWhen=None>
+    <HlsNetNodeExplicitSync 41 in=<HlsNetNodeOut <HlsNetNodeMux 38> [0]>, extraCond=None, skipWhen=None>
+    <HlsNetNodeOutLazy 42>
+    <HlsNetNodeExplicitSync 43 in=<HlsNetNodeOut <HlsNetNodeExplicitSync 48 [0-dataOut]>, extraCond=None, skipWhen=None>
+    <HlsNetNodeExplicitSync 45 in=<HlsNetNodeOut <HlsNetNodeExplicitSync 41 [0-dataOut]>, extraCond=None, skipWhen=None>
+    <HlsNetNodeMux 46 [43:0, <HlsNetNodeOutLazy 42>, 45:0]>
+    <HlsNetNodeExplicitSync 48 in=<HlsNetNodeOut <HlsNetNodeMux 38> [0]>, extraCond=None, skipWhen=None>
+
+########### Thread 1 ###########
+blocks:
+    blockL84i0_84
+nodes:
+    <HlsNetNodeOutLazy 26>
+    <HlsNetNodeConst 28 <BitsVal 0>>
+    <HlsNetNodeWrite 29 <Signal o <Bits, 8bits, unsigned>> <- <HlsNetNodeOut <BitsVal 0> [0-val]>>
+    <HlsNetNodeOperator 30 NOT [<HlsNetNodeOutLazy 26>]>
+

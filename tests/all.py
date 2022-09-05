@@ -27,6 +27,7 @@ from tests.frontend.pyBytecode.pyArrHwIndex_test import PyArrHwIndex_TC
 from tests.frontend.pyBytecode.pyArrShift_test import PyArrShift_TC
 from tests.frontend.pyBytecode.stmFor_test import StmFor_TC
 from tests.frontend.pyBytecode.stmIf_test import StmIf_TC
+from tests.frontend.pyBytecode.stmWhile_test import StmWhile_TC
 from tests.frontend.pyBytecode.tupleAssign import HlsPythonTupleAssign_TC
 from tests.frontend.pyBytecode.variableChain_test import VariableChain_TC
 from tests.hlsNetlist.bitwiseOpsAggregation import HlsNetlistBitwiseOpsTC
@@ -87,6 +88,7 @@ suite = testSuiteFromTCs(
     FnClosure_TC,
     StmIf_TC,
     StmFor_TC,
+    StmWhile_TC,
     PyArrHwIndex_TC,
     VariableChain_TC,
     AxiSPacketCntrTC,
