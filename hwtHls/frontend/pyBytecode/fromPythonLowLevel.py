@@ -60,28 +60,22 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
             with open(f"tmp/{self.label:s}_cfg_bytecode.txt", "w") as f:
                 dis(fn, file=f)
             
-        frame = PyBytecodeFrame.fromFunction(fn, 0, fnArgs, fnKwargs, self.callStack)
+        frame = PyBytecodeFrame.fromFunction(fn, -1, fnArgs, fnKwargs, self.callStack)
         self.toSsa = HlsAstToSsa(self.hls.ssaCtx, fn.__name__, None)
-        curBlock = self.toSsa.start
         self._debugDump(frame, "_begin")
         
-        startBlockLabel = self.blockToLabel[curBlock] = frame.blockTracker._getBlockLabel(0)
-        self.labelToBlock[startBlockLabel] = SsaBlockGroup(curBlock)
+        entryBlock = self.toSsa.start
+        entryBlockLabel = self.blockToLabel[entryBlock] = frame.blockTracker._getBlockLabel(-1)
+        self.labelToBlock[entryBlockLabel] = SsaBlockGroup(entryBlock)
+
         try:
-            self._translateBytecodeBlock(frame, frame.bytecodeBlocks[0], curBlock)
+            self._getOrCreateSsaBasicBlockAndJumpRecursively(frame, entryBlock, 0, None, None, True)
+            #self._onBlockGenerated(frame, entryBlockLabel)
             assert not frame.loopStack, ("All loops must be exited", frame.loopStack)
         finally:
             self._debugDump(frame, "_final")
+
         assert len(self.callStack) == 1 and self.callStack[0] is frame, self.callStack
-    
-        if curBlock.predecessors:
-            # because for LLVM entry point must not have predecessors
-            self.toSsa.start.label += "_0"
-            entry = SsaBasicBlock(self.toSsa.ssaCtx, fn.__name__)
-            self.toSsa._onAllPredecsKnown(frame, entry)
-            entry.successors.addTarget(None, curBlock)
-            self.toSsa.start = entry
-        
         self.toSsa.finalize()
 
     def _debugDump(self, frame: PyBytecodeFrame, label=None):
@@ -104,7 +98,7 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
 
     def _onBlockGenerated(self, frame: PyBytecodeFrame, label: BlockLabel):
         """
-        Called once all predecessors were added in SSA.
+        Called once all successors were added in SSA.
         """
         for bl in frame.blockTracker.addGenerated(label):
             # we can seal the block only after body was generated
@@ -112,7 +106,7 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
             #             Otherwise some PHI arguments can be lost
             self._onAllPredecsKnown(frame, self.labelToBlock[bl].begin)
     
-    def _addNotGeneratedBlock(self, frame: PyBytecodeFrame, srcBlockLabel: BlockLabel, dstBlockLabel: BlockLabel):
+    def _addNotGeneratedJump(self, frame: PyBytecodeFrame, srcBlockLabel: BlockLabel, dstBlockLabel: BlockLabel):
         """
         Marks edge in CFG as not generated. If subgraph behind the edge becomes unreachable, mark recursively.
         If some block will get all edges know mark it recursively.
@@ -134,7 +128,7 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
 
         srcBlockLabel = self.blockToLabel[curBlock]
         dstBlockLabel = frame.blockTracker._getBlockLabel(blockOffset)
-        self._addNotGeneratedBlock(frame, srcBlockLabel, dstBlockLabel)
+        self._addNotGeneratedJump(frame, srcBlockLabel, dstBlockLabel)
 
     def _onAllPredecsKnown(self, frame: PyBytecodeFrame, block: SsaBasicBlock):
         label = self.blockToLabel[block]

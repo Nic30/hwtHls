@@ -1,4 +1,4 @@
-from typing import  Tuple, Union, List, Optional
+from typing import  Tuple, Union, List, Optional, Literal
 
 from hwt.hdl.value import HValue
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
@@ -29,10 +29,11 @@ class BranchTargetPlaceholder():
         src = self.block
         assert src not in dstBlock.predecessors, (src, dstBlock, dstBlock.predecessors)
         dstBlock.predecessors.append(src)
-        if cond is not None:
-            cond.users.append(self.block.successors)
+        if cond is None:
+            assert len(targets) == self.index + 1, (cond, targets)
         else:
-            assert len(targets) == self.index + 1
+            cond.users.append(self.block.successors)
+
         self._isReplaced = True
 
     def replaceInput(self, orig_expr: SsaValue, new_expr: Union[SsaValue, HValue]):
@@ -75,7 +76,6 @@ class PyBytecodeLoopInfo():
         self.iteraionI = 0
         self.mustBeEvaluatedInPreproc = False
         self.jumpsFromLoopBody: List[LoopExitJumpInfo] = []
-        self.notGeneratedExits: List[BlockLabel, BlockLabel] = []
         self.pragma: List["_PyBytecodePragma"] = []
 
     def isJumpFromLoopBody(self, dstBlockOffset: int) -> bool:
@@ -109,11 +109,14 @@ class PyBytecodeLoopInfo():
 class LoopExitJumpInfo():
     """
     Temporary container for a jump from the loop where preprocessor should continue once all jumps from loop are resolved.
+    
+    :ivar cond: A condition value which is triggering this CFG transition. None means always triggered. False means never triggered.
+        Otherwise SsaValue can be used to specify any other condition.
     """
 
     def __init__(self, dstBlockIsNew: Optional[bool],
                  srcBlock: SsaBasicBlock,
-                 cond: Optional[SsaValue],
+                 cond: Union[SsaValue, None, Literal[False]],
                  dstBlock: Optional[SsaBasicBlock],
                  dstBlockOffset:int,
                  dstBlockLoops: Optional[List[PyBytecodeLoopInfo]],

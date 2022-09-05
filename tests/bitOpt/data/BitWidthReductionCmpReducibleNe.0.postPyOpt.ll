@@ -1,5 +1,7 @@
 define dso_local i32 @main() #0 {
 mainThread:
+  br [label %block0 ]
+block0:
   br [label %blockL10i0_10 ]
 blockL10i0_10:
   a0 = call <Bits, 8bits, unsigned> @hls.read(a)

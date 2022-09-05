@@ -1,7 +1,6 @@
 from copy import copy
 from dis import Instruction
-from itertools import islice
-from typing import Optional, List, Tuple, Union
+from typing import Optional, List, Tuple, Union, Literal
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.hdl.types.defs import BIT
@@ -12,6 +11,7 @@ from hwtHls.errors import HlsSyntaxError
 from hwtHls.frontend.pyBytecode.blockPredecessorTracker import BlockLabel
 from hwtHls.frontend.pyBytecode.frame import PyBytecodeFrame
 from hwtHls.frontend.pyBytecode.fromPythonLowLevel import PyBytecodeToSsaLowLevel
+from hwtHls.frontend.pyBytecode.fromPythonPragma import _applyLoopPragma
 from hwtHls.frontend.pyBytecode.indexExpansion import expandBeforeUse
 from hwtHls.frontend.pyBytecode.instructions import JUMP_ABSOLUTE, JUMP_FORWARD, \
     JUMP_IF_FALSE_OR_POP, JUMP_IF_TRUE_OR_POP, POP_JUMP_IF_FALSE, \
@@ -20,46 +20,69 @@ from hwtHls.frontend.pyBytecode.loopMeta import PyBytecodeLoopInfo, \
     BranchTargetPlaceholder, LoopExitJumpInfo
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc, \
     PyBytecodePreprocDivergence
+from hwtHls.frontend.pyBytecode.utils import isLastJumpFromBlock, blockHasBranchPlaceholder
 from hwtHls.ssa.basicBlock import SsaBasicBlock
-from hwtHls.ssa.instr import ConditionBlockTuple
 from hwtHls.ssa.value import SsaValue
+
+JumpCondition = Union[None, HValue, RtlSignal, SsaValue, Literal[False]]
 
 
 class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
     """
-    This class translates Python bytecode to hwtHls.ssa. The preprocessor tries to evaluate as much as possible
-    and only things which do depend on hardware evaluated values are in output SSA code.
+    This class translates Python bytecode to :mod:`hwtHls.ssa`. The preprocessor tries to evaluate as much as possible
+    and only things which do depend on hardware evaluated values are in output SSA code. 
     
-    Methods in this class specifically are responsible for translation of loops and jumps, the rest in base class.
-
-    The SSA basic blocks are constructed on jumps in instruction list.
-    A single jump target may generate multiple basic blocks if it is part of the preprocessor evaluated loop.
+    Methods in this class specifically are responsible for translation of loops and jumps, the rest is in the base class.
   
     Description of Python bytecode:
         * https://docs.python.org/3/library/dis.html
         * https://towardsdatascience.com/understanding-python-bytecode-e7edaae8734d
 
-    Custom Python interprets:
-        * https://github.com/pypyjs/pypy
-        * https://github.com/kentdlee/CoCo
+    :note: SSA construction algorithm requires detection of an event when basic block have all predecessors known.
+      This is complicated in this case as blocks are dynamically generated during evaluation of bytecode.
+      :see: :class:`hwtHls.frontend.pyBytecode.blockPredecessorTracker.BlockPredecessorTracker`
 
-    :note: The block is generated for every jump target, even if it is just in preprocessor.
-        If it is used just in preprocessor the jump condition of this block is resolved compile time.
-        (Because for loops we may find out that the loop is HW evaluated somewhere inside of cycle body)
-        And thus the blocks which were generated in preprocessor are entry points of clusters of blocks generated for HW
-        connected in linear sequence or are entirely disconnected because preprocessor optimized them out. 
-
-    :note: HW evaluated loop is an opposite of preprocessor loop. It is not evaluated during translation.
-        The preprocessor loop is evaluated during the translation and each iteration replicates all block of the loop
-        to create new iteration.
+    SSA construction algorithm used in this class:
+    
+    * The traslation starts by collecting of CFG from Python bytecode of current function.
+      * The block label is specified as a prefix and offset in bytecode.
+      * The prefix is a tuple generated from loop iteration labels and function call labels.
+      * The SSA basic blocks are constructed on jumps in instruction list.
+        A single jump target may generate multiple basic blocks from reasons explained later (HW dependent branches).
+    * The execution context is stored in PyBytecodeFrame and contains mainly stack.
+    * The context is used for evaluation of code in Python bytecode.
+        * There are 2 types of variables/stack slots:
+            * Preprocessor variable
+                * Regular Python variable
+            * Hardware variable
+                * A variable which holds an instance of some hardware class
+                * Operation with this type of variable can not be evaluated
+                  and instead it is copied to an output SSA.
+    * Because use of hardware value can appear in control flow instruction we must translate CFG if this happen as well.
+        * This leads to a need of a stack copy on each branch on HW value.
+        * If some bytecode block is visited with a different stack variant it must be duplicated in an output SSA.
+          However it is required only if stack differs in non HW preprocessor variable because the HW variables are handled in SSA.
+          The parallel evaluation is also limited by a current loop body and function call.
+    * If jump condition can be evaluated during compilation it is translated as unconditional jump in SSA and
+      not taken jumps from this block are marked as not generated (using :meth:`~.PyBytecodeToSsa._addNotGeneratedJump`).
+    * As a consequence there are two types of loops, hardware evaluated and preprocess loops.      
+        * The type of loop is resolved during evaluation. If some jump corresponding to break/continue (from loop/to loop header)
+          appears, this loop must be converted to SSA as a loop.
+        * If the loop is preprocessor loop it is converted to SSA as a chain of loop body iterations.
+        * If the loop is HW evaluated loop it is converted to SSA as a loop.
+        * The loop is HW evaluated loop if any branch break/continue branch in loop depends on HW evaluated value.
+        * Because final CFG differs on loop body boundaries for mentioned loop types it is required to resolve type
+          of the loop before potential second iteration of body.
+          Because code is evaluated in DFS manner and because stack is copied on each HW evaluated branch
+          it is required to postpone the evaluation in parallel branches until the loop type is resolved.
+          * This implies that in a single time there may be multiple evaluation contexts and in some block it is required to merge them.
     """
 
     def _getOrCreateSsaBasicBlockAndJumpRecursively(self,
             frame: PyBytecodeFrame,
             curBlock: SsaBasicBlock,
-            isLastJumpFromCur: bool,
             sucBlockOffset: int,
-            cond: Union[None, HValue, RtlSignal, SsaValue],
+            cond: JumpCondition,
             branchPlaceholder: Optional[BranchTargetPlaceholder],
             allowJumpToNextLoopIteration=False):
         """
@@ -68,8 +91,14 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
         """
         # print("jmp", curBlock.label, "->", sucBlockOffset, cond)
         res = self._prepareSsaBlockBeforeTranslation(frame,
-            curBlock, isLastJumpFromCur, sucBlockOffset, cond, branchPlaceholder, allowJumpToNextLoopIteration)
-
+            curBlock, sucBlockOffset, cond, branchPlaceholder, allowJumpToNextLoopIteration)
+        
+        if curBlock is self.toSsa.start:
+            # entry point, there are not other branches and entry block needs to be marked
+            # as generated in advance so all other blocks can see that they are reachable from generated block
+            self._onBlockGenerated(frame, self.blockToLabel[curBlock])
+            # self._onAllPredecsKnown(frame, curBlock)
+        
         if res is not None and res.dstBlockIsNew:
             assert res.branchPlaceholder is None, (curBlock.label, "->", sucBlockOffset, cond)
             self._translateBlockBody(frame, res.isExplicitLoopReenter, res.dstBlockLoops, res.dstBlockOffset, res.dstBlock)
@@ -77,16 +106,15 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
     def _prepareSsaBlockBeforeTranslation(self,
             frame: PyBytecodeFrame,
             curBlock: SsaBasicBlock,
-            isLastJumpFromCur: bool,
             sucBlockOffset: int,
-            cond: Union[None, HValue, RtlSignal, SsaValue],
+            cond: JumpCondition,
             branchPlaceholder: Optional[BranchTargetPlaceholder],
             allowJumpToNextLoopIteration=False) -> Optional[LoopExitJumpInfo]:
         """
         Prepare the jump and block to jump or create placeholder if this is the jump from the loop.
         """
-
-        if not allowJumpToNextLoopIteration and frame.isJumpFromCurrentLoopBody(sucBlockOffset):
+        isJumpFromCurrentLoopBody = frame.isJumpFromCurrentLoopBody(sucBlockOffset)
+        if not allowJumpToNextLoopIteration and isJumpFromCurrentLoopBody:
             # this is the case where we can not generate jump target because we do not know for sure if this
             # will be some existing block or we will have to generate new one because of loop expansion
             if branchPlaceholder is None:
@@ -95,12 +123,19 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
             frame.markJumpFromBodyOfCurrentLoop(lei)
             return None
 
+        blockTracker = frame.blockTracker
+        if isinstance(cond, bool):
+            assert cond == False, (cond, "Only bool value False is used to mark not generated block.")
+            curBlockLabel = self.blockToLabel[curBlock]
+            dstBlockLabel = blockTracker._getBlockLabel(sucBlockOffset)
+            self._addNotGeneratedJump(frame, curBlockLabel, dstBlockLabel)
+            return None
+
         # if this is a jump out of current loop
         if isinstance(cond, HValue):
             assert cond, (cond, "If this was not True the jump should not be evaluated at the first place")
             cond = None  # always jump, but we need this value to know that this will be unconditional jump only in HW
         
-        blockTracker = frame.blockTracker
         sucLoops = frame.loops.get(sucBlockOffset, None)
         isExplicitLoopReenter = False
         if sucLoops: 
@@ -127,40 +162,8 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
         else:
             branchPlaceholder.replace(cond, sucBlock)
 
-        if isLastJumpFromCur:
-            # if all predecessors and successors are know mark this in CFG recursively
-            curBlockLabel = self.blockToLabel[curBlock]
-            curBlockOffset = curBlockLabel[-1]
-            curLoop = frame.loops.get(curBlockOffset, None)
-            if curLoop is None:
-                self._onBlockGenerated(frame, curBlockLabel)
-
         return LoopExitJumpInfo(sucBlockIsNew, curBlock, cond,
                                 sucBlock, sucBlockOffset, sucLoops, isExplicitLoopReenter, None, frame)
-
-    def _applyLoopPragma(self, headerBlock: SsaBasicBlock, loopInfo:PyBytecodeLoopInfo):
-        """
-        In LLVM loop metadata are specified on jumps from latch blocks to a loop header.
-        :see: Loop::setLoopID, Loop::getLoopID 
-        """
-        anyJumpToHeaderFound = False
-        latchOrExitBlocks = set(j.srcBlock for j in loopInfo.jumpsFromLoopBody)
-        
-        for pred in headerBlock.predecessors:
-            if pred in latchOrExitBlocks:
-                for i, t in enumerate(pred.successors.targets):
-                    if t.dstBlock is headerBlock:
-                        found = True
-                        meta = t.meta
-                        if meta is None:
-                            meta = []
-                            pred.successors.targets[i] = ConditionBlockTuple(t.condition, t.dstBlock, meta)
-
-                        meta.extend(loopInfo.pragma)
-    
-                assert found, ("Jump from latch block ", pred.label, " to header block ", headerBlock.label,
-                               " was from loop was not found", j.srcBlock.successors.targets)
-                anyJumpToHeaderFound |= found
 
     def _translateBlockBody(self,
             frame: PyBytecodeFrame,
@@ -168,25 +171,25 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
             loops: Optional[PyBytecodeLoopInfo],
             blockOffset: int,
             block: SsaBasicBlock):
-            """
-            Translate block from bytecode to SSA and recursively follow all branches from this block.
-            """
-            self._translateBytecodeBlock(frame, frame.bytecodeBlocks[blockOffset], block)
+        """
+        Translate block from bytecode to SSA and recursively follow all branches from this block.
+        """
+        self._translateBytecodeBlock(frame, frame.bytecodeBlocks[blockOffset], block)
 
-            if not isExplicitLoopReenter and loops:
-                # now header block of loop was already translated by previous _translateBytecodeBlock()
-                loopInfo: PyBytecodeLoopInfo = frame.loopStack[-1]
-                assert loopInfo.loop is loops[-1]
-                    
-                if loopInfo.mustBeEvaluatedInHw():
-                    self._finalizeJumpsFromHwLoopBody(frame, block, blockOffset, loopInfo)
-                    if loopInfo.pragma:
-                        self._applyLoopPragma(block, loopInfo)
+        if not isExplicitLoopReenter and loops:
+            # now header block of loop was already translated by previous _translateBytecodeBlock()
+            loopInfo: PyBytecodeLoopInfo = frame.loopStack[-1]
+            assert loopInfo.loop is loops[-1]
+                
+            if loopInfo.mustBeEvaluatedInHw():
+                self._finalizeJumpsFromHwLoopBody(frame, block, blockOffset, loopInfo)
+                if loopInfo.pragma:
+                    _applyLoopPragma(block, loopInfo)
 
-                else:
-                    self._runPreprocessorLoop(frame, loopInfo)
-                    if loopInfo.pragma:
-                        raise NotImplementedError("_runPreprocessorLoop + pragma", loopInfo.pragma)
+            else:
+                self._runPreprocessorLoop(frame, loopInfo)
+                if loopInfo.pragma:
+                    raise NotImplementedError("_runPreprocessorLoop + pragma", loopInfo.pragma)
 
     def _runPreprocessorLoop(self, frame: PyBytecodeFrame, loopInfo: PyBytecodeLoopInfo):
         """
@@ -241,7 +244,7 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
             assert frame.loopStack[-1] is loopInfo, (loopInfo, frame.loopStack)
             
             jumpsFromLoopBody = loopInfo.jumpsFromLoopBody
-            _jumpsFromLoopBody = []
+            _jumpsFromLoopBody: List[Tuple[bool, LoopExitJumpInfo]] = []
             for j in jumpsFromLoopBody:
                 j: LoopExitJumpInfo
                 
@@ -257,6 +260,7 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
 
             if not _jumpsFromLoopBody:
                 break
+
             _jumpsFromLoopBody.sort(key=lambda x: not x[0])
 
             headerBlockLabel = blockTracker._getBlockLabel(loopInfo.loop.entryPoint[-1])
@@ -296,7 +300,7 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
     
                 # print(srcBlockLabel, "->", dstBlockLabel, " header:", headerBlockLabel)
                 if (srcBlockLabel != headerBlockLabel and 
-                        self._isLastJumpFromBlock([j for  (_, j) in _jumpsFromLoopBody], j.srcBlock, i) and
+                        isLastJumpFromBlock([j for  (_, j) in _jumpsFromLoopBody], j.srcBlock, i) and
                         srcBlockLabel not in blockTracker.generated
                         ):
                     # because we we can not jump to a block from anywhere but loop header (because of structural programming)
@@ -336,13 +340,15 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
             self._translateBlockBody(sucInfo.frame, sucInfo.isExplicitLoopReenter, sucInfo.dstBlockLoops,
                                      sucInfo.dstBlockOffset, sucInfo.dstBlock)
         self._debugDump(frame, f"_afterLoopExit{loopInfo.loop.entryPoint[-1]}")
-        for src, dst in loopInfo.notGeneratedExits:
-            self._addNotGeneratedBlock(frame, src, dst)
 
-    def _finalizeJumpsFromHwLoopBody(self, frame: PyBytecodeFrame, headerBlock: SsaBasicBlock, headerOffset: int, loopInfo: PyBytecodeLoopInfo):
+    def _finalizeJumpsFromHwLoopBody(self, frame: PyBytecodeFrame,
+                                     headerBlock: SsaBasicBlock,
+                                     headerOffset: int,
+                                     loopInfo: PyBytecodeLoopInfo):
+        """
+        connect the loop header re-entry to a current loop header and continue execution on loop exit points
+        """
         blockTracker = frame.blockTracker
-        # connect the loop header re-entry to a current loop header
-        # and continue execution on loop exit points
         headerLabel = self.blockToLabel[headerBlock]
         jumpsFromLoopBody = loopInfo.jumpsFromLoopBody
         
@@ -350,69 +356,85 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
         # :attention: must be done before processing of jumps from the loop because it works in DFS and
         #             we may step on this block before we remove it
         # we will not copy the loop body but instead create a regular loop
-        successorsToTranslate: List[LoopExitJumpInfo] = []
-        for i, j in enumerate(jumpsFromLoopBody):
+        successorsToTranslate: List[Tuple[BlockLabel, LoopExitJumpInfo, Optional[BlockLabel]]] = []
+        for j in jumpsFromLoopBody:
             j: LoopExitJumpInfo
-            isLastJumpFromBlock = self._isLastJumpFromBlock(jumpsFromLoopBody, j.srcBlock, i)
             isJumpToHeader = j.dstBlockOffset == headerOffset
             srcBlockLabel = self.blockToLabel[j.srcBlock]
             # fill back the original backedge (srcBlock -> header) in the loop CFG
+            c = j.cond
+            
             if isJumpToHeader:
                 blockTracker.cfg.add_edge(srcBlockLabel, headerLabel)
                 # else the edge should be already present
-                c = j.cond
-                if isinstance(c, HValue):
+                if isinstance(c, bool):
+                    assert not c
+                    assert j.branchPlaceholder is None, j
+                    dstBlockLabel = self.blockToLabel[j.dstBlock]
+                    self._addNotGeneratedJump(j.frame, srcBlockLabel, dstBlockLabel)
+                    continue
+  
+                elif isinstance(c, HValue):
                     assert int(c) == 1, c
                     c = None
-                # srcBlock.successors.addTarget(c, headerBlock)
+
                 j.branchPlaceholder.replace(c, headerBlock)
 
-                # make next look header as not generated
+                # make next iteration header block as not generated
                 loopInfo.iteraionI += 1
                 nextIterationLoopHeaderLabel = blockTracker._getBlockLabel(j.dstBlockOffset)
                 loopInfo.iteraionI -= 1
-                self._addNotGeneratedBlock(j.frame, srcBlockLabel, nextIterationLoopHeaderLabel)
-                if isLastJumpFromBlock and srcBlockLabel not in blockTracker.generated:
+                self._addNotGeneratedJump(j.frame, srcBlockLabel, nextIterationLoopHeaderLabel)
+
+                if not blockHasBranchPlaceholder(j.srcBlock):
                     self._onBlockGenerated(j.frame, srcBlockLabel)
 
             else:
-                sucInfo = self._translateJumpFromCurrentLoop(j.frame, False,
-                       j.srcBlock, j.cond, j.dstBlockOffset, False, j.branchPlaceholder)
-                if sucInfo is not None and sucInfo.dstBlockIsNew:
-                    successorsToTranslate.append((isLastJumpFromBlock, srcBlockLabel, sucInfo))
-                elif (isLastJumpFromBlock and j.srcBlock is not headerBlock):
-                    self._onBlockGenerated(j.frame, srcBlockLabel)
+                if isinstance(c, bool):
+                    assert not c
+                    assert j.branchPlaceholder is None, j
+                    successorsToTranslate.append((srcBlockLabel, j, frame.blockTracker._getBlockLabel(j.dstBlockOffset)))
+                    
+                else:
+                    sucInfo = self._translateJumpFromCurrentLoop(j.frame, False,
+                           j.srcBlock, j.cond, j.dstBlockOffset, False, j.branchPlaceholder)
+                
+                    if sucInfo is not None and sucInfo.dstBlockIsNew:
+                        successorsToTranslate.append((srcBlockLabel, sucInfo, None))
+                    
+                    elif not blockHasBranchPlaceholder(j.srcBlock) and j.srcBlock is not headerBlock:
+                        self._onBlockGenerated(j.frame, srcBlockLabel)
 
         # [todo] do not mark if this header is shared with parent loop
         frame.exitLoop()
-        for isLastJumpFromBlock, srcBlockLabel, sucInfo in successorsToTranslate:
+        for srcBlockLabel, sucInfo, dstBlockLabel in successorsToTranslate:
             sucInfo: LoopExitJumpInfo
+            srcBlockLabel: BlockLabel
+            dstBlockLabel: BlockLabel
             assert sucInfo.branchPlaceholder is None, sucInfo
-            self._translateBlockBody(sucInfo.frame, sucInfo.isExplicitLoopReenter, sucInfo.dstBlockLoops,
-                                     sucInfo.dstBlockOffset, sucInfo.dstBlock)
-                    # because the block was in the loop and we see its last successor we know that this block was completly generated
-            if (isLastJumpFromBlock and j.srcBlock is not headerBlock):
-                self._onBlockGenerated(sucInfo.frame, srcBlockLabel)
-        for src, dst in loopInfo.notGeneratedExits:
-            self._addNotGeneratedBlock(frame, src, dst)
+            if isinstance(sucInfo.cond, bool):
+                assert not sucInfo.cond
+                self._addNotGeneratedJump(j.frame, srcBlockLabel, dstBlockLabel)
+            else:
+                self._translateBlockBody(sucInfo.frame, sucInfo.isExplicitLoopReenter, sucInfo.dstBlockLoops,
+                                         sucInfo.dstBlockOffset, sucInfo.dstBlock)
+                # because the block was in the loop and we see its last successor we know that this block was completely generated
+                if not blockHasBranchPlaceholder(j.srcBlock) and j.srcBlock is not headerBlock:
+                    self._onBlockGenerated(sucInfo.frame, srcBlockLabel)
+
         if headerLabel not in blockTracker.generated:
             self._onBlockGenerated(frame, headerLabel)
-        
-    def _isLastJumpFromBlock(self,
-                             jumpsFromLoopBody: List[Tuple[Union[None, SsaValue, HValue], SsaBasicBlock, int]],
-                             srcBlock: SsaBasicBlock,
-                             i: int):
-        return not any(j.srcBlock is srcBlock for j in islice(jumpsFromLoopBody, i + 1, None))
 
     def _translateJumpFromCurrentLoop(self, frame: PyBytecodeFrame,
-                                      isLastJumpFromSrc: bool, srcBlock: SsaBasicBlock, cond,
+                                      isLastJumpFromSrc: bool,
+                                      srcBlock: SsaBasicBlock,
+                                      cond: JumpCondition,
                                       dstBlockOffset: int,
                                       translateImmediately: bool,
                                       branchPlaceholder: Optional[BranchTargetPlaceholder],
                                       allowJumpToNextLoopIteration=False) -> Optional[LoopExitJumpInfo]:
         """
         Prepare dst block and create jump between src and dst block.
-        :returns: tuple (sucBlockIsNew, srcBlock, sucBlock, sucBlockOffset, sucLoops, isExplicitLoopReenter)
         """
         if len(frame.loopStack) > 1:
             parentLoop: PyBytecodeLoopInfo = frame.loopStack[-2]
@@ -427,17 +449,18 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
 
         if translateImmediately:
             self._getOrCreateSsaBasicBlockAndJumpRecursively(frame,
-                srcBlock, isLastJumpFromSrc, dstBlockOffset, cond, branchPlaceholder,
+                srcBlock, dstBlockOffset, cond, branchPlaceholder,
                 allowJumpToNextLoopIteration=allowJumpToNextLoopIteration)
             res = None
 
         else:
             res = self._prepareSsaBlockBeforeTranslation(frame,
-                srcBlock, isLastJumpFromSrc, dstBlockOffset, cond, branchPlaceholder,
+                srcBlock, dstBlockOffset, cond, branchPlaceholder,
                 allowJumpToNextLoopIteration=allowJumpToNextLoopIteration)
 
         if not allowJumpToNextLoopIteration:
             frame.loopStack.append(li)
+
         return res
 
     def _translateBytecodeBlock(self,
@@ -467,14 +490,15 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
                 lei = LoopExitJumpInfo(None, curBlock, None, None, exitBlockOffset, None, None, branchPlaceholder, frame)
                 frame.markJumpFromBodyOfCurrentLoop(lei)
                 bodyBlockLabel = frame.blockTracker._getBlockLabel(bodyBlockOffset)
-                self._addNotGeneratedBlock(frame, curBlockLabel, bodyBlockLabel)
+                self._addNotGeneratedJump(frame, curBlockLabel, bodyBlockLabel)
                 frame.stack.pop()  # pop iterator itself
                 return
 
             # jump into loop body
             exitBlockLabel = frame.blockTracker._getBlockLabel(exitBlockOffset)
-            curLoop.notGeneratedExits.append((curBlockLabel, exitBlockLabel))
-            self._getOrCreateSsaBasicBlockAndJumpRecursively(frame, curBlock, True, bodyBlockOffset, None, None)
+            exitInfo = LoopExitJumpInfo(False, curBlock, False, None, exitBlockLabel, None, None, None, frame)
+            curLoop.markJumpFromBodyOfLoop(exitInfo)
+            self._getOrCreateSsaBasicBlockAndJumpRecursively(frame, curBlock, bodyBlockOffset, None, None)
 
         else:
             for last, instr in iter_with_last(instructions):
@@ -482,14 +506,26 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
                     self._translateInstructionJumpHw(frame, curBlock, instr)
                 elif instr.opcode == RETURN_VALUE:
                     assert last, instr
-                    self._onBlockGenerated(frame, self.blockToLabel[curBlock])
                     frame.returnPoints.append((frame, curBlock, frame.stack.pop()))
+                    self._onBlockGenerated(frame, self.blockToLabel[curBlock])
                 else:
                     curBlock = self._translateBytecodeBlockInstruction(frame, curBlock, instr)
                     if last:
                         # jump to next block, there was no explicit jump because this is regular code flow, but the next instruction
                         # is jump target
-                        self._getOrCreateSsaBasicBlockAndJumpRecursively(frame, curBlock, True, instr.offset + 2, None, None)
+                        self._getOrCreateSsaBasicBlockAndJumpRecursively(frame, curBlock, instr.offset + 2, None, None)
+                        if not blockHasBranchPlaceholder(curBlock):
+                            self._onBlockGenerated(frame, self.blockToLabel[curBlock])
+
+    def _onBlockNotGeneratedPotentiallyOutOfLoop(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock, sucBlockOffset: int):
+        isJumpFromCurrentLoopBody = frame.isJumpFromCurrentLoopBody(sucBlockOffset)
+        if isJumpFromCurrentLoopBody:
+            # this is the case where we can not generate jump target because we do not know for sure if this
+            # will be some existing block or we will have to generate new one because of loop expansion
+            lei = LoopExitJumpInfo(None, curBlock, False, None, sucBlockOffset, None, None, None, frame)
+            frame.markJumpFromBodyOfCurrentLoop(lei)
+        else:
+            self._onBlockNotGenerated(frame, curBlock, sucBlockOffset)
 
     def _translateInstructionJumpHw(self,
                                     frame: PyBytecodeFrame,
@@ -504,7 +540,10 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
                 return None
 
             elif opcode == JUMP_ABSOLUTE or opcode == JUMP_FORWARD:
-                self._getOrCreateSsaBasicBlockAndJumpRecursively(frame, curBlock, True, instr.argval, None, None)
+                self._getOrCreateSsaBasicBlockAndJumpRecursively(frame, curBlock, instr.argval, None, None)
+
+                if not blockHasBranchPlaceholder(curBlock):
+                    self._onBlockGenerated(frame, self.blockToLabel[curBlock])
 
             elif opcode in (
                     JUMP_IF_FALSE_OR_POP,
@@ -539,32 +578,36 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
                 if compileTimeResolved:
                     assert not duplicateCodeUntilConvergencePoint
                     if cond:
-                        self._getOrCreateSsaBasicBlockAndJumpRecursively(frame, curBlock, True, ifTrueOffset, None, None)
-                        self._onBlockNotGenerated(frame, curBlock, ifFalseOffset)
+                        self._getOrCreateSsaBasicBlockAndJumpRecursively(frame, curBlock, ifTrueOffset, None, None)
+                        self._onBlockNotGeneratedPotentiallyOutOfLoop(frame, curBlock, ifFalseOffset)
                     else:
-                        self._getOrCreateSsaBasicBlockAndJumpRecursively(frame, curBlock, True, ifFalseOffset, None, None)
-                        self._onBlockNotGenerated(frame, curBlock, ifTrueOffset)
+                        self._getOrCreateSsaBasicBlockAndJumpRecursively(frame, curBlock, ifFalseOffset, None, None)
+                        self._onBlockNotGeneratedPotentiallyOutOfLoop(frame, curBlock, ifTrueOffset)
                 else:
                     if isinstance(cond, HValue):
                         assert not duplicateCodeUntilConvergencePoint
                         if cond:
-                            self._getOrCreateSsaBasicBlockAndJumpRecursively(frame, curBlock, True, ifTrueOffset, cond, None)
-                            self._onBlockNotGenerated(frame, curBlock, ifFalseOffset)
+                            self._getOrCreateSsaBasicBlockAndJumpRecursively(frame, curBlock, ifTrueOffset, cond, None)
+                            self._onBlockNotGeneratedPotentiallyOutOfLoop(frame, curBlock, ifFalseOffset)
                      
                         else:
-                            self._getOrCreateSsaBasicBlockAndJumpRecursively(frame, curBlock, True, ifFalseOffset, ~cond, None)
-                            self._onBlockNotGenerated(frame, curBlock, ifTrueOffset)
+                            self._getOrCreateSsaBasicBlockAndJumpRecursively(frame, curBlock, ifFalseOffset, ~cond, None)
+                            self._onBlockNotGeneratedPotentiallyOutOfLoop(frame, curBlock, ifTrueOffset)
 
                     else:
                         if duplicateCodeUntilConvergencePoint:
                             raise NotImplementedError()
                         secondBranchFrame = copy(frame)
-                        self._getOrCreateSsaBasicBlockAndJumpRecursively(frame, curBlock, False, ifTrueOffset, cond, None)
+                        self._getOrCreateSsaBasicBlockAndJumpRecursively(frame, curBlock, ifTrueOffset, cond, None)
                         # cond = 1 because we did check in ifTrue branch and this is "else branch"
                         firstBranchFrame = self.callStack[-1]
                         self.callStack[-1] = secondBranchFrame
-                        self._getOrCreateSsaBasicBlockAndJumpRecursively(secondBranchFrame, curBlock, True, ifFalseOffset, BIT.from_py(1), None)
+                        self._getOrCreateSsaBasicBlockAndJumpRecursively(secondBranchFrame, curBlock, ifFalseOffset, BIT.from_py(1), None)
                         self.callStack[-1] = firstBranchFrame
+
+                if not blockHasBranchPlaceholder(curBlock):
+                    self._onBlockGenerated(frame, self.blockToLabel[curBlock])
+
             else:
                 raise NotImplementedError(instr)
 

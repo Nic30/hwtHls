@@ -1,5 +1,7 @@
 define dso_local i32 @main() #0 {
 mainThread:
+  br [label %block0 ]
+block0:
   br [label %blockL30i0_30 ]
 blockL30i0_30:
   br [label %blockL30i0_32 ]

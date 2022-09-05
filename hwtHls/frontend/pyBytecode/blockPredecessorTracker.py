@@ -1,27 +1,28 @@
-from copy import deepcopy
 from io import StringIO
 import networkx
 from networkx.classes.digraph import DiGraph
 import pydot
 from typing import Set, List, Tuple, Generator
 
+from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwtHls.frontend.pyBytecode.blockLabel import BlockLabel, \
     generateBlockLabel
 from hwtHls.frontend.pyBytecode.loopMeta import PyBytecodeLoopInfo
 from hwtHls.frontend.pyBytecode.loopsDetect import PreprocLoopScope, \
     PyBytecodeLoop
-from hdlConvertorAst.to.hdlUtils import iter_with_last
 
 
 class BlockPredecessorTracker():
     """
-    An object used to track if all predecessors were resolved for SSA where blocks are generated conditionally and some blocks may be duplicated.
+    An object used to track if all predecessors were resolved for SSA where blocks are translated conditionally and
+    some blocks may be duplicated.
 
-    :note: PyBytecodeToSsa._onAllPredecsKnown causes block to be sealed for PHIs and all PHIs are constructed and simplified when this function is called.
-    However the blocks are generated conditionally based on if the jump values can be resolved compile time or in hw.
+    :note: PyBytecodeToSsa._onAllPredecsKnown causes block to be sealed for PHIs and all PHIs are constructed and
+      simplified when this function is called. However the blocks are generated conditionally based on if the jump values
+      can be resolved compile time or in HW.
 
-    This means that if we reach the block we know that there may be multiple predecessors from original CFG but some branches may be reduced
-    compile time. And we do not know if we did not see this branch or if it was reduced if not noted explicitly.
+    This means that if we reach the block we know that there may be multiple predecessors from original CFG but some branches
+    may be reduced compile time. We also do not if we did not see this branch or if it was reduced if not noted explicitly.
     We also can not note all paths through CFG which are reduced because the number of such a paths if prohibiting.
     
     #But if we extract the loops and treat the entry points separately we can do this for linear segments of code:
@@ -162,7 +163,9 @@ class BlockPredecessorTracker():
         e = (srcBlockLabel, dstBlockLabel)
         assert e not in self.notGeneratedEdges, e
         # assert block not in self.generated, block
-        assert dstBlockLabel not in self.notGenerated, dstBlockLabel
+        assert dstBlockLabel not in self.notGenerated, (dstBlockLabel,
+            "Block is already not generated."
+            " The block must not be marked as notGenerated unless all predecessors are known and it seems that was not the case.")
         self.notGeneratedEdges.add(e)
         # if dstBlockLabel in self.generated:
         if dstBlockLabel not in self.cfg.nodes:

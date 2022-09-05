@@ -145,6 +145,10 @@ class PyBytecodeFrame():
             co.co_code, co.co_varnames, co.co_names,
             co.co_consts, cell_names, linestarts))
         bytecodeBlocks, cfg = extractBytecodeBlocks(instructions)
+        cfg: DiGraph
+        if callSiteAddress ==-1:
+            # connect to entry point block
+            cfg.add_edge((-1, ), (0, ))
         loops = PyBytecodeLoop.collectLoopsPerBlock(cfg)
         frame = PyBytecodeFrame(fn, callSiteAddress, instructions, bytecodeBlocks,
                                loops, localVars, freevars, [])

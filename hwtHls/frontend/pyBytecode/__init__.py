@@ -8,10 +8,10 @@ The translation process involves several things.
 1. The bytecode CFG is analyzed and loops are detect.
    This is required in advance because we need to know then we resolved every predecessor for a block in SSA construction algorithm.
 
-2. A preprocessor immediately evaluates everything which is not possible to convert to circuit.
+2. A preprocessor immediately evaluates everything which is not required to convert to circuit.
    This mainly involves operations and variables of non hardware type.
-   Instances of HValue, Interface, RtlSignal are hardware objects
-   for which operations are not evaluated instead they are staged into output SSA.
+   Instances of SsaValue, HValue, Interface, RtlSignal are hardware objects
+   for which operations are not evaluatuable during compilation instead they are staged into output SSA.
 
    * There is a specific case where predecessor block may disappear or are dynamically added because jumps in code are evaluated in preprocessor
      or some code feature (e.g. loop) is expanded.
@@ -22,4 +22,5 @@ The translation process involves several things.
    with applied label renaming due to preprocessor caused code expansions. 
 
    * The low level translations are shared with :mod:`hwtHls.frontend.ast` to avoid code duplication.   
+
 """
