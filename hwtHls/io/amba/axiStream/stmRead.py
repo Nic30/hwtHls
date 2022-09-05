@@ -7,11 +7,11 @@ from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.types.struct import HStruct
 from hwt.interfaces.structIntf import Interface_to_HdlType
 from hwt.synthesizer.interface import Interface
-from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwtHls.frontend.ast.statementsRead import HlsRead
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr, OP_ASSIGN
 from hwtLib.amba.axis import AxiStream
+from hwt.synthesizer.interfaceLevel.unitImplHelpers import getInterfaceName
 
 
 class HlsStmReadAxiStream(HlsRead):
@@ -35,7 +35,7 @@ class HlsStmReadAxiStream(HlsRead):
         self.block: Optional[SsaBasicBlock] = None
         assert isinstance(dtype, HdlType), dtype
             
-        intfName = getSignalName(src)
+        intfName = getInterfaceName(self._parent.parentUnit, src)
         var = parent.var
         name = f"{intfName:s}_read"
         if src.DEST_WIDTH:
@@ -97,5 +97,5 @@ class HlsStmReadAxiStream(HlsRead):
         if tName is not None:
             t = tName
 
-        return f"<{self.__class__.__name__} {self._name:s} {getSignalName(self._src):s}, {t}>"
+        return f"<{self.__class__.__name__} {self._name:s} {getInterfaceName(self._parent.parentUnit, self._src):s}, {t}>"
 

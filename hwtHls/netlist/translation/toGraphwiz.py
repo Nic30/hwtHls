@@ -4,7 +4,6 @@ import pydot
 from typing import List, Union, Dict
 
 from hwt.hdl.operatorDefs import COMPARE_OPS
-from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, \
@@ -17,6 +16,7 @@ from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
 from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.platform.fileUtils import OutputStreamGetter
+from hwt.synthesizer.interfaceLevel.unitImplHelpers import getInterfaceName
 
 
 class HwtHlsNetlistToGraphwiz():
@@ -138,7 +138,7 @@ class HwtHlsNetlistToGraphwiz():
         elif isinstance(obj, HlsNetNodeRead):
             label = repr(obj)
         elif isinstance(obj, HlsNetNodeWrite):
-            label = f"<{obj.__class__.__name__} {obj._id:d} {getSignalName(obj.dst)}>"
+            label = f"<{obj.__class__.__name__} {obj._id:d} {getInterfaceName(obj.netlist.parentUnit, obj.dst)}>"
         else:
             label = f"{obj.__class__.__name__} {obj._id}"
 

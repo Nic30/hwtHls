@@ -6,8 +6,8 @@ from hwt.interfaces.structIntf import HdlType_to_Interface
 from hwt.pyUtils.arrayQuery import flatten
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
-from hwt.synthesizer.interfaceLevel.unitImplHelpers import Interface_without_registration, \
-    getSignalName
+from hwt.synthesizer.interfaceLevel.unitImplHelpers import Interface_without_registration,\
+    getInterfaceName
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.ast.astToSsa import AnyStm, HlsAstToSsa
@@ -62,20 +62,20 @@ class VldSyncedStructIntf(VldSynced):
 class HlsThreadForSharedVar(HlsThreadFromAst):
 
     def __init__(self, hls: "HlsScope", var: Union[RtlSignal, Interface]):
-        super(HlsThreadForSharedVar, self).__init__(hls, None, f"sharedVarThread_{getSignalName(var)}")
+        super(HlsThreadForSharedVar, self).__init__(hls, None, f"sharedVarThread_{getInterfaceName(var)}")
         self.var = var
         self._exports: List[Tuple[Union[RtlSignal, Interface], DIRECTION.IN]] = [] 
 
     def getReadPort(self):
         p = HdlType_to_Interface().apply(self.var._dtype)
-        Interface_without_registration(self.hls.parentUnit, p, f"{getSignalName(self.var):s}_{len(self._exports):d}")
+        Interface_without_registration(self.hls.parentUnit, p, f"{getInterfaceName(self._parent.parentUnit, self.var):s}_{len(self._exports):d}")
         self._exports.append((p, DIRECTION.OUT))
         return p
     
     def getWritePort(self):
         p = VldSyncedStructIntf()
         p.T = self.var._dtype
-        Interface_without_registration(self.hls.parentUnit, p, f"{getSignalName(self.var):s}_{len(self._exports):d}")
+        Interface_without_registration(self.hls.parentUnit, p, f"{getInterfaceName(self._parent.parentUnit, self.var):s}_{len(self._exports):d}")
         self._exports.append((p, DIRECTION.IN))
         return p
 

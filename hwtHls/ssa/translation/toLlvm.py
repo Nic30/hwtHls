@@ -1,5 +1,5 @@
 import re
-from typing import List, Tuple, Dict, Union, Optional
+from typing import List, Tuple, Dict, Union
 
 from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.types.array import HArray
@@ -9,27 +9,24 @@ from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.types.slice import HSlice
 from hwt.hdl.types.struct import HStruct
 from hwt.hdl.value import HValue
-from hwt.interfaces.hsStructIntf import HsStructIntf
-from hwt.interfaces.std import Signal, RdSynced, VldSynced, Handshaked, \
-    HandshakeSync, BramPort_withoutClk
-from hwt.interfaces.structIntf import StructIntf, Interface_to_HdlType
+from hwt.interfaces.std import BramPort_withoutClk
 from hwt.synthesizer.interface import Interface
-from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
-from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
+from hwt.synthesizer.interfaceLevel.unitImplHelpers import getInterfaceName
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.frontend.ast.statementsRead import HlsRead, HlsReadAddressed
 from hwtHls.frontend.ast.statementsWrite import HlsWrite, HlsWriteAddressed
 from hwtHls.llvm.llvmIr import Value, Type, FunctionType, Function, VectorOfTypePtr, BasicBlock, Argument, \
     PointerType, TypeToPointerType, ConstantInt, APInt, verifyFunction, verifyModule, TypeToIntegerType, \
-    PHINode, LlvmCompilationBundle, LLVMContext, LLVMStringContext, ArrayType, TypeToArrayType, MDNode
+    PHINode, LlvmCompilationBundle, LLVMContext, LLVMStringContext, ArrayType, TypeToArrayType
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.phi import SsaPhi
 from hwtHls.ssa.transformation.utils.blockAnalysis import collect_all_blocks
 from hwtHls.ssa.value import SsaValue
-from hwtLib.amba.axi_intf_common import Axi_hs
-from hwtLib.types.ctypes import uint64_t
 from hwtLib.amba.axi4Lite import Axi4Lite
+from hwtLib.types.ctypes import uint64_t
+from hwt.synthesizer.unit import Unit
+
 
 RE_ID_WITH_NUMBER = re.compile('[^0-9]+|[0-9]+')
 
@@ -52,7 +49,7 @@ class ToLlvmIrTranslator():
         original block to list of tuples LLVM basic block and list of original successors
     """
 
-    def __init__(self, label: str, topIo: Dict[Interface, Tuple[List[HlsRead], List[HlsWrite]]]):
+    def __init__(self, label: str, topIo: Dict[Interface, Tuple[List[HlsRead], List[HlsWrite]]], parentUnit: Unit):
         self.label = label
         self.llvm = LlvmCompilationBundle(label)
         self.ctx: LLVMContext = self.llvm.ctx
@@ -60,6 +57,7 @@ class ToLlvmIrTranslator():
         self.mod = self.llvm.mod
         self.b = self.llvm.builder
         self.topIo = topIo
+        self.parentUnit = parentUnit
         self._branchTmpBlocks: Dict[SsaBasicBlock, List[Tuple[BasicBlock, List[SsaBasicBlock]]]] = {}
         self._MdMetaslotName = self.strCtx.addStringRef("hwtHls.metaslot")
 
@@ -310,9 +308,9 @@ class ToLlvmIrTranslator():
 
     def translate(self, start_bb: SsaBasicBlock):
         # create a function where we place the code and the arguments for a io interfaces
-        io_sorted = sorted(self.topIo.items(), key=lambda x: self.splitStrToStrsAndInts(getSignalName(x[0])))
+        io_sorted = sorted(self.topIo.items(), key=lambda x: self.splitStrToStrsAndInts(getInterfaceName(self.parentUnit, x[0])))
         params = [
-            (getSignalName(i), self._getInterfaceTypeForFnArg(i, ioIndex, reads, writes))
+            (getInterfaceName(self.parentUnit, i), self._getInterfaceTypeForFnArg(i, ioIndex, reads, writes))
             for ioIndex, (i, (reads, writes)) in enumerate(io_sorted)]
         self.llvm.main = main = self.createFunctionPrototype(self.label, params, Type.getVoidTy(self.ctx))
         ioToVar: Dict[Interface, Argument] = {}
@@ -370,7 +368,7 @@ class SsaPassToLlvm():
                     "In this stages the read operations must read only native type of interface",
                     instr, instr.operands[0]._dtype, instr._getNativeInterfaceWordType())
 
-        toLlvm = ToLlvmIrTranslator(toSsa.label, io)
+        toLlvm = ToLlvmIrTranslator(toSsa.label, io, hls.parentUnit)
         toLlvm.translate(toSsa.start)
         toSsa.resolveIoNetlistConstructors(io)
         toSsa.start = toLlvm

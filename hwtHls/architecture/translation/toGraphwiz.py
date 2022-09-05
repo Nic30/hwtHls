@@ -4,27 +4,27 @@ from typing import Optional, Dict, List, Tuple
 
 from hwt.hdl.types.hdlType import HdlType
 from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
-from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwtHls.architecture.allocator import HlsAllocator
 from hwtHls.architecture.archElement import ArchElement
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage
 from hwtHls.architecture.archElementFsm import ArchElementFsm
-from hwtHls.architecture.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis
 from hwtHls.architecture.interArchElementHandshakeSync import InterArchElementHandshakeSync
 from hwtHls.architecture.archElementPipeline import ArchElementPipeline
 from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeWriteBackwardEdge
-from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.scheduler.clk_math import start_clk
 from hwtHls.platform.fileUtils import OutputStreamGetter
+from hwt.synthesizer.interfaceLevel.unitImplHelpers import getInterfaceName
+from hwt.synthesizer.unit import Unit
 
 
 class RtlArchToGraphwiz():
 
-    def __init__(self, name:str, allocator: HlsAllocator):
+    def __init__(self, name:str, allocator: HlsAllocator, parentUnit: Unit):
         self.graph = Dot(name)
         self.allocator = allocator
+        self.parentUnit = parentUnit
         self.interfaceToNodes: Dict[InterfaceBase, Node] = {}
         self.archElementToNode: Dict[ArchElement, Node] = {}
 
@@ -36,7 +36,7 @@ class RtlArchToGraphwiz():
         
         nodeId = len(self.graph.obj_dict['nodes'])
         n = Node(f"n{nodeId:d}", shape="plaintext")
-        name = html.escape(getSignalName(i))
+        name = html.escape(getInterfaceName(self.parentUnit, i))
         bodyRows = []
         if isinstance(i, InterArchElementHandshakeSync):
             bodyRows.append(f'<tr port="0"><td colspan="2">{name:s}</td><td>{html.escape(i.__class__.__name__)}</td></tr>')
@@ -117,8 +117,8 @@ class RtlArchToGraphwiz():
                             interElementConnectionsOrder.append(key)
                         vals.append((n.buff_name, n._outputs[0]._dtype))
 
-        #iea: InterArchElementNodeSharingAnalysis = allocator._iea
-        #for o, i in iea.interElemConnections:
+        # iea: InterArchElementNodeSharingAnalysis = allocator._iea
+        # for o, i in iea.interElemConnections:
         #    o: HlsNetNodeOut
         #    srcElm = iea.getSrcElm(o)
         #    for dstElm in iea.ownerOfInput[i]:
@@ -142,7 +142,7 @@ class RtlArchToGraphwiz():
         #        else:
         #            raise NotImplementedError()
         #
-        #for key in interElementConnectionsOrder:
+        # for key in interElementConnectionsOrder:
         #    srcElm, srcStI, dstElm, dstStI = key
         #    srcNode = self.archElementToNode[srcElm]
         #    dstNode = self.archElementToNode[dstElm]
@@ -175,7 +175,7 @@ class RtlArchPassToGraphwiz(RtlArchPass):
 
     def apply(self, hls: "HlsScope", netlist: HlsNetlistCtx):
         name = netlist.label
-        toGraphwiz = RtlArchToGraphwiz(name, netlist.allocator)
+        toGraphwiz = RtlArchToGraphwiz(name, netlist.allocator, netlist.parentUnit)
         out, doClose = self.outStreamGetter(name)
         try:
             toGraphwiz.construct()

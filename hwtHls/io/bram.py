@@ -32,6 +32,7 @@ from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsN
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.opCache import MirToHwtHlsNetlistOpCache
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer
 from hwtHls.ssa.value import SsaValue
+from hwt.synthesizer.interfaceLevel.unitImplHelpers import getInterfaceName
 
 
 class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
@@ -172,7 +173,7 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
         if src is NOT_SPECIFIED:
             src = self.dependsOn[0]
 
-        return f"<{self.__class__.__name__:s} {self._id:d} {self.cmd} {self.dst}{HlsNetNodeReadIndexed._strFormatIndexes(self.indexes)} <- {src}>"
+        return f"<{self.__class__.__name__:s} {self._id:d} {self.cmd} {getInterfaceName(self.netlist.parentUnit, self.dst)}{HlsNetNodeReadIndexed._strFormatIndexes(self.indexes)} <- {src}>"
 
 class HlsNetNodeWriteBramCmdPartRef(HlsNetNodePartRef):
 

@@ -324,13 +324,13 @@ class HlsNetNodeReadIndexed(HlsNetNodeRead):
                 i: HlsNetNodeIn
                 dep: Optional[HlsNetNodeOutAny] = i.obj.dependsOn[i.in_i]
                 if isinstance(dep, HlsNetNodeOut):
-                    indexesStrs.append(f"{dep.obj._id}.{dep.out_i}")
+                    indexesStrs.append(f"<{dep.obj._id}>.{dep.out_i}")
                 else:
                     indexesStrs.append(repr(dep))
 
-            indexes = f"[{','.join(indexesStrs)}]"
+            return f"[{','.join(indexesStrs)}]"
         else:
-            indexes = ""
+            return ""
 
     def __repr__(self):
         return f"<{self.__class__.__name__:s} {self._id:d} {self.src}{self._strFormatIndexes(self.indexes)}>"

@@ -9,8 +9,6 @@ from typing import Dict, List, Optional, Union
 from hwt.hdl.types.bitsVal import BitsVal
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
-from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
-from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.unit import Unit
 from hwtHls.io.bram import HlsNetNodeWriteBramCmd
 from hwtHls.netlist.analysis.schedule import HlsNetlistAnalysisPassRunScheduler
@@ -25,6 +23,7 @@ from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.platform.fileUtils import OutputStreamGetter
 import plotly.io as pio
+from hwt.synthesizer.interfaceLevel.unitImplHelpers import getInterfaceName
 
 
 class TimelineRow():
@@ -40,26 +39,6 @@ class TimelineRow():
         self.deps: UniqList[Union[TimelineRow, float]] = UniqList()
         self.backward_deps: UniqList[Union[TimelineRow, float]] = UniqList()
         self.color = color
-
-
-def getNameOfIo(top: Unit, io: Union[Interface, RtlSignal]):
-    if isinstance(io, Interface):
-        prefix = []
-        parent = io._parent
-        while parent is not None:
-            if parent is top:
-                break
-            prefix.append(parent._name)
-            parent = parent._parent
-        n = io._getFullName()
-        if prefix:
-            prefix.reverse()
-            prefix.append(n)
-            return ".".join(prefix)
-        else:
-            return n
-    else:
-        return getSignalName(io)
 
 
 class HwtHlsNetlistToTimeline():
@@ -107,9 +86,9 @@ class HwtHlsNetlistToTimeline():
 
         elif isinstance(obj, HlsNetNodeWrite):
             if isinstance(obj, HlsNetNodeWriteBramCmd):
-                label = f"{getNameOfIo(top, obj.dst)}.write_cmd({obj.cmd})  {obj._id:d}"
+                label = f"{getInterfaceName(top, obj.dst)}.write_cmd({obj.cmd})  {obj._id:d}"
             else:
-                label = f"{getNameOfIo(top, obj.dst)}.write()  {obj._id:d}"
+                label = f"{getInterfaceName(top, obj.dst)}.write()  {obj._id:d}"
 
             if isinstance(obj, HlsNetNodeWriteBackwardEdge):
                 obj_group_id = io_group_ids.setdefault(obj.associated_read.src, obj_group_id)
@@ -118,7 +97,7 @@ class HwtHlsNetlistToTimeline():
             color = "green"
 
         elif isinstance(obj, HlsNetNodeRead):
-            label = f"{getNameOfIo(top, obj.src)}.read()  {obj._id:d}"
+            label = f"{getInterfaceName(top, obj.src)}.read()  {obj._id:d}"
             obj_group_id = io_group_ids.setdefault(obj.src, obj_group_id)
             color = "green"
 

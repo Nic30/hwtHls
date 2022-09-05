@@ -13,7 +13,7 @@ from hwt.interfaces.structIntf import StructIntf
 from hwt.interfaces.unionIntf import UnionSink, UnionSource
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
-from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
+from hwt.synthesizer.interfaceLevel.unitImplHelpers import getInterfaceName
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.ast.utils import _getNativeInterfaceWordType
 from hwtHls.llvm.llvmIr import Register, MachineInstr
@@ -26,6 +26,7 @@ from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.opCache import MirToHwtH
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer
 from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axi_intf_common import Axi_hs
+
 
 ANY_HLS_STREAM_INTF_TYPE = Union[Handshaked, Axi_hs, VldSynced,
                                  HsStructIntf, RtlSignal, Signal,
@@ -49,7 +50,7 @@ class HlsRead(HdlStatement, SignalOps, InterfaceBase, SsaInstr):
         self.block: Optional[SsaBasicBlock] = None
         
         if intfName is None:
-            intfName = getSignalName(src)
+            intfName = getInterfaceName(parent.parentUnit, src)
         var = parent.var
         name = f"{intfName:s}_read"
         sig = var(name, dtype)
@@ -137,7 +138,7 @@ class HlsRead(HdlStatement, SignalOps, InterfaceBase, SsaInstr):
         if tName is not None:
             t = tName
 
-        return f"<{self.__class__.__name__} {self._name:s} {getSignalName(self._src):s}, {t}>"
+        return f"<{self.__class__.__name__} {self._name:s} {getInterfaceName(self._parent.parentUnit, self._src):s}, {t}>"
 
 
 class HlsReadAddressed(HlsRead):
@@ -183,7 +184,7 @@ class HlsReadAddressed(HlsRead):
         if tName is not None:
             t = tName
 
-        return f"<{self.__class__.__name__} {self._name:s} {getSignalName(self._src):s}[{self.operands[0]}], {t}>"
+        return f"<{self.__class__.__name__} {self._name:s} {getInterfaceName(self._parent.parentUnit, self._src):s}[{self.operands[0]}], {t}>"
 
 
 class HlsStmReadStartOfFrame(HlsRead):

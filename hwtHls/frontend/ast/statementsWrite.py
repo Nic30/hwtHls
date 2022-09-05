@@ -8,7 +8,6 @@ from hwt.interfaces.std import Handshaked, HandshakeSync, VldSynced, RdSynced, \
     Signal
 from hwt.interfaces.structIntf import StructIntf
 from hwt.synthesizer.interface import Interface
-from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.ast.statements import HlsStm
@@ -21,6 +20,7 @@ from hwtHls.ssa.instr import SsaInstr, OP_ASSIGN
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer
 from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axi_intf_common import Axi_hs
+from hwt.synthesizer.interfaceLevel.unitImplHelpers import getInterfaceName
 
 
 class HlsWrite(HlsStm, SsaInstr):
@@ -46,7 +46,7 @@ class HlsWrite(HlsStm, SsaInstr):
         if isinstance(src, SsaValue):
             # assert src.block is not None, (src, "Must not construct instruction with operands which are not in SSA")
             src.users.append(self)
-        self.parent = parent
+        self._parent = parent
 
         # store original source for debugging
         self._origSrc = src
@@ -85,7 +85,7 @@ class HlsWrite(HlsStm, SsaInstr):
 
     def __repr__(self):
         src = self.operands[0]
-        return f"<{self.__class__.__name__} {src if isinstance(src, HValue) else src._name}->{getSignalName(self.dst)}>"
+        return f"<{self.__class__.__name__} {src if isinstance(src, HValue) else src._name}->{getInterfaceName(self._parent.parentUnit, self.dst)}>"
 
 
 class HlsWriteAddressed(HlsWrite):
@@ -142,11 +142,11 @@ class HlsWriteAddressed(HlsWrite):
     def __repr__(self):
         src, index = self.operands
         if isinstance(src, (Interface, RtlSignal)):
-            src = getSignalName(src)
+            src = getInterfaceName(self._parent.parentUnit, src)
         if isinstance(index, (Interface, RtlSignal)):
-            index = getSignalName(index)
+            index = getInterfaceName(self._parent.parentUnit, index)
 
-        return f"<{self.__class__.__name__} {src}->{getSignalName(self.dst)}[{index}]>"
+        return f"<{self.__class__.__name__} {src}->{getInterfaceName(self._parent.parentUnit, self.dst)}[{index}]>"
 
 
 class HlsStmWriteStartOfFrame(HlsWrite):

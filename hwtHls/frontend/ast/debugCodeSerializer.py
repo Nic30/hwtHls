@@ -10,7 +10,7 @@ from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.statements.ifContainter import IfContainer
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.serializer.hwt import HwtDebugSerializer, ToHdlAstDebugHwt
-from hwt.synthesizer.interfaceLevel.unitImplHelpers import getSignalName
+from hwt.synthesizer.interfaceLevel.unitImplHelpers import getInterfaceName
 from hwtHls.frontend.ast.statements import HlsStmWhile, \
     HlsStmCodeBlock, HlsStmIf, \
     HlsStmBreak, HlsStmContinue
@@ -64,7 +64,7 @@ class ToHdlAstHlsAstDebugCode(ToHdlAstDebugHwt):
 
     def as_hdl_HlsWrite(self, o: HlsWrite):
         return hdl_call(
-            hdl_getattr(HdlValueId(getSignalName(o.dst)), "write"),
+            hdl_getattr(HdlValueId(getInterfaceName(o.parent.parentUnit, o.dst)), "write"),
             [self.as_hdl(o._origSrc), self.as_hdl(o._origIndex)]
                 if isinstance(o, HlsWriteAddressed) else
             [self.as_hdl(o._origSrc), ]

@@ -5,6 +5,6 @@ t0_HlsSlicingTC_test_connection__HlsConnection_whC:
   br [label %t0_HlsSlicingTC_test_connection__HlsConnection_wh ]
 t0_HlsSlicingTC_test_connection__HlsConnection_wh:
   a0 = call <Bits, 32bits, unsigned> @hls.read(a)
-  void call <Bits, 32bits, unsigned> @hls.write(a0)
+  void call <Bits, 32bits, unsigned> @hls.write(<HlsRead a0 a, <Bits, 32bits, unsigned>>)
   br [label %t0_HlsSlicingTC_test_connection__HlsConnection_whC ]
 }
