@@ -177,7 +177,10 @@ class InterArchElementNodeSharingAnalysis():
                                     assert parOut not in self.ownerOfOutput
                                     self.ownerOfOutput[parOut] = dstElm
                                     self._addPortSynonym(o, parOut)
-    
+                    else:
+                        curParentOwner =  self.ownerOfNode.get(n.parentNode, None)
+                        assert curParentOwner is None or curParentOwner is dstElm, (n.parentNode, dstElm, curParentOwner)
+                        self.ownerOfNode[n.parentNode] = dstElm
                 else:
                     for i in n._inputs:
                         assert i not in  self.ownerOfInput
