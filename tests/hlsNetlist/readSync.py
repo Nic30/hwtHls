@@ -1,8 +1,8 @@
-from typing import Type
 
 from hwt.interfaces.std import VectSignal, Handshaked, VldSynced, RdSynced
 from hwt.interfaces.utils import addClkRstn
 from hwt.simulator.simTestCase import SimTestCase
+from hwt.synthesizer.hObjList import HObjList
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.unit import Unit
@@ -13,9 +13,8 @@ from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, \
 from hwtHls.netlist.nodes.ports import link_hls_nodes
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
-from hwtSimApi.utils import freq_to_period
-from hwt.synthesizer.hObjList import HObjList
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
+from hwtSimApi.utils import freq_to_period
 
 
 class ReadOrDefaultUnit(Unit):
