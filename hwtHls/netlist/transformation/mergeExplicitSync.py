@@ -70,7 +70,7 @@ class HlsNetlistPassMergeExplicitSync(HlsNetlistPass):
                             newI.replaceDriver(o)
                             o.obj.usedBy[0].remove(prevI)
                             to_rm.add(n)
-                    
+
         if to_rm:
             nodes[:] = [
                 n for n in nodes
