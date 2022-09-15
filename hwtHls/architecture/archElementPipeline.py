@@ -17,6 +17,8 @@ from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage, resolveSt
 from hwtHls.architecture.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, INVARIANT_TIME
 from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
+from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
+    HlsNetNodeWriteBackwardEdge
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, \
     HOrderingVoidT
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -29,7 +31,7 @@ class ArchElementPipeline(ArchElement):
     :ivar stages: list of lists of nodes representing the nodes managed by this pipeline in individual clock stages
     :note: stages always start in time 0 and empty lists on beginning marking where the pipeline actually starts.
         This is to have uniform index when we scope into some other element.
-    :ivar _beginClkI: index of the first stage where it is some IO or node
+    :ivar _beginClkI: index of the first non-empty stage
     """
 
     def __init__(self, netlist: "HlsNetlistCtx", namePrefix:str, stages: List[List[HlsNetNode]]):
@@ -47,8 +49,21 @@ class ArchElementPipeline(ArchElement):
         self._beginClkI: Optional[int] = None
 
     def _afterNodeInstantiated(self, n: HlsNetNode, rtl: Optional[TimeIndependentRtlResource]):
-        if rtl is None or not isinstance(rtl, TimeIndependentRtlResource):
+        isTir = isinstance(rtl, TimeIndependentRtlResource)
+        
+        if isinstance(n, HlsNetNodeWriteBackwardEdge) and not n.allocateAsBuffer:
+            clkPeriod = self.netlist.normalizedClkPeriod
+            con: ConnectionsOfStage = self.connections[n.scheduledIn[0] // clkPeriod]
+            con.stDependentDrives.append(rtl)
+        #elif isinstance(n, HlsProgramStarter):
+        #    assert isTir, n
+        #    # because we want to consume token from the starter only on transition in this FSM
+        #    con: ConnectionsOfStage = self.connections[0]
+        #    con.stDependentDrives.append(rtl.valuesInTime[0].data.next.drivers[0])
+
+        if rtl is None or not isTir:
             cons = (self.netNodeToRtl[o] for o in n._outputs if o in self.netNodeToRtl if o._dtype is not HOrderingVoidT)
+
         else:
             cons = (rtl,)
 
@@ -60,17 +75,30 @@ class ArchElementPipeline(ArchElement):
 
         for dep in n.dependsOn:
             self._afterOutputUsed(dep)
-
+            
+    def _privatizeLocalOnlyBackedges(self):
+        clkPeriod = self.netlist.normalizedClkPeriod
+        
+        for stI, nodes in enumerate(self.stages):
+            for node in nodes:
+                if isinstance(node, HlsNetNodeReadBackwardEdge):
+                    w = node.associated_write
+                    if w in self.allNodes and w.scheduledIn[0] // clkPeriod == stI:
+                        w.allocateAsBuffer = False  # allocate as a register because this is connect just this stage with itself
+       
     def allocateDataPath(self, iea: InterArchElementNodeSharingAnalysis):
         assert not self._dataPathAllocated
         assert not self._syncAllocated
+        
         self.interArchAnalysis = iea
-        ioDiscovery: HlsNetlistAnalysisPassDiscoverIo = self.netlist.getAnalysis(HlsNetlistAnalysisPassDiscoverIo)
+        self._privatizeLocalOnlyBackedges()
 
+        ioDiscovery: HlsNetlistAnalysisPassDiscoverIo = self.netlist.getAnalysis(HlsNetlistAnalysisPassDiscoverIo)
         ioToCon: Dict[Interface, ConnectionsOfStage] = {}
         allIoObjSeen = set()
         beginFound = False
         self._beginClkI = 0
+
         for stI, (nodes, con) in enumerate(zip(self.stages, self.connections)):
             con: ConnectionsOfStage
             if not beginFound:
@@ -79,6 +107,7 @@ class ArchElementPipeline(ArchElement):
                 else:
                     beginFound = True
                     self._beginClkI = stI
+
             # assert nodes
             ioMuxes: Dict[Interface, Tuple[Union[HlsNetNodeRead, HlsNetNodeWrite], List[HdlStatement]]] = {}
             ioSeen: UniqList[Interface] = UniqList()
@@ -97,6 +126,10 @@ class ArchElementPipeline(ArchElement):
                     continue
 
                 if isinstance(node, HlsNetNodeRead):
+                    if isinstance(node, HlsNetNodeReadBackwardEdge):
+                        if not node.associated_write.allocateAsBuffer:
+                            continue
+
                     currentStageForIo = ioToCon.get(node.src, con)
                     assert currentStageForIo is con, ("If the access to IO is from different stage, this should already have IO gate generated", node, con)
                     con.inputs.append(node.src)
@@ -105,6 +138,10 @@ class ArchElementPipeline(ArchElement):
                     allIoObjSeen.add(node)
 
                 elif isinstance(node, HlsNetNodeWrite):
+                    if isinstance(node, HlsNetNodeWriteBackwardEdge):
+                        if not node.allocateAsBuffer:
+                            continue
+
                     currentStageForIo = ioToCon.get(node.dst, con)
                     assert currentStageForIo is con, ("If the access to IO is from different stage, this should already have IO gate generated", node, con)
                     con.outputs.append(node.dst)
@@ -181,18 +218,19 @@ class ArchElementPipeline(ArchElement):
         if syncType is not Signal:
             # :note: Collect registers at the end of this stage
             # because additional synchronization needs to be added
-            cur_registers = []
+            curRegisterDrivers = []
             for s in con.signals:
                 s: TimeIndependentRtlResource
                 # if the value has a register at the end of this stage
                 v = s.checkIfExistsInClockCycle(pipeline_st_i)
                 if v.isExplicitRegister:
-                    cur_registers.append(v)
+                    curRegisterDrivers.append(v.data.next.drivers[0])
                 else:
                     v = s.checkIfExistsInClockCycle(pipeline_st_i + 1)
                     if v is not None and v.is_rlt_register():
-                        cur_registers.append(v)
-
+                        curRegisterDrivers.append(v.data.next.drivers[0])
+            curRegisterDrivers.extend(con.stDependentDrives)
+            
             if nextCon is None:
                 toNextStSource = None
                 toNextStSink = None
@@ -218,10 +256,10 @@ class ArchElementPipeline(ArchElement):
                 sync.sync()
                 ack = sync.ack()
                 ack = rename_signal(self.netlist.parentUnit, ack, f"{self.namePrefix}st{pipeline_st_i:d}_ack")
-                if cur_registers:
+                if curRegisterDrivers:
                     # add enable signal for register load derived from synchronization of stage
                     If(ack,
-                       *(r.data.next.drivers[0] for r in cur_registers),
+                       *curRegisterDrivers,
                     )
 
             else:
