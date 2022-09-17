@@ -97,6 +97,7 @@ class HlsScheduler():
     def schedule(self):
         self._scheduleAsap()
         self._checkAllNodesScheduled()
+        # [todo] skip if all nodes are in single clk
         asapSchedule = self._copyAndResetScheduling()
         self._scheduleAlapCompaction(asapSchedule)
         self._checkAllNodesScheduled()
