@@ -18,6 +18,7 @@ from tests.frontend.ast.twoTimesA import TwoTimesA_TC
 from tests.frontend.ast.whileIf_test import HlsAstWhileIf_TC
 from tests.frontend.ast.whileTrue_test import HlsAstWhileTrue_TC
 from tests.frontend.pyBytecode.basics_test import FromPythonBasics_TC
+from tests.frontend.pyBytecode.counterArray_test import CounterArray_TC
 from tests.frontend.pyBytecode.errors_test import PyBytecodeErrors_TC
 from tests.frontend.pyBytecode.fnClosue_test import FnClosure_TC
 from tests.frontend.pyBytecode.llvmLoopUnroll_test import LlvmLoopUnroll_TC
@@ -102,6 +103,7 @@ suite = testSuiteFromTCs(
     PingResponderTC,
     Axi4LiteRead_TC,
     Axi4LiteWrite_TC,
+    CounterArray_TC,
 )
 
 
