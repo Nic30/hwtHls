@@ -4,19 +4,20 @@ import pydot
 from typing import List, Union, Dict
 
 from hwt.hdl.operatorDefs import COMPARE_OPS
+from hwt.synthesizer.interfaceLevel.unitImplHelpers import getInterfaceName
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
-from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, \
-    HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.loopHeader import HlsLoopGate, HlsLoopGateStatus
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy
 from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
+from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
+from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.platform.fileUtils import OutputStreamGetter
-from hwt.synthesizer.interfaceLevel.unitImplHelpers import getInterfaceName
 
 
 class HwtHlsNetlistToGraphwiz():

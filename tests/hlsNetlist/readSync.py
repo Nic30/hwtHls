@@ -1,5 +1,5 @@
 
-from hwt.interfaces.std import VectSignal, Handshaked, VldSynced, RdSynced
+from hwt.interfaces.std import VectSignal, Handshaked
 from hwt.interfaces.utils import addClkRstn
 from hwt.simulator.simTestCase import SimTestCase
 from hwt.synthesizer.hObjList import HObjList
@@ -8,9 +8,10 @@ from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.netlist import HlsThreadFromNetlist
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, \
-    HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.ports import link_hls_nodes
+from hwtHls.netlist.nodes.read import HlsNetNodeRead
+from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist

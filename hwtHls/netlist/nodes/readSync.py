@@ -9,10 +9,11 @@ from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlRes
 from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeWriteBackwardEdge, \
     BACKEDGE_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
-from hwtHls.netlist.nodes.io import IO_COMB_REALIZATION, HlsNetNodeRead, \
-    HlsNetNodeWrite, HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.explicitSync import IO_COMB_REALIZATION, HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict, InputTimeGetter
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn
+from hwtHls.netlist.nodes.read import HlsNetNodeRead
+from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtLib.amba.axi_intf_common import Axi_hs
 
 

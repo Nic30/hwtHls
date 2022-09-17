@@ -5,10 +5,12 @@ from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
     HlsNetNodeWriteControlBackwardEdge
 from hwtHls.netlist.nodes.delay import HlsNetNodeDelayClkTick
-from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, \
-    HlsNetNodeExplicitSync, HOrderingVoidT
+from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.orderable import HOrderingVoidT
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes, \
     HlsNetNodeOutLazy
+from hwtHls.netlist.nodes.read import HlsNetNodeRead
+from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.opCache import MirToHwtHlsNetlistOpCache
 
 

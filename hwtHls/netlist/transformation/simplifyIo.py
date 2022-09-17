@@ -10,14 +10,15 @@ from hwtHls.netlist.analysis.dataThreads import HlsNetlistAnalysisPassDataThread
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeWriteBackwardEdge
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
-from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, \
-    HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, unlink_hls_nodes, \
     link_hls_nodes, HlsNetNodeOut
+from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
+from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.simplifyUtils import getConstDriverOf, \
     replaceOperatorNodeWith, isHlsNetNodeExplicitSyncFlagsRequred
 

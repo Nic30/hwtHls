@@ -11,7 +11,7 @@ from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
     HlsNetNodeWriteBackwardEdge, BACKEDGE_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
-from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.loopHeader import HlsLoopGate
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -19,7 +19,9 @@ from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutLazy, \
     link_hls_nodes, unlink_hls_nodes, HlsNetNodeOutAny, HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
+from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
+from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.branchOutLabel import BranchOutLabel
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.datapath import HlsNetlistAnalysisPassMirToNetlistDatapath, \
     BlockLiveInMuxSyncDict

@@ -17,10 +17,12 @@ from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.aggregatedBitwiseOps import HlsNetNodeBitwiseOps
 from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeWriteBackwardEdge
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
-from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeRead, HlsNetNodeExplicitSync, \
-    HOrderingVoidT
+from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.orderable import HOrderingVoidT
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
+from hwtHls.netlist.nodes.read import HlsNetNodeRead
+from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.platform.fileUtils import OutputStreamGetter
 import plotly.io as pio

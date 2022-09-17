@@ -1,14 +1,14 @@
+from itertools import islice
 from typing import Set, Optional
 
 from hwt.hdl.value import HValue
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
-from hwtHls.netlist.nodes.io import HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
-from itertools import islice
 
 
 def isHlsNetNodeExplicitSyncFlagsRequred(n: HlsNetNodeExplicitSync) -> bool:

@@ -503,4 +503,11 @@ class HlsNetNodePartRef(HlsNetNode):
         self.scheduledIn = None
         self.scheduledOut = None
         self._subNodes: Optional["HlsNetlistClusterSearch"] = None
+    
+    def iterChildReads(self):
+        raise NotImplementedError(
+            "Override this method in derived class", self)
 
+    def iterChildWrites(self):
+        raise NotImplementedError(
+            "Override this method in derived class", self)

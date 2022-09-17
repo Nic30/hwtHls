@@ -17,10 +17,12 @@ from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage, \
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, \
     TimeIndependentRtlResourceItem, INVARIANT_TIME
 from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
-from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeExplicitSync, \
-    HOrderingVoidT, HExternalDataDepT
+from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.orderable import HOrderingVoidT, HExternalDataDepT
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
+from hwtHls.netlist.nodes.read import HlsNetNodeRead
+from hwtHls.netlist.nodes.write import HlsNetNodeWrite 
 from hwtHls.netlist.scheduler.clk_math import start_clk
 from hwtLib.handshaked.streamNode import StreamNode
 from ipCorePackager.constants import INTF_DIRECTION

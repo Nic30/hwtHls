@@ -11,8 +11,9 @@ from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
-from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
 from hwtHls.netlist.nodes.node import InputTimeGetter, SchedulizationDict
+from hwtHls.netlist.nodes.read import HlsNetNodeRead
+from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.ssa.value import SsaValue
 from hwtLib.handshaked.builder import HsBuilder
 

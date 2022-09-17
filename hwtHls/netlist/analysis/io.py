@@ -6,10 +6,12 @@ from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.analysis.schedule import HlsNetlistAnalysisPassRunScheduler
-from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, \
-    HlsNetNodeExplicitSync, HOrderingVoidT, HExternalDataDepT
-from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
+from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.orderable import HOrderingVoidT
+from hwtHls.netlist.nodes.ports import HlsNetNodeIn
+from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
+from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import start_clk
 
 
@@ -42,7 +44,7 @@ class HlsNetlistAnalysisPassDiscoverIo(HlsNetlistAnalysisPass):
                         u: HlsNetNodeIn
                         yield from self._detectExplicitSyncIsSameClkCycleFromOutputs(u, clkEndTime)
     
-    #def _detectExplicitSyncIsSameClkCycleFromInputs(self, dataOut: HlsNetNodeOut, clkStartTime: int):
+    # def _detectExplicitSyncIsSameClkCycleFromInputs(self, dataOut: HlsNetNodeOut, clkStartTime: int):
     #    if dataOut.obj.scheduledOut[dataOut.out_i] < clkStartTime:
     #        return
     #    obj = dataOut.obj
@@ -95,9 +97,9 @@ class HlsNetlistAnalysisPassDiscoverIo(HlsNetlistAnalysisPass):
                 interfaceList.append(i)
             opList.append(op)
             
-            #clkStartTime = start_clk(op.scheduledOut[0], clkPeriod) * clkPeriod
-            #extraSync = self.extraReadSync.get(op, None)
-            #for sync in self._detectExplicitSyncIsSameClkCycleFromInputs(op.dependsOn[0], clkStartTime):
+            # clkStartTime = start_clk(op.scheduledOut[0], clkPeriod) * clkPeriod
+            # extraSync = self.extraReadSync.get(op, None)
+            # for sync in self._detectExplicitSyncIsSameClkCycleFromInputs(op.dependsOn[0], clkStartTime):
             #    if extraSync is None:
             #        extraSync = self.extraReadSync[op] = UniqList()
             #    extraSync.append(sync)

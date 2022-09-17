@@ -7,7 +7,7 @@ from hwtHls.netlist.abc.hlsNetlistToAbcAig import HlsNetlistToAbcAig
 from hwtHls.netlist.abc.optScripts import abcCmd_resyn2, abcCmd_compress2
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
-from hwtHls.netlist.nodes.io import HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator

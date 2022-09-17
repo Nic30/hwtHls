@@ -5,8 +5,8 @@ from hwt.pyUtils.uniqList import UniqList
 from hwtHls.llvm.llvmIr import MachineBasicBlock
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.nodes.io import HOrderingVoidT
 from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.orderable import HOrderingVoidT
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOutLazy, \
     HlsNetNodeOutAny
 

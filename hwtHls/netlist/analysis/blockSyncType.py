@@ -5,8 +5,9 @@ from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwtHls.llvm.llvmIr import MachineBasicBlock, MachineLoopInfo, MachineLoop, MachineInstr, Register, TargetOpcode
 from hwtHls.netlist.analysis.dataThreads import HlsNetlistAnalysisPassDataThreads
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
-from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeRead
 from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.read import HlsNetNodeRead
+from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer
 

@@ -1,4 +1,5 @@
 
+from functools import lru_cache
 from typing import Union, Tuple
 
 from hwt.hdl.types.bits import Bits
@@ -15,17 +16,17 @@ from hwtHls.frontend.pyBytecode.ioProxyAddressed import IoProxyAddressed
 from hwtHls.llvm.llvmIr import LoadInst, Register
 from hwtHls.llvm.llvmIr import MachineInstr
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeRead, \
-    HExternalDataDepT
 from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.orderable import HExternalDataDepT
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes
+from hwtHls.netlist.nodes.read import HlsNetNodeRead
+from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.opCache import MirToHwtHlsNetlistOpCache
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer
 from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axi4Lite import Axi4Lite, Axi4Lite_addr
 from hwtLib.amba.constants import PROT_DEFAULT
-from functools import lru_cache
 
 
 class HlsReadAxi4Lite(HlsReadAddressed):

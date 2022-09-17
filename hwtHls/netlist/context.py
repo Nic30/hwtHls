@@ -8,8 +8,9 @@ from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.unit import Unit
 from hwtHls.architecture.allocator import HlsAllocator
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
-from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
 from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.read import HlsNetNodeRead
+from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.scheduler import HlsScheduler
 
 

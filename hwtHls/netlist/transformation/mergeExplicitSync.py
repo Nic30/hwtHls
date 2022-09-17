@@ -2,8 +2,10 @@ from itertools import chain
 from typing import List
 
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.read import HlsNetNodeRead
+from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 
 

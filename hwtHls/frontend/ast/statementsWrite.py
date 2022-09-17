@@ -12,8 +12,8 @@ from hwtHls.frontend.ast.utils import _getNativeInterfaceWordType, \
     ANY_HLS_STREAM_INTF_TYPE, ANY_SCALAR_INT_VALUE
 from hwtHls.llvm.llvmIr import MachineInstr
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeWriteIndexed
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes
+from hwtHls.netlist.nodes.write import HlsNetNodeWrite, HlsNetNodeWriteIndexed
 from hwtHls.ssa.instr import SsaInstr, OP_ASSIGN
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer
 from hwtHls.ssa.value import SsaValue

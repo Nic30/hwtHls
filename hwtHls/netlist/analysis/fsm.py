@@ -3,12 +3,13 @@ from typing import List, Set, Union, Dict, Tuple, Callable
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.netlist.scheduler.clk_math import start_clk
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
-from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
 from hwtHls.netlist.nodes.node import HlsNetNode, HlsNetNodePartRef
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
+from hwtHls.netlist.nodes.read import HlsNetNodeRead
+from hwtHls.netlist.nodes.write import HlsNetNodeWrite
+from hwtHls.netlist.scheduler.clk_math import start_clk
 
 
 class IoFsm():

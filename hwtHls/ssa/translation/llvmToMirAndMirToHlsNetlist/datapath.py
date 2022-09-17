@@ -11,12 +11,14 @@ from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, Mac
 from hwtHls.netlist.analysis.dataThreads import HlsNetlistAnalysisPassDataThreads
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.nodes.io import HOrderingVoidT, HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.orderable import HOrderingVoidT
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutLazy, link_hls_nodes
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.lowLevel import HlsNetlistAnalysisPassMirToNetlistLowLevel
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.opCache import MirToHwtHlsNetlistOpCache
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer, \
     LiveInMuxMeta
+
 
 BlockLiveInMuxSyncDict = Dict[Tuple[MachineBasicBlock, MachineBasicBlock, Register], HlsNetNodeExplicitSync]
 

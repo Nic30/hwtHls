@@ -19,9 +19,10 @@ from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlRes
 from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
 from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
     HlsNetNodeWriteBackwardEdge, BACKEDGE_ALLOCATION_TYPE
-from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, \
-    HOrderingVoidT
 from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.orderable import HOrderingVoidT
+from hwtHls.netlist.nodes.read import HlsNetNodeRead
+from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 
 
 class ArchElementPipeline(ArchElement):
@@ -103,6 +104,7 @@ class ArchElementPipeline(ArchElement):
             con: ConnectionsOfStage
             if not beginFound:
                 if not nodes and not con.inputs and not con.outputs:
+                    # if there is nothing in this stage, we skip it
                     continue
                 else:
                     beginFound = True
@@ -128,6 +130,7 @@ class ArchElementPipeline(ArchElement):
                 if isinstance(node, HlsNetNodeRead):
                     if isinstance(node, HlsNetNodeReadBackwardEdge):
                         if node.associated_write.allocationType != BACKEDGE_ALLOCATION_TYPE.BUFFER:
+                            # only buffer has an explicit IO from pipeline
                             continue
 
                     currentStageForIo = ioToCon.get(node.src, con)
@@ -140,6 +143,7 @@ class ArchElementPipeline(ArchElement):
                 elif isinstance(node, HlsNetNodeWrite):
                     if isinstance(node, HlsNetNodeWriteBackwardEdge):
                         if node.allocationType != BACKEDGE_ALLOCATION_TYPE.BUFFER:
+                            # only buffer has an explicit IO from pipeline
                             continue
 
                     currentStageForIo = ioToCon.get(node.dst, con)

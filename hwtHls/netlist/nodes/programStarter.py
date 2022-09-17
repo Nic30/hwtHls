@@ -1,6 +1,6 @@
 from hwt.hdl.types.defs import BIT
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
-from hwtHls.netlist.nodes.io import IO_COMB_REALIZATION
+from hwtHls.netlist.nodes.explicitSync import IO_COMB_REALIZATION
 from hwtHls.netlist.nodes.node import HlsNetNode
 
 

@@ -6,22 +6,23 @@ from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.analysis.consystencyCheck import HlsNetlistPassConsystencyCheck
 from hwtHls.netlist.analysis.dataThreads import HlsNetlistAnalysisPassDataThreads
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, \
-    HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.loopHeader import HlsLoopGate
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
+from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
+from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.netlist.transformation.simplifyAbc import runAbcControlpathOpt
-from hwtHls.netlist.transformation.simplifyUtils import disconnectAllInputs, \
-    getConstDriverOf, replaceOperatorNodeWith
 from hwtHls.netlist.transformation.simplifyBitwise import netlistReduceMux, \
     netlistReduceNot, netlistReduceAndOrXor
 from hwtHls.netlist.transformation.simplifyIo import netlistReduceExplicitSyncConditions, \
     netlistReduceExplicitSyncOrdering, netlistReduceExplicitSync, \
     netlistReduceReadSync, netlistReduceReadNonBlocking
+from hwtHls.netlist.transformation.simplifyUtils import disconnectAllInputs, \
+    getConstDriverOf, replaceOperatorNodeWith
 
 
 class HlsNetlistPassSimplify(HlsNetlistPass):

@@ -1,26 +1,25 @@
-from typing import Type, Callable, Generator
+from enum import Enum
+from typing import Type
 
-from hwt.interfaces.std import VectSignal, Handshaked, VldSynced, RdSynced, \
-    Signal
+from hwt.hdl.types.defs import BIT
+from hwt.interfaces.std import Signal
 from hwt.interfaces.utils import addClkRstn
 from hwt.simulator.simTestCase import SimTestCase
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.netlist import HlsThreadFromNetlist
+from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, \
-    HOrderingVoidT
+from hwtHls.netlist.nodes.delay import HlsNetNodeDelayClkTick
+from hwtHls.netlist.nodes.orderable import HOrderingVoidT
 from hwtHls.netlist.nodes.ports import link_hls_nodes
+from hwtHls.netlist.nodes.read import HlsNetNodeRead
+from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtSimApi.utils import freq_to_period
-from hwtHls.netlist.builder import HlsNetlistBuilder
-from enum import Enum
-from hwtHls.platform.opRealizationMeta import OpRealizationMeta
-from hwt.hdl.types.defs import BIT
 from pyMathBitPrecise.bit_utils import get_bit
-from hwtHls.netlist.nodes.delay import HlsNetNodeDelayClkTick
 
 
 class TREE_ORDER(Enum):

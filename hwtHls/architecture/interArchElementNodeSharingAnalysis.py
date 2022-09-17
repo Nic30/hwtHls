@@ -5,8 +5,8 @@ from hwt.pyUtils.uniqList import UniqList
 from hwtHls.architecture.archElement import ArchElement
 from hwtHls.architecture.archElementFsm import ArchElementFsm
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
-from hwtHls.netlist.nodes.io import HOrderingVoidT
 from hwtHls.netlist.nodes.node import HlsNetNode, HlsNetNodePartRef
+from hwtHls.netlist.nodes.orderable import HOrderingVoidT
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.scheduler.clk_math import start_clk
 

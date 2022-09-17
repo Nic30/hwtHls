@@ -1,13 +1,13 @@
 from typing import List, Optional, Generator
 
 from hwt.code import If, Or
+from hwt.code_utils import rename_signal
 from hwt.hdl.types.defs import BIT
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
-from hwtHls.netlist.nodes.io import IO_COMB_REALIZATION, HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.explicitSync import IO_COMB_REALIZATION, HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict, InputTimeGetter
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, link_hls_nodes, HlsNetNodeIn
 from hwtHls.netlist.scheduler.clk_math import start_of_next_clk_period
-from hwt.code_utils import rename_signal
 
 
 class HlsLoopGateStatus(HlsNetNode):
@@ -22,6 +22,7 @@ class HlsLoopGateStatus(HlsNetNode):
         HlsNetNode.__init__(self, netlist, name=name)
         self._loop_gate = loop_gate
         self._addOutput(BIT, "busy")
+        self.debugUseNamedSignalsFroControl = False
 
     def resolve_realization(self):
         self.assignRealization(IO_COMB_REALIZATION)
@@ -53,6 +54,7 @@ class HlsLoopGateStatus(HlsNetNode):
         fromReenter = [allocator.instantiateHlsNetNodeOut(g.dependsOn[i.in_i]) for i in g.fromReenter]
 
         assert fromReenter, (g, "Must have some reenters otherwise this is not the loop")
+        useNamedSignals = self.debugUseNamedSignalsFroControl
         if not fromExit and not fromEnter:
             # this is infinite loop without predecessor, it will run infinitely but in just one instance
             statusBusyReg(1)
@@ -60,7 +62,8 @@ class HlsLoopGateStatus(HlsNetNode):
             # this is an infinite loop which has a predecessor, once started it will be closed for new starts
             # :attention: we pick the data from any time because this is kind of back edge
             newExe = Or(*(p.get(p.timeOffset).data for p in fromEnter))
-            newExe = rename_signal(self.netlist.parentUnit, newExe, f"{self._loop_gate.name}_newExe")
+            if useNamedSignals:
+                newExe = rename_signal(self.netlist.parentUnit, newExe, f"{self._loop_gate.name}_newExe")
             
             If(newExe,
                statusBusyReg(1)
@@ -68,8 +71,9 @@ class HlsLoopGateStatus(HlsNetNode):
         elif fromExit and fromEnter:
             newExe = Or(*(p.get(p.timeOffset).data for p in fromEnter))
             newExit = Or(*(p.get(p.timeOffset).data for p in fromExit))
-            newExe = rename_signal(self.netlist.parentUnit, newExe, f"{self._loop_gate.name}_newExe")
-            newExit = rename_signal(self.netlist.parentUnit, newExit, f"{self._loop_gate.name}_newExit")
+            if useNamedSignals:
+                newExe = rename_signal(self.netlist.parentUnit, newExe, f"{self._loop_gate.name}_newExe")
+                newExit = rename_signal(self.netlist.parentUnit, newExit, f"{self._loop_gate.name}_newExit")
             
             If(newExe & ~newExit,
                statusBusyReg(1)  # becomes busy
@@ -78,7 +82,8 @@ class HlsLoopGateStatus(HlsNetNode):
             )
         elif fromExit and not fromEnter:
             newExit = Or(*(p.get(p.timeOffset).data for p in fromExit))
-            newExit = rename_signal(self.netlist.parentUnit, newExit, f"{self._loop_gate.name}_newExit")
+            if useNamedSignals:
+                newExit = rename_signal(self.netlist.parentUnit, newExit, f"{self._loop_gate.name}_newExit")
             
             If(newExit,
                statusBusyReg(0)  # finished work
@@ -143,6 +148,9 @@ class HlsLoopGate(HlsNetNode):
     :note: fromEnter, fromReenter are read at the beginning of a loop header block. Breaks are read at the end of exit block.
     
     :ivar _sync_token_status: The node with state for this object.
+    :attention: There should be ordering connected from last IO in the loop to achieve better results in
+        :meth:`~.HlsLoopGate.scheduleAlapCompaction` because without it this does not have any outputs and will stay at the end of current cycle
+        which is sub-optimal if the whole loop shifts in time.
     """
 
     def __init__(self, netlist:"HlsNetlistCtx",
@@ -214,7 +222,7 @@ class HlsLoopGate(HlsNetNode):
 
     def allocateRtlInstance(self, allocator:"ArchElement"):
         """
-        All circuits generated from :class:`~.HlsLoopGateStatus`
+        All RTL is generated from :class:`~.HlsLoopGateStatus`
         """
         pass
 

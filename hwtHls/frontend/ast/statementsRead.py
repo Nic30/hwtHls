@@ -5,15 +5,14 @@ from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.hdlType import HdlType
-from hwt.interfaces.structIntf import StructIntf
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getInterfaceName
 from hwtHls.frontend.ast.utils import _getNativeInterfaceWordType, \
     ANY_HLS_STREAM_INTF_TYPE, ANY_SCALAR_INT_VALUE
 from hwtHls.llvm.llvmIr import Register, MachineInstr
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeReadIndexed
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes
+from hwtHls.netlist.nodes.read import HlsNetNodeRead, HlsNetNodeReadIndexed
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr, OP_ASSIGN
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.opCache import MirToHwtHlsNetlistOpCache

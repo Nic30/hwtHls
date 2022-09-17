@@ -20,10 +20,11 @@ from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
 from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
     HlsNetNodeWriteBackwardEdge, HlsNetNodeReadControlBackwardEdge, \
     HlsNetNodeWriteControlBackwardEdge, BACKEDGE_ALLOCATION_TYPE
-from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeRead
-from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.node import HlsNetNode, HlsNetNodePartRef
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
+from hwtHls.netlist.nodes.read import  HlsNetNodeRead
+from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import start_clk
 from ipCorePackager.constants import INTF_DIRECTION
 
@@ -206,6 +207,23 @@ class ArchElementFsm(ArchElement):
                 cond = cond | curTrans
             transitionTable[srcStI][dstStI] = cond
 
+    def _allocateDataPathRead(self, node: HlsNetNodeRead, ioDiscovery: HlsNetlistAnalysisPassDiscoverIo, con: ConnectionsOfStage,
+                              ioMuxes: Dict[Interface, Tuple[Union[HlsNetNodeRead, HlsNetNodeWrite], List[HdlStatement]]],
+                              ioSeen: UniqList[Interface],
+                              rtl: List[HdlStatement]):
+        if isinstance(node, HlsNetNodeReadBackwardEdge) and node.associated_write.allocationType != BACKEDGE_ALLOCATION_TYPE.BUFFER:
+            return
+        self._allocateIo(ioDiscovery, node.src, node, con, ioMuxes, ioSeen, rtl)
+
+    def _allocateDataPathWrite(self, node: HlsNetNodeWrite, ioDiscovery: HlsNetlistAnalysisPassDiscoverIo, con: ConnectionsOfStage,
+                              ioMuxes: Dict[Interface, Tuple[Union[HlsNetNodeRead, HlsNetNodeWrite], List[HdlStatement]]],
+                              ioSeen: UniqList[Interface],
+                              rtl: List[HdlStatement]):
+        if isinstance(node, HlsNetNodeWriteBackwardEdge) and node.allocationType != BACKEDGE_ALLOCATION_TYPE.BUFFER:
+            con.stDependentDrives.append(rtl)
+            return
+        self._allocateIo(ioDiscovery, node.dst, node, con, ioMuxes, ioSeen, rtl)
+
     def allocateDataPath(self, iea: "InterArchElementNodeSharingAnalysis"):
         """
         Instantiate logic in the states
@@ -219,6 +237,7 @@ class ArchElementFsm(ArchElement):
         ioDiscovery: HlsNetlistAnalysisPassDiscoverIo = self.netlist.getAnalysis(HlsNetlistAnalysisPassDiscoverIo)
 
         for (nodes, con) in zip(self.fsm.states, self.connections):
+            con: ConnectionsOfStage
             ioMuxes: Dict[Interface, Tuple[Union[HlsNetNodeRead, HlsNetNodeWrite], List[HdlStatement]]] = {}
             ioSeen: UniqList[Interface] = UniqList()
             for node in nodes:
@@ -229,15 +248,17 @@ class ArchElementFsm(ArchElement):
                     self._afterNodeInstantiated(node, rtl)
 
                 if isinstance(node, HlsNetNodeRead):
-                    if isinstance(node, HlsNetNodeReadBackwardEdge) and node.associated_write.allocationType != BACKEDGE_ALLOCATION_TYPE.BUFFER:
-                        continue
-                    self._allocateIo(ioDiscovery, node.src, node, con, ioMuxes, ioSeen, rtl)
+                    self._allocateDataPathRead(node, ioDiscovery, con, ioMuxes, ioSeen, rtl)
 
                 elif isinstance(node, HlsNetNodeWrite):
-                    if isinstance(node, HlsNetNodeWriteBackwardEdge) and node.allocationType != BACKEDGE_ALLOCATION_TYPE.BUFFER:
-                        con.stDependentDrives.append(rtl)
-                        continue
-                    self._allocateIo(ioDiscovery, node.dst, node, con, ioMuxes, ioSeen, rtl)
+                    self._allocateDataPathWrite(node, ioDiscovery, con, ioMuxes, ioSeen, rtl)
+
+                elif isinstance(node, HlsNetNodePartRef):
+                    for r in node.iterChildReads():
+                        self._allocateDataPathRead(r, ioDiscovery, con, ioMuxes, ioSeen, rtl)
+                    for w in node.iterChildWrites():
+                        self._allocateDataPathWrite(w, ioDiscovery, con, ioMuxes, ioSeen, rtl)
+
                 # elif isinstance(node, HlsNetNodeExplicitSync):
                     # this node should already be collected by HlsNetlistAnalysisPassDiscoverIo
 

@@ -4,11 +4,10 @@ from hwtHls.architecture.allocator import HlsAllocator
 from hwtHls.architecture.archElement import ArchElement
 from hwtHls.architecture.archElementFsm import ArchElementFsm
 from hwtHls.architecture.archElementPipeline import ArchElementPipeline
-from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage
 from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
 from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeWriteControlBackwardEdge, \
     HlsNetNodeReadControlBackwardEdge
-from hwtHls.netlist.nodes.io import HOrderingVoidT
+from hwtHls.netlist.nodes.orderable import HOrderingVoidT
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.scheduler.clk_math import start_clk
 

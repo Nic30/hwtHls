@@ -23,11 +23,12 @@ from hwtHls.llvm.llvmIr import LoadInst, Register
 from hwtHls.llvm.llvmIr import MachineInstr
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
-from hwtHls.netlist.nodes.io import HlsNetNodeWriteIndexed, HOrderingVoidT, \
-    HlsNetNodeReadIndexed
 from hwtHls.netlist.nodes.node import SchedulizationDict, InputTimeGetter, HlsNetNodePartRef
+from hwtHls.netlist.nodes.orderable import HOrderingVoidT
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes, \
     HlsNetNodeOut, HlsNetNodeIn
+from hwtHls.netlist.nodes.read import HlsNetNodeReadIndexed
+from hwtHls.netlist.nodes.write import HlsNetNodeWriteIndexed
 from hwtHls.netlist.scheduler.clk_math import epsilon
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
@@ -186,7 +187,16 @@ class HlsNetNodeWriteBramCmdPartRef(HlsNetNodePartRef):
 
     def allocateRtlInstance(self, allocator: "ArchElement"):
         return self.parentNode.allocateRtlInstance(allocator)
-        
+    
+    def iterChildReads(self):
+        return
+        yield
+
+    def iterChildWrites(self):
+        if not self.isDataReadPart:
+            yield self.parentNode
+        return
+
     def __repr__(self):
         return f"<{self.__class__.__name__:s} {self._id:d} for {'data' if self.isDataReadPart else 'cmd'} {self.parentNode}>"
 

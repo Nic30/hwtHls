@@ -4,20 +4,20 @@ from typing import Optional, Dict, List, Tuple
 
 from hwt.hdl.types.hdlType import HdlType
 from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
+from hwt.synthesizer.interfaceLevel.unitImplHelpers import getInterfaceName
+from hwt.synthesizer.unit import Unit
 from hwtHls.architecture.allocator import HlsAllocator
 from hwtHls.architecture.archElement import ArchElement
-from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage
 from hwtHls.architecture.archElementFsm import ArchElementFsm
-from hwtHls.architecture.interArchElementHandshakeSync import InterArchElementHandshakeSync
 from hwtHls.architecture.archElementPipeline import ArchElementPipeline
+from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage
+from hwtHls.architecture.interArchElementHandshakeSync import InterArchElementHandshakeSync
 from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeWriteBackwardEdge, \
     BACKEDGE_ALLOCATION_TYPE
 from hwtHls.netlist.scheduler.clk_math import start_clk
 from hwtHls.platform.fileUtils import OutputStreamGetter
-from hwt.synthesizer.interfaceLevel.unitImplHelpers import getInterfaceName
-from hwt.synthesizer.unit import Unit
 
 
 class RtlArchToGraphwiz():
@@ -82,8 +82,16 @@ class RtlArchToGraphwiz():
             nodeRows = ['<<table border="0" cellborder="1" cellspacing="0">\n']
             name = html.escape(f"{elm.namePrefix:s}: {elm.__class__.__name__:s}")
             nodeRows.append(f"    <tr><td colspan='3'>{name:s}</td></tr>\n")
+            isFsm = isinstance(elm, ArchElementFsm)
+            isPipeline = isinstance(elm, ArchElementPipeline)
             for i, con in enumerate(elm.connections):
-                nodeRows.append(f"    <tr><td port='i{i:d}'>i{i:d}</td><td>st{i:d}</td><td port='o{i:d}'>o{i:d}</td></tr>\n")
+                if isFsm:
+                    clkI = elm.fsm.stateClkI[i]
+                elif isPipeline:
+                    clkI = i
+                else:
+                    raise NotImplementedError(elm)
+                nodeRows.append(f"    <tr><td port='i{i:d}'>i{i:d}</td><td>st{i:d}-clk{clkI}</td><td port='o{i:d}'>o{i:d}</td></tr>\n")
                 con: ConnectionsOfStage
                 # [todo] global inputs with bgcolor ligtred global outputs with lightblue color
                 

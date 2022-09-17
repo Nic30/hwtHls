@@ -4,167 +4,30 @@ from hwt.code import Concat
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.defs import BIT
-from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.value import HValue
 from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.interfaces.std import Signal, HandshakeSync, Handshaked, VldSynced, \
     RdSynced, BramPort_withoutClk
-from hwt.interfaces.structIntf import StructIntf
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
-from hwt.synthesizer.interfaceLevel.interfaceUtils.utils import packIntf, \
-    connectPacked
-from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
-from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
+from hwt.synthesizer.interfaceLevel.interfaceUtils.utils import packIntf
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, \
     INVARIANT_TIME
 from hwtHls.netlist.nodes.delay import HlsNetNodeDelayClkTick
+from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict, InputTimeGetter, TimeSpec
+from hwtHls.netlist.nodes.orderable import HOrderingVoidT
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
-    link_hls_nodes, HlsNetNodeOutLazy, HlsNetNodeOutAny
-from hwtHls.netlist.scheduler.clk_math import start_of_next_clk_period, start_clk, epsilon
-from hwtHls.platform.opRealizationMeta import OpRealizationMeta
-from hwtHls.ssa.value import SsaValue
+    HlsNetNodeOutAny
+from hwtHls.netlist.scheduler.clk_math import start_of_next_clk_period, start_clk
 from hwtLib.amba.axi_intf_common import Axi_hs
 from ipCorePackager.constants import INTF_DIRECTION_asDirecton, \
     DIRECTION_opposite, DIRECTION
 
 
-IO_COMB_REALIZATION = OpRealizationMeta(outputWireDelay=epsilon)
-
-
-class _HOrderingVoidT(HdlType):
-
-    def bit_length(self):
-        return 0
-
-
-class _HExternalDataDepT(_HOrderingVoidT):
-    pass
-
-"""
-:var HOrderingVoidT: A type used for connections between HlsNetNode instances to keep its ordering during scheduling.
-    (similar to glue type in LLVM)
-:var HExternalDataDepT: Same as a HOrderingVoidT but in addition it means that there is an external data connection
-    on outside of this component.
-"""
-HOrderingVoidT = _HOrderingVoidT()
-HExternalDataDepT = _HExternalDataDepT()
-
-
-class HlsNetNodeExplicitSync(HlsNetNode):
-    """
-    This node represents just wire in scheduled graph which has an extra synchronization conditions.
-    :see: :class:`hwtLib.handshaked.streamNode.StreamNode`
-
-    This node is used to stall/drop/not-require some data based on external conditions.
-
-    :ivar extraCond: an input for a flag which must be true to allow the transaction (is blocking until 1)
-    :ivar skipWhen: an input for a flag which marks that this write should be skipped and transaction
-                    will not be performed but the control flow will continue
-    :ivar _associatedReadSync: a node which reads if this node is activated and working
-    """
-
-    def __init__(self, netlist: "HlsNetlistCtx", dtype: HdlType):
-        HlsNetNode.__init__(self, netlist, name=None)
-        self._associatedReadSync: Optional["HlsNetNodeReadSync"] = None
-        self._init_extraCond_skipWhen()
-        self._addInput("dataIn")
-        self._addOutput(dtype, "dataOut")
-        self._addOutput(HOrderingVoidT, "orderingOut")
-
-    def _init_extraCond_skipWhen(self):
-        self.extraCond: Optional[HlsNetNodeIn] = None
-        self.skipWhen: Optional[HlsNetNodeIn] = None
-
-    def iterOrderingInputs(self) -> Generator[HlsNetNodeIn, None, None]:
-        for i in self._inputs:
-            if i.in_i != 0 and i not in (self.extraCond, self.skipWhen):
-                yield i
-
-    def getOrderingOutPort(self) -> HlsNetNodeOut:
-        return self._outputs[1]
-
-    def allocateRtlInstance(self, allocator: "ArchElement") -> TimeIndependentRtlResource:
-        assert type(self) is HlsNetNodeExplicitSync, self
-        op_out = self._outputs[0]
-
-        try:
-            return allocator.netNodeToRtl[op_out]
-        except KeyError:
-            pass
-        # synchronization applied in allocator additionally, we just pass the data
-        v = allocator.instantiateHlsNetNodeOut(self.dependsOn[0])
-        allocator.netNodeToRtl[op_out] = v
-        for conrol in self.dependsOn[1:]:
-            conrol.obj.allocateRtlInstance(allocator)
-
-        return v
-
-    def add_control_extraCond(self, en: Union[HlsNetNodeOut, HlsNetNodeOutLazy]):
-        i = self.extraCond
-        if i is None:
-            self.extraCond = i = self._addInput("extraCond")
-            link_hls_nodes(en, i)
-        else:
-            # create "and" of existing and new extraCond and use it instead
-            cur = self.dependsOn[i.in_i]
-            en = self.netlist.builder.buildAnd(cur, en)
-            i.replaceDriver(en)
-
-    def add_control_skipWhen(self, skipWhen: Union[HlsNetNodeOut, HlsNetNodeOutLazy]):
-        i = self.skipWhen
-        if i is None:
-            self.skipWhen = i = self._addInput("skipWhen")
-            link_hls_nodes(skipWhen, i)
-        else:
-            cur = self.dependsOn[i.in_i]
-            skipWhen = self.netlist.builder.buildOr(cur, skipWhen)
-            i.replaceDriver(skipWhen)
-
-    def resolve_realization(self):
-        self.assignRealization(IO_COMB_REALIZATION)
-
-    def _scheduleAlapCompactionInputTimeGetter(self, i: HlsNetNodeIn, asapSchedule: SchedulizationDict):
-        if i.obj is self._associatedReadSync:
-            t = None
-            assert len(i.obj.usedBy) == 1
-            for uses in i.obj.usedBy:
-                for dependentIn in uses:
-                    dependentIn: HlsNetNodeIn
-                    iT = dependentIn.obj.scheduleAlapCompaction(asapSchedule, None)[dependentIn.in_i]
-                    if t is None:
-                        t = iT
-                    else:
-                        t = min(t, iT)
-
-            if t is None:
-                t = asapSchedule[self][0]
-            
-            return t
-        else:
-            return i.obj.scheduleAlapCompaction(asapSchedule, None)[i.in_i]
-
-    def scheduleAlapCompaction(self,
-        asapSchedule:SchedulizationDict,
-        inputTimeGetter:Optional[InputTimeGetter]):
-        if inputTimeGetter is None:
-            inputTimeGetter = self._scheduleAlapCompactionInputTimeGetter
-
-        return HlsNetNode.scheduleAlapCompaction(self, asapSchedule, inputTimeGetter)
-
-    def __repr__(self, minify=False):
-        if minify:
-            return f"<{self.__class__.__name__:s} {self._id:d}"
-        else:
-            return (f"<{self.__class__.__name__:s} {self._id:d} in={self.dependsOn[0]}, "
-                    f"extraCond={None if self.extraCond is None else self.dependsOn[self.extraCond.in_i]}, "
-                    f"skipWhen={None if self.skipWhen is None else self.dependsOn[self.skipWhen.in_i]}>")
-
-
-class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
+class HlsNetNodeRead(HlsNetNodeExplicitSync):
     """
     Hls plan to read from interface
 
@@ -246,7 +109,6 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
             # prepare sync inputs but do not connect it because we do not implement synchronization
             # in this step we are building only data path
             sync.obj.allocateRtlInstance(allocator)
-
         
         if self._isBlocking:
             assert self._valid is None, self
@@ -400,131 +262,3 @@ class HlsNetNodeReadIndexed(HlsNetNodeRead):
 
     def __repr__(self):
         return f"<{self.__class__.__name__:s}{'' if self._valid is None else ' NB'} {self._id:d} {self.src}{self._strFormatIndexes(self.indexes)}>"
-
-
-class HlsNetNodeWrite(HlsNetNodeExplicitSync):
-    """
-    :ivar src: const value or HlsVariable
-    :ivar dst: output interface not related to HLS
-
-    :ivar dependsOn: list of dependencies for scheduling composed of data input, extraConds and skipWhen
-    """
-
-    def __init__(self, netlist: "HlsNetlistCtx", src, dst: Union[RtlSignal, Interface, SsaValue], addOrderingOut=True):
-        HlsNetNode.__init__(self, netlist, None)
-        self._associatedReadSync: Optional["HlsNetNodeReadSync"] = None
-
-        self._init_extraCond_skipWhen()
-        self._addInput("src")
-        if addOrderingOut:
-            self._addOutput(HOrderingVoidT, "orderingOut")  # slot for ordering
-
-        self.operator = "write"
-        self.src = src
-        assert not isinstance(src, (HlsNetNodeOut, HlsNetNodeOutLazy)), (src, "src is used for temporary states where node is not entirely constructed,"
-                                                                         " the actual src is realized as _inputs[0]")
-
-        indexCascade = None
-        if isinstance(dst, RtlSignal):
-            if not isinstance(dst, (Signal, RtlSignal)):
-                tmp = dst._getIndexCascade()
-                if tmp:
-                    dst, indexCascade, _ = tmp
-        assert not indexCascade, ("There should not be any index, for indexed writes use :class:`~.HlsNetNodeWrite` node", src, dst, indexCascade)
-        # assert isinstance(dst, (HlsNetNodeIn, HsStructIntf, Signal, RtlSignalBase, Handshaked, StructIntf, VldSynced, RdSynced)), dst
-        self.dst = dst
-        self.maxIosPerClk = 1
-
-    def getOrderingOutPort(self) -> HlsNetNodeOut:
-        return self._outputs[0]
-
-    def scheduleAsap(self, pathForDebug: Optional[UniqList["HlsNetNode"]]) -> List[float]:
-        assert self.dependsOn, self
-        return HlsNetNodeRead.scheduleAsap(self, pathForDebug)
-
-    def scheduleAlapCompaction(self, asapSchedule: SchedulizationDict, inputTimeGetter: Optional[InputTimeGetter]):
-        return HlsNetNodeRead.scheduleAlapCompaction(self, asapSchedule, inputTimeGetter)
-
-    def _getNumberOfIoInThisClkPeriod(self, intf: Interface, searchFromSrcToDst: bool):
-        return HlsNetNodeRead._getNumberOfIoInThisClkPeriod(self, intf, searchFromSrcToDst)
-
-    def allocateRtlInstance(self,
-                            allocator: "ArchElement",
-                          ) -> List[HdlStatement]:
-        """
-        Instantiate write operation on RTL level
-        """
-        assert len(self.dependsOn) >= 1, self.dependsOn
-        # [0] - data, [1:] control dependencies
-        for sync, t in zip(self.dependsOn[1:], self.scheduledIn[1:]):
-            # prepare sync inputs but do not connect it because we do not implement synchronization
-            # in this step we are building only datapath
-            if sync._dtype != HOrderingVoidT:
-                allocator.instantiateHlsNetNodeOutInTime(sync, t)
-
-        dep = self.dependsOn[0]
-        _o = allocator.instantiateHlsNetNodeOutInTime(dep, self.scheduledIn[0])
-
-        # apply indexes before assignments
-        dst = self.dst
-
-        try:
-            # skip instantiation of writes in the same mux
-            return allocator.netNodeToRtl[(dep, dst)]
-        except KeyError:
-            pass
-
-        if isinstance(dst, Axi_hs):
-            exclude = dst.ready, dst.valid
-        elif isinstance(dst, (Handshaked, HandshakeSync)):
-            exclude = dst.rd, dst.vld
-        elif isinstance(dst, VldSynced):
-            exclude = (dst.vld,)
-        elif isinstance(dst, RdSynced):
-            exclude = (dst.rd,)
-        else:
-            exclude = ()
-
-        if isinstance(_o.data, StructIntf):
-            rtlObj = dst(_o.data, exclude=exclude)
-        elif isinstance(_o.data, RtlSignal) and isinstance(dst, RtlSignal):
-            rtlObj = dst(_o.data)
-        elif isinstance(dst, RtlSignal):
-            rtlObj = dst(packIntf(_o.data, exclude=exclude))
-        else:
-            rtlObj = connectPacked(_o.data, dst, exclude=exclude)
-
-        # allocator.netNodeToRtl[o] = rtlObj
-        allocator.netNodeToRtl[(dep, dst)] = rtlObj
-
-        return rtlObj
-
-    def __repr__(self):
-        src = self.src
-        if src is NOT_SPECIFIED:
-            src = self.dependsOn[0]
-
-        return f"<{self.__class__.__name__:s} {self._id:d} {self.dst} <- {src}>"
-
-
-class HlsNetNodeWriteIndexed(HlsNetNodeWrite):
-    """
-    Same as :class:`~.HlsNetNodeWrite` but for memory mapped interfaces with address or index.
-    """
-
-    def __init__(self, netlist:"HlsNetlistCtx", src, dst:Union[RtlSignal, Interface, SsaValue], addOrderingOut=True):
-        HlsNetNodeWrite.__init__(self, netlist, src, dst, addOrderingOut=addOrderingOut)
-        self.indexes = [self._addInput("index0"), ]
-
-    def iterOrderingInputs(self) -> Generator[HlsNetNodeIn, None, None]:
-        allNonOrdering = (self._inputs[0], self.extraCond, self.skipWhen, *self.indexes)
-        for i in self._inputs:
-            if i not in allNonOrdering:
-                yield i
-
-    def __repr__(self):
-        src = self.src
-        if src is NOT_SPECIFIED:
-            src = self.dependsOn[0]
-
-        return f"<{self.__class__.__name__:s} {self._id:d} {self.dst}{HlsNetNodeReadIndexed._strFormatIndexes(self.indexes)} <- {src}>"

@@ -20,10 +20,11 @@ from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
     HlsNetNodeWriteBackwardEdge, HlsNetNodeReadControlBackwardEdge, \
     HlsNetNodeWriteControlBackwardEdge
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
-from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
     link_hls_nodes, HlsNetNodeOutAny, HlsNetNodeIn
+from hwtHls.netlist.nodes.read import HlsNetNodeRead
+from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.opCache import MirToHwtHlsNetlistOpCache
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
