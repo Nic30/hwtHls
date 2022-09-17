@@ -62,7 +62,7 @@ class ArchElement():
         assert isinstance(stageSignals, SignalsOfStages), stageSignals
         self.stageSignals = stageSignals
         self.interArchAnalysis: Optional["InterArchElementNodeSharingAnalysis"] = None
-        self.debugAddNamesToSyncSignals = True
+        self.debugAddNamesToSyncSignals = False
 
     def _afterNodeInstantiated(self, n: HlsNetNode, rtl: Optional[TimeIndependentRtlResource]):
         pass
