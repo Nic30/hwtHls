@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Union
 
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.value import HValue
@@ -6,8 +6,8 @@ from hwt.interfaces.std import Handshaked, HandshakeSync, VldSynced, Signal, \
     RdSynced, BramPort_withoutClk
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, INVARIANT_TIME
-from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
-    HlsNetNodeWriteBackwardEdge, HlsNetNodeReadControlBackwardEdge
+from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeWriteBackwardEdge, \
+    BACKEDGE_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.io import IO_COMB_REALIZATION, HlsNetNodeRead, \
     HlsNetNodeWrite, HlsNetNodeExplicitSync
@@ -61,34 +61,16 @@ class HlsNetNodeReadSync(HlsNetNode):
     def _getRtlSigForInput(self, allocator: "ArchElement", i: HlsNetNodeIn):
         return allocator.instantiateHlsNetNodeOutInTime(i.obj.dependsOn[i.in_i], self.scheduledOut[0]).data
         
-    def getRtlControlEn(self, allocator: "ArchElement"):
+    def getRtlControlEn(self, allocator: "ArchElement") -> Union[RtlSignalBase, HValue]:
         d = self.dependsOn[0]
         dObj = d.obj
         if isinstance(dObj, HlsNetNodeRead):
             dObj: HlsNetNodeRead
-            if isinstance(dObj, HlsNetNodeReadBackwardEdge) and not dObj.associated_write.allocateAsBuffer:
-                if isinstance(dObj, HlsNetNodeReadControlBackwardEdge):
-                    o = dObj._outputs[0]
-                    assert o._dtype == BIT, (dObj, o._dtype)
-                    return allocator.instantiateHlsNetNodeOutInTime(o, self.scheduledIn[0]).data
-                else:
-                    return BIT.from_py(1)
-
-            intf = dObj.src
-            if isinstance(intf, Axi_hs):
-                return intf.valid._sig
-            elif isinstance(intf, (Handshaked, HandshakeSync, VldSynced)):
-                return intf.vld._sig
-            elif isinstance(intf, (Signal, RtlSignalBase, RdSynced)):
-                return BIT.from_py(1)
-            elif isinstance(intf, BramPort_withoutClk):
-                return intf.en._sig
-            else:
-                raise NotImplementedError(intf)
+            return dObj.getRtlValidSig(allocator)
 
         elif isinstance(dObj, HlsNetNodeWrite):
             dObj: HlsNetNodeWrite
-            if isinstance(dObj, HlsNetNodeWriteBackwardEdge) and not dObj.allocateAsBuffer:
+            if isinstance(dObj, HlsNetNodeWriteBackwardEdge) and dObj.allocationType != BACKEDGE_ALLOCATION_TYPE.BUFFER:
                 return BIT.from_py(1)
 
             intf = dObj.dst
@@ -138,7 +120,7 @@ class HlsNetNodeReadSync(HlsNetNode):
             return self.scheduledIn
         # super(HlsNetNodeReadSync, self).scheduleAlapCompaction(asapSchedule)
         parent = self.dependsOn[0].obj
-        assert isinstance(parent, (HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeExplicitSync)), parent
+        assert isinstance(parent, (HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeExplicitSync)), (self, parent)
         parent.scheduleAlapCompaction(asapSchedule, inputTimeGetter)
         t = parent.scheduledOut[0]
         self.scheduledIn = (t,)

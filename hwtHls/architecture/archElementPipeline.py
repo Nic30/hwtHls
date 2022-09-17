@@ -18,7 +18,7 @@ from hwtHls.architecture.interArchElementNodeSharingAnalysis import InterArchEle
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, INVARIANT_TIME
 from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
 from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
-    HlsNetNodeWriteBackwardEdge
+    HlsNetNodeWriteBackwardEdge, BACKEDGE_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, \
     HOrderingVoidT
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -51,11 +51,11 @@ class ArchElementPipeline(ArchElement):
     def _afterNodeInstantiated(self, n: HlsNetNode, rtl: Optional[TimeIndependentRtlResource]):
         isTir = isinstance(rtl, TimeIndependentRtlResource)
         
-        if isinstance(n, HlsNetNodeWriteBackwardEdge) and not n.allocateAsBuffer:
+        if isinstance(n, HlsNetNodeWriteBackwardEdge) and n.allocationType == BACKEDGE_ALLOCATION_TYPE.REG:
             clkPeriod = self.netlist.normalizedClkPeriod
             con: ConnectionsOfStage = self.connections[n.scheduledIn[0] // clkPeriod]
             con.stDependentDrives.append(rtl)
-        #elif isinstance(n, HlsProgramStarter):
+        # elif isinstance(n, HlsProgramStarter):
         #    assert isTir, n
         #    # because we want to consume token from the starter only on transition in this FSM
         #    con: ConnectionsOfStage = self.connections[0]
@@ -83,8 +83,8 @@ class ArchElementPipeline(ArchElement):
             for node in nodes:
                 if isinstance(node, HlsNetNodeReadBackwardEdge):
                     w = node.associated_write
-                    if w in self.allNodes and w.scheduledIn[0] // clkPeriod == stI:
-                        w.allocateAsBuffer = False  # allocate as a register because this is connect just this stage with itself
+                    if w.allocationType == BACKEDGE_ALLOCATION_TYPE.BUFFER and w in self.allNodes and w.scheduledIn[0] // clkPeriod == stI:
+                        w.allocationType = BACKEDGE_ALLOCATION_TYPE.REG  # allocate as a register because this is connect just this stage with itself
        
     def allocateDataPath(self, iea: InterArchElementNodeSharingAnalysis):
         assert not self._dataPathAllocated
@@ -127,7 +127,7 @@ class ArchElementPipeline(ArchElement):
 
                 if isinstance(node, HlsNetNodeRead):
                     if isinstance(node, HlsNetNodeReadBackwardEdge):
-                        if not node.associated_write.allocateAsBuffer:
+                        if node.associated_write.allocationType != BACKEDGE_ALLOCATION_TYPE.BUFFER:
                             continue
 
                     currentStageForIo = ioToCon.get(node.src, con)
@@ -139,7 +139,7 @@ class ArchElementPipeline(ArchElement):
 
                 elif isinstance(node, HlsNetNodeWrite):
                     if isinstance(node, HlsNetNodeWriteBackwardEdge):
-                        if not node.allocateAsBuffer:
+                        if node.allocationType != BACKEDGE_ALLOCATION_TYPE.BUFFER:
                             continue
 
                     currentStageForIo = ioToCon.get(node.dst, con)

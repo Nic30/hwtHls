@@ -7,6 +7,7 @@ from hwtHls.netlist.nodes.io import IO_COMB_REALIZATION, HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict, InputTimeGetter
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, link_hls_nodes, HlsNetNodeIn
 from hwtHls.netlist.scheduler.clk_math import start_of_next_clk_period
+from hwt.code_utils import rename_signal
 
 
 class HlsLoopGateStatus(HlsNetNode):
@@ -20,7 +21,7 @@ class HlsLoopGateStatus(HlsNetNode):
     def __init__(self, netlist:"HlsNetlistCtx", loop_gate: "HlsLoopGate", name:str=None):
         HlsNetNode.__init__(self, netlist, name=name)
         self._loop_gate = loop_gate
-        self._addOutput(BIT, "status")
+        self._addOutput(BIT, "busy")
 
     def resolve_realization(self):
         self.assignRealization(IO_COMB_REALIZATION)
@@ -36,8 +37,8 @@ class HlsLoopGateStatus(HlsNetNode):
         name = self.name
         g = self._loop_gate
         statusBusyReg = allocator._reg(
-            name if name else "loop_gate_busy",
-            def_val=0 if g.from_predec else 1)  # busy if is executed at 0 time
+            name if name else f"{self._loop_gate.name}_busy",
+            def_val=0 if g.fromEnter else 1)  # busy if is executed at 0 time
 
         # create RTL signal expression base on operator type
         t = self.scheduledOut[0] + self.netlist.scheduler.epsilon
@@ -45,33 +46,40 @@ class HlsLoopGateStatus(HlsNetNode):
         allocator.netNodeToRtl[op_out] = statusBusyReg_s
 
         # returns the control token
-        from_break = [allocator.instantiateHlsNetNodeOut(g.dependsOn[i.in_i]) for i in g.from_break]
+        fromExit = [allocator.instantiateHlsNetNodeOut(g.dependsOn[i.in_i]) for i in g.fromExit]
         # takes the control token
-        from_predec = [allocator.instantiateHlsNetNodeOut(g.dependsOn[i.in_i]) for i in g.from_predec]
+        fromEnter = [allocator.instantiateHlsNetNodeOut(g.dependsOn[i.in_i]) for i in g.fromEnter]
         # has the priority and does not require sync token (because it already owns it)
-        from_reenter = [allocator.instantiateHlsNetNodeOut(g.dependsOn[i.in_i]) for i in g.from_reenter]
+        fromReenter = [allocator.instantiateHlsNetNodeOut(g.dependsOn[i.in_i]) for i in g.fromReenter]
 
-        assert from_reenter, (g, "Must have some reenters otherwise this is not the loop")
-        if not from_break and not from_predec:
+        assert fromReenter, (g, "Must have some reenters otherwise this is not the loop")
+        if not fromExit and not fromEnter:
             # this is infinite loop without predecessor, it will run infinitely but in just one instance
             statusBusyReg(1)
-        elif not from_break and from_predec:
+        elif not fromExit and fromEnter:
             # this is an infinite loop which has a predecessor, once started it will be closed for new starts
             # :attention: we pick the data from any time because this is kind of back edge
-            newExe = Or(*(p.get(p.timeOffset).data for p in from_predec))
+            newExe = Or(*(p.get(p.timeOffset).data for p in fromEnter))
+            newExe = rename_signal(self.netlist.parentUnit, newExe, f"{self._loop_gate.name}_newExe")
+            
             If(newExe,
                statusBusyReg(1)
             )
-        elif from_break and from_predec:
-            newExe = Or(*(p.get(p.timeOffset).data for p in from_predec))
-            newExit = Or(*(p.get(p.timeOffset).data for p in from_break))
+        elif fromExit and fromEnter:
+            newExe = Or(*(p.get(p.timeOffset).data for p in fromEnter))
+            newExit = Or(*(p.get(p.timeOffset).data for p in fromExit))
+            newExe = rename_signal(self.netlist.parentUnit, newExe, f"{self._loop_gate.name}_newExe")
+            newExit = rename_signal(self.netlist.parentUnit, newExit, f"{self._loop_gate.name}_newExit")
+            
             If(newExe & ~newExit,
                statusBusyReg(1)  # becomes busy
-            ).Elif(~newExe & newExit,
+            ).Elif(~newExe & newExit,  #  
                statusBusyReg(0)  # finished work
             )
-        elif from_break and not from_predec:
-            newExit = Or(*(p.get(p.timeOffset).data for p in from_break))
+        elif fromExit and not fromEnter:
+            newExit = Or(*(p.get(p.timeOffset).data for p in fromExit))
+            newExit = rename_signal(self.netlist.parentUnit, newExit, f"{self._loop_gate.name}_newExit")
+            
             If(newExit,
                statusBusyReg(0)  # finished work
             )
@@ -81,7 +89,7 @@ class HlsLoopGateStatus(HlsNetNode):
         return statusBusyReg_s
 
     def __repr__(self):
-        return f"<{self.__class__.__name__:s} {self._id:d}>"
+        return f"<{self.__class__.__name__:s} {self._id:d} (for {self._loop_gate.name})>"
 
 
 class HlsLoopGate(HlsNetNode):
@@ -120,29 +128,31 @@ class HlsLoopGate(HlsNetNode):
 
     :note: This object does not handle the condition decision, it only manages guards the loop input while loop iterations are running.
     :note: The place where this node belong is characterized by a control input from the pipeline and also out of pipeline.
-        The inputs from pipeline are from_predec and the inputs from out of pipeline are from_reenter.
+        The inputs from pipeline are fromEnter and the inputs from out of pipeline are fromReenter.
     
-    :ivar from_predec: for each direct predecessor which is not in cycle body a tuple input for control and variable values.
+    :ivar fromEnter: for each direct predecessor which is not in cycle body a tuple input for control and variable values.
         Signalizes that the loop has data to be executed.
-    :ivar from_reenter: For each direct predecessor which is a part of a cycle body a tuple control input and associated variables.
+    :ivar fromReenter: For each direct predecessor which is a part of a cycle body a tuple control input and associated variables.
         Note that the channels are usually connected to out of pipeline interface because the HlsNetlistCtx does not support cycles.
-    :ivar from_break: For each block which is part of the cycle body and does have transition outside of the cycle a control input
+    :ivar fromExit: For each block which is part of the cycle body and does have transition outside of the cycle a control input
         to mark the return of the synchronization token.
     :ivar to_successors: For each direct successor which is not the entry point of the loop body (because of structural programming there can be only one)
         a tuple of control and variable outputs.
 
-    :note: if this gate has synchronization token it accepts only data from the from_predec and then it accepts only from from_reenter/from_break
-    :note: from_predec, from_reenter are read at the beginning of a loop header block. Breaks are read at the end of exit block.
+    :note: if this gate has synchronization token it accepts only data from the fromEnter and then it accepts only from fromReenter/fromExit
+    :note: fromEnter, fromReenter are read at the beginning of a loop header block. Breaks are read at the end of exit block.
     
     :ivar _sync_token_status: The node with state for this object.
     """
 
     def __init__(self, netlist:"HlsNetlistCtx",
             name:Optional[str]=None):
+        if name is None:
+            name = f"loop{self._id}"
         HlsNetNode.__init__(self, netlist, name=name)
-        self.from_predec: List[HlsNetNodeIn] = []
-        self.from_reenter: List[HlsNetNodeIn] = []
-        self.from_break: List[HlsNetNodeIn] = []
+        self.fromEnter: List[HlsNetNodeIn] = []
+        self.fromReenter: List[HlsNetNodeIn] = []
+        self.fromExit: List[HlsNetNodeIn] = []
         # another node with the output representing the presence of sync token (we can not add it here
         # because it would create a cycle)
         self._sync_token_status = HlsLoopGateStatus(netlist, self)
@@ -155,21 +165,21 @@ class HlsLoopGate(HlsNetNode):
         link_hls_nodes(control, i)
         inList.append(i)
 
-    def connect_predec(self, control:HlsNetNodeOut):
+    def connectEnter(self, control:HlsNetNodeOut):
         """
         Register connection of control and data from some block which causes the loop to to execute.
         :note: allocating the sync token
         """
-        self._connect(control, self.from_predec, f"predec{len(self.from_predec)}")
+        self._connect(control, self.fromEnter, f"enter{len(self.fromEnter)}")
 
-    def connect_reenter(self, control:HlsNetNodeOut):
+    def connectReenter(self, control:HlsNetNodeOut):
         """
         Register connection of control and data from some block where control flow gets back block where the cycle starts.
         :note: reusing sync token
         """
-        self._connect(control, self.from_reenter, f"reenter{len(self.from_reenter)}")
+        self._connect(control, self.fromReenter, f"reenter{len(self.fromReenter)}")
 
-    def connect_break(self, control: HlsNetNodeOut):
+    def connectExit(self, control: HlsNetNodeOut):
         """
         Register connection of control which causes to break current execution of the loop.
         :note: deallocating the sync token
@@ -181,7 +191,7 @@ class HlsLoopGate(HlsNetNode):
         control.obj.add_control_skipWhen(netlist.builder.buildNot(vld))
         
         en = self.netlist.builder.buildAnd(control, vld)
-        self._connect(en, self.from_break, f"break{len(self.from_break)}")
+        self._connect(en, self.fromExit, f"exit{len(self.fromExit)}")
 
     def debug_iter_shadow_connection_dst(self) -> Generator["HlsNetNode", None, None]:
         yield self._sync_token_status

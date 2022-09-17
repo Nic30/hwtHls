@@ -4,6 +4,7 @@ from hwt.code import SwitchLogic, Switch, If
 from hwt.code_utils import rename_signal
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.bits import Bits
+from hwt.hdl.types.bitsVal import BitsVal
 from hwt.hdl.value import HValue
 from hwt.interfaces.std import HandshakeSync
 from hwt.math import log2ceil
@@ -18,14 +19,13 @@ from hwtHls.netlist.analysis.fsm import IoFsm
 from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
 from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
     HlsNetNodeWriteBackwardEdge, HlsNetNodeReadControlBackwardEdge, \
-    HlsNetNodeWriteControlBackwardEdge
+    HlsNetNodeWriteControlBackwardEdge, BACKEDGE_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeRead
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
 from hwtHls.netlist.scheduler.clk_math import start_clk
 from ipCorePackager.constants import INTF_DIRECTION
-from hwt.hdl.types.bitsVal import BitsVal
 
 
 class ArchElementFsm(ArchElement):
@@ -142,8 +142,11 @@ class ArchElementFsm(ArchElement):
                 node: HlsNetNode
                 if isinstance(node, HlsNetNodeReadBackwardEdge):
                     node: HlsNetNodeReadBackwardEdge
-                    if node.associated_write in self.allNodes:  # is in the same arch. element
-                        node.associated_write.allocateAsBuffer = False  # allocate as a register because this is just local control channel
+                    wr = node.associated_write
+                    if wr in self.allNodes and wr.allocationType == BACKEDGE_ALLOCATION_TYPE.BUFFER:
+                        # is in the same arch. element
+                        # allocate as a register because this is just local control channel
+                        wr.allocationType = BACKEDGE_ALLOCATION_TYPE.REG
                         if isinstance(node, HlsNetNodeReadControlBackwardEdge):
                             localControlReads.append(node)
                             controlToStateI[node] = stI
@@ -226,22 +229,17 @@ class ArchElementFsm(ArchElement):
                     self._afterNodeInstantiated(node, rtl)
 
                 if isinstance(node, HlsNetNodeRead):
-                    if isinstance(node, HlsNetNodeReadBackwardEdge) and not node.associated_write.allocateAsBuffer:
+                    if isinstance(node, HlsNetNodeReadBackwardEdge) and node.associated_write.allocationType != BACKEDGE_ALLOCATION_TYPE.BUFFER:
                         continue
                     self._allocateIo(ioDiscovery, node.src, node, con, ioMuxes, ioSeen, rtl)
 
                 elif isinstance(node, HlsNetNodeWrite):
-                    if isinstance(node, HlsNetNodeWriteBackwardEdge) and not node.allocateAsBuffer:
+                    if isinstance(node, HlsNetNodeWriteBackwardEdge) and node.allocationType != BACKEDGE_ALLOCATION_TYPE.BUFFER:
                         con.stDependentDrives.append(rtl)
                         continue
                     self._allocateIo(ioDiscovery, node.dst, node, con, ioMuxes, ioSeen, rtl)
-                #elif isinstance(node, HlsNetNodeExplicitSync):
-                    # * this sync is not associated with any IO and thus no sync is required
-                    #   * if this sync is associated with multiple reads this is an invalid state
-                    # * this sync is associated with read scheduled in this clock cycle
-                    # if this sync is associated with read in prev clock cycle, this may result in deadlock due to need for read
-                    # if this sync is associated with write, this should already have been merged
-                    #raise NotImplementedError()
+                # elif isinstance(node, HlsNetNodeExplicitSync):
+                    # this node should already be collected by HlsNetlistAnalysisPassDiscoverIo
 
             for rtl in self._allocateIoMux(ioMuxes, ioSeen):
                 con.stDependentDrives.append(rtl)
@@ -276,6 +274,8 @@ class ArchElementFsm(ArchElement):
             unconditionalTransSeen = False
             inStateTrans: List[Tuple[RtlSignal, List[HdlStatement]]] = []
             sync = self._makeSyncNode(None, con)
+            
+            # prettify stateAck signal name if required
             stateAck = sync.ack()
             if isinstance(stateAck, (bool, int, HValue)):
                 assert bool(stateAck) == 1
@@ -298,7 +298,7 @@ class ArchElementFsm(ArchElement):
             stDependentDrives = con.stDependentDrives
 
             if isinstance(stateAck, (bool, int, BitsVal)):
-                assert bool(stateAck) == 1
+                assert bool(stateAck) == 1, "There should be a transition to some next state."
             else:
                 stDependentDrives = If(stateAck, stDependentDrives)
 
@@ -307,6 +307,7 @@ class ArchElementFsm(ArchElement):
                                      sync.sync()]))
 
         if st is None:
+            # do not create a state switch statement is there is no state register (and FSM has just 1 state) 
             assert len(stateTrans) == 1
             return stateTrans[0][1]
         else:

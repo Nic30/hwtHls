@@ -12,7 +12,8 @@ from hwtHls.architecture.interArchElementHandshakeSync import InterArchElementHa
 from hwtHls.architecture.archElementPipeline import ArchElementPipeline
 from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeWriteBackwardEdge
+from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeWriteBackwardEdge, \
+    BACKEDGE_ALLOCATION_TYPE
 from hwtHls.netlist.scheduler.clk_math import start_clk
 from hwtHls.platform.fileUtils import OutputStreamGetter
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getInterfaceName
@@ -102,7 +103,7 @@ class RtlArchToGraphwiz():
             for n in elm.allNodes:
                 if isinstance(n, HlsNetNodeWriteBackwardEdge):
                     n: HlsNetNodeWriteBackwardEdge
-                    if n.allocateAsBuffer:
+                    if n.allocationType == BACKEDGE_ALLOCATION_TYPE.BUFFER:
                         wN = self._getInterfaceNode(n.dst)
                         rN = self._getInterfaceNode(n.associated_read.src)
                         e = Edge(f"{wN.get_name():s}:0", f"{rN.get_name():s}:0", style="dashed", color="gray")

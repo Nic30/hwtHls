@@ -165,7 +165,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
 
     def _add_hs_intf_and_read(self,
                               suggested_name: str, dtype:HdlType,
-                              read_cls:Type[HlsNetNodeRead]=HlsNetNodeRead) -> Tuple[Interface, HlsNetNodeRead]:
+                              read_cls:Type[HlsNetNodeRead]=HlsNetNodeRead) -> Tuple[Interface, HlsNetNodeOut]:
         intf = HsStructIntf()
         intf.T = dtype
         return intf, self._add_intf_and_read(intf, suggested_name, read_cls=read_cls)
@@ -181,7 +181,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
     def _add_intf_and_read(self,
                            intf: Interface,
                            suggested_name: str,
-                           read_cls:Type[HlsNetNodeRead]=HlsNetNodeRead) -> Interface:
+                           read_cls:Type[HlsNetNodeRead]=HlsNetNodeRead) -> HlsNetNodeOut:
         self._add_intf_instance(intf, suggested_name)
         return self._read_from_io(intf, read_cls=read_cls)
 

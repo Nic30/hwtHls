@@ -2,6 +2,7 @@
 from typing import Union, List, Dict, Tuple, Optional
 
 from hwt.code import SwitchLogic
+from hwt.code_utils import rename_signal
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.bitsVal import BitsVal
@@ -17,7 +18,7 @@ from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlRes
     TimeIndependentRtlResourceItem, INVARIANT_TIME
 from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeExplicitSync, \
-    HOrderingVoidT
+    HOrderingVoidT, HExternalDataDepT
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.scheduler.clk_math import start_clk
@@ -61,6 +62,7 @@ class ArchElement():
         assert isinstance(stageSignals, SignalsOfStages), stageSignals
         self.stageSignals = stageSignals
         self.interArchAnalysis: Optional["InterArchElementNodeSharingAnalysis"] = None
+        self.debugAddNamesToSyncSignals = True
 
     def _afterNodeInstantiated(self, n: HlsNetNode, rtl: Optional[TimeIndependentRtlResource]):
         pass
@@ -108,7 +110,7 @@ class ArchElement():
             # new allocation, use registered automatically
             _o = o.obj.allocateRtlInstance(self)
             self._afterNodeInstantiated(o.obj, _o)
-            if _o is None:
+            if (_o is None or not isinstance(_o, TimeIndependentRtlResource)) and o._dtype is not HOrderingVoidT and o._dtype is not HExternalDataDepT:
                 # to support the return of the value directly to avoid lookup from dict
                 try:
                     return self.netNodeToRtl[o]
@@ -121,7 +123,7 @@ class ArchElement():
 
         return _o
 
-    def instantiateHlsNetNodeOutInTime(self, o: HlsNetNodeOut, time:float,
+    def instantiateHlsNetNodeOutInTime(self, o: HlsNetNodeOut, time:int,
                                        ) -> Union[TimeIndependentRtlResourceItem, List[HdlStatement]]:
         _o = self.instantiateHlsNetNodeOut(o)
         if isinstance(_o, TimeIndependentRtlResource):
@@ -132,12 +134,120 @@ class ArchElement():
                 return res.get(time)
             return res
 
-    def _copyChannelSync(self, intf: Interface,
-                   node: Union[HlsNetNodeRead, HlsNetNodeWrite],
-                   extraSync: Optional[HlsNetNodeExplicitSync],
-                   res_skipWhen: Dict[Interface, SkipWhenMemberList],
-                   res_extraCond: Dict[Interface, ExtraCondMemberList]):
+    def instantiateHlsNetNodeInInTime(self, i: HlsNetNodeOut, time:int,
+                                       ) -> TimeIndependentRtlResourceItem:
+        return self.instantiateHlsNetNodeOutInTime(i.obj.dependsOn[i.in_i], time)
+    
+    def _andOptionalTimeIndependentRtlResourceItem(self,
+                                                   a:Optional[TimeIndependentRtlResourceItem],
+                                                   b:Optional[TimeIndependentRtlResourceItem],
+                                                   syncTime: int):
+        if a is None:
+            if b is None:
+                return None
+            else:
+                return b
+        else:
+            if b is None:
+                return a
+            else:
+                res = b.data & a.data
+                return TimeIndependentRtlResource(res, syncTime, self, False).get(syncTime)
 
+    def _orNegatedMaskedOptionalTimeIndependentRtlResourceItem(self,
+                                                               a:Optional[TimeIndependentRtlResourceItem],
+                                                               b:Optional[TimeIndependentRtlResourceItem],
+                                                               bMask:Optional[TimeIndependentRtlResourceItem],
+                                                               syncTime: int):
+        """
+        :return: a | (b & ~bMask) where every member can be None
+        """
+        if a is None:
+            if bMask is None:
+                if b is None:
+                    return None
+                else:
+                    return b
+            else:
+                _a = b.data & ~bMask.data
+        else:
+            if bMask is None:
+                _a = a.data | b.data
+            else:
+                _a = a.data | (b.data & ~bMask.data)
+
+        return TimeIndependentRtlResource(_a, syncTime, self, False).get(syncTime)
+    
+    def _andNegatedMaskedOptionalTimeIndependentRtlResourceItem(self,
+                                                                a:Optional[TimeIndependentRtlResourceItem],
+                                                                b:Optional[TimeIndependentRtlResourceItem],
+                                                                bMask:Optional[TimeIndependentRtlResourceItem],
+                                                                syncTime: int):
+        if a is None:
+            if bMask is None:
+                return b
+            elif b is None:
+                return None
+            else:
+                _a = b.data & ~bMask.data
+        else:
+            if bMask is None:
+                if b is None:
+                    return a
+                else:
+                    _a = a.data & b.data
+            else:
+                if b is None:
+                    _a = a.data & ~bMask.data
+                else:
+                    _a = a.data & (b.data & ~bMask.data)
+        return TimeIndependentRtlResource(_a, syncTime, self, False).get(syncTime)
+        
+    def _collectChannelSyncFromConcurrentSync(self,
+                                              syncTime: int,
+                                              parentSkipWhen: Optional[TimeIndependentRtlResourceItem],
+                                              extraSyncs: UniqList[HlsNetNodeExplicitSync]
+                                              ) -> Tuple[Optional[TimeIndependentRtlResourceItem], Optional[TimeIndependentRtlResourceItem]]:
+    
+        skipWhen = parentSkipWhen
+        extraCond = None
+        # for all extraSync on same level we have to:
+        # skipWhen &= otherSkipWhern                    (skip if all sync allow skip)
+        # extraCond |= otherExtraCond & ~otherSkipWhen  (1 if any condition is satisfied and not disabled)
+        for extraSync in extraSyncs:
+            extraSkipWhen = None
+            if extraSync.skipWhen is not None:
+                extraSkipWhen = self.instantiateHlsNetNodeInInTime(extraSync.skipWhen, syncTime)
+                if self.debugAddNamesToSyncSignals:
+                    extraSkipWhen.data = rename_signal(self.netlist.parentUnit, extraSkipWhen.data, f"sync{extraSync._id}_skipWhen")
+                skipWhen = self._andOptionalTimeIndependentRtlResourceItem(skipWhen, extraSkipWhen, syncTime)
+                
+            if extraSync.extraCond is not None:
+                # :note: we must not use skipWhen directly because it is "and" of all skipWhens and not just this skipWhen
+                # _extraSkipWhen = self._andOptionalTimeIndependentRtlResourceItem(parentSkipWhen, extraSkipWhen, syncTime)
+                extraExtraCond = self.instantiateHlsNetNodeInInTime(extraSync.extraCond, syncTime)
+                if self.debugAddNamesToSyncSignals:
+                    extraExtraCond.data = rename_signal(self.netlist.parentUnit, extraExtraCond.data, f"sync{extraSync._id}_extraCond")
+                extraCond = self._orNegatedMaskedOptionalTimeIndependentRtlResourceItem(
+                    extraCond, extraExtraCond, extraSkipWhen, syncTime)
+   
+        return extraCond, skipWhen
+
+    def _copyChannelSync(self,
+                   node: Union[HlsNetNodeRead, HlsNetNodeWrite],
+                   extraSyncs: Optional[UniqList[HlsNetNodeExplicitSync]],
+                   curExtraCond:Optional[ExtraCondMemberList],
+                   curSkipWhen: Optional[SkipWhenMemberList]):
+        """
+        Synchronization of channel is specified as a n-arry tree tuples (extraCond,skipWhen). Combination
+        of these 2 bits specifies when then channel should be enabled and when its transaction is required.
+        In addition each flag is optional on every level.
+        
+        :attention: This function is run for a single read/write node but there may be multiple such a nodes
+            in a single clock period slot. Such a IO may be concurrent and thus skipWhen and extraCond must be merged.
+        """
+        
+        # get time when IO happens
         if isinstance(node, HlsNetNodeRead):
             node: HlsNetNodeRead
             syncTime = node.scheduledOut[0]
@@ -147,50 +257,44 @@ class ArchElement():
 
         if node.skipWhen is not None:
             e = node.dependsOn[node.skipWhen.in_i]
-            skipWhen = self.instantiateHlsNetNodeOutInTime(e, syncTime)
+            topSkipWhen = self.instantiateHlsNetNodeOutInTime(e, syncTime)
         else:
-            skipWhen = None
-
-        if extraSync is not None and extraSync.skipWhen is not None:
-            extraSkipWhen = self.instantiateHlsNetNodeOutInTime(extraSync.dependsOn[extraSync.skipWhen.in_i], syncTime)
-            if skipWhen is None:
-                skipWhen = extraSkipWhen
-            else:
-                skipWhen = TimeIndependentRtlResource(skipWhen.data | extraSkipWhen.data, syncTime, self, False).get(syncTime)
-
-        if skipWhen is not None:
-            curSkipWhen = res_skipWhen.get(intf, None)
-            if curSkipWhen is not None:
-                curSkipWhen.data.append(skipWhen)
-            else:
-                res_skipWhen[intf] = SkipWhenMemberList([skipWhen, ])
+            topSkipWhen = None
         
         if node.extraCond is not None:
             e = node.dependsOn[node.extraCond.in_i]
-            extraCond = self.instantiateHlsNetNodeOutInTime(e, syncTime)
+            topExtraCond = self.instantiateHlsNetNodeOutInTime(e, syncTime)
         else:
-            extraCond = None
+            topExtraCond = None
         
-        if extraSync is not None and extraSync.extraCond is not None:
-            extraExtraCond = self.instantiateHlsNetNodeOutInTime(extraSync.dependsOn[extraSync.extraCond.in_i], syncTime)
-            if extraCond is None:
-                extraCond = extraExtraCond
+        if extraSyncs:
+            extraCond, skipWhen = self._collectChannelSyncFromConcurrentSync(syncTime, topSkipWhen, extraSyncs)
+        else:
+            extraCond, skipWhen = None, topSkipWhen
+
+        # (1 if top condition satisfied and any child condition is satisfied and not disabled)
+        extraCond = self._andNegatedMaskedOptionalTimeIndependentRtlResourceItem(
+            topExtraCond, extraCond, skipWhen, syncTime)
+        
+        if skipWhen is not None:
+            if curSkipWhen is not None:
+                curSkipWhen.data.append(skipWhen)
             else:
-                extraCond = TimeIndependentRtlResource(extraCond.data & extraExtraCond.data, syncTime, self, False).get(syncTime)
-        
+                curSkipWhen = SkipWhenMemberList([skipWhen, ])
+
         if extraCond is not None:
-            curExtraCond = res_extraCond.get(intf, None)
             if curExtraCond is not None:
                 curExtraCond.data.append((skipWhen, extraCond))
             else:
-                extraCond = ExtraCondMemberList([(skipWhen, extraCond), ])
-                res_extraCond[intf] = extraCond
+                curExtraCond = ExtraCondMemberList([(skipWhen, extraCond), ])
+
+        return curExtraCond, curSkipWhen
 
     def _collectChannelRtlSync(self,
-                          sync_per_io: Dict[Interface, Union[SkipWhenMemberList, ExtraCondMemberList]],
+                          syncPerIo: Dict[Interface, Union[SkipWhenMemberList, ExtraCondMemberList]],
                           defaultVal: int):
         sync: Dict[Interface, RtlSignal] = {}
-        for intf, sync_source in sync_per_io.items():
+        for intf, sync_source in syncPerIo.items():
             intf = extractControlSigOfInterface(intf)
             if intf == (1, 1):
                 # does not have any sync
@@ -223,7 +327,10 @@ class ArchElement():
             # self._makeSyncNodeInjectInputVldToSkipWhenConditions(prevStageDataVld, con.syncIn, masters, slaves, con.io_skipWhen)
             extraConds = self._collectChannelRtlSync(con.io_extraCond, 1)
             skipWhen = self._collectChannelRtlSync(con.io_skipWhen, 0)
-
+            if self.debugAddNamesToSyncSignals:
+                extraConds = {io: rename_signal(self.netlist.parentUnit, cond, f"{io._name}_extraCond") for io, cond in extraConds.items()}
+                skipWhen = {io: rename_signal(self.netlist.parentUnit, cond, f"{io._name}_skipWhen") for io, cond in skipWhen.items()}
+            
         sync = StreamNode(
             masters,
             slaves,
@@ -233,7 +340,9 @@ class ArchElement():
         con.sync_node = sync
         return sync
 
-    def _allocateIo(self, ioDiscovery: HlsNetlistAnalysisPassDiscoverIo, intf: Interface, node: Union[HlsNetNodeRead, HlsNetNodeWrite],
+    def _allocateIo(self, ioDiscovery: HlsNetlistAnalysisPassDiscoverIo,
+                    intf: Interface,
+                    node: Union[HlsNetNodeRead, HlsNetNodeWrite],
                     con: ConnectionsOfStage,
                     ioMuxes: Dict[Interface, Tuple[Union[HlsNetNodeRead, HlsNetNodeWrite], List[HdlStatement]]],
                     ioSeen: UniqList[Interface],
@@ -247,8 +356,17 @@ class ArchElement():
             con.inputs.append(intf)
         else:
             con.outputs.append(intf)
-
-        self._copyChannelSync(intf, node, ioDiscovery.extraReadSync.get(node, None), con.io_skipWhen, con.io_extraCond)
+        
+        curExtraCond = con.io_extraCond.get(intf, None)
+        curSkipWhen = con.io_skipWhen.get(intf, None)
+        curExtraCond, curSkipWhen = self._copyChannelSync(node,
+                                        ioDiscovery.extraReadSync.get(node, None),
+                                        curExtraCond,
+                                        curSkipWhen)
+        if curExtraCond is not None:
+            con.io_extraCond[intf] = curExtraCond
+        if curSkipWhen is not None:
+            con.io_skipWhen[intf] = curSkipWhen
 
     def _allocateIoMux(self, ioMuxes: Dict[Interface, Tuple[Union[HlsNetNodeRead, HlsNetNodeWrite], List[HdlStatement]]],
                              ioSeen: UniqList[Interface]):
