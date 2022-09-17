@@ -121,10 +121,10 @@ class MirToHwtHlsNetlistOpCache():
         """
         k = (block, v)
         try:
-            v: HlsNetNodeOutAny = self._toHlsCache[k]
-            assert not isinstance(v, HlsNetNodeOutLazy) or v.replaced_by is None, (k, v)
-            assert v._dtype == dtype or v._dtype.bit_length() == dtype.bit_length(), ("Datatype is not what was expected", v, v._dtype, dtype)
-            return v
+            _v: HlsNetNodeOutAny = self._toHlsCache[k]
+            assert not isinstance(_v, HlsNetNodeOutLazy) or _v.replaced_by is None, (k, v)
+            assert _v._dtype == dtype or _v._dtype.bit_length() == dtype.bit_length(), ("Datatype is not what was expected", v, _v._dtype, dtype, _v)
+            return _v
 
         except KeyError:
             o = HlsNetNodeOutLazy(self._netlist, [k], self, dtype)
