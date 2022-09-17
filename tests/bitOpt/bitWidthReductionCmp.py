@@ -26,7 +26,7 @@ class BitWidthReductionCmp2Values(Unit):
  
         def mainThread():
             while BIT.from_py(1):
-                i = hls.read(self.i)
+                i = hls.read(self.i).data
                 # 1. only bits [5:0] should be compared
                 # and the cmp of other bits should be shared
                 # 2. output mux should be only for lower 4 bits and the uper bits should be set to 0x001 as it is constant in all cases
@@ -70,8 +70,8 @@ class BitWidthReductionCmpReducibleEq(Unit):
 
         def mainThread():
             while BIT.from_py(1):
-                a = hls.read(self.a)
-                b = hls.read(self.b)
+                a = hls.read(self.a).data
+                b = hls.read(self.b).data
                 hls.write(p(a, b), self.res)
                 hls.write(p(a, a), self.res_same)
                 hls.write(p(Concat(zero8b, a), Concat(zero8b, b)), self.res_prefix_same)  # resolved as a==b

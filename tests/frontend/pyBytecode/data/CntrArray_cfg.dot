@@ -9,8 +9,8 @@ legend [label=<
 </table>>, shape=plain, style=filled];
 "(0,)" [fillcolor=LightGreen, style=filled];
 "(44,)" [fillcolor=LightGreen, style=filled];
+"(130,)" [fillcolor=gray, style=filled];
 "(126,)" [fillcolor=gray, style=filled];
-"(122,)" [fillcolor=gray, style=filled];
 "(-1,)" [fillcolor=LightGreen, style=filled];
 "(L30i0, 30)" [fillcolor=LightGreen, style=filled];
 "(L30i0, 32)" [fillcolor=LightGreen, style=filled];
@@ -25,9 +25,9 @@ legend [label=<
 "(L54i0, 54)" [fillcolor=LightGreen, style=filled];
 "(L54i1, 54)" [fillcolor=gray, style=filled];
 "(0,)" -> "(L30i0, 30)";
-"(44,)" -> "(126,)"  [color=gray];
+"(44,)" -> "(130,)"  [color=gray];
 "(44,)" -> "(L54i0, 54)";
-"(122,)" -> "(126,)";
+"(126,)" -> "(130,)";
 "(-1,)" -> "(0,)";
 "(L30i0, 30)" -> "(44,)";
 "(L30i0, 30)" -> "(L30i0, 32)";
@@ -43,7 +43,7 @@ legend [label=<
 "(L30i3, 32)" -> "(L30i4, 30)";
 "(L30i4, 30)" -> "(44,)";
 "(L30i4, 30)" -> "(L30i4, 32)"  [color=gray];
-"(L54i0, 54)" -> "(122,)"  [color=gray];
+"(L54i0, 54)" -> "(126,)"  [color=gray];
 "(L54i0, 54)" -> "(L54i1, 54)"  [color=gray];
 "(L54i0, 54)" -> "(L54i0, 54)";
 }

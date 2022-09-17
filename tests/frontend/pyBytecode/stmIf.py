@@ -16,7 +16,7 @@ class HlsConnectionFromPyIf(Unit):
         addClkRstn(self)
 
     def mainThread(self, hls: HlsScope):
-        v = hls.read(self.i)
+        v = hls.read(self.i).data
         if v._eq(2):
             hls.write(3, self.o)
 
@@ -29,7 +29,7 @@ class HlsConnectionFromPyIf(Unit):
 class HlsConnectionFromPyIfElse(HlsConnectionFromPyIf):
 
     def mainThread(self, hls: HlsScope):
-        v = hls.read(self.i)
+        v = hls.read(self.i).data
         if v._eq(2):
             hls.write(3, self.o)
         else:
@@ -40,13 +40,13 @@ class HlsConnectionFromPyIfElsePreproc(HlsConnectionFromPyIf):
 
     def mainThread(self, hls: HlsScope, useIf: bool):
         if useIf:
-            v = hls.read(self.i)
+            v = hls.read(self.i).data
             if v._eq(2):
                 hls.write(3, self.o)
             else:
                 hls.write(10, self.o)
         else:
-            v = hls.read(self.i)
+            v = hls.read(self.i).data
             hls.write(v, self.o)
 
     def _impl(self):
@@ -58,7 +58,7 @@ class HlsConnectionFromPyIfElsePreproc(HlsConnectionFromPyIf):
 class HlsConnectionFromPyIfElifElse(HlsConnectionFromPyIf):
 
     def mainThread(self, hls: HlsScope):
-        v = hls.read(self.i)
+        v = hls.read(self.i).data
 
         if v._eq(2):
             hls.write(3, self.o)

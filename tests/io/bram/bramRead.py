@@ -34,7 +34,7 @@ class BramRead(Unit):
     def mainThread(self, hls: HlsScope, ram: BramArrayProxy):
         i = Bits(self.ADDR_WIDTH).from_py(0)
         while BIT.from_py(1):
-            d = hls.read(ram[i])
+            d = hls.read(ram[i]).data
             hls.write(d, self.dataOut) 
             i += 1
         

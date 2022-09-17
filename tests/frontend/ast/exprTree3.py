@@ -39,9 +39,9 @@ class HlsAstExprTree3_example(Unit):
     def _impl(self):
         hls = HlsScope(self)
         r = hls.read
-        a, b, c, d = r(self.a), r(self.b), r(self.c), r(self.d)
-        x, y, z, w = r(self.x), r(self.y), r(self.z), r(self.w)
-
+        _a, _b, _c, _d = r(self.a), r(self.b), r(self.c), r(self.d)
+        x, y, z, w = r(self.x).data, r(self.y).data, r(self.z).data, r(self.w).data
+        a, b, c, d = _a.data, _b.data, _c.data, _d.data
         f1 = (a + b + c) * d
         xy = x + y
         f2 = xy * z
@@ -51,7 +51,7 @@ class HlsAstExprTree3_example(Unit):
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
             ast.While(True,
-                a, b, c, d,
+                _a, _b, _c, _d,
                 wr(f1, self.f1),
                 wr(f2, self.f2),
                 wr(f3, self.f3),

@@ -26,7 +26,7 @@ class VariableChain(Unit):
         while BIT.from_py(1):
             for i, p in enumerate(path):
                 if i == 0:
-                    prev = hls.read(self.i)
+                    prev = hls.read(self.i).data
                 else:
                     prev = path[i - 1]
                 p(prev)

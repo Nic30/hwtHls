@@ -40,17 +40,17 @@ class PreprocLoopMultiExit_singleExit0(Unit):
 
         .. code-block:: Python
 
-            if hls.read(self.i) != 0:
+            if hls.read(self.i).data != 0:
                 hls.write(0, self.o)
-            if hls.read(self.i) != 1:
+            if hls.read(self.i).data != 1:
                 hls.write(1, self.o)
-            if hls.read(self.i) != 2:
+            if hls.read(self.i).data != 2:
                 hls.write(2, self.o)
         """
         for i in range(3):  # this for is unrolled in preprocessor
-            if hls.read(self.i) != i:
+            if hls.read(self.i).data != i:
                 hls.write(i, self.o)
-                # [todo] add variant with the braak because this one does not actually generate error
+                # [todo] add variant with the break because this one does not actually generate error
             # in each iteration this block will exist only once because divergence is not marked
 
     def _impl(self):
@@ -69,25 +69,25 @@ class PreprocLoopMultiExit_singleExit1(PreprocLoopMultiExit_singleExit0):
 
         .. code-block:: Python
 
-            if hls.read(self.i) != 0:
+            if hls.read(self.i).data != 0:
                 hls.write(0, self.o)
-                if hls.read(self.i) != 1:
+                if hls.read(self.i).data != 1:
                     hls.write(1, self.o)
                 else:
-                    if hls.read(self.i) != 2:
+                    if hls.read(self.i).data != 2:
                         hls.write(2, self.o)
         
             else:
-                if hls.read(self.i) != 1:
+                if hls.read(self.i).data != 1:
                     hls.write(1, self.o)
                 else:
-                    if hls.read(self.i) != 2:
+                    if hls.read(self.i).data != 2:
                         hls.write(2, self.o)
         
         """
 
         for i in range(3):  # this for is unrolled in preprocessor
-            if PyBytecodePreprocDivergence(hls.read(self.i) != i):
+            if PyBytecodePreprocDivergence(hls.read(self.i).data != i):
                 hls.write(i, self.o)
             # this block is duplicated for every possibility of condition in previous if statement
             
@@ -100,17 +100,17 @@ class PreprocLoopMultiExit_hwBreak0(PreprocLoopMultiExit_singleExit0):
 
         .. code-block:: Python
 
-            if hls.read(self.i)._eq(0):
+            if hls.read(self.i).data._eq(0):
                 hls.write(2, self.o)
             else:
-                if hls.read(self.i)._eq(0):
+                if hls.read(self.i).data._eq(0):
                     hls.write(2, self.o)
-                elif hls.read(self.i)._eq(0):
+                elif hls.read(self.i).data._eq(0):
                     hls.write(2, self.o)
         
         """
         for i in range(3):  # this for statement is unrolled in preprocessor
-            if hls.read(self.i)._eq(0):
+            if hls.read(self.i).data._eq(0):
                 # this block is duplicated for every possibility of break from previous for statement
                 hls.write(i, self.o)
                 break
@@ -124,15 +124,15 @@ class PreprocLoopMultiExit_hwBreak1(PreprocLoopMultiExit_singleExit0):
 
         .. code-block:: Python
 
-            if hls.read(self.i) == 0:
+            if hls.read(self.i).data == 0:
                 hls.write(0, self.o)
-            elif hls.read(self.i) == 0:
+            elif hls.read(self.i).data == 0:
                 hls.write(1, self.o)
-            elif hls.read(self.i) == 0:
+            elif hls.read(self.i).data == 0:
                 hls.write(2, self.o)
         """
         for i in range(3):  # this for statement is unrolled in preprocessor
-            if PyBytecodePreprocDivergence(hls.read(self.i)._eq(0)):
+            if PyBytecodePreprocDivergence(hls.read(self.i).data._eq(0)):
                 # this block is duplicated for every possibility of break from previous for statement
                 hls.write(i, self.o)
                 break
@@ -146,7 +146,7 @@ class PreprocLoopMultiExit_hwBreak2(PreprocLoopMultiExit_singleExit0):
         """
         while BIT.from_py(1):
             for i in range(4):
-                if PyBytecodePreprocDivergence(hls.read(self.i)._eq(0)):
+                if PyBytecodePreprocDivergence(hls.read(self.i).data._eq(0)):
                     hls.write(i, self.o)
                     break
 
@@ -176,7 +176,7 @@ class PreprocLoopMultiExit_countLeadingZeros_0(PreprocLoopMultiExit_singleExit0)
 
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
-            d = hls.read(self.i)
+            d = hls.read(self.i).data
             zeroCnt = uint8_t.from_py(self.DATA_WIDTH)
             for i in range(self.DATA_WIDTH):
                 zeroCnt = i  # there the value of i does not reach out of parent loop
@@ -189,7 +189,7 @@ class PreprocLoopMultiExit_countLeadingZeros_1_error(PreprocLoopMultiExit_single
     
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
-            d = hls.read(self.i)
+            d = hls.read(self.i).data
             zeroCnt = uint8_t.from_py(self.DATA_WIDTH)
             for i in range(self.DATA_WIDTH):
                 if d[i]:
@@ -206,7 +206,7 @@ class PreprocLoopMultiExit_countLeadingZeros_2(PreprocLoopMultiExit_singleExit0)
     
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
-            d = hls.read(self.i)
+            d = hls.read(self.i).data
             zeroCnt = uint8_t.from_py(self.DATA_WIDTH)
             for i in range(self.DATA_WIDTH):
                 if PyBytecodePreprocDivergence(d[i]):

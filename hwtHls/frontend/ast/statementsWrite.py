@@ -3,15 +3,13 @@ from typing import Union
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.value import HValue
-from hwt.interfaces.hsStructIntf import HsStructIntf
-from hwt.interfaces.std import Handshaked, HandshakeSync, VldSynced, RdSynced, \
-    Signal
-from hwt.interfaces.structIntf import StructIntf
 from hwt.synthesizer.interface import Interface
+from hwt.synthesizer.interfaceLevel.unitImplHelpers import getInterfaceName
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.ast.statements import HlsStm
-from hwtHls.frontend.ast.utils import _getNativeInterfaceWordType
+from hwtHls.frontend.ast.utils import _getNativeInterfaceWordType, \
+    ANY_HLS_STREAM_INTF_TYPE, ANY_SCALAR_INT_VALUE
 from hwtHls.llvm.llvmIr import MachineInstr
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.io import HlsNetNodeWrite, HlsNetNodeWriteIndexed
@@ -19,8 +17,6 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes
 from hwtHls.ssa.instr import SsaInstr, OP_ASSIGN
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer
 from hwtHls.ssa.value import SsaValue
-from hwtLib.amba.axi_intf_common import Axi_hs
-from hwt.synthesizer.interfaceLevel.unitImplHelpers import getInterfaceName
 
 
 class HlsWrite(HlsStm, SsaInstr):
@@ -31,7 +27,7 @@ class HlsWrite(HlsStm, SsaInstr):
     def __init__(self,
                  parent: "HlsScope",
                  src:Union[SsaValue, HValue],
-                 dst: Union[Handshaked, HsStructIntf, HandshakeSync, Axi_hs, VldSynced, RdSynced, Signal, StructIntf, RtlSignal],
+                 dst: ANY_HLS_STREAM_INTF_TYPE,
                  dtype: HdlType):
         HlsStm.__init__(self, parent)
         if isinstance(dst, RtlSignal):
@@ -94,7 +90,7 @@ class HlsWriteAddressed(HlsWrite):
             parent:"HlsScope",
             src:Union[SsaValue, HValue],
             dst:Interface,
-            index:Union[SsaValue, RtlSignal, HValue],
+            index: ANY_SCALAR_INT_VALUE,
             element_t: HdlType):
         HlsWrite.__init__(self, parent, src, dst, element_t)
         self.operands = (src, index)
@@ -129,7 +125,7 @@ class HlsWriteAddressed(HlsWrite):
         # srcVal, dstIo, index, cond = ops
         assert isinstance(dstIo, Interface), dstIo
         if isinstance(index, int):
-            raise AssertionError("If the index is constatnt it should be an output of a constant node but it is an integer", dstIo, instr)
+            raise AssertionError("If the index is constant it should be an output of a constant node but it is an integer", dstIo, instr)
         n = HlsNetNodeWriteIndexed(netlist, NOT_SPECIFIED, dstIo)
         link_hls_nodes(index, n.indexes[0])
         

@@ -179,9 +179,9 @@ class HlsNetlistReadSyncTC(SimTestCase):
         self.assertValSequenceEqual(res, dataOut)
 
     def test_ReadNonBlockingOrDefaultUnitHs(self,
-                                                      cls=ReadNonBlockingOrDefaultUnitHs,
-                                                      dataIn=range(8),
-                                                      dataOut=[0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 0, 5, 6, 0, 7, 0, 0, 0, 0, 0]):
+                                            cls=ReadNonBlockingOrDefaultUnitHs,
+                                            dataIn=range(8),
+                                            dataOut=[0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 0, 5, 6, 0, 7, 0, 0, 0, 0, 0]):
         self.test_ReadOrDefaultUnitHs(cls, dataIn, dataOut)
 
     def test_ReadNonBlockingOrDefaultUnit(self):

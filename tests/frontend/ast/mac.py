@@ -42,7 +42,7 @@ class HlsMAC_example(Unit):
         # (without read() operation will not be schedueled by HLS
         #  instead they will be directly synthesized)
         # [NOTE] number of input is hardcoded by this
-        a, b, c, d = [hls.read(intf) for intf in self.dataIn]
+        a, b, c, d = [hls.read(intf).data for intf in self.dataIn]
         # depending on target platform this expresion
         # can be mapped to DPS, LUT, etc...
         # no constrains are specified => default strategy is
@@ -78,7 +78,7 @@ class HlsMAC_example2(HlsMAC_example):
         # to achieve zero delay and minimum latency, for this CLK_FREQ
         muls = []
         for a, b in grouper(2, dataIn):
-            muls.append(a * b)
+            muls.append(a.data * b.data)
 
         adds = balanced_reduce(muls, lambda a, b: a + b)
         ast = HlsAstBuilder(hls)

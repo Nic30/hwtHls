@@ -18,7 +18,7 @@ class FnClosureSingleItem(Unit):
 
         # closure is (hls, )
         def read(a):
-            return hls.read(a)
+            return hls.read(a).data
 
         while BIT.from_py(1):
             hls.write(read(self.i), self.o)

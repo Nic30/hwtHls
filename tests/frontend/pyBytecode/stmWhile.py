@@ -19,7 +19,7 @@ class HlsPythonHwWhile0(Unit):
         while BIT.from_py(1):  # recognized as HW loop because of type
             i += 1
             hls.write(i, self.o)
-            if hls.read(self.i_rst):
+            if hls.read(self.i_rst).data:
                 i = 0
 
     def _impl(self):
@@ -38,7 +38,7 @@ class HlsPythonHwWhile1(HlsPythonHwWhile0):
             while True:  # recognized as HW loop because of break condition
                 hls.write(i, self.o)
                 i += 1
-                if hls.read(self.i_rst):
+                if hls.read(self.i_rst).data:
                     break
 
             i = 0

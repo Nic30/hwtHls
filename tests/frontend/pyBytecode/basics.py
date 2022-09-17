@@ -21,7 +21,7 @@ class HlsConnectionFromPyFn0(Unit):
 
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
-            hls.write(hls.read(self.i), self.o)
+            hls.write(hls.read(self.i).data, self.o)
 
     def _impl(self):
         hls = HlsScope(self, freq=int(10e6))
@@ -33,7 +33,7 @@ class HlsConnectionFromPyFnTmpVar(HlsConnectionFromPyFn0):
 
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
-            v = hls.read(self.i)
+            v = hls.read(self.i).data
             hls.write(v, self.o)
 
 
@@ -42,7 +42,7 @@ class HlsConnectionFromPyFnPreprocTmpVar0(HlsConnectionFromPyFn0):
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
             o = PyBytecodeInPreproc(self.o)
-            hls.write(hls.read(self.i), o)
+            hls.write(hls.read(self.i).data, o)
 
 
 class HlsConnectionFromPyFnPreprocTmpVar1(HlsConnectionFromPyFn0):
@@ -50,7 +50,7 @@ class HlsConnectionFromPyFnPreprocTmpVar1(HlsConnectionFromPyFn0):
     def mainThread(self, hls: HlsScope):
         o = PyBytecodeInPreproc(self.o)
         while BIT.from_py(1):
-            hls.write(hls.read(self.i), o)
+            hls.write(hls.read(self.i).data, o)
 
 
 class HlsConnectionFromPyFn1(Unit):
@@ -61,7 +61,7 @@ class HlsConnectionFromPyFn1(Unit):
 
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
-            hls.write(Concat(hls.read(self.i), Bits(4).from_py(0)), self.o)
+            hls.write(Concat(hls.read(self.i).data, Bits(4).from_py(0)), self.o)
 
     def _impl(self):
         HlsConnectionFromPyFn0._impl(self)
@@ -71,7 +71,7 @@ class HlsConnectionFromPyFnIfTmpVar(HlsConnectionFromPyFn0):
 
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
-            a: uint32_t = hls.read(self.i)
+            a: uint32_t = hls.read(self.i).data
             if a._eq(3):
                 hls.write(10, self.o)
             else:
@@ -82,7 +82,7 @@ class HlsConnectionFromPyFnIf(HlsConnectionFromPyFn0):
 
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
-            if hls.read(self.i)._eq(3):
+            if hls.read(self.i).data._eq(3):
                 hls.write(10, self.o)
             else:
                 hls.write(11, self.o)
@@ -92,7 +92,7 @@ class HlsConnectionFromPyFnIfIf(HlsConnectionFromPyFn0):
 
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
-            a = hls.read(self.i)
+            a = hls.read(self.i).data
             if a._eq(3):
                 if a._eq(4):
                     hls.write(10, self.o)
@@ -108,7 +108,7 @@ class HlsConnectionFromPyFnElif(HlsConnectionFromPyFn0):
 
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
-            a = hls.read(self.i)
+            a = hls.read(self.i).data
             if a._eq(3):
                 hls.write(10, self.o)
             elif a._eq(4):
@@ -128,7 +128,7 @@ class HlsConnectionFromPyFnWhile(HlsConnectionFromPyFn0):
             v = uint8_t.from_py(0)
             i = uint8_t.from_py(0)
             while i < 3:
-                v += hls.read(self.i)
+                v += hls.read(self.i).data
                 i += 1
             hls.write(v, self.o)
 

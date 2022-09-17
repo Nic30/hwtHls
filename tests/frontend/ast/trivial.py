@@ -42,7 +42,7 @@ class ReadWriteOnce0(WriteOnce):
     def _impl(self) -> None:
         hls = HlsScope(self)
         hls.addThread(HlsThreadFromAst(hls,
-            hls.write(hls.read(self.dataIn), self.dataOut),
+            hls.write(hls.read(self.dataIn).data, self.dataOut),
             self._name)
         )
         hls.compile()
@@ -54,7 +54,7 @@ class ReadWriteOnce1(ReadWriteOnce0):
         hls = HlsScope(self)
         tmp = hls.var("tmp", self.dataIn.T)
         hls.addThread(HlsThreadFromAst(hls, [
-                tmp(hls.read(self.dataIn)),
+                tmp(hls.read(self.dataIn).data),
                 hls.write(tmp, self.dataOut),
             ],
             self._name)
@@ -68,7 +68,7 @@ class ReadWriteOnce2(ReadWriteOnce0):
         hls = HlsScope(self)
         tmp = hls.var("tmp", self.dataIn.T)
         hls.addThread(HlsThreadFromAst(hls, [
-                tmp(hls.read(self.dataIn)),
+                tmp(hls.read(self.dataIn).data),
                 hls.write(tmp + 1, self.dataOut),
             ],
             self._name)
@@ -113,7 +113,7 @@ class WhileTrueReadWrite(WhileTrueWrite):
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
             ast.While(True,
-                hls.write(hls.read(self.dataIn), self.dataOut)
+                hls.write(hls.read(self.dataIn).data, self.dataOut)
             ),
             self._name)
         )
@@ -127,7 +127,7 @@ class WhileTrueReadWriteExpr(WhileTrueReadWrite):
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
             ast.While(True,
-                hls.write((hls.read(self.dataIn) * 8 + 2) * 3, self.dataOut)
+                hls.write((hls.read(self.dataIn).data * 8 + 2) * 3, self.dataOut)
             ),
             self._name)
         )

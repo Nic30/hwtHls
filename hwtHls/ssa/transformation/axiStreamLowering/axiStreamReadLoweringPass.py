@@ -292,7 +292,7 @@ class SsaPassAxiStreamReadLowering(SsaPass):
                 minNoOfWords = ceil(max(0, (w - (DATA_WIDTH - minOffset))) / DATA_WIDTH)
 
             for last, _ in iter_with_last(range(minNoOfWords)):
-                partRead = HlsRead(read._parent, read._src, word_t)
+                partRead = HlsRead(read._parent, read._src, word_t, True)
                 prevWordVars.append(partRead)
                 exprBuilder._insertInstr(partRead)
                 if last:

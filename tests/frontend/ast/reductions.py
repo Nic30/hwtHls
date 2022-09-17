@@ -38,11 +38,11 @@ class SumReduce(Unit):
                     # if this for is not unrolled the execution is sequential,
                     # in each clock only a single input is read
                     ast.If(i._eq(0),
-                        i(hls.read(din[0])),
+                        i(hls.read(din[0]).data),
                     ).Elif(i._eq(1),
-                        i(hls.read(din[1])),
+                        i(hls.read(din[1]).data),
                     ).Elif(i._eq(2),
-                        i(hls.read(din[2])),
+                        i(hls.read(din[2]).data),
                     )
                 ),
                 hls.write(res, self.dataOut0),

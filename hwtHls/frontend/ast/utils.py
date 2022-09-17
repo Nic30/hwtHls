@@ -7,6 +7,16 @@ from hwt.interfaces.structIntf import StructIntf
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtLib.amba.axi_intf_common import Axi_hs
+from typing import Union
+from hwt.interfaces.unionIntf import UnionSink, UnionSource
+from hwt.hdl.value import HValue
+from hwtHls.ssa.value import SsaValue
+
+ANY_HLS_STREAM_INTF_TYPE = Union[Handshaked, Axi_hs, VldSynced,
+                                 HsStructIntf, RtlSignal, Signal,
+                                 UnionSink, UnionSource]
+
+ANY_SCALAR_INT_VALUE = Union[RtlSignal, HValue, Signal, SsaValue]
 
 
 def _getNativeInterfaceWordType(i: Interface) -> HdlType:

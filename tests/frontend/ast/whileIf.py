@@ -106,7 +106,7 @@ class WhileAndIf2(WhileTrueReadWrite):
                 # if there is not pending transaction we do not require the control token
                 # from while body end to push data in while body, otherwise we need to wait for one
                 ast.While(x,
-                    x(x - hls.read(self.dataIn)),
+                    x(x - hls.read(self.dataIn).data),
                     # a single predecessor, control sync managed by pipeline, no dynamic scheduling
                     hls.write(x, dout),
                 ),
@@ -130,7 +130,7 @@ class WhileAndIf3(WhileTrueReadWrite):
                 # if there is not pending transaction we do not require the control token
                 # from while body end to push data in while body, otherwise we need to wait for one
                 ast.While(True,
-                    x(x - hls.read(self.dataIn)),
+                    x(x - hls.read(self.dataIn).data),
                     # a single predecessor, control sync managed by pipeline, no dynamic scheduling
                     hls.write(x, dout),
                     ast.If(x._eq(0),
@@ -157,7 +157,7 @@ class WhileAndIf4(WhileTrueReadWrite):
                 # if there is not pending transaction we do not require the control token
                 # from while body end to push data in while body, otherwise we need to wait for one
                 ast.While(True,
-                    x(x - hls.read(self.dataIn)),
+                    x(x - hls.read(self.dataIn).data),
                     # a single predecessor, control sync managed by pipeline, no dynamic scheduling
                     ast.If(x < 5,
                         hls.write(x, dout),

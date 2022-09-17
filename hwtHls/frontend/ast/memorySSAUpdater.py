@@ -88,7 +88,10 @@ class MemorySSAUpdater():
                     parts.append(variable[width:high])
 
                 # append modified bits
-                if isinstance(value, SsaValue) and not isinstance(value, HlsRead):
+                if isinstance(value, HlsRead):
+                    parts.append(value._sig[value._dtype.bit_length():])
+                
+                elif isinstance(value, SsaValue):
                     assert value.origin is not None, value
                     parts.append(value.origin)
 

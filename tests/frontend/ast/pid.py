@@ -40,11 +40,11 @@ class PidControllerHalfHls(PidController):
 
         hls = HlsScope(self)
         # in HLS create only arith. expressions between inputs and regs
-        y = [hls.read(_y) for _y in y]
-        err = y[0] - hls.read(self.target)
-        a = [hls.read(c) for c in self.coefs]
+        y = [hls.read(_y).data for _y in y]
+        err = y[0] - hls.read(self.target).data
+        a = [hls.read(c).data for c in self.coefs]
 
-        _u = Add(hls.read(u), a[0] * err, a[1] * y[0],
+        _u = Add(hls.read(u).data, a[0] * err, a[1] * y[0],
                  a[2] * y[1], a[3] * y[2], key=trim)
 
         ast = HlsAstBuilder(hls)
@@ -71,7 +71,7 @@ class PidControllerHls(PidControllerHalfHls):
         hls = HlsScope(self)
 
         # create y-pipeline registers (y -> y_reg[0]-> y_reg[1])
-        y = [hls.read(self.input), ]
+        y = [hls.read(self.input).data, ]
         for i in range(2):
             y.append(hls.var(f"y_reg{i:d}", dtype=self.input._dtype))
 
@@ -79,8 +79,8 @@ class PidControllerHls(PidControllerHalfHls):
         def trim(signal):
             return signal._reinterpret_cast(self.output._dtype)
 
-        err = y[0] - hls.read(self.target)
-        coefs = [hls.read(c) for c in self.coefs]
+        err = y[0] - hls.read(self.target).data
+        coefs = [hls.read(c).data for c in self.coefs]
         u = hls.var("u", self.output._dtype)
         
         ast = HlsAstBuilder(hls)

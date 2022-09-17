@@ -25,7 +25,7 @@ class HlsConnection(Unit):
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
             ast.While(True,
-                hls.write(hls.read(self.a), self.b)
+                hls.write(hls.read(self.a).data, self.b)
             ),
             self._name)
         )
@@ -44,7 +44,7 @@ class HlsSlice(Unit):
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
             ast.While(True,
-                hls.write(hls.read(self.a)[16:], self.b)
+                hls.write(hls.read(self.a).data[16:], self.b)
             ),
             self._name)
         )
@@ -64,7 +64,7 @@ class HlsSlice2TmpHlsVarConcat(Unit):
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
             ast.While(True,
-                tmp(Concat(Bits(16).from_py(16), hls.read(self.a))),
+                tmp(Concat(Bits(16).from_py(16), hls.read(self.a).data)),
                 hls.write(tmp, self.b)
             ),
             self._name)
@@ -79,7 +79,7 @@ class HlsSlice2TmpHlsVarConcat(Unit):
 #        ast = HlsAstBuilder(hls)
 #        hls.addThread(HlsThreadFromAst(hls,
 #            ast.While(True,
-#                hls.write(hls.read(self.a), self.b[16:]),
+#                hls.write(hls.read(self.a).data, self.b[16:]),
 #                hls.write(16, self.b[:16]),
 #            ),
 #            self._name)
@@ -95,7 +95,7 @@ class HlsSlice2TmpHlsVarSlice(HlsSlice2TmpHlsVarConcat):
         hls.addThread(HlsThreadFromAst(hls,
             ast.While(True,
                 tmp[:16](Bits(16).from_py(16)),
-                tmp[16:](hls.read(self.a)),
+                tmp[16:](hls.read(self.a).data),
                 hls.write(tmp, self.b)
             ),
             self._name)

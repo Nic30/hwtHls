@@ -18,7 +18,7 @@ from hwtLib.amba.axis import AxiStream
 from hwtLib.examples.builders.pingResponder_test import PingResponderTC as HwtLibPingResponderTC
 from hwtLib.types.net.ethernet import Eth2Header_t, ETHER_TYPE
 from hwtLib.types.net.icmp import ICMP_echo_header_t, ICMP_TYPE
-from hwtLib.types.net.ip import IPv4Header_t, ipv4_t
+from hwtLib.types.net.ip import IPv4Header_t, ipv4_t, IP_PROTOCOL
 
 echoFrame_t = HStruct(
     (Eth2Header_t, "eth"),
@@ -68,12 +68,15 @@ class PingResponder(Unit):
 
     def mainThread(self, hls: HlsScope, rx: IoProxyAxiStream, tx: IoProxyAxiStream):
         while BIT.from_py(1):
-            myIp = hls.read(self.myIp)
+            myIp = hls.read(self.myIp).data
             rx.readStartOfFrame()
             p = PyBytecodeInPreproc(rx.read(echoFrame_t))
             pd = p.data
             rx.readEndOfFrame()
-            if pd.eth.type._eq(ETHER_TYPE.IPv4) & reverseByteOrder(pd.ip.dst)._eq(myIp) & pd.icmp.type._eq(ICMP_TYPE.ECHO_REQUEST):
+            if pd.eth.type._eq(ETHER_TYPE.IPv4) & \
+               reverseByteOrder(pd.ip.dst)._eq(myIp) & \
+               pd.ip.protocol._eq(IP_PROTOCOL.ICMP) & \
+               pd.icmp.type._eq(ICMP_TYPE.ECHO_REQUEST):
                 # set fields for reply
                 pd.icmp.type = ICMP_TYPE.ECHO_REPLY
                 pd.icmp.code = 0

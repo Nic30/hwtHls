@@ -77,7 +77,7 @@ class SliceBreak0(SliceBreakSlicedVar0):
         self.o = VectSignal(32)._m()
 
     def mainThread(self, hls: HlsScope):
-        i = hls.read(self.i)
+        i = hls.read(self.i).data
         x = Concat(i[:16], i[16:])
         hls.write(x, self.o)
         
@@ -85,7 +85,7 @@ class SliceBreak0(SliceBreakSlicedVar0):
 class SliceBreak1(SliceBreak0):
 
     def mainThread(self, hls: HlsScope):
-        i = hls.read(self.i)
+        i = hls.read(self.i).data
         x = Concat(i[:16], i[16:])
         
         hls.write(x + 1, self.o)
@@ -94,7 +94,7 @@ class SliceBreak1(SliceBreak0):
 class SliceBreak2(SliceBreak0):
 
     def mainThread(self, hls: HlsScope):
-        i = hls.read(self.i)
+        i = hls.read(self.i).data
         x = Concat(i[:16], i[16:])
         
         hls.write(~(x + 1), self.o)
@@ -103,7 +103,7 @@ class SliceBreak2(SliceBreak0):
 class SliceBreak3(SliceBreak0):
 
     def mainThread(self, hls: HlsScope):
-        i = hls.read(self.i)
+        i = hls.read(self.i).data
         x0 = Concat(i[:16], i[16:])
         x1 = ~(x0 + 1)
         x2 = Concat(x1[:16], x1[16:])
@@ -119,7 +119,7 @@ class Slice0(Unit):
         self.o = VectSignal(32)._m()
 
     def mainThread(self, hls: HlsScope):
-        x = hls.read(self.i)
+        x = hls.read(self.i).data
         hls.write(Concat(Bits(16).from_py(0), x), self.o)     
         
     def _impl(self) -> None:
@@ -131,7 +131,7 @@ class Slice0(Unit):
 class Slice1(Slice0):
     
     def mainThread(self, hls: HlsScope):
-        x = Concat(Bits(32).from_py(0), hls.read(self.i))
+        x = Concat(Bits(32).from_py(0), hls.read(self.i).data)
         hls.write(x[32:], self.o)     
 
 
@@ -156,8 +156,8 @@ class Slice2(Slice0):
             u.DATA_WIDTH = 1
 
         """
-        v3 = hls.read(self.i0)
-        v2 = hls.read(self.i1)
+        v3 = hls.read(self.i0).data
+        v2 = hls.read(self.i1).data
         v4 = v2[4 + 1:1]
         v7 = Concat(v4, v3)
         v9 = v7[2 + 3:2]

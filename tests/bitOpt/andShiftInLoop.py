@@ -35,7 +35,7 @@ class AndShiftInLoop(Unit):
         i1 = mask(8)
         i2 = mask(8)
         while BIT.from_py(1):
-            i = hls.read(self.i)
+            i = hls.read(self.i).data
             i0 &= i
             i1 &= (i0 << 1)
             i2 &= (i2 << 1)

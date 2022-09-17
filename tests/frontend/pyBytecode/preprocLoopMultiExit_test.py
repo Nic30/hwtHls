@@ -92,9 +92,9 @@ PreprocLoopMultiExit_TCs = [
 
 if __name__ == "__main__":
     import unittest
-    # from hwt.synthesizer.utils import to_rtl_str
-    # u = PreprocLoopMultiExit_hwBreak0()
-    # print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
+    from hwt.synthesizer.utils import to_rtl_str
+    u = PreprocLoopMultiExit_singleExit0()
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
 
     suite = unittest.TestSuite()
     #suite.addTest(PreprocLoopMultiExit_hwBreak0_TC('test_0in2_withSuc'))

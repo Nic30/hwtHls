@@ -5,17 +5,11 @@ from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.hdlType import HdlType
-from hwt.hdl.value import HValue
-from hwt.interfaces.hsStructIntf import HsStructIntf
-from hwt.interfaces.signalOps import SignalOps
-from hwt.interfaces.std import Handshaked, Signal, VldSynced
 from hwt.interfaces.structIntf import StructIntf
-from hwt.interfaces.unionIntf import UnionSink, UnionSource
 from hwt.synthesizer.interface import Interface
-from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getInterfaceName
-from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.frontend.ast.utils import _getNativeInterfaceWordType
+from hwtHls.frontend.ast.utils import _getNativeInterfaceWordType, \
+    ANY_HLS_STREAM_INTF_TYPE, ANY_SCALAR_INT_VALUE
 from hwtHls.llvm.llvmIr import Register, MachineInstr
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.io import HlsNetNodeRead, HlsNetNodeReadIndexed
@@ -25,44 +19,48 @@ from hwtHls.ssa.instr import SsaInstr, OP_ASSIGN
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.opCache import MirToHwtHlsNetlistOpCache
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer
 from hwtHls.ssa.value import SsaValue
-from hwtLib.amba.axi_intf_common import Axi_hs
 
 
-ANY_HLS_STREAM_INTF_TYPE = Union[Handshaked, Axi_hs, VldSynced,
-                                 HsStructIntf, RtlSignal, Signal,
-                                 UnionSink, UnionSource]
-
-
-class HlsRead(HdlStatement, SignalOps, InterfaceBase, SsaInstr):
+class HlsRead(HdlStatement, SsaInstr):
     """
-    Container of informations about read from some stream
+    Container of informations about read from some IO.
+    This object behaves as a HdlStatement and SsaInstr instance.
+    By inheriting from all base classes it is possible to use this object in user code
+    and to keep this object until conversion to LLVM.
     """
 
     def __init__(self,
                  parent: "HlsScope",
                  src: ANY_HLS_STREAM_INTF_TYPE,
                  dtype: HdlType,
-                 intfName:Optional[str]=None):
+                 isBlocking: bool,
+                 intfName: Optional[str]=None):
         super(HlsRead, self).__init__()
         self._isAccessible = True
         self._parent = parent
         self._src = src
+        self._isBlocking = isBlocking
         self.block: Optional[SsaBasicBlock] = None
         
         if intfName is None:
             intfName = getInterfaceName(parent.parentUnit, src)
+
+        # create an interface and signals which will hold value of this object
         var = parent.var
         name = f"{intfName:s}_read"
         sig = var(name, dtype)
-        if isinstance(sig, Interface):
+        if isinstance(sig, Interface) or not isBlocking:
             w = dtype.bit_length()
             force_vector = False
             if w == 1 and isinstance(dtype, Bits):
                 force_vector = dtype.force_vector
                 
-            sig_flat = var(name, Bits(w, force_vector=force_vector))
+            sig_flat = var(name, Bits(w + (0 if isBlocking else 1), force_vector=force_vector))
             # use flat signal and make type member fields out of slices of that signal
-            sig = sig_flat._reinterpret_cast(dtype)
+            if isBlocking:
+                sig = sig_flat._reinterpret_cast(dtype)
+            else:
+                sig = sig_flat[w:]._reinterpret_cast(dtype)
             sig._name = name
             sig_flat.drivers.append(self)
             sig_flat.origin = self
@@ -77,17 +75,11 @@ class HlsRead(HdlStatement, SignalOps, InterfaceBase, SsaInstr):
         SsaInstr.__init__(self, parent.ssaCtx, sig_flat._dtype, OP_ASSIGN, (),
                           origin=sig)
         self._dtypeOrig = dtype
-        if isinstance(sig, StructIntf):
-            self._interfaces = sig._interfaces
-            # copy all members on this object
-            for field_path, field_intf in sig._fieldsToInterfaces.items():
-                if len(field_path) == 1:
-                    n = field_path[0]
-                    assert not hasattr(self, n), (self, n)
-                    assert not hasattr(self, n), ("name collision of ", self.__class__.__name__, "and read type member", n)
-                    setattr(self, n, field_intf)
+        self.data = sig
+        if isBlocking:
+            self.valid = BIT.from_py(1)
         else:
-            self._interfaces = []
+            self.valid = sig_flat[w]
 
     @internal
     def _get_rtl_context(self) -> 'RtlNetlist':
@@ -125,12 +117,14 @@ class HlsRead(HdlStatement, SignalOps, InterfaceBase, SsaInstr):
         assert isinstance(srcIo, Interface), srcIo
         assert isinstance(index, int) and index == 0, (srcIo, index, "Because this read is not addressed there should not be any index")
         n = HlsNetNodeRead(netlist, srcIo)
+        if not representativeReadStm._isBlocking:
+            n.setNonBlocking()
 
         mirToNetlist._addExtraCond(n, cond, mbSync.blockEn)
         mirToNetlist._addSkipWhen_n(n, cond, mbSync.blockEn)
         mbSync.addOrderedNode(n)
         mirToNetlist.inputs.append(n)
-        valCache.add(mbSync.block, instrDstReg, n._outputs[0], True)
+        valCache.add(mbSync.block, instrDstReg, n._outputs[0] if representativeReadStm._isBlocking else n._rawValue, True)
 
     def __repr__(self):
         t = self._dtype
@@ -142,11 +136,17 @@ class HlsRead(HdlStatement, SignalOps, InterfaceBase, SsaInstr):
 
 
 class HlsReadAddressed(HlsRead):
+    """
+    Variant of :class:`~.HlsRead` with an index or address input.
+    """
 
-    def __init__(self,
-            parent:"HlsScope",
-            src:Interface, index: Union[RtlSignal, HValue, Signal, SsaValue], element_t: HdlType):
-        super(HlsReadAddressed, self).__init__(parent, src, element_t)
+    def __init__(self, parent:"HlsScope",
+                 src:Interface,
+                 index: ANY_SCALAR_INT_VALUE,
+                 element_t: HdlType,
+                 isBlocking:bool,
+                 intfName: Optional[str]=None):
+        super(HlsReadAddressed, self).__init__(parent, src, element_t, isBlocking, intfName=intfName)
         self.operands = (index,)
         if isinstance(index, SsaValue):
             # assert index.block is not None, (index, "Must not construct instruction with operands which are not in SSA")
@@ -167,7 +167,7 @@ class HlsReadAddressed(HlsRead):
         netlist: HlsNetlistCtx = mirToNetlist.netlist
         assert isinstance(srcIo, Interface), srcIo
         if isinstance(index, int):
-            raise AssertionError("If the index is constatnt it should be an output of a constant node but it is an integer", srcIo, instr)
+            raise AssertionError("If the index is constant it should be an output of a constant node but it is an integer", srcIo, instr)
 
         n = HlsNetNodeReadIndexed(netlist, srcIo)
         link_hls_nodes(index, n.indexes[0])
@@ -197,7 +197,7 @@ class HlsStmReadStartOfFrame(HlsRead):
     def __init__(self,
             parent:"HlsScope",
             src:ANY_HLS_STREAM_INTF_TYPE):
-        HlsRead.__init__(self, parent, src, BIT)
+        HlsRead.__init__(self, parent, src, BIT, True)
 
 
 class HlsStmReadEndOfFrame(HlsRead):
@@ -210,4 +210,4 @@ class HlsStmReadEndOfFrame(HlsRead):
     def __init__(self,
             parent:"HlsScope",
             src:ANY_HLS_STREAM_INTF_TYPE):
-        HlsRead.__init__(self, parent, src, BIT)
+        HlsRead.__init__(self, parent, src, BIT, True)

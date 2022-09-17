@@ -1,11 +1,14 @@
 from typing import Union, Optional, List, Generator
 
+from hwt.code import Concat
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.bits import Bits
+from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.hdlType import HdlType
+from hwt.hdl.value import HValue
 from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.interfaces.std import Signal, HandshakeSync, Handshaked, VldSynced, \
-    RdSynced
+    RdSynced, BramPort_withoutClk
 from hwt.interfaces.structIntf import StructIntf
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
@@ -13,8 +16,10 @@ from hwt.synthesizer.interfaceLevel.interfaceUtils.utils import packIntf, \
     connectPacked
 from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
+from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
+from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, \
+    INVARIANT_TIME
 from hwtHls.netlist.nodes.delay import HlsNetNodeDelayClkTick
 from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict, InputTimeGetter, TimeSpec
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
@@ -25,6 +30,7 @@ from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axi_intf_common import Axi_hs
 from ipCorePackager.constants import INTF_DIRECTION_asDirecton, \
     DIRECTION_opposite, DIRECTION
+
 
 IO_COMB_REALIZATION = OpRealizationMeta(outputWireDelay=epsilon)
 
@@ -77,6 +83,9 @@ class HlsNetNodeExplicitSync(HlsNetNode):
         for i in self._inputs:
             if i.in_i != 0 and i not in (self.extraCond, self.skipWhen):
                 yield i
+
+    def getOrderingOutPort(self) -> HlsNetNodeOut:
+        return self._outputs[1]
 
     def allocateRtlInstance(self, allocator: "ArchElement") -> TimeIndependentRtlResource:
         assert type(self) is HlsNetNodeExplicitSync, self
@@ -161,8 +170,11 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
 
     :ivar _sig: RTL signal in HLS context used for HLS code description
     :ivar src: original interface from which read should be performed
-
+    :ivar _isBlocking: If true the node blocks the CFG until the read is performed. If False
+        the node uses flag to signalize that the read was performed and never blocks the CFG.
     :ivar dependsOn: list of dependencies for scheduling composed of extraConds and skipWhen
+    :ivar _valid: output with "valid" signal for non blocking reads which signalizes that the read was successful.
+    :ivar _rawValue: Concat(valid, dataOut)
     """
 
     def __init__(self, netlist: "HlsNetlistCtx", src: Union[RtlSignal, Interface]):
@@ -170,37 +182,63 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
         self.operator = "read"
         self.src = src
         self.maxIosPerClk = 1
+        self._isBlocking = True
+        self._valid = None
+        self._rawValue = None
         self._associatedReadSync: Optional["HlsNetNodeReadSync"] = None
 
         self._init_extraCond_skipWhen()
         self._addOutput(self.getRtlDataSig()._dtype, "dataOut")
         self._addOutput(HOrderingVoidT, "orderingOut")
-            
-    def getOrderingOutPort(self) -> HlsNetNodeOut:
-        return self._outputs[1]
-
+    
+    def setNonBlocking(self):
+        self._isBlocking = False
+        assert self._valid is None, (self, "Already is non blocking")
+        self._rawValue = self._addOutput(Bits(self._outputs[0]._dtype.bit_length() + 1), "rawValue")
+        self._valid = self._addOutput(BIT, "valid")
+        
     def iterOrderingInputs(self) -> Generator[HlsNetNodeIn, None, None]:
         for i in self._inputs:
             if i not in (self.extraCond, self.skipWhen):
                 yield i
 
-    def allocateRtlInstance(self, allocator: "ArchElement") -> TimeIndependentRtlResource:
+    def getRtlValidSig(self, allocator: "ArchElement") -> Union[RtlSignalBase, HValue]:
+        intf = self.src
+        if isinstance(intf, Axi_hs):
+            return intf.valid._sig
+        elif isinstance(intf, (Handshaked, HandshakeSync, VldSynced)):
+            return intf.vld._sig
+        elif isinstance(intf, (Signal, RtlSignalBase, RdSynced)):
+            return BIT.from_py(1)
+        elif isinstance(intf, BramPort_withoutClk):
+            return intf.en._sig
+        else:
+            raise NotImplementedError(intf)
+
+    def allocateRtlInstance(self, allocator: "ArchElement") -> Union[TimeIndependentRtlResource, List[HdlStatement]]:
         """
         Instantiate read operation on RTL level
         """
         r_out = self._outputs[0]
         try:
-            return allocator.netNodeToRtl[r_out]
+            cur = allocator.netNodeToRtl[r_out]
+            if self._isBlocking:
+                return cur
+            else:
+                return []  # because there are multiple outputs
+
         except KeyError:
             pass
 
         t = self.scheduledOut[0]
-        _o = TimeIndependentRtlResource(
-            self.getRtlDataSig(),
+        
+        dataRtl = self.getRtlDataSig()
+        _data = TimeIndependentRtlResource(
+            dataRtl,
             t,
             allocator, False)
 
-        allocator.netNodeToRtl[r_out] = _o
+        allocator.netNodeToRtl[r_out] = _data
         for sync in self.dependsOn:
             if sync._dtype == HOrderingVoidT:
                 continue
@@ -209,7 +247,28 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
             # in this step we are building only data path
             sync.obj.allocateRtlInstance(allocator)
 
-        return _o
+        
+        if self._isBlocking:
+            assert self._valid is None, self
+        else:
+            validRtl = self.getRtlValidSig(allocator)
+            _valid = TimeIndependentRtlResource(
+                validRtl,
+                INVARIANT_TIME if isinstance(validRtl, HValue) else t,
+                allocator,
+                False)
+            allocator.netNodeToRtl[self._valid] = _valid
+            
+            rawValue = Concat(validRtl, dataRtl)
+            _rawValue = TimeIndependentRtlResource(
+                rawValue,
+                INVARIANT_TIME if isinstance(rawValue, HValue) else t,
+                allocator,
+                False)
+            allocator.netNodeToRtl[self._rawValue] = _rawValue
+
+        # because there are multiple outputs
+        return _data if self._isBlocking else []
 
     def _getNumberOfIoInThisClkPeriod(self, intf: Interface, searchFromSrcToDst: bool) -> int:
         """
@@ -285,20 +344,27 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync, InterfaceBase):
         
         if isinstance(src, Axi_hs):
             exclude = (src.valid, src.ready)
+
         elif isinstance(src, (Handshaked, HandshakeSync)):
             exclude = (src.vld, src.rd)
+
         elif isinstance(src, VldSynced):
             exclude = (src.vld,)
+
         elif isinstance(src, RdSynced):
-            return packIntf(src, masterDirEqTo=DIRECTION_opposite[INTF_DIRECTION_asDirecton[src.rd._direction]], exclude=(src.rd,))
+            return packIntf(src,
+                            masterDirEqTo=DIRECTION_opposite[INTF_DIRECTION_asDirecton[src.rd._direction]],
+                            exclude=(src.rd,))
         else:
             return packIntf(src, masterDirEqTo=src._masterDir)
         
         assert exclude[0]._masterDir == DIRECTION.OUT, exclude[0]._masterDir
-        return packIntf(src, masterDirEqTo=exclude[0]._masterDir, exclude=exclude)
+        return packIntf(src,
+                        masterDirEqTo=exclude[0]._masterDir,
+                        exclude=exclude)
 
     def __repr__(self):
-        return f"<{self.__class__.__name__:s} {self._id:d} {self.src}>"
+        return f"<{self.__class__.__name__:s}{'' if self._valid is None else ' NB'} {self._id:d} {self.src}>"
 
 
 class HlsNetNodeReadIndexed(HlsNetNodeRead):
@@ -333,7 +399,7 @@ class HlsNetNodeReadIndexed(HlsNetNodeRead):
             return ""
 
     def __repr__(self):
-        return f"<{self.__class__.__name__:s} {self._id:d} {self.src}{self._strFormatIndexes(self.indexes)}>"
+        return f"<{self.__class__.__name__:s}{'' if self._valid is None else ' NB'} {self._id:d} {self.src}{self._strFormatIndexes(self.indexes)}>"
 
 
 class HlsNetNodeWrite(HlsNetNodeExplicitSync):

@@ -32,7 +32,7 @@ class ReadIfOtherEqual(Unit):
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
             ast.While(True,
-                ast.If(hls.read(self.a)._eq(3),
+                ast.If(hls.read(self.a).data._eq(3),
                    hls.read(self.b),
                 )
             ),
@@ -47,7 +47,7 @@ class ReadIfOtherEqualOnce(ReadIfOtherEqual):
         hls = HlsScope(self, freq=self.FREQ)
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
-            ast.If(hls.read(self.a)._eq(3),
+            ast.If(hls.read(self.a).data._eq(3),
                hls.read(self.b),
             ),
             self._name)

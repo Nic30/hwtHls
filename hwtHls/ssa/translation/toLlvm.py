@@ -10,8 +10,10 @@ from hwt.hdl.types.slice import HSlice
 from hwt.hdl.types.struct import HStruct
 from hwt.hdl.value import HValue
 from hwt.interfaces.std import BramPort_withoutClk
+from hwt.math import log2ceil
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getInterfaceName
+from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.frontend.ast.statementsRead import HlsRead, HlsReadAddressed
 from hwtHls.frontend.ast.statementsWrite import HlsWrite, HlsWriteAddressed
@@ -25,7 +27,6 @@ from hwtHls.ssa.transformation.utils.blockAnalysis import collect_all_blocks
 from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axi4Lite import Axi4Lite
 from hwtLib.types.ctypes import uint64_t
-from hwt.synthesizer.unit import Unit
 
 
 RE_ID_WITH_NUMBER = re.compile('[^0-9]+|[0-9]+')
@@ -153,10 +154,13 @@ class ToLlvmIrTranslator():
             op0, op1 = instr.operands
             op0 = self._translateExpr(op0)
             # res_t = self._translateType(instr._dtype)
+            indexW = log2ceil(instr.operands[0]._dtype.bit_length())
+            indexT = Bits(indexW + 1)
+            llvmIndexT = TypeToIntegerType(self._translateType(indexT))
             if isinstance(op1._dtype, HSlice):
-                op1 = self._translateExprInt(int(op1.val.stop), TypeToIntegerType(op0.getType()))
+                op1 = self._translateExprInt(int(op1.val.stop), llvmIndexT)
             else:
-                op1 = self._translateExprInt(int(op1), TypeToIntegerType(op0.getType()))
+                op1 = self._translateExprInt(int(op1), llvmIndexT)
 
             return b.CreateBitRangeGet(op0, op1, instr._dtype.bit_length())
 
@@ -284,6 +288,10 @@ class ToLlvmIrTranslator():
         wordType = None
         if reads:
             wordType = reads[0]._getNativeInterfaceWordType()
+            if not reads[0]._isBlocking:
+                wordType = Bits(wordType.bit_length() + 1)
+            elif not isinstance(wordType, Bits):
+                wordType = Bits(wordType.bit_length())
 
         if writes:
             _wordType = writes[0]._getNativeInterfaceWordType()
@@ -353,20 +361,30 @@ class SsaPassToLlvm():
 
     def apply(self, hls: "HlsScope", toSsa: HlsAstToSsa):
         io: Dict[Interface, Tuple[List[HlsRead], List[HlsWrite]]] = toSsa.collectIo()
-        for i, (reads, writes) in io.items(): 
+        for i, (reads, writes) in io.items():
+            if not reads and not writes:
+                raise AssertionError("Unused IO ", i)
+                
             for instr in reads:
                 instr: HlsRead
                 assert i is instr._src, (i, instr)
-                assert instr._dtype.bit_length() == instr._getNativeInterfaceWordType().bit_length(), (
-                    "In this stages the read operations must read only native type of interface",
-                    instr, instr._getNativeInterfaceWordType())
+                nativeWordT = instr._getNativeInterfaceWordType()
+                if instr._isBlocking:
+                    assert instr._dtype.bit_length() == nativeWordT.bit_length(), (
+                        "In this stages the read operations must read only native type of interface",
+                        instr, nativeWordT)
+                else:
+                    assert instr._dtype.bit_length() == nativeWordT.bit_length() + 1, (
+                        "In this stages the read operations must read only native type of interface",
+                        instr, nativeWordT)
 
             for instr in writes:
                 instr: HlsWrite
                 assert i is instr.dst, (i, instr)
-                assert instr.operands[0]._dtype.bit_length() == instr._getNativeInterfaceWordType().bit_length(), (
+                nativeWordT = instr._getNativeInterfaceWordType()
+                assert instr.operands[0]._dtype.bit_length() == nativeWordT.bit_length(), (
                     "In this stages the read operations must read only native type of interface",
-                    instr, instr.operands[0]._dtype, instr._getNativeInterfaceWordType())
+                    instr, instr.operands[0]._dtype, nativeWordT)
 
         toLlvm = ToLlvmIrTranslator(toSsa.label, io, hls.parentUnit)
         toLlvm.translate(toSsa.start)

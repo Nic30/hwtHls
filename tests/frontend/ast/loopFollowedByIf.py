@@ -32,7 +32,7 @@ class FiniteWhileIf0(TwoTimesFiniteWhileInWhileTrue):
                     hls.write(4, self.dataOut0),
                     i0(i0 + 1)
                 ),
-                ast.If(hls.read(self.dataIn0)._eq(8),
+                ast.If(hls.read(self.dataIn0).data._eq(8),
                     hls.write(7, self.dataOut1),
                 ),
             ],
@@ -55,7 +55,7 @@ class FiniteWhileIf1(TwoTimesFiniteWhileInWhileTrue):
     def _impl(self) -> None:
         hls = HlsScope(self)
         i0 = hls.var("i0", uint8_t)
-        din0 = hls.read(self.dataIn0)
+        din0 = hls.read(self.dataIn0).data
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls, [
                 i0(0),

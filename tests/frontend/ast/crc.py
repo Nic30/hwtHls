@@ -37,7 +37,7 @@ class CrcCombHls(CrcComb):
         initBits: List[int] = [get_bit(_INIT, i) for i in range(PW)]
         finBits: List[int] = [get_bit(XOROUT, i) for i in range(PW)]
 
-        inBits = list(iterBits(hls.read(self.dataIn)))
+        inBits = list(iterBits(hls.read(self.dataIn).data))
 
         if not self.IN_IS_BIGENDIAN:
             # we need to process lower byte first

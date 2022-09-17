@@ -30,12 +30,12 @@ class HlsSimpleIfStatement(SimpleIfStatement):
         hls.addThread(HlsThreadFromAst(hls,
             ast.While(True,
                 a, b, c,
-                ast.If(a,
-                    tmp(b),
-                ).Elif(b,  # this elif is redundant
-                    tmp(c),
+                ast.If(a.data,
+                    tmp(b.data),
+                ).Elif(b.data,  # this elif is redundant
+                    tmp(c.data),
                 ).Else(
-                    tmp(c)
+                    tmp(c.data)
                 ),
                 hls.write(tmp, self.d)
             ),

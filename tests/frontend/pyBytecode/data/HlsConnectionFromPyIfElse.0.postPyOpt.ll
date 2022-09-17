@@ -4,10 +4,10 @@ mainThread:
 block0:
   i0 = call <Bits, 8bits, unsigned> @hls.read(i)
   %1 = EQ i0, <BitsVal 2>
-  br [label %block22 %1]
-  [label %block40 ]
-block22:
+  br [label %block24 %1]
+  [label %block42 ]
+block24:
   void call <Bits, 8bits, unsigned> @hls.write(<BitsVal 3>)
-block40:
+block42:
   void call <Bits, 8bits, unsigned> @hls.write(<BitsVal 10>)
 }

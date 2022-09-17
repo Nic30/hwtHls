@@ -87,7 +87,7 @@ class HlsThreadForSharedVar(HlsThreadFromAst):
             if dir_ == DIRECTION.OUT:
                 res = (hls.write(v, i),)
             elif dir_ == DIRECTION.IN:
-                res = v(hls.read(i))
+                res = v(hls.read(i).data)
             else:
                 raise NotImplementedError(dir_)
             access.extend(res)

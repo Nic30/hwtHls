@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from typing import Union, List, Optional
+from typing import Union, List, Optional, Literal
 
 from hwt.hdl.types.defs import  BIT
 from hwt.hdl.types.hdlType import HdlType
@@ -23,6 +23,8 @@ from hwtHls.platform.platform import DefaultHlsPlatform
 from hwtHls.ssa.context import SsaContext
 from hwtHls.thread import HlsThread, HlsThreadDoesNotUseSsa
 from hwtLib.amba.axi_intf_common import Axi_hs
+
+ANY_HLS_COMPATIBLE_IO = Union[Handshaked, HsStructIntf, HandshakeSync, Axi_hs, VldSynced, RdSynced, Signal, StructIntf, RtlSignal, PyObjectHwSubscriptRef]
 
 
 class HlsScope():
@@ -56,9 +58,9 @@ class HlsScope():
     def _sig(self, name: str,
              dtype: HdlType=BIT,
              def_val: Union[int, None, dict, list]=None,
-             nop_val: Union[int, None, dict, list, "NOT_SPECIFIED"]=NOT_SPECIFIED) -> RtlSignal:
+             nop_val: Union[int, None, dict, list, Literal[NOT_SPECIFIED]]=NOT_SPECIFIED) -> RtlSignal:
         """
-        :note: only for forwarding purpose, use :meth:`~HlsScope.var` instead.
+        :note: only for forwarding purpose, use :meth:`~.HlsScope.var` instead.
         """
         return Unit._sig(self, name, dtype, def_val, nop_val)
     
@@ -77,13 +79,10 @@ class HlsScope():
         self._threads.append(t)
         return t
 
-    def read(self,
-             src: Union[Handshaked, HsStructIntf, HandshakeSync, Axi_hs, VldSynced, RdSynced, Signal, StructIntf, RtlSignal],
-             type_or_size: Union[HdlType, RtlSignal, int]=NOT_SPECIFIED):
+    def read(self, src: ANY_HLS_COMPATIBLE_IO, blocking:bool=True):
         """
-        Create a read statement in thread.
+        Create a read statement for simple interfaces.
         """
-        
         if isinstance(src, (Handshaked, HsStructIntf, HandshakeSync, Axi_hs)):
             if len(src._interfaces) == 3 and hasattr(src, "data"):
                 dtype = src.data._dtype
@@ -117,26 +116,27 @@ class HlsScope():
             src: PyObjectHwSubscriptRef
             assert isinstance(src.sequence, IoProxyAddressed), src.sequence
             mem: IoProxyAddressed = src.sequence
-            return mem.READ_CLS(mem, self, mem.interface, src.index, mem.nativeType.element_t)
+            return mem.READ_CLS(mem, self, mem.interface, src.index, mem.rWordT, blocking)
 
         else:
             raise NotImplementedError(src)    
 
-        if type_or_size is not NOT_SPECIFIED:
-            assert type_or_size == dtype
+        return HlsRead(self, src, dtype, blocking)
 
-        return HlsRead(self, src, dtype)
-
-    def write(self,
-              src:Union[HlsRead, bytes, HValue],
-              dst:Union[Handshaked, HsStructIntf, HandshakeSync, Axi_hs, VldSynced, RdSynced, Signal, StructIntf, RtlSignal]):
+    def write(self, src: Union[HlsRead, bytes, int, HValue], dst: ANY_HLS_COMPATIBLE_IO):
         """
-        Create a write statement in thread.
+        Create a write statement for simple interfaces.
         """
         if isinstance(src, int):
             dtype = getattr(dst, "_dtype", None)
             if dtype is None:
-                dtype = dst.data._dtype
+                if isinstance(dst, PyObjectHwSubscriptRef):
+                    dst: PyObjectHwSubscriptRef
+                    mem: IoProxyAddressed = dst.sequence
+                    assert isinstance(mem, IoProxyAddressed), (dst, mem)
+                    dtype = mem.nativeType.element_t
+                else:
+                    dtype = dst.data._dtype
             src = dtype.from_py(src)
         else:
             dtype = src._dtype
@@ -145,11 +145,11 @@ class HlsScope():
             dst: PyObjectHwSubscriptRef
             mem: IoProxyAddressed = dst.sequence
             assert isinstance(mem, IoProxyAddressed), (dst, mem)
-            return mem.WRITE_CLS(mem, self, src, mem.interface, dst.index, mem.nativeType.element_t)
+            return mem.WRITE_CLS(mem, self, src, mem.interface, dst.index, mem.wWordT)
         else:
             return HlsWrite(self, src, dst, dtype)
 
-    def addThread(self, t):
+    def addThread(self, t: HlsThread) -> HlsThread:
         """
         Create a thread from a code which will be translated to HW.
         """

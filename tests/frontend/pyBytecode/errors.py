@@ -17,7 +17,7 @@ class ErrorUseOfUnitialized0(Unit):
     def mainThread(self, hls: HlsScope):
         res = a < 1 
         while BIT.from_py(1):
-            hls.write(hls.read(self.i), self.o)
+            hls.write(hls.read(self.i).data, self.o)
 
     def _impl(self):
         hls = HlsScope(self, freq=int(100e6))

@@ -25,6 +25,7 @@ from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasi
 from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axi4Lite import Axi4Lite, Axi4Lite_addr
 from hwtLib.amba.constants import PROT_DEFAULT
+from functools import lru_cache
 
 
 class HlsReadAxi4Lite(HlsReadAddressed):
@@ -34,10 +35,12 @@ class HlsReadAxi4Lite(HlsReadAddressed):
             parent:"HlsScope",
             src:Axi4Lite,
             index:RtlSignal,
-            element_t:HdlType):
-        HlsReadAddressed.__init__(self, parent, src, index, element_t)
+            element_t:HdlType,
+            isBlocking: bool):
+        HlsReadAddressed.__init__(self, parent, src, index, element_t, isBlocking)
         self.parentProxy = parentProxy
 
+    @lru_cache(maxsize=None, typed=True)
     def _getNativeInterfaceWordType(self) -> HdlType:
         i = self._src.r
         return Interface_to_HdlType().apply(i, exclude=(i.valid, i.ready))
@@ -103,8 +106,20 @@ class HlsReadAxi4Lite(HlsReadAddressed):
         mirToNetlist._addSkipWhen_n(rNode, cond, mbSync.blockEn)
         mbSync.addOrderedNode(rNode)
         mirToNetlist.inputs.append(rNode)
-
-        valCache.add(mbSync.block, instrDstReg, rNode._outputs[0], True)
+        rDataO = rNode._outputs[0]
+        
+        rWordWidth = representativeReadStm._getNativeInterfaceWordType().bit_length()
+        nativeWordWidth = proxy.nativeType.element_t.bit_length()
+        if rWordWidth < nativeWordWidth:
+            # the read data is larger because pointer representing IO is pointing to a larger word
+            # because write is using larger word and this must be the same pointer for reads and writes
+            # :note: The next node which uses data output should be the slice to correct width.
+            padding = netlist.builder.buildConst(Bits(nativeWordWidth - rWordWidth).from_py(None))
+            rDataO = netlist.builder.buildConcatVariadic((rDataO, padding))
+        else:
+            assert rWordWidth == nativeWordWidth
+            
+        valCache.add(mbSync.block, instrDstReg, rDataO, True)
 
 
 class HlsWriteAxi4Lite(HlsWriteAddressed):
@@ -119,6 +134,7 @@ class HlsWriteAxi4Lite(HlsWriteAddressed):
         HlsWriteAddressed.__init__(self, parent, src, dst, index, element_t)
         self.parentProxy = parentProxy
     
+    @lru_cache(maxsize=None, typed=True)
     def _getNativeInterfaceWordType(self) -> HdlType:
         i = self.dst.w
         return Interface_to_HdlType().apply(i, exclude=(i.valid, i.ready))

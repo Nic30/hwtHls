@@ -25,12 +25,12 @@ class TwoTimesA0(Unit):
 
     def _impl(self):
         hls = HlsScope(self)
-        # a = hls.read(self.a)
+        # a = hls.read(self.a).data
         a = hls.var("a", self.a._dtype)
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
             ast.While(True,
-                a(hls.read(self.a)),
+                a(hls.read(self.a).data),
                 hls.write(a + a, self.b)
             ),
             self._name)
@@ -42,7 +42,7 @@ class TwoTimesA1(TwoTimesA0):
 
     def _impl(self):
         hls = HlsScope(self)
-        a = hls.read(self.a)
+        a = hls.read(self.a).data
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
             ast.While(True,

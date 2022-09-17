@@ -31,7 +31,7 @@ class PyArrShift(Unit):
             for i in range(len(arr) - 1, 0, -1):
                 arr[i](arr[i - 1])
 
-            arr[0](hls.read(self.i))
+            arr[0](hls.read(self.i).data)
             hls.write(arr[-1], self.o)
 
     def _impl(self):
@@ -57,7 +57,7 @@ class PyArrShiftFn(PyArrShift):
 
         while BIT.from_py(1):
             PyBytecodeInline(self.shiftArray)(arr)
-            arr[0](hls.read(self.i))
+            arr[0](hls.read(self.i).data)
             hls.write(arr[-1], self.o)
 
 
@@ -79,7 +79,7 @@ class PyArrShiftFnStruct(PyArrShift):
 
         while BIT.from_py(1):
             PyBytecodeInline(self.shiftArray)(arr)
-            d = hls.read(self.i)
+            d = hls.read(self.i).data
             arr[0].low(d[HALF_WIDTH:])
             arr[0].high(d[:HALF_WIDTH])
             last = PyBytecodeInPreproc(arr[-1])

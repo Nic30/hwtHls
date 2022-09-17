@@ -46,7 +46,7 @@ class BitonicSorterHLS(BitonicSorter):
         self.astBuilder = HlsAstBuilder(self.hls)
         self.hls_code = []
         outs = self.bitonic_sort(self.cmpFn,
-                                 [hls.read(i) for i in self.inputs])
+                                 [hls.read(i).data for i in self.inputs])
         hls.addThread(HlsThreadFromAst(hls,
             self.astBuilder.While(True,
                 *self.hls_code,

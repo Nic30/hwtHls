@@ -35,7 +35,7 @@ class Axi4LiteRead(BramRead):
     def mainThread(self, hls: HlsScope, ram: Axi4LiteArrayProxy):
         i = ram.indexT.from_py(0)
         while BIT.from_py(1):
-            d = hls.read(ram[i]).data
+            d = hls.read(ram[i]).data.data
             hls.write(d, self.dataOut) 
             i += 1
        

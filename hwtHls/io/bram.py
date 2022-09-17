@@ -11,11 +11,13 @@ from hwt.interfaces.std import BramPort_withoutClk
 from hwt.pyUtils.arrayQuery import single
 from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF
 from hwt.synthesizer.interface import Interface
+from hwt.synthesizer.interfaceLevel.unitImplHelpers import getInterfaceName
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.frontend.ast.statementsRead import HlsReadAddressed
 from hwtHls.frontend.ast.statementsWrite import HlsWriteAddressed
+from hwtHls.frontend.ast.utils import ANY_SCALAR_INT_VALUE
 from hwtHls.frontend.pyBytecode.ioProxyAddressed import IoProxyAddressed
 from hwtHls.llvm.llvmIr import LoadInst, Register
 from hwtHls.llvm.llvmIr import MachineInstr
@@ -32,7 +34,6 @@ from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsN
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.opCache import MirToHwtHlsNetlistOpCache
 from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer
 from hwtHls.ssa.value import SsaValue
-from hwt.synthesizer.interfaceLevel.unitImplHelpers import getInterfaceName
 
 
 class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
@@ -118,7 +119,8 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
         _addr = allocator.instantiateHlsNetNodeOutInTime(addr, self.scheduledIn[1])
 
         rtlObj = []
-        rtlObj.append(ram.addr(_addr.data))
+        # [todo] llvm MIR lefts bits which are sliced out
+        rtlObj.append(ram.addr(_addr.data[ram.ADDR_WIDTH:]))
         if ram.HAS_W:
             if ram.HAS_BE:
                 raise NotImplementedError()
@@ -175,12 +177,16 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
 
         return f"<{self.__class__.__name__:s} {self._id:d} {self.cmd} {getInterfaceName(self.netlist.parentUnit, self.dst)}{HlsNetNodeReadIndexed._strFormatIndexes(self.indexes)} <- {src}>"
 
+
 class HlsNetNodeWriteBramCmdPartRef(HlsNetNodePartRef):
 
     def __init__(self, netlist:"HlsNetlistCtx", parentNode:HlsNetNodeWriteBramCmd, isDataReadPart: bool, name:str=None):
         HlsNetNodePartRef.__init__(self, netlist, parentNode, name=name)
         self.isDataReadPart = isDataReadPart
 
+    def allocateRtlInstance(self, allocator: "ArchElement"):
+        return self.parentNode.allocateRtlInstance(allocator)
+        
     def __repr__(self):
         return f"<{self.__class__.__name__:s} {self._id:d} for {'data' if self.isDataReadPart else 'cmd'} {self.parentNode}>"
 
@@ -190,7 +196,10 @@ class HlsReadBram(HlsReadAddressed):
     def __init__(self,
                  parentProxy: "BramArrayProxy",
             parent:"HlsScope",
-            src:Union[BramPort_withoutClk, Tuple[BramPort_withoutClk]], index:RtlSignal, element_t:HdlType):
+            src:Union[BramPort_withoutClk, Tuple[BramPort_withoutClk]],
+            index:ANY_SCALAR_INT_VALUE,
+            element_t:HdlType,
+            isBlocking:bool):
         if isinstance(src, (list, deque)) or isgenerator(src):
             src = tuple(src)
 
@@ -199,7 +208,7 @@ class HlsReadBram(HlsReadAddressed):
         else:
             assert src.HAS_R
 
-        HlsReadAddressed.__init__(self, parent, src, index, element_t)
+        HlsReadAddressed.__init__(self, parent, src, index, element_t, isBlocking)
         self.parentProxy = parentProxy
 
     def _getNativeInterfaceWordType(self) -> HdlType:
@@ -303,6 +312,8 @@ class BramArrayProxy(IoProxyAddressed):
         
         nativeType = wordType[int(2 ** i.ADDR_WIDTH)]
         IoProxyAddressed.__init__(self, hls, interface, nativeType)
+        self.rWordT = self.wWordT = wordType
+        self.indexT = i.addr._dtype
 
     READ_CLS = HlsReadBram
     WRITE_CLS = HlsWriteBram

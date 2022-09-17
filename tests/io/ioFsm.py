@@ -92,7 +92,7 @@ class ReadFsm0(Unit):
         hls.addThread(HlsThreadFromAst(hls, 
             ast.While(True,
                 *r,
-                hls.write(Concat(*reversed(r)), self.o),
+                hls.write(Concat(*reversed([_r.data for _r in r])), self.o),
             ),
             self._name)
         )
@@ -107,7 +107,7 @@ class ReadFsm0Once(ReadFsm0):
         r = [hls.read(self.i) for _ in range(3)]
         hls.addThread(HlsThreadFromAst(hls, [
                 *r,
-                hls.write(Concat(*reversed(r)), self.o),
+                hls.write(Concat(*reversed([_r.data for _r in r])), self.o),
             ],
             self._name)
         )

@@ -28,7 +28,7 @@ class Rom(Unit):
         # must be hw type otherwise we won't be able to resolve type of "o" later
         mem = [t.from_py(1 << i) for i in range(4)]
         while BIT.from_py(1):
-            i = hls.read(self.i)
+            i = hls.read(self.i).data
             o = mem[i]
             hls.write(o, self.o)
 
@@ -59,8 +59,8 @@ class CntrArray(Unit):
             v(0)  # we are using () instead of = because v is preproc variable
 
         while BIT.from_py(1):
-            o = mem[hls.read(self.o_addr)]
-            i = hls.read(self.i)
+            o = mem[hls.read(self.o_addr).data]
+            i = hls.read(self.i).data
             hls.write(o, self.o)
             mem[i] += 1
 
@@ -91,10 +91,10 @@ class Cam(Unit):
 
     def matchThread(self, hls: HlsScope, keys: List[StructIntf]):
         while BIT.from_py(1):
-            m = hls.read(self.match)
+            m = hls.read(self.match).data
             match_bits = []
             for k in keys:
-                _k = hls.read(k)
+                _k = hls.read(k).data
                 match_bits.append(_k.vld & _k.key._eq(m))
 
             hls.write(Concat(*reversed(match_bits)), self.out)
@@ -105,7 +105,7 @@ class Cam(Unit):
             k.vld(0)
 
         while BIT.from_py(1):
-            w = hls.read(self.write)
+            w = hls.read(self.write).data
             newKey = keys[0]._dtype.from_py(None)
             newKey.vld = w.vld_flag
             newKey.key = w.data

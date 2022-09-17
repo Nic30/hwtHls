@@ -31,8 +31,8 @@ class AxiSWriteEth(Unit):
         while BIT.from_py(1):
             v = Eth2Header_t.from_py(None)
             v.type = ETHER_TYPE.IPv4
-            v.src = hls.read(self.src)
-            v.dst = hls.read(self.dst)
+            v.src = hls.read(self.src).data
+            v.dst = hls.read(self.dst).data
             dataOut.writeStartOfFrame()
             dataOut.write(v)
             dataOut.writeEndOfFrame()
