@@ -17,6 +17,9 @@ class RtlNetlistPassDumpStreamNodes(RtlNetlistPass):
         try:
             for elem_i, elm in enumerate(netlist.allocator._archElements):
                 out.write(f"########## {elm.__class__.__name__:s} {elem_i:d} ##########\n")
+                nodes = [n._id for n in elm.allNodes]
+                nodes.sort()
+                out.write(f" nodes={nodes}\n")
                 if isinstance(elm, (ArchElementFsm, ArchElementPipeline)):
                     elm: ArchElementPipeline
                     for st_i, st in enumerate(elm.connections):
