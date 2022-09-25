@@ -3,7 +3,7 @@
 
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
-from hwtHls.scope  import HlsScope
+from hwtHls.scope import HlsScope
 from tests.frontend.ast.trivial import WhileTrueReadWrite, WhileTrueWrite
 
 
