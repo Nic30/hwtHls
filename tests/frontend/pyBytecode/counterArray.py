@@ -90,9 +90,13 @@ class CounterArray(Unit):
         self.ram = t
 
     def resetRam(self, hls: HlsScope, ram: BramArrayProxy):
-        i = Bits(ram.indexT.bit_length() + 1).from_py(0)
-        while i <= self.ITEMS:
+        i = Bits(ram.indexT.bit_length()).from_py(0)
+        # [todo] if bit slicing is used on i, the llvm generates uglygep because it is not recognizing
+        # the bit slicing and this ugly GEP uses 64b pinter type
+        while BIT.from_py(1):
             hls.write(0, ram[i])
+            if i._eq(self.ITEMS - 1):
+                break
             i += 1
 
     def mainThread(self, hls: HlsScope, ram: BramArrayProxy):
