@@ -61,7 +61,7 @@ class HlsNetlistAnalysisPassDiscoverIo(HlsNetlistAnalysisPass):
     #                yield from self._detectExplicitSyncIsSameClkCycleFromInputs(dep, clkStartTime)
     #
     def run(self):
-        assert not self.ioByInterface
+        assert not self.ioByInterface, "Must be run only once"
         assert self.netlist.getAnalysisIfAvailable(HlsNetlistAnalysisPassRunScheduler) is not None, "Should be performed only after scheduling"
         ioByInterface = self.ioByInterface
         interfaceList = self.interfaceList
@@ -107,4 +107,4 @@ class HlsNetlistAnalysisPassDiscoverIo(HlsNetlistAnalysisPass):
 
         for n in self.netlist.nodes:
             if isinstance(n, HlsNetNodeExplicitSync) and n not in resolvedExplicitSync:
-                assert n in resolvedExplicitSync, (n, "Sync was not assigned to any IO, this is likely to result in internal deadlock.")
+                assert n in resolvedExplicitSync, (n, "Sync was not assigned to any IO, this is likely to result in internal deadlock.")       

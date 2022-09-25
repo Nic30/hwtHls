@@ -117,7 +117,6 @@ class ArchElement():
                 try:
                     return self.netNodeToRtl[o]
                 except KeyError:
-                    # {v:k for k, v in o.obj.internOutToOut.items()}[o]
                     raise AssertionError(self, "Node did not instantiate its output", o.obj, o)
         else:
             # used and previously allocated
