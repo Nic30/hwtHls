@@ -85,6 +85,17 @@ class RtlArchToGraphwiz():
             isFsm = isinstance(elm, ArchElementFsm)
             isPipeline = isinstance(elm, ArchElementPipeline)
             for i, con in enumerate(elm.connections):
+                con: ConnectionsOfStage
+                
+                if isPipeline and elm._beginClkI is not None and i < elm._beginClkI:
+                    assert not con.inputs, ("Must not have IO before begin of pipeline", elm, elm._beginClkI, i, con.inputs)
+                    assert not con.outputs, ("Must not have IO before begin of pipeline", elm, elm._beginClkI, i, con.outputs)
+                    assert not con.io_extraCond, ("Must not have IO before begin of pipeline", elm, elm._beginClkI, i)
+                    assert not con.io_skipWhen, ("Must not have IO before begin of pipeline", elm, elm._beginClkI, i)
+                    assert not con.signals, ("Must not have IO before begin of pipeline", elm, elm._beginClkI, i)
+                    # skip unused stages
+                    continue
+
                 if isFsm:
                     clkI = elm.fsm.stateClkI[i]
                 elif isPipeline:
@@ -92,7 +103,6 @@ class RtlArchToGraphwiz():
                 else:
                     raise NotImplementedError(elm)
                 nodeRows.append(f"    <tr><td port='i{i:d}'>i{i:d}</td><td>st{i:d}-clk{clkI}</td><td port='o{i:d}'>o{i:d}</td></tr>\n")
-                con: ConnectionsOfStage
                 # [todo] global inputs with bgcolor ligtred global outputs with lightblue color
                 
                 for intf in con.inputs:
