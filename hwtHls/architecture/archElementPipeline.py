@@ -23,6 +23,7 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.orderable import HOrderingVoidT
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
+from ipCorePackager.constants import INTF_DIRECTION
 
 
 class ArchElementPipeline(ArchElement):
@@ -181,6 +182,11 @@ class ArchElementPipeline(ArchElement):
             assert tir not in sigs
             tir.get(t)
             sigs.append(tir)
+
+    def connectSync(self, clkI: int, intf: HandshakeSync, intfDir: INTF_DIRECTION):
+        if clkI < self._beginClkI:
+            self._beginClkI = clkI
+        super(ArchElementPipeline, self).connectSync(clkI, intf, intfDir)
 
     def allocateSync(self):
         assert self._dataPathAllocated

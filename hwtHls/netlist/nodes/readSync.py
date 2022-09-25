@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Union
 
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.value import HValue
@@ -10,7 +10,7 @@ from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeWriteBackwardEdge, \
     BACKEDGE_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import IO_COMB_REALIZATION, HlsNetNodeExplicitSync
-from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict, InputTimeGetter
+from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
@@ -112,22 +112,6 @@ class HlsNetNodeReadSync(HlsNetNode):
         else:
             raise NotImplementedError(d)
 
-    def scheduleAlapCompaction(self, asapSchedule: SchedulizationDict, inputTimeGetter: Optional[InputTimeGetter]):
-        """
-        Schedule in same time as parent read/write for which is this readsync for.
-        """
-        # if all dependencies have inputs scheduled we schedule this node and try successors
-        if self.scheduledIn is not None:
-            return self.scheduledIn
-        # super(HlsNetNodeReadSync, self).scheduleAlapCompaction(asapSchedule)
-        parent = self.dependsOn[0].obj
-        assert isinstance(parent, (HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeExplicitSync)), (self, parent)
-        parent.scheduleAlapCompaction(asapSchedule, inputTimeGetter)
-        t = parent.scheduledOut[0]
-        self.scheduledIn = (t,)
-        self.scheduledOut = (t + self.outputWireDelay[0],)
-        return self.scheduledIn
-        
     def __repr__(self):
         return f"<{self.__class__.__name__:s} {self._id:d}>"
 

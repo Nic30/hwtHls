@@ -2,8 +2,7 @@ from typing import Union, Optional, Generator
 
 from hwt.hdl.types.hdlType import HdlType
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
-from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict, \
-    InputTimeGetter
+from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.orderable import HOrderingVoidT
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
     link_hls_nodes, HlsNetNodeOutLazy
@@ -86,34 +85,6 @@ class HlsNetNodeExplicitSync(HlsNetNode):
 
     def resolve_realization(self):
         self.assignRealization(IO_COMB_REALIZATION)
-
-    def _scheduleAlapCompactionInputTimeGetter(self, i: HlsNetNodeIn, asapSchedule: SchedulizationDict):
-        if i.obj is self._associatedReadSync:
-            t = None
-            assert len(i.obj.usedBy) == 1
-            for uses in i.obj.usedBy:
-                for dependentIn in uses:
-                    dependentIn: HlsNetNodeIn
-                    iT = dependentIn.obj.scheduleAlapCompaction(asapSchedule, None)[dependentIn.in_i]
-                    if t is None:
-                        t = iT
-                    else:
-                        t = min(t, iT)
-
-            if t is None:
-                t = asapSchedule[self][0]
-            
-            return t
-        else:
-            return i.obj.scheduleAlapCompaction(asapSchedule, None)[i.in_i]
-
-    def scheduleAlapCompaction(self,
-        asapSchedule:SchedulizationDict,
-        inputTimeGetter:Optional[InputTimeGetter]):
-        if inputTimeGetter is None:
-            inputTimeGetter = self._scheduleAlapCompactionInputTimeGetter
-
-        return HlsNetNode.scheduleAlapCompaction(self, asapSchedule, inputTimeGetter)
 
     def __repr__(self, minify=False):
         if minify:

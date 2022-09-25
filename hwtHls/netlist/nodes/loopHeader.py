@@ -5,9 +5,11 @@ from hwt.code_utils import rename_signal
 from hwt.hdl.types.defs import BIT
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.explicitSync import IO_COMB_REALIZATION, HlsNetNodeExplicitSync
-from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict, InputTimeGetter
+from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict, \
+    OutputMinUseTimeGetter
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, link_hls_nodes, HlsNetNodeIn
 from hwtHls.netlist.scheduler.clk_math import start_of_next_clk_period
+from hwtHls.netlist.nodes.orderable import HlsNetNodeOrderable
 
 
 class HlsLoopGateStatus(HlsNetNode):
@@ -97,7 +99,7 @@ class HlsLoopGateStatus(HlsNetNode):
         return f"<{self.__class__.__name__:s} {self._id:d} (for {self._loop_gate.name})>"
 
 
-class HlsLoopGate(HlsNetNode):
+class HlsLoopGate(HlsNetNodeOrderable):
     """
     This operation represents a start of a loop, not all loops necessary need this.
     Depending on HW realization this may be solved combinationally or with the tagging etc.
@@ -207,18 +209,15 @@ class HlsLoopGate(HlsNetNode):
     def resolve_realization(self):
         self.assignRealization(IO_COMB_REALIZATION)
 
-    def scheduleAlapCompaction(self, asapSchedule:SchedulizationDict, inputTimeGetter: Optional[InputTimeGetter]):
-        if inputTimeGetter is not None:
-            raise NotImplementedError(inputTimeGetter)
-        normalizedClkPeriod: int = self.netlist.normalizedClkPeriod
-        if self.scheduledIn is not None:
-            return self.scheduledIn
+    def scheduleAlapCompaction(self, endOfLastClk: int, outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter]):
+        if outputMinUseTimeGetter is not None:
+            raise NotImplementedError(outputMinUseTimeGetter)
         # if it is terminator move to end of clk period
-        self.scheduledIn, self.scheduledOut = asapSchedule[self]
         assert not self.scheduledOut, self
         ffdelay = self.netlist.platform.get_ff_store_time(self.netlist.realTimeClkPeriod, self.netlist.scheduler.resolution)
-        self.scheduledIn = tuple(start_of_next_clk_period(t, normalizedClkPeriod) - ffdelay for t in self.scheduledIn)
-        return self.scheduledIn
+        self.scheduledIn = tuple(endOfLastClk - ffdelay for _ in self.scheduledIn)
+        for dep in self.dependsOn:
+            yield dep.obj
 
     def allocateRtlInstance(self, allocator:"ArchElement"):
         """

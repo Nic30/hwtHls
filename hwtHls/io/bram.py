@@ -23,7 +23,8 @@ from hwtHls.llvm.llvmIr import LoadInst, Register
 from hwtHls.llvm.llvmIr import MachineInstr
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
-from hwtHls.netlist.nodes.node import SchedulizationDict, InputTimeGetter, HlsNetNodePartRef
+from hwtHls.netlist.nodes.node import SchedulizationDict, HlsNetNodePartRef, \
+    OutputMinUseTimeGetter
 from hwtHls.netlist.nodes.orderable import HOrderingVoidT
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes, \
     HlsNetNodeOut, HlsNetNodeIn
@@ -78,10 +79,8 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
         assert oo._dtype is HOrderingVoidT, oo
         return oo 
 
-    def scheduleAlapCompaction(self, asapSchedule: SchedulizationDict, inputTimeGetter: Optional[InputTimeGetter]):
-        if inputTimeGetter is None:
-            inputTimeGetter = self._scheduleAlapCompactionInputTimeGetter
-        return self.scheduleAlapCompactionMultiClock(asapSchedule, inputTimeGetter)
+    def scheduleAlapCompaction(self, endOfLastClk: int, outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter]):
+        return self.scheduleAlapCompactionMultiClock(endOfLastClk, outputMinUseTimeGetter)
 
     def resolve_realization(self):
         netlist = self.netlist

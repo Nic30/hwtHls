@@ -1,5 +1,3 @@
-from itertools import chain
-
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
@@ -16,7 +14,7 @@ class HlsNetlistPassConsystencyCheck(HlsNetlistPass):
         allNodes.update(netlist.inputs)
         allNodes.update(netlist.outputs)
         
-        for n in chain(netlist.inputs, netlist.nodes, netlist.outputs):
+        for n in netlist.iterAllNodes():
             n: HlsNetNode
             inCnt = len(n._inputs)
             assert inCnt == len(n.dependsOn), n
@@ -28,7 +26,6 @@ class HlsNetlistPassConsystencyCheck(HlsNetlistPass):
                 assert isinstance(d, HlsNetNodeOut), (d, "->", i)
                 assert d.obj in allNodes, ("Driven by something which is not in netlist", n, d.obj)
                 assert d.obj._outputs[d.out_i] is d, ("Broken HlsNetNodeOut object", n, in_i, d)
-                
                 assert i in d.obj.usedBy[d.out_i], ("Output knows about connected input", n, d, i)
     
             outCnt = len(n._outputs)

@@ -4,6 +4,7 @@ from typing import Union, List, Dict, Tuple
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.architecture.archElement import ArchElement
 from hwtHls.architecture.archElementFsm import ArchElementFsm
+from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregatePortOut
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.node import HlsNetNode, HlsNetNodePartRef
 from hwtHls.netlist.nodes.orderable import HOrderingVoidT
@@ -154,7 +155,7 @@ class InterArchElementNodeSharingAnalysis():
                     #        self.ownerOfInput[i] = dstElm
                     # parentNodeInPortMap = {intern:outer for intern, outer in zip(n.parentNode._subNodes.inputs, n.parentNode._inputs)}
                     # parentNodeOutPortMap = {intern:outer for intern, outer in zip(n.parentNode._subNodes.outputs, n.parentNode._outputs)}
-                    if n._subNodes:
+                    if n._subNodes is not None:
                         for subNode in n._subNodes.nodes:
                             for i in subNode._inputs:
                                 assert i not in self.ownerOfInput
@@ -169,14 +170,18 @@ class InterArchElementNodeSharingAnalysis():
                                     else:
                                         assert isinstance(curOwner, UniqList), curOwner
                                         curOwner.append(dstElm)
-    
+
+                            # for every output of every node in cluster
                             for o in subNode._outputs:
                                 self.ownerOfOutput[o] = dstElm
-                                parOut = n.parentNode.internOutToOut.get(o, None)
-                                if parOut is not None:
-                                    assert parOut not in self.ownerOfOutput
-                                    self.ownerOfOutput[parOut] = dstElm
-                                    self._addPortSynonym(o, parOut)
+
+                        for oi in  n.parentNode._outputsInside:
+                            oi: HlsNetNodeAggregatePortOut
+                            parOut = oi.parentOut
+                            assert parOut not in self.ownerOfOutput
+                            self.ownerOfOutput[parOut] = dstElm
+                            self._addPortSynonym(o, parOut)
+
                     else:
                         curParentOwner =  self.ownerOfNode.get(n.parentNode, None)
                         assert curParentOwner is None or curParentOwner is dstElm, (n.parentNode, dstElm, curParentOwner)
@@ -201,14 +206,9 @@ class InterArchElementNodeSharingAnalysis():
                     if n._subNodes is not None:
                         for extOut in n._subNodes.inputs:
                             assert extOut.obj not in n._subNodes.nodes, ("If this is an external input it must not originate from this node", extOut, n, dstElm)
-                            outerIn: HlsNetNodeIn = n.parentNode.outerOutToIn.get(extOut, None)
-                            if outerIn is not None:
-                                connectedInputs = n.parentNode._subNodes.inputsDict[extOut]
-                            else:
-                                connectedInputs = tuple(u for u in extOut.obj.usedBy[extOut.out_i])
     
                             fistUseTime = None
-                            for i in connectedInputs:
+                            for i in extOut.obj.usedBy[extOut.out_i]:
                                 if i.obj not in n._subNodes.nodes:
                                     continue
                                 t = i.obj.scheduledIn[i.in_i]
@@ -218,7 +218,7 @@ class InterArchElementNodeSharingAnalysis():
                                 if fistUseTime is None or fistUseTime > t:
                                     fistUseTime = t
     
-                            assert fistUseTime is not None, ("If it is unused it should not be in inputs at the first place", extOut, n, connectedInputs)
+                            assert fistUseTime is not None, ("If it is unused it should not be in inputs at the first place", extOut, n)
                             if outerIn is not None:
                                 self._analyzeInterElementsNodeSharingCheckInputDriver(extOut, outerIn, fistUseTime, dstElm)
     

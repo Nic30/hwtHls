@@ -8,7 +8,7 @@ from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 
-
+# [todo] mv to simplify
 class HlsNetlistPassMergeExplicitSync(HlsNetlistPass):
     """
     Merge nodes with explicit synchronization (HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeExplicitSync) together

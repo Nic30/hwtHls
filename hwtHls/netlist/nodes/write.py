@@ -11,7 +11,8 @@ from hwt.synthesizer.interfaceLevel.interfaceUtils.utils import packIntf, \
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
-from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict, InputTimeGetter
+from hwtHls.netlist.nodes.node import HlsNetNode, OutputTimeGetter, \
+    OutputMinUseTimeGetter, SchedulizationDict
 from hwtHls.netlist.nodes.orderable import HOrderingVoidT
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
     HlsNetNodeOutLazy
@@ -56,19 +57,20 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
     def getOrderingOutPort(self) -> HlsNetNodeOut:
         return self._outputs[0]
 
-    def scheduleAsap(self, pathForDebug: Optional[UniqList["HlsNetNode"]]) -> List[float]:
+    def resetScheduling(self):
+        return HlsNetNodeRead.resetScheduling(self)
+
+    def setScheduling(self, schedule:SchedulizationDict):
+        return HlsNetNodeRead.setScheduling(self, schedule)
+
+    def scheduleAsap(self, pathForDebug: Optional[UniqList["HlsNetNode"]], beginOfFirstClk: int, outputTimeGetter: Optional[OutputTimeGetter]) -> List[int]:
         assert self.dependsOn, self
-        return HlsNetNodeRead.scheduleAsap(self, pathForDebug)
+        return HlsNetNodeRead.scheduleAsap(self, pathForDebug, beginOfFirstClk, outputTimeGetter)
 
-    def scheduleAlapCompaction(self, asapSchedule: SchedulizationDict, inputTimeGetter: Optional[InputTimeGetter]):
-        return HlsNetNodeRead.scheduleAlapCompaction(self, asapSchedule, inputTimeGetter)
+    def scheduleAlapCompaction(self, endOfLastClk:int, outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter]):
+        return HlsNetNodeRead.scheduleAlapCompaction(self, endOfLastClk, outputMinUseTimeGetter)
 
-    def _getNumberOfIoInThisClkPeriod(self, intf: Interface, searchFromSrcToDst: bool):
-        return HlsNetNodeRead._getNumberOfIoInThisClkPeriod(self, intf, searchFromSrcToDst)
-
-    def allocateRtlInstance(self,
-                            allocator: "ArchElement",
-                          ) -> List[HdlStatement]:
+    def allocateRtlInstance(self, allocator: "ArchElement") -> List[HdlStatement]:
         """
         Instantiate write operation on RTL level
         """

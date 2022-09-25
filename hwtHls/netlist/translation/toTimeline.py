@@ -4,7 +4,7 @@ from plotly import tools
 from plotly.graph_objs import Figure
 import plotly.offline
 from plotly.offline.offline import build_save_image_post_script
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Set
 
 from hwt.hdl.types.bitsVal import BitsVal
 from hwt.pyUtils.uniqList import UniqList
@@ -14,13 +14,13 @@ from hwt.synthesizer.unit import Unit
 from hwtHls.io.bram import HlsNetNodeWriteBramCmd
 from hwtHls.netlist.analysis.schedule import HlsNetlistAnalysisPassRunScheduler
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.nodes.aggregatedBitwiseOps import HlsNetNodeBitwiseOps
+from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
 from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeWriteBackwardEdge
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
-from hwtHls.netlist.nodes.orderable import HOrderingVoidT
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
+from hwtHls.netlist.nodes.orderable import HOrderingVoidT
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
@@ -65,6 +65,7 @@ class HwtHlsNetlistToTimeline():
         if obj.scheduledIn:
             start = min(obj.scheduledIn)
         else:
+            assert obj.scheduledOut is not None, obj
             start = max(obj.scheduledOut)
 
         if obj.scheduledOut:
@@ -124,14 +125,28 @@ class HwtHlsNetlistToTimeline():
         self.rows.append(row)
         self.obj_to_row[obj] = (row, row_i)
 
+    def iterAtomicNodes(self, n: HlsNetNode):
+        if isinstance(n, HlsNetNodeAggregate):
+            for subNode in n._subNodes:
+                yield from self.iterAtomicNodes(subNode)
+        else:
+            yield n
+
     def construct(self, nodes: List[HlsNetNode]):
         rows = self.rows
         obj_to_row = self.obj_to_row
         io_group_ids: Dict[Interface, int] = {}
         nodesFlat = []
-        compositeNodes = set()
+        compositeNodes: Set[HlsNetNodeAggregate] = set()
+        containerOfNode: Dict[HlsNetNode, HlsNetNodeAggregate] = {}
+        if not self.expandCompositeNodes:
+            for n in nodes:
+                if isinstance(n, HlsNetNodeAggregate):
+                    for subNode in self.iterAtomicNodes(n):
+                        containerOfNode[subNode] = n
+            
         for row_i, obj in enumerate(nodes):
-            if self.expandCompositeNodes and isinstance(obj, HlsNetNodeBitwiseOps):
+            if self.expandCompositeNodes and isinstance(obj, HlsNetNodeAggregate):
                 compositeNodes.add(obj)
                 for subNode in obj._subNodes.nodes:
                     self.translateNodeToRow(subNode, io_group_ids)
@@ -143,17 +158,27 @@ class HwtHlsNetlistToTimeline():
         for row_i, (row, obj) in enumerate(zip(rows, nodesFlat)):
             obj: HlsNetNode
             for t, dep in zip(obj.scheduledIn, obj.dependsOn):
-                if dep.obj in compositeNodes:
-                    dep = dep.obj._subNodes.outputs[dep.out_i]
                 depObj = dep.obj
+                if depObj in compositeNodes:
+                    dep = depObj._subNodes.outputs[dep.out_i]
+                    depObj = dep.obj
+
                 depOutI = dep.out_i
+                try:
+                    obj_to_row[depObj][1]
+                except:
+                    raise
                 row.deps.append((
                     obj_to_row[depObj][1],  # src
                     depObj.scheduledOut[depOutI] * self.time_scale,  # start
                     t * self.time_scale,  # finish
                     dep._dtype)  # type
                 )
+
             for bdep_obj in obj.debug_iter_shadow_connection_dst():
+                if not self.expandCompositeNodes:
+                    bdep_obj = containerOfNode.get(bdep_obj, bdep_obj)
+
                 bdep = obj_to_row[bdep_obj][0]
                 bdep.backward_deps.append(row_i)
 
@@ -339,7 +364,7 @@ class HlsNetlistPassShowTimeline(HlsNetlistPass):
         to_timeline = HwtHlsNetlistToTimeline(netlist.normalizedClkPeriod,
                                               netlist.scheduler.resolution,
                                               expandCompositeNodes=self.expandCompositeNodes)
-        to_timeline.construct(netlist.inputs + netlist.nodes + netlist.outputs)
+        to_timeline.construct(list(netlist.iterAllNodes()))
         if self.outStreamGetter is not None:
             out, doClose = self.outStreamGetter(netlist.label)
             try:

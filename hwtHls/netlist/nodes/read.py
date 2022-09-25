@@ -15,13 +15,15 @@ from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, \
     INVARIANT_TIME
-from hwtHls.netlist.nodes.delay import HlsNetNodeDelayClkTick
+from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate, \
+    HlsNetNodeAggregatePortOut, HlsNetNodeAggregatePortIn
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
-from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict, InputTimeGetter, TimeSpec
+from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict, OutputTimeGetter, \
+    OutputMinUseTimeGetter
 from hwtHls.netlist.nodes.orderable import HOrderingVoidT
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
     HlsNetNodeOutAny
-from hwtHls.netlist.scheduler.clk_math import start_of_next_clk_period, start_clk
+from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
 from hwtLib.amba.axi_intf_common import Axi_hs
 from ipCorePackager.constants import INTF_DIRECTION_asDirecton, \
     DIRECTION_opposite, DIRECTION
@@ -132,71 +134,79 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
         # because there are multiple outputs
         return _data if self._isBlocking else []
 
-    def _getNumberOfIoInThisClkPeriod(self, intf: Interface, searchFromSrcToDst: bool) -> int:
-        """
-        Collect the total number of IO operations which may happen concurrently in this clock period.
+    def resetScheduling(self):
+        scheduledZero = self.scheduledZero
+        if scheduledZero is None:
+            return  # already restarted
+        HlsNetNodeExplicitSync.resetScheduling(self)
+        resourceType = self.src if isinstance(self, HlsNetNodeRead) else self.dst
+        clkPeriod = self.netlist.normalizedClkPeriod
+        self.netlist.scheduler.resourceUsage.removeUse(resourceType, indexOfClkPeriod(scheduledZero, clkPeriod))
 
-        :note: This is not a total number of scheduled IO operations in this clock.
-            It uses the information about if the operations may happen concurrently.
-        """
-        clkPeriod: int = self.netlist.normalizedClkPeriod
-        if isinstance(self, HlsNetNodeRead):
-            thisClkI = start_clk(self.scheduledOut[0], clkPeriod)
-            sameIntf = intf is self.src
-        else:
-            thisClkI = start_clk(self.scheduledIn[0], clkPeriod)
-            sameIntf = intf is self.dst
+    def setScheduling(self, schedule:SchedulizationDict):
+        resourceUsage = self.netlist.scheduler.resourceUsage
+        resourceType = self.src if isinstance(self, HlsNetNodeRead) else self.dst
+        clkPeriod = self.netlist.normalizedClkPeriod
 
-        ioCnt = 0
-        if searchFromSrcToDst:
-            for orderingIn in self.iterOrderingInputs():
-                dep = self.dependsOn[orderingIn.in_i]
-                assert isinstance(dep.obj, (HlsNetNodeExplicitSync, HlsNetNodeDelayClkTick)), ("ordering dependencies should be just between IO nodes and delays", orderingIn, dep, self)
-                if start_clk(dep.obj.scheduledOut[dep.out_i], clkPeriod) == thisClkI:
-                    ioCnt = max(ioCnt, dep.obj._getNumberOfIoInThisClkPeriod(intf, True))
-        else:
-            orderingOut = self.getOrderingOutPort()
-            for dep in self.usedBy[orderingOut.out_i]:
-                assert isinstance(dep.obj, (HlsNetNodeExplicitSync, HlsNetNodeDelayClkTick)), ("ordering dependencies should be just between IO nodes and delays", dep, self)
-                if start_clk(dep.obj.scheduledIn[dep.in_i], clkPeriod) == thisClkI:
-                    ioCnt = max(ioCnt, dep.obj._getNumberOfIoInThisClkPeriod(intf, False))
+        if self.scheduledZero is not None:
+            resourceUsage.removeUse(resourceType, indexOfClkPeriod(self.scheduledZero, clkPeriod))
 
-        if sameIntf:
-            return ioCnt + 1
-        else:
-            return ioCnt
-
-    def scheduleAsap(self, pathForDebug: Optional[UniqList["HlsNetNode"]]) -> List[float]:
+        HlsNetNodeExplicitSync.setScheduling(self, schedule)
+        self.netlist.scheduler.resourceUsage.addUse(resourceType, indexOfClkPeriod(self.scheduledZero, clkPeriod))
+    
+    def scheduleAsap(self, pathForDebug: Optional[UniqList["HlsNetNode"]], beginOfFirstClk: int, outputTimeGetter: Optional[OutputTimeGetter]) -> List[int]:
         # schedule all dependencies
-        HlsNetNode.scheduleAsap(self, pathForDebug)
-        curIoCnt = self._getNumberOfIoInThisClkPeriod(self.src if isinstance(self, HlsNetNodeRead) else self.dst, True)
-        if curIoCnt > self.maxIosPerClk:
-            # move to next clock cycle if IO constraint requires it
-            off = start_of_next_clk_period(self.scheduledIn[0], self.netlist.normalizedClkPeriod) - self.scheduledIn[0]
-            self.scheduledIn = tuple(t + off for t in self.scheduledIn)
-            self.scheduledOut = tuple(t + off for t in self.scheduledOut)
-
+        if self.scheduledOut is None:
+            HlsNetNode.scheduleAsap(self, pathForDebug, beginOfFirstClk, outputTimeGetter)
+            scheduledZero = self.scheduledZero
+            clkPeriod = self.netlist.normalizedClkPeriod
+            curClkI = scheduledZero // clkPeriod
+            resourceType = self.src if isinstance(self, HlsNetNodeRead) else self.dst
+            scheduler = self.netlist.scheduler
+            suitableClkI = scheduler.resourceUsage.findFirstClkISatisfyingLimit(resourceType, curClkI, self.maxIosPerClk)
+            if curClkI != suitableClkI:
+                # move to next clock cycle if IO constraint requires it
+                epsilon = scheduler.epsilon
+                t = suitableClkI * clkPeriod + epsilon + max(self.inputWireDelay, default=0)
+                if self.isMulticlock:
+                    ffdelay = self.netlist.platform.get_ff_store_time(self.netlist.realTimeClkPeriod, self.netlist.scheduler.resolution)
+                    self._setScheduleZeroTimeMultiClock(t, clkPeriod, epsilon, ffdelay)
+                else:
+                    self._setScheduleZeroTimeSingleClock(t)
+            
+            scheduler.resourceUsage.addUse(resourceType, suitableClkI)
+    
         return self.scheduledOut
 
-    def scheduleAlapCompaction(self, asapSchedule: SchedulizationDict, inputTimeGetter: Optional[InputTimeGetter]) -> TimeSpec:
-        HlsNetNodeExplicitSync.scheduleAlapCompaction(self, asapSchedule, inputTimeGetter)
-        curIoCnt = self._getNumberOfIoInThisClkPeriod(self.src if isinstance(self, HlsNetNodeRead) else self.dst, False)
-        if curIoCnt > self.maxIosPerClk:
+    def scheduleAlapCompaction(self, endOfLastClk: int, outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter]):
+        originalTimeZero = self.scheduledZero
+        scheduler = self.netlist.scheduler
+        clkPeriod = self.netlist.normalizedClkPeriod
+        resourceType = self.src if isinstance(self, HlsNetNodeRead) else self.dst
+
+        originalClkI = indexOfClkPeriod(originalTimeZero, clkPeriod)
+        tuple(HlsNetNodeExplicitSync.scheduleAlapCompaction(self, endOfLastClk, outputMinUseTimeGetter))
+        curClkI = indexOfClkPeriod(self.scheduledZero, clkPeriod)
+        if originalClkI != curClkI:
+            scheduler.resourceUsage.moveUse(resourceType, originalClkI, curClkI)
+
+        suitableClkI = scheduler.resourceUsage.findFirstClkISatisfyingLimitEndToStart(resourceType, curClkI, self.maxIosPerClk)
+        if curClkI != suitableClkI:
             # move to next clock cycle if IO constraint requires it
-            ffdelay = self.netlist.platform.get_ff_store_time(self.netlist.realTimeClkPeriod, self.netlist.scheduler.resolution)
-            clkPeriod = self.netlist.normalizedClkPeriod
-            while curIoCnt > self.maxIosPerClk:
-                if self.scheduledIn:
-                    startT = self.scheduledIn[0]
-                else:
-                    startT = self.scheduledOut[0]
+            ffdelay = self.netlist.platform.get_ff_store_time(self.netlist.realTimeClkPeriod, scheduler.resolution)
+            t = (suitableClkI + 1) * clkPeriod - ffdelay
+            if self.isMulticlock:
+                epsilon = scheduler.epsilon
+                self._setScheduleZeroTimeMultiClock(t, clkPeriod, epsilon, ffdelay)
+            else:
+                self._setScheduleZeroTimeSingleClock(t)
 
-                off = start_of_next_clk_period(startT, clkPeriod) - startT - clkPeriod - ffdelay
-                self.scheduledIn = tuple(t + off for t in self.scheduledIn)
-                self.scheduledOut = tuple(t + off for t in self.scheduledOut)
-                curIoCnt = self._getNumberOfIoInThisClkPeriod(self.src if isinstance(self, HlsNetNodeRead) else self.dst, False)
+            scheduler.resourceUsage.moveUse(resourceType, curClkI, suitableClkI)
 
-        return self.scheduledIn
+        if originalTimeZero != self.scheduledZero:
+            assert originalTimeZero < self.scheduledZero, (self, originalTimeZero, self.scheduledZero)
+            for dep in self.dependsOn:
+                yield dep.obj
 
     def getRtlDataSig(self):
         src: Interface = self.src

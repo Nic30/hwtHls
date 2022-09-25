@@ -1,212 +1,34 @@
-from typing import List, Dict, Optional
+from math import inf
+from typing import List, Dict, Optional, Generator
 
 from hwt.hdl.operatorDefs import  AllOps
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.netlist.scheduler.clk_math import start_of_next_clk_period, start_clk
-from hwtHls.netlist.clusterSearch import HlsNetlistClusterSearch
-from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict, InputTimeGetter, HlsNetNode_numberForEachInput
+from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate, \
+    HlsNetNodeAggregatePortIn, HlsNetNodeAggregatePortOut
+from hwtHls.netlist.nodes.node import HlsNetNode_numberForEachInput, \
+    OutputTimeGetter, OutputMinUseTimeGetter, HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
+from hwtHls.netlist.scheduler.clk_math import start_of_next_clk_period, start_clk,\
+    indexOfClkPeriod
 from hwtHls.netlist.scheduler.errors import TimeConstraintError
 
 
-class HlsNetNodeBitwiseOps(HlsNetNode):
+class HlsNetNodeBitwiseOps(HlsNetNodeAggregate):
     """
     Container of cluster of bitwise operators.
 
     :ivar _totalInputCnt: the dictionary mapping the nodes of cluster to a number of transitive inputs
-        from outside of cluster.
-    :ivar isFragmented: flag which is True if the node was split on parts and if parts should be used for allocation instead
-        of this whole object.
-    :ivar internOutToOut: a dictionary mapping output of internal node to an output of this node
-    :ivar outerOutToIn: a dictionary mapping a 
+        from outside of cluster. Used to approximate latency of an operand tree.
     """
 
-    def __init__(self, netlist:"HlsNetlistCtx", subNodes: HlsNetlistClusterSearch, name:str=None):
-        HlsNetNode.__init__(self, netlist, name=name)
-        self._subNodes = subNodes
-        for _ in subNodes.inputs:
-            self._addInput(None)
-        for o in subNodes.outputs:
-            self._addOutput(o._dtype, None)
+    def __init__(self, netlist:"HlsNetlistCtx", subNodes: List[HlsNetNode], name:str=None):
+        HlsNetNodeAggregate.__init__(self, netlist, subNodes, name=name)
         self._totalInputCnt: Dict[HlsNetNodeOperator, int] = {}
-        self._isFragmented = False
-        self.internOutToOut: Dict[HlsNetNodeOut, HlsNetNodeOut] = {
-            intern:outer for intern, outer in zip(self._subNodes.outputs, self._outputs)
-        }
-        self.outerOutToIn: Dict[HlsNetNodeOut, HlsNetNodeIn] = {
-            o:i for o, i in zip(self._subNodes.inputs, self._inputs)
-        }
-
-    def destroy(self):
-        """
-        Delete properties of this object to prevent unintentional use.
-        """
-        HlsNetNode.destroy(self)
-        self._subNodes.destroy()
-        self._subNodes = None
-        self._totalInputCnt = None
-        self.internOutToOut = None
-        self.outerOutToIn = None
-        
-    def copyScheduling(self, schedule: SchedulizationDict):
-        for n in self._subNodes.nodes:
-            n.copyScheduling(schedule)
-        schedule[self] = (self.scheduledIn, self.scheduledOut)
-    
-    def moveSchedulingTime(self, offset:int):
-        HlsNetNode.moveSchedulingTime(self, offset)
-        for n in self._subNodes.nodes:
-            n.moveSchedulingTime(offset)
-
-    def checkScheduling(self):
-        HlsNetNode.checkScheduling(self)
-        for n in self._subNodes.nodes:
-            n.checkScheduling()
-
-        # assert that io of this node has correct times
-        for outer, intern in zip(self._inputs , self._subNodes.inputs):
-            pass
-        for outer, intern in zip(self._outputs, self._subNodes.outputs):
-            assert outer.obj is self
-            assert intern.obj in self._subNodes.nodes
-            assert self.scheduledOut[outer.out_i] == intern.obj.scheduledOut[intern.out_i]
-
-    def resetScheduling(self):
-        for n in self._subNodes.nodes:
-            n.resetScheduling()
-        self.scheduledIn = None
-        self.scheduledOut = None
-
-    def scheduleAlapCompactionForOutput(self, internalOut: HlsNetNodeOut,
-                                        asapSchedule: SchedulizationDict,
-                                        clkBoundaryTime: int,
-                                        currentInputs: UniqList[HlsNetNodeIn],
-                                        inputTimeGetter: Optional[InputTimeGetter]):
-        """
-        BFS consume all inputs until the start or until the boundary is found
-        
-        :ivar internalOut: Internal output with known scheduling time. (Time is known if all uses of this output have known time)
-        """
-        # candidateOutputs = deque()
-        # 1. set input time for every input
-        # inputCntWithoutThisNode = min(1, len(currentInputs))
-        currentInputs.extend(internalOut.obj._inputs)
-        timeOffset = internalOut.obj.scheduledOut[internalOut.out_i]
-        internalOut.obj.scheduledIn = tuple(timeOffset - lat for lat in internalOut.obj.inputWireDelay)
-        ffdelay = self.netlist.platform.get_ff_store_time(self.netlist.realTimeClkPeriod, self.netlist.scheduler.resolution)
-        clkPeriod = self.netlist.normalizedClkPeriod
-        # 2. resolve which nodes we can add to cluster because they have all successors known
-        #    and adding it will not cause time to overflow clkBoundaryTime
-        for parentOut in internalOut.obj.dependsOn:
-            if parentOut in self._subNodes.inputs:
-                continue  # skip ALAP for external inputs, we will continue there once we resolve all nodes in this cluster
-            parentOutUses = parentOut.obj.usedBy[parentOut.out_i]
-            outT = None
-            outerOut = self.internOutToOut.get(parentOut, None)
-            if outerOut is not None:
-                outT = self._getAlapOutsideOutTime(outerOut, asapSchedule, inputTimeGetter)
-            for pou in parentOutUses:
-                pou: HlsNetNodeIn
-                if pou.obj.scheduledIn is None:
-                    outT = None
-                    break
-
-                else:
-                    if inputTimeGetter is None:
-                        t = pou.obj.scheduledIn[pou.in_i]
-                    else:
-                        t = inputTimeGetter(pou, asapSchedule)
-
-                    if outT is None:
-                        outT = t
-                    else:
-                        outT = min(outT, t)
-
-            if outT is not None:
-                assert parentOut.obj.scheduledOut is None or parentOut.obj.scheduledOut[0] == outT, (
-                    "The node was not supposed to be scheduled because we should not see this use of this output yet",
-                    parentOut, outT, parentOut.obj.scheduledOut[0])
-                assert len(parentOut.obj._outputs) == 1, (parentOut.obj._outputs, "Only operators with a single output expected")
-                self.resolveSubnodeRealization(parentOut.obj, len(currentInputs) + len(parentOut.obj._inputs))
-                if outT - parentOut.obj.inputWireDelay[0] <= clkBoundaryTime:
-                    newClkStartBoundary = start_clk(outT, clkPeriod) * clkPeriod
-                    # can not fit this node inside current clock cycle
-                    parentOut.obj.scheduledOut = (min(clkBoundaryTime - ffdelay, outT),)  # move to start of clock cycle - ffdealy
-                    # all uses known and time corssing clock boundary, start a new cluster from this output
-                    self.scheduleAlapCompactionForOutput(parentOut, asapSchedule, newClkStartBoundary - clkPeriod,
-                                                         UniqList(), inputTimeGetter)
-                else:
-                    # somewhere inside clock cycle, no need to modify time
-                    parentOut.obj.scheduledOut = (outT,)
-                    self.scheduleAlapCompactionForOutput(parentOut, asapSchedule, clkBoundaryTime, currentInputs, inputTimeGetter)
-
-    def _getAlapOutsideOutTime(self, outerOut: HlsNetNodeOut, asapSchedule: SchedulizationDict, inputTimeGetter: Optional[InputTimeGetter]):
-        outsideClusterUses = outerOut.obj.usedBy[outerOut.out_i]
-        assert outsideClusterUses, ("Must be connected to something because otherwise this should be removed because it is unused", outerOut)
-        if inputTimeGetter is None:
-            t = min(u.obj.scheduleAlapCompaction(asapSchedule, None)[u.in_i] for u in outsideClusterUses)
-        else:
-            t = min(inputTimeGetter(u, asapSchedule) for u in outsideClusterUses)
-        
-        return t
-
-    def scheduleAlapCompaction(self, asapSchedule: SchedulizationDict, inputTimeGetter: Optional[InputTimeGetter]):
-        """
-        1. Resolve ALAP times for all inputs outside of this node where outputs are connected.
-           Note that this time is not the output time of internal output because output value may be required sooner.
-           * The total delay of subgraph is specified by number of inputs.
-           * The graph is cut on clock period boundaries.
-           * The problem is that we know the latency once we know the number of inputs, but we need a latency in order
-             to find out when the graph should be cut due to clock period boundary and from there we know the number of inputs.
-           * Problem is that we do not know which output is most constraining.
-        2. For each sub node perform ALAP compaction.
-           Use external output times a starting points. For each output we have to count inputs from clock boundary
-           so we can resolve the latency of the operator tree.
-        3. Store in/out schedule of children to this parent node.
-        """
-        if self.scheduledIn is None:
-            # :note: There must be at least a single output which is not used internally in the cluster
-            #        because cluster node graph is cycle free
-            netlist = self.netlist
-            clkPeriod = netlist.normalizedClkPeriod
-            ffdelay = netlist.platform.get_ff_store_time(self.netlist.realTimeClkPeriod, self.netlist.scheduler.resolution)
-            for outerO, o in zip(self._outputs, self._subNodes.outputs):
-                o: HlsNetNodeOut
-                insideClusterUses = o.obj.usedBy[o.out_i]
-                if not insideClusterUses:
-                    # this is just output to outside, copy timing from outside input
-                    outsideClusterUses = outerO.obj.usedBy[outerO.out_i]
-                    assert outsideClusterUses, ("Must be connected to something because otherwise this should be removed because it is unused", outerO)
-                    if inputTimeGetter is None:
-                        t = min(u.obj.scheduleAlapCompaction(asapSchedule, None)[u.in_i] for u in outsideClusterUses)
-                    else:
-                        t = min(inputTimeGetter(u, asapSchedule) for u in outsideClusterUses)
-                        
-                    assert len(o.obj.usedBy) == 1, ("Should be only bitwise operator wit a single output", o)
-                    self.resolveSubnodeRealization(o.obj, len(o.obj._inputs))
-                    clkStartBoundary = start_clk(t, clkPeriod) * clkPeriod
-                    if t - o.obj.inputWireDelay[0] <= clkStartBoundary:
-                        t = clkStartBoundary - ffdelay
-                        clkStartBoundary -= clkPeriod
-
-                    o.obj.scheduledOut = (t,)
-                    self.scheduleAlapCompactionForOutput(o,
-                                                         asapSchedule,
-                                                         clkStartBoundary,
-                                                         UniqList(),
-                                                         inputTimeGetter)
-
-            self.scheduledIn = tuple(min(
-                                            use.obj.scheduledIn[use.in_i]
-                                            for use in self._subNodes.inputsDict[i])
-                                         for i in self._subNodes.inputs)
-            self.scheduledOut = tuple(o.obj.scheduledOut[o.out_i] for o in self._subNodes.outputs)
-
-        return self.scheduledIn
 
     def resolveSubnodeRealization(self, node: HlsNetNodeOperator, input_cnt: int):
         netlist = self.netlist
+        assert isinstance(node, HlsNetNodeOperator), node
         bit_length = node._outputs[0]._dtype.bit_length()
 
         if node.operator is AllOps.TERNARY:
@@ -238,86 +60,87 @@ class HlsNetNodeBitwiseOps(HlsNetNode):
 
         rWithThisNode.inputWireDelay = tuple(
             max((latWith - latWithout, 0))
-            for latWith, latWithout in zip(HlsNetNode_numberForEachInput(node, inputWireDelay_without),
+            for latWith, latWithout in zip(HlsNetNode_numberForEachInput(node, inputWireDelay_with),
                                            HlsNetNode_numberForEachInput(node, inputWireDelay_without))
         )
         node.assignRealization(rWithThisNode)
 
-    def scheduleAsapWithQuantization(self, node: HlsNetNodeOperator, pathForDebug: Optional[UniqList["HlsNetNode"]]):
-        assert node in self._subNodes.nodes, (node, self._subNodes)
+    def scheduleAsapWithQuantization(self, node: HlsNetNodeOperator,
+                                     pathForDebug: Optional[UniqList["HlsNetNode"]],
+                                     beginOfFirstClk: int,
+                                     outputTimeGetter: Optional[OutputTimeGetter]):
+        # print("scheduleAsapWithQuantization", node)
+        assert node in self._subNodes, (node, self._subNodes)
         if node.scheduledOut is None:
             if pathForDebug is not None:
                 if node in pathForDebug:
                     raise AssertionError("Cycle in graph", self, [n._id for n in pathForDebug[pathForDebug.index(node):]])
                 else:
-                    pathForDebug.append(self)
-
-            totalInputCnt = 0
-            input_times = []
-            for d in node.dependsOn:
-                obj = d.obj
-                if obj in self._subNodes.nodes:
-                    _sch, _inp_cnt = self.scheduleAsapWithQuantization(obj, pathForDebug)
-                    totalInputCnt += _inp_cnt
-
+                    pathForDebug.append(node)
+            try:
+                if isinstance(node, HlsNetNodeAggregatePortIn):
+                    node.scheduleAsap(pathForDebug, beginOfFirstClk, outputTimeGetter)
+                    totalInputCnt = 1
+                    self._totalInputCnt[node] = totalInputCnt
                 else:
-                    _sch = obj.scheduleAsap(pathForDebug)
-                    totalInputCnt += 1
-
-                t = _sch[d.out_i]  # + epsilon
-                input_times.append(t)
-
-            self._totalInputCnt[node] = totalInputCnt
-            self.resolveSubnodeRealization(node, totalInputCnt)
-            # now we have times when the value is available on input
-            # and we must resolve the minimal time so each input timing constraints are satisfied
-            time_when_all_inputs_present = 0
-
-            clkPeriod = self.netlist.normalizedClkPeriod
-            epsilon = self.netlist.scheduler.epsilon
-            for (available_in_time, in_delay, in_cycles) in zip(input_times, node.inputWireDelay, node.inputClkTickOffset):
-                if in_delay >= clkPeriod:
-                    raise TimeConstraintError(
-                        "Impossible scheduling, clkPeriod too low for ",
-                        node.inputWireDelay, node.outputWireDelay, node)
-
-                next_clk_time = start_of_next_clk_period(available_in_time, clkPeriod)
-                time_budget = next_clk_time - available_in_time
-
-                if in_delay >= time_budget:
-                    available_in_time = next_clk_time
-
-                normalized_time = (available_in_time
-                                   +in_delay
-                                   +in_cycles * clkPeriod)
-
-                if normalized_time > time_when_all_inputs_present:
-                    time_when_all_inputs_present = normalized_time
-
-            node.scheduledIn = tuple(
-                time_when_all_inputs_present - (in_delay + in_cycles * clkPeriod) + epsilon
-                for (in_delay, in_cycles) in zip(node.inputWireDelay, node.inputClkTickOffset)
-            )
-
-            node.scheduledOut = tuple(
-                time_when_all_inputs_present + out_delay + out_cycles * clkPeriod + epsilon
-                for (out_delay, out_cycles) in zip(node.outputWireDelay, node.outputClkTickOffset)
-            )
-            for ot in node.scheduledOut:
-                for it in node.scheduledIn:
-                    assert int(ot // clkPeriod) == int(it // clkPeriod), ("Bitwise operator primitives can not cross clock boundaries", node, it, ot, clkPeriod)
-
-            if pathForDebug is not None:
-                pathForDebug.pop()
+                    totalInputCnt = 0
+                    inputAvailableTimes = []
+                    for d in node.dependsOn:
+                        obj = d.obj
+                        # resolve time for something in this cluster
+                        _sch, _inp_cnt = self.scheduleAsapWithQuantization(obj, pathForDebug, beginOfFirstClk, outputTimeGetter)
+                        t = _sch[d.out_i]  # + epsilon
+                        totalInputCnt += _inp_cnt
+                        inputAvailableTimes.append(t)
+        
+                    self._totalInputCnt[node] = totalInputCnt
+                    self.resolveSubnodeRealization(node, totalInputCnt)
+                    # now we have times when the value is available on input
+                    # and we must resolve the minimal time so each input timing constraints are satisfied
+        
+                    nodeZeroTime = 0
+                    clkPeriod = self.netlist.normalizedClkPeriod
+                    for (available_in_time, in_delay, in_cycles) in zip(inputAvailableTimes, node.inputWireDelay, node.inputClkTickOffset):
+                        assert in_cycles == 0
+                        if in_delay >= clkPeriod:
+                            raise TimeConstraintError(
+                                "Impossible scheduling, clkPeriod too low for ",
+                                node.inputWireDelay, node.outputWireDelay, node)
+        
+                        next_clk_time = start_of_next_clk_period(available_in_time, clkPeriod)
+                        time_budget = next_clk_time - available_in_time
+        
+                        if in_delay >= time_budget:
+                            available_in_time = next_clk_time
+        
+                        normalized_time = (available_in_time + in_delay)
+        
+                        if normalized_time > nodeZeroTime:
+                            nodeZeroTime = normalized_time
+                    
+                    node._setScheduleZeroTimeSingleClock(nodeZeroTime)
+                    for ot in node.scheduledOut:
+                        for it in node.scheduledIn:
+                            assert int(ot // clkPeriod) == int(it // clkPeriod), ("Bitwise operator primitives can not cross clock boundaries", node, it, ot, clkPeriod)
+            finally:
+                if pathForDebug is not None:
+                    pathForDebug.pop()
 
         else:
-            totalInputCnt = self._totalInputCnt[node]
+            try:
+                totalInputCnt = self._totalInputCnt[node]
+            except KeyError:
+                raise AssertionError(self, node, "Has missing totalInputCnt but has scheduledOut specified.")
 
         return node.scheduledOut, totalInputCnt
 
-    def scheduleAsap(self, pathForDebug: Optional[UniqList["HlsNetNode"]]) -> List[float]:
+    def scheduleAsap(self,
+                     pathForDebug: Optional[UniqList["HlsNetNode"]],
+                     beginOfFirstClk: int,
+                     outputTimeGetter: Optional[OutputTimeGetter]) -> List[int]:
         """
-        ASAP scheduling with compaction
+        Incrementally stack operands to a larger tree and approximate the latency of the hypothetical mapping to LUT
+        based on the number of the inputs of the tree.
         """
         if self.scheduledOut is None:
             if pathForDebug is not None:
@@ -325,37 +148,162 @@ class HlsNetNodeBitwiseOps(HlsNetNode):
                     raise AssertionError("Cycle in graph", self, [n._id for n in pathForDebug[pathForDebug.index(self):]])
                 else:
                     pathForDebug.append(self)
+            try:
+                assert self._inputsInside, self
+                assert self._outputsInside, self
 
-            scheduleOut = []
-            for o in self._subNodes.outputs:
-                o: HlsNetNodeOut
-                _scheduleOut, _ = self.scheduleAsapWithQuantization(o.obj, pathForDebug)
-                scheduleOut.append(_scheduleOut[0])
+                for o in self._outputsInside:
+                    o: HlsNetNodeAggregatePortOut
+                    scheduledOut, _ = self.scheduleAsapWithQuantization(o.dependsOn[0].obj, pathForDebug, beginOfFirstClk, outputTimeGetter)
+                    o._setScheduleZero(scheduledOut[0])
 
-            self.scheduledIn = tuple(min(use.obj.scheduledIn[use.in_i] for use in self._subNodes.inputsDict[i]) for i in self._subNodes.inputs)
-            self.scheduledOut = tuple(scheduleOut)
+                self.scheduledIn = tuple(i.scheduledOut[0] for i in self._inputsInside)
+                self.scheduledZero = min(self.scheduledIn)
+                self.scheduledOut = tuple(o.scheduledIn[0] for o in self._outputsInside)
+            finally:
+                if pathForDebug is not None:
+                    pathForDebug.pop()
 
         return self.scheduledOut
 
-    def _replaceAllOuterInputsPlaceholders(self, outputMap: Optional[Dict[HlsNetNodeOut, HlsNetNodeOut]]):
-        for n in self._subNodes.nodes:
-            for i, dep in enumerate(n.dependsOn):
-                if isinstance(dep, HlsNetNodeIn):
-                    assert dep.obj is self, (self, dep.obj, n._id)
-                    o = self.dependsOn[dep.in_i]
-                    if outputMap:
-                        o = outputMap.get(o, o)
-                    n.dependsOn[i] = o
-
-    def allocateRtlInstance(self, allocator:"ArchElement"):
+    def scheduleAlapCompactionForOutput(self,
+                                        internalOut: HlsNetNodeOut,
+                                        clkBoundaryTime: int,
+                                        currentInputs: UniqList[HlsNetNodeIn],
+                                        outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter]):
         """
-        Instantiate layers of bitwise operators. (Just delegation to sub nodes)
+        BFS consume all inputs until the start or until the boundary is found
+        
+        :ivar internalOut: Internal output with known scheduling time. (Time is known if all uses of this output have known time)
         """
-        raise AssertionError("This node should be dissolved before instantiation to avoid complicated cases where parts are scattered over many arch elements.")
+        assert internalOut.obj.scheduledOut, (internalOut, "This function should be called only on scheduled nodes.")
+        currentInputs.extend(internalOut.obj._inputs)
+        ffdelay = self.netlist.platform.get_ff_store_time(self.netlist.realTimeClkPeriod, self.netlist.scheduler.resolution)
+        clkPeriod = self.netlist.normalizedClkPeriod
+        # 1. resolve which nodes we can add to cluster because they have all successors scheduled
+        #    and adding it will not cause time to overflow clkBoundaryTime
+        for dep in internalOut.obj.dependsOn:
+            # get first time when dep is used
+            depObj: HlsNetNode = dep.obj
+            assert depObj.scheduledOut is None, (internalOut, depObj, "Must not be scheduled because its successor (internalOut.obj) is not scheduled yet")
+            assert depObj.realization is not None, (depObj, "realization should be resolved in ASAP")
+            depT = None
+            for idou in depObj.usedBy[dep.out_i]:
+                idou: HlsNetNodeIn
+                if idou.obj.scheduledIn is None:
+                    # dependency has some other use which was not yet seen we have to wait until it is resolved
+                    depT = inf
+                    break
 
-    def __repr__(self, minify=False):
-        if minify:
-            return f"<{self.__class__.__name__:s} {self._id:d}>"
-        else:
-            return f"<{self.__class__.__name__:s} {self._id:d} {[n._id for n in self._subNodes.nodes]}>"
+                else:
+                    t = idou.obj.scheduledIn[idou.in_i]
+                    if depT is None:
+                        depT = t
+                    else:
+                        depT = min(depT, t)
 
+            if depT is inf:
+                continue
+
+            # check if dependency has some other uses which are affecting the schedule
+            if outputMinUseTimeGetter is not None:
+                depT = outputMinUseTimeGetter(dep, depT)
+            isInPort = isinstance(depObj, HlsNetNodeAggregatePortIn)
+            if isInPort:
+                depT = self._getAlapOutsideOutMinUseTime(depObj, clkBoundaryTime, depT, outputMinUseTimeGetter)
+
+            if depT is not None:
+                # if time of this dependency can be resolved, set its schedule and continue scheduling there
+                assert depObj.scheduledOut is None or depObj.scheduledOut[0] == depT, (
+                    "The node was not supposed to be scheduled because we should not see this use of this output yet",
+                    dep, depT, depObj.scheduledOut[0])
+                assert len(depObj._outputs) == 1, (depObj._outputs, "Only operators with a single output expected")
+                if not isInPort:
+                    self.resolveSubnodeRealization(depObj, len(currentInputs) + len(depObj._inputs))
+                
+                if isInPort:
+                    if depT != depObj.scheduledZero:
+                        depObj._setScheduleZeroTimeSingleClock(depT)
+                    
+                elif depT - depObj.inputWireDelay[0] <= clkBoundaryTime:
+                    # can not fit this node inside current clock cycle
+                    newClkBeginBoundary = indexOfClkPeriod(depT, clkPeriod) * clkPeriod
+                    depObj._setScheduleZeroTimeSingleClock(min(clkBoundaryTime - ffdelay, depT))  # move to start of clock cycle - ffdealy
+                    # all uses known and time crossing clock boundary, start a new cluster from this output
+                    self.scheduleAlapCompactionForOutput(dep, newClkBeginBoundary,
+                                                             UniqList(), outputMinUseTimeGetter)
+                else:
+                    # somewhere inside clock cycle, no need to modify time
+                    depObj._setScheduleZeroTimeSingleClock(depT)
+                    self.scheduleAlapCompactionForOutput(dep, clkBoundaryTime,
+                                                             currentInputs, outputMinUseTimeGetter)
+
+    def scheduleAlapCompaction(self,
+                               endOfLastClk: int,
+                               outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter]) -> Generator["HlsNetNode", None, None]:
+        """
+        1. Resolve ALAP times for all inputs outside of this node where outputs are connected.
+           Note that this time is not the output time of internal output because output value may be required sooner.
+           * The total delay of subgraph is specified by number of inputs.
+           * The graph is cut on clock period boundaries.
+           * The problem is that we know the latency once we know the number of inputs, but we need a latency in order
+             to find out when the graph should be cut due to clock period boundary and from there we know the number of inputs.
+           * Problem is that we do not know which output is most constraining.
+        2. For each sub node perform ALAP compaction.
+           Use external output times a starting points. For each output we have to count inputs from clock boundary
+           so we can resolve the latency of the operator tree.
+        3. Store in/out schedule of children to this parent node.
+        """
+        # :note: There must be at least a single output which is not used internally in the cluster
+        #        because cluster node graph is cycle free
+        netlist = self.netlist
+        clkPeriod = netlist.normalizedClkPeriod
+        ffdelay = netlist.platform.get_ff_store_time(self.netlist.realTimeClkPeriod, self.netlist.scheduler.resolution)
+        originalSchedule = {}
+        self.copyScheduling(originalSchedule)
+        scheduledZero = self.scheduledZero
+        scheduledIn = self.scheduledIn
+        scheduledOut = self.scheduledOut
+
+        self.resetScheduling()
+        for oPort in self._outputsInside:
+            assert not any(oPort.scheduleAlapCompaction(endOfLastClk, outputMinUseTimeGetter)), (oPort, "Should only copy times from uses")
+        
+        for outerO, oPort in zip(self._outputs, self._outputsInside):
+            o: HlsNetNodeOut = oPort.dependsOn[0]
+            insideClusterUses = o.obj.usedBy[o.out_i]
+            if len(insideClusterUses) == 1:
+                assert insideClusterUses[0] is oPort._inputs[0], (oPort, insideClusterUses)
+                # this is just output to outside, copy timing from outside input
+                t = oPort.scheduledIn[0]
+                if outputMinUseTimeGetter is not None:
+                    t = outputMinUseTimeGetter(outerO, t)
+  
+                assert len(o.obj.usedBy) == 1, ("Should be only bitwise operator wit a single output", o)
+                self.resolveSubnodeRealization(o.obj, len(o.obj._inputs))
+                clkStartBoundary = indexOfClkPeriod(t, clkPeriod) * clkPeriod
+                if t - o.obj.inputWireDelay[0] <= clkStartBoundary:
+                    t = clkStartBoundary - ffdelay
+                    clkStartBoundary -= clkPeriod
+
+                o.obj._setScheduleZeroTimeSingleClock(t)
+                
+                # set time for all dependencies in this cluster as last as possible
+                self.scheduleAlapCompactionForOutput(o,
+                                                     clkStartBoundary,
+                                                     UniqList(),
+                                                     outputMinUseTimeGetter)
+
+        self.copySchedulingFromChildren()
+        for inT, dep in zip(self.scheduledIn, self.dependsOn):
+            if inT < dep.obj.scheduledOut[dep.out_i]:
+                # scheduling failed to meet timing requirements on at least one input
+                # this node can not be moved and must stay as it was
+                self.setScheduling(originalSchedule)
+                return
+
+        self.checkScheduling()
+
+        if self.scheduledZero != scheduledZero or self.scheduledIn != scheduledIn or self.scheduledOut != scheduledOut:
+            for dep in self.dependsOn:
+                yield dep.obj
