@@ -185,6 +185,14 @@ def extract_msb_cmp: GICombineRule<
   (apply [{ Helper.applyBuildFn(*${root}, ${info}); }])
 >;
 
+def constCmpConstAdd_to_constCmp: GICombineRule<
+  (defs root:$root, build_fn_matchinfo:$info),
+  (match (wip_match_opcode G_ICMP):$root,
+    [{ return Helper.matchConstCmpConstAdd(*${root}, ${info}); }]),
+  (apply [{ Helper.applyBuildFn(*${root}, ${info}); }])
+>;
+
+
 // rewrite generic opcodes to GENFPGA_* where beneficial
 def GenericFpgaGenPreRegAllocGICombinerHelper: GICombinerHelper<
   "GenericFpgaGenPreRegAllocGICombinerHelper", [
@@ -209,6 +217,7 @@ def GenericFpgaGenPreToNetlistGICombinerHelper: GICombinerHelper<
     const_eval_combines,
     mux_merge,
     extract_msb_cmp,
+    constCmpConstAdd_to_constCmp,
     ]> {
   let DisableRuleOption = "GenericFpgaGenPreToNetlistGICombinerHelper-disable-rule";
   let StateClass = "GenericFpgaGenPreToNetlistGICombinerHelperState";

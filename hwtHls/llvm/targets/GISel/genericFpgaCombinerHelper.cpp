@@ -307,7 +307,8 @@ GenFpgaCombinerHelper::CImmOrReg::CImmOrReg(const MachineOperand &MOP) {
 		llvm_unreachable("need reg or CImm for GENFPGA_EXTRACT");
 	}
 }
-void GenFpgaCombinerHelper::CImmOrReg::addAsUse(MachineInstrBuilder & MIB) const {
+void GenFpgaCombinerHelper::CImmOrReg::addAsUse(
+		MachineInstrBuilder &MIB) const {
 	if (c)
 		MIB.addCImm(c);
 	else {
@@ -375,6 +376,54 @@ bool GenFpgaCombinerHelper::matchCmpToMsbCheck(llvm::MachineInstr &MI,
 			buildMsbGet(builder, Observer, _LHS, bitWidth, Dst);
 		};
 		return true;
+	}
+	return false;
+}
+
+bool GenFpgaCombinerHelper::matchConstCmpConstAdd(llvm::MachineInstr &MI,
+		BuildFnTy &rewriteFn) {
+	assert(MI.getOpcode() == TargetOpcode::G_ICMP);
+	auto Pred = static_cast<CmpInst::Predicate>(MI.getOperand(1).getPredicate());
+	const auto LHS = MI.getOperand(2);
+	const auto RHS = MI.getOperand(3);
+	if (Pred == CmpInst::Predicate::ICMP_EQ
+			|| Pred == CmpInst::Predicate::ICMP_NE) {
+		if (LHS.isReg() && RHS.isCImm()) {
+			MachineOperand *_LHS = MRI.getOneDef(LHS.getReg());
+			if (!_LHS)
+				return false;
+			auto lhsOpcode = _LHS->getParent()->getOpcode();
+			if (lhsOpcode == TargetOpcode::G_ADD
+					|| lhsOpcode == TargetOpcode::G_SUB) {
+				const auto LHS_LHS = _LHS->getParent()->getOperand(1);
+				const auto LHS_RHS = _LHS->getParent()->getOperand(2);
+				if (LHS_RHS.isCImm()) {
+					// [fixme] assert that add/sub operands are not modified between  until icmp instr.
+					APInt lhsVal = RHS.getCImm()->getValue(); // original value which was compared with
+					auto lhsRhsVal = LHS_RHS.getCImm()->getValue(); // the const value used in add/sub
+					switch (lhsOpcode) {
+					case TargetOpcode::G_ADD:
+						lhsVal -= lhsRhsVal;
+						break;
+					case TargetOpcode::G_SUB:
+						lhsVal += lhsRhsVal;
+					}
+
+					CImmOrReg newLHS(LHS_LHS);
+					ConstantInt *newRhs = ConstantInt::get(
+							Builder.getMF().getFunction().getContext(), lhsVal);
+					Register Dst = MI.getOperand(0).getReg();
+					rewriteFn = [Dst, Pred, newLHS, newRhs, this](
+							MachineIRBuilder &builder) {
+						auto MIB = builder.buildInstr(TargetOpcode::G_ICMP);
+						MIB.addDef(Dst).addPredicate(Pred);
+						newLHS.addAsUse(MIB);
+						MIB.addCImm(newRhs);
+					};
+					return true;
+				}
+			}
+		}
 	}
 	return false;
 }

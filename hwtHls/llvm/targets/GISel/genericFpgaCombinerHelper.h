@@ -65,6 +65,7 @@ public:
 
 	bool matchCmpToMsbCheck(llvm::MachineInstr &MI, BuildFnTy &rewriteFn);
 
+	bool matchConstCmpConstAdd(llvm::MachineInstr &MI, BuildFnTy &rewriteFn);
 };
 
 }
