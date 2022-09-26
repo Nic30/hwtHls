@@ -6,7 +6,7 @@ from hwt.code_utils import rename_signal
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.bitsVal import BitsVal
-from hwt.interfaces.std import HandshakeSync
+from hwt.interfaces.std import HandshakeSync, Signal
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
@@ -24,7 +24,8 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite 
 from hwtHls.netlist.scheduler.clk_math import start_clk
-from hwtLib.handshaked.streamNode import StreamNode
+from hwtLib.handshaked.streamNode import StreamNode, _get_valid_signal, \
+    _get_ready_signal, INTERFACE_OR_VLD_RD_TUPLE
 from ipCorePackager.constants import INTF_DIRECTION
 
 
@@ -90,16 +91,16 @@ class ArchElement():
                 sigs.append(depRtl)
                 t -= clkPeriod
 
-    def _connectSync(self, con: ConnectionsOfStage, intf: HandshakeSync, intfDir: INTF_DIRECTION):
+    def _connectSync(self, con: ConnectionsOfStage, intf: HandshakeSync, intfDir: INTF_DIRECTION, isBlocking: bool):
         if intfDir == INTF_DIRECTION.MASTER:
-            con.outputs.append(intf)
+            con.outputs.append((intf, isBlocking))
         else:
             assert intfDir == INTF_DIRECTION.SLAVE, intfDir
-            con.inputs.append(intf)
+            con.inputs.append((intf, isBlocking))
 
-    def connectSync(self, clkI: int, intf: HandshakeSync, intfDir: INTF_DIRECTION):
+    def connectSync(self, clkI: int, intf: HandshakeSync, intfDir: INTF_DIRECTION, isBlocking: bool):
         con: ConnectionsOfStage = self.connections[clkI]
-        return self._connectSync(con, intf, intfDir)
+        return self._connectSync(con, intf, intfDir, isBlocking)
 
     def instantiateHlsNetNodeOut(self, o: HlsNetNodeOut) -> TimeIndependentRtlResource:
         assert isinstance(o, HlsNetNodeOut), o
@@ -312,11 +313,53 @@ class ArchElement():
 
         return sync
 
-    def _makeSyncNode(self, prevStageDataVld: Optional[RtlSyncSignal], con: ConnectionsOfStage) -> StreamNode:
-        masters = [extractControlSigOfInterface(intf) for intf in con.inputs]
-        masters = [m for m in masters if not m == (1, 1)]
-        slaves = [extractControlSigOfInterface(intf) for intf in con.outputs]
-        slaves = [s for s in slaves if not s == (1, 1)]
+    def _modifySkipWhenForNonBlocking(self,
+                                       io: INTERFACE_OR_VLD_RD_TUPLE,
+                                       isBlocking: bool,
+                                       ack: Union[RtlSignal, int, Signal],
+                                       skipWhen: Optional[Dict[INTERFACE_OR_VLD_RD_TUPLE, RtlSignal]]) -> Optional[Dict[INTERFACE_OR_VLD_RD_TUPLE, RtlSignal]]:
+        if not isBlocking and not isinstance(ack, int):
+            if skipWhen is None:
+                skipWhen = {}
+            sw = skipWhen.get(io, None)
+            if sw is None:
+                sw = ~ack
+            else:
+                sw = sw | ~ack
+            skipWhen[io] = sw
+        return skipWhen
+
+    def _makeSyncNodeDropSyncSignalForNonBlocking(self,
+                                                  io: INTERFACE_OR_VLD_RD_TUPLE,
+                                                  isInput: bool,
+                                                  index: int,
+                                                  ioList: List[Tuple[INTERFACE_OR_VLD_RD_TUPLE, bool]],
+                                                  extraConds: Optional[Dict[INTERFACE_OR_VLD_RD_TUPLE, RtlSignal]],
+                                                  skipWhen: Optional[Dict[INTERFACE_OR_VLD_RD_TUPLE, RtlSignal]]):
+        vld = _get_valid_signal(io)
+        rd = _get_ready_signal(io)
+        if isInput:
+            newIo = (1, rd)
+        else:
+            newIo = (vld, 1)
+        
+        ioList[index] = (newIo, False)
+        if extraConds is not None:
+            ec = extraConds.pop(io, None)
+            if ec is not None:
+                extraConds[newIo] = ec
+        if skipWhen is not None:
+            sw = skipWhen.pop(io, None)
+            if sw is not None:
+                skipWhen[newIo] = sw
+
+    def _makeSyncNode(self, con: ConnectionsOfStage) -> StreamNode:
+        masters = [(extractControlSigOfInterface(intf), isBlocking) for intf, isBlocking in con.inputs]
+        slaves = [(extractControlSigOfInterface(intf), isBlocking) for intf, isBlocking in con.outputs]
+        # ignore io without any sync
+        masters = [m for m in masters if not m[0] == (1, 1)]
+        slaves = [s for s in slaves if not s[0] == (1, 1)]
+
         if not masters and not slaves:
             extraConds = None
             skipWhen = None
@@ -331,10 +374,18 @@ class ArchElement():
             if self.debugAddNamesToSyncSignals:
                 extraConds = {io: rename_signal(self.netlist.parentUnit, cond, f"{io._name}_extraCond") for io, cond in extraConds.items()}
                 skipWhen = {io: rename_signal(self.netlist.parentUnit, cond, f"{io._name}_skipWhen") for io, cond in skipWhen.items()}
+        
+        for i, (m, isBlocking) in enumerate(masters):
+            if not isBlocking:
+                self._makeSyncNodeDropSyncSignalForNonBlocking(m, True, i, masters, extraConds, skipWhen)
+
+        for i, (s, isBlocking) in enumerate(slaves):
+            if not isBlocking:
+                self._makeSyncNodeDropSyncSignalForNonBlocking(s, False, i, masters, extraConds, skipWhen)
             
         sync = StreamNode(
-            masters,
-            slaves,
+            [m for m, _ in masters],  # rm isBlocking flags
+            [s for s, _ in slaves],
             extraConds=extraConds,
             skipWhen=skipWhen,
         )
@@ -354,9 +405,9 @@ class ArchElement():
 
         # if it has some synchronization
         if isinstance(node, HlsNetNodeRead):
-            con.inputs.append(intf)
+            con.inputs.append((intf, node._isBlocking))
         else:
-            con.outputs.append(intf)
+            con.outputs.append((intf, node._isBlocking))
         
         curExtraCond = con.io_extraCond.get(intf, None)
         curSkipWhen = con.io_skipWhen.get(intf, None)

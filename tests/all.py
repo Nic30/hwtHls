@@ -26,6 +26,7 @@ from tests.frontend.pyBytecode.pragmaInline_test import PyBytecodeInline_TC
 from tests.frontend.pyBytecode.preprocLoopMultiExit_test import PreprocLoopMultiExit_TCs
 from tests.frontend.pyBytecode.pyArrHwIndex_test import PyArrHwIndex_TC
 from tests.frontend.pyBytecode.pyArrShift_test import PyArrShift_TC
+from tests.frontend.pyBytecode.readNonBlocking_test import ReadNonBlocking_TC
 from tests.frontend.pyBytecode.stmFor_test import StmFor_TC
 from tests.frontend.pyBytecode.stmIf_test import StmIf_TC
 from tests.frontend.pyBytecode.stmWhile_test import StmWhile_TC
@@ -104,6 +105,7 @@ suite = testSuiteFromTCs(
     Axi4LiteRead_TC,
     Axi4LiteWrite_TC,
     CounterArray_TC,
+    ReadNonBlocking_TC,
 )
 
 

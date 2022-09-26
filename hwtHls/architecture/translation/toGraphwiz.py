@@ -105,14 +105,14 @@ class RtlArchToGraphwiz():
                 nodeRows.append(f"    <tr><td port='i{i:d}'>i{i:d}</td><td>st{i:d}-clk{clkI}</td><td port='o{i:d}'>o{i:d}</td></tr>\n")
                 # [todo] global inputs with bgcolor ligtred global outputs with lightblue color
                 
-                for intf in con.inputs:
+                for intf, isBlocking in con.inputs:
                     iN = self._getInterfaceNode(intf)
-                    e = Edge(f"{iN.get_name():s}:0", f"n{nodeId:d}:i{i:d}")
+                    e = Edge(f"{iN.get_name():s}:0", f"n{nodeId:d}:i{i:d}", label='' if isBlocking else ' non-blocking')
                     g.add_edge(e)
                 
-                for intf in con.outputs:
+                for intf, isBlocking  in con.outputs:
                     oN = self._getInterfaceNode(intf)
-                    e = Edge(f"n{nodeId:d}:o{i:d}", f"{oN.get_name():s}:0")
+                    e = Edge(f"n{nodeId:d}:o{i:d}", f"{oN.get_name():s}:0", label='' if isBlocking else ' non-blocking')
                     g.add_edge(e)
                 
             nodeRows.append('</table>>')

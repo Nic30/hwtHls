@@ -81,8 +81,8 @@ class ConnectionsOfStage():
     """
     This object is a container of meta-information for synchronization generation for a single clock pipeline stage pipeline stage or FSM state.
 
-    :ivar inputs: all input channels to this stage.
-    :ivar outputs: all output channels from this stage.
+    :ivar inputs: a tuple (io, isBlocking) for every input channels to this stage.
+    :ivar outputs: a tuple (io, isBlocking) for every output channels from this stage.
     :ivar signals: all TimeIndependentRtlResourceItem instances generated in this pipeline stage/FSM state 
     :ivar io_skipWhen: skipWhen condition for inputs/outputs which specifies when the synchronization should wait for this channel
     :ivar io_extraCond: extraCond condition for inputs/outputs which specifies when the data should be send/received from channel 
@@ -97,8 +97,8 @@ class ConnectionsOfStage():
     """
 
     def __init__(self):
-        self.inputs: UniqList[Interface] = UniqList()
-        self.outputs: UniqList[Interface] = UniqList()
+        self.inputs: UniqList[Tuple[Interface, bool]] = UniqList()
+        self.outputs: UniqList[Tuple[Interface, bool]] = UniqList()
         self.signals: UniqList[TimeIndependentRtlResourceItem] = UniqList()
         self.io_skipWhen: Dict[Interface, SkipWhenMemberList] = {}
         self.io_extraCond: Dict[Interface, ExtraCondMemberList] = {}

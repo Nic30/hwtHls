@@ -10,7 +10,6 @@ from hwt.interfaces.std import Signal, HandshakeSync
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import Interface_without_registration
-from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
 from hwtHls.architecture.archElement import ArchElement
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage, resolveStrongestSyncType, \
     SignalsOfStages
@@ -136,7 +135,7 @@ class ArchElementPipeline(ArchElement):
 
                     currentStageForIo = ioToCon.get(node.src, con)
                     assert currentStageForIo is con, ("If the access to IO is from different stage, this should already have IO gate generated", node, con)
-                    con.inputs.append(node.src)
+                    con.inputs.append((node.src, node._isBlocking))
                     self._allocateIo(ioDiscovery, node.src, node, con, ioMuxes, ioSeen, rtl)
                     ioToCon[node.src] = con
                     allIoObjSeen.add(node)
@@ -149,7 +148,7 @@ class ArchElementPipeline(ArchElement):
 
                     currentStageForIo = ioToCon.get(node.dst, con)
                     assert currentStageForIo is con, ("If the access to IO is from different stage, this should already have IO gate generated", node, con)
-                    con.outputs.append(node.dst)
+                    con.outputs.append((node.dst, node._isBlocking))
                     # if node.dst in allocator.netlist.coherency_checked_io:
                     self._allocateIo(ioDiscovery, node.dst, node, con, ioMuxes, ioSeen, rtl)
                     ioToCon[node.dst] = con
@@ -183,10 +182,10 @@ class ArchElementPipeline(ArchElement):
             tir.get(t)
             sigs.append(tir)
 
-    def connectSync(self, clkI: int, intf: HandshakeSync, intfDir: INTF_DIRECTION):
+    def connectSync(self, clkI: int, intf: HandshakeSync, intfDir: INTF_DIRECTION, isBlocking: bool):
         if clkI < self._beginClkI:
             self._beginClkI = clkI
-        super(ArchElementPipeline, self).connectSync(clkI, intf, intfDir)
+        super(ArchElementPipeline, self).connectSync(clkI, intf, intfDir, isBlocking)
 
     def allocateSync(self):
         assert self._dataPathAllocated
@@ -194,23 +193,19 @@ class ArchElementPipeline(ArchElement):
         
         syncType = Signal
         for con in self.connections:
-            syncType = resolveStrongestSyncType(syncType, chain(con.inputs, con.outputs))
+            syncType = resolveStrongestSyncType(syncType, chain((io for io, _ in con.inputs), (io for io, _ in con.outputs)))
 
-        prev_st_valid = None
         for is_last_in_pipeline, (pipeline_st_i, con) in iter_with_last(enumerate(self.connections)):
             con: ConnectionsOfStage
             if pipeline_st_i < self._beginClkI:
                 continue
             self.allocateSyncForStage(
-                prev_st_valid,
                 con, syncType,
                 None if is_last_in_pipeline else self.connections[pipeline_st_i + 1],
                 pipeline_st_i)
-            prev_st_valid = con.stageDataVld
         self._syncAllocated = True
 
     def allocateSyncForStage(self,
-                      prevStageDataVld: Optional[RtlSyncSignal],
                       con: ConnectionsOfStage,
                       syncType: Type[Interface],
                       nextCon: Optional[ConnectionsOfStage],
@@ -249,19 +244,19 @@ class ArchElementPipeline(ArchElement):
                 # need a synchronization if there is a next stage in the pipeline
                 toNextStSource = Interface_without_registration(
                     self, HandshakeSync(), f"{self.namePrefix:s}stSync_st{pipeline_st_i:d}_{pipeline_st_i:d}_to_{pipeline_st_i+1:d}")
-                con.outputs.append(toNextStSource)
+                con.outputs.append((toNextStSource, True))
                 con.syncOut = toNextStSource
 
                 toNextStSink = Interface_without_registration(
                     self, HandshakeSync(), f"{self.namePrefix:s}stSync_st{pipeline_st_i+1:d}_{pipeline_st_i:d}_to_{pipeline_st_i+1:d}")
-                nextCon.inputs.append(toNextStSink)
+                nextCon.inputs.append((toNextStSink, True))
                 nextCon.syncIn = toNextStSink
                 # if not is_first_in_pipeline:
                 # :note: that the register 0 is behind the first stage of pipeline
                 con.stageDataVld = stValid = self._reg(f"{self.namePrefix:s}st{pipeline_st_i:d}_valid", def_val=0)
 
             if con.inputs or con.outputs:
-                sync = con.sync_node = self._makeSyncNode(prevStageDataVld, con)
+                sync = con.sync_node = self._makeSyncNode(con)
                 # check if results of this stage do validity register
                 sync.sync()
                 ack = sync.ack()

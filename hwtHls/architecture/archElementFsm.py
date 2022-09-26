@@ -86,14 +86,14 @@ class ArchElementFsm(ArchElement):
         for dep in n.dependsOn:
             self._afterOutputUsed(dep)
 
-    def connectSync(self, clkI: int, intf: HandshakeSync, intfDir: INTF_DIRECTION):
+    def connectSync(self, clkI: int, intf: HandshakeSync, intfDir: INTF_DIRECTION, isBlocking: bool):
         try:
             stateI = self.fsm.clkIToStateI[clkI]
         except KeyError:
             raise AssertionError("Asking for a sync in an element which is not scheduled in this clk period", self, clkI, self.fsm.clkIToStateI)
 
         con: ConnectionsOfStage = self.connections[stateI]
-        self._connectSync(con, intf, intfDir)
+        self._connectSync(con, intf, intfDir, isBlocking)
         self._initNopValsOfIoForIntf(intf, intfDir)
 
     def _initNopValsOfIoForIntf(self, intf: Union[Interface], intfDir: INTF_DIRECTION):
@@ -294,7 +294,7 @@ class ArchElementFsm(ArchElement):
 
             unconditionalTransSeen = False
             inStateTrans: List[Tuple[RtlSignal, List[HdlStatement]]] = []
-            sync = self._makeSyncNode(None, con)
+            sync = self._makeSyncNode(con)
             
             # prettify stateAck signal name if required
             stateAck = sync.ack()

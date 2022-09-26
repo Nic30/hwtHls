@@ -343,7 +343,7 @@ class HlsAllocator():
             interElmSync = Interface_without_registration(
                 self.netlist.parentUnit, interElmSync,
                 f"{self.namePrefix:s}sync_{srcBaseName:s}_{srcStartClkI}clk_to_{dstBaseName:s}_{dstUseClkI}clk")
-            srcElm.connectSync(dstUseClkI, interElmSync, INTF_DIRECTION.MASTER)
-            dstElm.connectSync(dstUseClkI, interElmSync, INTF_DIRECTION.SLAVE)
+            srcElm.connectSync(dstUseClkI, interElmSync, INTF_DIRECTION.MASTER, True)
+            dstElm.connectSync(dstUseClkI, interElmSync, INTF_DIRECTION.SLAVE, True)
             syncAdded[syncCacheKey] = interElmSync
         interElmSync.data.append((srcTiri, dstTiri))

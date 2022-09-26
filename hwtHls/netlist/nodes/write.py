@@ -53,6 +53,7 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         # assert isinstance(dst, (HlsNetNodeIn, HsStructIntf, Signal, RtlSignalBase, Handshaked, StructIntf, VldSynced, RdSynced)), dst
         self.dst = dst
         self.maxIosPerClk = 1
+        self._isBlocking = True
 
     def getOrderingOutPort(self) -> HlsNetNodeOut:
         return self._outputs[0]
