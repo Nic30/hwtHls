@@ -19,6 +19,7 @@ public:
 		const ConstantInt *c;
 		Register reg;
 		CImmOrReg(const MachineOperand &MOP);
+		CImmOrReg(const ConstantInt *c);
 		void addAsUse(MachineInstrBuilder & MIB) const;
 	};
 

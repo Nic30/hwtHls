@@ -5,6 +5,7 @@
 
 #include "../genericFpgaInstrInfo.h"
 #include "genericFpgaInstructionSelectorUtils.h"
+#include "genericFpgaCombinerHelper.h"
 
 #define DEBUG_TYPE "genericfpga-isel"
 
@@ -30,14 +31,19 @@ private:
 	bool finalizeReplacementOfInstruction(MachineInstrBuilder &MIB,
 			MachineInstr &I);
 	bool selectImpl(MachineInstr &I, CodeGenCoverage &CoverageInfo) const;
-	bool select_G_SHL(MachineFunction &MF, MachineRegisterInfo &MRI,
-			MachineIRBuilder &MIRB, MachineInstr &I);
-	bool select_G_SEXT(MachineFunction &MF, MachineRegisterInfo &MRI,
-			MachineIRBuilder &MIRB, MachineInstr &I);
-	bool select_G_ZEXT(MachineFunction &MF, MachineRegisterInfo &MRI,
-			MachineIRBuilder &MIRB, MachineInstr &I);
+	bool select_G_SHL(MachineRegisterInfo &MRI, MachineIRBuilder &MIRB,
+			MachineInstr &I);
+	bool select_G_SHR(MachineRegisterInfo &MRI, MachineIRBuilder &MIRB,
+			MachineInstr &I, bool isArithmetic);
+	bool select_G_SEXT(MachineRegisterInfo &MRI, MachineIRBuilder &MIRB,
+			MachineInstr &I);
+	bool select_G_ZEXT(MachineRegisterInfo &MRI, MachineIRBuilder &MIRB,
+			MachineInstr &I);
 	bool select_G_LOAD_or_G_STORE(MachineFunction &MF, MachineRegisterInfo &MRI,
 			MachineIRBuilder &MIRB, MachineInstr &I);
+	Optional<Register> _getSelectedMsb(MachineIRBuilder &MIRB,
+			MachineRegisterInfo &MRI, MachineOperand inputMo);
+
 	const GenericFpgaTargetSubtarget &STI;
 	const llvm::GenericFpgaInstrInfo &TII;
 	const GenericFpgaRegisterInfo &TRI;
@@ -127,6 +133,7 @@ bool GenericFpgaTargetInstructionSelector::finalizeReplacementOfInstruction(
 	I.eraseFromParent();
 	return true;
 }
+
 bool GenericFpgaTargetInstructionSelector::select(MachineInstr &I) {
 	/*
 	 * After selection process finish each VReg has to have some TargetRegisterClass assigned.
@@ -236,12 +243,15 @@ bool GenericFpgaTargetInstructionSelector::select(MachineInstr &I) {
 		return finalizeReplacementOfInstruction(MIB, I);
 	}
 	case G_SEXT:
-		return select_G_SEXT(MF, MRI, Builder, I);
+		return select_G_SEXT(MRI, Builder, I);
 	case G_ZEXT:
-		return select_G_ZEXT(MF, MRI, Builder, I);
+		return select_G_ZEXT(MRI, Builder, I);
 	case G_SHL:
-		return select_G_SHL(MF, MRI, Builder, I);
-
+		return select_G_SHL(MRI, Builder, I);
+	case G_LSHR:
+		return select_G_SHR(MRI, Builder, I, false);
+	case G_ASHR:
+		return select_G_SHR(MRI, Builder, I, true);
 	default:
 		return false; // some unknown operands (on error it will be printed immediately by caller)
 	}
@@ -299,21 +309,20 @@ bool GenericFpgaTargetInstructionSelector::select_G_LOAD_or_G_STORE(
 					&& "Otherwise not implemented, it is required to rewrite address mux to multiple store/load instructions.");
 	// val/dst, addr, index, cond
 	auto MIB = MIRB.buildInstr(NewOpc);
-	selectInstrArg(MF, I, MIB, MRI, I.getOperand(0)); // val/dst - copy as it is
-
+	selectInstrArg(MF, MIB, MRI, I.getOperand(0)); // val/dst - copy as it is
 
 	MachineInstr *addrDef = MRI.getOneDef(addrMO.getReg())->getParent();
 	switch (addrDef->getOpcode()) {
 	case GenericFpga::GENFPGA_ARG_GET: {
 		// this is just original base address
-		selectInstrArg(MF, I, MIB, MRI, addrMO); // base address
+		selectInstrArg(MF, MIB, MRI, addrMO); // base address
 		MIB.addImm(0); // index
 		break;
 	}
 	case TargetOpcode::G_PTR_ADD: {
 		// [todo] slice the index during instr. selection so we do have a minimal width and value without size multiplier
 		MachineOperand &baseAddr = addrDef->getOperand(1);
-		selectInstrArg(MF, I, MIB, MRI, baseAddr); // base address
+		selectInstrArg(MF, MIB, MRI, baseAddr); // base address
 		auto fnArgI = MRI.getOneDef(baseAddr.getReg())->getParent()->getOperand(
 				1).getImm();
 		auto a = MF.getFunction().getArg(fnArgI);
@@ -321,8 +330,8 @@ bool GenericFpgaTargetInstructionSelector::select_G_LOAD_or_G_STORE(
 		assert(
 				argT->isArrayTy()
 						&& "Must be the array otherwise we would not have index in the first place");
-		const DataLayout & DL = MF.getFunction().getParent()->getDataLayout();
-		TypeSize itemSize =  DL.getTypeAllocSize(argT->getArrayElementType());
+		const DataLayout &DL = MF.getFunction().getParent()->getDataLayout();
+		TypeSize itemSize = DL.getTypeAllocSize(argT->getArrayElementType());
 
 		auto arraySize = argT->getArrayNumElements();
 		auto indexWidth = log2ceil(arraySize);
@@ -330,19 +339,21 @@ bool GenericFpgaTargetInstructionSelector::select_G_LOAD_or_G_STORE(
 
 		if (isPow2(itemSize)) {
 			// set to insert before newly added GENFPGA_CLOAD/GENFPGA_STORE
-			MIRB.setInsertPt(*MIRB.getInsertPt()->getParent(), --MIRB.getInsertPt());
+			MIRB.setInsertPt(*MIRB.getInsertPt()->getParent(),
+					--MIRB.getInsertPt());
 			// dst, src, offset, dstWidth
 			MachineInstrBuilder indexMIB = MIRB.buildInstr(
-							GenericFpga::GENFPGA_EXTRACT);
+					GenericFpga::GENFPGA_EXTRACT);
 			Register indexReg = MRI.createGenericVirtualRegister(
 					LLT::scalar(indexWidth));
 			indexMIB.addDef(indexReg);
-			selectInstrArg(MF, I, indexMIB, MRI, addrDef->getOperand(2)); // index as src
+			selectInstrArg(MF, indexMIB, MRI, addrDef->getOperand(2)); // index as src
 			indexMIB.addImm(log2ceil(itemSize)); // offset
 			indexMIB.addImm(indexWidth); // dstWidth
 			MIB.addReg(indexReg); // index
 		} else {
-			llvm_unreachable("NotImplemented, extract the multiplier from the index");
+			llvm_unreachable(
+					"NotImplemented, extract the multiplier from the index");
 		}
 
 		break;
@@ -359,9 +370,9 @@ bool GenericFpgaTargetInstructionSelector::select_G_LOAD_or_G_STORE(
 	return finalizeReplacementOfInstruction(MIB, I);
 }
 
-bool GenericFpgaTargetInstructionSelector::select_G_SHL(MachineFunction &MF,
+bool GenericFpgaTargetInstructionSelector::select_G_SHL(
 		MachineRegisterInfo &MRI, MachineIRBuilder &MIRB, MachineInstr &I) {
-	auto &Context = MF.getFunction().getContext();
+	auto &Context = MF->getFunction().getContext();
 	auto &lhs = I.getOperand(1);
 	auto &rhs = I.getOperand(2);
 	ConstantInt *lhsConst = machineOperandTryGetConst(Context, MRI, lhs);
@@ -386,7 +397,7 @@ bool GenericFpgaTargetInstructionSelector::select_G_SHL(MachineFunction &MF,
 		Register upperBits = MRI.createGenericVirtualRegister(
 				LLT::scalar(dstWidth - paddingWidth));
 		MIB0.addDef(upperBits);
-		selectInstrArg(MF, I, MIB0, MRI, I.getOperand(1));
+		selectInstrArg(*MF, MIB0, MRI, I.getOperand(1));
 		// lhs
 		MIB0.addImm(0);
 		MIB0.addImm(dstWidth - paddingWidth);
@@ -412,10 +423,101 @@ bool GenericFpgaTargetInstructionSelector::select_G_SHL(MachineFunction &MF,
 		//assert(false && "NotImplemented");
 	}
 }
+bool GenericFpgaTargetInstructionSelector::select_G_SHR(
+		MachineRegisterInfo &MRI, MachineIRBuilder &MIRB, MachineInstr &I,
+		bool isArithmetic) {
+	auto &Context = MF->getFunction().getContext();
+	auto &lhs = I.getOperand(1);
+	auto &rhs = I.getOperand(2);
+	ConstantInt *lhsConst = machineOperandTryGetConst(Context, MRI, lhs);
+	ConstantInt *rhsConst = machineOperandTryGetConst(Context, MRI, rhs);
+	if (lhsConst && rhsConst) {
+		// if lhs and rhs are constants we resolve immediately
+		APInt v = lhsConst->getValue();
+		v = isArithmetic ?
+				v.ashr(rhsConst->getValue()) : v.lshr(rhsConst->getValue());
+		MachineInstrBuilder MIB = MIRB.buildConstant(I.getOperand(0).getReg(),
+				v);
+		return finalizeReplacementOfInstruction(MIB, I);
+
+	} else if (rhsConst) {
+		// if rhs is constant we convert this to a concatenation with zeros or MSBs on left (upper) side
+
+		unsigned prefixWidth = rhsConst->getZExtValue();
+		assert(prefixWidth > 0);
+
+		GenFpgaCombinerHelper::CImmOrReg prefix(nullptr);
+		if (isArithmetic) {
+			auto msb = _getSelectedMsb(MIRB, MRI, lhs);
+			if (!msb.hasValue())
+				return false;
+			prefix.reg = msb.getValue();
+		} else {
+			APInt padding(prefixWidth, 0);
+			prefix.c = ConstantInt::get(Context, padding);
+		}
+
+		unsigned srcWidth = MRI.getType(lhs.getReg()).getSizeInBits();
+		// select upper bits of original lhs based on shift amount
+		MachineInstrBuilder MIB0 = MIRB.buildInstr(
+				GenericFpga::GENFPGA_EXTRACT);
+		Register lshSlice = MRI.createGenericVirtualRegister(LLT::scalar(1));
+		MIB0.addDef(lshSlice);
+		selectInstrArg(*MF, MIB0, MRI, lhs);
+		MIB0.addImm(prefixWidth);
+		MIB0.addImm(srcWidth - prefixWidth);
+
+		MachineInstrBuilder MIB = MIRB.buildInstr(
+				GenericFpga::GENFPGA_MERGE_VALUES);
+		MIB.add(I.getOperand(0)); // dst
+		MIB.addUse(lshSlice);
+		if (isArithmetic) {
+			for (unsigned i = 0; i < prefixWidth; i++) {
+				MIB.addReg(prefix.reg);
+			}
+			MIB.addImm(srcWidth);
+			for (unsigned i = 0; i < prefixWidth; i++) {
+				MIB.addImm(1);
+			}
+		} else {
+			prefix.addAsUse(MIB);
+			MIB.addImm(srcWidth);
+			MIB.addImm(prefixWidth);
+		}
+		return finalizeReplacementOfInstruction(MIB, I);
+
+	} else if (lhsConst) {
+		// if lhs is constant we generate mux for all possible constant values of the shift
+		return false;
+		//assert(false && "NotImplemented");
+	} else {
+		// if lhs and rhs are not constants we have to create mux for every possible value
+		return false;
+		//assert(false && "NotImplemented");
+	}
+}
+
+Optional<Register> GenericFpgaTargetInstructionSelector::_getSelectedMsb(
+		MachineIRBuilder &MIRB, MachineRegisterInfo &MRI,
+		MachineOperand inputMo) {
+	unsigned srcWidth = MRI.getType(inputMo.getReg()).getSizeInBits();
+	MachineInstrBuilder msbMIB = MIRB.buildInstr(GenericFpga::GENFPGA_EXTRACT);
+	// dst, src, offset, dstWidth
+	Register msb = MRI.createGenericVirtualRegister(LLT::scalar(1));
+	msbMIB.addDef(msb);
+	selectInstrArg(*MF, msbMIB, MRI, inputMo);
+	// lhs
+	msbMIB.addImm(srcWidth - 1);
+	msbMIB.addImm(1);
+	if (!constrainInstRegOperands(*msbMIB.getInstr(), TII, TRI, RBI))
+		return {};
+	return msb;
+}
+
 /*
  * Convert G_SEXT to concatenation of msb bits and original src.
  * */
-bool GenericFpgaTargetInstructionSelector::select_G_SEXT(MachineFunction &MF,
+bool GenericFpgaTargetInstructionSelector::select_G_SEXT(
 		MachineRegisterInfo &MRI, MachineIRBuilder &MIRB, MachineInstr &I) {
 	auto &Op0 = I.getOperand(0);
 	unsigned dstWidth = MRI.getType(Op0.getReg()).getSizeInBits();
@@ -423,23 +525,15 @@ bool GenericFpgaTargetInstructionSelector::select_G_SEXT(MachineFunction &MF,
 	// add leading 0s
 	unsigned prefixWidth = dstWidth - srcWidth;
 
-	MachineInstrBuilder msbMIB = MIRB.buildInstr(GenericFpga::GENFPGA_EXTRACT);
-	// dst, src, offset, dstWidth
-	Register msb = MRI.createGenericVirtualRegister(LLT::scalar(1));
-	msbMIB.addDef(msb);
-	selectInstrArg(MF, I, msbMIB, MRI, I.getOperand(1));
-	// lhs
-	msbMIB.addImm(srcWidth - 1);
-	msbMIB.addImm(1);
-	if (!constrainInstRegOperands(*msbMIB.getInstr(), TII, TRI, RBI))
+	Optional<Register> msb = _getSelectedMsb(MIRB, MRI, I.getOperand(1));
+	if (!msb.hasValue())
 		return false;
-
 	MachineInstrBuilder MIB = MIRB.buildInstr(
 			GenericFpga::GENFPGA_MERGE_VALUES);
 	MIB.addDef(Op0.getReg(), Op0.getTargetFlags());
-	selectInstrArg(MF, I, MIB, MRI, I.getOperand(1));
+	selectInstrArg(*MF, MIB, MRI, I.getOperand(1));
 	for (unsigned i = 0; i < prefixWidth; i++) {
-		MIB.addReg(msb);
+		MIB.addReg(msb.getValue());
 	}
 	MIB.addImm(srcWidth);
 	for (unsigned i = 0; i < prefixWidth; i++) {
@@ -450,7 +544,7 @@ bool GenericFpgaTargetInstructionSelector::select_G_SEXT(MachineFunction &MF,
 /*
  * Convert G_ZEXT to concatenation of zeros and original src.
  * */
-bool GenericFpgaTargetInstructionSelector::select_G_ZEXT(MachineFunction &MF,
+bool GenericFpgaTargetInstructionSelector::select_G_ZEXT(
 		MachineRegisterInfo &MRI, MachineIRBuilder &MIRB, MachineInstr &I) {
 	MachineInstrBuilder MIB = MIRB.buildInstr(
 			GenericFpga::GENFPGA_MERGE_VALUES);
@@ -459,11 +553,11 @@ bool GenericFpgaTargetInstructionSelector::select_G_ZEXT(MachineFunction &MF,
 	unsigned dstWidth = MRI.getType(Op0.getReg()).getSizeInBits();
 	unsigned srcWidth = MRI.getType(I.getOperand(1).getReg()).getSizeInBits();
 	// add leading 0s
-	auto &C = MF.getFunction().getContext();
+	auto &C = MF->getFunction().getContext();
 	unsigned PrefixWidth = dstWidth - srcWidth;
 	APInt _Prefix(PrefixWidth, 0);
 	auto *Prefix = ConstantInt::get(C, _Prefix);
-	selectInstrArg(MF, I, MIB, MRI, I.getOperand(1));
+	selectInstrArg(*MF, MIB, MRI, I.getOperand(1));
 	MIB.addCImm(Prefix);
 	MIB.addImm(srcWidth);
 	MIB.addImm(PrefixWidth);

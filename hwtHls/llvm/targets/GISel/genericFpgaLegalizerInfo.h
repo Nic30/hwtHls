@@ -9,7 +9,7 @@
 #endif
 
 #include <llvm/CodeGen/GlobalISel/LegalizerInfo.h>
-
+#include <llvm/CodeGen/GlobalISel/GenericMachineInstrs.h>
 namespace llvm {
 
 class GenericFpgaTargetSubtarget;
@@ -19,6 +19,10 @@ class GenericFpgaTargetSubtarget;
 class GenericFpgaLegalizerInfo: public LegalizerInfo {
 public:
 	GenericFpgaLegalizerInfo(const GenericFpgaTargetSubtarget &ST);
+	bool customLowerLoad(LegalizerHelper &Helper, GAnyLoad &LoadMI) const;
+	/// Called for instructions with the Custom LegalizationAction.
+	virtual bool legalizeCustom(LegalizerHelper &Helper, MachineInstr &MI) const
+			override;
 };
 
 }

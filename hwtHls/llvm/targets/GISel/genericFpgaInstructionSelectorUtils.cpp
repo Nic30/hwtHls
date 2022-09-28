@@ -19,7 +19,7 @@ ConstantInt* machineOperandTryGetConst(LLVMContext &Context,
 	return nullptr;
 }
 
-void selectInstrArg(MachineFunction &MF, MachineInstr &I,
+void selectInstrArg(MachineFunction &MF,
 		MachineInstrBuilder &MIB, MachineRegisterInfo &MRI,
 		MachineOperand &MO) {
 	if (MO.isReg() && MO.getReg()) {
@@ -58,7 +58,7 @@ void selectInstrArgs(MachineInstr &I, MachineInstrBuilder &MIB,
 			MIB.addDef(MO.getReg());
 			continue;
 		}
-		selectInstrArg(MF, I, MIB, MRI, MO);
+		selectInstrArg(MF, MIB, MRI, MO);
 	}
 	MIB.cloneMemRefs(I); // copy part behind :: in "G_LOAD %0:anyregcls :: (volatile load (s4) from %ir.dataIn)"
 }

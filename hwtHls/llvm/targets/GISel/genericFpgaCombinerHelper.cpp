@@ -307,6 +307,12 @@ GenFpgaCombinerHelper::CImmOrReg::CImmOrReg(const MachineOperand &MOP) {
 		llvm_unreachable("need reg or CImm for GENFPGA_EXTRACT");
 	}
 }
+
+GenFpgaCombinerHelper::CImmOrReg::CImmOrReg(const ConstantInt *c) {
+	this->c = c;
+	reg = 0;
+}
+
 void GenFpgaCombinerHelper::CImmOrReg::addAsUse(
 		MachineInstrBuilder &MIB) const {
 	if (c)
