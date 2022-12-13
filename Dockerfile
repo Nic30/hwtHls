@@ -21,10 +21,9 @@ RUN adduser --disabled-password \
     --uid ${NB_UID} \
     ${NB_USER}
 
-
 USER root
 RUN apt update && \
-	DEBIAN_FRONTEND="noninteractive" apt install python3 python3-pip python3-dev llvm-14 llvm-14-dev ninja-build npm -y
+	DEBIAN_FRONTEND="noninteractive" apt install python3 python3-pip python3-dev llvm-14 llvm-14-dev libreadline-dev npm -y
 RUN pip3 install jupyterlab jupyterlab-lsp 'python-lsp-server[all]' jupyterlab-system-monitor
 RUN jupyter labextension install @deathbeds/jupyterlab_graphviz
 
@@ -42,6 +41,8 @@ USER ${NB_USER}
 #USER root
 WORKDIR ${HOME}
 
+RUN pip3 install git+https://github.com/dnicolodi/pip.git@debian-scheme
+ENV PATH /home/${NB_USER}/.local/bin/:$PATH
 # install fresh dependencies from git (not required, there are pip packages)
 RUN pip3 install -r doc/requirements.txt
 # install this library
