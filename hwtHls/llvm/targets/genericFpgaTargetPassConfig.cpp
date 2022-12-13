@@ -149,11 +149,11 @@ void GenericFpgaTargetPassConfig::addOptimizedRegAlloc() {
 
 	// Allow targets to expand pseudo instructions depending on the choice of
 	// registers before MachineCopyPropagation.
-	//addPostRewrite();
+	addPostRewrite();
 
 	// Copy propagate to forward register uses and try to eliminate COPYs that
 	// were not coalesced.
-	//addPass(&hwtHls::EarlyMachineCopyPropagationID);
+	addPass(&hwtHls::EarlyMachineCopyPropagationID);
 
 	// Run post-ra machine LICM to hoist reloads / remats.
 	//addPass(&EarlyMachineLICMID);
