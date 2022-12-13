@@ -2,7 +2,7 @@ from hwtHls.architecture.allocator import HlsAllocator
 from hwtHls.architecture.archElementFsm import ArchElementFsm
 from hwtHls.architecture.archElementPipeline import ArchElementPipeline
 from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
-from hwtHls.netlist.analysis.fsm import IoFsm
+from hwtHls.netlist.analysis.fsms import IoFsm
 from hwtHls.netlist.scheduler.clk_math import start_clk
 
 
