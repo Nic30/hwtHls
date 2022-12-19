@@ -166,10 +166,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
     def opcode_LOAD_ATTR(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:
         stack = frame.stack
         v = stack[-1]
-        try:
-            v = getattr(v, instr.argval)
-        except:
-            raise
+        v = getattr(v, instr.argval)
         stack[-1] = v
         return curBlock
 
@@ -201,14 +198,15 @@ class PyBytecodeToSsaLowLevelOpcodes():
         return curBlock
 
     def _storeToHwSignal(self, curBlock, dst: Union[RtlSignal, InterfaceBase], src):
-        if isinstance(src, SsaValue) and not isinstance(src, InterfaceBase):
-            # :note: HlsRead is for exmple SsaValue and InterfaceBase
+        srcIsRead = isinstance(src, HlsRead)
+        if isinstance(src, SsaValue) and not srcIsRead:
             if isinstance(dst, InterfaceBase):
                 dst = dst._sig
             self.toSsa.m_ssa_u.writeVariable(dst, [], curBlock, src)
             return curBlock
         else:
-            stm = dst(src)
+            _src = src.data if srcIsRead else src
+            stm = dst(_src)
             return self.toSsa.visit_CodeBlock_list(curBlock, flatten([stm, ]))
         
     def opcode_STORE_ATTR(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:
@@ -217,7 +215,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
         dst = getattr(dstParent, instr.argval)
         src = stack.pop()
         src, curBlock = expandBeforeUse(self, instr.offset, frame, src, curBlock)
-        if isinstance(dst, (Interface, RtlSignal)):
+        if isinstance(dst, (RtlSignal, Interface)):
             # stm = self.hls.write(src, dst)
             self._storeToHwSignal(curBlock, dst, src)
         else:
