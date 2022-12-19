@@ -64,8 +64,6 @@ class PyBytecodeLoopInfo():
     Once we know all exit jumps after preprocessor evaluation we can then decide if loop iteration scheme
     is controlled by some HW evaluated condition or if it just preprocessor loop.
     
-    :ivar loopHeader: offset of a block which is the entry point to the loop
-    :ivar loopMembers: a set of offset of blocks in this loop
     :ivar jumpsFromLoopBody: a list of loop body exit jumps and conditions in format of tuple (condition, srcBlock, dstBlockOffset)
     :note: multiple exits can be generated only if there is some HW evaluated branching.
     :ivar pragma: list of pragma instances collected for this loop
