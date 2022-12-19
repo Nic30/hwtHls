@@ -79,11 +79,17 @@ class RtlArchToGraphwiz():
             g.add_node(elmNode)
             self.archElementToNode[elm] = elmNode
 
-            nodeRows = ['<<table border="0" cellborder="1" cellspacing="0">\n']
-            name = html.escape(f"{elm.namePrefix:s}: {elm.__class__.__name__:s}")
-            nodeRows.append(f"    <tr><td colspan='3'>{name:s}</td></tr>\n")
             isFsm = isinstance(elm, ArchElementFsm)
             isPipeline = isinstance(elm, ArchElementPipeline)
+            if isFsm:
+                color = "plum"
+            elif isPipeline:
+                color = "lime"
+            else:
+                color = "white"
+            nodeRows = [f'<<table bgcolor="{color:s}" border="0" cellborder="1" cellspacing="0">\n']
+            name = html.escape(f"{elm.namePrefix:s}: {elm.__class__.__name__:s}")
+            nodeRows.append(f"    <tr><td colspan='3'>{name:s}</td></tr>\n")
             for i, con in enumerate(elm.connections):
                 con: ConnectionsOfStage
                 
