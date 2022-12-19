@@ -65,7 +65,7 @@ class TimeIndependentRtlResource():
         :param data: signal with value in initial time
         """
         if isinstance(data, HValue):
-            assert timeOffset == INVARIANT_TIME
+            assert timeOffset == INVARIANT_TIME 
         self.timeOffset = timeOffset
         self.allocator = allocator
         self.valuesInTime: List[TimeIndependentRtlResourceItem] = [
@@ -102,7 +102,6 @@ class TimeIndependentRtlResource():
         dstClkPeriod = start_clk(time, clkPeriod)
         index = dstClkPeriod - \
             start_clk(self.timeOffset, clkPeriod)
-
         assert index >= 0, (index, self.timeOffset, time, self.valuesInTime[0])
         try:
             return self.valuesInTime[index]
