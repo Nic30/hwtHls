@@ -14,7 +14,8 @@ class HlsThreadFromPy(HlsThread):
     def __init__(self, hls: HlsScope, fn: FunctionType, *fnArgs, **fnKwargs):
         super(HlsThreadFromPy, self).__init__(hls)
         self.fn = fn
-        self.bytecodeToSsa = PyBytecodeToSsa(self.hls, fn.__name__)
+        self.fnName = getattr(fn, "__qualname__", fn.__name__)
+        self.bytecodeToSsa = PyBytecodeToSsa(self.hls, self.fnName)
         self.fnArgs = fnArgs
         self.fnKwargs = fnKwargs
         self.code = None
@@ -23,7 +24,7 @@ class HlsThreadFromPy(HlsThread):
 
     def getLabel(self) -> str:
         i = self.hls._threads.index(self)
-        return f"t{i:d}_{self.bytecodeToSsa.fn.__name__:s}"
+        return f"t{i:d}_{self.fnName:s}"
 
     def compileToSsa(self):
         self.bytecodeToSsa.translateFunction(self.fn, *self.fnArgs, **self.fnKwargs)

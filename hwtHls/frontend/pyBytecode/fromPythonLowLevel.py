@@ -61,7 +61,7 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
                 dis(fn, file=f)
             
         frame = PyBytecodeFrame.fromFunction(fn, -1, fnArgs, fnKwargs, self.callStack)
-        self.toSsa = HlsAstToSsa(self.hls.ssaCtx, fn.__name__, None)
+        self.toSsa = HlsAstToSsa(self.hls.ssaCtx, getattr(fn, "__qualname__", fn.__name__), None)
         self._debugDump(frame, "_begin")
         
         entryBlock = self.toSsa.start
@@ -70,7 +70,7 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
 
         try:
             self._getOrCreateSsaBasicBlockAndJumpRecursively(frame, entryBlock, 0, None, None, True)
-            #self._onBlockGenerated(frame, entryBlockLabel)
+            # self._onBlockGenerated(frame, entryBlockLabel)
             assert not frame.loopStack, ("All loops must be exited", frame.loopStack)
         finally:
             self._debugDump(frame, "_final")
