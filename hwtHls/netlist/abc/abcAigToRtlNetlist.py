@@ -61,6 +61,8 @@ class AbcAigToRtlNetlist():
                     P1o0, P1o1 = P1o1, P1o1
                 if pc == P1o0:
                     p0 = P1o1
+                    if pc == p0:
+                        return AllOps.OR, pc, p1
                     return AllOps.TERNARY, pc, p0, p1
         
         return AllOps.OR, topP0, topP1
