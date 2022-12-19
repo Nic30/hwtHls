@@ -56,7 +56,7 @@ class HwtHlsNetlistToTimelineArchLevel(HwtHlsNetlistToTimeline):
             color = "purple"
             label = " ".join([repr(archElm), ", ".join(f"{n._id}" for n in archElm.allNodes)])
 
-            row = TimelineRow(label, obj_group_id, start, finish, color)
+            row = TimelineRow(row_i, label, obj_group_id, start, finish, color)
             rows.append(row)
             obj_to_row[archElm] = (row, row_i)
 
@@ -104,7 +104,6 @@ class HwtHlsNetlistToTimelineArchLevel(HwtHlsNetlistToTimeline):
                             o._dtype,
                         ))
                         srcRowI = dstRowI
-                        
 
         #                    for t, dep in zip(obj.scheduledIn, obj.dependsOn))
         #    for bdep_obj in obj.debug_iter_shadow_connection_dst():
@@ -134,8 +133,3 @@ class RtlArchPassShowTimeline(RtlArchPass):
         else:
             assert self.auto_open, "Must be True because we can not show figure without opening it"
             to_timeline.show()
-
-
-if __name__ == "__main__":
-    to_timeline = HwtHlsNetlistToTimelineArchLevel()
-    to_timeline.show()
