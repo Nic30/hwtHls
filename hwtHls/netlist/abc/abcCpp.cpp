@@ -224,6 +224,16 @@ auto returnCodeToException(std::string errMsg, Return (*f)(Args...)) {
 	};
 }
 
+Abc_Obj_t * Abc_AigEq( Abc_Aig_t * pMan, Abc_Obj_t * p0, Abc_Obj_t * p1 )
+{
+    return Abc_AigOr( pMan, Abc_AigAnd(pMan, p0, p1),
+                            Abc_AigAnd(pMan, Abc_ObjNot(p0), Abc_ObjNot(p1)) );
+}
+Abc_Obj_t * Abc_AigNe( Abc_Aig_t * pMan, Abc_Obj_t * p0, Abc_Obj_t * p1 )
+{
+    return Abc_AigOr( pMan, Abc_AigAnd(pMan, p0, Abc_ObjNot(p1)),
+                            Abc_AigAnd(pMan, Abc_ObjNot(p0), p1) );
+}
 
 PYBIND11_MODULE(abcCpp, m) {
 	// https://people.eecs.berkeley.edu/~alanmi/abc/aig.pdf
@@ -297,6 +307,8 @@ PYBIND11_MODULE(abcCpp, m) {
 			.def("Or", wrap_Abc_Aig_t(&Abc_AigOr), py::return_value_policy::reference)
 		    .def("Xor", wrap_Abc_Aig_t(&Abc_AigXor), py::return_value_policy::reference)
 		    .def("Mux", wrap_Abc_Aig_t(&Abc_AigMux), py::return_value_policy::reference)
+			.def("Eq", wrap_Abc_Aig_t(&Abc_AigEq), py::return_value_policy::reference)
+			.def("Ne", wrap_Abc_Aig_t(&Abc_AigNe), py::return_value_policy::reference)
 			.def_static("Not", &Abc_ObjNot, py::return_value_policy::reference)
 			.def("Cleanup", wrap_Abc_Aig_t(&Abc_AigCleanup));
 

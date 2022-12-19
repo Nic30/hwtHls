@@ -51,6 +51,10 @@ class HlsNetlistToAbcAig(RtlNetlistToAbcAig):
                     res = aig.Or(lhs, rhs)
                 elif op == AllOps.XOR:
                     res = aig.Xor(lhs, rhs)
+                elif op == AllOps.EQ:
+                    res = aig.Eq(lhs, rhs)
+                elif op == AllOps.NE:
+                    res = aig.Ne(lhs, rhs)
                 else:
                     raise NotImplementedError(d)
     
