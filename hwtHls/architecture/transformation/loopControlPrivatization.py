@@ -32,11 +32,12 @@ class RtlArchPassLoopControlPrivatization(RtlArchPass):
             elm: ArchElement
             assert elm.interArchAnalysis is None, "This must be done before IAEA analysis because this does not update it"
             if isinstance(elm, ArchElementFsm):
-                # transition table at this point should not be otpimized yet
+                # transition table at this point should not be optimized yet
                 states = elm.fsm.states
                 
             elif isinstance(elm, ArchElementPipeline):
                 states = elm.stages
+
             else:
                 raise NotImplementedError(elm)
 
