@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Optional, Union, Tuple
 
 from hwt.doc_markers import internal
 from hwt.hdl.statements.statement import HdlStatement
@@ -42,7 +42,7 @@ class HlsRead(HdlStatement, SsaInstr):
         self.block: Optional[SsaBasicBlock] = None
         
         if intfName is None:
-            intfName = getInterfaceName(parent.parentUnit, src)
+            intfName = self._getInterfaceName(src)
 
         # create an interface and signals which will hold value of this object
         var = parent.var
@@ -95,7 +95,7 @@ class HlsRead(HdlStatement, SsaInstr):
                                instr: MachineInstr,
                                srcIo: Interface,
                                index: Union[int, HlsNetNodeOutAny],
-                               cond: HlsNetNodeOutAny,
+                               cond: Union[int, HlsNetNodeOutAny],
                                instrDstReg: Register):
         """
         This method is called to generated HlsNetlist nodes from LLVM MIR.
@@ -124,6 +124,13 @@ class HlsRead(HdlStatement, SsaInstr):
         mbSync.addOrderedNode(n)
         mirToNetlist.inputs.append(n)
         valCache.add(mbSync.block, instrDstReg, n._outputs[0] if representativeReadStm._isBlocking else n._rawValue, True)
+
+    def _getInterfaceName(self, io: Union[Interface, Tuple[Interface]]) -> str:
+        parent = self._parent.parentUnit
+        if isinstance(io, tuple):
+            return "|".join([getInterfaceName(parent, intf) if i == 0 else intf._name for i, intf in enumerate(io)])
+        else:
+            return getInterfaceName(parent, io)
 
     def __repr__(self):
         t = self._dtype

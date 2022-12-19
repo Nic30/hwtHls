@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Tuple
 
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.hdlType import HdlType
@@ -8,6 +8,7 @@ from hwt.synthesizer.interfaceLevel.unitImplHelpers import getInterfaceName
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.ast.statements import HlsStm
+from hwtHls.frontend.ast.statementsRead import HlsRead
 from hwtHls.frontend.ast.utils import _getNativeInterfaceWordType, \
     ANY_HLS_STREAM_INTF_TYPE, ANY_SCALAR_INT_VALUE
 from hwtHls.llvm.llvmIr import MachineInstr
@@ -54,6 +55,9 @@ class HlsWrite(HlsStm, SsaInstr):
 
     def _getNativeInterfaceWordType(self) -> HdlType:
         return _getNativeInterfaceWordType(self.dst)
+
+    def _getInterfaceName(self, io: Union[Interface, Tuple[Interface]]) -> str:
+        return HlsRead._getInterfaceName(self, io)
 
     @classmethod
     def _translateMirToNetlist(cls,
