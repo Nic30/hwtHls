@@ -1,13 +1,13 @@
 from functools import lru_cache
 from math import log2
 from pathlib import Path
-from typing import Dict, Optional, Union
+from typing import Dict, Optional, Union, Set
 
 from hwt.hdl.operator import Operator
 from hwt.hdl.operatorDefs import AllOps, OpDefinition
 from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
-from hwtHls.platform.platform import DefaultHlsPlatform
+from hwtHls.platform.platform import DefaultHlsPlatform, DebugId, HlsDebugBundle
 from hwtHls.ssa.instr import OP_ASSIGN
 
 _OPS_T_GROWING_EXP = {
@@ -55,8 +55,8 @@ class VirtualHlsPlatform(DefaultHlsPlatform):
     :note: latencies like in average 28nm FPGA
     """
 
-    def __init__(self, debugDir:Optional[Union[str, Path]]=None):
-        super(VirtualHlsPlatform, self).__init__(debugDir=debugDir)
+    def __init__(self, debugDir:Optional[Union[str, Path]]=None, debugFilter: Optional[Set[DebugId]]=HlsDebugBundle.ALL):
+        super(VirtualHlsPlatform, self).__init__(debugDir=debugDir, debugFilter=debugFilter)
 
         # operator: seconds to perform
         self._OP_DELAYS: Dict[Operator, float] = {

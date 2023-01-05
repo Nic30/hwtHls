@@ -1,11 +1,11 @@
 from functools import lru_cache
 from pathlib import Path
-from typing import Dict, Callable, Tuple, Optional, Union
+from typing import Dict, Callable, Tuple, Optional, Union, Set
 
 from hwt.hdl.operatorDefs import OpDefinition
 from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
-from hwtHls.platform.platform import DefaultHlsPlatform
+from hwtHls.platform.platform import DefaultHlsPlatform, DebugId, HlsDebugBundle
 from hwtHls.platform.virtual import _OPS_T_ZERO_LATENCY
 
 
@@ -15,8 +15,8 @@ class AbstractXilinxPlatform(DefaultHlsPlatform):
 
     """
 
-    def __init__(self, debugDir:Optional[Union[str, Path]]=None):
-        super(AbstractXilinxPlatform, self).__init__(debugDir=debugDir)
+    def __init__(self, debugDir:Optional[Union[str, Path]]=None, debugFilter: Optional[Set[DebugId]]=HlsDebugBundle.ALL):
+        super(AbstractXilinxPlatform, self).__init__(debugDir=debugDir, debugFilter=debugFilter)
         self._init_coefs()
 
     def _init_coefs(self):
