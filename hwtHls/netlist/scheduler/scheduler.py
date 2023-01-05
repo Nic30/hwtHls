@@ -1,11 +1,9 @@
 from collections import deque
-from itertools import islice
-from math import ceil, inf
+from math import inf
 from typing import Deque, Set, List, Dict
 
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict
-from hwtHls.platform.fileUtils import outputFileGetter
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
 
 
@@ -213,20 +211,10 @@ class HlsScheduler():
                 node.moveSchedulingTime(offset)
         
     def schedule(self):
-        try:
-            self._scheduleAsap()
+        self._scheduleAsap()
+        self._checkAllNodesScheduled()
+        maxTime = max((n.scheduledZero for n in self.netlist.iterAllNodes()), default=0)
+        if maxTime > self.netlist.normalizedClkPeriod:
+            self._scheduleAlapCompaction()
             self._checkAllNodesScheduled()
-            maxTime = max((n.scheduledZero for n in self.netlist.iterAllNodes()), default=0)
-            if maxTime > self.netlist.normalizedClkPeriod:
-                self._scheduleAlapCompaction()
-                self._checkAllNodesScheduled()
-        except AssertionError:
-            if self.debug:
-                from hwtHls.netlist.translation.toTimeline import HlsNetlistPassShowTimeline
-                from hwtHls.netlist.analysis.schedule import HlsNetlistAnalysisPassRunScheduler
-                sch = HlsNetlistAnalysisPassRunScheduler(self.netlist)
-                self.netlist._analysis_cache[HlsNetlistAnalysisPassRunScheduler] = sch
-                HlsNetlistPassShowTimeline(outputFileGetter("tmp", ".13.schedule.error.html"),
-                                           expandCompositeNodes=False).apply(None, self.netlist)
-            raise
         
