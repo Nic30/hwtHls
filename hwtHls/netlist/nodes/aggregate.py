@@ -17,7 +17,7 @@ class HlsNetNodeAggregatePortIn(HlsNetNode):
         self._addOutput(dtype, name)
         self.parentIn = parentIn
 
-    def resolve_realization(self):
+    def resolveRealization(self):
         self.assignRealization(EMPTY_OP_REALIZATION)
 
     def _setScheduleZero(self, t:int):
@@ -33,7 +33,7 @@ class HlsNetNodeAggregatePortIn(HlsNetNode):
         """
         # resolve time for input of this cluster
         if self.scheduledOut is None:
-            self.resolve_realization()
+            self.resolveRealization()
             dep = self.parentIn.obj.dependsOn[self.parentIn.in_i]
             t = dep.obj.scheduleAsap(pathForDebug, beginOfFirstClk, outputTimeGetter)[dep.out_i]
             if outputTimeGetter is None:
@@ -62,7 +62,7 @@ class HlsNetNodeAggregatePortOut(HlsNetNode):
         self.scheduledIn = (t,)
         self.scheduledOut = ()
 
-    def resolve_realization(self):
+    def resolveRealization(self):
         self.assignRealization(EMPTY_OP_REALIZATION)
 
     def scheduleAlapCompaction(self, endOfLastClk:int, outputMinUseTimeGetter:Optional[OutputMinUseTimeGetter]) -> Generator["HlsNetNode", None, None]:
@@ -145,10 +145,15 @@ class HlsNetNodeAggregate(HlsNetNode):
             n.checkScheduling()
 
         # assert that io of this node has correct times
-        for outer, port in zip(self._inputs, self._inputsInside):
-            outer: HlsNetNodeOut
+        for outerIn, port in zip(self._inputs, self._inputsInside):
+            outerIn: HlsNetNodeIn
             port: HlsNetNodeAggregatePortIn
-            pass
+            outerDep = self.dependsOn[outerIn.in_i]
+            outerDepT = outerDep.obj.scheduledOut[outerDep.out_i] 
+            outerInT = self.scheduledIn[outerIn.in_i]
+            assert outerDepT <= outerInT, (outerDepT, outerInT, outerDep, outerIn)
+            portT = port.scheduledOut[0]
+            assert outerInT <= portT, (outerInT, portT, outerIn, port)
 
         for outer, port in zip(self._outputs, self._outputsInside):
             outer: HlsNetNodeOut
