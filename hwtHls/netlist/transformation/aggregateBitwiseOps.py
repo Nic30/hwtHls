@@ -10,6 +10,7 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
+from hwtHls.netlist.observableList import ObservableList
 
 
 class HlsNetlistPassAggregateBitwiseOps(HlsNetlistPass):
@@ -30,12 +31,12 @@ class HlsNetlistPassAggregateBitwiseOps(HlsNetlistPass):
                 userList = otherAggregateInputs[dep] = UniqList()
             userList.append(n)
 
-    def _searchClusters(self, nodes: List[HlsNetNode],
+    def _searchClusters(self, nodes: ObservableList[HlsNetNode],
                         parentAggregate: Optional[HlsNetNodeAggregate],
                         seen: Set[HlsNetNode],
                         removedNodes: Set[HlsNetNode],
                         newOutMap: Dict[HlsNetNodeOut, HlsNetNodeOut],
-                        otherAggregateInputs: Dict[HlsNetNodeOut, UniqList[HlsNetNodeAggregate]]):
+                        otherAggregateInputs: Dict[HlsNetNodeOut, UniqList[HlsNetNodeAggregate]]) -> ObservableList[HlsNetNode]:
         for n in nodes:
             if n not in seen and self._isBitwiseOperator(n):
                 cluster = HlsNetlistClusterSearch()
@@ -65,7 +66,7 @@ class HlsNetlistPassAggregateBitwiseOps(HlsNetlistPass):
                 # the input uses were updated if something was extracted
                 n._subNodes = self._searchClusters(n._subNodes, n, seen, removedNodes, newOutMap, otherAggregateInputs)
 
-        return [n for n in nodes if n not in removedNodes]
+        return ObservableList(n for n in nodes if n not in removedNodes)
 
     def apply(self, hls: "HlsScope", netlist: HlsNetlistCtx):
         seen: Set[HlsNetNodeOperator] = set()
