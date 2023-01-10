@@ -53,10 +53,10 @@ class HlsNetlistPassConsystencyCheck(HlsNetlistPass):
                         raise
                     seen.add(u)
                     assert isinstance(u, HlsNetNodeIn), (n, o, u)
-                    assert u.obj in allNodes, ("Drives something which is not in netlist", n, o, u)
+                    assert u.obj in allNodes, ("Drives something which is not in netlist", o, u)
                     try:
-                        assert u.obj._inputs[u.in_i] is u, ("Broken HlsNetNodeIn object", n, o, u)
-                        assert u.obj.dependsOn[u.in_i] is o, ("Input must know about connected output", n, u, o)
+                        assert u.obj._inputs[u.in_i] is u, ("Broken HlsNetNodeIn object", o, u)
+                        assert u.obj.dependsOn[u.in_i] is o, ("Input must know about connected output", u, o)
                     except IndexError:
                         raise AssertionError("Use of incorrect port", o, "->", u)
 
@@ -75,7 +75,7 @@ class HlsNetlistPassConsystencyCheck(HlsNetlistPass):
 
         for scc in strongly_connected_components(g):
             if len(scc) > 1:
-                raise AssertionError("Netlist must be cycle free", scc)
+                raise AssertionError("Netlist must be cycle free", sorted(n._id for n in scc))
     
     @staticmethod
     def _checkNodeContainers(netlist: HlsNetlistCtx, removed: Optional[Set[HlsNetNode]]):
@@ -97,6 +97,26 @@ class HlsNetlistPassConsystencyCheck(HlsNetlistPass):
                 inT = n.dependsOn[0]._dtype
                 outT = n._outputs[0]._dtype
                 assert inT == outT, (n, inT, outT)
+    
+    @staticmethod
+    def checkRemovedNotReachable(netlist: HlsNetlistCtx, removed: Set[HlsNetNode]):
+        """
+        Check that removed nodes are not reachable from non removed nodes.
+        """
+        allNodes = set(netlist.iterAllNodes())
+        for n in netlist.iterAllNodes():
+            n: HlsNetNode
+            if n in removed:
+                continue
+            for dep in n.dependsOn:
+                assert dep is not None, n
+                assert dep.obj in allNodes, (n, dep)
+                assert dep.obj not in removed, (n, dep)
+            for users in n.usedBy:
+                for u in users:
+                    assert u.obj in allNodes, (n, u)
+                    assert u.obj not in removed, (n, u)
+    
     
     def apply(self, hls:"HlsScope", netlist: HlsNetlistCtx, removed: Optional[Set[HlsNetNode]]=None):
         self._checkConnections(netlist, removed)
