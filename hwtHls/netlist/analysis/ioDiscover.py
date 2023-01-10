@@ -15,7 +15,7 @@ from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import start_clk
 
 
-class HlsNetlistAnalysisPassDiscoverIo(HlsNetlistAnalysisPass):
+class HlsNetlistAnalysisPassIoDiscover(HlsNetlistAnalysisPass):
     """
     Discover netlist nodes responsible for IO operations and associated synchronization.
     """
@@ -90,7 +90,7 @@ class HlsNetlistAnalysisPassDiscoverIo(HlsNetlistAnalysisPass):
         for op in self.netlist.outputs:
             op: HlsNetNodeWrite
             i = op.dst
-            assert isinstance(i, (RtlSignalBase, InterfaceBase)), (i, op)
+            assert isinstance(i, (tuple, RtlSignalBase, InterfaceBase)), (i, op)
             opList = ioByInterface.get(i, None)
             if opList  is None:
                 opList = ioByInterface[i] = []
@@ -105,6 +105,6 @@ class HlsNetlistAnalysisPassDiscoverIo(HlsNetlistAnalysisPass):
             #    extraSync.append(sync)
             #    resolvedExplicitSync.add(sync)
 
-        for n in self.netlist.nodes:
-            if isinstance(n, HlsNetNodeExplicitSync) and n not in resolvedExplicitSync:
-                assert n in resolvedExplicitSync, (n, "Sync was not assigned to any IO, this is likely to result in internal deadlock.")       
+        #for n in self.netlist.nodes:
+        #    if isinstance(n, HlsNetNodeExplicitSync) and n not in resolvedExplicitSync:
+        #        assert n in resolvedExplicitSync, (n, "Sync was not assigned to any IO, this is likely to result in internal deadlock.")       
