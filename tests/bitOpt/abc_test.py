@@ -29,8 +29,13 @@ class AbcTC(unittest.TestCase):
             ~(a | b | c), # 7
             a._eq(1), # 8
             a._eq(0), # 9
-            a != 1,
-            a != 0,
+            a != 1, # 10
+            a != 0, # 11
+            (~a & (~b & ~c))._eq(0), # 12
+            ~((~a & ~b) & ~c), # 13
+            a | (~b | c), # 14
+            a & ~b,
+            ~a & b,
             ])
         net = abcCmd_resyn2(net)
         net = abcCmd_compress2(net)
@@ -50,9 +55,14 @@ class AbcTC(unittest.TestCase):
             ~a, # 9
             a ^ 1, # 10
             a ^ 0, # 11
+            c | a | b, # 12
+            c | a | b, # 13
+            c | a | ~b, # 14
+            a & ~b,
+            ~a & b,
             ])  
-        
 
+                                                                                                                                                                                                                                                                                                                                                                                          
 if __name__ == "__main__":
     suite = unittest.TestSuite()
     # suite.addTest(AbcTC('testFromRtlNetlistAndBack'))
