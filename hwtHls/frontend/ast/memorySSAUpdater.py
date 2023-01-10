@@ -47,7 +47,7 @@ class MemorySSAUpdater():
         :param block: A block where this is taking place.
         :param value: A value which is being written.
 
-        :returns: unique index of tmp variable for PHI function
+        :return: unique index of tmp variable for PHI function
         """
         assert isinstance(variable, RtlSignal), variable
         assert isinstance(block, SsaBasicBlock), block
@@ -131,7 +131,7 @@ class MemorySSAUpdater():
 
     def readVariableRecursive(self, variable: RtlSignal, block: SsaBasicBlock) -> Union[SsaPhi, HValue]:
         """
-        :returns: actual phi function variable or value which represents the symbolic variable in current block
+        :return: actual phi function variable or value which represents the symbolic variable in current block
         """
         if block not in self.sealedBlocks:
             # Incomplete CFG

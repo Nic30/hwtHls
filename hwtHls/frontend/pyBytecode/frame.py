@@ -75,7 +75,7 @@ class PyBytecodeFrame():
 
     def isLoopReenter(self, loop: PyBytecodeLoop) -> bool:
         """
-        :returns: True if this loop is already being iterated.
+        :return: True if this loop is already being iterated.
         """
         for li in self.loopStack:
             li: PyBytecodeLoopInfo
