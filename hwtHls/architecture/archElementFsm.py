@@ -15,11 +15,12 @@ from hwtHls.architecture.archElement import ArchElement
 from hwtHls.architecture.connectionsOfStage import getIntfSyncSignals, \
     setNopValIfNotSet, SignalsOfStages, ConnectionsOfStage
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, INVARIANT_TIME
-from hwtHls.netlist.analysis.fsm import IoFsm
-from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
+from hwtHls.netlist.analysis.fsms import IoFsm
+from hwtHls.netlist.analysis.ioDiscover import HlsNetlistAnalysisPassIoDiscover
 from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
     HlsNetNodeWriteBackwardEdge, HlsNetNodeReadControlBackwardEdge, \
     HlsNetNodeWriteControlBackwardEdge, BACKEDGE_ALLOCATION_TYPE
+from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode, HlsNetNodePartRef
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
@@ -27,6 +28,7 @@ from hwtHls.netlist.nodes.read import  HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import start_clk
 from ipCorePackager.constants import INTF_DIRECTION
+from hwtHls.netlist.nodes.orderable import HdlType_isNonData
 
 
 class ArchElementFsm(ArchElement):
@@ -42,16 +44,18 @@ class ArchElementFsm(ArchElement):
         clkPeriod = self.normalizedClkPeriod = netlist.normalizedClkPeriod
         assert fsm.states, fsm
 
-        self.fsmEndClk_i = max(fsm.stateClkI.values())
-        self.fsmBeginClk_i = min(fsm.stateClkI.values())
+        beginClkI = min(fsm.stateClkI.values())
+        endClkI = max(fsm.stateClkI.values())
 
         stateCons = [ConnectionsOfStage() for _ in fsm.states]
         stageSignals = SignalsOfStages(clkPeriod,
                                         (
                                            stateCons[fsm.clkIToStateI[clkI]].signals if clkI in fsm.clkIToStateI else None
-                                           for clkI in range(self.fsmEndClk_i + 1)
+                                           for clkI in range(endClkI + 1)
                                         ))
         ArchElement.__init__(self, netlist, namePrefix, allNodes, stateCons, stageSignals)
+        self._beginClkI = beginClkI
+        self._endClkI = endClkI
 
     def _afterNodeInstantiated(self, n: HlsNetNode, rtl: Optional[TimeIndependentRtlResource]):
         # mark value in register as persistent until the end of FSM
@@ -63,25 +67,28 @@ class ArchElementFsm(ArchElement):
             con.stDependentDrives.append(rtl.valuesInTime[0].data.next.drivers[0])
 
         if rtl is None or not isTir:
-            cons = (self.netNodeToRtl[o] for o in n._outputs if o in self.netNodeToRtl)
+            cons = (self.netNodeToRtl[o] for o in n._outputs
+                    if o in self.netNodeToRtl and not HdlType_isNonData(o._dtype))
         elif isTir and rtl.timeOffset == INVARIANT_TIME:
             return
         else:
             cons = (rtl,)
 
         clkPeriod = self.normalizedClkPeriod
-        fsmEndClk_i = self.fsmEndClk_i
+        _endClkI = self._endClkI
 
         for s in cons:
             s: TimeIndependentRtlResource
+            if isinstance(s, list):
+                raise NotImplementedError()
             assert len(s.valuesInTime) == 1, ("Value must not be used yet because we need to set persistence ranges first.", s)
 
             if not s.persistenceRanges and s.timeOffset is not INVARIANT_TIME:
                 self.stageSignals.getForTime(s.timeOffset).append(s)
                 # value for the first clock behind this clock period and the rest is persistent in this register
                 nextClkI = start_clk(s.timeOffset, clkPeriod) + 2
-                if nextClkI <= fsmEndClk_i:
-                    s.persistenceRanges.append((nextClkI, fsmEndClk_i))
+                if nextClkI <= _endClkI:
+                    s.persistenceRanges.append((nextClkI, _endClkI))
 
         for dep in n.dependsOn:
             self._afterOutputUsed(dep)
@@ -95,7 +102,8 @@ class ArchElementFsm(ArchElement):
         con: ConnectionsOfStage = self.connections[stateI]
         self._connectSync(con, intf, intfDir, isBlocking)
         self._initNopValsOfIoForIntf(intf, intfDir)
-
+        return con
+        
     def _initNopValsOfIoForIntf(self, intf: Union[Interface], intfDir: INTF_DIRECTION):
         if intfDir == INTF_DIRECTION.MASTER:
             # to prevent latching when interface is not used
@@ -166,7 +174,11 @@ class ArchElementFsm(ArchElement):
             if self is iea.ownerOfOutput[o]:
                 outTime = o.obj.scheduledOut[o.out_i]
                 clkI = start_clk(outTime, clkPeriod)
-                stI = self.fsm.clkIToStateI[clkI]
+                try:
+                    stI = self.fsm.clkIToStateI[clkI]
+                except KeyError:
+                    raise AssertionError("fsm is missing state for time where node is scheduled", o, clkI)
+                    
                 for otherElm in self.interArchAnalysis.ownerOfInput[i]:
                     curFistCommunicationStI = otherElmConnectionFirstTimeSeen.get(otherElm, None)
                     if curFistCommunicationStI is None:
@@ -201,21 +213,31 @@ class ArchElementFsm(ArchElement):
                 continue
             curTrans = transitionTable[srcStI].get(dstStI, None)
             # [fixme] we do not for sure that IO in skipped states has cond as a skipWhen condition
-            #         and thus it may be required to enter dstState 
-            cond = self.instantiateHlsNetNodeOut(r._outputs[0]).valuesInTime[0].data.next
+            #         and thus it may be required to enter dstState
+            if not HdlType_isNonData(r._outputs[0]._dtype):
+                condO = r._outputs[0]
+            elif r.hasValid():
+                condO = r._valid
+            else:
+                assert r.hasValidNB(), r
+                condO = r._validNB
+                
+            cond = self.instantiateHlsNetNodeOut(condO).valuesInTime[0].data.next
             if curTrans is not None:
                 cond = cond | curTrans
             transitionTable[srcStI][dstStI] = cond
 
-    def _allocateDataPathRead(self, node: HlsNetNodeRead, ioDiscovery: HlsNetlistAnalysisPassDiscoverIo, con: ConnectionsOfStage,
+    def _allocateDataPathRead(self, node: HlsNetNodeRead, ioDiscovery: HlsNetlistAnalysisPassIoDiscover, con: ConnectionsOfStage,
                               ioMuxes: Dict[Interface, Tuple[Union[HlsNetNodeRead, HlsNetNodeWrite], List[HdlStatement]]],
                               ioSeen: UniqList[Interface],
                               rtl: List[HdlStatement]):
-        if isinstance(node, HlsNetNodeReadBackwardEdge) and node.associated_write.allocationType != BACKEDGE_ALLOCATION_TYPE.BUFFER:
+        if isinstance(node, HlsNetNodeReadBackwardEdge) and \
+                node.associated_write is not None and \
+                node.associated_write.allocationType != BACKEDGE_ALLOCATION_TYPE.BUFFER:
             return
         self._allocateIo(ioDiscovery, node.src, node, con, ioMuxes, ioSeen, rtl)
 
-    def _allocateDataPathWrite(self, node: HlsNetNodeWrite, ioDiscovery: HlsNetlistAnalysisPassDiscoverIo, con: ConnectionsOfStage,
+    def _allocateDataPathWrite(self, node: HlsNetNodeWrite, ioDiscovery: HlsNetlistAnalysisPassIoDiscover, con: ConnectionsOfStage,
                               ioMuxes: Dict[Interface, Tuple[Union[HlsNetNodeRead, HlsNetNodeWrite], List[HdlStatement]]],
                               ioSeen: UniqList[Interface],
                               rtl: List[HdlStatement]):
@@ -234,7 +256,7 @@ class ArchElementFsm(ArchElement):
         """
         self.interArchAnalysis = iea
         self._detectStateTransitions()
-        ioDiscovery: HlsNetlistAnalysisPassDiscoverIo = self.netlist.getAnalysis(HlsNetlistAnalysisPassDiscoverIo)
+        ioDiscovery: HlsNetlistAnalysisPassIoDiscover = self.netlist.getAnalysis(HlsNetlistAnalysisPassIoDiscover)
 
         for (nodes, con) in zip(self.fsm.states, self.connections):
             con: ConnectionsOfStage
@@ -259,8 +281,9 @@ class ArchElementFsm(ArchElement):
                     for w in node.iterChildWrites():
                         self._allocateDataPathWrite(w, ioDiscovery, con, ioMuxes, ioSeen, rtl)
 
-                # elif isinstance(node, HlsNetNodeExplicitSync):
-                    # this node should already be collected by HlsNetlistAnalysisPassDiscoverIo
+                elif node.__class__ is HlsNetNodeExplicitSync:
+                    raise NotImplementedError(node)
+                    # this node should already be collected by HlsNetlistAnalysisPassIoDiscover
 
             for rtl in self._allocateIoMux(ioMuxes, ioSeen):
                 con.stDependentDrives.append(rtl)
@@ -287,7 +310,7 @@ class ArchElementFsm(ArchElement):
             for s in con.signals:
                 s: TimeIndependentRtlResource
                 # if the value has a register at the end of this stage
-                v = s.checkIfExistsInClockCycle(self.fsmBeginClk_i + stI + 1)
+                v = s.checkIfExistsInClockCycle(self._beginClkI + stI + 1)
                 if v is not None and v.is_rlt_register() and not v in seenRegs:
                     con.stDependentDrives.append(v.data.next.drivers[0])
                     seenRegs.add(v)
