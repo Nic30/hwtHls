@@ -114,7 +114,7 @@ if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.xilinx.artix7 import Artix7Slow
     u = PingResponder()
-    u.DATA_WIDTH = 32
+    u.DATA_WIDTH = 256
     u.CLK_FREQ = int(100e6)
     print(to_rtl_str(u, target_platform=Artix7Slow(debugDir="tmp")))
 
