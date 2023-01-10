@@ -5,11 +5,9 @@ from hwt.code_utils import rename_signal
 from hwt.hdl.types.defs import BIT
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.explicitSync import IO_COMB_REALIZATION, HlsNetNodeExplicitSync
-from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict, \
-    OutputMinUseTimeGetter
-from hwtHls.netlist.nodes.ports import HlsNetNodeOut, link_hls_nodes, HlsNetNodeIn
-from hwtHls.netlist.scheduler.clk_math import start_of_next_clk_period
+from hwtHls.netlist.nodes.node import HlsNetNode, OutputMinUseTimeGetter
 from hwtHls.netlist.nodes.orderable import HlsNetNodeOrderable
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut, link_hls_nodes, HlsNetNodeIn
 
 
 class HlsLoopGateStatus(HlsNetNode):
@@ -24,12 +22,14 @@ class HlsLoopGateStatus(HlsNetNode):
         HlsNetNode.__init__(self, netlist, name=name)
         self._loop_gate = loop_gate
         self._addOutput(BIT, "busy")
-        self.debugUseNamedSignalsFroControl = False
 
     def resolveRealization(self):
         self.assignRealization(IO_COMB_REALIZATION)
 
     def allocateRtlInstance(self, allocator: "ArchElement") -> TimeIndependentRtlResource:
+        """
+        :note: drive of this register is generated from :class:`~.HlsLoopGate`
+        """
         op_out = self._outputs[0]
 
         try:
@@ -42,58 +42,17 @@ class HlsLoopGateStatus(HlsNetNode):
         statusBusyReg = allocator._reg(
             name if name else f"{self._loop_gate.name}_busy",
             def_val=0 if g.fromEnter else 1)  # busy if is executed at 0 time
-
+        
         # create RTL signal expression base on operator type
         t = self.scheduledOut[0] + self.netlist.scheduler.epsilon
         statusBusyReg_s = TimeIndependentRtlResource(statusBusyReg, t, allocator, False)
         allocator.netNodeToRtl[op_out] = statusBusyReg_s
 
-        # returns the control token
-        fromExit = [allocator.instantiateHlsNetNodeOut(g.dependsOn[i.in_i]) for i in g.fromExit]
-        # takes the control token
-        fromEnter = [allocator.instantiateHlsNetNodeOut(g.dependsOn[i.in_i]) for i in g.fromEnter]
-        # has the priority and does not require sync token (because it already owns it)
-        fromReenter = [allocator.instantiateHlsNetNodeOut(g.dependsOn[i.in_i]) for i in g.fromReenter]
-
-        assert fromReenter, (g, "Must have some reenters otherwise this is not the loop")
-        useNamedSignals = self.debugUseNamedSignalsFroControl
-        if not fromExit and not fromEnter:
-            # this is infinite loop without predecessor, it will run infinitely but in just one instance
-            statusBusyReg(1)
-        elif not fromExit and fromEnter:
-            # this is an infinite loop which has a predecessor, once started it will be closed for new starts
-            # :attention: we pick the data from any time because this is kind of back edge
-            newExe = Or(*(p.get(p.timeOffset).data for p in fromEnter))
-            if useNamedSignals:
-                newExe = rename_signal(self.netlist.parentUnit, newExe, f"{self._loop_gate.name}_newExe")
-            
-            If(newExe,
-               statusBusyReg(1)
-            )
-        elif fromExit and fromEnter:
-            newExe = Or(*(p.get(p.timeOffset).data for p in fromEnter))
-            newExit = Or(*(p.get(p.timeOffset).data for p in fromExit))
-            if useNamedSignals:
-                newExe = rename_signal(self.netlist.parentUnit, newExe, f"{self._loop_gate.name}_newExe")
-                newExit = rename_signal(self.netlist.parentUnit, newExit, f"{self._loop_gate.name}_newExit")
-            
-            If(newExe & ~newExit,
-               statusBusyReg(1)  # becomes busy
-            ).Elif(~newExe & newExit,  #  
-               statusBusyReg(0)  # finished work
-            )
-        elif fromExit and not fromEnter:
-            newExit = Or(*(p.get(p.timeOffset).data for p in fromExit))
-            if useNamedSignals:
-                newExit = rename_signal(self.netlist.parentUnit, newExit, f"{self._loop_gate.name}_newExit")
-            
-            If(newExit,
-               statusBusyReg(0)  # finished work
-            )
-        else:
-            raise AssertionError("All cases should already be covered in this if", self, g)
-
         return statusBusyReg_s
+
+    def debug_iter_shadow_connection_dst(self) -> Generator["HlsNetNode", None, None]:
+        if self._loop_gate is not None:
+            yield self._loop_gate
 
     def __repr__(self):
         return f"<{self.__class__.__name__:s} {self._id:d} (for {self._loop_gate.name})>"
@@ -166,6 +125,8 @@ class HlsLoopGate(HlsNetNodeOrderable):
         # another node with the output representing the presence of sync token (we can not add it here
         # because it would create a cycle)
         self._sync_token_status = HlsLoopGateStatus(netlist, self)
+        self.debugUseNamedSignalsForControl = False
+        self._allocated = False
 
     def _removeInput(self, i:int):
         raise NotImplementedError()
@@ -198,13 +159,10 @@ class HlsLoopGate(HlsNetNodeOrderable):
         assert isinstance(control.obj, HlsNetNodeExplicitSync), control
         netlist = self.netlist
         vld = netlist.builder.buildReadSync(control.obj.dependsOn[0]) 
-        control.obj.add_control_skipWhen(netlist.builder.buildNot(vld))
+        control.obj.addControlSerialSkipWhen(netlist.builder.buildNot(vld))
         
         en = self.netlist.builder.buildAnd(control, vld)
         self._connect(en, self.fromExit, f"exit{len(self.fromExit)}")
-
-    def debug_iter_shadow_connection_dst(self) -> Generator["HlsNetNode", None, None]:
-        yield self._sync_token_status
 
     def resolveRealization(self):
         self.assignRealization(IO_COMB_REALIZATION)
@@ -223,8 +181,61 @@ class HlsLoopGate(HlsNetNodeOrderable):
         """
         All RTL is generated from :class:`~.HlsLoopGateStatus`
         """
-        pass
+        assert not self._allocated, self
+        
+        status = self._sync_token_status
+        statusBusyReg_s = allocator.instantiateHlsNetNodeOut(status._outputs[0])
+        statusBusyReg = statusBusyReg_s.valuesInTime[0].data
+        # returns the control token
+        fromExit = [allocator.instantiateHlsNetNodeOut(self.dependsOn[i.in_i]) for i in self.fromExit]
+        # takes the control token
+        fromEnter = [allocator.instantiateHlsNetNodeOut(self.dependsOn[i.in_i]) for i in self.fromEnter]
+        # has the priority and does not require sync token (because it already owns it)
+        fromReenter = [allocator.instantiateHlsNetNodeOut(self.dependsOn[i.in_i]) for i in self.fromReenter]
+
+        assert fromReenter, (self, "Must have some reenters otherwise this is not the loop")
+        useNamedSignals = self.debugUseNamedSignalsForControl
+        parentU = self.netlist.parentUnit
+        name = self.name
+        if not fromExit and not fromEnter:
+            # this is infinite loop without predecessor, it will run infinitely but in just one instance
+            statusBusyReg(1)
+        elif not fromExit and fromEnter:
+            # this is an infinite loop which has a predecessor, once started it will be closed for new starts
+            # :attention: we pick the data from any time because this is kind of back edge
+            newExe = Or(*(p.get(p.timeOffset).data for p in fromEnter))
+            if useNamedSignals:
+                newExe = rename_signal(parentU, newExe, f"{name}_newExe")
+            
+            If(newExe,
+               statusBusyReg(1)
+            )
+        elif fromExit and fromEnter:
+            # loop with a predecessor and successor
+            newExe = Or(*(p.get(p.timeOffset).data for p in fromEnter))
+            newExit = Or(*(p.get(p.timeOffset).data for p in fromExit))
+            if useNamedSignals:
+                newExe = rename_signal(parentU, newExe, f"{name}_newExe")
+                newExit = rename_signal(parentU, newExit, f"{name}_newExit")
+            
+            If(newExe & ~newExit,
+               statusBusyReg(1)  # becomes busy
+            ).Elif(~newExe & newExit,  #  
+               statusBusyReg(0)  # finished work
+            )
+        elif fromExit and not fromEnter:
+            # loop with no predecessor and successor
+            newExit = Or(*(p.get(p.timeOffset).data for p in fromExit))
+            if useNamedSignals:
+                newExit = rename_signal(parentU, newExit, f"{name}_newExit")
+            
+            If(newExit,
+               statusBusyReg(0)  # finished work
+            )
+        else:
+            raise AssertionError("All cases should already be covered in this if", self)
+
+        self._allocated = True
 
     def __repr__(self):
         return f"<{self.__class__.__name__:s} {self._id:d}>"
-    
