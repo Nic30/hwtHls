@@ -12,7 +12,6 @@ from hwtHls.io.amba.axiStream.stmRead import HlsStmReadAxiStream
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axis import AxiStream
 from tests.io.amba.axiStream.axisParseLinear import AxiSParse2fields
-from hwtLib.amba.axis_comp.builder import AxiSBuilder
 
 
 class AxiSParse2If(AxiSParse2fields):
@@ -28,7 +27,7 @@ class AxiSParse2If(AxiSParse2fields):
     def _impl(self) -> None:
         hls = HlsScope(self)
         # add register to prevent zero time data exchange ins sim (to see nicely transaction nicely in wave)
-        i = AxiSBuilder(self, self.i).buff().end
+        i = self.i
         o = self.o
         v0 = HlsStmReadAxiStream(hls, i, Bits(16), True)
         v1a = HlsStmReadAxiStream(hls, i, Bits(16), True)
@@ -40,10 +39,10 @@ class AxiSParse2If(AxiSParse2fields):
                 HlsStmReadStartOfFrame(hls, i),
                 v0,
                 ast.If(v0.data._eq(2),
-                    v1a, # read 2B, output
+                    v1a,  # read 2B, output
                     hls.write(v1a.data._reinterpret_cast(o._dtype), o),
                 ).Elif(v0.data._eq(4),
-                    v1b, # read 4B, output
+                    v1b,  # read 4B, output
                     hls.write(v1b.data._reinterpret_cast(o._dtype), o),
                 ).Else(
                     # read 1B only
@@ -70,10 +69,10 @@ class AxiSParse2IfAndSequel(AxiSParse2fields):
         hls = HlsScope(self)
         i = self.i
         o = self.o
-        v0 =  HlsStmReadAxiStream(hls, i, Bits(16), True)
+        v0 = HlsStmReadAxiStream(hls, i, Bits(16), True)
         v1a = HlsStmReadAxiStream(hls, i, Bits(24), True)
         v1b = HlsStmReadAxiStream(hls, i, Bits(32), True)
-        v2 =  HlsStmReadAxiStream(hls, i, Bits(8), True)
+        v2 = HlsStmReadAxiStream(hls, i, Bits(8), True)
 
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
@@ -94,7 +93,6 @@ class AxiSParse2IfAndSequel(AxiSParse2fields):
             self._name)
         )
         hls.compile()
-
 
 
 if __name__ == "__main__":

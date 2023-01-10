@@ -38,14 +38,14 @@ class AxiSPacketCntrTC(SimTestCase):
 
 if __name__ == '__main__':
     import unittest
-    from hwt.synthesizer.utils import to_rtl_str
-    u = AxiSPacketCntr()
-    u.CLK_FREQ = int(1e6)
-    u.DATA_WIDTH = 16
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
+    # from hwt.synthesizer.utils import to_rtl_str
+    # u = AxiSPacketCntr()
+    # u.CLK_FREQ = int(1e6)
+    # u.DATA_WIDTH = 16
+    # print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
     
     suite = unittest.TestSuite()
-    suite.addTest(AxiSPacketCntrTC('test_AxiSPacketCntr_16b'))
-    # suite.addTest(unittest.makeSuite(AxiSPacketCntrTC))
+    # suite.addTest(AxiSPacketCntrTC('test_AxiSPacketCntr_16b'))
+    suite.addTest(unittest.makeSuite(AxiSPacketCntrTC))
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
