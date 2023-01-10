@@ -7,6 +7,7 @@ import unittest
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.struct import HStruct
 from hwt.simulator.simTestCase import SimTestCase
+from hwtHls.platform.platform import HlsDebugBundle
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtLib.amba.axis import axis_send_bytes
 from hwtSimApi.utils import freq_to_period
@@ -20,7 +21,7 @@ class AxiSParseIfTC(SimTestCase):
         u = AxiSParse2If()
         u.DATA_WIDTH = DATA_WIDTH
         u.CLK_FREQ = freq
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
+        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.DBG_ARCH_SYNC))
         T1 = HStruct(
             (Bits(16), "v0"),
             (Bits(8), "v1"),
@@ -111,13 +112,14 @@ class AxiSParseIfTC(SimTestCase):
 
 
 if __name__ == '__main__':
-    # from hwt.synthesizer.utils import to_rtl_str
-    # u = AxiSParse2If()
-    # u.DATA_WIDTH = 16
-    # u.CLK_FREQ = int(40e6)
-    # print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
+    #from hwt.synthesizer.utils import to_rtl_str
+    #u = AxiSParse2If()
+    #u.DATA_WIDTH = 512
+    #u.CLK_FREQ = int(100e6)
+    #print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.DBG_ARCH_SYNC)))
+
     suite = unittest.TestSuite()
-    #suite.addTest(AxiSParseIfTC('test_AxiSParse2If_16b_40MHz'))
-    suite.addTest(unittest.makeSuite(AxiSParseIfTC))
+    suite.addTest(AxiSParseIfTC('test_AxiSParse2If_16b_100MHz'))
+    #suite.addTest(unittest.makeSuite(AxiSParseIfTC))
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
