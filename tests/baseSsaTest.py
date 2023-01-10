@@ -5,16 +5,17 @@ from typing import Set, Tuple, Dict, List
 from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, MachineLoopInfo
+from hwtHls.netlist.analysis.dataThreadsForBlocks import HlsNetlistAnalysisPassDataThreadsForBlocks
 from hwtHls.netlist.analysis.blockSyncType import HlsNetlistAnalysisPassBlockSyncType
-from hwtHls.netlist.analysis.dataThreads import HlsNetlistAnalysisPassDataThreads
 from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.transformation.injectVldMaskToSkipWhenConditions import HlsNetlistPassInjectVldMaskToSkipWhenConditions
 from hwtHls.netlist.translation.dumpBlockSync import HlsNetlistPassDumpBlockSync
 from hwtHls.netlist.translation.dumpDataThreads import HlsNetlistPassDumpDataThreads
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
 from hwtHls.ssa.translation.dumpMIR import SsaPassDumpMIR
-from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.datapath import BlockLiveInMuxSyncDict
-from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
+from hwtHls.ssa.translation.llvmMirToNetlist.datapath import BlockLiveInMuxSyncDict
+from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
 from hwtHls.ssa.translation.toLl import SsaPassDumpToLl
 from hwtHls.ssa.translation.toLlvm import SsaPassToLlvm, ToLlvmIrTranslator
 from hwtLib.examples.base_serialization_TC import BaseSerializationTC
@@ -61,7 +62,7 @@ class BaseTestPlatform(VirtualHlsPlatform):
         blockLiveInMuxInputSync: BlockLiveInMuxSyncDict = toNetlist.constructLiveInMuxes(mf)
         # thread analysis must be done before we connect control, because once we do that
         # everything will blend together 
-        threads = netlist.getAnalysis(HlsNetlistAnalysisPassDataThreads)
+        threads = netlist.getAnalysis(HlsNetlistAnalysisPassDataThreadsForBlocks)
         toNetlist.updateThreadsOnPhiMuxes(threads)
         HlsNetlistPassDumpDataThreads(lambda name: (self.dataThreads, False)).apply(hls, netlist)
 
@@ -71,7 +72,8 @@ class BaseTestPlatform(VirtualHlsPlatform):
         toNetlist.extractRstValues(mf, threads)
         toNetlist.resolveLoopHeaders(mf, blockLiveInMuxInputSync)
         toNetlist.resolveBlockEn(mf, threads)
-        toNetlist.netlist.invalidateAnalysis(HlsNetlistAnalysisPassDataThreads)  # because we modified the netlist
+        HlsNetlistPassInjectVldMaskToSkipWhenConditions().apply(hls, netlist)
+        toNetlist.netlist.invalidateAnalysis(HlsNetlistAnalysisPassDataThreadsForBlocks)  # because we modified the netlist
         toNetlist.connectOrderingPorts(mf)
         return netlist
 
