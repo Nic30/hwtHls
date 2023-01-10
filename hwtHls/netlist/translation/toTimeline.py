@@ -1,16 +1,16 @@
+from collections import namedtuple
 from io import StringIO
 from plotly import graph_objs as go
 from plotly import tools
 from plotly.graph_objs import Figure
 import plotly.offline
 from plotly.offline.offline import build_save_image_post_script
-from typing import Dict, List, Optional, Union, Set
+from typing import Dict, List, Optional, Union, Set, Tuple
 
 from hwt.hdl.types.bitsVal import BitsVal
+from hwt.hdl.types.hdlType import HdlType
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
-from hwt.synthesizer.interfaceLevel.unitImplHelpers import getInterfaceName
-from hwt.synthesizer.unit import Unit
 from hwtHls.io.bram import HlsNetNodeWriteBramCmd
 from hwtHls.netlist.analysis.schedule import HlsNetlistAnalysisPassRunScheduler
 from hwtHls.netlist.context import HlsNetlistCtx
@@ -22,10 +22,14 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.orderable import HOrderingVoidT
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
+from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.platform.fileUtils import OutputStreamGetter
 import plotly.io as pio
+
+
+TimeleneRowRef = namedtuple("TimeleneRowRef", ["src", "start", "end", "dtype"])  # int, float, float, HdlType
 
 
 class TimelineRow():
@@ -33,13 +37,14 @@ class TimelineRow():
     A container of data for row in timeline graph.
     """
 
-    def __init__(self, label:str, group: int, start:float, finish:float, color:str):
+    def __init__(self, id_, label:str, group: int, start:float, finish:float, color:str):
+        self.id = id_
         self.label = label
         self.group = group
         self.start = start
         self.finish = finish
-        self.deps: UniqList[Union[TimelineRow, float]] = UniqList()
-        self.backward_deps: UniqList[Union[TimelineRow, float]] = UniqList()
+        self.deps: UniqList[TimeleneRowRef] = UniqList()
+        self.backward_deps: UniqList[int] = UniqList()
         self.color = color
 
 
@@ -51,8 +56,8 @@ class HwtHlsNetlistToTimeline():
     """
 
     def __init__(self, normalizedClkPeriod: int, resolution: float, expandCompositeNodes: bool):
-        self.obj_to_row: Dict[HlsNetNode, dict] = {}
-        self.rows: List[dict] = []
+        self.obj_to_row: Dict[HlsNetNode, Tuple[TimelineRow, int]] = {}
+        self.rows: List[TimelineRow] = []
         self.time_scale = resolution / 1e-9  # to ns
         self.clkPeriod = self.time_scale * normalizedClkPeriod
         self.min_duration = 0.05 * normalizedClkPeriod * self.time_scale  # minimum width of boexes representing operations
@@ -61,7 +66,6 @@ class HwtHlsNetlistToTimeline():
     def translateNodeToRow(self, obj: HlsNetNode, io_group_ids: Dict[Interface, int]):
         row_i = len(self.rows)
         obj_group_id = row_i
-        top: Unit = obj.netlist.parentUnit
         if obj.scheduledIn:
             start = min(obj.scheduledIn)
         else:
@@ -89,9 +93,9 @@ class HwtHlsNetlistToTimeline():
 
         elif isinstance(obj, HlsNetNodeWrite):
             if isinstance(obj, HlsNetNodeWriteBramCmd):
-                label = f"{getInterfaceName(top, obj.dst)}.write_cmd({obj.cmd})  {obj._id:d}"
+                label = f"{obj._getInterfaceName(obj.dst)}.write_cmd({obj.cmd})  {obj._id:d}"
             else:
-                label = f"{getInterfaceName(top, obj.dst)}.write()  {obj._id:d}"
+                label = f"{obj._getInterfaceName(obj.dst)}.write()  {obj._id:d}"
 
             if isinstance(obj, HlsNetNodeWriteBackwardEdge):
                 obj_group_id = io_group_ids.setdefault(obj.associated_read.src, obj_group_id)
@@ -100,7 +104,7 @@ class HwtHlsNetlistToTimeline():
             color = "green"
 
         elif isinstance(obj, HlsNetNodeRead):
-            label = f"{getInterfaceName(top, obj.src)}.read()  {obj._id:d}"
+            label = f"{obj._getInterfaceName(obj.src)}.read()  {obj._id:d}"
             obj_group_id = io_group_ids.setdefault(obj.src, obj_group_id)
             color = "green"
 
@@ -117,11 +121,13 @@ class HwtHlsNetlistToTimeline():
 
         elif isinstance(obj, HlsNetNodeExplicitSync):
             label = f"{obj.__class__.__name__:s}  {obj._id:d}"
-
+            color = "lightblue"
         else:
+            if isinstance(obj, (HlsNetNodeExplicitSync, HlsNetNodeReadSync)):
+                color = "lightgreen"
             label = repr(obj)
 
-        row = TimelineRow(label, obj_group_id, start, finish, color)
+        row = TimelineRow(row_i, label, obj_group_id, start, finish, color)
         self.rows.append(row)
         self.obj_to_row[obj] = (row, row_i)
 
@@ -164,11 +170,7 @@ class HwtHlsNetlistToTimeline():
                     depObj = dep.obj
 
                 depOutI = dep.out_i
-                try:
-                    obj_to_row[depObj][1]
-                except:
-                    raise
-                row.deps.append((
+                row.deps.append(TimeleneRowRef(
                     obj_to_row[depObj][1],  # src
                     depObj.scheduledOut[depOutI] * self.time_scale,  # start
                     t * self.time_scale,  # finish
@@ -253,9 +255,6 @@ class HwtHlsNetlistToTimeline():
                 self._draw_arrow(startX, startY, endX, endY, "gray", shapesToAdd, annotationsToAdd)
 
     def _generate_fig(self):
-        # df = self.df
-        # df['delta'] = df['finish'] - df['start']
-
         # https://plotly.com/python/bar-charts/
         rows_by_color = {}
         for row in self.rows:
@@ -376,7 +375,3 @@ class HlsNetlistPassShowTimeline(HlsNetlistPass):
             assert self.auto_open, "Must be True because we can not show figure without opening it"
             to_timeline.show()
 
-
-if __name__ == "__main__":
-    to_timeline = HwtHlsNetlistToTimeline()
-    to_timeline.show()
