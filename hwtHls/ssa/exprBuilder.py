@@ -133,7 +133,7 @@ class SsaExprBuilder():
                                                 o: Union[SsaValue, HValue, RtlSignal, Signal]
                                                 ) -> Tuple[Union[SsaValue, HValue], Union[SsaValue, HValue]]:
         """
-        :returns: tuple (object for expressing, object for type inference)
+        :return: tuple (object for expressing, object for type inference)
         """
         if isinstance(o, Interface):
             o = o._sig
