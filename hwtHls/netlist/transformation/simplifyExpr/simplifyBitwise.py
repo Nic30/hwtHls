@@ -19,7 +19,7 @@ def iter1and0sequences(v: BitsVal) -> Generator[Tuple[Literal[1, 0], int], None,
     """
     :note: same as ConstBitPartsAnalysisContext::iter1and0sequences
     :note: lower first
-    :returns: generators of tuples in format 0/1, width
+    :return: generators of tuples in format 0/1, width
     """
     # if the bit in c is 0 the output bit should be also 0 else it is bit from v
     l_1: int = -1  # start of 1 sequence, -1 as invalid value
@@ -102,7 +102,14 @@ def netlistReduceMux(n: HlsNetNodeMux, worklist: UniqList[HlsNetNode], removed: 
                     disconnectAllInputs(n, worklist)
                     removed.add(n)
                     return True
-        
+    
+    if len(n._inputs) == 3:
+        v0, c, v1 = n.dependsOn
+        if v0 is c:
+            newO = n.netlist.builder.buildOr(c, v1)
+            replaceOperatorNodeWith(n, newO, worklist, removed)
+            return True
+    
     return False
 
 
@@ -131,6 +138,7 @@ def netlistReduceAndOrXor(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode],
     o0Const = isinstance(o0.obj, HlsNetNodeConst)
     o1Const = isinstance(o1.obj, HlsNetNodeConst)
     newO = None
+    t = o0._dtype
 
     if o0Const and not o1Const:
         # make sure const is o1 if const is in operands
@@ -150,7 +158,7 @@ def netlistReduceAndOrXor(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode],
                     newO = o0
                 else:
                     # x & 0 = 0
-                    newO = builder.buildConstPy(o0._dtype, 9)
+                    newO = builder.buildConstPy(t, 0)
 
             else:
                 concatMembers = []
@@ -180,7 +188,7 @@ def netlistReduceAndOrXor(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode],
             if isAll0OrAll1(o1.obj.val):
                 if int(o1.obj.val):
                     # x | 1 = 1
-                    newO = builder.buildConst(o0._dtype.from_py(mask(o0._dtype.bit_length())))
+                    newO = builder.buildConst(t.from_py(mask(t.bit_length())))
                 else:
                     # x | 0 = x
                     newO = o0
@@ -232,7 +240,7 @@ def netlistReduceAndOrXor(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode],
         
         elif o0 == o1:
             # x ^ x = 0
-            newO = builder.buildConst(o0._dtype.from_py(0))
+            newO = builder.buildConst(t.from_py(0))
         
     if newO is not None:
         replaceOperatorNodeWith(n, newO, worklist, removed)

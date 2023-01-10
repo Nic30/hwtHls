@@ -11,6 +11,7 @@ from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
+from hwtHls.netlist.nodes.orderable import HdlType_isNonData
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 
 
@@ -18,7 +19,7 @@ def _collect1bOpTree(o: HlsNetNodeOut, inputs: UniqList[HlsNetNodeOut], inTreeOu
     """
     Collect tree of 1b operators ending from specified output
 
-    :returns: True if it is a non trivial output (output is trivial if driven by const or non-translated node,
+    :return: True if it is a non trivial output (output is trivial if driven by const or non-translated node,
         if the output is trivial it can not be optimized further)
     """
     if o in inTreeOutputs:
@@ -30,7 +31,9 @@ def _collect1bOpTree(o: HlsNetNodeOut, inputs: UniqList[HlsNetNodeOut], inTreeOu
         return False
 
     elif isinstance(obj, HlsNetNodeOperator):
-        if obj.dependsOn[0]._dtype.bit_length() == 1:
+        t = obj.dependsOn[0]._dtype
+        assert not HdlType_isNonData(t), obj
+        if t.bit_length() == 1:
             for i in obj.dependsOn:
                 _collect1bOpTree(i, inputs, inTreeOutputs)
                 inTreeOutputs.add(i)
@@ -89,9 +92,10 @@ def runAbcControlpathOpt(builder: HlsNetlistBuilder, worklist: UniqList[HlsNetNo
             if o is not newO:
                 if isinstance(newO, HValue):
                     newO = builder.buildConst(newO)
-                builder.replaceOutput(o, newO)
+                builder.replaceOutput(o, newO, True)
                 # we can remove "o" immediately because its parent node may have multiple outputs
-                worklist.append(newO.obj)
+                for use in newO.obj.usedBy[newO.out_i]:
+                    worklist.append(use.obj)
                 anyChangeSeen = True
 
         if anyChangeSeen:

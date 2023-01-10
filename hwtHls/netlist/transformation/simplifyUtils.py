@@ -1,6 +1,7 @@
 from itertools import islice
 from typing import Set, Optional
 
+from hwt.hdl.operatorDefs import OpDefinition, AllOps
 from hwt.hdl.value import HValue
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.builder import HlsNetlistBuilder
@@ -8,28 +9,46 @@ from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn, \
+    unlink_hls_nodes, link_hls_nodes
 
 
-def isHlsNetNodeExplicitSyncFlagsRequred(n: HlsNetNodeExplicitSync) -> bool:
-    if n.extraCond is not None:
-        c = getConstDriverOf(n.extraCond)
-        if c is None or int(c) != 1:
-            if n.skipWhen is not None:
-                c = getConstDriverOf(n.skipWhen)
-                if c is not  None and int(c) == 1:
-                    # always skipped extraCond does not matter
-                    return False
-                else:
-                    # not always skipped with some extraCond, can not remove
-                    return True
-            else:
-                # not always skipped with some extraCond, can not remove
-                return True
-    return False
-
- 
-def getConstDriverOf(inputObj: HlsNetNodeIn) -> Optional[HValue]:
+# def isHlsNetNodeExplicitSyncFlagsRequred(n: HlsNetNodeExplicitSync) -> bool:
+#    if n.extraCond is None:
+#        if n.skipWhen is None:
+#            # not always skipped with some extraCond, can not remove
+#            return False
+#        else:
+#            c = getConstDriverOf(n.skipWhen)
+#            if c is not None and int(c) == 1:
+#                # always skipped
+#                return False
+#            else:
+#                # not always skipped, can not remove
+#                return True
+#
+#    else:
+#        c = getConstDriverOf(n.extraCond)
+#        if c is None or int(c) != 1:
+#            # extraCond is useless
+#            if n.skipWhen is not None:
+#                c = getConstDriverOf(n.skipWhen)
+#                if c is not  None and int(c) == 1:
+#                    # always skipped extraCond does not matter
+#                    return False
+#                else:
+#                    # not always skipped with some extraCond, can not remove
+#                    return True
+#            else:
+#                # not always skipped with some extraCond, can not remove
+#                return True
+#        else:
+#            # has some non const extraCond
+#            return True
+#
+def getConstDriverOf(inputObj: Optional[HlsNetNodeIn]) -> Optional[HValue]:
+    if inputObj is None:
+        return None
     dep = inputObj.obj.dependsOn[inputObj.in_i]
     if isinstance(dep.obj, HlsNetNodeConst):
         return dep.obj.val
@@ -44,6 +63,7 @@ def disconnectAllInputs(n: HlsNetNode, worklist: UniqList[HlsNetNode]):
         # disconnect driver from self
         dep.obj.usedBy[dep.out_i].remove(i)
         worklist.append(dep.obj)
+        n.dependsOn[i.in_i] = None
 
 
 def addAllUsersToWorklist(worklist: UniqList[HlsNetNode], n: HlsNetNodeOperator):
@@ -55,8 +75,95 @@ def addAllUsersToWorklist(worklist: UniqList[HlsNetNode], n: HlsNetNodeOperator)
 def replaceOperatorNodeWith(n: HlsNetNodeOperator, newO: HlsNetNodeOut,
                             worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]):
     assert len(n.usedBy) == 1 or all(not uses for uses in islice(n.usedBy, 1, None)), (n, "implemented only for single output nodes or nodes with only first output used")
+    assert newO.obj not in removed, newO
     builder: HlsNetlistBuilder = n.netlist.builder
     addAllUsersToWorklist(worklist, n)
-    builder.replaceOutput(n._outputs[0], newO)
+    
+    # add dependencies which do not have any other use to worklist
+    for dep in n.dependsOn:
+        hasAnyOtherUser = False
+        for u in dep.obj.usedBy[dep.out_i]:
+            if u.obj is not n:
+                hasAnyOtherUser = True
+                break
+        if not hasAnyOtherUser:
+            worklist.append(dep.obj)
+
+    builder.replaceOutput(n._outputs[0], newO, True)
     disconnectAllInputs(n, worklist)
     removed.add(n)
+
+
+def transferHlsNetNodeExplicitSyncOrdering(src: HlsNetNodeExplicitSync, dst: HlsNetNodeExplicitSync):
+    currentOrderingDeps = set(dst.dependsOn[i.in_i].obj for i in dst.iterOrderingInputs())
+    currentOrderingDeps.add(dst)
+    # transfer all ordering inputs from src to dst
+    for orderingIn in src.iterOrderingInputs():
+        orderingDep = src.dependsOn[orderingIn]
+        if orderingDep.obj in currentOrderingDeps:
+            continue
+
+        unlink_hls_nodes(orderingDep, orderingIn)
+        # transfer input from sync "n" to "syncedDepObj"
+        currentOrderingDeps.add(orderingDep.obj)
+        syncedDepObjOI = dst._addInput("orderingIn")
+        link_hls_nodes(orderingDep, syncedDepObjOI)
+
+    # transfer all ordering uses from ordering port of src to dst
+    syncedDepObjOOut = dst.getOrderingOutPort()    
+    oOut = src.getOrderingOutPort()
+    for use in tuple(src.usedBy[oOut.out_i]):
+        use: HlsNetNodeIn
+        unlink_hls_nodes(oOut, use)
+        if use.obj is dst:
+            src._removeInput(use)
+            continue
+
+        link_hls_nodes(syncedDepObjOOut, use)
+
+
+def operationTakesMoreThan1Clk(n: HlsNetNodeExplicitSync):
+    hadRealization = n.realization is not None
+    if not hadRealization:
+        n.resolveRealization()
+    res = any(n.inputClkTickOffset) or any(n.outputClkTickOffset)
+    if not hadRealization:
+        n.deleteRealization()
+    return res
+
+
+def isInputConnectedTo(user: Optional[HlsNetNodeIn], dep: Optional[HlsNetNodeOut]) -> bool:
+    return dep is None and user is None or dep is not None and user.obj.dependsOn[user.in_i] is dep
+
+
+def hasInputSameDriver(i0: Optional[HlsNetNodeIn], i1: Optional[HlsNetNodeIn]) -> bool: 
+    if i0 is None and i1 is None:
+        return True
+    elif i0 is not None and i1 is not None:
+        return isInputConnectedTo(i0, i1.obj.dependsOn[i1.in_i])
+    else:
+        return False
+
+
+def iterOperatorTreeInputs(root: HlsNetNodeOut, op: OpDefinition):
+    """
+    :note: The most left input first
+    """
+    for dep in root.dependsOn:
+        depO = dep.obj
+        if isinstance(depO, HlsNetNodeOperator) and depO.operator is op:
+            yield from iterOperatorTreeInputs(depO, op)
+        else:
+            yield dep
+
+
+def popNotFromExpr(e: HlsNetNodeOut):
+    negated = False
+    while True:
+        obj = e.obj
+        if isinstance(obj, HlsNetNodeOperator) and obj.operator is AllOps.NOT:
+            negated = not negated
+            e = obj.dependsOn[0]
+        else:
+            return negated, obj, e
+
