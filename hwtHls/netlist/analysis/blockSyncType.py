@@ -3,18 +3,18 @@ from typing import Set, List, Union, Dict
 from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwtHls.llvm.llvmIr import MachineBasicBlock, MachineLoopInfo, MachineLoop, MachineInstr, Register, TargetOpcode
-from hwtHls.netlist.analysis.dataThreads import HlsNetlistAnalysisPassDataThreads
+from hwtHls.netlist.analysis.dataThreadsForBlocks import HlsNetlistAnalysisPassDataThreadsForBlocks
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.ssa.basicBlock import SsaBasicBlock
-from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer
+from hwtHls.ssa.translation.llvmMirToNetlist.utils import MachineBasicBlockSyncContainer
 
 
 class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
     '''
-    This pass updates blockSync dictionary in :class:`hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist.HlsNetlistAnalysisPassMirToNetlist` with
+    This pass updates blockSync dictionary in :class:`hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist.HlsNetlistAnalysisPassMirToNetlist` with
     flags which are describing what type of synchronization for block should be used.
     :note: This is thread level synchronization of control flow in blocks not RTL type of synchronization.
 
@@ -239,9 +239,9 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                 self._onBlockNeedsControl(suc)
     
     def run(self):
-        from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
+        from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
         originalMir: HlsNetlistAnalysisPassMirToNetlist = self.netlist.getAnalysis(HlsNetlistAnalysisPassMirToNetlist)
-        threads: HlsNetlistAnalysisPassDataThreads = self.netlist.getAnalysis(HlsNetlistAnalysisPassDataThreads)
+        threads: HlsNetlistAnalysisPassDataThreadsForBlocks = self.netlist.getAnalysis(HlsNetlistAnalysisPassDataThreadsForBlocks)
         self.threadsPerBlock = threads.threadsPerBlock
         self.blockSync = originalMir.blockSync
         self.loops: MachineLoopInfo = originalMir.loops

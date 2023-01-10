@@ -11,19 +11,18 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOutLazy, \
     HlsNetNodeOutAny
 
 
-class HlsNetlistAnalysisPassDataThreads(HlsNetlistAnalysisPass):
+class HlsNetlistAnalysisPassDataThreadsForBlocks(HlsNetlistAnalysisPass):
     """
     Walk nodes and find the independent dataflow threads.
     Dataflow thread is a subset of netlist nodes where each node is reachable from any node (= a single graph component).
-    The original netlist contains also no-data dependencies and nodes which must be excluded.
+    The original netlist contains also non-data dependencies and nodes which must be excluded.
 
-    :ivar threads: a dictionary which is mapping an instruction to a thread
     :ivar threadPerNode: a thread for each node
     :ivar threadsPerBlock: for each block threads which do have some node from this block
     """
 
     def __init__(self, netlist: HlsNetlistCtx):
-        super(HlsNetlistAnalysisPassDataThreads, self).__init__(netlist)
+        super(HlsNetlistAnalysisPassDataThreadsForBlocks, self).__init__(netlist)
         self.threadPerNode: Dict[HlsNetNode, Set[Union[HlsNetNode, HlsNetNodeOutLazy]]] = {}
         self.threadsPerBlock: Dict[MachineBasicBlock, List[Set[HlsNetNode]]] = {}
 
@@ -36,7 +35,7 @@ class HlsNetlistAnalysisPassDataThreads(HlsNetlistAnalysisPass):
 
     def searchForThreads(self, obj: HlsNetNode):
         """
-        :returns: the data-flow thread for this object, flag which tells if this is newly discovered thread
+        :return: the data-flow thread for this object, flag which tells if this is newly discovered thread
         """
         try:
             return self.threadPerNode[obj], False
@@ -52,7 +51,8 @@ class HlsNetlistAnalysisPassDataThreads(HlsNetlistAnalysisPass):
                 continue
             allMembersOfThread.add(obj)
             self.threadPerNode[obj] = allMembersOfThread
-    
+            # :note: do not skip HExternalDataDepT ports because they are data dependency even though they are of void type
+            
             for o, uses in zip(obj._outputs, obj.usedBy):
                 if o._dtype == HOrderingVoidT:
                     continue
@@ -106,7 +106,7 @@ class HlsNetlistAnalysisPassDataThreads(HlsNetlistAnalysisPass):
         return threads
 
     def run(self):
-        from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
+        from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
         originalMir: HlsNetlistAnalysisPassMirToNetlist = self.netlist.getAnalysisIfAvailable(HlsNetlistAnalysisPassMirToNetlist)
         if originalMir is None:
             # we do not have MIR because this netlist was not generated from it, we have to search everything and we can not distinguish between control and data path
