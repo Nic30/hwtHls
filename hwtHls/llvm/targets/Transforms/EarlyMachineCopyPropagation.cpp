@@ -36,6 +36,10 @@ DEBUG_COUNTER(FwdCounter, "machine-cp-fwd",
 
 namespace {
 
+static bool TRI_isSubRegister(const TargetRegisterInfo &TRI, Register r0, Register r1) {
+	return r0 == r1 || (r0.isPhysical() && r1.isPhysical() && TRI.isSubRegister(r0, r1));
+}
+
 class CopyTracker {
   struct CopyInfo {
     MachineInstr *MI;
@@ -44,6 +48,9 @@ class CopyTracker {
   };
 
   DenseMap<Register, CopyInfo> Copies;
+  bool isSubRegisterEq(const TargetRegisterInfo &TRI, Register r0, Register r1) {
+  	return TRI_isSubRegister(TRI, r0, r1);
+  }
 
 public:
   /// Mark all of the given registers and their subregisters as unavailable for
@@ -141,7 +148,7 @@ public:
                                       const TargetRegisterInfo &TRI) {
     MachineInstr *AvailCopy = findCopyDefViaUnit(Reg, TRI);
     if (!AvailCopy ||
-        !TRI.isSubRegisterEq(AvailCopy->getOperand(1).getReg(), Reg))
+        !isSubRegisterEq(TRI, AvailCopy->getOperand(1).getReg(), Reg))
       return nullptr;
 
     for (const MachineInstr &MI :
@@ -160,7 +167,7 @@ public:
     MachineInstr *AvailCopy =
         findCopyForUnit(Reg, TRI, /*MustBeAvailable=*/true);
     if (!AvailCopy ||
-        !TRI.isSubRegisterEq(AvailCopy->getOperand(0).getReg(), Reg))
+        !isSubRegisterEq(TRI, AvailCopy->getOperand(0).getReg(), Reg))
       return nullptr;
 
     // Check that the available copy isn't clobbered by any regmasks between
@@ -267,10 +274,14 @@ static bool isNopCopy(const MachineInstr &PreviousCopy, Register Src,
   Register PreviousDef = PreviousCopy.getOperand(0).getReg();
   if (Src == PreviousSrc && Def == PreviousDef)
     return true;
-  if (!TRI->isSubRegister(PreviousSrc, Src))
+  if (!TRI_isSubRegister(*TRI, PreviousSrc, Src))
     return false;
-  unsigned SubIdx = TRI->getSubRegIndex(PreviousSrc, Src);
-  return SubIdx == TRI->getSubRegIndex(PreviousDef, Def);
+  if (PreviousSrc.isPhysical() && Src.isPhysical() && Def.isPhysical()) {
+	  unsigned SubIdx = TRI->getSubRegIndex(PreviousSrc, Src);
+	  return SubIdx == TRI->getSubRegIndex(PreviousDef, Def);
+  } else {
+	  return true;
+  }
 }
 
 /// Remove instruction \p Copy if there exists a previous copy that copies the
