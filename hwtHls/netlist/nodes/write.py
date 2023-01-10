@@ -1,4 +1,4 @@
-from typing import Union, Optional, List, Generator
+from typing import Union, Optional, List, Generator, Tuple
 
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.interfaces.std import Signal, HandshakeSync, Handshaked, VldSynced, \
@@ -33,7 +33,7 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         HlsNetNode.__init__(self, netlist, None)
         self._associatedReadSync: Optional["HlsNetNodeReadSync"] = None
 
-        self._init_extraCond_skipWhen()
+        self._initExtraCondSkipWhen()
         self._addInput("src")
         if addOrderingOut:
             self._addOutput(HOrderingVoidT, "orderingOut")  # slot for ordering
@@ -119,13 +119,23 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         allocator.netNodeToRtl[(dep, dst)] = rtlObj
 
         return rtlObj
+    
+    def _getInterfaceName(self, io: Union[Interface, Tuple[Interface]]) -> str:
+        return HlsNetNodeRead._getInterfaceName(self, io)
 
-    def __repr__(self):
+    def __repr__(self, minify=False):
         src = self.src
         if src is NOT_SPECIFIED:
             src = self.dependsOn[0]
-
-        return f"<{self.__class__.__name__:s} {self._id:d} {self.dst} <- {src}>"
+        dstName = "<None>" if self.dst is None else self._getInterfaceName(self.dst)
+        if minify:
+            return f"<{self.__class__.__name__:s} {self._id:d} {dstName}>"
+        else:
+            if src is None:
+                _src = "<None>"
+            else:
+                _src = f"{src.obj._id}:{src.out_i}"
+            return f"<{self.__class__.__name__:s} {self._id:d} {dstName} <- {_src:s}>"
 
 
 class HlsNetNodeWriteIndexed(HlsNetNodeWrite):
@@ -143,9 +153,12 @@ class HlsNetNodeWriteIndexed(HlsNetNodeWrite):
             if i not in allNonOrdering:
                 yield i
 
-    def __repr__(self):
+    def __repr__(self, minify=False):
         src = self.src
         if src is NOT_SPECIFIED:
             src = self.dependsOn[0]
-
-        return f"<{self.__class__.__name__:s} {self._id:d} {self.dst}{HlsNetNodeReadIndexed._strFormatIndexes(self.indexes)} <- {src}>"
+        dstName = self._getInterfaceName(self.dst)
+        if minify:
+            return f"<{self.__class__.__name__:s} {self._id:d} {dstName}>"
+        else:
+            return f"<{self.__class__.__name__:s} {self._id:d} {dstName}{HlsNetNodeReadIndexed._strFormatIndexes(self.indexes)} <- {src}>"
