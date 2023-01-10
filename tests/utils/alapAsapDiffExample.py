@@ -90,8 +90,8 @@ if __name__ == "__main__":
     u = AlapAsapDiffExample()
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
 
-    #suite = unittest.TestSuite()
-    ## suite.addTest(FrameTmplTC('test_frameHeader'))
-    #suite.addTest(unittest.makeSuite(AlapAsapDiffExample_TC))
-    #runner = unittest.TextTestRunner(verbosity=3)
-    #runner.run(suite)
+    suite = unittest.TestSuite()
+    # suite.addTest(FrameTmplTC('test_frameHeader'))
+    suite.addTest(unittest.makeSuite(AlapAsapDiffExample_TC))
+    runner = unittest.TextTestRunner(verbosity=3)
+    runner.run(suite)
