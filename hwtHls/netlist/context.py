@@ -1,9 +1,7 @@
 from itertools import chain
 from math import ceil
-from typing import List, Union, Optional, Type
+from typing import List, Union, Optional, Type, Set, Callable
 
-from hwt.pyUtils.uniqList import UniqList
-from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.unit import Unit
 from hwtHls.architecture.allocator import HlsAllocator
@@ -11,7 +9,9 @@ from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPas
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
+from hwtHls.netlist.observableList import ObservableList, ObservableListRm
 from hwtHls.netlist.scheduler.scheduler import HlsScheduler
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 
 
 class HlsNetlistCtx():
@@ -35,15 +35,15 @@ class HlsNetlistCtx():
     def __init__(self, parentUnit: Unit,
                  freq: Union[float, int],
                  label: str,
-                 coherency_checked_io:Optional[UniqList[Interface]]=None,
-                 schedulerResolution:float=0.01e-9):
+                 schedulerResolution:float=0.01e-9,
+                 platform: Optional["VirtualHlsPlatform"]=None):
         """
         :see: For parameter meaning see doc of this class.
         :ivar schedulerResolution: The time resolution for time in scheduler specified in seconds (1e-9 is 1ns). 
         """
         self.label = label
         self.parentUnit = parentUnit
-        self.platform = parentUnit._target_platform
+        self.platform = platform if platform is not None else parentUnit._target_platform
         self.builder: Optional["HlsNetlistBuilder"] = None
         self._uniqNodeCntr = 0
 
@@ -52,16 +52,11 @@ class HlsNetlistCtx():
 
         self.realTimeClkPeriod = 1 / int(freq)
         self.normalizedClkPeriod = int(ceil(self.realTimeClkPeriod / schedulerResolution)) 
-        self.inputs: List[HlsNetNodeRead] = []
-        self.outputs: List[HlsNetNodeWrite] = []
-        self.nodes: List[HlsNetNode] = []
+        self.inputs: ObservableList[HlsNetNodeRead] = ObservableList()
+        self.outputs: ObservableList[HlsNetNodeWrite] = ObservableList()
+        self.nodes: ObservableList[HlsNetNode] = ObservableList()
 
         self.ctx = RtlNetlist()
-        if coherency_checked_io is None:
-            coherency_checked_io = UniqList()
-
-        self.coherency_checked_io: UniqList[Interface] = coherency_checked_io
-        
         self._analysis_cache = {}
         
         self.scheduler: HlsScheduler = self.platform.scheduler(self, schedulerResolution)
@@ -101,3 +96,37 @@ class HlsNetlistCtx():
 
     def schedule(self):
         self.scheduler.schedule()
+    
+    def filterNodesUsingSet(self, removed: Set[HlsNetNode]):
+        self.inputs[:] = (n for n in self.inputs if n not in removed)
+        self.nodes[:] = (n for n in self.nodes if n not in removed)
+        self.outputs[:] = (n for n in self.outputs if n not in removed)
+    
+    def setupNetlistListeners(self,
+                              beforeNodeAddedListener: Callable[[object, Union[slice, int], Union[HlsNetNode, ObservableListRm]], None],
+                              beforeInputDriveUpdate: Callable[[object, Union[slice, int], Union[HlsNetNodeOut, None, ObservableListRm]], None],
+                              removed: Set[HlsNetNode]):
+        for nodeList in (self.inputs, self.nodes, self.outputs):
+            nodeList._setObserver(beforeNodeAddedListener, None)
+        
+        for n in self.iterAllNodes():
+            if n in removed:
+                continue
+            n.dependsOn._setObserver(beforeInputDriveUpdate, n)
+    
+    def dropNetlistListeners(self):
+        for nodeList in (self.inputs, self.nodes, self.outputs):
+            nodeList._setObserver(None, None)
+        
+        for n in self.iterAllNodes():
+            n.dependsOn._setObserver(None, None)
+    
+    def _dbgGetNodeById(self, _id: int) -> HlsNetNode:
+        """
+        :attention: Highly inefficient intended only for debugging
+        """
+        for n in self.iterAllNodes():
+            if n._id == _id:
+                return n
+        raise ValueError("Node with requested id not found", _id)
+            

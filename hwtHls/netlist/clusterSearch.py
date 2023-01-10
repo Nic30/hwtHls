@@ -5,6 +5,7 @@ from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
     link_hls_nodes
+from hwtHls.netlist.observableList import ObservableList
 
 
 class HlsNetlistClusterSearch():
@@ -74,7 +75,7 @@ class HlsNetlistClusterSearch():
         Discover the cluster from the node n.
         """
         self._discover(n, seen, predicateFn)
-        self.inputs = [i for i in self.inputs if i.obj not in self.nodes]
+        self.inputs = ObservableList(i for i in self.inputs if i.obj not in self.nodes)
         self.inputsDict = {k: v for k, v in self.inputsDict.items() if k.obj not in self.nodes}
         # self.outputs = [o for o in self.outputs if o.obj not in self.nodes]
         self.consystencyCheck()
