@@ -6,17 +6,18 @@ from hwt.code_utils import rename_signal
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.bitsVal import BitsVal
+from hwt.hdl.value import HValue
 from hwt.interfaces.std import HandshakeSync, Signal
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage, \
     extractControlSigOfInterface, SignalsOfStages, ExtraCondMemberList, \
     SkipWhenMemberList
+from hwtHls.architecture.interArchElementHandshakeSync import InterArchElementHandshakeSync
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, \
     TimeIndependentRtlResourceItem, INVARIANT_TIME
-from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
+from hwtHls.netlist.analysis.ioDiscover import HlsNetlistAnalysisPassIoDiscover
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.orderable import HOrderingVoidT, HExternalDataDepT
@@ -65,7 +66,10 @@ class ArchElement():
         assert isinstance(stageSignals, SignalsOfStages), stageSignals
         self.stageSignals = stageSignals
         self.interArchAnalysis: Optional["InterArchElementNodeSharingAnalysis"] = None
-        self.debugAddNamesToSyncSignals = False
+        self._dbgAddNamesToSyncSignals = False
+        self._dbgExplicitlyNamedSyncSignals = set()
+        self._beginClkI: Optional[int] = None
+        self._endClkI: Optional[int] = None
 
     def _afterNodeInstantiated(self, n: HlsNetNode, rtl: Optional[TimeIndependentRtlResource]):
         pass
@@ -97,10 +101,11 @@ class ArchElement():
         else:
             assert intfDir == INTF_DIRECTION.SLAVE, intfDir
             con.inputs.append((intf, isBlocking))
-
+        
     def connectSync(self, clkI: int, intf: HandshakeSync, intfDir: INTF_DIRECTION, isBlocking: bool):
         con: ConnectionsOfStage = self.connections[clkI]
-        return self._connectSync(con, intf, intfDir, isBlocking)
+        self._connectSync(con, intf, intfDir, isBlocking)
+        return con
 
     def instantiateHlsNetNodeOut(self, o: HlsNetNodeOut) -> TimeIndependentRtlResource:
         assert isinstance(o, HlsNetNodeOut), o
@@ -116,17 +121,29 @@ class ArchElement():
             if (_o is None or not isinstance(_o, TimeIndependentRtlResource)) and o._dtype is not HOrderingVoidT and o._dtype is not HExternalDataDepT:
                 # to support the return of the value directly to avoid lookup from dict
                 try:
-                    return self.netNodeToRtl[o]
+                    res = self.netNodeToRtl[o]
+                    assert isinstance(res, TimeIndependentRtlResource) and res.valuesInTime[0].data._dtype.bit_length() == o._dtype.bit_length(), (o, res, o._dtype, res.valuesInTime[0].data._dtype if  isinstance(res, TimeIndependentRtlResource) else None)
+                    return res
                 except KeyError:
                     raise AssertionError(self, "Node did not instantiate its output", o.obj, o)
         else:
             # used and previously allocated
+            assert isinstance(_o, TimeIndependentRtlResource) and\
+                 _o.valuesInTime[0].data._dtype.bit_length() == o._dtype.bit_length(), (
+                     o, _o, o._dtype,
+                     _o.valuesInTime[0].data._dtype if isinstance(_o, TimeIndependentRtlResource) else None)
             pass
 
         return _o
 
     def instantiateHlsNetNodeOutInTime(self, o: HlsNetNodeOut, time:int,
                                        ) -> Union[TimeIndependentRtlResourceItem, List[HdlStatement]]:
+        clkPeriod = self.netlist.normalizedClkPeriod
+        assert self._beginClkI is None or time // clkPeriod >= self._beginClkI, (
+            "object is not scheduled for this element", self, self._beginClkI, time, time // clkPeriod, o)
+        assert self._endClkI is None or time // clkPeriod <= self._endClkI, (
+            "object is not scheduled for this element", self, self._endClkI, time, time // clkPeriod, o)
+
         _o = self.instantiateHlsNetNodeOut(o)
         if isinstance(_o, TimeIndependentRtlResource):
             return _o.get(time)
@@ -154,7 +171,7 @@ class ArchElement():
                 return a
             else:
                 res = b.data & a.data
-                return TimeIndependentRtlResource(res, syncTime, self, False).get(syncTime)
+                return TimeIndependentRtlResource(res, INVARIANT_TIME if isinstance(res, HValue) else syncTime, self, False).get(syncTime)
 
     def _orNegatedMaskedOptionalTimeIndependentRtlResourceItem(self,
                                                                a:Optional[TimeIndependentRtlResourceItem],
@@ -178,7 +195,7 @@ class ArchElement():
             else:
                 _a = a.data | (b.data & ~bMask.data)
 
-        return TimeIndependentRtlResource(_a, syncTime, self, False).get(syncTime)
+        return TimeIndependentRtlResource(_a, INVARIANT_TIME if isinstance(_a, HValue) else syncTime, self, False).get(syncTime)
     
     def _andNegatedMaskedOptionalTimeIndependentRtlResourceItem(self,
                                                                 a:Optional[TimeIndependentRtlResourceItem],
@@ -203,7 +220,7 @@ class ArchElement():
                     _a = a.data & ~bMask.data
                 else:
                     _a = a.data & (b.data & ~bMask.data)
-        return TimeIndependentRtlResource(_a, syncTime, self, False).get(syncTime)
+        return TimeIndependentRtlResource(_a, INVARIANT_TIME if isinstance(_a, HValue) else syncTime, self, False).get(syncTime)
         
     def _collectChannelSyncFromConcurrentSync(self,
                                               syncTime: int,
@@ -220,21 +237,43 @@ class ArchElement():
             extraSkipWhen = None
             if extraSync.skipWhen is not None:
                 extraSkipWhen = self.instantiateHlsNetNodeInInTime(extraSync.skipWhen, syncTime)
-                if self.debugAddNamesToSyncSignals:
+                if self._dbgAddNamesToSyncSignals:
                     extraSkipWhen.data = rename_signal(self.netlist.parentUnit, extraSkipWhen.data, f"sync{extraSync._id}_skipWhen")
+                    self._dbgExplicitlyNamedSyncSignals.add(extraSkipWhen.data)
+
                 skipWhen = self._andOptionalTimeIndependentRtlResourceItem(skipWhen, extraSkipWhen, syncTime)
                 
             if extraSync.extraCond is not None:
                 # :note: we must not use skipWhen directly because it is "and" of all skipWhens and not just this skipWhen
                 # _extraSkipWhen = self._andOptionalTimeIndependentRtlResourceItem(parentSkipWhen, extraSkipWhen, syncTime)
                 extraExtraCond = self.instantiateHlsNetNodeInInTime(extraSync.extraCond, syncTime)
-                if self.debugAddNamesToSyncSignals:
+                if self._dbgAddNamesToSyncSignals:
                     extraExtraCond.data = rename_signal(self.netlist.parentUnit, extraExtraCond.data, f"sync{extraSync._id}_extraCond")
+                    self._dbgExplicitlyNamedSyncSignals.add(extraExtraCond.data)
+
                 extraCond = self._orNegatedMaskedOptionalTimeIndependentRtlResourceItem(
                     extraCond, extraExtraCond, extraSkipWhen, syncTime)
    
         return extraCond, skipWhen
 
+    def _copyChannelSyncForElmInput(self, inputIntf: InterArchElementHandshakeSync, node: HlsNetNodeExplicitSync):
+        syncTime = node.scheduledOut[0]
+        if node.skipWhen is not None:
+            e = node.dependsOn[node.skipWhen.in_i]
+            skipWhen = self.instantiateHlsNetNodeOutInTime(e, syncTime)
+            skipWhen = SkipWhenMemberList([skipWhen, ])
+        else:
+            skipWhen = None
+        
+        if node.extraCond is not None:
+            e = node.dependsOn[node.extraCond.in_i]
+            extraCond = self.instantiateHlsNetNodeOutInTime(e, syncTime)
+            extraCond = ExtraCondMemberList([(skipWhen, extraCond), ])
+        else:
+            extraCond = None
+
+        return extraCond, skipWhen
+        
     def _copyChannelSync(self,
                    node: Union[HlsNetNodeRead, HlsNetNodeWrite],
                    extraSyncs: Optional[UniqList[HlsNetNodeExplicitSync]],
@@ -293,8 +332,8 @@ class ArchElement():
         return curExtraCond, curSkipWhen
 
     def _collectChannelRtlSync(self,
-                          syncPerIo: Dict[Interface, Union[SkipWhenMemberList, ExtraCondMemberList]],
-                          defaultVal: int):
+                               syncPerIo: Dict[Interface, Union[SkipWhenMemberList, ExtraCondMemberList]],
+                               defaultVal: int):
         sync: Dict[Interface, RtlSignal] = {}
         for intf, sync_source in syncPerIo.items():
             intf = extractControlSigOfInterface(intf)
@@ -306,18 +345,18 @@ class ArchElement():
             en = sync_source.resolve()
             if isinstance(en, BitsVal):
                 # current block en=1
-                assert int(en) == defaultVal, en
+                assert int(en) == defaultVal, (intf, en)
             else:
-                assert isinstance(en, RtlSignal), en
+                assert isinstance(en, RtlSignal), (intf, en)
                 sync[intf] = en
 
         return sync
-
+ 
     def _modifySkipWhenForNonBlocking(self,
-                                       io: INTERFACE_OR_VLD_RD_TUPLE,
-                                       isBlocking: bool,
-                                       ack: Union[RtlSignal, int, Signal],
-                                       skipWhen: Optional[Dict[INTERFACE_OR_VLD_RD_TUPLE, RtlSignal]]) -> Optional[Dict[INTERFACE_OR_VLD_RD_TUPLE, RtlSignal]]:
+                                      io: INTERFACE_OR_VLD_RD_TUPLE,
+                                      isBlocking: bool,
+                                      ack: Union[RtlSignal, int, Signal],
+                                      skipWhen: Optional[Dict[INTERFACE_OR_VLD_RD_TUPLE, RtlSignal]]) -> Optional[Dict[INTERFACE_OR_VLD_RD_TUPLE, RtlSignal]]:
         if not isBlocking and not isinstance(ack, int):
             if skipWhen is None:
                 skipWhen = {}
@@ -327,6 +366,7 @@ class ArchElement():
             else:
                 sw = sw | ~ack
             skipWhen[io] = sw
+
         return skipWhen
 
     def _makeSyncNodeDropSyncSignalForNonBlocking(self,
@@ -366,14 +406,16 @@ class ArchElement():
         else:
             # [todo]
             # * on HlsNetlist level replace all uses of every input data in skipWhen condition with data & vld mask
-            # * on RtlNetlist level replace all uses of prev state reg. data in skipWhen condition in this cycle with data & prevStageDataVld mask
+            # * on RtlNetlist level replace all uses of prev. state reg. data in skipWhen condition in this cycle with data & prevStageDataVld mask
             #   * in this case if value is used in some later cycle in skipWhen condition it should be already anded from HlsNetlist level       
             # self._makeSyncNodeInjectInputVldToSkipWhenConditions(prevStageDataVld, con.syncIn, masters, slaves, con.io_skipWhen)
             extraConds = self._collectChannelRtlSync(con.io_extraCond, 1)
             skipWhen = self._collectChannelRtlSync(con.io_skipWhen, 0)
-            if self.debugAddNamesToSyncSignals:
+            if self._dbgAddNamesToSyncSignals:
                 extraConds = {io: rename_signal(self.netlist.parentUnit, cond, f"{io._name}_extraCond") for io, cond in extraConds.items()}
                 skipWhen = {io: rename_signal(self.netlist.parentUnit, cond, f"{io._name}_skipWhen") for io, cond in skipWhen.items()}
+                for d in (extraConds, skipWhen):
+                    self._dbgExplicitlyNamedSyncSignals.update(d.values())
         
         for i, (m, isBlocking) in enumerate(masters):
             if not isBlocking:
@@ -392,7 +434,7 @@ class ArchElement():
         con.sync_node = sync
         return sync
 
-    def _allocateIo(self, ioDiscovery: HlsNetlistAnalysisPassDiscoverIo,
+    def _allocateIo(self, ioDiscovery: HlsNetlistAnalysisPassIoDiscover,
                     intf: Interface,
                     node: Union[HlsNetNodeRead, HlsNetNodeWrite],
                     con: ConnectionsOfStage,
