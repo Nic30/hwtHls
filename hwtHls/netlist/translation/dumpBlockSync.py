@@ -6,7 +6,7 @@ from hwtHls.llvm.llvmIr import MachineBasicBlock, MachineFunction, Register
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.platform.fileUtils import OutputStreamGetter
-from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer
+from hwtHls.ssa.translation.llvmMirToNetlist.utils import MachineBasicBlockSyncContainer
 from hwt.synthesizer.interface import Interface
 
 
@@ -86,7 +86,7 @@ class HlsNetlistPassDumpBlockSync(HlsNetlistPass):
         return P
         
     def apply(self, hls: "HlsScope", netlist: HlsNetlistCtx):
-        from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
+        from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
         toNetlist: HlsNetlistAnalysisPassMirToNetlist = netlist.getAnalysis(HlsNetlistAnalysisPassMirToNetlist)
         out, doClose = self.outStreamGetter(netlist.label)
         

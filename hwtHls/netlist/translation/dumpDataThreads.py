@@ -2,7 +2,7 @@ from io import StringIO
 from typing import List, Set, Dict
 
 from hwtHls.llvm.llvmIr import MachineBasicBlock, MachineFunction
-from hwtHls.netlist.analysis.dataThreads import HlsNetlistAnalysisPassDataThreads
+from hwtHls.netlist.analysis.dataThreadsForBlocks import HlsNetlistAnalysisPassDataThreadsForBlocks
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
@@ -14,7 +14,7 @@ class HlsNetlistPassDumpDataThreads(HlsNetlistPass):
     def __init__(self, outStreamGetter: OutputStreamGetter):
         self.outStreamGetter = outStreamGetter
 
-    def _printThreads(self, mf: MachineFunction, threads: HlsNetlistAnalysisPassDataThreads, out: StringIO):
+    def _printThreads(self, mf: MachineFunction, threads: HlsNetlistAnalysisPassDataThreadsForBlocks, out: StringIO):
         # :note: we first collect the nodes to have them always in deterministic order
         threadList: List[Set[HlsNetNode]] = []
         seenThreadIds: Set[int] = set() 
@@ -45,8 +45,8 @@ class HlsNetlistPassDumpDataThreads(HlsNetlistPass):
             out.write("\n")
         
     def apply(self, hls: "HlsScope", netlist: HlsNetlistCtx):
-        from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
-        threads = netlist.getAnalysis(HlsNetlistAnalysisPassDataThreads)
+        from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
+        threads = netlist.getAnalysis(HlsNetlistAnalysisPassDataThreadsForBlocks)
         mf: MachineFunction = netlist.getAnalysis(HlsNetlistAnalysisPassMirToNetlist).mf
         out, doClose = self.outStreamGetter(netlist.label)
         try:
