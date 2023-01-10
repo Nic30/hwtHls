@@ -7,6 +7,9 @@ from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.scope import HlsScope
 from hwtLib.examples.statements.ifStm import SimpleIfStatement
+from tests.baseSsaTest import BaseSsaTC
+from hwtSimApi.utils import freq_to_period
+from pyMathBitPrecise.bit_utils import get_bit
 
 
 class HlsSimpleIfStatement(SimpleIfStatement):
@@ -44,6 +47,32 @@ class HlsSimpleIfStatement(SimpleIfStatement):
         hls.compile()
 
 
+class HlsSimpleIfStatement_TC(BaseSsaTC):
+    __FILE__ = __file__
+
+    def test_simple(self):
+        u = HlsSimpleIfStatement()
+        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
+        for i in range(1 << 3):
+            u.a._ag.data.append(get_bit(i, 0))
+            u.b._ag.data.append(get_bit(i, 1))
+            u.c._ag.data.append(get_bit(i, 2))
+        
+        def model(a, b, c):
+            if a:
+                return b
+            elif b:
+                return c
+            else:
+                return c
+
+        d = [model(*args) for args in zip(u.a._ag.data, u.b._ag.data, u.c._ag.data)]
+
+        self.runSim(int((len(d) + 1) * freq_to_period(u.CLK_FREQ)))
+
+        self.assertValSequenceEqual(u.d._ag.data, d)
+
+
 if __name__ == "__main__":
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwt.synthesizer.utils import to_rtl_str
@@ -51,3 +80,10 @@ if __name__ == "__main__":
     u = HlsSimpleIfStatement()
     p = VirtualHlsPlatform(debugDir="tmp")
     print(to_rtl_str(u, target_platform=p))
+    
+    import unittest
+    suite = unittest.TestSuite()
+    # suite.addTest(HlsAstExprTree3_example_TC('test_simple'))
+    suite.addTest(unittest.makeSuite(HlsSimpleIfStatement_TC))
+    runner = unittest.TextTestRunner(verbosity=3)
+    runner.run(suite)
