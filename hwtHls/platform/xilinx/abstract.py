@@ -15,7 +15,7 @@ class AbstractXilinxPlatform(DefaultHlsPlatform):
 
     """
 
-    def __init__(self, debugDir:Optional[Union[str, Path]]=None, debugFilter: Optional[Set[DebugId]]=HlsDebugBundle.ALL):
+    def __init__(self, debugDir:Optional[Union[str, Path]]=None, debugFilter: Optional[Set[DebugId]]=HlsDebugBundle.DEFAULT):
         super(AbstractXilinxPlatform, self).__init__(debugDir=debugDir, debugFilter=debugFilter)
         self._init_coefs()
 

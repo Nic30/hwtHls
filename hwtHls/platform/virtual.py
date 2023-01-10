@@ -55,7 +55,7 @@ class VirtualHlsPlatform(DefaultHlsPlatform):
     :note: latencies like in average 28nm FPGA
     """
 
-    def __init__(self, debugDir:Optional[Union[str, Path]]=None, debugFilter: Optional[Set[DebugId]]=HlsDebugBundle.ALL):
+    def __init__(self, debugDir:Optional[Union[str, Path]]="tmp", debugFilter: Optional[Set[DebugId]]=HlsDebugBundle.DEFAULT):
         super(VirtualHlsPlatform, self).__init__(debugDir=debugDir, debugFilter=debugFilter)
 
         # operator: seconds to perform

@@ -48,44 +48,121 @@ from hwtHls.netlist.transformation.readSyncToAckOfIoNodes import HlsNetlistPassR
 from hwtHls.architecture.transformation.archElementsToSubunits import RtlArchPassTransplantArchElementsToSubunits
 from hwtHls.netlist.transformation.postSchedluling.postSchedulingChannelMerging import HlsNetlistPassPostSchedulingChannelMerge
 from hwtHls.netlist.debugTracer import DebugTracer
-
+from hwtHls.architecture.transformation.addSyncSigNames import RtlNetlistPassAddSyncSigNames
 DebugId = Tuple[Type, Optional[str]]
 
 
 class HlsDebugBundle():
-    ALL = None
-    DBG_0_preSsaOpt = (SsaPassDumpToDot, ".0.preSsaOpt.dot")
-    DBG_1_frontend = (SsaPassDumpToDot, ".1.frontend.dot")
-    DBG_2_preLlvm = (SsaPassDumpToLl, ".2.preLlvm.ll")
-    DBG_3_mir = (SsaPassDumpMIR, ".3.mir.ll")
-    DBG_4_mirCfg = (SsaPassDumpMirCfg, ".4.mirCfg.dot")
-    DBG_5_dthreads = (HlsNetlistPassDumpDataThreads, ".5.dthreads.txt")
-    DBG_6_blockSync = (HlsNetlistPassDumpBlockSync, ".6.blockSync.dot")
-    DBG_7_preSync = (HlsNetlistPassDumpToDot, ".7.preSync.dot")
-    DBG_8_postRst = (HlsNetlistPassDumpToDot, ".8.postRst.dot")
-    DBG_9_postLoop = (HlsNetlistPassDumpToDot, ".9.postLoop.dot")
-    DBG_10_postSync = (HlsNetlistPassDumpBlockSync, ".10.postSync.dot")
-    DBG_11_netlist = (HlsNetlistPassDumpToDot, ".11.netlist.dot")
-    DBG_12_nodes = (HlsNetlistPassDumpNodes, ".11.netlist.txt")
-    DBG_12_netlistSimplifyTrace = (None, ".12.netlistSimplifyTrace.txt")
-    DBG_12_netlistSimplifiedErr = (HlsNetlistPassDumpToDot, ".12.err.netlistSimplified.dot")
-    DBG_13_netlistSimplifiedErr = (HlsNetlistPassDumpToDot, ".13.err.netlistSimplified.dot")
-    DBG_13_netlistSimplified = (HlsNetlistPassDumpToDot, ".13.netlistSimplified.dot")
-    DBG_14_nodesSimplified = (HlsNetlistPassDumpNodes, ".14.netlistSimplified.txt")
-    DBG_15_syncDomains = (HlsNetlistPassSyncDomainsToGraphwiz, ".15.syncDomains.dot")
-    DBG_16_syncReach = (HlsNetlistPassSyncReachToGraphwiz, ".16.syncReach.dot")
-    DBG_17_netlistAggregated = (HlsNetlistPassDumpToDot, ".17.netlistAggregated.dot")
-    DBG_18_hwscheduleErr = (HlsNetlistPassShowTimelineJson, ".18.err.hwschedule.json")
-    DBG_19_hwschedule = (HlsNetlistPassShowTimelineJson, ".19.hwschedule.json")
-    DBG_20_final_hwschedule = (HlsNetlistPassShowTimelineJson, ".20.final.hwschedule.json")
-    DBG_21_arch = (RtlArchPassToGraphwiz, ".21.arch.dot")
-    DBG_22_sync = (RtlNetlistPassDumpStreamNodes, ".22.sync.txt")
-    DBG_23_archSchedule = (RtlArchPassShowTimeline, ".23.archSchedule.html")
-    DBG_24_regFileHierarchy = (RtlArchPassTransplantArchElementsToSubunits, None)
+    DBG_0_preSsaOpt = (SsaPassDumpToDot, ".0.preSsaOpt.dot")  # raw input code
+    DBG_1_frontend = (SsaPassDumpToDot, ".1.frontend.dot")  # after frontend transformations
+    DBG_2_preLlvm = (SsaPassDumpToLl, ".2.preLlvm.ll")  # translated to LLVM IR
+    DBG_3_mir = (SsaPassDumpMIR, ".3.mir.ll")  # translated and optimized to LLVM MIR by LLVM
+    DBG_4_mirCfg = (SsaPassDumpMirCfg, ".4.mirCfg.dot")  # Control Flow Graph of MIR
+    DBG_5_dthreads = (HlsNetlistPassDumpDataThreads, ".5.dthreads.txt")  # instructions packed in data treads
+    DBG_6_blockSync = (HlsNetlistPassDumpBlockSync, ".6.blockSync.dot")  # synchronization features of basic blocks
+    DBG_7_preSync = (HlsNetlistPassDumpToDot, ".7.preSync.dot")  # io of basic blocks before implementation of sync
+    DBG_8_postRst = (HlsNetlistPassDumpToDot, ".8.postRst.dot")  # basic block io after implementation of reset value extraction
+    DBG_9_postLoop = (HlsNetlistPassDumpToDot, ".9.postLoop.dot")  # basic block io after implementation of loops
+    DBG_10_postSync = (HlsNetlistPassDumpBlockSync, ".10.postSync.dot")  # basic block io after implementation of complete control flow sync
+    DBG_11_netlist = (HlsNetlistPassDumpToDot, ".11.netlist.dot")  # basic blocks disolved to netlist
+    DBG_12_nodes = (HlsNetlistPassDumpNodes, ".11.netlist.txt")  # same as DBG_11_netlist just in txt
+    DBG_12_netlistSimplifyTrace = (None, ".12.netlistSimplifyTrace.txt")  # trace of netlist simplifier
+    DBG_12_netlistSimplifiedErr = (HlsNetlistPassDumpToDot, ".12.err.netlistSimplified.dot")  # try to dump netlist if simplified failed
+    DBG_13_netlistSimplifiedErr = (HlsNetlistPassDumpToDot, ".13.err.netlistSimplified.dot")  # try to dump netlist if simplified failed in later stage
+    DBG_13_netlistSimplified = (HlsNetlistPassDumpToDot, ".13.netlistSimplified.dot")  # dump simplified netlist
+    DBG_14_nodesSimplified = (HlsNetlistPassDumpNodes, ".14.netlistSimplified.txt")  # same as DBG_13_netlistSimplified just in txt
+    DBG_15_syncDomains = (HlsNetlistPassSyncDomainsToGraphwiz, ".15.syncDomains.dot")  # dump association of IO to individual logic node clouds
+    DBG_16_syncReach = (HlsNetlistPassSyncReachToGraphwiz, ".16.syncReach.dot")  # dump transitive enclosure of DBG_15_syncDomains
+    DBG_17_netlistAggregated = (HlsNetlistPassDumpToDot, ".17.netlistAggregated.dot")  # dump netlist after selected nodes were agregated to scheduling primitives
+    DBG_18_hwscheduleErr = (HlsNetlistPassShowTimelineJson, ".18.err.hwschedule.json")  # try dump scheduling if scheduler failed
+    DBG_19_hwschedule = (HlsNetlistPassShowTimelineJson, ".19.hwschedule.json")  # node scheduling after first scheduling atempt
+    DBG_20_addSyncSigNames = (RtlNetlistPassAddSyncSigNames, None)  # signal names are directly in output RTL
+    DBG_21_final_hwschedule = (HlsNetlistPassShowTimelineJson, ".21.final.hwschedule.json")  # node scheduling which will be used to generate circuit
+    DBG_22_arch = (RtlArchPassToGraphwiz, ".22.arch.dot")  # relations between arch elements in whole generated architecutre
+    DBG_23_sync = (RtlNetlistPassDumpStreamNodes, ".22.sync.txt")  # control expressions of IO, FSMs and pipelines
+    DBG_24_archSchedule = (RtlArchPassShowTimeline, ".23.archSchedule.html")  # scheduling on architectural level
+    DBG_25_regFileHierarchy = (RtlArchPassTransplantArchElementsToSubunits, None)  # extract registers in pipeline stage or fsm to separate component
 
-    DBG_ARCH_SYNC = {DBG_3_mir, DBG_15_syncDomains, DBG_16_syncReach, DBG_21_arch}
+    ALL = None
+    NONE = {}
+    # all without DBG_20_addSyncSigNames, DBG_25_regFileHierarchy because it changes optimization behavior
+    ALL_RELIABLE = {
+        DBG_0_preSsaOpt,
+        DBG_1_frontend,
+        DBG_2_preLlvm,
+        DBG_3_mir,
+        DBG_4_mirCfg,
+        DBG_5_dthreads,
+        DBG_6_blockSync,
+        DBG_7_preSync,
+        DBG_8_postRst,
+        DBG_9_postLoop,
+        DBG_10_postSync,
+        DBG_11_netlist,
+        DBG_12_nodes,
+        DBG_12_netlistSimplifyTrace,
+        DBG_12_netlistSimplifiedErr,
+        DBG_13_netlistSimplifiedErr,
+        DBG_13_netlistSimplified,
+        DBG_14_nodesSimplified,
+        DBG_15_syncDomains,
+        DBG_16_syncReach,
+        DBG_17_netlistAggregated,
+        DBG_18_hwscheduleErr,
+        DBG_19_hwschedule,
+        DBG_21_final_hwschedule,
+        DBG_22_arch,
+        DBG_23_sync,
+        DBG_24_archSchedule,
+    }
+    DEFAULT = NONE
+
+    # bundles of debug features to debug problems in a specific phase of compilation
+    DBG_FRONTEND = {DBG_0_preSsaOpt, DBG_1_frontend}
+    DBG_NETLIST_GEN = {
+        DBG_3_mir,
+        DBG_4_mirCfg,
+        DBG_5_dthreads,
+        DBG_6_blockSync,
+        DBG_7_preSync,
+        DBG_8_postRst,
+        DBG_9_postLoop,
+        DBG_10_postSync,
+        DBG_11_netlist,
+    }
+    DBG_NETLIST_OPT = {
+        DBG_11_netlist,
+        DBG_12_nodes,
+        DBG_12_netlistSimplifyTrace,
+        DBG_12_netlistSimplifiedErr,
+        DBG_13_netlistSimplifiedErr,
+        DBG_13_netlistSimplified,
+        DBG_14_nodesSimplified,
+        DBG_15_syncDomains,
+        DBG_16_syncReach,
+    }
+    DBG_SCHEDULING = {
+        DBG_16_syncReach,
+        DBG_17_netlistAggregated,
+        DBG_18_hwscheduleErr,
+        DBG_19_hwschedule,
+        DBG_20_addSyncSigNames,
+        DBG_21_final_hwschedule,
+    }
+    DBG_ARCH_SYNC = {
+        DBG_3_mir,
+        DBG_15_syncDomains,
+        DBG_16_syncReach,
+        DBG_20_addSyncSigNames,
+        DBG_21_final_hwschedule,
+        DBG_22_arch,
+        DBG_23_sync,
+    }
 
     def __init__(self, debugDir:Optional[Union[str, Path]], filter_: Optional[Set[DebugId]]):
+        """
+        :attention: if debugDir is None no debug option will be enabled 
+        """
         self.dir = None if debugDir is None else Path(debugDir)
         self.filter = filter_
         self.firstRun = True
@@ -117,8 +194,8 @@ class DefaultHlsPlatform(DummyPlatform):
     A base platform which is a container of target config and compilation pipeline configuration.
     """
 
-    def __init__(self, debugDir:Optional[Union[str, Path]]=None,
-                 debugFilter: Optional[Set[DebugId]]=HlsDebugBundle.ALL):
+    def __init__(self, debugDir:Optional[Union[str, Path]]="tmp",
+                 debugFilter: Optional[Set[DebugId]]=HlsDebugBundle.DEFAULT):
         DummyPlatform.__init__(self)
         self.allocator = HlsAllocator
         self.scheduler = HlsScheduler
@@ -204,16 +281,8 @@ class DefaultHlsPlatform(DummyPlatform):
         self._debug.runAssertIfEnabled(HlsNetlistPassConsystencyCheck, (hls, netlist))
 
         HlsNetlistPassReadSyncToAckOfIoNodes().apply(hls, netlist)
-        # try:
-        #    HlsNetlistPassSimplify().apply(hls, netlist)
-        # except:
-        #    # if something went wrong try to debug actual state of the netlist
-        #    dbg(HlsNetlistPassDumpToDot, D.DBG_12_netlistSimplifiedErr, (hls, netlist))
-        #    raise
-        
-        # done in advance in order to check transitively connected IO only once and in order to avoid checks for HlsNetNodeReadSync later
-        # HlsNetlistPassInjectVldMaskToSkipWhenConditions().apply(hls, netlist)  # done after simply because rewrite is costly
 
+        firstPass = True
         while True:
             dbgDir = self._debug.dir
             if dbgDir and self._debug.isActivated(D.DBG_12_netlistSimplifyTrace):
@@ -228,8 +297,14 @@ class DefaultHlsPlatform(DummyPlatform):
                 if doCloseTrace:
                     traceFile.close()
                 # if something went wrong try to debug actual state of the netlist
-                dbg(HlsNetlistPassDumpToDot, D.DBG_13_netlistSimplifiedErr, (hls, netlist))
+                dbg(HlsNetlistPassDumpToDot, D.DBG_12_netlistSimplifiedErr if firstPass else D.DBG_13_netlistSimplifiedErr, (hls, netlist))
                 raise
+
+            if firstPass:
+                # done in advance in order to check transitively connected IO only once and in order to avoid checks for HlsNetNodeReadSync later
+                HlsNetlistPassInjectVldMaskToSkipWhenConditions().apply(hls, netlist)  # done after simply because rewrite is costly
+                firstPass = False
+                continue
     
             # if all predecessor IO have some skipWhen condition the extraCond may be incomplete due to hoisting
             # this may result in successors working without any data 
@@ -301,16 +376,18 @@ class DefaultHlsPlatform(DummyPlatform):
         * Each arch element explicitly queries the node for the specific time (and input/output combination if node spans over more arch. elements).
         """
         dbg = self._debug
+        D = HlsDebugBundle
         dbg.runAssertIfEnabled(HlsNetlistPassConsystencyCheck, (hls, netlist))
         if dbg.dir is not None:
             netlist.scheduler._checkAllNodesScheduled()
         
+        dbg.runDebugIfEnabled(RtlNetlistPassAddSyncSigNames, D.DBG_20_addSyncSigNames, (hls, netlist))
         allocator = netlist.allocator
         allocator._discoverArchElements()
         # RtlArchPassSingleStagePipelineToFsm().apply(self, allocator)
         RtlArchPassLoopControlPrivatization().apply(self, allocator)
 
-        dbg.runDebugIfEnabled(HlsNetlistPassShowTimelineJson, HlsDebugBundle.DBG_20_final_hwschedule, (hls, netlist),
+        dbg.runDebugIfEnabled(HlsNetlistPassShowTimelineJson, D.DBG_21_final_hwschedule, (hls, netlist),
                           expandCompositeNodes=self._debugExpandCompositeNodes)
         
         iea = InterArchElementNodeSharingAnalysis(netlist.normalizedClkPeriod)
@@ -329,7 +406,7 @@ class DefaultHlsPlatform(DummyPlatform):
             allocator.finalizeInterElementsConnections(iea)
         # :note: must be after finalizeInterElementsConnections because it needs inter element sync channels
         # RtlArchPassFsmShareTiedStateTransitions().apply(self, allocator)
-        dbg.runDebugIfEnabled(RtlArchPassToGraphwiz, HlsDebugBundle.DBG_21_arch, (hls, netlist))
+        dbg.runDebugIfEnabled(RtlArchPassToGraphwiz, D.DBG_22_arch, (hls, netlist))
 
         for e in allocator._archElements:
             e.allocateSync()
@@ -338,7 +415,7 @@ class DefaultHlsPlatform(DummyPlatform):
         RtlNetlistPassControlLogicMinimize().apply(hls, netlist)
 
         dbg = self._debug.runDebugIfEnabled
-        dbg(RtlNetlistPassDumpStreamNodes, HlsDebugBundle.DBG_22_sync, (hls, netlist))
-        dbg(RtlArchPassShowTimeline, HlsDebugBundle.DBG_23_archSchedule, (hls, netlist))
-        # dbg(RtlArchPassTransplantArchElementsToSubunits, HlsDebugBundle.DBG_24_regFileHierarchy, (hls, netlist))
+        dbg(RtlNetlistPassDumpStreamNodes, HlsDebugBundle.DBG_23_sync, (hls, netlist))
+        dbg(RtlArchPassShowTimeline, HlsDebugBundle.DBG_24_archSchedule, (hls, netlist))
+        dbg(RtlArchPassTransplantArchElementsToSubunits, HlsDebugBundle.DBG_25_regFileHierarchy, (hls, netlist))
         
