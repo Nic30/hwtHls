@@ -8,8 +8,8 @@ from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate, \
 from hwtHls.netlist.nodes.node import SchedulizationDict, \
     OutputTimeGetter, HlsNetNode, OutputMinUseTimeGetter
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
-from hwtHls.netlist.scheduler.errors import TimeConstraintError
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
+from hwtHls.netlist.nodes.aggregatedBitwiseOps import HlsNetNodeBitwiseOps
 
 
 class HlsNetNodeIoSyncScc(HlsNetNodeAggregate):
@@ -56,29 +56,41 @@ class HlsNetNodeIoSyncScc(HlsNetNodeAggregate):
     
                 maxTime = -inf
                 schedulingFail = False
+                
                 for n in self._subNodes:
                     n: HlsNetNode
                     n.scheduleAsap(pathForDebug, beginOfClkWhereLastInputIs, _outputTimeGetter)
                     if n._inputs:
                         maxTime = max(maxTime, *n.scheduledIn)
                     else:
-                        maxTime = max(maxTime, *n.scheduledOut)
-
+                        maxTime = max(maxTime, n.scheduledZero)
                     assert n.scheduledZero >= beginOfClkWhereLastInputIs, (n, n.scheduledIn, n.scheduledOut, maxTime, beginOfClkWhereLastInputIs)
                     assert maxTime >= beginOfClkWhereLastInputIs, (n, n.scheduledIn, n.scheduledOut, maxTime, beginOfClkWhereLastInputIs)
                     if maxTime >= endOfClkWhereLastInputIs:
-                        if moveTried:
-                            raise TimeConstraintError(
-                                "Impossible scheduling, clkPeriod too low IO synchronization realization ",
-                                self, " discovered on ", n)
-                        else:
-                            schedulingFail = True
+                        schedulingFail = True
+                        if not moveTried:
+                            # if this is first try we stop scheduling and move to next clock cycle
                             break
 
                 assert isfinite(maxTime), ("Time must be finite because there must to be something in this cluster which should be scheduled in some specific time", self)
+
                 if schedulingFail:
+                    if moveTried:
+                        from hwtHls.netlist.translation.toGraphwiz import HwtHlsNetlistToGraphwiz
+                        toGraphwiz = HwtHlsNetlistToGraphwiz(f"IoScc{self._id}", self._subNodes)
+                        toGraphwiz.construct()
+                        with open(f"tmp/TimeConstraintError.{toGraphwiz.name:s}.dot", "w") as f:
+                            f.write(toGraphwiz.dumps())
+        
+                        # raise TimeConstraintError(
+                        #    "Impossible scheduling, clkPeriod too low IO synchronization realization ",
+                        #    self, " discovered on ", n)
+
+                    if moveTried:
+                        break
                     self.resetScheduling()
                     moveTried = True
+                    assert inMaxT < maxTime, (inMaxT, "->", maxTime)
                     inMaxT = maxTime
                 else:
                     break
@@ -118,23 +130,33 @@ class HlsNetNodeIoSyncScc(HlsNetNodeAggregate):
 
         assert isinstance(minClkI, int), minClkI
         moveToPrevClkTried = False
+        lastSchedule:SchedulizationDict = {}
         # move outputs to a clock where first output is required,
         # if move failed move -1 clk if fails again it is not possible to move and original scheduling must be restored
         while True:
             # move all outputs to same time as most constraining port
             endCurClk = (minClkI + 1) * clkPeriod - ffdelay
-            for oPort in self._outputsInside:
-                oPort: HlsNetNodeAggregatePortOut
-                if oPort.scheduledZero is None or oPort.scheduledZero > endCurClk:
-                    oPort._setScheduleZero(endCurClk)
-                    
+            # for oPort in self._outputsInside:
+            #    oPort: HlsNetNodeAggregatePortOut
+            #    if oPort.scheduledZero is None or oPort.scheduledZero > endCurClk:
+            #        oPort._setScheduleZero(endCurClk)
+
             toSearch: Deque[HlsNetNode] = deque()
-            toSearchSet: Set[HlsNetNode] = set(toSearch)
+            toSearchSet: Set[HlsNetNode] = set()
             for oPort in self._outputsInside:
                 node = oPort.dependsOn[0].obj
                 if node not in toSearchSet:
                     toSearch.append(node)
                     toSearchSet.add(node)
+
+            for node in self._subNodes:
+                node: HlsNetNode
+                if node.realization is not None and\
+                        not isinstance(node, HlsNetNodeBitwiseOps) and \
+                        (any(node.inputClkTickOffset) or any(node.outputClkTickOffset)):
+                    if node not in toSearchSet:
+                        toSearch.append(node)
+                        toSearchSet.add(node)
 
             while toSearch:
                 node0: HlsNetNode = toSearch.popleft()
@@ -144,7 +166,8 @@ class HlsNetNodeIoSyncScc(HlsNetNodeAggregate):
                     if node1 not in toSearchSet:
                         toSearch.append(node1)
                         toSearchSet.add(node1)
-            # check if we successed to fit all nodes in this clock cycle
+            
+            # check if scheduling was successful to fit all nodes in this clock cycle
             fail = False
             curClkBegin = None
             curClkEnd = None
@@ -157,17 +180,16 @@ class HlsNetNodeIoSyncScc(HlsNetNodeAggregate):
                     fail = True
                     break
     
-            if fail:
+            if not moveToPrevClkTried and fail:
+                self.copyScheduling(lastSchedule)
                 self.setScheduling(prevSchedule)
-                if moveToPrevClkTried:
-                    # can not move at all
-                    return
-                else:
-                    # does not fit in clk where first output is, we move -1 clk 
-                    minClkI -= 1
-                    moveToPrevClkTried = True
-                
+                # does not fit in clk where first output is, we move -1 clk 
+                minClkI -= 1
+                moveToPrevClkTried = True
+
             else:
+                if moveToPrevClkTried and fail:
+                    self.setScheduling(prevSchedule)
                 self.copySchedulingFromChildren()
                 self.checkScheduling()
     
@@ -176,4 +198,3 @@ class HlsNetNodeIoSyncScc(HlsNetNodeAggregate):
                     for dep in self.dependsOn:
                         yield dep.obj
                 return
-
