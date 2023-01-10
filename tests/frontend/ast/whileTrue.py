@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from hwt.interfaces.std import Handshaked
+from hwt.interfaces.utils import propagateClkRstn
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.scope import HlsScope
+from hwtLib.handshaked.reg import HandshakedReg
 from tests.frontend.ast.trivial import WhileTrueReadWrite, WhileTrueWrite
 
 
@@ -45,6 +48,71 @@ class WhileTrueWriteCntr1(WhileTrueWrite):
 
 class WhileSendSequence0(WhileTrueReadWrite):
     """
+    WhileSendSequence described as a simple feed forward pipeline.
+    """
+
+    def _impl(self) -> None:
+        hls = HlsScope(self)
+        sizeBuff = HandshakedReg(Handshaked)
+        sizeBuff.DATA_WIDTH = self.dataIn.T.bit_length()
+        sizeBuff.LATENCY = (1, 2)
+        sizeBuff.INIT_DATA = ((0,),)
+        self.sizeBuff = sizeBuff
+
+        size = hls.var("size", self.dataIn.T)
+        ast = HlsAstBuilder(hls)
+        hls.addThread(HlsThreadFromAst(hls,
+            ast.While(True,
+                size(hls.read(self.sizeBuff.dataOut).data),
+                ast.If(size._eq(0),
+                    size(hls.read(self.dataIn).data)
+                ),
+                ast.If(size > 0,
+                    hls.write(size, self.dataOut),
+                    hls.write(size - 1, sizeBuff.dataIn)
+                ).Else(
+                    hls.write(size, sizeBuff.dataIn)
+                
+                )
+            ),
+            self._name)
+        )
+        hls.compile()
+        propagateClkRstn(self)
+
+
+class WhileSendSequence1(WhileSendSequence0):
+    """
+    dataIn is always read if size==0, Control of loops are entirely dependent on value of size
+    which makes it more simple.
+    :note: this is significantly more simple than :class:`~.WhileSendSequence2`
+           however there is 1 cycle delay after reset
+    """
+
+    def _impl(self) -> None:
+        hls = HlsScope(self)
+
+        size = hls.var("size", self.dataIn.T)
+        ast = HlsAstBuilder(hls)
+        hls.addThread(HlsThreadFromAst(hls,
+            ast.While(True,
+                ast.While(size != 0,
+                    hls.write(size, self.dataOut),
+                    size(size - 1),
+                ),
+                # [todo] last iteration requires dataIn to be present
+                # as a consequence the last dataOut stuck in the component and is currently
+                # not flushed by default. However based on the original code user probably
+                # expect the dataOut to be flushed. 
+                size(hls.read(self.dataIn).data),
+            ),
+            self._name)
+        )
+        hls.compile()
+
+
+class WhileSendSequence2(WhileTrueReadWrite):
+    """
     May skip nested while loop and renter top loop
     or jump to nested  while loop, exit nested  loop and reenter top loop
     or jump to nested  while loop and reenter nested while loop.
@@ -76,39 +144,9 @@ class WhileSendSequence0(WhileTrueReadWrite):
         hls.compile()
 
 
-class WhileSendSequence1(WhileSendSequence0):
+class WhileSendSequence3(WhileSendSequence0):
     """
-    dataIn is always read if size==0, Control of loops are entirely dependent on value of size
-    which makes it more simple.
-    :note: this is significantly more simple than :class:`~.WhileSendSequence1`
-           however there is 1 cycle delay after reset
-    """
-
-    def _impl(self) -> None:
-        hls = HlsScope(self)
-
-        size = hls.var("size", self.dataIn.T)
-        ast = HlsAstBuilder(hls)
-        hls.addThread(HlsThreadFromAst(hls,
-            ast.While(True,
-                ast.While(size != 0,
-                    hls.write(size, self.dataOut),
-                    size(size - 1),
-                ),
-                # [todo] last iteration requires dataIn to be present
-                # as a consequence the last dataOut stuck in the component and is currently
-                # not flushed by default. However based on the original code user probably
-                # expect the dataOut to be flushed. 
-                size(hls.read(self.dataIn).data),
-            ),
-            self._name)
-        )
-        hls.compile()
-
-
-class WhileSendSequence2(WhileSendSequence0):
-    """
-    same as :class:`~.WhileSendSequence0`
+    same as :class:`~.WhileSendSequence2` but more explicit
     """
 
     def _impl(self) -> None:
@@ -131,9 +169,9 @@ class WhileSendSequence2(WhileSendSequence0):
         hls.compile()
 
 
-class WhileSendSequence3(WhileSendSequence0):
+class WhileSendSequence4(WhileSendSequence0):
     """
-    same as :class:`~.WhileSendSequence2` but more explicit
+    same as :class:`~.WhileSendSequence3` but more explicit
     """
 
     def _impl(self) -> None:

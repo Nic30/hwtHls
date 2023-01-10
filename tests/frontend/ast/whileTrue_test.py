@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from unittest.case import expectedFailure
-
 from hwt.serializer.combLoopAnalyzer import CombLoopAnalyzer
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.platform.virtual import VirtualHlsPlatform
@@ -11,7 +9,8 @@ from hwtLib.examples.errors.combLoops import freeze_set_of_sets
 from hwtSimApi.constants import CLK_PERIOD
 from hwtSimApi.utils import freq_to_period
 from tests.frontend.ast.whileTrue import WhileTrueWriteCntr0, WhileTrueWriteCntr1, \
-    WhileSendSequence0, WhileSendSequence1, WhileSendSequence2, WhileSendSequence3
+    WhileSendSequence0, WhileSendSequence1, WhileSendSequence2, WhileSendSequence3, \
+    WhileSendSequence4
 
 
 class HlsAstWhileTrue_TC(SimTestCase):
@@ -42,7 +41,8 @@ class HlsAstWhileTrue_TC(SimTestCase):
     
     def _test_WhileSendSequence(self, cls: WhileSendSequence0, FREQ:int,
                                 randomizeIn: bool, randomizeOut: bool,
-                                platform=None):
+                                platform=None,
+                                timeMultiplier=1):
         u = cls()
         u.FREQ = int(FREQ)
         if platform is None:
@@ -50,7 +50,9 @@ class HlsAstWhileTrue_TC(SimTestCase):
         self.compileSimAndStart(u, target_platform=platform)
         # u.dataIn._ag.data.extend([1, 1, 1, 1])
         
-        u.dataIn._ag.data.extend([5, 0, 0, 3, 2, 0, 1, 3, 1, 1, 0, 1])
+        u.dataIn._ag.data.extend([5, 0, 0, 3, 2, 0, 1, 3, 1,
+                                  1, 0, 1])
+        u.dataIn._ag.presetBeforeClk = True
         # u.dataIn._ag.data.extend([2, 2])
         CLK = 40
         if randomizeIn and randomizeOut:
@@ -58,7 +60,7 @@ class HlsAstWhileTrue_TC(SimTestCase):
         elif randomizeIn or randomizeOut:
             CLK *= 3
 
-        self.runSim(CLK * int(freq_to_period(u.FREQ)))
+        self.runSim(int(CLK * freq_to_period(u.FREQ) * timeMultiplier))
         self._test_no_comb_loops()
 
         self.assertValSequenceEqual(u.dataOut._ag.data, [5, 4, 3, 2, 1,
@@ -71,98 +73,105 @@ class HlsAstWhileTrue_TC(SimTestCase):
     def test_WhileSendSequence0_20Mhz(self):
         self._test_WhileSendSequence(WhileSendSequence0, 20e6, False, False)
     
-    @expectedFailure
     def test_WhileSendSequence0_100Mhz(self):
-        self._test_WhileSendSequence(WhileSendSequence0, 100e6, False, False)
+        self._test_WhileSendSequence(WhileSendSequence0, 100e6, False, False, timeMultiplier=2)
 
-    @expectedFailure
     def test_WhileSendSequence0_150Mhz(self):
-        self._test_WhileSendSequence(WhileSendSequence0, 150e6, False, False)
+        self._test_WhileSendSequence(WhileSendSequence0, 150e6, False, False, timeMultiplier=2.5)
 
-    @expectedFailure  # problem with flush
+    # @expectedFailure  # problem with flush
     def test_WhileSendSequence1_20Mhz(self):
         self._test_WhileSendSequence(WhileSendSequence1, 20e6, False, False)
     
-    @expectedFailure
     def test_WhileSendSequence1_100Mhz(self):
         self._test_WhileSendSequence(WhileSendSequence1, 100e6, False, False)
 
-    @expectedFailure
     def test_WhileSendSequence1_150Mhz(self):
         self._test_WhileSendSequence(WhileSendSequence1, 150e6, False, False)
 
     def test_WhileSendSequence2_20Mhz(self):
         self._test_WhileSendSequence(WhileSendSequence2, 20e6, False, False)
     
-    @expectedFailure
     def test_WhileSendSequence2_100Mhz(self):
-        self._test_WhileSendSequence(WhileSendSequence2, 100e6, False, False, platform=Artix7Medium(debugDir="tmp"))
+        self._test_WhileSendSequence(WhileSendSequence2, 100e6, False, False, platform=Artix7Medium())
 
-    @expectedFailure
     def test_WhileSendSequence2_130Mhz(self):
-        self._test_WhileSendSequence(WhileSendSequence2, 130e6, False, False, platform=Artix7Medium(debugDir="tmp"))
+        self._test_WhileSendSequence(WhileSendSequence2, 130e6, False, False, platform=Artix7Medium())
 
     def test_WhileSendSequence3_20Mhz(self):
         self._test_WhileSendSequence(WhileSendSequence3, 20e6, False, False)
 
-    @expectedFailure
     def test_WhileSendSequence3_100Mhz(self):
         self._test_WhileSendSequence(WhileSendSequence3, 100e6, False, False)
     
-    @expectedFailure
     def test_WhileSendSequence3_150Mhz(self):
         self._test_WhileSendSequence(WhileSendSequence3, 150e6, False, False)
+
+    def test_WhileSendSequence4_20Mhz(self):
+        self._test_WhileSendSequence(WhileSendSequence4, 20e6, False, False)
+
+    def test_WhileSendSequence4_100Mhz(self):
+        self._test_WhileSendSequence(WhileSendSequence4, 100e6, False, False)
     
+    def test_WhileSendSequence4_150Mhz(self):
+        self._test_WhileSendSequence(WhileSendSequence4, 150e6, False, False)
+
     def test_WhileSendSequence0_20Mhz_rand(self):
         self._test_WhileSendSequence(WhileSendSequence0, 20e6, True, True)
     
-    @expectedFailure
     def test_WhileSendSequence0_100Mhz_rand(self):
         self._test_WhileSendSequence(WhileSendSequence0, 100e6, True, True)
 
-    @expectedFailure
     def test_WhileSendSequence0_150Mhz_rand(self):
         self._test_WhileSendSequence(WhileSendSequence0, 150e6, True, True)
 
-    @expectedFailure  # problem with flush
+    # @expectedFailure  # problem with flush
     def test_WhileSendSequence1_20Mhz_rand(self):
         self._test_WhileSendSequence(WhileSendSequence1, 20e6, True, True)
     
-    @expectedFailure
     def test_WhileSendSequence1_100Mhz_rand(self):
         self._test_WhileSendSequence(WhileSendSequence1, 100e6, True, True)
 
-    @expectedFailure
     def test_WhileSendSequence1_150Mhz_rand(self):
         self._test_WhileSendSequence(WhileSendSequence1, 150e6, True, True)
 
     def test_WhileSendSequence2_20Mhz_rand(self):
         self._test_WhileSendSequence(WhileSendSequence2, 20e6, True, True)
     
-    @expectedFailure
     def test_WhileSendSequence2_100Mhz_rand(self):
         self._test_WhileSendSequence(WhileSendSequence2, 100e6, True, True)
 
-    @expectedFailure
     def test_WhileSendSequence2_150Mhz_rand(self):
         self._test_WhileSendSequence(WhileSendSequence2, 150e6, True, True)
 
     def test_WhileSendSequence3_20Mhz_rand(self):
         self._test_WhileSendSequence(WhileSendSequence3, 20e6, True, True)
 
-    @expectedFailure
     def test_WhileSendSequence3_100Mhz_rand(self):
         self._test_WhileSendSequence(WhileSendSequence3, 100e6, True, True)
     
-    @expectedFailure
     def test_WhileSendSequence3_150Mhz_rand(self):
         self._test_WhileSendSequence(WhileSendSequence3, 150e6, True, True)
     
-        
+    def test_WhileSendSequence4_20Mhz_rand(self):
+        self._test_WhileSendSequence(WhileSendSequence4, 20e6, True, True)
+
+    def test_WhileSendSequence4_100Mhz_rand(self):
+        self._test_WhileSendSequence(WhileSendSequence4, 100e6, True, True)
+    
+    def test_WhileSendSequence4_150Mhz_rand(self):
+        self._test_WhileSendSequence(WhileSendSequence4, 150e6, True, True)
+
+       
 if __name__ == "__main__":
+    from hwt.synthesizer.utils import to_rtl_str
+    u = WhileSendSequence1()
+    u.FREQ = int(100e6)
+    print(to_rtl_str(u, target_platform=Artix7Medium(debugDir="tmp")))
+    
     import unittest
     suite = unittest.TestSuite()
-    suite.addTest(HlsAstWhileTrue_TC('test_WhileSendSequence2_100Mhz'))
-    # suite.addTest(unittest.makeSuite(HlsAstWhileTrue_TC))
+    #suite.addTest(HlsAstWhileTrue_TC('test_WhileSendSequence1_100Mhz'))
+    suite.addTest(unittest.makeSuite(HlsAstWhileTrue_TC))
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
