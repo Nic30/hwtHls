@@ -14,7 +14,7 @@ from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
-from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
+from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
 from hwtSimApi.utils import freq_to_period
 
 
@@ -69,7 +69,7 @@ class ReadNonBlockingOrDefaultUnit(ReadOrDefaultUnit):
         rVld = b.buildReadSync(r)
         t = r._dtype
         sync = HlsNetNodeExplicitSync(netlist, t)
-        sync.add_control_skipWhen(b.buildNot(rVld))
+        sync.addControlSerialSkipWhen(b.buildNot(rVld))
         netlist.nodes.append(sync)
         link_hls_nodes(r, sync._inputs[0])
         
@@ -207,13 +207,13 @@ class HlsNetlistReadSyncTC(SimTestCase):
 if __name__ == "__main__":
     import unittest
     from hwt.synthesizer.utils import to_rtl_str
-    u = ReadAnyHsUnit()
+    u = ReadNonBlockingOrDefaultUnit()
     u.DATA_WIDTH = 32
     u.CLK_FREQ = int(40e6)
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
 
-    suite = unittest.TestSuite()
-    # suite.addTest(HlsNetlistReadSyncTC('test_NetlistWireUnitRdSynced'))
-    suite.addTest(unittest.makeSuite(HlsNetlistReadSyncTC))
-    runner = unittest.TextTestRunner(verbosity=3)
-    runner.run(suite)
+    #suite = unittest.TestSuite()
+    ## suite.addTest(HlsNetlistReadSyncTC('test_NetlistWireUnitRdSynced'))
+    #suite.addTest(unittest.makeSuite(HlsNetlistReadSyncTC))
+    #runner = unittest.TextTestRunner(verbosity=3)
+    #runner.run(suite)
