@@ -1,8 +1,7 @@
 import html
 import pydot
-from typing import List, Union, Dict, Optional, Tuple, Set
+from typing import Union, Dict, Optional, Tuple, Set
 
-from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.ast.debugCodeSerializer import CopyBasicBlockLabelsToCode
 from hwtHls.frontend.ast.statements import HlsStmCodeBlock
@@ -12,6 +11,7 @@ from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.phi import SsaPhi
 from hwtHls.ssa.transformation.ssaPass import SsaPass
 from hwtHls.ssa.value import SsaValue
+
 
 EdgeLivenessDict = Dict[SsaBasicBlock, Dict[SsaBasicBlock, Set[SsaValue]]]
 
@@ -74,7 +74,6 @@ class SsaToGraphwiz():
             _dst = f"{dst_node.get_name()}:begin"
             e = pydot.Edge(_src, _dst)
             g.add_edge(e)
-          
 
         bodyStr = "\n".join(bodyRows)
         label = f'<<table border="0" cellborder="1" cellspacing="0">{bodyStr:s}</table>>'
