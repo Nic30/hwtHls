@@ -1,14 +1,15 @@
-from typing import List, Dict, Tuple, Set
+from typing import List, Dict, Tuple, Set, Optional
 
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
-from hwtHls.netlist.analysis.fsm import HlsNetlistAnalysisPassDiscoverFsm, IoFsm
+from hwtHls.netlist.analysis.fsms import HlsNetlistAnalysisPassDiscoverFsm, IoFsm
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
-from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
+from hwtHls.netlist.analysis.ioDiscover import HlsNetlistAnalysisPassIoDiscover
+from hwtHls.netlist.analysis.syncReach import HlsNetlistAnalysisPassSyncReach, \
+    BetweenSyncNodeIsland
 from hwtHls.netlist.nodes.node import HlsNetNode, HlsNetNodePartRef
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.netlist.scheduler.clk_math import start_clk
 
 
 class NetlistPipeline():
@@ -17,7 +18,8 @@ class NetlistPipeline():
     an implementation in pipeline due favorable data dependencies.
     """
 
-    def __init__(self, stages: List[List[HlsNetNode]]):
+    def __init__(self, syncIsland: Optional[BetweenSyncNodeIsland], stages: List[List[HlsNetNode]]):
+        self.syncIsland = syncIsland
         self.stages = stages
 
 
@@ -40,21 +42,23 @@ class HlsNetlistAnalysisPassDiscoverPipelines(HlsNetlistAnalysisPass):
     @classmethod
     def _addNodeToPipeline(cls, node: HlsNetNode, clkPeriod: int, pipeline: List[List[HlsNetNode]]):
         for clk_index in node.iterScheduledClocks():
-            clk_index = start_clk(node.scheduledIn[0] if node.scheduledIn else node.scheduledOut[0], clkPeriod)
+            # clk_index = start_clk(node.scheduledIn[0] if node.scheduledIn else node.scheduledOut[0], clkPeriod)
             cls._extendIfRequired(pipeline, clk_index)
             pipeline[clk_index].append(node)
 
     def run(self):
         fsms: HlsNetlistAnalysisPassDiscoverFsm = self.netlist.getAnalysis(HlsNetlistAnalysisPassDiscoverFsm)
-        ioByInterface = self.netlist.getAnalysis(HlsNetlistAnalysisPassDiscoverIo).ioByInterface
+        ioByInterface = self.netlist.getAnalysis(HlsNetlistAnalysisPassIoDiscover).ioByInterface
         allFsmNodes, inFsmNodeParts = fsms.collectInFsmNodes()
         allFsmNodes: Dict[HlsNetNode, UniqList[IoFsm]]
         inFsmNodeParts: Dict[HlsNetNode, UniqList[Tuple[IoFsm, HlsNetNodePartRef]]]
         clkPeriod = self.netlist.normalizedClkPeriod
-        globalPipeline = []
-
+        pipelines = self.pipelines
+        syncReach: HlsNetlistAnalysisPassSyncReach = self.netlist.getAnalysis(HlsNetlistAnalysisPassSyncReach)
         # interfaces which were checked to be accessed correctly
         alreadyCheckedIo: Set[Interface] = set()
+        pipelineForIsland: Dict[BetweenSyncNodeIsland, NetlistPipeline] = {}
+        
         for node in self.netlist.iterAllNodes():
             node: HlsNetNode
             assert not isinstance(node, HlsNetNodePartRef), node
@@ -62,6 +66,20 @@ class HlsNetlistAnalysisPassDiscoverPipelines(HlsNetlistAnalysisPass):
 
             fsms = allFsmNodes.get(node, None)
             if fsms is None:
+                syncIsland = syncReach.syncIslandOfNode[node]
+                if isinstance(syncIsland, tuple):
+                    syncIsland, oIsland = syncIsland
+                    if syncIsland is None:
+                        syncIsland = oIsland
+                
+                pipeline = pipelineForIsland.get(syncIsland, None)
+                if pipeline is None:
+                    pipeline = NetlistPipeline(syncIsland, [])
+                    pipelineForIsland[syncIsland] = pipeline
+                    pipelines.append(pipeline)
+
+                pipelineStages = pipeline.stages
+                
                 parts = inFsmNodeParts.get(node, None)
                 if parts is not None:
                     parts: UniqList[Tuple[IoFsm, HlsNetNodePartRef]]
@@ -69,8 +87,8 @@ class HlsNetlistAnalysisPassDiscoverPipelines(HlsNetlistAnalysisPass):
                     # for all parts which are not in any fsm
                     for part in node.partsComplement([p for _, p in parts]):
                         for clkI in part.iterScheduledClocks():
-                            self._extendIfRequired(globalPipeline, clkI)
-                            globalPipeline[clkI].append(part)
+                            self._extendIfRequired(pipelineStages, clkI)
+                            pipelineStages[clkI].append(part)
                     continue
 
                 elif isinstance(node, HlsNetNodeRead) and node.src not in alreadyCheckedIo:
@@ -97,8 +115,5 @@ class HlsNetlistAnalysisPassDiscoverPipelines(HlsNetlistAnalysisPass):
 
                 # this is just node which is part of no FSM,
                 # we add it to global pipeline for each clock cycle where it is defined
-                self._addNodeToPipeline(node, clkPeriod, globalPipeline)
-
-        if globalPipeline:
-            # [todo] extract pipelines which do have no common src/dst and no common node
-            self.pipelines.append(NetlistPipeline(globalPipeline))
+                self._addNodeToPipeline(node, clkPeriod, pipelineStages)
+        
