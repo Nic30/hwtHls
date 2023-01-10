@@ -7,7 +7,7 @@ from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
     HlsNetNodeOutAny
 from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
-from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.branchOutLabel import BranchOutLabel
+from hwtHls.ssa.translation.llvmMirToNetlist.branchOutLabel import BranchOutLabel
 
 
 MirValue = Union[Register, MachineBasicBlock, BranchOutLabel]
@@ -46,7 +46,7 @@ class MirToHwtHlsNetlistOpCache():
     def items(self):
         return self._toHlsCache.items()
 
-    def add(self, block: MachineBasicBlock, reg: MirValue, v: HlsNetNodeOut, isFromInsideOfBlock: bool) -> None:
+    def add(self, block: MachineBasicBlock, reg: MirValue, v: Union[HlsNetNodeOut, HlsNetNodeOutLazy], isFromInsideOfBlock: bool) -> None:
         """
         Register object in _toHlsCache dictionary, which is used to avoid duplication of object in the circuit.
         """

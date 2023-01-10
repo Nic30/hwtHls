@@ -16,7 +16,7 @@ from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite, HlsNetNodeWriteIndexed
 from hwtHls.ssa.instr import SsaInstr, OP_ASSIGN
-from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer
+from hwtHls.ssa.translation.llvmMirToNetlist.utils import MachineBasicBlockSyncContainer
 from hwtHls.ssa.value import SsaValue
 
 

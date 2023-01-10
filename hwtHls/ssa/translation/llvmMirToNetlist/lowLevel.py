@@ -12,7 +12,7 @@ from hwt.synthesizer.unit import Unit
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, \
     TargetOpcode, CmpInst, ConstantInt, TypeToIntegerType, IntegerType, Type as LlvmType, \
     MachineLoopInfo
-from hwtHls.netlist.analysis.dataThreads import HlsNetlistAnalysisPassDataThreads
+from hwtHls.netlist.analysis.dataThreadsForBlocks import HlsNetlistAnalysisPassDataThreadsForBlocks
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
@@ -25,9 +25,10 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
     link_hls_nodes, HlsNetNodeOutAny, HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.opCache import MirToHwtHlsNetlistOpCache
-from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer
+from hwtHls.ssa.translation.llvmMirToNetlist.opCache import MirToHwtHlsNetlistOpCache
+from hwtHls.ssa.translation.llvmMirToNetlist.utils import MachineBasicBlockSyncContainer
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
+from hwtHls.netlist.observableList import ObservableList
 
 
 class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
@@ -79,9 +80,9 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         aargToArgIndex = {a: i for (i, a) in enumerate(tr.llvm.main.args())}
         self._argIToIo = {aargToArgIndex[a]: io for (io, a) in tr.ioToVar.items()}
         self.blockSync: Dict[MachineBasicBlock, MachineBasicBlockSyncContainer] = {}
-        self.nodes: List[HlsNetNode] = netlist.nodes
-        self.inputs: List[HlsNetNodeRead] = netlist.inputs
-        self.outputs: List[HlsNetNodeWrite] = netlist.outputs
+        self.nodes: ObservableList[HlsNetNode] = netlist.nodes
+        self.inputs: ObservableList[HlsNetNodeRead] = netlist.inputs
+        self.outputs: ObservableList[HlsNetNodeWrite] = netlist.outputs
         self.mf = mf
         self.backedges = backedges
         self.liveness = liveness
@@ -221,7 +222,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         else:
             cond = self.builder.buildOp(AllOps.AND, BIT, blockEn, cond)
 
-        n.add_control_extraCond(cond)
+        n.addControlSerialExtraCond(cond)
 
     def _addSkipWhen_n(self, n: Union[HlsNetNodeRead, HlsNetNodeWrite], cond_n: Union[int, HlsNetNodeOutAny], blockEn: HlsNetNodeOutLazy):
         """
@@ -238,13 +239,13 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
             cond = b.buildOp(AllOps.NOT, BIT, cond_n)
             if blockEn_n is not None:
                 cond = b.buildOp(AllOps.OR, BIT, blockEn_n, cond)
-        n.add_control_skipWhen(cond)
+        n.addControlSerialSkipWhen(cond)
     
-    def _replaceInputDriverWithConst1b(self, i: HlsNetNodeIn, threads: HlsNetlistAnalysisPassDataThreads):
+    def _replaceInputDriverWithConst1b(self, i: HlsNetNodeIn, threads: HlsNetlistAnalysisPassDataThreadsForBlocks):
         c = self.builder._replaceInputDriverWithConst1b(i)
         threads.mergeThreads(threads.threadPerNode[i.obj], {c.obj, })
 
-    def _getThreadOfReg(self, threads: HlsNetlistAnalysisPassDataThreads, mb: MachineBasicBlock, reg: Register, dtype: HdlType):
+    def _getThreadOfReg(self, threads: HlsNetlistAnalysisPassDataThreadsForBlocks, mb: MachineBasicBlock, reg: Register, dtype: HdlType):
         """
         Get thread where the register is used.
         """

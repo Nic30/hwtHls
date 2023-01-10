@@ -21,9 +21,9 @@ from hwtHls.netlist.nodes.orderable import HExternalDataDepT
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
-from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.opCache import MirToHwtHlsNetlistOpCache
-from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer
+from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
+from hwtHls.ssa.translation.llvmMirToNetlist.opCache import MirToHwtHlsNetlistOpCache
+from hwtHls.ssa.translation.llvmMirToNetlist.utils import MachineBasicBlockSyncContainer
 from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axi4Lite import Axi4Lite, Axi4Lite_addr
 from hwtLib.amba.constants import PROT_DEFAULT

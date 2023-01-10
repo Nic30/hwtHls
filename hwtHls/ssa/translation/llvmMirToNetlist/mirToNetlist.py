@@ -1,18 +1,17 @@
-from typing import Set, Tuple, Dict, List, Union, Optional
+from typing import Set, Tuple, List, Optional
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
-from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.types.defs import BIT
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, \
     MachineInstr, TargetOpcode, MachineLoop
-from hwtHls.netlist.analysis.dataThreads import HlsNetlistAnalysisPassDataThreads
+from hwtHls.netlist.analysis.dataThreadsForBlocks import HlsNetlistAnalysisPassDataThreadsForBlocks
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
     HlsNetNodeWriteBackwardEdge, BACKEDGE_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
-from hwtHls.netlist.nodes.loopHeader import HlsLoopGate
+from hwtHls.netlist.nodes.loopGate import HlsLoopGate
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
@@ -20,13 +19,12 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOutLazy, \
     link_hls_nodes, unlink_hls_nodes, HlsNetNodeOutAny, HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
-from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.branchOutLabel import BranchOutLabel
-from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.datapath import HlsNetlistAnalysisPassMirToNetlistDatapath, \
+from hwtHls.ssa.translation.llvmMirToNetlist.branchOutLabel import BranchOutLabel
+from hwtHls.ssa.translation.llvmMirToNetlist.datapath import HlsNetlistAnalysisPassMirToNetlistDatapath, \
     BlockLiveInMuxSyncDict
-from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.opCache import MirToHwtHlsNetlistOpCache
-from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer, \
+from hwtHls.ssa.translation.llvmMirToNetlist.opCache import MirToHwtHlsNetlistOpCache
+from hwtHls.ssa.translation.llvmMirToNetlist.utils import MachineBasicBlockSyncContainer, \
     getTopLoopForBlock, HlsNetNodeExplicitSyncInsertBehindLazyOut
 
 
@@ -217,7 +215,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
         
         # :attention: If there is a control channel we must place an initial CFG token into it once it is generated
 
-    def extractRstValues(self, mf: MachineFunction, threads: HlsNetlistAnalysisPassDataThreads):
+    def extractRstValues(self, mf: MachineFunction, threads: HlsNetlistAnalysisPassDataThreadsForBlocks):
         """
         Rewrite multiplexor cases for reset to an initialization of channels.
         """
@@ -283,7 +281,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
         """
         :note: we generate enFromPredccs even if the block does not need control because it may still require require enFromPredccs
             for input MUXes
-        :returns: list of control en flag from any predecessor
+        :return: list of control en flag from any predecessor
         """
         
         valCache: MirToHwtHlsNetlistOpCache = self.valCache
@@ -308,7 +306,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                     # [fixme] write order must be asserted because we can not release a control token until all block operations finished
                     assert fromPredBrCond is not None, fromPredBrCond
                     valCache.add(pred, BranchOutLabel(mb), fromPredBrCond, False)  # the BranchOutLabel is set only once
-                    fromPredBrCond = self._constructBackedgeBuffer("c", pred, mb, None, fromPredBrCond, isControl=True)
+                    fromPredBrCond = self._constructBackedgeBuffer("c", pred, mb, None, self._translateIntBit(1), isControl=True)
                     wn: HlsNetNodeWriteBackwardEdge = fromPredBrCond.obj.associated_write
                     self._addExtraCond(wn, _fromPredBrCond, predEn)
                     self._addSkipWhen_n(wn, _fromPredBrCond, predEn)
@@ -460,7 +458,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
             # it is interpreted by the circuit, there we only need to provide any data for rest of the circuit
             vld = builder.buildReadSync(controlSrc)
             vld_n = builder.buildNot(vld)
-            control.add_control_extraCond(externalEn)
+            control.addControlSerialExtraCond(externalEn)
             if anyPrevVld is None:
                 if last:
                     cEn = 1
@@ -490,16 +488,16 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
             else:
                 cEn = builder.buildOr(externalEn_n, cEn)
 
-            control.add_control_skipWhen(cEn)
+            control.addControlSerialSkipWhen(cEn)
             for liveInSync in data:
                 liveInSync: HlsNetNodeExplicitSync
-                liveInSync.add_control_extraCond(dEn)
-                liveInSync.add_control_skipWhen(dSw)
+                liveInSync.addControlSerialExtraCond(dEn)
+                liveInSync.addControlSerialSkipWhen(dSw)
 
         return anyPrevVld
 
     def resolveBlockEn(self, mf: MachineFunction,
-                       threads: HlsNetlistAnalysisPassDataThreads):
+                       threads: HlsNetlistAnalysisPassDataThreadsForBlocks):
         """
         Resolve control flow enable for instructions in the block.
         """
@@ -652,7 +650,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
     def connectOrderingPorts(self,
                              mf: MachineFunction):
         """
-        finalize ordering connections after all IO is instantiated
+        Tinalize ordering connections after all IO is instantiated.
         """
         # cancel ordering between last IO at the end of the loop and write to control channel of that block
         # this allow for a new iteration to start before the end of previous one if data dependency allows it
@@ -690,6 +688,6 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                             link_hls_nodes(i, depI2)
 
     def run(self):
-        raise NotImplementedError("This class does not have run() method because it is"
-                                  " a special case customized for each build in Platform class."
+        raise NotImplementedError("This class does not have run() method because it is "
+                                  "a special case customized for each build in Platform class. "
                                   "Use object netlist translation methods directly.")

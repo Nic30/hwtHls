@@ -8,17 +8,16 @@ from hwtHls.frontend.ast.astToSsa import NetlistIoConstructorDictT
 from hwtHls.frontend.ast.statementsRead import HlsRead
 from hwtHls.frontend.ast.statementsWrite import HlsWrite
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, MachineInstr, MachineOperand, CmpInst, TargetOpcode
-from hwtHls.netlist.analysis.dataThreads import HlsNetlistAnalysisPassDataThreads
+from hwtHls.netlist.analysis.dataThreadsForBlocks import HlsNetlistAnalysisPassDataThreadsForBlocks
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.orderable import HOrderingVoidT
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutLazy, link_hls_nodes
-from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.lowLevel import HlsNetlistAnalysisPassMirToNetlistLowLevel
-from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.opCache import MirToHwtHlsNetlistOpCache
-from hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.utils import MachineBasicBlockSyncContainer, \
+from hwtHls.ssa.translation.llvmMirToNetlist.lowLevel import HlsNetlistAnalysisPassMirToNetlistLowLevel
+from hwtHls.ssa.translation.llvmMirToNetlist.opCache import MirToHwtHlsNetlistOpCache
+from hwtHls.ssa.translation.llvmMirToNetlist.utils import MachineBasicBlockSyncContainer, \
     LiveInMuxMeta
-
 
 BlockLiveInMuxSyncDict = Dict[Tuple[MachineBasicBlock, MachineBasicBlock, Register], HlsNetNodeExplicitSync]
 
@@ -96,6 +95,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                         valCache.add(mb, dst, o, True)
 
                 elif opc == TargetOpcode.GENFPGA_CLOAD:
+                    # load from data channel
                     srcIo, index, cond = ops
                     constructor: HlsRead = ioNodeConstructors[srcIo][0]
                     if constructor is None:
@@ -103,6 +103,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                     constructor._translateMirToNetlist(constructor, self, mbSync, instr, srcIo, index, cond, dst)
 
                 elif opc == TargetOpcode.GENFPGA_CSTORE:
+                    # store to data channel
                     srcVal, dstIo, index, cond = ops
                     constructor: HlsWrite = ioNodeConstructors[dstIo][1]
                     if constructor is None:
@@ -185,7 +186,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                     if liveIn in self.regToIo:
                         continue  # we will use interface not the value of address where it is mapped
                     if MRI.def_empty(liveIn):
-                        continue # this is form of undefined value
+                        continue  # this is form of undefined value
 
                     meta = liveIns.get(liveIn, None)
                     if meta is None:
@@ -232,7 +233,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
 
         return blockLiveInMuxInputSync
 
-    def updateThreadsOnPhiMuxes(self, threads: HlsNetlistAnalysisPassDataThreads):
+    def updateThreadsOnPhiMuxes(self, threads: HlsNetlistAnalysisPassDataThreadsForBlocks):
         """
         After we instantiated MUXes for liveIns we need to update threads as the are merged now.
         """
@@ -248,7 +249,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                     if liveIn in self.regToIo:
                         continue  # we will use interface not the value of address where it is mapped
                     if MRI.def_empty(liveIn):
-                        continue # this is just form of undefined value (which is represented as constant)
+                        continue  # this is just form of undefined value (which is represented as constant)
 
                     dtype = Bits(self.registerTypes[liveIn])
                     srcThread = self._getThreadOfReg(threads, pred, liveIn, dtype)
