@@ -7,7 +7,7 @@ from hwtHls.architecture.archElementFsm import ArchElementFsm
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregatePortOut
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.node import HlsNetNode, HlsNetNodePartRef
-from hwtHls.netlist.nodes.orderable import HOrderingVoidT
+from hwtHls.netlist.nodes.orderable import HdlType_isNonData
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.scheduler.clk_math import start_clk
 
@@ -55,7 +55,8 @@ class InterArchElementNodeSharingAnalysis():
         self.explicitPathSpec: Dict[Tuple[HlsNetNodeOut, HlsNetNodeIn, ArchElement], ValuePathSpecItem] = {}
         # because output value could be used in element multiple times but we need only the first use
         self.firstUseTimeOfOutInElem: Dict[Tuple[ArchElement, HlsNetNodeOut], int] = {}
-        self.portSynonyms: Union[Dict[HlsNetNodeIn, UniqList[HlsNetNodeIn]], Dict[HlsNetNodeOut, UniqList[HlsNetNodeOut]]] = {}
+        self.portSynonyms: Union[Dict[HlsNetNodeIn, UniqList[HlsNetNodeIn]],
+                                 Dict[HlsNetNodeOut, UniqList[HlsNetNodeOut]]] = {}
 
     def getSrcElm(self, o: HlsNetNodeOut) -> ArchElement:
         srcElm = self.ownerOfOutput.get(o, None)
@@ -82,7 +83,7 @@ class InterArchElementNodeSharingAnalysis():
 
     def _analyzeInterElementsNodeSharingCheckInputDriver(self,
             o: HlsNetNodeOut, i: HlsNetNodeIn, inT: int, dstElm: ArchElement):
-        if isinstance(o.obj, HlsNetNodeConst) or o._dtype is HOrderingVoidT:
+        if isinstance(o.obj, HlsNetNodeConst) or HdlType_isNonData(o._dtype):
             return  # sharing not required
 
         assert dstElm in self.ownerOfInput[i], (dstElm, i, self.ownerOfInput[i])
