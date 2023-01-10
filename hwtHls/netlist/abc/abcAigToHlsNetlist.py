@@ -1,11 +1,11 @@
 from typing import Dict, Tuple
 
-from hwt.hdl.operatorDefs import AllOps, OpDefinition
+from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.types.defs import BIT
-from hwtHls.netlist.abc.abcCpp import Abc_Ntk_t, Abc_Aig_t, Abc_Frame_t, Abc_Obj_t, Abc_ObjType_t
 from hwtHls.netlist.abc.abcAigToRtlNetlist import AbcAigToRtlNetlist
-from hwtHls.netlist.nodes.ports import HlsNetNodeOut
+from hwtHls.netlist.abc.abcCpp import Abc_Ntk_t, Abc_Aig_t, Abc_Frame_t, Abc_Obj_t, Abc_ObjType_t
 from hwtHls.netlist.builder import HlsNetlistBuilder
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 
 
 class AbcAigToHlsNetlist(AbcAigToRtlNetlist):
@@ -34,19 +34,28 @@ class AbcAigToHlsNetlist(AbcAigToRtlNetlist):
         else:
             res = self._recognizeNonAigOperator(o, negated)
             if res is not None:
-                op: OpDefinition = res[0]
-                ops = (self._translate(_o, False) for _o in res[1:])
-                if op == AllOps.TERNARY:
-                    self.builder.buildMux(BIT, tuple(ops))
+                op, ops = res
+                if op is AllOps.OR and len(ops) != 2:
+                    res = self.builder.buildOrVariadic(ops)
+                elif op is AllOps.TERNARY:
+                    res = self.builder.buildMux(BIT, tuple(ops))
                 else:
                     res = self.builder.buildOp(op, BIT, *ops) 
+                
+                assert res.obj not in self.builder._removedNodes, res
             else:
                 o0, o1 = o.IterFanin()
                 o0 = self._translate(o0, o.FaninC0()) 
                 o1 = self._translate(o1, o.FaninC1()) 
+                
+                assert o0.obj not in self.builder._removedNodes, res 
+                assert o1.obj not in self.builder._removedNodes, res 
                 res = self.builder.buildAnd(o0, o1)
+                assert res.obj not in self.builder._removedNodes, res 
                 if negated:
                     res = self.builder.buildNot(res)
-            
+                    
+                assert res.obj not in self.builder._removedNodes, res 
+  
         self.translationCache[key] = res
         return res
