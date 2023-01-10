@@ -4,6 +4,7 @@ from hwtHls.architecture.archElementPipeline import ArchElementPipeline
 from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
 from hwtHls.netlist.analysis.fsms import IoFsm
 from hwtHls.netlist.scheduler.clk_math import start_clk
+from hwt.pyUtils.uniqList import UniqList
 
 
 class RtlArchPassSingleStagePipelineToFsm(RtlArchPass):
@@ -22,12 +23,13 @@ class RtlArchPassSingleStagePipelineToFsm(RtlArchPass):
         for e in allocator._archElements:
             if isinstance(e, ArchElementFsm):
                 fsmIdOffset += 1
+
         clkPeriod = netlist.normalizedClkPeriod
         for e in allocator._archElements:
             if isinstance(e, ArchElementPipeline):
                 e: ArchElementPipeline
                 if len(e.stages) == 1:
-                    fsm = IoFsm(None)
+                    fsm = IoFsm(None, UniqList([e.syncIsland, ]))
                     n0 = e.allNodes[0]
                     clkIForSt0 = start_clk(min(n0.scheduledIn) if n0.scheduledIn else min(n0.scheduledOut), clkPeriod)
                     fsm.stateClkI = {0: clkIForSt0}
