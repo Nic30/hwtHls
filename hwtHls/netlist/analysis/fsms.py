@@ -4,12 +4,14 @@ from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
-from hwtHls.netlist.analysis.io import HlsNetlistAnalysisPassDiscoverIo
+from hwtHls.netlist.analysis.ioDiscover import HlsNetlistAnalysisPassIoDiscover
 from hwtHls.netlist.nodes.node import HlsNetNode, HlsNetNodePartRef
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import start_clk
+from hwtHls.netlist.analysis.syncReach import HlsNetlistAnalysisPassSyncReach, \
+    BetweenSyncNodeIsland
 
 
 class IoFsm():
@@ -19,14 +21,16 @@ class IoFsm():
     :ivar stateClkI: maps the state index to an index of clk tick where the state was originally scheduled
     :ivar clkIToStateI: reverse map of stateClkI
     :ivar transitionTable: a dictionary source stateI to dictionary destination stateI to condition for transition
+    :ivar syncIslands: a list of unique synchronization islands touching this FSM
     """
 
-    def __init__(self, intf: Interface):
+    def __init__(self, intf: Interface, syncIslands: UniqList[BetweenSyncNodeIsland]):
         self.intf = intf
         self.states: List[List[HlsNetNode]] = []
         self.stateClkI: Dict[int, int] = {}
         self.clkIToStateI: Dict[int, int] = {}
         self.transitionTable: Dict[int, Dict[int, Union[bool, RtlSignal]]] = {}
+        self.syncIslands = syncIslands
 
     def addState(self, clkI: int):
         """
@@ -159,8 +163,9 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
         return start_clk(a.scheduledIn[0] if a.scheduledIn else a.scheduledOut[0], clkPeriod)
     
     def run(self):
-        ioDiscovery: HlsNetlistAnalysisPassDiscoverIo = self.netlist.getAnalysis(HlsNetlistAnalysisPassDiscoverIo)
+        ioDiscovery: HlsNetlistAnalysisPassIoDiscover = self.netlist.getAnalysis(HlsNetlistAnalysisPassIoDiscover)
         ioByInterface = ioDiscovery.ioByInterface
+        syncReach: HlsNetlistAnalysisPassSyncReach = self.netlist.getAnalysis(HlsNetlistAnalysisPassSyncReach)
         clkPeriod: int = self.netlist.normalizedClkPeriod
 
         def floodPredicateExcludeOtherIoWithOwnFsm(n: HlsNetNode):
@@ -182,9 +187,23 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
         for i in ioDiscovery.interfaceList:
             accesses = ioByInterface[i]
             if len(accesses) > 1:
+                syncIslands = UniqList()
+                for a in accesses:
+                    inIsl, outIsl = syncReach.syncIslandOfNode[a]
+                    if isinstance(a, HlsNetNodeRead) or outIsl is None:
+                        isl = inIsl
+                    else:
+                        isl = outIsl
+                    try:
+                        assert isl is not None, a
+                    except:
+                        raise
+                    syncIslands.append(isl)
+                assert None not in syncIslands, (syncIslands, accesses)
+
                 # all accesses which are not in same clock cycle must be mapped to individual FSM state
                 # every interface may spot a FSM
-                fsm = IoFsm(i)
+                fsm = IoFsm(i, syncIslands)
                 seenInClks: Dict[int, Set[HlsNetNode]] = {}
                 allClkI: UniqList[int] = UniqList()
                 for a in accesses:
