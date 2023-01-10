@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from hwt.code import Concat
+from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.defs import BIT
+from hwt.hdl.types.struct import HStruct
 from hwt.interfaces.std import VectSignal
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.unit import Unit
+from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline, \
+    PyBytecodeInPreproc
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
-from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline, \
-    PyBytecodeInPreproc
-from hwt.hdl.types.struct import HStruct
-from hwt.hdl.types.bits import Bits
-from hwt.code import Concat
 
 
 class PyArrShift(Unit):

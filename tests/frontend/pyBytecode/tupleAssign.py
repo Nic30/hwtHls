@@ -2,10 +2,10 @@ from hwt.hdl.types.defs import BIT
 from hwt.interfaces.std import VectSignal
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.unit import Unit
+from hwtHls.frontend.pyBytecode.markers import PyBytecodePreprocHwCopy
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import uint8_t
-from hwtHls.frontend.pyBytecode.markers import PyBytecodePreprocHwCopy
 from tests.baseSsaTest import BaseSsaTC
 
 
