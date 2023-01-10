@@ -28,7 +28,6 @@ from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axi4Lite import Axi4Lite
 from hwtLib.types.ctypes import uint64_t
 
-
 RE_ID_WITH_NUMBER = re.compile('[^0-9]+|[0-9]+')
 
 
@@ -50,7 +49,8 @@ class ToLlvmIrTranslator():
         original block to list of tuples LLVM basic block and list of original successors
     """
 
-    def __init__(self, label: str, topIo: Dict[Interface, Tuple[List[HlsRead], List[HlsWrite]]], parentUnit: Unit):
+    def __init__(self, label: str, topIo: Dict[Union[Interface, Tuple[Interface]],
+                                               Tuple[List[HlsRead], List[HlsWrite]]], parentUnit: Unit):
         self.label = label
         self.llvm = LlvmCompilationBundle(label)
         self.ctx: LLVMContext = self.llvm.ctx
@@ -316,13 +316,17 @@ class ToLlvmIrTranslator():
 
     def translate(self, start_bb: SsaBasicBlock):
         # create a function where we place the code and the arguments for a io interfaces
-        io_sorted = sorted(self.topIo.items(), key=lambda x: self.splitStrToStrsAndInts(getInterfaceName(self.parentUnit, x[0])))
+        ioTuplesWithName = [
+            (getInterfaceName(self.parentUnit, io[0] if isinstance(io, tuple) else io), io, ioOps)
+            for io, ioOps in self.topIo.items()
+        ]
+        ioSorted = sorted(ioTuplesWithName, key=lambda x: self.splitStrToStrsAndInts(x[0]))
         params = [
-            (getInterfaceName(self.parentUnit, i), self._getInterfaceTypeForFnArg(i, ioIndex, reads, writes))
-            for ioIndex, (i, (reads, writes)) in enumerate(io_sorted)]
+            (name, self._getInterfaceTypeForFnArg(intf[0] if isinstance(intf, tuple) else intf, ioIndex, reads, writes))
+            for ioIndex, (name, intf, (reads, writes)) in enumerate(ioSorted)]
         self.llvm.main = main = self.createFunctionPrototype(self.label, params, Type.getVoidTy(self.ctx))
         ioToVar: Dict[Interface, Argument] = {}
-        for a, (i, (_, _)) in zip(main.args(), io_sorted):
+        for a, (_, i, (_, _)) in zip(main.args(), ioSorted):
             ioToVar[i] = a
         self.ioToVar = ioToVar
         self.varMap: Dict[Union[SsaValue, SsaBasicBlock], Value] = {}
@@ -367,7 +371,7 @@ class SsaPassToLlvm():
                 
             for instr in reads:
                 instr: HlsRead
-                assert i is instr._src, (i, instr)
+                assert i == instr._src, (i, instr)
                 nativeWordT = instr._getNativeInterfaceWordType()
                 if instr._isBlocking:
                     assert instr._dtype.bit_length() == nativeWordT.bit_length(), (
@@ -380,7 +384,7 @@ class SsaPassToLlvm():
 
             for instr in writes:
                 instr: HlsWrite
-                assert i is instr.dst, (i, instr)
+                assert i == instr.dst, (i, instr)
                 nativeWordT = instr._getNativeInterfaceWordType()
                 assert instr.operands[0]._dtype.bit_length() == nativeWordT.bit_length(), (
                     "In this stages the read operations must read only native type of interface",
