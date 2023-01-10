@@ -3,6 +3,7 @@
 [build-system]
 requires = [
    "wheel",
+   "cmake",
    "meson>=0.63.0",
    'meson-python',
    "pybind11>=2.8.1",
@@ -42,7 +43,7 @@ dependencies  = [
    'scipy>=1.5.2', # interpolations and other complex math
    'networkx', # graph algorithms
    'plotly', # debug timeline graphs
-   'pydot', # debug graphwiz graphs
+   'pydot' # debug graphwiz graphs
 ]
 
 [project.urls]
