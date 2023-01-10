@@ -1,5 +1,4 @@
-from copy import copy
-from typing import Set, Dict, Optional, Tuple, Union, Literal
+from typing import Set, Dict, Optional, Tuple, Union, Literal, List
 
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
@@ -7,8 +6,9 @@ from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
-from hwtHls.netlist.transformation.simplifyUtils import addAllUsersToWorklist
 from hwtHls.netlist.observableList import ObservableList, ObservableListRm
+from hwtHls.netlist.nodes.orderable import HdlType_isNonData
+from copy import copy
 
 
 def iterUserObjs(n: HlsNetNode):
@@ -23,486 +23,387 @@ def iterDepObjs(n: HlsNetNode):
             yield dep.obj
 
 
-class HlsNetlistAnalysisPassSyncDependency(HlsNetlistAnalysisPass):
-    """
-    Collect dictionaries for IO dependency analysis.
-    There are 2 main reasons why this is required.
-    
-    1. When doing IO analysis all first sync nodes which are accessible in any direction must be taken in account.
-    2. When reconnecting something in to some node in DAG we have to be sure that we keep graph DAG and do not create a cycle.
-       For this we need to know the dominance relation for every node.
-    
-    
-    :ivar dataPredecessors: HlsNetNodeExplicitSync transitive predecessor set for each node which are dependent through data outputs.
-    :ivar dataSuccessors: HlsNetNodeExplicitSync transitive successor set for each node which are dependent on node data outputs.
-    :ivar controlPredecessors: HlsNetNodeExplicitSync predecessor set for each node which are dependent through control outputs.
-    :ivar controlSuccessors: HlsNetNodeExplicitSync transitive successor set for each node which are dependent on node control outputs.
+NodeOrPort = Union[HlsNetNode, HlsNetNodeIn, HlsNetNodeOut]
+ReachDict = Dict[NodeOrPort, Set[NodeOrPort]]
 
-    :note: directDataPredecessors, directDataSuccessors, directControlPredecessors, directControlSuccessors are similar to previous
-        dictionaries but the set contains only first sync nodes on the path.
-    :note: ordering is treated as a data and should be optimized in advance
-    :note: Ideally we would like to all predecessor and successors transitively for each node for data and control parts of the circuit.
-        However this is computationally infeasible and we have to aggregate nodes as much as possible before doing any deep analysis.
-    :note: "direct" sets do not need to be subsets of non-direct sets
-        this is because direct sets take ordering edges in account while non-direct do not
-    """
+
+# [todo] rename to HlsNetlistAnalysisPassReach
+class HlsNetlistAnalysisPassSyncDependency(HlsNetlistAnalysisPass):
 
     def __init__(self, netlist:"HlsNetlistCtx", removed: Optional[Set[HlsNetNode]]=None):
         HlsNetlistAnalysisPass.__init__(self, netlist)
-        d = {n:set() for n in netlist.iterAllNodes() if removed is None or n not in removed}
-
-        def initSets():
-            return {k: set() for k in d.keys()}
-
-        self._dataPredecessors: Dict[HlsNetNode, Set[HlsNetNodeExplicitSync]] = d
-        self._dataSuccessors: Dict[HlsNetNode, Set[HlsNetNodeExplicitSync]] = initSets()
-        self._controlPredecessors: Dict[HlsNetNode, Set[HlsNetNodeExplicitSync]] = initSets()
-        self._controlSuccessors: Dict[HlsNetNode, Set[HlsNetNodeExplicitSync]] = initSets()
-
-        self._directDataPredecessors: Dict[HlsNetNode, Set[HlsNetNodeExplicitSync]] = initSets()
-        self._directDataSuccessors: Dict[HlsNetNode, Set[HlsNetNodeExplicitSync]] = initSets()
-        
-        # self._directControlPredecessors: Dict[HlsNetNode, Set[HlsNetNodeExplicitSync]] = initSets()
-        self._directControlSuccessors: Dict[HlsNetNode, Set[HlsNetNodeExplicitSync]] = initSets()
-    
-        self.changedOutUse: UniqList[HlsNetNode] = UniqList()
-        self.changedInDep: UniqList[HlsNetNode] = UniqList()
+        self._dataSuccessors: ReachDict = {}
+        self._anySuccessors: ReachDict = {}
         self.removed = removed
-        self._pendingRemoved = UniqList()
 
-    def doesReachToControl(self, src:HlsNetNodeExplicitSync, dst:HlsNetNode):
-        return src in self._controlPredecessors[dst] 
+    @staticmethod
+    def _registerNodeInSetDict(n: HlsNetNode, d: ReachDict):
+        assert n not in d, n
+        for i in n._inputs:
+            suc = d[i] = {n, }
+            suc.update(o for o in n._outputs)
+
+        d[n] = {o for o in n._outputs}
+        for o in n._outputs:
+            d[o] = set()
+    
+    @classmethod
+    def _initSetDict(cls, netlist:"HlsNetlistCtx", removed: Optional[Set[HlsNetNode]]) -> ReachDict:
+        d: ReachDict = {}
+        for n in netlist.iterAllNodes():
+            if removed is not None and n in removed:
+                continue
+            cls._registerNodeInSetDict(n, d)
+
+        return d
+    
+    def doesReachToPorts(self, src: NodeOrPort, ports: List[HlsNetNodeOut]):
+        for p in ports:
+            if self.doesReachTo(src, p):
+                return True
+        return False
+        
+    def doesReachTo(self, src:NodeOrPort, dst:NodeOrPort):
+        sucs = self._anySuccessors[src]
+        return dst in sucs 
+
+    def doesReachToControl(self, src:HlsNetNode, dst:HlsNetNodeExplicitSync):
+        sucs = self._anySuccessors[src]
+        for i in (dst.extraCond, dst.skipWhen):
+            if i is not None and i in sucs:
+                return True
+
+        return False
+        # return src in self._controlPredecessors[dst] 
     
     def doesReachToData(self, src:HlsNetNodeExplicitSync, dst:HlsNetNode):
+        raise NotImplementedError()
         return src in self._dataPredecessors[dst]
     
     def doesUseControlOf(self, n: HlsNetNodeExplicitSync, user: HlsNetNode):
-        return user in self._controlSuccessors[n]
+        if isinstance(n, HlsNetNodeRead) and n._validNB is not None:
+            sucs = self._anySuccessors[n._validNB]
+            return user in sucs
+
+        return False
+        # return user in self._controlSuccessors[n]
     
-    def getDirectlyConnectedSyncForControlOut(self, n: HlsNetNodeExplicitSync):
-        return self._directControlSuccessors[n]
+    @staticmethod
+    def getDirectDataSuccessors(n: HlsNetNode):
+        """
+        BFS search for HlsNetNodeExplicitSync successor nodes, but do not cross these instances while searching
+        """
+        found: UniqList[HlsNetNodeExplicitSync] = UniqList()
+        toSearch: HlsNetNode = UniqList()
+        seen: Set[HlsNetNode] = set()
+        if isinstance(n, HlsNetNodeExplicitSync):
+            if isinstance(n, HlsNetNodeRead):
+                validNB = n._validNB
+            else:
+                validNB = None 
+            for o, uses in zip(n._outputs, n.usedBy):
+                if o is validNB:
+                    # skipping control signals
+                    continue
+                #if HdlType_isNonData(o._dtype):
+                #    continue
+                for u in uses:
+                    toSearch.append(u.obj)
+        else:
+            for uses in n.usedBy:
+                toSearch.extend(u.obj for u in uses)
 
-    def getDirectlyConnectedSyncForDataOut(self, n: HlsNetNodeExplicitSync):
-        return self._directDataSuccessors[n]
+        while toSearch:
+            n = toSearch.pop()
+            
+            if n in seen:
+                continue
+            seen.add(n)
 
-    def getDirectDataSuccessors(self, n: HlsNetNode):
-        return self._directDataSuccessors[n]
+            if isinstance(n, HlsNetNodeExplicitSync):
+                found.append(n)
+                continue
+            
+            for o, uses in zip(n._outputs, n.usedBy):
+                #if HdlType_isNonData(o._dtype):
+                #    continue
+                for u in uses:
+                    toSearch.append(u.obj)
+        
+        return found
 
-    def getDirectDataPredecessors(self, n: HlsNetNode):
-        return self._directDataPredecessors[n]
+    @staticmethod
+    def getDirectDataPredecessors(n: HlsNetNode) -> UniqList[HlsNetNodeExplicitSync]:
+        """
+        BFS search for HlsNetNodeExplicitSync predecessor nodes, but do not cross these instances while searching
+        """
+        found: UniqList[HlsNetNodeExplicitSync] = UniqList()
+        toSearch: HlsNetNode = UniqList()
+        seen: Set[HlsNetNode] = set()
+        if isinstance(n, HlsNetNodeExplicitSync):
+            for i, dep in zip(n._inputs, n.dependsOn):
+                if dep is None or i is n.extraCond or i is n.skipWhen:
+                    continue
+                #if HdlType_isNonData(dep._dtype):
+                #    continue
+                toSearch.append(dep.obj)
+        else:
+            if isinstance(n, HlsNetNode):
+                toSearch.extend(dep.obj for dep in n.dependsOn if dep is not None)
+            elif isinstance(n, HlsNetNodeIn):
+                dep = n.obj.dependsOn[n.in_i]
+                    
+                if dep is not None: # and HdlType_isNonData(dep._dtype):
+                    toSearch.append(dep.obj)
+            else:
+                assert isinstance(n, HlsNetNodeOut), n
+                toSearch.append(n.obj)
+            
+        while toSearch:
+            n = toSearch.pop()
+            
+            if n in seen:
+                continue
+            seen.add(n)
+
+            if isinstance(n, HlsNetNodeExplicitSync):
+                found.append(n)
+                continue
+
+            toSearch.extend(dep.obj for dep in n.dependsOn if dep is not None) # and not HdlType_isNonData(dep._dtype)
+        
+        return found
     
     def hasControlPredecessor(self, n: HlsNetNode):
+        raise NotImplementedError()
         return bool(self._controlPredecessors[n])
-    
-    # def addOutUseChange(self, n: HlsNetNode):
-    #    self.changedOutUse.append(n)
-    #
-    # def addInDepChange(self, n: HlsNetNode):
-    #    self.changedInDep.append(n)
-    #
-    # def addAllUsersToInDepChange(self, n: HlsNetNode):
-    #    addAllUsersToWorklist(self.changedInDep, n)
-    #
-    # def addAllDepsToOutUseChange(self, n: HlsNetNode):
-    #    for dep in n.dependsOn:
-    #        dep: HlsNetNodeIn
-    #        self.changedOutUse.append(dep.obj)
-    #
-    # def onNodeRemove(self, n: HlsNetNode):
-    #    self._controlPredecessors.pop(n)
-    #    self._controlSuccessors.pop(n)
-    #    # self._directControlPredecessors.pop(n)
-    #    self._directControlSuccessors.pop(n)
-    #
-    #    self._dataPredecessors.pop(n)
-    #    self._dataSuccessors.pop(n)
-    #    self._directDataPredecessors.pop(n)
-    #    self._directDataSuccessors.pop(n)
-        
-    # def commitChanges(self):
-    #    if not self.changedInDep and not self.changedOutUse:
-    #        return
-    #
-    #    print("commitChanges changedInDep")
-    #    removed = self.removed
-    #    if self._filterUniqList(self.changedInDep, removed):
-    #        for n in self.changedInDep:
-    #            print("    ", n)
-    #        self.recomputeSyncPredecessorsRecursively(self.changedInDep)
-    #        self.changedInDep.clear()
-    #
-    #    print("commitChanges changedOutUse")
-    #    if self._filterUniqList(self.changedOutUse, removed):
-    #        for n in self.changedOutUse:
-    #            print("    ", n)
-    #        self.recomputeSyncSuccessorsRecursively(self.changedOutUse)
-    #        self.changedOutUse.clear()
-    #
-    #    self.checkConsystency()
         
     def _beforeNodeAddedListener(self, _, parentList: ObservableList[HlsNetNode], index: Union[slice, int], val: Union[HlsNetNode, Literal[ObservableListRm]]):
-        pass
-        # raise NotImplementedError()
-    
+        if isinstance(val, HlsNetNode):
+            for d in (self._dataSuccessors, self._anySuccessors):
+                self._registerNodeInSetDict(val, d) 
+
     def _beforeInputDriveUpdate(self, n: HlsNetNode,
                                 parentList: ObservableList[HlsNetNodeOut],
                                 index: Union[slice, int],
                                 val: Union[HlsNetNodeOut, Literal[ObservableListRm]]):
         inp = n._inputs[index]
         try:
-            cur = n.dependsOn[index]
+            curDep = n.dependsOn[index]
         except IndexError:
-            cur = None
+            curDep = None
 
         if val is ObservableListRm or val is None:
             if isinstance(index, int):
-                if cur is not None:
-                    _len = len(n.dependsOn)
+                _len = len(n.dependsOn)
+                isAppend = index == _len
+                if isAppend:
+                    assert val is None, val
+                    self._anySuccessors[inp] = set()
+                    self._dataSuccessors[inp] = set()
+
+                if curDep is not None:
                     if index < _len:
                         list.__setitem__(n.dependsOn, index, None)
+                    elif isAppend:
+                        list.append(n.dependsOn, None)
                     else:
-                        if index == _len:
-                            list.append(n.dependsOn, None)
-                        else:
-                            raise IndexError(index)
-                        
-                    self.recomputeSyncSuccessorsRecursively([cur.obj, ])
+                        raise IndexError(index)
+
+                    # update curDep successors sets after we removed the use in inp port
+                    self._linkDiscard(curDep, inp)
     
-                    if index == _len:
+                    if isAppend:
                         list.pop(n.dependsOn)  # rm temporarily added item 
                 
-                    #print("deleted", cur, "->", inp)
+                if val is ObservableListRm:
+                    # remove input from internal dictionaries
+                    for d in (self._dataSuccessors, self._anySuccessors):
+                        d.pop(inp)
             else:
                 raise NotImplementedError(n, index, val)
         else:
             if isinstance(index, int):
-                if cur is val:
+                if curDep is val:
                     return
 
                 _len = len(n.dependsOn)
+                isAppend = index == _len
                 if index < _len:
                     list.__setitem__(n.dependsOn, index, val)
+                elif isAppend:
+                    list.append(n.dependsOn, val)
                 else:
-                    if index == _len:
-                        list.append(n.dependsOn, val)
-                    else:
-                        raise IndexError(index)
-                
-                if cur is not None:
-                    assert inp not in cur.obj.usedBy[cur.out_i], (cur, "->", inp, "usedBy should be updated before dependsOn")
-                    self.recomputeSyncSuccessorsRecursively([n, ])
+                    raise IndexError(index)
 
+                if curDep is not None:
+                    assert inp not in curDep.obj.usedBy[curDep.out_i], (curDep, "->", inp, "usedBy should be updated before dependsOn")
+                    self._linkDiscard(curDep, inp)
                 val.obj.usedBy[val.out_i].append(inp)
-                self.recomputeSyncSuccessorsRecursively([val.obj, ])
-                self.recomputeSyncPredecessorsRecursively([n, ])
+                
+                if isAppend:
+                    self._anySuccessors[inp] = set()
+                    self._dataSuccessors[inp] = set()
+
+                self._updateAfterLinkAdd(val, inp) 
                 tmp = val.obj.usedBy[val.out_i].pop()
                 assert tmp is inp, (tmp, inp)
-                if index == _len:
+                if isAppend:
                     list.pop(n.dependsOn)  # remove temporal added item
-                #print("added", val, "->", inp, "was", cur)
             
             else:
                 raise NotImplementedError(n, index, val)
 
-    def _checkDoesNotContainRemoved(self, d: Dict[HlsNetNode, UniqList[HlsNetNode]], removed: Set[HlsNetNode]):
-        for k, v in d.items():
-            assert k not in removed, k
-            for _v in v:
-                assert _v not in removed, (k, _v)
-    
-    def checkConsystency(self):
-        removed = self.removed
-        check = self._checkDoesNotContainRemoved
-        check(self._dataPredecessors, removed)
-        check(self._dataSuccessors, removed)
-        
-        check(self._controlPredecessors, removed)
-        check(self._controlSuccessors, removed)
+    def _updateAfterLinkAdd(self, o: HlsNetNodeOut, i: HlsNetNodeIn):
+        self._propagateSuccessorAddMany(o, self._anySuccessors, False)
+        if not HdlType_isNonData(o._dtype):
+            self._propagateSuccessorAddMany(o, self._dataSuccessors, True)
 
-        check(self._directDataPredecessors, removed)
-        check(self._directDataSuccessors, removed)
-        
-        # check(self._directControlPredecessors, removed)
-        # check(self._directControlSuccessors, removed)
-        # for n, dp in self._dataPredecessors.items():
-        #    dp: Set[HlsNetNode]
-        #    ddp: Set[HlsNetNode] = self._directDataPredecessors[n]
-        #    assert ddp.issubset(dp), (n, ddp.difference(dp)) 
-        #
-        # for n, ds in self._dataSuccessors.items():
-        #    ds: Set[HlsNetNode]
-        #    dds: Set[HlsNetNode] = self._directDataSuccessors[n]
-        #    assert dds.issubset(ds), (n, dds.difference(ds)) 
-
-    # @staticmethod
-    # def _filterUniqList(ul: UniqList, toRemove: Set):
-    #    offset = 0
-    #    for i, n in enumerate(tuple(ul)):
-    #        if n in toRemove:
-    #            ul.pop(i - offset)
-    #            offset += 1
-    #    return ul
-
-    def recomputeSyncPredecessorsRecursively(self, toUpdate: UniqList[HlsNetNode]):
-        directDataPredecessors = self._directDataPredecessors
-        # directControlPredecessors = self._directControlPredecessors
-        # cancel current
-        for n in toUpdate:
-            directDataPredecessors.pop(n, None)
-            # directControlPredecessors.pop(n, None)
- 
-        for n in toUpdate:
-            self.recomputePredecessor(n, directDataPredecessors, True, True)
-            # self.recomputePredecessor(n, directControlPredecessors, False, True)
-        
-        _toUpdate = copy(toUpdate)
-        while _toUpdate:
-            # start from predecessor and move to successor
-            n = _toUpdate.pop()
-            if self.recomputePredecessor(n, self._dataPredecessors, True, False):
-                _toUpdate.extend(iterUserObjs(n))
-    
-        while toUpdate:
-            n = toUpdate.pop()
-            if self.recomputePredecessor(n, self._controlPredecessors, True, False):
-                toUpdate.extend(iterUserObjs(n))
+    def _linkDiscard(self, o: HlsNetNodeOut, i:HlsNetNodeIn):
+        self._propagateSuccessorRemove(o, i, self._anySuccessors, False)
+        if not HdlType_isNonData(o._dtype):
+            self._propagateSuccessorRemove(o, i, self._dataSuccessors, True)
 
     @classmethod
-    def recomputeSuccessors(cls, n: HlsNetNode,
-                            dictToUpdate: Dict[HlsNetNode, Set[HlsNetNodeExplicitSync]],
-                            ommitControl: bool,
-                            stopPropagationOnSync: bool,
-                            ):
-        """
-        Recompute successors from successors set of of every successor.
-        """
-        res = set()
-        vldToOmmit = n._valid if ommitControl and isinstance(n, HlsNetNodeRead) else None
-    
-        for o, users in zip(n._outputs, n.usedBy):
-            if o is vldToOmmit:
-                continue
-            for u in users:
-                uObj = u.obj
-                sucSet = dictToUpdate.get(uObj, None)
-                if sucSet is None:
-                    # there is some new node which does not have set initialized yet
-                    cls.recomputeSuccessors(uObj, dictToUpdate, ommitControl, stopPropagationOnSync)
-                    sucSet = dictToUpdate[uObj]
-                userIsSync = isinstance(uObj, HlsNetNodeExplicitSync)
+    def _propagateSuccessorAddMany(cls, updatedO: HlsNetNodeOut,
+                           dictToUpdate: Dict[NodeOrPort, Set[Tuple[NodeOrPort, bool]]],
+                           ommitNonData: bool):
+        curSucc = dictToUpdate.get(updatedO, None)
+        if curSucc is None:
+            # this is newly added output port
+            dictToUpdate[updatedO.obj].add(updatedO)
+            dictToUpdate[updatedO] = set()
+            sucToUpdate = updatedO.obj.usedBy[updatedO.out_i]
+        else:
+            
+            realSucc = set()
+            for u in updatedO.obj.usedBy[updatedO.out_i]:
+                realSucc.update(dictToUpdate[u])
+        
+            sucToUpdate = realSucc.difference(curSucc)
+            
+        for newSuc in sucToUpdate:
+            cls._propagateSuccessor(newSuc, updatedO, dictToUpdate, ommitNonData)
+         
+    @classmethod
+    def _propagateSuccessor(cls, newSuc: NodeOrPort,
+                            beginOfPropagation: NodeOrPort,
+                            dictToUpdate: Dict[NodeOrPort, Set[Tuple[NodeOrPort, bool]]],
+                            ommitNonData: bool):
+        # startingNode = sucO.obj
+        toSearch: UniqList[NodeOrPort] = UniqList((beginOfPropagation,))
+        while toSearch:
+            n = toSearch.pop()
+            
+            if n is not newSuc:
+                curSuccessors = dictToUpdate[n]
+                if newSuc in curSuccessors:
+                    # end of propagation because suc is already marked as a successor
+                    continue 
+                else:
+                    curSuccessors.add(newSuc)
+            
+            if isinstance(n, HlsNetNodeIn):
+                # walk from input to connected output of other node
+                dep = n.obj.dependsOn[n.in_i]
+                if dep is None or (ommitNonData and HdlType_isNonData(dep._dtype)):
+                    continue
+                toSearch.append(dep)
+
+            elif isinstance(n, HlsNetNodeOut):
+                # walk from output node to node itself
+                toSearch.append(n.obj)
+
+            else:
+                # walk from node to its inputs
+                toSearch.extend(i for i in n._inputs)
+
+    @classmethod
+    def _propagateSuccessorRemove(cls,
+                                  o: HlsNetNodeOut,
+                                  removedI: HlsNetNodeIn,
+                                  dictToUpdate: Dict[NodeOrPort, Set[Tuple[NodeOrPort, bool]]],
+                                  ommitNonData: bool):
+        toSearch: UniqList[NodeOrPort] = UniqList((o,))
+        while toSearch:
+            n = toSearch.pop()
+            curSuccessors = dictToUpdate[n]
+
+            if isinstance(n, HlsNetNodeIn):
+                # walk from input to connected output of other node
+                newSuccessors = dictToUpdate[n.obj]
+                if newSuccessors.symmetric_difference(curSuccessors) != {n.obj, }:
+                    continue
+                else:
+                    d = dictToUpdate[n] = copy(newSuccessors)
+                    d.add(n.obj)
+ 
+                dep = n.obj.dependsOn[n.in_i]
+                if dep is None or (ommitNonData and HdlType_isNonData(dep._dtype)):
+                    continue
+                    
+                toSearch.append(dep)
+
+            elif isinstance(n, HlsNetNodeOut):
+                # walk from output node to node itself
+                newSuccessors = set()
+                for u in n.obj.usedBy[n.out_i]:
+                    newSuccessors.add(u)
+                    sucs = dictToUpdate.get(u, None)
+                    if sucs is None:
+                        uses = set()
+                        uses.update(dictToUpdate[u.obj])
+                        uses.add(u)
+                        sucs = dictToUpdate[u] = uses
+                    newSuccessors.update(sucs)
                 
-                res.add(uObj)
-                if not (userIsSync and stopPropagationOnSync):
-                    res.update(sucSet)
-        
-        # :note: new nodes which were just generated do not have record in nodeSyncSuccessors yet
-        cur = dictToUpdate.get(n, None)
-        if cur != res:
-            dictToUpdate[n] = res
-            return True
-        
-        return False
-    
-    @classmethod
-    def recomputePredecessor(cls, n: HlsNetNode,
-                             dictToUpdate: Dict[HlsNetNode, Set[HlsNetNodeExplicitSync]],
-                             ommitControl: bool,
-                             stopPropagationOnSync: bool,
-                             ) -> bool:
-        """
-        Recompute predecessor set from predecessors set of every directly connected predecessor.
-        """
-        res = set()
-        for dep in n.dependsOn:
-            if dep is None:
-                continue
-            depObj = dep.obj
-            curDepSet = dictToUpdate.get(depObj, None)
-            if curDepSet is None:
-                # there is some unresolved dependency
-                cls.recomputePredecessor(depObj, dictToUpdate, ommitControl, stopPropagationOnSync)
-                curDepSet = dictToUpdate[depObj]
-
-            depIsSync = isinstance(depObj, HlsNetNodeExplicitSync)
-            if stopPropagationOnSync and depIsSync:
-                res.add(depObj)
-            else:
-                res.update(curDepSet)
-
-            if depIsSync:
-                if ommitControl and isinstance(depObj, HlsNetNodeRead) and dep is depObj._valid:
-                    # avoid adding depObj._valid to set
+                if newSuccessors == curSuccessors:
                     continue
-    
-                res.add(depObj)
-
-        # :note: new nodes which were just generated do not have record in dictToUpdate yet
-        cur = dictToUpdate.get(n, None)
-        if cur != res:
-            dictToUpdate[n] = res
-            return True
-    
-        return False
-
-    def recomputeSyncSuccessorsRecursively(self, toUpdate: UniqList[HlsNetNode]):
-        directDataSuccessors = self._directDataSuccessors
-        directControlSuccessors = self._directControlSuccessors
-        dataSuccessors = self._dataSuccessors
-        controlSuccessors = self._controlSuccessors
-        # cancel current
-        for n in toUpdate:
-            directDataSuccessors.pop(n, None)
-            directControlSuccessors.pop(n, None)
-
-        for n in toUpdate:
-            self.recomputeSuccessors(n, directDataSuccessors, True, True)
-            self.recomputeSuccessors(n, directControlSuccessors, False, True)
-        
-        # propagate on data paths
-        _toUpdate = copy(toUpdate)
-        while _toUpdate:
-            # start from successor and move to predecessor
-            n = _toUpdate.pop()
-            if self.recomputeSuccessors(n, dataSuccessors, True, False):
-                if isinstance(n, HlsNetNodeRead):
-                    for o, dep in zip(n._outputs, n.dependsOn):
-                        if o is not n._valid:
-                            _toUpdate.append(dep.obj)
                 else:
-                    _toUpdate.extend(iterDepObjs(n))
-    
-        # propagate on control paths
-        while toUpdate:
-            # start from successor and move to predecessor
-            n = toUpdate.pop()
-            if self.recomputeSuccessors(n, controlSuccessors, True, False):
-                toUpdate.extend(iterDepObjs(n))
-
-    # def popNode(self, n: HlsNetNode):
-    #    for d in (self._dataPredecessors, self._dataSuccessors, self._controlPredecessors,
-    #              self._controlSuccessors, self._directDataPredecessors, self._directDataSuccessors,
-    #              self._directControlPredecessors, self._directControlSuccessors):
-    #        d.pop(n)
-
-    def _discoverSyncPredecessors(self, mainNode: HlsNetNode):
-        dataPredecessors = self._dataPredecessors
-        controlPredecessors = self._controlPredecessors
-        directDataPredecessors = self._directDataPredecessors
-        # directControlPredecessors = self._directControlPredecessors
-
-        isSync = isinstance(mainNode, HlsNetNodeExplicitSync)
-        seen: Set[HlsNetNode] = set()            
-        toSearch: UniqList[Tuple[HlsNetNode, bool, bool, bool]] = UniqList(((mainNode, True, True, False),))
-        while toSearch:
-            n, isDirect, isData, isControl = toSearch.pop()
-            n: HlsNetNode
-            if n in seen:
-                continue
+                    dictToUpdate[n] = newSuccessors
+                
+                toSearch.append(n.obj)
+                
             else:
-                seen.add(n)
-                # isSync = isinstance(n, HlsNetNodeExplicitSync)
-                if n is not mainNode:
-                    if isData:
-                        curDataSync = dataPredecessors[n]
-                        if isSync in curDataSync:
-                            # because this node and all its uses already have this sync
-                            continue
-                        curDataSync.add(mainNode)
-                        if isDirect and isSync:
-                            directDataPredecessors[n].add(mainNode)
-    
-                    if isControl:
-                        curControlSync = controlPredecessors[n]
-                        if isSync in curControlSync:
-                            # because this node and all its uses already have this sync
-                            continue
-    
-                        curControlSync.add(mainNode)
-                        # if isDirect and isSync:
-                        #    directControlPredecessors[n].add(mainNode)
-                        
-            # follow the connection to uses
-            isIo = isinstance(n, HlsNetNodeRead)
-            if isDirect and n is not mainNode and isinstance(n, HlsNetNodeExplicitSync):
-                # connection stops being direct after first sync node found on path
-                isDirect = False
+                newSuccessors = set()
+                for o in n._outputs:
+                    sucs = dictToUpdate.get(o, None)
+                    if sucs is None:
+                        uses = set()
+                        for u in n.usedBy[o.out_i]:
+                            uses.update(dictToUpdate[u])
+                            uses.add(u)
+                        sucs = dictToUpdate[o] = uses
 
-            for o, uses in zip(n._outputs, n.usedBy):
-                if isIo and o is n._valid:
-                    _isControl = True
-                    _isData = False
+                    newSuccessors.update(sucs)
+
+                if newSuccessors == curSuccessors:
+                    continue
                 else:
-                    _isControl = isControl
-                    _isData = isData
-                for u in uses:
-                    u: HlsNetNodeIn
-                    toSearch.append((u.obj, isDirect, _isData, _isControl))
-
-    def _discoverSyncSuccessors(self, mainNode: HlsNetNode):
-        dataSuccessors = self._dataSuccessors
-        controlSuccessors = self._controlSuccessors
-        directDataSuccessors = self._directDataSuccessors
-        directControlSuccessors = self._directControlSuccessors
-
-        isSync = isinstance(mainNode, HlsNetNodeExplicitSync)
-        toSearch: UniqList[Tuple[HlsNetNode, bool, bool, bool]] = UniqList(((mainNode, True, True, False),))
+                    dictToUpdate[n] = newSuccessors
+                
+                # walk from node to its inputs
+                for i in n._inputs:
+                    toSearch.append(i)
         
-        syncNodeWasSeen = False
-        while toSearch:
-            n, isDirect, isData, isControl = toSearch.pop()
-            n: HlsNetNode
-            # isSync = isinstance(n, HlsNetNodeExplicitSync)
-            if n is not mainNode:
-                didUpdate = False
-                if isData:
-                    curDataSync = dataSuccessors[n]
-                    if isSync not in curDataSync:
-                        # because this node and all its uses already have this sync
-                        curDataSync.add(mainNode)
-                        if isDirect and isSync:
-                            directDataSuccessors[n].add(mainNode)
-                        didUpdate = True
-    
-                if isControl:
-                    curControlSync = controlSuccessors[n]
-                    if isSync not in curControlSync:
-                        # because this node and all its uses already have this sync
-                        curControlSync.add(mainNode)
-                        if isDirect and isSync:
-                            directControlSuccessors[n].add(mainNode)
-                        didUpdate = True
- 
-                if not didUpdate:
-                    continue
-
-            else:
-                if syncNodeWasSeen:
-                    continue
-                syncNodeWasSeen = True
-    
-            # follow the connection to uses
-            nIsSync = isinstance(n, HlsNetNodeExplicitSync)
-            if isDirect and n is not mainNode and nIsSync:
-                # connection stops being direct after first sync node found on path
-                isDirect = False
-
-            for i, dep in zip(n._inputs, n.dependsOn):
-                if dep is None:
-                    continue
-                if nIsSync and (i is n.extraCond or i is n.skipWhen):
-                    _isControl = True
-                    _isData = False
-                else:
-                    _isControl = isControl
-                    _isData = isData
-                toSearch.append((dep.obj, isDirect, _isData, _isControl))
-
     def run(self):
+        assert not  self._dataSuccessors
+        assert not self._anySuccessors
         removed = self.removed
+        dataSuccessors = self._dataSuccessors = self._initSetDict(self.netlist, removed)
+        anySuccessors = self._anySuccessors = self._initSetDict(self.netlist, removed)
+
         for n in self.netlist.iterAllNodes():
             if removed is not None and n in removed:
                 continue
-
-            self._discoverSyncPredecessors(n)
-            self._discoverSyncSuccessors(n)
-
+            
+            for i in n._inputs:
+                dep = n.dependsOn[i.in_i]
+                if dep is None:
+                    continue
+                for o in n._outputs:
+                    self._propagateSuccessor(o, dep, dataSuccessors, True)
+                    self._propagateSuccessor(o, dep, anySuccessors, False)
+                for x in (i, n):
+                    self._propagateSuccessor(x, dep, dataSuccessors, True)
+                    self._propagateSuccessor(x, dep, anySuccessors, False)
