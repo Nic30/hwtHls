@@ -148,6 +148,7 @@ pip3 install git+https://github.com/Nic30/hwtHls.git
 * :skull: [xronos](https://github.com/endrix/xronos) [git2](https://github.com/endrix/xronos) - 2012-2016, java, simple HLS
 * :skull: [Trident](https://sourceforge.net/projects/trident/) - 2006, java/C++/LLVM
 * :skull: [FPGA C Compiler](https://sourceforge.net/projects/fpgac/) - 2005-2006, trivial 1:1 c->vhdl
+* :skull: [hpiasg](https://github.com/hpiasg) - , set of tools for asynchronous and handshake circuit synthesis
 * [ahir](https://github.com/madhavPdesai/ahir) - LLVM, c->vhdl
 * [abc](https://people.eecs.berkeley.edu/~alanmi/abc/) <2008-?, A System for Sequential Synthesis and Verification
 * [blarney](https://github.com/blarney-lang/blarney)
@@ -183,7 +184,7 @@ pip3 install git+https://github.com/Nic30/hwtHls.git
 * [FloPoCo](https://gitlab.com/flopoco/flopoco) - C++, arithmetic core generator
 * [DPC++](https://github.com/intel/llvm/tree/sycl) - C++/LLVM, 
 * [CirC](https://github.com/circify/circ) - Rust - compiler infrastructure for HLS
-
+* [mockturtle](https://github.com/lsils/mockturtle) - C++, logic network lib. with project similar to HLS
 
 ## Useful publications
 * [Efficient Pipelining of Nested Loops: Unroll-and-Squash](https://people.csail.mit.edu/saman/student_thesis/petkov-01.pdf)
