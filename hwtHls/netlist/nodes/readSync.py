@@ -34,7 +34,7 @@ class HlsNetNodeReadSync(HlsNetNode):
         self._addOutput(BIT, "ack")
         self.operator = "read_sync"
 
-    def resolve_realization(self):
+    def resolveRealization(self):
         self.assignRealization(IO_COMB_REALIZATION)
 
     def allocateRtlInstance(self,

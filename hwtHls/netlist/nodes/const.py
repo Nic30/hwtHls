@@ -20,7 +20,7 @@ class HlsNetNodeConst(HlsNetNode):
         s = self.val
         return TimeIndependentRtlResource(s, INVARIANT_TIME, allocator, False)
 
-    def resolve_realization(self):
+    def resolveRealization(self):
         assert not self._inputs
         assert len(self._outputs) == 1
         self.inputWireDelay = ()

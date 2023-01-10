@@ -30,7 +30,7 @@ class HlsNetNodeOperator(HlsNetNode):
         # add containers for io pins
         self._addOutput(dtype, None)
 
-    def resolve_realization(self):
+    def resolveRealization(self):
         self.netlist = self.netlist
         input_cnt = len(self.dependsOn)
 
@@ -77,7 +77,7 @@ class HlsNetNodeOperator(HlsNetNode):
                 s = s._convSign(op_out._dtype.signed)
         else:
             raise AssertionError("The ", self.__class__.__name__,
-                                 " a signals of wrong type", s, op_out, s._dtype, op_out._dtype)
+                                 " signals of wrong type", s, op_out, s._dtype, op_out._dtype)
         tis = TimeIndependentRtlResource(s, t, allocator, False)
         
         allocator.netNodeToRtl[op_out] = tis

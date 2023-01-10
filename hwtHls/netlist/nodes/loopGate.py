@@ -26,7 +26,7 @@ class HlsLoopGateStatus(HlsNetNode):
         self._addOutput(BIT, "busy")
         self.debugUseNamedSignalsFroControl = False
 
-    def resolve_realization(self):
+    def resolveRealization(self):
         self.assignRealization(IO_COMB_REALIZATION)
 
     def allocateRtlInstance(self, allocator: "ArchElement") -> TimeIndependentRtlResource:
@@ -206,7 +206,7 @@ class HlsLoopGate(HlsNetNodeOrderable):
     def debug_iter_shadow_connection_dst(self) -> Generator["HlsNetNode", None, None]:
         yield self._sync_token_status
 
-    def resolve_realization(self):
+    def resolveRealization(self):
         self.assignRealization(IO_COMB_REALIZATION)
 
     def scheduleAlapCompaction(self, endOfLastClk: int, outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter]):
@@ -227,3 +227,4 @@ class HlsLoopGate(HlsNetNodeOrderable):
 
     def __repr__(self):
         return f"<{self.__class__.__name__:s} {self._id:d}>"
+    

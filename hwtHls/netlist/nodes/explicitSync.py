@@ -83,14 +83,23 @@ class HlsNetNodeExplicitSync(HlsNetNode):
             skipWhen = self.netlist.builder.buildOr(cur, skipWhen)
             i.replaceDriver(skipWhen)
 
-    def resolve_realization(self):
+    def resolveRealization(self):
         self.assignRealization(IO_COMB_REALIZATION)
 
     def __repr__(self, minify=False):
         if minify:
             return f"<{self.__class__.__name__:s} {self._id:d}"
         else:
-            return (f"<{self.__class__.__name__:s} {self._id:d} in={self.dependsOn[0]}, "
-                    f"extraCond={None if self.extraCond is None else self.dependsOn[self.extraCond.in_i]}, "
-                    f"skipWhen={None if self.skipWhen is None else self.dependsOn[self.skipWhen.in_i]}>")
+            dep = self.dependsOn[0]
+            if self.extraCond is None:
+                ec = None
+            else:
+                ec = self.dependsOn[self.extraCond.in_i]
+            if self.skipWhen is None:
+                sw = None
+            else:
+                sw = self.dependsOn[self.skipWhen.in_i]
+            return (f"<{self.__class__.__name__:s} {self._id:d} in={'None' if dep is None else f'{dep.obj._id}:{dep.out_i}'}, "
+                    f"extraCond={None if ec is None else f'{ec.obj._id}:{ec.out_i}'}, "
+                    f"skipWhen={None if sw is None else f'{sw.obj._id}:{sw.out_i}'}>")
 

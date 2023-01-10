@@ -13,7 +13,7 @@ class HlsProgramStarter(HlsNetNode):
         HlsNetNode.__init__(self, netlist, name=name)
         self._addOutput(BIT, "start")
 
-    def resolve_realization(self):
+    def resolveRealization(self):
         self.assignRealization(IO_COMB_REALIZATION)
 
     def allocateRtlInstance(self, allocator: "ArchElement") -> TimeIndependentRtlResource:

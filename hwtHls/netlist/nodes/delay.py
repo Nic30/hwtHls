@@ -22,7 +22,7 @@ class HlsNetNodeDelayClkTick(HlsNetNode):
         self._addInput(None)
         self._addOutput(dtype, None)
         
-    def resolve_realization(self):
+    def resolveRealization(self):
         self.assignRealization(OpRealizationMeta(0, 0, 0, self._clkCnt))
 
     def scheduleAlapCompaction(self, endOfLastClk: int, outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter]):
