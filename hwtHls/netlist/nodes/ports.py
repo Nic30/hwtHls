@@ -3,10 +3,13 @@ from hwt.hdl.types.hdlType import HdlType
 
 
 def _reprMinify(o):
+    # o.__repr__.__func__.__code__.co_varnames
+    # o.__repr__.__func__.__code__.co_argcount
     try:
         return o.__repr__(minify=True)
     except:
-        return o.__repr__()
+        pass
+    return o.__repr__()
 
 
 class HlsNetNodeOut():
@@ -24,12 +27,6 @@ class HlsNetNodeOut():
     def replaceDriverObj(self, o:"HlsNetNodeOut"):
         raise NotImplementedError()
         
-    def __hash__(self):
-        return hash((self.obj, self.out_i))
-
-    def __eq__(self, other):
-        return self is other or (self.__class__ is other.__class__ and self.obj == other.obj and self.out_i == other.out_i)
-
     def __repr__(self, minify=True):
         if minify:
             objStr = _reprMinify(self.obj)
@@ -96,17 +93,11 @@ class HlsNetNodeIn():
         self.in_i = in_i
         self.name = name
 
-    def __hash__(self):
-        return hash((self.obj, self.in_i))
-
-    def __eq__(self, other):
-        return self is other or (self.__class__ is other.__class__ and self.obj == other.obj and self.in_i == other.in_i)
-
     def replaceDriver(self, o: HlsNetNodeOutAny) -> HlsNetNodeOutAny:
         """
         Disconnect old output object and connect new output object to this input while updating all.
         """
-        oldO = self.replaceDriverInInputOnly(o)
+        oldO = self.obj.dependsOn[self.in_i]
         if oldO is None:
             pass
         elif isinstance(oldO, HlsNetNodeOut):
@@ -116,6 +107,7 @@ class HlsNetNodeIn():
             assert isinstance(oldO, HlsNetNodeOutLazy), oldO
             oldO: HlsNetNodeOutLazy
             oldO.dependent_inputs.remove(self)
+        self.replaceDriverInInputOnly(o)
         return oldO
 
     def replaceDriverInInputOnly(self, o: HlsNetNodeOutAny) -> HlsNetNodeOutAny:
@@ -123,8 +115,7 @@ class HlsNetNodeIn():
         :attention: does not disconnect old output if there was any
         """
         oldO = self.obj.dependsOn[self.in_i]
-        assert oldO is not o
-        self.obj.dependsOn[self.in_i] = o
+        assert oldO is not o, ("If the replacement is the same, this fn. should not be called in the first place.", o)
         if isinstance(o, HlsNetNodeOut):
             usedBy = o.obj.usedBy[o.out_i]
             i = self.obj._inputs[self.in_i]
@@ -133,6 +124,7 @@ class HlsNetNodeIn():
         else:
             assert isinstance(o, HlsNetNodeOutLazy), o
             o.dependent_inputs.append(self)
+        self.obj.dependsOn[self.in_i] = o
 
         return oldO
 
@@ -155,6 +147,13 @@ def link_hls_nodes(parent: HlsNetNodeOutAny, child: HlsNetNodeIn) -> None:
         parent.dependent_inputs.append(child)
     else:
         assert isinstance(parent, HlsNetNodeOut), parent
+
+        removed = parent.obj.netlist.builder._removedNodes
+        try:
+            assert parent.obj not in removed, parent
+            assert child.obj not in removed, child
+        except:
+            raise
         parent.obj.usedBy[parent.out_i].append(child)
         assert child.obj.dependsOn[child.in_i] is None, ("child is already connected to " , child.obj.dependsOn[child.in_i], "when connecting" , parent, "->", child)
 
@@ -175,3 +174,18 @@ def unlink_hls_nodes(parent: HlsNetNodeOutAny, child: HlsNetNodeIn) -> None:
     child.obj.dependsOn[child.in_i] = None
     if isinstance(parent, HlsNetNodeOut) and isinstance(child, HlsNetNodeOut):
         assert parent.obj is not child.obj
+
+
+def _getPortDrive(inPort: Optional[HlsNetNodeIn]):
+    if inPort is None:
+        return None
+    else:
+        return inPort.obj.dependsOn[inPort.in_i]
+
+
+def unlink_hls_node_input_if_exists(input_: HlsNetNodeIn):
+    dep = _getPortDrive(input_)
+    if dep is not None:
+        unlink_hls_nodes(dep, input_)
+    return dep
+    
