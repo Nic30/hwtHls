@@ -58,12 +58,12 @@ class PyBytecodeInline_TC(SimTestCase):
 
 if __name__ == "__main__":
     import unittest
-    # from hwt.synthesizer.utils import to_rtl_str
-    # u = PragmaInline_writeCntr2()
-    # print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
+    from hwt.synthesizer.utils import to_rtl_str
+    u = PragmaInline_writeCntr2()
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
 
     suite = unittest.TestSuite()
-    # suite.addTest(PyBytecodeInline_TC('test_PragmaInline_writeCntr2'))
+    #suite.addTest(PyBytecodeInline_TC('test_PragmaInline_writeCntr2'))
     suite.addTest(unittest.makeSuite(PyBytecodeInline_TC))
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
