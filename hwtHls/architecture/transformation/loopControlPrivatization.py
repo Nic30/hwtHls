@@ -15,11 +15,11 @@ from hwtHls.netlist.scheduler.clk_math import start_clk
 class RtlArchPassLoopControlPrivatization(RtlArchPass):
     """
     This transformation tries to extract loop control scheme from strongly connected component of ArchElement instances.
-    The goal is to writes to control channels to more early time if possible to allow execution of another loop body iteration before
+    The goal is to write to control channels more early if possible to allow execution of another loop body iteration before
     previous one is finished if data dependency allows it.
     
     :note: The reason why the write to control channels is after every IO in the block even if the jump can be resolved sooner
-        is that we explicitly added this ordering info (in :class:`hwtHls.ssa.translation.llvmToMirAndMirToHlsNetlist.mirToNetlist.HlsNetlistAnalysisPassMirToNetlist`). 
+        is that we explicitly added this ordering info (in :class:`hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist.HlsNetlistAnalysisPassMirToNetlist`). 
         This extra ordering info is required for FSM reconstruction. Without it the reasoning about which stages can be skipped when converting pipeline to FSM
         would be very computationally complex.
     """
