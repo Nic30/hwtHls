@@ -29,12 +29,12 @@ class HlsNetNodeExplicitSync(HlsNetNode):
     def __init__(self, netlist: "HlsNetlistCtx", dtype: HdlType):
         HlsNetNode.__init__(self, netlist, name=None)
         self._associatedReadSync: Optional["HlsNetNodeReadSync"] = None
-        self._init_extraCond_skipWhen()
+        self._initExtraCondSkipWhen()
         self._addInput("dataIn")
         self._addOutput(dtype, "dataOut")
         self._addOutput(HOrderingVoidT, "orderingOut")
 
-    def _init_extraCond_skipWhen(self):
+    def _initExtraCondSkipWhen(self):
         self.extraCond: Optional[HlsNetNodeIn] = None
         self.skipWhen: Optional[HlsNetNodeIn] = None
 
@@ -62,7 +62,10 @@ class HlsNetNodeExplicitSync(HlsNetNode):
 
         return v
 
-    def add_control_extraCond(self, en: Union[HlsNetNodeOut, HlsNetNodeOutLazy]):
+    def addControlSerialExtraCond(self, en: Union[HlsNetNodeOut, HlsNetNodeOutLazy]):
+        """
+        Add additional extraCond flag and if there was already some flag join them as if they were in sequence.
+        """
         i = self.extraCond
         if i is None:
             self.extraCond = i = self._addInput("extraCond")
@@ -71,9 +74,13 @@ class HlsNetNodeExplicitSync(HlsNetNode):
             # create "and" of existing and new extraCond and use it instead
             cur = self.dependsOn[i.in_i]
             en = self.netlist.builder.buildAnd(cur, en)
-            i.replaceDriver(en)
+            if en is not cur:
+                i.replaceDriver(en)
 
-    def add_control_skipWhen(self, skipWhen: Union[HlsNetNodeOut, HlsNetNodeOutLazy]):
+    def addControlSerialSkipWhen(self, skipWhen: Union[HlsNetNodeOut, HlsNetNodeOutLazy]):
+        """
+        Add additional skipWhen flag and if there was already some flag join them as if they were in sequence.
+        """
         i = self.skipWhen
         if i is None:
             self.skipWhen = i = self._addInput("skipWhen")
@@ -81,7 +88,8 @@ class HlsNetNodeExplicitSync(HlsNetNode):
         else:
             cur = self.dependsOn[i.in_i]
             skipWhen = self.netlist.builder.buildOr(cur, skipWhen)
-            i.replaceDriver(skipWhen)
+            if cur is not skipWhen:
+                i.replaceDriver(skipWhen)
 
     def resolveRealization(self):
         self.assignRealization(IO_COMB_REALIZATION)
