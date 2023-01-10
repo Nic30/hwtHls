@@ -69,7 +69,6 @@ class HlsNetNodeBitwiseOps(HlsNetNodeAggregate):
                                      pathForDebug: Optional[UniqList["HlsNetNode"]],
                                      beginOfFirstClk: int,
                                      outputTimeGetter: Optional[OutputTimeGetter]):
-        # print("scheduleAsapWithQuantization", node)
         assert node in self._subNodes, (node, self._subNodes)
         if node.scheduledOut is None:
             if pathForDebug is not None:
