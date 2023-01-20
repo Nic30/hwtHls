@@ -1,13 +1,26 @@
 """
-This module contains a classes for SSA form.
-This SSA form is used as a main code representation in frontend and is converted to LLVM SSA IR later.
-It exists mainly to simplify storing of custom instructions in SSA and to simplify branching analysis.
-Custom instructions are often used in frontend and must be lowered before conversion to LLVM.
-There are several differences between this SSA and LLVM SSA:
+hwtHls
+======
 
-* This basic block has properties where it stores PHIs, body and branch. (LLVM have all instructions in a single list)
+hwtHls is a library which provides a High Level Synthesis (HLS) compiler egine for hwt Hardware Construction Language (HCL).
 
-* This branch instructions is variadic.
+* :mod:`hwtHls.frontend`: Converts the input code into SSA objects defined in `hwtHls.ssa`.
+  (The code is loaded using `HlsScope` object in hwt component (`Unit` class),
+   the constraints and interface types are specified as hwt objects.)
 
-* This block instructions are stored in python list and not in doubly linked list so remove and insert is costly.  
+* There are several optimization SSA passes. Full list of optimizations is specified in HlsPlatform.
+  On demand several some instructions in SSA must be lowered before conversion to LLVM SSA.
+
+* LLVM SSA is then optimized (Full list of optimizations is specified in hwtHls/llvm/llvmCompilationBundle.cpp)
+
+* Optimized LLVM SSA is then translated to LLVM Machine-level IR MIR. (Full list of transformations can be seen in hwtHls/llvm/targets/genericFpgaTargetPassConfig.cpp)
+  This is required to perform register allocation and resoruce sharing type of optimizations.
+
+* LLVM MIR is then converted to a `hwtHls.netlist` and control and data channel optimizations are performed.
+  This process ends with netlists nodes scheduled to a specif times.
+
+* Nodes in scheduled netlist are then divided into architectural elements (ArchElement instances) and :mod:`hwtHls.architecture`.
+  On this level exact realization of every node is resolved as well as each buffer placement or IO.
+
+* Final graph of ArchElement instances is then directly translated to is then translated to hwt netlist which handles all SystemVerilog/VHDL/simulator/verification related things.
 """

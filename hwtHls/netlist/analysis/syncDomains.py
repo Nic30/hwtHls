@@ -49,11 +49,11 @@ class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
 
     Explicit sync flag combinations (both flags are optional)
     ---------------------------------------------|
-    | extra cond | skip when | meaning           |
+    | extra cond | skip when | meaning for read  |
     ==============================================
     | 0          | 0         | block             |
     | 1          | 0         | accept            |
-    | 0          | 1         | drop              |
+    | 0          | 1         | skip read/peek    |
     | 1          | 1         | read non blocking |
     ----------------------------------------------
     
