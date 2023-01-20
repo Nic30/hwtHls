@@ -105,9 +105,32 @@ class HlsNetlistAnalysisPassSyncReach(HlsNetlistAnalysisPass):
 
             if connectedOnlyToThisIsland:
                 seen.add(pi)
-        
+
+    def _addNodesFromIslandToSyncIslandOfNodeDict(self, isl: BetweenSyncNodeIsland):
+        syncIslandOfNode = self.syncIslandOfNode
+        for n in isl.inputs:
+            (iIsl, oIsl) = syncIslandOfNode.get(n, (None, None))
+            assert iIsl is None, ("node can be input only of one island", n, iIsl, isl)
+            iIsl = isl
+            syncIslandOfNode[n] = (iIsl, oIsl)
+
+        for n in isl.nodes:
+            assert n not in syncIslandOfNode
+            syncIslandOfNode[n] = isl
+
+        for n in chain(isl.controlOutputs, isl.dataOutputs):
+            n: HlsNetNode
+            if not any(not HdlType_isNonData(o._dtype) and uses
+                       for o, uses in zip(n._outputs, n.usedBy)):
+                (iIsl, oIsl) = syncIslandOfNode.get(n, (None, None))
+                assert oIsl is None, ("node can be output from only of one island", n, oIsl, isl)
+                # [fixme] if output is assigned to predecessor node because it has no dependencies
+                # it is required to remove it from the successor
+                oIsl = isl
+                syncIslandOfNode[n] = (iIsl, oIsl)
+
     def _flodNetUntilSyncNode(self, beginInput: HlsNetNodeExplicitSync, seen: Set[HlsNetNode]):
-        inputs = UniqList([beginInput])
+        inputs = UniqList([beginInput, ])
         controlOutputs = UniqList()
         dataOutputs = UniqList()
         nodes = UniqList()
@@ -127,6 +150,7 @@ class HlsNetlistAnalysisPassSyncReach(HlsNetlistAnalysisPass):
             if not isOutput or not any(not HdlType_isNonData(o._dtype) and uses for o, uses in zip(n._outputs, n.usedBy)):
                 # not for outputs because we want outputs to be searched again as an input of some other cluster
                 seen.add(n)
+
             elif isInput:
                 potentiallyPrivateInputs.append(n)
                 
@@ -188,45 +212,26 @@ class HlsNetlistAnalysisPassSyncReach(HlsNetlistAnalysisPass):
 
         isl = BetweenSyncNodeIsland(inputs, controlOutputs, dataOutputs, UniqList(n for n in nodes if n not in inputs))
         self._markPrivateInputsAsSeen(isl, potentiallyPrivateInputs, seen)
+        self._addNodesFromIslandToSyncIslandOfNodeDict(isl)
+        
         return isl
-            
-    def run(self):
-        """
-        discover clusters of nodes which are definitely a consecutive cluster with HlsNetNodeExplicitSync nodes on its boundaries
-        """
+    
+    def _collectSyncIslandsByFlooding(self):
         seen = set()
-        netlist = self.netlist
         syncIslands = self.syncIslands
         for n in self.netlist.iterAllNodes():
             if n not in seen and isinstance(n, HlsNetNodeExplicitSync):
                 island = self._flodNetUntilSyncNode(n, seen)
                 syncIslands.append(island)
+        return syncIslands, seen
 
-        # generate syncIslandOfNode dict
+    def run(self):
+        """
+        discover clusters of nodes which are definitely a consecutive cluster with HlsNetNodeExplicitSync nodes on its boundaries
+        """
+        netlist = self.netlist
+        syncIslands, seen = self._collectSyncIslandsByFlooding()
         syncIslandOfNode = self.syncIslandOfNode
-        for island in syncIslands:
-            island:BetweenSyncNodeIsland
-            for n in island.inputs:
-                (iIsl, oIsl) = syncIslandOfNode.get(n, (None, None))
-                assert iIsl is None, ("node can be input only of one island", n, iIsl, island)
-                iIsl = island
-                syncIslandOfNode[n] = (iIsl, oIsl)
-
-            for n in island.nodes:
-                assert n not in syncIslandOfNode
-                syncIslandOfNode[n] = island
-
-            for n in chain(island.controlOutputs, island.dataOutputs):
-                n: HlsNetNode
-                if not any(not HdlType_isNonData(o._dtype) and uses
-                           for o, uses in zip(n._outputs, n.usedBy)):
-                    (iIsl, oIsl) = syncIslandOfNode.get(n, (None, None))
-                    assert oIsl is None, ("node can be output from only of one island", n, oIsl, island)
-                    # [fixme] if output is assigned to predecessor node because it has no dependencies
-                    # it is required to remove it from the successor
-                    oIsl = island
-                    syncIslandOfNode[n] = (iIsl, oIsl)
-
         # previous step may omit some nodes which are mix of control and data path
         # because association to a cluster is ambiguous
         # Sync domains are used to fill nodes to a connected cluster which uses same sync
@@ -283,7 +288,6 @@ class HlsNetlistAnalysisPassSyncReach(HlsNetlistAnalysisPass):
                             n1 = n1.dependsOn[0].obj
                             searchFromDef = False
                             continue
-
                         else:
                             raise NotImplementedError(n1, syncDomain)
 
