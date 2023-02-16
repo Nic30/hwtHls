@@ -1,3 +1,4 @@
+from itertools import chain
 from typing import Union, List, Tuple, Set, Optional, Dict
 
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import Interface_without_registration
@@ -10,10 +11,10 @@ from hwtHls.architecture.interArchElementHandshakeSync import InterArchElementHa
 from hwtHls.architecture.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis, ValuePathSpecItem
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, \
     TimeIndependentRtlResourceItem, INVARIANT_TIME
+from hwtHls.netlist.analysis.betweenSyncIslands import HlsNetlistAnalysisPassBetweenSyncIslands
 from hwtHls.netlist.analysis.fsms import HlsNetlistAnalysisPassDiscoverFsm, IoFsm
 from hwtHls.netlist.analysis.pipelines import HlsNetlistAnalysisPassDiscoverPipelines, \
     NetlistPipeline
-from hwtHls.netlist.analysis.syncReach import HlsNetlistAnalysisPassSyncReach
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.scheduler.clk_math import start_clk
@@ -337,7 +338,7 @@ class HlsAllocator():
         interElmSync = syncAdded.get(syncCacheKey, None)
         if interElmSync is None:
             # create new interElmSync channel connecting two elements and realizing the synchronization
-            syncReach: HlsNetlistAnalysisPassSyncReach = self.netlist.getAnalysis(HlsNetlistAnalysisPassSyncReach)
+            # syncIslands: HlsNetlistAnalysisPassBetweenSyncIslands = self.netlist.getAnalysis(HlsNetlistAnalysisPassBetweenSyncIslands)
             interElmSync = InterArchElementHandshakeSync(dstUseClkI, srcElm, dstElm)
             srcBaseName = self._getArchElmBaseName(srcElm)
             dstBaseName = self._getArchElmBaseName(dstElm)
@@ -347,35 +348,47 @@ class HlsAllocator():
             srcElm.connectSync(dstUseClkI, interElmSync, INTF_DIRECTION.MASTER, True)
             dstCon = dstElm.connectSync(dstUseClkI, interElmSync, INTF_DIRECTION.SLAVE, True)
             
-            if isinstance(srcElm, ArchElementFsm):
-                srcSyncIslands = srcElm.fsm.syncIslands
-            else:
-                srcSyncIslands = [srcElm.syncIsland]
-
-            if isinstance(dstElm, ArchElementFsm):
-                dstSyncIslands = dstElm.fsm.syncIslands
-            else:
-                dstSyncIslands = [dstElm.syncIsland, ]
+            # if isinstance(srcElm, ArchElementFsm):
+            #    srcSyncIslands = srcElm.fsm.syncIslands
+            # else:
+            #    srcSyncIslands = [srcElm.syncIsland]
+            #
+            # if isinstance(dstElm, ArchElementFsm):
+            #    dstSyncIslands = dstElm.fsm.syncIslands
+            # else:
+            #    dstSyncIslands = [dstElm.syncIsland, ]
             
-            # for every input to every element resolve 
-            alreadySynced: Set[HlsNetNodeExplicitSync] = set()
-            for dstSyncIsland in dstSyncIslands:
-                for i in dstSyncIsland.inputs:
-                    if i not in alreadySynced and i.extraCond is not None or i.skipWhen is not None:
-                        for srcSyncIsland in srcSyncIslands:
-                            if i in dstElm.allNodes and isDrivenFromSyncIsland(i, srcSyncIsland, syncReach):
-                                # :note: there may be the case when new inter element connection is generated
-                                self._propageteInputDependencyToElement(i.extraCond, dstElm)
-                                self._propageteInputDependencyToElement(i.skipWhen, dstElm)
-
-                                extraCond, skipWhen = dstElm._copyChannelSyncForElmInput(interElmSync, i)
-                                if extraCond is not None:
-                                    dstCon.io_extraCond[interElmSync] = extraCond
-                                if skipWhen is not None:
-                                    dstCon.io_skipWhen[interElmSync] = skipWhen
-                                alreadySynced.add(i)
-                                break
-    
+            # clkPeriod: int = self.netlist.normalizedClkPeriod
+            # # for every input to every element resolve 
+            # alreadySynced: Set[HlsNetNodeExplicitSync] = set()
+            # for dstSyncIsland in dstSyncIslands:
+            #    for io in chain(dstSyncIsland.inputs, dstSyncIsland.outputs):
+            #        io: HlsNetNodeExplicitSync
+            #        if io in alreadySynced:
+            #            continue
+            #        
+            #        if io.extraCond is None and io.skipWhen is None:
+            #            # skip if there is nothing to potentially add
+            #            continue
+            #        
+            #        if io.scheduledZero // clkPeriod != dstUseClkI:
+            #            # skip if the IO is not in this synchronized state/stage
+            #            continue
+            #
+            #        for srcSyncIsland in srcSyncIslands:
+            #            if io in dstElm.allNodes and isDrivenFromSyncIsland(io, srcSyncIsland, syncIslands):
+            #                # :note: there may be the case when new inter element connection is generated
+            #                self._propageteInputDependencyToElement(io.extraCond, dstElm)
+            #                self._propageteInputDependencyToElement(io.skipWhen, dstElm)
+            #
+            #                extraCond, skipWhen = dstElm._copyChannelSyncForElmInput(interElmSync, io)
+            #                if extraCond is not None:
+            #                    dstCon.io_extraCond[interElmSync] = extraCond
+            #                if skipWhen is not None:
+            #                    dstCon.io_skipWhen[interElmSync] = skipWhen
+            #                alreadySynced.add(io)
+            #                break
+            #
             syncAdded[syncCacheKey] = interElmSync
 
         interElmSync.data.append((srcTiri, dstTiri))

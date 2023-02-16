@@ -1,7 +1,8 @@
 
+from itertools import chain
 from typing import Union, List, Dict, Tuple, Optional
 
-from hwt.code import SwitchLogic
+from hwt.code import SwitchLogic, And
 from hwt.code_utils import rename_signal
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.statements.statement import HdlStatement
@@ -20,7 +21,8 @@ from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlRes
 from hwtHls.netlist.analysis.ioDiscover import HlsNetlistAnalysisPassIoDiscover
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.orderable import HOrderingVoidT, HExternalDataDepT
+from hwtHls.netlist.nodes.orderable import HVoidOrdering, HVoidExternData, \
+    HdlType_isVoid
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite 
@@ -32,8 +34,13 @@ from ipCorePackager.constants import INTF_DIRECTION
 
 class ArchElement():
     """
-    An element which represents a group of netlist nodes synchronized by same synchronization type
-    It is used as context for allocator.
+    An element which represents a group of netlist nodes synchronized by same synchronization type.
+    This goup of nodes usually correspons to a IO cluster of to set of IO clusters.
+    Main pupose of this object is:
+
+    * Precise inter element communication specification
+    * Context during RTL allocation
+    * Synchronization type specification
 
     :ivar netlist: parent HLS netlist context for this element
     :ivar namePrefix: name prefix for debug purposes
@@ -75,7 +82,7 @@ class ArchElement():
         pass
 
     def _afterOutputUsed(self, o: HlsNetNodeOut):
-        if o._dtype is HOrderingVoidT:
+        if HdlType_isVoid(o._dtype):
             return
         clkPeriod = self.netlist.normalizedClkPeriod
         epsilon = self.netlist.scheduler.epsilon
@@ -118,7 +125,7 @@ class ArchElement():
             # new allocation, use registered automatically
             _o = o.obj.allocateRtlInstance(self)
             self._afterNodeInstantiated(o.obj, _o)
-            if (_o is None or not isinstance(_o, TimeIndependentRtlResource)) and o._dtype is not HOrderingVoidT and o._dtype is not HExternalDataDepT:
+            if (_o is None or not isinstance(_o, TimeIndependentRtlResource)) and o._dtype is not HVoidOrdering and o._dtype is not HVoidExternData:
                 # to support the return of the value directly to avoid lookup from dict
                 try:
                     res = self.netNodeToRtl[o]
@@ -259,14 +266,14 @@ class ArchElement():
     def _copyChannelSyncForElmInput(self, inputIntf: InterArchElementHandshakeSync, node: HlsNetNodeExplicitSync):
         syncTime = node.scheduledOut[0]
         if node.skipWhen is not None:
-            e = node.dependsOn[node.skipWhen.in_i]
+            e: HlsNetNodeOut = node.dependsOn[node.skipWhen.in_i]
             skipWhen = self.instantiateHlsNetNodeOutInTime(e, syncTime)
             skipWhen = SkipWhenMemberList([skipWhen, ])
         else:
             skipWhen = None
         
         if node.extraCond is not None:
-            e = node.dependsOn[node.extraCond.in_i]
+            e: HlsNetNodeOut = node.dependsOn[node.extraCond.in_i]
             extraCond = self.instantiateHlsNetNodeOutInTime(e, syncTime)
             extraCond = ExtraCondMemberList([(skipWhen, extraCond), ])
         else:
@@ -393,6 +400,46 @@ class ArchElement():
             if sw is not None:
                 skipWhen[newIo] = sw
 
+    def _finalizeSyncFlagsOfInterArchElementHandshakeSync(self,
+                                                          con: ConnectionsOfStage,
+                                                          masters: List[Tuple[INTERFACE_OR_VLD_RD_TUPLE, bool]],
+                                                          slaves: List[Tuple[INTERFACE_OR_VLD_RD_TUPLE, bool]],
+                                                          extraConds: Optional[Dict[INTERFACE_OR_VLD_RD_TUPLE, RtlSignal]],
+                                                          skipWhen: Optional[Dict[INTERFACE_OR_VLD_RD_TUPLE, RtlSignal]]):
+        # dissable output InterArchElementHandshakeSync if this state does not have ack
+        for intf, _ in con.outputs:
+            if isinstance(intf, InterArchElementHandshakeSync):
+                # collect ack from all other IO channels
+                conds = []
+                for ((otherIo, _), d) in chain([(m, INTF_DIRECTION.MASTER) for m in masters],
+                                               [(s, INTF_DIRECTION.SLAVE) for s in slaves]):
+                    if otherIo is intf:
+                        continue
+                    if d == INTF_DIRECTION.MASTER:
+                        en = _get_valid_signal(otherIo)
+                    else:
+                        en = _get_ready_signal(otherIo)
+                    ec = None if extraConds is None else extraConds.get(otherIo, None)
+                    sw = None if skipWhen is None else skipWhen.get(otherIo, None)
+                    if ec is not None:
+                        if en == 1:
+                            en = ec
+                        else:
+                            en = en & ec
+                    if sw is not None:
+                        if en == 1:
+                            en = ~sw
+                        else:
+                            en = en & ~sw
+                    conds.append(en)
+
+                if conds:
+                    if extraConds is None:
+                        extraConds = {}
+                    extraConds[intf] = And(*conds)
+
+        return extraConds, skipWhen
+
     def _makeSyncNode(self, con: ConnectionsOfStage) -> StreamNode:
         masters = [(extractControlSigOfInterface(intf), isBlocking) for intf, isBlocking in con.inputs]
         slaves = [(extractControlSigOfInterface(intf), isBlocking) for intf, isBlocking in con.outputs]
@@ -412,8 +459,10 @@ class ArchElement():
             extraConds = self._collectChannelRtlSync(con.io_extraCond, 1)
             skipWhen = self._collectChannelRtlSync(con.io_skipWhen, 0)
             if self._dbgAddNamesToSyncSignals:
-                extraConds = {io: rename_signal(self.netlist.parentUnit, cond, f"{io._name}_extraCond") for io, cond in extraConds.items()}
-                skipWhen = {io: rename_signal(self.netlist.parentUnit, cond, f"{io._name}_skipWhen") for io, cond in skipWhen.items()}
+                extraConds = {io: rename_signal(self.netlist.parentUnit, cond,
+                                                f"{io._name}_extraCond") for io, cond in extraConds.items()}
+                skipWhen = {io: rename_signal(self.netlist.parentUnit, cond,
+                                              f"{io._name}_skipWhen") for io, cond in skipWhen.items()}
                 for d in (extraConds, skipWhen):
                     self._dbgExplicitlyNamedSyncSignals.update(d.values())
         
@@ -424,7 +473,9 @@ class ArchElement():
         for i, (s, isBlocking) in enumerate(slaves):
             if not isBlocking:
                 self._makeSyncNodeDropSyncSignalForNonBlocking(s, False, i, masters, extraConds, skipWhen)
-            
+        
+        extraConds, skipWhen = self._finalizeSyncFlagsOfInterArchElementHandshakeSync(con, masters, slaves, extraConds, skipWhen)
+           
         sync = StreamNode(
             [m for m, _ in masters],  # rm isBlocking flags
             [s for s, _ in slaves],
