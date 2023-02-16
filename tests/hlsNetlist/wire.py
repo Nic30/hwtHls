@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 from typing import Type
 
 from hwt.interfaces.std import VectSignal, Handshaked, VldSynced, RdSynced
@@ -100,10 +103,11 @@ class HlsNetlistWireTC(SimTestCase):
 if __name__ == "__main__":
     import unittest
     from hwt.synthesizer.utils import to_rtl_str
+    from hwtHls.platform.platform import HlsDebugBundle
     u = HlsNetlistWireUnitHs()
     u.DATA_WIDTH = 32
     u.CLK_FREQ = int(40e6)
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     suite = unittest.TestSuite()
     # suite.addTest(HlsNetlistWireTC('test_NetlistWireUnitRdSynced'))

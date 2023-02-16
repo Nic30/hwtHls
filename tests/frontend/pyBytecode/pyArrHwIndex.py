@@ -130,6 +130,7 @@ class Cam(Unit):
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.xilinx.artix7 import Artix7Medium
+    from hwtHls.platform.platform import HlsDebugBundle
     #from hwtHls.platform.virtual import VirtualHlsPlatform
     u = CntrArray()
-    print(to_rtl_str(u, target_platform=Artix7Medium(debugDir="tmp")))
+    print(to_rtl_str(u, target_platform=Artix7Medium(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

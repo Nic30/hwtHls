@@ -6,12 +6,13 @@ from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, MachineLoopInfo
 from hwtHls.netlist.analysis.dataThreadsForBlocks import HlsNetlistAnalysisPassDataThreadsForBlocks
-from hwtHls.netlist.analysis.blockSyncType import HlsNetlistAnalysisPassBlockSyncType
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.transformation.injectVldMaskToSkipWhenConditions import HlsNetlistPassInjectVldMaskToSkipWhenConditions
 from hwtHls.netlist.translation.dumpBlockSync import HlsNetlistPassDumpBlockSync
 from hwtHls.netlist.translation.dumpDataThreads import HlsNetlistPassDumpDataThreads
+from hwtHls.platform.platform import HlsDebugBundle
 from hwtHls.platform.virtual import VirtualHlsPlatform
+from hwtHls.ssa.analysis.blockSyncType import HlsNetlistAnalysisPassBlockSyncType
 from hwtHls.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
 from hwtHls.ssa.translation.dumpMIR import SsaPassDumpMIR
 from hwtHls.ssa.translation.llvmMirToNetlist.datapath import BlockLiveInMuxSyncDict
@@ -31,7 +32,7 @@ class TestFinishedSuccessfuly(BaseException):
 class BaseTestPlatform(VirtualHlsPlatform):
 
     def __init__(self):
-        VirtualHlsPlatform.__init__(self, debugDir=None)
+        VirtualHlsPlatform.__init__(self, debugDir=None, debugFilter=HlsDebugBundle.NONE)
         self.postPyOpt = StringIO()
         self.mir = StringIO()
         self.dataThreads = StringIO()

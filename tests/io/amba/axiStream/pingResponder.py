@@ -113,10 +113,11 @@ if __name__ == "__main__":
     # from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.xilinx.artix7 import Artix7Slow
+    from hwtHls.platform.platform import HlsDebugBundle
     u = PingResponder()
     u.DATA_WIDTH = 256
     u.CLK_FREQ = int(100e6)
-    print(to_rtl_str(u, target_platform=Artix7Slow(debugDir="tmp")))
+    print(to_rtl_str(u, target_platform=Artix7Slow(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
     suite = unittest.TestSuite()

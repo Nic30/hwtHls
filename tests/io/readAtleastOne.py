@@ -57,15 +57,15 @@ class ReadAtleastOneOf3(ReadAtleastOneOf2):
 
     def mainThread(self, hls: HlsScope):
         
-        pre = PyBytecodeInPreproc
+        prepr = PyBytecodeInPreproc
         while BIT.from_py(1):
             o = self.o.data._dtype.from_py(None)
             
-            i0 = pre(hls.read(self.i0, blocking=False))
+            i0 = prepr(hls.read(self.i0, blocking=False))
             if i0.valid:
                 o = i0.data
             else:
-                i1 = pre(hls.read(self.i1, blocking=False))
+                i1 = prepr(hls.read(self.i1, blocking=False))
                 if i1.valid:
                     o = i1.data
                 else:
@@ -77,7 +77,8 @@ class ReadAtleastOneOf3(ReadAtleastOneOf2):
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
+    from hwtHls.platform.platform import HlsDebugBundle
     u = ReadAtleastOneOf3()
     # u.CLK_FREQ = int(100e6)
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
     

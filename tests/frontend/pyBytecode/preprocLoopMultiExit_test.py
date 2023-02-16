@@ -93,12 +93,13 @@ PreprocLoopMultiExit_TCs = [
 if __name__ == "__main__":
     import unittest
     from hwt.synthesizer.utils import to_rtl_str
+    from hwtHls.platform.platform import HlsDebugBundle
     u = PreprocLoopMultiExit_singleExit0()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     suite = unittest.TestSuite()
-    #suite.addTest(PreprocLoopMultiExit_hwBreak0_TC('test_0in2_withSuc'))
-    for tc in PreprocLoopMultiExit_TCs:
-        suite.addTest(unittest.makeSuite(tc))
+    suite.addTest(PreprocLoopMultiExit_singleExit0_TC('test_noData'))
+    #for tc in PreprocLoopMultiExit_TCs:
+    #    suite.addTest(unittest.makeSuite(tc))
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

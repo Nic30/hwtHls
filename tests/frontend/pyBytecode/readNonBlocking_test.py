@@ -11,7 +11,7 @@ class ReadNonBlocking_TC(SimTestCase):
 
     def test_HlsPythonReadNonBlocking(self):
         u = HlsPythonReadNonBlocking()
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform(debugDir="tmp"))
+        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
         u.i._ag.data.extend(0 for _ in range(40))
         self.randomize(u.i)
         self.runSim(10 * CLK_PERIOD)

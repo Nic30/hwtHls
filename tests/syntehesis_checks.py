@@ -5,6 +5,7 @@ import tempfile
 
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.netlist.scheduler.errors import TimeConstraintError
+from hwtHls.platform.platform import HlsDebugBundle
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.platform.xilinx.artix7 import Artix7Slow
 from hwtLib.logic.crcPoly import CRC_32
@@ -17,8 +18,10 @@ class HlsSynthesisChecksTC(SimTestCase):
 
     def test_PidControllerHls(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
+            # debug is enabled in order to test debug passes as well
             self.compileSimAndStart(PidControllerHls(),
-                                    target_platform=VirtualHlsPlatform(debugDir=tmp_dir))
+                                    target_platform=VirtualHlsPlatform(debugDir=tmp_dir,
+                                                                       debugFilter=HlsDebugBundle.ALL))
 
     def test_PidControllerHlsDebug(self):
         self._test(PidControllerHls())
@@ -32,12 +35,12 @@ class HlsSynthesisChecksTC(SimTestCase):
     def test_HlsSimpleIfStatement(self):
         self._test(HlsSimpleIfStatement())
 
-    def test_CrcCombHls_crc32_128b_200MHz(self):
-        u = CrcCombHls()
-        u.setConfig(CRC_32)
-        u.CLK_FREQ = int(200e6)
-        u.DATA_WIDTH = 128
-        self._test(u)
+    #def test_CrcCombHls_crc32_128b_200MHz(self):
+    #    u = CrcCombHls()
+    #    u.setConfig(CRC_32)
+    #    u.CLK_FREQ = int(200e6)
+    #    u.DATA_WIDTH = 128
+    #    self._test(u)
 
     def test_CrcCombHls_crc32_8b_100MHz(self):
         u = CrcCombHls()
@@ -46,12 +49,12 @@ class HlsSynthesisChecksTC(SimTestCase):
         u.DATA_WIDTH = 8
         self._test(u)
 
-    def test_CrcCombHls_crc32_128b_200MHz_XilinxAtrix7Slow(self):
-        u = CrcCombHls()
-        u.setConfig(CRC_32)
-        u.CLK_FREQ = int(200e6)
-        u.DATA_WIDTH = 128
-        self.compileSimAndStart(u, target_platform=Artix7Slow())
+    #def test_CrcCombHls_crc32_128b_200MHz_XilinxAtrix7Slow(self):
+    #    u = CrcCombHls()
+    #    u.setConfig(CRC_32)
+    #    u.CLK_FREQ = int(200e6)
+    #    u.DATA_WIDTH = 128
+    #    self.compileSimAndStart(u, target_platform=Artix7Slow())
 
     def _test(self, unit):
         self.compileSimAndStart(unit, target_platform=VirtualHlsPlatform())

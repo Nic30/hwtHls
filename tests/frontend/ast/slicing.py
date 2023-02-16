@@ -153,5 +153,6 @@ if __name__ == "__main__":
     runner.run(suite)
 
     #from hwt.synthesizer.utils import to_rtl_str
+    #from hwtHls.platform.platform import HlsDebugBundle
     #u = HlsSlice2TmpHlsVarSlice()
-    #print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
+    #print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

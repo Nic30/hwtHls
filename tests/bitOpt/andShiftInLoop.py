@@ -9,7 +9,6 @@ from hwt.simulator.simTestCase import SimTestCase
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
-from hwtHls.platform.platform import HlsDebugBundle
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtLib.examples.errors.combLoops import freeze_set_of_sets
@@ -162,8 +161,9 @@ class AndShiftInLoop_TC(SimTestCase):
 
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
+    from hwtHls.platform.platform import HlsDebugBundle
     u = AndShiftInLoop3()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp", debugFilter=HlsDebugBundle.DBG_ARCH_SYNC)))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
     suite = unittest.TestSuite()

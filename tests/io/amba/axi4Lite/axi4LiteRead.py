@@ -51,5 +51,6 @@ class Axi4LiteRead(BramRead):
 if __name__ == "__main__":
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwt.synthesizer.utils import to_rtl_str
+    from hwtHls.platform.platform import HlsDebugBundle
     u = Axi4LiteRead()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

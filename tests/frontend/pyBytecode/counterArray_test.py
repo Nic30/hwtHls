@@ -13,7 +13,7 @@ class CounterArray_TC(BaseSsaTC):
     def test_CounterArray(self, N=32, randomize=True):
         u = CounterArray()
         u.CLK_FREQ = int(50e6)
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform(debugDir="tmp"))
+        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
         mem = self.rtl_simulator.model.ram_inst.io.ram_memory
         ref = {i: 0 for i in range(u.ITEMS)}
         mem.val = mem.def_val = mem._dtype.from_py(ref)

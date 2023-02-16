@@ -78,8 +78,9 @@ class TwoTimesA_TC(BaseSsaTC):
 
 if __name__ == "__main__":
     # from hwt.synthesizer.utils import to_rtl_str
+    # from hwtHls.platform.platform import HlsDebugBundle
     # u = TwoTimesA0()
-    # print(to_rtl_str(u, target_platform=VirtualHlsPlatform()))
+    # print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
     suite = unittest.TestSuite()

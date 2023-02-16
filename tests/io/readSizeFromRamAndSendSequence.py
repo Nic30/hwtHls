@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 from hwt.hdl.types.defs import BIT
 from hwt.interfaces.std import BramPort_withoutClk, Handshaked
 from hwt.interfaces.utils import addClkRstn
@@ -49,7 +52,8 @@ class ReadSizeFromRamAndSendSequence(Unit):
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
+    from hwtHls.platform.platform import HlsDebugBundle
     u = ReadSizeFromRamAndSendSequence()
     u.CLK_FREQ = int(50e6)
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
     

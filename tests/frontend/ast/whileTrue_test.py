@@ -165,13 +165,14 @@ class HlsAstWhileTrue_TC(SimTestCase):
        
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
-    u = WhileSendSequence1()
-    u.FREQ = int(100e6)
-    print(to_rtl_str(u, target_platform=Artix7Medium(debugDir="tmp")))
+    from hwtHls.platform.platform import HlsDebugBundle
+    u = WhileSendSequence2()
+    u.FREQ = int(20e6)
+    print(to_rtl_str(u, target_platform=Artix7Medium(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
     
     import unittest
     suite = unittest.TestSuite()
-    #suite.addTest(HlsAstWhileTrue_TC('test_WhileSendSequence1_100Mhz'))
+    # suite.addTest(HlsAstWhileTrue_TC('test_WhileSendSequence2_20Mhz'))
     suite.addTest(unittest.makeSuite(HlsAstWhileTrue_TC))
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

@@ -10,6 +10,10 @@ from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.io.bram import BramArrayProxy
+from hwtHls.netlist.debugTracer import DebugTracer
+from hwtHls.netlist.nodes.write import HlsNetNodeWrite
+from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import \
+    netlistExplicitSyncDisconnectFromOrderingChain
 from hwtHls.scope import HlsScope
 
 
@@ -37,11 +41,24 @@ class BramRead(Unit):
             d = hls.read(ram[i]).data
             hls.write(d, self.dataOut) 
             i += 1
-        
+    
+    def reduceOrdering(self, hls: HlsScope, thread: HlsThreadFromPy):
+        netlist = thread.toHw
+        removed = set()
+        for intf in (self.dataOut, self.ram):
+            for rwNode in netlist.outputs:
+                rwNode: HlsNetNodeWrite
+                if rwNode.dst is intf:
+                    netlistExplicitSyncDisconnectFromOrderingChain(DebugTracer(None), rwNode, removed,
+                                                               disconnectPredecessors=False, disconnectSuccesors=True)
+        netlist.filterNodesUsingSet(removed)
+    
     def _impl(self) -> None:
         hls = HlsScope(self)
         ram = BramArrayProxy(hls, self.ram)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, ram)
+        mainThread.netlistCallbacks.append(self.reduceOrdering)
+
         # mainThread.bytecodeToSsa.debug = True
         hls.addThread(mainThread)
         hls.compile()
@@ -77,5 +94,7 @@ class BramReadWithRom(Unit):
 if __name__ == "__main__":
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwt.synthesizer.utils import to_rtl_str
+    from hwtHls.platform.platform import HlsDebugBundle
+
     u = BramRead()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

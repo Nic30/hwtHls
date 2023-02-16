@@ -59,8 +59,9 @@ class PyBytecodeInline_TC(SimTestCase):
 if __name__ == "__main__":
     import unittest
     from hwt.synthesizer.utils import to_rtl_str
+    from hwtHls.platform.platform import HlsDebugBundle
     u = PragmaInline_writeCntr2()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     suite = unittest.TestSuite()
     #suite.addTest(PyBytecodeInline_TC('test_PragmaInline_writeCntr2'))

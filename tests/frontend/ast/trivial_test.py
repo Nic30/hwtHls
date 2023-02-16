@@ -90,14 +90,14 @@ class HlsAstTrivial_TC(SimTestCase):
 
 
 if __name__ == "__main__":
-    #from hwt.synthesizer.utils import to_rtl_str
-    #from hwtHls.platform.virtual import VirtualHlsPlatform
-    #u = ReadWriteOnce0()
-    #print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
+    from hwt.synthesizer.utils import to_rtl_str
+    from hwtHls.platform.platform import HlsDebugBundle
+    u = ReadWriteOnce2()
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
     
     import unittest
     suite = unittest.TestSuite()
-    #suite.addTest(HlsAstTrivial_TC('test_ReadWriteOnce0'))
+    # suite.addTest(HlsAstTrivial_TC('test_ReadWriteOnce0'))
     suite.addTest(unittest.makeSuite(HlsAstTrivial_TC))
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

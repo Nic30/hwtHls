@@ -66,6 +66,7 @@ class HlsPythonHwWhile2(HlsPythonHwWhile0):
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
+    from hwtHls.platform.platform import HlsDebugBundle
     u = HlsPythonHwWhile2()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
     

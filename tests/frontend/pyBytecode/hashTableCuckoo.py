@@ -177,6 +177,7 @@ if __name__ == "__main__":
     # from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.xilinx.artix7 import Artix7Fast
+    from hwtHls.platform.platform import HlsDebugBundle
     import sys
     sys.setrecursionlimit(int(10e6))
     for tableCnt in [1]: # ,2,3,4
@@ -186,7 +187,7 @@ if __name__ == "__main__":
         u.TABLE_CNT = tableCnt
         u.STASH_CAM_SIZE = 1
         u.ITEMS_PER_TABLE = 1024
-        print(to_rtl_str(u, target_platform=Artix7Fast(debugDir="tmp")))  # 
+        print(to_rtl_str(u, target_platform=Artix7Fast(debugFilter=HlsDebugBundle.ALL_RELIABLE))) 
     
         #from sphinx_hwt.debugUtils import hwt_unit_to_html
         #hwt_unit_to_html(u, "tmp/HashTableCuckoo.scheme.html")

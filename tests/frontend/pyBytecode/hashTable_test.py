@@ -18,7 +18,7 @@ class HashTable_TC(BaseSsaTC):
         u = HashTable()
         u.ITEMS_PER_TABLE = 8
         u.CLK_FREQ = int(100e6)
-        self.compileSimAndStart(u, target_platform=Artix7Slow(debugDir="tmp"))
+        self.compileSimAndStart(u, target_platform=Artix7Slow())
         
         KEY_VALUE_PAIRS = [
             (1, 2),

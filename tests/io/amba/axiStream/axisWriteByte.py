@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 from hwt.hdl.types.defs import BIT
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.param import Param
@@ -45,9 +48,11 @@ class AxiSWriteByte(AxiSWriteByteOnce):
 if __name__ == "__main__":
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwt.synthesizer.utils import to_rtl_str
+    from hwtHls.platform.platform import HlsDebugBundle
+
 
     u = AxiSWriteByte()
     u.USE_STRB = True
     u.DATA_WIDTH = 16
-    p = VirtualHlsPlatform(debugDir="tmp")
+    p = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)
     print(to_rtl_str(u, target_platform=p))

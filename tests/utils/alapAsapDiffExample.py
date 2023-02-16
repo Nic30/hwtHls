@@ -87,8 +87,9 @@ class AlapAsapDiffExample_TC(SimTestCase):
 if __name__ == "__main__":
     import unittest
     from hwt.synthesizer.utils import to_rtl_str
+    from hwtHls.platform.platform import HlsDebugBundle
     u = AlapAsapDiffExample()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     suite = unittest.TestSuite()
     # suite.addTest(FrameTmplTC('test_frameHeader'))

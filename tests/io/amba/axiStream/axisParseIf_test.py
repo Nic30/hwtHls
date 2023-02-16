@@ -112,11 +112,12 @@ class AxiSParseIfTC(SimTestCase):
 
 
 if __name__ == '__main__':
-    #from hwt.synthesizer.utils import to_rtl_str
-    #u = AxiSParse2If()
-    #u.DATA_WIDTH = 512
-    #u.CLK_FREQ = int(100e6)
-    #print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.DBG_ARCH_SYNC)))
+    from hwt.synthesizer.utils import to_rtl_str
+    from hwtHls.platform.platform import HlsDebugBundle
+    u = AxiSParse2If()
+    u.DATA_WIDTH = 512
+    u.CLK_FREQ = int(100e6)
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     suite = unittest.TestSuite()
     suite.addTest(AxiSParseIfTC('test_AxiSParse2If_16b_100MHz'))

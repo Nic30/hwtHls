@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 from enum import Enum
 from typing import Type
 
@@ -12,7 +15,7 @@ from hwtHls.frontend.netlist import HlsThreadFromNetlist
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.delay import HlsNetNodeDelayClkTick
-from hwtHls.netlist.nodes.orderable import HOrderingVoidT
+from hwtHls.netlist.nodes.orderable import HVoidOrdering
 from hwtHls.netlist.nodes.ports import link_hls_nodes
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
@@ -56,7 +59,7 @@ class HlsNetlistBitwiseOpsPreorder0Unit(Unit):
         
         # scheduling offset 1clk for i2 from i1
         link_hls_nodes(i0.getOrderingOutPort(), i1._addInput("orderingIn"))
-        lat = HlsNetNodeDelayClkTick(netlist, 1, HOrderingVoidT)
+        lat = HlsNetNodeDelayClkTick(netlist, 1, HVoidOrdering)
         netlist.nodes.append(lat)
         link_hls_nodes(i1.getOrderingOutPort(), lat._inputs[0])
         link_hls_nodes(lat._outputs[0], i2._addInput("orderingIn"))
@@ -138,9 +141,10 @@ class HlsNetlistBitwiseOpsTC(SimTestCase):
 if __name__ == "__main__":
     import unittest
     from hwt.synthesizer.utils import to_rtl_str
+    from hwtHls.platform.platform import HlsDebugBundle
     u = HlsNetlistBitwiseOpsPostorder0Unit()
     u.CLK_FREQ = int(100e6)
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     suite = unittest.TestSuite()
     # suite.addTest(HlsNetlistBitwiseOpsTC('test_NetlistWireUnitRdSynced'))

@@ -41,8 +41,9 @@ class ReadAtleastOne_TC(SimTestCase):
 
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
-    u = ReadAtleastOneOf2()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
+    from hwtHls.platform.platform import HlsDebugBundle
+    u = ReadAtleastOneOf3()
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL)))
     
     import unittest
     suite = unittest.TestSuite()

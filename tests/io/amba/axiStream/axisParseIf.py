@@ -98,10 +98,11 @@ class AxiSParse2IfAndSequel(AxiSParse2fields):
 if __name__ == "__main__":
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwt.synthesizer.utils import to_rtl_str
+    from hwtHls.platform.platform import HlsDebugBundle
 
     u = AxiSParse2If()
     u.DATA_WIDTH = 24
     u.CLK_FREQ = int(40e6)
-    p = VirtualHlsPlatform(debugDir="tmp")
+    p = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)
     p._debugExpandCompositeNodes = True
     print(to_rtl_str(u, target_platform=p))

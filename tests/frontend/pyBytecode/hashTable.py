@@ -127,8 +127,9 @@ if __name__ == "__main__":
     # from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.xilinx.artix7 import Artix7Slow
+    from hwtHls.platform.platform import HlsDebugBundle
     u = HashTable()
-    print(to_rtl_str(u, target_platform=Artix7Slow(debugDir="tmp")))
+    print(to_rtl_str(u, target_platform=Artix7Slow(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     from sphinx_hwt.debugUtils import hwt_unit_to_html
     hwt_unit_to_html(u, "tmp/HashTable.scheme.html")
@@ -153,7 +154,7 @@ if __name__ == "__main__":
     #            __pb.Package.ffg676,
     #            __pb.Speedgrade._2)
     #    project = buildUnit(executor, u, "tmp/vivado", part,
-    #                        target_platform=Artix7Slow(debugDir="tmp/hls"),
+    #                        target_platform=Artix7Slow(debugDir="tmp/hls", debugFilter=HlsDebugBundle.ALL_RELIABLE),
     #                  synthesize=True,
     #                  implement=False,
     #                  writeBitstream=False,

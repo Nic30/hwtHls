@@ -40,6 +40,7 @@ class HlsAstExprTree3_example(Unit):
         hls = HlsScope(self)
         r = hls.read
         _a, _b, _c, _d = r(self.a), r(self.b), r(self.c), r(self.d)
+        # x, y, z, w are happending after f1 was written  
         x, y, z, w = r(self.x).data, r(self.y).data, r(self.z).data, r(self.w).data
         a, b, c, d = _a.data, _b.data, _c.data, _d.data
         f1 = (a + b + c) * d
@@ -89,9 +90,10 @@ class HlsAstExprTree3_example_TC(BaseSsaTC):
 
 if __name__ == "__main__":
     import unittest
-    # from hwt.synthesizer.utils import to_rtl_str
-    # u = HlsAstExprTree3_example()
-    # print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
+    from hwt.synthesizer.utils import to_rtl_str
+    from hwtHls.platform.platform import HlsDebugBundle
+    u = HlsAstExprTree3_example()
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     suite = unittest.TestSuite()
     # suite.addTest(HlsAstExprTree3_example_TC('test_simple'))

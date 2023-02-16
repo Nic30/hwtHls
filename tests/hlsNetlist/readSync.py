@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 from hwt.interfaces.std import VectSignal, Handshaked
 from hwt.interfaces.utils import addClkRstn
@@ -14,7 +16,7 @@ from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
-from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
+from hwtHls.ssa.translation.llvmMirToNetlist.utils import _createSyncForAnyInputSelector
 from hwtSimApi.utils import freq_to_period
 
 
@@ -136,7 +138,8 @@ class ReadAnyHsUnit(ReadOrDefaultUnit):
             link_hls_nodes(r, rSync._inputs[0])
         
             inputs.append((r, rSync, rVld))
-        HlsNetlistAnalysisPassMirToNetlist._createSyncForAnyInputSelector(
+
+        _createSyncForAnyInputSelector(
             b, [(rSync, []) for (_, rSync, _) in inputs], b.buildConstBit(1), b.buildConstBit(0))
 
         # output mux
@@ -207,13 +210,14 @@ class HlsNetlistReadSyncTC(SimTestCase):
 if __name__ == "__main__":
     import unittest
     from hwt.synthesizer.utils import to_rtl_str
-    u = ReadNonBlockingOrDefaultUnit()
+    from hwtHls.platform.platform import HlsDebugBundle
+    u = ReadNonBlockingOrDefaultUnitHs()
     u.DATA_WIDTH = 32
     u.CLK_FREQ = int(40e6)
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
-    #suite = unittest.TestSuite()
-    ## suite.addTest(HlsNetlistReadSyncTC('test_NetlistWireUnitRdSynced'))
-    #suite.addTest(unittest.makeSuite(HlsNetlistReadSyncTC))
-    #runner = unittest.TextTestRunner(verbosity=3)
-    #runner.run(suite)
+    suite = unittest.TestSuite()
+    #suite.addTest(HlsNetlistReadSyncTC('test_ReadNonBlockingOrDefaultUnitHs'))
+    suite.addTest(unittest.makeSuite(HlsNetlistReadSyncTC))
+    runner = unittest.TextTestRunner(verbosity=3)
+    runner.run(suite)
