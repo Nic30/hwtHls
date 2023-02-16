@@ -20,7 +20,8 @@ from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlRes
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict, OutputTimeGetter, \
     OutputMinUseTimeGetter
-from hwtHls.netlist.nodes.orderable import HOrderingVoidT, HdlType_isNonData
+from hwtHls.netlist.nodes.orderable import HdlType_isNonData, HdlType_isVoid, \
+    HVoidData
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
     HlsNetNodeOutAny
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
@@ -56,11 +57,14 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
         self._rawValue = None
         self._associatedReadSync: Optional["HlsNetNodeReadSync"] = None
 
-        self._initExtraCondSkipWhen()
+        self._initCommonPortProps()
         if dtype is None:
-            dtype = self.getRtlDataSig()._dtype
+            d = self.getRtlDataSig()
+            if d is None:
+                dtype = HVoidData
+            else:
+                dtype = d._dtype
         self._addOutput(dtype, "dataOut")
-        self._addOutput(HOrderingVoidT, "orderingOut")
     
     def setNonBlocking(self):
         self._isBlocking = False
@@ -69,6 +73,20 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
             self._addValid()
         if self._validNB is None:
             self._addValidNB()
+
+    def _removeOutput(self, i:int):
+        vld = self._valid
+        if vld is not None and vld.out_i == i:
+            self._valid = None
+        else:
+            vldNb = self._validNB
+            if vldNb is not None and vldNb.out_i == i:
+                self._validNB = None
+            else:
+                rawVal = self._rawValue
+                if rawVal is not None and rawVal.out_i == i:
+                    self._rawValue = None
+        return HlsNetNodeExplicitSync._removeOutput(self, i)
 
     def _addValid(self):
         assert self._valid is None, (self, "Already present")
@@ -97,8 +115,9 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
         return self._validNB is not None
     
     def iterOrderingInputs(self) -> Generator[HlsNetNodeIn, None, None]:
+        nonOrderingInputs = (self.extraCond, self.skipWhen, self._inputOfCluster, self._outputOfCluster)
         for i in self._inputs:
-            if i not in (self.extraCond, self.skipWhen):
+            if i not in nonOrderingInputs:
                 yield i
 
     def getRtlValidSig(self, allocator: "ArchElement") -> Union[RtlSignalBase, HValue]:
@@ -114,15 +133,23 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
         else:
             raise NotImplementedError(intf)
 
+    def _allocateRtlInstanceDataVoidOut(self, allocator: "ArchElement"):
+        netNodeToRtl = allocator.netNodeToRtl
+        netNodeToRtl[self._dataVoidOut] = TimeIndependentRtlResource(
+            self._dataVoidOut._dtype.from_py(None),
+            INVARIANT_TIME,
+            allocator,
+            False)
+
     def allocateRtlInstance(self, allocator: "ArchElement") -> Union[TimeIndependentRtlResource, List[HdlStatement]]:
         """
         Instantiate read operation on RTL level
         """
         r_out = self._outputs[0]
-        hasNoSpecialControl = self._isBlocking and not self.hasValidNB() and not self.hasValid()
-        
+        hasNoSpecialControl = self._isBlocking and not self.hasValidNB() and not self.hasValid() and self._dataVoidOut is None
+        netNodeToRtl = allocator.netNodeToRtl
         try:
-            cur = allocator.netNodeToRtl[r_out]
+            cur = netNodeToRtl[r_out]
             if hasNoSpecialControl:
                 return cur
             else:
@@ -141,9 +168,9 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
 
         iea = self.netlist.allocator._iea
         hasManyArchElems = len(self.netlist.allocator._archElements) > 1
-        allocator.netNodeToRtl[r_out] = _data
+        netNodeToRtl[r_out] = _data
         for sync in self.dependsOn:
-            if sync._dtype == HOrderingVoidT:
+            if HdlType_isVoid(sync._dtype):
                 continue
             assert isinstance(sync, HlsNetNodeOut), (self, self.dependsOn)
             # prepare sync inputs but do not connect it because we do not implement synchronization
@@ -162,15 +189,17 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
                     INVARIANT_TIME if isinstance(validRtl, HValue) else t,
                     allocator,
                     False)
-                allocator.netNodeToRtl[self._valid] = _valid
+                netNodeToRtl[self._valid] = _valid
             if self.hasValidNB():
                 _validNB = TimeIndependentRtlResource(
                     validRtl,
                     INVARIANT_TIME if isinstance(validRtl, HValue) else t,
                     allocator,
                     False)
-                allocator.netNodeToRtl[self._validNB] = _validNB
-            
+                netNodeToRtl[self._validNB] = _validNB
+        if self._dataVoidOut is not None:
+            self._allocateRtlInstanceDataVoidOut(allocator)
+
         if self._rawValue is not None:
             assert not self._isBlocking, self
             assert self.hasValid(), self
@@ -192,7 +221,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
                     INVARIANT_TIME if isinstance(rawValue, HValue) else t,
                     allocator,
                     False)
-            allocator.netNodeToRtl[self._rawValue] = _rawValue
+            netNodeToRtl[self._rawValue] = _rawValue
 
         # because there are multiple outputs
         return _data if hasNoSpecialControl else []
@@ -319,9 +348,9 @@ class HlsNetNodeReadIndexed(HlsNetNodeRead):
         self.indexes = [self._addInput("index0"), ]
 
     def iterOrderingInputs(self) -> Generator[HlsNetNodeIn, None, None]:
-        allNonOrdering = (self.extraCond, self.skipWhen, *self.indexes)
+        nonOrderingInputs = (self.extraCond, self.skipWhen, self._inputOfCluster, self._outputOfCluster, *self.indexes)
         for i in self._inputs:
-            if i not in allNonOrdering:
+            if i not in nonOrderingInputs:
                 yield i
 
     @staticmethod

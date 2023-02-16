@@ -11,7 +11,7 @@ from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
-from hwtHls.netlist.nodes.orderable import HdlType_isNonData
+from hwtHls.netlist.nodes.orderable import HdlType_isVoid
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.ssa.value import SsaValue
@@ -31,7 +31,7 @@ class HlsNetNodeReadBackwardEdge(HlsNetNodeRead):
         if self.associated_write.allocationType != BACKEDGE_ALLOCATION_TYPE.BUFFER:
             if isinstance(self, HlsNetNodeReadControlBackwardEdge):
                 o = self._outputs[0]
-                assert HdlType_isNonData(o._dtype) or o._dtype == BIT, (self, o._dtype)
+                assert HdlType_isVoid(o._dtype) or o._dtype == BIT, (self, o._dtype)
                 res = allocator.instantiateHlsNetNodeOutInTime(o, self.scheduledOut[1])
                 assert res.data._dtype == BIT, (self, res._dtype)
                 return res.data
@@ -59,15 +59,19 @@ class HlsNetNodeReadBackwardEdge(HlsNetNodeRead):
             return HlsNetNodeRead.allocateRtlInstance(self, allocator)
         else:
             # allocate as a register
-
+            if self._dataVoidOut is not None:
+                HlsNetNodeRead._allocateRtlInstanceDataVoidOut(self, allocator)
+            
             init = self.associated_write.channel_init_values
             assert self.name is not None, self
             regName = f"{allocator.namePrefix:s}{self.name:s}"
             dtype = self._outputs[0]._dtype
-            if not HdlType_isNonData(dtype):
+            if not HdlType_isVoid(dtype):
                 dtype = self.getRtlDataSig()._dtype
+                
             requresVld = self.hasValid() or self.hasValidNB() or self._rawValue is not None
             if w.allocationType == BACKEDGE_ALLOCATION_TYPE.REG:
+                hadInit = bool(init)
                 if init:
                     assert w.allocationType == BACKEDGE_ALLOCATION_TYPE.REG, w.allocationType
                     if len(init) > 1:
@@ -75,8 +79,8 @@ class HlsNetNodeReadBackwardEdge(HlsNetNodeRead):
                 else:
                     init = ((0,),)
 
-                if HdlType_isNonData(dtype):
-                    assert not self.usedBy[0], self
+                if HdlType_isVoid(dtype):
+                    #assert not self.usedBy[0], self
                     reg = []
                 else:
                     try:
@@ -87,7 +91,7 @@ class HlsNetNodeReadBackwardEdge(HlsNetNodeRead):
                     reg.hidden = False
 
                 if requresVld:
-                    regVld = allocator._reg(f"{regName:s}_vld", BIT, def_val=0)
+                    regVld = allocator._reg(f"{regName:s}_vld", BIT, def_val=int(hadInit))
                     regVld.hidden = False
             else:
                 assert w.allocationType == BACKEDGE_ALLOCATION_TYPE.IMMEDIATE, w.allocationType
@@ -97,8 +101,8 @@ class HlsNetNodeReadBackwardEdge(HlsNetNodeRead):
                     regVld = allocator._sig(f"{regName:s}_vld", BIT)
 
             # create RTL signal expression base on operator type
-            if HdlType_isNonData(dtype):
-                assert not self.usedBy[0], self
+            if HdlType_isVoid(dtype):
+                #assert not self.usedBy[0], self
                 regTir = []
             else:
                 regTir = TimeIndependentRtlResource(reg, self.scheduledOut[0], allocator, False)
@@ -183,10 +187,10 @@ class HlsNetNodeWriteBackwardEdge(HlsNetNodeWrite):
 
             if isinstance(en, BitsVal):
                 # current block en=1
-                assert int(en) == 1, en
+                assert int(en) == 1, (en, self)
                 return None
             else:
-                assert isinstance(en, RtlSignal), en
+                assert isinstance(en, RtlSignal), (en, self)
                 return en
 
         return None
@@ -221,16 +225,16 @@ class HlsNetNodeWriteBackwardEdge(HlsNetNodeWrite):
                 i._sig.hidden = False
             
         else:
-            assert self.associated_read in allocator.allNodes, (self, allocator)
+            assert self.associated_read in allocator.allNodes, (self, allocator, "If this backedge is not buffer both write and read must be in same element")
             t0 = self.scheduledOut[0]
             
-            hasVoidData = HdlType_isNonData(self.dependsOn[0]._dtype)
+            hasVoidData = HdlType_isVoid(self.dependsOn[0]._dtype)
             if hasVoidData:
                 dataDst = dataSrc = None
             else:
                 reg: TimeIndependentRtlResource = allocator.instantiateHlsNetNodeOut(self.associated_read._outputs[0])
                 src = allocator.instantiateHlsNetNodeOut(self.dependsOn[0])
-                if HdlType_isNonData(self.dependsOn[0]._dtype):
+                if HdlType_isVoid(self.dependsOn[0]._dtype):
                     dataSrc = 1
                 else:
                     dataSrc = src.get(t0).data

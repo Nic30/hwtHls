@@ -13,7 +13,7 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode, OutputTimeGetter, \
     OutputMinUseTimeGetter, SchedulizationDict
-from hwtHls.netlist.nodes.orderable import HOrderingVoidT
+from hwtHls.netlist.nodes.orderable import HVoidOrdering, HdlType_isVoid
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
     HlsNetNodeOutLazy
 from hwtHls.netlist.nodes.read import HlsNetNodeRead, HlsNetNodeReadIndexed
@@ -29,15 +29,12 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
     :ivar dependsOn: list of dependencies for scheduling composed of data input, extraConds and skipWhen
     """
 
-    def __init__(self, netlist: "HlsNetlistCtx", src, dst: Union[RtlSignal, Interface, SsaValue], addOrderingOut=True):
+    def __init__(self, netlist: "HlsNetlistCtx", src, dst: Union[RtlSignal, Interface, SsaValue]):
         HlsNetNode.__init__(self, netlist, None)
         self._associatedReadSync: Optional["HlsNetNodeReadSync"] = None
 
-        self._initExtraCondSkipWhen()
+        self._initCommonPortProps()
         self._addInput("src")
-        if addOrderingOut:
-            self._addOutput(HOrderingVoidT, "orderingOut")  # slot for ordering
-
         self.operator = "write"
         self.src = src
         assert not isinstance(src, (HlsNetNodeOut, HlsNetNodeOutLazy)), (src, "src is used for temporary states where node is not entirely constructed,"
@@ -54,9 +51,6 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         self.dst = dst
         self.maxIosPerClk = 1
         self._isBlocking = True
-
-    def getOrderingOutPort(self) -> HlsNetNodeOut:
-        return self._outputs[0]
 
     def resetScheduling(self):
         return HlsNetNodeRead.resetScheduling(self)
@@ -80,7 +74,7 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         for sync, t in zip(self.dependsOn[1:], self.scheduledIn[1:]):
             # prepare sync inputs but do not connect it because we do not implement synchronization
             # in this step we are building only datapath
-            if sync._dtype != HOrderingVoidT:
+            if not HdlType_isVoid(sync._dtype):
                 allocator.instantiateHlsNetNodeOutInTime(sync, t)
 
         dep = self.dependsOn[0]
@@ -143,12 +137,12 @@ class HlsNetNodeWriteIndexed(HlsNetNodeWrite):
     Same as :class:`~.HlsNetNodeWrite` but for memory mapped interfaces with address or index.
     """
 
-    def __init__(self, netlist:"HlsNetlistCtx", src, dst:Union[RtlSignal, Interface, SsaValue], addOrderingOut=True):
-        HlsNetNodeWrite.__init__(self, netlist, src, dst, addOrderingOut=addOrderingOut)
+    def __init__(self, netlist:"HlsNetlistCtx", src, dst:Union[RtlSignal, Interface, SsaValue]):
+        HlsNetNodeWrite.__init__(self, netlist, src, dst)
         self.indexes = [self._addInput("index0"), ]
 
     def iterOrderingInputs(self) -> Generator[HlsNetNodeIn, None, None]:
-        allNonOrdering = (self._inputs[0], self.extraCond, self.skipWhen, *self.indexes)
+        allNonOrdering = (self._inputs[0], self.extraCond, self.skipWhen, self._inputOfCluster, self._outputOfCluster, *self.indexes)
         for i in self._inputs:
             if i not in allNonOrdering:
                 yield i

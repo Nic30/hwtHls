@@ -3,17 +3,17 @@ from typing import Union, Optional, Generator
 from hwt.hdl.types.hdlType import HdlType
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.orderable import HOrderingVoidT
+from hwtHls.netlist.nodes.orderable import HVoidOrdering, HVoidData, HlsNetNodeOrderable, \
+    HdlType_isVoid
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
     link_hls_nodes, HlsNetNodeOutLazy
 from hwtHls.netlist.scheduler.clk_math import epsilon
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 
-
 IO_COMB_REALIZATION = OpRealizationMeta(outputWireDelay=epsilon)
 
 
-class HlsNetNodeExplicitSync(HlsNetNode):
+class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
     """
     This node represents just wire in scheduled graph which has an extra synchronization conditions.
     :see: :class:`hwtLib.handshaked.streamNode.StreamNode`
@@ -24,27 +24,86 @@ class HlsNetNodeExplicitSync(HlsNetNode):
     :ivar skipWhen: an input for a flag which marks that this write should be skipped and transaction
                     will not be performed but the control flow will continue
     :ivar _associatedReadSync: a node which reads if this node is activated and working
+    :ivar _orderingOut: an output used for ordering connections
+    :ivar _dataVoidOut: an output which is used for data connection of a void type,
+        this is used to represent the ordering after data dependency was optimized out, but previously was there.
+    :ivar _inputOfCluster: an input which is connected to HlsNetNodeIoCluster node in which it is an input
+    :ivar _outputOfCluster: an input which is connected to HlsNetNodeIoCluster node in which it is an output
     """
 
     def __init__(self, netlist: "HlsNetlistCtx", dtype: HdlType):
         HlsNetNode.__init__(self, netlist, name=None)
         self._associatedReadSync: Optional["HlsNetNodeReadSync"] = None
-        self._initExtraCondSkipWhen()
+        self._initCommonPortProps()
         self._addInput("dataIn")
         self._addOutput(dtype, "dataOut")
-        self._addOutput(HOrderingVoidT, "orderingOut")
 
-    def _initExtraCondSkipWhen(self):
+    def _initCommonPortProps(self):
         self.extraCond: Optional[HlsNetNodeIn] = None
         self.skipWhen: Optional[HlsNetNodeIn] = None
+        self._orderingOut: Optional[HlsNetNodeOut] = None
+        self._dataVoidOut: Optional[HlsNetNodeOut] = None
+        self._outputOfCluster: Optional[HlsNetNodeIn] = None
+        self._inputOfCluster: Optional[HlsNetNodeIn] = None
 
     def iterOrderingInputs(self) -> Generator[HlsNetNodeIn, None, None]:
+        nonOrderingInputs = (self._inputs[0], self.extraCond, self.skipWhen, self._inputOfCluster, self._outputOfCluster)
         for i in self._inputs:
-            if i.in_i != 0 and i not in (self.extraCond, self.skipWhen):
+            if i not in nonOrderingInputs:
+                assert HdlType_isVoid(self.dependsOn[i.in_i]._dtype), i
                 yield i
 
+    def getDataVoidOutPort(self) -> HlsNetNodeOut:
+        """
+        Get port which used for data dependency which is of a void type.
+        """
+        if self._outputs:
+            o = self._outputs[0]
+            if o._dtype == HVoidData:
+                return o
+        o = self._dataVoidOut
+        if o is None:
+            o = self._dataVoidOut = self._addOutput(HVoidData, "dataVoidOut")
+        return o
+        
     def getOrderingOutPort(self) -> HlsNetNodeOut:
-        return self._outputs[1]
+        o = self._orderingOut
+        if o is None:
+            o = self._orderingOut = self._addOutput(HVoidOrdering, "orderingOut")
+        return o
+
+    def getInputOfClusterPort(self):
+        i = self._inputOfCluster
+        if i is None:
+            i = self._inputOfCluster = self._addInput("inputOfCluster")
+        return i
+
+    def getOutputOfClusterPort(self):
+        i = self._outputOfCluster
+        if i is None:
+            i = self._outputOfCluster = self._addInput("outputOfCluster")
+        return i
+
+    def _removeInput(self, i:int):
+        iObj = self._inputs[i]
+        if self.extraCond is iObj:
+            self.extraCond = None
+        elif self.skipWhen is iObj:
+            self.skipWhen = None
+        elif self._inputOfCluster is iObj:
+            raise AssertionError("_inputOfCluster input port can not be removed because the cluster must be always present")
+        elif self._outputOfCluster is iObj:
+            raise AssertionError("_outputOfCluster input port can not be removed because the cluster must be always present")
+        return HlsNetNodeOrderable._removeInput(self, i)
+
+    def _removeOutput(self, i:int):
+        oObj = self._outputs[i]
+        if oObj is self._orderingOut:
+            self._orderingOut = None
+        elif oObj is self._dataVoidOut:
+            self._dataVoidOut = None
+
+        return HlsNetNodeOrderable._removeOutput(self, i)
 
     def allocateRtlInstance(self, allocator: "ArchElement") -> TimeIndependentRtlResource:
         assert type(self) is HlsNetNodeExplicitSync, self
