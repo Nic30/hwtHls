@@ -260,7 +260,7 @@ def netlistReduceCmpInAnd(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode],
                     changed = True
                     registerInput(o0)
                     registerInput(o1)
-                    knownResult, _changed = _appendKnowledgeTwoVars(latice, o0, o1, o)
+                    knownResult, _changed = _appendKnowledgeTwoVars(latice, o, o0, o1)
                 else:
                     registerInput(o0)
                     knownResult, _changed = _appendKnowledgeVarAndConst(latice, o, o0, c1)
