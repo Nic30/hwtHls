@@ -8,7 +8,7 @@ from hwtHls.netlist.analysis.syncGroupClusterContext import SyncGroupLabel, \
 from hwtHls.netlist.nodes.delay import HlsNetNodeDelayClkTick
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.orderable import HOrderingVoidT, HExternalDataDepT
+from hwtHls.netlist.nodes.orderable import HVoidOrdering, HVoidExternData
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn
 
 
@@ -109,7 +109,7 @@ class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
                 else:
                     # follow the connection to uses
                     for o, uses in zip(n0._outputs, n0.usedBy):
-                        if  o._dtype is HOrderingVoidT or o._dtype is HExternalDataDepT:
+                        if  o._dtype is HVoidOrdering or o._dtype is HVoidExternData:
                             # skip ordering because it is not a real data dependency
                             continue
 
@@ -153,7 +153,7 @@ class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
                     if updatePropagete:
                         for dep in n0.dependsOn:
                             t = dep._dtype 
-                            if t is HOrderingVoidT or t is HExternalDataDepT:
+                            if t is HVoidOrdering or t is HVoidExternData:
                                 continue
                             depObj = dep.obj 
                             if depObj not in nodesWithSyncedSinkOnly or depObj in seen:
