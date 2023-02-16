@@ -1,8 +1,9 @@
-from typing import Set
+from typing import Set, Optional
 
 from hwt.hdl.operatorDefs import AllOps
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.netlist.analysis.syncDependecy import HlsNetlistAnalysisPassSyncDependency
+from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachabilility
+from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -14,11 +15,10 @@ from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import netlistExplicitSyncDisconnectFromOrderingChain
 from hwtHls.netlist.transformation.simplifySync.simplifySyncUtils import removeExplicitSync
-from hwtHls.netlist.debugTracer import DebugTracer
 
 
 def netlistReduceExplicitSyncConditions(dbgTracer: DebugTracer, n: HlsNetNodeExplicitSync,
-                                        worklist: UniqList[HlsNetNode],
+                                        worklist: Optional[UniqList[HlsNetNode]],
                                         removed: Set[HlsNetNode]):
     """
     Remove skipWhen extraCond ports if they are useless and remove n if it has no sync flags and is directly HlsNetNodeExplicitSync instance.
@@ -31,7 +31,8 @@ def netlistReduceExplicitSyncConditions(dbgTracer: DebugTracer, n: HlsNetNodeExp
                 if int(dep.obj.val) == 0:
                     # ("Constant skipWhen condition must be 0, because otherwise the channel is always skipped", n, dep.obj)
                     dep.obj.usedBy[dep.out_i].remove(n.skipWhen)
-                    worklist.append(dep.obj)
+                    if worklist is not None:
+                        worklist.append(dep.obj)
                     n._removeInput(n.skipWhen.in_i)
                     n.skipWhen = None
                     modified = True
@@ -43,15 +44,16 @@ def netlistReduceExplicitSyncConditions(dbgTracer: DebugTracer, n: HlsNetNodeExp
                 if int(dep.obj.val) == 1:
                     # ("Constant extraCond must be 1, because otherwise the channel is always blocked", n, dep.obj)
                     dep.obj.usedBy[dep.out_i].remove(n.extraCond)
-                    worklist.append(dep.obj)
+                    if worklist is not None:
+                        worklist.append(dep.obj)
                     n._removeInput(n.extraCond.in_i)
                     n.extraCond = None
                     modified = True
                     dbgTracer.log("rm extraCond")
     
         if n.__class__ is HlsNetNodeExplicitSync and n.skipWhen is None and n.extraCond is None:
-            removeExplicitSync(n, worklist, removed)
             dbgTracer.log("rm node")
+            removeExplicitSync(dbgTracer, n, worklist, removed)
             modified = True
     
         return modified
@@ -97,7 +99,7 @@ def netlistReduceExplicitSyncTryExtractNonBlockingReadOrWrite(dbgTracer: DebugTr
                                                               n: HlsNetNodeExplicitSync,
                                                               worklist: UniqList[HlsNetNode],
                                                               removed: Set[HlsNetNode],
-                                                              syncDeps: HlsNetlistAnalysisPassSyncDependency):
+                                                              reachDb: HlsNetlistAnalysisPassReachabilility):
     assert n.__class__ is HlsNetNodeExplicitSync, n
     syncedDep: HlsNetNodeOut = n.dependsOn[0]
     rw = syncedDep.obj
@@ -109,7 +111,7 @@ def netlistReduceExplicitSyncTryExtractNonBlockingReadOrWrite(dbgTracer: DebugTr
     # 2 usedBy for _associatedReadSync and this node "n"
     assert rw._associatedReadSync is None, rw
     with dbgTracer.scoped(netlistReduceExplicitSyncTryExtractNonBlockingReadOrWrite, n):
-        if rw._validNB is None or not rw._isBlocking or len(rw.usedBy[syncedDep.out_i]) > 2:
+        if not isinstance(rw, HlsNetNodeRead) or rw._validNB is None or not rw._isBlocking or len(rw.usedBy[syncedDep.out_i]) > 2:
             return modified
     
         if n.extraCond is None:
@@ -127,7 +129,7 @@ def netlistReduceExplicitSyncTryExtractNonBlockingReadOrWrite(dbgTracer: DebugTr
             # [todo] isAndedToExpression is not sufficient we should that it is not non-trivially reachable
             #        from any term in "and" so we do not create cycle in DAG if we transplant this "and" to an input of n
             r: HlsNetNodeRead = rw
-            dbgTracer.log(("associated with read ", r))
+            dbgTracer.log(("Non-blocking associated with read ", r))
 
             # Try extracting non-blocking read from pattern:
             # x = read()
@@ -142,17 +144,17 @@ def netlistReduceExplicitSyncTryExtractNonBlockingReadOrWrite(dbgTracer: DebugTr
             data = n._outputs[0]
             assert n._associatedReadSync is None, "Should already be removed."
             # for _n in (n, r):
-            #    syncDeps.addAllDepsToOutUseChange(_n)
-            #    syncDeps.addAllUsersToInDepChange(_n)
+            #    reachDb.addAllDepsToOutUseChange(_n)
+            #    reachDb.addAllUsersToInDepChange(_n)
             if ec is not None:
                 newEc = createAndExpressionOmmitingInput(validNB, ec)
-                # syncDeps.addOutUseChange(ec.obj)
+                # reachDb.addOutUseChange(ec.obj)
                 unlink_hls_nodes(ec, n.extraCond)
                 if newEc is not None:
                     r.addControlSerialExtraCond(newEc)
                 dbgTracer.log(("update extraCond to", newEc))
     
-            # syncDeps.addOutUseChange(sw.obj)
+            # reachDb.addOutUseChange(sw.obj)
             unlink_hls_nodes(sw, n.skipWhen)
             newSw_n = createAndExpressionOmmitingInput(validNB, sw.obj.dependsOn[0])
             if newSw_n is not None:
@@ -165,14 +167,14 @@ def netlistReduceExplicitSyncTryExtractNonBlockingReadOrWrite(dbgTracer: DebugTr
             # for u in vldUses:
             #    unlink_hls_nodes(vld, u)
     
-            # syncDeps.addOutUseChange(n)
+            # reachDb.addOutUseChange(n)
             for u in dataUses:
-                # syncDeps.addInDepChange(u.obj)
+                # reachDb.addInDepChange(u.obj)
                 unlink_hls_nodes(data, u)
     
-            # syncDeps.addOutUseChange(r)
+            # reachDb.addOutUseChange(r)
             unlink_hls_nodes(n.dependsOn[0], n._inputs[0])
-            netlistExplicitSyncDisconnectFromOrderingChain(n)
+            netlistExplicitSyncDisconnectFromOrderingChain(dbgTracer, n, removed)
             
             r.setNonBlocking()
             data = syncedDep
@@ -186,7 +188,7 @@ def netlistReduceExplicitSyncTryExtractNonBlockingReadOrWrite(dbgTracer: DebugTr
                 worklist.append(u.obj)
             
             removed.add(n)
-            dbgTracer.log("remove")
+            dbgTracer.log("rm")
             netlistReduceExplicitSyncConditions(dbgTracer, r, worklist, removed)
             return True
     

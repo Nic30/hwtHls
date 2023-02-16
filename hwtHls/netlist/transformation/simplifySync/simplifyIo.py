@@ -1,42 +1,21 @@
-from collections import deque
-from itertools import islice
-from typing import Set, Union, List, Optional
+from typing import Set
 
-from hwt.hdl.operatorDefs import AllOps
-from hwt.hdl.types.bitsVal import BitsVal
-from hwt.interfaces.std import HandshakeSync
 from hwt.pyUtils.uniqList import UniqList
-from hwt.synthesizer.interfaceLevel.unitImplHelpers import Interface_without_registration
-from hwtHls.netlist.analysis.dataThreadsForBlocks import HlsNetlistAnalysisPassDataThreadsForBlocks
-from hwtHls.netlist.builder import HlsNetlistBuilder
-from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeWriteBackwardEdge, \
-    HlsNetNodeReadBackwardEdge, HlsNetNodeReadControlBackwardEdge
-from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwtHls.netlist.nodes.orderable import HOrderingVoidT, _VoidValue
-from hwtHls.netlist.nodes.ports import HlsNetNodeIn, unlink_hls_nodes, \
-    link_hls_nodes, HlsNetNodeOut
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
-from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.netlist.transformation.simplifyUtils import getConstDriverOf, \
-    replaceOperatorNodeWith, \
-    operationTakesMoreThan1Clk, \
-    transferHlsNetNodeExplicitSyncOrdering, disconnectAllInputs, addAllUsersToWorklist
-from hwtHls.netlist.analysis.syncDependecy import HlsNetlistAnalysisPassSyncDependency
-from hwtHls.netlist.nodes.delay import HlsNetNodeDelayClkTick
-from hwtHls.netlist.analysis.consystencyCheck import HlsNetlistPassConsystencyCheck
+from hwtHls.netlist.transformation.simplifyUtils import replaceOperatorNodeWith, \
+    disconnectAllInputs
 
 # :note: not working ignores parallel sync objects and this actualy does hoist of the flags, which is done elsewhere
-#def netlistReduceExplicitSyncUseless(n: HlsNetNodeExplicitSync, worklist: UniqList[HlsNetNode],
+# def netlistReduceExplicitSyncUseless(n: HlsNetNodeExplicitSync, worklist: UniqList[HlsNetNode],
 #                                     removed: Set[HlsNetNode],
-#                                     syncDeps: Optional[HlsNetlistAnalysisPassSyncDependency]):
+#                                     reachDb: Optional[HlsNetlistAnalysisPassReachabilility]):
 #    """
 #    Remove HlsNetNodeExplicitSync if its flags do not have any effect.
 #    
 #    :return: True if this node n was removed
 #    """
-#    #traceChanges = syncDeps is not None 
+#    #traceChanges = reachDb is not None 
 #    
 #    if (n.skipWhen is None or getConstDriverOf(n.skipWhen) is not None) and (
 #        n.extraCond is None or getConstDriverOf(n.extraCond) is not None):
@@ -48,9 +27,9 @@ from hwtHls.netlist.analysis.consystencyCheck import HlsNetlistPassConsystencyCh
 #                dep = n.dependsOn[n.skipWhen.in_i] 
 #                syncedDep.obj.addControlSerialSkipWhen(dep)
 #                #if traceChanges:
-#                #    syncDeps.addAllUsersToInDepChange(dep.obj)
+#                #    reachDb.addAllUsersToInDepChange(dep.obj)
 #                #    # newDep = n.dependsOn[n.skipWhen.in_i] 
-#                #    syncDeps.addOutUseChange(dep.obj)
+#                #    reachDb.addOutUseChange(dep.obj)
 #            else:
 #                return False
 #
@@ -59,11 +38,11 @@ from hwtHls.netlist.analysis.consystencyCheck import HlsNetlistPassConsystencyCh
 #                dep = n.dependsOn[n.extraCond.in_i]
 #                syncedDep.obj.addControlSerialExtraCond(dep)
 #                #if traceChanges:
-#                #    syncDeps.addAllUsersToInDepChange(dep.obj)
-#                #    syncDeps.addOutUseChange(dep.obj)
+#                #    reachDb.addAllUsersToInDepChange(dep.obj)
+#                #    reachDb.addOutUseChange(dep.obj)
 #            else:
 #                #if traceChanges:
-#                #    syncDeps.commitChanges()
+#                #    reachDb.commitChanges()
 #                return False
 #        
 #        _, orderingOutUses = n._outputs.pop(), n.usedBy.pop()
@@ -71,27 +50,27 @@ from hwtHls.netlist.analysis.consystencyCheck import HlsNetlistPassConsystencyCh
 #            for orderingIn in n.iterOrderingInputs():
 #                orderingDep = n.dependsOn[orderingIn.in_i]
 #                #if traceChanges:
-#                #    syncDeps.addOutUseChange(orderingDep.obj)
+#                #    reachDb.addOutUseChange(orderingDep.obj)
 #                for u in orderingOutUses:
 #                    u: HlsNetNodeIn
 #                    u.replaceDriverInInputOnly(orderingDep, False)  # because n will be removed
 #                    #if traceChanges:
-#                    #    syncDeps.addInDepChange(u.obj)
+#                    #    reachDb.addInDepChange(u.obj)
 #
 #        #if traceChanges:
-#        #    syncDeps.addAllUsersToInDepChange(n)
+#        #    reachDb.addAllUsersToInDepChange(n)
 #
 #        replaceOperatorNodeWith(n, syncedDep, worklist, removed)
 #        #if traceChanges:
-#        #    syncDeps.onNodeRemove(n)
-#        #    syncDeps.addOutUseChange(syncedDep.obj)
-#        #    syncDeps.commitChanges()
+#        #    reachDb.onNodeRemove(n)
+#        #    reachDb.addOutUseChange(syncedDep.obj)
+#        #    reachDb.commitChanges()
 #
 #        return True
 
 # def netlistReduceExplicitSyncWithoutIo(n: HlsNetNodeExplicitSync,
 #                                       worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode],
-#                                       syncDeps: HlsNetlistAnalysisPassSyncDependency):
+#                                       reachDb: HlsNetlistAnalysisPassReachabilility):
 #    # code duplication
 #    # elif not n.usedBy[0] and not isHlsNetNodeExplicitSyncFlagsRequred(n):
 #    #    # remove whole node if not synchronizing anything
@@ -103,7 +82,7 @@ from hwtHls.netlist.analysis.consystencyCheck import HlsNetlistPassConsystencyCh
 #    #    removed.add(n)
 #    #    return False
 #    syncedDep: HlsNetNodeOut = n.dependsOn[0]   
-#    if not isConnectedToAnyIo(syncedDep, syncDeps):
+#    if not isConnectedToAnyIo(syncedDep, reachDb):
 #        # not synchronizing anything because there is no IO involved in input
 #        assert len(n._outputs) == 2, n
 #        

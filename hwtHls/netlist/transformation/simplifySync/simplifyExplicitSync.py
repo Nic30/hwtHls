@@ -1,83 +1,26 @@
-from typing import Optional, Set, Tuple, List
+from typing import Set, Tuple, List
 
-from hdlConvertorAst.to.hdlUtils import iter_with_last
-from hwt.hdl.types.defs import BIT
 from hwt.pyUtils.uniqList import UniqList
+from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
+from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachabilility
 from hwtHls.netlist.builder import HlsNetlistBuilder
+from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.orderable import HdlType_isNonData
+from hwtHls.netlist.nodes.orderable import HVoidData
 from hwtHls.netlist.nodes.ports import unlink_hls_nodes, HlsNetNodeOut, \
     HlsNetNodeIn, link_hls_nodes, _getPortDrive
-from hwtHls.netlist.analysis.syncDependecy import HlsNetlistAnalysisPassSyncDependency
-from hwtHls.netlist.analysis.dataThreads import HlsNetlistAnalysisPassDataThreads
-from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
-from hwtHls.netlist.nodes.read import HlsNetNodeRead
-from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
-from hwtHls.netlist.analysis.consystencyCheck import HlsNetlistPassConsystencyCheck
 from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import netlistExplicitSyncDisconnectFromOrderingChain
 from hwtHls.netlist.transformation.simplifyUtils import addAllUsersToWorklist
-from hwtHls.netlist.debugTracer import DebugTracer
-
-# def collectNodesUntilExplicitSyncAndReduceUseless(dep: HlsNetNodeOut,
-#                                                  seen: UniqList[HlsNetNode],
-#                                                  worklist: UniqList[HlsNetNode],
-#                                                  removed: Set[HlsNetNode]):
-#    """
-#    Move use->def and collect nodes, if node is HlsNetNodeExplicitSync try reduce it, if it is not reduced
-#    stop search there otherwise continue the search.
-#    """
-#    modified = False
-#    if dep.obj in seen or isinstance(dep.obj, HlsNetNodeExplicitSync):
-#        seen.add(dep.obj)
-#        return modified
-#    
-#    toSearch: UniqList[HlsNetNode] = UniqList([dep.obj])
-#    while toSearch:
-#        n = toSearch.pop()
-#        if n in seen:
-#            continue
-#
-#        seen.add(n)
-#        for dep in n.dependsOn:
-#            depO = dep.obj
-#            while depO.__class__ is HlsNetNodeExplicitSync:
-#                curIn = depO.usedBy[dep.out_i][0]
-#                netlistReduceExplicitSyncConditions(depO, worklist, removed)
-#                modified |= netlistReduceExplicitSyncUseless(depO, worklist, removed)
-#                _curOut = curIn.obj.dependsOn[curIn.in_i]
-#                if dep is _curOut:
-#                    # reduction did not reduce anything
-#                    break
-#                else:
-#                    dep = _curOut
-#                    depO = dep.obj
-#            
-#            if depO in seen or isinstance(depO, (HlsNetNodeExplicitSync, HlsNetNodeReadSync)):
-#                seen.add(depO)
-#                if isinstance(depO, HlsNetNodeReadSync):
-#                    try:
-#                        seen.add(depO.dependsOn[0].obj)
-#                    except:
-#                        raise
-#                continue
-#
-#            toSearch.append(depO)
-#
-#    return modified
 
 
 def extendSyncFlagsFrom(src: HlsNetNodeExplicitSync,
                         dst: HlsNetNodeExplicitSync):
     if src.extraCond:
         dst.addControlSerialExtraCond(src.dependsOn[src.extraCond.in_i])
-        # syncDeps.addOutUseChange(src.dependsOn[src.extraCond.in_i].obj)
-        # syncDeps.addInDepChange(src)
 
     if src.skipWhen:
         dst.addControlSerialSkipWhen(src.dependsOn[src.skipWhen.in_i])
-        # syncDeps.addOutUseChange(src.dependsOn[src.skipWhen.in_i].obj)
-        # syncDeps.addInDepChange(src)
 
 
 def extendSyncFlagsFromMultipleParallel(srcs: List[HlsNetNodeExplicitSync],
@@ -123,7 +66,7 @@ def extendSyncFlagsFromMultipleParallel(srcs: List[HlsNetNodeExplicitSync],
                 srcsEc = b.buildOr(srcsEc, sEc)
                 worklist.append(sEc.obj)
                     
-    if srcsEc is not None:
+    if srcsEc is not NOT_SPECIFIED:
         if ec is None:
             dst.addControlSerialExtraCond(srcsEc)
         else:
@@ -131,7 +74,7 @@ def extendSyncFlagsFromMultipleParallel(srcs: List[HlsNetNodeExplicitSync],
             link_hls_nodes(b.buildAnd(ec, srcsEc), dst.extraCond)
         worklist.append(dst.dependsOn[dst.extraCond.in_i].obj)
 
-    if srcsSw is not None:
+    if srcsSw is not NOT_SPECIFIED:
         if sw is None:
             dst.addControlSerialSkipWhen(srcsSw)
         else:
@@ -141,52 +84,9 @@ def extendSyncFlagsFromMultipleParallel(srcs: List[HlsNetNodeExplicitSync],
         worklist.append(dst.dependsOn[dst.skipWhen.in_i].obj)
              
 
-def _findBoundaryForSyncHoisting(n: HlsNetNodeExplicitSync, syncDeps: HlsNetlistAnalysisPassSyncDependency) -> UniqList[Tuple[HlsNetNodeOut, HlsNetNodeIn]]:
-    """
-    Walk user->def and find nodes which are just data operations which can be moved behind this sync as they do
-    not have any control side effects
-    """
-    boundary: UniqList[Tuple[HlsNetNodeOut, HlsNetNodeIn]] = UniqList()
-    toSearch: UniqList[Tuple[HlsNetNodeOut, HlsNetNodeIn]] = UniqList([(n.dependsOn[0], n._inputs[0])])
-    # a list of nodes where sync flags must be extended because
-    # "n" sync flags were moved into fan-in of these nodes
-    tiedSuccessorSync: UniqList[HlsNetNodeExplicitSync] = UniqList()
-    while toSearch:
-        curItem = toSearch.pop()
-        curOut, _ = curItem 
-        depObj = curOut.obj
-        # if reaches to some port other than main data we can not move because it would create cycle in DAG
-        if syncDeps.doesReachToPorts(depObj, n._inputs[1:]) or \
-            isinstance(depObj, HlsNetNodeExplicitSync):  # stop search on HlsNetNodeExplicitSync
-            boundary.append(curItem)
-            continue
-
-        # depObj._validNB is used somewhere else
-        if isinstance(depObj, HlsNetNodeRead) and depObj._validNB and depObj.usedBy[depObj._validNB.out_i]:
-            boundary.append(curItem)
-            continue
-
-        # if this node is in fan-in cones of multiple sync nodes we must check if we can cross it cross it
-        dSuc = syncDeps.getDirectDataSuccessors(depObj)
-        if len(dSuc) != 1 or tuple(dSuc)[0] is not n:
-            # only if we can consume all nodes until set of Sync nodes we can cross this node
-            # and implement sync by extension of flags for each predecessor and successor
-            # and completely remove this node n
-            nDependsOnAny = False
-            for suc in dSuc:
-                if suc is not n and (syncDeps.doesReachTo(suc, n) or any(syncDeps.doesReachTo(n, i) for i in suc._inputs[1:])):  # any(syncDeps.doesReachTo(o, suc) for o in n._outputs[1:]):
-                    # can not hoist because n and suc are not on entirely parallel paths
-                    nDependsOnAny = True
-                    break
-            if nDependsOnAny:
-                boundary.append(curItem)
-                continue
-
-            tiedSuccessorSync.extend(dSuc)
-
-        # continue search on predecessors of this node
-        toSearch.extend(zip(curOut.obj.dependsOn, curOut.obj._inputs))
-    # print("_findBoundaryForSyncHoisting", n._id, [b[0].obj._id for b in boundary], [x._id for x in tiedSuccessorSync])
+def _findBoundaryForSyncHoisting(n: HlsNetNodeExplicitSync) -> UniqList[Tuple[HlsNetNodeOut, HlsNetNodeIn]]:
+    boundary: UniqList[Tuple[HlsNetNodeOut, HlsNetNodeIn]] = UniqList(zip(n.dependsOn, n._inputs))
+    tiedSuccessorSync = UniqList(u.obj for u in n.usedBy[n.getOrderingOutPort().out_i])
     return boundary, tiedSuccessorSync
 
     
@@ -195,128 +95,75 @@ def netlistHoistExplicitSync(
         n: HlsNetNodeExplicitSync,
         worklist: UniqList[HlsNetNode],
         removed: Set[HlsNetNode],
-        syncDeps: HlsNetlistAnalysisPassSyncDependency):
+        reachDb: HlsNetlistAnalysisPassReachabilility):
     """
     Collect all nodes which do have sync successors {n, } + successors[n] and do not affect control flags,
-    move n before them (possibly duplicate and update data type) and update syncDeps.
+    move n before them (possibly duplicate and update data type) and update reachDb.
     """
-
+    assert n._outputs[0]._dtype == HVoidData, (n, "Should be already converted to void")
     assert n.__class__ is HlsNetNodeExplicitSync, (n, "double check that we truly potentially moving just sync")
-    boundary, tiedSuccessorSync = _findBoundaryForSyncHoisting(n, syncDeps)
+    boundary, tiedSuccessorSync = _findBoundaryForSyncHoisting(n)
     boundary: UniqList[Tuple[HlsNetNodeOut, HlsNetNodeIn]]
     tiedSuccessorSync: UniqList[HlsNetNodeExplicitSync]
     builder: HlsNetlistBuilder = n.netlist.builder
     modified = False
     with dbgTracer.scoped(netlistHoistExplicitSync, n):
-        if boundary:
-            hasSingleBoundary = len(boundary) == 1
-            for last, (insertO, insertI) in iter_with_last(boundary):
-                insertO: HlsNetNodeOut
-                insertI: HlsNetNodeIn
-                if insertI.obj is n:
-                    # if insertO is n.dependsOn[0]:
-                    #    # is the current dependency
-                    #    raise NotImplementedError("Hoist sync flags if possible")
-                    #    assert hasSingleBoundary
-                    #    return modified  # no change
-                        
-                    # inserting on a place where n was connected to source
-                    pred = insertO.obj
-                    if hasSingleBoundary and\
-                            isinstance(pred, HlsNetNodeExplicitSync) and\
-                            not syncDeps.doesReachToControl(pred, n):
-                        # hoist by move of flags to predecessor and removal of this
-                        pred: HlsNetNodeExplicitSync
-                        dbgTracer.log(("rm and hois sync to predec", pred._id))
-                        # print("hoist 0", n, "->", pred)
-                        syncDeps.doesReachToControl(pred, n)
-                        # syncDeps.addAllDepsToOutUseChange(n)
-                        # syncDeps.addAllUsersToInDepChange(n)
-                        # for _n in (n, pred):
-                        #    syncDeps.addAllDepsToOutUseChange(_n)
-                        if len(tiedSuccessorSync) > 1:
-                            assert n in tiedSuccessorSync, n
-                            extendSyncFlagsFromMultipleParallel(tiedSuccessorSync, pred, worklist)
-                        else:
-                            extendSyncFlagsFrom(n, pred)
-    
-                        # syncDeps.addAllDepsToOutUseChange(pred)
-    
-                        rmN = True
-                        nDataOut = n._outputs[0]
-                        if insertO._dtype != nDataOut._dtype:
-                            if HdlType_isNonData(insertO._dtype) and nDataOut._dtype == BIT:
-                                insertO = insertO.obj.getValid()
-                                rmN = False
-                            else:
-                                raise NotImplementedError(insertO, nDataOut, insertO._dtype, nDataOut._dtype)
-                        
-                        builder.replaceOutput(nDataOut, insertO, True)
-                        builder.replaceOutput(n.getOrderingOutPort(), pred.getOrderingOutPort(), True)
-                        
-                        # syncDeps.addOutUseChange(insertO.obj)
-                        if rmN:
-                            for i, dep in tuple(zip(n._inputs, n.dependsOn)):
-                                unlink_hls_nodes(dep, i)
-    
-                            # syncDeps.popNode(n)
-                            removed.add(n)
-    
-                        modified = True
-                        worklist.append(pred)
-                        break
-        
-                    # skip because we would replace n with the same n
-                    continue
-        
-                elif hasSingleBoundary or last:
-                    # move this node before this nodes, keeping node instance and its flags and ordering as is
-                    if len(tiedSuccessorSync) > 1:
-                        assert n in tiedSuccessorSync, n
-                        dbgTracer.log(("hoist sync from successors", tiedSuccessorSync),
-                                      formater=lambda x: f"{x[0]:s} {[suc._id for suc in x[1]]}")
-                        extendSyncFlagsFromMultipleParallel([suc for suc in tiedSuccessorSync if suc is not n], n, worklist)
-
-                    dbgTracer.log(("hoist behind", insertO.obj._id, insertO.out_i))
-                    builder.moveSimpleSubgraph(n._inputs[0], n._outputs[0], insertO, insertI)
-                    # HlsNetlistPassConsystencyCheck._checkCycleFree(n.netlist, removed)
-        
-                    assert n._associatedReadSync is None, "Is expected to be removed by previous steps"
+        # [fixme] there may be io cluster core
+        if len(boundary) == 1:
+            (insertO, insertI), = boundary
+            insertO: HlsNetNodeOut
+            insertI: HlsNetNodeIn
+            assert insertI.obj is n
+            # if insertO is n.dependsOn[0]:
+            #    # is the current dependency
+            #    raise NotImplementedError("Hoist sync flags if possible")
+            #    assert hasSingleBoundary
+            #    return modified  # no change
+                
+            # inserting on a place where n was connected to source
+            pred = insertO.obj
+            if isinstance(pred, HlsNetNodeExplicitSync) and\
+                    not reachDb.doesReachToControl(pred, n):
+                # hoist by move of flags to predecessor and removal of this
+                pred: HlsNetNodeExplicitSync
+                dbgTracer.log(("rm and hoist sync to predec", pred._id))
+                # print("hoist 0", n, "->", pred)
+                # for _n in (n, pred):
+                #    reachDb.addAllDepsToOutUseChange(_n)
+                if len(tiedSuccessorSync) > 1:
+                    assert n in tiedSuccessorSync, n
+                    extendSyncFlagsFromMultipleParallel(tiedSuccessorSync, pred, worklist)
                 else:
-                    # possibly duplicate this node if there are multiple inputs of this graph which is being moved behind this explicit sync node
-                    n1: HlsNetNodeExplicitSync = n.__class__(n.netlist, insertO._dtype)
-                    if len(tiedSuccessorSync) > 1:
-                        assert n in tiedSuccessorSync, n
-                        dbgTracer.log(("hoist sync from successors", tiedSuccessorSync),
-                                      formater=lambda x: f"{x[0]:s} {[suc._id for suc in x[1]]}")
-                        extendSyncFlagsFromMultipleParallel(tiedSuccessorSync, n1, worklist)
-                    else:
-                        extendSyncFlagsFrom(n, n1)
+                    extendSyncFlagsFrom(n, pred)
     
-                    # syncDeps.addAllDepsToOutUseChange(n1)
-                    # syncDeps.addAllUsersToInDepChange(n1)
-                    # syncDeps.addOutUseChange(insertO.obj)
-                    # syncDeps.addInDepChange(insertI.obj)
-                    dbgTracer.log(("duplicate n as", n1._id, "and insert behind", insertO.obj._id, insertO.out_i))
-
-                    n.netlist.nodes.append(n1)
-                    # HlsNetlistPassConsystencyCheck._checkCycleFree(n.netlist, removed)
-                    builder.insertBetween(n1._inputs[0], n1._outputs[0], insertO, insertI)
-                    # HlsNetlistPassConsystencyCheck._checkCycleFree(n.netlist, removed)
-        
-                    worklist.append(n1)
-        
+                rmN = True
+                nDataOut = n._outputs[0]
+                assert insertO._dtype == nDataOut._dtype, (insertO, nDataOut)
+                
+                raise NotImplementedError("merge io clusters")
+                builder.replaceOutput(nDataOut, insertO, True)
+                builder.replaceOutput(n.getOrderingOutPort(), pred.getOrderingOutPort(), True)
+                
+                # reachDb.addOutUseChange(insertO.obj)
+                if rmN:
+                    for i, dep in tuple(zip(n._inputs, n.dependsOn)):
+                        unlink_hls_nodes(dep, i)
+    
+                    # reachDb.popNode(n)
+                    removed.add(n)
+    
                 modified = True
+                worklist.append(pred)
     
             if modified:
                 worklist.append(n)
-                # syncDeps.commitChanges()
+                # reachDb.commitChanges()
     
-        elif not tuple(syncDeps.getDirectDataPredecessors(n)) and not tuple(syncDeps.getDirectDataSuccessors(n)):
+        elif not tuple(reachDb.getDirectDataPredecessors(n)) and not tuple(reachDb.getDirectDataSuccessors(n)):
             # sync n does not synchronize anything, safe to remove
-            dbgTracer.log("rm")
+            dbgTracer.log("rm because it has no effect")
 
-            netlistExplicitSyncDisconnectFromOrderingChain(n)
+            netlistExplicitSyncDisconnectFromOrderingChain(dbgTracer, n, removed)
             worklist.append(n.dependsOn[0].obj)
             addAllUsersToWorklist(worklist, n)
             builder.replaceOutput(n._outputs[0], n.dependsOn[0], True)

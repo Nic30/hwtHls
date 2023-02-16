@@ -1,20 +1,27 @@
-from typing import Set
+from typing import Set, List
 
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.netlist.analysis.syncDependecy import HlsNetlistAnalysisPassSyncDependency
-from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeWriteBackwardEdge
-from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.ports import unlink_hls_nodes
-from hwtHls.netlist.nodes.read import HlsNetNodeRead
+from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachabilility
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.debugTracer import DebugTracer
+from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeWriteBackwardEdge
+from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.ports import unlink_hls_nodes, HlsNetNodeOut, \
+    HlsNetNodeIn
+from hwtHls.netlist.nodes.read import HlsNetNodeRead
+from hwtHls.netlist.nodes.orderable import HVoidData, HVoidExternData
+from hwtHls.netlist.transformation.simplifyUtils import addAllUsersToWorklist
 
 
 def netlistBackedgeStraightening(dbgTracer: DebugTracer,
                                  w: HlsNetNodeWriteBackwardEdge,
                                  worklist: UniqList[HlsNetNode],
                                  removed: Set[HlsNetNode],
-                                 syncDeps: HlsNetlistAnalysisPassSyncDependency):
+                                 reachDb: HlsNetlistAnalysisPassReachabilility):
+    """
+    Move if write to backedge channel before read it possible and optionally remove
+    the chanel and read+write entirely.
+    """
     # r is ordered before w because this is backedge
     # if w does not depend on r and none of them 
     
@@ -30,7 +37,7 @@ def netlistBackedgeStraightening(dbgTracer: DebugTracer,
     hasUsedValidNBPort = r.hasValidNB() and r.usedBy[r._validNB.out_i]
     hasUsedValidPort = r.hasValid() and r.usedBy[r._valid.out_i]
     if hasUsedValidNBPort or hasUsedValidPort:
-        dataPredecs = syncDeps.getDirectDataPredecessors(w._inputs[0])
+        dataPredecs = reachDb.getDirectDataPredecessors(w)
         if hasUsedValidPort:
             if len(dataPredecs) == 1 and isinstance(dataPredecs[0], HlsNetNodeRead):
                 rValidPortReplacement = dataPredecs[0].getValid()
@@ -49,14 +56,14 @@ def netlistBackedgeStraightening(dbgTracer: DebugTracer,
     if w.extraCond is not None or w.extraCond is not None:
         return False
 
-    if syncDeps.doesReachTo(r, w):
+    if reachDb.doesReachTo(r, w):  # [todo] ignore ordering and void data
         # if write is dependent on read the channel can not be removed
         # because state of the channel state can is required 
         return False
     
     with dbgTracer.scoped(netlistBackedgeStraightening, w):
-        orderingDeps = []
-        orderingUses = []
+        orderingDeps: List[HlsNetNodeOut] = []
+        orderingUses: List[HlsNetNodeIn] = []
         for n in (r, w):
             for i in n.iterOrderingInputs():
                 dep = n.dependsOn[i.in_i]
@@ -70,8 +77,13 @@ def netlistBackedgeStraightening(dbgTracer: DebugTracer,
                 unlink_hls_nodes(oo, u)
         
         if orderingDeps or orderingUses:
-            # delegate ordering to successor
-            raise NotImplementedError(w)
+            if len(orderingDeps) + len(orderingUses) > 1:
+                # delegate ordering to successor
+                raise NotImplementedError(w)
+            else:
+                for u in orderingUses:
+                    u.obj._removeInput(u.in_i)
+
         # replace this read-write pair with a straight connection
         data = w.dependsOn[0]
         unlink_hls_nodes(data, w._inputs[0])
@@ -79,6 +91,14 @@ def netlistBackedgeStraightening(dbgTracer: DebugTracer,
         b: HlsNetlistBuilder = r.netlist.builder
         dbgTracer.log(("replace", rData, data))
         b.replaceOutput(rData, data, True)
+        addAllUsersToWorklist(worklist, r)
+        addAllUsersToWorklist(worklist, w)
+
+        if r._dataVoidOut is not None:
+            if orderingDeps:
+                raise NotImplementedError("Construct a dataVoidOut replacement for input void dependencies")
+            else:
+                b.replaceOutput(r._dataVoidOut, b.buildConst(HVoidData.from_py(None)), True)
         
         if rValidPortReplacement is not None:
             b.replaceOutput(r._valid, rValidPortReplacement, True)
