@@ -16,6 +16,7 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
     '''
     This pass updates blockSync dictionary in :class:`hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist.HlsNetlistAnalysisPassMirToNetlist` with
     flags which are describing what type of synchronization for block should be used.
+    
     :note: This is thread level synchronization of control flow in blocks not RTL type of synchronization.
 
     .. code-block:: llvm
@@ -122,14 +123,16 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                         pass
                     else:
                         mbSync.needsControl = True
-        
+
                 elif mb.succ_size() > 1:
                     mbSync.needsControl = True
         
                 else:
-                    sucThreads = sum((len(self.threadsPerBlock[suc])
-                                      for suc in mb.successors()))
-                    if sucThreads > 1:
+                    sucThreadIds = set()
+                    for suc in mb.successors():
+                        for t in self.threadsPerBlock[suc]:
+                            sucThreadIds.add(id(t))
+                    if len(sucThreadIds) > 1:
                         mbSync.needsControl = True
 
             # if mbSync.needsControl and not mbSync.uselessOrderingFrom:
@@ -223,8 +226,25 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
         return any(len(accessList) > 1 for accessList in accesses.values())
 
     def _onBlockNeedsControl(self, mb: SsaBasicBlock):
+        blockSync = self.blockSync
+        rstPred = blockSync[mb].rstPredeccessor
+        allRstLiveInsInlinable = True 
+        if rstPred is not None:
+            rstPred: MachineBasicBlock
+            if rstPred.pred_size():
+                allRstLiveInsInlinable = False
+            else:
+                for inst in rstPred:
+                    inst: MachineInstr
+                    opc = inst.getOpcode()
+                    if opc not in (TargetOpcode.G_CONSTANT, TargetOpcode.G_BR, TargetOpcode.COPY):
+                        allRstLiveInsInlinable = False
+                        break
+
         for pred in mb.predecessors():
-            mbSync: MachineBasicBlockSyncContainer = self.blockSync[pred]
+            if allRstLiveInsInlinable and pred is rstPred:
+                continue
+            mbSync: MachineBasicBlockSyncContainer = blockSync[pred]
             if not mbSync.needsControl:
                 mbSync.needsControl = True
                 if not mbSync.needsStarter and not pred.pred_size():
@@ -233,7 +253,7 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                 self._onBlockNeedsControl(pred)
 
         for suc in mb.successors():
-            mbSync: MachineBasicBlockSyncContainer = self.blockSync[suc]
+            mbSync: MachineBasicBlockSyncContainer = blockSync[suc]
             if not mbSync.needsControl:
                 mbSync.needsControl = True
                 self._onBlockNeedsControl(suc)
