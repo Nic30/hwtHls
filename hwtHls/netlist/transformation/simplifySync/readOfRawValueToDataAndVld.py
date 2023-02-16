@@ -30,16 +30,22 @@ def netlistReadOfRawValueToDataAndVld(n: HlsNetNodeRead, worklist: UniqList[HlsN
             i = getConstDriverOf(uObj._inputs[1])
             if i is not None:
                 iVal = i.val  # index of selected bit
-                # syncDeps.addAllUsersToInDepChange(uObj)
+                # reachDb.addAllUsersToInDepChange(uObj)
                 if isinstance(iVal, (BitsVal, int)):
                     iVal = int(iVal)
-                    if dataWidth + 1 == iVal:
+                    if dataWidth == iVal:
+                        # is selecting _valid port
+                        if n._isBlocking:
+                            vld = n._valid
+                        else:
+                            vld = n._validNB
+
+                        replaceOperatorNodeWith(uObj, vld, worklist, removed)
+                    
+                    elif dataWidth + 1 == iVal:
                         # is selecting _validNB port
                         replaceOperatorNodeWith(uObj, n._validNB, worklist, removed)
-                    elif dataWidth == iVal:
-                        # is selecting _valid port
-                        replaceOperatorNodeWith(uObj, n._valid, worklist, removed)
-                    
+
                     else:
                         # is selecting data port
                         if dataWidth == 1:
@@ -68,7 +74,11 @@ def netlistReadOfRawValueToDataAndVld(n: HlsNetNodeRead, worklist: UniqList[HlsN
 
                     elif lowBitNo == dataWidth and highBitNo == dataWidth + 1:
                         # exactly selecting _valid port
-                        replaceOperatorNodeWith(uObj, n._valid, worklist, removed)
+                        if n._isBlocking:
+                            vld = n._valid
+                        else:
+                            vld = n._validNB
+                        replaceOperatorNodeWith(uObj, vld, worklist, removed)
                 
                     elif lowBitNo == dataWidth + 1 and highBitNo == dataWidth + 2:
                         # exactly selecting _validNB port
@@ -78,11 +88,11 @@ def netlistReadOfRawValueToDataAndVld(n: HlsNetNodeRead, worklist: UniqList[HlsN
                         raise NotImplementedError("Index overlaps data, _valid, _validNB port boundary in rawValue, split to 2x index + concat")    
 
                 modified = True
-                # syncDeps.addOutUseChange(uObj)
-                # syncDeps.addOutUseChange(n)
+                # reachDb.addOutUseChange(uObj)
+                # reachDb.addOutUseChange(n)
     if not rawUses:
         n._removeOutput(n._rawValue.out_i)
         n._rawValue = None
     # if modified:
-    #    syncDeps.commitChanges(removed)
+    #    reachDb.commitChanges(removed)
     return modified
