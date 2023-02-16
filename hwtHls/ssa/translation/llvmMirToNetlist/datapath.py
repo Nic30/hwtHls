@@ -12,7 +12,7 @@ from hwtHls.netlist.analysis.dataThreadsForBlocks import HlsNetlistAnalysisPassD
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
-from hwtHls.netlist.nodes.orderable import HOrderingVoidT
+from hwtHls.netlist.nodes.orderable import HVoidOrdering
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutLazy, link_hls_nodes
 from hwtHls.ssa.translation.llvmMirToNetlist.lowLevel import HlsNetlistAnalysisPassMirToNetlistLowLevel
 from hwtHls.ssa.translation.llvmMirToNetlist.opCache import MirToHwtHlsNetlistOpCache
@@ -41,7 +41,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
             mbSync = MachineBasicBlockSyncContainer(
                 mb,
                 HlsNetNodeOutLazy(netlist, [], valCache, BIT),
-                HlsNetNodeOutLazy(netlist, [], valCache, HOrderingVoidT))
+                HlsNetNodeOutLazy(netlist, [], valCache, HVoidOrdering))
 
             self.blockSync[mb] = mbSync
             for instr in mb:

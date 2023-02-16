@@ -1,31 +1,27 @@
-from typing import Set, Tuple, List, Optional
+from typing import Set, Tuple, List
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.hdl.types.defs import BIT
-from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, \
+from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, \
     MachineInstr, TargetOpcode, MachineLoop
 from hwtHls.netlist.analysis.dataThreadsForBlocks import HlsNetlistAnalysisPassDataThreadsForBlocks
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
     HlsNetNodeWriteBackwardEdge, BACKEDGE_ALLOCATION_TYPE
-from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.loopGate import HlsLoopGate
-from hwtHls.netlist.nodes.mux import HlsNetNodeMux
-from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
+from hwtHls.netlist.nodes.orderable import HVoidData
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutLazy, \
-    link_hls_nodes, unlink_hls_nodes, HlsNetNodeOutAny, HlsNetNodeIn, HlsNetNodeOut
+    link_hls_nodes, HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
-from hwtHls.netlist.nodes.read import HlsNetNodeRead
-from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.ssa.translation.llvmMirToNetlist.branchOutLabel import BranchOutLabel
 from hwtHls.ssa.translation.llvmMirToNetlist.datapath import HlsNetlistAnalysisPassMirToNetlistDatapath, \
     BlockLiveInMuxSyncDict
 from hwtHls.ssa.translation.llvmMirToNetlist.opCache import MirToHwtHlsNetlistOpCache
 from hwtHls.ssa.translation.llvmMirToNetlist.utils import MachineBasicBlockSyncContainer, \
-    getTopLoopForBlock, HlsNetNodeExplicitSyncInsertBehindLazyOut
+    getTopLoopForBlock, HlsNetNodeExplicitSyncInsertBehindLazyOut, _createSyncForAnyInputSelector
+from hwtHls.ssa.translation.llvmMirToNetlist.resetValueExtract import ResetValueExtractor
 
 
 class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatapath):
@@ -98,139 +94,9 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
       This may result in deadlock (e.g. one of the "channels" is "out" and second of "channels" is "out" 1 clk delayed).
     """
 
-    def _rewriteControlOfInfLoopWithReset(self, mb: MachineBasicBlock, rstPred: MachineBasicBlock):
-        """
-        Detect which predecessor is reset and which is continue from loop body.
-        Inline MUX values for reset as backedge channel initialization.
-        
-        :param mb: header block of this loop
-        """
-        valCache = self.valCache
-        # :note: resetPredEn and otherPredEn do not need to be specified if reset actually does not reset anything
-        #        only one can be specified if the value for other in MUXes is always default value which does not have condition
-        resetPredEn: Optional[HlsNetNodeOutAny] = None
-        otherPredEn: Optional[HlsNetNodeOutAny] = None
-        # otherPred: Optional[MachineBasicBlock] = None
-        topLoop: MachineLoop = self.loops.getLoopFor(mb)
-        assert topLoop, (mb, "must be a loop with a reset otherwise it is not possible to extract the reset")
-        topLoop = getTopLoopForBlock(mb, topLoop)
-        assert mb.pred_size() == 2, mb
-        for pred in mb.predecessors():
-            enFromPred = valCache._toHlsCache.get((mb, pred), None)
-            # if there are multiple predecessors this is a loop with reset
-            # otherwise it is just a reset
-            if pred is rstPred:
-                assert not topLoop.containsBlock(pred)
-                assert resetPredEn is None
-                resetPredEn = enFromPred
-            else:
-                assert topLoop.containsBlock(pred)
-                assert otherPredEn is None
-                otherPredEn = enFromPred
-                # otherPred = pred
-
-        if resetPredEn is None and otherPredEn is None:
-            # case where there are no live variables and thus no reset value extraction is required
-            for pred in mb.predecessors():
-                for r in self.liveness[pred][mb]:
-                    r: Register
-                    assert r in self.regToIo, (r, "Block is supposed to have no live in registers because any en from predecessor was not used in input mux")
-        else:
-                    
-            assert resetPredEn is None or isinstance(resetPredEn, HlsNetNodeOutLazy), (resetPredEn, "Must not be resolved yet.")
-            assert otherPredEn is None or isinstance(otherPredEn, HlsNetNodeOutLazy), (otherPredEn, "Must not be resolved yet.")
-            
-            # must copy because we are updating it
-            if resetPredEn is None:
-                dependentOnControlInput = tuple(otherPredEn.dependent_inputs)
-            elif otherPredEn is None:
-                dependentOnControlInput = tuple(resetPredEn.dependent_inputs)
-            else:
-                dependentOnControlInput = resetPredEn.dependent_inputs + otherPredEn.dependent_inputs
-            
-            builder = self.builder
-            alreadyUpdated: Set[HlsNetNode] = set()
-            for i in dependentOnControlInput:
-                # en from predecessor should now be connected to all MUXes as some selector/condition
-                # we search all such MUXes and propagate selected value to backedge
-                # :note: The MUX must be connected to a single backedge because otherwise
-                #        the it would not be possible to replace control with reset in the first place
-                mux = i.obj
-                if mux in alreadyUpdated:
-                    continue
-    
-                assert isinstance(mux, HlsNetNodeMux), mux
-                mux: HlsNetNodeMux
-                # pop reset value to initialization of the channel
-                backedgeBuffRead: Optional[HlsNetNodeReadBackwardEdge] = None
-                assert len(mux.dependsOn) == 3, mux
-                (v0I, v0), (condI, cond), (vRstI, vRst) = zip(mux._inputs, mux.dependsOn)
-                if cond is resetPredEn:
-                    # vRst cond v0
-                    (v0, v0I), (vRst, vRstI) = (vRst, vRstI), (v0, v0I)  
-                elif cond is otherPredEn:
-                    # v0 cond vRst
-                    pass
-                else:
-                    raise AssertionError("Can not recognize reset value in MUX in loop header")
-    
-                # find backedge buffer on value from loop body
-                while (isinstance(v0, HlsNetNodeOut) and 
-                       isinstance(v0.obj, HlsNetNodeExplicitSync) and
-                       not isinstance(v0.obj, HlsNetNodeReadBackwardEdge)):
-                    v0 = v0.obj.dependsOn[0]
-    
-                assert isinstance(v0, HlsNetNodeOut) and isinstance(v0.obj, HlsNetNodeReadBackwardEdge), (mb, v0)
-                backedgeBuffRead = v0.obj
-    
-                assert backedgeBuffRead is not None
-                backedgeBuffRead: HlsNetNodeReadBackwardEdge
-                rstValObj = vRst.obj
-                while rstValObj.__class__ is HlsNetNodeExplicitSync:
-                    dep = rstValObj.dependsOn[0]
-                    assert not isinstance(dep, HlsNetNodeOutLazy), (dep, "This port should lead to some constant which should be already known.", dep.keys_of_self_in_cache)
-                    rstValObj = dep.obj
-    
-                assert isinstance(rstValObj, HlsNetNodeConst), (
-                    "must be const otherwise it is impossible to extract this as reset",
-                    rstValObj)
-                # add reset value to backedge buffer init
-                init = backedgeBuffRead.associated_write.channel_init_values
-                if init:
-                    raise NotImplementedError("Merge init values")
-                else:
-                    t = rstValObj.val._dtype
-                    assert t == backedgeBuffRead._outputs[0]._dtype, (backedgeBuffRead, t, backedgeBuffRead._outputs[0]._dtype)
-                    assert t == mux._outputs[0]._dtype, (mux, t, mux._outputs[0]._dtype)
-                    backedgeBuffRead.associated_write.channel_init_values = ((int(rstValObj.val),),)
-    
-                # pop mux inputs for reset
-                builder.unregisterOperatorNode(mux)
-                unlink_hls_nodes(vRst, vRstI)
-                mux._removeInput(vRstI.in_i)  # remove reset input which was moved to backedge buffer init
-                unlink_hls_nodes(cond, condI)
-                mux._removeInput(condI.in_i)  # remove condition because we are not using it
-                builder.registerOperatorNode(mux)
-                alreadyUpdated.add(mux)
-        
-        # :attention: If there is a control channel we must place an initial CFG token into it once it is generated
-
     def extractRstValues(self, mf: MachineFunction, threads: HlsNetlistAnalysisPassDataThreadsForBlocks):
-        """
-        Rewrite multiplexor cases for reset to an initialization of channels.
-        """
-        for mb in mf:
-            mb: MachineBasicBlock
-            mbSync: MachineBasicBlockSyncContainer = self.blockSync[mb]
-            
-            if mbSync.rstPredeccessor:
-                self._rewriteControlOfInfLoopWithReset(mb, mbSync.rstPredeccessor)
-                
-                for i in tuple(mbSync.blockEn.dependent_inputs):
-                    i: HlsNetNodeIn
-                    assert isinstance(i.obj, (HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeOperator)), i.obj
-                    self._replaceInputDriverWithConst1b(i, threads)
-
+        return ResetValueExtractor(self.builder, self.valCache, self.liveness, self.loops, self.blockSync, self.regToIo).apply(mf, threads)
+        
     def _resolveBranchEnFromPredecessor(self, pred: MachineBasicBlock, mb: MachineBasicBlock):
         """
         Resolve expression which specifies if CFG jumps to a specified block from specified predecessor.
@@ -306,7 +172,8 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                     # [fixme] write order must be asserted because we can not release a control token until all block operations finished
                     assert fromPredBrCond is not None, fromPredBrCond
                     valCache.add(pred, BranchOutLabel(mb), fromPredBrCond, False)  # the BranchOutLabel is set only once
-                    fromPredBrCond = self._constructBackedgeBuffer("c", pred, mb, None, self._translateIntBit(1), isControl=True)
+                    v = self.builder.buildConst(HVoidData.from_py(None))
+                    fromPredBrCond = self._constructBackedgeBuffer("c", pred, mb, None, v, isControl=True)
                     wn: HlsNetNodeWriteBackwardEdge = fromPredBrCond.obj.associated_write
                     self._addExtraCond(wn, _fromPredBrCond, predEn)
                     self._addSkipWhen_n(wn, _fromPredBrCond, predEn)
@@ -314,7 +181,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                         assert not wn.channel_init_values
                         # we must add CFG token because we removed rst predecessor and now
                         # the circuit does not have way to start
-                        wn.channel_init_values = ((1,),) 
+                        wn.channel_init_values = (tuple(),) 
 
                 for _, srcMb, srcVal in mbSync.backedgeBuffers:
                     srcMb: MachineBasicBlock
@@ -330,7 +197,11 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                 valCache.add(pred, BranchOutLabel(mb), fromPredBrCond, False)  # the BranchOutLabel is set only once
 
             elif mbSync.needsControl:
-                raise NotImplementedError("No control from predecessor but block needs control")
+                if mbSync.rstPredeccessor is pred:
+                    # skip because all live ins were inlined to backedge buffer initialization
+                    continue
+                else:
+                    raise NotImplementedError("No control from predecessor but block needs control")
                 
             if mbSync.needsControl:
                 assert fromPredBrCond is not None, (mb.getName(), mb.getNumber())
@@ -352,16 +223,19 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
 
         for (exitBloc, exitSucBlock) in loop.getExitEdges():
             # if exiting loop return token to HlsLoopGate
-            control = valCache.get(exitBloc, BranchOutLabel(exitSucBlock), BIT)
-            control = self._constructBackedgeBuffer(f"c_loop{loopGate._id}Exit", exitBloc, headerBlock, None, control)
-            control.obj.associated_write.allocationType = BACKEDGE_ALLOCATION_TYPE.IMMEDIATE
-            # wn: HlsNetNodeWriteBackwardEdge = control.obj.associated_write
-            # self._addExtraCond(wn, control, mbSync.blockEn)
-            # self._addSkipWhen_n(wn, control, mbSync.blockEn)
+            mbSync = self.blockSync[exitBloc]
+            _control = valCache.get(exitBloc, BranchOutLabel(exitSucBlock), BIT)
+            v = self.builder.buildConst(HVoidData.from_py(None))
+            control = self._constructBackedgeBuffer(f"c_loop{loopGate._id}Exit", exitBloc, headerBlock, None, v, isControl=True)
+            wn: HlsNetNodeWriteBackwardEdge = control.obj.associated_write
+            wn.allocationType = BACKEDGE_ALLOCATION_TYPE.IMMEDIATE
+            # print(wn, _control, mbSync.blockEn)
+            self._addExtraCond(wn, _control, mbSync.blockEn)
+            self._addSkipWhen_n(wn, _control, mbSync.blockEn)
             
             controlSync = HlsNetNodeExplicitSync(netlist, control._dtype)
             self.nodes.append(controlSync)
-            link_hls_nodes(control, controlSync._inputs[0])
+            link_hls_nodes(control.obj.getValid(), controlSync._inputs[0])
             loopGate.connectExit(controlSync._outputs[0])
 
     def _resolveLoopInputSync(self, mb: MachineBasicBlock,
@@ -409,8 +283,8 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
         # loopBussy select if loop should process inputs from loopReenters or from loopExecs
         loopBusy = loopGate._sync_token_status._outputs[0] 
         loopBusy_n = builder.buildNot(loopBusy)
-        self._createSyncForAnyInputSelector(builder, loopReenters, loopBusy, loopBusy_n)
-        self._createSyncForAnyInputSelector(builder, loopExecs, loopBusy_n, loopBusy)
+        _createSyncForAnyInputSelector(builder, loopReenters, loopBusy, loopBusy_n)
+        _createSyncForAnyInputSelector(builder, loopExecs, loopBusy_n, loopBusy)
 
     def resolveLoopHeaders(self,
                            mf: MachineFunction,
@@ -439,62 +313,6 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                     self.nodes.append(loopGate._sync_token_status)
                     self._resolveLoopExits(loopGate, topLoop, mb)
                     self._resolveLoopInputSync(mb, mbSync, loopGate, topLoop, blockLiveInMuxInputSync)
-
-    @staticmethod
-    def _createSyncForAnyInputSelector(builder: HlsNetlistBuilder,
-                                       inputCases: List[Tuple[HlsNetNodeExplicitSync, List[HlsNetNodeExplicitSync]]],
-                                       externalEn: HlsNetNodeOut,
-                                       externalEn_n: HlsNetNodeOut):
-        """
-        Create a logic circuit which select a first control input which is valid and enables all its associated data inputs.
-
-        :param inputCases: list of case tuple (control channel, all input data channels)
-        """
-        anyPrevVld = None
-        for last, (control, data) in iter_with_last(inputCases):
-            control: HlsNetNodeExplicitSync
-            controlSrc = control.dependsOn[0]
-            # the actual value of controlSrc is not important there because
-            # it is interpreted by the circuit, there we only need to provide any data for rest of the circuit
-            vld = builder.buildReadSync(controlSrc)
-            vld_n = builder.buildNot(vld)
-            control.addControlSerialExtraCond(externalEn)
-            if anyPrevVld is None:
-                if last:
-                    cEn = 1
-                else:
-                    cEn = vld_n
-
-                # first item
-                if data:
-                    dEn = builder.buildAnd(externalEn_n, vld)
-                    dSw = builder.buildOr(externalEn, builder.buildNot(vld))
-                anyPrevVld = vld
-            else:
-                if last:
-                    cEn = anyPrevVld
-                else:
-                    cEn = builder.buildOr(anyPrevVld, vld_n)
-                    
-                if data:
-                    en = builder.buildAnd(builder.buildNot(anyPrevVld), vld)
-                    dEn = builder.buildAnd(externalEn_n, en)
-                    dSw = builder.buildOr(externalEn, builder.buildNot(en))
-                anyPrevVld = builder.buildOr(anyPrevVld, vld)
-
-            if isinstance(cEn, int):
-                assert cEn == 1, cEn
-                cEn = externalEn_n
-            else:
-                cEn = builder.buildOr(externalEn_n, cEn)
-
-            control.addControlSerialSkipWhen(cEn)
-            for liveInSync in data:
-                liveInSync: HlsNetNodeExplicitSync
-                liveInSync.addControlSerialExtraCond(dEn)
-                liveInSync.addControlSerialSkipWhen(dSw)
-
-        return anyPrevVld
 
     def resolveBlockEn(self, mf: MachineFunction,
                        threads: HlsNetlistAnalysisPassDataThreadsForBlocks):
@@ -551,7 +369,6 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
 
             assert mbSync.blockEn.replaced_by is blockEn or not mbSync.blockEn.dependent_inputs, (mbSync.blockEn, blockEn)
             mbSync.blockEn = blockEn
-
 
     def connectOrderingPorts(self,
                              mf: MachineFunction):

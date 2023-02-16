@@ -6,12 +6,14 @@ from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
     HlsNetNodeWriteControlBackwardEdge
 from hwtHls.netlist.nodes.delay import HlsNetNodeDelayClkTick
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
-from hwtHls.netlist.nodes.orderable import HOrderingVoidT
+from hwtHls.netlist.nodes.orderable import HVoidOrdering
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes, \
-    HlsNetNodeOutLazy
+    HlsNetNodeOutLazy, HlsNetNodeOut
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.ssa.translation.llvmMirToNetlist.opCache import MirToHwtHlsNetlistOpCache
+from hwtHls.netlist.builder import HlsNetlistBuilder
+from hdlConvertorAst.to.hdlUtils import iter_with_last
 
 
 class MachineBasicBlockSyncContainer():
@@ -81,7 +83,7 @@ class MachineBasicBlockSyncContainer():
         else:
             netlist: HlsNetlistCtx = oo.obj.netlist
 
-        n = HlsNetNodeDelayClkTick(netlist, clkTicks, HOrderingVoidT)
+        n = HlsNetNodeDelayClkTick(netlist, clkTicks, HVoidOrdering)
         netlist.nodes.append(n)
         link_hls_nodes(oo, n._inputs[0])
         self.orderingOut = n._outputs[0]
@@ -139,3 +141,59 @@ def HlsNetNodeExplicitSyncInsertBehindLazyOut(netlist: "HlsNetlistCtx",
     link_hls_nodes(var, self._inputs[0])
     
     return self
+
+
+def _createSyncForAnyInputSelector(builder: HlsNetlistBuilder,
+                                   inputCases: List[Tuple[HlsNetNodeExplicitSync, List[HlsNetNodeExplicitSync]]],
+                                   externalEn: HlsNetNodeOut,
+                                   externalEn_n: HlsNetNodeOut):
+    """
+    Create a logic circuit which select a first control input which is valid and enables all its associated data inputs.
+
+    :param inputCases: list of case tuple (control channel, all input data channels)
+    """
+    anyPrevVld = None
+    for last, (control, data) in iter_with_last(inputCases):
+        control: HlsNetNodeExplicitSync
+        controlSrc = control.dependsOn[0]
+        # the actual value of controlSrc is not important there because
+        # it is interpreted by the circuit, there we only need to provide any data for rest of the circuit
+        vld = builder.buildReadSync(controlSrc)
+        vld_n = builder.buildNot(vld)
+        control.addControlSerialExtraCond(externalEn)
+        if anyPrevVld is None:
+            if last:
+                cEn = 1
+            else:
+                cEn = vld_n
+
+            # first item
+            if data:
+                dEn = builder.buildAnd(externalEn_n, vld)
+                dSw = builder.buildOr(externalEn, builder.buildNot(vld))
+            anyPrevVld = vld
+        else:
+            if last:
+                cEn = anyPrevVld
+            else:
+                cEn = builder.buildOr(anyPrevVld, vld_n)
+                
+            if data:
+                en = builder.buildAnd(builder.buildNot(anyPrevVld), vld)
+                dEn = builder.buildAnd(externalEn_n, en)
+                dSw = builder.buildOr(externalEn, builder.buildNot(en))
+            anyPrevVld = builder.buildOr(anyPrevVld, vld)
+
+        if isinstance(cEn, int):
+            assert cEn == 1, cEn
+            cEn = externalEn_n
+        else:
+            cEn = builder.buildOr(externalEn_n, cEn)
+
+        control.addControlSerialSkipWhen(cEn)
+        for liveInSync in data:
+            liveInSync: HlsNetNodeExplicitSync
+            liveInSync.addControlSerialExtraCond(dEn)
+            liveInSync.addControlSerialSkipWhen(dSw)
+
+    return anyPrevVld
