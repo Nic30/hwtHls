@@ -26,7 +26,7 @@ Circuit synchronization partitioning problem:
       about every IO which needs to be taken in account when optimizing IO access conditions.
   * HlsNetlistAnalysisPassSyncDomains - A pass which discovers the parts of IO cluster which must happen atomically and
       which are subject to some kind of combinatioanal loop later in architecture generation.
-  * HlsNetlistAnalysisPassSyncReach - A pass which discoveres nodes in the body of the IO cluster. Produces BetweenSyncNodeIsland.
+  * HlsNetlistAnalysisPassBetweenSyncIslands - A pass which discoveres nodes in the body of the IO cluster. Produces BetweenSyncIsland.
 
 * An information form previously mentioned objects is then used to construct :class:`hwtHls.architecture.archElement.ArchElement` instances.
 """
