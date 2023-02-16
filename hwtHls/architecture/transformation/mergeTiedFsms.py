@@ -72,7 +72,6 @@ class RtlArchPassMergeTiedFsms(RtlArchPass):
                         syncList.append(o)
 
         addedTransitions: Set[Tuple[ArchElementFsm, int, int]] = set()
-        RtlArchPassMergeTiedFsms
         for k in fsmConnectedWithMultipleSync:
             srcElm, dstElm = k
             if isinstance(srcElm, ArchElementFsm) and isinstance(dstElm, ArchElementFsm):
