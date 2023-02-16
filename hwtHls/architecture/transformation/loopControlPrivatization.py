@@ -7,7 +7,7 @@ from hwtHls.architecture.archElementPipeline import ArchElementPipeline
 from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
 from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeWriteControlBackwardEdge, \
     HlsNetNodeReadControlBackwardEdge
-from hwtHls.netlist.nodes.orderable import HOrderingVoidT
+from hwtHls.netlist.nodes.orderable import HVoidOrdering
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.scheduler.clk_math import start_clk
 
@@ -58,7 +58,7 @@ class RtlArchPassLoopControlPrivatization(RtlArchPass):
         clkPeriod = netlist.normalizedClkPeriod
         ffdelay = netlist.platform.get_ff_store_time(netlist.realTimeClkPeriod, scheduler.resolution)
         for w in toSearch:
-            # because it is instance of HlsNetNodeWriteControlBackwardEdge we know it some form of jump from loop body to loop header.
+            # because it is instance of HlsNetNodeWriteControlBackwardEdge we know it is some form of jump from loop body to loop header.
             w: HlsNetNodeWriteControlBackwardEdge
             r: HlsNetNodeReadControlBackwardEdge = w.associated_read
             jumpSrcVal: HlsNetNodeOut = w.dependsOn[0]
@@ -75,7 +75,7 @@ class RtlArchPassLoopControlPrivatization(RtlArchPass):
                 wMinTime = None  # minimum time for "w" where all requirements are met
                 for wDep in w.dependsOn:
                     wDep: HlsNetNodeOut
-                    if wDep._dtype is not HOrderingVoidT:
+                    if wDep._dtype is not HVoidOrdering:
                         t = wDep.obj.scheduledOut[wDep.out_i]
                         if wMinTime is None:
                             wMinTime = t
@@ -92,7 +92,7 @@ class RtlArchPassLoopControlPrivatization(RtlArchPass):
                             jumpSrcValStI >= headerElm.fsmBeginClk_i and
                             jumpSrcValStI <= headerElm.fsmEndClk_i):
                         if headerElm is tailElm and wStI == len(headerElm.fsm.states) - 1:
-                            pass  # skip moving to same stage in same element
+                            pass  # skip moving to same stage in the same element
                         else:
                             headerElm.allNodes.append(w)
                             headerElm.fsm.states[-1].append(w)
