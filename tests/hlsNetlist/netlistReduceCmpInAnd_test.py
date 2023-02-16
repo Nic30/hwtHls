@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 from typing import Tuple
 import unittest
 
@@ -127,7 +130,8 @@ class HlsNetlistReduceCmpInAndTC(unittest.TestCase):
         r0 = self._r(netlist)
         
         e0 = b.buildOp(AllOps.LE, BIT, r0, b.buildConstPy(uint8_t, 255))
-        e1 = b.buildNe(r0, b.buildConstPy(uint8_t, 15))
+        c15 = b.buildConstPy(uint8_t, 15)
+        e1 = b.buildNe(r0, c15)
         res = b.buildAnd(
             e0,
             e1,
@@ -136,7 +140,7 @@ class HlsNetlistReduceCmpInAndTC(unittest.TestCase):
         
         netlistReduceCmpInAnd(res.obj, [], set())
         resOpt = w.dependsOn[0]
-        self.assertIs(resOpt, e1)
+        self.assertIs(resOpt, b.buildNot(b.buildEq(r0, c15)))
     
 
 if __name__ == '__main__':
