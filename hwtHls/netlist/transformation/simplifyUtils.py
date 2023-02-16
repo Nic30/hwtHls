@@ -66,7 +66,7 @@ def disconnectAllInputs(n: HlsNetNode, worklist: UniqList[HlsNetNode]):
         n.dependsOn[i.in_i] = None
 
 
-def addAllUsersToWorklist(worklist: UniqList[HlsNetNode], n: HlsNetNodeOperator):
+def addAllUsersToWorklist(worklist: UniqList[HlsNetNode], n: HlsNetNode):
     for uses in n.usedBy:
         for u in uses:
             worklist.append(u.obj)
