@@ -3,7 +3,7 @@ from typing import Dict, Set, Tuple, Optional
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.orderable import HOrderingVoidT
+from hwtHls.netlist.nodes.orderable import HVoidOrdering
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 
@@ -41,7 +41,7 @@ class HlsNetlistAnalysisPassDataThreads(HlsNetlistAnalysisPass):
 
         allMembersOfThread.add(obj)
         threads[obj] = allMembersOfThread
-        # :note: do not skip HExternalDataDepT ports because they are data dependency even though they are of void type
+        # :note: do not skip HVoidExternData ports because they are data dependency even though they are of void type
         
         if isinstance(obj, HlsNetNodeExplicitSync):
             ec = getattr(obj, "extraCond", None)
@@ -54,7 +54,7 @@ class HlsNetlistAnalysisPassDataThreads(HlsNetlistAnalysisPass):
             depObj = dep.obj
             if i is ec or\
                i is sw or\
-               dep._dtype == HOrderingVoidT or\
+               dep._dtype == HVoidOrdering or\
                (isinstance(depObj, HlsNetNodeRead) and dep is getattr(depObj, "_valid", None)):
                 continue
             allMembersOfThread.add(depObj)
