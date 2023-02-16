@@ -1,18 +1,18 @@
-from typing import Set, List
+from typing import Set
 
 from hwt.hdl.types.bitsVal import BitsVal
 from hwt.interfaces.std import HandshakeSync
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import Interface_without_registration
-from hwtHls.netlist.analysis.syncDependecy import HlsNetlistAnalysisPassSyncDependency
+from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachabilility
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeWriteBackwardEdge, \
     HlsNetNodeReadBackwardEdge, HlsNetNodeReadControlBackwardEdge
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.orderable import _VoidValue, HOrderingVoidT,\
-    HdlType_isNonData
-from hwtHls.netlist.nodes.ports import HlsNetNodeIn, unlink_hls_nodes, \
+from hwtHls.netlist.nodes.orderable import _HVoidValue, HVoidOrdering, \
+    HdlType_isNonData, HdlType_isVoid
+from hwtHls.netlist.nodes.ports import unlink_hls_nodes, \
     link_hls_nodes
 from hwtHls.netlist.transformation.simplifyUtils import getConstDriverOf
 
@@ -22,7 +22,7 @@ def netlistBackedgeWritePropagation(
         writeNode: HlsNetNodeWriteBackwardEdge,
         worklist: UniqList[HlsNetNode],
         removed: Set[HlsNetNode],
-        syncDeps: HlsNetlistAnalysisPassSyncDependency) -> bool:
+        reachDb: HlsNetlistAnalysisPassReachabilility) -> bool:
     """
     Propagate a constant write to channel to a value of the read. The channel itself is not removed
     because the presence of data must be somehow notified although the value is known.
@@ -36,8 +36,9 @@ def netlistBackedgeWritePropagation(
         return False
         
     r: HlsNetNodeReadBackwardEdge = writeNode.associated_read
-    if r is None:
+    if r is None or HdlType_isVoid(r._outputs[0]._dtype):
         return False
+
     with dbgTracer.scoped(netlistBackedgeWritePropagation, writeNode):
         init = writeNode.channel_init_values
         if init:
@@ -46,7 +47,7 @@ def netlistBackedgeWritePropagation(
                 if isinstance(d, BitsVal) and len(init[0]) == 1 and int(d) == int(init[0][0]):
                     dbgTracer.log("reduce init values")
                     writeNode.channel_init_values = ((),)
-                elif isinstance(d, _VoidValue) and len(init[0]) == 1  and len(init[0]) == 0:
+                elif isinstance(d, _HVoidValue) and len(init[0]) == 1  and len(init[0]) == 0:
                     # channel_init_values already in correct format
                     pass
                 else:
@@ -60,13 +61,13 @@ def netlistBackedgeWritePropagation(
         builder: HlsNetlistBuilder = writeNode.netlist.builder
         isControl = isinstance(r, HlsNetNodeReadControlBackwardEdge)
         if isControl:
-            assert isinstance(d, _VoidValue) or int(d) == 1, d
+            assert isinstance(d, _HVoidValue) or int(d) == 1, d
         
         # sync which is using the value coming from "r"
         # dependentSync: UniqList[HlsNetNodeIn] = UniqList()
-        directDataSuccessors = tuple(syncDeps.getDirectDataSuccessors(r))
+        directDataSuccessors = tuple(reachDb.getDirectDataSuccessors(r))
         # for user in directDataSuccessors:
-        #    if user.__class__ is HlsNetNodeExplicitSync and syncDeps.doesReachTo(r._outputs[0], user._inputs[0]):
+        #    if user.__class__ is HlsNetNodeExplicitSync and reachDb.doesReachTo(r._outputs[0], user._inputs[0]):
         #        dependentSync.append(user._inputs[0])
     
         if isControl:
@@ -84,12 +85,13 @@ def netlistBackedgeWritePropagation(
         #            worklist.append(u.obj)
         #        builder.replaceOutput(
         #            depSync.obj._outputs[0], dataReplacement, True)
-        #        depSync.obj._outputs[0]._dtype = HOrderingVoidT
+        #        depSync.obj._outputs[0]._dtype = HVoidOrdering
         #        modified = True
     
         # if modified:
         for user in directDataSuccessors:
             worklist.append(user)
+
         worklist.append(dataReplacement.obj)
         worklist.extend(u.obj for u in dataReplacement.obj.usedBy[dataReplacement.out_i])
         dbgTracer.log(("convert ", r._id, "to void and propagate const"))
@@ -99,11 +101,11 @@ def netlistBackedgeWritePropagation(
         r.src = Interface_without_registration(r.src._parent,
                                                HandshakeSync(),
                                                r.src._name)
-        r._outputs[0]._dtype = HOrderingVoidT
+        r._outputs[0]._dtype = HVoidOrdering
         worklist.append(writeNode.dependsOn[0].obj)
         worklist.append(r)
         unlink_hls_nodes(writeNode.dependsOn[0], writeNode._inputs[0])
-        c = builder.buildConst(HOrderingVoidT.from_py(None))
+        c = builder.buildConst(HVoidOrdering.from_py(None))
         link_hls_nodes(c, writeNode._inputs[0])
     
         return True
