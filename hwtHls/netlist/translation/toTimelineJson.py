@@ -16,7 +16,7 @@ from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwtHls.netlist.nodes.orderable import HOrderingVoidT, HExternalDataDepT
+from hwtHls.netlist.nodes.orderable import HVoidOrdering, HVoidExternData
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
@@ -312,7 +312,7 @@ class HwtHlsNetlistToTimelineJson():
                     depObj = dep.obj
 
                 depOutI = dep.out_i
-                color = 'lime' if dep._dtype is HOrderingVoidT else 'yellow' if dep._dtype is HExternalDataDepT else 'white'
+                color = 'lime' if dep._dtype is HVoidOrdering else 'yellow' if dep._dtype is HVoidExternData else 'white'
                 try:
                     depJsonObj = objToJsonObj[depObj]
                 except:
