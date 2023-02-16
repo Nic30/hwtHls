@@ -8,7 +8,7 @@ project(
   version: '0.0', # FIXME: git hash (see URL above).
   license: 'MIT',
   meson_version: '>= 0.62.1',
-  default_options: ['cpp_std=C++20'],
+  default_options: ['cpp_std=c++20'],
 )
 
 # https://github.com/FRidh/mesonpep517examples
