@@ -7,7 +7,7 @@ from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.analysis.schedule import HlsNetlistAnalysisPassRunScheduler
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
-from hwtHls.netlist.nodes.orderable import HOrderingVoidT
+from hwtHls.netlist.nodes.orderable import HVoidOrdering
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
@@ -39,7 +39,7 @@ class HlsNetlistAnalysisPassIoDiscover(HlsNetlistAnalysisPass):
             yield obj
         else:
             for o, users in zip(obj._outputs, obj.usedBy):
-                if o._dtype != HOrderingVoidT:
+                if o._dtype != HVoidOrdering:
                     for u in users:
                         u: HlsNetNodeIn
                         yield from self._detectExplicitSyncIsSameClkCycleFromOutputs(u, clkEndTime)
@@ -57,7 +57,7 @@ class HlsNetlistAnalysisPassIoDiscover(HlsNetlistAnalysisPass):
     #        yield obj
     #    else:
     #        for dep in  obj.dependsOn:
-    #            if dep._dtype != HOrderingVoidT and dep._dtype != HExternalDataDepT:
+    #            if dep._dtype != HVoidOrdering and dep._dtype != HVoidExternData:
     #                yield from self._detectExplicitSyncIsSameClkCycleFromInputs(dep, clkStartTime)
     #
     def run(self):

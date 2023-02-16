@@ -6,7 +6,7 @@ from hwtHls.llvm.llvmIr import MachineBasicBlock
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.orderable import HOrderingVoidT
+from hwtHls.netlist.nodes.orderable import HVoidOrdering
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOutLazy, \
     HlsNetNodeOutAny
 
@@ -51,10 +51,10 @@ class HlsNetlistAnalysisPassDataThreadsForBlocks(HlsNetlistAnalysisPass):
                 continue
             allMembersOfThread.add(obj)
             self.threadPerNode[obj] = allMembersOfThread
-            # :note: do not skip HExternalDataDepT ports because they are data dependency even though they are of void type
+            # :note: do not skip HVoidExternData ports because they are data dependency even though they are of void type
             
             for o, uses in zip(obj._outputs, obj.usedBy):
-                if o._dtype == HOrderingVoidT:
+                if o._dtype == HVoidOrdering:
                     continue
                 for use in uses:
                     use: HlsNetNodeIn
@@ -63,7 +63,7 @@ class HlsNetlistAnalysisPassDataThreadsForBlocks(HlsNetlistAnalysisPass):
                         toSearch.append(useObj)
     
             for dep in obj.dependsOn:
-                if dep._dtype == HOrderingVoidT:
+                if dep._dtype == HVoidOrdering:
                     continue
                 if isinstance(dep, HlsNetNodeOutLazy):
                     allMembersOfThread.add(dep)
@@ -71,7 +71,7 @@ class HlsNetlistAnalysisPassDataThreadsForBlocks(HlsNetlistAnalysisPass):
                     continue
 
                 depObj = dep.obj
-                if dep._dtype == HOrderingVoidT:
+                if dep._dtype == HVoidOrdering:
                     continue
                 if depObj not in allMembersOfThread:
                     toSearch.append(depObj)
