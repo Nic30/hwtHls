@@ -92,12 +92,27 @@ class HlsNetlistPassConsystencyCheck(HlsNetlistPass):
     def _checkSyncNodes(netlist: HlsNetlistCtx, removed: Optional[Set[HlsNetNode]]):
         for n in netlist.iterAllNodes():
             if n.__class__ is HlsNetNodeExplicitSync:
+                n: HlsNetNodeExplicitSync
                 if removed and n in removed:
                     continue
                 inT = n.dependsOn[0]._dtype
                 outT = n._outputs[0]._dtype
                 assert inT == outT, (n, inT, outT)
-    
+                i = n._inputOfCluster
+                o = n._outputOfCluster
+                if i is None:
+                    assert o is None, (n, "_inputOfCluster, _outputOfCluster ports may appear only together")
+                else:
+                    assert o is not None, (n, "_inputOfCluster, _outputOfCluster ports may appear only together")
+
+                    iClus = n.dependsOn[i.in_i]
+                    oClus = n.dependsOn[o.in_i]
+                    assert iClus is not None, n
+                    assert oClus is not None, n
+                    
+                    assert iClus.obj is not oClus.obj, (n, iClus.obj, "input/output cluster must be different")
+                
+                
     @staticmethod
     def checkRemovedNotReachable(netlist: HlsNetlistCtx, removed: Set[HlsNetNode]):
         """
