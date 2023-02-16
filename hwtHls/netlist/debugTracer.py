@@ -6,6 +6,9 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 
 
 class DebugTracer():
+    """
+    A wraper arround output stream for messages about optimization pass actions. Functionality similar to standard python module called logging.
+    """
     INDENT = "  "
 
     def __init__(self, out: Optional[StringIO]):
@@ -15,6 +18,9 @@ class DebugTracer():
         self._curIndent = ""
 
     def scoped(self, nameOrObj: Union[str, FunctionType], node: Optional[HlsNetNode]):
+        """
+        Used to mark scope in output, automatically handles indenting and does not print scope promt if nothing was logged in this or nested scope.
+        """
         self._scope.append((nameOrObj, node))
         self._labelPrinted.append(False)
         return self
@@ -48,6 +54,11 @@ class DebugTracer():
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is not None:
+            if not self._labelPrinted[-1]:
+                # print error into trace
+                self.log(("raised", exc_type, exc_val))
+
         if self._out is not None:
             self._curIndent = self._curIndent[0:-len(self.INDENT)]
         self._scope.pop()
