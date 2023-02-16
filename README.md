@@ -99,15 +99,7 @@ This is a big difference from hand crafted hardware, where it is assured, that y
 
 ## How it works?
 
-* The input code is parsed into SSA objects defined in `hwtHls.ssa`.
-  (The code is loaded using `HlsScope` object in [hwt](https://github.com/Nic30/hwt) component (`Unit` class),
-   the constraints and interface types are specified as [hwt](https://github.com/Nic30/hwt) objects.)
-* There are several optimization SSA passes (common subexpression elimination, dead code elimination
-  instruction combining, control optimization, ...). Full list of optimizations is specified in HlsPlatform.
-* Optimized SSA is then converted to a `hwtHls.netlist` and scheduled to clock cycles.
-  uses HDL objects from [hwt](https://github.com/Nic30/hwt).
-* Secheduled netlist is then translated to [hwt](https://github.com/Nic30/hwt) netlist which handles all SystemVerilog/VHDL/simulator/verification related things.
-
+* see doc in `hwtHls/__init__.py`
 
 
 ### Installation
@@ -181,6 +173,7 @@ pip3 install git+https://github.com/Nic30/hwtHls.git
 * [orcc](https://github.com/orcc/orcc) - C++/LLVM, Open RVC-CAL Compiler hw/sw dataflow and img processing focused
 * [ROCCC](https://github.com/nxt4hll/roccc-2.0), http://roccc.cs.ucr.edu/ - 2009-2013, C++/LLVM/suif c -> vhdl
 * [TCE](https://github.com/cpc/tce)- C++/LLVM, environment for development of application specific processors
+* [UCLA-VAST/TAPA](https://github.com/UCLA-VAST/tapa) - C++, HLS tool build on the top of VivadoHLS with explicit paralelism
 * [FloPoCo](https://gitlab.com/flopoco/flopoco) - C++, arithmetic core generator
 * [DPC++](https://github.com/intel/llvm/tree/sycl) - C++/LLVM, 
 * [CirC](https://github.com/circify/circ) - Rust - compiler infrastructure for HLS
