@@ -6,11 +6,14 @@ from io import StringIO
 OutputStreamGetter = Callable[[str], Tuple[StringIO, bool]]
 
 
-def outputFileGetter(rootDir: Union[Path, str], fileSuffix: str) -> OutputStreamGetter:
+def outputFileGetter(rootDir: Union[Path, str], fileName: str) -> OutputStreamGetter:
     if not isinstance(rootDir, Path):
         rootDir = Path(rootDir)
-    
-    def getter(fileNameStem:str):
-        return open(rootDir / (fileNameStem + fileSuffix), "w"), True
+        rootDir.stat()  # raise OSError if path does not exists
+        
+    def getter(folderName:str):
+        d = rootDir / folderName
+        d.mkdir(exist_ok=True)
+        return open(d / fileName, "w"), True
 
     return getter
