@@ -17,7 +17,7 @@ from hwtHls.llvm.llvmIr import LoadInst, Register
 from hwtHls.llvm.llvmIr import MachineInstr
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.orderable import HExternalDataDepT
+from hwtHls.netlist.nodes.orderable import HVoidExternData
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
@@ -74,7 +74,7 @@ class HlsReadAxi4Lite(HlsReadAddressed):
         :note: used to mark that the IO operations do have data dependency and
             we can rely on it when resolving implementation of data thread synchronization.
         """
-        eddo = n0._addOutput(HExternalDataDepT, "externalDataDep")
+        eddo = n0._addOutput(HVoidExternData, "externalDataDep")
         eddi = n1._addInput("externalDataDep")
         link_hls_nodes(eddo, eddi)
         
