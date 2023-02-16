@@ -1,9 +1,9 @@
 import html
 from itertools import zip_longest
 import pydot
-from typing import List, Union, Dict
+from typing import List, Union, Dict, Optional, Callable
 
-from hwt.hdl.operatorDefs import COMPARE_OPS
+from hwt.hdl.operatorDefs import COMPARE_OPS, AllOps
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
@@ -12,14 +12,16 @@ from hwtHls.netlist.nodes.loopGate import HlsLoopGate, HlsLoopGateStatus
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
-    _reprMinify
+    _reprMinify, HlsNetNodeIn
 from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.platform.fileUtils import OutputStreamGetter
-from hwtHls.netlist.nodes.orderable import HOrderingVoidT, HExternalDataDepT
+from hwtHls.netlist.nodes.orderable import HdlType_isVoid
+from hwtHls.netlist.nodes.IoClusterCore import HlsNetNodeIoClusterCore
+from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeWriteBackwardEdge
 
 
 class HwtHlsNetlistToGraphwiz():
@@ -33,6 +35,7 @@ class HwtHlsNetlistToGraphwiz():
         self.graph = pydot.Dot(f'"{name}"')
         self.obj_to_node: Dict[HlsNetNode, pydot.Node] = {}
         self.nodeCounter = 0
+        self._edgeFilterFn: Optional[Callable[[HlsNetNodeOut, HlsNetNodeIn], bool]] = None
 
     def _getNewNodeId(self):
         i = self.nodeCounter
@@ -90,7 +93,7 @@ class HwtHlsNetlistToGraphwiz():
         g.add_node(node)
 
         self.obj_to_node[obj] = node
-
+        edgeFilter = self._edgeFilterFn
         # construct new node
         input_rows = []
         if isinstance(obj, HlsNetNode):
@@ -103,18 +106,27 @@ class HwtHlsNetlistToGraphwiz():
                     else:
                         inpName = f"i{node_in_i:d}"
                     input_rows.append(f"<td port='i{node_in_i:d}'>{inpName:s}</td>")
-                    if dep is not None:
+                    if dep is not None and (edgeFilter is None or edgeFilter(dep, inp)):
                         dep: Union[HlsNetNodeOut, HlsNetNodeOutLazy]
+                        dst = f"{node.get_name():s}:i{node_in_i:d}"
+                        attrs = {}
                         if isinstance(dep, HlsNetNodeOut):
                             dep_node = self._node_from_HlsNetNode(dep.obj)
                             src = f"{dep_node.get_name():s}:o{dep.out_i:d}"
+                            if isinstance(dep.obj, HlsNetNodeIoClusterCore):
+                                if dep is dep.obj.inputNodePort:
+                                    # swap src and dst for inputNodePort port of HlsNetNodeIoClusterCore which is output
+                                    # but its meaning is input (to generate more acceptable visual appearence of graph)
+                                    src, dst = dst, src
+                                attrs["shape"] = "none"
                         else:
                             dep_node = self._node_from_HlsNetNode(dep)
                             src = f"{dep_node.get_name():s}:o0"
-                        attrs = {}
-                        if dep._dtype is HOrderingVoidT or dep._dtype is HExternalDataDepT:
+
+                        if HdlType_isVoid(dep._dtype):
                             attrs["style"] = "dotted"
-                        e = pydot.Edge(src, f"{node.get_name():s}:i{node_in_i:d}", **attrs)
+
+                        e = pydot.Edge(src, dst, **attrs)
                         self.graph.add_edge(e)
     
                 for shadow_dst in obj.debug_iter_shadow_connection_dst():
@@ -128,6 +140,7 @@ class HwtHlsNetlistToGraphwiz():
                 raise AssertionError("defective node", obj)
         else:
             assert isinstance(obj, HlsNetNodeOutLazy), obj
+
         output_rows = []
         if isinstance(obj, HlsNetNode):
             for node_out_i, out in enumerate(obj._outputs):
@@ -164,6 +177,11 @@ class HwtHlsNetlistToGraphwiz():
             label = f"{obj.__class__.__name__} {obj._id}"
         
         buff.append(f'            <tr><td colspan="2">{html.escape(label):s}</td></tr>\n')
+        if isinstance(obj, HlsNetNodeWriteBackwardEdge):
+            obj: HlsNetNodeWriteBackwardEdge
+            if obj.channel_init_values:
+                buff.append(f'            <tr><td colspan="2">init:{html.escape(repr(obj.channel_init_values))}</td></tr>\n')
+
         for i, o in zip_longest(input_rows, output_rows, fillvalue="<td></td>"):
             buff.append(f"            <tr>{i:s}{o:s}</tr>\n")
         buff.append('        </table>>')
@@ -180,14 +198,32 @@ class HlsNetlistPassDumpToDot(HlsNetlistPass):
     def __init__(self, outStreamGetter: OutputStreamGetter):
         self.outStreamGetter = outStreamGetter
 
+    def getNodes(self, netlist: HlsNetlistCtx):
+        return netlist.iterAllNodes()
+        
     def apply(self, hls: "HlsScope", netlist: HlsNetlistCtx):
         name = netlist.label
         out, doClose = self.outStreamGetter(name)
         try:
-            toGraphwiz = HwtHlsNetlistToGraphwiz(name, netlist.iterAllNodes())
+            toGraphwiz = HwtHlsNetlistToGraphwiz(name, self.getNodes(netlist))
             toGraphwiz.construct()
             out.write(toGraphwiz.dumps())
         finally:
             if doClose:
                 out.close()
+
+
+class HlsNetlistPassDumpIoClustersToDot(HlsNetlistPassDumpToDot):
+
+    def __init__(self, outStreamGetter:OutputStreamGetter):
+        HlsNetlistPassDumpToDot.__init__(self, outStreamGetter)
+        self._edgeFilterFn = self._edgeFilter
+
+    def _edgeFilter(self, src: HlsNetNodeOut, dst: HlsNetNodeOut):
+        return HdlType_isVoid(src._dtype)
+        
+    def getNodes(self, netlist: HlsNetlistCtx):
+        return (n for n in netlist.iterAllNodes()
+                 if isinstance(n, (HlsNetNodeExplicitSync, HlsNetNodeIoClusterCore))
+                   or (isinstance(n, HlsNetNodeOperator) and n.operator is AllOps.CONCAT and HdlType_isVoid(n._outputs[0]._dtype)))
 
