@@ -24,7 +24,7 @@ from hwtHls.llvm.llvmIr import MachineInstr
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.node import HlsNetNodePartRef, OutputMinUseTimeGetter
-from hwtHls.netlist.nodes.orderable import HOrderingVoidT
+from hwtHls.netlist.nodes.orderable import HVoidOrdering
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes, \
     HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeReadIndexed
@@ -43,13 +43,12 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
     """
 
     def __init__(self, netlist:"HlsNetlistCtx", dst:BramPort_withoutClk, cmd: Union[Literal[READ], Literal[WRITE]]):
-        HlsNetNodeWriteIndexed.__init__(self, netlist, NOT_SPECIFIED, dst, addOrderingOut=False)
+        HlsNetNodeWriteIndexed.__init__(self, netlist, NOT_SPECIFIED, dst)
         assert cmd is READ or cmd is WRITE, cmd
         self.cmd = cmd
         _dst = self._getNominaInterface()
         if _dst.HAS_R:
             self._addOutput(_dst.dout._dtype, "dout")
-        self._addOutput(HOrderingVoidT, "orderingOut")
         
         if cmd == READ:
             assert _dst.HAS_R, dst
@@ -69,14 +68,6 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
             return dst[0]
         else:
             return dst
-
-    def getOrderingOutPort(self) -> HlsNetNodeOut:
-        if self._getNominaInterface().HAS_R:
-            oo = self._outputs[1]
-        else:
-            oo = self._outputs[0]
-        assert oo._dtype is HOrderingVoidT, oo
-        return oo 
 
     def scheduleAlapCompaction(self, endOfLastClk: int, outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter]):
         return self.scheduleAlapCompactionMultiClock(endOfLastClk, outputMinUseTimeGetter)
@@ -102,7 +93,7 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
         for sync, t in zip(self.dependsOn[1:], self.scheduledIn[1:]):
             # prepare sync inputs but do not connect it because we do not implement synchronization
             # in this step we are building only datapath
-            if sync._dtype != HOrderingVoidT:
+            if sync._dtype != HVoidOrdering:
                 allocator.instantiateHlsNetNodeOutInTime(sync, t)
 
         ram: BramPort_withoutClk = self.dst
@@ -124,6 +115,10 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
             return allocator.netNodeToRtl[key]
         except KeyError:
             pass
+
+        if self._dataVoidOut is not None:
+            HlsNetNodeReadIndexed._allocateRtlInstanceDataVoidOut(self, allocator)
+        
         _wData = allocator.instantiateHlsNetNodeOutInTime(wData, self.scheduledIn[0])
         _addr = allocator.instantiateHlsNetNodeOutInTime(addr, self.scheduledIn[1])
 
