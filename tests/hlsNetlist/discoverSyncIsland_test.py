@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 from typing import Optional
 
 from hwt.interfaces.std import Signal
@@ -7,16 +10,17 @@ from hwt.synthesizer.param import Param
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.netlist import HlsThreadFromNetlist
-from hwtHls.netlist.analysis.syncDependecy import HlsNetlistAnalysisPassSyncDependency
+from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachabilility
+from hwtHls.netlist.analysis.betweenSyncIslands import HlsNetlistAnalysisPassBetweenSyncIslands
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.ports import link_hls_nodes
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.netlist.transformation.simplifySync.simplifySyncIsland import discoverSyncIsland
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
+from ipCorePackager.constants import DIRECTION
 
 
 class HlsNetlistSyncIsland0Unit(Unit):
@@ -46,18 +50,17 @@ class HlsNetlistSyncIsland0Unit(Unit):
         o = HlsNetNodeWrite(netlist, NOT_SPECIFIED, self.o)
         netlist.outputs.append(o)
         link_hls_nodes(i0._outputs[0], o._inputs[0])
+        reachDb: HlsNetlistAnalysisPassReachabilility = netlist.getAnalysis(HlsNetlistAnalysisPassReachabilility)
         
-        syncDeps = netlist.getAnalysis(HlsNetlistAnalysisPassSyncDependency)
-
         tc: SimTestCase = self.TEST_CASE
         if tc is not None:
-            inputs, outputs = discoverSyncIsland(i0, syncDeps)
-            tc.assertSetEqual(inputs, {i0, })
-            tc.assertSetEqual(outputs, {o, })
+            inputs, outputs, _ = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(i0, DIRECTION.IN, reachDb)
+            tc.assertSequenceEqual(inputs, [i0, ])
+            tc.assertSequenceEqual(outputs, [o, ])
     
-            inputs, outputs = discoverSyncIsland(o, syncDeps)
-            tc.assertSetEqual(inputs, {o, })
-            tc.assertSetEqual(outputs, set())
+            inputs, outputs, _ = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(o, DIRECTION.IN, reachDb)
+            tc.assertSequenceEqual(inputs, [o, ])
+            tc.assertSequenceEqual(outputs, set())
 
     def _impl(self) -> None:
         hls = HlsScope(self, self.CLK_FREQ)
@@ -83,22 +86,21 @@ class HlsNetlistSyncIsland1Unit(HlsNetlistSyncIsland0Unit):
         o = HlsNetNodeWrite(netlist, NOT_SPECIFIED, self.o)
         netlist.outputs.append(o)
         link_hls_nodes(sync._outputs[0], o._inputs[0])
+        reachDb: HlsNetlistAnalysisPassReachabilility = netlist.getAnalysis(HlsNetlistAnalysisPassReachabilility)
         
-        syncDeps = netlist.getAnalysis(HlsNetlistAnalysisPassSyncDependency)
-
         tc: SimTestCase = self.TEST_CASE
         if tc is not None:
-            inputs, outputs = discoverSyncIsland(i0, syncDeps)
-            tc.assertSetEqual(inputs, {i0, })
-            tc.assertSetEqual(outputs, {sync, })
+            inputs, outputs, _ = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(i0, DIRECTION.IN, reachDb)
+            tc.assertSequenceEqual(inputs, [i0, ])
+            tc.assertSequenceEqual(outputs, [sync, ])
 
-            inputs, outputs = discoverSyncIsland(sync, syncDeps)
-            tc.assertSetEqual(inputs, {sync, })
-            tc.assertSetEqual(outputs, {o, })
+            inputs, outputs, _ = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(sync, DIRECTION.IN, reachDb)
+            tc.assertSequenceEqual(inputs, [sync, ])
+            tc.assertSequenceEqual(outputs, [o, ])
     
-            inputs, outputs = discoverSyncIsland(o, syncDeps)
-            tc.assertSetEqual(inputs, {o, })
-            tc.assertSetEqual(outputs, set())
+            inputs, outputs, _ = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(o, DIRECTION.IN, reachDb)
+            tc.assertSequenceEqual(inputs, [o, ])
+            tc.assertSequenceEqual(outputs, set())
 
 
 class HlsNetlistSyncIsland2Unit(HlsNetlistSyncIsland0Unit):
@@ -128,26 +130,25 @@ class HlsNetlistSyncIsland2Unit(HlsNetlistSyncIsland0Unit):
         o = HlsNetNodeWrite(netlist, NOT_SPECIFIED, self.o)
         netlist.outputs.append(o)
         link_hls_nodes(sync._outputs[0], o._inputs[0])
+        reachDb: HlsNetlistAnalysisPassReachabilility = netlist.getAnalysis(HlsNetlistAnalysisPassReachabilility)
         
-        syncDeps = netlist.getAnalysis(HlsNetlistAnalysisPassSyncDependency)
-
         tc: SimTestCase = self.TEST_CASE
         if tc is not None:
-            inputs, outputs = discoverSyncIsland(i0, syncDeps)
-            tc.assertSetEqual(inputs, {i0, i1})
-            tc.assertSetEqual(outputs, {sync, })
+            inputs, outputs, _ = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(i0, DIRECTION.IN, reachDb)
+            tc.assertSequenceEqual(inputs, [i0, i1])
+            tc.assertSequenceEqual(outputs, [sync, ])
 
-            inputs, outputs = discoverSyncIsland(i1, syncDeps)
-            tc.assertSetEqual(inputs, {i0, i1})
-            tc.assertSetEqual(outputs, {sync, })
+            inputs, outputs, _ = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(i1, DIRECTION.IN, reachDb)
+            tc.assertSequenceEqual(inputs, [i1, i0])
+            tc.assertSequenceEqual(outputs, [sync, ])
 
-            inputs, outputs = discoverSyncIsland(sync, syncDeps)
-            tc.assertSetEqual(inputs, {sync, })
-            tc.assertSetEqual(outputs, {o, })
+            inputs, outputs, _ = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(sync, DIRECTION.IN, reachDb)
+            tc.assertSequenceEqual(inputs, [sync, ])
+            tc.assertSequenceEqual(outputs, [o, ])
     
-            inputs, outputs = discoverSyncIsland(o, syncDeps)
-            tc.assertSetEqual(inputs, {o, })
-            tc.assertSetEqual(outputs, set())
+            inputs, outputs, _ = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(o, DIRECTION.IN, reachDb)
+            tc.assertSequenceEqual(inputs, [o, ])
+            tc.assertSequenceEqual(outputs, set())
 
 
 class HlsNetlistDiscoverSyncIslandTC(SimTestCase):
@@ -167,12 +168,14 @@ class HlsNetlistDiscoverSyncIslandTC(SimTestCase):
 if __name__ == "__main__":
     import unittest
     from hwt.synthesizer.utils import to_rtl_str
+    from hwtHls.platform.platform import HlsDebugBundle
+
     u = HlsNetlistSyncIsland2Unit()
     u.CLK_FREQ = int(100e6)
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugDir="tmp")))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     suite = unittest.TestSuite()
-    #suite.addTest(HlsNetlistDiscoverSyncIslandTC('test_HlsNetlistSyncIsland2Unit'))
+    # suite.addTest(HlsNetlistDiscoverSyncIslandTC('test_HlsNetlistSyncIsland2Unit'))
     suite.addTest(unittest.makeSuite(HlsNetlistDiscoverSyncIslandTC))
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
