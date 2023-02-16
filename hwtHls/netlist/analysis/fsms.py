@@ -10,8 +10,8 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import start_clk
-from hwtHls.netlist.analysis.syncReach import HlsNetlistAnalysisPassSyncReach, \
-    BetweenSyncNodeIsland
+from hwtHls.netlist.analysis.betweenSyncIslands import HlsNetlistAnalysisPassBetweenSyncIslands, \
+    BetweenSyncIsland
 
 
 class IoFsm():
@@ -24,7 +24,7 @@ class IoFsm():
     :ivar syncIslands: a list of unique synchronization islands touching this FSM
     """
 
-    def __init__(self, intf: Interface, syncIslands: UniqList[BetweenSyncNodeIsland]):
+    def __init__(self, intf: Interface, syncIslands: UniqList[BetweenSyncIsland]):
         self.intf = intf
         self.states: List[List[HlsNetNode]] = []
         self.stateClkI: Dict[int, int] = {}
@@ -165,7 +165,7 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
     def run(self):
         ioDiscovery: HlsNetlistAnalysisPassIoDiscover = self.netlist.getAnalysis(HlsNetlistAnalysisPassIoDiscover)
         ioByInterface = ioDiscovery.ioByInterface
-        syncReach: HlsNetlistAnalysisPassSyncReach = self.netlist.getAnalysis(HlsNetlistAnalysisPassSyncReach)
+        syncIslands: HlsNetlistAnalysisPassBetweenSyncIslands = self.netlist.getAnalysis(HlsNetlistAnalysisPassBetweenSyncIslands)
         clkPeriod: int = self.netlist.normalizedClkPeriod
 
         def floodPredicateExcludeOtherIoWithOwnFsm(n: HlsNetNode):
@@ -187,9 +187,9 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
         for i in ioDiscovery.interfaceList:
             accesses = ioByInterface[i]
             if len(accesses) > 1:
-                syncIslands = UniqList()
+                islands = UniqList()
                 for a in accesses:
-                    inIsl, outIsl = syncReach.syncIslandOfNode[a]
+                    inIsl, outIsl = syncIslands.syncIslandOfNode[a]
                     if isinstance(a, HlsNetNodeRead) or outIsl is None:
                         isl = inIsl
                     else:
@@ -198,12 +198,12 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
                         assert isl is not None, a
                     except:
                         raise
-                    syncIslands.append(isl)
-                assert None not in syncIslands, (syncIslands, accesses)
+                    islands.append(isl)
+                assert None not in islands, (islands, accesses)
 
                 # all accesses which are not in same clock cycle must be mapped to individual FSM state
                 # every interface may spot a FSM
-                fsm = IoFsm(i, syncIslands)
+                fsm = IoFsm(i, islands)
                 seenInClks: Dict[int, Set[HlsNetNode]] = {}
                 allClkI: UniqList[int] = UniqList()
                 for a in accesses:

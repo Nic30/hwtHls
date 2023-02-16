@@ -5,8 +5,8 @@ from hwt.synthesizer.interface import Interface
 from hwtHls.netlist.analysis.fsms import HlsNetlistAnalysisPassDiscoverFsm, IoFsm
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.analysis.ioDiscover import HlsNetlistAnalysisPassIoDiscover
-from hwtHls.netlist.analysis.syncReach import HlsNetlistAnalysisPassSyncReach, \
-    BetweenSyncNodeIsland
+from hwtHls.netlist.analysis.betweenSyncIslands import HlsNetlistAnalysisPassBetweenSyncIslands, \
+    BetweenSyncIsland
 from hwtHls.netlist.nodes.node import HlsNetNode, HlsNetNodePartRef
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
@@ -18,7 +18,7 @@ class NetlistPipeline():
     an implementation in pipeline due favorable data dependencies.
     """
 
-    def __init__(self, syncIsland: Optional[BetweenSyncNodeIsland], stages: List[List[HlsNetNode]]):
+    def __init__(self, syncIsland: Optional[BetweenSyncIsland], stages: List[List[HlsNetNode]]):
         self.syncIsland = syncIsland
         self.stages = stages
 
@@ -54,10 +54,10 @@ class HlsNetlistAnalysisPassDiscoverPipelines(HlsNetlistAnalysisPass):
         inFsmNodeParts: Dict[HlsNetNode, UniqList[Tuple[IoFsm, HlsNetNodePartRef]]]
         clkPeriod = self.netlist.normalizedClkPeriod
         pipelines = self.pipelines
-        syncReach: HlsNetlistAnalysisPassSyncReach = self.netlist.getAnalysis(HlsNetlistAnalysisPassSyncReach)
+        syncIslands: HlsNetlistAnalysisPassBetweenSyncIslands = self.netlist.getAnalysis(HlsNetlistAnalysisPassBetweenSyncIslands)
         # interfaces which were checked to be accessed correctly
         alreadyCheckedIo: Set[Interface] = set()
-        pipelineForIsland: Dict[BetweenSyncNodeIsland, NetlistPipeline] = {}
+        pipelineForIsland: Dict[BetweenSyncIsland, NetlistPipeline] = {}
         
         for node in self.netlist.iterAllNodes():
             node: HlsNetNode
@@ -66,12 +66,12 @@ class HlsNetlistAnalysisPassDiscoverPipelines(HlsNetlistAnalysisPass):
 
             fsms = allFsmNodes.get(node, None)
             if fsms is None:
-                syncIsland = syncReach.syncIslandOfNode[node]
+                syncIsland = syncIslands.syncIslandOfNode[node]
                 if isinstance(syncIsland, tuple):
                     syncIsland, oIsland = syncIsland
                     if syncIsland is None:
                         syncIsland = oIsland
-                
+
                 pipeline = pipelineForIsland.get(syncIsland, None)
                 if pipeline is None:
                     pipeline = NetlistPipeline(syncIsland, [])
