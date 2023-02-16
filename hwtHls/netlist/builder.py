@@ -9,15 +9,15 @@ from hwt.hdl.value import HValue
 from hwt.pyUtils.arrayQuery import grouper, balanced_reduce
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
+from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
+from hwtHls.netlist.nodes.orderable import HdlType_isVoid
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, link_hls_nodes, \
     HlsNetNodeIn, HlsNetNodeOutLazy, HlsNetNodeOutAny, unlink_hls_nodes
-from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
-from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
-from hwtHls.netlist.nodes.orderable import HdlType_isNonData
+from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 
 
 class HlsNetlistBuilder():
@@ -198,7 +198,7 @@ class HlsNetlistBuilder():
         return o
 
     def buildConcat(self, lsbs: Union[HlsNetNodeOut, HValue], msbs: Union[HlsNetNodeOut, HValue]) -> HlsNetNodeOut:
-        if HdlType_isNonData(lsbs._dtype):
+        if HdlType_isVoid(lsbs._dtype):
             assert lsbs._dtype == msbs._dtype
             t = msbs._dtype
         else:
@@ -272,7 +272,8 @@ class HlsNetlistBuilder():
         """
         Replace output connected to specified input.
         """
-        assert i.obj is not newO.obj, (i, newO)
+        if isinstance(newO, HlsNetNodeOut):
+            assert i.obj is not newO.obj, (i, newO)
         isOp = isinstance(i.obj, HlsNetNodeOperator)
         if isOp:
             self.unregisterOperatorNode(i.obj)
