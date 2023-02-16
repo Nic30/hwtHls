@@ -6,6 +6,7 @@ from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlRes
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.typeUtils import dtypeEqualSignIgnore
+from hwtHls.netlist.nodes.orderable import HdlType_isVoid
 
 
 class HlsNetNodeOperator(HlsNetNode):
@@ -50,16 +51,27 @@ class HlsNetNodeOperator(HlsNetNode):
         except KeyError:
             pass
 
+        if HdlType_isVoid(op_out._dtype):
+            assert self.operator == AllOps.CONCAT, self
+            res = []
+            allocator.netNodeToRtl[op_out] = res
+            return res
+            
         operands = []
         for (dep, t) in zip(self.dependsOn, self.scheduledIn):
             _o = allocator.instantiateHlsNetNodeOutInTime(dep, t)
             assert isinstance(_o, TimeIndependentRtlResourceItem), (dep, _o)
             operands.append(_o)
 
+        s = None
         if self.operator == AllOps.CONCAT:
+            if HdlType_isVoid(op_out._dtype):
+                s = op_out._dtype.from_py(None)
             operands = reversed(operands)
-
-        s = self.operator._evalFn(*(o.data for o in operands))
+        
+        if s is None:
+            s = self.operator._evalFn(*(o.data for o in operands))
+        
         if isinstance(s, HValue):
             t = INVARIANT_TIME
 
@@ -73,7 +85,9 @@ class HlsNetNodeOperator(HlsNetNode):
                     s.name = f"v{self._id:d}"
 
         if dtypeEqualSignIgnore(s._dtype, op_out._dtype):
-            if s._dtype.signed != op_out._dtype.signed:
+            if HdlType_isVoid(s._dtype):
+                assert HdlType_isVoid(op_out._dtype)
+            elif s._dtype.signed != op_out._dtype.signed:
                 s = s._convSign(op_out._dtype.signed)
         else:
             raise AssertionError("The ", self.__class__.__name__,
