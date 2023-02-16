@@ -5,8 +5,8 @@ from hwtHls.architecture.archElement import ArchElement
 from hwtHls.netlist.scheduler.clk_math import start_clk
 from hwtHls.architecture.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
-from hwtHls.netlist.analysis.syncReach import BetweenSyncNodeIsland, \
-    HlsNetlistAnalysisPassSyncReach
+from hwtHls.netlist.analysis.betweenSyncIslands import BetweenSyncIsland, \
+    HlsNetlistAnalysisPassBetweenSyncIslands
 from hwtHls.netlist.nodes.orderable import HdlType_isNonData
 
 
@@ -68,13 +68,13 @@ def expandAllOutputSynonymsInElement(iea: InterArchElementNodeSharingAnalysis):
 
 
 def isDrivenFromSyncIsland(node: HlsNetNodeExplicitSync,
-                           syncIsland: BetweenSyncNodeIsland,
-                           syncReach: HlsNetlistAnalysisPassSyncReach) -> bool:
+                           syncIsland: BetweenSyncIsland,
+                           syncIslands: HlsNetlistAnalysisPassBetweenSyncIslands) -> bool:
     for dep in node.dependsOn:
         if HdlType_isNonData(dep._dtype):
             continue
         else:
-            isl = syncReach.syncIslandOfNode[dep.obj]
+            isl = syncIslands.syncIslandOfNode[dep.obj]
             if isl is syncIsland or (isinstance(isl, tuple) and (isl[0] is syncIsland or isl[1] is syncIsland)):
                 return True
     return False
