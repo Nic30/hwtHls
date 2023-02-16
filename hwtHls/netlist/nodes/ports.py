@@ -149,14 +149,11 @@ def link_hls_nodes(parent: HlsNetNodeOutAny, child: HlsNetNodeIn) -> None:
         assert isinstance(parent, HlsNetNodeOut), parent
 
         removed = parent.obj.netlist.builder._removedNodes
-        try:
-            assert parent.obj not in removed, parent
-            assert child.obj not in removed, child
-        except:
-            raise
+        assert parent.obj not in removed, parent
+        assert child.obj not in removed, child
         parent.obj.usedBy[parent.out_i].append(child)
-        assert child.obj.dependsOn[child.in_i] is None, ("child is already connected to " , child.obj.dependsOn[child.in_i], "when connecting" , parent, "->", child)
 
+    assert child.obj.dependsOn[child.in_i] is None, ("child is already connected to " , child.obj.dependsOn[child.in_i], "when connecting" , parent, "->", child)
     child.obj.dependsOn[child.in_i] = parent
     if isinstance(parent, HlsNetNodeOut) and isinstance(child, HlsNetNodeOut):
         assert parent.obj is not child.obj
