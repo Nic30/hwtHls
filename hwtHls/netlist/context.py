@@ -98,10 +98,11 @@ class HlsNetlistCtx():
         self.scheduler.schedule()
     
     def filterNodesUsingSet(self, removed: Set[HlsNetNode]):
-        self.inputs[:] = (n for n in self.inputs if n not in removed)
-        self.nodes[:] = (n for n in self.nodes if n not in removed)
-        self.outputs[:] = (n for n in self.outputs if n not in removed)
-    
+        if removed:
+            self.inputs[:] = (n for n in self.inputs if n not in removed)
+            self.nodes[:] = (n for n in self.nodes if n not in removed)
+            self.outputs[:] = (n for n in self.outputs if n not in removed)
+        
     def setupNetlistListeners(self,
                               beforeNodeAddedListener: Callable[[object, Union[slice, int], Union[HlsNetNode, ObservableListRm]], None],
                               beforeInputDriveUpdate: Callable[[object, Union[slice, int], Union[HlsNetNodeOut, None, ObservableListRm]], None],
