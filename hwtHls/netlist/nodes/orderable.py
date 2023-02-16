@@ -7,7 +7,10 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 
 
-class _HOrderingVoidT(HdlType):
+class _HVoidOrdering(HdlType):
+    """
+    :note: use HVoidOrdering directly
+    """
 
     def bit_length(self):
         return 0
@@ -18,11 +21,11 @@ class _HOrderingVoidT(HdlType):
         try:
             return cls._valCls
         except AttributeError:
-            cls._valCls = _VoidValue
+            cls._valCls = _HVoidValue
             return cls._valCls
 
 
-class _VoidValue(HValue):
+class _HVoidValue(HValue):
     
     @classmethod
     def from_py(cls, typeObj, val, vld_mask=None):
@@ -32,29 +35,52 @@ class _VoidValue(HValue):
     def __repr__(self):
         return f"<void>"
 
-class _HExternalDataDepT(_HOrderingVoidT):
+
+class _HVoidData(_HVoidOrdering):
+    """
+    :note: use HDataVoid directly
+    """
+    pass
+
+
+class _HVoidExternData(_HVoidOrdering):
+    """
+    :note: use HVoidExternData directly
+    """
     pass
 
 """
-:var HOrderingVoidT: A type used for connections between HlsNetNode instances to keep its ordering during scheduling.
+:var ~.HVoidOrdering: A type used for connections between HlsNetNode instances to keep its ordering during scheduling.
     (similar to glue type in LLVM)
-:var HExternalDataDepT: Same as a HOrderingVoidT but in addition it means that there is an external data connection
+:var ~.HVoidDataT: Same as HVoidOrdering but in addition it means that there is/was some data dependency.
+:var ~.HVoidExternData: Same as a HVoidOrdering but in addition it means that there is an external data connection
     on outside of this component which asserts that connected two nodes are asserted to have ordering by externally connected circuit.
 """
-HOrderingVoidT = _HOrderingVoidT()
-HExternalDataDepT = _HExternalDataDepT()
+HVoidOrdering = _HVoidOrdering()
+HVoidData = _HVoidData()
+HVoidExternData = _HVoidExternData()
 
 
 def HdlType_isNonData(t: HdlType):
-    return t is HOrderingVoidT or t is HExternalDataDepT 
+    return t is HVoidOrdering or t is HVoidExternData 
 
+
+def HdlType_isVoid(t: HdlType):
+    return t is HVoidOrdering or t is HVoidData or t is HVoidExternData 
+    
 
 class HlsNetNodeOrderable(HlsNetNode):
     
     def iterOrderingInputs(self) -> Generator[HlsNetNodeIn, None, None]:
+        """
+        Iterate input ports which are used for ordering between HlsNetNodeOrderable instances
+        """
         raise NotImplementedError(
             "Override this method in derived class", self)
-
+        
     def getOrderingOutPort(self) -> HlsNetNodeOut:
+        """
+        Get output port used for ordering between HlsNetNodeOrderable instances.
+        """
         raise NotImplementedError(
             "Override this method in derived class", self)
