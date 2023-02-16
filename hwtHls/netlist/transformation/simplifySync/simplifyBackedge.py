@@ -24,16 +24,16 @@ def netlistReduceUnusedBackwardEdgeBuffer(
     with dbgTracer.scoped(netlistReduceUnusedBackwardEdgeBuffer, n):
         dbgTracer.log("rm")
         w = n.associated_write
-        # else remove read and also write and update syncDeps appropriately
+        # else remove read and also write and update reachDb appropriately
         # cut off this write and read from ordering
         for _n in (n, w):
-            #syncDeps.addAllDepsToOutUseChange(_n)
-            #syncDeps.addAllUsersToInDepChange(_n)
-            #syncDeps.popNode(_n)
+            #reachDb.addAllDepsToOutUseChange(_n)
+            #reachDb.addAllUsersToInDepChange(_n)
+            #reachDb.popNode(_n)
     
-            netlistExplicitSyncDisconnectFromOrderingChain(_n)
+            netlistExplicitSyncDisconnectFromOrderingChain(dbgTracer, _n, removed)
             # cut off all data
             disconnectAllInputs(_n, worklist)
             removed.add(_n)
     
-        #syncDeps.commitChanges()
+        #reachDb.commitChanges()
