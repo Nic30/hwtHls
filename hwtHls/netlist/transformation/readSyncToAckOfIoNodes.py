@@ -13,8 +13,7 @@ from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
-from hwtHls.netlist.transformation.simplifyUtils import getConstDriverOf, \
-    replaceOperatorNodeWith
+from hwtHls.netlist.transformation.simplifyUtils import replaceOperatorNodeWith
 
 
 class HlsNetlistPassReadSyncToAckOfIoNodes(HlsNetlistPass):
@@ -56,19 +55,24 @@ class HlsNetlistPassReadSyncToAckOfIoNodes(HlsNetlistPass):
         if isinstance(n, HlsNetNodeOperator):
             if isinstance(n, HlsNetNodeMux) and len(n._inputs) > 1:
                 n: HlsNetNodeMux
-                assert n._outputs[0]._dtype.bit_length() == 1, (n, n._outputs[0]._dtype)
+                is1b = n._outputs[0]._dtype.bit_length() == 1
+                # w = n._outputs[0]._dtype.bit_length()
                 # Check only (cond & val)* | else val
                 prevConditions_n: List[HlsNetNodeOut] = []
                 result = []
                 for v, c in n._iterValueConditionDriverPairs():
                     if c is None:
                         if prevConditions_n:
+                            if not is1b:
+                                v = _collectSyncValidFromExpr(v)
                             srcVld = builder.buildAndVariadic(prevConditions_n + [v, ])
                             _res = _collectSyncValidFromExpr(srcVld)
                         else:
                             _res = _collectSyncValidFromExpr(v)
                     else:
                         # all previous mux conditions 0 this condition 1 and 
+                        if not is1b:
+                            v = _collectSyncValidFromExpr(v)
                         srcVld = builder.buildAndVariadic(prevConditions_n + [c, v])
                         _res = _collectSyncValidFromExpr(srcVld)
                         c_n = builder.buildNot(c)
@@ -93,12 +97,12 @@ class HlsNetlistPassReadSyncToAckOfIoNodes(HlsNetlistPass):
         elif isinstance(n, HlsNetNodeExplicitSync):
             if o is n._outputs[0]:
                 if n.__class__ is HlsNetNodeExplicitSync:
-                    return self._collectSyncValidFromExpr(n.dependsOn[0])
+                    return _collectSyncValidFromExpr(n.dependsOn[0])
                 else:
                     # read only sync of this node
                     return self._getAckOfIoNode(n)
 
-            elif o is n._valid:
+            elif o is n._valid or o is n._validNB:
                 return o
             else:
                 raise NotImplementedError(o)
