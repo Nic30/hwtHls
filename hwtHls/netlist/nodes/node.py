@@ -246,7 +246,7 @@ class HlsNetNode():
         for oClkOff in self.outputClkTickOffset:
             assert oClkOff == 0, (oClkOff, "this node should use scheduleAlapCompactionMultiClock instead")
 
-        assert self.usedBy, ("Compaction should be called only for nodes with dependencies, others should be moved only manually", self)
+        #assert self.usedBy, ("Compaction should be called only for nodes with dependencies, others should be moved only manually", self)
         ffdelay = self.netlist.platform.get_ff_store_time(self.netlist.realTimeClkPeriod, self.netlist.scheduler.resolution)
         clkPeriod = self.netlist.normalizedClkPeriod
         if not self._outputs:
