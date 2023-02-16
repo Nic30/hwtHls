@@ -19,12 +19,12 @@ from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage, resolveSt
 from hwtHls.architecture.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, INVARIANT_TIME
 from hwtHls.netlist.analysis.ioDiscover import HlsNetlistAnalysisPassIoDiscover
-from hwtHls.netlist.analysis.syncReach import BetweenSyncNodeIsland
+from hwtHls.netlist.analysis.betweenSyncIslands import BetweenSyncIsland
 from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
     HlsNetNodeWriteBackwardEdge, BACKEDGE_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.orderable import HOrderingVoidT
+from hwtHls.netlist.nodes.orderable import HVoidOrdering, HdlType_isVoid
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from ipCorePackager.constants import INTF_DIRECTION
@@ -44,7 +44,7 @@ class ArchElementPipeline(ArchElement):
     :ivar _endClkI: index of the last non-empty stage
     """
 
-    def __init__(self, netlist: "HlsNetlistCtx", namePrefix:str, stages: List[List[HlsNetNode]], syncIsland: BetweenSyncNodeIsland):
+    def __init__(self, netlist: "HlsNetlistCtx", namePrefix:str, stages: List[List[HlsNetNode]], syncIsland: BetweenSyncIsland):
         allNodes = UniqList()
         for nodes in stages:
             allNodes.extend(nodes)
@@ -73,8 +73,9 @@ class ArchElementPipeline(ArchElement):
         #    con.stDependentDrives.append(rtl.valuesInTime[0].data.next.drivers[0])
 
         if rtl is None or not isTir:
-            cons = (self.netNodeToRtl[o] for o in n._outputs if o in self.netNodeToRtl if o._dtype is not HOrderingVoidT)
-
+            cons = (self.netNodeToRtl[o] for o in n._outputs if o in self.netNodeToRtl if not HdlType_isVoid(o._dtype))
+        elif isinstance(rtl, list):
+            cons = rtl
         else:
             cons = (rtl,)
 
@@ -226,7 +227,7 @@ class ArchElementPipeline(ArchElement):
     #    for n in self.stages[pipeline_st_i]:
     #        for dep in n.dependsOn:
     #            dep: HlsNetNodeOut
-    #            if dep._dtype is HOrderingVoidT or dep._dtype is HExternalDataDepT:
+    #            if dep._dtype is HVoidOrdering or dep._dtype is HVoidExternData:
     #                continue
     #            depO = dep.obj
     #            if depO in prevStNodes:
