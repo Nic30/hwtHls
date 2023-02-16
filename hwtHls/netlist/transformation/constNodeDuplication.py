@@ -7,6 +7,7 @@ from hwtHls.netlist.nodes.ports import unlink_hls_nodes, link_hls_nodes
 class HlsNetlistPassConstNodeDuplication(HlsNetlistPass):
     """
     Duplicate HlsNetNodeConst so every instance has just a single use.
+    :note: Used before scheduling to reduce fanout of the const nodes to speedup the sheduler alg. 
     """
 
     def apply(self, hls: "HlsScope", netlist: HlsNetlistCtx):
