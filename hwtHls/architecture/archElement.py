@@ -135,8 +135,8 @@ class ArchElement():
                     raise AssertionError(self, "Node did not instantiate its output", o.obj, o)
         else:
             # used and previously allocated
-            assert isinstance(_o, TimeIndependentRtlResource) and\
-                 _o.valuesInTime[0].data._dtype.bit_length() == o._dtype.bit_length(), (
+            assert HdlType_isVoid(o._dtype) or (isinstance(_o, TimeIndependentRtlResource) and\
+                 _o.valuesInTime[0].data._dtype.bit_length() == o._dtype.bit_length()), (
                      o, _o, o._dtype,
                      _o.valuesInTime[0].data._dtype if isinstance(_o, TimeIndependentRtlResource) else None)
             pass
