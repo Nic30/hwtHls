@@ -185,4 +185,14 @@ def unlink_hls_node_input_if_exists(input_: HlsNetNodeIn):
     if dep is not None:
         unlink_hls_nodes(dep, input_)
     return dep
-    
+
+
+def unlink_hls_node_input_if_exists_with_worklist(input_: HlsNetNodeIn, worklist: List["HlsNetNode"], removePort: bool):
+    dep = unlink_hls_node_input_if_exists(input_)
+    if dep is not None:
+        worklist.append(dep.obj)
+    if removePort and input_ is not None:
+        input_.obj._removeInput(input_.in_i)
+
+    return dep
+
