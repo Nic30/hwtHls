@@ -52,6 +52,8 @@ from hwtHls.ssa.translation.toGraphwiz import SsaPassDumpToDot
 from hwtHls.ssa.translation.toLl import SsaPassDumpToLl
 from hwtHls.ssa.translation.toLlvm import SsaPassToLlvm, ToLlvmIrTranslator
 from hwtHls.architecture.transformation.mergeTiedFsms import RtlArchPassMergeTiedFsms
+from hwtHls.netlist.analysis.betweenSyncIslandsConsystencyCheck import HlsNetlistPassBetweenSyncIslandsConsystencyCheck
+from hwtHls.netlist.transformation.betweenSyncIslandsMerge import HlsNetlistPassBetweenSyncIslandsMerge
 
 DebugId = Tuple[Type, Optional[str]]
 
@@ -416,8 +418,14 @@ class DefaultHlsPlatform(DummyPlatform):
         dbg.runAssertIfEnabled(HlsNetlistPassConsystencyCheck, (hls, netlist))
         if dbg.dir is not None:
             netlist.scheduler._checkAllNodesScheduled()
-        netlist.getAnalysis(HlsNetlistAnalysisPassBetweenSyncIslands)  # done explicitely to trigger potential exception there
-        dbg.runDebugIfEnabled(D.DBG_20_netlistSyncIslands, (hls, netlist))
+        try:
+            netlist.getAnalysis(HlsNetlistAnalysisPassBetweenSyncIslands)  # done explicitely to trigger potential exception there
+            HlsNetlistPassBetweenSyncIslandsConsystencyCheck().apply(hls, netlist)
+            HlsNetlistPassBetweenSyncIslandsMerge().apply(hls, netlist)
+            HlsNetlistPassBetweenSyncIslandsConsystencyCheck().apply(hls, netlist)
+        finally:
+            dbg.runDebugIfEnabled(D.DBG_20_netlistSyncIslands, (hls, netlist))
+
         dbg.runDebugIfEnabled(D.DBG_20_addSyncSigNames, (hls, netlist))
 
         allocator = netlist.allocator
