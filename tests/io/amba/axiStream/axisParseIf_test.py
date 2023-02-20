@@ -113,7 +113,6 @@ class AxiSParseIfTC(SimTestCase):
 
 if __name__ == '__main__':
     from hwt.synthesizer.utils import to_rtl_str
-    from hwtHls.platform.platform import HlsDebugBundle
     u = AxiSParse2If()
     u.DATA_WIDTH = 512
     u.CLK_FREQ = int(100e6)
