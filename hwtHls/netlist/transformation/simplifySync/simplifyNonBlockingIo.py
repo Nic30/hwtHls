@@ -66,6 +66,9 @@ def removeSyncReadOfRead(r: HlsNetNodeRead, removed: Set[HlsNetNode]):
 
 
 def isAndedToExpression(valToSearch: HlsNetNodeOut, expr: HlsNetNodeOut):
+    """
+    Check if expression is in format expr = And(.., valToSearch, ...)
+    """
     if expr is valToSearch:
         return True
     elif isinstance(expr.obj, HlsNetNodeOperator) and expr.obj.operator == AllOps.AND:
@@ -74,6 +77,15 @@ def isAndedToExpression(valToSearch: HlsNetNodeOut, expr: HlsNetNodeOut):
                 return True
         
     return False
+
+
+def isAndedToNodAndExpr(valToSearch: HlsNetNodeOut, expr: HlsNetNodeOut):
+    """
+    Check if expression is in format expr = ~And(.., valToSearch, ...)
+    """
+    return isinstance(expr.obj, HlsNetNodeOperator) and \
+           expr.obj.operator is AllOps.NOT and \
+           isAndedToExpression(valToSearch, expr.obj.dependsOn[0])
 
 
 def createAndExpressionOmmitingInput(valToOmmit: HlsNetNodeOut, expr: HlsNetNodeOut):
@@ -109,9 +121,9 @@ def netlistReduceExplicitSyncTryExtractNonBlockingReadOrWrite(dbgTracer: DebugTr
     modified = False
     # try extract non blocking read
     # 2 usedBy for _associatedReadSync and this node "n"
-    assert rw._associatedReadSync is None, rw
+    assert rw._associatedReadSync is None, (rw, "ReadSync should already have been converted to use of _validNB")
     with dbgTracer.scoped(netlistReduceExplicitSyncTryExtractNonBlockingReadOrWrite, n):
-        if not isinstance(rw, HlsNetNodeRead) or rw._validNB is None or not rw._isBlocking or len(rw.usedBy[syncedDep.out_i]) > 2:
+        if not isinstance(rw, HlsNetNodeRead) or rw._validNB is None or len(rw.usedBy[syncedDep.out_i]) > 2:
             return modified
     
         if n.extraCond is None:
@@ -121,11 +133,10 @@ def netlistReduceExplicitSyncTryExtractNonBlockingReadOrWrite(dbgTracer: DebugTr
     
         validNB = rw._validNB
         sw = n.dependsOn[n.skipWhen.in_i]
-        if ((ec is None or isAndedToExpression(validNB, ec)) and
-                isinstance(sw.obj, HlsNetNodeOperator) and
-                sw.obj.operator is AllOps.NOT and
-                isAndedToExpression(validNB, sw.obj.dependsOn[0]) and
-                isinstance(rw, HlsNetNodeRead)):
+        if (# (ec is None or isAndedToExpression(validNB, ec)) and
+                isinstance(rw, HlsNetNodeRead) and
+                isAndedToNodAndExpr(validNB, sw)
+                ):
             # [todo] isAndedToExpression is not sufficient we should that it is not non-trivially reachable
             #        from any term in "and" so we do not create cycle in DAG if we transplant this "and" to an input of n
             r: HlsNetNodeRead = rw
@@ -142,8 +153,7 @@ def netlistReduceExplicitSyncTryExtractNonBlockingReadOrWrite(dbgTracer: DebugTr
             # transfer ec/sw from this "n" to parent read "r"
             dataUses = tuple(n.usedBy[0])
             data = n._outputs[0]
-            assert n._associatedReadSync is None, "Should already be removed."
-            # for _n in (n, r):
+            assert n._associatedReadSync is None, (n, "ReadSync should already have been converted to use of _validNB")
             #    reachDb.addAllDepsToOutUseChange(_n)
             #    reachDb.addAllUsersToInDepChange(_n)
             if ec is not None:
