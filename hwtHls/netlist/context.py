@@ -90,8 +90,8 @@ class HlsNetlistCtx():
         except KeyError:
             pass
         a = analysis_cls(self)
-        a.run()
         self._analysis_cache[analysis_cls] = a
+        a.run()
         return a
 
     def schedule(self):
