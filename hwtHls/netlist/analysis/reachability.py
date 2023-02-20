@@ -190,6 +190,9 @@ class HlsNetlistAnalysisPassReachabilility(HlsNetlistAnalysisPass):
         return found 
 
     def getDirectDataSuccessorsMany(self, inputs: List[HlsNetNodeExplicitSync]) -> Generator[HlsNetNodeExplicitSync, None, None]:
+        """
+        :attention: inputs is emptied in process
+        """
         while inputs:
             n = inputs.pop()
             yield from self.getDirectDataSuccessors(n)
@@ -216,7 +219,11 @@ class HlsNetlistAnalysisPassReachabilility(HlsNetlistAnalysisPass):
                     continue
                 else:
                     assert isinstance(obj, HlsNetNodeOperator) and obj.operator == AllOps.CONCAT, obj
-                    _collectConcatOfVoidTreeInputs(dep, found, set())
+                    _found = UniqList()
+                    _collectConcatOfVoidTreeInputs(dep, _found, set())
+                    for o in _found:
+                        if not isinstance(o.obj, HlsNetNodeConst):
+                            found.append(o.obj)
         
         # predCluster = self.getPredecessorIoClusterCore(n)
         # if predCluster is not None:
@@ -247,6 +254,9 @@ class HlsNetlistAnalysisPassReachabilility(HlsNetlistAnalysisPass):
         return found 
 
     def getDirectDataPredecessorsMany(self, outputs: List[HlsNetNodeExplicitSync]) -> Generator[HlsNetNodeExplicitSync, None, None]:
+        """
+        :attention: outputs is emptied in process
+        """
         while outputs:
             n = outputs.pop()
             yield from self.getDirectDataPredecessors(n)
