@@ -1,4 +1,4 @@
-from typing import Set, Tuple, List
+from typing import Set, List, Union, Literal
 
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
@@ -9,7 +9,7 @@ from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.orderable import HVoidData
 from hwtHls.netlist.nodes.ports import unlink_hls_nodes, HlsNetNodeOut, \
-    HlsNetNodeIn, link_hls_nodes, _getPortDrive
+    link_hls_nodes, _getPortDrive
 from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import netlistExplicitSyncDisconnectFromOrderingChain
 from hwtHls.netlist.transformation.simplifyUtils import addAllUsersToWorklist
 
@@ -33,21 +33,25 @@ def extendSyncFlagsFromMultipleParallel(srcs: List[HlsNetNodeExplicitSync],
         dst.skipWhen |=  And(src.skipWhen for src in srcs)
     """
     b: HlsNetlistBuilder = dst.netlist.builder
-    ec = _getPortDrive(dst.extraCond)
-    sw = _getPortDrive(dst.skipWhen)
 
-    srcsEc = NOT_SPECIFIED
-    srcsSw = NOT_SPECIFIED
+    srcsEc: Union[None, Literal[NOT_SPECIFIED], HlsNetNodeOut] = NOT_SPECIFIED
+    srcsSw: Union[None, Literal[NOT_SPECIFIED], HlsNetNodeOut] = NOT_SPECIFIED
     for src in srcs:
         sEc = _getPortDrive(src.extraCond)
         sSw = _getPortDrive(src.skipWhen)
         if srcsSw is None:
+            # there was some  non-optional path and now everything is non-optional
             pass
         elif srcsSw is NOT_SPECIFIED:
+            # first
             srcsSw = sSw
+
         elif sSw is None:
+            # this path in not-optional -> all other paths are not-optional
             srcsSw = None
+
         else:
+            # aggregate another sSw
             srcsSw = b.buildAnd(srcsSw, sSw)
             worklist.append(srcsSw.obj)
         
@@ -65,24 +69,44 @@ def extendSyncFlagsFromMultipleParallel(srcs: List[HlsNetNodeExplicitSync],
             else:
                 srcsEc = b.buildOr(srcsEc, sEc)
                 worklist.append(sEc.obj)
-                    
+
+    ec = _getPortDrive(dst.extraCond)
     if srcsEc is not NOT_SPECIFIED:
-        if ec is None:
+        ecModified = False
+        if srcsEc is None:
+            # no extension is required because extraCond flags in srcs together al always satisfied
+            pass  
+        elif ec is None:
+            # add completly new extraCond
             dst.addControlSerialExtraCond(srcsEc)
+            ecModified = True
         else:
+            # extend current extraCond
             unlink_hls_nodes(ec, dst.extraCond)
             link_hls_nodes(b.buildAnd(ec, srcsEc), dst.extraCond)
-        worklist.append(dst.dependsOn[dst.extraCond.in_i].obj)
+            ecModified = True
+        
+        if ecModified:
+            worklist.append(dst.dependsOn[dst.extraCond.in_i].obj)
 
+    sw = _getPortDrive(dst.skipWhen)
     if srcsSw is not NOT_SPECIFIED:
-        if sw is None:
+        swModified = False
+        if srcsSw is None:
+            # skipWhen from srcs combined is never satisfied
+            # this means that only skipWhen is actual one
+            pass
+        elif sw is None:
             dst.addControlSerialSkipWhen(srcsSw)
+            swModified = True
         else:
             unlink_hls_nodes(sw, dst.skipWhen)
             link_hls_nodes(b.buildOr(sw, srcsSw), dst.skipWhen)
-
-        worklist.append(dst.dependsOn[dst.skipWhen.in_i].obj)
+            swModified = True
+        if swModified:
+            worklist.append(dst.dependsOn[dst.skipWhen.in_i].obj)
              
+
 
 def _findBoundaryForSyncHoisting(n: HlsNetNodeExplicitSync) -> UniqList[Tuple[HlsNetNodeOut, HlsNetNodeIn]]:
     boundary: UniqList[Tuple[HlsNetNodeOut, HlsNetNodeIn]] = UniqList(zip(n.dependsOn, n._inputs))
