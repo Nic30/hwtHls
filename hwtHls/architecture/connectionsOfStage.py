@@ -16,7 +16,7 @@ from hwtLib.amba.axi_intf_common import Axi_hs
 from hwtLib.handshaked.streamNode import StreamNode
 
 
-def get_sync_type(intf: Interface) -> Type[Interface]:
+def geSyncType(intf: Interface) -> Type[Interface]:
     """
     resolve which primitive type of synchronization is the interface using
     """
@@ -41,7 +41,7 @@ class SkipWhenMemberList(TimeIndependentRtlResourceItem):
         assert self.data
         return And(*(d.data for d in self.data))
 
-    def is_rlt_register(self) -> bool:
+    def isRltRegister(self) -> bool:
         raise NotImplementedError()
 
 
@@ -73,7 +73,7 @@ class ExtraCondMemberList(TimeIndependentRtlResourceItem):
 
         return extraCond
 
-    def is_rlt_register(self) -> bool:
+    def isRltRegister(self) -> bool:
         raise NotImplementedError()
 
 
@@ -109,10 +109,9 @@ class ConnectionsOfStage():
         self.syncIn: Optional[HandshakeSync] = None
         self.syncOut: Optional[HandshakeSync] = None
 
-
-class SignalsOfStages(List[UniqList[TimeIndependentRtlResourceItem]]):
+class SignalsOfStages(List[Optional[UniqList[TimeIndependentRtlResourceItem]]]):
     """
-    Container of signals in :class:`~.ConnectionsOfStage` instances.
+    Container of for :class:`~.TimeIndependentRtlResourceItem` divided into clock cycles.
     """
 
     def __init__(self, normalizedClkPeriod: int, initVals=None):
@@ -123,14 +122,18 @@ class SignalsOfStages(List[UniqList[TimeIndependentRtlResourceItem]]):
                 assert isinstance(v, UniqList) or v is None, v
                 self.append(v)
 
-    def getForTime(self, t: int):
+    def getForTime(self, t: int) -> UniqList[TimeIndependentRtlResourceItem]:
+        """
+        Use time to index in this lis.
+        """
         i = int(t // self.normalizedClkPeriod)
         try:
             if i < 0:
-                raise IndexError()
+                raise IndexError("Asking for an object in invalid time", t)
             res = self[i]
         except IndexError:
-            raise IndexError("Asking for an object which is scheduled by a different region", t, i, len(self), self) from None
+            raise IndexError("Asking for an object which is scheduled to different architectural element", t, i, len(self), self) from None
+
         if res is None:
             raise IndexError("Asking for an object in time which is not managed by this architectural element", t, i, [int(item is not None) for item in self])
 
@@ -206,7 +209,7 @@ def getIntfSyncSignals(intf: Union[Interface, RtlSignal]) -> Tuple[Interface, ..
 
 def resolveStrongestSyncType(current_sync: Type[Interface], io_channels: Sequence[Interface]):
     for op in io_channels:
-        sync_type = get_sync_type(op)
+        sync_type = geSyncType(op)
         if sync_type is Handshaked or current_sync is RdSynced and sync_type is VldSynced:
             current_sync = Handshaked
         elif sync_type is RdSynced:

@@ -311,7 +311,7 @@ class ArchElementFsm(ArchElement):
                 s: TimeIndependentRtlResource
                 # if the value has a register at the end of this stage
                 v = s.checkIfExistsInClockCycle(self._beginClkI + stI + 1)
-                if v is not None and v.is_rlt_register() and not v in seenRegs:
+                if v is not None and v.isRltRegister() and not v in seenRegs:
                     con.stDependentDrives.append(v.data.next.drivers[0])
                     seenRegs.add(v)
 

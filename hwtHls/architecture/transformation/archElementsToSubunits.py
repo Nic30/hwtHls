@@ -56,7 +56,7 @@ class RtlArchPassTransplantArchElementsToSubunits(RtlArchPass):
                         stateRegisters.append(v.data)
                     else:
                         v = s.checkIfExistsInClockCycle(pipeline_st_i + 1)
-                        if v is not None and v.is_rlt_register():
+                        if v is not None and v.isRltRegister():
                             stateRegisters.append(v.data)
 
                 if not stateRegisters:

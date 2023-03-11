@@ -268,7 +268,7 @@ class ArchElementPipeline(ArchElement):
                     curRegisterDrivers.append(v.data.next.drivers[0])
                 else:
                     v = s.checkIfExistsInClockCycle(pipeline_st_i + 1)
-                    if v is not None and v.is_rlt_register():
+                    if v is not None and v.isRltRegister():
                         curRegisterDrivers.append(v.data.next.drivers[0])
 
             curRegisterDrivers.extend(con.stDependentDrives)

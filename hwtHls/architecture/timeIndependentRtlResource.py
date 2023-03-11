@@ -15,7 +15,7 @@ class TimeIndependentRtlResourceItem():
         self.data = data
         self.isExplicitRegister = isExplicitRegister
 
-    def is_rlt_register(self) -> bool:
+    def isRltRegister(self) -> bool:
         return self.isExplicitRegister or (
                 self.parent.valuesInTime[0] is not self or
                 isinstance(self.parent.valuesInTime[0].data, RtlSyncSignal)
@@ -124,7 +124,7 @@ class TimeIndependentRtlResource():
         for i in reversed(range(regsToAdd)):
             if self._isInPersistenceRanges(dstClkPeriod - i):
                 cur = self.valuesInTime[-1]
-                assert cur.is_rlt_register(), cur
+                assert cur.isRltRegister(), cur
             else:
                 reg = self.allocator._reg(f"{name:s}_delayTo{dstClkPeriod - i:d}",
                                           dtype=sig.data._dtype)
