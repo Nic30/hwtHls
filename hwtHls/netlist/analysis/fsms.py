@@ -1,4 +1,4 @@
-from typing import List, Set, Union, Dict, Tuple, Callable
+from typing import List, Set, Union, Dict, Tuple, Callable, Optional
 
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
@@ -16,7 +16,7 @@ from hwtHls.netlist.analysis.betweenSyncIslands import HlsNetlistAnalysisPassBet
 
 class IoFsm():
     """
-    :ivar intf: An interface instance for which this FSM is generated for.
+    :ivar intf: An interface instance for which this FSM is generated for. For debugging purposes.
     :ivar states: list of list of nodes for each state
     :ivar stateClkI: maps the state index to an index of clk tick where the state was originally scheduled
     :ivar clkIToStateI: reverse map of stateClkI
@@ -24,7 +24,7 @@ class IoFsm():
     :ivar syncIslands: a list of unique synchronization islands touching this FSM
     """
 
-    def __init__(self, intf: Interface, syncIslands: UniqList[BetweenSyncIsland]):
+    def __init__(self, intf: Optional[Interface], syncIslands: UniqList[BetweenSyncIsland]):
         self.intf = intf
         self.states: List[List[HlsNetNode]] = []
         self.stateClkI: Dict[int, int] = {}
@@ -190,14 +190,11 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
                 islands = UniqList()
                 for a in accesses:
                     inIsl, outIsl = syncIslands.syncIslandOfNode[a]
-                    if isinstance(a, HlsNetNodeRead) or outIsl is None:
+                    if (isinstance(a, HlsNetNodeRead) and inIsl is not None) or outIsl is None:
                         isl = inIsl
                     else:
                         isl = outIsl
-                    try:
-                        assert isl is not None, a
-                    except:
-                        raise
+                    assert isl is not None, a
                     islands.append(isl)
                 assert None not in islands, (islands, accesses)
 
