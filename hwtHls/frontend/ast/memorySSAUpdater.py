@@ -208,6 +208,7 @@ class MemorySSAUpdater():
         return same
 
     def sealBlock(self, block: SsaBasicBlock):
+        "seal must be performed once all direct predecessors of the block are known to resolve temporary PHI functions"
         assert block not in self.sealedBlocks, ("Block can be sealed only once", block)
         phis = self.incompletePhis.pop(block, None)
 
