@@ -1,4 +1,4 @@
-from typing import Optional, Union, List, Tuple
+from typing import Optional, Union, List, Tuple, Sequence
 
 from hwt.hdl.operator import Operator
 from hwt.hdl.operatorDefs import OpDefinition, AllOps
@@ -234,27 +234,33 @@ class SsaExprBuilder():
         return instr
         
     def insertBlocks(self, branchConditions: List[Optional[SsaValue]]):
+        """
+        Split current block to predecesor block and sequel block and insert branch blocks between them with a condition specified in branchConditions.
+
+        :note: instruction on current insert point will end up in sequel block
+        """
         pos = self.position
         b = self.block
         blocks = [SsaBasicBlock(b.ctx, f"{b.label:s}_br{i}") for i in range(len(branchConditions))]
         
-        if pos is None or pos + 1 == len(b.body) and not b.successors.targets:
+        if (pos is None or pos == len(b.body)) and not b.successors.targets:
             # can directly append the blocks
-            raise NotImplementedError()
+            raise NotImplementedError("block without any successors or instructions inside")
             sequel = None
         else:
             # must spot a sequel block, copy all instructions after this position and move all successors from original block
             sequel = SsaBasicBlock(b.ctx, b.label + "_sequel")
             if pos is not None:
-                for instr in b.body[pos + 1:]:
+                for instr in b.body[pos:]:
                     instr.block = None
                     sequel.body.append(instr)
-                del b.body[pos + 1:]
+                    instr.block = sequel
+                del b.body[pos:]
 
             for c, t, meta in b.successors.targets:
                 t: SsaBasicBlock
                 t.predecessors.remove(b)
-                sequel.successors.addTarget(c, t).meta = meta
+                sequel.successors.addTarget(c, t, meta=meta)
 
             b.successors.targets.clear()
             for c, t in zip(branchConditions, blocks):
