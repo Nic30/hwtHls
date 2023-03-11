@@ -49,6 +49,9 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
     '''
 
     def _threadContainsNonConcurrentIo(self, thread: Set[HlsNetNode]):
+        """
+        :returns: True if there are multiple nodes which are using same interface
+        """
         seenIos: Set[Union[InterfaceBase, RtlSignalBase]] = set()
         for n in thread:
             if isinstance(n, HlsNetNodeWrite):
@@ -56,12 +59,13 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
             elif isinstance(n, HlsNetNodeRead):
                 i = n.src
             else:
-                i = None
-            if i is not None:
-                if i in seenIos:
-                    return True
-                else:
-                    seenIos.add(i)
+                continue
+            assert i is not None, n
+            if i in seenIos:
+                return True
+            else:
+                seenIos.add(i)
+        return False
 
     def _getBlockMeta(self, mb: MachineBasicBlock):
         """
@@ -103,11 +107,13 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                 if not loop.hasNoExitBlocks():
                     # need sync to synchronize code behind the loop
                     mbSync.needsControl = True
-    
+
+                elif self._threadContainsNonConcurrentIo(mbThreads[0]):
+                    mbSync.needsControl = True
+
                 elif (len(mbThreads) > 1 or
                       (mb.pred_size() > 1 and (mb.pred_size() != 2 or not mbSync.rstPredeccessor)) or
-                      not mbThreads or
-                      self._threadContainsNonConcurrentIo(mbThreads[0])):
+                      not mbThreads):
                     # multiple independent threads in body or more entry points to a loop
                     loopBodySelfSynchronized = True
                     for pred in mb.predecessors():
@@ -123,7 +129,7 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                         pass
                     else:
                         mbSync.needsControl = True
-
+                
                 elif mb.succ_size() > 1:
                     mbSync.needsControl = True
         
