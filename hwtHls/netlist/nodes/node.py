@@ -1,4 +1,4 @@
-from itertools import zip_longest
+from itertools import zip_longest, chain
 from math import inf, isfinite
 from typing import List, Optional, Union, Tuple, Generator, Dict, Callable, \
     Literal
@@ -22,6 +22,10 @@ OutputTimeGetter = Callable[[HlsNetNodeOut, Optional[UniqList["HlsNetNode"]], in
 
 def _tupleWithoutItemOnIndex(arr: tuple, index: int):
     return tuple(item for i, item in enumerate(arr) if i != index)
+
+
+def _tupleAppend(arr: tuple, v:int):
+    return tuple(chain(arr, (v,)))
 
 
 class HlsNetNode():
@@ -246,7 +250,7 @@ class HlsNetNode():
         for oClkOff in self.outputClkTickOffset:
             assert oClkOff == 0, (oClkOff, "this node should use scheduleAlapCompactionMultiClock instead")
 
-        #assert self.usedBy, ("Compaction should be called only for nodes with dependencies, others should be moved only manually", self)
+        # assert self.usedBy, ("Compaction should be called only for nodes with dependencies, others should be moved only manually", self)
         ffdelay = self.netlist.platform.get_ff_store_time(self.netlist.realTimeClkPeriod, self.netlist.scheduler.resolution)
         clkPeriod = self.netlist.normalizedClkPeriod
         if not self._outputs:
@@ -427,15 +431,31 @@ class HlsNetNode():
             if self.scheduledOut is not None:
                 self.scheduledOut = _tupleWithoutItemOnIndex(self.scheduledOut, i)
         
-    def _addInput(self, name: Optional[str]) -> HlsNetNodeIn:
-        assert self.realization is None, self
+    def _addInput(self, name: Optional[str], addDefaultScheduling=False) -> HlsNetNodeIn:
+        if addDefaultScheduling:
+            if self.realization is not None:
+                self.inputClkTickOffset = _tupleAppend(self.inputClkTickOffset, 0)
+                self.inputWireDelay = _tupleAppend(self.inputWireDelay, 0)
+                if self.scheduledIn is not None:
+                    self.scheduledIn = _tupleAppend(self.scheduledIn, self.scheduledZero)
+        else:
+            assert self.realization is None, self
+
         i = HlsNetNodeIn(self, len(self._inputs), name)
         self._inputs.append(i)
         self.dependsOn.append(None)
         return i
 
-    def _addOutput(self, t: HdlType, name: Optional[str]) -> HlsNetNodeOut:
-        assert self.realization is None, self
+    def _addOutput(self, t: HdlType, name: Optional[str], addDefaultScheduling=False) -> HlsNetNodeOut:
+        if addDefaultScheduling:
+            if self.realization is not None:
+                self.outputClkTickOffset = _tupleAppend(self.outputClkTickOffset, 0)
+                self.outputWireDelay = _tupleAppend(self.outputWireDelay, 0)
+                if self.scheduledOut is not None:
+                    self.scheduledOut = _tupleAppend(self.scheduledOut, self.scheduledZero)
+        else:
+            assert self.realization is None, self
+
         o = HlsNetNodeOut(self, len(self._outputs), t, name)
         self._outputs.append(o)
         self.usedBy.append([])

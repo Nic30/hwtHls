@@ -69,19 +69,19 @@ class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
     def getOrderingOutPort(self) -> HlsNetNodeOut:
         o = self._orderingOut
         if o is None:
-            o = self._orderingOut = self._addOutput(HVoidOrdering, "orderingOut")
+            o = self._orderingOut = self._addOutput(HVoidOrdering, "orderingOut", addDefaultScheduling=True)
         return o
 
     def getInputOfClusterPort(self):
         i = self._inputOfCluster
         if i is None:
-            i = self._inputOfCluster = self._addInput("inputOfCluster")
+            i = self._inputOfCluster = self._addInput("inputOfCluster", addDefaultScheduling=True)
         return i
 
     def getOutputOfClusterPort(self):
         i = self._outputOfCluster
         if i is None:
-            i = self._outputOfCluster = self._addInput("outputOfCluster")
+            i = self._outputOfCluster = self._addInput("outputOfCluster", addDefaultScheduling=True)
         return i
 
     def _removeInput(self, i:int):
