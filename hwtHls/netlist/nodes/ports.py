@@ -1,4 +1,5 @@
 from typing import List, Union, Optional
+
 from hwt.hdl.types.hdlType import HdlType
 
 

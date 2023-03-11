@@ -229,7 +229,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
             control = self._constructBackedgeBuffer(f"c_loop{loopGate._id}Exit", exitBloc, headerBlock, None, v, isControl=True)
             wn: HlsNetNodeWriteBackwardEdge = control.obj.associated_write
             wn.allocationType = BACKEDGE_ALLOCATION_TYPE.IMMEDIATE
-            # print(wn, _control, mbSync.blockEn)
+
             self._addExtraCond(wn, _control, mbSync.blockEn)
             self._addSkipWhen_n(wn, _control, mbSync.blockEn)
             
@@ -253,6 +253,19 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
             if mbSync.rstPredeccessor and pred == mbSync.rstPredeccessor:
                 # :note: rstPredeccessor will is inlined
                 continue
+            
+            # [fixme] the inputs from before the loop are not guaranteed to be stable
+            #         maybe loop initialization should be handled differently
+            # * where the state should be kept? predecessor or the successor?
+            #   * predecessor has storage facility, however this may limit pipelining
+            #   * there is a problem that the input from predecessor starts the loop
+            #     this signal controls input loop body input muxes, in this specific case
+            #     the optimization of synchronization does not work because the the synchronization
+            #     for this signal drives just input mux but does not touch the input ports itself
+            #      * this results in the situation when inputs are required and the input is consummed 
+            #        but the loop inputs should be skiped and this input token should swith loop to a bussy state 
+            
+            
             
             # insert explicit sync on control input
             control = valCache.get(mb, pred, BIT)
@@ -305,6 +318,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                     loop: MachineLoop
                     topLoop = getTopLoopForBlock(mb, loop)
                     # build 1 HlsLoopGate for all loops which do have this block as a header
+                    # [fixme] loop may have just 2 predecessors and required loop gate
                     # [fixme] The loop gate is instantiated only for top loop,
                     #     The purpose of loop gate is to select input data for the loop body.
                     #     If this block is a header of multiple loops there must be multiple loop header to enable a correct subset of backedges.

@@ -181,6 +181,7 @@ class HwtHlsNetlistToTimelineJson():
             start = min(obj.scheduledIn)
         else:
             assert obj.scheduledOut is not None, obj
+            assert obj.scheduledOut, (obj, "does not have any port")
             start = max(obj.scheduledOut)
 
         if obj.scheduledOut:

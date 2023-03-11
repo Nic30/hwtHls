@@ -25,7 +25,7 @@ class AxiSPacketCntr(Unit):
         self.clk.FREQ = self.CLK_FREQ
         with self._paramsShared():
             self.i = AxiStream()
-            
+
         self.pkt_cnt: Handshaked = Handshaked()._m()
         self.pkt_cnt.DATA_WIDTH = 16
 

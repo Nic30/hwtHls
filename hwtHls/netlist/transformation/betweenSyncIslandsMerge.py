@@ -29,7 +29,6 @@ class HlsNetlistPassBetweenSyncIslandsMerge(HlsNetlistPass):
 
         :attention: dstIsl must not be successor of srcIsl (may be predecessor or parallel to)
         """
-        # print("_joinIslands", srcIsl, dstIsl)
         assert srcIsl is not dstIsl
         syncIslandOfNode = self.syncIslandOfNode
 
@@ -94,7 +93,7 @@ class HlsNetlistPassBetweenSyncIslandsMerge(HlsNetlistPass):
                 isl: BetweenSyncIsland
                 if isl in removedIslands:
                     continue
-                # print(isl)
+
                 hasNodesWhichTakeTime: bool = False
                 for n in isl.nodes:
                     if isinstance(n, (HlsNetNodeIoClusterCore, HlsNetNodeConst)):

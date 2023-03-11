@@ -43,10 +43,10 @@ class HlsNetlistPassPostSchedulingChannelMerge(HlsNetlistPass):
                 toMerge = [] 
                 ec = _getPortDrive(selected.extraCond)
                 sw = _getPortDrive(selected.skipWhen)
-                print(selected)
-                print("    ec:", None if ec is None else netlistDebugExpr(ec, tmpVars))
-                print("    sw:", None if sw is None else netlistDebugExpr(sw, tmpVars))
-                        
+                #print(selected)
+                #print("    ec:", None if ec is None else netlistDebugExpr(ec, tmpVars))
+                #print("    sw:", None if sw is None else netlistDebugExpr(sw, tmpVars))
+                #        
                 for other in islice(reads, selectedI + 1, None):
                     if other in removed:
                         continue

@@ -7,9 +7,9 @@ from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.scope import HlsScope
 from hwtLib.examples.statements.ifStm import SimpleIfStatement
-from tests.baseSsaTest import BaseSsaTC
 from hwtSimApi.utils import freq_to_period
 from pyMathBitPrecise.bit_utils import get_bit
+from tests.baseSsaTest import BaseSsaTC
 
 
 class HlsSimpleIfStatement(SimpleIfStatement):

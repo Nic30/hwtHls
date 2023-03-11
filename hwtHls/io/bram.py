@@ -8,10 +8,8 @@ from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.value import HValue
 from hwt.interfaces.std import BramPort_withoutClk
-from hwt.pyUtils.arrayQuery import single
 from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF
 from hwt.synthesizer.interface import Interface
-from hwt.synthesizer.interfaceLevel.unitImplHelpers import getInterfaceName
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
