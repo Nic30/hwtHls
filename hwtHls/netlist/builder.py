@@ -18,6 +18,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut, link_hls_nodes, \
     HlsNetNodeIn, HlsNetNodeOutLazy, HlsNetNodeOutAny, unlink_hls_nodes
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
+from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 
 
 class HlsNetlistBuilder():
@@ -236,7 +237,7 @@ class HlsNetlistBuilder():
     def buildReadSync(self, i: HlsNetNodeOutAny):
         isResolvedOut = False
         if isinstance(i, HlsNetNodeOut) and isinstance(i.obj, HlsNetNodeExplicitSync):
-            if isinstance(i.obj, HlsNetNodeRead):
+            if isinstance(i.obj, (HlsNetNodeRead, HlsNetNodeWrite)):
                 return i.obj.getValidNB()
 
             n = i.obj._associatedReadSync
