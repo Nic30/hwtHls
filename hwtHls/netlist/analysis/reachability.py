@@ -2,18 +2,18 @@ from copy import copy
 from itertools import chain
 from typing import Set, Dict, Optional, Tuple, Union, Literal, List, Generator
 
+from hwt.hdl.operatorDefs import AllOps
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
+from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.orderable import HdlType_isNonData, HVoidData, \
     HdlType_isVoid
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.observableList import ObservableList, ObservableListRm
-from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwt.hdl.operatorDefs import AllOps
-from hwtHls.netlist.nodes.const import HlsNetNodeConst
 
 
 def iterUserObjs(n: HlsNetNode):
@@ -119,19 +119,11 @@ class HlsNetlistAnalysisPassReachabilility(HlsNetlistAnalysisPass):
         return False
         # return user in self._controlSuccessors[n]
 
-#    @staticmethod
-#    def getSuccessorIoClusterCore(n: HlsNetNodeExplicitSync) -> Optional[HlsNetNodeIoClusterCore]:
-#        return n.dependsOn[n._inputOfCluster.in_i].obj
-#
-#    @staticmethod
-#    def getPredecessorIoClusterCore(n: HlsNetNodeExplicitSync) -> Optional[HlsNetNodeIoClusterCore]:
-#        return n.dependsOn[n._outputOfCluster.in_i].obj
-
     def getDirectDataSuccessors(self, n: HlsNetNodeExplicitSync) -> UniqList[HlsNetNodeExplicitSync]:
         """
         Use IO cluster core to iterate HlsNetNodeExplicitSync successor nodes.
 
-        :attention: Expects that HlsNetNodeIoClusterCore nodes are present and generated using HlsNetlistPassCreateIoClusterCores and HlsNetlistPassExplicitSyncDataToOrdering
+        :attention: Expects that HlsNetlistPassMoveExplicitSyncOutOfDataAndAddVoidDataLinks and HlsNetlistPassExplicitSyncDataToOrdering to be applied before
         """
         assert isinstance(n, HlsNetNodeExplicitSync), n
         found: UniqList[HlsNetNodeExplicitSync] = UniqList()
@@ -153,40 +145,6 @@ class HlsNetlistAnalysisPassReachabilility(HlsNetlistAnalysisPass):
                         assert isinstance(user.obj, HlsNetNodeExplicitSync), (n, user.obj)
                         found.append(user.obj)
 
-        # ioClusterCore = self.getSuccessorIoClusterCore(n)
-        # if ioClusterCore is not None:
-        #    # this is an input to ioClusterCore, inputs and outputs may be successors
-        #    for inDep in chain(*ioClusterCore.usedBy):
-        #        inObj = inDep.obj
-        #        if inObj is n:
-        #            continue
-        #        # query reachability from n to inObj and ignore ioClusterCore because the connection there
-        #        # does not mean that there is data dependency between n and inDep
-        #        foundPathFomNToInObj = False
-        #        for users in n.usedBy:
-        #            for user in users:
-        #                if user.obj is ioClusterCore:
-        #                    continue
-        #                if self.doesReachTo(n, user):
-        #                    found.append(inObj)
-        #                    foundPathFomNToInObj = True
-        #                    break
-        #            if foundPathFomNToInObj:
-        #                break
-        #
-        # ioClusterCore = self.getPredecessorIoClusterCore(n)
-        # if ioClusterCore is not None:
-        #    # this is in outputs of ioClusterCore, filter those which are successors
-        #    for oUser in ioClusterCore.usedBy[ioClusterCore.outputNodePort.out_i]:
-        #        oUserObj = oUser.obj
-        #        if oUserObj is n or oUserObj in found:
-        #            continue
-        #        if self.doesReachTo(n, oUserObj):
-        #            found.append(oUserObj)
-        # else:
-        #    # this HlsNetNodeExplicitSync is not transitively connected to any other sync using data
-        #    pass
-        #
         return found 
 
     def getDirectDataSuccessorsMany(self, inputs: List[HlsNetNodeExplicitSync]) -> Generator[HlsNetNodeExplicitSync, None, None]:
@@ -201,7 +159,7 @@ class HlsNetlistAnalysisPassReachabilility(HlsNetlistAnalysisPass):
         """
         Use IO cluster core to iterate HlsNetNodeExplicitSync successor nodes.
 
-        :attention: Requires HlsNetNodeIoClusterCore instances, :see:`~.HlsNetlistAnalysisPassReachabilility.getDirectDataSuccessors`
+        :attention: Expects some passes to be applied before :see:`~.HlsNetlistAnalysisPassReachabilility.getDirectDataSuccessors`
         """
         assert isinstance(n, HlsNetNodeExplicitSync), n
         found: UniqList[HlsNetNodeExplicitSync] = UniqList()
@@ -224,33 +182,7 @@ class HlsNetlistAnalysisPassReachabilility(HlsNetlistAnalysisPass):
                     for o in _found:
                         if not isinstance(o.obj, HlsNetNodeConst):
                             found.append(o.obj)
-        
-        # predCluster = self.getPredecessorIoClusterCore(n)
-        # if predCluster is not None:
-        #    # this is an input to ioClusterCore, inputs and outputs may be successors,
-        #    # (All predecessors must be in this cluster)
-        #    for inDep in chain(*predCluster.usedBy):
-        #        inObj = inDep.obj
-        #        if inObj is n:
-        #            continue
-        #        # query reachability from inObj to n and ignore ioClusterCore because the connection there
-        #        # does not mean that there is data dependency between inDep and n
-        #        if self.doesReachTo(inObj, n):
-        #            found.append(inObj)
-        # else:
-        #    sucCluster = self.getSuccessorIoClusterCore(n)
-        #    if sucCluster is not None:
-        #        # this is in outputs of ioClusterCore, filter those inputs which are predecessors
-        #        for iDep in sucCluster.dependsOn:
-        #            iDepObj = iDep.obj
-        #            if iDepObj is n or iDepObj in found:
-        #                continue
-        #            if self.doesReachTo(iDepObj, n):
-        #                found.append(iDepObj)
-        #    else:
-        #        # this HlsNetNodeExplicitSync is not transitively connected to any other sync using data
-        #        pass
-        #
+       
         return found 
 
     def getDirectDataPredecessorsMany(self, outputs: List[HlsNetNodeExplicitSync]) -> Generator[HlsNetNodeExplicitSync, None, None]:
@@ -267,6 +199,7 @@ class HlsNetlistAnalysisPassReachabilility(HlsNetlistAnalysisPass):
         
     def _beforeNodeAddedListener(self, _, parentList: ObservableList[HlsNetNode], index: Union[slice, int], val: Union[HlsNetNode, Literal[ObservableListRm]]):
         if isinstance(val, HlsNetNode):
+            val.dependsOn._setObserver(self._beforeInputDriveUpdate, val)
             for d in (self._dataSuccessors, self._anySuccessors):
                 self._registerNodeInSetDict(val, d) 
 
