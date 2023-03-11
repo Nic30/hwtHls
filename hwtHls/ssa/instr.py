@@ -20,8 +20,8 @@ class SsaInstrBranch():
         self.parent = parent
         self.targets: List[Tuple[Optional[SsaValue], "SsaBasicBlock"]] = []
 
-    def addTarget(self, cond: Optional[SsaValue], target: "SsaBasicBlock"):
-        t = ConditionBlockTuple(cond, target, None)
+    def addTarget(self, cond: Optional[SsaValue], target: "SsaBasicBlock", meta=None):
+        t = ConditionBlockTuple(cond, target, meta)
         self.targets.append(t)
         assert self.parent not in target.predecessors, (self.parent, target, target.predecessors)
         target.predecessors.append(self.parent)
