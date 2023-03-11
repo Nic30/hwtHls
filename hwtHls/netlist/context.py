@@ -84,12 +84,21 @@ class HlsNetlistCtx():
         except KeyError:
             return None
   
-    def getAnalysis(self, analysis_cls:Type[HlsNetlistAnalysisPass]):
+    def getAnalysis(self, analysis_cls:Union[Type[HlsNetlistAnalysisPass], HlsNetlistAnalysisPass]):
+        if isinstance(analysis_cls, HlsNetlistAnalysisPass):
+            a = analysis_cls
+            analysis_cls = analysis_cls.__class__
+        else:
+            a = None
+ 
         try:
             return self._analysis_cache[analysis_cls]
         except KeyError:
             pass
-        a = analysis_cls(self)
+
+        if a is None:
+            a = analysis_cls(self)
+        
         self._analysis_cache[analysis_cls] = a
         a.run()
         return a
