@@ -197,7 +197,23 @@ class SsaExprBuilder():
         instr = SsaInstr(self.block.ctx, res._dtype, operator, [o0, o1], origin=res)
         self._insertInstr(instr)
         return instr
-    
+
+    def _binaryOpVariadic(self, operator: OpDefinition, ops: Sequence[Union[SsaValue, HValue, RtlSignal, Signal]]):
+        assert ops
+        if operator == AllOps.CONCAT:
+            ops = reversed(ops)
+        
+        instr = None
+        for o in ops:
+            if instr is None:
+                instr = o
+            else:
+                instr = self._binaryOp(instr, operator, o)
+
+        assert instr is not None
+        return instr
+        
+        
     def binaryOp(self, o0: Union[SsaValue, HValue, RtlSignal, Signal],
                  operator: OpDefinition,
                  o1: Union[SsaValue, HValue, RtlSignal, Signal]) -> SsaExprBuilderProxy:
