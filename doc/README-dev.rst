@@ -222,3 +222,9 @@ LLVM alias analysis
 LLVM tutorials
 --------------
 * https://lowlevelbits.org/how-to-learn-compilers-llvm-edition/
+
+
+gdbserver
+---------
+* https://github.com/bet4it/gdbserver
+
