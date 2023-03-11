@@ -552,8 +552,9 @@ class PyBytecodeToSsaLowLevelOpcodes():
         New in version 3.6.
         """
         flags = instr.arg
+        frmt = frame.stack.pop()
         v = frame.stack.pop()
-        if flags & 0x03 == 0x00:
+        if (flags & 0x03) == 0x00:
             pass
         elif (flags & 0x03) == 0x01:
             v = str(v)
@@ -564,6 +565,6 @@ class PyBytecodeToSsaLowLevelOpcodes():
         else:
             raise NotImplementedError(instr)
         
-        frame.stack.append(v)
+        frame.stack.append(format(v, frmt))
         return curBlock
     
