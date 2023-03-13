@@ -6,6 +6,7 @@
 #include "../genericFpgaInstrInfo.h"
 #include "genericFpgaInstructionSelectorUtils.h"
 #include "genericFpgaCombinerHelper.h"
+#include "../bitMathUtils.h"
 
 #define DEBUG_TYPE "genericfpga-isel"
 
@@ -188,18 +189,27 @@ bool GenericFpgaTargetInstructionSelector::select(MachineInstr &I) {
 			return false;
 		return true;
 	}
+	case G_GLOBAL_VALUE:
 	case G_CONSTANT: {
-		unsigned NewOpc = G_CONSTANT;
-		auto MIB = Builder.buildInstr(NewOpc);
+		auto MIB = Builder.buildInstr(Opc);
 		selectInstrArgs(I, MIB, true);
 		auto o0 = MIB.getInstr()->getOperand(0).getReg();
-		MRI.setType(o0, LLT::scalar(I.getOperand(1).getCImm()->getBitWidth()));
+		LLT Ty;
+		if (Opc == G_CONSTANT) {
+			Ty = LLT::scalar(I.getOperand(1).getCImm()->getBitWidth());
+		} else {
+			assert(Opc == G_GLOBAL_VALUE);
+			auto ptrT = I.getOperand(1).getGlobal()->getType();
+			auto t = ptrT->getNonOpaquePointerElementType();
+			unsigned SizeInBits = log2ceil(t->getArrayNumElements());
+			Ty = LLT::pointer(ptrT->getAddressSpace(), SizeInBits);
+		}
+		MRI.setType(o0, Ty);
 		return finalizeReplacementOfInstruction(MIB, I);
 	}
 	case G_LOAD:
 	case G_STORE:
 		return select_G_LOAD_or_G_STORE(MF, MRI, Builder, I);
-
 	case G_ADD:
 	case G_AND:
 	case G_BR:
@@ -259,27 +269,7 @@ bool GenericFpgaTargetInstructionSelector::select(MachineInstr &I) {
 	return false; // all is selected because this is just a dummy selector
 }
 
-uint64_t log2ceil(uint64_t x) {
-	// https://graphics.stanford.edu/~seander/bithacks.html#IntegerLogObvious
-	uint64_t v = (x - 1); // word to find the log base 2 of
-	uint64_t r = 0; // r will be lg(v)
-	while (v > 0) {
-		v >>= 1;
-		r++;
-	}
-	return r;
-}
-bool isPow2(uint64_t x) {
-	if (x == 0)
-		return false;
 
-	while (x != 1) {
-		if ((x & 1) != 0)
-			return false;
-		x >>= 1;
-	}
-	return true;
-}
 bool GenericFpgaTargetInstructionSelector::select_G_LOAD_or_G_STORE(
 		MachineFunction &MF, MachineRegisterInfo &MRI, MachineIRBuilder &MIRB,
 		MachineInstr &I) {
@@ -321,12 +311,30 @@ bool GenericFpgaTargetInstructionSelector::select_G_LOAD_or_G_STORE(
 	}
 	case TargetOpcode::G_PTR_ADD: {
 		// [todo] slice the index during instr. selection so we do have a minimal width and value without size multiplier
-		MachineOperand &baseAddr = addrDef->getOperand(1);
-		selectInstrArg(MF, MIB, MRI, baseAddr); // base address
-		auto fnArgI = MRI.getOneDef(baseAddr.getReg())->getParent()->getOperand(
-				1).getImm();
-		auto a = MF.getFunction().getArg(fnArgI);
-		auto argT = a->getType()->getNonOpaquePointerElementType();
+		MachineOperand &baseAddrMO = addrDef->getOperand(1);
+		selectInstrArg(MF, MIB, MRI, baseAddrMO); // base address
+		auto baseAddrInst = MRI.getOneDef(baseAddrMO.getReg())->getParent();
+		Type * argT = nullptr;
+
+		auto addrBase = baseAddrInst->getOperand(1);
+		switch (baseAddrInst->getOpcode()) {
+		case GenericFpga::GENFPGA_ARG_GET: {
+			// component IO
+			auto fnArgI = addrBase.getImm();
+			auto a = MF.getFunction().getArg(fnArgI);
+			argT = a->getType()->getNonOpaquePointerElementType();
+			break;
+		}
+		case TargetOpcode::G_GLOBAL_VALUE: {
+			// some private memory
+			auto c = addrBase.getGlobal();
+			argT = c->getType()->getNonOpaquePointerElementType();
+			break;
+		}
+		default:
+			llvm_unreachable(
+					"Unsupported specification of base address in G_PTR_ADD");
+		}
 		assert(
 				argT->isArrayTy()
 						&& "Must be the array otherwise we would not have index in the first place");

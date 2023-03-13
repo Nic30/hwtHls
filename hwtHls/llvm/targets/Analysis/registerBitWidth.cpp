@@ -2,6 +2,7 @@
 #include <llvm/CodeGen/MachineFunction.h>
 #include <llvm/CodeGen/MachineRegisterInfo.h>
 #include "../genericFpgaInstrInfo.h"
+#include "../bitMathUtils.h"
 
 using namespace llvm;
 namespace hwtHls {
@@ -60,6 +61,14 @@ bool resolveTypes(MachineInstr &MI) {
 		MRI.setType(MI.getOperand(0).getReg(),
 				LLT::scalar(MI.getOperand(1).getCImm()->getBitWidth()));
 		return true;
+	case TargetOpcode::G_GLOBAL_VALUE: {
+		auto ptrT = MI.getOperand(1).getGlobal()->getType();
+		auto t = ptrT->getNonOpaquePointerElementType();
+		unsigned SizeInBits = log2ceil(t->getArrayNumElements());
+		LLT Ty = LLT::pointer(ptrT->getAddressSpace(), SizeInBits);
+		MRI.setType(MI.getOperand(0).getReg(), Ty);
+		return true;
+	}
 	case TargetOpcode::G_ICMP:
 		MRI.setType(MI.getOperand(0).getReg(), LLT::scalar(1));
 		return true;
@@ -196,14 +205,20 @@ bool resolveTypes(MachineInstr &MI) {
 	case GenericFpga::GENFPGA_CLOAD: {
 		// val/dst, addr, index, cond
 		auto *addrDef = MRI.getVRegDef(MI.getOperand(1).getReg());
-		if (addrDef->getOpcode() != GenericFpga::GENFPGA_ARG_GET) {
+		auto addrDefOpc = addrDef->getOpcode();
+		Type * argT;
+		if (addrDefOpc == GenericFpga::GENFPGA_ARG_GET) {
+			auto fnArgI = addrDef->getOperand(1).getImm();
+			auto a = MF.getFunction().getArg(fnArgI);
+			argT = a->getType()->getNonOpaquePointerElementType();
+		} else if (addrDefOpc == GenericFpga::G_GLOBAL_VALUE) {
+			argT = addrDef->getOperand(1).getGlobal()->getType()->getNonOpaquePointerElementType();
+		} else {
 			errs() << MI << "address defined in:\n" << *addrDef;
 			llvm_unreachable(
 					"Address for GENFPGA_CLOAD should be provided from function argument only");
 		}
-		auto fnArgI = addrDef->getOperand(1).getImm();
-		auto a = MF.getFunction().getArg(fnArgI);
-		auto argT = a->getType()->getNonOpaquePointerElementType();
+
 		unsigned bitWidth;
 		if (argT->isArrayTy()) {
 			bitWidth = argT->getArrayElementType()->getIntegerBitWidth();

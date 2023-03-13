@@ -157,9 +157,8 @@ bool GenericFpgaTTIImpl::isTypeLegal(Type *Ty) {
 		return false;
 }
 
-// Switch as lookup tables is not desired
 bool GenericFpgaTTIImpl::shouldBuildLookupTables() {
-	return false;
+	return true;
 }
 
 TargetTransformInfo::PopcntSupportKind GenericFpgaTTIImpl::getPopcntSupport(

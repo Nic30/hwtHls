@@ -58,9 +58,10 @@
 #include <llvm/Transforms/Scalar/LoopUnrollAndJamPass.h>
 #include <llvm/Transforms/Scalar/WarnMissedTransforms.h>
 #include <llvm/Transforms/Scalar/LoopLoadElimination.h>
+#include <llvm/Transforms/Scalar/AlignmentFromAssumptions.h>
+#include <llvm/Transforms/Scalar/MergeICmps.h>
 #include <llvm/Transforms/Vectorize/LoopVectorize.h>
 #include <llvm/Transforms/Vectorize/SLPVectorizer.h>
-#include <llvm/Transforms/Scalar/AlignmentFromAssumptions.h>
 #include <llvm/Transforms/Vectorize/VectorCombine.h>
 #include <llvm/Transforms/Utils/AssumeBundleBuilder.h>
 #include <llvm/Transforms/Utils.h>
@@ -77,6 +78,7 @@
 #include "Transforms/extractBitConcatAndSliceOpsPass.h"
 #include "Transforms/bitwidthReducePass/bitwidthReducePass.h"
 #include "Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.h"
+#include "Transforms/dumpAndExitPass.h"
 
 #include <llvm/CodeGen/MachinePassManager.h>
 
@@ -330,7 +332,7 @@ void LlvmCompilationBundle::runOpt(
 	//  if (EnableDFAJumpThreading && Level.getSizeLevel() == 0)
 	FPM.addPass(llvm::DFAJumpThreadingPass());
 
-	FPM.addPass(llvm::JumpThreadingPass()); // segfauld on insert to internal set in non debug builds
+	FPM.addPass(llvm::JumpThreadingPass()); // segfault on insert to internal set in non debug builds
 	FPM.addPass(llvm::CorrelatedValuePropagationPass());
 
 	// Finally, do an expensive DCE pass to catch all the dead code exposed by
@@ -369,13 +371,25 @@ void LlvmCompilationBundle::runOpt(
 	FPM.addPass(
 			llvm::MergedLoadStoreMotionPass(llvm::MergedLoadStoreMotionOptions(
 			/*SplitFooterBB=*/true)));
+
 	// LowerSwitchPass
-	//FPM.addPass(llvm::GVNHoistPass());
+	//FPM.addPass(llvm::CorrelatedValuePropagationPass()); // canonicalize-icmp-predicates-to-unsigned=true
+    //FPM.addPass(llvm::GVNHoistPass());
 	//FPM.addPass(llvm::GVNSinkPass());
+	//FPM.addPass(llvm::CorrelatedValuePropagationPass()); // canonicalize-icmp-predicates-to-unsigned=true
+
+	//FPM.addPass(DumpAndExitPass());
 	FPM.addPass(
 			llvm::SimplifyCFGPass(
-					llvm::SimplifyCFGOptions().hoistCommonInsts(true).sinkCommonInsts(
-							true)));
+					llvm::SimplifyCFGOptions()//
+					.forwardSwitchCondToPhi(true)//
+					.convertSwitchRangeToICmp(true)//
+					.convertSwitchToLookupTable(true)//
+					.needCanonicalLoops(false)//
+					.hoistCommonInsts(true)//
+					.sinkCommonInsts(true)//
+	));
+
 	// :note: Profile data not yet available
 	//if (EnableCHR && Level == OptimizationLevel::O3 && PGOOpt
 	//		&& (PGOOpt->Action == PGOOptions::IRUse

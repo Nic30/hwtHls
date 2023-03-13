@@ -7,13 +7,15 @@ from hwt.hdl.types.defs import BIT, SLICE, INT
 from hwtHls.frontend.ast.astToSsa import NetlistIoConstructorDictT
 from hwtHls.frontend.ast.statementsRead import HlsRead
 from hwtHls.frontend.ast.statementsWrite import HlsWrite
-from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, MachineInstr, MachineOperand, CmpInst, TargetOpcode
+from hwtHls.llvm.llvmIr import MachineRegisterInfo, MachineFunction, MachineBasicBlock, Register, \
+    MachineInstr, MachineOperand, CmpInst, TargetOpcode
 from hwtHls.netlist.analysis.dataThreadsForBlocks import HlsNetlistAnalysisPassDataThreadsForBlocks
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.orderable import HVoidOrdering
-from hwtHls.netlist.nodes.ports import HlsNetNodeOutLazy, link_hls_nodes
+from hwtHls.netlist.nodes.ports import HlsNetNodeOutLazy, link_hls_nodes, \
+    HlsNetNodeOut
 from hwtHls.ssa.translation.llvmMirToNetlist.lowLevel import HlsNetlistAnalysisPassMirToNetlistLowLevel
 from hwtHls.ssa.translation.llvmMirToNetlist.opCache import MirToHwtHlsNetlistOpCache
 from hwtHls.ssa.translation.llvmMirToNetlist.utils import MachineBasicBlockSyncContainer, \
@@ -26,13 +28,14 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
     """
     This object translates LLVM MIR to hwtHls HlsNetlist
     """
+    _GENFPGA_CLOAD_CSTORE = (TargetOpcode.GENFPGA_CLOAD, TargetOpcode.GENFPGA_CSTORE)
 
     def translateDatapathInBlocks(self, mf: MachineFunction, ioNodeConstructors: NetlistIoConstructorDictT):
         """
         Translate all non control instructions which are entirely in some block.
         (Excluding connections between blocks)
         """
-        valCache: MirToHwtHlsNetlistOpCache = self.valCache 
+        valCache: MirToHwtHlsNetlistOpCache = self.valCache
         netlist: HlsNetlistCtx = self.netlist
         builder: HlsNetlistBuilder = self.builder
         MRI = mf.getRegInfo()
@@ -48,7 +51,10 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                 instr: MachineInstr
                 dst = None
                 ops = []
-                for mo in instr.operands():
+
+                opc = instr.getOpcode()
+                isLoadOrStore = opc in self._GENFPGA_CLOAD_CSTORE
+                for i, mo in enumerate(instr.operands()):
                     mo: MachineOperand
                     if mo.isReg():
                         r = mo.getReg()
@@ -59,7 +65,20 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                             bw = self.registerTypes[r]
                             ops.append(Bits(bw).from_py(None))
                         else:
-                            ops.append(self._translateRegister(mb, r))
+                            if isLoadOrStore and i == 1:
+                                io = self.regToIo.get(r, None)
+                                if io is not None:
+                                    ops.append(io)
+                                    continue
+
+                                addrDefMO = MRI.getOneDef(r)
+                                assert addrDefMO is not None, instr
+                                addrDefInstr = addrDefMO.getParent()
+                                assert addrDefInstr.getOpcode() == TargetOpcode.G_GLOBAL_VALUE
+                                op = valCache._toHlsCache[(addrDefInstr.getParent(), addrDefMO.getReg())]
+                                ops.append(op)
+                            else:
+                                ops.append(self._translateRegister(mb, r))
 
                     elif mo.isMBB():
                         ops.append(self._translateMBB(mo.getMBB()))
@@ -69,10 +88,11 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                         ops.append(self._translateConstant(mo.getCImm()))
                     elif mo.isPredicate():
                         ops.append(CmpInst.Predicate(mo.getPredicate()))
+                    elif mo.isGlobal():
+                        ops.append(self._translateGlobal(mo.getGlobal()))
                     else:
                         raise NotImplementedError(instr, mo)
 
-                opc = instr.getOpcode()
                 opDef = self.OPC_TO_OP.get(opc, None)
                 if opDef is not None:
                     resT = ops[0]._dtype
@@ -97,10 +117,18 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                 elif opc == TargetOpcode.GENFPGA_CLOAD:
                     # load from data channel
                     srcIo, index, cond = ops
-                    constructor: HlsRead = ioNodeConstructors[srcIo][0]
-                    if constructor is None:
-                        raise AssertionError("The io without any read somehow requires read", srcIo, instr)
-                    constructor._translateMirToNetlist(constructor, self, mbSync, instr, srcIo, index, cond, dst)
+                    if isinstance(srcIo, HlsNetNodeOut):
+                        cur = builder.buildOp(AllOps.INDEX, srcIo._dtype.element_t, srcIo, index)
+                        if isinstance(cond, int):
+                            assert cond == 1, instr
+                        else:
+                            raise NotImplementedError("Create additional mux to update dst value conditionally")
+                        valCache.add(mb, dst, cur, True)
+                    else:
+                        constructor: HlsRead = ioNodeConstructors[srcIo][0]
+                        if constructor is None:
+                            raise AssertionError("The io without any read somehow requires read", srcIo, instr)
+                        constructor._translateMirToNetlist(constructor, self, mbSync, instr, srcIo, index, cond, dst)
 
                 elif opc == TargetOpcode.GENFPGA_CSTORE:
                     # store to data channel
@@ -123,7 +151,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
 
                 elif opc == TargetOpcode.G_BR or opc == TargetOpcode.G_BRCOND:
                     pass  # will be translated in next step when control is generated, (condition was already translated)
-                    
+
                 elif opc == TargetOpcode.GENFPGA_EXTRACT:
                     src, offset, width = ops
                     if isinstance(offset, int):
@@ -147,6 +175,10 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
 
                 elif opc == TargetOpcode.PseudoRET:
                     pass
+                elif opc == TargetOpcode.G_GLOBAL_VALUE:
+                    assert len(ops) == 1, ops
+                    cur = ops[0]
+                    valCache.add(mb, dst, cur, True)
                 else:
                     raise NotImplementedError(instr)
 
@@ -162,6 +194,9 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
         builder: HlsNetlistBuilder = self.builder
         backedges: Set[Tuple[MachineBasicBlock, MachineBasicBlock]] = self.backedges
         liveness = self.liveness
+        globalValues = set()
+        firstBlock = True
+        regToIo = self.regToIo
         MRI = mf.getRegInfo()
         for mb in mf:
             mb: MachineBasicBlock
@@ -169,9 +204,13 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
             # the liveIns are not required to be same because in some cases
             # the libeIn is used only by MUX input for a specific predecessor
             # First we collect all inputs for all variant then we build MUX.
-            
+
             # Mark all inputs from predec as not required and stalled while we do not have sync token ready.
             # Mark all inputs from reenter as not required and stalled while we have a sync token ready.
+            if firstBlock:
+                for instr in mb:
+                    if instr.getOpcode() == TargetOpcode.G_GLOBAL_VALUE:
+                        globalValues.add(instr.getOperand(0).getReg())
 
             loop = self.loops.getLoopFor(mb)
             liveInOrdered = []  # list of liveIn variables so we process them in deterministic order
@@ -183,7 +222,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
 
                 for liveIn in liveness[pred][mb]:
                     liveIn: Register
-                    if liveIn in self.regToIo:
+                    if liveIn in regToIo or liveIn in globalValues:
                         continue  # we will use interface not the value of address where it is mapped
                     if MRI.def_empty(liveIn):
                         continue  # this is form of undefined value
@@ -233,6 +272,18 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
 
         return blockLiveInMuxInputSync
 
+    def _regIsValidLiveIn(self, MRI: MachineRegisterInfo, liveIn: Register):
+        MRI = self.mf.getRegInfo()
+        if liveIn in self.regToIo:
+            return False  # we will use interface not the value of address where it is mapped
+        if MRI.def_empty(liveIn):
+            return False  # this is just form of undefined value (which is represented as constant)
+
+        oneDef = MRI.getOneDef(liveIn)
+        if oneDef is not None and oneDef.getParent().getOpcode() == TargetOpcode.G_GLOBAL_VALUE:
+            return False  # this is a pointer to a local memory which exists globaly
+        return True
+
     def updateThreadsOnPhiMuxes(self, threads: HlsNetlistAnalysisPassDataThreadsForBlocks):
         """
         After we instantiated MUXes for liveIns we need to update threads as the are merged now.
@@ -246,13 +297,11 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
 
                 for liveIn in liveness[pred][mb]:
                     liveIn: Register
-                    if liveIn in self.regToIo:
-                        continue  # we will use interface not the value of address where it is mapped
-                    if MRI.def_empty(liveIn):
-                        continue  # this is just form of undefined value (which is represented as constant)
+                    if not self._regIsValidLiveIn(MRI, liveIn):
+                        continue
 
                     dtype = Bits(self.registerTypes[liveIn])
                     srcThread = self._getThreadOfReg(threads, pred, liveIn, dtype)
                     dstThread = self._getThreadOfReg(threads, mb, liveIn, dtype)
                     threads.mergeThreads(srcThread, dstThread)
-    
+

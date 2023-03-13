@@ -82,16 +82,24 @@ void register_MachineFunction(pybind11::module_ &m) {
 		.def("getMBB", &llvm::MachineOperand::getMBB, py::return_value_policy::reference)
 		.def("getImm", &llvm::MachineOperand::getImm)
 		.def("getPredicate", &llvm::MachineOperand::getPredicate)
+		.def("getGlobal", &llvm::MachineOperand::getGlobal)
 		.def("isReg", &llvm::MachineOperand::isReg)
 		.def("isDef", &llvm::MachineOperand::isDef)
 		.def("isMBB", &llvm::MachineOperand::isMBB)
 		.def("isCImm", &llvm::MachineOperand::isCImm)
 		.def("isImm", &llvm::MachineOperand::isImm)
 		.def("isPredicate", &llvm::MachineOperand::isPredicate)
+		.def("isGlobal", &llvm::MachineOperand::isGlobal)
+		.def("getParent", [](llvm::MachineOperand * MO) {
+				return MO->getParent();
+			}, py::return_value_policy::reference_internal)
 		.def("__repr__",  &printToStr<llvm::MachineOperand>);
 	py::class_<llvm::MachineMemOperand, std::unique_ptr<llvm::MachineMemOperand, py::nodelete>> MachineMemOperand(m, "MachineMemOperand");
 	py::class_<llvm::MachineInstr, std::unique_ptr<llvm::MachineInstr, py::nodelete>> MachineInstr(m, "MachineInstr");
 	MachineInstr
+		.def("getParent", [](llvm::MachineInstr * MI) {
+			return MI->getParent();
+		}, py::return_value_policy::reference_internal)
 		.def("getNumOperands", &llvm::MachineInstr::getNumOperands)
 		.def("getOperand", [](llvm::MachineInstr & I, unsigned i) {
 			return I.getOperand(i);
@@ -168,7 +176,8 @@ void register_MachineFunction(pybind11::module_ &m) {
 		.def("__str__",  &printToStr<llvm::MachineLoop>);
 	py::class_<llvm::MachineRegisterInfo, std::unique_ptr<llvm::MachineRegisterInfo, py::nodelete>> MachineRegisterInfo(m, "MachineRegisterInfo");
 	MachineRegisterInfo
-		.def("def_empty", &llvm::MachineRegisterInfo::def_empty);
+		.def("def_empty", &llvm::MachineRegisterInfo::def_empty)
+		.def("getOneDef", &llvm::MachineRegisterInfo::getOneDef, py::return_value_policy::reference_internal);
 }
 
 }

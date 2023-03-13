@@ -6,6 +6,8 @@
 #include <llvm/ADT/APSInt.h>
 #include <llvm/ADT/SmallString.h>
 #include <llvm/IR/Constants.h>
+#include <llvm/IR/GlobalValue.h>
+
 
 namespace py = pybind11;
 
@@ -39,25 +41,30 @@ void register_Values_and_Use(pybind11::module_ & m) {
 
 	// owned by context => no delete
 	py::class_<llvm::User, std::unique_ptr<llvm::User, py::nodelete>, llvm::Value>(m, "User")
+		.def("getOperand", &llvm::User::getOperand, py::return_value_policy::reference)
+		.def("getNumOperands", &llvm::User::getNumOperands)
 		.def("iterOperands", [](llvm::User &v) {
 			 	return py::make_iterator(v.op_begin(), v.op_end());
 			 }, py::keep_alive<0, 1>()); /* Keep vector alive while iterator is used */;
 
 	py::class_<llvm::Use, std::unique_ptr<llvm::Use, py::nodelete>>(m, "Use")
-		.def("get", &llvm::Use::get);
+		.def("get", &llvm::Use::get, py::return_value_policy::reference);
 
 	py::class_<llvm::APInt>(m, "APInt")
 		.def(py::init<unsigned, llvm::StringRef, uint8_t>())
 		.def_static("getAllOnesValue", llvm::APInt::getAllOnesValue)
 		.def_static("getBitsSet", llvm::APInt::getBitsSet)
 		.def("__int__", [](llvm::APInt* I) {
-		 	 llvm::SmallString<256> str;
+		 	llvm::SmallString<256> str;
 			I->toString(str, 16, I->isNegative());
 			return pybind11::int_fromStr(str.c_str());
 		});
 
 	py::class_<llvm::Constant, std::unique_ptr<llvm::Constant, py::nodelete>, llvm::User>(m, "Constant");
+	py::class_<llvm::GlobalValue, std::unique_ptr<llvm::GlobalValue, py::nodelete>, llvm::Constant>(m, "GlobalValue");
 	py::class_<llvm::ConstantData, std::unique_ptr<llvm::ConstantData, py::nodelete>, llvm::Constant>(m, "ConstantData");
+	py::class_<llvm::ConstantAggregate,  std::unique_ptr<llvm::ConstantAggregate, py::nodelete>, llvm::Constant>(m, "ConstantAggregate");
+
 	py::class_<llvm::ConstantInt, std::unique_ptr<llvm::ConstantInt, py::nodelete>, llvm::ConstantData>(m, "ConstantInt")
 		.def_static("get", [](llvm::Type* Ty, llvm::APInt& V) {
 			return llvm::ConstantInt::get(Ty, V);
@@ -69,7 +76,17 @@ void register_Values_and_Use(pybind11::module_ & m) {
 		  } else {
 			  return (llvm::ConstantInt *) nullptr;
 		  }
-	});
+	}, py::return_value_policy::reference);
+
+	py::class_<llvm::ConstantArray, std::unique_ptr<llvm::ConstantArray, py::nodelete>, llvm::ConstantAggregate>(m, "ConstantArray");
+	m.def("ValueToConstantArray", [](llvm::Value * V) {
+		  if (llvm::ConstantArray *CI = llvm::dyn_cast<llvm::ConstantArray>(V)) {
+		    return CI;
+		  } else {
+			  return (llvm::ConstantArray *) nullptr;
+		  }
+	}, py::return_value_policy::reference);
+
 }
 
 }

@@ -1,17 +1,19 @@
 from typing import Set, Tuple, Dict, List, Union, Type, Optional
 
 from hwt.hdl.operatorDefs import AllOps
+from hwt.hdl.types.array import HArray
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.hdlType import HdlType
 from hwt.interfaces.hsStructIntf import HsStructIntf
+from hwt.interfaces.std import HandshakeSync
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import Interface_without_registration
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.unit import Unit
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, \
-    TargetOpcode, CmpInst, ConstantInt, TypeToIntegerType, IntegerType, Type as LlvmType, \
-    MachineLoopInfo
+    TargetOpcode, CmpInst, ConstantInt, TypeToIntegerType, TypeToArrayType, IntegerType, Type as LlvmType, ArrayType, \
+    MachineLoopInfo, GlobalValue, ValueToConstantArray, ValueToConstantInt
 from hwtHls.netlist.analysis.dataThreadsForBlocks import HlsNetlistAnalysisPassDataThreadsForBlocks
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.builder import HlsNetlistBuilder
@@ -21,17 +23,16 @@ from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
     HlsNetNodeWriteControlBackwardEdge
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.orderable import HdlType_isVoid
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
     link_hls_nodes, HlsNetNodeOutAny, HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
+from hwtHls.netlist.observableList import ObservableList
 from hwtHls.ssa.translation.llvmMirToNetlist.opCache import MirToHwtHlsNetlistOpCache
+from hwtHls.ssa.translation.llvmMirToNetlist.resetValueExtract import ResetValueExtractor
 from hwtHls.ssa.translation.llvmMirToNetlist.utils import MachineBasicBlockSyncContainer
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
-from hwtHls.netlist.observableList import ObservableList
-from hwtHls.netlist.nodes.orderable import HdlType_isVoid
-from hwt.interfaces.std import HandshakeSync
-from hwtHls.ssa.translation.llvmMirToNetlist.resetValueExtract import ResetValueExtractor
 
 
 class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
@@ -75,7 +76,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
                  loops: MachineLoopInfo
                  ):
         super(HlsNetlistAnalysisPassMirToNetlistLowLevel, self).__init__(HlsNetlistCtx(hls.parentUnit, hls.freq, tr.label))
-        # :note: value of a block in block0 means that the control flow was passed to block0 from block 
+        # :note: value of a block in block0 means that the control flow was passed to block0 from block
         netlist = self.netlist
         self.builder = HlsNetlistBuilder(netlist)
         netlist._setBuilder(self.builder)
@@ -111,10 +112,10 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         if isControl and HdlType_isVoid(val._dtype):
             r_from_in.obj.setNonBlocking()
             r_from_in = r_from_in.obj.getValidNB()
-        
+
         if cacheKey is not None:
             self.valCache.add(dstBlock, cacheKey, r_from_in, False)
- 
+
         _, w_to_out = self._addHsIntfAndWrite(
             f"{namePrefix:s}_in", val._dtype,
             val,
@@ -130,12 +131,17 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
             return self.valCache.get(dstBlock, cacheKey, r_from_in._dtype)
 
         return r_from_in
-        
+
     def _translateType(self, t: LlvmType):
         it = TypeToIntegerType(t)
         if it is not None:
             it: IntegerType
             return Bits(it.getBitWidth())
+        at = TypeToArrayType(t)
+        if at is not None:
+            at: ArrayType
+            elmT = self._translateType(at.getElementType())
+            return elmT[at.getNumElements()]
         else:
             raise NotImplementedError(t)
 
@@ -147,6 +153,39 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         v = t.from_py(val)
         return self.builder.buildConst(v)
 
+    @classmethod
+    def _translateConstantArrayToPy(cls, t: HArray, arr: ValueToConstantArray):
+        element_t = t.element_t
+        res = []
+        if isinstance(element_t, HArray):
+            for elmVals in arr.iterOperands():
+                res.append(cls._normalizeArrayVal(element_t, ValueToConstantArray(elmVals.get())))
+        elif not element_t.signed:
+            # convert to unsigned if required
+            m = element_t.all_mask()
+            for v in arr.iterOperands():
+                v = int(ValueToConstantInt(v.get()).getValue())
+                if v < 0:
+                    v = m + v + 1
+                res.append(v)
+        else:
+            for v in arr.iterOperands():
+                v = int(ValueToConstantInt(v.get()).getValue())
+                res.append(v)
+        return res
+
+    def _translateGlobal(self, g: GlobalValue):
+        val = g.getOperand(0)
+        t = self._translateType(val.getType())
+        if not isinstance(t, HArray):
+            raise NotImplementedError(t)
+        arrVal = ValueToConstantArray(val)
+        pyVal = self._translateConstantArrayToPy(t, arrVal)
+        v = t.from_py(pyVal)
+        c = self.builder.buildConst(v)
+        c.obj.name = str(g.getName())
+        return c
+
     def _translateIntBits(self, val: int, dtype: Bits):
         v = dtype.from_py(val)
         return self.builder.buildConst(v)
@@ -155,14 +194,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         return self._translateIntBits(val, BIT)
 
     def _translateRegister(self, block: MachineBasicBlock, r: Register):
-        io = self.regToIo.get(r, None)
-        if io is not None:
-            return io
-
         bw = self.registerTypes.get(r, None)
-        if bw is None:
-            return self.regToIo[r]
-
         res = self.valCache.get(block, r, Bits(bw))
         assert isinstance(res, (HlsNetNodeOut, HlsNetNodeOutLazy)), res
         return res
@@ -234,7 +266,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
             if blockEn_n is not None:
                 cond = b.buildOp(AllOps.OR, BIT, blockEn_n, cond)
         n.addControlSerialSkipWhen(cond)
-    
+
     def _replaceInputDriverWithConst1b(self, i: HlsNetNodeIn, threads: HlsNetlistAnalysisPassDataThreadsForBlocks):
         return ResetValueExtractor._replaceInputDriverWithConst1b(self, i, threads)
 
