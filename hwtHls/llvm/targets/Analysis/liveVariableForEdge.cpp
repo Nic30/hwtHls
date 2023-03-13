@@ -1,5 +1,8 @@
 #include "liveVariableForEdge.h"
 #include <tuple>
+#include <llvm/CodeGen/MachineFunction.h>
+#include <llvm/CodeGen/MachineBasicBlock.h>
+
 // * Boissinot, B., Hack, S., Grund, D., de Dinechin, B. D., & Rastello, F. (2008). Fast Liveness Checking for SSA-Form Programs. CGO.
 // * Domaine, & Brandner, Florian & Boissinot, Benoit & Darte, Alain & Dinechin, Benoît & Rastello, Fabrice. (2011).
 //   Computing Liveness Sets for SSA-Form Programs.
@@ -24,10 +27,10 @@ public:
 	}
 };
 
-std::pair<UniqList<Register>, UniqList<std::pair<Register, MachineBasicBlock*>>> collect_direct_provieds_and_requires(
+std::pair<UniqList<Register>, UniqList<std::pair<Register, MachineBasicBlock*>> > collect_direct_provieds_and_requires(
 		MachineBasicBlock &block) {
 	UniqList<Register> provides;
-	UniqList<std::pair<Register, MachineBasicBlock*>> requires;
+	UniqList<std::pair<Register, MachineBasicBlock*>> req;
 
 	for (auto &i : block.instrs()) {
 		unsigned opCnt = i.getNumOperands();
@@ -40,12 +43,12 @@ std::pair<UniqList<Register>, UniqList<std::pair<Register, MachineBasicBlock*>>>
 			if (v.isDef()) {
 				provides.push_back(v.getReg());
 			} else if (!provides.contains(v.getReg())) {
-				requires.push_back( { v.getReg(), nullptr });
+				req.push_back( { v.getReg(), nullptr });
 			}
 		}
 	}
 
-	return {provides, requires};
+	return {provides, req};
 }
 
 void recursively_add_edge_requirement_var(
@@ -70,10 +73,10 @@ EdgeLivenessDict getLiveVariablesForBlockEdge(MachineFunction &MF) {
 	EdgeLivenessDict live;
 	std::map<MachineBasicBlock*, UniqList<Register>> provides;
 	std::map<MachineBasicBlock*,
-			UniqList<std::pair<Register, MachineBasicBlock*>>> requires;
+			UniqList<std::pair<Register, MachineBasicBlock*>>> reqs;
 	// initialization
 	for (MachineBasicBlock &block : MF) {
-		std::tie(provides[&block], requires[&block]) =
+		std::tie(provides[&block], reqs[&block]) =
 				collect_direct_provieds_and_requires(block);
 		auto &sucs = live[&block] = std::map<MachineBasicBlock*, std::set<Register>>();
 		for (auto *suc : block.successors()) {
@@ -82,7 +85,7 @@ EdgeLivenessDict getLiveVariablesForBlockEdge(MachineFunction &MF) {
 	}
 	// transitive enclosure of requires relation
 	for (MachineBasicBlock &block : MF) {
-		for (auto _req : requires[&block]) {
+		for (auto _req : reqs[&block]) {
 			Register req;
 			MachineBasicBlock *req_if_predecessor_is;
 			std::tie(req, req_if_predecessor_is) = _req;
