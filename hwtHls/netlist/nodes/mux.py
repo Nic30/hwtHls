@@ -13,7 +13,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 class HlsNetNodeMux(HlsNetNodeOperator):
     """
     Multiplexer operation with one-hot encoded select signal
-    
+
     :note: inputs in format value, (condition, value)*
     """
 
@@ -21,11 +21,9 @@ class HlsNetNodeMux(HlsNetNodeOperator):
         super(HlsNetNodeMux, self).__init__(
             netlist, AllOps.TERNARY, 0, dtype, name=name)
 
-    def allocateRtlInstance(self,
-                          allocator: "ArchElement",
-                          ) -> TimeIndependentRtlResource:
+    def allocateRtlInstance(self, allocator: "ArchElement") -> TimeIndependentRtlResource:
         op_out = self._outputs[0]
-        
+
         try:
             return allocator.netNodeToRtl[op_out]
         except KeyError:
@@ -39,7 +37,7 @@ class HlsNetNodeMux(HlsNetNodeOperator):
             v = allocator.instantiateHlsNetNodeOutInTime(
                     v,
                     self.scheduledIn[0])
-            mux_out_s(v.data)       
+            mux_out_s(v.data)
         else:
             assert len(self._inputs) > 2, self
             mux_top = None
@@ -47,10 +45,10 @@ class HlsNetNodeMux(HlsNetNodeOperator):
                 if c is not None:
                     c, ct = c
                     c = allocator.instantiateHlsNetNodeOutInTime(c, ct)
-                
+
                 v, vt = v
                 v = allocator.instantiateHlsNetNodeOutInTime(v, vt)
-                
+
                 if c is not None and isinstance(c.data, HValue):
                     # The value of condition was resolved to be a constant
                     if c.data:
@@ -62,7 +60,7 @@ class HlsNetNodeMux(HlsNetNodeOperator):
                     else:
                         # this case has condition always 0 so we can skip it
                         continue
-                        
+
                 if mux_top is None:
                     mux_top = If(c.data, mux_out_s(v.data))
                 elif c is not None:

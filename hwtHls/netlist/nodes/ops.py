@@ -7,6 +7,7 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.typeUtils import dtypeEqualSignIgnore
 from hwtHls.netlist.nodes.orderable import HdlType_isVoid
+from hwtHls.netlist.nodes.const import HlsNetNodeConst
 
 
 class HlsNetNodeOperator(HlsNetNode):
@@ -15,7 +16,7 @@ class HlsNetNodeOperator(HlsNetNode):
 
     :ivar operator: parent RTL operator for this hls operator
     :ivar _dtype: RTL data type of output
-    
+
     :note: CONCAT operands are in lowest bits first format
     """
 
@@ -32,16 +33,16 @@ class HlsNetNodeOperator(HlsNetNode):
         self._addOutput(dtype, None)
 
     def resolveRealization(self):
-        self.netlist = self.netlist
+        netlist = self.netlist
         input_cnt = len(self.dependsOn)
 
         bit_length = self.getInputDtype(0).bit_length()
         if self.operator is AllOps.TERNARY:
             input_cnt = input_cnt // 2 + 1
 
-        r = self.netlist.platform.get_op_realization(
+        r = netlist.platform.get_op_realization(
             self.operator, bit_length,
-            input_cnt, self.netlist.realTimeClkPeriod)
+            input_cnt, netlist.realTimeClkPeriod)
         self.assignRealization(r)
 
     def allocateRtlInstance(self, allocator: "ArchElement") -> TimeIndependentRtlResource:
@@ -56,7 +57,7 @@ class HlsNetNodeOperator(HlsNetNode):
             res = []
             allocator.netNodeToRtl[op_out] = res
             return res
-            
+
         operands = []
         for (dep, t) in zip(self.dependsOn, self.scheduledIn):
             _o = allocator.instantiateHlsNetNodeOutInTime(dep, t)
@@ -68,10 +69,10 @@ class HlsNetNodeOperator(HlsNetNode):
             if HdlType_isVoid(op_out._dtype):
                 s = op_out._dtype.from_py(None)
             operands = reversed(operands)
-        
+
         if s is None:
             s = self.operator._evalFn(*(o.data for o in operands))
-        
+
         if isinstance(s, HValue):
             t = INVARIANT_TIME
 
@@ -93,7 +94,7 @@ class HlsNetNodeOperator(HlsNetNode):
             raise AssertionError("The ", self.__class__.__name__,
                                  " signals of wrong type", s, op_out, s._dtype, op_out._dtype)
         tis = TimeIndependentRtlResource(s, t, allocator, False)
-        
+
         allocator.netNodeToRtl[op_out] = tis
 
         return tis

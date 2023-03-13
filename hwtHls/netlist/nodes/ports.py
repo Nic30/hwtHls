@@ -24,10 +24,10 @@ class HlsNetNodeOut():
         assert isinstance(dtype, HdlType), dtype
         self._dtype = dtype
         self.name = name
-    
+
     def replaceDriverObj(self, o:"HlsNetNodeOut"):
         raise NotImplementedError()
-        
+
     def __repr__(self, minify=True):
         if minify:
             objStr = _reprMinify(self.obj)
@@ -71,10 +71,10 @@ class HlsNetNodeOutLazy():
             builder.unregisterNode(i.obj)
             i.replaceDriverInInputOnly(o)
             builder.registerNode(i.obj)
-        
+
         assert len(self.dependent_inputs) == l0, "Must not modify dependent_inputs during replace"
         self.dependent_inputs.clear()
-        
+
         self.replaced_by = o
 
     def __repr__(self):
@@ -138,7 +138,7 @@ class HlsNetNodeIn():
             return f"<{self.__class__.__name__} {objStr:s} [{self.in_i:d}]>"
         else:
             return f"<{self.__class__.__name__} {objStr:s} [{self.in_i:d}-{self.name:s}]>"
-            
+
 
 def link_hls_nodes(parent: HlsNetNodeOutAny, child: HlsNetNodeIn) -> None:
     assert isinstance(child, HlsNetNodeIn), child
