@@ -393,7 +393,7 @@ bool GenFpgaCombinerHelper::matchConstCmpConstAdd(llvm::MachineInstr &MI,
 	const auto LHS = MI.getOperand(2);
 	const auto RHS = MI.getOperand(3);
 	if (Pred == CmpInst::Predicate::ICMP_EQ
-			|| Pred == CmpInst::Predicate::ICMP_NE) {
+			|| Pred == CmpInst::Predicate::ICMP_NE) { // [todo] rest of the predicates
 		if (LHS.isReg() && RHS.isCImm()) {
 			MachineOperand *_LHS = MRI.getOneDef(LHS.getReg());
 			if (!_LHS)

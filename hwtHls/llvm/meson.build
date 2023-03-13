@@ -19,7 +19,7 @@ foreach f : generated_llvm_backend_files
 	                        	'-I', llvm_includedir,
 	                            '-I', meson.current_source_dir() + '/targets/',
 	                        	meson.current_source_dir() + '/targets/GenericFpga.td'] + f[1] + ['-o=@OUTPUT0@', ])
-    all_llvm_backend_gen_files += gen_src 
+    all_llvm_backend_gen_files += gen_src
 endforeach
 
 llmvIr_extraDefs = []
@@ -37,12 +37,12 @@ py3.extension_module(
      'llvmIrMachineFunction.cpp',
      'llvmIrMetadata.cpp',
      'llvmCompilationBundle.cpp',
-     
+
      'llvmSrc/CodeGenPrepare.cpp',
      'targets/Analysis/liveVariableForEdge.cpp',
      'targets/Analysis/registerBitWidth.cpp',
-     
-     
+
+
      'targets/intrinsic/bitrange.cpp',
 
 	 'targets/GISel/genericFpgaCallLoweringInfo.cpp',
@@ -65,11 +65,11 @@ py3.extension_module(
 	 'targets/genericFpgaTargetMachine.cpp',
      'targets/genericFpgaTargetTransformInfo.cpp',
      'targets/genericFpgaTargetPassConfig.cpp',
-     
+
      'targets/Transforms/genericFpgaToNetlist.cpp',
      'targets/Transforms/hwtHlsCodeGenPrepare.cpp',
      'targets/Transforms/EarlyMachineCopyPropagation.cpp',
-     
+
      'Transforms/bitwidthReducePass/bitPartsUseAnalysis.cpp',
      'Transforms/bitwidthReducePass/bitRewriter.cpp',
      'Transforms/bitwidthReducePass/constBitPartsAnalysis.cpp',

@@ -398,7 +398,7 @@ bool GenFpgaCombinerHelper::rewriteConstValMux(MachineInstr &MI,
 }
 
 bool GenFpgaCombinerHelper::matchMuxMask(llvm::MachineInstr &MI, BuildFnTy &rewriteFn) {
-	if (MI.getNumOperands() == 1 + 3) {
+	if (MI.getNumOperands() == 1 + 3) { // dst, ifTrue, cond, ifFalse
 		const auto & LHS = MI.getOperand(1);
 		const auto & C = MI.getOperand(2);
 		const auto & RHS = MI.getOperand(3);
