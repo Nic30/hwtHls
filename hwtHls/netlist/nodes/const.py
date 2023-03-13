@@ -1,3 +1,4 @@
+from hwt.hdl.types.array import HArray
 from hwt.hdl.value import HValue
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, INVARIANT_TIME
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -18,6 +19,11 @@ class HlsNetNodeConst(HlsNetNode):
 
     def allocateRtlInstance(self, allocator: "ArchElement") -> TimeIndependentRtlResource:
         s = self.val
+        if isinstance(s._dtype, HArray):
+            # wrap into const signal to prevent code duplication
+            s = allocator._sig(self.name, s._dtype, def_val=s)
+            s._const = True
+
         return TimeIndependentRtlResource(s, INVARIANT_TIME, allocator, False)
 
     def resolveRealization(self):
