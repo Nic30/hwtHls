@@ -68,7 +68,7 @@ class SsaToGraphwiz():
                 else html.escape(cond._name) if isinstance(cond, RtlSignal) else\
                 html.escape(cond._name) if isinstance(cond, SsaValue) and cond._name else repr(cond)
             cond_str = html.escape(cond_str)
-            bodyRows.append(f'    <tr port="{branch_label:s}"><td>{branch_label}</td><td>{cond_str:s}</td></tr>')
+            bodyRows.append(f'    <tr ><td>{branch_label}</td><td port="{branch_label:s}">{cond_str:s}</td></tr>')
             dst_node = self._node_from_SsaBasicBlock(dst_bb, False)
             _src = f"{node.get_name():s}:{branch_label:s}"
             _dst = f"{dst_node.get_name()}:begin"
