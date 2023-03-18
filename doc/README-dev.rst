@@ -18,8 +18,8 @@ Setup of C/C++ source code indexer for LLVM
     * Skip included files largetr than: 256
     * Limit realtive to the maximum heap size: 75 %
     * Absolute limit: 6000 MB
- 
- 
+
+
 
 Debug build
 ===========
@@ -33,7 +33,7 @@ Debug build
 	ninja -C build
 	cd hwtHls/llvm/ && ln -s ../../build/hwtHls/llvm/*.so
 	# you must link the c++ library file in order to find it from python using "import"
-	# this is required becase we are not installing the library but using repo directly as a python package 
+	# this is required becase we are not installing the library but using repo directly as a python package
 
 * use `LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libSegFault.so` to get better segfault reports
   libSegFault is a part of glibc but it may have a different location on your machine
@@ -111,7 +111,7 @@ LLVM environment setup
 docker
 
 .. code-block:: bash
-	
+
 	docker pull silkeh/clang
 	mkdir clang_test
 	docker run -it -v $PWD/clang_test:/clang_test --name clang_i silkeh/clang /bin/bash
@@ -122,7 +122,7 @@ Translation to LLVM IR
 
 .. code-block:: bash
 
-	clang -S -emit-llvm main.c # produces  LLVM IR main.ll
+	clang -S -emit-llvm -O0 -g -fno-discard-value-names main.c # produces  LLVM IR main.ll
 	clang -cc1 main.c -emit-llvm # produces  LLVM IR main.ll
 	llc main.ll # produces assembly main.s
 	llc -mtriple=mips-linux-gnu -stop-after=finalize-isel < sum.ll
@@ -150,7 +150,7 @@ TargetMachine
   * https://github.com/frasercrmck/llvm-leg/tree/master/lib/Target/LEG
 * Other projects with FPGA/Verilog/FPGA LLVM backend
   * https://github.com/cpc/tce/tree/master/tce/src/applibs/LLVMBackend/plugin
-* to get original MDNode for MachineInst see  NVPTXAsmPrinter::isLoopHeaderOfNoUnroll 
+* to get original MDNode for MachineInst see  NVPTXAsmPrinter::isLoopHeaderOfNoUnroll
 
 Interpret
 -------------
@@ -228,3 +228,25 @@ gdbserver
 ---------
 * https://github.com/bet4it/gdbserver
 
+python profiling
+----------------
+.. code-block:: bash
+    apt install kcachegrind # install gui to show profiling data
+    pip3 install pyprof2calltree # install utility script which converts from pyprof
+
+.. code-block:: python
+    import cProfile
+    pr = cProfile.Profile()
+    pr.enable()
+    # somethig to profile
+    pr.disable()
+    pr.dump_stats('profile.prof')
+
+.. code-block:: bash
+    pyprof2calltree -i profile.prof -k
+
+
+Dictionary
+----------
+* nuw no unsigned wrap
+* nsw no signed wrap
