@@ -44,14 +44,12 @@ class BramRead(Unit):
     
     def reduceOrdering(self, hls: HlsScope, thread: HlsThreadFromPy):
         netlist = thread.toHw
-        removed = set()
         for intf in (self.dataOut, self.ram):
             for rwNode in netlist.outputs:
                 rwNode: HlsNetNodeWrite
                 if rwNode.dst is intf:
-                    netlistExplicitSyncDisconnectFromOrderingChain(DebugTracer(None), rwNode, removed,
+                    netlistExplicitSyncDisconnectFromOrderingChain(DebugTracer(None), rwNode, [],
                                                                disconnectPredecessors=False, disconnectSuccesors=True)
-        netlist.filterNodesUsingSet(removed)
     
     def _impl(self) -> None:
         hls = HlsScope(self)
