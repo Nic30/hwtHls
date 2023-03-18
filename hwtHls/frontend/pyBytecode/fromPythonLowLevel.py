@@ -9,6 +9,7 @@ from hwtHls.frontend.pyBytecode.blockLabel import BlockLabel
 from hwtHls.frontend.pyBytecode.frame import PyBytecodeFrame, \
     PyBytecodeLoopInfo
 from hwtHls.frontend.pyBytecode.fromPythonLowLevelOpcodes import PyBytecodeToSsaLowLevelOpcodes
+from hwtHls.frontend.pyBytecode.loopsDetect import PreprocLoopScope
 from hwtHls.scope import HlsScope
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 
@@ -59,11 +60,11 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
         if self.debug:
             with open(f"tmp/{self.label:s}_cfg_bytecode.txt", "w") as f:
                 dis(fn, file=f)
-            
+
         frame = PyBytecodeFrame.fromFunction(fn, -1, fnArgs, fnKwargs, self.callStack)
         self.toSsa = HlsAstToSsa(self.hls.ssaCtx, getattr(fn, "__qualname__", fn.__name__), None)
         self._debugDump(frame, "_begin")
-        
+
         entryBlock = self.toSsa.start
         entryBlockLabel = self.blockToLabel[entryBlock] = frame.blockTracker._getBlockLabel(-1)
         self.labelToBlock[entryBlockLabel] = SsaBlockGroup(entryBlock)
@@ -85,11 +86,28 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
                 frame.blockTracker.dumpCfgToDot(f, sealedBlocks)
                 self.debugGraphCntr += 1
 
+    @classmethod
+    def _strFormaBlockLabelItem(cls, item):
+        if isinstance(item, PreprocLoopScope):
+            name = str(item)
+        elif isinstance(item, tuple):
+            return f"({', '.join(cls._strFormaBlockLabelItem(o) for o in item)})"
+        else:
+            name = getattr(item, "__qualname__", None)
+            if name is None:
+                name = getattr(item, "__name__", None)
+                if name is None:
+                    name = str(item)
+        return name
+
     def _getOrCreateSsaBasicBlock(self, dstLabel: BlockLabel):
         block = self.labelToBlock.get(dstLabel, None)
         if block is None:
+            nameParts = []
+            for item in dstLabel:
+                nameParts.append(self._strFormaBlockLabelItem(item))
             block = SsaBasicBlock(
-                self.toSsa.ssaCtx, f"block{'_'.join(str(o) for o in dstLabel)}")
+                self.toSsa.ssaCtx, f"block{'_'.join(nameParts)}")
             self.labelToBlock[dstLabel] = SsaBlockGroup(block)
             self.blockToLabel[block] = dstLabel
             return block, True
@@ -105,7 +123,7 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
             # :attention: The header of hardware loop can be sealed only after all body blocks were generated
             #             Otherwise some PHI arguments can be lost
             self._onAllPredecsKnown(frame, self.labelToBlock[bl].begin)
-    
+
     def _addNotGeneratedJump(self, frame: PyBytecodeFrame, srcBlockLabel: BlockLabel, dstBlockLabel: BlockLabel):
         """
         Marks edge in CFG as not generated. If subgraph behind the edge becomes unreachable, mark recursively.
@@ -116,7 +134,7 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
             # group should already have all predecessors known
             # :attention: The header of hardware loop can be sealed only after all body blocks were generated
             #             Otherwise some PHI arguments can be lost
-            
+
             self._onAllPredecsKnown(frame, self.labelToBlock[bl].begin)
 
     def _onBlockNotGenerated(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock, blockOffset: int):
@@ -141,7 +159,7 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
             predecCnt = len(block.predecessors)
             if any(len(phi.operands) != predecCnt for phi in block.phis):
                 raise NotImplementedError(loop)
-     
+
     def _createInstructionException(self, frame: PyBytecodeFrame, instr: Instruction):
         if instr.starts_line is not None:
             instrLine = instr.starts_line
