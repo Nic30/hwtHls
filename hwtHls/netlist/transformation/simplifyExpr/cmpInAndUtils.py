@@ -10,7 +10,7 @@ from pyMathBitPrecise.bit_utils import mask
 # None means no knowledge available
 # :attention: because bottom-left triangle is only negation of top-right triangle, only top-right is present,
 #      variables are ordered "see: _:func:`~._appendKnowledgeTwoVars`
-#             
+#
 ValueConstrainLatice = Dict[HlsNetNodeOut,
                  Union[
                     OpDefinition,  # compare operator
@@ -42,7 +42,7 @@ def _appendKnowledgeTwoVars(latice: ValueConstrainLatice, rel: OpDefinition, o0:
 
     if (o0.obj._id, o0.out_i) > (o1.obj._id, o1.out_i):
         o0, o1 = o1, o0
-        
+
     k = (o0, o1)
     curRel = latice.get(k, None)
     if curRel is None:
@@ -52,7 +52,7 @@ def _appendKnowledgeTwoVars(latice: ValueConstrainLatice, rel: OpDefinition, o0:
     else:
         if curRel is rel:
             pass
-        
+
         r0 = curRel
         r1 = rel
         if OP_STRENGTH[r1] > OP_STRENGTH[r0]:
@@ -88,7 +88,7 @@ def _appendKnowledgeTwoVars(latice: ValueConstrainLatice, rel: OpDefinition, o0:
                 return False, True
             else:
                 raise AssertionError("All cases should be handled", r1)
-        
+
         elif r0 is AllOps.GT:
             if r1 is AllOps.LE:
                 # always 0
@@ -111,7 +111,7 @@ def _cmpAndConstToInterval(rel: OpDefinition, width: int, signed: bool, c:int) -
     :note: returned intervals are always sorted low to high
     """
     if signed:
-        raise NotImplementedError()
+        raise NotImplementedError(rel, width, c)
     _min = 0
     _max = mask(width)
 
@@ -125,7 +125,7 @@ def _cmpAndConstToInterval(rel: OpDefinition, width: int, signed: bool, c:int) -
             return [range(_min, _max), ]
         else:
             return [range(_min, c), range(c + 1, _max + 1)]
-    
+
     elif rel is AllOps.LT:
         if c == _min:
             return 0  # whole and expression resolved to 0
@@ -137,13 +137,13 @@ def _cmpAndConstToInterval(rel: OpDefinition, width: int, signed: bool, c:int) -
             return 0  # whole and expression resolved to 0
         else:
             return [range(c + 1, _max + 1), ]
-    
+
     elif rel is AllOps.LE:
         if c == _max:
             return 1
         else:
             return [range(_min, c + 1), ]
-    
+
     elif rel is AllOps.GE:
         if c == _min:
             return 1
@@ -197,7 +197,7 @@ def _appendKnowledgeVarAndConst(latice: ValueConstrainLatice,
             return 0, True
         else:
             return None, True
-    
+
     assert isinstance(intervals, list)
     k = (v, v)
     curV = latice.get(k, None)
