@@ -67,7 +67,7 @@ class HlsCycleDelayUnit(BaseSsaTC):
         u = CycleDelayUnit()
         u.FREQ = int(f)
         self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
-        self.assertEqual(len(list(u.hls._threads[0].toHw.iterAllNodes())), 3)  # const 9, io cluster, write
+        self.assertEqual(len(list(u.hls._threads[0].toHw.iterAllNodes())), 4)  # const 9, 2xio cluster, write
 
 
 if __name__ == "__main__":
