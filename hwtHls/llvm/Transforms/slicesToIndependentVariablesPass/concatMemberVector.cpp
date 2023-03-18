@@ -5,14 +5,21 @@ using namespace llvm;
 
 namespace hwtHls {
 
+
+void IRBuilder_setInsertPointBehindPhi(IRBuilder<> & builder, llvm::Instruction*I) {
+	builder.SetInsertPoint(I);
+	auto insPoint = builder.GetInsertPoint();
+	while(dyn_cast<PHINode>(&*insPoint)) {
+		++insPoint;
+	}
+}
+
 bool OffsetWidthValue::operator==(const OffsetWidthValue &rhs) const {
-	return this->offset == rhs.offset && this->width == rhs.width
-			&& this->value == rhs.value;
+	return this->offset == rhs.offset && this->width == rhs.width && this->value == rhs.value;
 }
 
 Value* ConcatMemberVector::_memberToValue(OffsetWidthValue &item) {
-	bool fitsExactly = item.width == item.value->getType()->getIntegerBitWidth()
-			&& item.offset == 0;
+	bool fitsExactly = item.width == item.value->getType()->getIntegerBitWidth() && item.offset == 0;
 	if (fitsExactly) {
 		return item.value;
 	} else if (auto *C = dyn_cast<ConstantInt>(item.value)) {
@@ -23,10 +30,9 @@ Value* ConcatMemberVector::_memberToValue(OffsetWidthValue &item) {
 		if (existing != commonSubexpressionCache.end())
 			return existing->second;
 		builder.SetInsertPoint(dyn_cast<Instruction>(item.value));
-		builder.SetInsertPoint(builder.GetInsertBlock(),
-				++builder.GetInsertPoint());
-		auto *res = CreateBitRangeGet(&builder, item.value,
-				builder.getInt64(item.offset), item.width);
+		builder.SetInsertPoint(builder.GetInsertBlock(), ++builder.GetInsertPoint());
+		IRBuilder_setInsertPointBehindPhi(builder, &*builder.GetInsertPoint());
+		auto *res = CreateBitRangeGet(&builder, item.value, builder.getInt64(item.offset), item.width);
 		commonSubexpressionCache[item] = res;
 		return res;
 	}
@@ -48,8 +54,7 @@ void ConcatMemberVector::push_back(OffsetWidthValue item) {
 	}
 	if (members.size()) {
 		OffsetWidthValue &last = members.back();
-		if (last.value == item.value
-				&& last.offset + last.width == item.offset) {
+		if (last.value == item.value && last.offset + last.width == item.offset) {
 			// if it is consecutive slice, merge it
 			last.width += item.width;
 			return;
@@ -58,9 +63,7 @@ void ConcatMemberVector::push_back(OffsetWidthValue item) {
 		if (C0 && C1) {
 			// merge constants
 			auto w = last.width + item.width;
-			last.value = builder.getInt(
-					C0->getValue().zext(w)
-							| C1->getValue().zext(w).shl(last.width));
+			last.value = builder.getInt(C0->getValue().zext(w) | C1->getValue().zext(w).shl(last.width));
 			last.width += item.width;
 			return;
 		}
@@ -80,7 +83,7 @@ Value* ConcatMemberVector::resolveValue(Instruction *builderPosition) {
 		for (auto &m : members) {
 			concatMembers.push_back(_memberToValue(m));
 		}
-		builder.SetInsertPoint(builderPosition);
+		IRBuilder_setInsertPointBehindPhi(builder, builderPosition);
 		return CreateBitConcat(&builder, concatMembers);
 	}
 }

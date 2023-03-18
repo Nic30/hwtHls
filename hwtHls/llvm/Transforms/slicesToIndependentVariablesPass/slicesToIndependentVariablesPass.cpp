@@ -17,9 +17,7 @@ public:
 	IRBuilder<> &builder;
 	std::unordered_map<OffsetWidthValue, Value*> commonSubexpressionCache;
 
-	SlicedValueResolver(
-			const std::map<Instruction*, std::set<uint64_t>> &splitPoints,
-			IRBuilder<> &builder) :
+	SlicedValueResolver(const std::map<Instruction*, std::set<uint64_t>> &splitPoints, IRBuilder<> &builder) :
 			splitPoints(splitPoints), builder(builder) {
 	}
 
@@ -44,9 +42,8 @@ public:
 		return false;
 	}
 
-	void resolveConcatMembersSlicedInstruction(ConcatMemberVector &result,
-			Instruction *I, bool isConcat, bool isBitRangeGet,
-			uint64_t highBitNo, uint64_t lowBitNo) {
+	void resolveConcatMembersSlicedInstruction(ConcatMemberVector &result, Instruction *I, bool isConcat,
+			bool isBitRangeGet, uint64_t highBitNo, uint64_t lowBitNo) {
 		//errs() << "resolveConcatMembersSlicedInstruction:" << *I << " ["
 		//		<< highBitNo << ":" << lowBitNo << "]\n";
 		assert(highBitNo > lowBitNo);
@@ -60,10 +57,8 @@ public:
 			case Instruction::BinaryOps::Or:
 			case Instruction::BinaryOps::Xor: {
 				// translate operands then build a new operand with new operands if required
-				Value *op0 = resolveValue(I->getOperand(0), highBitNo,
-						lowBitNo);
-				Value *op1 = resolveValue(I->getOperand(1), highBitNo,
-						lowBitNo);
+				Value *op0 = resolveValue(I->getOperand(0), highBitNo, lowBitNo);
+				Value *op1 = resolveValue(I->getOperand(1), highBitNo, lowBitNo);
 				Value *res = nullptr;
 				if (op0 == I->getOperand(0) && op1 == I->getOperand(1)) {
 					// the instruction is already the thing which we are looking for
@@ -87,8 +82,7 @@ public:
 				}
 				assert(res != nullptr);
 
-				result.push_back(
-						{ 0, res->getType()->getIntegerBitWidth(), res });
+				result.push_back( { 0, res->getType()->getIntegerBitWidth(), res });
 
 				added = true;
 				break;
@@ -128,8 +122,7 @@ public:
 				added = true;
 			} else if (isBitRangeGet) {
 				auto v = BitRangeGetOffsetWidthValue(C);
-				resolveConcatMembers(result, v.value, v.offset + highBitNo,
-						v.offset + lowBitNo);
+				resolveConcatMembers(result, v.value, v.offset + highBitNo, v.offset + lowBitNo);
 				added = true;
 			}
 		} else if (auto *PHI = dyn_cast<PHINode>(I)) {
@@ -140,14 +133,14 @@ public:
 				result.push_back( { 0, width, existing->second });
 				added = true;
 			} else {
-				builder.SetInsertPoint(I);
-				builder.SetInsertPoint(builder.GetInsertBlock(),
-						++builder.GetInsertPoint());
-				auto *newPhi = builder.CreatePHI(builder.getIntNTy(width),
-						PHI->getNumIncomingValues(), PHI->getName());
+				IRBuilder_setInsertPointBehindPhi(builder, I);
+
+				dbgs() << "before update:" << *I->getParent() << "\n";
+				// inserting after last phi
+				auto *newPhi = builder.CreatePHI(builder.getIntNTy(width), PHI->getNumIncomingValues(), PHI->getName());
 				commonSubexpressionCache[cacheKey] = newPhi;
 				for (auto &U : PHI->incoming_values()) {
-					Value * newV;
+					Value *newV;
 					if (U->getType()->isIntegerTy()) {
 						newV = resolveValue(U.get(), highBitNo, lowBitNo);
 					} else {
@@ -155,9 +148,25 @@ public:
 					}
 					newPhi->addIncoming(newV, PHI->getIncomingBlock(U));
 				}
+				dbgs() << "after update:" << *I->getParent() << "\n";
 			}
 		} else if (dyn_cast<SelectInst>(I)) {
-			llvm_unreachable("NotImplemented");
+			// translate operands then build a new operand with new operands if required
+			Value *opCond = resolveValue(I->getOperand(0), 1, 0);
+			Value *opTrue = resolveValue(I->getOperand(1), highBitNo, lowBitNo);
+			Value *opFalse = resolveValue(I->getOperand(2), highBitNo, lowBitNo);
+			Value *res = nullptr;
+			if (opCond == I->getOperand(0) && opTrue == I->getOperand(1) && opFalse == I->getOperand(2)) {
+				// the instruction is already the thing which we are looking for
+				res = I;
+			} else {
+				// create a part of original instruction for the specified slice
+				builder.SetInsertPoint(I);
+				res = builder.CreateSelect(opCond, opTrue, opFalse, I->getName());
+			}
+			assert(res != nullptr);
+			result.push_back( { 0, res->getType()->getIntegerBitWidth(), res });
+			added = true;
 		}
 		if (!added) {
 			// instruction is not slicable
@@ -166,15 +175,14 @@ public:
 #ifndef NDEBUG
 		uint64_t width1 = result.width();
 		if (width0 + highBitNo - lowBitNo != width1) {
-			errs() << *I << " width0:" << width0 << " highBitNo:" << highBitNo
-					<< " lowBitNo:" << lowBitNo << " width1:" << width1 << "\n";
+			errs() << *I << " width0:" << width0 << " highBitNo:" << highBitNo << " lowBitNo:" << lowBitNo << " width1:"
+					<< width1 << "\n";
 			llvm_unreachable("Incorrect number of bits was added");
 		}
 #endif
 	}
 
-	void resolveConcatMembers(ConcatMemberVector &result, Value *v,
-			uint64_t highBitNo, uint64_t lowBitNo) {
+	void resolveConcatMembers(ConcatMemberVector &result, Value *v, uint64_t highBitNo, uint64_t lowBitNo) {
 		assert(v->getType()->getIntegerBitWidth() >= highBitNo);
 		assert(highBitNo > lowBitNo);
 		if (auto *I = dyn_cast<Instruction>(v)) {
@@ -184,9 +192,7 @@ public:
 			auto *C = dyn_cast<CallInst>(I);
 			bool isConcat = C && IsBitConcat(C);
 			bool isBitRangeGet = C && IsBitRangeGet(C);
-			if (isConcat || isBitRangeGet
-					|| (splits != splitPoints.end()
-							&& splits->second.size() != 0)) {
+			if (isConcat || isBitRangeGet || (splits != splitPoints.end() && splits->second.size() != 0)) {
 				// if there are split points it means that we have to use primitive slices generated from split points
 				// and we must not use this composite value (because the split on primitive slice values is what this optimization does)
 				bool doFillUpperBits = true;
@@ -210,8 +216,7 @@ public:
 								exactStartFound
 										&& "The lowBitNo must be in split points because this is how split points were generated");
 						assert(splitPoint <= highBitNo);
-						resolveConcatMembersSlicedInstruction(result, I,
-								isConcat, isBitRangeGet, splitPoint,
+						resolveConcatMembersSlicedInstruction(result, I, isConcat, isBitRangeGet, splitPoint,
 								lastOffset);
 						lastOffset = splitPoint;
 						if (splitPoint == highBitNo) {
@@ -225,8 +230,7 @@ public:
 					// 		<< ":" << lowBitNo << "] lastOffset:" << lastOffset
 					// 		<< "\n";
 					assert(highBitNo <= I->getType()->getIntegerBitWidth());
-					resolveConcatMembersSlicedInstruction(result, I, isConcat,
-							isBitRangeGet, highBitNo,
+					resolveConcatMembersSlicedInstruction(result, I, isConcat, isBitRangeGet, highBitNo,
 							std::max(lastOffset, lowBitNo));
 				}
 
@@ -280,9 +284,8 @@ public:
 	}
 };
 
-bool splitOnSplitPoints(
-		const std::map<Instruction*, std::set<uint64_t>> &splitPoints,
-		Function &F, IRBuilder<> &builder) {
+bool splitOnSplitPoints(const std::map<Instruction*, std::set<uint64_t>> &splitPoints, Function &F,
+		IRBuilder<> &builder) {
 	// collect instructions which will be removed
 	std::set<Instruction*> toRemove;
 	for (auto &B : F) {
@@ -325,10 +328,7 @@ bool splitOnSplitPoints(
  * 2. What are largest non-overlapping slices for each variable which are driven from unique source.
  * 3. Which variables for slice do exist and which and where should be created.
  */
-PreservedAnalyses SlicesToIndependentVariablesPass::run(Function &F,
-		FunctionAnalysisManager &AM) {
-	//errs() << "SlicesToIndependentVariablesPass:\n";
-	//F.dump();
+PreservedAnalyses SlicesToIndependentVariablesPass::run(Function &F, FunctionAnalysisManager &AM) {
 
 	// for each instruction resolve segments of bits which are used independently
 	auto splitPoints = collectSplitPoints(F);

@@ -12,6 +12,8 @@ struct OffsetWidthValue {
 	bool operator==(const OffsetWidthValue &rhs) const;
 };
 
+void IRBuilder_setInsertPointBehindPhi(llvm::IRBuilder<> & builder, llvm::Instruction*I);
+
 class ConcatMemberVector {
 	llvm::Value* _memberToValue(OffsetWidthValue &item);
 public:

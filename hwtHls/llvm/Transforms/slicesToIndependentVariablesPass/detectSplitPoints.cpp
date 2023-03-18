@@ -119,7 +119,35 @@ void splitPointPropagate(std::map<Instruction*, std::set<uint64_t>> &result,
 	} else if (auto *SI = dyn_cast<SelectInst>(&I)) {
 		updated = _splitPointsPropagateUpdate(_splitPoints, updated, bitNo);
 		if (updated) {
-			llvm_unreachable("NotImplemented");
+			if (operandNo == -1) {
+				for (Value *O : std::vector<Value*>({ SI->getTrueValue(), SI->getFalseValue() })) {
+					// propagate to values
+					if (auto *I2 = dyn_cast<Instruction>(O)) {
+						splitPointPropagate(result, *I2, bitNo, false, -1, &I);
+					}
+				}
+			} else {
+				switch (operandNo) {
+				case 0:
+					// condition
+					break;
+				case 1:
+					// if true
+					if (auto *I2 = dyn_cast<Instruction>(SI->getFalseValue())) {
+						splitPointPropagate(result, *I2, bitNo, false, -1, &I);
+					}
+					break;
+				case 2:
+					// if false
+					if (auto *I2 = dyn_cast<Instruction>(SI->getTrueValue())) {
+						splitPointPropagate(result, *I2, bitNo, false, -1, &I);
+					}
+					break;
+				default:
+					llvm_unreachable(
+										"Select instruction should have 3 operands at most (cond, ifTrue, ifFalse)");
+				}
+			}
 		}
 
 	} else if (auto *C = dyn_cast<CallInst>(&I)) {
