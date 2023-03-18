@@ -95,7 +95,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
                     raise AssertionError(dst, "This should already been expanded when HlsWrite was generated")
                 return dst.expandSetitemAsSwitchCase(self, instr.offset, frame, curBlock,
                                                      lambda i, _dst: hls.write(res._origSrc, _dst))
-            
+
         if isinstance(res, (HlsWrite, HlsRead, HdlAssignmentContainer)):
             self.toSsa.visit_CodeBlock_list(curBlock, [res, ])
         elif isinstance(res, list) and len(res) > 0 and isinstance(res[0], (HlsWrite, HlsRead, HdlAssignmentContainer)):
@@ -150,7 +150,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
                 # only if it is a value which generates HW variable
                 t = getattr(vVal, "_dtypeOrig", vVal._dtype)
                 _v = self.hls.var(instr.argval, t)
-    
+
             if isinstance(_v, (RtlSignal, Interface)):
                 # only if it is a hw variable, create assignment to HW variable
                 v.cell_contents = _v
@@ -208,7 +208,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
             _src = src.data if srcIsRead else src
             stm = dst(_src)
             return self.toSsa.visit_CodeBlock_list(curBlock, flatten([stm, ]))
-        
+
     def opcode_STORE_ATTR(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:
         stack = frame.stack
         dstParent = stack.pop()
@@ -263,19 +263,24 @@ class PyBytecodeToSsaLowLevelOpcodes():
         self._debugDump(callFrame, label=callFrame.fn.__name__)
         self._translateBytecodeBlock(callFrame, callFrame.bytecodeBlocks[0], fnEntryBlock)
         self._debugDump(callFrame, label=callFrame.fn.__name__)
-        
+
         curBlockAfterCall = SsaBasicBlock(self.toSsa.ssaCtx, f"{curBlock.label:s}_afterCall")
         self.labelToBlock[curBlockLabel].end = curBlockAfterCall
         self.blockToLabel[curBlockAfterCall] = curBlockLabel
         # [todo] iterate return points in frame and jump to curBlockAfterCall
         finalRetVal = None
+        first = True
         for (_, retBlock, retVal) in callFrame.returnPoints:
+            if first:
+                first = False
+            elif finalRetVal is not retVal:
+                raise NotImplementedError("Currently function can return only a sigle instance.", callFrame.returnPoints)
+
             if retVal is not None:
-                assert len(callFrame.returnPoints) == 1, "If this is not hardware object, the function has to have exactly a single return"
                 finalRetVal = retVal
 
             retBlock.successors.addTarget(None, curBlockAfterCall)
-        
+
         frame.stack.append(finalRetVal)
         # todo process return points and connected to curBlockAfterCall block in cfg
         self.callStack.pop()
