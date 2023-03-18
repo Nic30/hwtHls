@@ -9,10 +9,12 @@ from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn, \
+    unlink_hls_nodes, link_hls_nodes
 from hwtHls.netlist.transformation.simplifyUtils import replaceOperatorNodeWith, \
     disconnectAllInputs
-from pyMathBitPrecise.bit_utils import get_bit, mask
+from pyMathBitPrecise.bit_utils import get_bit, mask, ValidityError
+from hdlConvertorAst.to.hdlUtils import iter_with_last
 
 
 def iter1and0sequences(v: BitsVal) -> Generator[Tuple[Literal[1, 0], int], None, None]:
@@ -59,7 +61,7 @@ def netlistReduceMux(n: HlsNetNodeMux, worklist: UniqList[HlsNetNode], removed: 
         i: HlsNetNodeOut = n.dependsOn[0]
         replaceOperatorNodeWith(n, i, worklist, removed)
         return True
-
+    builder: HlsNetlistBuilder = n.netlist.builder
     # resolve constant conditions
     newOps: List[HlsNetNodeIn] = []
     newValSet: Set[HlsNetNodeIn] = set()
@@ -74,14 +76,14 @@ def netlistReduceMux(n: HlsNetNodeMux, worklist: UniqList[HlsNetNode], removed: 
             newValSet.add(v)
             if c is not None:
                 newOps.append(c)
-    
-    singleVal = len(newValSet) == 1 
+
+    singleVal = len(newValSet) == 1
     newOpsLen = len(newOps)
     if newOpsLen != len(n._inputs) or singleVal:
         if newOpsLen == 1 or (singleVal and newOpsLen % 2 == 1):
             i: HlsNetNodeOut = newOps[0]
         else:
-            i = n.netlist.builder.buildMux(n._outputs[0]._dtype, tuple(newOps))
+            i = builder.buildMux(n._outputs[0]._dtype, tuple(newOps))
 
         replaceOperatorNodeWith(n, i, worklist, removed)
         return True
@@ -97,19 +99,102 @@ def netlistReduceMux(n: HlsNetNodeMux, worklist: UniqList[HlsNetNode], removed: 
                 # el
                 if u.in_i == len(u.obj._inputs) - 1:
                     newOps = u.obj.dependsOn[:-1] + n.dependsOn
-                    res = n.netlist.builder.buildMux(n._outputs[0]._dtype, tuple(newOps))
+                    res = builder.buildMux(n._outputs[0]._dtype, tuple(newOps))
                     replaceOperatorNodeWith(u.obj, res, worklist, removed)
                     disconnectAllInputs(n, worklist)
                     removed.add(n)
                     return True
-    
+
+    # x ? x: v1 -> x | v1
     if len(n._inputs) == 3:
         v0, c, v1 = n.dependsOn
         if v0 is c:
-            newO = n.netlist.builder.buildOr(c, v1)
+            newO = builder.buildOr(c, v1)
             replaceOperatorNodeWith(n, newO, worklist, removed)
             return True
-    
+
+    if len(n._inputs) >= 3:
+        # try to format mux to a format where each condition is comparison with EQ operator
+        # so the mux behaves like switch-case statement id it is suitable for ROM extraction
+        cases = tuple(n._iterValueConditionDriverPairs())
+        if cases[-1][1] is None:
+            # if contains else it may be possible to swap last two cases if required
+            everyNonLastConditionIsEq = True
+            everyConditionIsEq = True
+            lastConditionIsNe = False
+            preLastcaseIndex = len(cases) - 2
+            for i, (v, c) in enumerate(cases):
+                if c is None:
+                    break
+                if isinstance(c.obj, HlsNetNodeOperator):
+                    op = c.obj.operator
+                    if i == preLastcaseIndex:
+                        lastConditionIsNe = op == AllOps.NE
+                        everyConditionIsEq = everyNonLastConditionIsEq and  op == AllOps.EQ
+                    else:
+                        everyNonLastConditionIsEq = op == AllOps.EQ
+                else:
+                    everyNonLastConditionIsEq = False
+                    break
+
+            if everyNonLastConditionIsEq and lastConditionIsNe:
+                # flip last condition NE -> EQ and swap cases
+                origNe = cases[-2][1]
+                origNeArgs = origNe.obj.dependsOn
+                cIn = n._inputs[preLastcaseIndex * 2 + 1]
+                unlink_hls_nodes(origNe, cIn)
+                worklist.append(origNe.obj)
+                newEq = builder.buildEq(origNeArgs[0], origNeArgs[1])
+                link_hls_nodes(newEq, cIn)
+                return True
+
+            elif everyConditionIsEq:
+                # try extract ROM
+                romCompatible = True
+                romData = {}
+                index = None
+                for (v, c) in cases:
+                    if c is not None:
+                        cOp0, cOp1 = c.obj.dependsOn
+                        if index is None:
+                            index = cOp0
+
+                        if cOp0 is not index:
+                            romCompatible = False
+                            break
+
+                        if isinstance(cOp1.obj, HlsNetNodeConst):
+                            try:
+                                cOp1 = int(cOp1.obj.val)
+                            except ValidityError:
+                                raise AssertionError(n, "value specified for undefined index in ROM")
+                            if isinstance(v.obj, HlsNetNodeConst):
+                                romData[cOp1] = v.obj.val
+                            else:
+                                romCompatible = False
+                                break
+                        else:
+                            romCompatible = False
+                            break
+                    else:
+                        itemCnt = 2 ** index._dtype.bit_length()
+                        if len(romData) == itemCnt - 1 and itemCnt - 1 not in romData.keys():
+                            # if the else branch of the mux contains trully the last item of the ROM
+                            if isinstance(v.obj, HlsNetNodeConst):
+                                romData[itemCnt - 1] = v.obj.val
+                            else:
+                                romCompatible = False
+                                break
+                        else:
+                            romCompatible = False
+                            break
+
+                assert index is not None
+                if romCompatible:
+                    rom = builder.buildRom(romData, index)
+                    replaceOperatorNodeWith(n, rom, worklist, removed)
+                    return True
+
     return False
 
 
@@ -123,7 +208,7 @@ def netlistReduceNot(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode], remo
     elif isinstance(o0, HlsNetNodeOut) and isinstance(o0.obj, HlsNetNodeOperator) and o0.obj.operator == AllOps.NOT:
         # ~~x = x
         newO = o0.obj.dependsOn[0]
-    
+
     if newO is not None:
         replaceOperatorNodeWith(n, newO, worklist, removed)
         return True
@@ -151,7 +236,7 @@ def netlistReduceAndOrXor(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode],
             newO = builder.buildConst(o0.obj.val & o1.obj.val)
 
         elif o1Const:
-            # to concatenation of o0 bits and 0s after const mask is applied 
+            # to concatenation of o0 bits and 0s after const mask is applied
             if isAll0OrAll1(o1.obj.val):
                 if int(o1.obj.val):
                     # x & 1 = x
@@ -172,7 +257,7 @@ def netlistReduceAndOrXor(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode],
                         v0 = builder.buildConstPy(Bits(width), 0)
 
                     concatMembers.append(v0)
-                        
+
                     offset += width
                 newO = builder.buildConcatVariadic(tuple(concatMembers))
 
@@ -205,7 +290,7 @@ def netlistReduceAndOrXor(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode],
                         v0 = builder.buildIndexConstSlice(Bits(width), o0, offset + width, offset)
 
                     concatMembers.append(v0)
-                        
+
                     offset += width
                 newO = builder.buildConcatVariadic(tuple(concatMembers))
 
@@ -237,11 +322,11 @@ def netlistReduceAndOrXor(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode],
                     offset += width
 
                 newO = builder.buildConcatVariadic(tuple(concatMembers))
-        
+
         elif o0 == o1:
             # x ^ x = 0
             newO = builder.buildConst(t.from_py(0))
-        
+
     if newO is not None:
         replaceOperatorNodeWith(n, newO, worklist, removed)
         return True
