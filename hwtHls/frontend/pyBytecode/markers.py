@@ -25,7 +25,7 @@ class PyBytecodeInPreproc(_PyBytecodePragma):
 
 
     Usage:
-    
+
     .. code-block:: Python
 
 
@@ -37,7 +37,7 @@ class PyBytecodeInPreproc(_PyBytecodePragma):
 
     def __init__(self, ref: Union[SsaValue, HValue, RtlSignal]):
         self.ref = ref
-    
+
     def __iter__(self):
         """
         Used in in UNPACK_SEQUENCE
@@ -54,19 +54,19 @@ class PyBytecodeInline(_PyBytecodePragma):
     Inline function body to a callsite.
 
     Usage:
-    
+
     .. code-block:: Python
 
         PyBytecodeInline(fn)(args)
-        
+
         # or
 
         @PyBytecodeInline
         def fn(args):
             pass
-            
+
         fn(args)
-    
+
     """
 
     def __init__(self, ref: FunctionType):
@@ -75,15 +75,15 @@ class PyBytecodeInline(_PyBytecodePragma):
     def apply(self, pyToSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction):
         pass
 
-   
+
 class PyBytecodePreprocDivergence(_PyBytecodePragma):
     """
     Marks that the condition causes divergence in preprocessor and each dependent code blocks must be duplicated for each path.
     :note: required only for a divergence where value of preprocessor variables is resolved from HW evaluated condition
     Usage:
-    
+
     .. code-block:: Python
-        
+
         x = uint8_t.from_py(0) # variable realized in hardware
         if PyBytecodePreprocDivergence(x):
             i = 0
@@ -92,10 +92,10 @@ class PyBytecodePreprocDivergence(_PyBytecodePragma):
         use(i) # this code block will be duplicated for each possible value of i variable
                # without :class:`~.PyBytecodePreprocDivergence` the i variable would have only
                # value 0 because the successor blocks would be generated only for a first variant
-    
-    
+
+
     :note: required only for a divergence where value of preprocessor variables is resolved from HW evaluated condition
-    
+
     """
 
     def __init__(self, cond: Union[SsaValue, HValue, RtlSignal]):
@@ -105,13 +105,13 @@ class PyBytecodePreprocDivergence(_PyBytecodePragma):
 
 class PyBytecodePreprocHwCopy(_PyBytecodePragma):
     """
-    Explicitly copy HW-evaluated the value.
+    Explicitly copy HW-evaluated value.
     """
 
     def __init__(self, v: Union[SsaValue, HValue, RtlSignal]):
         assert isinstance(v, (SsaValue, HValue, RtlSignal)), (v, "Must be hardware evaluated expression otherwise this marker is useless")
         self.v = v
-  
+
 
 class _PyBytecodeLoopPragma(_PyBytecodePragma):
     """
@@ -159,7 +159,7 @@ class PyBytecodeLLVMLoopUnroll(_PyBytecodeLoopPragma):
             itemsAsMetadata = [i.asMetadata() for i in items]
             res = MDNode.get(irTranslator.ctx, itemsAsMetadata, insertTmpAsFirts=insertSelfAsFirts)
             return res
-        
+
         items = [
             getTuple([getStr("llvm.loop.unroll.enable" if self.enable else "llvm.loop.unroll.dissable"), ], False),
         ]
@@ -175,6 +175,6 @@ class PyBytecodeLLVMLoopUnroll(_PyBytecodeLoopPragma):
                         ],
                         False)
                 items.append(md)
- 
+
         brInst.setMetadata(irTranslator.strCtx.addStringRef("llvm.loop"), getTuple(items, True))
-   
+

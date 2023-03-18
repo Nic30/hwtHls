@@ -47,7 +47,7 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
         _dst = self._getNominaInterface()
         if _dst.HAS_R:
             self._addOutput(_dst.dout._dtype, "dout")
-        
+
         if cmd == READ:
             assert _dst.HAS_R, dst
             # set write data to None
@@ -78,7 +78,7 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
             inputWireDelay=ffdelay,
             inputClkTickOffset=0,
             outputWireDelay=epsilon if isRead else 0,
-            outputClkTickOffset=(1, *(0 for _ in range(len(self._outputs) - 1))) if isRead else 0 
+            outputClkTickOffset=(1, *(0 for _ in range(len(self._outputs) - 1))) if isRead else 0
         )
         self.assignRealization(re)
 
@@ -104,7 +104,7 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
             we = getattr(ram, "we", None)
             if we is not None and we._sig._nop_val is NOT_SPECIFIED:
                 we._sig._nop_val = we._sig._dtype.from_py(0)
-        
+
         wData = self.dependsOn[0]
         addr = self.dependsOn[1]
         key = (ram, addr, wData)
@@ -116,7 +116,7 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
 
         if self._dataVoidOut is not None:
             HlsNetNodeReadIndexed._allocateRtlInstanceDataVoidOut(self, allocator)
-        
+
         _wData = allocator.instantiateHlsNetNodeOutInTime(wData, self.scheduledIn[0])
         _addr = allocator.instantiateHlsNetNodeOutInTime(addr, self.scheduledIn[1])
 
@@ -130,7 +130,7 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
             we = getattr(ram, "we", None)
             if we is not None:
                 rtlObj.append(ram.we(0 if self.cmd is READ else 1))
-            
+
         allocator.netNodeToRtl[key] = rtlObj
         if ram.HAS_R:
             allocator.netNodeToRtl[self._outputs[0]] = TimeIndependentRtlResource(ram.dout, self.scheduledOut[0], allocator, False)
@@ -143,12 +143,12 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
         :see: :meth:`~.HlsNetNode.partsComplement`
         """
         assert inputs or outputs, self
-        cmdTime = self.scheduledIn[0] 
-        
+        cmdTime = self.scheduledIn[0]
+
         if beginTime <= cmdTime and cmdTime <= endTime:
             isDataReadPart = False
         else:
-            dataReadTime = self.scheduledOut[0] 
+            dataReadTime = self.scheduledOut[0]
             if beginTime <= dataReadTime and dataReadTime <= endTime:
                 isDataReadPart = True
             else:
@@ -191,7 +191,7 @@ class HlsNetNodeWriteBramCmdPartRef(HlsNetNodePartRef):
 
     def allocateRtlInstance(self, allocator: "ArchElement"):
         return self.parentNode.allocateRtlInstance(allocator)
-    
+
     def iterChildReads(self):
         return
         yield
@@ -312,7 +312,7 @@ class HlsWriteBram(HlsWriteAddressed):
             srcVal: HlsNetNodeOutAny,
             dstIo: Interface,
             index: Union[int, HlsNetNodeOutAny],
-            cond: HlsNetNodeOutAny):
+            cond: Union[int, HlsNetNodeOutAny]):
         """
         :see: :meth:`hwtHls.frontend.ast.statementsRead.HlsRead._translateMirToNetlist`
         """
@@ -346,7 +346,7 @@ class BramArrayProxy(IoProxyAddressed):
         else:
             assert i.HAS_R, ("Must have atleast one (read/write)", interface)
             wordType = i.dout._dtype
-        
+
         nativeType = wordType[int(2 ** i.ADDR_WIDTH)]
         IoProxyAddressed.__init__(self, hls, interface, nativeType)
         self.rWordT = self.wWordT = wordType

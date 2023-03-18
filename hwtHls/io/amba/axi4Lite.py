@@ -55,7 +55,7 @@ class HlsReadAxi4Lite(HlsReadAddressed):
             addrVal: HlsNetNodeOutAny,
             offsetWidth: int,
             prot: Union[int, HlsNetNodeOutAny],
-            cond:HlsNetNodeOutAny):
+            cond:Union[int, HlsNetNodeOutAny]):
         if isinstance(prot, int):
             prot = netlist.builder.buildConst(addr.prot._dtype.from_py(prot))
         aVal = netlist.builder.buildConcatVariadic((Bits(offsetWidth).from_py(0), addrVal, prot))
@@ -77,7 +77,7 @@ class HlsReadAxi4Lite(HlsReadAddressed):
         eddo = n0._addOutput(HVoidExternData, "externalDataDep")
         eddi = n1._addInput("externalDataDep")
         link_hls_nodes(eddo, eddi)
-        
+
     @classmethod
     def _translateMirToNetlist(cls,
             representativeReadStm: "HlsReadAxi4Lite",
@@ -88,7 +88,7 @@ class HlsReadAxi4Lite(HlsReadAddressed):
             index:Union[int, HlsNetNodeOutAny],
             cond:HlsNetNodeOutAny,
             instrDstReg:Register):
-    
+
         valCache: MirToHwtHlsNetlistOpCache = mirToNetlist.valCache
         netlist: HlsNetlistCtx = mirToNetlist.netlist
         proxy:Axi4LiteArrayProxy = representativeReadStm.parentProxy
@@ -108,7 +108,7 @@ class HlsReadAxi4Lite(HlsReadAddressed):
         mbSync.addOrderedNode(rNode)
         mirToNetlist.inputs.append(rNode)
         rDataO = rNode._outputs[0]
-        
+
         rWordWidth = representativeReadStm._getNativeInterfaceWordType().bit_length()
         nativeWordWidth = proxy.nativeType.element_t.bit_length()
         if rWordWidth < nativeWordWidth:
@@ -119,7 +119,7 @@ class HlsReadAxi4Lite(HlsReadAddressed):
             rDataO = netlist.builder.buildConcatVariadic((rDataO, padding))
         else:
             assert rWordWidth == nativeWordWidth
-            
+
         valCache.add(mbSync.block, instrDstReg, rDataO, True)
 
 
@@ -134,12 +134,12 @@ class HlsWriteAxi4Lite(HlsWriteAddressed):
             element_t:HdlType):
         HlsWriteAddressed.__init__(self, parent, src, dst, index, element_t)
         self.parentProxy = parentProxy
-    
+
     @lru_cache(maxsize=None, typed=True)
     def _getNativeInterfaceWordType(self) -> HdlType:
         i = self.dst.w
         return Interface_to_HdlType().apply(i, exclude=(i.valid, i.ready))
-    
+
     @classmethod
     def _translateMirToNetlist(cls,
             representativeWriteStm: "HlsWriteAxi4Lite",
@@ -149,7 +149,7 @@ class HlsWriteAxi4Lite(HlsWriteAddressed):
             srcVal: HlsNetNodeOutAny,
             dstIo: Axi4Lite,
             index: Union[int, HlsNetNodeOutAny],
-            cond: HlsNetNodeOutAny):
+            cond: Union[int, HlsNetNodeOutAny]):
         netlist: HlsNetlistCtx = mirToNetlist.netlist
         assert isinstance(dstIo, Axi4Lite), dstIo
         if isinstance(index, int):
@@ -158,23 +158,23 @@ class HlsWriteAxi4Lite(HlsWriteAddressed):
         aNode = HlsReadAxi4Lite._constructAddrWrite(
             netlist, mirToNetlist, mbSync, dstIo.aw, index,
             proxy.offsetWidth, PROT_DEFAULT, cond)
-        
+
         if proxy.LATENCY_AW_TO_W:
             mbSync.addOrderingDelay(proxy.LATENCY_AW_TO_W)
         wNode = HlsNetNodeWrite(netlist, NOT_SPECIFIED, dstIo.w)
         HlsReadAxi4Lite._connectUsingExternalDataDep(aNode, wNode)
-        assert srcVal._dtype.bit_length() == proxy.wWordT.bit_length(), (dstIo, srcVal._dtype, dstIo.DATA_WIDTH) 
+        assert srcVal._dtype.bit_length() == proxy.wWordT.bit_length(), (dstIo, srcVal._dtype, dstIo.DATA_WIDTH)
         link_hls_nodes(srcVal, wNode._inputs[0])
-        
+
         mirToNetlist._addExtraCond(wNode, cond, mbSync.blockEn)
         mirToNetlist._addSkipWhen_n(wNode, cond, mbSync.blockEn)
         mbSync.addOrderedNode(wNode)
         mirToNetlist.outputs.append(wNode)
         if proxy.LATENCY_W_TO_B:
             mbSync.addOrderingDelay(proxy.LATENCY_W_TO_B)
-        
+
         bNode = HlsNetNodeRead(netlist, dstIo.b)
-        HlsReadAxi4Lite._connectUsingExternalDataDep(wNode, bNode)        
+        HlsReadAxi4Lite._connectUsingExternalDataDep(wNode, bNode)
 
         mirToNetlist._addExtraCond(bNode, cond, mbSync.blockEn)
         mirToNetlist._addSkipWhen_n(bNode, cond, mbSync.blockEn)
@@ -185,10 +185,10 @@ class HlsWriteAxi4Lite(HlsWriteAddressed):
 class Axi4LiteArrayProxy(IoProxyAddressed):
     """
     :ivar indexT: HdlType for index in to access data behind this proxy.
-    
+
     :note: Latencies are specified in clock cycle ticks. 1 means in next clock cycle after clock cycle where previous transaction happen.
     :ivar LATENCY_AR_TO_R: Clock cycles until data starts arriving after transaction on AR channel.
-    :ivar LATENCY_AW_TO_W: Clock cycles it takes until data write channel will start accepting data after transaction on AW channel. 
+    :ivar LATENCY_AW_TO_W: Clock cycles it takes until data write channel will start accepting data after transaction on AW channel.
     :ivar LATENCY_W_TO_B: Clock cycles it takes for write response (B) after last word is written on W channel.
     :ivar LATENCY_B_TO_R: Specifies how many clock cycles are required for written data to update read transaction to same address.
         (If the read data from same address which was just written starts arriving after this latency they are guaranteed to be just written data.)
@@ -207,7 +207,7 @@ class Axi4LiteArrayProxy(IoProxyAddressed):
             wWordT = Interface_to_HdlType().apply(interface.w, exclude=(interface.w.valid, interface.w.ready))
             nativeType = wWordT[int(2 ** indexWidth)]
             dataWordT = interface.w.data._dtype
-        
+
         else:
             wWordT = None
 
@@ -223,6 +223,6 @@ class Axi4LiteArrayProxy(IoProxyAddressed):
         self.LATENCY_AW_TO_W = 0
         self.LATENCY_W_TO_B = 1
         self.LATENCY_B_TO_R = 1
-        
+
     READ_CLS = HlsReadAxi4Lite
     WRITE_CLS = HlsWriteAxi4Lite
