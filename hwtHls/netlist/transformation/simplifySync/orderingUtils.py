@@ -1,13 +1,12 @@
-from typing import List, Set, Union, Optional
+from typing import List, Set, Optional
 
 from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachabilility
-from hwtHls.netlist.nodes.IoClusterCore import HlsNetNodeIoClusterCore
+from hwtHls.netlist.nodes.delay import HlsNetNodeDelayClkTick
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.orderable import HdlType_isNonData
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
     link_hls_nodes
-from hwtHls.netlist.nodes.delay import HlsNetNodeDelayClkTick
 
 
 def _dependsOnNonOrderingData(n: HlsNetNode, inputs: List[HlsNetNode],
@@ -25,14 +24,14 @@ def _dependsOnNonOrderingData(n: HlsNetNode, inputs: List[HlsNetNode],
 
 
 def _searchOrderingLinksOnlyDFS(src: HlsNetNodeExplicitSync, dst: HlsNetNodeExplicitSync):
-    seen: Set[Union[HlsNetNodeExplicitSync, HlsNetNodeIoClusterCore]] = set()
-    toSearch: List[Union[HlsNetNodeExplicitSync, HlsNetNodeIoClusterCore]] = [dst]
+    seen: Set[HlsNetNodeExplicitSync] = set()
+    toSearch: List[HlsNetNodeExplicitSync] = [dst]
     while toSearch:
         n = toSearch.pop()
         if n in seen:
             continue
         seen.add(n)
-        if isinstance(n, (HlsNetNodeExplicitSync, HlsNetNodeIoClusterCore)):
+        if isinstance(n, HlsNetNodeExplicitSync):
             inputs = n.iterOrderingInputs()
 
         elif isinstance(n, HlsNetNodeDelayClkTick):
