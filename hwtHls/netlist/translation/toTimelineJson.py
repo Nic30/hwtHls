@@ -22,6 +22,7 @@ from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.platform.fileUtils import OutputStreamGetter
+from hwt.hdl.operatorDefs import OpDefinition
 
 
 class TimelineItem():
@@ -79,7 +80,7 @@ def _toJson(data: List[TimelineItem], clkPeriod: float  # , minStartTime: float,
 class HwtHlsNetlistToTimelineJson():
     """
     Generate a timeline (Gantt) diagram of how operations in circuit are scheduled in time.
-    
+
     :ivar time_scale: Specified how to format time numbers in output.
     :ivar min_duration: minimum width of boexes representing operations
     """
@@ -87,12 +88,12 @@ class HwtHlsNetlistToTimelineJson():
     def __init__(self, normalizedClkPeriod: int, resolution: float, expandCompositeNodes=False):
         self.objToJsonObj: Dict[HlsNetNode, TimelineItem] = {}
         self.jsonObjs: List[TimelineItem] = []
-        self.rowOccupiedRanges: List[List[Tuple[float, float]]] = [[], ] 
+        self.rowOccupiedRanges: List[List[Tuple[float, float]]] = [[], ]
         self.time_scale = resolution / 1e-9  # to ns
         self.clkPeriod = self.time_scale * normalizedClkPeriod
         self.min_duration = 0.05 * normalizedClkPeriod * self.time_scale
         self.expandCompositeNodes = expandCompositeNodes
-        
+
     def _findClosestNonOccupiedRow(self, currentRowIndex, start, end) -> Tuple[int, int]:
         """
         :return: tuple index of row and index in rowOccupiedRanges[rowI] where to insert
@@ -108,12 +109,12 @@ class HwtHlsNetlistToTimelineJson():
             row = rowOccupiedRanges[rowI]
             if not row:
                 return (rowI, 0)  # place into an empty row
-            
+
             for i, (otherStart, otherEnd) in enumerate(row):
                 if i == 0 and end < otherStart:
                     # found place before this sequence
                     return (rowI, i)
-                    
+
                 if otherEnd < start:
                     # found end of sequence where it may be possible to place this item
                     if len(row) - 1 == i:  # if this is last item
@@ -128,7 +129,7 @@ class HwtHlsNetlistToTimelineJson():
 
             if row[-1][1] < start:
                 return (rowI, len(row))  # place behind whole row
-            
+
             # seach up first then search down, then incr. distance and search up again
             if searchUp:
                 searchUp = False
@@ -139,7 +140,7 @@ class HwtHlsNetlistToTimelineJson():
                     searchUp = True
                     rowI = currentRowIndex - distance
                 else:
-                    rowI = currentRowIndex + distance   
+                    rowI = currentRowIndex + distance
 
     @staticmethod
     def _iterateUsersTransitively(n: HlsNetNode, seen: Set[HlsNetNode]):
@@ -152,13 +153,13 @@ class HwtHlsNetlistToTimelineJson():
                 continue
             seen.add(n)
             yield n
-            
+
             for uses in n.usedBy:
                 for u in uses:
                     if u.obj in seen:
                         continue
                     toSearch.append(u.obj)
-        
+
     def translateNodeToTimelineItemTransitively(self,
                                        obj: HlsNetNode,
                                        ioGroupIds: Dict[Interface, int],
@@ -175,7 +176,7 @@ class HwtHlsNetlistToTimelineJson():
             for n in self._iterateUsersTransitively(obj, seenNodes):
                 self.translateNodeToTimelineItem(n, ioGroupIds)
                 nodesFlat.append(n)
-    
+
     def translateNodeToTimelineItem(self, obj: HlsNetNode, io_group_ids: Dict[Interface, int]):
         if obj.scheduledIn:
             start = min(obj.scheduledIn)
@@ -217,11 +218,11 @@ class HwtHlsNetlistToTimelineJson():
             objGroupId = int(sum(connectedNodesRows) // len(connectedNodesRows))
         else:
             objGroupId = len(self.rowOccupiedRanges) - 1
-        
+
         objGroupId, inRowIndex = self._findClosestNonOccupiedRow(objGroupId, start, end)
         color = "white"
         if isinstance(obj, HlsNetNodeOperator):
-            label = f"{obj.operator.id:s} {obj._id:d}"
+            label = f"{obj.operator.id if isinstance(obj.operator, OpDefinition) else str(obj.operator)} {obj._id:d}"
 
         elif isinstance(obj, HlsNetNodeWrite):
             if isinstance(obj, HlsNetNodeWriteBramCmd):
@@ -266,7 +267,7 @@ class HwtHlsNetlistToTimelineJson():
             if isinstance(obj, (HlsNetNodeExplicitSync, HlsNetNodeReadSync)):
                 color = "yellow"
             label = repr(obj)
-        
+
         jObj = TimelineItem(obj._id, label, objGroupId, start, end, color)
         self.jsonObjs.append(jObj)
         self.objToJsonObj[obj] = jObj
@@ -293,11 +294,11 @@ class HwtHlsNetlistToTimelineJson():
                 if isinstance(n, HlsNetNodeAggregate):
                     for subNode in self.iterAtomicNodes(n):
                         containerOfNode[subNode] = n
-        
+
         seenNodes = set()
         for obj in nodes:
             self.translateNodeToTimelineItemTransitively(obj, ioGroupIds, nodesFlat, compositeNodes, seenNodes)
-        
+
         for (jObj, obj) in zip(jsonObjs, nodesFlat):
             jObj: TimelineItem
             obj: HlsNetNode
@@ -319,7 +320,7 @@ class HwtHlsNetlistToTimelineJson():
                 except:
                     raise
                 jObj.portsIn.append(_mkPortIn(t * self.time_scale, i.name, depJsonObj, depOutI, color))
-            
+
             # convert other logical connections which are not done trough ports
             for bdep_obj in obj.debug_iter_shadow_connection_dst():
                 if not self.expandCompositeNodes:

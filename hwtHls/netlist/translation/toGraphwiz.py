@@ -3,7 +3,7 @@ from itertools import zip_longest
 import pydot
 from typing import List, Union, Dict, Optional, Callable
 
-from hwt.hdl.operatorDefs import COMPARE_OPS, AllOps
+from hwt.hdl.operatorDefs import COMPARE_OPS, AllOps, OpDefinition
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
@@ -45,9 +45,9 @@ class HwtHlsNetlistToGraphwiz():
     def construct(self,):
         for n in self.allNodes:
             self._node_from_HlsNetNode(n)
-        
+
         self.graph.add_node(self._constructLegend())
-    
+
     def _constructLegend(self):
         legendTable = """<
 <table border="0" cellborder="1" cellspacing="0">
@@ -80,7 +80,7 @@ class HwtHlsNetlistToGraphwiz():
 
     def _getGraph(self, n: HlsNetNode):
         return self.graph
-        
+
     def _node_from_HlsNetNode(self, obj: Union[HlsNetNode, HlsNetNodeOutLazy]):
         try:
             return self.obj_to_node[obj]
@@ -88,7 +88,7 @@ class HwtHlsNetlistToGraphwiz():
             pass
         g = self._getGraph(obj)
         # node needs to be constructed before connecting because graph may contain loops
-        # fillcolor=color, style='filled', 
+        # fillcolor=color, style='filled',
         node = pydot.Node(f"n{self._getNewNodeId()}", shape="plaintext")
         g.add_node(node)
 
@@ -128,14 +128,14 @@ class HwtHlsNetlistToGraphwiz():
 
                         e = pydot.Edge(src, dst, **attrs)
                         self.graph.add_edge(e)
-    
+
                 for shadow_dst in obj.debug_iter_shadow_connection_dst():
                     if isinstance(shadow_dst, HlsNetNode) and shadow_dst not in self.allNodes:
                         continue
                     shadow_dst_node = self._node_from_HlsNetNode(shadow_dst)
                     e = pydot.Edge(f"{node.get_name():s}", f"{shadow_dst_node.get_name():s}", style="dashed", color="gray")
                     self.graph.add_edge(e)
-    
+
             except:
                 raise AssertionError("defective node", obj)
         else:
@@ -153,7 +153,7 @@ class HwtHlsNetlistToGraphwiz():
             output_rows.append("<td port='o0'>o0</td>")
 
         buff = []
-        
+
         color = self._getColor(obj) if obj in self.allNodes else "orange"
         buff.append(f'''<
         <table bgcolor="{color:s}" border="0" cellborder="1" cellspacing="0">\n''')
@@ -170,12 +170,12 @@ class HwtHlsNetlistToGraphwiz():
             else:
                 t = obj._outputs[0]._dtype
 
-            label = f"{obj.operator.id} {obj._id} {t}"
+            label = f"{obj.operator.id if isinstance(obj.operator, OpDefinition) else str(obj.operator)} {obj._id} {t}"
         elif isinstance(obj, (HlsNetNodeRead, HlsNetNodeWrite, HlsLoopGateStatus)):
             label = _reprMinify(obj)
         else:
             label = f"{obj.__class__.__name__} {obj._id}"
-        
+
         buff.append(f'            <tr><td colspan="2">{html.escape(label):s}</td></tr>\n')
         if isinstance(obj, HlsNetNodeWriteBackwardEdge):
             obj: HlsNetNodeWriteBackwardEdge
@@ -200,7 +200,7 @@ class HlsNetlistPassDumpToDot(HlsNetlistPass):
 
     def getNodes(self, netlist: HlsNetlistCtx):
         return netlist.iterAllNodes()
-        
+
     def apply(self, hls: "HlsScope", netlist: HlsNetlistCtx):
         name = netlist.label
         out, doClose = self.outStreamGetter(name)
@@ -221,7 +221,7 @@ class HlsNetlistPassDumpIoClustersToDot(HlsNetlistPassDumpToDot):
 
     def _edgeFilter(self, src: HlsNetNodeOut, dst: HlsNetNodeOut):
         return HdlType_isVoid(src._dtype)
-        
+
     def getNodes(self, netlist: HlsNetlistCtx):
         return (n for n in netlist.iterAllNodes()
                  if isinstance(n, (HlsNetNodeExplicitSync, HlsNetNodeIoClusterCore))
