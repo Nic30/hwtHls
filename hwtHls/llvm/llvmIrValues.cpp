@@ -64,6 +64,8 @@ void register_Values_and_Use(pybind11::module_ & m) {
 	py::class_<llvm::GlobalValue, std::unique_ptr<llvm::GlobalValue, py::nodelete>, llvm::Constant>(m, "GlobalValue");
 	py::class_<llvm::ConstantData, std::unique_ptr<llvm::ConstantData, py::nodelete>, llvm::Constant>(m, "ConstantData");
 	py::class_<llvm::ConstantAggregate,  std::unique_ptr<llvm::ConstantAggregate, py::nodelete>, llvm::Constant>(m, "ConstantAggregate");
+	py::class_<llvm::ConstantDataSequential,  std::unique_ptr<llvm::ConstantDataSequential, py::nodelete>, llvm::ConstantData>(m, "ConstantDataSequential");
+
 
 	py::class_<llvm::ConstantInt, std::unique_ptr<llvm::ConstantInt, py::nodelete>, llvm::ConstantData>(m, "ConstantInt")
 		.def_static("get", [](llvm::Type* Ty, llvm::APInt& V) {
@@ -84,6 +86,14 @@ void register_Values_and_Use(pybind11::module_ & m) {
 		    return CI;
 		  } else {
 			  return (llvm::ConstantArray *) nullptr;
+		  }
+	}, py::return_value_policy::reference);
+	py::class_<llvm::ConstantDataArray, std::unique_ptr<llvm::ConstantDataArray, py::nodelete>, llvm::ConstantDataSequential>(m, "ConstantDataArray");
+	m.def("ValueToConstantDataArray", [](llvm::Value * V) {
+		  if (llvm::ConstantDataArray *CI = llvm::dyn_cast<llvm::ConstantDataArray>(V)) {
+		    return CI;
+		  } else {
+			  return (llvm::ConstantDataArray *) nullptr;
 		  }
 	}, py::return_value_policy::reference);
 
