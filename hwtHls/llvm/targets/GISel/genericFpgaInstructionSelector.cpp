@@ -1,6 +1,7 @@
 #include "genericFpgaInstructionSelector.h"
 #include <llvm/CodeGen/GlobalISel/InstructionSelectorImpl.h>
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
+#include <llvm/MC/MCContext.h>
 #include <llvm/Support/Debug.h>
 
 #include "../genericFpgaInstrInfo.h"
@@ -39,6 +40,8 @@ private:
 	bool select_G_SEXT(MachineRegisterInfo &MRI, MachineIRBuilder &MIRB,
 			MachineInstr &I);
 	bool select_G_ZEXT(MachineRegisterInfo &MRI, MachineIRBuilder &MIRB,
+			MachineInstr &I);
+	bool select_G_TRUNC(MachineRegisterInfo &MRI, MachineIRBuilder &MIRB,
 			MachineInstr &I);
 	bool select_G_LOAD_or_G_STORE(MachineFunction &MF, MachineRegisterInfo &MRI,
 			MachineIRBuilder &MIRB, MachineInstr &I);
@@ -262,6 +265,8 @@ bool GenericFpgaTargetInstructionSelector::select(MachineInstr &I) {
 		return select_G_SHR(MRI, Builder, I, false);
 	case G_ASHR:
 		return select_G_SHR(MRI, Builder, I, true);
+	case G_TRUNC:
+		return select_G_TRUNC(MRI, Builder, I);
 	default:
 		return false; // some unknown operands (on error it will be printed immediately by caller)
 	}
@@ -430,6 +435,29 @@ bool GenericFpgaTargetInstructionSelector::select_G_SHL(
 		return false;
 		//assert(false && "NotImplemented");
 	}
+}
+
+bool GenericFpgaTargetInstructionSelector::select_G_TRUNC(
+		MachineRegisterInfo &MRI, MachineIRBuilder &MIRB, MachineInstr &I) {
+	auto &Context = MF->getFunction().getContext();
+	auto &vOp = I.getOperand(1);
+	ConstantInt *vConst = machineOperandTryGetConst(Context, MRI, vOp);
+	unsigned dstWidth = MRI.getType(I.getOperand(0).getReg()).getSizeInBits();
+	if (vConst) {
+		// directly resolve to constant
+		APInt v = vConst->getValue().trunc(dstWidth);
+		MachineInstrBuilder MIB = MIRB.buildConstant(I.getOperand(0).getReg(), v);
+		return finalizeReplacementOfInstruction(MIB, I);
+	} else {
+		// select as bit slice
+		MachineInstrBuilder MIB0 = MIRB.buildInstr(GenericFpga::GENFPGA_EXTRACT);
+		MIB0.addDef(I.getOperand(0).getReg());
+		selectInstrArg(*MF, MIB0, MRI, vOp);
+		MIB0.addImm(0);
+		MIB0.addImm(dstWidth);
+		return finalizeReplacementOfInstruction(MIB0, I);
+	}
+
 }
 bool GenericFpgaTargetInstructionSelector::select_G_SHR(
 		MachineRegisterInfo &MRI, MachineIRBuilder &MIRB, MachineInstr &I,
