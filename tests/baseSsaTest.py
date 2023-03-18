@@ -56,13 +56,13 @@ class BaseTestPlatform(VirtualHlsPlatform):
         toNetlist = HlsNetlistAnalysisPassMirToNetlist(
             hls, tr, mf, backedges, liveness, ioRegs, registerTypes, loops)
         netlist = toNetlist.netlist
-    
+
         SsaPassDumpMIR(lambda name: (self.mir, False)).apply(hls, toSsa)
-        
+
         toNetlist.translateDatapathInBlocks(mf, toSsa.ioNodeConstructors)
         blockLiveInMuxInputSync: BlockLiveInMuxSyncDict = toNetlist.constructLiveInMuxes(mf)
         # thread analysis must be done before we connect control, because once we do that
-        # everything will blend together 
+        # everything will blend together
         threads = netlist.getAnalysis(HlsNetlistAnalysisPassDataThreadsForBlocks)
         toNetlist.updateThreadsOnPhiMuxes(threads)
         HlsNetlistPassDumpDataThreads(lambda name: (self.dataThreads, False)).apply(hls, netlist)
@@ -96,15 +96,18 @@ class BaseSsaTC(BaseSerializationTC):
             self.compileSimAndStart(unit_cls, target_platform=p)
         self.rmSim()
 
-    def _test_ll(self, unit_constructor: Unit, name=None):
+    def _test_ll(self, unitConstructor: Unit, name=None):
         p = BaseTestPlatform()
-        unit = unit_constructor()
+        if isinstance(unitConstructor, Unit):
+            unit = unitConstructor
+        else:
+            unit = unitConstructor()
         self._runTranslation(unit, p)
         if name is None:
             name = unit.__class__.__name__
-        
+
         self.assert_same_as_file(p.postPyOpt.getvalue(), os.path.join("data", name + ".0.postPyOpt.ll"))
         self.assert_same_as_file(p.mir.getvalue(), os.path.join("data", name + ".1.mir.ll"))
         self.assert_same_as_file(p.dataThreads.getvalue(), os.path.join("data", name + ".2.dataThreads.txt"))
         self.assert_same_as_file(p.blockSync.getvalue(), os.path.join("data", name + ".3.blockSync.dot"))
-        
+
