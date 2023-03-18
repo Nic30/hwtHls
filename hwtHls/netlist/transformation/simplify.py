@@ -6,7 +6,6 @@ from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.analysis.consystencyCheck import HlsNetlistPassConsystencyCheck
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.debugTracer import DebugTracer
-from hwtHls.netlist.nodes.IoClusterCore import HlsNetNodeIoClusterCore
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.loopGate import HlsLoopGate, HlsLoopGateStatus
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
@@ -43,7 +42,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
     """
     REST_OF_EVALUABLE_OPS = {AllOps.CONCAT, AllOps.ADD, AllOps.SUB, AllOps.DIV, AllOps.MUL, AllOps.INDEX, *COMPARE_OPS, *CAST_OPS}
     OPS_AND_OR_XOR = (AllOps.AND, AllOps.OR, AllOps.XOR)
-    NON_REMOVABLE_CLS = (HlsNetNodeRead, HlsNetNodeWrite, HlsLoopGate, HlsNetNodeExplicitSync, HlsNetNodeIoClusterCore)
+    NON_REMOVABLE_CLS = (HlsNetNodeRead, HlsNetNodeWrite, HlsLoopGate, HlsNetNodeExplicitSync)
     OPT_ITERATION_LIMIT = 20
 
     def __init__(self, dbgTracer: DebugTracer):
@@ -193,6 +192,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                 HlsNetlistPassConsystencyCheck._checkConnections(netlist, removed)
     
             if not worklist:
+                HlsNetlistPassSimplifySync(dbgTracer).apply(hls, netlist, parentWorklist=worklist, parentRemoved=removed)
                 dbgTracer.log("rehash")
                 HlsNetlistPassRehashDeduplicate().apply(hls, netlist, worklist=worklist, removed=removed)
                 if not worklist:
@@ -209,6 +209,8 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                     n = worklist.pop()
                     if n in removed or self._DCE(n, worklist, removed):
                         continue
+                dbgTracer.log(("giving up after ", runCntr, " rounds"))
+                break
                 
         if removed:
             netlist.filterNodesUsingSet(removed)
