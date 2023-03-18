@@ -21,6 +21,7 @@ from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from ipCorePackager.constants import DIRECTION
+from hwtHls.netlist.transformation.moveExplicitSyncOutOfDataAndAddVoidDataLinks import HlsNetlistPassMoveExplicitSyncOutOfDataAndAddVoidDataLinks
 
 
 class HlsNetlistSyncIsland0Unit(Unit):
@@ -51,7 +52,8 @@ class HlsNetlistSyncIsland0Unit(Unit):
         netlist.outputs.append(o)
         link_hls_nodes(i0._outputs[0], o._inputs[0])
         reachDb: HlsNetlistAnalysisPassReachabilility = netlist.getAnalysis(HlsNetlistAnalysisPassReachabilility)
-        
+
+        HlsNetlistPassMoveExplicitSyncOutOfDataAndAddVoidDataLinks().apply(None, netlist)        
         tc: SimTestCase = self.TEST_CASE
         if tc is not None:
             inputs, outputs, _ = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(i0, DIRECTION.IN, reachDb)
@@ -88,6 +90,7 @@ class HlsNetlistSyncIsland1Unit(HlsNetlistSyncIsland0Unit):
         link_hls_nodes(sync._outputs[0], o._inputs[0])
         reachDb: HlsNetlistAnalysisPassReachabilility = netlist.getAnalysis(HlsNetlistAnalysisPassReachabilility)
         
+        HlsNetlistPassMoveExplicitSyncOutOfDataAndAddVoidDataLinks().apply(None, netlist)
         tc: SimTestCase = self.TEST_CASE
         if tc is not None:
             inputs, outputs, _ = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(i0, DIRECTION.IN, reachDb)
@@ -132,6 +135,7 @@ class HlsNetlistSyncIsland2Unit(HlsNetlistSyncIsland0Unit):
         link_hls_nodes(sync._outputs[0], o._inputs[0])
         reachDb: HlsNetlistAnalysisPassReachabilility = netlist.getAnalysis(HlsNetlistAnalysisPassReachabilility)
         
+        HlsNetlistPassMoveExplicitSyncOutOfDataAndAddVoidDataLinks().apply(None, netlist)   
         tc: SimTestCase = self.TEST_CASE
         if tc is not None:
             inputs, outputs, _ = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(i0, DIRECTION.IN, reachDb)
