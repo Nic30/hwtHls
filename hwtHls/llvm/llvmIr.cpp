@@ -16,7 +16,9 @@
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Type.h>
 #include <llvm/IR/Verifier.h>
+#include <llvm/IRReader/IRReader.h>
 #include <llvm/CodeGen/MachineInstr.h>
+
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
@@ -223,5 +225,21 @@ PYBIND11_MODULE(llvmIr, m) {
 		return llvm::verifyModule(M, &e);
 	});
 	register_MachineFunction(m);
+
+	py::class_<llvm::SMDiagnostic> (m, "SMDiagnostic")
+			.def(py::init<>())
+			.def("str", [](llvm::SMDiagnostic * self, const char *ProgName, bool ShowColors, bool ShowKindLabel) {
+					std::string tmp;
+					llvm::raw_string_ostream ss(tmp);
+					self->print(ProgName, ss, ShowColors, ShowKindLabel);
+					return ss.str();
+				}
+				// py::arg_v("ShowColors", true, "ShowColors=True"),
+				// py::arg_v("ShowKindLabel", true, "ShowKindLabel=True")
+				);
+	m.def("parseIR", [](const std::string & str, const std::string & name, llvm::SMDiagnostic &Err, llvm::LLVMContext &Context) {
+		llvm::MemoryBufferRef buff(str, name);
+		return llvm::parseIR(buff, Err, Context);
+	});
 }
 }
