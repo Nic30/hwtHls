@@ -8,33 +8,33 @@ from hwt.pyUtils.arrayQuery import grouper
 # https://docs.python.org/3/library/dis.html
 NOP = opmap['NOP']
 POP_TOP = opmap['POP_TOP']
-LOAD_DEREF = opmap['LOAD_DEREF']      
-LOAD_ATTR = opmap['LOAD_ATTR']       
-LOAD_FAST = opmap['LOAD_FAST']       
-LOAD_CONST = opmap['LOAD_CONST']      
-LOAD_GLOBAL = opmap['LOAD_GLOBAL']     
-LOAD_METHOD = opmap['LOAD_METHOD']     
+LOAD_DEREF = opmap['LOAD_DEREF']
+LOAD_ATTR = opmap['LOAD_ATTR']
+LOAD_FAST = opmap['LOAD_FAST']
+LOAD_CONST = opmap['LOAD_CONST']
+LOAD_GLOBAL = opmap['LOAD_GLOBAL']
+LOAD_METHOD = opmap['LOAD_METHOD']
 LOAD_CLOSURE = opmap['LOAD_CLOSURE']
 DELETE_FAST = opmap['DELETE_FAST']
-DELETE_DEREF = opmap["DELETE_DEREF"]   
-STORE_ATTR = opmap['STORE_ATTR']      
-STORE_FAST = opmap['STORE_FAST']      
+DELETE_DEREF = opmap["DELETE_DEREF"]
+STORE_ATTR = opmap['STORE_ATTR']
+STORE_FAST = opmap['STORE_FAST']
 STORE_DEREF = opmap['STORE_DEREF']
-   
+
 LIST_APPEND = opmap['LIST_APPEND']
 
 CALL_METHOD = opmap['CALL_METHOD']
-LIST_EXTEND = opmap['LIST_EXTEND']   
-CALL_FUNCTION = opmap['CALL_FUNCTION']   
+LIST_EXTEND = opmap['LIST_EXTEND']
+CALL_FUNCTION = opmap['CALL_FUNCTION']
 CALL_FUNCTION_KW = opmap['CALL_FUNCTION_KW']
 CALL_FUNCTION_EX = opmap['CALL_FUNCTION_EX']
 
-COMPARE_OP = opmap['COMPARE_OP']      
-GET_ITER = opmap['GET_ITER']        
-EXTENDED_ARG = opmap['EXTENDED_ARG']    
-UNPACK_SEQUENCE = opmap['UNPACK_SEQUENCE'] 
-MAKE_FUNCTION = opmap['MAKE_FUNCTION']   
-STORE_SUBSCR = opmap['STORE_SUBSCR']    
+COMPARE_OP = opmap['COMPARE_OP']
+GET_ITER = opmap['GET_ITER']
+EXTENDED_ARG = opmap['EXTENDED_ARG']
+UNPACK_SEQUENCE = opmap['UNPACK_SEQUENCE']
+MAKE_FUNCTION = opmap['MAKE_FUNCTION']
+STORE_SUBSCR = opmap['STORE_SUBSCR']
 FOR_ITER = opmap['FOR_ITER']
 UNARY_POSITIVE = opmap['UNARY_POSITIVE']
 UNARY_NEGATIVE = opmap['UNARY_NEGATIVE']
@@ -129,7 +129,7 @@ BIN_OPS = {
     BINARY_XOR: operator.xor,
     BINARY_OR: operator.or_,
     # IS_OP: operator.is_, # "is" operator has inversion flag, we have to use a custom evaluator fn.
-    CONTAINS_OP: operator.contains,
+    CONTAINS_OP: lambda item, collection: item in collection, # note that operator.contains has reversed order of operands
 }
 
 CMP_OP_LT = cmp_op.index('<')
@@ -154,7 +154,7 @@ INPLACE_BIN_OPS = {
     INPLACE_POWER: operator.pow,
     INPLACE_MULTIPLY: operator.mul,
     INPLACE_MATRIX_MULTIPLY: operator.imatmul,
-    
+
     INPLACE_FLOOR_DIVIDE: operator.floordiv,
     INPLACE_TRUE_DIVIDE: operator.truediv,
     INPLACE_MODULO: operator.mod,
@@ -194,7 +194,7 @@ def rot_three(stack):
     v1 = stack.pop()
     v2 = stack.pop()
     stack.append(v0)
-    stack.append(v2)   
+    stack.append(v2)
     stack.append(v1)
 
 
@@ -206,7 +206,7 @@ def rot_four(stack):
     v3 = stack.pop()
     stack.append(v0)
     stack.append(v3)
-    stack.append(v2) 
+    stack.append(v2)
     stack.append(v1)
 
 
@@ -223,7 +223,7 @@ ROT_OPS = {
     ROT_TWO: rot_two,
     ROT_THREE: rot_three,
     ROT_FOUR: rot_four,  # 3.8+
-    
+
     DUP_TOP: dup_top,  # 3.2 - 3.11
     DUP_TOP_TWO: dup_top_two,  # 3.2 - 3.11
 }
@@ -254,7 +254,7 @@ def _BUILD_MAP(instr: Instruction, stack: list):
     del stack[-instr.argval * 2:]
     stack.append({k: v for k, v in grouper(2, keyValues)})
 
-    
+
 def _BUILD_CONST_KEY_MAP(instr: Instruction, stack: list):
     """
     The version of BUILD_MAP specialized for constant keys. Pops the top element on the stack which contains a tuple of keys, then starting from TOS1, pops count values to form values in the built dictionary.
@@ -292,4 +292,4 @@ BUILD_OPS = {
     BUILD_STRING: _BUILD_STRING,
     BUILD_MAP: _BUILD_MAP,
     BUILD_CONST_KEY_MAP: _BUILD_CONST_KEY_MAP,
-}      
+}
