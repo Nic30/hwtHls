@@ -18,13 +18,21 @@ class HlsNetNodeConst(HlsNetNode):
         return self.val
 
     def allocateRtlInstance(self, allocator: "ArchElement") -> TimeIndependentRtlResource:
+        o = self._outputs[0]
+        try:
+            return allocator.netNodeToRtl[o]
+        except KeyError:
+            pass
+
         s = self.val
         if isinstance(s._dtype, HArray):
             # wrap into const signal to prevent code duplication
             s = allocator._sig(self.name, s._dtype, def_val=s)
             s._const = True
 
-        return TimeIndependentRtlResource(s, INVARIANT_TIME, allocator, False)
+        rtl = TimeIndependentRtlResource(s, INVARIANT_TIME, allocator, False)
+        allocator.netNodeToRtl[o] = rtl
+        return rtl
 
     def resolveRealization(self):
         assert not self._inputs
