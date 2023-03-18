@@ -68,7 +68,7 @@ class HlsWrite(HlsStm, SsaInstr):
             srcVal: HlsNetNodeOutAny,
             dstIo: Union[Interface, RtlSignal],
             index: Union[int, HlsNetNodeOutAny],
-            cond: HlsNetNodeOutAny):
+            cond: Union[int,HlsNetNodeOutAny]):
         """
         :see: :meth:`hwtHls.frontend.ast.statementsRead.HlsRead._translateMirToNetlist`
         """
@@ -121,7 +121,7 @@ class HlsWriteAddressed(HlsWrite):
             srcVal: HlsNetNodeOutAny,
             dstIo: Interface,
             index: Union[int, HlsNetNodeOutAny],
-            cond: HlsNetNodeOutAny):
+            cond: Union[int,HlsNetNodeOutAny]):
         """
         :see: :meth:`hwtHls.frontend.ast.statementsRead.HlsRead._translateMirToNetlist`
         """
@@ -132,7 +132,7 @@ class HlsWriteAddressed(HlsWrite):
             raise AssertionError("If the index is constant it should be an output of a constant node but it is an integer", dstIo, instr)
         n = HlsNetNodeWriteIndexed(netlist, NOT_SPECIFIED, dstIo)
         link_hls_nodes(index, n.indexes[0])
-        
+
         link_hls_nodes(srcVal, n._inputs[0])
         mirToNetlist._addExtraCond(n, cond, mbSync.blockEn)
         mirToNetlist._addSkipWhen_n(n, cond, mbSync.blockEn)
@@ -157,7 +157,7 @@ class HlsStmWriteStartOfFrame(HlsWrite):
     def __init__(self, parent:"HlsScope", intf:Interface):
         super(HlsStmWriteStartOfFrame, self).__init__(parent, BIT.from_py(1), intf, BIT)
 
-    
+
 class HlsStmWriteEndOfFrame(HlsWrite):
     """
     Statement which marks an end of frame on specified interface.
@@ -165,4 +165,4 @@ class HlsStmWriteEndOfFrame(HlsWrite):
 
     def __init__(self, parent:"HlsScope", intf:Interface):
         super(HlsStmWriteEndOfFrame, self).__init__(parent, BIT.from_py(1), intf, BIT)
-   
+

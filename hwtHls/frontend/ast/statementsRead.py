@@ -40,7 +40,7 @@ class HlsRead(HdlStatement, SsaInstr):
         self._src = src
         self._isBlocking = isBlocking
         self.block: Optional[SsaBasicBlock] = None
-        
+
         if intfName is None:
             intfName = self._getInterfaceName(src)
 
@@ -53,7 +53,7 @@ class HlsRead(HdlStatement, SsaInstr):
             force_vector = False
             if w == 1 and isinstance(dtype, Bits):
                 force_vector = dtype.force_vector
-                
+
             sig_flat = var(name, Bits(w + (0 if isBlocking else 1), force_vector=force_vector))
             # use flat signal and make type member fields out of slices of that signal
             if isBlocking:
@@ -63,7 +63,7 @@ class HlsRead(HdlStatement, SsaInstr):
             sig._name = name
             sig_flat.drivers.append(self)
             sig_flat.origin = self
-    
+
         else:
             sig_flat = sig
             sig.drivers.append(self)
@@ -100,7 +100,7 @@ class HlsRead(HdlStatement, SsaInstr):
         """
         This method is called to generated HlsNetlist nodes from LLVM MIR.
         The purpose of this function is to make this translation customizable for specific :class:`hwt.synthesizer.interface.Interface` instances.
-        
+
         :param representativeReadStm: Any found read for this interface before LLVM opt.
             We can not find the original because optimization process may remove and generate new reads and exact mapping can not be found.
             This may be used to find meta informations about interface.
@@ -164,7 +164,7 @@ class HlsReadAddressed(HlsRead):
                                instr: MachineInstr,
                                srcIo: Interface,
                                index: Union[int, HlsNetNodeOutAny],
-                               cond: HlsNetNodeOutAny,
+                               cond: Union[int,HlsNetNodeOutAny],
                                instrDstReg: Register):
         """
         :see: :meth:`~.HlsRead._translateMirToNetlist`
