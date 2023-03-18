@@ -70,7 +70,7 @@ class RtlNetlistPassControlLogicMinimize(RtlNetlistPass):
             yield stm.cond
             for subStm in stm.ifTrue:
                 yield from cls.iterConditions(subStm)
-    
+
             for c, subStms in stm.elIfs:
                 yield c
                 for subStm in subStms:
@@ -78,7 +78,7 @@ class RtlNetlistPassControlLogicMinimize(RtlNetlistPass):
             if stm.ifFalse:
                 for subStm in stm.ifFalse:
                     yield from cls.iterConditions(subStm)
-    
+
         else:
             for subStm in stm._iter_stms():
                 yield from cls.iterConditions(subStm)
@@ -102,7 +102,7 @@ class RtlNetlistPassControlLogicMinimize(RtlNetlistPass):
             yield from cls.iterDriverSignalsRec(d, sig)
         else:
             yield sig
-      
+
     @classmethod
     def collectControlDrivingTree(cls, sig: Union[RtlSignal, Interface, int, HValue],
                                   allControlIoOutputs: UniqList[RtlSignal],
@@ -110,11 +110,11 @@ class RtlNetlistPassControlLogicMinimize(RtlNetlistPass):
                                   inTreeOutputs: Set[RtlSignal]):
         if isinstance(sig, (int, HValue)):
             return
-            
+
         for s in cls.iterDriverSignals(sig):
             if s not in allControlIoOutputs and cls._collect1bOpTree(s, inputs, inTreeOutputs):
                 allControlIoOutputs.append(s)
-    
+
     @classmethod
     def collectAllControl(cls, netlist: HlsNetlistCtx,
                           collect: Callable[[
@@ -131,14 +131,14 @@ class RtlNetlistPassControlLogicMinimize(RtlNetlistPass):
             elm: ArchElement
             for con in elm.connections:
                 con: ConnectionsOfStage
-                # [todo] con.stageDataVld 
+                # [todo] con.stageDataVld
                 if isinstance(con.syncNodeAck, RtlSignal):
                     if con.syncNodeAck.hidden:
                         src = con.syncNodeAck
                     else:
                         src = con.syncNodeAck.singleDriver().src
                     collect(src, allControlIoOutputs, inputs, inTreeOutputs)
-  
+
                 if con.sync_node:
                     for m in con.sync_node.masters:
                         _, rd = extractControlSigOfInterfaceTuple(m)
@@ -159,12 +159,12 @@ class RtlNetlistPassControlLogicMinimize(RtlNetlistPass):
                             break
                         else:
                             break
-                        
+
         # [todo] restrict to only statements generated from this HlsScope/thread
         for stm in netlist.parentUnit._ctx.statements:
             for c in cls.iterConditions(stm):
                 collect(c, allControlIoOutputs, inputs, inTreeOutputs)
-        return allControlIoOutputs, inputs 
+        return allControlIoOutputs, inputs
 
     def apply(self, hls: "HlsScope", netlist: HlsNetlistCtx):
         allControlIoOutputs, inputs = self.collectAllControl(netlist, self.collectControlDrivingTree)
@@ -173,17 +173,17 @@ class RtlNetlistPassControlLogicMinimize(RtlNetlistPass):
             toAbcAig = RtlNetlistToAbcAig()
             abcFrame, abcNet, abcAig = toAbcAig.translate(inputs, allControlIoOutputs)
             abcAig.Cleanup()
-            
+
             abcNet = abcCmd_resyn2(abcNet)
             abcNet = abcCmd_compress2(abcNet)
-            
+
             toHlsNetlist = AbcAigToRtlNetlist(abcFrame, abcNet, abcAig)
             newOutputs = toHlsNetlist.translate()
             assert len(allControlIoOutputs) == len(newOutputs)
             for o, newO in zip(allControlIoOutputs, newOutputs):
                 if o is not newO:
                     o: RtlSignal
-                    
+
                     for ep in o.endpoints:
                         if isinstance(ep, Operator):
                             # was already replaced when it was replaced in statement
