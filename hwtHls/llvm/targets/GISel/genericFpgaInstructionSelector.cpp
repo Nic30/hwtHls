@@ -522,7 +522,110 @@ bool GenericFpgaTargetInstructionSelector::select_G_SHR(
 		}
 		return finalizeReplacementOfInstruction(MIB, I);
 
-	} else if (lhsConst) {
+	}
+	if (!isArithmetic) {
+		// extract bit selection pattern
+		// %widht = G_CONSTANT widht
+		// %offset = nuw nsw G_MUL %index, %widht
+		// %selected = G_LSHR %bitarray, %offset
+		// %res:anyreg(widht) = G_TRUNC %selected
+		auto & bitarray = lhs;
+		auto & offset = rhs;
+		auto shDstReg = I.getOperand(0).getReg();
+		unsigned resWidth = 0;
+		MachineInstr* truncInstr = nullptr;
+		if (MRI.hasOneUse(shDstReg)) {
+			MachineOperand *truncUser = &*MRI.use_begin(shDstReg);
+			truncInstr = truncUser->getParent();
+			auto trOpc = truncInstr->getOpcode();
+			switch (trOpc) {
+			case GenericFpga::GENFPGA_EXTRACT:
+			case TargetOpcode::G_TRUNC:
+				if (trOpc == GenericFpga::GENFPGA_EXTRACT) {
+					assert(truncInstr->getOperand(2).getImm() == 0);
+				}
+				resWidth = MRI.getType(truncInstr->getOperand(0).getReg()).getSizeInBits();
+				break;
+			}
+		}
+		// [todo] rm: done in SimplifyCFG2
+		if (resWidth > 0 && offset.isReg()) {
+			auto offDef = MRI.getOneDef(offset.getReg());
+			if (offDef) {
+				auto* offInst = offDef->getParent();
+				switch (offInst->getOpcode()) {
+				case TargetOpcode::G_MUL:
+					auto & index = offInst->getOperand(1);
+					auto & width = offInst->getOperand(2);
+					ConstantInt *resWidthConst = machineOperandTryGetConst(Context, MRI, width);
+					if (resWidthConst->getZExtValue() == resWidth) {
+						ConstantInt *bitarrayConst = machineOperandTryGetConst(Context, MRI, bitarray);
+						if (bitarrayConst) {
+							MIRB.setInsertPt(*MF->begin(), MF->begin()->begin());
+							APInt bv = bitarrayConst->getValue();
+
+							//size_t size = bv.getBitWidth() /8;
+							//if (bv.getBitWidth() % 8 != 0)
+							//	size +=1;
+							//char *romDataMem = (char*)MF->getContext().allocate(size, 1);
+							//std::memcpy(romDataMem, bv.getRawData(), size);
+							//Constant *romArrConst = ConstantDataArray::getRaw(
+							//		StringRef(romDataMem, size),
+							//		bv.getBitWidth()/resWidth,
+							//		Type::getIntNTy(MF->getFunction().getContext(), resWidth)
+							//);
+							auto* elmT = Type::getIntNTy(MF->getFunction().getContext(), resWidth);
+							auto numElements = bv.getBitWidth()/resWidth;
+							auto* arrT = ArrayType::get(elmT, numElements);
+							SmallVector<Constant*> romData;
+							romData.reserve(numElements);
+							for (size_t i = 0; i < numElements; ++i) {
+								auto* C = ConstantInt::get(elmT, bv.trunc(resWidth));
+								romData.push_back(C);
+								bv.lshrInPlace(resWidth);
+							}
+
+							Constant *romArrConst = ConstantArray::get(arrT, romData);
+
+							GlobalVariable *romArrGv = new GlobalVariable(
+							  *MF->getFunction().getParent(),
+							  arrT,
+							  true,
+							  GlobalValue::InternalLinkage,
+							  romArrConst,
+							  "romFromShift");
+
+							Register romPtr = MRI.createVirtualRegister(&GenericFpga::AnyRegClsRegClass);
+							MIRB.buildGlobalValue(romPtr, romArrGv);
+
+							MIRB.setInsertPt(*truncInstr->getParent(), truncInstr);
+							MachineInstrBuilder MIB = MIRB.buildInstr(GenericFpga::GENFPGA_CLOAD);
+							MIB.addDef(truncInstr->getOperand(0).getReg());
+							LLT romLLT = LLT::fixed_vector(bv.getBitWidth()/resWidth, LLT::scalar(resWidth));
+							MIB.addReg(romPtr); // baseaddr
+							selectInstrArg(*MF, MIB, MRI, index); // index
+							MIB.addImm(1); // cond
+							MIB.addMemOperand(MF->getMachineMemOperand(
+									        MachinePointerInfo(romArrGv),
+									        MachineMemOperand::MOLoad,
+											romLLT,
+											Align(1))); // baseaddr
+
+							if (!constrainInstRegOperands(*MIB.getInstr(), TII, TRI, RBI))
+								return false;
+							//offInst->eraseFromParent();
+							I.eraseFromParent();
+							truncInstr->eraseFromParent();
+							return true;
+						}
+					}
+					break;
+				}
+			}
+		}
+	}
+
+	if (lhsConst) {
 		// if lhs is constant we generate mux for all possible constant values of the shift
 		return false;
 		//assert(false && "NotImplemented");
