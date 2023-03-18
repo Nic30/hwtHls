@@ -9,6 +9,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.transformation.simplifyUtils import replaceOperatorNodeWith
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.analysis.reachability import _collectConcatOfVoidTreeInputs
+from hwtHls.netlist.nodes.const import HlsNetNodeConst
 
  
 def _getOrderingOutStrenght(o: HlsNetNodeOut):
@@ -43,6 +44,13 @@ def netlistReduceConcatOfVoid(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNo
             # dataVoidOut is stronger than regular ordering
             replaceOperatorNodeWith(n, obj._dataVoidOut, worklist, removed)
             return True
+    elif isinstance(o0.obj, HlsNetNodeConst):
+        replaceOperatorNodeWith(n, o1, worklist, removed)
+        return True
+    elif isinstance(o1.obj, HlsNetNodeConst):
+        replaceOperatorNodeWith(n, o0, worklist, removed)
+        return True
+            
     
     if len(n.usedBy[0]) > 1 or (not isinstance(n.usedBy[0][0].obj, HlsNetNodeOperator) or n.usedBy[0][0].obj.operator != AllOps.CONCAT):
         # collect all inputs and check if concat operator tree does not have any duplicit inputs
