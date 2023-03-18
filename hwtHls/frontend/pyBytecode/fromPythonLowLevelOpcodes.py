@@ -297,7 +297,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
         list_ = stack[-instr.argval]
         list.append(list_, v)
         return curBlock
-    
+
     def opcode_IS_OP(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:
         """
         Performs is comparison, or is not if invert is 1.
@@ -306,7 +306,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
         stack = frame.stack
         v1 = stack.pop()
         v0 = stack.pop()
-        
+
         invert = instr.argval
         if invert:
             res = v0 is not v1
@@ -314,7 +314,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
             res = v0 is v1
         stack.append(res)
         return curBlock
-     
+
     # CALL_FUNCTION
     def opcode_CALL_METHOD(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:
         stack = frame.stack
@@ -336,10 +336,10 @@ class PyBytecodeToSsaLowLevelOpcodes():
             curBlock, res, = self.toSsa.visit_expr(curBlock, args[0])
         else:
             res = m(*args)
-        
+
         stack.append(res)
         return curBlock
-    
+
     def opcode_LIST_EXTEND(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:
         """
         Calls list.extend(TOS1[-i], TOS). Used to build lists.
@@ -369,13 +369,20 @@ class PyBytecodeToSsaLowLevelOpcodes():
         for _ in range(instr.arg):
             args.append(stack.pop())
 
-        kwArgs = {}
+        kwargs = {}
         for kwName, a in zip(kwNames, args[:len(args) - len(kwNames)]):
-            kwArgs[kwName] = a
+            kwargs[kwName] = a
         del args[:len(kwNames)]
 
         m = stack.pop()
-        res = m(*reversed(args), **kwArgs)
+        if isinstance(m, PyBytecodeInline):
+            return self._translateCallInlined(frame, curBlock, m.ref, instr.offset, args, kwargs)
+        elif m is PyBytecodePreprocHwCopy:
+            assert len(args) == 1, args
+            assert not kwargs
+            curBlock, res, = self.toSsa.visit_expr(curBlock, args[0])
+        else:
+            res = m(*reversed(args), **kwargs)
         stack.append(res)
         return curBlock
 
@@ -383,12 +390,20 @@ class PyBytecodeToSsaLowLevelOpcodes():
         stack = frame.stack
 
         if instr.arg:
-            kw_args = stack.pop()
-            raise NotImplementedError(instr, kw_args)
+            kwargs = stack.pop()
+        else:
+            kwargs = {}
 
         args = stack.pop()
         m = stack.pop()
-        res = m(*reversed(tuple(args)))
+        if isinstance(m, PyBytecodeInline):
+            return self._translateCallInlined(frame, curBlock, m.ref, instr.offset, args, kwargs)
+        elif m is PyBytecodePreprocHwCopy:
+            assert len(args) == 1, args
+            assert not kwargs, kwargs
+            curBlock, res, = self.toSsa.visit_expr(curBlock, args[0])
+        else:
+            res = m(*reversed(tuple(args)), **kwargs)
         stack.append(res)
         return curBlock
 
@@ -445,7 +460,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
         else:
             closure = ()
 
-        # PyCodeObject *code, PyObject *globals, 
+        # PyCodeObject *code, PyObject *globals,
         # PyObject *name, PyObject *defaults, PyObject *closure
         newFn = FunctionType(code, frame.fn.__globals__, name, defaults, closure)
         stack.append(newFn)
@@ -469,21 +484,23 @@ class PyBytecodeToSsaLowLevelOpcodes():
                 stm = sequence[index](val)
                 self.toSsa.visit_CodeBlock_list(curBlock, flatten([stm, ]))
                 return curBlock
-                
+
         operator.setitem(sequence, index, val)
         # stack.append()
         return curBlock
 
     def opcodeMakeBinaryOp(self, binOp: Callable):
-        
+
         def opcode_BIN_OP(frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:
             stack = frame.stack
             b = stack.pop()
             a = stack.pop()
             a, curBlock = expandBeforeUse(self, instr.offset, frame, a, curBlock)
             b, curBlock = expandBeforeUse(self, instr.offset, frame, b, curBlock)
-            
-            if binOp is operator.getitem and isinstance(b, (RtlSignal, Interface, SsaValue)) and not isinstance(a, (RtlSignal, SsaValue)):
+
+            if (binOp is operator.getitem and
+                isinstance(b, (RtlSignal, Interface, SsaValue)) and
+                not isinstance(a, (RtlSignal, SsaValue))):
                 # if this is indexing using hw value on non hw object we need to expand it to a switch-case on individual cases
                 # must generate blocks for switch cases,
                 # for this we need a to keep track of start/end for each block because we do not have this newly generated blocks in original CFG
@@ -497,7 +514,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
         return opcode_BIN_OP
 
     def opcodeMakeUnaryOp(self, unOp: Callable):
-        
+
         def opcode_UN_OP(frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:
             stack = frame.stack
             a = stack.pop()
@@ -506,7 +523,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
             return curBlock
 
         return opcode_UN_OP
-    
+
     def opcodeMakeRotOp(self, rotOp: Callable[[list], None]):
 
         def opcode_ROT_OP(frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:
@@ -514,7 +531,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
             return curBlock
 
         return opcode_ROT_OP
-    
+
     def opcodeMakeBuildOp(self, buildOp: Callable[[Instruction, list], None]):
 
         def opcode_BUILD_OP(frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:
@@ -522,14 +539,14 @@ class PyBytecodeToSsaLowLevelOpcodes():
             return curBlock
 
         return opcode_BUILD_OP
-    
+
     def opcodeMakeInplaceOp(self, inplaceOp: Callable[[Instruction, list], None]):
 
         def opcode_INPLACE_OP(frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:
             stack = frame.stack
             b = stack.pop()
             b, curBlock = expandBeforeUse(self, instr.offset, frame, b, curBlock)
-            
+
             a = stack.pop()
             if isinstance(a, PyObjectHwSubscriptRef):
                 a: PyObjectHwSubscriptRef
@@ -537,9 +554,9 @@ class PyBytecodeToSsaLowLevelOpcodes():
                 a, curBlock = a.expandIndexOnPyObjAsSwitchCase(self, instr.offset, frame, curBlock)
                 # .expandSetitemAsSwitchCase(frame, curBlock, lambda _, dst: dst(inplaceOp(dst, b)))
             res = inplaceOp(a, b)
-    
+
             stack.append(res)
-            
+
             return curBlock
 
         return opcode_INPLACE_OP
@@ -552,7 +569,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
             (flags & 0x03) == 0x02: call repr() on value before formatting it.
             (flags & 0x03) == 0x03: call ascii() on value before formatting it.
             (flags & 0x04) == 0x04: pop fmt_spec from the stack and use it, else use an empty fmt_spec.
-    
+
         Formatting is performed using PyObject_Format(). The result is pushed on the stack.
         New in version 3.6.
         """
@@ -569,7 +586,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
             v = ascii(v)
         else:
             raise NotImplementedError(instr)
-        
+
         frame.stack.append(format(v, frmt))
         return curBlock
-    
+
