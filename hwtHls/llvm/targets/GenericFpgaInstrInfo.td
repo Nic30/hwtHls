@@ -68,7 +68,7 @@ let mayLoad = 1, canFoldAsLoad=1, hasSideEffects = 0, isPredicable = 1, isNotDup
 // conditional load
 def GENFPGA_CLOAD : GenFpgaInst<
     (outs AnyRegCls:$dst),
-    (ins AnyRegCls:$addr, AnyRegCls: $index, AnyRegCls:$cond),
+    (ins AnyRegCls:$baseaddr, AnyRegCls: $index, AnyRegCls:$cond),
     []>; // no pattern because we match in C++
 }
 

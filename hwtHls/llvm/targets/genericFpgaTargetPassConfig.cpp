@@ -97,7 +97,7 @@ bool GenericFpgaTargetPassConfig::addGlobalInstructionSelect() {
 bool GenericFpgaTargetPassConfig::addILPOpts() {
 	// selection of X86PassConfig::addILPOpts()
 	addPass(&EarlyIfPredicatorID);
-	addPass(&EarlyIfConverterID); // [FIXME] does not work for AxiSParse2If@16b@40MHz
+	addPass(&EarlyIfConverterID); // [FIXME] does not work if block contain something else than CLOAD/CSTORE
 	return false;
 }
 void GenericFpgaTargetPassConfig::addOptimizedRegAlloc() {
