@@ -8,7 +8,7 @@ from tests.bitOpt.abc_test import AbcTC
 from tests.bitOpt.andShiftInLoop import AndShiftInLoop_TC
 from tests.bitOpt.bitWidthReductionCmp_test import BitWidthReductionCmp_example_TC
 from tests.bitOpt.cmpReduction_test import CmpReduction_TC
-from tests.bitOpt.sliceBreak_test import SliceBreak_TC
+from tests.bitOpt.slicesToIndependentVariablesPass_test import SlicesToIndependentVariablesPass_TC
 from tests.frontend.ast.bitonicSort import BitonicSorterHLS_TCs
 from tests.frontend.ast.exprTree3 import HlsAstExprTree3_example_TC
 from tests.frontend.ast.ifstm import HlsSimpleIfStatement_TC
@@ -74,7 +74,7 @@ suite = testSuiteFromTCs(
     HlsNetlistBitwiseOpsTC,
     HlsNetlistDiscoverSyncIslandTC,
     HlsNetlistReduceCmpInAndTC,
-    SliceBreak_TC,
+    SlicesToIndependentVariablesPass_TC,
     HlsSlicingTC,
     ReadNonBockingTC,
     HlsCycleDelayUnit,
