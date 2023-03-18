@@ -13,7 +13,7 @@ from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.unit import Unit
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, \
     TargetOpcode, CmpInst, ConstantInt, TypeToIntegerType, TypeToArrayType, IntegerType, Type as LlvmType, ArrayType, \
-    MachineLoopInfo, GlobalValue, ValueToConstantArray, ValueToConstantInt
+    MachineLoopInfo, GlobalValue, ValueToConstantArray, ValueToConstantInt, ValueToConstantDataArray, ConstantArray
 from hwtHls.netlist.analysis.dataThreadsForBlocks import HlsNetlistAnalysisPassDataThreadsForBlocks
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.builder import HlsNetlistBuilder
@@ -154,7 +154,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         return self.builder.buildConst(v)
 
     @classmethod
-    def _translateConstantArrayToPy(cls, t: HArray, arr: ValueToConstantArray):
+    def _translateConstantArrayToPy(cls, t: HArray, arr: ConstantArray):
         element_t = t.element_t
         res = []
         if isinstance(element_t, HArray):
@@ -180,10 +180,13 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         if not isinstance(t, HArray):
             raise NotImplementedError(t)
         arrVal = ValueToConstantArray(val)
+        if arrVal is None:
+            arrVal = ValueToConstantDataArray(val)
+        assert arrVal is not None, (val.__class__, val)
         pyVal = self._translateConstantArrayToPy(t, arrVal)
         v = t.from_py(pyVal)
         c = self.builder.buildConst(v)
-        c.obj.name = str(g.getName())
+        c.obj.name = g.getName().str()
         return c
 
     def _translateIntBits(self, val: int, dtype: Bits):
