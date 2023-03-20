@@ -40,7 +40,7 @@ class HlsAstExprTree3_example(Unit):
         hls = HlsScope(self)
         r = hls.read
         _a, _b, _c, _d = r(self.a), r(self.b), r(self.c), r(self.d)
-        # x, y, z, w are happending after f1 was written  
+        # x, y, z, w are happending after f1 was written
         x, y, z, w = r(self.x).data, r(self.y).data, r(self.z).data, r(self.w).data
         a, b, c, d = _a.data, _b.data, _c.data, _d.data
         f1 = (a + b + c) * d
