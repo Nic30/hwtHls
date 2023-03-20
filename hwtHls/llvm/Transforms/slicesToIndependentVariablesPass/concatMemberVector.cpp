@@ -25,7 +25,6 @@ Value* ConcatMemberVector::_memberToValue(OffsetWidthValue &item) {
 	} else if (auto *C = dyn_cast<ConstantInt>(item.value)) {
 		return builder.getInt(C->getValue().lshr(item.offset).trunc(item.width));
 	} else {
-
 		auto existing = commonSubexpressionCache.find(item);
 		if (existing != commonSubexpressionCache.end())
 			return existing->second;
