@@ -35,7 +35,7 @@ class WriteFsm0(Unit):
                 hls.write(3, self.o),
             ),
             self._name)
-            
+
         )
         hls.compile()
 
@@ -89,7 +89,7 @@ class ReadFsm0(Unit):
         hls = HlsScope(self)
         r = [hls.read(self.i) for _ in range(3)]
         ast = HlsAstBuilder(hls)
-        hls.addThread(HlsThreadFromAst(hls, 
+        hls.addThread(HlsThreadFromAst(hls,
             ast.While(True,
                 *r,
                 hls.write(Concat(*reversed([_r.data for _r in r])), self.o),
@@ -122,7 +122,7 @@ class ReadFsm1(ReadFsm0):
         self.clk.FREQ = self.CLK_FREQ
 
         self.i: HsStructIntf = HsStructIntf()
-        self.i.T = Bits(self.DATA_WIDTH)       
+        self.i.T = Bits(self.DATA_WIDTH)
         self.o: HsStructIntf = HsStructIntf()._m()
         self.o.T = Bits(3 * self.DATA_WIDTH)
 

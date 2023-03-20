@@ -40,14 +40,14 @@ class IoFsm_TC(SimTestCase):
     def make3(self, v0, v1, v2):
         u = self.u
         return (v2 << 2 * u.DATA_WIDTH) | (v1 << u.DATA_WIDTH) | v0
- 
+
     def test_ReadFsm0(self):
         u = ReadFsm0()
         CLK = 8
 
         self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
         u.i._ag.data.extend(i + 1 for i in range(CLK))
-        
+
         ref = [
             None, None, self.make3(1, 2, 3),
             None, None, self.make3(4, 5, 6),
@@ -58,7 +58,7 @@ class IoFsm_TC(SimTestCase):
         self._test_no_comb_loops()
 
         self.assertValSequenceEqual(u.o._ag.data, ref)
-        
+
     def test_ReadFsm0Once(self):
         u = ReadFsm0Once()
 
@@ -107,9 +107,16 @@ class IoFsm_TC(SimTestCase):
 
 
 if __name__ == "__main__":
+    #from hwt.synthesizer.utils import to_rtl_str
+    #from hwtHls.platform.platform import HlsDebugBundle
+    #
+    #u = WriteFsm0()
+    #print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+
+
     import unittest
     suite = unittest.TestSuite()
-    #suite.addTest(IoFsm_TC('test_ReadFsm1Once'))
+    # suite.addTest(IoFsm_TC('test_WriteFsm0'))
     suite.addTest(unittest.makeSuite(IoFsm_TC))
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
