@@ -78,7 +78,9 @@
 #include "Transforms/extractBitConcatAndSliceOpsPass.h"
 #include "Transforms/bitwidthReducePass/bitwidthReducePass.h"
 #include "Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.h"
+#include "Transforms/SimplifyCFG2Pass.h"
 #include "Transforms/dumpAndExitPass.h"
+
 
 #include <llvm/CodeGen/MachinePassManager.h>
 
@@ -129,7 +131,7 @@ LlvmCompilationBundle::LlvmCompilationBundle(const std::string &moduleName) :
 //	//Map["view-sched-dags"]->addOccurrence(0, "", "true");
 //	//Map["view-sunit-dags"]->addOccurrence(0, "", "true");
 //	//Map["print-after-isel"]->addOccurrence(0, "", "true");
-//	//Map["debug-only"]->addOccurrence(0, "", "mir-canonicalizer");
+//	//Map["debug-only"]->addOccurrence(0, "", "mir-canonicalizer"); // :note: available only in llvm debug build
 //	// "early-ifcvt-limit"
 //	//Map["print-lsr-output"]->setValueStr("true");
 //
@@ -140,6 +142,7 @@ void LlvmCompilationBundle::runOpt(
 	assert(
 			main
 					&& "a main function must be created before call of this function");
+
 	auto &fn = *main;
 	// https://stackoverflow.com/questions/51934964/function-optimization-pass
 	// @see PassBuilder::buildFunctionSimplificationPipeline
@@ -170,7 +173,7 @@ void LlvmCompilationBundle::runOpt(
 
 	//if (EnableKnowledgeRetention)
 	FPM.addPass(llvm::AssumeSimplifyPass());
-	FPM.addPass(llvm::SimplifyCFGPass());
+	FPM.addPass(hwtHls::SimplifyCFGPass2());
 
 	// Hoisting of scalars and load expressions.
 	if (EnableGVNHoist)
@@ -179,7 +182,7 @@ void LlvmCompilationBundle::runOpt(
 	// Global value numbering based sinking.
 	if (EnableGVNSink) {
 		FPM.addPass(llvm::GVNSinkPass());
-		FPM.addPass(llvm::SimplifyCFGPass());
+		FPM.addPass(hwtHls::SimplifyCFGPass2());
 	}
 
 	//if (EnableConstraintElimination)
@@ -193,7 +196,7 @@ void LlvmCompilationBundle::runOpt(
 	FPM.addPass(llvm::JumpThreadingPass());
 	FPM.addPass(llvm::CorrelatedValuePropagationPass());
 
-	FPM.addPass(llvm::SimplifyCFGPass());
+	FPM.addPass(hwtHls::SimplifyCFGPass2());
 	FPM.addPass(llvm::InstCombinePass());
 	FPM.addPass(llvm::AggressiveInstCombinePass());
 
@@ -206,7 +209,7 @@ void LlvmCompilationBundle::runOpt(
 	//  FPM.addPass(llvm::PGOMemOPSizeOpt());
 
 	//FPM.addPass(TailCallElimPass());
-	FPM.addPass(llvm::SimplifyCFGPass());
+	FPM.addPass(hwtHls::SimplifyCFGPass2());
 
 	// Form canonically associated expression trees, and simplify the trees using
 	// basic mathematical properties. For example, this will form (nearly)
@@ -280,11 +283,13 @@ void LlvmCompilationBundle::runOpt(
 			llvm::RequireAnalysisPass<llvm::OptimizationRemarkEmitterAnalysis,
 					llvm::Function>());
 	FPM.addPass(llvm::createFunctionToLoopPassAdaptor(std::move(LPM1),
-	/*UseMemorySSA=*/true,
-	/*UseBlockFrequencyInfo=*/true));
+			/*UseMemorySSA=*/true,
+			/*UseBlockFrequencyInfo=*/true));
+
 	FPM.addPass(
-			llvm::SimplifyCFGPass(
-					llvm::SimplifyCFGOptions().convertSwitchRangeToICmp(true)));
+			hwtHls::SimplifyCFGPass2(
+					llvm::SimplifyCFGOptions()//
+						.convertSwitchRangeToICmp(true)));
 	FPM.addPass(llvm::InstCombinePass());
 
 	_addVectorPasses(Level, FPM, false);
@@ -356,7 +361,7 @@ void LlvmCompilationBundle::runOpt(
 	//	for (auto &C : ScalarOptimizerLateEPCallbacks)
 	//		C(FPM, Level);
 
-	FPM.addPass(llvm::SimplifyCFGPass(llvm::SimplifyCFGOptions() //
+	FPM.addPass(hwtHls::SimplifyCFGPass2(llvm::SimplifyCFGOptions() //
 	.convertSwitchRangeToICmp(true) //
 	.hoistCommonInsts(true) //
 	.sinkCommonInsts(true)));
@@ -378,9 +383,14 @@ void LlvmCompilationBundle::runOpt(
 	//FPM.addPass(llvm::GVNSinkPass());
 	//FPM.addPass(llvm::CorrelatedValuePropagationPass()); // canonicalize-icmp-predicates-to-unsigned=true
 
-	//FPM.addPass(DumpAndExitPass());
+	// :note: Profile data not yet available
+	//if (EnableCHR && Level == OptimizationLevel::O3 && PGOOpt
+	//		&& (PGOOpt->Action == PGOOptions::IRUse
+	//				|| PGOOpt->Action == PGOOptions::SampleUse))
+	//	FPM.addPass(llvm::ControlHeightReductionPass());
+	_addVectorPasses(Level, FPM, true);
 	FPM.addPass(
-			llvm::SimplifyCFGPass(
+			hwtHls::SimplifyCFGPass2(
 					llvm::SimplifyCFGOptions()//
 					.forwardSwitchCondToPhi(true)//
 					.convertSwitchRangeToICmp(true)//
@@ -388,14 +398,9 @@ void LlvmCompilationBundle::runOpt(
 					.needCanonicalLoops(false)//
 					.hoistCommonInsts(true)//
 					.sinkCommonInsts(true)//
+					.bonusInstThreshold(1024)
 	));
-
-	// :note: Profile data not yet available
-	//if (EnableCHR && Level == OptimizationLevel::O3 && PGOOpt
-	//		&& (PGOOpt->Action == PGOOptions::IRUse
-	//				|| PGOOpt->Action == PGOOptions::SampleUse))
-	//	FPM.addPass(llvm::ControlHeightReductionPass());
-	_addVectorPasses(Level, FPM, true);
+	FPM.addPass(llvm::DCEPass()); // because of convertSwitchToLookupTable=true
 
 	FPM.run(fn, FAM);
 
@@ -411,7 +416,7 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 							!PTO.LoopVectorization)));
 	//llvm::StringMap<llvm::cl::Option*> &Map = llvm::cl::getRegisteredOptions();
 	//Map["print-before"]->addOccurrence(0, "", "loop-unroll");
-	//Map["debug-only"]->addOccurrence(0, "", "loop-unroll");
+	//Map["debug-only"]->addOccurrence(0, "", "loop-unroll"); // :note: available only in llvm debug build
 	//Map["print-after"]->addOccurrence(0, "", "loop-unroll");
 	if (IsFullLTO) {
 		// The vectorizer may have significantly shortened a loop body; unroll
@@ -469,9 +474,9 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 						true,
 						/*UseBlockFrequencyInfo=*/true));
 		ExtraPasses.addPass(
-				llvm::SimplifyCFGPass(
-						llvm::SimplifyCFGOptions().convertSwitchRangeToICmp(
-								true)));
+				hwtHls::SimplifyCFGPass2(
+						llvm::SimplifyCFGOptions()//
+						.convertSwitchRangeToICmp(true)));
 		ExtraPasses.addPass(llvm::InstCombinePass());
 		FPM.addPass(std::move(ExtraPasses));
 	}
@@ -485,14 +490,14 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 	// convert to more optimized IR using more aggressive simplify CFG options.
 	// The extra sinking transform can create larger basic blocks, so do this
 	// before SLP vectorization.
-	//FPM.addPass(llvm::SimplifyCFGPass(llvm::SimplifyCFGOptions()
-	//                                .forwardSwitchCondToPhi(true)
-	//                                .convertSwitchRangeToICmp(true)
-	//                                .convertSwitchToLookupTable(true)
-	//                                .needCanonicalLoops(false)
-	//                                .hoistCommonInsts(true)
-	//                                .sinkCommonInsts(true)));
-	//
+	FPM.addPass(hwtHls::SimplifyCFGPass2(llvm::SimplifyCFGOptions()
+	                                .forwardSwitchCondToPhi(true)
+	                                .convertSwitchRangeToICmp(true)
+	                                //.convertSwitchToLookupTable(true)
+	                                .needCanonicalLoops(false)
+	                                .hoistCommonInsts(true)
+	                                .sinkCommonInsts(true)));
+
 	if (IsFullLTO) {
 		FPM.addPass(llvm::SCCPPass());
 		FPM.addPass(llvm::InstCombinePass());
@@ -565,11 +570,11 @@ void LlvmCompilationBundle::_addMachineCodegenPasses(
 
 	PM.add(MMIWP);
 	//llvm::StringMap<llvm::cl::Option*> &Map = llvm::cl::getRegisteredOptions();
-	//Map["debug-only"]->addOccurrence(0, "", "loop-unroll");
+	//Map["debug-only"]->addOccurrence(0, "", "loop-unroll"); // :note: available only in llvm debug build
 	//Map["print-after"]->addOccurrence(0, "", "loop-unroll");
 
 	//Map["print-before"]->addOccurrence(0, "", "early-ifcvt");
-	//Map["debug-only"]->addOccurrence(0, "", "early-ifcvt");
+	//Map["debug-only"]->addOccurrence(0, "", "early-ifcvt"); // :note: available only in llvm debug build
 	//Map["print-after"]->addOccurrence(0, "", "early-ifcvt");
 	//Map["debug"]->addOccurrence(0, "", "1");
 	//Map["print-before-all"]->addOccurrence(0, "", "true");
