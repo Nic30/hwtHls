@@ -44,7 +44,7 @@ Debug build
 .. code-block:: cpp
 
 	llvm::StringMap<llvm::cl::Option*> &Map = llvm::cl::getRegisteredOptions();
-	Map["debug-only"]->addOccurrence(0, "", "early-ifcvt"); // early-ifcvt is a name of some pass to debug
+	Map["debug-only"]->addOccurrence(0, "", "early-ifcvt"); // early-ifcvt is a name of some pass to debug (attention, option available only in LLVM debug build)
 	Map["print-before"]->addOccurrence(0, "", "early-ifcvt"); // you can use this to dump input to specified pass
 
 
