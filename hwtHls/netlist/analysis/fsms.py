@@ -1,17 +1,19 @@
+from itertools import chain
 from typing import List, Set, Union, Dict, Tuple, Callable, Optional
 
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
+from hwtHls.netlist.analysis.betweenSyncIslands import HlsNetlistAnalysisPassBetweenSyncIslands, \
+    BetweenSyncIsland
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.analysis.ioDiscover import HlsNetlistAnalysisPassIoDiscover
+from hwtHls.netlist.nodes.loopGate import HlsLoopGateStatus, HlsLoopGate
 from hwtHls.netlist.nodes.node import HlsNetNode, HlsNetNodePartRef
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import start_clk
-from hwtHls.netlist.analysis.betweenSyncIslands import HlsNetlistAnalysisPassBetweenSyncIslands, \
-    BetweenSyncIsland
 
 
 class IoFsm():
@@ -118,7 +120,7 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
                 self._appendNodeToState(allNodeClks[0], node, stateNodeList)
 
             self._floodNetInClockCyclesWalkDepsAndUses(node, alreadyUsed, predicate, fsm, seenInClks)
-        
+
     def _appendNodeToState(self, clkI: int, n: HlsNetNode, stateNodeList: List[HlsNetNode],):
         clkPeriod: int = self.netlist.normalizedClkPeriod
         # add nodes to st while asserting that it is from correct time
@@ -128,15 +130,15 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
                     for use in i.obj.usedBy[i.out_i]:
                         if use.obj in n._subNodes.nodes:
                             assert (use.obj.scheduledIn[use.in_i] // clkPeriod) == clkI, (n, use)
-     
+
         else:
             for t in n.scheduledIn:
                 assert start_clk(t, clkPeriod) == clkI, n
             for t in n.scheduledOut:
                 assert int(t // clkPeriod) == clkI, n
- 
+
         stateNodeList.append(n)
-        
+
     def collectInFsmNodes(self) -> Tuple[
             Dict[HlsNetNode, UniqList[IoFsm]],
             Dict[HlsNetNode, UniqList[Tuple[IoFsm, HlsNetNodePartRef]]]]:
@@ -161,7 +163,36 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
 
     def _getClkIOfAccess(self, a: Union[HlsNetNodeRead, HlsNetNodeWrite], clkPeriod: int):
         return start_clk(a.scheduledIn[0] if a.scheduledIn else a.scheduledOut[0], clkPeriod)
-    
+
+    def _discardIncompatibleNodes(self, fsm: IoFsm):
+        """
+        * remove HlsLoopGateStatus if associated gate is not part of this fsm
+        * remove HlsLoopGate if associated status is not part of this fsm
+        """
+        allNodes = None
+        for st in fsm.states:
+            toRm = set()
+            for n in st:
+                if isinstance(n, HlsLoopGateStatus):
+                    if allNodes is None:
+                        # lazy resolved allNodes from performance reasons
+                        allNodes = set(chain(*fsm.states))
+                    n: HlsLoopGateStatus
+                    if n._loop_gate not in allNodes:
+                        toRm.add(n)
+                elif isinstance(n, HlsLoopGate):
+                    if allNodes is None:
+                        # lazy resolved allNodes from performance reasons
+                        allNodes = set(chain(*fsm.states))
+                    n: HlsLoopGate
+                    if n._sync_token_status not in allNodes:
+                        toRm.add(n)
+
+
+            if toRm:
+                st[:] = (n for n in st if n not in toRm)
+
+
     def run(self):
         ioDiscovery: HlsNetlistAnalysisPassIoDiscover = self.netlist.getAnalysis(HlsNetlistAnalysisPassIoDiscover)
         ioByInterface = ioDiscovery.ioByInterface
@@ -221,6 +252,7 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
 
                 stCnt = len(fsm.states)
                 if stCnt > 1:
+                    self._discardIncompatibleNodes(fsm)
                     # initialize with tansition table with always jump to next state sequentially
                     for i in range(stCnt):
                         fsm.transitionTable[i] = {(i + 1) % stCnt: 1}  # {next st: cond}
