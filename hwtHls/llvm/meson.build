@@ -79,6 +79,8 @@ py3.extension_module(
      'Transforms/slicesToIndependentVariablesPass/detectSplitPoints.cpp',
      'Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.cpp',
      'Transforms/extractBitConcatAndSliceOpsPass.cpp',
+     'Transforms/SimplifyCFG2Pass.cpp',
+     'Transforms/SimplifyCFG2Pass_normalizeLookupTableIndex.cpp',
      ] + all_llvm_backend_gen_files,
     dependencies : [py3_dep, llvm_dep, pybind11_dep],
     install: true,
