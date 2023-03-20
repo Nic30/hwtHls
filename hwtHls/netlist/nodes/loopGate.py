@@ -14,7 +14,7 @@ class HlsLoopGateStatus(HlsNetNode):
     """
     The status of HlsLoopGate which holds a register with a state of execution of the loop.
     It specifies if the loop is currently running or if it can be executed.
-    
+
     :ivar _loop_gate: parent loop gate which is using this status (this is a separate object to simplify scheduling dependencies)
     """
 
@@ -42,7 +42,7 @@ class HlsLoopGateStatus(HlsNetNode):
         statusBusyReg = allocator._reg(
             name if name else f"{self._loop_gate.name}_busy",
             def_val=0 if g.fromEnter else 1)  # busy if is executed at 0 time
-        
+
         # create RTL signal expression base on operator type
         t = self.scheduledOut[0] + self.netlist.scheduler.epsilon
         statusBusyReg_s = TimeIndependentRtlResource(statusBusyReg, t, allocator, False)
@@ -95,7 +95,7 @@ class HlsLoopGate(HlsNetNodeOrderable):
     :note: This object does not handle the condition decision, it only manages guards the loop input while loop iterations are running.
     :note: The place where this node belong is characterized by a control input from the pipeline and also out of pipeline.
         The inputs from pipeline are fromEnter and the inputs from out of pipeline are fromReenter.
-    
+
     :ivar fromEnter: for each direct predecessor which is not in cycle body a tuple input for control and variable values.
         Signalizes that the loop has data to be executed.
     :ivar fromReenter: For each direct predecessor which is a part of a cycle body a tuple control input and associated variables.
@@ -107,7 +107,7 @@ class HlsLoopGate(HlsNetNodeOrderable):
 
     :note: if this gate has synchronization token it accepts only data from the fromEnter and then it accepts only from fromReenter/fromExit
     :note: fromEnter, fromReenter are read at the beginning of a loop header block. Breaks are read at the end of exit block.
-    
+
     :ivar _sync_token_status: The node with state for this object.
     :attention: There should be ordering connected from last IO in the loop to achieve better results in
         :meth:`~.HlsLoopGate.scheduleAlapCompaction` because without it this does not have any outputs and will stay at the end of current cycle
@@ -158,9 +158,9 @@ class HlsLoopGate(HlsNetNodeOrderable):
         """
         assert isinstance(control.obj, HlsNetNodeExplicitSync), control
         netlist = self.netlist
-        vld = netlist.builder.buildReadSync(control.obj.dependsOn[0]) 
+        vld = netlist.builder.buildReadSync(control.obj.dependsOn[0])
         control.obj.addControlSerialSkipWhen(netlist.builder.buildNot(vld))
-        
+
         en = self.netlist.builder.buildAnd(control, vld)
         self._connect(en, self.fromExit, f"exit{len(self.fromExit)}")
 
@@ -182,8 +182,9 @@ class HlsLoopGate(HlsNetNodeOrderable):
         All RTL is generated from :class:`~.HlsLoopGateStatus`
         """
         assert not self._allocated, self
-        
+
         status = self._sync_token_status
+        assert status in allocator.allNodes, (status, " is in ", allocator.interArchAnalysis.ownerOfNode[status], " but should be in", allocator)
         statusBusyReg_s = allocator.instantiateHlsNetNodeOut(status._outputs[0])
         statusBusyReg = statusBusyReg_s.valuesInTime[0].data
         # returns the control token
@@ -206,7 +207,7 @@ class HlsLoopGate(HlsNetNodeOrderable):
             newExe = Or(*(p.get(p.timeOffset).data for p in fromEnter))
             if useNamedSignals:
                 newExe = rename_signal(parentU, newExe, f"{name}_newExe")
-            
+
             If(newExe,
                statusBusyReg(1)
             )
@@ -217,10 +218,10 @@ class HlsLoopGate(HlsNetNodeOrderable):
             if useNamedSignals:
                 newExe = rename_signal(parentU, newExe, f"{name}_newExe")
                 newExit = rename_signal(parentU, newExit, f"{name}_newExit")
-            
+
             If(newExe & ~newExit,
                statusBusyReg(1)  # becomes busy
-            ).Elif(~newExe & newExit,  #  
+            ).Elif(~newExe & newExit,  #
                statusBusyReg(0)  # finished work
             )
         elif fromExit and not fromEnter:
@@ -228,7 +229,7 @@ class HlsLoopGate(HlsNetNodeOrderable):
             newExit = Or(*(p.get(p.timeOffset).data for p in fromExit))
             if useNamedSignals:
                 newExit = rename_signal(parentU, newExit, f"{name}_newExit")
-            
+
             If(newExit,
                statusBusyReg(0)  # finished work
             )

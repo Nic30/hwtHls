@@ -39,7 +39,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
     :ivar _isBlocking: If true the node blocks the CFG until the read is performed. If False
         the node uses flag to signalize that the read was performed and never blocks the CFG.
     :ivar dependsOn: list of dependencies for scheduling composed of extraConds and skipWhen
-    :ivar _valid: output with "valid" signal for reads which signalizes that the read was successful. 
+    :ivar _valid: output with "valid" signal for reads which signalizes that the read was successful.
                  Reading of this port requires read to be performed.
     :ivar _validNB: same as "_valid" but reading this does not cause read from main interface
     :note: _valid and _validNB holds the same, the _validNB can be read without triggering read, _valid can not because _valid is a part of the data.
@@ -65,7 +65,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
             else:
                 dtype = d._dtype
         self._addOutput(dtype, "dataOut")
-    
+
     def setNonBlocking(self):
         self._isBlocking = False
         self._rawValue = self._addOutput(Bits(self._outputs[0]._dtype.bit_length() + 1), "rawValue")
@@ -101,19 +101,19 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
             self._addValid()
 
         return self._valid
-    
+
     def getValidNB(self):
         if not self.hasValidNB():
             self._addValidNB()
 
         return self._validNB
-            
+
     def hasValid(self):
         return self._valid is not None
 
     def hasValidNB(self):
         return self._validNB is not None
-    
+
     def iterOrderingInputs(self) -> Generator[HlsNetNodeIn, None, None]:
         nonOrderingInputs = (self.extraCond, self.skipWhen, self._inputOfCluster, self._outputOfCluster)
         for i in self._inputs:
@@ -159,7 +159,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
             pass
 
         t = self.scheduledOut[0]
-        
+
         dataRtl = self.getRtlDataSig()
         _data = TimeIndependentRtlResource(
             dataRtl,
@@ -213,7 +213,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
                         False)
                 else:
                     _rawValue = _valid
-                
+
             else:
                 rawValue = Concat(validRtl, validRtl, dataRtl)
                 _rawValue = TimeIndependentRtlResource(
@@ -245,7 +245,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
 
         HlsNetNodeExplicitSync.setScheduling(self, schedule)
         self.netlist.scheduler.resourceUsage.addUse(resourceType, indexOfClkPeriod(self.scheduledZero, clkPeriod))
-    
+
     def scheduleAsap(self, pathForDebug: Optional[UniqList["HlsNetNode"]], beginOfFirstClk: int, outputTimeGetter: Optional[OutputTimeGetter]) -> List[int]:
         # schedule all dependencies
         if self.scheduledOut is None:
@@ -265,9 +265,9 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
                     self._setScheduleZeroTimeMultiClock(t, clkPeriod, epsilon, ffdelay)
                 else:
                     self._setScheduleZeroTimeSingleClock(t)
-            
+
             scheduler.resourceUsage.addUse(resourceType, suitableClkI)
-    
+
         return self.scheduledOut
 
     def scheduleAlapCompaction(self, endOfLastClk: int, outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter]):
@@ -305,7 +305,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
 
         if isinstance(src, HsStructIntf):
             return src.data._reinterpret_cast(Bits(src.data._dtype.bit_length()))
-        
+
         if isinstance(src, Axi_hs):
             exclude = (src.valid, src.ready)
 
@@ -321,7 +321,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
                             exclude=(src.rd,))
         else:
             return packIntf(src, masterDirEqTo=src._masterDir)
-        
+
         assert exclude[0]._masterDir == DIRECTION.OUT, exclude[0]._masterDir
         return packIntf(src,
                         masterDirEqTo=exclude[0]._masterDir,
