@@ -155,6 +155,10 @@ def netlistReduceMux(n: HlsNetNodeMux, worklist: UniqList[HlsNetNode], removed: 
                 index = None
                 for (v, c) in cases:
                     if c is not None:
+                        if not isinstance(c.obj, HlsNetNodeOperator):
+                            romCompatible = False
+                            break
+
                         cOp0, cOp1 = c.obj.dependsOn
                         if index is None:
                             index = cOp0
@@ -177,6 +181,10 @@ def netlistReduceMux(n: HlsNetNodeMux, worklist: UniqList[HlsNetNode], removed: 
                             romCompatible = False
                             break
                     else:
+                        if index is None:
+                            romCompatible = False
+                            break
+
                         itemCnt = 2 ** index._dtype.bit_length()
                         if len(romData) == itemCnt - 1 and itemCnt - 1 not in romData.keys():
                             # if the else branch of the mux contains trully the last item of the ROM
@@ -189,8 +197,8 @@ def netlistReduceMux(n: HlsNetNodeMux, worklist: UniqList[HlsNetNode], removed: 
                             romCompatible = False
                             break
 
-                assert index is not None
                 if romCompatible:
+                    assert index is not None
                     rom = builder.buildRom(romData, index)
                     replaceOperatorNodeWith(n, rom, worklist, removed)
                     return True
