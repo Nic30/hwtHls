@@ -22,7 +22,7 @@ class AxiSParseIfTC(SimTestCase):
         u.DATA_WIDTH = DATA_WIDTH
         u.CLK_FREQ = freq
         self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
-        
+
         T1 = HStruct(
             (Bits(8), "v0"),
         )
@@ -30,7 +30,7 @@ class AxiSParseIfTC(SimTestCase):
             (Bits(8), "v0"),
             (Bits(8), "v1"),
         )
-        
+
         ref = []
         for _ in range(N):
             T = self._rand.choice((T1, T2))
@@ -63,7 +63,7 @@ class AxiSParseIfTC(SimTestCase):
             ", ".join("0x%x" % i for i in ref)
         ))
 
-    # AxiSParse2IfLess 
+    # AxiSParse2IfLess
     def _test_AxiSParse2If(self, DATA_WIDTH:int, freq=int(1e6), N=16):
         u = AxiSParse2If()
         u.DATA_WIDTH = DATA_WIDTH
@@ -81,7 +81,7 @@ class AxiSParseIfTC(SimTestCase):
             (Bits(16), "v0"),
             (Bits(32), "v1"),
         )
-        
+
         ref = []
         ALL_Ts = [T1, T2, T4]
         for _ in range(N):
@@ -135,7 +135,7 @@ class AxiSParseIfTC(SimTestCase):
             (Bits(32), "v1"),
             (Bits(8), "v2"),
         )
-        
+
         ref = []
         ALL_Ts = [T0, T2, T4]
         for _ in range(N):
@@ -191,7 +191,7 @@ class AxiSParseIfTC(SimTestCase):
 
     def test_AxiSParse2If2B_24b_40MHz(self):
         self._test_AxiSParse2If2B(24, freq=int(40e6))
-    
+
     def test_AxiSParse2If2B_8b_100MHz(self):
         self._test_AxiSParse2If2B(8, freq=int(100e6))
 
@@ -200,7 +200,7 @@ class AxiSParseIfTC(SimTestCase):
 
     def test_AxiSParse2If2B_24b_100MHz(self):
         self._test_AxiSParse2If2B(24, freq=int(100e6))
-    
+
     # AxiSParse2If
     def test_AxiSParse2If_8b_1MHz(self):
         self._test_AxiSParse2If(8)
