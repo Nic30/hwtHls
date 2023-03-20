@@ -6,6 +6,8 @@
 #include "detectSplitPoints.h"
 #include "concatMemberVector.h"
 
+#define DEBUG_TYPE "slices-to-independent-variables"
+
 using namespace llvm;
 
 namespace hwtHls {
@@ -44,8 +46,9 @@ public:
 
 	void resolveConcatMembersSlicedInstruction(ConcatMemberVector &result, Instruction *I, bool isConcat,
 			bool isBitRangeGet, uint64_t highBitNo, uint64_t lowBitNo) {
-		//errs() << "resolveConcatMembersSlicedInstruction:" << *I << " ["
-		//		<< highBitNo << ":" << lowBitNo << "]\n";
+		LLVM_DEBUG(
+				dbgs() << "resolveConcatMembersSlicedInstruction:" << *I << " [" << highBitNo << ":" << lowBitNo
+						<< "]\n");
 		assert(highBitNo > lowBitNo);
 #ifndef NDEBUG
 		uint64_t width0 = result.width();
@@ -83,7 +86,6 @@ public:
 				assert(res != nullptr);
 
 				result.push_back( { 0, res->getType()->getIntegerBitWidth(), res });
-
 				added = true;
 				break;
 			}
@@ -93,10 +95,10 @@ public:
 		} else if (auto *C = dyn_cast<CallInst>(I)) {
 			if (isConcat) {
 				uint64_t offset = 0;
-				//errs() << "concat: " << *C << "\n";
+				LLVM_DEBUG(dbgs() << "concat: " << *C << "\n");
 				for (auto &O : C->args()) {
 					uint64_t width = O->getType()->getIntegerBitWidth();
-					//errs() << "L100 offset:" << offset << " " << " width:" << width << "\n";
+					LLVM_DEBUG(dbgs() << "L" << __LINE__ << " offset:" << offset << " " << " width:" << width << "\n");
 					uint64_t end = offset + width;
 					if (end <= lowBitNo) {
 						// before selected bits
@@ -110,8 +112,8 @@ public:
 					} else {
 						_lowBitNo = 0;
 					}
-					//errs() << "L367:" << width << " _highBitNo:" << _highBitNo
-					//		<< " _lowBitNo:" << _lowBitNo << "\n";
+					LLVM_DEBUG(
+							dbgs() << "L" << __LINE__ << ":" << width << " _highBitNo:" << _highBitNo << " _lowBitNo:" << _lowBitNo << "\n");
 					Value *_O = O.get();
 					resolveConcatMembers(result, _O, _highBitNo, _lowBitNo);
 					offset += width;
@@ -134,8 +136,6 @@ public:
 				added = true;
 			} else {
 				IRBuilder_setInsertPointBehindPhi(builder, I);
-
-				dbgs() << "before update:" << *I->getParent() << "\n";
 				// inserting after last phi
 				auto *newPhi = builder.CreatePHI(builder.getIntNTy(width), PHI->getNumIncomingValues(), PHI->getName());
 				commonSubexpressionCache[cacheKey] = newPhi;
@@ -148,7 +148,8 @@ public:
 					}
 					newPhi->addIncoming(newV, PHI->getIncomingBlock(U));
 				}
-				dbgs() << "after update:" << *I->getParent() << "\n";
+				result.push_back( { 0, width, newPhi });
+				added = true;
 			}
 		} else if (dyn_cast<SelectInst>(I)) {
 			// translate operands then build a new operand with new operands if required
@@ -186,17 +187,15 @@ public:
 		assert(v->getType()->getIntegerBitWidth() >= highBitNo);
 		assert(highBitNo > lowBitNo);
 		if (auto *I = dyn_cast<Instruction>(v)) {
-			//errs() << "resolveConcatMembers:" << *v << " [" << highBitNo << ":"
-			//		<< lowBitNo << "]\n";
+			LLVM_DEBUG(dbgs() << "resolveConcatMembers:" << *v << " [" << highBitNo << ":" << lowBitNo << "]\n");
 			auto splits = splitPoints.find(I);
 			auto *C = dyn_cast<CallInst>(I);
 			bool isConcat = C && IsBitConcat(C);
-			bool isBitRangeGet = C && IsBitRangeGet(C);
+			bool isBitRangeGet = C && !isConcat && IsBitRangeGet(C);
 			if (isConcat || isBitRangeGet || (splits != splitPoints.end() && splits->second.size() != 0)) {
 				// if there are split points it means that we have to use primitive slices generated from split points
 				// and we must not use this composite value (because the split on primitive slice values is what this optimization does)
 				bool doFillUpperBits = true;
-
 				uint64_t lastOffset = 0;
 				if (splits != splitPoints.end()) {
 					bool exactStartFound = lowBitNo == 0;
@@ -209,9 +208,8 @@ public:
 							exactStartFound = true;
 							continue;
 						}
-						//errs() << "L174:" << *I << " splitPoint:" << splitPoint
-						//		<< ", [" << highBitNo << ":" << lowBitNo
-						//		<< "] lastOffset:" << lastOffset << "\n";
+						LLVM_DEBUG(
+								dbgs() << "L" << __LINE__ << ":" << *I << " splitPoint:" << splitPoint << ", [" << highBitNo << ":" << lowBitNo << "] lastOffset:" << lastOffset << "\n");
 						assert(
 								exactStartFound
 										&& "The lowBitNo must be in split points because this is how split points were generated");
@@ -226,9 +224,9 @@ public:
 					}
 				}
 				if (doFillUpperBits) {
-					// errs() << "L191:" << *I << " splitPoint:" << ", [" << highBitNo
-					// 		<< ":" << lowBitNo << "] lastOffset:" << lastOffset
-					// 		<< "\n";
+					// fill upper bits of concatenation, if there are no splitpoints this fills whole value
+					LLVM_DEBUG(
+							dbgs() << "L" << __LINE__ << ":" << *I << " splitPoint:" << ", [" << highBitNo << ":" << lowBitNo << "] lastOffset:" << lastOffset << "\n");
 					assert(highBitNo <= I->getType()->getIntegerBitWidth());
 					resolveConcatMembersSlicedInstruction(result, I, isConcat, isBitRangeGet, highBitNo,
 							std::max(lastOffset, lowBitNo));
@@ -274,8 +272,7 @@ public:
 			auto *newO = resolveValue(O.get(), width, 0);
 			if (O.get() != newO) {
 				Changed = true;
-				//errs() << "replacing:" << *O.get() << "\n    with:"
-				//		<< *newO << "\n";
+				LLVM_DEBUG(dbgs() << "replacing:" << *O.get() << "\n    with:" << *newO << "\n");
 				assert(width == newO->getType()->getIntegerBitWidth());
 			}
 			O.set(newO);
@@ -294,8 +291,7 @@ bool splitOnSplitPoints(const std::map<Instruction*, std::set<uint64_t>> &splitP
 				auto sp = splitPoints.find(&I);
 				if (sp != splitPoints.end() && sp->second.size()) {
 					toRemove.insert(&I);
-				}
-				if (auto *C = dyn_cast<CallInst>(&I)) {
+				} else if (auto *C = dyn_cast<CallInst>(&I)) {
 					if (IsBitConcat(C) || IsBitRangeGet(C))
 						toRemove.insert(&I);
 				}
@@ -310,14 +306,32 @@ bool splitOnSplitPoints(const std::map<Instruction*, std::set<uint64_t>> &splitP
 				continue; // this instruction will be removed, we do not need to update it
 			}
 			// if instruction has a split point and it is splitable, instruction will be replaced so we skip it
+			LLVM_DEBUG(dbgs() << "Resolving operands for:" << I << "\n");
 			for (Use &O : I.operands()) {
 				Changed |= svr.resolveOperand(O);
 			}
 		}
 	}
+#ifndef NDEBUG
+	for (auto *I : toRemove) {
+		for (User *u : I->users()) {
+			assert(isa<Instruction>(u));
+			if (toRemove.find(dyn_cast<Instruction>(u)) == toRemove.end()) {
+				dbgs() << "I:" << *I << "\n";
+				dbgs() << "user: " << dyn_cast<Instruction>(u) << " " << *u << "\n";
+				//for (auto & toRm: toRemove) {
+				//	dbgs() << "toRm: " << toRm << " " << *toRm << '\n';
+				//}
+				llvm_unreachable("Removed instruction still used by something which is not removed");
+			}
+		}
+	}
+#endif
+
 	for (auto *I : toRemove) {
 		I->replaceAllUsesWith(UndefValue::get(I->getType()));
 		I->eraseFromParent();
+
 	}
 	return Changed;
 }
@@ -332,13 +346,14 @@ PreservedAnalyses SlicesToIndependentVariablesPass::run(Function &F, FunctionAna
 
 	// for each instruction resolve segments of bits which are used independently
 	auto splitPoints = collectSplitPoints(F);
+	//errs() << "Split points:\n";
 	//for (auto &item : splitPoints) {
 	//	errs() << *item.first;
-	//	errs() << "    ";
+	//	errs() << "    [";
 	//	for (auto p : item.second) {
 	//		errs() << p << " ";
 	//	}
-	//	errs() << "\n";
+	//	errs() << "]\n";
 	//}
 	// for each user of variable which have a split point resolve a new value
 	// while looking trough the hierarchy of slices, concatenations and bitwise operators
