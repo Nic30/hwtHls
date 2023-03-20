@@ -2,8 +2,7 @@
 
 project(
   'hwtHls',
-  [#'cython',
-   'c', 'cpp'],
+  ['c', 'cpp'],
   # https://stackoverflow.com/questions/59201214/can-the-meson-project-version-be-assigned-dynamically
   version: '0.0', # FIXME: git hash (see URL above).
   license: 'MIT',
