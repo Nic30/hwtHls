@@ -38,8 +38,8 @@ class TimeIndependentRtlResource():
 
     (dynamically generates register chains and synchronization
      to pass values to specified clk periods)
-     
-     
+
+
     :ivar timeOffset: number of clock form start when valid data appears on "signal"
         (constant INVARIANT_TIME is used if input signal is constant
         and does not require any registers and synchronizations)
@@ -65,7 +65,7 @@ class TimeIndependentRtlResource():
         :param data: signal with value in initial time
         """
         if isinstance(data, HValue):
-            assert timeOffset == INVARIANT_TIME 
+            assert timeOffset == INVARIANT_TIME
         self.timeOffset = timeOffset
         self.allocator = allocator
         self.valuesInTime: List[TimeIndependentRtlResourceItem] = [
@@ -84,17 +84,19 @@ class TimeIndependentRtlResource():
             else:
                 # in cur. range
                 return True
-            
+
         return False
-        
-    def get(self, time: int) -> TimeIndependentRtlResourceItem:
+
+    def get(self, time: Union[int, Literal[INVARIANT_TIME]]) -> TimeIndependentRtlResourceItem:
         """
         Get value of signal in specified time (clk period)
         """
 
         # if time is first time in live of this value return original signal
+        if self.timeOffset is INVARIANT_TIME:
+            return self.valuesInTime[0]
         time += self.allocator.netlist.scheduler.epsilon
-        if self.timeOffset is INVARIANT_TIME or self.timeOffset == time:
+        if self.timeOffset == time:
             return self.valuesInTime[0]
 
         # else try to look up register for this signal in valuesInTime cache
