@@ -18,6 +18,7 @@ from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtHls.ssa.translation.llvmMirToNetlist.utils import _createSyncForAnyInputSelector
 from hwtSimApi.utils import freq_to_period
+from hwtHls.frontend.pyBytecode import hlsBytecode
 
 
 class ReadOrDefaultUnit(Unit):
@@ -30,6 +31,7 @@ class ReadOrDefaultUnit(Unit):
         self.dataIn = VectSignal(self.DATA_WIDTH)
         self.dataOut = VectSignal(self.DATA_WIDTH)._m()
 
+    @hlsBytecode
     def connectIo(self, netlist: HlsNetlistCtx):
         """
         d = dataIn.read()
@@ -43,7 +45,7 @@ class ReadOrDefaultUnit(Unit):
         r = r._outputs[0]
         rVld = b.buildReadSync(r)
         t = r._dtype
-        
+
         mux = b.buildMux(r._dtype, (r, rVld, t.from_py(0)))
         w = HlsNetNodeWrite(netlist, NOT_SPECIFIED, self.dataOut)
         netlist.outputs.append(w)
@@ -57,6 +59,7 @@ class ReadOrDefaultUnit(Unit):
 
 class ReadNonBlockingOrDefaultUnit(ReadOrDefaultUnit):
 
+    @hlsBytecode
     def connectIo(self, netlist: HlsNetlistCtx):
         """
         d = dataIn.read_nb()
@@ -74,7 +77,7 @@ class ReadNonBlockingOrDefaultUnit(ReadOrDefaultUnit):
         sync.addControlSerialSkipWhen(b.buildNot(rVld))
         netlist.nodes.append(sync)
         link_hls_nodes(r, sync._inputs[0])
-        
+
         mux = b.buildMux(r._dtype, (sync._outputs[0], rVld, t.from_py(0)))
         w = HlsNetNodeWrite(netlist, NOT_SPECIFIED, self.dataOut)
         netlist.outputs.append(w)
@@ -87,7 +90,7 @@ class ReadOrDefaultUnitHs(ReadOrDefaultUnit):
         # added because of sim agent
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
-        
+
         with self._paramsShared():
             self.dataIn = Handshaked()
             self.dataOut = Handshaked()._m()
@@ -109,11 +112,12 @@ class ReadAnyHsUnit(ReadOrDefaultUnit):
         # added because of sim agent
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
-        
+
         with self._paramsShared():
             self.dataIn = HObjList(Handshaked() for _ in range(self.INPUT_CNT))
             self.dataOut = Handshaked()._m()
 
+    @hlsBytecode
     def connectIo(self, netlist: HlsNetlistCtx):
         """
         d = None
@@ -131,12 +135,12 @@ class ReadAnyHsUnit(ReadOrDefaultUnit):
             netlist.inputs.append(r)
             r = r._outputs[0]
             rVld = b.buildReadSync(r)
-        
+
             t = r._dtype
             rSync = HlsNetNodeExplicitSync(netlist, t)
             netlist.nodes.append(rSync)
             link_hls_nodes(r, rSync._inputs[0])
-        
+
             inputs.append((r, rSync, rVld))
 
         _createSyncForAnyInputSelector(
@@ -173,10 +177,10 @@ class HlsNetlistReadSyncTC(SimTestCase):
         self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
         u.dataIn._ag.data.extend(dataIn)
         clkPeriod = freq_to_period(u.CLK_FREQ)
-        
+
         self.randomize(u.dataIn)
         self.randomize(u.dataOut)
-        
+
         self.runSim(int((len(dataIn) * 6) * clkPeriod))
 
         res = u.dataOut._ag.data
@@ -194,12 +198,12 @@ class HlsNetlistReadSyncTC(SimTestCase):
     def test_ReadAnyHsUnit(self, N=4):
         u = ReadAnyHsUnit()
         self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
-        
+
         for i, intf in enumerate(u.dataIn):
             self.randomize(intf)
             intf._ag.data.extend(range(i * N, (i + 1) * N))
         self.randomize(u.dataOut)
-        
+
         clkPeriod = freq_to_period(u.CLK_FREQ)
         self.runSim(int((N * u.INPUT_CNT * 3) * clkPeriod))
 
