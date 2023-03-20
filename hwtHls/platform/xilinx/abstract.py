@@ -11,8 +11,9 @@ from hwtHls.platform.virtual import _OPS_T_ZERO_LATENCY
 
 class AbstractXilinxPlatform(DefaultHlsPlatform):
     """
-    :ivar _OP_DELAYS: dict operator -> function (number of args, bitwidth input, min latency in cycles, maximum_time_budget) -> delay in seconds
+    Base class for HlsPlatform implementations for Xilinx FPGAs
 
+    :ivar _OP_DELAYS: dict operator -> function (number of args, bitwidth input, min latency in cycles, maximum_time_budget) -> delay in seconds
     """
 
     def __init__(self, debugDir:Optional[Union[str, Path]]=HlsDebugBundle.DEFAULT_DEBUG_DIR,
