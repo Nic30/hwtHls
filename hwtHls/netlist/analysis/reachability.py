@@ -43,7 +43,7 @@ def _collectConcatOfVoidTreeInputs(o: HlsNetNodeOut, inputs: List[HlsNetNodeOut]
             duplicitySeen |= _collectConcatOfVoidTreeInputs(i, inputs, seen)
     else:
         inputs.append(o)
- 
+
     return duplicitySeen
 
 
@@ -78,7 +78,7 @@ class HlsNetlistAnalysisPassReachabilility(HlsNetlistAnalysisPass):
         d[n] = {o for o in n._outputs}
         for o in n._outputs:
             d[o] = set()
-    
+
     @classmethod
     def _initSetDict(cls, netlist:"HlsNetlistCtx", removed: Optional[Set[HlsNetNode]]) -> ReachDict:
         d: ReachDict = {}
@@ -88,16 +88,16 @@ class HlsNetlistAnalysisPassReachabilility(HlsNetlistAnalysisPass):
             cls._registerNodeInSetDict(n, d)
 
         return d
-    
+
     def doesReachToPorts(self, src: NodeOrPort, ports: List[HlsNetNodeOut]):
         for p in ports:
             if self.doesReachTo(src, p):
                 return True
         return False
-        
+
     def doesReachTo(self, src:NodeOrPort, dst:NodeOrPort):
         sucs = self._anySuccessors[src]
-        return dst in sucs 
+        return dst in sucs
 
     def doesReachToControl(self, src:HlsNetNode, dst:HlsNetNodeExplicitSync):
         sucs = self._anySuccessors[src]
@@ -106,11 +106,11 @@ class HlsNetlistAnalysisPassReachabilility(HlsNetlistAnalysisPass):
                 return True
 
         return False
-        # return src in self._controlPredecessors[dst] 
-    
+        # return src in self._controlPredecessors[dst]
+
     def doesReachToData(self, src:HlsNetNode, dst:HlsNetNode):
         return dst in self._dataSuccessors[src]
-    
+
     def doesUseControlOf(self, n: HlsNetNodeExplicitSync, user: HlsNetNode):
         if isinstance(n, HlsNetNodeRead) and n._validNB is not None:
             sucs = self._anySuccessors[n._validNB]
@@ -130,7 +130,7 @@ class HlsNetlistAnalysisPassReachabilility(HlsNetlistAnalysisPass):
         voidDataOuts = []
         if n._outputs and n._outputs[0]._dtype == HVoidData and n._outputs[0] is not n._dataVoidOut:
             voidDataOuts.append(n._outputs[0])
-            
+
         if n._dataVoidOut is not None:
             voidDataOuts.append(n._dataVoidOut)
 
@@ -145,7 +145,7 @@ class HlsNetlistAnalysisPassReachabilility(HlsNetlistAnalysisPass):
                         assert isinstance(user.obj, HlsNetNodeExplicitSync), (n, user.obj)
                         found.append(user.obj)
 
-        return found 
+        return found
 
     def getDirectDataSuccessorsMany(self, inputs: List[HlsNetNodeExplicitSync]) -> Generator[HlsNetNodeExplicitSync, None, None]:
         """
@@ -154,7 +154,7 @@ class HlsNetlistAnalysisPassReachabilility(HlsNetlistAnalysisPass):
         while inputs:
             n = inputs.pop()
             yield from self.getDirectDataSuccessors(n)
-        
+
     def getDirectDataPredecessors(self, n: HlsNetNodeExplicitSync) -> UniqList[HlsNetNodeExplicitSync]:
         """
         Use IO cluster core to iterate HlsNetNodeExplicitSync successor nodes.
@@ -166,7 +166,7 @@ class HlsNetlistAnalysisPassReachabilility(HlsNetlistAnalysisPass):
         orderingPorts = n.iterOrderingInputs()
         if n.__class__ is HlsNetNodeExplicitSync and HdlType_isVoid(n._outputs[0]._dtype):
             orderingPorts = (n._inputs[0], *orderingPorts)
-        
+
         for i in orderingPorts:
             dep = n.dependsOn[i.in_i]
             if dep._dtype == HVoidData:
@@ -182,8 +182,8 @@ class HlsNetlistAnalysisPassReachabilility(HlsNetlistAnalysisPass):
                     for o in _found:
                         if not isinstance(o.obj, HlsNetNodeConst):
                             found.append(o.obj)
-       
-        return found 
+
+        return found
 
     def getDirectDataPredecessorsMany(self, outputs: List[HlsNetNodeExplicitSync]) -> Generator[HlsNetNodeExplicitSync, None, None]:
         """
@@ -196,12 +196,12 @@ class HlsNetlistAnalysisPassReachabilility(HlsNetlistAnalysisPass):
     def hasControlPredecessor(self, n: HlsNetNode):
         raise NotImplementedError()
         return bool(self._controlPredecessors[n])
-        
+
     def _beforeNodeAddedListener(self, _, parentList: ObservableList[HlsNetNode], index: Union[slice, int], val: Union[HlsNetNode, Literal[ObservableListRm]]):
         if isinstance(val, HlsNetNode):
             val.dependsOn._setObserver(self._beforeInputDriveUpdate, val)
             for d in (self._dataSuccessors, self._anySuccessors):
-                self._registerNodeInSetDict(val, d) 
+                self._registerNodeInSetDict(val, d)
 
     def _beforeInputDriveUpdate(self, n: HlsNetNode,
                                 parentList: ObservableList[HlsNetNodeOut],
@@ -232,10 +232,10 @@ class HlsNetlistAnalysisPassReachabilility(HlsNetlistAnalysisPass):
 
                     # update curDep successors sets after we removed the use in inp port
                     self._linkDiscard(curDep, inp)
-    
+
                     if isAppend:
-                        list.pop(n.dependsOn)  # rm temporarily added item 
-                
+                        list.pop(n.dependsOn)  # rm temporarily added item
+
                 if val is ObservableListRm:
                     # remove input from internal dictionaries
                     for d in (self._dataSuccessors, self._anySuccessors):
@@ -260,17 +260,39 @@ class HlsNetlistAnalysisPassReachabilility(HlsNetlistAnalysisPass):
                     assert inp not in curDep.obj.usedBy[curDep.out_i], (curDep, "->", inp, "usedBy should be updated before dependsOn")
                     self._linkDiscard(curDep, inp)
                 val.obj.usedBy[val.out_i].append(inp)
-                
+
                 if isAppend:
                     self._anySuccessors[inp] = set()
                     self._dataSuccessors[inp] = set()
 
-                self._updateAfterLinkAdd(val, inp) 
+                self._updateAfterLinkAdd(val, inp)
                 tmp = val.obj.usedBy[val.out_i].pop()
                 assert tmp is inp, (tmp, inp)
                 if isAppend:
                     list.pop(n.dependsOn)  # remove temporal added item
-            
+
+            else:
+                raise NotImplementedError(n, index, val)
+
+    def _beforeOutputUpdate(self, n: HlsNetNode,
+                            parentList: ObservableList[HlsNetNodeOut],
+                            index: Union[slice, int],
+                            val: Union[HlsNetNodeOut, Literal[ObservableListRm]]):
+        if val is ObservableListRm:
+            outp = n._outputs[index]
+            for d in (self._dataSuccessors, self._anySuccessors):
+                sucs = d.pop(outp)
+                assert not sucs, (outp, "Port must not be connected before removing", sucs)
+        else:
+            _len = len(n._outputs)
+            isAppend = index == _len
+            if isAppend:
+                outp = val
+                self._anySuccessors[outp] = set()
+                self._dataSuccessors[outp] = set()
+                self._propagateSuccessor(outp, n, self._anySuccessors, False)
+                if not HdlType_isNonData(outp._dtype):
+                    self._propagateSuccessor(outp, n, self._dataSuccessors, True)
             else:
                 raise NotImplementedError(n, index, val)
 
@@ -295,16 +317,16 @@ class HlsNetlistAnalysisPassReachabilility(HlsNetlistAnalysisPass):
             dictToUpdate[updatedO] = set()
             sucToUpdate = updatedO.obj.usedBy[updatedO.out_i]
         else:
-            
+
             realSucc = set()
             for u in updatedO.obj.usedBy[updatedO.out_i]:
                 realSucc.update(dictToUpdate[u])
-        
+
             sucToUpdate = realSucc.difference(curSucc)
-            
+
         for newSuc in sucToUpdate:
             cls._propagateSuccessor(newSuc, updatedO, dictToUpdate, ommitNonData)
-         
+
     @classmethod
     def _propagateSuccessor(cls, newSuc: NodeOrPort,
                             beginOfPropagation: NodeOrPort,
@@ -314,15 +336,16 @@ class HlsNetlistAnalysisPassReachabilility(HlsNetlistAnalysisPass):
         toSearch: UniqList[NodeOrPort] = UniqList((beginOfPropagation,))
         while toSearch:
             n = toSearch.pop()
-            
+
             if n is not newSuc:
                 curSuccessors = dictToUpdate[n]
+
                 if newSuc in curSuccessors:
                     # end of propagation because suc is already marked as a successor
-                    continue 
+                    continue
                 else:
                     curSuccessors.add(newSuc)
-            
+
             if isinstance(n, HlsNetNodeIn):
                 # walk from input to connected output of other node
                 dep = n.obj.dependsOn[n.in_i]
@@ -357,11 +380,11 @@ class HlsNetlistAnalysisPassReachabilility(HlsNetlistAnalysisPass):
                 else:
                     d = dictToUpdate[n] = copy(newSuccessors)
                     d.add(n.obj)
- 
+
                 dep = n.obj.dependsOn[n.in_i]
                 if dep is None or (ommitNonData and HdlType_isNonData(dep._dtype)):
                     continue
-                    
+
                 toSearch.append(dep)
 
             elif isinstance(n, HlsNetNodeOut):
@@ -376,14 +399,14 @@ class HlsNetlistAnalysisPassReachabilility(HlsNetlistAnalysisPass):
                         uses.add(u)
                         sucs = dictToUpdate[u] = uses
                     newSuccessors.update(sucs)
-                
+
                 if newSuccessors == curSuccessors:
                     continue
                 else:
                     dictToUpdate[n] = newSuccessors
-                
+
                 toSearch.append(n.obj)
-                
+
             else:
                 newSuccessors = set()
                 for o in n._outputs:
@@ -401,11 +424,11 @@ class HlsNetlistAnalysisPassReachabilility(HlsNetlistAnalysisPass):
                     continue
                 else:
                     dictToUpdate[n] = newSuccessors
-                
+
                 # walk from node to its inputs
                 for i in n._inputs:
                     toSearch.append(i)
-    
+
     @staticmethod
     def _isValidNB(o: HlsNetNodeOut):
         return isinstance(o.obj, HlsNetNodeRead) and o is o.obj._validNB
@@ -426,7 +449,7 @@ class HlsNetlistAnalysisPassReachabilility(HlsNetlistAnalysisPass):
     #            toSearch.append(dep.obj)
     #    else:
     #        if isinstance(n, HlsNetNode):
-    #            toSearch.extend(dep.obj 
+    #            toSearch.extend(dep.obj
     #                            for dep in n.dependsOn
     #                            if dep is not None and not cls._isValidNB(dep))
     #
@@ -496,7 +519,7 @@ class HlsNetlistAnalysisPassReachabilility(HlsNetlistAnalysisPass):
     #        if isinstance(n, HlsNetNodeRead):
     #            validNB = n._validNB
     #        else:
-    #            validNB = None 
+    #            validNB = None
     #        for o, uses in zip(n._outputs, n.usedBy):
     #            if o is validNB:
     #                # skipping control signals
@@ -516,11 +539,11 @@ class HlsNetlistAnalysisPassReachabilility(HlsNetlistAnalysisPass):
         """
         while toSearch:
             n = toSearch.pop()
-            
+
             if n in seen:
                 continue
             seen.add(n)
-            
+
             if isinstance(n, HlsNetNodeRead):
                 validNb = n._validNB
             else:
@@ -552,7 +575,7 @@ class HlsNetlistAnalysisPassReachabilility(HlsNetlistAnalysisPass):
             if n in seen:
                 continue
             seen.add(n)
-            
+
             for o, uses in zip(n._outputs, n.usedBy):
                 if HdlType_isNonData(o._dtype):
                     continue
@@ -573,7 +596,7 @@ class HlsNetlistAnalysisPassReachabilility(HlsNetlistAnalysisPass):
         for n in self.netlist.iterAllNodes():
             if removed is not None and n in removed:
                 continue
-            
+
             for i in n._inputs:
                 i: HlsNetNodeIn
                 dep = n.dependsOn[i.in_i]

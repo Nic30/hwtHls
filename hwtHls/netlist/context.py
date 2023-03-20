@@ -1,6 +1,6 @@
 from itertools import chain
 from math import ceil
-from typing import List, Union, Optional, Type, Set, Callable
+from typing import Union, Optional, Type, Set, Callable
 
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.unit import Unit
@@ -39,7 +39,7 @@ class HlsNetlistCtx():
                  platform: Optional["VirtualHlsPlatform"]=None):
         """
         :see: For parameter meaning see doc of this class.
-        :ivar schedulerResolution: The time resolution for time in scheduler specified in seconds (1e-9 is 1ns). 
+        :ivar schedulerResolution: The time resolution for time in scheduler specified in seconds (1e-9 is 1ns).
         """
         self.label = label
         self.parentUnit = parentUnit
@@ -51,14 +51,14 @@ class HlsNetlistCtx():
             raise ValueError("HLS requires platform to be specified")
 
         self.realTimeClkPeriod = 1 / int(freq)
-        self.normalizedClkPeriod = int(ceil(self.realTimeClkPeriod / schedulerResolution)) 
+        self.normalizedClkPeriod = int(ceil(self.realTimeClkPeriod / schedulerResolution))
         self.inputs: ObservableList[HlsNetNodeRead] = ObservableList()
         self.outputs: ObservableList[HlsNetNodeWrite] = ObservableList()
         self.nodes: ObservableList[HlsNetNode] = ObservableList()
 
         self.ctx = RtlNetlist()
         self._analysis_cache = {}
-        
+
         self.scheduler: HlsScheduler = self.platform.scheduler(self, schedulerResolution)
         self.allocator: HlsAllocator = self.platform.allocator(self)
 
@@ -83,14 +83,14 @@ class HlsNetlistCtx():
             return self._analysis_cache[analysis_cls]
         except KeyError:
             return None
-  
+
     def getAnalysis(self, analysis_cls:Union[Type[HlsNetlistAnalysisPass], HlsNetlistAnalysisPass]):
         if isinstance(analysis_cls, HlsNetlistAnalysisPass):
             a = analysis_cls
             analysis_cls = analysis_cls.__class__
         else:
             a = None
- 
+
         try:
             return self._analysis_cache[analysis_cls]
         except KeyError:
@@ -98,39 +98,42 @@ class HlsNetlistCtx():
 
         if a is None:
             a = analysis_cls(self)
-        
+
         self._analysis_cache[analysis_cls] = a
         a.run()
         return a
 
     def schedule(self):
         self.scheduler.schedule()
-    
+
     def filterNodesUsingSet(self, removed: Set[HlsNetNode]):
         if removed:
             self.inputs[:] = (n for n in self.inputs if n not in removed)
             self.nodes[:] = (n for n in self.nodes if n not in removed)
             self.outputs[:] = (n for n in self.outputs if n not in removed)
-        
+
     def setupNetlistListeners(self,
                               beforeNodeAddedListener: Callable[[object, Union[slice, int], Union[HlsNetNode, ObservableListRm]], None],
                               beforeInputDriveUpdate: Callable[[object, Union[slice, int], Union[HlsNetNodeOut, None, ObservableListRm]], None],
+                              beforeOutputUpdate: Callable[[object, Union[slice, int], Union[HlsNetNodeOut, None, ObservableListRm]], None],
                               removed: Set[HlsNetNode]):
         for nodeList in (self.inputs, self.nodes, self.outputs):
             nodeList._setObserver(beforeNodeAddedListener, None)
-        
+
         for n in self.iterAllNodes():
             if n in removed:
                 continue
             n.dependsOn._setObserver(beforeInputDriveUpdate, n)
-    
+            n._outputs._setObserver(beforeOutputUpdate, n)
+
     def dropNetlistListeners(self):
         for nodeList in (self.inputs, self.nodes, self.outputs):
             nodeList._setObserver(None, None)
-        
+
         for n in self.iterAllNodes():
             n.dependsOn._setObserver(None, None)
-    
+            n._outputs._setObserver(None, None)
+
     def _dbgGetNodeById(self, _id: int) -> HlsNetNode:
         """
         :attention: Highly inefficient intended only for debugging
@@ -139,4 +142,4 @@ class HlsNetlistCtx():
             if n._id == _id:
                 return n
         raise ValueError("Node with requested id not found", _id)
-            
+
