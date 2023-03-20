@@ -22,6 +22,7 @@ from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
     HlsNetNodeWriteBackwardEdge, HlsNetNodeReadControlBackwardEdge, \
     HlsNetNodeWriteControlBackwardEdge
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
+from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.orderable import HdlType_isVoid
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
@@ -112,6 +113,18 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         if isControl and HdlType_isVoid(val._dtype):
             r_from_in.obj.setNonBlocking()
             r_from_in = r_from_in.obj.getValidNB()
+            # add as a src to all dependencies of orderingIn where this read exists
+            dstBlockSync:MachineBasicBlockSyncContainer = self.blockSync[dstBlock]
+            orderingIn = dstBlockSync.orderingIn
+            assert isinstance(orderingIn, HlsNetNodeOutLazy), orderingIn
+            orderingIn : HlsNetNodeOutLazy
+            if orderingIn.dependent_inputs:
+                oo = r_from_in.obj.getOrderingOutPort()
+                for user in orderingIn.dependent_inputs:
+                    userObj = user.obj
+                    userObj: HlsNetNodeExplicitSync
+                    link_hls_nodes(oo, userObj._addInput("orderingIn"))
+
 
         if cacheKey is not None:
             self.valCache.add(dstBlock, cacheKey, r_from_in, False)
@@ -120,6 +133,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
             f"{namePrefix:s}_in", val._dtype,
             val,
             HlsNetNodeWriteControlBackwardEdge if isControl else HlsNetNodeWriteBackwardEdge)
+
         w_to_out.name = namePrefix
         w_to_out.associate_read(r_from_in.obj)
         w_to_out.buff_name = f"{namePrefix:s}_backedge_buff"
