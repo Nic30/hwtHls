@@ -19,8 +19,15 @@ The translation process involves several things.
    * We also must rename labels in preprocessor expanded loops.
 
 3. Every operation which can not be evaluated in preprocessor needs to be translated to output SSA
-   with applied label renaming due to preprocessor caused code expansions. 
+   with applied label renaming due to preprocessor caused code expansions.
 
-   * The low level translations are shared with :mod:`hwtHls.frontend.ast` to avoid code duplication.   
+   * The low level translations are shared with :mod:`hwtHls.frontend.ast` to avoid code duplication.
 
 """
+
+
+def hlsBytecode(fn):
+    """
+    Wrapper which does nothig but parks the function as compatible with bytecode HLS frontend for documentation purposes.
+    """
+    return fn

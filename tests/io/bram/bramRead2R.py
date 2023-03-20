@@ -10,6 +10,7 @@ from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.io.bram import BramArrayProxy
 from hwtHls.scope import HlsScope
+from hwtHls.frontend.pyBytecode import hlsBytecode
 
 
 class BramRead2R(Unit):
@@ -32,15 +33,16 @@ class BramRead2R(Unit):
             self.ram0: BramPort_withoutClk = BramPort_withoutClk()._m()
             self.ram1: BramPort_withoutClk = BramPort_withoutClk()._m()
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope, ram: BramArrayProxy):
         i = Bits(self.ADDR_WIDTH).from_py(0)
         while BIT.from_py(1):
             d0 = hls.read(ram[i]).data
             d1 = hls.read(ram[i + 1]).data
-            hls.write(d0, self.dataOut0) 
-            hls.write(d1, self.dataOut1) 
+            hls.write(d0, self.dataOut0)
+            hls.write(d1, self.dataOut1)
             i += 2
-        
+
     def _impl(self) -> None:
         hls = HlsScope(self)
         ram = BramArrayProxy(hls, (self.ram0, self.ram1))

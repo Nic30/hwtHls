@@ -2,11 +2,11 @@ from typing import Optional
 
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.hdlType import HdlType
+from hwt.interfaces.agents.handshaked import HandshakedAgent, \
+    UniversalHandshakedAgent
 from hwt.interfaces.std import HandshakeSync, Signal, VectSignal
 from hwt.math import log2ceil
 from hwt.synthesizer.param import Param
-from hwt.interfaces.agents.handshaked import HandshakedAgent, \
-    UniversalHandshakedAgent
 from hwtSimApi.hdlSimulator import HdlSimulator
 
 
@@ -64,11 +64,11 @@ class HashTableCmd(HandshakeSync):
     def _initSimAgent(self, sim:HdlSimulator):
         self._ag = UniversalHandshakedAgent(sim, self)
 
-    
+
 class HashTableCmdResult(HandshakeSync):
     """
     A port with a result for :class:`~.HashTableCmd`
-    
+
     :ivar cmd: original signal with command
     :ivar found: 1 if lookup found the key
     :ivar originalItemValid: the itemValid from the data originally stored in the table

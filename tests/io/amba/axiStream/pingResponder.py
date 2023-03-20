@@ -19,6 +19,7 @@ from hwtLib.examples.builders.pingResponder_test import PingResponderTC as HwtLi
 from hwtLib.types.net.ethernet import Eth2Header_t, ETHER_TYPE
 from hwtLib.types.net.icmp import ICMP_echo_header_t, ICMP_TYPE
 from hwtLib.types.net.ip import IPv4Header_t, ipv4_t, IP_PROTOCOL
+from hwtHls.frontend.pyBytecode import hlsBytecode
 
 echoFrame_t = HStruct(
     (Eth2Header_t, "eth"),
@@ -55,6 +56,7 @@ class PingResponder(Unit):
             self.rx = AxiStream()
             self.tx = AxiStream()._m()
 
+    @hlsBytecode
     def icmp_checksum(self, header):
         """
         :return: checksum for icmp header
@@ -62,10 +64,11 @@ class PingResponder(Unit):
         # [todo] endianity
         # type, code, checksum = 0
         return reverseByteOrder(
-            ~(reverseByteOrder(header.identifier) + 
+            ~(reverseByteOrder(header.identifier) +
               reverseByteOrder(header.seqNo))
         )
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope, rx: IoProxyAxiStream, tx: IoProxyAxiStream):
         while BIT.from_py(1):
             myIp = hls.read(self.myIp).data

@@ -7,10 +7,11 @@ from hwt.hdl.types.defs import BIT
 from hwt.interfaces.std import VectSignal
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.unit import Unit
+from hwtHls.frontend.pyBytecode import hlsBytecode
+from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import uint32_t, uint8_t
-from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc
 
 
 class HlsConnectionFromPyFn0(Unit):
@@ -19,6 +20,7 @@ class HlsConnectionFromPyFn0(Unit):
         self.i = VectSignal(8, signed=False)
         self.o = VectSignal(8, signed=False)._m()
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
             hls.write(hls.read(self.i).data, self.o)
@@ -31,6 +33,7 @@ class HlsConnectionFromPyFn0(Unit):
 
 class HlsConnectionFromPyFnTmpVar(HlsConnectionFromPyFn0):
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
             v = hls.read(self.i).data
@@ -39,6 +42,7 @@ class HlsConnectionFromPyFnTmpVar(HlsConnectionFromPyFn0):
 
 class HlsConnectionFromPyFnPreprocTmpVar0(HlsConnectionFromPyFn0):
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
             o = PyBytecodeInPreproc(self.o)
@@ -47,6 +51,7 @@ class HlsConnectionFromPyFnPreprocTmpVar0(HlsConnectionFromPyFn0):
 
 class HlsConnectionFromPyFnPreprocTmpVar1(HlsConnectionFromPyFn0):
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         o = PyBytecodeInPreproc(self.o)
         while BIT.from_py(1):
@@ -59,6 +64,7 @@ class HlsConnectionFromPyFn1(Unit):
         self.i = VectSignal(8 - 4, signed=False)
         self.o = VectSignal(8, signed=False)._m()
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
             hls.write(Concat(hls.read(self.i).data, Bits(4).from_py(0)), self.o)
@@ -69,6 +75,7 @@ class HlsConnectionFromPyFn1(Unit):
 
 class HlsConnectionFromPyFnIfTmpVar(HlsConnectionFromPyFn0):
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
             a: uint32_t = hls.read(self.i).data
@@ -80,6 +87,7 @@ class HlsConnectionFromPyFnIfTmpVar(HlsConnectionFromPyFn0):
 
 class HlsConnectionFromPyFnIf(HlsConnectionFromPyFn0):
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
             if hls.read(self.i).data._eq(3):
@@ -90,6 +98,7 @@ class HlsConnectionFromPyFnIf(HlsConnectionFromPyFn0):
 
 class HlsConnectionFromPyFnIfIf(HlsConnectionFromPyFn0):
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
             a = hls.read(self.i).data
@@ -106,6 +115,7 @@ class HlsConnectionFromPyFnIfIf(HlsConnectionFromPyFn0):
 
 class HlsConnectionFromPyFnElif(HlsConnectionFromPyFn0):
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
             a = hls.read(self.i).data
@@ -123,6 +133,7 @@ class HlsConnectionFromPyFnWhile(HlsConnectionFromPyFn0):
         HlsConnectionFromPyFn0._declr(self)
         addClkRstn(self)
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
             v = uint8_t.from_py(0)
@@ -139,6 +150,7 @@ class HlsConnectionFromPyFnKwArgs(Unit):
         self.i = VectSignal(8, signed=False)
         self.o = VectSignal(8, signed=False)._m()
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope, kwArg=1):
         while BIT.from_py(1):
             hls.write(kwArg, self.o)

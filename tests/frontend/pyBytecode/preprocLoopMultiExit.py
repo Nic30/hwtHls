@@ -15,6 +15,7 @@ from hwt.interfaces.std import Handshaked
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline, \
     PyBytecodePreprocDivergence
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
@@ -34,6 +35,7 @@ class PreprocLoopMultiExit_singleExit0(Unit):
             self.o = Handshaked()._m()
             addClkRstn(self)
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         """
         Will expand to:
@@ -63,6 +65,7 @@ class PreprocLoopMultiExit_singleExit0(Unit):
 
 class PreprocLoopMultiExit_singleExit1(PreprocLoopMultiExit_singleExit0):
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         """
         Will expand to:
@@ -76,24 +79,25 @@ class PreprocLoopMultiExit_singleExit1(PreprocLoopMultiExit_singleExit0):
                 else:
                     if hls.read(self.i).data != 2:
                         hls.write(2, self.o)
-        
+
             else:
                 if hls.read(self.i).data != 1:
                     hls.write(1, self.o)
                 else:
                     if hls.read(self.i).data != 2:
                         hls.write(2, self.o)
-        
+
         """
 
         for i in range(3):  # this for is unrolled in preprocessor
             if PyBytecodePreprocDivergence(hls.read(self.i).data != i):
                 hls.write(i, self.o)
             # this block is duplicated for every possibility of condition in previous if statement
-            
+
 
 class PreprocLoopMultiExit_hwBreak0(PreprocLoopMultiExit_singleExit0):
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         """
         Will expand to (unintended the value of 'i' is not propagated as expected):
@@ -107,7 +111,7 @@ class PreprocLoopMultiExit_hwBreak0(PreprocLoopMultiExit_singleExit0):
                     hls.write(2, self.o)
                 elif hls.read(self.i).data._eq(0):
                     hls.write(2, self.o)
-        
+
         """
         for i in range(3):  # this for statement is unrolled in preprocessor
             if hls.read(self.i).data._eq(0):
@@ -118,6 +122,7 @@ class PreprocLoopMultiExit_hwBreak0(PreprocLoopMultiExit_singleExit0):
 
 class PreprocLoopMultiExit_hwBreak1(PreprocLoopMultiExit_singleExit0):
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         """
         Will expand to (unintended the value of 'i' is not propagated as expected):
@@ -140,6 +145,7 @@ class PreprocLoopMultiExit_hwBreak1(PreprocLoopMultiExit_singleExit0):
 
 class PreprocLoopMultiExit_hwBreak2(PreprocLoopMultiExit_singleExit0):
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         """
         :meth:`~.PreprocLoopMultiExit_hwBreak1.mainThread` in infinite hardware loop
@@ -153,6 +159,7 @@ class PreprocLoopMultiExit_hwBreak2(PreprocLoopMultiExit_singleExit0):
 
 class PreprocLoopMultiExit_hwBreak3(PreprocLoopMultiExit_singleExit0):
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         """
         :note: same as :class:`~.PreprocLoopMultiExit_hwBreak2` just with :class:`PyBytecodeInline`
@@ -174,6 +181,7 @@ class PreprocLoopMultiExit_countLeadingZeros_0(PreprocLoopMultiExit_singleExit0)
         self.o = Handshaked()._m()
         self.o.DATA_WIDTH = 8
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
             d = hls.read(self.i).data
@@ -186,7 +194,8 @@ class PreprocLoopMultiExit_countLeadingZeros_0(PreprocLoopMultiExit_singleExit0)
 
 
 class PreprocLoopMultiExit_countLeadingZeros_1_error(PreprocLoopMultiExit_singleExit0):
-    
+
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
             d = hls.read(self.i).data
@@ -203,7 +212,8 @@ class PreprocLoopMultiExit_countLeadingZeros_1_error(PreprocLoopMultiExit_single
 
 
 class PreprocLoopMultiExit_countLeadingZeros_2(PreprocLoopMultiExit_singleExit0):
-    
+
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
             d = hls.read(self.i).data
@@ -212,7 +222,7 @@ class PreprocLoopMultiExit_countLeadingZeros_2(PreprocLoopMultiExit_singleExit0)
                 if PyBytecodePreprocDivergence(d[i]):
                     # the value of i reaches out of parent loop
                     # and it is marked so preprocessor knows about it
-                    zeroCnt = i 
+                    zeroCnt = i
                     break
 
             hls.write(zeroCnt, self.o)

@@ -1,24 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.synthesizer.unit import Unit
-from hwtLib.amba.axis import AxiStream
-from hwt.interfaces.utils import addClkRstn
-from hwt.synthesizer.param import Param
-from hwtHls.scope import HlsScope
-from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
-from hwtHls.io.amba.axiStream.proxy import IoProxyAxiStream
 from hwt.hdl.types.defs import BIT
 from hwt.interfaces.std import Handshaked
+from hwt.interfaces.utils import addClkRstn
+from hwt.synthesizer.param import Param
+from hwt.synthesizer.unit import Unit
+from hwtHls.frontend.pyBytecode import hlsBytecode
+from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
+from hwtHls.io.amba.axiStream.proxy import IoProxyAxiStream
+from hwtHls.scope import HlsScope
+from hwtLib.amba.axis import AxiStream
 from hwtLib.types.net.ethernet import eth_mac_t, Eth2Header_t, ETHER_TYPE
 
 
 class AxiSWriteEth(Unit):
-    
+
     def _config(self):
         self.CLK_FREQ = Param(int(100e6))
         AxiStream._config(self)
-        
+
     def _declr(self) -> None:
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
@@ -30,6 +31,7 @@ class AxiSWriteEth(Unit):
         for i in [self.src, self.dst]:
             i.DATA_WIDTH = eth_mac_t.bit_length()
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope, dataOut: IoProxyAxiStream):
         while BIT.from_py(1):
             v = Eth2Header_t.from_py(None)

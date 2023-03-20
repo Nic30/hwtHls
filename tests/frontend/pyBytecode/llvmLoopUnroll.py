@@ -5,6 +5,7 @@ from hwt.hdl.types.defs import BIT
 from hwt.interfaces.std import VectSignal
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.unit import Unit
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeLLVMLoopUnroll
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
@@ -17,6 +18,7 @@ class InfLoopUnrollDissable(Unit):
         self.o = VectSignal(8, signed=False)._m()
         addClkRstn(self)
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         i = uint8_t.from_py(0)
         while BIT.from_py(1):
@@ -32,6 +34,7 @@ class InfLoopUnrollDissable(Unit):
 
 class InfLoopUnrollCount(InfLoopUnrollDissable):
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         i = uint8_t.from_py(0)
         while BIT.from_py(1):

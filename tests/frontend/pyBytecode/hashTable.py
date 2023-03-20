@@ -12,6 +12,7 @@ from hwt.math import log2ceil
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.unit import Unit
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.ioProxyAddressed import IoProxyAddressed
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
@@ -25,7 +26,7 @@ from tests.frontend.pyBytecode.hashTableIo import HashTableCmd, HashTableCmdResu
 class HashTable(Unit):
     """
     Hash table without any hash collision resolution scheme.
-    
+
     :see: :class:`tests.frontend.pyBytecode.hashTableIo.HashTableCmd`
     """
 
@@ -38,20 +39,20 @@ class HashTable(Unit):
 
     def _declr(self) -> None:
         assert self.ITEMS_PER_TABLE >= 2
-        
+
         addClkRstn(self)
         with self._paramsShared():
             self.cmd = HashTableCmd()
             self.cmdRes: HashTableCmdResult = HashTableCmdResult()._m()
             for i in [self.cmd, self.cmdRes]:
                 i.ITEMS_PER_TABLE = self.ITEMS_PER_TABLE
-        
+
         self.item_t = item_t = HStruct(
             (BIT, "itemValid"),
             (self.KEY_T, "key"),
             (self.VALUE_T, "value"),
         )
-        
+
         self.item_flat_t = Bits(item_t.bit_length())
         RAM_ADDR_WIDTH = log2ceil(self.ITEMS_PER_TABLE)
         RAM_DATA_WIDTH = item_t.bit_length()
@@ -76,10 +77,12 @@ class HashTable(Unit):
         dst.originalKey = src.key
         dst.originalValue = src.value
 
+    @hlsBytecode
     def hash(self, key: RtlSignal, res: RtlSignal):
-        # [todo] 
+        # [todo]
         res = key[res._dtype.bit_length():]
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope, ram: IoProxyAddressed):
         item_t = self.item_t
         item_flat_t = self.item_flat_t
@@ -88,14 +91,14 @@ class HashTable(Unit):
 
         while BIT.from_py(1):
             cmd = hls.read(self.cmd).data
-            
+
             # resolve index for ram read/write
             index = ram_index_t.from_py(None)
             if In(cmd.cmd, [HASH_TABLE_CMD.LOOKUP, HASH_TABLE_CMD.SWAP]):
                 PyBytecodeInline(self.hash)(cmd.key, index)
             else:
                 index = cmd.index
-            
+
             d = hls.read(ram[index]).data._reinterpret_cast(item_t)
 
             res = res_t.from_py(None)
@@ -110,7 +113,7 @@ class HashTable(Unit):
                 newItem0 = item_t.from_py(None)
                 self._copyItem(cmd, newItem0)
                 hls.write(newItem0._reinterpret_cast(item_flat_t), ram[index])
-               
+
             hls.write(res, self.cmdRes)
 
     def _impl(self) -> None:

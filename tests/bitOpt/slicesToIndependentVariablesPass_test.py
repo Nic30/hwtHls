@@ -8,6 +8,7 @@ from hwt.interfaces.std import VectSignal, Signal
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
@@ -40,6 +41,7 @@ class SliceBreakSlicedVar0(Unit):
         self.clk.FREQ = int(1e6)
         self.o = VectSignal(32)._m()
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         x = Bits(32).from_py(0)
         x[0] = 1
@@ -54,6 +56,7 @@ class SliceBreakSlicedVar0(Unit):
 
 class SliceBreakSlicedVar1(SliceBreakSlicedVar0):
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         x = Bits(32).from_py(0)
         x[1] = 1
@@ -63,6 +66,7 @@ class SliceBreakSlicedVar1(SliceBreakSlicedVar0):
 
 class SliceBreakSlicedVar2(SliceBreakSlicedVar0):
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         x = Bits(32).from_py(0)
         x[5] = 1
@@ -77,6 +81,7 @@ class SliceBreak0(SliceBreakSlicedVar0):
         self.i = VectSignal(32)
         self.o = VectSignal(32)._m()
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         i = hls.read(self.i).data
         x = Concat(i[:16], i[16:])
@@ -85,6 +90,7 @@ class SliceBreak0(SliceBreakSlicedVar0):
 
 class SliceBreak1(SliceBreak0):
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         i = hls.read(self.i).data
         x = Concat(i[:16], i[16:])
@@ -94,6 +100,7 @@ class SliceBreak1(SliceBreak0):
 
 class SliceBreak2(SliceBreak0):
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         i = hls.read(self.i).data
         x = Concat(i[:16], i[16:])
@@ -103,6 +110,7 @@ class SliceBreak2(SliceBreak0):
 
 class SliceBreak3(SliceBreak0):
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         i = hls.read(self.i).data
         x0 = Concat(i[:16], i[16:])
@@ -119,6 +127,7 @@ class Slice0(Unit):
         self.clk.FREQ = int(1e6)
         self.o = VectSignal(32)._m()
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         x = hls.read(self.i).data
         hls.write(Concat(Bits(16).from_py(0), x), self.o)
@@ -131,6 +140,7 @@ class Slice0(Unit):
 
 class Slice1(Slice0):
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         x = Concat(Bits(32).from_py(0), hls.read(self.i).data)
         hls.write(x[32:], self.o)
@@ -145,6 +155,7 @@ class Slice2(Slice0):
         self.clk.FREQ = int(1e6)
         self.o = VectSignal(2)._m()
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         """
         Extracted from:

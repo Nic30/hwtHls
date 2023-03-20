@@ -2,6 +2,7 @@ from hwt.hdl.types.defs import BIT
 from hwt.interfaces.std import VectSignal, Signal
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 
@@ -14,14 +15,15 @@ class RedundantCmpGT(Unit):
     def _declr(self):
         self.i0 = VectSignal(8, signed=False)
         # self.i1 = VectSignal(8, signed=False)
-        
+
         self.o = Signal()._m()
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
             i0 = hls.read(self.i0)
             # i1 = hls.read(self.i1)
-            
+
             hls.write((i0 > 1) | (i0 > 2), self.o)
 
     def _impl(self):

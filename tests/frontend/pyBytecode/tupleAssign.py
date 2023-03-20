@@ -2,6 +2,7 @@ from hwt.hdl.types.defs import BIT
 from hwt.interfaces.std import VectSignal
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.unit import Unit
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodePreprocHwCopy
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
@@ -16,10 +17,11 @@ class HlsPythonTupleAssign(Unit):
         self.o0 = VectSignal(8)._m()
         self.o1 = VectSignal(8)._m()
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         i0 = uint8_t.from_py(0)
         i1 = uint8_t.from_py(1)
-        
+
         while BIT.from_py(1):
             hls.write(i0, self.o0)
             hls.write(i1, self.o1)
@@ -56,4 +58,4 @@ if __name__ == "__main__":
     suite.addTest(unittest.makeSuite(HlsPythonTupleAssign_TC))
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
-  
+

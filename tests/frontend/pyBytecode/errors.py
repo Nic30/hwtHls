@@ -4,6 +4,7 @@
 from hwt.hdl.types.defs import BIT
 from hwt.interfaces.std import VectSignal
 from hwt.synthesizer.unit import Unit
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 
@@ -14,8 +15,9 @@ class ErrorUseOfUnitialized0(Unit):
         self.i = VectSignal(8, signed=False)
         self.o = VectSignal(8, signed=False)._m()
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
-        res = a < 1 
+        res = a < 1
         while BIT.from_py(1):
             hls.write(hls.read(self.i).data, self.o)
 
@@ -27,8 +29,9 @@ class ErrorUseOfUnitialized0(Unit):
 
 class ErrorUseOfUnitialized1(ErrorUseOfUnitialized0):
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
-        res = a < 1 
+        res = a < 1
         a = 1
         while BIT.from_py(1):
             hls.write(res, self.o)
@@ -36,6 +39,7 @@ class ErrorUseOfUnitialized1(ErrorUseOfUnitialized0):
 
 class UseOfNone(ErrorUseOfUnitialized0):
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         a = None
         while BIT.from_py(1):

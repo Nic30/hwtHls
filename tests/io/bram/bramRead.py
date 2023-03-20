@@ -15,6 +15,7 @@ from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import \
     netlistExplicitSyncDisconnectFromOrderingChain
 from hwtHls.scope import HlsScope
+from hwtHls.frontend.pyBytecode import hlsBytecode
 
 
 class BramRead(Unit):
@@ -35,13 +36,14 @@ class BramRead(Unit):
             self.dataOut = Handshaked()._m()
             self.ram: BramPort_withoutClk = BramPort_withoutClk()._m()
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope, ram: BramArrayProxy):
         i = Bits(self.ADDR_WIDTH).from_py(0)
         while BIT.from_py(1):
             d = hls.read(ram[i]).data
-            hls.write(d, self.dataOut) 
+            hls.write(d, self.dataOut)
             i += 1
-    
+
     def reduceOrdering(self, hls: HlsScope, thread: HlsThreadFromPy):
         netlist = thread.toHw
         for intf in (self.dataOut, self.ram):
@@ -50,7 +52,7 @@ class BramRead(Unit):
                 if rwNode.dst is intf:
                     netlistExplicitSyncDisconnectFromOrderingChain(DebugTracer(None), rwNode, [],
                                                                disconnectPredecessors=False, disconnectSuccesors=True)
-    
+
     def _impl(self) -> None:
         hls = HlsScope(self)
         ram = BramArrayProxy(hls, self.ram)
@@ -80,7 +82,7 @@ class BramReadWithRom(Unit):
         rom = self._sig("rom", Bits(self.DATA_WIDTH)[ITEMS], [i + 1 for i in range(ITEMS)])
         r = self.reader
         self.dataOut(r.dataOut)
-        
+
         If(self.clk._onRisingEdge(),
             If(r.ram.en,
                r.ram.dout(rom[r.ram.addr])

@@ -5,6 +5,7 @@ from hwt.hdl.types.defs import BIT
 from hwt.interfaces.std import Handshaked
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.param import Param
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.io.amba.axi4Lite import Axi4LiteArrayProxy
 from hwtHls.scope import HlsScope
@@ -32,13 +33,14 @@ class Axi4LiteRead(BramRead):
             self.ram: Axi4Lite = Axi4Lite()._m()
             self.ram.HAS_W = False
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope, ram: Axi4LiteArrayProxy):
         i = ram.indexT.from_py(0)
         while BIT.from_py(1):
             d = hls.read(ram[i]).data.data
-            hls.write(d, self.dataOut) 
+            hls.write(d, self.dataOut)
             i += 1
-       
+
     def _impl(self) -> None:
         hls = HlsScope(self)
         ram = Axi4LiteArrayProxy(hls, self.ram)

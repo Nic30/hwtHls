@@ -4,8 +4,9 @@
 from hwt.interfaces.std import VectSignal
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.unit import Unit
-from hwtHls.scope import HlsScope
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
+from hwtHls.scope import HlsScope
 
 
 class HlsConnectionFromPyIf(Unit):
@@ -15,6 +16,7 @@ class HlsConnectionFromPyIf(Unit):
         self.o = VectSignal(8, signed=False)._m()
         addClkRstn(self)
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         v = hls.read(self.i).data
         if v._eq(2):
@@ -28,6 +30,7 @@ class HlsConnectionFromPyIf(Unit):
 
 class HlsConnectionFromPyIfElse(HlsConnectionFromPyIf):
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         v = hls.read(self.i).data
         if v._eq(2):
@@ -38,6 +41,7 @@ class HlsConnectionFromPyIfElse(HlsConnectionFromPyIf):
 
 class HlsConnectionFromPyIfElsePreproc(HlsConnectionFromPyIf):
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope, useIf: bool):
         if useIf:
             v = hls.read(self.i).data
@@ -57,6 +61,7 @@ class HlsConnectionFromPyIfElsePreproc(HlsConnectionFromPyIf):
 
 class HlsConnectionFromPyIfElifElse(HlsConnectionFromPyIf):
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         v = hls.read(self.i).data
 

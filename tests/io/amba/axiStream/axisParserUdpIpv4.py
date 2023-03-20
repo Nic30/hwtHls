@@ -16,6 +16,7 @@ from hwtLib.types.net.ethernet import Eth2Header_t, ETHER_TYPE
 from hwtLib.types.net.ip import IPv4Header_t, IP_PROTOCOL, ipv4_t
 from hwtLib.types.net.udp import UDP_header_t
 from hwtHls.io.amba.axiStream.proxy import IoProxyAxiStream
+from hwtHls.frontend.pyBytecode import hlsBytecode
 
 
 class AxiSParseUdpIpv4(Unit):
@@ -31,10 +32,11 @@ class AxiSParseUdpIpv4(Unit):
             self.i = AxiStream()
             self.src_ip: HsStructIntf[ipv4_t] = HsStructIntf()._m()
             self.src_ip.T = ipv4_t
-            
+
             self.srcp: HsStructIntf[uint16_t] = HsStructIntf()._m()
             self.srcp.T = Bits(16)
-    
+
+    @hlsBytecode
     def parseEth(self, hls: HlsScope):
         i = IoProxyAxiStream(hls, self.i)
         while BIT.from_py(1):

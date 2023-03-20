@@ -9,6 +9,7 @@ from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc
+from hwtHls.frontend.pyBytecode import hlsBytecode
 
 
 class ReadAtleastOneOf2(Unit):
@@ -23,15 +24,16 @@ class ReadAtleastOneOf2(Unit):
         with self._paramsShared():
             self.i0 = Handshaked()
             self.i1 = Handshaked()
-        
+
             self.o: Handshaked = Handshaked()._m()
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
-        
+
         pre = PyBytecodeInPreproc
         while BIT.from_py(1):
             o = self.o.data._dtype.from_py(None)
-            
+
             i0 = pre(hls.read(self.i0, blocking=False))
             if i0.valid:
                 o = i0.data
@@ -56,11 +58,11 @@ class ReadAtleastOneOf3(ReadAtleastOneOf2):
             self.i2 = Handshaked()
 
     def mainThread(self, hls: HlsScope):
-        
+
         prepr = PyBytecodeInPreproc
         while BIT.from_py(1):
             o = self.o.data._dtype.from_py(None)
-            
+
             i0 = prepr(hls.read(self.i0, blocking=False))
             if i0.valid:
                 o = i0.data
@@ -81,4 +83,4 @@ if __name__ == "__main__":
     u = ReadAtleastOneOf3()
     # u.CLK_FREQ = int(100e6)
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
-    
+

@@ -6,6 +6,7 @@ from hwt.interfaces.std import Handshaked
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.io.amba.axiStream.proxy import IoProxyAxiStream
@@ -29,11 +30,12 @@ class AxiSPacketCntr(Unit):
         self.pkt_cnt: Handshaked = Handshaked()._m()
         self.pkt_cnt.DATA_WIDTH = 16
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope, i: IoProxyAxiStream):
         pkts = uint16_t.from_py(0)
         i.readStartOfFrame()
         while BIT.from_py(1):
-            # PyBytecodeInPreproc is used because otherwise 
+            # PyBytecodeInPreproc is used because otherwise
             # the read object is converted to a RtlSignal because word= is a store to a word variable
             word = PyBytecodeInPreproc(i.read(self.i.data._dtype))
             if word._isLast():

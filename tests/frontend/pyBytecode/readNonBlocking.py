@@ -5,6 +5,7 @@ from hwt.hdl.types.defs import BIT
 from hwt.interfaces.std import VectSignal, Handshaked
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.unit import Unit
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import int8_t
@@ -19,6 +20,7 @@ class HlsPythonReadNonBlocking(Unit):
 
         self.o = VectSignal(8, signed=True)._m()
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         cntr = int8_t.from_py(0)
         while BIT.from_py(1):
@@ -27,7 +29,7 @@ class HlsPythonReadNonBlocking(Unit):
             else:
                 cntr -= 1
             hls.write(cntr, self.o)
-            
+
     def _impl(self):
         hls = HlsScope(self, freq=int(100e6))
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls)

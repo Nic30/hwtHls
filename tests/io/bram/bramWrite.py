@@ -11,6 +11,7 @@ from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.io.bram import BramArrayProxy
 from hwtHls.scope import HlsScope
+from hwtHls.frontend.pyBytecode import hlsBytecode
 
 
 class BramWrite(Unit):
@@ -33,15 +34,16 @@ class BramWrite(Unit):
             ram.HAS_W = True
             ram.HAS_R = False
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope, ram: BramArrayProxy):
         i = Bits(self.ADDR_WIDTH).from_py(0)
         while BIT.from_py(1):
-            hls.write(i._reinterpret_cast(self.ram.din._dtype), ram[i]) 
+            hls.write(i._reinterpret_cast(self.ram.din._dtype), ram[i])
             i += 1
 
     def _impl(self) -> None:
         hls = HlsScope(self)
-        
+
         ram = BramArrayProxy(hls, self.ram)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, ram)
         # mainThread.bytecodeToSsa.debug = True

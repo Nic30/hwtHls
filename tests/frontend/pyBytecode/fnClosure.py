@@ -4,6 +4,7 @@
 from hwt.hdl.types.defs import BIT
 from hwt.interfaces.std import VectSignal
 from hwt.synthesizer.unit import Unit
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 
@@ -14,6 +15,7 @@ class FnClosureSingleItem(Unit):
         self.i = VectSignal(8, signed=False)
         self.o = VectSignal(8, signed=False)._m()
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
 
         # closure is (hls, )
@@ -34,6 +36,7 @@ class FnClosureNone0(Unit):
     def _declr(self):
         self.o = VectSignal(8, signed=False)._m()
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
 
         def genVal():
@@ -51,6 +54,7 @@ class FnClosureNone1(Unit):
     def _declr(self):
         self.o = VectSignal(8, signed=False)._m()
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
 
         while BIT.from_py(1):

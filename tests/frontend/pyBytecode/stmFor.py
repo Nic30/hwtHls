@@ -4,6 +4,7 @@
 from hwt.interfaces.std import VectSignal
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.unit import Unit
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 
@@ -14,6 +15,7 @@ class HlsPythonPreprocFor(Unit):
         addClkRstn(self)
         self.o = VectSignal(8, signed=False)._m()
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         for i in range(5):
             hls.write(i, self.o)
@@ -28,6 +30,7 @@ class HlsPythonPreprocFor(Unit):
 
 class HlsPythonPreprocForPreprocWhile(HlsPythonPreprocFor):
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         for i in range(5):
             while i < 2:
@@ -37,6 +40,7 @@ class HlsPythonPreprocForPreprocWhile(HlsPythonPreprocFor):
 
 class HlsPythonPreprocFor2x_0(HlsPythonPreprocFor):
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         for y in range(2):
             for x in range(2):
@@ -45,6 +49,7 @@ class HlsPythonPreprocFor2x_0(HlsPythonPreprocFor):
 
 class HlsPythonPreprocFor2x_1(HlsPythonPreprocFor):
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         for y in range(2):
             for _ in range(2):

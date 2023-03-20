@@ -8,6 +8,7 @@ from hwt.serializer.combLoopAnalyzer import CombLoopAnalyzer
 from hwt.simulator.simTestCase import SimTestCase
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
@@ -28,6 +29,7 @@ class AndShiftInLoop2(Unit):
         self.i = VectSignal(8, signed=False)
         self.o = VectSignal(8, signed=False)._m()
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         t = self.i._dtype
         i0 = hls.var("i0", t)
@@ -59,6 +61,7 @@ class AndShiftInLoop3(Unit):
         self.i = VectSignal(8, signed=False)
         self.o = VectSignal(8, signed=False)._m()
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         t = self.i._dtype
         i0, i1, i2 = (hls.var("i0", t) for _ in range(3))
@@ -118,7 +121,7 @@ class AndShiftInLoop_TC(SimTestCase):
         m = model()
         for _ in range(CLK):
             expected.append(next(m))
-        
+
         u.i._ag.data.extend(inputs)
         self.runSim((CLK + 1) * CLK_PERIOD)
         self._test_no_comb_loops()
@@ -151,7 +154,7 @@ class AndShiftInLoop_TC(SimTestCase):
         m = model()
         for _ in range(CLK):
             expected.append(next(m))
-        
+
         u.i._ag.data.extend(inputs)
         self.runSim((CLK + 1) * CLK_PERIOD)
         self._test_no_comb_loops()

@@ -4,15 +4,16 @@
 from typing import Union
 
 from hwt.code import Concat
+from hwt.hdl.types.defs import BIT
 from hwt.hdl.value import HValue
 from hwt.interfaces.std import VectSignal, Signal
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.unit import Unit
-from hwtHls.scope import HlsScope
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
+from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import uint8_t
-from hwt.hdl.types.defs import BIT
 
 
 class BitWidthReductionCmp2Values(Unit):
@@ -23,7 +24,8 @@ class BitWidthReductionCmp2Values(Unit):
 
     def _impl(self):
         hls = HlsScope(self, freq=int(100e6))
- 
+
+        @hlsBytecode
         def mainThread():
             while BIT.from_py(1):
                 i = hls.read(self.i).data
@@ -61,13 +63,14 @@ class BitWidthReductionCmpReducibleEq(Unit):
 
     def _impl(self):
         hls = HlsScope(self, freq=int(50e6))
- 
+
         zero8b = uint8_t.from_py(0)
         one8b = uint8_t.from_py(1)
         all8b = uint8_t.from_py(0xff)
 
         p = self.predicate
 
+        @hlsBytecode
         def mainThread():
             while BIT.from_py(1):
                 a = hls.read(self.a).data

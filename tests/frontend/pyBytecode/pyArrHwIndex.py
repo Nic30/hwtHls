@@ -11,6 +11,7 @@ from hwt.interfaces.utils import addClkRstn
 from hwt.math import log2ceil
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from hwtLib.common_nonstd_interfaces.addr_data_hs import AddrDataVldHs
@@ -23,6 +24,7 @@ class Rom(Unit):
         self.i = VectSignal(2, signed=False)
         self.o = VectSignal(32, signed=False)._m()
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         t = self.o._dtype
         # must be hw type otherwise we won't be able to resolve type of "o" later
@@ -35,7 +37,7 @@ class Rom(Unit):
     def _impl(self):
         hls = HlsScope(self, freq=int(100e6))
         t = HlsThreadFromPy(hls, self.mainThread, hls)
-        #t.bytecodeToSsa.debug = True
+        # t.bytecodeToSsa.debug = True
         hls.addThread(t)
         hls.compile()
 
@@ -53,6 +55,7 @@ class CntrArray(Unit):
         self.o_addr = VectSignal(ADDR_WIDTH, signed=False)
         self.o = VectSignal(16, signed=False)._m()
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         mem = [hls.var(f"v{i:d}", self.o._dtype) for i in range(self.ITEMS)]
         for v in mem:
@@ -81,7 +84,7 @@ class Cam(Unit):
         w.DATA_WIDTH = self.KEY_WIDTH
         w.ADDR_WIDTH = log2ceil(self.ITEMS - 1)
         self.write = w
-    
+
         self.match = m = Handshaked()
         m.DATA_WIDTH = self.KEY_WIDTH
 
@@ -110,7 +113,7 @@ class Cam(Unit):
             newKey.vld = w.vld_flag
             newKey.key = w.data
             # the result of HW index on python object is only reference
-            # and the item select is constructed when item is used first time 
+            # and the item select is constructed when item is used first time
             # or write switch-case  is constructed if the item is written
             hls.write(newKey, keys[w.addr])
 
@@ -131,6 +134,6 @@ if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.xilinx.artix7 import Artix7Medium
     from hwtHls.platform.platform import HlsDebugBundle
-    #from hwtHls.platform.virtual import VirtualHlsPlatform
+    # from hwtHls.platform.virtual import VirtualHlsPlatform
     u = CntrArray()
     print(to_rtl_str(u, target_platform=Artix7Medium(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

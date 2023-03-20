@@ -7,6 +7,7 @@ from hwt.hdl.types.struct import HStruct
 from hwt.interfaces.std import VectSignal
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.unit import Unit
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline, \
     PyBytecodeInPreproc
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
@@ -21,6 +22,7 @@ class PyArrShift(Unit):
         self.i = VectSignal(8, signed=False)
         self.o = VectSignal(8, signed=False)._m()
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         arr = [hls.var(f"arr{i}", self.o._dtype) for i in range(3)]
         # :note: using () instead of just = because we want to set value not just rewrite reference in preprocessor
@@ -48,7 +50,7 @@ class PyArrShiftFn(PyArrShift):
     def shiftArray(arr: list):
         for i in range(len(arr) - 1, 0, -1):
             arr[i](arr[i - 1])
-    
+
     def mainThread(self, hls: HlsScope):
         arr = [hls.var(f"arr{i}", self.o._dtype) for i in range(3)]
         # :note: using () instead of just = because we want to set value not just rewrite reference in preprocessor
@@ -67,7 +69,7 @@ class PyArrShiftFnStruct(PyArrShift):
     def shiftArray(arr: list):
         for i in range(len(arr) - 1, 0, -1):
             arr[i](arr[i - 1])
-    
+
     def mainThread(self, hls: HlsScope):
         HALF_WIDTH = self.o._dtype.bit_length() // 2
         halfT = Bits(HALF_WIDTH)
@@ -85,7 +87,7 @@ class PyArrShiftFnStruct(PyArrShift):
             last = PyBytecodeInPreproc(arr[-1])
             hls.write(Concat(last.high, last.low), self.o)
 
-    
+
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle

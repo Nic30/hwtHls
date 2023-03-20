@@ -3,12 +3,13 @@
 
 from hwt.hdl.types.defs import BIT
 from hwt.interfaces.std import VectSignal
+from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.unit import Unit
+from hwtHls.frontend.pyBytecode import hlsBytecode
+from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
-from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline
 from hwtLib.types.ctypes import uint8_t
-from hwt.interfaces.utils import addClkRstn
 
 
 class PragmaInline_singleBlock(Unit):
@@ -16,8 +17,10 @@ class PragmaInline_singleBlock(Unit):
     def _declr(self):
         self.o = VectSignal(8, signed=False)._m()
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
 
+        @hlsBytecode
         def fn():
             hls.write(1, self.o)
 
@@ -34,9 +37,10 @@ class PragmaInline_singleBlock(Unit):
 
 class PragmaInline_NestedLoop(PragmaInline_singleBlock):
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         b1 = BIT.from_py(1)
-
+        @hlsBytecode
         def fn():
             while b1:
                 hls.write(1, self.o)
@@ -58,6 +62,7 @@ class PragmaInline_return1_0(PragmaInline_singleBlock):
 
 class PragmaInline_return1_1(PragmaInline_return1_0):
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
 
         @PyBytecodeInline
@@ -70,6 +75,7 @@ class PragmaInline_return1_1(PragmaInline_return1_0):
 
 class PragmaInline_return1_1hw(PragmaInline_return1_0):
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
 
         @PyBytecodeInline
@@ -86,6 +92,7 @@ class PragmaInline_writeCntr0(PragmaInline_return1_0):
         PragmaInline_return1_0._declr(self)
         addClkRstn(self)
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         cntr = uint8_t.from_py(0)
 
@@ -104,6 +111,7 @@ class PragmaInline_writeCntr1(PragmaInline_return1_0):
         PragmaInline_return1_0._declr(self)
         addClkRstn(self)
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         cntr = uint8_t.from_py(0)
 
@@ -118,6 +126,7 @@ class PragmaInline_writeCntr1(PragmaInline_return1_0):
 
 class PragmaInline_writeCntr2(PragmaInline_writeCntr1):
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         cntr = uint8_t.from_py(0)
 
@@ -132,12 +141,14 @@ class PragmaInline_writeCntr2(PragmaInline_writeCntr1):
 
 
 class PragmaInline_writeCntr3(PragmaInline_writeCntr1):
-    
+
+    @hlsBytecode
     def writeAndIncrement(self, hls, cntr):
         hls.write(cntr, self.o)
         cntr += 1
         return cntr
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         cntr = uint8_t.from_py(0)
 

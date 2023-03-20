@@ -11,6 +11,7 @@ from hwt.synthesizer.unit import Unit
 from hwt.synthesizer.utils import to_rtl_str
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.frontend.ast.statements import HlsStmWhile, HlsStmIf
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.platform.fileUtils import outputFileGetter
 from hwtHls.platform.virtual import VirtualHlsPlatform
@@ -29,7 +30,7 @@ class PhiConstruction_TC(unittest.TestCase):
         toSsa = HlsAstToSsa(ssaCtx, "entry", None)
         toSsa._onAllPredecsKnown(toSsa.start)
         netlist = RtlNetlist()
-        
+
         # i = 0
         # while True:
         #    if i < 3:
@@ -51,9 +52,9 @@ class PhiConstruction_TC(unittest.TestCase):
         whileHeaderBlock = toSsa.start.successors.targets[0][1]
         self.assertEqual(len(whileHeaderBlock.predecessors), 2)
         self.assertEqual(len(whileHeaderBlock.phis[0].operands), 2)
-        
+
     def testPyBytecodeWhileCondWrite(self):
-        
+
         class U0(Unit):
 
             def _declr(self) -> None:
@@ -63,6 +64,7 @@ class PhiConstruction_TC(unittest.TestCase):
             def _impl(self):
                 hls = HlsScope(self)
 
+                @hlsBytecode
                 def main():
                     i = uint8_t.from_py(0)
                     while BIT.from_py(1):

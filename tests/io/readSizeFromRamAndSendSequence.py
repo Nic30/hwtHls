@@ -9,6 +9,7 @@ from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.io.bram import BramArrayProxy
 from hwtHls.scope import HlsScope
+from hwtHls.frontend.pyBytecode import hlsBytecode
 
 
 class ReadSizeFromRamAndSendSequence(Unit):
@@ -28,6 +29,7 @@ class ReadSizeFromRamAndSendSequence(Unit):
             self.ram.HAS_W = False
             self.out = Handshaked()._m()
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope, ram: BramArrayProxy):
         """
         Read index to ram and send sequence of size stored at ram[index] (size-1 to 0)
@@ -56,4 +58,4 @@ if __name__ == "__main__":
     u = ReadSizeFromRamAndSendSequence()
     u.CLK_FREQ = int(50e6)
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
-    
+

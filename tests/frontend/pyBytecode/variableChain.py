@@ -6,20 +6,22 @@ from hwt.interfaces.std import VectSignal
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
-from hwtHls.scope import HlsScope
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
+from hwtHls.scope import HlsScope
 
 
 class VariableChain(Unit):
 
     def _config(self) -> None:
-        self.LEN = Param(3) 
+        self.LEN = Param(3)
 
     def _declr(self):
         addClkRstn(self)
         self.i = VectSignal(8, signed=False)
         self.o = VectSignal(8, signed=False)._m()
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope):
         # :note: all variables are supposed to be reduced out and just direct connection should remain
         path = [hls.var(f"i{i}", self.i._dtype) for i in range(self.LEN)]

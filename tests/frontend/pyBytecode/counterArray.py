@@ -1,18 +1,19 @@
 from hwt.hdl.constants import WRITE, READ
+from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.defs import BIT
 from hwt.interfaces.std import Handshaked
 from hwt.interfaces.utils import addClkRstn, propagateClkRstn
 from hwt.math import log2ceil
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.ioProxyAddressed import IoProxyAddressed
+from hwtHls.frontend.pyBytecode.markers import PyBytecodeLLVMLoopUnroll, \
+    PyBytecodeInline
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.io.bram import BramArrayProxy
 from hwtHls.scope import HlsScope
 from hwtLib.mem.ram import RamSingleClock
-from hwtHls.frontend.pyBytecode.markers import PyBytecodeLLVMLoopUnroll, \
-    PyBytecodeInline
-from hwt.hdl.types.bits import Bits
 
 
 class CounterArray(Unit):
@@ -21,19 +22,20 @@ class CounterArray(Unit):
         self.ITEMS = Param(4)
         self.CNTR_WIDTH = Param(16)
         self.CLK_FREQ = Param(int(100e6))
-        
+
     def _declr(self) -> None:
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
 
         self.incr = Handshaked()
-        
+
         t = RamSingleClock()
         t.ADDR_WIDTH = self.incr.DATA_WIDTH = log2ceil(self.ITEMS - 1)
         t.DATA_WIDTH = self.CNTR_WIDTH
         t.PORT_CNT = (READ, WRITE)
         self.ram = t
 
+    @hlsBytecode
     def resetRam(self, hls: HlsScope, ram: BramArrayProxy):
         i = Bits(ram.indexT.bit_length()).from_py(0)
         # [todo] if bit slicing is used on i, the llvm generates uglygep because it is not recognizing
@@ -44,6 +46,7 @@ class CounterArray(Unit):
                 break
             i += 1
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope, ram: BramArrayProxy):
         # reset
         # PyBytecodeInline(self.resetRam)(hls, ram)
@@ -61,7 +64,7 @@ class CounterArray(Unit):
             lastAddr = index
             lastVld = 1
             hls.write(lastData, ram[index])
-            
+
             # PyBytecodeLLVMLoopUnroll(True, 2)
 
     def _impl(self) -> None:
