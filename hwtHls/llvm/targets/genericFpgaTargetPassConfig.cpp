@@ -10,6 +10,8 @@
 #include <llvm/Transforms/Scalar.h>
 #include <llvm/Transforms/Scalar/GVN.h>
 
+#include "Transforms/machineDumpAndExitPass.h"
+
 #include "Transforms/hwtHlsCodeGenPrepare.h"
 #include "Transforms/EarlyMachineCopyPropagation.h"
 #include "GISel/genericFpgaPreLegalizerCombiner.h"

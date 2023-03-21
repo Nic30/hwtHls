@@ -17,7 +17,7 @@ def merge_values_const_propagation: GICombineRule<
 // convert the G_CONSTANT instructions to CImm operands on all users
 def g_constant_to_imm: GICombineRule<
   (defs root:$root),
-  (match (wip_match_opcode 
+  (match (wip_match_opcode
   			G_PHI,
   			G_LOAD,
   			G_STORE,
@@ -128,8 +128,8 @@ def GenericFpgaGenPreLegalizeGICombinerHelper: GICombinerHelper<
 def copy_to_genfpga_copy : GICombineRule<
   (defs root:$d),
   (match (COPY $d, $s):$mi),
-  (apply [{ 
-	  	Helper.replaceOpcodeWith(*${mi}, GenericFpga::GENFPGA_CCOPY); 
+  (apply [{
+	  	Helper.replaceOpcodeWith(*${mi}, GenericFpga::GENFPGA_CCOPY);
 	  	Observer.changingInstr(*${mi});
 		MachineInstrBuilder builder(*MF, ${mi});
   		auto &C = MF->getFunction().getContext();
@@ -138,7 +138,7 @@ def copy_to_genfpga_copy : GICombineRule<
 		Observer.changedInstr(*${mi});
   	}])>;
 
-// Fold (x G_XOR allOnes) - > GENFPGA_NOT x 
+// Fold (x G_XOR allOnes) - > GENFPGA_NOT x
 def xor_right_allOnes: GICombineRule<
   (defs root:$root),
   (match (wip_match_opcode G_XOR):$root,
@@ -154,7 +154,7 @@ def extract_on_merge_values: GICombineRule<
   (apply [{ return Helper.rewriteExtractOnMergeValues(*${root}); }])
 >;
 
-// 
+//
 // Fold (GENFPGA_MUX (... GENFPGA_MUX ...)) -> GENFPGA_MUX ...
 def mux_merge_matchdata : GIDefMatchData<"llvm::SmallVector<bool>">;
 def mux_merge: GICombineRule<
