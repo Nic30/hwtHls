@@ -23,7 +23,7 @@ void register_IRBuilder(pybind11::module_ & m) {
 		.def("CreateXor", [](llvm::IRBuilder<> * self, llvm::Value *LHS, llvm::Value *RHS, const llvm::Twine &Name = "") {
 				return self->CreateXor(LHS, RHS, Name);
 			}, py::return_value_policy::reference)
-		.def("CreateNeg", &llvm::IRBuilder<>::CreateNeg)
+		.def("CreateNeg", &llvm::IRBuilder<>::CreateNeg, py::return_value_policy::reference)
 		.def("CreateAdd", &llvm::IRBuilder<>::CreateAdd, py::return_value_policy::reference)
 		.def("CreateSub", &llvm::IRBuilder<>::CreateSub, py::return_value_policy::reference)
 		.def("CreateMul", &llvm::IRBuilder<>::CreateMul, py::return_value_policy::reference)
