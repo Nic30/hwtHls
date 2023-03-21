@@ -66,6 +66,7 @@ py3.extension_module(
      'targets/genericFpgaTargetTransformInfo.cpp',
      'targets/genericFpgaTargetPassConfig.cpp',
 
+     'targets/Transforms/machineDumpAndExitPass.cpp',
      'targets/Transforms/genericFpgaToNetlist.cpp',
      'targets/Transforms/hwtHlsCodeGenPrepare.cpp',
      'targets/Transforms/EarlyMachineCopyPropagation.cpp',
