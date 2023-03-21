@@ -12,6 +12,7 @@ void IRBuilder_setInsertPointBehindPhi(IRBuilder<> & builder, llvm::Instruction*
 	while(dyn_cast<PHINode>(&*insPoint)) {
 		++insPoint;
 	}
+	builder.SetInsertPoint(&*insPoint);
 }
 
 bool OffsetWidthValue::operator==(const OffsetWidthValue &rhs) const {
@@ -83,7 +84,8 @@ Value* ConcatMemberVector::resolveValue(Instruction *builderPosition) {
 			concatMembers.push_back(_memberToValue(m));
 		}
 		IRBuilder_setInsertPointBehindPhi(builder, builderPosition);
-		return CreateBitConcat(&builder, concatMembers);
+		auto res = CreateBitConcat(&builder, concatMembers);
+		return res;
 	}
 }
 
