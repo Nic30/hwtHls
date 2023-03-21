@@ -10,9 +10,9 @@ based on [hwt](https://github.com/Nic30/hwt) (hwt is a library for circuit const
 This library is build as a tool which lets you write code transformations
 and provides variety of existing ones (from LLVM/hwt) in order to build efficient code generators.
 
-* Powerful optimization passes form LLVM/HWT
-* Target specification for common FPGAs
-* Integration with HWT: SystemVerilog/VHDL export, various interfaces and components, verification API
+* Powerful optimization passes form LLVM/HWT/ABC
+* Target specification for common FPGAs with possiblity for user to specify any custom target
+* Integration with HWT: SystemVerilog/VHDL export, various interfaces and components, verification API, build automation
 
 
 A typical project where you would use this project is a hash table in HBM2 memory with cache.
@@ -175,7 +175,7 @@ pip3 install git+https://github.com/Nic30/hwtHls.git
 * [TCE](https://github.com/cpc/tce)- C++/LLVM, environment for development of application specific processors
 * [UCLA-VAST/TAPA](https://github.com/UCLA-VAST/tapa) - C++, HLS tool build on the top of VivadoHLS with explicit paralelism
 * [FloPoCo](https://gitlab.com/flopoco/flopoco) - C++, arithmetic core generator
-* [DPC++](https://github.com/intel/llvm/tree/sycl) - C++/LLVM, 
+* [DPC++](https://github.com/intel/llvm/tree/sycl) - C++/LLVM,
 * [CirC](https://github.com/circify/circ) - Rust - compiler infrastructure for HLS
 * [mockturtle](https://github.com/lsils/mockturtle) - C++, logic network lib. with project similar to HLS
 
