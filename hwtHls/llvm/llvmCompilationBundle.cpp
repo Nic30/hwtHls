@@ -378,10 +378,6 @@ void LlvmCompilationBundle::runOpt(
 			/*SplitFooterBB=*/true)));
 
 	// LowerSwitchPass
-	//FPM.addPass(llvm::CorrelatedValuePropagationPass()); // canonicalize-icmp-predicates-to-unsigned=true
-    //FPM.addPass(llvm::GVNHoistPass());
-	//FPM.addPass(llvm::GVNSinkPass());
-	//FPM.addPass(llvm::CorrelatedValuePropagationPass()); // canonicalize-icmp-predicates-to-unsigned=true
 
 	// :note: Profile data not yet available
 	//if (EnableCHR && Level == OptimizationLevel::O3 && PGOOpt
@@ -402,6 +398,7 @@ void LlvmCompilationBundle::runOpt(
 	));
 	FPM.addPass(llvm::DCEPass()); // because of convertSwitchToLookupTable=true
 
+	//FPM.addPass(hwtHls::DumpAndExitPass(true, true));
 	FPM.run(fn, FAM);
 
 	_addMachineCodegenPasses(toNetlistConversionFn);
