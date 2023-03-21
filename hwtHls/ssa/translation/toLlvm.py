@@ -143,7 +143,7 @@ class ToLlvmIrTranslator():
                 arrTy: ArrayType = TypeToArrayType(t.getPointerElementType())
                 elmT = arrTy.getElementType()
                 dst = b.CreateGEP(arrTy, dst, indexes)
-            
+
             return b.CreateStore(src, dst, True)
 
         elif instr.operator == AllOps.CONCAT and isinstance(instr._dtype, Bits):
@@ -166,12 +166,20 @@ class ToLlvmIrTranslator():
 
         else:
             args = (self._translateExpr(a) for a in instr.operands)
+            if instr.operator in (AllOps.BitsAsSigned, AllOps.BitsAsUnsigned, AllOps.BitsAsVec):
+                op0, = args
+                return op0
+
             name = self.strCtx.addTwine(self._formatVarName(instr._name))
             if instr.operator == AllOps.NOT:
                 op0, = args
                 # xor -1
                 mask = APInt.getAllOnesValue(instr._dtype.bit_length())
                 return b.CreateXor(op0, ConstantInt.get(TypeToIntegerType(op0.getType()), mask), name)
+
+            elif instr.operator == AllOps.MINUS_UNARY:
+                op0, = args
+                return b.CreateNeg(op0, name, False, False)
 
             _opConstructorMap0 = {
                 AllOps.AND: b.CreateAnd,
@@ -192,9 +200,11 @@ class ToLlvmIrTranslator():
             if constructor_fn is not None:
                 return constructor_fn(*args, name, False, False)
             else:
+                assert len(instr.operands) == 2, instr
                 isSigned = bool(instr.operands[0]._dtype.signed)
                 if isSigned != bool(instr.operands[1]._dtype.signed):
-                    raise NotImplementedError()
+                    raise NotImplementedError("signed+unsigned cmp")
+
                 if isSigned:
                     _opConstructorMap2 = {
                         AllOps.NE: b.CreateICmpNE,
@@ -240,7 +250,7 @@ class ToLlvmIrTranslator():
         # firstPairOfSuccessors = True
         for i, (c, sucBb, meta) in enumerate(bb.successors.targets):
 
-            doBreak = False    
+            doBreak = False
             if i == preLastTargetsI:
                 nextC, nextB, nextMeta = bb.successors.targets[i + 1]
                 assert nextC is None, ("last jump from block must be unconditional", bb, bb.successors)
@@ -250,11 +260,13 @@ class ToLlvmIrTranslator():
 
                 branchTmpBlocks.append((llvmBb, [sucBb, nextB]))
                 doBreak = True
+
             elif i == lastTargetsI:
                 assert c is None, ("last jump from block must be unconditional", bb, bb.successors)
                 br = b.CreateBr(self.varMap[sucBb])
                 branchTmpBlocks.append((llvmBb, [sucBb, ]))
                 doBreak = True  # would break on its own, added just to improve code readability
+
             else:
                 # need to generate a new block
                 branchTmpBlocks.append((llvmBb, [sucBb, ]))
@@ -296,7 +308,7 @@ class ToLlvmIrTranslator():
         if writes:
             _wordType = writes[0]._getNativeInterfaceWordType()
             if wordType is None or wordType is _wordType:
-                wordType = _wordType 
+                wordType = _wordType
             else:
                 w0 = wordType.bit_length()
                 w1 = _wordType.bit_length()
@@ -310,7 +322,7 @@ class ToLlvmIrTranslator():
         if isinstance(i, (BramPort_withoutClk, Axi4Lite)):
             arrTy = wordType[int(2 ** i.ADDR_WIDTH)]
             llvmArrTy = self._translateArrayType(arrTy)
-            return PointerType.get(llvmArrTy, ioIndex + 1) 
+            return PointerType.get(llvmArrTy, ioIndex + 1)
         else:
             return self._translatePtrType(wordType, ioIndex + 1)
 
@@ -368,7 +380,7 @@ class SsaPassToLlvm():
         for i, (reads, writes) in io.items():
             if not reads and not writes:
                 raise AssertionError("Unused IO ", i)
-                
+
             for instr in reads:
                 instr: HlsRead
                 assert i == instr._src, (i, instr)
