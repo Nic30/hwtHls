@@ -142,7 +142,10 @@ class PyBytecodeLLVMLoopUnroll(_PyBytecodeLoopPragma):
 
     def __init__(self, enable: bool, count: Union[int, Literal[inf], None]):
         if not enable:
-            assert count is None, "If this is dissable count must not be specified"
+            if count == 1:
+                count = None
+            else:
+                assert count is None, "If this is dissable count must not be specified"
 
         self.enable = enable
         self.count = count
