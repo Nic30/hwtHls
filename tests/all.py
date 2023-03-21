@@ -9,6 +9,7 @@ from tests.bitOpt.andShiftInLoop import AndShiftInLoop_TC
 from tests.bitOpt.bitWidthReductionCmp_test import BitWidthReductionCmp_example_TC
 from tests.bitOpt.cmpReduction_test import CmpReduction_TC
 from tests.bitOpt.countBits_test import CountBitsTC
+from tests.bitOpt.divNonRestoring_test import DivNonRestoring_TC
 from tests.bitOpt.popcount_test import PopcountTC
 from tests.bitOpt.slicesToIndependentVariablesPass_test import SlicesToIndependentVariablesPass_TC
 from tests.frontend.ast.bitonicSort import BitonicSorterHLS_TCs
@@ -98,6 +99,7 @@ suite = testSuiteFromTCs(
     HlsAstTrivial_TC,
     HlsAstWhileIf_TC,
     HlsAstWhileTrue_TC,
+    DivNonRestoring_TC,
     IoFsm_TC,
     PhiConstruction_TC,
     FromPythonBasics_TC,
