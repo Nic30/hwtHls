@@ -250,7 +250,6 @@ bool GenFpgaCombinerHelper::rewriteExtractOnMergeValues(llvm::MachineInstr &MI) 
 			MIB.addImm(src.widthOfUse);
 		}
 	} else {
-		dbgs() << "multiple values" << MI << "\n";
 		// we must build GENFPGA_MERGE_VALUE for members
 		Builder.setInstrAndDebugLoc(MI);
 		auto currentInsertionPoint = Builder.getInsertPt();
