@@ -21,7 +21,7 @@ class _PyBytecodeUnitialized():
 
 class PyBytecodeFrame():
     """
-    This object is a container of data for currently evaluated Python function. 
+    This object is a container of data for currently evaluated Python function.
 
     :ivar fn: function which is this frame for
     :ivar loopStack: stack of currently executed loops which are currently executed in preprocessor,
@@ -30,7 +30,7 @@ class PyBytecodeFrame():
     :ivar instructions: instructions parsed from bytecode of a function
     :ivar bytecodeBlocks: instructions formated to a basic blocks
     :ivar blockTracker: an object to keep track of predecessor blocks in the function
-        used in SSA construction to detect that we know all predecessors of some block so we can seal it 
+        used in SSA construction to detect that we know all predecessors of some block so we can seal it
     :ivar loops: a dictionary mapping header block offset to a loop list
     :ivar locals: list where local variables are stored
     :ivar cellVarI: a dictionary mapping a index of cell variable to index in locals list
@@ -59,13 +59,13 @@ class PyBytecodeFrame():
         self.freevars = freevars
         self.stack = stack
         self.returnPoints: List[Tuple[PyBytecodeFrame, SsaBasicBlock, tuple]] = []
- 
+
     def constructBlockTracker(self, cfg: DiGraph, callStack: List["PyBytecodeFrame"]):
         self.blockTracker = BlockPredecessorTracker(cfg, callStack)
 
     def isJumpFromCurrentLoopBody(self, dstBlockOffset: int) -> bool:
         return self.loopStack and self.loopStack[-1].isJumpFromLoopBody(dstBlockOffset)
-    
+
     def enterLoop(self, loop: PyBytecodeLoop):
         assert not self.isLoopReenter(loop), ("New iteration of same loop of already iterating loop in same function can not happen", loop)
         self.loopStack.append(PyBytecodeLoopInfo(loop))
@@ -82,10 +82,10 @@ class PyBytecodeFrame():
             if li.loop is loop:
                 return True
         return False
-        
+
     def markJumpFromBodyOfCurrentLoop(self, loopExitJumpInfo: LoopExitJumpInfo):
         """
-        :note: The jump can still be jump also from some parent loop, we need to copy it later to parent loop info. 
+        :note: The jump can still be jump also from some parent loop, we need to copy it later to parent loop info.
         """
         assert isinstance(loopExitJumpInfo, LoopExitJumpInfo)
         self.loopStack[-1].markJumpFromBodyOfLoop(loopExitJumpInfo)
@@ -110,19 +110,19 @@ class PyBytecodeFrame():
             if defs:
                 fnArgs.extend(defs)
         assert len(fnArgs) == co.co_argcount, ("Function call must have the correct number of arguments",
-                                               len(fnArgs), co.co_argcount)
+                                               fn, len(fnArgs), co.co_argcount)
         if fnKwargs:
             for k, v in fnKwargs.items():
                 fnArgs[co.co_varnames.index(k)] = v
 
         for i, argVal in enumerate(fnArgs):
-            localVars[i] = argVal 
+            localVars[i] = argVal
 
         freevars = []
         if co.co_cellvars:
             argToI = {argName: i for i, argName in enumerate(co.co_varnames[:co.co_argcount])}
             # cellvars:  names of local variables that are referenced by nested functions
-            # freevars: all non local variables, the cellvars are prefix of freevars 
+            # freevars: all non local variables, the cellvars are prefix of freevars
             # Allocate and initialize storage for cell vars, and copy free vars into frame.
             for cellVarName in co.co_cellvars:
                 # Possibly account for the cell variable being an argument.
@@ -134,7 +134,7 @@ class PyBytecodeFrame():
                 else:
                     cellVarVal = _PyBytecodeUnitialized
                 freevars.append(CellType(cellVarVal))
-        
+
         # Copy closure variables to free variables
         if fn.__closure__:
             freevars.extend(fn.__closure__)
