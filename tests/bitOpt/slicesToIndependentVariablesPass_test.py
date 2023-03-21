@@ -229,6 +229,7 @@ class SlicesToIndependentVariablesPass_TC(BaseSsaTC):
         u = CountLeadingZeros()
         u.DATA_WIDTH = 4
         self._test_ll(u)
+
     #def testMet1(self):
     #    llvmIr0 = """
     #    define i32 @main() #0 {
