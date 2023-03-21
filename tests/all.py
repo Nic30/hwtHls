@@ -8,6 +8,8 @@ from tests.bitOpt.abc_test import AbcTC
 from tests.bitOpt.andShiftInLoop import AndShiftInLoop_TC
 from tests.bitOpt.bitWidthReductionCmp_test import BitWidthReductionCmp_example_TC
 from tests.bitOpt.cmpReduction_test import CmpReduction_TC
+from tests.bitOpt.countBits_test import CountBitsTC
+from tests.bitOpt.popcount_test import PopcountTC
 from tests.bitOpt.slicesToIndependentVariablesPass_test import SlicesToIndependentVariablesPass_TC
 from tests.frontend.ast.bitonicSort import BitonicSorterHLS_TCs
 from tests.frontend.ast.exprTree3 import HlsAstExprTree3_example_TC
@@ -76,6 +78,8 @@ suite = testSuiteFromTCs(
     HlsNetlistReduceCmpInAndTC,
     SlicesToIndependentVariablesPass_TC,
     HlsSlicingTC,
+    CountBitsTC,
+    PopcountTC,
     ReadNonBockingTC,
     HlsCycleDelayUnit,
     HlsPythonTupleAssign_TC,
@@ -135,7 +139,7 @@ def main():
     except ImportError:
         # concurrencytest is not installed, use regular test runner
         useParallelTest = False
-    # useParallelTest = False
+    useParallelTest = False
 
     if useParallelTest:
         concurrent_suite = ConcurrentTestSuite(suite, fork_for_tests())
