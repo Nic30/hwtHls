@@ -26,22 +26,19 @@ bool GenFpgaCombinerHelper::rewriteConstExtract(llvm::MachineInstr &MI) {
 bool GenFpgaCombinerHelper::hasG_CONSTANTasUse(llvm::MachineInstr &MI) {
 	auto &Context = MI.getMF()->getFunction().getContext();
 	for (auto &MO : MI.uses()) {
-		if (hwtHls::GenericFpgaInstructionSelector::machineOperandTryGetConst(
-				Context, MRI, MO)) {
+		if (hwtHls::GenericFpgaInstructionSelector::machineOperandTryGetConst(Context, MRI, MO)) {
 			return true;
 		}
 	}
 	return false;
 }
 
-bool GenFpgaCombinerHelper::rewriteG_CONSTANTasUseAsCImm(
-		llvm::MachineInstr &MI) {
+bool GenFpgaCombinerHelper::rewriteG_CONSTANTasUseAsCImm(llvm::MachineInstr &MI) {
 	Builder.setInstrAndDebugLoc(MI);
 	auto MIB = Builder.buildInstr(MI.getOpcode());
 	auto &newMI = *MIB.getInstr();
 	Observer.changingInstr(newMI);
-	hwtHls::GenericFpgaInstructionSelector::selectInstrArgs(MI, MIB,
-			MI.getOperand(0).isDef());
+	hwtHls::GenericFpgaInstructionSelector::selectInstrArgs(MI, MIB, MI.getOperand(0).isDef());
 	Observer.changedInstr(newMI);
 	MI.eraseFromParent();
 	return true;
@@ -66,8 +63,7 @@ bool GenFpgaCombinerHelper::rewriteConstMergeValues(llvm::MachineInstr &MI) {
 	return true;
 }
 
-bool GenFpgaCombinerHelper::matchAllOnesConstantOp(
-		const llvm::MachineOperand &MOP) {
+bool GenFpgaCombinerHelper::matchAllOnesConstantOp(const llvm::MachineOperand &MOP) {
 	if (MOP.isCImm()) {
 		return MOP.getCImm()->getValue().isAllOnes();
 	}
@@ -78,17 +74,15 @@ bool GenFpgaCombinerHelper::matchAllOnesConstantOp(
 	auto MaybeCst = isConstantOrConstantSplatVector(*MI, MRI);
 	return MaybeCst.hasValue() && MaybeCst->isAllOnes();
 }
-bool GenFpgaCombinerHelper::matchOperandIsAllOnes(llvm::MachineInstr &MI,
-		unsigned OpIdx) {
+bool GenFpgaCombinerHelper::matchOperandIsAllOnes(llvm::MachineInstr &MI, unsigned OpIdx) {
 	return matchAllOnesConstantOp(MI.getOperand(OpIdx))
 			&& (MI.getOperand(OpIdx).isCImm()
-					|| canReplaceReg(MI.getOperand(0).getReg(),
-							MI.getOperand(OpIdx).getReg(), MRI));
+					|| canReplaceReg(MI.getOperand(0).getReg(), MI.getOperand(OpIdx).getReg(), MRI));
 }
 bool GenFpgaCombinerHelper::rewriteXorToNot(llvm::MachineInstr &MI) {
 	Builder.setInstrAndDebugLoc(MI);
-	Builder.buildInstr(GenericFpga::GENFPGA_NOT, { MI.getOperand(0).getReg() },
-			{ MI.getOperand(1).getReg() }, MI.getFlags());
+	Builder.buildInstr(GenericFpga::GENFPGA_NOT, { MI.getOperand(0).getReg() }, { MI.getOperand(1).getReg() },
+			MI.getFlags());
 	MI.eraseFromParent();
 	return true;
 }
@@ -102,22 +96,19 @@ bool GenFpgaCombinerHelper::rewriteConstBinOp(llvm::MachineInstr &MI,
 	return true;
 }
 
-bool GenFpgaCombinerHelper::matchIsExtractOnMergeValues(
-		llvm::MachineInstr &MI) {
+bool GenFpgaCombinerHelper::matchIsExtractOnMergeValues(llvm::MachineInstr &MI) {
 	auto _src = MI.getOperand(1);
 	if (_src.isReg()) {
 		if (auto *src = MRI.getOneDef(MI.getOperand(1).getReg())) {
-			return src->getParent()->getOpcode()
-					== GenericFpga::GENFPGA_MERGE_VALUES;
+			return src->getParent()->getOpcode() == GenericFpga::GENFPGA_MERGE_VALUES;
 		}
 	}
 	return false;
 }
 
 inline bool collectConcatMembersAsItIs(llvm::MachineOperand &MIOp,
-		std::vector<GenFpgaCombinerHelper::ConcatMember> &members,
-		uint64_t mainOffset, uint64_t mainWidth, uint64_t &currentOffset,
-		uint64_t offsetOfIRes, uint64_t widthOfIRes) {
+		std::vector<GenFpgaCombinerHelper::ConcatMember> &members, uint64_t mainOffset, uint64_t mainWidth,
+		uint64_t &currentOffset, uint64_t offsetOfIRes, uint64_t widthOfIRes) {
 	uint64_t mainEnd = mainOffset + mainWidth;
 	// take slice from this instruction as it is
 	uint64_t bitsToTake = std::min(widthOfIRes, mainEnd - currentOffset);
@@ -126,8 +117,7 @@ inline bool collectConcatMembersAsItIs(llvm::MachineOperand &MIOp,
 		// skip prefix
 		return true;
 	} else {
-		members.push_back(GenFpgaCombinerHelper::ConcatMember { MIOp,
-				offsetOfIRes, widthOfIRes, bitsToTake });
+		members.push_back(GenFpgaCombinerHelper::ConcatMember { MIOp, offsetOfIRes, widthOfIRes, bitsToTake });
 		return false;
 	}
 }
@@ -142,10 +132,8 @@ inline bool collectConcatMembersAsItIs(llvm::MachineOperand &MIOp,
  * :param offsetOfIRes: offsets (number of bits) where selected value from this operand starts
  * :param widthOfIRes: a number of bits to select from this operand
  * */
-bool GenFpgaCombinerHelper::collectConcatMembers(llvm::MachineOperand &MIOp,
-		std::vector<ConcatMember> &members, uint64_t mainOffset,
-		uint64_t mainWidth, uint64_t &currentOffset, uint64_t offsetOfIRes,
-		uint64_t widthOfIRes) {
+bool GenFpgaCombinerHelper::collectConcatMembers(llvm::MachineOperand &MIOp, std::vector<ConcatMember> &members,
+		uint64_t mainOffset, uint64_t mainWidth, uint64_t &currentOffset, uint64_t offsetOfIRes, uint64_t widthOfIRes) {
 	uint64_t mainEnd = mainOffset + mainWidth;
 	MachineInstr &MI = *MIOp.getParent();
 	switch (MI.getOpcode()) {
@@ -179,12 +167,12 @@ bool GenFpgaCombinerHelper::collectConcatMembers(llvm::MachineOperand &MIOp,
 					src = MRI.getOneDef(op.getReg());
 				if (src) {
 					// can look trough
-					didReduce |= collectConcatMembers(*src, members, mainOffset,
-							mainWidth, currentOffset, thisMemberOffset, width);
+					didReduce |= collectConcatMembers(*src, members, mainOffset, mainWidth, currentOffset,
+							thisMemberOffset, width);
 				} else {
 					// must take as it is
-					collectConcatMembersAsItIs(op, members, mainOffset,
-							mainWidth, currentOffset, thisMemberOffset, width);
+					collectConcatMembersAsItIs(op, members, mainOffset, mainWidth, currentOffset, thisMemberOffset,
+							width);
 				}
 			}
 			if (currentOffset >= mainEnd) {
@@ -198,60 +186,60 @@ bool GenFpgaCombinerHelper::collectConcatMembers(llvm::MachineOperand &MIOp,
 	case GenericFpga::GENFPGA_EXTRACT: {
 		// $dst $src $offset $dstWidth
 		uint64_t subSliceOffset = MI.getOperand(2).getImm();
-		uint64_t subSliceWidth = MI.getOperand(3).getImm();
+		uint64_t subSliceResWidth = MI.getOperand(3).getImm();
 		subSliceOffset += offsetOfIRes;
-		if (widthOfIRes > subSliceWidth) {
+		if (widthOfIRes > subSliceResWidth) {
 			errs() << MI << " widthOfIRes:" << widthOfIRes << "\n";
-			llvm_unreachable(
-					"GENFPGA_EXTRACT provides value of less bits than expected");
+			llvm_unreachable("GENFPGA_EXTRACT provides value of less bits than expected");
 		}
-		//subSliceWidth = std::min(std::min(subSliceWidth - offsetOfIRes,
-		//		mainEnd - currentOffset), );
+
 		if (auto *src = MRI.getOneDef(MI.getOperand(1).getReg())) {
 			// look trough the source operand of this extract instruction
-			bool didReduce = collectConcatMembers(*src, members, mainOffset,
-					mainWidth, currentOffset, subSliceOffset, subSliceWidth);
-			assert(members.size());
-			const auto &lastAdded = members.back();
-			didReduce |= &lastAdded.op != src;
-			return didReduce;
+			bool mayContainOtherSlicesAndConcats = false;
+			switch (src->getParent()->getOpcode()) {
+			case GenericFpga::GENFPGA_MERGE_VALUES:
+			case GenericFpga::GENFPGA_EXTRACT:
+				mayContainOtherSlicesAndConcats = true;
+				break;
+			}
+			if (mayContainOtherSlicesAndConcats) {
+				bool didReduce = collectConcatMembers(*src, members, mainOffset, mainWidth, currentOffset,
+						subSliceOffset, subSliceResWidth); // [fixme] subSliceResWidth is not correct it should be the width of src but it is unknown at this point
+				assert(members.size());
+				const auto &lastAdded = members.back();
+				didReduce |= &lastAdded.op != src;
+				return didReduce;
+			}
 		}
 
 		break;
 	}
 	}
-	return collectConcatMembersAsItIs(MIOp, members, mainOffset, mainWidth,
-			currentOffset, offsetOfIRes, widthOfIRes);
+	return collectConcatMembersAsItIs(MIOp, members, mainOffset, mainWidth, currentOffset, offsetOfIRes, widthOfIRes);
 }
 
-void addSrcOperand(MachineInstrBuilder &MIB,
-		GenFpgaCombinerHelper::ConcatMember &src) {
+void addSrcOperand(MachineInstrBuilder &MIB, GenFpgaCombinerHelper::ConcatMember &src) {
 	if (src.op.isReg() && src.op.isDef())
 		MIB.addUse(src.op.getReg());
 	else {
 		MIB.add(src.op);
 	}
 }
-bool GenFpgaCombinerHelper::rewriteExtractOnMergeValues(
-		llvm::MachineInstr &MI) {
+bool GenFpgaCombinerHelper::rewriteExtractOnMergeValues(llvm::MachineInstr &MI) {
 	// MI.operands() == $dst $src $offset $dstWidth
 	std::vector<ConcatMember> concatMembers;
 	//uint64_t mainOffset = MI.getOperand(2).getImm();
 	uint64_t mainWidth = MI.getOperand(3).getImm();
 	uint64_t currentOffset = 0;
-	bool didReduce = collectConcatMembers(MI.getOperand(0), concatMembers, 0,
-			mainWidth, currentOffset, 0, mainWidth);
+	bool didReduce = collectConcatMembers(MI.getOperand(0), concatMembers, 0, mainWidth, currentOffset, 0, mainWidth);
 	if (!didReduce)
 		return false;
-	assert(
-			concatMembers.size()
-					&& "There must be something which EXTRACT selects");
+	assert(concatMembers.size() && "There must be something which EXTRACT selects");
 	if (concatMembers.size() == 1) {
 		auto &src = concatMembers.back();
 		// we may be able to use item directly of we may build an EXTRACT
 		if (src.offsetOfUse == 0 && src.width == src.widthOfUse) {
-			MRI.replaceRegWith(MI.getOperand(0).getReg(), src.op.getReg()); // [fixme] the src.op can be imm or cost
-
+			MRI.replaceRegWith(MI.getOperand(0).getReg(), src.op.getReg()); // [fixme] the src.op can be imm or const
 		} else {
 			Builder.setInstrAndDebugLoc(MI);
 			auto MIB = Builder.buildInstr(GenericFpga::GENFPGA_EXTRACT);
@@ -262,6 +250,7 @@ bool GenFpgaCombinerHelper::rewriteExtractOnMergeValues(
 			MIB.addImm(src.widthOfUse);
 		}
 	} else {
+		dbgs() << "multiple values" << MI << "\n";
 		// we must build GENFPGA_MERGE_VALUE for members
 		Builder.setInstrAndDebugLoc(MI);
 		auto currentInsertionPoint = Builder.getInsertPt();
@@ -276,11 +265,9 @@ bool GenFpgaCombinerHelper::rewriteExtractOnMergeValues(
 				// slice the member using GENFPGA_EXTRACT
 				Builder.setInstrAndDebugLoc(MI);
 				Builder.setInsertPt(*MI.getParent(), --currentInsertionPoint);
-				auto memberMIB = Builder.buildInstr(
-						GenericFpga::GENFPGA_EXTRACT);
+				auto memberMIB = Builder.buildInstr(GenericFpga::GENFPGA_EXTRACT);
 				// $dst $src $offset $dstWidth
-				Register memberReg = MRI.createVirtualRegister(
-						&GenericFpga::AnyRegClsRegClass);
+				Register memberReg = MRI.createVirtualRegister(&GenericFpga::AnyRegClsRegClass);
 				memberMIB.addDef(memberReg, MI.getFlags());
 				addSrcOperand(memberMIB, src);
 				memberMIB.addImm(src.offsetOfUse);
@@ -313,8 +300,7 @@ GenFpgaCombinerHelper::CImmOrReg::CImmOrReg(const ConstantInt *c) {
 	reg = 0;
 }
 
-void GenFpgaCombinerHelper::CImmOrReg::addAsUse(
-		MachineInstrBuilder &MIB) const {
+void GenFpgaCombinerHelper::CImmOrReg::addAsUse(MachineInstrBuilder &MIB) const {
 	if (c)
 		MIB.addCImm(c);
 	else {
@@ -322,9 +308,8 @@ void GenFpgaCombinerHelper::CImmOrReg::addAsUse(
 	}
 }
 
-Register buildMsbGet(MachineIRBuilder &builder, GISelChangeObserver &Observer,
-		GenFpgaCombinerHelper::CImmOrReg x, unsigned bitWidth,
-		Optional<Register> dst) {
+Register buildMsbGet(MachineIRBuilder &builder, GISelChangeObserver &Observer, GenFpgaCombinerHelper::CImmOrReg x,
+		unsigned bitWidth, Optional<Register> dst) {
 	auto MIB = builder.buildInstr(GenericFpga::GENFPGA_EXTRACT);
 	auto &newMI = *MIB.getInstr();
 
@@ -333,8 +318,7 @@ Register buildMsbGet(MachineIRBuilder &builder, GISelChangeObserver &Observer,
 	if (dst.hasValue()) {
 		msbReg = dst.getValue();
 	} else {
-		msbReg = builder.getMRI()->createVirtualRegister(
-				&GenericFpga::AnyRegClsRegClass);
+		msbReg = builder.getMRI()->createVirtualRegister(&GenericFpga::AnyRegClsRegClass);
 	}
 	MIB.addDef(msbReg);
 	x.addAsUse(MIB); // src
@@ -345,16 +329,13 @@ Register buildMsbGet(MachineIRBuilder &builder, GISelChangeObserver &Observer,
 	return msbReg;
 }
 
-bool GenFpgaCombinerHelper::matchCmpToMsbCheck(llvm::MachineInstr &MI,
-		BuildFnTy &rewriteFn) {
+bool GenFpgaCombinerHelper::matchCmpToMsbCheck(llvm::MachineInstr &MI, BuildFnTy &rewriteFn) {
 	auto Pred = static_cast<CmpInst::Predicate>(MI.getOperand(1).getPredicate());
 	auto LHS = MI.getOperand(2);
 	auto RHS = MI.getOperand(3);
 
-	if ((Pred == CmpInst::Predicate::ICMP_SGE && RHS.isCImm()
-			&& RHS.getCImm()->getValue().isZero())
-			|| (Pred == CmpInst::Predicate::ICMP_SGT
-					&& matchAllOnesConstantOp(RHS))) {
+	if ((Pred == CmpInst::Predicate::ICMP_SGE && RHS.isCImm() && RHS.getCImm()->getValue().isZero())
+			|| (Pred == CmpInst::Predicate::ICMP_SGT && matchAllOnesConstantOp(RHS))) {
 		// (SGE x,  0) -> NOT x.msb
 		// (SGT x, -1) -> NOT x.msb
 		unsigned bitWidth = RHS.getCImm()->getType()->getIntegerBitWidth();
@@ -362,16 +343,13 @@ bool GenFpgaCombinerHelper::matchCmpToMsbCheck(llvm::MachineInstr &MI,
 		CImmOrReg _LHS(LHS);
 		rewriteFn = [bitWidth, Dst, _LHS, this](MachineIRBuilder &builder) {
 			// msbReg = x.MSB
-			Register msbReg = buildMsbGet(builder, Observer, _LHS, bitWidth,
-					None);
+			Register msbReg = buildMsbGet(builder, Observer, _LHS, bitWidth, None);
 			// res = not msbReg
 			builder.buildInstr(GenericFpga::GENFPGA_NOT, { Dst }, { msbReg });
 		};
 		return true;
-	} else if ((Pred == CmpInst::Predicate::ICMP_SLT && RHS.isCImm()
-			&& RHS.getCImm()->getValue().isZero())
-			|| (Pred == CmpInst::Predicate::ICMP_SGT
-					&& matchAllOnesConstantOp(RHS))) {
+	} else if ((Pred == CmpInst::Predicate::ICMP_SLT && RHS.isCImm() && RHS.getCImm()->getValue().isZero())
+			|| (Pred == CmpInst::Predicate::ICMP_SGT && matchAllOnesConstantOp(RHS))) {
 		// (SLT x,  0) -> x.msb
 		// (SGT x, -1) -> x.msb
 		unsigned bitWidth = RHS.getCImm()->getType()->getIntegerBitWidth();
@@ -386,21 +364,18 @@ bool GenFpgaCombinerHelper::matchCmpToMsbCheck(llvm::MachineInstr &MI,
 	return false;
 }
 
-bool GenFpgaCombinerHelper::matchConstCmpConstAdd(llvm::MachineInstr &MI,
-		BuildFnTy &rewriteFn) {
+bool GenFpgaCombinerHelper::matchConstCmpConstAdd(llvm::MachineInstr &MI, BuildFnTy &rewriteFn) {
 	assert(MI.getOpcode() == TargetOpcode::G_ICMP);
 	auto Pred = static_cast<CmpInst::Predicate>(MI.getOperand(1).getPredicate());
 	const auto LHS = MI.getOperand(2);
 	const auto RHS = MI.getOperand(3);
-	if (Pred == CmpInst::Predicate::ICMP_EQ
-			|| Pred == CmpInst::Predicate::ICMP_NE) { // [todo] rest of the predicates
+	if (Pred == CmpInst::Predicate::ICMP_EQ || Pred == CmpInst::Predicate::ICMP_NE) { // [todo] rest of the predicates
 		if (LHS.isReg() && RHS.isCImm()) {
 			MachineOperand *_LHS = MRI.getOneDef(LHS.getReg());
 			if (!_LHS)
 				return false;
 			auto lhsOpcode = _LHS->getParent()->getOpcode();
-			if (lhsOpcode == TargetOpcode::G_ADD
-					|| lhsOpcode == TargetOpcode::G_SUB) {
+			if (lhsOpcode == TargetOpcode::G_ADD || lhsOpcode == TargetOpcode::G_SUB) {
 				const auto LHS_LHS = _LHS->getParent()->getOperand(1);
 				const auto LHS_RHS = _LHS->getParent()->getOperand(2);
 				if (LHS_RHS.isCImm()) {
@@ -416,11 +391,9 @@ bool GenFpgaCombinerHelper::matchConstCmpConstAdd(llvm::MachineInstr &MI,
 					}
 
 					CImmOrReg newLHS(LHS_LHS);
-					ConstantInt *newRhs = ConstantInt::get(
-							Builder.getMF().getFunction().getContext(), lhsVal);
+					ConstantInt *newRhs = ConstantInt::get(Builder.getMF().getFunction().getContext(), lhsVal);
 					Register Dst = MI.getOperand(0).getReg();
-					rewriteFn = [Dst, Pred, newLHS, newRhs, this](
-							MachineIRBuilder &builder) {
+					rewriteFn = [Dst, Pred, newLHS, newRhs, this](MachineIRBuilder &builder) {
 						auto MIB = builder.buildInstr(TargetOpcode::G_ICMP);
 						MIB.addDef(Dst).addPredicate(Pred);
 						newLHS.addAsUse(MIB);
