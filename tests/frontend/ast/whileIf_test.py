@@ -67,10 +67,10 @@ class HlsAstWhileIf_TC(BaseSsaTC):
         self.runSim((CLK + 10) * int(clk_period))
         HlsAstTrivial_TC._test_no_comb_loops(self)
         self.assertValSequenceEqual(u.dataOut._ag.data, expected)
-    
+
     def test_WhileAndIf3(self):
         self.test_WhileAndIf2(WhileAndIf3)
-    
+
     def test_WhileAndIf2_ll(self):
         self._test_ll(WhileAndIf2)
 
@@ -113,9 +113,9 @@ if __name__ == "__main__":
     u.FREQ = int(40e6)
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
-    import unittest
-    suite = unittest.TestSuite()
-    #suite.addTest(HlsAstWhileIf_TC('test_WhileAndIf0'))
-    suite.addTest(unittest.makeSuite(HlsAstWhileIf_TC))
-    runner = unittest.TextTestRunner(verbosity=3)
-    runner.run(suite)
+    #import unittest
+    #suite = unittest.TestSuite()
+    ##suite.addTest(HlsAstWhileIf_TC('test_WhileAndIf0'))
+    #suite.addTest(unittest.makeSuite(HlsAstWhileIf_TC))
+    #runner = unittest.TextTestRunner(verbosity=3)
+    #runner.run(suite)
