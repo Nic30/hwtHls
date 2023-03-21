@@ -16,7 +16,7 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
     '''
     This pass updates blockSync dictionary in :class:`hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist.HlsNetlistAnalysisPassMirToNetlist` with
     flags which are describing what type of synchronization for block should be used.
-    
+
     :note: This is thread level synchronization of control flow in blocks not RTL type of synchronization.
 
     .. code-block:: llvm
@@ -70,7 +70,7 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
     def _getBlockMeta(self, mb: MachineBasicBlock):
         """
         The code needs a synchronization if it starts a new thread without data dependencies and has predecessor thread.
-        
+
         :note: They synchronization is always marked for the start of the thread.
         """
         # resolve control enable flag for a block
@@ -102,13 +102,13 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                     p0, p1 = p1, p0
                 if p0.getNumber() == 0:
                     mbSync.rstPredeccessor = p0
-                
+
             if not mbSync.needsControl:
                 if not loop.hasNoExitBlocks():
                     # need sync to synchronize code behind the loop
                     mbSync.needsControl = True
 
-                elif self._threadContainsNonConcurrentIo(mbThreads[0]):
+                elif mbThreads and self._threadContainsNonConcurrentIo(mbThreads[0]):
                     mbSync.needsControl = True
 
                 elif (len(mbThreads) > 1 or
@@ -124,15 +124,15 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                         if not isLoopReenter and mbSync.rstPredeccessor is not pred:
                             loopBodySelfSynchronized = False
                             break
-                            
+
                     if loopBodySelfSynchronized and mb.pred_size() == 2:
                         pass
                     else:
                         mbSync.needsControl = True
-                
+
                 elif mb.succ_size() > 1:
                     mbSync.needsControl = True
-        
+
                 else:
                     sucThreadIds = set()
                     for suc in mb.successors():
@@ -157,15 +157,15 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
             #    # [fixme] if the block is part of FSM there is a problem caused by storing of control bit to register
             #    #         the FSM detect state transitions by the time when write happens
             #    #         if we allow the write of this bit before all IO is finished the FSM transition detection alg.
-            #    #         will resolve IO as to skip if after control bit is written which is incorrect    
+            #    #         will resolve IO as to skip if after control bit is written which is incorrect
             #    if loopHasOnly1Thread:
             #        for pred in mb.predecessors():
             #            if loop.containsBlock(pred):
             #                mbSync.uselessOrderingFrom.add(pred)
-                
+
         elif not mbSync.needsControl:
             needsControl = False
-            if (len(threadsStartingThere) > 1 or 
+            if (len(threadsStartingThere) > 1 or
                 any(self._threadContainsNonConcurrentIo(t) for t in threadsStartingThere)):
                 needsControl = True
             elif (bool(mbThreads) and
@@ -175,13 +175,13 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                     )
                 ):
                 needsControl = True
-            elif (mbSync.needsStarter and 
+            elif (mbSync.needsStarter and
                       (mb.succ_size() == 0 or
                        any(loops.getLoopFor(suc) is None for suc in mb.successors()))):
                 needsControl = True
             elif self._isPredecessorOfBlocksWithPotentiallyConcurrentIoAccess(mb):
                 needsControl = True
-            
+
             mbSync.needsControl = needsControl
 
         if not needsControlOld and mbSync.needsControl:
@@ -205,7 +205,7 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                 accs.update(accessSet)
 
         return accesses
-    
+
     def _getPotentiallyConcurrentIoAccess(self, mb: MachineBasicBlock):
         """
         :note: Potentially concurrent accesses are those which are to same interface and are in different code branches which may execute concurrently.
@@ -234,7 +234,7 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
     def _onBlockNeedsControl(self, mb: SsaBasicBlock):
         blockSync = self.blockSync
         rstPred = blockSync[mb].rstPredeccessor
-        allRstLiveInsInlinable = True 
+        allRstLiveInsInlinable = True
         if rstPred is not None:
             rstPred: MachineBasicBlock
             if rstPred.pred_size():
@@ -263,7 +263,7 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
             if not mbSync.needsControl:
                 mbSync.needsControl = True
                 self._onBlockNeedsControl(suc)
-    
+
     def run(self):
         from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
         originalMir: HlsNetlistAnalysisPassMirToNetlist = self.netlist.getAnalysis(HlsNetlistAnalysisPassMirToNetlist)
