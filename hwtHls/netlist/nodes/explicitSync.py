@@ -31,8 +31,8 @@ class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
     :ivar _outputOfCluster: an input which is connected to HlsNetNodeIoCluster node in which it is an output
     """
 
-    def __init__(self, netlist: "HlsNetlistCtx", dtype: HdlType):
-        HlsNetNode.__init__(self, netlist, name=None)
+    def __init__(self, netlist: "HlsNetlistCtx", dtype: HdlType, name:Optional[str]=None):
+        HlsNetNode.__init__(self, netlist, name=name)
         self._associatedReadSync: Optional["HlsNetNodeReadSync"] = None
         self._initCommonPortProps()
         self._addInput("dataIn")
@@ -65,7 +65,7 @@ class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
         if o is None:
             o = self._dataVoidOut = self._addOutput(HVoidData, "dataVoidOut")
         return o
-        
+
     def getOrderingOutPort(self) -> HlsNetNodeOut:
         o = self._orderingOut
         if o is None:

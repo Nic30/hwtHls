@@ -93,11 +93,17 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                     else:
                         raise NotImplementedError(instr, mo)
 
+                if dst is None:
+                    name = None
+                else:
+                    name = f"r_{dst.virtRegIndex():d}"
+
                 opDef = self.OPC_TO_OP.get(opc, None)
                 if opDef is not None:
                     resT = ops[0]._dtype
-                    o = builder.buildOp(opDef, resT, *ops)
-                    valCache.add(mb, dst, o, True)
+                    res = builder.buildOp(opDef, resT, *ops)
+                    res.obj.name = name
+                    valCache.add(mb, dst, res, True)
                     continue
 
                 elif opc == TargetOpcode.GENFPGA_MUX:
@@ -111,19 +117,21 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                             # add current value as a default option in MUX
                             ops.append(self._translateRegister(mb, dst))
 
-                        o = builder.buildMux(resT, tuple(ops))
-                        valCache.add(mb, dst, o, True)
+                        res = builder.buildMux(resT, tuple(ops))
+                        res.obj.name = name
+                        valCache.add(mb, dst, res, True)
 
                 elif opc == TargetOpcode.GENFPGA_CLOAD:
                     # load from data channel
                     srcIo, index, cond = ops
                     if isinstance(srcIo, HlsNetNodeOut):
-                        cur = builder.buildOp(AllOps.INDEX, srcIo._dtype.element_t, srcIo, index)
+                        res = builder.buildOp(AllOps.INDEX, srcIo._dtype.element_t, srcIo, index)
                         if isinstance(cond, int):
                             assert cond == 1, instr
                         else:
                             raise NotImplementedError("Create additional mux to update dst value conditionally")
-                        valCache.add(mb, dst, cur, True)
+                        res.obj.name = name
+                        valCache.add(mb, dst, res, True)
                     else:
                         constructor: HlsRead = ioNodeConstructors[srcIo][0]
                         if constructor is None:
@@ -147,6 +155,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                         rhs = builder.buildSignCast(rhs, True)
 
                     res = builder.buildOp(opDef, BIT, lhs, rhs)
+                    res.obj.name = name
                     valCache.add(mb, dst, res, True)
 
                 elif opc == TargetOpcode.G_BR or opc == TargetOpcode.G_BRCOND:
@@ -164,21 +173,23 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                         raise NotImplementedError()
 
                     res = builder.buildOp(AllOps.INDEX, Bits(width), src, index)
+                    res.obj.name = name
                     valCache.add(mb, dst, res, True)
 
                 elif opc == TargetOpcode.GENFPGA_MERGE_VALUES:
                     # src{N}, width{N} - lowest bits first
                     assert len(ops) % 2 == 0, ops
                     half = len(ops) // 2
-                    cur = builder.buildConcatVariadic(ops[:half])
-                    valCache.add(mb, dst, cur, True)
+                    res = builder.buildConcatVariadic(ops[:half])
+                    res.obj.name = name
+                    valCache.add(mb, dst, res, True)
 
                 elif opc == TargetOpcode.PseudoRET:
                     pass
                 elif opc == TargetOpcode.G_GLOBAL_VALUE:
                     assert len(ops) == 1, ops
-                    cur = ops[0]
-                    valCache.add(mb, dst, cur, True)
+                    res = ops[0]
+                    valCache.add(mb, dst, res, True)
                 else:
                     raise NotImplementedError(instr)
 
@@ -236,13 +247,15 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                     meta: LiveInMuxMeta
                     dtype = Bits(self.registerTypes[liveIn])
                     v = valCache.get(pred, liveIn, dtype)
+                    name = f"r_{liveIn.virtRegIndex():d}"
                     if isBackedge:
-                        v = self._constructBackedgeBuffer(f"r_{liveIn.virtRegIndex():d}",
+                        v = self._constructBackedgeBuffer(name,
                                                           pred, mb, (pred, liveIn), v)
                         self.blockSync[pred].backedgeBuffers.append((liveIn, pred, v))
+
                     c = valCache.get(mb, pred, BIT)
                     if loop:
-                        es = HlsNetNodeExplicitSync(netlist, dtype)
+                        es = HlsNetNodeExplicitSync(netlist, dtype, name=name)
                         blockLiveInMuxInputSync[(pred, mb, liveIn)] = es
                         self.nodes.append(es)
                         link_hls_nodes(v, es._inputs[0])
@@ -266,7 +279,9 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                         if not last:
                             # last case must be always satisfied because the block must have been entered somehow
                             _operands.append(cond)
+                    name = f"r_{liveIn.virtRegIndex():d}"
                     v = builder.buildMux(dtype, tuple(_operands))
+                    v.obj.name = name
 
                 valCache.add(mb, liveIn, v, False)
 
