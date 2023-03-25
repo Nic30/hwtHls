@@ -1,11 +1,11 @@
 from typing import Set
 
+from hwt.hdl.operatorDefs import AllOps
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.transformation.simplifyUtils import popNotFromExpr, \
     replaceOperatorNodeWith
-from hwt.hdl.operatorDefs import AllOps
 
 
 def netlistReduceEqNe(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]):
@@ -26,7 +26,7 @@ def netlistReduceEqNe(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode], rem
                 v = 1
             else:
                 v = 0
-            
+
         replaceOperatorNodeWith(n, b.buildConstBit(v), worklist, removed)
         return True
 

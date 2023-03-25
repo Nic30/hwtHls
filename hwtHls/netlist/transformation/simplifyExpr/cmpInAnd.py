@@ -1,7 +1,11 @@
+from itertools import islice
 from typing import Set, Sequence, Optional, Union
 
+from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.hdl.operatorDefs import AllOps, CMP_OPS_NEG, COMPARE_OPS, OpDefinition
+from hwt.hdl.types.defs import BIT
 from hwt.pyUtils.uniqList import UniqList
+from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -12,11 +16,7 @@ from hwtHls.netlist.transformation.simplifyExpr.cmpInAndUtils import ValueConstr
     _intervalListIntersection
 from hwtHls.netlist.transformation.simplifyUtils import replaceOperatorNodeWith, \
     iterOperatorTreeInputs, popNotFromExpr
-from hwtHls.netlist.builder import HlsNetlistBuilder
-from itertools import islice
 from pyMathBitPrecise.bit_utils import mask
-from hwt.hdl.types.defs import BIT
-from hdlConvertorAst.to.hdlUtils import iter_with_last
 
 
 def _and(a: Optional[HlsNetNodeOut], b: HlsNetNodeOut):
@@ -40,7 +40,7 @@ def _andNotInRangeExpr(curExpr: Optional[HlsNetNodeOut], inp: HlsNetNodeOut, sta
     """
     Generates expr: curExpr & not inRange(inp, start, stop)
     """
-    
+
     b: HlsNetlistBuilder = inp.obj.netlist.builder
     intervLen = stop - start
     t = inp._dtype
@@ -63,7 +63,7 @@ def _andNotInRangeExpr(curExpr: Optional[HlsNetNodeOut], inp: HlsNetNodeOut, sta
 
     return curExpr
 
-     
+
 def _valueLaticeToExpr(b: HlsNetlistBuilder, allInputs: Sequence[HlsNetNodeOut], latice: ValueConstrainLatice):
     """
     Rewrite value latice to the expression.
@@ -80,9 +80,9 @@ def _valueLaticeToExpr(b: HlsNetlistBuilder, allInputs: Sequence[HlsNetNodeOut],
             else:
                 _min = 0
                 _max = mask(width)
-            
+
 #            for r in enumerate(valConstr):
-            
+
             if len(valConstr) == 1:
                 r = valConstr[0]
                 if r.start == _min and r.stop == _max + 1:
@@ -100,7 +100,7 @@ def _valueLaticeToExpr(b: HlsNetlistBuilder, allInputs: Sequence[HlsNetNodeOut],
                             e = b.buildNot(inp)
                     else:
                         e = b.buildEq(inp, t.from_py(r.start))
-                        
+
                     res = _and(res, e)
 
                 elif r.start == _min:
@@ -112,7 +112,7 @@ def _valueLaticeToExpr(b: HlsNetlistBuilder, allInputs: Sequence[HlsNetNodeOut],
                     # inp > c0
                     e = b.buildOp(AllOps.GT, BIT, inp, t.from_py(r.start - 1))
                     res = _and(res, e)
-                        
+
                 elif len(r) == DIRECT_CMP_PROFITABLE_TO_EXTRACT:
                     # inp == c0 or inp == c1
                     e = None
@@ -120,14 +120,14 @@ def _valueLaticeToExpr(b: HlsNetlistBuilder, allInputs: Sequence[HlsNetNodeOut],
                         _e = b.buildEq(inp, t.from_py(n))
                         e = _or(e, _e)
                     res = _and(res, e)
-    
+
                 else:
                     # inp > c0 and inp < c1
                     e = b.buildOp(AllOps.GT, BIT, inp, t.from_py(r.start - 1))
                     res = _and(res, e)
                     e = b.buildOp(AllOps.LT, BIT, inp, t.from_py(r.stop))
                     res = _and(res, e)
-            
+
             elif len(valConstr) == 2:
                 r0, r1 = valConstr
                 if r1.start - r0.stop <= DIRECT_CMP_PROFITABLE_TO_EXTRACT:
@@ -138,14 +138,14 @@ def _valueLaticeToExpr(b: HlsNetlistBuilder, allInputs: Sequence[HlsNetNodeOut],
                 if r1.stop < _max + 1:
                     e = b.buildOp(AllOps.LT, BIT, inp, t.from_py(r1.stop))
                     res = _and(res, e)
-                    
+
                 if r0.start > _min:
                     e = b.buildOp(AllOps.GT, BIT, inp, t.from_py(r0.start))
                     res = _and(res, e)
-                    
+
             else:
                 # create "and" where each member is negation of interval between intervals defined in valConstr
-                
+
                 # used to get next item
                 valConstrIt = iter(valConstr)
                 try:
@@ -159,7 +159,7 @@ def _valueLaticeToExpr(b: HlsNetlistBuilder, allInputs: Sequence[HlsNetNodeOut],
                         isFirst = False
                         if r.start != _min:
                             res = _andNotInRangeExpr(res, inp, _min, r.start, _min, _max)
-                    
+
                     if isLast:
                         rNext = None
                         if r.stop != _max + 1:
@@ -248,7 +248,7 @@ def netlistReduceCmpInAnd(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode],
                         knownResult = False
                         break
                     else:
-                        # discovered just 1 in "and" tree, it is not important 
+                        # discovered just 1 in "and" tree, it is not important
                         continue
 
                 elif c0 is not None:
@@ -265,7 +265,7 @@ def netlistReduceCmpInAnd(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode],
                     registerInput(o0)
                     knownResult, _changed = _appendKnowledgeVarAndConst(latice, o, o0, c1)
 
-                changed |= _changed 
+                changed |= _changed
                 if knownResult is not None:
                     break
                 continue
