@@ -17,13 +17,15 @@ def netlistReduceValidAndOrXorEqValidNb(n: HlsNetNodeOperator, worklist: UniqLis
     if not isinstance(r, HlsNetNodeRead) or r._valid is None or r._validNB is None:
         # retur because there is not a possibility that this op. is in reducible format
         return False
-    
+
     if o0 is r._valid:
         if o1 is not r._validNB:
             return False
     elif o0 is r._validNB:
         if o1 is not r._valid:
             return False
+    else:
+        return False
     # o0 and o1 are r._valid or r._validNB, order does not matter
 
     o = n.operator
@@ -39,5 +41,4 @@ def netlistReduceValidAndOrXorEqValidNb(n: HlsNetNodeOperator, worklist: UniqLis
     else:
         raise AssertionError("unsuported operator", n)
 
-        
-        
+
