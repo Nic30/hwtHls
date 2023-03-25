@@ -48,7 +48,7 @@ def _searchOrderingLinksOnlyDFS(src: HlsNetNodeExplicitSync, dst: HlsNetNodeExpl
                 return True
             else:
                 toSearch.append(dep.obj)
-     
+
     return False
 
 
@@ -59,10 +59,10 @@ def addOrderingIfRequired(src: HlsNetNodeExplicitSync, dst: HlsNetNodeExplicitSy
     """
     if reachDb.doesReachTo(src, dst) and _searchOrderingLinksOnlyDFS(src, dst):
         return False
-    
+
     if dstPort is None:
         _i = dst._addInput("orderingIn")
-    else: 
+    else:
         _i = dstPort
     link_hls_nodes(src.getOrderingOutPort(), _i)
     return True
