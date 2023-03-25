@@ -78,17 +78,16 @@
 #include "Transforms/extractBitConcatAndSliceOpsPass.h"
 #include "Transforms/bitwidthReducePass/bitwidthReducePass.h"
 #include "Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.h"
+#include "Transforms/slicesMerge/slicesMerge.h"
 #include "Transforms/SimplifyCFG2Pass.h"
 #include "Transforms/dumpAndExitPass.h"
-
 
 #include <llvm/CodeGen/MachinePassManager.h>
 
 namespace hwtHls {
 
 LlvmCompilationBundle::LlvmCompilationBundle(const std::string &moduleName) :
-		ctx(), strCtx(), mod(strCtx.addStringRef(moduleName), ctx), builder(
-				ctx), main(nullptr), MMIWP(nullptr) {
+		ctx(), strCtx(), mod(strCtx.addStringRef(moduleName), ctx), builder(ctx), main(nullptr), MMIWP(nullptr) {
 	std::string TargetTriple = "genericFpga-unknown-linux-gnu";
 	Target = &getTheGenericFpgaTarget(); //llvm::TargetRegistry::targets()[0];
 	Level = llvm::OptimizationLevel::O3;
@@ -137,11 +136,8 @@ LlvmCompilationBundle::LlvmCompilationBundle(const std::string &moduleName) :
 //
 //}
 
-void LlvmCompilationBundle::runOpt(
-		hwtHls::GenericFpgaToNetlist::ConvesionFnT toNetlistConversionFn) {
-	assert(
-			main
-					&& "a main function must be created before call of this function");
+void LlvmCompilationBundle::runOpt(hwtHls::GenericFpgaToNetlist::ConvesionFnT toNetlistConversionFn) {
+	assert(main && "a main function must be created before call of this function");
 
 	auto &fn = *main;
 	// https://stackoverflow.com/questions/51934964/function-optimization-pass
@@ -397,6 +393,7 @@ void LlvmCompilationBundle::runOpt(
 					.bonusInstThreshold(1024)
 	));
 	FPM.addPass(llvm::DCEPass()); // because of convertSwitchToLookupTable=true
+	FPM.addPass(hwtHls::SlicesMergePass());
 
 	//FPM.addPass(hwtHls::DumpAndExitPass(true, true));
 	FPM.run(fn, FAM);
@@ -576,16 +573,14 @@ void LlvmCompilationBundle::_addMachineCodegenPasses(
 	//Map["debug"]->addOccurrence(0, "", "1");
 	//Map["print-before-all"]->addOccurrence(0, "", "true");
 	// check for incompatible passes
-	TPC =
-			static_cast<llvm::GenericFpgaTargetPassConfig*>(static_cast<llvm::LLVMTargetMachine&>(*TM).createPassConfig(
-					PM));
+	TPC = static_cast<llvm::GenericFpgaTargetPassConfig*>(static_cast<llvm::LLVMTargetMachine&>(*TM).createPassConfig(
+			PM));
 	// :note: we can not use pass constructor to pass toNetlistConversionFn because
 	//        because constructor must be callable withou arguments because of INITIALIZE_PASS macros
 	// :note: we can not call pass explicitly after PM.run() because addRequired/getAnalysis will not work
 	TPC->toNetlistConversionFn = &toNetlistConversionFn;
 	if (TPC->hasLimitedCodeGenPipeline()) {
-		llvm::errs() << "run-pass cannot be used with "
-				<< TPC->getLimitedCodeGenPipelineReason(" and ") << ".\n";
+		llvm::errs() << "run-pass cannot be used with " << TPC->getLimitedCodeGenPipelineReason(" and ") << ".\n";
 		throw std::runtime_error("run-pass cannot be used with ...");
 	}
 
@@ -603,14 +598,15 @@ void LlvmCompilationBundle::_addMachineCodegenPasses(
 	//PM.add(llvm::createFreeMachineFunctionPass());
 }
 
-llvm::MachineFunction* LlvmCompilationBundle::getMachineFunction(
-		llvm::Function &fn) {
+llvm::MachineFunction* LlvmCompilationBundle::getMachineFunction(llvm::Function &fn) {
 	auto &MMI = MMIWP->getMMI();
 	// llvm::LoopAnalysis & LA = MMIWP->getAnalysis<llvm::LoopAnalysis>();
 	return MMI.getMachineFunction(fn);
 }
 
-llvm::Function& LlvmCompilationBundle::_testSlicesToIndependentVariablesPass() {
+llvm::Function& LlvmCompilationBundle::_testFunctionPass(std::function<void(llvm::FunctionPassManager&)> addPasses) {
+	if (!main)
+		throw std::runtime_error("Main function not specified");
 	auto &fn = *main;
 	fn.getParent()->setDataLayout(TM->createDataLayout());
 
@@ -626,10 +622,23 @@ llvm::Function& LlvmCompilationBundle::_testSlicesToIndependentVariablesPass() {
 	PB.crossRegisterProxies(LAM, FAM, cgscc_manager, MAM);
 
 	llvm::FunctionPassManager FPM;
-	FPM.addPass(hwtHls::SlicesToIndependentVariablesPass());
-	FPM.addPass(llvm::ADCEPass());
+	addPasses(FPM);
 	FPM.run(fn, FAM);
 	return fn;
+}
+
+llvm::Function& LlvmCompilationBundle::_testSlicesMergePass() {
+	return _testFunctionPass([](llvm::FunctionPassManager &FPM) {
+		FPM.addPass(hwtHls::SlicesMergePass());
+	});
+}
+
+llvm::Function& LlvmCompilationBundle::_testSlicesToIndependentVariablesPass() {
+	return _testFunctionPass([](llvm::FunctionPassManager &FPM) {
+		FPM.addPass(hwtHls::SlicesToIndependentVariablesPass());
+		FPM.addPass(llvm::ADCEPass());
+	});
+
 }
 
 }

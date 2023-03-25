@@ -5,11 +5,10 @@ using namespace llvm;
 
 namespace hwtHls {
 
-
-void IRBuilder_setInsertPointBehindPhi(IRBuilder<> & builder, llvm::Instruction*I) {
+void IRBuilder_setInsertPointBehindPhi(IRBuilder<> &builder, llvm::Instruction *I) {
 	builder.SetInsertPoint(I);
 	auto insPoint = builder.GetInsertPoint();
-	while(dyn_cast<PHINode>(&*insPoint)) {
+	while (dyn_cast<PHINode>(&*insPoint)) {
 		++insPoint;
 	}
 	builder.SetInsertPoint(&*insPoint);
@@ -17,6 +16,22 @@ void IRBuilder_setInsertPointBehindPhi(IRBuilder<> & builder, llvm::Instruction*
 
 bool OffsetWidthValue::operator==(const OffsetWidthValue &rhs) const {
 	return this->offset == rhs.offset && this->width == rhs.width && this->value == rhs.value;
+}
+bool OffsetWidthValue::operator<(OffsetWidthValue &other) const {
+	return offset < other.offset;
+}
+
+void OffsetWidthValue::print(llvm::raw_ostream &OS) const {
+	OS << *this->value << " [off=" << offset << ", w=" << width << "]";
+}
+
+OffsetWidthValue OffsetWidthValue::fromValue(Value * V) {
+	if (auto* CI = dyn_cast<CallInst>(V)) {
+		if (IsBitRangeGet(CI)) {
+			return BitRangeGetOffsetWidthValue(CI);
+		}
+	}
+	return {0, V->getType()->getIntegerBitWidth(), V};
 }
 
 Value* ConcatMemberVector::_memberToValue(OffsetWidthValue &item) {
@@ -26,23 +41,24 @@ Value* ConcatMemberVector::_memberToValue(OffsetWidthValue &item) {
 	} else if (auto *C = dyn_cast<ConstantInt>(item.value)) {
 		return builder.getInt(C->getValue().lshr(item.offset).trunc(item.width));
 	} else {
-		auto existing = commonSubexpressionCache.find(item);
-		if (existing != commonSubexpressionCache.end())
-			return existing->second;
+		if (commonSubexpressionCache){
+			auto existing = commonSubexpressionCache->find(item);
+			if (existing != commonSubexpressionCache->end())
+				return existing->second;
+		}
 		builder.SetInsertPoint(dyn_cast<Instruction>(item.value));
 		builder.SetInsertPoint(builder.GetInsertBlock(), ++builder.GetInsertPoint());
 		IRBuilder_setInsertPointBehindPhi(builder, &*builder.GetInsertPoint());
 		auto *res = CreateBitRangeGet(&builder, item.value, builder.getInt64(item.offset), item.width);
-		commonSubexpressionCache[item] = res;
+		if (commonSubexpressionCache) {
+			(*commonSubexpressionCache)[item] = res;
+		}
 		return res;
 	}
 }
-/*
- * :ivar members: lower bits first arguments for a bit concatenation
- * */
 
 ConcatMemberVector::ConcatMemberVector(IRBuilder<> &_builder,
-		std::unordered_map<OffsetWidthValue, Value*> &_commonSubexpressionCache) :
+		std::unordered_map<OffsetWidthValue, Value*> *_commonSubexpressionCache) :
 		builder(_builder), commonSubexpressionCache(_commonSubexpressionCache) {
 }
 

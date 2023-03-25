@@ -82,6 +82,11 @@ py3.extension_module(
      'Transforms/extractBitConcatAndSliceOpsPass.cpp',
      'Transforms/SimplifyCFG2Pass.cpp',
      'Transforms/SimplifyCFG2Pass_normalizeLookupTableIndex.cpp',
+     'Transforms/slicesMerge/rewritePhiShift.cpp',
+     'Transforms/slicesMerge/rewriteConcat.cpp',
+     'Transforms/slicesMerge/slicesMerge.cpp',
+     'Transforms/slicesMerge/dceWorklist.cpp',
+
      ] + all_llvm_backend_gen_files,
     dependencies : [py3_dep, llvm_dep, pybind11_dep],
     install: true,

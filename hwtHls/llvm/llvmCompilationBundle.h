@@ -46,7 +46,10 @@ public:
 			llvm::FunctionPassManager &FPM, bool IsFullLTO);
 	void _addMachineCodegenPasses(
 			hwtHls::GenericFpgaToNetlist::ConvesionFnT & toNetlistConversionFn);
+
 	llvm::Function& _testSlicesToIndependentVariablesPass();
+	llvm::Function& _testSlicesMergePass();
+	llvm::Function& _testFunctionPass(std::function<void(llvm::FunctionPassManager &)> addPasses);
 };
 
 }

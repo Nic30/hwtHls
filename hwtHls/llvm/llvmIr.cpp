@@ -47,7 +47,7 @@ std::string Module__repr__(llvm::Module *self) {
 
 
 void register_Function(pybind11::module_ & m) {
-	py::class_<llvm::Function, std::unique_ptr<llvm::Function, py::nodelete>> Function(m, "Function");
+	py::class_<llvm::Function, std::unique_ptr<llvm::Function, py::nodelete>, llvm::GlobalValue> Function(m, "Function");
 	Function.def("__repr__",  &printToStr<llvm::Function>)
 		.def("Create",
 			[](llvm::FunctionType *Ty, llvm::Function::LinkageTypes Linkage,
@@ -182,7 +182,8 @@ PYBIND11_MODULE(llvmIr, m) {
 			return returnObj;
 		})
 		.def("getMachineFunction", &hwtHls::LlvmCompilationBundle::getMachineFunction)
-		.def("_testSlicesToIndependentVariablesPass", &hwtHls::LlvmCompilationBundle::_testSlicesToIndependentVariablesPass)
+		.def("_testSlicesToIndependentVariablesPass", &hwtHls::LlvmCompilationBundle::_testSlicesToIndependentVariablesPass, py::return_value_policy::reference_internal)
+		.def("_testSlicesMergePass", &hwtHls::LlvmCompilationBundle::_testSlicesMergePass, py::return_value_policy::reference_internal)
 		.def_readonly("ctx", &hwtHls::LlvmCompilationBundle::ctx)
 		.def_readonly("strCtx", &hwtHls::LlvmCompilationBundle::strCtx)
 		.def_readonly("mod", &hwtHls::LlvmCompilationBundle::mod)
@@ -190,17 +191,20 @@ PYBIND11_MODULE(llvmIr, m) {
 		.def_readwrite("main", &hwtHls::LlvmCompilationBundle::main);
 
 	py::class_<llvm::LLVMContext,  std::unique_ptr<llvm::LLVMContext, py::nodelete>>(m, "LLVMContext"); // construct using LlvmCompilationBundle
-	py::class_<llvm::Module>(m, "Module")
+	py::class_<llvm::Module, std::unique_ptr<llvm::Module, py::nodelete>>(m, "Module")
 			.def(py::init<llvm::StringRef, llvm::LLVMContext&>(), py::keep_alive<1, 2>(), py::keep_alive<1, 3>())
 			.def("__repr__", &Module__repr__)
-			.def("getName", &llvm::Module::getName);
+			.def("getName", &llvm::Module::getName)
+			.def("__iter__", [](llvm::Module &M) {
+					return py::make_iterator(M.begin(), M.end());
+				}, py::keep_alive<0, 1>());
 	register_VectorOfTypePtr(m);
 	register_IRBuilder(m);
 	register_strings(m);
 	register_Values_and_Use(m);
 
 	py::class_<llvm::BasicBlock, std::unique_ptr<llvm::BasicBlock, py::nodelete>, llvm::Value>(m, "BasicBlock")
-		.def("Create", &llvm::BasicBlock::Create, py::return_value_policy::reference)
+		.def("Create", &llvm::BasicBlock::Create, py::return_value_policy::reference_internal)
 		.def("getName", &llvm::BasicBlock::getName)
 		.def("__iter__", [](llvm::BasicBlock &F) {
 				return py::make_iterator(F.begin(), F.end());
@@ -240,6 +244,6 @@ PYBIND11_MODULE(llvmIr, m) {
 	m.def("parseIR", [](const std::string & str, const std::string & name, llvm::SMDiagnostic &Err, llvm::LLVMContext &Context) {
 		llvm::MemoryBufferRef buff(str, name);
 		return llvm::parseIR(buff, Err, Context);
-	});
+	}, py::return_value_policy::reference_internal);
 }
 }

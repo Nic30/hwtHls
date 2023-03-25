@@ -254,7 +254,7 @@ public:
 		if (existing != commonSubexpressionCache.end()) {
 			return existing->second;
 		}
-		ConcatMemberVector concatMembers(builder, commonSubexpressionCache);
+		ConcatMemberVector concatMembers(builder, &commonSubexpressionCache);
 		resolveConcatMembers(concatMembers, v, highBitNo, lowBitNo);
 		existing = commonSubexpressionCache.find(cacheKey);
 		if (existing != commonSubexpressionCache.end()) {
