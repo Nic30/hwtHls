@@ -79,7 +79,7 @@ class MirToHwtHlsNetlistOpCache():
         if k is not None:
             lazyOut.keys_of_self_in_cache.remove(k)
 
-    def _replaceOutOnInputOfBlock(self, block: MachineBasicBlock, reg: MirValue, cur: HlsNetNodeOutLazy, k, v: HlsNetNodeOut):
+    def _replaceOutOnInputOfBlock(self, block: MachineBasicBlock, reg: MirValue, cur: HlsNetNodeOutAny, k, v: HlsNetNodeOut):
         try:
             ubi = self._unresolvedBlockInputs[block][reg]
         except KeyError:
@@ -89,7 +89,7 @@ class MirToHwtHlsNetlistOpCache():
         if isinstance(v, HlsNetNodeOut) and isinstance(v.obj, HlsNetNodeExplicitSync):
             assert v.obj._associatedReadSync is None
             searchForSyncRead = True
-            
+
         if ubi is not None:
             ubi: HlsNetNodeOutLazy
             if searchForSyncRead:
@@ -97,7 +97,7 @@ class MirToHwtHlsNetlistOpCache():
                     if isinstance(user.obj, HlsNetNodeReadSync):
                         v.obj._associatedReadSync = user.obj
                         break
-                    
+
             ubi.replaceDriverObj(v)
             self._unresolvedBlockInputs[block].pop(reg)  # rm ubi
         else:
@@ -110,7 +110,7 @@ class MirToHwtHlsNetlistOpCache():
                     if isinstance(user.obj, HlsNetNodeReadSync):
                         v.obj._associatedReadSync = user.obj
                         break
-                    
+
             cur.replaceDriverObj(v)
             if self._toHlsCache[k] is cur:
                 self._toHlsCache[k] = v

@@ -27,7 +27,7 @@ from hwtHls.ssa.translation.llvmMirToNetlist.resetValueExtract import ResetValue
 class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatapath):
     """
     This object translates LLVM MIR to hwtHls HlsNetlist (this class specifically contains control related things)
-    
+
     When converting from MIR we are using:
     * Forward analysis of block synchronization type to avoid complexities on synchronization type change.
     * Each ordering between IO is strictly specified (can be specified to none). This is used to generate channel synchronization
@@ -35,15 +35,15 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
     * MIR object may override its translation. This is used to implemented various plugins with minimum effort.
       For example the read from some interface may lower itself to multiple nodes which will implement bus protocol.
     * Loops and backedges are handled explicitly. The loop recognizes "break", "continue", "predecessor" branches and has internal state
-      which describes if the loop is bussy or not. This state is used to control individual channels. 
-    
+      which describes if the loop is bussy or not. This state is used to control individual channels.
+
     Errors in synchronization are usually caused faulty user input. For example if the user code can contain obvious deadlock.
     But the main problem is that for an user it is nearly impossible to debug this if tool implements
     the synchronization for the circuit (which is the case). From this reason a translation from MIR to netlist must be done
     1 to 1 as much as possible. The goal is to be able to find ordering and buffer depletion errors from MIR and from the timeline
-    and to have a method to specify the ordering for any node. 
-      
-    
+    and to have a method to specify the ordering for any node.
+
+
     The problem of channel synchronization when translating from MIR:
     * The MIR is assembler like format, control flow is specified as a position in code and data is globally visible.
       Reads and writes do happen one by one.
@@ -51,14 +51,14 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
     * The :class:`hwtLib.handshaked.streamNode.StreamNode` uses extraCond,skipWhen notation to build arbitrary
       IO synchronization, but the problem is that we have to avoid combinational loops and deadlocks.
     * Resolving of this condition is hard to debug because the thing does not have any linear code flow.
-       * From this reason we need to 
+       * From this reason we need to
 
     Consider this example:
     * Code simply adds incoming values from "channels" if there is an incoming data from every channel,
       and continuously writing sum to output "out".
 
     .. code-block:: Python
- 
+
         x = 0
         # a channel with a control flag from predecessor of the loop which will be read only if loop is not running
         # to execute the loop
@@ -78,7 +78,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
     * However consider this modification:
 
     .. code-block:: Python
- 
+
         x = 0
         while True:
             if all(ch.hasData() for ch in channels):
@@ -86,7 +86,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                     if x == 10:
                        delay(2*clkPeriod)
                     x += ch.read()
-                    
+
             out.write(x)
 
     * With code branches where which do not have a constant duration there is this problem:
@@ -96,7 +96,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
 
     def extractRstValues(self, mf: MachineFunction, threads: HlsNetlistAnalysisPassDataThreadsForBlocks):
         return ResetValueExtractor(self.builder, self.valCache, self.liveness, self.loops, self.blockSync, self.regToIo).apply(mf, threads)
-        
+
     def _resolveBranchEnFromPredecessor(self, pred: MachineBasicBlock, mb: MachineBasicBlock):
         """
         Resolve expression which specifies if CFG jumps to a specified block from specified predecessor.
@@ -110,7 +110,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
             ter: MachineInstr
             opc = ter.getOpcode()
             # predEn = self.blockSync[pred].blockEn
-        
+
             if opc == TargetOpcode.G_BR:
                 # mb is only successor of pred, we can use en of pred block
                 assert mb == ter.getOperand(0).getMBB(), ("This must be branch to mb", mb, ter)
@@ -118,7 +118,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
             elif opc == TargetOpcode.G_BRCOND:
                 # mb is conditional successor of pred, we need to use end of pred and branch cond to get en fo mb
                 c, dstBlock = ter.operands()
-                assert c.isReg(), c 
+                assert c.isReg(), c
                 assert dstBlock.isMBB(), dstBlock
                 c = self._translateRegister(pred, c.getReg())
                 dstBlock = dstBlock.getMBB()
@@ -139,7 +139,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
             else:
                 raise NotImplementedError("Unknown terminator", ter)
 
-        return fromPredBrCond, predEn 
+        return fromPredBrCond, predEn
 
     def _resolveEnFromPredecessors(self, mb: MachineBasicBlock,
                                    mbSync: MachineBasicBlockSyncContainer,
@@ -149,7 +149,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
             for input MUXes
         :return: list of control en flag from any predecessor
         """
-        
+
         valCache: MirToHwtHlsNetlistOpCache = self.valCache
         # construct CFG flags
         enFromPredccs = []
@@ -161,10 +161,10 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
             predEn = self.blockSync[pred].blockEn  # condition which specifies if the control is in pred block
             if mbSync.needsControl:
                 fromPredBrCond, predEn = self._resolveBranchEnFromPredecessor(pred, mb)
-        
+
             if fromPredBrCond is None and mbSync.needsControl:
                 fromPredBrCond = predEn
-    
+
             if (pred, mb) in backedges:
                 _fromPredBrCond = fromPredBrCond
                 if mbSync.needsControl:
@@ -181,7 +181,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                         assert not wn.channel_init_values
                         # we must add CFG token because we removed rst predecessor and now
                         # the circuit does not have way to start
-                        wn.channel_init_values = (tuple(),) 
+                        wn.channel_init_values = (tuple(),)
 
                 for _, srcMb, srcVal in mbSync.backedgeBuffers:
                     srcMb: MachineBasicBlock
@@ -191,7 +191,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                     wn: HlsNetNodeWriteBackwardEdge = srcVal.obj.associated_write
                     self._addExtraCond(wn, 1, _fromPredBrCond)
                     self._addSkipWhen_n(wn, 1, _fromPredBrCond)
-    
+
             elif mbSync.needsControl and fromPredBrCond is not None:
                 # brCond is a normal branch signal
                 valCache.add(pred, BranchOutLabel(mb), fromPredBrCond, False)  # the BranchOutLabel is set only once
@@ -202,7 +202,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                     continue
                 else:
                     raise NotImplementedError("No control from predecessor but block needs control")
-                
+
             if mbSync.needsControl:
                 assert fromPredBrCond is not None, (mb.getName(), mb.getNumber())
                 valCache.add(mb, pred, fromPredBrCond, False)
@@ -232,7 +232,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
 
             self._addExtraCond(wn, _control, mbSync.blockEn)
             self._addSkipWhen_n(wn, _control, mbSync.blockEn)
-            
+
             controlSync = HlsNetNodeExplicitSync(netlist, control._dtype)
             self.nodes.append(controlSync)
             link_hls_nodes(control.obj.getValid(), controlSync._inputs[0])
@@ -248,12 +248,12 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
         builder = self.builder
         # in a format of tuples (control, allInputDataChannels)
         loopReenters: List[Tuple[HlsNetNodeExplicitSync, List[HlsNetNodeExplicitSync]]] = []
-        loopExecs: List[Tuple[HlsNetNodeExplicitSync, List[HlsNetNodeExplicitSync]]] = [] 
+        loopExecs: List[Tuple[HlsNetNodeExplicitSync, List[HlsNetNodeExplicitSync]]] = []
         for pred in mb.predecessors():
             if mbSync.rstPredeccessor and pred == mbSync.rstPredeccessor:
                 # :note: rstPredeccessor will is inlined
                 continue
-            
+
             # [fixme] the inputs from before the loop are not guaranteed to be stable
             #         maybe loop initialization should be handled differently
             # * where the state should be kept? predecessor or the successor?
@@ -262,11 +262,9 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
             #     this signal controls input loop body input muxes, in this specific case
             #     the optimization of synchronization does not work because the the synchronization
             #     for this signal drives just input mux but does not touch the input ports itself
-            #      * this results in the situation when inputs are required and the input is consummed 
-            #        but the loop inputs should be skiped and this input token should swith loop to a bussy state 
-            
-            
-            
+            #      * this results in the situation when inputs are required and the input is consummed
+            #        but the loop inputs should be skiped and this input token should swith loop to a bussy state
+
             # insert explicit sync on control input
             control = valCache.get(mb, pred, BIT)
             if isinstance(control, HlsNetNodeOut):
@@ -277,24 +275,24 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                     mb, pred, control)
                 _control = HlsNetNodeExplicitSyncInsertBehindLazyOut(netlist, valCache, control)
                 control = _control
-            
+
             allInputDataChannels: List[HlsNetNodeExplicitSync] = []
             for liveIn in self.liveness[pred][mb]:
                 if liveIn in self.regToIo:
                     continue
-                
+
                 liveInSync: HlsNetNodeExplicitSync = blockLiveInMuxInputSync[(pred, mb, liveIn)]
                 allInputDataChannels.append(liveInSync)
 
             if loop.containsBlock(pred):
                 loopGate.connectReenter(control._outputs[0])
-                loopReenters.append((control, allInputDataChannels))                                
+                loopReenters.append((control, allInputDataChannels))
             else:
                 loopGate.connectEnter(control._outputs[0])
                 loopExecs.append((control, allInputDataChannels))
-        
+
         # loopBussy select if loop should process inputs from loopReenters or from loopExecs
-        loopBusy = loopGate._sync_token_status._outputs[0] 
+        loopBusy = loopGate._sync_token_status._outputs[0]
         loopBusy_n = builder.buildNot(loopBusy)
         _createSyncForAnyInputSelector(builder, loopReenters, loopBusy, loopBusy_n)
         _createSyncForAnyInputSelector(builder, loopExecs, loopBusy_n, loopBusy)
@@ -309,7 +307,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
         for mb in mf:
             mb: MachineBasicBlock
             mbSync: MachineBasicBlockSyncContainer = self.blockSync[mb]
-            
+
             if mbSync.needsControl and mb.pred_size() > 2 or mbSync.rstPredeccessor is None:
                 # The loop gate is required if this block is loop and body can be entered from multiple blocks
                 # we need this component to manage status of the loop and to assert order of loop body executions
@@ -372,7 +370,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                         self._replaceInputDriverWithConst1b(i, threads)
                     else:
                         raise NotImplementedError(i)
-                    
+
                 mbSync.blockEn.dependent_inputs.clear()
                 blockEn = None
 
