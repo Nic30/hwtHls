@@ -174,7 +174,7 @@ pip3 install git+https://github.com/Nic30/hwtHls.git
 * [spatial](https://github.com/stanford-ppl/spatial)  - , scala
 * [TCE](https://github.com/cpc/tce)- C++/LLVM, environment for development of application specific processors
 * [tiramisu](https://github.com/Tiramisu-Compiler/tiramisu) - 2016-?, C++, A polyhedral compiler
-* [Tydi](https://github.com/matthijsr/tydi) - Rust, specification for complex data structures over hardware streams
+* [Tydi](https://github.com/abs-tudelft/tydi) - Rust, specification for complex data structures over hardware streams
 * [UCLA-VAST/TAPA](https://github.com/UCLA-VAST/tapa) - C++, HLS tool build on the top of VivadoHLS with explicit paralelism
 * [utwente-fmt](https://github.com/utwente-fmt) - abstract hls, verification libraries
 * [Xilinx/Vitis HLS](https://github.com/Xilinx/HLS) - C++/LLVM, partially opensource
