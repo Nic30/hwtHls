@@ -141,43 +141,44 @@ pip3 install git+https://github.com/Nic30/hwtHls.git
 * :skull: [Trident](https://sourceforge.net/projects/trident/) - 2006, java/C++/LLVM
 * :skull: [FPGA C Compiler](https://sourceforge.net/projects/fpgac/) - 2005-2006, trivial 1:1 c->vhdl
 * :skull: [hpiasg](https://github.com/hpiasg) - , set of tools for asynchronous and handshake circuit synthesis
-* [ahir](https://github.com/madhavPdesai/ahir) - LLVM, c->vhdl
 * [abc](https://people.eecs.berkeley.edu/~alanmi/abc/) <2008-?, A System for Sequential Synthesis and Verification
+* [ahir](https://github.com/madhavPdesai/ahir) - LLVM, c->vhdl
+* [binaryen](https://github.com/WebAssembly/binaryen) - , C++, WebAssembly compiler (implements some similar optimization passes)
 * [blarney](https://github.com/blarney-lang/blarney)
 * [calyx](https://github.com/cucapra/calyx) - , Rust - compiler infrastructure with custom lang focused on ML accelerators
+* [CirC](https://github.com/circify/circ) - Rust - compiler infrastructure for HLS
+* [circt-hls](https://github.com/circt-hls/circt-hls) - C++/LLVM/Python, set of hls libraries for circt
 * [clash-compiler](https://github.com/clash-lang/clash-compiler)
 * [coreir](https://github.com/rdaly525/coreir) - 2016-?, LLVM HW compiler
+* [DASS](https://github.com/JianyiCheng/DSS) - combination of dynamic and static scheduling
+* [domino-compiler](https://github.com/packet-transactions/domino-compiler) 2016 -> C++, c like packet processing language and compiler
+* [DPC++](https://github.com/intel/llvm/tree/sycl) - C++/LLVM,
+* [DuroHLS](https://github.com/corelab-src/DuroHLS-opt) [CorelabVerilog](https://github.com/corelab-src/CorelabVerilog) - C++/LLVM, set of hls passes
 * [dynamatic](https://github.com/lana555/dynamatic) - , C++/LLVM - set of LLVM passes for dynamically scheduled HLS
+* [FloPoCo](https://gitlab.com/flopoco/flopoco) - C++, arithmetic core generator
 * [futil](https://github.com/cucapra/futil) - 2020-?, custom lang.
 * [gemmini](https://github.com/ucb-bar/gemmini) - scala, systolic array generator
 * [Hastlayer](https://github.com/Lombiq/Hastlayer-SDK) - 2012-2019, C# -> HW
 * [heterocl](https://awesomeopensource.com/project/cornell-zhang/heterocl)
+* [ICSC](https://github.com/intel/systemc-compiler) - C++/LLVM, systemC compiler
+* [Light-HLS](https://github.com/zslwyuan/Light-HLS) -, C++/LLVM, experimental HLS framework
+* [mockturtle](https://github.com/lsils/mockturtle) - C++, logic network lib. with project similar to HLS
+* [orcc](https://github.com/orcc/orcc) - C++/LLVM, Open RVC-CAL Compiler hw/sw dataflow and img processing focused
 * [PandA-bambu](http://panda.dei.polimi.it/?page_id=31) - 2003-?, GCC based c->verilog
+* [phism](https://github.com/kumasento/phism) - Python/C++/LLVM, Polyhedral High-Level Synthesis in MLIR
 * [PipelineC](https://github.com/JulianKemmerer/PipelineC) - 2018, Python, c -> hdl for a limited subset of c
 * [pluto](https://github.com/bondhugula/pluto) -  An automatic polyhedral parallelizer and locality optimizer
+* [ROCCC](https://github.com/nxt4hll/roccc-2.0), http://roccc.cs.ucr.edu/ - 2009-2013, C++/LLVM/suif c -> vhdl
+* [ScaleHLS](https://github.com/hanchenye/scalehls) - C++/LLVM, MLIR based HLS compiler, ML focused
 * [Slice](https://github.com/sylefeb/Silice)
 * [spatial](https://github.com/stanford-ppl/spatial)  - , scala
-* [tiramisu](https://github.com/Tiramisu-Compiler/tiramisu) - 2016-?, C++, A polyhedral compiler
-* [utwente-fmt](https://github.com/utwente-fmt) - abstract hls, verification libraries
-* [xls](https://github.com/google/xls) - 2020-?, C++ HLS compiler with JIT
-* [binaryen](https://github.com/WebAssembly/binaryen) - , C++, WebAssembly compiler (implements some similar optimization passes)
-* [Light-HLS](https://github.com/zslwyuan/Light-HLS) -, C++/LLVM, experimental HLS framework
-* [DASS](https://github.com/JianyiCheng/DSS) - combination of dynamic and static scheduling
-* [phism](https://github.com/kumasento/phism) - Python/C++/LLVM, Polyhedral High-Level Synthesis in MLIR
-* [ICSC](https://github.com/intel/systemc-compiler) - C++/LLVM, systemC compiler
-* [Xilinx/Vitis HLS](https://github.com/Xilinx/HLS) - C++/LLVM, partially opensource
-* [circt-hls](https://github.com/circt-hls/circt-hls) - C++/LLVM/Python, set of hls libraries for circt
-* [ScaleHLS](https://github.com/hanchenye/scalehls) - C++/LLVM, MLIR based HLS compiler, ML focused
-* [DuroHLS](https://github.com/corelab-src/DuroHLS-opt) [CorelabVerilog](https://github.com/corelab-src/CorelabVerilog) - C++/LLVM, set of hls passes
-* [domino-compiler](https://github.com/packet-transactions/domino-compiler) 2016 -> C++, c like packet processing language and compiler
-* [orcc](https://github.com/orcc/orcc) - C++/LLVM, Open RVC-CAL Compiler hw/sw dataflow and img processing focused
-* [ROCCC](https://github.com/nxt4hll/roccc-2.0), http://roccc.cs.ucr.edu/ - 2009-2013, C++/LLVM/suif c -> vhdl
 * [TCE](https://github.com/cpc/tce)- C++/LLVM, environment for development of application specific processors
+* [tiramisu](https://github.com/Tiramisu-Compiler/tiramisu) - 2016-?, C++, A polyhedral compiler
+* [Tydi](https://github.com/matthijsr/tydi) - Rust, specification for complex data structures over hardware streams
 * [UCLA-VAST/TAPA](https://github.com/UCLA-VAST/tapa) - C++, HLS tool build on the top of VivadoHLS with explicit paralelism
-* [FloPoCo](https://gitlab.com/flopoco/flopoco) - C++, arithmetic core generator
-* [DPC++](https://github.com/intel/llvm/tree/sycl) - C++/LLVM,
-* [CirC](https://github.com/circify/circ) - Rust - compiler infrastructure for HLS
-* [mockturtle](https://github.com/lsils/mockturtle) - C++, logic network lib. with project similar to HLS
+* [utwente-fmt](https://github.com/utwente-fmt) - abstract hls, verification libraries
+* [Xilinx/Vitis HLS](https://github.com/Xilinx/HLS) - C++/LLVM, partially opensource
+* [xls](https://github.com/google/xls) - 2020-?, C++ HLS compiler with JIT
 
 ## Useful publications
 * [Efficient Pipelining of Nested Loops: Unroll-and-Squash](https://people.csail.mit.edu/saman/student_thesis/petkov-01.pdf)
