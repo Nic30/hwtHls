@@ -1,4 +1,4 @@
-from typing import Set, List, Union, Dict
+from typing import Set, List, Union, Dict, Optional
 
 from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
@@ -67,6 +67,41 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                 seenIos.add(i)
         return False
 
+    def _resolveRstPredecessor(self, mb: MachineBasicBlock, mbSync: MachineBasicBlockSyncContainer) -> Optional[MachineBasicBlock]:
+        # The synchronization is not required if it could be only by the data itself.
+        # It can be done by data itself if there is an single output/write which has all
+        # input as transitive dependencies (unconditionally.) And if this is an infinite cycle.
+        # So we do not need to check the number of executions.
+        if mbSync.rstPredeccessor is None and mb.pred_size() == 2:
+            # one of predecessors may possibly be suitable for reset extraction
+            p0, p1 = mb.predecessors()
+            if p1.getNumber() == 0:
+                p0, p1 = p1, p0
+            if p0.getNumber() == 0:
+                mbSync.rstPredeccessor = p0
+
+        return mbSync.rstPredeccessor
+
+    def _hasSomeLiveInFromEveryPredec(self, mb: MachineBasicBlock):
+        mir = self.originalMir
+        MF = mir.mf
+        liveness = mir.liveness
+        MRI = MF.getRegInfo()
+        if mb.pred_size() == 0:
+            return False
+
+        for pred in mb.predecessors():
+            liveInGroup = liveness[pred][mb]
+            someLiveInFound = False
+            for liveIn in liveInGroup:
+                if mir._regIsValidLiveIn(MRI, liveIn):
+                    someLiveInFound = True
+                    break
+            if not someLiveInFound:
+                return False
+
+        return True
+
     def _getBlockMeta(self, mb: MachineBasicBlock):
         """
         The code needs a synchronization if it starts a new thread without data dependencies and has predecessor thread.
@@ -85,7 +120,13 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
         threadsStartingThere = [t for t in mbThreads if id(t) not in predThreadIds]
 
         if mb.pred_size() == 0:
-            mbSync.needsStarter = True
+            if mb.succ_size() == 1:
+                suc = tuple(mb.successors())[0]
+                if self._resolveRstPredecessor(suc, self.blockSync[suc]) is not mb:
+                    mbSync.needsStarter = True
+
+            else:
+                mbSync.needsStarter = True
 
         needsControlOld = mbSync.needsControl
 
@@ -95,25 +136,22 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
             # It can be done by data itself if there is an single output/write which has all
             # input as transitive dependencies (unconditionally.) And if this is an infinite cycle.
             # So we do not need to check the number of executions.
-            if mbSync.rstPredeccessor is None and mb.pred_size() == 2:
-                # one of predecessors may possibly be suitable for reset extraction
-                p0, p1 = mb.predecessors()
-                if p1.getNumber() == 0:
-                    p0, p1 = p1, p0
-                if p0.getNumber() == 0:
-                    mbSync.rstPredeccessor = p0
+            self._resolveRstPredecessor(mb, mbSync)
 
             if not mbSync.needsControl:
-                if not loop.hasNoExitBlocks():
-                    # need sync to synchronize code behind the loop
+                # if not loop.hasNoExitBlocks():
+                #    # need sync to synchronize code behind the loop
+                #    mbSync.needsControl = True
+
+                if mbThreads and self._threadContainsNonConcurrentIo(mbThreads[0]):
                     mbSync.needsControl = True
 
-                elif mbThreads and self._threadContainsNonConcurrentIo(mbThreads[0]):
-                    mbSync.needsControl = True
-
-                elif (len(mbThreads) > 1 or
-                      (mb.pred_size() > 1 and (mb.pred_size() != 2 or not mbSync.rstPredeccessor)) or
-                      not mbThreads):
+                elif (len(mbThreads) != 1 or
+                      (mb.pred_size() > 1 and
+                       (mb.pred_size() != 2 or not mbSync.rstPredeccessor)  # and
+                        # not self._hasSomeLiveInFromEveryPredec(mb)
+                       )
+                      ):
                     # multiple independent threads in body or more entry points to a loop
                     loopBodySelfSynchronized = True
                     for pred in mb.predecessors():
@@ -132,6 +170,9 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
 
                 elif mb.succ_size() > 1:
                     mbSync.needsControl = True
+                    # # we can use input data as control to activate this block
+                    # # so we do not require control if there is some data
+                    # mbSync.needsControl = not self._hasSomeLiveInFromEveryPredec(mb)
 
                 else:
                     sucThreadIds = set()
@@ -244,17 +285,34 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                     inst: MachineInstr
                     opc = inst.getOpcode()
                     if opc not in (TargetOpcode.G_CONSTANT, TargetOpcode.G_BR, TargetOpcode.COPY):
+                        if opc == TargetOpcode.GENFPGA_MUX and inst.getNumOperands() == 2:  # just copy
+                            continue
                         allRstLiveInsInlinable = False
                         break
+        mir = self.originalMir
+        MRI = mir.mf.getRegInfo()
 
         for pred in mb.predecessors():
             if allRstLiveInsInlinable and pred is rstPred:
                 continue
-            mbSync: MachineBasicBlockSyncContainer = blockSync[pred]
-            if not mbSync.needsControl:
-                mbSync.needsControl = True
-                if not mbSync.needsStarter and not pred.pred_size():
-                    mbSync.needsStarter = True
+
+            predMbSync: MachineBasicBlockSyncContainer = blockSync[pred]
+            canUseDataAsControl = False
+            if (pred, mb) in self.backedges:
+                mbSync = blockSync[mb]
+                for liveIn in mir.liveness[pred][mb]:
+                    if mir._regIsValidLiveIn(MRI, liveIn):
+                        if mbSync.useDataAsControl is None:
+                            mbSync.useDataAsControl = {pred: liveIn}
+                        else:
+                            mbSync.useDataAsControl[pred] = liveIn
+                        canUseDataAsControl = True
+                        break
+
+            if not canUseDataAsControl and not predMbSync.needsControl:
+                predMbSync.needsControl = True
+                if not predMbSync.needsStarter and not pred.pred_size():
+                    predMbSync.needsStarter = True
 
                 self._onBlockNeedsControl(pred)
 
@@ -268,6 +326,7 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
         from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
         originalMir: HlsNetlistAnalysisPassMirToNetlist = self.netlist.getAnalysis(HlsNetlistAnalysisPassMirToNetlist)
         threads: HlsNetlistAnalysisPassDataThreadsForBlocks = self.netlist.getAnalysis(HlsNetlistAnalysisPassDataThreadsForBlocks)
+        self.originalMir = originalMir
         self.threadsPerBlock = threads.threadsPerBlock
         self.blockSync = originalMir.blockSync
         self.loops: MachineLoopInfo = originalMir.loops
