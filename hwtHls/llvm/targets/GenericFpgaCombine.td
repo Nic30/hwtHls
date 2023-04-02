@@ -14,6 +14,13 @@ def merge_values_const_propagation: GICombineRule<
   (apply [{ return Helper.rewriteConstMergeValues(*${root}); }])
 >;
 
+def trivial_copy_propagate: GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode GENFPGA_MUX):$root,
+    [{ return Helper.isTrivialRemovableCopy(*${root}); }]),
+  (apply [{ return Helper.rewriteTrivialRemovableCopy(*${root}); }])
+>;
+
 // convert the G_CONSTANT instructions to CImm operands on all users
 def g_constant_to_imm: GICombineRule<
   (defs root:$root),
@@ -198,7 +205,8 @@ def GenericFpgaGenPreRegAllocGICombinerHelper: GICombinerHelper<
   "GenericFpgaGenPreRegAllocGICombinerHelper", [
   	copy_to_genfpga_copy,
     extract_on_merge_values,
-    const_eval_combines
+    const_eval_combines,
+    trivial_copy_propagate,
     ]> {
   let DisableRuleOption = "GenericFpgaGenPreRegAllocGICombinerHelper-disable-rule";
   let StateClass = "GenericFpgaGenPreRegAllocGICombinerHelperState";
@@ -218,6 +226,7 @@ def GenericFpgaGenPreToNetlistGICombinerHelper: GICombinerHelper<
     mux_merge,
     extract_msb_cmp,
     constCmpConstAdd_to_constCmp,
+    trivial_copy_propagate,
     ]> {
   let DisableRuleOption = "GenericFpgaGenPreToNetlistGICombinerHelper-disable-rule";
   let StateClass = "GenericFpgaGenPreToNetlistGICombinerHelperState";

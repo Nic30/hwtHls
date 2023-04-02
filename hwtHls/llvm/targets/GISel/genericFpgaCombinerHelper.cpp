@@ -406,4 +406,33 @@ bool GenFpgaCombinerHelper::matchConstCmpConstAdd(llvm::MachineInstr &MI, BuildF
 	return false;
 }
 
+bool GenFpgaCombinerHelper::isTrivialRemovableCopy(llvm::MachineInstr &MI) {
+	/*
+	 * Recognize
+	 *  %0 = ...
+     *  %1 = GENFPGA_MUX %0
+     *  and replace it with just %0
+	 * */
+	assert(MI.getOpcode() == GenericFpga::GENFPGA_MUX);
+	if (MI.getNumOperands() != 2)
+		return false;
+	auto & src = MI.getOperand(1);
+	if (src.isReg() && MRI.hasOneUse(src.getReg())) {
+		auto def = MRI.getOneDef(src.getReg());
+		if (def && def->getParent()->getNextNode() == &MI) {
+			return true;
+		}
+	}
+	return false;
+}
+
+bool GenFpgaCombinerHelper::rewriteTrivialRemovableCopy(llvm::MachineInstr &MI){
+	auto & dst = MI.getOperand(0);
+	auto & src = MI.getOperand(1);
+	auto def = MRI.getOneDef(src.getReg());
+	def->setReg(dst.getReg());
+	MI.eraseFromParent();
+	return true;
+}
+
 }
