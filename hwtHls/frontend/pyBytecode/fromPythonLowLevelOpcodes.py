@@ -219,7 +219,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
             # stm = self.hls.write(src, dst)
             self._storeToHwSignal(curBlock, dst, src)
         else:
-            raise NotImplementedError(instr, dst)
+            setattr(dstParent, instr.argval, src)
 
         return curBlock
 
