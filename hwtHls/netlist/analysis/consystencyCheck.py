@@ -1,13 +1,17 @@
-from itertools import chain
+from itertools import chain, islice
 from networkx.algorithms.components.strongly_connected import strongly_connected_components
 from networkx.classes.digraph import DiGraph
 from typing import Set, Optional
 
+from hwt.hdl.operatorDefs import AllOps, BITWISE_OPS, COMPARE_OPS
+from hwt.hdl.types.defs import BIT
 from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.mux import HlsNetNodeMux
 from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
-from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 
 
 class HlsNetlistPassConsystencyCheck(HlsNetlistPass):
@@ -37,7 +41,7 @@ class HlsNetlistPassConsystencyCheck(HlsNetlistPass):
                 assert d.obj in allNodes, ("Driven by something which is not in netlist", n, d.obj)
                 assert d.obj._outputs[d.out_i] is d, ("Broken HlsNetNodeOut object", n, in_i, d)
                 assert i in d.obj.usedBy[d.out_i], ("Output knows about connected input", n, d, i)
-    
+
             outCnt = len(n._outputs)
             assert outCnt == len(n.usedBy), n
             for out_i, (o, usedBy) in enumerate(zip(n._outputs, n.usedBy)):
@@ -70,13 +74,13 @@ class HlsNetlistPassConsystencyCheck(HlsNetlistPass):
             for dep in n.dependsOn:
                 if dep is not None:
                     # dep may be None only in metastates where this node is removed
-                    # but node list is not updated yet 
+                    # but node list is not updated yet
                     g.add_edge(dep.obj, n)
 
         for scc in strongly_connected_components(g):
             if len(scc) > 1:
                 raise AssertionError("Netlist must be cycle free", sorted(n._id for n in scc))
-    
+
     @staticmethod
     def _checkNodeContainers(netlist: HlsNetlistCtx, removed: Optional[Set[HlsNetNode]]):
         seen: Set[HlsNetNode] = set()
@@ -109,10 +113,9 @@ class HlsNetlistPassConsystencyCheck(HlsNetlistPass):
                     oClus = n.dependsOn[o.in_i]
                     assert iClus is not None, n
                     assert oClus is not None, n
-                    
+
                     assert iClus.obj is not oClus.obj, (n, iClus.obj, "input/output cluster must be different")
-                
-                
+
     @staticmethod
     def checkRemovedNotReachable(netlist: HlsNetlistCtx, removed: Set[HlsNetNode]):
         """
@@ -121,7 +124,7 @@ class HlsNetlistPassConsystencyCheck(HlsNetlistPass):
         allNodes = set(netlist.iterAllNodes())
         for n in netlist.iterAllNodes():
             n: HlsNetNode
-            if n in removed:
+            if removed and n in removed:
                 continue
             for dep in n.dependsOn:
                 assert dep is not None, n
@@ -131,10 +134,33 @@ class HlsNetlistPassConsystencyCheck(HlsNetlistPass):
                 for u in users:
                     assert u.obj in allNodes, (n, u)
                     assert u.obj not in removed, (n, u)
-    
-    
+
+    @staticmethod
+    def _checkTypes(netlist: HlsNetlistCtx, removed: Set[HlsNetNode]):
+        OPS_WITH_OP0_AND_RES_OF_SAME_TYPE = {*BITWISE_OPS, AllOps.DIV, AllOps.MUL, AllOps.ADD, AllOps.SUB}
+        OPS_WITH_SAME_OP_TYPE = {*OPS_WITH_OP0_AND_RES_OF_SAME_TYPE, *COMPARE_OPS}
+        for n in netlist.iterAllNodes():
+            n: HlsNetNode
+            if removed and n in removed:
+                continue
+            if isinstance(n, HlsNetNodeMux):
+                t = n._outputs[0]._dtype
+                for v, c in n._iterValueConditionDriverPairs():
+                    assert v._dtype == t, ("wrong type of value operand", n, v._dtype, t)
+                    assert c is None or c._dtype == BIT, ("wrong type of condition operand", n, c._dtype)
+
+            elif isinstance(n, HlsNetNodeOperator):
+                o = n.operator
+                op0t = n.dependsOn[0]._dtype
+                if o in OPS_WITH_SAME_OP_TYPE:
+                    for opN in islice(n.dependsOn, 1, None):
+                        assert opN._dtype == op0t, ("wrong type of operand", n, opN._dtype, op0t)
+                if o in OPS_WITH_OP0_AND_RES_OF_SAME_TYPE:
+                    assert n._outputs[0]._dtype == op0t, ("wrong type of result", n, n._outputs[0]._dtype, op0t)
+
     def apply(self, hls:"HlsScope", netlist: HlsNetlistCtx, removed: Optional[Set[HlsNetNode]]=None):
         self._checkConnections(netlist, removed)
         self._checkCycleFree(netlist, removed)
         self._checkNodeContainers(netlist, removed)
         self._checkSyncNodes(netlist, removed)
+        self._checkTypes(netlist, removed)
