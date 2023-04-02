@@ -11,13 +11,16 @@ from hwtHls.frontend.ast.utils import _getNativeInterfaceWordType, \
     ANY_HLS_STREAM_INTF_TYPE, ANY_SCALAR_INT_VALUE
 from hwtHls.llvm.llvmIr import Register, MachineInstr
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes
+from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes, \
+    HlsNetNodeOut
 from hwtHls.netlist.nodes.read import HlsNetNodeRead, HlsNetNodeReadIndexed
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr, OP_ASSIGN
 from hwtHls.ssa.translation.llvmMirToNetlist.opCache import MirToHwtHlsNetlistOpCache
 from hwtHls.ssa.translation.llvmMirToNetlist.utils import MachineBasicBlockSyncContainer
 from hwtHls.ssa.value import SsaValue
+from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
+from hwt.hdl.operatorDefs import AllOps
 
 
 class HlsRead(HdlStatement, SsaInstr):
@@ -88,6 +91,22 @@ class HlsRead(HdlStatement, SsaInstr):
         return _getNativeInterfaceWordType(self._src)
 
     @classmethod
+    def _outAsBitVec(cls, netlist: HlsNetlistCtx,
+                     mirToNetlist:"HlsNetlistAnalysisPassMirToNetlist",
+                     o: HlsNetNodeOut,
+                     name: Optional[str]) -> HlsNetNodeOut:
+        assert isinstance(o._dtype, Bits)
+        sign = o._dtype.signed
+        if sign is None:
+            pass
+        else:
+            toBits = HlsNetNodeOperator(netlist, AllOps.BitsAsVec, 1, Bits(o._dtype.bit_length()), name)
+            mirToNetlist.nodes.append(toBits)
+            link_hls_nodes(o, toBits._inputs[0])
+            o = toBits._outputs[0]
+        return o
+
+    @classmethod
     def _translateMirToNetlist(cls,
                                representativeReadStm: "HlsRead",
                                mirToNetlist:"HlsNetlistAnalysisPassMirToNetlist",
@@ -123,7 +142,10 @@ class HlsRead(HdlStatement, SsaInstr):
         mirToNetlist._addSkipWhen_n(n, cond, mbSync.blockEn)
         mbSync.addOrderedNode(n)
         mirToNetlist.inputs.append(n)
-        valCache.add(mbSync.block, instrDstReg, n._outputs[0] if representativeReadStm._isBlocking else n._rawValue, True)
+
+        o = n._outputs[0] if representativeReadStm._isBlocking else n._rawValue
+        o = cls._outAsBitVec(netlist, mirToNetlist, o, n.name)
+        valCache.add(mbSync.block, instrDstReg, o, True)
 
     def _getInterfaceName(self, io: Union[Interface, Tuple[Interface]]) -> str:
         parent = self._parent.parentUnit
@@ -164,7 +186,7 @@ class HlsReadAddressed(HlsRead):
                                instr: MachineInstr,
                                srcIo: Interface,
                                index: Union[int, HlsNetNodeOutAny],
-                               cond: Union[int,HlsNetNodeOutAny],
+                               cond: Union[int, HlsNetNodeOutAny],
                                instrDstReg: Register):
         """
         :see: :meth:`~.HlsRead._translateMirToNetlist`
@@ -182,7 +204,16 @@ class HlsReadAddressed(HlsRead):
         mirToNetlist._addSkipWhen_n(n, cond, mbSync.blockEn)
         mbSync.addOrderedNode(n)
         mirToNetlist.inputs.append(n)
-        valCache.add(mbSync.block, instrDstReg, n._outputs[0], True)
+        o = n._outputs[0]
+        assert isinstance(o._dtype, Bits)
+        sign = o._dtype.signed
+        if sign is None:
+            pass
+        elif sign:
+            raise NotImplementedError()
+        else:
+            raise NotImplementedError()
+        valCache.add(mbSync.block, instrDstReg, o, True)
 
     def __repr__(self):
         t = self._dtype
