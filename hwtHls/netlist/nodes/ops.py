@@ -7,7 +7,6 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.typeUtils import dtypeEqualSignIgnore
 from hwtHls.netlist.nodes.orderable import HdlType_isVoid
-from hwtHls.netlist.nodes.const import HlsNetNodeConst
 
 
 class HlsNetNodeOperator(HlsNetNode):

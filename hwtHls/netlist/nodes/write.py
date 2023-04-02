@@ -113,7 +113,7 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         allocator.netNodeToRtl[(dep, dst)] = rtlObj
 
         return rtlObj
-    
+
     def _getInterfaceName(self, io: Union[Interface, Tuple[Interface]]) -> str:
         return HlsNetNodeRead._getInterfaceName(self, io)
 
