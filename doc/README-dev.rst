@@ -31,7 +31,9 @@ Debug build
 	pip3 install .
 	meson build .
 	ninja -C build
-	cd hwtHls/llvm/ && ln -s ../../build/hwtHls/llvm/*.so
+	ln -s "../../$(ls build/hwtHls/llvm/*.so)" hwtHls/llvm/
+	ln -s "../../../$(ls build/hwtHls/netlist/abc*.so)" hwtHls/netlist/abc
+	ln -s "../../../../$(ls build/hwtHls/netlist/analysis/reachabilityCpp/*.so)"  hwtHls/netlist/analysis/reachabilityCpp/
 	# you must link the c++ library file in order to find it from python using "import"
 	# this is required becase we are not installing the library but using repo directly as a python package
 
