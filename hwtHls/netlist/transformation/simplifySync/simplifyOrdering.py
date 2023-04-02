@@ -204,21 +204,32 @@ def netlistTrivialOrderingReduce(n: HlsNetNodeExplicitSync, worklist: UniqList[H
 
     return modified
 
-    
+
 def netlistOrderingReduce(dbgTracer: DebugTracer, n: HlsNetNodeExplicitSync, reachDb: HlsNetlistAnalysisPassReachabilility):
     """
     remove ordering if it is redundant information
     """
     with dbgTracer.scoped(netlistOrderingReduce, n):
+        seen: Set[Tuple[_HVoidOrdering, HlsNetNode]] = set()
         for orderingI in tuple(n.iterOrderingInputs()):
             orderingI: HlsNetNodeIn
             dep = n.dependsOn[orderingI.in_i]
-            if dep._dtype != HVoidOrdering or isinstance(dep.obj, HlsNetNodeIoClusterCore):
-                continue
-            # remove this link if there is an alternative path from dep.obj to n
-            for o in dep.obj._outputs:
-                if o is not dep and reachDb.doesReachTo(o, n):
-                    dbgTracer.log(("rm link from ", dep.obj._id, orderingI.name))
-                    unlink_hls_nodes(dep, orderingI)
-                    n._removeInput(orderingI.in_i)
-                    break
+            t = dep._dtype
+            if HdlType_isVoid(t):
+                if t == HVoidOrdering:
+                    # remove this link if there is an alternative path from dep.obj to n
+                    for o in dep.obj._outputs:
+                        if o is not dep and reachDb.doesReachTo(o, n):
+                            dbgTracer.log(("rm link from ", dep.obj._id, orderingI.name))
+                            unlink_hls_nodes(dep, orderingI)
+                            n._removeInput(orderingI.in_i)
+                            break
+                else:
+                    key = (t, dep.obj)
+                    if key in seen:
+                        dbgTracer.log(("rm duplicit link from ", dep.obj._id, orderingI.name))
+                        unlink_hls_nodes(dep, orderingI)
+                        n._removeInput(orderingI.in_i)
+                    else:
+                        seen.add(key)
+
