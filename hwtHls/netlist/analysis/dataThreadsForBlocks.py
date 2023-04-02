@@ -1,8 +1,6 @@
 from typing import Dict, Set, List, Union, Optional
 
-from hwt.pyUtils.arrayQuery import flatten
-from hwt.pyUtils.uniqList import UniqList
-from hwtHls.llvm.llvmIr import MachineBasicBlock
+from hwtHls.llvm.llvmIr import MachineBasicBlock, TargetOpcode
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -52,7 +50,7 @@ class HlsNetlistAnalysisPassDataThreadsForBlocks(HlsNetlistAnalysisPass):
             allMembersOfThread.add(obj)
             self.threadPerNode[obj] = allMembersOfThread
             # :note: do not skip HVoidExternData ports because they are data dependency even though they are of void type
-            
+
             for o, uses in zip(obj._outputs, obj.usedBy):
                 if o._dtype == HVoidOrdering:
                     continue
@@ -61,7 +59,7 @@ class HlsNetlistAnalysisPassDataThreadsForBlocks(HlsNetlistAnalysisPass):
                     useObj = use.obj
                     if useObj not in allMembersOfThread:
                         toSearch.append(useObj)
-    
+
             for dep in obj.dependsOn:
                 if dep._dtype == HVoidOrdering:
                     continue
@@ -102,7 +100,7 @@ class HlsNetlistAnalysisPassDataThreadsForBlocks(HlsNetlistAnalysisPass):
                 thread, isNew = self.searchForThreads(liveIn.obj)
                 if isNew or not any(t is thread for t in threads):
                     threads.append(thread)
-            
+
         return threads
 
     def run(self):
@@ -122,8 +120,16 @@ class HlsNetlistAnalysisPassDataThreadsForBlocks(HlsNetlistAnalysisPass):
                 en: HlsNetNodeOutLazy = originalMir.blockSync[mb].blockEn
                 assert isinstance(en, HlsNetNodeOutLazy), ("This analysis works only if control is not instantiated yet", en)
                 liveInGroups = list(originalMir.liveness[pred][mb] for pred in mb.predecessors())
-                liveIns = UniqList(flatten(liveInGroups, 1))
-                liveIns = [originalMir.valCache._toHlsCache[(mb, li)] for li in liveIns
-                           if li not in originalMir.regToIo and not MRI.def_empty(li)]
+                seen = set()
+
+                liveIns = []
+                for liveInGroup in liveInGroups:
+                    for liveIn in liveInGroup:
+                        if liveIn in seen:
+                            continue
+                        seen.add(liveIn)
+                        if originalMir._regIsValidLiveIn(MRI, liveIn):
+                            li = originalMir.valCache._toHlsCache[(mb, liveIn)]
+                            liveIns.append(li)
                 self.threadsPerBlock[mb] = self.searchEnForDrivenThreads(en, liveIns)
 
