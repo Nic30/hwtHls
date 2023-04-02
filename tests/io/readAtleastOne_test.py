@@ -44,11 +44,11 @@ if __name__ == "__main__":
     from hwtHls.platform.platform import HlsDebugBundle
     u = ReadAtleastOneOf3()
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL)))
-    
+
     import unittest
     suite = unittest.TestSuite()
     # suite.addTest(ReadAtleastOne_TC('test_ReadAtleastOneOf3'))
     suite.addTest(unittest.makeSuite(ReadAtleastOne_TC))
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
- 
+
