@@ -1,4 +1,4 @@
-from typing import Dict, Union, Tuple, List
+from typing import Dict, Union, Tuple, List, Optional
 
 from hwt.hdl.operatorDefs import OpDefinition, AllOps
 from hwt.hdl.value import HValue
@@ -31,7 +31,16 @@ OP_STRENGTH = {
 }
 
 
-def _appendKnowledgeTwoVars(latice: ValueConstrainLatice, rel: OpDefinition, o0: HlsNetNodeOut, o1: HlsNetNodeOut):
+def _appendKnowledgeTwoVars(latice: ValueConstrainLatice, rel: OpDefinition, o0: HlsNetNodeOut, o1: HlsNetNodeOut) -> Tuple[Optional[bool], bool]:
+    """
+    This function updates the knowledge in latice from binary relation operator
+
+    :param latice: latice object where knowledge about relations between variables is stored
+    :param rel: relation operator for specification of new knowledge
+    :param o0: operand0 for specification of new knowledge
+    :param o1: operand0 for specification of new knowledge
+    :returns: known value bits, flag which is true if knowledge changed
+    """
     if o0 is o1:
         if rel in CMP_WITH_EQ:
             # always 1 => does not affect reulst of whole AND tree
@@ -51,7 +60,7 @@ def _appendKnowledgeTwoVars(latice: ValueConstrainLatice, rel: OpDefinition, o0:
         return None, False
     else:
         if curRel is rel:
-            pass
+            return None, False
 
         r0 = curRel
         r1 = rel
@@ -105,6 +114,8 @@ def _appendKnowledgeTwoVars(latice: ValueConstrainLatice, rel: OpDefinition, o0:
             raise AssertionError("All cases should be handled", r1)
 
         latice[k] = rel
+        return None, True
+
 
 def _cmpAndConstToInterval(rel: OpDefinition, width: int, signed: bool, c:int) -> Union[int, List[range]]:
     """
@@ -187,8 +198,10 @@ def _intervalListIntersection(l0: List[range], l1: List[range]):
 def _appendKnowledgeVarAndConst(latice: ValueConstrainLatice,
                                 rel: OpDefinition,
                                 v: HlsNetNodeOut,
-                                c: HValue):
+                                c: HValue) -> Tuple[Optional[bool], bool]:
     """
+    Variant of :func:`~._appendKnowledgeTwoVars` where one operand is constant.
+
     :return: tuple of two flags (final result known value, change in expression)
     """
     intervals = _cmpAndConstToInterval(rel, v._dtype.bit_length(), v._dtype.signed, c)
