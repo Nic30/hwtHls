@@ -28,6 +28,15 @@ class HlsNetNodeOut():
     def replaceDriverObj(self, o:"HlsNetNodeOut"):
         raise NotImplementedError()
 
+    @classmethod
+    def _reprMinified(cls, o:Union[None, "HlsNetNodeOut", "HlsNetNodeOutLazy"]):
+        if o is None:
+            return "None"
+        elif isinstance(o, HlsNetNodeOut):
+            return f"{o.obj._id:d}:{o.out_i:d}"
+        else:
+            return f'lazy:{o._id}'
+
     def __repr__(self, minify=True):
         if minify:
             objStr = _reprMinify(self.obj)

@@ -155,7 +155,10 @@ class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
 
     def __repr__(self, minify=False):
         if minify:
-            return f"<{self.__class__.__name__:s} {self._id:d}"
+            if self.name is None:
+                return f"<{self.__class__.__name__:s} {self._id:d}>"
+            else:
+                return f"<{self.__class__.__name__:s} {self._id:d} \"{self.name:s}\">"
         else:
             dep = self.dependsOn[0]
             if self.extraCond is None:
@@ -166,7 +169,8 @@ class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
                 sw = None
             else:
                 sw = self.dependsOn[self.skipWhen.in_i]
-            return (f"<{self.__class__.__name__:s} {self._id:d} in={'None' if dep is None else f'{dep.obj._id}:{dep.out_i}'}, "
-                    f"extraCond={None if ec is None else f'{ec.obj._id}:{ec.out_i}'}, "
-                    f"skipWhen={None if sw is None else f'{sw.obj._id}:{sw.out_i}'}>")
+            name = f' \"{self.name:s}\"' if self.name else ''
+            return (f"<{self.__class__.__name__:s} {self._id:d}{name:s} in={HlsNetNodeOut._reprMinified(dep)}, "
+                    f"extraCond={HlsNetNodeOut._reprMinified(ec)}, "
+                    f"skipWhen={HlsNetNodeOut._reprMinified(sw)}>")
 
