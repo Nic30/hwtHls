@@ -34,6 +34,38 @@ pair<Value*, uint64_t> getSliceOffset(Value *op0) {
 	return {nullptr, 0};
 }
 
+const Instruction* getInstructionClosesToBlockEnd(const std::vector<Instruction*> &vec) {
+	const Instruction *res = nullptr;
+	for (auto I0 : vec) {
+		for (auto I1 = I0->getIterator(); ; --I1) {
+			if (res == nullptr || &*I1 == res) {
+				res = I0; // I0 is later in block because we just see res when walking from I0 to begin of the block
+			}
+			if (I1 == I0->getParent()->begin())
+				break;
+		}
+	}
+	return res;
+}
+
+/*
+ * Check if any of instructions from vector is used on the rage of instructions specified using begin, end
+ * */
+bool anyOfInstructionsIsUsed(const std::vector<Instruction*> &vec, BasicBlock::const_iterator begin,
+		BasicBlock::const_iterator end, bool checkAlsoEnd) {
+	assert(begin->getParent() == end->getParent());
+	if (checkAlsoEnd) {
+		++end;
+	}
+	for (BasicBlock::const_iterator it = begin; it != end; ++it) {
+		for (auto &o : it->operands()) {
+			if (o.get() == &*it)
+				return true;
+		}
+	}
+	return false;
+}
+
 /*
  * :param parallelInstrOnSameVec: lowest first vector of instructions on same slice which have slices of the same bit vector as operands
  * 		When searching the same width of slices is prioritized but it is not required.
@@ -68,13 +100,22 @@ bool collectParallelInstructionsOnSameVector(DceWorklist::SliceDict &slices, Val
 							// is instruction of same type in same parent
 							for (CallInst *op1Suc : op1SucSlices->second) {
 								auto w1 = op1Suc->getType()->getIntegerBitWidth();
-								if ((!requireWidthToMatch && w1 == w0) || w1 == op1Width) {
-									parallelInstrOnSameVec.push_back(op0SucUserI);
-									// find instruction on successor slices
-									collectParallelInstructionsOnSameVector(slices, op0BitVec, op0Offset + w0, op0Width,
-											op1BitVec, op1Offset + w1, op1Width, parallelInstrOnSameVec, I);
-									found = true;
-									break;
+								if ((requireWidthToMatch && w1 == op1Width) || (!requireWidthToMatch && w1 == w0)) {
+									// check if none of instructions parallelInstrOnSameVec are used between found instruction and this
+									auto *lastI = getInstructionClosesToBlockEnd(parallelInstrOnSameVec);
+									if (lastI == nullptr
+											|| anyOfInstructionsIsUsed(parallelInstrOnSameVec,
+													llvm::BasicBlock::const_iterator(lastI),
+													llvm::BasicBlock::const_iterator(op0SucUserI), true)) {
+										parallelInstrOnSameVec.push_back(op0SucUserI);
+										// find instruction on successor slices
+										// [fixme] the right operand constraint for same vector does not apply
+										collectParallelInstructionsOnSameVector(slices, op0BitVec, op0Offset + w0,
+												op0Width, op1BitVec, op1Offset + w1, op1Width, parallelInstrOnSameVec,
+												I);
+										found = true;
+										break;
+									}
 								}
 							}
 							if (found)
@@ -100,7 +141,6 @@ bool mergeConsequentSlices(Instruction &I, DceWorklist::SliceDict &slices, const
 	bool modified = false;
 
 	if (auto *BO = dyn_cast<BinaryOperator>(&I)) {
-
 		Value *op0 = I.getOperand(0);
 		Value *op1 = I.getOperand(1);
 		auto *op0asC = dyn_cast<Constant>(op0);
@@ -133,20 +173,20 @@ bool mergeConsequentSlices(Instruction &I, DceWorklist::SliceDict &slices, const
 					_widerOp0.push_back(OffsetWidthValue::fromValue(partI->getOperand(0)));
 					_widerOp1.push_back(OffsetWidthValue::fromValue(partI->getOperand(1)));
 				}
-				auto widerOp0 = _widerOp0.resolveValue(&I);
+				auto widerOp0 = _widerOp0.resolveValue(&*builder.GetInsertPoint());
 				if (auto *CallI = dyn_cast<CallInst>(widerOp0)) {
 					if (IsBitConcat(CallI)) {
 						modified |= rewriteConcat(CallI, createSlice, dce);
 					}
 				}
 
-				auto widerOp1 = _widerOp1.resolveValue(&I);
+				auto widerOp1 = _widerOp1.resolveValue(&*builder.GetInsertPoint());
 				if (auto *CallI = dyn_cast<CallInst>(widerOp1)) {
 					if (IsBitConcat(CallI)) {
 						modified |= rewriteConcat(CallI, createSlice, dce);
 					}
 				}
-
+				builder.SetInsertPoint(const_cast<Instruction*>(getInstructionClosesToBlockEnd(parallelInstrOnSameVec)));
 				Value *res = nullptr;
 				switch (BO->getOpcode()) {
 				case Instruction::BinaryOps::And:
@@ -172,6 +212,13 @@ bool mergeConsequentSlices(Instruction &I, DceWorklist::SliceDict &slices, const
 				modified = true;
 				I.replaceAllUsesWith(res);
 				dce.insert(I);
+				//errs() << "after " << *I.getParent() << "\n";
+				//errs() << "new:" << *res << "\n";
+				//errs() << "replaced:\n";
+				//for (auto partI : parallelInstrOnSameVec) {
+				//	errs() << *partI << "\n";
+				//}
+				//throw runtime_error("[todo] debug err");
 			}
 		}
 
@@ -220,7 +267,8 @@ DceWorklist::SliceDict findSlices(Function &F) {
 }
 
 PreservedAnalyses SlicesMergePass::run(Function &F, FunctionAnalysisManager &AM) {
-	// F.dump();
+	//F.dump();
+
 	TargetLibraryInfo *TLI = &AM.getResult<TargetLibraryAnalysis>(F);
 	bool anyChange = false;
 	bool firstRun = true;
@@ -305,7 +353,13 @@ PreservedAnalyses SlicesMergePass::run(Function &F, FunctionAnalysisManager &AM)
 	//dbgs() << "----------------------------------------- after -------------------------------------\n";
 	//F.dump();
 	//throw runtime_error("[todo] debug err");
-	assert(!verifyModule(*F.getParent()));
+	std::string errTmp = "hwtHls::SlicesMergePass corrupted function ";
+	llvm::raw_string_ostream errSS(errTmp);
+	errSS << F.getName().str();
+	errSS << "\n";
+	if (verifyModule(*F.getParent(), &errSS)) {
+		throw std::runtime_error(errSS.str());
+	}
 	if (anyChange) {
 		PreservedAnalyses PA;
 		PA.preserve<DominatorTreeAnalysis>();
