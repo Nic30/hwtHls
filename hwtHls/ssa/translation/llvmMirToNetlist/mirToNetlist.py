@@ -1,11 +1,10 @@
-from typing import Set, Tuple, List
+from typing import Set, Tuple, List, Optional
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.hdl.types.defs import BIT
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, \
-    MachineInstr, TargetOpcode, MachineLoop
+    MachineInstr, TargetOpcode, MachineLoop, Register
 from hwtHls.netlist.analysis.dataThreadsForBlocks import HlsNetlistAnalysisPassDataThreadsForBlocks
-from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
     HlsNetNodeWriteBackwardEdge, BACKEDGE_ALLOCATION_TYPE
@@ -13,15 +12,15 @@ from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.loopGate import HlsLoopGate
 from hwtHls.netlist.nodes.orderable import HVoidData
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutLazy, \
-    link_hls_nodes, HlsNetNodeIn, HlsNetNodeOut
+    link_hls_nodes, HlsNetNodeIn, HlsNetNodeOut, HlsNetNodeOutAny
 from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
 from hwtHls.ssa.translation.llvmMirToNetlist.branchOutLabel import BranchOutLabel
 from hwtHls.ssa.translation.llvmMirToNetlist.datapath import HlsNetlistAnalysisPassMirToNetlistDatapath, \
     BlockLiveInMuxSyncDict
 from hwtHls.ssa.translation.llvmMirToNetlist.opCache import MirToHwtHlsNetlistOpCache
+from hwtHls.ssa.translation.llvmMirToNetlist.resetValueExtract import ResetValueExtractor
 from hwtHls.ssa.translation.llvmMirToNetlist.utils import MachineBasicBlockSyncContainer, \
     getTopLoopForBlock, HlsNetNodeExplicitSyncInsertBehindLazyOut, _createSyncForAnyInputSelector
-from hwtHls.ssa.translation.llvmMirToNetlist.resetValueExtract import ResetValueExtractor
 
 
 class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatapath):
@@ -97,11 +96,33 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
     def extractRstValues(self, mf: MachineFunction, threads: HlsNetlistAnalysisPassDataThreadsForBlocks):
         return ResetValueExtractor(self.builder, self.valCache, self.liveness, self.loops, self.blockSync, self.regToIo).apply(mf, threads)
 
-    def _resolveBranchEnFromPredecessor(self, pred: MachineBasicBlock, mb: MachineBasicBlock):
+    @staticmethod
+    def _getBackedgeForReg(mbSync: MachineBasicBlockSyncContainer, pred: MachineBasicBlock, dReg: Register) -> HlsNetNodeOut:
+        dRead = None
+        for reg, predMb, r in mbSync.backedgeBuffers:
+            if reg == dReg and pred == predMb:
+                dRead = r
+                break
+        assert dRead is not None, ("Can not find backedge buffer for r", dReg.virtRegIndex(), "which should be used to implement controll")
+        return dRead
+
+    def _resolveBranchEnFromPredecessor(self, pred: MachineBasicBlock, mb: MachineBasicBlock)\
+            ->Tuple[Optional[HlsNetNodeOutAny], Optional[HlsNetNodeOutAny], bool]:
         """
         Resolve expression which specifies if CFG jumps to a specified block from specified predecessor.
         """
         builder = self.builder
+        mbSync: MachineBasicBlockSyncContainer = self.blockSync[mb]
+        dataUsedAsControl = None
+        if mbSync.useDataAsControl and pred in mbSync.useDataAsControl:
+            dReg: Register = mbSync.useDataAsControl[pred]
+            dRead = self._getBackedgeForReg(mbSync, pred, dReg)
+            dRead.obj.setNonBlocking()
+            dVld = builder.buildReadSync(dRead)
+            self.valCache.add(mb, pred, dVld, False)  # should be already a read sync of input channel for dReg
+            dataUsedAsControl = dReg
+            return dVld, None, dataUsedAsControl
+
         fromPredBrCond = None  # condition which controls if the control moves to mb block
         predEn = self.blockSync[pred].blockEn  # condition which specifies if the control is in pred block
         # :note: there can be multiple terminators in each block and we have to resolve
@@ -139,7 +160,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
             else:
                 raise NotImplementedError("Unknown terminator", ter)
 
-        return fromPredBrCond, predEn
+        return fromPredBrCond, predEn, dataUsedAsControl
 
     def _resolveEnFromPredecessors(self, mb: MachineBasicBlock,
                                    mbSync: MachineBasicBlockSyncContainer,
@@ -159,15 +180,16 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
             pred: MachineBasicBlock
             fromPredBrCond = None  # condition which controls if the control moves to mb block
             predEn = self.blockSync[pred].blockEn  # condition which specifies if the control is in pred block
+            dataUsedAsControl = None
             if mbSync.needsControl:
-                fromPredBrCond, predEn = self._resolveBranchEnFromPredecessor(pred, mb)
+                fromPredBrCond, predEn, dataUsedAsControl = self._resolveBranchEnFromPredecessor(pred, mb)
 
-            if fromPredBrCond is None and mbSync.needsControl:
+            if dataUsedAsControl is None and fromPredBrCond is None and mbSync.needsControl:
                 fromPredBrCond = predEn
 
             if (pred, mb) in backedges:
                 _fromPredBrCond = fromPredBrCond
-                if mbSync.needsControl:
+                if dataUsedAsControl is None and mbSync.needsControl:
                     # we need to insert backedge buffer to get block en flag from pred to mb
                     # [fixme] write order must be asserted because we can not release a control token until all block operations finished
                     assert fromPredBrCond is not None, fromPredBrCond
@@ -183,9 +205,13 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                         # the circuit does not have way to start
                         wn.channel_init_values = (tuple(),)
 
-                for _, srcMb, srcVal in mbSync.backedgeBuffers:
+                for liveIn, srcMb, srcVal in mbSync.backedgeBuffers:
                     srcMb: MachineBasicBlock
                     srcVal: HlsNetNodeReadBackwardEdge
+                    if dataUsedAsControl is not None and liveIn == dataUsedAsControl:
+                        # avoid synchronizing channel with itself
+                        continue
+
                     if srcMb != pred:
                         continue
                     wn: HlsNetNodeWriteBackwardEdge = srcVal.obj.associated_write
@@ -194,49 +220,55 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
 
             elif mbSync.needsControl and fromPredBrCond is not None:
                 # brCond is a normal branch signal
-                valCache.add(pred, BranchOutLabel(mb), fromPredBrCond, False)  # the BranchOutLabel is set only once
+                if dataUsedAsControl is None:
+                    valCache.add(pred, BranchOutLabel(mb), fromPredBrCond, False)  # the BranchOutLabel is set only once
 
             elif mbSync.needsControl:
                 if mbSync.rstPredeccessor is pred:
                     # skip because all live ins were inlined to backedge buffer initialization
                     continue
                 else:
-                    raise NotImplementedError("No control from predecessor but block needs control")
+                    raise NotImplementedError(f"No control from predecessor but block needs control bb.{mb.getNumber()}",)
 
             if mbSync.needsControl:
-                assert fromPredBrCond is not None, (mb.getName(), mb.getNumber())
-                valCache.add(mb, pred, fromPredBrCond, False)
+                assert fromPredBrCond is not None, (mb.getName().str(), mb.getNumber())
+                if dataUsedAsControl is None:
+                    valCache.add(mb, pred, fromPredBrCond, False)
                 # because we need to use latest value not the input value which we just added (r_from_in)
                 brCond = valCache.get(mb, pred, fromPredBrCond._dtype)
                 enFromPredccs.append(brCond)
             else:
                 assert brCond is None, brCond
-                brCond = self._translateIntBit(1)
-                valCache.add(mb, pred, brCond, False)
+                if dataUsedAsControl is None:
+                    brCond = self._translateIntBit(1)
+                    valCache.add(mb, pred, brCond, False)
                 brCond = None
 
         return enFromPredccs
 
     def _resolveLoopExits(self, loopGate: HlsLoopGate, loop: MachineLoop, headerBlock: MachineBasicBlock):
         valCache: MirToHwtHlsNetlistOpCache = self.valCache
-        netlist: HlsNetlistCtx = self.netlist
+        # netlist: HlsNetlistCtx = self.netlist
 
         for (exitBloc, exitSucBlock) in loop.getExitEdges():
             # if exiting loop return token to HlsLoopGate
             mbSync = self.blockSync[exitBloc]
             _control = valCache.get(exitBloc, BranchOutLabel(exitSucBlock), BIT)
             v = self.builder.buildConst(HVoidData.from_py(None))
-            control = self._constructBackedgeBuffer(f"c_loop{loopGate._id}Exit", exitBloc, headerBlock, None, v, isControl=True)
+            name = f"hls_c_loop{loopGate._id}Exit"
+            control = self._constructBackedgeBuffer(name, exitBloc, headerBlock, None, v, isControl=True)
+            control.obj.setNonBlocking()
             wn: HlsNetNodeWriteBackwardEdge = control.obj.associated_write
             wn.allocationType = BACKEDGE_ALLOCATION_TYPE.IMMEDIATE
 
             self._addExtraCond(wn, _control, mbSync.blockEn)
             self._addSkipWhen_n(wn, _control, mbSync.blockEn)
 
-            controlSync = HlsNetNodeExplicitSync(netlist, control._dtype)
-            self.nodes.append(controlSync)
-            link_hls_nodes(control.obj.getValid(), controlSync._inputs[0])
-            loopGate.connectExit(controlSync._outputs[0])
+            # controlSync = HlsNetNodeExplicitSync(netlist, control._dtype, name=name)
+            # self.nodes.append(controlSync)
+            # link_hls_nodes(control.obj.getValid(), controlSync._inputs[0])
+            # loopGate.connectExit(controlSync._outputs[0])
+            loopGate.connectExit(control.obj.getValidNB(), exitBloc.getNumber())
 
     def _resolveLoopInputSync(self, mb: MachineBasicBlock,
                               mbSync: MachineBasicBlockSyncContainer,
@@ -250,6 +282,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
         loopReenters: List[Tuple[HlsNetNodeExplicitSync, List[HlsNetNodeExplicitSync]]] = []
         loopExecs: List[Tuple[HlsNetNodeExplicitSync, List[HlsNetNodeExplicitSync]]] = []
         for pred in mb.predecessors():
+            pred: MachineBasicBlock
             if mbSync.rstPredeccessor and pred == mbSync.rstPredeccessor:
                 # :note: rstPredeccessor will is inlined
                 continue
@@ -263,36 +296,54 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
             #     the optimization of synchronization does not work because the the synchronization
             #     for this signal drives just input mux but does not touch the input ports itself
             #      * this results in the situation when inputs are required and the input is consummed
-            #        but the loop inputs should be skiped and this input token should swith loop to a bussy state
+            #        but the loop inputs should be skipped and this input token should swith loop to a bussy state
 
             # insert explicit sync on control input
+            dataAsControl = None
+            if mbSync.useDataAsControl:
+                dataAsControl: Register = mbSync.useDataAsControl.get(pred, None)
+
             control = valCache.get(mb, pred, BIT)
+            # print("mb pred", mb.getNumber(), pred.getNumber(), control, dataAsControl)
+            if dataAsControl is not None:
+                # select original data channel (control is readSync of it)
+                control = self._getBackedgeForReg(mbSync, pred, dataAsControl)
+                # print(dataAsControl.virtRegIndex(), pred.getNumber(), mb.getNumber(), control)
+
             if isinstance(control, HlsNetNodeOut):
-                assert isinstance(control, HlsNetNodeReadBackwardEdge), control
+                assert isinstance(control.obj, HlsNetNodeReadBackwardEdge), control
+                # no need for extra sync because we are reading only a sync of the channel
+                control = control.obj
+                controlO = control.getValidNB()
+
             else:
                 assert isinstance(control, HlsNetNodeOutLazy), (
                     "Branch control from predecessor must be lazy output because we did not connect it from pred block yet.",
                     mb, pred, control)
-                _control = HlsNetNodeExplicitSyncInsertBehindLazyOut(netlist, valCache, control)
+                _control = HlsNetNodeExplicitSyncInsertBehindLazyOut(netlist, valCache, control, f"hls_c_bb{pred.getNumber():d}_to_bb{mb.getNumber():d}")
                 control = _control
+                controlO = control._outputs[0]
 
+            MRI = self.mf.getRegInfo()
             allInputDataChannels: List[HlsNetNodeExplicitSync] = []
-            for liveIn in self.liveness[pred][mb]:
-                if liveIn in self.regToIo:
-                    continue
+            if (pred, mb) in self.backedges:
+                # for non backedge edges the sync is not required as the data is received from previous stage in pipeline or state in FSM
+                for liveIn in self.liveness[pred][mb]:
+                    if not self._regIsValidLiveIn(MRI, liveIn) or liveIn == dataAsControl:
+                        continue
 
-                liveInSync: HlsNetNodeExplicitSync = blockLiveInMuxInputSync[(pred, mb, liveIn)]
-                allInputDataChannels.append(liveInSync)
+                    liveInSync: HlsNetNodeExplicitSync = blockLiveInMuxInputSync[(pred, mb, liveIn)]
+                    allInputDataChannels.append(liveInSync)
 
             if loop.containsBlock(pred):
-                loopGate.connectReenter(control._outputs[0])
+                loopGate.connectReenter(controlO, pred.getNumber())
                 loopReenters.append((control, allInputDataChannels))
             else:
-                loopGate.connectEnter(control._outputs[0])
+                loopGate.connectEnter(controlO, pred.getNumber())
                 loopExecs.append((control, allInputDataChannels))
 
         # loopBussy select if loop should process inputs from loopReenters or from loopExecs
-        loopBusy = loopGate._sync_token_status._outputs[0]
+        loopBusy = loopGate._syncTokenStatus._outputs[0]
         loopBusy_n = builder.buildNot(loopBusy)
         _createSyncForAnyInputSelector(builder, loopReenters, loopBusy, loopBusy_n)
         _createSyncForAnyInputSelector(builder, loopExecs, loopBusy_n, loopBusy)
@@ -316,13 +367,14 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                     loop: MachineLoop
                     topLoop = getTopLoopForBlock(mb, loop)
                     # build 1 HlsLoopGate for all loops which do have this block as a header
-                    # [fixme] loop may have just 2 predecessors and required loop gate
+                    # [fixme] loop may have just 2 predecessors and require loop gate
                     # [fixme] The loop gate is instantiated only for top loop,
                     #     The purpose of loop gate is to select input data for the loop body.
                     #     If this block is a header of multiple loops there must be multiple loop header to enable a correct subset of backedges.
-                    loopGate = HlsLoopGate(netlist, f"loop_bb_{mb.getNumber():d}")
+                    loopGate = HlsLoopGate(netlist, f"loop_bb{mb.getNumber():d}")
+                    mbSync.loopGates.append(loopGate)
                     self.nodes.append(loopGate)
-                    self.nodes.append(loopGate._sync_token_status)
+                    self.nodes.append(loopGate._syncTokenStatus)
                     self._resolveLoopExits(loopGate, topLoop, mb)
                     self._resolveLoopInputSync(mb, mbSync, loopGate, topLoop, blockLiveInMuxInputSync)
 
@@ -337,10 +389,10 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
             mb: MachineBasicBlock
             # resolve control enable flag for a block
             mbSync: MachineBasicBlockSyncContainer = self.blockSync[mb]
-            assert mbSync.block == mb
-
+            assert mbSync.block == mb, ("sanity check", mbSync.block.getNumber(), mb.getNumber())
             if mbSync.needsStarter:
                 if mbSync.needsControl:
+                    assert mb.pred_size() == 0, mb.getNumber()
                     # add starter and use it as en
                     n = HlsProgramStarter(self.netlist)
                     self.nodes.append(n)
@@ -350,7 +402,10 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                     blockEn = None
             else:
                 enFromPredccs = self._resolveEnFromPredecessors(mb, mbSync, backedges)
-                if enFromPredccs and mbSync.needsControl:
+                if mbSync.loopGates:
+                    blockEn = mbSync.loopGates[0]._syncTokenStatus._outputs[0]
+
+                elif enFromPredccs and mbSync.needsControl:
                     if None in enFromPredccs:
                         raise AssertionError(enFromPredccs)
                     blockEn = builder.buildOrVariadic(enFromPredccs)

@@ -96,7 +96,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                 if dst is None:
                     name = None
                 else:
-                    name = f"r_{dst.virtRegIndex():d}"
+                    name = f"bb{mb.getNumber()}_r{dst.virtRegIndex():d}"
 
                 opDef = self.OPC_TO_OP.get(opc, None)
                 if opDef is not None:
@@ -189,6 +189,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                 elif opc == TargetOpcode.G_GLOBAL_VALUE:
                     assert len(ops) == 1, ops
                     res = ops[0]
+                    res.obj.name = name
                     valCache.add(mb, dst, res, True)
                 else:
                     raise NotImplementedError(instr)
@@ -205,9 +206,8 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
         builder: HlsNetlistBuilder = self.builder
         backedges: Set[Tuple[MachineBasicBlock, MachineBasicBlock]] = self.backedges
         liveness = self.liveness
-        globalValues = set()
-        firstBlock = True
-        regToIo = self.regToIo
+        # globalValues = set()
+        # firstBlock = True
         MRI = mf.getRegInfo()
         for mb in mf:
             mb: MachineBasicBlock
@@ -218,25 +218,21 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
 
             # Mark all inputs from predec as not required and stalled while we do not have sync token ready.
             # Mark all inputs from reenter as not required and stalled while we have a sync token ready.
-            if firstBlock:
-                for instr in mb:
-                    if instr.getOpcode() == TargetOpcode.G_GLOBAL_VALUE:
-                        globalValues.add(instr.getOperand(0).getReg())
-
+            # if firstBlock:
+            #    for instr in mb:
+            #        if instr.getOpcode() == TargetOpcode.G_GLOBAL_VALUE:
+            #            globalValues.add(instr.getOperand(0).getReg())
+            mbSync: MachineBasicBlockSyncContainer = self.blockSync[mb]
             loop = self.loops.getLoopFor(mb)
             liveInOrdered = []  # list of liveIn variables so we process them in deterministic order
-            # liveIn -> List[Tuple[value, condition]]
-            liveIns: Dict[Register, List[LiveInMuxMeta]] = {}
+            liveIns: Dict[Register, List[LiveInMuxMeta]] = {}  # liveIn -> List[Tuple[value, condition]]
             for pred in mb.predecessors():
                 pred: MachineBasicBlock
                 isBackedge = (pred, mb) in backedges
-
                 for liveIn in liveness[pred][mb]:
                     liveIn: Register
-                    if liveIn in regToIo or liveIn in globalValues:
-                        continue  # we will use interface not the value of address where it is mapped
-                    if MRI.def_empty(liveIn):
-                        continue  # this is form of undefined value
+                    if not self._regIsValidLiveIn(MRI, liveIn):
+                        continue
 
                     meta = liveIns.get(liveIn, None)
                     if meta is None:
@@ -247,14 +243,18 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                     meta: LiveInMuxMeta
                     dtype = Bits(self.registerTypes[liveIn])
                     v = valCache.get(pred, liveIn, dtype)
-                    name = f"r_{liveIn.virtRegIndex():d}"
                     if isBackedge:
-                        v = self._constructBackedgeBuffer(name,
-                                                          pred, mb, (pred, liveIn), v)
-                        self.blockSync[pred].backedgeBuffers.append((liveIn, pred, v))
+                        name = f"r{liveIn.virtRegIndex():d}"
+                        v = self._constructBackedgeBuffer(name, pred, mb, (pred, liveIn), v)
+                        predBlockEn = self.blockSync[pred].blockEn
+                        wn = v.obj.associated_write
+                        self._addExtraCond(wn, 1, predBlockEn)
+                        self._addSkipWhen_n(wn, 1, predBlockEn)
+                        mbSync.backedgeBuffers.append((liveIn, pred, v))
 
                     c = valCache.get(mb, pred, BIT)
                     if loop:
+                        name = f"bb{pred.getNumber()}_to_bb{mb.getNumber()}_r{liveIn.virtRegIndex():d}"
                         es = HlsNetNodeExplicitSync(netlist, dtype, name=name)
                         blockLiveInMuxInputSync[(pred, mb, liveIn)] = es
                         self.nodes.append(es)
@@ -279,7 +279,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                         if not last:
                             # last case must be always satisfied because the block must have been entered somehow
                             _operands.append(cond)
-                    name = f"r_{liveIn.virtRegIndex():d}"
+                    name = f"phi_bb{mb.getNumber():d}_r{liveIn.virtRegIndex():d}"
                     v = builder.buildMux(dtype, tuple(_operands))
                     v.obj.name = name
 
