@@ -46,6 +46,7 @@ Value* ConcatMemberVector::_memberToValue(OffsetWidthValue &item) {
 			if (existing != commonSubexpressionCache->end())
 				return existing->second;
 		}
+		// create bit range get just behind the source of original bit-vector which is being sliced
 		builder.SetInsertPoint(dyn_cast<Instruction>(item.value));
 		builder.SetInsertPoint(builder.GetInsertBlock(), ++builder.GetInsertPoint());
 		IRBuilder_setInsertPointBehindPhi(builder, &*builder.GetInsertPoint());
