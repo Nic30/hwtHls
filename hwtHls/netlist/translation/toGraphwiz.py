@@ -44,6 +44,8 @@ class HwtHlsNetlistToGraphwiz():
 
     def construct(self,):
         for n in self.allNodes:
+            if isinstance(n, HlsNetNodeConst) and len(n.usedBy[0]) == 1:
+                continue  # const inlined into user node
             self._node_from_HlsNetNode(n)
 
         self.graph.add_node(self._constructLegend())
@@ -105,8 +107,17 @@ class HwtHlsNetlistToGraphwiz():
                         inpName = inp.name
                     else:
                         inpName = f"i{node_in_i:d}"
-                    input_rows.append(f"<td port='i{node_in_i:d}'>{inpName:s}</td>")
-                    if dep is not None and (edgeFilter is None or edgeFilter(dep, inp)):
+                    isInlinableConst = (isinstance(dep, HlsNetNodeOut) and
+                                        isinstance(dep.obj, HlsNetNodeConst) and
+                                        len(dep.obj.usedBy) == 1)
+                    edgeRequired = dep is not None and (edgeFilter is None or edgeFilter(dep, inp))
+                    if edgeRequired and isInlinableConst:
+                        ir = f"<td port='i{node_in_i:d}'>{inpName:s} = {html.escape(repr(dep.obj.val))} {dep.obj._id}</td>"
+                    else:
+                        ir = f"<td port='i{node_in_i:d}'>{inpName:s}</td>"
+                    input_rows.append(ir)
+
+                    if not isInlinableConst and edgeRequired:
                         dep: Union[HlsNetNodeOut, HlsNetNodeOutLazy]
                         dst = f"{node.get_name():s}:i{node_in_i:d}"
                         attrs = {}
@@ -169,10 +180,14 @@ class HwtHlsNetlistToGraphwiz():
                     t = obj.dependsOn[0]._dtype
             else:
                 t = obj._outputs[0]._dtype
-
-            label = f"{obj.operator.id if isinstance(obj.operator, OpDefinition) else str(obj.operator)} {obj._id} {t}"
+            name = ""
+            if obj.name is not None:
+                name = f" \"{html.escape(obj.name)}\""
+            label = f"{obj.operator.id if isinstance(obj.operator, OpDefinition) else str(obj.operator)}{name:s} {obj._id:d} {t}"
         elif isinstance(obj, (HlsNetNodeRead, HlsNetNodeWrite, HlsLoopGateStatus)):
             label = _reprMinify(obj)
+        elif isinstance(obj, HlsNetNode) and obj.name is not None:
+            label = f"{obj.__class__.__name__} {obj._id} \"{html.escape(obj.name)}\""
         else:
             label = f"{obj.__class__.__name__} {obj._id}"
 
@@ -182,6 +197,11 @@ class HwtHlsNetlistToGraphwiz():
             if obj.channel_init_values:
                 buff.append(f'            <tr><td colspan="2">init:{html.escape(repr(obj.channel_init_values))}</td></tr>\n')
 
+        # if useInputConstRow:
+        #    assert len(constInputRows) == len(input_rows)
+        #    for c, i, o in zip_longest(constInputRows, input_rows, output_rows, fillvalue="<td></td>"):
+        #        buff.append(f"            <tr>{i:s}{c:s}{o:s}</tr>\n")
+        # else:
         for i, o in zip_longest(input_rows, output_rows, fillvalue="<td></td>"):
             buff.append(f"            <tr>{i:s}{o:s}</tr>\n")
         buff.append('        </table>>')
