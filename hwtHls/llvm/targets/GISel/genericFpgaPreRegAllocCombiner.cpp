@@ -169,4 +169,5 @@ namespace llvm {
 FunctionPass* createGenericFpgaPreRegAllocCombiner() {
 	return new GenericFpgaPreRegAllocCombiner();
 }
+
 } // end namespace llvm
