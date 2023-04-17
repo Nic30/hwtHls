@@ -415,31 +415,66 @@ bool GenFpgaCombinerHelper::matchConstCmpConstAdd(llvm::MachineInstr &MI, BuildF
 	return false;
 }
 
-bool GenFpgaCombinerHelper::isTrivialRemovableCopy(llvm::MachineInstr &MI) {
+bool GenFpgaCombinerHelper::isTrivialRemovableCopy(llvm::MachineInstr &MI, bool& replaceMuxSrcReg) {
 	/*
 	 * Recognize
+     *
 	 *  %0 = ...
-     *  %1 = GENFPGA_MUX %0
-     *  and replace it with just %0
+	 *  %1 = GENFPGA_MUX %0
+	 *  to later replace it with just %0 (replaceMuxSrcReg=true)
+	 *
+	 *  or
+	 *  %1 = GENFPGA_MUX %0
+	 *  use(%1) # only use of %1
+	 *  to later replace with use(%0) (replaceMuxSrcReg=false)
 	 * */
 	assert(MI.getOpcode() == GenericFpga::GENFPGA_MUX);
 	if (MI.getNumOperands() != 2)
 		return false;
-	auto & src = MI.getOperand(1);
+
+	auto &src = MI.getOperand(1);
 	if (src.isReg() && MRI.hasOneUse(src.getReg())) {
 		auto def = MRI.getOneDef(src.getReg());
 		if (def && def->getParent()->getNextNode() == &MI) {
+			replaceMuxSrcReg = true;
 			return true;
 		}
+	}
+
+	auto dst = MI.getOperand(0).getReg();
+	MachineInstr *user = nullptr;
+	for (auto& u : MRI.use_operands(dst)) {
+		if (user == nullptr) {
+			user = u.getParent();
+			if (user->getPrevNode() != &MI)
+				return false;
+		}
+		if (user != u.getParent()) {
+			return false;
+		}
+	}
+	if (user) {
+		replaceMuxSrcReg = false;
+		return true;
 	}
 	return false;
 }
 
-bool GenFpgaCombinerHelper::rewriteTrivialRemovableCopy(llvm::MachineInstr &MI){
-	auto & dst = MI.getOperand(0);
-	auto & src = MI.getOperand(1);
-	auto def = MRI.getOneDef(src.getReg());
-	def->setReg(dst.getReg());
+bool GenFpgaCombinerHelper::rewriteTrivialRemovableCopy(llvm::MachineInstr &MI, bool replaceMuxSrcReg) {
+	auto &dst = MI.getOperand(0);
+	auto &src = MI.getOperand(1);
+	if (replaceMuxSrcReg) {
+		auto def = MRI.getOneDef(src.getReg());
+		def->setReg(dst.getReg());
+	} else {
+		SmallVector<MachineOperand*> toReplace;
+		for (auto& u: MRI.use_operands(dst.getReg())) {
+			toReplace.push_back(&u);
+		}
+		for (auto* u: toReplace) {
+			u->setReg(src.getReg());
+		}
+	}
 	MI.eraseFromParent();
 	return true;
 }

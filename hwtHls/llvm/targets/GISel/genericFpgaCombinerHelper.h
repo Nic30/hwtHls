@@ -68,8 +68,8 @@ public:
 
 	bool matchConstCmpConstAdd(llvm::MachineInstr &MI, BuildFnTy &rewriteFn);
 
-	bool isTrivialRemovableCopy(llvm::MachineInstr &MI);
-	bool rewriteTrivialRemovableCopy(llvm::MachineInstr &MI);
+	bool isTrivialRemovableCopy(llvm::MachineInstr &MI, bool& replaceMuxSrcReg);
+	bool rewriteTrivialRemovableCopy(llvm::MachineInstr &MI, bool replaceMuxSrcReg);
 
 };
 

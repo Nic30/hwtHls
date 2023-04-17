@@ -14,11 +14,12 @@ def merge_values_const_propagation: GICombineRule<
   (apply [{ return Helper.rewriteConstMergeValues(*${root}); }])
 >;
 
+def trivial_copy_propagate_matchdata : GIDefMatchData<"bool">;
 def trivial_copy_propagate: GICombineRule<
-  (defs root:$root),
+  (defs root:$root, trivial_copy_propagate_matchdata:$matchinfo),
   (match (wip_match_opcode GENFPGA_MUX):$root,
-    [{ return Helper.isTrivialRemovableCopy(*${root}); }]),
-  (apply [{ return Helper.rewriteTrivialRemovableCopy(*${root}); }])
+    [{ return Helper.isTrivialRemovableCopy(*${root}, ${matchinfo}); }]),
+  (apply [{ return Helper.rewriteTrivialRemovableCopy(*${root}, ${matchinfo}); }])
 >;
 
 // convert the G_CONSTANT instructions to CImm operands on all users
