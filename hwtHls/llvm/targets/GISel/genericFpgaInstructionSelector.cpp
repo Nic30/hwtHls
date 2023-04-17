@@ -501,7 +501,8 @@ bool GenericFpgaTargetInstructionSelector::select_G_SHR(
 		MIB0.addDef(lshSlice);
 		selectInstrArg(*MF, MIB0, MRI, lhs);
 		MIB0.addImm(prefixWidth);
-		MIB0.addImm(srcWidth - prefixWidth);
+		unsigned lshSliceWidth = srcWidth - prefixWidth;
+		MIB0.addImm(lshSliceWidth);
 
 		MachineInstrBuilder MIB = MIRB.buildInstr(
 				GenericFpga::GENFPGA_MERGE_VALUES);
@@ -511,13 +512,13 @@ bool GenericFpgaTargetInstructionSelector::select_G_SHR(
 			for (unsigned i = 0; i < prefixWidth; i++) {
 				MIB.addReg(prefix.reg);
 			}
-			MIB.addImm(srcWidth);
+			MIB.addImm(lshSliceWidth);
 			for (unsigned i = 0; i < prefixWidth; i++) {
 				MIB.addImm(1);
 			}
 		} else {
 			prefix.addAsUse(MIB);
-			MIB.addImm(srcWidth);
+			MIB.addImm(lshSliceWidth);
 			MIB.addImm(prefixWidth);
 		}
 		return finalizeReplacementOfInstruction(MIB, I);
