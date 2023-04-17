@@ -1,13 +1,14 @@
+# This file specifies how python package should be build from source files.
 # https://meson-python.readthedocs.io/en/stable/usage/start.html
 
 [build-system]
 requires = [
-   "wheel", # python package distribution lib.
-   "cmake", # cmake buildsystem for LLVM/ABC
-   "meson>=0.63.0", # meson buildsystem
-   'meson-python', # meson to pip adapter
-   "pybind11>=2.8.1", # c++ to Python binding
-   "ninja", # build tool for meson to use
+  "wheel", # python package distribution lib.
+  "cmake>=3.26.3", # cmake buildsystem for LLVM/ABC
+  "meson>=1.1.0", # meson buildsystem
+  'meson-python>=0.12.1', # meson to pip adapter
+  "pybind11>=2.10.4", # c++ to Python binding
+  "ninja>=1.11.1", # build tool for meson to use
 ]
 build-backend = 'mesonpy'
 
@@ -16,7 +17,7 @@ build-backend = 'mesonpy'
 name = 'hwtHls'
 dynamic = ['version',]
 description = 'A library for automated translation of an algorithmic description to hardware architectures.'
-readme="README.md"
+readme = "README.md"
 license = { file = 'LICENSE' }
 keyword = ['FPGA', 'ASIC', 'compiler', 'HLS', 'ABC', 'RTL', 'synthesis', 'logicsynthesis',
            'LLVM', 'VHDL', 'verification', 'Verilog', 'SystemVerilog']
@@ -24,27 +25,26 @@ authors = [
   { name = 'Michal Orsak', email = 'Nic30original@gmail.com' },
 ]
 classifiers = [
-        "Development Status :: 4 - Beta",
-        "Intended Audience :: Developers",
-        "License :: OSI Approved :: MIT License",
-        "Operating System :: OS Independent",
-        "Programming Language :: Python :: 3 :: Only",
-        "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.10",
-        "Topic :: Scientific/Engineering :: Electronic Design Automation (EDA)",
-        "Topic :: System :: Hardware",
-        "Topic :: System :: Emulators",
-        "Topic :: Utilities"
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Topic :: Scientific/Engineering :: Electronic Design Automation (EDA)",
+  "Topic :: System :: Hardware",
+  "Topic :: System :: Emulators",
+  "Topic :: Utilities"
 ]
 requires-python = '>=3.10'
 dependencies  = [
-   'hwtLib>=2.9', # primitive hardware components
-   'scipy>=1.5.2', # interpolations and other complex math
-   'networkx', # graph algorithms
-   'pydot' # debug graphwiz graphs
+  'hwtLib>=2.9', # primitive hardware components
+  'scipy>=1.10.1', # interpolations and other complex math
+  'networkx>=3.1', # graph algorithms
+  'pydot>=1.4.2' # debug graphwiz graphs
 ]
 
 [project.urls]
 homepage = 'https://github.com/Nic30/hwtHls'
 repository = 'https://github.com/Nic30/hwtHls'
-
