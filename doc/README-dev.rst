@@ -28,16 +28,17 @@ Debug build
 
 .. code-block:: bash
 
-	pip3 install .
-	meson build .
+	# make sure that you installed dependencies from pyproject.toml using pip3 install
+	meson setup build
 	ninja -C build
+
+	# you must link the c++ library file in order to find it from python using "import"
+	# this is required becase we are not installing the library but using repo directly as a python package
 	ln -s "../../$(ls build/hwtHls/llvm/*.so)" hwtHls/llvm/
 	ln -s "../../../$(ls build/hwtHls/netlist/abc*.so)" hwtHls/netlist/abc
 	ln -s "../../../../$(ls build/hwtHls/netlist/analysis/reachabilityCpp/*.so)"  hwtHls/netlist/analysis/reachabilityCpp/
-	# you must link the c++ library file in order to find it from python using "import"
-	# this is required becase we are not installing the library but using repo directly as a python package
 
-* use `LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libSegFault.so` to get better segfault reports
+* You can use `LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libSegFault.so` to get better segfault reports.
   libSegFault is a part of glibc but it may have a different location on your machine
 * https://stackoverflow.com/questions/54273632/llvm-linking-commandline-error-option-help-list-registered-more-than-once-l
 
@@ -63,6 +64,8 @@ In eclipse you can append ${workspace_project_locations} in environment tab in D
 
 Using local llvm build
 ----------------------
+
+This is useful when debuging issues which are happening in LLVM code.
 
 * https://www.linuxfromscratch.org/blfs/view/cvs/general/llvm.html
 .. code-block:: bash
@@ -96,6 +99,7 @@ Using local llvm build
 * When executing you need to use `LD_PRELOAD=$PWD/../llvm_install/lib/libLLVM.so` in order to actually use the custom build otherwise a system wide installed library will be used.
 * Note that once executed it takes >4m for gdb-11.1 and requires >16G of RAM to start because of the LLVM debug meta size.
   If you do not use debug build of llvm you still will be able to debug c++ code in this project and gdb will start in <1s.
+  But you wont be able to debug inside LLVM functions.
 * It is highly recommended to index llvm libraries in order to lower gdb start time `gdb-add-index llvm_install/lib/libLLVM-14.so`
 
 Using -dbg package of llvm
@@ -103,8 +107,13 @@ Using -dbg package of llvm
 * This is more simple and faster than build local llvm
 * https://wiki.ubuntu.com/Debug%20Symbol%20Packages
 
+
 LLVM/clang
 ==========
+
+It is good practise to debug in simplest examples possible.
+LLVM/clang is usefull when trying something LLVM related which does not necessary dependent on this library.
+There is also https://llvm.godbolt.org/ which has nice WEB UI.
 
 
 LLVM environment setup
@@ -199,6 +208,11 @@ Transformation passes
 * https://github.com/nael8r/How-To-Write-An-LLVM-Register-Allocator/blob/master/HowToWriteAnLLVMRegisterAllocator.rst
 * https://www.cs.cornell.edu/courses/cs6120/2020fa/blog/pipeline-ii-analysis/
 
+Dictionary
+----------
+* nuw no unsigned wrap
+* nsw no signed wrap
+
 In IR debugging meta-information
 --------------------------------
 
@@ -226,6 +240,9 @@ LLVM tutorials
 * https://lowlevelbits.org/how-to-learn-compilers-llvm-edition/
 
 
+Other
+=====
+
 gdbserver
 ---------
 * https://github.com/bet4it/gdbserver
@@ -248,7 +265,3 @@ python profiling
     pyprof2calltree -i profile.prof -k
 
 
-Dictionary
-----------
-* nuw no unsigned wrap
-* nsw no signed wrap
