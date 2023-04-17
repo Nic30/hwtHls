@@ -239,7 +239,16 @@ bool GenFpgaCombinerHelper::rewriteExtractOnMergeValues(llvm::MachineInstr &MI) 
 		auto &src = concatMembers.back();
 		// we may be able to use item directly of we may build an EXTRACT
 		if (src.offsetOfUse == 0 && src.width == src.widthOfUse) {
-			MRI.replaceRegWith(MI.getOperand(0).getReg(), src.op.getReg()); // [fixme] the src.op can be imm or const
+			if (src.op.isReg()) {
+				MRI.replaceRegWith(MI.getOperand(0).getReg(), src.op.getReg());
+			} else if (src.op.isCImm()) {
+				Builder.setInstrAndDebugLoc(MI);
+				Register srcReg = MRI.createVirtualRegister(&GenericFpga::AnyRegClsRegClass);
+				Builder.buildConstant(srcReg, *src.op.getCImm());
+				MRI.replaceRegWith(MI.getOperand(0).getReg(), srcReg);
+			} else {
+				llvm_unreachable("GenFpgaCombinerHelper::rewriteExtractOnMergeValues unexpected type of src operand");
+			}
 		} else {
 			Builder.setInstrAndDebugLoc(MI);
 			auto MIB = Builder.buildInstr(GenericFpga::GENFPGA_EXTRACT);
