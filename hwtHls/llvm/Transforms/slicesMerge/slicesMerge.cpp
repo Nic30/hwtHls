@@ -37,7 +37,7 @@ pair<Value*, uint64_t> getSliceOffset(Value *op0) {
 const Instruction* getInstructionClosesToBlockEnd(const std::vector<Instruction*> &vec) {
 	const Instruction *res = nullptr;
 	for (auto I0 : vec) {
-		for (auto I1 = I0->getIterator(); ; --I1) {
+		for (auto I1 = I0->getIterator();; --I1) {
 			if (res == nullptr || &*I1 == res) {
 				res = I0; // I0 is later in block because we just see res when walking from I0 to begin of the block
 			}
@@ -59,8 +59,10 @@ bool anyOfInstructionsIsUsed(const std::vector<Instruction*> &vec, BasicBlock::c
 	}
 	for (BasicBlock::const_iterator it = begin; it != end; ++it) {
 		for (auto &o : it->operands()) {
-			if (o.get() == &*it)
-				return true;
+			for (auto vItem : vec) {
+				if (o.get() == vItem)
+					return true;
+			}
 		}
 	}
 	return false;
@@ -104,7 +106,7 @@ bool collectParallelInstructionsOnSameVector(DceWorklist::SliceDict &slices, Val
 									// check if none of instructions parallelInstrOnSameVec are used between found instruction and this
 									auto *lastI = getInstructionClosesToBlockEnd(parallelInstrOnSameVec);
 									if (lastI == nullptr
-											|| anyOfInstructionsIsUsed(parallelInstrOnSameVec,
+											|| !anyOfInstructionsIsUsed(parallelInstrOnSameVec,
 													llvm::BasicBlock::const_iterator(lastI),
 													llvm::BasicBlock::const_iterator(op0SucUserI), true)) {
 										parallelInstrOnSameVec.push_back(op0SucUserI);
@@ -186,7 +188,8 @@ bool mergeConsequentSlices(Instruction &I, DceWorklist::SliceDict &slices, const
 						modified |= rewriteConcat(CallI, createSlice, dce);
 					}
 				}
-				builder.SetInsertPoint(const_cast<Instruction*>(getInstructionClosesToBlockEnd(parallelInstrOnSameVec)));
+				builder.SetInsertPoint(
+						const_cast<Instruction*>(getInstructionClosesToBlockEnd(parallelInstrOnSameVec)));
 				Value *res = nullptr;
 				switch (BO->getOpcode()) {
 				case Instruction::BinaryOps::And:
@@ -267,8 +270,6 @@ DceWorklist::SliceDict findSlices(Function &F) {
 }
 
 PreservedAnalyses SlicesMergePass::run(Function &F, FunctionAnalysisManager &AM) {
-	//F.dump();
-
 	TargetLibraryInfo *TLI = &AM.getResult<TargetLibraryAnalysis>(F);
 	bool anyChange = false;
 	bool firstRun = true;
@@ -309,7 +310,6 @@ PreservedAnalyses SlicesMergePass::run(Function &F, FunctionAnalysisManager &AM)
 					change = true;
 					continue;
 				}
-				//dbgs() << "rewriting" << *I << "\n";
 
 				bool _changed = false;
 				if (auto *CallI = dyn_cast<CallInst>(&*I)) {
@@ -349,10 +349,6 @@ PreservedAnalyses SlicesMergePass::run(Function &F, FunctionAnalysisManager &AM)
 		}
 		anyChange |= _change;
 	}
-	//}
-	//dbgs() << "----------------------------------------- after -------------------------------------\n";
-	//F.dump();
-	//throw runtime_error("[todo] debug err");
 	std::string errTmp = "hwtHls::SlicesMergePass corrupted function ";
 	llvm::raw_string_ostream errSS(errTmp);
 	errSS << F.getName().str();
