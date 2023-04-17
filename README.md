@@ -104,16 +104,13 @@ This is a big difference from hand crafted hardware, where it is assured, that y
 
 ### Installation
 
-Linux:
+Linux (Ubuntu 22.04.2 LTS):
 ```
-apt install build-essential python3-dev llvm-14 llvm-14-dev
-# you need also make llvm-14 as a default llvm, https://github.com/mesonbuild/meson/issues/10396
-update-alternatives --install /usr/bin/llvm-config llvm-config /usr/bin/llvm-config-14 100
-pip3 install -r https://raw.githubusercontent.com/Nic30/hwtHls/master/doc/requirements.txt
+apt install build-essential python3-dev python3-pip llvm-14 llvm-14-dev
+pip3 install -r https://raw.githubusercontent.com/Nic30/hwtHls/master/doc/requirements.txt # [optional]
 # if you do not run previous command you will install dependencies from pip which may outdated
 pip3 install git+https://github.com/Nic30/hwtHls.git
 ```
-
 
 
 ## Related open-source
