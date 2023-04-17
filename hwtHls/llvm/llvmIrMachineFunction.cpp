@@ -4,9 +4,9 @@
 #include <llvm/CodeGen/MachineFunction.h>
 #include <llvm/CodeGen/MachineBasicBlock.h>
 #include <llvm/CodeGen/MachineInstr.h>
-#include <llvm/CodeGen/MachineLoopInfo.h>
 #include <llvm/CodeGen/MachineRegisterInfo.h>
 #include <llvm/IR/Constants.h>
+#include <llvm/IR/GlobalValue.h>
 #include <llvm/MC/MCInstrInfo.h>
 
 #include "llvmIrCommon.h"
@@ -17,17 +17,6 @@ namespace py = pybind11;
 namespace hwtHls {
 
 enum TargetOpcode: unsigned {};
-
-template<typename ITEM_T>
-void register_SmallVector(pybind11::module_ &m, const std::string & name ){
-	using vec_t = llvm::SmallVector<ITEM_T>;
-	py::class_<vec_t> v(m, name.c_str(), py::module_local(false));
-	v
-		.def("__iter__", [](vec_t &V) {
-				return py::make_iterator(V.begin(), V.end());
-		}, py::keep_alive<0, 1>())
-		.def("size", &vec_t::size);
-}
 
 void register_MachineFunction(pybind11::module_ &m) {
 	py::class_<llvm::MachineFunction, std::unique_ptr<llvm::MachineFunction, py::nodelete>> MachineFunction(m, "MachineFunction");
@@ -82,7 +71,7 @@ void register_MachineFunction(pybind11::module_ &m) {
 		.def("getMBB", &llvm::MachineOperand::getMBB, py::return_value_policy::reference)
 		.def("getImm", &llvm::MachineOperand::getImm)
 		.def("getPredicate", &llvm::MachineOperand::getPredicate)
-		.def("getGlobal", &llvm::MachineOperand::getGlobal)
+		.def("getGlobal", &llvm::MachineOperand::getGlobal, py::return_value_policy::reference_internal)
 		.def("isReg", &llvm::MachineOperand::isReg)
 		.def("isDef", &llvm::MachineOperand::isDef)
 		.def("isMBB", &llvm::MachineOperand::isMBB)
@@ -135,45 +124,11 @@ void register_MachineFunction(pybind11::module_ &m) {
 	     })
 		.def("__hash__", &llvm::Register::id)
 		.def("__repr__", [](llvm::Register*R) {
-					std::stringstream ss;
-					ss << "<llvm::Register 0x" << std::hex << R->id() <<  ">";
-					return ss.str();
+			std::stringstream ss;
+			ss << "<llvm::Register 0x" << std::hex << R->id() <<  ">";
+			return ss.str();
 		});
 
-	py::class_<llvm::MachineLoopInfo, std::unique_ptr<llvm::MachineLoopInfo, py::nodelete>> MachineLoopInfo(m, "MachineLoopInfo");
-	MachineLoopInfo
-		.def("isLoopHeader", &llvm::MachineLoopInfo::isLoopHeader)
-		.def("getLoopFor", &llvm::MachineLoopInfo::getLoopFor, py::return_value_policy::reference_internal)
-		.def("__iter__", [](llvm::MachineLoopInfo &MLI) {
-				return py::make_iterator(MLI.begin(), MLI.end());
-    	}, py::keep_alive<0, 1>());
-	register_SmallVector<llvm::MachineBasicBlock *>(m, "MachineBasicBlockSmallVector");
-	register_SmallVector<llvm::MachineLoop::Edge>(m, "MachineEdgeSmallVector");
-	py::class_<llvm::MachineLoop, std::unique_ptr<llvm::MachineLoop, py::nodelete>> MachineLoop(m, "MachineLoop");
-	MachineLoop
-		.def("getParentLoop", &llvm::MachineLoop::getParentLoop, py::return_value_policy::reference)
-		.def("getHeader", &llvm::MachineLoop::getHeader, py::return_value_policy::reference)
-		.def("getLoopDepth", &llvm::MachineLoop::getLoopDepth)
-		.def("hasNoExitBlocks", &llvm::MachineLoop::hasNoExitBlocks)
-		.def("isInnermost", &llvm::MachineLoop::isInnermost)
-		.def("isOutermost", &llvm::MachineLoop::isOutermost)
-		.def("getExitingBlocks", [](llvm::MachineLoop * self) {
-			llvm::SmallVector<llvm::MachineBasicBlock *> ExitingBlocks;
-			self->getExitingBlocks(ExitingBlocks);
-			return ExitingBlocks;
-		})
-		.def("getExitEdges", [](llvm::MachineLoop * self) {
-			llvm::SmallVector<llvm::MachineLoop::Edge> ExitingEdges;
-			self->getExitEdges(ExitingEdges);
-			return ExitingEdges;
-		})
-		.def("containsBlock", [](llvm::MachineLoop & L, llvm::MachineBasicBlock & MBB) {
-			return L.contains(&MBB);
-		})
-		.def("getBlocks", [](llvm::MachineLoop &ML) {
-				return py::make_iterator(ML.block_begin(), ML.block_end());
-    	}, py::keep_alive<0, 1>())
-		.def("__str__",  &printToStr<llvm::MachineLoop>);
 	py::class_<llvm::MachineRegisterInfo, std::unique_ptr<llvm::MachineRegisterInfo, py::nodelete>> MachineRegisterInfo(m, "MachineRegisterInfo");
 	MachineRegisterInfo
 		.def("def_empty", &llvm::MachineRegisterInfo::def_empty)

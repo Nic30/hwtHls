@@ -4,6 +4,7 @@
 #include "llvmIrStrings.h"
 #include "llvmIrValues.h"
 #include "llvmIrMachineFunction.h"
+#include "llvmIrMachineLoop.h"
 #include "llvmIrMetadata.h"
 #include "llvmCompilationBundle.h"
 #include "targets/genericFpga.h"
@@ -229,6 +230,7 @@ PYBIND11_MODULE(llvmIr, m) {
 		return llvm::verifyModule(M, &e);
 	});
 	register_MachineFunction(m);
+	register_MachineLoop(m);
 
 	py::class_<llvm::SMDiagnostic> (m, "SMDiagnostic")
 			.def(py::init<>())

@@ -35,6 +35,7 @@ py3.extension_module(
      'llvmIrValues.cpp',
      'llvmIrStrings.cpp',
      'llvmIrMachineFunction.cpp',
+     'llvmIrMachineLoop.cpp',
      'llvmIrMetadata.cpp',
      'llvmCompilationBundle.cpp',
 
