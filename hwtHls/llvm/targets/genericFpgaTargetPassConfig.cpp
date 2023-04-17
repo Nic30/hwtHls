@@ -23,6 +23,8 @@
 
 namespace llvm {
 
+// :note: you can use 	addPass(new hwtHls::MachineDumpAndExitPass(true, false)); to peek into compilation programatically
+
 void GenericFpgaTargetPassConfig::addStraightLineScalarOptimizationPasses() {
 	// from AMDGPU
 	addPass(createLICMPass());
