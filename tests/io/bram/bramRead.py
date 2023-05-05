@@ -45,13 +45,19 @@ class BramRead(Unit):
             i += 1
 
     def reduceOrdering(self, hls: HlsScope, thread: HlsThreadFromPy):
+        """
+        Allow loop execute new loop iteration as soon as "i" is available.
+        (Do not wait until the read completes)
+        """
         netlist = thread.toHw
-        for intf in (self.dataOut, self.ram):
-            for rwNode in netlist.outputs:
-                rwNode: HlsNetNodeWrite
+        for rwNode in netlist.outputs:
+            rwNode: HlsNetNodeWrite
+            for intf in (self.dataOut, self.ram):
                 if rwNode.dst is intf:
-                    netlistExplicitSyncDisconnectFromOrderingChain(DebugTracer(None), rwNode, [],
-                                                               disconnectPredecessors=False, disconnectSuccesors=True)
+                    netlistExplicitSyncDisconnectFromOrderingChain(DebugTracer(None), rwNode, None,
+                                                                   disconnectPredecessors=False,
+                                                                   disconnectSuccesors=True)
+                    break
 
     def _impl(self) -> None:
         hls = HlsScope(self)
@@ -59,7 +65,6 @@ class BramRead(Unit):
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, ram)
         mainThread.netlistCallbacks.append(self.reduceOrdering)
 
-        # mainThread.bytecodeToSsa.debug = True
         hls.addThread(mainThread)
         hls.compile()
 
