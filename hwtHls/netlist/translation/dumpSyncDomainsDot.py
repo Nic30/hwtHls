@@ -8,7 +8,7 @@ from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
-from hwtHls.netlist.translation.toGraphwiz import HwtHlsNetlistToGraphwiz
+from hwtHls.netlist.translation.dumpNodesDot import HwtHlsNetlistToGraphwiz
 from hwtHls.platform.fileUtils import OutputStreamGetter
 
 
@@ -52,7 +52,7 @@ class HwtHlsNetlistSyncDomainsToGraphwiz(HwtHlsNetlistToGraphwiz):
         return self.graph.to_string()
 
 
-class HlsNetlistPassSyncDomainsToGraphwiz(HlsNetlistPass):
+class HlsNetlistPassDumpSyncDomainsDot(HlsNetlistPass):
 
     def __init__(self, outStreamGetter: OutputStreamGetter):
         self.outStreamGetter = outStreamGetter
