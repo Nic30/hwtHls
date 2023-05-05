@@ -24,7 +24,6 @@ from tests.frontend.ast.whileIf_test import HlsAstWhileIf_TC
 from tests.frontend.ast.whileTrue_test import HlsAstWhileTrue_TC
 from tests.frontend.pyBytecode.basics_test import FromPythonBasics_TC
 from tests.frontend.pyBytecode.binToBcd_test import BinToBcd_TC
-from tests.frontend.pyBytecode.counterArray_test import CounterArray_TC
 from tests.frontend.pyBytecode.errors_test import PyBytecodeErrors_TC
 from tests.frontend.pyBytecode.fnClosue_test import FnClosure_TC
 from tests.frontend.pyBytecode.hashTable_test import HashTable_TC
@@ -33,19 +32,22 @@ from tests.frontend.pyBytecode.pragmaInline_test import PyBytecodeInline_TC
 from tests.frontend.pyBytecode.preprocLoopMultiExit_test import PreprocLoopMultiExit_TCs
 from tests.frontend.pyBytecode.pyArrHwIndex_test import PyArrHwIndex_TC
 from tests.frontend.pyBytecode.pyArrShift_test import PyArrShift_TC
+from tests.frontend.pyBytecode.pyExceptionRaise_test import PyBytecodePyException_TC
 from tests.frontend.pyBytecode.readNonBlocking_test import ReadNonBlocking_TC
 from tests.frontend.pyBytecode.stmFor_test import StmFor_TC
 from tests.frontend.pyBytecode.stmIf_test import StmIf_TC
 from tests.frontend.pyBytecode.stmWhile_test import StmWhile_TC
 from tests.frontend.pyBytecode.tupleAssign import HlsPythonTupleAssign_TC
 from tests.frontend.pyBytecode.variableChain_test import VariableChain_TC
-from tests.hlsNetlist.bitwiseOpsAggregation import HlsNetlistBitwiseOpsTC
+from tests.hlsNetlist.bitwiseOpsAggregation_test import HlsNetlistBitwiseOpsTC
 from tests.hlsNetlist.discoverSyncIsland_test import HlsNetlistDiscoverSyncIslandTC
+from tests.hlsNetlist.injectVldMaskToSkipWhenConditions_test import HlsNetlistPassInjectVldMaskToSkipWhenConditionsTC
 from tests.hlsNetlist.netlistReduceCmpInAnd_test import HlsNetlistReduceCmpInAndTC
-from tests.hlsNetlist.readNonBlocking import ReadNonBockingTC
-from tests.hlsNetlist.readSync import HlsNetlistReadSyncTC
+from tests.hlsNetlist.readNonBlocking_test import ReadNonBockingTC
+from tests.hlsNetlist.readSync_test import HlsNetlistReadSyncTC
 from tests.hlsNetlist.simplifyBackedgeWritePropagation_test import HlsCycleDelayUnit
-from tests.hlsNetlist.wire import HlsNetlistWireTC
+from tests.hlsNetlist.wire_test import HlsNetlistWireTC
+from tests.io.amba.axi4Lite.axi4LiteCopy_test import Axi4LiteCopy_TC
 from tests.io.amba.axi4Lite.axi4LiteRead_test import Axi4LiteRead_TC
 from tests.io.amba.axi4Lite.axi4LiteWrite_test import Axi4LiteWrite_TC
 from tests.io.amba.axiStream.axisPacketCntr_test import AxiSPacketCntrTC
@@ -56,17 +58,21 @@ from tests.io.amba.axiStream.axisWriteByte_test import AxiSWriteByteTC
 from tests.io.amba.axiStream.pingResponder import PingResponderTC
 from tests.io.bram.bramRead_test import BramRead_TC
 from tests.io.bram.bramWrite_test import BramWrite_TC
+from tests.io.bram.counterArray_test import BramCounterArray_TC
+from tests.io.ioFsm2_test import IoFsm2_TC
 from tests.io.ioFsm_test import IoFsm_TC
 from tests.io.readAtleastOne_test import ReadAtleastOne_TC
+from tests.io.readSizeFromRamAndSendSequence_test import ReadSizeFromRamAndSendSequence_TC
 from tests.syntehesis_checks import HlsSynthesisChecksTC
 from tests.utils.alapAsapDiffExample import AlapAsapDiffExample_TC
+from tests.utils.bitwiseOpsScheduling_test import BitwiseOpsScheduling_TC
 from tests.utils.phiConstructions_test import PhiConstruction_TC
 
 
 def testSuiteFromTCs(*tcs):
-    loader = TestLoader()
     for tc in tcs:
         tc._multiprocess_can_split_ = True
+    loader = TestLoader()
     loadedTcs = [loader.loadTestsFromTestCase(tc) for tc in tcs]
     suite = TestSuite(loadedTcs)
     return suite
@@ -78,8 +84,11 @@ suite = testSuiteFromTCs(
     HlsNetlistBitwiseOpsTC,
     HlsNetlistDiscoverSyncIslandTC,
     HlsNetlistReduceCmpInAndTC,
+    HlsNetlistPassInjectVldMaskToSkipWhenConditionsTC,
+    HlsNetlistReadSyncTC,
     SlicesToIndependentVariablesPass_TC,
     HlsSlicingTC,
+    BitwiseOpsScheduling_TC,
     CountBitsTC,
     PopcountTC,
     ReadNonBockingTC,
@@ -87,7 +96,6 @@ suite = testSuiteFromTCs(
     HlsPythonTupleAssign_TC,
     BitWidthReductionCmp_example_TC,
     CmpReduction_TC,
-    HlsNetlistReadSyncTC,
     HlsAstReadIfTc,
     HlsMAC_example_TC,
     *BitonicSorterHLS_TCs,
@@ -103,9 +111,11 @@ suite = testSuiteFromTCs(
     DivNonRestoring_TC,
     BinToBcd_TC,
     IoFsm_TC,
+    IoFsm2_TC,
     PhiConstruction_TC,
     FromPythonBasics_TC,
     PyBytecodeErrors_TC,
+    PyBytecodePyException_TC,
     PyBytecodeInline_TC,
     PyArrShift_TC,
     *PreprocLoopMultiExit_TCs,
@@ -127,7 +137,9 @@ suite = testSuiteFromTCs(
     PingResponderTC,
     Axi4LiteRead_TC,
     Axi4LiteWrite_TC,
-    CounterArray_TC,
+    Axi4LiteCopy_TC,
+    BramCounterArray_TC,
+    ReadSizeFromRamAndSendSequence_TC,
     ReadNonBlocking_TC,
     ReadAtleastOne_TC,
 )
@@ -137,13 +149,16 @@ def main():
     # runner = TextTestRunner(verbosity=2, failfast=True)
     runner = TextTestRunner(verbosity=2)
 
-    try:
-        from concurrencytest import ConcurrentTestSuite, fork_for_tests
-        useParallelTest = True
-    except ImportError:
-        # concurrencytest is not installed, use regular test runner
+    if len(sys.argv) > 1 and sys.argv[1] == "--singlethread":
         useParallelTest = False
-    useParallelTest = False
+    else:
+        try:
+            from concurrencytest import ConcurrentTestSuite, fork_for_tests
+            useParallelTest = True
+        except ImportError:
+            # concurrencytest is not installed, use regular test runner
+            useParallelTest = False
+    #useParallelTest = False
 
     if useParallelTest:
         concurrent_suite = ConcurrentTestSuite(suite, fork_for_tests())
