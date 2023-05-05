@@ -9,27 +9,10 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
 from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.ssa.translation.llvmMirToNetlist.branchOutLabel import BranchOutLabel
 
-
 MirValue = Union[Register, MachineBasicBlock, BranchOutLabel]
 
 
-class BranchOutLabel():
-    """
-    A label used in :class:`MirToHwtHlsNetlistOpCache` as a key for value which is 1 if the control is passed from src to dst.
-    """
-
-    def __init__(self, src: MachineBasicBlock, dst: MachineBasicBlock):
-        self.src = src
-        self.dst = dst
-
-    def __hash__(self):
-        return hash((self.__class__, self.src, self.dst))
-
-    def __eq__(self, other):
-        return type(self) is type(other) and self.src == other.src and self.dst == other.dst
-
-
-class MirToHwtHlsNetlistOpCache():
+class MirToHwtHlsNetlistValueCache():
     """
     :ivar _unresolvedBlockInputs: container of HlsNetNodeOutLazy object which are inputs inputs to block
         and needs to be replaced once the value is resolved in the predecessor block
@@ -110,7 +93,6 @@ class MirToHwtHlsNetlistOpCache():
                     if isinstance(user.obj, HlsNetNodeReadSync):
                         v.obj._associatedReadSync = user.obj
                         break
-
             cur.replaceDriverObj(v)
             if self._toHlsCache[k] is cur:
                 self._toHlsCache[k] = v
@@ -129,5 +111,12 @@ class MirToHwtHlsNetlistOpCache():
 
         except KeyError:
             o = HlsNetNodeOutLazy(self._netlist, [k], self, dtype)
+            if isinstance(v, MachineBasicBlock):
+                o.name = f"bb{block.getNumber():d}_brFrom_bb{v.getNumber():d}"
+            elif isinstance(v, BranchOutLabel):
+                o.name = f"bb{block.getNumber():d}_br_bb{v.dst.getNumber():d}"
+            elif isinstance(v, Register):
+                o.name = f"bb{block.getNumber():d}_r{v.virtRegIndex():d}"
+
             self._toHlsCache[k] = o
             return o
