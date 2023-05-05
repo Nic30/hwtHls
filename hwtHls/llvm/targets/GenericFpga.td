@@ -1,7 +1,13 @@
 //===---------------------------------------------------------------------===//
 // This is the top level entry point for the GenericFpga target.
 // This target is meant as an universal target for FPGAs, it does not contain
-// any registers and scheduling must be done externally.
+// any physical registers and scheduling must be done externally.
+//
+// 
+// This backend have seaveral expectations from LLVM IR
+// * All function arguments represents IO of some component, each function must have hwtHls.param_addr_width metadata.
+// * Each parameter pointer has its own address space, where parameter 0 has address space 1,
+//   (address space 0 is llvm default and it is left for local memories)
 //===---------------------------------------------------------------------===//
 
 //===---------------------------------------------------------------------===//

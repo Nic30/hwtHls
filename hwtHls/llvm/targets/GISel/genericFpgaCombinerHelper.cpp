@@ -72,7 +72,7 @@ bool GenFpgaCombinerHelper::matchAllOnesConstantOp(const llvm::MachineOperand &M
 	}
 	auto *MI = MRI.getVRegDef(MOP.getReg());
 	auto MaybeCst = isConstantOrConstantSplatVector(*MI, MRI);
-	return MaybeCst.hasValue() && MaybeCst->isAllOnes();
+	return MaybeCst.has_value() && MaybeCst->isAllOnes();
 }
 bool GenFpgaCombinerHelper::matchOperandIsAllOnes(llvm::MachineInstr &MI, unsigned OpIdx) {
 	return matchAllOnesConstantOp(MI.getOperand(OpIdx))
@@ -243,7 +243,7 @@ bool GenFpgaCombinerHelper::rewriteExtractOnMergeValues(llvm::MachineInstr &MI) 
 				MRI.replaceRegWith(MI.getOperand(0).getReg(), src.op.getReg());
 			} else if (src.op.isCImm()) {
 				Builder.setInstrAndDebugLoc(MI);
-				Register srcReg = MRI.createVirtualRegister(&GenericFpga::AnyRegClsRegClass);
+				Register srcReg = MRI.createVirtualRegister(&GenericFpga::anyregclsRegClass);
 				Builder.buildConstant(srcReg, *src.op.getCImm());
 				MRI.replaceRegWith(MI.getOperand(0).getReg(), srcReg);
 			} else {
@@ -275,7 +275,7 @@ bool GenFpgaCombinerHelper::rewriteExtractOnMergeValues(llvm::MachineInstr &MI) 
 				Builder.setInsertPt(*MI.getParent(), --currentInsertionPoint);
 				auto memberMIB = Builder.buildInstr(GenericFpga::GENFPGA_EXTRACT);
 				// $dst $src $offset $dstWidth
-				Register memberReg = MRI.createVirtualRegister(&GenericFpga::AnyRegClsRegClass);
+				Register memberReg = MRI.createVirtualRegister(&GenericFpga::anyregclsRegClass);
 				memberMIB.addDef(memberReg, MI.getFlags());
 				addSrcOperand(memberMIB, src);
 				memberMIB.addImm(src.offsetOfUse);
@@ -323,10 +323,10 @@ Register buildMsbGet(MachineIRBuilder &builder, GISelChangeObserver &Observer, G
 
 	Observer.changingInstr(newMI);
 	Register msbReg;
-	if (dst.hasValue()) {
-		msbReg = dst.getValue();
+	if (dst.has_value()) {
+		msbReg = dst.value();
 	} else {
-		msbReg = builder.getMRI()->createVirtualRegister(&GenericFpga::AnyRegClsRegClass);
+		msbReg = builder.getMRI()->createVirtualRegister(&GenericFpga::anyregclsRegClass);
 	}
 	MIB.addDef(msbReg);
 	x.addAsUse(MIB); // src
@@ -351,7 +351,7 @@ bool GenFpgaCombinerHelper::matchCmpToMsbCheck(llvm::MachineInstr &MI, BuildFnTy
 		CImmOrReg _LHS(LHS);
 		rewriteFn = [bitWidth, Dst, _LHS, this](MachineIRBuilder &builder) {
 			// msbReg = x.MSB
-			Register msbReg = buildMsbGet(builder, Observer, _LHS, bitWidth, None);
+			Register msbReg = buildMsbGet(builder, Observer, _LHS, bitWidth, std::nullopt);
 			// res = not msbReg
 			builder.buildInstr(GenericFpga::GENFPGA_NOT, { Dst }, { msbReg });
 		};

@@ -122,6 +122,7 @@ void GenericFpgaTargetPassConfig::addOptimizedRegAlloc() {
 	// after it with -stop-before/-stop-after.
 	addPass(&UnreachableMachineBlockElimID);
 	addPass(&LiveVariablesID);
+
 	// Edge splitting is smarter with machine loop info.
 	addPass(&MachineLoopInfoID);
 	addPass(&OptimizePHIsID);
@@ -170,7 +171,7 @@ void GenericFpgaTargetPassConfig::addOptimizedRegAlloc() {
 	//addPass(createIfConverter([](const MachineFunction &MF) {
 	//  return true;
 	//}));
-	addPass(&MachineCSEID);
+	//addPass(&MachineCSEID); // requires IsSSA
 	addPass(&LiveIntervalsID); // add killed and other attributes
 	addPass(createGenericFpgaPreRegAllocCombiner());
 	addPass(&DeadMachineInstructionElimID); // requires explicit undefs

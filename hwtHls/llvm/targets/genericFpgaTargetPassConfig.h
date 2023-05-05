@@ -9,7 +9,11 @@ namespace llvm {
 /// GenericFpga Code Generator Pass Configuration Options.
 class GenericFpgaTargetPassConfig: public llvm::TargetPassConfig {
 public:
+	// callback function which is used to translate final MIR to Python objects
+	// the callback is used because the translation must be performed until exit
+	// from translation pipeline because after exit the objects would deallocate
 	hwtHls::GenericFpgaToNetlist::ConvesionFnT * toNetlistConversionFn;
+
 	GenericFpgaTargetPassConfig(GenericFpgaTargetMachine &TM,
 			llvm::PassManagerBase &PM) :
 			llvm::TargetPassConfig(TM, PM), toNetlistConversionFn(nullptr) {

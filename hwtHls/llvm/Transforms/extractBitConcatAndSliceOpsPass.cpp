@@ -65,8 +65,7 @@ static bool trySelectInstrToBitConcat(SelectInst *SI) {
 				lastV = v;
 
 			}
-			llvm::CallInst *res = CreateBitConcat(&Builder,
-					llvm::makeArrayRef<Value*>(OpsLowFirst));
+			llvm::CallInst *res = CreateBitConcat(&Builder, OpsLowFirst);
 			SI->replaceAllUsesWith(res);
 			return true;
 		}
@@ -227,8 +226,7 @@ static bool tryOrToBitConcat(BinaryOperator *BO) {
 			if (highPad)
 				OpsLowFirst.push_back(Builder.getIntN(highPad, 0));
 
-			llvm::CallInst *res = CreateBitConcat(&Builder,
-					llvm::makeArrayRef<Value*>(OpsLowFirst));
+			llvm::CallInst *res = CreateBitConcat(&Builder, OpsLowFirst);
 			BO->replaceAllUsesWith(res);
 			return true;
 		}
@@ -323,8 +321,7 @@ static bool tryShlToBitConcat(BinaryOperator *BO) {
 			if (highPad)
 				OpsLowFirst.push_back(Builder.getIntN(highPad, 0));
 
-			llvm::CallInst *res = CreateBitConcat(&Builder,
-					llvm::makeArrayRef<Value*>(OpsLowFirst));
+			llvm::CallInst *res = CreateBitConcat(&Builder, OpsLowFirst);
 			BO->replaceAllUsesWith(res);
 			return true;
 		}

@@ -46,7 +46,7 @@ static bool runCBP(Function &F) {
 			if (dyn_cast<StoreInst>(&I)
 					|| (dyn_cast<LoadInst>(&I)
 							&& dyn_cast<LoadInst>(&I)->isVolatile())
-					|| I.isTerminator() || I.isIndirectTerminator()
+					|| I.isTerminator()
 					|| I.isExceptionalTerminator() || dyn_cast<BranchInst>(&I)
 					|| dyn_cast<SwitchInst>(&I)) {
 				AU.updateUseMaskEntirelyUsed(&I);

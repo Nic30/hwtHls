@@ -11,6 +11,7 @@ inline uint64_t log2ceil(uint64_t x) {
 	}
 	return r;
 }
+
 inline bool isPow2(uint64_t x) {
 	if (x == 0)
 		return false;

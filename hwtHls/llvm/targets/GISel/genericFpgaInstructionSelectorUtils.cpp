@@ -11,7 +11,7 @@ ConstantInt* machineOperandTryGetConst(LLVMContext &Context,
 	if (MO.isReg() && MO.getReg() && MRI.hasOneDef(MO.getReg())) {
 		if (auto VRegVal = getAnyConstantVRegValWithLookThrough(MO.getReg(),
 				MRI)) {
-			assert(VRegVal.hasValue());
+			assert(VRegVal.has_value());
 			auto *CI = ConstantInt::get(Context, VRegVal->Value);
 			return CI;
 		}
@@ -30,7 +30,7 @@ void selectInstrArg(MachineFunction &MF,
 		if (MRI.hasOneDef(MO.getReg())) {
 			if (auto VRegVal = getAnyConstantVRegValWithLookThrough(MO.getReg(),
 					MRI)) {
-				assert(VRegVal.hasValue());
+				assert(VRegVal.has_value());
 				auto &C = MF.getFunction().getContext();
 				auto *CI = ConstantInt::get(C, VRegVal->Value);
 				MIB.addCImm(CI);

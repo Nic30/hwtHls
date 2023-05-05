@@ -174,9 +174,9 @@ TypeSize GenericFpgaTTIImpl::getRegisterBitWidth(bool Vector) const {
 	return TypeSize::getScalable(std::numeric_limits<unsigned>::max() >> 2);
 }
 
-InstructionCost GenericFpgaTTIImpl::getShuffleCost(TTI::ShuffleKind Kind,
-		VectorType *Ty, ArrayRef<int> Mask, int Index,
-		VectorType *SubTp) const {
+InstructionCost GenericFpgaTTIImpl::getShuffleCost(TTI::ShuffleKind Kind, VectorType *Ty, ArrayRef<int> Mask,
+        TTI::TargetCostKind CostKind, int Index, VectorType *SubTp,
+        ArrayRef<const Value *> Args) const {
 	return TTI::TCC_Free;
 }
 
@@ -187,12 +187,20 @@ InstructionCost GenericFpgaTTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst,
 }
 
 InstructionCost GenericFpgaTTIImpl::getExtractWithExtendCost(unsigned Opcode,
-		Type *Dst, VectorType *VecTy, unsigned Index) {
+		Type *Dst, VectorType *VecTy, unsigned Index) const {
 	return TTI::TCC_Free;
 }
 
-InstructionCost GenericFpgaTTIImpl::getVectorInstrCost(unsigned Opcode,
-		Type *Val, unsigned Index) {
+InstructionCost GenericFpgaTTIImpl::getVectorInstrCost(unsigned Opcode, Type *Val,
+        TTI::TargetCostKind CostKind,
+        unsigned Index, Value *Op0,
+        Value *Op1) const {
+	return TTI::TCC_Free;
+}
+
+InstructionCost GenericFpgaTTIImpl::getVectorInstrCost(const Instruction &I, Type *Val,
+                                   TTI::TargetCostKind CostKind,
+                                   unsigned Index) const {
 	return TTI::TCC_Free;
 }
 
@@ -230,12 +238,13 @@ static bool IsFreeOperator(const User *U) {
 	return false;
 }
 
-InstructionCost GenericFpgaTTIImpl::getUserCost(const User *U,
-		ArrayRef<const Value*> Operands, TTI::TargetCostKind CostKind) {
+InstructionCost GenericFpgaTTIImpl::getInstructionCost(const User *U,
+                                   ArrayRef<const Value *> Operands,
+                                   TTI::TargetCostKind CostKind) {
 	if (IsFreeOperator(U))
 		return TTI::TCC_Free;
 
-	return BaseT::getUserCost(U, Operands, CostKind);
+	return BaseT::getInstructionCost(U, Operands, CostKind);
 }
 
 void GenericFpgaTTIImpl::getUnrollingPreferences(Loop*, ScalarEvolution&,
@@ -253,7 +262,7 @@ void GenericFpgaTTIImpl::getUnrollingPreferences(Loop*, ScalarEvolution&,
 
 Type* GenericFpgaTTIImpl::getMemcpyLoopLoweringType(LLVMContext &Context,
 		Value *Length, unsigned SrcAddrSpace, unsigned DestAddrSpace,
-		unsigned SrcAlign, unsigned DestAlign) const {
+		unsigned SrcAlign, unsigned DestAlign, std::optional<uint32_t> AtomicElementSize) const {
 	uint64_t Min = MinAlign(SrcAlign, DestAlign);
 	KnownBits KB = computeKnownBits(Length, getDataLayout());
 	Min = MinAlign(Min, 1 << KB.countMinTrailingZeros());

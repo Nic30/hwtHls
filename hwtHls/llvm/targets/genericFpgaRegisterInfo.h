@@ -2,6 +2,7 @@
 
 #include <llvm/CodeGen/TargetRegisterInfo.h>
 #include <llvm/CodeGen/MachineFunction.h>
+#include <llvm/CodeGen/TargetRegisterInfo.h>
 
 #include "genericFpgaMCTargetDesc.h"
 
@@ -15,12 +16,13 @@ public:
 	GenericFpgaRegisterInfo();
 	const llvm::MCPhysReg*
 	getCalleeSavedRegs(const llvm::MachineFunction *MF) const override;
-	llvm::BitVector getReservedRegs(const llvm::MachineFunction &MF) const
-			override;
+	virtual llvm::BitVector getReservedRegs(
+			const llvm::MachineFunction &MF) const override;
 	/// Stack Frame Processing Methods
-	void eliminateFrameIndex(llvm::MachineBasicBlock::iterator MI, int SPAdj,
-			unsigned FIOperandNum, llvm::RegScavenger *RS = NULL) const
-					override;
+	virtual bool eliminateFrameIndex(llvm::MachineBasicBlock::iterator MI,
+			int SPAdj, unsigned FIOperandNum,
+			llvm::RegScavenger *RS = nullptr) const override;
+
 	llvm::Register getFrameRegister(const llvm::MachineFunction &MF) const
 			override;
 

@@ -31,6 +31,7 @@ py3.extension_module(
     'llvmIr',
     ['llvmIr.cpp',
      'llvmIrBuilder.cpp',
+     'llvmIrFunction.cpp',
      'llvmIrInstruction.cpp',
      'llvmIrValues.cpp',
      'llvmIrStrings.cpp',
@@ -58,6 +59,7 @@ py3.extension_module(
      'targets/GISel/genericFpgaCombinerHelperMux.cpp',
 
 	 'targets/genericFpgaInstrInfo.cpp',
+	 'targets/genericFpgaIoUtils.cpp',
 	 'targets/genericFpgaMCTargetDesc.cpp',
      'targets/genericFpgaTargetInfo.cpp',
      'targets/genericFpgaRegisterInfo.cpp',

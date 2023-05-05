@@ -13,6 +13,7 @@
 #include <llvm/CodeGen/GlobalISel/GISelKnownBits.h>
 #include <llvm/CodeGen/GlobalISel/MIPatternMatch.h>
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
+#include <llvm/CodeGen/GlobalISel/CSEInfo.h>
 #include <llvm/CodeGen/MachineDominators.h>
 #include <llvm/CodeGen/MachineFunction.h>
 #include <llvm/CodeGen/MachineFunctionPass.h>
@@ -47,17 +48,18 @@ namespace {
 #undef GENERICFPGAGENPRELEGALIZEGICOMBINERHELPER_GENCOMBINERHELPER_H
 
 class GenericFpgaPreLegalizerCombinerInfo: public CombinerInfo {
+	bool IsPreLegalize;
 	GISelKnownBits *KB;
 	MachineDominatorTree *MDT;
 	GenericFpgaGenPreLegalizeGICombinerHelperRuleConfig GeneratedRuleCfg;
 
 public:
 	GenericFpgaPreLegalizerCombinerInfo(bool EnableOpt, bool OptSize,
-			bool MinSize, GISelKnownBits *KB, MachineDominatorTree *MDT) :
+			bool MinSize, bool IsPreLegalize, GISelKnownBits *KB,
+			MachineDominatorTree *MDT, const LegalizerInfo *LI) :
 			CombinerInfo(/*AllowIllegalOps*/true, /*ShouldLegalizeIllegal*/
-					false,
-					/*LegalizerInfo*/nullptr, EnableOpt, OptSize, MinSize), KB(
-					KB), MDT(MDT) {
+			false, LI, EnableOpt, OptSize, MinSize), IsPreLegalize(
+					IsPreLegalize), KB(KB), MDT(MDT) {
 		if (!GeneratedRuleCfg.parseCommandLineOption())
 			report_fatal_error("Invalid rule identifier");
 	}
@@ -68,7 +70,7 @@ public:
 
 bool GenericFpgaPreLegalizerCombinerInfo::combine(GISelChangeObserver &Observer,
 		MachineInstr &MI, MachineIRBuilder &B) const {
-	GenFpgaCombinerHelper Helper(Observer, B, KB, MDT);
+	GenFpgaCombinerHelper Helper(Observer, B, IsPreLegalize, KB, MDT, LInfo);
 	GenericFpgaGenPreLegalizeGICombinerHelper Generated(GeneratedRuleCfg,
 			Helper);
 
@@ -159,8 +161,9 @@ bool GenericFpgaPreLegalizerCombiner::runOnMachineFunction(
 			&& !skipFunction(F);
 	GISelKnownBits *KB = &getAnalysis<GISelKnownBitsAnalysis>().get(MF);
 	MachineDominatorTree *MDT = &getAnalysis<MachineDominatorTree>();
+	const LegalizerInfo *LInfo = ((const GenericFpgaTargetSubtarget *)&MF.getSubtarget())->getLegalizerInfo();
 	GenericFpgaPreLegalizerCombinerInfo PCInfo(EnableOpt, F.hasOptSize(),
-			F.hasMinSize(), KB, MDT);
+			F.hasMinSize(), true, KB, MDT, LInfo);
 	Combiner C(PCInfo, &TPC);
 	return C.combineMachineInstrs(MF, CSEInfo);
 }

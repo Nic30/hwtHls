@@ -23,6 +23,7 @@
 #include <llvm/IR/Verifier.h>
 #include <llvm/Pass.h>
 
+#include <llvm/Analysis/OptimizationRemarkEmitter.h>
 //#include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #include <llvm/Transforms/InstCombine/InstCombine.h>
 #include <llvm/Transforms/Instrumentation/ControlHeightReduction.h>
@@ -104,14 +105,14 @@ LlvmCompilationBundle::LlvmCompilationBundle(const std::string &moduleName) :
 	opt.EnableGlobalISel = true;
 
 	TPC = nullptr;
-	auto RM = llvm::Optional<llvm::Reloc::Model>();
+	auto RM = std::optional<llvm::Reloc::Model>();
 	TM = Target->createTargetMachine(TargetTriple, CPU, Features, opt, RM);
 	TM->setOptLevel(llvm::CodeGenOpt::Level::Aggressive);
 	PTO = llvm::PipelineTuningOptions();
 	PB = llvm::PassBuilder(
 	/*TargetMachine *TM = */TM,
 	/* PipelineTuningOptions PTO = */PTO,
-	/*Optional<PGOOptions> PGOOpt =*/llvm::None,
+	/*Optional<PGOOptions> PGOOpt =*/std::nullopt,
 	/*PassInstrumentationCallbacks *PIC =*/nullptr);
 	llvm::LLVMTargetMachine &LLVMTM = static_cast<llvm::LLVMTargetMachine&>(*TM);
 	MMIWP = new llvm::MachineModuleInfoWrapperPass(&LLVMTM);
@@ -160,13 +161,12 @@ void LlvmCompilationBundle::runOpt(hwtHls::GenericFpgaToNetlist::ConvesionFnT to
 
 	// Form SSA out of local memory accesses after breaking apart aggregates into
 	// scalars.
-	FPM.addPass(hwtHls::SlicesToIndependentVariablesPass());
-	FPM.addPass(llvm::ADCEPass());
-	FPM.addPass(llvm::SROAPass());
+	FPM.addPass(hwtHls::SlicesToIndependentVariablesPass()); // hwtHls specific
+	FPM.addPass(llvm::ADCEPass());  // hwtHls specific
+	FPM.addPass(llvm::SROAPass(llvm::SROAOptions::ModifyCFG));
 
 	// Catch trivial redundancies
 	FPM.addPass(llvm::EarlyCSEPass(true /* Enable mem-ssa. */));
-
 	//if (EnableKnowledgeRetention)
 	FPM.addPass(llvm::AssumeSimplifyPass());
 	FPM.addPass(hwtHls::SimplifyCFGPass2());
@@ -181,8 +181,6 @@ void LlvmCompilationBundle::runOpt(hwtHls::GenericFpgaToNetlist::ConvesionFnT to
 		FPM.addPass(hwtHls::SimplifyCFGPass2());
 	}
 
-	//if (EnableConstraintElimination)
-	FPM.addPass(llvm::ConstraintEliminationPass());
 
 	// Speculative execution if the target has divergent branches; otherwise nop.
 	FPM.addPass(
@@ -196,14 +194,20 @@ void LlvmCompilationBundle::runOpt(hwtHls::GenericFpgaToNetlist::ConvesionFnT to
 	FPM.addPass(llvm::InstCombinePass());
 	FPM.addPass(llvm::AggressiveInstCombinePass());
 
-	//invokePeepholeEPCallbacks(FPM, Level);
+	//if (EnableConstraintElimination)
+	FPM.addPass(llvm::ConstraintEliminationPass()); // hwtHls specific
 
-	// For PGO use pipeline, try to optimize memory intrinsics such as memcpy
-	// using the size value profile. Don't perform this when optimizing for size.
+	//if (!Level.isOptimizingForSize())
+	//  FPM.addPass(LibCallsShrinkWrapPass());
+    //
+	//invokePeepholeEPCallbacks(FPM, Level);
+    //
+	//// For PGO use pipeline, try to optimize memory intrinsics such as memcpy
+	//// using the size value profile. Don't perform this when optimizing for size.
 	//if (PGOOpt && PGOOpt->Action == PGOOptions::IRUse &&
 	//    !Level.isOptimizingForSize())
-	//  FPM.addPass(llvm::PGOMemOPSizeOpt());
-
+	//  FPM.addPass(PGOMemOPSizeOpt());
+    //
 	//FPM.addPass(TailCallElimPass());
 	FPM.addPass(hwtHls::SimplifyCFGPass2());
 
@@ -297,7 +301,7 @@ void LlvmCompilationBundle::runOpt(hwtHls::GenericFpgaToNetlist::ConvesionFnT to
 	/*UseBlockFrequencyInfo=*/false));
 
 	// Delete small array after loop unroll.
-	FPM.addPass(llvm::SROAPass());
+	FPM.addPass(llvm::SROAPass(llvm::SROAOptions::ModifyCFG));
 
 	// The matrix extension can introduce large vector operations early, which can
 	// benefit from running vector-combine early on.
@@ -364,14 +368,14 @@ void LlvmCompilationBundle::runOpt(hwtHls::GenericFpgaToNetlist::ConvesionFnT to
 	FPM.addPass(llvm::InstCombinePass());
 	//invokePeepholeEPCallbacks(FPM, Level);
 
-	FPM.addPass(hwtHls::ExtractBitConcatAndSliceOpsPass());
-	FPM.addPass(llvm::InstCombinePass()); // mostly for DCE for previous pass
-	FPM.addPass(llvm::AggressiveInstCombinePass());
-	FPM.addPass(hwtHls::BitwidthReductionPass());
-	FPM.addPass(llvm::InstCombinePass()); // mostly for DCE for previous pass
+	FPM.addPass(hwtHls::ExtractBitConcatAndSliceOpsPass()); // hwtHls specific
+	FPM.addPass(llvm::InstCombinePass()); // // hwtHls specific, mostly for DCE for previous pass
+	FPM.addPass(llvm::AggressiveInstCombinePass()); // // hwtHls specific
+	FPM.addPass(hwtHls::BitwidthReductionPass()); // // hwtHls specific
+	FPM.addPass(llvm::InstCombinePass()); // // hwtHls specific, mostly for DCE for previous pass
 	FPM.addPass(
 			llvm::MergedLoadStoreMotionPass(llvm::MergedLoadStoreMotionOptions(
-			/*SplitFooterBB=*/true)));
+			/*SplitFooterBB=*/true))); // // hwtHls specific
 
 	// LowerSwitchPass
 
@@ -404,6 +408,7 @@ void LlvmCompilationBundle::runOpt(hwtHls::GenericFpgaToNetlist::ConvesionFnT to
 
 void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 		llvm::FunctionPassManager &FPM, bool IsFullLTO) {
+	// based on PassBuilder::addVectorPasses
 	FPM.addPass(
 			llvm::LoopVectorizePass(
 					llvm::LoopVectorizeOptions(!PTO.LoopInterleaving,
@@ -576,7 +581,7 @@ void LlvmCompilationBundle::_addMachineCodegenPasses(
 	TPC = static_cast<llvm::GenericFpgaTargetPassConfig*>(static_cast<llvm::LLVMTargetMachine&>(*TM).createPassConfig(
 			PM));
 	// :note: we can not use pass constructor to pass toNetlistConversionFn because
-	//        because constructor must be callable withou arguments because of INITIALIZE_PASS macros
+	//        because constructor must be callable without arguments because of INITIALIZE_PASS macros
 	// :note: we can not call pass explicitly after PM.run() because addRequired/getAnalysis will not work
 	TPC->toNetlistConversionFn = &toNetlistConversionFn;
 	if (TPC->hasLimitedCodeGenPipeline()) {

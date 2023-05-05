@@ -13,6 +13,7 @@
 #include <llvm/CodeGen/GlobalISel/GISelKnownBits.h>
 #include <llvm/CodeGen/GlobalISel/MIPatternMatch.h>
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
+#include <llvm/CodeGen/GlobalISel/CSEInfo.h>
 #include <llvm/CodeGen/MachineDominators.h>
 #include <llvm/CodeGen/MachineFunction.h>
 #include <llvm/CodeGen/MachineFunctionPass.h>
@@ -69,7 +70,7 @@ public:
 
 bool GenericFpgaPreRegAllocCombinerInfo::combine(GISelChangeObserver &Observer,
 		MachineInstr &MI, MachineIRBuilder &B) const {
-	GenFpgaCombinerHelper Helper(Observer, B, KB, MDT);
+	GenFpgaCombinerHelper Helper(Observer, B, false, KB, MDT, LInfo);
 	GenericFpgaGenPreRegAllocGICombinerHelper Generated(GeneratedRuleCfg,
 			Helper);
 

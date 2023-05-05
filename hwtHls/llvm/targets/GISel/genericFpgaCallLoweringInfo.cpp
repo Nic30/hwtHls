@@ -4,6 +4,7 @@
 #include <llvm/CodeGen/MachineFunction.h>
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
 #include <llvm/CodeGen/GlobalISel/Utils.h>
+#include <llvm/Support/Casting.h>
 
 #include <llvm/CodeGen/MachineInstrBuilder.h>
 #include "../intrinsic/bitrange.h"
@@ -34,9 +35,9 @@ bool GenericFpgaCallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder,
 		const Function &F, ArrayRef<ArrayRef<Register>> VRegs,
 		FunctionLoweringInfo &FLI) const {
 	if (F.arg_empty())
-		llvm_unreachable(
+		throw std::runtime_error(
 				"GenericFpgaCallLowering::lowerFormalArguments is meant for functions realized in hardware,"
-						" args. represents IO and there must be some IO.");
+						" args. represents IO, this function does not have any.");
 
 	MachineFunction &MF = MIRBuilder.getMF();
 	MachineRegisterInfo &MRI = MF.getRegInfo();
@@ -53,7 +54,7 @@ bool GenericFpgaCallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder,
 		assert(VRegs[Arg.getArgNo()].size() == 1);
 		unsigned DstReg = VRegs[Arg.getArgNo()][0]; // we must reuse prepared argument register
 		MRI.setType(DstReg, LLT::pointer(i, 64));
-		MRI.setRegClass(DstReg, &GenericFpga::AnyRegClsRegClass);
+		MRI.setRegClass(DstReg, &GenericFpga::anyregclsRegClass);
 
 		///MRI.addLiveIn(SrcReg, DstReg);
 		MachineInstrBuilder MIB = MIRBuilder.buildInstr(
@@ -83,7 +84,7 @@ bool GenericFpgaCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
 			unsigned DstReg = Info.OrigRet.Regs[0];
 			auto MBI = MIRBuilder.buildInstr(GenericFpga::GENFPGA_MERGE_VALUES)	// lower bits first
 			.addReg(DstReg, RegState::Define);
-			MRI.setRegClass(DstReg, &GenericFpga::AnyRegClsRegClass);
+			MRI.setRegClass(DstReg, &GenericFpga::anyregclsRegClass);
 			// add operands
 			bool first = true;
 			for (auto &op : Info.OrigArgs) {
@@ -118,12 +119,12 @@ bool GenericFpgaCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
 			Register offset = Info.OrigArgs[2].Regs[0];
 
 			assert(MRI.hasOneDef(offset));
-			if (Optional<ValueAndVReg> VRegVal =
+			if (std::optional<ValueAndVReg> VRegVal =
 					getAnyConstantVRegValWithLookThrough(offset,
 							*MIRBuilder.getMRI())) {
-				auto offsetVal = VRegVal.getValue().Value;
+				auto offsetVal = VRegVal.value().Value;
 				assert(offsetVal.isNonNegative());
-				MIB.addImm(VRegVal.getValue().Value.getZExtValue());
+				MIB.addImm(VRegVal.value().Value.getZExtValue());
 			} else {
 				llvm_unreachable(
 						"hwtHls.bitRangeGet offset operand must be constant");

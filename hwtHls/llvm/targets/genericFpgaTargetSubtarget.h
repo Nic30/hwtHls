@@ -7,12 +7,12 @@
 #include <llvm/CodeGen/GlobalISel/InstructionSelector.h>
 #include <llvm/CodeGen/TargetFrameLowering.h>
 #include <llvm/CodeGen/GlobalISel/LegalizerInfo.h>
-#include <llvm/CodeGen/GlobalISel/RegisterBankInfo.h>
 #include <llvm/CodeGen/SelectionDAGTargetInfo.h>
 #include <llvm/CodeGen/TargetSubtargetInfo.h>
 #include <llvm/CodeGen/TargetInstrInfo.h>
 #include <llvm/CodeGen/TargetLowering.h>
 #include <llvm/CodeGen/TargetRegisterInfo.h>
+#include <llvm/CodeGen/RegisterBankInfo.h>
 #include <llvm/IR/DataLayout.h>
 #include <llvm/Support/TypeSize.h>
 #include <llvm/Target/TargetMachine.h>

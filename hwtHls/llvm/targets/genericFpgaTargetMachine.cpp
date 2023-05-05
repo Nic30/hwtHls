@@ -32,7 +32,6 @@ extern "C" void LLVMInitializeGenericFpgaTarget() {
 	// Initialize target specific passes
 	llvm::PassRegistry &PR = *llvm::PassRegistry::getPassRegistry();
 	llvm::initializeGlobalISel(PR);
-	llvm::initializeAggressiveInstCombine(PR);
 	llvm::initializeBranchFolderPassPass(PR);
 	llvm::initializeBranchProbabilityInfoWrapperPassPass(PR);
 	llvm::initializeBranchRelaxationPass(PR);
@@ -113,7 +112,7 @@ GenericFpgaTargetMachine::getSubtargetImpl(const Function &F) const {
 }
 
 TargetTransformInfo GenericFpgaTargetMachine::getTargetTransformInfo(
-		const Function &F) {
+		const Function &F) const {
 	return TargetTransformInfo(GenericFpgaTTIImpl(this, F));
 }
 

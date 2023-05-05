@@ -211,8 +211,8 @@ bool GenFpgaCombinerHelper::matchNestedMux(MachineInstr &MI,
 			// c1 is always 1 if NestedCond is 1 (NestedCond implies c1)
 			Optional<bool> CanMergeOperands = KnownBits::uge(KnownC1,
 					KnownNestedC);
-			bool mustAndWithParentCond = !CanMergeOperands.hasValue()
-					|| !CanMergeOperands.getValue();
+			bool mustAndWithParentCond = !CanMergeOperands.has_value()
+					|| !CanMergeOperands.value();
 			requiresAndWithParentCond.push_back(mustAndWithParentCond);
 			NestedValO += 2; // skip condition and jump directly to new value
 		}
@@ -251,7 +251,7 @@ bool GenFpgaCombinerHelper::rewriteNestedMuxToMux(MachineInstr &MI,
 					auto &newCondAndMI = *MIB1.getInstr();
 					Observer.changingInstr(newCondAndMI);
 					Register newCondAndReg = MRI.createVirtualRegister(
-							&GenericFpga::AnyRegClsRegClass);
+							&GenericFpga::anyregclsRegClass);
 					MIB1.addDef(newCondAndReg);
 					for (auto &v : { NesOp.getReg(), parentCondOp.getReg() }) {
 						MIB1.addUse(v);

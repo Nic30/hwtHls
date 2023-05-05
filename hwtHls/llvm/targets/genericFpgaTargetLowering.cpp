@@ -8,14 +8,14 @@ GenericFpgaTargetLowering::GenericFpgaTargetLowering(
 		const llvm::GenericFpgaTargetSubtarget &STI) :
 		TargetLowering(TM), Subtarget(STI) {
 	// Set up the register classes.
-	// addRegisterClass(MVT::i1, &llvm::GenericFpga::AnyRegClsRegClass);
+	// addRegisterClass(MVT::i1, &llvm::GenericFpga::anyregclsRegClass);
 	//for (unsigned t = MVT::FIRST_INTEGER_VALUETYPE;
 	//		t < MVT::LAST_INTEGER_VALUETYPE; t++) {
-	//	addRegisterClass(static_cast<MVT::SimpleValueType>(t), &llvm::GenericFpga::AnyRegClsRegClass);
+	//	addRegisterClass(static_cast<MVT::SimpleValueType>(t), &llvm::GenericFpga::anyregclsRegClass);
 	//}
-	addRegisterClass(MVT::i128, &llvm::GenericFpga::AnyRegClsRegClass);
+	addRegisterClass(MVT::i128, &llvm::GenericFpga::anyregclsRegClass);
 
-	//addRegisterClass(MVT::iAny, &llvm::GenericFpga::AnyRegClsRegClass);
+	//addRegisterClass(MVT::iAny, &llvm::GenericFpga::anyregclsRegClass);
 	// MVT::iAny
 
 	// Compute derived properties from the register classes.
@@ -37,11 +37,11 @@ GenericFpgaTargetLowering::GenericFpgaTargetLowering(
 const llvm::TargetRegisterClass* GenericFpgaTargetLowering::getRegClassFor(
 		llvm::MVT VT, bool isDivergent) const {
 	// here is just a single register class and the type is not important there
-	return &llvm::GenericFpga::AnyRegClsRegClass;
+	return &llvm::GenericFpga::anyregclsRegClass;
 }
 
 unsigned GenericFpgaTargetLowering::getNumRegisters(llvm::LLVMContext &Context,
-		llvm::EVT VT, llvm::Optional<llvm::MVT> RegisterVT) const {
+		llvm::EVT VT, std::optional<llvm::MVT> RegisterVT) const {
 	return 4096;
 }
 llvm::MVT GenericFpgaTargetLowering::getRegisterTypeForCallingConv(
@@ -68,7 +68,7 @@ SDValue GenericFpgaTargetLowering::LowerFormalArguments(SDValue Chain,
 	unsigned i = 1;
 	for (const ISD::InputArg &A : Ins) {
 		// Arguments stored on registers.
-		const TargetRegisterClass *RC = &llvm::GenericFpga::AnyRegClsRegClass;
+		const TargetRegisterClass *RC = &llvm::GenericFpga::anyregclsRegClass;
 		unsigned Reg = MF.addLiveIn(MCRegister(i), RC);
 		SDValue ArgValue = DAG.getCopyFromReg(Chain, dl, Reg, A.ArgVT);
 		InVals.push_back(ArgValue);

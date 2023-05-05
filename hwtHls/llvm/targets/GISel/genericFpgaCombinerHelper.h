@@ -1,6 +1,8 @@
 #pragma once
 
 #include <llvm/CodeGen/GlobalISel/CombinerHelper.h>
+#include <llvm/IR/Constants.h>
+
 namespace llvm {
 
 struct CImmOrRegWithNegFlag {

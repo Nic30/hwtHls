@@ -2,13 +2,16 @@
 
 #include <llvm/CodeGen/MachineFunctionPass.h>
 
+namespace llvm {
+class GenericFpgaTargetPassConfig;
+}
+
 namespace hwtHls {
 
 /*
  * Resolve minimal bitwidth for individual registers.
  * */
 class GenFpgaRegisterBitWidth: public llvm::MachineFunctionPass {
-
 public:
 	static char ID;
 	GenFpgaRegisterBitWidth();

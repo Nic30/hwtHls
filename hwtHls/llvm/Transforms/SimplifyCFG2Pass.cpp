@@ -16,6 +16,8 @@
 #include <llvm/Transforms/Utils/Local.h>
 #include <llvm/Analysis/TargetTransformInfo.h>
 #include <llvm/Analysis/AssumptionCache.h>
+#include <llvm/Analysis/DomTreeUpdater.h>
+
 #include "SimplifyCFG2Pass_normalizeLookupTableIndex.h"
 
 #include <map>

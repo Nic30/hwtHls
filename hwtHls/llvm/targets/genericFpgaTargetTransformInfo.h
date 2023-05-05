@@ -47,10 +47,8 @@ public:
 			const llvm::APInt &Imm, llvm::Type *Ty,
 			TTI::TargetCostKind CostKind,
 			llvm::Instruction *Inst = nullptr) const;
-	llvm::InstructionCost getUserCost(const llvm::User *U,
-			llvm::ArrayRef<const llvm::Value*> Operands,
-			TTI::TargetCostKind CostKind);
-
+	llvm::InstructionCost getInstructionCost(const llvm::User *U,
+			llvm::ArrayRef<const llvm::Value*> Operands, TTI::TargetCostKind CostKind);
 	unsigned getNumberOfRegisters(unsigned ClassID) const;
 	bool hasBranchDivergence();
 	bool isSourceOfDivergence(const llvm::Value *V);
@@ -67,20 +65,22 @@ public:
 	TTI::PopcntSupportKind getPopcntSupport(unsigned IntTyWidthInBit);
 	llvm::TypeSize getRegisterBitWidth(bool Vector) const;
 
-	llvm::InstructionCost getShuffleCost(TTI::ShuffleKind Kind,
-			llvm::VectorType *Ty, llvm::ArrayRef<int> Mask, int Index,
-			llvm::VectorType *SubTp) const;
+	llvm::InstructionCost getShuffleCost(TTI::ShuffleKind Kind, llvm::VectorType *Ty, llvm::ArrayRef<int> Mask,
+            TTI::TargetCostKind CostKind, int Index, llvm::VectorType *SubTp,
+            llvm::ArrayRef<const llvm::Value *> Args = std::nullopt) const;
 	llvm::InstructionCost getCastInstrCost(unsigned Opcode, llvm::Type *Dst,
 			llvm::Type *Src, TTI::CastContextHint CCH,
 			TTI::TargetCostKind CostKind, const llvm::Instruction *I) const;
 	llvm::InstructionCost getExtractWithExtendCost(unsigned Opcode,
-			llvm::Type *Dst, llvm::VectorType *VecTy, unsigned Index);
-	llvm::InstructionCost getVectorInstrCost(unsigned Opcode, llvm::Type *Val,
-			unsigned Index);
+			llvm::Type *Dst, llvm::VectorType *VecTy, unsigned Index) const;
+	llvm::InstructionCost getVectorInstrCost(unsigned Opcode, Type *Val,
+			TTI::TargetCostKind CostKind, unsigned Index, llvm::Value *Op0,
+			llvm::Value *Op1) const;
+	llvm::InstructionCost getVectorInstrCost(const Instruction &I, Type *Val,
+			TTI::TargetCostKind CostKind, unsigned Index) const;
 	llvm::Type* getMemcpyLoopLoweringType(llvm::LLVMContext &Context,
 			llvm::Value *Length, unsigned SrcAddrSpace, unsigned DestAddrSpace,
-			unsigned SrcAlign, unsigned DestAlign) const;
-
+			unsigned SrcAlign, unsigned DestAlign, std::optional<uint32_t> AtomicElementSize) const;
 	unsigned getLoadStoreVecRegBitWidth(unsigned AddrSpace) const;
 	bool isLegalToVectorizeLoadChain(unsigned ChainSizeInBytes,
 			llvm::Align Alignment, unsigned AddrSpace) const;

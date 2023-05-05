@@ -4,10 +4,12 @@
 #include <llvm/MC/MCContext.h>
 #include <llvm/Support/Debug.h>
 
+#include "../genericFpgaTargetPassConfig.h"
 #include "../genericFpgaInstrInfo.h"
+#include "../genericFpgaIoUtils.h"
+#include "../bitMathUtils.h"
 #include "genericFpgaInstructionSelectorUtils.h"
 #include "genericFpgaCombinerHelper.h"
-#include "../bitMathUtils.h"
 
 #define DEBUG_TYPE "genericfpga-isel"
 
@@ -44,7 +46,7 @@ private:
 	bool select_G_TRUNC(MachineRegisterInfo &MRI, MachineIRBuilder &MIRB,
 			MachineInstr &I);
 	bool select_G_LOAD_or_G_STORE(MachineFunction &MF, MachineRegisterInfo &MRI,
-			MachineIRBuilder &MIRB, MachineInstr &I);
+			MachineIRBuilder &MIRB, MachineInstr &MI);
 	Optional<Register> _getSelectedMsb(MachineIRBuilder &MIRB,
 			MachineRegisterInfo &MRI, MachineOperand inputMo);
 
@@ -159,7 +161,7 @@ bool GenericFpgaTargetInstructionSelector::select(MachineInstr &I) {
 	if (selectImpl(I, *CoverageInfo))
 		return true;
 
-	const TargetRegisterClass &RC = GenericFpga::AnyRegClsRegClass;
+	const TargetRegisterClass &RC = GenericFpga::anyregclsRegClass;
 
 	MachineIRBuilder Builder(I);
 	//llvm::errs() << "GenericFpgaTargetInstructionSelector::select: "
@@ -203,8 +205,9 @@ bool GenericFpgaTargetInstructionSelector::select(MachineInstr &I) {
 		} else {
 			assert(Opc == G_GLOBAL_VALUE);
 			auto ptrT = I.getOperand(1).getGlobal()->getType();
-			auto t = ptrT->getNonOpaquePointerElementType();
-			unsigned SizeInBits = log2ceil(t->getArrayNumElements());
+			Type * elmT;
+			size_t SizeInBits;
+			std::tie(elmT, SizeInBits) = hwtHls::getGlobalValueElementTypeAndAddressWidth(I);
 			Ty = LLT::pointer(ptrT->getAddressSpace(), SizeInBits);
 		}
 		MRI.setType(o0, Ty);
@@ -225,10 +228,19 @@ bool GenericFpgaTargetInstructionSelector::select(MachineInstr &I) {
 	case G_MERGE_VALUES:
 	case G_PTR_ADD:
 	case G_MUL:
+	case G_UREM:
+	case G_UDIV:
+	case G_SREM:
+	case G_SDIV:
 	case G_OR:
 	case G_SELECT:
 	case G_SUB:
-	case G_XOR: {
+	case G_XOR:
+	case G_ABS:
+	case G_SMIN:
+	case G_SMAX:
+	case G_UMAX:
+	case G_UMIN: {
 		auto _Opc = Opc;
 		switch (Opc) {
 		case G_EXTRACT:
@@ -274,12 +286,11 @@ bool GenericFpgaTargetInstructionSelector::select(MachineInstr &I) {
 	return false; // all is selected because this is just a dummy selector
 }
 
-
 bool GenericFpgaTargetInstructionSelector::select_G_LOAD_or_G_STORE(
 		MachineFunction &MF, MachineRegisterInfo &MRI, MachineIRBuilder &MIRB,
-		MachineInstr &I) {
+		MachineInstr &MI) {
 
-	auto Opc = I.getOpcode();
+	auto Opc = MI.getOpcode();
 	unsigned NewOpc;
 	switch (Opc) {
 	case TargetOpcode::G_LOAD:
@@ -295,7 +306,7 @@ bool GenericFpgaTargetInstructionSelector::select_G_LOAD_or_G_STORE(
 	//	MO->getAAInfo()
 	//}
 	// resolve addr, index
-	MachineOperand &addrMO = I.getOperand(1);
+	MachineOperand &addrMO = MI.getOperand(1);
 	assert(
 			addrMO.isReg()
 					&& "Must be the register because we do not have global address space and we can not just dereference address constant.");
@@ -304,7 +315,7 @@ bool GenericFpgaTargetInstructionSelector::select_G_LOAD_or_G_STORE(
 					&& "Otherwise not implemented, it is required to rewrite address mux to multiple store/load instructions.");
 	// val/dst, addr, index, cond
 	auto MIB = MIRB.buildInstr(NewOpc);
-	selectInstrArg(MF, MIB, MRI, I.getOperand(0)); // val/dst - copy as it is
+	selectInstrArg(MF, MIB, MRI, MI.getOperand(0)); // val/dst - copy as it is
 
 	MachineInstr *addrDef = MRI.getOneDef(addrMO.getReg())->getParent();
 	switch (addrDef->getOpcode()) {
@@ -318,36 +329,13 @@ bool GenericFpgaTargetInstructionSelector::select_G_LOAD_or_G_STORE(
 		// [todo] slice the index during instr. selection so we do have a minimal width and value without size multiplier
 		MachineOperand &baseAddrMO = addrDef->getOperand(1);
 		selectInstrArg(MF, MIB, MRI, baseAddrMO); // base address
-		auto baseAddrInst = MRI.getOneDef(baseAddrMO.getReg())->getParent();
-		Type * argT = nullptr;
+		Type * elmT;
+		size_t indexWidth;
+		std::tie(elmT, indexWidth) = hwtHls::getLoadOrStoreElementType(MRI, MI);
 
-		auto addrBase = baseAddrInst->getOperand(1);
-		switch (baseAddrInst->getOpcode()) {
-		case GenericFpga::GENFPGA_ARG_GET: {
-			// component IO
-			auto fnArgI = addrBase.getImm();
-			auto a = MF.getFunction().getArg(fnArgI);
-			argT = a->getType()->getNonOpaquePointerElementType();
-			break;
-		}
-		case TargetOpcode::G_GLOBAL_VALUE: {
-			// some private memory
-			auto c = addrBase.getGlobal();
-			argT = c->getType()->getNonOpaquePointerElementType();
-			break;
-		}
-		default:
-			llvm_unreachable(
-					"Unsupported specification of base address in G_PTR_ADD");
-		}
-		assert(
-				argT->isArrayTy()
-						&& "Must be the array otherwise we would not have index in the first place");
 		const DataLayout &DL = MF.getFunction().getParent()->getDataLayout();
-		TypeSize itemSize = DL.getTypeAllocSize(argT->getArrayElementType());
+		TypeSize itemSize = DL.getTypeAllocSize(elmT);
 
-		auto arraySize = argT->getArrayNumElements();
-		auto indexWidth = log2ceil(arraySize);
 		assert(indexWidth > 0);
 
 		if (isPow2(itemSize)) {
@@ -372,15 +360,15 @@ bool GenericFpgaTargetInstructionSelector::select_G_LOAD_or_G_STORE(
 		break;
 	}
 	default:
-		errs() << I << " address operand defined by:\n" << *addrDef;
+		errs() << MI << " address operand defined by:\n" << *addrDef;
 		llvm_unreachable(
 				"Unknonwn instruction specifing address for load or store");
 	}
 
 	MIB.addImm(1); // cond
-	MIB.cloneMemRefs(I); // copy part behind :: in "G_LOAD %0:anyregcls :: (volatile load (s4) from %ir.dataIn)"
+	MIB.cloneMemRefs(MI); // copy part behind :: in "G_LOAD %0:anyregcls :: (volatile load (s4) from %ir.dataIn)"
 
-	return finalizeReplacementOfInstruction(MIB, I);
+	return finalizeReplacementOfInstruction(MIB, MI);
 }
 
 bool GenericFpgaTargetInstructionSelector::select_G_SHL(
@@ -485,9 +473,9 @@ bool GenericFpgaTargetInstructionSelector::select_G_SHR(
 		GenFpgaCombinerHelper::CImmOrReg prefix(nullptr);
 		if (isArithmetic) {
 			auto msb = _getSelectedMsb(MIRB, MRI, lhs);
-			if (!msb.hasValue())
+			if (!msb.has_value())
 				return false;
-			prefix.reg = msb.getValue();
+			prefix.reg = msb.value();
 		} else {
 			APInt padding(prefixWidth, 0);
 			prefix.c = ConstantInt::get(Context, padding);
@@ -563,14 +551,14 @@ bool GenericFpgaTargetInstructionSelector::select_G_SEXT(
 	unsigned prefixWidth = dstWidth - srcWidth;
 
 	Optional<Register> msb = _getSelectedMsb(MIRB, MRI, I.getOperand(1));
-	if (!msb.hasValue())
+	if (!msb.has_value())
 		return false;
 	MachineInstrBuilder MIB = MIRB.buildInstr(
 			GenericFpga::GENFPGA_MERGE_VALUES);
 	MIB.addDef(Op0.getReg(), Op0.getTargetFlags());
 	selectInstrArg(*MF, MIB, MRI, I.getOperand(1));
 	for (unsigned i = 0; i < prefixWidth; i++) {
-		MIB.addReg(msb.getValue());
+		MIB.addReg(msb.value());
 	}
 	MIB.addImm(srcWidth);
 	for (unsigned i = 0; i < prefixWidth; i++) {

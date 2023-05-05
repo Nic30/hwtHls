@@ -2,6 +2,7 @@
 
 #include <llvm/Analysis/TargetTransformInfo.h>
 #include <llvm/Target/TargetMachine.h>
+#include <llvm/ADT/Optional.h>
 #include "genericFpgaTargetSubtarget.h"
 
 namespace llvm {
@@ -17,13 +18,13 @@ public:
 	GenericFpgaTargetMachine(const llvm::Target &T, const llvm::Triple &TT,
 			llvm::StringRef CPU, llvm::StringRef FS,
 			const llvm::TargetOptions &Options,
-			llvm::Optional<llvm::Reloc::Model> RM,
-			llvm::Optional<llvm::CodeModel::Model> CM,
+			std::optional<llvm::Reloc::Model> RM,
+			std::optional<llvm::CodeModel::Model> CM,
 			llvm::CodeGenOpt::Level OL, bool JIT);
 	~GenericFpgaTargetMachine() override;
 	const GenericFpgaTargetSubtarget* getSubtargetImpl(
 			const llvm::Function &F) const override;
-	llvm::TargetTransformInfo getTargetTransformInfo(const llvm::Function &F)
+	llvm::TargetTransformInfo getTargetTransformInfo(const llvm::Function &F) const
 			override;
 	// Set up the pass pipeline.
 	llvm::TargetPassConfig* createPassConfig(llvm::PassManagerBase &PM)

@@ -19,19 +19,19 @@ class GenFpgaInst<
 let hasSideEffects = 0, isAsCheapAsAMove = 1 in {
 // an instruction which gets the argument of the function (used for IO of the circuit)
 def GENFPGA_ARG_GET : GenFpgaInst<
-    (outs AnyRegCls:$dst),
+    (outs anyregcls:$dst),
     (ins i64imm:$src),
     []>;
 
 // G_EXTRACT variant which have bumber of extracted bits explicitely specified in last operand
 def GENFPGA_EXTRACT : GenFpgaInst<
-    (outs AnyRegCls:$dst),
-    (ins AnyRegCls:$src, i64imm:$offset, i64imm:$dstWidth),
+    (outs anyregcls:$dst),
+    (ins anyregcls:$src, i64imm:$offset, i64imm:$dstWidth),
     []>;
 
 def GENFPGA_MERGE_VALUES : GenFpgaInst<
-    (outs AnyRegCls:$dst),
-    (ins variable_ops), // specified in format AnyRegCls:$src{N}, i64imm:$width{N}, The input operands are always ordered from lowest bits to highest, (same as G_MERGE_VALUES)
+    (outs anyregcls:$dst),
+    (ins variable_ops), // specified in format anyregcls:$src{N}, i64imm:$width{N}, The input operands are always ordered from lowest bits to highest, (same as G_MERGE_VALUES)
                         // src operands does not have to be of same type which is difference between this and G_MERGE_VALUES
     []>;
 }
@@ -39,16 +39,16 @@ def GENFPGA_MERGE_VALUES : GenFpgaInst<
 let hasSideEffects = 0 in {
 // bitwise inversion
 def GENFPGA_NOT : GenFpgaInst<
-    (outs AnyRegCls:$dst),
-    (ins AnyRegCls:$src),
+    (outs anyregcls:$dst),
+    (ins anyregcls:$src),
     []>;
 }
 
 let hasSideEffects = 0, isPredicable = 1, isAsCheapAsAMove = 1 in {
 // conditional copy, pseudo instruction used before final combiner (which converts this to GENFPGA_MUX)
 def GENFPGA_CCOPY : GenFpgaInst<
-    (outs AnyRegCls:$dst),
-    (ins AnyRegCls:$src, AnyRegCls:$cond),
+    (outs anyregcls:$dst),
+    (ins anyregcls:$src, anyregcls:$cond),
     []>;
 }
 
@@ -56,7 +56,7 @@ let mayLoad = 0, mayStore = 0, hasSideEffects = 0, isPredicable = 1, isSelect = 
 // generic multiplexor - combines copy, select and phi in to a single instructions
 // which manages conditional copy/select driven by predicate or predecessor block
 def GENFPGA_MUX : GenFpgaInst<
-    (outs AnyRegCls:$dst),
+    (outs anyregcls:$dst),
     (ins variable_ops), // ins are variadic, in format (value cond)* value?;
                         // (format is same as for LLVM PHI) cond can be register, value or BB
                         // but in final optimized form cond it is only register or BB
@@ -67,8 +67,8 @@ def GENFPGA_MUX : GenFpgaInst<
 let mayLoad = 1, canFoldAsLoad=1, hasSideEffects = 0, isPredicable = 1, isNotDuplicable = 1 in {
 // conditional load
 def GENFPGA_CLOAD : GenFpgaInst<
-    (outs AnyRegCls:$dst),
-    (ins AnyRegCls:$baseaddr, AnyRegCls: $index, AnyRegCls:$cond),
+    (outs anyregcls:$dst),
+    (ins anyregcls:$baseaddr, anyregcls: $index, anyregcls:$cond),
     []>; // no pattern because we match in C++
 }
 
@@ -76,7 +76,7 @@ let mayLoad = 0, mayStore = 1, hasSideEffects = 0, isPredicable = 1, isNotDuplic
 // conditional store
 def GENFPGA_CSTORE : GenFpgaInst<
     (outs),
-    (ins AnyRegCls:$val, AnyRegCls:$addr, AnyRegCls: $index, AnyRegCls:$cond),
+    (ins anyregcls:$val, anyregcls:$addr, anyregcls: $index, anyregcls:$cond),
     []>; // no pattern because we match in C++
 }
 

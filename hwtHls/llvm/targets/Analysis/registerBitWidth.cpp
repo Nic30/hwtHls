@@ -1,7 +1,10 @@
 #include "registerBitWidth.h"
 #include <llvm/CodeGen/MachineFunction.h>
 #include <llvm/CodeGen/MachineRegisterInfo.h>
+#include <llvm/IR/Constants.h>
+
 #include "../genericFpgaInstrInfo.h"
+#include "../genericFpgaIoUtils.h"
 #include "../bitMathUtils.h"
 
 using namespace llvm;
@@ -63,8 +66,9 @@ bool resolveTypes(MachineInstr &MI) {
 		return true;
 	case TargetOpcode::G_GLOBAL_VALUE: {
 		auto ptrT = MI.getOperand(1).getGlobal()->getType();
-		auto t = ptrT->getNonOpaquePointerElementType();
-		unsigned SizeInBits = log2ceil(t->getArrayNumElements());
+		Type * _t;
+		unsigned SizeInBits;
+		std::tie(_t, SizeInBits) = getGlobalValueElementTypeAndAddressWidth(MI);
 		LLT Ty = LLT::pointer(ptrT->getAddressSpace(), SizeInBits);
 		MRI.setType(MI.getOperand(0).getReg(), Ty);
 		return true;
@@ -159,7 +163,7 @@ bool resolveTypes(MachineInstr &MI) {
 						if (T.getSizeInBits() != bitWidth) {
 							if (MRI.def_empty(R)) {
 								Register NewReg = MRI.createVirtualRegister(
-										&GenericFpga::AnyRegClsRegClass);
+										&GenericFpga::anyregclsRegClass);
 								MO.setReg(NewReg);
 								if (!checkOrSetWidth(MRI, MO, bitWidth,
 										nullptr)) {
@@ -204,27 +208,11 @@ bool resolveTypes(MachineInstr &MI) {
 	case GenericFpga::GENFPGA_CSTORE:
 	case GenericFpga::GENFPGA_CLOAD: {
 		// val/dst, addr, index, cond
-		auto *addrDef = MRI.getVRegDef(MI.getOperand(1).getReg());
-		auto addrDefOpc = addrDef->getOpcode();
-		Type * argT;
-		if (addrDefOpc == GenericFpga::GENFPGA_ARG_GET) {
-			auto fnArgI = addrDef->getOperand(1).getImm();
-			auto a = MF.getFunction().getArg(fnArgI);
-			argT = a->getType()->getNonOpaquePointerElementType();
-		} else if (addrDefOpc == GenericFpga::G_GLOBAL_VALUE) {
-			argT = addrDef->getOperand(1).getGlobal()->getType()->getNonOpaquePointerElementType();
-		} else {
-			errs() << MI << "address defined in:\n" << *addrDef;
-			llvm_unreachable(
-					"Address for GENFPGA_CLOAD should be provided from function argument only");
-		}
+		Type *elemT;
+		size_t indexWidth;
+		std::tie(elemT, indexWidth) = getLoadOrStoreElementType(MRI, MI);
 
-		unsigned bitWidth;
-		if (argT->isArrayTy()) {
-			bitWidth = argT->getArrayElementType()->getIntegerBitWidth();
-		} else {
-			bitWidth = argT->getIntegerBitWidth();
-		}
+		unsigned bitWidth = elemT->getIntegerBitWidth();
 
 		if (MI.getOperand(0).isReg())
 			MRI.setType(MI.getOperand(0).getReg(), LLT::scalar(bitWidth));
@@ -263,7 +251,7 @@ bool resolveTypes(MachineInstr &MI) {
 		if (undefsToDuplicate.size()) {
 			for (auto &v : undefsToDuplicate) {
 				Register Reg = MRI.createVirtualRegister(
-						&GenericFpga::AnyRegClsRegClass);
+						&GenericFpga::anyregclsRegClass);
 				auto &O = MI.getOperand(v.first);
 				O.setReg(Reg);
 				if (!checkOrSetWidth(MRI, O, v.second, nullptr)) {
@@ -338,7 +326,8 @@ bool GenFpgaRegisterBitWidth::runOnMachineFunction(llvm::MachineFunction &MF) {
 		if (!resolveTypes(*MI)) {
 			if (worklist.empty()) {
 				errs() << MI << "\n";
-				llvm_unreachable("There is a single instruction in worklist which can not be resolved");
+				llvm_unreachable(
+						"There is a single instruction in worklist which can not be resolved");
 			}
 			worklist.push_back(MI);
 			cycleDetectionCntr -= 1;

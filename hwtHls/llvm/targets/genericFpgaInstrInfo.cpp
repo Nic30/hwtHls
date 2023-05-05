@@ -1,5 +1,6 @@
 #include "genericFpgaInstrInfo.h"
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
+#include <llvm/IR/Constants.h>
 
 #define GET_INSTRINFO_CTOR_DTOR
 #include "GenericFpgaGenInstrInfo.inc"
@@ -27,13 +28,15 @@ const GenericFpgaRegisterInfo& GenericFpgaInstrInfo::getRegisterInfo() const {
 const TargetRegisterClass* GenericFpgaInstrInfo::getRegClass(
 		const MCInstrDesc &MCID, unsigned OpNum, const TargetRegisterInfo *TRI,
 		const MachineFunction &MF) const {
-	return &GenericFpga::AnyRegClsRegClass;
+	return &GenericFpga::anyregclsRegClass;
 }
 
 // based on `ARCInstrInfo::analyzeBranch`
+// check instruction in reverse order if all compatible for predication
 bool GenericFpgaInstrInfo::analyzeBranch(MachineBasicBlock &MBB,
 		MachineBasicBlock *&TBB, MachineBasicBlock *&FBB,
 		SmallVectorImpl<MachineOperand> &Cond, bool AllowModify) const {
+	// errs() << "GenericFpgaInstrInfo::analyzeBranch: " << MBB.getFullName() << "\n";
 	TBB = FBB = nullptr;
 	MachineBasicBlock::iterator I = MBB.end();
 	if (I == MBB.begin())
@@ -61,9 +64,10 @@ bool GenericFpgaInstrInfo::analyzeBranch(MachineBasicBlock &MBB,
 			TBB = I->getOperand(0).getMBB();
 		} else if (isCondBranchOpcode(I->getOpcode())) {
 			// Bail out if we encounter multiple conditional branches.
-			if (!Cond.empty())
+			if (!Cond.empty()) {
+				// errs() << "Err: cond not empty\n";
 				return true;
-
+			}
 			assert(!FBB && "FBB should have been null.");
 			FBB = TBB;
 			Cond.push_back(I->getOperand(0));
@@ -73,6 +77,7 @@ bool GenericFpgaInstrInfo::analyzeBranch(MachineBasicBlock &MBB,
 			CantAnalyze = !isPredicated(*I);
 		} else {
 			// We encountered other unrecognized terminator. Bail out immediately.
+			// errs() << "Err: Unrecognized terminator\n";
 			return true;
 		}
 
@@ -98,11 +103,13 @@ bool GenericFpgaInstrInfo::analyzeBranch(MachineBasicBlock &MBB,
 			}
 		}
 
-		if (CantAnalyze)
+		if (CantAnalyze) {
+			//errs() << "Err can not analyze\n";
 			return true;
+		}
 
 		if (I == MBB.begin())
-			return false;
+			return false; // all in this block was analyzed successfully
 
 		--I;
 	}
@@ -160,8 +167,7 @@ Register negateRegister(MachineRegisterInfo &MRI, MachineIRBuilder &Builder,
 				if (MRI.hasOneDef(O1.getReg())) {
 					if (auto VRegVal = getAnyConstantVRegValWithLookThrough(
 							O1.getReg(), MRI)) {
-						if (VRegVal.hasValue()
-								&& VRegVal.getValue().Value == 1) {
+						if (VRegVal.has_value() && VRegVal.value().Value == 1) {
 							return I.getOperand(1).getReg();
 						}
 					}
@@ -174,14 +180,14 @@ Register negateRegister(MachineRegisterInfo &MRI, MachineIRBuilder &Builder,
 			}
 		}
 	}
-	Register BR_n = MRI.cloneVirtualRegister(reg); //MRI.createVirtualRegister(&GenericFpga::AnyRegClsRegClass);//(Cond[0].getReg());
-	//MRI.setRegClass(BR_n, &GenericFpga::AnyRegClsRegClass);
+	Register BR_n = MRI.cloneVirtualRegister(reg); //MRI.createVirtualRegister(&GenericFpga::anyregclsRegClass);//(Cond[0].getReg());
+	//MRI.setRegClass(BR_n, &GenericFpga::anyregclsRegClass);
 	MRI.setType(BR_n, LLT::scalar(1));
 	MRI.setType(reg, LLT::scalar(1));
 
 	auto NegOne = Builder.buildConstant(LLT::scalar(1), 1);
 	MRI.setRegClass(NegOne.getInstr()->getOperand(0).getReg(),
-			&GenericFpga::AnyRegClsRegClass);
+			&GenericFpga::anyregclsRegClass);
 	//MRI.invalidateLiveness();
 	Builder.buildInstr(TargetOpcode::G_XOR, { BR_n }, { reg, NegOne });
 
@@ -300,7 +306,7 @@ void GenericFpgaInstrInfo::insertSelect(MachineBasicBlock &MBB,
 		llvm_unreachable("NotImplemented");
 	}
 	MachineRegisterInfo &MRI = MBB.getParent()->getRegInfo();
-	const TargetRegisterClass *RC = &GenericFpga::AnyRegClsRegClass;
+	const TargetRegisterClass *RC = &GenericFpga::anyregclsRegClass;
 
 	// Pull all virtual register into the appropriate class.
 	MRI.constrainRegClass(TrueReg, RC);
@@ -325,6 +331,8 @@ bool GenericFpgaInstrInfo::analyzeSelect(const MachineInstr &MI,
 		unsigned &FalseOp, bool &Optimizable) const {
 	switch (MI.getOpcode()) {
 	case GenericFpga::GENFPGA_MUX: {
+		if (MI.getNumOperands() != 3 + 1)
+			return true;
 		TrueOp = 1;
 		Cond.push_back(MI.getOperand(2));
 		FalseOp = 3;
@@ -342,9 +350,13 @@ bool GenericFpgaInstrInfo::analyzeSelect(const MachineInstr &MI,
 bool GenericFpgaInstrInfo::isPredicated(const MachineInstr &MI) const {
 	auto opc = MI.getOpcode();
 	switch (opc) {
+	case TargetOpcode::PHI:
+	case TargetOpcode::G_PHI:
+	case TargetOpcode::G_SELECT:
 	case GenericFpga::GENFPGA_CLOAD:
 	case GenericFpga::GENFPGA_CSTORE:
 	case GenericFpga::GENFPGA_CCOPY:
+	case GenericFpga::GENFPGA_MUX:
 		return false; // can be predicate infinity times
 	default:
 		return false;
@@ -367,7 +379,7 @@ bool GenericFpgaInstrInfo::PredicateInstruction(MachineInstr &MI,
 		if (MI.getOperand(2).isReg()) {
 			llvm_unreachable("NotImplemented");
 		}
-		MI.RemoveOperand(2);
+		MI.removeOperand(2);
 		break;
 	case GenericFpga::GENFPGA_CLOAD:
 	case GenericFpga::GENFPGA_CSTORE:
@@ -376,9 +388,13 @@ bool GenericFpgaInstrInfo::PredicateInstruction(MachineInstr &MI,
 		if (MI.getOperand(3).isReg()) {
 			llvm_unreachable("NotImplemented");
 		}
-		MI.RemoveOperand(3);
+		MI.removeOperand(3);
 		break;
+	case GenericFpga::GENFPGA_MUX:
+		llvm_unreachable("NotImplemented");
 	default:
+		MI.dump();
+		llvm_unreachable("NotImplemented");
 		return false;
 	}
 	MI.addOperand(Pred[0]);

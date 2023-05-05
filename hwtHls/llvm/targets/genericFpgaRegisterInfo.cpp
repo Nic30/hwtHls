@@ -8,7 +8,8 @@
 namespace llvm {
 
 GenericFpgaRegisterInfo::GenericFpgaRegisterInfo() :
-		llvm::GenericFpgaTargetGenRegisterInfo(0) {
+		llvm::GenericFpgaTargetGenRegisterInfo(0 /* RA */, 0 /* DwarfFlavour */,
+				0 /*EHFlavour*/, 0/* PC*/, 0/*HwMode*/) {
 
 }
 const llvm::MCPhysReg*
@@ -23,9 +24,10 @@ llvm::BitVector GenericFpgaRegisterInfo::getReservedRegs(
 		const llvm::MachineFunction &MF) const {
 	return llvm::BitVector(getNumRegs());
 }
-void GenericFpgaRegisterInfo::eliminateFrameIndex(
+bool GenericFpgaRegisterInfo::eliminateFrameIndex(
 		llvm::MachineBasicBlock::iterator MI, int SPAdj, unsigned FIOperandNum,
 		llvm::RegScavenger *RS) const {
+	return false; // current instruction was not removed
 }
 llvm::Register GenericFpgaRegisterInfo::getFrameRegister(
 		const llvm::MachineFunction &MF) const {

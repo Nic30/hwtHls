@@ -1,5 +1,6 @@
 #include "llvmIrCommon.h"
 #include "llvmIrBuilder.h"
+#include "llvmIrFunction.h"
 #include "llvmIrInstruction.h"
 #include "llvmIrStrings.h"
 #include "llvmIrValues.h"
@@ -12,13 +13,13 @@
 
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/DerivedTypes.h>
-#include <llvm/IR/Function.h>
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Type.h>
 #include <llvm/IR/Verifier.h>
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/CodeGen/MachineInstr.h>
+#include <llvm/CodeGen/MIRParser/MIRParser.h>
 
 
 #include <pybind11/pybind11.h>
@@ -47,74 +48,34 @@ std::string Module__repr__(llvm::Module *self) {
 }
 
 
-void register_Function(pybind11::module_ & m) {
-	py::class_<llvm::Function, std::unique_ptr<llvm::Function, py::nodelete>, llvm::GlobalValue> Function(m, "Function");
-	Function.def("__repr__",  &printToStr<llvm::Function>)
-		.def("Create",
-			[](llvm::FunctionType *Ty, llvm::Function::LinkageTypes Linkage,
-					const llvm::Twine &N, llvm::Module &M) {
-				return llvm::Function::Create(Ty, Linkage, N, M);
-			}, //py::keep_alive<0, 1>(), py::keep_alive<0, 2>(),
-			   //py::keep_alive<0, 3>(), py::keep_alive<0, 4>()
-			py::return_value_policy::reference) /*keep dependencies alive while Function exists */
-		.def("getGlobalIdentifier", [](llvm::Function *self) { return self->getGlobalIdentifier();})
-		.def("args", [](llvm::Function *self) {
-				return py::make_iterator(self->arg_begin(), self->arg_end(),
-						py::return_value_policy::reference);
-			 }, py::keep_alive<0, 1>()) /* Keep Function alive while iterator is used */
-		.def("__iter__", [](llvm::Function &F) {
-				return py::make_iterator(F.begin(), F.end());
-			 }, py::keep_alive<0, 1>()); /* Keep vector alive while iterator is used */
-
-	py::class_<llvm::Argument, std::unique_ptr<llvm::Argument, py::nodelete>, llvm::Value>(m, "Argument")
-		.def("setName", &llvm::Argument::setName)
-		.def("getName", &llvm::Argument::getName)
-		.def("getType", &llvm::Argument::getType);
-
-	py::enum_<llvm::Function::LinkageTypes>(Function, "LinkageTypes")
-		.value("ExternalLinkage",            llvm::Function::LinkageTypes::ExternalLinkage           )
-		.value("AvailableExternallyLinkage", llvm::Function::LinkageTypes::AvailableExternallyLinkage)
-		.value("LinkOnceAnyLinkage",         llvm::Function::LinkageTypes::LinkOnceAnyLinkage        )
-		.value("LinkOnceODRLinkage",         llvm::Function::LinkageTypes::LinkOnceODRLinkage        )
-		.value("WeakAnyLinkage",             llvm::Function::LinkageTypes::WeakAnyLinkage            )
-		.value("WeakODRLinkage",             llvm::Function::LinkageTypes::WeakODRLinkage            )
-		.value("AppendingLinkage",           llvm::Function::LinkageTypes::AppendingLinkage          )
-		.value("InternalLinkage",            llvm::Function::LinkageTypes::InternalLinkage           )
-		.value("PrivateLinkage",             llvm::Function::LinkageTypes::PrivateLinkage            )
-		.value("ExternalWeakLinkage",        llvm::Function::LinkageTypes::ExternalWeakLinkage       )
-		.value("CommonLinkage",              llvm::Function::LinkageTypes::CommonLinkage             )
-		.export_values();
-}
-
 void register_VectorOfTypePtr(pybind11::module_ & m) {
 	py::class_<std::vector<llvm::Type*>>(m, "VectorOfTypePtr")
-			.def(py::init<>())
-			.def("clear", &std::vector<llvm::Type*>::clear)
-			.def("pop_back", &std::vector<llvm::Type*>::pop_back)
-			.def("push_back", [](std::vector<llvm::Type*> *self, llvm::Type *i) {
-				return self->push_back(i);
-			}, py::keep_alive<2, 1>()) /* Keep items alive while vector is used */
-			.def("__len__", [](const std::vector<llvm::Type*> &v) {
-				return v.size();
-			})
-			.def("__iter__", [](std::vector<llvm::Type*> &v) {
-				return py::make_iterator(v.begin(), v.end());
-			}, py::keep_alive<0, 1>()); /* Keep vector alive while iterator is used */
+		.def(py::init<>())
+		.def("clear", &std::vector<llvm::Type*>::clear)
+		.def("pop_back", &std::vector<llvm::Type*>::pop_back)
+		.def("push_back", [](std::vector<llvm::Type*> *self, llvm::Type *i) {
+			return self->push_back(i);
+		}, py::keep_alive<2, 1>()) /* Keep items alive while vector is used */
+		.def("__len__", [](const std::vector<llvm::Type*> &v) {
+			return v.size();
+		})
+		.def("__iter__", [](std::vector<llvm::Type*> &v) {
+			return py::make_iterator(v.begin(), v.end());
+		}, py::keep_alive<0, 1>()); /* Keep vector alive while iterator is used */
 }
 
 void register_Types(pybind11::module_ & m) {
 	// owned by context => no delete
 	py::class_<llvm::Type, std::unique_ptr<llvm::Type, py::nodelete>>(m, "Type")
-			.def("getVoidTy", &llvm::Type::getVoidTy, py::return_value_policy::reference)
-			.def("getIntNTy", &llvm::Type::getIntNTy, py::return_value_policy::reference)
-			.def("getIntNPtrTy", &llvm::Type::getIntNPtrTy, py::return_value_policy::reference)
-			.def("__repr__",  &printToStr<llvm::Type>);;
+		.def("getVoidTy", &llvm::Type::getVoidTy, py::return_value_policy::reference)
+		.def("getIntNTy", &llvm::Type::getIntNTy, py::return_value_policy::reference)
+		.def("getIntNPtrTy", &llvm::Type::getIntNPtrTy, py::return_value_policy::reference)
+		.def("__repr__",  &printToStr<llvm::Type>);;
 
 	py::class_<llvm::PointerType, std::unique_ptr<llvm::PointerType, py::nodelete>, llvm::Type>(m, "PointerType")
-		.def("get", [](llvm::Type *ElementType, unsigned AddressSpace) {
-			return llvm::PointerType::get(ElementType, AddressSpace);
+		.def("get", [](llvm::LLVMContext &C, unsigned AddressSpace) {
+			return llvm::PointerType::get(C, AddressSpace);
 		},  py::return_value_policy::reference)
-		.def("getPointerElementType", &llvm::PointerType::getPointerElementType, py::return_value_policy::reference)
 		.def("__repr__",  &printToStr<llvm::PointerType>);
 	m.def("TypeToPointerType", [](llvm::Type & t) {
 				if (t.isPointerTy())
@@ -247,5 +208,23 @@ PYBIND11_MODULE(llvmIr, m) {
 		llvm::MemoryBufferRef buff(str, name);
 		return llvm::parseIR(buff, Err, Context);
 	}, py::return_value_policy::reference_internal);
+	m.def("parseMIR",
+			[](const std::string &str, const std::string &name,
+					llvm::LLVMContext &Context) {
+				LlvmCompilationBundle llvmcb(name);
+				auto buff = llvm::MemoryBuffer::getMemBufferCopy(str, name);
+				llvm::LLVMTargetMachine &LLVMTM = static_cast<llvm::LLVMTargetMachine&>(*llvmcb.TM);
+				auto MMI = std::make_unique<llvm::MachineModuleInfo>(&LLVMTM);
+				auto MIR = llvm::createMIRParser(std::move(buff), Context);
+				std::unique_ptr<llvm::Module> M = MIR->parseIRModule();
+				if (!M)
+					throw std::runtime_error("Can not parse machine module");
+				M->setDataLayout(llvmcb.TM->createDataLayout());
+				if (MIR->parseMachineFunctions(*M, *MMI))
+					throw std::runtime_error(
+							"Can not parse machine functions from module");
+				return M;
+			}, py::return_value_policy::reference_internal);
+
 }
 }

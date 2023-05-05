@@ -14,11 +14,18 @@ Setup of C/C++ source code indexer for LLVM
 * For eclipse you must:
   * Increase memory for Java VM in eclipse.ini `-Xms2048m -Xmx8192m`
   * In Window/ Preferences/ C/C++/ Indexer you must set
-    * Skip files largetr than: 128
-    * Skip included files largetr than: 256
+    * Skip files larger than: 128 MB
+    * Skip included files larger than: 256 MB
     * Limit realtive to the maximum heap size: 75 %
     * Absolute limit: 6000 MB
 
+
+Meson
+-----
+References which may be usefull when writing meson.build:
+* https://mesonbuild.com
+* https://github.com/ev-br/mc_lib/blob/master/mc_lib/meson.build
+* https://mesonbuild.com/Python-module.html
 
 
 Debug build
@@ -35,7 +42,7 @@ Debug build
 	# you must link the c++ library file in order to find it from python using "import"
 	# this is required becase we are not installing the library but using repo directly as a python package
 	ln -s "../../$(ls build/hwtHls/llvm/*.so)" hwtHls/llvm/
-	ln -s "../../../$(ls build/hwtHls/netlist/abc*.so)" hwtHls/netlist/abc
+	ln -s "../../../$(ls build/hwtHls/netlist/abc/abc*.so)" hwtHls/netlist/abc/
 	ln -s "../../../../$(ls build/hwtHls/netlist/analysis/reachabilityCpp/*.so)"  hwtHls/netlist/analysis/reachabilityCpp/
 
 * You can use `LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libSegFault.so` to get better segfault reports.
@@ -74,18 +81,17 @@ This is useful when debuging issues which are happening in LLVM code.
 	git clone https://github.com/llvm/llvm-project.git
 	mkdir llvm_install
 	cd llvm-project/llvm
-	git checkout llvmorg-14.0.0
+	git checkout llvmorg-16.0.0
 	mkdir build
-	cd build
-	cmake -G Ninja  .. -DCMAKE_BUILD_TYPE=Debug\
+	cmake -B build -DCMAKE_BUILD_TYPE=Debug -G Ninja\
 		-DLLVM_ENABLE_ASSERTIONS=ON\
 		-DLLVM_OPTIMIZED_TABLEGEN=ON\
 		-DLLVM_LINK_LLVM_DYLIB=ON\
 		-DLLVM_ENABLE_RTTI=ON\
 		-DCMAKE_INSTALL_PREFIX=$PWD/../../../llvm_install
-
-	ninja # Note that the llvm build is memory hungry you may require to limit number of threads using -j1 where 1 represents number of threads.
-	ninja install # (installs only to a directory previously specified using -DCMAKE_INSTALL_PREFIX)
+    
+	ninja -C build # Note that the llvm build is memory hungry you may require to limit number of threads using -j1 where 1 represents number of threads.
+	ninja -C build install # (installs only to a directory previously specified using -DCMAKE_INSTALL_PREFIX)
 
 * `LLVM_OPTIMIZED_TABLEGEN` to speedup the build
 * `LLVM_LINK_LLVM_DYLIB` to generate libLLVM.so because meson depnedency is using it
@@ -100,7 +106,7 @@ This is useful when debuging issues which are happening in LLVM code.
 * Note that once executed it takes >4m for gdb-11.1 and requires >16G of RAM to start because of the LLVM debug meta size.
   If you do not use debug build of llvm you still will be able to debug c++ code in this project and gdb will start in <1s.
   But you wont be able to debug inside LLVM functions.
-* It is highly recommended to index llvm libraries in order to lower gdb start time `gdb-add-index llvm_install/lib/libLLVM-14.so`
+* It is highly recommended to index llvm libraries in order to lower gdb start time `gdb-add-index llvm_install/lib/libLLVM-16.so`
 
 Using -dbg package of llvm
 --------------------------
@@ -139,7 +145,7 @@ Translation to LLVM IR
 	llc -mtriple=mips-linux-gnu -stop-after=finalize-isel < sum.ll
 
 
-https://releases.llvm.org/14.0.0/docs/LangRef.html
+https://releases.llvm.org/15.0.0/docs/LangRef.html
 
 * Dump all used passes `clang -mllvm -debug-pass=Arguments main.c`
 

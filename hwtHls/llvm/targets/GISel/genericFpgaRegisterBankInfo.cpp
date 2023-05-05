@@ -5,19 +5,22 @@
 namespace llvm {
 
 const size_t genericFpgaRegBanksCnt = 1;
-llvm::RegisterBank genericFpgaRegBank0(0/*ID*/,
-		"genericFpgaReg" /* only for debugging purposes*/,
-		1 << 16/*maximal size in bits that fits in this register bank.*/,
-		(const uint32_t*) &genericFpgaRegBanksCnt /*CoveredClasses*/,
-		genericFpgaRegBanksCnt);
-llvm::RegisterBank *genericFpgaRegBanks[genericFpgaRegBanksCnt] = {
-		&genericFpgaRegBank0, };
-
 uint32_t AnyRegBankMask = 1;
+//llvm::RegisterBank genericFpgaRegBank0(0/*ID*/,
+//		"genericFpgaReg" /* only for debugging purposes*/,
+//		1 << 16/*maximal size in bits that fits in this register bank.*/,
+//		(const uint32_t*) &genericFpgaRegBanksCnt /*CoveredClasses*/,
+//		genericFpgaRegBanksCnt);
+llvm::RegisterBank AnyRegBank(/* ID */0, /* Name */"anyregbank", /* Size in bits */1 << 16, /* CoveredRegClasses */
+				&AnyRegBankMask, /* NumRegBanks */1);
+llvm::RegisterBank *genericFpgaRegBanks[genericFpgaRegBanksCnt] = {
+		&AnyRegBank,
+};
+
+
+
 GenericFpgaRegisterBankInfo::GenericFpgaRegisterBankInfo() :
-		llvm::RegisterBankInfo(genericFpgaRegBanks, genericFpgaRegBanksCnt), AnyRegBank(
-		/* ID */0, /* Name */"AnyReg", /* Size in bits */1 << 16, /* CoveredRegClasses */
-		&AnyRegBankMask, /* NumRegClasses */1)
+		llvm::RegisterBankInfo(genericFpgaRegBanks, genericFpgaRegBanksCnt)
 //, ControlRegBank(/* ID */0, /* Name */
 //		"ControlReg", /* Size in bits */1 << 16, /* CoveredRegClasses */
 //		nullptr, /* NumRegClasses */0)

@@ -6,7 +6,6 @@
 //===----------------------------------------------------------------------===//
 #include "genericFpgaPreToNetlistCombiner.h"
 #include "../genericFpgaTargetMachine.h"
-#include "../genericFpgaTargetPassConfig.h"
 
 #include <llvm/CodeGen/GlobalISel/Combiner.h>
 #include <llvm/CodeGen/GlobalISel/CombinerHelper.h>
@@ -20,6 +19,7 @@
 #include <llvm/CodeGen/MachineRegisterInfo.h>
 #include <llvm/CodeGen/TargetPassConfig.h>
 #include <llvm/CodeGen/GlobalISel/CombinerHelper.h>
+#include <llvm/CodeGen/GlobalISel/CSEInfo.h>
 
 #include <llvm/IR/Instructions.h>
 #include <llvm/Support/Debug.h>
@@ -51,16 +51,17 @@ namespace {
 #undef GENERICFPGAGENPRETONETLISTGICOMBINERHELPER_GENCOMBINERHELPER_H
 
 class GenericFpgaPreToNetlistCombinerInfo: public CombinerInfo {
+	bool isPrelegalize;
 	GISelKnownBits *KB;
 	MachineDominatorTree *MDT;
 	GenericFpgaGenPreToNetlistGICombinerHelperRuleConfig GeneratedRuleCfg;
 public:
 	GenericFpgaPreToNetlistCombinerInfo(bool EnableOpt, bool OptSize,
-			bool MinSize, GISelKnownBits *KB, MachineDominatorTree *MDT) :
+			bool MinSize, bool isPrelegalize, GISelKnownBits *KB,
+			MachineDominatorTree *MDT, const LegalizerInfo *LInfo) :
 			CombinerInfo(/*AllowIllegalOps*/true, /*ShouldToNetlistIllegal*/
-			false,
-			/*ToNetlistInfo*/nullptr, EnableOpt, OptSize, MinSize), KB(KB), MDT(
-					MDT) {
+			false, LInfo, EnableOpt, OptSize, MinSize), isPrelegalize(
+					isPrelegalize), KB(KB), MDT(MDT) {
 		if (!GeneratedRuleCfg.parseCommandLineOption())
 			report_fatal_error("Invalid rule identifier");
 	}
@@ -150,7 +151,7 @@ void GenericFpgaPreToNetlistCombinerInfo::convertPHI_to_GENFPGA_MUX(
 
 bool GenericFpgaPreToNetlistCombinerInfo::combine(GISelChangeObserver &Observer,
 		MachineInstr &MI, MachineIRBuilder &B) const {
-	GenFpgaCombinerHelper Helper(Observer, B, KB, MDT);
+	GenFpgaCombinerHelper Helper(Observer, B, false, KB, MDT, LInfo);
 	GenericFpgaGenPreToNetlistGICombinerHelper Generated(GeneratedRuleCfg,
 			Helper);
 
@@ -250,8 +251,9 @@ bool GenericFpgaPreToNetlistCombiner::runOnMachineFunction(
 			&& !skipFunction(F);
 	GISelKnownBits *KB = &getAnalysis<GISelKnownBitsAnalysis>().get(MF);
 	MachineDominatorTree *MDT = &getAnalysis<MachineDominatorTree>();
+	const LegalizerInfo *LInfo = ((const GenericFpgaTargetSubtarget *)&MF.getSubtarget())->getLegalizerInfo();
 	GenericFpgaPreToNetlistCombinerInfo PCInfo(EnableOpt, F.hasOptSize(),
-			F.hasMinSize(), KB, MDT);
+			F.hasMinSize(), false, KB, MDT, LInfo);
 	Combiner C(PCInfo, &TPC);
 
 	return C.combineMachineInstrs(MF, CSEInfo);

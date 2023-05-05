@@ -1,13 +1,17 @@
 #include "llvmIrMachineFunction.h"
+
 #include <sstream>
 #include <pybind11/stl.h>
+
 #include <llvm/CodeGen/MachineFunction.h>
 #include <llvm/CodeGen/MachineBasicBlock.h>
 #include <llvm/CodeGen/MachineInstr.h>
 #include <llvm/CodeGen/MachineRegisterInfo.h>
+#include <llvm/CodeGen/MIRPrinter.h>
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/GlobalValue.h>
 #include <llvm/MC/MCInstrInfo.h>
+#include <llvm/IR/Function.h>
 
 #include "llvmIrCommon.h"
 #include "targets/genericFpgaMCTargetDesc.h"
@@ -29,6 +33,13 @@ void register_MachineFunction(pybind11::module_ &m) {
 			return "<llvm::MachineFunction " + MF->getName().str() + ">";
 		})
 		.def("__str__",  &printToStr<llvm::MachineFunction>)
+		.def("serialize", [](llvm::MachineFunction &MF) {
+				std::string tmp;
+				llvm::raw_string_ostream ss(tmp);
+				llvm::printMIR(ss, *MF.getFunction().getParent());
+				llvm::printMIR(ss, MF);
+				return ss.str();
+		})
 		.def("__iter__", [](llvm::MachineFunction &F) {
 			return py::make_iterator(F.begin(), F.end());
 		}, py::keep_alive<0, 1>()); /* Keep vector alive while iterator is used */
@@ -37,6 +48,8 @@ void register_MachineFunction(pybind11::module_ &m) {
 	MachineBasicBlock
 		.def("getName", &llvm::MachineBasicBlock::getName, py::return_value_policy::reference_internal)
 		.def("getNumber", &llvm::MachineBasicBlock::getNumber)
+		.def("getFallThrough", &llvm::MachineBasicBlock::getFallThrough, py::return_value_policy::reference_internal)
+		.def("canFallThrough", &llvm::MachineBasicBlock::canFallThrough)
 	    .def("predecessors", [](llvm::MachineBasicBlock &MB) {
 	    		return py::make_iterator(MB.predecessors().begin(), MB.predecessors().end());
 	    	}, py::keep_alive<0, 1>()) /* Keep vector alive while iterator is used */

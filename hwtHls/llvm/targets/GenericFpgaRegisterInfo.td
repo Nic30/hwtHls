@@ -21,4 +21,4 @@ class GenericFpgaRegClass<list<ValueType> regTypes, int alignment, dag regList>
      : RegisterClass<"GenericFpga", regTypes, alignment, regList>;
 
 // v1024i32 is largest working type available (smaller types do require reg. spliting more ofter, wider types do not work due LLVM bug)
-def AnyRegCls : GenericFpgaRegClass<[v1024i32], 1, (add (sequence "DUMMY_REG_%u", 0, 4096))>;
+def anyregcls : GenericFpgaRegClass<[v1024i32], 1, (add (sequence "DUMMY_REG_%u", 0, 4096))>;

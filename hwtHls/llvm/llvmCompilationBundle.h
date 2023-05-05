@@ -36,6 +36,7 @@ public:
 	llvm::MachineModuleInfoWrapperPass *MMIWP;
 
 	LlvmCompilationBundle(const std::string &moduleName);
+	// for arg description see GenericFpgaTargetPassConfig
 	// :param combinerCallback: is an optional callback function called during last state of
 	//        instruction combining
 	void runOpt(
@@ -44,12 +45,14 @@ public:
 
 	void _addVectorPasses(llvm::OptimizationLevel Level,
 			llvm::FunctionPassManager &FPM, bool IsFullLTO);
+	// for arg description see GenericFpgaTargetPassConfig
 	void _addMachineCodegenPasses(
-			hwtHls::GenericFpgaToNetlist::ConvesionFnT & toNetlistConversionFn);
+			hwtHls::GenericFpgaToNetlist::ConvesionFnT &toNetlistConversionFn);
 
 	llvm::Function& _testSlicesToIndependentVariablesPass();
 	llvm::Function& _testSlicesMergePass();
-	llvm::Function& _testFunctionPass(std::function<void(llvm::FunctionPassManager &)> addPasses);
+	llvm::Function& _testFunctionPass(
+			std::function<void(llvm::FunctionPassManager&)> addPasses);
 };
 
 }

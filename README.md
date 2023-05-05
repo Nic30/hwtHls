@@ -104,12 +104,12 @@ This is a big difference from hand crafted hardware, where it is assured, that y
 
 ### Installation
 
-Linux (Ubuntu 22.04.2 LTS):
+Linux (Ubuntu 23.04):
 ```
-apt install build-essential python3-dev python3-pip llvm-14 llvm-14-dev
+apt install build-essential python3-dev python3-pip llvm-16-dev
 pip3 install -r https://raw.githubusercontent.com/Nic30/hwtHls/master/doc/requirements.txt # [optional]
 # if you do not run previous command you will install dependencies from pip which may outdated
-pip3 install git+https://github.com/Nic30/hwtHls.git
+pip3 install git+https://github.com/Nic30/hwtHls.git # install this library from git
 ```
 
 

@@ -18,8 +18,7 @@ using namespace llvm;
 static std::string getMangledTypeStr(Type *Ty) {
 	std::string Result;
 	if (PointerType *PTyp = dyn_cast<PointerType>(Ty)) {
-		Result += "p" + utostr(PTyp->getAddressSpace())
-				+ getMangledTypeStr(PTyp->getNonOpaquePointerElementType());
+		Result += "p" + utostr(PTyp->getAddressSpace());
 	} else if (ArrayType *ATyp = dyn_cast<ArrayType>(Ty)) {
 		Result += "a" + utostr(ATyp->getNumElements())
 				+ getMangledTypeStr(ATyp->getElementType());
@@ -103,11 +102,11 @@ std::string Intrinsic_getName(const std::string &baseName,
 }
 
 void AddDefaultFunctionAttributes(Function &TheFn) {
+	// :note: must be compatible with llvm::wouldInstructionBeTriviallyDead
 	//TheFn.addFnAttr(Attribute::ArgMemOnly);
 	TheFn.addFnAttr(Attribute::NoFree);
 	TheFn.addFnAttr(Attribute::NoUnwind);
 	TheFn.addFnAttr(Attribute::WillReturn);
-	TheFn.addFnAttr(Attribute::ReadNone);
 	TheFn.setCallingConv(CallingConv::C);
 }
 
@@ -131,6 +130,7 @@ CallInst* CreateBitRangeGet(IRBuilder<> *Builder, Value *bitVec,
 					Tys[0], Tys[1]).getCallee());
 	AddDefaultFunctionAttributes(*TheFn);
 	CallInst *CI = Builder->CreateCall(TheFn, Ops);
+	CI->setDoesNotAccessMemory();
 	return CI;
 }
 
@@ -164,6 +164,7 @@ llvm::CallInst* CreateBitConcat(llvm::IRBuilder<> *Builder,
 					FunctionType::get(RetTy, ArgTys, false)).getCallee());
 	AddDefaultFunctionAttributes(*TheFn);
 	CallInst *CI = Builder->CreateCall(TheFn, OpsLowFirst);
+	CI->setDoesNotAccessMemory();
 	return CI;
 }
 
