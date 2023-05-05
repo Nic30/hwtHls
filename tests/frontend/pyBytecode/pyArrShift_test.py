@@ -28,8 +28,8 @@ class PyArrShift_TC(SimTestCase):
 if __name__ == "__main__":
     import unittest
 
-    suite = unittest.TestSuite()
-    # suite.addTest(PyArrShift_TC('test_frameHeader'))
-    suite.addTest(unittest.makeSuite(PyArrShift_TC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([PyArrShift_TC("test_frameHeader")])
+    suite = testLoader.loadTestsFromTestCase(PyArrShift_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

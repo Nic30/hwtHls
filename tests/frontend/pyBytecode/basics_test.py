@@ -62,8 +62,8 @@ if __name__ == "__main__":
     #u = HlsConnectionFromPyFnIf()
     #print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
-    suite = unittest.TestSuite()
-    # suite.addTest(FromPythonBasics_TC('test_HlsConnectionFromPyFnIf'))
-    suite.addTest(unittest.makeSuite(FromPythonBasics_TC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([FromPythonBasics_TC('test_HlsConnectionFromPyFnIf')])
+    suite = testLoader.loadTestsFromTestCase(FromPythonBasics_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

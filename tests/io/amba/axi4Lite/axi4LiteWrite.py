@@ -47,7 +47,6 @@ class Axi4LiteWrite(Unit):
 
         ram = Axi4LiteArrayProxy(hls, self.ram)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, ram)
-        # mainThread.bytecodeToSsa.debug = True
         hls.addThread(mainThread)
         hls.compile()
 

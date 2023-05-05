@@ -78,8 +78,8 @@ class SyncDependencyTC(unittest.TestCase):
 
         
 if __name__ == '__main__':
-    suite = unittest.TestSuite()
-    # suite.addTest(SyncDependencyTC('test_linear0'))
-    suite.addTest(unittest.makeSuite(SyncDependencyTC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([SyncDependencyTC("test_linear0")])
+    suite = testLoader.loadTestsFromTestCase(SyncDependencyTC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

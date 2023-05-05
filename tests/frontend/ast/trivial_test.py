@@ -92,12 +92,12 @@ class HlsAstTrivial_TC(SimTestCase):
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
-    u = ReadWriteOnce2()
+    u = ReadWriteOnce0()
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
-    
+
     import unittest
-    suite = unittest.TestSuite()
-    # suite.addTest(HlsAstTrivial_TC('test_ReadWriteOnce0'))
-    suite.addTest(unittest.makeSuite(HlsAstTrivial_TC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([HlsAstTrivial_TC("test_ReadWriteOnce0")])
+    suite = testLoader.loadTestsFromTestCase(HlsAstTrivial_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

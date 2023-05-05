@@ -32,13 +32,14 @@ class HlsPythonTupleAssign(Unit):
     def _impl(self):
         hls = HlsScope(self, freq=int(100e6))
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls)
-        mainThread.bytecodeToSsa.debug = True
         hls.addThread(mainThread)
         hls.compile()
 
 
 class HlsPythonTupleAssign_TC(BaseSsaTC):
     __FILE__ = __file__
+    FRONTEND_ONLY = True
+
 
     def test_HlsPythonTupleAssign_ll(self):
         self._test_ll(HlsPythonTupleAssign)
@@ -53,9 +54,9 @@ if __name__ == "__main__":
 
     import unittest
 
-    suite = unittest.TestSuite()
-    # suite.addTest(PyArrHwIndex_TC('test_frameHeader'))
-    suite.addTest(unittest.makeSuite(HlsPythonTupleAssign_TC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([HlsPythonTupleAssign_TC("test_frameHeader")])
+    suite = testLoader.loadTestsFromTestCase(HlsPythonTupleAssign_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
 

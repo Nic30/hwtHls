@@ -29,7 +29,7 @@ class BaseSliceBreakTestPlatform(VirtualHlsPlatform):
         SsaPassToLlvm().apply(hls, toSsa)
         f = toSsa.start.llvm._testSlicesToIndependentVariablesPass()
         fStr = repr(f)
-        #print(fStr)
+        # print(fStr)
         self.postSliceBreak.write(fStr)
         raise TestFinishedSuccessfuly()
 
@@ -230,63 +230,16 @@ class SlicesToIndependentVariablesPass_TC(BaseSsaTC):
         u.DATA_WIDTH = 4
         self._test_ll(u)
 
-    #def testMet1(self):
-    #    llvmIr0 = """
-    #    define i32 @main() #0 {
-    #      %1 = alloca i32, align 4
-    #      store i32 0, i32* %1
-    #      ret i32 0
-    #    }
-    #    """
-    #    llvm = LlvmCompilationBundle("test")
-    #    Err = SMDiagnostic()
-    #    M = parseIR(llvmIr0, "test", Err, llvm.ctx)
-    #    if M is None:
-    #        raise AssertionError(Err.str("test", True, True))
-    #    print(M)
-
-
-# define void @CountLeadingZeros.mainThread(i8 addrspace(1)* %i, i4 addrspace(2)* %o) {
-# CountLeadingZeros.mainThread:
-#   br label %blockL10i0_10
-#
-# blockL10i0_10:                                    ; preds = %blockL10i0_10_afterCall, %CountLeadingZeros.mainThread
-#   %i0 = load volatile i8, i8 addrspace(1)* %i, align 1
-#   %"2" = icmp eq i8 %i0, 0
-#   %0 = call i4 @hwtHls.bitRangeGet.i8.i4.i4.4(i8 %i0, i4 4)
-#   %1 = call i4 @hwtHls.bitRangeGet.i8.i4.i4.0(i8 %i0, i4 0)
-#   %"7" = icmp eq i4 %0, 0
-#   %"%26" = select i1 %"7", i4 %1, i4 %0
-#   %2 = call i2 @hwtHls.bitRangeGet.i4.i3.i2.2(i4 %"%26", i3 2)
-#   %3 = call i2 @hwtHls.bitRangeGet.i4.i3.i2.0(i4 %"%26", i3 0)
-#   %"14" = icmp eq i2 %2, 0
-#   %"%17" = select i1 %"14", i2 %3, i2 %2
-#   %4 = call i1 @hwtHls.bitRangeGet.i2.i2.i1.1(i2 %"%17", i2 1)
-#   %"19" = xor i1 %4, true
-#   %5 = call i2 @hwtHls.bitConcat.i1.i1(i1 %"19", i1 %"14")
-#   %6 = call i3 @hwtHls.bitConcat.i2.i1(i2 %5, i1 %"7")
-#   br i1 %"2", label %blockL10i0_10_afterCall, label %"blockL10i0_(countLeading, 36)_108"
-#
-# blockL10i0_10_afterCall:                          ; preds = %blockL10i0_10, %"blockL10i0_(countLeading, 36)_108"
-#   %"%46" = phi i4 [ %7, %"blockL10i0_(countLeading, 36)_108" ], [ -8, %blockL10i0_10 ]
-#   store volatile i4 %"%46", i4 addrspace(2)* %o, align 1
-#   br label %blockL10i0_10
-#
-# "blockL10i0_(countLeading, 36)_108":              ; preds = %blockL10i0_10
-#   %7 = call i4 @hwtHls.bitConcat.i3.i1(i3 %6, i1 false)
-#   br label %blockL10i0_10_afterCall
-# }
-
 
 if __name__ == "__main__":
-    #from hwt.synthesizer.utils import to_rtl_str
-    #from hwtHls.platform.platform import HlsDebugBundle
-    #u = SliceBreak3()
-    #print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    # from hwt.synthesizer.utils import to_rtl_str
+    # from hwtHls.platform.platform import HlsDebugBundle
+    # u = SliceBreak3()
+    # print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
-    suite = unittest.TestSuite()
-    # suite.addTest(SlicesToIndependentVariablesPass_TC('test_SliceBreak3_ll'))
-    suite.addTest(unittest.makeSuite(SlicesToIndependentVariablesPass_TC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([SlicesToIndependentVariablesPass_TC('test_SliceBreak3_ll')])
+    suite = testLoader.loadTestsFromTestCase(SlicesToIndependentVariablesPass_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

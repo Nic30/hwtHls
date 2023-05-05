@@ -29,7 +29,6 @@ class RedundantCmpGT(Unit):
     def _impl(self):
         hls = HlsScope(self, freq=int(100e6))
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls)
-        # mainThread.bytecodeToSsa.debug = True
         hls.addThread(mainThread)
         hls.compile()
 
@@ -40,10 +39,3 @@ if __name__ == "__main__":
     from hwtHls.platform.platform import HlsDebugBundle
     u = RedundantCmpGT()
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
-
-    # import unittest
-    # suite = unittest.TestSuite()
-    # # suite.addTest(AndShiftInLoop('test_AndShiftInLoop'))
-    # suite.addTest(unittest.makeSuite(AndShiftInLoop_TC))
-    # runner = unittest.TextTestRunner(verbosity=3)
-    # runner.run(suite)

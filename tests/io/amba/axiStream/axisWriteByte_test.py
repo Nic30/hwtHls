@@ -40,8 +40,8 @@ class AxiSWriteByteTC(SimTestCase):
 
 if __name__ == '__main__':
 
-    suite = unittest.TestSuite()
-    # suite.addTest(AxiSParseLinearTC('test_AxiSParseStructManyInts1_48b'))
-    suite.addTest(unittest.makeSuite(AxiSWriteByteTC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([AxiSWriteByteTC("test_AxiSParseStructManyInts1_48b")])
+    suite = testLoader.loadTestsFromTestCase(AxiSWriteByteTC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

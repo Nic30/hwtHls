@@ -2,9 +2,10 @@ from hwt.code import Concat
 from hwt.hdl.types.bits import Bits
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeLLVMLoopUnroll
+from hwtHls.frontend.pyBytecode import hlsBytecode
 
-
-def divNonRestoring(dividend: RtlSignal, divisor: RtlSignal, signed: RtlSignal, unrollFactor: int):
+@hlsBytecode
+def divNonRestoring(dividend: RtlSignal, divisor: RtlSignal, isSigned: RtlSignal, unrollFactor: int):
     """
     Non-restoring integer division, dividend/divisor = quotient + remainder
 
@@ -15,17 +16,17 @@ def divNonRestoring(dividend: RtlSignal, divisor: RtlSignal, signed: RtlSignal, 
     width = t.bit_length()
     assert unrollFactor > 0 and unrollFactor <= width
 
-    invertQuotient = signed & (dividend[width - 1] != divisor[width - 1]) & (divisor != 0)
-    invertRemainder = signed & dividend[width - 1]
+    invertQuotient = isSigned & (dividend[width - 1] != divisor[width - 1]) & (divisor != 0)
+    invertRemainder = isSigned & dividend[width - 1]
 
-    quotient = t.from_py(0)
-    if signed & (dividend[width - 1]):
+    if isSigned & (dividend[width - 1]):
         dividend = -dividend
-
-    if signed & (divisor[width - 1]):
+    
+    if isSigned & (divisor[width - 1]):
         divisor = -divisor
 
     zeroPad = Bits(width - 1).from_py(0)
+    quotient = t.from_py(0)
     divisorTmp = Concat(divisor, zeroPad)
     qMask = t.from_py(1 << (width - 1))
 
@@ -33,7 +34,7 @@ def divNonRestoring(dividend: RtlSignal, divisor: RtlSignal, signed: RtlSignal, 
         if divisorTmp <= Concat(zeroPad, dividend):
             dividend -= divisorTmp[width:]
             quotient |= qMask
-
+    
         divisorTmp >>= 1
         qMask >>= 1
         PyBytecodeLLVMLoopUnroll(unrollFactor > 1, unrollFactor)

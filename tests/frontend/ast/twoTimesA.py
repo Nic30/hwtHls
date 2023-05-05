@@ -83,8 +83,8 @@ if __name__ == "__main__":
     # print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
-    suite = unittest.TestSuite()
-    # suite.addTest(TwoTimesA_TC('_test_simple'))
-    suite.addTest(unittest.makeSuite(TwoTimesA_TC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([TwoTimesA_TC('test_TwoTimesA0')])
+    suite = testLoader.loadTestsFromTestCase(TwoTimesA_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

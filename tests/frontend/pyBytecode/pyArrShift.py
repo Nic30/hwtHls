@@ -39,7 +39,6 @@ class PyArrShift(Unit):
     def _impl(self):
         hls = HlsScope(self, freq=int(100e6))
         t = HlsThreadFromPy(hls, self.mainThread, hls)
-        # t.bytecodeToSsa.debug = True
         hls.addThread(t)
         hls.compile()
 

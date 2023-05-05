@@ -17,16 +17,16 @@ class Axi4LiteWrite_TC(SimTestCase):
         clkPeriod = int(freq_to_period(u.CLK_FREQ))
         mem = Axi4LiteSimRam(u.ram)
         N = 8
-        self.runSim((N + 1) * clkPeriod)
+        self.runSim((N + 2) * clkPeriod)
         HlsAstTrivial_TC._test_no_comb_loops(self)
         res = {i: int(v) for i, v in mem.data.items()}
-        self.assertDictEqual({i: i for i in range(4)}, res)
+        self.assertDictEqual({i: i for i in range(N)}, res)
 
 
 if __name__ == "__main__":
     import unittest
-    suite = unittest.TestSuite()
-    # suite.addTest(Axi4LiteWrite_TC('test_Axi4LiteWrite'))
-    suite.addTest(unittest.makeSuite(Axi4LiteWrite_TC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([Axi4LiteWrite_TC("test_Axi4LiteWrite")])
+    suite = testLoader.loadTestsFromTestCase(Axi4LiteWrite_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

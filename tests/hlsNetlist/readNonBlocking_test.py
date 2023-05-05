@@ -89,9 +89,9 @@ if __name__ == '__main__':
     u = ReadNonBlockingUnit()
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
-    suite = unittest.TestSuite()
-    # suite.addTest(ReadNonBockingTC('test_ReadNonBlockingUnit'))
-    suite.addTest(unittest.makeSuite(ReadNonBockingTC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([ReadNonBockingTC("test_ReadNonBlockingUnit")])
+    suite = testLoader.loadTestsFromTestCase(ReadNonBockingTC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
 

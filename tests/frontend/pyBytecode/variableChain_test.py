@@ -7,6 +7,8 @@ from tests.frontend.pyBytecode.variableChain import VariableChain
 
 class VariableChain_TC(BaseSsaTC):
     __FILE__ = __file__
+    FRONTEND_ONLY = True
+
 
     def test_VariableChain1_ll(self):
 
@@ -30,8 +32,8 @@ class VariableChain_TC(BaseSsaTC):
 if __name__ == "__main__":
     import unittest
 
-    suite = unittest.TestSuite()
-    # suite.addTest(VariableChain_TC('test_frameHeader'))
-    suite.addTest(unittest.makeSuite(VariableChain_TC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([VariableChain_TC("test_frameHeader")])
+    suite = testLoader.loadTestsFromTestCase(VariableChain_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

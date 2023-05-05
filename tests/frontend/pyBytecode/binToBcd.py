@@ -54,9 +54,7 @@ class BinToBcd(Unit):
         self.DATA_WIDTH, self.BCD_DIGITS
 
         while BIT.from_py(1):
-            bin_r = hls.read(self.din)
-            bitcount = Bits(log2ceil(DATA_WIDTH), signed=False).from_py(0)
-
+            
             bcdp = [
                 hls.var(f"bcdp_{i:d}", Bits(4, signed=False))
                 for i in range(BCD_DIGITS)]
@@ -66,7 +64,9 @@ class BinToBcd(Unit):
             # reset before first iteration
             for bcd in bcd_digits:
                 bcd(0)
-
+            
+            bin_r = hls.read(self.din)
+            bitcount = Bits(log2ceil(DATA_WIDTH), signed=False).from_py(0)
             while bitcount != DATA_WIDTH - 1:
                 for bcdDigitI in range(BCD_DIGITS):
                     bcd = PyBytecodeInPreproc(bcd_digits[bcdDigitI])
@@ -92,7 +92,6 @@ class BinToBcd(Unit):
     def _impl(self):
         hls = HlsScope(self)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls)
-        # mainThread.bytecodeToSsa.debug = True
         hls.addThread(mainThread)
         hls.compile()
 
@@ -103,4 +102,5 @@ if __name__ == "__main__":
     from hwtHls.platform.platform import HlsDebugBundle
 
     u = BinToBcd()
+    u.DATA_WIDTH = 10
     print(to_rtl_str(u, target_platform=Artix7Medium(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

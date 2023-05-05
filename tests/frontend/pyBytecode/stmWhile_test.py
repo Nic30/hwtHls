@@ -22,8 +22,8 @@ class StmWhile_TC(BaseSsaTC):
 if __name__ == "__main__":
     import unittest
 
-    suite = unittest.TestSuite()
-    # suite.addTest(StmWhile_TC('test_HlsPythonHwWhile0_ll'))
-    suite.addTest(unittest.makeSuite(StmWhile_TC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([StmWhile_TC("test_HlsPythonHwWhile0_ll")])
+    suite = testLoader.loadTestsFromTestCase(StmWhile_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

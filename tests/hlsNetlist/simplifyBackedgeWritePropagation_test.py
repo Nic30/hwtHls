@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.interfaces.std import Handshaked
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.param import Param
@@ -9,14 +8,13 @@ from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.netlist import HlsThreadFromNetlist
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
-    HlsNetNodeWriteBackwardEdge
+from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
+    HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.ports import link_hls_nodes
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from tests.baseSsaTest import BaseSsaTC
-from hwtSimApi.utils import freq_to_period
 
 
 class CycleDelayUnit(Unit):
@@ -37,19 +35,16 @@ class CycleDelayUnit(Unit):
         dataOut = backedge
         """
         b = netlist.builder
-        backedge = HsStructIntf()
-        backedge.T = self.dataOut.data._dtype
-        self.backedge = backedge
-
-        br = HlsNetNodeReadBackwardEdge(netlist, backedge)
+        T = self.dataOut.data._dtype
+        br = HlsNetNodeReadBackedge(netlist, T)
         netlist.inputs.append(br)
-        
-        bw = HlsNetNodeWriteBackwardEdge(netlist, NOT_SPECIFIED, backedge)
+
+        bw = HlsNetNodeWriteBackedge(netlist)
         netlist.outputs.append(bw)
-        c9 = b.buildConst(backedge.T.from_py(9))
+        c9 = b.buildConst(T.from_py(9))
         link_hls_nodes(c9, bw._inputs[0])
-        bw.associate_read(br)
-        
+        bw.associateRead(br)
+
         w = HlsNetNodeWrite(netlist, NOT_SPECIFIED, self.dataOut)
         netlist.outputs.append(w)
         link_hls_nodes(br._outputs[0], w._inputs[0])
@@ -78,9 +73,9 @@ if __name__ == "__main__":
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
-    
-    suite = unittest.TestSuite()
-    # suite.addTest(HlsCycleDelayUnit('test_CycleDelayUnit'))
-    suite.addTest(unittest.makeSuite(HlsCycleDelayUnit))
+
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([HlsCycleDelayUnit("test_CycleDelayUnit")])
+    suite = testLoader.loadTestsFromTestCase(HlsCycleDelayUnit)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

@@ -29,7 +29,7 @@ class PidControllerHalfHls(PidController):
         # create y-pipeline registers (y -> y_reg[0]-> y_reg[1])
         y = [self.input, ]
         for i in range(2):
-            _y = self._reg("y_reg%d" % i, dtype=self.input._dtype, def_val=0)
+            _y = self._reg(f"y_reg{i:d}", dtype=self.input._dtype, def_val=0)
             # feed data from last register
             _y(y[-1])
             y.append(_y)
@@ -82,7 +82,7 @@ class PidControllerHls(PidControllerHalfHls):
         err = y[0] - hls.read(self.target).data
         coefs = [hls.read(c).data for c in self.coefs]
         u = hls.var("u", self.output._dtype)
-        
+
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls, [
             # initial reset

@@ -21,6 +21,7 @@ from hwtHls.scope import HlsScope
 from hwtLib.mem.ram import RamSingleClock
 from tests.frontend.pyBytecode.hashTableIo import HashTableCmd, HashTableCmdResult, \
     HASH_TABLE_CMD
+from hwtHls.io.portGroups import MultiPortGroup
 
 
 class HashTable(Unit):
@@ -119,9 +120,8 @@ class HashTable(Unit):
     def _impl(self) -> None:
         propagateClkRstn(self)
         hls = HlsScope(self)
-        ram = BramArrayProxy(hls, tuple(self.tableRam.port))
+        ram = BramArrayProxy(hls, MultiPortGroup(*self.tableRam.port))
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, ram)
-        # mainThread.bytecodeToSsa.debug = True
         hls.addThread(mainThread)
         hls.compile()
 

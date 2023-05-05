@@ -29,8 +29,8 @@ class PopcountTC(SimTestCase):
 if __name__ == '__main__':
     import sys
     import unittest
-    suite = unittest.TestSuite()
-    suite.addTest(unittest.makeSuite(PopcountTC))
-    # suite.addTest(PopcountTC("test_CountLeadingZeros"))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([PopcountTC("test_CountLeadingZeros")])
+    suite = testLoader.loadTestsFromTestCase(PopcountTC)
     runner = unittest.TextTestRunner(verbosity=3)
     sys.exit(not runner.run(suite).wasSuccessful())

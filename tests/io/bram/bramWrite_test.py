@@ -23,8 +23,8 @@ class BramWrite_TC(SimTestCase):
 
 if __name__ == "__main__":
     import unittest
-    suite = unittest.TestSuite()
-    # suite.addTest(BramWrite_TC('test_BramWrite'))
-    suite.addTest(unittest.makeSuite(BramWrite_TC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([BramWrite_TC("test_BramWrite")])
+    suite = testLoader.loadTestsFromTestCase(BramWrite_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

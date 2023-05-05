@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.interfaces.std import VectSignal, Handshaked
 from hwt.interfaces.utils import addClkRstn
 from hwt.simulator.simTestCase import SimTestCase
@@ -9,6 +10,7 @@ from hwt.synthesizer.param import Param
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.netlist import HlsThreadFromNetlist
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.ports import link_hls_nodes
@@ -16,9 +18,7 @@ from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
-from hwtHls.ssa.translation.llvmMirToNetlist.utils import _createSyncForAnyInputSelector
 from hwtSimApi.utils import freq_to_period
-from hwtHls.frontend.pyBytecode import hlsBytecode
 
 
 class ReadOrDefaultUnit(Unit):
@@ -130,28 +130,33 @@ class ReadAnyHsUnit(ReadOrDefaultUnit):
         """
         b = netlist.builder
         inputs = []
-        for i in self.dataIn:
+        anyPrevVld = None
+        for last, i in iter_with_last(self.dataIn):
             r = HlsNetNodeRead(netlist, i)
             netlist.inputs.append(r)
+            if not last:
+                r.setNonBlocking()
+            if anyPrevVld:
+                r.addControlSerialExtraCond(b.buildNot(anyPrevVld))
+                r.addControlSerialSkipWhen(anyPrevVld)
+
             r = r._outputs[0]
             rVld = b.buildReadSync(r)
-
-            t = r._dtype
-            rSync = HlsNetNodeExplicitSync(netlist, t)
-            netlist.nodes.append(rSync)
-            link_hls_nodes(r, rSync._inputs[0])
-
-            inputs.append((r, rSync, rVld))
-
-        _createSyncForAnyInputSelector(
-            b, [(rSync, []) for (_, rSync, _) in inputs], b.buildConstBit(1), b.buildConstBit(0))
+            if anyPrevVld is None:
+                anyPrevVld = rVld
+            else:
+                _rVld = b.buildAnd(b.buildNot(anyPrevVld), rVld)
+                anyPrevVld = b.buildOr(anyPrevVld, rVld)
+                rVld = _rVld
+            inputs.append((rVld, r))
 
         # output mux
         muxOps = []
-        for _, sync, c in  inputs:
-            muxOps.append(sync._outputs[0])
+        for c, v in  inputs:
+            muxOps.append(v)
             muxOps.append(c)
 
+        t = inputs[0][1]._dtype
         muxOps.append(t.from_py(0))
         mux = b.buildMux(r._dtype, tuple(muxOps))
         w = HlsNetNodeWrite(netlist, NOT_SPECIFIED, self.dataOut)
@@ -215,13 +220,13 @@ if __name__ == "__main__":
     import unittest
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
-    u = ReadNonBlockingOrDefaultUnitHs()
-    u.DATA_WIDTH = 32
+    u = ReadAnyHsUnit()
+    # u.DATA_WIDTH = 32
     u.CLK_FREQ = int(40e6)
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
-    suite = unittest.TestSuite()
-    #suite.addTest(HlsNetlistReadSyncTC('test_ReadNonBlockingOrDefaultUnitHs'))
-    suite.addTest(unittest.makeSuite(HlsNetlistReadSyncTC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([HlsNetlistReadSyncTC("test_ReadNonBlockingOrDefaultUnitHs")])
+    suite = testLoader.loadTestsFromTestCase(HlsNetlistReadSyncTC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

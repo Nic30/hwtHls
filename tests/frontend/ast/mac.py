@@ -168,8 +168,8 @@ if __name__ == "__main__":
     u.INPUT_CNT = 16
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
-    suite = unittest.TestSuite()
-    #suite.addTest(HlsMAC_example_TC('test_2_16simple_handshaked'))
-    suite.addTest(unittest.makeSuite(HlsMAC_example_TC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([HlsMAC_example_TC('test_2_16simple_handshaked')])
+    suite = testLoader.loadTestsFromTestCase(HlsMAC_example_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

@@ -146,9 +146,9 @@ class HlsSlicingTC(BaseSsaTC):
 if __name__ == "__main__":
     import unittest
 
-    suite = unittest.TestSuite()
-    # suite.addTest(HlsSlicingTC('test_HlsSlice2TmpHlsVarSlice'))
-    suite.addTest(unittest.makeSuite(HlsSlicingTC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([HlsSlicingTC('test_HlsSlice2TmpHlsVarSlice')])
+    suite = testLoader.loadTestsFromTestCase(HlsSlicingTC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
 

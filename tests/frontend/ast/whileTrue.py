@@ -48,7 +48,7 @@ class WhileTrueWriteCntr1(WhileTrueWrite):
 
 class WhileSendSequence0(WhileTrueReadWrite):
     """
-    WhileSendSequence described as a simple feed forward pipeline.
+    WhileSendSequence described as a simple feed forward pipeline without nested loops.
     """
 
     def _impl(self) -> None:
@@ -72,7 +72,7 @@ class WhileSendSequence0(WhileTrueReadWrite):
                     hls.write(size - 1, sizeBuff.dataIn)
                 ).Else(
                     hls.write(size, sizeBuff.dataIn)
-                
+
                 )
             ),
             self._name)
@@ -95,16 +95,19 @@ class WhileSendSequence1(WhileSendSequence0):
         size = hls.var("size", self.dataIn.T)
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
-            ast.While(True,
-                ast.While(size != 0,
-                    hls.write(size, self.dataOut),
-                    size(size - 1),
-                ),
-                # [todo] last iteration requires dataIn to be present
-                # as a consequence the last dataOut stuck in the component and is currently
-                # not flushed by default. However based on the original code user probably
-                # expect the dataOut to be flushed. 
-                size(hls.read(self.dataIn).data),
+             ast.While(True,
+                size(0),
+                ast.While(True,
+                    ast.While(size != 0,
+                        hls.write(size, self.dataOut),
+                        size(size - 1),
+                    ),
+                    # [todo] last iteration requires dataIn to be present
+                    # as a consequence the last dataOut stuck in the component and is currently
+                    # not flushed by default. However based on the original code user probably
+                    # expect the dataOut to be flushed.
+                    size(hls.read(self.dataIn).data),
+                )
             ),
             self._name)
         )
@@ -116,7 +119,7 @@ class WhileSendSequence2(WhileTrueReadWrite):
     May skip nested while loop and renter top loop
     or jump to nested  while loop, exit nested  loop and reenter top loop
     or jump to nested  while loop and reenter nested while loop.
-    
+
     In addition write to dataOut needs flushing.
 
     :note: This is actually a complex example.
@@ -128,10 +131,6 @@ class WhileSendSequence2(WhileTrueReadWrite):
         size = hls.var("size", self.dataIn.T)
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
-            # sync 26 = loop on bb1 (while read size == 0)
-            # sync 57 = enter to loop48
-            # loop48 is expected to be exited but it is not because it was just entered
-            # however if this was the case the dataIn should be read and the cfg should jump directly to bb3
             ast.While(True,
                 size(hls.read(self.dataIn).data),
                 ast.While(size != 0,
@@ -156,13 +155,16 @@ class WhileSendSequence3(WhileSendSequence0):
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
             ast.While(True,
-                ast.While(size._eq(0),
-                    size(hls.read(self.dataIn).data),
-                ),
-                ast.While(size != 0,
-                    hls.write(size, self.dataOut),
-                    size(size - 1),
-                ),
+                size(0),
+                ast.While(True,
+                    ast.While(size._eq(0),
+                        size(hls.read(self.dataIn).data),
+                    ),
+                    ast.While(size != 0,
+                        hls.write(size, self.dataOut),
+                        size(size - 1),
+                    ),
+                )
             ),
             self._name)
         )
@@ -181,16 +183,19 @@ class WhileSendSequence4(WhileSendSequence0):
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
             ast.While(True,
-                ast.While(size._eq(0),
-                    size(hls.read(self.dataIn).data),
-                ),
+                size(0),
                 ast.While(True,
-                    hls.write(size, self.dataOut),
-                    size(size - 1),
-                    ast.If(size._eq(0),
-                        ast.Break(),
-                    )
-                ),
+                    ast.While(size._eq(0),
+                        size(hls.read(self.dataIn).data),
+                    ),
+                    ast.While(True,
+                        hls.write(size, self.dataOut),
+                        size(size - 1),
+                        ast.If(size._eq(0),
+                            ast.Break(),
+                        )
+                    ),
+                )
             ),
             self._name)
         )
@@ -201,7 +206,7 @@ if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.platform import HlsDebugBundle
-    u = WhileSendSequence0()
+    u = WhileSendSequence1()
     # u.DATA_WIDTH = 32
     u.FREQ = int(20e6)
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

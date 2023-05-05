@@ -47,7 +47,6 @@ class AlapAsapDiffExample(Unit):
         hls.compile()
 
 
-
 def neg_8b(a):
     return ~a & 0xff
 
@@ -91,8 +90,8 @@ if __name__ == "__main__":
     u = AlapAsapDiffExample()
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
-    suite = unittest.TestSuite()
-    # suite.addTest(FrameTmplTC('test_frameHeader'))
-    suite.addTest(unittest.makeSuite(AlapAsapDiffExample_TC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([AlapAsapDiffExample_TC("test_frameHeader")])
+    suite = testLoader.loadTestsFromTestCase(AlapAsapDiffExample_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

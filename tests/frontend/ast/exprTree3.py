@@ -95,8 +95,8 @@ if __name__ == "__main__":
     u = HlsAstExprTree3_example()
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
-    suite = unittest.TestSuite()
-    # suite.addTest(HlsAstExprTree3_example_TC('test_simple'))
-    suite.addTest(unittest.makeSuite(HlsAstExprTree3_example_TC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([HlsAstExprTree3_example_TC("test_simple")])
+    suite = testLoader.loadTestsFromTestCase(HlsAstExprTree3_example_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

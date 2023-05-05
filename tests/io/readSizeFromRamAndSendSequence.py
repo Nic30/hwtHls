@@ -6,10 +6,10 @@ from hwt.interfaces.std import BramPort_withoutClk, Handshaked
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.io.bram import BramArrayProxy
 from hwtHls.scope import HlsScope
-from hwtHls.frontend.pyBytecode import hlsBytecode
 
 
 class ReadSizeFromRamAndSendSequence(Unit):
@@ -46,7 +46,6 @@ class ReadSizeFromRamAndSendSequence(Unit):
     def _impl(self):
         hls = HlsScope(self)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, BramArrayProxy(hls, self.ram))
-        # mainThread.bytecodeToSsa.debug = True
         hls.addThread(mainThread)
         hls.compile()
 

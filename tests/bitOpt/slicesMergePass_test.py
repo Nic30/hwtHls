@@ -143,8 +143,8 @@ if __name__ == "__main__":
     # print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
-    suite = unittest.TestSuite()
-    # suite.addTest(SlicesMergePass_TC('test_phiShift'))
-    suite.addTest(unittest.makeSuite(SlicesMergePass_TC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([SlicesMergePass_TC('test_phiShift')])
+    suite = testLoader.loadTestsFromTestCase(SlicesMergePass_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

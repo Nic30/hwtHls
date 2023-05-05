@@ -32,8 +32,9 @@ class BitWidthReductionCmp_example_TC(BaseSsaTC):
 
 if __name__ == "__main__":
     import unittest
-    suite = unittest.TestSuite()
-    # suite.addTest(BitWidthReductionCmp_example_TC('test_BitWidthReductionCmpReducible_ll'))
-    suite.addTest(unittest.makeSuite(BitWidthReductionCmp_example_TC))
+    
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([BitWidthReductionCmp_example_TC('test_BitWidthReductionCmpReducibleEq_ll')])
+    suite = testLoader.loadTestsFromTestCase(BitWidthReductionCmp_example_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

@@ -62,8 +62,8 @@ class HashTable_TC(BaseSsaTC):
 if __name__ == "__main__":
     import unittest
 
-    suite = unittest.TestSuite()
-    # suite.addTest(FnClosure_TC('test_frameHeader'))
-    suite.addTest(unittest.makeSuite(HashTable_TC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([HashTable_TC("test_frameHeader")])
+    suite = testLoader.loadTestsFromTestCase(HashTable_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

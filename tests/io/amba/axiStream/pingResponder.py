@@ -20,6 +20,7 @@ from hwtLib.types.net.ethernet import Eth2Header_t, ETHER_TYPE
 from hwtLib.types.net.icmp import ICMP_echo_header_t, ICMP_TYPE
 from hwtLib.types.net.ip import IPv4Header_t, ipv4_t, IP_PROTOCOL
 from hwtHls.frontend.pyBytecode import hlsBytecode
+from hwt.simulator.simTestCase import SimTestCase
 
 echoFrame_t = HStruct(
     (Eth2Header_t, "eth"),
@@ -64,7 +65,7 @@ class PingResponder(Unit):
         # [todo] endianity
         # type, code, checksum = 0
         return reverseByteOrder(
-            ~(reverseByteOrder(header.identifier) +
+            ~(reverseByteOrder(header.identifier) + 
               reverseByteOrder(header.seqNo))
         )
 
@@ -98,18 +99,24 @@ class PingResponder(Unit):
         rx = IoProxyAxiStream(hls, self.rx)
         tx = IoProxyAxiStream(hls, self.tx)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, rx, tx)
-        # mainThread.bytecodeToSsa.debug = True
         hls.addThread(mainThread)
         hls.compile()
 
 
-class PingResponderTC(HwtLibPingResponderTC):
+class PingResponderTC(SimTestCase):
+    DATA_WIDTH = 32
 
     @classmethod
     def setUpClass(cls):
         u = cls.u = PingResponder()
         u.DATA_WIDTH = cls.DATA_WIDTH
         cls.compileSim(u, target_platform=VirtualHlsPlatform())
+
+    def create_ICMP_echo_frame(self, **kwargs):
+        return HwtLibPingResponderTC.create_ICMP_echo_frame(self, **kwargs)
+        
+    def test_reply1x(self):
+        HwtLibPingResponderTC.test_reply1x(self)
 
 
 if __name__ == "__main__":
@@ -123,8 +130,8 @@ if __name__ == "__main__":
     print(to_rtl_str(u, target_platform=Artix7Slow(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
-    suite = unittest.TestSuite()
-    # suite.addTest(PingResponderTC('test_reply1x'))
-    suite.addTest(unittest.makeSuite(PingResponderTC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([PingResponderTC("test_reply1x")])
+    suite = testLoader.loadTestsFromTestCase(PingResponderTC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

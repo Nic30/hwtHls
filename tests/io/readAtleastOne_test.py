@@ -46,9 +46,9 @@ if __name__ == "__main__":
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL)))
 
     import unittest
-    suite = unittest.TestSuite()
-    # suite.addTest(ReadAtleastOne_TC('test_ReadAtleastOneOf3'))
-    suite.addTest(unittest.makeSuite(ReadAtleastOne_TC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([ReadAtleastOne_TC("test_ReadAtleastOneOf3")])
+    suite = testLoader.loadTestsFromTestCase(ReadAtleastOne_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
 

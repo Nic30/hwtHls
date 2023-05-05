@@ -107,16 +107,15 @@ class IoFsm_TC(SimTestCase):
 
 
 if __name__ == "__main__":
-    #from hwt.synthesizer.utils import to_rtl_str
-    #from hwtHls.platform.platform import HlsDebugBundle
+    # from hwt.synthesizer.utils import to_rtl_str
+    # from hwtHls.platform.platform import HlsDebugBundle
     #
-    #u = WriteFsm0()
-    #print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
-
+    # u = WriteFsm1()
+    # print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
-    suite = unittest.TestSuite()
-    # suite.addTest(IoFsm_TC('test_WriteFsm0'))
-    suite.addTest(unittest.makeSuite(IoFsm_TC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([IoFsm_TC("test_WriteFsm1")])
+    suite = testLoader.loadTestsFromTestCase(IoFsm_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

@@ -144,8 +144,8 @@ class HlsNetlistReduceCmpInAndTC(unittest.TestCase):
     
 
 if __name__ == '__main__':
-    suite = unittest.TestSuite()
-    # suite.addTest(HlsNetlistReduceCmpInAndTC('test_reduceNeLtToNe'))
-    suite.addTest(unittest.makeSuite(HlsNetlistReduceCmpInAndTC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([HlsNetlistReduceCmpInAndTC("test_reduceNeLtToNe")])
+    suite = testLoader.loadTestsFromTestCase(HlsNetlistReduceCmpInAndTC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

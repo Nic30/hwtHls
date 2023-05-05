@@ -57,8 +57,8 @@ class CountBitsTC(SimTestCase):
 if __name__ == '__main__':
     import sys
     import unittest
-    suite = unittest.TestSuite()
-    suite.addTest(unittest.makeSuite(CountBitsTC))
-    # suite.addTest(CountLeadingTC("test_CountLeadingZeros"))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([CountBitsTC('test_CountLeadingZeros')])
+    suite = testLoader.loadTestsFromTestCase(CountBitsTC)
     runner = unittest.TextTestRunner(verbosity=3)
     sys.exit(not runner.run(suite).wasSuccessful())

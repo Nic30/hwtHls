@@ -7,16 +7,16 @@ from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
+from hwtHls.io.amba.axiStream.proxy import IoProxyAxiStream
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axis import AxiStream
 from hwtLib.types.ctypes import uint16_t
 from hwtLib.types.net.ethernet import Eth2Header_t, ETHER_TYPE
 from hwtLib.types.net.ip import IPv4Header_t, IP_PROTOCOL, ipv4_t
 from hwtLib.types.net.udp import UDP_header_t
-from hwtHls.io.amba.axiStream.proxy import IoProxyAxiStream
-from hwtHls.frontend.pyBytecode import hlsBytecode
 
 
 class AxiSParseUdpIpv4(Unit):

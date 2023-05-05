@@ -83,8 +83,8 @@ if __name__ == "__main__":
     print(to_rtl_str(u, target_platform=p))
 
     import unittest
-    suite = unittest.TestSuite()
-    # suite.addTest(HlsAstExprTree3_example_TC('test_simple'))
-    suite.addTest(unittest.makeSuite(HlsSimpleIfStatement_TC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([HlsSimpleIfStatement_TC('test_simple')])
+    suite = testLoader.loadTestsFromTestCase(HlsSimpleIfStatement_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

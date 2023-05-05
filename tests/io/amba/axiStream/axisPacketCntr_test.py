@@ -45,8 +45,8 @@ if __name__ == '__main__':
     # u.DATA_WIDTH = 16
     # print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
     
-    suite = unittest.TestSuite()
-    # suite.addTest(AxiSPacketCntrTC('test_AxiSPacketCntr_16b'))
-    suite.addTest(unittest.makeSuite(AxiSPacketCntrTC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([AxiSPacketCntrTC("test_AxiSPacketCntr_16b")])
+    suite = testLoader.loadTestsFromTestCase(AxiSPacketCntrTC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

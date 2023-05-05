@@ -38,8 +38,8 @@ class Axi4LiteCopy_TC(SimTestCase):
 
 if __name__ == "__main__":
     import unittest
-    suite = unittest.TestSuite()
-    # suite.addTest(Axi4LiteRead_TC('test_Axi4LiteRead'))
-    suite.addTest(unittest.makeSuite(Axi4LiteCopy_TC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([Axi4LiteCopy_TC("test_Axi4LiteRead")])
+    suite = testLoader.loadTestsFromTestCase(Axi4LiteCopy_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

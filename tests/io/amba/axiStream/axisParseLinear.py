@@ -98,7 +98,7 @@ struct_i16_i32 = HStruct(
 
 
 class AxiSParse2fields(AxiSParseStructManyInts0):
-    
+
     def _declr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
@@ -139,6 +139,6 @@ if __name__ == "__main__":
     from hwtHls.platform.platform import HlsDebugBundle
 
     u = AxiSParseStructManyInts1()
-    u.DATA_WIDTH = 512
+    u.DATA_WIDTH = 256
     p = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)
     print(to_rtl_str(u, target_platform=p))

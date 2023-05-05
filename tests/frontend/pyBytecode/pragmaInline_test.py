@@ -60,11 +60,11 @@ if __name__ == "__main__":
     import unittest
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
-    u = PragmaInline_writeCntr2()
+    u = PragmaInline_NestedLoop()
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
-    suite = unittest.TestSuite()
-    #suite.addTest(PyBytecodeInline_TC('test_PragmaInline_writeCntr2'))
-    suite.addTest(unittest.makeSuite(PyBytecodeInline_TC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([PyBytecodeInline_TC("test_PragmaInline_writeCntr2")])
+    suite = testLoader.loadTestsFromTestCase(PyBytecodeInline_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

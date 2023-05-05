@@ -11,8 +11,8 @@ class CmpReduction_TC(BaseSsaTC):
 
 if __name__ == "__main__":
     import unittest
-    suite = unittest.TestSuite()
-    # suite.addTest(CmpReduction_TC('test_RedundantCmpGT_ll'))
-    suite.addTest(unittest.makeSuite(CmpReduction_TC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([CmpReduction_TC('test_RedundantCmpGT_ll')])
+    suite = testLoader.loadTestsFromTestCase(CmpReduction_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

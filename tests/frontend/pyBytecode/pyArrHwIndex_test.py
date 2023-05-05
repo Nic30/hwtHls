@@ -29,6 +29,7 @@ class CntrArrayWithCfgDotDump(CntrArray):
 
 class PyArrHwIndex_TC(BaseSsaTC):
     __FILE__ = __file__
+    FRONTEND_ONLY = True
 
     def test_Rom_ll(self):
         self._test_ll(Rom)
@@ -53,8 +54,8 @@ class PyArrHwIndex_TC(BaseSsaTC):
 if __name__ == "__main__":
     import unittest
 
-    suite = unittest.TestSuite()
-    # suite.addTest(PyArrHwIndex_TC('test_frameHeader'))
-    suite.addTest(unittest.makeSuite(PyArrHwIndex_TC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([PyArrHwIndex_TC("test_frameHeader")])
+    suite = testLoader.loadTestsFromTestCase(PyArrHwIndex_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

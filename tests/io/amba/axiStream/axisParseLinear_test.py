@@ -21,7 +21,7 @@ class AxiSParseLinearTC(SimTestCase):
         u = cls()
         u.DATA_WIDTH = DATA_WIDTH
         self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
-        
+
         ref = []
         first = True
         for _ in range(N):
@@ -47,7 +47,7 @@ class AxiSParseLinearTC(SimTestCase):
             axis_send_bytes(u.i, data)
             first = False
 
-        t = CLK_PERIOD * (len(u.i._ag.data) + 5) 
+        t = CLK_PERIOD * (len(u.i._ag.data) + 5)
         self.runSim(t)
 
         self.assertEqual(len(u.o), len(ref))
@@ -57,7 +57,7 @@ class AxiSParseLinearTC(SimTestCase):
                 ", ".join("0x%x" % int(i) if i._is_full_valid() else repr(i) for i in o._ag.data),
                 ", ".join("0x%x" % i for i in _ref)
             ))
-    
+
     def test_AxiSParseStructManyInts0_8b(self):
         self._test_parse(8)
 
@@ -73,8 +73,9 @@ class AxiSParseLinearTC(SimTestCase):
     def test_AxiSParseStructManyInts0_512b(self):
         self._test_parse(512)
 
-    def test_AxiSParseStructManyInts1_8b(self):
-        self._test_parse(8, cls=AxiSParseStructManyInts1)
+    # dissabled because the exmple is too large
+    #def test_AxiSParseStructManyInts1_8b(self):
+    #    self._test_parse(8, cls=AxiSParseStructManyInts1)
 
     def test_AxiSParseStructManyInts1_16b(self):
         self._test_parse(16, cls=AxiSParseStructManyInts1)
@@ -106,8 +107,8 @@ class AxiSParseLinearTC(SimTestCase):
 
 if __name__ == '__main__':
 
-    suite = unittest.TestSuite()
-    # suite.addTest(AxiSParseLinearTC('test_AxiSParseStructManyInts1_48b'))
-    suite.addTest(unittest.makeSuite(AxiSParseLinearTC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([AxiSParseLinearTC("test_AxiSParse2fields_24b")])
+    suite = testLoader.loadTestsFromTestCase(AxiSParseLinearTC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

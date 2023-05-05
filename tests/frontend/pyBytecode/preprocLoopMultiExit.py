@@ -58,7 +58,6 @@ class PreprocLoopMultiExit_singleExit0(Unit):
     def _impl(self):
         hls = HlsScope(self)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls)
-        # mainThread.bytecodeToSsa.debug = True
         hls.addThread(mainThread)
         hls.compile()
 
@@ -104,18 +103,13 @@ class PreprocLoopMultiExit_hwBreak0(PreprocLoopMultiExit_singleExit0):
 
         .. code-block:: Python
 
-            if hls.read(self.i).data._eq(0):
-                hls.write(2, self.o)
-            else:
-                if hls.read(self.i).data._eq(0):
-                    hls.write(2, self.o)
-                elif hls.read(self.i).data._eq(0):
-                    hls.write(2, self.o)
+            if hls.read(self.i).data == 0 or hls.read(self.i).data == 0 or hls.read(self.i).data == 0:
+                hls.write(0, self.o)
 
         """
         for i in range(3):  # this for statement is unrolled in preprocessor
             if hls.read(self.i).data._eq(0):
-                # this block is duplicated for every possibility of break from previous for statement
+                # This block is actually outside of the lopp and there will be only one instance of it and it will have i=0
                 hls.write(i, self.o)
                 break
 

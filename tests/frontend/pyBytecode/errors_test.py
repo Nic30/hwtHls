@@ -33,8 +33,8 @@ class PyBytecodeErrors_TC(SimTestCase):
 if __name__ == "__main__":
     import unittest
 
-    suite = unittest.TestSuite()
-    # suite.addTest(PyBytecodeErrors_TC('test_ErrorUseOfUnitialized0'))
-    suite.addTest(unittest.makeSuite(PyBytecodeErrors_TC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([PyBytecodeErrors_TC("test_ErrorUseOfUnitialized0")])
+    suite = testLoader.loadTestsFromTestCase(PyBytecodeErrors_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

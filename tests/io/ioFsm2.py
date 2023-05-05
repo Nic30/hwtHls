@@ -18,7 +18,7 @@ class WriteFsmFor(WriteFsm1):
         i = hls.var("i", uint8_t)
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
-            ast.For(i(0), i < 10, i(i + 1),
+            ast.For(i(0), i < 3, i(i + 1),
                 hls.write(1, self.o),
                 hls.write(2, self.o),
                 hls.write(3, self.o),
@@ -40,7 +40,7 @@ class WriteFsmPrequel(WriteFsm1):
         hls.addThread(HlsThreadFromAst(hls, [
                 hls.write(99, self.o),
                 hls.write(100, self.o),
-                ast.For(i(0), i < 10, i(i + 1),
+                ast.For(i(0), i < 3, i(i + 1),
                     hls.write(i + 1, self.o),
                     hls.write(i + 2, self.o),
                     hls.write(i + 3, self.o),

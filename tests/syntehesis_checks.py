@@ -63,8 +63,8 @@ class HlsSynthesisChecksTC(SimTestCase):
 if __name__ == "__main__":
     import unittest
 
-    suite = unittest.TestSuite()
-    # suite.addTest(HlsSynthesisChecksTC('test_frameHeader'))
-    suite.addTest(unittest.makeSuite(HlsSynthesisChecksTC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([HlsSynthesisChecksTC("test_frameHeader")])
+    suite = testLoader.loadTestsFromTestCase(HlsSynthesisChecksTC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

@@ -23,7 +23,6 @@ class HlsPythonPreprocFor(Unit):
     def _impl(self):
         hls = HlsScope(self, freq=int(100e6))
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls)
-        # mainThread.bytecodeToSsa.debug = True
         hls.addThread(mainThread)
         hls.compile()
 

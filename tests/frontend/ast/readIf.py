@@ -120,9 +120,9 @@ if __name__ == '__main__':
     # print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
-    
-    suite = unittest.TestSuite()
-    #suite.addTest(HlsAstReadIfTc('testReadIfOtherEqual_150M'))
-    suite.addTest(unittest.makeSuite(HlsAstReadIfTc))
+
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([HlsAstReadIfTc("testReadIfOtherEqual_150M")])
+    suite = testLoader.loadTestsFromTestCase(HlsAstReadIfTc)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

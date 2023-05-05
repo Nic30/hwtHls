@@ -16,6 +16,7 @@ from hwtHls.frontend.pyBytecode.ioProxyAddressed import IoProxyAddressed
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.io.bram import BramArrayProxy
+from hwtHls.io.portGroups import MultiPortGroup
 from hwtHls.scope import HlsScope
 from hwtLib.mem.ram import RamSingleClock
 from pyMathBitPrecise.bit_utils import mask
@@ -166,9 +167,8 @@ class HashTableCuckoo(Unit):
     def _impl(self) -> None:
         propagateClkRstn(self)
         hls = HlsScope(self)
-        rams = [BramArrayProxy(hls, t.port) for t in self.tableRams]
+        rams = [BramArrayProxy(hls, MultiPortGroup(*t.port)) for t in self.tableRams]
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, rams)
-        # mainThread.bytecodeToSsa.debug = True
         hls.addThread(mainThread)
         hls.compile()
 

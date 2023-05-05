@@ -146,8 +146,8 @@ if __name__ == "__main__":
     u.CLK_FREQ = int(100e6)
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
-    suite = unittest.TestSuite()
-    # suite.addTest(HlsNetlistBitwiseOpsTC('test_NetlistWireUnitRdSynced'))
-    suite.addTest(unittest.makeSuite(HlsNetlistBitwiseOpsTC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([HlsNetlistBitwiseOpsTC("test_NetlistWireUnitRdSynced")])
+    suite = testLoader.loadTestsFromTestCase(HlsNetlistBitwiseOpsTC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

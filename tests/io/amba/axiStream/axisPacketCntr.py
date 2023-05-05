@@ -46,7 +46,6 @@ class AxiSPacketCntr(Unit):
         hls = HlsScope(self)
         i = IoProxyAxiStream(hls, self.i)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, i)
-        # mainThread.bytecodeToSsa.debug = True
         hls.addThread(mainThread)
         hls.compile()
 

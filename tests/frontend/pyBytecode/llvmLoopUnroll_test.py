@@ -19,8 +19,8 @@ class LlvmLoopUnroll_TC(BaseSsaTC):
 if __name__ == "__main__":
     import unittest
 
-    suite = unittest.TestSuite()
-    # suite.addTest(LlvmLoopUnroll_TC('test_InfLoopUnrollDissable_ll'))
-    suite.addTest(unittest.makeSuite(LlvmLoopUnroll_TC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([LlvmLoopUnroll_TC("test_InfLoopUnrollDissable_ll")])
+    suite = testLoader.loadTestsFromTestCase(LlvmLoopUnroll_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

@@ -21,8 +21,8 @@ class ReadNonBlocking_TC(SimTestCase):
 if __name__ == "__main__":
     import unittest
 
-    suite = unittest.TestSuite()
-    # suite.addTest(ReadNonBlocking_TC('test_HlsPythonReadNonBlocking'))
-    suite.addTest(unittest.makeSuite(ReadNonBlocking_TC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([ReadNonBlocking_TC("test_HlsPythonReadNonBlocking")])
+    suite = testLoader.loadTestsFromTestCase(ReadNonBlocking_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

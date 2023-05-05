@@ -58,8 +58,8 @@ class AxiSParseEthTC(SimTestCase):
 
 if __name__ == '__main__':
 
-    suite = unittest.TestSuite()
-    # suite.addTest(AxiSParseEthTC('test_parse_24b'))
-    suite.addTest(unittest.makeSuite(AxiSParseEthTC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([AxiSParseEthTC("test_parse_24b")])
+    suite = testLoader.loadTestsFromTestCase(AxiSParseEthTC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

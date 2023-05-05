@@ -45,7 +45,6 @@ class ReadAtleastOneOf2(Unit):
     def _impl(self):
         hls = HlsScope(self)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls)
-        # mainThread.bytecodeToSsa.debug = True
         hls.addThread(mainThread)
         hls.compile()
 

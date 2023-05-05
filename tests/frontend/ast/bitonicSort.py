@@ -92,9 +92,9 @@ if __name__ == "__main__":
     u.ITEMS = 4
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
-    suite = unittest.TestSuite()
-    # suite.addTest(BitonicSorterHLS_large_TC('test_reversed'))
-    for tc in BitonicSorterHLS_TCs:
-        suite.addTest(unittest.makeSuite(tc))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([BitonicSorterHLS_large_TC('test_reversed')])
+    suite = unittest.TestSuite(testLoader.loadTestsFromTestCase(tc)
+                               for tc in BitonicSorterHLS_TCs)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

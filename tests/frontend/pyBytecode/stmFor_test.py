@@ -26,8 +26,8 @@ class StmFor_TC(BaseSsaTC):
 if __name__ == "__main__":
     import unittest
 
-    suite = unittest.TestSuite()
-    # suite.addTest(StmFor_TC('test_frameHeader'))
-    suite.addTest(unittest.makeSuite(StmFor_TC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([StmFor_TC("test_frameHeader")])
+    suite = testLoader.loadTestsFromTestCase(StmFor_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

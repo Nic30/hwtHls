@@ -45,7 +45,6 @@ class AndShiftInLoop2(Unit):
     def _impl(self):
         hls = HlsScope(self)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls)
-        # mainThread.bytecodeToSsa.debug = True
         hls.addThread(mainThread)
         hls.compile()
 
@@ -78,7 +77,6 @@ class AndShiftInLoop3(Unit):
     def _impl(self):
         hls = HlsScope(self)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls)
-        # mainThread.bytecodeToSsa.debug = True
         hls.addThread(mainThread)
         hls.compile()
 
@@ -169,8 +167,9 @@ if __name__ == "__main__":
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
-    suite = unittest.TestSuite()
-    # suite.addTest(AndShiftInLoop('test_AndShiftInLoop'))
-    suite.addTest(unittest.makeSuite(AndShiftInLoop_TC))
+    
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([AndShiftInLoop('test_AndShiftInLoop')])
+    suite = testLoader.loadTestsFromTestCase(AndShiftInLoop_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

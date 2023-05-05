@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
@@ -46,7 +45,6 @@ class BramWrite(Unit):
 
         ram = BramArrayProxy(hls, self.ram)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, ram)
-        # mainThread.bytecodeToSsa.debug = True
         hls.addThread(mainThread)
         hls.compile()
 

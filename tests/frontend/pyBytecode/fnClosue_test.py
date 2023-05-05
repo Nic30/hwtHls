@@ -8,6 +8,8 @@ from tests.frontend.pyBytecode.fnClosure import FnClosureSingleItem, FnClosureNo
 
 class FnClosure_TC(BaseSsaTC):
     __FILE__ = __file__
+    FRONTEND_ONLY = True
+
 
     def test_FnClosureSingleItem_ll(self):
         self._test_ll(FnClosureSingleItem)
@@ -21,9 +23,9 @@ class FnClosure_TC(BaseSsaTC):
 
 if __name__ == "__main__":
     import unittest
-
-    suite = unittest.TestSuite()
-    # suite.addTest(FnClosure_TC('test_frameHeader'))
-    suite.addTest(unittest.makeSuite(FnClosure_TC))
+    
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([FnClosure_TC('test_frameHeader')])
+    suite = testLoader.loadTestsFromTestCase(FnClosure_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

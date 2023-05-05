@@ -5,16 +5,16 @@ from hwt.hdl.types.defs import BIT
 from hwt.interfaces.std import Handshaked
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.param import Param
+from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.io.amba.axi4Lite import Axi4LiteArrayProxy
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axi4Lite import Axi4Lite
-from tests.io.bram.bramRead import BramRead
 
 
 #  packIntf(intf, masterDirEqTo, exclude)
-class Axi4LiteRead(BramRead):
+class Axi4LiteRead(Unit):
     """
     Sequentially read data from Axi4Lite port.
     """
@@ -45,7 +45,6 @@ class Axi4LiteRead(BramRead):
         hls = HlsScope(self)
         ram = Axi4LiteArrayProxy(hls, self.ram)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, ram)
-        # mainThread.bytecodeToSsa.debug = True
         hls.addThread(mainThread)
         hls.compile()
 
