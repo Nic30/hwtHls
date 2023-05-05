@@ -30,6 +30,10 @@ class HlsNetNodeMux(HlsNetNodeOperator):
             pass
         assert self._inputs, ("Mux has to have operands", self)
         name = self.name
+        if name:
+            name = f"{allocator.namePrefix}{name}"
+        else:
+            name = f"{allocator.namePrefix}mux{self._id}"
         v0 = allocator.instantiateHlsNetNodeOutInTime(self.dependsOn[0], self.scheduledIn[0])
         mux_out_s = allocator._sig(name, v0.data._dtype)
         if len(self._inputs) == 1:
