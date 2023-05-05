@@ -2,8 +2,9 @@ from typing import List, Optional, Tuple, Generator
 
 from hwt.hdl.types.hdlType import HdlType
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict, OutputTimeGetter, OutputMinUseTimeGetter
+from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
+from hwtHls.netlist.nodes.schedulableNode import SchedulizationDict, OutputTimeGetter, OutputMinUseTimeGetter
 from hwtHls.platform.opRealizationMeta import EMPTY_OP_REALIZATION
 
 
@@ -33,13 +34,15 @@ class HlsNetNodeAggregatePortIn(HlsNetNode):
         """
         # resolve time for input of this cluster
         if self.scheduledOut is None:
-            self.resolveRealization()
+            if self.realization is None:
+                self.resolveRealization()
             dep = self.parentIn.obj.dependsOn[self.parentIn.in_i]
             t = dep.obj.scheduleAsap(pathForDebug, beginOfFirstClk, outputTimeGetter)[dep.out_i]
             if outputTimeGetter is None:
                 t = dep.obj.scheduleAsap(pathForDebug, beginOfFirstClk, None)[dep.out_i]  # + epsilon
             else:
                 t = outputTimeGetter(dep, pathForDebug, beginOfFirstClk)
+
             self._setScheduleZero(t)
         return self.scheduledOut
 
@@ -69,6 +72,8 @@ class HlsNetNodeAggregatePortOut(HlsNetNode):
         """
         Copy ALAP time from uses of outside port
         """
+        if outputMinUseTimeGetter is not None:
+            raise NotImplementedError()
         uses = self.parentOut.obj.usedBy[self.parentOut.out_i]
         t = min(u.obj.scheduledIn[u.in_i] for u in uses)
         self._setScheduleZero(t)
@@ -78,7 +83,7 @@ class HlsNetNodeAggregatePortOut(HlsNetNode):
     def __repr__(self):
         return f"<{self.__class__.__name__} {self._id} i={self.parentOut.out_i} parent={self.parentOut.obj}>"
 
-        
+
 class HlsNetNodeAggregate(HlsNetNode):
     """
     Container of cluster of nodes.
@@ -123,12 +128,12 @@ class HlsNetNodeAggregate(HlsNetNode):
         self._totalInputCnt = None
         self._inputsInside = None
         self._outputsInside = None
-        
+
     def copyScheduling(self, schedule: SchedulizationDict):
         for n in self._subNodes:
             n.copyScheduling(schedule)
         schedule[self] = (self.scheduledZero, self.scheduledIn, self.scheduledOut)
-    
+
     def setScheduling(self, schedule: SchedulizationDict):
         for n in self._subNodes:
             n.setScheduling(schedule)
@@ -149,7 +154,7 @@ class HlsNetNodeAggregate(HlsNetNode):
             outerIn: HlsNetNodeIn
             port: HlsNetNodeAggregatePortIn
             outerDep = self.dependsOn[outerIn.in_i]
-            outerDepT = outerDep.obj.scheduledOut[outerDep.out_i] 
+            outerDepT = outerDep.obj.scheduledOut[outerDep.out_i]
             outerInT = self.scheduledIn[outerIn.in_i]
             assert outerDepT <= outerInT, (outerDepT, outerInT, outerDep, outerIn)
             portT = port.scheduledOut[0]
@@ -189,13 +194,18 @@ class HlsNetNodeAggregate(HlsNetNode):
 
         return t
 
+    def scheduleAsap(self, pathForDebug: Optional[UniqList["HlsNetNode"]], outputTimeGetter: Optional[OutputTimeGetter]) -> List[int]:
+        raise NotImplementedError(
+            "Override this method in derived class", self)
+
     def scheduleAlapCompaction(self, endOfLastClk: int, outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter]):
         raise NotImplementedError(
             "Override this method in derived class", self)
 
-    def scheduleAsap(self, pathForDebug: Optional[UniqList["HlsNetNode"]], outputTimeGetter: Optional[OutputTimeGetter]) -> List[int]:
-        raise NotImplementedError(
-            "Override this method in derived class", self)
+    #def scheduleAsapCompaction(self, beginOfFirstClk:int, outputTimeGetter:Optional[OutputTimeGetter]) -> \
+    #        Generator["HlsNetNode", None, None]:
+    #    raise NotImplementedError(
+    #        "Override this method in derived class", self)
 
     def allocateRtlInstance(self, allocator:"ArchElement"):
         """
@@ -230,7 +240,7 @@ class HlsNetNodeAggregate(HlsNetNode):
                 if i is not boundaryIn
             ]
             usedBy.extend(internUses)
-        
+
         for boundaryOut, outPort in zip(self._outputs, self._outputsInside):
             internOutput = outPort.dependsOn[0]
             outerUsedBy = self.usedBy[boundaryOut.out_i]
@@ -243,7 +253,7 @@ class HlsNetNodeAggregate(HlsNetNode):
                 if u.obj is outPort:
                     continue
                 outerUsedBy.append(u)
-            internOutput.obj.usedBy[internOutput.out_i] = outerUsedBy      
+            internOutput.obj.usedBy[internOutput.out_i] = outerUsedBy
 
         for n in self._subNodes:
             if isinstance(n, (HlsNetNodeAggregatePortIn, HlsNetNodeAggregatePortOut)):
