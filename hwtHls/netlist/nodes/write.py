@@ -11,14 +11,16 @@ from hwt.synthesizer.interfaceLevel.interfaceUtils.utils import packIntf, \
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
-from hwtHls.netlist.nodes.node import HlsNetNode, OutputTimeGetter, \
-    OutputMinUseTimeGetter, SchedulizationDict
-from hwtHls.netlist.nodes.orderable import HVoidOrdering, HdlType_isVoid
+from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.orderable import HdlType_isVoid
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
     HlsNetNodeOutLazy
 from hwtHls.netlist.nodes.read import HlsNetNodeRead, HlsNetNodeReadIndexed
+from hwtHls.netlist.nodes.schedulableNode import OutputTimeGetter, \
+    OutputMinUseTimeGetter, SchedulizationDict
 from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axi_intf_common import Axi_hs
+from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
 
 
 class HlsNetNodeWrite(HlsNetNodeExplicitSync):
@@ -29,17 +31,15 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
     :ivar dependsOn: list of dependencies for scheduling composed of data input, extraConds and skipWhen
     """
 
-    def __init__(self, netlist: "HlsNetlistCtx", src, dst: Union[RtlSignal, Interface, SsaValue]):
-        HlsNetNode.__init__(self, netlist, None)
+    def __init__(self, netlist: "HlsNetlistCtx", src, dst: Union[RtlSignal, Interface, SsaValue, None], name:Optional[str]=None):
+        HlsNetNode.__init__(self, netlist, name=name)
         self._associatedReadSync: Optional["HlsNetNodeReadSync"] = None
 
         self._initCommonPortProps()
         self._addInput("src")
-        self.operator = "write"
         self.src = src
         assert not isinstance(src, (HlsNetNodeOut, HlsNetNodeOutLazy)), (src, "src is used for temporary states where node is not entirely constructed,"
                                                                          " the actual src is realized as _inputs[0]")
-
         indexCascade = None
         if isinstance(dst, RtlSignal):
             if not isinstance(dst, (Signal, RtlSignal)):
@@ -52,11 +52,22 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         self.maxIosPerClk = 1
         self._isBlocking = True
 
+    def _getSchedulingResourceType(self):
+        resourceType = self.dst
+        assert resourceType is not None, self
+        return resourceType
+
+    def checkScheduling(self):
+        return HlsNetNodeRead.checkScheduling(self)
+
     def resetScheduling(self):
         return HlsNetNodeRead.resetScheduling(self)
 
     def setScheduling(self, schedule:SchedulizationDict):
         return HlsNetNodeRead.setScheduling(self, schedule)
+
+    def moveSchedulingTime(self, offset:int):
+        return HlsNetNodeRead.moveSchedulingTime(self, offset)
 
     def scheduleAsap(self, pathForDebug: Optional[UniqList["HlsNetNode"]], beginOfFirstClk: int, outputTimeGetter: Optional[OutputTimeGetter]) -> List[int]:
         assert self.dependsOn, self
@@ -69,7 +80,17 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         """
         Instantiate write operation on RTL level
         """
-        assert len(self.dependsOn) >= 1, self.dependsOn
+        assert len(self.dependsOn) >= 1, (self, self.dependsOn)
+
+        # apply indexes before assignments
+        dst = self.dst
+        dep = self.dependsOn[0]
+
+        try:
+            return allocator.netNodeToRtl[(dep, dst)]
+        except KeyError:
+            pass
+
         # [0] - data, [1:] control dependencies
         for sync, t in zip(self.dependsOn[1:], self.scheduledIn[1:]):
             # prepare sync inputs but do not connect it because we do not implement synchronization
@@ -77,17 +98,7 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
             if not HdlType_isVoid(sync._dtype):
                 allocator.instantiateHlsNetNodeOutInTime(sync, t)
 
-        dep = self.dependsOn[0]
         _o = allocator.instantiateHlsNetNodeOutInTime(dep, self.scheduledIn[0])
-
-        # apply indexes before assignments
-        dst = self.dst
-
-        try:
-            # skip instantiation of writes in the same mux
-            return allocator.netNodeToRtl[(dep, dst)]
-        except KeyError:
-            pass
 
         if isinstance(dst, Axi_hs):
             exclude = dst.ready, dst.valid
@@ -100,7 +111,10 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         else:
             exclude = ()
 
-        if isinstance(_o.data, StructIntf):
+        if HdlType_isVoid(dep._dtype):
+            # assert isinstance(_o, list) and not _o, _o
+            rtlObj = []
+        elif isinstance(_o.data, StructIntf):
             rtlObj = dst(_o.data, exclude=exclude)
         elif isinstance(_o.data, RtlSignal) and isinstance(dst, RtlSignal):
             rtlObj = dst(_o.data)
@@ -123,13 +137,13 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
             src = self.dependsOn[0]
         dstName = "<None>" if self.dst is None else self._getInterfaceName(self.dst)
         if minify:
-            return f"<{self.__class__.__name__:s} {self._id:d} {dstName}>"
+            return f"<{self.__class__.__name__:s} {self._id:d}{' ' + self.name if self.name else ''} {dstName}>"
         else:
             if src is None:
                 _src = "<None>"
             else:
-                _src = f"{src.obj._id}:{src.out_i}"
-            return f"<{self.__class__.__name__:s} {self._id:d} {dstName} <- {_src:s}>"
+                _src = f"{src.obj._id}:{src.out_i}" if isinstance(src, HlsNetNodeOut) else repr(src)
+            return f"<{self.__class__.__name__:s} {self._id:d}{' ' + self.name if self.name else ''} {dstName} <- {_src:s}>"
 
 
 class HlsNetNodeWriteIndexed(HlsNetNodeWrite):
@@ -153,6 +167,6 @@ class HlsNetNodeWriteIndexed(HlsNetNodeWrite):
             src = self.dependsOn[0]
         dstName = self._getInterfaceName(self.dst)
         if minify:
-            return f"<{self.__class__.__name__:s} {self._id:d} {dstName}>"
+            return f"<{self.__class__.__name__:s} {self._id:d}{' ' + self.name if self.name else ''} {dstName}>"
         else:
-            return f"<{self.__class__.__name__:s} {self._id:d} {dstName}{HlsNetNodeReadIndexed._strFormatIndexes(self.indexes)} <- {src}>"
+            return f"<{self.__class__.__name__:s} {self._id:d}{' ' + self.name if self.name else ''} {dstName}{HlsNetNodeReadIndexed._strFormatIndexes(self.indexes)} <- {src}>"

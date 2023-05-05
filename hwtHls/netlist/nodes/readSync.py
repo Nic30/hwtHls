@@ -6,7 +6,7 @@ from hwt.interfaces.std import Handshaked, HandshakeSync, VldSynced, Signal, \
     RdSynced, BramPort_withoutClk
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, INVARIANT_TIME
-from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeWriteBackwardEdge, \
+from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge, \
     BACKEDGE_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import IO_COMB_REALIZATION, HlsNetNodeExplicitSync
@@ -71,7 +71,7 @@ class HlsNetNodeReadSync(HlsNetNode):
 
         elif isinstance(dObj, HlsNetNodeWrite):
             dObj: HlsNetNodeWrite
-            if isinstance(dObj, HlsNetNodeWriteBackwardEdge) and dObj.allocationType != BACKEDGE_ALLOCATION_TYPE.BUFFER:
+            if isinstance(dObj, HlsNetNodeWriteBackedge) and dObj.allocationType != BACKEDGE_ALLOCATION_TYPE.BUFFER:
                 return BIT.from_py(1)
 
             intf = dObj.dst

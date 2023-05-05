@@ -12,18 +12,19 @@ from hwt.interfaces.std import Signal, HandshakeSync, Handshaked, VldSynced, \
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.interfaceUtils.utils import packIntf
-from hwt.synthesizer.interfaceLevel.unitImplHelpers import getInterfaceName
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, \
     INVARIANT_TIME
+from hwtHls.frontend.utils import getInterfaceName
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
-from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict, OutputTimeGetter, \
-    OutputMinUseTimeGetter
+from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.orderable import HdlType_isNonData, HdlType_isVoid, \
     HVoidData
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
     HlsNetNodeOutAny
+from hwtHls.netlist.nodes.schedulableNode import SchedulizationDict, OutputTimeGetter, \
+    OutputMinUseTimeGetter
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
 from hwtLib.amba.axi_intf_common import Axi_hs
 from ipCorePackager.constants import INTF_DIRECTION_asDirecton, \
@@ -46,9 +47,8 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
     :ivar _rawValue: Concat(_validNB, _valid, dataOut)
     """
 
-    def __init__(self, netlist: "HlsNetlistCtx", src: Union[RtlSignal, Interface], dtype: Optional[HdlType]=None):
-        HlsNetNode.__init__(self, netlist, None)
-        self.operator = "read"
+    def __init__(self, netlist: "HlsNetlistCtx", src: Union[RtlSignal, Interface], dtype: Optional[HdlType]=None, name:Optional[str]=None):
+        HlsNetNode.__init__(self, netlist, name=name)
         self.src = src
         self.maxIosPerClk = 1
         self._isBlocking = True
@@ -226,18 +226,30 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
         # because there are multiple outputs
         return _data if hasNoSpecialControl else []
 
+    def _getSchedulingResourceType(self):
+        resourceType = self.src
+        assert resourceType is not None, self
+        return resourceType
+
+    def checkScheduling(self):
+        HlsNetNodeExplicitSync.checkScheduling(self)
+        resourceType = self._getSchedulingResourceType()
+        clkPeriod = self.netlist.normalizedClkPeriod
+        clkI = indexOfClkPeriod(self.scheduledZero, clkPeriod)
+        assert self.netlist.scheduler.resourceUsage[clkI].get(resourceType, None) is not None, (self, clkI, self.netlist.scheduler.resourceUsage)
+
     def resetScheduling(self):
         scheduledZero = self.scheduledZero
         if scheduledZero is None:
             return  # already restarted
-        HlsNetNodeExplicitSync.resetScheduling(self)
-        resourceType = self.src if isinstance(self, HlsNetNodeRead) else self.dst
+        resourceType = self._getSchedulingResourceType()
         clkPeriod = self.netlist.normalizedClkPeriod
         self.netlist.scheduler.resourceUsage.removeUse(resourceType, indexOfClkPeriod(scheduledZero, clkPeriod))
+        HlsNetNodeExplicitSync.resetScheduling(self)
 
     def setScheduling(self, schedule:SchedulizationDict):
         resourceUsage = self.netlist.scheduler.resourceUsage
-        resourceType = self.src if isinstance(self, HlsNetNodeRead) else self.dst
+        resourceType = self._getSchedulingResourceType()
         clkPeriod = self.netlist.normalizedClkPeriod
 
         if self.scheduledZero is not None:
@@ -246,6 +258,16 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
         HlsNetNodeExplicitSync.setScheduling(self, schedule)
         self.netlist.scheduler.resourceUsage.addUse(resourceType, indexOfClkPeriod(self.scheduledZero, clkPeriod))
 
+    def moveSchedulingTime(self, offset: int):
+        clkPeriod = self.netlist.normalizedClkPeriod
+        originalClkI = indexOfClkPeriod(self.scheduledZero, clkPeriod)
+        HlsNetNode.moveSchedulingTime(self, offset)
+
+        curClkI = indexOfClkPeriod(self.scheduledZero, clkPeriod)
+        if originalClkI != curClkI:
+            resourceType = self._getSchedulingResourceType()
+            self.netlist.scheduler.resourceUsage.moveUse(resourceType, originalClkI, curClkI)
+
     def scheduleAsap(self, pathForDebug: Optional[UniqList["HlsNetNode"]], beginOfFirstClk: int, outputTimeGetter: Optional[OutputTimeGetter]) -> List[int]:
         # schedule all dependencies
         if self.scheduledOut is None:
@@ -253,7 +275,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
             scheduledZero = self.scheduledZero
             clkPeriod = self.netlist.normalizedClkPeriod
             curClkI = scheduledZero // clkPeriod
-            resourceType = self.src if isinstance(self, HlsNetNodeRead) else self.dst
+            resourceType = self._getSchedulingResourceType()
             scheduler = self.netlist.scheduler
             suitableClkI = scheduler.resourceUsage.findFirstClkISatisfyingLimit(resourceType, curClkI, self.maxIosPerClk)
             if curClkI != suitableClkI:
@@ -272,12 +294,18 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
 
     def scheduleAlapCompaction(self, endOfLastClk: int, outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter]):
         originalTimeZero = self.scheduledZero
-        scheduler = self.netlist.scheduler
-        clkPeriod = self.netlist.normalizedClkPeriod
-        resourceType = self.src if isinstance(self, HlsNetNodeRead) else self.dst
-
+        netlist = self.netlist
+        scheduler = netlist.scheduler
+        clkPeriod = netlist.normalizedClkPeriod
+        resourceType = self._getSchedulingResourceType()
         originalClkI = indexOfClkPeriod(originalTimeZero, clkPeriod)
-        tuple(HlsNetNodeExplicitSync.scheduleAlapCompaction(self, endOfLastClk, outputMinUseTimeGetter))
+        if self.isMulticlock:
+            for _ in HlsNetNodeExplicitSync.scheduleAlapCompactionMultiClock(self, endOfLastClk, outputMinUseTimeGetter):
+                pass
+        else:
+            for _ in HlsNetNodeExplicitSync.scheduleAlapCompaction(self, endOfLastClk, outputMinUseTimeGetter):
+                pass
+
         curClkI = indexOfClkPeriod(self.scheduledZero, clkPeriod)
         if originalClkI != curClkI:
             scheduler.resourceUsage.moveUse(resourceType, originalClkI, curClkI)
@@ -285,7 +313,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
         suitableClkI = scheduler.resourceUsage.findFirstClkISatisfyingLimitEndToStart(resourceType, curClkI, self.maxIosPerClk)
         if curClkI != suitableClkI:
             # move to next clock cycle if IO constraint requires it
-            ffdelay = self.netlist.platform.get_ff_store_time(self.netlist.realTimeClkPeriod, scheduler.resolution)
+            ffdelay = netlist.platform.get_ff_store_time(netlist.realTimeClkPeriod, scheduler.resolution)
             t = (suitableClkI + 1) * clkPeriod - ffdelay
             if self.isMulticlock:
                 epsilon = scheduler.epsilon
@@ -328,14 +356,10 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
                         exclude=exclude)
 
     def _getInterfaceName(self, io: Union[Interface, Tuple[Interface]]) -> str:
-        parent = self.netlist.parentUnit
-        if isinstance(io, tuple):
-            return "|".join([getInterfaceName(parent, intf) if i == 0 else intf._name for i, intf in enumerate(io)])
-        else:
-            return getInterfaceName(parent, io)
+        return getInterfaceName(self.netlist.parentUnit, io)
 
     def __repr__(self):
-        return f"<{self.__class__.__name__:s}{'' if self._isBlocking else ' NB'} {self._id:d} {self.src}>"
+        return f"<{self.__class__.__name__:s}{'' if self._isBlocking else ' NB'} {self._id:d}{' ' + self.name if self.name else ''} {self.src}>"
 
 
 class HlsNetNodeReadIndexed(HlsNetNodeRead):
@@ -370,4 +394,4 @@ class HlsNetNodeReadIndexed(HlsNetNodeRead):
             return ""
 
     def __repr__(self):
-        return f"<{self.__class__.__name__:s}{'' if self._isBlocking else ' NB'} {self._id:d} {self.src}{self._strFormatIndexes(self.indexes)}>"
+        return f"<{self.__class__.__name__:s}{'' if self._isBlocking else ' NB'} {self._id:d}{' ' + self.name if self.name else ''} {self.src}{self._strFormatIndexes(self.indexes)}>"

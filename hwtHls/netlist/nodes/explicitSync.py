@@ -91,9 +91,11 @@ class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
         elif self.skipWhen is iObj:
             self.skipWhen = None
         elif self._inputOfCluster is iObj:
-            raise AssertionError("_inputOfCluster input port can not be removed because the cluster must be always present")
+            self._inputOfCluster = None
+            #raise AssertionError("_inputOfCluster input port can not be removed because the cluster must be always present")
         elif self._outputOfCluster is iObj:
-            raise AssertionError("_outputOfCluster input port can not be removed because the cluster must be always present")
+            self._outputOfCluster = None
+            #raise AssertionError("_outputOfCluster input port can not be removed because the cluster must be always present")
         return HlsNetNodeOrderable._removeInput(self, i)
 
     def _removeOutput(self, i:int):
@@ -132,6 +134,8 @@ class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
         else:
             # create "and" of existing and new extraCond and use it instead
             cur = self.dependsOn[i.in_i]
+            if cur is en:
+                return # no need to update
             en = self.netlist.builder.buildAnd(cur, en)
             if en is not cur:
                 i.replaceDriver(en)
@@ -146,6 +150,8 @@ class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
             link_hls_nodes(skipWhen, i)
         else:
             cur = self.dependsOn[i.in_i]
+            if cur is skipWhen:
+                return # no need to update
             skipWhen = self.netlist.builder.buildOr(cur, skipWhen)
             if cur is not skipWhen:
                 i.replaceDriver(skipWhen)
