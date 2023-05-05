@@ -12,12 +12,12 @@ class HlsNetlistPassTrivialSimplifyExplicitSync(HlsNetlistPass):
 
     def __init__(self, dbgTracer: DebugTracer):
         self.dbgTracer = dbgTracer
-        
+
     def apply(self, hls:"HlsScope", netlist:HlsNetlistCtx):
         dbgTracer = self.dbgTracer
-        removed: Set[HlsNetNode] = set()
+        removed: Set[HlsNetNode] = netlist.builder._removedNodes
         for n in netlist.iterAllNodes():
-            if isinstance(n, HlsNetNodeExplicitSync):
+            if isinstance(n, HlsNetNodeExplicitSync) and n not in removed:
                 netlistReduceExplicitSyncConditions(dbgTracer, n, None, removed)
         if removed:
             netlist.filterNodesUsingSet(removed)
