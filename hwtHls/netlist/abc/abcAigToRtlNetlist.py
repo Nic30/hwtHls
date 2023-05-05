@@ -1,7 +1,7 @@
 from typing import Dict, Tuple
 
 from hwt.code import Or
-from hwt.hdl.operatorDefs import AllOps, OpDefinition
+from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.types.defs import BIT
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.netlist.abc.abcCpp import Abc_Ntk_t, Abc_Aig_t, Abc_Frame_t, Abc_Obj_t, Abc_ObjType_t
@@ -9,7 +9,7 @@ from hwtHls.netlist.abc.abcCpp import Abc_Ntk_t, Abc_Aig_t, Abc_Frame_t, Abc_Obj
 
 class AbcAigToRtlNetlist():
     """
-    :attention: original RtlSignal inputs must be store in data of each Abc primary input 
+    :attention: original RtlSignal inputs must be store in data of each Abc primary input
     """
 
     def __init__(self, f: Abc_Frame_t, net: Abc_Ntk_t, aig: Abc_Aig_t):
@@ -45,9 +45,11 @@ class AbcAigToRtlNetlist():
 
         xor: (p0 & ~p1) | (p1 & ~p0)
         mux: (pC & p1) | (~pC & p0)
-        or:  ~(~p0 & ~p1), ~(~p0 & ~p1 & ~p2 ...) 
+        or:  ~(~p0 & ~p1), ~(~p0 & ~p1 & ~p2 ...)
         not: ~(p0 & p0)
         not: (~p0 & ~p0)
+
+        # [TODO] prioritize not and beore or of negated (~p0 | ~p1) -> ~(p0 & p1)
         """
         o0n = o.FaninC0()
         o1n = o.FaninC1()
@@ -60,7 +62,7 @@ class AbcAigToRtlNetlist():
             if topP0 == topP1 and ((negated and not o0n and not o1n) or (not negated and o0n and o1n)):
                 return AllOps.NOT, (tr(topP0, False),)
             if negated:
-                # or: ~(~p0 & ~p1 & ~p2 ...) 
+                # or: ~(~p0 & ~p1 & ~p2 ...)
                 orMembers = tuple(self._collectOrMembers(o))
                 if len(orMembers) > 2:
                     return AllOps.OR, tuple(tr(p, n) for p, n in orMembers)
@@ -71,20 +73,20 @@ class AbcAigToRtlNetlist():
             P0o1n = topP0.FaninC1()
             P1o0n = topP1.FaninC0()
             P1o1n = topP1.FaninC1()
-            
+
             if (P0o0n + P0o1n) == 1 and (P1o0n + P1o1n) == 1:
                 p0, p1 = topP0.IterFanin()
                 if P0o0n:
                     p0, p1 = p1, p0
-    
+
                 P1o0, P1o1 = topP1.IterFanin()
                 if P1o0n:
                     P1o0, P1o1 = P1o1, P1o0
-     
+
                 if p0 == P1o1 and p1 == P1o0:
                     # xor: (p0 & ~p1) | (p1 & ~p0)
                     return AllOps.XOR, (tr(p0, False), tr(p1, False))
-    
+
             elif not P0o0n and not P0o1n and (P1o0n + P1o1n) == 1:
                 pc, p1 = topP0.IterFanin()
                 P1o0, P1o1 = topP1.IterFanin()
@@ -101,7 +103,7 @@ class AbcAigToRtlNetlist():
 
         # or:  ~(~p0 & ~p1)
         return AllOps.OR, (tr(topP0, False), tr(topP1, False))
-    
+
     def _translate(self, o: Abc_Obj_t, negated: bool):
         key = (o, negated)
         try:
@@ -113,7 +115,7 @@ class AbcAigToRtlNetlist():
             res = o.Data()
             if negated:
                 res = ~res
-        
+
         elif o.Type == Abc_ObjType_t.ABC_OBJ_CONST1:
             res = BIT.from_py(int(not negated))
 
@@ -124,16 +126,16 @@ class AbcAigToRtlNetlist():
                 if op is AllOps.OR and len(ops) != 2:
                     res = Or(*ops)
                 else:
-                    res = op._evalFn(*ops) 
+                    res = op._evalFn(*ops)
             else:
                 o0, o1 = o.IterFanin()
-                o0 = self._translate(o0, o.FaninC0()) 
-                o1 = self._translate(o1, o.FaninC1()) 
+                o0 = self._translate(o0, o.FaninC0())
+                o1 = self._translate(o1, o.FaninC1())
                 res = o0 & o1
 
                 if negated:
                     res = ~res
-                
+
         self.translationCache[key] = res
         return res
 
