@@ -147,14 +147,6 @@ class HlsNetlistAnalysisPassReachabilility(HlsNetlistAnalysisPass):
 
         return found
 
-    def getDirectDataSuccessorsMany(self, inputs: List[HlsNetNodeExplicitSync]) -> Generator[HlsNetNodeExplicitSync, None, None]:
-        """
-        :attention: inputs is emptied in process
-        """
-        while inputs:
-            n = inputs.pop()
-            yield from self.getDirectDataSuccessors(n)
-
     def getDirectDataPredecessors(self, n: HlsNetNodeExplicitSync) -> UniqList[HlsNetNodeExplicitSync]:
         """
         Use IO cluster core to iterate HlsNetNodeExplicitSync successor nodes.
@@ -184,14 +176,6 @@ class HlsNetlistAnalysisPassReachabilility(HlsNetlistAnalysisPass):
                             found.append(o.obj)
 
         return found
-
-    def getDirectDataPredecessorsMany(self, outputs: List[HlsNetNodeExplicitSync]) -> Generator[HlsNetNodeExplicitSync, None, None]:
-        """
-        :attention: outputs is emptied in process
-        """
-        while outputs:
-            n = outputs.pop()
-            yield from self.getDirectDataPredecessors(n)
 
     def hasControlPredecessor(self, n: HlsNetNode):
         raise NotImplementedError()
