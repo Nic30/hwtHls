@@ -14,9 +14,9 @@ from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage
 from hwtHls.architecture.interArchElementHandshakeSync import InterArchElementHandshakeSync
 from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeWriteBackwardEdge, \
+from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge, \
     BACKEDGE_ALLOCATION_TYPE
-from hwtHls.netlist.scheduler.clk_math import start_clk
+from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge
 from hwtHls.platform.fileUtils import OutputStreamGetter
 
 
@@ -34,10 +34,10 @@ class RtlArchToGraphwiz():
             return self.interfaceToNodes[i]
         except KeyError:
             pass
-        
+
         nodeId = len(self.graph.obj_dict['nodes'])
         n = Node(f"n{nodeId:d}", shape="plaintext")
-        name = html.escape(getInterfaceName(self.parentUnit, i))
+        name = html.escape(getInterfaceName(self.parentUnit, i)) if i is not None else "None"
         bodyRows = []
         if isinstance(i, InterArchElementHandshakeSync):
             bodyRows.append(f'<tr port="0"><td colspan="2">{name:s}</td><td>{html.escape(i.__class__.__name__)}</td></tr>')
@@ -55,21 +55,12 @@ class RtlArchToGraphwiz():
 
     def _getElementIndexOfTime(self, elm: ArchElement, t: int):
         clkPeriod = self.allocator.netlist.normalizedClkPeriod
-        if isinstance(elm, ArchElementFsm):
-            elm: ArchElementFsm
-            return elm.fsm.clkIToStateI[start_clk(t, clkPeriod)]
+        return t // clkPeriod
 
-        elif isinstance(elm, ArchElementPipeline):
-            elm: ArchElementPipeline
-            return t // clkPeriod
-
-        else:
-            raise NotImplementedError()
-        
     def construct(self):
         g = self.graph
         allocator: HlsAllocator = self.allocator
-        
+
         interElementConnections: Dict[Tuple[ArchElement, int, ArchElement, int], List[str, HdlType]] = {}
         interElementConnectionsOrder = []
         for elm in allocator._archElements:
@@ -90,57 +81,60 @@ class RtlArchToGraphwiz():
             nodeRows = [f'<<table bgcolor="{color:s}" border="0" cellborder="1" cellspacing="0">\n']
             name = html.escape(f"{elm.namePrefix:s}: {elm.__class__.__name__:s}")
             nodeRows.append(f"    <tr><td colspan='3'>{name:s}</td></tr>\n")
-            for i, con in enumerate(elm.connections):
-                con: ConnectionsOfStage
-                
-                if isPipeline and elm._beginClkI is not None and i < elm._beginClkI:
-                    assert not con.inputs, ("Must not have IO before begin of pipeline", elm, elm._beginClkI, i, con.inputs)
-                    assert not con.outputs, ("Must not have IO before begin of pipeline", elm, elm._beginClkI, i, con.outputs)
-                    assert not con.io_extraCond, ("Must not have IO before begin of pipeline", elm, elm._beginClkI, i)
-                    assert not con.io_skipWhen, ("Must not have IO before begin of pipeline", elm, elm._beginClkI, i)
-                    assert not con.signals, ("Must not have IO before begin of pipeline", elm, elm._beginClkI, i)
+            for clkI, st in elm.iterStages():
+                con: ConnectionsOfStage = elm.connections[clkI]
+
+                if isPipeline and (not st or (elm._beginClkI is not None and clkI < elm._beginClkI)):
+                    assert not con.inputs, ("Must not have IO before begin of pipeline", elm, elm._beginClkI, clkI, con.inputs)
+                    assert not con.outputs, ("Must not have IO before begin of pipeline", elm, elm._beginClkI, clkI, con.outputs)
+                    assert not con.io_extraCond, ("Must not have IO before begin of pipeline", elm, elm._beginClkI, clkI)
+                    assert not con.io_skipWhen, ("Must not have IO before begin of pipeline", elm, elm._beginClkI, clkI)
+                    assert not con.signals, ("Must not have IO before begin of pipeline", elm, elm._beginClkI, clkI)
                     # skip unused stages
                     continue
 
                 if isFsm:
-                    clkI = elm.fsm.stateClkI[i]
+                    stVal = elm.stateEncoding[clkI]
                 elif isPipeline:
-                    clkI = i
+                    stVal = clkI
                 else:
                     raise NotImplementedError(elm)
-                nodeRows.append(f"    <tr><td port='i{i:d}'>i{i:d}</td><td>st{i:d}-clk{clkI}</td><td port='o{i:d}'>o{i:d}</td></tr>\n")
+                nodeRows.append(f"    <tr><td port='i{clkI:d}'>i{clkI:d}</td><td>st{stVal:d}-clk{clkI}</td><td port='o{clkI:d}'>o{clkI:d}</td></tr>\n")
                 # [todo] global inputs with bgcolor ligtred global outputs with lightblue color
-                
+
                 for intf, isBlocking in con.inputs:
                     iN = self._getInterfaceNode(intf)
-                    e = Edge(f"{iN.get_name():s}:0", f"n{nodeId:d}:i{i:d}", label='' if isBlocking else ' non-blocking')
+                    e = Edge(f"{iN.get_name():s}:0", f"n{nodeId:d}:i{clkI:d}", label='' if isBlocking else ' non-blocking')
                     g.add_edge(e)
-                
+
                 for intf, isBlocking  in con.outputs:
                     oN = self._getInterfaceNode(intf)
-                    e = Edge(f"n{nodeId:d}:o{i:d}", f"{oN.get_name():s}:0", label='' if isBlocking else ' non-blocking')
+                    e = Edge(f"n{nodeId:d}:o{clkI:d}", f"{oN.get_name():s}:0", label='' if isBlocking else ' non-blocking')
                     g.add_edge(e)
-                
+
             nodeRows.append('</table>>')
-        
+
             elmNode.set("label", "".join(nodeRows))
             for n in elm.allNodes:
-                if isinstance(n, HlsNetNodeWriteBackwardEdge):
-                    n: HlsNetNodeWriteBackwardEdge
+                if isinstance(n, (HlsNetNodeWriteBackedge, HlsNetNodeWriteForwardedge)):
+                    n: HlsNetNodeWriteBackedge
                     if n.allocationType == BACKEDGE_ALLOCATION_TYPE.BUFFER:
                         wN = self._getInterfaceNode(n.dst)
-                        rN = self._getInterfaceNode(n.associated_read.src)
+                        rN = self._getInterfaceNode(n.associatedRead.src)
                         e = Edge(f"{wN.get_name():s}:0", f"{rN.get_name():s}:0", style="dashed", color="gray")
                         g.add_edge(e)
                     else:
                         t0 = self._getElementIndexOfTime(elm, n.scheduledIn[0])
-                        t1 = self._getElementIndexOfTime(elm, n.associated_read.scheduledOut[0])
+                        if n.associatedRead:
+                            t1 = self._getElementIndexOfTime(elm, n.associatedRead.scheduledOut[0])
+                        else:
+                            t1 = t0 + 1
                         key = (elm, t0, elm, t1)
                         vals = interElementConnections.get(key, None)
                         if vals is None:
                             vals = interElementConnections[key] = []
                             interElementConnectionsOrder.append(key)
-                        vals.append((n.buff_name, n._outputs[0]._dtype))
+                        vals.append((n.buffName, n._outputs[0]._dtype))
 
         # iea: InterArchElementNodeSharingAnalysis = allocator._iea
         # for o, i in iea.interElemConnections:
@@ -155,7 +149,7 @@ class RtlArchToGraphwiz():
         #            assert srcElm is realSrcElm, (srcElm, realSrcElm)
         #            srcT = o.obj.scheduledOut[o.out_i]
         #            dstT = iea.firstUseTimeOfOutInElem[(dstElm, o)]
-        #            
+        #
         #            key = (srcElm, self._getElementIndexOfTime(srcElm, srcT), dstElm, self._getElementIndexOfTime(dstElm, dstT))
         #            vals = interElementConnections.get(key, None)
         #            if vals is None:
@@ -176,12 +170,12 @@ class RtlArchToGraphwiz():
         #        dtypeStr = html.escape(repr(dtype))
         #        name = html.escape(name)
         #        variableNodeRows.append(f'    <tr><td>{name:s}</td><td>{dtypeStr}</td></tr>\n')
-        #    
+        #
         #    variableNodeRows.append('</table>>')
         #    nodeId = len(g.obj_dict['nodes'])
         #    variableTableNode = Node(f"n{nodeId:d}", shape="plaintext", label="".join(variableNodeRows))
-        #    g.add_node(variableTableNode)          
-        #    
+        #    g.add_node(variableTableNode)
+        #
         #    tn = variableTableNode.get_name()
         #    e0 = Edge(f"{srcNode.get_name():s}:o{srcStI:d}", tn)
         #    g.add_edge(e0)
@@ -192,7 +186,7 @@ class RtlArchToGraphwiz():
         return self.graph.to_string()
 
 
-class RtlArchPassToGraphwiz(RtlArchPass):
+class RtlArchPassDumpArchDot(RtlArchPass):
 
     def __init__(self, outStreamGetter:Optional[OutputStreamGetter]=None, auto_open=False):
         self.outStreamGetter = outStreamGetter
