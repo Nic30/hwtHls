@@ -7,7 +7,7 @@ orbs:
 jobs:
   install-test-deploy:
     machine:
-      image: ubuntu-2204:2022.04.1
+      image: ubuntu-2304
     #docker:
     #  - image: ubuntu:rolling
     resource_class: large
@@ -19,11 +19,11 @@ jobs:
             # because of tzdata
             export DEBIAN_FRONTEND=noninteractive
             export TZ=America/USA
-            sudo apt install build-essential python3-dev llvm-14-dev python3 python3-pip git ninja-build cmake libreadline8 libreadline-dev -y
-            pip3 install pip meson virtualenv --upgrade
-            python3 -m virtualenv --system-site-packages /opt/circleci/.pyenv3
+            sudo apt install build-essential python3-dev llvm-16-dev python3 python3-pip python3-venv git ninja-build cmake libreadline8 libreadline-dev -y
+            python3 -m venv --system-site-packages /opt/circleci/.pyenv3
             echo 'source /opt/circleci/.pyenv3/bin/activate' >> $BASH_ENV
             source /opt/circleci/.pyenv3/bin/activate
+            pip3 install pip meson --upgrade
             
       - run:
           command: |
@@ -33,7 +33,7 @@ jobs:
             whereis python
             python --version
             whereis virtualenv
-
+            meson --version
 
       # - python/load-cache
       - py/install-setup-py:
