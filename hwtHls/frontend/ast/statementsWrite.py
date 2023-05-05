@@ -16,7 +16,7 @@ from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite, HlsNetNodeWriteIndexed
 from hwtHls.ssa.instr import SsaInstr, OP_ASSIGN
-from hwtHls.ssa.translation.llvmMirToNetlist.utils import MachineBasicBlockSyncContainer
+from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.value import SsaValue
 
 
@@ -63,7 +63,7 @@ class HlsWrite(HlsStm, SsaInstr):
     def _translateMirToNetlist(cls,
             representativeWriteStm: "HlsWrite",
             mirToNetlist:"HlsNetlistAnalysisPassMirToNetlist",
-            mbSync: MachineBasicBlockSyncContainer,
+            mbSync: MachineBasicBlockMeta,
             instr: MachineInstr,
             srcVal: HlsNetNodeOutAny,
             dstIo: Union[Interface, RtlSignal],
@@ -116,7 +116,7 @@ class HlsWriteAddressed(HlsWrite):
     def _translateMirToNetlist(cls,
             representativeWriteStm: "HlsWrite",
             mirToNetlist:"HlsNetlistAnalysisPassMirToNetlist",
-            mbSync: MachineBasicBlockSyncContainer,
+            mbSync: MachineBasicBlockMeta,
             instr: MachineInstr,
             srcVal: HlsNetNodeOutAny,
             dstIo: Interface,

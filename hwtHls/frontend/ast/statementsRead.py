@@ -1,26 +1,26 @@
 from typing import Optional, Union, Tuple
 
 from hwt.doc_markers import internal
+from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.hdlType import HdlType
 from hwt.synthesizer.interface import Interface
-from hwt.synthesizer.interfaceLevel.unitImplHelpers import getInterfaceName
 from hwtHls.frontend.ast.utils import _getNativeInterfaceWordType, \
     ANY_HLS_STREAM_INTF_TYPE, ANY_SCALAR_INT_VALUE
+from hwtHls.frontend.utils import getInterfaceName
 from hwtHls.llvm.llvmIr import Register, MachineInstr
 from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes, \
     HlsNetNodeOut
 from hwtHls.netlist.nodes.read import HlsNetNodeRead, HlsNetNodeReadIndexed
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr, OP_ASSIGN
-from hwtHls.ssa.translation.llvmMirToNetlist.opCache import MirToHwtHlsNetlistOpCache
-from hwtHls.ssa.translation.llvmMirToNetlist.utils import MachineBasicBlockSyncContainer
+from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
+from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
 from hwtHls.ssa.value import SsaValue
-from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwt.hdl.operatorDefs import AllOps
 
 
 class HlsRead(HdlStatement, SsaInstr):
@@ -110,7 +110,7 @@ class HlsRead(HdlStatement, SsaInstr):
     def _translateMirToNetlist(cls,
                                representativeReadStm: "HlsRead",
                                mirToNetlist:"HlsNetlistAnalysisPassMirToNetlist",
-                               mbSync: MachineBasicBlockSyncContainer,
+                               mbSync: MachineBasicBlockMeta,
                                instr: MachineInstr,
                                srcIo: Interface,
                                index: Union[int, HlsNetNodeOutAny],
@@ -130,7 +130,7 @@ class HlsRead(HdlStatement, SsaInstr):
         :param cond: An enable condition for this operation to happen.
         :param instrDstReg: A register where this instruction stores the read data.
         """
-        valCache: MirToHwtHlsNetlistOpCache = mirToNetlist.valCache
+        valCache: MirToHwtHlsNetlistValueCache = mirToNetlist.valCache
         netlist: HlsNetlistCtx = mirToNetlist.netlist
         assert isinstance(srcIo, Interface), srcIo
         assert isinstance(index, int) and index == 0, (srcIo, index, "Because this read is not addressed there should not be any index")
@@ -148,11 +148,7 @@ class HlsRead(HdlStatement, SsaInstr):
         valCache.add(mbSync.block, instrDstReg, o, True)
 
     def _getInterfaceName(self, io: Union[Interface, Tuple[Interface]]) -> str:
-        parent = self._parent.parentUnit
-        if isinstance(io, tuple):
-            return "|".join([getInterfaceName(parent, intf) if i == 0 else intf._name for i, intf in enumerate(io)])
-        else:
-            return getInterfaceName(parent, io)
+        return getInterfaceName(self._parent.parentUnit, io)
 
     def __repr__(self):
         t = self._dtype
@@ -160,7 +156,7 @@ class HlsRead(HdlStatement, SsaInstr):
         if tName is not None:
             t = tName
 
-        return f"<{self.__class__.__name__} {self._name:s} {getInterfaceName(self._parent.parentUnit, self._src):s}, {t}>"
+        return f"<{self.__class__.__name__} {self._name:s} {self._getInterfaceName(self._src):s}, {t}>"
 
 
 class HlsReadAddressed(HlsRead):
@@ -182,7 +178,7 @@ class HlsReadAddressed(HlsRead):
 
     @classmethod
     def _translateMirToNetlist(cls, mirToNetlist: "HlsNetlistAnalysisPassMirToNetlist",
-                               mbSync: MachineBasicBlockSyncContainer,
+                               mbSync: MachineBasicBlockMeta,
                                instr: MachineInstr,
                                srcIo: Interface,
                                index: Union[int, HlsNetNodeOutAny],
@@ -191,7 +187,7 @@ class HlsReadAddressed(HlsRead):
         """
         :see: :meth:`~.HlsRead._translateMirToNetlist`
         """
-        valCache: MirToHwtHlsNetlistOpCache = mirToNetlist.valCache
+        valCache: MirToHwtHlsNetlistValueCache = mirToNetlist.valCache
         netlist: HlsNetlistCtx = mirToNetlist.netlist
         assert isinstance(srcIo, Interface), srcIo
         if isinstance(index, int):
@@ -221,7 +217,7 @@ class HlsReadAddressed(HlsRead):
         if tName is not None:
             t = tName
 
-        return f"<{self.__class__.__name__} {self._name:s} {getInterfaceName(self._parent.parentUnit, self._src):s}[{self.operands[0]}], {t}>"
+        return f"<{self.__class__.__name__} {self._name:s} {self._getInterfaceName(self._src):s}[{self.operands[0]}], {t}>"
 
 
 class HlsStmReadStartOfFrame(HlsRead):

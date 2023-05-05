@@ -1,5 +1,5 @@
 from itertools import chain
-from typing import Union, List, Optional, Tuple, Dict, Callable
+from typing import Union, List, Optional, Tuple, Dict
 
 from hwt.hdl.operator import Operator
 from hwt.hdl.operatorDefs import AllOps
@@ -11,6 +11,7 @@ from hwt.hdl.types.bitsVal import BitsVal
 from hwt.hdl.value import HValue
 from hwt.interfaces.std import Signal
 from hwt.interfaces.structIntf import StructIntf
+from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.interfaceUtils.utils import packIntf
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.rtlLevel.signalUtils.exceptions import SignalDriverErr
@@ -20,15 +21,15 @@ from hwtHls.frontend.ast.statements import HlsStm, HlsStmWhile, \
     HlsStmBreak
 from hwtHls.frontend.ast.statementsRead import HlsRead, HlsReadAddressed
 from hwtHls.frontend.ast.statementsWrite import HlsWrite, HlsWriteAddressed
+from hwtHls.io.portGroups import MultiPortGroup, BankedPortGroup
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.context import SsaContext
-from hwtHls.ssa.instr import SsaInstr, SsaInstrBranch
-from hwtHls.ssa.value import SsaValue
-from hwtHls.ssa.transformation.utils.blockAnalysis import collect_all_blocks
-from hwt.synthesizer.interface import Interface
-from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny
-from hwtHls.llvm.llvmIr import Register, LoadInst, StoreInst
 from hwtHls.ssa.exprBuilder import SsaExprBuilder
+from hwtHls.ssa.instr import SsaInstr, SsaInstrBranch
+from hwtHls.ssa.transformation.utils.blockAnalysis import collect_all_blocks
+from hwtHls.ssa.value import SsaValue
+
+
 AnyStm = Union[HdlAssignmentContainer, HlsStm]
 
 
@@ -46,6 +47,10 @@ class SsaBasicBlockUnreachable(SsaBasicBlock):
 
 
 NetlistIoConstructorDictT = Dict[Interface, Tuple[Optional[HlsRead], Optional[HlsWrite]]]
+
+IoPortToIoOpsDictionary = Dict[Union[Interface, MultiPortGroup, BankedPortGroup],
+                 Tuple[List[HlsRead],
+                       List[HlsWrite]]]
 
 
 class HlsAstToSsa():
@@ -71,7 +76,7 @@ class HlsAstToSsa():
     :ivar _loop_stack: list of loop where the AST visitor actually is to resolve
         the continue/break and loop association. The record is a tuple (loop statement, entry block, list of blocks ending with break).
         The blocks ending with break will have its branch destination assigned after the loop is processed (in loop parsing fn.).
-    :ivar ioNodeConstructors: a 
+    :ivar ioNodeConstructors: a
     """
 
     def __init__(self, ssaCtx: SsaContext, startBlockName:str, original_code_for_debug: Optional[HlsStmCodeBlock]):
@@ -145,7 +150,7 @@ class HlsAstToSsa():
             if op is None or not isinstance(op, Operator):
                 if isinstance(op, HdlPortItem):
                     raise NotImplementedError(op)
-                
+
                 elif isinstance(op, HlsRead):
                     if op.block is None:
                         if isinstance(op, HlsReadAddressed):
@@ -232,7 +237,7 @@ class HlsAstToSsa():
                 body_block.successors.addTarget(None, cond_block)
 
                 self._onAllPredecsKnown(cond_block)
-                
+
                 _o, _, breaks = self._loop_stack.pop()
                 assert _o is o, (_o, o, "Must be record of this loop")
                 if breaks:
@@ -240,7 +245,7 @@ class HlsAstToSsa():
                     for b in breaks:
                         b: SsaBasicBlock
                         b.successors.addTarget(None, end_block)
-                        
+
                 else:
                     end_block = SsaBasicBlockUnreachable(block.ctx, f"{block.label:s}_whUnreachable")
 
@@ -269,18 +274,18 @@ class HlsAstToSsa():
             body_block.successors.addTarget(None, cond_block)
 
             self._onAllPredecsKnown(cond_block_orig)
-            
+
             _o, _, breaks = self._loop_stack.pop()
             assert _o is o, (_o, o, "Must be record of this loop")
             if breaks:
                 for b in breaks:
                     b: SsaBasicBlock
                     b.successors.addTarget(None, end_block)
-                    
+
             self._onAllPredecsKnown(end_block)
 
         return end_block
-    
+
     def visit_Continue(self, block: SsaBasicBlock, o: HlsStmContinue) -> SsaBasicBlock:
         assert self._loop_stack, (o, "Must be in loop")
         _, loop_entry, _ = self._loop_stack[-1]
@@ -293,14 +298,14 @@ class HlsAstToSsa():
 
         self._onAllPredecsKnown(end_block)
         return end_block
-        
+
     def visit_Break(self, block: SsaBasicBlock, o: HlsStmContinue) -> SsaBasicBlock:
         assert self._loop_stack, (o, "Must be in loop")
         _, _, break_blocks = self._loop_stack[-1]
         break_blocks.append(block)
 
         return self._make_Unreachable(block.ctx, f"{block.label:s}_breUnreachable")
-    
+
     def visit_If_branch(self, origin: IfContainer, label: str, cond_block: SsaBasicBlock,
                         end_if_block: SsaBasicBlock, cond: Optional[SsaValue], caseStatements: list):
         if caseStatements:
@@ -377,8 +382,8 @@ class HlsAstToSsa():
 
         assert not self.m_ssa_u.incompletePhis, self.m_ssa_u.incompletePhis
 
-    def collectIo(self) -> Dict[Interface, Tuple[List[HlsRead], List[HlsWrite]]]:
-        io: Dict[Interface, Tuple[List[HlsRead], List[HlsWrite]]] = {}
+    def collectIo(self) -> IoPortToIoOpsDictionary:
+        io: IoPortToIoOpsDictionary = {}
         for block in collect_all_blocks(self.start, set()):
             for instr in block.body:
                 if isinstance(instr, HlsRead):

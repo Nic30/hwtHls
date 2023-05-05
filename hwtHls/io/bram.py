@@ -1,7 +1,5 @@
 
-from collections import deque
-from inspect import isgenerator
-from typing import Union, Literal, List, Tuple, Optional, Generator
+from typing import Union, Literal, List, Optional, Generator
 
 from hwt.hdl.constants import WRITE, READ
 from hwt.hdl.statements.statement import HdlStatement
@@ -9,7 +7,6 @@ from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.value import HValue
 from hwt.interfaces.std import BramPort_withoutClk
 from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF
-from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
@@ -17,22 +14,26 @@ from hwtHls.frontend.ast.statementsRead import HlsReadAddressed
 from hwtHls.frontend.ast.statementsWrite import HlsWriteAddressed
 from hwtHls.frontend.ast.utils import ANY_SCALAR_INT_VALUE
 from hwtHls.frontend.pyBytecode.ioProxyAddressed import IoProxyAddressed
+from hwtHls.io.portGroups import MultiPortGroup, BankedPortGroup
 from hwtHls.llvm.llvmIr import LoadInst, Register
 from hwtHls.llvm.llvmIr import MachineInstr
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
-from hwtHls.netlist.nodes.node import HlsNetNodePartRef, OutputMinUseTimeGetter
+from hwtHls.netlist.nodes.node import HlsNetNodePartRef
 from hwtHls.netlist.nodes.orderable import HVoidOrdering
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes, \
     HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeReadIndexed
+from hwtHls.netlist.nodes.schedulableNode import OutputMinUseTimeGetter
 from hwtHls.netlist.nodes.write import HlsNetNodeWriteIndexed
 from hwtHls.netlist.scheduler.clk_math import epsilon
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
+from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
-from hwtHls.ssa.translation.llvmMirToNetlist.opCache import MirToHwtHlsNetlistOpCache
-from hwtHls.ssa.translation.llvmMirToNetlist.utils import MachineBasicBlockSyncContainer
+from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
 from hwtHls.ssa.value import SsaValue
+
+AnyBramPort = Union[BramPort_withoutClk, BankedPortGroup[BramPort_withoutClk], MultiPortGroup[BramPort_withoutClk]]
 
 
 class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
@@ -40,10 +41,17 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
     A netlist node which is used to represent read or write command to/from BRAM port.
     """
 
-    def __init__(self, netlist:"HlsNetlistCtx", dst:BramPort_withoutClk, cmd: Union[Literal[READ], Literal[WRITE]]):
+    def __init__(self, netlist:"HlsNetlistCtx",
+                 dst:AnyBramPort,
+                 cmd: Union[Literal[READ], Literal[WRITE]]):
         HlsNetNodeWriteIndexed.__init__(self, netlist, NOT_SPECIFIED, dst)
         assert cmd is READ or cmd is WRITE, cmd
         self.cmd = cmd
+        if isinstance(dst, BankedPortGroup):
+            self.maxIosPerClk = len(dst)
+        elif isinstance(dst, MultiPortGroup):
+            self.maxIosPerClk = len(dst)
+
         _dst = self._getNominaInterface()
         if _dst.HAS_R:
             self._addOutput(_dst.dout._dtype, "dout")
@@ -58,8 +66,6 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
         elif cmd == WRITE:
             assert _dst.HAS_W, dst
 
-        self._fragments = []
-
     def _getNominaInterface(self):
         dst = self.dst
         if isinstance(dst, tuple):
@@ -68,7 +74,7 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
             return dst
 
     def scheduleAlapCompaction(self, endOfLastClk: int, outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter]):
-        return self.scheduleAlapCompactionMultiClock(endOfLastClk, outputMinUseTimeGetter)
+        return HlsNetNodeWriteIndexed.scheduleAlapCompaction(self, endOfLastClk, outputMinUseTimeGetter)
 
     def resolveRealization(self):
         netlist = self.netlist
@@ -147,16 +153,17 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
 
         if beginTime <= cmdTime and cmdTime <= endTime:
             isDataReadPart = False
+            t = cmdTime
+
         else:
             dataReadTime = self.scheduledOut[0]
             if beginTime <= dataReadTime and dataReadTime <= endTime:
                 isDataReadPart = True
+                t = dataReadTime
             else:
                 return None
 
-        p = HlsNetNodeWriteBramCmdPartRef(self.netlist, self, isDataReadPart)
-        self._fragments.append(p)
-        return  p
+        return HlsNetNodeWriteBramCmdPartRef(self.netlist, self, isDataReadPart, t)
 
     def partsComplement(self, otherParts: List["HlsNetNodeWriteBramCmdPartRef"]) -> Generator["HlsNetNodeWriteBramCmdPartRef", None, None]:
         """
@@ -170,7 +177,7 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
         else:
             p: HlsNetNodeWriteBramCmdPartRef = otherParts[0]
             assert p.parentNode is self, (self, p)
-            yield HlsNetNodeWriteBramCmdPartRef(self.netlist, self, not p.isDataReadPart)
+            yield HlsNetNodeWriteBramCmdPartRef(self.netlist, self, not p.isDataReadPart, self.scheduledZero if p.isDataReadPart else self.scheduledOut[0])
 
     def __repr__(self, minify=False):
         src = self.src
@@ -185,9 +192,10 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
 
 class HlsNetNodeWriteBramCmdPartRef(HlsNetNodePartRef):
 
-    def __init__(self, netlist:"HlsNetlistCtx", parentNode:HlsNetNodeWriteBramCmd, isDataReadPart: bool, name:str=None):
+    def __init__(self, netlist:"HlsNetlistCtx", parentNode:HlsNetNodeWriteBramCmd, isDataReadPart: bool, scheduledZero:int, name:str=None):
         HlsNetNodePartRef.__init__(self, netlist, parentNode, name=name)
         self.isDataReadPart = isDataReadPart
+        self.scheduledZero = scheduledZero
 
     def allocateRtlInstance(self, allocator: "ArchElement"):
         return self.parentNode.allocateRtlInstance(allocator)
@@ -210,20 +218,20 @@ class HlsReadBram(HlsReadAddressed):
     def __init__(self,
                  parentProxy: "BramArrayProxy",
             parent:"HlsScope",
-            src:Union[BramPort_withoutClk, Tuple[BramPort_withoutClk]],
+            src:AnyBramPort,
             index:ANY_SCALAR_INT_VALUE,
             element_t:HdlType,
             isBlocking:bool,
             intfName: Optional[str]=None):
-        if isinstance(src, (list, deque)) or isgenerator(src):
-            src = tuple(src)
 
-        if isinstance(src, tuple):
-            src = tuple(i for i in src if i.HAS_R)
+        if isinstance(src, MultiPortGroup):
+            src = MultiPortGroup(*(i for i in src if i.HAS_R))
             if len(src) == 1:
                 src = src[0]
             else:
                 assert src
+        elif isinstance(src, BankedPortGroup):
+            raise NotImplementedError()
         else:
             assert src.HAS_R
 
@@ -240,18 +248,18 @@ class HlsReadBram(HlsReadAddressed):
     def _translateMirToNetlist(cls,
             representativeReadStm: "HlsReadBram",
             mirToNetlist:HlsNetlistAnalysisPassMirToNetlist,
-            mbSync:MachineBasicBlockSyncContainer,
+            mbSync:MachineBasicBlockMeta,
             instr:LoadInst,
-            srcIo:Union[BramPort_withoutClk, Tuple[BramPort_withoutClk]],
+            srcIo:AnyBramPort,
             index:Union[int, HlsNetNodeOutAny],
             cond:HlsNetNodeOutAny,
             instrDstReg:Register):
         """
         :see: :meth:`hwtHls.frontend.ast.statementsRead.HlsRead._translateMirToNetlist`
         """
-        valCache: MirToHwtHlsNetlistOpCache = mirToNetlist.valCache
+        valCache: MirToHwtHlsNetlistValueCache = mirToNetlist.valCache
         netlist: HlsNetlistCtx = mirToNetlist.netlist
-        assert isinstance(srcIo, BramPort_withoutClk) or (isinstance(srcIo, tuple) and isinstance(srcIo[0], BramPort_withoutClk)), srcIo
+        assert isinstance(srcIo, BramPort_withoutClk) or (isinstance(srcIo, MultiPortGroup) and isinstance(srcIo[0], BramPort_withoutClk)), srcIo
         if isinstance(index, int):
             raise AssertionError("If the index is constant it should be an output of a constant node but it is an integer", srcIo, instr)
 
@@ -276,23 +284,24 @@ class HlsReadBram(HlsReadAddressed):
 class HlsWriteBram(HlsWriteAddressed):
 
     def __init__(self,
-                 parentProxy: "BramArrayProxy",
+            parentProxy: "BramArrayProxy",
             parent:"HlsScope",
             src:Union[SsaValue, RtlSignal, HValue],
-            dst:Union[BramPort_withoutClk, Tuple[BramPort_withoutClk]],
+            dst:AnyBramPort,
             index:Union[SsaValue, RtlSignal, HValue],
             element_t:HdlType):
-        if isinstance(dst, (list, deque)) or isgenerator(dst):
-            dst = tuple(dst)
 
-        if isinstance(dst, tuple):
-            dst = tuple(i for i in dst if i.HAS_W)
+        if isinstance(dst, MultiPortGroup):
+            dst = MultiPortGroup(*(i for i in dst if i.HAS_W))
             if len(dst) == 1:
                 dst = dst[0]
             else:
                 assert dst
+        elif isinstance(dst, BankedPortGroup):
+            raise NotImplementedError(dst)
         else:
-            assert dst.HAS_W
+            assert isinstance(dst, BramPort_withoutClk), dst
+            assert dst.HAS_W, dst
 
         HlsWriteAddressed.__init__(self, parent, src, dst, index, element_t)
         self.parentProxy = parentProxy
@@ -307,10 +316,10 @@ class HlsWriteBram(HlsWriteAddressed):
     def _translateMirToNetlist(cls,
             representativeWriteStm: "HlsWrite",
             mirToNetlist:"HlsNetlistAnalysisPassMirToNetlist",
-            mbSync: MachineBasicBlockSyncContainer,
+            mbSync: MachineBasicBlockMeta,
             instr: MachineInstr,
             srcVal: HlsNetNodeOutAny,
-            dstIo: Interface,
+            dstIo: AnyBramPort,
             index: Union[int, HlsNetNodeOutAny],
             cond: Union[int, HlsNetNodeOutAny]):
         """
@@ -333,8 +342,8 @@ class HlsWriteBram(HlsWriteAddressed):
 
 class BramArrayProxy(IoProxyAddressed):
 
-    def __init__(self, hls:"HlsScope", interface:Union[BramPort_withoutClk, Tuple[BramPort_withoutClk]]):
-        if isinstance(interface, (tuple, list)):
+    def __init__(self, hls:"HlsScope", interface:AnyBramPort):
+        if isinstance(interface, (MultiPortGroup, BankedPortGroup)):
             i = interface[0]
         else:
             i = interface

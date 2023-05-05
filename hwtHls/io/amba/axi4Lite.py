@@ -21,9 +21,9 @@ from hwtHls.netlist.nodes.orderable import HVoidExternData
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
+from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
-from hwtHls.ssa.translation.llvmMirToNetlist.opCache import MirToHwtHlsNetlistOpCache
-from hwtHls.ssa.translation.llvmMirToNetlist.utils import MachineBasicBlockSyncContainer
+from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
 from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axi4Lite import Axi4Lite, Axi4Lite_addr
 from hwtLib.amba.constants import PROT_DEFAULT
@@ -50,7 +50,7 @@ class HlsReadAxi4Lite(HlsReadAddressed):
     def _constructAddrWrite(cls,
             netlist: HlsNetlistCtx,
             mirToNetlist:HlsNetlistAnalysisPassMirToNetlist,
-            mbSync:MachineBasicBlockSyncContainer,
+            mbSync:MachineBasicBlockMeta,
             addr: Axi4Lite_addr,
             addrVal: HlsNetNodeOutAny,
             offsetWidth: int,
@@ -82,14 +82,14 @@ class HlsReadAxi4Lite(HlsReadAddressed):
     def _translateMirToNetlist(cls,
             representativeReadStm: "HlsReadAxi4Lite",
             mirToNetlist:HlsNetlistAnalysisPassMirToNetlist,
-            mbSync:MachineBasicBlockSyncContainer,
+            mbSync:MachineBasicBlockMeta,
             instr:LoadInst,
             srcIo:Axi4Lite,
             index:Union[int, HlsNetNodeOutAny],
             cond:HlsNetNodeOutAny,
             instrDstReg:Register):
 
-        valCache: MirToHwtHlsNetlistOpCache = mirToNetlist.valCache
+        valCache: MirToHwtHlsNetlistValueCache = mirToNetlist.valCache
         netlist: HlsNetlistCtx = mirToNetlist.netlist
         proxy:Axi4LiteArrayProxy = representativeReadStm.parentProxy
         assert isinstance(srcIo, Axi4Lite), srcIo
@@ -144,7 +144,7 @@ class HlsWriteAxi4Lite(HlsWriteAddressed):
     def _translateMirToNetlist(cls,
             representativeWriteStm: "HlsWriteAxi4Lite",
             mirToNetlist:"HlsNetlistAnalysisPassMirToNetlist",
-            mbSync: MachineBasicBlockSyncContainer,
+            mbSync: MachineBasicBlockMeta,
             instr: MachineInstr,
             srcVal: HlsNetNodeOutAny,
             dstIo: Axi4Lite,
