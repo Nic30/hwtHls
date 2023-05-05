@@ -6,7 +6,7 @@ from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.platform.fileUtils import OutputStreamGetter
 
 
-class HlsNetlistPassDumpNodes(HlsNetlistPass):
+class HlsNetlistPassDumpNodesTxt(HlsNetlistPass):
 
     def __init__(self, outStreamGetter: OutputStreamGetter):
         self.outStreamGetter = outStreamGetter
