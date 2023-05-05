@@ -55,7 +55,7 @@ class HlsNetNodeOutLazy():
     :ivar dependent_inputs: information about children where new object should be replaced
     """
 
-    def __init__(self, netlist: "HlsNetlistCtx", keys_of_self_in_cache: list, op_cache:"SsaToHwtHlsNetlistOpCache", dtype: HdlType):
+    def __init__(self, netlist: "HlsNetlistCtx", keys_of_self_in_cache: list, op_cache:"SsaToHwtHlsNetlistOpCache", dtype: HdlType, name:Optional[str]=None):
         self.netlist = netlist
         self._id = netlist.getUniqId()
         self.dependent_inputs: List[HlsNetNodeIn] = []
@@ -63,6 +63,7 @@ class HlsNetNodeOutLazy():
         self.keys_of_self_in_cache = keys_of_self_in_cache
         self.op_cache = op_cache
         self._dtype = dtype
+        self.name = name
 
     def replaceDriverObj(self, o:HlsNetNodeOut):
         """
@@ -73,6 +74,10 @@ class HlsNetNodeOutLazy():
         assert self._dtype == o._dtype or self._dtype.bit_length() == o._dtype.bit_length(), (self, o, self._dtype, o._dtype)
         for k in self.keys_of_self_in_cache:
             self.op_cache._toHlsCache[k] = o
+        self.replaceThisInUsers(o)
+        self.replaced_by = o
+
+    def replaceThisInUsers(self, o:HlsNetNodeOut):
         builder = self.netlist.builder
         l0 = len(self.dependent_inputs)
         for i in self.dependent_inputs:
@@ -84,10 +89,20 @@ class HlsNetNodeOutLazy():
         assert len(self.dependent_inputs) == l0, "Must not modify dependent_inputs during replace"
         self.dependent_inputs.clear()
 
-        self.replaced_by = o
+    def getLatestReplacement(self):
+        if self.replaced_by is None:
+            return self
+        else:
+            v = self.replaced_by
+            while isinstance(v, HlsNetNodeOutLazy) and v.replaced_by:
+                v = v.replaced_by
+            return v
 
     def __repr__(self):
-        return f"<{self.__class__.__name__:s} {self._id:d}>"
+        if self.name:
+            return f"<{self.__class__.__name__:s} {self._id:d} {self.name:s}>"
+        else:
+            return f"<{self.__class__.__name__:s} {self._id:d}>"
 
 
 HlsNetNodeOutAny = Union[HlsNetNodeOut, HlsNetNodeOutLazy]
@@ -127,6 +142,7 @@ class HlsNetNodeIn():
         oldO = self.obj.dependsOn[self.in_i]
         assert oldO is not o, ("If the replacement is the same, this fn. should not be called in the first place.", o)
         if isinstance(o, HlsNetNodeOut):
+            assert o.obj is not self.obj, ("Can not create cycle", o, self)
             usedBy = o.obj.usedBy[o.out_i]
             i = self.obj._inputs[self.in_i]
             if i not in usedBy:
@@ -144,9 +160,9 @@ class HlsNetNodeIn():
         else:
             objStr = repr(self.obj)
         if self.name is None:
-            return f"<{self.__class__.__name__} {objStr:s} [{self.in_i:d}]>"
+            return f"<{self.__class__.__name__:s} {objStr:s} [{self.in_i:d}]>"
         else:
-            return f"<{self.__class__.__name__} {objStr:s} [{self.in_i:d}-{self.name:s}]>"
+            return f"<{self.__class__.__name__:s} {objStr:s} [{self.in_i:d}-{self.name:s}]>"
 
 
 def link_hls_nodes(parent: HlsNetNodeOutAny, child: HlsNetNodeIn) -> None:
@@ -157,7 +173,7 @@ def link_hls_nodes(parent: HlsNetNodeOutAny, child: HlsNetNodeIn) -> None:
         parent.dependent_inputs.append(child)
     else:
         assert isinstance(parent, HlsNetNodeOut), parent
-
+        assert parent.obj is not child.obj, ("Can not create cycle", parent, child)
         removed = parent.obj.netlist.builder._removedNodes
         assert parent.obj not in removed, parent
         assert child.obj not in removed, child
