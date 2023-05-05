@@ -7,16 +7,16 @@ from hwt.synthesizer.unit import Unit
 from hwtHls.architecture.allocator import HlsAllocator
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.observableList import ObservableList, ObservableListRm
 from hwtHls.netlist.scheduler.scheduler import HlsScheduler
-from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 
 
 class HlsNetlistCtx():
     """
-    High level synthesiser context.
+    High level synthesiser netlist context.
     Convert sequential code without data dependency cycles to RTL.
 
     :ivar parentUnit: parent unit where RTL should be instantiated
@@ -111,6 +111,10 @@ class HlsNetlistCtx():
             self.inputs[:] = (n for n in self.inputs if n not in removed)
             self.nodes[:] = (n for n in self.nodes if n not in removed)
             self.outputs[:] = (n for n in self.outputs if n not in removed)
+            for n in self.iterAllNodes():
+                n.filterSubnodes(removed)
+
+            removed.clear()
 
     def setupNetlistListeners(self,
                               beforeNodeAddedListener: Callable[[object, Union[slice, int], Union[HlsNetNode, ObservableListRm]], None],
