@@ -12,7 +12,7 @@ class HlsNetlistClusterSearch():
     """
     This class implements bidirectional flooding of the net while predicate is satisfied.
     Collects nodes and inputs/outputs, has methods for manipulation with selection.
-    
+
     :ivar inputs: all external outputs which are inputs of this cluster
     :ivar inputsDict: maps the external output to all connected inputs in this cluster
     :ivar outputs: all internal outputs which are also outputs of this cluster
@@ -33,7 +33,7 @@ class HlsNetlistClusterSearch():
         self.inputsDict = None
         self.outputs = None
         self.nodes = None
-        
+
     def _discover(self, n: HlsNetNode, seen: Set[HlsNetNode],
                  predicateFn: Callable[[HlsNetNode], bool]):
         """
@@ -134,10 +134,10 @@ class HlsNetlistClusterSearch():
         for interOutput in self.outputs:
             # disconnect interOutput from all external inputs
             # and connect them to boundary output of node
-            
+
             # if this is also an output from parent cluster
-            # it should have only 
-            
+            # it should have only
+
             boundaryOut, boundaryOutPort = n._addOutput(interOutput._dtype, interOutput.name)
             # reconnect all external uses to a port on this aggregate
             newUsedBy = n.usedBy[boundaryOut.out_i]
@@ -147,7 +147,7 @@ class HlsNetlistClusterSearch():
                     in_.obj.dependsOn[in_.in_i] = boundaryOut
                     newUsedBy.append(in_)
 
-            # filter connection of interOutput to contain only connection to in cluster nodes and  boundaryOutPort 
+            # filter connection of interOutput to contain only connection to in cluster nodes and  boundaryOutPort
             assert newUsedBy, (boundaryOut, "If the port is unused outside of cluster it should not be in cluster boundary at the first place")
             newInterUses = [
                 in_ for in_ in usedBy
