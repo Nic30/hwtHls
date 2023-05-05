@@ -7,7 +7,7 @@ orbs:
 jobs:
   install-test-deploy:
     machine:
-      image: ubuntu-2304
+      image: ubuntu-2304:2023.04.2
     #docker:
     #  - image: ubuntu:rolling
     resource_class: large
