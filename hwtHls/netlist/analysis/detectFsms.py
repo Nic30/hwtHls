@@ -3,12 +3,12 @@ from typing import List, Set, Union, Dict, Tuple, Callable, Optional
 
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
-from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
+# from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.netlist.analysis.betweenSyncIslands import HlsNetlistAnalysisPassBetweenSyncIslands, \
     BetweenSyncIsland
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.analysis.ioDiscover import HlsNetlistAnalysisPassIoDiscover
-from hwtHls.netlist.nodes.loopGate import HlsLoopGateStatus, HlsLoopGate
+from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
 from hwtHls.netlist.nodes.node import HlsNetNode, HlsNetNodePartRef
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
@@ -19,35 +19,45 @@ from hwtHls.netlist.scheduler.clk_math import start_clk
 class IoFsm():
     """
     :ivar intf: An interface instance for which this FSM is generated for. For debugging purposes.
-    :ivar states: list of list of nodes for each state
-    :ivar stateClkI: maps the state index to an index of clk tick where the state was originally scheduled
-    :ivar clkIToStateI: reverse map of stateClkI
-    :ivar transitionTable: a dictionary source stateI to dictionary destination stateI to condition for transition
+    :ivar states: list of list of nodes for each state, some states may be empty,
+        index in states corresponds to clock period index in scheduling
     :ivar syncIslands: a list of unique synchronization islands touching this FSM
+    :note: We can not extract FSM transitions there because it would greatly complicate FSM merging and spliting
+    :note: States are beeing executed in order specified in sates list.
+        Non linear transitions must be explicitely discovered in ArchElementFsm.
     """
 
     def __init__(self, intf: Optional[Interface], syncIslands: UniqList[BetweenSyncIsland]):
         self.intf = intf
         self.states: List[List[HlsNetNode]] = []
-        self.stateClkI: Dict[int, int] = {}
-        self.clkIToStateI: Dict[int, int] = {}
-        self.transitionTable: Dict[int, Dict[int, Union[bool, RtlSignal]]] = {}
+        # :ivar stateClkI: maps the state index to an index of clk tick where the state was originally scheduled
+        # :ivar clkIToStateI: reverse map of stateClkI
+        # self.stateClkI: Dict[int, int] = {}
+        # self.clkIToStateI: Dict[int, int] = {}
         self.syncIslands = syncIslands
 
     def addState(self, clkI: int):
         """
         :param clkI: an index of clk cycle where this state was scheduled
         """
-        stateNodes: List[HlsNetNode] = []
-        stI = len(self.states)
-        self.stateClkI[stI] = clkI
-        self.clkIToStateI[clkI] = stI
-        self.states.append(stateNodes)
+        # stateNodes: List[HlsNetNode] = []
+        # stI = len(self.states)
+        assert clkI >= 0, clkI
+        try:
+            return self.states[clkI]
+        except IndexError:
+            pass
 
-        return stateNodes
+        for _ in range(clkI + 1 - len(self.states)):
+            self.states.append([])
+
+        return self.states[clkI]
+
+    def hasUsedStateForClkI(self, clkI: int) -> bool:
+        return clkI < len(self.states) and self.states[clkI]
 
 
-class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
+class HlsNetlistAnalysisPassDetectFsms(HlsNetlistAnalysisPass):
     """
     Collect a scheduled netlist nodes which do have a constraint which prevents them to be scheduled as a pipeline and
     also collect all nodes which are tied with them into FSM states.
@@ -93,7 +103,7 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
             return
 
         if node not in seen and node not in alreadyUsed:
-            stateNodeList = fsm.states[fsm.clkIToStateI[nodeClkI]]
+            stateNodeList = fsm.states[nodeClkI]
             seen.add(node)
             alreadyUsed.add(node)
             allNodeClks = tuple(node.iterScheduledClocks())
@@ -113,7 +123,7 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
                         # because original node has only some delay at selected time
                         continue
 
-                    stateNodeList = fsm.states[fsm.clkIToStateI[clkI]]
+                    stateNodeList = fsm.states[clkI]
                     self._appendNodeToState(clkI, nodePart, stateNodeList)
             else:
                 # append node as it is
@@ -166,32 +176,34 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
 
     def _discardIncompatibleNodes(self, fsm: IoFsm):
         """
-        * remove HlsLoopGateStatus if associated gate is not part of this fsm
-        * remove HlsLoopGate if associated status is not part of this fsm
+        * remove HlsNetNodeLoopStatus if associated gate is not part of this fsm
+        * remove HlsNetNodeLoopControlPort if associated status is not part of this fsm
         """
         allNodes = None
         for st in fsm.states:
             toRm = set()
             for n in st:
-                if isinstance(n, HlsLoopGateStatus):
+                if n in toRm:
+                    continue
+                if isinstance(n, HlsNetNodeLoopStatus):
                     if allNodes is None:
                         # lazy resolved allNodes from performance reasons
                         allNodes = set(chain(*fsm.states))
-                    n: HlsLoopGateStatus
-                    if n._loop_gate not in allNodes:
-                        toRm.add(n)
-                elif isinstance(n, HlsLoopGate):
-                    if allNodes is None:
-                        # lazy resolved allNodes from performance reasons
-                        allNodes = set(chain(*fsm.states))
-                    n: HlsLoopGate
-                    if n._sync_token_status not in allNodes:
-                        toRm.add(n)
-
+                    n: HlsNetNodeLoopStatus
+                    for c in chain(n.fromReenter, n.fromExit):
+                        if c not in allNodes:
+                            toRm.add(n)
+                            break
+                # elif isinstance(n, HlsNetNodeLoopControlPort):
+                #    if allNodes is None:
+                #        # lazy resolved allNodes from performance reasons
+                #        allNodes = set(chain(*fsm.states))
+                #    n: HlsNetNodeLoopControlPort
+                #    if n._loopStatus not in allNodes or any(c not in allNodes for c in chain(n._loopStatus.fromReenter, n._loopStatus.fromExit)):
+                #        toRm.add(n)
 
             if toRm:
                 st[:] = (n for n in st if n not in toRm)
-
 
     def run(self):
         ioDiscovery: HlsNetlistAnalysisPassIoDiscover = self.netlist.getAnalysis(HlsNetlistAnalysisPassIoDiscover)
@@ -217,7 +229,7 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
         alreadyUsed: Set[HlsNetNode] = set()
         for i in ioDiscovery.interfaceList:
             accesses = ioByInterface[i]
-            if len(accesses) > 1:
+            if len(accesses) > accesses[0].maxIosPerClk:
                 islands = UniqList()
                 for a in accesses:
                     inIsl, outIsl = syncIslands.syncIslandOfNode[a]
@@ -254,8 +266,8 @@ class HlsNetlistAnalysisPassDiscoverFsm(HlsNetlistAnalysisPass):
                 if stCnt > 1:
                     self._discardIncompatibleNodes(fsm)
                     # initialize with tansition table with always jump to next state sequentially
-                    for i in range(stCnt):
-                        fsm.transitionTable[i] = {(i + 1) % stCnt: 1}  # {next st: cond}
+                    # for i in range(stCnt):
+                    #    fsm.transitionTable[i] = {(i + 1) % stCnt: 1}  # {next st: cond}
 
                     # for i in range(stCnt - 1):
                     #    fsm.transitionTable[i] = {(i + 1): 1}

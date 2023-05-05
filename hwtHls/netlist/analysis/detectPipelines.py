@@ -2,11 +2,11 @@ from typing import List, Dict, Tuple, Set, Optional
 
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
-from hwtHls.netlist.analysis.fsms import HlsNetlistAnalysisPassDiscoverFsm, IoFsm
-from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
-from hwtHls.netlist.analysis.ioDiscover import HlsNetlistAnalysisPassIoDiscover
 from hwtHls.netlist.analysis.betweenSyncIslands import HlsNetlistAnalysisPassBetweenSyncIslands, \
     BetweenSyncIsland
+from hwtHls.netlist.analysis.detectFsms import HlsNetlistAnalysisPassDetectFsms, IoFsm
+from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
+from hwtHls.netlist.analysis.ioDiscover import HlsNetlistAnalysisPassIoDiscover
 from hwtHls.netlist.nodes.node import HlsNetNode, HlsNetNodePartRef
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
@@ -23,7 +23,7 @@ class NetlistPipeline():
         self.stages = stages
 
 
-class HlsNetlistAnalysisPassDiscoverPipelines(HlsNetlistAnalysisPass):
+class HlsNetlistAnalysisPassDetectPipelines(HlsNetlistAnalysisPass):
     """
     Every node which is not part of FSM is a part of pipeline.
     This pass collect largest continuous segments of the netlist.
@@ -47,7 +47,7 @@ class HlsNetlistAnalysisPassDiscoverPipelines(HlsNetlistAnalysisPass):
             pipeline[clk_index].append(node)
 
     def run(self):
-        fsms: HlsNetlistAnalysisPassDiscoverFsm = self.netlist.getAnalysis(HlsNetlistAnalysisPassDiscoverFsm)
+        fsms: HlsNetlistAnalysisPassDetectFsms = self.netlist.getAnalysis(HlsNetlistAnalysisPassDetectFsms)
         ioByInterface = self.netlist.getAnalysis(HlsNetlistAnalysisPassIoDiscover).ioByInterface
         allFsmNodes, inFsmNodeParts = fsms.collectInFsmNodes()
         allFsmNodes: Dict[HlsNetNode, UniqList[IoFsm]]
@@ -58,7 +58,7 @@ class HlsNetlistAnalysisPassDiscoverPipelines(HlsNetlistAnalysisPass):
         # interfaces which were checked to be accessed correctly
         alreadyCheckedIo: Set[Interface] = set()
         pipelineForIsland: Dict[BetweenSyncIsland, NetlistPipeline] = {}
-        
+
         for node in self.netlist.iterAllNodes():
             node: HlsNetNode
             assert not isinstance(node, HlsNetNodePartRef), node
@@ -79,7 +79,7 @@ class HlsNetlistAnalysisPassDiscoverPipelines(HlsNetlistAnalysisPass):
                     pipelines.append(pipeline)
 
                 pipelineStages = pipeline.stages
-                
+
                 parts = inFsmNodeParts.get(node, None)
                 if parts is not None:
                     parts: UniqList[Tuple[IoFsm, HlsNetNodePartRef]]
@@ -91,29 +91,31 @@ class HlsNetlistAnalysisPassDiscoverPipelines(HlsNetlistAnalysisPass):
                             pipelineStages[clkI].append(part)
                     continue
 
-                elif isinstance(node, HlsNetNodeRead) and node.src not in alreadyCheckedIo:
+                elif isinstance(node, HlsNetNodeRead) and node.src is not None and node.src not in alreadyCheckedIo:
                     clkI = None
                     for r in ioByInterface[node.src]:
-                        r: HlsNetNodeRead
-                        _clkI = r.scheduledOut[0] // clkPeriod
-                        if clkI is None:
-                            clkI = _clkI
-                        elif clkI != _clkI:
-                            raise AssertionError("In this phase each IO operation in different clock cycle should already have separate gate"
-                                                 " if it wants to access same interface", node.src, ioByInterface[node.src])
+                        if isinstance(r, HlsNetNodeRead):
+                            r: HlsNetNodeRead
+                            _clkI = r.scheduledOut[0] // clkPeriod
+                            if clkI is None:
+                                clkI = _clkI
+                            elif clkI != _clkI:
+                                raise AssertionError("In this phase each IO operation in different clock cycle should already have separate gate"
+                                                     " if it wants to access same interface", node.src, ioByInterface[node.src])
 
-                elif isinstance(node, HlsNetNodeWrite) and node.dst not in alreadyCheckedIo:
+                elif isinstance(node, HlsNetNodeWrite) and node.dst is not None and node.dst not in alreadyCheckedIo:
                     clkI = None
                     for w in ioByInterface[node.dst]:
-                        w: HlsNetNodeWrite
-                        _clkI = w.scheduledIn[0] // clkPeriod
-                        if clkI is None:
-                            clkI = _clkI
-                        elif clkI != _clkI:
-                            raise AssertionError("In this phase each IO operation in different clock cycle should already have separate gate"
-                                                 " if it wants to access same interface", node.dst, ioByInterface[node.dst])
+                        if isinstance(w, HlsNetNodeWrite):
+                            w: HlsNetNodeWrite
+                            _clkI = w.scheduledIn[0] // clkPeriod
+                            if clkI is None:
+                                clkI = _clkI
+                            elif clkI != _clkI:
+                                raise AssertionError("In this phase each IO operation in different clock cycle should already have separate gate"
+                                                     " if it wants to access same interface", node.dst, ioByInterface[node.dst])
 
                 # this is just node which is part of no FSM,
                 # we add it to global pipeline for each clock cycle where it is defined
                 self._addNodeToPipeline(node, clkPeriod, pipelineStages)
-        
+

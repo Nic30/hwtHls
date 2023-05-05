@@ -1,4 +1,4 @@
-from typing import List, Set, Tuple, Optional, Union, Dict
+from typing import List, Set, Tuple, Optional, Union, Dict, Generator
 
 from hwt.code import SwitchLogic, Switch, If
 from hwt.code_utils import rename_signal
@@ -15,25 +15,30 @@ from hwtHls.architecture.archElement import ArchElement
 from hwtHls.architecture.connectionsOfStage import getIntfSyncSignals, \
     setNopValIfNotSet, SignalsOfStages, ConnectionsOfStage
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, INVARIANT_TIME
-from hwtHls.netlist.analysis.fsms import IoFsm
+from hwtHls.netlist.analysis.detectFsms import IoFsm
 from hwtHls.netlist.analysis.ioDiscover import HlsNetlistAnalysisPassIoDiscover
-from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
-    HlsNetNodeWriteBackwardEdge, HlsNetNodeReadControlBackwardEdge, \
-    HlsNetNodeWriteControlBackwardEdge, BACKEDGE_ALLOCATION_TYPE
+from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
+    HlsNetNodeWriteBackedge, BACKEDGE_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
 from hwtHls.netlist.nodes.node import HlsNetNode, HlsNetNodePartRef
+from hwtHls.netlist.nodes.orderable import HdlType_isNonData, HdlType_isVoid
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
 from hwtHls.netlist.nodes.read import  HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.netlist.scheduler.clk_math import start_clk
+from hwtHls.netlist.scheduler.clk_math import start_clk, indexOfClkPeriod
 from ipCorePackager.constants import INTF_DIRECTION
-from hwtHls.netlist.nodes.orderable import HdlType_isNonData
+from hdlConvertorAst.to.hdlUtils import iter_with_last
 
 
 class ArchElementFsm(ArchElement):
     """
     Container class for FSM allocation objects.
+
+    :ivar fsm: an original IoFsm object from which this was created
+    :ivar transitionTable: a dictionary source stateI to dictionary destination stateI to condition for transition
+    :ivar stateEncoding: a dictionary mapping state index to a value which will be used in RTL to represent this state.
     """
 
     def __init__(self, netlist: "HlsNetlistCtx", namePrefix:str, fsm: IoFsm):
@@ -44,18 +49,48 @@ class ArchElementFsm(ArchElement):
         clkPeriod = self.normalizedClkPeriod = netlist.normalizedClkPeriod
         assert fsm.states, fsm
 
-        beginClkI = min(fsm.stateClkI.values())
-        endClkI = max(fsm.stateClkI.values())
+        beginClkI = None
+        endClkI = None
+        for clkI, st in enumerate(fsm.states):
+            if st:
+                if beginClkI is None:
+                    beginClkI = clkI
+                endClkI = clkI
 
         stateCons = [ConnectionsOfStage() for _ in fsm.states]
-        stageSignals = SignalsOfStages(clkPeriod,
-                                        (
-                                           stateCons[fsm.clkIToStateI[clkI]].signals if clkI in fsm.clkIToStateI else None
-                                           for clkI in range(endClkI + 1)
-                                        ))
+        stageSignals = self._createSignalsOfStages(fsm, clkPeriod, stateCons)
         ArchElement.__init__(self, netlist, namePrefix, allNodes, stateCons, stageSignals)
         self._beginClkI = beginClkI
         self._endClkI = endClkI
+        self.transitionTable: Dict[int, Dict[int, Union[bool, RtlSignal]]] = {}
+        self.stateEncoding: Dict[int, int] = {}
+
+    def iterStages(self) -> Generator[Tuple[int, List[HlsNetNode]], None, None]:
+        fsm = self.fsm
+        for clkI, nodes in enumerate(fsm.states):
+            if nodes:
+                yield (clkI, nodes)
+
+    def getStageForClock(self, clkIndex: int) -> List[HlsNetNode]:
+        return self.fsm.states[clkIndex]
+
+    @staticmethod
+    def _createSignalsOfStages(fsm: IoFsm, clkPeriod: int, stateCons: List[ConnectionsOfStage]):
+        return SignalsOfStages(clkPeriod,
+                               (
+                                  stateCons[clkI].signals
+                                  if st else None
+                                  for clkI, st in enumerate(fsm.states)
+                               ))
+
+    def _iterTirsOfNode(self, n: HlsNetNode) -> Generator[TimeIndependentRtlResource, None, None]:
+        for o in n._outputs:
+            if o in self.netNodeToRtl and not HdlType_isNonData(o._dtype):
+                tirs = self.netNodeToRtl[o]
+                if isinstance(tirs, TimeIndependentRtlResource):
+                    yield tirs
+                else:
+                    yield from tirs
 
     def _afterNodeInstantiated(self, n: HlsNetNode, rtl: Optional[TimeIndependentRtlResource]):
         # mark value in register as persistent until the end of FSM
@@ -67,8 +102,7 @@ class ArchElementFsm(ArchElement):
             con.stDependentDrives.append(rtl.valuesInTime[0].data.next.drivers[0])
 
         if rtl is None or not isTir:
-            cons = (self.netNodeToRtl[o] for o in n._outputs
-                    if o in self.netNodeToRtl and not HdlType_isNonData(o._dtype))
+            cons = self._iterTirsOfNode(n)
         elif isTir and rtl.timeOffset == INVARIANT_TIME:
             return
         else:
@@ -78,9 +112,8 @@ class ArchElementFsm(ArchElement):
         _endClkI = self._endClkI
 
         for s in cons:
+            assert isinstance(s, TimeIndependentRtlResource)
             s: TimeIndependentRtlResource
-            if isinstance(s, list):
-                raise NotImplementedError()
             assert len(s.valuesInTime) == 1, ("Value must not be used yet because we need to set persistence ranges first.", s)
 
             if not s.persistenceRanges and s.timeOffset is not INVARIANT_TIME:
@@ -94,16 +127,13 @@ class ArchElementFsm(ArchElement):
             self._afterOutputUsed(dep)
 
     def connectSync(self, clkI: int, intf: HandshakeSync, intfDir: INTF_DIRECTION, isBlocking: bool):
-        try:
-            stateI = self.fsm.clkIToStateI[clkI]
-        except KeyError:
-            raise AssertionError("Asking for a sync in an element which is not scheduled in this clk period", self, clkI, self.fsm.clkIToStateI)
+        assert self.fsm.hasUsedStateForClkI(clkI), ("Asking for a sync in an element which is not scheduled in this clk period", self, clkI)
 
-        con: ConnectionsOfStage = self.connections[stateI]
+        con: ConnectionsOfStage = self.connections[clkI]
         self._connectSync(con, intf, intfDir, isBlocking)
         self._initNopValsOfIoForIntf(intf, intfDir)
         return con
-        
+
     def _initNopValsOfIoForIntf(self, intf: Union[Interface], intfDir: INTF_DIRECTION):
         if intfDir == INTF_DIRECTION.MASTER:
             # to prevent latching when interface is not used
@@ -128,42 +158,39 @@ class ArchElementFsm(ArchElement):
                 elif isinstance(node, HlsNetNodeRead):
                     self._initNopValsOfIoForIntf(node.src, INTF_DIRECTION.SLAVE)
 
-    def _detectStateTransitions(self):
-        """
-        Detect the state propagation logic and resolve how to replace it wit a state bit
-        * state bit will be just stored as a register in this FSM
-        * read will just read this bit
-        * write will set this bit to a value specified in write src if all write conditions are meet
-        * if the value written to channel is 1 it means that FSM jump to state where associated read is
-          There could be multiple channels written but the 1 should be written to just single one
-        * All control channel registers which are not written but do have scheduled potential write in this state must be set to 0
-        * Because the control channel is just local it is safe to replace it with register.
-          However we must keep it in allNodes list so the node is still registered for this element
-        
-        :note: This must be called before construction of data-path because we need to resolve how control channels will be realized
-        :note: The state transition can not be extracted if there is communication with some other FSM
-            which already have some communication with this FSM. (In order to prevent deadlock.)
-        """
-        localControlReads: UniqList[HlsNetNodeReadControlBackwardEdge] = UniqList()
-        controlToStateI: Dict[Union[HlsNetNodeReadControlBackwardEdge, HlsNetNodeWriteControlBackwardEdge], int] = {}
+    def _collectLoopsAndSetBackedgesToReg(self):
+        localControlReads: UniqList[HlsNetNodeReadBackedge] = UniqList()
+        controlToStateI: Dict[Union[HlsNetNodeReadBackedge, HlsNetNodeWriteBackedge], int] = {}
+        clkPeriod = self.normalizedClkPeriod
         for stI, nodes in enumerate(self.fsm.states):
             for node in nodes:
                 node: HlsNetNode
-                if isinstance(node, HlsNetNodeReadBackwardEdge):
-                    node: HlsNetNodeReadBackwardEdge
-                    wr = node.associated_write
+                if isinstance(node, HlsNetNodeReadBackedge):
+                    node: HlsNetNodeReadBackedge
+                    wr = node.associatedWrite
                     if wr in self.allNodes and wr.allocationType == BACKEDGE_ALLOCATION_TYPE.BUFFER:
                         # is in the same arch. element
                         # allocate as a register because this is just local control channel
                         wr.allocationType = BACKEDGE_ALLOCATION_TYPE.REG
-                        if isinstance(node, HlsNetNodeReadControlBackwardEdge):
-                            localControlReads.append(node)
-                            controlToStateI[node] = stI
 
-                elif isinstance(node, HlsNetNodeWriteControlBackwardEdge):
-                    if node.associated_read in self.allNodes:
-                        controlToStateI[node] = stI
-        
+                elif isinstance(node, HlsNetNodeLoopStatus):
+                    for e in node.fromReenter:
+                        assert isinstance(e, HlsNetNodeReadBackedge), e
+                        assert e in self.allNodes, e
+                        if e.associatedWrite in self.allNodes:
+                            localControlReads.append(e)
+                            controlToStateI[e] = stI
+                            controlToStateI[e.associatedWrite] = indexOfClkPeriod(e.associatedWrite.scheduledZero, clkPeriod)
+
+                    for e in node.fromExit:
+                        if isinstance(e, HlsNetNodeReadBackedge):
+                            assert e in self.allNodes, e
+                            if e.associatedWrite in self.allNodes:
+                                raise NotImplementedError()
+                            # dstI =
+        return localControlReads, controlToStateI
+
+    def _collectStatesWhichCanNotBeSkipped(self) -> Set[int]:
         # element: clockTickIndex
         clkPeriod = self.normalizedClkPeriod
         nonSkipableStateI: Set[int] = set()
@@ -174,27 +201,43 @@ class ArchElementFsm(ArchElement):
             if self is iea.ownerOfOutput[o]:
                 outTime = o.obj.scheduledOut[o.out_i]
                 clkI = start_clk(outTime, clkPeriod)
-                try:
-                    stI = self.fsm.clkIToStateI[clkI]
-                except KeyError:
+                if not self.fsm.hasUsedStateForClkI(clkI):
                     raise AssertionError("fsm is missing state for time where node is scheduled", o, clkI)
-                    
+
                 for otherElm in self.interArchAnalysis.ownerOfInput[i]:
                     curFistCommunicationStI = otherElmConnectionFirstTimeSeen.get(otherElm, None)
                     if curFistCommunicationStI is None:
-                        otherElmConnectionFirstTimeSeen[otherElm] = stI
-                    elif curFistCommunicationStI == stI:
+                        otherElmConnectionFirstTimeSeen[otherElm] = clkI
+                    elif curFistCommunicationStI == clkI:
                         continue
-                    elif curFistCommunicationStI > stI:
-                        otherElmConnectionFirstTimeSeen[otherElm] = stI
+                    elif curFistCommunicationStI > clkI:
+                        otherElmConnectionFirstTimeSeen[otherElm] = clkI
                         nonSkipableStateI.add(curFistCommunicationStI)
                     else:
-                        nonSkipableStateI.add(stI)
+                        nonSkipableStateI.add(clkI)
 
-        transitionTable = self.fsm.transitionTable
+        return nonSkipableStateI
+
+    def _resolveTranstitionTableFromLoopControlChannels(self,
+                localControlReads: UniqList[HlsNetNodeReadBackedge],
+                controlToStateI: Dict[Union[HlsNetNodeReadBackedge, HlsNetNodeWriteBackedge], int],
+                nonSkipableStateI: Set[int]):
+        transitionTable = self.transitionTable
+        assert not transitionTable, "This should be called only once"
+        usedStates = []
+        for clkI, st in enumerate(self.fsm.states):
+            if st:
+                usedStates.append(clkI)
+
+        prev = None
+        for isLast, clkI in iter_with_last(usedStates):
+            transitionTable[prev] = {clkI: 1}  # jump to next by default
+            if isLast:
+                transitionTable[clkI] = {usedStates[0]: 1}  # jump back to start by default
+            prev = clkI
         for r in localControlReads:
-            r: HlsNetNodeReadControlBackwardEdge
-            srcStI = controlToStateI[r.associated_write]
+            r: HlsNetNodeReadBackedge
+            srcStI = controlToStateI[r.associatedWrite]
             dstStI = controlToStateI[r]
             possible = True
             if dstStI >= srcStI:
@@ -214,26 +257,49 @@ class ArchElementFsm(ArchElement):
             curTrans = transitionTable[srcStI].get(dstStI, None)
             # [fixme] we do not for sure that IO in skipped states has cond as a skipWhen condition
             #         and thus it may be required to enter dstState
-            if not HdlType_isNonData(r._outputs[0]._dtype):
-                condO = r._outputs[0]
-            elif r.hasValid():
+            if r.hasValid():
                 condO = r._valid
-            else:
-                assert r.hasValidNB(), r
+            elif r.hasValidNB():
                 condO = r._validNB
-                
+            else:
+                assert not HdlType_isVoid(r._outputs[0]._dtype), r
+                condO = r._outputs[0]
+                assert condO._dtype.bit_length() == 1, condO
+
             cond = self.instantiateHlsNetNodeOut(condO).valuesInTime[0].data.next
             if curTrans is not None:
                 cond = cond | curTrans
             transitionTable[srcStI][dstStI] = cond
 
+        self.stateEncoding = {clkI: i for i, clkI in enumerate(usedStates)}
+
+    def _detectStateTransitions(self):
+        """
+        Detect the state propagation logic and resolve how to replace it wit a state bit
+        * state bit will be just stored as a register in this FSM
+        * read will just read this bit
+        * write will set this bit to a value specified in write src if all write conditions are meet
+        * if the value written to channel is 1 it means that FSM jump to state where associated read is
+          There could be multiple channels written but the 1 should be written to just single one
+        * All control channel registers which are not written but do have scheduled potential write in this state must be set to 0
+        * Because the control channel is just local it is safe to replace it with register.
+          However we must keep it in allNodes list so the node is still registered for this element
+
+        :note: This must be called before construction of data-path because we need to resolve how control channels will be realized
+        :note: The state transition can not be extracted if there is communication with some other FSM
+            which already have some communication with this FSM. (In order to prevent deadlock.)
+        """
+        localControlReads, controlToStateI = self._collectLoopsAndSetBackedgesToReg()
+        nonSkipableStateI = self._collectStatesWhichCanNotBeSkipped()
+        self._resolveTranstitionTableFromLoopControlChannels(localControlReads, controlToStateI, nonSkipableStateI)
+
     def _allocateDataPathRead(self, node: HlsNetNodeRead, ioDiscovery: HlsNetlistAnalysisPassIoDiscover, con: ConnectionsOfStage,
                               ioMuxes: Dict[Interface, Tuple[Union[HlsNetNodeRead, HlsNetNodeWrite], List[HdlStatement]]],
                               ioSeen: UniqList[Interface],
                               rtl: List[HdlStatement]):
-        if isinstance(node, HlsNetNodeReadBackwardEdge) and \
-                node.associated_write is not None and \
-                node.associated_write.allocationType != BACKEDGE_ALLOCATION_TYPE.BUFFER:
+        if isinstance(node, HlsNetNodeReadBackedge) and \
+                node.associatedWrite is not None and \
+                node.associatedWrite.allocationType != BACKEDGE_ALLOCATION_TYPE.BUFFER:
             return
         self._allocateIo(ioDiscovery, node.src, node, con, ioMuxes, ioSeen, rtl)
 
@@ -241,7 +307,7 @@ class ArchElementFsm(ArchElement):
                               ioMuxes: Dict[Interface, Tuple[Union[HlsNetNodeRead, HlsNetNodeWrite], List[HdlStatement]]],
                               ioSeen: UniqList[Interface],
                               rtl: List[HdlStatement]):
-        if isinstance(node, HlsNetNodeWriteBackwardEdge) and node.allocationType != BACKEDGE_ALLOCATION_TYPE.BUFFER:
+        if isinstance(node, HlsNetNodeWriteBackedge) and node.allocationType != BACKEDGE_ALLOCATION_TYPE.BUFFER:
             con.stDependentDrives.append(rtl)
             return
         self._allocateIo(ioDiscovery, node.dst, node, con, ioMuxes, ioSeen, rtl)
@@ -287,17 +353,16 @@ class ArchElementFsm(ArchElement):
 
             for rtl in self._allocateIoMux(ioMuxes, ioSeen):
                 con.stDependentDrives.append(rtl)
-        
+
     def allocateSync(self):
-        fsm = self.fsm
         self._initNopValsOfIo()
-        if len(fsm.states) > 1:
-            st = self._reg(f"{self.namePrefix}st",
-                           Bits(log2ceil(len(fsm.states)), signed=False),
+        if sum(1 if st else 0 for st in self.fsm.states) > 1:
+            stReg = self._reg(f"{self.namePrefix}st",
+                           Bits(log2ceil(len(self.fsm.states)), signed=False),
                            def_val=0)
         else:
             # because there is just a single state, the state value has no meaning
-            st = None
+            stReg = None
         # instantiate control of the FSM
 
         # used to prevent duplication of registers which are just latching the value
@@ -305,12 +370,15 @@ class ArchElementFsm(ArchElement):
         seenRegs: Set[TimeIndependentRtlResource] = set()
 
         stateTrans: List[Tuple[RtlSignal, List[HdlStatement]]] = []
-        for stI, con in enumerate(self.connections):
+        for clkI, con in enumerate(self.connections):
             con: ConnectionsOfStage
+            if not self.fsm.hasUsedStateForClkI(clkI):
+                continue
+
             for s in con.signals:
                 s: TimeIndependentRtlResource
                 # if the value has a register at the end of this stage
-                v = s.checkIfExistsInClockCycle(self._beginClkI + stI + 1)
+                v = s.checkIfExistsInClockCycle(clkI + 1)
                 if v is not None and v.isRltRegister() and not v in seenRegs:
                     con.stDependentDrives.append(v.data.next.drivers[0])
                     seenRegs.add(v)
@@ -318,41 +386,49 @@ class ArchElementFsm(ArchElement):
             unconditionalTransSeen = False
             inStateTrans: List[Tuple[RtlSignal, List[HdlStatement]]] = []
             sync = self._makeSyncNode(con)
-            
+
             # prettify stateAck signal name if required
             stateAck = sync.ack()
             if isinstance(stateAck, (bool, int, HValue)):
                 assert bool(stateAck) == 1
             else:
-                stateAck = rename_signal(self.netlist.parentUnit, stateAck, f"{self.namePrefix}st_{stI:d}_ack")
+                assert stateAck._dtype.bit_length() == 1
+                stateAck = rename_signal(self.netlist.parentUnit, stateAck, f"{self.namePrefix}st{clkI:d}_ack")
+
             con.syncNodeAck = stateAck
-            
-            for dstSt, c in sorted(fsm.transitionTable[stI].items(), key=lambda x: x[0]):
+            # :note: isinstance(x[1], int) to have unconditional transitions as last
+            for dstStI, c in sorted(self.transitionTable[clkI].items(), key=lambda tr: (isinstance(tr[1], int), tr[0])):
                 assert not unconditionalTransSeen, "If there is an unconditional transition from this state it must be the last one"
-                if isinstance(stateAck, (bool, int)):
-                    c = c & stateAck
-                else:
-                    c = stateAck & c
                 if c == 1:
                     unconditionalTransSeen = True
+                    c = stateAck
+                
+                elif isinstance(c, (bool, int)):
+                    assert c == 0, c
+                    continue
+                else:
+                    assert c._dtype.bit_length() == 1, c
+                    c = c & stateAck
+    
+                if stReg is not None:
+                    inStateTrans.append((c, stReg(dstStI)))
 
-                if st is not None:
-                    inStateTrans.append((c, st(dstSt)))
-            
             stDependentDrives = con.stDependentDrives
 
             if isinstance(stateAck, (bool, int, BitsVal)):
                 assert bool(stateAck) == 1, "There should be a transition to some next state."
             else:
+                # if stateAck is not always satisfied create parent if to load registers conditionally
                 stDependentDrives = If(stateAck, stDependentDrives)
 
+            stI = self.stateEncoding[clkI]
             stateTrans.append((stI, [SwitchLogic(inStateTrans),
                                      stDependentDrives,
                                      sync.sync()]))
 
-        if st is None:
-            # do not create a state switch statement is there is no state register (and FSM has just 1 state) 
+        if stReg is None:
+            # do not create a state switch statement is there is no state register (and FSM has just 1 state)
             assert len(stateTrans) == 1
             return stateTrans[0][1]
         else:
-            return Switch(st).add_cases(stateTrans)
+            return Switch(stReg).add_cases(stateTrans)

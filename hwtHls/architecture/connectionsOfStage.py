@@ -83,9 +83,9 @@ class ConnectionsOfStage():
 
     :ivar inputs: a tuple (io, isBlocking) for every input channels to this stage.
     :ivar outputs: a tuple (io, isBlocking) for every output channels from this stage.
-    :ivar signals: all TimeIndependentRtlResourceItem instances generated in this pipeline stage/FSM state 
+    :ivar signals: all TimeIndependentRtlResourceItem instances generated in this pipeline stage/FSM state
     :ivar io_skipWhen: skipWhen condition for inputs/outputs which specifies when the synchronization should wait for this channel
-    :ivar io_extraCond: extraCond condition for inputs/outputs which specifies when the data should be send/received from channel 
+    :ivar io_extraCond: extraCond condition for inputs/outputs which specifies when the data should be send/received from channel
     :ivar sync_node: optional StreamNode instance which was used to generate synchronization
     :ivar syncNodeAck: optional signal which is 1 if this stage is working
     :ivar stageDataVld: optional synchronous signal which is 1 if this stage is loaded with the data
@@ -108,6 +108,21 @@ class ConnectionsOfStage():
         self.stDependentDrives: List[HdlStatement] = []
         self.syncIn: Optional[HandshakeSync] = None
         self.syncOut: Optional[HandshakeSync] = None
+
+    def merge(self, other: "ConnectionsOfStage"):
+        "merge other to self"
+        self.inputs.extend(other.inputs)
+        self.outputs.extend(other.outputs)
+        self.signals.extend(other.signals)
+        self.io_skipWhen.update(other.io_skipWhen)
+        self.io_extraCond.update(other.io_extraCond)
+        assert self.sync_node is None
+        assert self.syncNodeAck is None
+        assert other.stageDataVld is None
+        self.stDependentDrives.extend(other.stDependentDrives)
+        assert other.syncIn is None
+        assert other.syncOut is None
+
 
 class SignalsOfStages(List[Optional[UniqList[TimeIndependentRtlResourceItem]]]):
     """
@@ -139,6 +154,21 @@ class SignalsOfStages(List[Optional[UniqList[TimeIndependentRtlResourceItem]]]):
 
         return res
 
+    #def merge(self, other: "SignalsOfStages"):
+    #    """
+    #    Merge other into self.
+    #    """
+    #    for i, (list0, list1) in enumerate(zip(self, other)):
+    #        if list0 is None:
+    #            self[i] = list1
+    #        elif not list1:
+    #            continue
+    #        else:
+    #            list0.extend(list1)
+    #
+    #    if len(other) > len(self):
+    #        self.extend(other[len(self):])
+
 
 def setNopValIfNotSet(intf: Union[Interface, RtlSignal], nopVal, exclude: List[Interface]):
     if intf in exclude:
@@ -167,7 +197,7 @@ def extractControlSigOfInterface(
     else:
         return extractControlSigOfInterfaceTuple(intf)
 
-    
+
 def extractControlSigOfInterfaceTuple(
             intf: Union[HandshakeSync, RdSynced, VldSynced, RtlSignalBase, Signal, InterfaceSyncTuple]
             ) -> InterfaceSyncTuple:
