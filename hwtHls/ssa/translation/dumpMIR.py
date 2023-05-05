@@ -15,7 +15,7 @@ class SsaPassDumpMIR(SsaPass):
         assert mf
         out, doClose = self.outStreamGetter(tr.llvm.main.getGlobalIdentifier())
         try:
-            out.write(str(mf))
+            out.write(mf.serialize())
         finally:
             if doClose:
                 out.close()
