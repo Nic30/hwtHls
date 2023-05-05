@@ -8,7 +8,7 @@ from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
-from hwtHls.netlist.nodes.loopGate import HlsLoopGate, HlsLoopGateStatus
+from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
@@ -21,7 +21,7 @@ from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.platform.fileUtils import OutputStreamGetter
 from hwtHls.netlist.nodes.orderable import HdlType_isVoid
 from hwtHls.netlist.nodes.IoClusterCore import HlsNetNodeIoClusterCore
-from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeWriteBackwardEdge
+from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
 
 
 class HwtHlsNetlistToGraphwiz():
@@ -57,7 +57,7 @@ class HwtHlsNetlistToGraphwiz():
   <tr><td bgcolor="LightBlue">HlsNetNodeWrite</td></tr>
   <tr><td bgcolor="plum">HlsNetNodeConst</td></tr>
   <tr><td bgcolor="Chartreuse">HlsNetNodeExplicitSync</td></tr>
-  <tr><td bgcolor="MediumSpringGreen">HlsLoopGate, HlsLoopGateStatus, HlsProgramStarter</td></tr>
+  <tr><td bgcolor="MediumSpringGreen">HlsNetNodeLoopStatus, HlsProgramStarter</td></tr>
   <tr><td bgcolor="gray">shadow connection</td></tr>
   <tr><td bgcolor="LightCoral">HlsNetNodeOutLazy</td></tr>
 </table>>"""
@@ -74,7 +74,7 @@ class HwtHlsNetlistToGraphwiz():
             color = "plum"
         elif isinstance(obj, HlsNetNodeExplicitSync):
             color = "Chartreuse"
-        elif isinstance(obj, (HlsLoopGate, HlsLoopGateStatus, HlsProgramStarter)):
+        elif isinstance(obj, (HlsNetNodeLoopStatus, HlsProgramStarter)):
             color = "MediumSpringGreen"
         else:
             color = "white"
@@ -183,19 +183,19 @@ class HwtHlsNetlistToGraphwiz():
             name = ""
             if obj.name is not None:
                 name = f" \"{html.escape(obj.name)}\""
-            label = f"{obj.operator.id if isinstance(obj.operator, OpDefinition) else str(obj.operator)}{name:s} {obj._id:d} {t}"
-        elif isinstance(obj, (HlsNetNodeRead, HlsNetNodeWrite, HlsLoopGateStatus)):
+            label = f"{obj.operator.id if isinstance(obj.operator, OpDefinition) else str(obj.operator)} {obj._id:d}{name:s} {t}"
+        elif isinstance(obj, (HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeLoopStatus)):
             label = _reprMinify(obj)
-        elif isinstance(obj, HlsNetNode) and obj.name is not None:
+        elif obj.name is not None:
             label = f"{obj.__class__.__name__} {obj._id} \"{html.escape(obj.name)}\""
         else:
             label = f"{obj.__class__.__name__} {obj._id}"
 
         buff.append(f'            <tr><td colspan="2">{html.escape(label):s}</td></tr>\n')
-        if isinstance(obj, HlsNetNodeWriteBackwardEdge):
-            obj: HlsNetNodeWriteBackwardEdge
-            if obj.channel_init_values:
-                buff.append(f'            <tr><td colspan="2">init:{html.escape(repr(obj.channel_init_values))}</td></tr>\n')
+        if isinstance(obj, HlsNetNodeWriteBackedge):
+            obj: HlsNetNodeWriteBackedge
+            if obj.channelInitValues:
+                buff.append(f'            <tr><td colspan="2">init:{html.escape(repr(obj.channelInitValues))}</td></tr>\n')
 
         # if useInputConstRow:
         #    assert len(constInputRows) == len(input_rows)
@@ -213,7 +213,7 @@ class HwtHlsNetlistToGraphwiz():
         return self.graph.to_string()
 
 
-class HlsNetlistPassDumpToDot(HlsNetlistPass):
+class HlsNetlistPassDumpNodesDot(HlsNetlistPass):
 
     def __init__(self, outStreamGetter: OutputStreamGetter):
         self.outStreamGetter = outStreamGetter
@@ -233,10 +233,10 @@ class HlsNetlistPassDumpToDot(HlsNetlistPass):
                 out.close()
 
 
-class HlsNetlistPassDumpIoClustersToDot(HlsNetlistPassDumpToDot):
+class HlsNetlistPassDumpIoClustersDot(HlsNetlistPassDumpNodesDot):
 
     def __init__(self, outStreamGetter:OutputStreamGetter):
-        HlsNetlistPassDumpToDot.__init__(self, outStreamGetter)
+        HlsNetlistPassDumpNodesDot.__init__(self, outStreamGetter)
         self._edgeFilterFn = self._edgeFilter
 
     def _edgeFilter(self, src: HlsNetNodeOut, dst: HlsNetNodeOut):
