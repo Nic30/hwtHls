@@ -46,7 +46,7 @@ class DebugTracer():
                 out.write(f"<{node._id}>")
             out.write(":\n")
             self._labelPrinted[i] = True
-            
+
     def __enter__(self):
         out = self._out
         if out is not None:
