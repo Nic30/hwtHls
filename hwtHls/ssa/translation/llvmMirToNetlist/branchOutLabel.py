@@ -3,7 +3,7 @@ from hwtHls.llvm.llvmIr import MachineBasicBlock
 
 class BranchOutLabel():
     """
-    A label used in :class:`MirToHwtHlsNetlistOpCache` as a key for value which is 1 if the control is passed from src to dst.
+    A label used in :class:`MirToHwtHlsNetlistValueCache` as a key for value which is 1 if the control is passed from src to dst.
     """
 
     def __init__(self, dst: MachineBasicBlock):
@@ -14,3 +14,6 @@ class BranchOutLabel():
 
     def __eq__(self, other):
         return type(self) is type(other) and self.dst == other.dst
+
+    def __repr__(self):
+        return f"<{self.__class__.__name__:s} to bb{self.dst.getNumber()}>"

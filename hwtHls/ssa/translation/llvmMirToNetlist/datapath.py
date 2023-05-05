@@ -1,4 +1,4 @@
-from typing import Set, Tuple, Dict, List
+from typing import Tuple, Dict, List, Set
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.hdl.operatorDefs import AllOps
@@ -9,17 +9,20 @@ from hwtHls.frontend.ast.statementsRead import HlsRead
 from hwtHls.frontend.ast.statementsWrite import HlsWrite
 from hwtHls.llvm.llvmIr import MachineRegisterInfo, MachineFunction, MachineBasicBlock, Register, \
     MachineInstr, MachineOperand, CmpInst, TargetOpcode
+from hwtHls.netlist.analysis.blockSyncType import HlsNetlistAnalysisPassBlockSyncType
 from hwtHls.netlist.analysis.dataThreadsForBlocks import HlsNetlistAnalysisPassDataThreadsForBlocks
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
-from hwtHls.netlist.nodes.orderable import HVoidOrdering
-from hwtHls.netlist.nodes.ports import HlsNetNodeOutLazy, link_hls_nodes, \
-    HlsNetNodeOut
+from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge
+from hwtHls.netlist.nodes.orderable import HVoidData
+from hwtHls.netlist.nodes.ports import link_hls_nodes, HlsNetNodeOut, \
+    HlsNetNodeOutLazy
+from hwtHls.ssa.translation.llvmMirToNetlist.branchOutLabel import BranchOutLabel
 from hwtHls.ssa.translation.llvmMirToNetlist.lowLevel import HlsNetlistAnalysisPassMirToNetlistLowLevel
-from hwtHls.ssa.translation.llvmMirToNetlist.opCache import MirToHwtHlsNetlistOpCache
-from hwtHls.ssa.translation.llvmMirToNetlist.utils import MachineBasicBlockSyncContainer, \
-    LiveInMuxMeta
+from hwtHls.ssa.translation.llvmMirToNetlist.machineEdgeMeta import MachineEdgeMeta, MACHINE_EDGE_TYPE
+from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
+from hwtHls.ssa.translation.llvmMirToNetlist.utils import LiveInMuxMeta
 
 BlockLiveInMuxSyncDict = Dict[Tuple[MachineBasicBlock, MachineBasicBlock, Register], HlsNetNodeExplicitSync]
 
@@ -35,18 +38,24 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
         Translate all non control instructions which are entirely in some block.
         (Excluding connections between blocks)
         """
-        valCache: MirToHwtHlsNetlistOpCache = self.valCache
-        netlist: HlsNetlistCtx = self.netlist
+        HlsNetlistAnalysisPassBlockSyncType.constructBlockMeta(mf, self.netlist, self.valCache, self.blockSync)
+        valCache: MirToHwtHlsNetlistValueCache = self.valCache
         builder: HlsNetlistBuilder = self.builder
         MRI = mf.getRegInfo()
         for mb in mf:
             mb: MachineBasicBlock
-            mbSync = MachineBasicBlockSyncContainer(
-                mb,
-                HlsNetNodeOutLazy(netlist, [], valCache, BIT),
-                HlsNetNodeOutLazy(netlist, [], valCache, HVoidOrdering))
+            mbSync = self.blockSync[mb]
 
-            self.blockSync[mb] = mbSync
+            # construct lazy output for liveIns in advance to assert that we have lazy input to replace later
+            # with a liveIn mux
+            seenLiveIns: Set[Register] = set()
+            for pred in mb.predecessors():
+                for liveIn in sorted(self.liveness[pred][mb], key=lambda li: li.virtRegIndex()):
+                    if self._regIsValidLiveIn(MRI, liveIn) and liveIn not in seenLiveIns:
+                        dtype = Bits(self.registerTypes[liveIn])
+                        valCache.get(mb, liveIn, dtype)
+                        seenLiveIns.add(liveIn)
+
             for instr in mb:
                 instr: MachineInstr
                 dst = None
@@ -194,103 +203,150 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                 else:
                     raise NotImplementedError(instr)
 
+    def _constructLiveInMuxesFromMeta(self,
+                                      mb: MachineBasicBlock,
+                                      liveInOrdered: List[Register],
+                                      liveIns: Dict[Register, List[LiveInMuxMeta]],
+                                      ):
+        builder: HlsNetlistBuilder = self.builder
+        valCache: MirToHwtHlsNetlistValueCache = self.valCache
+
+        predCnt = mb.pred_size()
+        for liveIn in liveInOrdered:
+            liveIn: Register
+            cases = liveIns[liveIn].values
+            assert cases, ("MUX for liveIn has to have some cases (even if it is undef)", liveIn)
+            if predCnt == 1:
+                # this mux is just copy, no need to create actual HlsNetNodeMux
+                assert len(cases) == 1, ("mb", mb.getNumber(), "liveIn", liveIn.virtRegIndex(), cases)
+                v, _ = cases[0]
+                if isinstance(v, HlsNetNodeOutLazy):
+                    v = v.getLatestReplacement()
+            else:
+                assert len(cases) > 1, ("mb", mb.getNumber(), "liveIn", liveIn.virtRegIndex(), cases)
+                dtype = Bits(self.registerTypes[liveIn])
+                _operands = []
+                for last, (src, cond) in iter_with_last(cases):
+                    if isinstance(cond, HlsNetNodeOutLazy):
+                        cond = cond.getLatestReplacement()
+                    if isinstance(src, HlsNetNodeOutLazy):
+                        src = src.getLatestReplacement()
+
+                    _operands.append(src)
+                    if not last:
+                        # last case must be always satisfied because the block must have been entered somehow
+                        _operands.append(cond)
+                name = f"bb{mb.getNumber():d}_phi_r{liveIn.virtRegIndex():d}"
+                v = builder.buildMux(dtype, tuple(_operands), name=name)
+
+            valCache.add(mb, liveIn, v, False)
+
+        for predMb in mb.predecessors():
+            predMbSync = self.blockSync[predMb]
+            sucMb = mb
+            edgeMeta = self.edgeMeta[(predMb, sucMb)]
+            if predMbSync.needsControl and edgeMeta.reuseDataAsControl is None:
+                # construct channel for control
+                v = None
+                if edgeMeta.etype == MACHINE_EDGE_TYPE.BACKWARD:
+                    v = self.builder.buildConst(HVoidData.from_py(None))
+                    v = self._constructBackedgeBuffer("c", predMb, sucMb, (predMb, sucMb), v, isControl=True)
+                    wn = v.obj.associatedWrite
+
+                elif edgeMeta.etype == MACHINE_EDGE_TYPE.FORWARD:
+                    name = f"bb{predMb.getNumber()}_to_bb{sucMb.getNumber()}_c"
+                    v = self.builder.buildConst(HVoidData.from_py(None))
+                    wn, rn = HlsNetNodeWriteForwardedge.createPredSucPair(self.netlist, name, HVoidData)
+                    link_hls_nodes(v, wn._inputs[0])
+                    v = rn._outputs[0]
+
+                if v is not None:
+                    edgeMeta.buffers.append(((predMb, sucMb), v))
+
     def constructLiveInMuxes(self, mf: MachineFunction) -> BlockLiveInMuxSyncDict:
         """
         For each block for each live in register create a MUX which will select value of register for this block.
         (Or just propagate value from predecessor if there is just a single one)
         If the value comes from backedge create also a backedge buffer for it.
         """
-        valCache: MirToHwtHlsNetlistOpCache = self.valCache
+        valCache: MirToHwtHlsNetlistValueCache = self.valCache
         netlist: HlsNetlistCtx = self.netlist
         blockLiveInMuxInputSync: BlockLiveInMuxSyncDict = {}
-        builder: HlsNetlistBuilder = self.builder
-        backedges: Set[Tuple[MachineBasicBlock, MachineBasicBlock]] = self.backedges
         liveness = self.liveness
-        # globalValues = set()
-        # firstBlock = True
+
+        # list of liveIn variables is used to process them in deterministic order
+        liveInsForBlock: Dict[MachineBasicBlock,  # block where the liveInMux is constructed
+                              Tuple[List[Register], Dict[Register, LiveInMuxMeta]]] = {}
         MRI = mf.getRegInfo()
         for mb in mf:
-            mb: MachineBasicBlock
+            liveInsForBlock[mb] = ([], {})
+
+        for predMb in mf:
+            predMb: MachineBasicBlock
             # Construct block input MUXes.
             # the liveIns are not required to be same because in some cases
             # the libeIn is used only by MUX input for a specific predecessor
             # First we collect all inputs for all variant then we build MUX.
+            predLiveness = liveness[predMb]
+            for sucMb in predMb.successors():
+                sucMb: MachineBasicBlock
+                edgeMeta: MachineEdgeMeta = self.edgeMeta[(predMb, sucMb)]
+                liveInOrdered, liveIns = liveInsForBlock[sucMb]
+                liveInOrdered: List[Register]
+                liveIns: Dict[Register, List[LiveInMuxMeta]]
 
-            # Mark all inputs from predec as not required and stalled while we do not have sync token ready.
-            # Mark all inputs from reenter as not required and stalled while we have a sync token ready.
-            # if firstBlock:
-            #    for instr in mb:
-            #        if instr.getOpcode() == TargetOpcode.G_GLOBAL_VALUE:
-            #            globalValues.add(instr.getOperand(0).getReg())
-            mbSync: MachineBasicBlockSyncContainer = self.blockSync[mb]
-            loop = self.loops.getLoopFor(mb)
-            liveInOrdered = []  # list of liveIn variables so we process them in deterministic order
-            liveIns: Dict[Register, List[LiveInMuxMeta]] = {}  # liveIn -> List[Tuple[value, condition]]
-            for pred in mb.predecessors():
-                pred: MachineBasicBlock
-                isBackedge = (pred, mb) in backedges
-                for liveIn in liveness[pred][mb]:
+                for liveIn in predLiveness[sucMb]:
                     liveIn: Register
                     if not self._regIsValidLiveIn(MRI, liveIn):
                         continue
 
-                    meta = liveIns.get(liveIn, None)
-                    if meta is None:
+                    muxMeta = liveIns.get(liveIn, None)
+                    if muxMeta is None:
                         # we step upon a new liveIn variable, we create a list for its values
                         liveInOrdered.append(liveIn)
-                        meta = liveIns[liveIn] = LiveInMuxMeta()
+                        muxMeta = liveIns[liveIn] = LiveInMuxMeta()
 
-                    meta: LiveInMuxMeta
+                    muxMeta: LiveInMuxMeta
                     dtype = Bits(self.registerTypes[liveIn])
-                    v = valCache.get(pred, liveIn, dtype)
-                    if isBackedge:
+                    v = valCache.get(predMb, liveIn, dtype)
+
+                    wn = None
+                    if edgeMeta.etype == MACHINE_EDGE_TYPE.BACKWARD:
                         name = f"r{liveIn.virtRegIndex():d}"
-                        v = self._constructBackedgeBuffer(name, pred, mb, (pred, liveIn), v)
-                        predBlockEn = self.blockSync[pred].blockEn
-                        wn = v.obj.associated_write
-                        self._addExtraCond(wn, 1, predBlockEn)
-                        self._addSkipWhen_n(wn, 1, predBlockEn)
-                        mbSync.backedgeBuffers.append((liveIn, pred, v))
+                        v = self._constructBackedgeBuffer(name, predMb, sucMb, (predMb, liveIn), v)
+                        blockLiveInMuxInputSync[(predMb, sucMb, liveIn)] = v.obj
+                        wn = v.obj.associatedWrite
+                        edgeMeta.buffers.append((liveIn, v))
 
-                    c = valCache.get(mb, pred, BIT)
-                    if loop:
-                        name = f"bb{pred.getNumber()}_to_bb{mb.getNumber()}_r{liveIn.virtRegIndex():d}"
-                        es = HlsNetNodeExplicitSync(netlist, dtype, name=name)
-                        blockLiveInMuxInputSync[(pred, mb, liveIn)] = es
-                        self.nodes.append(es)
-                        link_hls_nodes(v, es._inputs[0])
-                        v = es._outputs[0]
+                    elif edgeMeta.etype == MACHINE_EDGE_TYPE.FORWARD:
+                        # rstPredeccessor are not resolve yet we generate this read-write pair but we may
+                        # remove it later when rstPredeccessor extraction is possible
+                        name = f"bb{predMb.getNumber()}_to_bb{sucMb.getNumber()}_r{liveIn.virtRegIndex():d}"
+                        wn, rn = HlsNetNodeWriteForwardedge.createPredSucPair(netlist, name, dtype)
+                        blockLiveInMuxInputSync[(predMb, sucMb, liveIn)] = rn
+                        link_hls_nodes(v, wn._inputs[0])
+                        # predMbSync.addOrderedNode(wn, atEnd=True)
+                        v = rn._outputs[0]
+                        edgeMeta.buffers.append((liveIn, v))
 
-                    meta.values.append((v, c))
+                    if wn is not None:
+                        # write to channel only if the control flow will mobe to mb
+                        brEn = valCache.get(predMb, BranchOutLabel(sucMb), BIT)
+                        self._addExtraCond(wn, brEn, None)
+                        self._addSkipWhen_n(wn, brEn, None)
 
-            predCnt = mb.pred_size()
-            for liveIn in liveInOrdered:
-                liveIn: Register
-                cases = liveIns[liveIn].values
-                assert cases, ("MUX for liveIn has to have some cases (even if it is undef)", liveIn)
-                if predCnt == 1:
-                    assert len(cases) == 1
-                    v, _ = cases[0]
-                else:
-                    dtype = Bits(self.registerTypes[liveIn])
-                    _operands = []
-                    for last, (src, cond) in iter_with_last(cases):
-                        _operands.append(src)
-                        if not last:
-                            # last case must be always satisfied because the block must have been entered somehow
-                            _operands.append(cond)
-                    name = f"phi_bb{mb.getNumber():d}_r{liveIn.virtRegIndex():d}"
-                    v = builder.buildMux(dtype, tuple(_operands))
-                    v.obj.name = name
+                    c = valCache.get(sucMb, predMb, BIT)
+                    muxMeta.values.append((v, c))
 
-                valCache.add(mb, liveIn, v, False)
+        for mb in mf:
+            liveInsOrdered, liveIns = liveInsForBlock[mb]
+            self._constructLiveInMuxesFromMeta(mb, liveInsOrdered, liveIns)
 
         return blockLiveInMuxInputSync
 
     def _regIsValidLiveIn(self, MRI: MachineRegisterInfo, liveIn: Register):
-        MRI = self.mf.getRegInfo()
         if liveIn in self.regToIo:
-            return False  # we will use interface not the value of address where it is mapped
+            return False  # we will use interface not the value of address where it is mappend
         if MRI.def_empty(liveIn):
             return False  # this is just form of undefined value (which is represented as constant)
 
@@ -299,9 +355,9 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
             return False  # this is a pointer to a local memory which exists globaly
         return True
 
-    def updateThreadsOnPhiMuxes(self, threads: HlsNetlistAnalysisPassDataThreadsForBlocks):
+    def updateThreadsOnLiveInMuxes(self, threads: HlsNetlistAnalysisPassDataThreadsForBlocks):
         """
-        After we instantiated MUXes for liveIns we need to update threads as the are merged now.
+        Merge threads in  HlsNetlistAnalysisPassDataThreadsForBlocks to be as if the multiplexer on block inputs were constructed.
         """
         liveness = self.liveness
         MRI = self.mf.getRegInfo()
@@ -318,5 +374,6 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                     dtype = Bits(self.registerTypes[liveIn])
                     srcThread = self._getThreadOfReg(threads, pred, liveIn, dtype)
                     dstThread = self._getThreadOfReg(threads, mb, liveIn, dtype)
-                    threads.mergeThreads(srcThread, dstThread)
+                    if srcThread is not None and dstThread is not None and srcThread is not dstThread:
+                        threads.mergeThreads(srcThread, dstThread)
 

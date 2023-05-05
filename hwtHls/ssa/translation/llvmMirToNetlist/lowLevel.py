@@ -1,27 +1,21 @@
-from typing import Set, Tuple, Dict, List, Union, Type, Optional
+from typing import Set, Tuple, Dict, List, Union, Optional
 
 from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.types.array import HArray
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.hdlType import HdlType
-from hwt.interfaces.hsStructIntf import HsStructIntf
-from hwt.interfaces.std import HandshakeSync
 from hwt.synthesizer.interface import Interface
-from hwt.synthesizer.interfaceLevel.unitImplHelpers import Interface_without_registration
-from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
-from hwt.synthesizer.unit import Unit
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, \
     TargetOpcode, CmpInst, ConstantInt, TypeToIntegerType, TypeToArrayType, IntegerType, Type as LlvmType, ArrayType, \
     MachineLoopInfo, GlobalValue, ValueToConstantArray, ValueToConstantInt, ValueToConstantDataArray, ConstantArray
-from hwtHls.netlist.analysis.dataThreadsForBlocks import HlsNetlistAnalysisPassDataThreadsForBlocks
+from hwtHls.netlist.analysis.dataThreadsForBlocks import HlsNetlistAnalysisPassDataThreadsForBlocks, \
+    DataFlowThread
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeReadBackwardEdge, \
-    HlsNetNodeWriteBackwardEdge, HlsNetNodeReadControlBackwardEdge, \
-    HlsNetNodeWriteControlBackwardEdge
-from hwtHls.netlist.nodes.const import HlsNetNodeConst
+from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
+    HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.orderable import HdlType_isVoid
@@ -30,9 +24,10 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.observableList import ObservableList
-from hwtHls.ssa.translation.llvmMirToNetlist.opCache import MirToHwtHlsNetlistOpCache
+from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
+from hwtHls.ssa.translation.llvmMirToNetlist.machineEdgeMeta import MachineEdgeMeta, MachineEdge
+from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
 from hwtHls.ssa.translation.llvmMirToNetlist.resetValueExtract import ResetValueExtractor
-from hwtHls.ssa.translation.llvmMirToNetlist.utils import MachineBasicBlockSyncContainer
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 
 
@@ -81,10 +76,11 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         netlist = self.netlist
         self.builder = HlsNetlistBuilder(netlist)
         netlist._setBuilder(self.builder)
-        self.valCache = MirToHwtHlsNetlistOpCache(netlist)
+        self.valCache = MirToHwtHlsNetlistValueCache(netlist)
         aargToArgIndex = {a: i for (i, a) in enumerate(tr.llvm.main.args())}
-        self._argIToIo = {aargToArgIndex[a]: io for (io, a) in tr.ioToVar.items()}
-        self.blockSync: Dict[MachineBasicBlock, MachineBasicBlockSyncContainer] = {}
+        self._argIToIo = {aargToArgIndex[a]: io for (io, (a, _, _)) in tr.ioToVar.items()}
+        self.blockSync: Dict[MachineBasicBlock, MachineBasicBlockMeta] = {}
+        self.edgeMeta: Dict[MachineEdge, MachineEdgeMeta] = {}
         self.nodes: ObservableList[HlsNetNode] = netlist.nodes
         self.inputs: ObservableList[HlsNetNodeRead] = netlist.inputs
         self.outputs: ObservableList[HlsNetNodeWrite] = netlist.outputs
@@ -104,47 +100,48 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
                                  val: HlsNetNodeOutAny,
                                  isControl: bool=False) -> HlsNetNodeOut:
         # we need to insert backedge buffer to get block en flag from pred to mb
-        namePrefix = f"{name:s}_bb{srcBlock.getNumber():d}_to_bb{dstBlock.getNumber():d}"
-        _, r_from_in = self._addHsIntfAndRead(
-            f"{namePrefix:s}_out",
+        namePrefix = f"bb{srcBlock.getNumber():d}_to_bb{dstBlock.getNumber():d}_{name:s}"
+        rFromIn = HlsNetNodeReadBackedge(
+            self.netlist,
             val._dtype,
-            HlsNetNodeReadControlBackwardEdge if isControl else HlsNetNodeReadBackwardEdge)
-        r_from_in.obj.name = namePrefix
+            name=f"{namePrefix:s}_dst",
+        )
+        self.inputs.append(rFromIn)
+        rFromIn = rFromIn._outputs[0]
         if isControl and HdlType_isVoid(val._dtype):
-            r_from_in.obj.setNonBlocking()
-            r_from_in = r_from_in.obj.getValidNB()
+            rFromIn.obj.setNonBlocking()
+            rFromIn = rFromIn.obj.getValidNB()
             # add as a src to all dependencies of orderingIn where this read exists
-            dstBlockSync:MachineBasicBlockSyncContainer = self.blockSync[dstBlock]
+            dstBlockSync: MachineBasicBlockMeta = self.blockSync[dstBlock]
             orderingIn = dstBlockSync.orderingIn
             assert isinstance(orderingIn, HlsNetNodeOutLazy), orderingIn
-            orderingIn : HlsNetNodeOutLazy
+            orderingIn: HlsNetNodeOutLazy
             if orderingIn.dependent_inputs:
-                oo = r_from_in.obj.getOrderingOutPort()
+                oo = rFromIn.obj.getOrderingOutPort()
                 for user in orderingIn.dependent_inputs:
                     userObj = user.obj
                     userObj: HlsNetNodeExplicitSync
                     link_hls_nodes(oo, userObj._addInput("orderingIn"))
 
-
         if cacheKey is not None:
-            self.valCache.add(dstBlock, cacheKey, r_from_in, False)
+            self.valCache.add(dstBlock, cacheKey, rFromIn, False)
 
-        _, w_to_out = self._addHsIntfAndWrite(
-            f"{namePrefix:s}_in", val._dtype,
-            val,
-            HlsNetNodeWriteControlBackwardEdge if isControl else HlsNetNodeWriteBackwardEdge)
+        wToOut = HlsNetNodeWriteBackedge(
+            self.netlist,
+            name=f"{namePrefix:s}_src")
+        link_hls_nodes(val, wToOut._inputs[0])
+        self.outputs.append(wToOut)
 
-        w_to_out.name = namePrefix
-        w_to_out.associate_read(r_from_in.obj)
-        w_to_out.buff_name = f"{namePrefix:s}_backedge_buff"
+        wToOut.associateRead(rFromIn.obj)
+        wToOut.buffName = f"{namePrefix:s}_backedge_buff"
         srcMbSync = self.blockSync[srcBlock]
-        srcMbSync.addOrderedNodeForControlWrite(w_to_out, self.blockSync[dstBlock])
+        srcMbSync.addOrderedNodeForControlWrite(wToOut, self.blockSync[dstBlock])
 
         if cacheKey is not None:
-            # because we need to use latest value not the input value which we just added (r_from_in)
-            return self.valCache.get(dstBlock, cacheKey, r_from_in._dtype)
+            # because we need to use latest value not the input value which we just added (rFromIn)
+            return self.valCache.get(dstBlock, cacheKey, rFromIn._dtype)
 
-        return r_from_in
+        return rFromIn
 
     def _translateType(self, t: LlvmType):
         it = TypeToIntegerType(t)
@@ -219,55 +216,20 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
     def _translateMBB(self, block: MachineBasicBlock):
         return self.valCache.get(block, block, BIT)
 
-    def _addHsIntfAndRead(self,
-                          suggested_name: str, dtype:HdlType,
-                          read_cls:Type[HlsNetNodeRead]=HlsNetNodeRead) -> Tuple[Interface, HlsNetNodeOut]:
-        """
-        Instantiate HlsNetNodeRead operation for this specific interface.
-        """
-        intf = self._addHsInterfaceForHdlType(dtype, suggested_name)
-        read: HlsNetNodeRead = read_cls(self.netlist, intf)
-        self.inputs.append(read)
-        return intf, read._outputs[0]
-
-    def _addHsIntfAndWrite(self, suggested_name: str, dtype:HdlType,
-                           val: Union[HlsNetNodeOut, HlsNetNodeOutLazy],
-                           write_cls:Type[HlsNetNodeWrite]=HlsNetNodeWrite) -> HlsNetNodeWrite:
-        """
-        Instantiate HlsNetNodeWrite operation for this specific interface.
-        """
-        intf = self._addHsInterfaceForHdlType(dtype, suggested_name)
-        write = write_cls(self.netlist, NOT_SPECIFIED, intf)
-        link_hls_nodes(val, write._inputs[0])
-        self.outputs.append(write)
-        return intf, write
-
-    def _addHsInterfaceForHdlType(self, dtype: HdlType, suggested_name: str) -> Interface:
-        """
-        Spot interface instance in parent unit.
-        """
-        if HdlType_isVoid(dtype):
-            intf = HandshakeSync()
-        else:
-            intf = HsStructIntf()
-            intf.T = dtype
-        u:Unit = self.netlist.parentUnit
-        return Interface_without_registration(u, intf, f"hls_{suggested_name:s}")
-
     def _addExtraCond(self, n: Union[HlsNetNodeRead, HlsNetNodeWrite],
                       cond: Union[int, HlsNetNodeOutAny],
-                      blockEn: HlsNetNodeOutLazy):
+                      blockEn: Optional[HlsNetNodeOutAny]):
         if isinstance(cond, int):
             assert cond == 1, cond
             if blockEn is None:
                 return
             cond = blockEn
-        else:
+        elif blockEn is not None:
             cond = self.builder.buildOp(AllOps.AND, BIT, blockEn, cond)
 
         n.addControlSerialExtraCond(cond)
 
-    def _addSkipWhen_n(self, n: Union[HlsNetNodeRead, HlsNetNodeWrite], cond_n: Union[int, HlsNetNodeOutAny], blockEn: HlsNetNodeOutLazy):
+    def _addSkipWhen_n(self, n: Union[HlsNetNodeRead, HlsNetNodeWrite], cond_n: Union[int, HlsNetNodeOutAny], blockEn: Optional[HlsNetNodeOutAny]):
         """
         add skipWhen condition to read or write, the condition itself is negated
         """
@@ -282,22 +244,23 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
             cond = b.buildOp(AllOps.NOT, BIT, cond_n)
             if blockEn_n is not None:
                 cond = b.buildOp(AllOps.OR, BIT, blockEn_n, cond)
+
         n.addControlSerialSkipWhen(cond)
 
     def _replaceInputDriverWithConst1b(self, i: HlsNetNodeIn, threads: HlsNetlistAnalysisPassDataThreadsForBlocks):
         return ResetValueExtractor._replaceInputDriverWithConst1b(self, i, threads)
 
-    def _getThreadOfReg(self, threads: HlsNetlistAnalysisPassDataThreadsForBlocks, mb: MachineBasicBlock, reg: Register, dtype: HdlType):
+    def _getThreadOfReg(self, threads: HlsNetlistAnalysisPassDataThreadsForBlocks,
+                        mb: MachineBasicBlock, reg: Register, dtype: HdlType) -> Optional[DataFlowThread]:
         """
         Get thread where the register is used.
+        HVoidOrdering outputs and lazy outputs are ignored and for them this function returns None.
         """
         nodeOut: HlsNetNodeOutAny = self.valCache.get(mb, reg, dtype)
-        try:
-            return threads.threadPerNode[nodeOut if isinstance(nodeOut, HlsNetNodeOutLazy) else nodeOut.obj]
-        except KeyError:
-            pass
-        assert isinstance(nodeOut, HlsNetNodeOut) and isinstance(nodeOut.obj, HlsNetNodeConst), nodeOut
-        t = {nodeOut.obj}
-        threads.threadPerNode[nodeOut.obj] = t
+        obj = nodeOut if isinstance(nodeOut, HlsNetNodeOutLazy) else nodeOut.obj
+        t, newlyAdded = threads.searchForThreads(obj)
+        if newlyAdded:
+            threads.threadsPerBlock[mb].append(t)
+            threads.threadIdToBlock[id(t)] = [mb]
         return t
 
