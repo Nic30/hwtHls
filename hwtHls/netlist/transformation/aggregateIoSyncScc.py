@@ -5,8 +5,8 @@ from hwtHls.netlist.clusterSearch import HlsNetlistClusterSearch
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.aggregatedIoSyncScc import HlsNetNodeIoSyncScc
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.netlist.observableList import ObservableList
+from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 
 
 class HlsNetlistPassAggregateIoSyncSccs(HlsNetlistPass):
@@ -24,7 +24,7 @@ class HlsNetlistPassAggregateIoSyncSccs(HlsNetlistPass):
             netlist.nodes.append(clusterNode)
             c.substituteWithNode(clusterNode)
             removedNodes.update(c.nodes)
-      
+
         netlist.nodes = ObservableList(n for n in netlist.nodes if n not in removedNodes)
         netlist.inputs = ObservableList(n for n in netlist.inputs if n not in removedNodes)
         netlist.outputs = ObservableList(n for n in netlist.outputs if n not in removedNodes)
