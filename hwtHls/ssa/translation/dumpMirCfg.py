@@ -12,11 +12,11 @@ def dumpMirCfgToDot(mf: MachineFunction):
     for i, b in  enumerate(mf):
         b: MachineBasicBlock
         color = "white"
-        name = f"bb.{i:d}.{b.getName().str():s}"
+        name = f"bb{i:d}.{b.getName().str():s}"
         blockNames[b] = name
         p = pydot.Node(name, fillcolor=color, style='filled')
         P.add_node(p)
- 
+
     for b in mf:
         b: MachineBasicBlock
         for suc in b.successors():
