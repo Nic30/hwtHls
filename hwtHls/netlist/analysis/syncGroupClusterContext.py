@@ -1,19 +1,22 @@
 from networkx.algorithms.components.strongly_connected import strongly_connected_components
 from networkx.classes.digraph import DiGraph
-from typing import List, Dict, Set, Tuple, Generator
+from typing import List, Dict, Set, Tuple, Generator, Union
 
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn
+from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
+from itertools import chain
 
-SyncGroupLabel = Tuple[HlsNetNodeExplicitSync, ...]
+HlsNetNodeAnySync = Union[HlsNetNodeExplicitSync, HlsNetNodeLoopStatus]
+SyncGroupLabel = Tuple[HlsNetNodeAnySync, ...]
 
 
 class SyncGroupClusterContext():
 
-    def __init__(self, syncOfNode: Dict[HlsNetNode, Set[HlsNetNodeExplicitSync]]):
+    def __init__(self, syncOfNode: Dict[HlsNetNode, Set[HlsNetNodeAnySync]]):
         self.syncOfNode = syncOfNode
 
     def resolveSyncGroups(self):
@@ -40,22 +43,22 @@ class SyncGroupClusterContext():
         allNodes = g.nodes
         for n0 in nodes:
             for dep in n0.dependsOn:
-                n1 = dep.obj 
+                n1 = dep.obj
                 if n1 in allNodes:
                     g.add_edge(n1, n0)
                 else:
                     yield n1
-            
+
             for uses0 in n0.usedBy:
                 for u in uses0:
                     u: HlsNetNodeIn
-                    n1 = u.obj  
+                    n1 = u.obj
                     if n1 not in allNodes:
                         # found something out of this cluster, yield for external decision if copy should continue there
                         yield n1
                     else:
                         g.add_edge(n0, n1)
-    
+
     def _copySyncGroupToDiGraphFlodding(self,
                                         syncGroupLabel: SyncGroupLabel,
                                         syncGroupNodes: UniqList[HlsNetNode],
@@ -68,7 +71,7 @@ class SyncGroupClusterContext():
         """
         g = DiGraph()
         tiedGroups: List[SyncGroupLabel] = []
-        
+
         groupsToCollect = [(syncGroupLabel, syncGroupNodes)]
         while groupsToCollect:
             label, nodes = groupsToCollect.pop()
@@ -106,22 +109,34 @@ class SyncGroupClusterContext():
             resolvedSyncGroups.update(tiedGroups)
             # once all sync group clusters are resolved we connect all explicit sync with all reachable
             # reads so we create a cycle in the graph  whenever there is a read connected to sync transitively
-        
+
             # add edge from sync back to read/write to mark they are in same SCC
             for op in tuple(g.nodes):
                 if isinstance(op, HlsNetNodeExplicitSync):
                     op: HlsNetNodeExplicitSync
-        
+
                     for extraSync in syncGroupOfNode[op]:
                         if extraSync is op:
                             # skip because this edge is not necessary because 1 node is SCC by def.
                             continue
 
                         g.add_edge(extraSync, op)
-            
+
                     if op._associatedReadSync is not None:
                         g.add_edge(op._associatedReadSync, op)
-        
+
+                elif isinstance(op, HlsNetNodeLoopStatus):
+                    op: HlsNetNodeLoopStatus
+                    for extraSync in syncGroupOfNode[op]:
+                        if extraSync is op:
+                            # skip because this edge is not necessary because 1 node is SCC by def.
+                            continue
+
+                        g.add_edge(extraSync, op)
+                    for e in chain(op.fromEnter, op.fromReenter):
+                        # add edge to enter reads so they are in same SCC
+                        g.add_edge(e, op)
+
             # build a cycle on all IO which is using same sync
             # for users in usersOfSync.values():
             #    if len(users) > 1:
@@ -133,7 +148,7 @@ class SyncGroupClusterContext():
             #            lastUser = u
             #
             #        g.add_edge(lastUser, firstUser)
-                
+
             for ioScc in strongly_connected_components(g):
                 ioScc: Set[HlsNetNode]
                 # if it is worth extracting
@@ -146,7 +161,7 @@ class SyncGroupClusterContext():
                             if isinstance(dep.obj, HlsNetNodeConst) and len(dep.obj.usedBy[0]) == 1:
                                 # assert len(dep.obj.usedBy[0]) == 1, dep.obj.usedBy
                                 usedConstants.append(dep.obj)
-    
+
                     _ioScc.extend(usedConstants)
                     yield _ioScc
 

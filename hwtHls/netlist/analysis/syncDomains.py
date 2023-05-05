@@ -4,9 +4,10 @@ from typing import List, Dict, Set, Tuple
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.analysis.syncGroupClusterContext import SyncGroupLabel, \
-    SyncGroupClusterContext
+    SyncGroupClusterContext, HlsNetNodeAnySync
 from hwtHls.netlist.nodes.delay import HlsNetNodeDelayClkTick
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.orderable import HVoidOrdering, HVoidExternData
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn
@@ -20,7 +21,7 @@ class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
         must be scheduled in a single clock cycle in order to assert that the read is not performed speculatively
         when it is optional. A speculative read of data in circuits which explicitly specify that the read should
         not be performed may lead to a deadlock.
-    
+
     The reasons why HlsNetNodeExplicitSync appears in the circuit:
     * Implementation of optional/non-blocking read.
       * Because of this individual circuit pats may run independently and do require independent control.
@@ -30,8 +31,8 @@ class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
       * Because of this it is likely that there are multiple sync nodes along the data path.
         Not everything needs to be scheduled in a single clock and data can potentially stall or be dropped anywhere along the path.
         This implies that if this is a case data has to have some validity flag.
-    
-    
+
+
     Rules for extraction of sync for pipeline
     * In every pipeline which is not fully initialized by reset there must be set of validity flags
       for each stage in order to resolve if the the stage contains data or not.
@@ -39,13 +40,13 @@ class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
     * From flags of the sync it can be resolved if the data may be dropped or read non-blocking (= has skipWhen flag).
       If there is sync a sync all predecessors must be in separate pipeline so it runs asynchronously from rest of the pipeline
       and this sync must be an inter-element channel. However this is only required if predecessors of the sync can not fit in the same clock tick.
-      If they can the sync can be realized combinationally and there is no need for another asynchronous pipeline. 
+      If they can the sync can be realized combinationally and there is no need for another asynchronous pipeline.
 
     Rules for extraction of sync for FSM
     * Note that if some part of FSM should run asynchronously  it means that it must be a separate FSM.
     * Rules are similar as for pipeline however FSMs are always in a single state and communication between FSMs may be in multiple states.
       This alone creates a possibility for deadlock but there is yet another problem. If the FSM is cut it cancels register sharing inside FSM.
-      And all IO nodes specific to some IO channels needs to stay in a single FSM. This further complicates architecture. 
+      And all IO nodes specific to some IO channels needs to stay in a single FSM. This further complicates architecture.
 
     Explicit sync flag combinations (both flags are optional)
     ---------------------------------------------|
@@ -56,7 +57,7 @@ class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
     | 0          | 1         | skip read/peek    |
     | 1          | 1         | read non blocking |
     ----------------------------------------------
-    
+
     Other notes:
     * There is no real difference between explicit sync generated for loops or IO.
     * The sync is often tied with the data and often multiple IO channels are interacting with each other sync.
@@ -75,19 +76,19 @@ class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
         HlsNetlistAnalysisPass.__init__(self, netlist)
         self.ioSccs: List[UniqList[HlsNetNode]] = []
         # self.syncUses: Dict[HlsNetNodeRead, UniqList[HlsNetNodeExplicitSync]] = {}
-        self.syncOfNode: Dict[HlsNetNode, Set[HlsNetNodeExplicitSync]] = {}
+        self.syncOfNode: Dict[HlsNetNode, Set[HlsNetNodeAnySync]] = {}
         # self.interSyncDomainConnections: Set[Tuple[HlsNetNodeExplicitSync, HlsNetNodeExplicitSync]] = set()
         self.syncDomains: List[Tuple[SyncGroupLabel, UniqList[HlsNetNode]]] = []
-        
+
     @staticmethod
-    def _discoverSyncUsers(syncNode:HlsNetNodeExplicitSync, syncOfNode: Dict[HlsNetNode, Set[HlsNetNodeExplicitSync]]):
+    def _discoverSyncUsers(syncNode: HlsNetNodeAnySync, syncOfNode: Dict[HlsNetNode, Set[HlsNetNodeAnySync]]):
         """
         Discover all nodes which are directly data dependent on this sync, but are not a sync node
         This is a first step in discovering the reach of the sync node.
         """
         seen: Set[HlsNetNode] = set()
         toSearch: List[HlsNetNode] = [syncNode, ]
-        
+
         while toSearch:
             n0: HlsNetNode = toSearch.pop()
             if n0 in seen:
@@ -101,7 +102,7 @@ class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
                         continue
                     curSync.add(syncNode)
 
-                if n0 is not syncNode and isinstance(n0, HlsNetNodeExplicitSync):
+                if n0 is not syncNode and isinstance(n0, (HlsNetNodeExplicitSync, HlsNetNodeLoopStatus)):
                     # this is end of the search
                     # interSyncDomainConnections.add((syncNode, n0))
                     continue
@@ -115,18 +116,18 @@ class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
 
                         for u in uses:
                             u: HlsNetNodeIn
-                            n1 = u.obj  
+                            n1 = u.obj
                             if n1 not in seen:
                                 toSearch.append(n1)
 
-    def _discoverSyncSinkUsers(self, syncOfNode: Dict[HlsNetNode, Set[HlsNetNodeExplicitSync]]):
+    def _discoverSyncSinkUsers(self, syncOfNode: Dict[HlsNetNode, Set[HlsNetNodeAnySync]]):
         """
         For every dependency object which is not yet in any group assign it to a group of its sink
         """
         nodesWithSyncedSinkOnly: Set[HlsNetNode] = set(
             n
             for n in self.netlist.iterAllNodes()
-            if not syncOfNode[n] and not isinstance(n, HlsNetNodeExplicitSync))
+            if not syncOfNode[n] and not isinstance(n, (HlsNetNodeExplicitSync, HlsNetNodeLoopStatus)))
         # nodes must be detected in advance because this information is required when
         # some node is synchronized by multiple sinks
         for n in self.netlist.iterAllNodes():
@@ -138,12 +139,13 @@ class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
                     n0: HlsNetNode = toSearch.pop()
                     if n0 in seen:
                         continue
-    
+
                     if n0 is n:
                         updatePropagete = True
                     else:
                         # assert n0 in nodesWithSyncedSinkOnly, "Should be trivially satisfied because we are searching only such nodes"
-                        assert not isinstance(n0, HlsNetNodeExplicitSync), (n0, "This node should have been discovered previously and should not appear in nodes without sync")
+                        assert not isinstance(n0, (HlsNetNodeExplicitSync, HlsNetNodeLoopStatus)), (
+                            n0, "This node should have been discovered previously and should not appear in nodes without sync")
                         n0sync = syncOfNode[n0]
                         prevSyncLen = len(n0sync)
                         n0sync.update(sync)
@@ -152,17 +154,17 @@ class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
                     seen.add(n0)
                     if updatePropagete:
                         for dep in n0.dependsOn:
-                            t = dep._dtype 
+                            t = dep._dtype
                             if t is HVoidOrdering or t is HVoidExternData:
                                 continue
-                            depObj = dep.obj 
+                            depObj = dep.obj
                             if depObj not in nodesWithSyncedSinkOnly or depObj in seen:
                                 continue
                             toSearch.append(dep.obj)
 
-    def _discoverSyncCutsByClkOffset(self, allSyncs: List[HlsNetNodeExplicitSync],
+    def _discoverSyncCutsByClkOffset(self, allSyncs: List[HlsNetNodeAnySync],
                                      allDelays: List[HlsNetNodeDelayClkTick],
-                                     syncOfNode: Dict[HlsNetNode, Set[HlsNetNodeExplicitSync]]):
+                                     syncOfNode: Dict[HlsNetNode, Set[HlsNetNodeAnySync]]):
         """
         for every sync which takes more than 1 clock to complete cut off the group part after this node from rest of the group
         where this sync is
@@ -182,7 +184,7 @@ class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
                 seen: Set[HlsNetNode] = set()
                 # walk all nodes which are directly data dependent on this sync, but are a sync node
                 toSearch: List[HlsNetNode] = [syncNode, ]
-                
+
                 while toSearch:
                     n0: HlsNetNode = toSearch.pop()
                     if n0 in seen:
@@ -195,8 +197,8 @@ class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
                                 for discardedDepNode in n0Deps:
                                     sync.discard(discardedDepNode)
                                 sync.discard(syncNode)
-            
-                        if n0 is not syncNode and isinstance(n0, HlsNetNodeExplicitSync):
+
+                        if n0 is not syncNode and isinstance(n0, (HlsNetNodeExplicitSync, HlsNetNodeLoopStatus)):
                             # this is end of the search
                             # interSyncDomainConnections.add((syncNode, n0))
                             continue
@@ -206,13 +208,13 @@ class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
                             for uses0 in n0.usedBy:
                                 for u in uses0:
                                     u: HlsNetNodeIn
-                                    n1 = u.obj  
+                                    n1 = u.obj
                                     if n1 not in seen:
                                         toSearch.append(n1)
             else:
-                raise NotImplementedError("Remove just self from all successors")       
+                raise NotImplementedError("Remove just self from all successors")
 
-    def _addSelfToSyncOfSelf(self, allSyncs: List[HlsNetNodeExplicitSync], syncOfNode: Dict[HlsNetNode, Set[HlsNetNodeExplicitSync]]):
+    def _addSelfToSyncOfSelf(self, allSyncs: List[HlsNetNodeAnySync], syncOfNode: Dict[HlsNetNode, Set[HlsNetNodeAnySync]]):
         """
         Add each sync node to a sync of self.
         """
@@ -222,24 +224,24 @@ class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
             if sync is None:
                 sync = syncOfNode[syncNode] = set()
             sync.add(syncNode)
-    
+
     def _discoverSyncAssociationsDefToUse(self):
         """
         Collect all associations of sync nodes to all nodes.
-        Start search on HlsNetNodeExplicitSync instances and walk circuit in def to use direction
-        and stop on each HlsNetNodeExplicitSync instance.
-        
+        Start search on HlsNetNodeAnySync instances and walk circuit in def to use direction
+        and stop on each HlsNetNodeAnySync instance.
+
         If something with delay > 1 clk is discovered it is required to move all successors from this IO SCC.
         This must be also done transitively. If node with > 1 clk delay has some predecessors the nodes which does have bout this node and its predecessor
-        
+
         """
 
         syncOfNode = self.syncOfNode = {n: set() for n in self.netlist.iterAllNodes()}
-        allSyncs: List[HlsNetNodeExplicitSync] = []
+        allSyncs: List[HlsNetNodeAnySync] = []
         allDelays: List[HlsNetNodeDelayClkTick] = []
         # from every sync walk down (def->use) and discover which nodes are affected
         for syncNode in self.netlist.iterAllNodes():
-            if not isinstance(syncNode, HlsNetNodeExplicitSync):
+            if not isinstance(syncNode, (HlsNetNodeExplicitSync, HlsNetNodeLoopStatus)):
                 if isinstance(syncNode, HlsNetNodeDelayClkTick):
                     allDelays.append(syncNode)
                 continue
@@ -268,9 +270,9 @@ class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
         # The naive discovery algorithm for the sync associated to IO operation mapping has O(|nodes|*|edges|) time complexity.
         # Commonly the |nodes| > 10k and |edges| > 30K, that said the time complexity is prohibitively large.
         # The |HlsNetNodeExplicitSync| << |HlsNetNode| from this reason we start search at HlsNetNodeExplicitSync
-        # and walk only in the direction to a read (defs). 
-        
+        # and walk only in the direction to a read (defs).
+
         # :note: If the value for read is not in the dict it means that there is no extra sync for this read.
         self._discoverSyncAssociationsDefToUse()
         self._discoverSyncDomains()
-        
+
