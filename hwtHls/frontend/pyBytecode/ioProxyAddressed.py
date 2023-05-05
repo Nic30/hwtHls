@@ -1,8 +1,11 @@
+from typing import Union
+
 from hwt.hdl.types.array import HArray
 from hwt.synthesizer.interface import Interface
 from hwtHls.frontend.ast.statementsRead import HlsReadAddressed
 from hwtHls.frontend.ast.statementsWrite import HlsWriteAddressed
 from hwtHls.frontend.pyBytecode.indexExpansion import PyObjectHwSubscriptRef
+from hwtHls.io.portGroups import MultiPortGroup, BankedPortGroup
 
 
 class IoProxyAddressed():
@@ -12,7 +15,7 @@ class IoProxyAddressed():
     READ_CLS = HlsReadAddressed
     WRITE_CLS = HlsWriteAddressed
 
-    def __init__(self, hls: "HlsScope", interface: Interface, nativeType: HArray):
+    def __init__(self, hls: "HlsScope", interface: Union[Interface, MultiPortGroup, BankedPortGroup], nativeType: HArray):
         self.hls = hls
         self.interface = interface
         self.nativeType = nativeType
@@ -22,4 +25,4 @@ class IoProxyAddressed():
 
     def __setitem__(self, key, newvalue):
         raise AssertionError("This should never be called, instead a frontend should translate this operation")
-  
+
