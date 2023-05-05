@@ -12,7 +12,7 @@ from hwtHls.netlist.translation.dumpBlockSync import HlsNetlistPassDumpBlockSync
 from hwtHls.netlist.translation.dumpDataThreads import HlsNetlistPassDumpDataThreads
 from hwtHls.platform.platform import HlsDebugBundle
 from hwtHls.platform.virtual import VirtualHlsPlatform
-from hwtHls.ssa.analysis.blockSyncType import HlsNetlistAnalysisPassBlockSyncType
+from hwtHls.netlist.analysis.blockSyncType import HlsNetlistAnalysisPassBlockSyncType
 from hwtHls.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
 from hwtHls.ssa.translation.dumpMIR import SsaPassDumpMIR
 from hwtHls.ssa.translation.llvmMirToNetlist.datapath import BlockLiveInMuxSyncDict
@@ -60,18 +60,16 @@ class BaseTestPlatform(VirtualHlsPlatform):
         SsaPassDumpMIR(lambda name: (self.mir, False)).apply(hls, toSsa)
 
         toNetlist.translateDatapathInBlocks(mf, toSsa.ioNodeConstructors)
-        blockLiveInMuxInputSync: BlockLiveInMuxSyncDict = toNetlist.constructLiveInMuxes(mf)
-        # thread analysis must be done before we connect control, because once we do that
-        # everything will blend together
         threads = netlist.getAnalysis(HlsNetlistAnalysisPassDataThreadsForBlocks)
-        toNetlist.updateThreadsOnPhiMuxes(threads)
+        toNetlist.updateThreadsOnLiveInMuxes(threads)
         HlsNetlistPassDumpDataThreads(lambda name: (self.dataThreads, False)).apply(hls, netlist)
 
         netlist.getAnalysis(HlsNetlistAnalysisPassBlockSyncType)
         HlsNetlistPassDumpBlockSync(lambda name: (self.blockSync, False)).apply(hls, netlist)
 
+        blockLiveInMuxInputSync: BlockLiveInMuxSyncDict = toNetlist.constructLiveInMuxes(mf)
         toNetlist.extractRstValues(mf, threads)
-        toNetlist.resolveLoopHeaders(mf, blockLiveInMuxInputSync)
+        toNetlist.resolveLoopControl(mf, blockLiveInMuxInputSync)
         toNetlist.resolveBlockEn(mf, threads)
         HlsNetlistPassInjectVldMaskToSkipWhenConditions().apply(hls, netlist)
         toNetlist.netlist.invalidateAnalysis(HlsNetlistAnalysisPassDataThreadsForBlocks)  # because we modified the netlist
@@ -86,6 +84,7 @@ class BaseSsaTC(BaseSerializationTC):
     """
     :attention: you need to specify __FILE__ = __file__ on each subclass to resolve paths to files
     """
+    FRONTEND_ONLY = False
 
     def tearDown(self):
         self.rmSim()
@@ -107,7 +106,8 @@ class BaseSsaTC(BaseSerializationTC):
             name = unit.__class__.__name__
 
         self.assert_same_as_file(p.postPyOpt.getvalue(), os.path.join("data", name + ".0.postPyOpt.ll"))
-        self.assert_same_as_file(p.mir.getvalue(), os.path.join("data", name + ".1.mir.ll"))
-        self.assert_same_as_file(p.dataThreads.getvalue(), os.path.join("data", name + ".2.dataThreads.txt"))
-        self.assert_same_as_file(p.blockSync.getvalue(), os.path.join("data", name + ".3.blockSync.dot"))
+        if not self.FRONTEND_ONLY:
+            self.assert_same_as_file(p.mir.getvalue(), os.path.join("data", name + ".1.mir.ll"))
+            self.assert_same_as_file(p.dataThreads.getvalue(), os.path.join("data", name + ".2.dataThreads.txt"))
+            self.assert_same_as_file(p.blockSync.getvalue(), os.path.join("data", name + ".3.blockSync.dot"))
 
