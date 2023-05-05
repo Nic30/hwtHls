@@ -17,12 +17,14 @@ from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.ast.statementsRead import HlsRead
 from hwtHls.frontend.ast.statementsWrite import HlsWrite
 from hwtHls.frontend.ast.thread import HlsThreadForSharedVar
+from hwtHls.frontend.pyBytecode import hlsLowLevel
 from hwtHls.frontend.pyBytecode.indexExpansion import PyObjectHwSubscriptRef
 from hwtHls.frontend.pyBytecode.ioProxyAddressed import IoProxyAddressed
 from hwtHls.platform.platform import DefaultHlsPlatform
 from hwtHls.ssa.context import SsaContext
 from hwtHls.thread import HlsThread, HlsThreadDoesNotUseSsa
 from hwtLib.amba.axi_intf_common import Axi_hs
+
 
 ANY_HLS_COMPATIBLE_IO = Union[Handshaked, HsStructIntf, HandshakeSync, Axi_hs, VldSynced, RdSynced, Signal, StructIntf, RtlSignal, PyObjectHwSubscriptRef]
 
@@ -48,6 +50,7 @@ class HlsScope():
         :param freq: override of the clock frequency, if None the frequency of clock associated with parent is used
         """
         self.parentUnit = parentUnit
+        self._private_interfaces = parentUnit._private_interfaces
         if freq is None:
             freq = parentUnit.clk.FREQ
         self.freq = freq
@@ -55,6 +58,7 @@ class HlsScope():
         self.ssaCtx = SsaContext()
         self._threads: List[HlsThread] = []
 
+    @hlsLowLevel
     def _sig(self, name: str,
              dtype: HdlType=BIT,
              def_val: Union[int, None, dict, list]=None,
@@ -63,13 +67,15 @@ class HlsScope():
         :note: only for forwarding purpose, use :meth:`~.HlsScope.var` instead.
         """
         return Unit._sig(self, name, dtype, def_val, nop_val)
-    
+
+    @hlsLowLevel
     def var(self, name:str, dtype:HdlType):
         """
         Create a thread local variable.
         """
         return Unit._sig(self, name, dtype)
 
+    @hlsLowLevel
     def varShared(self, name:str, dtype:HdlType) -> HlsThreadForSharedVar:
         """
         Create a variable with own access management thread.
@@ -79,6 +85,7 @@ class HlsScope():
         self._threads.append(t)
         return t
 
+    @hlsLowLevel
     def read(self, src: ANY_HLS_COMPATIBLE_IO, blocking:bool=True):
         """
         Create a read statement for simple interfaces.
@@ -119,10 +126,11 @@ class HlsScope():
             return mem.READ_CLS(mem, self, mem.interface, src.index, mem.rWordT, blocking)
 
         else:
-            raise NotImplementedError(src)    
+            raise NotImplementedError(src)
 
         return HlsRead(self, src, dtype, blocking)
 
+    @hlsLowLevel
     def write(self, src: Union[HlsRead, bytes, int, HValue], dst: ANY_HLS_COMPATIBLE_IO):
         """
         Create a write statement for simple interfaces.
@@ -140,7 +148,7 @@ class HlsScope():
             src = dtype.from_py(src)
         else:
             dtype = src._dtype
-        
+
         if isinstance(dst, PyObjectHwSubscriptRef):
             dst: PyObjectHwSubscriptRef
             mem: IoProxyAddressed = dst.sequence
@@ -163,6 +171,7 @@ class HlsScope():
             # we have to wait with compilation until here
             # because we need all IO and sharing constraints specified
             useSsa = True
+            p.beforeThreadToSsa(t)
             try:
                 t.compileToSsa()
             except HlsThreadDoesNotUseSsa:
@@ -175,7 +184,7 @@ class HlsScope():
                 callback(self, t)
 
             p.runHlsNetlistPasses(self, t.toHw)
-        
+
         for t in self._threads:
             p.runHlsNetlistToRtlNetlist(self, t.toHw)
             p.runRtlNetlistPasses(self, t.toHw)

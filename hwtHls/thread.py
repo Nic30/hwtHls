@@ -19,6 +19,9 @@ class HlsThread():
         self.toSsa: Optional[HlsAstToSsa] = None
         self.toHw: Optional[HlsNetlistCtx] = None
         self.netlistCallbacks: List[Callable[["HlsScope", HlsThread]]] = []
+    
+    def debugEnable(self, p: DefaultHlsPlatform):
+        pass
 
     def getLabel(self) -> str:
         i = self.hls._threads.index(self)
