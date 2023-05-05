@@ -3,6 +3,7 @@
 
 from typing import Optional
 
+from hwt.hdl.operatorDefs import AllOps
 from hwt.interfaces.std import Signal
 from hwt.interfaces.utils import addClkRstn
 from hwt.simulator.simTestCase import SimTestCase
@@ -19,6 +20,8 @@ from hwtHls.netlist.nodes.ports import link_hls_nodes
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.moveExplicitSyncOutOfDataAndAddVoidDataLinks import HlsNetlistPassMoveExplicitSyncOutOfDataAndAddVoidDataLinks
+from hwtHls.netlist.translation.dumpNodesDot import HlsNetlistPassDumpNodesDot
+from hwtHls.platform.fileUtils import outputFileGetter
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from ipCorePackager.constants import DIRECTION
@@ -95,13 +98,14 @@ class HlsNetlistSyncIsland1Unit(HlsNetlistSyncIsland0Unit):
         HlsNetlistPassMoveExplicitSyncOutOfDataAndAddVoidDataLinks().apply(None, netlist)
         tc: SimTestCase = self.TEST_CASE
         if tc is not None:
+            #HlsNetlistPassDumpNodesDot(outputFileGetter("tmp", "nodes.dot")).apply(None, netlist)
             inputs, outputs, _ = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(i0, DIRECTION.IN, reachDb)
-            tc.assertSequenceEqual(inputs, [i0, ])
-            tc.assertSequenceEqual(outputs, [sync, ])
+            tc.assertSequenceEqual(inputs, [i0, sync])
+            tc.assertSequenceEqual(outputs, [o, sync])
 
             inputs, outputs, _ = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(sync, DIRECTION.IN, reachDb)
-            tc.assertSequenceEqual(inputs, [sync, ])
-            tc.assertSequenceEqual(outputs, [o, ])
+            tc.assertSequenceEqual(inputs, [sync, i0])
+            tc.assertSequenceEqual(outputs, [o, sync])
 
             inputs, outputs, _ = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(o, DIRECTION.IN, reachDb)
             tc.assertSequenceEqual(inputs, [o, ])
@@ -142,17 +146,24 @@ class HlsNetlistSyncIsland2Unit(HlsNetlistSyncIsland0Unit):
         HlsNetlistPassMoveExplicitSyncOutOfDataAndAddVoidDataLinks().apply(None, netlist)
         tc: SimTestCase = self.TEST_CASE
         if tc is not None:
-            inputs, outputs, _ = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(i0, DIRECTION.IN, reachDb)
-            tc.assertSequenceEqual(inputs, [i0, i1])
-            tc.assertSequenceEqual(outputs, [sync, ])
+            #HlsNetlistPassDumpNodesDot(outputFileGetter("tmp", "nodes.dot")).apply(None, netlist)
+            i1i0VoidConcat = netlist._dbgGetNodeById(5)
+            tc.assertEqual(i1i0VoidConcat.operator, AllOps.CONCAT)
+            inputs, outputs, nodes = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(i0, DIRECTION.IN, reachDb)
+            # sync is input because the dependency was changed to void
+            tc.assertSequenceEqual(inputs, [i0, sync, i1])
+            tc.assertSequenceEqual(outputs, [sync, o, ])
+            tc.assertSequenceEqual(nodes, [i0andI1.obj, i1i0VoidConcat])
 
             inputs, outputs, _ = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(i1, DIRECTION.IN, reachDb)
-            tc.assertSequenceEqual(inputs, [i1, i0])
-            tc.assertSequenceEqual(outputs, [sync, ])
+            tc.assertSequenceEqual(inputs, [i1, sync, i0])
+            tc.assertSequenceEqual(outputs, [sync, o, ])
+            tc.assertSequenceEqual(nodes, [i0andI1.obj, i1i0VoidConcat])
 
             inputs, outputs, _ = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(sync, DIRECTION.IN, reachDb)
-            tc.assertSequenceEqual(inputs, [sync, ])
-            tc.assertSequenceEqual(outputs, [o, ])
+            tc.assertSequenceEqual(inputs, [sync, i0, i1])
+            tc.assertSequenceEqual(outputs, [o, sync])
+            tc.assertSequenceEqual(nodes, [i0andI1.obj, i1i0VoidConcat])
 
             inputs, outputs, _ = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(o, DIRECTION.IN, reachDb)
             tc.assertSequenceEqual(inputs, [o, ])
@@ -183,8 +194,8 @@ if __name__ == "__main__":
     u.CLK_FREQ = int(100e6)
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
-    suite = unittest.TestSuite()
-    # suite.addTest(HlsNetlistDiscoverSyncIslandTC('test_HlsNetlistSyncIsland2Unit'))
-    suite.addTest(unittest.makeSuite(HlsNetlistDiscoverSyncIslandTC))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([HlsNetlistDiscoverSyncIslandTC("test_HlsNetlistSyncIsland2Unit")])
+    suite = testLoader.loadTestsFromTestCase(HlsNetlistDiscoverSyncIslandTC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
