@@ -7,12 +7,13 @@ from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtSimApi.utils import freq_to_period
 from tests.frontend.pyBytecode.preprocLoopMultiExit import PreprocLoopMultiExit_singleExit0, \
-    PreprocLoopMultiExit_hwBreak0, PreprocLoopMultiExit_singleExit1
+    PreprocLoopMultiExit_hwBreak0, PreprocLoopMultiExit_singleExit1, \
+    PreprocLoopMultiExit_hwBreak1
 
 
 class PreprocLoopMultiExit_singleExit0_TC(SimTestCase):
     __FILE__ = __file__
-    
+
     @classmethod
     def setUpClass(cls):
         u = cls.u = PreprocLoopMultiExit_singleExit0()
@@ -35,7 +36,7 @@ class PreprocLoopMultiExit_singleExit0_TC(SimTestCase):
     def test_withData(self):
 
         self._test([10, 1, 11], [0, 2])
-               
+
     def test_noData(self):
         self._test([], [])
 
@@ -50,10 +51,37 @@ class PreprocLoopMultiExit_singleExit1_TC(PreprocLoopMultiExit_singleExit0_TC):
 
 class PreprocLoopMultiExit_hwBreak0_TC(SimTestCase):
     __FILE__ = __file__
-    
+
     @classmethod
     def setUpClass(cls):
         u = cls.u = PreprocLoopMultiExit_hwBreak0()
+        cls.compileSim(u, target_platform=VirtualHlsPlatform())
+
+    def _test(self, refInput: List[int], expectedOutput: List[int], CLK_CNT=10):
+        PreprocLoopMultiExit_singleExit0_TC._test(self, refInput, expectedOutput, CLK_CNT)
+
+    def test_noData(self):
+        self._test([], [])
+
+    def test_no0(self):
+        self._test([1, 1, 1, ], [])
+
+    def test_0in0_withSuc(self):
+        self._test([0, 1, 1, ], [0, ])
+
+    def test_0in0_noSuc(self):
+        self._test([0], [0, ])
+
+    def test_0in1_withSuc(self):
+        self._test([1, 0, 1, ], [0, ])
+
+
+class PreprocLoopMultiExit_hwBreak1_TC(SimTestCase):
+    __FILE__ = __file__
+
+    @classmethod
+    def setUpClass(cls):
+        u = cls.u = PreprocLoopMultiExit_hwBreak1()
         cls.compileSim(u, target_platform=VirtualHlsPlatform())
 
     def _test(self, refInput: List[int], expectedOutput: List[int], CLK_CNT=10):
@@ -86,20 +114,21 @@ class PreprocLoopMultiExit_hwBreak0_TC(SimTestCase):
 
 PreprocLoopMultiExit_TCs = [
     PreprocLoopMultiExit_singleExit0_TC,
-    #PreprocLoopMultiExit_singleExit1_TC,
+    # PreprocLoopMultiExit_singleExit1_TC,
     PreprocLoopMultiExit_hwBreak0_TC,
+    # PreprocLoopMultiExit_hwBreak1_TC,
 ]
 
 if __name__ == "__main__":
     import unittest
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
-    u = PreprocLoopMultiExit_singleExit0()
+    u = PreprocLoopMultiExit_hwBreak0()
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
-    suite = unittest.TestSuite()
-    suite.addTest(PreprocLoopMultiExit_singleExit0_TC('test_noData'))
-    #for tc in PreprocLoopMultiExit_TCs:
-    #    suite.addTest(unittest.makeSuite(tc))
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([PreprocLoopMultiExit_hwBreak0_TC("test_0in0_noSuc")])
+    loadedTcs = [testLoader.loadTestsFromTestCase(tc) for tc in PreprocLoopMultiExit_TCs]
+    suite = unittest.TestSuite(loadedTcs)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
