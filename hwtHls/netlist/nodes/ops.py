@@ -4,9 +4,9 @@ from hwt.hdl.value import HValue
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, \
     TimeIndependentRtlResourceItem, INVARIANT_TIME
 from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.orderable import HdlType_isVoid
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.typeUtils import dtypeEqualSignIgnore
-from hwtHls.netlist.nodes.orderable import HdlType_isVoid
 
 
 class HlsNetNodeOperator(HlsNetNode):
@@ -80,9 +80,9 @@ class HlsNetNodeOperator(HlsNetNode):
             t = self.scheduledOut[0] + self.netlist.scheduler.epsilon
             if s.hasGenericName:
                 if self.name is not None:
-                    s.name = self.name
+                    s.name = f"{allocator.namePrefix}{self.name}"
                 else:
-                    s.name = f"v{self._id:d}"
+                    s.name = f"{allocator.namePrefix}v{self._id:d}"
 
         if dtypeEqualSignIgnore(s._dtype, op_out._dtype):
             if HdlType_isVoid(s._dtype):
