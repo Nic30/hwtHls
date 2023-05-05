@@ -1,113 +1,25 @@
 from collections import deque
 from math import inf
-from typing import Deque, Set, List, Dict
+from typing import Deque, Set, List
 
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.netlist.nodes.node import HlsNetNode, SchedulizationDict
+from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.schedulableNode import SchedulizationDict
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
-
-
-class HlsSchedulerResourceUseList(List[Dict[object, int]]):
-    """
-    A list of dictionaries with resource usage info which automatically extends itself on both sides.
-    The index in this list is an index of the clock period.
-    This index can be negative as circuit may be temporarly scheduled to negative times (e.g. in ALAP).
-
-    :note: This is used for list scheduling greedy algorithm to track how many resources were used in individual clock cycle windows.
-    """
-
-    def __init__(self):
-        list.__init__(self)
-        self.clkOffset = 0  # item 0 corresponds to clock period 0
-
-    def getUseCount(self, resourceType, clkI: int) -> int:
-        return self[clkI].get(resourceType, 0)
-    
-    def addUse(self, resourceType, clkI: int):
-        cur = self[clkI]
-        cur[resourceType] = cur.get(resourceType, 0) + 1 
-
-    def removeUse(self, resourceType, clkI: int):
-        i = self.clkOffset + clkI
-        assert i >= 0, (i, clkI, resourceType, "Trying to remove from clock where no resource is used")
-        cur = list.__getitem__(self, i)
-        curCnt = cur[resourceType]
-        if curCnt == 1:
-            cur.pop(resourceType)
-        else:
-            assert curCnt > 0, (clkI, resourceType, "Resource must be used in order to remove the use")
-            cur[resourceType] = curCnt - 1
-        
-    def moveUse(self, resourceType, fromClkI: int, toClkI: int):
-        # accessing directly to raise index error if there is not yet any use in this clk
-        cur = list.__getitem__(self, self.clkOffset + fromClkI)
-        try:
-            curCnt = cur[resourceType]
-        except KeyError:
-            raise AssertionError("Trying to move usage which is not present", resourceType, fromClkI, toClkI)
-
-        assert curCnt > 0, (resourceType, curCnt)
-        if curCnt == 1:
-            cur.pop(resourceType)
-        else:
-            cur[resourceType] = curCnt - 1
-        
-        to = self[toClkI]
-        toCnt = to.get(resourceType, 0)
-        to[resourceType] = toCnt + 1
-
-    def findFirstClkISatisfyingLimit(self, resourceType, beginClkI: int, limit: int) -> int:
-        """
-        The first 
-        """
-        assert limit > 0, limit
-        clkI = beginClkI
-        while True:
-            res = self[clkI]
-            if res.get(resourceType, 0) < limit:
-                return clkI
-            clkI += 1
-
-    def findFirstClkISatisfyingLimitEndToStart(self, resourceType, endClkI: int, limit: int) -> int:
-        """
-        :attention: Limit for first clk period where search is increased because it is expected that the requested
-            resource is already allocated there.
-        """
-        assert limit > 0, limit
-        clkI = endClkI
-        clkIFirst = clkI
-        while True:
-            res = self[clkI]
-            if res.get(resourceType, 0) < (limit + 1 if clkI == clkIFirst else limit):
-                return clkI
-            clkI -= 1
-   
-    def __getitem__(self, i: int):
-        i += self.clkOffset
-        if i < 0:
-            self[:0] = [{} for _ in range(-i)]
-            self.clkOffset -= -i 
-            i = 0
-
-        try:
-            return list.__getitem__(self, i)
-        except IndexError:
-            assert i >= 0, i
-            for _ in range(i + 1 - len(self)):
-                self.append({})
-            return self[len(self) - 1]
+from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
+from hwtHls.netlist.scheduler.resourceList import HlsSchedulerResourceUseList
 
 
 class HlsScheduler():
     """
     A class which executes the scheduling of netlist nodes.
-    
+
     :ivar netlist: The reference on parent HLS netlist context which is this scheduler for.
-    :ivar resolution: The time resolution specified in seconds (1e-9 is 1ns). 
+    :ivar resolution: The time resolution specified in seconds (1e-9 is 1ns).
     :ivar epsilon: The minimal step of time allowed.
     :ivar resourceUsage: resource usage list used for list scheduling algorithm, (resource available is stored in node which is using this list)
     """
-    
+
     def __init__(self, netlist: "HlsNetlistCtx", resolution: float):
         self.netlist = netlist
         self.resolution = resolution
@@ -130,7 +42,7 @@ class HlsScheduler():
         """
         if self.debug:
             # debug run which will raise an exception containing cycle node ids
-            debugPath = UniqList() 
+            debugPath = UniqList()
         else:
             # normal run without checking for cycles
             debugPath = None
@@ -144,58 +56,10 @@ class HlsScheduler():
             node:HlsNetNode
             node.copyScheduling(currentSchedule)
             node.resetScheduling()
-            
+
         return currentSchedule
-        
-    def _scheduleAlapCompaction(self):  # , asapSchedule: SchedulizationDict
-        """
-        Iteratively try to move any node to a later time if dependencies allow it.
-        Nodes without outputs are banned from moving.
-        """
-        allNodes = list(self.netlist.iterAllNodes())
-        toSearch: Deque[HlsNetNode] = deque(reversed(allNodes))
-        toSearchSet: Set[HlsNetNode] = set(allNodes)
-        curMaxInTime = 0
-        for node0 in allNodes:
-            if node0.scheduledIn:
-                curMaxInTime = max(curMaxInTime, max(node0.scheduledIn))
-        clkPeriod = self.netlist.normalizedClkPeriod
-        # + 1 to get end of clk
-        endOfLastClk = (indexOfClkPeriod(curMaxInTime, clkPeriod) + 1) * clkPeriod 
-        while toSearch:
-            node0 = toSearch.popleft()
-            toSearchSet.remove(node0)
-            for node1 in node0.scheduleAlapCompaction(endOfLastClk, None):
-                if node1 not in toSearchSet:
-                    toSearch.append(node1)
-                    toSearchSet.add(node1)
-        
-        # consts = UniqList()
-        # minTime = inf       
-        # for node in self.netlist.iterAllNodes():
-        #    if isinstance(node, HlsNetNodeConst):
-        #        consts.append(node)
-        #        continue
-        #    if node.scheduledIn is None:
-        #        node.scheduleAlapCompaction(asapSchedule, None)
-        #    if node.scheduledIn:
-        #        minTime = min(minTime, min(node.scheduledIn))
-        #    if node.scheduledOut:
-        #        minTime = min(minTime, min(node.scheduledOut))
-        #        
-        # for c in consts:
-        #    # constants are special because they have no inputs and their scheduling purely depends on its use from other nodes
-        #    assert len(c.usedBy) == 1, c
-        #    assert len(c._outputs) == 1, c
-        #    assert not c._inputs, c
-        #    c.scheduledIn = ()
-        #    uses = c.usedBy[0]
-        #    if uses:
-        #        c.scheduledOut = (min(u.obj.scheduledIn[u.in_i] for u in uses),)
-        #    else:
-        #        c.scheduledOut = (0,) 
-        #
-        #    minTime = min(minTime, min(node.scheduledOut))
+
+    def _normalizeSchedulingTime(self, allNodes: List[HlsNetNode], clkPeriod: int):
         minTime = inf
         for node in self.netlist.iterAllNodes():
             if node.scheduledIn:
@@ -209,12 +73,89 @@ class HlsScheduler():
             for node in allNodes:
                 node: HlsNetNode
                 node.moveSchedulingTime(offset)
-        
+            # nodes will move its resoruces to correct slot in resourceUsage
+            self.resourceUsage.normalizeOffsetTo0()
+
+    def _scheduleAlapCompaction(self, freezeRightSideOfSchedule: bool):
+        """
+        Iteratively try to move any node to a later time if dependencies allow it.
+        Nodes without outputs are banned from moving.
+        """
+        allNodes = list(self.netlist.iterAllNodes())
+        curMaxInTime = 0
+        for node0 in allNodes:
+            if node0.scheduledIn:
+                curMaxInTime = max(curMaxInTime, max(node0.scheduledIn))
+            if not node0.scheduledIn:
+                curMaxInTime = max(curMaxInTime, node0.scheduledZero)
+
+        clkPeriod = self.netlist.normalizedClkPeriod
+        # + 1 to get end of clk
+        endOfLastClk = (indexOfClkPeriod(curMaxInTime, clkPeriod) + 1) * clkPeriod
+        if freezeRightSideOfSchedule:
+            nodesBannedToMove = set()
+            for n in allNodes:
+                if isinstance(n, HlsNetNodeWriteBackedge) or not any(n.usedBy):
+                    nodesBannedToMove.add(n)
+            toSearch: Deque[HlsNetNode] = deque(n for n in reversed(allNodes) if n not in nodesBannedToMove)
+        else:
+            nodesBannedToMove = None
+            toSearch: Deque[HlsNetNode] = deque(reversed(allNodes))
+
+        toSearchSet: Set[HlsNetNode] = set(toSearch)
+        # perform compaction while scheduling changes
+        while toSearch:
+            node0 = toSearch.popleft()
+            toSearchSet.remove(node0)
+            for node1 in node0.scheduleAlapCompaction(endOfLastClk, None):
+                if node1 not in toSearchSet and (nodesBannedToMove is None or node1 not in nodesBannedToMove):
+                    toSearch.append(node1)
+                    toSearchSet.add(node1)
+        self._normalizeSchedulingTime(allNodes, clkPeriod)
+
+    def _dbgDumpResources(self):
+        clkPeriod = self.netlist.normalizedClkPeriod
+        clkOff = self.resourceUsage.clkOffset
+        for i, resDict in enumerate(self.resourceUsage):
+            print(f"{(i+clkOff) * clkPeriod} to {(i+clkOff + 1) * clkPeriod}")
+            for res, cnt in resDict.items():
+                print(f"  {res}={cnt:d}")
+
+    def _scheduleAsapCompaction(self):
+        """
+        Iteratively try to move any node to a sooner time if dependencies allow it.
+        Nodes without inputs are moved on the beggining of the clock cycle where they curently are scheduled.
+        """
+        allNodes = list(self.netlist.iterAllNodes())
+        toSearch: Deque[HlsNetNode] = deque(reversed(allNodes))
+        toSearchSet: Set[HlsNetNode] = set(allNodes)
+        curMinInTime = 0
+        for node0 in allNodes:
+            if node0.scheduledIn:
+                curMinInTime = min(curMinInTime, min(node0.scheduledIn))
+
+        clkPeriod = self.netlist.normalizedClkPeriod
+        # + 1 to get end of clk
+        startOfFirstClk = indexOfClkPeriod(curMinInTime, clkPeriod) * clkPeriod
+        while toSearch:
+            node0 = toSearch.popleft()
+            toSearchSet.remove(node0)
+            # self._checkAllNodesScheduled()
+            for node1 in node0.scheduleAsapCompaction(startOfFirstClk, None):
+                if node1 not in toSearchSet:
+                    toSearch.append(node1)
+                    toSearchSet.add(node1)
+            # self._checkAllNodesScheduled()
+        self._normalizeSchedulingTime(allNodes, clkPeriod)
+
     def schedule(self):
         self._scheduleAsap()
         self._checkAllNodesScheduled()
         maxTime = max((n.scheduledZero for n in self.netlist.iterAllNodes()), default=0)
         if maxTime > self.netlist.normalizedClkPeriod:
-            self._scheduleAlapCompaction()
+            self._scheduleAlapCompaction(False)
             self._checkAllNodesScheduled()
-        
+            self._scheduleAsapCompaction()
+            self._checkAllNodesScheduled()
+            self._scheduleAlapCompaction(True)
+            self._checkAllNodesScheduled()
