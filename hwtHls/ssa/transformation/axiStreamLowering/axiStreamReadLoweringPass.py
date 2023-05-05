@@ -190,7 +190,15 @@ class SsaPassAxiStreamReadLowering(SsaPass):
                                   * ((strb,) if intf.USE_STRB else ()),
                                   * ((keep,) if intf.USE_KEEP else ()),
                                   last)
+    
+    def _getAdditionalWordCnt(self, offset: int, width: int, DATA_WIDTH: int):
+        if offset == 0:
+            return ceil(width / DATA_WIDTH)
+        else:
+            dataBitsAvailableInLastWord = DATA_WIDTH - offset
+            return ceil(max(0, (width - dataBitsAvailableInLastWord)) / DATA_WIDTH)
 
+    
     def rewriteAdtReadToReadOfWords(self,
                                     hls: "HlsScope",
                                     memUpdater: MemorySSAUpdater,
@@ -235,6 +243,7 @@ class SsaPassAxiStreamReadLowering(SsaPass):
         readIsMarker = read is None or isinstance(read, (HlsStmReadStartOfFrame, HlsStmReadEndOfFrame,
                                                          HlsStmWriteStartOfFrame, HlsStmWriteEndOfFrame))
         if read is not None:
+            assert read.block is not None, ("read instruction was removed", read)
             predecessorsSeen[read] += 1
             if len(cfg.predecessors[read]) != predecessorsSeen[read]:
                 # not all predecessors have been seen and we run this function only after all predecessors were seen
@@ -264,34 +273,76 @@ class SsaPassAxiStreamReadLowering(SsaPass):
                     memUpdater.writeVariable(currentOffsetVar, (), startBlock, offset)
         else:
             # [todo] do not rewrite if this is already a read of an aligned full word
-            sequelBlock = read.block
             w = read._dtypeOrig.bit_length()
     
             # if number of words differs in offset variants we need to insert a new block which is entered conditionally for specific offset values
             # :note: the information about which word is last is stored in offset variable and does not need to be explicitly specified 
 
             # shared words for offset variants
-            minOffset = min(possibleOffsets)
-            maxOffset = max(possibleOffsets)
             exprBuilder = SsaExprBuilder(read.block, read.block.body.index(read))
-            mayResultInDiffentNoOfWords = ceil((minOffset + w) / DATA_WIDTH) != ceil((maxOffset + w) / DATA_WIDTH)
-            if mayResultInDiffentNoOfWords:
-                raise NotImplementedError("Create a block which reads an extra last word and create a transitions from it to all blocks for that offsets")
+ 
+            minWordCnt = None
+            maxWordCnt = None
+            # add read for every word which will be used in this read of frame fragment
+            for off in possibleOffsets:
+                wCnt = self._getAdditionalWordCnt(off, w, DATA_WIDTH)
+
+                if minWordCnt is None:
+                    minWordCnt = wCnt
+                else:
+                    minWordCnt = min(wCnt, minWordCnt)
+                if maxWordCnt is None:
+                    maxWordCnt = wCnt
+                else:
+                    maxWordCnt = max(wCnt, maxWordCnt)
+ 
             
+            mayResultInDiffentNoOfWords = minWordCnt != maxWordCnt
+            if mayResultInDiffentNoOfWords:
+                _currentOffsetVar = memUpdater.readVariable(currentOffsetVar, read.block)
+                offsetCaseCond = []
+                for off in possibleOffsets:
+                    wCnt = self._getAdditionalWordCnt(off, w, DATA_WIDTH)
+                    if wCnt > minWordCnt:
+                        assert wCnt == minWordCnt + 1, (wCnt, minWordCnt, maxWordCnt)
+                        offEn = exprBuilder._binaryOp(_currentOffsetVar, AllOps.EQ,
+                                              currentOffsetVar._dtype.from_py(off % DATA_WIDTH))
+                        offsetCaseCond.append(offEn)
+
+                extraReadEn = exprBuilder._binaryOpVariadic(AllOps.OR, offsetCaseCond)
+                # original read should be moved to sequel
+                # because now we are just preparing the data for it
+                extraReadBranches, sequelBlock = exprBuilder.insertBlocks([
+                    extraReadEn,
+                    None
+                ])
+                extraReadExprBuilder = SsaExprBuilder(extraReadBranches[0], position=0)
+                extraRead = HlsRead(read._parent, read._src, word_t, True)
+                extraReadExprBuilder._insertInstr(extraRead)
+                memUpdater.writeVariable(predWordVar, (), extraReadBranches[0], extraRead)
+                # :note: it is not required to write offset because it does not change
+                for br in extraReadBranches:
+                    memUpdater.sealBlock(br)
+                
+                # append read of new word
+                memUpdater.sealBlock(sequelBlock)
+                exprBuilder.setInsertPoint(sequelBlock, 0) # just at the original read instruction
+
             # collect/construct all reads common for every successor branch
+
             prevWordVars: List[HlsRead] = [] 
-            # load last word
-            if possibleOffsets != [0, ]:
+            # load previous last word
+            if possibleOffsets != [0, ] or minWordCnt != maxWordCnt:
                 prevWordVars.append(memUpdater.readVariable(predWordVar, read.block))
 
-            # add read for every word which will be used in this read of frame fragment
-            if maxOffset == 0:  # or read._inStreamPos.isBegin():
-                minNoOfWords = ceil((minOffset + w) / DATA_WIDTH)
-            else:
-                # only the data which will overflow to another words
-                minNoOfWords = ceil(max(0, (w - (DATA_WIDTH - minOffset))) / DATA_WIDTH)
-
-            for last, _ in iter_with_last(range(minNoOfWords)):
+ 
+            ## if other predecessor branches provide some leftover word part and there is a brach which does not provide any,
+            ## create read on this branch as it is sure that the read will be performed bease this read needs some data 
+   
+            # offset may cause that may require to read 
+                
+            # fill reads to this block to obrain required amount of bits
+            for last, _ in iter_with_last(range(minWordCnt)):
                 partRead = HlsRead(read._parent, read._src, word_t, True)
                 prevWordVars.append(partRead)
                 exprBuilder._insertInstr(partRead)
@@ -312,7 +363,11 @@ class SsaPassAxiStreamReadLowering(SsaPass):
                     offsetCaseCond.append(offEn)
 
                 offsetBranches, sequelBlock = exprBuilder.insertBlocks(offsetCaseCond)
+                for br in offsetBranches:
+                    memUpdater.sealBlock(br)
                 memUpdater.sealBlock(sequelBlock)
+                exprBuilder.setInsertPoint(sequelBlock, None)
+                
             else:
                 offsetBranches, sequelBlock = [read.block], read.block
             
@@ -322,22 +377,24 @@ class SsaPassAxiStreamReadLowering(SsaPass):
                 off: int
                 br: SsaBasicBlock
                 # memUpdater.sealBlock(br)
-                if br is not read.block:
-                    _exprBuilder = SsaExprBuilder(br)
-                else:
+                if br is read.block:
                     _exprBuilder = exprBuilder
+                else:
+                    _exprBuilder = SsaExprBuilder(br)
                     
                 end = off + w
                 inWordOffset = off % DATA_WIDTH
                 _w = w
                 wordCnt = ceil(max(0, end - 1) / DATA_WIDTH)
-                if inWordOffset == 0 and len(possibleOffsets) > 1:
+
+                if inWordOffset == 0 and (minWordCnt != maxWordCnt) and self._getAdditionalWordCnt(off, w, DATA_WIDTH) == minWordCnt:
                     # now not reading last word of predecessor but other offsets variant are using it
                     chunkWords = prevWordVars[1:]
                 else:
                     chunkWords = prevWordVars[:]
 
                 assert len(chunkWords) == wordCnt, (read, wordCnt, chunkWords)
+
                 parts = []
                 for wordI in range(wordCnt):
                     bitsToTake = min(_w, DATA_WIDTH - inWordOffset)
@@ -357,7 +414,7 @@ class SsaPassAxiStreamReadLowering(SsaPass):
                     _w -= bitsToTake
                     parts.append(partRead)
 
-                readRes = self._applyConcat(exprBuilder, read, parts)
+                readRes = self._applyConcat(_exprBuilder, read, parts)
                 assert readRes._dtype.bit_length() == resVar._dtype.bit_length(), (readRes, readRes._dtype, resVar._dtype)
 
                 memUpdater.writeVariable(resVar, (), br, readRes)
