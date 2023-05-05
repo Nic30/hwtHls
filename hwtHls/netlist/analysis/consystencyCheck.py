@@ -108,7 +108,6 @@ class HlsNetlistPassConsystencyCheck(HlsNetlistPass):
                     assert o is None, (n, "_inputOfCluster, _outputOfCluster ports may appear only together")
                 else:
                     assert o is not None, (n, "_inputOfCluster, _outputOfCluster ports may appear only together")
-
                     iClus = n.dependsOn[i.in_i]
                     oClus = n.dependsOn[o.in_i]
                     assert iClus is not None, n
@@ -159,6 +158,8 @@ class HlsNetlistPassConsystencyCheck(HlsNetlistPass):
                     assert n._outputs[0]._dtype == op0t, ("wrong type of result", n, n._outputs[0]._dtype, op0t)
 
     def apply(self, hls:"HlsScope", netlist: HlsNetlistCtx, removed: Optional[Set[HlsNetNode]]=None):
+        if removed is None:
+            removed = netlist.builder._removedNodes
         self._checkConnections(netlist, removed)
         self._checkCycleFree(netlist, removed)
         self._checkNodeContainers(netlist, removed)
