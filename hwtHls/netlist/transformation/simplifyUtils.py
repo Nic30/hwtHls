@@ -13,39 +13,6 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn, \
     unlink_hls_nodes, link_hls_nodes
 
 
-# def isHlsNetNodeExplicitSyncFlagsRequred(n: HlsNetNodeExplicitSync) -> bool:
-#    if n.extraCond is None:
-#        if n.skipWhen is None:
-#            # not always skipped with some extraCond, can not remove
-#            return False
-#        else:
-#            c = getConstDriverOf(n.skipWhen)
-#            if c is not None and int(c) == 1:
-#                # always skipped
-#                return False
-#            else:
-#                # not always skipped, can not remove
-#                return True
-#
-#    else:
-#        c = getConstDriverOf(n.extraCond)
-#        if c is None or int(c) != 1:
-#            # extraCond is useless
-#            if n.skipWhen is not None:
-#                c = getConstDriverOf(n.skipWhen)
-#                if c is not  None and int(c) == 1:
-#                    # always skipped extraCond does not matter
-#                    return False
-#                else:
-#                    # not always skipped with some extraCond, can not remove
-#                    return True
-#            else:
-#                # not always skipped with some extraCond, can not remove
-#                return True
-#        else:
-#            # has some non const extraCond
-#            return True
-#
 def getConstDriverOf(inputObj: Optional[HlsNetNodeIn]) -> Optional[HValue]:
     if inputObj is None:
         return None
@@ -78,7 +45,7 @@ def replaceOperatorNodeWith(n: HlsNetNodeOperator, newO: HlsNetNodeOut,
     assert newO.obj not in removed, newO
     builder: HlsNetlistBuilder = n.netlist.builder
     addAllUsersToWorklist(worklist, n)
-    
+
     # add dependencies which do not have any other use to worklist
     for dep in n.dependsOn:
         hasAnyOtherUser = False
@@ -110,7 +77,7 @@ def transferHlsNetNodeExplicitSyncOrdering(src: HlsNetNodeExplicitSync, dst: Hls
         link_hls_nodes(orderingDep, syncedDepObjOI)
 
     # transfer all ordering uses from ordering port of src to dst
-    syncedDepObjOOut = dst.getOrderingOutPort()    
+    syncedDepObjOOut = dst.getOrderingOutPort()
     oOut = src.getOrderingOutPort()
     for use in tuple(src.usedBy[oOut.out_i]):
         use: HlsNetNodeIn
@@ -136,7 +103,7 @@ def isInputConnectedTo(user: Optional[HlsNetNodeIn], dep: Optional[HlsNetNodeOut
     return dep is None and user is None or dep is not None and user.obj.dependsOn[user.in_i] is dep
 
 
-def hasInputSameDriver(i0: Optional[HlsNetNodeIn], i1: Optional[HlsNetNodeIn]) -> bool: 
+def hasInputSameDriver(i0: Optional[HlsNetNodeIn], i1: Optional[HlsNetNodeIn]) -> bool:
     if i0 is None and i1 is None:
         return True
     elif i0 is not None and i1 is not None:
