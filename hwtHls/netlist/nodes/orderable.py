@@ -26,11 +26,16 @@ class _HVoidOrdering(HdlType):
 
 
 class _HVoidValue(HValue):
-    
+
     @classmethod
     def from_py(cls, typeObj, val, vld_mask=None):
         assert val is None, ("Only allowed value is None because void value does not contain any data", val)
         return cls(typeObj, None, vld_mask=None)
+
+    def _concat(self, other: "_HVoidValue"):
+        assert isinstance(self, HValue) and self.__class__ == other.__class__, (self, other, self.__class__, other.__class__)
+        assert self._dtype == other._dtyp
+        assert self
 
     def __repr__(self):
         return f"<void>"
@@ -62,22 +67,22 @@ HVoidExternData = _HVoidExternData()
 
 
 def HdlType_isNonData(t: HdlType):
-    return t is HVoidOrdering or t is HVoidExternData 
+    return t is HVoidOrdering or t is HVoidExternData
 
 
 def HdlType_isVoid(t: HdlType):
-    return t is HVoidOrdering or t is HVoidData or t is HVoidExternData 
-    
+    return t is HVoidOrdering or t is HVoidData or t is HVoidExternData
+
 
 class HlsNetNodeOrderable(HlsNetNode):
-    
+
     def iterOrderingInputs(self) -> Generator[HlsNetNodeIn, None, None]:
         """
         Iterate input ports which are used for ordering between HlsNetNodeOrderable instances
         """
         raise NotImplementedError(
             "Override this method in derived class", self)
-        
+
     def getOrderingOutPort(self) -> HlsNetNodeOut:
         """
         Get output port used for ordering between HlsNetNodeOrderable instances.
