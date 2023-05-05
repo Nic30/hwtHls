@@ -37,7 +37,11 @@ class HlsNetlistBuilder():
         self.operatorCache: Dict[Tuple[Union[OpDefinition, Type[HlsNetNode]],
                                        Tuple[Union[HlsNetNodeOut, HValue], ...]],
                                  HlsNetNodeOut] = {}
+        #class ObservableSet(set):
+        #    def add(self, n):
+        #        super(ObservableSet, self).add(n)
         self._removedNodes: Set[HlsNetNode] = set()
+
 
     def _outputOfConstNodeToHValue(self, o: Union[HlsNetNodeOut, HValue]):
         if isinstance(o, (HValue, HlsNetNodeOutLazy)):
@@ -149,7 +153,7 @@ class HlsNetlistBuilder():
             return self.buildConstBit(1)
         return self.buildOp(AllOps.GE, BIT, a, b)
 
-    def buildRom(self,  data: Union[Dict[int, HValue], List[HValue], Tuple[HValue]], index: HlsNetNodeOut):
+    def buildRom(self, data: Union[Dict[int, HValue], List[HValue], Tuple[HValue]], index: HlsNetNodeOut):
         assert data
         itemCnt = 2 ** index._dtype.bit_length()
 
@@ -193,7 +197,7 @@ class HlsNetlistBuilder():
     def buildNot(self, a: Union[HlsNetNodeOut, HValue]) -> HlsNetNodeOut:
         return self.buildOp(AllOps.NOT, a._dtype, a)
 
-    def buildMux(self, resT: HdlType, operands: Tuple[Union[HlsNetNodeOut, HValue]]):
+    def buildMux(self, resT: HdlType, operands: Tuple[Union[HlsNetNodeOut, HValue]], name:Optional[str]=None):
         assert operands, "MUX has to have at least a single input"
         res, keyWithHValues = self._tryToFindInCache(AllOps.TERNARY, operands)
         if res is not None:
@@ -201,7 +205,7 @@ class HlsNetlistBuilder():
 
         operandsWithOutputsOnly = tuple(self._toNodeOut(o) for o in operands)
 
-        n = HlsNetNodeMux(self.netlist, resT)
+        n = HlsNetNodeMux(self.netlist, resT, name=name)
         self.netlist.nodes.append(n)
         for (src, cond) in grouper(2, operandsWithOutputsOnly):
             i = n._addInput(f"v{len(n._inputs) // 2}")
