@@ -92,6 +92,12 @@ def runAbcControlpathOpt(builder: HlsNetlistBuilder, worklist: UniqList[HlsNetNo
             if o is not newO:
                 if isinstance(newO, HValue):
                     newO = builder.buildConst(newO)
+                else:
+                    newObj = newO.obj
+                    if isinstance(newObj, HlsNetNodeOperator) and newObj.name is None:
+                        # inherit the name is possible
+                        newObj.name = o.obj.name
+                    
                 builder.replaceOutput(o, newO, True)
                 # we can remove "o" immediately because its parent node may have multiple outputs
                 for use in newO.obj.usedBy[newO.out_i]:
