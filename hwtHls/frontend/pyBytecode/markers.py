@@ -1,7 +1,7 @@
 from dis import Instruction
 from math import inf
 from types import FunctionType
-from typing import Union, Optional, Literal
+from typing import Union, Literal
 
 from hwt.hdl.value import HValue
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
@@ -152,16 +152,9 @@ class PyBytecodeLLVMLoopUnroll(_PyBytecodeLoopPragma):
 
     def toLlvm(self, irTranslator: "ToLlvmIrTranslator", brInst: BranchInst):
 
-        def getStr(s: str):
-            return MDString.get(irTranslator.ctx, irTranslator.strCtx.addStringRef(s))
-
-        def getInt(i: int):
-            return ConstantAsMetadata.getConstant(irTranslator._translateExprInt(i, irTranslator._translateType(uint32_t)))
-
-        def getTuple(items, insertSelfAsFirts):
-            itemsAsMetadata = [i.asMetadata() for i in items]
-            res = MDNode.get(irTranslator.ctx, itemsAsMetadata, insertTmpAsFirts=insertSelfAsFirts)
-            return res
+        getStr = irTranslator.mdGetStr
+        getInt = irTranslator.mdGetUInt32
+        getTuple = irTranslator.mdGetTuple
 
         items = [
             getTuple([getStr("llvm.loop.unroll.enable" if self.enable else "llvm.loop.unroll.dissable"), ], False),

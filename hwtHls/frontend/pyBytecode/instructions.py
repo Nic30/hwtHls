@@ -1,108 +1,143 @@
 from dis import Instruction
 from io import StringIO
-from opcode import opmap, cmp_op
+from opcode import opmap, cmp_op, _nb_ops
 import operator
-from typing import Type
+from typing import Type, Tuple, Dict, Callable
 from hwt.pyUtils.arrayQuery import grouper
 
 # https://docs.python.org/3/library/dis.html
-NOP = opmap['NOP']
+
+
+class _NULLMeta(type):
+
+    def __repr__(self):
+        return self.__name__
+
+
+class NULL(metaclass=_NULLMeta):
+
+    def __init__(self):
+        raise AssertionError("This class should be used as constant")
+
+
 POP_TOP = opmap['POP_TOP']
-LOAD_DEREF = opmap['LOAD_DEREF']
-LOAD_ATTR = opmap['LOAD_ATTR']
-LOAD_FAST = opmap['LOAD_FAST']
-LOAD_CONST = opmap['LOAD_CONST']
-LOAD_GLOBAL = opmap['LOAD_GLOBAL']
-LOAD_METHOD = opmap['LOAD_METHOD']
-LOAD_CLOSURE = opmap['LOAD_CLOSURE']
-DELETE_FAST = opmap['DELETE_FAST']
-DELETE_DEREF = opmap["DELETE_DEREF"]
-STORE_ATTR = opmap['STORE_ATTR']
-STORE_FAST = opmap['STORE_FAST']
-STORE_DEREF = opmap['STORE_DEREF']
+PUSH_NULL = opmap['PUSH_NULL']
 
-LIST_APPEND = opmap['LIST_APPEND']
-
-CALL_METHOD = opmap['CALL_METHOD']
-LIST_EXTEND = opmap['LIST_EXTEND']
-CALL_FUNCTION = opmap['CALL_FUNCTION']
-CALL_FUNCTION_KW = opmap['CALL_FUNCTION_KW']
-CALL_FUNCTION_EX = opmap['CALL_FUNCTION_EX']
-
-COMPARE_OP = opmap['COMPARE_OP']
-GET_ITER = opmap['GET_ITER']
-EXTENDED_ARG = opmap['EXTENDED_ARG']
-UNPACK_SEQUENCE = opmap['UNPACK_SEQUENCE']
-MAKE_FUNCTION = opmap['MAKE_FUNCTION']
-STORE_SUBSCR = opmap['STORE_SUBSCR']
-FOR_ITER = opmap['FOR_ITER']
+NOP = opmap['NOP']
 UNARY_POSITIVE = opmap['UNARY_POSITIVE']
 UNARY_NEGATIVE = opmap['UNARY_NEGATIVE']
-UNARY_NOT = opmap['UNARY_NOT'     ]
-UNARY_INVERT = opmap['UNARY_INVERT'  ]
+UNARY_NOT = opmap['UNARY_NOT']
 
-BINARY_POWER = opmap['BINARY_POWER']
-BINARY_MULTIPLY = opmap['BINARY_MULTIPLY']
-BINARY_MATRIX_MULTIPLY = opmap['BINARY_MATRIX_MULTIPLY']
-BINARY_FLOOR_DIVIDE = opmap['BINARY_FLOOR_DIVIDE']
-BINARY_TRUE_DIVIDE = opmap['BINARY_TRUE_DIVIDE']
+UNARY_INVERT = opmap['UNARY_INVERT']
 
-BINARY_MODULO = opmap['BINARY_MODULO']
-BINARY_ADD = opmap['BINARY_ADD']
-BINARY_SUBTRACT = opmap['BINARY_SUBTRACT']
 BINARY_SUBSCR = opmap['BINARY_SUBSCR']
 
-BINARY_LSHIFT = opmap['BINARY_LSHIFT']
-BINARY_RSHIFT = opmap['BINARY_RSHIFT']
-BINARY_AND = opmap['BINARY_AND']
-BINARY_XOR = opmap['BINARY_XOR']
-BINARY_OR = opmap['BINARY_OR']
+GET_LEN = opmap['GET_LEN']  # 3.10+
+MATCH_MAPPING = opmap['MATCH_MAPPING']  # 3.10+
+MATCH_SEQUENCE = opmap['MATCH_SEQUENCE']  # 3.10+
+MATCH_KEYS = opmap['MATCH_KEYS']  # 3.10+
 
-IS_OP = opmap['IS_OP']
-CONTAINS_OP = opmap['CONTAINS_OP']
+PUSH_EXC_INFO = opmap['PUSH_EXC_INFO']
+CHECK_EXC_MATCH = opmap['CHECK_EXC_MATCH']
+CHECK_EG_MATCH = opmap['CHECK_EG_MATCH']
 
-INPLACE_POWER = opmap['INPLACE_POWER']
-INPLACE_MULTIPLY = opmap['INPLACE_MULTIPLY']
-INPLACE_MATRIX_MULTIPLY = opmap['INPLACE_MATRIX_MULTIPLY']
+WITH_EXCEPT_START = opmap['WITH_EXCEPT_START']  # 3.9+
 
-INPLACE_FLOOR_DIVIDE = opmap['INPLACE_FLOOR_DIVIDE']
-INPLACE_TRUE_DIVIDE = opmap['INPLACE_TRUE_DIVIDE']
-INPLACE_MODULO = opmap['INPLACE_MODULO']
-
-INPLACE_ADD = opmap['INPLACE_ADD']
-INPLACE_SUBTRACT = opmap['INPLACE_SUBTRACT']
-
-INPLACE_LSHIFT = opmap['INPLACE_LSHIFT']
-INPLACE_RSHIFT = opmap['INPLACE_RSHIFT']
-INPLACE_AND = opmap['INPLACE_AND']
-INPLACE_XOR = opmap['INPLACE_XOR']
-INPLACE_OR = opmap['INPLACE_OR']
+STORE_SUBSCR = opmap['STORE_SUBSCR']
 DELETE_SUBSCR = opmap['DELETE_SUBSCR']
 
-JUMP_ABSOLUTE = opmap['JUMP_ABSOLUTE']
-JUMP_FORWARD = opmap['JUMP_FORWARD']
-JUMP_IF_FALSE_OR_POP = opmap['JUMP_IF_FALSE_OR_POP']
-JUMP_IF_TRUE_OR_POP = opmap['JUMP_IF_TRUE_OR_POP']
-POP_JUMP_IF_FALSE = opmap['POP_JUMP_IF_FALSE']
-POP_JUMP_IF_TRUE = opmap['POP_JUMP_IF_TRUE']
+GET_ITER = opmap['GET_ITER']
+GET_YIELD_FROM_ITER = opmap['GET_YIELD_FROM_ITER']
+
+LOAD_BUILD_CLASS = opmap['LOAD_BUILD_CLASS']
+
+LOAD_ASSERTION_ERROR = opmap['LOAD_ASSERTION_ERROR']
+
 LIST_TO_TUPLE = opmap['LIST_TO_TUPLE']
 RETURN_VALUE = opmap['RETURN_VALUE']
 
-ROT_TWO = opmap['ROT_TWO']
-ROT_THREE = opmap['ROT_THREE']
-ROT_FOUR = opmap['ROT_FOUR']  # 3.8+
+YIELD_VALUE = opmap['YIELD_VALUE']
 
-DUP_TOP = opmap.get('DUP_TOP', -1)  # 3.2 - 3.11
-DUP_TOP_TWO = opmap.get('DUP_TOP_TWO', -1)  # 3.2 - 3.11
+POP_EXCEPT = opmap['POP_EXCEPT']
 
-BUILD_SLICE = opmap['BUILD_SLICE']
+UNPACK_SEQUENCE = opmap['UNPACK_SEQUENCE']
+FOR_ITER = opmap['FOR_ITER']
+UNPACK_EX = opmap['UNPACK_EX']
+STORE_ATTR = opmap['STORE_ATTR']
+DELETE_ATTR = opmap['DELETE_ATTR']
+
+SWAP = opmap['SWAP']
+LOAD_CONST = opmap['LOAD_CONST']
+
 BUILD_TUPLE = opmap['BUILD_TUPLE']
 BUILD_LIST = opmap['BUILD_LIST']
 BUILD_SET = opmap['BUILD_SET']
 BUILD_MAP = opmap['BUILD_MAP']
+LOAD_ATTR = opmap['LOAD_ATTR']
+COMPARE_OP = opmap['COMPARE_OP']
+
+JUMP_FORWARD = opmap['JUMP_FORWARD']
+JUMP_IF_FALSE_OR_POP = opmap['JUMP_IF_FALSE_OR_POP']
+JUMP_IF_TRUE_OR_POP = opmap['JUMP_IF_TRUE_OR_POP']
+POP_JUMP_FORWARD_IF_FALSE = opmap['POP_JUMP_FORWARD_IF_FALSE']
+POP_JUMP_FORWARD_IF_TRUE = opmap['POP_JUMP_FORWARD_IF_TRUE']
+
+LOAD_GLOBAL = opmap['LOAD_GLOBAL']
+IS_OP = opmap['IS_OP']
+CONTAINS_OP = opmap['CONTAINS_OP']
+RERAISE = opmap['RERAISE']
+COPY = opmap['COPY']
+BINARY_OP = opmap['BINARY_OP']
+SEND = opmap['SEND']
+
+LOAD_FAST = opmap['LOAD_FAST']
+STORE_FAST = opmap['STORE_FAST']
+DELETE_FAST = opmap['DELETE_FAST']
+POP_JUMP_FORWARD_IF_NOT_NONE = opmap['POP_JUMP_FORWARD_IF_NOT_NONE']
+POP_JUMP_FORWARD_IF_NONE = opmap['POP_JUMP_FORWARD_IF_NONE']
+RAISE_VARARGS = opmap['RAISE_VARARGS']
+
+MAKE_FUNCTION = opmap['MAKE_FUNCTION']
+BUILD_SLICE = opmap['BUILD_SLICE']
+JUMP_BACKWARD_NO_INTERRUPT = opmap['JUMP_BACKWARD_NO_INTERRUPT']
+MAKE_CELL = opmap['MAKE_CELL']
+LOAD_CLOSURE = opmap['LOAD_CLOSURE']
+LOAD_DEREF = opmap['LOAD_DEREF']
+STORE_DEREF = opmap['STORE_DEREF']
+DELETE_DEREF = opmap["DELETE_DEREF"]
+JUMP_BACKWARD = opmap['JUMP_BACKWARD']
+
+CALL_FUNCTION_EX = opmap['CALL_FUNCTION_EX']
+EXTENDED_ARG = opmap['EXTENDED_ARG']
+
+LIST_APPEND = opmap['LIST_APPEND']
+SET_ADD = opmap['SET_ADD']
+MAP_ADD = opmap['MAP_ADD']
+LOAD_CLASSDEREF = opmap['LOAD_CLASSDEREF']
+COPY_FREE_VARS = opmap['COPY_FREE_VARS']
+
+RESUME = opmap['RESUME']
+MATCH_CLASS = opmap['MATCH_CLASS']
+
 FORMAT_VALUE = opmap['FORMAT_VALUE']
 BUILD_CONST_KEY_MAP = opmap["BUILD_CONST_KEY_MAP"]
 BUILD_STRING = opmap['BUILD_STRING']
+
+LOAD_METHOD = opmap['LOAD_METHOD']
+
+LIST_EXTEND = opmap['LIST_EXTEND']
+SET_UPDATE = opmap['SET_UPDATE']
+DICT_MERGE = opmap['DICT_MERGE']
+DICT_UPDATE = opmap['DICT_UPDATE']
+
+PRECALL = opmap['PRECALL']
+CALL = opmap['CALL']
+KW_NAMES = opmap['KW_NAMES']
+
+POP_JUMP_BACKWARD_IF_NOT_NONE = opmap['POP_JUMP_BACKWARD_IF_NOT_NONE']
+POP_JUMP_BACKWARD_IF_NONE = opmap['POP_JUMP_BACKWARD_IF_NONE']
+POP_JUMP_BACKWARD_IF_FALSE = opmap['POP_JUMP_BACKWARD_IF_FALSE']
+POP_JUMP_BACKWARD_IF_TRUE = opmap['POP_JUMP_BACKWARD_IF_TRUE']
 
 UN_OPS = {
     UNARY_POSITIVE: operator.pos,
@@ -111,25 +146,41 @@ UN_OPS = {
     UNARY_INVERT: operator.invert,
 }
 
-BIN_OPS = {
-    BINARY_POWER: operator.pow,
-    BINARY_MULTIPLY: operator.mul,
-    BINARY_MATRIX_MULTIPLY: operator.matmul,
-    BINARY_FLOOR_DIVIDE: operator.floordiv,
-    BINARY_TRUE_DIVIDE: operator.truediv,
 
-    BINARY_MODULO: operator.mod,
-    BINARY_ADD: operator.add,
-    BINARY_SUBTRACT: operator.sub,
-    BINARY_SUBSCR: operator.getitem,
+def _binOpOpc(descrTuple: Tuple[str, str]) -> int:
+    return _nb_ops.index(descrTuple)
 
-    BINARY_LSHIFT: operator.lshift,
-    BINARY_RSHIFT: operator.rshift,
-    BINARY_AND: operator.and_,
-    BINARY_XOR: operator.xor,
-    BINARY_OR: operator.or_,
+
+BINARY_OPS: Dict[int, Tuple[bool, Callable[object, object]]] = {
+    _binOpOpc(("NB_ADD", "+")): (False, operator.add),
+    _binOpOpc(("NB_AND", "&")): (False, operator.and_),
+    _binOpOpc(("NB_FLOOR_DIVIDE", "//")): (False, operator.floordiv),
+    _binOpOpc(("NB_LSHIFT", "<<")): (False, operator.lshift),
+    _binOpOpc(("NB_MATRIX_MULTIPLY", "@")): (False, operator.matmul),
+    _binOpOpc(("NB_MULTIPLY", "*")): (False, operator.mul),
+    _binOpOpc(("NB_REMAINDER", "%")): (False, operator.mod),
+    _binOpOpc(("NB_OR", "|")): (False, operator.or_),
+    _binOpOpc(("NB_POWER", "**")): (False, operator.pow),
+    _binOpOpc(("NB_RSHIFT", ">>")): (False, operator.rshift),
+    _binOpOpc(("NB_SUBTRACT", "-")): (False, operator.sub),
+    _binOpOpc(("NB_TRUE_DIVIDE", "/")): (False, operator.truediv),
+    _binOpOpc(("NB_XOR", "^")): (False, operator.xor),
+    
+    _binOpOpc(("NB_INPLACE_ADD", "+=")): (True, operator.add),
+    _binOpOpc(("NB_INPLACE_AND", "&=")): (True, operator.and_),
+    _binOpOpc(("NB_INPLACE_FLOOR_DIVIDE", "//=")): (True, operator.floordiv),
+    _binOpOpc(("NB_INPLACE_LSHIFT", "<<=")): (True, operator.lshift),
+    _binOpOpc(("NB_INPLACE_MATRIX_MULTIPLY", "@=")): (True, operator.matmul),
+    _binOpOpc(("NB_INPLACE_MULTIPLY", "*=")): (True, operator.mul),
+    _binOpOpc(("NB_INPLACE_REMAINDER", "%=")): (True, operator.mod),
+    _binOpOpc(("NB_INPLACE_OR", "|=")): (True, operator.or_),
+    _binOpOpc(("NB_INPLACE_POWER", "**=")): (True, operator.pow),
+    _binOpOpc(("NB_INPLACE_RSHIFT", ">>=")): (True, operator.rshift),
+    _binOpOpc(("NB_INPLACE_SUBTRACT", "-=")): (True, operator.sub),
+    _binOpOpc(("NB_INPLACE_TRUE_DIVIDE", "/=")): (True, operator.truediv),
+    _binOpOpc(("NB_INPLACE_XOR", "^=")): (True, operator.xor),
+
     # IS_OP: operator.is_, # "is" operator has inversion flag, we have to use a custom evaluator fn.
-    CONTAINS_OP: lambda item, collection: item in collection, # note that operator.contains has reversed order of operands
 }
 
 CMP_OP_LT = cmp_op.index('<')
@@ -150,82 +201,60 @@ CMP_OPS = {
     # 'not in': lambda x, col: not operator.contains(x, col),
 }
 
-INPLACE_BIN_OPS = {
-    INPLACE_POWER: operator.pow,
-    INPLACE_MULTIPLY: operator.mul,
-    INPLACE_MATRIX_MULTIPLY: operator.imatmul,
 
-    INPLACE_FLOOR_DIVIDE: operator.floordiv,
-    INPLACE_TRUE_DIVIDE: operator.truediv,
-    INPLACE_MODULO: operator.mod,
+def _dictMerge(dst: dict, src: dict):
+    for k, v in src.items():
+        assert k not in dst, k
+        dst[k] = v 
 
-    INPLACE_ADD: operator.add,
-    INPLACE_SUBTRACT: operator.sub,
 
-    INPLACE_LSHIFT: operator.lshift,
-    INPLACE_RSHIFT: operator.rshift,
-    INPLACE_AND: operator.and_,
-    INPLACE_XOR: operator.xor,
-    INPLACE_OR: operator.or_,
-    DELETE_SUBSCR: operator.delitem,
+INPLACE_UPDATE_OPS = {
+    SET_ADD: set.add,
+    LIST_APPEND: list.append,
+    # MAP_ADD: 
+    LIST_EXTEND: list.extend,
+    SET_UPDATE: set.update,
+    DICT_MERGE: _dictMerge,
+    DICT_UPDATE: dict.update,
 }
+
+JUMPS_RELATIVE = (
+    JUMP_FORWARD,
+    JUMP_BACKWARD,
+    JUMP_BACKWARD_NO_INTERRUPT,
+    RETURN_VALUE,
+    RERAISE, RAISE_VARARGS)
+JUMPS_CONDITIONAL = (
+    POP_JUMP_FORWARD_IF_NOT_NONE,
+    POP_JUMP_FORWARD_IF_NONE,
+    POP_JUMP_FORWARD_IF_FALSE,
+    POP_JUMP_FORWARD_IF_TRUE,
+    POP_JUMP_BACKWARD_IF_NOT_NONE,
+    POP_JUMP_BACKWARD_IF_NONE,
+    POP_JUMP_BACKWARD_IF_FALSE,
+    POP_JUMP_BACKWARD_IF_TRUE,
+)
+
+JUMPS_CONDITIONAL_ANY = (
+    *JUMPS_CONDITIONAL,
+    FOR_ITER,
+)
 
 JUMP_OPS = {
-    JUMP_ABSOLUTE,
-    JUMP_FORWARD,
-    JUMP_IF_FALSE_OR_POP,
-    JUMP_IF_TRUE_OR_POP,
-    POP_JUMP_IF_FALSE,
-    POP_JUMP_IF_TRUE,
-}
+    JUMP_FORWARD: None,
+    JUMP_BACKWARD: None,
+    JUMP_BACKWARD_NO_INTERRUPT: None,
+    JUMP_IF_FALSE_OR_POP: False,
+    JUMP_IF_TRUE_OR_POP: True,
 
-
-def rot_two(stack):
-    # Swaps the two top-most stack items.
-    v0 = stack.pop()
-    v1 = stack.pop()
-    stack.append(v0)
-    stack.append(v1)
-
-
-def rot_three(stack):
-    # Lifts second and third stack item one position up, moves top down to position three.
-    v0 = stack.pop()
-    v1 = stack.pop()
-    v2 = stack.pop()
-    stack.append(v0)
-    stack.append(v2)
-    stack.append(v1)
-
-
-def rot_four(stack):
-    # Lifts second, third and fourth stack items one position up, moves top down to position four.
-    v0 = stack.pop()
-    v1 = stack.pop()
-    v2 = stack.pop()
-    v3 = stack.pop()
-    stack.append(v0)
-    stack.append(v3)
-    stack.append(v2)
-    stack.append(v1)
-
-
-def dup_top(stack):
-    stack.append(stack[-1])
-
-
-def dup_top_two(stack):
-    stack.append(stack[-2])
-    stack.append(stack[-2])
-
-
-ROT_OPS = {
-    ROT_TWO: rot_two,
-    ROT_THREE: rot_three,
-    ROT_FOUR: rot_four,  # 3.8+
-
-    DUP_TOP: dup_top,  # 3.2 - 3.11
-    DUP_TOP_TWO: dup_top_two,  # 3.2 - 3.11
+    POP_JUMP_FORWARD_IF_NOT_NONE: lambda x: x is not None,
+    POP_JUMP_FORWARD_IF_NONE: lambda x: x is None,
+    POP_JUMP_FORWARD_IF_FALSE: False,
+    POP_JUMP_FORWARD_IF_TRUE: True,
+    POP_JUMP_BACKWARD_IF_NOT_NONE: lambda x: x is not None,
+    POP_JUMP_BACKWARD_IF_NONE: lambda x: x is None,
+    POP_JUMP_BACKWARD_IF_FALSE: False,
+    POP_JUMP_BACKWARD_IF_TRUE: True,
 }
 
 
@@ -250,9 +279,12 @@ def _BUILD_MAP(instr: Instruction, stack: list):
 
     Changed in version 3.5: The dictionary is created from stack items instead of creating an empty dictionary pre-sized to hold count items.
     """
-    keyValues = stack[-instr.argval * 2:]
-    del stack[-instr.argval * 2:]
-    stack.append({k: v for k, v in grouper(2, keyValues)})
+    d = {}
+    for _ in range(instr.argval):
+        v = stack.pop()
+        k = stack.pop()
+        d[k] = v
+    stack.append(d)
 
 
 def _BUILD_CONST_KEY_MAP(instr: Instruction, stack: list):

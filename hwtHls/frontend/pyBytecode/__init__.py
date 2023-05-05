@@ -31,3 +31,12 @@ def hlsBytecode(fn):
     Wrapper which does nothig but parks the function as compatible with bytecode HLS frontend for documentation purposes.
     """
     return fn
+
+
+def hlsLowLevel(fn):
+    """
+    Wraper which marks function as integrated in HLS framework of this library. Functions marked with this will recieve
+    all arguments as they are without any expansion.
+    """
+    fn.__hlsIsLowLevelFn = True
+    return fn

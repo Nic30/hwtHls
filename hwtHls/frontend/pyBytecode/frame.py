@@ -1,22 +1,17 @@
 from copy import copy
 from dis import Instruction, _get_instructions_bytes, findlinestarts
 import inspect
-from networkx.classes.digraph import DiGraph
-from types import FunctionType, CellType
+from types import FunctionType
 from typing import Dict, Set, Tuple, List, Optional
 
+from hwtHls.frontend.pyBytecode.blockLabel import BlockLabel
 from hwtHls.frontend.pyBytecode.blockPredecessorTracker import BlockPredecessorTracker
 from hwtHls.frontend.pyBytecode.bytecodeBlockAnalysis import extractBytecodeBlocks
 from hwtHls.frontend.pyBytecode.loopMeta import PyBytecodeLoopInfo, \
     LoopExitJumpInfo
 from hwtHls.frontend.pyBytecode.loopsDetect import PyBytecodeLoop
 from hwtHls.ssa.basicBlock import SsaBasicBlock
-
-
-class _PyBytecodeUnitialized():
-
-    def __init__(self):
-        raise AssertionError("This class should be used as a constant")
+from hwtHls.frontend.pyBytecode.instructions import NULL
 
 
 class PyBytecodeFrame():
@@ -32,8 +27,6 @@ class PyBytecodeFrame():
     :ivar blockTracker: an object to keep track of predecessor blocks in the function
         used in SSA construction to detect that we know all predecessors of some block so we can seal it
     :ivar loops: a dictionary mapping header block offset to a loop list
-    :ivar locals: list where local variables are stored
-    :ivar cellVarI: a dictionary mapping a index of cell variable to index in locals list
     :ivar stack: a stack of Python interpret in preprocessor
     :ivar returnPoints: a list of tuples specifying the return from this function
     :note: record in returnPoints contains frame because due to HW evaluated conditions there may be multiple
@@ -44,8 +37,7 @@ class PyBytecodeFrame():
                  instructions: Tuple[Instruction, ...],
                  bytecodeBlocks: Dict[int, List[Instruction]],
                  loops: Dict[int, List["PyBytecodeLoop"]],
-                 locals_: list,
-                 freevars: List[CellType],
+                 localsplus: list,
                  stack: list):
         self.fn = fn
         self.callSiteAddress = callSiteAddress
@@ -55,13 +47,9 @@ class PyBytecodeFrame():
         self.bytecodeBlocks = bytecodeBlocks
         self.blockTracker: Optional[BlockPredecessorTracker] = None
         self.loops = loops
-        self.locals = locals_
-        self.freevars = freevars
+        self.localsplus = localsplus
         self.stack = stack
         self.returnPoints: List[Tuple[PyBytecodeFrame, SsaBasicBlock, tuple]] = []
-
-    def constructBlockTracker(self, cfg: DiGraph, callStack: List["PyBytecodeFrame"]):
-        self.blockTracker = BlockPredecessorTracker(cfg, callStack)
 
     def isJumpFromCurrentLoopBody(self, dstBlockOffset: int) -> bool:
         return self.loopStack and self.loopStack[-1].isJumpFromLoopBody(dstBlockOffset)
@@ -91,14 +79,23 @@ class PyBytecodeFrame():
         self.loopStack[-1].markJumpFromBodyOfLoop(loopExitJumpInfo)
 
     @classmethod
-    def fromFunction(cls, fn: FunctionType, callSiteAddress: int, fnArgs: tuple, fnKwargs: dict, callStack: List["PyBytecodeFrame"]):
+    def fromFunction(cls, fn: FunctionType, predecessorBlockLabel: BlockLabel, callSiteAddress: int,
+                     fnArgs: tuple, fnKwargs: dict, callStack: List["PyBytecodeFrame"]):
         """
-        :note: based on cpython/Python/ceval.c/_PyEval_MakeFrameVector
+        :note: based on cpython/Python/ceval.c/_PyEvalFramePushAndInit
         """
+        
         if isinstance(fn, staticmethod):
             fn = fn.__func__
+
+        # https://docs.python.org/3/library/inspect.html
         co = fn.__code__
-        localVars = [_PyBytecodeUnitialized for _ in range(fn.__code__.co_nlocals)]
+        # anyArgCnt = co.co_argcount + co.co_kwonlyargcount
+        # trueLocalsCnt = anyArgCnt + co.co_nlocals
+        argAndLocalVarCnt = len(co.co_varnames) # args and directly used locals
+        plainCellVarCnt = sum(1 for n in co.co_cellvars if n not in co.co_varnames) # to child closures
+        freeVarCnt = len(co.co_freevars) # from parent closure
+        localsplus = [NULL for _ in range(argAndLocalVarCnt + plainCellVarCnt + freeVarCnt)]
         if inspect.ismethod(fn):
             fnArgs = list((fn.__self__, *fnArgs))
             defaults = [fn.__func__.__defaults__, fn.__func__.__kwdefaults__]
@@ -116,50 +113,29 @@ class PyBytecodeFrame():
                 fnArgs[co.co_varnames.index(k)] = v
 
         for i, argVal in enumerate(fnArgs):
-            localVars[i] = argVal
+            localsplus[i] = argVal
 
-        freevars = []
-        if co.co_cellvars:
-            argToI = {argName: i for i, argName in enumerate(co.co_varnames[:co.co_argcount])}
-            # cellvars:  names of local variables that are referenced by nested functions
-            # freevars: all non local variables, the cellvars are prefix of freevars
-            # Allocate and initialize storage for cell vars, and copy free vars into frame.
-            for cellVarName in co.co_cellvars:
-                # Possibly account for the cell variable being an argument.
-                argI = argToI.get(cellVarName, None)
-                if argI is not None:
-                    cellVarVal = localVars[argI]
-                    # Clear the local copy.
-                    localVars[argI] = _PyBytecodeUnitialized
-                else:
-                    cellVarVal = _PyBytecodeUnitialized
-                freevars.append(CellType(cellVarVal))
-
-        # Copy closure variables to free variables
-        if fn.__closure__:
-            freevars.extend(fn.__closure__)
-
-        cell_names = co.co_cellvars + co.co_freevars
         linestarts = dict(findlinestarts(co))
-        instructions = tuple(_get_instructions_bytes(
-            co.co_code, co.co_varnames, co.co_names,
-            co.co_consts, cell_names, linestarts))
-        bytecodeBlocks, cfg = extractBytecodeBlocks(instructions)
-        cfg: DiGraph
-        if callSiteAddress ==-1:
-            # connect to entry point block
-            cfg.add_edge((-1, ), (0, ))
-        loops = PyBytecodeLoop.collectLoopsPerBlock(cfg)
+        instructions = tuple(_get_instructions_bytes(co.co_code,
+            varname_from_oparg=co._varname_from_oparg,
+            names=co.co_names, co_consts=co.co_consts,
+            linestarts=linestarts,
+            co_positions=co.co_positions()))
+        
+        bytecodeBlocks, fnCfg = extractBytecodeBlocks(instructions)
+        loops = PyBytecodeLoop.collectLoopsPerBlock(fnCfg)
+        
         frame = PyBytecodeFrame(fn, callSiteAddress, instructions, bytecodeBlocks,
-                               loops, localVars, freevars, [])
+                               loops, localsplus, [])
 
         callStack.append(frame)
-        frame.constructBlockTracker(cfg, callStack)
+        frame.blockTracker = BlockPredecessorTracker(fnCfg, predecessorBlockLabel, callStack)
+
         return frame
 
     def __copy__(self):
         o = self.__class__(self.fn, self.callSiteAddress, self.instructions, self.bytecodeBlocks, self.loops,
-                           copy(self.locals), self.freevars, copy(self.stack))
+                           copy(self.localsplus), copy(self.stack))
         o.loopStack = self.loopStack
         o.preprocVars = self.preprocVars
         o.bytecodeBlocks = self.bytecodeBlocks
