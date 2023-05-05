@@ -3,6 +3,7 @@ from io import StringIO
 import json
 from typing import Dict, List, Optional, Set, Tuple
 
+from hwt.hdl.operatorDefs import OpDefinition
 from hwt.hdl.types.bitsVal import BitsVal
 from hwt.hdl.types.sliceVal import HSliceVal
 from hwt.pyUtils.uniqList import UniqList
@@ -11,7 +12,7 @@ from hwtHls.io.bram import HlsNetNodeWriteBramCmd
 from hwtHls.netlist.analysis.schedule import HlsNetlistAnalysisPassRunScheduler
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
-from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeWriteBackwardEdge
+from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -22,7 +23,6 @@ from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.platform.fileUtils import OutputStreamGetter
-from hwt.hdl.operatorDefs import OpDefinition
 
 
 class TimelineItem():
@@ -181,7 +181,7 @@ class HwtHlsNetlistToTimelineJson():
         if obj.scheduledIn:
             start = min(obj.scheduledIn)
         else:
-            assert obj.scheduledOut is not None, obj
+            assert obj.scheduledOut is not None, (obj, "node was not scheduled so it is not possible to add int into output graph")
             assert obj.scheduledOut, (obj, "does not have any port")
             start = max(obj.scheduledOut)
 
@@ -225,19 +225,25 @@ class HwtHlsNetlistToTimelineJson():
             label = f"{obj.operator.id if isinstance(obj.operator, OpDefinition) else str(obj.operator)} {obj._id:d}"
 
         elif isinstance(obj, HlsNetNodeWrite):
+            name = obj.name
+            if not name:
+                name = obj._getInterfaceName(obj.dst)
             if isinstance(obj, HlsNetNodeWriteBramCmd):
-                label = f"{obj._getInterfaceName(obj.dst)}.write_cmd({obj.cmd})  {obj._id:d}"
+                label = f"{name:s}.write_cmd({obj.cmd})  {obj._id:d}"
             else:
-                label = f"{obj._getInterfaceName(obj.dst)}.write()  {obj._id:d}"
+                label = f"{name:s}.write()  {obj._id:d}"
 
-            if isinstance(obj, HlsNetNodeWriteBackwardEdge):
-                objGroupId = io_group_ids.setdefault(obj.associated_read.src if obj.associated_read is not None else obj.dst, objGroupId)
-                if obj.channel_init_values:
-                    label = f"{label:s} init:{obj.channel_init_values}"
+            if isinstance(obj, HlsNetNodeWriteBackedge):
+                objGroupId = io_group_ids.setdefault(obj.associatedRead.src if obj.associatedRead is not None else obj.dst, objGroupId)
+                if obj.channelInitValues:
+                    label = f"{label:s} init:{obj.channelInitValues}"
             color = "lime"
 
         elif isinstance(obj, HlsNetNodeRead):
-            label = f"{obj._getInterfaceName(obj.src)}.read()  {obj._id:d}"
+            name = obj.name
+            if not name:
+                name = obj._getInterfaceName(obj.src) if obj.src else None
+            label = f"{name:s}.read()  {obj._id:d}"
             objGroupId = io_group_ids.setdefault(obj.src, objGroupId)
             color = "lime"
 
@@ -334,7 +340,7 @@ class HwtHlsNetlistToTimelineJson():
         json.dump(_toJson(j, self.clkPeriod), file)
 
 
-class HlsNetlistPassShowTimelineJson(HlsNetlistPass):
+class HlsNetlistPassDumpSchedulingJson(HlsNetlistPass):
 
     def __init__(self, outStreamGetter:Optional[OutputStreamGetter]=None, expandCompositeNodes=False):
         self.outStreamGetter = outStreamGetter
