@@ -6,8 +6,8 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 class BetweenSyncIsland():
     """
     An island of nodes between HlsNetNodeExplicitSync nodes (HlsNetNodeRead and HlsNetNodeWrite are subclasses)
-    
-    :note: inputs/outputs are not related to a read/write operations, it is related how node is positioned relatively to this cluster. 
+
+    :note: inputs/outputs are not related to a read/write operations, it is related how node is positioned relatively to this cluster.
 
     Specific cases of input output relations:
     * inputs and outputs are not inside of nodes
@@ -24,12 +24,18 @@ class BetweenSyncIsland():
         self.inputs = inputs
         self.nodes = nodes
         self.outputs = outputs
-    
+
+    def substract(self, other: "BetweenSyncIsland"):
+        assert self is not other
+        self.inputs = UniqList(i for i in self.inputs if i not in other.inputs)
+        self.nodes = UniqList(n for n in self.nodes if n not in other.nodes)
+        self.outputs = UniqList(o for o in self.outputs if o not in other.outputs)
+
     def iterAllNodes(self):
         yield from self.inputs
         yield from self.nodes
         yield from self.outputs
-    
+
     def __repr__(self):
         return (f"<{self.__class__.__name__:s} i={[n._id for n in self.inputs]} "
                 f"o={[n._id for n in self.outputs]} "
