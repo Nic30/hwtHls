@@ -119,20 +119,22 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                                 continue
 
                     elif o in self.REST_OF_EVALUABLE_OPS:
+                        resT: HdlType = n._outputs[0]._dtype
                         if o == AllOps.CONCAT:
-                            if HdlType_isVoid(n._outputs[0]._dtype) and netlistReduceConcatOfVoid(n, worklist, removed):
+                            if HdlType_isVoid(resT) and netlistReduceConcatOfVoid(n, worklist, removed):
                                 continue
 
                         c0 = getConstDriverOf(n._inputs[0])
                         if c0 is None:
                             if o is AllOps.EQ:
-                                if n._outputs[0]._dtype.bit_length() == 1 and netlistReduceValidAndOrXorEqValidNb(n, worklist, removed):
+                                if resT.bit_length() == 1 and netlistReduceValidAndOrXorEqValidNb(n, worklist, removed):
                                     didModifyExpr = True
                                     continue
 
                             if o in _DENORMALIZED_CMP_OPS and netlistCmpNormalize(n, worklist, removed):
                                 didModifyExpr = True
                                 continue
+
                             if o in (AllOps.EQ, AllOps.NE):
                                 if netlistReduceEqNe(n, worklist, removed):
                                     didModifyExpr = True
@@ -158,6 +160,10 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                                 v = Concat(c1, c0)
                             else:
                                 v = o._evalFn(c0, c1)
+
+                        if v._dtype != resT:
+                            assert v._dtype.bit_length() == resT.bit_length()
+                            v = v.cast_sign(resT.signed)
 
                         replaceOperatorNodeWith(n, builder.buildConst(v), worklist, removed)
                         didModifyExpr = True
