@@ -2,15 +2,17 @@ from typing import Set
 
 from hwt.code import Concat
 from hwt.hdl.operatorDefs import AllOps, COMPARE_OPS, CAST_OPS
+from hwt.hdl.types.hdlType import HdlType
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.analysis.consystencyCheck import HlsNetlistPassConsystencyCheck
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
-from hwtHls.netlist.nodes.loopGate import HlsLoopGate, HlsLoopGateStatus
+from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
+from hwtHls.netlist.nodes.orderable import HdlType_isVoid
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
@@ -18,6 +20,8 @@ from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.netlist.transformation.simplifyExpr.cmp import netlistReduceEqNe
 from hwtHls.netlist.transformation.simplifyExpr.cmpInAnd import netlistReduceCmpInAnd
 from hwtHls.netlist.transformation.simplifyExpr.cmpNormalize import netlistCmpNormalize, _DENORMALIZED_CMP_OPS
+from hwtHls.netlist.transformation.simplifyExpr.concat import netlistReduceConcatOfVoid
+from hwtHls.netlist.transformation.simplifyExpr.loops import netlistReduceLoopWithoutEnterAndExit
 from hwtHls.netlist.transformation.simplifyExpr.rehash import HlsNetlistPassRehashDeduplicate
 from hwtHls.netlist.transformation.simplifyExpr.simplifyAbc import runAbcControlpathOpt
 from hwtHls.netlist.transformation.simplifyExpr.simplifyBitwise import netlistReduceNot, netlistReduceAndOrXor
@@ -29,8 +33,6 @@ from hwtHls.netlist.transformation.simplifySync.simplifyNonBlockingIo import net
 from hwtHls.netlist.transformation.simplifySync.simplifySync import HlsNetlistPassSimplifySync
 from hwtHls.netlist.transformation.simplifyUtils import disconnectAllInputs, \
     getConstDriverOf, replaceOperatorNodeWith
-from hwtHls.netlist.nodes.orderable import HdlType_isVoid
-from hwtHls.netlist.transformation.simplifyExpr.concat import netlistReduceConcatOfVoid
 
 
 class HlsNetlistPassSimplify(HlsNetlistPass):
@@ -42,7 +44,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
     """
     REST_OF_EVALUABLE_OPS = {AllOps.CONCAT, AllOps.ADD, AllOps.SUB, AllOps.DIV, AllOps.MUL, AllOps.INDEX, *COMPARE_OPS, *CAST_OPS}
     OPS_AND_OR_XOR = (AllOps.AND, AllOps.OR, AllOps.XOR)
-    NON_REMOVABLE_CLS = (HlsNetNodeRead, HlsNetNodeWrite, HlsLoopGate, HlsNetNodeExplicitSync)
+    NON_REMOVABLE_CLS = (HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeLoopStatus, HlsNetNodeExplicitSync)
     OPT_ITERATION_LIMIT = 20
 
     def __init__(self, dbgTracer: DebugTracer):
@@ -61,11 +63,11 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                 if cur is n:
                     p._associatedReadSync = None
 
-        elif isinstance(n, HlsLoopGateStatus):
-            loop = n._loop_gate
-            disconnectAllInputs(loop, worklist)
-            removed.add(loop)
-            builder.unregisterNode(loop)
+        # elif isinstance(n, HlsLoopGateStatus):
+        #    loop = n._loopGate
+        #    disconnectAllInputs(loop, worklist)
+        #    removed.add(loop)
+        #    builder.unregisterNode(loop)
 
         builder.unregisterNode(n)
         disconnectAllInputs(n, worklist)
@@ -178,7 +180,10 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                             if dbgEn:
                                 HlsNetlistPassConsystencyCheck._checkCycleFree(n.netlist, removed)
                             continue
-
+                elif isinstance(n, HlsNetNodeLoopStatus):
+                    if netlistReduceLoopWithoutEnterAndExit(n, worklist, removed):
+                        didModifyExpr = True
+                        continue
                 assert not isinstance(n, HlsNetNodeReadSync), (n, "Should already be removed")
 
             if runCntr == 0 or didModifyExpr:
