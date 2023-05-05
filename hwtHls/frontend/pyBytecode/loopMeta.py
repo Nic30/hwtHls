@@ -77,7 +77,7 @@ class PyBytecodeLoopInfo():
         self.pragma: List["_PyBytecodePragma"] = []
 
     def isJumpFromLoopBody(self, dstBlockOffset: int) -> bool:
-        return (dstBlockOffset,) not in self.loop.allBlocks or (dstBlockOffset,) == self.loop.entryPoint
+        return dstBlockOffset not in self.loop.allBlocks or dstBlockOffset == self.loop.entryPoint
     
     def markJumpFromBodyOfLoop(self, exitInfo: "LoopExitJumpInfo"):
         self.jumpsFromLoopBody.append(exitInfo)
