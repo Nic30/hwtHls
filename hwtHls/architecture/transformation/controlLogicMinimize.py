@@ -101,6 +101,7 @@ class RtlNetlistPassControlLogicMinimize(RtlNetlistPass):
         if isinstance(d, HdlStatement):
             yield from cls.iterDriverSignalsRec(d, sig)
         else:
+            assert sig._dtype.bit_length() == 1, sig
             yield sig
 
     @classmethod
@@ -147,6 +148,7 @@ class RtlNetlistPassControlLogicMinimize(RtlNetlistPass):
                     for s in con.sync_node.slaves:
                         vld, _ = extractControlSigOfInterfaceTuple(s)
                         collect(vld, allControlIoOutputs, inputs, inTreeOutputs)
+            
             if elm._dbgAddNamesToSyncSignals:
                 for s in sorted(elm._dbgExplicitlyNamedSyncSignals, key=RtlSignal_sort_key):
                     assert s._dtype.bit_length() == 1
@@ -163,6 +165,7 @@ class RtlNetlistPassControlLogicMinimize(RtlNetlistPass):
         # [todo] restrict to only statements generated from this HlsScope/thread
         for stm in netlist.parentUnit._ctx.statements:
             for c in cls.iterConditions(stm):
+                assert c._dtype.bit_length() == 1, stm
                 collect(c, allControlIoOutputs, inputs, inTreeOutputs)
         return allControlIoOutputs, inputs
 
@@ -183,6 +186,7 @@ class RtlNetlistPassControlLogicMinimize(RtlNetlistPass):
             for o, newO in zip(allControlIoOutputs, newOutputs):
                 if o is not newO:
                     o: RtlSignal
+                    assert newO._dtype.bit_length() == 1, (o, o._dtype, "->", newO, newO._dtype)
 
                     for ep in o.endpoints:
                         if isinstance(ep, Operator):
