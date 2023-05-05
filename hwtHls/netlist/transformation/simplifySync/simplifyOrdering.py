@@ -1,98 +1,46 @@
-from typing import Set, Sequence, Optional
+from typing import Set, Sequence, Optional, Tuple
 
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.debugTracer import DebugTracer
-from hwtHls.netlist.nodes.IoClusterCore import HlsNetNodeIoClusterCore
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.orderable import HdlType_isNonData, HVoidOrdering
+from hwtHls.netlist.nodes.orderable import HdlType_isNonData, HVoidOrdering, \
+    HdlType_isVoid, _HVoidOrdering
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, link_hls_nodes, \
-    HlsNetNodeOut, unlink_hls_nodes
+    HlsNetNodeOut, unlink_hls_nodes, HlsNetNodeOutLazy
 from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachabilility
 
 
-def netlistExplicitSyncDisconnectFromOrderingChain(dbgTracer: DebugTracer, n: HlsNetNodeExplicitSync, removed: Set[HlsNetNode],
+def netlistExplicitSyncDisconnectFromOrderingChain(dbgTracer: DebugTracer, n: HlsNetNodeExplicitSync,
+                                                   worklist: Optional[UniqList[HlsNetNode]],
                                                    disconnectPredecessors: bool=True,
                                                    disconnectSuccesors: bool=True):
-    """
-    :attention: n is not added to removed, only a HlsNetNodeIoClusterCore instances are added to removed
-        if disconnecting from ordering caused IoClusters to collapse
-    """
-    assert disconnectPredecessors or disconnectSuccesors
-    
+    assert disconnectPredecessors or disconnectSuccesors, "At least one must be set otherwise this function would do nothing and in that case it should not be called at all."
+
     with dbgTracer.scoped(netlistExplicitSyncDisconnectFromOrderingChain, n):
+        assert n._inputOfCluster is None
+        assert n._outputOfCluster is None
         for orderingI in tuple(n.iterOrderingInputs()):
             dep = n.dependsOn[orderingI.in_i]
-            assert not isinstance(dep.obj, HlsNetNodeIoClusterCore), ("_outputOfCluster/_inputOfCluster are only ports where HlsNetNodeIoClusterCore should be connected and these ports should no be returned from iterOrderingInputs()", dep)
+            if worklist is not None:
+                worklist.append(dep.obj)
             netlistExplicitSyncOrderingBypass(orderingI, disconnectPredecessors)
 
-        succIoCluster: Optional[HlsNetNodeIoClusterCore] = None if n._outputOfCluster is None else n.dependsOn[n._outputOfCluster.in_i].obj
-        predIoCluster: Optional[HlsNetNodeIoClusterCore] = None if n._inputOfCluster is None else n.dependsOn[n._inputOfCluster.in_i].obj
-        assert (predIoCluster is None and succIoCluster is None) or (predIoCluster is not None and succIoCluster is not None), \
-            ("If there are IoClusters in the netlist each ExplicitSync must be connected to input and output cluster")
-
-        if predIoCluster:
-            if not disconnectPredecessors or not disconnectSuccesors:
-                raise NotImplementedError()
-
-            if succIoCluster is predIoCluster:
-                dbgTracer.log(("rm ", n._id, " from cluster ", predIoCluster._id))
-                for i in (n._outputOfCluster, n._inputOfCluster):
-                    unlink_hls_nodes(n.dependsOn[i.in_i], i)
-                if not any(predIoCluster.usedBy):
-                    removed.add(predIoCluster)
-                    dbgTracer.log(("rm empty cluster", predIoCluster._id))
-
-            else:
-                dbgTracer.log(("merge io clusters", predIoCluster._id, " to ", succIoCluster._id))
-    
-                # :note: it is guaranged that predIoCluster < succIoCluster => it is safe to transfer io between io clusters
-                # each sync/io node can be input and output (separetely) just in a single node
-                curInputs = {use.obj: use for use in succIoCluster.usedBy[succIoCluster.inputNodePort.out_i]}
-                # transfer inputs of predecessor cluster to successor
-                predInPort = predIoCluster.inputNodePort
-                sucInPort = succIoCluster.inputNodePort
-                for use in tuple(predIoCluster.usedBy[predInPort.out_i]):
-                    unlink_hls_nodes(predInPort, use)
-                    if use.obj is n:
-                        # skip because this is the node we are removing
-                        continue
-                    link_hls_nodes(sucInPort, use)
-    
-                # transfer outputs and potentially remove from successor inputs
-                predOutPort = predIoCluster.outputNodePort
-                succOutPort = succIoCluster.outputNodePort
-                for useOut in tuple(predIoCluster.usedBy[predOutPort.out_i]):
-                    # :note: user is an output of predIoCluster
-                    useAsInput = curInputs.get(useOut.obj, None)
-                    if useAsInput is not None:
-                        # input became output
-                        unlink_hls_nodes(sucInPort, useAsInput)
-                        useAsInput.obj._removeInput(useAsInput.in_i)
-    
-                    unlink_hls_nodes(predOutPort, useOut)
-                    if useOut.obj is n:
-                        # skip because this is the node we are removing
-                        continue
-                    link_hls_nodes(succOutPort, useOut)
-                
-                for i in (n._outputOfCluster, n._inputOfCluster):
-                    dep = n.dependsOn[i.in_i]
-                    if dep is not None:
-                        unlink_hls_nodes(dep, i)
-                removed.add(predIoCluster)
-
-        else:
-            dbgTracer.log("rm not connected to any io cluster")
-        
         if disconnectSuccesors:
-            netlistExplicitSyncOrderingOutUsesDiscard(n)
+            netlistExplicitSyncOrderingOutUsesDiscard(n, worklist)
 
-    
+
 def _explicitSyncAddUniqueOrdering(n: HlsNetNodeExplicitSync,
                                    newOrderingDeps: Sequence[HlsNetNodeOut],
                                    nOrderingUses: Optional[Set[HlsNetNodeExplicitSync]]):
+    """
+    Add ordering dependencies to node "n" from newOrderingDeps
+
+    :param n: node were to add ordering input ports and link them with newOrderingDeps.
+    :param newOrderingDeps: sequence or ordering dependencies which should be added.
+    :param nOrderingUses: set of current ordering uses to avoid add of redundant ordering edges.
+    """
     # collect already present ordering
     if nOrderingUses is None:
         nOrderingUses = set()
@@ -101,13 +49,23 @@ def _explicitSyncAddUniqueOrdering(n: HlsNetNodeExplicitSync,
 
     # add dependencies from depObj to n
     for d in newOrderingDeps:
-        if d.obj in nOrderingUses:
-            # prevent ordering duplication
-            continue
+        if isinstance(d, HlsNetNodeOut):
+            if d.obj in nOrderingUses:
+                # prevent ordering duplication
+                continue
+            else:
+                nOrderingUses.add(d.obj)
+                nOi = n._addInput("orderingIn", addDefaultScheduling=True)
+                link_hls_nodes(d, nOi)
         else:
-            nOrderingUses.add(d.obj)
-            nOi = n._addInput("orderingIn")
-            link_hls_nodes(d, nOi)
+            assert isinstance(d, HlsNetNodeOutLazy), d
+            if d in nOrderingUses:
+                # prevent ordering duplication
+                continue
+            else:
+                nOrderingUses.add(d)
+                nOi = n._addInput("orderingIn", addDefaultScheduling=True)
+                link_hls_nodes(d, nOi)
 
     return nOrderingUses
 
@@ -115,66 +73,78 @@ def _explicitSyncAddUniqueOrdering(n: HlsNetNodeExplicitSync,
 def netlistExplicitSyncOrderingBypass(orderingI: HlsNetNodeIn, disconnectInput: bool):
     """
     Used to cancel ordering connection for nodes which do have ordering guaranteed trough other means
+
     Distribute ordering dependencies from dependency of this input "dep" to all ordering user of this node "n"
     and forward ordering users of "n" ordering output port to "dep".
-    
-    .. code-block:: text
-    
-       --v 
-        dep -> n  -> use
 
-    to 
     .. code-block:: text
-    
+
+       --v
+        pred -> n -> use
+
+    to
+    .. code-block:: text
+
      ----+----+
-         v    v 
-        dep   n -> use
-         |----------^    
-         
-    or 
+         v    v
+        pred  n -> use
+         |----------^
+
+    or
      ----+
-         v     
-        dep   n -> use
-         |----------^  
-         
+         v
+        pred   n -> use
+         |----------^
+
     """
     n = orderingI.obj
-    # rm orderingI of node n
-    depOo = n.dependsOn[orderingI.in_i]
-    depObj = depOo.obj
+    predOo = n.dependsOn[orderingI.in_i]
+    isNormalPort = isinstance(predOo, HlsNetNodeOut)
+    if isNormalPort:
+        predObj = predOo.obj
+        predOoUses = predObj.usedBy[predOo.out_i]
+    else:
+        assert isinstance(predOo, HlsNetNodeOutLazy), predOo
+        predOoUses = predOo.dependent_inputs
+
     if disconnectInput:
-        depObj.usedBy[depOo.out_i].remove(orderingI)
-        assert orderingI not in depObj.usedBy[depOo.out_i], (orderingI, "was multiple times in usedBy")
+        # rm orderingI of node n
+        predOoUses.remove(orderingI)
+        assert orderingI not in predOoUses, (orderingI, "was multiple times in usedBy")
         n._removeInput(orderingI.in_i)
-    
-    _explicitSyncAddUniqueOrdering(n, (depObj.dependsOn[oi.in_i] for oi in depObj.iterOrderingInputs()), None)
+
+    #if isNormalPort:
+    #    raise AssertionError("The ordering should not be added to n")
+    #    _explicitSyncAddUniqueOrdering(n, (predObj.dependsOn[oi.in_i] for oi in predObj.iterOrderingInputs()), None)
 
     # add ordering uses from n to nodes with ordering dependency on n
     oo = n.getOrderingOutPort()
-    depOrderingUses: Set[HlsNetNodeExplicitSync] = set()
-    for u in depObj.usedBy[depOo.out_i]:
-        depOrderingUses.add(u.obj)
-
+    predOrderingUses: Set[HlsNetNodeExplicitSync] = set(u.obj for u in predOoUses)
     for u in n.usedBy[oo.out_i]:
         u: HlsNetNodeIn
-        if u.obj in depOrderingUses:
+        if u.obj in predOrderingUses:
             # prevent ordering duplication
             continue
         else:
-            depOrderingUses.add(u.obj)
-            i = u.obj._addInput("orderingIn")
-            link_hls_nodes(depOo, i)
+            assert u.obj is not n, (n, "there should be no cycle")
+            predOrderingUses.add(u.obj)
+            i = u.obj._addInput("orderingIn", addDefaultScheduling=True)
+            link_hls_nodes(predOo, i)
 
 
-def netlistExplicitSyncOrderingOutUsesDiscard(n: HlsNetNodeExplicitSync):
+def netlistExplicitSyncOrderingOutUsesDiscard(n: HlsNetNodeExplicitSync, worklist: Optional[UniqList[HlsNetNode]]):
     """
     Disconnect uses of ordering output of n and remove all ports which were originally connected.
     """
     o = n.getOrderingOutPort()
     for i in tuple(n.usedBy[o.out_i]):
         i: HlsNetNodeIn
+        unlink_hls_nodes(o, i)
         i.obj._removeInput(i.in_i)
-    n.usedBy[o.out_i].clear()
+        if worklist is not None:
+            worklist.append(i.obj)
+
+    # n.usedBy[o.out_i].clear()
 
 
 def netlistTrivialOrderingReduce(n: HlsNetNodeExplicitSync, worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]):
@@ -189,7 +159,7 @@ def netlistTrivialOrderingReduce(n: HlsNetNodeExplicitSync, worklist: UniqList[H
                 removed.add(dep.obj)
             modified = True
 
-        if dep._dtype != HVoidOrdering or isinstance(dep.obj, HlsNetNodeIoClusterCore):
+        if dep._dtype != HVoidOrdering:
             continue
 
         if HdlType_isNonData(dep._dtype) and isinstance(dep.obj, HlsNetNodeConst):

@@ -15,6 +15,7 @@ from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import netlistExplicitSyncDisconnectFromOrderingChain
 from hwtHls.netlist.transformation.simplifySync.simplifySyncUtils import removeExplicitSync
+from hwtHls.netlist.builder import HlsNetlistBuilder
 
 
 def netlistReduceExplicitSyncConditions(dbgTracer: DebugTracer, n: HlsNetNodeExplicitSync,
@@ -37,7 +38,7 @@ def netlistReduceExplicitSyncConditions(dbgTracer: DebugTracer, n: HlsNetNodeExp
                     n.skipWhen = None
                     modified = True
                     dbgTracer.log("rm skipWhen")
-    
+
         if n.extraCond is not None:
             dep = n.dependsOn[n.extraCond.in_i]
             if isinstance(dep.obj, HlsNetNodeConst):
@@ -50,12 +51,12 @@ def netlistReduceExplicitSyncConditions(dbgTracer: DebugTracer, n: HlsNetNodeExp
                     n.extraCond = None
                     modified = True
                     dbgTracer.log("rm extraCond")
-    
+
         if n.__class__ is HlsNetNodeExplicitSync and n.skipWhen is None and n.extraCond is None:
             dbgTracer.log("rm node")
             removeExplicitSync(dbgTracer, n, worklist, removed)
             modified = True
-    
+
         return modified
 
 
@@ -75,7 +76,7 @@ def isAndedToExpression(valToSearch: HlsNetNodeOut, expr: HlsNetNodeOut):
         for o in expr.obj.dependsOn:
             if isAndedToExpression(valToSearch, o):
                 return True
-        
+
     return False
 
 
@@ -88,21 +89,58 @@ def isAndedToNodAndExpr(valToSearch: HlsNetNodeOut, expr: HlsNetNodeOut):
            isAndedToExpression(valToSearch, expr.obj.dependsOn[0])
 
 
-def createAndExpressionOmmitingInput(valToOmmit: HlsNetNodeOut, expr: HlsNetNodeOut):
+def isNot(valToSearch: HlsNetNodeOut, expr: HlsNetNodeOut):
+    return isinstance(expr.obj, HlsNetNodeOperator) and \
+           expr.obj.operator is AllOps.NOT and \
+           expr.obj.dependsOn[0] is valToSearch
+
+
+def isNotOredToOrExpr(valToSearch: HlsNetNodeOut, expr: HlsNetNodeOut):
+    """
+    Check if expression is in format expr = Or(.., ~valToSearch, ...)
+    """
+    if isNot(valToSearch, expr):
+        return True
+    elif isinstance(expr.obj, HlsNetNodeOperator) and expr.obj.operator == AllOps.OR:
+        for o in expr.obj.dependsOn:
+            if isNotOredToOrExpr(valToSearch, o):
+                return True
+
+    return False
+
+
+def createLogicalExpressionOmmitingInput(valToOmmit: HlsNetNodeOut, expr: HlsNetNodeOut):
     if expr is valToOmmit:
         return None
-    elif isinstance(expr.obj, HlsNetNodeOperator) and expr.obj.operator == AllOps.AND:
-        o0, o1 = expr.obj.dependsOn
-        newO0 = createAndExpressionOmmitingInput(valToOmmit, o0)
-        newO1 = createAndExpressionOmmitingInput(valToOmmit, o1)
-        if newO0 is None:
-            return newO1
-        elif newO1 is None:
-            return newO0
-        elif o0 is newO0 and o1 is newO1:
-            return expr
+    elif isinstance(expr.obj, HlsNetNodeOperator):
+        op = expr.obj.operator
+        if op == AllOps.AND or op == AllOps.OR:
+            o0, o1 = expr.obj.dependsOn
+            newO0 = createLogicalExpressionOmmitingInput(valToOmmit, o0)
+            newO1 = createLogicalExpressionOmmitingInput(valToOmmit, o1)
+            if newO0 is None:
+                return newO1
+            elif newO1 is None:
+                return newO0
+            elif o0 is newO0 and o1 is newO1:
+                return expr
+            elif op == AllOps.AND:
+                return expr.obj.netlist.builder.buildAnd(newO0, newO1)
+            elif op == AllOps.OR:
+                return expr.obj.netlist.builder.buildOr(newO0, newO1)
+            else:
+                raise NotImplementedError(op, expr)
+        elif op == AllOps.NOT:
+            o0,  = expr.obj.dependsOn
+            newO0 = createLogicalExpressionOmmitingInput(valToOmmit, o0)
+            if newO0 is None:
+                return None
+            elif newO0 is o0:
+                return expr
+            else:
+                return expr.obj.netlist.builder.buildNot(newO0)
         else:
-            return expr.obj.netlist.builder.buildAnd(newO0, newO1)
+            return expr
     else:
         return expr
 
@@ -117,35 +155,38 @@ def netlistReduceExplicitSyncTryExtractNonBlockingReadOrWrite(dbgTracer: DebugTr
     rw = syncedDep.obj
     if n.skipWhen is None or not isinstance(rw, (HlsNetNodeRead, HlsNetNodeWrite)):
         return False
-    # [todo] cover the case where skipWhen=1 
+    # [todo] cover the case where skipWhen=1
     modified = False
     # try extract non blocking read
-    # 2 usedBy for _associatedReadSync and this node "n"
     assert rw._associatedReadSync is None, (rw, "ReadSync should already have been converted to use of _validNB")
     with dbgTracer.scoped(netlistReduceExplicitSyncTryExtractNonBlockingReadOrWrite, n):
-        if not isinstance(rw, HlsNetNodeRead) or rw._validNB is None or len(rw.usedBy[syncedDep.out_i]) > 2:
+        if not isinstance(rw, HlsNetNodeRead) or rw._validNB is None or len(rw.usedBy[syncedDep.out_i]) != 1:
             return modified
-    
+
         if n.extraCond is None:
             ec = None
         else:
             ec = n.dependsOn[n.extraCond.in_i]
-    
+
         validNB = rw._validNB
         sw = n.dependsOn[n.skipWhen.in_i]
-        if (# (ec is None or isAndedToExpression(validNB, ec)) and
-                isinstance(rw, HlsNetNodeRead) and
-                isAndedToNodAndExpr(validNB, sw)
-                ):
+        if not isinstance(rw, HlsNetNodeRead):
+            return modified
+        swInNotAndForm = isAndedToNodAndExpr(validNB, sw)
+        swInOrNotForm = False
+        if not swInNotAndForm:
+            swInOrNotForm = isNotOredToOrExpr(validNB, sw)
+        if swInNotAndForm or swInOrNotForm:
             # [todo] isAndedToExpression is not sufficient we should that it is not non-trivially reachable
             #        from any term in "and" so we do not create cycle in DAG if we transplant this "and" to an input of n
             r: HlsNetNodeRead = rw
             dbgTracer.log(("Non-blocking associated with read ", r))
+            builder: HlsNetlistBuilder = n.netlist.builder
 
             # Try extracting non-blocking read from pattern:
             # x = read()
             # x.explicitSync(extraCond=x.valid, skipWhen=~x.valid)
-            
+
             # ec == validNB
             # sw == ~validNB
             # replace validNB in ec/sw expression with 1 only only for this "n"
@@ -157,54 +198,62 @@ def netlistReduceExplicitSyncTryExtractNonBlockingReadOrWrite(dbgTracer: DebugTr
             #    reachDb.addAllDepsToOutUseChange(_n)
             #    reachDb.addAllUsersToInDepChange(_n)
             if ec is not None:
-                newEc = createAndExpressionOmmitingInput(validNB, ec)
+                newEc = createLogicalExpressionOmmitingInput(validNB, ec)
                 # reachDb.addOutUseChange(ec.obj)
                 unlink_hls_nodes(ec, n.extraCond)
                 if newEc is not None:
                     r.addControlSerialExtraCond(newEc)
                 dbgTracer.log(("update extraCond to", newEc))
-    
+
             # reachDb.addOutUseChange(sw.obj)
             unlink_hls_nodes(sw, n.skipWhen)
-            newSw_n = createAndExpressionOmmitingInput(validNB, sw.obj.dependsOn[0])
-            if newSw_n is not None:
-                newSw = n.netlist.builder.buildNot(newSw_n)
-                r.addControlSerialSkipWhen(newSw)
-                dbgTracer.log(("update skipWhen to", newSw))
-                
+            if swInNotAndForm:
+                newSw_n = createLogicalExpressionOmmitingInput(validNB, sw.obj.dependsOn[0])
+                if newSw_n is not None:
+                    newSw = builder.buildNot(newSw_n)
+                    r.addControlSerialSkipWhen(newSw)
+                    dbgTracer.log(("update skipWhen to", newSw))
+            elif swInOrNotForm:
+                newSw = createLogicalExpressionOmmitingInput(builder.buildNot(validNB), sw)
+                if newSw is not None:
+                    r.addControlSerialSkipWhen(newSw)
+                    dbgTracer.log(("update skipWhen to", newSw))
+            else:
+                raise AssertionError("All cases should be already handled")
+
             # vldUses = tuple(r.usedBy[r._valid.out_i])
             #
             # for u in vldUses:
             #    unlink_hls_nodes(vld, u)
-    
+
             # reachDb.addOutUseChange(n)
             for u in dataUses:
                 # reachDb.addInDepChange(u.obj)
                 unlink_hls_nodes(data, u)
-    
+
             # reachDb.addOutUseChange(r)
             unlink_hls_nodes(n.dependsOn[0], n._inputs[0])
-            netlistExplicitSyncDisconnectFromOrderingChain(dbgTracer, n, removed)
-            
+            netlistExplicitSyncDisconnectFromOrderingChain(dbgTracer, n, worklist)
+
             r.setNonBlocking()
             data = syncedDep
             # vld = r._valid
             # for u in vldUses:
             #    link_hls_nodes(vld, u)
             #    worklist.append(u.obj)
-    
+
             for u in dataUses:
                 link_hls_nodes(data, u)
                 worklist.append(u.obj)
-            
+
             removed.add(n)
             dbgTracer.log("rm")
             netlistReduceExplicitSyncConditions(dbgTracer, r, worklist, removed)
             return True
-    
+
         # elif (isinstance(syncedDep.obj, HlsNetNodeOperator) and
         #      syncedDep.obj.operator is AllOps.AND and
-        #      (syncedDep.dependsOn == (r._outputs[0], vld) or 
+        #      (syncedDep.dependsOn == (r._outputs[0], vld) or
         #       syncedDep.dependsOn == (vld, r._outputs[0]))):
         #    # r = read()
         #    # r0 = r.data & r.valid

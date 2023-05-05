@@ -4,7 +4,7 @@ from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachabilility
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.debugTracer import DebugTracer
-from hwtHls.netlist.nodes.backwardEdge import HlsNetNodeWriteBackwardEdge
+from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import unlink_hls_nodes, HlsNetNodeOut, \
     HlsNetNodeIn
@@ -14,7 +14,7 @@ from hwtHls.netlist.transformation.simplifyUtils import addAllUsersToWorklist
 
 
 def netlistBackedgeStraightening(dbgTracer: DebugTracer,
-                                 w: HlsNetNodeWriteBackwardEdge,
+                                 w: HlsNetNodeWriteBackedge,
                                  worklist: UniqList[HlsNetNode],
                                  removed: Set[HlsNetNode],
                                  reachDb: HlsNetlistAnalysisPassReachabilility):
@@ -25,11 +25,11 @@ def netlistBackedgeStraightening(dbgTracer: DebugTracer,
     # r is ordered before w because this is backedge
     # if w does not depend on r and none of them 
     
-    r = w.associated_read
+    r = w.associatedRead
     if r is None:
         return False
 
-    if w.channel_init_values:
+    if w.channelInitValues:
         return False
     
     rValidPortReplacement = None

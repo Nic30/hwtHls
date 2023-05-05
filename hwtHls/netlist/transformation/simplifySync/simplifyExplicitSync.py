@@ -28,11 +28,55 @@ def extendSyncFlagsFromMultipleParallel(srcs: List[HlsNetNodeExplicitSync],
                                         worklist: UniqList[HlsNetNode]):
     """
     .. code-block:: python
-        
+
         dst.extraCond &= Or(*src.extraCond & ~src.skipWhen for src in srcs)
         dst.skipWhen |=  And(src.skipWhen for src in srcs)
     """
     b: HlsNetlistBuilder = dst.netlist.builder
+
+    srcsEc, srcsSw = mergeSyncFlagsFromMultipleParallel(srcs, worklist)
+
+    ec = _getPortDrive(dst.extraCond)
+    if srcsEc is not NOT_SPECIFIED:
+        ecModified = False
+        if srcsEc is None:
+            # no extension is required because extraCond flags in srcs together al always satisfied
+            pass
+        elif ec is None:
+            # add completly new extraCond
+            dst.addControlSerialExtraCond(srcsEc)
+            ecModified = True
+        else:
+            # extend current extraCond
+            unlink_hls_nodes(ec, dst.extraCond)
+            link_hls_nodes(b.buildAnd(ec, srcsEc), dst.extraCond)
+            ecModified = True
+
+        if ecModified:
+            worklist.append(dst.dependsOn[dst.extraCond.in_i].obj)
+
+    sw = _getPortDrive(dst.skipWhen)
+    if srcsSw is not NOT_SPECIFIED:
+        swModified = False
+        if srcsSw is None:
+            # skipWhen from srcs combined is never satisfied
+            # this means that only skipWhen is actual one
+            pass
+        elif sw is None:
+            dst.addControlSerialSkipWhen(srcsSw)
+            swModified = True
+        else:
+            unlink_hls_nodes(sw, dst.skipWhen)
+            link_hls_nodes(b.buildOr(sw, srcsSw), dst.skipWhen)
+            swModified = True
+
+        if swModified:
+            worklist.append(dst.dependsOn[dst.skipWhen.in_i].obj)
+
+
+def mergeSyncFlagsFromMultipleParallel(srcs: List[HlsNetNodeExplicitSync],
+                                       worklist: UniqList[HlsNetNode]):
+    b: HlsNetlistBuilder = srcs[0].netlist.builder
 
     srcsEc: Union[None, Literal[NOT_SPECIFIED], HlsNetNodeOut] = NOT_SPECIFIED
     srcsSw: Union[None, Literal[NOT_SPECIFIED], HlsNetNodeOut] = NOT_SPECIFIED
@@ -54,7 +98,7 @@ def extendSyncFlagsFromMultipleParallel(srcs: List[HlsNetNodeExplicitSync],
             # aggregate another sSw
             srcsSw = b.buildAnd(srcsSw, sSw)
             worklist.append(srcsSw.obj)
-        
+
         if sEc is None:
             # extraCond of this src is always satisfied
             pass
@@ -63,49 +107,15 @@ def extendSyncFlagsFromMultipleParallel(srcs: List[HlsNetNodeExplicitSync],
             if sSw is not None:
                 sEc = b.buildAnd(sEc, b.buildNot(sSw))
                 worklist.append(sEc.obj)
-        
+
             if srcsEc is NOT_SPECIFIED:
                 srcsEc = sEc
             else:
                 srcsEc = b.buildOr(srcsEc, sEc)
                 worklist.append(sEc.obj)
 
-    ec = _getPortDrive(dst.extraCond)
-    if srcsEc is not NOT_SPECIFIED:
-        ecModified = False
-        if srcsEc is None:
-            # no extension is required because extraCond flags in srcs together al always satisfied
-            pass  
-        elif ec is None:
-            # add completly new extraCond
-            dst.addControlSerialExtraCond(srcsEc)
-            ecModified = True
-        else:
-            # extend current extraCond
-            unlink_hls_nodes(ec, dst.extraCond)
-            link_hls_nodes(b.buildAnd(ec, srcsEc), dst.extraCond)
-            ecModified = True
-        
-        if ecModified:
-            worklist.append(dst.dependsOn[dst.extraCond.in_i].obj)
+    return srcsEc, srcsSw
 
-    sw = _getPortDrive(dst.skipWhen)
-    if srcsSw is not NOT_SPECIFIED:
-        swModified = False
-        if srcsSw is None:
-            # skipWhen from srcs combined is never satisfied
-            # this means that only skipWhen is actual one
-            pass
-        elif sw is None:
-            dst.addControlSerialSkipWhen(srcsSw)
-            swModified = True
-        else:
-            unlink_hls_nodes(sw, dst.skipWhen)
-            link_hls_nodes(b.buildOr(sw, srcsSw), dst.skipWhen)
-            swModified = True
-        if swModified:
-            worklist.append(dst.dependsOn[dst.skipWhen.in_i].obj)
-             
 
 def netlistReduceExplicitSyncWithoutInput(
         dbgTracer: DebugTracer,
@@ -126,7 +136,7 @@ def netlistReduceExplicitSyncWithoutInput(
             # sync n does not synchronize anything, safe to remove
             dbgTracer.log("rm because it has no effect on input")
 
-            netlistExplicitSyncDisconnectFromOrderingChain(dbgTracer, n, removed)
+            netlistExplicitSyncDisconnectFromOrderingChain(dbgTracer, n, worklist)
             worklist.append(n.dependsOn[0].obj)
             addAllUsersToWorklist(worklist, n)
             builder.replaceOutput(n._outputs[0], n.dependsOn[0], True)
@@ -135,5 +145,5 @@ def netlistReduceExplicitSyncWithoutInput(
                     unlink_hls_nodes(dep, i)
             removed.add(n)
             modified = True
-    
+
     return modified
