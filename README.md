@@ -111,6 +111,12 @@ pip3 install -r https://raw.githubusercontent.com/Nic30/hwtHls/master/doc/requir
 # if you do not run previous command you will install dependencies from pip which may outdated
 pip3 install git+https://github.com/Nic30/hwtHls.git # install this library from git
 ```
+For python3.11+ it is recommended to use virtualenv to separate local python package installation from the system.
+```
+apt install python3-venv
+python3 -m venv venv # create a venv directory where local instalation of python will be placed
+source venv/bin/activate # modifies current shell to use previously generate python environment
+```
 
 
 ## Related open-source
