@@ -1,62 +1,73 @@
 from dis import Instruction
+from networkx.classes.digraph import DiGraph
 from typing import Tuple, Dict
 
-from networkx.classes.digraph import DiGraph
-
-from hwtHls.frontend.pyBytecode.instructions import JUMP_OPS, \
-    JUMP_ABSOLUTE, JUMP_FORWARD, JUMP_IF_FALSE_OR_POP, JUMP_IF_TRUE_OR_POP, \
-    POP_JUMP_IF_FALSE, POP_JUMP_IF_TRUE, FOR_ITER
+from hwtHls.frontend.pyBytecode.instructions import \
+    FOR_ITER, RAISE_VARARGS, RERAISE, \
+    RETURN_VALUE, JUMPS_RELATIVE, JUMPS_CONDITIONAL_ANY 
 
 
 def extractBytecodeBlocks(instructions: Tuple[Instruction, ...]) -> Tuple[Dict[int, Tuple[Instruction, ...]], DiGraph]:
+    """
+    This function extract CFG graph from instruction list.
+    """
     cfg = DiGraph()
+        
     curBlock = []
     blocks: Dict[int, Tuple[Instruction, ...]] = {}
     blocks[0] = curBlock
-    lastWasJump = False
-    skipIfNotJumpTarget = False
+    lastWasConditionalJump = False
+    lastWasAbsoluteJump = False
+    skipNonJumpTargets = False
     for instr in instructions:
         instr: Instruction
-        if skipIfNotJumpTarget:
+        if skipNonJumpTargets:
             if not instr.is_jump_target:
-                continue  # unreachable code
+                continue  # skip unreachable code
             else:
-                skipIfNotJumpTarget = False
-
-        if (instr.is_jump_target and instr.offset != 0) or lastWasJump:
-            if curBlock[-1].opcode not in JUMP_OPS:
-                src = (curBlock[0].offset,)
-                dst = (instr.offset,)
+                skipNonJumpTargets = False
+        
+        isNotEntryPointAndJumpTarget = instr.is_jump_target and instr.offset != 0
+        if isNotEntryPointAndJumpTarget or lastWasAbsoluteJump or lastWasConditionalJump:
+            # create a new block
+            if instr.is_jump_target and isNotEntryPointAndJumpTarget and not lastWasAbsoluteJump:
+                src = curBlock[0].offset
+                dst = instr.offset
                 cfg.add_edge(src, dst)
 
             curBlock = [instr, ]
             blocks[instr.offset] = curBlock
-            lastWasJump = False
+            lastWasAbsoluteJump = False
+            lastWasConditionalJump = False
+            
         else:
+            # append to existing block
             curBlock.append(instr)
-            if instr.opcode in JUMP_OPS:
-                lastWasJump = True
-            else:
-                lastWasJump = False
+        
+        opc = instr.opcode
+        if opc in (RETURN_VALUE, RERAISE, RAISE_VARARGS):
+            lastWasAbsoluteJump = True
+            skipNonJumpTargets = True
 
-        if instr.opcode in (JUMP_ABSOLUTE, JUMP_FORWARD):
-            src = (curBlock[0].offset,)
-            dst = (instr.argval,)
+        elif opc in JUMPS_RELATIVE:
+            src = curBlock[0].offset
+            dst = instr.argval
             cfg.add_edge(src, dst)
-            skipIfNotJumpTarget = True
+            lastWasAbsoluteJump = True
+            skipNonJumpTargets = True
 
-        elif instr.opcode in (JUMP_IF_FALSE_OR_POP,
-                JUMP_IF_TRUE_OR_POP,
-                POP_JUMP_IF_FALSE,
-                POP_JUMP_IF_TRUE,
-                FOR_ITER,):
-            src = (curBlock[0].offset,)
-            cfg.add_edge(src, (instr.argval,))
-            cfg.add_edge(src, (instr.offset + 2,))
-            lastWasJump = True
+        elif opc in JUMPS_CONDITIONAL_ANY:
+            if instr.opcode == FOR_ITER:
+                # :note: FOR_ITER is always jump target and conditional jump so this block always contains just this instr.
+                assert len(curBlock) == 1, curBlock
+                
+            src = curBlock[0].offset
+            cfg.add_edge(src, instr.argval)
+            cfg.add_edge(src, instr.offset + 2)
+            lastWasConditionalJump = True
 
     if not cfg.nodes:
         # case with a single block without any jump
-        cfg.add_node((0, ))
+        cfg.add_node(0)
 
     return blocks, cfg
