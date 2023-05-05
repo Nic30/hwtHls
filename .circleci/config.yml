@@ -13,7 +13,7 @@ jobs:
       - checkout
       - run:
           command: |
-            sudo apt update
+            apt update
             # because of tzdata
             export DEBIAN_FRONTEND=noninteractive
             export TZ=America/USA
