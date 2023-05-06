@@ -99,8 +99,8 @@ This is useful when debuging issues which are happening in LLVM code.
 
 .. code-block:: bash
 
-	cd hwtHls
-	meson build/ --native-file utils/custom-llvm.ini
+	cd hwtHls # cd to this project root directory
+	meson setup build/ --native-file utils/custom-llvm.ini
 
 * When executing you need to use `LD_PRELOAD=$PWD/../llvm_install/lib/libLLVM.so` in order to actually use the custom build otherwise a system wide installed library will be used.
 * Note that once executed it takes >4m for gdb-11.1 and requires >16G of RAM to start because of the LLVM debug meta size.
