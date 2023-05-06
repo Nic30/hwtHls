@@ -21,10 +21,9 @@ public:
 			const llvm::Function &F,
 			llvm::ArrayRef<llvm::ArrayRef<llvm::Register>> VRegs,
 			llvm::FunctionLoweringInfo &FLI) const override;
-
 	bool lowerCall(llvm::MachineIRBuilder &MIRBuilder,
 			CallLoweringInfo &Info) const override;
-	bool canLowerReturn(MachineFunction &MF, CallingConv::ID CallConv,
+	virtual bool canLowerReturn(MachineFunction &MF, CallingConv::ID CallConv,
 			SmallVectorImpl<BaseArgInfo> &Outs, bool IsVarArg) const override;
 };
 

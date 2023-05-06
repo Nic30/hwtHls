@@ -39,7 +39,6 @@ bool HwtFpgaCallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder,
 		throw std::runtime_error(
 				"HwtFpgaCallLowering::lowerFormalArguments is meant for functions realized in hardware,"
 						" args. represents IO, this function does not have any.");
-
 	MachineFunction &MF = MIRBuilder.getMF();
 	MachineRegisterInfo &MRI = MF.getRegInfo();
 	const DataLayout &DL = MF.getDataLayout();
@@ -87,25 +86,25 @@ bool HwtFpgaCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
 			.addReg(DstReg, RegState::Define);
 			MRI.setRegClass(DstReg, &HwtFpga::anyregclsRegClass);
 			// add operands
-			bool first = true;
+			//bool first = true;
 			for (auto &op : Info.OrigArgs) {
-				assert(op.Regs.size() == 1);
-				if (first) {
-					// skip first item because it is destination which was already added
-					first = false;
-					continue;
-				}
+				//assert(op.Regs.size() == 1);
+				//if (first) {
+				//	// skip first item because it is destination which was already added
+				//	first = false;
+				//	continue;
+				//}
 				MBI.addUse(op.Regs[0]);
 			}
 			// add operand widths
-			first = true;
+			//first = true;
 			for (auto &op : Info.OrigArgs) {
-				assert(op.Regs.size() == 1);
-				if (first) {
-					// skip first item because it is destination which was already added
-					first = false;
-					continue;
-				}
+				//assert(op.Regs.size() == 1);
+				//if (first) {
+				//	// skip first item because it is destination which was already added
+				//	first = false;
+				//	continue;
+				//}
 				uint64_t width = MRI.getType(op.Regs[0]).getSizeInBits();
 				MBI.addImm(width);
 			}
@@ -116,10 +115,10 @@ bool HwtFpgaCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
 			auto MIB = MIRBuilder.buildInstr(TargetOpcode::G_EXTRACT)	 //
 			.addReg(Info.OrigRet.Regs[0], RegState::Define);
 
-			MIB.addUse(Info.OrigArgs[1].Regs[0]);
-			Register offset = Info.OrigArgs[2].Regs[0];
+			MIB.addUse(Info.OrigArgs[0].Regs[0]);
+			Register offset = Info.OrigArgs[1].Regs[0];
 
-			assert(MRI.hasOneDef(offset));
+			assert(MRI.hasOneDef(offset) && "SSA expected");
 			if (std::optional<ValueAndVReg> VRegVal =
 					getAnyConstantVRegValWithLookThrough(offset,
 							*MIRBuilder.getMRI())) {
@@ -130,7 +129,6 @@ bool HwtFpgaCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
 				llvm_unreachable(
 						"hwtHls.bitRangeGet offset operand must be constant");
 			}
-
 			return true;
 		} else {
 			llvm_unreachable(
@@ -145,7 +143,7 @@ bool HwtFpgaCallLowering::canLowerReturn(MachineFunction &MF,
 		CallingConv::ID CallConv, SmallVectorImpl<BaseArgInfo> &Outs,
 		bool IsVarArg) const {
 	//assert(Outs.size() == 0 && "HwtFpgaCallLowering::canLowerReturn should be used only for HW functions which do have only void return type.");
-	return false;
+	return true;
 }
 
 }
