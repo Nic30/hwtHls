@@ -42,7 +42,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         TargetOpcode.G_AND: AllOps.AND,
         TargetOpcode.G_OR: AllOps.OR,
         TargetOpcode.G_XOR: AllOps.XOR,
-        TargetOpcode.GENFPGA_NOT: AllOps.NOT,
+        TargetOpcode.HWTFPGA_NOT: AllOps.NOT,
     }
     SIGNED_CMP_OPS = (
         CmpInst.Predicate.ICMP_SGT,

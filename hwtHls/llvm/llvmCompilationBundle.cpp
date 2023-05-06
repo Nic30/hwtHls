@@ -74,8 +74,8 @@
 #include <llvm/CodeGen/MachineModuleInfo.h>
 #include <llvm/CodeGen/TargetPassConfig.h>
 
-#include "targets/genericFpgaTargetInfo.h"
-#include "targets/genericFpgaTargetMachine.h"
+#include "targets/hwtFpgaTargetInfo.h"
+#include "targets/hwtFpgaTargetMachine.h"
 #include "Transforms/extractBitConcatAndSliceOpsPass.h"
 #include "Transforms/bitwidthReducePass/bitwidthReducePass.h"
 #include "Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.h"
@@ -89,8 +89,8 @@ namespace hwtHls {
 
 LlvmCompilationBundle::LlvmCompilationBundle(const std::string &moduleName) :
 		ctx(), strCtx(), mod(strCtx.addStringRef(moduleName), ctx), builder(ctx), main(nullptr), MMIWP(nullptr) {
-	std::string TargetTriple = "genericFpga-unknown-linux-gnu";
-	Target = &getTheGenericFpgaTarget(); //llvm::TargetRegistry::targets()[0];
+	std::string TargetTriple = "hwtFpga-unknown-linux-gnu";
+	Target = &getTheHwtFpgaTarget(); //llvm::TargetRegistry::targets()[0];
 	Level = llvm::OptimizationLevel::O3;
 	EnableO3NonTrivialUnswitching = true;
 	EnableGVNHoist = true;
@@ -137,7 +137,7 @@ LlvmCompilationBundle::LlvmCompilationBundle(const std::string &moduleName) :
 //
 //}
 
-void LlvmCompilationBundle::runOpt(hwtHls::GenericFpgaToNetlist::ConvesionFnT toNetlistConversionFn) {
+void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetlistConversionFn) {
 	assert(main && "a main function must be created before call of this function");
 
 	auto &fn = *main;
@@ -555,7 +555,7 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 }
 
 void LlvmCompilationBundle::_addMachineCodegenPasses(
-		hwtHls::GenericFpgaToNetlist::ConvesionFnT &toNetlistConversionFn) {
+		hwtHls::HwtFpgaToNetlist::ConvesionFnT &toNetlistConversionFn) {
 	//llvm::MachineFunctionAnalysisManager MFAM;
 	//llvm::MachineFunctionPassManager MPM;
 	//
@@ -578,7 +578,7 @@ void LlvmCompilationBundle::_addMachineCodegenPasses(
 	//Map["debug"]->addOccurrence(0, "", "1");
 	//Map["print-before-all"]->addOccurrence(0, "", "true");
 	// check for incompatible passes
-	TPC = static_cast<llvm::GenericFpgaTargetPassConfig*>(static_cast<llvm::LLVMTargetMachine&>(*TM).createPassConfig(
+	TPC = static_cast<llvm::HwtFpgaTargetPassConfig*>(static_cast<llvm::LLVMTargetMachine&>(*TM).createPassConfig(
 			PM));
 	// :note: we can not use pass constructor to pass toNetlistConversionFn because
 	//        because constructor must be callable without arguments because of INITIALIZE_PASS macros

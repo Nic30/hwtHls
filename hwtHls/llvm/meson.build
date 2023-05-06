@@ -1,24 +1,24 @@
 generated_llvm_backend_files = [
-	['GenericFpgaGenGlobalISel.inc', ['-gen-global-isel', ]],
-	['GenericFpgaGenInstrInfo.inc', ['-gen-instr-info', ]],
-	['GenericFpgaGenRegisterInfo.inc', ['-gen-register-info', ]],
-	['GenericFpgaGenSubtargetInfo.inc', ['-gen-subtarget', ]],
-	['GenericFpgaGenPreLegalizeGICombiner.inc', ['-gen-global-isel-combiner', '-combiners=GenericFpgaGenPreLegalizeGICombinerHelper']],
-	['GenericFpgaGenPreRegAllocGICombiner.inc', ['-gen-global-isel-combiner', '-combiners=GenericFpgaGenPreRegAllocGICombinerHelper']],
-	['GenericFpgaGenPreToNetlistGICombiner.inc', ['-gen-global-isel-combiner', '-combiners=GenericFpgaGenPreToNetlistGICombinerHelper']],
+	['HwtFpgaGenGlobalISel.inc', ['-gen-global-isel', ]],
+	['HwtFpgaGenInstrInfo.inc', ['-gen-instr-info', ]],
+	['HwtFpgaGenRegisterInfo.inc', ['-gen-register-info', ]],
+	['HwtFpgaGenSubtargetInfo.inc', ['-gen-subtarget', ]],
+	['HwtFpgaGenPreLegalizeGICombiner.inc', ['-gen-global-isel-combiner', '-combiners=HwtFpgaGenPreLegalizeGICombinerHelper']],
+	['HwtFpgaGenPreRegAllocGICombiner.inc', ['-gen-global-isel-combiner', '-combiners=HwtFpgaGenPreRegAllocGICombinerHelper']],
+	['HwtFpgaGenPreToNetlistGICombiner.inc', ['-gen-global-isel-combiner', '-combiners=HwtFpgaGenPreToNetlistGICombinerHelper']],
 ]
 
 all_llvm_backend_gen_files = []
 foreach f : generated_llvm_backend_files
 	gen_src = custom_target(f[0],
-	                        input : ['targets/GenericFpgaInstrInfo.td', 'targets/GenericFpgaRegisterInfo.td',
-	                                 'targets/GenericFpgaCombine.td', 'targets/GenericFpga.td',
-	                                 'targets/GenericFpgaSchedModel.td'],
+	                        input : ['targets/HwtFpgaInstrInfo.td', 'targets/HwtFpgaRegisterInfo.td',
+	                                 'targets/HwtFpgaCombine.td', 'targets/HwtFpga.td',
+	                                 'targets/HwtFpgaSchedModel.td'],
 	                        output : [f[0], ],
 	                        command : [llvm_tblgen,
 	                        	'-I', llvm_includedir,
 	                            '-I', meson.current_source_dir() + '/targets/',
-	                        	meson.current_source_dir() + '/targets/GenericFpga.td'] + f[1] + ['-o=@OUTPUT0@', ])
+	                        	meson.current_source_dir() + '/targets/HwtFpga.td'] + f[1] + ['-o=@OUTPUT0@', ])
     all_llvm_backend_gen_files += gen_src
 endforeach
 
@@ -47,30 +47,30 @@ py3.extension_module(
 
      'targets/intrinsic/bitrange.cpp',
 
-	 'targets/GISel/genericFpgaCallLoweringInfo.cpp',
-	 'targets/GISel/genericFpgaInstructionSelector.cpp',
-	 'targets/GISel/genericFpgaInstructionSelectorUtils.cpp',
-	 'targets/GISel/genericFpgaLegalizerInfo.cpp',
-	 'targets/GISel/genericFpgaPreLegalizerCombiner.cpp',
-	 'targets/GISel/genericFpgaPreRegAllocCombiner.cpp',
-	 'targets/GISel/genericFpgaPreToNetlistCombiner.cpp',
-     'targets/GISel/genericFpgaRegisterBankInfo.cpp',
-     'targets/GISel/genericFpgaCombinerHelper.cpp',
-     'targets/GISel/genericFpgaCombinerHelperMux.cpp',
+	 'targets/GISel/hwtFpgaCallLoweringInfo.cpp',
+	 'targets/GISel/hwtFpgaInstructionSelector.cpp',
+	 'targets/GISel/hwtFpgaInstructionSelectorUtils.cpp',
+	 'targets/GISel/hwtFpgaLegalizerInfo.cpp',
+	 'targets/GISel/hwtFpgaPreLegalizerCombiner.cpp',
+	 'targets/GISel/hwtFpgaPreRegAllocCombiner.cpp',
+	 'targets/GISel/hwtFpgaPreToNetlistCombiner.cpp',
+     'targets/GISel/hwtFpgaRegisterBankInfo.cpp',
+     'targets/GISel/hwtFpgaCombinerHelper.cpp',
+     'targets/GISel/hwtFpgaCombinerHelperMux.cpp',
 
-	 'targets/genericFpgaInstrInfo.cpp',
-	 'targets/genericFpgaIoUtils.cpp',
-	 'targets/genericFpgaMCTargetDesc.cpp',
-     'targets/genericFpgaTargetInfo.cpp',
-     'targets/genericFpgaRegisterInfo.cpp',
-	 'targets/genericFpgaTargetLowering.cpp',
-     'targets/genericFpgaTargetSubtarget.cpp',
-	 'targets/genericFpgaTargetMachine.cpp',
-     'targets/genericFpgaTargetTransformInfo.cpp',
-     'targets/genericFpgaTargetPassConfig.cpp',
+	 'targets/hwtFpgaInstrInfo.cpp',
+	 'targets/hwtFpgaIoUtils.cpp',
+	 'targets/hwtFpgaMCTargetDesc.cpp',
+     'targets/hwtFpgaTargetInfo.cpp',
+     'targets/hwtFpgaRegisterInfo.cpp',
+	 'targets/hwtFpgaTargetLowering.cpp',
+     'targets/hwtFpgaTargetSubtarget.cpp',
+	 'targets/hwtFpgaTargetMachine.cpp',
+     'targets/hwtFpgaTargetTransformInfo.cpp',
+     'targets/hwtFpgaTargetPassConfig.cpp',
 
      'targets/Transforms/machineDumpAndExitPass.cpp',
-     'targets/Transforms/genericFpgaToNetlist.cpp',
+     'targets/Transforms/hwtFpgaToNetlist.cpp',
      'targets/Transforms/hwtHlsCodeGenPrepare.cpp',
      'targets/Transforms/EarlyMachineCopyPropagation.cpp',
 

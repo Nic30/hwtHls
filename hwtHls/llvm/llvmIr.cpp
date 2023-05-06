@@ -8,8 +8,8 @@
 #include "llvmIrMachineLoop.h"
 #include "llvmIrMetadata.h"
 #include "llvmCompilationBundle.h"
-#include "targets/genericFpga.h"
-#include "targets/Transforms/genericFpgaToNetlist.h"
+#include "targets/hwtFpga.h"
+#include "targets/Transforms/hwtFpgaToNetlist.h"
 
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/DerivedTypes.h>
@@ -116,13 +116,13 @@ void register_Types(pybind11::module_ & m) {
 // https://github.com/PointCloudLibrary/clang-bind
 // http://nondot.org/~sabre/LLVMNotes/TypeSystemChanges.txt
 PYBIND11_MODULE(llvmIr, m) {
-	genericFpgaTargetInitialize();
+	hwtFpgaTargetInitialize();
 	py::class_<hwtHls::LlvmCompilationBundle>(m, "LlvmCompilationBundle")
 		.def(py::init<const std::string &>())
 		.def("runOpt", [](hwtHls::LlvmCompilationBundle * LCB, py::function & callbackFn, py::object & hls, py::object & toSsa) {
 			py::object returnObj;
 			LCB->runOpt([callbackFn, &hls, &toSsa, &returnObj](llvm::MachineFunction &MF,
-					std::set<hwtHls::GenericFpgaToNetlist::MachineBasicBlockEdge>& backedges,
+					std::set<hwtHls::HwtFpgaToNetlist::MachineBasicBlockEdge>& backedges,
 					hwtHls::EdgeLivenessDict & liveness,
 					std::vector<llvm::Register> & ioRegs,
 					std::map<llvm::Register, unsigned> & registerTypes,
@@ -133,7 +133,7 @@ PYBIND11_MODULE(llvmIr, m) {
 						py::object &,
 						py::object &,
 						llvm::MachineFunction &,
-						std::set<hwtHls::GenericFpgaToNetlist::MachineBasicBlockEdge>&,
+						std::set<hwtHls::HwtFpgaToNetlist::MachineBasicBlockEdge>&,
 					    hwtHls::EdgeLivenessDict &,
 					    std::vector<llvm::Register> &,
 					    std::map<llvm::Register, unsigned> &,

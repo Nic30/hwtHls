@@ -31,7 +31,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
     """
     This object translates LLVM MIR to hwtHls HlsNetlist
     """
-    _GENFPGA_CLOAD_CSTORE = (TargetOpcode.GENFPGA_CLOAD, TargetOpcode.GENFPGA_CSTORE)
+    _HWTFPGA_CLOAD_CSTORE = (TargetOpcode.HWTFPGA_CLOAD, TargetOpcode.HWTFPGA_CSTORE)
 
     def translateDatapathInBlocks(self, mf: MachineFunction, ioNodeConstructors: NetlistIoConstructorDictT):
         """
@@ -62,7 +62,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                 ops = []
 
                 opc = instr.getOpcode()
-                isLoadOrStore = opc in self._GENFPGA_CLOAD_CSTORE
+                isLoadOrStore = opc in self._HWTFPGA_CLOAD_CSTORE
                 for i, mo in enumerate(instr.operands()):
                     mo: MachineOperand
                     if mo.isReg():
@@ -115,7 +115,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                     valCache.add(mb, dst, res, True)
                     continue
 
-                elif opc == TargetOpcode.GENFPGA_MUX:
+                elif opc == TargetOpcode.HWTFPGA_MUX:
                     resT = ops[0]._dtype
                     argCnt = len(ops)
                     if argCnt == 1:
@@ -130,7 +130,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                         res.obj.name = name
                         valCache.add(mb, dst, res, True)
 
-                elif opc == TargetOpcode.GENFPGA_CLOAD:
+                elif opc == TargetOpcode.HWTFPGA_CLOAD:
                     # load from data channel
                     srcIo, index, cond = ops
                     if isinstance(srcIo, HlsNetNodeOut):
@@ -147,7 +147,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                             raise AssertionError("The io without any read somehow requires read", srcIo, instr)
                         constructor._translateMirToNetlist(constructor, self, mbSync, instr, srcIo, index, cond, dst)
 
-                elif opc == TargetOpcode.GENFPGA_CSTORE:
+                elif opc == TargetOpcode.HWTFPGA_CSTORE:
                     # store to data channel
                     srcVal, dstIo, index, cond = ops
                     constructor: HlsWrite = ioNodeConstructors[dstIo][1]
@@ -170,7 +170,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                 elif opc == TargetOpcode.G_BR or opc == TargetOpcode.G_BRCOND:
                     pass  # will be translated in next step when control is generated, (condition was already translated)
 
-                elif opc == TargetOpcode.GENFPGA_EXTRACT:
+                elif opc == TargetOpcode.HWTFPGA_EXTRACT:
                     src, offset, width = ops
                     if isinstance(offset, int):
                         if width == 1:
@@ -185,7 +185,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                     res.obj.name = name
                     valCache.add(mb, dst, res, True)
 
-                elif opc == TargetOpcode.GENFPGA_MERGE_VALUES:
+                elif opc == TargetOpcode.HWTFPGA_MERGE_VALUES:
                     # src{N}, width{N} - lowest bits first
                     assert len(ops) % 2 == 0, ops
                     half = len(ops) // 2

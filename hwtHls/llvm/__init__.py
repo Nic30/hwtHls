@@ -2,7 +2,7 @@
 This module contains a LLVM binding and definition of a custom FPGA like LLVM target machine.
 There are several custom transformations which are mainly focused on bit-width reduction and dependency removal. 
 
-The GenFpga target is defined in hwtHls/llvm/targets/ and it tries to obey common LLVM target naming scheme and file hierarchy.
+The HwtFpga target is defined in hwtHls/llvm/targets/ and it tries to obey common LLVM target naming scheme and file hierarchy.
 
 .. image:: _static/hwtHls_llvm_backend.png
 
@@ -11,8 +11,8 @@ The target is used for several things:
 
 * It provides common informations about target (like memory layout, pointer size, instruction costs, ...) for all things in LLVM.
 
-* It specifies instruction set (GenericFpgaInstrInfo.td) and how to generate it from LLVM SSA IR
-  (genericFpgaTargetPassConfig.cpp, GenericFpgaCombine.td).
+* It specifies instruction set (HwtFpgaInstrInfo.td) and how to generate it from LLVM SSA IR
+  (hwtFpgaTargetPassConfig.cpp, HwtFpgaCombine.td).
   The translation is an iterative process (described in mentioned file).
   The target itself does use LLVM GlobalISel framework for instruction selection.
 

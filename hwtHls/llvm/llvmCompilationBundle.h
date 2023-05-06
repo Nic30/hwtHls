@@ -8,8 +8,8 @@
 #include <llvm/MC/TargetRegistry.h>
 
 #include "llvmIrStrings.h"
-#include "targets/Transforms/genericFpgaToNetlist.h"
-#include "targets/genericFpgaTargetPassConfig.h"
+#include "targets/Transforms/hwtFpgaToNetlist.h"
+#include "targets/hwtFpgaTargetPassConfig.h"
 
 namespace hwtHls {
 
@@ -26,7 +26,7 @@ public:
 	llvm::PassBuilder PB; // for IR passes
 	llvm::legacy::PassManager PM; // for machine code generator
 	const llvm::Target *Target;
-	llvm::GenericFpgaTargetPassConfig *TPC;
+	llvm::HwtFpgaTargetPassConfig *TPC;
 	llvm::OptimizationLevel Level;
 	bool EnableO3NonTrivialUnswitching;
 	bool EnableGVNHoist;
@@ -36,18 +36,18 @@ public:
 	llvm::MachineModuleInfoWrapperPass *MMIWP;
 
 	LlvmCompilationBundle(const std::string &moduleName);
-	// for arg description see GenericFpgaTargetPassConfig
+	// for arg description see HwtFpgaTargetPassConfig
 	// :param combinerCallback: is an optional callback function called during last state of
 	//        instruction combining
 	void runOpt(
-			hwtHls::GenericFpgaToNetlist::ConvesionFnT toNetlistConversionFn);
+			hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetlistConversionFn);
 	llvm::MachineFunction* getMachineFunction(llvm::Function &fn);
 
 	void _addVectorPasses(llvm::OptimizationLevel Level,
 			llvm::FunctionPassManager &FPM, bool IsFullLTO);
-	// for arg description see GenericFpgaTargetPassConfig
+	// for arg description see HwtFpgaTargetPassConfig
 	void _addMachineCodegenPasses(
-			hwtHls::GenericFpgaToNetlist::ConvesionFnT &toNetlistConversionFn);
+			hwtHls::HwtFpgaToNetlist::ConvesionFnT &toNetlistConversionFn);
 
 	llvm::Function& _testSlicesToIndependentVariablesPass();
 	llvm::Function& _testSlicesMergePass();

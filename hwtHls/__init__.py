@@ -13,7 +13,7 @@ hwtHls is a library which provides a High Level Synthesis (HLS) compiler egine f
 
 * LLVM SSA is then optimized (Full list of optimizations is specified in hwtHls/llvm/llvmCompilationBundle.cpp)
 
-* Optimized LLVM SSA is then translated to LLVM Machine-level IR MIR. (Full list of transformations can be seen in hwtHls/llvm/targets/genericFpgaTargetPassConfig.cpp)
+* Optimized LLVM SSA is then translated to LLVM Machine-level IR MIR. (Full list of transformations can be seen in hwtHls/llvm/targets/hwtFpgaTargetPassConfig.cpp)
   This is required to perform register allocation and resoruce sharing type of optimizations.
 
 * LLVM MIR is then converted to a `hwtHls.netlist` and control and data channel optimizations are performed.

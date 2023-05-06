@@ -14,7 +14,7 @@
 #include <llvm/IR/Function.h>
 
 #include "llvmIrCommon.h"
-#include "targets/genericFpgaMCTargetDesc.h"
+#include "targets/hwtFpgaMCTargetDesc.h"
 
 namespace py = pybind11;
 
@@ -117,7 +117,7 @@ void register_MachineFunction(pybind11::module_ &m) {
 			return py::make_iterator(I.memoperands_begin(), I.memoperands_end());
 		 }, py::keep_alive<0, 1>()); /* Keep vector alive while iterator is used */
 
-	auto MCII = createGenericFpgaMCInstrInfo();
+	auto MCII = createHwtFpgaMCInstrInfo();
 	py::enum_<TargetOpcode> _TargetOpcode(m, "TargetOpcode");
 	for (unsigned i = 0; i < MCII->getNumOpcodes(); i++) {
 		_TargetOpcode.value(MCII->getName(i).str().c_str(), static_cast<TargetOpcode>(i));

@@ -321,7 +321,7 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
         for instr in mb:
             instr: MachineInstr
             opc = instr.getOpcode()
-            if opc not in (TargetOpcode.GENFPGA_CLOAD, TargetOpcode.GENFPGA_CSTORE):
+            if opc not in (TargetOpcode.HWTFPGA_CLOAD, TargetOpcode.HWTFPGA_CSTORE):
                 continue
 
             io = instr.getOperand(1).getReg()
@@ -352,7 +352,7 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                     inst: MachineInstr
                     opc = inst.getOpcode()
                     if opc not in (TargetOpcode.G_CONSTANT, TargetOpcode.G_BR, TargetOpcode.COPY):
-                        if opc == TargetOpcode.GENFPGA_MUX and inst.getNumOperands() == 2:  # just copy
+                        if opc == TargetOpcode.HWTFPGA_MUX and inst.getNumOperands() == 2:  # just copy
                             continue
                         allRstLiveInsInlinable = False
                         break

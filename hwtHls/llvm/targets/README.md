@@ -7,6 +7,6 @@ LLVM target is composed of several components
 * TargetTransformInfoImplBase
 
 The objects needs to be registered before use, in this case it is done using
-LLVMInitializeGenericFpgaTarget();
-LLVMInitializeGenericFpgaTargetInfo();
-LLVMInitializeGenericFpgaTargetMC();
+LLVMInitializeHwtFpgaTarget();
+LLVMInitializeHwtFpgaTargetInfo();
+LLVMInitializeHwtFpgaTargetMC();

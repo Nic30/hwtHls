@@ -1,7 +1,7 @@
 hwtHls library modules
 ======================
 
-* llvm - binding to LLVM compiler framework, set ot analysis and transformations for HW and a custom LLVM target GenericFpga
+* llvm - binding to LLVM compiler framework, set ot analysis and transformations for HW and a custom LLVM target HwtFpga
 * netlist - HLS netlist is internal repsentation (IR) used for final dataflow analysis and scheduling
 * platform - Platform is a container of configuration for target, it specifies its properties and a compiler pipeline which translates input code to HW
 * ssa - Static single-assignment form (SSA) is a common normal form used in compilers. In this library it is used for syntax agnostic code representation 

@@ -3,7 +3,7 @@
 #include <llvm/CodeGen/MachineFunctionPass.h>
 
 namespace llvm {
-class GenericFpgaTargetPassConfig;
+class HwtFpgaTargetPassConfig;
 }
 
 namespace hwtHls {
@@ -11,14 +11,14 @@ namespace hwtHls {
 /*
  * Resolve minimal bitwidth for individual registers.
  * */
-class GenFpgaRegisterBitWidth: public llvm::MachineFunctionPass {
+class HwtFpgaRegisterBitWidth: public llvm::MachineFunctionPass {
 public:
 	static char ID;
-	GenFpgaRegisterBitWidth();
+	HwtFpgaRegisterBitWidth();
 	void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 	bool runOnMachineFunction(llvm::MachineFunction &MF) override;
 	llvm::StringRef getPassName() const override {
-		return "GenFpgaRegisterBitWidth";
+		return "HwtFpgaRegisterBitWidth";
 	}
 };
 

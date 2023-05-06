@@ -3,8 +3,8 @@
 #include <llvm/CodeGen/MachineRegisterInfo.h>
 #include <llvm/IR/Constants.h>
 
-#include "../genericFpgaInstrInfo.h"
-#include "../genericFpgaIoUtils.h"
+#include "../hwtFpgaInstrInfo.h"
+#include "../hwtFpgaIoUtils.h"
 #include "../bitMathUtils.h"
 
 using namespace llvm;
@@ -54,10 +54,10 @@ bool resolveTypes(MachineInstr &MI) {
 	MachineRegisterInfo &MRI = MF.getRegInfo();
 
 	switch (Opc) {
-	case GenericFpga::GENFPGA_ARG_GET:
+	case HwtFpga::HWTFPGA_ARG_GET:
 	case TargetOpcode::G_BR:
 	case TargetOpcode::G_BRCOND:
-	case GenericFpga::PseudoRET:
+	case HwtFpga::PseudoRET:
 		// no resolving needed
 		return true;
 	case TargetOpcode::G_CONSTANT:
@@ -83,7 +83,7 @@ bool resolveTypes(MachineInstr &MI) {
 	case TargetOpcode::G_OR:
 	case TargetOpcode::G_XOR:
 	case TargetOpcode::G_PTR_ADD:
-	case GenericFpga::GENFPGA_NOT: {
+	case HwtFpga::HWTFPGA_NOT: {
 		// all operands of same type
 		unsigned bitWidth = 0;
 		for (MachineOperand &MO : MI.operands()) {
@@ -118,7 +118,7 @@ bool resolveTypes(MachineInstr &MI) {
 		}
 		return true;
 	}
-	case GenericFpga::GENFPGA_MUX: {
+	case HwtFpga::HWTFPGA_MUX: {
 		// 0 and odd operators of same type
 		// even operators of 1b
 		unsigned bitWidth = 0;
@@ -153,7 +153,7 @@ bool resolveTypes(MachineInstr &MI) {
 									&& "All values must be of same type");
 				} else {
 					llvm_unreachable(
-							"GENFPGA_MUX should not have a constant as a condition operand");
+							"HWTFPGA_MUX should not have a constant as a condition operand");
 				}
 			} else if (MO.isReg()) {
 				Register R = MO.getReg();
@@ -163,12 +163,12 @@ bool resolveTypes(MachineInstr &MI) {
 						if (T.getSizeInBits() != bitWidth) {
 							if (MRI.def_empty(R)) {
 								Register NewReg = MRI.createVirtualRegister(
-										&GenericFpga::anyregclsRegClass);
+										&HwtFpga::anyregclsRegClass);
 								MO.setReg(NewReg);
 								if (!checkOrSetWidth(MRI, MO, bitWidth,
 										nullptr)) {
 									llvm_unreachable(
-											"GENFPGA_MERGE_VALUES set of type for register for operand with undefined value failed");
+											"HWTFPGA_MERGE_VALUES set of type for register for operand with undefined value failed");
 								}
 							} else {
 								MF.print(errs());
@@ -205,8 +205,8 @@ bool resolveTypes(MachineInstr &MI) {
 		return true;
 	}
 
-	case GenericFpga::GENFPGA_CSTORE:
-	case GenericFpga::GENFPGA_CLOAD: {
+	case HwtFpga::HWTFPGA_CSTORE:
+	case HwtFpga::HWTFPGA_CLOAD: {
 		// val/dst, addr, index, cond
 		Type *elemT;
 		size_t indexWidth;
@@ -231,7 +231,7 @@ bool resolveTypes(MachineInstr &MI) {
 		}
 		return true;
 	}
-	case GenericFpga::GENFPGA_MERGE_VALUES: {
+	case HwtFpga::HWTFPGA_MERGE_VALUES: {
 		// $dst $src{N}, $width{N}
 		unsigned srcCnt = (MI.getNumOperands() - 1) / 2;
 		unsigned totalWidth = 0;
@@ -244,19 +244,19 @@ bool resolveTypes(MachineInstr &MI) {
 				errs() << MI << " i:" << i << ", " << O << ", " << width
 						<< "\n";
 				llvm_unreachable(
-						"GENFPGA_MERGE_VALUES operand specified and actual width differs");
+						"HWTFPGA_MERGE_VALUES operand specified and actual width differs");
 			}
 			totalWidth += width;
 		}
 		if (undefsToDuplicate.size()) {
 			for (auto &v : undefsToDuplicate) {
 				Register Reg = MRI.createVirtualRegister(
-						&GenericFpga::anyregclsRegClass);
+						&HwtFpga::anyregclsRegClass);
 				auto &O = MI.getOperand(v.first);
 				O.setReg(Reg);
 				if (!checkOrSetWidth(MRI, O, v.second, nullptr)) {
 					llvm_unreachable(
-							"GENFPGA_MERGE_VALUES set of type for register for operand with undefined value failed");
+							"HWTFPGA_MERGE_VALUES set of type for register for operand with undefined value failed");
 				}
 
 			}
@@ -264,7 +264,7 @@ bool resolveTypes(MachineInstr &MI) {
 		assert(checkOrSetWidth(MRI, MI.getOperand(0), totalWidth, nullptr));
 		return true;
 	}
-	case GenericFpga::GENFPGA_EXTRACT: {
+	case HwtFpga::HWTFPGA_EXTRACT: {
 		// $dst $src $offset $dstWidth
 		auto dstWidth = MI.getOperand(3).getImm();
 
@@ -279,7 +279,7 @@ bool resolveTypes(MachineInstr &MI) {
 					MF.dump();
 					errs() << MI;
 					llvm_unreachable(
-							"GENFPGA_EXTRACT with incorret operands, selecting more bits than is provided from src");
+							"HWTFPGA_EXTRACT with incorret operands, selecting more bits than is provided from src");
 				}
 				return true;
 			}
@@ -300,16 +300,16 @@ bool resolveTypes(MachineInstr &MI) {
 	return false;
 }
 
-char GenFpgaRegisterBitWidth::ID = 0;
-GenFpgaRegisterBitWidth::GenFpgaRegisterBitWidth() :
+char HwtFpgaRegisterBitWidth::ID = 0;
+HwtFpgaRegisterBitWidth::HwtFpgaRegisterBitWidth() :
 		MachineFunctionPass(ID) {
 }
 
-void GenFpgaRegisterBitWidth::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
+void HwtFpgaRegisterBitWidth::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
 	MachineFunctionPass::getAnalysisUsage(AU);
 }
 
-bool GenFpgaRegisterBitWidth::runOnMachineFunction(llvm::MachineFunction &MF) {
+bool HwtFpgaRegisterBitWidth::runOnMachineFunction(llvm::MachineFunction &MF) {
 	std::list<MachineInstr*> worklist;
 	for (auto &MBB : MF) {
 		for (auto &MI : MBB) {
