@@ -287,13 +287,16 @@ PYBIND11_MODULE(abcCpp, m) {
 				py::arg("fSelective")=false,
 				py::arg("fUpdateLevel")=true, py::return_value_policy::reference)
 		.def("Rewrite", returnCodeToException("Abc_NtkRewrite has failed", &Abc_NtkRewrite),
+				/* defaults are from Abc_CommandRewrite */
 				py::arg("fUpdateLevel")=true,
 				py::arg("fUseZeros")=false,
 				py::arg("fVerbose")=false,
 				py::arg("fVeryVerbose")=false,
 				py::arg("fPlaceEnable")=false)
 		.def("Refactor", returnCodeToException("Abc_NtkRefactor has failed", &Abc_NtkRefactor),
+				/* defaults are from Abc_CommandRefactor */
 				py::arg("nNodeSizeMax")=10,
+				py::arg("nMinSaved")=1,
 				py::arg("nConeSizeMax")=16,
 				py::arg("fUpdateLevel")=true,
 				py::arg("fUseZeros")=false,
