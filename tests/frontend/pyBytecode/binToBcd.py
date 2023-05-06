@@ -36,7 +36,7 @@ class BinToBcd(Unit):
         self.clk.FREQ = self.FREQ
         assert self.DATA_WIDTH > 0, self.DATA_WIDTH
         self.BCD_DIGITS = self.decadic_deciamls_for_bin(self.DATA_WIDTH)
-
+        assert self.BCD_DIGITS > 0
         self.din = Handshaked()
         self.din.DATA_WIDTH = self.DATA_WIDTH
 
@@ -67,7 +67,7 @@ class BinToBcd(Unit):
             
             bin_r = hls.read(self.din)
             bitcount = Bits(log2ceil(DATA_WIDTH), signed=False).from_py(0)
-            while bitcount != DATA_WIDTH - 1:
+            while bitcount != DATA_WIDTH:
                 for bcdDigitI in range(BCD_DIGITS):
                     bcd = PyBytecodeInPreproc(bcd_digits[bcdDigitI])
                     bcdp_ = PyBytecodeInPreproc(bcdp[bcdDigitI])
@@ -100,7 +100,8 @@ if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.xilinx.artix7 import Artix7Medium
     from hwtHls.platform.platform import HlsDebugBundle
-
+    
     u = BinToBcd()
-    u.DATA_WIDTH = 10
+    u.DATA_WIDTH = 3
     print(to_rtl_str(u, target_platform=Artix7Medium(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+
