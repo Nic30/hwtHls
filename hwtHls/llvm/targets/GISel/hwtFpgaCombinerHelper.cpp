@@ -374,7 +374,7 @@ bool HwtFpgaCombinerHelper::matchCmpToMsbCheck(llvm::MachineInstr &MI, BuildFnTy
 }
 
 bool HwtFpgaCombinerHelper::matchConstCmpConstAdd(llvm::MachineInstr &MI, BuildFnTy &rewriteFn) {
-	assert(MI.getOpcode() == TargetOpcode::G_ICMP);
+	assert(MI.getOpcode() == TargetOpcode::G_ICMP || MI.getOpcode() == HwtFpga::HWTFPGA_ICMP);
 	auto Pred = static_cast<CmpInst::Predicate>(MI.getOperand(1).getPredicate());
 	const auto LHS = MI.getOperand(2);
 	const auto RHS = MI.getOperand(3);
@@ -384,7 +384,8 @@ bool HwtFpgaCombinerHelper::matchConstCmpConstAdd(llvm::MachineInstr &MI, BuildF
 			if (!_LHS)
 				return false;
 			auto lhsOpcode = _LHS->getParent()->getOpcode();
-			if (lhsOpcode == TargetOpcode::G_ADD || lhsOpcode == TargetOpcode::G_SUB) {
+			if (lhsOpcode == TargetOpcode::G_ADD || lhsOpcode == HwtFpga::HWTFPGA_ADD ||
+					lhsOpcode == TargetOpcode::G_SUB || lhsOpcode == HwtFpga::HWTFPGA_SUB) {
 				const auto LHS_LHS = _LHS->getParent()->getOperand(1);
 				const auto LHS_RHS = _LHS->getParent()->getOperand(2);
 				if (LHS_RHS.isCImm()) {
@@ -392,11 +393,14 @@ bool HwtFpgaCombinerHelper::matchConstCmpConstAdd(llvm::MachineInstr &MI, BuildF
 					APInt lhsVal = RHS.getCImm()->getValue(); // original value which was compared with
 					auto lhsRhsVal = LHS_RHS.getCImm()->getValue(); // the const value used in add/sub
 					switch (lhsOpcode) {
+					case HwtFpga::HWTFPGA_ADD:
 					case TargetOpcode::G_ADD:
 						lhsVal -= lhsRhsVal;
 						break;
+					case HwtFpga::HWTFPGA_SUB:
 					case TargetOpcode::G_SUB:
 						lhsVal += lhsRhsVal;
+						break;
 					}
 
 					CImmOrReg newLHS(LHS_LHS);
@@ -480,4 +484,57 @@ bool HwtFpgaCombinerHelper::rewriteTrivialRemovableCopy(llvm::MachineInstr &MI, 
 	return true;
 }
 
+
+bool HwtFpgaCombinerHelper::genericOpcodeToHwtfpga(llvm::MachineInstr &MI) {
+	unsigned newOpc;
+	switch (MI.getOpcode()) {
+	case TargetOpcode::G_GLOBAL_VALUE:
+		newOpc = HwtFpga::HWTFPGA_GLOBAL_VALUE;
+		break;
+	case TargetOpcode::G_ADD:
+		newOpc = HwtFpga::HWTFPGA_ADD;
+		break;
+	case TargetOpcode::G_AND:
+		newOpc = HwtFpga::HWTFPGA_AND;
+		break;
+	case TargetOpcode::G_BR:
+		newOpc = HwtFpga::HWTFPGA_BR;
+		break;
+	case TargetOpcode::G_BRCOND:
+		newOpc = HwtFpga::HWTFPGA_BRCOND;
+		break;
+	case TargetOpcode::G_ICMP:
+		newOpc = HwtFpga::HWTFPGA_ICMP;
+		break;
+	case TargetOpcode::G_MUL:
+		newOpc = HwtFpga::HWTFPGA_MUL;
+		break;
+	case TargetOpcode::G_UDIV:
+		newOpc = HwtFpga::HWTFPGA_UDIV;
+		break;
+	case TargetOpcode::G_SDIV:
+		newOpc = HwtFpga::HWTFPGA_SDIV;
+		break;
+	case TargetOpcode::G_UREM:
+		newOpc = HwtFpga::HWTFPGA_UREM;
+		break;
+	case TargetOpcode::G_SREM:
+		newOpc = HwtFpga::HWTFPGA_SREM;
+		break;
+	case TargetOpcode::G_OR:
+		newOpc = HwtFpga::HWTFPGA_OR;
+		break;
+	case TargetOpcode::G_SUB:
+		newOpc = HwtFpga::HWTFPGA_SUB;
+		break;
+	case TargetOpcode::G_XOR:
+		newOpc = HwtFpga::HWTFPGA_XOR;
+		break;
+	default:
+		llvm_unreachable(
+				"All cases should be covered in this switch in generic_opcode_to_hwtfpga");
+	}
+	replaceOpcodeWith(MI, newOpc);
+	return true;
+}
 }

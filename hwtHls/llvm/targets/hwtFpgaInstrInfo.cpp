@@ -8,10 +8,10 @@
 namespace llvm {
 
 static bool isUncondBranchOpcode(int Opc) {
-	return Opc == TargetOpcode::G_BR;
+	return Opc == TargetOpcode::G_BR || Opc == HwtFpga::HWTFPGA_BR;
 }
 static bool isCondBranchOpcode(int Opc) {
-	return Opc == TargetOpcode::G_BRCOND;
+	return Opc == TargetOpcode::G_BRCOND || Opc == HwtFpga::HWTFPGA_BRCOND;
 }
 static bool isJumpOpcode(int Opc) {
 	return Opc == TargetOpcode::G_BRJT;

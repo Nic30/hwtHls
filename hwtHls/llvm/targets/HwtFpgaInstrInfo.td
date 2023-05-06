@@ -16,6 +16,11 @@ class HwtFpgaInst<
   let Pattern = pattern;
 }
 
+class HwtFpgaBinOp : HwtFpgaInst<
+    (outs anyregcls:$dst),
+    (ins unknown:$src0, unknown:$src1),
+    []>;
+
 let hasSideEffects = 0, isAsCheapAsAMove = 1 in {
 // an instruction which gets the argument of the function (used for IO of the circuit)
 def HWTFPGA_ARG_GET : HwtFpgaInst<
@@ -61,7 +66,7 @@ let mayLoad = 1, canFoldAsLoad=1, hasSideEffects = 0, isPredicable = 1, isNotDup
 // conditional load
 def HWTFPGA_CLOAD : HwtFpgaInst<
     (outs anyregcls:$dst),
-    (ins anyregcls:$baseaddr, anyregcls: $index, anyregcls:$cond),
+    (ins anyregcls:$baseaddr, unknown: $index, unknown:$cond),
     []>; // no pattern because we match in C++
 }
 
@@ -69,9 +74,55 @@ let mayLoad = 0, mayStore = 1, hasSideEffects = 0, isPredicable = 1, isNotDuplic
 // conditional store
 def HWTFPGA_CSTORE : HwtFpgaInst<
     (outs),
-    (ins anyregcls:$val, anyregcls:$addr, anyregcls: $index, anyregcls:$cond),
+    (ins anyregcls:$val, anyregcls:$addr, unknown: $index, unknown:$cond),
     []>; // no pattern because we match in C++
 }
 
 let isBarrier = 1, isReturn = 1, isTerminator = 1, isPseudo = 1, isCodeGenOnly = 1 in
 def PseudoRET :  HwtFpgaInst<(outs), (ins variable_ops), []>;
+
+// generic codes equivalents (llvm/Targets/GenericOpcodes.td)
+// :attention: these codes are used only for final output so satisfy that the selected code does not contain
+//  generic opcodes, however the generic opcodes are retained after selection until last step so it is possible
+//  to use LLVM combiners
+let hasSideEffects = 0 in {
+def HWTFPGA_GLOBAL_VALUE : HwtFpgaInst<
+    (outs type0:$dst),
+    (ins unknown:$src),
+    []>;
+def HWTFPGA_ADD : HwtFpgaBinOp;
+def HWTFPGA_AND : HwtFpgaBinOp;
+def HWTFPGA_MUL : HwtFpgaBinOp;
+def HWTFPGA_UDIV : HwtFpgaBinOp;
+def HWTFPGA_SDIV : HwtFpgaBinOp;
+def HWTFPGA_UREM : HwtFpgaBinOp;
+def HWTFPGA_SREM : HwtFpgaBinOp;
+def HWTFPGA_OR : HwtFpgaBinOp;
+def HWTFPGA_SUB : HwtFpgaBinOp;
+def HWTFPGA_XOR : HwtFpgaBinOp;
+def HWTFPGA_ICMP : HwtFpgaInst<
+    (outs type0:$dst),
+    (ins unknown:$tst, type1:$src1, type1:$src2),
+    []>;
+}
+
+def HWTFPGA_BR : HwtFpgaInst<
+    (outs),
+    (ins unknown:$dst_addr ),
+    []> {
+        let isBarrier = true;
+        let hasSideEffects = false;
+        let isBranch = true;
+        let isTerminator = true;
+    }
+
+def HWTFPGA_BRCOND : HwtFpgaInst<
+    (outs),
+    (ins anyregcls:$cond, unknown:$dst_addr ),
+    []> {
+    	let hasSideEffects = false;
+    	let isBranch = true;
+    	let isTerminator = true;
+    }
+
+		

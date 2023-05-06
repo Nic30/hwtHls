@@ -36,12 +36,13 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
     This object translates low level elements of LLVM MIR to hwtHls HlsNetlist
     """
     OPC_TO_OP = {
-        TargetOpcode.G_ADD: AllOps.ADD,
-        TargetOpcode.G_SUB: AllOps.SUB,
-        TargetOpcode.G_MUL: AllOps.MUL,
-        TargetOpcode.G_AND: AllOps.AND,
-        TargetOpcode.G_OR: AllOps.OR,
-        TargetOpcode.G_XOR: AllOps.XOR,
+        TargetOpcode.HWTFPGA_ADD: AllOps.ADD,
+        TargetOpcode.HWTFPGA_SUB: AllOps.SUB,
+        TargetOpcode.HWTFPGA_MUL: AllOps.MUL,
+        TargetOpcode.HWTFPGA_UDIV: AllOps.DIV,
+        TargetOpcode.HWTFPGA_AND: AllOps.AND,
+        TargetOpcode.HWTFPGA_OR: AllOps.OR,
+        TargetOpcode.HWTFPGA_XOR: AllOps.XOR,
         TargetOpcode.HWTFPGA_NOT: AllOps.NOT,
     }
     SIGNED_CMP_OPS = (

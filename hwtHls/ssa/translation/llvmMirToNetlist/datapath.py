@@ -58,10 +58,12 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
 
             for instr in mb:
                 instr: MachineInstr
+                opc = instr.getOpcode()
+                if opc == TargetOpcode.HWTFPGA_ARG_GET:
+                    continue
+
                 dst = None
                 ops = []
-
-                opc = instr.getOpcode()
                 isLoadOrStore = opc in self._HWTFPGA_CLOAD_CSTORE
                 for i, mo in enumerate(instr.operands()):
                     mo: MachineOperand
@@ -83,8 +85,12 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                                 addrDefMO = MRI.getOneDef(r)
                                 assert addrDefMO is not None, instr
                                 addrDefInstr = addrDefMO.getParent()
-                                assert addrDefInstr.getOpcode() == TargetOpcode.G_GLOBAL_VALUE
-                                op = valCache._toHlsCache[(addrDefInstr.getParent(), addrDefMO.getReg())]
+                                addrDefOpc = addrDefInstr.getOpcode()
+                                if addrDefOpc == TargetOpcode.HWTFPGA_GLOBAL_VALUE:
+                                    op = valCache._toHlsCache[(addrDefInstr.getParent(), addrDefMO.getReg())]
+                                elif addrDefOpc == TargetOpcode.HWTFPGA_ARG_GET:
+                                    op = self.regToIo()
+                                assert addrDefInstr.getOpcode() == TargetOpcode.HWTFPGA_GLOBAL_VALUE, addrDefInstr
                                 ops.append(op)
                             else:
                                 ops.append(self._translateRegister(mb, r))
@@ -155,7 +161,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                         raise AssertionError("The io without any write somehow requires write", dstIo, instr)
                     constructor._translateMirToNetlist(constructor, self, mbSync, instr, srcVal, dstIo, index, cond)
 
-                elif opc == TargetOpcode.G_ICMP:
+                elif opc == TargetOpcode.HWTFPGA_ICMP:
                     predicate, lhs, rhs = ops
                     opDef = self.CMP_PREDICATE_TO_OP[predicate]
                     signed = predicate in self.SIGNED_CMP_OPS
@@ -167,7 +173,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                     res.obj.name = name
                     valCache.add(mb, dst, res, True)
 
-                elif opc == TargetOpcode.G_BR or opc == TargetOpcode.G_BRCOND:
+                elif opc == TargetOpcode.HWTFPGA_BR or opc == TargetOpcode.HWTFPGA_BRCOND:
                     pass  # will be translated in next step when control is generated, (condition was already translated)
 
                 elif opc == TargetOpcode.HWTFPGA_EXTRACT:
@@ -195,7 +201,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
 
                 elif opc == TargetOpcode.PseudoRET:
                     pass
-                elif opc == TargetOpcode.G_GLOBAL_VALUE:
+                elif opc == TargetOpcode.HWTFPGA_GLOBAL_VALUE:
                     assert len(ops) == 1, ops
                     res = ops[0]
                     res.obj.name = name
@@ -351,8 +357,10 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
             return False  # this is just form of undefined value (which is represented as constant)
 
         oneDef = MRI.getOneDef(liveIn)
-        if oneDef is not None and oneDef.getParent().getOpcode() == TargetOpcode.G_GLOBAL_VALUE:
-            return False  # this is a pointer to a local memory which exists globaly
+        if oneDef is not None:
+            defInstr = oneDef.getParent()
+            if defInstr.getOpcode() in (TargetOpcode.HWTFPGA_GLOBAL_VALUE, TargetOpcode.HWTFPGA_ARG_GET):
+                return False  # this is a pointer to a local memory which exists globaly
         return True
 
     def updateThreadsOnLiveInMuxes(self, threads: HlsNetlistAnalysisPassDataThreadsForBlocks):

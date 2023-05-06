@@ -55,16 +55,17 @@ bool resolveTypes(MachineInstr &MI) {
 
 	switch (Opc) {
 	case HwtFpga::HWTFPGA_ARG_GET:
-	case TargetOpcode::G_BR:
-	case TargetOpcode::G_BRCOND:
+	case HwtFpga::HWTFPGA_BR:
+	case HwtFpga::HWTFPGA_BRCOND:
 	case HwtFpga::PseudoRET:
 		// no resolving needed
 		return true;
-	case TargetOpcode::G_CONSTANT:
-		MRI.setType(MI.getOperand(0).getReg(),
-				LLT::scalar(MI.getOperand(1).getCImm()->getBitWidth()));
-		return true;
-	case TargetOpcode::G_GLOBAL_VALUE: {
+	// constants should be already lowered to IMM or global values
+	//case TargetOpcode::G_CONSTANT:
+	//	MRI.setType(MI.getOperand(0).getReg(),
+	//			LLT::scalar(MI.getOperand(1).getCImm()->getBitWidth()));
+	//	return true;
+	case HwtFpga::HWTFPGA_GLOBAL_VALUE: {
 		auto ptrT = MI.getOperand(1).getGlobal()->getType();
 		Type * _t;
 		unsigned SizeInBits;
@@ -73,16 +74,19 @@ bool resolveTypes(MachineInstr &MI) {
 		MRI.setType(MI.getOperand(0).getReg(), Ty);
 		return true;
 	}
-	case TargetOpcode::G_ICMP:
+	case HwtFpga::HWTFPGA_ICMP:
 		MRI.setType(MI.getOperand(0).getReg(), LLT::scalar(1));
 		return true;
-	case TargetOpcode::G_ADD:
-	case TargetOpcode::G_SUB:
-	case TargetOpcode::G_MUL:
-	case TargetOpcode::G_AND:
-	case TargetOpcode::G_OR:
-	case TargetOpcode::G_XOR:
-	case TargetOpcode::G_PTR_ADD:
+	case HwtFpga::HWTFPGA_ADD:
+	case HwtFpga::HWTFPGA_SUB:
+	case HwtFpga::HWTFPGA_MUL:
+	case HwtFpga::HWTFPGA_SDIV:
+	case HwtFpga::HWTFPGA_UDIV:
+	case HwtFpga::HWTFPGA_SREM:
+	case HwtFpga::HWTFPGA_UREM:
+	case HwtFpga::HWTFPGA_AND:
+	case HwtFpga::HWTFPGA_OR:
+	case HwtFpga::HWTFPGA_XOR:
 	case HwtFpga::HWTFPGA_NOT: {
 		// all operands of same type
 		unsigned bitWidth = 0;

@@ -63,12 +63,12 @@ def _resolveBranchOutLabels(self: "HlsNetlistAnalysisPassMirToNetlist", mb: Mach
     for last, ter in iter_with_last(mb.terminators()):
         ter: MachineInstr
         opc = ter.getOpcode()
-        if opc == TargetOpcode.G_BR:
-            assert last, ("G_BR instruction should be always last in block", mb)
+        if opc == TargetOpcode.HWTFPGA_BR:
+            assert last, ("HWTFPGA_BR instruction should be always last in block", mb)
             brCond = None
             dstBlock = ter.getOperand(0).getMBB()
 
-        elif opc == TargetOpcode.G_BRCOND:
+        elif opc == TargetOpcode.HWTFPGA_BRCOND:
             # mb is conditional successor of pred, we need to use end of pred and branch cond to get en fo mb
             c, dstBlock = ter.operands()
             assert c.isReg(), c
@@ -90,7 +90,7 @@ def _resolveBranchOutLabels(self: "HlsNetlistAnalysisPassMirToNetlist", mb: Mach
         elif anyPrevBranchEn is NOT_SPECIFIED:
             anyPrevBranchEn = brCond
         else:
-            assert anyPrevBranchEn is not None, "Must not request another branch after G_BR and others"
+            assert anyPrevBranchEn is not None, "Must not request another branch after HWTFPGA_BR and others"
             anyPrevBranchEn = builder.buildOr(anyPrevBranchEn, brCond)
     
     if mb.canFallThrough():

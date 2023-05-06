@@ -55,10 +55,10 @@ std::pair<Type*, size_t> getLoadOrStoreElementType(MachineRegisterInfo &MRI,
 					addrDef = MRI.getVRegDef(addrDef->getOperand(1).getReg());
 					addrDefOpc = addrDef->getOpcode();
 				}
-				if (addrDefOpc != TargetOpcode::G_GLOBAL_VALUE) {
+				if (addrDefOpc != TargetOpcode::G_GLOBAL_VALUE && addrDefOpc != HwtFpga::HWTFPGA_GLOBAL_VALUE) {
 					errs() << *addrDef << "address defined in:\n" << *addrDef;
 					llvm_unreachable(
-							"In address space 0 there should be only G_GLOBAL_VALUE");
+							"In address space 0 there should be only G_GLOBAL_VALUE or HWTFPGA_GLOBAL_VALUE");
 				}
 				return getGlobalValueElementTypeAndAddressWidth(*addrDef);
 			}

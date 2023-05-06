@@ -73,6 +73,7 @@ public:
 	bool isTrivialRemovableCopy(llvm::MachineInstr &MI, bool& replaceMuxSrcReg);
 	bool rewriteTrivialRemovableCopy(llvm::MachineInstr &MI, bool replaceMuxSrcReg);
 
+	bool genericOpcodeToHwtfpga(llvm::MachineInstr &MI);
 };
 
 }

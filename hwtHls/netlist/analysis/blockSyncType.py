@@ -106,7 +106,17 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
             # [todo] prefer using same liveIns from every predecessor
             # [todo] prefer using variables which are used the earlyest
             if mir._regIsValidLiveIn(MRI, liveIn):
-                assert eMeta.reuseDataAsControl is None, eMeta
+                latestDefInPrevBlock = None
+                for predMI in pred:
+                    if predMI.definesRegister(liveIn):
+                        latestDefInPrevBlock = predMI
+                if latestDefInPrevBlock is not None and\
+                    latestDefInPrevBlock.getOpcode() == TargetOpcode.HWTFPGA_MUX and\
+                    latestDefInPrevBlock.getNumOperands() == 2 and\
+                    latestDefInPrevBlock.getOperand(1).isCImm():
+                    # skip because this will be trivially sinked
+                    continue
+                
                 eMeta.reuseDataAsControl = liveIn
                 return liveIn
 
@@ -351,7 +361,7 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                 for inst in rstPred:
                     inst: MachineInstr
                     opc = inst.getOpcode()
-                    if opc not in (TargetOpcode.G_CONSTANT, TargetOpcode.G_BR, TargetOpcode.COPY):
+                    if opc != TargetOpcode.HWTFPGA_BR:
                         if opc == TargetOpcode.HWTFPGA_MUX and inst.getNumOperands() == 2:  # just copy
                             continue
                         allRstLiveInsInlinable = False

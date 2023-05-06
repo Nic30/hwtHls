@@ -41,6 +41,10 @@ def g_constant_to_imm: GICombineRule<
 			// G_MERGE_VALUES,
 			G_PTR_ADD,
 			G_MUL,
+			G_UDIV,
+			G_SDIV,
+			G_UREM,
+			G_SREM,
 			G_OR,
 			G_SELECT,
 			G_SUB,
@@ -48,8 +52,10 @@ def g_constant_to_imm: GICombineRule<
 			G_SEXT,
 			G_ZEXT,
 			G_SHL,
+			G_LSHR,
+			G_ASHR,
   			HWTFPGA_EXTRACT,
-            HWTFPGA_MERGE_VALUES ,
+            HWTFPGA_MERGE_VALUES,
             HWTFPGA_NOT,
             HWTFPGA_MUX,
             HWTFPGA_CLOAD,
@@ -165,8 +171,8 @@ def mux_merge: GICombineRule<
   (apply [{ return Helper.rewriteNestedMuxToMux(*${root}, ${matchinfo}); }])
 >;
 
-// (MUX  x, c, 0) -> (G_AND x, (SEXT c))
-// (MUX -1, c, x) -> (G_OR x, (SEXT c))
+// (MUX  x, c, 0) -> (G_AND|HWTFPGA_AND x, (SEXT c))
+// (MUX -1, c, x) -> (G_OR|HWTFPGA_OR x, (SEXT c))
 //  (SEXT is avoided if x.width == 1)
 def mux_mask_to_and_or_mask: GICombineRule<
   (defs root:$root, build_fn_matchinfo:$matchinfo),
@@ -188,7 +194,7 @@ def extract_msb_cmp: GICombineRule<
 
 def constCmpConstAdd_to_constCmp: GICombineRule<
   (defs root:$root, build_fn_matchinfo:$info),
-  (match (wip_match_opcode G_ICMP):$root,
+  (match (wip_match_opcode G_ICMP, HWTFPGA_ICMP):$root,
     [{ return Helper.matchConstCmpConstAdd(*${root}, ${info}); }]),
   (apply [{ Helper.applyBuildFn(*${root}, ${info}); }])
 >;
@@ -206,6 +212,12 @@ def HwtFpgaGenPreRegAllocGICombinerHelper: GICombinerHelper<
   let StateClass = "HwtFpgaGenPreRegAllocGICombinerHelperState";
   let AdditionalArguments = [];
 }
+// rewrite all remaining generic opcodes to HWTFPGA_*
+def generic_opcode_to_hwtfpga : GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode G_ADD, G_AND, G_BR, G_BRCOND, G_ICMP, G_MUL, G_SDIV, G_UDIV, G_UREM, G_SREM, G_OR, G_SUB, G_XOR, G_GLOBAL_VALUE):$root),
+  (apply [{ Helper.genericOpcodeToHwtfpga(*${root}); }])
+ >;
 
 // at this point all optimizations should be done and we only format the instructions form more simple conversion to netlist
 // * extract muxes to simplify thread detection
@@ -221,6 +233,7 @@ def HwtFpgaGenPreToNetlistGICombinerHelper: GICombinerHelper<
     extract_msb_cmp,
     constCmpConstAdd_to_constCmp,
     trivial_copy_propagate,
+    generic_opcode_to_hwtfpga,
     ]> {
   let DisableRuleOption = "HwtFpgaGenPreToNetlistGICombinerHelper-disable-rule";
   let StateClass = "HwtFpgaGenPreToNetlistGICombinerHelperState";
