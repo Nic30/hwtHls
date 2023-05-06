@@ -80,21 +80,20 @@ bool HwtFpgaToNetlist::runOnMachineFunction(llvm::MachineFunction &MF) {
 	for (auto &R : ioRegs) {
 		R = 0;
 	}
-	std::vector<MachineInstr*> toRm;
 	for (auto &MB : MF) {
 		for (auto &MI : MB) {
 			if (MI.getOpcode() == HwtFpga::HWTFPGA_ARG_GET) {
 				uint64_t arg = MI.getOperand(1).getImm();
 				assert(ioRegs[arg] == 0);
 				ioRegs.at(arg) = MI.getOperand(0).getReg();
-				toRm.push_back(&MI);
 			}
 		}
 	}
-	for (auto *MI : toRm) {
-		MI->eraseFromParent();
-	}
 
+	for (auto &R : ioRegs) {
+		if (R == 0)
+			throw std::runtime_error("The machine function code do not know about this argument");
+	}
 	std::map<llvm::Register, unsigned> registerTypes;
 	auto regNum = MRI->getNumVirtRegs();
 	for (unsigned r = 0; r < regNum; r++) {
