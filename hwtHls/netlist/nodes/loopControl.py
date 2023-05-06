@@ -91,7 +91,7 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
                     uses = self.usedBy[outPort.out_i]
                     if uses:
                         if portNode in self.fromEnter and\
-                            len(self.fromEnter) == 1:
+                                len(self.fromEnter) == 1:
                             exits = [e for e in self.fromExit if e not in removed]
                             if exits:
                                 # implicit enter = enter on any exit
