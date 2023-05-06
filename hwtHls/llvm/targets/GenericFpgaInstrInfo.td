@@ -44,13 +44,6 @@ def GENFPGA_NOT : GenFpgaInst<
     []>;
 }
 
-let hasSideEffects = 0, isPredicable = 1, isAsCheapAsAMove = 1 in {
-// conditional copy, pseudo instruction used before final combiner (which converts this to GENFPGA_MUX)
-def GENFPGA_CCOPY : GenFpgaInst<
-    (outs anyregcls:$dst),
-    (ins anyregcls:$src, anyregcls:$cond),
-    []>;
-}
 
 let mayLoad = 0, mayStore = 0, hasSideEffects = 0, isPredicable = 1, isSelect = 1, isAsCheapAsAMove = 1  in {
 // generic multiplexor - combines copy, select and phi in to a single instructions

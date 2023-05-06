@@ -355,7 +355,6 @@ bool GenericFpgaInstrInfo::isPredicated(const MachineInstr &MI) const {
 	case TargetOpcode::G_SELECT:
 	case GenericFpga::GENFPGA_CLOAD:
 	case GenericFpga::GENFPGA_CSTORE:
-	case GenericFpga::GENFPGA_CCOPY:
 	case GenericFpga::GENFPGA_MUX:
 		return false; // can be predicate infinity times
 	default:
@@ -373,14 +372,6 @@ bool GenericFpgaInstrInfo::PredicateInstruction(MachineInstr &MI,
 		llvm_unreachable("NotImplemented");
 	//unsigned predicateI = -1;
 	switch (opc) {
-	case GenericFpga::GENFPGA_CCOPY:
-		// dst, val, predicate
-		assert(MI.getNumOperands() == 3);
-		if (MI.getOperand(2).isReg()) {
-			llvm_unreachable("NotImplemented");
-		}
-		MI.removeOperand(2);
-		break;
 	case GenericFpga::GENFPGA_CLOAD:
 	case GenericFpga::GENFPGA_CSTORE:
 		// dst/val, addr, index, predicate

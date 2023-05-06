@@ -51,7 +51,6 @@ def g_constant_to_imm: GICombineRule<
   			GENFPGA_EXTRACT,
             GENFPGA_MERGE_VALUES ,
             GENFPGA_NOT,
-            GENFPGA_CCOPY,
             GENFPGA_MUX,
             GENFPGA_CLOAD,
             GENFPGA_CSTORE,
@@ -133,17 +132,11 @@ def GenericFpgaGenPreLegalizeGICombinerHelper: GICombinerHelper<
 }
 
 
-def copy_to_genfpga_copy : GICombineRule<
+def copy_to_genfpga_mux : GICombineRule<
   (defs root:$d),
   (match (COPY $d, $s):$mi),
   (apply [{
-	  	Helper.replaceOpcodeWith(*${mi}, GenericFpga::GENFPGA_CCOPY);
-	  	Observer.changingInstr(*${mi});
-		MachineInstrBuilder builder(*MF, ${mi});
-  		auto &C = MF->getFunction().getContext();
-		auto *CI = ConstantInt::get(C, APInt(1, 1));
-		builder.addCImm(CI);
-		Observer.changedInstr(*${mi});
+	  	Helper.replaceOpcodeWith(*${mi}, GenericFpga::GENFPGA_MUX);
   	}])>;
 
 // Fold (x G_XOR allOnes) - > GENFPGA_NOT x
@@ -204,7 +197,7 @@ def constCmpConstAdd_to_constCmp: GICombineRule<
 // rewrite generic opcodes to GENFPGA_* where beneficial
 def GenericFpgaGenPreRegAllocGICombinerHelper: GICombinerHelper<
   "GenericFpgaGenPreRegAllocGICombinerHelper", [
-  	copy_to_genfpga_copy,
+  	copy_to_genfpga_mux,
     extract_on_merge_values,
     const_eval_combines,
     trivial_copy_propagate,

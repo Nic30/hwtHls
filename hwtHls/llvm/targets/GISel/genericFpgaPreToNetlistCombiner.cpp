@@ -69,7 +69,6 @@ public:
 	virtual bool combine(GISelChangeObserver &Observer, MachineInstr &MI,
 			MachineIRBuilder &B) const override;
 
-	static void convertGENFPGA_CCOPY_to_GENFPGA_MUX(MachineIRBuilder &Builder);
 	static void convertG_SELECT_to_GENFPGA_MUX(MachineIRBuilder &Builder);
 	static void convertPHI_to_GENFPGA_MUX(MachineIRBuilder &Builder);
 };
@@ -89,33 +88,6 @@ void copyOperand(MachineInstrBuilder &MIB, MachineRegisterInfo &MRI,
 		}
 	}
 	MIB.add(MO);
-}
-
-void GenericFpgaPreToNetlistCombinerInfo::convertGENFPGA_CCOPY_to_GENFPGA_MUX(
-		MachineIRBuilder &Builder) {
-	// dst, val, cond
-	MachineInstr &MI = *Builder.getInsertPt();
-	if (MI.getNumOperands() != 3) {
-		errs() << MI;
-		llvm_unreachable("GENFPGA_CCOPY must have 3 operands (dst, src, cond)");
-	}
-	auto dst = MI.getOperand(0);
-	auto &val = MI.getOperand(1);
-	auto &cond = MI.getOperand(2);
-	bool condIsConst = cond.isCImm();
-	if (condIsConst && !cond.getCImm()->getValue()) {
-		// copy never performed
-	} else {
-		MachineInstrBuilder MIB = Builder.buildInstr(GenericFpga::GENFPGA_MUX);
-		MachineBasicBlock &MBB = *MI.getParent();
-		MachineFunction &MF = *MBB.getParent();
-		MachineRegisterInfo &MRI = MF.getRegInfo();
-		copyOperand(MIB, MRI, MF, dst);
-		copyOperand(MIB, MRI, MF, val);
-		if (!condIsConst) {
-			copyOperand(MIB, MRI, MF, cond);
-		}
-	}
 }
 
 void GenericFpgaPreToNetlistCombinerInfo::convertG_SELECT_to_GENFPGA_MUX(
@@ -176,12 +148,6 @@ bool GenericFpgaPreToNetlistCombinerInfo::combine(GISelChangeObserver &Observer,
 		return Helper.tryCombineShuffleVector(MI);
 	case TargetOpcode::G_MEMCPY_INLINE:
 		return Helper.tryEmitMemcpyInline(MI);
-	case llvm::GenericFpga::GENFPGA_CCOPY: {
-		std::function<void(llvm::MachineIRBuilder&)> _ccopyToMux =
-				convertGENFPGA_CCOPY_to_GENFPGA_MUX;
-		Helper.applyBuildFn(MI, _ccopyToMux);
-		return true;
-	}
 	case llvm::GenericFpga::G_SELECT:
 		std::function<void(llvm::MachineIRBuilder&)> _selectToMux =
 				convertG_SELECT_to_GENFPGA_MUX;
