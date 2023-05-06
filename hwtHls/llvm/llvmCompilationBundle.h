@@ -43,6 +43,8 @@ public:
 			hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetlistConversionFn);
 	llvm::MachineFunction* getMachineFunction(llvm::Function &fn);
 
+	std::unique_ptr<llvm::MachineModuleInfo> getMachineModuleInfo();
+
 	void _addVectorPasses(llvm::OptimizationLevel Level,
 			llvm::FunctionPassManager &FPM, bool IsFullLTO);
 	// for arg description see HwtFpgaTargetPassConfig

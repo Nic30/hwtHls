@@ -19,7 +19,6 @@
 #include <llvm/IR/Verifier.h>
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/CodeGen/MachineInstr.h>
-#include <llvm/CodeGen/MIRParser/MIRParser.h>
 
 
 #include <pybind11/pybind11.h>
@@ -69,6 +68,7 @@ void register_Types(pybind11::module_ & m) {
 	py::class_<llvm::Type, std::unique_ptr<llvm::Type, py::nodelete>>(m, "Type")
 		.def("getVoidTy", &llvm::Type::getVoidTy, py::return_value_policy::reference)
 		.def("getIntNTy", &llvm::Type::getIntNTy, py::return_value_policy::reference)
+		.def("getIntegerBitWidth", &llvm::Type::getIntegerBitWidth, py::return_value_policy::reference)
 		.def("getIntNPtrTy", &llvm::Type::getIntNPtrTy, py::return_value_policy::reference)
 		.def("__repr__",  &printToStr<llvm::Type>);;
 
@@ -143,7 +143,8 @@ PYBIND11_MODULE(llvmIr, m) {
 			});
 			return returnObj;
 		})
-		.def("getMachineFunction", &hwtHls::LlvmCompilationBundle::getMachineFunction)
+		.def("getMachineFunction", &hwtHls::LlvmCompilationBundle::getMachineFunction, py::return_value_policy::reference_internal)
+		.def("getMachineModuleInfo", &hwtHls::LlvmCompilationBundle::getMachineModuleInfo, py::return_value_policy::reference_internal)
 		.def("_testSlicesToIndependentVariablesPass", &hwtHls::LlvmCompilationBundle::_testSlicesToIndependentVariablesPass, py::return_value_policy::reference_internal)
 		.def("_testSlicesMergePass", &hwtHls::LlvmCompilationBundle::_testSlicesMergePass, py::return_value_policy::reference_internal)
 		.def_readonly("ctx", &hwtHls::LlvmCompilationBundle::ctx)
@@ -157,6 +158,7 @@ PYBIND11_MODULE(llvmIr, m) {
 			.def(py::init<llvm::StringRef, llvm::LLVMContext&>(), py::keep_alive<1, 2>(), py::keep_alive<1, 3>())
 			.def("__repr__", &Module__repr__)
 			.def("getName", &llvm::Module::getName)
+			.def("getFunction", &llvm::Module::getFunction)
 			.def("__iter__", [](llvm::Module &M) {
 					return py::make_iterator(M.begin(), M.end());
 				}, py::keep_alive<0, 1>());
@@ -208,23 +210,6 @@ PYBIND11_MODULE(llvmIr, m) {
 		llvm::MemoryBufferRef buff(str, name);
 		return llvm::parseIR(buff, Err, Context);
 	}, py::return_value_policy::reference_internal);
-	m.def("parseMIR",
-			[](const std::string &str, const std::string &name,
-					llvm::LLVMContext &Context) {
-				LlvmCompilationBundle llvmcb(name);
-				auto buff = llvm::MemoryBuffer::getMemBufferCopy(str, name);
-				llvm::LLVMTargetMachine &LLVMTM = static_cast<llvm::LLVMTargetMachine&>(*llvmcb.TM);
-				auto MMI = std::make_unique<llvm::MachineModuleInfo>(&LLVMTM);
-				auto MIR = llvm::createMIRParser(std::move(buff), Context);
-				std::unique_ptr<llvm::Module> M = MIR->parseIRModule();
-				if (!M)
-					throw std::runtime_error("Can not parse machine module");
-				M->setDataLayout(llvmcb.TM->createDataLayout());
-				if (MIR->parseMachineFunctions(*M, *MMI))
-					throw std::runtime_error(
-							"Can not parse machine functions from module");
-				return M;
-			}, py::return_value_policy::reference_internal);
 
 }
 }

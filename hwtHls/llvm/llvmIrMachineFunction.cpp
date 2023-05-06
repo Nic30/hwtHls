@@ -8,10 +8,14 @@
 #include <llvm/CodeGen/MachineInstr.h>
 #include <llvm/CodeGen/MachineRegisterInfo.h>
 #include <llvm/CodeGen/MIRPrinter.h>
+#include <llvm/CodeGen/MachineModuleInfo.h>
+#include <llvm/CodeGen/MIRParser/MIRParser.h>
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/GlobalValue.h>
-#include <llvm/MC/MCInstrInfo.h>
 #include <llvm/IR/Function.h>
+#include <llvm/MC/MCInstrInfo.h>
+#include <llvm/Support/MemoryBuffer.h>
+#include <llvm/Target/TargetMachine.h>
 
 #include "llvmIrCommon.h"
 #include "targets/hwtFpgaMCTargetDesc.h"
@@ -25,6 +29,7 @@ enum TargetOpcode: unsigned {};
 void register_MachineFunction(pybind11::module_ &m) {
 	py::class_<llvm::MachineFunction, std::unique_ptr<llvm::MachineFunction, py::nodelete>> MachineFunction(m, "MachineFunction");
 	MachineFunction
+		.def("getBlockNumbered", &llvm::MachineFunction::getBlockNumbered, py::return_value_policy::reference_internal)
 		.def("getName", &llvm::MachineFunction::getName, py::return_value_policy::reference_internal)
 		.def("getRegInfo", [](const llvm::MachineFunction * MF) {
 			return &MF->getRegInfo();
@@ -110,6 +115,9 @@ void register_MachineFunction(pybind11::module_ &m) {
 			return static_cast<TargetOpcode>(I.getOpcode());
 		})
 		.def("__repr__",  &printToStr<llvm::MachineInstr>)
+		.def("definesRegister",  [] (llvm::MachineInstr* MI, llvm::Register Reg)  {
+			return MI->definesRegister(Reg);
+		 })
 		.def("operands", [](llvm::MachineInstr & I) {
 						return py::make_iterator(I.operands_begin(), I.operands_end());
 					 }, py::keep_alive<0, 1>())
@@ -145,7 +153,35 @@ void register_MachineFunction(pybind11::module_ &m) {
 	py::class_<llvm::MachineRegisterInfo, std::unique_ptr<llvm::MachineRegisterInfo, py::nodelete>> MachineRegisterInfo(m, "MachineRegisterInfo");
 	MachineRegisterInfo
 		.def("def_empty", &llvm::MachineRegisterInfo::def_empty)
+		.def("getVRegName", &llvm::MachineRegisterInfo::getVRegName)
+		.def("getNumVirtRegs", &llvm::MachineRegisterInfo::getNumVirtRegs)
+		.def("getType", &llvm::MachineRegisterInfo::getType)
+		.def("defs", [](llvm::MachineRegisterInfo & MRI, llvm::Register RegNo) {
+			return py::make_iterator(MRI.def_begin(RegNo), MRI.def_end());
+	 	 }, py::keep_alive<0, 1>())
 		.def("getOneDef", &llvm::MachineRegisterInfo::getOneDef, py::return_value_policy::reference_internal);
+	py::class_<llvm::LLT> LLT(m, "LLT");
+	LLT.def("getSizeInBits", &llvm::LLT::getScalarSizeInBits)
+	   .def("isValid", &llvm::LLT::isValid);
+
+	py::class_<llvm::MachineModuleInfo, std::unique_ptr<llvm::MachineModuleInfo, py::nodelete>> MachineModuleInfo(m, "MachineModuleInfo");
+	MachineModuleInfo
+		.def("getMachineFunction",  &llvm::MachineModuleInfo::getMachineFunction, py::return_value_policy::reference_internal);
+
+	m.def("parseMIR",
+			[](const std::string &str, const std::string &name,
+					llvm::LLVMContext &Context, llvm::MachineModuleInfo &MMI) {
+				auto buff = llvm::MemoryBuffer::getMemBufferCopy(str, name);
+				auto MIR = llvm::createMIRParser(std::move(buff), Context);
+				std::unique_ptr<llvm::Module> M = MIR->parseIRModule();
+				if (!M)
+					throw std::runtime_error("Can not parse machine module");
+				M->setDataLayout(MMI.getTarget().createDataLayout());
+				if (MIR->parseMachineFunctions(*M, MMI))
+					throw std::runtime_error(
+							"Can not parse machine functions from module");
+				return M;
+			}, py::return_value_policy::reference_internal);
 }
 
 }

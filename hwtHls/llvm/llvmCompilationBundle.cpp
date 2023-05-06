@@ -67,6 +67,7 @@
 #include <llvm/Transforms/Utils/AssumeBundleBuilder.h>
 #include <llvm/Transforms/Utils.h>
 
+
 #include <llvm/Target/TargetMachine.h>
 //#include <llvm/Support/TargetSelect.h>
 #include <llvm/Support/CodeGen.h>
@@ -607,6 +608,12 @@ llvm::MachineFunction* LlvmCompilationBundle::getMachineFunction(llvm::Function 
 	auto &MMI = MMIWP->getMMI();
 	// llvm::LoopAnalysis & LA = MMIWP->getAnalysis<llvm::LoopAnalysis>();
 	return MMI.getMachineFunction(fn);
+}
+
+std::unique_ptr<llvm::MachineModuleInfo> LlvmCompilationBundle::getMachineModuleInfo() {
+	auto &LLVMTM = static_cast<llvm::LLVMTargetMachine&>(*TM);
+	auto MMI = std::make_unique<llvm::MachineModuleInfo>(&LLVMTM);
+	return MMI;
 }
 
 llvm::Function& LlvmCompilationBundle::_testFunctionPass(std::function<void(llvm::FunctionPassManager&)> addPasses) {
