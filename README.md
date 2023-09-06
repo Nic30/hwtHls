@@ -163,6 +163,7 @@ source venv/bin/activate # modifies current shell to use previously generate pyt
 * [gemmini](https://github.com/ucb-bar/gemmini) - scala, systolic array generator
 * [Hastlayer](https://github.com/Lombiq/Hastlayer-SDK) - 2012-2019, C# -> HW
 * [heterocl](https://awesomeopensource.com/project/cornell-zhang/heterocl)
+* [hls4ml](https://github.com/vloncar/hls4ml)
 * [ICSC](https://github.com/intel/systemc-compiler) - C++/LLVM, systemC compiler
 * [Light-HLS](https://github.com/zslwyuan/Light-HLS) -, C++/LLVM, experimental HLS framework
 * [mockturtle](https://github.com/lsils/mockturtle) - C++, logic network lib. with project similar to HLS
@@ -182,6 +183,7 @@ source venv/bin/activate # modifies current shell to use previously generate pyt
 * [utwente-fmt](https://github.com/utwente-fmt) - abstract hls, verification libraries
 * [Xilinx/Vitis HLS](https://github.com/Xilinx/HLS) - C++/LLVM, partially opensource
 * [xls](https://github.com/google/xls) - 2020-?, C++ HLS compiler with JIT
+
 
 ## Useful publications
 * [Efficient Pipelining of Nested Loops: Unroll-and-Squash](https://people.csail.mit.edu/saman/student_thesis/petkov-01.pdf)

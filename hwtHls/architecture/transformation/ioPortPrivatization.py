@@ -47,12 +47,12 @@ class RtlArchPassIoPortPrivatization(RtlArchPass):
     def apply(self, hls:"HlsScope", allocator:HlsAllocator):
         ioDiscovery: HlsNetlistAnalysisPassIoDiscover = allocator.netlist.getAnalysis(HlsNetlistAnalysisPassIoDiscover)
         ioByInterface = ioDiscovery.ioByInterface
-        clkPeriod: int = allocator.netlist.normalizedClkPeriod
+        #clkPeriod: int = allocator.netlist.normalizedClkPeriod
         nodeSharing: Optional[InterArchElementNodeSharingAnalysis] = allocator._iea 
         portOwner: Dict[Interface, ArchElement] = {}
         # for each FSM we need to keep pool of assigned ports so we can reuse it in next clock cycle
         # because the ports can be shared between clock cycles.
-        fsmPortPool: Dict[Tuple[ArchElementFsm, Tuple[Interface]], List[Interface]] = {}
+        #fsmPortPool: Dict[Tuple[ArchElementFsm, Tuple[Interface]], List[Interface]] = {}
         for io in ioDiscovery.interfaceList:
             if isinstance(io, tuple):
                 freePorts = list(reversed(io))  # reversed so we allocate ports with lower index fist

@@ -10,7 +10,7 @@ from hwtHls.netlist.analysis.detectFsms import IoFsm
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.orderable import HdlType_isVoid
 from hwtHls.netlist.scheduler.clk_math import start_clk
-from hwtHls.netlist.nodes.const import HlsNetNodeConst
+# from hwtHls.netlist.nodes.const import HlsNetNodeConst
 
 
 class RtlArchPassMergeTiedFsms(RtlArchPass):

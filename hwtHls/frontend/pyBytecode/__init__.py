@@ -11,7 +11,7 @@ The translation process involves several things.
 2. A preprocessor immediately evaluates everything which is not required to convert to circuit.
    This mainly involves operations and variables of non hardware type.
    Instances of SsaValue, HValue, Interface, RtlSignal are hardware objects
-   for which operations are not evaluatuable during compilation instead they are staged into output SSA.
+   for which operations are not evaluatable during compilation instead they are staged into output SSA.
 
    * There is a specific case where predecessor block may disappear or are dynamically added because jumps in code are evaluated in preprocessor
      or some code feature (e.g. loop) is expanded.
@@ -28,14 +28,14 @@ The translation process involves several things.
 
 def hlsBytecode(fn):
     """
-    Wrapper which does nothig but parks the function as compatible with bytecode HLS frontend for documentation purposes.
+    Wrapper which does nothing but parks the function as compatible with bytecode HLS frontend for documentation purposes.
     """
     return fn
 
 
 def hlsLowLevel(fn):
     """
-    Wraper which marks function as integrated in HLS framework of this library. Functions marked with this will recieve
+    Wrapper which marks function as integrated in HLS framework of this library. Functions marked with this will recieve
     all arguments as they are without any expansion.
     """
     fn.__hlsIsLowLevelFn = True
