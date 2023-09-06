@@ -6,15 +6,15 @@ from hwt.interfaces.structIntf import HdlType_to_Interface
 from hwt.pyUtils.arrayQuery import flatten
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
-from hwt.synthesizer.interfaceLevel.unitImplHelpers import Interface_without_registration,\
+from hwt.synthesizer.interfaceLevel.unitImplHelpers import Interface_without_registration, \
     getInterfaceName
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.ast.astToSsa import AnyStm, HlsAstToSsa
+from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.statements import HlsStmCodeBlock
 from hwtHls.thread import HlsThread
 from ipCorePackager.constants import DIRECTION
-from hwtHls.frontend.ast.builder import HlsAstBuilder
 
 
 class HlsThreadFromAst(HlsThread):
