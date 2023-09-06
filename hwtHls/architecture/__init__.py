@@ -6,7 +6,7 @@ The architecture element is a scope for register allocation, control and data pa
 
 
 There are several complicated things:
-* The synchronization is allocated per clock cycle. The problem is that node may span more than 1 clock cycle (for example bram read, DSP48E1 block etc.)
+* The synchronization is allocated per clock cycle. The problem is that node may span more than 1 clock cycle (for example BRAM read, DSP48E1 block etc.)
   Often we can not simply cut nodes to pieces because of complex internal structure. Parts of node may be in a different arch element which implies that we may have
   to split node also vertically (to select some subset of inputs/outputs).
 * For some ArchElements it is impossible to determine latency between IO channels.
@@ -16,9 +16,9 @@ There are several complicated things:
 
 Circuit synchronization partitioning problem:
 
-* In order to convert netlist to a netlist a CFG and IO/shared resource access colissions must be fully resolved.
+* In order to convert netlist to a netlist a CFG and IO/shared resource access collisions must be fully resolved.
   This implies that the clusters of nodes where this sort of constrain applies must be identified and proper control implementation must be selected.
-  This also involes a discovery of an association between controll structures and data nodes in original netlist.
+  This also involes a discovery of an association between control structures and data nodes in original netlist.
 * This cluster of nodes with is a base unit of architecture implementation is reffered as an IO cluster.
 
 * For this purpose there are several objects:
@@ -26,7 +26,11 @@ Circuit synchronization partitioning problem:
       about every IO which needs to be taken in account when optimizing IO access conditions.
   * HlsNetlistAnalysisPassSyncDomains - A pass which discovers the parts of IO cluster which must happen atomically and
       which are subject to some kind of combinatioanal loop later in architecture generation.
-  * HlsNetlistAnalysisPassBetweenSyncIslands - A pass which discoveres nodes in the body of the IO cluster. Produces BetweenSyncIsland.
+  * HlsNetlistAnalysisPassBetweenSyncIslands - A pass which discovers nodes in the body of the IO cluster. Produces BetweenSyncIsland.
 
 * An information form previously mentioned objects is then used to construct :class:`hwtHls.architecture.archElement.ArchElement` instances.
+
+https://math.stackexchange.com/questions/3836719/dag-decomposition-into-parallel-components
+https://en.wikipedia.org/wiki/Series%E2%80%93parallel_graph
+https://en.wikipedia.org/wiki/SPQR_tree
 """
