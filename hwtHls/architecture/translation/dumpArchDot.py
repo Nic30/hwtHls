@@ -18,18 +18,40 @@ from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge, \
     BACKEDGE_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge
 from hwtHls.platform.fileUtils import OutputStreamGetter
+#from ipCorePackager.constants import DIRECTION
+#from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
+#from hwt.hdl.portItem import HdlPortItem
+#from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
+#from math import ceil
 
 
 class RtlArchToGraphwiz():
-
+    """
+    Class which translates RTL architecutre from HlsAllocator instance to a Graphwiz dot graph for visualization purposes.
+    """
     def __init__(self, name:str, allocator: HlsAllocator, parentUnit: Unit):
         self.graph = Dot(name)
         self.allocator = allocator
         self.parentUnit = parentUnit
         self.interfaceToNodes: Dict[InterfaceBase, Node] = {}
         self.archElementToNode: Dict[ArchElement, Node] = {}
-
-    def _getInterfaceNode(self, i: InterfaceBase):
+    
+    # def _tryToFindComponentConnectedToInterface(self, i: InterfaceBase, direction: DIRECTION):
+    #    if direction == DIRECTION.IN:
+    #        mainSig = i.vld
+    #    else:
+    #        assert direction == DIRECTION.OUT, i
+    #        mainSig = i.rd
+    #
+    #    mainSigDriver = mainSig._sig.drivers[0]
+    #    if isinstance(mainSigDriver, HdlAssignmentContainer):
+    #        tmpIoSig = mainSigDriver.src
+    #        ioSigPort = tmpIoSig.drivers[0]
+    #        if isinstance(ioSigPort, HdlPortItem):
+    #            return ioSigPort.unit
+    #    return None
+    #
+    def _getInterfaceNode(self, i: InterfaceBase, edgeInfo: Optional[Tuple[int, bool]]):
         try:
             return self.interfaceToNodes[i]
         except KeyError:
@@ -45,7 +67,14 @@ class RtlArchToGraphwiz():
                 bodyRows.append(f"<tr><td></td><td>{html.escape(dst.data.name):s}</td><td>{html.escape(repr(dst.data._dtype))}</td></tr>")
         else:
             bodyRows.append(f'<tr port="0"><td>{name:s}</td><td>{html.escape(i.__class__.__name__)}</td></tr>')
-
+        
+        # connectedComponent = self._tryToFindComponentConnectedToInterface(i, direction)
+        if edgeInfo is not None:
+            capacity, breaksReadyChain = edgeInfo
+            bodyRows.append(f'<tr><td>capacity</td><td>{capacity}</td></tr>')
+            if breaksReadyChain:
+                bodyRows.append(f'<tr><td>breaksReadyChain</td><td></td></tr>')
+            
         bodyStr = "\n".join(bodyRows)
         label = f'<<table border="0" cellborder="1" cellspacing="0">{bodyStr:s}</table>>'
         n.set("label", label)
@@ -57,12 +86,28 @@ class RtlArchToGraphwiz():
         clkPeriod = self.allocator.netlist.normalizedClkPeriod
         return t // clkPeriod
 
+    @staticmethod
+    def _collectBufferInfo(allocator: HlsAllocator):
+        bufferInfo: Dict[InterfaceBase, Tuple[int, InterfaceBase]] = {}
+        clkPeriod = allocator.netlist.normalizedClkPeriod
+        
+        for elm in allocator._archElements:
+            elm: ArchElement
+            for n in elm.allNodes:
+                if isinstance(n, (HlsNetNodeWriteBackedge, HlsNetNodeWriteForwardedge)):
+                    n: HlsNetNodeWriteBackedge
+                    if n.allocationType == BACKEDGE_ALLOCATION_TYPE.BUFFER:
+                        breaksReadyChain = isinstance(n, HlsNetNodeWriteBackedge)
+                        bufferInfo[n.dst] = (n._getSizeOfBuffer(clkPeriod), breaksReadyChain)
+        return bufferInfo
+
     def construct(self):
         g = self.graph
         allocator: HlsAllocator = self.allocator
 
         interElementConnections: Dict[Tuple[ArchElement, int, ArchElement, int], List[str, HdlType]] = {}
         interElementConnectionsOrder = []
+        bufferInfo = self._collectBufferInfo(allocator)
         for elm in allocator._archElements:
             elm: ArchElement
             nodeId = len(g.obj_dict['nodes'])
@@ -84,7 +129,7 @@ class RtlArchToGraphwiz():
             for clkI, st in elm.iterStages():
                 con: ConnectionsOfStage = elm.connections[clkI]
 
-                if isPipeline and (not st or (elm._beginClkI is not None and clkI < elm._beginClkI)):
+                if not st or (elm._beginClkI is not None and clkI < elm._beginClkI):
                     assert not con.inputs, ("Must not have IO before begin of pipeline", elm, elm._beginClkI, clkI, con.inputs)
                     assert not con.outputs, ("Must not have IO before begin of pipeline", elm, elm._beginClkI, clkI, con.outputs)
                     assert not con.io_extraCond, ("Must not have IO before begin of pipeline", elm, elm._beginClkI, clkI)
@@ -103,12 +148,12 @@ class RtlArchToGraphwiz():
                 # [todo] global inputs with bgcolor ligtred global outputs with lightblue color
 
                 for intf, isBlocking in con.inputs:
-                    iN = self._getInterfaceNode(intf)
+                    iN = self._getInterfaceNode(intf, bufferInfo.get(intf))
                     e = Edge(f"{iN.get_name():s}:0", f"n{nodeId:d}:i{clkI:d}", label='' if isBlocking else ' non-blocking')
                     g.add_edge(e)
 
                 for intf, isBlocking  in con.outputs:
-                    oN = self._getInterfaceNode(intf)
+                    oN = self._getInterfaceNode(intf, bufferInfo.get(intf))
                     e = Edge(f"n{nodeId:d}:o{clkI:d}", f"{oN.get_name():s}:0", label='' if isBlocking else ' non-blocking')
                     g.add_edge(e)
 
@@ -119,8 +164,9 @@ class RtlArchToGraphwiz():
                 if isinstance(n, (HlsNetNodeWriteBackedge, HlsNetNodeWriteForwardedge)):
                     n: HlsNetNodeWriteBackedge
                     if n.allocationType == BACKEDGE_ALLOCATION_TYPE.BUFFER:
-                        wN = self._getInterfaceNode(n.dst)
-                        rN = self._getInterfaceNode(n.associatedRead.src)
+                        wN = self._getInterfaceNode(n.dst, bufferInfo.get(n.dst))
+                        rN = self._getInterfaceNode(n.associatedRead.src, bufferInfo.get(n.associatedRead.src))
+                        
                         e = Edge(f"{wN.get_name():s}:0", f"{rN.get_name():s}:0", style="dashed", color="gray")
                         g.add_edge(e)
                     else:
