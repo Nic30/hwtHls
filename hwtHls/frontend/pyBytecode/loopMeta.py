@@ -2,11 +2,10 @@ from typing import  Tuple, Union, List, Optional, Literal
 
 from hwt.hdl.value import HValue
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
-from hwtHls.frontend.pyBytecode.blockLabel import BlockLabel
 from hwtHls.frontend.pyBytecode.loopsDetect import PyBytecodeLoop
 from hwtHls.ssa.basicBlock import SsaBasicBlock
-from hwtHls.ssa.value import SsaValue
 from hwtHls.ssa.instr import ConditionBlockTuple
+from hwtHls.ssa.value import SsaValue
 
 
 class BranchTargetPlaceholder():

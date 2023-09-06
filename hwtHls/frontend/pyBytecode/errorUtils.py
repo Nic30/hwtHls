@@ -8,7 +8,7 @@ def createInstructionException(e: Exception, frame: PyBytecodeFrame, instr: Inst
     """
     based on https://github.com/google/etils/blob/main/etils/epy/reraise_utils.py#L38
     
-    Reraise an exception with an additional message.
+    Re-raise an exception with an additional message.
     Benefit: Contrary to `raise ... from ...` and
     `raise Exception().with_traceback(tb)`, this function will:
     * Keep the original exception type, attributes,...
