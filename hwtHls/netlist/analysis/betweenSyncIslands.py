@@ -11,6 +11,7 @@ from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
 from hwtHls.netlist.nodes.node import HlsNetNode
 from ipCorePackager.constants import DIRECTION
+from hwtHls.netlist.nodes.loopChannelGroup import LoopChanelGroup
 
 
 class HlsNetlistAnalysisPassBetweenSyncIslands(HlsNetlistAnalysisPass):
@@ -97,7 +98,6 @@ class HlsNetlistAnalysisPassBetweenSyncIslands(HlsNetlistAnalysisPass):
                 else:
                     internalNodes.append(n)
 
-
             for n in reachDb._getDirectDataPredecessorsRaw(toSearchUseToDef, set()):
                 assert isinstance(n, HlsNetNode), n
                 # search use -> def (top -> down)
@@ -111,17 +111,14 @@ class HlsNetlistAnalysisPassBetweenSyncIslands(HlsNetlistAnalysisPass):
                     internalNodes.append(n)
                     if isinstance(n, HlsNetNodeLoopStatus):
                         n: HlsNetNodeLoopStatus
-                        for e in chain(n.fromEnter, n.fromReenter):
-                            if e not in seenDefToUse:
-                                inputs.append(e)
-                                seenDefToUse.add(e)
-                                toSearchDefToUse.append(e)
-
-                        for e in n.fromExit:
-                            if e not in seenUseToDef:
-                                outputs.append(e)
-                                seenUseToDef.add(e)
-                                toSearchUseToDef.append(e)
+                        for chGroup in chain(n.fromEnter, n.fromReenter, n.fromExitToHeaderNotify):
+                            chGroup: LoopChanelGroup
+                            for w in chGroup.members:
+                                r = w.associatedRead
+                                if r not in seenDefToUse:
+                                    inputs.append(r)
+                                    seenDefToUse.add(r)
+                                    toSearchDefToUse.append(r)
 
         # inputs may dependent on outputs because we stop search
         # after first found HlsNetNodeExplicitSync instance

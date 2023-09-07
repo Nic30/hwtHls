@@ -11,6 +11,7 @@ from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.orderable import HVoidOrdering, HVoidExternData
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn
+from hwtHls.netlist.nodes.loopChannelGroup import LoopChanelGroup
 
 
 class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
@@ -88,6 +89,10 @@ class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
         """
         seen: Set[HlsNetNode] = set()
         toSearch: List[HlsNetNode] = [syncNode, ]
+        if isinstance(syncNode, HlsNetNodeLoopStatus):
+            for e in chain(syncNode.fromEnter, syncNode.fromReenter, syncNode.fromExitToHeaderNotify):
+                e: LoopChanelGroup
+                toSearch.append(e.getChannelWhichIsUsedToImplementControl().associatedRead)
 
         while toSearch:
             n0: HlsNetNode = toSearch.pop()

@@ -133,9 +133,9 @@ class SyncGroupClusterContext():
                             continue
 
                         g.add_edge(extraSync, op)
-                    for e in chain(op.fromEnter, op.fromReenter):
+                    for e in chain(op.fromEnter, op.fromReenter, op.fromExitToHeaderNotify):
                         # add edge to enter reads so they are in same SCC
-                        g.add_edge(e, op)
+                        g.add_edge(e.getChannelWhichIsUsedToImplementControl().associatedRead, op)
 
             # build a cycle on all IO which is using same sync
             # for users in usersOfSync.values():

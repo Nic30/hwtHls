@@ -101,7 +101,7 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                                              eMeta: MachineEdgeMeta) -> Optional[Register]:
         assert eMeta.srcBlock is pred and eMeta.dstBlock is mb, (eMeta, pred, mb)
         if eMeta.reuseDataAsControl is not None:
-            return eMeta.reuseDataAsControl 
+            return eMeta.reuseDataAsControl
         for liveIn in mir.liveness[pred][mb]:
             # [todo] prefer using same liveIns from every predecessor
             # [todo] prefer using variables which are used the earlyest
@@ -116,16 +116,16 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                     latestDefInPrevBlock.getOperand(1).isCImm():
                     # skip because this will be trivially sinked
                     continue
-                
+
                 eMeta.reuseDataAsControl = liveIn
                 return liveIn
 
         return None
-  
+
     def _resolveUsedLoops(self, mb: MachineBasicBlock, mbSync: MachineBasicBlockMeta, loop: MachineLoop):
         mir = self.originalMir
         MRI = mir.mf.getRegInfo()
-        
+        assert loop.getHeader() == mb, (mb, loop)
         edgeMeta: MachineEdgeMeta = self.edgeMeta
         topLoop = loop
         mbSync.isLoopHeader = True
@@ -133,27 +133,53 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
             depth = loop.getLoopDepth()
             loopId = MachineLoopId(mb.getNumber(), depth)
             for pred in mb.predecessors():
-                em: MachineEdgeMeta = edgeMeta[(pred, mb)]
+                e = (pred, mb)
+                em: MachineEdgeMeta = edgeMeta[e]
                 if loop.containsBlock(pred):
                     # reenter
                     em.reenteringLoops.append(loopId)
                 else:
                     # enter
                     em.enteringLoops.append(loopId)
-                    if em.etype == MACHINE_EDGE_TYPE.NORMAL:
-                        em.etype = MACHINE_EDGE_TYPE.FORWARD
-                        self._tryToFindRegWhichCanBeUsedAsControl(mir, MRI, pred, mb, em)
+                    self._makeNormalEdgeForward(MRI, em)
 
-            for e in loop.getExitEdges():
-                em: MachineEdgeMeta = edgeMeta[e]
-                em.exitingLoops.append(loopId)
-                if em.etype == MACHINE_EDGE_TYPE.NORMAL:
-                    em.etype = MACHINE_EDGE_TYPE.FORWARD
-                    self._tryToFindRegWhichCanBeUsedAsControl(mir, MRI, e[0], e[1], em)
+            exitBlocks = tuple(loop.getUniqueExitBlocks())
+            exitBlocksSet = set(exitBlocks)
+            hasDedicatedExits = True
+            if not loop.hasDedicatedExits():
+                for e in exitBlocks:
+                    e: MachineBasicBlock
+                    for pred in e.predecessors():
+                        if not loop.containsBlock(pred) and pred not in exitBlocksSet:
+                            hasDedicatedExits = False
+                            break
+                    if not hasDedicatedExits:
+                        break
+                    
+            if hasDedicatedExits:
+                # make all jumps from exit blocks a forward or backward edge
+                for eBlock in exitBlocks:
+                    for suc in eBlock.successors():
+                        em: MachineEdgeMeta = edgeMeta[(eBlock, suc)]
+                        if suc not in exitBlocksSet:
+                            em.exitingLoops.append(loopId)
+                            self._makeNormalEdgeForward(MRI, em)
+
+            else:
+                # make all jumps from loop forward edge
+                for e in loop.getExitEdges():
+                    em: MachineEdgeMeta = edgeMeta[e]
+                    em.exitingLoops.append(loopId)
+                    self._makeNormalEdgeForward(MRI, em)
 
             p = topLoop.getParentLoop()
             if p is None or p.getHeader() != mb:
                 break
+
+    def _makeNormalEdgeForward(self, MRI: MachineRegisterInfo, em: MachineEdgeMeta):
+        if em.etype == MACHINE_EDGE_TYPE.NORMAL:
+            em.etype = MACHINE_EDGE_TYPE.FORWARD
+            self._tryToFindRegWhichCanBeUsedAsControl(self.originalMir, MRI, em.srcBlock, em.dstBlock, em)
 
     # def _hasSomeLiveInFromEveryPredec(self, mb: MachineBasicBlock):
     #    mir = self.originalMir
