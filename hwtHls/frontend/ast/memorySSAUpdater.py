@@ -1,6 +1,5 @@
-from typing import Set, Dict, Union, Callable, Tuple
+from typing import Set, Dict, Union, Callable, Tuple, List
 
-from hwt.code import Concat
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.bitsVal import BitsVal
 from hwt.hdl.types.sliceVal import HSliceVal
@@ -20,10 +19,14 @@ class MemorySSAUpdater():
     """
     :see: https://github.com/llvm/llvm-project/blob/4f94121cce24af28b64a9b67e2f5355bcca43574/llvm/lib/Analysis/MemorySSAUpdater.cpp
 
-    :ivar sealedBlocks: Set of blocks connected to all direct predecessors
+    :ivar currentDef: dictionary mapping a value for each variable in each block
+    :ivar currentDefRev: a reversed dictionary for currentDef
+    :ivar sealedBlocks: Set of blocks connected to all direct predecessors.
+        Used to decide if CFG is complete or there should be created placeholder PHI on read of variable.
     """
 
     def __init__(self,
+                 ssaBuilder: SsaExprBuilder,
                  hwtExprToSsa: Callable[
                      [SsaBasicBlock, Union[RtlSignal, HValue]],
                      Tuple[SsaBasicBlock, Union[SsaValue, HValue]]
@@ -32,10 +35,11 @@ class MemorySSAUpdater():
         :param onBlockReduce: function (old, new) called if some block is reduced
         """
         self.currentDef: Dict[RtlSignal, Dict[SsaBasicBlock, Union[SsaValue, HValue]]] = {}
-        self.currentDefRev: Dict[Union[SsaValue, HValue], Dict[SsaBasicBlock, UniqList[RtlSignal]]] = {} 
+        self.currentDefRev: Dict[Union[SsaValue, HValue], Dict[SsaBasicBlock, UniqList[RtlSignal]]] = {}
         self.sealedBlocks: Set[SsaBasicBlock] = set()
         self.incompletePhis: Dict[SsaBasicBlock, Dict[RtlSignal, SsaPhi]] = {}
         self._hwtExprToSsa = hwtExprToSsa
+        self.ssaBuilder = ssaBuilder
 
     def writeVariable(self, variable: RtlSignal,
                       indexes: Tuple[Union[SsaValue, BitsVal, HSliceVal], ...],
@@ -52,7 +56,7 @@ class MemorySSAUpdater():
         assert isinstance(variable, RtlSignal), variable
         assert isinstance(block, SsaBasicBlock), block
         if isinstance(value, SsaInstr):
-            assert value.block is not None, (value, "Must not be removed from SSA")
+            assert value.block is not None, (value, "Can not write object removed from SSA")
         else:
             assert isinstance(value, HValue), value
 
@@ -82,37 +86,40 @@ class MemorySSAUpdater():
 
                 assert isinstance(variable, RtlSignal), variable
                 width = variable._dtype.bit_length()
-                parts = []
-                if high < width:
-                    # append upper bits which are not modified
-                    parts.append(variable[width:high])
-
+                parts: List[SsaValue] = [] # high first
+                
+                # append unmodified lower bits
+                if low > 0:
+                    new_bb, new_var = self._hwtExprToSsa(block, variable[low:0])
+                    parts.append(new_var)
+                
                 # append modified bits
                 if isinstance(value, HlsRead):
                     parts.append(value._sig[value._dtype.bit_length():])
-                
-                elif isinstance(value, SsaValue):
-                    assert value.origin is not None, value
-                    parts.append(value.origin)
 
-                else:
+                elif isinstance(value, SsaValue):
+                    #assert value.origin is not None, value
+                    #assert isinstance(value.origin, RtlSignal), (value, value.origin)
                     parts.append(value)
 
-                # append lower unmodified bits
-                if low > 0:
-                    parts.append(variable[low:0])
+                else:
+                    new_bb, new_var = self._hwtExprToSsa(block, value)
+                    parts.append(new_var)
 
-                v = Concat(*parts)
-                assert v._dtype.bit_length() == variable._dtype.bit_length(), (v, variable)
-                new_bb, new_var = self._hwtExprToSsa(block, v)
-                value = new_var
+
+                if high < width:
+                    # append unmodified upper bits
+                    new_bb, new_var = self._hwtExprToSsa(block, variable[width:high])
+                    parts.append(new_var)
+
+                value = self.ssaBuilder.concat(*parts)
         else:
             assert value._dtype.bit_length() == variable._dtype.bit_length(), (variable, value._dtype, variable._dtype)
 
         defs = self.currentDef.setdefault(variable, {})
         defs[new_bb] = value
         self.currentDefRev.setdefault(value, {}).setdefault(new_bb, UniqList()).append(variable)
-        
+
     def readVariable(self, variable: RtlSignal, block: SsaBasicBlock) -> SsaPhi:
         assert isinstance(variable, RtlSignal), variable
         assert isinstance(block, SsaBasicBlock), block
@@ -142,7 +149,6 @@ class MemorySSAUpdater():
         elif len(block.predecessors) == 1:
             # Optimize the common case of one predecessor: No phi needed
             v = self.readVariable(variable, block.predecessors[0])
-
         else:
             # Break potential cycles with operandless phi
             v = SsaPhi(block.ctx, variable._dtype, origin=variable)
@@ -156,7 +162,7 @@ class MemorySSAUpdater():
             pass
         else:
             raise TypeError(v.__class__)
-        
+
         assert isinstance(v, HValue) or v.block is not None, (v, "was already removed from SSA and should not be there")
         return v
 
@@ -175,6 +181,7 @@ class MemorySSAUpdater():
                 continue
             elif same is not None:
                 # The phi merges at least two values: not trivial -> keep it
+                assert phi.block is not None, phi
                 return phi
             else:
                 # now first unique value seen
@@ -205,6 +212,7 @@ class MemorySSAUpdater():
                 # potentially could be already removed
                 self.tryRemoveTrivialPhi(use)
 
+        assert isinstance(same, HValue) or same.block is not None
         return same
 
     def sealBlock(self, block: SsaBasicBlock):
