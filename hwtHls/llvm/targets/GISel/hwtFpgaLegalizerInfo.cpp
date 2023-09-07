@@ -9,8 +9,7 @@
 
 namespace llvm {
 
-HwtFpgaLegalizerInfo::HwtFpgaLegalizerInfo(
-		const HwtFpgaTargetSubtarget &ST) :
+HwtFpgaLegalizerInfo::HwtFpgaLegalizerInfo(const HwtFpgaTargetSubtarget &ST) :
 		LegalizerInfo() {
 	//auto & LLI = getLegacyLegalizerInfo();
 	using namespace TargetOpcode;
@@ -26,8 +25,8 @@ HwtFpgaLegalizerInfo::HwtFpgaLegalizerInfo(
 	getActionDefinitionsBuilder( { G_SEXTLOAD, G_ZEXTLOAD }).custom();
 	//.lower();
 	getActionDefinitionsBuilder( { G_MEMCPY, G_MEMCPY_INLINE, G_MEMMOVE,
-			G_MEMSET, G_ABS, G_SMIN, G_SMAX, G_UMAX, G_UMIN }).lower();
-	getActionDefinitionsBuilder(G_SEXT_INREG).lower();
+			G_MEMSET, G_ABS, G_SMIN, G_SMAX, G_UMAX, G_UMIN, G_FSHL, G_FSHR,
+			G_SEXT_INREG }).lower();
 
 	//getActionDefinitionsBuilder({G_VASTART, G_VAARG, G_BRJT, G_JUMP_TABLE,
 	//      G_INDEXED_LOAD, G_INDEXED_SEXTLOAD,
