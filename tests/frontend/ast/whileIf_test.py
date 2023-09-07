@@ -21,7 +21,7 @@ class HlsAstWhileIf_TC(BaseSsaTC):
         CLK = 8
         clk_period = int(freq_to_period(u.FREQ))
 
-        self.runSim((CLK + 1) * clk_period)
+        self.runSim((CLK + 2) * clk_period)
         HlsAstTrivial_TC._test_no_comb_loops(self)
 
         expected = []
@@ -108,7 +108,7 @@ class HlsAstWhileIf_TC(BaseSsaTC):
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
-    u = WhileAndIf0()
+    u = WhileAndIf4()
     u.DATA_WIDTH = 4
     u.FREQ = int(40e6)
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

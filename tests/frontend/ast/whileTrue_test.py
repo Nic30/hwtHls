@@ -47,7 +47,8 @@ class HlsAstWhileTrue_TC(SimTestCase):
         u = cls()
         u.FREQ = int(FREQ)
         if platform is None:
-            platform = VirtualHlsPlatform()
+            #platform = VirtualHlsPlatform()
+            platform = VirtualHlsPlatform(debugFilter={HlsDebugBundle.DBG_20_addSyncSigNames})
         self.compileSimAndStart(u, target_platform=platform)
         # u.dataIn._ag.data.extend([1, 1, 1, 1])
 
@@ -88,10 +89,10 @@ class HlsAstWhileTrue_TC(SimTestCase):
         self._test_WhileSendSequence(WhileSendSequence1, 40e6, False, False)
 
     def test_WhileSendSequence1_100Mhz(self):
-        self._test_WhileSendSequence(WhileSendSequence1, 100e6, False, False)
+        self._test_WhileSendSequence(WhileSendSequence1, 100e6, False, False, timeMultiplier=1.6)
 
     def test_WhileSendSequence1_150Mhz(self):
-        self._test_WhileSendSequence(WhileSendSequence1, 150e6, False, False)
+        self._test_WhileSendSequence(WhileSendSequence1, 150e6, False, False, timeMultiplier=2.4)
 
     def test_WhileSendSequence2_20Mhz(self):
         self._test_WhileSendSequence(WhileSendSequence2, 20e6, False, False)
@@ -168,14 +169,14 @@ class HlsAstWhileTrue_TC(SimTestCase):
 
 
 if __name__ == "__main__":
-    #from hwt.synthesizer.utils import to_rtl_str
-    #u = WhileSendSequence1()
-    #u.FREQ = int(20e6)
-    #print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter={*HlsDebugBundle.ALL_RELIABLE, HlsDebugBundle.DBG_20_addSyncSigNames})))
+    from hwt.synthesizer.utils import to_rtl_str
+    u = WhileSendSequence3()
+    u.FREQ = int(100e6)
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter={*HlsDebugBundle.ALL_RELIABLE, HlsDebugBundle.DBG_20_addSyncSigNames})))
 
     import unittest
     testLoader = unittest.TestLoader()
-    #suite = unittest.TestSuite([HlsAstWhileTrue_TC('test_WhileSendSequence3_100Mhz')])
+    #suite = unittest.TestSuite([HlsAstWhileTrue_TC('test_WhileSendSequence1_100Mhz')])
     suite = testLoader.loadTestsFromTestCase(HlsAstWhileTrue_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
