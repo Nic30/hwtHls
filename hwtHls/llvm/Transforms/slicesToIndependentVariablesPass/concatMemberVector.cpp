@@ -1,18 +1,10 @@
-#include "concatMemberVector.h"
-#include "../../targets/intrinsic/bitrange.h"
+#include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/concatMemberVector.h>
+#include <hwtHls/llvm/targets/intrinsic/bitrange.h>
+#include <hwtHls/llvm/targets/intrinsic/utils.h>
 
 using namespace llvm;
 
 namespace hwtHls {
-
-void IRBuilder_setInsertPointBehindPhi(IRBuilder<> &builder, llvm::Instruction *I) {
-	builder.SetInsertPoint(I);
-	auto insPoint = builder.GetInsertPoint();
-	while (dyn_cast<PHINode>(&*insPoint)) {
-		++insPoint;
-	}
-	builder.SetInsertPoint(&*insPoint);
-}
 
 bool OffsetWidthValue::operator==(const OffsetWidthValue &rhs) const {
 	return this->offset == rhs.offset && this->width == rhs.width && this->value == rhs.value;
@@ -48,15 +40,17 @@ Value* ConcatMemberVector::_memberToValue(OffsetWidthValue &item) {
 		}
 		// create bit range get just behind the source of original bit-vector which is being sliced
 		auto insertPoint = builder.GetInsertPoint();
-		bool insertPointWasOnValue = (&*insertPoint == dyn_cast<Instruction>(item.value));
-		builder.SetInsertPoint(dyn_cast<Instruction>(item.value));
+		Instruction* itemInstr = dyn_cast<Instruction>(item.value);
+		bool insertPointWasOnValue = (insertPoint != builder.GetInsertBlock()->end() &&
+				insertPoint.getNodePtr() == itemInstr);
+		builder.SetInsertPoint(itemInstr);
 		builder.SetInsertPoint(builder.GetInsertBlock(), ++builder.GetInsertPoint());
 		IRBuilder_setInsertPointBehindPhi(builder, &*builder.GetInsertPoint());
-		auto *res = CreateBitRangeGet(&builder, item.value, builder.getInt64(item.offset), item.width);
+		auto *res = CreateBitRangeGetConst(&builder, item.value, item.offset, item.width);
 		if (commonSubexpressionCache) {
 			(*commonSubexpressionCache)[item] = res;
 		}
-		if (!insertPointWasOnValue && &*insertPoint != nullptr) {
+		if (!insertPointWasOnValue && insertPoint.getNodePtr() != nullptr) {
 			builder.SetInsertPoint(&*insertPoint);
 		}
 		return res;
