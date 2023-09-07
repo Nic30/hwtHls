@@ -1,5 +1,5 @@
 from itertools import chain
-from typing import List, Optional, Union, Tuple, Generator, Set
+from typing import List, Optional, Union, Tuple, Generator
 
 from hwt.hdl.types.hdlType import HdlType
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
@@ -161,11 +161,26 @@ class HlsNetNode(SchedulableNode):
 
     def allocateRtlInstanceOutDeclr(self, allocator: "ArchElement", o: HlsNetNodeOut, startTime: int) -> TimeIndependentRtlResource:
         assert allocator.netNodeToRtl.get(o, None) is None, ("Must not be redeclared", allocator, o)
+        try:
+            assert startTime >= o.obj.scheduledOut[o.out_i], (o, startTime, o.obj.scheduledOut[o.out_i])
+        except:
+            print("[debug] to rm")
+            raise
         if len(self._outputs) == 1:
             assert o.out_i == 0, o
-            name = f"{allocator.namePrefix}forwardDeclr{self._id:d}"
+            if self.name:
+                name = f"{allocator.namePrefix}forwardDeclr_{self.name:s}"
+            else:
+                name = f"{allocator.namePrefix}forwardDeclr_{self._id:d}"
         else:
-            name = f"{allocator.namePrefix}forwardDeclr{self._id:d}_{o.out_i:d}"
+            if self.name and o.name:
+                name = f"{allocator.namePrefix}forwardDeclr_{self.name:s}_{o.name:s}"
+            elif self.name:
+                name = f"{allocator.namePrefix}forwardDeclr_{self.name:s}_{o.out_i:d}"
+            elif o.name:
+                name = f"{allocator.namePrefix}forwardDeclr_{self._id:d}_{o.name:s}"
+            else:
+                name = f"{allocator.namePrefix}forwardDeclr_{self._id:d}_{o.out_i:d}"
         s = allocator._sig(name, o._dtype)
         res = allocator.netNodeToRtl[o] = TimeIndependentRtlResource(s, startTime, allocator, False)
         return res
@@ -173,9 +188,6 @@ class HlsNetNode(SchedulableNode):
     def allocateRtlInstance(self, allocator: "ArchElement"):
         raise NotImplementedError(
             "Override this method in derived class", self)
-
-    def filterSubnodes(self, removed: Set["HlsNetNode"]):
-        pass
 
     def createSubNodeRefrenceFromPorts(self, beginTime: float, endTime: float,
                                        inputs: List[HlsNetNodeIn], outputs: List[HlsNetNodeOut]) -> "HlsNetNodePartRef":
@@ -194,8 +206,8 @@ class HlsNetNode(SchedulableNode):
 
     def debug_iter_shadow_connection_dst(self) -> Generator["HlsNetNode", None, None]:
         """
-        Iter nodes which are not connected or somehow related to this but do not use a standard connection.
-        (The information is used for visualization.)
+        Iter nodes which are not connected but are somehow related.
+        (The information is used for visualization purposes.)
         """
         return
         yield
