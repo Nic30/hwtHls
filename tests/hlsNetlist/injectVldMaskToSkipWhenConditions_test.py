@@ -14,15 +14,16 @@ from hwtHls.netlist.nodes.orderable import HVoidData
 from hwtHls.netlist.nodes.ports import link_hls_nodes
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.netlist.transformation.injectVldMaskToSkipWhenConditions import HlsNetlistPassInjectVldMaskToSkipWhenConditions
 from hwtHls.netlist.translation.dumpNodesDot import HlsNetlistPassDumpNodesDot
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtLib.examples.base_serialization_TC import BaseSerializationTC
 from hwtLib.types.ctypes import uint8_t
+from hwt.hdl.types.bits import Bits
 
 
 class HlsNetlistPassInjectVldMaskToSkipWhenConditionsTC(BaseSerializationTC):
     __FILE__ = __file__
+
     @staticmethod
     def _createNetlist():
         netlist = HlsNetlistCtx(None, int(100e6), "test", platform=VirtualHlsPlatform())
@@ -73,6 +74,23 @@ class HlsNetlistPassInjectVldMaskToSkipWhenConditionsTC(BaseSerializationTC):
         HlsNetlistPassInjectVldMaskToSkipWhenConditions().apply(None, netlist)
         self.assert_netlist_same_as_expected_file(netlist)
 
+    def test_eq_not(self):
+        netlist, b = self._createNetlist()
+        b: HlsNetlistBuilder
+
+        u8 = Bits(8)
+        r0 = HlsNetNodeRead(netlist, None, dtype=u8)
+
+        w = HlsNetNodeWrite(netlist, None, None)
+
+        en = b.buildEq(r0._outputs[0], b.buildConstPy(u8, 11))
+        w.addControlSerialExtraCond(en)
+        # :note: extraCond and skipWhen should be 9 if input data was not valid
+        w.addControlSerialSkipWhen(b.buildNot(en))
+
+        netlist.nodes.extend((r0, w))
+        HlsNetlistPassInjectVldMaskToSkipWhenConditions().apply(None, netlist)
+        self.assert_netlist_same_as_expected_file(netlist)
 
 
 if __name__ == '__main__':
