@@ -28,7 +28,7 @@ from hwtHls.ssa.exprBuilder import SsaExprBuilder
 from hwtHls.ssa.instr import SsaInstr, SsaInstrBranch
 from hwtHls.ssa.transformation.utils.blockAnalysis import collect_all_blocks
 from hwtHls.ssa.value import SsaValue
-
+from hwtHls.ssa.analysisCache import AnalysisCache
 
 AnyStm = Union[HdlAssignmentContainer, HlsStm]
 
@@ -40,7 +40,9 @@ class SsaInstrBranchUnreachable(SsaInstrBranch):
 
 
 class SsaBasicBlockUnreachable(SsaBasicBlock):
-
+    """
+    Placeholder block which is known to be unreachable.
+    """
     def __init__(self, ctx: SsaContext, label:str):
         SsaBasicBlock.__init__(self, ctx, label)
         self.successors = SsaInstrBranchUnreachable(self)
@@ -53,7 +55,7 @@ IoPortToIoOpsDictionary = Dict[Union[Interface, MultiPortGroup, BankedPortGroup]
                        List[HlsWrite]]]
 
 
-class HlsAstToSsa():
+class HlsAstToSsa(AnalysisCache):
     """
     * Matthias Braun, Sebastian Buchwald, Sebastian Hack, Roland Leißa, Christoph Mallon, and Andreas Zwinkau. 2013.
       Simple and efficient construction of static single assignment form.
@@ -83,7 +85,6 @@ class HlsAstToSsa():
         self.ssaCtx = ssaCtx
         self.label = startBlockName
         self.start = SsaBasicBlock(ssaCtx, startBlockName)
-        self.m_ssa_u = MemorySSAUpdater(self.visit_expr)
         # all predecessors known (because this is an entry point)
         self._continue_target: List[SsaBasicBlock] = []
         self._break_target: List[SsaBasicBlock] = []
@@ -91,6 +92,8 @@ class HlsAstToSsa():
         self._loop_stack: List[Tuple[HlsStmWhile, SsaBasicBlock, List[SsaBasicBlock]]] = []
         self.ioNodeConstructors: Optional[NetlistIoConstructorDictT] = None
         self.ssaBuilder = SsaExprBuilder(self.start, None)
+        self.m_ssa_u = MemorySSAUpdater(self.ssaBuilder, self.visit_expr)
+        AnalysisCache.__init__(self)
 
     @staticmethod
     def _addNewTargetBb(predecessor: SsaBasicBlock, cond: Optional[RtlSignal], label: str, origin) -> SsaBasicBlock:
