@@ -34,7 +34,7 @@ class HlsSynthesisChecksTC(SimTestCase):
 
     def test_HlsSimpleIfStatement(self):
         self._test(HlsSimpleIfStatement())
-
+    # takes 12s   
     #def test_CrcCombHls_crc32_128b_200MHz(self):
     #    u = CrcCombHls()
     #    u.setConfig(CRC_32)
@@ -49,12 +49,13 @@ class HlsSynthesisChecksTC(SimTestCase):
         u.DATA_WIDTH = 8
         self._test(u)
 
-    #def test_CrcCombHls_crc32_128b_200MHz_XilinxAtrix7Slow(self):
-    #    u = CrcCombHls()
-    #    u.setConfig(CRC_32)
-    #    u.CLK_FREQ = int(200e6)
-    #    u.DATA_WIDTH = 128
-    #    self.compileSimAndStart(u, target_platform=Artix7Slow())
+    # takes 12s
+    # def test_CrcCombHls_crc32_128b_200MHz_XilinxAtrix7Slow(self):
+    #     u = CrcCombHls()
+    #     u.setConfig(CRC_32)
+    #     u.CLK_FREQ = int(200e6)
+    #     u.DATA_WIDTH = 128
+    #     self.compileSimAndStart(u, target_platform=Artix7Slow())
 
     def _test(self, unit):
         self.compileSimAndStart(unit, target_platform=VirtualHlsPlatform())
