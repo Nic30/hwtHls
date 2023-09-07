@@ -1,6 +1,6 @@
 from copy import copy
 from dis import Instruction, dis
-import os
+from pathlib import Path
 from types import FunctionType
 from typing import Optional, List, Tuple
 
@@ -361,12 +361,12 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
             assert sucInfo.branchPlaceholder is None, sucInfo
             if isinstance(sucInfo.cond, bool):
                 assert not sucInfo.cond
-                self._addNotGeneratedJump(j.frame, srcBlockLabel, dstBlockLabel)
+                self._addNotGeneratedJump(sucInfo.frame, srcBlockLabel, dstBlockLabel)
             else:
                 self._translateBlockBody(sucInfo.frame, sucInfo.isExplicitLoopReenter, sucInfo.dstBlockLoops,
                                          sucInfo.dstBlockOffset, sucInfo.dstBlock)
                 # because the block was in the loop and we see its last successor we know that this block was completely generated
-                if not blockHasBranchPlaceholder(j.srcBlock) and j.srcBlock is not headerBlock:
+                if not blockHasBranchPlaceholder(sucInfo.srcBlock) and sucInfo.srcBlock is not headerBlock:
                     self._onBlockGenerated(sucInfo.frame, srcBlockLabel)
 
         if headerLabel not in blockTracker.generated:
