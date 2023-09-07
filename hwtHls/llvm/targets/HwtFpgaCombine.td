@@ -1,5 +1,10 @@
 include "llvm/Target/GlobalISel/Combine.td"
 
+
+/*************************************************************************************/
+// Definitions of combiner rules
+/*************************************************************************************/
+
 def extract_const_propagation: GICombineRule<
   (defs root:$root),
   (match (wip_match_opcode HWTFPGA_EXTRACT):$root,
@@ -64,6 +69,12 @@ def g_constant_to_imm: GICombineRule<
   (apply [{ return Helper.rewriteG_CONSTANTasUseAsCImm(*${root}); }])
 >;
 
+def undef_propagation: GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode HWTFPGA_EXTRACT, HWTFPGA_NOT):$root,
+         [{ return Helper.matchAnyExplicitUseIsUndef(*${root}); }]),
+  (apply [{ Helper.replaceInstWithUndef(*${root}); }])>;
+
 def const_and_eval: GICombineRule<
   (defs root:$root),
   (match (wip_match_opcode G_AND):$root,
@@ -113,7 +124,7 @@ def const_mux_eval : GICombineRule<
 // convert cond ? 1:0 -> cond,
 //         cond ? 0:1 -> HWTFPGA_NOT cond,
 //         cond ? x:x -> x
-def const_val_mux_eval_matchdata : GIDefMatchData<"CImmOrRegWithNegFlag">;
+def const_val_mux_eval_matchdata : GIDefMatchData<"hwtHls::CImmOrRegWithNegFlag">;
 def const_val_mux_eval : GICombineRule<
   (defs root:$root, const_val_mux_eval_matchdata:$matchinfo),
   (match (wip_match_opcode HWTFPGA_MUX):$root,
@@ -121,9 +132,46 @@ def const_val_mux_eval : GICombineRule<
   (apply [{ return Helper.rewriteConstValMux(*${root}, ${matchinfo}); }])
 >;
 
+// if mux values are HWTFPGA_MERGE_VALUES check if there are same bits in every value, if this is the case
+// replace this instruction with a new mux of values without same bits and a HWTFPGA_MERGE_VALUES
+// (possibly also HWTFPGA_EXTRACT on new HWTFPGA_MUX) of reduced value with removed value
+// to form a result which replaces original HWTFPGA_MUX instruction
+// There are multiple different cases for same bits
+// * bits are same constant or undef in every value
+// * bits are same reg or undef in every value
+// * bits are undef in every value
+// One operand of value operand defined by constant or HWTFPGA_MERGE_VALUES or HWTFPGA_MUX with a single operand or IMPLICIT_DEF
+// may be split to multiple parts to extract same parts
+def mux_trivial_const_propagation_matchdata : GIDefMatchData<"hwtHls::MuxReducibleValuesInfo">;
+def mux_trivial_const_propagation: GICombineRule<
+  (defs root:$root, mux_trivial_const_propagation_matchdata:$matchinfo),
+  (match (wip_match_opcode HWTFPGA_MUX):$root,
+    [{ return Helper.matchMuxForConstPropagation(*${root}, ${matchinfo}); }]),
+  (apply [{ return Helper.rewriteMuxConstPropagation(*${root}, ${matchinfo}); }])
+>;
+
+def const_merge_values_matchdata : GIDefMatchData<"llvm::APInt">;
+def const_merge_values_eval: GICombineRule<
+  (defs root:$root, const_merge_values_matchdata:$matchinfo),
+  (match (wip_match_opcode HWTFPGA_MERGE_VALUES):$root,
+         [{ return Helper.matchConstMergeValues(*${root}, ${matchinfo}); }]),
+  (apply [{ Helper.rewriteConstMergeValues(*${root}, ${matchinfo}); }])>;
+ 
+
 def const_eval_combines : GICombineGroup<[
-	extract_const_propagation, merge_values_const_propagation, g_constant_to_imm, const_and_eval, const_or_eval, const_xor_eval,
-	const_sub_eval, const_add_eval, const_mul_eval, const_mux_eval, const_val_mux_eval
+	extract_const_propagation,
+	merge_values_const_propagation,
+	g_constant_to_imm,
+	const_and_eval,
+	const_or_eval,
+	const_xor_eval,
+	const_sub_eval,
+	const_add_eval,
+	const_mul_eval,
+	const_mux_eval,
+	const_val_mux_eval,
+	undef_propagation,
+	const_merge_values_eval,
 ]>;
 
 
@@ -199,6 +247,10 @@ def constCmpConstAdd_to_constCmp: GICombineRule<
   (apply [{ Helper.applyBuildFn(*${root}, ${info}); }])
 >;
 
+/*************************************************************************************/
+// Definitions of combiner helper classes
+/*************************************************************************************/
+
 
 // rewrite generic opcodes to HWTFPGA_* where beneficial
 def HwtFpgaGenPreRegAllocGICombinerHelper: GICombinerHelper<
@@ -207,6 +259,7 @@ def HwtFpgaGenPreRegAllocGICombinerHelper: GICombinerHelper<
     extract_on_merge_values,
     const_eval_combines,
     trivial_copy_propagate,
+    mux_trivial_const_propagation,
     ]> {
   let DisableRuleOption = "HwtFpgaGenPreRegAllocGICombinerHelper-disable-rule";
   let StateClass = "HwtFpgaGenPreRegAllocGICombinerHelperState";
@@ -215,7 +268,7 @@ def HwtFpgaGenPreRegAllocGICombinerHelper: GICombinerHelper<
 // rewrite all remaining generic opcodes to HWTFPGA_*
 def generic_opcode_to_hwtfpga : GICombineRule<
   (defs root:$root),
-  (match (wip_match_opcode G_ADD, G_AND, G_BR, G_BRCOND, G_ICMP, G_MUL, G_SDIV, G_UDIV, G_UREM, G_SREM, G_OR, G_SUB, G_XOR, G_GLOBAL_VALUE):$root),
+  (match (wip_match_opcode G_ADD, G_AND, G_BR, G_BRCOND, G_ICMP, G_MUL, G_SDIV, G_UDIV, G_UREM, G_SREM, G_OR, G_SUB, G_XOR, G_GLOBAL_VALUE, G_IMPLICIT_DEF):$root),
   (apply [{ Helper.genericOpcodeToHwtfpga(*${root}); }])
  >;
 
@@ -230,6 +283,7 @@ def HwtFpgaGenPreToNetlistGICombinerHelper: GICombinerHelper<
   	extract_on_merge_values,
     const_eval_combines,
     mux_merge,
+    mux_trivial_const_propagation,
     extract_msb_cmp,
     constCmpConstAdd_to_constCmp,
     trivial_copy_propagate,
