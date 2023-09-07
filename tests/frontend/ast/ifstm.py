@@ -54,12 +54,14 @@ class HlsSimpleIfStatement_TC(BaseSsaTC):
     def test_simple(self):
         u = HlsSimpleIfStatement()
         self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
+        # test all combinations
         for i in range(1 << 3):
             u.a._ag.data.append(get_bit(i, 0))
             u.b._ag.data.append(get_bit(i, 1))
             u.c._ag.data.append(get_bit(i, 2))
 
         def model(a, b, c):
+            # b if a else c
             if a:
                 return b
             elif b:
