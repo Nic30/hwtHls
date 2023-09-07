@@ -1,7 +1,9 @@
-#include "SimplifyCFG2Pass_normalizeLookupTableIndex.h"
+#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass_normalizeLookupTableIndex.h>
 #include <llvm/IR/PatternMatch.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/GlobalVariable.h>
+
+#define DEBUG_TYPE "simplifycfg2"
 
 using namespace llvm;
 namespace hwtHls {
@@ -63,8 +65,8 @@ bool SimplifyCFGPass2_normalizeLookupTableIndex(llvm::BasicBlock &BB) {
 				size_t indexWidth = switch_tableidx->getType()->getIntegerBitWidth();
 				int64_t indexOff = switch_tableidx_off->getSExtValue();
 
-				dbgs() << "table GEP detected\n";
-				dbgs() << I << "\n";
+				LLVM_DEBUG(dbgs() << "table GEP detected\n");
+				LLVM_DEBUG(dbgs() << I << "\n");
 				if (GlobalValue *switch_arr = dyn_cast<GlobalValue>(switch_ptrConst)) {
 					if (ConstantArray *CA = dyn_cast<ConstantArray>(switch_arr->getOperand(0))) {
 						// based on SimplifyCFG SwitchLookupTable::SwitchLookupTable
@@ -113,9 +115,7 @@ bool SimplifyCFGPass2_normalizeLookupTableIndex(llvm::BasicBlock &BB) {
 
 				auto *elmT = Type::getIntNTy(BB.getContext(), elementWidth);
 				romData.resize(elementCnt);
-				for (auto &item : romData) {
-					item = nullptr;
-				}
+				std::fill(romData.begin(), romData.end(), nullptr);
 				auto bv = romBitVec->getValue();
 				for (size_t i = 0; i < elementCnt; ++i) {
 					auto *C = ConstantInt::get(elmT, bv.trunc(elementWidth));

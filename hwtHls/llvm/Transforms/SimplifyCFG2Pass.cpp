@@ -1,8 +1,8 @@
 /*
  * This whole file is mostly original SimplifyCFG with just patch for switch instr merge checks.
- *
+ * This is required in order to successfully translate large SwitchInst to load from constant array
  * */
-#include "SimplifyCFG2Pass.h"
+#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass.h>
 
 #include <llvm/ADT/SetVector.h>
 #include <llvm/Analysis/MemorySSAUpdater.h>
@@ -18,7 +18,7 @@
 #include <llvm/Analysis/AssumptionCache.h>
 #include <llvm/Analysis/DomTreeUpdater.h>
 
-#include "SimplifyCFG2Pass_normalizeLookupTableIndex.h"
+#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass_normalizeLookupTableIndex.h>
 
 #include <map>
 #define DEBUG_TYPE "simplifycfg2"
@@ -756,6 +756,7 @@ bool SimplifyCFGOpt2::simplifyOnce(BasicBlock *BB) {
   return Changed;
 }
 
+// run SimplifyCFGPass::run, SimplifyCFGOpt2 and SimplifyCFGPass2_normalizeLookupTableIndex
 llvm::PreservedAnalyses SimplifyCFGPass2::run(llvm::Function &F, llvm::FunctionAnalysisManager &AM) {
 	size_t itCntr = 0;
 	Options.AC = &AM.getResult<AssumptionAnalysis>(F);
