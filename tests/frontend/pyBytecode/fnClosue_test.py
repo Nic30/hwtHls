@@ -8,7 +8,8 @@ from tests.frontend.pyBytecode.fnClosure import FnClosureSingleItem, FnClosureNo
 
 class FnClosure_TC(BaseSsaTC):
     __FILE__ = __file__
-    FRONTEND_ONLY = True
+    TEST_MIR = False
+    TEST_THREADS_AND_SYNC = False
 
 
     def test_FnClosureSingleItem_ll(self):

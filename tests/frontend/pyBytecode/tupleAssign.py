@@ -38,8 +38,7 @@ class HlsPythonTupleAssign(Unit):
 
 class HlsPythonTupleAssign_TC(BaseSsaTC):
     __FILE__ = __file__
-    FRONTEND_ONLY = True
-
+    TEST_THREADS_AND_SYNC = False
 
     def test_HlsPythonTupleAssign_ll(self):
         self._test_ll(HlsPythonTupleAssign)

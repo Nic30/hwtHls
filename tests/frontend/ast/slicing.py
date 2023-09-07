@@ -106,6 +106,7 @@ class HlsSlice2TmpHlsVarSlice(HlsSlice2TmpHlsVarConcat):
 
 class HlsSlicingTC(BaseSsaTC):
     __FILE__ = __file__
+    TEST_THREADS_AND_SYNC = False
 
     def _test(self, unit_constructor, data_in, data_out):
         self._test_ll(unit_constructor)
@@ -152,7 +153,7 @@ if __name__ == "__main__":
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
 
-    #from hwt.synthesizer.utils import to_rtl_str
-    #from hwtHls.platform.platform import HlsDebugBundle
-    #u = HlsSlice2TmpHlsVarSlice()
-    #print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    # from hwt.synthesizer.utils import to_rtl_str
+    # from hwtHls.platform.platform import HlsDebugBundle
+    # u = HlsSlice()
+    # print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

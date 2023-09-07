@@ -11,7 +11,8 @@ from tests.frontend.pyBytecode.fnCall import FnCallFn, FnCallFnRet, FnCallFnArgs
 
 class FnCall_TC(BaseSsaTC):
     __FILE__ = __file__
-    FRONTEND_ONLY = True
+    TEST_MIR = False
+    TEST_THREADS_AND_SYNC = False
 
     def test_FnCallFn_ll(self):
         self._test_ll(FnCallFn)
