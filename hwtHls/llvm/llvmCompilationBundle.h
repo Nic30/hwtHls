@@ -20,7 +20,7 @@ class LlvmCompilationBundle {
 public:
 	llvm::LLVMContext ctx;
 	LLVMStringContext strCtx;
-	llvm::Module mod;
+	std::unique_ptr<llvm::Module> mod;
 	llvm::IRBuilder<> builder;
 	llvm::Function *main;
 	llvm::PassBuilder PB; // for IR passes
@@ -36,14 +36,14 @@ public:
 	llvm::MachineModuleInfoWrapperPass *MMIWP;
 
 	LlvmCompilationBundle(const std::string &moduleName);
+	void addLlvmCliArgOccurence(const std::string & OptionName, unsigned pos, const std::string & ArgName, const std::string & ArgValue);
 	// for arg description see HwtFpgaTargetPassConfig
 	// :param combinerCallback: is an optional callback function called during last state of
 	//        instruction combining
-	void runOpt(
-			hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetlistConversionFn);
+	void runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetlistConversionFn);
 	llvm::MachineFunction* getMachineFunction(llvm::Function &fn);
 
-	std::unique_ptr<llvm::MachineModuleInfo> getMachineModuleInfo();
+	llvm::MachineModuleInfo* getMachineModuleInfo();
 
 	void _addVectorPasses(llvm::OptimizationLevel Level,
 			llvm::FunctionPassManager &FPM, bool IsFullLTO);
@@ -52,9 +52,14 @@ public:
 			hwtHls::HwtFpgaToNetlist::ConvesionFnT &toNetlistConversionFn);
 
 	llvm::Function& _testSlicesToIndependentVariablesPass();
+	llvm::Function& _testBitwidthReductionPass();
 	llvm::Function& _testSlicesMergePass();
+	llvm::Function& _testRewriteExtractOnMergeValues();
 	llvm::Function& _testFunctionPass(
 			std::function<void(llvm::FunctionPassManager&)> addPasses);
+	void _testEarlyIfConverter();
 };
+
+
 
 }

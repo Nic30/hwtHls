@@ -24,6 +24,8 @@
 #include <llvm/Pass.h>
 
 #include <llvm/Analysis/OptimizationRemarkEmitter.h>
+#include <llvm/Analysis/CFGPrinter.h>
+//#include <llvm/Passes/StandardInstrumentations.h>
 //#include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #include <llvm/Transforms/InstCombine/InstCombine.h>
 #include <llvm/Transforms/Instrumentation/ControlHeightReduction.h>
@@ -75,21 +77,26 @@
 #include <llvm/CodeGen/MachineModuleInfo.h>
 #include <llvm/CodeGen/TargetPassConfig.h>
 
-#include "targets/hwtFpgaTargetInfo.h"
-#include "targets/hwtFpgaTargetMachine.h"
-#include "Transforms/extractBitConcatAndSliceOpsPass.h"
-#include "Transforms/bitwidthReducePass/bitwidthReducePass.h"
-#include "Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.h"
-#include "Transforms/slicesMerge/slicesMerge.h"
-#include "Transforms/SimplifyCFG2Pass.h"
-#include "Transforms/dumpAndExitPass.h"
+#include <hwtHls/llvm/targets/hwtFpgaTargetInfo.h>
+#include <hwtHls/llvm/targets/hwtFpgaTargetMachine.h>
+#include <hwtHls/llvm/Transforms/extractBitConcatAndSliceOpsPass.h>
+#include <hwtHls/llvm/Transforms/bitwidthReducePass/bitwidthReducePass.h>
+#include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.h>
+#include <hwtHls/llvm/Transforms/slicesMerge/slicesMerge.h>
+#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass.h>
+#include <hwtHls/llvm/Transforms/trivialSimplifyCFGPass.h>
+#include <hwtHls/llvm/Transforms/dumpAndExitPass.h>
+#include <hwtHls/llvm/Transforms/LoopUnrotatePass.h>
+#include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamReadLoweringPass.h>
+#include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamWriteLoweringPass.h>
+#include <hwtHls/llvm/Transforms/streamLoopUnrollPass/streamLoopUnrollPass.h>
 
-#include <llvm/CodeGen/MachinePassManager.h>
 
 namespace hwtHls {
 
 LlvmCompilationBundle::LlvmCompilationBundle(const std::string &moduleName) :
-		ctx(), strCtx(), mod(strCtx.addStringRef(moduleName), ctx), builder(ctx), main(nullptr), MMIWP(nullptr) {
+		ctx(), strCtx(), mod(std::make_unique<llvm::Module>(strCtx.addStringRef(moduleName), ctx)),
+		builder(ctx), main(nullptr), MMIWP(nullptr) {
 	std::string TargetTriple = "hwtFpga-unknown-linux-gnu";
 	Target = &getTheHwtFpgaTarget(); //llvm::TargetRegistry::targets()[0];
 	Level = llvm::OptimizationLevel::O3;
@@ -119,24 +126,15 @@ LlvmCompilationBundle::LlvmCompilationBundle(const std::string &moduleName) :
 	MMIWP = new llvm::MachineModuleInfoWrapperPass(&LLVMTM);
 
 }
-//void applyDebugOptions() {
-//
-//	//llvm::StringMap<llvm::cl::Option*> &Map = llvm::cl::getRegisteredOptions();
-//	//Map["print-before-all"]->addOccurrence(0, "", "true");
-//	//Map["view-dag-combine1-dags"]->addOccurrence(0, "", "true");
-//	//Map["view-legalize-types-dags"]->addOccurrence(0, "", "true");
-//	//Map["view-dag-combine-lt-dags"]->addOccurrence(0, "", "true");
-//	//Map["view-legalize-dags"]->addOccurrence(0, "", "true");
-//	//Map["view-dag-combine2-dags"]->addOccurrence(0, "", "true");
-//	//Map["view-isel-dags"]->addOccurrence(0, "", "true");
-//	//Map["view-sched-dags"]->addOccurrence(0, "", "true");
-//	//Map["view-sunit-dags"]->addOccurrence(0, "", "true");
-//	//Map["print-after-isel"]->addOccurrence(0, "", "true");
-//	//Map["debug-only"]->addOccurrence(0, "", "mir-canonicalizer"); // :note: available only in llvm debug build
-//	// "early-ifcvt-limit"
-//	//Map["print-lsr-output"]->setValueStr("true");
-//
-//}
+
+void LlvmCompilationBundle::addLlvmCliArgOccurence(const std::string & OptionName, unsigned pos, const std::string & ArgName, const std::string & ArgValue) {
+	llvm::StringMap<llvm::cl::Option*> &Map = llvm::cl::getRegisteredOptions();
+	auto o = Map.find(OptionName);
+	if (o == Map.end()) {
+		throw std::runtime_error(std::string("Can not find LLVM cli option ") + OptionName);
+	}
+	o->second->addOccurrence(pos, strCtx.addStringRef(ArgName), strCtx.addStringRef(ArgValue));
+}
 
 void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetlistConversionFn) {
 	assert(main && "a main function must be created before call of this function");
@@ -151,7 +149,8 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 	auto cgscc_manager = llvm::CGSCCAnalysisManager { };
 	auto MAM = llvm::ModuleAnalysisManager { };
 	auto FAM = llvm::FunctionAnalysisManager { };
-
+	//llvm::TimeProfilingPassesHandler TPPH;
+	//TPPH.registerCallbacks(*PB.getPassInstrumentationCallbacks());
 	PB.registerModuleAnalyses(MAM);
 	PB.registerCGSCCAnalyses(cgscc_manager);
 	PB.registerFunctionAnalyses(FAM);
@@ -160,6 +159,14 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 
 	llvm::FunctionPassManager FPM;
 
+	FPM.addPass(hwtHls::TrivialSimplifyCFGPass());
+	llvm::LoopPassManager LPM0;
+	LPM0.addPass(hwtHls::LoopUnrotatePass());
+	FPM.addPass(llvm::createFunctionToLoopPassAdaptor(std::move(LPM0),
+				/*UseMemorySSA=*/false,
+				/*UseBlockFrequencyInfo=*/false));
+	// [fixme] LoopUnrotatePass probably breaks SE and TrivialSimplifyCFGPass forces to recompute it
+	FPM.addPass(hwtHls::TrivialSimplifyCFGPass()); // simplify trivial cases so IR is more easy to read
 	// Form SSA out of local memory accesses after breaking apart aggregates into
 	// scalars.
 	FPM.addPass(hwtHls::SlicesToIndependentVariablesPass()); // hwtHls specific
@@ -170,6 +177,14 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 	FPM.addPass(llvm::EarlyCSEPass(true /* Enable mem-ssa. */));
 	//if (EnableKnowledgeRetention)
 	FPM.addPass(llvm::AssumeSimplifyPass());
+
+	// StreamLoopUnrollPass must be before StreamReadLoweringPass, StreamWriteLoweringPass
+	// because if used correctly it reduces complexity of stream processing exponentially
+	FPM.addPass(hwtHls::StreamLoopUnrollPass());
+	FPM.addPass(hwtHls::StreamReadLoweringPass());
+	//FPM.addPass(hwtHls::DumpAndExitPass(true, true));
+	FPM.addPass(hwtHls::StreamWriteLoweringPass());
+
 	FPM.addPass(hwtHls::SimplifyCFGPass2());
 
 	// Hoisting of scalars and load expressions.
@@ -181,7 +196,6 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 		FPM.addPass(llvm::GVNSinkPass());
 		FPM.addPass(hwtHls::SimplifyCFGPass2());
 	}
-
 
 	// Speculative execution if the target has divergent branches; otherwise nop.
 	FPM.addPass(
@@ -242,7 +256,7 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 			/*AllowSpeculation=*/false));
 
 	// Disable header duplication in loop rotation at -Oz.
-	LPM1.addPass(llvm::LoopRotatePass(true));
+	LPM1.addPass(llvm::LoopRotatePass(/*EnableHeaderDuplication*/ false, /*PrepareForLTO*/ false));
 	// TODO: Investigate promotion cap for O1.
 	LPM1.addPass(
 			llvm::LICMPass(PTO.LicmMssaOptCap, PTO.LicmMssaNoAccForPromotionCap, /*AllowSpeculation=*/
@@ -372,7 +386,9 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 	FPM.addPass(hwtHls::ExtractBitConcatAndSliceOpsPass()); // hwtHls specific
 	FPM.addPass(llvm::InstCombinePass()); // // hwtHls specific, mostly for DCE for previous pass
 	FPM.addPass(llvm::AggressiveInstCombinePass()); // // hwtHls specific
+	//FPM.addPass(hwtHls::DumpAndExitPass(true, false));
 	FPM.addPass(hwtHls::BitwidthReductionPass()); // // hwtHls specific
+	//FPM.addPass(hwtHls::DumpAndExitPass(true, true));
 	FPM.addPass(llvm::InstCombinePass()); // // hwtHls specific, mostly for DCE for previous pass
 	FPM.addPass(
 			llvm::MergedLoadStoreMotionPass(llvm::MergedLoadStoreMotionOptions(
@@ -400,10 +416,28 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 	FPM.addPass(llvm::DCEPass()); // because of convertSwitchToLookupTable=true
 	FPM.addPass(hwtHls::SlicesMergePass());
 
-	//FPM.addPass(hwtHls::DumpAndExitPass(true, true));
+	//FPM.addPass(llvm::InstCombinePass()); // hwtHls specific
+	//FPM.addPass(llvm::AggressiveInstCombinePass()); // // hwtHls specific
+	//FPM.addPass(hwtHls::BitwidthReductionPass()); // // hwtHls specific
+	//FPM.addPass(llvm::InstCombinePass()); // hwtHls specific
+
+//	FPM.addPass(
+//			llvm::MergedLoadStoreMotionPass(llvm::MergedLoadStoreMotionOptions(
+//			/*SplitFooterBB=*/true)));
 	FPM.run(fn, FAM);
 
 	_addMachineCodegenPasses(toNetlistConversionFn);
+    // from llvm/tools/opt/NewPMDriver.cpp
+	//llvm::PassInstrumentationCallbacks PIC;
+	//std::string Pipeline;
+	//llvm::raw_string_ostream SOS(Pipeline);
+    //PM.printPipeline(SOS, [&PIC](llvm::StringRef ClassName) {
+    //  auto PassName = PIC.getPassNameForClassName(ClassName);
+    //  return PassName.empty() ? ClassName : PassName;
+    //});
+    //outs() << Pipeline;
+    //outs() << "\n";
+
 	PM.run(*fn.getParent());
 }
 
@@ -414,10 +448,6 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 			llvm::LoopVectorizePass(
 					llvm::LoopVectorizeOptions(!PTO.LoopInterleaving,
 							!PTO.LoopVectorization)));
-	//llvm::StringMap<llvm::cl::Option*> &Map = llvm::cl::getRegisteredOptions();
-	//Map["print-before"]->addOccurrence(0, "", "loop-unroll");
-	//Map["debug-only"]->addOccurrence(0, "", "loop-unroll"); // :note: available only in llvm debug build
-	//Map["print-after"]->addOccurrence(0, "", "loop-unroll");
 	if (IsFullLTO) {
 		// The vectorizer may have significantly shortened a loop body; unroll
 		// again. Unroll small loops to hide loop backedge latency and saturate any
@@ -569,15 +599,7 @@ void LlvmCompilationBundle::_addMachineCodegenPasses(
 	// :info: based on llc.cpp
 
 	PM.add(MMIWP);
-	//llvm::StringMap<llvm::cl::Option*> &Map = llvm::cl::getRegisteredOptions();
-	//Map["debug-only"]->addOccurrence(0, "", "loop-unroll"); // :note: available only in llvm debug build
-	//Map["print-after"]->addOccurrence(0, "", "loop-unroll");
 
-	//Map["print-before"]->addOccurrence(0, "", "early-ifcvt");
-	//Map["debug-only"]->addOccurrence(0, "", "early-ifcvt"); // :note: available only in llvm debug build
-	//Map["print-after"]->addOccurrence(0, "", "early-ifcvt");
-	//Map["debug"]->addOccurrence(0, "", "1");
-	//Map["print-before-all"]->addOccurrence(0, "", "true");
 	// check for incompatible passes
 	TPC = static_cast<llvm::HwtFpgaTargetPassConfig*>(static_cast<llvm::LLVMTargetMachine&>(*TM).createPassConfig(
 			PM));
@@ -589,6 +611,7 @@ void LlvmCompilationBundle::_addMachineCodegenPasses(
 		llvm::errs() << "run-pass cannot be used with " << TPC->getLimitedCodeGenPipelineReason(" and ") << ".\n";
 		throw std::runtime_error("run-pass cannot be used with ...");
 	}
+	// PM.add(llvm::createCFGPrinterLegacyPassPass()); //llvm::CFGPrinterPass());
 
 	PM.add(TPC);
 
@@ -606,51 +629,11 @@ void LlvmCompilationBundle::_addMachineCodegenPasses(
 
 llvm::MachineFunction* LlvmCompilationBundle::getMachineFunction(llvm::Function &fn) {
 	auto &MMI = MMIWP->getMMI();
-	// llvm::LoopAnalysis & LA = MMIWP->getAnalysis<llvm::LoopAnalysis>();
 	return MMI.getMachineFunction(fn);
 }
 
-std::unique_ptr<llvm::MachineModuleInfo> LlvmCompilationBundle::getMachineModuleInfo() {
-	auto &LLVMTM = static_cast<llvm::LLVMTargetMachine&>(*TM);
-	auto MMI = std::make_unique<llvm::MachineModuleInfo>(&LLVMTM);
-	return MMI;
-}
-
-llvm::Function& LlvmCompilationBundle::_testFunctionPass(std::function<void(llvm::FunctionPassManager&)> addPasses) {
-	if (!main)
-		throw std::runtime_error("Main function not specified");
-	auto &fn = *main;
-	fn.getParent()->setDataLayout(TM->createDataLayout());
-
-	auto LAM = llvm::LoopAnalysisManager { };
-	auto cgscc_manager = llvm::CGSCCAnalysisManager { };
-	auto MAM = llvm::ModuleAnalysisManager { };
-	auto FAM = llvm::FunctionAnalysisManager { };
-
-	PB.registerModuleAnalyses(MAM);
-	PB.registerCGSCCAnalyses(cgscc_manager);
-	PB.registerFunctionAnalyses(FAM);
-	PB.registerLoopAnalyses(LAM);
-	PB.crossRegisterProxies(LAM, FAM, cgscc_manager, MAM);
-
-	llvm::FunctionPassManager FPM;
-	addPasses(FPM);
-	FPM.run(fn, FAM);
-	return fn;
-}
-
-llvm::Function& LlvmCompilationBundle::_testSlicesMergePass() {
-	return _testFunctionPass([](llvm::FunctionPassManager &FPM) {
-		FPM.addPass(hwtHls::SlicesMergePass());
-	});
-}
-
-llvm::Function& LlvmCompilationBundle::_testSlicesToIndependentVariablesPass() {
-	return _testFunctionPass([](llvm::FunctionPassManager &FPM) {
-		FPM.addPass(hwtHls::SlicesToIndependentVariablesPass());
-		FPM.addPass(llvm::ADCEPass());
-	});
-
+llvm::MachineModuleInfo * LlvmCompilationBundle::getMachineModuleInfo() {
+	return &MMIWP->getMMI();
 }
 
 }

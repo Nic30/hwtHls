@@ -1,15 +1,15 @@
-#include "llvmIrCommon.h"
-#include "llvmIrBuilder.h"
-#include "llvmIrFunction.h"
-#include "llvmIrInstruction.h"
-#include "llvmIrStrings.h"
-#include "llvmIrValues.h"
-#include "llvmIrMachineFunction.h"
-#include "llvmIrMachineLoop.h"
-#include "llvmIrMetadata.h"
-#include "llvmCompilationBundle.h"
-#include "targets/hwtFpga.h"
-#include "targets/Transforms/hwtFpgaToNetlist.h"
+#include <hwtHls/llvm/llvmIrCommon.h>
+#include <hwtHls/llvm/llvmIrBuilder.h>
+#include <hwtHls/llvm/llvmIrFunction.h>
+#include <hwtHls/llvm/llvmIrInstruction.h>
+#include <hwtHls/llvm/llvmIrStrings.h>
+#include <hwtHls/llvm/llvmIrValues.h>
+#include <hwtHls/llvm/llvmIrMachineFunction.h>
+#include <hwtHls/llvm/llvmIrMachineLoop.h>
+#include <hwtHls/llvm/llvmIrMetadata.h>
+#include <hwtHls/llvm/llvmCompilationBundle.h>
+#include <hwtHls/llvm/targets/hwtFpga.h>
+#include <hwtHls/llvm/targets/Transforms/hwtFpgaToNetlist.h>
 
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/DerivedTypes.h>
@@ -66,9 +66,9 @@ void register_VectorOfTypePtr(pybind11::module_ & m) {
 void register_Types(pybind11::module_ & m) {
 	// owned by context => no delete
 	py::class_<llvm::Type, std::unique_ptr<llvm::Type, py::nodelete>>(m, "Type")
-		.def("getVoidTy", &llvm::Type::getVoidTy, py::return_value_policy::reference)
-		.def("getIntNTy", &llvm::Type::getIntNTy, py::return_value_policy::reference)
-		.def("getIntegerBitWidth", &llvm::Type::getIntegerBitWidth, py::return_value_policy::reference)
+		.def("getVoidTy", &llvm::Type::getVoidTy, py::return_value_policy::reference_internal)
+		.def("getIntNTy", &llvm::Type::getIntNTy, py::return_value_policy::reference_internal)
+		.def("getIntegerBitWidth", &llvm::Type::getIntegerBitWidth)
 		.def("getIntNPtrTy", &llvm::Type::getIntNPtrTy, py::return_value_policy::reference)
 		.def("__repr__",  &printToStr<llvm::Type>);;
 
@@ -76,30 +76,27 @@ void register_Types(pybind11::module_ & m) {
 		.def("get", [](llvm::LLVMContext &C, unsigned AddressSpace) {
 			return llvm::PointerType::get(C, AddressSpace);
 		},  py::return_value_policy::reference)
+		.def("getAddressSpace", &llvm::PointerType::getAddressSpace)
 		.def("__repr__",  &printToStr<llvm::PointerType>);
+	py::implicitly_convertible<llvm::PointerType, llvm::Type>();
 	m.def("TypeToPointerType", [](llvm::Type & t) {
-				if (t.isPointerTy())
-					return (llvm::PointerType*) &t;
-				else
-					return (llvm::PointerType*) nullptr;
-			}, py::return_value_policy::reference)
-	 .def("TypeToIntegerType",[](llvm::Type & t) {
-	 		if (t.isIntegerTy())
-	 			return (llvm::IntegerType*) &t;
-	 		else
-	 			return (llvm::IntegerType*) nullptr;
-	 	}, py::return_value_policy::reference);
+			if (t.isPointerTy())
+				return (llvm::PointerType*) &t;
+			else
+				return (llvm::PointerType*) nullptr;
+		}, py::return_value_policy::reference);
 	py::class_<llvm::ArrayType, std::unique_ptr<llvm::ArrayType, py::nodelete>, llvm::Type>(m, "ArrayType")
 			.def("get", &llvm::ArrayType::get)
 			.def("getElementType", &llvm::ArrayType::getElementType, py::return_value_policy::reference)
 			.def("getNumElements", &llvm::ArrayType::getNumElements)
 			.def("__repr__",  &printToStr<llvm::ArrayType>);
+	py::implicitly_convertible<llvm::ArrayType, llvm::Type>();
 	m.def("TypeToArrayType", [](llvm::Type & t) {
-				if (t.isArrayTy())
-					return (llvm::ArrayType*) &t;
-				else
-					return (llvm::ArrayType*) nullptr;
-			}, py::return_value_policy::reference);
+			if (t.isArrayTy())
+				return (llvm::ArrayType*) &t;
+			else
+				return (llvm::ArrayType*) nullptr;
+		}, py::return_value_policy::reference);
 
 
 	py::class_<llvm::FunctionType, std::unique_ptr<llvm::FunctionType, py::nodelete>>(m, "FunctionType")
@@ -107,10 +104,18 @@ void register_Types(pybind11::module_ & m) {
 				bool isVarArg) {
 			return llvm::FunctionType::get(Result, Params, isVarArg);
 		}, py::return_value_policy::reference);
+	py::implicitly_convertible<llvm::FunctionType, llvm::Type>();
+
 	py::class_<llvm::IntegerType, llvm::Type>(m, "IntegerType")
 			.def("getBitWidth", &llvm::IntegerType::getBitWidth)
 			.def("__repr__",  &printToStr<llvm::IntegerType>);
 	py::implicitly_convertible<llvm::IntegerType, llvm::Type>();
+	m.def("TypeToIntegerType",[](llvm::Type & t) {
+ 		if (t.isIntegerTy())
+ 			return (llvm::IntegerType*) &t;
+ 		else
+ 			return (llvm::IntegerType*) nullptr;
+ 	}, py::return_value_policy::reference);
 }
 
 // https://github.com/PointCloudLibrary/clang-bind
@@ -119,6 +124,7 @@ PYBIND11_MODULE(llvmIr, m) {
 	hwtFpgaTargetInitialize();
 	py::class_<hwtHls::LlvmCompilationBundle>(m, "LlvmCompilationBundle")
 		.def(py::init<const std::string &>())
+		.def("addLlvmCliArgOccurence", &hwtHls::LlvmCompilationBundle::addLlvmCliArgOccurence)
 		.def("runOpt", [](hwtHls::LlvmCompilationBundle * LCB, py::function & callbackFn, py::object & hls, py::object & toSsa) {
 			py::object returnObj;
 			LCB->runOpt([callbackFn, &hls, &toSsa, &returnObj](llvm::MachineFunction &MF,
@@ -147,9 +153,12 @@ PYBIND11_MODULE(llvmIr, m) {
 		.def("getMachineModuleInfo", &hwtHls::LlvmCompilationBundle::getMachineModuleInfo, py::return_value_policy::reference_internal)
 		.def("_testSlicesToIndependentVariablesPass", &hwtHls::LlvmCompilationBundle::_testSlicesToIndependentVariablesPass, py::return_value_policy::reference_internal)
 		.def("_testSlicesMergePass", &hwtHls::LlvmCompilationBundle::_testSlicesMergePass, py::return_value_policy::reference_internal)
+		.def("_testEarlyIfConverter", &hwtHls::LlvmCompilationBundle::_testEarlyIfConverter, py::return_value_policy::reference_internal)
+		.def("_testBitwidthReductionPass", &hwtHls::LlvmCompilationBundle::_testBitwidthReductionPass, py::return_value_policy::reference_internal)
+		.def("_testRewriteExtractOnMergeValuesPass", &hwtHls::LlvmCompilationBundle::_testRewriteExtractOnMergeValues, py::return_value_policy::reference_internal)
 		.def_readonly("ctx", &hwtHls::LlvmCompilationBundle::ctx)
 		.def_readonly("strCtx", &hwtHls::LlvmCompilationBundle::strCtx)
-		.def_readonly("mod", &hwtHls::LlvmCompilationBundle::mod)
+	    .def_property_readonly("mod", [](hwtHls::LlvmCompilationBundle & C) { return C.mod.get();})
 		.def_readonly("builder", &hwtHls::LlvmCompilationBundle::builder)
 		.def_readwrite("main", &hwtHls::LlvmCompilationBundle::main);
 
@@ -170,9 +179,26 @@ PYBIND11_MODULE(llvmIr, m) {
 	py::class_<llvm::BasicBlock, std::unique_ptr<llvm::BasicBlock, py::nodelete>, llvm::Value>(m, "BasicBlock")
 		.def("Create", &llvm::BasicBlock::Create, py::return_value_policy::reference_internal)
 		.def("getName", &llvm::BasicBlock::getName)
-		.def("__iter__", [](llvm::BasicBlock &F) {
-				return py::make_iterator(F.begin(), F.end());
-			}, py::keep_alive<0, 1>()); /* Keep vector alive while iterator is used */
+		.def("printAsOperand", [](const llvm::BasicBlock & BB) {
+			std::string tmp;
+			llvm::raw_string_ostream ss(tmp);
+			BB.printAsOperand(ss, true,  BB.getParent() ? BB.getParent()->getParent() : nullptr);
+			return ss.str();
+		})
+		.def("__iter__", [](llvm::BasicBlock &BB) {
+				return py::make_iterator(BB.begin(), BB.end());
+			}, py::keep_alive<0, 1>()) /* Keep vector alive while iterator is used */
+	    .def("__repr__", [](llvm::BasicBlock &BB) {
+			return (std::string("<BasicBlock ") + BB.getName() + ">").str();
+		});
+
+	m.def("ValueToBasicBlock", [](llvm::Value *V) {
+		if (llvm::BasicBlock *BB = llvm::dyn_cast<llvm::BasicBlock>(V)) {
+			return BB;
+		} else {
+			return (llvm::BasicBlock*) nullptr;
+		}
+	});
 
 	register_Function(m);
 	register_Types(m);
