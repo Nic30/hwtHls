@@ -1,5 +1,5 @@
 import re
-from typing import List, Tuple, Dict, Union, Sequence
+from typing import List, Tuple, Dict, Union, Sequence, Callable, Optional
 
 from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.types.array import HArray
@@ -10,25 +10,26 @@ from hwt.hdl.types.slice import HSlice
 from hwt.hdl.types.struct import HStruct
 from hwt.hdl.value import HValue
 from hwt.interfaces.std import BramPort_withoutClk
-from hwt.math import log2ceil
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getInterfaceName
 from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa, IoPortToIoOpsDictionary
-from hwtHls.frontend.ast.statementsRead import HlsRead, HlsReadAddressed
-from hwtHls.frontend.ast.statementsWrite import HlsWrite, HlsWriteAddressed
+from hwtHls.frontend.ast.statementsRead import HlsRead
+from hwtHls.frontend.ast.statementsWrite import HlsWrite
 from hwtHls.io.portGroups import MultiPortGroup, BankedPortGroup
 from hwtHls.llvm.llvmIr import Value, Type, FunctionType, Function, VectorOfTypePtr, BasicBlock, Argument, \
-    PointerType, TypeToPointerType, ConstantInt, APInt, verifyFunction, verifyModule, TypeToIntegerType, \
-    PHINode, LlvmCompilationBundle, LLVMContext, LLVMStringContext, ArrayType, TypeToArrayType, MDString, \
+    PointerType, ConstantInt, APInt, verifyFunction, verifyModule, TypeToIntegerType, \
+    PHINode, LlvmCompilationBundle, LLVMContext, LLVMStringContext, ArrayType, MDString, \
     ConstantAsMetadata, MDNode
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.phi import SsaPhi
+from hwtHls.ssa.transformation.ssaPass import SsaPass
 from hwtHls.ssa.transformation.utils.blockAnalysis import collect_all_blocks
 from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axi4Lite import Axi4Lite
-from hwtLib.types.ctypes import uint64_t, uint32_t
+from hwtLib.types.ctypes import uint32_t
+
 
 RE_ID_WITH_NUMBER = re.compile('[^0-9]+|[0-9]+')
 
@@ -36,10 +37,10 @@ RE_ID_WITH_NUMBER = re.compile('[^0-9]+|[0-9]+')
 class ToLlvmIrTranslator():
     """
     A container class which contains all necessary objects for LLVM.
-    It can also translate between hwtHls SSA and LLVM SSA (in bouth directions).
+    It can also translate between hwtHls SSA and LLVM SSA (in booth directions).
 
     While converting there are several issues:
-    1. LLVM does not have multi level logic type like vhdl STD_LOGIC_VECTOR or verilog wire/logic.
+    1. LLVM does not have multi-level logic type like VHDL STD_LOGIC_VECTOR or Verilog wire/logic.
       * all x/z/u are replaced with 0
     2. LLVM does not have bit slicing and concatenation operators.
       * all replaced by shifting and masking
@@ -47,7 +48,7 @@ class ToLlvmIrTranslator():
       * all read/write expressions are replaced with a function unique for each interface.
 
     :ivar _branchTmpBlocks: dictionary to keep track of BasicBlocks generated during conversion of branch instruction
-        used to resolve argument of Phis, specified in dictionary format
+        used to resolve argument of PHIs, specified in dictionary format
         original block to list of tuples LLVM basic block and list of original successors
     """
 
@@ -59,11 +60,18 @@ class ToLlvmIrTranslator():
         self.mod = self.llvm.mod
         self.b = self.llvm.builder
         self.topIo = topIo
+        self.ioSorted: Optional[Tuple[str, Union[Interface, MultiPortGroup, BankedPortGroup],
+                 Tuple[List[HlsRead],
+                       List[HlsWrite]]]] = None
         self.parentUnit = parentUnit
         self.ioToVar: Dict[Interface, Tuple[Argument, Type, Type]] = {}
         self.varMap: Dict[Union[SsaValue, SsaBasicBlock], Value] = {}
         self._branchTmpBlocks: Dict[SsaBasicBlock, List[Tuple[BasicBlock, List[SsaBasicBlock]]]] = {}
-        self._MdMetaslotName = self.strCtx.addStringRef("hwtHls.metaslot")
+        self._afterTranslation: List[Callable[[ToLlvmIrTranslator], None]] = []
+
+    def addAfterTranslationUnique(self, fn: Callable[['ToLlvmIrTranslator'], None]):
+        if fn not in self._afterTranslation:
+            self._afterTranslation.append(fn)
 
     def mdGetStr(self, s: str):
         """
@@ -143,35 +151,8 @@ class ToLlvmIrTranslator():
 
     def _translateInstr(self, instr: SsaInstr):
         b = self.b
-        if isinstance(instr, HlsRead):
-            src, _, t = self.ioToVar[instr._src]
-            src: Argument
-            t: Type
-            if isinstance(instr, HlsReadAddressed):
-                indexes = [self._translateExprInt(0, self._translateType(uint64_t)), self._translateExpr(instr.operands[0]), ]
-                arrTy: ArrayType = TypeToArrayType(t)
-                elmT = arrTy.getElementType()
-                ptr = b.CreateGEP(arrTy, src, indexes)
-            else:
-                ptr = src
-                elmT = t
-
-            return b.CreateLoad(elmT, ptr, True,
-                                self.strCtx.addTwine(self._formatVarName(instr._name)))
-
-        elif isinstance(instr, HlsWrite):
-            dst, _, t = self.ioToVar[instr.dst]
-            dst: Argument
-            t: Type
-            src = self._translateExpr(instr.getSrc())
-            if isinstance(instr, HlsWriteAddressed):
-                indexes = [self._translateExprInt(0, self._translateType(uint64_t)),
-                                                     self._translateExpr(instr.getIndex()), ]
-                arrTy: ArrayType = TypeToArrayType(t)
-                elmT = arrTy.getElementType()
-                dst = b.CreateGEP(arrTy, dst, indexes)
-
-            return b.CreateStore(src, dst, True)
+        if isinstance(instr, (HlsRead, HlsWrite)):
+            return instr._translateToLlvm(self)
 
         elif instr.operator == AllOps.CONCAT and isinstance(instr._dtype, Bits):
             ops = [self._translateExpr(op) for op in instr.operands]
@@ -180,21 +161,18 @@ class ToLlvmIrTranslator():
         elif instr.operator == AllOps.INDEX and isinstance(instr.operands[0]._dtype, Bits):
             op0, op1 = instr.operands
             op0 = self._translateExpr(op0)
-            # res_t = self._translateType(instr._dtype)
-            indexW = log2ceil(instr.operands[0]._dtype.bit_length())
-            indexT = Bits(indexW + 1)
-            llvmIndexT = TypeToIntegerType(self._translateType(indexT))
             if isinstance(op1._dtype, HSlice):
-                op1 = self._translateExprInt(int(op1.val.stop), llvmIndexT)
+                op1 = int(op1.val.stop)
             else:
-                op1 = self._translateExprInt(int(op1), llvmIndexT)
+                op1 = int(op1)
 
-            return b.CreateBitRangeGet(op0, op1, instr._dtype.bit_length())
+            return b.CreateBitRangeGetConst(op0, op1, instr._dtype.bit_length())
 
         else:
             args = (self._translateExpr(a) for a in instr.operands)
             if instr.operator in (AllOps.BitsAsSigned, AllOps.BitsAsUnsigned, AllOps.BitsAsVec):
                 op0, = args
+                # LLVM uses sign/unsigned variants of instructions and does not have signed/unsigned as a part of type or variable
                 return op0
 
             name = self.strCtx.addTwine(self._formatVarName(instr._name))
@@ -360,14 +338,14 @@ class ToLlvmIrTranslator():
             addrWidth = 0
 
         return ptrT, elmT, addrWidth
-        
+
     def translate(self, start_bb: SsaBasicBlock):
         # create a function where we place the code and the arguments for a io interfaces
         ioTuplesWithName = [
             (getInterfaceName(self.parentUnit, io[0] if isinstance(io, (MultiPortGroup, BankedPortGroup)) else io), io, ioOps)
             for io, ioOps in self.topIo.items()
         ]
-        ioSorted = sorted(ioTuplesWithName, key=lambda x: self.splitStrToStrsAndInts(x[0]))
+        ioSorted = self.ioSorted = sorted(ioTuplesWithName, key=lambda x: self.splitStrToStrsAndInts(x[0]))
         # name, pointer type, element type, addres width
         params: List[str, Type, Type, int] = [
             (name,
@@ -378,7 +356,7 @@ class ToLlvmIrTranslator():
             for ioIndex, (name, intf, (reads, writes)) in enumerate(ioSorted)]
         main = self.createFunctionPrototype(self.label, params, Type.getVoidTy(self.ctx))
         self.llvm.main = main
-        
+
         ioToVar = self.ioToVar
         for a, (_, i, (_, _)), (_, ptrT, t, _) in zip(main.args(), ioSorted, params):
             ioToVar[i] = (a, ptrT, t)
@@ -405,16 +383,24 @@ class ToLlvmIrTranslator():
                             predFound = True
                     assert predFound, phi
 
+        for cb in self._afterTranslation:
+            cb(self)
+
         assert verifyFunction(main) is False
         assert verifyModule(self.mod) is False
 
         return self
 
 
-class SsaPassToLlvm():
+class SsaPassToLlvm(SsaPass):
     """
     Convert hwtHls.ssa to LLVM SSA IR
+    
+    :ivar llvmCliArgs: tuples (optionName, position, argName, argValue), argValue is also string 
     """
+
+    def __init__(self, llvmCliArgs: List[Tuple[str, int, str, str]]=[]):
+        self.llvmCliArgs = llvmCliArgs
 
     def apply(self, hls: "HlsScope", toSsa: HlsAstToSsa):
         ioDict = toSsa.collectIo()
@@ -422,28 +408,30 @@ class SsaPassToLlvm():
             if not reads and not writes:
                 raise AssertionError("Unused IO ", i)
 
-            for instr in reads:
-                instr: HlsRead
-                assert i == instr._src, (i, instr)
-                nativeWordT = instr._getNativeInterfaceWordType()
-                if instr._isBlocking:
-                    assert instr._dtype.bit_length() == nativeWordT.bit_length(), (
-                        "In this stages the read operations must read only native type of interface",
-                        instr, nativeWordT)
-                else:
-                    assert instr._dtype.bit_length() == nativeWordT.bit_length() + 1, (
-                        "In this stages the read operations must read only native type of interface",
-                        instr, nativeWordT)
-
-            for instr in writes:
-                instr: HlsWrite
-                assert i == instr.dst, (i, instr)
-                nativeWordT = instr._getNativeInterfaceWordType()
-                assert instr.operands[0]._dtype.bit_length() == nativeWordT.bit_length(), (
-                    "In this stages the read operations must read only native type of interface",
-                    instr, instr.operands[0]._dtype, nativeWordT)
+            # for instr in reads:
+            #    instr: HlsRead
+            #    assert i == instr._src, (i, instr)
+            #    nativeWordT = instr._getNativeInterfaceWordType()
+            #    if instr._isBlocking:
+            #        assert instr._dtype.bit_length() == nativeWordT.bit_length(), (
+            #            "In this stages the read operations must read only native type of interface",
+            #            instr, nativeWordT)
+            #    else:
+            #        assert instr._dtype.bit_length() == nativeWordT.bit_length() + 1, (
+            #            "In this stages the read operations must read only native type of interface",
+            #            instr, nativeWordT)
+            #
+            # for instr in writes:
+            #    instr: HlsWrite
+            #    assert i == instr.dst, (i, instr)
+            #    nativeWordT = instr._getNativeInterfaceWordType()
+            #    assert instr.operands[0]._dtype.bit_length() == nativeWordT.bit_length(), (
+            #        "In this stages the read operations must read only native type of interface",
+            #        instr, instr.operands[0]._dtype, nativeWordT)
 
         toLlvm = ToLlvmIrTranslator(toSsa.label, ioDict, hls.parentUnit)
+        for (optionName, position, argName, argValue) in self.llvmCliArgs:
+            toLlvm.llvm.addLlvmCliArgOccurence(optionName, position, argName, argValue)
         toLlvm.translate(toSsa.start)
         toSsa.resolveIoNetlistConstructors(ioDict)
         toSsa.start = toLlvm
