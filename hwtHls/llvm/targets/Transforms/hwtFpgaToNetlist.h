@@ -2,7 +2,7 @@
 #include <llvm/CodeGen/MachineFunctionPass.h>
 #include <llvm/CodeGen/MachineLoopInfo.h>
 
-#include "../Analysis/liveVariableForEdge.h"
+#include <hwtHls/llvm/targets/Analysis/liveVariableForEdge.h>
 
 namespace hwtHls {
 
