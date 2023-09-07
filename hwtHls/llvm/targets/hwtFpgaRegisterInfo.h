@@ -8,6 +8,7 @@
 
 #define GET_REGINFO_HEADER
 #include "HwtFpgaGenRegisterInfo.inc"
+#undef GET_REGINFO_HEADER
 
 namespace llvm {
 
