@@ -175,12 +175,12 @@ class HlsAstToSsa(AnalysisCache):
                 else:
                     return block, self.m_ssa_u.readVariable(var, block)
 
-            if op.operator in (AllOps.BitsAsVec, AllOps.BitsAsUnsigned) and not var._dtype.signed:
-                # skip implicit conversions
+            if op.operator in (AllOps.BitsAsVec, AllOps.BitsAsUnsigned) and not var._dtype.signed and not op.operands[0]._dtype.signed:
+                # skip implicit conversions between vec without sign and unsigned
                 assert len(op.operands) == 1
                 return self.visit_expr(block, op.operands[0])
 
-            if (op.operator == AllOps.INDEX
+            elif (op.operator == AllOps.INDEX
                 and var._dtype.bit_length() == 1
                 and len(op.operands) == 2
                 and isinstance(op.operands[1], BitsVal)
@@ -190,15 +190,23 @@ class HlsAstToSsa(AnalysisCache):
                 return self.visit_expr(block, op.operands[0])
 
             ops = []
+            allOpsAreValues = True
             for o in op.operands:
                 block, _o = self.visit_expr(block, o)
                 ops.append(_o)
-            if op.operator == AllOps.CONCAT:
-                ops = list(reversed(ops))
+                if allOpsAreValues and not isinstance(_o, HValue):
+                    allOpsAreValues = False
+
 
             sig = var
-            var = SsaInstr(builder.block.ctx, var._dtype, op.operator, ops, origin=var)
-            builder._insertInstr(var)
+            if allOpsAreValues:
+                var = op.operator._evalFn(*ops)
+            else:
+                if op.operator == AllOps.CONCAT:
+                    ops = list(reversed(ops))
+
+                var = SsaInstr(builder.block.ctx, var._dtype, op.operator, ops, origin=var)
+                builder._insertInstr(var)
             self.m_ssa_u.writeVariable(sig, (), builder.block, var)
             # we know for sure that this in in this block that is why we do not need to use readVariable
             return block, var
@@ -358,6 +366,7 @@ class HlsAstToSsa(AnalysisCache):
     def visit_Write(self, block: SsaBasicBlock, o: HlsWrite) -> SsaBasicBlock:
         if isinstance(o, HlsWriteAddressed):
             block, index = self.visit_expr(block, o.getIndex())
+            assert index is not None, o
         else:
             index = None
         block, src = self.visit_expr(block, o.getSrc())
@@ -369,6 +378,7 @@ class HlsAstToSsa(AnalysisCache):
             o.operands = (src, index)
         else:
             o.operands = (src,)
+
         for op in o.operands:
             if isinstance(op, SsaValue):
                 op.users.append(o)
