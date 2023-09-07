@@ -1,6 +1,6 @@
 #include "machineDumpAndExitPass.h"
 
-#include "../../Transforms/dumpAndExitPass.h"
+#include <hwtHls/llvm/Transforms/dumpAndExitPass.h>
 
 namespace hwtHls {
 
@@ -10,7 +10,8 @@ bool MachineDumpAndExitPass::runOnMachineFunction(llvm::MachineFunction &MF) {
 	if (dumpFn)
 		MF.dump();
 	if (throwErrAndExit)
-		throw IntentionalCompilationInterupt();
+		throw IntentionalCompilationInterupt(
+				"IntentionalCompilationInterupt");
 	return false;
 }
 
