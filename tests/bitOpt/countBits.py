@@ -7,7 +7,7 @@ from hwt.interfaces.std import VectSignal
 from hwt.interfaces.utils import addClkRstn
 from hwt.math import isPow2, log2ceil
 from hwt.synthesizer.param import Param
-from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
+from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline
@@ -17,7 +17,7 @@ from pyMathBitPrecise.bit_utils import mask
 
 
 @hlsBytecode
-def _countLeadingRecurse(dataIn: RtlSignal, bitValToCount: int):
+def _countLeadingRecurse(dataIn: RtlSignalBase[Bits], bitValToCount: int):
     """
     Construct a balanced tree for counter of leading 0/1
 
@@ -51,7 +51,7 @@ def _countLeadingRecurse(dataIn: RtlSignal, bitValToCount: int):
 
 
 @hlsBytecode
-def _countTailingRecurse(dataIn: RtlSignal, bitValToCount: int):
+def _countTailingRecurse(dataIn: RtlSignalBase[Bits], bitValToCount: int):
     """
     Verison of :func:`~._countLeadingRecurse` which counts from the back of the vector (upper bits first)
     """
@@ -82,7 +82,7 @@ def _countTailingRecurse(dataIn: RtlSignal, bitValToCount: int):
 
 
 @hlsBytecode
-def countBits(dataIn: RtlSignal, bitValToCount: int, leading: bool):
+def countBits(dataIn: RtlSignalBase[Bits], bitValToCount: int, leading: bool):
     """
     :returns: number of bits set to value bitValToCount
     """
