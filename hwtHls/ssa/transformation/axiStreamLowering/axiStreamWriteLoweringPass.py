@@ -1,202 +1,146 @@
-from collections import defaultdict
-from math import ceil, floor
-from typing import Dict, Union, Tuple
+from math import ceil
+from typing import Union, Tuple, Optional
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
-from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.defs import SLICE, BIT
-from hwt.hdl.types.hdlType import HdlType
-from hwt.hdl.value import HValue
-from hwt.interfaces.std import Signal
 from hwt.interfaces.structIntf import StructIntf
-from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
-from hwtHls.frontend.ast.memorySSAUpdater import MemorySSAUpdater
-from hwtHls.frontend.ast.statements import HlsStm
-from hwtHls.frontend.ast.statementsRead import HlsStmReadStartOfFrame, HlsStmReadEndOfFrame
-from hwtHls.frontend.ast.statementsWrite import HlsStmWriteStartOfFrame, HlsStmWriteEndOfFrame, \
-    HlsWrite
-from hwtHls.io.amba.axiStream.stmRead import HlsStmReadAxiStream
+from hwtHls.frontend.ast.statementsWrite import HlsStmWriteStartOfFrame, HlsStmWriteEndOfFrame
 from hwtHls.io.amba.axiStream.stmWrite import HlsStmWriteAxiStream
+from hwtHls.ssa.analysis.axisDetectIoAccessGraph import SsaAnalysisAxisDetectIoAccessGraph
+from hwtHls.ssa.analysis.axisDetectWriteStatements import SsaAnalysisAxisDetectWriteStatements
+from hwtHls.ssa.analysis.streamReadWriteGraphDetector import StreamReadWriteGraphDetector
 from hwtHls.ssa.basicBlock import SsaBasicBlock
-from hwtHls.ssa.exprBuilder import SsaExprBuilder
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.transformation.axiStreamLowering.axiStreamReadLoweringPass import SsaPassAxiStreamReadLowering
-from hwtHls.ssa.transformation.axiStreamLowering.streamReadWriteGraphDetector import StreamReadWriteGraphDetector
-from hwtHls.ssa.transformation.utils.blockAnalysis import collect_all_blocks
+from hwtHls.ssa.transformation.axiStreamLowering.axiStreamSsaFsmUtils import AxiStreamSsaFsmUtils, \
+    StreamChunkLastMeta
 from hwtLib.amba.axis import AxiStream
-from pyMathBitPrecise.bit_utils import mask
+from ipCorePackager.constants import DIRECTION
 
 
 class SsaPassAxiStreamWriteLowering(SsaPassAxiStreamReadLowering):
     """
+    Same as :class:`hwtHls.ssa.transformation.axiStreamLowering.axiStreamReadLoweringPass.SsaPassAxiStreamReadLowering` just for writes.
+    
+    The output word is written if the word is completed and it is know if this word is last or not.
+    Or if data for next word are stacked or on end of frame marker.
     """
 
-    def _detectIoAccessStatements(self, startBlock: SsaBasicBlock) -> Tuple[UniqList[AxiStream], Dict[AxiStream, UniqList[HlsStm]], UniqList[HlsStm]]:
-        ios: UniqList[HlsStm] = UniqList()
-        for block in collect_all_blocks(startBlock, set()):
-            for instr in block.body:
-                if isinstance(instr, (HlsStmWriteAxiStream, HlsStmWriteStartOfFrame, HlsStmWriteEndOfFrame)):
-                    ios.append(instr)
-
-        intfs: UniqList[AxiStream] = UniqList()
-        ioForIntf: Dict[AxiStream, UniqList[HlsStm]] = defaultdict(UniqList)
-        for io in ios:
-            intfs.append(io.dst)
-            ioForIntf[io.dst].append(io)
-        
-        return intfs, ioForIntf, ios
-
     def apply(self, hls: "HlsScope", toSsa: HlsAstToSsa):
-        intfs, ioForIntf, _ = self._detectIoAccessStatements(toSsa.start)
-        memUpdater = toSsa.m_ssa_u
-        for intf in intfs:
+        wStms: SsaAnalysisAxisDetectWriteStatements = toSsa.getAnalysis(SsaAnalysisAxisDetectWriteStatements)
+        for intf in wStms.intfs:
             intf: AxiStream
-            cfg, predecessorsSeen, startBlock = self._parseCfg(toSsa, intf, ioForIntf)
+            intfCfg: SsaAnalysisAxisDetectIoAccessGraph = toSsa.getAnalysis(SsaAnalysisAxisDetectIoAccessGraph(toSsa, intf, DIRECTION.OUT))
+            cfg = intfCfg.cfg
             # offset variable to resolve where how many bits should be skipped from in current word when writing new part
-            offsetVar = self._prepareOffsetVariable(hls, startBlock, intf, memUpdater)
-            word_t = HlsStmReadAxiStream._getWordType(intf)
-            curWordVar = hls.var(f"{intf._name:s}_curWord", word_t)
-            ssaBuilder = toSsa.ssaBuilder
-            self.rewriteAdtWriteToWriteOfWords(hls, memUpdater, ssaBuilder, startBlock, None, None, intf.DATA_WIDTH, cfg,
-                                               predecessorsSeen, offsetVar, curWordVar, word_t)
+            ssaUtils = AxiStreamSsaFsmUtils(hls, toSsa.ssaBuilder, toSsa.m_ssa_u, intf, intfCfg.startBlock)
+            curOffsetVar = ssaUtils._prepareOffsetVariable()
+            predWordPendingVar = ssaUtils._preparePendingVariable()
+            curWordVar = hls.var(f"{intf._name:s}_curWord", ssaUtils.word_t)
+            ssaUtils.resetBlockSeals(toSsa.start)
+            ssaUtils.prepareLastExpressionForWrites(cfg)
+            self.rewriteAdtAccessToWordAccess(ssaUtils, toSsa.start, cfg, curOffsetVar, predWordPendingVar, curWordVar)
+            # assert that all original reads were removed from SSA
+            self._checkAllInstructionsRemoved(cfg.allStms)
 
-    def _insertIntfWrite(self, exprBuilder: SsaExprBuilder,
-                         memUpdater: MemorySSAUpdater,
-                         originalWrite: Union[HlsStmWriteAxiStream, HlsStmWriteEndOfFrame],
-                         curWordVar: StructIntf, word_t: HdlType):
-        """
-        Create a write of variable to output interface.
-        """
-        parts = [memUpdater.readVariable(v._sig, originalWrite.block) for v in curWordVar._interfaces]
-        lastWordVal = exprBuilder.concat(*parts)
-        lastWordWr = HlsWrite(originalWrite.parent, lastWordVal, originalWrite.dst, word_t)
-        exprBuilder._insertInstr(lastWordWr)
-    
-    def _copyWordVariable(self, memUpdater, block, src: StructIntf, dst: StructIntf):
-        for iSrc, iDst in zip(src._interfaces, dst._interfaces):
-            iSrc: Signal
-            iDst: Signal
-            srcVal: Union[HValue, SsaInstr] = memUpdater.readVariable(iSrc._sig, block)
-            memUpdater.writeVariable(iDst._sig, (), block, srcVal)
-    
-    def _setMask(self, memUpdater: MemorySSAUpdater, intf: AxiStream, DATA_WIDTH: int, offset: int, bitsToTake: int, curWordVar: StructIntf, block: SsaBasicBlock):
-        """
-        :param bitsToTake: how many bits are written in this word
-        :param offset: number of bits in this word before part set in this function
-        :param curWordVar: variable storing a bus word
-        :param block: basic block where this set should be performed
-        """
-        if intf.USE_KEEP or intf.USE_STRB:
-            usedBytes = floor(bitsToTake / 8)
-            mLow = ceil(offset / 8)
-            if mLow == 0 and usedBytes == DATA_WIDTH // 8:
-                maskSlice = ()
-            else:
-                maskSlice = (SLICE.from_py(slice(DATA_WIDTH // 8, mLow, -1)),)
-            masks = []
-            if intf.USE_KEEP:
-                masks.append(curWordVar.keep)
-            if intf.USE_STRB:
-                masks.append(curWordVar.strb)
-            maskVal = Bits(DATA_WIDTH // 8 - mLow).from_py(mask(usedBytes))
-            for m in masks:
-                memUpdater.writeVariable(m._sig, maskSlice, block, maskVal)
-    
-    def rewriteAdtWriteToWriteOfWords(self,
-                                      hls: "HlsScope",
-                                      memUpdater: MemorySSAUpdater,
-                                      ssaBuilder: SsaExprBuilder,
-                                      startBlock: SsaBasicBlock,
-                                      predecessorWrite: Union[HlsStmWriteAxiStream, HlsStmWriteStartOfFrame, HlsStmWriteEndOfFrame, None],
-                                      write: Union[HlsStmWriteAxiStream, HlsStmWriteStartOfFrame, HlsStmWriteEndOfFrame, None],
-                                      DATA_WIDTH: int,
+    @classmethod
+    def _optionallyConsumePendingWord(cls, ssaUtils: AxiStreamSsaFsmUtils,
+                                      predWordPendingVar: RtlSignal,
+                                      predWordVar: StructIntf,
+                                      condition: SsaInstr,
+                                      curWrite: HlsStmWriteAxiStream):
+        # write word from previous write because we just resolved it will not be last
+        # the word itself is produced from previous write
+        assert isinstance(condition, SsaInstr), (
+            "The value should not be constant, because "
+            "if it is a constant it this should not be generated in the first place", condition)
+        # original read should be moved to sequel
+        # because now we are just preparing the data for it
+        ssaBuilder = ssaUtils.ssaBuilder
+        extraWriteBranches, sequelBlock = ssaBuilder.insertBlocks([
+            (condition, f"{predWordVar._name}ConsumePending"),
+            (None, f"{predWordVar._name}NoConsumePending")
+        ])
+        ssaBuilder.setInsertPoint(extraWriteBranches[0], 0)
+        ssaUtils._insertIntfWrite(predWordVar, curWrite)  # curWrite is there for dst and parent scope
+        memUpdater = ssaUtils.memUpdater
+
+        # :note: it is not required to write offset because it does not change
+        for br in extraWriteBranches:
+            memUpdater.sealBlock(br)
+
+        # append read of new word
+        memUpdater.sealBlock(sequelBlock)
+        ssaBuilder.setInsertPoint(sequelBlock, 0)  # just at the original place where we cut the orignal block and inserted the optional write before
+        memUpdater.writeVariable(predWordPendingVar, (), sequelBlock, BIT.from_py(0))
+
+        return sequelBlock
+
+    def _rewriteAdtAccessToWordAccessInstruction(self,
+                                      ssaUtils: AxiStreamSsaFsmUtils,
                                       cfg: StreamReadWriteGraphDetector,
-                                      predecessorsSeen: Dict[HlsStmReadAxiStream, int],
-                                      currentOffsetVar: RtlSignal,
-                                      curWordVar: StructIntf,
-                                      word_t: HdlType):
+                                      write: Union[HlsStmWriteAxiStream, HlsStmWriteStartOfFrame, HlsStmWriteEndOfFrame, None],
+                                      curOffsetVar: RtlSignal,
+                                      predWordPendingVar: RtlSignal,
+                                      curWordVar: StructIntf) -> Tuple[SsaBasicBlock, Optional[int]]:
         """
         Equivalent of :meth:`hwtHls.ssa.transformation.axiStreamReadLowering.axiStreamReadLoweringPass.SsaPassAxiStreamReadLowering.rewriteAdtReadToReadOfWords`
         """
-        writeIsMarker = write is None or isinstance(write, (HlsStmReadStartOfFrame, HlsStmReadEndOfFrame,
-                                                           HlsStmWriteStartOfFrame, HlsStmWriteEndOfFrame))
-        if write is not None:
-            predecessorsSeen[write] += 1
-            if len(cfg.predecessors[write]) != predecessorsSeen[write]:
-                # not all predecessors have been seen and we run this function only after all predecessors were seen
-                return
-            else:
-                # [todo] if the read has multiple predecessors and the last word from them is required and may differ we need o create
-                # a phi to select it and then use it as a last word from previous read
-                self._sealBlocksUntilStart(memUpdater, startBlock, write.block)
-
+        writeIsMarker = write is None or isinstance(write, (HlsStmWriteStartOfFrame, HlsStmWriteEndOfFrame))
+        memUpdater = ssaUtils.memUpdater
         possibleOffsets = cfg.inWordOffset[write]
         if not possibleOffsets:
             raise AssertionError("This is an accessible read, it should be already removed", write)
-        
+
+        ssaBuilder = ssaUtils.ssaBuilder
+        sequelBlock = None
         if writeIsMarker:
-            width = 0
             if write is None:
                 pass
             elif isinstance(write, HlsStmWriteStartOfFrame):
-                intf: AxiStream = write.dst
                 # This is a beginning of the frame, we may have to set leading zeros in masks
-                if possibleOffsets != [0, ]:
-                    raise NotImplementedError("Set initial write mask", possibleOffsets)
+                for startOffset in possibleOffsets:
+                    assert startOffset % 8 == 0, (write, startOffset, "must be aligned to octet because AxiStream strb/keep works this way")
+
+                if len(possibleOffsets) != 1:
+                    raise NotImplementedError("Multiple positions of frame start", possibleOffsets)
                 else:
-                    memUpdater.writeVariable(currentOffsetVar, (), startBlock, currentOffsetVar._dtype.from_py(0))
+                    memUpdater.writeVariable(predWordPendingVar, (), write.block, BIT.from_py(0))
+                    ssaBuilder.setInsertPoint(write.block, write.block.body.index(write))
+                    ssaUtils._setWriteLast(curWordVar, 0)
+                    ssaUtils._setWriteMask(curWordVar, possibleOffsets[0] // 8, 0)
+                    ssaUtils._setWriteData(curWordVar, (), 0)
 
             elif isinstance(write, HlsStmWriteEndOfFrame):
-                intf: AxiStream = write.dst
                 # all writes which may be the last must be postponed until we reach this or other write
                 # because we need to the value of signal "last" and value of masks if end is not aligned
-                if len(possibleOffsets) > 1:
-                    raise NotImplementedError()
-                else:
+                if not ssaUtils.instrMeta[write].inlinedToPredecessors:
                     ssaBuilder.setInsertPoint(write.block, write.block.body.index(write))
-                    assert len(possibleOffsets) == 1
-                    endOffset = possibleOffsets[0]
-                    assert endOffset % 8 == 0, (write, endOffset, "must be aligned to octet because AxiStream strb/keep works this way")
-                    # set remaining mask bits to 0
-                    memUpdater.writeVariable(curWordVar.last._sig, (), write.block, BIT.from_py(1))
-                    self._insertIntfWrite(ssaBuilder, memUpdater, write, curWordVar, word_t)
+                    for endOffset in possibleOffsets:
+                        assert endOffset % 8 == 0, (write, endOffset, "must be aligned to octet because AxiStream strb/keep works this way")
+                    # :note: remaining bits in mask should be set to 0 from the start
+                    ssaUtils._setWriteLast(curWordVar, 1)
+                    ssaUtils._insertIntfWrite(curWordVar, write)
+                    memUpdater.writeVariable(predWordPendingVar, (), write.block, BIT.from_py(0))
 
             else:
-                raise NotImplementedError(write)
+                raise NotImplementedError("stream marker of unknown type", write)
 
         else:
-            intf: AxiStream = write.dst
-            sequelBlock = write.block
             src = write.getSrc()
             width = src._dtype.bit_length()
             ssaBuilder.setInsertPoint(write.block, write.block.body.index(write))
-    
+
             # if number of words differs in offset variants we need to insert a new block which is entered conditionally for specific offset values
-            # :note: the information about which word is last is stored in offset variable and does not need to be explicitly specified 
+            # :note: the information about which word is last is stored in offset variable and does not need to be explicitly specified
 
-            if len(possibleOffsets) > 1:
-                # create branch for each offset variant
-                offsetCaseCond = []
-                _currentOffsetVar = memUpdater.readVariable(currentOffsetVar, write.block)
-                for last, off in iter_with_last(possibleOffsets):
-                    if last: 
-                        # only option left, check not required
-                        offEn = None
-                    else:
-                        offEn = ssaBuilder._binaryOp(_currentOffsetVar, AllOps.EQ,
-                                                      currentOffsetVar._dtype.from_py(off % DATA_WIDTH))
-                    offsetCaseCond.append(offEn)
+            DATA_WIDTH = ssaUtils.DATA_WIDTH
+            offsetBranches, sequelBlock = self._createBranchForEachOffsetVariant(
+                memUpdater, ssaBuilder, possibleOffsets, DATA_WIDTH, curOffsetVar, write.block)
 
-                offsetBranches, sequelBlock = ssaBuilder.insertBlocks(offsetCaseCond)
-                memUpdater.sealBlock(sequelBlock)
-            
-            else:
-                # there is just a single offset variant 
-                offsetBranches, sequelBlock = [write.block], write.block
-            
             originalInsertPosition = ssaBuilder.position
             # [todo] aggregate rewrite for all writes in this same block to reduce number of branches because of offset
             #   * writes may sink into common successor (may be beneficial to do this before LLVM to simplify code in advance to improve debugability)
@@ -204,49 +148,85 @@ class SsaPassAxiStreamWriteLowering(SsaPassAxiStreamReadLowering):
                 off: int
                 br: SsaBasicBlock
                 ssaBuilder.setInsertPoint(br, originalInsertPosition if br is write.block else None)
-                    
-                end = off + width
+
                 inWordOffset = off % DATA_WIDTH
                 srcOffset = 0
+                end = off + width
                 wordCnt = ceil(max(0, end - 1) / DATA_WIDTH)
                 # slice input part form original write input and write it to wordTmp variable
                 for last, wordI in iter_with_last(range(wordCnt)):
                     availableBits = width - srcOffset
                     bitsToTake = min(availableBits, DATA_WIDTH - inWordOffset)
 
-                    if bitsToTake == width:
-                        _src = src
-                    else:
-                        _src = ssaBuilder.buildSliceConst(src, srcOffset + bitsToTake, srcOffset)
-                        
-                    if inWordOffset != 0 or inWordOffset + bitsToTake != DATA_WIDTH:
-                        wordVarSlice = (SLICE.from_py(slice(inWordOffset + bitsToTake, inWordOffset, -1)),)
+                    _src = ssaBuilder.buildSliceConst(src, srcOffset + bitsToTake, srcOffset)
+                    dataHi = inWordOffset + bitsToTake
+                    if dataHi != DATA_WIDTH:
+                        # pad with X to match DATA_WIDTH
+                        _src = ssaBuilder.concat(_src, Bits(DATA_WIDTH - dataHi).from_py(None))
+
+                    if inWordOffset != 0 or dataHi != DATA_WIDTH:
+                        wordVarSlice = (SLICE.from_py(slice(DATA_WIDTH, inWordOffset, -1)),)
                         inWordOffset = 0
                     else:
                         wordVarSlice = ()
 
-                    if predecessorWrite is not None and\
-                            not isinstance(predecessorWrite, HlsStmWriteStartOfFrame) and\
-                            wordI == 0 and\
-                            off == 0:
-                        # write word from previous write because we just resolved it will not be last
-                        # the word itself is produced from previous write
-                        memUpdater.writeVariable(curWordVar.last._sig, (), br, BIT.from_py(0))
-                        self._insertIntfWrite(ssaBuilder, memUpdater, write, curWordVar, word_t)
+                    if wordI == 0 and off == 0 and ssaUtils.instrMeta[write].prevWordMayBePending:
+                        # if there is complete word pending flush it because we just resolved the last flag (0)
+                        _predWordPendingVar = ssaUtils.memUpdater.readVariable(predWordPendingVar, ssaBuilder.block)
+                        sequelBlock = self._optionallyConsumePendingWord(
+                            ssaUtils, predWordPendingVar, curWordVar, _predWordPendingVar, write)
+                    # else it is guaranteed that there is "bitsToTake" bits in last word which we can fill
+
+                    # fill current chunk to current word
+                    ssaUtils._setWriteMask(curWordVar, off if wordI == 0 else 0, bitsToTake)
+                    ssaUtils._setWriteData(curWordVar, wordVarSlice, _src)
+                    if not last:
+                        # write word somewhere in the middle of packet and in the middle of this chunk
+                        ssaUtils._setWriteLast(curWordVar, 0)
+                        ssaUtils._insertIntfWrite(curWordVar, write)
+                        memUpdater.writeVariable(predWordPendingVar, (), ssaBuilder.block, BIT.from_py(0))
                     else:
-                        self._setMask(memUpdater, intf, DATA_WIDTH, off, bitsToTake, curWordVar, write.block)
-                        memUpdater.writeVariable(curWordVar.data._sig, wordVarSlice, br, _src)
-                        if not last:
-                            self._insertIntfWrite(ssaBuilder, memUpdater, write, curWordVar, word_t)
+                        meta: StreamChunkLastMeta = ssaUtils.instrMeta[write]
+                        if meta.isLast is None:
+                            # this word must be written once we resolve next successor because it is not
+                            # possible to resolve last yet
+                            if end % DATA_WIDTH == 0:
+                                memUpdater.writeVariable(predWordPendingVar, (), ssaBuilder.block, BIT.from_py(1))
+
+                        elif isinstance(meta.isLast, bool):
+                            # it is possible to resolve last, so we can output word immediately
+                            ssaUtils._setWriteLast(curWordVar, int(meta.isLast))
+                            if meta.isLast or end % DATA_WIDTH == 0:
+                                ssaUtils._insertIntfWrite(curWordVar, write)
+                                memUpdater.writeVariable(predWordPendingVar, (), ssaBuilder.block, BIT.from_py(0))
+
+                        else:
+                            # the condition for EoF is known in advance, we can use it and output word inmmediately
+                            ssaUtils._setWriteLast(curWordVar, meta.isLast)
+                            if end % DATA_WIDTH == 0:
+                                # if ending word always output word
+                                ssaUtils._insertIntfWrite(curWordVar, write)
+                                memUpdater.writeVariable(predWordPendingVar, (), ssaBuilder.block, BIT.from_py(0))
+                            else:
+                                # if not ending word output word only if isLast
+                                self._optionallyConsumePendingWord(
+                                    ssaUtils, predWordPendingVar, curWordVar, meta.isLast, write)
 
                     srcOffset += bitsToTake
                 # write offset in a specific branch
-                memUpdater.writeVariable(currentOffsetVar, (), br, currentOffsetVar._dtype.from_py(end % DATA_WIDTH))
+                memUpdater.writeVariable(curOffsetVar, (), br, curOffsetVar._dtype.from_py(end % DATA_WIDTH))
+
+        if write is None:
+            sequelBlock = None
+            sequelBlockPosition = 0
+        elif sequelBlock is None or sequelBlock is write.block:
+            sequelBlock = write.block
+            sequelBlockPosition = write.block.body.index(write)
+        else:
+            sequelBlockPosition = 0
 
         if write is not None:
             write.block.body.remove(write)
+            write.block = None
 
-        for _, suc in cfg.cfg[write]:
-            self.rewriteAdtWriteToWriteOfWords(hls, memUpdater, ssaBuilder, startBlock, write, suc,
-                                               DATA_WIDTH, cfg, predecessorsSeen,
-                                               currentOffsetVar, curWordVar, word_t)
+        return sequelBlock, sequelBlockPosition
