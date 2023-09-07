@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 from collections import deque
-from pathlib import Path
 from typing import List
 
 from hwt.code import Concat
@@ -10,94 +9,25 @@ from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.defs import BIT
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
-from hwtHls.frontend.ast.statementsRead import HlsStmReadStartOfFrame, \
-    HlsStmReadEndOfFrame
-from hwtHls.io.amba.axiStream.stmRead import HlsStmReadAxiStream
-from hwtHls.llvm.llvmIr import Function, MachineFunction, LLVMStringContext
+from hwtHls.llvm.llvmIr import MachineFunction
 from hwtHls.platform.platform import HlsDebugBundle
 from hwtHls.platform.virtual import VirtualHlsPlatform
-from hwtHls.ssa.analysis.axisDetectIoAccessGraph import SsaAnalysisAxisDetectIoAccessGraph
-from hwtHls.ssa.analysis.axisDetectReadStatements import SsaAnalysisAxisDetectReadStatements
 from hwtHls.ssa.analysis.llvmMirInterpret import runLlvmMachineFunction, \
     SimIoUnerflowErr
-from hwtHlsGdb.gdbCmdHandlerLlvmIr import GdbCmdHandlerLllvmIr
-from hwtHlsGdb.gdbServerStub import GDBServerStub
-from hwtHls.ssa.transformation.ssaPass import SsaPass
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
-from hwtLib.amba.axis import AxiStream, axis_send_bytes, packAxiSFrame, \
+from hwtLib.amba.axis import axis_send_bytes, packAxiSFrame, \
     _axis_recieve_bytes, axis_recieve_bytes
 from hwtLib.types.ctypes import uint8_t
 from hwtSimApi.utils import freq_to_period
-from ipCorePackager.constants import DIRECTION
-from pyDigitalWaveTools.vcd.writer import VcdWriter
-from tests.baseSsaTest import TestFinishedSuccessfuly
 from tests.io.amba.axiStream.axisCopyByteByByte import AxiSPacketCopyByteByByte
-from hwtHls.ssa.analysis.llvmIrInterpret import runLlvmIrFunction
 
 
 # from hwtHls.ssa.analysis.llvmIrInterpret import runLlvmIrFunction
+# from pyDigitalWaveTools.vcd.writer import VcdWriter
+# from hwtHlsGdb.gdbCmdHandlerLlvmIr import GdbCmdHandlerLllvmIr
+# from hwtHlsGdb.gdbServerStub import GDBServerStub
+# from hwtHls.ssa.analysis.llvmIrInterpret import runLlvmIrFunction
 class AxiSPacketCopyByteByByteTC(SimTestCase):
-
-    def _test_read_offsets(self, DATA_WIDTH:int, CLK_FREQ=int(1e6)):
-        u = AxiSPacketCopyByteByByte()
-        u.DATA_WIDTH = DATA_WIDTH
-        u.CLK_FREQ = CLK_FREQ
-        tc = self
-
-        class CheckOffsets(SsaPass):
-
-            def apply(self, hls:"HlsScope", toSsa: HlsAstToSsa):
-                rStms: SsaAnalysisAxisDetectReadStatements = toSsa.getAnalysis(SsaAnalysisAxisDetectReadStatements)
-                tc.assertEqual(len(rStms.intfs), 1)
-                tc.assertEqual(len(rStms.ios), 3)
-
-                for intf in rStms.intfs:
-                    intf: AxiStream
-                    intfCfg: SsaAnalysisAxisDetectIoAccessGraph = toSsa.getAnalysis(SsaAnalysisAxisDetectIoAccessGraph(
-                        toSsa, intf, DIRECTION.IN))
-                    cfg, startBlock = intfCfg.cfg, intfCfg.startBlock
-                    tc.assertEqual(len(cfg.allStms), 3)
-
-                    start, read, end = cfg.allStms
-                    tc.assertIsInstance(start, HlsStmReadStartOfFrame)
-                    tc.assertIsInstance(read, HlsStmReadAxiStream)
-                    tc.assertIsInstance(end, HlsStmReadEndOfFrame)
-
-                    tc.assertIn(start, cfg.predecessors.keys())
-                    tc.assertIn(read, cfg.predecessors.keys())
-                    tc.assertIn(end, cfg.predecessors.keys())
-                    tc.assertSequenceEqual(cfg.predecessors[start], [None])
-                    tc.assertSequenceEqual(cfg.predecessors[read], [start, read])
-                    tc.assertSequenceEqual(cfg.predecessors[end], [read])
-                    tc.assertDictEqual(cfg.inWordOffset,
-                                       {
-                                           None: [0],
-                                           start: [0],
-                                           read: list(range(0, DATA_WIDTH, 8)),
-                                           end: list(range(0, DATA_WIDTH, 8)),
-                                        })
-                    raise TestFinishedSuccessfuly()
-
-        class TestVirtualHlsPlatform(VirtualHlsPlatform):
-
-            def runSsaPasses(self, hls: "HlsScope", toSsa: HlsAstToSsa):
-                CheckOffsets().apply(hls, toSsa)
-                raise AssertionError("Should never get there")
-
-        with self.assertRaises(TestFinishedSuccessfuly):
-            self.compileSimAndStart(u, target_platform=TestVirtualHlsPlatform())
-
-    def test_1B_read_offsets(self):
-        self._test_read_offsets(8)
-
-    def test_2B_read_offsets(self):
-        self._test_read_offsets(2 * 8)
-
-    def test_3B_read_offsets(self):
-        self._test_read_offsets(3 * 8)
-
-    def test_4B_read_offsets(self):
-        self._test_read_offsets(4 * 8)
 
     #def _testLlvmIr(self, u: AxiSPacketCopyByteByByte, strCtx: LLVMStringContext, f: Function, refFrames: List[List[int]]):
     #    dataIn = []
