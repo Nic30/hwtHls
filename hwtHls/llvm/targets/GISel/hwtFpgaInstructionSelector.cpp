@@ -223,7 +223,7 @@ bool HwtFpgaTargetInstructionSelector::select(MachineInstr &I) {
 	case G_BRCOND:
 	case G_EXTRACT:
 	case G_ICMP:
-	case G_IMPLICIT_DEF: // used for function arguments
+	case G_IMPLICIT_DEF:
 	case G_INDEXED_LOAD:
 	case G_INDEXED_STORE:
 	case G_MERGE_VALUES:
@@ -250,6 +250,8 @@ bool HwtFpgaTargetInstructionSelector::select(MachineInstr &I) {
 		case G_MERGE_VALUES:
 			_Opc = HwtFpga::HWTFPGA_MERGE_VALUES;
 			break;
+		case G_IMPLICIT_DEF:
+			_Opc = TargetOpcode::IMPLICIT_DEF;
 		}
 		auto MIB = Builder.buildInstr(_Opc);
 		selectInstrArgs(I, MIB, Opc != G_BRCOND && Opc != G_BR);
@@ -471,7 +473,7 @@ bool HwtFpgaTargetInstructionSelector::select_G_SHR(
 		unsigned prefixWidth = rhsConst->getZExtValue();
 		assert(prefixWidth > 0);
 
-		HwtFpgaCombinerHelper::CImmOrReg prefix(nullptr);
+		hwtHls::CImmOrReg prefix(nullptr);
 		if (isArithmetic) {
 			auto msb = _getSelectedMsb(MIRB, MRI, lhs);
 			if (!msb.has_value())
