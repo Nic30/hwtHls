@@ -18,7 +18,7 @@
 #include "GISel/hwtFpgaLegalizerInfo.h"
 #include "GISel/hwtFpgaInstructionSelector.h"
 
-#define DEBUG_TYPE "genericfpga-subtarget"
+#define DEBUG_TYPE "hwtfpga-subtarget"
 
 #define GET_SUBTARGETINFO_TARGET_DESC
 #define GET_SUBTARGETINFO_CTOR
