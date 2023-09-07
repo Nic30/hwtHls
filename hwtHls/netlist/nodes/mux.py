@@ -88,6 +88,10 @@ class HlsNetNodeMux(HlsNetNodeOperator):
         for (v, c) in grouper(2, self.dependsOn, padvalue=None):
             yield (v, c)
 
+    def _iterValueConditionDriverInputPairs(self) -> Generator[HlsNetNodeIn, None, None]:
+        for (v, c), (vI, cI) in zip(self._iterValueConditionDriverPairs(), self._iterValueConditionInputPairs()):
+            yield (v, vI), (c, cI)
+
     def __repr__(self, minify=False):
         if minify:
             return f"<{self.__class__.__name__:s} {self._id:d}>"
