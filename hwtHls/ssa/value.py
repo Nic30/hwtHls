@@ -1,5 +1,6 @@
 from hwt.hdl.types.hdlType import HdlType
 from hwt.pyUtils.uniqList import UniqList
+from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwtHls.ssa.context import SsaContext
 
 
@@ -17,6 +18,9 @@ class SsaValue():
         self.origin = origin
         if name is None:
             name = ctx.genName(self)
+            if isinstance(origin, RtlSignalBase) and not origin.hasGenericName:
+                name = f"{name}({origin.name:s})"
+            
         self._name = name
         self._dtype = dtype
         self.users: UniqList[SsaUser] = UniqList()
