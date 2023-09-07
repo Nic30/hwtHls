@@ -130,9 +130,11 @@ bool resolveTypes(MachineInstr &MI) {
 		unsigned bitWidth = 0;
 		unsigned OpI = 0;
 		for (MachineOperand &MO : MI.operands()) {
-			bool isValueOp = OpI == 0 || OpI % 2 == 1;
-			if (!isValueOp)
+			bool isValueOp = OpI == 0 || OpI % 2 == 1; // dst or any src val
+			if (!isValueOp) {
+				OpI++;
 				continue;
+			}
 			if (MO.isCImm()) {
 				bitWidth = MO.getCImm()->getBitWidth();
 				break;
