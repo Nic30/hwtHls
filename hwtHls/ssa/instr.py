@@ -6,6 +6,7 @@ from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.value import HValue
 from hwtHls.ssa.context import SsaContext
 from hwtHls.ssa.value import SsaValue
+from hwtHls.ssa.codeLocation import CodeLocation
 
 
 class ConditionBlockTuple(namedtuple('ConditionBlockTuple', ['condition', 'dstBlock', 'meta'])):
@@ -18,7 +19,8 @@ class SsaInstrBranch():
 
     def __init__(self, parent: "SsaBasicBlock"):
         self.parent = parent
-        self.targets: List[Tuple[Optional[SsaValue], "SsaBasicBlock"]] = []
+        self.targets: List[ConditionBlockTuple] = []
+        self.codeLocation: Optional[CodeLocation] = None
 
     def addTarget(self, cond: Optional[SsaValue], target: "SsaBasicBlock", meta=None):
         t = ConditionBlockTuple(cond, target, meta)
@@ -78,6 +80,7 @@ class SsaInstr(SsaValue):
         self.block: Optional["SsaBasicBlock"] = None
         self.operator = operator
         self.operands = operands
+        self.codeLocation: Optional[CodeLocation] = None
         assert isinstance(operands, (tuple, list)), operands
         for op in operands:
             if isinstance(op, SsaValue):
