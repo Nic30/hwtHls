@@ -22,6 +22,7 @@ from hwtHls.platform.fileUtils import OutputStreamGetter
 from hwtHls.netlist.nodes.orderable import HdlType_isVoid
 from hwtHls.netlist.nodes.IoClusterCore import HlsNetNodeIoClusterCore
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
+from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge
 
 
 class HwtHlsNetlistToGraphwiz():
@@ -192,10 +193,14 @@ class HwtHlsNetlistToGraphwiz():
             label = f"{obj.__class__.__name__} {obj._id}"
 
         buff.append(f'            <tr><td colspan="2">{html.escape(label):s}</td></tr>\n')
-        if isinstance(obj, HlsNetNodeWriteBackedge):
-            obj: HlsNetNodeWriteBackedge
-            if obj.channelInitValues:
-                buff.append(f'            <tr><td colspan="2">init:{html.escape(repr(obj.channelInitValues))}</td></tr>\n')
+        if isinstance(obj, (HlsNetNodeWriteForwardedge, HlsNetNodeWriteBackedge)):
+            if obj._loopChannelGroup is not None:
+                buff.append(f'            <tr><td colspan="2">{html.escape(repr(obj._loopChannelGroup))}</td></tr>\n')
+
+            if isinstance(obj, HlsNetNodeWriteBackedge):
+                obj: HlsNetNodeWriteBackedge
+                if obj.channelInitValues:
+                    buff.append(f'            <tr><td colspan="2">init:{html.escape(repr(obj.channelInitValues))}</td></tr>\n')
 
         # if useInputConstRow:
         #    assert len(constInputRows) == len(input_rows)
