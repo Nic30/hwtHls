@@ -8,6 +8,8 @@ from hwtHls.netlist.nodes.schedulableNode import SchedulizationDict
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
 from hwtHls.netlist.scheduler.resourceList import HlsSchedulerResourceUseList
+from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge,\
+    HlsNetNodeWriteForwardedge
 
 
 class HlsScheduler():
@@ -95,7 +97,7 @@ class HlsScheduler():
         if freezeRightSideOfSchedule:
             nodesBannedToMove = set()
             for n in allNodes:
-                if isinstance(n, HlsNetNodeWriteBackedge) or not any(n.usedBy):
+                if isinstance(n, (HlsNetNodeWriteBackedge, HlsNetNodeWriteForwardedge)) or not any(n.usedBy):
                     nodesBannedToMove.add(n)
             toSearch: Deque[HlsNetNode] = deque(n for n in reversed(allNodes) if n not in nodesBannedToMove)
         else:
