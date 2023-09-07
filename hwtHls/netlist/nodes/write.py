@@ -20,7 +20,7 @@ from hwtHls.netlist.nodes.schedulableNode import OutputTimeGetter, \
     OutputMinUseTimeGetter, SchedulizationDict
 from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axi_intf_common import Axi_hs
-from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
+from hwt.hdl.types.struct import HStruct
 
 
 class HlsNetNodeWrite(HlsNetNodeExplicitSync):
@@ -119,7 +119,10 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         elif isinstance(_o.data, RtlSignal) and isinstance(dst, RtlSignal):
             rtlObj = dst(_o.data)
         elif isinstance(dst, RtlSignal):
-            rtlObj = dst(packIntf(_o.data, exclude=exclude))
+            if isinstance(dst._dtype, HStruct):
+                rtlObj = dst(packIntf(_o.data, exclude=exclude))
+            else:
+                rtlObj = dst(_o.data)
         else:
             rtlObj = connectPacked(_o.data, dst, exclude=exclude)
 
