@@ -25,7 +25,6 @@ from hwtHls.ssa.context import SsaContext
 from hwtHls.thread import HlsThread, HlsThreadDoesNotUseSsa
 from hwtLib.amba.axi_intf_common import Axi_hs
 
-
 ANY_HLS_COMPATIBLE_IO = Union[Handshaked, HsStructIntf, HandshakeSync, Axi_hs, VldSynced, RdSynced, Signal, StructIntf, RtlSignal, PyObjectHwSubscriptRef]
 
 
@@ -113,7 +112,7 @@ class HlsScope():
                 dtype = Interface_to_HdlType().apply(src, exclude=(src.rd,))
 
         elif isinstance(src, RtlSignal):
-            assert src._ctx is not self._ctx, ("Read should be used only for IO, it is not required for hls variables")
+            assert src.ctx is not self._ctx, ("Read should be used only for IO, it is not required for HLS variables")
             dtype = src._dtype
 
         elif isinstance(src, (Signal, StructIntf)):
