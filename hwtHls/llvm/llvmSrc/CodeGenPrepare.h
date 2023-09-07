@@ -212,7 +212,7 @@ public:
     AU.addUsedIfAvailable<BasicBlockSectionsProfileReader>();
   }
 
-private:
+protected:
   template <typename F>
   void resetIteratorIfInvalidatedWhileCalling(llvm::BasicBlock *BB, F f) {
     // Substituting can cause recursive simplifications, which can invalidate
@@ -261,7 +261,7 @@ private:
   bool optimizeFunnelShift(llvm::IntrinsicInst *Fsh);
   bool optimizeSelectInst(llvm::SelectInst *SI);
   bool optimizeShuffleVectorInst(llvm::ShuffleVectorInst *SVI);
-  bool optimizeSwitchType(llvm::SwitchInst *SI);
+  virtual bool optimizeSwitchType(llvm::SwitchInst *SI);
   bool optimizeSwitchPhiConstants(llvm::SwitchInst *SI);
   virtual bool optimizeSwitchInst(llvm::SwitchInst *SI);
   bool optimizeExtractElementInst(llvm::Instruction *Inst);
