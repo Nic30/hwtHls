@@ -12,9 +12,10 @@ from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.observableList import ObservableList, ObservableListRm
 from hwtHls.netlist.scheduler.scheduler import HlsScheduler
+from hwtHls.ssa.analysisCache import AnalysisCache
 
 
-class HlsNetlistCtx():
+class HlsNetlistCtx(AnalysisCache):
     """
     High level synthesiser netlist context.
     Convert sequential code without data dependency cycles to RTL.
@@ -57,8 +58,7 @@ class HlsNetlistCtx():
         self.nodes: ObservableList[HlsNetNode] = ObservableList()
 
         self.ctx = RtlNetlist()
-        self._analysis_cache = {}
-
+        AnalysisCache.__init__(self)
         self.scheduler: HlsScheduler = self.platform.scheduler(self, schedulerResolution)
         self.allocator: HlsAllocator = self.platform.allocator(self)
 
@@ -73,36 +73,6 @@ class HlsNetlistCtx():
     def iterAllNodes(self):
         return chain(self.inputs, self.nodes, self.outputs)
 
-    def invalidateAnalysis(self, analysis_cls:Type[HlsNetlistAnalysisPass]):
-        a = self._analysis_cache.pop(analysis_cls, None)
-        if a is not None:
-            a.invalidate()
-
-    def getAnalysisIfAvailable(self, analysis_cls:Type[HlsNetlistAnalysisPass]):
-        try:
-            return self._analysis_cache[analysis_cls]
-        except KeyError:
-            return None
-
-    def getAnalysis(self, analysis_cls:Union[Type[HlsNetlistAnalysisPass], HlsNetlistAnalysisPass]):
-        if isinstance(analysis_cls, HlsNetlistAnalysisPass):
-            a = analysis_cls
-            analysis_cls = analysis_cls.__class__
-        else:
-            a = None
-
-        try:
-            return self._analysis_cache[analysis_cls]
-        except KeyError:
-            pass
-
-        if a is None:
-            a = analysis_cls(self)
-
-        self._analysis_cache[analysis_cls] = a
-        a.run()
-        return a
-
     def schedule(self):
         self.scheduler.schedule()
 
@@ -111,9 +81,6 @@ class HlsNetlistCtx():
             self.inputs[:] = (n for n in self.inputs if n not in removed)
             self.nodes[:] = (n for n in self.nodes if n not in removed)
             self.outputs[:] = (n for n in self.outputs if n not in removed)
-            for n in self.iterAllNodes():
-                n.filterSubnodes(removed)
-
             removed.clear()
 
     def setupNetlistListeners(self,
