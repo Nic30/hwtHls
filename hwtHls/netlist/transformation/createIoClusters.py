@@ -43,7 +43,7 @@ class HlsNetlistPassCreateIoClusters(HlsNetlistPass):
             io: HlsNetNodeExplicitSync
             if io.scheduledZero is None:
                 # this was called on not scheduled netlist, we skip resolution of schedulation time
-                assert minT is None
+                assert minT is None, (io, inputs, outputs)
                 return cc
             elif minT is None:
                 minT = io.scheduledZero
@@ -56,6 +56,7 @@ class HlsNetlistPassCreateIoClusters(HlsNetlistPass):
         return cc
 
     def createIoClusterCores(self, netlist: HlsNetlistCtx, reachDb: HlsNetlistAnalysisPassReachabilility):
+        assert not netlist.builder._removedNodes
         allSync = []
         for n in netlist.iterAllNodes():
             if isinstance(n, HlsNetNodeExplicitSync):
