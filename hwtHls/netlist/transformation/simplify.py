@@ -187,7 +187,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                                 HlsNetlistPassConsystencyCheck._checkCycleFree(n.netlist, removed)
                             continue
                 elif isinstance(n, HlsNetNodeLoopStatus):
-                    if netlistReduceLoopWithoutEnterAndExit(n, worklist, removed):
+                    if netlistReduceLoopWithoutEnterAndExit(dbgTracer, n, worklist, removed):
                         didModifyExpr = True
                         continue
                 assert not isinstance(n, HlsNetNodeReadSync), (n, "Should already be removed")
