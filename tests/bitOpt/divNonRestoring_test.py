@@ -61,9 +61,9 @@ class DivNonRestoring(Unit):
 
 class DivNonRestoring_TC(SimTestCase):
     GOLDEN_DATA = [
-        [(1, 1, 0), (2, 2, 0), (4, 2, 0), (13, 3, 0), (3, 15, 0)],  # dividend, divisor, isSigned
-        [(1, 0),    (1, 0),    (2, 0),    (4, 1),     (0, 3)],  # quotient, remainder
-        ]
+        [(1, 1, 0), (2, 2, 0), (4, 2, 0), (13, 3, 0), (3, 15, 0), (9, 3, 0)],  # dividend, divisor, isSigned
+        [(1, 0),    (1, 0),    (2, 0),    (4, 1),     (0, 3),     (3, 0)],  # quotient, remainder
+    ]
 
     def test_div_py(self):
         T = Bits(4)
@@ -74,7 +74,7 @@ class DivNonRestoring_TC(SimTestCase):
             _quotient, _remainder = divNonRestoring(_dividend, _divisor, _isSigned, 1)
             self.assertValSequenceEqual([_quotient, _remainder], (quotient, remainder),
                                         msg=((dividend, "//", divisor, "signed?:", isSigned), (quotient, "rem:", remainder)))
-        
+         
     def test_div(self):
         u = DivNonRestoring()
         self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
@@ -88,13 +88,12 @@ class DivNonRestoring_TC(SimTestCase):
 
 
 if __name__ == "__main__":
-    # from hwt.synthesizer.utils import to_rtl_str
-    # from hwtHls.platform.platform import HlsDebugBundle
+    from hwt.synthesizer.utils import to_rtl_str
+    from hwtHls.platform.platform import HlsDebugBundle
     # from hwtHls.platform.xilinx.artix7 import Artix7Fast
-    # u = DivNonRestoring()
-    # # u.DATA_WIDTH = 4
-    #
-    # print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    u = DivNonRestoring()
+    u.DATA_WIDTH = 32
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
 
