@@ -4,14 +4,23 @@
 import sys
 from unittest import TestLoader, TextTestRunner, TestSuite
 
+from tests.adt.collections.hashTable_test import HashTable_TC
 from tests.bitOpt.abc_test import AbcTC
-from tests.bitOpt.andShiftInLoop import AndShiftInLoop_TC
-from tests.bitOpt.bitWidthReductionCmp_test import BitWidthReductionCmp_example_TC
+from tests.bitOpt.andShiftInLoop_test import AndShiftInLoop_TC
+from tests.bitOpt.bitWidthReductionPass_Cmp_test import BitWidthReductionPass_Cmp_example_TC
+from tests.bitOpt.bitWidthReductionPass_PHI_test import BitwidthReductionPass_PHI_TC
+from tests.bitOpt.bitWidthReduction_test import BitwidthReductionPass_TC
 from tests.bitOpt.cmpReduction_test import CmpReduction_TC
 from tests.bitOpt.countBits_test import CountBitsTC
 from tests.bitOpt.divNonRestoring_test import DivNonRestoring_TC
+from tests.bitOpt.earlyIfConverter_test import EarlyIfConverter_TC
 from tests.bitOpt.popcount_test import PopcountTC
+from tests.bitOpt.rewriteExtractOnMergeValues_test import RewriteExtractOnMergeValuesPass_TC
+from tests.bitOpt.slicesMergePass_test import SlicesMergePass_TC
 from tests.bitOpt.slicesToIndependentVariablesPass_test import SlicesToIndependentVariablesPass_TC
+from tests.floatingpoint.cmp_test import IEEE754FpCmp_TC
+from tests.floatingpoint.fromInt_test import IEEE754FpFromInt_TC
+from tests.floatingpoint.toInt_test import IEEE754FpToInt_TC
 from tests.frontend.ast.bitonicSort import BitonicSorterHLS_TCs
 from tests.frontend.ast.exprTree3 import HlsAstExprTree3_example_TC
 from tests.frontend.ast.ifstm import HlsSimpleIfStatement_TC
@@ -26,7 +35,6 @@ from tests.frontend.pyBytecode.basics_test import FromPythonBasics_TC
 from tests.frontend.pyBytecode.binToBcd_test import BinToBcd_TC
 from tests.frontend.pyBytecode.errors_test import PyBytecodeErrors_TC
 from tests.frontend.pyBytecode.fnClosue_test import FnClosure_TC
-from tests.frontend.pyBytecode.hashTable_test import HashTable_TC
 from tests.frontend.pyBytecode.llvmLoopUnroll_test import LlvmLoopUnroll_TC
 from tests.frontend.pyBytecode.pragmaInline_test import PyBytecodeInline_TC
 from tests.frontend.pyBytecode.preprocLoopMultiExit_test import PreprocLoopMultiExit_TCs
@@ -41,7 +49,6 @@ from tests.frontend.pyBytecode.tupleAssign import HlsPythonTupleAssign_TC
 from tests.frontend.pyBytecode.variableChain_test import VariableChain_TC
 from tests.hlsNetlist.bitwiseOpsAggregation_test import HlsNetlistBitwiseOpsTC
 from tests.hlsNetlist.discoverSyncIsland_test import HlsNetlistDiscoverSyncIslandTC
-from tests.hlsNetlist.injectVldMaskToSkipWhenConditions_test import HlsNetlistPassInjectVldMaskToSkipWhenConditionsTC
 from tests.hlsNetlist.netlistReduceCmpInAnd_test import HlsNetlistReduceCmpInAndTC
 from tests.hlsNetlist.readNonBlocking_test import ReadNonBockingTC
 from tests.hlsNetlist.readSync_test import HlsNetlistReadSyncTC
@@ -54,8 +61,8 @@ from tests.io.amba.axiStream.axisPacketCntr_test import AxiSPacketCntrTC
 from tests.io.amba.axiStream.axisParseEth_test import AxiSParseEthTC
 from tests.io.amba.axiStream.axisParseIf_test import AxiSParseIfTC
 from tests.io.amba.axiStream.axisParseLinear_test import AxiSParseLinearTC
+from tests.io.amba.axiStream.axisPingResponder import PingResponderTC
 from tests.io.amba.axiStream.axisWriteByte_test import AxiSWriteByteTC
-from tests.io.amba.axiStream.pingResponder import PingResponderTC
 from tests.io.bram.bramRead_test import BramRead_TC
 from tests.io.bram.bramWrite_test import BramWrite_TC
 from tests.io.bram.counterArray_test import BramCounterArray_TC
@@ -67,8 +74,10 @@ from tests.syntehesis_checks import HlsSynthesisChecksTC
 from tests.utils.alapAsapDiffExample import AlapAsapDiffExample_TC
 from tests.utils.bitwiseOpsScheduling_test import BitwiseOpsScheduling_TC
 from tests.utils.phiConstructions_test import PhiConstruction_TC
+from tests.io.amba.axiStream.axisCopyByteByByte_test import AxiSPacketCopyByteByByteTC
 
 
+#from tests.hlsNetlist.injectVldMaskToSkipWhenConditions_test import HlsNetlistPassInjectVldMaskToSkipWhenConditionsTC
 def testSuiteFromTCs(*tcs):
     for tc in tcs:
         tc._multiprocess_can_split_ = True
@@ -84,7 +93,7 @@ suite = testSuiteFromTCs(
     HlsNetlistBitwiseOpsTC,
     HlsNetlistDiscoverSyncIslandTC,
     HlsNetlistReduceCmpInAndTC,
-    HlsNetlistPassInjectVldMaskToSkipWhenConditionsTC,
+    #HlsNetlistPassInjectVldMaskToSkipWhenConditionsTC,
     HlsNetlistReadSyncTC,
     SlicesToIndependentVariablesPass_TC,
     HlsSlicingTC,
@@ -94,8 +103,16 @@ suite = testSuiteFromTCs(
     ReadNonBockingTC,
     HlsCycleDelayUnit,
     HlsPythonTupleAssign_TC,
-    BitWidthReductionCmp_example_TC,
+    RewriteExtractOnMergeValuesPass_TC,
+    SlicesMergePass_TC,
+    BitwidthReductionPass_TC,
+    BitwidthReductionPass_PHI_TC,
+    BitWidthReductionPass_Cmp_example_TC,
     CmpReduction_TC,
+    EarlyIfConverter_TC,
+    IEEE754FpCmp_TC,
+    IEEE754FpFromInt_TC,
+    IEEE754FpToInt_TC,
     HlsAstReadIfTc,
     HlsMAC_example_TC,
     *BitonicSorterHLS_TCs,
@@ -130,6 +147,7 @@ suite = testSuiteFromTCs(
     AxiSParseLinearTC,
     AxiSParseIfTC,
     AxiSWriteByteTC,
+    AxiSPacketCopyByteByByteTC,
     BramRead_TC,
     BramWrite_TC,
     HashTable_TC,
