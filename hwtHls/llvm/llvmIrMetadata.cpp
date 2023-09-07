@@ -5,19 +5,6 @@ namespace py = pybind11;
 
 namespace hwtHls {
 
-//namespace pybind11 {
-//    template<> struct polymorphic_type_hook<MDTupleWithDeletedDelete> {
-//        static const void *get(const MDTupleWithDeletedDelete *src, const std::type_info*& type) {
-//            // note that src may be nullptr
-//            if (src && src->kind == PetKind::Dog) {
-//                type = &typeid(Dog);
-//                return static_cast<const MDNodeWithDeletedDelete*>(src);
-//            }
-//            return src;
-//        }
-//    };
-//}
-
 void register_Attribute(pybind11::module_ & m) {
 	//llvm::AttributeSet
 	//py::class_<llvm::Attribute, std::unique_ptr<llvm::Value, py::nodelete>>(m, "Value")
@@ -62,7 +49,24 @@ void register_MDNode(pybind11::module_ & m) {
 			reinterpret_cast<llvm::MDNode*>(self)->replaceOperandWith(I, New);
 		},  py::keep_alive<0, 2>())
 		.def("asMetadata", &asMetadata<MDNodeWithDeletedDelete>, py::return_value_policy::reference_internal)
+		.def("getOperand", &MDNodeWithDeletedDelete::getOperand, py::return_value_policy::reference_internal)
+		.def("getNumOperands", &MDNodeWithDeletedDelete::getNumOperands)
+		.def("iterOperands", [](MDNodeWithDeletedDelete &v) {
+			 	return py::make_iterator(v.op_begin(), v.op_end());
+			 }, py::keep_alive<0, 1>()) /* Keep vector alive while iterator is used */
+		.def("__eq__", [](MDNodeWithDeletedDelete* self, MDNodeWithDeletedDelete* other) {
+			return self == other;
+		})
+		.def("__eq__", [](MDNodeWithDeletedDelete* self, llvm::Metadata* other) {
+			return self == other;
+		})
 		.def("__repr__", &printToStr<MDNodeWithDeletedDelete>);
+	m.def("MetadataAsMDNode", [](llvm::Metadata * MD) {
+		return dyn_cast<MDNodeWithDeletedDelete>(MD);
+	}, py::return_value_policy::reference_internal);
+
+	py::class_<llvm::MDOperand, std::unique_ptr<llvm::MDOperand>> MDOperand(m, "MDOperand");
+	MDOperand.def("get", &llvm::MDOperand::get);
 
 	py::class_<MDTupleWithDeletedDelete, std::unique_ptr<MDTupleWithDeletedDelete, py::nodelete>,
 		MDNodeWithDeletedDelete> MDTuple(m, "MDTuple");
@@ -80,7 +84,11 @@ void register_MDNode(pybind11::module_ & m) {
 		llvm::Metadata> ValueAsMetadata(m, "ValueAsMetadata");
 	ValueAsMetadata
 		.def_static("get", llvm::ValueAsMetadata::get, py::return_value_policy::reference_internal)
+		.def("getValue", &llvm::ValueAsMetadata::getValue, py::return_value_policy::reference_internal)
 		.def("__repr__", &printToStr<llvm::ValueAsMetadata>);
+	m.def("MetadataAsValueAsMetadata", [](llvm::Metadata * MD) {
+		return dyn_cast<llvm::ValueAsMetadata>(MD);
+	}, py::return_value_policy::reference_internal);
 
 	py::class_<llvm::ConstantAsMetadata, std::unique_ptr<llvm::ConstantAsMetadata, py::nodelete>,
 		llvm::ValueAsMetadata> ConstantAsMetadata(m, "ConstantAsMetadata");
