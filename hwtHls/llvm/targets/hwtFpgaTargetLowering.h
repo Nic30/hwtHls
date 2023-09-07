@@ -16,15 +16,15 @@ public:
 	explicit HwtFpgaTargetLowering(const llvm::TargetMachine &TM,
 			const llvm::HwtFpgaTargetSubtarget &STI);
 
-
 	virtual bool isSuitableForJumpTable(const SwitchInst *SI, uint64_t NumCases,
 			uint64_t Range, ProfileSummaryInfo *PSI,
 			BlockFrequencyInfo *BFI) const override {
 		return false;
 	}
-
-	virtual bool canCombineTruncStore(EVT ValVT, EVT MemVT, bool LegalOnly) const
-			override {
+	//virtual MVT getPreferredSwitchConditionType(LLVMContext &Context,
+	//		EVT ConditionVT) const override;
+	virtual bool canCombineTruncStore(EVT ValVT, EVT MemVT,
+			bool LegalOnly) const override {
 		return false;
 	}
 	virtual bool shouldReduceLoadWidth(SDNode *Load, ISD::LoadExtType ExtTy,
@@ -33,21 +33,21 @@ public:
 	}
 	virtual bool allowsMisalignedMemoryAccesses(EVT, unsigned AddrSpace = 0,
 			Align Alignment = Align(1), MachineMemOperand::Flags Flags =
-					MachineMemOperand::MONone, unsigned* /*Fast*/= nullptr) const
-					override {
+					MachineMemOperand::MONone,
+			unsigned* /*Fast*/= nullptr) const override {
 		return true;
 	}
 	virtual bool allowsMisalignedMemoryAccesses(LLT, unsigned AddrSpace = 0,
 			Align Alignment = Align(1), MachineMemOperand::Flags Flags =
-					MachineMemOperand::MONone, unsigned* /*Fast*/= nullptr) const
-					override {
+					MachineMemOperand::MONone,
+			unsigned* /*Fast*/= nullptr) const override {
 		return true;
 	}
 
-	virtual bool allowsMemoryAccess(LLVMContext &Context, const DataLayout &DL, EVT VT,
-	                     unsigned AddrSpace = 0, Align Alignment = Align(1),
-	                     MachineMemOperand::Flags Flags = MachineMemOperand::MONone,
-	                     unsigned *Fast = nullptr) const override {
+	virtual bool allowsMemoryAccess(LLVMContext &Context, const DataLayout &DL,
+			EVT VT, unsigned AddrSpace = 0, Align Alignment = Align(1),
+			MachineMemOperand::Flags Flags = MachineMemOperand::MONone,
+			unsigned *Fast = nullptr) const override {
 		return true;
 	}
 	virtual bool getAddrModeArguments(IntrinsicInst* /*I*/,
@@ -71,7 +71,8 @@ public:
 	virtual bool isZExtFree(EVT FromTy, EVT ToTy) const override {
 		return true;
 	}
-	virtual bool isNarrowingProfitable(EVT /*VT1*/, EVT /*VT2*/) const override {
+	virtual bool isNarrowingProfitable(EVT /*VT1*/, EVT /*VT2*/) const
+			override {
 		return true;
 	}
 	/// Return the register class that should be used for the specified value

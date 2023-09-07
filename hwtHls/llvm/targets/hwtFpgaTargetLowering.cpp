@@ -1,10 +1,10 @@
 #include "hwtFpgaTargetLowering.h"
 #include "hwtFpgaRegisterInfo.h"
+#include <hwtHls/llvm/bitMath.h>
 
 namespace llvm {
 
-HwtFpgaTargetLowering::HwtFpgaTargetLowering(
-		const llvm::TargetMachine &TM,
+HwtFpgaTargetLowering::HwtFpgaTargetLowering(const llvm::TargetMachine &TM,
 		const llvm::HwtFpgaTargetSubtarget &STI) :
 		TargetLowering(TM), Subtarget(STI) {
 	// Set up the register classes.
@@ -22,7 +22,7 @@ HwtFpgaTargetLowering::HwtFpgaTargetLowering(
 	computeRegisterProperties(Subtarget.getRegisterInfo());
 
 	// :note: def of legal instruction is in LegalizerInfo
-    //setOperationAction(G_SELECT, MVT::Any, Legal);
+	//setOperationAction(G_SELECT, MVT::Any, Legal);
 
 	setBooleanContents(UndefinedBooleanContent);
 	setJumpIsExpensive(true);
@@ -33,6 +33,16 @@ HwtFpgaTargetLowering::HwtFpgaTargetLowering(
 	setHasExtractBitsInsn(true);
 	setHasMultipleConditionRegisters(true);
 }
+
+//MVT HwtFpgaTargetLowering::getPreferredSwitchConditionType(LLVMContext &Context,
+//		EVT ConditionVT) const {
+//	// :attention: we choose at least 1b wider because otherwise IRTranslator is not able to
+//	// translate it to PHI because there are negative values because switch condition is
+//	// interpreted as signed integer
+//	assert(ConditionVT.isScalarInteger());
+//	auto newWidth = hwtHls::upperPow2(ConditionVT.getSizeInBits() + 1);
+//	return MVT::getIntegerVT(newWidth);
+//}
 
 const llvm::TargetRegisterClass* HwtFpgaTargetLowering::getRegClassFor(
 		llvm::MVT VT, bool isDivergent) const {
