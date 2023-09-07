@@ -89,14 +89,14 @@ class RtlArchPassLoopControlPrivatization(RtlArchPass):
                 if isinstance(headerElm, ArchElementFsm):
                     headerElm: ArchElementFsm
                     if jumpSrcVal.obj in headerElm.allNodes or (
-                            jumpSrcValStI >= headerElm.fsmBeginClk_i and
-                            jumpSrcValStI <= headerElm.fsmEndClk_i):
+                            jumpSrcValStI >= headerElm._beginClkI and
+                            jumpSrcValStI <= headerElm._endClkI):
                         if headerElm is tailElm and wStI == len(headerElm.fsm.states) - 1:
                             pass  # skip moving to same stage in the same element
                         else:
                             headerElm.allNodes.append(w)
                             headerElm.fsm.states[-1].append(w)
-                            t = (headerElm.fsmEndClk_i + 1) * clkPeriod - ffdelay
+                            t = (headerElm._endClkI + 1) * clkPeriod - ffdelay
                             assert wMinTime <= t, (w, wMinTime, t)
                             w.scheduledIn = tuple(t for _ in w._inputs)
                             w.scheduledOut = tuple(t + epsilon for _ in w._outputs)

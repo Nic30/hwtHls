@@ -34,7 +34,7 @@ class ArchElementPipeline(ArchElement):
     """
     A container of informations about HW pipeline allocation.
 
-    :ivar syncIsland: syncromization regions which are handled by this element
+    :ivar syncIsland: synchronization regions which are handled by this element
     :ivar stages: list of lists of nodes representing the nodes managed by this pipeline in individual clock stages
     :note: stages always start in time 0 and empty lists on beginning marking where the pipeline actually starts.
         This is to have uniform index when we scope into some other element.
@@ -197,7 +197,7 @@ class ArchElementPipeline(ArchElement):
         clkPeriod = self.netlist.normalizedClkPeriod
         t = tir.timeOffset + (len(tir.valuesInTime) - 1) * clkPeriod + self.netlist.scheduler.epsilon
         assert t < endTime
-        # :note: done in reverse so we do not have to always iterater over registered prequel
+        # :note: done in reverse so we do not have to always iterate over registered prequel
         while t <= endTime:
             t += clkPeriod
             i = int(t // clkPeriod)
@@ -259,7 +259,7 @@ class ArchElementPipeline(ArchElement):
         Allocate synchronization for a single stage of pipeline.
         Each pipeline represents only a straight pipeline. Each non-last stage is equipped with a stage_N_valid register.
         The 1 in this stage represents that the stage registers are occupied and can accept data only if data can be flushed to successor stage.
-        There is stage_sync_N_to_N+1 synchronization channel which synhronizes the data movement between stages.
+        There is stage_sync_N_to_N+1 synchronization channel which synchronizes the data movement between stages.
         The channel is ready if next stage is able to process new data. And valid if data are provided from this stage.
 
         :note: pipeline registers are placed visually at the end of the non-last stage

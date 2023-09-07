@@ -130,8 +130,9 @@ class ArchElementFsm(ArchElement):
         assert self.fsm.hasUsedStateForClkI(clkI), ("Asking for a sync in an element which is not scheduled in this clk period", self, clkI)
 
         con: ConnectionsOfStage = self.connections[clkI]
-        self._connectSync(con, intf, intfDir, isBlocking)
+        ioNode = self._connectSync(clkI, con, intf, intfDir, isBlocking)
         self._initNopValsOfIoForIntf(intf, intfDir)
+        self.fsm.states[clkI].append(ioNode)
         return con
 
     def _initNopValsOfIoForIntf(self, intf: Union[Interface], intfDir: INTF_DIRECTION):
@@ -174,7 +175,8 @@ class ArchElementFsm(ArchElement):
                         wr.allocationType = BACKEDGE_ALLOCATION_TYPE.REG
 
                 elif isinstance(node, HlsNetNodeLoopStatus):
-                    for e in node.fromReenter:
+                    for g in node.fromReenter:
+                        e = g.getChannelWhichIsUsedToImplementControl().associatedRead
                         assert isinstance(e, HlsNetNodeReadBackedge), e
                         assert e in self.allNodes, e
                         if e.associatedWrite in self.allNodes:
@@ -182,12 +184,14 @@ class ArchElementFsm(ArchElement):
                             controlToStateI[e] = stI
                             controlToStateI[e.associatedWrite] = indexOfClkPeriod(e.associatedWrite.scheduledZero, clkPeriod)
 
-                    for e in node.fromExit:
-                        if isinstance(e, HlsNetNodeReadBackedge):
-                            assert e in self.allNodes, e
-                            if e.associatedWrite in self.allNodes:
-                                raise NotImplementedError()
-                            # dstI =
+                    #for g in node.fromExitToHeaderNotify:
+                    #    w = g.getChannelWhichIsUsedToImplementControl()
+                    #    r = w.associatedRead
+                    #    if isinstance(r, HlsNetNodeReadBackedge):
+                    #        assert r in self.allNodes, e
+                    #        if w in self.allNodes:
+                    #            raise NotImplementedError("Convert loop to FSM transitions")
+                    #        # dstI =
         return localControlReads, controlToStateI
 
     def _collectStatesWhichCanNotBeSkipped(self) -> Set[int]:
@@ -235,6 +239,7 @@ class ArchElementFsm(ArchElement):
             if isLast:
                 transitionTable[clkI] = {usedStates[0]: 1}  # jump back to start by default
             prev = clkI
+
         for r in localControlReads:
             r: HlsNetNodeReadBackedge
             srcStI = controlToStateI[r.associatedWrite]
@@ -356,9 +361,11 @@ class ArchElementFsm(ArchElement):
 
     def allocateSync(self):
         self._initNopValsOfIo()
-        if sum(1 if st else 0 for st in self.fsm.states) > 1:
+        stateCnt = sum(1 if st else 0 for st in self.fsm.states)
+        if stateCnt > 1:
+            # if there is more than 1 state
             stReg = self._reg(f"{self.namePrefix}st",
-                           Bits(log2ceil(len(self.fsm.states)), signed=False),
+                           Bits(log2ceil(stateCnt), signed=False),
                            def_val=0)
         else:
             # because there is just a single state, the state value has no meaning
@@ -402,16 +409,16 @@ class ArchElementFsm(ArchElement):
                 if c == 1:
                     unconditionalTransSeen = True
                     c = stateAck
-                
+
                 elif isinstance(c, (bool, int)):
                     assert c == 0, c
                     continue
                 else:
                     assert c._dtype.bit_length() == 1, c
                     c = c & stateAck
-    
+
                 if stReg is not None:
-                    inStateTrans.append((c, stReg(dstStI)))
+                    inStateTrans.append((c, stReg(self.stateEncoding[dstStI])))
 
             stDependentDrives = con.stDependentDrives
 

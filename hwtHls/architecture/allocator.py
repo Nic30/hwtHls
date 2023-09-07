@@ -1,7 +1,7 @@
 from typing import Union, List, Tuple, Set, Optional, Dict
 
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import Interface_without_registration
-from hwtHls.architecture.allocatorUtils import isDrivenFromSyncIsland, \
+from hwtHls.architecture.allocatorUtils import \
     expandAllOutputSynonymsInElement, addOutputAndAllSynonymsToElement
 from hwtHls.architecture.archElement import ArchElement
 from hwtHls.architecture.archElementFsm import ArchElementFsm
@@ -27,12 +27,12 @@ class HlsAllocator():
     :see: :meth:`hwtHls.platform.platform.DefaultHlsPlatform.runRtlNetlistPasses`
     :ivar namePrefix: name prefix for debug purposes
     :ivar netlist: parent HLS context for this allocator
-    :ivar seenOutputsConnectedToElm: dictionary of instantiated inter element connections
+    :ivar seenOutputsConnectedToElm: dictionary of instantiated inter-element connections
         the value is a time of appearance of that output in dst element
     :note: seenOutputsConnectedToElm, interElementBufferPipelines are used to remove duplicates
-        when instantiating inter element connections
+        when instantiating inter-element connections
     :ivar _dbgAddNamesToSyncSignals: add names to synchronization signals in order to improve readability,
-        dissabled by default as it goes agains optimizations
+        dissabled by default as it goes against optimizations
     """
 
     def __init__(self, netlist: "HlsNetlistCtx", namePrefix:str="hls_"):
@@ -80,7 +80,9 @@ class HlsAllocator():
                                              interElementBufferPipelines: Dict[Tuple[ArchElement, int, ArchElement, int], ArchElementPipeline]):
         clkPeriod = self.netlist.normalizedClkPeriod
         useT = iea.firstUseTimeOfOutInElem[(dstElm, o)]
-        srcStartClkI = start_clk(o.obj.scheduledOut[o.out_i], clkPeriod)
+        defTime = o.obj.scheduledOut[o.out_i]
+        assert defTime <= useT, (defTime, useT, o)
+        srcStartClkI = start_clk(defTime, clkPeriod)
         dstUseClkI = start_clk(useT, clkPeriod)
         if isinstance(dstElm, ArchElementFsm):
             assert dstElm.fsm.hasUsedStateForClkI(dstUseClkI), (
@@ -104,6 +106,7 @@ class HlsAllocator():
                             closestClockIWithState = clkI
                     newUseT = closestClockIWithState * clkPeriod + epsilon
                     assert newUseT <= useT, (useT, newUseT, o)
+                    assert defTime <= newUseT, (defTime, newUseT, o)
                     iea.firstUseTimeOfOutInElem[(dstElm, o)] = newUseT
                     return newUseT
 
@@ -118,7 +121,7 @@ class HlsAllocator():
                         pass
                     else:
                         for clkI in range(beginClkI, endClkI + 1):
-                            if  srcElm.fsm.hasUsedStateForClkI(clkI) and dstElm.fsm.hasUsedStateForClkI(clkI):
+                            if clkI * clkPeriod > defTime and srcElm.fsm.hasUsedStateForClkI(clkI) and dstElm.fsm.hasUsedStateForClkI(clkI):
                                 sharedClkI = clkI
                                 break
 
@@ -129,6 +132,7 @@ class HlsAllocator():
                         newUseT = min(clkT + epsilon, useT)
                         iea.firstUseTimeOfOutInElem[(dstElm, o)] = newUseT
                         assert newUseT <= useT, (useT, newUseT, o)
+                        assert defTime <= newUseT, (defTime, newUseT, o)
                         return newUseT
 
                     else:
@@ -148,7 +152,7 @@ class HlsAllocator():
                             dstBaseName = self._getArchElmBaseName(dstElm)
                             bufferPipelineName = f"{self.namePrefix:s}buffer_{srcBaseName:s}{srcStartClkI}_to_{dstBaseName:s}{dstUseClkI}"
                             stages = [[] for _ in range(start_clk(useT, clkPeriod) + 1)]
-                            p = ArchElementPipeline(self.netlist, bufferPipelineName, stages)
+                            p = ArchElementPipeline(self.netlist, bufferPipelineName, stages, None)
                             self._archElements.append(p)
                             interElementBufferPipelines[k] = p
 
@@ -280,8 +284,10 @@ class HlsAllocator():
         srcStartClkI = start_clk(srcTir.timeOffset, clkPeriod)
         assert srcTir is not dstTir, (o, srcTir)
         srcOff = dstUseClkI - srcStartClkI
-        assert srcStartClkI <= dstUseClkI, (srcStartClkI, dstUseClkI, "Source must be available before first use "
-                                            "because otherwise this should be a backedge instead.")
+        if srcStartClkI > dstUseClkI:
+            raise AssertionError(srcStartClkI, dstUseClkI, srcTir.timeOffset, dstTir.timeOffset, clkPeriod, dstTir,
+                                 "Source must be available before first use "
+                                 "because otherwise this should be a backedge instead.", o)
         if len(srcTir.valuesInTime) <= srcOff:
             if isinstance(srcElm, ArchElementPipeline):
                 # extend the value register pipeline to get data in time when other element requires it
@@ -350,7 +356,7 @@ class HlsAllocator():
             # [todo] shift in srcElm time if possible
             srcElm.connectSync(dstUseClkI, interElmSync, INTF_DIRECTION.MASTER, True)
             dstElm.connectSync(dstUseClkI, interElmSync, INTF_DIRECTION.SLAVE, True)
-            # dstCon = 
+            # dstCon =
             # if isinstance(srcElm, ArchElementFsm):
             #    srcSyncIslands = srcElm.fsm.syncIslands
             # else:
