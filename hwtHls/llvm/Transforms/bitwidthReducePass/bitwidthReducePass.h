@@ -30,6 +30,7 @@ namespace hwtHls {
  *   * VitisHLS - modified llvm::InstCombine
  *     - custom version of llvm 6.0.1
  *     - worklist driven = reduced search distance
+ * :note: "this" means this implementation in this class
  **/
 class BitwidthReductionPass: public llvm::PassInfoMixin<
 		BitwidthReductionPass> {

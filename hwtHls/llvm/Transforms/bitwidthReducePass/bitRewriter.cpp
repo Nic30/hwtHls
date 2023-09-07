@@ -1,5 +1,6 @@
-#include "bitRewriter.h"
-#include "../../targets/intrinsic/bitrange.h"
+#include <hwtHls/llvm/Transforms/bitwidthReducePass/bitRewriter.h>
+#include <hwtHls/llvm/targets/intrinsic/bitrange.h>
+#include <iostream>
 
 using namespace llvm;
 namespace hwtHls {
@@ -9,36 +10,19 @@ BitPartsRewriter::BitPartsRewriter(
 		constraints(_constraints) {
 }
 
-// @param vbc the slice containers from where to iterate bits, low to high
 std::vector<KnownBitRangeInfo> iterUsedBitRanges(IRBuilder<> *Builder,
 		const APInt &useMask, const VarBitConstraint &vbc) {
 	std::vector<KnownBitRangeInfo> res;
-
-	assert(useMask != 0);
-	if (useMask.isAllOnesValue()) {
-		return vbc.replacements; // no need for pruning
-	}
-
-	// prune values which do not have the specific bit mask set
-	int l = -1; // -1 as invalid value
 	unsigned dstBeginOffset = 0;
-	for (unsigned h = 0; h < useMask.getBitWidth(); ++h) {
-		if (l == -1 && useMask[h]) {
-			l = h;
-		}
-
-		// end of 1 sequence found
-		if (l != -1 && (h == useMask.getBitWidth() - 1 || !useMask[h + 1])) {
-			// start of 1 sequence, (+1 because [1:0] is 1b)
-			unsigned w = h - l + 1;
-			for (auto &i : vbc.slice(Builder, l, w).replacements) {
-				i.dstBeginBitI = dstBeginOffset;
-				VarBitConstraint::srcUnionPushBackWithMerge(res, i);
-				dstBeginOffset += i.srcWidth;
-			}
-			l = -1; // reset start;
-		}
-	}
+	iterUsedBitRangeSlices(useMask,
+			[Builder, &dstBeginOffset, &vbc, &res](size_t offset,
+					size_t width) {
+				for (auto &i : vbc.slice(Builder, offset, width).replacements) {
+					i.dstBeginBitI = dstBeginOffset;
+					VarBitConstraint::srcUnionPushBackWithMerge(res, i);
+					dstBeginOffset += i.srcWidth;
+				}
+			});
 
 	return res;
 }
@@ -47,6 +31,7 @@ llvm::Value* BitPartsRewriter::rewriteKnownBitRangeInfo(IRBuilder<> *Builder,
 		const KnownBitRangeInfo &kbri) {
 	auto *T = cast<IntegerType>(kbri.src->getType());
 	if (kbri.srcBeginBitI == 0 && kbri.srcWidth == (T ? T->getBitWidth() : 1)) {
+		// rewrite to self without change
 		return const_cast<llvm::Value*>(kbri.src);
 	} else {
 		// must select specific bits
@@ -56,6 +41,7 @@ llvm::Value* BitPartsRewriter::rewriteKnownBitRangeInfo(IRBuilder<> *Builder,
 		} else {
 			llvm::Value *src = const_cast<Value*>(kbri.src);
 			unsigned offset = kbri.srcBeginBitI;
+			// check for possible replace of src
 			if (auto *I = dyn_cast<llvm::Instruction>(src)) {
 				auto repl = replacementCache.find(I);
 				if (repl != replacementCache.end()) {
@@ -70,8 +56,8 @@ llvm::Value* BitPartsRewriter::rewriteKnownBitRangeInfo(IRBuilder<> *Builder,
 				}
 			}
 			if (kbri.srcWidth != src->getType()->getIntegerBitWidth()) {
-				return CreateBitRangeGet(Builder, src,
-						Builder->getInt64(offset), kbri.srcWidth);
+				return CreateBitRangeGetConst(Builder, src, offset,
+						kbri.srcWidth);
 			} else {
 				return src;
 			}
@@ -97,22 +83,19 @@ llvm::Value* BitPartsRewriter::rewriteKnownBitRangeInfoVector(
 
 llvm::Value* BitPartsRewriter::rewritePHINode(llvm::PHINode &I,
 		const VarBitConstraint &vbc) {
-	// rewrite instruction itself, but do not fill the operands, we can not fill operands immediately
-	// because this may result in infinite cycle when recursively replacing operands in cyclic SSA.
 	IRBuilder<> b(&I);
-	llvm::PHINode *res = b.CreatePHI(b.getIntNTy(vbc.useMask.countPopulation()),
-			I.getNumOperands(), I.getName());
+	auto *newTy = b.getIntNTy(vbc.useMask.countPopulation());
+	auto *res = b.CreatePHI(newTy, I.getNumOperands(), I.getName());
 	replacementCache[&I] = res;
 	return res;
 }
 
 llvm::Value* BitPartsRewriter::rewriteSelect(llvm::SelectInst &I,
 		const VarBitConstraint &vbc) {
-	// replace this select with an concatenation of bit which are actually used
 
 	// @note use mask is guaranteed to be 0 for bits which does not require select
 	//   so we do not need to check if we can reduce something
-	// @note if result is constant this should not be rewritten insteas the constant should be used in every use
+	// @note if result is constant this should not be rewritten instead the constant should be used in every use
 	IRBuilder<> b(&I);
 	auto &T = constraints[I.getTrueValue()];
 	Value *tr = rewriteKnownBitRangeInfoVector(&b,
@@ -158,41 +141,92 @@ llvm::Value* BitPartsRewriter::expandConstBits(IRBuilder<> *b,
 		llvm::Value *origVal, llvm::Value *reducedVal,
 		const VarBitConstraint &vbc) {
 	unsigned reducedValWidth = 0;
-	if (reducedVal) {
+	if (reducedVal && origVal->getType()->isIntegerTy()) {
+		assert(
+				reducedVal->getType()->getIntegerBitWidth()
+						<= origVal->getType()->getIntegerBitWidth());
 		reducedValWidth = reducedVal->getType()->getIntegerBitWidth();
 	}
 	if (origVal->getType()->getIntegerBitWidth() == reducedValWidth) {
 		assert(reducedVal);
 		return reducedVal; // nothing to pad
 	}
-
-	// iterate through the bit ranges, push known bit ranges and reducedVal bit ranges to a concatenation
+	size_t reducedBitCnt = 0; // iterate through the bit ranges, push known bit ranges and reducedVal bit ranges to a concatenation
 	// low first
-	unsigned reducedValOffset = 0;
+	size_t actualWidth = 0;
+	// this is used because we potentially cut off bits from the origVal vector
+	// and we want to update information for reducedVal vector
 	std::vector<llvm::Value*> concatMembers;
+	// reduced bits are those for which useMask is 0
+	// those and constants are removed from value and must be put back as constant or undef when expanding value
+	//errs() << "\nexpandConstBits: " << origVal << " " << *origVal << "    "
+	//		<< reducedVal;
+	//if (reducedVal)
+	//	errs() << " " << *reducedVal;
+	//errs() << "  " << vbc << "\n";
 	for (const KnownBitRangeInfo &kbri : vbc.replacements) {
-		llvm::Value *v;
 		if (kbri.src == origVal) {
-			if (reducedValOffset == 0 && kbri.srcWidth == reducedValWidth)
-				v = const_cast<Value*>(reducedVal);
-			else {
-				assert(reducedVal);
-				v = CreateBitRangeGet(b, reducedVal,
-						b->getInt64(reducedValOffset), kbri.srcWidth);
+			// cut bits before and after this chunk
+			auto useMask = vbc.useMask.lshr(actualWidth).trunc(kbri.srcWidth);
+			// value uses itself as a replacement = this was not replaced but may have some bits cut off
+			// :note: this is common for PHIs
+			assert(kbri.srcBeginBitI >= reducedBitCnt);
+			size_t chunkOffset = actualWidth;
+			size_t lastUsedIndex = 0;
+			// translate bit positions to reducedVal and select only those bits which really do exists, fill rest with undef
+			iterUsedBitRangeSlices(useMask,
+					[&lastUsedIndex, &kbri, &actualWidth, &reducedBitCnt,
+							&concatMembers, chunkOffset, b, reducedVal](
+							size_t offset, size_t chunkWidth) {
+						if (offset > lastUsedIndex) {
+							// add padding before this segment
+							assert(kbri.srcWidth > lastUsedIndex);
+							size_t unusedPrefixWidth = kbri.srcWidth
+									- lastUsedIndex;
+							auto *v = UndefValue::get(
+									IntegerType::getIntNTy(b->getContext(),
+											unusedPrefixWidth));
+							concatMembers.push_back(v);
+							actualWidth += unusedPrefixWidth;
+							reducedBitCnt += unusedPrefixWidth;
+						}
+						assert(chunkOffset + offset >= reducedBitCnt);
+						assert(reducedVal != nullptr);
+						auto *v = CreateBitRangeGetConst(b, reducedVal,
+								chunkOffset + offset - reducedBitCnt,
+								chunkWidth);
+						concatMembers.push_back(v);
+						actualWidth += chunkWidth;
+						lastUsedIndex = offset + chunkWidth;
+					});
+			if (lastUsedIndex != kbri.srcWidth) {
+				assert(kbri.srcWidth > lastUsedIndex);
+				size_t remainderWidth = kbri.srcWidth - lastUsedIndex;
+				auto *v = UndefValue::get(
+						IntegerType::getIntNTy(b->getContext(),
+								remainderWidth));
+				concatMembers.push_back(v);
+				actualWidth += remainderWidth;
+				reducedBitCnt += remainderWidth;
 			}
+
 		} else {
-			v = rewriteKnownBitRangeInfo(b, kbri);
+			auto *v = rewriteKnownBitRangeInfo(b, kbri);
+			concatMembers.push_back(v);
+			size_t w = v->getType()->getIntegerBitWidth();
+			actualWidth += w;
+			if (isa<ConstantInt>(kbri.src) || isa<UndefValue>(kbri.src)) {
+				// if it is constant it was removed from reducedVal and thus it should
+				// not be used in bit offset computation
+				reducedBitCnt += w;
+			}
 		}
-		concatMembers.push_back(v);
 	}
-	if (concatMembers.size() == 1)
-		return concatMembers[0];
 
 	return CreateBitConcat(b, concatMembers);
 }
 
 void BitPartsRewriter::rewriteInstructionOperands(llvm::Instruction *I) {
-	// store volatile i16 %val, i16* %ptr, align 2
 	unsigned opI = 0;
 	//PHINode *phi = dyn_cast<PHINode>(I);
 	//assert(!phi);
@@ -202,6 +236,9 @@ void BitPartsRewriter::rewriteInstructionOperands(llvm::Instruction *I) {
 			// if operand is a subject for replacement
 			// [fixme] phi instructions must always remain at the top of the block
 			auto newVal = rewriteIfRequired(_val);
+			//if (newVal == nullptr) {
+			//	_val->replaceAllUsesWith(UndefValue::get(_val->getType()));
+			//} else
 			if (_val != newVal) {
 				IRBuilder<> b(I);
 				_val = expandConstBits(&b, _val, newVal, *v->second);
@@ -275,9 +312,13 @@ llvm::Value* BitPartsRewriter::rewritePHINodeArgsIfRequired(
 	for (BasicBlock *pred : phi->blocks()) {
 		Value *val = phi->getIncomingValueForBlock(pred);
 		auto constr = constraints.find(val);
-		if (constr != constraints.end()) { // if operand is a subject for replacement
-				// [fixme] phi instructions must always remain at the top of the block
-				// at the end of the block where this value comes from
+		if (constr != constraints.end()) {
+			// if operand is a subject for replacement
+
+			// [fixme]  phi instructions must always remain at the top of the block
+			// at the end of the block where this value comes from
+
+			// resolve where value for phi node should be materialized
 			Instruction *insertPoint = nullptr;
 			for (BasicBlock::reverse_iterator pi = pred->rbegin();
 					pi != pred->rend(); ++pi) {
@@ -293,9 +334,12 @@ llvm::Value* BitPartsRewriter::rewritePHINodeArgsIfRequired(
 			if (insertPoint == nullptr) {
 				b.SetInsertPoint(&*pred->getFirstInsertionPt());
 			} else {
+				//assert(
+				//		BasicBlock::iterator(insertPoint) == insertPoint->getParent()->begin()
+				//				|| isa<PHINode>(insertPoint->getPrevNode()));
 				b.SetInsertPoint(insertPoint);
 			}
-
+			// materialize phi operand
 			val = rewriteKnownBitRangeInfoVector(&b,
 					iterUsedBitRanges(&b, vbc.useMask, *constr->second));
 

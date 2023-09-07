@@ -1,17 +1,20 @@
-#include "bitwidthReducePass.h"
-#include "utils.h"
+#include <hwtHls/llvm/Transforms/bitwidthReducePass/bitwidthReducePass.h>
+#include <algorithm>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/Analysis/GlobalsModRef.h>
-#include <algorithm>
-#include "constBitPartsAnalysis.h"
-#include "bitPartsUseAnalysis.h"
-#include "bitRewriter.h"
+#include <hwtHls/llvm/Transforms/bitwidthReducePass/constBitPartsAnalysis.h>
+#include <hwtHls/llvm/Transforms/bitwidthReducePass/bitPartsUseAnalysis.h>
+#include <hwtHls/llvm/Transforms/bitwidthReducePass/bitRewriter.h>
+#include <hwtHls/llvm/Transforms/bitwidthReducePass/utils.h>
+#include <hwtHls/llvm/Transforms/utils/dceWorklist.h>
+#include <hwtHls/llvm/Transforms/utils/bitSliceFlattening.h>
+#include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 
 using namespace llvm;
 
 namespace hwtHls {
 
-static bool runCBP(Function &F) {
+static bool runCBP(Function &F, TargetLibraryInfo *TLI) {
 	ConstBitPartsAnalysisContext A;
 	std::list<Instruction*> Worklist;
 	bool didModify = false;
@@ -46,13 +49,21 @@ static bool runCBP(Function &F) {
 			if (dyn_cast<StoreInst>(&I)
 					|| (dyn_cast<LoadInst>(&I)
 							&& dyn_cast<LoadInst>(&I)->isVolatile())
-					|| I.isTerminator()
-					|| I.isExceptionalTerminator() || dyn_cast<BranchInst>(&I)
-					|| dyn_cast<SwitchInst>(&I)) {
+					|| I.isTerminator() || I.isExceptionalTerminator()
+					|| dyn_cast<BranchInst>(&I) || dyn_cast<SwitchInst>(&I)) {
 				AU.updateUseMaskEntirelyUsed(&I);
 			}
 		}
 	}
+	//errs() << "runCBP\n";
+	//for (const auto& c: A.constraints) {
+	//	if (c.first->getType()->isIntegerTy()) {
+	//		errs() << c.first << " " << *c.first << "\n";
+	//		errs() << "    " << *c.second << "\n";
+	//	}
+	//}
+	//F.dump();
+	//llvm::SmallVector<CallInst*> concatsAndSlicesToRm;
 	BitPartsRewriter rew(A.constraints);
 	for (BasicBlock &BB : F) {
 		for (Instruction &I : BB) {
@@ -70,13 +81,46 @@ static bool runCBP(Function &F) {
 			}
 		}
 	}
+	// DCE
+	DceWorklist dce(TLI, nullptr);
+	for (BasicBlock &BB : F) {
+		for (auto I = BB.begin(); I != BB.end();) {
+			if (dce.tryRemoveIfDead(*I, I)) {
+				dce.runToCompletition(I);
+				didModify = true;
+			} else {
+				++I;
+			}
+		}
+	}
+
+	// rewriteExtractOnMergeValues + DCE
+	IRBuilder<> Builder(&*F.begin()->begin());
+	for (BasicBlock &BB : F) {
+		for (auto I = BB.begin(); I != BB.end();) {
+			if (CallInst *CI = dyn_cast<CallInst>(&*I)) {
+				if (IsBitRangeGet(CI)) {
+					if (rewriteExtractOnMergeValues(Builder, CI) != CI
+							&& dce.tryRemoveIfDead(*I, I)) {
+						dce.runToCompletition(I);
+						didModify = true;
+						continue;
+					}
+				}
+			}
+			++I;
+		}
+	}
+
 
 	return didModify;
 }
 
 llvm::PreservedAnalyses BitwidthReductionPass::run(llvm::Function &F,
 		llvm::FunctionAnalysisManager &AM) {
-	if (!runCBP(F)) {
+	TargetLibraryInfo *TLI = &AM.getResult<TargetLibraryAnalysis>(F);
+
+	if (!runCBP(F, TLI)) {
 		return PreservedAnalyses::all();
 	}
 

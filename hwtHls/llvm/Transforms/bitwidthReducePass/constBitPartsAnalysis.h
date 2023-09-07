@@ -11,10 +11,6 @@ namespace hwtHls {
  */
 class ConstBitPartsAnalysisContext {
 protected:
-	// :returns: a vector of pairs where first specifies the value of bits in segment and the second specifies length of segment
-	//   little endiand, lowest bit wirst.
-	std::vector<std::pair<bool, unsigned>> iter1and0sequences(
-			const llvm::APInt &c, unsigned offset, unsigned width);
 	void visitBinaryOperatorReduceAnd(std::vector<KnownBitRangeInfo> &newParts,
 			const llvm::BinaryOperator *parentI, unsigned width,
 			unsigned vSrcOffset, unsigned cSrcOffset, unsigned dstOffset, const llvm::APInt &c,

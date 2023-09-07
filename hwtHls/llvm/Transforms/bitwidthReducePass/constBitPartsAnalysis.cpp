@@ -1,6 +1,7 @@
-#include "constBitPartsAnalysis.h"
+#include <hwtHls/llvm/Transforms/bitwidthReducePass/constBitPartsAnalysis.h>
 #include <llvm/IR/IRBuilder.h>
-#include "targets/intrinsic/bitrange.h"
+#include <hwtHls/llvm/targets/intrinsic/bitrange.h>
+#include <hwtHls/llvm/bitMath.h>
 
 using namespace llvm;
 
@@ -63,6 +64,7 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitPHINode(const PHINode *I) {
 	}
 	return c;
 }
+
 VarBitConstraint& ConstBitPartsAnalysisContext::visitAsAllInputBitsUsedAllOutputBitsKnown(
 		const Value *V) {
 	// this function is called for every element which we do can not dissolve
@@ -78,6 +80,7 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitAsAllInputBitsUsedAllOutput
 
 	return *cur.get();
 }
+
 VarBitConstraint& ConstBitPartsAnalysisContext::visitValue(const Value *V) {
 	auto cur = constraints.find(V);
 	if (cur != constraints.end()) {
@@ -131,6 +134,7 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitTrunc(const CastInst *I) {
 	assert(cur.consystencyCheck());
 	return cur;
 }
+
 VarBitConstraint& ConstBitPartsAnalysisContext::visitZExt(const CastInst *I) {
 	constraints[I] = std::make_unique<VarBitConstraint>(I);
 	VarBitConstraint &cur = *constraints[I];
@@ -150,6 +154,7 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitZExt(const CastInst *I) {
 	assert(cur.consystencyCheck());
 	return cur;
 }
+
 VarBitConstraint& ConstBitPartsAnalysisContext::visitSExt(const CastInst *I) {
 	constraints[I] = std::make_unique<VarBitConstraint>(I);
 	VarBitConstraint &cur = *constraints[I];
@@ -238,38 +243,6 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitCallInst(
 		return visitAsAllInputBitsUsedAllOutputBitsKnown(C);
 	}
 }
-std::vector<std::pair<bool, unsigned>> ConstBitPartsAnalysisContext::iter1and0sequences(
-		const llvm::APInt &c, unsigned offset, unsigned width) {
-	assert(
-			width + offset <= c.getBitWidth()
-					&& "offset and width is there to slice the APInt value");
-	// if the bit in c is 0 the output bit should be also 0 else it is bit from v
-	int l_1 = -1; // start of 1 sequence, -1 as invalid value
-	int l_0 = -1; // start of 0 sequence, -1 as invalid value
-	unsigned endIndex = offset + width;
-	std::vector<std::pair<bool, unsigned>> res;
-	for (unsigned h = offset; h < endIndex; ++h) {
-		if (l_1 == -1 && c[h]) {
-			l_1 = h; // start of 1 sequence
-		} else if (l_0 == -1 && !c[h]) {
-			l_0 = h; // start of 0 sequence
-		}
-
-		bool last = h == endIndex - 1;
-		if (l_1 != -1 && (last || !c[h + 1])) {
-			// end of 1 sequence found
-			unsigned w = h - l_1 + 1;
-			res.push_back( { 1, w });
-			l_1 = -1; // reset start;
-		} else if (l_0 != -1 && (last || c[h + 1])) {
-			// end of 0 sequence found
-			unsigned w = h - l_0 + 1;
-			res.push_back( { 0, w });
-			l_0 = -1; // reset start;
-		}
-	}
-	return res;
-}
 
 void ConstBitPartsAnalysisContext::visitBinaryOperatorReduceAnd(
 		std::vector<KnownBitRangeInfo> &newParts, const BinaryOperator *parentI,
@@ -294,6 +267,7 @@ void ConstBitPartsAnalysisContext::visitBinaryOperatorReduceAnd(
 		vSrcOffset += w;
 	}
 }
+
 void ConstBitPartsAnalysisContext::visitBinaryOperatorReduceOr(
 		std::vector<KnownBitRangeInfo> &newParts, const BinaryOperator *parentI,
 		unsigned width, unsigned vSrcOffset, unsigned cSrcOffset,
@@ -319,6 +293,7 @@ void ConstBitPartsAnalysisContext::visitBinaryOperatorReduceOr(
 		vSrcOffset += w;
 	}
 }
+
 VarBitConstraint& ConstBitPartsAnalysisContext::visitBinaryOperator(
 		const BinaryOperator *I) {
 	auto opCode = I->getOpcode();
@@ -445,6 +420,7 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitBinaryOperator(
 	//}
 	return res;
 }
+
 VarBitConstraint& ConstBitPartsAnalysisContext::visitCmpInst(const CmpInst *I) {
 	constraints[I] = std::make_unique<VarBitConstraint>(I);
 	VarBitConstraint &res = *constraints[I];
