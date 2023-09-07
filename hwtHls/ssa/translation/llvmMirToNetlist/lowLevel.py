@@ -91,6 +91,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         self.registerTypes = registerTypes
         self.regToIo: Dict[Register, Interface] = {ioRegs[ai]: io for (ai, io) in self._argIToIo.items()}
         self.loops = loops
+        self.translatedBranchConditions: Dict[MachineBasicBlock, Dict[Register, HlsNetNodeOutAny]] = {}
         # register self in netlist analysis cache
         netlist._analysis_cache[self.__class__] = self
 
@@ -131,6 +132,8 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
             self.netlist,
             name=f"{namePrefix:s}_src")
         link_hls_nodes(val, wToOut._inputs[0])
+        oi = wToOut._addInput("orderingIn", True)
+        link_hls_nodes(rFromIn.obj.getOrderingOutPort(), oi)
         self.outputs.append(wToOut)
 
         wToOut.associateRead(rFromIn.obj)

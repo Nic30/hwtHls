@@ -3,6 +3,8 @@ from typing import Union, Optional, List, Tuple
 
 from hwtHls.llvm.llvmIr import MachineBasicBlock, Register
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
+from hwtHls.netlist.nodes.loopChannelGroup import LoopChanelGroup, \
+    HlsNetNodeWriteAnyChannel
 
 
 class MachineLoopId():
@@ -61,7 +63,17 @@ class MachineEdgeMeta():
         # MachineEdge can be only the (self.srcBlock, self.dstBlock)
         self.buffers: List[Tuple[Union[Register, MachineEdge], HlsNetNodeOut]] = []
         self.buffersForLoopExit: List[Tuple[MachineEdge, HlsNetNodeOut]] = []
+        self._loopChannelGroup: Optional[LoopChanelGroup] = None
 
+    def getLoopChannelGroup(self) -> LoopChanelGroup:
+        lcg = self._loopChannelGroup
+        if self._loopChannelGroup is None:
+            lcg = self._loopChannelGroup = LoopChanelGroup([(self.srcBlock.getNumber(), self.dstBlock.getNumber()), ])
+        return lcg
+
+    def loopChannelGroupAppendWrite(self, wn: HlsNetNodeWriteAnyChannel, isControl: bool):
+        self.getLoopChannelGroup().appendWrite(wn, isControl)
+    
     def getBufferForReg(self, dReg: Union[Register, MachineEdge]) -> HlsNetNodeOut:
         assert self.etype != MACHINE_EDGE_TYPE.DISCARDED, self
         for reg, r in self.buffers:
@@ -69,7 +81,7 @@ class MachineEdgeMeta():
                 return r
 
         raise AssertionError("Can not find buffer for ",
-                             ('r', dReg.virtRegIndex()) if isinstance(dReg, Register) else (dReg[0].getNumber(), '->', dReg[1].getNumber()),
+                             ('r', dReg.virtRegIndex()) if isinstance(dReg, Register) else ('control', dReg[0].getNumber(), '->', dReg[1].getNumber()),
                              "for bb", self.srcBlock.getNumber(), " -> bb", self.dstBlock.getNumber())
 
     def __repr__(self):

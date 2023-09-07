@@ -19,10 +19,11 @@ from hwtHls.netlist.nodes.orderable import HVoidData
 from hwtHls.netlist.nodes.ports import link_hls_nodes, HlsNetNodeOut, \
     HlsNetNodeOutLazy
 from hwtHls.ssa.translation.llvmMirToNetlist.branchOutLabel import BranchOutLabel
+from hwtHls.ssa.translation.llvmMirToNetlist.insideOfBlockSyncTracker import InsideOfBlockSyncTracker
 from hwtHls.ssa.translation.llvmMirToNetlist.lowLevel import HlsNetlistAnalysisPassMirToNetlistLowLevel
 from hwtHls.ssa.translation.llvmMirToNetlist.machineEdgeMeta import MachineEdgeMeta, MACHINE_EDGE_TYPE
-from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
 from hwtHls.ssa.translation.llvmMirToNetlist.utils import LiveInMuxMeta
+from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
 
 BlockLiveInMuxSyncDict = Dict[Tuple[MachineBasicBlock, MachineBasicBlock, Register], HlsNetNodeExplicitSync]
 
@@ -42,18 +43,23 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
         valCache: MirToHwtHlsNetlistValueCache = self.valCache
         builder: HlsNetlistBuilder = self.builder
         MRI = mf.getRegInfo()
+        assert not self.translatedBranchConditions
+
         for mb in mf:
             mb: MachineBasicBlock
             mbSync = self.blockSync[mb]
-
+            syncTracker = InsideOfBlockSyncTracker(mbSync.blockEn, builder)
+            translatedBranchConditions = self.translatedBranchConditions[mb] = {}
             # construct lazy output for liveIns in advance to assert that we have lazy input to replace later
             # with a liveIn mux
             seenLiveIns: Set[Register] = set()
+            blockBoudary = syncTracker.blockBoudary
             for pred in mb.predecessors():
                 for liveIn in sorted(self.liveness[pred][mb], key=lambda li: li.virtRegIndex()):
                     if self._regIsValidLiveIn(MRI, liveIn) and liveIn not in seenLiveIns:
                         dtype = Bits(self.registerTypes[liveIn])
-                        valCache.get(mb, liveIn, dtype)
+                        liveInO = valCache.get(mb, liveIn, dtype)
+                        blockBoudary.add(liveInO)
                         seenLiveIns.add(liveIn)
 
             for instr in mb:
@@ -72,28 +78,31 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                         if mo.isDef():
                             assert dst is None, (dst, instr)
                             dst = r
-                        elif r not in self.regToIo and MRI.def_empty(r):
-                            bw = self.registerTypes[r]
-                            ops.append(Bits(bw).from_py(None))
-                        else:
-                            if isLoadOrStore and i == 1:
-                                io = self.regToIo.get(r, None)
-                                if io is not None:
-                                    ops.append(io)
-                                    continue
+                        elif isLoadOrStore and i == 1:
+                            io = self.regToIo.get(r, None)
+                            if io is not None:
+                                ops.append(io)
+                                continue
 
-                                addrDefMO = MRI.getOneDef(r)
-                                assert addrDefMO is not None, instr
-                                addrDefInstr = addrDefMO.getParent()
-                                addrDefOpc = addrDefInstr.getOpcode()
-                                if addrDefOpc == TargetOpcode.HWTFPGA_GLOBAL_VALUE:
-                                    op = valCache._toHlsCache[(addrDefInstr.getParent(), addrDefMO.getReg())]
-                                elif addrDefOpc == TargetOpcode.HWTFPGA_ARG_GET:
-                                    op = self.regToIo()
-                                assert addrDefInstr.getOpcode() == TargetOpcode.HWTFPGA_GLOBAL_VALUE, addrDefInstr
-                                ops.append(op)
+                            addrDefMO = MRI.getOneDef(r)
+                            assert addrDefMO is not None, instr
+                            addrDefInstr = addrDefMO.getParent()
+                            addrDefOpc = addrDefInstr.getOpcode()
+                            assert addrDefOpc == TargetOpcode.HWTFPGA_GLOBAL_VALUE
+                            op = valCache._toHlsCache[(addrDefInstr.getParent(), addrDefMO.getReg())]
+                            ops.append(op)
+                        else:
+                            isUndef = r not in self.regToIo and MRI.def_empty(r)
+                            if not isUndef:
+                                rDef = MRI.getOneDef(r)
+                                isUndef = rDef is not None and rDef.getParent().getOpcode() == TargetOpcode.IMPLICIT_DEF
+
+                            if isUndef:
+                                bw = self.registerTypes[r]
+                                op = builder.buildConst(Bits(bw).from_py(None))
                             else:
-                                ops.append(self._translateRegister(mb, r))
+                                op = self._translateRegister(mb, r)
+                            ops.append(op)
 
                     elif mo.isMBB():
                         ops.append(self._translateMBB(mo.getMBB()))
@@ -113,13 +122,13 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                 else:
                     name = f"bb{mb.getNumber()}_r{dst.virtRegIndex():d}"
 
+                res = None
                 opDef = self.OPC_TO_OP.get(opc, None)
                 if opDef is not None:
                     resT = ops[0]._dtype
                     res = builder.buildOp(opDef, resT, *ops)
                     res.obj.name = name
                     valCache.add(mb, dst, res, True)
-                    continue
 
                 elif opc == TargetOpcode.HWTFPGA_MUX:
                     resT = ops[0]._dtype
@@ -151,7 +160,8 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                         constructor: HlsRead = ioNodeConstructors[srcIo][0]
                         if constructor is None:
                             raise AssertionError("The io without any read somehow requires read", srcIo, instr)
-                        constructor._translateMirToNetlist(constructor, self, mbSync, instr, srcIo, index, cond, dst)
+                        constructor._translateMirToNetlist(
+                            constructor, self, syncTracker, mbSync, instr, srcIo, index, cond, dst)
 
                 elif opc == TargetOpcode.HWTFPGA_CSTORE:
                     # store to data channel
@@ -159,7 +169,8 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                     constructor: HlsWrite = ioNodeConstructors[dstIo][1]
                     if constructor is None:
                         raise AssertionError("The io without any write somehow requires write", dstIo, instr)
-                    constructor._translateMirToNetlist(constructor, self, mbSync, instr, srcVal, dstIo, index, cond)
+                    constructor._translateMirToNetlist(
+                        constructor, self, syncTracker, mbSync, instr, srcVal, dstIo, index, cond)
 
                 elif opc == TargetOpcode.HWTFPGA_ICMP:
                     predicate, lhs, rhs = ops
@@ -172,9 +183,6 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                     res = builder.buildOp(opDef, BIT, lhs, rhs)
                     res.obj.name = name
                     valCache.add(mb, dst, res, True)
-
-                elif opc == TargetOpcode.HWTFPGA_BR or opc == TargetOpcode.HWTFPGA_BRCOND:
-                    pass  # will be translated in next step when control is generated, (condition was already translated)
 
                 elif opc == TargetOpcode.HWTFPGA_EXTRACT:
                     src, offset, width = ops
@@ -199,13 +207,29 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                     res.obj.name = name
                     valCache.add(mb, dst, res, True)
 
-                elif opc == TargetOpcode.PseudoRET:
-                    pass
                 elif opc == TargetOpcode.HWTFPGA_GLOBAL_VALUE:
                     assert len(ops) == 1, ops
                     res = ops[0]
                     res.obj.name = name
                     valCache.add(mb, dst, res, True)
+
+                elif opc == TargetOpcode.HWTFPGA_BR:
+                    pass
+
+                elif opc == TargetOpcode.HWTFPGA_BRCOND:
+                    c = instr.getOperand(0)
+                    assert c.isReg(), instr
+                    translatedBranchConditions[c.getReg()] = syncTracker.resolveControlOutput(ops[0])
+
+                elif opc == TargetOpcode.PseudoRET:
+                    pass
+
+                elif opc == TargetOpcode.IMPLICIT_DEF:
+                    assert not ops, ops
+                    BW = self.registerTypes[dst]
+                    v = Bits(BW).from_py(None)
+                    valCache.add(mb, dst, builder.buildConst(v), True)
+
                 else:
                     raise NotImplementedError(instr)
 
@@ -258,6 +282,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                     v = self.builder.buildConst(HVoidData.from_py(None))
                     v = self._constructBackedgeBuffer("c", predMb, sucMb, (predMb, sucMb), v, isControl=True)
                     wn = v.obj.associatedWrite
+                    edgeMeta.loopChannelGroupAppendWrite(wn, True)
 
                 elif edgeMeta.etype == MACHINE_EDGE_TYPE.FORWARD:
                     name = f"bb{predMb.getNumber()}_to_bb{sucMb.getNumber()}_c"
@@ -265,6 +290,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                     wn, rn = HlsNetNodeWriteForwardedge.createPredSucPair(self.netlist, name, HVoidData)
                     link_hls_nodes(v, wn._inputs[0])
                     v = rn._outputs[0]
+                    edgeMeta.loopChannelGroupAppendWrite(wn, True)
 
                 if v is not None:
                     edgeMeta.buffers.append(((predMb, sucMb), v))
@@ -317,12 +343,14 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                     v = valCache.get(predMb, liveIn, dtype)
 
                     wn = None
+                    isReusedAsControl = edgeMeta.reuseDataAsControl and liveIn == edgeMeta.reuseDataAsControl
                     if edgeMeta.etype == MACHINE_EDGE_TYPE.BACKWARD:
                         name = f"r{liveIn.virtRegIndex():d}"
                         v = self._constructBackedgeBuffer(name, predMb, sucMb, (predMb, liveIn), v)
                         blockLiveInMuxInputSync[(predMb, sucMb, liveIn)] = v.obj
                         wn = v.obj.associatedWrite
                         edgeMeta.buffers.append((liveIn, v))
+                        edgeMeta.loopChannelGroupAppendWrite(wn, isReusedAsControl)
 
                     elif edgeMeta.etype == MACHINE_EDGE_TYPE.FORWARD:
                         # rstPredeccessor are not resolve yet we generate this read-write pair but we may
@@ -334,6 +362,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                         # predMbSync.addOrderedNode(wn, atEnd=True)
                         v = rn._outputs[0]
                         edgeMeta.buffers.append((liveIn, v))
+                        edgeMeta.loopChannelGroupAppendWrite(wn, isReusedAsControl)
 
                     if wn is not None:
                         # write to channel only if the control flow will mobe to mb
@@ -350,17 +379,20 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
 
         return blockLiveInMuxInputSync
 
+    # [todo] rm because it is handled when liveness dict is generated
     def _regIsValidLiveIn(self, MRI: MachineRegisterInfo, liveIn: Register):
         if liveIn in self.regToIo:
-            return False  # we will use interface not the value of address where it is mappend
+            return False  # we will use interface not the value of address where it is mapped
         if MRI.def_empty(liveIn):
             return False  # this is just form of undefined value (which is represented as constant)
 
         oneDef = MRI.getOneDef(liveIn)
         if oneDef is not None:
             defInstr = oneDef.getParent()
-            if defInstr.getOpcode() in (TargetOpcode.HWTFPGA_GLOBAL_VALUE, TargetOpcode.HWTFPGA_ARG_GET):
-                return False  # this is a pointer to a local memory which exists globaly
+            if defInstr.getOpcode() in (TargetOpcode.HWTFPGA_GLOBAL_VALUE,
+                                        TargetOpcode.HWTFPGA_ARG_GET,
+                                        TargetOpcode.IMPLICIT_DEF):
+                return False  # this is a pointer to a local memory which exists globally
         return True
 
     def updateThreadsOnLiveInMuxes(self, threads: HlsNetlistAnalysisPassDataThreadsForBlocks):

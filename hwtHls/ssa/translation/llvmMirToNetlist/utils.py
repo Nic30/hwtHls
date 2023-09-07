@@ -9,6 +9,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes, \
     HlsNetNodeOutLazy, HlsNetNodeOut
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
 from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge
+from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeReadAnyChannel
 
 
 class LiveInMuxMeta():
@@ -62,7 +63,7 @@ def HlsNetNodeExplicitSyncInsertBehindLazyOut(netlist: "HlsNetlistCtx",
 
 # tuples (controlEn, controlObj, allInputDataChannels)
 LoopPortGroup = List[Tuple[HlsNetNodeOutAny,
-                           Union[HlsNetNodeReadForwardedge, HlsNetNodeReadBackedge],
+                           HlsNetNodeReadAnyChannel,
                            List[HlsNetNodeExplicitSync]]]
 
 
@@ -77,15 +78,12 @@ def _createSyncForAnyInputSelector(builder: HlsNetlistBuilder,
     """
     anyPrevVld = None
     for last, (vld, controlPort, data) in iter_with_last(inputCases):
-        convertedToNb = False
-        if isinstance(controlPort, HlsNetNodeReadBackedge):
-            controlPort: HlsNetNodeReadBackedge
-            controlPort.setNonBlocking()
-            # vld: HlsNetNodeOut = controlPort.getValidNB()
-            convertedToNb = True
-        else:
-            controlPort: HlsNetNodeExplicitSync
-            # vld: HlsNetNodeOut = builder.buildReadSync(control.dependsOn[0])
+        # convertedToNb = False
+        assert isinstance(controlPort, (HlsNetNodeReadBackedge, HlsNetNodeReadForwardedge)), controlPort
+        controlPort: HlsNetNodeReadBackedge
+        controlPort.setNonBlocking()
+        # vld: HlsNetNodeOut = controlPort.getValidNB()
+        # convertedToNb = True
 
         # the actual value of controlSrc is not important there because
         # it is interpreted by the circuit, there we only need to provide any data for rest of the circuit
@@ -93,9 +91,9 @@ def _createSyncForAnyInputSelector(builder: HlsNetlistBuilder,
         # controlPort.addControlSerialSkipWhen(externalEn_n)
 
         if anyPrevVld is None:
-            #if last or convertedToNb:
+            # if last or convertedToNb:
             #    cEn = 1
-            #else:
+            # else:
             #    cEn = vld_n
 
             # first item
@@ -104,9 +102,9 @@ def _createSyncForAnyInputSelector(builder: HlsNetlistBuilder,
                 dSw = builder.buildAnd(externalEn, builder.buildNot(vld))
             anyPrevVld = vld
         else:
-            #if last or convertedToNb:
+            # if last or convertedToNb:
             #    cEn = anyPrevVld
-            #else:
+            # else:
             #    cEn = builder.buildOr(anyPrevVld, vld_n)
 
             if data:
@@ -115,15 +113,17 @@ def _createSyncForAnyInputSelector(builder: HlsNetlistBuilder,
                 dSw = builder.buildAnd(externalEn, builder.buildNot(en))
             anyPrevVld = builder.buildOr(anyPrevVld, vld)
 
-        #if isinstance(cEn, int):
+        # if isinstance(cEn, int):
         #    assert cEn == 1, cEn
         #    cEn = externalEn_n
-        #else:
+        # else:
         #    cEn = builder.buildOr(externalEn_n, cEn)
 
         # controlPort.addControlSerialSkipWhen(cEn)
         for liveInSync in data:
             liveInSync: HlsNetNodeExplicitSync
+            if liveInSync is controlPort:
+                continue
             liveInSync.addControlSerialExtraCond(dEn)
             liveInSync.addControlSerialSkipWhen(dSw)
 

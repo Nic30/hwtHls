@@ -1,12 +1,15 @@
-from typing import Tuple, Set, List, Optional, Union
+from typing import Tuple, Set, List, Optional, Union, Dict
 
+from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.hdl.types.defs import BIT
+from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, \
-    MachineInstr, TargetOpcode
+    MachineInstr, TargetOpcode, Register
 from hwtHls.netlist.analysis.dataThreadsForBlocks import HlsNetlistAnalysisPassDataThreadsForBlocks
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge, \
     HlsNetNodeReadBackedge
+from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, HlsNetNodeOutLazy, \
     HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
@@ -16,18 +19,18 @@ from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import Machin
 from hwtHls.ssa.translation.llvmMirToNetlist.machineEdgeMeta import MachineEdgeMeta, \
     MACHINE_EDGE_TYPE
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
-from hdlConvertorAst.to.hdlUtils import iter_with_last
-from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
-from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 
 
-def _mregeBrachOutConditions(builder: HlsNetlistBuilder, mbEn: Optional[HlsNetNodeOutAny], anyPrevBranchEn: Union[HlsNetNodeOutAny, None, NOT_SPECIFIED], brCond: Optional[HlsNetNodeOutAny]):
+def _mergeBrachOutConditions(builder: HlsNetlistBuilder,
+                             mbEn: Optional[HlsNetNodeOutAny],
+                             anyPrevBranchEn: Union[HlsNetNodeOutAny, None, NOT_SPECIFIED],
+                             brCond: Optional[HlsNetNodeOutAny]):
     """
     This function merges condition flags which are used to resolve if the jump should be performed or not.
     
-    :param mbEn: enable of the block from which brach jumps
-    :param anyPrevBranchEn: any previus brach caused that this brach is not performed
-    :param brCond: this brach should be executed
+    :param mbEn: enable of the block from which branch jumps
+    :param anyPrevBranchEn: any previous branch caused that this branch is not performed
+    :param brCond: this branch should be executed
     """
     if anyPrevBranchEn is None or anyPrevBranchEn is NOT_SPECIFIED:
         if brCond is None and mbEn is None:
@@ -53,12 +56,17 @@ def _mregeBrachOutConditions(builder: HlsNetlistBuilder, mbEn: Optional[HlsNetNo
 
 
 def _resolveBranchOutLabels(self: "HlsNetlistAnalysisPassMirToNetlist", mb: MachineBasicBlock,
-                                    mbSync: MachineBasicBlockMeta,):
-    
+                            mbSync: MachineBasicBlockMeta,
+                            translatedBranchConditions: Dict[Register, HlsNetNodeOutAny]):
+    """
+    For specified block resolve BranchOutLabel for every exit from this block.
+    BranchOutLabel holds the condition under which jump to a specific target is performed.
+    """
+
     valCache = self.valCache
     builder = self.builder
     mbEn = mbSync.blockEn
-    anyPrevBranchEn: Union[HlsNetNodeOutAny, NOT_SPECIFIED, None] = NOT_SPECIFIED 
+    anyPrevBranchEn: Union[HlsNetNodeOutAny, NOT_SPECIFIED, None] = NOT_SPECIFIED
     brCond = None
     for last, ter in iter_with_last(mb.terminators()):
         ter: MachineInstr
@@ -73,33 +81,35 @@ def _resolveBranchOutLabels(self: "HlsNetlistAnalysisPassMirToNetlist", mb: Mach
             c, dstBlock = ter.operands()
             assert c.isReg(), c
             assert dstBlock.isMBB(), dstBlock
-            brCond = self._translateRegister(mb, c.getReg())
+            brCond = translatedBranchConditions[c.getReg()]
+            if isinstance(brCond, HlsNetNodeOutLazy):
+                brCond = brCond.getLatestReplacement()
             dstBlock = dstBlock.getMBB()
 
         elif opc == TargetOpcode.PseudoRET:
-            assert last
+            assert last, ("return must be last instruction in block", ter)
             return
         else:
             raise NotImplementedError("Unknown terminator", ter)
 
-        _brCond = _mregeBrachOutConditions(builder, mbEn, anyPrevBranchEn, brCond)
+        _brCond = _mergeBrachOutConditions(builder, mbEn, anyPrevBranchEn, brCond)
         valCache.add(mb, BranchOutLabel(dstBlock), _brCond, False)  # the BranchOutLabel is set only once
 
         if brCond is None:
-            anyPrevBranchEn = None  # there must not be any other branch 
+            anyPrevBranchEn = None  # there must not be any other branch
         elif anyPrevBranchEn is NOT_SPECIFIED:
             anyPrevBranchEn = brCond
         else:
             assert anyPrevBranchEn is not None, "Must not request another branch after HWTFPGA_BR and others"
             anyPrevBranchEn = builder.buildOr(anyPrevBranchEn, brCond)
-    
+
     if mb.canFallThrough():
         dstBlock = mb.getFallThrough(False)
         brCond = None  # beause now it is default jump
-        _brCond = _mregeBrachOutConditions(builder, mbEn, anyPrevBranchEn, brCond)
+        _brCond = _mergeBrachOutConditions(builder, mbEn, anyPrevBranchEn, brCond)
         valCache.add(mb, BranchOutLabel(dstBlock), _brCond, False)  # the BranchOutLabel is set only once
 
-    
+
 def _resolveBranchEnFromPredecessor(self: "HlsNetlistAnalysisPassMirToNetlist",
                                     pred: MachineBasicBlock,
                                     mb: MachineBasicBlock,
@@ -128,7 +138,7 @@ def _resolveBranchEnFromPredecessor(self: "HlsNetlistAnalysisPassMirToNetlist",
     curInMb = valCache.get(mb, pred, BIT)
     if not isinstance(curInMb, HlsNetNodeOutLazy):
         return curInMb, fromPredBrCondInPred
-        
+
     if dataUsedAsControl is None:
         if edgeMeta.etype in (MACHINE_EDGE_TYPE.FORWARD, MACHINE_EDGE_TYPE.BACKWARD):
             # we need to insert backedge buffer to get block en flag from pred to mb
@@ -145,6 +155,7 @@ def _resolveBranchEnFromPredecessor(self: "HlsNetlistAnalysisPassMirToNetlist",
                 # we must add CFG token because we removed rst predecessor and now
                 # the circuit does not have way to start
                 wn.channelInitValues = (tuple(),)
+            # edgeMeta.loopChannelGroupAppendWrite(wn, True)
         else:
             fromPredBrCondInMb = fromPredBrCondInPred
 
@@ -170,10 +181,9 @@ def _resolveBranchEnFromPredecessor(self: "HlsNetlistAnalysisPassMirToNetlist",
 
 
 def _resolveEnFromPredecessors(self: "HlsNetlistAnalysisPassMirToNetlist", mb: MachineBasicBlock,
-                               mbSync: MachineBasicBlockMeta,
-                               backedges: Set[Tuple[MachineBasicBlock, MachineBasicBlock]]) -> List[HlsNetNodeOutLazy]:
+                               mbSync: MachineBasicBlockMeta) -> List[HlsNetNodeOutLazy]:
     """
-    :note: we generate enFromPredccs even if the block does not need control because it may still require require enFromPredccs
+    :note: enFromPredccs is generated even if the block does not need control because it may still require require enFromPredccs
         for input MUXes
     :return: list of control en flag from any predecessor
     """
@@ -215,7 +225,7 @@ def _resolveEnFromPredecessors(self: "HlsNetlistAnalysisPassMirToNetlist", mb: M
             w: HlsNetNodeWriteBackedge = rVal.obj.associatedWrite
             self._addExtraCond(w, 1, fromPredBrCondInPred)
             self._addSkipWhen_n(w, 1, fromPredBrCondInPred)
-        
+
         isLoopHeader = mbSync.needsControl and mbSync.isLoopHeader and not mbSync.isLoopHeaderOfFreeRunning
         if edgeMeta.etype == MACHINE_EDGE_TYPE.DISCARDED:
             c1 = builder.buildConstBit(1)
@@ -242,12 +252,12 @@ def _resolveEnFromPredecessors(self: "HlsNetlistAnalysisPassMirToNetlist", mb: M
 
 
 def resolveBlockEn(self: "HlsNetlistAnalysisPassMirToNetlist", mf: MachineFunction,
-                   threads: HlsNetlistAnalysisPassDataThreadsForBlocks):
+                   threads: HlsNetlistAnalysisPassDataThreadsForBlocks,
+                   translatedBranchConditions: Dict[MachineBasicBlock, Dict[Register, HlsNetNodeOutAny]]):
     """
     Resolve control flow enable for instructions in the block.
     """
     builder = self.builder
-    backedges: Set[Tuple[MachineBasicBlock, MachineBasicBlock]] = self.backedges
     for mb in mf:
         mb: MachineBasicBlock
         # resolve control enable flag for a block
@@ -264,7 +274,7 @@ def resolveBlockEn(self: "HlsNetlistAnalysisPassMirToNetlist", mf: MachineFuncti
                 # no en and extract the constants set there as a reset values
                 blockEn = None
         else:
-            enFromPredccs = _resolveEnFromPredecessors(self, mb, mbSync, backedges)
+            enFromPredccs = _resolveEnFromPredecessors(self, mb, mbSync)
 
             if enFromPredccs and mbSync.needsControl:
                 if None in enFromPredccs:
@@ -297,6 +307,6 @@ def resolveBlockEn(self: "HlsNetlistAnalysisPassMirToNetlist", mf: MachineFuncti
 
         assert mbSync.blockEn.replaced_by is blockEn or not mbSync.blockEn.dependent_inputs, (mbSync.blockEn, blockEn)
         mbSync.blockEn = blockEn
-        if blockEn is not None and blockEn.obj.name is None and isinstance(blockEn.obj, HlsNetNodeOperator):
+        if blockEn is not None and not isinstance(blockEn, HlsNetNodeOutLazy) and blockEn.obj.name is None and isinstance(blockEn.obj, HlsNetNodeOperator):
             blockEn.obj.name = f"bb{mb.getNumber():d}_en"
-        _resolveBranchOutLabels(self, mb, mbSync)
+        _resolveBranchOutLabels(self, mb, mbSync, translatedBranchConditions[mb])
