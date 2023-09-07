@@ -1,3 +1,8 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+from typing import Callable
+
 from hwt.hdl.constants import WRITE, READ
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.defs import BIT
@@ -12,13 +17,16 @@ from hwtHls.frontend.pyBytecode.markers import PyBytecodeLLVMLoopUnroll, \
     PyBytecodeInline
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.io.bram import BramArrayProxy, HlsNetNodeWriteBramCmd
+from hwtHls.io.portGroups import MultiPortGroup
+from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.scope import HlsScope
 from hwtLib.mem.ram import RamSingleClock
-from typing import Callable
-from hwtHls.netlist.context import HlsNetlistCtx
 
 
-class CounterArray0(Unit):
+class BramCounterArray0nocheck(Unit):
+    """
+    Array of couters stored in bram without any data consystency handling.
+    """
 
     def _config(self) -> None:
         self.ITEMS = Param(4)
@@ -62,14 +70,14 @@ class CounterArray0(Unit):
     def _impl(self) -> None:
         propagateClkRstn(self)
         hls = HlsScope(self)
-        ram = BramArrayProxy(hls, tuple(self.ram.port))
+        ram = BramArrayProxy(hls, MultiPortGroup(*self.ram.port))
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, ram)
-        # mainThread.bytecodeToSsa.debug = True
         hls.addThread(mainThread)
         hls.compile()
+        assert len(hls._threads[0].toHw.scheduler.resourceUsage) == 2, "Intended only for 2 cycle operation"
 
 
-class CounterArray1(CounterArray0):
+class BramCounterArray1hardcodedlsu(BramCounterArray0nocheck):
     """
     Array counter with manually instantiated LSU for 1 clock write->read latency
     """
@@ -95,7 +103,16 @@ class CounterArray1(CounterArray0):
             # PyBytecodeLLVMLoopUnroll(True, 2)
 
 
-class CounterArray2(CounterArray0):
+class BramCounterArray3stall(BramCounterArray0nocheck):
+    """
+    Store last N addresses and stall read if current read address in in last N addresses.
+    Stalling of read is done using extraCond flag.
+    Flust of last N address pipeline happends every clock. It is implemented using non blocking read of control
+    from block where read is.
+    """
+
+
+class BramCounterArray3autoLsu(BramCounterArray0nocheck):
     """
     Array counter with automatically instantiated LSU for write->read latency.
     """
@@ -133,6 +150,7 @@ class CounterArray2(CounterArray0):
             """
             modified = runHlsNetlistPostSchedulingPasses(hls, netlist)
             r, w, rToWClkDiff = self.detectBramRMW(ram, netlist)
+            # create last N address pipeline
             raise NotImplementedError()
 
             return modified
@@ -158,6 +176,6 @@ if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.xilinx.artix7 import Artix7Slow
     from hwtHls.platform.platform import HlsDebugBundle
-    u = CounterArray2()
+    u = BramCounterArray1hardcodedlsu()
     print(to_rtl_str(u, target_platform=Artix7Slow(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
