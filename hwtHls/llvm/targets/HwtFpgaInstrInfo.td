@@ -62,6 +62,8 @@ def HWTFPGA_MUX : HwtFpgaInst<
     []>; // no pattern because we match in C++
 }
 
+// conditional instructions must have input register because it needs to be noted that the previous value in rgister is  required,
+// let Constraints = "$src = $dst"
 let mayLoad = 1, canFoldAsLoad=1, hasSideEffects = 0, isPredicable = 1, isNotDuplicable = 1 in {
 // conditional load
 def HWTFPGA_CLOAD : HwtFpgaInst<
@@ -85,25 +87,29 @@ def PseudoRET :  HwtFpgaInst<(outs), (ins variable_ops), []>;
 // :attention: these codes are used only for final output so satisfy that the selected code does not contain
 //  generic opcodes, however the generic opcodes are retained after selection until last step so it is possible
 //  to use LLVM combiners
+let isCommutable = 1, hasSideEffects = 0 in {
+	def HWTFPGA_ADD : HwtFpgaBinOp;
+	def HWTFPGA_AND : HwtFpgaBinOp;
+	def HWTFPGA_OR : HwtFpgaBinOp;
+	def HWTFPGA_XOR : HwtFpgaBinOp;
+	def HWTFPGA_MUL : HwtFpgaBinOp;
+}
+
 let hasSideEffects = 0 in {
-def HWTFPGA_GLOBAL_VALUE : HwtFpgaInst<
-    (outs type0:$dst),
-    (ins unknown:$src),
-    []>;
-def HWTFPGA_ADD : HwtFpgaBinOp;
-def HWTFPGA_AND : HwtFpgaBinOp;
-def HWTFPGA_MUL : HwtFpgaBinOp;
-def HWTFPGA_UDIV : HwtFpgaBinOp;
-def HWTFPGA_SDIV : HwtFpgaBinOp;
-def HWTFPGA_UREM : HwtFpgaBinOp;
-def HWTFPGA_SREM : HwtFpgaBinOp;
-def HWTFPGA_OR : HwtFpgaBinOp;
-def HWTFPGA_SUB : HwtFpgaBinOp;
-def HWTFPGA_XOR : HwtFpgaBinOp;
-def HWTFPGA_ICMP : HwtFpgaInst<
-    (outs type0:$dst),
-    (ins unknown:$tst, type1:$src1, type1:$src2),
-    []>;
+	def HWTFPGA_GLOBAL_VALUE : HwtFpgaInst<
+	    (outs type0:$dst),
+	    (ins unknown:$src),
+	    []>;
+	def HWTFPGA_UDIV : HwtFpgaBinOp;
+	def HWTFPGA_SDIV : HwtFpgaBinOp;
+	def HWTFPGA_UREM : HwtFpgaBinOp;
+	def HWTFPGA_SREM : HwtFpgaBinOp;
+	
+	def HWTFPGA_SUB : HwtFpgaBinOp;
+	def HWTFPGA_ICMP : HwtFpgaInst<
+	    (outs type0:$dst),
+	    (ins unknown:$tst, type1:$src1, type1:$src2),
+	    []>;
 }
 
 def HWTFPGA_BR : HwtFpgaInst<
@@ -125,4 +131,3 @@ def HWTFPGA_BRCOND : HwtFpgaInst<
     	let isTerminator = true;
     }
 
-		
