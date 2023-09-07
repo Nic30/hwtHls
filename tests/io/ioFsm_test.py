@@ -8,8 +8,9 @@ from hwt.synthesizer.unit import Unit
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtSimApi.constants import CLK_PERIOD
 from tests.frontend.ast.trivial_test import HlsAstTrivial_TC
-from tests.io.ioFsm import WriteFsm0, WriteFsm0Once, WriteFsm1, WriteFsm1Once, \
-    ReadFsm0, ReadFsm0Once, ReadFsm1, ReadFsm1Once
+from tests.io.ioFsm import WriteFsm0Send123, WriteFsm0WhileTrue123, WriteFsm1WhileTrue123hs, WriteFsm1Send123hs, \
+    ReadFsm0WhileTrueRead3TimesWriteConcat, ReadFsm0Read3TimesWriteConcat, ReadFsm1Read3TimesWriteConcatHs, \
+    ReadFsm1WhileTrueRead3TimesWriteConcatHs
 
 
 class IoFsm_TC(SimTestCase):
@@ -25,24 +26,24 @@ class IoFsm_TC(SimTestCase):
 
         self.assertValSequenceEqual(u.o._ag.data, ref)
 
-    def test_WriteFsm0(self, cls=WriteFsm0, ref=[1, 2, 3, 1, 2, 3, 1], CLK=8):
+    def test_WriteFsm0WhileTrue123(self, cls=WriteFsm0WhileTrue123, ref=[1, 2, 3, 1, 2, 3, 1], CLK=8):
         self._test_Write(cls, ref, CLK)
 
-    def test_WriteFsm0Once(self, cls=WriteFsm0Once, ref=[1, 2, 3, None, None, None, None], CLK=8):
+    def test_WriteFsm0Send123(self, cls=WriteFsm0Send123, ref=[1, 2, 3, None, None, None, None], CLK=8):
         self._test_Write(cls, ref, CLK)
 
-    def test_WriteFsm1(self):
-        self.test_WriteFsm0(cls=WriteFsm1)
+    def test_WriteFsm1WhileTrue123hs(self):
+        self.test_WriteFsm0WhileTrue123(cls=WriteFsm1WhileTrue123hs)
 
-    def test_WriteFsm1Once(self):
-        self.test_WriteFsm0Once(cls=WriteFsm1Once, ref=[1, 2, 3])
+    def test_WriteFsm1Send123hs(self):
+        self.test_WriteFsm0Send123(cls=WriteFsm1Send123hs, ref=[1, 2, 3])
 
     def make3(self, v0, v1, v2):
         u = self.u
         return (v2 << 2 * u.DATA_WIDTH) | (v1 << u.DATA_WIDTH) | v0
 
-    def test_ReadFsm0(self):
-        u = ReadFsm0()
+    def test_ReadFsm0WhileTrueRead3TimesWriteConcat(self):
+        u = ReadFsm0WhileTrueRead3TimesWriteConcat()
         CLK = 8
 
         self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
@@ -59,8 +60,8 @@ class IoFsm_TC(SimTestCase):
 
         self.assertValSequenceEqual(u.o._ag.data, ref)
 
-    def test_ReadFsm0Once(self):
-        u = ReadFsm0Once()
+    def test_ReadFsm0Read3TimesWriteConcat(self):
+        u = ReadFsm0Read3TimesWriteConcat()
 
         CLK = 8
 
@@ -76,8 +77,8 @@ class IoFsm_TC(SimTestCase):
 
         self.assertValSequenceEqual(u.o._ag.data, ref)
 
-    def test_ReadFsm1(self):
-        u = ReadFsm1()
+    def test_ReadFsm1WhileTrueRead3TimesWriteConcatHs(self):
+        u = ReadFsm1WhileTrueRead3TimesWriteConcatHs()
         CLK = 8
         self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
         u.i._ag.data.extend(i + 1 for i in range(CLK))
@@ -90,8 +91,8 @@ class IoFsm_TC(SimTestCase):
 
         self.assertValSequenceEqual(u.o._ag.data, ref)
 
-    def test_ReadFsm1Once(self):
-        u = ReadFsm1Once()
+    def test_ReadFsm1Read3TimesWriteConcatHs(self):
+        u = ReadFsm1Read3TimesWriteConcatHs()
 
         CLK = 8
         self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())

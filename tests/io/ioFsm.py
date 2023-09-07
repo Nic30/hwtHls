@@ -13,7 +13,7 @@ from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.scope import HlsScope
 
 
-class WriteFsm0(Unit):
+class WriteFsm0WhileTrue123(Unit):
 
     def _config(self) -> None:
         self.DATA_WIDTH = Param(8)
@@ -41,7 +41,7 @@ class WriteFsm0(Unit):
 
 
 
-class WriteFsm0Once(WriteFsm0):
+class WriteFsm0Send123(WriteFsm0WhileTrue123):
 
     def _impl(self) -> None:
         hls = HlsScope(self)
@@ -56,7 +56,7 @@ class WriteFsm0Once(WriteFsm0):
         hls.compile()
 
 
-class WriteFsm1(WriteFsm0):
+class WriteFsm1WhileTrue123hs(WriteFsm0WhileTrue123):
 
     def _declr(self):
         addClkRstn(self)
@@ -66,13 +66,13 @@ class WriteFsm1(WriteFsm0):
         self.o.T = Bits(self.DATA_WIDTH)
 
 
-class WriteFsm1Once(WriteFsm1):
+class WriteFsm1Send123hs(WriteFsm1WhileTrue123hs):
 
     def _impl(self) -> None:
-        WriteFsm0Once._impl(self)
+        WriteFsm0Send123._impl(self)
 
 
-class ReadFsm0(Unit):
+class ReadFsm0WhileTrueRead3TimesWriteConcat(Unit):
 
     def _config(self) -> None:
         self.DATA_WIDTH = Param(8)
@@ -100,7 +100,7 @@ class ReadFsm0(Unit):
 
 
 
-class ReadFsm0Once(ReadFsm0):
+class ReadFsm0Read3TimesWriteConcat(ReadFsm0WhileTrueRead3TimesWriteConcat):
 
     def _impl(self) -> None:
         hls = HlsScope(self)
@@ -115,7 +115,7 @@ class ReadFsm0Once(ReadFsm0):
 
 
 
-class ReadFsm1(ReadFsm0):
+class ReadFsm1WhileTrueRead3TimesWriteConcatHs(ReadFsm0WhileTrueRead3TimesWriteConcat):
 
     def _declr(self):
         addClkRstn(self)
@@ -127,10 +127,10 @@ class ReadFsm1(ReadFsm0):
         self.o.T = Bits(3 * self.DATA_WIDTH)
 
 
-class ReadFsm1Once(ReadFsm1):
+class ReadFsm1Read3TimesWriteConcatHs(ReadFsm1WhileTrueRead3TimesWriteConcatHs):
 
     def _impl(self) -> None:
-        ReadFsm0Once._impl(self)
+        ReadFsm0Read3TimesWriteConcat._impl(self)
 
 
 if __name__ == "__main__":
@@ -138,5 +138,5 @@ if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
 
-    u = WriteFsm1()
+    u = WriteFsm1WhileTrue123hs()
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
