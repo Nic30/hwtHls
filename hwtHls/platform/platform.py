@@ -30,7 +30,6 @@ from hwtHls.netlist.transformation.betweenSyncIslandsMerge import HlsNetlistPass
 from hwtHls.netlist.transformation.constNodeDuplication import HlsNetlistPassConstNodeDuplication
 from hwtHls.netlist.transformation.createIoClusters import HlsNetlistPassCreateIoClusters
 from hwtHls.netlist.transformation.disaggregateAggregates import HlsNetlistPassDisaggregateAggregates
-from hwtHls.netlist.transformation.injectVldMaskToSkipWhenConditions import HlsNetlistPassInjectVldMaskToSkipWhenConditions
 from hwtHls.netlist.transformation.moveExplicitSyncOutOfDataAndAddVoidDataLinks import HlsNetlistPassMoveExplicitSyncOutOfDataAndAddVoidDataLinks
 from hwtHls.netlist.transformation.readSyncToAckOfIoNodes import HlsNetlistPassReadSyncToAckOfIoNodes
 from hwtHls.netlist.transformation.romDeduplication import HlsNetlistPassRomDeduplication
@@ -46,8 +45,6 @@ from hwtHls.netlist.translation.dumpSchedulingJson import HlsNetlistPassDumpSche
 from hwtHls.netlist.translation.dumpSyncDomainsDot import HlsNetlistPassDumpSyncDomainsDot
 from hwtHls.platform.fileUtils import outputFileGetter
 from hwtHls.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
-from hwtHls.ssa.transformation.axiStreamLowering.axiStreamReadLoweringPass import SsaPassAxiStreamReadLowering
-from hwtHls.ssa.transformation.axiStreamLowering.axiStreamWriteLowering import SsaPassAxiStreamWriteLowering
 from hwtHls.ssa.translation.dumpMIR import SsaPassDumpMIR
 from hwtHls.ssa.translation.dumpMirCfg import SsaPassDumpMirCfg
 from hwtHls.ssa.translation.llvmMirToNetlist.datapath import BlockLiveInMuxSyncDict
@@ -64,7 +61,7 @@ class HlsDebugBundle():
     :note: if the number N in DBG_N_* is the same it means that these debug options are working with the same input
     """
     DEFAULT_DEBUG_DIR = "tmp"
-    
+
     DBG_0_pyFrontedBytecode = (None, "00.bytecode.{0}.txt")  # bytecode for every translated function
     DBG_0_pyFrontedBeginCfg = (None, "00.cfg.begin.{0}.dot")  # initial CFG after parsing of bytecode
     DBG_0_pyFrontedPreprocCfg = (None, "00.cfg.{0}.dot")  # step by step CFG during preprocessor evaluation
@@ -253,6 +250,40 @@ class DefaultHlsPlatform(DummyPlatform):
         self.scheduler = HlsScheduler
         self._debug = HlsDebugBundle(debugDir, debugFilter)
         self._debugExpandCompositeNodes = False
+        self._llvmCliArgs:List[Tuple[str, int, str, str]] = [
+            # ("debug-pass", 0, "", "Arguments"), # print used passes starting from machinemoduleinfo
+            # ("print-before-all", 0, "", "true"),
+            # ("print-after-all", 0, "", "true"),
+            # ("print-before", 0, "", "machine-sink"),
+            # ("print-after", 0, "", "machine-sink"),
+            # ("view-dag-combine1-dags", 0, "", "true"),
+            # ("view-legalize-types-dags", 0, "", "true"),
+            # ("view-dag-combine-lt-dags", 0, "", "true"),
+            # ("view-legalize-dags", 0, "", "true"),
+            # ("view-dag-combine2-dags", 0, "", "true"),
+            # ("view-isel-dags", 0, "", "true"),
+            # ("view-sched-dags", 0, "", "true"),
+            # ("view-sunit-dags", 0, "", "true"),
+            # ("print-after-isel", 0, "", "true"),
+            # ("debug-only", 0, "", "mir-canonicalizer"), # :note: available only in llvm debug build #"early-ifcvt-limit"
+            # ("debug-only", 0, "", "simplifycfg")
+            # ("print-lsr-output", 0, "", "true"),
+            # ("print-before", 0, "", "loop-unroll"),
+            # ("debug-only", 0, "", "loop-unroll"), # :note: available only in llvm debug build
+            # ("print-after", 0, "", "loop-unroll"),
+            # ("debug-only", 0, "", "loop-unroll"), # :note: available only in llvm debug build
+            # ("print-after", 0, "", "loop-unroll"),
+            # ("print-before", 0, "", "early-if-predicator"),
+            # ("print-after", 0, "", "early-if-predicator"),
+            # ("print-before", 0, "", "early-ifcvt"),
+            # ("print-after", 0, "", "early-ifcvt"),
+            # ("print-before", 0, "", "vreg-if-converter"),
+            # ("debug-only", 0, "", "vreg-if-converter"), # :note: available only in llvm debug build
+            # ("print-after", 0, "", "vreg-if-converter"),
+            # ("debug", 0, "", "1"),
+            # ("print-before", 0, "", "hwtfpga-preregalloc-combiner"),
+            # ("print-after", 0, "", "hwtfpga-preregalloc-combiner"),
+        ]
 
     def _getDebugTracer(self, netlist: HlsNetlistCtx, dbgId: DebugId):
         dbgDir = self._debug.dir
@@ -266,21 +297,20 @@ class DefaultHlsPlatform(DummyPlatform):
 
     def beforeThreadToSsa(self, thread: "HlsThread"):
         thread.debugEnable(self)
-        pass
 
     def runSsaPasses(self, hls: "HlsScope", toSsa: HlsAstToSsa):
         dbg = self._debug.runDebugIfEnabled
 
         dbg(HlsDebugBundle.DBG_0_preSsaOpt, (hls, toSsa), constructorKwargs=dict(extractPipeline=False))
         self._debug.runAssertIfEnabled(SsaPassConsystencyCheck, (hls, toSsa))
-        try:
-            SsaPassAxiStreamReadLowering().apply(hls, toSsa)
-            SsaPassAxiStreamWriteLowering().apply(hls, toSsa)
-        finally:
-            dbg(HlsDebugBundle.DBG_1_frontend, (hls, toSsa), constructorKwargs=dict(extractPipeline=False))
+        # try:
+        #    SsaPassAxiStreamReadLowering().apply(hls, toSsa)
+        #    SsaPassAxiStreamWriteLowering().apply(hls, toSsa)
+        # finally:
+        dbg(HlsDebugBundle.DBG_1_frontend, (hls, toSsa), constructorKwargs=dict(extractPipeline=False))
 
         # convert frontend SSA to LLVM SSA for more advanced optimizations
-        SsaPassToLlvm().apply(hls, toSsa)
+        SsaPassToLlvm(self._llvmCliArgs).apply(hls, toSsa)
 
         dbg(HlsDebugBundle.DBG_2_preLlvm, (hls, toSsa))
 
@@ -304,13 +334,14 @@ class DefaultHlsPlatform(DummyPlatform):
         """
         tr: ToLlvmIrTranslator = toSsa.start
         assert isinstance(tr, ToLlvmIrTranslator), tr
-        toNetlist = HlsNetlistAnalysisPassMirToNetlist(
-            hls, tr, mf, backedges, liveness, ioRegs, registerTypes, loops)
-        netlist = toNetlist.netlist
         dbg = self._debug.runDebugIfEnabled
         D = HlsDebugBundle
         dbg(D.DBG_3_mir, (hls, toSsa))
         dbg(D.DBG_4_mirCfg, (hls, toSsa))
+
+        toNetlist = HlsNetlistAnalysisPassMirToNetlist(
+            hls, tr, mf, backedges, liveness, ioRegs, registerTypes, loops)
+        netlist = toNetlist.netlist
 
         toNetlist.translateDatapathInBlocks(mf, toSsa.ioNodeConstructors)
         threads = netlist.getAnalysis(HlsNetlistAnalysisPassDataThreadsForBlocks)
@@ -360,7 +391,6 @@ class DefaultHlsPlatform(DummyPlatform):
 
             dbg(D.DBG_11_netlistIoClusters, (hls, netlist))
 
-            firstPass = True
             while True:
                 try:
                     with dbgTracer.scoped(HlsNetlistPassSimplify.apply, None):
@@ -369,12 +399,6 @@ class DefaultHlsPlatform(DummyPlatform):
                     # if something went wrong try to debug actual state of the netlist
                     dbg(D.DBG_12_netlistSimplifiedErr, (hls, netlist))
                     raise
-
-                if firstPass:
-                    # done in advance in order to check transitively connected IO only once and in order to avoid checks for HlsNetNodeReadSync later
-                    HlsNetlistPassInjectVldMaskToSkipWhenConditions().apply(hls, netlist)  # done after simply because rewrite is costly
-                    firstPass = False
-                    continue
 
                 # if all predecessor IO have some skipWhen condition the extraCond may be incomplete due to hoisting
                 # this may result in successors working without any data
@@ -395,10 +419,13 @@ class DefaultHlsPlatform(DummyPlatform):
 
                 try:
                     netlist.getAnalysis(HlsNetlistAnalysisPassRunScheduler)
-                except:
+                except Exception as e:
                     # try to debug scheduling if something went wrong
-                    dbg(D.DBG_18_hwscheduleErr, (hls, netlist), constructorKwargs=dict(
-                        expandCompositeNodes=self._debugExpandCompositeNodes))
+                    try:
+                        dbg(D.DBG_18_hwscheduleErr, (hls, netlist), constructorKwargs=dict(
+                            expandCompositeNodes=self._debugExpandCompositeNodes))
+                    except:
+                        raise AssertionError("HlsNetlistAnalysisPassRunScheduler failed and DBG_18_hwscheduleErr also failed") from e
                     raise
 
                 HlsNetlistPassDisaggregateAggregates().apply(hls, netlist)
