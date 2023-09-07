@@ -26,6 +26,7 @@ namespace hwtHls {
 void register_Values_and_Use(pybind11::module_ & m) {
 	py::class_<llvm::Value, std::unique_ptr<llvm::Value, py::nodelete>>(m, "Value")
 			.def("__repr__", &printToStr<llvm::Value>)
+			.def("__str__", &printToStr<llvm::Value>)
 			.def("__hash__", [](llvm::Value * v) {
 				return reinterpret_cast<intptr_t>(v);
 			})
@@ -45,7 +46,10 @@ void register_Values_and_Use(pybind11::module_ & m) {
 		.def("getNumOperands", &llvm::User::getNumOperands)
 		.def("iterOperands", [](llvm::User &v) {
 			 	return py::make_iterator(v.op_begin(), v.op_end());
-			 }, py::keep_alive<0, 1>()); /* Keep vector alive while iterator is used */;
+			 }, py::keep_alive<0, 1>()) /* Keep vector alive while iterator is used */
+		.def("iterOperandValues", [](llvm::User &v) {
+		 	return py::make_iterator(v.value_op_begin(), v.value_op_end());
+		 }, py::keep_alive<0, 1>()); /* Keep vector alive while iterator is used */
 
 	py::class_<llvm::Use, std::unique_ptr<llvm::Use, py::nodelete>>(m, "Use")
 		.def("get", &llvm::Use::get, py::return_value_policy::reference);
