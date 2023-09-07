@@ -1,16 +1,19 @@
 from networkx.algorithms.components.strongly_connected import strongly_connected_components
 from networkx.classes.digraph import DiGraph
-from typing import Set, NamedTuple, Dict, List, Tuple
+from typing import Set, NamedTuple, Dict, List, Tuple, TypeVar, Generic
 
 from hwtHls.frontend.pyBytecode.blockPredecessorTracker import BlockLabel
 
 
-class PyBytecodeLoop():
+BlockT = TypeVar("T")
+
+
+class PyBytecodeLoop(Generic[BlockT]):
     """
     :note: Integers represents offset of instruction where block starts.
     """
 
-    def __init__(self, label: str, entryPoint: BlockLabel, allBlocks: Set[int], allEdges: Tuple[Tuple[int, int], ...]):  # , backedges: Set[int]
+    def __init__(self, label: str, entryPoint: BlockT, allBlocks: Set[BlockT], allEdges: Tuple[Tuple[BlockT, BlockT], ...]):  # , backedges: Set[int]
         self.label = label
         self.entryPoint = entryPoint
         self.allBlocks = allBlocks
@@ -26,9 +29,15 @@ class PyBytecodeLoop():
     #            res.add(pred)
     #
     #    return res
-        
-    @staticmethod
-    def detectLoops(cfg: DiGraph, loopCntPerBlock: Dict[int, 'PyBytecodeLoop']):
+    @classmethod
+    def _getLoopLabel(cls, entry: BlockT, loopIndex:int):
+        if loopIndex == 0:
+            return f"L{entry:d}"
+        else:
+            return f"L{entry:d}subL{loopIndex:d}"
+
+    @classmethod
+    def detectLoops(cls, cfg: DiGraph, loopCntPerBlock: Dict[BlockT, 'PyBytecodeLoop']):
         """
         :attention: cfg is destroyed in process 
         """
@@ -53,27 +62,24 @@ class PyBytecodeLoop():
                     entry = 0
                 else:
                     assert entry is not None, loop
-                
+
                 loopIndex = loopCntPerBlock.get(entry, 0)
                 loopCntPerBlock[entry] = loopIndex + 1
-                if loopIndex == 0:
-                    label = f"L{entry:d}"
-                else:
-                    label = f"L{entry:d}subL{loopIndex:d}"
+                label = cls._getLoopLabel(entry, loopIndex)
                 # PyBytecodeLoop.detectBackedges(cfg, loop, entry)
-                yield PyBytecodeLoop(label, entry, loop, tuple(cfg.subgraph(loop).edges()))
+                yield cls(label, entry, loop, tuple(cfg.subgraph(loop).edges()))
                 # search nested loops
                 loopCfg: DiGraph = cfg.subgraph(loop).copy(as_view=False)
                 for pred in tuple(loopCfg.predecessors(entry)):
                     loopCfg.remove_edge(pred, entry)
 
-                yield from PyBytecodeLoop.detectLoops(loopCfg, loopCntPerBlock)
+                yield from cls.detectLoops(loopCfg, loopCntPerBlock)
 
-    @staticmethod
-    def collectLoopsPerBlock(cfg: DiGraph) -> Dict[int, List["PyBytecodeLoop"]]:
-        loops: Dict[int, List[PyBytecodeLoop]] = {}
-        for loop in PyBytecodeLoop.detectLoops(DiGraph(cfg), {}):
-            entryOffset: int = loop.entryPoint
+    @classmethod
+    def collectLoopsPerBlock(cls, cfg: DiGraph) -> Dict[BlockT, List["PyBytecodeLoop"]]:
+        loops: Dict[BlockT, List[PyBytecodeLoop]] = {}
+        for loop in cls.detectLoops(DiGraph(cfg), {}):
+            entryOffset: BlockT = loop.entryPoint
             loopsPerBlock = loops.get(entryOffset, None)
             if loopsPerBlock is None:
                 loopsPerBlock = loops[entryOffset] = []
@@ -92,7 +98,7 @@ class PreprocLoopScope(NamedTuple("PreprocLoopScope", [("loop", PyBytecodeLoop),
 
     def __new__(cls, loop: PyBytecodeLoop, iterationIndex: int):
         return super().__new__(cls, loop, iterationIndex)
-    
+
     def __repr__(self):
         return str(self)
 
