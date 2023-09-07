@@ -1,123 +1,74 @@
-#include "targets/intrinsic/bitrange.h"
+#include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <llvm/ADT/StringExtras.h>
+#include <hwtHls/llvm/targets/intrinsic/utils.h>
+#include <hwtHls/llvm/bitMath.h>
 
 using namespace llvm;
 
-/// taken from private functions in <llvm/IR/Function.cpp>
-/// Returns a stable mangling for the type specified for use in the name
-/// mangling scheme used by 'any' types in intrinsic signatures.  The mangling
-/// of named types is simply their name.  Manglings for unnamed types consist
-/// of a prefix ('p' for pointers, 'a' for arrays, 'f_' for functions)
-/// combined with the mangling of their component types.  A vararg function
-/// type will have a suffix of 'vararg'.  Since function types can contain
-/// other function types, we close a function type mangling with suffix 'f'
-/// which can't be confused with it's prefix.  This ensures we don't have
-/// collisions between two unrelated function types. Otherwise, you might
-/// parse ffXX as f(fXX) or f(fX)X.  (X is a placeholder for any other type.)
-///
-static std::string getMangledTypeStr(Type *Ty) {
-	std::string Result;
-	if (PointerType *PTyp = dyn_cast<PointerType>(Ty)) {
-		Result += "p" + utostr(PTyp->getAddressSpace());
-	} else if (ArrayType *ATyp = dyn_cast<ArrayType>(Ty)) {
-		Result += "a" + utostr(ATyp->getNumElements())
-				+ getMangledTypeStr(ATyp->getElementType());
-	} else if (StructType *STyp = dyn_cast<StructType>(Ty)) {
-		if (!STyp->isLiteral()) {
-			Result += "s_";
-			Result += STyp->getName();
-		} else {
-			Result += "sl_";
-			for (auto Elem : STyp->elements())
-				Result += getMangledTypeStr(Elem);
-		}
-		// Ensure nested structs are distinguishable.
-		Result += "s";
-	} else if (FunctionType *FT = dyn_cast<FunctionType>(Ty)) {
-		Result += "f_" + getMangledTypeStr(FT->getReturnType());
-		for (size_t i = 0; i < FT->getNumParams(); i++)
-			Result += getMangledTypeStr(FT->getParamType(i));
-		if (FT->isVarArg())
-			Result += "vararg";
-		// Ensure nested function types are distinguishable.
-		Result += "f";
-	} else if (VectorType *VTy = dyn_cast<VectorType>(Ty)) {
-		ElementCount EC = VTy->getElementCount();
-		if (EC.isScalable())
-			Result += "nx";
-		Result += "v" + utostr(EC.getKnownMinValue())
-				+ getMangledTypeStr(VTy->getElementType());
-	} else if (Ty) {
-		switch (Ty->getTypeID()) {
-		default:
-			llvm_unreachable("Unhandled type");
-		case Type::VoidTyID:
-			Result += "isVoid";
-			break;
-		case Type::MetadataTyID:
-			Result += "Metadata";
-			break;
-		case Type::HalfTyID:
-			Result += "f16";
-			break;
-		case Type::BFloatTyID:
-			Result += "bf16";
-			break;
-		case Type::FloatTyID:
-			Result += "f32";
-			break;
-		case Type::DoubleTyID:
-			Result += "f64";
-			break;
-		case Type::X86_FP80TyID:
-			Result += "f80";
-			break;
-		case Type::FP128TyID:
-			Result += "f128";
-			break;
-		case Type::PPC_FP128TyID:
-			Result += "ppcf128";
-			break;
-		case Type::X86_MMXTyID:
-			Result += "x86mmx";
-			break;
-		case Type::X86_AMXTyID:
-			Result += "x86amx";
-			break;
-		case Type::IntegerTyID:
-			Result += "i" + utostr(cast<IntegerType>(Ty)->getBitWidth());
-			break;
-		}
-	}
-	return Result;
-}
+namespace hwtHls {
 
-std::string Intrinsic_getName(const std::string &baseName,
-		ArrayRef<Type*> Tys) {
-	std::string Result = baseName;
-	for (Type *Ty : Tys) {
-		Result += "." + getMangledTypeStr(Ty);
-	}
-	return Result;
-}
-
-void AddDefaultFunctionAttributes(Function &TheFn) {
-	// :note: must be compatible with llvm::wouldInstructionBeTriviallyDead
-	//TheFn.addFnAttr(Attribute::ArgMemOnly);
-	TheFn.addFnAttr(Attribute::NoFree);
-	TheFn.addFnAttr(Attribute::NoUnwind);
-	TheFn.addFnAttr(Attribute::WillReturn);
-	TheFn.setCallingConv(CallingConv::C);
-}
-
-// lowBitNo must be constant and must be added into the name of function so variants with different lowBitNo will not get merged to a single instruction
 const std::string BitRangeGetName = "hwtHls.bitRangeGet";
-CallInst* CreateBitRangeGet(IRBuilder<> *Builder, Value *bitVec,
+
+llvm::Value* CreateBitRangeGetConst(llvm::IRBuilder<> *Builder,
+		llvm::Value *bitVec, size_t lowBitNo, size_t bitWidth) {
+	if (lowBitNo == 0 && bitWidth == bitVec->getType()->getIntegerBitWidth())
+		return bitVec;
+	size_t indexWidth = log2ceil(bitVec->getType()->getIntegerBitWidth()) + 1;
+	return CreateBitRangeGet(Builder, bitVec,
+			ConstantInt::get(
+					IntegerType::get(Builder->getContext(), indexWidth),
+					lowBitNo), bitWidth);
+}
+
+llvm::Value* SearchBitRangeGet(Instruction *bitVec, Value *lowBitNo,
+		size_t bitWidth) {
+
+	for (auto suc = BasicBlock::iterator(bitVec);
+			suc != bitVec->getParent()->end(); ++suc) {
+		if (&*suc == bitVec)
+			continue;
+		if (isa<PHINode>(suc))
+			continue;
+		if (auto *sucI = dyn_cast<CallInst>(suc)) {
+			if (IsBitRangeGet(sucI) && sucI->getArgOperand(0) == bitVec) {
+				if (sucI->getType()->getIntegerBitWidth() == bitWidth
+						&& sucI->getArgOperand(1) == lowBitNo)
+					return sucI;
+			} else {
+				break;
+			}
+		} else {
+			break;
+		}
+	}
+	return nullptr;
+}
+
+llvm::Value* CreateBitRangeGet(IRBuilder<> *Builder, Value *bitVec,
 		Value *lowBitNo, size_t bitWidth) {
 	auto *lowBitNoC = dyn_cast<ConstantInt>(lowBitNo);
 	assert(lowBitNoC && "CreateBitRangeGet lowBitNo must be a constant");
-	assert(!lowBitNoC->isNegative());
-	assert(lowBitNoC->getZExtValue() + bitWidth <= bitVec->getType()->getIntegerBitWidth());
+	//assert(!lowBitNoC->isNegative());
+	assert(
+			lowBitNoC->getZExtValue() + bitWidth
+					<= bitVec->getType()->getIntegerBitWidth());
+	// if this is a slice on slice use slice on original vector instead
+	if (auto bitVecCI = dyn_cast<CallInst>(bitVec)) {
+		if (IsBitRangeGet(bitVecCI) && lowBitNoC) {
+			auto opLowIndex = dyn_cast<ConstantInt>(bitVecCI->getArgOperand(1));
+			if (opLowIndex) {
+				return CreateBitRangeGetConst(Builder,
+						bitVecCI->getArgOperand(0),
+						opLowIndex->getZExtValue() + lowBitNoC->getZExtValue(),
+						bitWidth);
+			}
+		}
+	}
+	if (auto *bitVecInst = dyn_cast<Instruction>(bitVec)) {
+		auto existing = SearchBitRangeGet(bitVecInst, lowBitNo, bitWidth);
+		if (existing)
+			return existing;
+	}
 
 	Value *Ops[] = { bitVec, lowBitNo };
 	Type *ResT = Builder->getIntNTy(bitWidth);
@@ -126,10 +77,44 @@ CallInst* CreateBitRangeGet(IRBuilder<> *Builder, Value *bitVec,
 	Module *M = Builder->GetInsertBlock()->getParent()->getParent();
 	Function *TheFn = cast<Function>(
 			M->getOrInsertFunction(
-					Intrinsic_getName(BitRangeGetName, TysForName) + "." + std::to_string(lowBitNoC->getZExtValue()), ResT,
+					Intrinsic_getName(BitRangeGetName, TysForName) + "."
+							+ std::to_string(lowBitNoC->getZExtValue()), ResT,
 					Tys[0], Tys[1]).getCallee());
 	AddDefaultFunctionAttributes(*TheFn);
-	CallInst *CI = Builder->CreateCall(TheFn, Ops);
+	TheFn->addFnAttr(Attribute::Speculatable);
+
+	// resolve
+	auto origIP = Builder->saveIP();
+	CallInst *CI;
+	bool updateIP = false;
+	// resolve insertion point
+	if (auto *bitVecInst = dyn_cast<Instruction>(bitVec)) {
+		if (origIP.getPoint() != origIP.getBlock()->begin()) {
+			auto pred = origIP.getPoint()->getPrevNode();
+			if (pred == bitVec) {
+				// inserting behind sliced vector
+				updateIP = true;
+			} else if (auto *_pred = dyn_cast<CallInst>(pred)) {
+				if (IsBitRangeGet(_pred) && _pred->getArgOperand(0) == bitVec) {
+					// insert behind some BitRangeGet on same bitVec
+					updateIP = true;
+				}
+			}
+		}
+		if (!updateIP) {
+			// original insertion point was not after bitVec or after some BitRangeGet on it, we must set insertion point there
+			// so we can find it later
+			IRBuilder_setInsertPointBehindPhi(*Builder,
+					bitVecInst->getNextNode());
+		}
+	} else {
+		updateIP = true;
+	}
+	CI = Builder->CreateCall(TheFn, Ops);
+	if (!updateIP) {
+		// restore IP because we changed it to be close to def of bitVec
+		Builder->restoreIP(origIP);
+	}
 	CI->setDoesNotAccessMemory();
 	return CI;
 }
@@ -138,23 +123,76 @@ bool IsBitRangeGet(const llvm::CallInst *C) {
 	return IsBitRangeGet(C->getCalledFunction());
 }
 bool IsBitRangeGet(const llvm::Function *F) {
+	assert(F != nullptr && "Function must have definition if input code was valid");
 	return F->getName().str().rfind(BitRangeGetName, 0) == 0;
 }
 
 const std::string BitConcatName = "hwtHls.bitConcat";
-llvm::CallInst* CreateBitConcat(llvm::IRBuilder<> *Builder,
-		llvm::ArrayRef<llvm::Value*> OpsLowFirst) {
+llvm::Value* CreateBitConcat(llvm::IRBuilder<> *Builder,
+		llvm::ArrayRef<llvm::Value*> _OpsLowFirst) {
+	if (_OpsLowFirst.size() == 1) {
+		return _OpsLowFirst[0];
+	} else {
+		assert(_OpsLowFirst.size() > 0);
+	}
 	size_t bitWidth = 0;
 	std::vector<Type*> ArgTys;
-	ArgTys.reserve(OpsLowFirst.size());
-	for (auto *o : OpsLowFirst) {
+	ArgTys.reserve(_OpsLowFirst.size());
+	std::vector<Value*> OpsLowFirst;
+	bool lastWasConst = false;
+	bool lastWasUndef = false;
+	for (auto *o : _OpsLowFirst) {
 		if (auto t = dyn_cast<IntegerType>(o->getType())) {
-			bitWidth += t->getBitWidth();
+			auto w = t->getBitWidth();
+			assert(w > 0 && "Can concatenate only int bit vectors");
+			bitWidth += w;
 		} else {
 			throw std::runtime_error(
 					"CreateBitConcat called with non-integer type");
 		}
+		if (auto *C = dyn_cast<ConstantInt>(o)) {
+			if (lastWasConst) {
+				// merge constants in operand vector
+				auto prev =
+						dyn_cast<ConstantInt>(OpsLowFirst.back())->getValue();
+				auto cur = C->getValue();
+				auto w = prev.getBitWidth() + cur.getBitWidth();
+				auto v = cur.zext(w);
+				v <<= prev.getBitWidth();
+				v |= prev.zext(w);
+				OpsLowFirst.pop_back();
+				ArgTys.pop_back();
+				auto *Ty = IntegerType::get(Builder->getContext(),
+						v.getBitWidth());
+				OpsLowFirst.push_back(ConstantInt::get(Ty, v));
+				ArgTys.push_back(Ty);
+				continue;
+			}
+			lastWasConst = true;
+			lastWasUndef = false;
+		} else {
+			lastWasConst = false;
+			if (auto *U = dyn_cast<UndefValue>(o)) {
+				if (lastWasUndef) {
+					// merge undefs in operand vector
+					auto prev = dyn_cast<UndefValue>(OpsLowFirst.back());
+					OpsLowFirst.pop_back();
+					ArgTys.pop_back();
+					auto *Ty = IntegerType::get(Builder->getContext(),
+							prev->getType()->getIntegerBitWidth()
+									+ U->getType()->getIntegerBitWidth());
+					OpsLowFirst.push_back(UndefValue::get(Ty));
+					ArgTys.push_back(Ty);
+					continue;
+				}
+				lastWasUndef = true;
+			}
+		}
+		OpsLowFirst.push_back(o);
 		ArgTys.push_back(o->getType());
+	}
+	if (OpsLowFirst.size() == 1) {
+		return OpsLowFirst[0];
 	}
 	Type *RetTy = Builder->getIntNTy(bitWidth);
 	Module *M = Builder->GetInsertBlock()->getParent()->getParent();
@@ -163,6 +201,8 @@ llvm::CallInst* CreateBitConcat(llvm::IRBuilder<> *Builder,
 			M->getOrInsertFunction(Intrinsic_getName(BitConcatName, ArgTys),
 					FunctionType::get(RetTy, ArgTys, false)).getCallee());
 	AddDefaultFunctionAttributes(*TheFn);
+	TheFn->addFnAttr(Attribute::Speculatable);
+
 	CallInst *CI = Builder->CreateCall(TheFn, OpsLowFirst);
 	CI->setDoesNotAccessMemory();
 	return CI;
@@ -172,5 +212,8 @@ bool IsBitConcat(const llvm::CallInst *C) {
 	return IsBitConcat(C->getCalledFunction());
 }
 bool IsBitConcat(const llvm::Function *F) {
+	assert(F != nullptr);
 	return F->getName().str().rfind(BitConcatName, 0) == 0;
+}
+
 }
