@@ -13,6 +13,7 @@ from hwtHls.scope import HlsScope
 from hwtLib.amba.axis import AxiStream
 from tests.io.amba.axiStream.axisParseLinear import AxiSParse2fields
 from hwt.synthesizer.param import Param
+from hwtLib.amba.axis_comp.builder import AxiSBuilder
 
 
 class AxiSParse2If2B(AxiSParse2fields):
@@ -153,7 +154,7 @@ class AxiSParse2IfAndSequel(AxiSParse2fields):
 
     def _impl(self) -> None:
         hls = HlsScope(self)
-        i = self.i
+        i = AxiSBuilder(self, self.i).buff(1).end
         o = self.o
         v0 = HlsStmReadAxiStream(hls, i, Bits(16), True)
         v1a = HlsStmReadAxiStream(hls, i, Bits(24), True)
