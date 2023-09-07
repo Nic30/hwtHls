@@ -1,4 +1,4 @@
-#include "hwtFpgaTargetMachine.h"
+#include <hwtHls/llvm/targets/hwtFpgaTargetMachine.h>
 
 #include <llvm/CodeGen/Passes.h>
 //#include <llvm/CodeGen/SelectionDAGISel.h>
@@ -12,15 +12,16 @@
 #include <llvm/MC/MCAsmInfo.h>
 
 
-#include "hwtFpga.h"
-#include "hwtFpgaTargetTransformInfo.h"
-#include "hwtFpgaTargetPassConfig.h"
-#include "hwtFpgaTargetInfo.h"
-#include "hwtFpgaTargetSubtarget.h"
-#include "GISel/hwtFpgaPreLegalizerCombiner.h"
-#include "../llvmSrc/CodeGenPrepare.h"
-#include "Transforms/EarlyMachineCopyPropagation.h"
-#include "Transforms/hwtFpgaToNetlist.h"
+#include <hwtHls/llvm/targets/hwtFpga.h>
+#include <hwtHls/llvm/targets/hwtFpgaTargetTransformInfo.h>
+#include <hwtHls/llvm/targets/hwtFpgaTargetPassConfig.h>
+#include <hwtHls/llvm/targets/hwtFpgaTargetInfo.h>
+#include <hwtHls/llvm/targets/hwtFpgaTargetSubtarget.h>
+#include <hwtHls/llvm/targets/GISel/hwtFpgaPreLegalizerCombiner.h>
+#include <hwtHls/llvm/llvmSrc/CodeGenPrepare.h>
+#include <hwtHls/llvm/targets/Transforms/EarlyMachineCopyPropagation.h>
+#include <hwtHls/llvm/targets/Transforms/hwtFpgaToNetlist.h>
+#include <hwtHls/llvm/targets/Transforms/vregIfConversion.h>
 
 
 
@@ -40,6 +41,7 @@ extern "C" void LLVMInitializeHwtFpgaTarget() {
 	hwtHls::llvmSrc::initializeCodeGenPreparePass(PR);
 	hwtHls::initializeHwtFpgaToNetlist(PR);
 	llvm::initializeEarlyMachineCopyPropagationPass(PR);
+	llvm::initializeVRegIfConverterPass(PR);
 }
 
 namespace llvm {
