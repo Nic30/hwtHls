@@ -7,4 +7,5 @@ py3.extension_module(
     install: true,
     cpp_args: [],
     subdir: 'hwtHls/netlist/abc/',
+    include_directories : hwtHls_inc,
 )
