@@ -1,5 +1,5 @@
 from hwt.hdl.types.defs import BIT
-from hwt.interfaces.std import VectSignal, Signal
+from hwt.interfaces.std import VectSignal, Signal, Handshaked
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.pyBytecode import hlsBytecode
@@ -66,10 +66,36 @@ class HlsPythonHwWhile2(HlsPythonHwWhile0):
             hls.write(0, self.o)
 
 
+class HlsPythonHwWhile3(HlsPythonHwWhile2):
+
+    def _declr(self):
+        addClkRstn(self)
+        self.i = Handshaked()
+        self.o = Handshaked()._m()
+        for i in (self.i, self.o):
+            i.DATA_WIDTH = 8
+
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
+        while BIT.from_py(1):
+            while BIT.from_py(1):
+                r1 = hls.read(self.i)
+                # dCroped = [d.data._reinterpret_cast(Bits(i * 8)) for i in range(1, self.DATA_WIDTH // 8)]
+                if r1 != 1:
+                    r2 = hls.read(self.i)
+                    hls.write(r2, self.o)
+                    if r2 != 2:
+                        break
+                else:
+                    break
+
+            hls.write(99, self.o)
+
+
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.platform import HlsDebugBundle
-    u = HlsPythonHwWhile2()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    u = HlsPythonHwWhile3()
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.DBG_FRONTEND)))
 
