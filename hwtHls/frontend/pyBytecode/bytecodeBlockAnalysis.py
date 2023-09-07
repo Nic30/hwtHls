@@ -30,7 +30,7 @@ def extractBytecodeBlocks(instructions: Tuple[Instruction, ...]) -> Tuple[Dict[i
         isNotEntryPointAndJumpTarget = instr.is_jump_target and instr.offset != 0
         if isNotEntryPointAndJumpTarget or lastWasAbsoluteJump or lastWasConditionalJump:
             # create a new block
-            if instr.is_jump_target and isNotEntryPointAndJumpTarget and not lastWasAbsoluteJump:
+            if lastWasConditionalJump or (instr.is_jump_target and isNotEntryPointAndJumpTarget and not lastWasAbsoluteJump):
                 src = curBlock[0].offset
                 dst = instr.offset
                 cfg.add_edge(src, dst)
@@ -63,7 +63,7 @@ def extractBytecodeBlocks(instructions: Tuple[Instruction, ...]) -> Tuple[Dict[i
                 
             src = curBlock[0].offset
             cfg.add_edge(src, instr.argval)
-            cfg.add_edge(src, instr.offset + 2)
+            #cfg.add_edge(src, instr.offset + 2)
             lastWasConditionalJump = True
 
     if not cfg.nodes:
