@@ -4,13 +4,12 @@ from typing import Set, Optional
 from hwt.hdl.operatorDefs import OpDefinition, AllOps
 from hwt.hdl.value import HValue
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn, \
-    unlink_hls_nodes, link_hls_nodes
+    unlink_hls_nodes, link_hls_nodes, HlsNetNodeOutAny
 
 
 def getConstDriverOf(inputObj: Optional[HlsNetNodeIn]) -> Optional[HValue]:
@@ -19,6 +18,13 @@ def getConstDriverOf(inputObj: Optional[HlsNetNodeIn]) -> Optional[HValue]:
     dep = inputObj.obj.dependsOn[inputObj.in_i]
     if isinstance(dep.obj, HlsNetNodeConst):
         return dep.obj.val
+    else:
+        return None
+
+
+def getConstOfOutput(o: HlsNetNodeOutAny) -> Optional[HValue]:
+    if isinstance(o, HlsNetNodeOut) and isinstance(o.obj, HlsNetNodeConst):
+        return o.obj.val
     else:
         return None
 
@@ -43,7 +49,7 @@ def replaceOperatorNodeWith(n: HlsNetNodeOperator, newO: HlsNetNodeOut,
                             worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]):
     assert len(n.usedBy) == 1 or all(not uses for uses in islice(n.usedBy, 1, None)), (n, "implemented only for single output nodes or nodes with only first output used")
     assert newO.obj not in removed, newO
-    builder: HlsNetlistBuilder = n.netlist.builder
+    builder: "HlsNetlistBuilder" = n.netlist.builder
     addAllUsersToWorklist(worklist, n)
 
     # add dependencies which do not have any other use to worklist
