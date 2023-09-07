@@ -3,7 +3,7 @@ import pydot
 from typing import Dict, Set
 
 from hwt.synthesizer.interface import Interface
-from hwtHls.llvm.llvmIr import MachineBasicBlock, MachineFunction, Register
+from hwtHls.llvm.llvmIr import MachineBasicBlock, MachineFunction, Register, TargetOpcode
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.platform.fileUtils import OutputStreamGetter
@@ -54,10 +54,26 @@ class HlsNetlistPassDumpBlockSync(HlsNetlistPass):
                 flags.append(f"isLoopHeader")
             if mbSync.isLoopHeaderOfFreeRunning:
                 flags.append(f"isLoopHeaderOfFreeRunning")
+            inputs = set()
+            outputs = set()
+            for instr in b:
+                opc = instr.getOpcode()
+                if opc in (TargetOpcode.HWTFPGA_CLOAD, TargetOpcode.HWTFPGA_CSTORE):
+                    memOp = tuple(instr.memoperands())[0]
+                    addrItem = (memOp.getAddrSpace(), memOp.getValue().getName().str())
+                    if opc == TargetOpcode.HWTFPGA_CLOAD:
+                        inputs.add(addrItem)
+                    elif opc == TargetOpcode.HWTFPGA_CSTORE:
+                        outputs.add(addrItem)
+            inputs = sorted(inputs)
+            outputs = sorted(outputs)
+
             body = (
                 '        <table border="0" cellborder="1" cellspacing="0">\n'
                 f'            <tr><td>{html.escape(name):s}</td></tr>\n'
                 f"            <tr><td>{', '.join(flags)}</td></tr>\n"
+                f"            <tr><td>IO in={inputs}</td></tr>\n"
+                f"            <tr><td>IO out={outputs}</td></tr>\n"
                 f"            <tr><td>blockEn={html.escape(str(mbSync.blockEn))}</td></tr>\n"
                 f"            <tr><td>orderingIn={html.escape(str(mbSync.orderingIn))}</td></tr>\n"
                 f"            <tr><td>orderingOut={html.escape(str(mbSync.orderingOut))}</td></tr>\n"
