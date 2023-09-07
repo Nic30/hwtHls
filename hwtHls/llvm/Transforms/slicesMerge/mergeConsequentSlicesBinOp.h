@@ -5,6 +5,7 @@
 
 namespace hwtHls {
 
-bool rewriteConcat(llvm::CallInst *I, const CreateBitRangeGetFn &createSlice, DceWorklist &dce, llvm::Value **newI=nullptr);
-
+bool mergeConsequentSlicesBinOp(llvm::BinaryOperator &I,
+		DceWorklist::SliceDict &slices, const CreateBitRangeGetFn &createSlice,
+		DceWorklist &dce);
 }

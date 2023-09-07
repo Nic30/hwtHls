@@ -1,6 +1,6 @@
 #pragma once
 #include <llvm/IR/BasicBlock.h>
-#include "utils.h"
+#include <hwtHls/llvm/Transforms/slicesMerge/utils.h>
 
 namespace hwtHls {
 

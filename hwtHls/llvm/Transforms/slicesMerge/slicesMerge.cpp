@@ -1,4 +1,4 @@
-#include "slicesMerge.h"
+#include <hwtHls/llvm/Transforms/slicesMerge/slicesMerge.h>
 #include <map>
 #include <sstream>
 
@@ -9,243 +9,20 @@
 #include <llvm/Transforms/Scalar/NewGVN.h>
 #include <llvm/IR/Dominators.h>
 
-#include "../../targets/intrinsic/bitrange.h"
-#include "../slicesToIndependentVariablesPass/concatMemberVector.h"
-#include "rewriteConcat.h"
-#include "dceWorklist.h"
-#include "rewritePhiShift.h"
+#include <hwtHls/llvm/targets/intrinsic/bitrange.h>
+#include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/concatMemberVector.h>
+#include <hwtHls/llvm/Transforms/slicesMerge/rewriteConcat.h>
+#include <hwtHls/llvm/Transforms/utils/dceWorklist.h>
+#include <hwtHls/llvm/Transforms/slicesMerge/rewritePhiShift.h>
+#include <hwtHls/llvm/Transforms/slicesMerge/mergeConsequentSlices.h>
 
 using namespace llvm;
 using namespace std;
 
+//#define DBG_VERIFY_AFTER_EVERY_MODIFICATION 1
+
 namespace hwtHls {
 
-pair<Value*, uint64_t> getSliceOffset(Value *op0) {
-	if (auto *op0CI = dyn_cast<CallInst>(op0)) {
-		if (IsBitRangeGet(op0CI)) {
-			auto *_op0Off = op0CI->getArgOperand(1);
-			if (auto *offset = dyn_cast<ConstantInt>(_op0Off)) {
-				auto offsetInt = offset->getZExtValue();
-				auto *op0BitVec = op0CI->getArgOperand(0);
-				return {op0BitVec, offsetInt};
-			}
-		}
-	}
-	return {nullptr, 0};
-}
-
-const Instruction* getInstructionClosesToBlockEnd(const std::vector<Instruction*> &vec) {
-	const Instruction *res = nullptr;
-	for (auto I0 : vec) {
-		for (auto I1 = I0->getIterator();; --I1) {
-			if (res == nullptr || &*I1 == res) {
-				res = I0; // I0 is later in block because we just see res when walking from I0 to begin of the block
-			}
-			if (I1 == I0->getParent()->begin())
-				break;
-		}
-	}
-	return res;
-}
-
-/*
- * Check if any of instructions from vector is used on the rage of instructions specified using begin, end
- * */
-bool anyOfInstructionsIsUsed(const std::vector<Instruction*> &vec, BasicBlock::const_iterator begin,
-		BasicBlock::const_iterator end, bool checkAlsoEnd) {
-	assert(begin->getParent() == end->getParent());
-	if (checkAlsoEnd) {
-		++end;
-	}
-	for (BasicBlock::const_iterator it = begin; it != end; ++it) {
-		for (auto &o : it->operands()) {
-			for (auto vItem : vec) {
-				if (o.get() == vItem)
-					return true;
-			}
-		}
-	}
-	return false;
-}
-
-/*
- * :param parallelInstrOnSameVec: lowest first vector of instructions on same slice which have slices of the same bit vector as operands
- * 		When searching the same width of slices is prioritized but it is not required.
- * */
-bool collectParallelInstructionsOnSameVector(DceWorklist::SliceDict &slices, Value *op0BitVec, uint64_t op0Offset,
-		uint64_t op0Width, Value *op1BitVec, uint64_t op1Offset, uint64_t op1Width,
-		std::vector<Instruction*> &parallelInstrOnSameVec, const Instruction &I) {
-
-	auto op0SucSlices = slices.find( { op0BitVec, op0Offset + op0Width });
-	if (op0SucSlices == slices.end())
-		return false;
-	auto op1SucSlices = slices.find( { op1BitVec, op1Offset + op1Width });
-	if (op1SucSlices == slices.end())
-		return false;
-
-	bool found = false;
-	for (size_t i = 0; i < 2; ++i) {
-		for (CallInst *op0Suc : op0SucSlices->second) {
-			// for every successor slice of the operand 0 we check if there is an instruction of same
-			// on a successor slice of the the operand 1
-
-			// Hypothetical sliced instruction may be applied multiple times with a different operands
-			// on this place we are searching only those instructions which have exactly consequent slices as operands.
-			// :note: it is not required for next slice to be of same width but those with the same width should be extracted first.
-			bool requireWidthToMatch = i == 1;
-			auto w0 = op0Suc->getType()->getIntegerBitWidth();
-			if (!requireWidthToMatch || w0 == op0Width) {
-				for (auto &op0SucUse : op0Suc->uses()) {
-					auto *op0SucUser = op0SucUse.getUser();
-					if (auto *op0SucUserI = dyn_cast<Instruction>(op0SucUser)) {
-						if (op0SucUserI->getOpcode() == I.getOpcode() && op0SucUserI->getParent() == I.getParent()) {
-							// is instruction of same type in same parent
-							for (CallInst *op1Suc : op1SucSlices->second) {
-								auto w1 = op1Suc->getType()->getIntegerBitWidth();
-								if ((requireWidthToMatch && w1 == op1Width) || (!requireWidthToMatch && w1 == w0)) {
-									// check if none of instructions parallelInstrOnSameVec are used between found instruction and this
-									auto *lastI = getInstructionClosesToBlockEnd(parallelInstrOnSameVec);
-									if (lastI == nullptr
-											|| !anyOfInstructionsIsUsed(parallelInstrOnSameVec,
-													llvm::BasicBlock::const_iterator(lastI),
-													llvm::BasicBlock::const_iterator(op0SucUserI), true)) {
-										parallelInstrOnSameVec.push_back(op0SucUserI);
-										// find instruction on successor slices
-										// [fixme] the right operand constraint for same vector does not apply
-										collectParallelInstructionsOnSameVector(slices, op0BitVec, op0Offset + w0,
-												op0Width, op1BitVec, op1Offset + w1, op1Width, parallelInstrOnSameVec,
-												I);
-										found = true;
-										break;
-									}
-								}
-							}
-							if (found)
-								break;
-						}
-					}
-				}
-				if (found)
-					break;
-			}
-		}
-		if (found)
-			break;
-	}
-	return found;
-}
-
-bool mergeConsequentSlices(Instruction &I, DceWorklist::SliceDict &slices, const CreateBitRangeGetFn &createSlice,
-		DceWorklist &dce) {
-	/*
-	 * Merge instructions which are parallel to instruction I and are performed on a consequent slice of same bit vector
-	 * */
-	bool modified = false;
-
-	if (auto *BO = dyn_cast<BinaryOperator>(&I)) {
-		Value *op0 = I.getOperand(0);
-		Value *op1 = I.getOperand(1);
-		auto *op0asC = dyn_cast<Constant>(op0);
-		auto *op1asC = dyn_cast<Constant>(op1);
-		Value *op0BitVec, *op1BitVec;
-		uint64_t op0Offset, op1Offset;
-
-		if (op0asC && op1asC) {
-			llvm_unreachable("Should be already evaluated");
-		}
-		tie(op0BitVec, op0Offset) = getSliceOffset(op0);
-		tie(op1BitVec, op1Offset) = getSliceOffset(op1);
-
-		if (!op0asC && op1asC) {
-		} else if (op0asC && !op1asC) {
-		} else {
-			// !op0asC && !op1asC
-			if (!op0BitVec || !op1BitVec)
-				return false;
-
-			std::vector<Instruction*> parallelInstrOnSameVec = { &I };
-			auto op0width = op0->getType()->getIntegerBitWidth();
-			auto op1width = op1->getType()->getIntegerBitWidth();
-			if (collectParallelInstructionsOnSameVector(slices, op0BitVec, op0Offset, op0width, op1BitVec, op1Offset,
-					op1width, parallelInstrOnSameVec, I)) {
-				IRBuilder<> builder(&I);
-				ConcatMemberVector _widerOp0(builder, nullptr);
-				ConcatMemberVector _widerOp1(builder, nullptr);
-				for (auto partI : parallelInstrOnSameVec) {
-					_widerOp0.push_back(OffsetWidthValue::fromValue(partI->getOperand(0)));
-					_widerOp1.push_back(OffsetWidthValue::fromValue(partI->getOperand(1)));
-				}
-				auto widerOp0 = _widerOp0.resolveValue(&*builder.GetInsertPoint());
-				if (auto *CallI = dyn_cast<CallInst>(widerOp0)) {
-					if (IsBitConcat(CallI)) {
-						modified |= rewriteConcat(CallI, createSlice, dce);
-					}
-				}
-
-				auto widerOp1 = _widerOp1.resolveValue(&*builder.GetInsertPoint());
-				if (auto *CallI = dyn_cast<CallInst>(widerOp1)) {
-					if (IsBitConcat(CallI)) {
-						modified |= rewriteConcat(CallI, createSlice, dce);
-					}
-				}
-				builder.SetInsertPoint(
-						const_cast<Instruction*>(getInstructionClosesToBlockEnd(parallelInstrOnSameVec)));
-				Value *res = nullptr;
-				switch (BO->getOpcode()) {
-				case Instruction::BinaryOps::And:
-					res = builder.CreateAnd(widerOp0, widerOp1);
-					break;
-				case Instruction::BinaryOps::Or:
-					res = builder.CreateOr(widerOp0, widerOp1);
-					break;
-				case Instruction::BinaryOps::Xor:
-					res = builder.CreateXor(widerOp0, widerOp1);
-					break;
-				default:
-					errs() << *BO << "\n";
-					llvm_unreachable("Not implemented binary operator");
-				}
-				uint64_t offset = 0;
-				for (auto partI : parallelInstrOnSameVec) {
-					auto w = partI->getType()->getIntegerBitWidth();
-					partI->replaceAllUsesWith(createSlice(&builder, res, builder.getInt64(offset), w));
-					offset += w;
-					dce.insert(*partI);
-				}
-				modified = true;
-				I.replaceAllUsesWith(res);
-				dce.insert(I);
-				//errs() << "after " << *I.getParent() << "\n";
-				//errs() << "new:" << *res << "\n";
-				//errs() << "replaced:\n";
-				//for (auto partI : parallelInstrOnSameVec) {
-				//	errs() << *partI << "\n";
-				//}
-				//throw runtime_error("[todo] debug err");
-			}
-		}
-
-	}
-	//else if (auto *C = dyn_cast<CallInst>(&I)) {
-	//	if (IsBitConcat(C)) {
-	//		uint64_t offset = 0;
-	//		for (auto &O : C->args()) {
-	//			uint64_t width = O->getType()->getIntegerBitWidth();
-	//			uint64_t end = offset + width;
-	//		}
-	//	}
-	//} else if (auto *PHI = dyn_cast<PHINode>(I)) {
-	//
-	//} else if (dyn_cast<SelectInst>(I)) {
-	//	// translate operands then build a new operand with new operands if required
-	//	Value *opCond = I.getOperand(0);
-	//	Value *opTrue = I.getOperand(1);
-	//	Value *opFalse = I.getOperand(2);
-	//	Value *res = nullptr;
-	//
-	//}
-	return modified;
-}
 
 DceWorklist::SliceDict findSlices(Function &F) {
 	DceWorklist::SliceDict slices;
@@ -269,34 +46,55 @@ DceWorklist::SliceDict findSlices(Function &F) {
 	return slices;
 }
 
-PreservedAnalyses SlicesMergePass::run(Function &F, FunctionAnalysisManager &AM) {
+PreservedAnalyses SlicesMergePass::run(Function &F,
+		FunctionAnalysisManager &AM) {
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+	{
+		std::string errTmp = "hwtHls::SlicesMergePass got corrupted function ";
+		llvm::raw_string_ostream errSS(errTmp);
+		errSS << F.getName().str();
+		errSS << "\n";
+		if (verifyModule(*F.getParent(), &errSS)) {
+			throw std::runtime_error(errSS.str());
+		}
+	}
+#endif
+
 	TargetLibraryInfo *TLI = &AM.getResult<TargetLibraryAnalysis>(F);
 	bool anyChange = false;
 	bool firstRun = true;
 	while (true) {
+		// run phiShiftPatternRewrite rewriteConcat, mergeConsequentSlices, InstCombinePass, NewGVNPass
+		// in loop while something is reduced
 		bool change = false;
 		DceWorklist::SliceDict slices = findSlices(F);
-		auto createSlice = [&slices](IRBuilder<> *Builder, Value *bitVec, Value *lowBitNo, size_t bitWidth) {
-			if (auto lowBitNoConst = dyn_cast<ConstantInt>(lowBitNo)) {
-				uint64_t lowBitNoConstInt = lowBitNoConst->getZExtValue();
-				std::pair<Value*, uint64_t> key(bitVec, lowBitNoConstInt);
-				auto cur = slices.find(key);
-				if (cur == slices.end()) {
-					auto slice = CreateBitRangeGet(Builder, bitVec, lowBitNo, bitWidth);
-					slices[key] = { slice };
-					return slice;
-				} else {
-					for (auto sliceItem : cur->second) {
-						if (sliceItem->getType()->getIntegerBitWidth() == bitWidth) {
-							return sliceItem;
-						}
-					}
-					auto slice = CreateBitRangeGet(Builder, bitVec, lowBitNo, bitWidth);
-					cur->second.push_back(slice);
-					return slice;
+		auto createSlice = [&slices](IRBuilder<> *Builder, Value *bitVec,
+				size_t lowBitNo, size_t bitWidth) {
+			std::pair<Value*, uint64_t> key(bitVec, lowBitNo);
+			auto cur = slices.find(key);
+			if (cur == slices.end()) {
+				auto _slice = CreateBitRangeGetConst(Builder, bitVec, lowBitNo,
+						bitWidth);
+				if (auto sliceCI = dyn_cast<CallInst>(_slice)) {
+					if (IsBitRangeGet(sliceCI))
+						slices[key] = { sliceCI };
 				}
+				return _slice;
+			} else {
+				for (auto sliceItem : cur->second) {
+					if (sliceItem->getType()->getIntegerBitWidth()
+							== bitWidth) {
+						return (Value*) sliceItem;
+					}
+				}
+				auto _slice = CreateBitRangeGetConst(Builder, bitVec, lowBitNo,
+						bitWidth);
+				if (auto sliceCI = dyn_cast<CallInst>(_slice)) {
+					if (IsBitRangeGet(sliceCI))
+						cur->second.push_back(sliceCI);
+				}
+				return _slice;
 			}
-			return CreateBitRangeGet(Builder, bitVec, lowBitNo, bitWidth);
 		};
 
 		for (BasicBlock &BB : F) {
@@ -319,14 +117,17 @@ PreservedAnalyses SlicesMergePass::run(Function &F, FunctionAnalysisManager &AM)
 				}
 
 				if (!_changed && !slices.empty()) {
-					_changed |= mergeConsequentSlices(*I, slices, createSlice, dce);
+					_changed |= mergeConsequentSlices(*I, slices, createSlice,
+							dce);
 				}
 				change |= _changed;
 				if (_changed) {
 					change |= dce.tryRemoveIfDead(*I, I);
 					change = dce.runToCompletition(I);
 				} else {
-					assert(dce.empty() && "If there is something in DCE worklist there must have been some change");
+					assert(
+							dce.empty()
+									&& "If there is something in DCE worklist there must have been some change");
 					++I;
 				}
 			}
@@ -349,13 +150,17 @@ PreservedAnalyses SlicesMergePass::run(Function &F, FunctionAnalysisManager &AM)
 		}
 		anyChange |= _change;
 	}
-	std::string errTmp = "hwtHls::SlicesMergePass corrupted function ";
-	llvm::raw_string_ostream errSS(errTmp);
-	errSS << F.getName().str();
-	errSS << "\n";
-	if (verifyModule(*F.getParent(), &errSS)) {
-		throw std::runtime_error(errSS.str());
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+	{
+		std::string errTmp = "hwtHls::SlicesMergePass corrupted function ";
+		llvm::raw_string_ostream errSS(errTmp);
+		errSS << F.getName().str();
+		errSS << "\n";
+		if (verifyModule(*F.getParent(), &errSS)) {
+			throw std::runtime_error(errSS.str());
+		}
 	}
+#endif
 	if (anyChange) {
 		PreservedAnalyses PA;
 		PA.preserve<DominatorTreeAnalysis>();

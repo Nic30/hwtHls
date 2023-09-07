@@ -8,7 +8,11 @@
 
 namespace hwtHls {
 /**
- * If consequent slices of a bit vector are used by same types of instructions, merge slices together to reduce duplicated instructions.
+ * [fixme] rename to SlicedParallelPathMerge
+ * In trivial cases this pass does concatentation hoisting and merging the bitwise instructions
+ * if they are used only by same concatenation.
+ * However this also supports loops with PHIs, recognizes shifts using PHIs and others extra things.
+ * The actual merging condition is more general and can be found in functions called from run().
  * */
 class SlicesMergePass: public llvm::PassInfoMixin<SlicesMergePass> {
 

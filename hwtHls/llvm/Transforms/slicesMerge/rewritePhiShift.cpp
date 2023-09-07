@@ -86,8 +86,7 @@ PHINode* mergePhisToWiderPhi(LLVMContext & C, const std::string& nameStem, const
 	//_name << ">";
 	IRBuilder<> builder(phis.back());
 	auto lastPhiIt = builder.GetInsertPoint();
-	lastPhiIt++;
-	builder.SetInsertPoint(&*lastPhiIt);
+	builder.SetInsertPoint(&*++lastPhiIt);
 
 	auto name = nameStem;  //_name.str();
 	auto *resTy = Type::getIntNTy(C, resWidth);
@@ -146,7 +145,7 @@ bool phiShiftPatternRewrite(BasicBlock &BB, const CreateBitRangeGetFn & createSl
 		size_t lowBitNo = 0;
 		for (auto _phi : phigroup) {
 			size_t bitWidth = _phi->getType()->getIntegerBitWidth();
-			auto phiSlice = createSlice(&builder, widerPhi, builder.getInt64(lowBitNo), bitWidth);
+			auto phiSlice = createSlice(&builder, widerPhi, lowBitNo, bitWidth);
 			_phi->replaceAllUsesWith(phiSlice);
 			lowBitNo += bitWidth;
 		}

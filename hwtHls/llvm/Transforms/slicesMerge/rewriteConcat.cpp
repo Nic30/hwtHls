@@ -1,7 +1,7 @@
-#include "rewriteConcat.h"
+#include <hwtHls/llvm/Transforms/slicesMerge/rewriteConcat.h>
 #include <llvm/IR/IRBuilder.h>
-#include "../slicesToIndependentVariablesPass/concatMemberVector.h"
-#include "rewritePhiShift.h"
+#include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/concatMemberVector.h>
+#include <hwtHls/llvm/Transforms/slicesMerge/rewritePhiShift.h>
 
 using namespace llvm;
 
@@ -32,7 +32,7 @@ void mergePhisInConcatMemberVector(SmallVector<OffsetWidthValue> &members,
 				auto I = dyn_cast<Instruction>(_phi->value);
 				IRBuilder<> builder(I);
 				IRBuilder_setInsertPointBehindPhi(builder, I);
-				auto *slice = createSlice(&builder, widerPhi, builder.getInt64(offset), _phi->width);
+				auto *slice = createSlice(&builder, widerPhi, offset, _phi->width);
 				I->replaceAllUsesWith(slice);
 				dce.insert(*I);
 				break;
@@ -49,7 +49,7 @@ void mergePhisInConcatMemberVector(SmallVector<OffsetWidthValue> &members,
 	end = begin + 1; // set current end to a member behind newly added member
 }
 
-bool rewriteConcat(CallInst *I, const CreateBitRangeGetFn &createSlice, DceWorklist &dce) {
+bool rewriteConcat(CallInst *I, const CreateBitRangeGetFn &createSlice, DceWorklist &dce, llvm::Value **_newI) {
 	IRBuilder<> builder(I);
 	ConcatMemberVector values(builder, nullptr);
 
@@ -95,6 +95,8 @@ bool rewriteConcat(CallInst *I, const CreateBitRangeGetFn &createSlice, DceWorkl
 	if (values.members.size() != I->getNumOperands() - 1) { // 1 for function def.
 		assert(values.members.size() < I->getNumOperands() - 1);
 		auto newI = values.resolveValue(I);
+		if (_newI)
+			*_newI = newI;
 		assert(newI != I);
 		I->replaceAllUsesWith(newI);
 		dce.insert(*I);
