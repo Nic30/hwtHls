@@ -1,8 +1,10 @@
+from itertools import chain
 from typing import Optional, Union, List, Tuple, Sequence
 
 from hwt.hdl.operator import Operator
 from hwt.hdl.operatorDefs import OpDefinition, AllOps
 from hwt.hdl.types.defs import SLICE
+from hwt.hdl.types.sliceVal import HSliceVal
 from hwt.hdl.value import HValue
 from hwt.interfaces.std import Signal
 from hwt.synthesizer.interface import Interface
@@ -52,7 +54,7 @@ class SsaExprBuilder():
         assert instr.block is None, (instr, instr.block, block)
         instr.block = block
         block.phis.append(instr)
-        
+
     def _insertPhi(self, instr: SsaPhi):
         pos = self.position
         b = self.block
@@ -65,7 +67,7 @@ class SsaExprBuilder():
         else:
             b.phis.insert(pos, instr)
             self.position += 1
-        
+
     def _normalizeOperandForOperatorResTypeEval(self,
                                                 o: Union[SsaValue, HValue, RtlSignal, Signal]
                                                 ) -> Tuple[Union[SsaValue, HValue], Union[SsaValue, HValue]]:
@@ -74,7 +76,7 @@ class SsaExprBuilder():
         """
         if isinstance(o, Interface):
             o = o._sig
-        
+
         if isinstance(o, HValue):
             return o, o
 
@@ -117,7 +119,7 @@ class SsaExprBuilder():
                         o1: Union[SsaValue, HValue, RtlSignal, Signal]) -> SsaValue:
         o0, o0ForTypeInference = self._normalizeOperandForOperatorResTypeEval(o0)
         o1, o1ForTypeInference = self._normalizeOperandForOperatorResTypeEval(o1)
-        
+
         if operator == AllOps.CONCAT:
             res = operator._evalFn(
                 o1ForTypeInference,
@@ -127,7 +129,7 @@ class SsaExprBuilder():
             res = operator._evalFn(
                 o0ForTypeInference,
                 o1ForTypeInference,
-            )    
+            )
         if o0 is o0ForTypeInference and o1 is o1ForTypeInference and isinstance(res, HValue):
             return res
 
@@ -139,7 +141,7 @@ class SsaExprBuilder():
         assert ops
         if operator == AllOps.CONCAT:
             ops = reversed(ops)
-        
+
         instr = None
         for o in ops:
             if instr is None:
@@ -149,24 +151,95 @@ class SsaExprBuilder():
 
         assert instr is not None
         return instr
-        
-        
-    def buildSliceConst(self, v: SsaValue, highBitNo: int, lowBitNo: int):
+
+    def buildSliceConst(self, v: SsaValue, highBitNo: int, lowBitNo: int) -> Union[SsaValue, HValue]:
+        if highBitNo - lowBitNo == v._dtype.bit_length():
+            return v
+        elif isinstance(v, HValue):
+            return v[highBitNo:lowBitNo]
+        elif isinstance(v, SsaInstr):
+            if v.operator == AllOps.CONCAT:
+                op0, op1 = v.operands
+                half = op0._dtype.bit_length()
+                if highBitNo <= half:
+                    return self.buildSliceConst(op0, highBitNo, lowBitNo)
+                elif lowBitNo >= half:
+                    return self.buildSliceConst(op1, highBitNo - half, lowBitNo - half)
+
         i = SLICE.from_py(slice(highBitNo, lowBitNo, -1))
         return self._binaryOp(v, AllOps.INDEX, i)
 
     def concat(self, *args) -> SsaValue:
         """
+        :note: merges consequent slices
         :param args: operands for concatenation, lowest bits first
         """
         assert args
         res = None
-        for p in args:
+        conseqeuentSliceSrc = None
+        conseqeuentSliceLow = None
+        conseqeuentSliceHigh = None
+        mergedMultipleConsequentSlices = False
+        lastSlice = None
+        handle = object()  # using handle to check for leftover from slice merging after last item
+        for p in chain(args, (handle,)):
+            pIsSlice = isinstance(p, SsaInstr) and p.operator == AllOps.INDEX and isinstance(p.operands[1], HValue)
+            if pIsSlice:
+                src, i = p.operands
+                if isinstance(i, HSliceVal):
+                    i = i.val
+                    assert int(i.step) == -1, (p, i)
+                    low = int(i.stop)
+                    high = int(i.start)
+                else:
+                    i = int(i)
+                    low = i
+                    high = i + 1
+
+                if conseqeuentSliceSrc is None or \
+                        conseqeuentSliceSrc is not src or\
+                        conseqeuentSliceHigh != low:
+                    endOfSlice = conseqeuentSliceSrc is not None
+                else:
+                    conseqeuentSliceHigh = high
+                    mergedMultipleConsequentSlices = True
+                    endOfSlice = False
+                    # continue
+            if p is handle or not pIsSlice or endOfSlice:
+                if conseqeuentSliceSrc is not None:
+                    if mergedMultipleConsequentSlices:
+                        # create larger slice from previous parts
+                        lastSlice = self.buildSliceConst(conseqeuentSliceSrc, conseqeuentSliceHigh, conseqeuentSliceLow)
+
+                    # lazy merge laastSlice
+                    if res is None:
+                        res = lastSlice
+                    else:
+                        # left must be the first, right the latest
+                        res = self._binaryOp(res, AllOps.CONCAT, lastSlice)
+
+                if p is handle:
+                    break
+
+                mergedMultipleConsequentSlices = False
+                if pIsSlice:
+                    conseqeuentSliceSrc = src
+                    conseqeuentSliceLow = low
+                    conseqeuentSliceHigh = high
+                    lastSlice = p
+                    continue
+                elif conseqeuentSliceSrc is not None:
+                    conseqeuentSliceSrc = None
+                    conseqeuentSliceLow = None
+                    conseqeuentSliceHigh = None
+                    lastSlice = None
+
             if res is None:
                 res = p
             else:
                 # left must be the first, right the latest
                 res = self._binaryOp(res, AllOps.CONCAT, p)
+
         return res
 
     def phi(self, args: List[Tuple[SsaValue, SsaBasicBlock]], dtype=None):
@@ -177,17 +250,17 @@ class SsaExprBuilder():
             instr.appendOperand(val, pred)
         self._insertPhi(instr)
         return instr
-        
-    def insertBlocks(self, branchConditions: List[Optional[SsaValue]]):
+
+    def insertBlocks(self, branchConditions: List[Tuple[Optional[SsaValue], str]]):
         """
-        Split current block to predecesor block and sequel block and insert branch blocks between them with a condition specified in branchConditions.
+        Split current block to predecessor block and sequel block and insert branch blocks between them with a condition specified in branchConditions.
 
         :note: instruction on current insert point will end up in sequel block
         """
         pos = self.position
         b = self.block
-        blocks = [SsaBasicBlock(b.ctx, f"{b.label:s}_br{i}") for i in range(len(branchConditions))]
-        
+        blocks = [SsaBasicBlock(b.ctx, f"{b.label:s}_{suffix}") for (_, suffix) in branchConditions]
+
         if (pos is None or pos == len(b.body)) and not b.successors.targets:
             # can directly append the blocks
             raise NotImplementedError("block without any successors or instructions inside")
@@ -208,7 +281,8 @@ class SsaExprBuilder():
                 sequel.successors.addTarget(c, t, meta=meta)
 
             b.successors.targets.clear()
-            for c, t in zip(branchConditions, blocks):
+            for (c, _), t in zip(branchConditions, blocks):
+                assert c is None or isinstance(c, SsaValue), c
                 b.successors.addTarget(c, t)
                 t.successors.addTarget(None, sequel)
 
