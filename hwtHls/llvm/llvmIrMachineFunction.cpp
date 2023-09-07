@@ -19,6 +19,7 @@
 
 #include "llvmIrCommon.h"
 #include "targets/hwtFpgaMCTargetDesc.h"
+#include "llvmCompilationBundle.h"
 
 namespace py = pybind11;
 
@@ -80,7 +81,7 @@ void register_MachineFunction(pybind11::module_ &m) {
 	     })
 		.def("__hash__", [](llvm::MachineBasicBlock * self) {
 			return reinterpret_cast<intptr_t>(self);
-		});; /* Keep vector alive while iterator is used */
+		}); /* Keep vector alive while iterator is used */
 
 	py::class_<llvm::MachineOperand, std::unique_ptr<llvm::MachineOperand, py::nodelete>> MachineOperand(m, "MachineOperand");
 	MachineOperand
@@ -102,6 +103,11 @@ void register_MachineFunction(pybind11::module_ &m) {
 			}, py::return_value_policy::reference_internal)
 		.def("__repr__",  &printToStr<llvm::MachineOperand>);
 	py::class_<llvm::MachineMemOperand, std::unique_ptr<llvm::MachineMemOperand, py::nodelete>> MachineMemOperand(m, "MachineMemOperand");
+	MachineMemOperand
+		.def("getAddrSpace", &llvm::MachineMemOperand::getAddrSpace)
+		.def("getValue", &llvm::MachineMemOperand::getValue)
+		;
+
 	py::class_<llvm::MachineInstr, std::unique_ptr<llvm::MachineInstr, py::nodelete>> MachineInstr(m, "MachineInstr");
 	MachineInstr
 		.def("getParent", [](llvm::MachineInstr * MI) {
@@ -169,18 +175,19 @@ void register_MachineFunction(pybind11::module_ &m) {
 		.def("getMachineFunction",  &llvm::MachineModuleInfo::getMachineFunction, py::return_value_policy::reference_internal);
 
 	m.def("parseMIR",
-			[](const std::string &str, const std::string &name,
-					llvm::LLVMContext &Context, llvm::MachineModuleInfo &MMI) {
-				auto buff = llvm::MemoryBuffer::getMemBufferCopy(str, name);
-				auto MIR = llvm::createMIRParser(std::move(buff), Context);
-				std::unique_ptr<llvm::Module> M = MIR->parseIRModule();
-				if (!M)
+			[](const std::string &mirStr, const std::string &name,
+					hwtHls::LlvmCompilationBundle &Context) {
+				auto buff = llvm::MemoryBuffer::getMemBufferCopy(mirStr, name);
+				auto MIR = llvm::createMIRParser(std::move(buff), Context.ctx);
+				Context.mod = MIR->parseIRModule();
+				if (!Context.mod)
 					throw std::runtime_error("Can not parse machine module");
-				M->setDataLayout(MMI.getTarget().createDataLayout());
-				if (MIR->parseMachineFunctions(*M, MMI))
+				auto &MMI = *Context.getMachineModuleInfo();
+				Context.mod->setDataLayout(MMI.getTarget().createDataLayout());
+				if (MIR->parseMachineFunctions(*Context.mod, MMI))
 					throw std::runtime_error(
 							"Can not parse machine functions from module");
-				return M;
+				return Context.mod.get();
 			}, py::return_value_policy::reference_internal);
 }
 

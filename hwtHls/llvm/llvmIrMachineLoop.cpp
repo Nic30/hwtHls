@@ -33,7 +33,13 @@ void register_MachineLoop(pybind11::module_ &m) {
 		.def("getParentLoop", &llvm::MachineLoop::getParentLoop, py::return_value_policy::reference)
 		.def("getHeader", &llvm::MachineLoop::getHeader, py::return_value_policy::reference)
 		.def("getLoopDepth", &llvm::MachineLoop::getLoopDepth)
+		.def("getUniqueExitBlocks", [](llvm::MachineLoop & L) {
+			llvm::SmallVector<llvm::MachineBasicBlock*> blocks;
+			L.getUniqueExitBlocks(blocks);
+			return blocks;
+		})
 		.def("hasNoExitBlocks", &llvm::MachineLoop::hasNoExitBlocks)
+		.def("hasDedicatedExits", &llvm::MachineLoop::hasDedicatedExits)
 		.def("isInnermost", &llvm::MachineLoop::isInnermost)
 		.def("isOutermost", &llvm::MachineLoop::isOutermost)
 		.def("getExitingBlocks", [](llvm::MachineLoop * self) {
