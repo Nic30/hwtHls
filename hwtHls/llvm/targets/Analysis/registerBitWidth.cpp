@@ -58,6 +58,7 @@ bool resolveTypes(MachineInstr &MI) {
 	case HwtFpga::HWTFPGA_BR:
 	case HwtFpga::HWTFPGA_BRCOND:
 	case HwtFpga::PseudoRET:
+	case TargetOpcode::IMPLICIT_DEF:
 		// no resolving needed
 		return true;
 		// constants should be already lowered to IMM or global values
