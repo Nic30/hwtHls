@@ -6,29 +6,35 @@
 #include <llvm/Analysis/BasicAliasAnalysis.h>
 #include <llvm/Analysis/GlobalsModRef.h>
 
+#include <hwtHls/llvm/Transforms/utils/writeCFGToDotFile.h>
+
 namespace hwtHls {
 
-class IntentionalCompilationInterupt: std::exception {};
+class IntentionalCompilationInterupt: public std::runtime_error {
+public:
+	using std::runtime_error::runtime_error;
+};
+
 class DumpAndExitPass: public llvm::PassInfoMixin<DumpAndExitPass> {
 	bool dumpFn;
 	bool throwErrAndExit;
+	std::optional<std::string> cfgDumpFileName;
 public:
-	explicit DumpAndExitPass(bool dumpFn, bool throwErrAndExit): dumpFn(dumpFn), throwErrAndExit(throwErrAndExit) {
+	explicit DumpAndExitPass(bool dumpFn, bool throwErrAndExit, std::optional<std::string> cfgDumpFileName={}) :
+			dumpFn(dumpFn), throwErrAndExit(throwErrAndExit), cfgDumpFileName(cfgDumpFileName) {
 	}
 
 	llvm::PreservedAnalyses run(llvm::Function &F,
 			llvm::FunctionAnalysisManager &AM) {
 		if (dumpFn)
 			F.dump();
+		if (cfgDumpFileName.has_value()) {
+			writeCFGToDotFile(F, cfgDumpFileName.value(), nullptr, nullptr);
+		}
 		if (throwErrAndExit)
-			throw IntentionalCompilationInterupt();
-		// Mark all the analyses that instcombine updates as preserved.
-		llvm::PreservedAnalyses PA;
-		PA.preserveSet<llvm::CFGAnalyses>();
-		PA.preserve<llvm::AAManager>();
-		PA.preserve<llvm::BasicAA>();
-		PA.preserve<llvm::GlobalsAA>();
-		return PA;
+			throw IntentionalCompilationInterupt(
+					"IntentionalCompilationInterupt: " __FILE__);
+		return llvm::PreservedAnalyses::all();
 	}
 };
 
