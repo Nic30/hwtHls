@@ -31,11 +31,11 @@ def netlistReduceExplicitSyncConditions(dbgTracer: DebugTracer, n: HlsNetNodeExp
             if isinstance(dep.obj, HlsNetNodeConst):
                 if int(dep.obj.val) == 0:
                     # ("Constant skipWhen condition must be 0, because otherwise the channel is always skipped", n, dep.obj)
-                    dep.obj.usedBy[dep.out_i].remove(n.skipWhen)
+                    unlink_hls_nodes(dep, n.skipWhen)
                     if worklist is not None:
                         worklist.append(dep.obj)
+                        worklist.append(n)
                     n._removeInput(n.skipWhen.in_i)
-                    n.skipWhen = None
                     modified = True
                     dbgTracer.log("rm skipWhen")
 
@@ -44,11 +44,11 @@ def netlistReduceExplicitSyncConditions(dbgTracer: DebugTracer, n: HlsNetNodeExp
             if isinstance(dep.obj, HlsNetNodeConst):
                 if int(dep.obj.val) == 1:
                     # ("Constant extraCond must be 1, because otherwise the channel is always blocked", n, dep.obj)
-                    dep.obj.usedBy[dep.out_i].remove(n.extraCond)
+                    unlink_hls_nodes(dep, n.extraCond)
                     if worklist is not None:
                         worklist.append(dep.obj)
+                        worklist.append(n)
                     n._removeInput(n.extraCond.in_i)
-                    n.extraCond = None
                     modified = True
                     dbgTracer.log("rm extraCond")
 
