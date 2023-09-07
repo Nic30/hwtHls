@@ -10,7 +10,7 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.transformation.simplifyUtils import replaceOperatorNodeWith
-from pyMathBitPrecise.bit_utils import get_bit, mask
+from pyMathBitPrecise.bit_utils import get_bit, mask, ValidityError
 
 
 def iter1and0sequences(v: BitsVal) -> Generator[Tuple[Literal[1, 0], int], None, None]:
@@ -47,7 +47,10 @@ def iter1and0sequences(v: BitsVal) -> Generator[Tuple[Literal[1, 0], int], None,
 
 
 def isAll0OrAll1(v: BitsVal):
-    vInt = int(v)
+    try:
+        vInt = int(v)
+    except ValidityError:
+        return False
     return vInt == 0 or vInt == mask(v._dtype.bit_length())
 
 
@@ -98,7 +101,7 @@ def netlistReduceAndOrXor(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode],
                     # x & 0 = 0
                     newO = builder.buildConstPy(t, 0)
 
-            else:
+            elif o1.obj.val._is_full_valid():
                 concatMembers = []
                 offset = 0
                 for bitVal, width in iter1and0sequences(o1.obj.val):
@@ -131,7 +134,7 @@ def netlistReduceAndOrXor(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode],
                     # x | 0 = x
                     newO = o0
 
-            else:
+            elif o1.obj.val._is_full_valid():
                 concatMembers = []
                 offset = 0
                 for bitVal, width in iter1and0sequences(o1.obj.val):
