@@ -1,4 +1,4 @@
-#include "dceWorklist.h"
+#include <hwtHls/llvm/Transforms/utils/dceWorklist.h>
 
 #include <llvm/ADT/SetVector.h>
 #include <llvm/Analysis/TargetLibraryInfo.h>
@@ -11,8 +11,8 @@
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 #include <llvm/Transforms/Utils/Local.h>
 
-#include "../../targets/intrinsic/bitrange.h"
-#include "../slicesToIndependentVariablesPass/concatMemberVector.h"
+#include <hwtHls/llvm/targets/intrinsic/bitrange.h>
+#include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/concatMemberVector.h>
 
 using namespace llvm;
 namespace hwtHls {
@@ -69,8 +69,9 @@ void DceWorklist::insert(llvm::Instruction &I) {
 		WorkList.insert(&I);
 }
 bool DceWorklist::tryRemoveIfDead(llvm::Instruction &I, BasicBlock::iterator &curI) {
-	if (!WorkList.count(&I))
+	if (!WorkList.count(&I)) {
 		return DCEInstruction(&I, WorkList, TLI, curI, slices);
+	}
 	return false;
 }
 bool DceWorklist::runToCompletition(llvm::BasicBlock::iterator &curIt) {
