@@ -8,6 +8,9 @@ from hwtHls.netlist.scheduler.clk_math import start_clk
 
 
 class TimeIndependentRtlResourceItem():
+    """
+    for :class:`~.TimeIndependentRtlResource`
+    """
     __slots__ = ["parent", "data", "isExplicitRegister"]
 
     def __init__(self, parent:"TimeIndependentRtlResource", data:Interface, isExplicitRegister: bool):
