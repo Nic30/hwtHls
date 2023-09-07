@@ -20,7 +20,7 @@ from hwtHls.io.portGroups import MultiPortGroup
 from hwtHls.scope import HlsScope
 from hwtLib.mem.ram import RamSingleClock
 from pyMathBitPrecise.bit_utils import mask
-from tests.frontend.pyBytecode.hashTableIo import HashTableCmd, HashTableCmdResult, \
+from tests.adt.collections.hashTableIo import HashTableCmd, HashTableCmdResult, \
     HASH_TABLE_CMD
 
 

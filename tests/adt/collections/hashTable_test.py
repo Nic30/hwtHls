@@ -4,8 +4,8 @@
 from hwtHls.platform.xilinx.artix7 import Artix7Slow
 from hwtSimApi.utils import freq_to_period
 from tests.baseSsaTest import BaseSsaTC
-from tests.frontend.pyBytecode.hashTable import HashTable
-from tests.frontend.pyBytecode.hashTableIo import HASH_TABLE_CMD
+from tests.adt.collections.hashTable import HashTable
+from tests.adt.collections.hashTableIo import HASH_TABLE_CMD
 
 
 class HashTable_TC(BaseSsaTC):

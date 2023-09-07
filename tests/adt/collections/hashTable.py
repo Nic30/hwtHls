@@ -19,7 +19,7 @@ from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.io.bram import BramArrayProxy
 from hwtHls.scope import HlsScope
 from hwtLib.mem.ram import RamSingleClock
-from tests.frontend.pyBytecode.hashTableIo import HashTableCmd, HashTableCmdResult, \
+from tests.adt.collections.hashTableIo import HashTableCmd, HashTableCmdResult, \
     HASH_TABLE_CMD
 from hwtHls.io.portGroups import MultiPortGroup
 

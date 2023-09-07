@@ -2,8 +2,7 @@ from typing import Optional
 
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.hdlType import HdlType
-from hwt.interfaces.agents.handshaked import HandshakedAgent, \
-    UniversalHandshakedAgent
+from hwt.interfaces.agents.handshaked import UniversalHandshakedAgent
 from hwt.interfaces.std import HandshakeSync, Signal, VectSignal
 from hwt.math import log2ceil
 from hwt.synthesizer.param import Param
