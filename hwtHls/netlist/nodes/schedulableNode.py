@@ -100,7 +100,7 @@ class SchedulableNode():
         if ticks == 0:
             return time  # was checked that this does not cross clk boundary
         else:
-            # if this we substract the clock periods and we end up at the end of clk, from there we alo need to subtract wire delay, etc
+            # if this we subtract the clock periods and we end up at the end of clk, from there we alo need to subtract wire delay, etc
             return (indexOfClkPeriod(time, clkPeriod) - ticks + 1) * clkPeriod - epsilon - ffDelay
 
     @staticmethod
@@ -156,7 +156,8 @@ class SchedulableNode():
             if self.realization is None:
                 # resolve realization if it is not already resolved
                 self.resolveRealization()
-
+            
+            ffdelay = netlist.platform.get_ff_store_time(netlist.realTimeClkPeriod, netlist.scheduler.resolution)
             if self.dependsOn:
                 if pathForDebug is not None:
                     if self in pathForDebug:
@@ -171,7 +172,7 @@ class SchedulableNode():
                         inputTimes = (outputTimeGetter(d, pathForDebug, beginOfFirstClk) for d in self.dependsOn)
 
                     inputTimes = tuple(inputTimes)
-                    ffdelay = netlist.platform.get_ff_store_time(netlist.realTimeClkPeriod, netlist.scheduler.resolution)
+                    
                     # now we have times when the value is available on input
                     # and we must resolve the minimal time so each input timing constraints are satisfied
                     nodeZeroTime = beginOfFirstClk
@@ -266,7 +267,7 @@ class SchedulableNode():
                 # in a clock cycle where the input is currently scheduled
         else:
             # no use of any output, we must use some ASAP input time and move to end of the clock
-            assert self._inputs, (self, "Node must have at least some port used")
+            assert self._inputs, (self, "Node must have at least some port used (or more likely it should be removed because it is useless)")
             nodeZeroTime = endOfLastClk - (ffdelay + maxOutputLatency)
 
         if self.scheduledZero != nodeZeroTime:
@@ -298,7 +299,7 @@ class SchedulableNode():
         clkPeriod = netlist.normalizedClkPeriod
         epsilon = netlist.scheduler.epsilon
         if not self._outputs or not any(self.usedBy):
-            # no outputs, we must use some asap input time and move to end of the clock
+            # no outputs, we must use some ASAP input time and move to end of the clock
             assert self._inputs, (self, "Node must have at least some port.")
             nodeZeroTime = endOfLastClk - ffdelay - epsilon
 
