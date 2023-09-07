@@ -90,11 +90,11 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
 
     def _addValid(self):
         assert self._valid is None, (self, "Already present")
-        self._valid = self._addOutput(BIT, "valid")
+        self._valid = self._addOutput(BIT, "valid", addDefaultScheduling=True)
 
     def _addValidNB(self):
         assert self._validNB is None, (self, "Already present")
-        self._validNB = self._addOutput(BIT, "validNB")
+        self._validNB = self._addOutput(BIT, "validNB", addDefaultScheduling=True)
 
     def getValid(self):
         if not self.hasValid():
@@ -347,6 +347,8 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
             return packIntf(src,
                             masterDirEqTo=DIRECTION_opposite[INTF_DIRECTION_asDirecton[src.rd._direction]],
                             exclude=(src.rd,))
+        elif isinstance(src, RtlSignalBase):
+            return src
         else:
             return packIntf(src, masterDirEqTo=src._masterDir)
 
