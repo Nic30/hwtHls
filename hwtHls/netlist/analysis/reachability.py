@@ -68,6 +68,12 @@ class HlsNetlistAnalysisPassReachabilility(HlsNetlistAnalysisPass):
         self._anySuccessors: ReachDict = {}
         self.removed = removed
 
+    def __hash__(self):
+        return hash(self.__class__)
+
+    def __eq__(self, other) -> bool:
+        return self.__class__ is other.__class__
+
     @staticmethod
     def _registerNodeInSetDict(n: HlsNetNode, d: ReachDict):
         assert n not in d, n
