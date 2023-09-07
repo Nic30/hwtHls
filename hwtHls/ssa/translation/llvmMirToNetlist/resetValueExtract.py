@@ -60,7 +60,6 @@ class ResetValueExtractor():
         otherPredEn: Optional[HlsNetNodeOutAny] = valCache._toHlsCache.get((mb, otherPred), None)
         resetPredEn: Optional[HlsNetNodeOutAny] = valCache._toHlsCache.get((mb, rstPred), None)
         newResetEdgeMeta: MachineEdgeMeta = self.edgeMeta[newResetEdge]
-
         if resetPredEn is None and otherPredEn is None:
             # case where there are no live variables and thus no reset value extraction is required
             for pred in mb.predecessors():
@@ -104,16 +103,38 @@ class ResetValueExtractor():
                 mux: HlsNetNodeMux
                 # pop reset value to initialization of the channel
                 backedgeBuffRead: Optional[HlsNetNodeReadBackedge] = None
-                assert len(mux.dependsOn) == 3, mux
-                (v0I, v0), (condI, cond), (vRstI, vRst) = zip(mux._inputs, mux.dependsOn)
-                if cond is resetPredEn:
-                    # vRst cond v0
-                    (v0, v0I), (vRst, vRstI) = (vRst, vRstI), (v0, v0I)
-                elif cond is otherPredEn:
-                    # v0 cond vRst
-                    pass
-                else:
-                    raise AssertionError("Can not recognize reset value in MUX in loop header")
+
+                v0 = None  # value for otherPredEn which is supposed to be a buffer and where reset value should be inlined
+                vRst = None  # value for reset
+                vRstI = None  # input for value of reset
+                # the mux may contain otherPredEn or resetPredEn or both
+                otherPredEnI = None
+                resetPredEnI = None
+                # mux likely in format  (v0I, v0), (condI, cond), (vRstI, vRst)
+                condValuePairs = tuple(mux._iterValueConditionDriverInputPairs())
+                for i, ((vDep, vIn), (cDep, cIn)) in enumerate(condValuePairs):
+                    if cDep is otherPredEn:
+                        otherPredEnI = cIn
+                        v0 = vDep
+                        if vRst is None: # check for None because resetPredEn may already have been found
+                            vRstI, vRst = condValuePairs[i + 1][0]
+                    elif cDep is resetPredEn:
+                        resetPredEnI = cIn
+                        vRstI = vIn
+                        vRst = vDep
+                        if v0 is None: # check for None because otherPredEn may already have been found
+                            v0, _ = condValuePairs[i + 1][0]
+                assert otherPredEnI is not None or resetPredEnI is not None, (mux, otherPredEn, resetPredEn)
+                # assert len(mux.dependsOn) == 3, (mux, "rst", resetPredEn, "nonRst", otherPredEn)
+                # (v0I, v0), (condI, cond), (vRstI, vRst) = zip(mux._inputs, mux.dependsOn)
+                # if cond is resetPredEn:
+                #    # vRst cond v0
+                #    (v0, v0I), (vRst, vRstI) = (vRst, vRstI), (v0, v0I)
+                # elif cond is otherPredEn:
+                #    # v0 cond vRst
+                #    pass
+                # else:
+                #    raise AssertionError("Can not recognize reset value in MUX in loop header")
 
                 # find backedge buffer on value from loop body
                 while (isinstance(v0, HlsNetNodeOut) and
@@ -126,6 +147,8 @@ class ResetValueExtractor():
 
                 assert backedgeBuffRead is not None
                 backedgeBuffRead: HlsNetNodeReadBackedge
+                assert not isinstance(vRst, HlsNetNodeOutLazy), (
+                    "This transformation should be performed only after all links were resolved and def must be always before use", vRst)
                 rstValObj = vRst.obj
                 removed = self.builder._removedNodes
                 while True:
@@ -161,14 +184,24 @@ class ResetValueExtractor():
                     t = rstValObj.val._dtype
                     assert t == backedgeBuffRead._outputs[0]._dtype, (backedgeBuffRead, t, backedgeBuffRead._outputs[0]._dtype)
                     assert t == mux._outputs[0]._dtype, (mux, t, mux._outputs[0]._dtype)
-                    backedgeBuffRead.associatedWrite.channelInitValues = ((int(rstValObj.val),),)
+                    backedgeBuffRead.associatedWrite.channelInitValues = ((rstValObj.val,),)
 
                 # pop mux inputs for reset
+                if resetPredEnI is not None:
+                    cond = resetPredEn
+                    condI = resetPredEnI
+                else:
+                    assert len(mux._inputs) == 3, mux
+                    cond = otherPredEn
+                    condI = otherPredEnI
+
                 builder.unregisterOperatorNode(mux)
                 unlink_hls_nodes(vRst, vRstI)
                 mux._removeInput(vRstI.in_i)  # remove reset input which was moved to backedge buffer init
+
                 unlink_hls_nodes(cond, condI)
                 mux._removeInput(condI.in_i)  # remove condition because we are not using it
+
                 builder.registerOperatorNode(mux)
                 alreadyUpdated.add(mux)
 
@@ -189,7 +222,7 @@ class ResetValueExtractor():
             if mbSync.rstPredeccessor is not None:
                 self._rewriteControlOfInfLoopWithReset(dbgTrace, mb, mbSync.rstPredeccessor)
                 # if not mbSync.needsControl:
-                #for i in tuple(mbSync.blockEn.dependent_inputs):
+                # for i in tuple(mbSync.blockEn.dependent_inputs):
                 #    i: HlsNetNodeIn
                 #    assert isinstance(i.obj, (HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeOperator)), i.obj
                 #    self._replaceInputDriverWithConst1b(i, threads)
