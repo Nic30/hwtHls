@@ -6,23 +6,25 @@ from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.orderable import HdlType_isNonData, HVoidOrdering, \
-    HdlType_isVoid, _HVoidOrdering
+    HdlType_isVoid, _HVoidOrdering, HlsNetNodeOrderable
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, link_hls_nodes, \
     HlsNetNodeOut, unlink_hls_nodes, HlsNetNodeOutLazy
 from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachabilility
 
 
-def netlistExplicitSyncDisconnectFromOrderingChain(dbgTracer: DebugTracer, n: HlsNetNodeExplicitSync,
+def netlistExplicitSyncDisconnectFromOrderingChain(dbgTracer: DebugTracer, n: HlsNetNodeOrderable,
                                                    worklist: Optional[UniqList[HlsNetNode]],
                                                    disconnectPredecessors: bool=True,
                                                    disconnectSuccesors: bool=True):
     assert disconnectPredecessors or disconnectSuccesors, "At least one must be set otherwise this function would do nothing and in that case it should not be called at all."
 
     with dbgTracer.scoped(netlistExplicitSyncDisconnectFromOrderingChain, n):
-        assert n._inputOfCluster is None
-        assert n._outputOfCluster is None
+        if isinstance(n, HlsNetNodeExplicitSync):
+            assert n._inputOfCluster is None, ("This function should be used only before IO clusters were constructed", n)
+            assert n._outputOfCluster is None, ("This function should be used only before IO clusters were constructed", n)
         for orderingI in tuple(n.iterOrderingInputs()):
             dep = n.dependsOn[orderingI.in_i]
+            assert dep is not None, ("Ordering input ports should be removed if they are disconnected", orderingI)
             if worklist is not None:
                 worklist.append(dep.obj)
             netlistExplicitSyncOrderingBypass(orderingI, disconnectPredecessors)
@@ -113,7 +115,7 @@ def netlistExplicitSyncOrderingBypass(orderingI: HlsNetNodeIn, disconnectInput: 
         assert orderingI not in predOoUses, (orderingI, "was multiple times in usedBy")
         n._removeInput(orderingI.in_i)
 
-    #if isNormalPort:
+    # if isNormalPort:
     #    raise AssertionError("The ordering should not be added to n")
     #    _explicitSyncAddUniqueOrdering(n, (predObj.dependsOn[oi.in_i] for oi in predObj.iterOrderingInputs()), None)
 
