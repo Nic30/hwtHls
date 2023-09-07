@@ -78,7 +78,7 @@ bool HwtFpgaCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
 	auto *F = dyn_cast_or_null<Function>(Info.Callee.getGlobal());
 	MachineRegisterInfo &MRI = *MIRBuilder.getMRI();
 	if (F) {
-		if (IsBitConcat(F)) {
+		if (hwtHls::IsBitConcat(F)) {
 			// BitConcat has higher bits first
 			assert(Info.OrigRet.Regs.size() == 1);
 			unsigned DstReg = Info.OrigRet.Regs[0];
@@ -109,7 +109,7 @@ bool HwtFpgaCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
 				MBI.addImm(width);
 			}
 			return true;
-		} else if (IsBitRangeGet(F)) {
+		} else if (hwtHls::IsBitRangeGet(F)) {
 			assert(Info.OrigRet.Regs.size() == 1);
 			// dst, src, offset in bits (same in BitRangeGet and G_EXTRACT), offset must be imm
 			auto MIB = MIRBuilder.buildInstr(TargetOpcode::G_EXTRACT)	 //
@@ -126,16 +126,16 @@ bool HwtFpgaCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
 				assert(offsetVal.isNonNegative());
 				MIB.addImm(VRegVal.value().Value.getZExtValue());
 			} else {
-				llvm_unreachable(
+				throw std::runtime_error(
 						"hwtHls.bitRangeGet offset operand must be constant");
 			}
 			return true;
 		} else {
-			llvm_unreachable(
+			throw std::runtime_error(
 					"Not implemented, call of generic function in HW function");
 		}
 	}
-	llvm_unreachable("Not implemented, lowerCall");
+	throw std::runtime_error("Not implemented, lowerCall");
 	return false;
 }
 

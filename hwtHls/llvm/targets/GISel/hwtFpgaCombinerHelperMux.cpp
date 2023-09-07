@@ -1,8 +1,11 @@
+#include <hwtHls/llvm/targets/GISel/hwtFpgaCombinerHelper.h>
+
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
 #include <llvm/CodeGen/GlobalISel/GISelKnownBits.h>
-#include "../hwtFpgaInstrInfo.h"
-#include "hwtFpgaInstructionSelectorUtils.h"
-#include "hwtFpgaCombinerHelper.h"
+
+#include <hwtHls/llvm/targets/hwtFpgaInstrInfo.h>
+#include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionSelectorUtils.h>
+#include <hwtHls/llvm/bitMath.h>
 
 namespace llvm {
 
@@ -279,7 +282,7 @@ bool HwtFpgaCombinerHelper::rewriteNestedMuxToMux(MachineInstr &MI,
 }
 
 bool HwtFpgaCombinerHelper::hasAll1AndAll0Values(MachineInstr &MI,
-		CImmOrRegWithNegFlag &matchinfo) {
+		hwtHls::CImmOrRegWithNegFlag &matchinfo) {
 	matchinfo.CImm = nullptr;
 	matchinfo.Negate = false;
 
@@ -365,7 +368,7 @@ bool HwtFpgaCombinerHelper::hasAll1AndAll0Values(MachineInstr &MI,
 }
 
 bool HwtFpgaCombinerHelper::rewriteConstValMux(MachineInstr &MI,
-		const CImmOrRegWithNegFlag &matchinfo) {
+		const hwtHls::CImmOrRegWithNegFlag &matchinfo) {
 	if (matchinfo.CImm) {
 		if (matchinfo.Negate) {
 			replaceInstWithConstant(MI, ~matchinfo.CImm->getValue());
@@ -376,8 +379,7 @@ bool HwtFpgaCombinerHelper::rewriteConstValMux(MachineInstr &MI,
 		Register replacement = matchinfo.Reg;
 		if (matchinfo.Negate) {
 			if (MachineOperand *vdef = MRI.getOneDef(matchinfo.Reg)) {
-				if (vdef->getParent()->getOpcode()
-						== HwtFpga::HWTFPGA_NOT) {
+				if (vdef->getParent()->getOpcode() == HwtFpga::HWTFPGA_NOT) {
 					auto &v_n = vdef->getParent()->getOperand(1);
 					if (v_n.isReg()) {
 						replacement = v_n.getReg();
@@ -397,17 +399,18 @@ bool HwtFpgaCombinerHelper::rewriteConstValMux(MachineInstr &MI,
 	return true;
 }
 
-bool HwtFpgaCombinerHelper::matchMuxMask(llvm::MachineInstr &MI, BuildFnTy &rewriteFn) {
+bool HwtFpgaCombinerHelper::matchMuxMask(llvm::MachineInstr &MI,
+		BuildFnTy &rewriteFn) {
 	if (MI.getNumOperands() == 1 + 3) { // dst, ifTrue, cond, ifFalse
-		const auto & LHS = MI.getOperand(1);
-		const auto & C = MI.getOperand(2);
-		const auto & RHS = MI.getOperand(3);
+		const auto &LHS = MI.getOperand(1);
+		const auto &C = MI.getOperand(2);
+		const auto &RHS = MI.getOperand(3);
 		if (!C.isReg()) {
 			return false;
 		}
 		unsigned width;
 		unsigned Opc;
-		const MachineOperand * xOp;
+		const MachineOperand *xOp;
 		if (RHS.isCImm() && RHS.getCImm()->isZeroValue()) {
 			// (MUX  x, c, 0) -> (G_AND x, (SEXT c))
 			width = RHS.getCImm()->getBitWidth();
@@ -422,11 +425,11 @@ bool HwtFpgaCombinerHelper::matchMuxMask(llvm::MachineInstr &MI, BuildFnTy &rewr
 			return false;
 		}
 		//  (SEXT is avoided if x.width == 1)
-		auto x = CImmOrReg(*xOp);
+		auto x = hwtHls::CImmOrReg(*xOp);
 		auto CReg = C.getReg();
 		Register Dst = MI.getOperand(0).getReg();
 		if (width == 1) {
-			rewriteFn = [=](MachineIRBuilder & builder) {
+			rewriteFn = [=](MachineIRBuilder &builder) {
 				auto MIB = builder.buildInstr(Opc);
 				MIB.addDef(Dst);
 				x.addAsUse(MIB);
