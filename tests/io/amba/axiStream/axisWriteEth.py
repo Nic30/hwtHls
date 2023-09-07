@@ -52,7 +52,8 @@ class AxiSWriteEth(Unit):
 if __name__ == "__main__":
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwt.synthesizer.utils import to_rtl_str
+    from hwtHls.platform.platform import HlsDebugBundle
 
     u = AxiSWriteEth()
-    p = VirtualHlsPlatform(debugDir="tmp")
+    p = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL)
     print(to_rtl_str(u, target_platform=p))

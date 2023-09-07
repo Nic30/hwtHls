@@ -18,10 +18,10 @@ class AxiSWriteByteTC(SimTestCase):
         if DATA_WIDTH != 8:
             u.USE_STRB = True
         self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
-        
+
         ref = [[1, ] for _ in range(N)]
 
-        t = CLK_PERIOD * (N + 1) 
+        t = CLK_PERIOD * (N + 1)
         self.runSim(t)
 
         for _ref  in ref:
@@ -30,18 +30,17 @@ class AxiSWriteByteTC(SimTestCase):
             self.assertValSequenceEqual(f, _ref)
 
         self.assertEmpty(u.dataOut._ag.data)
-    
+
     def test_AxiSWriteByte_8b(self):
         self._test_AxiSWriteByte(8, cls=AxiSWriteByte)
-        
+
     def test_AxiSWriteByte_32b(self):
         self._test_AxiSWriteByte(32, cls=AxiSWriteByte)
 
 
 if __name__ == '__main__':
-
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([AxiSWriteByteTC("test_AxiSParseStructManyInts1_48b")])
+    # suite = unittest.TestSuite([AxiSWriteByteTC("test_AxiSWriteByte_32b")])
     suite = testLoader.loadTestsFromTestCase(AxiSWriteByteTC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
