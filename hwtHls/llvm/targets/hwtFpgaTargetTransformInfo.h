@@ -55,13 +55,14 @@ public:
 	void getUnrollingPreferences(llvm::Loop *, llvm::ScalarEvolution &,
 	                               llvm::TTI::UnrollingPreferences &,
 	                               llvm::OptimizationRemarkEmitter *) const;
-	bool isLegalAddImmediate(int64_t Imm);
-	bool isLegalICmpImmediate(int64_t Imm);
-	bool isLegalMaskedStore(llvm::Type *DataType, llvm::Align Alignment);
-	bool isLegalMaskedLoad(llvm::Type *DataType, llvm::Align Alignment);
-	bool isTruncateFree(llvm::Type *Ty1, llvm::Type *Ty2);
-	bool isTypeLegal(llvm::Type *Ty);
-	bool shouldBuildLookupTables();
+	bool isLegalAddImmediate(int64_t Imm) const;
+	bool isLegalICmpImmediate(int64_t Imm) const;
+	bool isLegalMaskedStore(llvm::Type *DataType, llvm::Align Alignment) const;
+	bool isLegalMaskedLoad(llvm::Type *DataType, llvm::Align Alignment) const;
+	bool isTruncateFree(llvm::Type *Ty1, llvm::Type *Ty2) const;
+	bool isTypeLegal(llvm::Type *Ty) const;
+	bool shouldBuildLookupTables() const;
+	bool shouldBuildLookupTablesForConstant(Constant *C) const;
 	TTI::PopcntSupportKind getPopcntSupport(unsigned IntTyWidthInBit);
 	llvm::TypeSize getRegisterBitWidth(bool Vector) const;
 

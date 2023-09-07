@@ -21,7 +21,7 @@
 
 using namespace llvm;
 
-#define DEBUG_TYPE "genericfpgatti"
+#define DEBUG_TYPE "hwtfpgatti"
 
 //===----------------------------------------------------------------------===//
 //
@@ -127,22 +127,22 @@ InstructionCost HwtFpgaTTIImpl::getIntImmCostInst(unsigned Opcode,
 }
 
 // Any immediate value can be synthesized
-bool HwtFpgaTTIImpl::isLegalAddImmediate(int64_t Imm) {
+bool HwtFpgaTTIImpl::isLegalAddImmediate(int64_t Imm) const {
 	return true;
 }
-bool HwtFpgaTTIImpl::isLegalICmpImmediate(int64_t Imm) {
+bool HwtFpgaTTIImpl::isLegalICmpImmediate(int64_t Imm) const {
 	return true;
 }
 
 // Masked memory operations are free
-bool HwtFpgaTTIImpl::isLegalMaskedStore(Type *DataType, Align Alignment) {
+bool HwtFpgaTTIImpl::isLegalMaskedStore(Type *DataType, Align Alignment) const {
 	return true;
 }
-bool HwtFpgaTTIImpl::isLegalMaskedLoad(Type *DataType, Align Alignment) {
+bool HwtFpgaTTIImpl::isLegalMaskedLoad(Type *DataType, Align Alignment) const {
 	return true;
 }
 
-bool HwtFpgaTTIImpl::isTruncateFree(Type *Ty1, Type *Ty2) {
+bool HwtFpgaTTIImpl::isTruncateFree(Type *Ty1, Type *Ty2) const {
 	if (!Ty1->isIntegerTy() || !Ty2->isIntegerTy())
 		return false;
 	unsigned NumBits1 = Ty1->getPrimitiveSizeInBits();
@@ -150,14 +150,19 @@ bool HwtFpgaTTIImpl::isTruncateFree(Type *Ty1, Type *Ty2) {
 	return NumBits1 > NumBits2;
 }
 
-bool HwtFpgaTTIImpl::isTypeLegal(Type *Ty) {
+bool HwtFpgaTTIImpl::isTypeLegal(Type *Ty) const {
 	if (Ty->isIntegerTy())
 		return true;
 	else
 		return false;
 }
 
-bool HwtFpgaTTIImpl::shouldBuildLookupTables() {
+bool HwtFpgaTTIImpl::shouldBuildLookupTables() const {
+	return true; // this must be true to translate SwitchInst to Load from global constant for llvm-16.0.0
+	//return false; // no lookup tables for jumps
+}
+
+bool HwtFpgaTTIImpl::shouldBuildLookupTablesForConstant(Constant * C) const {
 	return true;
 }
 
