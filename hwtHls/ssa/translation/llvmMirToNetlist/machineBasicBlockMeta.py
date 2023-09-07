@@ -23,8 +23,10 @@ class MachineBasicBlockMeta():
     This class is used as container for information about how control should be implemented in the block.
 
     :ivar block: a MachineBasicBlock for which this container holds an information
-    :ivar blockEn: control flow enable input (some netlist node output)
+    :ivar blockEn: control flow enable input to this block
     :note: blockEn is not RTL like enable signal, it is flag which synchronizes execution of threads.
+        It should never be in invalid state, 1 means that all values comming from selected predecessors
+        are valid, except for values which were obtained by non blocking reads (which have explicit validNB signal).
     :ivar orderingIn: ordering input which is used to keep order of IO operations
     :ivar orderingOut: ordering port from last ordered node in this block
     :ivar needsControl: This block needs the control channel on the input for its functionality.

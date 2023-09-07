@@ -8,8 +8,8 @@ class SsaPassDumpMIR(SsaPass):
     def __init__(self, outStreamGetter:OutputStreamGetter):
         self.outStreamGetter = outStreamGetter
 
-    def apply(self, hls: "HlsScope", to_ssa: "HlsAstToSsa"):
-        tr: ToLlvmIrTranslator = to_ssa.start
+    def apply(self, hls: "HlsScope", toSsa: "HlsAstToSsa"):
+        tr: ToLlvmIrTranslator = toSsa.start
         assert isinstance(tr, ToLlvmIrTranslator), tr
         mf = tr.llvm.getMachineFunction(tr.llvm.main)
         assert mf
