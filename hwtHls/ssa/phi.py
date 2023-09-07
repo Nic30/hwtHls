@@ -8,7 +8,6 @@ from hwtHls.ssa.context import SsaContext
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.value import SsaValue
 
-
 class SsaPhi(SsaInstr):
     """
     A function from SSA normal form which select the value of variable based on prevous basic block
