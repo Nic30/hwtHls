@@ -60,14 +60,14 @@ bool resolveTypes(MachineInstr &MI) {
 	case HwtFpga::PseudoRET:
 		// no resolving needed
 		return true;
-	// constants should be already lowered to IMM or global values
-	//case TargetOpcode::G_CONSTANT:
-	//	MRI.setType(MI.getOperand(0).getReg(),
-	//			LLT::scalar(MI.getOperand(1).getCImm()->getBitWidth()));
-	//	return true;
+		// constants should be already lowered to IMM or global values
+		//case TargetOpcode::G_CONSTANT:
+		//	MRI.setType(MI.getOperand(0).getReg(),
+		//			LLT::scalar(MI.getOperand(1).getCImm()->getBitWidth()));
+		//	return true;
 	case HwtFpga::HWTFPGA_GLOBAL_VALUE: {
 		auto ptrT = MI.getOperand(1).getGlobal()->getType();
-		Type * _t;
+		Type *_t;
 		unsigned SizeInBits;
 		std::tie(_t, SizeInBits) = getGlobalValueElementTypeAndAddressWidth(MI);
 		LLT Ty = LLT::pointer(ptrT->getAddressSpace(), SizeInBits);
@@ -112,9 +112,11 @@ bool resolveTypes(MachineInstr &MI) {
 				Register R = MO.getReg();
 				LLT T = MRI.getType(R);
 				if (T.isValid()) {
-					assert(
-							T.getSizeInBits() == bitWidth
-									&& "All operands of this operator must be of same type");
+					if (T.getSizeInBits() != bitWidth) {
+						MI.dump();
+						llvm_unreachable(
+								"All operands of this operator must be of same type");
+					}
 				} else {
 					MRI.setType(R, LLT::scalar(bitWidth));
 				}
@@ -146,10 +148,10 @@ bool resolveTypes(MachineInstr &MI) {
 			OpI++;
 		}
 		if (bitWidth == 0)
-			return false;
+			return false; // can not resolve value type yet
 		OpI = 0;
 		for (MachineOperand &MO : MI.operands()) {
-			bool isValueOp = OpI == 0 || OpI % 2 == 1;
+			bool isValueOp = OpI == 0 || OpI % 2 == 1; // dst or any src val
 			if (MO.isCImm()) {
 				if (isValueOp) {
 					assert(
@@ -275,7 +277,12 @@ bool resolveTypes(MachineInstr &MI) {
 		assert(checkOrSetWidth(MRI, MI.getOperand(0), dstWidth, nullptr));
 		auto offset = MI.getOperand(2).getImm();
 		auto &src = MI.getOperand(1);
-
+		if (src.isUndef()) {
+			MF.dump();
+			MI.dump();
+			llvm_unreachable(
+					"HWTFPGA_EXTRACT with undef as src operands should already be reduced");
+		}
 		if (src.isReg()) {
 			LLT srcT = MRI.getType(src.getReg());
 			if (srcT.isValid()) {
@@ -329,7 +336,7 @@ bool HwtFpgaRegisterBitWidth::runOnMachineFunction(llvm::MachineFunction &MF) {
 		worklist.pop_front();
 		if (!resolveTypes(*MI)) {
 			if (worklist.empty()) {
-				errs() << MI << "\n";
+				errs() << MI << " " << *MI << "\n";
 				llvm_unreachable(
 						"There is a single instruction in worklist which can not be resolved");
 			}
@@ -339,6 +346,7 @@ bool HwtFpgaRegisterBitWidth::runOnMachineFunction(llvm::MachineFunction &MF) {
 			cycleDetectionCntr = worklist.size() + 2;
 		}
 		if (cycleDetectionCntr == 0) {
+			MF.dump();
 			llvm_unreachable("Can not resolve type for some registers");
 		}
 	}
