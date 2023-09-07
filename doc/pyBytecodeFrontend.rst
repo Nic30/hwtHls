@@ -12,7 +12,7 @@ Dictionary
 * python bytecode - A set of insructions for python interpret
 * SSA - Static Single Assignment
 
-This frontend allows to write a target code and and its preprocessing in a single piece of the code.
+This frontend allows to write a target code and and its pre-processing in a single piece of the code.
 
 The pyBytecode frontend uses interpret of the python code to expand user code to a statically typed code with only HW compatible instructions.
 The Python in this case works as a preprocessor of itself. The preprocessor and target code is indistinguishable by static analysis
@@ -22,7 +22,7 @@ This preprocessor runs python bytecode and generates SSA from parts of it.
 
 The evaluation of the byte code is straightforward but construction of optimal statically typed SSA is non trivial.
 * If target code codition is used as a jump condition the proprocessor must generate code for every possible path
-  because bouth branches must be translated to preprocessed code.
+  because bouth branches must be translated to pre-processed code.
 * Blocks from expanded loops, calls and exception handlers must have deterministic unique labels.
   * This requires foward analysis of potential loops.
   * The loop may or may not be expanded based on iteration scheme this iteration scheme is dynamically resolved during the preprocessing.

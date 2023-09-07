@@ -1,6 +1,6 @@
 For if/switch statement each branch is always performed but it may be swithed to perform no operation.
 This means that the body of the branch is not performed if it should not but the control always token passes trough that branch.
-This means that every node behind menitioned if-statement will recieve synchronization token from all predecessors.
+This means that every node behind mentioned if-statement will recieve synchronization token from all predecessors.
 Thus synchronization must simply wait on every input to be present.
 However this does not work for loops where the loop end is predecessor of the loop entrance.
 This results in deadlock on first iteration.
@@ -155,7 +155,7 @@ The case specification corresponds to a tuple: (data dependency, control depende
 2. n,y,n: The pipeline must stall on each dependency or partially performed iterations in pipeline must canceled
         and executed from beginning or speculatively performed in advance and then applied once the control flow is confirmed.
          (= stalling or parallel speculation or restarting.)
-         (All IO must wait until the brach speculation is confirmed. Because of this we need to read input
+         (All IO must wait until the branch speculation is confirmed. Because of this we need to read input
          but not consume it. We should consume only once branch speculation is confirmed to prevent data lose
          for streams.)
 
@@ -207,7 +207,7 @@ The case specification corresponds to a tuple: (data dependency, control depende
                res = long_op(tmp);
         }
 
-6. y,y,n: Same condition for speculation/waiting as in y,n,y. But the next itrations can be executed in advance if data dependency allows it.
+6. y,y,n: Same condition for speculation/waiting as in y,n,y. But the next iterations can be executed in advance if data dependency allows it.
          but the iteration result must not be applied unless its confirmed. If this variable latency happens because of IO it may be required
          to use cache/LSU to track on-cly transactions
 
@@ -254,23 +254,23 @@ The case specification corresponds to a tuple: (data dependency, control depende
             • Tomasulo (reservation stations - implicit renaming, extender register file - explicit renaming): copy‐based register renaming, full out‐of‐order
     * variable latency of internal sections of single pipeline is not problematic, but if the pipeline has some branching
       the output order from pipelines may come in statically unpredictable order.
-      This issue can be solved by tagging, tagging assignes a sequential number to each input and output waits
-      to a sorted sequece of outptus. This paradigma can be extended to arbitrary number of code branches.
+      This issue can be solved by tagging, tagging assigns a sequential number to each input and output waits
+      to a sorted sequence of outputs. This paradigm can be extended to arbitrary number of code branches.
       This however work only for a code segments without internal data/control dependencies.
       (The tagging is used to reconstruct a sequential access to a variables with dependencies.)
-      The tagging also can be nesed and is compatible with stalling/speculation/restarting.
+      The tagging also can be nested and is compatible with stalling/speculation/restarting.
     * The restrictions on read/write to IO is described in :mod:`hwtHls.hlsStreamProc.ioGateMaterialization`.
 
 * The thing we want is that pipelined bodies of loops have enough input data to fill whole pipeline.
   But this may generate a secondary problem with data/control collisions.
-  The capacity of pipeline corresponds to lenght of loop body plus the latency of IO.
+  The capacity of pipeline corresponds to length of loop body plus the latency of IO.
   We do have a capacity specified for pipeline and pipeline code itself.
 
 * Some loop bodies are actually build to concurrently process more than just one transaction.
    * That imples that the counter should be used instead of just a flag for forwarding.
 * The operations must be performed in original code order.
     * That means that the for example the next iteration of the cycle has to be performed before
-      next intial iteration of the cycle from new start of the program.
+      next initial iteration of the cycle from new start of the program.
     * For a simple structured code it is easy to check because we know exactly which input is
       the input into loop. But is this the case for arbitrary code.
 

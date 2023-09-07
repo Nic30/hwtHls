@@ -24,6 +24,7 @@ Indices and tables
 * :ref:`search`
 
 * :ref:`README-dev`
+* :ref:`dev-llvm-basics-install-and-use`
 
 
 How is hardware design described in using this library?
@@ -111,8 +112,8 @@ and translated. The current method is suitable for controllers and network appli
 After this stage we do have assigned realization of each node and an exact time when it should happen and what synchronization it should use.
 The next step is translate this information to a HWT netlist for RTL codegen. Because the dependency between architectural elements can still be cyclic
 we need to declare all io of all architectural elements in advance. Once specified we can translate the body of the elements.
-Due to support for components spanning over multiple clock cycles and due to split on idividual architectural elements we need to analyze the placement
-of virtual registers in advance in order to find out which element will be responsible for handling of implicitely used and synchronized value as described in following figure.
+Due to support for components spanning over multiple clock cycles and due to split on individual architectural elements we need to analyze the placement
+of virtual registers in advance in order to find out which element will be responsible for handling of implicitly used and synchronized value as described in following figure.
 
 .. image:: _static/nodeBetweenArchElements.png
 
@@ -122,7 +123,7 @@ Once datapath is generated a synchronization is allocated and injected to data-p
 us to modify register and other write statements to happen conditionally once we have the condition.
 
 After this point we do have a complete HWT netlist which can be translated to VHDL/SystemVerilog/SystemC using standard HWT functions.
-By default a control path is then re-synthetized using berkeley-abc to optimize at a least most ciritical paths on gate level.
+By default a control path is then re-synthetized using berkeley-abc to optimize at a least most critical paths on gate level.
 
 
 In various tools the problem of SSA to RTL translation and the problem of synchronization resolution is addressed differently.
