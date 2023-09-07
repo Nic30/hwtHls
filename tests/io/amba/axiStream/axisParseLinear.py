@@ -138,7 +138,7 @@ if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
 
-    u = AxiSParseStructManyInts1()
-    u.DATA_WIDTH = 256
+    u = AxiSParseStructManyInts0()
+    u.DATA_WIDTH = 16
     p = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)
     print(to_rtl_str(u, target_platform=p))
