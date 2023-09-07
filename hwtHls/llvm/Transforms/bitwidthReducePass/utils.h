@@ -102,8 +102,10 @@ inline llvm::raw_ostream& operator<<(llvm::raw_ostream &OS,
 	V.print(OS);
 	return OS;
 }
+
 inline llvm::raw_ostream& operator<<(llvm::raw_ostream &OS,
 		const hwtHls::VarBitConstraint &V) {
 	V.print(OS);
 	return OS;
 }
+

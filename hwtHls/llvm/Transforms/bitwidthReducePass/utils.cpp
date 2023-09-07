@@ -331,14 +331,12 @@ void VarBitConstraint::srcUnionPushBackWithMerge(
 					last.srcWidth).zext(v0.getBitWidth());
 			APInt i1 = itemAsConst->getValue().lshr(item.srcBeginBitI).trunc(
 					item.srcWidth).zext(v0.getBitWidth());
-			if (last.dstBeginBitI < item.dstBeginBitI) {
-				v0 = i0 | i1.shl(i0.getBitWidth());
-			} else {
-				v0 = i1 | i0.shl(i1.getBitWidth());
-			}
+			assert(last.dstBeginBitI < item.dstBeginBitI);
+			v0 = i0 | i1.shl(last.srcWidth);
 			IRBuilder<> builder(last.src->getContext());
 			last.src = builder.getInt(v0);
 			last.srcWidth = v0.getBitWidth();
+			last.srcBeginBitI = 0;
 			return; // constants merged
 		}
 	}
@@ -414,7 +412,10 @@ bool VarBitConstraint::consystencyCheck() const {
 }
 
 void VarBitConstraint::print(raw_ostream &O, bool IsForDebug) const {
-	O << "{u:" << useMask << ", v:[";
+	SmallString<40> UM;
+	useMask.toString(UM, 16, /*isSigned*/false, /* formatAsCLiteral = */false);
+
+	O << "{u: 0x" << UM << ", v:[";
 	for (auto &src : replacements) {
 		O << "    " << src << ", ";
 	}
