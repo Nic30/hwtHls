@@ -1,5 +1,6 @@
-#include "hwtFpgaTargetPassConfig.h"
+#include <hwtHls/llvm/targets/hwtFpgaTargetPassConfig.h>
 
+#include <llvm/Analysis/CFGPrinter.h>
 #include <llvm/CodeGen/GlobalISel/IRTranslator.h>
 #include <llvm/CodeGen/GlobalISel/InstructionSelect.h>
 #include <llvm/CodeGen/GlobalISel/RegBankSelect.h>
@@ -10,14 +11,15 @@
 #include <llvm/Transforms/Scalar.h>
 #include <llvm/Transforms/Scalar/GVN.h>
 
-#include "Transforms/machineDumpAndExitPass.h"
-
-#include "Transforms/hwtHlsCodeGenPrepare.h"
-#include "Transforms/EarlyMachineCopyPropagation.h"
-#include "GISel/hwtFpgaPreLegalizerCombiner.h"
-#include "GISel/hwtFpgaPreRegAllocCombiner.h"
-#include "GISel/hwtFpgaPreToNetlistCombiner.h"
-#include "Analysis/registerBitWidth.h"
+#include <hwtHls/llvm/targets/Analysis/registerBitWidth.h>
+#include <hwtHls/llvm/targets/GISel/hwtFpgaPreLegalizerCombiner.h>
+#include <hwtHls/llvm/targets/GISel/hwtFpgaPreRegAllocCombiner.h>
+#include <hwtHls/llvm/targets/GISel/hwtFpgaPreToNetlistCombiner.h>
+#include <hwtHls/llvm/targets/Transforms/machineDumpAndExitPass.h>
+#include <hwtHls/llvm/targets/Transforms/vregIfConversion.h>
+#include <hwtHls/llvm/targets/Transforms/hwtHlsCodeGenPrepare.h>
+#include <hwtHls/llvm/targets/Transforms/EarlyMachineCopyPropagation.h>
+#include <hwtHls/llvm/Transforms/dumpAndExitPass.h>
 
 #include <iostream>
 
@@ -30,7 +32,7 @@ void HwtFpgaTargetPassConfig::addStraightLineScalarOptimizationPasses() {
 	addPass(createLICMPass());
 	addPass(createSeparateConstOffsetFromGEPPass());
 	addPass(createSpeculativeExecutionPass());
-	// ReassociateGEPs exposes more opportunites for SLSR. See
+	// ReassociateGEPs exposes more opportunities for SLSR. See
 	// the example in reassociate-geps-and-slsr.ll.
 	addPass(createStraightLineStrengthReducePass());
 	// SeparateConstOffsetFromGEP and SLSR creates common expressions which GVN or
@@ -58,6 +60,7 @@ void HwtFpgaTargetPassConfig::addCodeGenPrepare() {
 	if (getOptLevel() != llvm::CodeGenOpt::None)
 		addPass(new hwtHls::HwtHlsCodeGenPrepare());
 }
+
 bool HwtFpgaTargetPassConfig::addInstSelector() {
 	// No instruction selector to install.
 	llvm_unreachable(
@@ -74,8 +77,12 @@ bool HwtFpgaTargetPassConfig::addPreISel() {
 	}
 	return false;
 }
+
 bool HwtFpgaTargetPassConfig::addIRTranslator() {
+	//addPass(new hwtHls::MachineDumpAndExitPass(true, true));
+	//addPass(llvm::createCFGPrinterLegacyPassPass());
 	addPass(new IRTranslator(getOptLevel()));
+	//addPass(new hwtHls::MachineDumpAndExitPass(true, true));
 	return false;
 }
 
@@ -83,16 +90,19 @@ void HwtFpgaTargetPassConfig::addPreLegalizeMachineIR() {
 	// concat, slice calls to instructions
 	addPass(createHwtFpgaPreLegalizerCombiner());
 }
+
 bool HwtFpgaTargetPassConfig::addLegalizeMachineIR() {
 	addVerifyPass("before legalize");
 	addPass(new Legalizer());
 	addVerifyPass("after legalize");
 	return false;
 }
+
 bool HwtFpgaTargetPassConfig::addRegBankSelect() {
 	addPass(new RegBankSelect());
 	return false;
 }
+
 bool HwtFpgaTargetPassConfig::addGlobalInstructionSelect() {
 	addPass(new InstructionSelect(getOptLevel()));
 	return false;
@@ -101,9 +111,10 @@ bool HwtFpgaTargetPassConfig::addGlobalInstructionSelect() {
 bool HwtFpgaTargetPassConfig::addILPOpts() {
 	// selection of X86PassConfig::addILPOpts()
 	addPass(&EarlyIfPredicatorID);
-	addPass(&EarlyIfConverterID); // [FIXME] does not work if block contain something else than CLOAD/CSTORE
+	addPass(&EarlyIfConverterID);
 	return false;
 }
+
 void HwtFpgaTargetPassConfig::addOptimizedRegAlloc() {
 	// :note: nearly same as TargetPassConfig::addOptimizedRegAlloc()
 	//   but we do not call scheduler
@@ -175,8 +186,8 @@ void HwtFpgaTargetPassConfig::addOptimizedRegAlloc() {
 	addPass(&LiveIntervalsID); // add killed and other attributes
 	addPass(createHwtFpgaPreRegAllocCombiner());
 	addPass(&DeadMachineInstructionElimID); // requires explicit undefs
-
 }
+
 void HwtFpgaTargetPassConfig::addMachinePasses() {
 	// based on TargetPassConfig::addMachinePasses();
 
@@ -208,6 +219,11 @@ void HwtFpgaTargetPassConfig::addMachinePasses() {
 
 // [todo] handling of register allocation, maybe similar to WebAssemblyPassConfig::addPostRegAlloc()
 void HwtFpgaTargetPassConfig::addPreSched2() {
+    addPass(hwtHls::createVregIfConverter(nullptr));
+}
+
+AnalysisID HwtFpgaTargetPassConfig::_testAddPass(AnalysisID PassID) {
+	return addPass(PassID);
 }
 
 FunctionPass* HwtFpgaTargetPassConfig::createTargetRegisterAllocator(

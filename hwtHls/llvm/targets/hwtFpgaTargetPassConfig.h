@@ -1,8 +1,8 @@
 #pragma once
 
 #include <llvm/CodeGen/TargetPassConfig.h>
-#include "hwtFpgaTargetMachine.h"
-#include "Transforms/hwtFpgaToNetlist.h"
+#include <hwtHls/llvm/targets/hwtFpgaTargetMachine.h>
+#include <hwtHls/llvm/targets/Transforms/hwtFpgaToNetlist.h>
 
 namespace llvm {
 
@@ -44,6 +44,9 @@ public:
 	//bool addRegAssignAndRewriteOptimized() override {
 	//	return false;
 	//}
+	// exposed addPass method for testing purposes
+	AnalysisID _testAddPass(AnalysisID PassID);
+
 };
 
 }
