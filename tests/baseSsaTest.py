@@ -7,7 +7,6 @@ from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, MachineLoopInfo
 from hwtHls.netlist.analysis.dataThreadsForBlocks import HlsNetlistAnalysisPassDataThreadsForBlocks
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.transformation.injectVldMaskToSkipWhenConditions import HlsNetlistPassInjectVldMaskToSkipWhenConditions
 from hwtHls.netlist.translation.dumpBlockSync import HlsNetlistPassDumpBlockSync
 from hwtHls.netlist.translation.dumpDataThreads import HlsNetlistPassDumpDataThreads
 from hwtHls.platform.platform import HlsDebugBundle
@@ -71,7 +70,6 @@ class BaseTestPlatform(VirtualHlsPlatform):
         toNetlist.extractRstValues(mf, threads)
         toNetlist.resolveLoopControl(mf, blockLiveInMuxInputSync)
         toNetlist.resolveBlockEn(mf, threads)
-        HlsNetlistPassInjectVldMaskToSkipWhenConditions().apply(hls, netlist)
         toNetlist.netlist.invalidateAnalysis(HlsNetlistAnalysisPassDataThreadsForBlocks)  # because we modified the netlist
         toNetlist.connectOrderingPorts(mf)
         return netlist
@@ -84,7 +82,9 @@ class BaseSsaTC(BaseSerializationTC):
     """
     :attention: you need to specify __FILE__ = __file__ on each subclass to resolve paths to files
     """
-    FRONTEND_ONLY = False
+    TEST_FRONTEND = True
+    TEST_MIR = True
+    TEST_THREADS_AND_SYNC = True
 
     def tearDown(self):
         self.rmSim()
@@ -105,9 +105,11 @@ class BaseSsaTC(BaseSerializationTC):
         if name is None:
             name = unit.__class__.__name__
 
-        self.assert_same_as_file(p.postPyOpt.getvalue(), os.path.join("data", name + ".0.postPyOpt.ll"))
-        if not self.FRONTEND_ONLY:
+        if self.TEST_FRONTEND:
+            self.assert_same_as_file(p.postPyOpt.getvalue(), os.path.join("data", name + ".0.postPyOpt.ll"))
+        if self.TEST_MIR:
             self.assert_same_as_file(p.mir.getvalue(), os.path.join("data", name + ".1.mir.ll"))
+        if self.TEST_THREADS_AND_SYNC:
             self.assert_same_as_file(p.dataThreads.getvalue(), os.path.join("data", name + ".2.dataThreads.txt"))
             self.assert_same_as_file(p.blockSync.getvalue(), os.path.join("data", name + ".3.blockSync.dot"))
 
