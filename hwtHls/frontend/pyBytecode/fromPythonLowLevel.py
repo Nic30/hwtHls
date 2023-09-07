@@ -1,4 +1,5 @@
 from dis import Instruction
+from pathlib import Path
 import sys
 from typing import Optional, Dict, List, Union, Literal
 
@@ -23,7 +24,7 @@ from hwtHls.frontend.pyBytecode.utils import blockHasBranchPlaceholder
 from hwtHls.scope import HlsScope
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.value import SsaValue
-from pathlib import Path
+
 
 JumpCondition = Union[None, HValue, RtlSignal, SsaValue, Literal[False]]
 
@@ -58,7 +59,9 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
 
     def _debugDump(self, frame: PyBytecodeFrame, label=None):
         assert self.debugDirectory is not None, self
-        with open(Path(self.debugDirectory) / f"00.cfg.{self.debugGraphCntr:d}{label if label else ''}.dot", "w") as f:
+        d = Path(self.debugDirectory) / self.toSsa.label
+        d.mkdir(exist_ok=True)
+        with open(d / f"00.cfg.{self.debugGraphCntr:d}{label if label else ''}.dot", "w") as f:
             sealedBlocks = set(self.blockToLabel[b] for b in self.toSsa.m_ssa_u.sealedBlocks)
             frame.blockTracker.dumpCfgToDot(f, sealedBlocks)
             self.debugGraphCntr += 1
@@ -269,6 +272,17 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
                 self._runPreprocessorLoop(frame, loopInfo)
                 if loopInfo.pragma:
                     raise NotImplementedError("_runPreprocessorLoop + pragma", loopInfo.pragma)
+    def _getFalltroughOffset(self, frame: PyBytecodeFrame, block: SsaBasicBlock) -> int:
+        curBlockOff = self.blockToLabel[block][-1]
+        fOff = None
+        for off in frame.blockTracker.originalCfg.successors(curBlockOff):
+            if off > curBlockOff:
+                if fOff is None:
+                    fOff = off
+                else:
+                    fOff = min(fOff, off)
+        assert fOff is not None, block
+        return fOff
 
     def _translateBytecodeBlock(self,
             frame: PyBytecodeFrame,
@@ -320,7 +334,8 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
                     self._translateInstructionJumpHw(frame, curBlock, instr)
                 elif instr.opcode == RETURN_VALUE:
                     assert last, instr
-                    frame.returnPoints.append((frame, curBlock, frame.stack.pop()))
+                    retVal = frame.stack.pop()
+                    frame.returnPoints.append((frame, curBlock, retVal))
                     self._onBlockGenerated(frame, self.blockToLabel[curBlock])
                 else:
                     curBlock = self._translateBytecodeBlockInstruction(frame, curBlock, instr)
@@ -328,6 +343,6 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
                     if last:
                         # jump to next block, there was no explicit jump because this is regular code flow, but the next instruction
                         # is jump target
-                        self._getOrCreateSsaBasicBlockAndJumpRecursively(frame, curBlock, instr.offset + 2, None, None)
+                        self._getOrCreateSsaBasicBlockAndJumpRecursively(frame, curBlock, self._getFalltroughOffset(frame, curBlock), None, None)
                         if not blockHasBranchPlaceholder(curBlock):
                             self._onBlockGenerated(frame, self.blockToLabel[curBlock])

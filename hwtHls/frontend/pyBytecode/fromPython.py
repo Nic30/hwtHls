@@ -27,10 +27,15 @@ from hwtHls.frontend.pyBytecode.markers import PyBytecodePreprocDivergence
 from hwtHls.frontend.pyBytecode.utils import isLastJumpFromBlock, blockHasBranchPlaceholder
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.value import SsaValue
-from pathlib import Path
 
 
-# [TODO] support for debugger https://stackoverflow.com/questions/32486204/debugging-python-bytecode-when-source-is-not-available
+# [TODO] support for debugger
+#    https://stackoverflow.com/questions/32486204/debugging-python-bytecode-when-source-is-not-available
+#    https://github.com/Kuree/hgdb
+#    https://github.com/bet4it/gdbserver
+#    https://sourceware.org/gdb/current/onlinedocs/gdb
+#    https://github.com/mborgerson/gdbstub
+#    https://github.com/nomtats/gdbserver-stub https://medium.com/@tatsuo.nomura/implement-gdb-remote-debug-protocol-stub-from-scratch-1-a6ab2015bfc5
 class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
     """
     This class translates Python bytecode to :mod:`hwtHls.ssa`. The preprocessor tries to evaluate as much as possible
@@ -75,7 +80,9 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
         """
         fnName = getattr(fn, "__qualname__", fn.__name__)
         if self.debugBytecode:
-            with open(Path(self.debugDirectory) / f"00.bytecode.{fnName}.txt", "w") as f:
+            d = Path(self.debugDirectory) / fnName
+            d.mkdir(exist_ok=True)
+            with open(d / f"00.bytecode.{fnName}.txt", "w") as f:
                 dis(fn, file=f)
 
         self.toSsa = HlsAstToSsa(self.hls.ssaCtx, fnName, None)
@@ -91,7 +98,7 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
             self._getOrCreateSsaBasicBlockAndJumpRecursively(frame, entryBlock, 0, None, None, True)
             # self._onBlockGenerated(frame, entryBlockLabel)
             assert not frame.loopStack, ("All loops must be exited", frame.loopStack)
-            firstReturn = True 
+            firstReturn = True
             finalRetVal = None
             for (_frame, retBlock, retVal) in frame.returnPoints:
                 if firstReturn:
@@ -108,27 +115,6 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
         assert len(self.callStack) == 1 and self.callStack[0] is frame, self.callStack
         self.toSsa.finalize()
         return finalRetVal
-
-    # def _makrLoopBodyCopyAsNotGenerated(self):
-    #    # mark jumps in unused loop body as notGenerated    
-    #    _getBlockLabel = frame.blockTracker._getBlockLabel
-    #    # bodyBlockLabel = _getBlockLabel(bodyBlockOffset)
-    #    # self._addNotGeneratedJump(frame, curBlockLabel, bodyBlockLabel)
-    #    curLoop = loopInfo.loop
-    #    blockTracker = frame.blockTracker
-    #    for src, dst in curLoop.allEdges:
-    #        if dst != curLoop.entryPoint:
-    #            srcLabel = _getBlockLabel(src)
-    #            dstLabel = _getBlockLabel(dst)
-    #            if ((srcLabel, dstLabel) in blockTracker.notGeneratedEdges or 
-    #                srcLabel in blockTracker.notGenerated or 
-    #                dstLabel in blockTracker.notGenerated):
-    #                # this is the case for forward jumps in loop body
-    #                continue
-    #            else:
-    #                # this is the case for backedges in loop body 
-    #                self._addNotGeneratedJump(frame, srcLabel, dstLabel)
-    #
 
     def _runPreprocessorLoop(self, frame: PyBytecodeFrame, loopInfo: PyBytecodeLoopInfo):
         """
@@ -178,7 +164,7 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
         assert loopInfo.jumpsFromLoopBody, ("Preproc loop must have exit point", loopInfo.loop, frame.loopStack)
         loopExitsToTranslate: List[LoopExitJumpInfo] = []
         headerBlockLabels = []
-        
+
         # [FIXME] the CFG does contain exit jumps from previous iteration jumps which were not marked with notGenerated
         #        but LoopExitJumpInfo should be present
         while loopInfo.jumpsFromLoopBody:
@@ -277,7 +263,7 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
             assert len(set(id(j.frame) for j in loopExitsToTranslate)) == len(loopExitsToTranslate), (
                 "Each jump must have own version of frame because multiple jumps could be only generated for HW evaluated jumps which do require copy of frame"
                 )
-       
+
         frame.exitLoop()
         for sucInfo in loopExitsToTranslate:
             sucInfo: LoopExitJumpInfo
@@ -420,6 +406,8 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
         else:
             self._onBlockNotGenerated(frame, curBlock, sucBlockOffset)
 
+
+
     def _translateInstructionJumpHw(self,
                                     frame: PyBytecodeFrame,
                                     curBlock: SsaBasicBlock,
@@ -442,7 +430,7 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
                 if condJumpCond is not None:
                     if opcode in (JUMP_IF_FALSE_OR_POP, JUMP_IF_TRUE_OR_POP):
                         raise NotImplementedError("stack pop depends on hw evaluated condition")
-    
+
                     cond = frame.stack.pop()
                     cond, curBlock = expandBeforeUse(self, instr.offset, frame, cond, curBlock)
                     if isinstance(cond, PyBytecodePreprocDivergence):
@@ -453,12 +441,12 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
                     cond, curBlock = expandBeforeUse(self, instr.offset, frame, cond, curBlock)
                     if isinstance(cond, Interface):
                         cond = cond._sig
-    
+
                     compileTimeResolved = not isinstance(cond, (RtlSignal, HValue, SsaValue))
                     if not compileTimeResolved:
                         curBlock, cond = self.toSsa.visit_expr(curBlock, cond)
-    
-                    ifFalseOffset = instr.offset + 2
+
+                    ifFalseOffset = self._getFalltroughOffset(frame, curBlock)
                     ifTrueOffset = instr.argval
                     if opcode in (JUMP_IF_FALSE_OR_POP,
                                   POP_JUMP_FORWARD_IF_FALSE,
@@ -471,7 +459,7 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
                     elif opcode == POP_JUMP_BACKWARD_IF_NONE:
                         assert compileTimeResolved, cond
                         cond = cond is None
-    
+
                     if compileTimeResolved:
                         assert not duplicateCodeUntilConvergencePoint
                         if cond:
@@ -486,11 +474,11 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
                             if cond:
                                 self._getOrCreateSsaBasicBlockAndJumpRecursively(frame, curBlock, ifTrueOffset, cond, None)
                                 self._onBlockNotGeneratedPotentiallyOutOfLoop(frame, curBlock, ifFalseOffset)
-    
+
                             else:
                                 self._getOrCreateSsaBasicBlockAndJumpRecursively(frame, curBlock, ifFalseOffset, ~cond, None)
                                 self._onBlockNotGeneratedPotentiallyOutOfLoop(frame, curBlock, ifTrueOffset)
-    
+
                         else:
                             if duplicateCodeUntilConvergencePoint:
                                 raise NotImplementedError()
@@ -501,7 +489,7 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
                             self.callStack[-1] = secondBranchFrame
                             self._getOrCreateSsaBasicBlockAndJumpRecursively(secondBranchFrame, curBlock, ifFalseOffset, BIT.from_py(1), None)
                             self.callStack[-1] = firstBranchFrame
-    
+
                     if not blockHasBranchPlaceholder(curBlock):
                         self._onBlockGenerated(frame, self.blockToLabel[curBlock])
 
