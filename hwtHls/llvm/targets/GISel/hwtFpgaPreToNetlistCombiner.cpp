@@ -25,7 +25,7 @@
 #include <llvm/Support/Debug.h>
 #include "hwtFpgaCombinerHelper.h"
 
-#define DEBUG_TYPE "genericfpga-pretonetlist-combiner"
+#define DEBUG_TYPE "hwtfpga-pretonetlist-combiner"
 
 using namespace llvm;
 using namespace MIPatternMatch;
@@ -132,10 +132,10 @@ bool HwtFpgaPreToNetlistCombinerInfo::combine(GISelChangeObserver &Observer,
 
 	unsigned Opc = MI.getOpcode();
 	switch (Opc) {
-	case TargetOpcode::IMPLICIT_DEF:
-	case TargetOpcode::G_IMPLICIT_DEF:
-		MI.eraseFromParent();
-		return true;
+	//case TargetOpcode::IMPLICIT_DEF:
+	//case TargetOpcode::G_IMPLICIT_DEF:
+	//	MI.eraseFromParent();
+	//	return true;
 	case TargetOpcode::PHI: {
 		std::function<void(llvm::MachineIRBuilder&)> _phiToMux =
 				convertPHI_to_HWTFPGA_MUX;

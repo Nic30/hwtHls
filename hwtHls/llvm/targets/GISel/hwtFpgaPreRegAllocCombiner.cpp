@@ -24,7 +24,7 @@
 
 #include "hwtFpgaCombinerHelper.h"
 
-#define DEBUG_TYPE "genericfpga-preregalloc-combiner"
+#define DEBUG_TYPE "hwtfpga-preregalloc-combiner"
 
 using namespace llvm;
 using namespace MIPatternMatch;

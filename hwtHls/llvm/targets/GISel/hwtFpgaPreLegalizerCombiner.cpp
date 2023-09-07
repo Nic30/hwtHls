@@ -23,7 +23,7 @@
 #include <llvm/Support/Debug.h>
 #include "hwtFpgaCombinerHelper.h"
 
-#define DEBUG_TYPE "genericfpga-prelegalizer-combiner"
+#define DEBUG_TYPE "hwtfpga-prelegalizer-combiner"
 
 using namespace llvm;
 using namespace MIPatternMatch;

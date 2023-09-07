@@ -12,7 +12,7 @@
 #include "../hwtFpgaInstrInfo.h"
 #include "../hwtFpgaTargetPassConfig.h"
 
-#define DEBUG_TYPE "genericfpga-tonetlist"
+#define DEBUG_TYPE "hwtfpga-tonetlist"
 
 using namespace llvm;
 namespace hwtHls {
@@ -75,7 +75,7 @@ bool HwtFpgaToNetlist::runOnMachineFunction(llvm::MachineFunction &MF) {
 		collectBackedges(backedges, *loop);
 	}
 
-	auto liveness = hwtHls::getLiveVariablesForBlockEdge(MF);
+	auto liveness = hwtHls::getLiveVariablesForBlockEdge(*MRI, MF);
 	std::vector<Register> ioRegs(MF.getFunction().arg_size());
 	for (auto &R : ioRegs) {
 		R = 0;
@@ -89,10 +89,9 @@ bool HwtFpgaToNetlist::runOnMachineFunction(llvm::MachineFunction &MF) {
 			}
 		}
 	}
-
 	for (auto &R : ioRegs) {
 		if (R == 0)
-			throw std::runtime_error("The machine function code do not know about this argument");
+			throw std::runtime_error("The machine function body does not use this IO argument");
 	}
 	std::map<llvm::Register, unsigned> registerTypes;
 	auto regNum = MRI->getNumVirtRegs();
