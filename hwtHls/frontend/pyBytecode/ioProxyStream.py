@@ -19,6 +19,7 @@ class IoProxyStream(object):
     def __init__(self, hls: "HlsScope", interface: Interface):
         self.hls = hls
         self.interface = interface
+        self.name = interface._name
 
     def readStartOfFrame(self):
         return HlsStmReadStartOfFrame(self.hls, self.interface)
