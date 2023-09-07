@@ -1,4 +1,4 @@
-from typing import Set, Union
+from typing import Set
 
 from hwt.hdl.types.bitsVal import BitsVal
 from hwt.interfaces.std import HandshakeSync
@@ -6,22 +6,23 @@ from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachabilility
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.debugTracer import DebugTracer
-from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge, \
-    HlsNetNodeReadBackedge
+from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
+from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeReadAnyChannel, \
+    HlsNetNodeWriteAnyChannel, LoopChanelGroup
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.orderable import _HVoidValue, HVoidOrdering, \
     HdlType_isNonData, HdlType_isVoid
 from hwtHls.netlist.nodes.ports import unlink_hls_nodes, \
-    link_hls_nodes, unlink_hls_node_input_if_exists
-from hwtHls.netlist.transformation.simplifyUtils import getConstDriverOf
-from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge, \
-    HlsNetNodeReadForwardedge
+    link_hls_nodes, unlink_hls_node_input_if_exists,\
+    unlink_hls_node_input_if_exists_with_worklist
 from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import netlistExplicitSyncDisconnectFromOrderingChain
+from hwtHls.netlist.transformation.simplifyUtils import getConstDriverOf
+from hwtHls.netlist.transformation.simplifySync.reduceChannelGroup import netlistTryRemoveChannelGroup
 
 
 def netlistEdgeWritePropagation(
         dbgTracer: DebugTracer,
-        writeNode: Union[HlsNetNodeWriteForwardedge, HlsNetNodeWriteBackedge],
+        writeNode: HlsNetNodeWriteAnyChannel,
         worklist: UniqList[HlsNetNode],
         removed: Set[HlsNetNode],
         reachDb: HlsNetlistAnalysisPassReachabilility) -> bool:
@@ -37,9 +38,14 @@ def netlistEdgeWritePropagation(
         # in order to apply this input data must be const
         return False
 
-    r: Union[HlsNetNodeReadForwardedge, HlsNetNodeReadBackedge] = writeNode.associatedRead
+    r: HlsNetNodeReadAnyChannel = writeNode.associatedRead
     if r is None or HdlType_isVoid(r._outputs[0]._dtype):
         return False
+
+    # g = writeNode._loopChannelGroup
+    # if g is not None and g.getChannelWhichIsUsedToImplementControl() is writeNode:
+    #    # can not remove because it has control flow purpose
+    #    return False
 
     with dbgTracer.scoped(netlistEdgeWritePropagation, writeNode):
         init = writeNode.channelInitValues
@@ -115,7 +121,7 @@ def netlistEdgeWritePropagation(
 
 def netlistEdgeWriteVoidWithoudDeps(
         dbgTracer: DebugTracer,
-        writeNode: Union[HlsNetNodeWriteForwardedge, HlsNetNodeWriteBackedge],
+        writeNode: HlsNetNodeWriteAnyChannel,
         worklist: UniqList[HlsNetNode],
         removed: Set[HlsNetNode]) -> bool:
     if len(writeNode._inputs) != 1:
@@ -129,12 +135,20 @@ def netlistEdgeWriteVoidWithoudDeps(
     if not HdlType_isVoid(d._dtype):
         # driver is not of void type, wait on  :func:`~.netlistEdgeWritePropagation`
         return False
-    
+
+    g = writeNode._loopChannelGroup
+    isControlOfG = g is not None and g.getChannelWhichIsUsedToImplementControl() is writeNode
+    if isControlOfG and not netlistTryRemoveChannelGroup(g, worklist):
+        # can not remove because it has control flow purpose
+        return False
+
+    g: LoopChanelGroup
     with dbgTracer.scoped(netlistEdgeWriteVoidWithoudDeps, writeNode):
-        builder: HlsNetlistBuilder = writeNode.netlist.builder 
+        builder: HlsNetlistBuilder = writeNode.netlist.builder
         netlistExplicitSyncDisconnectFromOrderingChain(dbgTracer, writeNode, worklist)
-        
+
         dConst = writeNode.dependsOn[0]
+        worklist.append(dConst.obj)
         unlink_hls_nodes(dConst, writeNode._inputs[0])
         readNode = writeNode.associatedRead
         if readNode.usedBy[0]:
@@ -149,11 +163,15 @@ def netlistEdgeWriteVoidWithoudDeps(
             raise NotImplementedError()
         dVoid = readNode._dataVoidOut
         if dVoid is not None and readNode.usedBy[dVoid.out_i]:
-            builder.replaceOutput(dVoid, builder.buildConstPy(dVoid._dtype, None), True)
-                
+            dVoidReplace = builder.buildConstPy(dVoid._dtype, None)
+            builder.replaceOutput(dVoid, dVoidReplace, True)
+            worklist.append(dVoidReplace.obj)
+
         netlistExplicitSyncDisconnectFromOrderingChain(dbgTracer, readNode, worklist)
-        unlink_hls_node_input_if_exists(readNode.skipWhen)
-        unlink_hls_node_input_if_exists(readNode.extraCond)
+        unlink_hls_node_input_if_exists_with_worklist(readNode.skipWhen, worklist, False)
+        unlink_hls_node_input_if_exists_with_worklist(readNode.extraCond, worklist, False)
         removed.add(writeNode)
         removed.add(readNode)
-        
+        if g is not None and not isControlOfG:
+            g.members.remove(writeNode)
+

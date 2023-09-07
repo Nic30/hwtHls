@@ -9,8 +9,9 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import unlink_hls_nodes, HlsNetNodeOut, \
     HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
-from hwtHls.netlist.nodes.orderable import HVoidData, HVoidExternData
+from hwtHls.netlist.nodes.orderable import HVoidData
 from hwtHls.netlist.transformation.simplifyUtils import addAllUsersToWorklist
+from hwtHls.netlist.transformation.simplifySync.reduceChannelGroup import netlistTryRemoveChannelGroup
 
 
 def netlistBackedgeStraightening(dbgTracer: DebugTracer,
@@ -19,21 +20,23 @@ def netlistBackedgeStraightening(dbgTracer: DebugTracer,
                                  removed: Set[HlsNetNode],
                                  reachDb: HlsNetlistAnalysisPassReachabilility):
     """
-    Move if write to backedge channel before read it possible and optionally remove
-    the chanel and read+write entirely.
+    If it is possible to move write to channel before its read
+    it means that the channel does not need to be backedge.
+    If the extraCond, skipWhen flags are None it means that this channel does not
+    even have control flow purpose and can be removed entirely.
     """
     # r is ordered before w because this is backedge
-    # if w does not depend on r and none of them 
-    
+    # if w does not depend on r and none of them
+
     r = w.associatedRead
     if r is None:
         return False
 
     if w.channelInitValues:
         return False
-    
+
     rValidPortReplacement = None
-    rValidNBPortReplacement = None 
+    rValidNBPortReplacement = None
     hasUsedValidNBPort = r.hasValidNB() and r.usedBy[r._validNB.out_i]
     hasUsedValidPort = r.hasValid() and r.usedBy[r._valid.out_i]
     if hasUsedValidNBPort or hasUsedValidPort:
@@ -43,7 +46,7 @@ def netlistBackedgeStraightening(dbgTracer: DebugTracer,
                 rValidPortReplacement = dataPredecs[0].getValid()
             else:
                 return False
-        
+
         if hasUsedValidNBPort:
             if len(dataPredecs) == 1 and isinstance(dataPredecs[0], HlsNetNodeRead):
                 rValidNBPortReplacement = dataPredecs[0].getValidNB()
@@ -58,9 +61,14 @@ def netlistBackedgeStraightening(dbgTracer: DebugTracer,
 
     if reachDb.doesReachTo(r, w):  # [todo] ignore ordering and void data
         # if write is dependent on read the channel can not be removed
-        # because state of the channel state can is required 
+        # because state of the channel state can is required
         return False
-    
+    g = w._loopChannelGroup
+    isControlOfG = g is not None and g.getChannelWhichIsUsedToImplementControl() is w
+    if isControlOfG and not netlistTryRemoveChannelGroup(g, worklist):
+        # can not remove because it has control flow purpose
+        return False
+
     with dbgTracer.scoped(netlistBackedgeStraightening, w):
         orderingDeps: List[HlsNetNodeOut] = []
         orderingUses: List[HlsNetNodeIn] = []
@@ -75,7 +83,7 @@ def netlistBackedgeStraightening(dbgTracer: DebugTracer,
                 if u.obj not in (r, w):
                     orderingUses.append(u)
                 unlink_hls_nodes(oo, u)
-        
+
         if orderingDeps or orderingUses:
             if len(orderingDeps) + len(orderingUses) > 1:
                 # delegate ordering to successor
@@ -91,6 +99,7 @@ def netlistBackedgeStraightening(dbgTracer: DebugTracer,
         b: HlsNetlistBuilder = r.netlist.builder
         dbgTracer.log(("replace", rData, data))
         b.replaceOutput(rData, data, True)
+        worklist.append(data.obj)
         addAllUsersToWorklist(worklist, r)
         addAllUsersToWorklist(worklist, w)
 
@@ -99,12 +108,14 @@ def netlistBackedgeStraightening(dbgTracer: DebugTracer,
                 raise NotImplementedError("Construct a dataVoidOut replacement for input void dependencies")
             else:
                 b.replaceOutput(r._dataVoidOut, b.buildConst(HVoidData.from_py(None)), True)
-        
+
         if rValidPortReplacement is not None:
             b.replaceOutput(r._valid, rValidPortReplacement, True)
         if rValidNBPortReplacement is not None:
             b.replaceOutput(r._validNB, rValidNBPortReplacement, True)
-        
+
         removed.add(r)
         removed.add(w)
+        if g is not None and not isControlOfG:
+            g.members.remove(w)
         return True

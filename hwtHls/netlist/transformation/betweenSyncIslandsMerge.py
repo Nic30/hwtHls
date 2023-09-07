@@ -24,34 +24,119 @@ from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge, \
     HlsNetNodeWriteForwardedge
 from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
     HlsNetNodeWriteBackedge
+from hwtHls.netlist.nodes.loopChannelGroup import LoopChanelGroup, \
+    LOOP_CHANEL_GROUP_ROLE
+
+
+def _iterAllChannelIoOutsideOfLoop(loopStatus: HlsNetNodeLoopStatus):
+    for g in loopStatus.fromEnter:
+        yield from g.members
+
+    for g in loopStatus.fromExitToSuccessor:
+        for w in g.members:
+            yield w.associatedRead
+
+
+def _iterAllChannelIoInsideOfLoop(loopStatus: HlsNetNodeLoopStatus):
+    for g in loopStatus.fromEnter:
+        for w in g.members:
+            yield w.associatedRead
+
+    for g in chain(loopStatus.fromReenter, loopStatus.fromExitToHeaderNotify):
+        for w in g.members:
+            yield w
+            yield w.associatedRead
+
+    for g in loopStatus.fromExitToSuccessor:
+        for w in g.members:
+            yield w
 
 
 class SyncIslandProps():
+    """
+    Container of sync island properties.
+    """
 
     def __init__(self):
         self.hasNodesWhichTakeTime: bool = False
         self.unmergableNodes: Tuple[Set[HlsNetNode], Set[HlsNetNode]] = (set(), set())
         self.isAllNonBlocking: bool = True
         self.hasNoIo: bool = True
-    
+
     @staticmethod
     def _getUnmergableNodes(isl: BetweenSyncIsland) -> Tuple[Set[HlsNetNode], Set[HlsNetNode]]:
         """
         Get sets of nodes which can not be merged to this island.
+        
+        If some member node is inside of the loop we can not merge with 
+        enter writes, exit data/control reads if they are HlsNetNodeReadForwardEdge
+        (exit notification to loop status can always be merged because it is backedge)
+        
+        if some member node is outside of the loop we can not merge with
+        with enter/reenter reads exit data writs and read-write pairs for exit notifications
         """
         unmergablePredNodes: Set[HlsNetNode] = set()
         unmergableSucNodes: Set[HlsNetNode] = set()
         for n in isl.iterAllNodes():
             if isinstance(n, HlsNetNodeLoopStatus):
-                unmergablePredNodes.update(e.associatedWrite for e in n.fromEnter)
-                unmergableSucNodes.update(e.associatedRead for e in n.fromExit)
-
+                n: HlsNetNodeLoopStatus
+                for g in n.fromEnter:
+                    unmergablePredNodes.update(g.members)
+                for e in n.fromExitToSuccessor:
+                    unmergableSucNodes.update(w.associatedRead for w in e.members if isinstance(w.associatedRead, HlsNetNodeWriteForwardedge))
+            elif isinstance(n, HlsNetNodeReadBackedge):
+                g = n.associatedWrite._loopChannelGroup
+                if g is not None:
+                    g: LoopChanelGroup
+                    for loop, role in g.connectedLoops:
+                        if role in (LOOP_CHANEL_GROUP_ROLE.ENTER,
+                                    LOOP_CHANEL_GROUP_ROLE.REENTER,
+                                    LOOP_CHANEL_GROUP_ROLE.EXIT_NOTIFY_TO_HEADER):
+                            unmergableSucNodes.update(_iterAllChannelIoOutsideOfLoop(loop))
+                        else:
+                            assert role == LOOP_CHANEL_GROUP_ROLE.EXIT_TO_SUCCESSOR
+                            unmergableSucNodes.update(_iterAllChannelIoInsideOfLoop(loop))
+            elif isinstance(n, HlsNetNodeWriteBackedge):
+                g = n._loopChannelGroup
+                if g is not None:
+                    g: LoopChanelGroup
+                    for loop, role in g.connectedLoops:
+                        if role in (LOOP_CHANEL_GROUP_ROLE.REENTER,
+                                    LOOP_CHANEL_GROUP_ROLE.EXIT_TO_SUCCESSOR,
+                                    LOOP_CHANEL_GROUP_ROLE.EXIT_NOTIFY_TO_HEADER):
+                            unmergableSucNodes.update(_iterAllChannelIoOutsideOfLoop(loop))
+                        else:
+                            assert role == LOOP_CHANEL_GROUP_ROLE.ENTER
+                            #unmergableSucNodes.update(_iterAllChannelIoInsideOfLoop(loop))
+            
             elif isinstance(n, HlsNetNodeReadForwardedge):
                 unmergablePredNodes.add(n.associatedWrite)
                 unmergableSucNodes.add(n.associatedWrite)
-                
+                g = n.associatedWrite._loopChannelGroup
+                if g is not None:
+                    g: LoopChanelGroup
+                    for loop, role in g.connectedLoops:
+                        assert role not in (LOOP_CHANEL_GROUP_ROLE.EXIT_NOTIFY_TO_HEADER,
+                                            LOOP_CHANEL_GROUP_ROLE.REENTER), (loop, n, "must always be backedges")
+                        if role == LOOP_CHANEL_GROUP_ROLE.ENTER:
+                            unmergableSucNodes.update(_iterAllChannelIoOutsideOfLoop(loop))
+                        else:
+                            assert role == LOOP_CHANEL_GROUP_ROLE.EXIT_TO_SUCCESSOR
+                            unmergableSucNodes.update(_iterAllChannelIoInsideOfLoop(loop))
+
             elif isinstance(n, HlsNetNodeWriteForwardedge):
                 unmergableSucNodes.add(n.associatedRead)
+                g = n._loopChannelGroup
+                if g is not None:
+                    g: LoopChanelGroup
+                    for loop, role in g.connectedLoops:
+                        assert role not in (LOOP_CHANEL_GROUP_ROLE.EXIT_NOTIFY_TO_HEADER,
+                                            LOOP_CHANEL_GROUP_ROLE.REENTER), (loop, n, "must always be backedges")
+                        if role == LOOP_CHANEL_GROUP_ROLE.ENTER:
+                            unmergableSucNodes.update(_iterAllChannelIoInsideOfLoop(loop))
+                        else:
+                            assert role == LOOP_CHANEL_GROUP_ROLE.EXIT_TO_SUCCESSOR
+                            unmergableSucNodes.update(_iterAllChannelIoOutsideOfLoop(loop))
 
         return unmergablePredNodes, unmergableSucNodes
 
@@ -107,12 +192,12 @@ class HlsNetlistPassBetweenSyncIslandsMerge(HlsNetlistPass):
             return False
 
         if predUnmergableNodes is None:
-            # :note: the case with predUnmergableNodes is None is also at the beginning 
+            # :note: the case with predUnmergableNodes is None is also at the beginning
             #  there we compute predUnmergableNodes on demand
             predUnmergableNodes = SyncIslandProps._getUnmergableNodes(predIsl)
             if self._islandContainsUnmergable(sucIsl, predUnmergableNodes[1]):
                 return False
-        
+
         return True
 
     def _mergeIslands(self, srcIsl: BetweenSyncIsland, dstIsl: BetweenSyncIsland, removedIslands: Set[BetweenSyncIsland]):
@@ -178,6 +263,12 @@ class HlsNetlistPassBetweenSyncIslandsMerge(HlsNetlistPass):
         sucIslands.discard(isl)
         return predIslands, sucIslands
 
+    def checkForwardChannels(self, syncIsland: BetweenSyncIsland):
+        for io in chain(syncIsland.inputs, syncIsland.outputs):
+            if isinstance(io, HlsNetNodeReadForwardedge):
+                w = io.associatedWrite
+                assert w not in syncIsland.inputs and w not in syncIsland.outputs, (syncIsland, io, w)
+
     def apply(self, hls:"HlsScope", netlist:HlsNetlistCtx):
 
         syncNodes = netlist.getAnalysisIfAvailable(HlsNetlistAnalysisPassBetweenSyncIslands)
@@ -199,10 +290,10 @@ class HlsNetlistPassBetweenSyncIslandsMerge(HlsNetlistPass):
                     isl: BetweenSyncIsland
                     if isl in removedIslands:
                         continue
-                    
+
                     islProps = SyncIslandProps()  # :note: Not updated if not required after change
                     islProps.update(isl)
-                    
+
                     if islProps.hasNoIo or islProps.isAllNonBlocking or not islProps.hasNodesWhichTakeTime:
                         predIslands, sucIslands = self._collectConnectedIslands(isl)
 
@@ -276,7 +367,8 @@ class HlsNetlistPassBetweenSyncIslandsMerge(HlsNetlistPass):
         # for n, isl in syncIslandOfNode.items():
         #    assert isl not in removedIslands, (n, isl)
         syncIslands[:] = (i for i in syncIslands if i not in removedIslands)
-
+        for syncIsland in syncIslands:
+            self.checkForwardChannels(syncIsland)
         # if cluster contains only HlsNetNodeExplicitSync and optional HlsNetNodeReadSync
         # and has only successor or only predecessor it can be merged into it
 

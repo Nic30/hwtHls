@@ -19,6 +19,8 @@ from hwtHls.netlist.nodes.orderable import HdlType_isVoid
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtLib.handshaked.builder import HsBuilder
+from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
+from hwtHls.netlist.nodes.schedulableNode import OutputMinUseTimeGetter
 
 
 class HlsNetNodeReadBackedge(HlsNetNodeRead):
@@ -39,6 +41,12 @@ class HlsNetNodeReadBackedge(HlsNetNodeRead):
 
     def _getSchedulingResourceType(self):
         return self
+
+    def scheduleAlapCompaction(self, endOfLastClk:int, outputMinUseTimeGetter:Optional[OutputMinUseTimeGetter]):
+        if not self._inputs and not any(self.usedBy):
+            # use time from backedge because this node is not connected to anything and floating freely in time
+            raise AssertionError("The node must have at least ordering connection to write, it can not just freely float in time", self)
+        return HlsNetNodeRead.scheduleAlapCompaction(self, endOfLastClk, outputMinUseTimeGetter)
 
     def _allocateRtlIo(self):
         """
@@ -181,6 +189,7 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
     The read from HLS pipeline which is binded to a buffer for data/sync on backward edge in dataflow graph.
 
     :ivar channelInitValues: Optional tuple for value initialization.
+    :ivar buffName: name which can be used to override the name of the buffer in RTL
     """
 
     def __init__(self, netlist:"HlsNetlistCtx",
@@ -191,12 +200,13 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
         self.channelInitValues = channelInitValues
         self.allocationType = BACKEDGE_ALLOCATION_TYPE.BUFFER
         self.buffName = None
+        self._loopChannelGroup: Optional["LoopChanelGroup"] = None
 
     def associateRead(self, read: HlsNetNodeReadBackedge):
         assert isinstance(read, HlsNetNodeReadBackedge), read
         read.associatedWrite = self
         self.associatedRead = read
-        #self.dst = read.src
+        # self.dst = read.src
 
     def _getSchedulingResourceType(self):
         return self
@@ -205,7 +215,7 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
         """
         If this read-write pair is not instantiated as a buffer it means it does not have associated IO interface.
         In this specific case we have to explicitly resolve synchronization.
-        A reg is writen to if it is enabled and not skipped and if every other IO in this clock is either enabled and receives ack from outside
+        A reg is written to if it is enabled and not skipped and if every other IO in this clock is either enabled and receives ack from outside
         or it is skipped.
         """
         from hwtHls.netlist.analysis.ioDiscover import HlsNetlistAnalysisPassIoDiscover
@@ -236,6 +246,20 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
 
         return None
 
+    def _getSizeOfBuffer(self, clkPeriod: int):
+        srcWrite = self
+        dstRead = self.associatedRead
+        assert dstRead is not None
+        dst_t = dstRead.scheduledOut[0]
+        src_t = srcWrite.scheduledIn[0]
+        assert dst_t <= src_t, (self, dst_t, src_t)
+        # assert dst_t <= src_t, ("This was supposed to be backward edge", dst_t, src_t, srcWrite, dstRead)
+        # 1 register at minimum, because we need to break a combinational path
+        # the size of buffer is derived from the latency of operations between the io ports
+        # regCnt = max(ceil((src_t - dst_t) / clkPeriod), 1)
+        # assert regCnt > 0, self
+        return 1
+
     def allocateRtlInstance(self, allocator:"ArchElement") -> TimeIndependentRtlResource:
         try:
             return allocator.netNodeToRtl[self]
@@ -249,17 +273,8 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
             allocator._afterNodeInstantiated(self, res)
             srcWrite = self
             assert dstRead is not None
-            dst_t = dstRead.scheduledOut[0]
-            src_t = srcWrite.scheduledIn[0]
-            # assert dst_t <= src_t, ("This was supposed to be backward edge", dst_t, src_t, srcWrite, dstRead)
-            # 1 register at minimum, because we need to break a combinational path
-            # the size of buffer is derived from the latency of operations between the io ports
-            if src_t <= dst_t:
-                # forward edge
-                regCnt = (dst_t - src_t) // allocator.netlist.normalizedClkPeriod
-            else:
-                regCnt = max(ceil((src_t - dst_t) / allocator.netlist.normalizedClkPeriod), 1)
-                assert regCnt > 0, self
+            clkPeriod = allocator.netlist.normalizedClkPeriod
+            regCnt = self._getSizeOfBuffer(clkPeriod)
 
             assert srcWrite.dst is not dstRead.src, (srcWrite, dstRead)
             if regCnt == 0:

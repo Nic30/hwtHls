@@ -1,3 +1,4 @@
+from itertools import chain
 from typing import List, Optional, Generator, Union, Tuple, Dict, Set
 
 from hwt.code import If, Or
@@ -9,23 +10,17 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
     HlsNetNodeWriteBackedge, BACKEDGE_ALLOCATION_TYPE
-from hwtHls.netlist.nodes.delay import HlsNetNodeDelayClkTick
 from hwtHls.netlist.nodes.explicitSync import IO_COMB_REALIZATION
-from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge, \
-    HlsNetNodeWriteForwardedge, HlsNetNodeWriteForwardedge
+from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge
+from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeReadAnyChannel, \
+    LoopChanelGroup, HlsNetNodeWriteAnyChannel, LOOP_CHANEL_GROUP_ROLE
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.orderable import HVoidData, HlsNetNodeOrderable, \
-    HVoidOrdering, HdlType_isVoid
+    HVoidOrdering
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, link_hls_nodes, \
     HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-
-HlsNetNodeLoopPortAny = Union[
-    HlsNetNodeReadForwardedge,
-    HlsNetNodeWriteForwardedge,
-    HlsNetNodeReadBackedge,
-    HlsNetNodeWriteBackedge]
 
 
 class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
@@ -50,99 +45,53 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
     :note: This node does not contain any multiplexers or explicit synchronization it is just a state-full control logic
         which provides "enable signals".
 
-    :note: For nested loops the top loop is always guaranted to be bussy if child is.
+    :note: For nested loops the top loop is always guaranted to be busy if child is.
         If the child has same header block as parent, the children status is most important. Because we need to continue executing the lowest loop.
 
     :ivar fromEnter: for each direct predecessor which is not in cycle body a tuple input for control and variable values.
         Signalizes that the loop has data to be executed.
     :ivar fromReenter: For each direct predecessor which is a part of a cycle body a tuple control input and associated variables.
         Note that the channels are usually connected to out of pipeline interface because the HlsNetlistCtx does not support cycles.
-    :ivar fromExit: For each block which is part of the cycle body and does have transition outside of the cycle a control input
-        to mark the return of the synchronization token.
+    :ivar fromExitToHeaderNotify: Group which lead from exit point to a place where this loop status is and it notifies
+        the status about the exit from the loop so loop can be reentered again.
+    :ivar fromExitToSuccessor: Groups which lead from exit point to section behind the loop to enable it.
     """
 
     def __init__(self, netlist:"HlsNetlistCtx", name:str=None):
         HlsNetNode.__init__(self, netlist, name=name)
         # :note: other outputs are added for each predecessor for the block where loop is
         #    ports are used to separate loop body from circuit outside of loop
-        # self._addOutput(BIT, "canEnter")
         self._addOutput(HVoidOrdering, "orderingOut")
         self._addOutput(BIT, f"busy")
 
         self.debugUseNamedSignalsForControl = False
-        # a dictonary port node -> RtlSignal
-        self._rtlPortNodeSigs: Dict[HlsNetNodeLoopPortAny, RtlSignal] = {}
+        # a dictionary port node -> RtlSignal
+        self._rtlPortGroupSigs: Dict[LoopChanelGroup, RtlSignal] = {}
         self._rtlAllocated = False
 
-        self.fromEnter: List[Union[HlsNetNodeReadBackedge, HlsNetNodeReadForwardedge]] = []
-        self.fromReenter: List[Union[HlsNetNodeReadBackedge]] = []
-        self.fromExit: List[Union[HlsNetNodeWriteForwardedge, HlsNetNodeWriteBackedge]] = []
+        self.fromEnter: List[LoopChanelGroup] = []
+        self.fromReenter: List[LoopChanelGroup] = []
+        self.fromExitToHeaderNotify: List[LoopChanelGroup] = []
+        self.fromExitToSuccessor: List[LoopChanelGroup] = []
 
-        self._bbNumberToPorts: Dict[tuple(int, int), Tuple[HlsNetNodeLoopPortAny, HlsNetNodeOut]] = {}
+        self._bbNumberToPorts: Dict[tuple(int, int), Tuple[LoopChanelGroup, HlsNetNodeOut]] = {}
         self._isEnteredOnExit: bool = False
 
-    def filterSubnodes(self, removed:Set["HlsNetNode"]):
-        builder = self.netlist.builder
-        toRm = []
-        for srcDst, (portNode, outPort) in self._bbNumberToPorts.items():
+    def iterOrderingInputs(self) -> Generator[HlsNetNodeIn, None, None]:
+        nonOrderingInputs = set(v[1] for v in self._bbNumberToPorts.values())
+        for i in self._inputs:
+            if i not in nonOrderingInputs:
+                yield i
+
+    def _findLoopChannelIn_bbNumberToPorts(self, lcg: LoopChanelGroup):
+        for srcDst, (portChannelGroup, outPort) in self._bbNumberToPorts.items():
             outPort: HlsNetNodeOut
-            if portNode in removed:
-                if outPort is not None:  # None=exit port
-                    uses = self.usedBy[outPort.out_i]
-                    if uses:
-                        if portNode in self.fromEnter and\
-                                len(self.fromEnter) == 1:
-                            exits = [e for e in self.fromExit if e not in removed]
-                            if exits:
-                                # implicit enter = enter on any exit
-                                enterReplacement = builder.buildOrVariadic(tuple(n.associatedRead.getValidNB() for n in exits))
-                                e0: HlsNetNodeWriteBackedge = exits[0]
-                                assert HdlType_isVoid(e0.associatedRead._outputs[0]._dtype), (e0, "This must be of void type because it only triggers the loop exit")
-                                assert not e0.channelInitValues, (e0, e0.channelInitValues)
-                                e0.channelInitValues = ((),)
-                                self._isEnteredOnExit = True
-                                
-                            else:
-                                # build enter = not any(reenter)
-                                # or  enter = 1 if len(reenter) == 0
-                                reenters = []
-                                for e in self.fromReenter:
-                                    if e in removed:
-                                        continue
-                                    found = False
-                                    for (pn, op) in self._bbNumberToPorts.values():
-                                        if pn is e:
-                                            reenters.append(op)
-                                            found = True
-                                            break 
-                                    assert found
-                                if reenters:
-                                    enterReplacement = builder.buildNot(builder.buildOrVariadic(reenters))
-                                else:
-                                    enterReplacement = builder.buildConstBit(1)
+            if portChannelGroup is lcg:
+                return (srcDst, outPort)
 
-                            builder.replaceOutput(outPort, enterReplacement, True)
-                            
-                            bussyO = self.getBussyOutPort()
-                            if self.usedBy[bussyO.out_i]:
-                                # this loop is always bussy and this node will probably be removed in next step of optimization
-                                builder.replaceOutput(bussyO, builder.buildConstBit(1), True)
+        raise KeyError(lcg)
 
-                        else:
-                            raise NotImplementedError(self, srcDst, portNode)
-                            
-                    assert not self.usedBy[outPort.out_i], ("If port should be removed it should be disconnected first", outPort)
-                    self._removeOutput(outPort.out_i)
-                toRm.append(srcDst)
-
-        for srcDst in toRm:
-            self._bbNumberToPorts.pop(srcDst)
-
-        self.fromEnter[:] = (n for n in self.fromEnter if n not in removed)
-        self.fromReenter[:] = (n for n in self.fromReenter if n not in removed)
-        self.fromExit[:] = (n for n in self.fromExit if n not in removed)
-
-    def getBussyOutPort(self) -> HlsNetNodeOut:
+    def getBusyOutPort(self) -> HlsNetNodeOut:
         return self._outputs[1]
 
     def getOrderingOutPort(self) -> HlsNetNodeOut:
@@ -150,6 +99,82 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
 
     def resolveRealization(self):
         self.assignRealization(IO_COMB_REALIZATION)
+
+    def _connectVoidDataConst(self, w: HlsNetNodeWrite):
+        v = self.netlist.builder.buildConst(HVoidData.from_py(None))
+        link_hls_nodes(v, w._inputs[0])
+
+    def addEnterPort(self, srcBlockNumber: int, dstBlockNumber: int, lcg:LoopChanelGroup)\
+            ->Tuple[HlsNetNodeRead, HlsNetNodeOut]:
+        """
+        Register connection of control and data from some block which causes the loop to to execute.
+
+        :note: When transaction on this IO is accepted the loop sync token is changed to busy state if not overriden by exit.
+        :note: Loop can be executed directly after reset. This implies that the enter ports are optional. However enter or exit port must be present,
+            otherwise this loop status node is not required at all because
+        """
+        lcg.associateWithLoop(self, LOOP_CHANEL_GROUP_ROLE.ENTER)
+        name = f"enterFrom_bb{srcBlockNumber:}"
+        fromStatusOut = self._addOutput(BIT, name)
+        w = lcg.getChannelWhichIsUsedToImplementControl()
+        r: HlsNetNodeReadBackedge = w.associatedRead
+        assert isinstance(r, HlsNetNodeRead), r
+        assert not r._isBlocking, r
+        
+        link_hls_nodes(w.getOrderingOutPort(), self._addInput("orderingIn"))
+        self.fromEnter.append(lcg)
+        self._bbNumberToPorts[(srcBlockNumber, dstBlockNumber)] = (lcg, fromStatusOut)
+        return r, fromStatusOut
+
+    def addReenterPort(self, srcBlockNumber: int, dstBlockNumber: int, lcg: LoopChanelGroup)\
+            ->Tuple[HlsNetNodeRead, HlsNetNodeOut]:
+        """
+        Register connection of control and data from some block where control flow gets back block where the cycle starts.
+
+        :note: When transaction on this IO is accepted the loop sync token is reused
+        """
+        lcg.associateWithLoop(self, LOOP_CHANEL_GROUP_ROLE.REENTER)
+        name = f"reenterFrom_bb{srcBlockNumber}"
+        fromStatusOut = self._addOutput(BIT, name)
+        r: HlsNetNodeReadBackedge = lcg.getChannelWhichIsUsedToImplementControl().associatedRead
+        assert isinstance(r, HlsNetNodeReadBackedge), r
+        assert not r._isBlocking, r
+        self.fromReenter.append(lcg)
+        self._bbNumberToPorts[(srcBlockNumber, dstBlockNumber)] = (lcg, fromStatusOut)
+        return r, fromStatusOut
+
+    def addExitToHeaderNotifyPort(self, srcBlockNumber: int, dstBlockNumber: int, lcg: LoopChanelGroup)\
+            ->HlsNetNodeWrite:
+        """
+        Register connection of control which causes to break current execution of the loop.
+        :note: This channel group leads from exit to a header block. The exit channel from
+        from the loop which transfers data outside of the loop is handled on different place.
+        (when translating from MIR)
+
+        :note: When transaction on this IO is accepted the loop sync token returned to ready state.
+        :note: the loop may not end this implies that this may not be used at all.
+        """
+        lcg.associateWithLoop(self, LOOP_CHANEL_GROUP_ROLE.EXIT_NOTIFY_TO_HEADER)
+        w: HlsNetNodeWriteBackedge = lcg.getChannelWhichIsUsedToImplementControl()
+        assert isinstance(w, HlsNetNodeWriteBackedge), w
+        r = w.associatedRead
+        assert not r._isBlocking, r
+        exitIn = self._addInput(f"exit_from_bb{srcBlockNumber:d}_to_bb{dstBlockNumber:d}", True)
+        link_hls_nodes(r.getValidNB(), exitIn)
+
+        self.fromExitToHeaderNotify.append(lcg)
+        self._bbNumberToPorts[(srcBlockNumber, dstBlockNumber)] = (lcg, exitIn)
+        return w
+
+    def addExitToSuccessorPort(self, lcg: LoopChanelGroup):
+        """
+        Register connection which is executing code behind the loop.
+        """
+        lcg.associateWithLoop(self, LOOP_CHANEL_GROUP_ROLE.EXIT_TO_SUCCESSOR)
+        w: HlsNetNodeWriteBackedge = lcg.getChannelWhichIsUsedToImplementControl()
+        assert isinstance(w, (HlsNetNodeWriteBackedge, HlsNetNodeWriteForwardedge)), w
+        self.fromExitToSuccessor.append(lcg)
+        return w
 
     @staticmethod
     def _resolveBackedgeDataRtlValidSig(portNode: HlsNetNodeReadBackedge):
@@ -176,38 +201,39 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
             name = f"{allocator.namePrefix}{name}"
         else:
             name = f"{allocator.namePrefix}loop{self._id:d}"
-        
-        isAlwaysBussy = self._isEnteredOnExit and not self.fromEnter
-        if isAlwaysBussy:
+
+        isAlwaysBusy = self._isEnteredOnExit and not self.fromEnter
+        if isAlwaysBusy:
             statusBusyReg = BIT.from_py(1)
         else:
             statusBusyReg = allocator._reg(
                 f"{name:s}_busy",
                 def_val=0 if self.fromEnter else 1)  # busy if is executed at 0 time
         bbNumberToPortsSorted = sorted(self._bbNumberToPorts.items(), key=lambda x: x[0])
-        portNodeSigs = self._rtlPortNodeSigs
-        for _, (portNode, portOut) in bbNumberToPortsSorted:
-            s = allocator._sig(f"{name:s}_{portNode.name:s}" if portOut is None else f"{name:s}_{portOut.name:s}")
-            portNodeSigs[portNode] = s
+        portGroupSigs = self._rtlPortGroupSigs
+        for _, (channelGroup, portOut) in bbNumberToPortsSorted:
+            s = allocator._sig(f"{name:s}_{channelGroup.name:s}" if portOut is None else f"{name:s}_{portOut.name:s}")
+            portGroupSigs[channelGroup] = s
 
         useNamedSignals = self.debugUseNamedSignalsForControl
         parentU = self.netlist.parentUnit
 
         # has the priority and does not require sync token (because it already owns it)
         assert self.fromReenter, (self, "Must have some reenters otherwise this is not the loop")
-        for portNode in self.fromReenter:
-            s = portNodeSigs[portNode]
-            s(self._resolveBackedgeDataRtlValidSig(portNode))
+        for channelGroup in self.fromReenter:
+            s = portGroupSigs[channelGroup]
+            s(self._resolveBackedgeDataRtlValidSig(channelGroup.getChannelWhichIsUsedToImplementControl().associatedRead))
 
         newExit = NOT_SPECIFIED
-        if self.fromExit:
+        if self.fromExitToHeaderNotify:
             # returns the control token
             fromExit = []
-            for portNode in self.fromExit:
+            for channelGroup in self.fromExitToHeaderNotify:
+                portNode = channelGroup.getChannelWhichIsUsedToImplementControl()
+                assert isinstance(portNode, HlsNetNodeWriteBackedge), (portNode, self)
                 # e.allocateRtlInstance(allocator)
-                s = portNodeSigs[portNode]
+                s = portGroupSigs[channelGroup]
                 fromExit.append(s)
-                assert isinstance(portNode, HlsNetNodeWriteBackedge)
                 portNodeR = portNode.associatedRead
                 allocator.instantiateHlsNetNodeOutInTime(portNodeR._validNB, self.scheduledZero)
                 # portNode.associatedRead._allocateRtlIo()
@@ -221,9 +247,10 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
         if self.fromEnter:
             fromEnter = []
             # takes the control token
-            for portNode in self.fromEnter:
+            for channelGroup in self.fromEnter:
+                portNode = channelGroup.getChannelWhichIsUsedToImplementControl().associatedRead
                 portNode._allocateRtlIo()
-                _s = portNodeSigs[portNode]
+                _s = portGroupSigs[channelGroup]
                 s = portNode.src.vld
                 if newExit is not NOT_SPECIFIED:
                     en = ~statusBusyReg | newExit
@@ -237,32 +264,34 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
             if useNamedSignals:
                 newExe = rename_signal(parentU, newExe, f"{name:s}_newExe")
             # statusBusy = statusBusyReg | newExe
-        if isAlwaysBussy:
+
+        if isAlwaysBusy:
+            assert isinstance(statusBusyReg, HValue), self
             pass
-        
-        elif not self.fromEnter and not self.fromExit:
+
+        elif not self.fromEnter and not self.fromExitToHeaderNotify:
             # this is infinite loop without predecessor, it will run infinitely but in just one instance
-            assert newExe is NOT_SPECIFIED, newExe
-            assert newExit is NOT_SPECIFIED, newExit
+            assert newExe is NOT_SPECIFIED, (newExe, self)
+            assert newExit is NOT_SPECIFIED, (newExit, self)
             statusBusyReg(1)
             # raise AssertionError("This node should be optimized out if state of the loop can't change", self)
 
-        elif self.fromEnter and not self.fromExit:
+        elif self.fromEnter and not self.fromExitToHeaderNotify:
             # this is an infinite loop which has a predecessor, once started it will be closed for new starts
             # :attention: we pick the data from any time because this is kind of back edge
-            assert newExe is not NOT_SPECIFIED, newExe
-            assert newExit is NOT_SPECIFIED, newExit
+            assert newExe is not NOT_SPECIFIED, (newExe, self)
+            assert newExit is NOT_SPECIFIED, (newExit, self)
             If(newExe,
                statusBusyReg(1)
             )
-        elif self.fromEnter and self.fromExit:
+        elif self.fromEnter and self.fromExitToHeaderNotify:
             # loop with a predecessor and successor
-            assert newExe is not NOT_SPECIFIED, newExe
-            assert newExit is not NOT_SPECIFIED, newExit
-            becomesBussy = newExe & ~newExit
+            assert newExe is not NOT_SPECIFIED, (newExe, self)
+            assert newExit is not NOT_SPECIFIED, (newExit, self)
+            becomesBusy = newExe & (newExit | ~statusBusyReg)
             becomesFree = ~newExe & newExit
-            if isinstance(becomesBussy, HValue):
-                if becomesBussy:
+            if isinstance(becomesBusy, HValue):
+                if becomesBusy:
                     statusBusyReg(1)
                 else:
                     if isinstance(becomesFree, HValue):
@@ -273,7 +302,7 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
                             statusBusyReg(0)
                         )
             else:
-                resStm = If(becomesBussy,
+                resStm = If(becomesBusy,
                    statusBusyReg(1)
                 )
                 if isinstance(becomesFree, HValue):
@@ -286,10 +315,10 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
                         statusBusyReg(0)
                     )
 
-        elif not self.fromEnter and self.fromExit:
+        elif not self.fromEnter and self.fromExitToHeaderNotify:
             # loop with no predecessor and successor
-            assert newExe is NOT_SPECIFIED, newExe
-            assert newExit is not NOT_SPECIFIED, newExit
+            assert newExe is NOT_SPECIFIED, (newExe, self)
+            assert newExit is not NOT_SPECIFIED, (newExit, self)
             If(newExit,
                statusBusyReg(0)  # finished work
             )
@@ -303,22 +332,23 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
             busy = statusBusyReg
         else:
             busy = statusBusyReg & ~newExit
-        netNodeToRtl[self.getBussyOutPort()] = TimeIndependentRtlResource(busy, t, allocator, False)
+
+        netNodeToRtl[self.getBusyOutPort()] = TimeIndependentRtlResource(busy, t, allocator, False)
         # netNodeToRtl[self.getEnterOutPort()] = TimeIndependentRtlResource(~statusBusyReg, t, allocator, False)
-        for _, (portNode, portOut) in bbNumberToPortsSorted:
-            s = portNodeSigs[portNode]
+        for _, (channelGroup, portOut) in bbNumberToPortsSorted:
+            s = portGroupSigs[channelGroup]
             if isinstance(portOut, HlsNetNodeIn):
                 # exits don't have portOut
                 continue
-            elif portNode in self.fromReenter:
+            elif channelGroup in self.fromReenter:
                 s = s & statusBusyReg
-            elif portNode in self.fromEnter:
+            elif channelGroup in self.fromEnter:
                 if newExit is NOT_SPECIFIED:
                     s = s & ~statusBusyReg
                 else:
                     s = s & (~statusBusyReg | newExit)
             else:
-                raise AssertionError("unknown type of port node", portNode)
+                raise AssertionError("unknown type of port node", channelGroup)
 
             allocator.netNodeToRtl[portOut] = TimeIndependentRtlResource(
                     s, self.scheduledOut[portOut.out_i], allocator, False)
@@ -327,89 +357,10 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
         return res
 
     def debug_iter_shadow_connection_dst(self) -> Generator["HlsNetNode", None, None]:
-        yield from self.fromReenter
-        yield from self.fromExit
-
-    def _connectVoidDataConst(self, w: HlsNetNodeWrite):
-        v = self.netlist.builder.buildConst(HVoidData.from_py(None))
-        link_hls_nodes(v, w._inputs[0])
-
-    def addEnterPort(self, srcBlockNumber: int, dstBlockNumber: int, r: HlsNetNodeReadBackedge)\
-            ->Tuple[HlsNetNodeRead, HlsNetNodeOut]:
-        """
-        Register connection of control and data from some block which causes the loop to to execute.
-
-        :note: When transaction on this IO is accepted the loop sync token is changed to bussy state if not overriden by exit.
-        :note: Loop can be executed directly after reset. This implies that the enter ports are optional. However enter or exit port must be present,
-            otherwise this loop status node is not required at all because
-        """
-        name = f"enterFrom_bb{srcBlockNumber:}"
-        fromStatusOut = self._addOutput(BIT, name)
-        # w: HlsNetNodeWrite = None
-        # if controlPortObj is None:
-        #    w, r = HlsNetNodeLoopEnterRead.createPredSucPair(self, srcBlockNumber)
-        #    self._connectVoidDataConst(w)
-        # else:
-        assert isinstance(r, HlsNetNodeRead), r
-        w = r.associatedWrite
-
-        link_hls_nodes(w.getOrderingOutPort(), self._addInput("orderingIn"))
-        self.fromEnter.append(r)
-        self._bbNumberToPorts[(srcBlockNumber, dstBlockNumber)] = (r, fromStatusOut)
-        return r, fromStatusOut
-
-    def addReenterPort(self, srcBlockNumber: int, dstBlockNumber: int, r: HlsNetNodeReadBackedge)\
-            ->Tuple[HlsNetNodeRead, HlsNetNodeOut]:
-        """
-        Register connection of control and data from some block where control flow gets back block where the cycle starts.
-
-        :note: When transaction on this IO is accepted the loop sync token is reused
-        """
-        name = f"reenterFrom_bb{srcBlockNumber}"
-        fromStatusOut = self._addOutput(BIT, name)
-        assert isinstance(r, HlsNetNodeReadBackedge), r
-
-        # if controlPortObj is None:
-        #    w = HlsNetNodeWriteBackedge(self.netlist, name=f"{name}_in")
-        #    self.netlist.outputs.append(w)
-        #    r = HlsNetNodeReadControlBackedge(self.netlist, HVoidOrdering, name=f"{name}_out")
-        #    w.associateRead(r)
-        #    link_hls_nodes(r.getOrderingOutPort(), w._addInput("orderingIn"))
-        #    self.netlist.inputs.append(r)
-        #    self._connectVoidDataConst(w)
-        # else:
-        self.fromReenter.append(r)
-        self._bbNumberToPorts[(srcBlockNumber, dstBlockNumber)] = (r, fromStatusOut)
-        return r, fromStatusOut
-
-    def addExitPort(self, srcBlockNumber: int, dstBlockNumber: int, w: HlsNetNodeWriteBackedge)\
-            ->HlsNetNodeWrite:
-        """
-        Register connection of control which causes to break current execution of the loop.
-
-        :note: When transaction on this IO is accepted the loop sync token returned to ready state.
-        :note: the loop may not end this implies that this may not be used at all.
-        """
-        # if controlPortObj is None:
-        #    if isBackedge:
-        #        w, r = HlsNetNodeLoopExitWriteBackedge.createPredSucPair(self, srcBlockNumber)
-        #    else:
-        #        w, r = HlsNetNodeLoopExitWrite.createPredSucPair(self, srcBlockNumber)
-        #    self._connectVoidDataConst(w)
-        # else:
-        assert isinstance(w, HlsNetNodeWriteBackedge), w
-        # d = HlsNetNodeDelayClkTick(self.netlist, 1, HVoidOrdering, "loopExitDelay")
-        # self.netlist.nodes.append(d)
-        # link_hls_nodes(self.getOrderingOutPort(), d._inputs[0])
-        # link_hls_nodes(d._outputs[0], r._addInput("orderingIn"))
-        r = w.associatedRead
-        exitIn = self._addInput(f"exit_from_bb{srcBlockNumber:d}_to_bb{dstBlockNumber:d}", True)
-        link_hls_nodes(r.getValidNB(), exitIn)
-
-        self.fromExit.append(w)
-        self._bbNumberToPorts[(srcBlockNumber, dstBlockNumber)] = (w, exitIn)
-        return w
+        for g in chain(self.fromEnter, self.fromReenter, self.fromExitToHeaderNotify):
+            for w in g.members:
+                yield w.associatedRead
 
     def __repr__(self):
-        return f"<{self.__class__.__name__:s}{' ' if self.name else ''}{self.name} {self._id:d}>"
+        return f"<{self.__class__.__name__:s}{' ' if self.name else ''}{self.name} {self._id:d}{' isEnteredOnExit' if self._isEnteredOnExit else ''}>"
 

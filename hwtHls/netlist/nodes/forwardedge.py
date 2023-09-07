@@ -11,6 +11,7 @@ from hwtHls.netlist.nodes.orderable import HdlType_isVoid
 from hwtHls.netlist.nodes.ports import link_hls_nodes
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
+from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
 
 
 class HlsNetNodeReadForwardedge(HlsNetNodeRead):
@@ -54,6 +55,7 @@ class HlsNetNodeWriteForwardedge(HlsNetNodeWrite):
         self.allocationType = BACKEDGE_ALLOCATION_TYPE.BUFFER
         self.buffName = name
         self.channelInitValues = ()
+        self._loopChannelGroup: Optional["LoopChanelGroup"] = None
 
     def associateRead(self, r: HlsNetNodeReadForwardedge):
         assert isinstance(r, HlsNetNodeReadForwardedge), r
@@ -67,14 +69,29 @@ class HlsNetNodeWriteForwardedge(HlsNetNodeWrite):
     @staticmethod
     def createPredSucPair(netlist: "HlsNetlistCtx", name: str, dtype: HdlType)\
             ->Tuple["HlsNetNodeLoopDataWrite", HlsNetNodeReadForwardedge]:
-        r = HlsNetNodeReadForwardedge(netlist, dtype, name=name)
-        w = HlsNetNodeWriteForwardedge(netlist, name=name)
+        r = HlsNetNodeReadForwardedge(netlist, dtype, name=name + "_dst")
+        w = HlsNetNodeWriteForwardedge(netlist, name=name + "_src")
         w.associateRead(r)
         link_hls_nodes(w.getOrderingOutPort(), r._addInput("orderingIn"))
         netlist.outputs.append(w)
         netlist.inputs.append(r)
 
         return w, r
+
+    def _getSizeOfBuffer(self, clkPeriod: int):
+        srcWrite = self
+        dstRead = self.associatedRead
+        assert dstRead is not None
+        dst_t = dstRead.scheduledOut[0]
+        src_t = srcWrite.scheduledIn[0]
+        # assert dst_t <= src_t, ("This was supposed to be backward edge", dst_t, src_t, srcWrite, dstRead)
+        # 1 register at minimum, because we need to break a combinational path
+        # the size of buffer is derived from the latency of operations between the io ports
+        assert src_t <= dst_t, self
+        # forward edge
+        regCnt = indexOfClkPeriod(dst_t, clkPeriod) - indexOfClkPeriod(src_t, clkPeriod)
+        assert regCnt >= 0, self
+        return regCnt
 
     def allocateRtlInstance(self, allocator:"ArchElement"):
         self.associatedRead._allocateRtlIo()
