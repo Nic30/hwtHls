@@ -242,7 +242,7 @@ class HwtHlsNetlistToTimelineJson():
         elif isinstance(obj, HlsNetNodeRead):
             name = obj.name
             if not name:
-                name = obj._getInterfaceName(obj.src) if obj.src else None
+                name = obj._getInterfaceName(obj.src) if obj.src is not None else None
             label = f"{name:s}.read()  {obj._id:d}"
             objGroupId = io_group_ids.setdefault(obj.src, objGroupId)
             color = "lime"
@@ -321,18 +321,17 @@ class HwtHlsNetlistToTimelineJson():
 
                 depOutI = dep.out_i
                 color = 'lime' if dep._dtype is HVoidOrdering else 'yellow' if dep._dtype is HVoidExternData else 'white'
-                try:
-                    depJsonObj = objToJsonObj[depObj]
-                except:
-                    raise
+                depJsonObj = objToJsonObj[depObj]
                 jObj.portsIn.append(_mkPortIn(t * self.time_scale, i.name, depJsonObj, depOutI, color))
 
             # convert other logical connections which are not done trough ports
             for bdep_obj in obj.debug_iter_shadow_connection_dst():
                 if not self.expandCompositeNodes:
                     bdep_obj = containerOfNode.get(bdep_obj, bdep_obj)
-
-                bdep = objToJsonObj[bdep_obj]
+                try:
+                    bdep = objToJsonObj[bdep_obj]
+                except KeyError:
+                    raise AssertionError("debug_iter_shadow_connection_dst of ", obj, " yield an object which is not in all nodes", bdep_obj)
                 bdep.genericDeps.append(jObj)
 
     def saveJson(self, file: StringIO):
