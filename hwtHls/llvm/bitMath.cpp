@@ -1,5 +1,6 @@
 #include <hwtHls/llvm/bitMath.h>
 
+
 namespace hwtHls {
 
 std::vector<std::pair<bool, unsigned>> iter1and0sequences(
@@ -40,6 +41,33 @@ size_t getOneSequenceEnd(size_t off, const llvm::APInt &val) {
 		++off;
 	}
 	return off;
+}
+
+void iterUsedBitRangeSlices(const llvm::APInt &useMask,
+		std::function<void(size_t, size_t)> consumer) {
+	if (useMask.isZero())
+		return;
+	if (useMask.isAllOnesValue()) {
+		// no need for pruning
+		consumer(0, useMask.getBitWidth());
+		return;
+	}
+
+	// prune values which do not have the specific bit mask set
+	int l = -1; // -1 as invalid value
+	for (unsigned h = 0; h < useMask.getBitWidth(); ++h) {
+		if (l == -1 && useMask[h]) {
+			l = h;
+		}
+
+		// end of 1 sequence found
+		if (l != -1 && (h == useMask.getBitWidth() - 1 || !useMask[h + 1])) {
+			// start of 1 sequence, (+1 because [1:0] is 1b)
+			unsigned w = h - l + 1;
+			consumer(l, w);
+			l = -1; // reset start;
+		}
+	}
 }
 
 }

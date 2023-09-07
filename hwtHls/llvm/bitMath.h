@@ -2,6 +2,8 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <vector>
+#include <functional>
+
 #include <llvm/ADT/APInt.h>
 
 namespace hwtHls {
@@ -40,4 +42,10 @@ inline uint32_t upperPow2(uint32_t v) {
 std::vector<std::pair<bool, unsigned>> iter1and0sequences(const llvm::APInt &c,
 		unsigned offset, unsigned width);
 size_t getOneSequenceEnd(size_t off, const llvm::APInt &val);
+
+/*
+ * :param consumer: first argument is offset second is width of segment which has 1 in useMask
+ * */
+void iterUsedBitRangeSlices(const llvm::APInt &useMask,
+		std::function<void(size_t, size_t)> consumer);
 }
