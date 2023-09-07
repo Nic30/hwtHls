@@ -14,6 +14,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import start_clk
+from hwtHls.netlist.nodes.loopChannelGroup import LoopChanelGroup
 
 
 class IoFsm():
@@ -190,10 +191,13 @@ class HlsNetlistAnalysisPassDetectFsms(HlsNetlistAnalysisPass):
                         # lazy resolved allNodes from performance reasons
                         allNodes = set(chain(*fsm.states))
                     n: HlsNetNodeLoopStatus
-                    for c in chain(n.fromReenter, n.fromExit):
-                        if c not in allNodes:
-                            toRm.add(n)
-                            break
+                    for g in chain(n.fromReenter, n.fromExitToHeaderNotify):
+                        g: LoopChanelGroup
+                        for cw in g.members:
+                            c = cw.associatedRead
+                            if c not in allNodes:
+                                toRm.add(n)
+                                break
                 # elif isinstance(n, HlsNetNodeLoopControlPort):
                 #    if allNodes is None:
                 #        # lazy resolved allNodes from performance reasons
