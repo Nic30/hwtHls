@@ -192,7 +192,7 @@ class MemorySSAUpdater():
         elif isinstance(same, SsaValue):
             assert same.block is not None
 
-        users = [use for use in phi.users if use is not phi]  # Remember all users except the phi itself
+        users = [use for use in phi.users if use is not phi and use is not same]  # Remember all users except the phi itself
         phi.replaceUseBy(same)  # Reroute all uses of phi to same and remove phi
         phi.block.phis.remove(phi)
         phi.block = None
