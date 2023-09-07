@@ -19,6 +19,8 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut, link_hls_nodes, \
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
+from hdlConvertorAst.to.hdlUtils import iter_with_last
+from hwtHls.netlist.transformation.simplifyUtils import getConstOfOutput
 
 
 class HlsNetlistBuilder():
@@ -37,11 +39,14 @@ class HlsNetlistBuilder():
         self.operatorCache: Dict[Tuple[Union[OpDefinition, Type[HlsNetNode]],
                                        Tuple[Union[HlsNetNodeOut, HValue], ...]],
                                  HlsNetNodeOut] = {}
-        #class ObservableSet(set):
-        #    def add(self, n):
-        #        super(ObservableSet, self).add(n)
-        self._removedNodes: Set[HlsNetNode] = set()
 
+#        class ObservableSet(set):
+#
+#            def add(self, n):
+#                super(ObservableSet, self).add(n)
+#
+#        self._removedNodes: Set[HlsNetNode] = ObservableSet()
+        self._removedNodes: Set[HlsNetNode] = set()
 
     def _outputOfConstNodeToHValue(self, o: Union[HlsNetNodeOut, HValue]):
         if isinstance(o, (HValue, HlsNetNodeOutLazy)):
@@ -204,6 +209,31 @@ class HlsNetlistBuilder():
             return res
 
         operandsWithOutputsOnly = tuple(self._toNodeOut(o) for o in operands)
+        opLen = len(operands)
+        if opLen == 1:
+            return operands[0]  # there is only a single value
+        elif opLen % 2 == 1:
+            v0 = operands[0]
+            for last, (src, cond) in iter_with_last(grouper(2, operandsWithOutputsOnly)):
+                if src is not v0:
+                    break
+                if last:
+                    return v0  # all cases have same value
+
+            if opLen == 3 and resT.bit_length() == 1:
+                v0, c, v1 = operands
+                v0 = getConstOfOutput(v0)
+                if v0 is not None and v0._is_full_valid():
+                    v0 = int(v0)
+                    v1 = getConstOfOutput(v1)
+                    if v1 is not None and v1._is_full_valid():
+                        v1 = int(v1)
+                        if v0 and not v1:
+                            # res = 1 if c else 0  -> res = c
+                            return c
+                        elif not v0 and v1:
+                            # res = 0 if c else 1  -> res = ~c
+                            return self.buildNot(c)
 
         n = HlsNetNodeMux(self.netlist, resT, name=name)
         self.netlist.nodes.append(n)
@@ -320,7 +350,7 @@ class HlsNetlistBuilder():
         _uses.clear()
         for i in uses:
             i: HlsNetNodeIn
-            assert i.obj is not newO.obj, (i, newO)
+            assert i.obj is not newO.obj, ("Can not create a cycle in netlist DAG", i, newO)
             dependsOn = i.obj.dependsOn
             assert dependsOn[i.in_i] is o, (dependsOn[i.in_i], o)
             isOp = isinstance(i.obj, HlsNetNodeOperator)
