@@ -2,6 +2,7 @@
 #include <tuple>
 #include <llvm/CodeGen/MachineFunction.h>
 #include <llvm/CodeGen/MachineBasicBlock.h>
+#include <hwtHls/llvm/targets/hwtFpgaMCTargetDesc.h>
 
 // * Boissinot, B., Hack, S., Grund, D., de Dinechin, B. D., & Rastello, F. (2008). Fast Liveness Checking for SSA-Form Programs. CGO.
 // * Domaine, & Brandner, Florian & Boissinot, Benoit & Darte, Alain & Dinechin, Benoît & Rastello, Fabrice. (2011).
@@ -27,12 +28,30 @@ public:
 	}
 };
 
-std::pair<UniqList<Register>, UniqList<std::pair<Register, MachineBasicBlock*>> > collect_direct_provieds_and_requires(
+bool isInstructionWhichIsKeeptOutOfLiveness(llvm::MachineRegisterInfo & MRI, const llvm::MachineInstr & MI) {
+	// check if instruction is some sort of immutable constant
+	switch (MI.getOpcode()) {
+	case HwtFpga::HWTFPGA_ARG_GET:
+		return true;  // constant which represents the IO port
+	case HwtFpga::HWTFPGA_GLOBAL_VALUE:
+		return true;  // constant which represents the local memory
+	case HwtFpga::IMPLICIT_DEF:
+		if (MRI.getOneDef(MI.getOperand(0).getReg())->getParent() == &MI) {
+			return true; // constant undef
+		}
+		break;
+	}
+	return false;
+}
+
+std::pair<UniqList<Register>, UniqList<std::pair<Register, MachineBasicBlock*>> > collect_direct_provieds_and_requires(llvm::MachineRegisterInfo & MRI,
 		MachineBasicBlock &block) {
 	UniqList<Register> provides;
 	UniqList<std::pair<Register, MachineBasicBlock*>> req;
 
 	for (auto &i : block.instrs()) {
+		if (isInstructionWhichIsKeeptOutOfLiveness(MRI, i))
+			continue;
 		unsigned opCnt = i.getNumOperands();
 		// uses must be seen first, defs after
 		for (unsigned _i = opCnt; _i > 0 ; --_i) {
@@ -43,7 +62,13 @@ std::pair<UniqList<Register>, UniqList<std::pair<Register, MachineBasicBlock*>> 
 			if (v.isDef()) {
 				provides.push_back(v.getReg());
 			} else if (!provides.contains(v.getReg())) {
-				req.push_back( { v.getReg(), nullptr });
+				auto r = v.getReg();
+				if (auto * defMO = MRI.getOneDef(r)) {
+					if (isInstructionWhichIsKeeptOutOfLiveness(MRI, *defMO->getParent())) {
+						continue;
+					}
+				}
+				req.push_back( { r, nullptr });
 			}
 		}
 	}
@@ -69,7 +94,7 @@ void recursively_add_edge_requirement_var(
 	}
 }
 
-EdgeLivenessDict getLiveVariablesForBlockEdge(MachineFunction &MF) {
+EdgeLivenessDict getLiveVariablesForBlockEdge(MachineRegisterInfo & MRI, MachineFunction &MF) {
 	EdgeLivenessDict live;
 	std::map<MachineBasicBlock*, UniqList<Register>> provides;
 	std::map<MachineBasicBlock*,
@@ -77,7 +102,7 @@ EdgeLivenessDict getLiveVariablesForBlockEdge(MachineFunction &MF) {
 	// initialization
 	for (MachineBasicBlock &block : MF) {
 		std::tie(provides[&block], reqs[&block]) =
-				collect_direct_provieds_and_requires(block);
+				collect_direct_provieds_and_requires(MRI, block);
 		auto &sucs = live[&block] = std::map<MachineBasicBlock*, std::set<Register>>();
 		for (auto *suc : block.successors()) {
 			sucs[suc] = std::set<Register>();
