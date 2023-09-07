@@ -1,14 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from copy import copy
 from math import ceil
+from pathlib import Path
 import unittest
 
+from hwt.code import Concat
 from hwt.hdl.types.bits import Bits
+from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.struct import HStruct
 from hwt.simulator.simTestCase import SimTestCase
+from hwt.synthesizer.unit import Unit
 from hwtHls.platform.platform import HlsDebugBundle
 from hwtHls.platform.virtual import VirtualHlsPlatform
+from hwtHls.ssa.analysis.llvmMirInterpret import runMirStr
 from hwtLib.amba.axis import axis_send_bytes
 from hwtSimApi.utils import freq_to_period
 from pyMathBitPrecise.bit_utils import  int_to_int_list, mask
@@ -63,12 +69,28 @@ class AxiSParseIfTC(SimTestCase):
             ", ".join("0x%x" % i for i in ref)
         ))
 
+    def _testMir(self, u: Unit, ref: list):
+        t_name = self.getTestName()
+        u_name = u._getDefaultName()
+        unique_name = f"{t_name:s}__{u_name:s}"
+        mirMainName = "t0_" + unique_name
+        with open(Path(self.DEFAULT_LOG_DIR) / mirMainName / "03.mir.ll") as f:
+            dataIn = [Concat(BIT.from_py(d[1]), d[0]) for d in u.i._ag.data]
+            dataOut = []
+            args = [iter(dataIn), dataOut]
+            runMirStr(f.read(), mirMainName, args)
+            self.assertValSequenceEqual(dataOut, ref, "%r [%s] != [%s]" % (
+                dataOut,
+                ", ".join("0x%x" % int(i) if i._is_full_valid() else repr(i) for i in u.o._ag.data),
+                ", ".join("0x%x" % i for i in ref)
+            ))
+        
     # AxiSParse2IfLess
     def _test_AxiSParse2If(self, DATA_WIDTH:int, freq=int(1e6), N=16):
         u = AxiSParse2If()
         u.DATA_WIDTH = DATA_WIDTH
         u.CLK_FREQ = freq
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
+        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform(debugFilter={HlsDebugBundle.DBG_3_mir}))
         T1 = HStruct(
             (Bits(16), "v0"),
             (Bits(8), "v1"),
@@ -102,6 +124,7 @@ class AxiSParseIfTC(SimTestCase):
             v = int(v)
             data = int_to_int_list(v, 8, ceil(T.bit_length() / 8))
             axis_send_bytes(u.i, data)
+        self._testMir(u, ref)
 
         t = int(freq_to_period(freq)) * (len(u.i._ag.data) + 10) * 2
         self.runSim(t)
@@ -117,10 +140,14 @@ class AxiSParseIfTC(SimTestCase):
         u.WRITE_FOOTER = WRITE_FOOTER
         u.DATA_WIDTH = DATA_WIDTH
         u.CLK_FREQ = freq
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform(
-            debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
-                        HlsDebugBundle.DBG_20_addSyncSigNames}
-            )))
+        self.compileSimAndStart(u,
+                                target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
+                                    HlsDebugBundle.DBG_20_addSyncSigNames}))
+                                #target_platform=VirtualHlsPlatform(
+                                #    debugFilter={HlsDebugBundle.DBG_3_mir})
+                                )
+        u.i._ag.presetBeforeClk = True
+        
         T0 = HStruct(
             (Bits(16), "v0"),
             (Bits(8), "v2"),
@@ -142,7 +169,7 @@ class AxiSParseIfTC(SimTestCase):
             T = self._rand.choice(ALL_Ts)
             v2 = self._rand.getrandbits(8)
             d = {
-                "v0": {T0: 10, T2: 3, T4:4}[T],
+                "v0": {T0: 10, T2: 3, T4: 4}[T],
                 "v2": v2
             }
             if T is not T0:
@@ -162,10 +189,19 @@ class AxiSParseIfTC(SimTestCase):
             data = int_to_int_list(v, 8, ceil(T.bit_length() / 8))
             axis_send_bytes(u.i, data)
 
+        self._testMir(u, ref)
+
         t = int(freq_to_period(freq)) * (len(u.i._ag.data) + 10) * 2
         if WRITE_FOOTER:
             t *= 2
+        #try:
         self.runSim(t)
+        #except Exception as e:
+        #    print(e)
+        #print(u.o._ag.data)
+        #print(ref)
+        #for x0, x1 in zip(u.o._ag.data, ref):
+        #    print(f"{int(x0):x}" if x0._is_full_valid() else x0, f"{x1:x}")
 
         self.assertValSequenceEqual(u.o._ag.data, ref, "%r [%s] != [%s]" % (
             u.o,
@@ -342,14 +378,13 @@ class AxiSParseIfTC(SimTestCase):
 if __name__ == '__main__':
     from hwt.synthesizer.utils import to_rtl_str
     #u = AxiSParse2IfAndSequel()
-    ##u.WRITE_FOOTER = False
-    #u.DATA_WIDTH = 512
-    #u.CLK_FREQ = int(100e6)
+    #u.WRITE_FOOTER = True
+    #u.DATA_WIDTH = 48
+    #u.CLK_FREQ = int(40e6)
     #print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
-    #   HlsDebugBundle.DBG_20_addSyncSigNames}))))
-
+    #  HlsDebugBundle.DBG_20_addSyncSigNames}))))
     testLoader = unittest.TestLoader()
-    #suite = unittest.TestSuite([AxiSParseIfTC("test_AxiSParse2IfAndSequel_512b_100MHz")])
+    # suite = unittest.TestSuite([AxiSParseIfTC("test_AxiSParse2IfAndSequel_48b_40MHz")])
     suite = testLoader.loadTestsFromTestCase(AxiSParseIfTC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
