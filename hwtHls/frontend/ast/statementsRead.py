@@ -1,4 +1,4 @@
-from typing import Optional, Union, Tuple
+from typing import Optional, Union, Tuple, Sequence
 
 from hwt.doc_markers import internal
 from hwt.hdl.operatorDefs import AllOps
@@ -10,17 +10,21 @@ from hwt.synthesizer.interface import Interface
 from hwtHls.frontend.ast.utils import _getNativeInterfaceWordType, \
     ANY_HLS_STREAM_INTF_TYPE, ANY_SCALAR_INT_VALUE
 from hwtHls.frontend.utils import getInterfaceName
-from hwtHls.llvm.llvmIr import Register, MachineInstr
+from hwtHls.llvm.llvmIr import Register, MachineInstr, Argument, ArrayType, TypeToArrayType, Type
 from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes, \
     HlsNetNodeOut
 from hwtHls.netlist.nodes.read import HlsNetNodeRead, HlsNetNodeReadIndexed
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr, OP_ASSIGN
+from hwtHls.ssa.translation.llvmMirToNetlist.insideOfBlockSyncTracker import InsideOfBlockSyncTracker
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
 from hwtHls.ssa.value import SsaValue
+from hwtLib.types.ctypes import uint64_t
+from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 
 
 class HlsRead(HdlStatement, SsaInstr):
@@ -110,12 +114,13 @@ class HlsRead(HdlStatement, SsaInstr):
     def _translateMirToNetlist(cls,
                                representativeReadStm: "HlsRead",
                                mirToNetlist:"HlsNetlistAnalysisPassMirToNetlist",
+                               syncTracker: InsideOfBlockSyncTracker,
                                mbSync: MachineBasicBlockMeta,
                                instr: MachineInstr,
-                               srcIo: Interface,
+                               srcIo: Union[Interface, RtlSignalBase],
                                index: Union[int, HlsNetNodeOutAny],
                                cond: Union[int, HlsNetNodeOutAny],
-                               instrDstReg: Register):
+                               instrDstReg: Register) -> Sequence[HlsNetNode]:
         """
         This method is called to generated HlsNetlist nodes from LLVM MIR.
         The purpose of this function is to make this translation customizable for specific :class:`hwt.synthesizer.interface.Interface` instances.
@@ -132,14 +137,15 @@ class HlsRead(HdlStatement, SsaInstr):
         """
         valCache: MirToHwtHlsNetlistValueCache = mirToNetlist.valCache
         netlist: HlsNetlistCtx = mirToNetlist.netlist
-        assert isinstance(srcIo, Interface), srcIo
+        assert isinstance(srcIo, (Interface, RtlSignalBase)), srcIo
         assert isinstance(index, int) and index == 0, (srcIo, index, "Because this read is not addressed there should not be any index")
         n = HlsNetNodeRead(netlist, srcIo)
         if not representativeReadStm._isBlocking:
             n.setNonBlocking()
 
-        mirToNetlist._addExtraCond(n, cond, mbSync.blockEn)
-        mirToNetlist._addSkipWhen_n(n, cond, mbSync.blockEn)
+        _cond = syncTracker.resolveControlOutput(cond)
+        mirToNetlist._addExtraCond(n, _cond, mbSync.blockEn)
+        mirToNetlist._addSkipWhen_n(n, _cond, mbSync.blockEn)
         mbSync.addOrderedNode(n)
         mirToNetlist.inputs.append(n)
 
@@ -147,8 +153,18 @@ class HlsRead(HdlStatement, SsaInstr):
         o = cls._outAsBitVec(netlist, mirToNetlist, o, n.name)
         valCache.add(mbSync.block, instrDstReg, o, True)
 
+        return [n, ]
+
     def _getInterfaceName(self, io: Union[Interface, Tuple[Interface]]) -> str:
         return getInterfaceName(self._parent.parentUnit, io)
+
+    def _translateToLlvm(self, toLlvm: "ToLlvmIrTranslator"):
+        src, _, t = toLlvm.ioToVar[self._src]
+        src: Argument
+        t: Type
+        elmT = t
+        name = toLlvm.strCtx.addTwine(toLlvm._formatVarName(self._name))
+        return toLlvm.b.CreateLoad(elmT, src, True, name)
 
     def __repr__(self):
         t = self._dtype
@@ -176,14 +192,27 @@ class HlsReadAddressed(HlsRead):
             # assert index.block is not None, (index, "Must not construct instruction with operands which are not in SSA")
             index.users.append(self)
 
+    def _translateToLlvm(self, toLlvm: "ToLlvmIrTranslator"):
+        src, _, t = toLlvm.ioToVar[self._src]
+        src: Argument
+        t: Type
+        indexes = (toLlvm._translateExprInt(0, toLlvm._translateType(uint64_t)),
+                   toLlvm._translateExpr(self.operands[0]),)
+        arrTy: ArrayType = TypeToArrayType(t)
+        elmT = arrTy.getElementType()
+        ptr = toLlvm.b.CreateGEP(arrTy, src, indexes)
+        name = toLlvm.strCtx.addTwine(toLlvm._formatVarName(self._name))
+        return toLlvm.b.CreateLoad(elmT, ptr, True, name)
+
     @classmethod
     def _translateMirToNetlist(cls, mirToNetlist: "HlsNetlistAnalysisPassMirToNetlist",
                                mbSync: MachineBasicBlockMeta,
+                               syncTracker: InsideOfBlockSyncTracker,
                                instr: MachineInstr,
                                srcIo: Interface,
                                index: Union[int, HlsNetNodeOutAny],
                                cond: Union[int, HlsNetNodeOutAny],
-                               instrDstReg: Register):
+                               instrDstReg: Register) -> Sequence[HlsNetNode]:
         """
         :see: :meth:`~.HlsRead._translateMirToNetlist`
         """
@@ -196,8 +225,9 @@ class HlsReadAddressed(HlsRead):
         n = HlsNetNodeReadIndexed(netlist, srcIo)
         link_hls_nodes(index, n.indexes[0])
 
-        mirToNetlist._addExtraCond(n, cond, mbSync.blockEn)
-        mirToNetlist._addSkipWhen_n(n, cond, mbSync.blockEn)
+        _cond = syncTracker.resolveControlOutput(cond)
+        mirToNetlist._addExtraCond(n, _cond, mbSync.blockEn)
+        mirToNetlist._addSkipWhen_n(n, _cond, mbSync.blockEn)
         mbSync.addOrderedNode(n)
         mirToNetlist.inputs.append(n)
         o = n._outputs[0]
@@ -210,6 +240,8 @@ class HlsReadAddressed(HlsRead):
         else:
             raise NotImplementedError()
         valCache.add(mbSync.block, instrDstReg, o, True)
+
+        return [n, ]
 
     def __repr__(self):
         t = self._dtype
@@ -232,6 +264,11 @@ class HlsStmReadStartOfFrame(HlsRead):
             src:ANY_HLS_STREAM_INTF_TYPE):
         HlsRead.__init__(self, parent, src, BIT, True)
 
+    def _translateToLlvm(self, toLlvm:"ToLlvmIrTranslator"):
+        src, _, _ = toLlvm.ioToVar[self._src]
+        src: Argument
+        return toLlvm.b.CreateStreamReadStartOfFrame(src)
+
 
 class HlsStmReadEndOfFrame(HlsRead):
     """
@@ -244,3 +281,8 @@ class HlsStmReadEndOfFrame(HlsRead):
             parent:"HlsScope",
             src:ANY_HLS_STREAM_INTF_TYPE):
         HlsRead.__init__(self, parent, src, BIT, True)
+
+    def _translateToLlvm(self, toLlvm:"ToLlvmIrTranslator"):
+        src, _, _ = toLlvm.ioToVar[self._src]
+        src: Argument
+        return toLlvm.b.CreateStreamReadEndOfFrame(src)
