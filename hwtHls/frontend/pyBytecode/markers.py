@@ -4,13 +4,14 @@ from types import FunctionType
 from typing import Union, Literal
 
 from hwt.hdl.value import HValue
+from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.pyBytecode.frame import PyBytecodeFrame
+from hwtHls.frontend.pyBytecode.ioProxyStream import IoProxyStream
 from hwtHls.frontend.pyBytecode.loopMeta import PyBytecodeLoopInfo
-from hwtHls.llvm.llvmIr import BranchInst, MDNode, ConstantAsMetadata, MDString
+from hwtHls.llvm.llvmIr import BranchInst, Argument
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.value import SsaValue
-from hwtLib.types.ctypes import uint32_t
 
 
 class _PyBytecodePragma():
@@ -74,6 +75,27 @@ class PyBytecodeInline(_PyBytecodePragma):
 
     def apply(self, pyToSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction):
         pass
+    
+    def __call__(self, *args, **kwargs):
+        return self.ref(*args, **kwargs)
+
+class PyBytecodeBlockLabel(_PyBytecodePragma):
+    """
+    Set a specific name to a code block.
+
+    Usage:
+
+    .. code-block:: Python
+
+        PyBytecodeInline("bb.0")
+
+    """
+
+    def __init__(self, name: str):
+        self.name = name
+
+    def apply(self, pyToSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction):
+        curBlock.label = self.name
 
 
 class PyBytecodePreprocDivergence(_PyBytecodePragma):
@@ -126,7 +148,7 @@ class _PyBytecodeLoopPragma(_PyBytecodePragma):
 
 class PyBytecodeLLVMLoopUnroll(_PyBytecodeLoopPragma):
     """
-    https://releases.llvm.org/14.0.0/docs/LangRef.html#id1587
+    https://releases.llvm.org/16.0.0/docs/LangRef.html#llvm-loop-unroll
     llvm/lib/Transforms/Utils/LoopUtils.cpp
 
     This adds llvm.loop.unroll pragma. For example:
@@ -173,4 +195,38 @@ class PyBytecodeLLVMLoopUnroll(_PyBytecodeLoopPragma):
                 items.append(md)
 
         brInst.setMetadata(irTranslator.strCtx.addStringRef("llvm.loop"), getTuple(items, True))
+
+
+class PyBytecodeStreamLoopUnroll(_PyBytecodeLoopPragma):
+    """
+    Unrolls the loop to meet IO throughput criteria.
+    This adds hwthls.loop.streamunroll pragma. For example:
+
+    .. code-block:: llvm
+
+        br i1 %exitcond, label %._crit_edge, label %.lr.ph, !hwthls.loop !0
+        ...
+        !0 = !{!0, !1}
+        !1 = !{!"hwthls.loop.streamunroll.unroll.io", i32 0}
+    """
+
+    def __init__(self, io_: Union[Interface, IoProxyStream]):
+        self.io = io_
+
+    def toLlvm(self, irTranslator: "ToLlvmIrTranslator", brInst: BranchInst):
+        getStr = irTranslator.mdGetStr
+        getInt = irTranslator.mdGetUInt32
+        getTuple = irTranslator.mdGetTuple
+        io_ = self.io
+        if isinstance(io_, IoProxyStream):
+            io_ = io_.interface
+        ioArg: Argument = irTranslator.ioToVar[io_][0]
+        ioArgIndex = ioArg.getArgNo();
+        items = [getTuple([
+                            getStr("hwthls.loop.streamunroll.io"),
+                            getInt(ioArgIndex)
+                        ],
+                        False)
+        ]
+        brInst.setMetadata(irTranslator.strCtx.addStringRef("hwthls.loop"), getTuple(items, True))
 
