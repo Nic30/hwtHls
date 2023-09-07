@@ -1,7 +1,7 @@
 #pragma once
 #include <llvm/CodeGen/TargetInstrInfo.h>
 
-#include "hwtFpgaRegisterInfo.h"
+#include <hwtHls/llvm/targets/hwtFpgaRegisterInfo.h>
 
 #define GET_INSTRINFO_HEADER
 #include "HwtFpgaGenInstrInfo.inc"
@@ -9,13 +9,18 @@
 
 namespace llvm {
 
+/*
+ * :note: ArrayRef<MachineOperand> Cond/Pred is formated as tuples (cond, isNegated)
+ * */
 class HwtFpgaInstrInfo: public llvm::HwtFpgaTargetGenInstrInfo {
 public:
 	explicit HwtFpgaInstrInfo();
-	const HwtFpgaRegisterInfo& getRegisterInfo() const;
+
+   const HwtFpgaRegisterInfo& getRegisterInfo() const;
 	const TargetRegisterClass* getRegClass(const MCInstrDesc &MCID,
 			unsigned OpNum, const TargetRegisterInfo *TRI,
 			const MachineFunction &MF) const override;
+	bool shouldSink(const MachineInstr &MI) const override;
 	bool analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock *&TBB,
 			MachineBasicBlock *&FBB, SmallVectorImpl<MachineOperand> &Cond,
 			bool AllowModify) const override;
@@ -48,19 +53,22 @@ public:
 			unsigned ExtraTCycles, MachineBasicBlock &FMBB, unsigned NumFCycles,
 			unsigned ExtraFCycles, BranchProbability Probability) const
 					override;
-	void insertSelect(MachineBasicBlock &MBB,
-	                  MachineBasicBlock::iterator I, const DebugLoc &DL,
-	                  Register DstReg, ArrayRef<MachineOperand> Cond,
-	                  Register TrueReg, Register FalseReg) const override;
+	void insertSelect(MachineBasicBlock &MBB, MachineBasicBlock::iterator I,
+			const DebugLoc &DL, Register DstReg, ArrayRef<MachineOperand> Cond,
+			Register TrueReg, Register FalseReg) const override;
+
 	bool canInsertSelect(const MachineBasicBlock &MBB,
-	                               ArrayRef<MachineOperand> Cond, Register DstReg,
-	                               Register TrueReg, Register FalseReg,
-	                               int &CondCycles, int &TrueCycles,
-	                               int &FalseCycles) const override;
-	 bool analyzeSelect(const MachineInstr &MI,
-	                             SmallVectorImpl<MachineOperand> &Cond,
-	                             unsigned &TrueOp, unsigned &FalseOp,
-	                             bool &Optimizable) const override;
+			ArrayRef<MachineOperand> Cond, Register DstReg, Register TrueReg,
+			Register FalseReg, int &CondCycles, int &TrueCycles,
+			int &FalseCycles) const override;
+	bool analyzeSelect(const MachineInstr &MI,
+			SmallVectorImpl<MachineOperand> &Cond, unsigned &TrueOp,
+			unsigned &FalseOp, bool &Optimizable) const override;
+	virtual bool isPredicable(const MachineInstr &MI) const override {
+		return MI.getOpcode() != HwtFpga::PseudoRET; // because other instructions are predictable
+		// or may be predicated by register duplication
+		//return MI.getDesc().isPredicable();
+	}
 	bool isPredicated(const MachineInstr &MI) const override;
 	bool PredicateInstruction(MachineInstr &MI,
 			ArrayRef<MachineOperand> Pred) const;
