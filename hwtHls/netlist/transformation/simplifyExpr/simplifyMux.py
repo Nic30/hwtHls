@@ -20,6 +20,7 @@ def netlistReduceMux(n: HlsNetNodeMux, worklist: UniqList[HlsNetNode], removed: 
         i: HlsNetNodeOut = n.dependsOn[0]
         replaceOperatorNodeWith(n, i, worklist, removed)
         return True
+
     builder: HlsNetlistBuilder = n.netlist.builder
     # resolve constant conditions
     newOps: List[HlsNetNodeIn] = []
@@ -39,7 +40,9 @@ def netlistReduceMux(n: HlsNetNodeMux, worklist: UniqList[HlsNetNode], removed: 
     singleVal = len(newValSet) == 1
     newOpsLen = len(newOps)
     if newOpsLen != len(n._inputs) or singleVal:
+        # some conditions were constant or mux switches just 1 value
         if newOpsLen == 1 or (singleVal and newOpsLen % 2 == 1):
+            # every possible case has the same value
             i: HlsNetNodeOut = newOps[0]
         else:
             i = builder.buildMux(n._outputs[0]._dtype, tuple(newOps))
@@ -72,6 +75,7 @@ def netlistReduceMux(n: HlsNetNodeMux, worklist: UniqList[HlsNetNode], removed: 
             replaceOperatorNodeWith(n, newO, worklist, removed)
             return True
 
+    # search large ROMs implemented as MUX
     if len(n._inputs) >= 3:
         # try to format mux to a format where each condition is comparison with EQ operator
         # so the mux behaves like switch-case statement id it is suitable for ROM extraction
@@ -114,17 +118,18 @@ def netlistReduceMux(n: HlsNetNodeMux, worklist: UniqList[HlsNetNode], removed: 
                 unlink_hls_nodes(v1, v1In)
                 link_hls_nodes(v0, v1In)
                 link_hls_nodes(v1, v0In)
+                everyConditionIsEq = True
+                lastConditionIsNe = False
+                cases = tuple(n._iterValueConditionDriverPairs())
 
-                return True
-
-            elif everyConditionIsEq:
+            if everyConditionIsEq:
                 # try extract ROM
                 romCompatible = True
                 romData = {}
                 index = None
                 for (v, c) in cases:
                     if c is not None:
-                        if not isinstance(c.obj, HlsNetNodeOperator):
+                        if not isinstance(c.obj, HlsNetNodeOperator) or len(c.obj.dependsOn) != 2:
                             romCompatible = False
                             break
 
@@ -171,5 +176,21 @@ def netlistReduceMux(n: HlsNetNodeMux, worklist: UniqList[HlsNetNode], removed: 
                     rom = builder.buildRom(romData, index)
                     replaceOperatorNodeWith(n, rom, worklist, removed)
                     return True
+                
+    # ~c ? v0: v1 -> c ? v1: v0 (supports arbitrary number of operands, swaps last two values if last condition is negated to remove negation of c)
+    if len(n._inputs) % 2 == 1 and len(n._inputs) >= 3:
+        v0, c, v1 = n.dependsOn[-3:]
+        if isinstance(c.obj, HlsNetNodeOperator) and c.obj.operator == AllOps.NOT:
+            cIn = n._inputs[-2]
+            unlink_hls_nodes(c, cIn)
+            worklist.append(c.obj)
+            link_hls_nodes(c.obj.dependsOn[0], cIn)
+            v0In = n._inputs[-3]
+            v1In = n._inputs[-1]
+            unlink_hls_nodes(v0, v0In)
+            unlink_hls_nodes(v1, v1In)
+            link_hls_nodes(v0, v1In)
+            link_hls_nodes(v1, v0In)
+            return True
 
     return False
