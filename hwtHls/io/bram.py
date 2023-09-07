@@ -1,5 +1,5 @@
 
-from typing import Union, Literal, List, Optional, Generator
+from typing import Union, Literal, List, Optional, Generator, Sequence
 
 from hwt.hdl.constants import WRITE, READ
 from hwt.hdl.statements.statement import HdlStatement
@@ -19,7 +19,7 @@ from hwtHls.llvm.llvmIr import LoadInst, Register
 from hwtHls.llvm.llvmIr import MachineInstr
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
-from hwtHls.netlist.nodes.node import HlsNetNodePartRef
+from hwtHls.netlist.nodes.node import HlsNetNodePartRef, HlsNetNode
 from hwtHls.netlist.nodes.orderable import HVoidOrdering
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes, \
     HlsNetNodeOut, HlsNetNodeIn
@@ -28,6 +28,7 @@ from hwtHls.netlist.nodes.schedulableNode import OutputMinUseTimeGetter
 from hwtHls.netlist.nodes.write import HlsNetNodeWriteIndexed
 from hwtHls.netlist.scheduler.clk_math import epsilon
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
+from hwtHls.ssa.translation.llvmMirToNetlist.insideOfBlockSyncTracker import InsideOfBlockSyncTracker
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
@@ -248,12 +249,13 @@ class HlsReadBram(HlsReadAddressed):
     def _translateMirToNetlist(cls,
             representativeReadStm: "HlsReadBram",
             mirToNetlist:HlsNetlistAnalysisPassMirToNetlist,
+            syncTracker: InsideOfBlockSyncTracker,
             mbSync:MachineBasicBlockMeta,
             instr:LoadInst,
             srcIo:AnyBramPort,
             index:Union[int, HlsNetNodeOutAny],
             cond:HlsNetNodeOutAny,
-            instrDstReg:Register):
+            instrDstReg:Register) -> Sequence[HlsNetNode]:
         """
         :see: :meth:`hwtHls.frontend.ast.statementsRead.HlsRead._translateMirToNetlist`
         """
@@ -266,11 +268,13 @@ class HlsReadBram(HlsReadAddressed):
         n = HlsNetNodeWriteBramCmd(netlist, srcIo, READ)
         link_hls_nodes(index, n.indexes[0])
 
-        mirToNetlist._addExtraCond(n, cond, mbSync.blockEn)
-        mirToNetlist._addSkipWhen_n(n, cond, mbSync.blockEn)
+        _cond = syncTracker.resolveControlOutput(cond)
+        mirToNetlist._addExtraCond(n, _cond, mbSync.blockEn)
+        mirToNetlist._addSkipWhen_n(n, _cond, mbSync.blockEn)
         mbSync.addOrderedNode(n)
         mirToNetlist.outputs.append(n)
         valCache.add(mbSync.block, instrDstReg, n._outputs[0], True)
+        return [n, ]
 
     def __repr__(self):
         t = self._dtype
@@ -316,12 +320,13 @@ class HlsWriteBram(HlsWriteAddressed):
     def _translateMirToNetlist(cls,
             representativeWriteStm: "HlsWrite",
             mirToNetlist:"HlsNetlistAnalysisPassMirToNetlist",
+            syncTracker: InsideOfBlockSyncTracker,
             mbSync: MachineBasicBlockMeta,
             instr: MachineInstr,
             srcVal: HlsNetNodeOutAny,
             dstIo: AnyBramPort,
             index: Union[int, HlsNetNodeOutAny],
-            cond: Union[int, HlsNetNodeOutAny]):
+            cond: Union[int, HlsNetNodeOutAny]) -> Sequence[HlsNetNode]:
         """
         :see: :meth:`hwtHls.frontend.ast.statementsRead.HlsRead._translateMirToNetlist`
         """
@@ -334,10 +339,12 @@ class HlsWriteBram(HlsWriteAddressed):
         link_hls_nodes(srcVal, n._inputs[0])
         link_hls_nodes(index, n.indexes[0])
 
-        mirToNetlist._addExtraCond(n, cond, mbSync.blockEn)
-        mirToNetlist._addSkipWhen_n(n, cond, mbSync.blockEn)
+        _cond = syncTracker.resolveControlOutput(cond)
+        mirToNetlist._addExtraCond(n, _cond, mbSync.blockEn)
+        mirToNetlist._addSkipWhen_n(n, _cond, mbSync.blockEn)
         mbSync.addOrderedNode(n)
         mirToNetlist.outputs.append(n)
+        return [n, ]
 
 
 class BramArrayProxy(IoProxyAddressed):
