@@ -2,10 +2,13 @@ from dis import Instruction
 from io import StringIO
 from opcode import opmap, cmp_op, _nb_ops
 import operator
+import sys
 from typing import Type, Tuple, Dict, Callable
-from hwt.pyUtils.arrayQuery import grouper
+
 
 # https://docs.python.org/3/library/dis.html
+assert (sys.version_info[0], sys.version_info[1]) == (3, 11), (
+    "This module is for python3.11 only (3.10 or 3.12 will not work due to bytecode changes)", sys.version_info)
 
 
 class _NULLMeta(type):
@@ -165,7 +168,7 @@ BINARY_OPS: Dict[int, Tuple[bool, Callable[object, object]]] = {
     _binOpOpc(("NB_SUBTRACT", "-")): (False, operator.sub),
     _binOpOpc(("NB_TRUE_DIVIDE", "/")): (False, operator.truediv),
     _binOpOpc(("NB_XOR", "^")): (False, operator.xor),
-    
+
     _binOpOpc(("NB_INPLACE_ADD", "+=")): (True, operator.add),
     _binOpOpc(("NB_INPLACE_AND", "&=")): (True, operator.and_),
     _binOpOpc(("NB_INPLACE_FLOOR_DIVIDE", "//=")): (True, operator.floordiv),
@@ -205,13 +208,13 @@ CMP_OPS = {
 def _dictMerge(dst: dict, src: dict):
     for k, v in src.items():
         assert k not in dst, k
-        dst[k] = v 
+        dst[k] = v
 
 
 INPLACE_UPDATE_OPS = {
     SET_ADD: set.add,
     LIST_APPEND: list.append,
-    # MAP_ADD: 
+    # MAP_ADD:
     LIST_EXTEND: list.extend,
     SET_UPDATE: set.update,
     DICT_MERGE: _dictMerge,
