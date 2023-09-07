@@ -3,6 +3,8 @@
 #include <pybind11/stl.h>
 #include <llvm/IR/IRBuilder.h>
 #include "targets/intrinsic/bitrange.h"
+#include "targets/intrinsic/streamIo.h"
+
 namespace py = pybind11;
 
 namespace hwtHls {
@@ -40,6 +42,17 @@ void register_IRBuilder(pybind11::module_ & m) {
                 const llvm::Twine &Name = "") {
 				return self->CreateLoad(Ty, Ptr, isVolatile, Name);
 			}, py::return_value_policy::reference)
+		.def("CreateStreamRead", [](llvm::IRBuilder<> * self, llvm::Value *ioArgPtr, size_t chunkBitWidth, size_t returnBitWidth,
+				const llvm::Twine &Name = "") {
+				auto I = CreateStreamRead(self, ioArgPtr, chunkBitWidth, returnBitWidth);
+				I->setName(Name);
+				return I;
+			}, py::return_value_policy::reference)
+		.def("CreateStreamReadStartOfFrame", &CreateStreamReadStartOfFrame, py::return_value_policy::reference)
+		.def("CreateStreamReadEndOfFrame", &CreateStreamReadEndOfFrame, py::return_value_policy::reference)
+		.def("CreateStreamWrite", &CreateStreamWrite, py::return_value_policy::reference)
+		.def("CreateStreamWriteStartOfFrame", &CreateStreamWriteStartOfFrame, py::return_value_policy::reference)
+		.def("CreateStreamWriteEndOfFrame", &CreateStreamWriteEndOfFrame, py::return_value_policy::reference)
 		.def("SetInsertPoint", [](llvm::IRBuilder<> * self, llvm::BasicBlock * bb) {
 			self->SetInsertPoint(bb);
 		})
@@ -64,7 +77,8 @@ void register_IRBuilder(pybind11::module_ & m) {
 				return self->CreateCondBr(Cond, True, False, MDSrc);
 			}, py::return_value_policy::reference)
 		.def("CreateSwitch", &llvm::IRBuilder<>::CreateSwitch, py::return_value_policy::reference)
-		.def("CreateBitRangeGet", CreateBitRangeGet)
+		.def("CreateBitRangeGet", &CreateBitRangeGet, py::return_value_policy::reference)
+		.def("CreateBitRangeGetConst", &CreateBitRangeGetConst, py::return_value_policy::reference)
 		.def("CreateBitConcat", [](llvm::IRBuilder<> * self, std::vector<llvm::Value*> & OpsLowFirst) {
 			return CreateBitConcat(self, OpsLowFirst);
 		})
