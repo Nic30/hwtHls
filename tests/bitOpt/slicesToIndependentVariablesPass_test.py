@@ -2,6 +2,7 @@ from io import StringIO
 import os
 
 from hwt.code import Concat
+#from hwtHls.llvm.llvmIr import LlvmCompilationBundle, SMDiagnostic, parseIR
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.defs import BIT
 from hwt.interfaces.std import VectSignal, Signal
@@ -16,22 +17,7 @@ from hwtHls.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
 from hwtHls.ssa.translation.toLlvm import SsaPassToLlvm
 from tests.baseSsaTest import BaseSsaTC, TestFinishedSuccessfuly
 from tests.bitOpt.countBits import CountLeadingZeros
-
-
-class BaseSliceBreakTestPlatform(VirtualHlsPlatform):
-
-    def __init__(self):
-        VirtualHlsPlatform.__init__(self)
-        self.postSliceBreak = StringIO()
-
-    def runSsaPasses(self, hls:"HlsScope", toSsa:HlsAstToSsa):
-        SsaPassConsystencyCheck().apply(hls, toSsa)
-        SsaPassToLlvm().apply(hls, toSsa)
-        f = toSsa.start.llvm._testSlicesToIndependentVariablesPass()
-        fStr = repr(f)
-        # print(fStr)
-        self.postSliceBreak.write(fStr)
-        raise TestFinishedSuccessfuly()
+#from tests.bitOpt.slicesMergePass_test import generateAndAppendHwtHlsFunctionDeclarations
 
 
 class SliceBreakSlicedVar0(Unit):
@@ -181,8 +167,40 @@ class Slice2(Slice0):
         hls.write(v27, self.o)
 
 
+class BaseSliceBreakTestPlatform(VirtualHlsPlatform):
+
+    def __init__(self):
+        VirtualHlsPlatform.__init__(self)
+        self.postSliceBreak = StringIO()
+
+    def runSsaPasses(self, hls:"HlsScope", toSsa:HlsAstToSsa):
+        SsaPassConsystencyCheck().apply(hls, toSsa)
+        SsaPassToLlvm().apply(hls, toSsa)
+        f = toSsa.start.llvm._testSlicesToIndependentVariablesPass()
+        fStr = repr(f)
+        # print(fStr)
+        self.postSliceBreak.write(fStr)
+        raise TestFinishedSuccessfuly()
+
+
 class SlicesToIndependentVariablesPass_TC(BaseSsaTC):
     __FILE__ = __file__
+
+    #def _test_ll_direct(self, irStr: str):
+    #    irStr = generateAndAppendHwtHlsFunctionDeclarations(irStr)
+    #    llvm = LlvmCompilationBundle("test")
+    #    Err = SMDiagnostic()
+    #    M = parseIR(irStr, "test", Err, llvm.ctx)
+    #    if M is None:
+    #        raise AssertionError(Err.str("test", True, True))
+    #    else:
+    #        fns = tuple(M)
+    #        llvm.main = fns[0]
+    #        name = llvm.main.getName().str()
+    #
+    #    optF = llvm._testSlicesToIndependentVariablesPass()
+    #    print(optF)
+    #    self.assert_same_as_file(repr(optF), os.path.join("data", self.__class__.__name__ + '.' + name + ".ll"))
 
     def _test_ll(self, unitConstructor: Unit, name=None):
         p = BaseSliceBreakTestPlatform()
@@ -193,7 +211,7 @@ class SlicesToIndependentVariablesPass_TC(BaseSsaTC):
         self._runTranslation(unit, p)
         if name is None:
             name = unit.__class__.__name__
-        self.assert_same_as_file(p.postSliceBreak.getvalue(), os.path.join("data", name + ".ll"))
+        self.assert_same_as_file(p.postSliceBreak.getvalue(), os.path.join("data", self.__class__.__name__ + "." + name + ".ll"))
 
     def test_SliceBreakSlicedVar0_ll(self):
         self._test_ll(SliceBreakSlicedVar0)
@@ -229,7 +247,6 @@ class SlicesToIndependentVariablesPass_TC(BaseSsaTC):
         u = CountLeadingZeros()
         u.DATA_WIDTH = 4
         self._test_ll(u)
-
 
 if __name__ == "__main__":
     # from hwt.synthesizer.utils import to_rtl_str
