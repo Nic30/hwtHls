@@ -1,13 +1,15 @@
-#include "extractBitConcatAndSliceOpsPass.h"
+#include <hwtHls/llvm/Transforms/extractBitConcatAndSliceOpsPass.h>
 
 #include <llvm/Analysis/AliasAnalysis.h>
 #include <llvm/Analysis/BasicAliasAnalysis.h>
 #include <llvm/Analysis/GlobalsModRef.h>
 #include <llvm/IR/IRBuilder.h>
 #include <algorithm>
-#include "targets/intrinsic/bitrange.h"
+#include <hwtHls/llvm/targets/intrinsic/bitrange.h>
+
 
 using namespace llvm;
+
 namespace hwtHls {
 // [todo] use worklist
 
@@ -65,7 +67,7 @@ static bool trySelectInstrToBitConcat(SelectInst *SI) {
 				lastV = v;
 
 			}
-			llvm::CallInst *res = CreateBitConcat(&Builder, OpsLowFirst);
+			auto *res = CreateBitConcat(&Builder, OpsLowFirst);
 			SI->replaceAllUsesWith(res);
 			return true;
 		}
@@ -226,7 +228,7 @@ static bool tryOrToBitConcat(BinaryOperator *BO) {
 			if (highPad)
 				OpsLowFirst.push_back(Builder.getIntN(highPad, 0));
 
-			llvm::CallInst *res = CreateBitConcat(&Builder, OpsLowFirst);
+			auto *res = CreateBitConcat(&Builder, OpsLowFirst);
 			BO->replaceAllUsesWith(res);
 			return true;
 		}
@@ -247,7 +249,7 @@ static bool tryTruncToBitRangeGet(CastInst *CI) {
 			return true;
 
 		} else {
-			llvm::CallInst *res = nullptr;
+			llvm::Value *res = nullptr;
 			if (auto *BI = dyn_cast<BinaryOperator>(CI->getOperand(0))) {
 				if (BI->getOpcode() == Instruction::BinaryOps::Shl) {
 					// non const shift
@@ -256,11 +258,7 @@ static bool tryTruncToBitRangeGet(CastInst *CI) {
 			}
 			if (!res) {
 				// just truncatenation (select of lower bits)
-				res =
-						CreateBitRangeGet(&Builder, CI,
-								Builder.getIntN(
-										CI->getOperand(0)->getType()->getIntegerBitWidth(),
-										0), resWidth);
+				res = CreateBitRangeGetConst(&Builder, CI, 0, resWidth);
 			}
 			CI->replaceAllUsesWith(res);
 			return true;
@@ -286,7 +284,6 @@ static bool tryShlToBitConcat(BinaryOperator *BO) {
 			if (off > base.leftOffset) {
 				// (resTy)(base.val << (base.offset + off))
 				unsigned newValWidth = resW - (base.offset + off);
-				unsigned shWidth = base.val->getType()->getIntegerBitWidth();
 				if (!base.val) {
 					// all 0
 				} else if (auto *C = dyn_cast<ConstantInt>(base.val)) {
@@ -296,8 +293,7 @@ static bool tryShlToBitConcat(BinaryOperator *BO) {
 
 				} else {
 					// slice base.val to newValWidth
-					base.val = CreateBitRangeGet(&Builder, base.val,
-							Builder.getIntN(shWidth, 0), newValWidth);
+					base.val = CreateBitRangeGetConst(&Builder, base.val, 0, newValWidth);
 				}
 				base.leftOffset = 0;
 				base.offset += off;
@@ -321,7 +317,7 @@ static bool tryShlToBitConcat(BinaryOperator *BO) {
 			if (highPad)
 				OpsLowFirst.push_back(Builder.getIntN(highPad, 0));
 
-			llvm::CallInst *res = CreateBitConcat(&Builder, OpsLowFirst);
+			auto *res = CreateBitConcat(&Builder, OpsLowFirst);
 			BO->replaceAllUsesWith(res);
 			return true;
 		}

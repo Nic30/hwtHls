@@ -22,7 +22,7 @@ std::shared_ptr<std::set<T>> mergeGroups(std::map<T, std::shared_ptr<std::set<T>
 	return g1;
 }
 
-using CreateBitRangeGetFn = std::function<llvm::CallInst* (llvm::IRBuilder<> *Builder, llvm::Value *bitVec,
-		llvm::Value *lowBitNo, size_t bitWidth)>;
+using CreateBitRangeGetFn = std::function<llvm::Value* (llvm::IRBuilder<> *Builder, llvm::Value *bitVec,
+		size_t lowBitNo, size_t bitWidth)>;
 
 }
