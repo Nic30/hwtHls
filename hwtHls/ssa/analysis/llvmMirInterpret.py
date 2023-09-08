@@ -74,7 +74,44 @@ def runLlvmMachineFunction(mf: MachineFunction, args: Tuple[Generator[Union[int,
                 assert regs[i] is None, regs[i]
                 regs[i] = args[i]
 
-            elif opc == TargetOpcode.HWTFPGA_CLOAD or opc == TargetOpcode.HWTFPGA_CSTORE:
+            elif opc == TargetOpcode.HWTFPGA_CLOAD:
+                val, io, index, cond  = ops
+                isBlocking = isinstance(cond, int)
+                if isBlocking:
+                    if not cond:
+                        raise AssertionError("Always disabled load or store, this instruction should not exits", mi)
+                else:
+                    assert cond._is_full_valid(), mi
+                    if not cond:
+                        llt = MRI.getType(val)
+                        assert llt.isValid()
+                        width = llt.getSizeInBits()
+                        t = Bits(width)
+                        regs[val.virtRegIndex()] = t.from_py(0, vld_mask=1 << width - 1)
+
+                        continue
+
+                if not isinstance(index, int) or index != 0:
+                    raise NotImplementedError(mi)
+
+                try:
+                    v = next(io)
+                except StopIteration:
+                    raise SimIoUnerflowErr("underflow on io argument", mi)
+                
+                llt = MRI.getType(val)
+                assert llt.isValid()
+                t = Bits(llt.getSizeInBits())
+                if isinstance(v, HValue):
+                    if v._dtype != t:
+                        assert v._dtype.bit_length() == t.bit_length(), (mi, v._dtype, t, v)
+                        v = v._reinterpret_cast(t)
+                else:
+                    v = t.from_py(v)
+                regs[val.virtRegIndex()] = v
+
+
+            elif opc == TargetOpcode.HWTFPGA_CSTORE:
                 val, io, index, cond = ops
                 isBlocking = isinstance(cond, int)
                 if isBlocking:
@@ -83,36 +120,13 @@ def runLlvmMachineFunction(mf: MachineFunction, args: Tuple[Generator[Union[int,
                 else:
                     assert cond._is_full_valid(), mi
                     if not cond:
-                        if opc == TargetOpcode.HWTFPGA_CLOAD:
-                            llt = MRI.getType(val)
-                            assert llt.isValid()
-                            width = llt.getSizeInBits()
-                            t = Bits(width)
-                            regs[val.virtRegIndex()] = t.from_py(0, vld_mask=1 << width - 1)
                         continue
 
                 if not isinstance(index, int) or index != 0:
                     raise NotImplementedError(mi)
 
-                if opc == TargetOpcode.HWTFPGA_CLOAD:
-                    try:
-                        v = next(io)
-                    except StopIteration:
-                        raise SimIoUnerflowErr("undeflow on io argument", mi)
-
-                    llt = MRI.getType(val)
-                    assert llt.isValid()
-                    t = Bits(llt.getSizeInBits())
-                    if isinstance(v, HValue):
-                        if v._dtype != t:
-                            assert v._dtype.bit_length() == t.bit_length(), (mi, v._dtype, t, v)
-                            v = v._reinterpret_cast(t)
-                    else:
-                        v = t.from_py(v)
-                    regs[val.virtRegIndex()] = v
-                else:
-                    assert opc == TargetOpcode.HWTFPGA_CSTORE, mi
-                    io.append(val)
+                assert opc == TargetOpcode.HWTFPGA_CSTORE, mi
+                io.append(val)
 
             elif opc == TargetOpcode.HWTFPGA_EXTRACT:
                 dst, src, index, width = ops

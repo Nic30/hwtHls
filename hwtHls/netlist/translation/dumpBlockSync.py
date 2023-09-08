@@ -65,6 +65,8 @@ class HlsNetlistPassDumpBlockSync(HlsNetlistPass):
                         inputs.add(addrItem)
                     elif opc == TargetOpcode.HWTFPGA_CSTORE:
                         outputs.add(addrItem)
+                    else:
+                        raise AssertionError("All possible values should be already checked")
             inputs = sorted(inputs)
             outputs = sorted(outputs)
 
