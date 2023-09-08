@@ -62,10 +62,9 @@ def HWTFPGA_MUX : HwtFpgaInst<
     []>; // no pattern because we match in C++
 }
 
-// conditional instructions must have input register because it needs to be noted that the previous value in rgister is  required,
-// let Constraints = "$src = $dst"
-let mayLoad = 1, canFoldAsLoad=1, hasSideEffects = 0, isPredicable = 1, isNotDuplicable = 1 in {
-// conditional load
+let mayLoad = 1, canFoldAsLoad=1, hasSideEffects = 0, isPredicable = 0, isNotDuplicable = 1 in {
+// conditional load if cond==1 else set $dst to undef with msb set to 0 
+// :attention: this is not predicated instruction because dst is always modified
 def HWTFPGA_CLOAD : HwtFpgaInst<
     (outs anyregcls:$dst),
     (ins anyregcls:$baseaddr, unknown: $index, unknown:$cond),

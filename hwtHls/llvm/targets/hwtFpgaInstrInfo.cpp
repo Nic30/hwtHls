@@ -2,6 +2,7 @@
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
 #include <llvm/IR/Constants.h>
 #include <hwtHls/llvm/targets/Transforms/vregConditionUtils.h>
+#include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionBuilderUtils.h>
 
 #define GET_INSTRINFO_CTOR_DTOR
 #include "HwtFpgaGenInstrInfo.inc"
@@ -363,7 +364,7 @@ bool HwtFpgaInstrInfo::isPredicated(const MachineInstr &MI) const {
 	case TargetOpcode::PHI:
 	case TargetOpcode::G_PHI:
 	case TargetOpcode::G_SELECT:
-	case HwtFpga::HWTFPGA_CLOAD:
+		//case HwtFpga::HWTFPGA_CLOAD:
 	case HwtFpga::HWTFPGA_CSTORE:
 	case HwtFpga::HWTFPGA_MUX:
 		return false; // can be predicate infinity times
@@ -383,15 +384,15 @@ bool HwtFpgaInstrInfo::PredicateInstruction(MachineInstr &MI,
 	switch (opc) {
 	case HwtFpga::HWTFPGA_CLOAD:
 	case HwtFpga::HWTFPGA_CSTORE: {
-		// dst/val, addr, index, predicate
-		assert(MI.getNumOperands() == 4);
+		// dst/val, addr, index, cond
+		//assert(MI.getNumOperands() == 4);
 		bool hasSomePred = false;
 		Register curPred;
 		if (MI.getOperand(3).isReg()) {
 			hasSomePred = true;
 			curPred = MI.getOperand(3).getReg();
 		}
-		MI.removeOperand(3);
+		MI.removeOperand(3); // remove current condition
 		bool isNegated = Pred[1].getImm();
 		Register Cond;
 		if (isNegated) {
