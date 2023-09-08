@@ -342,7 +342,7 @@ bool HwtFpgaTargetInstructionSelector::select_G_LOAD_or_G_STORE(
 		assert(indexWidth > 0);
 
 		if (isPow2(itemSize)) {
-			// set to insert before newly added HWTFPGA_CLOAD/HWTFPGA_STORE
+			// set to insert before newly added HWTFPGA_CLOAD/HWTFPGA_CSTORE
 			MIRB.setInsertPt(*MIRB.getInsertPt()->getParent(),
 					--MIRB.getInsertPt());
 			// dst, src, offset, dstWidth
