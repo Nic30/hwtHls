@@ -70,7 +70,7 @@ class IEEE754FpToInt_TC(SimTestCase):
         res = int(a)
         return max(min(res, mask(64 - 1)), to_signed(1 << 63, 64))
 
-    def test_cmp_py(self):
+    def test_py(self):
         resV = int64_t.from_py(None)
         for a in self.TEST_DATA:
             _a = IEEE754Fp64.from_py(a)
@@ -83,7 +83,7 @@ class IEEE754FpToInt_TC(SimTestCase):
             resRef = self.model(a)
             self.assertEqual(res, resRef, msg=(res, _res, 'expected', resRef, "input", a))
 
-    def test_cmp(self):
+    def test_rtl(self):
         u = IEEE754FpToIntConventor()
         self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
 

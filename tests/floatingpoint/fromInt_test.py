@@ -66,7 +66,7 @@ class IEEE754FpFromInt_TC(SimTestCase):
     def model(a: int):
         return float(a)
 
-    def test_cmp_py(self):
+    def test_py(self):
         for a in self.TEST_DATA:
             # print("in:", a)
             _res = IEEE754FpFromInt(int64_t.from_py(a), IEEE754Fp64)
@@ -80,7 +80,7 @@ class IEEE754FpFromInt_TC(SimTestCase):
             self.assertEqual(res, resRef,
                              msg=(res, _res, 'expected', resRef))
 
-    def test_cmp(self):
+    def test_rlt(self):
         u = IEEE754FpFromIntConventor()
         self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
 
