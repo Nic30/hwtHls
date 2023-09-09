@@ -182,7 +182,8 @@ llvm::Value* BitPartsRewriter::expandConstBits(IRBuilder<> *b,
 							// add padding before this segment
 							assert(kbri.srcWidth > lastUsedIndex);
 							size_t unusedPrefixWidth = kbri.srcWidth
-									- lastUsedIndex;
+									- lastUsedIndex - 1;
+							assert(unusedPrefixWidth > 0);
 							auto *v = UndefValue::get(
 									IntegerType::getIntNTy(b->getContext(),
 											unusedPrefixWidth));
