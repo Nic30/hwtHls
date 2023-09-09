@@ -13,7 +13,7 @@ from hwtHls.llvm.llvmIr import MachineFunction
 from hwtHls.platform.platform import HlsDebugBundle
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.ssa.analysis.llvmMirInterpret import runLlvmMachineFunction, \
-    SimIoUnerflowErr
+    SimIoUnderflowErr
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from hwtLib.amba.axis import axis_send_bytes, packAxiSFrame, \
     _axis_recieve_bytes, axis_recieve_bytes
@@ -48,7 +48,7 @@ class AxiSPacketCopyByteByByteTC(SimTestCase):
     #        #    gdbServer = GDBServerStub(gdbLlvmIrHandler)
     #        #    gdbServer.start()
     #            runLlvmIrFunction(strCtx, f, args, waveLog=waveLog)
-    #    except SimIoUnerflowErr:
+    #    except SimIoUnderflowErr:
     #        pass  # all inputs consumed
     #
     #    DW = u.OUT_DATA_WIDTH
@@ -76,11 +76,10 @@ class AxiSPacketCopyByteByByteTC(SimTestCase):
         args = [iter(dataIn), dataOut]
         try:
             runLlvmMachineFunction(mf, args)
-        except SimIoUnerflowErr:
-            pass  # all inputs consummed
+        except SimIoUnderflowErr:
+            pass  # all inputs consumed
         DW = u.OUT_DATA_WIDTH
         dataOut = deque((d[DW:], d[(DW + DW // 8):DW], d[DW + DW // 8]) for d in dataOut)
-        print(dataOut)
         for frame in refFrames:
             offset, data = _axis_recieve_bytes(dataOut, DW // 8, True, False)
             self.assertEqual(offset, 0)
@@ -157,6 +156,13 @@ class AxiSPacketCopyByteByByteTC(SimTestCase):
 
 
 if __name__ == "__main__":
+    # from hwt.synthesizer.utils import to_rtl_str
+    # u = AxiSPacketCopyByteByByte()
+    # u.DATA_WIDTH = 16
+    # u.OUT_DATA_WIDTH = 16
+    # p = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)
+    # print(to_rtl_str(u, target_platform=p))
+    
 
     import unittest
     testLoader = unittest.TestLoader()

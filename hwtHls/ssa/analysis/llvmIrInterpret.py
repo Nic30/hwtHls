@@ -11,7 +11,7 @@ from hwtHls.llvm.llvmIr import Function, BasicBlock, BinaryOperator, Instruction
     ValueToConstantInt, ValueToFunction, ValueToInstruction, Instruction, InstructionToBinaryOperator, \
     InstructionToLoadInst, InstructionToStoreInst, ValueToArgument, TypeToPointerType, TypeToIntegerType, \
     Argument, LLVMStringContext, MDOperand, MetadataAsMDNode, MetadataAsValueAsMetadata, Value, User, UserToInstruction
-from hwtHls.ssa.analysis.llvmMirInterpret import SimIoUnerflowErr
+from hwtHls.ssa.analysis.llvmMirInterpret import SimIoUnderflowErr
 from hwtHls.ssa.translation.llvmMirToNetlist.lowLevel import HlsNetlistAnalysisPassMirToNetlistLowLevel
 from hwtSimApi.constants import Time
 from pyDigitalWaveTools.vcd.common import VCD_SIG_TYPE
@@ -200,7 +200,7 @@ def _runLlvmIrFunctionInstr(waveLog: Optional[VcdWriter],
             try:
                 res = next(ioValues)
             except StopIteration:
-                raise SimIoUnerflowErr()
+                raise SimIoUnderflowErr()
             assert isinstance(res, HValue) and res._dtype.bit_length() == instr.getType().getIntegerBitWidth(), (instr, res)
             if waveLog is not None:
                 waveLog.logChange(nowTime, load, res, None)

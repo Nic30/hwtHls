@@ -13,7 +13,7 @@ from hwtHls.llvm.llvmIr import parseMIR, LlvmCompilationBundle, MachineFunction,
 from hwtHls.ssa.translation.llvmMirToNetlist.lowLevel import HlsNetlistAnalysisPassMirToNetlistLowLevel
 
 
-class SimIoUnerflowErr(Exception):
+class SimIoUnderflowErr(Exception):
     """
     This exception is raised when there is not enough data on some IO, it may mean that
     the simulation did finish or simulated function is missing some data
@@ -97,7 +97,7 @@ def runLlvmMachineFunction(mf: MachineFunction, args: Tuple[Generator[Union[int,
                 try:
                     v = next(io)
                 except StopIteration:
-                    raise SimIoUnerflowErr("underflow on io argument", mi)
+                    raise SimIoUnderflowErr("underflow on io argument", mi)
                 
                 llt = MRI.getType(val)
                 assert llt.isValid()
@@ -232,7 +232,7 @@ def runMirStr(mirStr: str, nameOfMain: str, args: list):
     assert mf is not None
     try:
         runLlvmMachineFunction(mf, args)
-    except SimIoUnerflowErr:
+    except SimIoUnderflowErr:
         pass
 
     return ctx, MMI, m, mf
