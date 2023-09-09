@@ -190,12 +190,13 @@ void MuxReducibleValuesInfo::processValueOperand(const MachineOperand &MO,
 		}
 	} else if (MO.isReg()) {
 		auto *V1Def = MRI.getOneDef(MO.getReg());
-		MachineInstr &V1DefI = *V1Def->getParent();
-		if (V1DefI.getOpcode() == HwtFpga::IMPLICIT_DEF) {
+		if (V1Def && V1Def->getParent()->getOpcode() == HwtFpga::IMPLICIT_DEF) {
 			return; // skip this because undef is a default state and it does not override other definitions
-		} else if (recursionLimit
-				&& V1DefI.getOpcode() == HwtFpga::HWTFPGA_MERGE_VALUES) {
+		} else if (V1Def && recursionLimit
+				&& V1Def->getParent()->getOpcode()
+						== HwtFpga::HWTFPGA_MERGE_VALUES) {
 			// recursively search for each MERGE_VALUES operand
+			auto &V1DefI = *V1Def->getParent();
 			auto widths = MERGE_VALUES_iter_widths(V1DefI);
 			auto values = MERGE_VALUES_iter_values(V1DefI);
 			auto wIt = widths.begin();
