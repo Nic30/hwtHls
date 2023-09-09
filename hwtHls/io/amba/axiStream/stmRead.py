@@ -111,7 +111,7 @@ class HlsStmReadAxiStream(HlsRead):
 
     def __repr__(self):
         t = self._dtype
-        tName = getattr(t, "name")
+        tName = getattr(t, "name", None)
         if tName is not None:
             t = tName
 
