@@ -251,9 +251,10 @@ class DefaultHlsPlatform(DummyPlatform):
         self._debug = HlsDebugBundle(debugDir, debugFilter)
         self._debugExpandCompositeNodes = False
         self._llvmCliArgs:List[Tuple[str, int, str, str]] = [
-            # ("debug-pass", 0, "", "Arguments"), # print used passes starting from machinemoduleinfo
+            #("debug-pass", 0, "", "Arguments"), # print used passes starting from machinemoduleinfo
             # ("print-before-all", 0, "", "true"),
             # ("print-after-all", 0, "", "true"),
+            # ("time-passes", 0, "", "true"),
             # ("print-before", 0, "", "machine-sink"),
             # ("print-after", 0, "", "machine-sink"),
             # ("view-dag-combine1-dags", 0, "", "true"),
