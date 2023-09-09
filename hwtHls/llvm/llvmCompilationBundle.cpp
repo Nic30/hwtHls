@@ -22,10 +22,9 @@
 #include <llvm/IR/Type.h>
 #include <llvm/IR/Verifier.h>
 #include <llvm/Pass.h>
-
+#include <llvm/Passes/StandardInstrumentations.h>
 #include <llvm/Analysis/OptimizationRemarkEmitter.h>
 #include <llvm/Analysis/CFGPrinter.h>
-//#include <llvm/Passes/StandardInstrumentations.h>
 //#include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #include <llvm/Transforms/InstCombine/InstCombine.h>
 #include <llvm/Transforms/Instrumentation/ControlHeightReduction.h>
@@ -96,7 +95,7 @@ namespace hwtHls {
 
 LlvmCompilationBundle::LlvmCompilationBundle(const std::string &moduleName) :
 		ctx(), strCtx(), mod(std::make_unique<llvm::Module>(strCtx.addStringRef(moduleName), ctx)),
-		builder(ctx), main(nullptr), MMIWP(nullptr) {
+		builder(ctx), main(nullptr), MMIWP(nullptr), VerifyEachPass(false), DebugPM(DebugLogging::None) {
 	std::string TargetTriple = "hwtFpga-unknown-linux-gnu";
 	Target = &getTheHwtFpgaTarget(); //llvm::TargetRegistry::targets()[0];
 	Level = llvm::OptimizationLevel::O3;
@@ -117,14 +116,18 @@ LlvmCompilationBundle::LlvmCompilationBundle(const std::string &moduleName) :
 	TM = Target->createTargetMachine(TargetTriple, CPU, Features, opt, RM);
 	TM->setOptLevel(llvm::CodeGenOpt::Level::Aggressive);
 	PTO = llvm::PipelineTuningOptions();
-	PB = llvm::PassBuilder(
-	/*TargetMachine *TM = */TM,
-	/* PipelineTuningOptions PTO = */PTO,
-	/*Optional<PGOOptions> PGOOpt =*/std::nullopt,
-	/*PassInstrumentationCallbacks *PIC =*/nullptr);
 	llvm::LLVMTargetMachine &LLVMTM = static_cast<llvm::LLVMTargetMachine&>(*TM);
 	MMIWP = new llvm::MachineModuleInfoWrapperPass(&LLVMTM);
+	PrintPassOpts.Verbose = DebugPM == DebugLogging::Verbose;
+	PrintPassOpts.SkipAnalyses = DebugPM == DebugLogging::Quiet;
+}
 
+void LlvmCompilationBundle::_initPassBuilder() {
+	PB = std::make_unique<llvm::PassBuilder>(
+		/*TargetMachine *TM = */TM,
+		/* PipelineTuningOptions PTO = */PTO,
+		/*Optional<PGOOptions> PGOOpt =*/std::nullopt,
+		/*PassInstrumentationCallbacks *PIC =*/&PIC);
 }
 
 void LlvmCompilationBundle::addLlvmCliArgOccurence(const std::string & OptionName, unsigned pos, const std::string & ArgName, const std::string & ArgValue) {
@@ -149,17 +152,24 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 	auto cgscc_manager = llvm::CGSCCAnalysisManager { };
 	auto MAM = llvm::ModuleAnalysisManager { };
 	auto FAM = llvm::FunctionAnalysisManager { };
+	//VerifyEachPass = true;
+	// PIC same as in llvm/toools/opt/NewPMDriver.cpp llvm::runPassPipeline()
+	llvm::StandardInstrumentations SI(ctx, DebugPM != DebugLogging::None,
+	                            VerifyEachPass, PrintPassOpts);
+	SI.registerCallbacks(PIC, &FAM);
+	_initPassBuilder();
 	//llvm::TimeProfilingPassesHandler TPPH;
 	//TPPH.registerCallbacks(*PB.getPassInstrumentationCallbacks());
-	PB.registerModuleAnalyses(MAM);
-	PB.registerCGSCCAnalyses(cgscc_manager);
-	PB.registerFunctionAnalyses(FAM);
-	PB.registerLoopAnalyses(LAM);
-	PB.crossRegisterProxies(LAM, FAM, cgscc_manager, MAM);
+	PB->registerModuleAnalyses(MAM);
+	PB->registerCGSCCAnalyses(cgscc_manager);
+	PB->registerFunctionAnalyses(FAM);
+	PB->registerLoopAnalyses(LAM);
+	PB->crossRegisterProxies(LAM, FAM, cgscc_manager, MAM);
 
 	llvm::FunctionPassManager FPM;
 
 	FPM.addPass(hwtHls::TrivialSimplifyCFGPass());
+
 	llvm::LoopPassManager LPM0;
 	LPM0.addPass(hwtHls::LoopUnrotatePass());
 	FPM.addPass(llvm::createFunctionToLoopPassAdaptor(std::move(LPM0),
@@ -182,7 +192,6 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 	// because if used correctly it reduces complexity of stream processing exponentially
 	FPM.addPass(hwtHls::StreamLoopUnrollPass());
 	FPM.addPass(hwtHls::StreamReadLoweringPass());
-	//FPM.addPass(hwtHls::DumpAndExitPass(true, true));
 	FPM.addPass(hwtHls::StreamWriteLoweringPass());
 
 	FPM.addPass(hwtHls::SimplifyCFGPass2());
@@ -384,12 +393,7 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 	//invokePeepholeEPCallbacks(FPM, Level);
 
 	FPM.addPass(hwtHls::ExtractBitConcatAndSliceOpsPass()); // hwtHls specific
-	FPM.addPass(llvm::InstCombinePass()); // // hwtHls specific, mostly for DCE for previous pass
-	FPM.addPass(llvm::AggressiveInstCombinePass()); // // hwtHls specific
-	//FPM.addPass(hwtHls::DumpAndExitPass(true, false));
-	FPM.addPass(hwtHls::BitwidthReductionPass()); // // hwtHls specific
-	//FPM.addPass(hwtHls::DumpAndExitPass(true, true));
-	FPM.addPass(llvm::InstCombinePass()); // // hwtHls specific, mostly for DCE for previous pass
+	_addInstrCombinePasses(FPM);
 	FPM.addPass(
 			llvm::MergedLoadStoreMotionPass(llvm::MergedLoadStoreMotionOptions(
 			/*SplitFooterBB=*/true))); // // hwtHls specific
@@ -401,7 +405,7 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 	//		&& (PGOOpt->Action == PGOOptions::IRUse
 	//				|| PGOOpt->Action == PGOOptions::SampleUse))
 	//	FPM.addPass(llvm::ControlHeightReductionPass());
-	_addVectorPasses(Level, FPM, true);
+	_addVectorPasses(Level, FPM, true); // LTO like vector opt, after all IR opt, followed by final cleanup and machine passes
 	FPM.addPass(
 			hwtHls::SimplifyCFGPass2(
 					llvm::SimplifyCFGOptions()//
@@ -413,13 +417,10 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 					.sinkCommonInsts(true)//
 					.bonusInstThreshold(1024)
 	));
+
 	FPM.addPass(llvm::DCEPass()); // because of convertSwitchToLookupTable=true
 	FPM.addPass(hwtHls::SlicesMergePass());
-
-	//FPM.addPass(llvm::InstCombinePass()); // hwtHls specific
-	//FPM.addPass(llvm::AggressiveInstCombinePass()); // // hwtHls specific
-	//FPM.addPass(hwtHls::BitwidthReductionPass()); // // hwtHls specific
-	//FPM.addPass(llvm::InstCombinePass()); // hwtHls specific
+	_addInstrCombinePasses(FPM);
 
 //	FPM.addPass(
 //			llvm::MergedLoadStoreMotionPass(llvm::MergedLoadStoreMotionOptions(
@@ -439,6 +440,15 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
     //outs() << "\n";
 
 	PM.run(*fn.getParent());
+}
+
+void LlvmCompilationBundle::_addInstrCombinePasses(llvm::FunctionPassManager &FPM) {
+	FPM.addPass(llvm::InstCombinePass()); // hwtHls specific
+	FPM.addPass(llvm::AggressiveInstCombinePass()); // hwtHls specific
+	//FPM.addPass(hwtHls::DumpAndExitPass(true, false, "BitwidthReductionPass.before.dot"));
+	FPM.addPass(hwtHls::BitwidthReductionPass());
+	//FPM.addPass(hwtHls::DumpAndExitPass(true, true, "BitwidthReductionPass.after.dot"));
+	FPM.addPass(llvm::InstCombinePass()); // hwtHls specific
 }
 
 void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,

@@ -4,12 +4,14 @@
 #include <llvm/CodeGen/MachineFunction.h>
 #include <llvm/CodeGen/MachineModuleInfo.h>
 #include <llvm/Passes/PassBuilder.h>
+#include <llvm/Passes/StandardInstrumentations.h>
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/MC/TargetRegistry.h>
 
-#include "llvmIrStrings.h"
-#include "targets/Transforms/hwtFpgaToNetlist.h"
-#include "targets/hwtFpgaTargetPassConfig.h"
+
+#include <hwtHls/llvm/llvmIrStrings.h>
+#include <hwtHls/llvm/targets/Transforms/hwtFpgaToNetlist.h>
+#include <hwtHls/llvm/targets/hwtFpgaTargetPassConfig.h>
 
 namespace hwtHls {
 
@@ -23,7 +25,7 @@ public:
 	std::unique_ptr<llvm::Module> mod;
 	llvm::IRBuilder<> builder;
 	llvm::Function *main;
-	llvm::PassBuilder PB; // for IR passes
+	std::unique_ptr<llvm::PassBuilder> PB; // for IR passes
 	llvm::legacy::PassManager PM; // for machine code generator
 	const llvm::Target *Target;
 	llvm::HwtFpgaTargetPassConfig *TPC;
@@ -34,8 +36,15 @@ public:
 	llvm::TargetMachine *TM;
 	llvm::PipelineTuningOptions PTO;
 	llvm::MachineModuleInfoWrapperPass *MMIWP;
+	bool VerifyEachPass;
+	enum class DebugLogging { None, Normal, Verbose, Quiet };
+	DebugLogging DebugPM;
+	llvm::PassInstrumentationCallbacks PIC;
+	llvm::PrintPassOptions PrintPassOpts;
 
 	LlvmCompilationBundle(const std::string &moduleName);
+	void _initPassBuilder();
+
 	void addLlvmCliArgOccurence(const std::string & OptionName, unsigned pos, const std::string & ArgName, const std::string & ArgValue);
 	// for arg description see HwtFpgaTargetPassConfig
 	// :param combinerCallback: is an optional callback function called during last state of
@@ -47,6 +56,7 @@ public:
 
 	void _addVectorPasses(llvm::OptimizationLevel Level,
 			llvm::FunctionPassManager &FPM, bool IsFullLTO);
+	void _addInstrCombinePasses(llvm::FunctionPassManager &FPM);
 	// for arg description see HwtFpgaTargetPassConfig
 	void _addMachineCodegenPasses(
 			hwtHls::HwtFpgaToNetlist::ConvesionFnT &toNetlistConversionFn);

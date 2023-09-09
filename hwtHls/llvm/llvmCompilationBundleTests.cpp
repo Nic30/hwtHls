@@ -40,12 +40,16 @@ llvm::Function& LlvmCompilationBundle::_testFunctionPass(std::function<void(llvm
 	auto cgscc_manager = llvm::CGSCCAnalysisManager { };
 	auto MAM = llvm::ModuleAnalysisManager { };
 	auto FAM = llvm::FunctionAnalysisManager { };
-
-	PB.registerModuleAnalyses(MAM);
-	PB.registerCGSCCAnalyses(cgscc_manager);
-	PB.registerFunctionAnalyses(FAM);
-	PB.registerLoopAnalyses(LAM);
-	PB.crossRegisterProxies(LAM, FAM, cgscc_manager, MAM);
+	// PIC same as in llvm/toools/opt/NewPMDriver.cpp llvm::runPassPipeline()
+	llvm::StandardInstrumentations SI(ctx, DebugPM != DebugLogging::None,
+	                            VerifyEachPass, PrintPassOpts);
+	SI.registerCallbacks(PIC, &FAM);
+	_initPassBuilder();
+	PB->registerModuleAnalyses(MAM);
+	PB->registerCGSCCAnalyses(cgscc_manager);
+	PB->registerFunctionAnalyses(FAM);
+	PB->registerLoopAnalyses(LAM);
+	PB->crossRegisterProxies(LAM, FAM, cgscc_manager, MAM);
 
 	llvm::FunctionPassManager FPM;
 	addPasses(FPM);
@@ -76,9 +80,6 @@ class RewriteExtractOnMergeValuesPass: public llvm::PassInfoMixin<
 		SlicesToIndependentVariablesPass> {
 
 public:
-	static llvm::StringRef name() {
-		return "RewriteExtractOnMergeValuesPass";
-	}
 
 	explicit RewriteExtractOnMergeValuesPass() {
 	}
@@ -124,12 +125,16 @@ void LlvmCompilationBundle::_testEarlyIfConverter() {
 	auto cgscc_manager = llvm::CGSCCAnalysisManager { };
 	auto MAM = llvm::ModuleAnalysisManager { };
 	auto FAM = llvm::FunctionAnalysisManager { };
-
-	PB.registerModuleAnalyses(MAM);
-	PB.registerCGSCCAnalyses(cgscc_manager);
-	PB.registerFunctionAnalyses(FAM);
-	PB.registerLoopAnalyses(LAM);
-	PB.crossRegisterProxies(LAM, FAM, cgscc_manager, MAM);
+	// PIC same as in llvm/toools/opt/NewPMDriver.cpp llvm::runPassPipeline()
+	llvm::StandardInstrumentations SI(ctx, DebugPM != DebugLogging::None,
+	                            VerifyEachPass, PrintPassOpts);
+	SI.registerCallbacks(PIC, &FAM);
+	_initPassBuilder();
+	PB->registerModuleAnalyses(MAM);
+	PB->registerCGSCCAnalyses(cgscc_manager);
+	PB->registerFunctionAnalyses(FAM);
+	PB->registerLoopAnalyses(LAM);
+	PB->crossRegisterProxies(LAM, FAM, cgscc_manager, MAM);
 
 	PM.add(MMIWP);
 
