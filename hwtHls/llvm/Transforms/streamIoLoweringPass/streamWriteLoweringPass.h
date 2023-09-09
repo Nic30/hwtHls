@@ -12,15 +12,7 @@ The output word is written if the word is completed and it is know if this word 
 Or if data for next word are stacked or on end of frame marker.
 */
 class StreamWriteLoweringPass: public llvm::PassInfoMixin<StreamWriteLoweringPass> {
-
 public:
-	static llvm::StringRef name() {
-		return "StreamWriteLoweringPass";
-	}
-
-	explicit StreamWriteLoweringPass() {
-	}
-
 	llvm::PreservedAnalyses run(llvm::Function &F,
 			llvm::FunctionAnalysisManager &AM);
 };

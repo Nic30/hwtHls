@@ -41,15 +41,7 @@ The rewrite does:
    which may result in deadlock.
  */
 class StreamReadLoweringPass: public llvm::PassInfoMixin<StreamReadLoweringPass> {
-
 public:
-	static llvm::StringRef name() {
-		return "StreamReadLoweringPass";
-	}
-
-	explicit StreamReadLoweringPass() {
-	}
-
 	llvm::PreservedAnalyses run(llvm::Function &F,
 			llvm::FunctionAnalysisManager &AM);
 };

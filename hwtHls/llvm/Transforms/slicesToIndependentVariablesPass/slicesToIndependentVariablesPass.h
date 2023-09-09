@@ -14,15 +14,7 @@ namespace hwtHls {
  */
 class SlicesToIndependentVariablesPass: public llvm::PassInfoMixin<
 		SlicesToIndependentVariablesPass> {
-
 public:
-	static llvm::StringRef name() {
-		return "SlicesToIndependentVariablesPass";
-	}
-
-	explicit SlicesToIndependentVariablesPass() {
-	}
-
 	llvm::PreservedAnalyses run(llvm::Function &F,
 			llvm::FunctionAnalysisManager &AM);
 };

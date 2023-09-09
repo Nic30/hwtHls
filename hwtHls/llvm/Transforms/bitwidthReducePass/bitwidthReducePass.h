@@ -34,15 +34,7 @@ namespace hwtHls {
  **/
 class BitwidthReductionPass: public llvm::PassInfoMixin<
 		BitwidthReductionPass> {
-
 public:
-	static llvm::StringRef name() {
-		return "BitwidthReductionPass";
-	}
-
-	explicit BitwidthReductionPass() {
-	}
-
 	llvm::PreservedAnalyses run(llvm::Function &F,
 			llvm::FunctionAnalysisManager &AM);
 };

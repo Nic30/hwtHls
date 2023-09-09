@@ -10,15 +10,7 @@ namespace hwtHls {
  */
 class ExtractBitConcatAndSliceOpsPass: public llvm::PassInfoMixin<
 		ExtractBitConcatAndSliceOpsPass> {
-
 public:
-	static llvm::StringRef name() {
-		return "ExtractBitConcatAndSliceOpsPass";
-	}
-
-	explicit ExtractBitConcatAndSliceOpsPass() {
-	}
-
 	llvm::PreservedAnalyses run(llvm::Function &F,
 			llvm::FunctionAnalysisManager &AM);
 };

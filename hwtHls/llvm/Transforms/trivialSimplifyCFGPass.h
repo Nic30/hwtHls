@@ -15,12 +15,7 @@ namespace hwtHls {
  */
 class TrivialSimplifyCFGPass: public llvm::PassInfoMixin<
 TrivialSimplifyCFGPass> {
-
 public:
-	static llvm::StringRef name() {
-		return "TrivialSimplifyCFGPass";
-	}
-
 	llvm::PreservedAnalyses run(llvm::Function &F,
 			llvm::FunctionAnalysisManager &AM);
 };
