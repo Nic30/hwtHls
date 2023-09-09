@@ -36,7 +36,8 @@ bool isInstructionWhichIsKeeptOutOfLiveness(llvm::MachineRegisterInfo & MRI, con
 	case HwtFpga::HWTFPGA_GLOBAL_VALUE:
 		return true;  // constant which represents the local memory
 	case HwtFpga::IMPLICIT_DEF:
-		if (MRI.getOneDef(MI.getOperand(0).getReg())->getParent() == &MI) {
+		auto def = MRI.getOneDef(MI.getOperand(0).getReg());
+		if (def && def->getParent() == &MI) {
 			return true; // constant undef
 		}
 		break;
