@@ -52,8 +52,10 @@ llvm::Value* CreateBitRangeGet(IRBuilder<> *Builder, Value *bitVec,
 	assert(
 			lowBitNoC->getZExtValue() + bitWidth
 					<= bitVec->getType()->getIntegerBitWidth());
-	// if this is a slice on slice use slice on original vector instead
-	if (auto bitVecCI = dyn_cast<CallInst>(bitVec)) {
+	if (isa<UndefValue>(bitVec)) {
+		return UndefValue::get(Builder->getIntNTy(bitWidth));
+	} else if (auto bitVecCI = dyn_cast<CallInst>(bitVec)) {
+		// if this is a slice on slice use slice on original vector instead
 		if (IsBitRangeGet(bitVecCI) && lowBitNoC) {
 			auto opLowIndex = dyn_cast<ConstantInt>(bitVecCI->getArgOperand(1));
 			if (opLowIndex) {
@@ -123,7 +125,9 @@ bool IsBitRangeGet(const llvm::CallInst *C) {
 	return IsBitRangeGet(C->getCalledFunction());
 }
 bool IsBitRangeGet(const llvm::Function *F) {
-	assert(F != nullptr && "Function must have definition if input code was valid");
+	assert(
+			F != nullptr
+					&& "Function must have definition if input code was valid");
 	return F->getName().str().rfind(BitRangeGetName, 0) == 0;
 }
 
