@@ -63,7 +63,6 @@ static bool runCBP(Function &F, TargetLibraryInfo *TLI) {
 	//	}
 	//}
 	//F.dump();
-	//llvm::SmallVector<CallInst*> concatsAndSlicesToRm;
 	BitPartsRewriter rew(A.constraints);
 	for (BasicBlock &BB : F) {
 		for (Instruction &I : BB) {
@@ -71,6 +70,7 @@ static bool runCBP(Function &F, TargetLibraryInfo *TLI) {
 			didModify = true;
 		}
 	}
+
 	for (BasicBlock &BB : F) {
 		for (Instruction &I : BB) {
 			if (auto *PHI = dyn_cast<PHINode>(&I)) {

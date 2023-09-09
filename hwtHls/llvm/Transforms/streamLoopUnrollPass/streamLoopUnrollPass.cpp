@@ -18,8 +18,9 @@
 #include <hwtHls/llvm/targets/intrinsic/streamIo.h>
 #include <hwtHls/llvm/bitMath.h>
 
-
 #define DEBUG_TYPE "StreamLoopUnroll"
+// #undef LLVM_DEBUG
+// #define LLVM_DEBUG(X) { X; }
 
 using namespace llvm;
 
@@ -84,6 +85,9 @@ static LoopUnrollResult tryToUnrollStreamLoop(llvm::Function &F, Loop *L,
 	auto streamArgI = getOptionalIntHwtHlsLoopAttribute(L,
 			"hwthls.loop.streamunroll.io");
 	if (!streamArgI.has_value()) {
+		LLVM_DEBUG(
+				dbgs()
+						<< "  Loop does not have hwthls.loop.streamunroll.io Attribute to enable this transformation.\n");
 		// loop does not have Attribute to enable this transformation
 		return LoopUnrollResult::Unmodified;
 	}
@@ -165,7 +169,8 @@ static LoopUnrollResult tryToUnrollStreamLoop(llvm::Function &F, Loop *L,
 			//				&& "Cannot perform peel and unroll in the same step");
 			LLVM_DEBUG(
 					dbgs() << "PEELING loop %" << L->getHeader()->getName()
-							<< " with iteration count " << PP.PeelCount << "!\n");
+							<< " with iteration count " << PP.PeelCount
+							<< "!\n");
 			ORE.emit(
 					[&]() {
 						return OptimizationRemark(DEBUG_TYPE, "Peeled",
@@ -176,7 +181,8 @@ static LoopUnrollResult tryToUnrollStreamLoop(llvm::Function &F, Loop *L,
 					});
 
 			ValueToValueMapTy VMap;
-			if (peelLoop(L, PP.PeelCount, LI, &SE, DT, &AC, PreserveLCSSA, VMap)) {
+			if (peelLoop(L, PP.PeelCount, LI, &SE, DT, &AC, PreserveLCSSA,
+					VMap)) {
 				simplifyLoopAfterUnroll(L, true, LI, &SE, &DT, &AC, &TTI);
 				// If the loop was peeled, we already "used up" the profile information
 				// we had, so we don't want to unroll or peel again.
@@ -188,13 +194,13 @@ static LoopUnrollResult tryToUnrollStreamLoop(llvm::Function &F, Loop *L,
 		}
 	}
 	UnrollLoopOptions UP;
-	UP.Count = div_ceil(streamProps.dataWidth - minEntryOffset, minNumberOfBitsProcessedPerIteration);
+	UP.Count = div_ceil(streamProps.dataWidth - minEntryOffset,
+			minNumberOfBitsProcessedPerIteration);
 	UP.Force = true;
 	UP.Runtime = true;
 	UP.AllowExpensiveTripCount = true;
 	UP.UnrollRemainder = true;
 	UP.ForgetAllSCEV = ForgetAllSCEV;
-
 
 	// Save loop properties before it is transformed.
 	MDNode *OrigLoopID = L->getLoopID();
