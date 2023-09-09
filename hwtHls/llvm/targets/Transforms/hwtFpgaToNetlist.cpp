@@ -90,8 +90,9 @@ bool HwtFpgaToNetlist::runOnMachineFunction(llvm::MachineFunction &MF) {
 		}
 	}
 	for (auto &R : ioRegs) {
-		if (R == 0)
-			throw std::runtime_error("The machine function body does not use this IO argument");
+		if (R == 0) {
+			throw std::runtime_error("The machine function body is missing use of IO argument");
+		}
 	}
 	std::map<llvm::Register, unsigned> registerTypes;
 	auto regNum = MRI->getNumVirtRegs();
