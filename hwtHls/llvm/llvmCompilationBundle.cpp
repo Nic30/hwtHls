@@ -316,13 +316,14 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 						.convertSwitchRangeToICmp(true)));
 	FPM.addPass(llvm::InstCombinePass());
 
-	_addVectorPasses(Level, FPM, false);
 	// The loop passes in LPM2 (LoopIdiomRecognizePass, IndVarSimplifyPass,
 	// LoopDeletionPass and LoopFullUnrollPass) do not preserve MemorySSA.
 	// *All* loop passes must preserve it, in order to be able to use it.
 	FPM.addPass(createFunctionToLoopPassAdaptor(std::move(LPM2),
 	/*UseMemorySSA=*/false,
 	/*UseBlockFrequencyInfo=*/false));
+
+	_addVectorPasses(Level, FPM, false); // directly after loop passes
 
 	// Delete small array after loop unroll.
 	FPM.addPass(llvm::SROAPass(llvm::SROAOptions::ModifyCFG));
