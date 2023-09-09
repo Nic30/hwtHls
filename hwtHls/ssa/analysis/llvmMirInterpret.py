@@ -183,6 +183,13 @@ def runLlvmMachineFunction(mf: MachineFunction, args: Tuple[Generator[Union[int,
                 if cond:
                     nextMb = _mb
                     break
+                
+            elif opc == TargetOpcode.IMPLICIT_DEF:
+                llt = MRI.getType(ops[0])
+                assert llt.isValid()
+                t = Bits(llt.getSizeInBits())
+                regs[dst.virtRegIndex()] = t.from_py(None)
+
             else:
                 op = HlsNetlistAnalysisPassMirToNetlistLowLevel.OPC_TO_OP.get(opc)
                 if op  is AllOps.NOT:
