@@ -39,7 +39,7 @@ class HlsThreadFromPy(HlsThread):
             toSsa = self.bytecodeToSsa
             toSsa.debugDirectory = debugDir
             toSsa.debugBytecode = debugBytecode
-            toSsa.debugCfgBeing = debugCfgBeing
+            toSsa.debugCfgBegin = debugCfgBeing
             toSsa.debugCfgGen = debugCfgGen
             toSsa.debugCfgFinal = debugCfgFinal
 
