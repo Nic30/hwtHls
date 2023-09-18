@@ -262,12 +262,19 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
             # now header block of loop was already translated by previous _translateBytecodeBlock()
             loopInfo: PyBytecodeLoopInfo = frame.loopStack[-1]
             assert loopInfo.loop is loops[-1]
-
-            if loopInfo.mustBeEvaluatedInHw():
+            if not loopInfo.jumpsFromLoopBody:
+                # if there are no jumps from loop body this is group of blocks is 
+                blockTracker = frame.blockTracker
+                headerLabel = self.blockToLabel[block]
+                frame.exitLoop()
+                if headerLabel not in blockTracker.generated:
+                    self._onBlockGenerated(frame, headerLabel)
+                        
+            elif loopInfo.mustBeEvaluatedInHw():
                 self._finalizeJumpsFromHwLoopBody(frame, block, blockOffset, loopInfo)
                 if loopInfo.pragma:
                     _applyLoopPragma(block, loopInfo)
-
+    
             else:
                 self._runPreprocessorLoop(frame, loopInfo)
                 if loopInfo.pragma:
