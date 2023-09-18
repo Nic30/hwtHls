@@ -84,7 +84,7 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
             d.mkdir(exist_ok=True)
             with open(d / f"00.bytecode.{fnName}.txt", "w") as f:
                 dis(fn, file=f)
-
+                
         self.toSsa = HlsAstToSsa(self.hls.ssaCtx, fnName, None)
 
         entryBlock = self.toSsa.start
