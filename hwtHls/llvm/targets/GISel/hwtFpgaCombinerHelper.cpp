@@ -85,6 +85,7 @@ bool HwtFpgaCombinerHelper::rewriteG_CONSTANTasUseAsCImm(
 
 bool HwtFpgaCombinerHelper::rewriteConstMergeValues(llvm::MachineInstr &MI) {
 	// $dst $src{N}, $width{N} (lowest bits first)
+	// [todo] check for undefs
 	uint64_t srcCnt = (MI.getNumOperands() - 1) / 2;
 	uint64_t totalWidth = 0;
 	for (unsigned i = 0; i < srcCnt; ++i) {
@@ -114,6 +115,7 @@ bool HwtFpgaCombinerHelper::matchAllOnesConstantOp(
 	auto MaybeCst = isConstantOrConstantSplatVector(*MI, MRI);
 	return MaybeCst.has_value() && MaybeCst->isAllOnes();
 }
+
 bool HwtFpgaCombinerHelper::matchOperandIsAllOnes(llvm::MachineInstr &MI,
 		unsigned OpIdx) {
 	return matchAllOnesConstantOp(MI.getOperand(OpIdx))
@@ -121,10 +123,11 @@ bool HwtFpgaCombinerHelper::matchOperandIsAllOnes(llvm::MachineInstr &MI,
 					|| canReplaceReg(MI.getOperand(0).getReg(),
 							MI.getOperand(OpIdx).getReg(), MRI));
 }
+
 bool HwtFpgaCombinerHelper::rewriteXorToNot(llvm::MachineInstr &MI) {
 	Builder.setInstrAndDebugLoc(MI);
-	Builder.buildInstr(HwtFpga::HWTFPGA_NOT, { MI.getOperand(0).getReg() },
-			{ MI.getOperand(1).getReg() }, MI.getFlags());
+	Builder.buildInstr(HwtFpga::HWTFPGA_NOT, { MI.getOperand(0) },
+			{ MI.getOperand(1) }, MI.getFlags());
 	MI.eraseFromParent();
 	return true;
 }
@@ -262,7 +265,7 @@ bool HwtFpgaCombinerHelper::collectConcatMembers(llvm::MachineOperand &MIOp,
 void addSrcOperand(MachineInstrBuilder &MIB,
 		HwtFpgaCombinerHelper::ConcatMember &src) {
 	if (src.op.isReg() && src.op.isDef())
-		MIB.addUse(src.op.getReg());
+		MIB.addUse(src.op.getReg()); // convert def to use
 	else {
 		MIB.add(src.op);
 	}
@@ -288,6 +291,12 @@ bool HwtFpgaCombinerHelper::rewriteExtractOnMergeValues(
 		if (src.offsetOfUse == 0 && src.width == src.widthOfUse) {
 			if (src.op.isReg()) {
 				MRI.replaceRegWith(MI.getOperand(0).getReg(), src.op.getReg());
+				if (src.op.isUndef()) {
+					for (auto &U : MRI.use_operands(src.op.getReg())) {
+						U.setIsUndef();
+					}
+				}
+
 			} else if (src.op.isCImm()) {
 				Builder.setInstrAndDebugLoc(MI);
 				Register srcReg = MRI.createVirtualRegister(
@@ -302,7 +311,7 @@ bool HwtFpgaCombinerHelper::rewriteExtractOnMergeValues(
 			Builder.setInstrAndDebugLoc(MI);
 			auto MIB = Builder.buildInstr(HwtFpga::HWTFPGA_EXTRACT);
 			// $dst $src $offset $dstWidth
-			MIB.addDef(MI.getOperand(0).getReg(), MI.getFlags());
+			MIB.addDef(MI.getOperand(0).getReg());
 			addSrcOperand(MIB, src);
 			MIB.addImm(src.offsetOfUse);
 			MIB.addImm(src.widthOfUse);
@@ -312,7 +321,7 @@ bool HwtFpgaCombinerHelper::rewriteExtractOnMergeValues(
 		Builder.setInstrAndDebugLoc(MI);
 		auto currentInsertionPoint = Builder.getInsertPt();
 		auto MIB = Builder.buildInstr(HwtFpga::HWTFPGA_MERGE_VALUES);
-		MIB.addDef(MI.getOperand(0).getReg(), MI.getFlags());
+		MIB.addDef(MI.getOperand(0).getReg());
 
 		for (auto &src : concatMembers) {
 			if (src.offsetOfUse == 0 && src.width == src.widthOfUse) {
