@@ -97,12 +97,12 @@ bool collectConcatMembers(llvm::Value *_v, std::vector<ConcatMember> &members,
 				auto *_src = CI->getArgOperand(0);
 				if (auto *src = dyn_cast<CallInst>(_src)) {
 					// look trough the source operand of this extract instruction
-					bool mayContainOtherSlicesAndConcats = IsBitConcat(src)
-							|| IsBitRangeGet(src);
+					bool isBitRangeGetOnBitRangeGet = IsBitRangeGet(src);
+					bool mayContainOtherSlicesAndConcats = isBitRangeGetOnBitRangeGet || IsBitConcat(src);
 					if (mayContainOtherSlicesAndConcats) {
 						bool didReduce = collectConcatMembers(src, members,
 								mainOffset, mainWidth, currentOffset,
-								subSliceOffset, subSliceResWidth);
+								subSliceOffset, subSliceResWidth) || isBitRangeGetOnBitRangeGet;
 						assert(members.size());
 						auto &lastAdded = members.back();
 						didReduce |= lastAdded.v != src;
