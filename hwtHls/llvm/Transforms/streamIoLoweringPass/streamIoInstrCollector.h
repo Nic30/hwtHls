@@ -42,7 +42,7 @@ public:
 	StreamChannelWordValue parseNativeWord(llvm::IRBuilder<> &builder,
 			llvm::Instruction *nativeWord) const;
 	llvm::Value* deparseNativeWord(llvm::IRBuilder<> &builder) const;
-	static void setVarU64(llvm::IRBuilder<> &builder, std::optional<size_t> val,
+	static void setVarU64(llvm::IRBuilder<> &builder, std::optional<uint64_t> val,
 			llvm::AllocaInst *var);
 	/*
 	 Set bits in mask vector to specified value and all bits after that to 0

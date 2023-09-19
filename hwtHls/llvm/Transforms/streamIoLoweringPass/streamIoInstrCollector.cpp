@@ -136,7 +136,7 @@ llvm::Value* StreamChannelProps::deparseNativeWord(
 }
 
 void StreamChannelProps::setVarU64(llvm::IRBuilder<> &builder,
-		std::optional<size_t> val, llvm::AllocaInst *var) {
+		std::optional<uint64_t> val, llvm::AllocaInst *var) {
 	auto *Ty = dyn_cast<IntegerType>(var->getAllocatedType());
 	Value *V;
 	if (val.has_value()) {
@@ -153,10 +153,16 @@ void StreamChannelProps::setDataMaskConst(llvm::IRBuilder<> &builder,
 		auto *T = dataMaskVar->getAllocatedType();
 		auto val = APInt::getBitsSet(T->getIntegerBitWidth(), dataBitOffset / 8,
 				(dataBitOffset + dataBitsToTake) / 8);
-		builder.CreateStore(ConstantInt::get(T, val), dataMaskVar, /*isVolatile*/
-		false);
+		auto* CI = ConstantInt::get(T, val);
+		Value * V = CI;
+		if (dataBitOffset != 0) {
+			auto prev = builder.CreateLoad(T, dataMaskVar, /*isVolatile*/ false);
+			V = builder.CreateOr(prev, CI);
+		}
+		builder.CreateStore(V, dataMaskVar, /*isVolatile*/ false);
 	}
 }
+
 void StreamChannelProps::setData(llvm::IRBuilder<> &builder, llvm::Value *val,
 		size_t offset) const {
 	size_t w = val->getType()->getIntegerBitWidth();
