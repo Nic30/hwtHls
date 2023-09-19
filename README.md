@@ -183,6 +183,9 @@ source venv/bin/activate # modifies current shell to use previously generate pyt
 * [utwente-fmt](https://github.com/utwente-fmt) - abstract hls, verification libraries
 * [Xilinx/Vitis HLS](https://github.com/Xilinx/HLS) - C++/LLVM, partially opensource
 * [xls](https://github.com/google/xls) - 2020-?, C++ HLS compiler with JIT
+* [slothy](https://github.com/slothy-optimizer/slothy) - Python, Assembly optimizer
+* [souper](https://github.com/google/souper) - C++/LLVM, superoptimizer for LLVM IR based on SMT solver
+* [llvm-superasm](https://github.com/sjoerdmeijer/llvm-superasm/tree/main/llvm/tools/llvm-superasm) - C++/LLVM, assembly superoptimizer based on SMT solver
 
 
 ## Useful publications
