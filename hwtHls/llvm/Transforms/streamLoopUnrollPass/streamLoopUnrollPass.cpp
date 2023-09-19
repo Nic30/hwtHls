@@ -152,10 +152,6 @@ static LoopUnrollResult tryToUnrollStreamLoop(llvm::Function &F, Loop *L,
 	if (minEntryOffset == streamProps.dataWidth)
 		minEntryOffset = 0;
 
-	errs() << "minNumberOfBitsProcessedPerIteration"
-			<< minNumberOfBitsProcessedPerIteration << " minEntryOffset:"
-			<< minEntryOffset << "\n";
-
 	// [todo] resolve amount of bits taken/added from/to stream per iteration and from possible offsets of loop header resolve
 	// how many times to peel and how many times to unroll to achieve desired throughput
 	if (minEntryOffset == 0) {
