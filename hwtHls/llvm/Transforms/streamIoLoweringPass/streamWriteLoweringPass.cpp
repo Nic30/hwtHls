@@ -1,16 +1,18 @@
 #include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamWriteLoweringPass.h>
 #include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamReadLoweringPassPriv.h>
+
+#include <algorithm>
+
 #include <llvm/ADT/SetVector.h>
-#include <llvm/IR/Dominators.h>
-#include <llvm/Transforms/Utils/BasicBlockUtils.h>
-#include <llvm/Transforms/Utils/CodeMoverUtils.h>
+#include <llvm/ADT/SetVector.h>
 #include <llvm/Analysis/DependenceAnalysis.h>
 #include <llvm/Analysis/PostDominators.h>
 #include <llvm/Analysis/DomTreeUpdater.h>
-
-#include <algorithm>
-#include <llvm/ADT/SetVector.h>
+#include <llvm/IR/Dominators.h>
 #include <llvm/Support/Casting.h>
+#include <llvm/Transforms/Utils/BasicBlockUtils.h>
+#include <llvm/Transforms/Utils/CodeMoverUtils.h>
+
 #include <hwtHls/llvm/bitMath.h>
 #include <hwtHls/llvm/targets/intrinsic/streamIo.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
@@ -18,7 +20,6 @@
 #include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamIoCfgDetector.h>
 #include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamWriteEoFHoister.h>
 #include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamIoRewriter.h>
-#include <hwtHls/llvm/Transforms/utils/writeCFGToDotFile.h>
 
 using namespace llvm;
 
@@ -31,7 +32,8 @@ public:
 	// Create a write of curWordVar variable to output interface.
 	void _insertIntfWrite(llvm::IRBuilder<> &builder) {
 		auto w = streamProps.deparseNativeWord(builder);
-		builder.CreateStore(w, streamProps.ioArg, /*isVolatile*/true);
+		builder.CreateStore(w, streamProps.ioArg, /*isVolatile*/false);
+		// wipe or reset processed values
 		streamProps.setVarU64(builder, { }, streamProps.dataVar);
 		streamProps.setDataMaskConst(builder, 0, 0);
 		streamProps.setVarU64(builder, 0, streamProps.wDataPendingVar);
@@ -39,7 +41,8 @@ public:
 	}
 
 	BasicBlock* _optionallyConsumePendingWord(llvm::IRBuilder<> &builder,
-			llvm::Value *condition, StreamIoDetector::HlsReadOrWrite *write) {
+			llvm::Value *condition, StreamIoDetector::HlsReadOrWrite *write,
+			llvm::Twine BlockLabel) {
 		// write word from previous write because we just resolved it will not be last
 		// the word itself is produced from previous write
 		assert(
@@ -51,7 +54,7 @@ public:
 		Instruction *thenTerm = llvm::SplitBlockAndInsertIfThen(condition,
 				write, false, nullptr, DTU);
 		auto *thenBb = thenTerm->getParent();
-		thenBb->setName(write->getName() + "ConsumePending");
+		thenBb->setName(BlockLabel);
 		builder.SetInsertPoint(thenTerm);
 		_insertIntfWrite(builder); // curWrite is there for dst and parent scope
 
@@ -63,6 +66,7 @@ public:
 
 		return sequelBlock;
 	}
+
 	void _rewriteAdtAccessToWordAccessInstruction(
 			StreamIoDetector::HlsReadOrWrite *writeInst) override {
 		bool writeIsMarker = writeInst == nullptr
@@ -88,6 +92,7 @@ public:
 					throw std::runtime_error(
 							"Multiple positions of frame start"); // possibleOffsets
 				} else {
+					// reset or wipe variables with previous data
 					streamProps.setVarU64(builder, 0,
 							streamProps.wDataPendingVar);
 					streamProps.setVarU64(builder, 0, streamProps.dataLastVar);
@@ -160,9 +165,8 @@ public:
 						// pad with X to match DATA_WIDTH
 						size_t paddingWidth = DATA_WIDTH - dataHi;
 						auto *T = IntegerType::get(C, paddingWidth);
-						_src = CreateBitConcat(&builder,
-								{ _src, ConstantInt::get(T,
-										APInt::getZero(paddingWidth)) });
+						_src = CreateBitConcat(&builder, { _src,
+								UndefValue::get(T) });
 					}
 
 					if (wordI == 0 && *off == 0
@@ -171,7 +175,9 @@ public:
 						auto *_predWordPendingVar = streamProps.getVarValue(
 								builder, streamProps.wDataPendingVar);
 						sequelBlock = _optionallyConsumePendingWord(builder,
-								_predWordPendingVar, writeInst);
+								_predWordPendingVar, writeInst,
+								writeInst->getName()
+										+ "ConsumePendingRemainder");
 					}
 					// else it is guaranteed that there is "bitsToTake" bits in last word which we can fill
 
@@ -227,7 +233,9 @@ public:
 							} else {
 								// if not ending word output word only if isLast
 								_optionallyConsumePendingWord(builder,
-										meta->isLastExpr, writeInst);
+										meta->isLastExpr, writeInst,
+										writeInst->getName()
+												+ "ConsumePendingOnLast");
 							}
 						}
 					}
@@ -251,7 +259,6 @@ llvm::PreservedAnalyses StreamWriteLoweringPass::run(llvm::Function &F,
 	auto &PDT = FAM.getResult<PostDominatorTreeAnalysis>(F);
 	DomTreeUpdater DTU(DT, DomTreeUpdater::UpdateStrategy::Lazy);
 
-	//writeCFGToDotFile(F, "StreamWriteLoweringPass_run_before.dot", FAM);
 	for (StreamChannelProps &s : streamProps) {
 		if (!s.isOutput)
 			continue;
@@ -269,8 +276,6 @@ llvm::PreservedAnalyses StreamWriteLoweringPass::run(llvm::Function &F,
 		StreamWriteEoFHoister sweh(s, cfg, DT, PDT, DI);
 		sweh.prepareLastExpressionForWrites();
 
-		//errs() << cfg << "\n";
-		//throw std::runtime_error("StreamWriteLoweringPass::run");
 		StreamWriteRewriter swr(cfg, s, &DTU, nullptr);
 		swr.rewriteAdtAccessToWordAccess(F.getEntryBlock());
 		DTU.flush();
@@ -278,7 +283,6 @@ llvm::PreservedAnalyses StreamWriteLoweringPass::run(llvm::Function &F,
 	if (changed) {
 		finalizeStreamIoLowerig(F, FAM, DT, streamProps, true,
 				GeneratedAllocas);
-		//writeCFGToDotFile(F, "StreamWriteLoweringPass_run_after.dot", FAM);
 		llvm::PreservedAnalyses PA;
 		return PA;
 	} else {
