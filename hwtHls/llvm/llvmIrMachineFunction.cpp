@@ -35,6 +35,7 @@ void register_MachineFunction(pybind11::module_ &m) {
 		.def("getRegInfo", [](const llvm::MachineFunction * MF) {
 			return &MF->getRegInfo();
 		}, py::return_value_policy::reference_internal)
+		.def("getFunction", [](llvm::MachineFunction & self) -> llvm::Function& { return self.getFunction(); }, py::return_value_policy::reference_internal)
 		.def("__repr__",  [](llvm::MachineFunction*MF) {
 			return "<llvm::MachineFunction " + MF->getName().str() + ">";
 		})
@@ -93,6 +94,7 @@ void register_MachineFunction(pybind11::module_ &m) {
 		.def("getGlobal", &llvm::MachineOperand::getGlobal, py::return_value_policy::reference_internal)
 		.def("isReg", &llvm::MachineOperand::isReg)
 		.def("isDef", &llvm::MachineOperand::isDef)
+		.def("isUndef", &llvm::MachineOperand::isUndef)
 		.def("isMBB", &llvm::MachineOperand::isMBB)
 		.def("isCImm", &llvm::MachineOperand::isCImm)
 		.def("isImm", &llvm::MachineOperand::isImm)
@@ -144,8 +146,9 @@ void register_MachineFunction(pybind11::module_ &m) {
 	Register
 		.def("id", &llvm::Register::id)
 		.def("isVirtual", &llvm::Register::isVirtual)
-		.def("virtRegIndex", &llvm::Register::virtRegIndex)
 		.def("isPhysical", &llvm::Register::isPhysical)
+		.def("virtRegIndex", &llvm::Register::virtRegIndex)
+		.def_static("index2VirtReg", &llvm::Register::index2VirtReg)
 		.def("__eq__", [](llvm::Register & LHS, llvm::Register & RHS) {
 		    return LHS == RHS;
 	     })
