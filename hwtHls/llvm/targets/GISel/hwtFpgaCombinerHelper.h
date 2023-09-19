@@ -72,6 +72,10 @@ public:
 			const std::vector<std::pair<bool, unsigned>> &usedBitsVec);
 	bool rewriteMuxConstPropagation(llvm::MachineInstr &MI,
 			hwtHls::MuxReducibleValuesInfo &matchInfo);
+	//bool matchMuxSinkDirectlyCondDrivenValBits(llvm::MachineInstr &MI,
+	//		hwtHls::MuxDirectlyCondDrivenBits &matchInfo);
+	//bool rewriteMuxSinkDirectlyCondDrivenValBits(llvm::MachineInstr &MI,
+	//			hwtHls::MuxDirectlyCondDrivenBits &matchInfo);
 
 	// check if can merge two HWTFPGA_MUX instructions
 	bool matchNestedMux(llvm::MachineInstr &MI,
