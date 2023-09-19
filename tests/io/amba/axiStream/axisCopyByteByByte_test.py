@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from collections import deque
+from pathlib import Path
 from typing import List
 
 from hwt.code import Concat
@@ -9,59 +10,62 @@ from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.defs import BIT
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
-from hwtHls.llvm.llvmIr import MachineFunction
+from hwtHls.llvm.llvmIr import MachineFunction, LLVMStringContext, Function
 from hwtHls.platform.platform import HlsDebugBundle
 from hwtHls.platform.virtual import VirtualHlsPlatform
-from hwtHls.ssa.analysis.llvmMirInterpret import runLlvmMachineFunction, \
+from hwtHls.ssa.analysis.llvmIrInterpret import LlvmIrInterpret, \
     SimIoUnderflowErr
+from hwtHls.ssa.analysis.llvmMirInterpret import LlvmMirInterpret
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from hwtLib.amba.axis import axis_send_bytes, packAxiSFrame, \
     _axis_recieve_bytes, axis_recieve_bytes
 from hwtLib.types.ctypes import uint8_t
 from hwtSimApi.utils import freq_to_period
+from pyDigitalWaveTools.vcd.writer import VcdWriter
 from tests.io.amba.axiStream.axisCopyByteByByte import AxiSPacketCopyByteByByte
 
 
-# from hwtHls.ssa.analysis.llvmIrInterpret import runLlvmIrFunction
 # from pyDigitalWaveTools.vcd.writer import VcdWriter
 # from hwtHlsGdb.gdbCmdHandlerLlvmIr import GdbCmdHandlerLllvmIr
 # from hwtHlsGdb.gdbServerStub import GDBServerStub
-# from hwtHls.ssa.analysis.llvmIrInterpret import runLlvmIrFunction
 class AxiSPacketCopyByteByByteTC(SimTestCase):
 
-    #def _testLlvmIr(self, u: AxiSPacketCopyByteByByte, strCtx: LLVMStringContext, f: Function, refFrames: List[List[int]]):
-    #    dataIn = []
-    #    strbT = Bits(u.DATA_WIDTH // 8)
-    #    for refFrame in refFrames:
-    #        #print(refFrame)
-    #        t = uint8_t[len(refFrame)]
-    #        _data_B = t.from_py(refFrame)
-    #        frameBeats = packAxiSFrame(u.DATA_WIDTH, _data_B, withStrb=True)
-    #        dataIn.extend(Concat(BIT.from_py(last), strbT.from_py(strb), data) for data, strb, last in frameBeats)
-    #
-    #    dataOut = []
-    #    args = [iter(dataIn), dataOut]
-    #    try:
-    #        with open(Path(self.DEFAULT_LOG_DIR, f"{self.getTestName()}.llvmIrWave.vcd"), "w") as vcdFile:
-    #            waveLog = VcdWriter(vcdFile)
-    #        #    gdbLlvmIrHandler = GdbCmdHandlerLllvmIr(strCtx, f, args, waveLog)
-    #        #    gdbServer = GDBServerStub(gdbLlvmIrHandler)
-    #        #    gdbServer.start()
-    #            runLlvmIrFunction(strCtx, f, args, waveLog=waveLog)
-    #    except SimIoUnderflowErr:
-    #        pass  # all inputs consumed
-    #
-    #    DW = u.OUT_DATA_WIDTH
-    #    dataOut = deque((d[DW:], d[(DW + DW // 8):DW], d[DW + DW // 8]) for d in dataOut)
-    #    #for d in dataOut:
-    #    #    d = ["%x" % int(_d) if _d._is_full_valid() else repr(_d) for _d in d]
-    #    #    print(' '.join(d))
-    #
-    #    for frame in refFrames:
-    #        offset, data = _axis_recieve_bytes(dataOut, DW // 8, True, False)
-    #        self.assertEqual(offset, 0)
-    #        self.assertValSequenceEqual(data, frame)
-    #    self.assertEqual(len(dataOut), 0)
+    def _testLlvmIr(self, u: AxiSPacketCopyByteByByte,
+                    strCtx: LLVMStringContext, f: Function, refFrames: List[List[int]]):
+        dataIn = []
+        strbT = Bits(u.DATA_WIDTH // 8)
+        for refFrame in refFrames:
+            # print(refFrame)
+            t = uint8_t[len(refFrame)]
+            _data_B = t.from_py(refFrame)
+            frameBeats = packAxiSFrame(u.DATA_WIDTH, _data_B, withStrb=True)
+            dataIn.extend(Concat(BIT.from_py(last), strbT.from_py(strb), data) for data, strb, last in frameBeats)
+
+        dataOut = []
+        args = [iter(dataIn), dataOut]
+        try:
+            with open(Path(self.DEFAULT_LOG_DIR, f"{self.getTestName()}.llvmIrWave.vcd"), "w") as vcdFile:
+                waveLog = VcdWriter(vcdFile)
+            #    gdbLlvmIrHandler = GdbCmdHandlerLllvmIr(strCtx, f, args, waveLog)
+            #    gdbServer = GDBServerStub(gdbLlvmIrHandler)
+            #    gdbServer.start()
+                interpret = LlvmIrInterpret(f)
+                interpret.installWaveLog(waveLog, strCtx)
+                interpret.run(args)
+        except SimIoUnderflowErr:
+            pass  # all inputs consumed
+
+        DW = u.OUT_DATA_WIDTH
+        dataOut = deque((d[DW:], d[(DW + DW // 8):DW], d[DW + DW // 8]) for d in dataOut)
+        # for d in dataOut:
+        #    d = ["%x" % int(_d) if _d._is_full_valid() else repr(_d) for _d in d]
+        #    print(' '.join(d))
+
+        for frame in refFrames:
+            offset, data = _axis_recieve_bytes(dataOut, DW // 8, True, False)
+            self.assertEqual(offset, 0)
+            self.assertValSequenceEqual(data, frame)
+        self.assertEqual(len(dataOut), 0)
 
     def _testLlvmMir(self, u: AxiSPacketCopyByteByByte, mf: MachineFunction, refFrames: List[List[int]]):
         dataIn = []
@@ -74,8 +78,9 @@ class AxiSPacketCopyByteByByteTC(SimTestCase):
 
         dataOut = []
         args = [iter(dataIn), dataOut]
+        interpret = LlvmMirInterpret(mf)
         try:
-            runLlvmMachineFunction(mf, args)
+            interpret.run(args)
         except SimIoUnderflowErr:
             pass  # all inputs consumed
         DW = u.OUT_DATA_WIDTH
@@ -102,7 +107,7 @@ class AxiSPacketCopyByteByByteTC(SimTestCase):
 
         class TestVirtualHlsPlatform(VirtualHlsPlatform):
 
-            #def runSsaPasses(self, hls: "HlsScope", toSsa: HlsAstToSsa):
+            # def runSsaPasses(self, hls: "HlsScope", toSsa: HlsAstToSsa):
             #    res = super(TestVirtualHlsPlatform, self).runSsaPasses(hls, toSsa)
             #    tr: ToLlvmIrTranslator = toSsa.start
             #    tc._testLlvmIr(u, tr.llvm.strCtx, tr.llvm.main, refFrames)
@@ -112,6 +117,7 @@ class AxiSPacketCopyByteByByteTC(SimTestCase):
                               hls: "HlsScope", toSsa: HlsAstToSsa,
                               mf: MachineFunction, *args):
                 tr: ToLlvmIrTranslator = toSsa.start
+                tc._testLlvmIr(u, tr.llvm.strCtx, tr.llvm.main, refFrames)
                 tc._testLlvmMir(u, tr.llvm.getMachineFunction(tr.llvm.main), refFrames)
                 netlist = super(TestVirtualHlsPlatform, self).runNetlistTranslation(hls, toSsa, mf, *args)
                 return netlist
@@ -156,17 +162,17 @@ class AxiSPacketCopyByteByByteTC(SimTestCase):
 
 
 if __name__ == "__main__":
-    # from hwt.synthesizer.utils import to_rtl_str
-    # u = AxiSPacketCopyByteByByte()
-    # u.DATA_WIDTH = 16
-    # u.OUT_DATA_WIDTH = 16
-    # p = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)
-    # print(to_rtl_str(u, target_platform=p))
-    
+    from hwt.synthesizer.utils import to_rtl_str
+    u = AxiSPacketCopyByteByByte()
+    BYTES =4
+    u.DATA_WIDTH = BYTES*8
+    u.OUT_DATA_WIDTH = BYTES*8
+    p = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)
+    print(to_rtl_str(u, target_platform=p))
 
-    import unittest
-    testLoader = unittest.TestLoader()
-    suite = unittest.TestSuite([AxiSPacketCopyByteByByteTC("test_2B")])
-    # suite = testLoader.loadTestsFromTestCase(AxiSPacketCopyByteByByteTC)
-    runner = unittest.TextTestRunner(verbosity=3)
-    runner.run(suite)
+    # import unittest
+    # testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([AxiSPacketCopyByteByByteTC("test_4B")])
+    # #suite = testLoader.loadTestsFromTestCase(AxiSPacketCopyByteByByteTC)
+    # runner = unittest.TextTestRunner(verbosity=3)
+    # runner.run(suite)

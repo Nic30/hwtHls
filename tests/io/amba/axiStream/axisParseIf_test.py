@@ -14,7 +14,7 @@ from hwt.simulator.simTestCase import SimTestCase
 from hwt.synthesizer.unit import Unit
 from hwtHls.platform.platform import HlsDebugBundle
 from hwtHls.platform.virtual import VirtualHlsPlatform
-from hwtHls.ssa.analysis.llvmMirInterpret import runMirStr
+from hwtHls.ssa.analysis.llvmMirInterpret import LlvmMirInterpret
 from hwtLib.amba.axis import axis_send_bytes
 from hwtSimApi.utils import freq_to_period
 from pyMathBitPrecise.bit_utils import  int_to_int_list, mask
@@ -78,7 +78,7 @@ class AxiSParseIfTC(SimTestCase):
             dataIn = [Concat(BIT.from_py(d[1]), d[0]) for d in u.i._ag.data]
             dataOut = []
             args = [iter(dataIn), dataOut]
-            runMirStr(f.read(), mirMainName, args)
+            LlvmMirInterpret.runMirStr(f.read(), mirMainName, args)
             self.assertValSequenceEqual(dataOut, ref, "%r [%s] != [%s]" % (
                 dataOut,
                 ", ".join("0x%x" % int(i) if i._is_full_valid() else repr(i) for i in u.o._ag.data),
