@@ -23,7 +23,7 @@ def generateAndAppendHwtHlsFunctionDeclarations(llvmIrStr:str):
         if fnName == "bitRangeGet":
             #  %ret = call i16 @hwtHls.bitRangeGet.i19.i6.i16.0(i19 %1, i6 0) #2
             assert len(argTy) == 2 + 1 + 1, (fn, argTy)
-            assert argTy[-2] == retTy
+            assert argTy[-2] == retTy, ("wrong bitRangeGet return type", argTy[-2], "!=", retTy)
             declarations.add(f"{indent:s}declare {retTy:s} @hwtHls.bitRangeGet{_argTy:s}({argTy[0]:s} %0, {argTy[1]:s} %1) #1")
         elif fnName == "bitConcat":
             # %ret = call i10 @hwtHls.bitConcat.i8.i1.i1(i8 %1, i1 %2, i1 %3) #2
