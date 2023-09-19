@@ -44,7 +44,7 @@ from tests.frontend.pyBytecode.pyExceptionRaise_test import PyBytecodePyExceptio
 from tests.frontend.pyBytecode.readNonBlocking_test import ReadNonBlocking_TC
 from tests.frontend.pyBytecode.stmFor_test import StmFor_TC
 from tests.frontend.pyBytecode.stmIf_test import StmIf_TC
-from tests.frontend.pyBytecode.stmWhile_test import StmWhile_TC
+from tests.frontend.pyBytecode.stmWhile_test import StmWhile_TC, StmWhile_sim_TC
 from tests.frontend.pyBytecode.tupleAssign import HlsPythonTupleAssign_TC
 from tests.frontend.pyBytecode.variableChain_test import VariableChain_TC
 from tests.hlsNetlist.bitwiseOpsAggregation_test import HlsNetlistBitwiseOpsTC
@@ -140,6 +140,7 @@ suite = testSuiteFromTCs(
     StmIf_TC,
     StmFor_TC,
     StmWhile_TC,
+    StmWhile_sim_TC,
     PyArrHwIndex_TC,
     VariableChain_TC,
     AxiSPacketCntrTC,
