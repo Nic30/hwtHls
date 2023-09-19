@@ -1,5 +1,10 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+from hwt.code import Concat
+from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.defs import BIT
-from hwt.interfaces.std import VectSignal, Signal, Handshaked
+from hwt.interfaces.std import VectSignal, Signal, Handshaked, Clk
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.pyBytecode import hlsBytecode
@@ -10,10 +15,13 @@ from hwtLib.types.ctypes import uint8_t
 
 class HlsPythonHwWhile0(Unit):
 
+    def _config(self) -> None:
+        Clk._declr(self)
+
     def _declr(self):
         addClkRstn(self)
+        self.i = Signal() # rst 
         self.o = VectSignal(8, signed=False)._m()
-        self.i_rst = Signal()
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
@@ -21,7 +29,7 @@ class HlsPythonHwWhile0(Unit):
         while BIT.from_py(1):  # recognized as HW loop because of type
             i += 1
             hls.write(i, self.o)
-            if hls.read(self.i_rst).data:
+            if hls.read(self.i).data:
                 i = 0
 
     def _impl(self):
@@ -29,6 +37,36 @@ class HlsPythonHwWhile0(Unit):
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls)
         hls.addThread(mainThread)
         hls.compile()
+
+
+class HlsPythonHwWhile0b(HlsPythonHwWhile0):
+    """
+    Test of directly nested HW while true loop
+    """
+
+    def _declr(self):
+        addClkRstn(self)
+        self.o = VectSignal(8, signed=False)._m()
+
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
+        while BIT.from_py(1):  # recognized as HW loop because of type
+            while BIT.from_py(1):  # recognized as HW loop because of type
+                i = uint8_t.from_py(10)
+                hls.write(i, self.o)
+
+
+class HlsPythonHwWhile0c(HlsPythonHwWhile0):
+
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
+        while BIT.from_py(1):  # recognized as HW loop because of type
+            i = uint8_t.from_py(10)
+            while BIT.from_py(1):  # recognized as HW loop because of type
+                i += 1
+                hls.write(i, self.o)
+                if hls.read(self.i).data:
+                    break
 
 
 class HlsPythonHwWhile1(HlsPythonHwWhile0):
@@ -40,7 +78,7 @@ class HlsPythonHwWhile1(HlsPythonHwWhile0):
             while True:  # recognized as HW loop because of break condition
                 hls.write(i, self.o)
                 i += 1
-                if hls.read(self.i_rst).data:
+                if hls.read(self.i).data:
                     break
 
             i = 0
@@ -92,10 +130,49 @@ class HlsPythonHwWhile3(HlsPythonHwWhile2):
             hls.write(99, self.o)
 
 
+class HlsPythonHwWhile4(HlsPythonHwWhile2):
+
+    def _declr(self):
+        addClkRstn(self)
+        self.i = Handshaked()
+        self.o = Handshaked()._m()
+        self.i.DATA_WIDTH = 1
+        self.o.DATA_WIDTH = 8
+
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
+        # serial to parallel
+        while BIT.from_py(1):
+            data = Bits(8).from_py(None)
+            cntr = Bits(4, signed=True).from_py(8 - 1)
+            while cntr >= 0:
+                data = Concat(hls.read(self.i).data, data[8:1])  # shift-in data from left
+                cntr -= 1
+            hls.write(data, self.o)
+
+
+class HlsPythonHwWhile5(HlsPythonHwWhile4):
+    """
+    Same as :class:`~.HlsPythonHwWhile4` just with extra while (because this is test of this syntax)
+    """
+
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
+        # serial to parallel
+        while BIT.from_py(1):
+            while BIT.from_py(1):
+                data = Bits(8).from_py(None)
+                cntr = Bits(4, signed=True).from_py(8 - 1)
+                while cntr >= 0:
+                    data = Concat(hls.read(self.i).data, data[8:1])  # shift-in data from left
+                    cntr -= 1
+                hls.write(data, self.o)
+
+
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.platform import HlsDebugBundle
     u = HlsPythonHwWhile3()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.DBG_FRONTEND)))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE.union(HlsDebugBundle.DBG_FRONTEND))))
 
