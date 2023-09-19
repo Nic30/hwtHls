@@ -132,6 +132,15 @@ def const_val_mux_eval : GICombineRule<
   (apply [{ return Helper.rewriteConstValMux(*${root}, ${matchinfo}); }])
 >;
 
+// // generalized const_val_mux_eval which probes every bit for every condition operand separately
+// def mux_sink_directly_cond_driven_val_bits_matchdata : GIDefMatchData<"hwtHls::MuxDirectlyCondDrivenBits">;
+// def mux_sink_directly_cond_driven_val_bits : GICombineRule<
+//   (defs root:$root, mux_sink_directly_cond_driven_val_bits_matchdata:$matchinfo),
+//   (match (wip_match_opcode HWTFPGA_MUX):$root,
+//     [{ return Helper.matchMuxSinkDirectlyCondDrivenValBits(*${root}, ${matchinfo}); }]),
+//   (apply [{ return Helper.rewriteMuxSinkDirectlyCondDrivenValBits(*${root}, ${matchinfo}); }])
+// >;
+
 // if mux values are HWTFPGA_MERGE_VALUES check if there are same bits in every value, if this is the case
 // replace this instruction with a new mux of values without same bits and a HWTFPGA_MERGE_VALUES
 // (possibly also HWTFPGA_EXTRACT on new HWTFPGA_MUX) of reduced value with removed value
