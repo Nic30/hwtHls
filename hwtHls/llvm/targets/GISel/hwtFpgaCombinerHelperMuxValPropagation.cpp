@@ -101,7 +101,7 @@ bool HwtFpgaCombinerHelper::matchMuxForConstPropagation(llvm::MachineInstr &MI,
 				if (!matchInfo.valDefined[_off]) {
 					// known to be undef
 					size_t undefStartOff = _off;
-					while (!matchInfo.valDefined[_off])
+					while (_off <  off + len && !matchInfo.valDefined[_off])
 						_off++;
 					ResConcatMembers.push_back(
 							hwtHls::CImmOrRegOrUndefWithWidth(
@@ -109,7 +109,7 @@ bool HwtFpgaCombinerHelper::matchMuxForConstPropagation(llvm::MachineInstr &MI,
 				} else if (matchInfo.constBitMask[_off]) {
 					// known to be constant
 					size_t constStartOff = _off;
-					while (matchInfo.constBitMask[_off])
+					while (_off <  off + len && matchInfo.constBitMask[_off])
 						_off++;
 					size_t constWidth = _off - constStartOff;
 					auto *Ty = IntegerType::get(
