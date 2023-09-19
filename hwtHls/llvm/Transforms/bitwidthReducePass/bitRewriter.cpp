@@ -19,7 +19,7 @@ std::vector<KnownBitRangeInfo> iterUsedBitRanges(IRBuilder<> *Builder,
 					size_t width) {
 				for (auto &i : vbc.slice(Builder, offset, width).replacements) {
 					i.dstBeginBitI = dstBeginOffset;
-					VarBitConstraint::srcUnionPushBackWithMerge(res, i);
+					VarBitConstraint::srcUnionPushBackWithMerge(res, i, 0, i.srcWidth);
 					dstBeginOffset += i.srcWidth;
 				}
 			});
@@ -216,11 +216,8 @@ llvm::Value* BitPartsRewriter::expandConstBits(IRBuilder<> *b,
 			concatMembers.push_back(v);
 			size_t w = v->getType()->getIntegerBitWidth();
 			actualWidth += w;
-			if (isa<ConstantInt>(kbri.src) || isa<UndefValue>(kbri.src)) {
-				// if it is constant it was removed from reducedVal and thus it should
-				// not be used in bit offset computation
-				reducedBitCnt += w;
-			}
+			// if it is of some known value other than itself it is not computed by this instruction and thus reduced
+			reducedBitCnt += w;
 		}
 	}
 

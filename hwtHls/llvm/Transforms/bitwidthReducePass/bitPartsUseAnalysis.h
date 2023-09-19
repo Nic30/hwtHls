@@ -24,6 +24,8 @@ public:
 			const llvm::APInt &newMask);
 	void propagateUseMaskPHINode(const llvm::PHINode *I,
 			const VarBitConstraint &vbc);
+	void propageteUseMaskSelect(const llvm::SelectInst *I,
+			const VarBitConstraint &vbc);
 	void propagateUseMaskInstruction(const llvm::Instruction *I,
 			const VarBitConstraint &vbc);
 	void propagateUseMaskCallInst(const llvm::CallInst *C,

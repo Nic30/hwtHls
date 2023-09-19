@@ -93,9 +93,11 @@ std::vector<UniqRangeSequence> RangeSequenceIterator::uniqueRanges(
 	auto v1 = vec1.begin();
 	// last offset for input
 	unsigned lastEnd = 0;
-	assert(
-			vec0.back().dstEndBitI() == vec1.back().dstEndBitI()
-					&& "data must be of same total width");
+	//assert(
+	//		vec0.back().dstEndBitI() == vec1.back().dstEndBitI()
+	//				&& "data must be of same total width");
+	// iterate both vectors and discover next point where some of interval ends and use it to consume
+	// this number of bits from both vectors and produce record to output res vector
 	for (; v0 != vec0.end() || v1 != vec1.end();) {
 		if (v0 == vec0.end()) {
 			assert(
@@ -200,10 +202,11 @@ void VarBitConstraint::clearAllOperandMasks(unsigned lowBitI,
 	}
 }
 
-llvm::APInt VarBitConstraint::getNonConstBitMask() const {
+llvm::APInt VarBitConstraint::getTrullyComputedBitMask(
+		const llvm::Value *selfValue) const {
 	APInt m(useMask.getBitWidth(), 0);
 	for (const KnownBitRangeInfo &r : replacements) {
-		if (!dyn_cast<ConstantInt>(r.src)) {
+		if (!dyn_cast<ConstantInt>(r.src) && r.src == selfValue) {
 			m.setBits(r.dstBeginBitI, r.dstBeginBitI + r.srcWidth);
 		}
 	}
@@ -225,15 +228,32 @@ void VarBitConstraint::srcUnionInplace(const VarBitConstraint &other,
 	RangeSequenceIterator rsa;
 	assert(replacements.size());
 	assert(other.replacements.size());
+#ifndef NDEBUG
+	size_t prevEndIndex = 0;
+#endif
 	for (const auto &item : rsa.uniqueRanges(replacements, other.replacements)) {
 		assert(item.v0 || item.v1);
 		assert(item.width);
+		assert(item.begin == prevEndIndex);
+#ifndef NDEBUG
+		prevEndIndex = item.begin + item.width;
+#endif
 		if (item.v0 && item.v1) {
-			if (&item.v0->src == &item.v1->src
-					&& item.v0->dstBeginBitI == item.v1->dstBeginBitI
-					&& item.v0->srcWidth == item.v1->srcWidth) {
-				//KnownBitRangeInfo cur();
-				srcUnionPushBackWithMerge(newList, *item.v0);
+			assert(item.begin >= item.v0->dstBeginBitI);
+			assert(item.begin >= item.v1->dstBeginBitI);
+			if (isa<UndefValue>(item.v0->src)) {
+				srcUnionPushBackWithMerge(newList, *item.v1,
+						item.begin - item.v1->dstBeginBitI, item.width);
+				continue;
+			} else if (isa<UndefValue>(item.v1->src)) {
+				srcUnionPushBackWithMerge(newList, *item.v0,
+						item.begin - item.v0->dstBeginBitI, item.width);
+				continue;
+			} else if (item.v0->src == item.v1->src
+					&& item.v0->dstBeginBitI - item.v0->srcBeginBitI == item.v1->dstBeginBitI - item.v1->srcBeginBitI) {
+				// both variants are specifying same bits for the item
+				srcUnionPushBackWithMerge(newList, *item.v0,
+						item.begin - item.v0->dstBeginBitI, item.width);
 				continue;
 			} else {
 				auto _v0 = dyn_cast<ConstantInt>(item.v0->src);
@@ -274,7 +294,8 @@ void VarBitConstraint::srcUnionInplace(const VarBitConstraint &other,
 							kbri.dstBeginBitI = item.begin + eqSeqStart;
 							srcUnionInplaceAddFillUp(newList, parent,
 									kbri.dstBeginBitI);
-							srcUnionPushBackWithMerge(newList, kbri);
+							srcUnionPushBackWithMerge(newList, kbri, 0,
+									kbri.srcWidth);
 							eqSeqStart = -1;
 							//neSeqStart = i;
 							continue;
@@ -303,26 +324,35 @@ void VarBitConstraint::srcUnionInplaceAddFillUp(
 	unsigned lastEnd = 0;
 	if (newList.size())
 		lastEnd = newList.back().dstEndBitI();
-	if (lastEnd != end) {
 
+	if (lastEnd != end) {
 		assert(lastEnd < end);
 		KnownBitRangeInfo kbri0(end - lastEnd);
 		kbri0.src = parent;
 		kbri0.srcBeginBitI = kbri0.dstBeginBitI = lastEnd;
-		srcUnionPushBackWithMerge(newList, kbri0);
+		srcUnionPushBackWithMerge(newList, kbri0, 0, kbri0.srcWidth);
 	}
 }
 
 void VarBitConstraint::srcUnionPushBackWithMerge(
-		std::vector<KnownBitRangeInfo> &newList, KnownBitRangeInfo item) {
+		std::vector<KnownBitRangeInfo> &newList, KnownBitRangeInfo item,
+		size_t srcOffset, size_t srcWidth) {
+	assert(srcWidth > 0);
+	assert(item.srcWidth >= srcWidth);
+	assert(
+			item.srcBeginBitI + srcOffset + srcWidth
+					<= item.src->getType()->getIntegerBitWidth());
+	// select [srcOffset:srcOffset+srcWidth] bits from input item
+	item.srcBeginBitI += srcOffset;
+	item.dstBeginBitI += srcOffset;
+	item.srcWidth = srcWidth;
 	if (!newList.size()) {
 		assert(item.dstBeginBitI == 0);
 		newList.push_back(item);
 		return; // nothing to merge
 	}
 	KnownBitRangeInfo &last = newList.back();
-	auto *itemAsConst = dyn_cast<ConstantInt>(item.src);
-	if (itemAsConst) {
+	if (auto *itemAsConst = dyn_cast<ConstantInt>(item.src)) {
 		auto *lastAsConst = dyn_cast<ConstantInt>(last.src);
 		if (lastAsConst) {
 			assert(last.dstBeginBitI + last.srcWidth == item.dstBeginBitI);
@@ -333,12 +363,17 @@ void VarBitConstraint::srcUnionPushBackWithMerge(
 					item.srcWidth).zext(v0.getBitWidth());
 			assert(last.dstBeginBitI < item.dstBeginBitI);
 			v0 = i0 | i1.shl(last.srcWidth);
-			IRBuilder<> builder(last.src->getContext());
-			last.src = builder.getInt(v0);
+			last.src = ConstantInt::get(last.src->getContext(), v0);
 			last.srcWidth = v0.getBitWidth();
 			last.srcBeginBitI = 0;
 			return; // constants merged
 		}
+	} else if (isa<UndefValue>(item.src) && isa<UndefValue>(last.src)) {
+		last.srcWidth += item.srcWidth;
+		last.src = UndefValue::get(
+				IntegerType::get(last.src->getContext(), last.srcWidth));
+		last.srcBeginBitI = 0;
+		return; // undefs merged
 	}
 	if (last.src == item.src
 			&& last.srcBeginBitI + last.srcWidth == item.srcBeginBitI) {
@@ -357,7 +392,9 @@ VarBitConstraint VarBitConstraint::slice(IRBuilder<> *Builder, unsigned offset,
 	assert(width > 0);
 	VarBitConstraint res(width);
 	unsigned end = offset + width;
-	assert(end <= useMask.getBitWidth());
+	assert(
+			end <= useMask.getBitWidth()
+					&& "Check if not selecting even more bits than it was in original non-reduced value");
 	for (const KnownBitRangeInfo &i : replacements) {
 		bool last = false;
 		if (i.dstEndBitI() <= offset) {
@@ -397,6 +434,7 @@ VarBitConstraint VarBitConstraint::slice(IRBuilder<> *Builder, unsigned offset,
 	assert(res.consystencyCheck());
 	return res;
 }
+
 bool VarBitConstraint::consystencyCheck() const {
 	if (!replacements.size())
 		return false;

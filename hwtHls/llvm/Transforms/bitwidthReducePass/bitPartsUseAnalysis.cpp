@@ -27,11 +27,11 @@ void BitPartsUseAnalysisContext::updateUseMaskEntirelyUsed(
 	if (cur != constraints.end()) {
 		// the use mask should be already propagated
 		// or will be propagated once the use is found
-		APInt ncm = cur->second->getNonConstBitMask();
-		if (cur->second->useMask == (ncm | cur->second->useMask))
+		APInt tcm = cur->second->getTrullyComputedBitMask(I);
+		if (cur->second->useMask == (tcm | cur->second->useMask))
 			return;
 		else {
-			cur->second->useMask |= ncm;
+			cur->second->useMask |= tcm;
 		}
 	}
 	for (const Value *op : I->operand_values()) {
@@ -63,7 +63,7 @@ void BitPartsUseAnalysisContext::updateUseMask(const llvm::Value *V,
 void BitPartsUseAnalysisContext::updateUseMask(const llvm::Value *V,
 		VarBitConstraint &vbc, const APInt &newMask) {
 	const APInt &oldMask = vbc.useMask;
-	APInt _newMask = newMask & vbc.getNonConstBitMask();
+	APInt _newMask = newMask & vbc.getTrullyComputedBitMask(V);
 	bool someNewBitsSet = (~oldMask & _newMask) != 0;
 	if (someNewBitsSet) {
 		vbc.useMask |= _newMask;
@@ -78,9 +78,9 @@ void BitPartsUseAnalysisContext::propagateUseMaskInstruction(
 	if (auto *SI = dyn_cast<PHINode>(I)) {
 		propagateUseMaskPHINode(SI, vbc);
 		return;
-		// [todo]
-		//} else if (auto *SI = dyn_cast<SelectInst>(I)) {
-		//	return visitSelectInst(SI);
+	} else if (auto *SI = dyn_cast<SelectInst>(I)) {
+		propageteUseMaskSelect(SI, vbc);
+		return;
 	} else if (auto *C = dyn_cast<CallInst>(I)) {
 		propagateUseMaskCallInst(C, vbc);
 		return;
@@ -172,6 +172,14 @@ void BitPartsUseAnalysisContext::propagateUseMaskPHINode(const PHINode *I,
 	for (const Value *op : I->operand_values()) {
 		updateUseMask(op, vbc.useMask);
 	}
+}
+
+void BitPartsUseAnalysisContext::propageteUseMaskSelect(const SelectInst *I,
+		const VarBitConstraint &vbc) {
+	// distribute to all operands
+	updateUseMask(I->getOperand(0), vbc.useMask.isZero() ? APInt::getZero(1) : APInt::getAllOnes(1));
+	updateUseMask(I->getOperand(1), vbc.useMask);
+	updateUseMask(I->getOperand(2), vbc.useMask);
 }
 
 }

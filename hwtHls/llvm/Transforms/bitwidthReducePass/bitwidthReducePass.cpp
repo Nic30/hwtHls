@@ -14,7 +14,7 @@ using namespace llvm;
 
 namespace hwtHls {
 
-static bool runCBP(Function &F, TargetLibraryInfo *TLI) {
+static bool runBitwidthReduction(Function &F, TargetLibraryInfo *TLI) {
 	ConstBitPartsAnalysisContext A;
 	std::list<Instruction*> Worklist;
 	bool didModify = false;
@@ -49,20 +49,20 @@ static bool runCBP(Function &F, TargetLibraryInfo *TLI) {
 			if (dyn_cast<StoreInst>(&I)
 					|| (dyn_cast<LoadInst>(&I)
 							&& dyn_cast<LoadInst>(&I)->isVolatile())
-					|| I.isTerminator() || I.isExceptionalTerminator()
-					|| dyn_cast<BranchInst>(&I) || dyn_cast<SwitchInst>(&I)) {
+					|| I.isTerminator() || I.isExceptionalTerminator()) { // || dyn_cast<BranchInst>(&I) || dyn_cast<SwitchInst>(&I)
 				AU.updateUseMaskEntirelyUsed(&I);
 			}
 		}
 	}
-	//errs() << "runCBP\n";
-	//for (const auto& c: A.constraints) {
-	//	if (c.first->getType()->isIntegerTy()) {
-	//		errs() << c.first << " " << *c.first << "\n";
-	//		errs() << "    " << *c.second << "\n";
-	//	}
-	//}
-	//F.dump();
+
+	// errs() << "BitwidthReductionPass::run runBitwidthReduction\n";
+	// for (const auto& c: A.constraints) {
+	// 	if (c.first->getType()->isIntegerTy() && !isa<ConstantInt>(c.first)) {
+	// 		errs() << c.first << " " << *c.first << "\n";
+	// 		errs() << "    " << *c.second << "\n";
+	// 	}
+	// }
+	// F.dump();
 	BitPartsRewriter rew(A.constraints);
 	for (BasicBlock &BB : F) {
 		for (Instruction &I : BB) {
@@ -120,7 +120,7 @@ llvm::PreservedAnalyses BitwidthReductionPass::run(llvm::Function &F,
 		llvm::FunctionAnalysisManager &AM) {
 	TargetLibraryInfo *TLI = &AM.getResult<TargetLibraryAnalysis>(F);
 
-	if (!runCBP(F, TLI)) {
+	if (!runBitwidthReduction(F, TLI)) {
 		return PreservedAnalyses::all();
 	}
 

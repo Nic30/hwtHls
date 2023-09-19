@@ -11,7 +11,7 @@ public:
 	unsigned dstBeginBitI; // first bit in dst from where the value is set
 
 	unsigned srcBeginBitI;
-	unsigned srcWidth; // can be <= src->getType()->getBitWidth()
+	unsigned srcWidth; // number of bits selected to this object, can be <= src->getType()->getBitWidth()
 	const llvm::Value *src; // a value which is set to destination bit range
 
 	KnownBitRangeInfo(unsigned bitwidth);
@@ -46,6 +46,7 @@ public:
 	// :attention: this creates an unique intervals from two vectors of ranges,
 	//  however the original src values presented in original ranges are not modified and
 	//  may require some bit slicing to get the value actually specified by final range
+	// :attention: ranges in input vec0 and vec1 may contain holes
 	// :note: lowest bits first
 	std::vector<UniqRangeSequence> uniqueRanges(
 			const std::vector<KnownBitRangeInfo> &vec0,
@@ -74,7 +75,9 @@ public:
 
 	void addAllSetOperandMask(unsigned width);
 	void clearAllOperandMasks(unsigned lowBitI, unsigned highBitI);
-	llvm::APInt getNonConstBitMask() const;
+	// get mask for bits which are truly computed by this instruction
+	// (are not known to be constant or some specific other value)
+	llvm::APInt getTrullyComputedBitMask(const llvm::Value * selfValue) const;
 
 	// fill known bit range as a slice on self
 	//void _srcUnionInplaceSelf(const llvm::Value *parent, uint64_t offset,
@@ -87,8 +90,10 @@ public:
 			std::vector<KnownBitRangeInfo> &newList, const llvm::Value *parent,
 			unsigned end);
 	// lowest first expected
+	// :param srcOffset: additional offset to current src offfset in item
+	// :param srcWidth: width of added segment from item
 	static void srcUnionPushBackWithMerge(
-			std::vector<KnownBitRangeInfo> &newList, KnownBitRangeInfo item);
+			std::vector<KnownBitRangeInfo> &newList, KnownBitRangeInfo item, size_t srcOffset, size_t srcWidth);
 	VarBitConstraint slice(llvm::IRBuilder<> *Builder, unsigned offset,
 			unsigned width) const;
 	bool consystencyCheck() const;

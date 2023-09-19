@@ -7,7 +7,9 @@ using namespace llvm;
 
 namespace hwtHls {
 
-ConstBitPartsAnalysisContext::ConstBitPartsAnalysisContext() {
+ConstBitPartsAnalysisContext::ConstBitPartsAnalysisContext(
+		std::optional<std::function<bool(const llvm::Instruction&)>> analysisHandle) :
+		analysisHandle(analysisHandle) {
 }
 
 VarBitConstraint& ConstBitPartsAnalysisContext::visitConstantInt(
@@ -44,14 +46,15 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitPHINode(const PHINode *I) {
 	// because there can be cycle in PHI dependencies so if we meet this value when resolving this
 	// we will know that it is this PHI.
 	VarBitConstraint &c = *constraints[I];
+	// errs() << "ConstBitPartsAnalysisContext::visitPHINode " << *I << "\n";
 	bool first = true;
 	for (auto op : I->operand_values()) {
-		auto &_c = visitValue(op);
+		const auto &_c = visitValue(op);
+		// errs() << "_c:" << _c << "\n";
 		if (first) {
 			first = false;
 			assert(_c.consystencyCheck());
 			c = _c; // intended copy of _c to c
-
 		} else {
 			assert(c.consystencyCheck());
 			c.srcUnionInplace(_c, I);
@@ -61,6 +64,7 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitPHINode(const PHINode *I) {
 				llvm_unreachable("PHINode in inconsistent state");
 			}
 		}
+		// errs() << " c:" << c << "\n";
 	}
 	return c;
 }
@@ -87,14 +91,21 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitValue(const Value *V) {
 		// already seen return prev record reference
 		return *cur->second.get();
 	}
+	if (analysisHandle.has_value()) {
+		if (auto* VasI = dyn_cast<Instruction>(V)) {
+			if (analysisHandle.value()(*VasI)) {
+				return visitAsAllInputBitsUsedAllOutputBitsKnown(V);
+			}
+		}
+	}
 
 	if (auto *CI = dyn_cast<ConstantInt>(V)) {
 		return visitConstantInt(CI);
 	} else if (auto *I = dyn_cast<Instruction>(V)) {
 		return visitInstruction(I);
-	} else {
-		return visitAsAllInputBitsUsedAllOutputBitsKnown(V);
 	}
+
+	return visitAsAllInputBitsUsedAllOutputBitsKnown(V);
 }
 
 VarBitConstraint& ConstBitPartsAnalysisContext::visitInstruction(
@@ -255,12 +266,14 @@ void ConstBitPartsAnalysisContext::visitBinaryOperatorReduceAnd(
 			// 1 sequence found
 			KnownBitRangeInfo i = v.slice(&b, vSrcOffset, w);
 			i.dstBeginBitI = dstOffset;
-			VarBitConstraint::srcUnionPushBackWithMerge(newParts, i);
+			VarBitConstraint::srcUnionPushBackWithMerge(newParts, i, 0,
+					i.srcWidth);
 		} else {
 			// 0 sequence found
 			KnownBitRangeInfo i = KnownBitRangeInfo(b.getInt(APInt(w, 0)));
 			i.dstBeginBitI = dstOffset;
-			VarBitConstraint::srcUnionPushBackWithMerge(newParts, i);
+			VarBitConstraint::srcUnionPushBackWithMerge(newParts, i, 0,
+					i.srcWidth);
 		}
 		dstOffset += w;
 		cSrcOffset += w;
@@ -280,12 +293,14 @@ void ConstBitPartsAnalysisContext::visitBinaryOperatorReduceOr(
 			KnownBitRangeInfo i = KnownBitRangeInfo(
 					b.getInt(APInt::getAllOnesValue(w)));
 			i.dstBeginBitI = dstOffset;
-			VarBitConstraint::srcUnionPushBackWithMerge(newParts, i);
+			VarBitConstraint::srcUnionPushBackWithMerge(newParts, i, 0,
+					i.srcWidth);
 		} else {
 			// end of 0 sequence found
 			KnownBitRangeInfo i = v.slice(&b, vSrcOffset, w);
 			i.dstBeginBitI = dstOffset;
-			VarBitConstraint::srcUnionPushBackWithMerge(newParts, i);
+			VarBitConstraint::srcUnionPushBackWithMerge(newParts, i, 0,
+					i.srcWidth);
 		}
 
 		dstOffset += w;

@@ -13,12 +13,12 @@ class ConstBitPartsAnalysisContext {
 protected:
 	void visitBinaryOperatorReduceAnd(std::vector<KnownBitRangeInfo> &newParts,
 			const llvm::BinaryOperator *parentI, unsigned width,
-			unsigned vSrcOffset, unsigned cSrcOffset, unsigned dstOffset, const llvm::APInt &c,
-			const KnownBitRangeInfo &v);
+			unsigned vSrcOffset, unsigned cSrcOffset, unsigned dstOffset,
+			const llvm::APInt &c, const KnownBitRangeInfo &v);
 	void visitBinaryOperatorReduceOr(std::vector<KnownBitRangeInfo> &newParts,
 			const llvm::BinaryOperator *parentI, unsigned width,
-			unsigned vSrcOffset, unsigned cSrcOffset, unsigned dstOffset, const llvm::APInt &c,
-			const KnownBitRangeInfo &v);
+			unsigned vSrcOffset, unsigned cSrcOffset, unsigned dstOffset,
+			const llvm::APInt &c, const KnownBitRangeInfo &v);
 
 	// visit functions to discover which bits are constant in value
 	// if value is of non int type the mask wit 1 bit is used
@@ -35,10 +35,15 @@ protected:
 	VarBitConstraint& visitZExt(const llvm::CastInst *I);
 	VarBitConstraint& visitSExt(const llvm::CastInst *I);
 
+	std::optional<std::function<bool(const llvm::Instruction&)>> analysisHandle; // :see: constructor
 public:
 	using InstructionToVarBitConstraintMap = std::map<const llvm::Value*, std::unique_ptr<VarBitConstraint>>;
 	InstructionToVarBitConstraintMap constraints;
-	ConstBitPartsAnalysisContext();
+
+	// if analysisHandle is specified and it returns the false the analysis ends there
+	// and the value is used as is
+	ConstBitPartsAnalysisContext(
+			std::optional<std::function<bool(const llvm::Instruction&)>> analysisHandle={});
 	VarBitConstraint& visitValue(const llvm::Value *V);
 	// update constant bit info for instruction from dependencies, return true if changed
 	bool updateInstruction(const llvm::Instruction *I);
