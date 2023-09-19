@@ -5,11 +5,11 @@
 // tries to convert conditional branches into predicated instructions.
 // Original did it for physical registers, this variant works with virtual registers only.
 //===----------------------------------------------------------------------===//
-#include "vregIfConversion.h"
-#include "vregConditionUtils.h"
+#include <hwtHls/llvm/targets/Transforms/vregIfConversion.h>
+#include <hwtHls/llvm/targets/Transforms/vregConditionUtils.h>
 
-#include "../../llvmSrc/BranchFolding.h"
-#include "liveVRegs.h"
+#include <hwtHls/llvm/llvmSrc/BranchFolding.h>
+#include <hwtHls/llvm/targets/Transforms/liveVRegs.h>
 #include <llvm/ADT/STLExtras.h>
 #include <llvm/ADT/ScopeExit.h>
 #include <llvm/ADT/SmallSet.h>
