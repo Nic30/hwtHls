@@ -15,10 +15,11 @@
 #include <hwtHls/llvm/targets/GISel/hwtFpgaPreLegalizerCombiner.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaPreRegAllocCombiner.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaPreToNetlistCombiner.h>
+#include <hwtHls/llvm/targets/Transforms/cheapBlockInlinePass.h>
+#include <hwtHls/llvm/targets/Transforms/EarlyMachineCopyPropagation.h>
+#include <hwtHls/llvm/targets/Transforms/hwtHlsCodeGenPrepare.h>
 #include <hwtHls/llvm/targets/Transforms/machineDumpAndExitPass.h>
 #include <hwtHls/llvm/targets/Transforms/vregIfConversion.h>
-#include <hwtHls/llvm/targets/Transforms/hwtHlsCodeGenPrepare.h>
-#include <hwtHls/llvm/targets/Transforms/EarlyMachineCopyPropagation.h>
 #include <hwtHls/llvm/Transforms/dumpAndExitPass.h>
 
 #include <iostream>
@@ -118,6 +119,7 @@ bool HwtFpgaTargetPassConfig::addILPOpts() {
 void HwtFpgaTargetPassConfig::addOptimizedRegAlloc() {
 	// :note: nearly same as TargetPassConfig::addOptimizedRegAlloc()
 	//   but we do not call scheduler
+	// addPass(hwtHls::createCheapBlockInlinePass());
 	addPass(&DetectDeadLanesID);
 	addPass(&ProcessImplicitDefsID);
 
@@ -184,8 +186,11 @@ void HwtFpgaTargetPassConfig::addOptimizedRegAlloc() {
 	//}));
 	//addPass(&MachineCSEID); // requires IsSSA
 	addPass(&LiveIntervalsID); // add killed and other attributes
+	addPass(hwtHls::createCheapBlockInlinePass());
 	addPass(createHwtFpgaPreRegAllocCombiner());
 	addPass(&DeadMachineInstructionElimID); // requires explicit undefs
+	addPass(hwtHls::createCheapBlockInlinePass());
+
 }
 
 void HwtFpgaTargetPassConfig::addMachinePasses() {
@@ -214,6 +219,7 @@ void HwtFpgaTargetPassConfig::addMachinePasses() {
 	// we need to regenerate this information
 	addPass(new hwtHls::HwtFpgaRegisterBitWidth());
 	addPass(&MachineLoopInfoID);
+	addPass(hwtHls::createCheapBlockInlinePass());
 	addPass(new hwtHls::HwtFpgaToNetlist());
 }
 
