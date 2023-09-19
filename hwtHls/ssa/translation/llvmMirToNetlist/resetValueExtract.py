@@ -11,17 +11,15 @@ from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
+from hwtHls.netlist.nodes.orderable import HdlType_isVoid
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, HlsNetNodeOutLazy, \
     HlsNetNodeOut, unlink_hls_nodes, HlsNetNodeIn, \
     unlink_hls_node_input_if_exists
-from hwtHls.netlist.nodes.read import HlsNetNodeRead
-from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import netlistExplicitSyncDisconnectFromOrderingChain
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
-from hwtHls.ssa.translation.llvmMirToNetlist.machineEdgeMeta import MachineEdge, MachineEdgeMeta
+from hwtHls.ssa.translation.llvmMirToNetlist.machineEdgeMeta import MachineEdge, MachineEdgeMeta, \
+    MACHINE_EDGE_TYPE
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
-from hwtHls.netlist.nodes.orderable import HVoidOrdering, HdlType_isVoid
 
 
 class ResetValueExtractor():
@@ -53,6 +51,7 @@ class ResetValueExtractor():
         # :note: resetPredEn and otherPredEn do not need to be specified if reset actually does not reset anything
         #        only one can be specified if the value for other in MUXes is always default value which does not have condition
         newResetEdge = self.edgeMeta[(rstPred, mb)].inlineRstDataToEdge
+        assert self.edgeMeta[newResetEdge].etype == MACHINE_EDGE_TYPE.BACKWARD, ("Must be backedge", self.edgeMeta[newResetEdge])
         otherPred, _mb = newResetEdge
         if _mb != mb:
             raise NotImplementedError()
@@ -116,13 +115,13 @@ class ResetValueExtractor():
                     if cDep is otherPredEn:
                         otherPredEnI = cIn
                         v0 = vDep
-                        if vRst is None: # check for None because resetPredEn may already have been found
+                        if vRst is None:  # check for None because resetPredEn may already have been found
                             vRstI, vRst = condValuePairs[i + 1][0]
                     elif cDep is resetPredEn:
                         resetPredEnI = cIn
                         vRstI = vIn
                         vRst = vDep
-                        if v0 is None: # check for None because otherPredEn may already have been found
+                        if v0 is None:  # check for None because otherPredEn may already have been found
                             v0, _ = condValuePairs[i + 1][0]
                 assert otherPredEnI is not None or resetPredEnI is not None, (mux, otherPredEn, resetPredEn)
                 # assert len(mux.dependsOn) == 3, (mux, "rst", resetPredEn, "nonRst", otherPredEn)
