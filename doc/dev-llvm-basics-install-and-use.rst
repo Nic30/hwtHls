@@ -104,6 +104,9 @@ TargetMachine
 * Other projects with FPGA/Verilog/FPGA LLVM backend
   * https://github.com/cpc/tce/tree/master/tce/src/applibs/LLVMBackend/plugin
 * to get original MDNode for MachineInst see  NVPTXAsmPrinter::isLoopHeaderOfNoUnroll
+* MIR registers does not need to have definition by any MachineOperand for example ProcessImplicitDefsPass
+  removes all defining instructions for undef values. However each use MachineOperand must have IsUndef flag set.
+
 
 Interpret
 -------------

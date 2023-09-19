@@ -43,13 +43,34 @@ The source code location is not usually explicitly added to each instruction ins
 * IRBuilder
   * InsertPointGuard automatically swaps and swaps back insertion point
 
+* Passes: https://www.llvm.org/docs/Passes.html
+  * if you are not using debug build of LLVM and you still want to force debug for your pass you can
+    forcefully redefine LLVM_DEBUG macro
+	#undef LLVM_DEBUG
+	#define LLVM_DEBUG(X) X
+	
+
 * Dominator tree - data structures for CFG analysis
 	* Node A dominates node B if the only way to reach B from the start node is through node A.
 	* Join-point - place where PHINode should be placed for variable modified on multiple placeces.
 
+* Dominance Frontier - is the set of all blocks that are immediate successors to blocks dominated by N,
+     but which aren’t themselves strictly dominated by N.
+    * DF(N) = {Z | M->Z & (N dom M) & !(N sdom Z)}
+
+* Control Dependence - Y is control dependent on X if and only if:
+	1. Y postdominates a successor of X.
+	2. Y does not postdominate all successors of X.
+	X is the most recent block where a choice was made to reach Y or not.
+* Loop
+  * (backedge) detection - Edge, x -> y where y dominates x (loop header is y)
+  * Header dominates all blocks in loop
+  
+ 
 MIR level (llvm/CodeGen)
 ------------------------
 https://www.llvm.org/docs/MIRLangRef.html
+https://www.llvm.org/docs/GlobalISel/index.html
 
 This layer is responsible for translation of an universal LLVM IR to a target specific instructions
 which are ten directly translated to binary (if compiling for CPU like arch).
