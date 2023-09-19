@@ -104,7 +104,7 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
             return eMeta.reuseDataAsControl
         for liveIn in mir.liveness[pred][mb]:
             # [todo] prefer using same liveIns from every predecessor
-            # [todo] prefer using variables which are used the earlyest
+            # [todo] prefer using variables which are used the most early
             if mir._regIsValidLiveIn(MRI, liveIn):
                 latestDefInPrevBlock = None
                 for predMI in pred:
