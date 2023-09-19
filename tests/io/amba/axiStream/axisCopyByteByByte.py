@@ -22,7 +22,10 @@ class AxiSPacketCopyByteByByteHs(Unit):
     """
 
     def _config(self) -> None:
-        self.DATA_WIDTH = Param(512)
+        self.DATA_WIDTH = Param(16)
+        self.OUT_DATA_WIDTH = Param(8)
+        self.USE_STRB = Param(True)
+        self.UNROLL = Param(PyBytecodeStreamLoopUnroll)
         self.CLK_FREQ = Param(int(100e6))
 
     def _declr(self):
@@ -30,9 +33,17 @@ class AxiSPacketCopyByteByByteHs(Unit):
         self.clk.FREQ = self.CLK_FREQ
         with self._paramsShared():
             self.rx = AxiStream()
-            self.rx.USE_STRB = True
+            self.rx.USE_STRB = self.USE_STRB
             self.txBody = Handshaked()._m()
-            self.txBody.DATA_WIDTH = 8
+            self.txBody.DATA_WIDTH = self.OUT_DATA_WIDTH
+
+    def doUnrolling(self):
+        # if can not be placed directly in hls code loop because metadata would be added to a wrong branch instruction
+        # it would be added to branch of "if-then" instead of parent loop
+        if self.UNROLL is PyBytecodeStreamLoopUnroll:
+            return PyBytecodeStreamLoopUnroll(self.rx)
+        else:
+            return self.UNROLL
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope, rx: IoProxyAxiStream):
@@ -40,7 +51,7 @@ class AxiSPacketCopyByteByByteHs(Unit):
             rx.readStartOfFrame()
             # pass body to txBody output
             while BIT.from_py(1):
-                PyBytecodeLLVMLoopUnroll(True, self.DATA_WIDTH // 8)
+                self.doUnrolling()
                 d = PyBytecodeInPreproc(rx.read(Bits(8), reliable=False))
                 hls.write(d.data, self.txBody)
                 if d._isLast():
@@ -64,9 +75,7 @@ class AxiSPacketCopyByteByByte(Unit):
     """
 
     def _config(self) -> None:
-        self.DATA_WIDTH = Param(512)
-        self.OUT_DATA_WIDTH = Param(None)
-        self.CLK_FREQ = Param(int(100e6))
+        AxiSPacketCopyByteByByteHs._config(self)
 
     def _declr(self):
         addClkRstn(self)
@@ -88,8 +97,8 @@ class AxiSPacketCopyByteByByte(Unit):
             rx.readStartOfFrame()
             txBody.writeStartOfFrame()
             while BIT.from_py(1):
-                PyBytecodeStreamLoopUnroll(rx)
-                d = PyBytecodeInPreproc(rx.read(Bits(8), reliable=False)) # PyBytecodeInPreproc is used because we want to access internal properties of data (_isLast)
+                AxiSPacketCopyByteByByteHs.doUnrolling(self)
+                d = PyBytecodeInPreproc(rx.read(Bits(8), reliable=False))  # PyBytecodeInPreproc is used because we want to access internal properties of data (_isLast)
                 txBody.write(d.data)
                 # del d is not necessary is there to limit live of d variable which is useful during debug
                 if d._isLast():
@@ -115,9 +124,10 @@ if __name__ == "__main__":
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
-    u = AxiSPacketCopyByteByByte()
+    u = AxiSPacketCopyByteByByteHs()
     u.DATA_WIDTH = 16
-    u.OUT_DATA_WIDTH = 16
+    u.UNROLL = False
+    # u.OUT_DATA_WIDTH = 8
     p = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)
     print(to_rtl_str(u, target_platform=p))
 
