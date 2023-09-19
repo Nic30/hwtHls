@@ -53,6 +53,7 @@ from hwtHls.ssa.translation.toGraphwiz import SsaPassDumpToDot
 from hwtHls.ssa.translation.toLl import SsaPassDumpToLl
 from hwtHls.ssa.translation.toLlvm import SsaPassToLlvm, ToLlvmIrTranslator
 
+
 DebugId = Tuple[Type, Optional[str]]
 
 
@@ -252,8 +253,9 @@ class DefaultHlsPlatform(DummyPlatform):
         self._debugExpandCompositeNodes = False
         self._llvmCliArgs:List[Tuple[str, int, str, str]] = [
             #("debug-pass", 0, "", "Arguments"), # print used passes starting from machinemoduleinfo
-            # ("print-before-all", 0, "", "true"),
+            # ("debug-only", 0, "", "hwtfpga-pretonetlist-combiner"),
             # ("print-after-all", 0, "", "true"),
+            # ("print-before-all", 0, "", "true"),
             # ("time-passes", 0, "", "true"),
             # ("print-before", 0, "", "machine-sink"),
             # ("print-after", 0, "", "machine-sink"),
