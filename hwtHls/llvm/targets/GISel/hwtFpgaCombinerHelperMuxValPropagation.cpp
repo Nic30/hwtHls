@@ -10,36 +10,6 @@
 
 namespace llvm {
 
-size_t muxFindValueWidth(const llvm::MachineInstr &MI,
-		MachineRegisterInfo &MRI) {
-	auto OpIt = MI.operands_begin() + 1; // skip dst
-	while (OpIt != MI.operands_end()) {
-		const auto &V = *OpIt;
-		if (V.isReg()) {
-			MachineOperand *VDef = MRI.getOneDef(V.getReg());
-			if (!VDef)
-				return 0;
-			auto &DefMI = *VDef->getParent();
-			if (DefMI.getOpcode() != HwtFpga::HWTFPGA_MERGE_VALUES)
-				return 0;
-
-			size_t width = 0;
-			auto widths = hwtHls::MERGE_VALUES_iter_widths(DefMI);
-			for (auto &w : widths) {
-				width += w.getImm();
-			}
-			return width;
-		} else {
-			assert(V.isCImm());
-			return V.getCImm()->getType()->getIntegerBitWidth();
-		}
-		++OpIt;
-		if (OpIt != MI.operands_end()) {
-			++OpIt; // skip condition to get to next value
-		}
-	}
-	return 0;
-}
 
 bool HwtFpgaCombinerHelper::matchMuxForConstPropagation(llvm::MachineInstr &MI,
 		hwtHls::MuxReducibleValuesInfo &matchInfo) {
@@ -47,7 +17,7 @@ bool HwtFpgaCombinerHelper::matchMuxForConstPropagation(llvm::MachineInstr &MI,
 		// avoid copy propagation case because it is handled elsewhere
 		return false;
 	}
-	size_t width = muxFindValueWidth(MI, MRI);
+	size_t width = hwtHls::hwtFpgaMuxFindValueWidth(MI, MRI);
 	if (width == 0)
 		return false; // can not resolve width, can not probe possible MERGE_VALUES, must exit
 	matchInfo = hwtHls::MuxReducibleValuesInfo(width);
@@ -55,7 +25,7 @@ bool HwtFpgaCombinerHelper::matchMuxForConstPropagation(llvm::MachineInstr &MI,
 	auto OpIt = MI.operands_begin() + 1; // skip dst
 	while (OpIt != MI.operands_end()) {
 		const auto &V = *OpIt;
-		matchInfo.processValueOperand(V, 0, width, MRI, 1);
+		matchInfo.loadKnonwBitsFromValueOperand(V, 0, width, MRI, 1);
 		if (matchInfo.valDefined.isAllOnes() && matchInfo.constBitMask.isZero()
 				&& matchInfo.regBitMask.isZero())
 			return false; // all value bits known to be defined differently, no point in search for other operands

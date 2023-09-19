@@ -24,7 +24,7 @@ void selectInstrArg(MachineFunction &MF,
 		MachineOperand &MO) {
 	if (MO.isReg() && MO.getReg()) {
 		if (MO.isDef()) {
-			MIB.addDef(MO.getReg());
+			MIB.add(MO);
 			return;
 		}
 		if (MRI.hasOneDef(MO.getReg())) {
@@ -37,7 +37,8 @@ void selectInstrArg(MachineFunction &MF,
 				return;
 			}
 		}
-		MIB.addUse(MO.getReg());
+		assert(MO.isUse());
+		MIB.add(MO);
 	} else {
 		MIB.add(MO);
 	}
@@ -55,7 +56,7 @@ void selectInstrArgs(MachineInstr &I, MachineInstrBuilder &MIB,
 		if (OpI == 0 && firstIsDef) {
 			assert(MO.isReg());
 			assert(MO.isDef());
-			MIB.addDef(MO.getReg());
+			MIB.add(MO);
 			continue;
 		}
 		selectInstrArg(MF, MIB, MRI, MO);

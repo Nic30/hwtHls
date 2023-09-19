@@ -53,11 +53,7 @@ void CImmOrRegOrUndefWithWidth::addAsUse(MachineIRBuilder &Builder,
 	if (isUndef) {
 		Register res = Builder.getMRI()->createVirtualRegister(
 				&HwtFpga::anyregclsRegClass);
-		auto *newI = MIB.getInstr();
-		{
-			hwtHls::MachineInsertPointGuard g(Builder, newI);
-			Builder.buildInstr(HwtFpga::IMPLICIT_DEF, { res }, { });
-		}
+		MIB.addUse(res, RegState::Undef);
 	} else if (c) {
 		MIB.addCImm(c);
 	} else {
@@ -154,9 +150,9 @@ void MuxReducibleValuesInfo::_defineBitAsRegBit(
 }
 
 // per each bit check that the bit is same or undef in each value operand of mux
-void MuxReducibleValuesInfo::processValueOperand(const MachineOperand &MO,
-		size_t offset, size_t MOWidth, MachineRegisterInfo &MRI,
-		int recursionLimit) {
+void MuxReducibleValuesInfo::loadKnonwBitsFromValueOperand(
+		const MachineOperand &MO, size_t offset, size_t MOWidth,
+		MachineRegisterInfo &MRI, int recursionLimit) {
 	assert(MOWidth > 0);
 	assert(recursionLimit >= 0);
 	if (MO.isCImm()) {
@@ -201,9 +197,10 @@ void MuxReducibleValuesInfo::processValueOperand(const MachineOperand &MO,
 			auto values = MERGE_VALUES_iter_values(V1DefI);
 			auto wIt = widths.begin();
 			size_t curOffset = offset;
-			for (auto V1 : values) {
+			for (const auto &V1 : values) {
 				size_t w = wIt->getImm();
-				processValueOperand(V1, curOffset, w, MRI, recursionLimit - 1);
+				loadKnonwBitsFromValueOperand(V1, curOffset, w, MRI,
+						recursionLimit - 1);
 				curOffset += w;
 				++wIt;
 			}
@@ -222,22 +219,24 @@ void MuxReducibleValuesInfo::processValueOperand(const MachineOperand &MO,
 							llvm_unreachable(
 									"this can not happen as regBitMask[resBitI] was set thus there must be some value");
 						} else {
-							DefiningRegisterInfo &_cur = *cur;
-							assert(_cur.bitCnt > 0);
-							if (_cur.bitOffset + _cur.bitCnt <= resBitI) {
+							assert(
+									cur->bitCnt > 0
+											&& "records in regVal must have non zero width");
+							if (cur->bitOffset + cur->bitCnt <= resBitI) {
 								// end of currently checked element, must advance with search
 								cur = _getRecordForRegisterBitOrAfter(resBitI,
 										cur);
 							}
-							assert(resBitI < _cur.bitOffset + _cur.bitCnt);
+							DefiningRegisterInfo &_cur = *cur;
+							assert(
+									resBitI < _cur.bitOffset + _cur.bitCnt
+											&& "Current position in result must be smaller than end of currently probed member");
 							size_t offInCur = resBitI - _cur.bitOffset;
 							if (_cur.reg == MO.getReg()
 									&& offInCur == _cur.regOffset
 									&& offInCur < _cur.bitCnt) {
 								// checking if on resBitI is a MO defining reg [resBitI - offset]
 								// if it is currently defined as a same bit - keep everything as it is
-								errs() << "reg matches:"
-										<< _cur.reg.virtRegIndex() << "\n";
 							} else {
 								// else clean defined value but keep bit in valDefined to mark that the bit is defined but the value
 								// differs in each mux value
@@ -309,8 +308,12 @@ CImmOrRegOrUndefWithWidth buildHWTFPGA_EXTRACT(MachineIRBuilder &Builder,
 				dyn_cast<ConstantInt>(ConstantInt::get(Ty, v)));
 	} else {
 		assert(src.isReg());
-		return buildHWTFPGA_EXTRACT(Builder, src.getReg(), srcWidth, offset,
-				resWidth);
+		if (src.isUndef()) {
+			return CImmOrRegOrUndefWithWidth(resWidth);
+		} else {
+			return buildHWTFPGA_EXTRACT(Builder, src.getReg(), srcWidth, offset,
+					resWidth);
+		}
 	}
 }
 CImmOrRegOrUndefWithWidth buildHWTFPGA_EXTRACT(MachineIRBuilder &Builder,
@@ -518,4 +521,34 @@ MachineInsertPointGuard::~MachineInsertPointGuard() {
 	Builder.setInsertPt(origIPMBB, origIP);
 }
 
+size_t hwtFpgaMuxFindValueWidth(const llvm::MachineInstr &MI,
+		MachineRegisterInfo &MRI) {
+	auto OpIt = MI.operands_begin() + 1; // skip dst
+	while (OpIt != MI.operands_end()) {
+		const auto &V = *OpIt;
+		if (V.isReg()) {
+			MachineOperand *VDef = MRI.getOneDef(V.getReg());
+			if (!VDef)
+				return 0;
+			auto &DefMI = *VDef->getParent();
+			if (DefMI.getOpcode() != HwtFpga::HWTFPGA_MERGE_VALUES)
+				return 0;
+
+			size_t width = 0;
+			auto widths = hwtHls::MERGE_VALUES_iter_widths(DefMI);
+			for (auto &w : widths) {
+				width += w.getImm();
+			}
+			return width;
+		} else {
+			assert(V.isCImm());
+			return V.getCImm()->getType()->getIntegerBitWidth();
+		}
+		++OpIt;
+		if (OpIt != MI.operands_end()) {
+			++OpIt; // skip condition to get to next value
+		}
+	}
+	return 0;
+}
 }
