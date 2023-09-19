@@ -29,8 +29,10 @@ bool checkOrSetWidth(MachineRegisterInfo &MRI, MachineOperand &op,
 									!= TargetOpcode::G_IMPLICIT_DEF
 									&& "This instruction should already be removed");
 				} else if (MRI.def_empty(Reg)) {
-					undefsToDuplicate->push_back( {
-							op.getParent()->getOperandNo(&op), width });
+					if (!MRI.hasOneUse(Reg)) {
+						undefsToDuplicate->push_back( {
+								op.getParent()->getOperandNo(&op), width });
+					}
 					return true;
 				}
 			}
@@ -171,9 +173,14 @@ bool resolveTypes(MachineInstr &MI) {
 					if (isValueOp) {
 						if (T.getSizeInBits() != bitWidth) {
 							if (MRI.def_empty(R)) {
-								Register NewReg = MRI.createVirtualRegister(
-										&HwtFpga::anyregclsRegClass);
-								MO.setReg(NewReg);
+								if (!MRI.hasOneUse(R)) {
+									// this reg may have been used as undef constant on multiple places with different
+									// bit width, we define new reg to prevent interference
+									Register NewReg = MRI.createVirtualRegister(
+											&HwtFpga::anyregclsRegClass);
+									MO.setReg(NewReg);
+									MO.setIsUndef();
+								}
 								if (!checkOrSetWidth(MRI, MO, bitWidth,
 										nullptr)) {
 									llvm_unreachable(
@@ -257,18 +264,17 @@ bool resolveTypes(MachineInstr &MI) {
 			}
 			totalWidth += width;
 		}
-		if (undefsToDuplicate.size()) {
-			for (auto &v : undefsToDuplicate) {
-				Register Reg = MRI.createVirtualRegister(
-						&HwtFpga::anyregclsRegClass);
-				auto &O = MI.getOperand(v.first);
-				O.setReg(Reg);
-				if (!checkOrSetWidth(MRI, O, v.second, nullptr)) {
-					llvm_unreachable(
-							"HWTFPGA_MERGE_VALUES set of type for register for operand with undefined value failed");
-				}
-
+		for (auto &v : undefsToDuplicate) {
+			Register Reg = MRI.createVirtualRegister(
+					&HwtFpga::anyregclsRegClass);
+			auto &O = MI.getOperand(v.first);
+			O.setReg(Reg);
+			O.setIsUndef();
+			if (!checkOrSetWidth(MRI, O, v.second, nullptr)) {
+				llvm_unreachable(
+						"HWTFPGA_MERGE_VALUES set of type for register for operand with undefined value failed");
 			}
+
 		}
 		assert(checkOrSetWidth(MRI, MI.getOperand(0), totalWidth, nullptr));
 		return true;
