@@ -26,9 +26,11 @@
 #include <llvm/Analysis/OptimizationRemarkEmitter.h>
 #include <llvm/Analysis/CFGPrinter.h>
 //#include <llvm/Transforms/IPO/PassManagerBuilder.h>
+#include <llvm/Transforms/AggressiveInstCombine/AggressiveInstCombine.h>
 #include <llvm/Transforms/InstCombine/InstCombine.h>
 #include <llvm/Transforms/Instrumentation/ControlHeightReduction.h>
-#include <llvm/Transforms/AggressiveInstCombine/AggressiveInstCombine.h>
+#include <llvm/Transforms/IPO/StripDeadPrototypes.h>
+#include <llvm/Transforms/IPO/StripSymbols.h>
 #include <llvm/Transforms/Scalar.h>
 #include <llvm/Transforms/Scalar/Reassociate.h>
 #include <llvm/Transforms/Scalar/NewGVN.h>
@@ -67,6 +69,7 @@
 #include <llvm/Transforms/Vectorize/VectorCombine.h>
 #include <llvm/Transforms/Utils/AssumeBundleBuilder.h>
 #include <llvm/Transforms/Utils.h>
+#include <llvm/Transforms/Utils/Local.h>
 
 
 #include <llvm/Target/TargetMachine.h>
@@ -134,22 +137,27 @@ void LlvmCompilationBundle::addLlvmCliArgOccurence(const std::string & OptionNam
 	llvm::StringMap<llvm::cl::Option*> &Map = llvm::cl::getRegisteredOptions();
 	auto o = Map.find(OptionName);
 	if (o == Map.end()) {
-		throw std::runtime_error(std::string("Can not find LLVM cli option ") + OptionName);
+		if (OptionName == "debug-only") {
+			throw std::runtime_error("debug-only LLVM cli option is available only in LLVM debug build");
+		} else {
+			throw std::runtime_error(std::string("Can not find LLVM cli option ") + OptionName);
+		}
 	}
 	o->second->addOccurrence(pos, strCtx.addStringRef(ArgName), strCtx.addStringRef(ArgValue));
 }
 
+
 void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetlistConversionFn) {
 	assert(main && "a main function must be created before call of this function");
 
-	auto &fn = *main;
+	auto &F = *main;
 	// https://stackoverflow.com/questions/51934964/function-optimization-pass
 	// @see PassBuilder::buildFunctionSimplificationPipeline
 
-	fn.getParent()->setDataLayout(TM->createDataLayout());
+	F.getParent()->setDataLayout(TM->createDataLayout());
 
 	auto LAM = llvm::LoopAnalysisManager { };
-	auto cgscc_manager = llvm::CGSCCAnalysisManager { };
+	auto CGAM = llvm::CGSCCAnalysisManager { };
 	auto MAM = llvm::ModuleAnalysisManager { };
 	auto FAM = llvm::FunctionAnalysisManager { };
 	//VerifyEachPass = true;
@@ -158,43 +166,17 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 	                            VerifyEachPass, PrintPassOpts);
 	SI.registerCallbacks(PIC, &FAM);
 	_initPassBuilder();
-	//llvm::TimeProfilingPassesHandler TPPH;
-	//TPPH.registerCallbacks(*PB.getPassInstrumentationCallbacks());
 	PB->registerModuleAnalyses(MAM);
-	PB->registerCGSCCAnalyses(cgscc_manager);
+	PB->registerCGSCCAnalyses(CGAM);
 	PB->registerFunctionAnalyses(FAM);
 	PB->registerLoopAnalyses(LAM);
-	PB->crossRegisterProxies(LAM, FAM, cgscc_manager, MAM);
+	PB->crossRegisterProxies(LAM, FAM, CGAM, MAM);
 
 	llvm::FunctionPassManager FPM;
 
-	FPM.addPass(hwtHls::TrivialSimplifyCFGPass());
-
-	llvm::LoopPassManager LPM0;
-	LPM0.addPass(hwtHls::LoopUnrotatePass());
-	FPM.addPass(llvm::createFunctionToLoopPassAdaptor(std::move(LPM0),
-				/*UseMemorySSA=*/false,
-				/*UseBlockFrequencyInfo=*/false));
-	// [fixme] LoopUnrotatePass probably breaks SE and TrivialSimplifyCFGPass forces to recompute it
-	FPM.addPass(hwtHls::TrivialSimplifyCFGPass()); // simplify trivial cases so IR is more easy to read
-	// Form SSA out of local memory accesses after breaking apart aggregates into
-	// scalars.
-	FPM.addPass(hwtHls::SlicesToIndependentVariablesPass()); // hwtHls specific
-	FPM.addPass(llvm::ADCEPass());  // hwtHls specific
-	FPM.addPass(llvm::SROAPass(llvm::SROAOptions::ModifyCFG));
-
-	// Catch trivial redundancies
-	FPM.addPass(llvm::EarlyCSEPass(true /* Enable mem-ssa. */));
-	//if (EnableKnowledgeRetention)
-	FPM.addPass(llvm::AssumeSimplifyPass());
-
-	// StreamLoopUnrollPass must be before StreamReadLoweringPass, StreamWriteLoweringPass
-	// because if used correctly it reduces complexity of stream processing exponentially
-	FPM.addPass(hwtHls::StreamLoopUnrollPass());
-	FPM.addPass(hwtHls::StreamReadLoweringPass());
-	FPM.addPass(hwtHls::StreamWriteLoweringPass());
-
-	FPM.addPass(hwtHls::SimplifyCFGPass2());
+	_addInitialNormalizationPasses(FPM);
+	_addStreamOperationLoweringPasses(FPM);
+	FPM.addPass(hwtHls::SimplifyCFG2Pass());
 
 	// Hoisting of scalars and load expressions.
 	if (EnableGVNHoist)
@@ -203,7 +185,7 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 	// Global value numbering based sinking.
 	if (EnableGVNSink) {
 		FPM.addPass(llvm::GVNSinkPass());
-		FPM.addPass(hwtHls::SimplifyCFGPass2());
+		FPM.addPass(hwtHls::SimplifyCFG2Pass());
 	}
 
 	// Speculative execution if the target has divergent branches; otherwise nop.
@@ -214,7 +196,7 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 	FPM.addPass(llvm::JumpThreadingPass());
 	FPM.addPass(llvm::CorrelatedValuePropagationPass());
 
-	FPM.addPass(hwtHls::SimplifyCFGPass2());
+	FPM.addPass(hwtHls::SimplifyCFG2Pass());
 	FPM.addPass(llvm::InstCombinePass());
 	FPM.addPass(llvm::AggressiveInstCombinePass());
 
@@ -233,164 +215,17 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 	//  FPM.addPass(PGOMemOPSizeOpt());
     //
 	//FPM.addPass(TailCallElimPass());
-	FPM.addPass(hwtHls::SimplifyCFGPass2());
+	FPM.addPass(hwtHls::SimplifyCFG2Pass());
 
 	// Form canonically associated expression trees, and simplify the trees using
 	// basic mathematical properties. For example, this will form (nearly)
 	// minimal multiplication trees.
 	FPM.addPass(llvm::ReassociatePass());
 
-	// Add the primary loop simplification pipeline.
-	// FIXME: Currently this is split into two loop pass pipelines because we run
-	// some function passes in between them. These can and should be removed
-	// and/or replaced by scheduling the loop pass equivalents in the correct
-	// positions. But those equivalent passes aren't powerful enough yet.
-	// Specifically, `SimplifyCFGPass` and `InstCombinePass` are currently still
-	// used. We have `LoopSimplifyCFGPass` which isn't yet powerful enough yet to
-	// fully replace `SimplifyCFGPass`, and the closest to the other we have is
-	// `LoopInstSimplify`.
-	llvm::LoopPassManager LPM1, LPM2;
-
-	// Simplify the loop body. We do this initially to clean up after other loop
-	// passes run, either when iterating on a loop or on inner loops with
-	// implications on the outer loop.
-	LPM1.addPass(llvm::LoopInstSimplifyPass());
-	LPM1.addPass(llvm::LoopSimplifyCFGPass());
-
-	// Try to remove as much code from the loop header as possible,
-	// to reduce amount of IR that will have to be duplicated.
-	// TODO: Investigate promotion cap for O1.
-	LPM1.addPass(
-			llvm::LICMPass(PTO.LicmMssaOptCap, PTO.LicmMssaNoAccForPromotionCap,
-			/*AllowSpeculation=*/false));
-
-	// Disable header duplication in loop rotation at -Oz.
-	LPM1.addPass(llvm::LoopRotatePass(/*EnableHeaderDuplication*/ false, /*PrepareForLTO*/ false));
-	// TODO: Investigate promotion cap for O1.
-	LPM1.addPass(
-			llvm::LICMPass(PTO.LicmMssaOptCap, PTO.LicmMssaNoAccForPromotionCap, /*AllowSpeculation=*/
-			true));
-	LPM1.addPass(
-			llvm::SimpleLoopUnswitchPass(
-					/* NonTrivial */Level == llvm::OptimizationLevel::O3
-							&& EnableO3NonTrivialUnswitching));
-	// if (EnableLoopFlatten)
-	//   LPM1.addPass(LoopFlattenPass());
-	LPM2.addPass(llvm::LoopIdiomRecognizePass());
-	LPM2.addPass(llvm::IndVarSimplifyPass());
-
-	//for (auto &C : LateLoopOptimizationsEPCallbacks)
-	//  C(LPM2, Level);
-
-	LPM2.addPass(llvm::LoopDeletionPass());
-
-	//if (EnableLoopInterchange)
-	//LPM2.addPass(llvm::LoopInterchangePass());
-
-	// Do not enable unrolling in PreLinkThinLTO phase during sample PGO
-	// because it changes IR to makes profile annotation in back compile
-	// inaccurate. The normal unroller doesn't pay attention to forced full unroll
-	// attributes so we need to make sure and allow the full unroll pass to pay
-	// attention to it.
-	//if (Phase != ThinOrFullLTOPhase::ThinLTOPreLink || !PGOOpt ||
-	//    PGOOpt->Action != PGOOptions::SampleUse)
-	//  LPM2.addPass(LoopFullUnrollPass(Level.getSpeedupLevel(),
-	//                                  /* OnlyWhenForced= */ !PTO.LoopUnrolling,
-	//                                  PTO.ForgetAllSCEVInLoopUnroll));
-
-	//for (auto &C : LoopOptimizerEndEPCallbacks)
-	//  C(LPM2, Level);
-
-	// We provide the opt remark emitter pass for LICM to use. We only need to do
-	// this once as it is immutable.
-	FPM.addPass(
-			llvm::RequireAnalysisPass<llvm::OptimizationRemarkEmitterAnalysis,
-					llvm::Function>());
-	FPM.addPass(llvm::createFunctionToLoopPassAdaptor(std::move(LPM1),
-			/*UseMemorySSA=*/true,
-			/*UseBlockFrequencyInfo=*/true));
-
-	FPM.addPass(
-			hwtHls::SimplifyCFGPass2(
-					llvm::SimplifyCFGOptions()//
-						.convertSwitchRangeToICmp(true)));
-	FPM.addPass(llvm::InstCombinePass());
-
-	// The loop passes in LPM2 (LoopIdiomRecognizePass, IndVarSimplifyPass,
-	// LoopDeletionPass and LoopFullUnrollPass) do not preserve MemorySSA.
-	// *All* loop passes must preserve it, in order to be able to use it.
-	FPM.addPass(createFunctionToLoopPassAdaptor(std::move(LPM2),
-	/*UseMemorySSA=*/false,
-	/*UseBlockFrequencyInfo=*/false));
-
+	_addLoopPasses(FPM);
 	_addVectorPasses(Level, FPM, false); // directly after loop passes
 
-	// Delete small array after loop unroll.
-	FPM.addPass(llvm::SROAPass(llvm::SROAOptions::ModifyCFG));
-
-	// The matrix extension can introduce large vector operations early, which can
-	// benefit from running vector-combine early on.
-	//  if (EnableMatrix)
-	//    FPM.addPass(VectorCombinePass(/*ScalarizationOnly=*/true));
-
-	// Eliminate redundancies.
-	FPM.addPass(
-			llvm::MergedLoadStoreMotionPass(llvm::MergedLoadStoreMotionOptions(
-			/*SplitFooterBB=*/true)));
-	//if (RunNewGVN)
-	FPM.addPass(llvm::NewGVNPass());
-	//else
-	//  FPM.addPass(GVN());
-
-	// Sparse conditional constant propagation.
-	// FIXME: It isn't clear why we do this *after* loop passes rather than
-	// before...
-	FPM.addPass(llvm::SCCPPass());
-
-	// Delete dead bit computations (instcombine runs after to fold away the dead
-	// computations, and then ADCE will run later to exploit any new DCE
-	// opportunities that creates).
-	FPM.addPass(llvm::BDCEPass());
-
-	// Run instcombine after redundancy and dead bit elimination to exploit
-	// opportunities opened up by them.
-	FPM.addPass(llvm::InstCombinePass());
-	//invokePeepholeEPCallbacks(FPM, Level);
-
-	// Re-consider control flow based optimizations after redundancy elimination,
-	// redo DCE, etc.
-	//  if (EnableDFAJumpThreading && Level.getSizeLevel() == 0)
-	FPM.addPass(llvm::DFAJumpThreadingPass());
-
-	FPM.addPass(llvm::JumpThreadingPass()); // segfault on insert to internal set in non debug builds
-	FPM.addPass(llvm::CorrelatedValuePropagationPass());
-
-	// Finally, do an expensive DCE pass to catch all the dead code exposed by
-	// the simplifications and basic cleanup after all the simplifications.
-	// TODO: Investigate if this is too expensive.
-	FPM.addPass(llvm::ADCEPass());
-
-	// Specially optimize memory movement as it doesn't look like dataflow in SSA.
-	FPM.addPass(llvm::MemCpyOptPass());
-
-	FPM.addPass(llvm::DSEPass());
-	FPM.addPass(
-			llvm::createFunctionToLoopPassAdaptor(
-					llvm::LICMPass(PTO.LicmMssaOptCap,
-							PTO.LicmMssaNoAccForPromotionCap,
-							/*AllowSpeculation=*/true),
-					/*UseMemorySSA=*/true, /*UseBlockFrequencyInfo=*/true));
-
-	//FPM.addPass(llvm::CoroElidePass());
-
-	//	for (auto &C : ScalarOptimizerLateEPCallbacks)
-	//		C(FPM, Level);
-
-	FPM.addPass(hwtHls::SimplifyCFGPass2(llvm::SimplifyCFGOptions() //
-	.convertSwitchRangeToICmp(true) //
-	.hoistCommonInsts(true) //
-	.sinkCommonInsts(true)));
-	FPM.addPass(llvm::InstCombinePass());
+	_addCommonPasses(FPM);
 	//invokePeepholeEPCallbacks(FPM, Level);
 
 	FPM.addPass(hwtHls::ExtractBitConcatAndSliceOpsPass()); // hwtHls specific
@@ -408,7 +243,7 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 	//	FPM.addPass(llvm::ControlHeightReductionPass());
 	_addVectorPasses(Level, FPM, true); // LTO like vector opt, after all IR opt, followed by final cleanup and machine passes
 	FPM.addPass(
-			hwtHls::SimplifyCFGPass2(
+			hwtHls::SimplifyCFG2Pass(
 					llvm::SimplifyCFGOptions()//
 					.forwardSwitchCondToPhi(true)//
 					.convertSwitchRangeToICmp(true)//
@@ -423,33 +258,191 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 	FPM.addPass(hwtHls::SlicesMergePass());
 	_addInstrCombinePasses(FPM);
 
-//	FPM.addPass(
-//			llvm::MergedLoadStoreMotionPass(llvm::MergedLoadStoreMotionOptions(
-//			/*SplitFooterBB=*/true)));
-	FPM.run(fn, FAM);
+	FPM.run(F, FAM);
 
-	_addMachineCodegenPasses(toNetlistConversionFn);
-    // from llvm/tools/opt/NewPMDriver.cpp
-	//llvm::PassInstrumentationCallbacks PIC;
-	//std::string Pipeline;
-	//llvm::raw_string_ostream SOS(Pipeline);
-    //PM.printPipeline(SOS, [&PIC](llvm::StringRef ClassName) {
-    //  auto PassName = PIC.getPassNameForClassName(ClassName);
-    //  return PassName.empty() ? ClassName : PassName;
-    //});
-    //outs() << Pipeline;
-    //outs() << "\n";
+	// module cleanup section
+	llvm::ModulePassManager MPM;
+	//if (!DeleteFn)
+	//    MPM.addPass(llvm::GlobalDCEPass());
+    //MPM.addPass(llvm::ExtractGVPass(Gvs, DeleteFn, KeepConstInit));
+    MPM.addPass(llvm::StripDeadDebugInfoPass());
+    MPM.addPass(llvm::StripDeadPrototypesPass());
+    MPM.run(*mod, MAM);
 
-	PM.run(*fn.getParent());
+    _addMachineCodegenPasses(toNetlistConversionFn);
+
+	PM.run(*F.getParent());
+}
+
+
+void LlvmCompilationBundle::_addInitialNormalizationPasses(
+		llvm::FunctionPassManager &FPM) {
+	FPM.addPass(hwtHls::TrivialSimplifyCFGPass());
+	llvm::LoopPassManager LPM0;
+	LPM0.addPass(hwtHls::LoopUnrotatePass());
+	FPM.addPass(llvm::createFunctionToLoopPassAdaptor(std::move(LPM0),
+			/*UseMemorySSA=*/ false,
+			/*UseBlockFrequencyInfo=*/ false));
+	// [fixme] LoopUnrotatePass probably breaks SE and TrivialSimplifyCFGPass forces to recompute it
+	FPM.addPass(hwtHls::TrivialSimplifyCFGPass()); // simplify trivial cases so IR is more easy to read
+	// Form SSA out of local memory accesses after breaking apart aggregates into
+	// scalars.
+	FPM.addPass(hwtHls::SlicesToIndependentVariablesPass()); // hwtHls specific
+	FPM.addPass(llvm::ADCEPass()); // hwtHls specific
+	FPM.addPass(llvm::SROAPass(llvm::SROAOptions::ModifyCFG));
+	// Catch trivial redundancies
+	FPM.addPass(llvm::EarlyCSEPass(true /* Enable mem-ssa. */));
+	//if (EnableKnowledgeRetention)
+	FPM.addPass(llvm::AssumeSimplifyPass());
+
+}
+
+void LlvmCompilationBundle::_addStreamOperationLoweringPasses(
+		llvm::FunctionPassManager &FPM) {
+	// StreamLoopUnrollPass must be before StreamReadLoweringPass, StreamWriteLoweringPass
+	// because if used correctly it reduces complexity of stream processing exponentially
+	FPM.addPass(hwtHls::StreamLoopUnrollPass());
+	FPM.addPass(hwtHls::StreamReadLoweringPass());
+	FPM.addPass(hwtHls::TrivialSimplifyCFGPass());
+	FPM.addPass(hwtHls::StreamWriteLoweringPass());
+	FPM.addPass(hwtHls::TrivialSimplifyCFGPass());
+}
+
+void LlvmCompilationBundle::_addCommonPasses(llvm::FunctionPassManager &FPM) {
+	// Delete small array after loop unroll.
+	FPM.addPass(llvm::SROAPass(llvm::SROAOptions::ModifyCFG));
+	// The matrix extension can introduce large vector operations early, which can
+	// benefit from running vector-combine early on.
+	//  if (EnableMatrix)
+	//    FPM.addPass(VectorCombinePass(/*ScalarizationOnly=*/true));
+	// Eliminate redundancies.
+	FPM.addPass(
+			llvm::MergedLoadStoreMotionPass(llvm::MergedLoadStoreMotionOptions(/*SplitFooterBB=*/
+			true)));
+	//if (RunNewGVN)
+	FPM.addPass(llvm::NewGVNPass());
+	//else
+	//  FPM.addPass(GVN());
+	// Sparse conditional constant propagation.
+	// FIXME: It isn't clear why we do this *after* loop passes rather than
+	// before...
+	FPM.addPass(llvm::SCCPPass());
+	// Delete dead bit computations (instcombine runs after to fold away the dead
+	// computations, and then ADCE will run later to exploit any new DCE
+	// opportunities that creates).
+	FPM.addPass(llvm::BDCEPass());
+	// Run instcombine after redundancy and dead bit elimination to exploit
+	// opportunities opened up by them.
+	FPM.addPass(llvm::InstCombinePass());
+	//invokePeepholeEPCallbacks(FPM, Level);
+	// Re-consider control flow based optimizations after redundancy elimination,
+	// redo DCE, etc.
+	//  if (EnableDFAJumpThreading && Level.getSizeLevel() == 0)
+	FPM.addPass(llvm::DFAJumpThreadingPass());
+	FPM.addPass(llvm::JumpThreadingPass()); // segfault on insert to internal set in non debug builds
+	FPM.addPass(llvm::CorrelatedValuePropagationPass());
+	// Finally, do an expensive DCE pass to catch all the dead code exposed by
+	// the simplifications and basic cleanup after all the simplifications.
+	// TODO: Investigate if this is too expensive.
+	FPM.addPass(llvm::ADCEPass());
+	// Specially optimize memory movement as it doesn't look like dataflow in SSA.
+	FPM.addPass(llvm::MemCpyOptPass());
+	FPM.addPass(llvm::DSEPass());
+	FPM.addPass(
+			llvm::createFunctionToLoopPassAdaptor(
+					llvm::LICMPass(PTO.LicmMssaOptCap,
+							PTO.LicmMssaNoAccForPromotionCap, /*AllowSpeculation=*/
+							true),
+							/*UseMemorySSA=*/true,
+							/*UseBlockFrequencyInfo=*/true));
+	//FPM.addPass(llvm::CoroElidePass());
+	//	for (auto &C : ScalarOptimizerLateEPCallbacks)
+	//		C(FPM, Level);
+	FPM.addPass(
+			hwtHls::SimplifyCFG2Pass(
+					llvm::SimplifyCFGOptions().convertSwitchRangeToICmp(true).hoistCommonInsts(
+							true).sinkCommonInsts(true)));
+	FPM.addPass(llvm::InstCombinePass());
 }
 
 void LlvmCompilationBundle::_addInstrCombinePasses(llvm::FunctionPassManager &FPM) {
 	FPM.addPass(llvm::InstCombinePass()); // hwtHls specific
 	FPM.addPass(llvm::AggressiveInstCombinePass()); // hwtHls specific
-	//FPM.addPass(hwtHls::DumpAndExitPass(true, false, "BitwidthReductionPass.before.dot"));
 	FPM.addPass(hwtHls::BitwidthReductionPass());
-	//FPM.addPass(hwtHls::DumpAndExitPass(true, true, "BitwidthReductionPass.after.dot"));
 	FPM.addPass(llvm::InstCombinePass()); // hwtHls specific
+}
+
+void LlvmCompilationBundle::_addLoopPasses(llvm::FunctionPassManager &FPM) {
+	// Add the primary loop simplification pipeline.
+	// FIXME: Currently this is split into two loop pass pipelines because we run
+	// some function passes in between them. These can and should be removed
+	// and/or replaced by scheduling the loop pass equivalents in the correct
+	// positions. But those equivalent passes aren't powerful enough yet.
+	// Specifically, `SimplifyCFGPass` and `InstCombinePass` are currently still
+	// used. We have `LoopSimplifyCFGPass` which isn't yet powerful enough yet to
+	// fully replace `SimplifyCFGPass`, and the closest to the other we have is
+	// `LoopInstSimplify`.
+	llvm::LoopPassManager LPM1, LPM2;
+	// Simplify the loop body. We do this initially to clean up after other loop
+	// passes run, either when iterating on a loop or on inner loops with
+	// implications on the outer loop.
+	LPM1.addPass(llvm::LoopInstSimplifyPass());
+	LPM1.addPass(llvm::LoopSimplifyCFGPass());
+	// Try to remove as much code from the loop header as possible,
+	// to reduce amount of IR that will have to be duplicated.
+	// TODO: Investigate promotion cap for O1.
+	LPM1.addPass(
+			llvm::LICMPass(PTO.LicmMssaOptCap, PTO.LicmMssaNoAccForPromotionCap, /*AllowSpeculation=*/
+			false));
+	// Disable header duplication in loop rotation at -Oz.
+	LPM1.addPass(llvm::LoopRotatePass(false, /*PrepareForLTO*/
+	false));
+	// TODO: Investigate promotion cap for O1.
+	LPM1.addPass(
+			llvm::LICMPass(PTO.LicmMssaOptCap, PTO.LicmMssaNoAccForPromotionCap, /*AllowSpeculation=*/
+			true));
+	LPM1.addPass(llvm::SimpleLoopUnswitchPass(/* NonTrivial */
+	Level == llvm::OptimizationLevel::O3 && EnableO3NonTrivialUnswitching));
+	// if (EnableLoopFlatten)
+	//   LPM1.addPass(LoopFlattenPass());
+	LPM2.addPass(llvm::LoopIdiomRecognizePass());
+	LPM2.addPass(llvm::IndVarSimplifyPass());
+	//for (auto &C : LateLoopOptimizationsEPCallbacks)
+	//  C(LPM2, Level);
+	LPM2.addPass(llvm::LoopDeletionPass());
+	//if (EnableLoopInterchange)
+	//LPM2.addPass(llvm::LoopInterchangePass());
+	// Do not enable unrolling in PreLinkThinLTO phase during sample PGO
+	// because it changes IR to makes profile annotation in back compile
+	// inaccurate. The normal unroller doesn't pay attention to forced full unroll
+	// attributes so we need to make sure and allow the full unroll pass to pay
+	// attention to it.
+	//if (Phase != ThinOrFullLTOPhase::ThinLTOPreLink || !PGOOpt ||
+	//    PGOOpt->Action != PGOOptions::SampleUse)
+	//  LPM2.addPass(LoopFullUnrollPass(Level.getSpeedupLevel(),
+	//                                  /* OnlyWhenForced= */ !PTO.LoopUnrolling,
+	//                                  PTO.ForgetAllSCEVInLoopUnroll));
+	//for (auto &C : LoopOptimizerEndEPCallbacks)
+	//  C(LPM2, Level);
+	// We provide the opt remark emitter pass for LICM to use. We only need to do
+	// this once as it is immutable.
+	FPM.addPass(
+			llvm::RequireAnalysisPass<llvm::OptimizationRemarkEmitterAnalysis,
+					llvm::Function>());
+	FPM.addPass(llvm::createFunctionToLoopPassAdaptor(std::move(LPM1), /*UseMemorySSA=*/
+	true, /*UseBlockFrequencyInfo=*/
+	true));
+	FPM.addPass(
+			hwtHls::SimplifyCFG2Pass(
+					llvm::SimplifyCFGOptions().convertSwitchRangeToICmp(true)));
+
+	FPM.addPass(llvm::InstCombinePass());
+	// The loop passes in LPM2 (LoopIdiomRecognizePass, IndVarSimplifyPass,
+	// LoopDeletionPass and LoopFullUnrollPass) do not preserve MemorySSA.
+	// *All* loop passes must preserve it, in order to be able to use it.
+	FPM.addPass(createFunctionToLoopPassAdaptor(std::move(LPM2), /*UseMemorySSA=*/
+	false, /*UseBlockFrequencyInfo=*/
+	false));
 }
 
 void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
@@ -515,7 +508,7 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 						true,
 						/*UseBlockFrequencyInfo=*/true));
 		ExtraPasses.addPass(
-				hwtHls::SimplifyCFGPass2(
+				hwtHls::SimplifyCFG2Pass(
 						llvm::SimplifyCFGOptions()//
 						.convertSwitchRangeToICmp(true)));
 		ExtraPasses.addPass(llvm::InstCombinePass());
@@ -531,7 +524,7 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 	// convert to more optimized IR using more aggressive simplify CFG options.
 	// The extra sinking transform can create larger basic blocks, so do this
 	// before SLP vectorization.
-	FPM.addPass(hwtHls::SimplifyCFGPass2(llvm::SimplifyCFGOptions()
+	FPM.addPass(hwtHls::SimplifyCFG2Pass(llvm::SimplifyCFGOptions()
 	                                .forwardSwitchCondToPhi(true)
 	                                .convertSwitchRangeToICmp(true)
 	                                //.convertSwitchToLookupTable(true)
@@ -605,10 +598,9 @@ void LlvmCompilationBundle::_addMachineCodegenPasses(
 	//	throw std::runtime_error("Error during running MachineFunctionPassManager");
 	//}
 
-	//llvm::cl::ParseCommandLineOptions(argc, argv, "This is a small program to demo the LLVM CommandLine API");
 	// use CodeGenPassBuilder once complete
-	// :info: based on llc.cpp
 
+	// :info: based on llc.cpp
 	PM.add(MMIWP);
 
 	// check for incompatible passes

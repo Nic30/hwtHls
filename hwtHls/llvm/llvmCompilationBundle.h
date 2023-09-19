@@ -54,6 +54,9 @@ public:
 
 	llvm::MachineModuleInfo* getMachineModuleInfo();
 
+	void _addInitialNormalizationPasses(llvm::FunctionPassManager &FPM);
+	void _addStreamOperationLoweringPasses(llvm::FunctionPassManager &FPM);
+	void _addLoopPasses(llvm::FunctionPassManager &FPM);
 	void _addVectorPasses(llvm::OptimizationLevel Level,
 			llvm::FunctionPassManager &FPM, bool IsFullLTO);
 	void _addInstrCombinePasses(llvm::FunctionPassManager &FPM);
@@ -68,6 +71,7 @@ public:
 	llvm::Function& _testFunctionPass(
 			std::function<void(llvm::FunctionPassManager&)> addPasses);
 	void _testEarlyIfConverter();
+	void _addCommonPasses(llvm::FunctionPassManager &FPM);
 };
 
 
