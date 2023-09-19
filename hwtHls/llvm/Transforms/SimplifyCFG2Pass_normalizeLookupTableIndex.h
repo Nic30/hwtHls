@@ -4,7 +4,7 @@
 
 namespace hwtHls {
 
-bool SimplifyCFGPass2_normalizeLookupTableIndex(llvm::BasicBlock &BB);
+bool SimplifyCFG2Pass_normalizeLookupTableIndex(llvm::BasicBlock &BB);
 
 }
 

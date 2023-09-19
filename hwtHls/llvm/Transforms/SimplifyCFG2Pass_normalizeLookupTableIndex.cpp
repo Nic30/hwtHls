@@ -28,7 +28,7 @@ static Value* cteateGEPtoGlobalData(IRBuilder<> &builder, BasicBlock &BB, Value 
 	return newGep;
 }
 
-bool SimplifyCFGPass2_normalizeLookupTableIndex(llvm::BasicBlock &BB) {
+bool SimplifyCFG2Pass_normalizeLookupTableIndex(llvm::BasicBlock &BB) {
 	// transform value stored in switch_ptr in order to use switch_tableidx_base as is
 	using namespace llvm::PatternMatch;
 	bool changed = false;
