@@ -18,6 +18,7 @@
 #include <llvm/Support/KnownBits.h>
 #include <llvm/Support/MathExtras.h>
 #include <llvm/Transforms/Utils/UnrollLoop.h>
+#include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 
 using namespace llvm;
 
@@ -115,6 +116,12 @@ InstructionCost HwtFpgaTTIImpl::getIntImmCostInst(unsigned Opcode,
 		return TTI::TCC_Free;
 	case Instruction::Load:
 	case Instruction::Store:
+		return TTI::TCC_Expensive;
+	case Instruction::Call:
+		if (auto CI = dyn_cast<CallInst>(Inst)) {
+			if (hwtHls::IsBitRangeGet(CI) || hwtHls::IsBitConcat(CI))
+				return TTI::TCC_Free;
+		}
 		return TTI::TCC_Expensive;
 	case Instruction::ICmp:
 		if (Ty->getIntegerBitWidth() > 1)
@@ -231,6 +238,10 @@ static bool IsFreeOperator(const User *U) {
 	auto *O = dyn_cast<Operator>(U);
 	if (!O)
 		return false;
+	if (auto CI = dyn_cast<CallInst>(U)) {
+		if (hwtHls::IsBitRangeGet(CI) || hwtHls::IsBitConcat(CI))
+			return true;
+	}
 
 	auto Opcode = O->getOpcode();
 
