@@ -63,6 +63,7 @@ py3.extension_module(
      'targets/GISel/hwtFpgaCombinerHelper.cpp',
      'targets/GISel/hwtFpgaCombinerHelperCopy.cpp',
      'targets/GISel/hwtFpgaCombinerHelperMux.cpp',
+     'targets/GISel/hwtFpgaCombinerHelperMuxSinkDirectlyDrivenValBits.cpp',
      'targets/GISel/hwtFpgaCombinerHelperMuxValPropagation.cpp',
      'targets/GISel/hwtFpgaInstructionBuilderUtils.cpp',
 
@@ -77,6 +78,7 @@ py3.extension_module(
      'targets/hwtFpgaTargetTransformInfo.cpp',
      'targets/hwtFpgaTargetPassConfig.cpp',
 
+     'targets/Transforms/cheapBlockInlinePass.cpp',
      'targets/Transforms/machineDumpAndExitPass.cpp',
      'targets/Transforms/hwtFpgaToNetlist.cpp',
      'targets/Transforms/hwtHlsCodeGenPrepare.cpp',
@@ -95,7 +97,9 @@ py3.extension_module(
      'Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.cpp',
      'Transforms/extractBitConcatAndSliceOpsPass.cpp',
      'Transforms/LoopUnrotatePass.cpp',
+     'Transforms/SimplifyCFG2Pass_aggresiveStoreSink.cpp',
      'Transforms/SimplifyCFG2Pass_normalizeLookupTableIndex.cpp',
+     'Transforms/SimplifyCFG2Pass_rewriteMaskPatternsFromCFGToData.cpp',
      'Transforms/SimplifyCFG2Pass.cpp',
      'Transforms/trivialSimplifyCFGPass.cpp',
      'Transforms/slicesMerge/rewritePhiShift.cpp',
