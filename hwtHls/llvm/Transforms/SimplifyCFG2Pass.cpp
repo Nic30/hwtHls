@@ -21,6 +21,8 @@
 #include <hwtHls/llvm/Transforms/SimplifyCFG2Pass_normalizeLookupTableIndex.h>
 #include <hwtHls/llvm/Transforms/SimplifyCFG2Pass_aggresiveStoreSink.h>
 #include <hwtHls/llvm/Transforms/SimplifyCFG2Pass_rewriteMaskPatternsFromCFGToData.h>
+#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass_SwitchSuccessorHoistCode.h>
+#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass_SwitchToSelect.h>
 
 #include <map>
 #define DEBUG_TYPE "simplifycfg2"
@@ -782,6 +784,32 @@ bool SimplifyCFGOpt2::simplifySwitch(SwitchInst *SI, IRBuilder<> &Builder) {
 			if (FoldValueComparisonIntoPredecessors(SI, Builder))
 				return requestResimplify();
 	}
+	bool everySucDominated = true;
+	auto BBSuccessors = successors(BB);
+	for (BasicBlock *Succ : BBSuccessors) {
+		if (Succ->hasAddressTaken()) {
+			everySucDominated = false;
+			break;
+		}
+		if (Succ->getUniquePredecessor() == BB)
+			continue;
+		bool allSucPredecessorsAreDominatedByBB = true;
+		for (auto *SuccPred : predecessors(Succ)) {
+			if (SuccPred != BB
+					&& std::find(BBSuccessors.begin(), BBSuccessors.end(),
+							SuccPred) == BBSuccessors.end()) {
+				allSucPredecessorsAreDominatedByBB = false;
+				break;
+			}
+		}
+		if (allSucPredecessorsAreDominatedByBB)
+			continue;
+		everySucDominated = false;
+		break;
+	}
+	if (everySucDominated && trySwitchToSelect(SI, Builder, *DTU))
+		return requestResimplify();
+
 	return false;
 }
 
@@ -850,7 +878,10 @@ llvm::PreservedAnalyses SimplifyCFG2Pass::run(llvm::Function &F,
 	unsigned LlvmHoistCommonSkipLimit =
 			dynamic_cast<cl::opt<unsigned>*>(_LlvmHoistCommonSkipLimit->second)->getValue();
 	llvm::PreservedAnalyses FirstPA;
+
 	bool changed = false;
+	SimplifyCFGOpt2 opt(&DTU, DL, TTI, Options, LlvmHoistCommonSkipLimit);
+
 	for (;;) {
 		auto PA = SimplifyCFGPass::run(F, AM);
 		if (itCntr == 0)
@@ -862,7 +893,6 @@ llvm::PreservedAnalyses SimplifyCFG2Pass::run(llvm::Function &F,
 		} else {
 			changed = true;
 		}
-
 		bool _changed = false;
 		for (Function::iterator BBIt = F.begin(); BBIt != F.end();) {
 			BasicBlock &BB = *BBIt++;
@@ -873,11 +903,14 @@ llvm::PreservedAnalyses SimplifyCFG2Pass::run(llvm::Function &F,
 			// that are marked for removal, skip over all such blocks.
 			while (BBIt != F.end() && DTU.isBBPendingDeletion(&*BBIt))
 				++BBIt;
-			SimplifyCFGOpt2 opt(&DTU, BB.getModule()->getDataLayout(), Options);
+			assert(&BB && BB.getParent() && "Block not embedded in function!");
 			_changed |= opt.run(&BB);
+			while (BBIt != F.end() && DTU.isBBPendingDeletion(&*BBIt))
+				++BBIt;
 			DTU.flush(); // (required because otherwise blocks are removed before update is applied)
 			_changed |= SimplifyCFG2Pass_normalizeLookupTableIndex(BB);
-			_changed |= SimplifyCFG2Pass_rewriteMaskPatternsFromCFGToData(DTU, BB);
+			_changed |= SimplifyCFG2Pass_rewriteMaskPatternsFromCFGToData(DTU,
+					BB);
 
 		}
 		_changed = false;
