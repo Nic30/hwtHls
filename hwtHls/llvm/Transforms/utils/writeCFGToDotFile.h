@@ -1,9 +1,11 @@
+#pragma once
+#include <iostream>
+#include <fstream>
+
 #include <llvm/Analysis/CFGPrinter.h>
 #include <llvm/Support/GraphWriter.h>
 #include <llvm/Analysis/BranchProbabilityInfo.h>
 #include <llvm/Analysis/BlockFrequencyInfo.h>
-#include <iostream>
-#include <fstream>
 
 namespace hwtHls {
 
