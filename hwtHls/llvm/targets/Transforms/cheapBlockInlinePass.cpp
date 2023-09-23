@@ -53,7 +53,7 @@ public:
 char CheapBlockInline::ID = 0;
 
 INITIALIZE_PASS(CheapBlockInline, DEBUG_TYPE,
-		"Early Machine Copy Propagation Pass", false, false)
+		"Cheap Machine Block Inline Pass", false, false)
 
 bool isFreeMachineInstr(const MachineInstr &MI) {
 	switch (MI.getOpcode()) {
@@ -144,7 +144,9 @@ void copyMachineBlockContentToPredecessor(MachineRegisterInfo &MRI,
 				BrC = C.getReg();
 			} else {
 				BrC = MRI.cloneVirtualRegister(C.getReg());
-				B.buildNot(BrC, C.getReg());
+				auto BrC_n = B.buildNot(BrC, C.getReg()); // builds xor 1
+				assert(BrC_n.getInstr()->getOpcode() == TargetOpcode::G_XOR);
+				MRI.setRegClass(BrC_n.getInstr()->getOperand(2).getReg(), &HwtFpga::anyregclsRegClass);
 			}
 			if (toMBBBrCond.has_value()) {
 				Register BrC2 = MRI.cloneVirtualRegister(BrC);
@@ -197,18 +199,21 @@ void copyMachineBlockContentToPredecessor(MachineRegisterInfo &MRI,
 
 void MachineBasicBlockOptimizeTerminator(MachineBasicBlock &MBB) {
 	MachineBasicBlock *last = MBB.getFallThrough();
-	for (MachineInstr &T : make_early_inc_range(reverse(MBB.terminators()))) {
+	SmallVector<MachineInstr *> toRm;
+	for (MachineInstr &T : reverse(MBB.terminators())) {
+		assert(T.isTerminator());
 		if (T.isConditionalBranch()) {
-			if (last != nullptr && T.getOperand(1).getMBB() == last) {
+			auto *dst = T.getOperand(1).getMBB();
+			if (last != nullptr && dst == last) {
 				// conditional jump to same target as previous unconditional jump
-				T.eraseFromParent();
+				toRm.push_back(&T);
 			} else {
-				return;
+				break;
 			}
 		} else if (T.isUnconditionalBranch()) {
 			if (last != nullptr && T.getOperand(0).getMBB() == last) {
 				// unconditional jump to same target as previous unconditional jump
-				T.eraseFromParent();
+				toRm.push_back(&T);
 			} else {
 				last = T.getOperand(0).getMBB();
 			}
@@ -217,7 +222,9 @@ void MachineBasicBlockOptimizeTerminator(MachineBasicBlock &MBB) {
 			llvm_unreachable("Unexpected branch instruction");
 		}
 	}
-
+	for (auto *T: toRm) {
+		T->eraseFromParent();
+	}
 }
 
 bool CheapBlockInline::runOnMachineFunction(MachineFunction &MF) {
