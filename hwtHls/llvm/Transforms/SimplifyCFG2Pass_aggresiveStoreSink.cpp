@@ -220,8 +220,10 @@ bool tryToMoveBlocksBehindBBEnd(SmallVector<BasicBlock*> &foundBlocks,
 			for (PHINode &phi : make_early_inc_range(BBEnd->phis())) {
 				auto *phiReplacement = Builder.CreateSelect(C, phiUpdtIt->first,
 						phiUpdtIt->second, phi.getName());
+				assert(phi.getType() == phiReplacement->getType());
 				phi.replaceAllUsesWith(phiReplacement);
 				phi.eraseFromParent();
+				++phiUpdtIt;
 			}
 
 			// set BBStartT as BBEndT (and same for F branch) (we must insert between, not replace, because BBEndT may have other predecessors)
