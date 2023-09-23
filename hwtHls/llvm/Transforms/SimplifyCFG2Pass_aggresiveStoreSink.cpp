@@ -250,7 +250,7 @@ bool tryToMoveBlocksBehindBBEnd(SmallVector<BasicBlock*> &foundBlocks,
 
 			// merge trivial branches
 			MergeBlockIntoPredecessor(BBEnd, &DTU);
-			DTU.flush();
+			//DTU.flush();
 
 			// std::string errTmp =
 			// 		"hwtHls::tryToMoveBlocksBehindBBEnd corrupted function ";
@@ -289,9 +289,9 @@ bool SimplifyCFG2Pass_aggresiveStoreSink(DomTreeUpdater &DTU,
 		if (!BR0->isConditional())
 			return false;
 		Value *C = BR0->getCondition();
-		if (DTU.hasPendingUpdates()) {
-			DTU.flush();
-		}
+		//if (DTU.hasPendingUpdates()) {
+		//	DTU.flush();
+		//}
 		SmallVector<BasicBlock*> descendants;
 		DT.getDescendants(&BBStart, descendants);
 		for (auto *BBEnd : descendants) {
