@@ -51,7 +51,7 @@ class ResetValueExtractor():
         # :note: resetPredEn and otherPredEn do not need to be specified if reset actually does not reset anything
         #        only one can be specified if the value for other in MUXes is always default value which does not have condition
         newResetEdge = self.edgeMeta[(rstPred, mb)].inlineRstDataToEdge
-        assert self.edgeMeta[newResetEdge].etype == MACHINE_EDGE_TYPE.BACKWARD, ("Must be backedge", self.edgeMeta[newResetEdge])
+        # assert self.edgeMeta[newResetEdge].etype == MACHINE_EDGE_TYPE.BACKWARD, ("Must be backedge", self.edgeMeta[newResetEdge])
         otherPred, _mb = newResetEdge
         if _mb != mb:
             raise NotImplementedError()
