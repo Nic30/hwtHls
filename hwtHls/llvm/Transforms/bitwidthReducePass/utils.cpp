@@ -206,9 +206,17 @@ void VarBitConstraint::clearAllOperandMasks(unsigned lowBitI,
 
 llvm::APInt VarBitConstraint::getTrullyComputedBitMask(
 		const llvm::Value *selfValue) const {
+	bool selfIsCastOrSliceOrConcat = isa<CastInst>(selfValue);
+	if (!selfIsCastOrSliceOrConcat) {
+		if (auto C = dyn_cast<CallInst>(selfValue)) {
+			if (IsBitRangeGet(C) || IsBitConcat(C)) {
+				selfIsCastOrSliceOrConcat = true;
+			}
+		}
+	}
 	APInt m(useMask.getBitWidth(), 0);
 	for (const KnownBitRangeInfo &r : replacements) {
-		if (!dyn_cast<ConstantInt>(r.src) && r.src == selfValue) {
+		if (!isa<ConstantData>(r.src) && (selfIsCastOrSliceOrConcat || r.src == selfValue)) {
 			m.setBits(r.dstBeginBitI, r.dstBeginBitI + r.srcWidth);
 		}
 	}
