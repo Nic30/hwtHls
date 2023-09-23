@@ -1,7 +1,13 @@
 LLVM basics, install and use
 ============================
 
+LLVM/clang is useful when debugging something LLVM related which does not necessary dependent on this library.
+There is also https://llvm.godbolt.org/ which has nice WEB UI. There is a discord server and https://discourse.llvm.org.
 
+Installation linux
+------------------
+.. code-block:: bash
+   apt install llvm-16-dev
 
 Using local llvm build
 ----------------------
@@ -52,22 +58,35 @@ Using -dbg package of llvm
 * https://wiki.ubuntu.com/Debug%20Symbol%20Packages
 
 
-LLVM/clang
-==========
-
-LLVM/clang is useful when debugging something LLVM related which does not necessary dependent on this library.
-There is also https://llvm.godbolt.org/ which has nice WEB UI. There is a discord server and https://discourse.llvm.org.
 
 LLVM environment setup
 ----------------------
 
-docker
+You can use installed llvm as it is or you can use docker to separate all llvm related things from your os.
 
 .. code-block:: bash
 
 	docker pull silkeh/clang
 	mkdir clang_test
 	docker run -it -v $PWD/clang_test:/clang_test --name clang_i silkeh/clang /bin/bash
+
+
+TargetMachine/MIR
+-----------------
+
+* https://llvm.org/devmtg/2017-10/slides/Braun-Welcome%20to%20the%20Back%20End.pdf
+* https://llvm.org/docs/WritingAnLLVMBackend.html
+* https://wiki.aalto.fi/display/t1065450/LLVM+TableGen
+`llvm-tblgen insns.td -print-records`
+* https://blog.llvm.org/2012/11/life-of-instruction-in-llvm.html
+* llvm codegen types llvm/include/llvm/CodeGen/ValueTypes.td
+* example LLVM backends
+  * https://github.com/frasercrmck/llvm-leg/tree/master/lib/Target/LEG
+* Other projects with FPGA/Verilog/FPGA LLVM backend
+  * https://github.com/cpc/tce/tree/master/tce/src/applibs/LLVMBackend/plugin
+* to get original MDNode for MachineInst see  NVPTXAsmPrinter::isLoopHeaderOfNoUnroll
+* MIR registers does not need to have definition by any MachineOperand for example ProcessImplicitDefsPass
+  removes all defining instructions for undef values. However each use MachineOperand must have IsUndef flag set.
 
 
 Translation to LLVM IR
@@ -91,26 +110,8 @@ https://releases.llvm.org/15.0.0/docs/LangRef.html
 	# and now by using xdot for instance we can see the control flow graph of the program
 	xdot cfg.main.dot
 
-TargetMachine
--------------
-
-* https://llvm.org/docs/WritingAnLLVMBackend.html
-* https://wiki.aalto.fi/display/t1065450/LLVM+TableGen
-`llvm-tblgen insns.td -print-records`
-* https://blog.llvm.org/2012/11/life-of-instruction-in-llvm.html
-* llvm codegen types llvm/include/llvm/CodeGen/ValueTypes.td
-* example LLVM backends
-  * https://github.com/frasercrmck/llvm-leg/tree/master/lib/Target/LEG
-* Other projects with FPGA/Verilog/FPGA LLVM backend
-  * https://github.com/cpc/tce/tree/master/tce/src/applibs/LLVMBackend/plugin
-* to get original MDNode for MachineInst see  NVPTXAsmPrinter::isLoopHeaderOfNoUnroll
-* MIR registers does not need to have definition by any MachineOperand for example ProcessImplicitDefsPass
-  removes all defining instructions for undef values. However each use MachineOperand must have IsUndef flag set.
-
-
 Interpret
--------------
-
+---------
 
 .. code-block:: bash
 
@@ -157,6 +158,8 @@ Dictionary
 ----------
 * nuw no unsigned wrap
 * nsw no signed wrap
+* invoke - call with exception handling, InvokeInstr is a terminator CallBase is not
+
 
 In IR debugging meta-information
 --------------------------------
