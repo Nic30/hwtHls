@@ -17,10 +17,10 @@
 #include <llvm/Support/TypeSize.h>
 #include <llvm/Target/TargetMachine.h>
 
-#include "GISel/hwtFpgaCallLoweringInfo.h"
-#include "hwtFpgaTargetLowering.h"
-#include "hwtFpgaTargetFrameLowering.h"
-#include "hwtFpgaRegisterInfo.h"
+#include <hwtHls/llvm/targets/GISel/hwtFpgaCallLoweringInfo.h>
+#include <hwtHls/llvm/targets/hwtFpgaTargetLowering.h>
+#include <hwtHls/llvm/targets/hwtFpgaTargetFrameLowering.h>
+#include <hwtHls/llvm/targets/hwtFpgaRegisterInfo.h>
 
 #define GET_SUBTARGETINFO_HEADER
 #include "HwtFpgaGenSubtargetInfo.inc"

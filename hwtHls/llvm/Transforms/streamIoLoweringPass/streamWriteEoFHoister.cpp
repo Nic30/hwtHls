@@ -1,5 +1,5 @@
-#include "streamWriteEoFHoister.h"
-#include "../../targets/intrinsic/streamIo.h"
+#include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamWriteEoFHoister.h>
+#include <hwtHls/llvm/targets/intrinsic/streamIo.h>
 #include <llvm/Transforms/Utils/CodeMoverUtils.h>
 
 using namespace llvm;

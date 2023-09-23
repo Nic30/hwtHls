@@ -1,13 +1,13 @@
-#include "rewritePhiShift.h"
+#include <hwtHls/llvm/Transforms/slicesMerge/rewritePhiShift.h>
 
 #include <map>
 #include <sstream>
 
 #include <llvm/IR/IRBuilder.h>
 
-#include "../../targets/intrinsic/bitrange.h"
-#include "../slicesToIndependentVariablesPass/concatMemberVector.h"
-#include "utils.h"
+#include <hwtHls/llvm/targets/intrinsic/bitrange.h>
+#include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/concatMemberVector.h>
+#include <hwtHls/llvm/Transforms/slicesMerge/utils.h>
 
 using namespace llvm;
 using namespace std;

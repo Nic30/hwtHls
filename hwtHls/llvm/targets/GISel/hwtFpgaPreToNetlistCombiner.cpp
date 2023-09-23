@@ -4,8 +4,8 @@
 // before the to netlist conversion.
 //
 //===----------------------------------------------------------------------===//
-#include "hwtFpgaPreToNetlistCombiner.h"
-#include "../hwtFpgaTargetMachine.h"
+#include <hwtHls/llvm/targets/GISel/hwtFpgaPreToNetlistCombiner.h>
+#include <hwtHls/llvm/targets/hwtFpgaTargetMachine.h>
 
 #include <llvm/CodeGen/GlobalISel/Combiner.h>
 #include <llvm/CodeGen/GlobalISel/CombinerHelper.h>
@@ -23,7 +23,7 @@
 
 #include <llvm/IR/Instructions.h>
 #include <llvm/Support/Debug.h>
-#include "hwtFpgaCombinerHelper.h"
+#include <hwtHls/llvm/targets/GISel/hwtFpgaCombinerHelper.h>
 
 #define DEBUG_TYPE "hwtfpga-pretonetlist-combiner"
 

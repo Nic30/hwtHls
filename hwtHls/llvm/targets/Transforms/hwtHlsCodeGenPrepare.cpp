@@ -1,4 +1,4 @@
-#include "hwtHlsCodeGenPrepare.h"
+#include <hwtHls/llvm/targets/Transforms/hwtHlsCodeGenPrepare.h>
 
 namespace hwtHls {
 bool HwtHlsCodeGenPrepare::optimizeSwitchType(SwitchInst *SI) {

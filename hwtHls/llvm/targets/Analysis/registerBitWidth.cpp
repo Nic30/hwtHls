@@ -1,11 +1,12 @@
-#include "registerBitWidth.h"
+#include <hwtHls/llvm/targets/Analysis/registerBitWidth.h>
+
 #include <llvm/CodeGen/MachineFunction.h>
 #include <llvm/CodeGen/MachineRegisterInfo.h>
 #include <llvm/IR/Constants.h>
 
-#include "../hwtFpgaInstrInfo.h"
-#include "../hwtFpgaIoUtils.h"
-#include "../bitMathUtils.h"
+#include <hwtHls/llvm/targets/hwtFpgaInstrInfo.h>
+#include <hwtHls/llvm/targets/hwtFpgaIoUtils.h>
+#include <hwtHls/llvm/targets/bitMathUtils.h>
 
 using namespace llvm;
 namespace hwtHls {

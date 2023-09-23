@@ -1,11 +1,11 @@
-#include "llvmIrFunction.h"
+#include <hwtHls/llvm/llvmIrFunction.h>
 
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Module.h>
 
 
-#include "llvmIrCommon.h"
-#include "llvmIrMetadata.h"
+#include <hwtHls/llvm/llvmIrCommon.h>
+#include <hwtHls/llvm/llvmIrMetadata.h>
 
 namespace py = pybind11;
 

@@ -1,9 +1,9 @@
-#include "hwtFpgaTargetInfo.h"
+#include <hwtHls/llvm/targets/hwtFpgaTargetInfo.h>
 
 #include <llvm/MC/TargetRegistry.h>
 
-#include "hwtFpgaMCTargetDesc.h"
-#include "hwtFpga.h"
+#include <hwtHls/llvm/targets/hwtFpgaMCTargetDesc.h>
+#include <hwtHls/llvm/targets/hwtFpga.h>
 
 using namespace llvm;
 

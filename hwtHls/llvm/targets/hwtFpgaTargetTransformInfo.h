@@ -1,6 +1,6 @@
 #pragma once
 
-#include "hwtFpgaTargetMachine.h"
+#include <hwtHls/llvm/targets/hwtFpgaTargetMachine.h>
 #include <llvm/Analysis/TargetTransformInfo.h>
 #include <llvm/Analysis/TargetTransformInfoImpl.h>
 

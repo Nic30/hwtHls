@@ -1,7 +1,10 @@
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/bitwidthReducePass.h>
+
 #include <algorithm>
+
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/Analysis/GlobalsModRef.h>
+
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/constBitPartsAnalysis.h>
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/bitPartsUseAnalysis.h>
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/bitRewriter.h>

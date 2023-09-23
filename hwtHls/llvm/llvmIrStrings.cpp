@@ -1,5 +1,7 @@
-#include "llvmIrStrings.h"
+#include <hwtHls/llvm/llvmIrStrings.h>
+
 #include <iostream>
+
 namespace py = pybind11;
 
 namespace hwtHls {

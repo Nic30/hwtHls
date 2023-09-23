@@ -1,4 +1,4 @@
-#include "targets/intrinsic/bitrange.h"
+#include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <llvm/ADT/StringExtras.h>
 
 using namespace llvm;

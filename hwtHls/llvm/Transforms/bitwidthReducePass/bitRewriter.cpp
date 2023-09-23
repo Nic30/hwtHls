@@ -19,7 +19,8 @@ std::vector<KnownBitRangeInfo> iterUsedBitRanges(IRBuilder<> *Builder,
 					size_t width) {
 				for (auto &i : vbc.slice(Builder, offset, width).replacements) {
 					i.dstBeginBitI = dstBeginOffset;
-					VarBitConstraint::srcUnionPushBackWithMerge(res, i, 0, i.srcWidth);
+					VarBitConstraint::srcUnionPushBackWithMerge(res, i, 0,
+							i.srcWidth);
 					dstBeginOffset += i.srcWidth;
 				}
 			});
@@ -92,19 +93,19 @@ llvm::Value* BitPartsRewriter::rewritePHINode(llvm::PHINode &I,
 
 llvm::Value* BitPartsRewriter::rewriteSelect(llvm::SelectInst &I,
 		const VarBitConstraint &vbc) {
-
 	// @note use mask is guaranteed to be 0 for bits which does not require select
 	//   so we do not need to check if we can reduce something
 	// @note if result is constant this should not be rewritten instead the constant should be used in every use
 	IRBuilder<> b(&I);
 	auto &T = constraints[I.getTrueValue()];
-	Value *tr = rewriteKnownBitRangeInfoVector(&b,
+	Value *tVal = rewriteKnownBitRangeInfoVector(&b,
 			iterUsedBitRanges(&b, vbc.useMask, *T));
 	auto &F = constraints[I.getFalseValue()];
-	Value *fa = rewriteKnownBitRangeInfoVector(&b,
+	Value *fVal = rewriteKnownBitRangeInfoVector(&b,
 			iterUsedBitRanges(&b, vbc.useMask, *F));
-	Value *res = b.CreateSelect(rewriteIfRequired(I.getCondition()), tr, fa,
-			I.getName());
+	Value *c = rewriteIfRequired(I.getCondition());
+	assert(c && "This can not be null because it has use (this one)");
+	Value *res = b.CreateSelect(c, tVal, fVal, I.getName());
 	replacementCache[&I] = res;
 	return res;
 }

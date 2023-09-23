@@ -1,9 +1,9 @@
-#include "detectSplitPoints.h"
+#include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/detectSplitPoints.h>
 #include <llvm/IR/Instruction.h>
 #include <llvm/IR/Instructions.h>
 
-#include "../../targets/intrinsic/bitrange.h"
-#include "concatMemberVector.h"
+#include <hwtHls/llvm/targets/intrinsic/bitrange.h>
+#include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/concatMemberVector.h>
 
 using namespace llvm;
 

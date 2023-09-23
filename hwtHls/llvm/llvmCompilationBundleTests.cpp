@@ -1,10 +1,10 @@
-#include "llvmCompilationBundle.h"
+#include <hwtHls/llvm/llvmCompilationBundle.h>
 
 #include <llvm/Transforms/Scalar/ADCE.h>
 
-#include "Transforms/slicesMerge/slicesMerge.h"
-#include "Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.h"
-#include "Transforms/bitwidthReducePass/bitwidthReducePass.h"
+#include <hwtHls/llvm/Transforms/slicesMerge/slicesMerge.h>
+#include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.h>
+#include <hwtHls/llvm/Transforms/bitwidthReducePass/bitwidthReducePass.h>
 
 #include <llvm/CodeGen/MachineFunction.h>
 #include <llvm/CodeGen/MachineBasicBlock.h>
@@ -23,8 +23,8 @@
 #include <hwtHls/llvm/Transforms/utils/dceWorklist.h>
 #include <hwtHls/llvm/Transforms/utils/bitSliceFlattening.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
-#include "llvmIrCommon.h"
-#include "targets/hwtFpgaMCTargetDesc.h"
+#include <hwtHls/llvm/llvmIrCommon.h>
+#include <hwtHls/llvm/targets/hwtFpgaMCTargetDesc.h>
 
 using namespace llvm;
 

@@ -1,6 +1,6 @@
 //===- EarlyMachineCopyPropagation.cpp - Same as original MachineCopyPropagation.cpp but works on VReg level ---------===//
 //
-#include "EarlyMachineCopyPropagation.h"
+#include <hwtHls/llvm/targets/Transforms/EarlyMachineCopyPropagation.h>
 #include <llvm/ADT/DenseMap.h>
 #include <llvm/ADT/STLExtras.h>
 #include <llvm/ADT/SetVector.h>

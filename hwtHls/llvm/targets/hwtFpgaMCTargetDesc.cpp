@@ -1,4 +1,4 @@
-#include "hwtFpgaMCTargetDesc.h"
+#include <hwtHls/llvm/targets/hwtFpgaMCTargetDesc.h>
 
 #include <llvm/ADT/StringRef.h>
 #include <llvm/ADT/Twine.h>
@@ -8,7 +8,7 @@
 #include <llvm/MC/MCSubtargetInfo.h>
 #include <llvm/MC/TargetRegistry.h>
 #include <llvm/Support/Compiler.h>
-#include "hwtFpgaTargetInfo.h"
+#include <hwtHls/llvm/targets/hwtFpgaTargetInfo.h>
 
 #define GET_INSTRINFO_MC_DESC
 #include "HwtFpgaGenInstrInfo.inc"

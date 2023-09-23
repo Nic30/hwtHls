@@ -1,9 +1,10 @@
 #pragma once
-#include "utils.h"
+#include <hwtHls/llvm/Transforms/bitwidthReducePass/utils.h>
+
 #include <map>
 #include <set>
 #include <llvm/IR/Instructions.h>
-#include "constBitPartsAnalysis.h"
+#include <hwtHls/llvm/Transforms/bitwidthReducePass/constBitPartsAnalysis.h>
 
 namespace hwtHls {
 

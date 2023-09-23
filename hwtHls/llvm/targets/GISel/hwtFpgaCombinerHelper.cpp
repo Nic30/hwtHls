@@ -1,4 +1,4 @@
-#include "hwtFpgaCombinerHelper.h"
+#include <hwtHls/llvm/targets/GISel/hwtFpgaCombinerHelper.h>
 
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
 #include <llvm/CodeGen/GlobalISel/GISelKnownBits.h>

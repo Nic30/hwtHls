@@ -1,9 +1,9 @@
-#include "llvmIrBuilder.h"
+#include <hwtHls/llvm/llvmIrBuilder.h>
 
 #include <pybind11/stl.h>
 #include <llvm/IR/IRBuilder.h>
-#include "targets/intrinsic/bitrange.h"
-#include "targets/intrinsic/streamIo.h"
+#include <hwtHls/llvm/targets/intrinsic/bitrange.h>
+#include <hwtHls/llvm/targets/intrinsic/streamIo.h>
 
 namespace py = pybind11;
 

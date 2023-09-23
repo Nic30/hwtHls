@@ -4,7 +4,7 @@
 #include <llvm/CodeGen/MachineFunction.h>
 #include <llvm/CodeGen/TargetRegisterInfo.h>
 
-#include "hwtFpgaMCTargetDesc.h"
+#include <hwtHls/llvm/targets/hwtFpgaMCTargetDesc.h>
 
 #define GET_REGINFO_HEADER
 #include "HwtFpgaGenRegisterInfo.inc"

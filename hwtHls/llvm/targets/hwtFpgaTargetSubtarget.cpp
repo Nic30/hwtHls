@@ -1,6 +1,6 @@
-#include "hwtFpgaTargetSubtarget.h"
+#include <hwtHls/llvm/targets/hwtFpgaTargetSubtarget.h>
 
-#include "hwtFpgaTargetMachine.h"
+#include <hwtHls/llvm/targets/hwtFpgaTargetMachine.h>
 #include <llvm/CodeGen/TargetInstrInfo.h>
 #include <llvm/IR/Attributes.h>
 #include <llvm/IR/Function.h>
@@ -13,10 +13,10 @@
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Target/TargetOptions.h>
 
-#include "hwtFpgaInstrInfo.h"
-#include "GISel/hwtFpgaRegisterBankInfo.h"
-#include "GISel/hwtFpgaLegalizerInfo.h"
-#include "GISel/hwtFpgaInstructionSelector.h"
+#include <hwtHls/llvm/targets/hwtFpgaInstrInfo.h>
+#include <hwtHls/llvm/targets/GISel/hwtFpgaRegisterBankInfo.h>
+#include <hwtHls/llvm/targets/GISel/hwtFpgaLegalizerInfo.h>
+#include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionSelector.h>
 
 #define DEBUG_TYPE "hwtfpga-subtarget"
 

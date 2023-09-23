@@ -1,5 +1,7 @@
-#include "utils.h"
+#include <hwtHls/llvm/Transforms/bitwidthReducePass/utils.h>
 #include <llvm/IR/IRBuilder.h>
+#include <hwtHls/llvm/targets/intrinsic/bitrange.h>
+
 
 using namespace llvm;
 namespace hwtHls {

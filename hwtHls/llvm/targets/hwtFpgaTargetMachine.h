@@ -3,7 +3,7 @@
 #include <llvm/Analysis/TargetTransformInfo.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/ADT/Optional.h>
-#include "hwtFpgaTargetSubtarget.h"
+#include <hwtHls/llvm/targets/hwtFpgaTargetSubtarget.h>
 
 namespace llvm {
 

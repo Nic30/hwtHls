@@ -1,6 +1,6 @@
-#include "llvmIrValues.h"
-#include "llvmIrCommon.h"
+#include <hwtHls/llvm/llvmIrValues.h>
 
+#include <hwtHls/llvm/llvmIrCommon.h>
 
 #include <llvm/ADT/APInt.h>
 #include <llvm/ADT/APSInt.h>
@@ -22,6 +22,15 @@ namespace pybind11 __attribute__((visibility("hidden"))) {
 }
 
 namespace hwtHls {
+
+template<typename T>
+T* llvmValueCaster(llvm::Value *V) {
+	if (T *_V = llvm::dyn_cast<T>(V)) {
+		return _V;
+	} else {
+		return (T*) nullptr;
+	}
+}
 
 void register_Values_and_Use(pybind11::module_ & m) {
 	py::class_<llvm::Value, std::unique_ptr<llvm::Value, py::nodelete>>(m, "Value")
@@ -76,30 +85,16 @@ void register_Values_and_Use(pybind11::module_ & m) {
 			return llvm::ConstantInt::get(Ty, V);
 		}, py::return_value_policy::reference)
 		.def("getValue", &llvm::ConstantInt::getValue);
-	m.def("ValueToConstantInt", [](llvm::Value * V) {
-		  if (llvm::ConstantInt *CI = llvm::dyn_cast<llvm::ConstantInt>(V)) {
-		    return CI;
-		  } else {
-			  return (llvm::ConstantInt *) nullptr;
-		  }
-	}, py::return_value_policy::reference);
+	m.def("ValueToConstantInt", &llvmValueCaster<llvm::ConstantInt>, py::return_value_policy::reference);
 
 	py::class_<llvm::ConstantArray, std::unique_ptr<llvm::ConstantArray, py::nodelete>, llvm::ConstantAggregate>(m, "ConstantArray");
-	m.def("ValueToConstantArray", [](llvm::Value * V) {
-		  if (llvm::ConstantArray *CI = llvm::dyn_cast<llvm::ConstantArray>(V)) {
-		    return CI;
-		  } else {
-			  return (llvm::ConstantArray *) nullptr;
-		  }
-	}, py::return_value_policy::reference);
+	m.def("ValueToConstantArray", &llvmValueCaster<llvm::ConstantArray>, py::return_value_policy::reference);
+
 	py::class_<llvm::ConstantDataArray, std::unique_ptr<llvm::ConstantDataArray, py::nodelete>, llvm::ConstantDataSequential>(m, "ConstantDataArray");
-	m.def("ValueToConstantDataArray", [](llvm::Value * V) {
-		  if (llvm::ConstantDataArray *CI = llvm::dyn_cast<llvm::ConstantDataArray>(V)) {
-		    return CI;
-		  } else {
-			  return (llvm::ConstantDataArray *) nullptr;
-		  }
-	}, py::return_value_policy::reference);
+	m.def("ValueToConstantDataArray", &llvmValueCaster<llvm::ConstantDataArray>, py::return_value_policy::reference);
+
+	py::class_<llvm::UndefValue, std::unique_ptr<llvm::UndefValue, py::nodelete>, llvm::ConstantData>(m, "UndefValue");
+	m.def("ValueToUndefValue", &llvmValueCaster<llvm::UndefValue>, py::return_value_policy::reference);
 
 }
 

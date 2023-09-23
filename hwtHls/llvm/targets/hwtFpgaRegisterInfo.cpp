@@ -1,6 +1,6 @@
-#include "hwtFpgaRegisterInfo.h"
+#include <hwtHls/llvm/targets/hwtFpgaRegisterInfo.h>
 
-#include "hwtFpgaTargetFrameLowering.h"
+#include <hwtHls/llvm/targets/hwtFpgaTargetFrameLowering.h>
 
 #define GET_REGINFO_TARGET_DESC
 #include "HwtFpgaGenRegisterInfo.inc"

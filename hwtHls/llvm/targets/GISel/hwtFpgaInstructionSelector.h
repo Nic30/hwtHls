@@ -1,7 +1,7 @@
 #include <llvm/CodeGen/GlobalISel/InstructionSelector.h>
-#include "hwtFpgaRegisterBankInfo.h"
-#include "../hwtFpgaTargetSubtarget.h"
-#include "../hwtFpgaTargetMachine.h"
+#include <hwtHls/llvm/targets/GISel/hwtFpgaRegisterBankInfo.h>
+#include <hwtHls/llvm/targets/hwtFpgaTargetSubtarget.h>
+#include <hwtHls/llvm/targets/hwtFpgaTargetMachine.h>
 
 namespace llvm {
 InstructionSelector*

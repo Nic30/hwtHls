@@ -7,7 +7,7 @@
 ///
 //===----------------------------------------------------------------------===//
 
-#include "hwtFpgaTargetTransformInfo.h"
+#include <hwtHls/llvm/targets/hwtFpgaTargetTransformInfo.h>
 #include <llvm/Analysis/TargetTransformInfo.h>
 #include <llvm/Analysis/ValueTracking.h>
 #include <llvm/CodeGen/BasicTTIImpl.h>

@@ -1,5 +1,5 @@
-#include "hwtFpgaLegalizerInfo.h"
-#include "../hwtFpgaTargetSubtarget.h"
+#include <hwtHls/llvm/targets/GISel/hwtFpgaLegalizerInfo.h>
+#include <hwtHls/llvm/targets/hwtFpgaTargetSubtarget.h>
 #include <llvm/CodeGen/GlobalISel/LegalizerHelper.h>
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
 

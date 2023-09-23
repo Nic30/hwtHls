@@ -16,7 +16,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "BranchFolding.h"
+#include <hwtHls/llvm/llvmSrc/BranchFolding.h>
 #include <llvm/ADT/BitVector.h>
 #include <llvm/ADT/STLExtras.h>
 #include <llvm/ADT/SmallSet.h>

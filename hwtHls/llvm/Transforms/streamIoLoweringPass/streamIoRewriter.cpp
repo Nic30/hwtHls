@@ -1,4 +1,4 @@
-#include "streamIoRewriter.h"
+#include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamIoRewriter.h>
 #include <llvm/Analysis/DomTreeUpdater.h>
 #include <llvm/Analysis/AssumptionCache.h>
 #include <llvm/Transforms/Utils/PromoteMemToReg.h>
@@ -6,7 +6,7 @@
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 #include <llvm/IR/Verifier.h>
 
-#include "../../targets/intrinsic/streamIo.h"
+#include <hwtHls/llvm/targets/intrinsic/streamIo.h>
 
 using namespace llvm;
 namespace hwtHls {

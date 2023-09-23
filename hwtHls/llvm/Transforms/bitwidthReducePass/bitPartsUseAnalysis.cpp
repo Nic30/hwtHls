@@ -1,6 +1,6 @@
-#include "bitPartsUseAnalysis.h"
+#include <hwtHls/llvm/Transforms/bitwidthReducePass/bitPartsUseAnalysis.h>
 #include <llvm/IR/IRBuilder.h>
-#include "targets/intrinsic/bitrange.h"
+#include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 
 using namespace llvm;
 

@@ -11,7 +11,7 @@
 // basic-block-at-a-time approach. It should eventually be removed.
 //
 //===----------------------------------------------------------------------===//
-#include "CodeGenPrepare.h"
+#include <hwtHls/llvm/llvmSrc/CodeGenPrepare.h>
 
 
 using namespace llvm;

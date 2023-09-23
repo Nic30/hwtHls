@@ -1,4 +1,4 @@
-#include "hwtFpgaRegisterBankInfo.h"
+#include <hwtHls/llvm/targets/GISel/hwtFpgaRegisterBankInfo.h>
 #include <llvm/CodeGen/MachineInstr.h>
 #include <iostream>
 

@@ -1,16 +1,16 @@
-#include "hwtFpgaInstructionSelector.h"
+#include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionSelector.h>
 
 #include <llvm/CodeGen/GlobalISel/InstructionSelectorImpl.h>
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
 #include <llvm/MC/MCContext.h>
 #include <llvm/Support/Debug.h>
 
-#include "../hwtFpgaTargetPassConfig.h"
-#include "../hwtFpgaInstrInfo.h"
-#include "../hwtFpgaIoUtils.h"
-#include "../bitMathUtils.h"
-#include "hwtFpgaInstructionSelectorUtils.h"
-#include "hwtFpgaCombinerHelper.h"
+#include <hwtHls/llvm/targets/hwtFpgaTargetPassConfig.h>
+#include <hwtHls/llvm/targets/hwtFpgaInstrInfo.h>
+#include <hwtHls/llvm/targets/hwtFpgaIoUtils.h>
+#include <hwtHls/llvm/targets/bitMathUtils.h>
+#include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionSelectorUtils.h>
+#include <hwtHls/llvm/targets/GISel/hwtFpgaCombinerHelper.h>
 
 #define DEBUG_TYPE "genericfpga-isel"
 

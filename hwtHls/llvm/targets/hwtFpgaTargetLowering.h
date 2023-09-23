@@ -1,7 +1,7 @@
 #pragma once
 
 #include <llvm/CodeGen/TargetLowering.h>
-#include "hwtFpgaTargetSubtarget.h"
+#include <hwtHls/llvm/targets/hwtFpgaTargetSubtarget.h>
 
 namespace llvm {
 class HwtFpgaTargetSubtarget;

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "hwtFpga.h"
+#include <hwtHls/llvm/targets/hwtFpga.h>
 #include <llvm/MC/TargetRegistry.h>
 
 llvm::Target& getTheHwtFpgaTarget();

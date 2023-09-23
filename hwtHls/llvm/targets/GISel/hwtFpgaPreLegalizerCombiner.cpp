@@ -4,8 +4,8 @@
 // before the legalizer.
 //
 //===----------------------------------------------------------------------===//
-#include "hwtFpgaPreLegalizerCombiner.h"
-#include "../hwtFpgaTargetMachine.h"
+#include <hwtHls/llvm/targets/GISel/hwtFpgaPreLegalizerCombiner.h>
+#include <hwtHls/llvm/targets/hwtFpgaTargetMachine.h>
 
 #include <llvm/CodeGen/GlobalISel/Combiner.h>
 #include <llvm/CodeGen/GlobalISel/CombinerHelper.h>
@@ -21,7 +21,7 @@
 #include <llvm/CodeGen/TargetPassConfig.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/Support/Debug.h>
-#include "hwtFpgaCombinerHelper.h"
+#include <hwtHls/llvm/targets/GISel/hwtFpgaCombinerHelper.h>
 
 #define DEBUG_TYPE "hwtfpga-prelegalizer-combiner"
 

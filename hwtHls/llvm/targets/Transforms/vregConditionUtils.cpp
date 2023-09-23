@@ -1,7 +1,7 @@
-#include "vregConditionUtils.h"
+#include <hwtHls/llvm/targets/Transforms/vregConditionUtils.h>
 #include <llvm/IR/Constants.h>
-#include "../hwtFpgaInstrInfo.h"
-#include "../hwtFpgaRegisterInfo.h"
+#include <hwtHls/llvm/targets/hwtFpgaInstrInfo.h>
+#include <hwtHls/llvm/targets/hwtFpgaRegisterInfo.h>
 
 using namespace llvm;
 namespace hwtHls {

@@ -1,5 +1,6 @@
-#include "hwtFpgaTargetLowering.h"
-#include "hwtFpgaRegisterInfo.h"
+#include <hwtHls/llvm/targets/hwtFpgaTargetLowering.h>
+
+#include <hwtHls/llvm/targets/hwtFpgaRegisterInfo.h>
 #include <hwtHls/llvm/bitMath.h>
 
 namespace llvm {

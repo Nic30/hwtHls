@@ -1,6 +1,8 @@
-#include "llvmIrMetadata.h"
+#include <hwtHls/llvm/llvmIrMetadata.h>
+
 #include <pybind11/stl.h>
-#include "llvmIrCommon.h"
+#include <hwtHls/llvm/llvmIrCommon.h>
+
 namespace py = pybind11;
 
 namespace hwtHls {

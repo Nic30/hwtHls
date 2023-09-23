@@ -1,7 +1,7 @@
-#include "streamIoInstrCollector.h"
-#include "../../targets/intrinsic/streamIo.h"
-#include "../../targets/intrinsic/bitrange.h"
-#include "../../bitMath.h"
+#include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamIoInstrCollector.h>
+#include <hwtHls/llvm/targets/intrinsic/streamIo.h>
+#include <hwtHls/llvm/targets/intrinsic/bitrange.h>
+#include <hwtHls/llvm/bitMath.h>
 #include <algorithm>
 
 using namespace llvm;

@@ -1,4 +1,4 @@
-#include "machineDumpAndExitPass.h"
+#include <hwtHls/llvm/targets/Transforms/machineDumpAndExitPass.h>
 
 #include <hwtHls/llvm/Transforms/dumpAndExitPass.h>
 

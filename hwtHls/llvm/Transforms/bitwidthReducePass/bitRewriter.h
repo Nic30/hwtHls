@@ -2,7 +2,7 @@
 
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/IRBuilder.h>
-#include "constBitPartsAnalysis.h"
+#include <hwtHls/llvm/Transforms/bitwidthReducePass/constBitPartsAnalysis.h>
 #include <hwtHls/llvm/bitMath.h>
 
 namespace hwtHls {

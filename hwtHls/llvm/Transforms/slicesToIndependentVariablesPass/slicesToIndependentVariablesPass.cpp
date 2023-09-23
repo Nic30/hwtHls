@@ -1,10 +1,10 @@
-#include "slicesToIndependentVariablesPass.h"
+#include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.h>
 #include <map>
 #include <set>
 
-#include "../../targets/intrinsic/bitrange.h"
-#include "detectSplitPoints.h"
-#include "concatMemberVector.h"
+#include <hwtHls/llvm/targets/intrinsic/bitrange.h>
+#include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/detectSplitPoints.h>
+#include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/concatMemberVector.h>
 
 #define DEBUG_TYPE "slices-to-independent-variables"
 

@@ -1,4 +1,4 @@
-#include "llvmIrMachineFunction.h"
+#include <hwtHls/llvm/llvmIrMachineFunction.h>
 
 #include <sstream>
 #include <pybind11/stl.h>
@@ -17,9 +17,9 @@
 #include <llvm/Support/MemoryBuffer.h>
 #include <llvm/Target/TargetMachine.h>
 
-#include "llvmIrCommon.h"
-#include "targets/hwtFpgaMCTargetDesc.h"
-#include "llvmCompilationBundle.h"
+#include <hwtHls/llvm/llvmIrCommon.h>
+#include <hwtHls/llvm/targets/hwtFpgaMCTargetDesc.h>
+#include <hwtHls/llvm/llvmCompilationBundle.h>
 
 namespace py = pybind11;
 

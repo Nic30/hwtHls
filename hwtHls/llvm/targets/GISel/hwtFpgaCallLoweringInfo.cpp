@@ -1,14 +1,14 @@
-#include "hwtFpgaCallLoweringInfo.h"
+#include <hwtHls/llvm/targets/GISel/hwtFpgaCallLoweringInfo.h>
 
-#include "../hwtFpgaTargetLowering.h"
-#include "../hwtFpgaRegisterInfo.h"
+#include <hwtHls/llvm/targets/hwtFpgaTargetLowering.h>
+#include <hwtHls/llvm/targets/hwtFpgaRegisterInfo.h>
 #include <llvm/CodeGen/MachineFunction.h>
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
 #include <llvm/CodeGen/GlobalISel/Utils.h>
 #include <llvm/Support/Casting.h>
 
 #include <llvm/CodeGen/MachineInstrBuilder.h>
-#include "../intrinsic/bitrange.h"
+#include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 
 #include <iostream>
 

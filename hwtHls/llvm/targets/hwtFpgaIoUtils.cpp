@@ -1,6 +1,6 @@
-#include "hwtFpgaIoUtils.h"
-#include "hwtFpgaInstrInfo.h"
-#include "bitMathUtils.h"
+#include <hwtHls/llvm/targets/hwtFpgaIoUtils.h>
+#include <hwtHls/llvm/targets/hwtFpgaInstrInfo.h>
+#include <hwtHls/llvm/targets/bitMathUtils.h>
 
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/Metadata.h>

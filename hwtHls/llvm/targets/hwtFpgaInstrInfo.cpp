@@ -1,4 +1,5 @@
-#include "hwtFpgaInstrInfo.h"
+#include <hwtHls/llvm/targets/hwtFpgaInstrInfo.h>
+
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
 #include <llvm/IR/Constants.h>
 #include <hwtHls/llvm/targets/Transforms/vregConditionUtils.h>

@@ -1,4 +1,4 @@
-#include "hwtFpgaToNetlist.h"
+#include <hwtHls/llvm/targets/Transforms/hwtFpgaToNetlist.h>
 
 #include <llvm/CodeGen/MachineBranchProbabilityInfo.h>
 //#include <llvm/CodeGen/MachineDominators.h>
@@ -10,8 +10,8 @@
 #include <llvm/CodeGen/MachineRegisterInfo.h>
 #include <llvm/CodeGen/MachineTraceMetrics.h>
 #include <llvm/CodeGen/LiveVariables.h>
-#include "../hwtFpgaInstrInfo.h"
-#include "../hwtFpgaTargetPassConfig.h"
+#include <hwtHls/llvm/targets/hwtFpgaInstrInfo.h>
+#include <hwtHls/llvm/targets/hwtFpgaTargetPassConfig.h>
 
 #define DEBUG_TYPE "hwtfpga-tonetlist"
 
