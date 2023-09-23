@@ -807,6 +807,13 @@ bool SimplifyCFGOpt2::simplifySwitch(SwitchInst *SI, IRBuilder<> &Builder) {
 		everySucDominated = false;
 		break;
 	}
+	if (Options.HoistCommonInsts) {
+		if (everySucDominated
+				&& HoistFromSwitchSuccessors(SI, TTI,
+						LlvmHoistCommonSkipLimit)) {
+			return requestResimplify();
+		}
+	}
 	if (everySucDominated && trySwitchToSelect(SI, Builder, *DTU))
 		return requestResimplify();
 
