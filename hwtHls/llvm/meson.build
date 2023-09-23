@@ -79,6 +79,7 @@ py3.extension_module(
      'targets/hwtFpgaTargetPassConfig.cpp',
 
      'targets/Transforms/cheapBlockInlinePass.cpp',
+     'targets/Transforms/completeLiveVRegs.cpp',
      'targets/Transforms/machineDumpAndExitPass.cpp',
      'targets/Transforms/hwtFpgaToNetlist.cpp',
      'targets/Transforms/hwtHlsCodeGenPrepare.cpp',
@@ -100,7 +101,10 @@ py3.extension_module(
      'Transforms/SimplifyCFG2Pass_aggresiveStoreSink.cpp',
      'Transforms/SimplifyCFG2Pass_normalizeLookupTableIndex.cpp',
      'Transforms/SimplifyCFG2Pass_rewriteMaskPatternsFromCFGToData.cpp',
+     'Transforms/SimplifyCFG2Pass_SwitchSuccessorHoistCode.cpp',
+     'Transforms/SimplifyCFG2Pass_SwitchToSelect.cpp',
      'Transforms/SimplifyCFG2Pass.cpp',
+     'Transforms/SimplifyCFGUtils.cpp',
      'Transforms/trivialSimplifyCFGPass.cpp',
      'Transforms/slicesMerge/rewritePhiShift.cpp',
      'Transforms/slicesMerge/rewriteConcat.cpp',
