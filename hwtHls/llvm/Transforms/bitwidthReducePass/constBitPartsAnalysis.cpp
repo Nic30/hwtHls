@@ -223,9 +223,12 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitCallInst(
 			cur.replacements.push_back(i);
 			dstOff += i.srcWidth;
 		}
-
-		assert(cur.consystencyCheck() && "Concat in correct format");
-
+#ifndef NDEBUG
+		if (!cur.consystencyCheck()) {
+			errs() << *C << "\n" << cur << "\n";
+			llvm_unreachable("Concat in incorrect format ");
+		}
+#endif
 		return cur;
 
 	} else if (IsBitRangeGet(C)) {
