@@ -28,6 +28,51 @@
 using namespace llvm;
 namespace hwtHls {
 
+template<typename T>
+cl::opt<T>& getLlvmOption(llvm::StringRef name) {
+	llvm::StringMap<llvm::cl::Option*> &Map = llvm::cl::getRegisteredOptions();
+	auto opt = Map.find(name);
+	assert(opt != Map.end());
+	return *dynamic_cast<cl::opt<T>*>(opt->second);
+}
+
+// [copied] copied from llvm because of SimplifyCFG private Options which can not be accessed through inheritance
+// Command-line settings override compile-time settings.
+static void applyCommandLineOverridesToOptions(SimplifyCFGOptions &Options) {
+	auto &UserBonusInstThreshold = getLlvmOption<unsigned>(
+			"bonus-inst-threshold");
+	auto &UserForwardSwitchCond = getLlvmOption<bool>("forward-switch-cond");
+	auto &UserSwitchRangeToICmp = getLlvmOption<bool>("switch-range-to-icmp");
+	auto &UserSwitchToLookup = getLlvmOption<bool>("switch-to-lookup");
+	auto &UserKeepLoops = getLlvmOption<bool>("keep-loops");
+	auto &UserHoistCommonInsts = getLlvmOption<bool>("hoist-common-insts");
+	auto &UserSinkCommonInsts = getLlvmOption<bool>("sink-common-insts");
+	if (UserBonusInstThreshold.getNumOccurrences())
+		Options.BonusInstThreshold = UserBonusInstThreshold;
+	if (UserForwardSwitchCond.getNumOccurrences())
+		Options.ForwardSwitchCondToPhi = UserForwardSwitchCond;
+	if (UserSwitchRangeToICmp.getNumOccurrences())
+		Options.ConvertSwitchRangeToICmp = UserSwitchRangeToICmp;
+	if (UserSwitchToLookup.getNumOccurrences())
+		Options.ConvertSwitchToLookupTable = UserSwitchToLookup;
+	if (UserKeepLoops.getNumOccurrences())
+		Options.NeedCanonicalLoop = UserKeepLoops;
+	if (UserHoistCommonInsts.getNumOccurrences())
+		Options.HoistCommonInsts = UserHoistCommonInsts;
+	if (UserSinkCommonInsts.getNumOccurrences())
+		Options.SinkCommonInsts = UserSinkCommonInsts;
+}
+
+SimplifyCFG2Pass::SimplifyCFG2Pass() :
+		SimplifyCFGPass() {
+	applyCommandLineOverridesToOptions(Options);
+}
+
+SimplifyCFG2Pass::SimplifyCFG2Pass(const SimplifyCFGOptions &Opts) :
+		SimplifyCFGPass(Opts), Options(Opts) {
+	applyCommandLineOverridesToOptions(Options);
+}
+
 /// This class implements a stable ordering of constant
 /// integers that does not depend on their address.  This is important for
 /// applications that sort ConstantInt's to ensure uniqueness.
@@ -60,7 +105,10 @@ struct ValueEqualityComparisonCase {
 class SimplifyCFGOpt2 {
 	DomTreeUpdater *DTU;
 	const DataLayout &DL;
+	const TargetTransformInfo &TTI;
 	const SimplifyCFGOptions &Options;
+	unsigned LlvmHoistCommonSkipLimit;
+
 	bool Resimplify;
 
 	Value* isValueEqualityComparison(Instruction *TI,
@@ -75,8 +123,10 @@ class SimplifyCFGOpt2 {
 
 public:
 	SimplifyCFGOpt2(DomTreeUpdater *DTU, const DataLayout &DL,
-			const SimplifyCFGOptions &Opts) :
-			DTU(DTU), DL(DL), Options(Opts), Resimplify(false) {
+			const TargetTransformInfo &TTI, const SimplifyCFGOptions &Opts,
+			unsigned LlvmHoistCommonSkipLimit) :
+			DTU(DTU), DL(DL), TTI(TTI), Options(Opts), LlvmHoistCommonSkipLimit(
+					LlvmHoistCommonSkipLimit), Resimplify(false) {
 		assert(
 				(!DTU || !DTU->hasPostDomTree())
 						&& "SimplifyCFG is not yet capable of maintaining validity of a "
@@ -130,7 +180,7 @@ static ConstantInt* GetConstantInt(Value *V, const DataLayout &DL) {
 				else
 					return cast<ConstantInt>(
 							ConstantExpr::getIntegerCast(CI, PtrTy, /*isSigned=*/
-									false));
+							false));
 			}
 	return nullptr;
 }
@@ -791,6 +841,14 @@ llvm::PreservedAnalyses SimplifyCFG2Pass::run(llvm::Function &F,
 		DT = &AM.getResult<DominatorTreeAnalysis>(F);
 	}
 	DomTreeUpdater DTU(DT, DomTreeUpdater::UpdateStrategy::Lazy);
+	auto &TTI = AM.getResult<TargetIRAnalysis>(F);
+	auto &DL = F.getParent()->getDataLayout();
+	llvm::StringMap<llvm::cl::Option*> &Map = llvm::cl::getRegisteredOptions();
+	auto _LlvmHoistCommonSkipLimit = Map.find(
+			"simplifycfg-hoist-common-skip-limit");
+	assert(_LlvmHoistCommonSkipLimit != Map.end());
+	unsigned LlvmHoistCommonSkipLimit =
+			dynamic_cast<cl::opt<unsigned>*>(_LlvmHoistCommonSkipLimit->second)->getValue();
 	llvm::PreservedAnalyses FirstPA;
 	bool changed = false;
 	for (;;) {
