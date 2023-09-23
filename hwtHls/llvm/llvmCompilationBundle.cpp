@@ -287,6 +287,8 @@ void LlvmCompilationBundle::_addInitialNormalizationPasses(
 	FPM.addPass(hwtHls::TrivialSimplifyCFGPass()); // simplify trivial cases so IR is more easy to read
 	// Form SSA out of local memory accesses after breaking apart aggregates into
 	// scalars.
+	FPM.addPass(hwtHls::SimplifyCFG2Pass(llvm::SimplifyCFGOptions().hoistCommonInsts(true)));
+
 	FPM.addPass(hwtHls::SlicesToIndependentVariablesPass()); // hwtHls specific
 	FPM.addPass(llvm::ADCEPass()); // hwtHls specific
 	FPM.addPass(llvm::SROAPass(llvm::SROAOptions::ModifyCFG));
