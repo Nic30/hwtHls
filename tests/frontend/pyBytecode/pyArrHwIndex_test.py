@@ -55,7 +55,7 @@ if __name__ == "__main__":
     import unittest
 
     testLoader = unittest.TestLoader()
-    suite = unittest.TestSuite([PyArrHwIndex_TC("test_Rom_ll")])
-    #suite = testLoader.loadTestsFromTestCase(PyArrHwIndex_TC)
+    # suite = unittest.TestSuite([PyArrHwIndex_TC("test_CntrArray_ll")])
+    suite = testLoader.loadTestsFromTestCase(PyArrHwIndex_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
