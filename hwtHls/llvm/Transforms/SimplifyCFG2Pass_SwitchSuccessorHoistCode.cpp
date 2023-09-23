@@ -69,8 +69,10 @@ void HoistInstrFromSuccessors(BasicBlock &ParentBlock,
 				ParentBlock.splice(ParentTerm, I1->getParent(),
 						I1->getIterator());
 			} else {
-				if (!I2->use_empty())
+				if (!I2->use_empty()) {
+					assert(I2->getType() == I1->getType());
 					I2->replaceAllUsesWith(I1);
+				}
 				I1->andIRFlags(I2);
 				unsigned KnownIDs[] = { LLVMContext::MD_tbaa,
 						LLVMContext::MD_range, LLVMContext::MD_fpmath,
