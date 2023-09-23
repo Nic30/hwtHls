@@ -1,4 +1,5 @@
 #include "hwtFpgaToNetlist.h"
+
 #include <llvm/CodeGen/MachineBranchProbabilityInfo.h>
 //#include <llvm/CodeGen/MachineDominators.h>
 #include <llvm/CodeGen/MachineFunction.h>
@@ -74,8 +75,7 @@ bool HwtFpgaToNetlist::runOnMachineFunction(llvm::MachineFunction &MF) {
 	for (auto loop : Loops) {
 		collectBackedges(backedges, *loop);
 	}
-
-	auto liveness = hwtHls::getLiveVariablesForBlockEdge(*MRI, MF);
+	auto livenessPredSuc = hwtHls::getLiveVariablesForBlockEdge(*MRI, MF);
 	std::vector<Register> ioRegs(MF.getFunction().arg_size());
 	for (auto &R : ioRegs) {
 		R = 0;
@@ -91,7 +91,8 @@ bool HwtFpgaToNetlist::runOnMachineFunction(llvm::MachineFunction &MF) {
 	}
 	for (auto &R : ioRegs) {
 		if (R == 0) {
-			throw std::runtime_error("The machine function body is missing use of IO argument");
+			throw std::runtime_error(
+					"The machine function body is missing use of IO argument");
 		}
 	}
 	std::map<llvm::Register, unsigned> registerTypes;
@@ -105,7 +106,7 @@ bool HwtFpgaToNetlist::runOnMachineFunction(llvm::MachineFunction &MF) {
 	}
 	auto &TPC = getAnalysis<TargetPassConfig>();
 	auto &HwtFpga_TPC = *dynamic_cast<llvm::HwtFpgaTargetPassConfig*>(&TPC);
-	(*HwtFpga_TPC.toNetlistConversionFn)(MF, backedges, liveness, ioRegs,
+	(*HwtFpga_TPC.toNetlistConversionFn)(MF, backedges, livenessPredSuc, ioRegs,
 			registerTypes, Loops);
 	return true;
 }
@@ -118,8 +119,8 @@ INITIALIZE_PASS_BEGIN(HwtFpgaToNetlist, DEBUG_TYPE, "HwtFpgaToNetlist", false,
 	PassInfo *PI = new PassInfo(
 			"Run python callback to translate MIR to HlsNetlist", DEBUG_TYPE,
 			&HwtFpgaToNetlist::ID,
-			PassInfo::NormalCtor_t(callDefaultCtor<HwtFpgaToNetlist>),
-			false, false);
+			PassInfo::NormalCtor_t(callDefaultCtor<HwtFpgaToNetlist>), false,
+			false);
 	Registry.registerPass(*PI, true);
 	return PI;
 }
