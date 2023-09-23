@@ -16,6 +16,7 @@
 #include <hwtHls/llvm/targets/GISel/hwtFpgaPreRegAllocCombiner.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaPreToNetlistCombiner.h>
 #include <hwtHls/llvm/targets/Transforms/cheapBlockInlinePass.h>
+#include <hwtHls/llvm/targets/Transforms/completeLiveVRegs.h>
 #include <hwtHls/llvm/targets/Transforms/EarlyMachineCopyPropagation.h>
 #include <hwtHls/llvm/targets/Transforms/hwtHlsCodeGenPrepare.h>
 #include <hwtHls/llvm/targets/Transforms/machineDumpAndExitPass.h>
@@ -186,11 +187,19 @@ void HwtFpgaTargetPassConfig::addOptimizedRegAlloc() {
 	//}));
 	//addPass(&MachineCSEID); // requires IsSSA
 	addPass(&LiveIntervalsID); // add killed and other attributes
-	addPass(hwtHls::createCheapBlockInlinePass());
-	addPass(createHwtFpgaPreRegAllocCombiner());
-	addPass(&DeadMachineInstructionElimID); // requires explicit undefs
-	addPass(hwtHls::createCheapBlockInlinePass());
 
+	addPass(createHwtFpgaPreRegAllocCombiner());
+	_addBlockReductionPasses();
+}
+
+void HwtFpgaTargetPassConfig::_addBlockReductionPasses() {
+	addPass(hwtHls::createCheapBlockInlinePass());
+	addPass(&LiveIntervalsID); // add killed and other attributes
+	addPass(hwtHls::createCompleteLiveVRegsPass());
+	addPass(&hwtHls::EarlyMachineCopyPropagationID);
+	addPass(&DeadMachineInstructionElimID); // requires explicit undefs
+	addPass(&BranchFolderPassID);
+	addPass(&MachineCombinerID);
 }
 
 void HwtFpgaTargetPassConfig::addMachinePasses() {
@@ -214,12 +223,14 @@ void HwtFpgaTargetPassConfig::addMachinePasses() {
 
 	// Insert before XRay Instrumentation.
 	addPass(&FEntryInserterID);
+
 	addPass(createHwtFpgaPreToNetlistCombiner());
 	// because InstructionSelect::runOnMachineFunction() intentionally removes all types using MRI.clearVirtRegTypes();
 	// we need to regenerate this information
 	addPass(new hwtHls::HwtFpgaRegisterBitWidth());
 	addPass(&MachineLoopInfoID);
-	addPass(hwtHls::createCheapBlockInlinePass());
+	addPass(&LiveIntervalsID); // add killed and other attributes
+
 	addPass(new hwtHls::HwtFpgaToNetlist());
 }
 

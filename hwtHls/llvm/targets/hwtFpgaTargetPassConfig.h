@@ -37,6 +37,7 @@ public:
 	bool addILPOpts() override; // added from addMachineSSAOptimization which is added from addMachinePasses
 	void addOptimizedRegAlloc() override;
 	void addMachinePasses() override;
+	void _addBlockReductionPasses();
 	// No reg alloc
 	//bool addRegAssignAndRewriteFast() override {
 	//	return false;
