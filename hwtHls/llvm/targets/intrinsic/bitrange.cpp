@@ -22,13 +22,22 @@ llvm::Value* CreateBitRangeGetConst(llvm::IRBuilder<> *Builder,
 
 llvm::Value* SearchBitRangeGet(Instruction *bitVec, Value *lowBitNo,
 		size_t bitWidth) {
-
+	bool isTrunc = false;
+	if (auto *lowBitNoC = dyn_cast<ConstantInt>(lowBitNo)) {
+		if (lowBitNoC->isZero()) {
+			isTrunc = true;
+		}
+	}
 	for (auto suc = BasicBlock::iterator(bitVec);
 			suc != bitVec->getParent()->end(); ++suc) {
 		if (&*suc == bitVec)
 			continue;
 		if (isa<PHINode>(suc))
 			continue;
+		if (auto *Trunc = dyn_cast<TruncInst>(suc)) {
+			if (isTrunc && Trunc->getType()->getIntegerBitWidth() == bitWidth)
+				return Trunc;
+		}
 		if (auto *sucI = dyn_cast<CallInst>(suc)) {
 			if (IsBitRangeGet(sucI) && sucI->getArgOperand(0) == bitVec) {
 				if (sucI->getType()->getIntegerBitWidth() == bitWidth
@@ -64,6 +73,13 @@ llvm::Value* CreateBitRangeGet(IRBuilder<> *Builder, Value *bitVec,
 						opLowIndex->getZExtValue() + lowBitNoC->getZExtValue(),
 						bitWidth);
 			}
+		}
+	} else if (auto Trunc = dyn_cast<TruncInst>(bitVec)) {
+		return CreateBitRangeGet(Builder, Trunc->getOperand(0), lowBitNo, bitWidth);
+	} else if (auto *Cast = dyn_cast<CastInst>(bitVec)) {
+		// bitcast, zext, sext
+		if (Cast->getOperand(0)->getType()->getIntegerBitWidth() >= bitWidth) {
+			return CreateBitRangeGet(Builder, Trunc->getOperand(0), lowBitNo, bitWidth);
 		}
 	}
 	if (auto *bitVecInst = dyn_cast<Instruction>(bitVec)) {
@@ -197,6 +213,13 @@ llvm::Value* CreateBitConcat(llvm::IRBuilder<> *Builder,
 	}
 	if (OpsLowFirst.size() == 1) {
 		return OpsLowFirst[0];
+	} else if (OpsLowFirst.size() == 2) {
+		if (auto* o1asC = dyn_cast<ConstantInt>(_OpsLowFirst[1])) {
+			if (o1asC->isZero()) {
+				Type *RetTy = Builder->getIntNTy(bitWidth);
+				return Builder->CreateZExt(OpsLowFirst[0], RetTy);
+			}
+		}
 	}
 	Type *RetTy = Builder->getIntNTy(bitWidth);
 	Module *M = Builder->GetInsertBlock()->getParent()->getParent();
