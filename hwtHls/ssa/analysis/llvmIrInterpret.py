@@ -11,7 +11,8 @@ from hwtHls.llvm.llvmIr import Function, BasicBlock, BinaryOperator, Instruction
     InstructionToGetElementPtrInst, InstructionToICmpInst, InstructionToPHINode, ValueToBasicBlock, \
     ValueToConstantInt, ValueToFunction, ValueToInstruction, Instruction, InstructionToBinaryOperator, \
     InstructionToLoadInst, InstructionToStoreInst, ValueToArgument, TypeToPointerType, TypeToIntegerType, \
-    Argument, LLVMStringContext, MDOperand, MetadataAsMDNode, MetadataAsValueAsMetadata, Value, User, UserToInstruction
+    Argument, LLVMStringContext, MDOperand, MetadataAsMDNode, MetadataAsValueAsMetadata, Value, User,\
+    UserToInstruction, InstructionToSelectInst, ValueToUndefValue, InstructionToCastInst
 from hwtHls.ssa.translation.llvmMirToNetlist.lowLevel import HlsNetlistAnalysisPassMirToNetlistLowLevel
 from hwtSimApi.constants import CLK_PERIOD
 from hwtSimApi.triggers import StopSimumulation
@@ -280,6 +281,12 @@ class LlvmIrInterpret():
                 ops.append(v)
                 continue
 
+            vAsUndef = ValueToUndefValue(v)
+            if vAsUndef is not None:
+                pyT = Bits(vAsUndef.getType().getIntegerBitWidth())
+                ops.append(pyT.from_py(None))
+                continue
+
             vAsInstr = ValueToInstruction(v)
             if vAsInstr is not None:
                 ops.append(regs[vAsInstr])
@@ -379,6 +386,40 @@ class LlvmIrInterpret():
             res = op._evalFn(src0, src1)
             if waveLog is not None:
                 waveLog.logChange(nowTime, instr, res, None)
+            regs[instr] = res
+            return predBb, bb, False
+
+        select = InstructionToSelectInst(instr)
+        if select is not None:
+            c, tVal, fVal = ops
+            if c._is_full_valid():
+                if c:
+                    res = tVal
+                else:
+                    res = fVal
+            else:
+                res = tVal._dtype.from_py(None)
+            regs[instr] = res
+            return predBb, bb, False
+
+        cast = InstructionToCastInst(instr)
+        if cast is not None:
+            opc = cast.getOpcode()
+            o,  = ops
+            CastOps = Instruction.CastOps
+            newWidth = cast.getType().getIntegerBitWidth()
+            oWidth = o._dtype.bit_length()
+            
+            if opc == CastOps.ZExt:
+                res = Concat(Bits(newWidth - oWidth).from_py(0), o)
+            elif opc == CastOps.SExt:
+                msb = o[oWidth -1]
+                res = Concat(*(msb for _ in range(newWidth - oWidth)), o)
+            elif opc == CastOps.Trunc:
+                res = o[newWidth:]  
+            else:
+                raise NotImplementedError(instr)
+
             regs[instr] = res
             return predBb, bb, False
 

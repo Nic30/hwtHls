@@ -207,6 +207,15 @@ void register_Instruction(pybind11::module_ & m) {
 	py::implicitly_convertible<llvm::CallInst, llvm::Instruction>();
 	m.def("InstructionToCallInst", &llvmInstructionCaster<llvm::CallInst>, py::return_value_policy::reference_internal);
 
+	py::class_<llvm::SelectInst, std::unique_ptr<llvm::SelectInst, py::nodelete>, llvm::Instruction>(m, "SelectInst");
+	py::implicitly_convertible<llvm::SelectInst, llvm::Instruction>();
+	m.def("InstructionToSelectInst", &llvmInstructionCaster<llvm::SelectInst>, py::return_value_policy::reference_internal);
+
+	py::class_<llvm::CastInst, std::unique_ptr<llvm::CastInst, py::nodelete>, llvm::Instruction>(m, "CastInst");
+	py::implicitly_convertible<llvm::CastInst, llvm::Instruction>();
+	m.def("InstructionToCastInst", &llvmInstructionCaster<llvm::CastInst>, py::return_value_policy::reference_internal);
+
+
 	py::class_<llvm::UnaryInstruction, std::unique_ptr<llvm::UnaryInstruction, py::nodelete>, llvm::Instruction>(m, "UnaryInstruction");
 	py::class_<llvm::LoadInst, std::unique_ptr<llvm::LoadInst, py::nodelete>, llvm::UnaryInstruction>(m, "LoadInst")
 		.def("isVolatile", &llvm::LoadInst::isVolatile);
