@@ -1,4 +1,4 @@
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass_SwitchToSelect.h>
+#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_SwitchToSelect.h>
 
 #include <algorithm>
 #include <llvm/ADT/SmallVector.h>
@@ -7,7 +7,7 @@
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 #include <llvm/Transforms/Utils/Local.h>
 
-#include <hwtHls/llvm/Transforms/SimplifyCFGUtils.h>
+#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFGUtils.h>
 
 #define DEBUG_TYPE "simplifycfg2"
 using namespace llvm;

@@ -2,7 +2,7 @@
  * This whole file is mostly original SimplifyCFG with just patch for switch instr merge checks.
  * This is required in order to successfully translate large SwitchInst to load from constant array
  * */
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass.h>
+#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass.h>
 
 #include <llvm/ADT/SetVector.h>
 #include <llvm/Analysis/MemorySSAUpdater.h>
@@ -18,11 +18,11 @@
 #include <llvm/Analysis/AssumptionCache.h>
 #include <llvm/Analysis/DomTreeUpdater.h>
 
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass_normalizeLookupTableIndex.h>
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass_aggresiveStoreSink.h>
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass_rewriteMaskPatternsFromCFGToData.h>
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass_SwitchSuccessorHoistCode.h>
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass_SwitchToSelect.h>
+#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_normalizeLookupTableIndex.h>
+#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_aggresiveStoreSink.h>
+#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_rewriteMaskPatternsFromCFGToData.h>
+#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_SwitchSuccessorHoistCode.h>
+#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_SwitchToSelect.h>
 
 #include <map>
 #define DEBUG_TYPE "simplifycfg2"

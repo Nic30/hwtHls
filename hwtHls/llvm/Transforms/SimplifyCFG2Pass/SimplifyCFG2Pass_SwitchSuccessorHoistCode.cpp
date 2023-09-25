@@ -1,4 +1,4 @@
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass_SwitchSuccessorHoistCode.h>
+#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_SwitchSuccessorHoistCode.h>
 
 #include <algorithm>
 #include <tuple>
@@ -13,7 +13,7 @@
 #include <llvm/Transforms/Utils/Local.h>
 
 #include <hwtHls/llvm/Transforms/utils/writeCFGToDotFile.h>
-#include <hwtHls/llvm/Transforms/SimplifyCFGUtils.h>
+#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFGUtils.h>
 
 #define DEBUG_TYPE "simplifycfg2"
 using namespace llvm;

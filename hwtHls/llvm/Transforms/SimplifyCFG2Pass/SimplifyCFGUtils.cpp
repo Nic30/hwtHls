@@ -1,4 +1,4 @@
-#include <hwtHls/llvm/Transforms/SimplifyCFGUtils.h>
+#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFGUtils.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Intrinsics.h>
 #include <llvm/Analysis/ValueTracking.h>
