@@ -252,7 +252,7 @@ class DefaultHlsPlatform(DummyPlatform):
         self._debug = HlsDebugBundle(debugDir, debugFilter)
         self._debugExpandCompositeNodes = False
         self._llvmCliArgs:List[Tuple[str, int, str, str]] = [
-            #("debug-pass", 0, "", "Arguments"), # print used passes starting from machinemoduleinfo
+            # ("debug-pass", 0, "", "Arguments"), # print used passes starting from machinemoduleinfo
             # ("debug-only", 0, "", "hwtfpga-pretonetlist-combiner"),
             # ("print-after-all", 0, "", "true"),
             # ("print-before-all", 0, "", "true"),
