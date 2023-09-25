@@ -60,7 +60,7 @@ llvm::Value* CreateBitRangeGet(IRBuilder<> *Builder, Value *bitVec,
 	//assert(!lowBitNoC->isNegative());
 	assert(
 			lowBitNoC->getZExtValue() + bitWidth
-					<= bitVec->getType()->getIntegerBitWidth());
+					<= bitVec->getType()->getIntegerBitWidth() && "Selected range must be in exiting bits");
 	if (isa<UndefValue>(bitVec)) {
 		return UndefValue::get(Builder->getIntNTy(bitWidth));
 	} else if (auto bitVecCI = dyn_cast<CallInst>(bitVec)) {
