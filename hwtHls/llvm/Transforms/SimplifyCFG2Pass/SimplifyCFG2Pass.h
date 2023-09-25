@@ -10,7 +10,7 @@ namespace hwtHls {
 /// same as original LLVM SimplifyCFGPass but with fixed merge of large switch instructions
 // :attention: should be removed once https://github.com/llvm/llvm-project/issues/61391 is fixed
 class SimplifyCFG2Pass: public llvm::SimplifyCFGPass {
-	llvm::SimplifyCFGOptions Options; // [copied] copied from llvm because of SimplifyCFG private Options which can not be accessed through inheritance
+	llvm::SimplifyCFGOptions Options; // [copied] copied from llvm base class because of SimplifyCFG private Options which can not be accessed through inheritance
 
 public:
 	SimplifyCFG2Pass();
