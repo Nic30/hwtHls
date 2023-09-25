@@ -13,11 +13,28 @@
 #include <hwtHls/llvm/Transforms/utils/bitSliceFlattening.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 
+#include <hwtHls/llvm/Transforms/utils/writeCFGToDotFile.h>
+
 using namespace llvm;
+
+//#define DBG_VERIFY_AFTER_MODIFICATION
+//#include <llvm/IR/Verifier.h>
 
 namespace hwtHls {
 
 static bool runBitwidthReduction(Function &F, TargetLibraryInfo *TLI) {
+//#ifdef DBG_VERIFY_AFTER_MODIFICATION
+//	{
+//		std::string errTmp = "hwtHls::BitwidthReductionPass received corrupted function ";
+//		llvm::raw_string_ostream errSS(errTmp);
+//		errSS << F.getName().str();
+//		errSS << "\n";
+//		if (verifyModule(*F.getParent(), &errSS)) {
+//			throw std::runtime_error(errSS.str());
+//		}
+//	}
+//#endif
+
 	ConstBitPartsAnalysisContext A;
 	std::list<Instruction*> Worklist;
 	bool didModify = false;
@@ -49,8 +66,8 @@ static bool runBitwidthReduction(Function &F, TargetLibraryInfo *TLI) {
 	BitPartsUseAnalysisContext AU(A.constraints);
 	for (BasicBlock &BB : F) {
 		for (Instruction &I : BB) {
-			if (dyn_cast<StoreInst>(&I)
-					|| (dyn_cast<LoadInst>(&I)
+			if (isa<StoreInst>(&I)
+					|| (isa<LoadInst>(&I)
 							&& dyn_cast<LoadInst>(&I)->isVolatile())
 					|| I.isTerminator() || I.isExceptionalTerminator()) { // || dyn_cast<BranchInst>(&I) || dyn_cast<SwitchInst>(&I)
 				AU.updateUseMaskEntirelyUsed(&I);
@@ -66,6 +83,7 @@ static bool runBitwidthReduction(Function &F, TargetLibraryInfo *TLI) {
 	// 	}
 	// }
 	// F.dump();
+	// writeCFGToDotFile(F, "before.BitwidthReducePass.dot", nullptr, nullptr);
 	BitPartsRewriter rew(A.constraints);
 	for (BasicBlock &BB : F) {
 		for (Instruction &I : BB) {
@@ -115,7 +133,18 @@ static bool runBitwidthReduction(Function &F, TargetLibraryInfo *TLI) {
 		}
 	}
 
-
+// 	writeCFGToDotFile(F, "after.BitwidthReducePass.dot", nullptr, nullptr);
+// #ifdef DBG_VERIFY_AFTER_MODIFICATION
+// 	{
+// 		std::string errTmp = "hwtHls::BitwidthReductionPass corrupted function ";
+// 		llvm::raw_string_ostream errSS(errTmp);
+// 		errSS << F.getName().str();
+// 		errSS << "\n";
+// 		if (verifyModule(*F.getParent(), &errSS)) {
+// 			throw std::runtime_error(errSS.str());
+// 		}
+// 	}
+// #endif
 	return didModify;
 }
 

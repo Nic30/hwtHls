@@ -63,12 +63,31 @@ void BitPartsUseAnalysisContext::updateUseMask(const llvm::Value *V,
 void BitPartsUseAnalysisContext::updateUseMask(const llvm::Value *V,
 		VarBitConstraint &vbc, const APInt &newMask) {
 	const APInt &oldMask = vbc.useMask;
+	assert(newMask.getBitWidth() == oldMask.getBitWidth() && "All masks must have same number of bits as original value");
 	APInt _newMask = newMask & vbc.getTrullyComputedBitMask(V);
 	bool someNewBitsSet = (~oldMask & _newMask) != 0;
 	if (someNewBitsSet) {
 		vbc.useMask |= _newMask;
 		if (auto I = dyn_cast<Instruction>(V))
 			propagateUseMaskInstruction(I, vbc);
+	}
+	// propagate new use mask also for replacements
+	if (_newMask != newMask) {
+		for (const KnownBitRangeInfo &r : vbc.replacements) {
+			if (!isa<ConstantData>(r.src) && r.src != V) {
+				APInt replUseMask =
+						(newMask
+								& APInt::getBitsSet(newMask.getBitWidth(),
+										r.dstBeginBitI, r.dstBeginBitI + r.srcWidth)) // clear unrelated bits
+						.zext(
+								std::max(newMask.getBitWidth(),
+										 r.src->getType()->getIntegerBitWidth())) // extend to size of src
+						.ashr(r.dstBeginBitI) // align so bit 0 is where replacement value starts in dst
+						.shl(r.srcBeginBitI) // aligin so the mask value is compatible with src
+						.trunc(r.src->getType()->getIntegerBitWidth());
+				updateUseMask(r.src, replUseMask);
+			}
+		}
 	}
 }
 
@@ -177,7 +196,8 @@ void BitPartsUseAnalysisContext::propagateUseMaskPHINode(const PHINode *I,
 void BitPartsUseAnalysisContext::propageteUseMaskSelect(const SelectInst *I,
 		const VarBitConstraint &vbc) {
 	// distribute to all operands
-	updateUseMask(I->getOperand(0), vbc.useMask.isZero() ? APInt::getZero(1) : APInt::getAllOnes(1));
+	updateUseMask(I->getOperand(0),
+			vbc.useMask.isZero() ? APInt::getZero(1) : APInt::getAllOnes(1));
 	updateUseMask(I->getOperand(1), vbc.useMask);
 	updateUseMask(I->getOperand(2), vbc.useMask);
 }

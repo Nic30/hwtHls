@@ -160,11 +160,7 @@ llvm::Value* BitPartsRewriter::expandConstBits(IRBuilder<> *b,
 	std::vector<llvm::Value*> concatMembers;
 	// reduced bits are those for which useMask is 0
 	// those and constants are removed from value and must be put back as constant or undef when expanding value
-	//errs() << "\nexpandConstBits: " << origVal << " " << *origVal << "    "
-	//		<< reducedVal;
-	//if (reducedVal)
-	//	errs() << " " << *reducedVal;
-	//errs() << "  " << vbc << "\n";
+
 	for (const KnownBitRangeInfo &kbri : vbc.replacements) {
 		if (kbri.src == origVal) {
 			// cut bits before and after this chunk
@@ -221,7 +217,6 @@ llvm::Value* BitPartsRewriter::expandConstBits(IRBuilder<> *b,
 			reducedBitCnt += w;
 		}
 	}
-
 	return CreateBitConcat(b, concatMembers);
 }
 
@@ -284,6 +279,13 @@ llvm::Value* BitPartsRewriter::rewriteIfRequired(llvm::Value *V) {
 			}
 		}
 		replacementCache[I] = I;
+		if (auto* C = dyn_cast<CallInst>(I)) {
+			if (IsBitConcat(C)) {
+				// modified concatenations are entirely removed later
+				// I->replaceAllUsesWith(UndefValue::get(I->getType()));
+				return V;
+			}
+		}
 		rewriteInstructionOperands(I);
 	}
 	return V;

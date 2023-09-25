@@ -57,17 +57,16 @@ public:
 class VarBitConstraint {
 public:
 	llvm::APInt useMask; // mask of which bits are used from this value which bits are set during discovery process
-	//std::vector<llvm::APInt> opUseMask; // mask describing which bits are actually used from an operand by this operator
-	//// if the bit from operand is used depends on instruction e.g. for PHINode bit is used if it has a different value
-	//// at least in single operand
-	//// :note: this marks use directly this operator based on if the the input bit has effect on output
+	//// :note: this marks use of directly this instruction based on if the the input bit has effect on output
 
 	std::vector<KnownBitRangeInfo> replacements;
 	// non overlapping known values for bit ranges in this value, sorted lower bits first
 	// if value is not specified this vector it means that the original bits of this value should be used
 
 	// mask for each operand which is used to prune some bits from operand value
+	// [todo] this is used only for compares, check it ti is required
 	std::vector<llvm::APInt> operandUseMask;
+
 	VarBitConstraint(unsigned bitWidth);
 	VarBitConstraint(const llvm::ConstantInt *CI);
 	VarBitConstraint(const llvm::Value *V);
@@ -82,9 +81,14 @@ public:
 	// fill known bit range as a slice on self
 	//void _srcUnionInplaceSelf(const llvm::Value *parent, uint64_t offset,
 	//		uint64_t width, std::vector<KnownBitRangeInfo> &newList);
+
 	// parent is used to fill not known holes in bits when doing union
+	// :param reduceUndefs: allow the output bits to take any other value for undef cases
+	//       if false the undefs are treated as unique constant and it can not be merged with any other value
+	//       than undef
 	void srcUnionInplace(const VarBitConstraint &other,
-			const llvm::Value *parent);
+			const llvm::Value *parent, bool reduceUndefs);
+
 	// lowest first expected
 	static void srcUnionInplaceAddFillUp(
 			std::vector<KnownBitRangeInfo> &newList, const llvm::Value *parent,

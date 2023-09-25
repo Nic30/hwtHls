@@ -30,9 +30,10 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitSelectInst(
 		if (first) {
 			first = false;
 			c = _c; // intended copy of _c to c
+
 		} else {
 			assert(_c.consystencyCheck());
-			c.srcUnionInplace(_c, I);
+			c.srcUnionInplace(_c, I, true);
 			assert(c.consystencyCheck());
 		}
 	}
@@ -46,25 +47,28 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitPHINode(const PHINode *I) {
 	// because there can be cycle in PHI dependencies so if we meet this value when resolving this
 	// we will know that it is this PHI.
 	VarBitConstraint &c = *constraints[I];
-	// errs() << "ConstBitPartsAnalysisContext::visitPHINode " << *I << "\n";
 	bool first = true;
 	for (auto op : I->operand_values()) {
 		const auto &_c = visitValue(op);
-		// errs() << "_c:" << _c << "\n";
 		if (first) {
 			first = false;
 			assert(_c.consystencyCheck());
 			c = _c; // intended copy of _c to c
 		} else {
 			assert(c.consystencyCheck());
-			c.srcUnionInplace(_c, I);
+			c.srcUnionInplace(_c, I, false);
+			// can not reduce undefs because it may remove
+			// this phi which may result in non dominated uses for branches where value
+			// may come to block as undef
+
+#ifndef NDEBUG
 			if (!c.consystencyCheck()) {
 				errs() << *I << "\n";
 				errs() << c << "\n";
 				llvm_unreachable("PHINode in inconsistent state");
 			}
+#endif
 		}
-		// errs() << " c:" << c << "\n";
 	}
 	return c;
 }

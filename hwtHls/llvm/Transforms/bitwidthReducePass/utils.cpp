@@ -232,7 +232,7 @@ llvm::APInt VarBitConstraint::getTrullyComputedBitMask(
 //	srcUnionPushBackWithMerge(newList, kbri);
 //}
 void VarBitConstraint::srcUnionInplace(const VarBitConstraint &other,
-		const llvm::Value *parent) {
+		const llvm::Value *parent, bool reduceUndefs) {
 	std::vector<KnownBitRangeInfo> newList;
 	newList.reserve(replacements.size() + other.replacements.size());
 	RangeSequenceIterator rsa;
@@ -251,11 +251,11 @@ void VarBitConstraint::srcUnionInplace(const VarBitConstraint &other,
 		if (item.v0 && item.v1) {
 			assert(item.begin >= item.v0->dstBeginBitI);
 			assert(item.begin >= item.v1->dstBeginBitI);
-			if (isa<UndefValue>(item.v0->src)) {
+			if (isa<UndefValue>(item.v0->src) && (reduceUndefs || isa<UndefValue>(item.v1->src))) {
 				srcUnionPushBackWithMerge(newList, *item.v1,
 						item.begin - item.v1->dstBeginBitI, item.width);
 				continue;
-			} else if (isa<UndefValue>(item.v1->src)) {
+			} else if (reduceUndefs && isa<UndefValue>(item.v1->src)) {
 				srcUnionPushBackWithMerge(newList, *item.v0,
 						item.begin - item.v0->dstBeginBitI, item.width);
 				continue;
