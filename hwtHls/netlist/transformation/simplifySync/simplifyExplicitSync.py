@@ -2,7 +2,7 @@ from typing import Set, List, Union, Literal
 
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
-from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachabilility
+from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
@@ -122,7 +122,7 @@ def netlistReduceExplicitSyncWithoutInput(
         n: HlsNetNodeExplicitSync,
         worklist: UniqList[HlsNetNode],
         removed: Set[HlsNetNode],
-        reachDb: HlsNetlistAnalysisPassReachabilility):
+        reachDb: HlsNetlistAnalysisPassReachability):
     """
     Collect all nodes which do have sync successors {n, } + successors[n] and do not affect control flags,
     move n before them (possibly duplicate and update data type) and update reachDb.

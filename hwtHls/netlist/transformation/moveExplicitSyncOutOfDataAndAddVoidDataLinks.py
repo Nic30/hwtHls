@@ -1,7 +1,7 @@
 from typing import List, Tuple
 
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachabilility
+from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
@@ -35,7 +35,7 @@ class HlsNetlistPassMoveExplicitSyncOutOfDataAndAddVoidDataLinks(HlsNetlistPass)
                 if isinstance(srcObj, HlsNetNodeExplicitSync):
                     preds = (srcObj,)
                 else:
-                    preds = tuple(n0 for n0 in HlsNetlistAnalysisPassReachabilility._getDirectDataPredecessorsRaw(UniqList((srcObj,)), set())
+                    preds = tuple(n0 for n0 in HlsNetlistAnalysisPassReachability._getDirectDataPredecessorsRaw(UniqList((srcObj,)), set())
                                   if isinstance(n0, HlsNetNodeExplicitSync))
                 unlink_hls_nodes(dataSrc, n._inputs[0])
                 predOOuts = tuple(pred.getDataVoidOutPort() for pred in preds)
@@ -50,7 +50,7 @@ class HlsNetlistPassMoveExplicitSyncOutOfDataAndAddVoidDataLinks(HlsNetlistPass)
 
             elif isinstance(n, HlsNetNodeExplicitSync):
                 # case for HLsNetNodeRead/Wrtite and alike
-                preds = tuple(n0 for n0 in HlsNetlistAnalysisPassReachabilility._getDirectDataPredecessorsRaw(UniqList((n,)), set())
+                preds = tuple(n0 for n0 in HlsNetlistAnalysisPassReachability._getDirectDataPredecessorsRaw(UniqList((n,)), set())
                                   if isinstance(n0, HlsNetNodeExplicitSync))
                 # add explicit data void conection to predecessor if it does not exist
                 # because later during optimizations current data link may be lost

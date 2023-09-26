@@ -15,11 +15,11 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.observableList import ObservableList, ObservableListRm
 from hwtHls.netlist.analysis.reachabilityCpp.reachabiltyCpp import DagGraphWithDFSReachQuery
-from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachabilility, \
+from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability, \
     NodeOrPort
 
 
-class HlsNetlistAnalysisPassReachabililityCpp(HlsNetlistAnalysisPassReachabilility):
+class HlsNetlistAnalysisPassReachabilityCpp(HlsNetlistAnalysisPassReachability):
 
     def __init__(self, netlist:"HlsNetlistCtx", removed: Optional[Set[HlsNetNode]]=None):
         HlsNetlistAnalysisPass.__init__(self, netlist)
@@ -167,8 +167,8 @@ class HlsNetlistAnalysisPassReachabililityCpp(HlsNetlistAnalysisPassReachabilili
         assert self._dataGraph is None
         assert self._anyConGraph is None
         removed = self.removed
-        anyConG = self._dataGraph = HlsNetlistAnalysisPassReachabilility()
-        dataG = self._anyConGraph = HlsNetlistAnalysisPassReachabilility()
+        anyConG = self._dataGraph = HlsNetlistAnalysisPassReachability()
+        dataG = self._anyConGraph = HlsNetlistAnalysisPassReachability()
         addAnyNode = anyConG.insertNode
         addDataNode = dataG.insertNode
         addAnyNodeWithLinks = anyConG.insertNodeWithLinks

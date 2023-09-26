@@ -12,7 +12,7 @@ from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.netlist import HlsThreadFromNetlist
 from hwtHls.netlist.analysis.betweenSyncIslands import HlsNetlistAnalysisPassBetweenSyncIslands
-from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachabilility
+from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
@@ -54,7 +54,7 @@ class HlsNetlistSyncIsland0Unit(Unit):
         o = HlsNetNodeWrite(netlist, NOT_SPECIFIED, self.o)
         netlist.outputs.append(o)
         link_hls_nodes(i0._outputs[0], o._inputs[0])
-        reachDb: HlsNetlistAnalysisPassReachabilility = netlist.getAnalysis(HlsNetlistAnalysisPassReachabilility)
+        reachDb: HlsNetlistAnalysisPassReachability = netlist.getAnalysis(HlsNetlistAnalysisPassReachability)
 
         HlsNetlistPassMoveExplicitSyncOutOfDataAndAddVoidDataLinks().apply(None, netlist)
         tc: SimTestCase = self.TEST_CASE
@@ -67,7 +67,7 @@ class HlsNetlistSyncIsland0Unit(Unit):
             tc.assertSequenceEqual(inputs, [o, ])
             tc.assertSequenceEqual(outputs, set())
 
-        netlist.invalidateAnalysis(HlsNetlistAnalysisPassReachabilility)
+        netlist.invalidateAnalysis(HlsNetlistAnalysisPassReachability)
 
     def _impl(self) -> None:
         hls = HlsScope(self, self.CLK_FREQ)
@@ -93,7 +93,7 @@ class HlsNetlistSyncIsland1Unit(HlsNetlistSyncIsland0Unit):
         o = HlsNetNodeWrite(netlist, NOT_SPECIFIED, self.o)
         netlist.outputs.append(o)
         link_hls_nodes(sync._outputs[0], o._inputs[0])
-        reachDb: HlsNetlistAnalysisPassReachabilility = netlist.getAnalysis(HlsNetlistAnalysisPassReachabilility)
+        reachDb: HlsNetlistAnalysisPassReachability = netlist.getAnalysis(HlsNetlistAnalysisPassReachability)
 
         HlsNetlistPassMoveExplicitSyncOutOfDataAndAddVoidDataLinks().apply(None, netlist)
         tc: SimTestCase = self.TEST_CASE
@@ -111,7 +111,7 @@ class HlsNetlistSyncIsland1Unit(HlsNetlistSyncIsland0Unit):
             tc.assertSequenceEqual(inputs, [o, ])
             tc.assertSequenceEqual(outputs, set())
 
-        netlist.invalidateAnalysis(HlsNetlistAnalysisPassReachabilility)
+        netlist.invalidateAnalysis(HlsNetlistAnalysisPassReachability)
 
 
 class HlsNetlistSyncIsland2Unit(HlsNetlistSyncIsland0Unit):
@@ -141,7 +141,7 @@ class HlsNetlistSyncIsland2Unit(HlsNetlistSyncIsland0Unit):
         o = HlsNetNodeWrite(netlist, NOT_SPECIFIED, self.o)
         netlist.outputs.append(o)
         link_hls_nodes(sync._outputs[0], o._inputs[0])
-        reachDb: HlsNetlistAnalysisPassReachabilility = netlist.getAnalysis(HlsNetlistAnalysisPassReachabilility)
+        reachDb: HlsNetlistAnalysisPassReachability = netlist.getAnalysis(HlsNetlistAnalysisPassReachability)
 
         HlsNetlistPassMoveExplicitSyncOutOfDataAndAddVoidDataLinks().apply(None, netlist)
         tc: SimTestCase = self.TEST_CASE
@@ -168,7 +168,7 @@ class HlsNetlistSyncIsland2Unit(HlsNetlistSyncIsland0Unit):
             inputs, outputs, _ = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(o, DIRECTION.IN, reachDb)
             tc.assertSequenceEqual(inputs, [o, ])
             tc.assertSequenceEqual(outputs, set())
-        netlist.invalidateAnalysis(HlsNetlistAnalysisPassReachabilility)
+        netlist.invalidateAnalysis(HlsNetlistAnalysisPassReachability)
 
 
 class HlsNetlistDiscoverSyncIslandTC(SimTestCase):

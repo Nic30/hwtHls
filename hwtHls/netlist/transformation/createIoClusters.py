@@ -2,7 +2,7 @@ from itertools import chain
 
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.analysis.betweenSyncIslands import HlsNetlistAnalysisPassBetweenSyncIslands
-from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachabilility
+from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.IoClusterCore import HlsNetNodeIoClusterCore
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
@@ -55,7 +55,7 @@ class HlsNetlistPassCreateIoClusters(HlsNetlistPass):
 
         return cc
 
-    def createIoClusterCores(self, netlist: HlsNetlistCtx, reachDb: HlsNetlistAnalysisPassReachabilility):
+    def createIoClusterCores(self, netlist: HlsNetlistCtx, reachDb: HlsNetlistAnalysisPassReachability):
         assert not netlist.builder._removedNodes
         allSync = []
         for n in netlist.iterAllNodes():
@@ -87,8 +87,8 @@ class HlsNetlistPassCreateIoClusters(HlsNetlistPass):
 
     def apply(self, hls:"HlsScope", netlist:HlsNetlistCtx):
         try:
-            reachDb = netlist.getAnalysis(HlsNetlistAnalysisPassReachabilility)
+            reachDb = netlist.getAnalysis(HlsNetlistAnalysisPassReachability)
             self.createIoClusterCores(netlist, reachDb)
         finally:
-            netlist.invalidateAnalysis(HlsNetlistAnalysisPassReachabilility)
+            netlist.invalidateAnalysis(HlsNetlistAnalysisPassReachability)
 

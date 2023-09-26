@@ -2,7 +2,7 @@ from typing import Set, Optional
 
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.analysis.consystencyCheck import HlsNetlistPassConsystencyCheck
-from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachabilility
+from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.nodes.IoClusterCore import HlsNetNodeIoClusterCore
@@ -28,7 +28,7 @@ class HlsNetlistPassSimplifySync(HlsNetlistPass):
     """
     Simplify HlsNetNodeExplicitSync instances
 
-    :note: this is separated from HlsNetlistPassSimplify because it intensively uses HlsNetlistAnalysisPassReachabilility
+    :note: this is separated from HlsNetlistPassSimplify because it intensively uses HlsNetlistAnalysisPassReachability
         which is expensive to compute and update.
     """
 
@@ -46,8 +46,8 @@ class HlsNetlistPassSimplifySync(HlsNetlistPass):
             if dbgEn:
                 HlsNetlistPassConsystencyCheck.checkRemovedNotReachable(netlist, removed)
 
-            assert netlist.getAnalysisIfAvailable(HlsNetlistAnalysisPassReachabilility) is None
-            reachDb: HlsNetlistAnalysisPassReachabilility = netlist.getAnalysis(HlsNetlistAnalysisPassReachabilility(netlist, removed=removed))
+            assert netlist.getAnalysisIfAvailable(HlsNetlistAnalysisPassReachability) is None
+            reachDb: HlsNetlistAnalysisPassReachability = netlist.getAnalysis(HlsNetlistAnalysisPassReachability(netlist, removed=removed))
 
             worklist: UniqList[HlsNetNode] = UniqList(
                 n for n in netlist.iterAllNodes()
@@ -133,4 +133,4 @@ class HlsNetlistPassSimplifySync(HlsNetlistPass):
 
             finally:
                 netlist.dropNetlistListeners()
-                netlist.invalidateAnalysis(HlsNetlistAnalysisPassReachabilility)
+                netlist.invalidateAnalysis(HlsNetlistAnalysisPassReachability)

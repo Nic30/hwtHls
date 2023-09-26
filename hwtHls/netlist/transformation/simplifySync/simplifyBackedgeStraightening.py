@@ -1,7 +1,7 @@
 from typing import Set, List
 
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachabilility
+from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
@@ -18,7 +18,7 @@ def netlistBackedgeStraightening(dbgTracer: DebugTracer,
                                  w: HlsNetNodeWriteBackedge,
                                  worklist: UniqList[HlsNetNode],
                                  removed: Set[HlsNetNode],
-                                 reachDb: HlsNetlistAnalysisPassReachabilility):
+                                 reachDb: HlsNetlistAnalysisPassReachability):
     """
     If it is possible to move write to channel before its read
     it means that the channel does not need to be backedge.

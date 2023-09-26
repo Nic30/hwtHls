@@ -3,7 +3,7 @@
 
 import unittest
 
-from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachabilility
+from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
@@ -30,7 +30,7 @@ class SyncDependencyTC(unittest.TestCase):
         w = HlsNetNodeWrite(netlist, None, None)
         link_hls_nodes(r._outputs[0], w._inputs[0])
         netlist.nodes.extend((r, w))
-        reachDb = HlsNetlistAnalysisPassReachabilility(netlist)
+        reachDb = HlsNetlistAnalysisPassReachability(netlist)
         reachDb.run()
         self.assertDictEqual(reachDb._dataSuccessors, {r: {r._outputs[0], w._inputs[0], w},
                                                        r._outputs[0]: {w._inputs[0], w},
@@ -46,7 +46,7 @@ class SyncDependencyTC(unittest.TestCase):
         link_hls_nodes(r._outputs[0], sync._inputs[0])
         link_hls_nodes(sync._outputs[0], w._inputs[0])
         netlist.nodes.extend((r, sync, w))
-        reachDb = HlsNetlistAnalysisPassReachabilility(netlist)
+        reachDb = HlsNetlistAnalysisPassReachability(netlist)
         reachDb.run()
         depSeq = [r, r._outputs[0], sync._inputs[0], sync, sync._outputs[0], w._inputs[0], w]
         ref = {}
@@ -64,7 +64,7 @@ class SyncDependencyTC(unittest.TestCase):
         r0AndR1 = b.buildAnd(r0._outputs[0], r1._outputs[0])
         link_hls_nodes(r0AndR1, w._inputs[0])
         netlist.nodes.extend((r0, r1, w))
-        reachDb = HlsNetlistAnalysisPassReachabilility(netlist)
+        reachDb = HlsNetlistAnalysisPassReachability(netlist)
         reachDb.run()
         
         depSeq0 = [r0, r0._outputs[0], r0AndR1.obj._inputs[0], r0AndR1.obj, r0AndR1.obj._outputs[0], w._inputs[0], w]

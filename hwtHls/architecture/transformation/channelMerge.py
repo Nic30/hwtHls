@@ -11,7 +11,7 @@ from hwt.pyUtils.uniqList import UniqList
 from hwtHls.architecture.allocator import HlsAllocator
 from hwtHls.architecture.archElement import ArchElement
 from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
-from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachabilility
+from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
@@ -341,7 +341,7 @@ class RtlArchPassChannelMerge(RtlArchPass):
 
     def apply(self, hls:"HlsScope", allocator: HlsAllocator):
         channels = self._detectChannes(allocator)
-        reachDb: HlsNetlistAnalysisPassReachabilility = None
+        reachDb: HlsNetlistAnalysisPassReachability = None
         elmIndex = {elm: i for i, elm in enumerate(allocator._archElements)}
         removed: Set[HlsNetNode] = allocator.netlist.builder._removedNodes
         MergeCandidateList = Union[List[HlsNetNodeWriteBackedge], List[HlsNetNodeWriteForwardedge]]
@@ -378,7 +378,7 @@ class RtlArchPassChannelMerge(RtlArchPass):
                             # dbgTracer.log(("found potentially mergable ports", ioWithSameSyncFlags), lambda x: f"{x[0]} {[n._id for n in x[1]]}")
                             if reachDb is None:
                                 # lazy load reachDb from performance reasons
-                                reachDb = allocator.netlist.getAnalysis(HlsNetlistAnalysisPassReachabilility(allocator.netlist))
+                                reachDb = allocator.netlist.getAnalysis(HlsNetlistAnalysisPassReachability(allocator.netlist))
 
                             # discard those which data inputs are driven from io0
                             selectedForRewrite: MergeCandidateList = [io0]

@@ -1,6 +1,6 @@
 from typing import List, Set, Optional
 
-from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachabilility
+from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 from hwtHls.netlist.nodes.delay import HlsNetNodeDelayClkTick
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -10,7 +10,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
 
 
 def _dependsOnNonOrderingData(n: HlsNetNode, inputs: List[HlsNetNode],
-        reachDb:HlsNetlistAnalysisPassReachabilility):
+        reachDb:HlsNetlistAnalysisPassReachability):
     for oOtherInp, dep in zip(n._inputs, n.dependsOn):
         oOtherInp: HlsNetNodeIn
         dep: HlsNetNodeOut
@@ -53,7 +53,7 @@ def _searchOrderingLinksOnlyDFS(src: HlsNetNodeExplicitSync, dst: HlsNetNodeExpl
 
 
 def addOrderingIfRequired(src: HlsNetNodeExplicitSync, dst: HlsNetNodeExplicitSync, dstPort: Optional[HlsNetNodeIn],
-        reachDb:HlsNetlistAnalysisPassReachabilility):
+        reachDb:HlsNetlistAnalysisPassReachability):
     """
     Add ordering connection if there dst is not transitively reachable from src.
     """

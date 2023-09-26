@@ -3,7 +3,7 @@ from typing import Set
 from hwt.hdl.types.bitsVal import BitsVal
 from hwt.interfaces.std import HandshakeSync
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachabilility
+from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
@@ -25,7 +25,7 @@ def netlistEdgeWritePropagation(
         writeNode: HlsNetNodeWriteAnyChannel,
         worklist: UniqList[HlsNetNode],
         removed: Set[HlsNetNode],
-        reachDb: HlsNetlistAnalysisPassReachabilility) -> bool:
+        reachDb: HlsNetlistAnalysisPassReachability) -> bool:
     """
     Propagate a constant write to channel to a value of the read. The channel itself is not removed
     because the presence of data must be somehow notified although the value is known.

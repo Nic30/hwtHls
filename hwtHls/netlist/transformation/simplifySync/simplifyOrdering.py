@@ -9,7 +9,7 @@ from hwtHls.netlist.nodes.orderable import HdlType_isNonData, HVoidOrdering, \
     HdlType_isVoid, _HVoidOrdering, HlsNetNodeOrderable
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, link_hls_nodes, \
     HlsNetNodeOut, unlink_hls_nodes, HlsNetNodeOutLazy
-from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachabilility
+from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 
 
 def netlistExplicitSyncDisconnectFromOrderingChain(dbgTracer: DebugTracer, n: HlsNetNodeOrderable,
@@ -177,7 +177,7 @@ def netlistTrivialOrderingReduce(n: HlsNetNodeExplicitSync, worklist: UniqList[H
     return modified
 
 
-def netlistOrderingReduce(dbgTracer: DebugTracer, n: HlsNetNodeExplicitSync, reachDb: HlsNetlistAnalysisPassReachabilility):
+def netlistOrderingReduce(dbgTracer: DebugTracer, n: HlsNetNodeExplicitSync, reachDb: HlsNetlistAnalysisPassReachability):
     """
     remove ordering if it is redundant information
     """

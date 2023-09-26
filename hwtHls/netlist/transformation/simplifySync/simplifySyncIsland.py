@@ -9,7 +9,7 @@ from typing import Set
 
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.analysis.consystencyCheck import HlsNetlistPassConsystencyCheck
-from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachabilility
+from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
@@ -23,7 +23,7 @@ from hwtHls.netlist.transformation.simplifySync.simplifySyncUtils import removeE
 
 
 def _analyzeHoistabilityOfSyncFlags(outNode: HlsNetNodeExplicitSync,
-                                    reachDb: HlsNetlistAnalysisPassReachabilility):
+                                    reachDb: HlsNetlistAnalysisPassReachability):
     seenInputs: UniqList[HlsNetNodeExplicitSync] = UniqList()
     seenOutputs: UniqList[HlsNetNodeExplicitSync] = UniqList()
     hoistableTo = {}
@@ -80,7 +80,7 @@ def netlistReduceExplicitSyncDissolve(
         node: HlsNetNodeExplicitSync,
         worklist: UniqList[HlsNetNode],
         removed: Set[HlsNetNode],
-        reachDb: HlsNetlistAnalysisPassReachabilility):
+        reachDb: HlsNetlistAnalysisPassReachability):
     """
     While merging HlsNetNodeExplicitSync nodes it is required to check all sync nodes which are related
     to inputs and outputs of this sync. This means that it is required to search reachability in bout directions,

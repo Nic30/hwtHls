@@ -60,7 +60,7 @@ NodeOrPort = Union[HlsNetNode, HlsNetNodeIn, HlsNetNodeOut]
 ReachDict = Dict[NodeOrPort, Set[NodeOrPort]]
 
 
-class HlsNetlistAnalysisPassReachabilility(HlsNetlistAnalysisPass):
+class HlsNetlistAnalysisPassReachability(HlsNetlistAnalysisPass):
 
     def __init__(self, netlist:"HlsNetlistCtx", removed: Optional[Set[HlsNetNode]]=None):
         HlsNetlistAnalysisPass.__init__(self, netlist)
@@ -157,7 +157,7 @@ class HlsNetlistAnalysisPassReachabilility(HlsNetlistAnalysisPass):
         """
         Use IO cluster core to iterate HlsNetNodeExplicitSync successor nodes.
 
-        :attention: Expects some passes to be applied before :see:`~.HlsNetlistAnalysisPassReachabilility.getDirectDataSuccessors`
+        :attention: Expects some passes to be applied before :see:`~.HlsNetlistAnalysisPassReachability.getDirectDataSuccessors`
         """
         assert isinstance(n, HlsNetNodeExplicitSync), n
         found: UniqList[HlsNetNodeExplicitSync] = UniqList()
@@ -310,7 +310,7 @@ class HlsNetlistAnalysisPassReachabilility(HlsNetlistAnalysisPass):
 
             realSucc = set()
             for u in updatedO.obj.usedBy[updatedO.out_i]:
-                realSucc.update(dictToUpdate[u])
+                realSucc.update(dictToUpdate[u]) # KeyError means that the node is not registered in this analysis
 
             sucToUpdate = realSucc.difference(curSucc)
 

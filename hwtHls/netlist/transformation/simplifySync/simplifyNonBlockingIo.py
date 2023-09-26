@@ -2,7 +2,7 @@ from typing import Set, Optional
 
 from hwt.hdl.operatorDefs import AllOps
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachabilility
+from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
@@ -149,7 +149,7 @@ def netlistReduceExplicitSyncTryExtractNonBlockingReadOrWrite(dbgTracer: DebugTr
                                                               n: HlsNetNodeExplicitSync,
                                                               worklist: UniqList[HlsNetNode],
                                                               removed: Set[HlsNetNode],
-                                                              reachDb: HlsNetlistAnalysisPassReachabilility):
+                                                              reachDb: HlsNetlistAnalysisPassReachability):
     assert n.__class__ is HlsNetNodeExplicitSync, n
     syncedDep: HlsNetNodeOut = n.dependsOn[0]
     rw = syncedDep.obj
