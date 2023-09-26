@@ -1,5 +1,6 @@
 from datetime import datetime
 from io import StringIO
+from itertools import islice
 from operator import and_, or_, xor, add, mul, sub, floordiv
 import re
 from typing import Tuple, Generator, Union, List, Optional, Dict
@@ -7,12 +8,13 @@ from typing import Tuple, Generator, Union, List, Optional, Dict
 from hwt.code import Concat
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.value import HValue
+from hwt.pyUtils.arrayQuery import grouper
 from hwtHls.llvm.llvmIr import Function, BasicBlock, BinaryOperator, InstructionToBranchInst, InstructionToCallInst, \
     InstructionToGetElementPtrInst, InstructionToICmpInst, InstructionToPHINode, ValueToBasicBlock, \
     ValueToConstantInt, ValueToFunction, ValueToInstruction, Instruction, InstructionToBinaryOperator, \
     InstructionToLoadInst, InstructionToStoreInst, ValueToArgument, TypeToPointerType, TypeToIntegerType, \
-    Argument, LLVMStringContext, MDOperand, MetadataAsMDNode, MetadataAsValueAsMetadata, Value, User,\
-    UserToInstruction, InstructionToSelectInst, ValueToUndefValue, InstructionToCastInst
+    Argument, LLVMStringContext, MDOperand, MetadataAsMDNode, MetadataAsValueAsMetadata, Value, User, \
+    UserToInstruction, InstructionToSelectInst, ValueToUndefValue, InstructionToCastInst, InstructionToSwitchInst
 from hwtHls.ssa.translation.llvmMirToNetlist.lowLevel import HlsNetlistAnalysisPassMirToNetlistLowLevel
 from hwtSimApi.constants import CLK_PERIOD
 from hwtSimApi.triggers import StopSimumulation
@@ -223,6 +225,16 @@ class LlvmIrInterpret():
                     waveLog.logChange(nowTime, phi, v, None)
                 regs[phi] = v
                 return predBb, bb, False
+
+            vvUndef = ValueToUndefValue(v)
+            if vvUndef is not None:
+                pyT = Bits(vvUndef.getType().getIntegerBitWidth())
+                v = pyT.from_py(None)
+                if waveLog is not None:
+                    waveLog.logChange(nowTime, phi, v, None)
+                regs[phi] = v
+                return predBb, bb, False
+
             raise NotImplementedError("NotImplemented type of value", phi, v)
 
         load = InstructionToLoadInst(instr)
@@ -405,23 +417,44 @@ class LlvmIrInterpret():
         cast = InstructionToCastInst(instr)
         if cast is not None:
             opc = cast.getOpcode()
-            o,  = ops
+            o, = ops
             CastOps = Instruction.CastOps
             newWidth = cast.getType().getIntegerBitWidth()
             oWidth = o._dtype.bit_length()
-            
+
             if opc == CastOps.ZExt:
                 res = Concat(Bits(newWidth - oWidth).from_py(0), o)
             elif opc == CastOps.SExt:
-                msb = o[oWidth -1]
+                msb = o[oWidth - 1]
                 res = Concat(*(msb for _ in range(newWidth - oWidth)), o)
             elif opc == CastOps.Trunc:
-                res = o[newWidth:]  
+                res = o[newWidth:]
             else:
                 raise NotImplementedError(instr)
 
             regs[instr] = res
             return predBb, bb, False
+
+        switchBr = InstructionToSwitchInst(instr)
+        if switchBr is not None:
+            c = ops[0].cast_sign(None)
+            assert c._is_full_valid(), ("jump condition must be always valid", c)
+            defDst = ops[1]
+            for condVal, dst in grouper(2, islice(ops, 2, None)):
+                assert isinstance(condVal, HValue), condVal
+                assert isinstance(dst, BasicBlock), dst
+                if c._eq(condVal):
+                    predBb = bb
+                    bb = dst
+                    if waveLog is not None:
+                        waveLog.logChange(nowTime, simBlockLabel, bb, None)
+                    return predBb, bb, True
+
+            predBb = bb
+            bb = defDst
+            if waveLog is not None:
+                waveLog.logChange(nowTime, simBlockLabel, bb, None)
+            return predBb, bb, True
 
         raise NotImplementedError(instr)
 

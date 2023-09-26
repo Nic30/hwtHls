@@ -61,7 +61,7 @@ std::pair<UniqList<Register>, UniqList<std::pair<Register, MachineBasicBlock*>> 
 			if (!v.isReg()) {
 				continue;
 			}
-			if (v.isDef()) {
+			if (v.isDef() || v.isUndef()) {
 				provides.push_back(v.getReg());
 			} else if (!provides.contains(v.getReg())) {
 				auto r = v.getReg();

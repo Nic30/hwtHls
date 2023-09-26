@@ -234,12 +234,20 @@ void register_Instruction(pybind11::module_ & m) {
 	py::implicitly_convertible<llvm::BranchInst, llvm::Instruction>();
 	m.def("InstructionToBranchInst", &llvmInstructionCaster<llvm::BranchInst>, py::return_value_policy::reference_internal);
 
-	//llvm::Instruction::get
-	//llvm::CallInst::addAttribute
 	py::class_<llvm::SwitchInst, std::unique_ptr<llvm::SwitchInst, py::nodelete>, llvm::Instruction>(m, "SwitchInst")
-			.def("addCase", &llvm::SwitchInst::addCase);
+		.def("addCase", &llvm::SwitchInst::addCase)
+		.def("getDefaultDest", &llvm::SwitchInst::getDefaultDest)
+		.def("getCondition", &llvm::SwitchInst::getCondition)
+		.def("cases",[](llvm::SwitchInst &sw) {
+	        	auto cases = sw.cases();
+	        	return py::make_iterator(cases.begin(), cases.end());
+	        }, py::keep_alive<0, 1>());
 	py::implicitly_convertible<llvm::SwitchInst, llvm::Instruction>();
 	m.def("InstructionToSwitchInst", &llvmInstructionCaster<llvm::SwitchInst>, py::return_value_policy::reference_internal);
+
+	py::class_<llvm::SwitchInst::CaseHandle, std::unique_ptr<llvm::SwitchInst::CaseHandle, py::nodelete>> (m, "CaseHandle")
+		.def("getCaseValue",  &llvm::SwitchInst::CaseHandle::getCaseValue)
+		.def("getCaseSuccessor",  &llvm::SwitchInst::CaseHandle::getCaseSuccessor);
 
 	py::class_<llvm::PHINode,  std::unique_ptr<llvm::PHINode, py::nodelete>, llvm::Instruction>(m, "PHINode")
 		.def("addIncoming", &llvm::PHINode::addIncoming)
