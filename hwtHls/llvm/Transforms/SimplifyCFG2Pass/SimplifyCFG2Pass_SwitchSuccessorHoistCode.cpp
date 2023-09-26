@@ -20,42 +20,52 @@ using namespace llvm;
 
 namespace hwtHls {
 
-void SkipDebugInfoIfNotIdentical(
-		SmallVector<BasicBlock::iterator> &InstrIterators) {
+using InstrIteratorRangeVector = SmallVector<std::pair<BasicBlock::iterator, BasicBlock::iterator>>;
 
-	Instruction *I1 = &*InstrIterators[0];
+void SkipDebugInfoIfNotIdentical(InstrIteratorRangeVector &InstrIterators) {
+	if (InstrIterators[0].first == InstrIterators[0].second)
+		return;
+	Instruction *I1 = &*InstrIterators[0].first;
 	// Skip debug info if it is not identical.
 	DbgInfoIntrinsic *DBI1 = dyn_cast<DbgInfoIntrinsic>(I1);
 	bool skip = false;
 	if (DBI1) {
 		auto otherIterators = make_range(InstrIterators.begin() + 1,
 				InstrIterators.end());
-		if (any_of(otherIterators,
-				[&InstrIterators, DBI1](BasicBlock::iterator &Itr) -> bool {
-					Instruction *I2 = &*InstrIterators[1];
-					DbgInfoIntrinsic *DBI2 = dyn_cast<DbgInfoIntrinsic>(I2);
-					return !DBI2 || DBI1->isIdenticalTo(DBI2);
+		// skip if any other is not DbgInfoIntrinsic or is not identical
+		skip =
+				any_of(otherIterators,
+						[&InstrIterators, DBI1](
+								std::pair<BasicBlock::iterator,
+										BasicBlock::iterator> &Itr) -> bool {
+							if (Itr.first == Itr.second)
+								return true; // already on the end
+							Instruction *I2 = &*Itr.first;
+							DbgInfoIntrinsic *DBI2 = dyn_cast<DbgInfoIntrinsic>(
+									I2);
+							return !DBI2 || !DBI1->isIdenticalTo(DBI2);
 
-				})) {
-			skip = true;
-		}
+						});
 	} else {
 		skip = true;
 	}
 	if (skip) {
 		for (auto &Itr : InstrIterators) {
-			while (isa<DbgInfoIntrinsic>(&*Itr))
-				Itr++;
+			while (isa<DbgInfoIntrinsic>(&*Itr.first))
+				Itr.first++;
 		}
 	}
 }
 
 void HoistInstrFromSuccessors(BasicBlock &ParentBlock,
 		BasicBlock::iterator ParentTerm,
-		SmallVector<BasicBlock::iterator> &InstrIterators) {
-	Instruction *I1 = &*InstrIterators[0];
-	for (auto _I2 : InstrIterators) {
-		Instruction *I2 = &*_I2;
+		InstrIteratorRangeVector &InstrIterators) {
+	Instruction *I1 = &*InstrIterators[0].first;
+	for (auto &_I2 : InstrIterators) {
+		assert(_I2.first != _I2.second);
+		Instruction *I2 = &*_I2.first;
+		++_I2.first; // move iterator before modifying I2
+
 		if (isa<DbgInfoIntrinsic>(I2)) {
 			// The debug location is an integral part of a debug info intrinsic
 			// and can't be separated from it or replaced.  Instead of attempting
@@ -95,17 +105,6 @@ void HoistInstrFromSuccessors(BasicBlock &ParentBlock,
 	}
 }
 
-bool advanceInteratorsInVec(SmallVector<BasicBlock::iterator> InstrIterators,
-		SmallVector<BasicBlock::iterator> InstrIteratorsEnds) {
-	for (const auto& [It, ItEnd] : zip(InstrIterators, InstrIteratorsEnds)) {
-		if (It == ItEnd)
-			return false;
-		else
-			++It;
-	}
-	return true;
-}
-
 enum InstructionCompareResult {
 	IDENTICAL, NON_IDENTICAL, END_INSTRUCTION_COMPARING, COMPARABLE_TERMINATORS,
 };
@@ -114,6 +113,8 @@ InstructionCompareResult checkCompatiblityOfInstructions(Instruction *I1,
 		Instruction *I2, unsigned NumSkipped,
 		SmallVector<unsigned>::iterator skipFlagsIt,
 		const TargetTransformInfo &TTI) {
+	assert(I1);
+	assert(I2);
 	bool isI1 = I1 == I2;
 	// If we are hoisting the terminator instruction, don't move one (making a
 	// broken BB), instead clone it, and remove BI.
@@ -162,7 +163,6 @@ InstructionCompareResult checkCompatiblityOfInstructions(Instruction *I1,
 		return NON_IDENTICAL;
 	}
 }
-
 /// :note: based on SimplifyCFGOpt::HoistThenElseCodeToIf
 /// Given a conditional branch that goes to s, hoist any common code
 /// in the two blocks up into the branch block. The caller of this function
@@ -178,8 +178,7 @@ bool HoistFromSwitchSuccessors(SwitchInst *SI, const TargetTransformInfo &TTI,
 	// identical order, possibly separated by the same number of non-identical
 	// instructions.
 	SmallVector<BasicBlock*> Successors;
-	SmallVector<BasicBlock::iterator> InstrIterators;
-	SmallVector<BasicBlock::iterator> InstrIteratorsEnds;
+	InstrIteratorRangeVector InstrIterators;
 	auto SucCnt = SI->getNumSuccessors();
 	assert(
 			SucCnt > 1
@@ -191,10 +190,10 @@ bool HoistFromSwitchSuccessors(SwitchInst *SI, const TargetTransformInfo &TTI,
 		// by it's address.
 		if (Suc->hasAddressTaken())
 			return false;
-		if (std::find(Successors.begin(), Successors.end(), Suc) == Successors.end()) {
+		if (std::find(Successors.begin(), Successors.end(), Suc)
+				== Successors.end()) {
 			Successors.push_back(Suc);
-			InstrIterators.push_back(Suc->begin());
-			InstrIteratorsEnds.push_back(Suc->end());
+			InstrIterators.push_back( { Suc->begin(), Suc->end() });
 		}
 	}
 
@@ -210,7 +209,7 @@ bool HoistFromSwitchSuccessors(SwitchInst *SI, const TargetTransformInfo &TTI,
 	std::fill(SkipFlags.begin(), SkipFlags.end(), 0);
 
 	for (;;) { // cycle to find all compatible instructions
-		Instruction *I1 = &*InstrIterators[0];
+		Instruction *I1 = &*InstrIterators[0].first;
 		auto skipFlagsIt = SkipFlags.begin();
 		for (auto &_I2 : InstrIterators) { // cycle to check all successor blocks for compatible instrucitons
 			//BasicBlock::iterator I2ItInitial = _I2;
@@ -219,7 +218,9 @@ bool HoistFromSwitchSuccessors(SwitchInst *SI, const TargetTransformInfo &TTI,
 			// preventing excessive increase of life ranges.
 			unsigned NumSkipped = 0;
 			for (;;) { // cycle to implement instruction search distance
-				Instruction *I2 = &*_I2;
+				if (_I2.first == _I2.second)
+					return Changed;
+				Instruction *I2 = &*_I2.first;
 				auto cmpRes = checkCompatiblityOfInstructions(I1, I2,
 						NumSkipped, skipFlagsIt, TTI); // intentionally comparing I1 with I1 to check if it can be hoisted
 				if (cmpRes == IDENTICAL) {
@@ -232,7 +233,7 @@ bool HoistFromSwitchSuccessors(SwitchInst *SI, const TargetTransformInfo &TTI,
 					// across them.
 					*skipFlagsIt |= skippedInstrFlags(I2);
 					++NumSkipped;
-					++_I2;
+					++_I2.first;
 				} else if (cmpRes == END_INSTRUCTION_COMPARING) {
 					return Changed;
 				} else {
@@ -243,7 +244,6 @@ bool HoistFromSwitchSuccessors(SwitchInst *SI, const TargetTransformInfo &TTI,
 		}
 		// successfully checked all iterators and iterators currently are all on compatible instruction
 		HoistInstrFromSuccessors(*SIParent, SI->getIterator(), InstrIterators);
-		advanceInteratorsInVec(InstrIterators, InstrIteratorsEnds);
 		SkipDebugInfoIfNotIdentical(InstrIterators);
 
 		Changed = true;
