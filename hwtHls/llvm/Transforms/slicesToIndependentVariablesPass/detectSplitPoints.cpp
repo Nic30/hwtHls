@@ -35,6 +35,72 @@ void splitPointPropagate(std::map<Instruction*, std::set<uint64_t>> &result,
 	}
 }
 
+bool splitPointPropagateBitRangeGet(Instruction &I, int operandNo, bool updated,
+		std::map<Instruction*, std::set<uint64_t>>::iterator &_splitPoints,
+		uint64_t bitNo, uint64_t &resultBitNo, bool forcePropagation,
+		const hwtHls::OffsetWidthValue &v,
+		std::map<Instruction*, std::set<uint64_t> > &result) {
+	if (operandNo == -1) {
+		// propagation from result to src
+		updated = _splitPointsPropagateUpdate(_splitPoints, updated, bitNo);
+		if (updated || forcePropagation) {
+			uint64_t srcBitNo = bitNo + v.offset;
+			if (srcBitNo != 0
+					&& srcBitNo != v.value->getType()->getIntegerBitWidth()) {
+				// propagate lower split point on src operand
+				if (auto *I2 = dyn_cast<Instruction>(v.value)) {
+					splitPointPropagate(result, *I2, srcBitNo, false, -1, &I);
+				}
+			}
+		}
+	} else {
+		// propagation from src to result
+		if (bitNo > v.offset && bitNo < v.width + v.offset - 1) {
+			// skip if bitNo is under or above bits selected by slice
+			resultBitNo = bitNo - v.offset;
+			updated = _splitPointsPropagateUpdate(_splitPoints, false,
+					resultBitNo);
+		}
+		// no need to update operands as the only operand was causing this update and is already updated
+	}
+	return updated;
+}
+
+/*
+ * :return: true if operand O matches the requested range and the search for operand may end
+ * */
+bool splitPointPropagateBitConcatOperand(Instruction &I, const Use &O,
+		int operandNo, bool &updated,
+		std::map<Instruction*, std::set<uint64_t>>::iterator &_splitPoints,
+		uint64_t bitNo, uint64_t &resultBitNo,
+		std::map<Instruction*, std::set<uint64_t> > &result, size_t &offset) {
+	uint64_t oWidth = O.get()->getType()->getIntegerBitWidth();
+	if (operandNo == -1) {
+		// find affected operand and propagate to it
+		if (bitNo == offset || bitNo == offset + oWidth) {
+			// bitNo just hit the boundary we do not need to propagate because split is already there
+			return true;
+		} else if (bitNo > offset && bitNo < offset + oWidth) {
+			// bitNo generated a split point in operand
+			if (auto *I2 = dyn_cast<Instruction>(O.get())) {
+				splitPointPropagate(result, *I2, bitNo - offset, false, -1, &I);
+			}
+			return true;
+		}
+	} else {
+		// find offset of operand in result
+		if (O.getOperandNo() == (unsigned) operandNo) {
+			assert(bitNo <= oWidth);
+			resultBitNo = offset + bitNo;
+			updated |= _splitPointsPropagateUpdate(_splitPoints, false,
+					resultBitNo);
+			return true;
+		}
+	}
+	offset += oWidth;
+	return false;
+}
+
 /*
  * :param operandNo: the index of operand which changed for Instruction I
  * 		-1 marks that the value of I itself was sliced
@@ -152,80 +218,47 @@ void splitPointPropagate(std::map<Instruction*, std::set<uint64_t>> &result,
 
 	} else if (auto *C = dyn_cast<CallInst>(&I)) {
 		if (IsBitConcat(C)) {
-			if (operandNo == -1) {
-				// find affected operand and propagate to it
-				uint64_t offset = 0;
-				for (auto &O : C->args()) {
-					uint64_t oWidth = O.get()->getType()->getIntegerBitWidth();
-					if (bitNo == offset || bitNo == offset + oWidth) {
-						// bitNo just hit the boundary we do not need to propagate because split is already there
-						break;
-					} else if (bitNo > offset && bitNo < offset + oWidth) {
-						// bitNo generated a split point in operand
-						if (auto *I2 = dyn_cast<Instruction>(O.get())) {
-							splitPointPropagate(result, *I2, bitNo - offset,
-									false, -1, &I);
-						}
-						break;
-					}
-					offset += oWidth;
-				}
-			} else {
-				// find offset of operand in result
-				uint64_t offset = 0;
-				bool operandFound = false;
-				for (auto &O : C->args()) {
-					uint64_t oWidth = O.get()->getType()->getIntegerBitWidth();
-					if (O.getOperandNo() == (unsigned) operandNo) {
-						assert(bitNo <= oWidth);
-						resultBitNo = offset + bitNo;
-						updated = _splitPointsPropagateUpdate(_splitPoints,
-								false, resultBitNo);
-						operandFound = true;
-						break;
-					}
-					offset += oWidth;
-				}
-				assert(operandFound && "splitPointPropagate operandNo must be operand no of this instruction I");
+			bool operandFound = false;
+			uint64_t offset = 0;
+			for (auto &O : C->args()) {
+				operandFound |= splitPointPropagateBitConcatOperand(I, O,
+						operandNo, updated, _splitPoints, bitNo, resultBitNo,
+						result, offset);
 			}
+			if (operandNo != -1) {
+				assert(
+						operandFound
+								&& "splitPointPropagate operandNo must be operand no of this instruction I");
+			}
+
 		} else if (IsBitRangeGet(C)) {
 			auto v = BitRangeGetOffsetWidthValue(C);
-			if (operandNo == -1) {
-				// propagation from result to src
-				updated = _splitPointsPropagateUpdate(_splitPoints, updated,
-						bitNo);
-				if (updated || forcePropagation) {
-					uint64_t srcBitNo = bitNo + v.offset;
-					if (srcBitNo != 0
-							&& srcBitNo
-									!= v.value->getType()->getIntegerBitWidth()) {
-						// propagate lower split point on src operand
-						if (auto *I2 = dyn_cast<Instruction>(v.value)) {
-							splitPointPropagate(result, *I2, srcBitNo, false,
-									-1, &I);
-						}
-					}
-				}
-
-			} else {
-				// propagation from src to result
-				if (bitNo > v.offset && bitNo < v.width + v.offset - 1) {
-					// skip if bitNo is under or above bits selected by slice
-					resultBitNo = bitNo - v.offset;
-					updated = _splitPointsPropagateUpdate(_splitPoints,
-							false, resultBitNo);
-				}
-				// no need to update operands as the only operand was causing this update and is already updated
-			}
+			updated = splitPointPropagateBitRangeGet(I, operandNo, updated,
+					_splitPoints, bitNo, resultBitNo, forcePropagation, v,
+					result);
 		}
 
 	} else if (auto CI = dyn_cast<CastInst>(&I)) {
 		switch (CI->getOpcode()) {
-		case Instruction::CastOps::Trunc:
-		case Instruction::CastOps::ZExt:
+		case Instruction::CastOps::Trunc: {
+			OffsetWidthValue v;
+			v.offset = 0;
+			v.value = I.getOperand(0);
+			v.width = I.getType()->getIntegerBitWidth();
+			updated = splitPointPropagateBitRangeGet(I, operandNo, updated,
+					_splitPoints, bitNo, resultBitNo, forcePropagation, v,
+					result);
+			break;
+		}
+		case Instruction::CastOps::ZExt: {
+			size_t offset = 0;
+			splitPointPropagateBitConcatOperand(I, I.getOperandUse(0),
+					operandNo, updated, _splitPoints, bitNo, resultBitNo,
+					result, offset);
+			break;
+		}
 		case Instruction::CastOps::SExt:
-			llvm_unreachable(
-					"Extensions and truncat should be converted to concatenations before running this pass");
+			llvm_unreachable("[todo]");
 		default:
 			break;
 		}
