@@ -174,6 +174,11 @@ class LlvmMirInterpret():
                         r = mo.getReg()
                         if mo.isDef():
                             ops.append(r)
+                        elif mo.isUndef():
+                            llt = MRI.getType(mo.getReg())
+                            assert llt.isValid()
+                            width = llt.getSizeInBits()
+                            ops.append(Bits(width).from_py(None))
                         else:
                             ops.append(regs[r.virtRegIndex()])
 
@@ -269,7 +274,7 @@ class LlvmMirInterpret():
                     else:
                         raise NotImplementedError(mi)
                     if src is None:
-                        raise AssertionError("Indexing on uninitialized value", mi)
+                        raise AssertionError("Indexing on uninitialized value (this is use before def)", mi)
                     res = src[index]
                     regs[dst.virtRegIndex()] = res
 
@@ -315,6 +320,7 @@ class LlvmMirInterpret():
                         break
 
                 elif opc == TargetOpcode.IMPLICIT_DEF:
+                    dst, = ops
                     llt = MRI.getType(ops[0])
                     assert llt.isValid()
                     t = Bits(llt.getSizeInBits())
