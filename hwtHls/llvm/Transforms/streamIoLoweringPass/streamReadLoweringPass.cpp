@@ -11,9 +11,6 @@
 #include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamReadLoweringPassPriv.h>
 #include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamIoRewriter.h>
 
-// debug
-#include <hwtHls/llvm/Transforms/utils/writeCFGToDotFile.h>
-
 using namespace llvm;
 
 namespace hwtHls {
@@ -298,7 +295,6 @@ llvm::PreservedAnalyses StreamReadLoweringPass::run(llvm::Function &F,
 	bool changed = false;
 	llvm::SmallVector<llvm::AllocaInst*> GeneratedAllocas;
 	auto streamProps = getStreamIoProps(F, GeneratedAllocas);
-	//writeCFGToDotFile(F, "StreamReadLoweringPass.before.dot", FAM, false);
 	for (StreamChannelProps &s : streamProps) {
 		if (s.isOutput)
 			continue;
@@ -307,7 +303,6 @@ llvm::PreservedAnalyses StreamReadLoweringPass::run(llvm::Function &F,
 				reinterpret_cast<llvm::SetVector<const llvm::CallInst*>&>(s.ios));
 		cfg.detectIoAccessGraphs(F.getEntryBlock());
 		cfg.resolvePossibleOffset();
-
 		IRBuilder<> builder(F.getEntryBlock().getFirstNonPHI());
 		s.createCommonVars(builder);
 		StreamReadRewriter srr(cfg, s, &DTU, nullptr);
@@ -325,10 +320,9 @@ llvm::PreservedAnalyses StreamReadLoweringPass::run(llvm::Function &F,
 		if (verifyModule(*F.getParent(), &errSS)) {
 			throw std::runtime_error(errSS.str());
 		}
+
 		finalizeStreamIoLowerig(F, FAM, DT, streamProps, false,
 				GeneratedAllocas);
-
-		//writeCFGToDotFile(F, "StreamReadLoweringPass.afer.dot", FAM, true);
 		llvm::PreservedAnalyses PA;
 		return PA;
 	} else {
