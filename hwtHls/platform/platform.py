@@ -52,6 +52,7 @@ from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnaly
 from hwtHls.ssa.translation.toGraphwiz import SsaPassDumpToDot
 from hwtHls.ssa.translation.toLl import SsaPassDumpToLl
 from hwtHls.ssa.translation.toLlvm import SsaPassToLlvm, ToLlvmIrTranslator
+from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 
 
 DebugId = Tuple[Type, Optional[str]]
@@ -367,6 +368,11 @@ class DefaultHlsPlatform(DummyPlatform):
         netlist.invalidateAnalysis(HlsNetlistAnalysisPassDataThreadsForBlocks)  # because we modified the netlist
         toNetlist.connectOrderingPorts(mf)
         dbg(D.DBG_10_postSync, (hls, netlist))
+
+        # must drop reference on all MIR related objects
+        netlist.invalidateAnalysis(HlsNetlistAnalysisPassBlockSyncType)
+        netlist.invalidateAnalysis(HlsNetlistAnalysisPassMirToNetlist)
+        netlist.invalidateAnalysis(HlsNetlistAnalysisPassReachability)
 
         return netlist
 
