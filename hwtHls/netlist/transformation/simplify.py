@@ -33,6 +33,7 @@ from hwtHls.netlist.transformation.simplifySync.simplifyNonBlockingIo import net
 from hwtHls.netlist.transformation.simplifySync.simplifySync import HlsNetlistPassSimplifySync
 from hwtHls.netlist.transformation.simplifyUtils import disconnectAllInputs, \
     getConstDriverOf, replaceOperatorNodeWith
+from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 
 
 class HlsNetlistPassSimplify(HlsNetlistPass):
@@ -203,6 +204,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                 HlsNetlistPassConsystencyCheck._checkConnections(netlist, removed)
 
             if not worklist:
+                reachAnalysis = netlist.getAnalysisIfAvailable(HlsNetlistAnalysisPassReachability(netlist, removed))
                 HlsNetlistPassSimplifySync(dbgTracer).apply(hls, netlist, parentWorklist=worklist, parentRemoved=removed)
                 dbgTracer.log("rehash")
                 HlsNetlistPassRehashDeduplicate().apply(hls, netlist, worklist=worklist, removed=removed)
@@ -211,8 +213,12 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                     if dbgEn:
                         HlsNetlistPassConsystencyCheck._checkCycleFree(n.netlist, removed)
                         HlsNetlistPassConsystencyCheck._checkConnections(netlist, removed)
+                    if reachAnalysis is None:
+                        netlist.invalidateAnalysis(HlsNetlistAnalysisPassReachability(netlist, removed))
                     if not worklist:
                         break
+                elif reachAnalysis is None:
+                    netlist.invalidateAnalysis(HlsNetlistAnalysisPassReachability(netlist, removed))
 
             runCntr += 1
             if runCntr > self.OPT_ITERATION_LIMIT:
