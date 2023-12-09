@@ -167,7 +167,7 @@ class PyBytecodeLLVMLoopUnroll(_PyBytecodeLoopPragma):
             if count == 1:
                 count = None
             else:
-                assert count is None, "If this is dissable count must not be specified"
+                assert count is None, "If this is disable count must not be specified"
 
         self.enable = enable
         self.count = count
