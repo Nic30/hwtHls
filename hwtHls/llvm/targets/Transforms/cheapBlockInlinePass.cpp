@@ -13,6 +13,7 @@
 #include <llvm/InitializePasses.h>
 
 #include <hwtHls/llvm/targets/hwtFpgaInstrInfo.h>
+#include <hwtHls/llvm/targets/Analysis/VRegLiveins.h>
 
 using namespace llvm;
 
@@ -24,16 +25,19 @@ class CheapBlockInline: public MachineFunctionPass {
 	const TargetRegisterInfo *TRI;
 	const TargetInstrInfo *TII;
 	MachineRegisterInfo *MRI;
+	hwtHls::HwtHlsVRegLiveins *VRegLiveins;
 
 public:
 	static char ID; // Pass identification, replacement for typeid
 
 	CheapBlockInline() :
-			MachineFunctionPass(ID) {
+			MachineFunctionPass(ID), TRI(nullptr), TII(nullptr), MRI(nullptr), VRegLiveins(
+					nullptr) {
 		initializeCheapBlockInlinePass(*PassRegistry::getPassRegistry());
 	}
 
 	void getAnalysisUsage(AnalysisUsage &AU) const override {
+		AU.addRequired<hwtHls::HwtHlsVRegLiveins>();
 		MachineFunctionPass::getAnalysisUsage(AU);
 	}
 
@@ -52,13 +56,13 @@ public:
 
 char CheapBlockInline::ID = 0;
 
-INITIALIZE_PASS(CheapBlockInline, DEBUG_TYPE,
-		"Cheap Machine Block Inline Pass", false, false)
+INITIALIZE_PASS(CheapBlockInline, DEBUG_TYPE, "Cheap Machine Block Inline Pass",
+		false, false)
 
 bool isFreeMachineInstr(const MachineInstr &MI) {
 	switch (MI.getOpcode()) {
 	case HwtFpga::HWTFPGA_MUX:
-		return MI.getNumOperands() == 2;
+		return MI.getNumExplicitOperands() == 2;
 		// :note: implicit defs should be hoisted before
 		// case TargetOpcode::G_IMPLICIT_DEF:
 		// case TargetOpcode::IMPLICIT_DEF:
@@ -114,7 +118,8 @@ void removeMachineBasicBlockWithSingleSuccessor(MachineBasicBlock &MBB,
 }
 
 void copyMachineBlockContentToPredecessor(MachineRegisterInfo &MRI,
-		MachineBasicBlock &MBB, MachineBasicBlock *Pred) {
+		hwtHls::HwtHlsVRegLiveins &VRegLiveins, MachineBasicBlock &MBB,
+		MachineBasicBlock *Pred) {
 	// copy self instructions to predecessors
 	// with a MUX which is enabled when the original branch was targeting this MBB
 	// replace MBB with SuccMBB, remove MBB
@@ -146,9 +151,10 @@ void copyMachineBlockContentToPredecessor(MachineRegisterInfo &MRI,
 				BrC = MRI.cloneVirtualRegister(C.getReg());
 				auto BrC_n = B.buildNot(BrC, C.getReg()); // builds xor 1
 				assert(BrC_n.getInstr()->getOpcode() == TargetOpcode::G_XOR);
-				MRI.setRegClass(BrC_n.getInstr()->getOperand(2).getReg(), &HwtFpga::anyregclsRegClass);
+				MRI.setRegClass(BrC_n.getInstr()->getOperand(2).getReg(),
+						&HwtFpga::anyregclsRegClass);
 			}
-			if (toMBBBrCond.has_value()) {
+			if (toMBBBrCond.has_value() && toMBBBrCond.value() != BrC) {
 				Register BrC2 = MRI.cloneVirtualRegister(BrC);
 				B.buildAnd(BrC2, toMBBBrCond.value(), BrC);
 				toMBBBrCond = BrC2;
@@ -178,12 +184,15 @@ void copyMachineBlockContentToPredecessor(MachineRegisterInfo &MRI,
 		switch (MI.getOpcode()) {
 		case HwtFpga::HWTFPGA_MUX: {
 			// convert copy to conditional copy
+			auto dstReg = MI.getOperand(0).getReg();
+			bool hasOneDef = MRI.hasOneDef(dstReg);
 			auto MIB = B.buildInstr(HwtFpga::HWTFPGA_MUX);
 			assert(MI.getNumOperands() == 2);
 			for (auto &MO : MI.operands()) {
 				MIB.add(MO);
 			}
-			if (toMBBBrCond.has_value()) {
+			if (!hasOneDef && VRegLiveins.isLiveout(*Pred, dstReg)
+					&& toMBBBrCond.has_value()) {
 				MIB.addUse(toMBBBrCond.value());
 				MIB.addUse(MI.getOperand(0).getReg());
 			}
@@ -199,7 +208,7 @@ void copyMachineBlockContentToPredecessor(MachineRegisterInfo &MRI,
 
 void MachineBasicBlockOptimizeTerminator(MachineBasicBlock &MBB) {
 	MachineBasicBlock *last = MBB.getFallThrough();
-	SmallVector<MachineInstr *> toRm;
+	SmallVector<MachineInstr*> toRm;
 	for (MachineInstr &T : reverse(MBB.terminators())) {
 		assert(T.isTerminator());
 		if (T.isConditionalBranch()) {
@@ -222,7 +231,7 @@ void MachineBasicBlockOptimizeTerminator(MachineBasicBlock &MBB) {
 			llvm_unreachable("Unexpected branch instruction");
 		}
 	}
-	for (auto *T: toRm) {
+	for (auto *T : toRm) {
 		T->eraseFromParent();
 	}
 }
@@ -236,6 +245,7 @@ bool CheapBlockInline::runOnMachineFunction(MachineFunction &MF) {
 	TRI = MF.getSubtarget().getRegisterInfo();
 	TII = MF.getSubtarget().getInstrInfo();
 	MRI = &MF.getRegInfo();
+	VRegLiveins = &getAnalysis<hwtHls::HwtHlsVRegLiveins>();
 
 	for (MachineBasicBlock &MBB : make_early_inc_range(MF)) {
 		if (&MBB == &*MF.begin())
@@ -255,7 +265,8 @@ bool CheapBlockInline::runOnMachineFunction(MachineFunction &MF) {
 				SmallVector<MachineBasicBlock*, 8> MBB_predecessors(
 						MBB.predecessors());
 				for (MachineBasicBlock *Pred : MBB_predecessors) {
-					copyMachineBlockContentToPredecessor(*MRI, MBB, Pred);
+					copyMachineBlockContentToPredecessor(*MRI, *VRegLiveins,
+							MBB, Pred);
 				}
 
 				removeMachineBasicBlockWithSingleSuccessor(MBB,
