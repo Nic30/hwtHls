@@ -4,8 +4,9 @@
 
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/detectSplitPoints.h>
-#include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/concatMemberVector.h>
+#include <hwtHls/llvm/targets/intrinsic/concatMemberVector.h>
 
+#include <hwtHls/llvm/Transforms/utils/writeCFGToDotFile.h>
 #define DEBUG_TYPE "slices-to-independent-variables"
 
 using namespace llvm;
@@ -42,7 +43,10 @@ public:
 		} else if (auto *C = dyn_cast<CallInst>(&I)) {
 			if (IsBitConcat(C) || IsBitRangeGet(C))
 				return true;
+		} else if (isa<CastInst>(&I)) {
+			return true;
 		}
+
 		return false;
 	}
 
@@ -160,7 +164,7 @@ public:
 				result.push_back( { 0, width, newPhi });
 				added = true;
 			}
-		} else if (dyn_cast<SelectInst>(I)) {
+		} else if (isa<SelectInst>(I)) {
 			// translate operands then build a new operand with new operands if required
 			Value *opCond = resolveValue(I->getOperand(0), 1, 0);
 			Value *opTrue = resolveValue(I->getOperand(1), highBitNo, lowBitNo);
@@ -179,6 +183,60 @@ public:
 			}
 			assert(res != nullptr);
 			result.push_back( { 0, res->getType()->getIntegerBitWidth(), res });
+			added = true;
+		} else if (isa<CastInst>(I)) {
+			auto opSrc = I->getOperand(0);
+			size_t srcWidth = opSrc->getType()->getIntegerBitWidth();
+			Value *res = nullptr;
+			if (lowBitNo < srcWidth) {
+				res = resolveValue(opSrc, std::min(highBitNo, srcWidth),
+						lowBitNo);
+				if (srcWidth < highBitNo) {
+					// selecting bits from base value
+					auto resTy = builder.getIntNTy(highBitNo - lowBitNo);
+					builder.SetInsertPoint(I);
+					switch (I->getOpcode()) {
+					case Instruction::ZExt:
+						res = builder.CreateZExt(res, resTy, I->getName());
+						break;
+					case Instruction::SExt:
+						res = builder.CreateSExt(res, resTy, I->getName());
+						break;
+					case Instruction::BitCast:
+						res = builder.CreateBitCast(res, resTy, I->getName());
+						break;
+					default:
+						errs() << *I << "\n";
+						llvm_unreachable("Unsupported type of cast operator");
+					}
+				}
+			} else {
+				// selecting bits from extension
+				auto resTy = builder.getIntNTy(highBitNo - lowBitNo);
+				builder.SetInsertPoint(I);
+				switch (I->getOpcode()) {
+				case Instruction::ZExt:
+					res = ConstantInt::get(resTy, 0);
+					break;
+				case Instruction::SExt: {
+					auto msb = resolveValue(opSrc, srcWidth, srcWidth - 1);
+					for (size_t i = lowBitNo; i < highBitNo; ++i) {
+						result.push_back({0, 1, msb});
+					}
+					added = true;
+					break;
+				}
+				default:
+					errs() << *I << "\n";
+					llvm_unreachable("Unsupported type of cast operator");
+				}
+
+			}
+			if (!added) {
+				assert(res != nullptr);
+				result.push_back(
+						{ 0, res->getType()->getIntegerBitWidth(), res });
+			}
 			added = true;
 		}
 		if (!added) {
@@ -230,7 +288,9 @@ public:
 						assert(
 								exactStartFound
 										&& "The lowBitNo must be in split points because this is how split points were generated");
-						assert(splitPoint <= highBitNo && "The splitpoint must satisfy width of the sliced vector and there must be every splitpoint in splitPoints, the highBitNo as well");
+						assert(
+								splitPoint <= highBitNo
+										&& "The splitpoint must satisfy width of the sliced vector and there must be every splitpoint in splitPoints, the highBitNo as well");
 						resolveConcatMembersSlicedInstruction(result, I,
 								isConcat, isBitRangeGet, splitPoint,
 								lastOffset);
@@ -255,13 +315,22 @@ public:
 				// this instruction is not slicable we have to create a slice on top of it later
 				result.push_back( { lowBitNo, highBitNo - lowBitNo, v });
 			}
-		} else {
+		} else if (auto *CI = dyn_cast<CastInst>(v)) {
+			errs() << *v << "\n";
+			llvm_unreachable("[todo]");
+		} else if (auto *C = dyn_cast<ConstantInt>(v)) {
 			// this is constant slice it immediately
-			auto *C = dyn_cast<ConstantInt>(v);
 			uint64_t w = highBitNo - lowBitNo;
 			APInt v = C->getValue().lshr(lowBitNo);
 			auto *res = builder.getInt(v.getBitWidth() != w ? v.trunc(w) : v);
 			result.push_back( { 0, w, res });
+		} else if (isa<UndefValue>(v)) {
+			uint64_t w = highBitNo - lowBitNo;
+			auto *res = UndefValue::get(builder.getIntNTy(w));
+			result.push_back( { 0, w, res });
+		} else {
+			errs() << *v << "\n";
+			llvm_unreachable("Unsupported type of value");
 		}
 	}
 	/*
@@ -309,7 +378,7 @@ static void removeBitConcatAndBitRangeGetExprFromSet(
 			auto cur = set.find(C);
 			if (cur != set.end())
 				set.erase(cur);
-			for (llvm::Use &opU: C->args()) {
+			for (llvm::Use &opU : C->args()) {
 				removeBitConcatAndBitRangeGetExprFromSet(set, opU.get());
 			}
 		}
@@ -330,6 +399,8 @@ bool splitOnSplitPoints(
 				} else if (auto *C = dyn_cast<CallInst>(&I)) {
 					if (IsBitConcat(C) || IsBitRangeGet(C))
 						toRemove.insert(&I);
+				} else if (isa<CastInst>(&I)) {
+					toRemove.insert(&I);
 				}
 			}
 		}
@@ -360,6 +431,7 @@ bool splitOnSplitPoints(
 				//for (auto & toRm: toRemove) {
 				//	dbgs() << "toRm: " << toRm << " " << *toRm << '\n';
 				//}
+				writeCFGToDotFile(F, "after.SlicesToIndependentVariablesPass.dot", nullptr, nullptr);
 				llvm_unreachable(
 						"Removed instruction still used by something which is not removed");
 			}
@@ -386,15 +458,16 @@ PreservedAnalyses SlicesToIndependentVariablesPass::run(Function &F,
 
 	// for each instruction resolve segments of bits which are used independently
 	auto splitPoints = collectSplitPoints(F);
-	//errs() << "Split points:\n";
-	//for (auto &item : splitPoints) {
-	//	errs() << *item.first;
-	//	errs() << "    [";
-	//	for (auto p : item.second) {
-	//		errs() << p << " ";
-	//	}
-	//	errs() << "]\n";
-	//}
+	// errs() << "Split points:\n";
+	// for (auto &item : splitPoints) {
+	// 	errs() << *item.first;
+	// 	errs() << "    [";
+	// 	for (auto p : item.second) {
+	// 		errs() << p << " ";
+	// 	}
+	// 	errs() << "]\n";
+	// }
+	//writeCFGToDotFile(F, "before.SlicesToIndependentVariablesPass.dot", nullptr, nullptr);
 	// for each user of variable which have a split point resolve a new value
 	// while looking trough the hierarchy of slices, concatenations and bitwise operators
 

@@ -3,7 +3,7 @@
 #include <llvm/IR/Instructions.h>
 
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
-#include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/concatMemberVector.h>
+#include <hwtHls/llvm/targets/intrinsic/concatMemberVector.h>
 
 using namespace llvm;
 
@@ -241,24 +241,23 @@ void splitPointPropagate(std::map<Instruction*, std::set<uint64_t>> &result,
 	} else if (auto CI = dyn_cast<CastInst>(&I)) {
 		switch (CI->getOpcode()) {
 		case Instruction::CastOps::Trunc: {
-			OffsetWidthValue v;
-			v.offset = 0;
-			v.value = I.getOperand(0);
-			v.width = I.getType()->getIntegerBitWidth();
+			OffsetWidthValue v = BitRangeGetOffsetWidthValue(
+					dyn_cast<TruncInst>(CI));
 			updated = splitPointPropagateBitRangeGet(I, operandNo, updated,
 					_splitPoints, bitNo, resultBitNo, forcePropagation, v,
 					result);
 			break;
 		}
-		case Instruction::CastOps::ZExt: {
-			size_t offset = 0;
-			splitPointPropagateBitConcatOperand(I, I.getOperandUse(0),
-					operandNo, updated, _splitPoints, bitNo, resultBitNo,
-					result, offset);
+		case Instruction::CastOps::ZExt:
+		case Instruction::CastOps::SExt: {
+			auto &o0 = I.getOperandUse(0);
+			if (bitNo < o0.get()->getType()->getIntegerBitWidth()) {
+				size_t offset = 0;
+				splitPointPropagateBitConcatOperand(I, o0, operandNo, updated,
+						_splitPoints, bitNo, resultBitNo, result, offset);
+			}
 			break;
 		}
-		case Instruction::CastOps::SExt:
-			llvm_unreachable("[todo]");
 		default:
 			break;
 		}
@@ -283,40 +282,67 @@ std::map<Instruction*, std::set<uint64_t>> collectSplitPoints(Function &F) {
 	// collect indexes from slices
 	for (auto &B : F) {
 		for (Instruction &I : B) {
+			std::optional<OffsetWidthValue> v;
 			if (auto *Call = dyn_cast<CallInst>(&I)) {
 				if (IsBitRangeGet(Call)) {
-					auto v = BitRangeGetOffsetWidthValue(Call);
-					if (auto *I2 = dyn_cast<Instruction>(v.value)) {
-						auto splitPoints = result.find(I2);
-						if (splitPoints == result.end()) {
-							result[I2] = std::set<uint64_t>();
-							splitPoints = result.find(I2);
-						}
-						// add split points, but exclude boundary values
-						assert(v.offset >= 0);
-						assert(v.width > 0);
-						if (v.offset != 0) {
-							splitPoints->second.insert(v.offset);
-						}
-						if (v.offset + v.width
-								!= v.value->getType()->getIntegerBitWidth()) {
-							splitPoints->second.insert(v.offset + v.width);
-						}
+					v = BitRangeGetOffsetWidthValue(Call);
+				}
+			} else if (isa<CastInst>(&I)) {
+				if (auto *Trunc = dyn_cast<TruncInst>(&I))
+					v = BitRangeGetOffsetWidthValue(Trunc);
+				else if (isa<ZExtInst>(&I)) {
+					// mark place where zeros start as splitpoint of self
+					v = OffsetWidthValue();
+					auto o0 = I.getOperand(0);
+					v.value().width = o0->getType()->getIntegerBitWidth();
+					v.value().offset = 0;
+					v.value().value = &I;
+				} else if (isa<SExtInst>(&I)) {
+					// mark all bits in extension as split points of self
+					auto o0 = I.getOperand(0);
+					size_t o0Width = o0->getType()->getIntegerBitWidth();
+
+					auto splitPoints = result.find(&I);
+					if (splitPoints == result.end()) {
+						result[&I] = std::set<uint64_t>();
+						splitPoints = result.find(&I);
+					}
+					size_t resWidth = I.getType()->getIntegerBitWidth();
+					assert(resWidth >= 2);
+					// add split point on every position where MSB is replicated
+					for (size_t i = o0Width - 1; i < resWidth - 1; ++i) {
+						splitPoints->second.insert(i);
+					}
+					if (auto *I2 = dyn_cast<Instruction>(o0)) {
+						// handle extract of msb from operand 0
+						v = OffsetWidthValue();
+						v.value().width = 1;
+						v.value().offset = o0Width - 1 - 1; // msb bit is sliced from rest of the o0
+						v.value().value = I2;
+					}
+				}
+			}
+			if (v.has_value()) {
+				auto _v = v.value();
+				if (auto *I2 = dyn_cast<Instruction>(_v.value)) {
+					auto splitPoints = result.find(I2);
+					if (splitPoints == result.end()) {
+						result[I2] = std::set<uint64_t>();
+						splitPoints = result.find(I2);
+					}
+					// add split points, but exclude boundary values
+					assert(_v.width > 0);
+					if (_v.offset != 0) {
+						splitPoints->second.insert(_v.offset);
+					}
+					if (_v.offset + _v.width
+							!= _v.value->getType()->getIntegerBitWidth()) {
+						splitPoints->second.insert(_v.offset + _v.width);
 					}
 				}
 			}
 		}
 	}
-	/*
-	 errs() << "Original split points\n";
-	 for (auto &item : result) {
-	 errs() << *item.first;
-	 errs() << "    ";
-	 for (auto p : item.second) {
-	 errs() << p << " ";
-	 }
-	 errs() << "\n";
-	 }*/
 	// transitively propagate (in both directions)
 	for (auto &B : F) {
 		for (Instruction &I : B) {
