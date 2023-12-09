@@ -3,6 +3,7 @@
 
 import sys
 
+from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.defs import BIT
 from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.interfaces.utils import addClkRstn
@@ -19,6 +20,7 @@ from hwtSimApi.utils import freq_to_period
 from pyMathBitPrecise.bit_utils import mask, ValidityError, to_signed
 from tests.floatingpoint.fptypes import IEEE754Fp64
 from tests.floatingpoint.toInt import IEEE754FpToInt
+from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
 
 
 class IEEE754FpToIntConventor(Unit):
@@ -85,7 +87,25 @@ class IEEE754FpToInt_TC(SimTestCase):
 
     def test_rtl(self):
         u = IEEE754FpToIntConventor()
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
+
+        def prepareDataInFn():
+            dataIn = []
+            flat_t = Bits(64)
+            for a in self.TEST_DATA:
+                _a = IEEE754Fp64.from_py(a)
+                dataIn.append(_a._reinterpret_cast(flat_t))
+            return dataIn
+
+        def checkDataOutFn(dataOut):
+            self.assertEqual(len(dataOut), len(self.TEST_DATA))
+            res_t = int64_t
+            for res, a in zip(dataOut, self.TEST_DATA):
+                res = res._reinterpret_cast(res_t)
+                resRef = self.model(a)
+                self.assertValEqual(res, resRef, msg=(res, 'expected', resRef, "input", a))
+
+        self.compileSimAndStart(u, target_platform=TestLlvmIrAndMirPlatform.forSimpleDataInDataOutUnit(
+            prepareDataInFn, checkDataOutFn, None))
 
         refRes = []
         for a in self.TEST_DATA:
@@ -106,7 +126,6 @@ if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
     u = IEEE754FpToIntConventor()
-
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest

@@ -1,9 +1,11 @@
-from hwt.code import Concat, Or
+from hwt.code import Concat
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.defs import BIT
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from pyMathBitPrecise.bit_utils import mask, to_unsigned, to_signed
 from tests.floatingpoint.fptypes import IEEE754Fp
+from hwtHls.frontend.pyBytecode.markers import PyBytecodeLLVMLoopUnroll, \
+    PyBytecodeBlockLabel
 
 
 # based on https://github.com/dawsonjon/fpu/blob/master/float_to_int/float_to_int.v
@@ -29,8 +31,11 @@ def IEEE754FpToInt(a: RtlSignalBase[IEEE754Fp], res: RtlSignalBase[Bits]):
         else:
             shBoudary = to_unsigned(resW - 3 + fp_t.EXPONENT_OFFSET, fp_t.EXPONENT_WIDTH)
             while (exponent < shBoudary) & (res != 0):
+                PyBytecodeBlockLabel("normalization")
+                PyBytecodeLLVMLoopUnroll(True, fp_t.EXPONENT_WIDTH - 1)
                 exponent += 1
-                res = (res._unsigned() >> 1)._signed() # not using >>= 1 because we need logical shift not arithmetic 
+                res = (res._unsigned() >> 1)._signed()  # not using >>= 1 because we need logical shift not arithmetic
+
             if res[resW - 1]:
                 # higher than res max value
                 overflow = True

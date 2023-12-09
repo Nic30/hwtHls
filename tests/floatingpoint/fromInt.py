@@ -26,17 +26,20 @@ def IEEE754FpFromInt(a: RtlSignalBase[Bits], t: IEEE754Fp):
     else:
         res.sign = a[intW - 1]
         if a._dtype.signed:
-            res.exponent = exp_t.from_py(-t.EXPONENT_OFFSET + intW - 1) # = intW - 1 converted to exponent format
+            res.exponent = exp_t.from_py(-t.EXPONENT_OFFSET + intW - 1)  # = intW - 1 converted to exponent format
             value = res.sign._ternary(-a, a)._unsigned()
         else:
             raise NotImplementedError(a._dtype, "implemented only for signed")
         # convert_1
         # shift value so it starts with 1 (to normalize number)
         leadingZeroCnt = PyBytecodeInline(countBits)(value, 0, True)
-        for _leadingZeroCnt in range(1, intW):  # case with 0 skipped because it is the default case with 0 shift
+        for _leadingZeroCnt in range(0, intW + 1):
+            # All shift values mut be checked because we need to generate hardware which works for every value
+            # case with 0 is the default case with 0 shift
+            # case with intW is  means that the value is 0 and no shift is required
             if leadingZeroCnt._eq(_leadingZeroCnt):
-                value <<= _leadingZeroCnt
                 break
+            value <<= 1
         res.exponent -= fitTo_t(leadingZeroCnt, exp_t, shrink=False)
         # compute rounding
         cutOffWidth = intW - t.MANTISSA_WIDTH - 1  # how many lower bits to cut due to mantissa/input width difference
@@ -47,14 +50,16 @@ def IEEE754FpFromInt(a: RtlSignalBase[Bits], t: IEEE754Fp):
             guard = value[cutOffWidth - 1]
             round_bit = value[cutOffWidth - 2]
             sticky_bit = value[cutOffWidth - 3:] != 0
-            if guard & (round_bit | sticky_bit | res.mantissa[0]):
-                if mantissa._eq(mask(t.MANTISSA_WIDTH + 1)):
+            mantissaOverflow = guard & (round_bit | sticky_bit | res.mantissa[0])
+            if mantissaOverflow:
+                mantissaAll1 = mantissa._eq(mask(t.MANTISSA_WIDTH + 1))
+                if mantissaAll1:
                     res.exponent += 1
                 mantissa += 1
         else:
             mantissa = fitTo_t(value, mantissa._dtype)
-    
+
         # pack
         res.mantissa = mantissa[t.MANTISSA_WIDTH:]
-    
+
     return res

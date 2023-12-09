@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import sys
+from pathlib import Path
 
 from hwt.hdl.types.defs import BIT
 from hwt.interfaces.hsStructIntf import HsStructIntf
@@ -14,11 +14,12 @@ from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
-from hwtLib.types.ctypes import int64_t, int16_t
+from hwtLib.types.ctypes import int64_t, int16_t, uint64_t
 from hwtSimApi.utils import freq_to_period
 from pyMathBitPrecise.bit_utils import mask, ValidityError, to_signed
-from tests.floatingpoint.fptypes import IEEE754Fp64, IEEE754Fp, IEEE754Fp16
+from tests.floatingpoint.fptypes import IEEE754Fp64, IEEE754Fp16
 from tests.floatingpoint.fromInt import IEEE754FpFromInt
+from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
 
 
 class IEEE754FpFromIntConventor(Unit):
@@ -42,7 +43,7 @@ class IEEE754FpFromIntConventor(Unit):
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
             a = hls.read(self.a)
-            res = PyBytecodeInline(IEEE754FpFromInt)(a, IEEE754Fp64 ) # self.T
+            res = PyBytecodeInline(IEEE754FpFromInt)(a, IEEE754Fp64)  # self.T
             hls.write(res, self.res)
 
     def _impl(self) -> None:
@@ -82,7 +83,30 @@ class IEEE754FpFromInt_TC(SimTestCase):
 
     def test_rlt(self):
         u = IEEE754FpFromIntConventor()
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
+
+        def prepareDataInFn():
+            dataIn = []
+            for a in self.TEST_DATA:
+                dataIn.append(int64_t.from_py(a)._reinterpret_cast(uint64_t))
+            return dataIn
+
+        def checkDataOutFn(dataOut):
+            self.assertEqual(len(dataOut), len(self.TEST_DATA))
+            for _res, a in zip(dataOut, self.TEST_DATA):
+                try:
+                    resFp = _res._reinterpret_cast(IEEE754Fp64)
+                    res = IEEE754Fp64.to_py(resFp)
+                    _resInt = "%016X" % int(_res)
+                except ValidityError:
+                    res = None
+                resRef = self.model(a)
+                refVal = IEEE754Fp64.from_py(resRef)
+                self.assertEqual(res, resRef, msg=(res, _resInt, 'expected', resRef,
+                                                   "%016X" % int(refVal._reinterpret_cast(uint64_t)),
+                                                   "input", a, resFp, "expected", refVal))
+
+        self.compileSimAndStart(u, target_platform=TestLlvmIrAndMirPlatform.forSimpleDataInDataOutUnit(
+            prepareDataInFn, checkDataOutFn, Path(self.DEFAULT_LOG_DIR, f"{self.getTestName()}")))
 
         refRes = []
         for a in self.TEST_DATA:
@@ -98,6 +122,8 @@ class IEEE754FpFromInt_TC(SimTestCase):
         # res = [IEEE754Fp64.to_py(IEEE754Fp64.from_py({"sign": sign, "exponent": exponent, "mantissa": mantissa}))
         #                             for mantissa, exponent, sign in u.res._ag.data]
         res = u.res._ag.data
+        # for resItem, refItem in zip(res, refRes):
+        #     self.assertValSequenceEqual(resItem, refItem)
         self.assertValSequenceEqual(res, refRes)
 
         self.rtl_simulator_cls = None
@@ -107,8 +133,8 @@ if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
     u = IEEE754FpFromIntConventor()
-    #u.T_IN = int16_t
-    #u.T = IEEE754Fp16
+    u.T_IN = int16_t
+    u.T = IEEE754Fp16
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
