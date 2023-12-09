@@ -581,4 +581,67 @@ bool HwtFpgaCombinerHelper::rewriteTrivialInstrDuplication(
 	return true;
 }
 
+bool HwtFpgaCombinerHelper::matchAndOrSequenceReduce(llvm::MachineInstr &MI,
+		bool &removeRightOp) {
+	auto opc = MI.getOpcode();
+	switch (opc) {
+	case TargetOpcode::G_AND:
+	case TargetOpcode::G_OR:
+	case HwtFpga::HWTFPGA_AND:
+	case HwtFpga::HWTFPGA_OR:
+		break;
+	default:
+		llvm_unreachable("Implemented only for and/or");
+	}
+	if (!MRI.hasOneDef(MI.getOperand(0).getReg()) || !MI.getOperand(1).isReg()
+			|| !MI.getOperand(2).isReg())
+		return false;
+	Register r0 = MI.getOperand(1).getReg(), r1 = MI.getOperand(2).getReg();
+	auto *prev = MI.getPrevNode();
+	if (!prev)
+		return false;
+	if (prev->getOpcode() != opc)
+		return false;
+	auto prevRes = prev->getOperand(0).getReg();
+	for (auto &op : { prev->getOperand(1), prev->getOperand(2) }) {
+		if (op.isReg()) {
+			auto prevOpR = op.getReg();
+			if (prevRes == r0) {
+				if (r1 == prevOpR) {
+					removeRightOp = true;
+					return true;
+				}
+			} else if (prevRes == r1) {
+				if (r0 == prevOpR) {
+					removeRightOp = false;
+					return true;
+				}
+			}
+		}
+	}
+
+	return false;
+}
+
+bool HwtFpgaCombinerHelper::rewriteAndOrSequenceReduce(llvm::MachineInstr &MI,
+		bool removeRightOp) {
+	Register replacement;
+	if (removeRightOp) {
+		replacement = MI.getOperand(1 + 0).getReg();
+	} else {
+		replacement = MI.getOperand(1 + 1).getReg();
+	}
+	if (!MRI.hasOneDef(replacement)) {
+		// create a copy because register can be used after it is potentially modified somewhere else
+		auto _replacement = MRI.cloneVirtualRegister(replacement);
+		Builder.setInstr(MI);
+		Builder.buildInstr(HwtFpga::HWTFPGA_MUX, { _replacement },
+				{ replacement });
+		replacement = _replacement;
+	}
+	MRI.replaceRegWith(MI.getOperand(0).getReg(), replacement);
+	MI.eraseFromParent();
+	return true;
+}
+
 }
