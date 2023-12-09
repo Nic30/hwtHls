@@ -34,7 +34,6 @@ class PreprocLoopMultiExit_singleExit0_TC(SimTestCase):
         self.assertValSequenceEqual(u.o._ag.data, expectedOutput)
 
     def test_withData(self):
-
         self._test([10, 1, 11], [0, 2])
 
     def test_noData(self):
