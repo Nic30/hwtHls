@@ -82,6 +82,8 @@ public:
 			llvm::SmallVector<bool> &requiresAndWithParentCond);
 	bool rewriteNestedMuxToMux(llvm::MachineInstr &MI,
 			const llvm::SmallVector<bool> &requiresAndWithParentCond);
+	bool matchMuxRedundantCase(llvm::MachineInstr &MI, llvm::SmallVector<unsigned> &caseConditionsToRm);
+	bool rewriteMuxRmCases(llvm::MachineInstr &MI, const llvm::SmallVector<unsigned> & caseConditionsToRm);
 
 	bool hasAll1AndAll0Values(llvm::MachineInstr &MI,
 			hwtHls::CImmOrRegWithNegFlag &matchinfo);

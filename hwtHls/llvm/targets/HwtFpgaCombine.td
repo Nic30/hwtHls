@@ -199,6 +199,15 @@ def mux_trivial_const_propagation: GICombineRule<
   (apply [{ return Helper.rewriteMuxConstPropagation(*${root}, ${matchinfo}); }])
 >;
 
+// remove cases from end which have same T and F value
+def mux_redundant_case_reduce_matchdata : GIDefMatchData<"SmallVector<unsigned>">; // indexes of duplicit condition operands
+def mux_redundant_case_reduce: GICombineRule<
+  (defs root:$root, mux_redundant_case_reduce_matchdata:$matchinfo),
+  (match (wip_match_opcode HWTFPGA_MUX):$root,
+    [{ return Helper.matchMuxRedundantCase(*${root}, ${matchinfo}); }]),
+  (apply [{ return Helper.rewriteMuxRmCases(*${root}, ${matchinfo}); }])
+>;
+
 def const_merge_values_matchdata : GIDefMatchData<"llvm::APInt">;
 def const_merge_values_eval: GICombineRule<
   (defs root:$root, const_merge_values_matchdata:$matchinfo),
@@ -221,6 +230,7 @@ def const_eval_combines : GICombineGroup<[
 	const_val_mux_eval,
 	undef_propagation,
 	const_merge_values_eval,
+	mux_redundant_case_reduce,
 ]>;
 
 
@@ -257,6 +267,7 @@ def extract_on_merge_values: GICombineRule<
     [{ return Helper.matchIsExtractOnMergeValues(*${root}); }]),
   (apply [{ return Helper.rewriteExtractOnMergeValues(*${root}); }])
 >;
+
 
 //
 // Fold (HWTFPGA_MUX (... HWTFPGA_MUX ...)) -> HWTFPGA_MUX ...

@@ -2,8 +2,10 @@
 
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
 #include <llvm/CodeGen/GlobalISel/GISelKnownBits.h>
+#include <llvm/ADT/STLExtras.h>
 
 #include <hwtHls/llvm/targets/hwtFpgaInstrInfo.h>
+#include <hwtHls/llvm/targets/machineInstrUtils.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionSelectorUtils.h>
 #include <hwtHls/llvm/bitMath.h>
 
@@ -449,5 +451,39 @@ bool HwtFpgaCombinerHelper::matchMuxMask(llvm::MachineInstr &MI,
 	return false;
 }
 
+bool HwtFpgaCombinerHelper::rewriteMuxRmCases(llvm::MachineInstr &MI,
+		const llvm::SmallVector<unsigned> &caseConditionsToRm) {
+	assert(MI.getOpcode() == HwtFpga::HWTFPGA_MUX);
+	Observer.changingInstr(MI);
+	for (unsigned CondI : llvm::reverse(caseConditionsToRm)) {
+		MI.removeOperand(CondI); // c
+		MI.removeOperand(CondI - 1); // v
+	}
+	Observer.changedInstr(MI);
+	return true;
+}
 
+bool HwtFpgaCombinerHelper::matchMuxRedundantCase(llvm::MachineInstr &MI,
+		llvm::SmallVector<unsigned> &caseConditionsToRm) {
+	caseConditionsToRm.clear();
+	assert(MI.getOpcode() == HwtFpga::HWTFPGA_MUX);
+	assert(MI.getNumImplicitOperands() == 0);
+	unsigned opCnt = MI.getNumOperands();
+	unsigned condCnt = (opCnt - 1) / 2;
+	for (int i = condCnt - 1; i >= 0; --i) {
+		auto CIndex = 2 + i * 2; // +1 to skip dst, +1 to skip value operand
+		auto &v0 = MI.getOperand(1 + i * 2);
+		unsigned v1I = 3 + i * 2;
+		assert(
+				v1I < opCnt
+						&& "there must be else value because this is not just copy implemented using mux because there is a condition");
+		auto &v1 = MI.getOperand(v1I);
+		if (hwtHls::MachineOperand_isIdenticalTo_ignoringFlags(v0, v1)) {
+			caseConditionsToRm.push_back(CIndex);
+		} else {
+			break;
+		}
+	}
+	return !caseConditionsToRm.empty();
+}
 }
