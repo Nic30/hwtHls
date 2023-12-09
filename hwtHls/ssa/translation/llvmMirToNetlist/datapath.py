@@ -147,7 +147,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
 
                 elif opc == TargetOpcode.HWTFPGA_CLOAD:
                     # load from data channel
-                    srcIo, index, cond = ops
+                    srcIo, index, cond = ops # [todo] implicit operands
                     if isinstance(srcIo, HlsNetNodeOut):
                         res = builder.buildOp(AllOps.INDEX, srcIo._dtype.element_t, srcIo, index)
                         if isinstance(cond, int):
