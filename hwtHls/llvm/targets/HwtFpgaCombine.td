@@ -157,7 +157,7 @@ def const_mul_eval: GICombineRule<
 def const_mux_eval : GICombineRule<
   (defs root:$root),
   (match (wip_match_opcode HWTFPGA_MUX):$root,
-    [{ return Helper.hashSomeConstConditions(*${root}); }]),
+    [{ return Helper.hasSomeConstConditions(*${root}); }]),
   (apply [{ return Helper.rewriteConstCondMux(*${root}); }])
 >;
 
@@ -224,6 +224,20 @@ def const_merge_values_eval: GICombineRule<
          [{ return Helper.matchConstMergeValues(*${root}, ${matchinfo}); }]),
   (apply [{ Helper.rewriteConstMergeValues(*${root}, ${matchinfo}); }])>;
  
+// reduce cases like %1 = AND %2, %3; %4 = AND %1, %2 (replace %4 with %1)
+def and_or_sequence_reduce_matchdata : GIDefMatchData<"bool">;
+def and_or_sequence_reduce: GICombineRule<
+  (defs root:$root, and_or_sequence_reduce_matchdata:$matchinfo),
+  (match (wip_match_opcode 
+  			G_AND,
+			G_OR,
+			HWTFPGA_AND,
+            HWTFPGA_OR
+		):$root,
+    [{ return Helper.matchAndOrSequenceReduce(*${root}, ${matchinfo}); }]),
+  (apply [{ return Helper.rewriteAndOrSequenceReduce(*${root}, ${matchinfo}); }])
+>;
+
 
 def const_eval_combines : GICombineGroup<[
 	extract_const_propagation,
@@ -242,6 +256,7 @@ def const_eval_combines : GICombineGroup<[
 	trivial_instr_deduplication,
 	mux_duplicit_case_reduce,
 	mux_redundant_case_reduce,
+	and_or_sequence_reduce,
 ]>;
 
 

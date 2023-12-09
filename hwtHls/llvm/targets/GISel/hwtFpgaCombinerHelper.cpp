@@ -87,18 +87,13 @@ bool HwtFpgaCombinerHelper::rewriteG_CONSTANTasUseAsCImm(
 bool HwtFpgaCombinerHelper::rewriteConstMergeValues(llvm::MachineInstr &MI) {
 	// $dst $src{N}, $width{N} (lowest bits first)
 	// [todo] check for undefs
-	uint64_t srcCnt = (MI.getNumOperands() - 1) / 2;
-	uint64_t totalWidth = 0;
-	for (unsigned i = 0; i < srcCnt; ++i) {
-		uint64_t width = MI.getOperand(1 + srcCnt + i).getImm();
-		totalWidth += width;
-	}
+	uint64_t totalWidth = hwtHls::MERGE_VALUES_getResultWidth(MI);
 	APInt res(totalWidth, 0);
-	for (int i = srcCnt - 1; i >= 0; --i) {
-		uint64_t width = MI.getOperand(1 + srcCnt + i).getImm();
-		res <<= width;
-		APInt v = MI.getOperand(1 + i).getCImm()->getValue().zext(totalWidth);
+	size_t offset = 0;
+	for (const auto& [V, W] : hwtHls::MERGE_VALUES_iter_valuesWidthPairs(MI)) {
+		APInt v = V.getCImm()->getValue().zext(totalWidth) << offset;
 		res |= v;
+		offset += W.getImm();
 	}
 	replaceInstWithConstant(MI, res);
 	return true;
@@ -181,7 +176,7 @@ bool HwtFpgaCombinerHelper::collectConcatMembers(llvm::MachineOperand &MIOp,
 	switch (MI.getOpcode()) {
 	case HwtFpga::HWTFPGA_MERGE_VALUES: {
 		//  $dst $src{N}, $width{N} (lowest bits first)
-		uint64_t srcCnt = (MI.getNumOperands() - 1) / 2;
+		uint64_t srcCnt = (MI.getNumExplicitOperands() - 1) / 2;
 		bool didReduce = false;
 		for (unsigned i = 0; i < srcCnt; ++i) {
 			// [todo] check if thisMemberOffset is computed correctly for more than 2 operands

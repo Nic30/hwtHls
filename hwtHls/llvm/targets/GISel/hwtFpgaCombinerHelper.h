@@ -59,10 +59,7 @@ public:
 			uint64_t mainWidth, uint64_t &currentOffset, uint64_t offsetOfIRes,
 			uint64_t widthOfIRes);
 
-	//bool matchMuxWithRedundantCases(llvm::MachineInstr &MI, llvm::SmallVector<unsigned> & uselessConditions);
-	//bool rewriteMuxWithRedundantCases(llvm::MachineInstr &MI, const llvm::SmallVector<unsigned> & uselessConditions);
-
-	bool hashSomeConstConditions(llvm::MachineInstr &MI);
+	bool hasSomeConstConditions(llvm::MachineInstr &MI);
 	bool rewriteConstCondMux(llvm::MachineInstr &MI);
 
 	bool matchMuxForConstPropagation(llvm::MachineInstr &MI,
@@ -113,6 +110,8 @@ public:
 	bool matchTrivialInstrDuplication(llvm::MachineInstr &MI);
 	bool rewriteTrivialInstrDuplication(llvm::MachineInstr &MI);
 
+	bool matchAndOrSequenceReduce(llvm::MachineInstr &MI, bool& removeRightOp);
+	bool rewriteAndOrSequenceReduce(llvm::MachineInstr &MI, bool removeRightOp);
 };
 
 }
