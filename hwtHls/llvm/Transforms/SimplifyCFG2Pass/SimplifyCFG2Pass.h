@@ -16,7 +16,9 @@ public:
 	SimplifyCFG2Pass();
 	/// Construct a pass with optional optimizations.
 	SimplifyCFG2Pass(const llvm::SimplifyCFGOptions &PassOptions);
-
+	static llvm::StringRef name() {
+		return "SimplifyCFG2Pass";
+	}
 	llvm::PreservedAnalyses run(llvm::Function &F,
 			llvm::FunctionAnalysisManager &AM);
 

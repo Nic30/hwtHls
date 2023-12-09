@@ -3,30 +3,13 @@
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/GlobalVariable.h>
 
+#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFGUtils.h>
+
+
 #define DEBUG_TYPE "simplifycfg2"
 
 using namespace llvm;
 namespace hwtHls {
-
-static Value* cteateGEPtoGlobalData(IRBuilder<> &builder, BasicBlock &BB, Value *switch_tableidx,
-		const SmallVector<Constant*> &romData) {
-	auto *ArrayTy = ArrayType::get(romData[0]->getType(), romData.size());
-	auto *newCRom = ConstantArray::get(ArrayTy, romData);
-	auto *newArray = new GlobalVariable(*BB.getModule(), ArrayTy, /*isConstant=*/true, GlobalVariable::PrivateLinkage,
-			newCRom, "switch.table.normalized");
-	newArray->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
-	// Set the alignment to that of an array items. We will be only loading one
-	// value out of it.
-	newArray->setAlignment(Align(1));
-	// zext to assert the value is non negative
-	auto *indexZext = builder.CreateZExt(switch_tableidx,
-			Type::getIntNTy(BB.getContext(), switch_tableidx->getType()->getIntegerBitWidth() + 1),
-			"switch.tableidx.zext");
-
-	Value *GEPIndices[] = { builder.getInt32(0), indexZext };
-	Value *newGep = builder.CreateInBoundsGEP(newArray->getValueType(), newArray, GEPIndices, "switch.gep");
-	return newGep;
-}
 
 bool SimplifyCFG2Pass_normalizeLookupTableIndex(llvm::BasicBlock &BB) {
 	// transform value stored in switch_ptr in order to use switch_tableidx_base as is
@@ -51,7 +34,6 @@ bool SimplifyCFG2Pass_normalizeLookupTableIndex(llvm::BasicBlock &BB) {
 			if (!match(switch_ptr, m_Constant(switch_ptrConst))) {
 				continue;
 			}
-			switch_gep->dump();
 			if (switch_gep->getNumIndices() != 2) {
 				continue; // not implemented
 			}
@@ -85,7 +67,8 @@ bool SimplifyCFG2Pass_normalizeLookupTableIndex(llvm::BasicBlock &BB) {
 								break;
 						}
 						IRBuilder<> builder(&I);
-						Value *newGep = cteateGEPtoGlobalData(builder, BB, switch_tableidx, romData);
+						Value *newGep = CreateGlobalDataWithGEP(builder, *BB.getModule(), switch_tableidx, romData,
+								"switch.table.normalized", "switch.tableidx.zext", "switch.index");
 						I.replaceAllUsesWith(newGep);
 					}
 				}
@@ -127,7 +110,8 @@ bool SimplifyCFG2Pass_normalizeLookupTableIndex(llvm::BasicBlock &BB) {
 					assert(item != nullptr);
 				}
 				IRBuilder<> builder(&I);
-				Value *newGep = cteateGEPtoGlobalData(builder, BB, switch_tableidx, romData);
+				Value *newGep = CreateGlobalDataWithGEP(builder, *BB.getModule(), switch_tableidx, romData,
+						"switch.table.normalized", "switch.tableidx.zext", "switch.index");
 				Value * newLoad = builder.CreateLoad(elmT, newGep, true, "switch.table.val");
 				I.replaceAllUsesWith(newLoad);
 

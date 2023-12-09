@@ -5,5 +5,11 @@
 #include <llvm/IR/IRBuilder.h>
 
 namespace hwtHls {
-bool trySwitchToSelect(llvm::SwitchInst *SI, llvm::IRBuilder<> &Builder, llvm::DomTreeUpdater & DTU);
+
+/*
+ * Analyze SwitchInst and if it is used only to select value trough PHIs rewrite it to bunch of SelectInst
+ * or as a load from GlobalValue ROM if all PHI operands are constants.
+ * */
+bool trySwitchToSelectOrRomLoad(llvm::SwitchInst *SI, llvm::IRBuilder<> &Builder,
+		llvm::DomTreeUpdater &DTU, size_t MaxRomAddrWidth = 16);
 }

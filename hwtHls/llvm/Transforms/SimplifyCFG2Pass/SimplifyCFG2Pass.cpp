@@ -18,13 +18,15 @@
 #include <llvm/Analysis/AssumptionCache.h>
 #include <llvm/Analysis/DomTreeUpdater.h>
 
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_normalizeLookupTableIndex.h>
 #include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_aggresiveStoreSink.h>
+#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_normalizeLookupTableIndex.h>
 #include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_rewriteMaskPatternsFromCFGToData.h>
 #include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_SwitchSuccessorHoistCode.h>
 #include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_SwitchToSelect.h>
+#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_SwitchLikeCmpToSwitch.h>
 
 #include <map>
+
 #define DEBUG_TYPE "simplifycfg2"
 
 using namespace llvm;
@@ -122,6 +124,7 @@ class SimplifyCFGOpt2 {
 	bool PerformValueComparisonIntoPredecessorFolding(Instruction *TI,
 			Value *&CV, Instruction *PTI, IRBuilder<> &Builder);
 	bool simplifySwitch(SwitchInst *SI, IRBuilder<> &Builder);
+	bool simplifyBr(BranchInst *BI, IRBuilder<> &Builder);
 
 public:
 	SimplifyCFGOpt2(DomTreeUpdater *DTU, const DataLayout &DL,
@@ -802,10 +805,10 @@ bool SimplifyCFGOpt2::simplifySwitch(SwitchInst *SI, IRBuilder<> &Builder) {
 				break;
 			}
 		}
-		if (allSucPredecessorsAreDominatedByBB)
-			continue;
-		everySucDominated = false;
-		break;
+		if (!allSucPredecessorsAreDominatedByBB) {
+			everySucDominated = false;
+			break;
+		}
 	}
 	if (Options.HoistCommonInsts) {
 		if (everySucDominated
@@ -814,12 +817,21 @@ bool SimplifyCFGOpt2::simplifySwitch(SwitchInst *SI, IRBuilder<> &Builder) {
 			return requestResimplify();
 		}
 	}
-	if (everySucDominated && trySwitchToSelect(SI, Builder, *DTU))
+	if (everySucDominated && trySwitchToSelectOrRomLoad(SI, Builder, *DTU))
 		return requestResimplify();
 
 	return false;
 }
-
+bool SimplifyCFGOpt2::simplifyBr(BranchInst *BI, IRBuilder<> &Builder) {
+	if (Options.HoistCommonInsts) {
+		if (DTU->hasDomTree()
+				&& tryHoistFromCheapBlocksWithcSwitchLikeCmpBr(BI, Builder,
+						DTU)) {
+			return requestResimplify();
+		}
+	}
+	return false;
+}
 bool SimplifyCFGOpt2::simplifyOnce(BasicBlock *BB) {
 	bool Changed = false;
 
@@ -861,6 +873,9 @@ bool SimplifyCFGOpt2::simplifyOnce(BasicBlock *BB) {
 	case Instruction::Switch:
 		Changed |= simplifySwitch(cast<SwitchInst>(Terminator), Builder);
 		break;
+	case Instruction::Br:
+		Changed |= simplifyBr(cast<BranchInst>(Terminator), Builder);
+		break;
 	}
 	return Changed;
 }
@@ -872,10 +887,7 @@ llvm::PreservedAnalyses SimplifyCFG2Pass::run(llvm::Function &F,
 	Options.AC = &AM.getResult<AssumptionAnalysis>(F);
 	DominatorTree *DT = nullptr;
 	RequireAndPreserveDomTree = true;
-	if (RequireAndPreserveDomTree) {
-		DT = &AM.getResult<DominatorTreeAnalysis>(F);
-	}
-	DomTreeUpdater DTU(DT, DomTreeUpdater::UpdateStrategy::Lazy);
+
 	auto &TTI = AM.getResult<TargetIRAnalysis>(F);
 	auto &DL = F.getParent()->getDataLayout();
 	llvm::StringMap<llvm::cl::Option*> &Map = llvm::cl::getRegisteredOptions();
@@ -887,8 +899,6 @@ llvm::PreservedAnalyses SimplifyCFG2Pass::run(llvm::Function &F,
 	llvm::PreservedAnalyses FirstPA;
 
 	bool changed = false;
-	SimplifyCFGOpt2 opt(&DTU, DL, TTI, Options, LlvmHoistCommonSkipLimit);
-
 	for (;;) {
 		auto PA = SimplifyCFGPass::run(F, AM);
 		if (itCntr == 0)
@@ -900,6 +910,11 @@ llvm::PreservedAnalyses SimplifyCFG2Pass::run(llvm::Function &F,
 		} else {
 			changed = true;
 		}
+		if (RequireAndPreserveDomTree) {
+			DT = &AM.getResult<DominatorTreeAnalysis>(F);
+		}
+		DomTreeUpdater DTU(DT, DomTreeUpdater::UpdateStrategy::Lazy);
+		SimplifyCFGOpt2 opt(&DTU, DL, TTI, Options, LlvmHoistCommonSkipLimit);
 		bool _changed = false;
 		for (Function::iterator BBIt = F.begin(); BBIt != F.end();) {
 			BasicBlock &BB = *BBIt++;
@@ -915,11 +930,13 @@ llvm::PreservedAnalyses SimplifyCFG2Pass::run(llvm::Function &F,
 			while (BBIt != F.end() && DTU.isBBPendingDeletion(&*BBIt))
 				++BBIt;
 			DTU.flush(); // (required because otherwise blocks are removed before update is applied)
+			if (DTU.isBBPendingDeletion(&BB))
+				continue;
 			_changed |= SimplifyCFG2Pass_normalizeLookupTableIndex(BB);
 			_changed |= SimplifyCFG2Pass_rewriteMaskPatternsFromCFGToData(DTU,
 					BB);
-
 		}
+		changed |= _changed;
 		_changed = false;
 		for (Function::iterator BBIt = F.begin(); BBIt != F.end();) {
 			//auto _PA = PreservedAnalyses::all();
@@ -934,6 +951,8 @@ llvm::PreservedAnalyses SimplifyCFG2Pass::run(llvm::Function &F,
 				BBIt++;
 			}
 		}
+
+		DTU.flush();
 		changed |= _changed;
 		if (!_changed)
 			break;
