@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 from io import StringIO
 import os
 
@@ -17,7 +20,7 @@ from hwtHls.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
 from hwtHls.ssa.translation.toLlvm import SsaPassToLlvm
 from tests.baseSsaTest import BaseSsaTC, TestFinishedSuccessfuly
 from tests.bitOpt.countBits import CountLeadingZeros
-#from tests.bitOpt.slicesMergePass_test import generateAndAppendHwtHlsFunctionDeclarations
+#from tests.llvmIr.slicesMergePass_test import generateAndAppendHwtHlsFunctionDeclarations
 
 
 class SliceBreakSlicedVar0(Unit):
@@ -195,6 +198,7 @@ class SlicesToIndependentVariablesPass_TC(BaseSsaTC):
     #        raise AssertionError(Err.str("test", True, True))
     #    else:
     #        fns = tuple(M)
+    #        llvm.module = M
     #        llvm.main = fns[0]
     #        name = llvm.main.getName().str()
     #
@@ -243,7 +247,7 @@ class SlicesToIndependentVariablesPass_TC(BaseSsaTC):
     def test_Slice2_ll(self):
         self._test_ll(Slice2)
 
-    def test(self):
+    def test_CountLeadingZeros(self):
         u = CountLeadingZeros()
         u.DATA_WIDTH = 4
         self._test_ll(u)
@@ -256,7 +260,7 @@ if __name__ == "__main__":
 
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([SlicesToIndependentVariablesPass_TC('test_SliceBreak3_ll')])
+    # suite = unittest.TestSuite([SlicesToIndependentVariablesPass_TC('test_CountLeadingZeros')])
     suite = testLoader.loadTestsFromTestCase(SlicesToIndependentVariablesPass_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
