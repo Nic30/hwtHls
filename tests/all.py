@@ -7,17 +7,10 @@ from unittest import TestLoader, TextTestRunner, TestSuite
 from tests.adt.collections.hashTable_test import HashTable_TC
 from tests.bitOpt.abc_test import AbcTC
 from tests.bitOpt.andShiftInLoop_test import AndShiftInLoop_TC
-from tests.bitOpt.bitWidthReductionPass_Cmp_test import BitWidthReductionPass_Cmp_example_TC
-from tests.bitOpt.bitWidthReductionPass_PHI_test import BitwidthReductionPass_PHI_TC
-from tests.bitOpt.bitWidthReduction_test import BitwidthReductionPass_TC
 from tests.bitOpt.cmpReduction_test import CmpReduction_TC
 from tests.bitOpt.countBits_test import CountBitsTC
 from tests.bitOpt.divNonRestoring_test import DivNonRestoring_TC
-from tests.bitOpt.earlyIfConverter_test import EarlyIfConverter_TC
 from tests.bitOpt.popcount_test import PopcountTC
-from tests.bitOpt.rewriteExtractOnMergeValues_test import RewriteExtractOnMergeValuesPass_TC
-from tests.bitOpt.slicesMergePass_test import SlicesMergePass_TC
-from tests.bitOpt.slicesToIndependentVariablesPass_test import SlicesToIndependentVariablesPass_TC
 from tests.floatingpoint.cmp_test import IEEE754FpCmp_TC
 from tests.floatingpoint.fromInt_test import IEEE754FpFromInt_TC
 from tests.floatingpoint.toInt_test import IEEE754FpToInt_TC
@@ -57,6 +50,7 @@ from tests.hlsNetlist.wire_test import HlsNetlistWireTC
 from tests.io.amba.axi4Lite.axi4LiteCopy_test import Axi4LiteCopy_TC
 from tests.io.amba.axi4Lite.axi4LiteRead_test import Axi4LiteRead_TC
 from tests.io.amba.axi4Lite.axi4LiteWrite_test import Axi4LiteWrite_TC
+from tests.io.amba.axiStream.axisCopyByteByByte_test import AxiSPacketCopyByteByByteTC
 from tests.io.amba.axiStream.axisPacketCntr_test import AxiSPacketCntrTC
 from tests.io.amba.axiStream.axisParseEth_test import AxiSParseEthTC
 from tests.io.amba.axiStream.axisParseIf_test import AxiSParseIfTC
@@ -70,11 +64,18 @@ from tests.io.ioFsm2_test import IoFsm2_TC
 from tests.io.ioFsm_test import IoFsm_TC
 from tests.io.readAtleastOne_test import ReadAtleastOne_TC
 from tests.io.readSizeFromRamAndSendSequence_test import ReadSizeFromRamAndSendSequence_TC
+from tests.llvmIr.bitWidthReductionPass_Cmp_test import BitWidthReductionPass_Cmp_example_TC
+from tests.llvmIr.bitWidthReductionPass_PHI_test import BitwidthReductionPass_PHI_TC
+from tests.llvmIr.bitWidthReduction_test import BitwidthReductionPass_TC
+from tests.llvmIr.rewriteExtractOnMergeValues_test import RewriteExtractOnMergeValuesPass_TC
+from tests.llvmIr.slicesMergePass_test import SlicesMergePass_TC
+from tests.llvmIr.slicesToIndependentVariablesPass_test import SlicesToIndependentVariablesPass_TC
+from tests.llvmMir.earlyIfConverter_test import EarlyIfConverter_TC
+from tests.llvmMir.vregIfConverter_test import VRegIfConverter_TC
 from tests.syntehesis_checks import HlsSynthesisChecksTC
 from tests.utils.alapAsapDiffExample import AlapAsapDiffExample_TC
 from tests.utils.bitwiseOpsScheduling_test import BitwiseOpsScheduling_TC
 from tests.utils.phiConstructions_test import PhiConstruction_TC
-from tests.io.amba.axiStream.axisCopyByteByByte_test import AxiSPacketCopyByteByByteTC
 
 
 #from tests.hlsNetlist.injectVldMaskToSkipWhenConditions_test import HlsNetlistPassInjectVldMaskToSkipWhenConditionsTC
@@ -110,6 +111,7 @@ suite = testSuiteFromTCs(
     BitWidthReductionPass_Cmp_example_TC,
     CmpReduction_TC,
     EarlyIfConverter_TC,
+    VRegIfConverter_TC,
     IEEE754FpCmp_TC,
     IEEE754FpFromInt_TC,
     IEEE754FpToInt_TC,
