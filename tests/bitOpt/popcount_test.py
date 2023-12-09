@@ -27,6 +27,18 @@ class PopcountTC(SimTestCase):
 
 
 if __name__ == '__main__':
+    from hwt.synthesizer.utils import to_rtl_str
+    from hwtHls.platform.virtual import VirtualHlsPlatform
+    from hwtHls.platform.platform import HlsDebugBundle
+    import sys
+
+    sys.setrecursionlimit(int(1e6))
+    u = Popcount()
+    u.DATA_WIDTH = 8
+    u.BITS_TO_LOOKUP_IN_ROM = 4
+
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    
     import sys
     import unittest
     testLoader = unittest.TestLoader()
