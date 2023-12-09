@@ -1,5 +1,11 @@
 #include <hwtHls/llvm/Transforms/utils/writeCFGToDotFile.h>
 #include <limits>
+#include <iostream>
+#include <fstream>
+#include <llvm/Analysis/CFGPrinter.h>
+#include <llvm/Support/GraphWriter.h>
+
+
 using namespace llvm;
 namespace hwtHls {
 
