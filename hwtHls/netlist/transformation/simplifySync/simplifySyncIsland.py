@@ -99,13 +99,13 @@ def netlistReduceExplicitSyncDissolve(
         # for each input check if all its inputs are hoistable
         # the goal is to remove as much of HlsNetNodeExplicitSync instances as possible
         # care must be taken for input/outut which have multiple dependencies
-        # because paralell paths do specify a split or join of synchronization graph
+        # because parallel paths do specify a split or join of synchronization graph
 
         # If the HlsNetNodeExplicitSync is removed its dependencies can not be simply removed
         # instead each input must be connected to each output of the HlsNetNodeExplicitSync instance.
 
         # There is also a specific case of where the flag can be hoisted to some input but no
-        # to others this leads to a case where HlsNetNodeExplicitSync isntance is disconneced
+        # to others this leads to a case where HlsNetNodeExplicitSync instance is disconnected
         # from input/output but must remain there for other IO.
 
         # This leads to a need to modify the HlsNetNodeIoCore node. Depending on combination of removing
