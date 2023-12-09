@@ -11,7 +11,7 @@ public:
 	unsigned dstBeginBitI; // first bit in dst from where the value is set
 
 	unsigned srcBeginBitI;
-	unsigned srcWidth; // number of bits selected to this object, can be <= src->getType()->getBitWidth()
+	unsigned width; // number of bits selected to this object, can be <= src->getType()->getBitWidth()
 	const llvm::Value *src; // a value which is set to destination bit range
 
 	KnownBitRangeInfo(unsigned bitwidth);

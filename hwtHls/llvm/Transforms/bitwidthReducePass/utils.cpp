@@ -7,25 +7,26 @@ using namespace llvm;
 namespace hwtHls {
 
 KnownBitRangeInfo::KnownBitRangeInfo(unsigned bitwidth) :
-		dstBeginBitI(0), srcBeginBitI(0), srcWidth(bitwidth), src(nullptr) {
+		dstBeginBitI(0), srcBeginBitI(0), width(bitwidth), src(nullptr) {
 }
 KnownBitRangeInfo::KnownBitRangeInfo(const ConstantInt *CI) :
-		dstBeginBitI(0), srcBeginBitI(0), srcWidth(CI->getBitWidth()), src(CI) {
+		dstBeginBitI(0), srcBeginBitI(0), width(CI->getBitWidth()), src(CI) {
 }
 KnownBitRangeInfo::KnownBitRangeInfo(const Value *V) :
-		dstBeginBitI(0), srcBeginBitI(0), srcWidth(
+		dstBeginBitI(0), srcBeginBitI(0), width(
 				V->getType()->isIntegerTy() ?
 						V->getType()->getIntegerBitWidth() : 1), src(V) {
 }
 
 unsigned KnownBitRangeInfo::dstEndBitI() const {
-	return dstBeginBitI + srcWidth;
+	return dstBeginBitI + width;
 }
 
 KnownBitRangeInfo KnownBitRangeInfo::slice(IRBuilder<> *Builder,
 		unsigned offset, unsigned width) const {
-	assert(offset < 0xffff && width < 0xffff);
+	assert(offset < 0xffffff && width < 0xffffff && "Sanity check");
 	assert(width > 0);
+	assert(srcBeginBitI + offset + width <= src->getType()->getIntegerBitWidth() && "Bit range does not overflow");
 	KnownBitRangeInfo res(width);
 	if (auto *CI = dyn_cast<const ConstantInt>(src)) {
 		auto v = CI->getValue();
@@ -42,7 +43,7 @@ KnownBitRangeInfo KnownBitRangeInfo::slice(IRBuilder<> *Builder,
 }
 
 void KnownBitRangeInfo::print(raw_ostream &O, bool IsForDebug) const {
-	O << "[" << (dstBeginBitI + srcWidth) << ":" << dstBeginBitI << "]=(";
+	O << "[" << (dstBeginBitI + width) << ":" << dstBeginBitI << "]=(";
 	if (dyn_cast<ConstantInt>(src)) {
 		O << *src;
 	} else {
@@ -52,15 +53,15 @@ void KnownBitRangeInfo::print(raw_ostream &O, bool IsForDebug) const {
 			O << "%" << src;
 		}
 	}
-	O << ")[" << (srcBeginBitI + srcWidth) << ":" << srcBeginBitI << "]";
+	O << ")[" << (srcBeginBitI + width) << ":" << srcBeginBitI << "]";
 }
 bool KnownBitRangeInfo::operator!=(const KnownBitRangeInfo &rhs) const {
 	return (dstBeginBitI != rhs.dstBeginBitI || srcBeginBitI != rhs.srcBeginBitI
-			|| srcWidth != rhs.srcWidth || src != rhs.src);
+			|| width != rhs.width || src != rhs.src);
 }
 bool KnownBitRangeInfo::operator==(const KnownBitRangeInfo &rhs) const {
 	return (dstBeginBitI == rhs.dstBeginBitI && srcBeginBitI == rhs.srcBeginBitI
-			&& srcWidth == rhs.srcWidth && src == rhs.src);
+			&& width == rhs.width && src == rhs.src);
 }
 
 void RangeSequenceIterator::appendNoCheck(
@@ -72,7 +73,7 @@ void RangeSequenceIterator::appendNoCheck(
 		previouslyConsummedBits = vEnd - begin;
 		begin = vEnd;
 	}
-	unsigned end = v->srcWidth - previouslyConsummedBits;
+	unsigned end = v->width - previouslyConsummedBits;
 	const KnownBitRangeInfo *v0 = nullptr;
 	const KnownBitRangeInfo *v1 = nullptr;
 	if (isV1) {
@@ -213,11 +214,13 @@ llvm::APInt VarBitConstraint::getTrullyComputedBitMask(
 				selfIsCastOrSliceOrConcat = true;
 			}
 		}
+	} else {
+		selfIsCastOrSliceOrConcat = isa<CastInst>(selfValue);
 	}
 	APInt m(useMask.getBitWidth(), 0);
 	for (const KnownBitRangeInfo &r : replacements) {
 		if (!isa<ConstantData>(r.src) && (selfIsCastOrSliceOrConcat || r.src == selfValue)) {
-			m.setBits(r.dstBeginBitI, r.dstBeginBitI + r.srcWidth);
+			m.setBits(r.dstBeginBitI, r.dstBeginBitI + r.width);
 		}
 	}
 	return m;
@@ -305,7 +308,7 @@ void VarBitConstraint::srcUnionInplace(const VarBitConstraint &other,
 							srcUnionInplaceAddFillUp(newList, parent,
 									kbri.dstBeginBitI);
 							srcUnionPushBackWithMerge(newList, kbri, 0,
-									kbri.srcWidth);
+									kbri.width);
 							eqSeqStart = -1;
 							//neSeqStart = i;
 							continue;
@@ -340,7 +343,7 @@ void VarBitConstraint::srcUnionInplaceAddFillUp(
 		KnownBitRangeInfo kbri0(end - lastEnd);
 		kbri0.src = parent;
 		kbri0.srcBeginBitI = kbri0.dstBeginBitI = lastEnd;
-		srcUnionPushBackWithMerge(newList, kbri0, 0, kbri0.srcWidth);
+		srcUnionPushBackWithMerge(newList, kbri0, 0, kbri0.width);
 	}
 }
 
@@ -348,14 +351,15 @@ void VarBitConstraint::srcUnionPushBackWithMerge(
 		std::vector<KnownBitRangeInfo> &newList, KnownBitRangeInfo item,
 		size_t srcOffset, size_t srcWidth) {
 	assert(srcWidth > 0);
-	assert(item.srcWidth >= srcWidth);
+	assert(item.width >= srcWidth);
+	assert(item.srcBeginBitI < item.src->getType()->getIntegerBitWidth() && "bit range does not overflow");
 	assert(
 			item.srcBeginBitI + srcOffset + srcWidth
-					<= item.src->getType()->getIntegerBitWidth());
+					<= item.src->getType()->getIntegerBitWidth() && "bit range does not overflow");
 	// select [srcOffset:srcOffset+srcWidth] bits from input item
 	item.srcBeginBitI += srcOffset;
 	item.dstBeginBitI += srcOffset;
-	item.srcWidth = srcWidth;
+	item.width = srcWidth;
 	if (!newList.size()) {
 		assert(item.dstBeginBitI == 0);
 		newList.push_back(item);
@@ -365,31 +369,31 @@ void VarBitConstraint::srcUnionPushBackWithMerge(
 	if (auto *itemAsConst = dyn_cast<ConstantInt>(item.src)) {
 		auto *lastAsConst = dyn_cast<ConstantInt>(last.src);
 		if (lastAsConst) {
-			assert(last.dstBeginBitI + last.srcWidth == item.dstBeginBitI);
-			APInt v0(item.srcWidth + last.srcWidth, 0);
+			assert(last.dstBeginBitI + last.width == item.dstBeginBitI);
+			APInt v0(item.width + last.width, 0);
 			APInt i0 = lastAsConst->getValue().lshr(last.srcBeginBitI).trunc(
-					last.srcWidth).zext(v0.getBitWidth());
+					last.width).zext(v0.getBitWidth());
 			APInt i1 = itemAsConst->getValue().lshr(item.srcBeginBitI).trunc(
-					item.srcWidth).zext(v0.getBitWidth());
+					item.width).zext(v0.getBitWidth());
 			assert(last.dstBeginBitI < item.dstBeginBitI);
-			v0 = i0 | i1.shl(last.srcWidth);
+			v0 = i0 | i1.shl(last.width);
 			last.src = ConstantInt::get(last.src->getContext(), v0);
-			last.srcWidth = v0.getBitWidth();
+			last.width = v0.getBitWidth();
 			last.srcBeginBitI = 0;
 			return; // constants merged
 		}
 	} else if (isa<UndefValue>(item.src) && isa<UndefValue>(last.src)) {
-		last.srcWidth += item.srcWidth;
+		last.width += item.width;
 		last.src = UndefValue::get(
-				IntegerType::get(last.src->getContext(), last.srcWidth));
+				IntegerType::get(last.src->getContext(), last.width));
 		last.srcBeginBitI = 0;
 		return; // undefs merged
 	}
 	if (last.src == item.src
-			&& last.srcBeginBitI + last.srcWidth == item.srcBeginBitI) {
+			&& last.srcBeginBitI + last.width == item.srcBeginBitI) {
 		// if this item is just continuation of the previous slice
-		assert(last.dstBeginBitI + last.srcWidth == item.dstBeginBitI);
-		last.srcWidth += item.srcWidth;
+		assert(last.dstBeginBitI + last.width == item.dstBeginBitI);
+		last.width += item.width;
 		return; // merged into last
 	}
 
@@ -420,7 +424,7 @@ VarBitConstraint VarBitConstraint::slice(IRBuilder<> *Builder, unsigned offset,
 					// must cut this item at the begin
 					auto o = offset - i.dstBeginBitI;
 					res.replacements.push_back(
-							i.slice(Builder, o, i.srcWidth - o));
+							i.slice(Builder, o, i.width - o));
 				}
 			} else if (i.dstEndBitI() > end) {
 				// must cut this item at the end
@@ -454,7 +458,7 @@ bool VarBitConstraint::consystencyCheck() const {
 	for (const KnownBitRangeInfo &r : replacements) {
 		if (r.dstBeginBitI != off)
 			return false;
-		off += r.srcWidth;
+		off += r.width;
 	}
 	return true;
 }

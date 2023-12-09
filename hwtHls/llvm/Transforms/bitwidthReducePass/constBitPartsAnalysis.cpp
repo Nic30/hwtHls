@@ -96,7 +96,7 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitValue(const Value *V) {
 		return *cur->second.get();
 	}
 	if (analysisHandle.has_value()) {
-		if (auto* VasI = dyn_cast<Instruction>(V)) {
+		if (auto *VasI = dyn_cast<Instruction>(V)) {
 			if (analysisHandle.value()(*VasI)) {
 				return visitAsAllInputBitsUsedAllOutputBitsKnown(V);
 			}
@@ -195,8 +195,8 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitSExt(const CastInst *I) {
 		} else {
 			for (unsigned i = 0; i < v.getBitWidth(); i++) {
 				KnownBitRangeInfo r(msbs.src);
-				r.srcWidth = 1;
-				r.srcBeginBitI = msbs.srcBeginBitI + msbs.srcWidth - 1; // orig msb
+				r.width = 1;
+				r.srcBeginBitI = msbs.srcBeginBitI + msbs.width - 1; // orig msb
 				r.dstBeginBitI = origWidth + i;
 				cur.replacements.push_back(r);
 			}
@@ -225,7 +225,7 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitCallInst(
 		for (auto &i : newParts) {
 			i.dstBeginBitI = dstOff;
 			cur.replacements.push_back(i);
-			dstOff += i.srcWidth;
+			dstOff += i.width;
 		}
 #ifndef NDEBUG
 		if (!cur.consystencyCheck()) {
@@ -274,13 +274,13 @@ void ConstBitPartsAnalysisContext::visitBinaryOperatorReduceAnd(
 			KnownBitRangeInfo i = v.slice(&b, vSrcOffset, w);
 			i.dstBeginBitI = dstOffset;
 			VarBitConstraint::srcUnionPushBackWithMerge(newParts, i, 0,
-					i.srcWidth);
+					i.width);
 		} else {
 			// 0 sequence found
 			KnownBitRangeInfo i = KnownBitRangeInfo(b.getInt(APInt(w, 0)));
 			i.dstBeginBitI = dstOffset;
 			VarBitConstraint::srcUnionPushBackWithMerge(newParts, i, 0,
-					i.srcWidth);
+					i.width);
 		}
 		dstOffset += w;
 		cSrcOffset += w;
@@ -301,13 +301,13 @@ void ConstBitPartsAnalysisContext::visitBinaryOperatorReduceOr(
 					b.getInt(APInt::getAllOnesValue(w)));
 			i.dstBeginBitI = dstOffset;
 			VarBitConstraint::srcUnionPushBackWithMerge(newParts, i, 0,
-					i.srcWidth);
+					i.width);
 		} else {
 			// end of 0 sequence found
 			KnownBitRangeInfo i = v.slice(&b, vSrcOffset, w);
 			i.dstBeginBitI = dstOffset;
 			VarBitConstraint::srcUnionPushBackWithMerge(newParts, i, 0,
-					i.srcWidth);
+					i.width);
 		}
 
 		dstOffset += w;
@@ -349,33 +349,35 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitBinaryOperator(
 		assert(item.width > 0);
 		assert(item.begin == offset);
 
-		auto _v0 = dyn_cast<ConstantInt>(item.v0->src);
-		auto _v1 = dyn_cast<ConstantInt>(item.v1->src);
+		auto v0asC = dyn_cast<ConstantInt>(item.v0->src);
+		auto v1asC = dyn_cast<ConstantInt>(item.v1->src);
 		unsigned v0srcOffset = item.v0->srcBeginBitI
 				+ (item.begin - item.v0->dstBeginBitI);
 		unsigned v1srcOffset = item.v1->srcBeginBitI
 				+ (item.begin - item.v1->dstBeginBitI);
+
 		if (offset == 0)
 			assert(newParts.size() == 0);
 		else
 			assert(newParts.back().dstEndBitI() == offset);
+
 		if ((opCode == Instruction::BinaryOps::Or
 				|| opCode == Instruction::BinaryOps::And)
-				&& ((_v0 && _v1 && _v0 == _v1) || *item.v0 == *item.v1)) {
+				&& (*item.v0 == *item.v1)) {
 			// or, and: if segments equal
 			// nothing to reduce just add as is
 			KnownBitRangeInfo kbri(item.width);
 			kbri.src = item.v0->src;
 			kbri.srcBeginBitI = v0srcOffset;
 			kbri.dstBeginBitI = offset;
-			kbri.srcWidth = item.width;
+			kbri.width = item.width;
 			newParts.push_back(kbri);
-		} else if (_v0 && _v1) {
+		} else if (v0asC && v1asC) {
 			// if both are constants we just resolve them
 			assert(item.begin >= item.v0->dstBeginBitI);
 			assert(item.begin >= item.v1->dstBeginBitI);
-			auto v0 = _v0->getValue().extractBits(item.width, v0srcOffset);
-			auto v1 = _v1->getValue().extractBits(item.width, v1srcOffset);
+			auto v0 = v0asC->getValue().extractBits(item.width, v0srcOffset);
+			auto v1 = v1asC->getValue().extractBits(item.width, v1srcOffset);
 			IRBuilder<> b(const_cast<BinaryOperator*>(I));
 			if (opCode == Instruction::BinaryOps::Or) {
 				newParts.push_back(KnownBitRangeInfo(b.getInt(v0 | v1)));
@@ -387,41 +389,51 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitBinaryOperator(
 				assert(false && "Unknown operator, should never get there");
 			}
 			newParts.back().dstBeginBitI = offset;
-		} else if ((_v0 || _v1)
+		} else if ((v0asC || v1asC)
 				&& (opCode == Instruction::BinaryOps::Or
 						|| opCode == Instruction::BinaryOps::And)) {
+
 			// at least one is const, we can reduce
-			if (opCode == Instruction::BinaryOps::Or) {
-				// if other is known reduce set bits
-				if (_v0) {
-					visitBinaryOperatorReduceOr(newParts, I, item.width,
-							v1srcOffset, v0srcOffset, offset, _v0->getValue(),
-							*item.v1);
-				} else {
-					visitBinaryOperatorReduceOr(newParts, I, item.width,
-							v0srcOffset, v1srcOffset, offset, _v1->getValue(),
-							*item.v0);
-				}
-			} else if (opCode == Instruction::BinaryOps::And) {
-				// if other is known reduce cleared bits
-				if (_v0) {
-					visitBinaryOperatorReduceAnd(newParts, I, item.width,
-							v1srcOffset, v0srcOffset, offset, _v0->getValue(),
-							*item.v1);
-				} else {
-					visitBinaryOperatorReduceAnd(newParts, I, item.width,
-							v0srcOffset, v1srcOffset, offset, _v1->getValue(),
-							*item.v0);
-				}
+			// if other is known reduce set bits
+			// commutativity handling
+			void (ConstBitPartsAnalysisContext::*reduceFn)(
+					std::vector<KnownBitRangeInfo> &, const BinaryOperator *,
+					unsigned, unsigned, unsigned,
+					unsigned, const APInt &, const KnownBitRangeInfo &) = &ConstBitPartsAnalysisContext::visitBinaryOperatorReduceOr;
+			unsigned vSrcOffset;
+			unsigned cSrcOffset;
+			const APInt *c;
+			const KnownBitRangeInfo *v;
+			if (v0asC) {
+				assert(v1srcOffset >= item.v1->srcBeginBitI && "sanity check");
+				vSrcOffset = v1srcOffset - item.v1->srcBeginBitI;
+				cSrcOffset = v0srcOffset;
+				c = &v0asC->getValue();
+				v = item.v1;
 			} else {
-				assert(false && "Unknown operator, should never get there");
+				assert(v0srcOffset >= item.v0->srcBeginBitI && "sanity check");
+				vSrcOffset = v0srcOffset - item.v0->srcBeginBitI;
+				cSrcOffset = v1srcOffset;
+				c = &v1asC->getValue();
+				v = item.v0;
 			}
+			switch (opCode) {
+			case Instruction::BinaryOps::Or:
+				reduceFn = &ConstBitPartsAnalysisContext::visitBinaryOperatorReduceOr;
+				break;
+			case Instruction::BinaryOps::And:
+				reduceFn = &ConstBitPartsAnalysisContext::visitBinaryOperatorReduceAnd;
+				break;
+			default:
+				llvm_unreachable("Unknown operator, should never get there");
+			}
+			(*this.*reduceFn)(newParts, I, item.width, vSrcOffset, cSrcOffset, offset, *c, *v);
 		} else {
 			// nothing to reduce just add this instruction value as is
 			KnownBitRangeInfo kbri(item.width);
 			kbri.src = I;
 			kbri.srcBeginBitI = kbri.dstBeginBitI = offset;
-			kbri.srcWidth = item.width;
+			kbri.width = item.width;
 			newParts.push_back(kbri);
 		}
 		offset += item.width;
@@ -436,7 +448,7 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitBinaryOperator(
 	//	// and C low bits to be unused 0 in src
 	//	visitLShr(BO);
 	//} else if (op == Instruction::BinaryOps::AShr) {
-	//	// if right is constant C mark high C bits to be knonw to C low bits of src
+	//	// if right is constant C mark high C bits to be known to C low bits of src
 	//	//
 	//	visitAShr(BO);
 	//}

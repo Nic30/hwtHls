@@ -11,6 +11,15 @@ namespace hwtHls {
  */
 class ConstBitPartsAnalysisContext {
 protected:
+	/*
+	 * :param newParts: vector for newly generated value parts which is the result of this function
+	 * :param width: width of parent instruction result
+	 * :param dstOffset: offset in newly generated value
+	 * :param vSrcOffset: bit offset in non constant operand value
+	 * :param cSrcOffset: bit offset in constant operand value
+	 * :param c: constant operand value
+	 * :param v: non constant operand value
+	 * */
 	void visitBinaryOperatorReduceAnd(std::vector<KnownBitRangeInfo> &newParts,
 			const llvm::BinaryOperator *parentI, unsigned width,
 			unsigned vSrcOffset, unsigned cSrcOffset, unsigned dstOffset,

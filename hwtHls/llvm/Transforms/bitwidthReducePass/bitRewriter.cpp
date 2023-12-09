@@ -20,8 +20,8 @@ std::vector<KnownBitRangeInfo> iterUsedBitRanges(IRBuilder<> *Builder,
 				for (auto &i : vbc.slice(Builder, offset, width).replacements) {
 					i.dstBeginBitI = dstBeginOffset;
 					VarBitConstraint::srcUnionPushBackWithMerge(res, i, 0,
-							i.srcWidth);
-					dstBeginOffset += i.srcWidth;
+							i.width);
+					dstBeginOffset += i.width;
 				}
 			});
 
@@ -31,14 +31,14 @@ std::vector<KnownBitRangeInfo> iterUsedBitRanges(IRBuilder<> *Builder,
 llvm::Value* BitPartsRewriter::rewriteKnownBitRangeInfo(IRBuilder<> *Builder,
 		const KnownBitRangeInfo &kbri) {
 	auto *T = cast<IntegerType>(kbri.src->getType());
-	if (kbri.srcBeginBitI == 0 && kbri.srcWidth == (T ? T->getBitWidth() : 1)) {
+	if (kbri.srcBeginBitI == 0 && kbri.width == (T ? T->getBitWidth() : 1)) {
 		// rewrite to self without change
 		return const_cast<llvm::Value*>(kbri.src);
 	} else {
 		// must select specific bits
 		if (auto *c = dyn_cast<ConstantInt>(kbri.src)) {
 			return Builder->getInt(
-					c->getValue().shl(kbri.srcBeginBitI).trunc(kbri.srcWidth));
+					c->getValue().shl(kbri.srcBeginBitI).trunc(kbri.width));
 		} else {
 			llvm::Value *src = const_cast<Value*>(kbri.src);
 			unsigned offset = kbri.srcBeginBitI;
@@ -46,22 +46,21 @@ llvm::Value* BitPartsRewriter::rewriteKnownBitRangeInfo(IRBuilder<> *Builder,
 			if (auto *I = dyn_cast<llvm::Instruction>(src)) {
 				auto repl = replacementCache.find(I);
 				if (repl != replacementCache.end()) {
-					// resolve new offset because replacement may have some bits at beginning removed
-					auto constr = constraints.find(I);
-					assert(constr != constraints.end());
-					const auto &useMask = constr->second->useMask;
-					auto noOfZerosInUseMaskBeforeThisSlice = (~useMask.trunc(
-							offset)).countPopulation();
-					offset -= noOfZerosInUseMaskBeforeThisSlice;
-					src = repl->second;
+					// if I is truly replaced
+					if (repl->second != I) {
+						// resolve new offset because replacement may have some bits at beginning removed
+						auto constr = constraints.find(I);
+						assert(constr != constraints.end());
+						const auto &useMask = constr->second->useMask;
+						auto noOfZerosInUseMaskBeforeThisSlice = (~useMask.trunc(
+								offset)).countPopulation();
+						assert(offset >= noOfZerosInUseMaskBeforeThisSlice);
+						offset -= noOfZerosInUseMaskBeforeThisSlice;
+						src = repl->second;
+					}
 				}
 			}
-			if (kbri.srcWidth != src->getType()->getIntegerBitWidth()) {
-				return CreateBitRangeGetConst(Builder, src, offset,
-						kbri.srcWidth);
-			} else {
-				return src;
-			}
+			return CreateBitRangeGetConst(Builder, src, offset, kbri.width);
 		}
 	}
 }
@@ -105,7 +104,12 @@ llvm::Value* BitPartsRewriter::rewriteSelect(llvm::SelectInst &I,
 			iterUsedBitRanges(&b, vbc.useMask, *F));
 	Value *c = rewriteIfRequired(I.getCondition());
 	assert(c && "This can not be null because it has use (this one)");
-	Value *res = b.CreateSelect(c, tVal, fVal, I.getName());
+	Value *res;
+	if (c == I.getCondition() && tVal == I.getTrueValue() && fVal == I.getFalseValue()) {
+		res = &I;
+	} else {
+		res = b.CreateSelect(c, tVal, fVal, I.getName());
+	}
 	replacementCache[&I] = res;
 	return res;
 }
@@ -119,7 +123,12 @@ llvm::Value* BitPartsRewriter::rewriteBinaryOperatorBitwise(
 	auto &rhs = constraints[I.getOperand(1)];
 	Value *RHS = rewriteKnownBitRangeInfoVector(&b,
 			iterUsedBitRanges(&b, vbc.useMask, *rhs));
-	Value *res = b.CreateBinOp(I.getOpcode(), LHS, RHS, I.getName());
+	Value *res;
+	if (LHS == I.getOperand(0) && RHS == I.getOperand(1)) {
+		res = &I;
+	} else {
+		res = b.CreateBinOp(I.getOpcode(), LHS, RHS, I.getName());
+	}
 	replacementCache[&I] = res;
 	return res;
 }
@@ -133,7 +142,12 @@ llvm::Value* BitPartsRewriter::rewriteCmpInst(llvm::CmpInst &I,
 	auto &rVbc = constraints[I.getOperand(1)];
 	Value *RHS = rewriteKnownBitRangeInfoVector(&b,
 			iterUsedBitRanges(&b, vbc.operandUseMask[1], *rVbc));
-	Value *res = b.CreateCmp(I.getPredicate(), LHS, RHS, I.getName());
+	Value *res;
+	if (LHS == I.getOperand(0) && RHS == I.getOperand(1)) {
+		res = &I;
+	} else {
+		res = b.CreateCmp(I.getPredicate(), LHS, RHS, I.getName());
+	}
 	replacementCache[&I] = res;
 	return res;
 }
@@ -164,7 +178,7 @@ llvm::Value* BitPartsRewriter::expandConstBits(IRBuilder<> *b,
 	for (const KnownBitRangeInfo &kbri : vbc.replacements) {
 		if (kbri.src == origVal) {
 			// cut bits before and after this chunk
-			auto useMask = vbc.useMask.lshr(actualWidth).trunc(kbri.srcWidth);
+			auto useMask = vbc.useMask.lshr(actualWidth).trunc(kbri.width);
 			// value uses itself as a replacement = this was not replaced but may have some bits cut off
 			// :note: this is common for PHIs
 			assert(kbri.srcBeginBitI >= reducedBitCnt);
@@ -177,13 +191,12 @@ llvm::Value* BitPartsRewriter::expandConstBits(IRBuilder<> *b,
 							size_t offset, size_t chunkWidth) {
 						if (offset > lastUsedIndex) {
 							// add padding before this segment
-							assert(kbri.srcWidth > lastUsedIndex);
-							size_t unusedPrefixWidth = kbri.srcWidth
-									- lastUsedIndex - 1;
+							assert(kbri.width > lastUsedIndex);
+							size_t unusedPrefixWidth = offset - lastUsedIndex;
 							assert(unusedPrefixWidth > 0);
-							auto *v = UndefValue::get(
-									IntegerType::getIntNTy(b->getContext(),
-											unusedPrefixWidth));
+							auto *Ty = IntegerType::getIntNTy(b->getContext(),
+									unusedPrefixWidth);
+							auto *v = UndefValue::get(Ty);
 							concatMembers.push_back(v);
 							actualWidth += unusedPrefixWidth;
 							reducedBitCnt += unusedPrefixWidth;
@@ -197,9 +210,9 @@ llvm::Value* BitPartsRewriter::expandConstBits(IRBuilder<> *b,
 						actualWidth += chunkWidth;
 						lastUsedIndex = offset + chunkWidth;
 					});
-			if (lastUsedIndex != kbri.srcWidth) {
-				assert(kbri.srcWidth > lastUsedIndex);
-				size_t remainderWidth = kbri.srcWidth - lastUsedIndex;
+			if (lastUsedIndex != kbri.width) {
+				assert(kbri.width > lastUsedIndex);
+				size_t remainderWidth = kbri.width - lastUsedIndex;
 				auto *v = UndefValue::get(
 						IntegerType::getIntNTy(b->getContext(),
 								remainderWidth));
@@ -222,8 +235,6 @@ llvm::Value* BitPartsRewriter::expandConstBits(IRBuilder<> *b,
 
 void BitPartsRewriter::rewriteInstructionOperands(llvm::Instruction *I) {
 	unsigned opI = 0;
-	//PHINode *phi = dyn_cast<PHINode>(I);
-	//assert(!phi);
 	for (Value *_val : I->operands()) {
 		auto v = constraints.find(_val);
 		if (v != constraints.end()) {
@@ -245,7 +256,7 @@ void BitPartsRewriter::rewriteInstructionOperands(llvm::Instruction *I) {
 }
 
 // @note we can not remove instruction immediately when rewritten because
-// it may result in breaking of iterators and would require an update a everywhere where instr. iterator is used
+// it may result in breaking of iterators and would require an update everywhere where instr. iterator is used
 llvm::Value* BitPartsRewriter::rewriteIfRequired(llvm::Value *V) {
 	if (auto *I = dyn_cast<llvm::Instruction>(V)) {
 		//	if (!dyn_cast<PHINode>(&I))
@@ -259,7 +270,7 @@ llvm::Value* BitPartsRewriter::rewriteIfRequired(llvm::Value *V) {
 			if (vbc.useMask == 0) {
 				return nullptr; // no rewrite required because this will be entirely removed
 			}
-
+			// rewrite instructions which may have some bits reduced and are not bit concat/slice
 			if (auto *CI = dyn_cast<llvm::CmpInst>(I)) {
 				return rewriteCmpInst(*CI, vbc);
 			} else if (auto *PHI = dyn_cast<PHINode>(I)) {
@@ -276,16 +287,24 @@ llvm::Value* BitPartsRewriter::rewriteIfRequired(llvm::Value *V) {
 						|| o == Instruction::BinaryOps::Or
 						|| o == Instruction::BinaryOps::Xor)
 					return rewriteBinaryOperatorBitwise(*BO, vbc);
+			} else if (auto *C = dyn_cast<CallInst>(I)) {
+				if (IsBitConcat(C) || IsBitRangeGet(C)) {
+					// original will be used instead
+					replacementCache[I] = nullptr;
+					return nullptr;
+				}
+			} else if (isa<CastInst>(I)) {
+				// original will be used instead
+				replacementCache[I] = nullptr;
+				return nullptr;
+			} else {
+				assert(
+						vbc.replacements.size() == 1
+								&& vbc.replacements.back().src == I
+								&& "If this is not reducible instruction it should not be modified");
 			}
 		}
 		replacementCache[I] = I;
-		if (auto* C = dyn_cast<CallInst>(I)) {
-			if (IsBitConcat(C)) {
-				// modified concatenations are entirely removed later
-				// I->replaceAllUsesWith(UndefValue::get(I->getType()));
-				return V;
-			}
-		}
 		rewriteInstructionOperands(I);
 	}
 	return V;

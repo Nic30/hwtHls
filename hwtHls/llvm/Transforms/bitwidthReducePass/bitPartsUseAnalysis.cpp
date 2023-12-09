@@ -78,7 +78,7 @@ void BitPartsUseAnalysisContext::updateUseMask(const llvm::Value *V,
 				APInt replUseMask =
 						(newMask
 								& APInt::getBitsSet(newMask.getBitWidth(),
-										r.dstBeginBitI, r.dstBeginBitI + r.srcWidth)) // clear unrelated bits
+										r.dstBeginBitI, r.dstBeginBitI + r.width)) // clear unrelated bits
 						.zext(
 								std::max(newMask.getBitWidth(),
 										 r.src->getType()->getIntegerBitWidth())) // extend to size of src

@@ -13,12 +13,12 @@
 #include <hwtHls/llvm/Transforms/utils/bitSliceFlattening.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 
-#include <hwtHls/llvm/Transforms/utils/writeCFGToDotFile.h>
 
 using namespace llvm;
 
-//#define DBG_VERIFY_AFTER_MODIFICATION
-//#include <llvm/IR/Verifier.h>
+// #include <hwtHls/llvm/Transforms/utils/writeCFGToDotFile.h>
+// #include <llvm/IR/Verifier.h>
+// #define DBG_VERIFY_AFTER_MODIFICATION
 
 namespace hwtHls {
 
@@ -132,7 +132,6 @@ static bool runBitwidthReduction(Function &F, TargetLibraryInfo *TLI) {
 			++I;
 		}
 	}
-
 // 	writeCFGToDotFile(F, "after.BitwidthReducePass.dot", nullptr, nullptr);
 // #ifdef DBG_VERIFY_AFTER_MODIFICATION
 // 	{
