@@ -244,10 +244,10 @@ The case specification corresponds to a tuple: (data dependency, control depende
         * restarting (speculative serial execution): if the probability of modification of variable si small, it is efficient to perform the dependent code and cancel
             the execution if the variable did not end up in predicted state.
         * speculative parallel execution: If the domain of possible values is small enough or the control branches are already present and idle.
-        * All variants can be specified by a max degree of paralel speculative executions and max degree of speculation depth.
+        * All variants can be specified by a max degree of parallel speculative executions and max degree of speculation depth.
             * Forwarding is used naturally if possible
-            * otherwise stalling is used when speculation paralelism is 1 and depth is 0
-            * speculative serial execution if speculation paralelism is 1 and depth is >0, etc
+            * otherwise stalling is used when speculation parallelism is 1 and depth is 0
+            * speculative serial execution if speculation parallelism is 1 and depth is >0, etc
         * traditional methods
             * Statically scheduled FSM
             * Scoreboard: no register renaming, limited out‐of‐order
