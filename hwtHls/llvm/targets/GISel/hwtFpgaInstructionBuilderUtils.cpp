@@ -1,8 +1,10 @@
 #include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionBuilderUtils.h>
 
 #include <hwtHls/llvm/targets/hwtFpgaInstrInfo.h>
+#include <llvm/CodeGen/GlobalISel/MIPatternMatch.h>
 
 using namespace llvm;
+using namespace llvm::MIPatternMatch;
 
 namespace hwtHls {
 
@@ -193,16 +195,12 @@ void MuxReducibleValuesInfo::loadKnonwBitsFromValueOperand(
 						== HwtFpga::HWTFPGA_MERGE_VALUES) {
 			// recursively search for each MERGE_VALUES operand
 			auto &V1DefI = *V1Def->getParent();
-			auto widths = MERGE_VALUES_iter_widths(V1DefI);
-			auto values = MERGE_VALUES_iter_values(V1DefI);
-			auto wIt = widths.begin();
 			size_t curOffset = offset;
-			for (const auto &V1 : values) {
-				size_t w = wIt->getImm();
+			for (const auto &[V1, W] : MERGE_VALUES_iter_valuesWidthPairs(V1DefI)) {
+				size_t w = W.getImm();
 				loadKnonwBitsFromValueOperand(V1, curOffset, w, MRI,
 						recursionLimit - 1);
 				curOffset += w;
-				++wIt;
 			}
 		} else {
 			// mux operand value defined by some reg
@@ -261,18 +259,35 @@ void MuxReducibleValuesInfo::loadKnonwBitsFromValueOperand(
 	}
 }
 
+size_t MERGE_VALUES_getResultWidth(llvm::MachineInstr &MI) {
+	uint64_t totalWidth = 0;
+	for (auto &W : hwtHls::MERGE_VALUES_iter_widths(MI)) {
+		totalWidth += W.getImm();
+	}
+	return totalWidth;
+}
+
 llvm::iterator_range<llvm::MachineOperand*> MERGE_VALUES_iter_values(
 		llvm::MachineInstr &MI) {
-	size_t sizeOpBeginIndex = 1 + (MI.getNumOperands() - 1) / 2;
+	size_t sizeOpBeginIndex = 1 + (MI.getNumExplicitOperands() - 1) / 2;
 	return make_range(MI.operands_begin() + 1,
 			MI.operands_begin() + sizeOpBeginIndex);
 }
 
 llvm::iterator_range<llvm::MachineOperand*> MERGE_VALUES_iter_widths(
 		llvm::MachineInstr &MI) {
-	size_t sizeOpBeginIndex = 1 + (MI.getNumOperands() - 1) / 2;
+	size_t OpNum = MI.getNumExplicitOperands();
+	size_t sizeOpBeginIndex = 1 + (OpNum - 1) / 2;
 	return make_range<MachineOperand*>(MI.operands_begin() + sizeOpBeginIndex,
-			MI.operands_end());
+			MI.operands_begin() + OpNum);
+}
+
+detail::zippy<detail::zip_first, llvm::iterator_range<llvm::MachineOperand*>,
+		llvm::iterator_range<llvm::MachineOperand*>> MERGE_VALUES_iter_valuesWidthPairs(
+		llvm::MachineInstr &MI) {
+	return llvm::zip_equal(MERGE_VALUES_iter_values(MI),
+			MERGE_VALUES_iter_widths(MI));
+
 }
 
 Register buildMsbGet(MachineIRBuilder &Builder, GISelChangeObserver &Observer,
@@ -333,16 +348,13 @@ CImmOrRegOrUndefWithWidth buildHWTFPGA_EXTRACT(MachineIRBuilder &Builder,
 		switch (DefMI.getOpcode()) {
 		case HwtFpga::HWTFPGA_MERGE_VALUES: {
 			SmallVector<CImmOrRegOrUndefWithWidth> ConcatMembers;
-			auto values = MERGE_VALUES_iter_values(DefMI);
-			auto widths = MERGE_VALUES_iter_widths(DefMI);
 			size_t curOffset = 0;
-			auto vIt = values.begin();
-			for (auto &w : widths) {
-				size_t vWidth = w.getImm();
+			for (const auto &[V, W]: MERGE_VALUES_iter_valuesWidthPairs(DefMI)) {
+				size_t vWidth = W.getImm();
 				if (curOffset >= offset) {
 					// v is whole in selected bits or suffix is cut
 					ConcatMembers.push_back(
-							buildHWTFPGA_EXTRACT(Builder, *vIt, srcWidth, 0,
+							buildHWTFPGA_EXTRACT(Builder, V, srcWidth, 0,
 									std::min(vWidth,
 											offset + resWidth - curOffset)));
 				} else if (curOffset + vWidth > offset) { // current end > result start
@@ -352,7 +364,7 @@ CImmOrRegOrUndefWithWidth buildHWTFPGA_EXTRACT(MachineIRBuilder &Builder,
 					size_t bitsToTake = std::min(vWidth - vOffset, /* available in value itself */
 					offset + resWidth - curOffset /* selected by request */);
 					ConcatMembers.push_back(
-							buildHWTFPGA_EXTRACT(Builder, *vIt, srcWidth,
+							buildHWTFPGA_EXTRACT(Builder, V, srcWidth,
 									vOffset, bitsToTake));
 				} else {
 					// skip prefix bits
@@ -362,7 +374,6 @@ CImmOrRegOrUndefWithWidth buildHWTFPGA_EXTRACT(MachineIRBuilder &Builder,
 					assert(ConcatMembers.size());
 					break;
 				}
-				++vIt;
 			}
 			assert(ConcatMembers.size());
 			assert(
@@ -534,12 +545,7 @@ size_t hwtFpgaMuxFindValueWidth(const llvm::MachineInstr &MI,
 			if (DefMI.getOpcode() != HwtFpga::HWTFPGA_MERGE_VALUES)
 				return 0;
 
-			size_t width = 0;
-			auto widths = hwtHls::MERGE_VALUES_iter_widths(DefMI);
-			for (auto &w : widths) {
-				width += w.getImm();
-			}
-			return width;
+			return hwtHls::MERGE_VALUES_getResultWidth(DefMI);
 		} else {
 			assert(V.isCImm());
 			return V.getCImm()->getType()->getIntegerBitWidth();
@@ -551,4 +557,62 @@ size_t hwtFpgaMuxFindValueWidth(const llvm::MachineInstr &MI,
 	}
 	return 0;
 }
+
+
+bool RegisterIsDefinedWithinRange(llvm::Register r, llvm::MachineBasicBlock::iterator begin, llvm::MachineBasicBlock::iterator end) {
+	for (auto & I: make_range(begin, end)) {
+		if (I.definesRegister(r))
+			return true;
+	}
+	return false;
+}
+
+bool RegisterIsDefinedWithinRange(llvm::Register r, llvm::MachineBasicBlock::const_iterator begin, llvm::MachineBasicBlock::const_iterator end) {
+	for (auto & I: make_range(begin, end)) {
+		if (I.definesRegister(r))
+			return true;
+	}
+	return false;
+}
+
+bool match_OperandIs1(MachineRegisterInfo &MRI, const MachineOperand &Op) {
+	if (Op.isCImm() && Op.getCImm()->getBitWidth() == 1
+			&& Op.getCImm()->equalsInt(1)) {
+		return true;
+	} else if (mi_match(Op.isReg(), MRI, m_AllOnesInt())) {
+		return true;
+	}
+	if (MRI.hasOneDef(Op.getReg())) {
+		if (auto VRegVal = getAnyConstantVRegValWithLookThrough(Op.getReg(),
+				MRI)) {
+			if (VRegVal.has_value() && VRegVal.value().Value == 1) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+bool Register_isRedefinedInLinearBlockSequenceEndToBegin(Register reg,
+		MachineBasicBlock::iterator begin, llvm::MachineBasicBlock &EndMBB,
+		llvm::MachineBasicBlock::iterator EndIp) {
+	llvm::MachineBasicBlock *_EndMBB = &EndMBB;
+	llvm::SmallPtrSet<MachineBasicBlock*, 32> seenBlocks;
+	for (;;) {
+		while (EndIp != _EndMBB->begin()) {
+			MachineInstr &prevInstr = *--EndIp;
+			if (prevInstr == begin)
+				return false;
+
+			if (prevInstr.definesRegister(reg))
+				return true;
+		}
+		assert(_EndMBB->pred_size() == 1);
+		_EndMBB = *_EndMBB->pred_begin();
+		EndIp = _EndMBB->end();
+	}
+	return false;
+}
+
+
 }

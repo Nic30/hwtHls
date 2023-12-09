@@ -34,7 +34,6 @@ struct CImmOrRegOrUndefWithWidth {
 			llvm::MachineInstrBuilder &MIB) const;
 };
 
-
 /*
  * Record about MUX value operands used to discover which bits are directly driven by
  * condition operand or its negation.
@@ -95,11 +94,16 @@ public:
 			int recursionLimit);
 };
 
+size_t MERGE_VALUES_getResultWidth(llvm::MachineInstr &MI);
 llvm::iterator_range<llvm::MachineOperand*> MERGE_VALUES_iter_values(
 		llvm::MachineInstr &MI);
 
 // returns Imm operands with width of each value
 llvm::iterator_range<llvm::MachineOperand*> MERGE_VALUES_iter_widths(
+		llvm::MachineInstr &MI);
+llvm::detail::zippy<llvm::detail::zip_first,
+		llvm::iterator_range<llvm::MachineOperand*>,
+		llvm::iterator_range<llvm::MachineOperand*>> MERGE_VALUES_iter_valuesWidthPairs(
 		llvm::MachineInstr &MI);
 
 // srcWidth == 0 is used for unknown src width, in this case extract is always build
@@ -134,8 +138,19 @@ public:
 	~MachineInsertPointGuard();
 };
 
-
 size_t hwtFpgaMuxFindValueWidth(const llvm::MachineInstr &MI,
 		llvm::MachineRegisterInfo &MRI);
 
+bool RegisterIsDefinedWithinRange(llvm::Register r,
+		llvm::MachineBasicBlock::iterator begin,
+		llvm::MachineBasicBlock::iterator end);
+bool RegisterIsDefinedWithinRange(llvm::Register r,
+		llvm::MachineBasicBlock::const_iterator begin,
+		llvm::MachineBasicBlock::const_iterator end);
+bool Register_isRedefinedInLinearBlockSequenceEndToBegin(llvm::Register reg,
+		llvm::MachineBasicBlock::iterator begin,
+		llvm::MachineBasicBlock &EndMBB,
+		llvm::MachineBasicBlock::iterator EndIp);
+bool match_OperandIs1(llvm::MachineRegisterInfo &MRI,
+		const llvm::MachineOperand &Op);
 }
