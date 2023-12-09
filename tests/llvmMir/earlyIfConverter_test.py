@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 import os
 from pathlib import Path
 
@@ -12,19 +15,19 @@ class EarlyIfConverter_TC(BaseSsaTC):
         nameOfMain = self.getTestName()
         ctx = LlvmCompilationBundle(nameOfMain)
 
-        inputFileName = Path(self.__FILE__).expanduser().resolve().parent / "data" / (nameOfMain + ".in.mir.ll")
+        inputFileName = Path(self.__FILE__).expanduser().resolve().parent / "dataIn" / (nameOfMain + ".in.mir.ll")
         with open(inputFileName) as f:
             parseMIR(f.read(), nameOfMain, ctx)
-        assert ctx.mod is not None
+        assert ctx.module is not None
 
-        f = ctx.mod.getFunction(ctx.strCtx.addStringRef(nameOfMain))
+        f = ctx.module.getFunction(ctx.strCtx.addStringRef(nameOfMain))
         assert f is not None, (inputFileName, nameOfMain)
         ctx.main = f
         ctx._testEarlyIfConverter()
         MMI = ctx.getMachineModuleInfo()
         mf = MMI.getMachineFunction(f)
         assert mf is not None
-        self.assert_same_as_file(repr(mf), os.path.join("data", self.__class__.__name__ + "." + nameOfMain + ".out.mir.ll"))
+        self.assert_same_as_file(str(mf), os.path.join("data", self.__class__.__name__ + "." + nameOfMain + ".out.mir.ll"))
 
     def test_mergeExitBlockOfParentLoop(self):
         self._test_ll()
@@ -44,7 +47,7 @@ if __name__ == "__main__":
 
     import unittest
     testLoader = unittest.TestLoader()
-    suite = unittest.TestSuite([EarlyIfConverter_TC('test_mergeExitBlockOfParentLoop')])
-    # suite = testLoader.loadTestsFromTestCase(EarlyIfConverter_TC)
+    # suite = unittest.TestSuite([EarlyIfConverter_TC('test_mergeExitBlockOfParentLoop')])
+    suite = testLoader.loadTestsFromTestCase(EarlyIfConverter_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
