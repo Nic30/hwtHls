@@ -22,7 +22,7 @@
 #include <hwtHls/llvm/targets/Transforms/EarlyMachineCopyPropagation.h>
 #include <hwtHls/llvm/targets/Transforms/hwtFpgaToNetlist.h>
 #include <hwtHls/llvm/targets/Transforms/vregIfConversion.h>
-
+#include <hwtHls/llvm/targets/Analysis/VRegLiveins.h>
 
 
 extern "C" void LLVMInitializeHwtFpgaTarget() {
@@ -42,6 +42,7 @@ extern "C" void LLVMInitializeHwtFpgaTarget() {
 	hwtHls::initializeHwtFpgaToNetlist(PR);
 	llvm::initializeEarlyMachineCopyPropagationPass(PR);
 	llvm::initializeVRegIfConverterPass(PR);
+	llvm::initializeHwtHlsVRegLiveinsPass(PR);
 }
 
 namespace llvm {
