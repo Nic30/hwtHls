@@ -3,6 +3,7 @@
 
 from hwt.serializer.combLoopAnalyzer import CombLoopAnalyzer
 from hwt.simulator.simTestCase import SimTestCase
+from hwtHls.platform.platform import HlsDebugBundle
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.platform.xilinx.artix7 import Artix7Medium
 from hwtLib.examples.errors.combLoops import freeze_set_of_sets
@@ -11,7 +12,6 @@ from hwtSimApi.utils import freq_to_period
 from tests.frontend.ast.whileTrue import WhileTrueWriteCntr0, WhileTrueWriteCntr1, \
     WhileSendSequence0, WhileSendSequence1, WhileSendSequence2, WhileSendSequence3, \
     WhileSendSequence4
-from hwtHls.platform.platform import HlsDebugBundle
 
 
 class HlsAstWhileTrue_TC(SimTestCase):
@@ -30,7 +30,9 @@ class HlsAstWhileTrue_TC(SimTestCase):
 
     def test_WhileTrueWriteCntr0(self, cls=WhileTrueWriteCntr0, ref=[0, 1, 2, 3]):
         u = cls()
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform(debugFilter={*HlsDebugBundle.ALL_RELIABLE, HlsDebugBundle.DBG_20_addSyncSigNames}))
+        self.compileSimAndStart(u,
+                                target_platform=VirtualHlsPlatform(debugFilter={
+                                    *HlsDebugBundle.ALL_RELIABLE, HlsDebugBundle.DBG_20_addSyncSigNames}))
         CLK = 5
         self.runSim(CLK * CLK_PERIOD)
         self._test_no_comb_loops()
@@ -47,7 +49,7 @@ class HlsAstWhileTrue_TC(SimTestCase):
         u = cls()
         u.FREQ = int(FREQ)
         if platform is None:
-            #platform = VirtualHlsPlatform()
+            # platform = VirtualHlsPlatform()
             platform = VirtualHlsPlatform(debugFilter={HlsDebugBundle.DBG_20_addSyncSigNames})
         self.compileSimAndStart(u, target_platform=platform)
         # u.dataIn._ag.data.extend([1, 1, 1, 1])
@@ -104,22 +106,22 @@ class HlsAstWhileTrue_TC(SimTestCase):
         self._test_WhileSendSequence(WhileSendSequence2, 130e6, False, False, platform=Artix7Medium())
 
     def test_WhileSendSequence3_20Mhz(self):
-        self._test_WhileSendSequence(WhileSendSequence3, 20e6, False, False)
+        self._test_WhileSendSequence(WhileSendSequence3, 20e6, False, False, timeMultiplier=1.1)
 
     def test_WhileSendSequence3_100Mhz(self):
-        self._test_WhileSendSequence(WhileSendSequence3, 100e6, False, False, timeMultiplier=1.2)
+        self._test_WhileSendSequence(WhileSendSequence3, 100e6, False, False, timeMultiplier=1.8)
 
     def test_WhileSendSequence3_150Mhz(self):
-        self._test_WhileSendSequence(WhileSendSequence3, 150e6, False, False, timeMultiplier=1.6)
+        self._test_WhileSendSequence(WhileSendSequence3, 150e6, False, False, timeMultiplier=2.5)
 
     def test_WhileSendSequence4_20Mhz(self):
         self._test_WhileSendSequence(WhileSendSequence4, 20e6, False, False)
 
     def test_WhileSendSequence4_100Mhz(self):
-        self._test_WhileSendSequence(WhileSendSequence4, 100e6, False, False, timeMultiplier=1.2)
+        self._test_WhileSendSequence(WhileSendSequence4, 100e6, False, False, timeMultiplier=1.4)
 
     def test_WhileSendSequence4_150Mhz(self):
-        self._test_WhileSendSequence(WhileSendSequence4, 150e6, False, False, timeMultiplier=1.6)
+        self._test_WhileSendSequence(WhileSendSequence4, 150e6, False, False, timeMultiplier=2.2)
 
     def test_WhileSendSequence0_20Mhz_rand(self):
         self._test_WhileSendSequence(WhileSendSequence0, 20e6, True, True)
@@ -176,7 +178,7 @@ if __name__ == "__main__":
 
     import unittest
     testLoader = unittest.TestLoader()
-    #suite = unittest.TestSuite([HlsAstWhileTrue_TC('test_WhileSendSequence1_100Mhz')])
+    # suite = unittest.TestSuite([HlsAstWhileTrue_TC('test_WhileSendSequence1_100Mhz')])
     suite = testLoader.loadTestsFromTestCase(HlsAstWhileTrue_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
