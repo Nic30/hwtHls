@@ -11,16 +11,19 @@ struct OffsetWidthValue {
 	llvm::Value *value; // which is being sliced on
 	bool operator==(const OffsetWidthValue &rhs) const;
 	bool operator<(OffsetWidthValue &other) const;
-	void print(llvm::raw_ostream& OS) const;
-	static OffsetWidthValue fromValue(llvm::Value *);
+	void print(llvm::raw_ostream &OS) const;
+	static OffsetWidthValue fromValue(llvm::Value*);
+	bool isMsbOf(const llvm::Value* v);
 };
 
-inline llvm::raw_ostream& operator<<(llvm::raw_ostream &OS, const OffsetWidthValue &V) {
+inline llvm::raw_ostream& operator<<(llvm::raw_ostream &OS,
+		const OffsetWidthValue &V) {
 	V.print(OS);
 	return OS;
 }
 
-void IRBuilder_setInsertPointBehindPhi(llvm::IRBuilder<> & builder, llvm::Instruction*I);
+void IRBuilder_setInsertPointBehindPhi(llvm::IRBuilder<> &builder,
+		llvm::Instruction *I);
 
 class ConcatMemberVector {
 	llvm::Value* _memberToValue(OffsetWidthValue &item);
@@ -34,7 +37,7 @@ public:
 	std::unordered_map<OffsetWidthValue, llvm::Value*> *commonSubexpressionCache;
 
 	ConcatMemberVector(llvm::IRBuilder<> &builder,
-			std::unordered_map<OffsetWidthValue, llvm::Value*> * commonSubexpressionCache);
+			std::unordered_map<OffsetWidthValue, llvm::Value*> *commonSubexpressionCache);
 
 	void push_back(OffsetWidthValue item);
 
@@ -44,6 +47,7 @@ public:
 };
 
 OffsetWidthValue BitRangeGetOffsetWidthValue(llvm::CallInst *C);
+OffsetWidthValue BitRangeGetOffsetWidthValue(llvm::TruncInst *C);
 
 }
 

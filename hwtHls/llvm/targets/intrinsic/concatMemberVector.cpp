@@ -1,4 +1,4 @@
-#include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/concatMemberVector.h>
+#include <hwtHls/llvm/targets/intrinsic/concatMemberVector.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <hwtHls/llvm/targets/intrinsic/utils.h>
 
@@ -7,7 +7,8 @@ using namespace llvm;
 namespace hwtHls {
 
 bool OffsetWidthValue::operator==(const OffsetWidthValue &rhs) const {
-	return this->offset == rhs.offset && this->width == rhs.width && this->value == rhs.value;
+	return this->offset == rhs.offset && this->width == rhs.width
+			&& this->value == rhs.value;
 }
 bool OffsetWidthValue::operator<(OffsetWidthValue &other) const {
 	return offset < other.offset;
@@ -17,36 +18,47 @@ void OffsetWidthValue::print(llvm::raw_ostream &OS) const {
 	OS << *this->value << " [off=" << offset << ", w=" << width << "]";
 }
 
-OffsetWidthValue OffsetWidthValue::fromValue(Value * V) {
-	if (auto* CI = dyn_cast<CallInst>(V)) {
+OffsetWidthValue OffsetWidthValue::fromValue(Value *V) {
+	if (auto *CI = dyn_cast<CallInst>(V)) {
 		if (IsBitRangeGet(CI)) {
 			return BitRangeGetOffsetWidthValue(CI);
 		}
+	} else if (auto *TI = dyn_cast<TruncInst>(V)) {
+		return BitRangeGetOffsetWidthValue(TI);
 	}
 	return {0, V->getType()->getIntegerBitWidth(), V};
 }
 
+bool OffsetWidthValue::isMsbOf(const llvm::Value* v) {
+	return width == 1 && value == v && offset == v->getType()->getIntegerBitWidth() - 1;
+}
+
+
 Value* ConcatMemberVector::_memberToValue(OffsetWidthValue &item) {
-	bool fitsExactly = item.width == item.value->getType()->getIntegerBitWidth() && item.offset == 0;
+	bool fitsExactly = item.width == item.value->getType()->getIntegerBitWidth()
+			&& item.offset == 0;
 	if (fitsExactly) {
 		return item.value;
 	} else if (auto *C = dyn_cast<ConstantInt>(item.value)) {
 		return builder.getInt(C->getValue().lshr(item.offset).trunc(item.width));
 	} else {
-		if (commonSubexpressionCache){
+		if (commonSubexpressionCache) {
 			auto existing = commonSubexpressionCache->find(item);
 			if (existing != commonSubexpressionCache->end())
 				return existing->second;
 		}
 		// create bit range get just behind the source of original bit-vector which is being sliced
 		auto insertPoint = builder.GetInsertPoint();
-		Instruction* itemInstr = dyn_cast<Instruction>(item.value);
-		bool insertPointWasOnValue = (insertPoint != builder.GetInsertBlock()->end() &&
-				insertPoint.getNodePtr() == itemInstr);
+		Instruction *itemInstr = dyn_cast<Instruction>(item.value);
+		bool insertPointWasOnValue = (insertPoint
+				!= builder.GetInsertBlock()->end()
+				&& insertPoint.getNodePtr() == itemInstr);
 		builder.SetInsertPoint(itemInstr);
-		builder.SetInsertPoint(builder.GetInsertBlock(), ++builder.GetInsertPoint());
+		builder.SetInsertPoint(builder.GetInsertBlock(),
+				++builder.GetInsertPoint());
 		IRBuilder_setInsertPointBehindPhi(builder, &*builder.GetInsertPoint());
-		auto *res = CreateBitRangeGetConst(&builder, item.value, item.offset, item.width);
+		auto *res = CreateBitRangeGetConst(&builder, item.value, item.offset,
+				item.width);
 		if (commonSubexpressionCache) {
 			(*commonSubexpressionCache)[item] = res;
 		}
@@ -70,7 +82,8 @@ void ConcatMemberVector::push_back(OffsetWidthValue item) {
 	}
 	if (members.size()) {
 		OffsetWidthValue &last = members.back();
-		if (last.value == item.value && last.offset + last.width == item.offset) {
+		if (last.value == item.value
+				&& last.offset + last.width == item.offset) {
 			// if it is consecutive slice, merge it
 			last.width += item.width;
 			return;
@@ -79,7 +92,9 @@ void ConcatMemberVector::push_back(OffsetWidthValue item) {
 		if (C0 && C1) {
 			// merge constants
 			auto w = last.width + item.width;
-			last.value = builder.getInt(C0->getValue().zext(w) | C1->getValue().zext(w).shl(last.width));
+			last.value = builder.getInt(
+					C0->getValue().zext(w)
+							| C1->getValue().zext(w).shl(last.width));
 			last.width += item.width;
 			return;
 		}
@@ -120,6 +135,14 @@ OffsetWidthValue BitRangeGetOffsetWidthValue(CallInst *C) {
 	assert(_offset && "Offset must be a constant");
 	res.offset = _offset->getZExtValue();
 	res.width = C->getType()->getIntegerBitWidth();
+	return res;
+}
+
+OffsetWidthValue BitRangeGetOffsetWidthValue(TruncInst *T) {
+	OffsetWidthValue res;
+	res.value = T->getOperand(0);
+	res.offset = 0;
+	res.width = T->getType()->getIntegerBitWidth();
 	return res;
 }
 

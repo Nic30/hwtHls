@@ -1,6 +1,8 @@
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <llvm/ADT/StringExtras.h>
+
 #include <hwtHls/llvm/targets/intrinsic/utils.h>
+#include <hwtHls/llvm/targets/intrinsic/concatMemberVector.h>
 #include <hwtHls/llvm/bitMath.h>
 
 using namespace llvm;
@@ -60,7 +62,8 @@ llvm::Value* CreateBitRangeGet(IRBuilder<> *Builder, Value *bitVec,
 	//assert(!lowBitNoC->isNegative());
 	assert(
 			lowBitNoC->getZExtValue() + bitWidth
-					<= bitVec->getType()->getIntegerBitWidth() && "Selected range must be in exiting bits");
+					<= bitVec->getType()->getIntegerBitWidth()
+					&& "Selected range must be in exiting bits");
 	if (isa<UndefValue>(bitVec)) {
 		return UndefValue::get(Builder->getIntNTy(bitWidth));
 	} else if (auto bitVecCI = dyn_cast<CallInst>(bitVec)) {
@@ -75,11 +78,15 @@ llvm::Value* CreateBitRangeGet(IRBuilder<> *Builder, Value *bitVec,
 			}
 		}
 	} else if (auto Trunc = dyn_cast<TruncInst>(bitVec)) {
-		return CreateBitRangeGet(Builder, Trunc->getOperand(0), lowBitNo, bitWidth);
+		return CreateBitRangeGet(Builder, Trunc->getOperand(0), lowBitNo,
+				bitWidth);
 	} else if (auto *Cast = dyn_cast<CastInst>(bitVec)) {
 		// bitcast, zext, sext
-		if (Cast->getOperand(0)->getType()->getIntegerBitWidth() >= bitWidth) {
-			return CreateBitRangeGet(Builder, Trunc->getOperand(0), lowBitNo, bitWidth);
+		auto src = Cast->getOperand(0);
+		if (src->getType()->getIntegerBitWidth()
+				>= lowBitNoC->getZExtValue() + bitWidth) {
+			// if selecting bits only in src operand
+			return CreateBitRangeGet(Builder, src, lowBitNo, bitWidth);
 		}
 	}
 	if (auto *bitVecInst = dyn_cast<Instruction>(bitVec)) {
@@ -137,6 +144,13 @@ llvm::Value* CreateBitRangeGet(IRBuilder<> *Builder, Value *bitVec,
 	return CI;
 }
 
+bool IsBitRangeGetInst(const llvm::Instruction *I) {
+	if (isa<TruncInst>(I))
+		return true;
+	else if (auto C = dyn_cast<CallInst>(I))
+		return IsBitRangeGet(C->getCalledFunction());
+	return false;
+}
 bool IsBitRangeGet(const llvm::CallInst *C) {
 	return IsBitRangeGet(C->getCalledFunction());
 }
@@ -214,14 +228,28 @@ llvm::Value* CreateBitConcat(llvm::IRBuilder<> *Builder,
 	if (OpsLowFirst.size() == 1) {
 		return OpsLowFirst[0];
 	} else if (OpsLowFirst.size() == 2) {
-		if (auto* o1asC = dyn_cast<ConstantInt>(_OpsLowFirst[1])) {
+		if (auto *o1asC = dyn_cast<ConstantInt>(OpsLowFirst[1])) {
 			if (o1asC->isZero()) {
 				Type *RetTy = Builder->getIntNTy(bitWidth);
 				return Builder->CreateZExt(OpsLowFirst[0], RetTy);
 			}
 		}
 	}
+
 	Type *RetTy = Builder->getIntNTy(bitWidth);
+	if (OpsLowFirst.size() > 1) {
+		bool isSExt = true;
+		for (auto member = OpsLowFirst.begin() + 1; member != OpsLowFirst.end();
+				++member) {
+			auto v = OffsetWidthValue::fromValue(*member);
+			if (!v.isMsbOf(OpsLowFirst.front())) {
+				isSExt = false;
+				break;
+			}
+		}
+		if (isSExt)
+			return Builder->CreateSExt(OpsLowFirst.front(), RetTy);
+	}
 	Module *M = Builder->GetInsertBlock()->getParent()->getParent();
 
 	Function *TheFn = cast<Function>(
@@ -238,6 +266,13 @@ llvm::Value* CreateBitConcat(llvm::IRBuilder<> *Builder,
 bool IsBitConcat(const llvm::CallInst *C) {
 	return IsBitConcat(C->getCalledFunction());
 }
+
+bool IsBitConcatInst(const llvm::Instruction *I) {
+	if (auto *C = dyn_cast<CallInst>(I))
+		return IsBitConcat(C);
+	return false;
+}
+
 bool IsBitConcat(const llvm::Function *F) {
 	assert(F != nullptr);
 	return F->getName().str().rfind(BitConcatName, 0) == 0;

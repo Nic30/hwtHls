@@ -15,6 +15,7 @@ llvm::Value* CreateBitRangeGetConst(llvm::IRBuilder<> *Builder,
 // lowBitNo must be constant and must be added into the name of function so variants with different lowBitNo will not get merged to a single instruction
 llvm::Value* CreateBitRangeGet(llvm::IRBuilder<> *Builder, llvm::Value *bitVec,
 		llvm::Value *lowBitNo, size_t bitWidth);
+bool IsBitRangeGetInst(const llvm::Instruction *I);
 bool IsBitRangeGet(const llvm::CallInst *C);
 bool IsBitRangeGet(const llvm::Function *F);
 
@@ -25,6 +26,7 @@ extern const std::string BitConcatName;
 llvm::Value* CreateBitConcat(llvm::IRBuilder<> *Builder,
 		llvm::ArrayRef<llvm::Value*> OpsLowFirst);
 
+bool IsBitConcatInst(const llvm::Instruction *I);
 bool IsBitConcat(const llvm::CallInst *C);
 bool IsBitConcat(const llvm::Function *F);
 }
