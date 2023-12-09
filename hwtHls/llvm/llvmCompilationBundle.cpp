@@ -31,6 +31,7 @@
 #include <llvm/Transforms/Instrumentation/ControlHeightReduction.h>
 #include <llvm/Transforms/IPO/StripDeadPrototypes.h>
 #include <llvm/Transforms/IPO/StripSymbols.h>
+#include <llvm/Transforms/IPO/ConstantMerge.h>
 #include <llvm/Transforms/Scalar.h>
 #include <llvm/Transforms/Scalar/Reassociate.h>
 #include <llvm/Transforms/Scalar/NewGVN.h>
@@ -265,6 +266,7 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 	//if (!DeleteFn)
 	//    MPM.addPass(llvm::GlobalDCEPass());
     //MPM.addPass(llvm::ExtractGVPass(Gvs, DeleteFn, KeepConstInit));
+	MPM.addPass(llvm::ConstantMergePass());
     MPM.addPass(llvm::StripDeadDebugInfoPass());
     MPM.addPass(llvm::StripDeadPrototypesPass());
     MPM.run(*mod, MAM);
