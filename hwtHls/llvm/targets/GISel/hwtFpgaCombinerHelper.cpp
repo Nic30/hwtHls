@@ -4,6 +4,7 @@
 #include <llvm/CodeGen/GlobalISel/GISelKnownBits.h>
 #include <hwtHls/llvm/targets/hwtFpgaInstrInfo.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionSelectorUtils.h>
+#include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionBuilderUtils.h>
 
 namespace llvm {
 
@@ -506,10 +507,7 @@ bool HwtFpgaCombinerHelper::matchConstMergeValues(llvm::MachineInstr &MI,
 		llvm::APInt &replacement) {
 	auto values = hwtHls::MERGE_VALUES_iter_values(MI);
 	auto widths = hwtHls::MERGE_VALUES_iter_widths(MI);
-	size_t resultWidth = 0;
-	for (llvm::MachineOperand &w : widths) {
-		resultWidth += w.getImm();
-	}
+	size_t resultWidth = hwtHls::MERGE_VALUES_getResultWidth(MI);
 	APInt resTmp(resultWidth, 0);
 	auto widthMo = widths.begin();
 	size_t curOffset = 0;
@@ -533,6 +531,53 @@ bool HwtFpgaCombinerHelper::matchConstMergeValues(llvm::MachineInstr &MI,
 bool HwtFpgaCombinerHelper::rewriteConstMergeValues(llvm::MachineInstr &MI,
 		const llvm::APInt &replacement) {
 	replaceInstWithConstant(MI, replacement);
+	return true;
+}
+
+bool HwtFpgaCombinerHelper::matchTrivialInstrDuplication(
+		llvm::MachineInstr &MI) {
+	assert(MI.getNumDefs() == 1);
+	auto NextInst = MI.getNextNode();
+	if (!NextInst || NextInst->getOpcode() != MI.getOpcode()
+			|| NextInst->getNumOperands() != MI.getNumOperands()) {
+		return false;
+	}
+	// chechk def operands
+	for (auto I0 : { &MI, NextInst }) {
+		auto I1 = I0 == &MI ? NextInst : &MI;
+		for (auto def : I0->defs()) {
+			if (!MRI.hasOneDef(def.getReg())) {
+				return false; // result register used on multiple places, the check for liveness would be required
+			} else if (def.isDead()) {
+				return false; // this is subject to DCE, skip this
+			} else if (I1->readsRegister(def.getReg())) {
+				return false; // The instruction is using the result of other
+			}
+		}
+	}
+	// check if use operands are the same
+	for (const auto [U0, U1] : zip(MI.uses(), NextInst->uses())) {
+		if (U0.isReg() && U1.isReg() && U0.getReg() == U1.getReg()) {
+			continue;
+		} else if (U0.isCImm() && U1.isCImm() && U0.getCImm() == U1.getCImm())
+			continue;
+		return false;
+	}
+	return true;
+}
+
+bool HwtFpgaCombinerHelper::rewriteTrivialInstrDuplication(
+		llvm::MachineInstr &MI) {
+	assert(MI.getNumDefs() == 1);
+	auto def0 = MI.getOperand(0);
+	assert(def0.isDef());
+	auto *OtherMI = MI.getNextNode();
+	auto def1 = OtherMI->getOperand(0);
+	assert(def1.isDef());
+	if (def0.getReg() != def1.getReg())
+		MRI.replaceRegWith(def0.getReg(), def1.getReg());
+
+	MI.eraseFromParent();
 	return true;
 }
 

@@ -69,6 +69,46 @@ def g_constant_to_imm: GICombineRule<
   (apply [{ return Helper.rewriteG_CONSTANTasUseAsCImm(*${root}); }])
 >;
 
+// merge 2 instruction with successor if they have same use operands and
+// the def operands have both only a single user
+def trivial_instr_deduplication: GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode 
+			G_PTR_ADD,
+			G_MUL,
+			G_UDIV,
+			G_SDIV,
+			G_UREM,
+			G_SREM,
+			G_OR,
+			G_SELECT,
+			G_SUB,
+			G_XOR ,
+			G_SEXT,
+			G_ZEXT,
+			G_SHL,
+			G_LSHR,
+			G_ASHR,
+			HWTFPGA_EXTRACT,
+            HWTFPGA_MERGE_VALUES,
+            HWTFPGA_NOT,
+            HWTFPGA_MUX,
+            HWTFPGA_ADD,
+			HWTFPGA_AND,
+			HWTFPGA_ICMP,
+			HWTFPGA_MUL,
+			HWTFPGA_UDIV,
+			HWTFPGA_SDIV,
+			HWTFPGA_UREM,
+			HWTFPGA_SREM,
+			HWTFPGA_OR,
+			HWTFPGA_SUB,
+			HWTFPGA_XOR
+		):$root,
+    [{ return Helper.matchTrivialInstrDuplication(*${root}); }]),
+  (apply [{ return Helper.rewriteTrivialInstrDuplication(*${root}); }])
+>;
+
 def undef_propagation: GICombineRule<
   (defs root:$root),
   (match (wip_match_opcode HWTFPGA_EXTRACT, HWTFPGA_NOT):$root,

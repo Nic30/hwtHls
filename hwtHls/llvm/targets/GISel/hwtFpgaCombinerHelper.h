@@ -107,6 +107,9 @@ public:
 	bool rewriteConstMergeValues(llvm::MachineInstr &MI,
 			const llvm::APInt &replacement);
 
+	bool matchTrivialInstrDuplication(llvm::MachineInstr &MI);
+	bool rewriteTrivialInstrDuplication(llvm::MachineInstr &MI);
+
 };
 
 }
