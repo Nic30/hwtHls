@@ -8,7 +8,6 @@
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/MC/TargetRegistry.h>
 
-
 #include <hwtHls/llvm/llvmIrStrings.h>
 #include <hwtHls/llvm/targets/Transforms/hwtFpgaToNetlist.h>
 #include <hwtHls/llvm/targets/hwtFpgaTargetPassConfig.h>
@@ -22,7 +21,7 @@ class LlvmCompilationBundle {
 public:
 	llvm::LLVMContext ctx;
 	LLVMStringContext strCtx;
-	std::unique_ptr<llvm::Module> mod;
+	llvm::Module* module;
 	llvm::IRBuilder<> builder;
 	llvm::Function *main;
 	std::unique_ptr<llvm::PassBuilder> PB; // for IR passes
@@ -37,15 +36,21 @@ public:
 	llvm::PipelineTuningOptions PTO;
 	llvm::MachineModuleInfoWrapperPass *MMIWP;
 	bool VerifyEachPass;
-	enum class DebugLogging { None, Normal, Verbose, Quiet };
+	enum class DebugLogging {
+		None, Normal, Verbose, Quiet
+	};
 	DebugLogging DebugPM;
 	llvm::PassInstrumentationCallbacks PIC;
 	llvm::PrintPassOptions PrintPassOpts;
+	static const std::string TargetTriple;
+	static const std::string CPU;
+	static const std::string Features;
 
 	LlvmCompilationBundle(const std::string &moduleName);
 	void _initPassBuilder();
 
-	void addLlvmCliArgOccurence(const std::string & OptionName, unsigned pos, const std::string & ArgName, const std::string & ArgValue);
+	void addLlvmCliArgOccurence(const std::string &OptionName, unsigned pos,
+			const std::string &ArgName, const std::string &ArgValue);
 	// for arg description see HwtFpgaTargetPassConfig
 	// :param combinerCallback: is an optional callback function called during last state of
 	//        instruction combining
@@ -63,6 +68,7 @@ public:
 	// for arg description see HwtFpgaTargetPassConfig
 	void _addMachineCodegenPasses(
 			hwtHls::HwtFpgaToNetlist::ConvesionFnT &toNetlistConversionFn);
+	void _addCommonPasses(llvm::FunctionPassManager &FPM);
 
 	llvm::Function& _testSlicesToIndependentVariablesPass();
 	llvm::Function& _testBitwidthReductionPass();
@@ -70,10 +76,14 @@ public:
 	llvm::Function& _testRewriteExtractOnMergeValues();
 	llvm::Function& _testFunctionPass(
 			std::function<void(llvm::FunctionPassManager&)> addPasses);
+	void _testMachineFunctionPass(
+			std::function<void(llvm::HwtFpgaTargetPassConfig&)> addPasses);
+
 	void _testEarlyIfConverter();
-	void _addCommonPasses(llvm::FunctionPassManager &FPM);
+	void _testVRegIfConverter();
+	// _testVRegIfConverter which has input in LLVM IR
+	// (which is then translated to MIR which is then processed by VRegIfConverter)
+	void _testVRegIfConverterForIr();
 };
-
-
 
 }

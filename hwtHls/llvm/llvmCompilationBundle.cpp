@@ -97,18 +97,19 @@
 
 namespace hwtHls {
 
+const std::string LlvmCompilationBundle::TargetTriple = "hwtFpga-unknown-linux-gnu";
+const std::string LlvmCompilationBundle::CPU = "model0";
+const std::string LlvmCompilationBundle::Features = "model0";
+
 LlvmCompilationBundle::LlvmCompilationBundle(const std::string &moduleName) :
-		ctx(), strCtx(), mod(std::make_unique<llvm::Module>(strCtx.addStringRef(moduleName), ctx)),
+		ctx(), strCtx(), module(new llvm::Module(strCtx.addStringRef(moduleName), ctx)),
 		builder(ctx), main(nullptr), MMIWP(nullptr), VerifyEachPass(false), DebugPM(DebugLogging::None) {
-	std::string TargetTriple = "hwtFpga-unknown-linux-gnu";
 	Target = &getTheHwtFpgaTarget(); //llvm::TargetRegistry::targets()[0];
 	Level = llvm::OptimizationLevel::O3;
 	EnableO3NonTrivialUnswitching = true;
 	EnableGVNHoist = true;
 	EnableGVNSink = true;
 
-	auto CPU = "model0";
-	auto Features = "model0";
 	llvm::TargetOptions opt;
 	// useless for this target
 	opt.XCOFFTracebackTable = false;
@@ -269,7 +270,7 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 	MPM.addPass(llvm::ConstantMergePass());
     MPM.addPass(llvm::StripDeadDebugInfoPass());
     MPM.addPass(llvm::StripDeadPrototypesPass());
-    MPM.run(*mod, MAM);
+    MPM.run(*module, MAM);
 
     _addMachineCodegenPasses(toNetlistConversionFn);
 
@@ -408,7 +409,7 @@ void LlvmCompilationBundle::_addLoopPasses(llvm::FunctionPassManager &FPM) {
 	LPM1.addPass(llvm::SimpleLoopUnswitchPass(/* NonTrivial */
 	Level == llvm::OptimizationLevel::O3 && EnableO3NonTrivialUnswitching));
 	// if (EnableLoopFlatten)
-	//   LPM1.addPass(LoopFlattenPass());
+	//   LPM1.addPass(llvm::LoopFlattenPass());
 	LPM2.addPass(llvm::LoopIdiomRecognizePass());
 	LPM2.addPass(llvm::IndVarSimplifyPass());
 	//for (auto &C : LateLoopOptimizationsEPCallbacks)

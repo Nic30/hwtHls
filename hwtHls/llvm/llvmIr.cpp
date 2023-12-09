@@ -153,14 +153,16 @@ PYBIND11_MODULE(llvmIr, m) {
 		.def("getMachineModuleInfo", &hwtHls::LlvmCompilationBundle::getMachineModuleInfo, py::return_value_policy::reference_internal)
 		.def("_testSlicesToIndependentVariablesPass", &hwtHls::LlvmCompilationBundle::_testSlicesToIndependentVariablesPass, py::return_value_policy::reference_internal)
 		.def("_testSlicesMergePass", &hwtHls::LlvmCompilationBundle::_testSlicesMergePass, py::return_value_policy::reference_internal)
-		.def("_testEarlyIfConverter", &hwtHls::LlvmCompilationBundle::_testEarlyIfConverter, py::return_value_policy::reference_internal)
 		.def("_testBitwidthReductionPass", &hwtHls::LlvmCompilationBundle::_testBitwidthReductionPass, py::return_value_policy::reference_internal)
 		.def("_testRewriteExtractOnMergeValuesPass", &hwtHls::LlvmCompilationBundle::_testRewriteExtractOnMergeValues, py::return_value_policy::reference_internal)
+		.def("_testEarlyIfConverter", &hwtHls::LlvmCompilationBundle::_testEarlyIfConverter, py::return_value_policy::reference_internal)
+		.def("_testVRegIfConverter", &hwtHls::LlvmCompilationBundle::_testVRegIfConverter, py::return_value_policy::reference_internal)
+		.def("_testVRegIfConverterForIr", &hwtHls::LlvmCompilationBundle::_testVRegIfConverterForIr, py::return_value_policy::reference_internal)
 		.def_readonly("ctx", &hwtHls::LlvmCompilationBundle::ctx)
 		.def_readonly("strCtx", &hwtHls::LlvmCompilationBundle::strCtx)
-	    .def_property_readonly("mod", [](hwtHls::LlvmCompilationBundle & C) { return C.mod.get();})
 		.def_readonly("builder", &hwtHls::LlvmCompilationBundle::builder)
-		.def_readwrite("main", &hwtHls::LlvmCompilationBundle::main);
+		.def_readwrite("main", &hwtHls::LlvmCompilationBundle::main)
+		.def_readwrite("module", &hwtHls::LlvmCompilationBundle::module);
 
 	py::class_<llvm::LLVMContext,  std::unique_ptr<llvm::LLVMContext, py::nodelete>>(m, "LLVMContext"); // construct using LlvmCompilationBundle
 	py::class_<llvm::Module, std::unique_ptr<llvm::Module, py::nodelete>>(m, "Module")
@@ -168,6 +170,12 @@ PYBIND11_MODULE(llvmIr, m) {
 			.def("__repr__", &Module__repr__)
 			.def("getName", &llvm::Module::getName)
 			.def("getFunction", &llvm::Module::getFunction)
+			.def("__eq__", [](llvm::Module* self, llvm::Module* other) {
+				return self == other;
+			})
+			.def("__hash__", [](llvm::Module * v) {
+				return reinterpret_cast<intptr_t>(v);
+			})
 			.def("__iter__", [](llvm::Module &M) {
 					return py::make_iterator(M.begin(), M.end());
 				}, py::keep_alive<0, 1>());
@@ -234,7 +242,8 @@ PYBIND11_MODULE(llvmIr, m) {
 				);
 	m.def("parseIR", [](const std::string & str, const std::string & name, llvm::SMDiagnostic &Err, llvm::LLVMContext &Context) {
 		llvm::MemoryBufferRef buff(str, name);
-		return llvm::parseIR(buff, Err, Context);
+		auto M = llvm::parseIR(buff, Err, Context);
+		return M.release();
 	}, py::return_value_policy::reference_internal);
 
 }

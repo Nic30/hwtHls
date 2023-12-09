@@ -182,15 +182,16 @@ void register_MachineFunction(pybind11::module_ &m) {
 					hwtHls::LlvmCompilationBundle &Context) {
 				auto buff = llvm::MemoryBuffer::getMemBufferCopy(mirStr, name);
 				auto MIR = llvm::createMIRParser(std::move(buff), Context.ctx);
-				Context.mod = MIR->parseIRModule();
-				if (!Context.mod)
+				auto M = MIR->parseIRModule();
+				Context.module = M.release(); // already added to Context.ctx and deleted in destructor of it
+				if (!Context.module)
 					throw std::runtime_error("Can not parse machine module");
 				auto &MMI = *Context.getMachineModuleInfo();
-				Context.mod->setDataLayout(MMI.getTarget().createDataLayout());
-				if (MIR->parseMachineFunctions(*Context.mod, MMI))
+				Context.module->setDataLayout(MMI.getTarget().createDataLayout());
+				if (MIR->parseMachineFunctions(*Context.module, MMI))
 					throw std::runtime_error(
 							"Can not parse machine functions from module");
-				return Context.mod.get();
+				return Context.module;
 			}, py::return_value_policy::reference_internal);
 }
 

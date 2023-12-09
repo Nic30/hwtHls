@@ -1,11 +1,6 @@
 #include <hwtHls/llvm/llvmCompilationBundle.h>
 
 #include <llvm/Transforms/Scalar/ADCE.h>
-
-#include <hwtHls/llvm/Transforms/slicesMerge/slicesMerge.h>
-#include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.h>
-#include <hwtHls/llvm/Transforms/bitwidthReducePass/bitwidthReducePass.h>
-
 #include <llvm/CodeGen/MachineFunction.h>
 #include <llvm/CodeGen/MachineBasicBlock.h>
 #include <llvm/CodeGen/MachineInstr.h>
@@ -20,17 +15,27 @@
 #include <llvm/Support/MemoryBuffer.h>
 #include <llvm/Target/TargetMachine.h>
 
+#include <hwtHls/llvm/Transforms/slicesMerge/slicesMerge.h>
+#include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.h>
+#include <hwtHls/llvm/Transforms/bitwidthReducePass/bitwidthReducePass.h>
 #include <hwtHls/llvm/Transforms/utils/dceWorklist.h>
 #include <hwtHls/llvm/Transforms/utils/bitSliceFlattening.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
-#include <hwtHls/llvm/llvmIrCommon.h>
+#include <hwtHls/llvm/targets/GISel/hwtFpgaPreLegalizerCombiner.h>
+#include <hwtHls/llvm/targets/GISel/hwtFpgaPreRegAllocCombiner.h>
+#include <hwtHls/llvm/targets/GISel/hwtFpgaPreToNetlistCombiner.h>
 #include <hwtHls/llvm/targets/hwtFpgaMCTargetDesc.h>
+#include <hwtHls/llvm/targets/Transforms/EarlyMachineCopyPropagation.h>
+#include <hwtHls/llvm/targets/Transforms/vregIfConversion.h>
+#include <hwtHls/llvm/llvmIrCommon.h>
+
 
 using namespace llvm;
 
 namespace hwtHls {
 
-llvm::Function& LlvmCompilationBundle::_testFunctionPass(std::function<void(llvm::FunctionPassManager&)> addPasses) {
+llvm::Function& LlvmCompilationBundle::_testFunctionPass(
+		std::function<void(llvm::FunctionPassManager&)> addPasses) {
 	if (!main)
 		throw std::runtime_error("Main function not specified");
 	auto &fn = *main;
@@ -42,7 +47,7 @@ llvm::Function& LlvmCompilationBundle::_testFunctionPass(std::function<void(llvm
 	auto FAM = llvm::FunctionAnalysisManager { };
 	// PIC same as in llvm/toools/opt/NewPMDriver.cpp llvm::runPassPipeline()
 	llvm::StandardInstrumentations SI(ctx, DebugPM != DebugLogging::None,
-	                            VerifyEachPass, PrintPassOpts);
+			VerifyEachPass, PrintPassOpts);
 	SI.registerCallbacks(PIC, &FAM);
 	_initPassBuilder();
 	PB->registerModuleAnalyses(MAM);
@@ -56,6 +61,51 @@ llvm::Function& LlvmCompilationBundle::_testFunctionPass(std::function<void(llvm
 	FPM.run(fn, FAM);
 	return fn;
 }
+
+void LlvmCompilationBundle::_testMachineFunctionPass(
+		std::function<void(llvm::HwtFpgaTargetPassConfig&)> addPasses) {
+	if (!main)
+		throw std::runtime_error("Main function not specified");
+	auto &fn = *main;
+	fn.getParent()->setDataLayout(TM->createDataLayout());
+
+	auto LAM = llvm::LoopAnalysisManager { };
+	auto cgscc_manager = llvm::CGSCCAnalysisManager { };
+	auto MAM = llvm::ModuleAnalysisManager { };
+	auto FAM = llvm::FunctionAnalysisManager { };
+	// PIC same as in llvm/toools/opt/NewPMDriver.cpp llvm::runPassPipeline()
+	llvm::StandardInstrumentations SI(ctx, DebugPM != DebugLogging::None,
+			VerifyEachPass, PrintPassOpts);
+	SI.registerCallbacks(PIC, &FAM);
+	_initPassBuilder();
+	PB->registerModuleAnalyses(MAM);
+	PB->registerCGSCCAnalyses(cgscc_manager);
+	PB->registerFunctionAnalyses(FAM);
+	PB->registerLoopAnalyses(LAM);
+	PB->crossRegisterProxies(LAM, FAM, cgscc_manager, MAM);
+
+	PM.add(MMIWP);
+
+	TPC =
+			static_cast<llvm::HwtFpgaTargetPassConfig*>(static_cast<llvm::LLVMTargetMachine&>(*TM).createPassConfig(
+					PM));
+	if (TPC->hasLimitedCodeGenPipeline()) {
+		llvm::errs() << "run-pass cannot be used with "
+				<< TPC->getLimitedCodeGenPipelineReason(" and ") << ".\n";
+		throw std::runtime_error("run-pass cannot be used with ...");
+	}
+
+	PM.add(TPC);
+	TPC->printAndVerify("before addMachinePasses");
+
+	addPasses(*TPC);
+
+	TPC->printAndVerify("after addMachinePasses");
+	TPC->setInitialized();
+	PM.run(*module);
+}
+
+/////////////////////////////////////////////////////////////// IR tests ///////////////////////////////////////////////////////////////
 llvm::Function& LlvmCompilationBundle::_testBitwidthReductionPass() {
 	return _testFunctionPass([](llvm::FunctionPassManager &FPM) {
 		FPM.addPass(hwtHls::BitwidthReductionPass());
@@ -78,9 +128,7 @@ llvm::Function& LlvmCompilationBundle::_testSlicesToIndependentVariablesPass() {
 // rewriteExtractOnMergeValues function wrapped in pass class for testing purposes
 class RewriteExtractOnMergeValuesPass: public llvm::PassInfoMixin<
 		SlicesToIndependentVariablesPass> {
-
 public:
-
 	explicit RewriteExtractOnMergeValuesPass() {
 	}
 
@@ -120,42 +168,30 @@ llvm::Function& LlvmCompilationBundle::_testRewriteExtractOnMergeValues() {
 	});
 }
 
+/////////////////////////////////////////////////////////////// MIR tests ///////////////////////////////////////////////////////////////
 void LlvmCompilationBundle::_testEarlyIfConverter() {
-	auto LAM = llvm::LoopAnalysisManager { };
-	auto cgscc_manager = llvm::CGSCCAnalysisManager { };
-	auto MAM = llvm::ModuleAnalysisManager { };
-	auto FAM = llvm::FunctionAnalysisManager { };
-	// PIC same as in llvm/toools/opt/NewPMDriver.cpp llvm::runPassPipeline()
-	llvm::StandardInstrumentations SI(ctx, DebugPM != DebugLogging::None,
-	                            VerifyEachPass, PrintPassOpts);
-	SI.registerCallbacks(PIC, &FAM);
-	_initPassBuilder();
-	PB->registerModuleAnalyses(MAM);
-	PB->registerCGSCCAnalyses(cgscc_manager);
-	PB->registerFunctionAnalyses(FAM);
-	PB->registerLoopAnalyses(LAM);
-	PB->crossRegisterProxies(LAM, FAM, cgscc_manager, MAM);
-
-	PM.add(MMIWP);
-
-	TPC = static_cast<llvm::HwtFpgaTargetPassConfig*>(static_cast<llvm::LLVMTargetMachine&>(*TM).createPassConfig(
-			PM));
-	if (TPC->hasLimitedCodeGenPipeline()) {
-		llvm::errs() << "run-pass cannot be used with " << TPC->getLimitedCodeGenPipelineReason(" and ") << ".\n";
-		throw std::runtime_error("run-pass cannot be used with ...");
-	}
-
-	PM.add(TPC);
-	TPC->printAndVerify("before addMachinePasses");
-
-	TPC->_testAddPass(&llvm::EarlyIfPredicatorID);
-	TPC->_testAddPass(&llvm::EarlyIfConverterID);
-
-	TPC->printAndVerify("after addMachinePasses");
-	TPC->setInitialized();
-
-	PM.run(*mod);
+	_testMachineFunctionPass([](llvm::HwtFpgaTargetPassConfig &TPC) {
+		TPC._testAddPass(&llvm::EarlyIfPredicatorID);
+		TPC._testAddPass(&llvm::EarlyIfConverterID);
+	});
 }
 
+void LlvmCompilationBundle::_testVRegIfConverter() {
+	_testMachineFunctionPass([](llvm::HwtFpgaTargetPassConfig &TPC) {
+		TPC._testAddPass(hwtHls::createVRegIfConverter(nullptr));
+	});
+}
+
+void LlvmCompilationBundle::_testVRegIfConverterForIr() {
+	_testMachineFunctionPass([](llvm::HwtFpgaTargetPassConfig &TPC) {
+		if (TPC.addISelPasses())
+			llvm_unreachable("Can not addISelPasses");
+		TPC._testAddPass(hwtHls::createVRegIfConverter(nullptr));
+		//TPC._testAddPass(llvm::createHwtFpgaPreRegAllocCombiner());
+		//TPC._testAddPass(&hwtHls::EarlyMachineCopyPropagationID);
+		//TPC._testAddPass(&llvm::MachineCombinerID);
+
+	});
+}
 
 }
