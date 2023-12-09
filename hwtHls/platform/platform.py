@@ -20,6 +20,7 @@ from hwtHls.netlist.analysis.betweenSyncIslandsConsystencyCheck import HlsNetlis
 from hwtHls.netlist.analysis.blockSyncType import HlsNetlistAnalysisPassBlockSyncType
 from hwtHls.netlist.analysis.consystencyCheck import HlsNetlistPassConsystencyCheck
 from hwtHls.netlist.analysis.dataThreadsForBlocks import HlsNetlistAnalysisPassDataThreadsForBlocks
+from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 from hwtHls.netlist.analysis.schedule import HlsNetlistAnalysisPassRunScheduler
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.debugTracer import DebugTracer
@@ -52,7 +53,6 @@ from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnaly
 from hwtHls.ssa.translation.toGraphwiz import SsaPassDumpToDot
 from hwtHls.ssa.translation.toLl import SsaPassDumpToLl
 from hwtHls.ssa.translation.toLlvm import SsaPassToLlvm, ToLlvmIrTranslator
-from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 
 
 DebugId = Tuple[Type, Optional[str]]
@@ -109,6 +109,14 @@ class HlsDebugBundle():
     ALL = None
     NONE = {}
     # all without DBG_20_addSyncSigNames, DBG_24_regFileHierarchy because it changes optimization behavior
+    
+    # :note: ALL_RELIABLE refers to passes which do not require intense circuit analysis. This often fails on a broken circuit.
+    #        Reliable debug options do not contain expensive debug options and are meant for detection of the bugs. The expensive debug options 
+    #        are used for deeper circuit analysis or circuit rewrites for improving readability.
+    
+    # :note: reliable refers to a passes which do not require intense circuit analysis which often fails on broken circuit
+    #        that said reliable debug options are meant for detection of the bugs and does not contain expensive debug options
+    #        which are used for deeper circuit analysis or circuit rewrites for improving of readability
     ALL_RELIABLE = {
         DBG_0_pyFrontedBytecode,
         DBG_0_pyFrontedBeginCfg,
@@ -257,7 +265,7 @@ class DefaultHlsPlatform(DummyPlatform):
             # ("debug-only", 0, "", "hwtfpga-pretonetlist-combiner"),
             # ("print-after-all", 0, "", "true"),
             # ("print-before-all", 0, "", "true"),
-            # ("time-passes", 0, "", "true"),
+            # ("time-passes", 0, "", "true"), # profile times of passes and analysis
             # ("print-before", 0, "", "machine-sink"),
             # ("print-after", 0, "", "machine-sink"),
             # ("view-dag-combine1-dags", 0, "", "true"),
@@ -270,23 +278,9 @@ class DefaultHlsPlatform(DummyPlatform):
             # ("view-sunit-dags", 0, "", "true"),
             # ("print-after-isel", 0, "", "true"),
             # ("debug-only", 0, "", "mir-canonicalizer"), # :note: available only in llvm debug build #"early-ifcvt-limit"
-            # ("debug-only", 0, "", "simplifycfg")
             # ("print-lsr-output", 0, "", "true"),
-            # ("print-before", 0, "", "loop-unroll"),
-            # ("debug-only", 0, "", "loop-unroll"), # :note: available only in llvm debug build
-            # ("print-after", 0, "", "loop-unroll"),
-            # ("debug-only", 0, "", "loop-unroll"), # :note: available only in llvm debug build
-            # ("print-after", 0, "", "loop-unroll"),
-            # ("print-before", 0, "", "early-if-predicator"),
-            # ("print-after", 0, "", "early-if-predicator"),
-            # ("print-before", 0, "", "early-ifcvt"),
-            # ("print-after", 0, "", "early-ifcvt"),
-            # ("print-before", 0, "", "vreg-if-converter"),
             # ("debug-only", 0, "", "vreg-if-converter"), # :note: available only in llvm debug build
-            # ("print-after", 0, "", "vreg-if-converter"),
             # ("debug", 0, "", "1"),
-            # ("print-before", 0, "", "hwtfpga-preregalloc-combiner"),
-            # ("print-after", 0, "", "hwtfpga-preregalloc-combiner"),
         ]
 
     def _getDebugTracer(self, netlist: HlsNetlistCtx, dbgId: DebugId):
