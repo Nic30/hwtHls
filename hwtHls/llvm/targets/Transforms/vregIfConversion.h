@@ -5,7 +5,8 @@
 
 namespace hwtHls {
 llvm::FunctionPass*
-createVregIfConverter(std::function<bool(const llvm::MachineFunction&)> Ftor);
+createVRegIfConverter(std::function<bool(const llvm::MachineFunction&)> Ftor);
+
 }
 
 namespace llvm {

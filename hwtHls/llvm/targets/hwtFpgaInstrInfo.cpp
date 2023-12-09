@@ -37,8 +37,7 @@ const TargetRegisterClass* HwtFpgaInstrInfo::getRegClass(
 bool HwtFpgaInstrInfo::shouldSink(const MachineInstr &MI) const {
 	// never sink extract because it is instruction with zero cost
 	// which reduces amount of data in registers
-	//return MI.getOpcode() != HwtFpga::HWTFPGA_EXTRACT;
-	return true; // [debug]
+	return MI.getOpcode() != HwtFpga::HWTFPGA_EXTRACT;
 }
 
 // based on `ARCInstrInfo::analyzeBranch`
@@ -46,11 +45,14 @@ bool HwtFpgaInstrInfo::shouldSink(const MachineInstr &MI) const {
 bool HwtFpgaInstrInfo::analyzeBranch(MachineBasicBlock &MBB,
 		MachineBasicBlock *&TBB, MachineBasicBlock *&FBB,
 		SmallVectorImpl<MachineOperand> &Cond, bool AllowModify) const {
-	// errs() << "HwtFpgaInstrInfo::analyzeBranch: " << MBB.getFullName() << "\n";
-	TBB = FBB = nullptr;
+	MachineFunction::iterator Fallthrough = MBB.getIterator();
+	++Fallthrough;
+	//TBB = &*Fallthrough;
+	TBB = nullptr;
+	FBB = nullptr;
 	MachineBasicBlock::iterator I = MBB.end();
 	if (I == MBB.begin())
-		return false;
+		return false; // empty blocks -> no terminators
 	--I;
 
 	while (isPredicated(*I) || I->isTerminator() || I->isDebugValue()) {
@@ -75,11 +77,13 @@ bool HwtFpgaInstrInfo::analyzeBranch(MachineBasicBlock &MBB,
 		} else if (isCondBranchOpcode(I->getOpcode())) {
 			// Bail out if we encounter multiple conditional branches.
 			if (!Cond.empty()) {
-				//errs() << "Err: cond not empty\n";
-				return true;
+				return true; // Err: cond not empty
 			}
 			assert(!FBB && "FBB should have been null.");
-			FBB = TBB;
+			if (TBB == nullptr)
+				TBB = &*Fallthrough;
+			else
+				FBB = TBB;
 			Cond.push_back(I->getOperand(0));
 			Cond.push_back(MachineOperand::CreateImm(0));
 			TBB = I->getOperand(1).getMBB();
@@ -88,8 +92,7 @@ bool HwtFpgaInstrInfo::analyzeBranch(MachineBasicBlock &MBB,
 			CantAnalyze = !isPredicated(*I);
 		} else {
 			// We encountered other unrecognized terminator. Bail out immediately.
-			//errs() << "Err: Unrecognized terminator\n";
-			return true;
+			return true; // Err: Unrecognized terminator
 		}
 
 		// Cleanup code - to be run for unpredicated unconditional branches and
@@ -115,16 +118,14 @@ bool HwtFpgaInstrInfo::analyzeBranch(MachineBasicBlock &MBB,
 		}
 
 		if (CantAnalyze) {
-			//errs() << "Err can not analyze\n";
-			return true;
+			return true; // Err can not analyze
 		}
 
-		if (I == MBB.begin())
+		if (I == MBB.begin()) {
 			return false; // all in this block was analyzed successfully
-
+		}
 		--I;
 	}
-
 	// We made it past the terminators without bailing out - we must have
 	// analyzed this branch successfully.
 	return false;
@@ -162,7 +163,7 @@ bool HwtFpgaInstrInfo::reverseBranchCondition(
 		SmallVectorImpl<MachineOperand> &Cond) const {
 	assert(Cond.size() == 2);
 	assert(Cond[0].isReg());
-	assert(Cond[0].isUse());
+	//assert(Cond[0].isUse());
 	assert(Cond[1].isImm());
 	Cond[1].setImm(!Cond[1].getImm());
 	return false;
@@ -207,14 +208,40 @@ unsigned HwtFpgaInstrInfo::getPredicationCost(const MachineInstr &MI) const {
 
 bool HwtFpgaInstrInfo::SubsumesPredicate(ArrayRef<MachineOperand> Pred0,
 		ArrayRef<MachineOperand> Pred1) const {
-	assert(Pred0.size() == 2 && "Invalid first predicate");
-	assert(Pred1.size() == 2 && "Invalid second predicate");
+	if (Pred0.size() != Pred1.size()) {
+		return false;
+	}
+	assert((Pred0.size() % 2 == 0) && "Invalid first predicate");
+	assert((Pred1.size() % 2 == 0) && "Invalid second predicate");
 
-	if (Pred0[0].getReg() == Pred1[0].getReg()
-			&& Pred0[1].getImm() == Pred1[1].getImm())
-		return true;
+	auto p0 = Pred0.begin();
+	auto p1 = Pred1.begin();
+	for (;;) {
+		if (p0 == Pred0.end()) {
+			if (p1 == Pred1.end())
+				break;
+			else
+				return false;
+		}
+		if (p1 == Pred1.end()) {
+			return false;
+		}
+		assert(p0->isReg());
+		assert(p1->isReg());
 
-	return false;
+		if (p0->getReg() != p1->getReg()) {
+			return false;
+		}
+		++p0;
+		++p1;
+		assert(p0->isImm());
+		assert(p1->isImm());
+		if (p0->getImm() != p1->getImm()) {
+			return false;
+		}
+	}
+
+	return true;
 }
 
 // based on ARCInstrInfo::insertBranch
@@ -222,6 +249,10 @@ unsigned HwtFpgaInstrInfo::insertBranch(MachineBasicBlock &MBB,
 		MachineBasicBlock *TBB, MachineBasicBlock *FBB,
 		ArrayRef<MachineOperand> Cond, const DebugLoc &DL,
 		int *BytesAdded) const {
+	// :note: Cond meaning can not be altered, T/F can not be swapped because code in transformations like IfConverter
+	// uses condition to build another condition and reversing the condition would break all expressions where this condition is used.
+	// :attention: Cond must be updated if different register was used, because current may be subject to DCE and the Cond would
+	//  become invalid over the time
 	assert(!BytesAdded && "Code size not handled.");
 
 	// Shouldn't be a fall through.
@@ -234,25 +265,36 @@ unsigned HwtFpgaInstrInfo::insertBranch(MachineBasicBlock &MBB,
 		BuildMI(&MBB, DL, get(TargetOpcode::G_BR)).addMBB(TBB);
 		return 1;
 	}
-	Register Br_n;
+	assert(Cond[0].isReg());
+
+	MachineOperand Br_cond = Cond[0];
 	bool isNegated = Cond[1].getImm();
+	MachineFunction &MF = *MBB.getParent();
+	MachineRegisterInfo &MRI = MF.getRegInfo();
+	auto CondMutable = reinterpret_cast<MutableArrayRef<MachineOperand>&>(Cond);
+
 	if (isNegated) {
-		MachineFunction &MF = *MBB.getParent();
-		MachineRegisterInfo &MRI = MF.getRegInfo();
-		// place register negation before first terminator
-		MachineIRBuilder Builder(MBB, MBB.end());
-		for (auto &t : MBB.terminators()) {
-			Builder.setInsertPt(MBB, t);
-			break;
+		MachineOperand *_Br_n = hwtHls::getRegisterNegationIfExits(MRI, MBB,
+				MBB.end(), Br_cond.getReg());
+		if (_Br_n) {
+			// use existing negation of register
+			Br_cond = CondMutable[0] = *_Br_n;
+			CondMutable[1].setImm(0); // negated twice = not negated
+
+		//} else if (FBB) {
+		//	// swap T/F to avoid negation
+		//	std::swap(TBB, FBB);
+		} else {
+			// place register negation before first terminator
+			MachineIRBuilder Builder(MBB, MBB.terminators().begin());
+			Br_cond = CondMutable[0] = hwtHls::_negateRegister(MRI, Builder,
+					Cond[0].getReg(), Cond[0].isKill());
+			CondMutable[1].setImm(0); // negated twice = not negated
 		}
-		Br_n = hwtHls::negateRegister(MRI, Builder, Cond[0].getReg());
 	}
 	MachineInstrBuilder MIB = BuildMI(&MBB, DL, get(TargetOpcode::G_BRCOND));
-	if (isNegated) {
-		MIB.addUse(Br_n);
-	} else {
-		MIB.add(Cond[0]);
-	}
+	MIB.addUse(Br_cond.getReg(),
+			MRI.use_empty(Br_cond.getReg()) || Cond[0].isKill() ? RegState::Kill : 0);
 	MIB.addMBB(TBB);
 
 	// One-way conditional branch.
@@ -362,26 +404,29 @@ bool HwtFpgaInstrInfo::analyzeSelect(const MachineInstr &MI,
 bool HwtFpgaInstrInfo::isPredicated(const MachineInstr &MI) const {
 	auto opc = MI.getOpcode();
 	switch (opc) {
-	case TargetOpcode::PHI:
-	case TargetOpcode::G_PHI:
-	case TargetOpcode::G_SELECT:
-		//case HwtFpga::HWTFPGA_CLOAD:
+	//case TargetOpcode::PHI:
+	//case TargetOpcode::G_PHI:
+	//case TargetOpcode::G_SELECT:
+	case HwtFpga::HWTFPGA_CLOAD:
 	case HwtFpga::HWTFPGA_CSTORE:
+		//{
+		//	size_t predicateI = 3;
+		//	return !MI.getOperand(predicateI).isImm()
+		//			&& !MI.getOperand(predicateI).isCImm();
+		//}
 	case HwtFpga::HWTFPGA_MUX:
 		return false; // can be predicate infinity times
 	default:
 		return false;
 	}
-	//errs() << "MI.getOperand(predicateI).isImm() " << MI << " " << MI.getOperand(predicateI).isImm() << "\n";
-	// return	!MI.getOperand(predicateI).isImm()
-	// 		&& !MI.getOperand(predicateI).isCImm();
 }
 
 bool HwtFpgaInstrInfo::PredicateInstruction(MachineInstr &MI,
 		ArrayRef<MachineOperand> Pred) const {
 	auto opc = MI.getOpcode();
 	if (Pred.size() != 2)
-		llvm_unreachable("NotImplemented");
+		llvm_unreachable("NotImplemented - predicate with multiple terms");
+
 	switch (opc) {
 	case HwtFpga::HWTFPGA_CLOAD:
 	case HwtFpga::HWTFPGA_CSTORE: {
@@ -406,110 +451,58 @@ bool HwtFpgaInstrInfo::PredicateInstruction(MachineInstr &MI,
 			auto *MF = MI.getParent()->getParent();
 			MachineRegisterInfo &MRI = MF->getRegInfo();
 			MachineIRBuilder Builder(*MI.getParent(), &MI);
-			Register CondAndPred = MRI.cloneVirtualRegister(Cond);
-			MRI.setType(CondAndPred, LLT::scalar(1));
-			Builder.buildInstr(TargetOpcode::G_AND, { CondAndPred }, { Cond,
-					curPred });
-			Cond = CondAndPred;
+			Register CondAndPred;
+			if (Cond == curPred) {
+				CondAndPred = Cond;
+			} else {
+				CondAndPred = MRI.cloneVirtualRegister(Cond);
+				MRI.setType(CondAndPred, LLT::scalar(1));
+				Builder.buildInstr(TargetOpcode::G_AND, { CondAndPred }, { Cond,
+						curPred });
+				Cond = CondAndPred;
+			}
 		}
 
 		MI.addOperand(MachineOperand::CreateReg(Cond, false));
-		break;
+		// :note: implicit operand should be added by caller of this function (if required)
+		//if (opc == HwtFpga::HWTFPGA_CLOAD) {
+		//	auto DstReg = MI.getOperand(0).getReg();
+		//	if (!MI.hasRegisterImplicitUseOperand(DstReg)) { // add dst as implicit operand for liveness analysis
+		//		auto &MBB = *MI.getParent();
+		//		MachineFunction &MF = *MBB.getParent();
+		//		MachineRegisterInfo &MRI = MF.getRegInfo();
+		//		if (!MRI.use_empty(DstReg)) {
+		//			MI.addOperand(MachineOperand::CreateReg(DstReg, /*IsDef*/
+		//			false, /*IsImp*/true));
+		//		}
+		//	}
+		//}
+		return true;
 	}
-	default: {
-		/*
-		 For example in:
-		 bb.0:
-		 G_BRCOND %cond, %bb.2
-		 bb.1:
-		 %v0 = MUX %v1
-		 bb.2:
-		 ; predecessors: %bb.0, %bb.1
-		 G_BRCOND %cond, %bb.4
-		 bb.3:
-		 ; predecessors: %bb.2
-		 use kill %v0
-		 bb.4:
-		 ; predecessors: %bb.2, %bb.3
-
-		 if v0 is liveout of bb.0 i need to predicate to:
-
-		 bb.0:
-		 %v0 = MUX %v1 %cond %v0  ; %v0 and %cond must be added as operands to select proper value for v0
-		 bb.2:
-		 ; predecessors: %bb.0
-		 G_BRCOND %cond, %bb.4
-		 bb.3:
-		 ; predecessors: %bb.2
-		 use kill %v0
-		 bb.4:
-		 ; predecessors: %bb.2, %bb.3
-
-		 if v0 is not in liveout of bb.0 it should be theoretically possible to:
-
-		 bb.0:
-		 %v0 = MUX %v1 ; %v0 is guaranteed to be coming only from original bb.1 and used only if bb.1 was entered
-		 bb.2:
-		 ; predecessors: %bb.0
-		 G_BRCOND %cond, %bb.4
-		 bb.3:
-		 ; predecessors: %bb.2
-		 use kill %v0
-		 bb.4:
-		 ; predecessors: %bb.2, %bb.3
-		 */
-		bool isOnlyUsedInPhiOfSuccessorOrInThisBlock = true;
-		const MachineBasicBlock *MBB = MI.getParent();
-		const MachineFunction &MF = *MBB->getParent();
-		const MachineRegisterInfo &MRI = MF.getRegInfo();
-		for (const auto &defMO : MI.defs()) {
-			if (hwtHls::registerIsUsedOnlyInPhisOfSuccessorOrInternallyInBlock(
-					MI, defMO.getReg()))
-				continue;
-			if (MBB->succ_size() == 1
-					&& hwtHls::registerDefinedInEveryBlock(MRI,
-							(*MBB->succ_begin())->predecessors(),
-							defMO.getReg()))
-				continue;
-			isOnlyUsedInPhiOfSuccessorOrInThisBlock = false;
-			break;
-		}
-		if (isOnlyUsedInPhiOfSuccessorOrInThisBlock)
-			return true; // does not need any predication because it is has only local use
-
-		if (opc == HwtFpga::HWTFPGA_MUX) {
-			bool isNegated = Pred[1].getImm();
-
-			if (MI.getNumOperands() == 1 + 1) {
-				Register Cond;
-				if (isNegated) {
-					auto res = hwtHls::negateRegisterForInstr(MI,
-							Pred[0].getReg());
-					Cond = res.second;
-				}
-				MI.addOperand(MachineOperand::CreateReg(Cond, false));
-				return true;
-			} else {
-				// if Pred is not satisfied the the output must remain the same, else other conditions in mux should be used to select value
-
-				// pop all operands except dst
-				// add current value as first value operand (we already know that the )
-				//MI.addOperand(MF, Op)
-				MI.getParent()->getParent()->dump();
-				MI.dump();
-				llvm_unreachable("NotImplemented");
-				//MI.removeOperand(OpNo)
-			}
+	case HwtFpga::HWTFPGA_BR:
+	case HwtFpga::G_BR: {
+		bool isNegated = Pred[1].getImm();
+		Register Cond;
+		if (isNegated) {
+			auto res = hwtHls::negateRegisterForInstr(MI, Pred[0].getReg());
+			Cond = res.second;
 		} else {
-			MI.getParent()->getParent()->dump();
-			MI.dump();
-			llvm_unreachable("NotImplemented");
-			return false;
+			Cond = Pred[0].getReg();
 		}
-	}
+		MI.setDesc(
+				get(
+						opc == HwtFpga::HWTFPGA_BR ?
+								HwtFpga::HWTFPGA_BRCOND : HwtFpga::G_BRCOND));
+		auto BB = MI.getOperand(0);
+		MI.removeOperand(0);
+		MI.addOperand(MachineOperand::CreateReg(Cond, false));
+		MI.addOperand(BB);
+		return true;
 	}
 
-	return true; // no need to predicate because register is used only locally in predicated block
+	default:
+		return false;
+	}
 }
 
 }
