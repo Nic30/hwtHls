@@ -1,5 +1,8 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 from tests.baseSsaTest import BaseSsaTC
-from tests.bitOpt.bitWidthReductionPass_Cmp import BitWidthReductionCmp2Values, \
+from tests.llvmIr.bitWidthReductionPass_Cmp import BitWidthReductionCmp2Values, \
     BitWidthReductionCmpReducibleEq, BitWidthReductionCmpReducibleNe, \
     BitWidthReductionCmpReducibleLt, BitWidthReductionCmpReducibleLe, \
     BitWidthReductionCmpReducibleGt, BitWidthReductionCmpReducibleGe
@@ -36,7 +39,7 @@ if __name__ == "__main__":
     import unittest
     
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([BitWidthReductionPass_Cmp_example_TC('test_BitWidthReductionCmpReducibleEq_ll')])
+    # suite = unittest.TestSuite([BitWidthReductionPass_Cmp_example_TC('test_BitWidthReductionCmp2Values_ll')])
     suite = testLoader.loadTestsFromTestCase(BitWidthReductionPass_Cmp_example_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

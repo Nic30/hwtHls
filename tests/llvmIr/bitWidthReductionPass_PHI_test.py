@@ -1,8 +1,15 @@
-from tests.bitOpt.bitWidthReduction_test import BitwidthReductionPass_TC
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+from tests.llvmIr.bitWidthReduction_test import BitwidthReductionPass_TC
+from tests.baseSsaTest import BaseSsaTC
 
 
-class BitwidthReductionPass_PHI_TC(BitwidthReductionPass_TC):
+class BitwidthReductionPass_PHI_TC(BaseSsaTC):
     __FILE__ = __file__
+
+    def _test_ll(self, irStr:str):
+        BitwidthReductionPass_TC._test_ll(self, irStr)
 
     def test_rmInTheMiddle0(self):
         #  rxRaw = rx.read()
@@ -222,7 +229,7 @@ class BitwidthReductionPass_PHI_TC(BitwidthReductionPass_TC):
 if __name__ == "__main__":
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([BitwidthReductionPass_PHI_TC('test_constInConcat0')])
+    # suite = unittest.TestSuite([BitwidthReductionPass_PHI_TC('test_rmInTheMiddle4')])
     suite = testLoader.loadTestsFromTestCase(BitwidthReductionPass_PHI_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

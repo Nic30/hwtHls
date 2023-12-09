@@ -1,9 +1,12 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 import os
 
 from hwtHls.llvm.llvmIr import LlvmCompilationBundle, SMDiagnostic, parseIR
 from tests.baseSsaTest import BaseSsaTC
-from tests.bitOpt.slicesMergePass_test import generateAndAppendHwtHlsFunctionDeclarations
-from tests.bitOpt.rewriteExtractOnMergeValues_test import RewriteExtractOnMergeValuesPass_TC
+from tests.llvmIr.slicesMergePass_test import generateAndAppendHwtHlsFunctionDeclarations
+from tests.llvmIr.rewriteExtractOnMergeValues_test import RewriteExtractOnMergeValuesPass_TC
 
 
 class BitwidthReductionPass_TC(BaseSsaTC):
@@ -18,6 +21,7 @@ class BitwidthReductionPass_TC(BaseSsaTC):
             raise AssertionError(Err.str("test", True, True))
         else:
             fns = tuple(M)
+            llvm.module = M
             llvm.main = fns[0]
             name = llvm.main.getName().str()
 
@@ -66,7 +70,7 @@ class BitwidthReductionPass_TC(BaseSsaTC):
         }
         """
         self._test_ll(llvmIr)
-    
+
     def test_selectValOrUndef(self):
         # select should be replaced with %d
         llvmIr = """\
@@ -83,8 +87,7 @@ class BitwidthReductionPass_TC(BaseSsaTC):
         }
         """
         self._test_ll(llvmIr)
-    
-    
+
     def test_selectOfPartlySameRegSlices(self):
         # 1st byte and last constant bytes should be reduced only middle should be kept in %res
         llvmIr = """\
@@ -106,7 +109,7 @@ class BitwidthReductionPass_TC(BaseSsaTC):
         }
         """
         self._test_ll(llvmIr)
-    
+
     def test_selectOfShiftedSameRegSlices(self):
         # tailing 0 should be reduced from %res
         llvmIr = """\
@@ -132,11 +135,55 @@ class BitwidthReductionPass_TC(BaseSsaTC):
     def test_sliceBr(self):
         RewriteExtractOnMergeValuesPass_TC.test_sliceBr(self)
 
+    def test_zextSlice(self):
+        llvmIr = """\
+        define void @zextSlice(ptr addrspace(1) %i0, ptr addrspace(2) %o0) {
+            bb0:
+              br label %bb1
+            bb1:
+              %0 = load volatile i16, ptr addrspace(1) %i0, align 1
+              %1 = zext i16 %0 to i25
+              %2 = call i24 @hwtHls.bitRangeGet.i25.i6.i24.0(i25 %1, i6 0) #2
+              %3 = zext i24 %2 to i32
+              store volatile i32 %3, ptr addrspace(2) %o0, align 4
+              ret void
+        }
+        """
+        self._test_ll(llvmIr)
+
+    def test_orConst0(self):
+        llvmIr = """\
+        define void @orConst0(ptr addrspace(1) %i0, ptr addrspace(2) %o0) {
+            bb0:
+              br label %bb1
+            bb1:
+              %0 = load volatile i8, ptr addrspace(1) %i0, align 1
+              %1 = or i8 %0, 6
+              store volatile i8 %1, ptr addrspace(2) %o0, align 4
+              ret void
+        }
+        """
+        self._test_ll(llvmIr)
+
+    def test_orConst1(self):
+        llvmIr = """\
+        define void @orConst1(ptr addrspace(1) %i0, ptr addrspace(2) %o0) {
+            bb0:
+              br label %bb1
+            bb1:
+              %0 = load volatile i8, ptr addrspace(1) %i0, align 1
+              %1 = mul i8 %0, 24
+              %2 = or i8 %1, 6
+              store volatile i8 %2, ptr addrspace(2) %o0, align 4
+              ret void
+        }
+        """
+        self._test_ll(llvmIr)
 
 if __name__ == "__main__":
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([BitwidthReductionPass_TC('test_selectValOrUndef')])
+    # suite = unittest.TestSuite([BitwidthReductionPass_TC('test_orConst1')])
     suite = testLoader.loadTestsFromTestCase(BitwidthReductionPass_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
