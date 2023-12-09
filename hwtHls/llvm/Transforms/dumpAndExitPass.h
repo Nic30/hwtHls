@@ -5,8 +5,10 @@
 #include <llvm/Analysis/AliasAnalysis.h>
 #include <llvm/Analysis/BasicAliasAnalysis.h>
 #include <llvm/Analysis/GlobalsModRef.h>
+#include <llvm/IR/Verifier.h>
 
 #include <hwtHls/llvm/Transforms/utils/writeCFGToDotFile.h>
+
 
 namespace hwtHls {
 
@@ -18,10 +20,11 @@ public:
 class DumpAndExitPass: public llvm::PassInfoMixin<DumpAndExitPass> {
 	bool dumpFn;
 	bool throwErrAndExit;
+	bool verify;
 	std::optional<std::string> cfgDumpFileName;
 public:
-	explicit DumpAndExitPass(bool dumpFn, bool throwErrAndExit, std::optional<std::string> cfgDumpFileName={}) :
-			dumpFn(dumpFn), throwErrAndExit(throwErrAndExit), cfgDumpFileName(cfgDumpFileName) {
+	explicit DumpAndExitPass(bool dumpFn, bool throwErrAndExit, std::optional<std::string> cfgDumpFileName={}, bool verify=false) :
+			dumpFn(dumpFn), throwErrAndExit(throwErrAndExit), verify(verify), cfgDumpFileName(cfgDumpFileName) {
 	}
 
 	llvm::PreservedAnalyses run(llvm::Function &F,
@@ -30,6 +33,13 @@ public:
 			F.dump();
 		if (cfgDumpFileName.has_value()) {
 			writeCFGToDotFile(F, cfgDumpFileName.value(), nullptr, nullptr);
+		}
+		if (verify) {
+			if(llvm::verifyModule(*F.getParent(), &llvm::dbgs())) {
+				llvm::dbgs() << "Module is broken\n";
+			} else {
+				llvm::dbgs() << "Module is valid\n";
+			}
 		}
 		if (throwErrAndExit)
 			throw IntentionalCompilationInterupt(
