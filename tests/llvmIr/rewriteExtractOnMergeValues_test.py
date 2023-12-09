@@ -1,8 +1,11 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 import os
 
 from hwtHls.llvm.llvmIr import LlvmCompilationBundle, SMDiagnostic, parseIR
 from tests.baseSsaTest import BaseSsaTC
-from tests.bitOpt.slicesMergePass_test import generateAndAppendHwtHlsFunctionDeclarations
+from tests.llvmIr.slicesMergePass_test import generateAndAppendHwtHlsFunctionDeclarations
 
 
 class RewriteExtractOnMergeValuesPass_TC(BaseSsaTC):
@@ -17,6 +20,7 @@ class RewriteExtractOnMergeValuesPass_TC(BaseSsaTC):
             raise AssertionError(Err.str("test", True, True))
         else:
             fns = tuple(M)
+            llvm.module = M
             llvm.main = fns[0]
             name = llvm.main.getName().str()
 
