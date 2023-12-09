@@ -6,7 +6,7 @@
 #include <llvm/IR/IRBuilder.h>
 
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
-#include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/concatMemberVector.h>
+#include <hwtHls/llvm/targets/intrinsic/concatMemberVector.h>
 #include <hwtHls/llvm/Transforms/slicesMerge/utils.h>
 
 using namespace llvm;
@@ -63,7 +63,7 @@ vector<PHINode*> sortPhiGroup(BasicBlock &BB, set<PHINode*> &group) {
 	return res;
 }
 
-PHINode* mergePhisToWiderPhi(LLVMContext & C, const std::string& nameStem, const std::vector<PHINode*> & phis) {
+PHINode* mergePhisToWiderPhi(LLVMContext & C, const Twine& nameStem, const std::vector<PHINode*> & phis) {
 	size_t resWidth = 0;
 	//stringstream _name;
 	//_name << nameStem << "<";

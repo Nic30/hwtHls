@@ -6,6 +6,5 @@
 namespace hwtHls {
 
 bool mergeConsequentSlicesSelect(llvm::SelectInst &I,
-		DceWorklist::SliceDict &slices, const CreateBitRangeGetFn &createSlice,
-		DceWorklist &dce);
+		const CreateBitRangeGetFn &createSlice, DceWorklist &dce);
 }

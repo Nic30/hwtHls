@@ -38,7 +38,7 @@ bool phiShiftPatternRewrite(llvm::BasicBlock &BB, const CreateBitRangeGetFn & cr
 /*
  * Create one wider PHINode from group of phis
  * */
-llvm::PHINode* mergePhisToWiderPhi(llvm::LLVMContext & C, const std::string &nameStem,
+llvm::PHINode* mergePhisToWiderPhi(llvm::LLVMContext & C, const llvm::Twine &nameStem,
 		const std::vector<llvm::PHINode*> &phis);
 
 }

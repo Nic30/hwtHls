@@ -6,6 +6,5 @@
 namespace hwtHls {
 
 bool mergeConsequentSlicesBinOp(llvm::BinaryOperator &I,
-		DceWorklist::SliceDict &slices, const CreateBitRangeGetFn &createSlice,
-		DceWorklist &dce);
+		const CreateBitRangeGetFn &createSlice, DceWorklist &dce);
 }

@@ -10,7 +10,7 @@
 #include <llvm/IR/Dominators.h>
 
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
-#include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/concatMemberVector.h>
+#include <hwtHls/llvm/targets/intrinsic/concatMemberVector.h>
 #include <hwtHls/llvm/Transforms/slicesMerge/rewriteConcat.h>
 #include <hwtHls/llvm/Transforms/utils/dceWorklist.h>
 #include <hwtHls/llvm/Transforms/slicesMerge/rewritePhiShift.h>
@@ -22,7 +22,6 @@ using namespace std;
 //#define DBG_VERIFY_AFTER_EVERY_MODIFICATION 1
 
 namespace hwtHls {
-
 
 DceWorklist::SliceDict findSlices(Function &F) {
 	DceWorklist::SliceDict slices;
@@ -39,6 +38,21 @@ DceWorklist::SliceDict findSlices(Function &F) {
 							slices[ { bitVector, offsetInt }] = { CallI };
 						}
 					}
+				}
+			} else if (auto *trunc = dyn_cast<TruncInst>(&I)) {
+				auto *bitVector = trunc->getOperand(0);
+				size_t offsetInt = 0;
+				auto curSlices = slices.find( { bitVector, offsetInt });
+				if (curSlices == slices.end()) {
+					slices[ { bitVector, offsetInt }] = { trunc };
+				}
+			} else if (auto *sext = dyn_cast<SExtInst>(&I)) {
+				auto *bitVector = sext->getOperand(0);
+				size_t offsetInt = bitVector->getType()->getIntegerBitWidth()
+						- 1;
+				auto curSlices = slices.find( { bitVector, offsetInt });
+				if (curSlices == slices.end()) {
+					slices[ { bitVector, offsetInt }] = { CallI };
 				}
 			}
 		}
@@ -63,7 +77,7 @@ PreservedAnalyses SlicesMergePass::run(Function &F,
 	TargetLibraryInfo *TLI = &AM.getResult<TargetLibraryAnalysis>(F);
 	bool anyChange = false;
 	bool firstRun = true;
-	while (true) {
+	for (;;) {
 		// run phiShiftPatternRewrite rewriteConcat, mergeConsequentSlices, InstCombinePass, NewGVNPass
 		// in loop while something is reduced
 		bool change = false;
@@ -75,9 +89,9 @@ PreservedAnalyses SlicesMergePass::run(Function &F,
 			if (cur == slices.end()) {
 				auto _slice = CreateBitRangeGetConst(Builder, bitVec, lowBitNo,
 						bitWidth);
-				if (auto sliceCI = dyn_cast<CallInst>(_slice)) {
-					if (IsBitRangeGet(sliceCI))
-						slices[key] = { sliceCI };
+				if (auto _sliceI = dyn_cast<Instruction>(_slice)) {
+					if (IsBitRangeGetInst(_sliceI))
+						slices[key] = { _sliceI };
 				}
 				return _slice;
 			} else {
@@ -89,9 +103,9 @@ PreservedAnalyses SlicesMergePass::run(Function &F,
 				}
 				auto _slice = CreateBitRangeGetConst(Builder, bitVec, lowBitNo,
 						bitWidth);
-				if (auto sliceCI = dyn_cast<CallInst>(_slice)) {
-					if (IsBitRangeGet(sliceCI))
-						cur->second.push_back(sliceCI);
+				if (auto _sliceI = dyn_cast<Instruction>(_slice)) {
+					if (IsBitRangeGetInst(_sliceI))
+						cur->second.push_back(_sliceI);
 				}
 				return _slice;
 			}
@@ -112,12 +126,32 @@ PreservedAnalyses SlicesMergePass::run(Function &F,
 				bool _changed = false;
 				if (auto *CallI = dyn_cast<CallInst>(&*I)) {
 					if (IsBitConcat(CallI)) {
+						{
+							std::string errTmp = "hwtHls::SlicesMergePass rewriteConcat received corrupted function ";
+							llvm::raw_string_ostream errSS(errTmp);
+							errSS << F.getName().str();
+							errSS << "\n";
+							if (verifyModule(*F.getParent(), &errSS)) {
+								throw std::runtime_error(errSS.str());
+							}
+						}
 						_changed = rewriteConcat(CallI, createSlice, dce);
+//#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+	{
+		std::string errTmp = "hwtHls::SlicesMergePass rewriteConcat corrupted function ";
+		llvm::raw_string_ostream errSS(errTmp);
+		errSS << F.getName().str();
+		errSS << "\n";
+		if (verifyModule(*F.getParent(), &errSS)) {
+			throw std::runtime_error(errSS.str());
+		}
+	}
+//#endif
 					}
 				}
 
 				if (!_changed && !slices.empty()) {
-					_changed |= mergeConsequentSlices(*I, slices, createSlice,
+					_changed |= mergeConsequentSlices(*I, createSlice,
 							dce);
 				}
 				change |= _changed;
@@ -150,6 +184,7 @@ PreservedAnalyses SlicesMergePass::run(Function &F,
 		}
 		anyChange |= _change;
 	}
+
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 	{
 		std::string errTmp = "hwtHls::SlicesMergePass corrupted function ";

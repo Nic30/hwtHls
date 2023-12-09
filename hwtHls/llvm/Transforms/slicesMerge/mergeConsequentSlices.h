@@ -2,32 +2,27 @@
 #include <llvm/IR/Instructions.h>
 #include <hwtHls/llvm/Transforms/slicesMerge/utils.h>
 #include <hwtHls/llvm/Transforms/utils/dceWorklist.h>
+#include <hwtHls/llvm/Transforms/slicesMerge/parallelInstrVec.h>
+// #define DBG_VERIFY_AFTER_EVERY_MODIFICATION
 
 namespace hwtHls {
-#define DBG_VERIFY_AFTER_EVERY_MODIFICATION
+
+bool IsBitwiseOperator(const llvm::BinaryOperator &I);
+bool IsBitwiseInstruction(const llvm::Instruction &I);
+
 std::pair<llvm::Value*, uint64_t> getSliceOffset(llvm::Value *op0);
 
-bool mergeConsequentSlices(llvm::Instruction &I, DceWorklist::SliceDict &slices,
+bool mergeConsequentSlices(llvm::Instruction &I,
 		const CreateBitRangeGetFn &createSlice, DceWorklist &dce);
 
-using ParallelInstVec = std::vector<std::pair<bool, llvm::Instruction*>>;
 
 void replaceMergedInstructions(const ParallelInstVec &parallelInstrOnSameVec,
 		const CreateBitRangeGetFn &createSlice, llvm::IRBuilder<> &builder,
-		llvm::Value *res, DceWorklist &dce, llvm::Instruction &I);
-
-const llvm::Instruction* getInstructionClosesToBlockEnd(
-		const ParallelInstVec &vec);
-/*
- * Check if any of instructions from vector is used on the rage of instructions specified using begin, end
- * */
-bool anyOfInstructionsIsUsed(const ParallelInstVec &vec,
-		llvm::BasicBlock::const_iterator begin,
-		llvm::BasicBlock::const_iterator end, bool checkAlsoEnd);
+		llvm::Value *res, DceWorklist &dce);
 
 /*
  * :note: op0 and op1 does no have to be 1st and 2nd operand, they are just 2 operands which are checked
- * :param parallelInstrOnSameVec: lowest first vector of instructions on same slice which have slices of the same bit vector as operands
+ * :param parallelInstrOnSameVec: :see: ParallelInstVec
  * 		When searching the same width of slices is prioritized but it is not required.
  * :param extraCheck: function to filter found instructions
  * */
@@ -44,10 +39,23 @@ bool collectParallelInstructionOnSameVector(DceWorklist::SliceDict &slices,
  * :returns: tuple {modified, widerOp0, widerOp1}
  * */
 std::tuple<bool, llvm::Value*, llvm::Value*> mergeConsequentSlicesExtractWiderOperads(
-		DceWorklist::SliceDict &slices, const CreateBitRangeGetFn &createSlice,
-		DceWorklist &dce, llvm::IRBuilder<> &builder,
-		ParallelInstVec &parallelInstrOnSameVec, llvm::Instruction &I,
+		const CreateBitRangeGetFn &createSlice, DceWorklist &dce,
+		llvm::IRBuilder<> &builder, ParallelInstVec &parallelInstrOnSameVec,
+		llvm::Instruction &I,
 		std::function<bool(llvm::Instruction&)> extraCheck, bool commutative,
 		size_t op0Index, size_t op1Index);
+/*
+ * Remove all instructions between instructions in parallelInstrOnSameVec and create a concatenation
+ * of operands for selected operands
+ *
+ * :param widerOp0: output of this function, a wider operand generated from operands of parallel instructions
+ * :param widerOp1: :see: widerOp0
+ * */
+bool extractWiderOperandsFromParallelInstructions(
+		ParallelInstVec &parallelInstrOnSameVec, DceWorklist &dce,
+		const CreateBitRangeGetFn &createSlice, llvm::BasicBlock &ParentBlock,
+		size_t op0Index, size_t op1Index, llvm::IRBuilder<> &builder,
+		llvm::Value *&widerOp0, llvm::Value *&widerOp1, bool &modified);
+
 }
 

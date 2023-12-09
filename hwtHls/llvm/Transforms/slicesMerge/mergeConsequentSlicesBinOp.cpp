@@ -10,8 +10,7 @@ using namespace llvm;
 
 namespace hwtHls {
 
-bool mergeConsequentSlicesBinOp(BinaryOperator &I,
-		DceWorklist::SliceDict &slices, const CreateBitRangeGetFn &createSlice,
+bool mergeConsequentSlicesBinOp(BinaryOperator &I, const CreateBitRangeGetFn &createSlice,
 		DceWorklist &dce) {
 	bool modified;
 	Value *widerOp0;
@@ -22,7 +21,7 @@ bool mergeConsequentSlicesBinOp(BinaryOperator &I,
 		return true;
 	};
 	std::tie(modified, widerOp0, widerOp1) =
-			mergeConsequentSlicesExtractWiderOperads(slices, createSlice, dce,
+			mergeConsequentSlicesExtractWiderOperads(createSlice, dce,
 					builder, parallelInstrOnSameVec, I, noPredicate, true, 0,
 					1);
 	if (widerOp0 && widerOp1) {
@@ -51,8 +50,9 @@ bool mergeConsequentSlicesBinOp(BinaryOperator &I,
 			throw std::runtime_error("getInstructionClosesToBlockEnd broken");
 		}
 #endif
+		assert(parallelInstrOnSameVec.size() && parallelInstrOnSameVec[0].I == &I);
 		replaceMergedInstructions(parallelInstrOnSameVec, createSlice, builder,
-				res, dce, I);
+				res, dce);
 
 	}
 	return modified;
