@@ -1,4 +1,5 @@
 #include <hwtHls/llvm/targets/Transforms/liveVRegs.h>
+
 #include <llvm/CodeGen/MachineFrameInfo.h>
 #include <llvm/CodeGen/MachineRegisterInfo.h>
 #include <llvm/CodeGen/MachineBasicBlock.h>
@@ -8,7 +9,14 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/ADT/STLExtras.h>
 
+/*
+ * MachineBasicBlock::liveins can not be used because it is only for phys regs
+ * Instead this information must be stored in this analysis.
+ * */
+
+
 namespace hwtHls {
+
 using namespace llvm;
 
 
@@ -145,21 +153,9 @@ bool LiveVRegs::available(const MachineRegisterInfo &MRI,
 
 /// Add live-in registers of basic block \p MBB to \p LiveRegs.
 void LiveVRegs::addBlockLiveIns(const MachineBasicBlock &MBB) {
-  for (const auto &LI : MBB.liveins()) {
-    Register Reg = LI.PhysReg;
-    LaneBitmask Mask = LI.LaneMask;
-    MCSubRegIndexIterator S(Reg, TRI);
-    assert(Mask.any() && "Invalid livein mask");
-    if (Mask.all() || !S.isValid()) {
-      addReg(Reg);
-      continue;
-    }
-    for (; S.isValid(); ++S) {
-      unsigned SI = S.getSubRegIndex();
-      if ((Mask & TRI->getSubRegIndexLaneMask(SI)).any())
-        addReg(S.getSubReg());
-    }
-  }
+	for (const auto &Reg : VRegLiveins->liveins(MBB)) {
+		addReg(Reg);
+	}
 }
 
 /// Adds all callee saved registers to \p LiveRegs.
@@ -234,11 +230,20 @@ void LiveVRegs::addLiveIns(const MachineBasicBlock &MBB) {
 }
 
 void LiveVRegs::addLiveInsNoPristines(const MachineBasicBlock &MBB) {
+  //if (!LiveRegs.empty()) {
+  //  for (auto &MI: MBB) {
+  //	  for (auto &Op: MI.operands()) {
+  //		  if (Op.isReg() && Op.isDef()) {
+  //			  LiveRegs.erase(Op.getReg());
+  //		  }
+  //	  }
+  //  }
+  //}
   addBlockLiveIns(MBB);
 }
 
 // llvm::recomputeLivenessFlags using LiveVRegs instead of LivePhysRegs
-void recomputeVRegLivenessFlags(MachineBasicBlock &MBB) {
+void recomputeVRegLivenessFlags(HwtHlsVRegLiveins& VRegLiveins, MachineBasicBlock &MBB) {
   const MachineFunction &MF = *MBB.getParent();
   const MachineRegisterInfo &MRI = MF.getRegInfo();
   const TargetRegisterInfo &TRI = *MRI.getTargetRegisterInfo();
@@ -246,7 +251,7 @@ void recomputeVRegLivenessFlags(MachineBasicBlock &MBB) {
 
   // We walk through the block backwards and start with the live outs.
   LiveVRegs LiveRegs;
-  LiveRegs.init(TRI);
+  LiveRegs.init(TRI, VRegLiveins);
   LiveRegs.addLiveOutsNoPristines(MBB);
 
   for (MachineInstr &MI : llvm::reverse(MBB)) {
@@ -271,7 +276,6 @@ void recomputeVRegLivenessFlags(MachineBasicBlock &MBB) {
           }
         }
       }
-
       MO->setIsDead(IsNotLive);
     }
 

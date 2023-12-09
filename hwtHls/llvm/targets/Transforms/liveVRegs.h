@@ -5,8 +5,11 @@
 #include <llvm/CodeGen/TargetRegisterInfo.h>
 #include <llvm/MC/MCRegister.h>
 #include <llvm/MC/MCRegisterInfo.h>
+
 #include <cassert>
 #include <utility>
+
+#include <hwtHls/llvm/targets/Analysis/VRegLiveins.h>
 
 namespace llvm {
 class MachineInstr;
@@ -20,10 +23,11 @@ namespace hwtHls {
 
 // An equivalent of llvm::LiveVRegs used to track liveness for virtual registers
 
-/// A set of physical registers with utility functions to track liveness
+/// A set of virtual registers with utility functions to track liveness
 /// when walking backward/forward through a basic block.
 class LiveVRegs {
   const llvm::TargetRegisterInfo *TRI = nullptr;
+  const HwtHlsVRegLiveins * VRegLiveins = nullptr;
   using RegisterSet = std::set<llvm::Register>;
   RegisterSet LiveRegs;
 
@@ -40,8 +44,9 @@ public:
   LiveVRegs &operator=(const LiveVRegs&) = delete;
 
   /// (re-)initializes and clears the set.
-  void init(const llvm::TargetRegisterInfo &TRI) {
+  void init(const llvm::TargetRegisterInfo &TRI, HwtHlsVRegLiveins & VRegLiveins) {
     this->TRI = &TRI;
+    this->VRegLiveins = &VRegLiveins;
     LiveRegs.clear();
     //LiveRegs.setUniverse(TRI.getNumRegs());
   }
@@ -52,20 +57,20 @@ public:
   /// Returns true if the set is empty.
   bool empty() const { return LiveRegs.empty(); }
 
-  /// Adds a physical register and all its sub-registers to the set.
+  /// Adds a virtual register and all its sub-registers to the set.
   void addReg(llvm::Register Reg) {
     assert(TRI && "LiveVRegs is not initialized.");
     LiveRegs.insert(Reg);
   }
 
-  /// Removes a physical register, all its sub-registers, and all its
+  /// Removes a virtual register, all its sub-registers, and all its
   /// super-registers from the set.
   void removeReg(llvm::Register Reg) {
     assert(TRI && "LiveVRegs is not initialized.");
     LiveRegs.erase(Reg);
   }
 
-  /// Removes physical registers clobbered by the regmask operand \p MO.
+  /// Removes virtual registers clobbered by the regmask operand \p MO.
   void removeRegsInMask(const llvm::MachineOperand &MO,
 		  llvm::SmallVectorImpl<std::pair<llvm::Register, const llvm::MachineOperand*>> *Clobbers =
         nullptr);
@@ -149,7 +154,7 @@ inline llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const LiveVRegs& LR)
 }
 
 
-void recomputeVRegLivenessFlags(llvm::MachineBasicBlock &MBB);
+void recomputeVRegLivenessFlags(HwtHlsVRegLiveins & VRegLiveins, llvm::MachineBasicBlock &MBB);
 
 
 }

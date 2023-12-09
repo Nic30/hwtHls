@@ -13,24 +13,8 @@
 using namespace llvm;
 namespace hwtHls {
 
-template<typename T>
-class UniqList: public std::vector<T> {
-private:
-	std::set<T> _set;
-public:
-	void push_back(T item) {
-		if (_set.find(item) == _set.end()) {
-			_set.insert(item);
-			std::vector<T>::push_back(item);
-		}
-	}
-	bool contains(T item) {
-		return _set.find(item) != _set.end();
-	}
-};
-
-bool isInstructionWhichIsKeeptOutOfLiveness(llvm::MachineRegisterInfo & MRI, const llvm::MachineInstr & MI) {
-	// check if instruction is some sort of immutable constant
+bool isInstructionWhichIsKeeptOutOfLiveness(llvm::MachineRegisterInfo &MRI,
+		const llvm::MachineInstr &MI) {
 	switch (MI.getOpcode()) {
 	case HwtFpga::HWTFPGA_ARG_GET:
 		return true;  // constant which represents the IO port
@@ -46,40 +30,48 @@ bool isInstructionWhichIsKeeptOutOfLiveness(llvm::MachineRegisterInfo & MRI, con
 	return false;
 }
 
-std::pair<UniqList<Register>, UniqList<std::pair<Register, MachineBasicBlock*>> > collect_direct_provieds_and_requires(llvm::MachineRegisterInfo & MRI,
-		MachineBasicBlock &block) {
-	UniqList<Register> provides;
-	UniqList<std::pair<Register, MachineBasicBlock*>> req;
+void collectDirectLiveinsAndDefines(llvm::MachineRegisterInfo &MRI,
+		MachineBasicBlock &block,
+		std::function<
+				bool(llvm::MachineRegisterInfo &MRI,
+						const llvm::MachineInstr &MI)> ignoreInstrPredicate,
+		SetVector<std::pair<Register, MachineBasicBlock*>> &liveins,
+		SetVector<Register> &defines) {
+	assert(liveins.empty());
+	assert(defines.empty());
 
 	for (auto &i : block.instrs()) {
-		if (isInstructionWhichIsKeeptOutOfLiveness(MRI, i))
+		if (ignoreInstrPredicate(MRI, i))
 			continue;
 		unsigned opCnt = i.getNumOperands();
+		if (i.getOpcode() == TargetOpcode::PHI
+				|| i.getOpcode() == TargetOpcode::G_PHI) {
+			llvm_unreachable(
+					"NotImplemented - fill req with proper register, mbb pairs");
+		}
 		// uses must be seen first, defs after
-		for (unsigned _i = opCnt; _i > 0 ; --_i) {
-			auto & v = i.getOperand(_i - 1);
+		for (unsigned _i = opCnt; _i > 0; --_i) {
+			auto &v = i.getOperand(_i - 1);
 			if (!v.isReg()) {
 				continue;
 			}
 			if (v.isDef() || v.isUndef()) {
-				provides.push_back(v.getReg());
-			} else if (!provides.contains(v.getReg())) {
+				defines.insert(v.getReg());
+			} else if (!defines.contains(v.getReg())) {
 				auto r = v.getReg();
-				if (auto * defMO = MRI.getOneDef(r)) {
-					if (isInstructionWhichIsKeeptOutOfLiveness(MRI, *defMO->getParent())) {
+				if (auto *defMO = MRI.getOneDef(r)) {
+					if (ignoreInstrPredicate(MRI, *defMO->getParent())) {
 						continue;
 					}
 				}
-				req.push_back( { r, nullptr });
+				liveins.insert( { r, nullptr });
 			}
 		}
 	}
-
-	return {provides, req};
 }
 
-void recursively_add_edge_requirement_var(
-		std::map<MachineBasicBlock*, UniqList<Register>> &provides,
+void recursivelyAddEdgeRequirementVar(
+		std::map<MachineBasicBlock*, SetVector<Register>> &provides,
 		MachineBasicBlock *src, MachineBasicBlock *dst, Register v,
 		EdgeLivenessDict &live) {
 	auto &_live = live[src][dst];
@@ -91,39 +83,44 @@ void recursively_add_edge_requirement_var(
 	_live.insert(v);
 	if (!provides[src].contains(v)) {
 		for (auto *pred : src->predecessors()) {
-			recursively_add_edge_requirement_var(provides, pred, src, v, live);
+			recursivelyAddEdgeRequirementVar(provides, pred, src, v, live);
 		}
 	}
 }
 
-EdgeLivenessDict getLiveVariablesForBlockEdge(MachineRegisterInfo & MRI, MachineFunction &MF) {
+EdgeLivenessDict getLiveVariablesForBlockEdge(MachineRegisterInfo &MRI,
+		MachineFunction &MF) {
 	EdgeLivenessDict live;
-	std::map<MachineBasicBlock*, UniqList<Register>> provides;
+	std::map<MachineBasicBlock*, SetVector<Register>> defines;
 	std::map<MachineBasicBlock*,
-			UniqList<std::pair<Register, MachineBasicBlock*>>> reqs;
+			SetVector<std::pair<Register, MachineBasicBlock*>>> liveins;
 	// initialization
 	for (MachineBasicBlock &block : MF) {
-		std::tie(provides[&block], reqs[&block]) =
-				collect_direct_provieds_and_requires(MRI, block);
-		auto &sucs = live[&block] = std::map<MachineBasicBlock*, std::set<Register>>();
+		liveins[&block] = SetVector<std::pair<Register, MachineBasicBlock*>>();
+		defines[&block] = SetVector<Register>();
+		collectDirectLiveinsAndDefines(MRI, block,
+				isInstructionWhichIsKeeptOutOfLiveness, liveins[&block],
+				defines[&block]);
+		auto &sucs = live[&block] = std::map<MachineBasicBlock*,
+				std::set<Register>>();
 		for (auto *suc : block.successors()) {
 			sucs[suc] = std::set<Register>();
 		}
 	}
 	// transitive enclosure of requires relation
 	for (MachineBasicBlock &block : MF) {
-		for (auto _req : reqs[&block]) {
+		for (auto _req : liveins[&block]) {
 			Register req;
 			MachineBasicBlock *req_if_predecessor_is;
 			std::tie(req, req_if_predecessor_is) = _req;
 			if (req_if_predecessor_is == nullptr) {
 				// requires from all predecessors
 				for (auto *pred : block.predecessors()) {
-					recursively_add_edge_requirement_var(provides, pred, &block,
+					recursivelyAddEdgeRequirementVar(defines, pred, &block,
 							req, live);
 				}
 			} else {
-				recursively_add_edge_requirement_var(provides,
+				recursivelyAddEdgeRequirementVar(defines,
 						req_if_predecessor_is, &block, req, live);
 			}
 		}
