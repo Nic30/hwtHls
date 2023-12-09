@@ -250,7 +250,7 @@ bool resolveTypes(MachineInstr &MI) {
 	}
 	case HwtFpga::HWTFPGA_MERGE_VALUES: {
 		// $dst $src{N}, $width{N}
-		unsigned srcCnt = (MI.getNumOperands() - 1) / 2;
+		unsigned srcCnt = (MI.getNumExplicitOperands() - 1) / 2;
 		unsigned totalWidth = 0;
 		llvm::SmallVector<std::pair<unsigned, uint64_t>> undefsToDuplicate;
 		for (unsigned i = 0; i < srcCnt; i++) {
@@ -327,7 +327,7 @@ HwtFpgaRegisterBitWidth::HwtFpgaRegisterBitWidth() :
 }
 
 void HwtFpgaRegisterBitWidth::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
-	MachineFunctionPass::getAnalysisUsage(AU);
+	MachineFunctionPass::getAnalysisUsage(AU); // preserve all
 }
 
 bool HwtFpgaRegisterBitWidth::runOnMachineFunction(llvm::MachineFunction &MF) {
