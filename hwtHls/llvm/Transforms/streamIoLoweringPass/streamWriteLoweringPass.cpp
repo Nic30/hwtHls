@@ -21,6 +21,8 @@
 #include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamWriteEoFHoister.h>
 #include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamIoRewriter.h>
 
+#include <hwtHls/llvm/Transforms/utils/writeCFGToDotFile.h>
+
 using namespace llvm;
 
 namespace hwtHls {
@@ -32,12 +34,13 @@ public:
 	// Create a write of curWordVar variable to output interface.
 	void _insertIntfWrite(llvm::IRBuilder<> &builder) {
 		auto w = streamProps.deparseNativeWord(builder);
-		builder.CreateStore(w, streamProps.ioArg, /*isVolatile*/false);
+		builder.CreateStore(w, streamProps.ioArg, /*isVolatile*/true);
 		// wipe or reset processed values
 		streamProps.setVarU64(builder, { }, streamProps.dataVar);
 		streamProps.setDataMaskConst(builder, 0, 0);
 		streamProps.setVarU64(builder, 0, streamProps.wDataPendingVar);
 		streamProps.setVarU64(builder, 0, streamProps.dataLastVar);
+		streamProps.setVarU64(builder, 0, streamProps.dataOffsetVar);
 	}
 
 	BasicBlock* _optionallyConsumePendingWord(llvm::IRBuilder<> &builder,
@@ -52,7 +55,7 @@ public:
 		// original read should be moved to sequel
 		// because now we are just preparing the data for it
 		Instruction *thenTerm = llvm::SplitBlockAndInsertIfThen(condition,
-				write, false, nullptr, DTU);
+				&*builder.GetInsertPoint(), false, nullptr, DTU);
 		auto *thenBb = thenTerm->getParent();
 		thenBb->setName(BlockLabel);
 		builder.SetInsertPoint(thenTerm);
@@ -99,6 +102,7 @@ public:
 					streamProps.setDataMaskConst(builder, possibleOffsets[0],
 							0);
 					streamProps.setVarU64(builder, { }, streamProps.dataVar);
+					streamProps.setVarU64(builder, possibleOffsets[0], streamProps.dataOffsetVar);
 				}
 
 			} else if (IsStreamWriteEndOfFrame(writeInst)) {
@@ -133,9 +137,9 @@ public:
 
 			const auto DATA_WIDTH = streamProps.dataWidth;
 			std::vector<llvm::BasicBlock*> offsetBranches;
-			llvm::BasicBlock *sequelBlock;
+			llvm::BasicBlock *_sequelBlock;
 
-			std::tie(offsetBranches, sequelBlock) =
+			std::tie(offsetBranches, _sequelBlock) =
 					_createBranchForEachOffsetVariant(builder, possibleOffsets);
 
 			// [todo] aggregate rewrite for all writes in this same block to reduce number of branches because of offset
@@ -147,6 +151,7 @@ public:
 				} else {
 					builder.SetInsertPoint(&br->front());
 				}
+				bool endsWithConsumePendingOnLast = false;
 				auto inWordOffset = *off % DATA_WIDTH;
 				size_t srcOffset = 0;
 				size_t end = *off + width;
@@ -174,7 +179,7 @@ public:
 						// if there is complete word pending, flush it because we just resolved the last flag (0)
 						auto *_predWordPendingVar = streamProps.getVarValue(
 								builder, streamProps.wDataPendingVar);
-						sequelBlock = _optionallyConsumePendingWord(builder,
+						_optionallyConsumePendingWord(builder,
 								_predWordPendingVar, writeInst,
 								writeInst->getName()
 										+ "ConsumePendingRemainder");
@@ -222,7 +227,7 @@ public:
 
 						} else {
 							assert(meta->isLastExpr);
-							// the condition for EoF is known in advance, we can use it and output word inmmediately
+							// the condition for EoF is known in advance, we can use it and output word immediately
 							builder.CreateStore(meta->isLastExpr,
 									streamProps.dataLastVar);
 							if (end % DATA_WIDTH == 0) {
@@ -232,6 +237,10 @@ public:
 										streamProps.wDataPendingVar);
 							} else {
 								// if not ending word output word only if isLast
+
+								// write current offset in a specific branch (_optionallyConsumePendingWord may override it)
+								streamProps.setOffsetVar(builder, end % DATA_WIDTH);
+								endsWithConsumePendingOnLast = true;
 								_optionallyConsumePendingWord(builder,
 										meta->isLastExpr, writeInst,
 										writeInst->getName()
@@ -242,7 +251,12 @@ public:
 					srcOffset += bitsToTake;
 				}
 				// write offset in a specific branch
-				streamProps.setOffsetVar(builder, end % DATA_WIDTH);
+				if (endsWithConsumePendingOnLast) {
+					// end offset is already set
+				} else {
+					streamProps.setOffsetVar(builder, end % DATA_WIDTH);
+				}
+				++off;
 			}
 		}
 	}
@@ -258,6 +272,7 @@ llvm::PreservedAnalyses StreamWriteLoweringPass::run(llvm::Function &F,
 	auto &DI = FAM.getResult<DependenceAnalysis>(F);
 	auto &PDT = FAM.getResult<PostDominatorTreeAnalysis>(F);
 	DomTreeUpdater DTU(DT, DomTreeUpdater::UpdateStrategy::Lazy);
+	//writeCFGToDotFile(F, "StreamWriteLoweringPass.before.dot", nullptr, nullptr);
 
 	for (StreamChannelProps &s : streamProps) {
 		if (!s.isOutput)
@@ -281,8 +296,10 @@ llvm::PreservedAnalyses StreamWriteLoweringPass::run(llvm::Function &F,
 		DTU.flush();
 	}
 	if (changed) {
+//		writeCFGToDotFile(F, "after.StreamWriteLoweringPass.dot", nullptr, nullptr);
 		finalizeStreamIoLowerig(F, FAM, DT, streamProps, true,
 				GeneratedAllocas);
+		//throw std::runtime_error("[debug]");
 		llvm::PreservedAnalyses PA;
 		return PA;
 	} else {

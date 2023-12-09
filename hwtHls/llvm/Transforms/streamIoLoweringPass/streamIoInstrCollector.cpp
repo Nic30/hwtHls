@@ -153,13 +153,13 @@ void StreamChannelProps::setDataMaskConst(llvm::IRBuilder<> &builder,
 		auto *T = dataMaskVar->getAllocatedType();
 		auto val = APInt::getBitsSet(T->getIntegerBitWidth(), dataBitOffset / 8,
 				(dataBitOffset + dataBitsToTake) / 8);
-		auto* CI = ConstantInt::get(T, val);
-		Value * V = CI;
+		auto *CI = ConstantInt::get(T, val);
+		Value *V = CI;
 		if (dataBitOffset != 0) {
-			auto prev = builder.CreateLoad(T, dataMaskVar, /*isVolatile*/ false);
+			auto prev = builder.CreateLoad(T, dataMaskVar, /*isVolatile*/false);
 			V = builder.CreateOr(prev, CI);
 		}
-		builder.CreateStore(V, dataMaskVar, /*isVolatile*/ false);
+		builder.CreateStore(V, dataMaskVar, /*isVolatile*/false);
 	}
 }
 
@@ -212,7 +212,20 @@ void StreamChannelProps::setAllData(llvm::IRBuilder<> &builder,
 
 llvm::LoadInst* StreamChannelProps::getVarValue(llvm::IRBuilder<> &builder,
 		llvm::AllocaInst *var) const {
-	return builder.CreateLoad(var->getAllocatedType(), var);
+	const char * Name = nullptr;;
+	if (var == dataVar) {
+		Name = ".data";
+	} else if (var == dataMaskVar) {
+		Name = ".dataMask";
+	} else if (var == dataLastVar) {
+		Name = ".last";
+	} else if (var == dataOffsetVar) {
+		Name = ".offset";
+	} else if (var == wDataPendingVar) {
+		Name = ".wDataPending";
+	}
+	return builder.CreateLoad(var->getAllocatedType(), var, /*isVolatile*/false,
+			Name ?  ioArg->getName() + Name : "");
 }
 
 StreamChannelWordValue StreamChannelProps::getAllData(
@@ -224,7 +237,7 @@ StreamChannelWordValue StreamChannelProps::getAllData(
 
 size_t StreamChannelProps::_getBusWordCntForChunk(size_t offset,
 		size_t width) const {
-		return div_ceil(width + offset, dataWidth);
+	return div_ceil(width + offset, dataWidth);
 }
 
 std::pair<size_t, size_t> StreamChannelProps::_resolveMinMaxWordCount(

@@ -246,6 +246,9 @@ void StreamWriteEoFHoister::prepareLastExpressionForWrites() {
 			IRBuilder<> Builder(write);
 			std::tie(isLastExpr, isLast) = prepareEoFCondition(Builder, write,
 					write->getParent());
+			if (isLastExpr && !isLastExpr->hasName()) {
+				isLastExpr->setName(write->getName() + ".eof");
+			}
 			auto meta = std::make_unique<StreamChunkLastMeta>(isLast,
 					isLastExpr);
 			instrMeta[write] = std::move(meta);

@@ -10,6 +10,7 @@
 
 using namespace llvm;
 namespace hwtHls {
+
 StreamIoRewriter::StreamIoRewriter(StreamIoDetector &cfg,
 		const StreamChannelProps &streamProps, llvm::DomTreeUpdater *DTU,
 		llvm::LoopInfo *LI) :
