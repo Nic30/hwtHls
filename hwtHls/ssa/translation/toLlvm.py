@@ -57,7 +57,7 @@ class ToLlvmIrTranslator():
         self.llvm = LlvmCompilationBundle(label)
         self.ctx: LLVMContext = self.llvm.ctx
         self.strCtx: LLVMStringContext = self.llvm.strCtx
-        self.mod = self.llvm.mod
+        self.module = self.llvm.module
         self.b = self.llvm.builder
         self.topIo = topIo
         self.ioSorted: Optional[Tuple[str, Union[Interface, MultiPortGroup, BankedPortGroup],
@@ -100,7 +100,7 @@ class ToLlvmIrTranslator():
             _argTypes.push_back(t)
 
         FT = FunctionType.get(returnType, _argTypes, False)
-        F = Function.Create(FT, Function.ExternalLinkage, strCtx.addTwine(name), self.mod)
+        F = Function.Create(FT, Function.ExternalLinkage, strCtx.addTwine(name), self.module)
 
         for a, (aName, _, _, _) in zip(F.args(), args):
             a.setName(strCtx.addTwine(aName))
@@ -387,7 +387,7 @@ class ToLlvmIrTranslator():
             cb(self)
 
         assert verifyFunction(main) is False
-        assert verifyModule(self.mod) is False
+        assert verifyModule(self.module) is False
 
         return self
 

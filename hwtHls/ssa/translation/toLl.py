@@ -117,9 +117,9 @@ class SsaPassDumpToLl():
                 toLl.construct(to_ssa.start)
             elif isinstance(to_ssa.start, ToLlvmIrTranslator):
                 toLlvmIr: ToLlvmIrTranslator = to_ssa.start
-                mod = toLlvmIr.llvm.mod
-                assert mod is not None
-                output.write(str(mod))
+                M = toLlvmIr.llvm.module
+                assert M is not None
+                output.write(str(M))
             else:
                 raise NotImplementedError(to_ssa.start)
         finally:
