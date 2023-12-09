@@ -13,7 +13,7 @@ namespace llvm {
 
 bool HwtFpgaCombinerHelper::matchMuxForConstPropagation(llvm::MachineInstr &MI,
 		hwtHls::MuxReducibleValuesInfo &matchInfo) {
-	if (MI.getNumOperands() < 1 + 3) {
+	if (MI.getNumExplicitOperands() < 1 + 3) {
 		// avoid copy propagation case because it is handled elsewhere
 		return false;
 	}
