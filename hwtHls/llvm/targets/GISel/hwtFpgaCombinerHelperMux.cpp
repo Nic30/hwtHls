@@ -11,44 +11,10 @@
 
 namespace llvm {
 
-//bool HwtFpgaCombinerHelper::matchMuxWithRedundantCases(MachineInstr &MI,
-//		SmallVector<unsigned> &uselessConditions) {
-//	assert(MI.getOpcode() == HwtFpga::HWTFPGA_MUX);
-//	unsigned opCnt = MI.getNumOperands();
-//	unsigned condCnt = (opCnt - 1) / 2;
-//	for (unsigned i = 0; i < condCnt; ++i) {
-//		auto &v0 = MI.getOperand(1 + i * 2);
-//		auto &c = MI.getOperand(2 + i * 2);
-//		MachineOperand *v1 = nullptr;
-//		unsigned v1I = 3 + i * 2;
-//		if (v1I < opCnt)
-//			v1 = &MI.getOperand(v1I);
-//		bool muxOfSameVal = false;
-//		if (v1 && c.isReg()) {
-//			if ((v0.isReg() && v1->isReg() && v0.getReg() == v1->getReg())
-//					|| (v0.isCImm() && v1->isCImm()
-//							&& v0.getCImm() == v1->getCImm())) {
-//				// if left and right val is the same and this is one-hot encoded mux
-//				muxOfSameVal = true;
-//			}
-//		} else if (i == 0 && v0.isReg()
-//				&& v0.getReg() == MI.getOperand(0).getReg()) {
-//			muxOfSameVal = true; // conditional write of self to self
-//		}
-//
-//	}
-//}
-//
-//bool HwtFpgaCombinerHelper::rewriteMuxWithRedundantCases(MachineInstr &MI,
-//		const SmallVector<unsigned> &uselessConditions) {
-//	assert(MI.getOpcode() == HwtFpga::HWTFPGA_MUX);
-//
-//}
-
-bool HwtFpgaCombinerHelper::hashSomeConstConditions(MachineInstr &MI) {
+bool HwtFpgaCombinerHelper::hasSomeConstConditions(MachineInstr &MI) {
 	// dst, a, (cond, b)*
 	assert(MI.getOpcode() == HwtFpga::HWTFPGA_MUX);
-	unsigned condCnt = (MI.getNumOperands() - 1) / 2;
+	unsigned condCnt = (MI.getNumExplicitOperands() - 1) / 2;
 	for (unsigned i = 0; i < condCnt; ++i) {
 		auto &c = MI.getOperand(2 + i * 2);
 		if (c.isCImm()) {
@@ -486,6 +452,27 @@ bool HwtFpgaCombinerHelper::matchMuxMask(llvm::MachineInstr &MI,
 
 	}
 	return false;
+}
+
+bool HwtFpgaCombinerHelper::matchMuxDuplicitCaseReduce(llvm::MachineInstr &MI,
+		llvm::SmallVector<unsigned> &duplicitCaseConditions) {
+	duplicitCaseConditions.clear();
+	assert(MI.getOpcode() == HwtFpga::HWTFPGA_MUX);
+	unsigned opCnt = MI.getNumOperands();
+	unsigned condCnt = (opCnt - 1) / 2;
+	llvm::SmallSet<Register, 32> seenConditions;
+	for (unsigned i = 0; i < condCnt; ++i) {
+		auto CIndex = 2 + i * 2;	// +1 to skip dst, +1 to skip value operand
+		auto &c = MI.getOperand(CIndex);
+		if (c.isReg()) {
+			if (seenConditions.contains(c.getReg())) {
+				duplicitCaseConditions.push_back(CIndex);
+			} else {
+				seenConditions.insert(c.getReg());
+			}
+		}
+	}
+	return !duplicitCaseConditions.empty();
 }
 
 bool HwtFpgaCombinerHelper::rewriteMuxRmCases(llvm::MachineInstr &MI,
