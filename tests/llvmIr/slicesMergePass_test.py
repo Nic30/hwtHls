@@ -1,9 +1,13 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 from itertools import takewhile
 import os
 import re
 
 from hwtHls.llvm.llvmIr import LlvmCompilationBundle, SMDiagnostic, parseIR
 from tests.baseSsaTest import BaseSsaTC
+
 
 
 RE_HWTHLS_FN_CALL = re.compile('call (i[0-9]+) @hwtHls.((bitRangeGet)|(bitConcat))((\.i?[0-9]+)+)\(.*\)( #(\d+))')
@@ -150,6 +154,7 @@ class SlicesMergePass_TC(BaseSsaTC):
         self._test_ll(ir)
 
     def test_parallelSelect2(self):
+        # parallel selects where last one has constant falseVal operand
         ir = """\
         define void @parallelSelect2(i4 addrspace(1)* %i0, i4 addrspace(1)* %i1,
                                      i1 addrspace(2)* %o0, i1 addrspace(2)* %o1,
@@ -179,7 +184,65 @@ class SlicesMergePass_TC(BaseSsaTC):
         }
         """
         self._test_ll(ir)
-    
+
+    def test_parallelSelect3(self):
+        # select where falseVal operand is constant
+        ir = """\
+        define void @parallelSelect3(i4 addrspace(1)* %i0,
+                                     i1 addrspace(2)* %o0, i1 addrspace(2)* %o1,
+                                     i1 addrspace(2)* %o2, i1 addrspace(2)* %o3) {
+            %i00 = load volatile i4, i4 addrspace(1)* %i0, align 1
+            %"c" = call i1 @hwtHls.bitRangeGet.i4.i64.i1.0(i4 %i00, i64 0) #2
+            %1 = call i1 @hwtHls.bitRangeGet.i4.i64.i1.0(i4 %i00, i64 0) #2
+            %2 = call i1 @hwtHls.bitRangeGet.i4.i64.i1.1(i4 %i00, i64 1) #2
+            %3 = call i1 @hwtHls.bitRangeGet.i4.i64.i1.2(i4 %i00, i64 2) #2
+            %4 = call i1 @hwtHls.bitRangeGet.i4.i64.i1.3(i4 %i00, i64 3) #2
+           
+            %sel0 = select i1 %c, i1 %1, i1 false
+            %sel1 = select i1 %c, i1 %2, i1 true
+            %sel2 = select i1 %c, i1 %3, i1 false
+            %sel3 = select i1 %c, i1 %4, i1 false
+            store volatile i1 %sel0, i1 addrspace(2)* %o0, align 1
+            store volatile i1 %sel1, i1 addrspace(2)* %o1, align 1
+            store volatile i1 %sel2, i1 addrspace(2)* %o2, align 1
+            store volatile i1 %sel3, i1 addrspace(2)* %o3, align 1
+            ret void
+        }
+        """
+        self._test_ll(ir)
+
+    def test_parallelSelect4(self):
+        # select are interleaved with sinkable xor
+        # :note: xor is immediately folded by llvm foldOperationIntoSelectOperand
+        #  updating select operands
+        ir = """\
+        define void @parallelSelect4(i4 addrspace(1)* %i0,
+                                     i1 addrspace(2)* %o0, i1 addrspace(2)* %o1,
+                                     i1 addrspace(2)* %o2, i1 addrspace(2)* %o3) {
+            %i00 = load volatile i4, i4 addrspace(1)* %i0, align 1
+            %"c" = call i1 @hwtHls.bitRangeGet.i4.i64.i1.0(i4 %i00, i64 0) #2
+            %1 = call i1 @hwtHls.bitRangeGet.i4.i64.i1.0(i4 %i00, i64 0) #2
+            %2 = call i1 @hwtHls.bitRangeGet.i4.i64.i1.1(i4 %i00, i64 1) #2
+            %3 = call i1 @hwtHls.bitRangeGet.i4.i64.i1.2(i4 %i00, i64 2) #2
+            %4 = call i1 @hwtHls.bitRangeGet.i4.i64.i1.3(i4 %i00, i64 3) #2
+           
+            %sel0 = select i1 %c, i1 %1, i1 false
+            %xor0 = xor i1 %sel0, true
+            %sel1 = select i1 %c, i1 %2, i1 true
+            %xor1 = xor i1 %sel1, true
+            %sel2 = select i1 %c, i1 %3, i1 false
+            %xor2 = xor i1 %sel2, true
+            %sel3 = select i1 %c, i1 %4, i1 false
+            %xor3 = xor i1 %sel3, true
+
+            store volatile i1 %xor0, i1 addrspace(2)* %o0, align 1
+            store volatile i1 %xor1, i1 addrspace(2)* %o1, align 1
+            store volatile i1 %xor2, i1 addrspace(2)* %o2, align 1
+            store volatile i1 %xor3, i1 addrspace(2)* %o3, align 1
+            ret void
+        }
+        """
+        self._test_ll(ir)
 
 if __name__ == "__main__":
     # from hwt.synthesizer.utils import to_rtl_str
@@ -188,8 +251,9 @@ if __name__ == "__main__":
     # print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
+    import sys
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([SlicesMergePass_TC('test_parallelSelect2')])
+    # suite = unittest.TestSuite([SlicesMergePass_TC('test_parallelSelect3')])
     suite = testLoader.loadTestsFromTestCase(SlicesMergePass_TC)
     runner = unittest.TextTestRunner(verbosity=3)
-    runner.run(suite)
+    sys.exit(not runner.run(suite).wasSuccessful())
