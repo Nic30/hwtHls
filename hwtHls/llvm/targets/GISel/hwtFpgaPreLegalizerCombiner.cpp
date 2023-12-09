@@ -11,7 +11,6 @@
 #include <llvm/CodeGen/GlobalISel/CombinerHelper.h>
 #include <llvm/CodeGen/GlobalISel/CombinerInfo.h>
 #include <llvm/CodeGen/GlobalISel/GISelKnownBits.h>
-#include <llvm/CodeGen/GlobalISel/MIPatternMatch.h>
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
 #include <llvm/CodeGen/GlobalISel/CSEInfo.h>
 #include <llvm/CodeGen/MachineDominators.h>
@@ -26,7 +25,6 @@
 #define DEBUG_TYPE "hwtfpga-prelegalizer-combiner"
 
 using namespace llvm;
-using namespace MIPatternMatch;
 
 class HwtFpgaGenPreLegalizeGICombinerHelperState {
 protected:

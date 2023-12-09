@@ -102,10 +102,10 @@ void HwtFpgaPreToNetlistCombinerInfo::convertG_SELECT_to_HWTFPGA_MUX(
 		errs() << MI;
 		llvm_unreachable("NotImplemented");
 	}
-	copyOperand(MIB, MRI, MF, MI.getOperand(0));
-	copyOperand(MIB, MRI, MF, MI.getOperand(2));
-	copyOperand(MIB, MRI, MF, MI.getOperand(1));
-	copyOperand(MIB, MRI, MF, MI.getOperand(3));
+	copyOperand(MIB, MRI, MF, MI.getOperand(0)); // dst
+	copyOperand(MIB, MRI, MF, MI.getOperand(2)); // v0
+	copyOperand(MIB, MRI, MF, MI.getOperand(1)); // cond
+	copyOperand(MIB, MRI, MF, MI.getOperand(3)); // v1s
 }
 
 void HwtFpgaPreToNetlistCombinerInfo::convertPHI_to_HWTFPGA_MUX(

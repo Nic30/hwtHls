@@ -86,25 +86,11 @@ bool HwtFpgaCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
 			.addReg(DstReg, RegState::Define);
 			MRI.setRegClass(DstReg, &HwtFpga::anyregclsRegClass);
 			// add operands
-			//bool first = true;
 			for (auto &op : Info.OrigArgs) {
-				//assert(op.Regs.size() == 1);
-				//if (first) {
-				//	// skip first item because it is destination which was already added
-				//	first = false;
-				//	continue;
-				//}
 				MBI.addUse(op.Regs[0]);
 			}
 			// add operand widths
-			//first = true;
 			for (auto &op : Info.OrigArgs) {
-				//assert(op.Regs.size() == 1);
-				//if (first) {
-				//	// skip first item because it is destination which was already added
-				//	first = false;
-				//	continue;
-				//}
 				uint64_t width = MRI.getType(op.Regs[0]).getSizeInBits();
 				MBI.addImm(width);
 			}
