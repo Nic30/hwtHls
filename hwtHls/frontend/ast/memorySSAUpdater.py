@@ -86,26 +86,25 @@ class MemorySSAUpdater():
 
                 assert isinstance(variable, RtlSignal), variable
                 width = variable._dtype.bit_length()
-                parts: List[SsaValue] = [] # high first
-                
+                parts: List[SsaValue] = []  # high first
+
                 # append unmodified lower bits
                 if low > 0:
                     new_bb, new_var = self._hwtExprToSsa(block, variable[low:0])
                     parts.append(new_var)
-                
+
                 # append modified bits
                 if isinstance(value, HlsRead):
                     parts.append(value._sig[value._dtype.bit_length():])
 
                 elif isinstance(value, SsaValue):
-                    #assert value.origin is not None, value
-                    #assert isinstance(value.origin, RtlSignal), (value, value.origin)
+                    # assert value.origin is not None, value
+                    # assert isinstance(value.origin, RtlSignal), (value, value.origin)
                     parts.append(value)
 
                 else:
                     new_bb, new_var = self._hwtExprToSsa(block, value)
                     parts.append(new_var)
-
 
                 if high < width:
                     # append unmodified upper bits
@@ -117,6 +116,12 @@ class MemorySSAUpdater():
             assert value._dtype.bit_length() == variable._dtype.bit_length(), (variable, value._dtype, variable._dtype)
 
         defs = self.currentDef.setdefault(variable, {})
+
+        if not variable.hasGenericName and isinstance(value, RtlSignal) and value.hasGenericName:
+            # inherit name
+            value.name = variable.name
+            value.hasGenericName = False
+
         defs[new_bb] = value
         self.currentDefRev.setdefault(value, {}).setdefault(new_bb, UniqList()).append(variable)
 

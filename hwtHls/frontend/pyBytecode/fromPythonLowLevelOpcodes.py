@@ -359,11 +359,19 @@ class PyBytecodeToSsaLowLevelOpcodes():
             if v is NULL and isinstance(vVal, (HValue, RtlSignal, Interface, SsaValue, Interface)):
                 # only if it is a value which generates HW variable
                 t = getattr(vVal, "_dtypeOrig", vVal._dtype)
+                if isinstance(vVal, RtlSignal) and vVal.hasGenericName:
+                    # add name also to right side of assignment because this is likely a variable definition and we want
+                    # to name the defined value
+                    vVal.name = instr.argval
+                    vVal.hasGenericName = False
                 v = self.hls.var(instr.argval, t)
                 localsplus[varIndex] = v
 
             if isinstance(v, (RtlSignal, Interface)):
                 # only if it is a hw variable, create assignment to HW variable
+                if isinstance(v, RtlSignal) and v.hasGenericName:
+                    v.name = instr.argval
+                    v.hasGenericName = False
                 return self._storeToHwSignal(curBlock, v, vVal)
 
         if isinstance(vVal, PyBytecodeInPreproc):
