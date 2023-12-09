@@ -159,12 +159,23 @@ bool HwtFpgaCombinerHelper::matchNestedMux(MachineInstr &MI,
 	requiresAndWithParentCond.clear();
 	// check if is used only by a HWTFPGA_MUX and can merge operands into user
 	auto DstRegNo = MI.getOperand(0).getReg();
+	MachineOperand *otherUse = nullptr;
 	if (!MRI.hasOneUse(DstRegNo)) {
-		// if there are multiple users merging of this register is not beneficial
-		return false;
+		auto NextInstr = MI.getNextNode();
+		if (NextInstr) {
+			auto UseOpIndx = NextInstr->findRegisterUseOperandIdx(DstRegNo,
+					false);
+			if (UseOpIndx > 0) {
+				otherUse = &NextInstr->getOperand(UseOpIndx);
+			}
+		}
+		if (!otherUse) {
+			// if there are multiple users merging of this register is not beneficial
+			return false;
+		}
+	} else {
+		otherUse = &*MRI.use_begin(DstRegNo);
 	}
-
-	MachineOperand *otherUse = &*MRI.use_begin(DstRegNo);
 	MachineInstr *otherMI = otherUse->getParent();
 	if (otherMI == &MI) {
 		return false; // can not inline operands of self to self
@@ -173,7 +184,10 @@ bool HwtFpgaCombinerHelper::matchNestedMux(MachineInstr &MI,
 	if (otherMI->getOpcode() != HwtFpga::HWTFPGA_MUX) {
 		return false;
 	}
-
+	size_t otherUseOpIndex = otherMI->getOperandNo(otherUse);
+	bool otherUseIsValueOp = otherUseOpIndex % 2 == 1;
+	if (!otherUseIsValueOp)
+		return false;
 	// check that the operand register are not redefined between this and other
 	if (checkAnyOperandRedefined(MI, *otherMI)) {
 		return false;
@@ -228,7 +242,21 @@ bool HwtFpgaCombinerHelper::matchNestedMux(MachineInstr &MI,
 bool HwtFpgaCombinerHelper::rewriteNestedMuxToMux(MachineInstr &MI,
 		const SmallVector<bool> &requiresAndWithParentCond) {
 	assert(MI.getOpcode() == HwtFpga::HWTFPGA_MUX);
-	MachineOperand *parentUse = &*MRI.use_begin(MI.getOperand(0).getReg());
+	auto DstRegNo = MI.getOperand(0).getReg();
+	MachineOperand *parentUse = nullptr;
+	if (MRI.hasOneUse(DstRegNo)) {
+		parentUse = &*MRI.use_begin(DstRegNo);
+		assert(parentUse->getReg() == DstRegNo);
+	} else {
+		auto NextInstr = MI.getNextNode();
+		assert(NextInstr && "Should be already checked in matchNestedMux");
+		assert(NextInstr->getOpcode() == HwtFpga::HWTFPGA_MUX);
+		auto UseOpIndx = NextInstr->findRegisterUseOperandIdx(DstRegNo, false);
+		assert(UseOpIndx > 0);
+		parentUse = &NextInstr->getOperand(UseOpIndx);
+		assert(parentUse->getReg() == DstRegNo);
+	}
+
 	MachineInstr *parentMI = parentUse->getParent();
 
 	Builder.setInstrAndDebugLoc(*parentMI);
@@ -236,40 +264,49 @@ bool HwtFpgaCombinerHelper::rewriteNestedMuxToMux(MachineInstr &MI,
 	auto &newMI = *MIB0.getInstr();
 	Observer.changingInstr(newMI);
 
-	for (auto &Op : parentMI->operands()) {
+	for (size_t ParentOpI = 0; ParentOpI < parentMI->getNumOperands();
+			++ParentOpI) {
+		auto &Op = parentMI->getOperand(ParentOpI);
 		if (&Op == parentUse) {
-			// copy ops from nested MUX
+			// copy ops from nested MUX (replace this value operand with operands from MI)
 			bool first = true;
-			bool isCond = false;
+			bool nestedOpIsCond = false;
 			unsigned condI = 0;
 			for (auto NesOp : MI.operands()) {
 				if (first) {
 					first = false;
 					continue;
 				}
-				if (isCond && requiresAndWithParentCond.size()
+
+				if (nestedOpIsCond && requiresAndWithParentCond.size()
 						&& requiresAndWithParentCond[condI]) {
-					MachineOperand &parentCondOp = parentMI->getOperand(
-							parentMI->getOperandNo(&Op) + 1);
-					Builder.setInstrAndDebugLoc(newMI);
-					auto MIB1 = Builder.buildInstr(TargetOpcode::G_AND);
-					auto &newCondAndMI = *MIB1.getInstr();
-					Observer.changingInstr(newCondAndMI);
-					Register newCondAndReg = MRI.createVirtualRegister(
-							&HwtFpga::anyregclsRegClass);
-					MIB1.addDef(newCondAndReg);
-					for (auto &v : { NesOp.getReg(), parentCondOp.getReg() }) {
-						MIB1.addUse(v);
+					assert(ParentOpI + 1 < parentMI->getNumOperands());
+					MachineOperand &parentCondOp = parentMI->getOperand(ParentOpI + 1);
+
+					if (NesOp.getReg() == parentCondOp.getReg()) {
+						MIB0.add(NesOp);
+					} else {
+						Builder.setInstrAndDebugLoc(newMI);
+						auto MIB1 = Builder.buildInstr(TargetOpcode::G_AND);
+						auto &newCondAndMI = *MIB1.getInstr();
+						Observer.changingInstr(newCondAndMI);
+						Register newCondAndReg = MRI.createVirtualRegister(
+								&HwtFpga::anyregclsRegClass);
+						MIB1.addDef(newCondAndReg);
+						for (auto &v : { NesOp.getReg(), parentCondOp.getReg() }) {
+							MIB1.addUse(v);
+						}
+						Observer.changedInstr(newCondAndMI);
+
+						Builder.setInstrAndDebugLoc(newMI);
+						MIB0.addUse(newCondAndReg);
 					}
-					Observer.changedInstr(newCondAndMI);
-
-					Builder.setInstrAndDebugLoc(newMI);
-					MIB0.addUse(newCondAndReg);
-
 				} else {
 					MIB0.add(NesOp);
 				}
-				isCond = !isCond;
+				if (nestedOpIsCond)
+					condI++;
+				nestedOpIsCond = !nestedOpIsCond;
 			}
 		} else {
 			// copy rest of non modified operands from parent MUX
