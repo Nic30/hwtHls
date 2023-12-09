@@ -355,7 +355,6 @@ bool condensateInstructionGroup(BasicBlock &ParentBB,
 					transitivelyDependsOnExtractedParInstr)) {
 				unhoistableInstructions.insert(&I2);
 			} else {
-				errs() << "I2.moveBefore(firstParInstr) " << I2 << "  " << *firstParInstr << "\n";
 				if (&I2 != firstParInstr)
 					I2.moveBefore(firstParInstr);
 			}
