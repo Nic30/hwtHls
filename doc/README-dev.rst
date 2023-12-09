@@ -95,3 +95,11 @@ Python profiling
     pyprof2calltree -i profile.prof -k
 
 
+Profiling C++ with perf
+-----------------------
+* Note that you do not need this, you can use -Db_profile=true meson option as described before
+
+.. code-block:: bash
+   # install perf
+   apt install linux-tools-common linux-tools-generic
+   
