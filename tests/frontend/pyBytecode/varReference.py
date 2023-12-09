@@ -24,9 +24,10 @@ class VarReference_writeCntr(PragmaInline_writeCntr1):
                 cntr.val += 1
             hls.write(cntr.val, self.o)
 
+
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.platform import HlsDebugBundle
-    u = PragmaInline_writeCntr5()
+    u = VarReference_writeCntr()
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
