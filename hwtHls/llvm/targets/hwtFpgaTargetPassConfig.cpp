@@ -154,7 +154,7 @@ void HwtFpgaTargetPassConfig::addOptimizedRegAlloc() {
 	// The machine scheduler may accidentally create disconnected components
 	// when moving subregister definitions around, avoid this by splitting them to
 	// separate vregs before. Splitting can also improve reg. allocation quality.
-	addPass(&RenameIndependentSubregsID);
+	//addPass(&RenameIndependentSubregsID); // no subregs there
 
 	// PreRA instruction scheduling.
 	//addPass(&MachineSchedulerID);
@@ -236,11 +236,15 @@ void HwtFpgaTargetPassConfig::addMachinePasses() {
 
 // [todo] handling of register allocation, maybe similar to WebAssemblyPassConfig::addPostRegAlloc()
 void HwtFpgaTargetPassConfig::addPreSched2() {
-    addPass(hwtHls::createVregIfConverter(nullptr));
+	addPass(hwtHls::createVRegIfConverter(nullptr));
 }
 
 AnalysisID HwtFpgaTargetPassConfig::_testAddPass(AnalysisID PassID) {
 	return addPass(PassID);
+}
+
+void HwtFpgaTargetPassConfig::_testAddPass(Pass *P) {
+	addPass(P);
 }
 
 FunctionPass* HwtFpgaTargetPassConfig::createTargetRegisterAllocator(

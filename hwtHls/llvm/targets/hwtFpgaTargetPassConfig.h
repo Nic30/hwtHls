@@ -47,6 +47,7 @@ public:
 	//}
 	// exposed addPass method for testing purposes
 	AnalysisID _testAddPass(AnalysisID PassID);
+	void _testAddPass(Pass *P);
 
 };
 
