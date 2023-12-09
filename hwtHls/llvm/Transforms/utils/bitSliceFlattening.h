@@ -31,5 +31,5 @@ bool collectConcatMembers(llvm::Value *_MI, std::vector<ConcatMember> &members,
  * :note: value of I is replaced and new replacement is returned
  **/
 llvm::Value* rewriteExtractOnMergeValues(llvm::IRBuilder<> &Builder,
-		llvm::CallInst *I);
+		llvm::Instruction *I);
 }
