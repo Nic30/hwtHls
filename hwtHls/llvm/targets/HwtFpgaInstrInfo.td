@@ -26,14 +26,17 @@ let hasSideEffects = 0, isAsCheapAsAMove = 1 in {
 def HWTFPGA_ARG_GET : HwtFpgaInst<
     (outs anyregcls:$dst),
     (ins i64imm:$src),
-    []>;
+    []> {
+    	let hasSideEffects = true;
+    }
 
-// G_EXTRACT variant which have bumber of extracted bits explicitely specified in last operand
+// G_EXTRACT variant which have a number of extracted bits explicitely specified in last operand
 def HWTFPGA_EXTRACT : HwtFpgaInst<
     (outs anyregcls:$dst),
     (ins anyregcls:$src, i64imm:$offset, i64imm:$dstWidth),
     []>;
 
+// G_MERGE_VALUES which have a number of concatenated bits explicitely specified
 def HWTFPGA_MERGE_VALUES : HwtFpgaInst<
     (outs anyregcls:$dst),
     (ins variable_ops), // specified in format anyregcls:$src{N}, i64imm:$width{N}, The input operands are always ordered from lowest bits to highest, (same as G_MERGE_VALUES)
