@@ -76,6 +76,8 @@ from tests.syntehesis_checks import HlsSynthesisChecksTC
 from tests.utils.alapAsapDiffExample import AlapAsapDiffExample_TC
 from tests.utils.bitwiseOpsScheduling_test import BitwiseOpsScheduling_TC
 from tests.utils.phiConstructions_test import PhiConstruction_TC
+from tests.frontend.ast.loopAfterLoop import LoopAfterLoop_TC
+from tests.frontend.ast.loopFollowedByIf import LoopFollowedByIf_TC
 
 
 #from tests.hlsNetlist.injectVldMaskToSkipWhenConditions_test import HlsNetlistPassInjectVldMaskToSkipWhenConditionsTC
@@ -131,6 +133,8 @@ suite = testSuiteFromTCs(
     BinToBcd_TC,
     IoFsm_TC,
     IoFsm2_TC,
+    LoopAfterLoop_TC,
+    LoopFollowedByIf_TC,
     PhiConstruction_TC,
     FromPythonBasics_TC,
     PyBytecodeErrors_TC,
