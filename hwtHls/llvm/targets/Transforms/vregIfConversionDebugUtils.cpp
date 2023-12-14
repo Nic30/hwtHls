@@ -4,10 +4,7 @@ using namespace llvm;
 
 namespace hwtHls {
 
-#ifdef VREG_IF_CONVERTER_DUMP
-size_t VRegIfConverter::dbg_cntr = 0;
-#endif
-
+size_t VRegIfConverter::dbgCntr = 0;
 
 const char* VRegIfConverter::IfcvtKind_toStr(VRegIfConverter::IfcvtKind Kind) {
 	switch (Kind) {
@@ -43,31 +40,27 @@ const char* VRegIfConverter::IfcvtKind_toStr(VRegIfConverter::IfcvtKind Kind) {
 void VRegIfConverter::consystencyCheck(MachineBasicBlock &MBB) const {
 	BBInfo BBI;
 	BBI.BB = &MBB;
-    BBI.IsBrAnalyzable =
-	      !TII->analyzeBranch(*BBI.BB, BBI.TrueBB, BBI.FalseBB, BBI.BrCond);
-#ifdef VREG_IF_CONVERTER_DUMP
-    auto& MF = *MBB.getParent();
-#endif
-    if (BBI.IsBrAnalyzable) {
+	BBI.IsBrAnalyzable = !TII->analyzeBranch(*BBI.BB, BBI.TrueBB, BBI.FalseBB,
+			BBI.BrCond);
+	auto &MF = *MBB.getParent();
+	if (BBI.IsBrAnalyzable) {
 		if (BBI.TrueBB) {
 			bool isPred = BBI.TrueBB->isPredecessor(BBI.BB);
 			if (!isPred) {
-#ifdef VREG_IF_CONVERTER_DUMP
-				hwtHls::writeCFGToDotFile(MF,
-						std::string("IC.") + std::to_string(dbg_cntr)
-								+ ".error.dot");
-#endif
+				if (enableTrace)
+					hwtHls::writeCFGToDotFile(MF,
+							std::string("IC.") + std::to_string(dbgCntr)
+									+ ".error.dot");
 				llvm_unreachable("Successor/predecessor list inconsistent");
 			}
 		}
 		if (BBI.FalseBB) {
 			bool isPred = BBI.FalseBB->isPredecessor(BBI.BB);
 			if (!isPred) {
-#ifdef VREG_IF_CONVERTER_DUMP
-				hwtHls::writeCFGToDotFile(MF,
-						std::string("IC.") + std::to_string(dbg_cntr)
-								+ ".error.dot");
-#endif
+				if (enableTrace)
+					hwtHls::writeCFGToDotFile(MF,
+							std::string("IC.") + std::to_string(dbgCntr)
+									+ ".error.dot");
 				llvm_unreachable("Successor/predecessor list inconsistent");
 			}
 		}

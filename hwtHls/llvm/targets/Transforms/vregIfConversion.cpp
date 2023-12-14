@@ -64,6 +64,7 @@ using namespace hwtHls;
 //#define LLVM_DEBUG(x) x
 
 // Hidden options for help debugging.
+static cl::opt<bool> IfCvtTrace("vregifcvt-trace", cl::init(false), cl::Hidden);
 static cl::opt<int> IfCvtFnStart("vregifcvt-fn-start", cl::init(-1), cl::Hidden);
 static cl::opt<int> IfCvtFnStop("vregifcvt-fn-stop", cl::init(-1), cl::Hidden);
 static cl::opt<int> IfCvtLimit("vregifcvt-limit", cl::init(-1), cl::Hidden);
@@ -113,8 +114,8 @@ STATISTIC(NumLoopTailFRev, "Number of loop tail (F/R) if-conversions performed")
 namespace hwtHls {
 
 VRegIfConverter::VRegIfConverter(std::function<bool(const llvm::MachineFunction&)> Ftor) :
-  llvm::MachineFunctionPass(ID), PreRegAlloc(false), MadeChange(false), PredicateFtor(
-        std::move(Ftor)) {
+  llvm::MachineFunctionPass(ID), PreRegAlloc(false),
+  MadeChange(false), PredicateFtor(std::move(Ftor)), enableTrace(IfCvtTrace) {
   initializeIfConverterPass(*PassRegistry::getPassRegistry());
 }
 
@@ -129,7 +130,6 @@ void VRegIfConverter::getAnalysisUsage(AnalysisUsage &AU) const  {
 MachineFunctionProperties VRegIfConverter::getRequiredProperties() const  {
   return MachineFunctionProperties();
 }
-
 
 bool VRegIfConverter::MeetIfcvtSizeLimit(MachineBasicBlock &BB, unsigned Cycle,
     unsigned Extra, BranchProbability Prediction) const {
@@ -309,9 +309,9 @@ bool VRegIfConverter::runOnMachineFunction(MachineFunction &MF) {
   SchedModel.init(&ST);
 
   if (!TII) return false;
-#ifdef VREG_IF_CONVERTER_DUMP
-    hwtHls::writeCFGToDotFile(MF, "IC." + std::to_string(dbg_cntr++) + "-start.dot");
-#endif
+  if (enableTrace)
+    hwtHls::writeCFGToDotFile(MF, "IC." + std::to_string(dbgCntr++) + "-start.dot");
+
   PreRegAlloc = MRI->isSSA();
 
   bool BFChange = false;
@@ -347,9 +347,8 @@ bool VRegIfConverter::runOnMachineFunction(MachineFunction &MF) {
     // candidates to perform if-conversion.
     bool Change = false;
     if (returnBlockMerge(MF)) {
-#ifdef VREG_IF_CONVERTER_DUMP
-        hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbg_cntr++) + ".returnBlockMerge-after.dot");
-#endif
+      if (enableTrace)
+        hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbgCntr++) + ".returnBlockMerge-after.dot");
     }
     AnalyzeBlocks(MF, Tokens);
     while (!Tokens.empty()) {
@@ -359,9 +358,7 @@ bool VRegIfConverter::runOnMachineFunction(MachineFunction &MF) {
       IfcvtKind Kind = Token->Kind;
       unsigned NumDups = Token->NumDups;
       unsigned NumDups2 = Token->NumDups2;
-#ifdef VREG_IF_CONVERTER_DUMP
-        std::string KindName = IfcvtKind_toStr(Kind);
-#endif
+      std::string KindName = IfcvtKind_toStr(Kind);
       // If the block has been evicted out of the queue or it has already been
       // marked dead (due to it being predicated), then skip it.
       if (BBI.IsDone) {
@@ -386,14 +383,12 @@ bool VRegIfConverter::runOnMachineFunction(MachineFunction &MF) {
                           << ((Kind == ICSimpleFalse) ? BBI.FalseBB->getNumber()
                                                       : BBI.TrueBB->getNumber())
                           << ") ");
-#ifdef VREG_IF_CONVERTER_DUMP
-        hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbg_cntr++) + KindName +  + "-before.dot");
-#endif
+        if (enableTrace)
+          hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbgCntr++) + KindName +  + "-before.dot");
         RetVal = IfConvertSimple(BBI, Kind);
         LLVM_DEBUG(dbgs() << (RetVal ? "succeeded!" : "failed!") << "\n");
-#ifdef VREG_IF_CONVERTER_DUMP
-    hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbg_cntr++) + KindName +  + "-after.dot");
-#endif
+        if (enableTrace)
+          hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbgCntr++) + KindName +  + "-after.dot");
         if (RetVal) {
           if (isFalse) ++NumSimpleFalse;
           else         ++NumSimple;
@@ -418,14 +413,12 @@ bool VRegIfConverter::runOnMachineFunction(MachineFunction &MF) {
         LLVM_DEBUG(dbgs() << "): " << printMBBReference(*BBI.BB)
                           << " (T:" << BBI.TrueBB->getNumber()
                           << ",F:" << BBI.FalseBB->getNumber() << ") ");
-#ifdef VREG_IF_CONVERTER_DUMP
-        hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbg_cntr++) + KindName +  + "-before.dot");
-#endif
+        if (enableTrace)
+          hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbgCntr++) + KindName +  + "-before.dot");
         RetVal = IfConvertTriangle(BBI, Kind);
         LLVM_DEBUG(dbgs() << (RetVal ? "succeeded!" : "failed!") << "\n");
-#ifdef VREG_IF_CONVERTER_DUMP
-        hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbg_cntr++) + KindName +  + "-after.dot");
-#endif
+        if (enableTrace)
+          hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbgCntr++) + KindName +  + "-after.dot");
         if (RetVal) {
           if (isFalse) {
             if (isRev) ++NumTriangleFRev;
@@ -442,16 +435,14 @@ bool VRegIfConverter::runOnMachineFunction(MachineFunction &MF) {
         LLVM_DEBUG(dbgs() << "Ifcvt" VREG_IF_CONVERTER_DUMPID << " (Diamond): " << printMBBReference(*BBI.BB)
                           << " (T:" << BBI.TrueBB->getNumber()
                           << ",F:" << BBI.FalseBB->getNumber() << ") ");
-#ifdef VREG_IF_CONVERTER_DUMP
-        hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbg_cntr++) + KindName +  + "-before.dot");
-#endif
+        if (enableTrace)
+          hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbgCntr++) + KindName +  + "-before.dot");
         RetVal = IfConvertDiamond(BBI, Kind, NumDups, NumDups2,
                                   Token->TClobbersPred,
                                   Token->FClobbersPred);
         LLVM_DEBUG(dbgs() << (RetVal ? "succeeded!" : "failed!") << "\n");
-#ifdef VREG_IF_CONVERTER_DUMP
-        hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbg_cntr++) + KindName +  + "-after.dot");
-#endif
+        if (enableTrace)
+          hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbgCntr++) + KindName +  + "-after.dot");
         if (RetVal) ++NumDiamonds;
         break;
       case ICForkedDiamond:
@@ -460,16 +451,14 @@ bool VRegIfConverter::runOnMachineFunction(MachineFunction &MF) {
                           << printMBBReference(*BBI.BB)
                           << " (T:" << BBI.TrueBB->getNumber()
                           << ",F:" << BBI.FalseBB->getNumber() << ") ");
-#ifdef VREG_IF_CONVERTER_DUMP
-        hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbg_cntr++) + KindName +  + "-before.dot");
-#endif
+        if (enableTrace)
+          hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbgCntr++) + KindName +  + "-before.dot");
         RetVal = IfConvertForkedDiamond(BBI, Kind, NumDups, NumDups2,
                                       Token->TClobbersPred,
                                       Token->FClobbersPred);
         LLVM_DEBUG(dbgs() << (RetVal ? "succeeded!" : "failed!") << "\n");
-#ifdef VREG_IF_CONVERTER_DUMP
-        hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbg_cntr++) + KindName +  + "-after.dot");
-#endif
+        if (enableTrace)
+          hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbgCntr++) + KindName +  + "-after.dot");
         if (RetVal) ++NumForkedDiamonds;
         break;
 
@@ -490,14 +479,12 @@ bool VRegIfConverter::runOnMachineFunction(MachineFunction &MF) {
                           << ((Kind == ICSimpleFalse) ? BBI.FalseBB->getNumber()
                                                       : BBI.TrueBB->getNumber())
                           << ") ");
-#ifdef VREG_IF_CONVERTER_DUMP
-        hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbg_cntr++) + KindName +  + "-before.dot");
-#endif
+        if (enableTrace)
+          hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbgCntr++) + KindName +  + "-before.dot");
         RetVal = IfConvertLoopTail(BBI, Kind);
         LLVM_DEBUG(dbgs() << (RetVal ? "succeeded!" : "failed!") << "\n");
-#ifdef VREG_IF_CONVERTER_DUMP
-    hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbg_cntr++) + KindName +  + "-after.dot");
-#endif
+        if (enableTrace)
+          hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbgCntr++) + KindName +  + "-after.dot");
         if (RetVal) {
         	switch (Kind) {
             case ICLoopTail:
@@ -537,20 +524,17 @@ bool VRegIfConverter::runOnMachineFunction(MachineFunction &MF) {
 
   MadeChange |= normalizeBranchConditions(MF);
   if (MadeChange && IfCvtBranchFold) {
-#ifdef VREG_IF_CONVERTER_DUMP
-    hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbg_cntr++) + ".branchFolder-before.dot");
-#endif
+    if (enableTrace)
+      hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbgCntr++) + ".branchFolder-before.dot");
     BranchFolder BF(false, false, MBFI, *MBPI, PSI);
     BF.OptimizeFunction(MF, TII, MF.getSubtarget().getRegisterInfo());
-#ifdef VREG_IF_CONVERTER_DUMP
-    hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbg_cntr++) + ".branchFolder-after.dot");
-#endif
+    if (enableTrace)
+      hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbgCntr++) + ".branchFolder-after.dot");
   }
   MadeChange |= normalizeBranchConditions(MF);
   MadeChange |= BFChange;
-#ifdef VREG_IF_CONVERTER_DUMP
-  hwtHls::writeCFGToDotFile(MF, "IC." + std::to_string(dbg_cntr++) + ".end.dot");
-#endif
+  if (enableTrace)
+    hwtHls::writeCFGToDotFile(MF, "IC." + std::to_string(dbgCntr++) + ".end.dot");
 
   return MadeChange;
 }
@@ -1703,9 +1687,8 @@ bool VRegIfConverter::IfConvertSimple(BBInfo &BBI, IfcvtKind Kind) {
 //  } else if (!CvtBBJumpsToNextBB && SucOfCvtBB && SucOfCvtBB != NextBBI->BB) {
 //    // if blocks NextMBB and CvtBBI did not have common successor and CvtBBI was just linked to BBI.BB
 //    // (current successor is successor of CvtBBI)
-//#ifdef VREG_IF_CONVERTER_DUMP
-//    hwtHls::writeCFGToDotFile(*BBI.BB->getParent(), "IC." + std::to_string(dbg_cntr++) + "-1" + IfcvtKind_toStr(Kind) + ".dot");
-//#endif
+//    if (enableTrace)
+//      hwtHls::writeCFGToDotFile(*BBI.BB->getParent(), "IC." + std::to_string(dbg_cntr++) + "-1" + IfcvtKind_toStr(Kind) + ".dot");
 //    if (BBI.BB->succ_size() == 1) {
 //    	if (BBI.HasFallThrough)
 //      if (!BBI.BB->terminators().empty()) {

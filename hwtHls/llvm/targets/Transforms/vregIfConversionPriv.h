@@ -30,20 +30,9 @@
 
 #include <hwtHls/llvm/targets/Analysis/VRegLiveins.h>
 
-// #define VREG_IF_CONVERTER_DUMP
-// #define VREG_IF_CONVERTER_CONSYSTENCY_CHECKS
-
-
-#ifdef VREG_IF_CONVERTER_DUMP
 
 #include <hwtHls/llvm/targets/Transforms/writeCFGToDotFile.h>
-#define VREG_IF_CONVERTER_DUMPID << " " << dbg_cntr
-
-#else
-
-#define VREG_IF_CONVERTER_DUMPID
-
-#endif
+#define VREG_IF_CONVERTER_DUMPID << " " << dbgCntr
 
 
 namespace hwtHls {
@@ -164,9 +153,9 @@ class VRegIfConverter: public llvm::MachineFunctionPass {
 	int FnNum = -1;
 	std::function<bool(const llvm::MachineFunction&)> PredicateFtor;
 
-#ifdef VREG_IF_CONVERTER_DUMP
-	static size_t dbg_cntr;
-#endif
+	// debug variables
+	bool enableTrace;
+	static size_t dbgCntr;
 
 public:
 	static char ID;

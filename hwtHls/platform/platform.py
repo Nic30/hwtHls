@@ -276,6 +276,7 @@ class DefaultHlsPlatform(DummyPlatform):
             # ("view-isel-dags", 0, "", "true"),
             # ("view-sched-dags", 0, "", "true"),
             # ("view-sunit-dags", 0, "", "true"),
+            # ("vregifcvt-trace", 0, "", "true"),
             # ("print-after-isel", 0, "", "true"),
             # ("debug-only", 0, "", "mir-canonicalizer"), # :note: available only in llvm debug build #"early-ifcvt-limit"
             # ("print-lsr-output", 0, "", "true"),
