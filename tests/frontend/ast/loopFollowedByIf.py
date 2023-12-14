@@ -9,6 +9,8 @@ from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import uint8_t
 from tests.frontend.ast.loopAfterLoop import TwoTimesFiniteWhileInWhileTrue
+from tests.baseSsaTest import BaseSsaTC
+from hwtSimApi.utils import freq_to_period
 
 
 class FiniteWhileIf0(TwoTimesFiniteWhileInWhileTrue):
@@ -74,6 +76,28 @@ class FiniteWhileIf1(TwoTimesFiniteWhileInWhileTrue):
         hls.compile()
 
 
+class LoopFollowedByIf_TC(BaseSsaTC):
+    __FILE__ = __file__
+
+    def test_FiniteWhileIf0(self):
+        u = FiniteWhileIf0()
+        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
+        self.runSim(int(10 * freq_to_period(u.FREQ)))
+        u.dataIn0._ag.data.append(8)
+
+        self.assertValSequenceEqual(u.dataOut0._ag.data, [4 for _ in range(4)])
+        self.assertValSequenceEqual(u.dataOut1._ag.data, [7, ])
+
+    def test_FiniteWhileIf1(self):
+        u = FiniteWhileIf1()
+        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
+        self.runSim(int(10 * freq_to_period(u.FREQ)))
+        u.dataIn0._ag.data.append(8)
+
+        self.assertValSequenceEqual(u.dataOut0._ag.data, [4 for _ in range(4)])
+        self.assertValSequenceEqual(u.dataOut1._ag.data, [7, ])
+
+
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
@@ -81,3 +105,10 @@ if __name__ == "__main__":
     u = FiniteWhileIf1()
     u.FREQ = int(150e6)
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+
+    import unittest
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([LoopFollowedByIf_TC('test_FiniteWhileIf0')])
+    suite = testLoader.loadTestsFromTestCase(LoopFollowedByIf_TC)
+    runner = unittest.TextTestRunner(verbosity=3)
+    runner.run(suite)

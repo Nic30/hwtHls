@@ -8,8 +8,11 @@ from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
+from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import uint8_t
+from hwtSimApi.utils import freq_to_period
+from tests.baseSsaTest import BaseSsaTC
 
 
 class TwoTimesFiniteWhileInWhileTrue(Unit):
@@ -72,11 +75,37 @@ class TwoTimesFiniteWhile(TwoTimesFiniteWhileInWhileTrue):
         hls.compile()
 
 
+class LoopAfterLoop_TC(BaseSsaTC):
+    __FILE__ = __file__
+
+    def test_TwoTimesFiniteWhileInWhileTrue(self):
+        u = TwoTimesFiniteWhileInWhileTrue()
+        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
+        self.runSim(int(10 * freq_to_period(u.FREQ)))
+
+        self.assertValSequenceEqual(u.dataOut0._ag.data, [4 for _ in range(4)])
+        self.assertValSequenceEqual(u.dataOut1._ag.data, [5 for _ in range(5)])
+
+    def test_TwoTimesFiniteWhile(self):
+        u = TwoTimesFiniteWhile()
+        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
+        self.runSim(int(10 * freq_to_period(u.FREQ)))
+
+        self.assertValSequenceEqual(u.dataOut0._ag.data, [4 for _ in range(4)])
+        self.assertValSequenceEqual(u.dataOut1._ag.data, [5 for _ in range(5)])
+
+
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
-    from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.platform import HlsDebugBundle
 
     u = TwoTimesFiniteWhile()
     u.FREQ = int(150e6)
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+
+    import unittest
+    testLoader = unittest.TestLoader()
+    # suite = unittest.TestSuite([LoopAfterLoop_TC('test_TwoTimesFiniteWhile')])
+    suite = testLoader.loadTestsFromTestCase(LoopAfterLoop_TC)
+    runner = unittest.TextTestRunner(verbosity=3)
+    runner.run(suite)
