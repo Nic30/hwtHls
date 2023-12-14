@@ -4,18 +4,18 @@
 from typing import Type
 import unittest
 
+from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.defs import BIT
 from hwt.interfaces.std import VectSignal
+from hwt.interfaces.utils import addClkRstn
 from hwt.simulator.simTestCase import SimTestCase
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.pyBytecode import hlsBytecode
+from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
-from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline
-from hwt.hdl.types.bits import Bits
-from hwt.interfaces.utils import addClkRstn
 
 
 class TestException0(Exception):
