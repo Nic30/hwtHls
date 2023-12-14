@@ -382,6 +382,13 @@ static void removeBitConcatAndBitRangeGetExprFromSet(
 				removeBitConcatAndBitRangeGetExprFromSet(set, opU.get());
 			}
 		}
+	} else if (auto *C = dyn_cast<CastInst>(V)) {
+		auto cur = set.find(C);
+		if (cur != set.end())
+			set.erase(cur);
+		for (llvm::Use &opU : C->operands()) {
+			removeBitConcatAndBitRangeGetExprFromSet(set, opU.get());
+		}
 	}
 }
 
@@ -394,6 +401,7 @@ bool splitOnSplitPoints(
 		for (Instruction &I : B) {
 			if (SlicedValueResolver::isInstructionSplitable(I)) {
 				auto sp = splitPoints.find(&I);
+
 				if (sp != splitPoints.end() && sp->second.size()) {
 					toRemove.insert(&I);
 				} else if (auto *C = dyn_cast<CallInst>(&I)) {
