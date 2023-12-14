@@ -116,21 +116,22 @@ class PyBytecodeInline_TC(SimTestCase):
                     yield cntr
             except StopIteration:
                 return
+
         ref = list(model(u.i._ag.data))
         self.runSim((len(u.i._ag.data) + 1) * int(CLK_PERIOD))
 
         self.assertValSequenceEqual(u.o._ag.data, ref)
-
+        
 
 if __name__ == "__main__":
     import unittest
-    #from hwt.synthesizer.utils import to_rtl_str
-    #from hwtHls.platform.platform import HlsDebugBundle
-    #u = PragmaInline_TwoInLoopLiveVars()
-    #print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    # from hwt.synthesizer.utils import to_rtl_str
+    # from hwtHls.platform.platform import HlsDebugBundle
+    # u = PragmaInline_TwoInLoopLiveVars()
+    # print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     testLoader = unittest.TestLoader()
-    #suite = unittest.TestSuite([PyBytecodeInline_TC("test_PragmaInline_TwoInLoopLiveVars")])
+    # suite = unittest.TestSuite([PyBytecodeInline_TC("test_PragmaInline_TwoInLoopLiveVars")])
     suite = testLoader.loadTestsFromTestCase(PyBytecodeInline_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
