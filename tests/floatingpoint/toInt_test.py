@@ -13,7 +13,6 @@ from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
-from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import int64_t
 from hwtSimApi.utils import freq_to_period
@@ -23,10 +22,12 @@ from tests.floatingpoint.toInt import IEEE754FpToInt
 from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
 
 
+
 class IEEE754FpToIntConventor(Unit):
 
     def _config(self) -> None:
         self.T = Param(IEEE754Fp64)
+        self.RES_T = Param(int64_t)
         self.FREQ = Param(int(20e6))
 
     def _declr(self) -> None:
@@ -36,7 +37,7 @@ class IEEE754FpToIntConventor(Unit):
         self.a = HsStructIntf()
         self.a.T = self.T
         self.res = HsStructIntf()._m()
-        self.res.T = int64_t
+        self.res.T = self.RES_T
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
@@ -48,7 +49,6 @@ class IEEE754FpToIntConventor(Unit):
 
     def _impl(self) -> None:
         hls = HlsScope(self)
-        assert sys.float_info.mant_dig - 1 == self.T.MANTISSA_WIDTH, (sys.float_info.mant_dig, self.T.MANTISSA_WIDTH)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls)
         hls.addThread(mainThread)
         hls.compile()
@@ -64,6 +64,8 @@ class IEEE754FpToInt_TC(SimTestCase):
         mask(64),
         -1,
         -0.1,
+        -2,
+        -3,
         -mask(63),
     ]]
 
@@ -73,6 +75,7 @@ class IEEE754FpToInt_TC(SimTestCase):
         return max(min(res, mask(64 - 1)), to_signed(1 << 63, 64))
 
     def test_py(self):
+        assert sys.float_info.mant_dig - 1 == IEEE754Fp64.MANTISSA_WIDTH, (sys.float_info.mant_dig, IEEE754Fp64.MANTISSA_WIDTH)
         resV = int64_t.from_py(None)
         for a in self.TEST_DATA:
             _a = IEEE754Fp64.from_py(a)
@@ -115,7 +118,7 @@ class IEEE754FpToInt_TC(SimTestCase):
             refRes.append(_resRef)
 
         CLK_PERIOD = freq_to_period(u.clk.FREQ)
-        self.runSim((len(self.TEST_DATA) + 1) * 32 * int(CLK_PERIOD))
+        self.runSim((len(self.TEST_DATA) + 1) * 2 * int(CLK_PERIOD))
 
         self.assertValSequenceEqual(u.res._ag.data, refRes,
                                     [float(a) for a in self.TEST_DATA])
@@ -125,13 +128,20 @@ class IEEE754FpToInt_TC(SimTestCase):
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
+    from tests.floatingpoint.fptypes import IEEE754Fp
+    from hwtHls.platform.virtual import VirtualHlsPlatform
+    from hwtLib.types.ctypes import int8_t
+    
     u = IEEE754FpToIntConventor()
+    u.T = IEEE754Fp(4, 4)
+    u.RES_T = int8_t
+    u.FREQ = int(1e6)
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
 
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([IEEE754FpCmp_TC('test_cmp_py')])
+    # suite = unittest.TestSuite([IEEE754FpToInt_TC('test_py')])
     suite = testLoader.loadTestsFromTestCase(IEEE754FpToInt_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
