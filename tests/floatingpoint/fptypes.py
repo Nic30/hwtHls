@@ -133,8 +133,15 @@ class IEEE754Fp(HStruct):
     def getNaNMantisa(self):
         return 1 << (self.MANTISSA_WIDTH - 1)
 
+
 # standard IEEE754 floating point number types
 IEEE754Fp16 = IEEE754Fp(5, 10, name="float16")
 IEEE754Fp32 = IEEE754Fp(8, 23, name="float32")
 IEEE754Fp64 = IEEE754Fp(11, 52, name="float64")
-# potentially useful: https://xilinx.eetrend.com/files/2021-06/wen_zhang_/100113810-209893-wp530-small-floating-point.pdf
+
+# other commonly used floating point number types
+TF32 = IEEE754Fp(8, 10, name="TF32") # NVidia's TensorFloat32 (19 bits)
+BF16 = IEEE754Fp(8, 10, name="BF16") # BFLOAT16
+fp24 = IEEE754Fp(7, 16, name="fp24") # AMD's fp24 format
+PXR24 = IEEE754Fp(8, 15, name="PXR24") # Pixar's PXR24 format
+sfp_3_3 = IEEE754Fp(3, 3, name="sfp_3_3") # Xilinx Small Floating Point<3,3>: https://xilinx.eetrend.com/files/2021-06/wen_zhang_/100113810-209893-wp530-small-floating-point.pdf
