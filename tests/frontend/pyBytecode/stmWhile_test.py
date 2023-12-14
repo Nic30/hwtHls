@@ -1,35 +1,33 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from tests.baseSsaTest import BaseSsaTC
-from tests.frontend.pyBytecode.stmWhile import HlsPythonHwWhile0, \
-    HlsPythonHwWhile1, HlsPythonHwWhile2, HlsPythonHwWhile3, HlsPythonHwWhile4, \
-    HlsPythonHwWhile5, HlsPythonHwWhile0b, HlsPythonHwWhile0c
-from hwt.simulator.simTestCase import SimTestCase
-from hwt.synthesizer.unit import Unit
+from collections import deque
+from pathlib import Path
+from typing import Callable, Tuple, Union, Any, Optional, Iterable
 
 from hwt.code import Concat
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.defs import BIT
+from hwt.simulator.simTestCase import SimTestCase
+from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.llvm.llvmIr import MachineFunction, LLVMStringContext, Function
 from hwtHls.platform.platform import HlsDebugBundle
 from hwtHls.platform.virtual import VirtualHlsPlatform
-from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
-from hwtLib.amba.axis import axis_send_bytes, packAxiSFrame, \
-    _axis_recieve_bytes, axis_recieve_bytes
-from hwtLib.types.ctypes import uint8_t
-from hwtSimApi.utils import freq_to_period
-from tests.io.amba.axiStream.axisCopyByteByByte import AxiSPacketCopyByteByByte
+from hwtHls.scope import HlsScope
 from hwtHls.ssa.analysis.llvmIrInterpret import SimIoUnderflowErr, \
     LlvmIrInterpret
-from pyDigitalWaveTools.vcd.writer import VcdWriter
-from pathlib import Path
-from collections import deque
-from typing import List, Callable, Tuple, Union, Any, Optional, Iterable
 from hwtHls.ssa.analysis.llvmMirInterpret import LlvmMirInterpret
-from hwtSimApi.constants import CLK_PERIOD
+from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
+from hwtLib.types.ctypes import uint8_t
 from hwtSimApi.triggers import StopSimumulation
+from hwtSimApi.utils import freq_to_period
+from pyDigitalWaveTools.vcd.writer import VcdWriter
+from tests.baseSsaTest import BaseSsaTC
+from tests.frontend.pyBytecode.stmWhile import HlsPythonHwWhile0, \
+    HlsPythonHwWhile1, HlsPythonHwWhile2, HlsPythonHwWhile3, HlsPythonHwWhile4, \
+    HlsPythonHwWhile5, HlsPythonHwWhile0b, HlsPythonHwWhile0c, \
+    PragmaInline_HlsPythonHwWhile5, HlsPythonHwWhile6
 
 
 class StmWhile_TC(BaseSsaTC):
@@ -118,14 +116,14 @@ class StmWhile_sim_TC(SimTestCase):
 
         class TestVirtualHlsPlatform(VirtualHlsPlatform):
 
-            def runSsaPasses(self, hls: "HlsScope", toSsa: HlsAstToSsa):
+            def runSsaPasses(self, hls: HlsScope, toSsa: HlsAstToSsa):
                 res = super(TestVirtualHlsPlatform, self).runSsaPasses(hls, toSsa)
                 tr: ToLlvmIrTranslator = toSsa.start
                 tc._testLlvmIr(tr.llvm.strCtx, tr.llvm.main, "", prepareArgs, checkArgs, wallTimeIr)
                 return res
 
             def runNetlistTranslation(self,
-                              hls: "HlsScope", toSsa: HlsAstToSsa,
+                              hls: HlsScope, toSsa: HlsAstToSsa,
                               mf: MachineFunction, *args):
                 tr: ToLlvmIrTranslator = toSsa.start
                 tc._testLlvmIr(tr.llvm.strCtx, tr.llvm.main, ".opt", prepareArgs, checkArgs, wallTimeOptIr)
@@ -211,8 +209,6 @@ class StmWhile_sim_TC(SimTestCase):
                    wallTimeOptMir=wallTimeOptMir,
                    wallTimeRtlClks=wallTimeRtlClks)
 
-
-
     def test_HlsPythonHwWhile0b(self):
 
         def model(dataOut):
@@ -250,6 +246,7 @@ class StmWhile_sim_TC(SimTestCase):
     #    self._test(HlsPythonHwWhile1())
     #
     def test_HlsPythonHwWhile2(self):
+
         def model(dataOut):
             i = uint8_t.from_py(0)
             while True:  # recognized as HW loop because of type
@@ -259,16 +256,15 @@ class StmWhile_sim_TC(SimTestCase):
                 elif i._eq(10):
                     break
                 i += 1
-    
+
             while True:
                 dataOut.append(0)
                 yield
-        
+
         OUT_CNT = 16
         self._testOneOut(HlsPythonHwWhile2(), model, OUT_CNT,
                          OUT_CNT * 20, OUT_CNT * 20,
                          OUT_CNT * 20, OUT_CNT + 1)
-
 
     def test_HlsPythonHwWhile3(self):
 
@@ -310,12 +306,18 @@ class StmWhile_sim_TC(SimTestCase):
     def test_HlsPythonHwWhile5(self):
         self.test_HlsPythonHwWhile4(uCls=HlsPythonHwWhile5)
 
+    def test_HlsPythonHwWhile6(self):
+        self.test_HlsPythonHwWhile4(uCls=HlsPythonHwWhile6)
+
+    def test_PragmaInline_HlsPythonHwWhile5(self):
+        self.test_HlsPythonHwWhile4(uCls=PragmaInline_HlsPythonHwWhile5)
+
 
 if __name__ == "__main__":
     import unittest
 
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([StmWhile_sim_TC("test_HlsPythonHwWhile0c")])
-    suite = testLoader.loadTestsFromTestCase(StmWhile_sim_TC)
+    suite = unittest.TestSuite([StmWhile_sim_TC("test_HlsPythonHwWhile2")])
+    # suite = testLoader.loadTestsFromTestCase(StmWhile_sim_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
