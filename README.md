@@ -146,6 +146,8 @@ source venv/bin/activate # modifies current shell to use previously generate pyt
 * :skull: [hpiasg](https://github.com/hpiasg) - , set of tools for asynchronous and handshake circuit synthesis
 * [abc](https://people.eecs.berkeley.edu/~alanmi/abc/) <2008-?, A System for Sequential Synthesis and Verification
 * [ahir](https://github.com/madhavPdesai/ahir) - LLVM, c->vhdl
+* [AutoBridge](https://autosa.readthedocs.io/en/latest/tutorials/auto_bridge.html) - Python, floorplaning/pipelining tool for Vitis HLS
+* [AutoSA](https://github.com/UCLA-VAST/AutoSA) - C++, Polyhedral-Based Systolic Array Compiler
 * [binaryen](https://github.com/WebAssembly/binaryen) - , C++, WebAssembly compiler (implements some similar optimization passes)
 * [blarney](https://github.com/blarney-lang/blarney)
 * [calyx](https://github.com/cucapra/calyx) - , Rust - compiler infrastructure with custom lang focused on ML accelerators
@@ -167,6 +169,8 @@ source venv/bin/activate # modifies current shell to use previously generate pyt
 * [ICSC](https://github.com/intel/systemc-compiler) - C++/LLVM, systemC compiler
 * [Light-HLS](https://github.com/zslwyuan/Light-HLS) -, C++/LLVM, experimental HLS framework
 * [mockturtle](https://github.com/lsils/mockturtle) - C++, logic network lib. with project similar to HLS
+* [mlir-aie](https://github.com/Xilinx/mlir-aie) - C++/LLVM/MLIR, compiler infrastructure for Xilinx Vesal AIE
+* [mlir-air](https://github.com/Xilinx/mlir-air) - C++/LLVM/MLIR, compiler infrastructure for Xilinx AIR
 * [orcc](https://github.com/orcc/orcc) - C++/LLVM, Open RVC-CAL Compiler hw/sw dataflow and img processing focused
 * [PandA-bambu](http://panda.dei.polimi.it/?page_id=31) - 2003-?, GCC based c->verilog
 * [phism](https://github.com/kumasento/phism) - Python/C++/LLVM, Polyhedral High-Level Synthesis in MLIR
@@ -179,7 +183,7 @@ source venv/bin/activate # modifies current shell to use previously generate pyt
 * [TCE](https://github.com/cpc/tce)- C++/LLVM, environment for development of application specific processors
 * [tiramisu](https://github.com/Tiramisu-Compiler/tiramisu) - 2016-?, C++, A polyhedral compiler
 * [Tydi](https://github.com/abs-tudelft/tydi) - Rust, specification for complex data structures over hardware streams
-* [UCLA-VAST/TAPA](https://github.com/UCLA-VAST/tapa) - C++, HLS tool build on the top of VivadoHLS with explicit paralelism
+* [UCLA-VAST/TAPA](https://github.com/UCLA-VAST/tapa) - C++, HLS tool build on the top of VivadoHLS with explicit parallelism
 * [utwente-fmt](https://github.com/utwente-fmt) - abstract hls, verification libraries
 * [Xilinx/Vitis HLS](https://github.com/Xilinx/HLS) - C++/LLVM, partially opensource
 * [xls](https://github.com/google/xls) - 2020-?, C++ HLS compiler with JIT
