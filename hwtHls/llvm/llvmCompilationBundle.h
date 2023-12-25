@@ -51,6 +51,7 @@ public:
 
 	void addLlvmCliArgOccurence(const std::string &OptionName, unsigned pos,
 			const std::string &ArgName, const std::string &ArgValue);
+	void _updateDebugPM();
 	// for arg description see HwtFpgaTargetPassConfig
 	// :param combinerCallback: is an optional callback function called during last state of
 	//        instruction combining

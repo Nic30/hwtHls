@@ -44,11 +44,11 @@
 #include <llvm/Transforms/Scalar/JumpThreading.h>
 #include <llvm/Transforms/Scalar/SimplifyCFG.h>
 #include <llvm/Transforms/Scalar/CorrelatedValuePropagation.h>
-#include <llvm/Transforms/Scalar/LoopInstSimplify.h>
-#include <llvm/Transforms/Scalar/LoopSimplifyCFG.h>
 #include <llvm/Transforms/Scalar/LICM.h>
-#include <llvm/Transforms/Scalar/LoopRotation.h>
+#include <llvm/Transforms/Scalar/LoopInstSimplify.h>
 #include <llvm/Transforms/Scalar/LoopIdiomRecognize.h>
+#include <llvm/Transforms/Scalar/LoopSimplifyCFG.h>
+#include <llvm/Transforms/Scalar/LoopRotation.h>
 #include <llvm/Transforms/Scalar/IndVarSimplify.h>
 #include <llvm/Transforms/Scalar/LoopDeletion.h>
 #include <llvm/Transforms/Scalar/MergedLoadStoreMotion.h>
@@ -71,7 +71,7 @@
 #include <llvm/Transforms/Utils/AssumeBundleBuilder.h>
 #include <llvm/Transforms/Utils.h>
 #include <llvm/Transforms/Utils/Local.h>
-
+#include <llvm/Support/CommandLine.h>
 
 #include <llvm/Target/TargetMachine.h>
 //#include <llvm/Support/TargetSelect.h>
@@ -101,9 +101,24 @@ const std::string LlvmCompilationBundle::TargetTriple = "hwtFpga-unknown-linux-g
 const std::string LlvmCompilationBundle::CPU = "model0";
 const std::string LlvmCompilationBundle::Features = "model0";
 
+// :note: copied from llvm-opt
+using DebugLogging = LlvmCompilationBundle::DebugLogging;
+static llvm::cl::opt<DebugLogging> DebugPMCliOpt(
+    "debug-pass-manager", llvm::cl::Hidden, llvm::cl::ValueOptional,
+    llvm::cl::desc("Print pass management debugging information"),
+    llvm::cl::init(DebugLogging::None),
+    llvm::cl::values(
+        clEnumValN(DebugLogging::Normal, "", ""),
+        clEnumValN(DebugLogging::Quiet, "quiet",
+                   "Skip printing info about analyses"),
+        clEnumValN(
+            DebugLogging::Verbose, "verbose",
+            "Print extra information about adaptors and pass managers")));
+
+
 LlvmCompilationBundle::LlvmCompilationBundle(const std::string &moduleName) :
 		ctx(), strCtx(), module(new llvm::Module(strCtx.addStringRef(moduleName), ctx)),
-		builder(ctx), main(nullptr), MMIWP(nullptr), VerifyEachPass(false), DebugPM(DebugLogging::None) {
+		builder(ctx), main(nullptr), MMIWP(nullptr), VerifyEachPass(false), DebugPM(DebugPMCliOpt.getValue()) {
 	Target = &getTheHwtFpgaTarget(); //llvm::TargetRegistry::targets()[0];
 	Level = llvm::OptimizationLevel::O3;
 	EnableO3NonTrivialUnswitching = true;
@@ -123,6 +138,11 @@ LlvmCompilationBundle::LlvmCompilationBundle(const std::string &moduleName) :
 	PTO = llvm::PipelineTuningOptions();
 	llvm::LLVMTargetMachine &LLVMTM = static_cast<llvm::LLVMTargetMachine&>(*TM);
 	MMIWP = new llvm::MachineModuleInfoWrapperPass(&LLVMTM);
+	_updateDebugPM();
+}
+
+void LlvmCompilationBundle::_updateDebugPM() {
+	DebugPM = DebugPMCliOpt.getValue();
 	PrintPassOpts.Verbose = DebugPM == DebugLogging::Verbose;
 	PrintPassOpts.SkipAnalyses = DebugPM == DebugLogging::Quiet;
 }
@@ -146,6 +166,9 @@ void LlvmCompilationBundle::addLlvmCliArgOccurence(const std::string & OptionNam
 		}
 	}
 	o->second->addOccurrence(pos, strCtx.addStringRef(ArgName), strCtx.addStringRef(ArgValue));
+	if (OptionName == "debug-pass-manager") {
+		_updateDebugPM();
+	}
 }
 
 
