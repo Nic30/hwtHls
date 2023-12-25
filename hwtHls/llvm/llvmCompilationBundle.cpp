@@ -45,6 +45,8 @@
 #include <llvm/Transforms/Scalar/SimplifyCFG.h>
 #include <llvm/Transforms/Scalar/CorrelatedValuePropagation.h>
 #include <llvm/Transforms/Scalar/LICM.h>
+#include <llvm/Transforms/Scalar/LoopDistribute.h>
+#include <llvm/Transforms/Scalar/LoopFuse.h>
 #include <llvm/Transforms/Scalar/LoopInstSimplify.h>
 #include <llvm/Transforms/Scalar/LoopIdiomRecognize.h>
 #include <llvm/Transforms/Scalar/LoopSimplifyCFG.h>
@@ -505,6 +507,9 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 		// Eliminate loads by forwarding stores from the previous iteration to loads
 		// of the current iteration.
 		FPM.addPass(llvm::LoopLoadEliminationPass());
+		// :note: LoopFusePass works only with loops with exactly same iteration scheme, for hw this may not be sufficient
+		FPM.addPass(llvm::LoopFusePass());
+		FPM.addPass(llvm::LoopDistributePass());
 	}
 	// Cleanup after the loop optimization passes.
 	FPM.addPass(llvm::InstCombinePass());
