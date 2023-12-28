@@ -23,7 +23,9 @@ from hwtHls.netlist.context import HlsNetlistCtx
 
 
 class RtlNetlistPassControlLogicMinimize(RtlNetlistPass):
-
+    """
+    Run ABC logic optimizer on every branch condition, channel flag and every control signal in arch elements 
+    """
     @classmethod
     def _collect1bOpTree(cls, o: RtlSignal, inputs: UniqList[RtlSignal], inTreeOutputs: Set[RtlSignal]):
         """
