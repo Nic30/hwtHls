@@ -10,9 +10,9 @@ from hwtHls.netlist.analysis.detectFsms import IoFsm
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.orderable import HdlType_isVoid
 from hwtHls.netlist.scheduler.clk_math import start_clk
+
+
 # from hwtHls.netlist.nodes.const import HlsNetNodeConst
-
-
 class RtlArchPassMergeTiedFsms(RtlArchPass):
     """
     If multiple FSMs are running in parallel but there is an non-optional communication between them in multiple states

@@ -1,4 +1,4 @@
-from typing import Dict, Union, Tuple, Optional, List
+from typing import Dict, Union, Optional
 
 from hwt.synthesizer.interface import Interface
 from hwtHls.architecture.allocator import HlsAllocator

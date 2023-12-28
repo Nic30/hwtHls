@@ -19,9 +19,10 @@ class RtlArchPassLoopControlPrivatization(RtlArchPass):
     previous one is finished if data dependency allows it.
 
     :note: The reason why the write to control channels is after every IO in the block even if the jump can be resolved sooner
-        is that we explicitly added this ordering info (in :class:`hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist.HlsNetlistAnalysisPassMirToNetlist`).
-        This extra ordering info is required for FSM reconstruction. Without it the reasoning about which stages can be skipped when converting pipeline to FSM
-        would be very computationally complex.
+        is that we explicitly added this ordering info 
+        (in :class:`hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist.HlsNetlistAnalysisPassMirToNetlist`).
+        This extra ordering info is required for FSM reconstruction. Without it the reasoning about which stages
+        can be skipped when converting pipeline to FSM would be very computationally complex.
     """
 
     def apply(self, hls:"HlsScope", allocator:HlsAllocator):
