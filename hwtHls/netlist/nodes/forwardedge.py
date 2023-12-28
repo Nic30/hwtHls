@@ -10,6 +10,7 @@ from hwtHls.netlist.nodes.backedge import BACKEDGE_ALLOCATION_TYPE, HlsNetNodeWr
 from hwtHls.netlist.nodes.orderable import HdlType_isVoid
 from hwtHls.netlist.nodes.ports import link_hls_nodes
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
+from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
 
@@ -78,7 +79,7 @@ class HlsNetNodeWriteForwardedge(HlsNetNodeWrite):
 
         return w, r
 
-    def _getSizeOfBuffer(self, clkPeriod: int):
+    def _getSizeOfBuffer(self, clkPeriod: SchedTime):
         srcWrite = self
         dstRead = self.associatedRead
         assert dstRead is not None

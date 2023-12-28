@@ -10,6 +10,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
 from hwtHls.netlist.scheduler.clk_math import epsilon
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 
+
 IO_COMB_REALIZATION = OpRealizationMeta(outputWireDelay=epsilon)
 
 
@@ -19,6 +20,17 @@ class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
     :see: :class:`hwtLib.handshaked.streamNode.StreamNode`
 
     This node is used to stall/drop/not-require some data based on external conditions.
+    
+    Explicit sync flag combinations (both flags are optional)
+    ---------------------------------------------|
+    | extra cond | skip when | meaning for read  |
+    ==============================================
+    | 0          | 0         | block             |
+    | 1          | 0         | accept            |
+    | 0          | 1         | skip read/peek    |
+    | 1          | 1         | read non blocking |
+    ----------------------------------------------
+
 
     :ivar extraCond: an input for a flag which must be true to allow the transaction (is blocking until 1)
     :ivar skipWhen: an input for a flag which marks that this write should be skipped and transaction
@@ -84,8 +96,8 @@ class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
             i = self._outputOfCluster = self._addInput("outputOfCluster", addDefaultScheduling=True)
         return i
 
-    def _removeInput(self, i:int):
-        iObj = self._inputs[i]
+    def _removeInput(self, index:int):
+        iObj = self._inputs[index]
         if self.extraCond is iObj:
             self.extraCond = None
         elif self.skipWhen is iObj:
@@ -96,16 +108,16 @@ class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
         elif self._outputOfCluster is iObj:
             self._outputOfCluster = None
             #raise AssertionError("_outputOfCluster input port can not be removed because the cluster must be always present")
-        return HlsNetNodeOrderable._removeInput(self, i)
+        return HlsNetNodeOrderable._removeInput(self, index)
 
-    def _removeOutput(self, i:int):
-        oObj = self._outputs[i]
+    def _removeOutput(self, index:int):
+        oObj = self._outputs[index]
         if oObj is self._orderingOut:
             self._orderingOut = None
         elif oObj is self._dataVoidOut:
             self._dataVoidOut = None
 
-        return HlsNetNodeOrderable._removeOutput(self, i)
+        return HlsNetNodeOrderable._removeOutput(self, index)
 
     def allocateRtlInstance(self, allocator: "ArchElement") -> TimeIndependentRtlResource:
         assert type(self) is HlsNetNodeExplicitSync, self

@@ -20,7 +20,7 @@ class HlsNetNodeIoClusterCore(HlsNetNode):
         self.inputNodePort = self._addOutput(HVoidOrdering, "inputNodePort")
         self.outputNodePort = self._addOutput(HVoidOrdering, "outputNodePort")
 
-    def _removeOutput(self, i:int):
+    def _removeOutput(self, index: int):
         raise NotImplementedError()
 
     def resolveRealization(self):

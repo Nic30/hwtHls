@@ -4,7 +4,8 @@ from typing import Optional, List
 from hwt.hdl.types.hdlType import HdlType
 from hwtHls.netlist.nodes.node import HlsNetNode, HlsNetNodePartRef
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
-from hwtHls.netlist.nodes.schedulableNode import OutputMinUseTimeGetter
+from hwtHls.netlist.nodes.schedulableNode import OutputMinUseTimeGetter, \
+    SchedTime
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 
 
@@ -28,7 +29,7 @@ class HlsNetNodeDelayClkTick(HlsNetNode):
     def resolveRealization(self):
         self.assignRealization(OpRealizationMeta(0, 0, 0, self._clkCnt))
 
-    def scheduleAlapCompaction(self, endOfLastClk: int, outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter]):
+    def scheduleAlapCompaction(self, endOfLastClk: SchedTime, outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter]):
         return HlsNetNode.scheduleAlapCompactionMultiClock(self, endOfLastClk, outputMinUseTimeGetter)
 
     def allocateRtlInstance(self, allocator:"ArchElement"):
@@ -45,7 +46,7 @@ class HlsNetNodeDelayClkTick(HlsNetNode):
 
         return v
 
-    def createSubNodeRefrenceFromPorts(self, beginTime: int, endTime: int,
+    def createSubNodeRefrenceFromPorts(self, beginTime: SchedTime, endTime: SchedTime,
                                        inputs: List[HlsNetNodeIn], outputs: List[HlsNetNodeOut]) -> "HlsNetNodePartRef":
         return HlsNetNodeDelayPartRef(self.netlist, self, beginTime // self.netlist.normalizedClkPeriod)
 

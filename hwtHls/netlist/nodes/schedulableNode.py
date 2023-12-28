@@ -10,12 +10,13 @@ from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod, start_clk
 from hwtHls.netlist.scheduler.errors import TimeConstraintError
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 
-SchedulizationDict = Dict["HlsNetNode", Tuple[int,  # node zero time
-                                              Tuple[int, ...],  # scheduledIn
-                                              Tuple[int, ...]]]  # scheduledOut
-TimeSpec = Union[float, Tuple[int, ...]]
-OutputMinUseTimeGetter = Callable[[HlsNetNodeOut, Union[int, Literal[inf]]], int]  # second parameter is a current min time resolved from inputs
-OutputTimeGetter = Callable[[HlsNetNodeOut, Optional[UniqList["HlsNetNode"]], int], int]  # 2. parameter is path of nodes for debug of cycles, 3. parameter is beginOfFirstClk
+SchedTime = int
+SchedulizationDict = Dict["HlsNetNode", Tuple[SchedTime,  # node zero time
+                                              Tuple[SchedTime, ...],  # scheduledIn
+                                              Tuple[SchedTime, ...]]]  # scheduledOut
+TimeSpec = Union[float, Tuple[SchedTime, ...]]
+OutputMinUseTimeGetter = Callable[[HlsNetNodeOut, Union[SchedTime, Literal[inf]]], SchedTime]  # second parameter is a current min time resolved from inputs
+OutputTimeGetter = Callable[[HlsNetNodeOut, Optional[UniqList["HlsNetNode"]], SchedTime], SchedTime]  # 2. parameter is path of nodes for debug of cycles, 3. parameter is beginOfFirstClk
 
 
 class SchedulableNode():
@@ -47,12 +48,12 @@ class SchedulableNode():
         assert self.scheduledIn is not None, self
         assert self.scheduledOut is not None, self
         for i, iT, dep in zip_longest(self._inputs, self.scheduledIn, self.dependsOn):
-            assert isinstance(iT, int), (self, i, dep, iT)
+            assert isinstance(iT, SchedTime), (self, i, dep, iT)
             assert dep is not None, (self, i, dep, "Inconsistent input specification")
             assert i is not None, (self, dep, "Inconsistent input specification")
             assert dep.obj.scheduledOut is not None, (self, dep.obj)
             oT = dep.obj.scheduledOut[dep.out_i]
-            assert isinstance(oT, int), (dep, oT)
+            assert isinstance(oT, SchedTime), (dep, oT)
             assert iT >= oT, (oT, iT, "Input must be scheduled after connected output port.", dep, "->", i)
             assert iT >= 0, (iT, self, i, "Scheduled before start of the time.")
             assert oT >= 0, (oT, dep, "Scheduled before start of the time.")
@@ -62,13 +63,13 @@ class SchedulableNode():
         self.scheduledIn = None
         self.scheduledOut = None
 
-    def moveSchedulingTime(self, offset: int):
+    def moveSchedulingTime(self, offset: SchedTime):
         self.scheduledZero += offset
         self.scheduledIn = tuple(t + offset for t in self.scheduledIn)
         self.scheduledOut = tuple(t + offset for t in self.scheduledOut)
 
-    def _setScheduleZeroTimeSingleClock(self, t: int):
-        assert isinstance(t, int), t
+    def _setScheduleZeroTimeSingleClock(self, t: SchedTime):
+        assert isinstance(t, SchedTime), t
         assert self.scheduledZero != t, (self, t)
         self.scheduledZero = t
         self.scheduledIn = tuple(
@@ -80,8 +81,8 @@ class SchedulableNode():
             for out_delay in self.outputWireDelay
         )
 
-    def _setScheduleZeroTimeMultiClock(self, t: int, clkPeriod: int, epsilon: int, ffdelay):
-        assert isinstance(t, int), t
+    def _setScheduleZeroTimeMultiClock(self, t: SchedTime, clkPeriod: SchedTime, epsilon: SchedTime, ffdelay: SchedTime):
+        assert isinstance(t, SchedTime), t
         assert self.scheduledZero != t, (self, t)
         self.scheduledZero = t
         inTime = self._scheduleAlapCompactionMultiClockInTime
@@ -96,7 +97,7 @@ class SchedulableNode():
         )
 
     @staticmethod
-    def _scheduleAlapCompactionMultiClockInTime(time: int, clkPeriod: int, ticks: int, epsilon: int, ffDelay: int):
+    def _scheduleAlapCompactionMultiClockInTime(time: SchedTime, clkPeriod: SchedTime, ticks: int, epsilon: SchedTime, ffDelay: SchedTime):
         if ticks == 0:
             return time  # was checked that this does not cross clk boundary
         else:
@@ -104,15 +105,15 @@ class SchedulableNode():
             return (indexOfClkPeriod(time, clkPeriod) - ticks + 1) * clkPeriod - epsilon - ffDelay
 
     @staticmethod
-    def _scheduleAlapCompactionMultiClockOutTime(time: int, clkPeriod: int, ticks: int):
+    def _scheduleAlapCompactionMultiClockOutTime(time: SchedTime, clkPeriod: SchedTime, ticks: int):
         if ticks == 0:
             return time
         else:
             return (indexOfClkPeriod(time, clkPeriod) + ticks) * clkPeriod
 
     @staticmethod
-    def _schedulerJumpToPrevCycleIfRequired(time: Union[float, int], requestedTime: int,
-                                            clkPeriod:int, timeSpacingBeforeClkEnd: int) -> int:
+    def _schedulerJumpToPrevCycleIfRequired(time: Union[float, SchedTime], requestedTime: SchedTime,
+                                            clkPeriod: SchedTime, timeSpacingBeforeClkEnd: SchedTime) -> SchedTime:
         prevClkEndTime = indexOfClkPeriod(time, clkPeriod) * clkPeriod
         if requestedTime < prevClkEndTime:
             # must shift whole node sooner in time because the input of input can not be satisfied
@@ -122,7 +123,8 @@ class SchedulableNode():
         return time
 
     @staticmethod
-    def _schedulerGetNormalizedTimeForInput(availableInTime: int, inWireLatency: int, inputClkTickOffset: int, clkPeriod: int, ffdelay: int):
+    def _schedulerGetNormalizedTimeForInput(availableInTime: SchedTime, inWireLatency: SchedTime,
+                                            inputClkTickOffset: SchedTime, clkPeriod: SchedTime, ffdelay: SchedTime):
         """
         :param availableInTime: time when all dependencies of input are available
         :param inWireLatency: time which must be available before clock cycle
@@ -145,7 +147,7 @@ class SchedulableNode():
         return normalizedTime
 
     def scheduleAsap(self, pathForDebug: Optional[UniqList["HlsNetNode"]],
-                     beginOfFirstClk: int,
+                     beginOfFirstClk: SchedTime,
                      outputTimeGetter: Optional[OutputTimeGetter]) -> List[int]:
         """
         The recursive function of As Soon As Possible scheduling. Initial netlist scheduling method.
@@ -201,7 +203,7 @@ class SchedulableNode():
 
         return self.scheduledOut
 
-    def scheduleAlapCompaction(self, endOfLastClk: int, outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter])\
+    def scheduleAlapCompaction(self, endOfLastClk: SchedTime, outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter])\
             ->Generator["HlsNetNode", None, None]:
         """
         Single clock variant (inputClkTickOffset and outputClkTickOffset are all zeros)
@@ -271,7 +273,7 @@ class SchedulableNode():
             nodeZeroTime = endOfLastClk - (ffdelay + maxOutputLatency)
 
         if self.scheduledZero != nodeZeroTime:
-            assert isinstance(nodeZeroTime, int) and (self.scheduledZero is None or (isinstance(self.scheduledZero, int))
+            assert isinstance(nodeZeroTime, SchedTime) and (self.scheduledZero is None or (isinstance(self.scheduledZero, SchedTime))
                     ), (self.scheduledZero, "->", nodeZeroTime, self)
 
             if self.scheduledZero is not None and self.scheduledZero > nodeZeroTime:
@@ -284,7 +286,8 @@ class SchedulableNode():
             for dep in self.dependsOn:
                 yield dep.obj
 
-    def scheduleAlapCompactionMultiClock(self, endOfLastClk: int, outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter]) -> Generator["HlsNetNode", None, None]:
+    def scheduleAlapCompactionMultiClock(self, endOfLastClk: SchedTime,
+                                         outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter]) -> Generator["HlsNetNode", None, None]:
         """
         Move node to a later time if possible. Netlist is expected to be scheduled.
         This allows to move trees of nodes to later times and allow for possibly better fit of nodes
@@ -347,7 +350,7 @@ class SchedulableNode():
             for dep in self.dependsOn:
                 yield dep.obj
 
-    def scheduleAsapCompaction(self, beginOfFirstClk:int, outputTimeGetter:Optional[OutputTimeGetter]) -> \
+    def scheduleAsapCompaction(self, beginOfFirstClk: SchedTime, outputTimeGetter:Optional[OutputTimeGetter]) -> \
             Generator["HlsNetNode", None, None]:
         outTimes = self.scheduledOut
         zeroTime = self.scheduledZero
@@ -410,7 +413,7 @@ class SchedulableNode():
     #                nodeZeroTime = normalizedTime
     #
     #    if self.scheduledZero != nodeZeroTime:
-    #        assert isinstance(nodeZeroTime, int) and (self.scheduledZero is None or (isinstance(self.scheduledZero, int))
+    #        assert isinstance(nodeZeroTime, SchedTime) and (self.scheduledZero is None or (isinstance(self.scheduledZero, SchedTime))
     #                ), (self.scheduledZero, "->", nodeZeroTime, self)
     #
     #        if self.scheduledZero is not None and self.scheduledZero > nodeZeroTime:

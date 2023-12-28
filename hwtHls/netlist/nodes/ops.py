@@ -21,12 +21,12 @@ class HlsNetNodeOperator(HlsNetNode):
 
     def __init__(self, netlist: "HlsNetlistCtx",
                  operator: OpDefinition,
-                 operand_cnt: int,
+                 operandCnt: int,
                  dtype: Bits,
                  name=None):
         super(HlsNetNodeOperator, self).__init__(netlist, name=name)
         self.operator = operator
-        for _ in range(operand_cnt):
+        for _ in range(operandCnt):
             self._addInput(None)
         # add containers for io pins
         self._addOutput(dtype, None)

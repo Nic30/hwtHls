@@ -24,7 +24,7 @@ from hwtHls.netlist.nodes.orderable import HdlType_isNonData, HdlType_isVoid, \
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
     HlsNetNodeOutAny
 from hwtHls.netlist.nodes.schedulableNode import SchedulizationDict, OutputTimeGetter, \
-    OutputMinUseTimeGetter
+    OutputMinUseTimeGetter, SchedTime
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
 from hwtLib.amba.axi_intf_common import Axi_hs
 from ipCorePackager.constants import INTF_DIRECTION_asDirecton, \
@@ -258,7 +258,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
         HlsNetNodeExplicitSync.setScheduling(self, schedule)
         self.netlist.scheduler.resourceUsage.addUse(resourceType, indexOfClkPeriod(self.scheduledZero, clkPeriod))
 
-    def moveSchedulingTime(self, offset: int):
+    def moveSchedulingTime(self, offset: SchedTime):
         clkPeriod = self.netlist.normalizedClkPeriod
         originalClkI = indexOfClkPeriod(self.scheduledZero, clkPeriod)
         HlsNetNode.moveSchedulingTime(self, offset)
@@ -292,7 +292,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
 
         return self.scheduledOut
 
-    def scheduleAlapCompaction(self, endOfLastClk: int, outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter]):
+    def scheduleAlapCompaction(self, endOfLastClk: SchedTime, outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter]):
         originalTimeZero = self.scheduledZero
         netlist = self.netlist
         scheduler = netlist.scheduler

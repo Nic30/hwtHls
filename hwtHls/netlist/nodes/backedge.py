@@ -1,6 +1,5 @@
 from enum import Enum
 from itertools import chain
-from math import ceil
 from typing import Union, Optional, Generator
 
 from hwt.code import If, Concat
@@ -19,7 +18,6 @@ from hwtHls.netlist.nodes.orderable import HdlType_isVoid
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtLib.handshaked.builder import HsBuilder
-from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
 from hwtHls.netlist.nodes.schedulableNode import OutputMinUseTimeGetter
 
 
