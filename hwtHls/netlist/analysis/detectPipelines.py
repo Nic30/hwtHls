@@ -64,8 +64,8 @@ class HlsNetlistAnalysisPassDetectPipelines(HlsNetlistAnalysisPass):
             assert not isinstance(node, HlsNetNodePartRef), node
             _node = node
 
-            fsms = allFsmNodes.get(node, None)
-            if fsms is None:
+            nodeFsms = allFsmNodes.get(node, None)
+            if nodeFsms is None:
                 syncIsland = syncIslands.syncIslandOfNode[node]
                 if isinstance(syncIsland, tuple):
                     syncIsland, oIsland = syncIsland

@@ -11,15 +11,18 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 
 def netlistDebugExpr(o: HlsNetNodeOut, tmpVars:Optional[Dict[HlsNetNodeOut, int]]=None):
     """
+    Stringify HlsNetlist expression for debug purposes
+    
     :note: tmpVars can be used to share variable numbering between multiple calls of this function
     """
-    tmpVars: Dict[HlsNetNodeOut, int] = {}
+    if tmpVars is None:
+        tmpVars: Dict[HlsNetNodeOut, int] = {}
     exprOut = StringIO()
     _netlistDebugExpr(o, tmpVars, exprOut)
     res = [f"v{i} = {v}" for v, i in sorted(tmpVars.items(), key=lambda x: x[1])]
     res.append(exprOut.getvalue())
     return "\n".join(res)
-    
+
 
 def _netlistDebugExpr(o: HlsNetNodeOut, tmpVars: Dict[HlsNetNodeOut, int], exprOut: StringIO):
     n = o.obj

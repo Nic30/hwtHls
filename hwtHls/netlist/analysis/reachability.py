@@ -1,6 +1,5 @@
 from copy import copy
-from itertools import chain
-from typing import Set, Dict, Optional, Tuple, Union, Literal, List, Generator
+from typing import Set, Dict, Optional, Tuple, Union, Literal, List
 
 from hwt.hdl.operatorDefs import AllOps
 from hwt.pyUtils.uniqList import UniqList

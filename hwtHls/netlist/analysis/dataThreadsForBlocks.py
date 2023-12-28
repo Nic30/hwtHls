@@ -56,7 +56,7 @@ class HlsNetlistAnalysisPassDataThreadsForBlocks(HlsNetlistAnalysisPass):
         threadIdToBlock = self.threadIdToBlock
         threadsPerBlock = self.threadsPerBlock
         # replace t1 in blocks
-        for b in threadIdToBlock[t1Id]: # for each block where t1 is used
+        for b in threadIdToBlock[t1Id]:  # for each block where t1 is used
             threadInBlock = threadsPerBlock[b]
             t0i = None
             t1i = None

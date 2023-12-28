@@ -23,9 +23,9 @@ class IoFsm():
     :ivar states: list of list of nodes for each state, some states may be empty,
         index in states corresponds to clock period index in scheduling
     :ivar syncIslands: a list of unique synchronization islands touching this FSM
-    :note: We can not extract FSM transitions there because it would greatly complicate FSM merging and spliting
-    :note: States are beeing executed in order specified in sates list.
-        Non linear transitions must be explicitely discovered in ArchElementFsm.
+    :note: We can not extract FSM transitions there because it would greatly complicate FSM merging and splitting
+    :note: States are being executed in order specified in sates list.
+        Non linear transitions must be explicitly discovered in ArchElementFsm.
     """
 
     def __init__(self, intf: Optional[Interface], syncIslands: UniqList[BetweenSyncIsland]):
@@ -234,6 +234,7 @@ class HlsNetlistAnalysisPassDetectFsms(HlsNetlistAnalysisPass):
         for i in ioDiscovery.interfaceList:
             accesses = ioByInterface[i]
             if len(accesses) > accesses[0].maxIosPerClk:
+                # if is is accessed on multiple places we need to create a FSM which will control access to it
                 islands = UniqList()
                 for a in accesses:
                     inIsl, outIsl = syncIslands.syncIslandOfNode[a]
@@ -243,18 +244,19 @@ class HlsNetlistAnalysisPassDetectFsms(HlsNetlistAnalysisPass):
                         isl = outIsl
                     assert isl is not None, a
                     islands.append(isl)
+
                 assert None not in islands, (islands, accesses)
 
                 # all accesses which are not in same clock cycle must be mapped to individual FSM state
                 # every interface may spot a FSM
                 fsm = IoFsm(i, islands)
-                seenInClks: Dict[int, Set[HlsNetNode]] = {}
                 allClkI: UniqList[int] = UniqList()
                 for a in accesses:
                     clkI = self._getClkIOfAccess(a, clkPeriod)
                     allClkI.append(clkI)
                 allClkI.sort()
                 # prepare fsm states
+                seenInClks: Dict[int, Set[HlsNetNode]] = {}
                 for clkI in allClkI:
                     seen = seenInClks.get(clkI, None)
                     seen = set()
@@ -269,7 +271,7 @@ class HlsNetlistAnalysisPassDetectFsms(HlsNetlistAnalysisPass):
                 stCnt = len(fsm.states)
                 if stCnt > 1:
                     self._discardIncompatibleNodes(fsm)
-                    # initialize with tansition table with always jump to next state sequentially
+                    # initialize with transition table with always jump to next state sequentially
                     # for i in range(stCnt):
                     #    fsm.transitionTable[i] = {(i + 1) % stCnt: 1}  # {next st: cond}
 

@@ -1,3 +1,4 @@
+from itertools import chain
 from networkx.algorithms.components.strongly_connected import strongly_connected_components
 from networkx.classes.digraph import DiGraph
 from typing import List, Dict, Set, Tuple, Generator, Union
@@ -5,10 +6,10 @@ from typing import List, Dict, Set, Tuple, Generator, Union
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn
-from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
-from itertools import chain
+
 
 HlsNetNodeAnySync = Union[HlsNetNodeExplicitSync, HlsNetNodeLoopStatus]
 SyncGroupLabel = Tuple[HlsNetNodeAnySync, ...]
