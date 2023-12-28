@@ -4,6 +4,8 @@
 #include <llvm/IR/Constants.h>
 #include <hwtHls/llvm/targets/Transforms/vregConditionUtils.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionBuilderUtils.h>
+#include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionSelectorUtils.h>
+#include <hwtHls/llvm/targets/machineInstrUtils.h>
 
 #define GET_INSTRINFO_CTOR_DTOR
 #include "HwtFpgaGenInstrInfo.inc"
@@ -281,9 +283,9 @@ unsigned HwtFpgaInstrInfo::insertBranch(MachineBasicBlock &MBB,
 			Br_cond = CondMutable[0] = *_Br_n;
 			CondMutable[1].setImm(0); // negated twice = not negated
 
-		//} else if (FBB) {
-		//	// swap T/F to avoid negation
-		//	std::swap(TBB, FBB);
+			//} else if (FBB) {
+			//	// swap T/F to avoid negation
+			//	std::swap(TBB, FBB);
 		} else {
 			// place register negation before first terminator
 			MachineIRBuilder Builder(MBB, MBB.terminators().begin());
@@ -294,7 +296,8 @@ unsigned HwtFpgaInstrInfo::insertBranch(MachineBasicBlock &MBB,
 	}
 	MachineInstrBuilder MIB = BuildMI(&MBB, DL, get(TargetOpcode::G_BRCOND));
 	MIB.addUse(Br_cond.getReg(),
-			MRI.use_empty(Br_cond.getReg()) || Cond[0].isKill() ? RegState::Kill : 0);
+			MRI.use_empty(Br_cond.getReg()) || Cond[0].isKill() ?
+					RegState::Kill : 0);
 	MIB.addMBB(TBB);
 
 	// One-way conditional branch.

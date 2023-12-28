@@ -38,6 +38,7 @@ public:
 	bool ClobbersPredicate(MachineInstr &MI, std::vector<MachineOperand> &Pred,
 			bool SkipDead) const override;
 	unsigned getPredicationCost(const MachineInstr &MI) const override;
+	// e.g. GE subsumes GT.
 	bool SubsumesPredicate(ArrayRef<MachineOperand> Pred1,
 			ArrayRef<MachineOperand> Pred2) const override;
 	unsigned insertBranch(MachineBasicBlock &MBB, MachineBasicBlock *TBB,
