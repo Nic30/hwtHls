@@ -9,7 +9,8 @@ from hwtHls.netlist.nodes.node import HlsNetNode_numberForEachInput, \
     HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
-from hwtHls.netlist.nodes.schedulableNode import OutputTimeGetter, OutputMinUseTimeGetter
+from hwtHls.netlist.nodes.schedulableNode import OutputTimeGetter, OutputMinUseTimeGetter,\
+    SchedTime
 from hwtHls.netlist.scheduler.clk_math import start_of_next_clk_period, \
     indexOfClkPeriod
 from hwtHls.netlist.scheduler.errors import TimeConstraintError
@@ -68,7 +69,7 @@ class HlsNetNodeBitwiseOps(HlsNetNodeAggregate):
 
     def scheduleAsapWithQuantization(self, node: HlsNetNodeOperator,
                                      pathForDebug: Optional[UniqList["HlsNetNode"]],
-                                     beginOfFirstClk: int,
+                                     beginOfFirstClk: SchedTime,
                                      outputTimeGetter: Optional[OutputTimeGetter]):
         assert node in self._subNodes, (node, self._subNodes)
         if node.scheduledOut is None:
@@ -136,7 +137,7 @@ class HlsNetNodeBitwiseOps(HlsNetNodeAggregate):
 
     def scheduleAsap(self,
                      pathForDebug: Optional[UniqList["HlsNetNode"]],
-                     beginOfFirstClk: int,
+                     beginOfFirstClk: SchedTime,
                      outputTimeGetter: Optional[OutputTimeGetter]) -> List[int]:
         """
         Incrementally stack operands to a larger tree and approximate the latency of the hypothetical mapping to LUT
@@ -168,7 +169,7 @@ class HlsNetNodeBitwiseOps(HlsNetNodeAggregate):
 
     def scheduleAlapCompactionForOutput(self,
                                         internalOut: HlsNetNodeOut,
-                                        clkBoundaryTime: int,
+                                        clkBoundaryTime: SchedTime,
                                         currentInputs: UniqList[HlsNetNodeIn],
                                         outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter]):
         """
@@ -239,7 +240,7 @@ class HlsNetNodeBitwiseOps(HlsNetNodeAggregate):
                                                              currentInputs, outputMinUseTimeGetter)
 
     def scheduleAlapCompaction(self,
-                               endOfLastClk: int,
+                               endOfLastClk: SchedTime,
                                outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter]) -> Generator["HlsNetNode", None, None]:
         """
         1. Resolve ALAP times for all inputs outside of this node where outputs are connected.

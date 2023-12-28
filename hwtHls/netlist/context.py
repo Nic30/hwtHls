@@ -1,11 +1,11 @@
 from itertools import chain
 from math import ceil
-from typing import Union, Optional, Type, Set, Callable
+from typing import Union, Optional, Set, Callable
 
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.unit import Unit
 from hwtHls.architecture.allocator import HlsAllocator
-from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
+from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
@@ -71,16 +71,31 @@ class HlsNetlistCtx(AnalysisCache):
         return n
 
     def iterAllNodes(self):
+        """
+        :returns: iterator of all nodes on top hierarchy level
+        """
         return chain(self.inputs, self.nodes, self.outputs)
+
+    def iterAllNodesFlat(self):
+        """
+        :returns: iterator of all non aggregate nodes on any level of hierarchy
+        """
+        for n in self.iterAllNodes():
+            yield from n.iterAllNodesFlat()
 
     def schedule(self):
         self.scheduler.schedule()
 
-    def filterNodesUsingSet(self, removed: Set[HlsNetNode]):
+    def filterNodesUsingSet(self, removed: Set[HlsNetNode], recursive=False):
         if removed:
             self.inputs[:] = (n for n in self.inputs if n not in removed)
             self.nodes[:] = (n for n in self.nodes if n not in removed)
             self.outputs[:] = (n for n in self.outputs if n not in removed)
+            if recursive:
+                for n in self.iterAllNodes():
+                    if isinstance(HlsNetNodeAggregate):
+                        n.filterNodesUsingSet(removed, recursive=recursive)
+
             removed.clear()
 
     def setupNetlistListeners(self,

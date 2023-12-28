@@ -9,7 +9,7 @@ from hwtHls.netlist.nodes.aggregatedBitwiseOps import HlsNetNodeBitwiseOps
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.schedulableNode import SchedulizationDict, OutputTimeGetter, \
-    OutputMinUseTimeGetter
+    OutputMinUseTimeGetter, SchedTime
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
 
 
@@ -18,10 +18,12 @@ class HlsNetNodeIoSyncScc(HlsNetNodeAggregate):
     A cluster of nodes where all node inputs must be scheduled in a same clock period window to assert desired behavior of IO port.
     """
 
-    def scheduleAsap(self, pathForDebug: Optional[UniqList["HlsNetNode"]], beginOfFirstClk: int, outputTimeGetter: Optional[OutputTimeGetter]) -> List[int]:
+    def scheduleAsap(self, pathForDebug: Optional[UniqList["HlsNetNode"]], beginOfFirstClk: SchedTime,
+                     outputTimeGetter: Optional[OutputTimeGetter]) -> List[SchedTime]:
         """
         Schedule from defs to uses as is, if everything fits in a single clock cycle the result is final.
-        If not reset scheduling and move everything to next clock cycle. If the cluster still can fit in clock cycle raise timing error else result is final.
+        If not reset scheduling and move everything to next clock cycle.
+        If the cluster still can fit in clock cycle raise timing error else result is final.
         """
 
         # get time for all inputs
@@ -108,7 +110,7 @@ class HlsNetNodeIoSyncScc(HlsNetNodeAggregate):
         for t in self.scheduledIn:
             assert t >= beginOfClk and t < endOfClk, (self, (beginOfClk, endOfClk), self.scheduledIn)
 
-    def scheduleAlapCompaction(self, endOfLastClk: int, outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter]):
+    def scheduleAlapCompaction(self, endOfLastClk: SchedTime, outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter]):
         """
         Use the same principle as :meth:`~.HlsNetNodeIoSyncScc.scheduleAsap` just schedule from uses to defs.
         In addition there may be internal and also outer uses of a single output and we have to resolve scheduling time from all uses.
@@ -140,33 +142,8 @@ class HlsNetNodeIoSyncScc(HlsNetNodeAggregate):
             #    oPort: HlsNetNodeAggregatePortOut
             #    if oPort.scheduledZero is None or oPort.scheduledZero > endCurClk:
             #        oPort._setScheduleZero(endCurClk)
-
-            toSearch: Deque[HlsNetNode] = deque()
-            toSearchSet: Set[HlsNetNode] = set()
-            for oPort in self._outputsInside:
-                node = oPort.dependsOn[0].obj
-                if node not in toSearchSet:
-                    toSearch.append(node)
-                    toSearchSet.add(node)
-
-            for node in self._subNodes:
-                node: HlsNetNode
-                if node.realization is not None and\
-                        not isinstance(node, HlsNetNodeBitwiseOps) and \
-                        (any(node.inputClkTickOffset) or any(node.outputClkTickOffset)):
-                    if node not in toSearchSet:
-                        toSearch.append(node)
-                        toSearchSet.add(node)
-
-            while toSearch:
-                node0: HlsNetNode = toSearch.popleft()
-                toSearchSet.remove(node0)
-                assert len(toSearch) == len(toSearchSet), (toSearch, toSearchSet)
-                for node1 in node0.scheduleAlapCompaction(endCurClk, outputMinUseTimeGetter):
-                    if node1 not in toSearchSet:
-                        toSearch.append(node1)
-                        toSearchSet.add(node1)
-
+            self.scheduleAlapCompactionForSubnodes(endCurClk, outputMinUseTimeGetter)
+            
             # check if scheduling was successful to fit all nodes in this clock cycle
             fail = False
             curClkBegin = None

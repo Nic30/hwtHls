@@ -4,7 +4,7 @@ from typing import List, Optional, Union, Tuple, Generator
 from hwt.hdl.types.hdlType import HdlType
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
-from hwtHls.netlist.nodes.schedulableNode import SchedulableNode
+from hwtHls.netlist.nodes.schedulableNode import SchedulableNode, SchedTime
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 
 
@@ -58,38 +58,38 @@ class HlsNetNode(SchedulableNode):
         self.scheduledIn = None
         self.scheduledOut = None
 
-    def getInputDtype(self, i:int) -> HdlType:
-        return self.dependsOn[i]._dtype
+    def getInputDtype(self, index: int) -> HdlType:
+        return self.dependsOn[index]._dtype
 
-    def _removeInput(self, i: int):
+    def _removeInput(self, index: int):
         """
         :attention: does not disconnect the input
         """
-        self.dependsOn.pop(i)
-        self._inputs.pop(i)
-        for inp in self._inputs[i:]:
+        self.dependsOn.pop(index)
+        self._inputs.pop(index)
+        for inp in self._inputs[index:]:
             inp.in_i -= 1
 
         if self.realization is not None:
-            self.inputClkTickOffset = _tupleWithoutItemOnIndex(self.inputClkTickOffset, i)
-            self.inputWireDelay = _tupleWithoutItemOnIndex(self.inputWireDelay, i)
+            self.inputClkTickOffset = _tupleWithoutItemOnIndex(self.inputClkTickOffset, index)
+            self.inputWireDelay = _tupleWithoutItemOnIndex(self.inputWireDelay, index)
             if self.scheduledIn is not None:
-                self.scheduledIn = _tupleWithoutItemOnIndex(self.scheduledIn, i)
+                self.scheduledIn = _tupleWithoutItemOnIndex(self.scheduledIn, index)
 
-    def _removeOutput(self, i: int):
+    def _removeOutput(self, index: int):
         """
         :attention: does not disconnect the output
         """
-        self.usedBy.pop(i)
-        self._outputs.pop(i)
-        for out in self._outputs[i:]:
+        self.usedBy.pop(index)
+        self._outputs.pop(index)
+        for out in self._outputs[index:]:
             out.out_i -= 1
 
         if self.realization is not None:
-            self.outputClkTickOffset = _tupleWithoutItemOnIndex(self.outputClkTickOffset, i)
-            self.outputWireDelay = _tupleWithoutItemOnIndex(self.outputWireDelay, i)
+            self.outputClkTickOffset = _tupleWithoutItemOnIndex(self.outputClkTickOffset, index)
+            self.outputWireDelay = _tupleWithoutItemOnIndex(self.outputWireDelay, index)
             if self.scheduledOut is not None:
-                self.scheduledOut = _tupleWithoutItemOnIndex(self.scheduledOut, i)
+                self.scheduledOut = _tupleWithoutItemOnIndex(self.scheduledOut, index)
 
     def _addInput(self, name: Optional[str], addDefaultScheduling=False) -> HlsNetNodeIn:
         if addDefaultScheduling:
@@ -159,7 +159,7 @@ class HlsNetNode(SchedulableNode):
         raise NotImplementedError(
             "Override this method in derived class", self)
 
-    def allocateRtlInstanceOutDeclr(self, allocator: "ArchElement", o: HlsNetNodeOut, startTime: int) -> TimeIndependentRtlResource:
+    def allocateRtlInstanceOutDeclr(self, allocator: "ArchElement", o: HlsNetNodeOut, startTime: SchedTime) -> TimeIndependentRtlResource:
         assert allocator.netNodeToRtl.get(o, None) is None, ("Must not be redeclared", allocator, o)
         try:
             assert startTime >= o.obj.scheduledOut[o.out_i], (o, startTime, o.obj.scheduledOut[o.out_i])
@@ -189,7 +189,7 @@ class HlsNetNode(SchedulableNode):
         raise NotImplementedError(
             "Override this method in derived class", self)
 
-    def createSubNodeRefrenceFromPorts(self, beginTime: float, endTime: float,
+    def createSubNodeRefrenceFromPorts(self, beginTime: SchedTime, endTime: SchedTime,
                                        inputs: List[HlsNetNodeIn], outputs: List[HlsNetNodeOut]) -> "HlsNetNodePartRef":
         raise NotImplementedError(
             "Override this method in derived class", self)
@@ -200,6 +200,9 @@ class HlsNetNode(SchedulableNode):
         """
         raise NotImplementedError(
             "Override this method in derived class", self)
+
+    def iterAllNodesFlat(self):
+        yield self
 
     def _get_rtl_context(self):
         return self.netlist.ctx

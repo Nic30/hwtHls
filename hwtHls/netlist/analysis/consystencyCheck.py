@@ -84,7 +84,7 @@ class HlsNetlistPassConsystencyCheck(HlsNetlistPass):
     @staticmethod
     def _checkNodeContainers(netlist: HlsNetlistCtx, removed: Optional[Set[HlsNetNode]]):
         seen: Set[HlsNetNode] = set()
-        for n in chain(netlist.inputs, netlist.nodes, netlist.outputs):
+        for n in netlist.iterAllNodesFlat():
             if removed is not None and n in removed:
                 continue
             if n in seen:

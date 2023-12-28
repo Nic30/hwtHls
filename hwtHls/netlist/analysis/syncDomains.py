@@ -1,5 +1,5 @@
 from itertools import chain
-from typing import List, Dict, Set, Tuple
+from typing import List, Dict, Set, Tuple, Callable, Generator
 
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
@@ -7,25 +7,27 @@ from hwtHls.netlist.analysis.syncGroupClusterContext import SyncGroupLabel, \
     SyncGroupClusterContext, HlsNetNodeAnySync
 from hwtHls.netlist.nodes.delay import HlsNetNodeDelayClkTick
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.loopChannelGroup import LoopChanelGroup
 from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.orderable import HVoidOrdering, HVoidExternData
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn
-from hwtHls.netlist.nodes.loopChannelGroup import LoopChanelGroup
 
 
 class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
     """
     Discover Strongly Connected Components (SCCs) of IO and sync operations in netlist.
     SCCs do represent the scheduling and architectural constraint related to not to data but to synchronization of IO channel functionality.
-    :note: Found subgraphs do have special scheduling requirements. By default all nodes with such a component
+    
+    :note: Found subgraphs do have special scheduling requirements. By default all nodes within such a component
         must be scheduled in a single clock cycle in order to assert that the read is not performed speculatively
-        when it is optional. A speculative read of data in circuits which explicitly specify that the read should
-        not be performed may lead to a deadlock.
+        when it is optional. (A speculative read of data in circuits which explicitly specify that the read should
+        not be performed may lead to a deadlock.)
+    :note: This pass ignores hierarchy created by HlsNetNodeAggregate instances.
 
     The reasons why HlsNetNodeExplicitSync appears in the circuit:
     * Implementation of optional/non-blocking read.
-      * Because of this individual circuit pats may run independently and do require independent control.
+      * Because of this individual circuit parts may run independently and do require independent control.
       * HlsNetNodeExplicitSync is never associated with a write, if this was the case the sync should be already
         merged to write.
     * Selection of inputs for loops.
@@ -35,34 +37,28 @@ class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
 
 
     Rules for extraction of sync for pipeline
-    * In every pipeline which is not fully initialized by reset there must be set of validity flags
+    * In every pipeline which is not fully initialized by reset there must be a set of validity flags
       for each stage in order to resolve if the the stage contains data or not.
     * HlsNetlistAnalysisPassIoDiscoverSyncSccs specifies which nodes are affect by each sync node.
     * From flags of the sync it can be resolved if the data may be dropped or read non-blocking (= has skipWhen flag).
-      If there is sync a sync all predecessors must be in separate pipeline so it runs asynchronously from rest of the pipeline
-      and this sync must be an inter-element channel. However this is only required if predecessors of the sync can not fit in the same clock tick.
-      If they can the sync can be realized combinationally and there is no need for another asynchronous pipeline.
+      If there is sync node a sync of all predecessors must be in separate pipeline so it runs asynchronously
+      from rest of the pipeline and this sync node must be an inter-element channel. 
+      However this is only required if predecessors of the sync node can not fit in the same clock tick.
+      If they can the sync node can be realized combinationally and there is no need for another asynchronous pipeline.
 
     Rules for extraction of sync for FSM
-    * Note that if some part of FSM should run asynchronously  it means that it must be a separate FSM.
+    * Note that if some part of FSM should run asynchronously, it means that it must be a separate FSM.
     * Rules are similar as for pipeline however FSMs are always in a single state and communication between FSMs may be in multiple states.
-      This alone creates a possibility for deadlock but there is yet another problem. If the FSM is cut it cancels register sharing inside FSM.
-      And all IO nodes specific to some IO channels needs to stay in a single FSM. This further complicates architecture.
+      This alone creates a possibility for deadlock, but there is yet another problem.
+      If the FSM is cut it cancels register sharing inside FSM.
+      And all IO nodes specific to some IO channels needs to stay in a single FSM.
+      This further complicates architecture.
 
-    Explicit sync flag combinations (both flags are optional)
-    ---------------------------------------------|
-    | extra cond | skip when | meaning for read  |
-    ==============================================
-    | 0          | 0         | block             |
-    | 1          | 0         | accept            |
-    | 0          | 1         | skip read/peek    |
-    | 1          | 1         | read non blocking |
-    ----------------------------------------------
 
     Other notes:
     * There is no real difference between explicit sync generated for loops or IO.
     * The sync is often tied with the data and often multiple IO channels are interacting with each other sync.
-    * It is highly desired to schedule all sync into the same clock tick as an IO to reduce control complexity.
+    * It is highly desired to schedule all connected sync into the same clock tick as an IO to reduce control complexity.
     * Pipeline flushing is a specific case of this problematic. It is a functionality described using sync nodes.
     * What is an exact query for the sync nodes which must be scheduled in same clock cycle?
        * There is no such rule, instead sync should be aggregated as much as possible.
@@ -76,10 +72,8 @@ class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
     def __init__(self, netlist: "HlsNetlistCtx"):
         HlsNetlistAnalysisPass.__init__(self, netlist)
         self.ioSccs: List[UniqList[HlsNetNode]] = []
-        # self.syncUses: Dict[HlsNetNodeRead, UniqList[HlsNetNodeExplicitSync]] = {}
         self.syncOfNode: Dict[HlsNetNode, Set[HlsNetNodeAnySync]] = {}
-        # self.interSyncDomainConnections: Set[Tuple[HlsNetNodeExplicitSync, HlsNetNodeExplicitSync]] = set()
-        self.syncDomains: List[Tuple[SyncGroupLabel, UniqList[HlsNetNode]]] = []
+        self.syncDomains: Dict[List[Tuple[SyncGroupLabel, UniqList[HlsNetNode]]]] = {}
 
     @staticmethod
     def _discoverSyncUsers(syncNode: HlsNetNodeAnySync, syncOfNode: Dict[HlsNetNode, Set[HlsNetNodeAnySync]]):
@@ -125,17 +119,19 @@ class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
                             if n1 not in seen:
                                 toSearch.append(n1)
 
-    def _discoverSyncSinkUsers(self, syncOfNode: Dict[HlsNetNode, Set[HlsNetNodeAnySync]]):
+    @staticmethod
+    def _discoverSyncSinkUsers(getNodeIteratorFn: Callable[[], Generator[HlsNetNode, None, None]],
+                               syncOfNode: Dict[HlsNetNode, Set[HlsNetNodeAnySync]]):
         """
         For every dependency object which is not yet in any group assign it to a group of its sink
         """
         nodesWithSyncedSinkOnly: Set[HlsNetNode] = set(
             n
-            for n in self.netlist.iterAllNodes()
+            for n in getNodeIteratorFn()
             if not syncOfNode[n] and not isinstance(n, (HlsNetNodeExplicitSync, HlsNetNodeLoopStatus)))
         # nodes must be detected in advance because this information is required when
         # some node is synchronized by multiple sinks
-        for n in self.netlist.iterAllNodes():
+        for n in getNodeIteratorFn():
             sync = syncOfNode[n]
             if sync:
                 toSearch: List[HlsNetNode] = [n, ]
@@ -167,7 +163,8 @@ class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
                                 continue
                             toSearch.append(dep.obj)
 
-    def _discoverSyncCutsByClkOffset(self, allSyncs: List[HlsNetNodeAnySync],
+    @staticmethod
+    def _discoverSyncCutsByClkOffset(allSyncs: List[HlsNetNodeAnySync],
                                      allDelays: List[HlsNetNodeDelayClkTick],
                                      syncOfNode: Dict[HlsNetNode, Set[HlsNetNodeAnySync]]):
         """
@@ -219,7 +216,8 @@ class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
             else:
                 raise NotImplementedError("Remove just self from all successors")
 
-    def _addSelfToSyncOfSelf(self, allSyncs: List[HlsNetNodeAnySync], syncOfNode: Dict[HlsNetNode, Set[HlsNetNodeAnySync]]):
+    @staticmethod
+    def _addSelfToSyncOfSelf(allSyncs: List[HlsNetNodeAnySync], syncOfNode: Dict[HlsNetNode, Set[HlsNetNodeAnySync]]):
         """
         Add each sync node to a sync of self.
         """
@@ -237,25 +235,27 @@ class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
         and stop on each HlsNetNodeAnySync instance.
 
         If something with delay > 1 clk is discovered it is required to move all successors from this IO SCC.
-        This must be also done transitively. If node with > 1 clk delay has some predecessors the nodes which does have bout this node and its predecessor
-
+        This must be also done transitively. If node with > 1 clk delay has some predecessors the nodes
+        which does have bout this node and its predecessor
         """
-
-        syncOfNode = self.syncOfNode = {n: set() for n in self.netlist.iterAllNodes()}
+        getNodeIteratorFn = self.netlist.iterAllNodesFlat
+        syncOfNode = self.syncOfNode = {n: set() for n in getNodeIteratorFn()}
         allSyncs: List[HlsNetNodeAnySync] = []
         allDelays: List[HlsNetNodeDelayClkTick] = []
         # from every sync walk down (def->use) and discover which nodes are affected
-        for syncNode in self.netlist.iterAllNodes():
+        for syncNode in getNodeIteratorFn():
             if not isinstance(syncNode, (HlsNetNodeExplicitSync, HlsNetNodeLoopStatus)):
                 if isinstance(syncNode, HlsNetNodeDelayClkTick):
                     allDelays.append(syncNode)
+
                 continue
+            
             syncNode: HlsNetNodeExplicitSync
             allSyncs.append(syncNode)
             self._discoverSyncUsers(syncNode, syncOfNode)
 
         self._discoverSyncCutsByClkOffset(allSyncs, allDelays, syncOfNode)
-        self._discoverSyncSinkUsers(syncOfNode)
+        self._discoverSyncSinkUsers(getNodeIteratorFn, syncOfNode)
         self._addSelfToSyncOfSelf(allSyncs, syncOfNode)
 
     def _discoverSyncDomains(self):
@@ -265,9 +265,9 @@ class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
         """
         sgcc = SyncGroupClusterContext(self.syncOfNode)
         syncGroups, syncGroupOfNode = sgcc.resolveSyncGroups()
-        self.syncDomains = sorted(syncGroups.items(), key=lambda x: x[0][0]._id)
+        syncDomains = self.syncDomains = sorted(syncGroups.items(), key=lambda x: x[0][0]._id)
         ioSccs = self.ioSccs
-        for scc in sgcc.mergeSyncGroupsToClusters(syncGroups, self.syncDomains, syncGroupOfNode):
+        for scc in sgcc.mergeSyncGroupsToClusters(syncGroups, syncDomains, syncGroupOfNode):
             ioSccs.append(scc)
 
     def run(self):

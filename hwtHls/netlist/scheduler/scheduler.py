@@ -1,15 +1,14 @@
 from collections import deque
 from math import inf
-from typing import Deque, Set, List
+from typing import Deque, Set
 
 from hwt.pyUtils.uniqList import UniqList
+from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
+from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.schedulableNode import SchedulizationDict
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
-from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
 from hwtHls.netlist.scheduler.resourceList import HlsSchedulerResourceUseList
-from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge,\
-    HlsNetNodeWriteForwardedge
 
 
 class HlsScheduler():
@@ -61,7 +60,7 @@ class HlsScheduler():
 
         return currentSchedule
 
-    def _normalizeSchedulingTime(self, allNodes: List[HlsNetNode], clkPeriod: int):
+    def _normalizeSchedulingTime(self, clkPeriod: int):
         minTime = inf
         for node in self.netlist.iterAllNodes():
             if node.scheduledIn:
@@ -72,10 +71,10 @@ class HlsScheduler():
         clkI0 = indexOfClkPeriod(minTime, clkPeriod)
         if clkI0 != 0:
             offset = -clkI0 * clkPeriod
-            for node in allNodes:
+            for node in self.netlist.iterAllNodes():
                 node: HlsNetNode
                 node.moveSchedulingTime(offset)
-            # nodes will move its resoruces to correct slot in resourceUsage
+            # nodes will move its resources to correct slot in resourceUsage
             self.resourceUsage.normalizeOffsetTo0()
 
     def _scheduleAlapCompaction(self, freezeRightSideOfSchedule: bool):
@@ -83,20 +82,21 @@ class HlsScheduler():
         Iteratively try to move any node to a later time if dependencies allow it.
         Nodes without outputs are banned from moving.
         """
-        allNodes = list(self.netlist.iterAllNodes())
         curMaxInTime = 0
-        for node0 in allNodes:
+        netlist = self.netlist
+        for node0 in netlist.iterAllNodesFlat():
             if node0.scheduledIn:
                 curMaxInTime = max(curMaxInTime, max(node0.scheduledIn))
             if not node0.scheduledIn:
                 curMaxInTime = max(curMaxInTime, node0.scheduledZero)
 
-        clkPeriod = self.netlist.normalizedClkPeriod
+        clkPeriod = netlist.normalizedClkPeriod
         # + 1 to get end of clk
         endOfLastClk = (indexOfClkPeriod(curMaxInTime, clkPeriod) + 1) * clkPeriod
+        allNodes = list(netlist.iterAllNodes())
         if freezeRightSideOfSchedule:
             nodesBannedToMove = set()
-            for n in allNodes:
+            for n in netlist.iterAllNodesFlat():
                 if isinstance(n, (HlsNetNodeWriteBackedge, HlsNetNodeWriteForwardedge)) or not any(n.usedBy):
                     nodesBannedToMove.add(n)
             toSearch: Deque[HlsNetNode] = deque(n for n in reversed(allNodes) if n not in nodesBannedToMove)
@@ -113,30 +113,23 @@ class HlsScheduler():
                 if node1 not in toSearchSet and (nodesBannedToMove is None or node1 not in nodesBannedToMove):
                     toSearch.append(node1)
                     toSearchSet.add(node1)
-        self._normalizeSchedulingTime(allNodes, clkPeriod)
-
-    def _dbgDumpResources(self):
-        clkPeriod = self.netlist.normalizedClkPeriod
-        clkOff = self.resourceUsage.clkOffset
-        for i, resDict in enumerate(self.resourceUsage):
-            print(f"{(i+clkOff) * clkPeriod} to {(i+clkOff + 1) * clkPeriod}")
-            for res, cnt in resDict.items():
-                print(f"  {res}={cnt:d}")
+        self._normalizeSchedulingTime(clkPeriod)
 
     def _scheduleAsapCompaction(self):
         """
         Iteratively try to move any node to a sooner time if dependencies allow it.
         Nodes without inputs are moved on the beggining of the clock cycle where they curently are scheduled.
         """
-        allNodes = list(self.netlist.iterAllNodes())
+        netlist = self.netlist
+        allNodes = list(netlist.iterAllNodes())
         toSearch: Deque[HlsNetNode] = deque(reversed(allNodes))
         toSearchSet: Set[HlsNetNode] = set(allNodes)
         curMinInTime = 0
-        for node0 in allNodes:
+        for node0 in netlist.iterAllNodesFlat():
             if node0.scheduledIn:
                 curMinInTime = min(curMinInTime, min(node0.scheduledIn))
 
-        clkPeriod = self.netlist.normalizedClkPeriod
+        clkPeriod = netlist.normalizedClkPeriod
         # + 1 to get end of clk
         startOfFirstClk = indexOfClkPeriod(curMinInTime, clkPeriod) * clkPeriod
         while toSearch:
@@ -148,16 +141,34 @@ class HlsScheduler():
                     toSearch.append(node1)
                     toSearchSet.add(node1)
             # self._checkAllNodesScheduled()
-        self._normalizeSchedulingTime(allNodes, clkPeriod)
+        self._normalizeSchedulingTime(clkPeriod)
 
     def schedule(self):
+        #from hwtHls.netlist.translation.dumpSchedulingJson import HlsNetlistPassDumpSchedulingJson
+        #from hwtHls.platform.fileUtils import outputFileGetter
+
         self._scheduleAsap()
         self._checkAllNodesScheduled()
-        maxTime = max((n.scheduledZero for n in self.netlist.iterAllNodes()), default=0)
+        maxTime = max((n.scheduledZero for n in self.netlist.iterAllNodesFlat()), default=0)
         if maxTime > self.netlist.normalizedClkPeriod:
+            # if circuit schedule spans over multiple clock periods 
+            #HlsNetlistPassDumpSchedulingJson(outputFileGetter("tmp", "x.0.afterAsap0.hwschedule.json"), expandCompositeNodes=True).apply(None, self.netlist)
             self._scheduleAlapCompaction(False)
             self._checkAllNodesScheduled()
+            #HlsNetlistPassDumpSchedulingJson(outputFileGetter("tmp", "x.1.afterAlap0.hwschedule.json"), expandCompositeNodes=True).apply(None, self.netlist)
+
             self._scheduleAsapCompaction()
             self._checkAllNodesScheduled()
+            #HlsNetlistPassDumpSchedulingJson(outputFileGetter("tmp", "x.2.afterAsap1.hwschedule.json"), expandCompositeNodes=True).apply(None, self.netlist)
+            
             self._scheduleAlapCompaction(True)
             self._checkAllNodesScheduled()
+            #HlsNetlistPassDumpSchedulingJson(outputFileGetter("tmp", "x.3.afterAlap1.hwschedule.json"), expandCompositeNodes=True).apply(None, self.netlist)
+
+    def _dbgDumpResources(self):
+        clkPeriod = self.netlist.normalizedClkPeriod
+        clkOff = self.resourceUsage.clkOffset
+        for i, resDict in enumerate(self.resourceUsage):
+            print(f"{(i+clkOff) * clkPeriod} to {(i+clkOff + 1) * clkPeriod}")
+            for res, cnt in resDict.items():
+                print(f"  {res}={cnt:d}")

@@ -1,10 +1,12 @@
-from typing import List, Optional, Tuple, Generator
+from collections import deque
+from typing import List, Optional, Tuple, Generator, Set, Deque
 
 from hwt.hdl.types.hdlType import HdlType
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
-from hwtHls.netlist.nodes.schedulableNode import SchedulizationDict, OutputTimeGetter, OutputMinUseTimeGetter
+from hwtHls.netlist.nodes.schedulableNode import SchedulizationDict, OutputTimeGetter, OutputMinUseTimeGetter, \
+    SchedTime
 from hwtHls.platform.opRealizationMeta import EMPTY_OP_REALIZATION
 
 
@@ -21,13 +23,13 @@ class HlsNetNodeAggregatePortIn(HlsNetNode):
     def resolveRealization(self):
         self.assignRealization(EMPTY_OP_REALIZATION)
 
-    def _setScheduleZero(self, t:int):
+    def _setScheduleZero(self, t: SchedTime):
         self.scheduledZero = t
         self.scheduledIn = ()
         self.scheduledOut = (t,)
 
     def scheduleAsap(self, pathForDebug: Optional[UniqList["HlsNetNode"]],
-                     beginOfFirstClk: int,
+                     beginOfFirstClk: SchedTime,
                      outputTimeGetter: Optional[OutputTimeGetter]) -> List[int]:
         """
         Copy the ASAP time from outside output to this input port
@@ -47,7 +49,7 @@ class HlsNetNodeAggregatePortIn(HlsNetNode):
         return self.scheduledOut
 
     def __repr__(self):
-        return f"<{self.__class__.__name__} {self._id} i={self.parentIn.in_i} parent={self.parentIn.obj}>"
+        return f"<{self.__class__.__name__} {self._id} i={self.parentIn.in_i} parent={self.parentIn.obj._id}>"
 
 
 class HlsNetNodeAggregatePortOut(HlsNetNode):
@@ -60,7 +62,7 @@ class HlsNetNodeAggregatePortOut(HlsNetNode):
         self._addInput(name)
         self.parentOut = parentOut
 
-    def _setScheduleZero(self, t:int):
+    def _setScheduleZero(self, t: SchedTime):
         self.scheduledZero = t
         self.scheduledIn = (t,)
         self.scheduledOut = ()
@@ -68,7 +70,8 @@ class HlsNetNodeAggregatePortOut(HlsNetNode):
     def resolveRealization(self):
         self.assignRealization(EMPTY_OP_REALIZATION)
 
-    def scheduleAlapCompaction(self, endOfLastClk:int, outputMinUseTimeGetter:Optional[OutputMinUseTimeGetter]) -> Generator["HlsNetNode", None, None]:
+    def scheduleAlapCompaction(self, endOfLastClk: SchedTime,
+                               outputMinUseTimeGetter:Optional[OutputMinUseTimeGetter]) -> Generator["HlsNetNode", None, None]:
         """
         Copy ALAP time from uses of outside port
         """
@@ -81,7 +84,7 @@ class HlsNetNodeAggregatePortOut(HlsNetNode):
         yield
 
     def __repr__(self):
-        return f"<{self.__class__.__name__} {self._id} i={self.parentOut.out_i} parent={self.parentOut.obj}>"
+        return f"<{self.__class__.__name__} {self._id} i={self.parentOut.out_i} parent={self.parentOut.obj._id}>"
 
 
 class HlsNetNodeAggregate(HlsNetNode):
@@ -124,7 +127,6 @@ class HlsNetNodeAggregate(HlsNetNode):
         """
         HlsNetNode.destroy(self)
         self._subNodes = None
-        self._subNodes = None
         self._totalInputCnt = None
         self._inputsInside = None
         self._outputsInside = None
@@ -139,7 +141,7 @@ class HlsNetNodeAggregate(HlsNetNode):
             n.setScheduling(schedule)
         (self.scheduledZero, self.scheduledIn, self.scheduledOut) = schedule[self]
 
-    def moveSchedulingTime(self, offset:int):
+    def moveSchedulingTime(self, offset: SchedTime):
         HlsNetNode.moveSchedulingTime(self, offset)
         for n in self._subNodes:
             n.moveSchedulingTime(offset)
@@ -182,9 +184,9 @@ class HlsNetNodeAggregate(HlsNetNode):
 
     def _getAlapOutsideOutMinUseTime(self,
                                      inPort: HlsNetNodeAggregatePortIn,
-                                     endOfLastClk: int,
-                                     currentMinUseTime: int,
-                                     outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter]) -> int:
+                                     endOfLastClk: SchedTime,
+                                     currentMinUseTime: SchedTime,
+                                     outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter]) -> SchedTime:
         assert not any(inPort.scheduleAlapCompaction(endOfLastClk, outputMinUseTimeGetter)), (inPort, "Should only copy input times from outside")
         t = min(currentMinUseTime, inPort.scheduledOut[0])
 
@@ -194,28 +196,61 @@ class HlsNetNodeAggregate(HlsNetNode):
 
         return t
 
-    def scheduleAsap(self, pathForDebug: Optional[UniqList["HlsNetNode"]], outputTimeGetter: Optional[OutputTimeGetter]) -> List[int]:
+    def scheduleAsap(self, pathForDebug: Optional[UniqList["HlsNetNode"]],
+                     beginOfFirstClk: int,
+                     outputTimeGetter: Optional[OutputTimeGetter]) -> List[int]:
         raise NotImplementedError(
             "Override this method in derived class", self)
 
-    def scheduleAlapCompaction(self, endOfLastClk: int, outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter]):
+    def scheduleAlapCompaction(self, endOfLastClk: SchedTime,
+                               outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter]):
         raise NotImplementedError(
             "Override this method in derived class", self)
 
-    #def scheduleAsapCompaction(self, beginOfFirstClk:int, outputTimeGetter:Optional[OutputTimeGetter]) -> \
-    #        Generator["HlsNetNode", None, None]:
-    #    raise NotImplementedError(
-    #        "Override this method in derived class", self)
+    def scheduleAlapCompactionForSubnodes(self, endOfLastClk: SchedTime, outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter]):
+        """
+        Run ALAP scheduling for all submodes including HlsNetNodeAggregatePortOut nodes.
+        """
+        toSearch: Deque[HlsNetNode] = deque()
+        toSearchSet: Set[HlsNetNode] = set()
+        for oPort in self._outputsInside:
+            assert len(oPort.dependsOn) == 1, oPort
+            node = oPort.dependsOn[0].obj
+            if node not in toSearchSet:
+                toSearch.append(node)
+                toSearchSet.add(node)
 
-    def allocateRtlInstance(self, allocator:"ArchElement"):
+        for node in self._subNodes:
+            node: HlsNetNode
+            if isinstance(node, HlsNetNodeAggregate) or (
+                node.realization is not None and
+                    (any(node.inputClkTickOffset) or any(node.outputClkTickOffset))
+                    ) or not any(any(users) for users in node.usedBy):
+                if node not in toSearchSet:
+                    toSearch.append(node)
+                    toSearchSet.add(node)
+
+        assert toSearch, self
+        while toSearch:
+            node0: HlsNetNode = toSearch.popleft()
+            toSearchSet.remove(node0)
+            assert len(toSearch) == len(toSearchSet), (toSearch, toSearchSet)
+            for node1 in node0.scheduleAlapCompaction(endOfLastClk, outputMinUseTimeGetter):
+                if node1 not in toSearchSet:
+                    toSearch.append(node1)
+                    toSearchSet.add(node1)
+
+    def allocateRtlInstance(self, allocator: "ArchElement"):
         """
         Instantiate layers of bitwise operators. (Just delegation to sub nodes)
         """
-        raise AssertionError("This node should be disaggregated before instantiation to avoid complicated cases where parts are scattered over many arch elements.")
+        raise AssertionError("This node should be disaggregated before instantiation to avoid"
+                             " complicated cases where parts are scattered over many arch elements.")
 
     def disaggregate(self):
         """
         A reverse operation for :meth:`~.HlsNetlistClusterSearch.substituteWithNode`
+
         :note: only reconnects the nodes internally stored in this cluster, it does not move nodes anywhere
             (it may be required to add them to nodes list in netlist if they were removed previously)
         """
@@ -260,9 +295,29 @@ class HlsNetNodeAggregate(HlsNetNode):
                 continue
             yield n
 
+    def iterAllNodesFlat(self):
+        for n in self._subNodes:
+            yield from n.iterAllNodesFlat()
+
+    def filterNodesUsingSet(self, removed: Set[HlsNetNode], recursive=False):
+        if removed:
+            for iNode in self._inputsInside:
+                if iNode in removed:
+                    raise NotImplementedError()
+
+            for oNode in self._outputsInside:
+                if oNode in removed:
+                    raise NotImplementedError()
+
+            self._subNodes[:] = (n for n in self._subNodes if n not in removed)
+            if recursive:
+                for n in self._subNodes:
+                    if isinstance(n, HlsNetNodeAggregate):
+                        n.filterNodesUsingSet(removed, recursive=recursive)
+
     def __repr__(self, minify=False):
         if minify:
             return f"<{self.__class__.__name__:s} {self._id:d}>"
         else:
-            return f"<{self.__class__.__name__:s} {self._id:d} {[n._id for n in self._subNodes]}>"
+            return f"<{self.__class__.__name__:s} {self._id:d} {sorted([n._id for n in self._subNodes])}>"
 
