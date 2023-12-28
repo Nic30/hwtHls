@@ -45,9 +45,11 @@ RE_MATCH_REG = re.compile("^_r(\d+)$")
 
 class RtlArchPassChannelMerge(RtlArchPass):
     """
-    Merge forward and backward channels if they are between same source and destination (ArchElement, clockIndex) and do have same skipWhen and extraCond conditions.
+    Merge forward and backward channels if they are between same source and destination (ArchElement, clockIndex)
+    and do have same skipWhen and extraCond conditions.
 
-    :note: It is important to reduce number of channels as much as possible to reduce synchronisation complexity and to remove combinational loops
+    :note: It is important to reduce number of channels as much as possible
+        to reduce synchronisation complexity and to remove combinational loops
         in handshake control logic.
     """
 
