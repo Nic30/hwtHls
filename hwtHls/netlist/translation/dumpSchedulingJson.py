@@ -169,9 +169,7 @@ class HwtHlsNetlistToTimelineJson():
         if self.expandCompositeNodes and isinstance(obj, HlsNetNodeAggregate):
             compositeNodes.add(obj)
             for subNode in obj._subNodes:
-                for n in self._iterateUsersTransitively(subNode, seenNodes):
-                    self.translateNodeToTimelineItem(n, ioGroupIds)
-                    nodesFlat.append(subNode)
+                self.translateNodeToTimelineItemTransitively(subNode, ioGroupIds, nodesFlat, compositeNodes, seenNodes)
         else:
             for n in self._iterateUsersTransitively(obj, seenNodes):
                 self.translateNodeToTimelineItem(n, ioGroupIds)
@@ -221,6 +219,7 @@ class HwtHlsNetlistToTimelineJson():
 
         objGroupId, inRowIndex = self._findClosestNonOccupiedRow(objGroupId, start, end)
         color = "white"
+        representativeIo = None
         if isinstance(obj, HlsNetNodeOperator):
             label = f"{obj.operator.id if isinstance(obj.operator, OpDefinition) else str(obj.operator)} {obj._id:d}"
 
@@ -234,7 +233,7 @@ class HwtHlsNetlistToTimelineJson():
                 label = f"{name:s}.write()  {obj._id:d}"
 
             if isinstance(obj, HlsNetNodeWriteBackedge):
-                objGroupId = io_group_ids.setdefault(obj.associatedRead.src if obj.associatedRead is not None else obj.dst, objGroupId)
+                representativeIo = obj.associatedRead.src if obj.associatedRead is not None else obj.dst
                 if obj.channelInitValues:
                     label = f"{label:s} init:{obj.channelInitValues}"
             color = "lime"
@@ -244,7 +243,7 @@ class HwtHlsNetlistToTimelineJson():
             if not name:
                 name = obj._getInterfaceName(obj.src) if obj.src is not None else None
             label = f"{name:s}.read()  {obj._id:d}"
-            objGroupId = io_group_ids.setdefault(obj.src, objGroupId)
+            representativeIo = obj.src
             color = "lime"
 
         elif isinstance(obj, HlsNetNodeConst):
@@ -273,6 +272,14 @@ class HwtHlsNetlistToTimelineJson():
             if isinstance(obj, (HlsNetNodeExplicitSync, HlsNetNodeReadSync)):
                 color = "yellow"
             label = repr(obj)
+
+        if representativeIo is not None:
+            # if IO is associated with some group id (row) pick larger id number 
+            curObjGroupId = io_group_ids.setdefault(representativeIo, objGroupId)
+            if curObjGroupId < objGroupId:
+                io_group_ids[representativeIo] = objGroupId
+            else:
+                objGroupId = curObjGroupId
 
         jObj = TimelineItem(obj._id, label, objGroupId, start, end, color)
         self.jsonObjs.append(jObj)
