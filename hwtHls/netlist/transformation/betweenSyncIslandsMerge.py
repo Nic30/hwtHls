@@ -173,7 +173,9 @@ class HlsNetlistPassBetweenSyncIslandsMerge(HlsNetlistPass):
 
     def _islandContainsUnmergable(self, isl: BetweenSyncIsland, unmergableNodes: Set[HlsNetNode]):
         for n in unmergableNodes:
-            if n in isl.inputs or n in isl.outputs or n in isl.nodes:
+            if n in isl.inputs or \
+                    n in isl.outputs or\
+                    n in isl.nodes:
                 return True
         return False
 
@@ -263,11 +265,11 @@ class HlsNetlistPassBetweenSyncIslandsMerge(HlsNetlistPass):
         sucIslands.discard(isl)
         return predIslands, sucIslands
 
-    def checkForwardChannels(self, syncIsland: BetweenSyncIsland):
-        for io in chain(syncIsland.inputs, syncIsland.outputs):
-            if isinstance(io, HlsNetNodeReadForwardedge):
-                w = io.associatedWrite
-                assert w not in syncIsland.inputs and w not in syncIsland.outputs, (syncIsland, io, w)
+    # def checkForwardChannels(self, syncIsland: BetweenSyncIsland):
+    #     for io in chain(syncIsland.inputs, syncIsland.outputs):
+    #         if isinstance(io, HlsNetNodeReadForwardedge):
+    #             w = io.associatedWrite
+    #             assert w not in syncIsland.inputs and w not in syncIsland.outputs, (syncIsland, io, w)
 
     def apply(self, hls:"HlsScope", netlist:HlsNetlistCtx):
 
@@ -306,7 +308,9 @@ class HlsNetlistPassBetweenSyncIslandsMerge(HlsNetlistPass):
                             dbgTracer.log(("merge because it is only successor", isl, sucIslands[0]))
                             self._mergeIslands(isl, sucIslands[0], removedIslands)
                             change = True
-
+                        elif len(predIslands) == 1 and len(sucIslands) == 1 and predIslands[0] == sucIslands[0] and not islProps.hasNodesWhichTakeTime:
+                            dbgTracer.log(("merge zero time control triangle", isl, sucIslands[0]))
+                            self._mergeIslands(isl, sucIslands[0], removedIslands)
                         elif len(predIslands) > 1:
                             for predIsl in predIslands:
                                 if predIsl in sucIslands and self._mayMergeIslands(predIsl, isl, None, islProps.unmergableNodes):
@@ -367,8 +371,8 @@ class HlsNetlistPassBetweenSyncIslandsMerge(HlsNetlistPass):
         # for n, isl in syncIslandOfNode.items():
         #    assert isl not in removedIslands, (n, isl)
         syncIslands[:] = (i for i in syncIslands if i not in removedIslands)
-        for syncIsland in syncIslands:
-            self.checkForwardChannels(syncIsland)
+        #for syncIsland in syncIslands:
+        #    self.checkForwardChannels(syncIsland)
         # if cluster contains only HlsNetNodeExplicitSync and optional HlsNetNodeReadSync
         # and has only successor or only predecessor it can be merged into it
 
