@@ -7,6 +7,8 @@ from ipCorePackager.constants import DIRECTION
 
 class InterArchElementHandshakeSync(HandshakeSync):
     """
+    A hardware interface which is used for synchronization between ArchElement instances.
+    
     :ivar data: list of tuples (src, dst) which are synchronized by this interface 
     """
 

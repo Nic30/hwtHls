@@ -18,8 +18,8 @@ from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage, resolveSt
     SignalsOfStages
 from hwtHls.architecture.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, INVARIANT_TIME
-from hwtHls.netlist.analysis.ioDiscover import HlsNetlistAnalysisPassIoDiscover
 from hwtHls.netlist.analysis.betweenSyncIslands import BetweenSyncIsland
+from hwtHls.netlist.analysis.ioDiscover import HlsNetlistAnalysisPassIoDiscover
 from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
     HlsNetNodeWriteBackedge, BACKEDGE_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync

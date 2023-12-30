@@ -33,8 +33,8 @@ from ipCorePackager.constants import INTF_DIRECTION
 class ArchElement():
     """
     An element which represents a group of netlist nodes synchronized by same synchronization type.
-    This goup of nodes usually corresponds to a IO cluster of to set of IO clusters.
-    Main pupose of this object is:
+    This group of nodes usually corresponds to a IO cluster of to set of IO clusters.
+    Main purpose of this object is:
 
     * Precise inter element communication specification
     * Context during RTL allocation

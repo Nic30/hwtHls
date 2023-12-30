@@ -1,5 +1,6 @@
 from typing import List, Set, Tuple, Optional, Union, Dict, Generator
 
+from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.code import SwitchLogic, Switch, If
 from hwt.code_utils import rename_signal
 from hwt.hdl.statements.statement import HdlStatement
@@ -29,7 +30,6 @@ from hwtHls.netlist.nodes.read import  HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import start_clk, indexOfClkPeriod
 from ipCorePackager.constants import INTF_DIRECTION
-from hdlConvertorAst.to.hdlUtils import iter_with_last
 
 
 class ArchElementFsm(ArchElement):

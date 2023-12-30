@@ -23,7 +23,7 @@ class HlsAllocator():
     """
     Convert the HlsNetlist to architectural elements and delegate the conversion of elements to RLT.
 
-    :note: this class contains only methods for allocation which are used by HlsPlatform class to perform the allocation
+    :note: this class contains only methods for allocation which are used by HlsPlatform class to perform the allocation.
     :see: :meth:`hwtHls.platform.platform.DefaultHlsPlatform.runRtlNetlistPasses`
     :ivar namePrefix: name prefix for debug purposes
     :ivar netlist: parent HLS context for this allocator
