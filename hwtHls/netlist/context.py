@@ -59,8 +59,8 @@ class HlsNetlistCtx(AnalysisCache):
 
         self.ctx = RtlNetlist()
         AnalysisCache.__init__(self)
-        self.scheduler: HlsScheduler = self.platform.scheduler(self, schedulerResolution)
-        self.allocator: HlsAllocator = self.platform.allocator(self)
+        self.scheduler: HlsScheduler = self.platform.schedulerCls(self, schedulerResolution)
+        self.allocator: HlsAllocator = self.platform.allocatorCls(self)
 
     def _setBuilder(self, b: "HlsNetlistBuilder"):
         self.builder = b

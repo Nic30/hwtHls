@@ -6,6 +6,7 @@ from hwtHls.architecture.allocator import HlsAllocator
 from hwtHls.architecture.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis
 from hwtHls.architecture.transformation.addSyncSigNames import RtlNetlistPassAddSyncSigNames
 from hwtHls.architecture.transformation.archElementsToSubunits import RtlArchPassTransplantArchElementsToSubunits
+from hwtHls.architecture.transformation.archStructureSimplify import RtlArchPassArchStructureSimplfy
 from hwtHls.architecture.transformation.channelMerge import RtlArchPassChannelMerge
 from hwtHls.architecture.transformation.controlLogicMinimize import RtlNetlistPassControlLogicMinimize
 from hwtHls.architecture.transformation.ioPortPrivatization import RtlArchPassIoPortPrivatization
@@ -26,7 +27,8 @@ from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.scheduler.scheduler import HlsScheduler
 from hwtHls.netlist.transformation.aggregateBitwiseOps import HlsNetlistPassAggregateBitwiseOps
-from hwtHls.netlist.transformation.aggregateIoSyncScc import HlsNetlistPassAggregateIoSyncSccs
+from hwtHls.netlist.transformation.aggregateIoSyncSccs import HlsNetlistPassAggregateIoSyncSccs
+from hwtHls.netlist.transformation.aggregateLoops import HlsNetlistPassAggregateLoops
 from hwtHls.netlist.transformation.betweenSyncIslandsMerge import HlsNetlistPassBetweenSyncIslandsMerge
 from hwtHls.netlist.transformation.constNodeDuplication import HlsNetlistPassConstNodeDuplication
 from hwtHls.netlist.transformation.createIoClusters import HlsNetlistPassCreateIoClusters
@@ -256,12 +258,14 @@ class DefaultHlsPlatform(DummyPlatform):
     def __init__(self, debugDir:Optional[Union[str, Path]]=HlsDebugBundle.DEFAULT_DEBUG_DIR,
                  debugFilter: Optional[Set[DebugId]]=HlsDebugBundle.DEFAULT):
         DummyPlatform.__init__(self)
-        self.allocator = HlsAllocator
-        self.scheduler = HlsScheduler
+        self.allocatorCls = HlsAllocator
+        self.schedulerCls = HlsScheduler
         self._debug = HlsDebugBundle(debugDir, debugFilter)
         self._debugExpandCompositeNodes = False
         self._llvmCliArgs:List[Tuple[str, int, str, str]] = [
+            # ("debug-pass-manager", 0, "", ""), # print used passes until machinemoduleinfo
             # ("debug-pass", 0, "", "Arguments"), # print used passes starting from machinemoduleinfo
+            # ("debug-pass", 0, "", "Structure"), # same as Arguments but pretty formated
             # ("debug-only", 0, "", "hwtfpga-pretonetlist-combiner"),
             # ("print-after-all", 0, "", "true"),
             # ("print-before-all", 0, "", "true"),
@@ -416,6 +420,7 @@ class DefaultHlsPlatform(DummyPlatform):
                 self._debug.runAssertIfEnabled(HlsNetlistPassConsystencyCheck, (hls, netlist))
 
                 # aggregation to make scheduling less computationally costly
+                HlsNetlistPassAggregateLoops().apply(hls, netlist)
                 HlsNetlistPassAggregateIoSyncSccs().apply(hls, netlist)
                 HlsNetlistPassAggregateBitwiseOps().apply(hls, netlist)
 
@@ -515,9 +520,10 @@ class DefaultHlsPlatform(DummyPlatform):
                 allocator.declareInterElemenetBoundarySignals(iea)
 
         RtlArchPassChannelMerge().apply(hls, allocator)
-        # resolve IO port to element association for multi ported IO
+        RtlArchPassArchStructureSimplfy().apply(self, allocator)
+        # resolve IO port to element association for multi-ported IO
         RtlArchPassIoPortPrivatization().apply(self, allocator)
-
+        
         dbg.runDebugIfEnabled(D.DBG_22_finalNetlist, (hls, netlist))
         dbg.runDebugIfEnabled(D.DBG_22_finalNetlistTxt, (hls, netlist))
 
