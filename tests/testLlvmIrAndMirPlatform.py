@@ -2,7 +2,8 @@ from pathlib import Path
 from typing import Optional, Union, Callable, Set
 
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
-from hwtHls.llvm.llvmIr import LlvmCompilationBundle, MachineFunction
+from hwtHls.llvm.llvmIr import LlvmCompilationBundle, MachineFunction, IntentionalCompilationInterupt
+from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.platform.platform import DebugId, HlsDebugBundle
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.ssa.analysis.llvmIrInterpret import LlvmIrInterpret, \
@@ -13,6 +14,13 @@ from pyDigitalWaveTools.vcd.writer import VcdWriter
 
 
 class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
+
+    class TEST_NO_OPT_IR:
+        """
+        This is a constant used for :meth:`TestLlvmIrAndMirPlatform.forSimpleDataInDataOutUnit` to automatically generate
+        noOptIrTest.
+        """
+        pass
 
     def __init__(self,
                  noOptIrTest:Optional[Callable[[LlvmCompilationBundle, ], None]]=None,
@@ -32,14 +40,33 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
             self._noOptIrTest(tr.llvm)
         return res
 
+    def runSsaToNetlist(self, hls:"HlsScope", toSsa:HlsAstToSsa) -> HlsNetlistCtx:
+        try:
+            return VirtualHlsPlatform.runSsaToNetlist(self, hls, toSsa)
+        except IntentionalCompilationInterupt:
+            tr: ToLlvmIrTranslator = toSsa.start
+            if self._optIrTest:
+                # if the compilation was interrupted prematurely (by this debug exception)
+                # execute IR tests for debugging purposes
+                self._optIrTest(tr.llvm)
+            raise
+
     def runNetlistTranslation(self,
                       hls: "HlsScope", toSsa: HlsAstToSsa,
                       MF: MachineFunction, *args):
         tr: ToLlvmIrTranslator = toSsa.start
-        if self._optIrTest:
-            self._optIrTest(tr.llvm)
-        if self._optMirTest:
-            self._optMirTest(tr.llvm)
+        try:
+            if self._optIrTest:
+                self._optIrTest(tr.llvm)
+            if self._optMirTest:
+                self._optMirTest(tr.llvm)
+        except:
+            dbg = self._debug.runDebugIfEnabled
+            D = HlsDebugBundle
+            dbg(D.DBG_3_mir, (hls, toSsa))
+            dbg(D.DBG_4_mirCfg, (hls, toSsa))
+            raise
+
         netlist = super(TestLlvmIrAndMirPlatform, self).runNetlistTranslation(hls, toSsa, MF, *args)
         return netlist
 
@@ -87,4 +114,7 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
             kwargs["optIrTest"] = testLlvmOptIr
         if "optMirTest" not in kwargs:
             kwargs["optMirTest"] = testLlvmOptMir
+        if kwargs.get("noOptIrTest", None) is cls.TEST_NO_OPT_IR:
+            kwargs["noOptIrTest"] = testLlvmOptIr
+
         return cls(*args, **kwargs)
