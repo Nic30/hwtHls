@@ -2,7 +2,8 @@ from math import inf
 from typing import Set, List, Optional
 
 from hwt.hdl.operatorDefs import ALWAYS_COMMUTATIVE_OPS, \
-    ALWAYS_ASSOCIATIVE_COMMUTATIVE_OPS
+    CMP_OP_SWAP
+from hwt.hdl.value import HValue
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
@@ -12,13 +13,6 @@ from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.netlist.transformation.simplifyUtils import disconnectAllInputs
-
-
-#def valToInt(v):
-#    try:
-#        return int(v)
-#    except ValueError:
-#        return 0
 
 
 class HlsNetlistPassRehashDeduplicate(HlsNetlistPass):
@@ -53,7 +47,7 @@ class HlsNetlistPassRehashDeduplicate(HlsNetlistPass):
             _ops.append((key, o, v))
 
         return _ops
-        
+
     def _rehashExpr(self,
                     b: HlsNetlistBuilder,
                     o: HlsNetNodeOut,
@@ -67,7 +61,7 @@ class HlsNetlistPassRehashDeduplicate(HlsNetlistPass):
         * normalized order of operands for associative nodes
         """
         n = o.obj
-        
+
         assert n not in removed, n
         if n in seen:
             return o
@@ -77,8 +71,9 @@ class HlsNetlistPassRehashDeduplicate(HlsNetlistPass):
             # if n.operator in ALWAYS_ASSOCIATIVE_COMMUTATIVE_OPS:
             #    raise NotImplementedError("collect whole tree")
             _ops = self._normalizeOperands(n.dependsOn, worklist, b, seen, removed)
-            if n.operator in ALWAYS_COMMUTATIVE_OPS:
-                _ops = sorted(_ops, key=lambda x: x[0])
+            oppositeCmpOp = CMP_OP_SWAP.get(n.operator, None)
+            if n.operator in ALWAYS_COMMUTATIVE_OPS or (oppositeCmpOp is not None and isinstance(_ops[0][2], HValue)):
+                _ops = sorted(_ops, key=lambda x: (int(not isinstance(x[2], HValue)), x[0]))
 
             # ops = [o[1] for o in _ops]
             cacheKey = (n.operator, tuple(o[2] for o in _ops))
@@ -98,7 +93,7 @@ class HlsNetlistPassRehashDeduplicate(HlsNetlistPass):
                 return o
 
             else:
-                # remove this and replace it with an existing value    
+                # remove this and replace it with an existing value
                 if worklist is not None:
                     worklist.extend(dep.obj for dep in n.dependsOn)
                     worklist.append(cur.obj)
@@ -121,20 +116,20 @@ class HlsNetlistPassRehashDeduplicate(HlsNetlistPass):
         b.operatorCache.clear()
 
         seen: Set[HlsNetNode] = set()
-        
+
         filterNodes = False
         if removed is None:
             filterNodes = True
             removed = set()
 
         for n in netlist.iterAllNodes():
-            # for each node walk all unseen predecessor nodes and substitute nodes with previously known equivalent node 
+            # for each node walk all unseen predecessor nodes and substitute nodes with previously known equivalent node
             n: HlsNetNode
             if n in seen or n in removed:
                 continue
             for o in n._outputs:
                 self._rehashExpr(b, o, worklist, seen, removed)
-        
+
         if filterNodes and removed:
             netlist.nodes[:] = (n for n in netlist.nodes if n not in removed)
-        
+
