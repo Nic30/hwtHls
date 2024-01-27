@@ -9,7 +9,6 @@ from hwtHls.llvm.llvmIr import LlvmCompilationBundle, SMDiagnostic, parseIR
 from tests.baseSsaTest import BaseSsaTC
 
 
-
 RE_HWTHLS_FN_CALL = re.compile('call (i[0-9]+) @hwtHls.((bitRangeGet)|(bitConcat))((\.i?[0-9]+)+)\(.*\)( #(\d+))')
 
 
