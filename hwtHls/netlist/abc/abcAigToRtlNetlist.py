@@ -1,7 +1,7 @@
 from typing import Dict, Tuple
 
-from hwt.code import Or
-from hwt.hdl.operatorDefs import AllOps
+from hwt.code import Or, And
+from hwt.hdl.operatorDefs import AllOps, OpDefinition
 from hwt.hdl.types.defs import BIT
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.netlist.abc.abcCpp import Abc_Ntk_t, Abc_Aig_t, Abc_Frame_t, Abc_Obj_t, Abc_ObjType_t
@@ -10,6 +10,7 @@ from hwtHls.netlist.abc.abcCpp import Abc_Ntk_t, Abc_Aig_t, Abc_Frame_t, Abc_Obj
 class AbcAigToRtlNetlist():
     """
     :attention: original RtlSignal inputs must be store in data of each Abc primary input
+    :note: PI stands for Primary Input
     """
 
     def __init__(self, f: Abc_Frame_t, net: Abc_Ntk_t, aig: Abc_Aig_t):
@@ -22,13 +23,16 @@ class AbcAigToRtlNetlist():
     def _collectOrMembers(cls, o: Abc_Obj_t):
         """
         Recursively collect all inputs which connected using "and" and are not and itself.
+        :note: in AIG "a | b" is "~(~a & ~b)"
+            "a | (b | c)" is ~(~a & (~b & ~c)) 
         """
-
         o0n = o.FaninC0()
         o1n = o.FaninC1()
         o0, o1 = o.IterFanin()
         o0isPi = o0.IsPi()
         o1isPi = o1.IsPi()
+
+        # if is negated or is primary input end search otherwise drill down
         if o0n or o0isPi:
             yield (o0, not o0n and o0isPi)
         else:
@@ -38,6 +42,26 @@ class AbcAigToRtlNetlist():
             yield (o1, not o1n and o1isPi)
         else:
             yield from cls._collectOrMembers(o1)
+    
+    #@classmethod
+    #def _collectAndMembers(cls, o: Abc_Obj_t):
+    #    """
+    #    Collect members (a, b, c) from patterns like (~a | ~b | ~c)
+    #    to translate it to ~(a & b & c)
+    #    """
+    #    o0n = o.FaninC0()
+    #    o1n = o.FaninC1()
+    #    o0, o1 = o.IterFanin()
+    #    o0isPi = o0.IsPi()
+    #    o1isPi = o1.IsPi()
+    #    
+    #
+    #@classmethod
+    #def _collectAndNotMembers(cls, o: Abc_Obj_t):
+    #    """
+    #    Collect members (a, b, c) from patterns like (~a & ~b & ~c)
+    #    to translate it to ~(a | b | c)
+    #    """        
 
     def _recognizeNonAigOperator(self, o: Abc_Obj_t, negated: bool):
         """
@@ -49,7 +73,9 @@ class AbcAigToRtlNetlist():
         not: ~(p0 & p0)
         not: (~p0 & ~p0)
 
-        # [TODO] prioritize not and beore or of negated (~p0 | ~p1) -> ~(p0 & p1)
+        * prioritize not and before or of negated 
+        * (~p0 | ~p1) -> ~(p0 & p1)
+        * (~p0 & ~p1) -> ~(p0 | p1)
         """
         o0n = o.FaninC0()
         o1n = o.FaninC1()
@@ -59,14 +85,27 @@ class AbcAigToRtlNetlist():
         if not topIsOr:
             # not: ~(p0 & p0)
             # not: (~p0 & ~p0)
-            if topP0 == topP1 and ((negated and not o0n and not o1n) or (not negated and o0n and o1n)):
+            if topP0 == topP1 and ((negated and not o0n and not o1n) or
+                                   (not negated and o0n and o1n)):
                 return AllOps.NOT, (tr(topP0, False),)
-            if negated:
-                # or: ~(~p0 & ~p1 & ~p2 ...)
-                orMembers = tuple(self._collectOrMembers(o))
-                if len(orMembers) > 2:
-                    return AllOps.OR, tuple(tr(p, n) for p, n in orMembers)
+            
+            # or: ~(~p0 & ~p1 & ~p2 ...)
+            orMembers = tuple(self._collectOrMembers(o))
+            if orMembers:
+                allArePis = all(op.IsPi() for op, _ in orMembers)
+                if len(orMembers) > 2 or allArePis:
+                    if negated:
+                        if all(n for _, n in orMembers):
+                            # (~p0 | ~p1) -> ~(p0 & p1)
+                            return AllOps.NOT, (AllOps.AND, tuple(tr(p, int(not n)) for p, n in orMembers))
+                        else:
+                            return AllOps.OR, tuple(tr(p, n) for p, n in orMembers)
+                    elif not allArePis or all(not n for _, n in orMembers):
+                        # (~p0 & ~p1) -> ~(p0 | p1)
+                        return AllOps.NOT, (AllOps.OR, tuple(tr(p, n) for p, n in orMembers))
+        
             return None
+        
 
         if not topP0.IsPi() and not topP1.IsPi():
             P0o0n = topP0.FaninC0()
@@ -123,8 +162,15 @@ class AbcAigToRtlNetlist():
             res = self._recognizeNonAigOperator(o, negated)
             if res is not None:
                 op, ops = res
+                negated = False
+                while op is AllOps.NOT and isinstance(ops[0], OpDefinition):
+                    negated = not negated
+                    op, ops = ops
+                
                 if op is AllOps.OR and len(ops) != 2:
                     res = Or(*ops)
+                elif op is AllOps.AND and len(ops) != 2:
+                    res = And(*ops)
                 else:
                     res = op._evalFn(*ops)
             else:
@@ -133,8 +179,8 @@ class AbcAigToRtlNetlist():
                 o1 = self._translate(o1, o.FaninC1())
                 res = o0 & o1
 
-                if negated:
-                    res = ~res
+            if negated:
+                res = ~res
 
         self.translationCache[key] = res
         return res
