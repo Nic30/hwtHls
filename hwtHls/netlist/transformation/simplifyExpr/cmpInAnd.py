@@ -64,9 +64,9 @@ def _andNotInRangeExpr(curExpr: Optional[HlsNetNodeOut], inp: HlsNetNodeOut, sta
     return curExpr
 
 
-def _valueLaticeToExpr(b: HlsNetlistBuilder, allInputs: Sequence[HlsNetNodeOut], latice: ValueConstrainLatice):
+def _valueLatticeToExpr(b: HlsNetlistBuilder, allInputs: Sequence[HlsNetNodeOut], latice: ValueConstrainLatice):
     """
-    Rewrite value latice to the expression.
+    Rewrite value lattice to the expression.
     """
     inputs = sorted(allInputs, key=lambda x: (x.obj._id, x.out_i))
     res = None
@@ -196,7 +196,7 @@ def getConst(o: HlsNetNodeOut):
     else:
         return None
 
-
+#AND_OR_XOR = (AllOps.XOR, AllOps.AND, AllOps.OR)
 def netlistReduceCmpInAnd(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]):
     """
     This algorithm simplifies comparations in AND tree. It is similar to Sparse Conditional Constant Propagation (SCC).
@@ -225,7 +225,7 @@ def netlistReduceCmpInAnd(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode],
     allInputs: UniqList[HlsNetNodeOut] = UniqList()
     registerInput = allInputs.append
     changed = False
-    inputs = tuple(iterOperatorTreeInputs(n, AllOps.AND))
+    inputs = tuple(iterOperatorTreeInputs(n, (AllOps.AND, )))
     for inp in inputs:
         inp: HlsNetNodeOut
         negated, inpO, inp = popNotFromExpr(inp)
@@ -287,7 +287,7 @@ def netlistReduceCmpInAnd(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode],
     elif not changed:
         return False
     else:
-        replacement = _valueLaticeToExpr(b, allInputs, latice)
+        replacement = _valueLatticeToExpr(b, allInputs, latice)
         if replacement is n._outputs[0]:
             return False
         else:

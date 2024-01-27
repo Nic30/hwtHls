@@ -1,5 +1,5 @@
 from itertools import islice
-from typing import Set, Optional
+from typing import Set, Optional, Tuple
 
 from hwt.hdl.operatorDefs import OpDefinition, AllOps
 from hwt.hdl.value import HValue
@@ -118,14 +118,14 @@ def hasInputSameDriver(i0: Optional[HlsNetNodeIn], i1: Optional[HlsNetNodeIn]) -
         return False
 
 
-def iterOperatorTreeInputs(root: HlsNetNodeOut, op: OpDefinition):
+def iterOperatorTreeInputs(root: HlsNetNodeOut, ops: Tuple[OpDefinition]):
     """
     :note: The most left input first
     """
     for dep in root.dependsOn:
         depO = dep.obj
-        if isinstance(depO, HlsNetNodeOperator) and depO.operator is op:
-            yield from iterOperatorTreeInputs(depO, op)
+        if isinstance(depO, HlsNetNodeOperator) and depO.operator is ops:
+            yield from iterOperatorTreeInputs(depO, ops)
         else:
             yield dep
 
