@@ -395,6 +395,13 @@ class LlvmIrInterpret():
                     src0 = src0.cast_sign(None)
                 if src1._dtype.signed is not None:
                     src1 = src1.cast_sign(None)
+
+            if src0._dtype != src1._dtype:
+                # cases where force_vector, strict_sign or strict_width flag is different
+                assert src0._dtype.bit_length() == src1._dtype.bit_length(), (
+                    "Operands must be of compatible type", instr, src0._dtype, src1._dtype)
+                src1 = src1._auto_cast(src0._dtype)
+
             res = op._evalFn(src0, src1)
             if waveLog is not None:
                 waveLog.logChange(nowTime, instr, res, None)
