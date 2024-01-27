@@ -1,15 +1,17 @@
 from typing import Set
 
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
-from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.builder import HlsNetlistBuilder
+from hwtHls.netlist.debugTracer import DebugTracer
+from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
+from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
+    HlsNetNodeWriteBackedge, BACKEDGE_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.loopChannelGroup import LoopChanelGroup, \
     LOOP_CHANEL_GROUP_ROLE, HlsNetNodeReadAnyChannel
+from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
+from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, unlink_hls_nodes
 from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import netlistExplicitSyncDisconnectFromOrderingChain
-from hwtHls.netlist.debugTracer import DebugTracer
-from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge
 
 
 def _replaceOutPortWith1(o: HlsNetNodeOut, worklist: UniqList[HlsNetNode]):
@@ -54,6 +56,9 @@ def netlistReduceLoopWithoutEnterAndExit(dbgTracer: DebugTracer, n: HlsNetNodeLo
             # there is only 1 place for reenterthe reenter en port on loop is useless
             reG: LoopChanelGroup = n.fromReenter[0]
             reG.connectedLoops.remove((n, LOOP_CHANEL_GROUP_ROLE.REENTER))
+            if not reG.connectedLoops:
+                reG.destroy()
+
             srcDst, outPort = n._findLoopChannelIn_bbNumberToPorts(reG)
             n._bbNumberToPorts.pop(srcDst)
             reGControlR = reG.getChannelWhichIsUsedToImplementControl().associatedRead
@@ -66,7 +71,7 @@ def netlistReduceLoopWithoutEnterAndExit(dbgTracer: DebugTracer, n: HlsNetNodeLo
             modified = True
 
     elif not n.fromEnter and len(n.fromReenter) == 1 and (not n.fromExitToHeaderNotify or n._isEnteredOnExit):
-        # the loop controll is useless because this loop is always running and is contantly reexecuting itself
+        # the loop control is useless because this loop is always running and is constantly re-executing itself
         # and there is no arbitration of inputs nor blocking until current body finishes
         builder: HlsNetlistBuilder = n.netlist.builder
 
@@ -74,26 +79,40 @@ def netlistReduceLoopWithoutEnterAndExit(dbgTracer: DebugTracer, n: HlsNetNodeLo
         srcDst, fromStatusOut = n._findLoopChannelIn_bbNumberToPorts(reenterG)
         reenterControl: HlsNetNodeReadAnyChannel = reenterG.getChannelWhichIsUsedToImplementControl().associatedRead
         _replaceOutPortWith(fromStatusOut, reenterControl.getValidNB(), worklist)
-        reenterG.connectedLoops.remove((n, LOOP_CHANEL_GROUP_ROLE.REENTER))
         if not reenterControl._isBlocking:
             reenterControl._isBlocking = True
+        reenterG.connectedLoops.remove((n, LOOP_CHANEL_GROUP_ROLE.REENTER))
+        if not reenterG.connectedLoops:
+            reenterG.destroy()
 
         if n.fromExitToHeaderNotify:
             # unregister loop from channel
+            assert len(n.fromExitToHeaderNotify) == 1, n
             exitG: LoopChanelGroup = n.fromExitToHeaderNotify[0]
             exitG.connectedLoops.remove((n, LOOP_CHANEL_GROUP_ROLE.EXIT_NOTIFY_TO_HEADER))
-
             # avoid wait on reenter when exit
-            exitR: HlsNetNodeReadBackedge = exitG.getChannelWhichIsUsedToImplementControl().associatedRead
+            exitW: HlsNetNodeWriteBackedge = exitG.getChannelWhichIsUsedToImplementControl()
+            # promote to a regular channel with an init
+            exitW.allocationType = BACKEDGE_ALLOCATION_TYPE.BUFFER 
+            assert not exitW.channelInitValues
+            assert HdlType_isVoid(exitW._outputs[0]._dtype), exitW
+            exitW.channelInitValues = (tuple(),)
+            exitR: HlsNetNodeReadBackedge = exitW.associatedRead
+
             reenterControl.addControlSerialSkipWhen(builder.buildNot(exitR.getValidNB()))
 
             # disconnect loop status port for exit input
             srcDst, exitInOnStatus = n._findLoopChannelIn_bbNumberToPorts(exitG)
             unlink_hls_nodes(exitR.getValidNB(), exitInOnStatus)
 
+            if not exitG.connectedLoops:
+                exitG.destroy()
+
             for exitToSucG in n.fromExitToSuccessor:
                 exitToSucG: LoopChanelGroup
                 exitToSucG.connectedLoops.remove((n, LOOP_CHANEL_GROUP_ROLE.EXIT_TO_SUCCESSOR))
+                if not exitToSucG.connectedLoops:
+                    exitToSucG.destroy()
 
         netlistExplicitSyncDisconnectFromOrderingChain(dbgTracer, n, worklist)
         removed.add(n)
