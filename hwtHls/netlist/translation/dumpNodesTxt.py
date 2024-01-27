@@ -1,6 +1,8 @@
 from io import StringIO
+from typing import Sequence
 
 from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.platform.fileUtils import OutputStreamGetter
@@ -11,18 +13,20 @@ class HlsNetlistPassDumpNodesTxt(HlsNetlistPass):
     def __init__(self, outStreamGetter: OutputStreamGetter):
         self.outStreamGetter = outStreamGetter
 
-    @staticmethod
-    def _printThreads(netlist: HlsNetlistCtx, out: StringIO):
-        # :note: we first collect the nodes to have them always in deterministic order
-        for n in sorted(netlist.iterAllNodes(), key=lambda n: n._id):
+    @classmethod
+    def _printNodes(cls, indent:str, nodeIterator:Sequence[HlsNetNode], out: StringIO):
+        # :note: sort is to improve readability
+        for n in sorted(nodeIterator, key=lambda n: n._id):
             n: HlsNetNode
-            out.write(f"{n}\n")
-        out.write("\n")
+            out.write(f"{indent:s}{n}\n")
+            if isinstance(n, HlsNetNodeAggregate):
+                cls._printNodes(indent + "  ", n._subNodes, out)
 
     def apply(self, hls: "HlsScope", netlist: HlsNetlistCtx):
         out, doClose = self.outStreamGetter(netlist.label)
         try:
-            self._printThreads(netlist, out)
+            self._printNodes("", netlist.iterAllNodes(), out)
+            out.write("\n")
         finally:
             if doClose:
                 out.close()

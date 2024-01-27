@@ -16,8 +16,8 @@ class HwtHlsNetlistBetweenSyncIslandsToGraphwiz(HwtHlsNetlistToGraphwiz):
     Generate a Graphwiz (dot) diagram of sync domains extracted from the netlist.
     """
 
-    def __init__(self, name:str, nodes:List[HlsNetNode]):
-        HwtHlsNetlistToGraphwiz.__init__(self, name, nodes)
+    def __init__(self, name:str, nodes:List[HlsNetNode], expandAggregates:bool=False):
+        HwtHlsNetlistToGraphwiz.__init__(self, name, nodes, expandAggregates=expandAggregates)
         self.syncIslandsGroupOfSyncNode: Dict[HlsNetNode, pydot.Cluster] = {}
 
     def _getGraph(self, n:HlsNetNode):

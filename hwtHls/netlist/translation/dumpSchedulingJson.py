@@ -1,6 +1,7 @@
 from collections import deque
 from io import StringIO
 import json
+from math import inf, isinf
 from typing import Dict, List, Optional, Set, Tuple
 
 from hwt.hdl.operatorDefs import OpDefinition
@@ -11,15 +12,16 @@ from hwt.synthesizer.interface import Interface
 from hwtHls.io.bram import HlsNetNodeWriteBramCmd
 from hwtHls.netlist.analysis.schedule import HlsNetlistAnalysisPassRunScheduler
 from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.hdlTypeVoid import HVoidOrdering, HVoidExternData
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
-from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwtHls.netlist.nodes.orderable import HVoidOrdering, HVoidExternData
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
+from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.platform.fileUtils import OutputStreamGetter
@@ -82,10 +84,10 @@ class HwtHlsNetlistToTimelineJson():
     Generate a timeline (Gantt) diagram of how operations in circuit are scheduled in time.
 
     :ivar time_scale: Specified how to format time numbers in output.
-    :ivar min_duration: minimum width of boexes representing operations
+    :ivar min_duration: minimum width of boxes representing operations
     """
 
-    def __init__(self, normalizedClkPeriod: int, resolution: float, expandCompositeNodes=False):
+    def __init__(self, normalizedClkPeriod: SchedTime, resolution: float, expandCompositeNodes=False):
         self.objToJsonObj: Dict[HlsNetNode, TimelineItem] = {}
         self.jsonObjs: List[TimelineItem] = []
         self.rowOccupiedRanges: List[List[Tuple[float, float]]] = [[], ]
@@ -179,12 +181,21 @@ class HwtHlsNetlistToTimelineJson():
         if obj.scheduledIn:
             start = min(obj.scheduledIn)
         else:
-            assert obj.scheduledOut is not None, (obj, "node was not scheduled so it is not possible to add int into output graph")
-            assert obj.scheduledOut, (obj, "does not have any port")
-            start = max(obj.scheduledOut)
+            assert obj.scheduledOut is not None, (obj, "node was not scheduled so it is not possible to add it into output graph")
+            if isinstance(obj, HlsNetNodeAggregate):
+                start = min(min(min(n.scheduledIn, default=inf), min(n.scheduledOut, default=inf))
+                            for n in obj.iterAllNodesFlat(NODE_ITERATION_TYPE.OMMIT_PARENT))
+                assert not isinf(start)
+            else:
+                start = max(obj.scheduledOut)
 
         if obj.scheduledOut:
-            end = max(obj.scheduledOut)
+            if isinstance(obj, HlsNetNodeAggregate):
+                end = max(max(max(n.scheduledIn, default=-inf), max(n.scheduledOut, default=-inf))
+                           for n in obj.iterAllNodesFlat(NODE_ITERATION_TYPE.OMMIT_PARENT))
+                assert not isinf(end)
+            else:
+                end = max(obj.scheduledOut)
         else:
             end = start
 
@@ -274,7 +285,7 @@ class HwtHlsNetlistToTimelineJson():
             label = repr(obj)
 
         if representativeIo is not None:
-            # if IO is associated with some group id (row) pick larger id number 
+            # if IO is associated with some group id (row) pick larger id number
             curObjGroupId = io_group_ids.setdefault(representativeIo, objGroupId)
             if curObjGroupId < objGroupId:
                 io_group_ids[representativeIo] = objGroupId
@@ -332,13 +343,13 @@ class HwtHlsNetlistToTimelineJson():
                 jObj.portsIn.append(_mkPortIn(t * self.time_scale, i.name, depJsonObj, depOutI, color))
 
             # convert other logical connections which are not done trough ports
-            for bdep_obj in obj.debug_iter_shadow_connection_dst():
+            for bdep_obj in obj.debugIterShadowConnectionDst():
                 if not self.expandCompositeNodes:
                     bdep_obj = containerOfNode.get(bdep_obj, bdep_obj)
                 try:
                     bdep = objToJsonObj[bdep_obj]
                 except KeyError:
-                    raise AssertionError("debug_iter_shadow_connection_dst of ", obj, " yield an object which is not in all nodes", bdep_obj)
+                    raise AssertionError("debugIterShadowConnectionDst of ", obj, " yield an object which is not in all nodes", bdep_obj)
                 bdep.genericDeps.append(jObj)
 
     def saveJson(self, file: StringIO):
