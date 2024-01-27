@@ -25,6 +25,7 @@ from hwtHls.ssa.context import SsaContext
 from hwtHls.thread import HlsThread, HlsThreadDoesNotUseSsa
 from hwtLib.amba.axi_intf_common import Axi_hs
 
+
 ANY_HLS_COMPATIBLE_IO = Union[Handshaked, HsStructIntf, HandshakeSync, Axi_hs, VldSynced, RdSynced, Signal, StructIntf, RtlSignal, PyObjectHwSubscriptRef]
 
 
