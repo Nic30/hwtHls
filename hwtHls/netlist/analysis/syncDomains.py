@@ -5,12 +5,12 @@ from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.analysis.syncGroupClusterContext import SyncGroupLabel, \
     SyncGroupClusterContext, HlsNetNodeAnySync
+from hwtHls.netlist.hdlTypeVoid import HVoidOrdering, HVoidExternData
 from hwtHls.netlist.nodes.delay import HlsNetNodeDelayClkTick
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.loopChannelGroup import LoopChanelGroup
 from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
-from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.hdlTypeVoid import HVoidOrdering, HVoidExternData
+from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn
 
 
@@ -84,7 +84,7 @@ class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
         seen: Set[HlsNetNode] = set()
         toSearch: List[HlsNetNode] = [syncNode, ]
         if isinstance(syncNode, HlsNetNodeLoopStatus):
-            for e in chain(syncNode.fromEnter, syncNode.fromReenter, syncNode.fromExitToHeaderNotify):
+            for e in syncNode.iterConnectedChannelGroups():
                 e: LoopChanelGroup
                 toSearch.append(e.getChannelWhichIsUsedToImplementControl().associatedRead)
 
@@ -238,7 +238,7 @@ class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
         This must be also done transitively. If node with > 1 clk delay has some predecessors the nodes
         which does have bout this node and its predecessor
         """
-        getNodeIteratorFn = self.netlist.iterAllNodesFlat
+        getNodeIteratorFn = lambda : self.netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.OMMIT_PARENT)
         syncOfNode = self.syncOfNode = {n: set() for n in getNodeIteratorFn()}
         allSyncs: List[HlsNetNodeAnySync] = []
         allDelays: List[HlsNetNodeDelayClkTick] = []

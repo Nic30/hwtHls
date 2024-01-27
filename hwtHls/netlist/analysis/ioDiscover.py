@@ -1,3 +1,4 @@
+from itertools import chain
 from typing import Union, Dict, List, Set
 
 from hwt.pyUtils.uniqList import UniqList
@@ -6,8 +7,9 @@ from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.analysis.schedule import HlsNetlistAnalysisPassRunScheduler
-from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.hdlTypeVoid import HVoidOrdering
+from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
+from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
@@ -60,14 +62,31 @@ class HlsNetlistAnalysisPassIoDiscover(HlsNetlistAnalysisPass):
     #            if dep._dtype != HVoidOrdering and dep._dtype != HVoidExternData:
     #                yield from self._detectExplicitSyncIsSameClkCycleFromInputs(dep, clkStartTime)
     #
+    @classmethod
+    def _findIo(cls, n: HlsNetNodeAggregate, inputs: List[HlsNetNodeRead], outputs: List[HlsNetNodeWrite]):
+        for sn in n._subNodes:
+            if isinstance(sn, HlsNetNodeRead):
+                inputs.append(sn)
+            elif isinstance(sn, HlsNetNodeWrite):
+                outputs.append(sn)
+            elif isinstance(sn, HlsNetNodeAggregate):
+                cls._findIo(n, inputs, outputs)
+
     def run(self):
         assert not self.ioByInterface, "Must be run only once"
-        assert self.netlist.getAnalysisIfAvailable(HlsNetlistAnalysisPassRunScheduler) is not None, "Should be performed only after scheduling"
+        netlist = self.netlist
+        assert netlist.getAnalysisIfAvailable(HlsNetlistAnalysisPassRunScheduler) is not None, "Should be performed only after scheduling"
         ioByInterface = self.ioByInterface
         interfaceList = self.interfaceList
         resolvedExplicitSync: Set[HlsNetNodeExplicitSync] = set()
-        clkPeriod = self.netlist.normalizedClkPeriod
-        for op in self.netlist.inputs:
+        clkPeriod = netlist.normalizedClkPeriod
+        inputs: List[HlsNetNodeRead] = []
+        outputs: List[HlsNetNodeWrite] = []
+        for n in netlist.nodes:
+            if isinstance(n, HlsNetNodeAggregate):
+                self._findIo(n, inputs, outputs)
+
+        for op in chain(netlist.inputs, inputs):
             op: HlsNetNodeRead
             i = op.src
             if i is None:
@@ -88,7 +107,7 @@ class HlsNetlistAnalysisPassIoDiscover(HlsNetlistAnalysisPass):
                     extraSync.append(sync)
                     resolvedExplicitSync.add(sync)
 
-        for op in self.netlist.outputs:
+        for op in chain(netlist.outputs, outputs):
             op: HlsNetNodeWrite
             i = op.dst
             if i is None:
@@ -108,6 +127,6 @@ class HlsNetlistAnalysisPassIoDiscover(HlsNetlistAnalysisPass):
             #    extraSync.append(sync)
             #    resolvedExplicitSync.add(sync)
 
-        #for n in self.netlist.nodes:
+        # for n in netlist.nodes:
         #    if isinstance(n, HlsNetNodeExplicitSync) and n not in resolvedExplicitSync:
         #        assert n in resolvedExplicitSync, (n, "Sync was not assigned to any IO, this is likely to result in internal deadlock.")

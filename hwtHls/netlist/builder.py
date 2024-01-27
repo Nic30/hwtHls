@@ -1,6 +1,7 @@
 
 from typing import Tuple, Union, Dict, Optional, Type, Callable, Set, List
 
+from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.hdl.operatorDefs import OpDefinition, AllOps
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.defs import BIT, SLICE
@@ -8,18 +9,18 @@ from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.value import HValue
 from hwt.pyUtils.arrayQuery import grouper, balanced_reduce
 from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, link_hls_nodes, \
     HlsNetNodeIn, HlsNetNodeOutLazy, HlsNetNodeOutAny, unlink_hls_nodes
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hdlConvertorAst.to.hdlUtils import iter_with_last
+from hwtHls.netlist.observableList import ObservableList
 from hwtHls.netlist.transformation.simplifyUtils import getConstOfOutput
 
 
@@ -34,17 +35,17 @@ class HlsNetlistBuilder():
     :ivar _removedNodes: optional set of removed nodes used to discard records from the operatorCache
     """
 
-    def __init__(self, netlist: HlsNetlistCtx):
+    def __init__(self, netlist: HlsNetlistCtx, netlistNodes: Optional[ObservableList[HlsNetNode]]=None):
         self.netlist = netlist
+        if netlistNodes is None:
+            netlistNodes = netlist.nodes
+        self.netlistNodes = netlistNodes
         self.operatorCache: Dict[Tuple[Union[OpDefinition, Type[HlsNetNode]],
                                        Tuple[Union[HlsNetNodeOut, HValue], ...]],
                                  HlsNetNodeOut] = {}
-
 #        class ObservableSet(set):
-#
 #            def add(self, n):
 #                super(ObservableSet, self).add(n)
-#
 #        self._removedNodes: Set[HlsNetNode] = ObservableSet()
         self._removedNodes: Set[HlsNetNode] = set()
 
@@ -70,9 +71,8 @@ class HlsNetlistBuilder():
         return self.buildConst(dtype.from_py(v))
 
     def buildConst(self, v: HValue):
-        netlist = self.netlist
-        c = HlsNetNodeConst(netlist, v)
-        netlist.nodes.append(c)
+        c = HlsNetNodeConst(self.netlist, v)
+        self.netlistNodes.append(c)
         return c._outputs[0]
 
     def buildConstBit(self, v: int):
@@ -110,7 +110,7 @@ class HlsNetlistBuilder():
         operandsWithOutputsOnly = tuple(self._toNodeOut(o) for o in operands)
 
         n = HlsNetNodeOperator(self.netlist, operator, len(operands), resT)
-        self.netlist.nodes.append(n)
+        self.netlistNodes.append(n)
         for i, arg in zip(n._inputs, operandsWithOutputsOnly):
             link_hls_nodes(arg, i)
 
@@ -159,7 +159,7 @@ class HlsNetlistBuilder():
         return self.buildOp(AllOps.GE, BIT, a, b)
 
     def buildRom(self, data: Union[Dict[int, HValue], List[HValue], Tuple[HValue]], index: HlsNetNodeOut):
-        assert data
+        assert data, ("ROM array should not be of zero size", data)
         itemCnt = 2 ** index._dtype.bit_length()
 
         if isinstance(data, dict):
@@ -236,7 +236,7 @@ class HlsNetlistBuilder():
                             return self.buildNot(c)
 
         n = HlsNetNodeMux(self.netlist, resT, name=name)
-        self.netlist.nodes.append(n)
+        self.netlistNodes.append(n)
         for (src, cond) in grouper(2, operandsWithOutputsOnly):
             i = n._addInput(f"v{len(n._inputs) // 2}")
             link_hls_nodes(src, i)
@@ -296,7 +296,7 @@ class HlsNetlistBuilder():
             isResolvedOut = True
 
         n = HlsNetNodeReadSync(self.netlist)
-        self.netlist.nodes.append(n)
+        self.netlistNodes.append(n)
         link_hls_nodes(i, n._inputs[0])
         o = n._outputs[0]
         if isResolvedOut:
@@ -338,7 +338,7 @@ class HlsNetlistBuilder():
         Replace all uses of this output port.
         """
         assert o._dtype == newO._dtype, (o, newO, o._dtype, newO._dtype)
-        assert o is not newO, o
+        assert o is not newO, ("It is pointless to replace to the same", o)
         if isinstance(o, HlsNetNodeOut):
             _uses = o.obj.usedBy[o.out_i]
         else:
@@ -353,13 +353,15 @@ class HlsNetlistBuilder():
             assert i.obj is not newO.obj, ("Can not create a cycle in netlist DAG", i, newO)
             dependsOn = i.obj.dependsOn
             assert dependsOn[i.in_i] is o, (dependsOn[i.in_i], o)
-            isOp = isinstance(i.obj, HlsNetNodeOperator)
-            if isOp:
-                self.unregisterOperatorNode(i.obj)
+            if updateCache:
+                isOp = isinstance(i.obj, HlsNetNodeOperator)
+                if isOp:
+                    self.unregisterOperatorNode(i.obj)
 
             i.replaceDriverInInputOnly(newO)
-            if isOp:
-                self.registerOperatorNode(i.obj)
+            if updateCache:
+                if isOp:
+                    self.registerOperatorNode(i.obj)
 
     def replaceOutputIf(self, o: HlsNetNodeOutAny, newO: HlsNetNodeOutAny, selector: Callable[[HlsNetNodeIn], bool]) -> bool:
         """
@@ -450,3 +452,9 @@ class HlsNetlistBuilder():
             # and the operator node becomes something which already exits
             self.operatorCache[k] = n._outputs[0]
 
+    def scoped(self, parent: "HlsNetNodeAggregate"):
+        scopedBuilder: HlsNetlistBuilder = self.__class__(
+            self.netlist, netlistNodes=parent._subNodes
+        )
+        scopedBuilder._removedNodes = self._removedNodes
+        return scopedBuilder

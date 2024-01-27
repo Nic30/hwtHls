@@ -1,4 +1,4 @@
-from itertools import chain, islice
+from itertools import islice
 from networkx.algorithms.components.strongly_connected import strongly_connected_components
 from networkx.classes.digraph import DiGraph
 from typing import Set, Optional
@@ -8,7 +8,7 @@ from hwt.hdl.types.defs import BIT
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
-from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
@@ -19,14 +19,18 @@ class HlsNetlistPassConsystencyCheck(HlsNetlistPass):
     Check if connection of nodes is error free.
     """
 
+    def __init__(self, checkCycleFree:bool=True):
+        HlsNetlistPass.__init__(self)
+        self.checkCycleFree = checkCycleFree
+
     @staticmethod
     def _checkConnections(netlist: HlsNetlistCtx, removed: Optional[Set[HlsNetNode]]):
         if removed is None:
-            allNodes = set(netlist.iterAllNodes())
+            allNodes = set(netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.PREORDER))
         else:
-            allNodes = set(n for n in netlist.iterAllNodes() if n not in removed)
+            allNodes = set(n for n in netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.PREORDER) if n not in removed)
 
-        for n in netlist.iterAllNodes():
+        for n in netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.PREORDER):
             n: HlsNetNode
             if removed is not None and n in removed:
                 continue
@@ -38,7 +42,7 @@ class HlsNetlistPassConsystencyCheck(HlsNetlistPass):
                 assert i.obj is n, (n, i)
                 assert i.in_i == in_i, (n, i)
                 assert isinstance(d, HlsNetNodeOut), (d, "->", i)
-                assert d.obj in allNodes, ("Driven by something which is not in netlist", n, d.obj)
+                assert d.obj in allNodes, ("Driven by something which is not in netlist", n, i, d)
                 assert d.obj._outputs[d.out_i] is d, ("Broken HlsNetNodeOut object", n, in_i, d)
                 assert i in d.obj.usedBy[d.out_i], ("Output knows about connected input", n, d, i)
 
@@ -68,7 +72,7 @@ class HlsNetlistPassConsystencyCheck(HlsNetlistPass):
     def _checkCycleFree(netlist: HlsNetlistCtx, removed: Optional[Set[HlsNetNode]]):
         # check for cycles
         g = DiGraph()
-        for n in netlist.iterAllNodes():
+        for n in netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.PREORDER):
             if removed is not None and n in removed:
                 continue
             for dep in n.dependsOn:
@@ -84,7 +88,7 @@ class HlsNetlistPassConsystencyCheck(HlsNetlistPass):
     @staticmethod
     def _checkNodeContainers(netlist: HlsNetlistCtx, removed: Optional[Set[HlsNetNode]]):
         seen: Set[HlsNetNode] = set()
-        for n in netlist.iterAllNodesFlat():
+        for n in netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.PREORDER):
             if removed is not None and n in removed:
                 continue
             if n in seen:
@@ -94,7 +98,7 @@ class HlsNetlistPassConsystencyCheck(HlsNetlistPass):
 
     @staticmethod
     def _checkSyncNodes(netlist: HlsNetlistCtx, removed: Optional[Set[HlsNetNode]]):
-        for n in netlist.iterAllNodes():
+        for n in netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.PREORDER):
             if n.__class__ is HlsNetNodeExplicitSync:
                 n: HlsNetNodeExplicitSync
                 if removed and n in removed:
@@ -114,14 +118,17 @@ class HlsNetlistPassConsystencyCheck(HlsNetlistPass):
                     assert oClus is not None, n
 
                     assert iClus.obj is not oClus.obj, (n, iClus.obj, "input/output cluster must be different")
+            elif isinstance(n, HlsNetNodeMux):
+                assert len(n._inputs) % 2 == 1, n
+                assert len(n._outputs) == 1, n
 
     @staticmethod
     def checkRemovedNotReachable(netlist: HlsNetlistCtx, removed: Set[HlsNetNode]):
         """
         Check that removed nodes are not reachable from non removed nodes.
         """
-        allNodes = set(netlist.iterAllNodes())
-        for n in netlist.iterAllNodes():
+        allNodes = set(netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.PREORDER))
+        for n in netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.PREORDER):
             n: HlsNetNode
             if removed and n in removed:
                 continue
@@ -138,7 +145,7 @@ class HlsNetlistPassConsystencyCheck(HlsNetlistPass):
     def _checkTypes(netlist: HlsNetlistCtx, removed: Set[HlsNetNode]):
         OPS_WITH_OP0_AND_RES_OF_SAME_TYPE = {*BITWISE_OPS, AllOps.DIV, AllOps.MUL, AllOps.ADD, AllOps.SUB}
         OPS_WITH_SAME_OP_TYPE = {*OPS_WITH_OP0_AND_RES_OF_SAME_TYPE, *COMPARE_OPS}
-        for n in netlist.iterAllNodes():
+        for n in netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.PREORDER):
             n: HlsNetNode
             if removed and n in removed:
                 continue
@@ -161,7 +168,8 @@ class HlsNetlistPassConsystencyCheck(HlsNetlistPass):
         if removed is None:
             removed = netlist.builder._removedNodes
         self._checkConnections(netlist, removed)
-        self._checkCycleFree(netlist, removed)
+        if self.checkCycleFree:
+            self._checkCycleFree(netlist, removed)
         self._checkNodeContainers(netlist, removed)
         self._checkSyncNodes(netlist, removed)
         self._checkTypes(netlist, removed)

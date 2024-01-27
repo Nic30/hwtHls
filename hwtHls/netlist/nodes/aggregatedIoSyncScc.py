@@ -1,16 +1,15 @@
-from collections import deque
 from math import inf, isfinite
-from typing import Optional, List, Deque, Set
+from typing import Optional, List
 
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate, \
     HlsNetNodeAggregatePortOut
-from hwtHls.netlist.nodes.aggregatedBitwiseOps import HlsNetNodeBitwiseOps
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.schedulableNode import SchedulizationDict, OutputTimeGetter, \
     OutputMinUseTimeGetter, SchedTime
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
+from hwtHls.typingFuture import override
 
 
 class HlsNetNodeIoSyncScc(HlsNetNodeAggregate):
@@ -18,6 +17,7 @@ class HlsNetNodeIoSyncScc(HlsNetNodeAggregate):
     A cluster of nodes where all node inputs must be scheduled in a same clock period window to assert desired behavior of IO port.
     """
 
+    @override
     def scheduleAsap(self, pathForDebug: Optional[UniqList["HlsNetNode"]], beginOfFirstClk: SchedTime,
                      outputTimeGetter: Optional[OutputTimeGetter]) -> List[SchedTime]:
         """
@@ -78,9 +78,9 @@ class HlsNetNodeIoSyncScc(HlsNetNodeAggregate):
                 assert isfinite(maxTime), ("Time must be finite because there must to be something in this cluster which should be scheduled in some specific time", self)
 
                 if schedulingFail:
-                    #if moveTried:
+                    # if moveTried:
                     #    from hwtHls.netlist.translation.dumpNodesDot import HwtHlsNetlistToGraphwiz
-                    #    toGraphwiz = HwtHlsNetlistToGraphwiz(f"IoScc{self._id}", self._subNodes)
+                    #    toGraphwiz = HwtHlsNetlistToGraphwiz(f"IoScc{self._id:d}", self._subNodes)
                     #    toGraphwiz.construct()
                     #    with open(f"tmp/TimeConstraintError.{toGraphwiz.name:s}.dot", "w") as f:
                     #        f.write(toGraphwiz.dumps())
@@ -102,6 +102,7 @@ class HlsNetNodeIoSyncScc(HlsNetNodeAggregate):
         self.checkScheduling()
         return self.scheduledOut
 
+    @override
     def checkScheduling(self):
         HlsNetNodeAggregate.checkScheduling(self)
         clkPeriod = self.netlist.normalizedClkPeriod
@@ -110,6 +111,7 @@ class HlsNetNodeIoSyncScc(HlsNetNodeAggregate):
         for t in self.scheduledIn:
             assert t >= beginOfClk and t < endOfClk, (self, (beginOfClk, endOfClk), self.scheduledIn)
 
+    @override
     def scheduleAlapCompaction(self, endOfLastClk: SchedTime, outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter]):
         """
         Use the same principle as :meth:`~.HlsNetNodeIoSyncScc.scheduleAsap` just schedule from uses to defs.
@@ -143,7 +145,7 @@ class HlsNetNodeIoSyncScc(HlsNetNodeAggregate):
             #    if oPort.scheduledZero is None or oPort.scheduledZero > endCurClk:
             #        oPort._setScheduleZero(endCurClk)
             self.scheduleAlapCompactionForSubnodes(endCurClk, outputMinUseTimeGetter)
-            
+
             # check if scheduling was successful to fit all nodes in this clock cycle
             fail = False
             curClkBegin = None

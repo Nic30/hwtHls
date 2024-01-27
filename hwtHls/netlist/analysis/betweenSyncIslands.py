@@ -6,12 +6,13 @@ from hwtHls.netlist.analysis.betweenSyncIslandsUtils import BetweenSyncIsland
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 from hwtHls.netlist.nodes.IoClusterCore import HlsNetNodeIoClusterCore
+from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.loopChannelGroup import LoopChanelGroup
 from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
 from hwtHls.netlist.nodes.node import HlsNetNode
 from ipCorePackager.constants import DIRECTION
-from hwtHls.netlist.nodes.loopChannelGroup import LoopChanelGroup
 
 
 class HlsNetlistAnalysisPassBetweenSyncIslands(HlsNetlistAnalysisPass):
@@ -65,7 +66,7 @@ class HlsNetlistAnalysisPassBetweenSyncIslands(HlsNetlistAnalysisPass):
         and then again checks if there are more other sync dependencies and repeats the search
         while new sync nodes are discovered.
 
-        :note: There may be some nodes which are bouth input and output.
+        :note: There may be some nodes which are both input and output.
         """
 
         # find boundaries of local synchronization cluster
@@ -88,6 +89,7 @@ class HlsNetlistAnalysisPassBetweenSyncIslands(HlsNetlistAnalysisPass):
         while toSearchUseToDef or toSearchDefToUse:
 
             for n in reachDb._getDirectDataSuccessorsRaw(toSearchDefToUse, set()):
+                assert not isinstance(n, HlsNetNodeAggregate), n
                 # search use -> def (top -> down)
                 if n not in seenUseToDef:
                     seenUseToDef.add(n)
@@ -100,6 +102,7 @@ class HlsNetlistAnalysisPassBetweenSyncIslands(HlsNetlistAnalysisPass):
 
             for n in reachDb._getDirectDataPredecessorsRaw(toSearchUseToDef, set()):
                 assert isinstance(n, HlsNetNode), n
+                assert not isinstance(n, HlsNetNodeAggregate), n
                 # search use -> def (top -> down)
                 if n not in seenDefToUse:
                     seenDefToUse.add(n)
@@ -111,7 +114,7 @@ class HlsNetlistAnalysisPassBetweenSyncIslands(HlsNetlistAnalysisPass):
                     internalNodes.append(n)
                     if isinstance(n, HlsNetNodeLoopStatus):
                         n: HlsNetNodeLoopStatus
-                        for chGroup in chain(n.fromEnter, n.fromReenter, n.fromExitToHeaderNotify):
+                        for chGroup in n.iterConnectedChannelGroups():
                             chGroup: LoopChanelGroup
                             for w in chGroup.members:
                                 r = w.associatedRead

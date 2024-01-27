@@ -4,9 +4,8 @@ from typing import Union, Optional, Set, Callable
 
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.unit import Unit
-from hwtHls.architecture.allocator import HlsAllocator
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
-from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
@@ -60,7 +59,7 @@ class HlsNetlistCtx(AnalysisCache):
         self.ctx = RtlNetlist()
         AnalysisCache.__init__(self)
         self.scheduler: HlsScheduler = self.platform.schedulerCls(self, schedulerResolution)
-        self.allocator: HlsAllocator = self.platform.allocatorCls(self)
+        self.allocator: "HlsAllocator" = self.platform.allocatorCls(self)
 
     def _setBuilder(self, b: "HlsNetlistBuilder"):
         self.builder = b
@@ -76,13 +75,13 @@ class HlsNetlistCtx(AnalysisCache):
         """
         return chain(self.inputs, self.nodes, self.outputs)
 
-    def iterAllNodesFlat(self):
+    def iterAllNodesFlat(self, itTy: NODE_ITERATION_TYPE):
         """
         :returns: iterator of all non aggregate nodes on any level of hierarchy
         """
         for n in self.iterAllNodes():
-            yield from n.iterAllNodesFlat()
-
+            yield from n.iterAllNodesFlat(itTy)
+        
     def schedule(self):
         self.scheduler.schedule()
 
@@ -93,7 +92,7 @@ class HlsNetlistCtx(AnalysisCache):
             self.outputs[:] = (n for n in self.outputs if n not in removed)
             if recursive:
                 for n in self.iterAllNodes():
-                    if isinstance(HlsNetNodeAggregate):
+                    if isinstance(n, HlsNetNodeAggregate):
                         n.filterNodesUsingSet(removed, recursive=recursive)
 
             removed.clear()

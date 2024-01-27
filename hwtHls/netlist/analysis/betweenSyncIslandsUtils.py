@@ -1,6 +1,9 @@
+from itertools import chain
+
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.schedulableNode import SchedTime
 
 
 class BetweenSyncIsland():
@@ -36,15 +39,15 @@ class BetweenSyncIsland():
         yield from self.nodes
         yield from self.outputs
 
+    def getScheduledClkTimes(self, normalizedClkPeriod: SchedTime):
+        clks = set()
+        for n in self.iterAllNodes():
+            n: HlsNetNode
+            clks.update(t // normalizedClkPeriod for t in chain(n.scheduledIn, n.scheduledOut, (n.scheduledZero,)))
+        return clks
+
     def __repr__(self):
         return (f"<{self.__class__.__name__:s} i={[n._id for n in self.inputs]} "
                 f"o={[n._id for n in self.outputs]} "
                 f"nodeCnt={len(self.nodes)}>")
 
-
-def BetweenSyncIsland_getScheduledClkTimes(isl: BetweenSyncIsland, normalizedClkPeriod: int):
-    clks = set()
-    for n in isl.iterAllNodes():
-        n: HlsNetNode
-        clks.add(n.scheduledZero // normalizedClkPeriod)
-    return clks

@@ -9,11 +9,12 @@ from hwtHls.netlist.nodes.node import HlsNetNode_numberForEachInput, \
     HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
-from hwtHls.netlist.nodes.schedulableNode import OutputTimeGetter, OutputMinUseTimeGetter,\
+from hwtHls.netlist.nodes.schedulableNode import OutputTimeGetter, OutputMinUseTimeGetter, \
     SchedTime
 from hwtHls.netlist.scheduler.clk_math import start_of_next_clk_period, \
     indexOfClkPeriod
 from hwtHls.netlist.scheduler.errors import TimeConstraintError
+from hwtHls.typingFuture import override
 
 
 class HlsNetNodeBitwiseOps(HlsNetNodeAggregate):
@@ -135,6 +136,7 @@ class HlsNetNodeBitwiseOps(HlsNetNodeAggregate):
 
         return node.scheduledOut, totalInputCnt
 
+    @override
     def scheduleAsap(self,
                      pathForDebug: Optional[UniqList["HlsNetNode"]],
                      beginOfFirstClk: SchedTime,
@@ -159,7 +161,7 @@ class HlsNetNodeBitwiseOps(HlsNetNodeAggregate):
                     o._setScheduleZero(scheduledOut[0])
 
                 self.scheduledIn = tuple(i.scheduledOut[0] for i in self._inputsInside)
-                self.scheduledZero = min(self.scheduledIn)
+                self.scheduledZero = max(self.scheduledIn)
                 self.scheduledOut = tuple(o.scheduledIn[0] for o in self._outputsInside)
             finally:
                 if pathForDebug is not None:
@@ -239,6 +241,7 @@ class HlsNetNodeBitwiseOps(HlsNetNodeAggregate):
                     self.scheduleAlapCompactionForOutput(dep, clkBoundaryTime,
                                                              currentInputs, outputMinUseTimeGetter)
 
+    @override
     def scheduleAlapCompaction(self,
                                endOfLastClk: SchedTime,
                                outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter]) -> Generator["HlsNetNode", None, None]:

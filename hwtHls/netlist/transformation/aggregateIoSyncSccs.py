@@ -20,15 +20,15 @@ class HlsNetlistPassAggregateIoSyncSccs(HlsNetlistPass):
     def apply(self, hls: "HlsScope", netlist: HlsNetlistCtx):
         removedNodes: Set[HlsNetNode] = set()
         syncDomains:HlsNetlistAnalysisPassSyncDomains = netlist.getAnalysis(HlsNetlistAnalysisPassSyncDomains)
-        hierachy: HlsNetlistAnalysisPassNodeParentAggregate = netlist.getAnalysis(HlsNetlistAnalysisPassNodeParentAggregate)
+        hierarchy: HlsNetlistAnalysisPassNodeParentAggregate = netlist.getAnalysis(HlsNetlistAnalysisPassNodeParentAggregate)
         updatedAggregateNodes: List[HlsNetNodeAggregate] = []
         try:
             # discover clusters of bitwise operators
             for scc in syncDomains.ioSccs:
                 c: HlsNetlistClusterSearch = HlsNetlistClusterSearch.discoverFromNodeList(scc)
                 assert c.nodes, "Each cluster needs to have some nodes"
-                hierarchyPath = hierachy.nodePath[c.nodes[0]]
-                nodesOnSameHierarchyLevel = hierachy.nodeHieararchy[hierarchyPath]
+                hierarchyPath = hierarchy.nodePath[c.nodes[0]]
+                nodesOnSameHierarchyLevel = hierarchy.nodeHieararchy[hierarchyPath]
                 for otherNode in islice(c.nodes, 1, None):
                     # :note: hierarchy should be build in a way that this assert is satisfied
                     assert otherNode in nodesOnSameHierarchyLevel, (

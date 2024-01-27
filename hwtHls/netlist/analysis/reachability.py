@@ -6,13 +6,14 @@ from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
-from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.hdlTypeVoid import HdlType_isNonData, HVoidData, \
     HdlType_isVoid
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.observableList import ObservableList, ObservableListRm
+from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
 
 
 def iterUserObjs(n: HlsNetNode):
@@ -60,6 +61,12 @@ ReachDict = Dict[NodeOrPort, Set[NodeOrPort]]
 
 
 class HlsNetlistAnalysisPassReachability(HlsNetlistAnalysisPass):
+    """
+    This analysis is used to query reachability in netlist.
+    It is typically used to query if some nodes are transitively connected or to reconstruct pseudo order of nodes. 
+    
+    :note: This analysis mostly ignores netlist hierarchy and uses only leaf nodes and ports.
+    """
 
     def __init__(self, netlist:"HlsNetlistCtx", removed: Optional[Set[HlsNetNode]]=None):
         HlsNetlistAnalysisPass.__init__(self, netlist)
@@ -87,12 +94,29 @@ class HlsNetlistAnalysisPassReachability(HlsNetlistAnalysisPass):
     @classmethod
     def _initSetDict(cls, netlist:"HlsNetlistCtx", removed: Optional[Set[HlsNetNode]]) -> ReachDict:
         d: ReachDict = {}
-        for n in netlist.iterAllNodes():
+        for n in netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.OMMIT_PARENT):
             if removed is not None and n in removed:
                 continue
             cls._registerNodeInSetDict(n, d)
 
         return d
+
+    @staticmethod
+    def _flattenNodeOrPort(p: NodeOrPort) -> NodeOrPort:
+        while True:
+            if isinstance(p, HlsNetNodeIn):
+                if isinstance(p.obj, HlsNetNodeAggregate):
+                    p = p.obj._inputsInside[p.in_i]._outputs[0]
+                else:
+                    return p
+            elif isinstance(p, HlsNetNodeOut):
+                if isinstance(p.obj, HlsNetNodeAggregate):
+                    p = p.obj._outputsInside[p.out_i]._inputs[0]
+                else:
+                    return p
+            else:
+                assert isinstance(p, HlsNetNode) and not isinstance(p, HlsNetNodeAggregate), p
+                return p
 
     def doesReachToPorts(self, src: NodeOrPort, ports: List[HlsNetNodeOut]):
         for p in ports:
@@ -101,10 +125,14 @@ class HlsNetlistAnalysisPassReachability(HlsNetlistAnalysisPass):
         return False
 
     def doesReachTo(self, src:NodeOrPort, dst:NodeOrPort):
+        src = self._flattenNodeOrPort(src)
+        dst = self._flattenNodeOrPort(dst)
         sucs = self._anySuccessors[src]
         return dst in sucs
 
     def doesReachToControl(self, src:HlsNetNode, dst:HlsNetNodeExplicitSync):
+        src = self._flattenNodeOrPort(src)
+        dst = self._flattenNodeOrPort(dst)
         sucs = self._anySuccessors[src]
         for i in (dst.extraCond, dst.skipWhen):
             if i is not None and i in sucs:
@@ -114,6 +142,8 @@ class HlsNetlistAnalysisPassReachability(HlsNetlistAnalysisPass):
         # return src in self._controlPredecessors[dst]
 
     def doesReachToData(self, src:HlsNetNode, dst:HlsNetNode):
+        src = self._flattenNodeOrPort(src)
+        dst = self._flattenNodeOrPort(dst)
         return dst in self._dataSuccessors[src]
 
     def doesUseControlOf(self, n: HlsNetNodeExplicitSync, user: HlsNetNode):
@@ -286,6 +316,7 @@ class HlsNetlistAnalysisPassReachability(HlsNetlistAnalysisPass):
                 raise NotImplementedError(n, index, val)
 
     def _updateAfterLinkAdd(self, o: HlsNetNodeOut, i: HlsNetNodeIn):
+        o = self._flattenNodeOrPort(o)
         self._propagateSuccessorAddMany(o, self._anySuccessors, False)
         if not HdlType_isNonData(o._dtype):
             self._propagateSuccessorAddMany(o, self._dataSuccessors, True)
@@ -299,6 +330,9 @@ class HlsNetlistAnalysisPassReachability(HlsNetlistAnalysisPass):
     def _propagateSuccessorAddMany(cls, updatedO: HlsNetNodeOut,
                            dictToUpdate: Dict[NodeOrPort, Set[Tuple[NodeOrPort, bool]]],
                            ommitNonData: bool):
+        """
+        :attention: updatedO must be flattened (not a port of HlsNetNodeAggregate)
+        """
         curSucc = dictToUpdate.get(updatedO, None)
         if curSucc is None:
             # this is newly added output port
@@ -309,7 +343,8 @@ class HlsNetlistAnalysisPassReachability(HlsNetlistAnalysisPass):
 
             realSucc = set()
             for u in updatedO.obj.usedBy[updatedO.out_i]:
-                realSucc.update(dictToUpdate[u]) # KeyError means that the node is not registered in this analysis
+                u = cls._flattenNodeOrPort(u)
+                realSucc.update(dictToUpdate[u])  # KeyError means that the node is not registered in this analysis
 
             sucToUpdate = realSucc.difference(curSucc)
 
@@ -321,13 +356,16 @@ class HlsNetlistAnalysisPassReachability(HlsNetlistAnalysisPass):
                             beginOfPropagation: NodeOrPort,
                             dictToUpdate: Dict[NodeOrPort, Set[Tuple[NodeOrPort, bool]]],
                             ommitNonData: bool):
+        """
+        :attention: newSuc, beginOfPropagation must be flattened (not a port of HlsNetNodeAggregate)
+        """
         # startingNode = sucO.obj
         toSearch: UniqList[NodeOrPort] = UniqList((beginOfPropagation,))
         while toSearch:
-            n = toSearch.pop()
+            nodeOrPort = toSearch.pop()
 
-            if n is not newSuc:
-                curSuccessors = dictToUpdate[n]
+            if nodeOrPort is not newSuc:
+                curSuccessors = dictToUpdate[nodeOrPort]
 
                 if newSuc in curSuccessors:
                     # end of propagation because suc is already marked as a successor
@@ -335,20 +373,28 @@ class HlsNetlistAnalysisPassReachability(HlsNetlistAnalysisPass):
                 else:
                     curSuccessors.add(newSuc)
 
-            if isinstance(n, HlsNetNodeIn):
+            if isinstance(nodeOrPort, HlsNetNodeIn):
                 # walk from input to connected output of other node
-                dep = n.obj.dependsOn[n.in_i]
-                if dep is None or (ommitNonData and HdlType_isNonData(dep._dtype)):
+                dep = nodeOrPort.obj.dependsOn[nodeOrPort.in_i]
+                if dep is None:
                     continue
+                if ommitNonData and HdlType_isNonData(dep._dtype):
+                    continue
+                dep = cls._flattenNodeOrPort(dep)
                 toSearch.append(dep)
 
-            elif isinstance(n, HlsNetNodeOut):
+            elif isinstance(nodeOrPort, HlsNetNodeOut):
                 # walk from output node to node itself
-                toSearch.append(n.obj)
+                if isinstance(nodeOrPort.obj, HlsNetNodeAggregate):
+                    aggregatePort = nodeOrPort.obj._outputsInside[nodeOrPort.out_i]
+                    toSearch.append(aggregatePort)
+
+                else:
+                    toSearch.append(nodeOrPort.obj)
 
             else:
                 # walk from node to its inputs
-                toSearch.extend(i for i in n._inputs)
+                toSearch.extend(i for i in nodeOrPort._inputs)
 
     @classmethod
     def _propagateSuccessorRemove(cls,
@@ -356,30 +402,33 @@ class HlsNetlistAnalysisPassReachability(HlsNetlistAnalysisPass):
                                   removedI: HlsNetNodeIn,
                                   dictToUpdate: Dict[NodeOrPort, Set[Tuple[NodeOrPort, bool]]],
                                   ommitNonData: bool):
+        """
+        :attention: o, removedI must be flattened (not a port of HlsNetNodeAggregate)
+        """
         toSearch: UniqList[NodeOrPort] = UniqList((o,))
         while toSearch:
-            n = toSearch.pop()
-            curSuccessors = dictToUpdate[n]
+            nodeOrPort = toSearch.pop()
+            curSuccessors = dictToUpdate[nodeOrPort]
 
-            if isinstance(n, HlsNetNodeIn):
+            if isinstance(nodeOrPort, HlsNetNodeIn):
                 # walk from input to connected output of other node
-                newSuccessors = dictToUpdate[n.obj]
-                if newSuccessors.symmetric_difference(curSuccessors) != {n.obj, }:
+                newSuccessors = dictToUpdate[nodeOrPort.obj]
+                if newSuccessors.symmetric_difference(curSuccessors) != {nodeOrPort.obj, }:
                     continue
                 else:
-                    d = dictToUpdate[n] = copy(newSuccessors)
-                    d.add(n.obj)
+                    d = dictToUpdate[nodeOrPort] = copy(newSuccessors)
+                    d.add(nodeOrPort.obj)
 
-                dep = n.obj.dependsOn[n.in_i]
+                dep = nodeOrPort.obj.dependsOn[nodeOrPort.in_i]
                 if dep is None or (ommitNonData and HdlType_isNonData(dep._dtype)):
                     continue
 
                 toSearch.append(dep)
 
-            elif isinstance(n, HlsNetNodeOut):
+            elif isinstance(nodeOrPort, HlsNetNodeOut):
                 # walk from output node to node itself
                 newSuccessors = set()
-                for u in n.obj.usedBy[n.out_i]:
+                for u in nodeOrPort.obj.usedBy[nodeOrPort.out_i]:
                     newSuccessors.add(u)
                     sucs = dictToUpdate.get(u, None)
                     if sucs is None:
@@ -392,17 +441,17 @@ class HlsNetlistAnalysisPassReachability(HlsNetlistAnalysisPass):
                 if newSuccessors == curSuccessors:
                     continue
                 else:
-                    dictToUpdate[n] = newSuccessors
+                    dictToUpdate[nodeOrPort] = newSuccessors
 
-                toSearch.append(n.obj)
+                toSearch.append(nodeOrPort.obj)
 
             else:
                 newSuccessors = set()
-                for o in n._outputs:
+                for o in nodeOrPort._outputs:
                     sucs = dictToUpdate.get(o, None)
                     if sucs is None:
                         uses = set()
-                        for u in n.usedBy[o.out_i]:
+                        for u in nodeOrPort.usedBy[o.out_i]:
                             uses.update(dictToUpdate[u])
                             uses.add(u)
                         sucs = dictToUpdate[o] = uses
@@ -412,10 +461,10 @@ class HlsNetlistAnalysisPassReachability(HlsNetlistAnalysisPass):
                 if newSuccessors == curSuccessors:
                     continue
                 else:
-                    dictToUpdate[n] = newSuccessors
+                    dictToUpdate[nodeOrPort] = newSuccessors
 
                 # walk from node to its inputs
-                for i in n._inputs:
+                for i in nodeOrPort._inputs:
                     toSearch.append(i)
 
     @staticmethod
@@ -465,6 +514,8 @@ class HlsNetlistAnalysisPassReachability(HlsNetlistAnalysisPass):
             if n in seen:
                 continue
             seen.add(n)
+            assert not isinstance(n, HlsNetNodeAggregate), n
+
             nIsSync = isinstance(n, HlsNetNodeExplicitSync)
             if nIsSync:
                 ec = n.extraCond
@@ -475,6 +526,7 @@ class HlsNetlistAnalysisPassReachability(HlsNetlistAnalysisPass):
             for i, dep in zip(n._inputs, n.dependsOn):
                 if i is ec or i is sw or dep is None or HdlType_isNonData(dep._dtype) or cls._isValidNB(dep):
                     continue
+                dep = cls._flattenNodeOrPort(dep)
                 depObj = dep.obj
                 yield depObj
                 if not isinstance(depObj, HlsNetNodeExplicitSync):
@@ -491,11 +543,13 @@ class HlsNetlistAnalysisPassReachability(HlsNetlistAnalysisPass):
             n = toSearch.pop()
             if n in seen:
                 continue
+            assert not isinstance(n, HlsNetNodeAggregate), n
 
             seen.add(n)
             for dep in n.dependsOn:
                 if dep is None or HdlType_isNonData(dep._dtype):
                     continue
+                dep = cls._flattenNodeOrPort(dep)
                 depObj = dep.obj
                 if depObj in blacklist:
                     continue
@@ -532,6 +586,7 @@ class HlsNetlistAnalysisPassReachability(HlsNetlistAnalysisPass):
             if n in seen:
                 continue
             seen.add(n)
+            assert not isinstance(n, HlsNetNodeAggregate), n
 
             if isinstance(n, HlsNetNodeRead):
                 validNb = n._validNB
@@ -544,6 +599,7 @@ class HlsNetlistAnalysisPassReachability(HlsNetlistAnalysisPass):
                 for u in uses:
                     if cls._isExtraCondOrSkipWhen(u):
                         continue
+                    u = cls._flattenNodeOrPort(u)
                     uObj = u.obj
                     yield uObj
                     if not isinstance(uObj, HlsNetNodeExplicitSync):
@@ -564,11 +620,14 @@ class HlsNetlistAnalysisPassReachability(HlsNetlistAnalysisPass):
             if n in seen:
                 continue
             seen.add(n)
+            assert not isinstance(n, HlsNetNodeAggregate), n
 
             for o, uses in zip(n._outputs, n.usedBy):
                 if HdlType_isNonData(o._dtype):
                     continue
+
                 for u in uses:
+                    u = cls._flattenNodeOrPort(u)
                     uObj = u.obj
                     if uObj in blacklist:
                         continue
@@ -582,7 +641,7 @@ class HlsNetlistAnalysisPassReachability(HlsNetlistAnalysisPass):
         dataSuccessors = self._dataSuccessors = self._initSetDict(self.netlist, removed)
         anySuccessors = self._anySuccessors = self._initSetDict(self.netlist, removed)
 
-        for n in self.netlist.iterAllNodes():
+        for n in self.netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.OMMIT_PARENT):
             if removed is not None and n in removed:
                 continue
 

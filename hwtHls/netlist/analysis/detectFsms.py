@@ -3,20 +3,21 @@ from typing import List, Set, Union, Dict, Tuple, Callable, Optional
 
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
-# from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.netlist.analysis.betweenSyncIslands import HlsNetlistAnalysisPassBetweenSyncIslands, \
     BetweenSyncIsland
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.analysis.ioDiscover import HlsNetlistAnalysisPassIoDiscover
+from hwtHls.netlist.nodes.loopChannelGroup import LoopChanelGroup
 from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
 from hwtHls.netlist.nodes.node import HlsNetNode, HlsNetNodePartRef
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
+from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import start_clk
-from hwtHls.netlist.nodes.loopChannelGroup import LoopChanelGroup
 
 
+# from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 class IoFsm():
     """
     :ivar intf: An interface instance for which this FSM is generated for. For debugging purposes.
@@ -31,10 +32,6 @@ class IoFsm():
     def __init__(self, intf: Optional[Interface], syncIslands: UniqList[BetweenSyncIsland]):
         self.intf = intf
         self.states: List[List[HlsNetNode]] = []
-        # :ivar stateClkI: maps the state index to an index of clk tick where the state was originally scheduled
-        # :ivar clkIToStateI: reverse map of stateClkI
-        # self.stateClkI: Dict[int, int] = {}
-        # self.clkIToStateI: Dict[int, int] = {}
         self.syncIslands = syncIslands
 
     def addState(self, clkI: int):
@@ -133,7 +130,7 @@ class HlsNetlistAnalysisPassDetectFsms(HlsNetlistAnalysisPass):
             self._floodNetInClockCyclesWalkDepsAndUses(node, alreadyUsed, predicate, fsm, seenInClks)
 
     def _appendNodeToState(self, clkI: int, n: HlsNetNode, stateNodeList: List[HlsNetNode],):
-        clkPeriod: int = self.netlist.normalizedClkPeriod
+        clkPeriod: SchedTime = self.netlist.normalizedClkPeriod
         # add nodes to st while asserting that it is from correct time
         if isinstance(n, HlsNetNodePartRef):
             if n._subNodes:
@@ -172,7 +169,7 @@ class HlsNetlistAnalysisPassDetectFsms(HlsNetlistAnalysisPass):
 
         return inFsm, inFsmNodeParts
 
-    def _getClkIOfAccess(self, a: Union[HlsNetNodeRead, HlsNetNodeWrite], clkPeriod: int):
+    def _getClkIOfAccess(self, a: Union[HlsNetNodeRead, HlsNetNodeWrite], clkPeriod: SchedTime):
         return start_clk(a.scheduledIn[0] if a.scheduledIn else a.scheduledOut[0], clkPeriod)
 
     def _discardIncompatibleNodes(self, fsm: IoFsm):
@@ -213,7 +210,7 @@ class HlsNetlistAnalysisPassDetectFsms(HlsNetlistAnalysisPass):
         ioDiscovery: HlsNetlistAnalysisPassIoDiscover = self.netlist.getAnalysis(HlsNetlistAnalysisPassIoDiscover)
         ioByInterface = ioDiscovery.ioByInterface
         syncIslands: HlsNetlistAnalysisPassBetweenSyncIslands = self.netlist.getAnalysis(HlsNetlistAnalysisPassBetweenSyncIslands)
-        clkPeriod: int = self.netlist.normalizedClkPeriod
+        clkPeriod: SchedTime = self.netlist.normalizedClkPeriod
 
         def floodPredicateExcludeOtherIoWithOwnFsm(n: HlsNetNode):
             if isinstance(n, HlsNetNodeRead):

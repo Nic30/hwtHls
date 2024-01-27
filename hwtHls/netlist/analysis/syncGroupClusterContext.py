@@ -134,7 +134,7 @@ class SyncGroupClusterContext():
                             continue
 
                         g.add_edge(extraSync, op)
-                    for e in chain(op.fromEnter, op.fromReenter, op.fromExitToHeaderNotify):
+                    for e in op.iterConnectedChannelGroups():
                         # add edge to enter reads so they are in same SCC
                         g.add_edge(e.getChannelWhichIsUsedToImplementControl().associatedRead, op)
 
