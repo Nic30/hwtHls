@@ -28,7 +28,7 @@ Circuit synchronization partitioning problem:
       which are subject to some kind of combinatioanal loop later in architecture generation.
   * HlsNetlistAnalysisPassBetweenSyncIslands - A pass which discovers nodes in the body of the IO cluster. Produces BetweenSyncIsland.
 
-* An information form previously mentioned objects is then used to construct :class:`hwtHls.architecture.archElement.ArchElement` instances.
+* An information form previously mentioned objects is then used to construct :class:`hwtHls.netlist.nodes.archElement.ArchElement` instances.
 
 https://math.stackexchange.com/questions/3836719/dag-decomposition-into-parallel-components
 https://en.wikipedia.org/wiki/Series%E2%80%93parallel_graph
