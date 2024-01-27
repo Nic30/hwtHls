@@ -10,7 +10,7 @@ from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeReadAnyChannel, \
     HlsNetNodeWriteAnyChannel, LoopChanelGroup
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.orderable import _HVoidValue, HVoidOrdering, \
+from hwtHls.netlist.hdlTypeVoid import _HVoidValue, HVoidOrdering, \
     HdlType_isNonData, HdlType_isVoid
 from hwtHls.netlist.nodes.ports import unlink_hls_nodes, \
     link_hls_nodes, unlink_hls_node_input_if_exists,\

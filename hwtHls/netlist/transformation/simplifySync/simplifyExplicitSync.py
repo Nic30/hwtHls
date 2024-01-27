@@ -7,7 +7,7 @@ from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.orderable import HVoidData
+from hwtHls.netlist.hdlTypeVoid import HVoidData
 from hwtHls.netlist.nodes.ports import unlink_hls_nodes, HlsNetNodeOut, \
     link_hls_nodes, _getPortDrive
 from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import netlistExplicitSyncDisconnectFromOrderingChain

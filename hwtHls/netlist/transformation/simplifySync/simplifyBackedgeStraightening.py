@@ -9,7 +9,7 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import unlink_hls_nodes, HlsNetNodeOut, \
     HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
-from hwtHls.netlist.nodes.orderable import HVoidData
+from hwtHls.netlist.hdlTypeVoid import HVoidData
 from hwtHls.netlist.transformation.simplifyUtils import addAllUsersToWorklist
 from hwtHls.netlist.transformation.simplifySync.reduceChannelGroup import netlistTryRemoveChannelGroup
 

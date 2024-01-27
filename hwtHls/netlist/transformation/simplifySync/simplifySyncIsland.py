@@ -14,7 +14,7 @@ from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.orderable import HVoidData
+from hwtHls.netlist.hdlTypeVoid import HVoidData
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, unlink_hls_nodes, link_hls_nodes
 from hwtHls.netlist.transformation.simplifySync.simplifyExplicitSync import netlistReduceExplicitSyncWithoutInput, \
     extendSyncFlagsFromMultipleParallel, _getPortDrive
@@ -137,12 +137,12 @@ def netlistReduceExplicitSyncDissolve(
                     allSuccHoistable = False
 
             if anySyncToRm and allSuccHoistable:
-                dbgTracer.log((sucs, i), lambda x: f"hoist control from {[o._id for o in x[0]]} to {x[1]._id}")
+                dbgTracer.log((sucs, i), lambda x: f"hoist control from {[o._id for o in x[0]]} to {x[1]._id:d}")
                 extendSyncFlagsFromMultipleParallel(sucs, i, worklist)
                 for outNode in sucs:
                     if outNode.__class__ is HlsNetNodeExplicitSync:
                         # [todo] only if hoisted to every predecessor
-                        # disconnect void data channels from outNode and connect them to all succesors of outNode
+                        # disconnect void data channels from outNode and connect them to all successors of outNode
                         iVoid = i.getDataVoidOutPort()
                         successors: UniqList[HlsNetNodeExplicitSync] = UniqList()
 
@@ -187,7 +187,7 @@ def netlistReduceExplicitSyncDissolve(
                 modified = True
             # elif len(seenInputs) == 1 and len(seenOutputs) > 1 and all(o.__class__ is HlsNetNodeExplicitSync and o.dependsOn[0].obj is seenInputs[0] for o in seenOutputs):
             #    i = seenInputs[0]
-            #    dbgTracer.log((i, seenOutputs), lambda x: f"merge parallel outputs of {x[0]._id} {[o._id for o in x[1]]}")
+            #    dbgTracer.log((i, seenOutputs), lambda x: f"merge parallel outputs of {x[0]._id:d} {[o._id for o in x[1]]}")
             #    dstO: HlsNetNodeExplicitSync = seenOutputs[0]
             #    ec, sw = mergeSyncFlagsFromMultipleParallel(seenOutputs, worklist)
             #    for syncFlag in (dstO.extraCond, dstO.skipWhen):

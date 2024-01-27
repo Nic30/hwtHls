@@ -1,15 +1,16 @@
 from typing import Set, Sequence, Optional, Tuple
 
 from hwt.pyUtils.uniqList import UniqList
+from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 from hwtHls.netlist.debugTracer import DebugTracer
+from hwtHls.netlist.hdlTypeVoid import HdlType_isNonData, HVoidOrdering, \
+    HdlType_isVoid, _HVoidOrdering
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.orderable import HdlType_isNonData, HVoidOrdering, \
-    HdlType_isVoid, _HVoidOrdering, HlsNetNodeOrderable
+from hwtHls.netlist.nodes.orderable import HlsNetNodeOrderable
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, link_hls_nodes, \
     HlsNetNodeOut, unlink_hls_nodes, HlsNetNodeOutLazy
-from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 
 
 def netlistExplicitSyncDisconnectFromOrderingChain(dbgTracer: DebugTracer, n: HlsNetNodeOrderable,
