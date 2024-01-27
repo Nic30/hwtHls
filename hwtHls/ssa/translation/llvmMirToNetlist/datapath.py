@@ -15,7 +15,7 @@ from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge
-from hwtHls.netlist.nodes.orderable import HVoidData
+from hwtHls.netlist.hdlTypeVoid import HVoidData
 from hwtHls.netlist.nodes.ports import link_hls_nodes, HlsNetNodeOut, \
     HlsNetNodeOutLazy
 from hwtHls.ssa.translation.llvmMirToNetlist.branchOutLabel import BranchOutLabel
@@ -24,6 +24,7 @@ from hwtHls.ssa.translation.llvmMirToNetlist.lowLevel import HlsNetlistAnalysisP
 from hwtHls.ssa.translation.llvmMirToNetlist.machineEdgeMeta import MachineEdgeMeta, MACHINE_EDGE_TYPE
 from hwtHls.ssa.translation.llvmMirToNetlist.utils import LiveInMuxMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
+from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
 
 BlockLiveInMuxSyncDict = Dict[Tuple[MachineBasicBlock, MachineBasicBlock, Register], HlsNetNodeExplicitSync]
 
@@ -281,13 +282,17 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                 if edgeMeta.etype == MACHINE_EDGE_TYPE.BACKWARD:
                     v = self.builder.buildConst(HVoidData.from_py(None))
                     v = self._constructBackedgeBuffer("c", predMb, sucMb, (predMb, sucMb), v, isControl=True)
-                    wn = v.obj.associatedWrite
+                    wn: HlsNetNodeWriteBackedge = v.obj.associatedWrite
+                    if edgeMeta.inlineRstDataFromEdge is not None:
+                        wn.channelInitValues = (tuple(), )
                     edgeMeta.loopChannelGroupAppendWrite(wn, True)
 
                 elif edgeMeta.etype == MACHINE_EDGE_TYPE.FORWARD:
                     name = f"bb{predMb.getNumber()}_to_bb{sucMb.getNumber()}_c"
                     v = self.builder.buildConst(HVoidData.from_py(None))
                     wn, rn = HlsNetNodeWriteForwardedge.createPredSucPair(self.netlist, name, HVoidData)
+                    if edgeMeta.inlineRstDataFromEdge is not None:
+                        raise NotImplementedError()
                     link_hls_nodes(v, wn._inputs[0])
                     v = rn._outputs[0]
                     edgeMeta.loopChannelGroupAppendWrite(wn, True)

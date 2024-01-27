@@ -57,6 +57,17 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
         and it can be only obtained once datapath in blocks was constructed.
         :see: :class:`~.HlsNetlistAnalysisPassDataThreadsForBlocks`
     '''
+    _CONSTANT_OPCODES = {TargetOpcode.G_CONSTANT, TargetOpcode.HWTFPGA_BR, TargetOpcode.HWTFPGA_ARG_GET}
+
+    @classmethod
+    def _blockCanBeInlinedAsReset(cls, mb: MachineBasicBlock):
+        for mi in mb:
+            mi: MachineInstr
+            opc = mi.getOpcode()
+            if opc not in cls._CONSTANT_OPCODES:
+                return False
+
+        return True
 
     def _resolveRstPredecessor(self, mb: MachineBasicBlock,
                                mbSync: MachineBasicBlockMeta,
@@ -77,22 +88,30 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
             mostOuterOuterPred = None
             for pred in mb.predecessors():
                 # one of predecessors may possibly be suitable for reset extraction
-                if pred.pred_size() == 0:
+                if pred.pred_size() == 0 and self._blockCanBeInlinedAsReset(pred):
                     if p0 is not None:
                         # there are multiple enters from bb0 we can not extract and this should be already optimized away
-                        return mbSync.rstPredeccessor
+                        return None
                     p0 = pred
+
                 elif not topLoop.containsBlock(pred):
                     # can not extract because this in not top loop
-                    return mbSync.rstPredeccessor
+                    return None
+
                 else:
                     mostOuterOuterPred = pred
-            assert mostOuterOuterPred is not None
+
+            if p0 is None:
+                # Can not find rst predecessor to inline for mb
+                return None
+
+            assert mostOuterOuterPred is not None, ("Can not find block where to inline initialization for rst block for", mb)
 
             mbSync.rstPredeccessor = p0
             rstE: MachineEdgeMeta = self.edgeMeta[(p0, mb)]
             rstE.etype = MACHINE_EDGE_TYPE.RESET
             rstE.inlineRstDataToEdge = (mostOuterOuterPred, mb)
+            self.edgeMeta[rstE.inlineRstDataToEdge].inlineRstDataFromEdge = (p0, mb)
 
         return mbSync.rstPredeccessor
 
@@ -155,7 +174,7 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                             break
                     if not hasDedicatedExits:
                         break
-                    
+
             if hasDedicatedExits:
                 # make all jumps from exit blocks a forward or backward edge
                 for eBlock in exitBlocks:
@@ -481,8 +500,12 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                     e = (pred, mb)
                     eMeta: MachineEdgeMeta = self.edgeMeta[e]
                     eT = eMeta.etype
-                    if eT in (MACHINE_EDGE_TYPE.DISCARDED, MACHINE_EDGE_TYPE.FORWARD, MACHINE_EDGE_TYPE.RESET):
+                    if eT in (MACHINE_EDGE_TYPE.DISCARDED, MACHINE_EDGE_TYPE.RESET):
                         continue
+                    elif eT == MACHINE_EDGE_TYPE.FORWARD:
+                        # this loop is executed after some previous code, this loop needs to know that it needs to wait for it
+                        compatible = False
+                        break
                     elif eT == MACHINE_EDGE_TYPE.BACKWARD:
                         # backedge will be discarded if has no live ins
                         lives = mir.liveness[pred][mb]

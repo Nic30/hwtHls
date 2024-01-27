@@ -2,9 +2,9 @@ from enum import Enum
 from typing import Union, Optional, List, Tuple
 
 from hwtHls.llvm.llvmIr import MachineBasicBlock, Register
-from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.loopChannelGroup import LoopChanelGroup, \
     HlsNetNodeWriteAnyChannel
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 
 
 class MachineLoopId():
@@ -40,7 +40,7 @@ class MachineEdgeMeta():
     """
     A container for an information about the edge in Control Flow Graph
 
-    :ivar inlineRstDataToEdge: an edge where values comming on this edge should be inlide as a initialization of the buffers to implement loop in circuit.
+    :ivar inlineRstDataToEdge: an edge where values coming on this edge should be inlined as a initialization of the buffers to implement loop in circuit.
     :ivar reuseDataAsControl: the optional register which datachannel should be used to implement this control edge
     :ivar enteringLoops: loops which are entered if this control follows this edge
     :ivar reenteringLoops: loops which are reentered if this control follows this edge
@@ -55,6 +55,7 @@ class MachineEdgeMeta():
         self.dstBlock = dstBlock
         self.etype = etype
         self.inlineRstDataToEdge: Optional[MachineEdge] = None
+        self.inlineRstDataFromEdge: Optional[MachineEdge] = None
         self.reuseDataAsControl: Optional[Register] = None
         self.enteringLoops: List[MachineLoopId] = []
         self.reenteringLoops: List[MachineLoopId] = []
