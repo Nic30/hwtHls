@@ -10,6 +10,7 @@
 #include <hwtHls/llvm/llvmCompilationBundle.h>
 #include <hwtHls/llvm/targets/hwtFpga.h>
 #include <hwtHls/llvm/targets/Transforms/hwtFpgaToNetlist.h>
+#include <hwtHls/llvm/Transforms/dumpAndExitPass.h>
 
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/DerivedTypes.h>
@@ -122,6 +123,7 @@ void register_Types(pybind11::module_ & m) {
 // http://nondot.org/~sabre/LLVMNotes/TypeSystemChanges.txt
 PYBIND11_MODULE(llvmIr, m) {
 	hwtFpgaTargetInitialize();
+	py::register_local_exception<hwtHls::IntentionalCompilationInterupt>(m, "IntentionalCompilationInterupt", PyExc_RuntimeError);
 	py::class_<hwtHls::LlvmCompilationBundle>(m, "LlvmCompilationBundle")
 		.def(py::init<const std::string &>())
 		.def("addLlvmCliArgOccurence", &hwtHls::LlvmCompilationBundle::addLlvmCliArgOccurence)
