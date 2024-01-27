@@ -9,6 +9,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
 from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.ssa.translation.llvmMirToNetlist.branchOutLabel import BranchOutLabel
 
+
 MirValue = Union[Register, MachineBasicBlock, BranchOutLabel]
 
 
