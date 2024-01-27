@@ -43,7 +43,7 @@ class DebugTracer():
 
             out.write(objStr)
             if node is not None:
-                out.write(f"<{node._id}>")
+                out.write(f"<{node._id:d}>")
             out.write(":\n")
             self._labelPrinted[i] = True
 
