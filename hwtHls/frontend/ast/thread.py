@@ -1,4 +1,4 @@
-from typing import List, Optional, Tuple, Union
+from typing import List, Tuple, Union
 
 from hwt.hdl.types.hdlType import HdlType
 from hwt.interfaces.std import Signal, VldSynced
