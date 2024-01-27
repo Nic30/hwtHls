@@ -112,10 +112,15 @@ class HlsNetlistClusterSearch():
         """
         assert not n._inputs, (n, "Inputs are added in this function")
         assert not n._outputs, (n, "Outputs are added in this function")
-
+        isScheduled = self.nodes[0].scheduledOut is not None
         for outerOutput in self.inputs:
             outerOutput: HlsNetNodeOut
-            boundaryIn, boundaryInPort = n._addInput(outerOutput._dtype, outerOutput.name)
+            scheduledOut = outerOutput.obj.scheduledOut
+            time = None
+            if scheduledOut is not None:
+                time = scheduledOut[outerOutput.out_i]
+
+            boundaryIn, boundaryInPort = n._addInput(outerOutput._dtype, outerOutput.name, time)
             # assert outerOutput.obj in outerOutput.obj.hls.nodes or outerOutput.obj in outerOutput.obj.hls.inputs or outerOutput.obj in outerOutput.obj.hls.outputs, outerOutput
             internInputs = self.inputsDict[outerOutput]
             oldUsedBy = outerOutput.obj.usedBy[outerOutput.out_i]
@@ -129,7 +134,10 @@ class HlsNetlistClusterSearch():
             for i in internInputs:
                 i.obj.dependsOn[i.in_i] = boundaryInPort
                 portUses.append(i)
-
+        if not self.inputs and isScheduled:
+            n.scheduledIn = ()
+            n.scheduledZero = min(subN.scheduledZero for subN in self.nodes)
+        
         clusterNodes = self.nodes
         for interOutput in self.outputs:
             # disconnect interOutput from all external inputs
@@ -137,8 +145,12 @@ class HlsNetlistClusterSearch():
 
             # if this is also an output from parent cluster
             # it should have only
+            scheduledOut = interOutput.obj.scheduledOut
+            time = None
+            if scheduledOut is not None:
+                time = scheduledOut[interOutput.out_i]
 
-            boundaryOut, boundaryOutPort = n._addOutput(interOutput._dtype, interOutput.name)
+            boundaryOut, boundaryOutPort = n._addOutput(interOutput._dtype, interOutput.name, time)
             # reconnect all external uses to a port on this aggregate
             newUsedBy = n.usedBy[boundaryOut.out_i]
             usedBy = interOutput.obj.usedBy[interOutput.out_i]
@@ -155,7 +167,9 @@ class HlsNetlistClusterSearch():
             newInterUses.append(boundaryOutPort)
             interOutput.obj.usedBy[interOutput.out_i] = newInterUses
             boundaryOutPort.obj.dependsOn[0] = interOutput
-
+        if not self.outputs and isScheduled:
+            n.scheduledOut = ()
+        
         # remove because the information is now store in node "n"
         self.inputs = None
         self.inputsDict = None
