@@ -10,7 +10,7 @@ from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
 from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge, \
     HlsNetNodeReadForwardedge
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.orderable import HVoidOrdering
+from hwtHls.netlist.hdlTypeVoid import HVoidOrdering
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOutLazy, \
     HlsNetNodeOutAny
 from hwtHls.netlist.nodes.read import HlsNetNodeRead

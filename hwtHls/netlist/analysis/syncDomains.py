@@ -10,7 +10,7 @@ from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.loopChannelGroup import LoopChanelGroup
 from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.orderable import HVoidOrdering, HVoidExternData
+from hwtHls.netlist.hdlTypeVoid import HVoidOrdering, HVoidExternData
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn
 
 

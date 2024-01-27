@@ -7,7 +7,7 @@ from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.analysis.schedule import HlsNetlistAnalysisPassRunScheduler
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
-from hwtHls.netlist.nodes.orderable import HVoidOrdering
+from hwtHls.netlist.hdlTypeVoid import HVoidOrdering
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync

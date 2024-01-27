@@ -13,7 +13,7 @@ from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlRes
 from hwtHls.netlist.analysis.detectFsms import HlsNetlistAnalysisPassDetectFsms, IoFsm
 from hwtHls.netlist.analysis.detectPipelines import HlsNetlistAnalysisPassDetectPipelines, \
     NetlistPipeline
-from hwtHls.netlist.nodes.orderable import HdlType_isVoid
+from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.scheduler.clk_math import start_clk
 from ipCorePackager.constants import INTF_DIRECTION

@@ -18,9 +18,9 @@ from hwtHls.io.portGroups import MultiPortGroup, BankedPortGroup
 from hwtHls.llvm.llvmIr import LoadInst, Register
 from hwtHls.llvm.llvmIr import MachineInstr
 from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.hdlTypeVoid import HVoidOrdering
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.node import HlsNetNodePartRef, HlsNetNode
-from hwtHls.netlist.nodes.orderable import HVoidOrdering
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes, \
     HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeReadIndexed
@@ -33,6 +33,8 @@ from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import Machin
 from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
 from hwtHls.ssa.value import SsaValue
+from hwtHls.typingFuture import override
+
 
 AnyBramPort = Union[BramPort_withoutClk, BankedPortGroup[BramPort_withoutClk], MultiPortGroup[BramPort_withoutClk]]
 

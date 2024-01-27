@@ -9,7 +9,7 @@ from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwtHls.netlist.nodes.orderable import HdlType_isNonData, HVoidData, \
+from hwtHls.netlist.hdlTypeVoid import HdlType_isNonData, HVoidData, \
     HdlType_isVoid
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.nodes.read import HlsNetNodeRead

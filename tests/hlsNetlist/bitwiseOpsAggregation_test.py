@@ -15,7 +15,7 @@ from hwtHls.frontend.netlist import HlsThreadFromNetlist
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.delay import HlsNetNodeDelayClkTick
-from hwtHls.netlist.nodes.orderable import HVoidOrdering
+from hwtHls.netlist.hdlTypeVoid import HVoidOrdering
 from hwtHls.netlist.nodes.ports import link_hls_nodes
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite

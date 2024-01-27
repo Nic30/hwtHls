@@ -7,7 +7,7 @@ from hwtHls.netlist.analysis.dataThreadsForBlocks import HlsNetlistAnalysisPassD
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.orderable import HVoidOrdering
+from hwtHls.netlist.hdlTypeVoid import HVoidOrdering
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutLazy
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.machineEdgeMeta import \

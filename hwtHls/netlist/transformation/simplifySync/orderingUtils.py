@@ -4,7 +4,7 @@ from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachabil
 from hwtHls.netlist.nodes.delay import HlsNetNodeDelayClkTick
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.orderable import HdlType_isNonData
+from hwtHls.netlist.hdlTypeVoid import HdlType_isNonData
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
     link_hls_nodes
 
