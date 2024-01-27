@@ -5,7 +5,6 @@ from io import StringIO
 import os
 
 from hwt.code import Concat
-from hwtHls.llvm.llvmIr import LlvmCompilationBundle, SMDiagnostic, parseIR
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.defs import BIT
 from hwt.interfaces.std import VectSignal, Signal
@@ -14,6 +13,7 @@ from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
+from hwtHls.llvm.llvmIr import LlvmCompilationBundle, SMDiagnostic, parseIR
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtHls.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
@@ -21,6 +21,7 @@ from hwtHls.ssa.translation.toLlvm import SsaPassToLlvm
 from tests.baseSsaTest import BaseSsaTC, TestFinishedSuccessfuly
 from tests.bitOpt.countBits import CountLeadingZeros
 from tests.llvmIr.slicesMergePass_test import generateAndAppendHwtHlsFunctionDeclarations
+
 
 class SliceBreakSlicedVar0(Unit):
 
@@ -200,7 +201,7 @@ class SlicesToIndependentVariablesPass_TC(BaseSsaTC):
             llvm.module = M
             llvm.main = fns[0]
             name = llvm.main.getName().str()
-    
+
         optF = llvm._testSlicesToIndependentVariablesPass()
         self.assert_same_as_file(repr(optF), os.path.join("data", self.__class__.__name__ + '.' + name + ".ll"))
 
@@ -263,6 +264,118 @@ class SlicesToIndependentVariablesPass_TC(BaseSsaTC):
         """
         self._test_ll_direct(llvmIr)
 
+    def test_phiLoop0(self):
+        llvmIr = """\
+        define void @test_phiLoop0(ptr addrspace(1) %i, ptr addrspace(2) %o) {
+        BB0:
+            %r = load volatile i8, ptr addrspace(1) %i, align 1
+            br label %BB1
+        BB1:
+            %phi = phi i8 [ %r, %BB0 ], [ %xor, %BB1 ]
+            %and = and i8 %phi, -2
+            %xor = xor i8 %and, -1
+            store volatile i8 %xor, ptr addrspace(2) %o, align 4
+            br label %BB1
+        }
+        """
+        self._test_ll_direct(llvmIr)
+
+    def test_phiLoopCutUpBit0(self):
+        llvmIr = """\
+        define void @test_phiLoopCutUpBit0(ptr addrspace(1) %i, ptr addrspace(2) %o) {
+        BB0:
+            %r = load volatile i8, ptr addrspace(1) %i, align 1
+            br label %BB1
+        BB1:
+            %phi = phi i8 [ %r, %BB0 ], [ %phiWithoutUpBitZext, %BB1 ]
+            store volatile i8 %phi, ptr addrspace(2) %o, align 4
+            %phiWithoutUpBit = call i7 @hwtHls.bitRangeGet.i8.i3.i7.0(i8 %phi, i3 0) #2
+            %phiWithoutUpBitZext = zext i7 %phiWithoutUpBit to i8
+            br label %BB1
+        }
+        """
+        self._test_ll_direct(llvmIr)
+
+    def test_phiLoopCutUpBit1(self):
+        llvmIr = """\
+        define void @test_phiLoopCutUpBit1(ptr addrspace(1) %i, ptr addrspace(2) %o) {
+        BB0:
+            %r = load volatile i8, ptr addrspace(1) %i, align 1
+            br label %BB1
+        BB1:
+            %phi = phi i8 [ %r, %BB0 ], [ %phiWithoutUpBitZext, %BB1 ]
+            %phiWithoutUpBit = call i7 @hwtHls.bitRangeGet.i8.i3.i7.0(i8 %phi, i3 0) #2
+            %phiWithoutUpBitZext = zext i7 %phiWithoutUpBit to i8
+            store volatile i8 %phiWithoutUpBitZext, ptr addrspace(2) %o, align 4
+            br label %BB1
+        }
+        """
+        self._test_ll_direct(llvmIr)
+    
+    def test_shiftInLoop0(self):
+        # store, >> 1
+        llvmIr = """\
+        define void @test_shiftInLoop0(ptr addrspace(1) %i, ptr addrspace(2) %o) {
+        BB0:
+            %r = load volatile i4, ptr addrspace(1) %i, align 1
+            br label %BB1
+        BB1:
+            %phi = phi i4 [ %r, %BB0 ], [ %phiSh, %BB1 ]
+            store volatile i4 %phi, ptr addrspace(2) %o, align 1
+            %phiShLow = call i3 @hwtHls.bitRangeGet.i4.i2.i3.0(i4 %phi, i2 1) #2
+            %phiSh = zext i3 %phiShLow to i4
+            br label %BB1
+        }
+        """
+        self._test_ll_direct(llvmIr)
+
+    def test_shiftInLoop1(self):
+        # >> 1, store
+        llvmIr = """\
+        define void @test_shiftInLoop1(ptr addrspace(1) %i, ptr addrspace(2) %o) {
+        BB0:
+            %r = load volatile i4, ptr addrspace(1) %i, align 1
+            br label %BB1
+        BB1:
+            %phi = phi i4 [ %r, %BB0 ], [ %phiSh, %BB1 ]
+            %phiShLow = call i3 @hwtHls.bitRangeGet.i4.i2.i3.0(i4 %phi, i2 1) #2
+            %phiSh = zext i3 %phiShLow to i4
+            store volatile i4 %phiSh, ptr addrspace(2) %o, align 1
+            br label %BB1
+        }
+        """
+        self._test_ll_direct(llvmIr)
+
+    def test_zextUle0(self):
+        llvmIr = """\
+        define void @test_zextUle0(ptr addrspace(1) %i, ptr addrspace(2) %o) {
+        BB0:
+            %r0 = load volatile i3, ptr addrspace(1) %i, align 1
+            %r1 = load volatile i5, ptr addrspace(1) %i, align 1
+            %zext = zext i3 %r0 to i5
+            %ule = icmp ule i5 %zext, %r1
+            store volatile i1 %ule, ptr addrspace(2) %o, align 1
+            ret void
+        }
+        """
+        self._test_ll_direct(llvmIr)
+
+    def test_zextUle1(self):
+        llvmIr = """\
+        define void @test_zextUle1(ptr addrspace(1) %i, ptr addrspace(2) %o) {
+        BB0:
+            %r0 = load volatile i3, ptr addrspace(1) %i, align 1
+            %r1 = load volatile i3, ptr addrspace(1) %i, align 1
+            %r1zext = call i5 @hwtHls.bitConcat.i2.i3(i2 0, i3 %r1) #2
+            %r0zext = zext i3 %r0 to i5
+            %ule = icmp ule i5 %r1zext, %r0zext
+            store volatile i1 %ule, ptr addrspace(2) %o, align 1
+            ret void
+        }
+        """
+        self._test_ll_direct(llvmIr)
+
+
 if __name__ == "__main__":
     # from hwt.synthesizer.utils import to_rtl_str
     # from hwtHls.platform.platform import HlsDebugBundle
@@ -271,7 +384,7 @@ if __name__ == "__main__":
 
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([SlicesToIndependentVariablesPass_TC('test_CountLeadingZeros')])
+    # suite = unittest.TestSuite([SlicesToIndependentVariablesPass_TC('test_zextUle0')])
     suite = testLoader.loadTestsFromTestCase(SlicesToIndependentVariablesPass_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
