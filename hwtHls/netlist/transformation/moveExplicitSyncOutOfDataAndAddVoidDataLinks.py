@@ -5,7 +5,7 @@ from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachabil
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
-from hwtHls.netlist.nodes.orderable import HVoidData
+from hwtHls.netlist.hdlTypeVoid import HVoidData
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, unlink_hls_nodes, \
     link_hls_nodes
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
