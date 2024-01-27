@@ -2,11 +2,10 @@ from typing import List, Tuple
 
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
-from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeWriteAnyChannel, \
-    LoopChanelGroup, LOOP_CHANEL_GROUP_ROLE
+from hwtHls.netlist.nodes.loopChannelGroup import LoopChanelGroup, LOOP_CHANEL_GROUP_ROLE
 from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.orderable import HdlType_isVoid
+from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 
 
 def netlistTryRemoveChannelGroup(chGroup: LoopChanelGroup,
@@ -37,8 +36,8 @@ def netlistTryRemoveChannelGroup(chGroup: LoopChanelGroup,
                         enterReplacement = builder.buildOrVariadic(tuple(e.getChannelWhichIsUsedToImplementControl().associatedRead.getValidNB() for e in exits))
                         e0: HlsNetNodeWriteBackedge = exits[0].getChannelWhichIsUsedToImplementControl()
                         assert HdlType_isVoid(e0.associatedRead._outputs[0]._dtype), (e0, "This must be of void type because it only triggers the loop exit")
-                        assert not e0.channelInitValues, (e0, e0.channelInitValues)
-                        e0.channelInitValues = ((),)
+                        # assert not e0.channelInitValues, (e0, e0.channelInitValues)
+                        # e0.channelInitValues = ((),)
                         loop._isEnteredOnExit = True
 
                     else:
