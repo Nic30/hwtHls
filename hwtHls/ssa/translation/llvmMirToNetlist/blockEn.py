@@ -308,6 +308,9 @@ def resolveBlockEn(self: "HlsNetlistAnalysisPassMirToNetlist", mf: MachineFuncti
 
         assert mbSync.blockEn.replaced_by is blockEn or not mbSync.blockEn.dependent_inputs, (mbSync.blockEn, blockEn)
         mbSync.blockEn = blockEn
-        if blockEn is not None and not isinstance(blockEn, HlsNetNodeOutLazy) and blockEn.obj.name is None and isinstance(blockEn.obj, HlsNetNodeOperator):
+        if (blockEn is not None and
+                not isinstance(blockEn, HlsNetNodeOutLazy) and
+                blockEn.obj.name is None and
+                isinstance(blockEn.obj, HlsNetNodeOperator)):
             blockEn.obj.name = f"bb{mb.getNumber():d}_en"
         _resolveBranchOutLabels(self, mb, mbSync, translatedBranchConditions[mb])
