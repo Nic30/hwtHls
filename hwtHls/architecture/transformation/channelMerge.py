@@ -7,22 +7,23 @@ from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.hdlType import HdlType
 from hwt.interfaces.hsStructIntf import HsStructIntf
+from hwt.interfaces.std import HandshakeSync
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.architecture.allocator import HlsAllocator
-from hwtHls.architecture.archElement import ArchElement
 from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
 from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 from hwtHls.netlist.builder import HlsNetlistBuilder
+from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.debugTracer import DebugTracer
+from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
+from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
     HlsNetNodeWriteBackedge
-from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeReadAnyChannel, \
-    HlsNetNodeWriteAnyChannel, LoopChanelGroup
 from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge, \
     HlsNetNodeWriteForwardedge
+from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeReadAnyChannel, \
+    HlsNetNodeWriteAnyChannel, LoopChanelGroup
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwtHls.netlist.nodes.orderable import HdlType_isVoid
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, unlink_hls_nodes, \
     link_hls_nodes, unlink_hls_node_input_if_exists, HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
@@ -30,6 +31,7 @@ from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
 from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import netlistExplicitSyncDisconnectFromOrderingChain
 from hwtHls.netlist.transformation.simplifyUtils import hasInputSameDriver
+
 
 AnyChannelIo = Union[HlsNetNodeRead, HlsNetNodeWrite]
 
@@ -49,13 +51,13 @@ class RtlArchPassChannelMerge(RtlArchPass):
     and do have same skipWhen and extraCond conditions.
 
     :note: It is important to reduce number of channels as much as possible
-        to reduce synchronisation complexity and to remove combinational loops
+        to reduce synchronization complexity and to remove combinational loops
         in handshake control logic.
     """
 
     def scheduleConcats(self, o: HlsNetNodeOut):
         """
-        Run scheduling on
+        Run scheduling on Concat (HlsNetNodeOperator) nodes which were just generated.
         """
         newlyScheduledNodes: List[HlsNetNode] = []
         n = o.obj
@@ -113,6 +115,7 @@ class RtlArchPassChannelMerge(RtlArchPass):
     def _resolveMergedChannelInitValuesOfWrites(self, writes: List[Union[HlsNetNodeWriteBackedge, HlsNetNodeWriteForwardedge]]):
         """
         Resolve concatenation of channel init values from write nodes.
+
         :note: the values will be concatenated in lsb first manner.
         :note: init value is expected to be in format ((,), ...) or ((v0,), ...) where v0 is int or BitsVal
         """
@@ -164,22 +167,28 @@ class RtlArchPassChannelMerge(RtlArchPass):
         r0.name = f"{newBuffName}_dst"
         r0OrigSrc = r0.src
         if r0.src is not None:
-            intf = HsStructIntf()
-            intf.T = newT
+            if HdlType_isVoid(newT):
+                intf = HandshakeSync()
+            else:
+                intf = HsStructIntf()
+                intf.T = newT
             r0.src = intf
 
         r0._outputs[0]._dtype = newT
-        
+
         w0.name = f"{newBuffName}_src"
         if w0.dst is not None:
             if w0.dst is r0OrigSrc:
                 w0.dst = r0.src
             else:
-                intf = HsStructIntf()
-                intf.T = newT
+                if HdlType_isVoid(newT):
+                    intf = HandshakeSync()
+                else:
+                    intf = HsStructIntf()
+                    intf.T = newT
                 w0.dst = intf
-        
-    def _removeIoNodesAfterTheyWereMergetToFirstOne(self, r0: HlsNetNodeReadAnyChannel,
+
+    def _removeIoNodesAfterTheyWereMergedToFirstOne(self, r0: HlsNetNodeReadAnyChannel,
                                                     w0: HlsNetNodeWriteAnyChannel,
                                                     r0O0OrigT: HdlType, r0Users: Tuple[HlsNetNodeIn, ...],
                                                     selectedForRewrite: List[HlsNetNodeWriteAnyChannel],
@@ -187,6 +196,12 @@ class RtlArchPassChannelMerge(RtlArchPass):
                                                     dstElm: ArchElement, dstClkI: int,
                                                     removed: Set[HlsNetNode]):
         builder: HlsNetlistBuilder = r0.netlist.builder
+        if r0 in srcElm._subNodes:
+            builder = builder.scoped(srcElm)
+        else:
+            assert r0 in dstElm._subNodes, r0
+            builder = builder.scoped(dstElm)
+
         r0O0 = r0._outputs[0]
         offset = 0
         for w in selectedForRewrite:
@@ -205,7 +220,7 @@ class RtlArchPassChannelMerge(RtlArchPass):
                 if w._dataVoidOut is not None:
                     builder.replaceOutput(w._dataVoidOut, w0.getDataVoidOutPort(), True)
 
-                unlink_hls_node_input_if_exists(r.skipWhen)
+                unlink_hls_node_input_if_exists(r.extraCond)
                 unlink_hls_node_input_if_exists(r.skipWhen)
                 if r._dataVoidOut is not None:
                     builder.replaceOutput(r._dataVoidOut, r0.getDataVoidOutPort(), True)
@@ -229,10 +244,10 @@ class RtlArchPassChannelMerge(RtlArchPass):
 
         srcElmClkSlot = srcElm.getStageForClock(srcClkI)
         srcElmClkSlot[:] = (n for n in srcElmClkSlot if n not in removed)
-        srcElm.allNodes = UniqList(n for n in srcElm.allNodes if n not in removed)
+        srcElm._subNodes = UniqList(n for n in srcElm._subNodes if n not in removed)
         if srcElm is not dstElm:
-            dstElm.allNodes = UniqList(n for n in dstElm.allNodes if n not in removed)
-            
+            dstElm._subNodes = UniqList(n for n in dstElm._subNodes if n not in removed)
+
         if srcElm is not dstElm or srcClkI != dstClkI:
             dstElmClkSlot = dstElm.getStageForClock(dstClkI)
             dstElmClkSlot[:] = (n for n in dstElmClkSlot if n not in removed)
@@ -240,19 +255,19 @@ class RtlArchPassChannelMerge(RtlArchPass):
         for w in selectedForRewrite:
             w: HlsNetNodeWriteAnyChannel
             if w is w0:
-                continue # this write is not removed but all other writes are merged into this
+                continue  # this write is not removed but all other writes are merged into this
             lcg = w._loopChannelGroup
             if lcg is None:
                 continue
             lcg: LoopChanelGroup
             assert lcg.getChannelWhichIsUsedToImplementControl() is not w, w
             lcg.members.remove(w)
-        
+
     def _mergeChannels(self, selectedForRewrite: List[Union[HlsNetNodeWriteBackedge, HlsNetNodeWriteForwardedge]],
-                        dbgTracer: DebugTracer,
-                        srcElm: ArchElement, srcClkI: int,
-                        dstElm: ArchElement, dstClkI: int,
-                        removed: Set[HlsNetNode]):
+                       dbgTracer: DebugTracer,
+                       srcElm: ArchElement, srcClkI: int,
+                       dstElm: ArchElement, dstClkI: int,
+                       removed: Set[HlsNetNode]):
         """
         Merge several channels represented by HlsNetNodeRead-HlsNetNodeWrite pair to a single one of wider width.
         :attention: The channels must have same control flags and must be from same clock period slot in same ArchElement.
@@ -265,14 +280,25 @@ class RtlArchPassChannelMerge(RtlArchPass):
         if w0 is None:
             w0 = selectedForRewrite[0]
 
-        builder: HlsNetlistBuilder = w0.netlist.builder
         for io in selectedForRewrite:
             assert io.__class__ is w0.__class__, ("Merge of channels of different classes may have unintended consequences", io, w0)
 
         dbgTracer.log(("merging ", selectedForRewrite), lambda x: f"{x[0]}, {[(io._id, io.associatedRead._id) for io in x[1]]}")
         wValues = [n.dependsOn[0] for n in selectedForRewrite if not HdlType_isVoid(n.dependsOn[0]._dtype)]
-        newWVal = builder.buildConcatVariadic(wValues)
-        newlyScheduledNodes = self.scheduleConcats(newWVal)
+        builder: HlsNetlistBuilder = w0.netlist.builder.scoped(srcElm)
+        firstDep: HlsNetNodeOut = selectedForRewrite[0].dependsOn[0]
+ 
+        if wValues:
+            newWVal = builder.buildConcatVariadic(wValues)
+            newlyScheduledNodes = self.scheduleConcats(newWVal)
+        else:
+            newWVal = builder.buildConstPy(firstDep._dtype, None)
+            newWVal.obj.resolveRealization()
+            t = firstDep.obj.scheduledOut[firstDep.out_i]
+            newWVal.obj.scheduledZero = t
+            newWVal.obj.scheduledOut = (t, )
+            newlyScheduledNodes = [newWVal.obj, ]
+
         clkPeriod = w0.netlist.normalizedClkPeriod
         for n in newlyScheduledNodes:
             clkI = indexOfClkPeriod(n.scheduledZero, clkPeriod)
@@ -296,22 +322,26 @@ class RtlArchPassChannelMerge(RtlArchPass):
         newInit = self._resolveMergedChannelInitValuesOfWrites(selectedForRewrite)  # important to do before type of w0 is altered
         r0: Union[HlsNetNodeReadBackedge, HlsNetNodeReadForwardedge] = w0.associatedRead
         unlink_hls_nodes(w0.dependsOn[0], w0._inputs[0])
-        newT = Bits(sum(wv._dtype.bit_length() for wv in wValues))
-        
+        newDataWidth = sum(wv._dtype.bit_length() for wv in wValues)
+        if newDataWidth > 0:
+            newT = Bits(newDataWidth)
+        else:
+            newT = firstDep._dtype
+
         r0Users = tuple(r0.usedBy[0])
         r0O0 = r0._outputs[0]
         r0O0OrigT = r0O0._dtype
         for u in r0Users:
             unlink_hls_nodes(r0O0, u)
-        
+
         self._changeDataTypeOfChannel(r0, w0, newT, newBuffName)
-       
+
         w0.channelInitValues = newInit
         link_hls_nodes(newWVal, w0._inputs[0])
-        self._removeIoNodesAfterTheyWereMergetToFirstOne(r0, w0, r0O0OrigT, r0Users, selectedForRewrite,
+        self._removeIoNodesAfterTheyWereMergedToFirstOne(r0, w0, r0O0OrigT, r0Users, selectedForRewrite,
                                                          srcElm, srcClkI, dstElm, dstClkI, removed)
 
-    def _detectChannes(self, allocator: HlsAllocator):
+    def _detectChannes(self, archELements: List[ArchElement]):
         """
         Find all HlsNetNodeReadBackedge, HlsNetNodeReadForwardedge, HlsNetNodeWriteBackedge, HlsNetNodeWriteForwardedge
         and associate them to clock period index and ArchElement where it is connected.
@@ -319,7 +349,7 @@ class RtlArchPassChannelMerge(RtlArchPass):
         channelToLocation: Dict[AnyChannelIo, Tuple[ArchElement, int, List[HlsNetNode]]] = {}
         channels: Dict[Tuple[ArchElement, int, ArchElement, int], List[AnyChannelIo]] = {}
         allWrites: List[HlsNetNodeWrite] = []
-        for elm in allocator._archElements:
+        for elm in archELements:
             elm: ArchElement
             for clkI, nodes in elm.iterStages():
                 for n in nodes:
@@ -339,16 +369,17 @@ class RtlArchPassChannelMerge(RtlArchPass):
                 channels[k] = channelList = [w, ]
             else:
                 channelList.append(w)
+
         return channels
 
-    def apply(self, hls:"HlsScope", allocator: HlsAllocator):
-        channels = self._detectChannes(allocator)
+    def apply(self, hls:"HlsScope", netlist: HlsNetlistCtx):
+        channels = self._detectChannes(netlist.nodes)
         reachDb: HlsNetlistAnalysisPassReachability = None
-        elmIndex = {elm: i for i, elm in enumerate(allocator._archElements)}
-        removed: Set[HlsNetNode] = allocator.netlist.builder._removedNodes
+        elmIndex = {elm: i for i, elm in enumerate(netlist.nodes)}
+        removed: Set[HlsNetNode] = netlist.builder._removedNodes
         MergeCandidateList = Union[List[HlsNetNodeWriteBackedge], List[HlsNetNodeWriteForwardedge]]
         dbgTracer = DebugTracer(None)
-        with dbgTracer.scoped(RtlArchPassChannelMerge, None):
+        with dbgTracer.scoped(self.__class__, None):
             for (srcElm, srcClkI, dstElm, dstClkI), ioList in sorted(
                     channels.items(),
                     key=lambda kv: archElmEdgeSortKey(kv, elmIndex)):
@@ -366,12 +397,12 @@ class RtlArchPassChannelMerge(RtlArchPass):
                         for io1 in islice(ioList, i + 1, None):
                             if io1 in removed:
                                 continue
-                            
+
                             elif isForwrard and not isinstance(io1, HlsNetNodeWriteForwardedge):
                                 continue
                             elif not isForwrard and not isinstance(io1, HlsNetNodeWriteBackedge):
                                 continue
-                                
+
                             elif hasInputSameDriver(io0.extraCond, io1.extraCond) \
                                     and hasInputSameDriver(io0.skipWhen, io1.skipWhen):
                                 ioWithSameSyncFlags.append(io1)
@@ -380,12 +411,14 @@ class RtlArchPassChannelMerge(RtlArchPass):
                             # dbgTracer.log(("found potentially mergable ports", ioWithSameSyncFlags), lambda x: f"{x[0]} {[n._id for n in x[1]]}")
                             if reachDb is None:
                                 # lazy load reachDb from performance reasons
-                                reachDb = allocator.netlist.getAnalysis(HlsNetlistAnalysisPassReachability(allocator.netlist))
+                                reachDb = netlist.getAnalysis(HlsNetlistAnalysisPassReachability(netlist))
 
                             # discard those which data inputs are driven from io0
                             selectedForRewrite: MergeCandidateList = [io0]
                             for io1 in ioWithSameSyncFlags:
-                                if len(io0.channelInitValues) == len(io1.channelInitValues) and io0._loopChannelGroup is io1._loopChannelGroup:
+                                if len(io0.channelInitValues) == len(io1.channelInitValues) and\
+                                        io0._loopChannelGroup is io1._loopChannelGroup and\
+                                        io0.allocationType == io1.allocationType:
                                     compatible = True
                                     for io0 in selectedForRewrite:
                                         if reachDb.doesReachToData(io0, io1.dependsOn[0]):
@@ -401,4 +434,4 @@ class RtlArchPassChannelMerge(RtlArchPass):
                                 self._mergeChannels(selectedForRewrite, dbgTracer,
                                                     srcElm, srcClkI, dstElm, dstClkI, removed)
 
-            allocator.netlist.filterNodesUsingSet(removed)
+            netlist.filterNodesUsingSet(removed)
