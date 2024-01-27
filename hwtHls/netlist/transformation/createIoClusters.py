@@ -9,6 +9,7 @@ from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.ports import link_hls_nodes
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from ipCorePackager.constants import DIRECTION
+from hwtHls.netlist.nodes.node import NODE_ITERATION_TYPE
 
 
 class HlsNetlistPassCreateIoClusters(HlsNetlistPass):
@@ -58,7 +59,7 @@ class HlsNetlistPassCreateIoClusters(HlsNetlistPass):
     def createIoClusterCores(self, netlist: HlsNetlistCtx, reachDb: HlsNetlistAnalysisPassReachability):
         assert not netlist.builder._removedNodes
         allSync = []
-        for n in netlist.iterAllNodes():
+        for n in netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.OMMIT_PARENT):
             if isinstance(n, HlsNetNodeExplicitSync):
                 # to have outputOfClusterPort before input
                 # (because data flows from up to down visualization graphs and this port order improves readability)
