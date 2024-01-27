@@ -12,7 +12,7 @@ from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwtHls.netlist.nodes.orderable import HdlType_isVoid
+from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
@@ -34,8 +34,10 @@ from hwtHls.netlist.transformation.simplifySync.simplifySync import HlsNetlistPa
 from hwtHls.netlist.transformation.simplifyUtils import disconnectAllInputs, \
     getConstDriverOf, replaceOperatorNodeWith
 from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
+from hwtHls.netlist.transformation.simplifyExpr.normalizeConstToRhs import netlistNormalizeConstToRhs, \
+    BINARY_OPS_WITH_SWAPABLE_OPERANDS
 
-
+# https://fitzgeraldnick.com/2020/01/13/synthesizing-loop-free-programs.html
 class HlsNetlistPassSimplify(HlsNetlistPass):
     """
     HlsNetlist simplification pass
@@ -102,7 +104,9 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                         if netlistReduceNot(n, worklist, removed):
                             didModifyExpr = True
                             continue
-
+                    elif o in BINARY_OPS_WITH_SWAPABLE_OPERANDS and netlistNormalizeConstToRhs(n, worklist, removed):
+                        didModifyExpr = True
+                        continue
                     elif o in self.OPS_AND_OR_XOR:
                         if netlistReduceAndOrXor(n, worklist, removed):
                             didModifyExpr = True
