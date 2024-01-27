@@ -1,4 +1,4 @@
-from typing import Set, Tuple, List, Union, Optional
+from typing import Set, Tuple, List, Optional
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.hdl.types.defs import BIT
@@ -7,15 +7,16 @@ from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, \
     MachineLoop, Register, MachineRegisterInfo
 from hwtHls.netlist.analysis.dataThreadsForBlocks import HlsNetlistAnalysisPassDataThreadsForBlocks
 from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.hdlTypeVoid import HVoidOrdering
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge, \
-    HlsNetNodeReadBackedge
-from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeReadAnyChannel, \
-    LoopChanelGroup, LOOP_CHANEL_GROUP_ROLE, HlsNetNodeReadOrWriteToAnyChannel
+    HlsNetNodeReadBackedge, BACKEDGE_ALLOCATION_TYPE
+from hwtHls.netlist.nodes.delay import HlsNetNodeDelayClkTick
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge, \
     HlsNetNodeReadForwardedge
+from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeReadAnyChannel, \
+    LoopChanelGroup, LOOP_CHANEL_GROUP_ROLE, HlsNetNodeReadOrWriteToAnyChannel
 from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
-from hwtHls.netlist.nodes.orderable import HVoidOrdering
 from hwtHls.netlist.nodes.ports import link_hls_nodes, HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.ssa.translation.llvmMirToNetlist.blockEn import resolveBlockEn
@@ -28,11 +29,8 @@ from hwtHls.ssa.translation.llvmMirToNetlist.resetValueExtract import ResetValue
 from hwtHls.ssa.translation.llvmMirToNetlist.utils import _createSyncForAnyInputSelector, \
     LoopPortGroup
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
-from hwtHls.netlist.nodes.delay import HlsNetNodeDelayClkTick
 
 
-# from hwtHls.netlist.nodes.loopControlPort import HlsNetNodeLoopExitRead, \
-#    HlsNetNodeLoopExitWrite, HlsNetNodeLoopExitWriteBackedge
 class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatapath):
     """
     This object translates LLVM MIR to hwtHls HlsNetlist (this class specifically contains control related things)
@@ -266,24 +264,24 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
             # loop has exits
             self._resolveLoopIoSyncForExit(loopStatus, loop, loopExecs, mb)
 
-    def _resolveLoopIoSyncAddLatencyToExitReads(self, loopStatus: HlsNetNodeLoopStatus, edgeMeta: MachineEdgeMeta):
-        """
-        Postpone read of exit ports by 1 clock cycle from clock cycle where execution of the loops starts (where loopStatus is)
-        to prevent combinational loop from executing and exiting loop in zero time and to prevent deadlock if loop body takes atleast one
-        clock cycle.
-        """
-        exitChWrites = edgeMeta.getLoopChannelGroup().members
-        if exitChWrites:
-            for enterGroup in loopStatus.fromEnter:
-                enterGroup: LoopChanelGroup
-                enterWrite = enterGroup.getChannelWhichIsUsedToImplementControl()
-
-                delay = HlsNetNodeDelayClkTick(self.netlist, 1, HVoidOrdering, "loopExitDelay")
-                self.netlist.nodes.append(delay)
-                link_hls_nodes(enterWrite.getOrderingOutPort(), delay._inputs[0])
-                for exitChWrite in exitChWrites:
-                    link_hls_nodes(delay._outputs[0], exitChWrite._addInput("orderingIn"))
-
+    #def _resolveLoopIoSyncAddLatencyToExitReads(self, loopStatus: HlsNetNodeLoopStatus, edgeMeta: MachineEdgeMeta):
+    #    """
+    #    Postpone read of exit ports by 1 clock cycle from clock cycle where execution of the loops starts (where loopStatus is)
+    #    to prevent combinational loop from executing and exiting loop in zero time and to prevent deadlock if loop body takes at least one
+    #    clock cycle.
+    #    """
+    #    exitChWrites = edgeMeta.getLoopChannelGroup().members
+    #    if exitChWrites:
+    #        for enterGroup in loopStatus.fromEnter:
+    #            enterGroup: LoopChanelGroup
+    #            enterWrite = enterGroup.getChannelWhichIsUsedToImplementControl()
+    #
+    #            delay = HlsNetNodeDelayClkTick(self.netlist, 1, HVoidOrdering, "loopExitDelay")
+    #            self.netlist.nodes.append(delay)
+    #            link_hls_nodes(enterWrite.getOrderingOutPort(), delay._inputs[0])
+    #            for exitChWrite in exitChWrites:
+    #                link_hls_nodes(delay._outputs[0], exitChWrite._addInput("orderingIn"))
+    #
     def _resolveLoopIoSyncForExit(self, loopStatus: HlsNetNodeLoopStatus, loop: MachineLoop, loopExecs: LoopPortGroup, mb: MachineBasicBlock):
         builder = loopStatus.netlist.builder
         valCache: MirToHwtHlsNetlistValueCache = self.valCache
@@ -320,7 +318,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                 p = p.getParentLoop()
 
             edgeMeta: MachineEdgeMeta = self.edgeMeta[edge]
-            self._resolveLoopIoSyncAddLatencyToExitReads(loopStatus, edgeMeta)
+            #self._resolveLoopIoSyncAddLatencyToExitReads(loopStatus, edgeMeta)
 
             eMbSync: MachineBasicBlockMeta = self.blockSync[exitBlock]
             # if exiting loop return token to HlsNetNodeLoopStatus
@@ -351,6 +349,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                 edgeMeta.buffersForLoopExit.append(exitForHeaderR)
                 exitForHeaderR.obj.setNonBlocking()
                 exitForHeaderW: HlsNetNodeWriteBackedge = exitForHeaderR.obj.associatedWrite
+                exitForHeaderW.allocationType = BACKEDGE_ALLOCATION_TYPE.IMMEDIATE
                 self._addExtraCond(exitForHeaderW, controlOrig, eMbSync.blockEn)
                 self._addSkipWhen_n(exitForHeaderW, controlOrig, eMbSync.blockEn)
                 # w.channelInitValues = ((0,),)
@@ -360,7 +359,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
             loopStatus.addExitToHeaderNotifyPort(exitBlock.getNumber(), exitSucBlock.getNumber(), lcg)
             if eWrite is not None:
                 # make write to exit channel the last last in block from which there is jump outside of loop
-                # :note: odering should be already added
+                # :note: ordering should be already added
                 # eMbSync.addOrderedNode(eWrite, True)
                 self._addExtraCond(eWrite, controlOrig, eMbSync.blockEn)
                 self._addSkipWhen_n(eWrite, controlOrig, eMbSync.blockEn)
