@@ -95,8 +95,9 @@ def netlistReduceMux(n: HlsNetNodeMux, worklist: UniqList[HlsNetNode], removed: 
                         lastConditionIsNe = op == AllOps.NE
                         everyConditionIsEq = everyNonLastConditionIsEq and op == AllOps.EQ
                     else:
-                        everyNonLastConditionIsEq = op == AllOps.EQ
+                        everyNonLastConditionIsEq &= op == AllOps.EQ
                 else:
+                    everyConditionIsEq = False
                     everyNonLastConditionIsEq = False
                     break
 
