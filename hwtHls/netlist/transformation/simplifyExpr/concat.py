@@ -4,7 +4,7 @@ from hwt.hdl.operatorDefs import AllOps
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwtHls.netlist.nodes.orderable import HdlType_isVoid
+from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.transformation.simplifyUtils import replaceOperatorNodeWith
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
