@@ -193,7 +193,7 @@ std::string __repr__Abc_ObjPrint(Abc_Obj_t * pObj )
             ss << "Blackbox";
             break;
         default:
-            throw std::runtime_error("__repr__Abc_ObjPrint unknown object type");
+            throw std::runtime_error("__repr__Abc_ObjPrint unknown object type " + std::to_string(pObj->Type));
             break;
     }
     // print the fanins
