@@ -65,6 +65,10 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
             mi: MachineInstr
             opc = mi.getOpcode()
             if opc not in cls._CONSTANT_OPCODES:
+                if opc == TargetOpcode.HWTFPGA_MUX and mi.getNumOperands() == 2:
+                    # constant defined as copy of constant using HWTFPGA_MUX instr
+                    continue
+
                 return False
 
         return True
