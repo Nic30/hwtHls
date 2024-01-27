@@ -1,18 +1,18 @@
-from typing import Set, Dict, Union, Literal, Optional
+from typing import Set, Union, Literal, Optional
 
+from hwt.hdl.operatorDefs import AllOps
+from hwt.hdl.types.bits import Bits
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, HlsNetNodeOutLazy, \
     HlsNetNodeOut
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwt.hdl.operatorDefs import AllOps
 from hwtHls.netlist.transformation.simplifyUtils import getConstDriverOf
-from hwt.hdl.types.bits import Bits
 
 
 class InsideOfBlockSyncTracker():

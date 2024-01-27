@@ -1,15 +1,15 @@
-from typing import Union, Optional, List, Tuple
+from typing import Optional, List, Tuple
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwtHls.llvm.llvmIr import MachineBasicBlock, MachineLoop
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge
+from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeReadAnyChannel
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes, \
     HlsNetNodeOutLazy, HlsNetNodeOut
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
-from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge
-from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeReadAnyChannel
 
 
 class LiveInMuxMeta():

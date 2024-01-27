@@ -14,11 +14,11 @@ from hwtHls.netlist.analysis.dataThreadsForBlocks import HlsNetlistAnalysisPassD
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
     HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.orderable import HdlType_isVoid
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
     link_hls_nodes, HlsNetNodeOutAny, HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
@@ -26,8 +26,8 @@ from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.observableList import ObservableList
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.machineEdgeMeta import MachineEdgeMeta, MachineEdge
-from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
 from hwtHls.ssa.translation.llvmMirToNetlist.resetValueExtract import ResetValueExtractor
+from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 
 

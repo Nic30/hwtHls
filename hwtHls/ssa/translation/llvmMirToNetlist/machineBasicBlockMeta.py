@@ -2,10 +2,10 @@ from typing import Union, Optional, Literal
 
 from hwtHls.llvm.llvmIr import MachineBasicBlock
 from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.hdlTypeVoid import HVoidOrdering
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.delay import HlsNetNodeDelayClkTick
 from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
-from hwtHls.netlist.nodes.orderable import HVoidOrdering
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes, \
     HlsNetNodeOutLazy
 from hwtHls.netlist.nodes.read import HlsNetNodeRead

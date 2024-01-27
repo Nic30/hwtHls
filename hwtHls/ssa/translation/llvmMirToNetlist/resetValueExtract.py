@@ -11,14 +11,13 @@ from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.orderable import HdlType_isVoid
+from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, HlsNetNodeOutLazy, \
     HlsNetNodeOut, unlink_hls_nodes, HlsNetNodeIn, \
     unlink_hls_node_input_if_exists
 from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import netlistExplicitSyncDisconnectFromOrderingChain
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
-from hwtHls.ssa.translation.llvmMirToNetlist.machineEdgeMeta import MachineEdge, MachineEdgeMeta, \
-    MACHINE_EDGE_TYPE
+from hwtHls.ssa.translation.llvmMirToNetlist.machineEdgeMeta import MachineEdge, MachineEdgeMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
 
 
