@@ -14,7 +14,7 @@ namespace hwtHls {
  * Similar to:
  *   * llvm::BDCEPass
  *     - works only on shifts and extensions
- *   * A generic logic minimizer like ABC
+ *   * A generic logic minimizer like ABC, Z3 bit-blast
  *     + performs full minimization
  *     - computationally complex, destroys the information about used operands and thus prevents other optimization
  *   * ctoverilog xVerilog::ReduceWordWidthPass
