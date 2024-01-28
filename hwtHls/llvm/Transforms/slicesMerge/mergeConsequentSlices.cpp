@@ -361,7 +361,7 @@ bool condensateInstructionGroup(BasicBlock &ParentBB,
 		}
 	}
 	if (!unhoistableInstructions.empty()) {
-		// iterating reversed because we ned first move dependent instructions to not breake use-def
+		// iterating reversed because we need first move dependent instructions to not break use-def
 		for (Instruction *I2 : reverse(unhoistableInstructions)) {
 			if (any_of(I2->users(),
 					[&extractedInstructions](User *U) {
@@ -370,6 +370,7 @@ bool condensateInstructionGroup(BasicBlock &ParentBB,
 									!= extractedInstructions.end();
 						return false;
 					})) {
+				I2->dump();
 				llvm_unreachable(
 						"Can not extract parallel instruction operand because it depends on some extracted instruction."
 								" This should have already been checked before calling of this function.");

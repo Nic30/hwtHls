@@ -1,7 +1,9 @@
 # note that this Dockerfile is meant for notebooks at Binder, you can install this package directly, or to virtualenv, you do not need docker
 # https://github.com/jupyter/docker-stacks/blob/master/scipy-notebook/Dockerfile
 # https://mybinder.readthedocs.io/en/latest/tutorials/dockerfile.html#preparing-your-dockerfile
-# How to use localy:
+#
+# # How to use localy:
+# # * note that if you use sudo you are running program as a superuser an not as an actual user
 # NB_USER=$USER
 # docker build  --build-arg NB_USER=$NB_USER  --build-arg NB_UID=`id -u $NB_USER` -t nic30/hwthls .
 # docker run -it --rm -p 8888:8888 nic30/hwthls jupyter-lab --port=8888 --ip=0.0.0.0
