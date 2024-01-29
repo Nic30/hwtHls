@@ -10,6 +10,7 @@ from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod, start_clk
 from hwtHls.netlist.scheduler.errors import TimeConstraintError
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 
+
 SchedTime = int
 SchedulizationDict = Dict["HlsNetNode", Tuple[SchedTime,  # node zero time
                                               Tuple[SchedTime, ...],  # scheduledIn
@@ -20,6 +21,15 @@ OutputTimeGetter = Callable[[HlsNetNodeOut, Optional[UniqList["HlsNetNode"]], Sc
 
 
 class SchedulableNode():
+    """
+    :ivar scheduledZero: This time is usually a time max(scheduledIn) <= scheduledZero <= min(scheduledOut)
+        used to avoid re-computation of last input. But for aggregate nodes it may have any value.
+    :attention: scheduledZero time is used to cheaply detect that the scheduling of the node has changed.
+        This time should not be used to resolve when the node is scheduled and port times should be used instead.
+        Because it is not guaranteed to have any specific value.
+    :ivar scheduledIn: a time when the input is scheduled
+    :ivar scheduledOut: a time when the output is scheduled
+    """
 
     def __init__(self, netlist: "HlsNetlistCtx"):
         self.netlist = netlist
@@ -64,18 +74,19 @@ class SchedulableNode():
         self.scheduledOut = None
 
     def moveSchedulingTime(self, offset: SchedTime):
+        assert offset != 0, "If offset is 0 this is useless to call"
         self.scheduledZero += offset
         self.scheduledIn = tuple(t + offset for t in self.scheduledIn)
         self.scheduledOut = tuple(t + offset for t in self.scheduledOut)
 
     def _setScheduleZeroTimeSingleClock(self, t: SchedTime):
         assert isinstance(t, SchedTime), t
-        assert self.scheduledZero != t, (self, t)
-        self.scheduledZero = t
+        assert self.scheduledZero != t, (self, t, "If time is the same this is useless to call")
         self.scheduledIn = tuple(
             t - in_delay
             for in_delay in self.inputWireDelay
         )
+        self.scheduledZero = t
         self.scheduledOut = tuple(
             t + out_delay
             for out_delay in self.outputWireDelay
@@ -83,13 +94,13 @@ class SchedulableNode():
 
     def _setScheduleZeroTimeMultiClock(self, t: SchedTime, clkPeriod: SchedTime, epsilon: SchedTime, ffdelay: SchedTime):
         assert isinstance(t, SchedTime), t
-        assert self.scheduledZero != t, (self, t)
-        self.scheduledZero = t
+        assert self.scheduledZero != t, (self, t, "If time is the same this is useless to call")
         inTime = self._scheduleAlapCompactionMultiClockInTime
         self.scheduledIn = tuple(
             inTime(t, clkPeriod, iTicks, epsilon, ffdelay) - iDelay
             for (iDelay, iTicks) in zip(self.inputWireDelay, self.inputClkTickOffset)
         )
+        self.scheduledZero = t
         outTime = self._scheduleAlapCompactionMultiClockOutTime
         self.scheduledOut = tuple(
             outTime(t, clkPeriod, oTicks) + oDelay
@@ -158,7 +169,7 @@ class SchedulableNode():
             if self.realization is None:
                 # resolve realization if it is not already resolved
                 self.resolveRealization()
-            
+
             ffdelay = netlist.platform.get_ff_store_time(netlist.realTimeClkPeriod, netlist.scheduler.resolution)
             if self.dependsOn:
                 if pathForDebug is not None:
@@ -174,7 +185,7 @@ class SchedulableNode():
                         inputTimes = (outputTimeGetter(d, pathForDebug, beginOfFirstClk) for d in self.dependsOn)
 
                     inputTimes = tuple(inputTimes)
-                    
+
                     # now we have times when the value is available on input
                     # and we must resolve the minimal time so each input timing constraints are satisfied
                     nodeZeroTime = beginOfFirstClk
