@@ -12,14 +12,14 @@ from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
-from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
-from hwtLib.types.ctypes import int64_t, int16_t, uint64_t
+from hwtLib.types.ctypes import int64_t, uint64_t
 from hwtSimApi.utils import freq_to_period
 from pyMathBitPrecise.bit_utils import mask, ValidityError, to_signed
-from tests.floatingpoint.fptypes import IEEE754Fp64, IEEE754Fp16
+from tests.floatingpoint.fptypes import IEEE754Fp64
 from tests.floatingpoint.fromInt import IEEE754FpFromInt
 from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
+from datetime import datetime
 
 
 class IEEE754FpFromIntConventor(Unit):
@@ -62,6 +62,7 @@ class IEEE754FpFromInt_TC(SimTestCase):
         to_signed(mask(64), 64),  # -1
         to_signed(mask(64) - 1, 64),  # -2
     ]
+    LOG_TIME = False
 
     @staticmethod
     def model(a: int):
@@ -82,7 +83,6 @@ class IEEE754FpFromInt_TC(SimTestCase):
                              msg=(res, _res, 'expected', resRef))
 
     def test_rlt(self):
-        u = IEEE754FpFromIntConventor()
 
         def prepareDataInFn():
             dataIn = []
@@ -105,8 +105,17 @@ class IEEE754FpFromInt_TC(SimTestCase):
                                                    "%016X" % int(refVal._reinterpret_cast(uint64_t)),
                                                    "input", a, resFp, "expected", refVal))
 
+        u = IEEE754FpFromIntConventor()
+        u.FREQ = int(1e6)
+        if self.LOG_TIME:
+            time0 = datetime.now()
         self.compileSimAndStart(u, target_platform=TestLlvmIrAndMirPlatform.forSimpleDataInDataOutUnit(
-            prepareDataInFn, checkDataOutFn, Path(self.DEFAULT_LOG_DIR, f"{self.getTestName()}")))
+            prepareDataInFn, checkDataOutFn, Path(self.DEFAULT_LOG_DIR, f"{self.getTestName()}"),
+            debugLogTime=TestLlvmIrAndMirPlatform.logTimeToStdout if self.LOG_TIME else None,
+        ))
+        if self.LOG_TIME:
+            time1 = datetime.now()
+            print("RTL synthesis", time1 - time0)
 
         refRes = []
         for a in self.TEST_DATA:
@@ -117,7 +126,12 @@ class IEEE754FpFromInt_TC(SimTestCase):
             refRes.append((int(_resRef.mantissa), int(_resRef.exponent), int(_resRef.sign)))
 
         CLK_PERIOD = freq_to_period(u.clk.FREQ)
+        if self.LOG_TIME:
+            time0 = datetime.now()
         self.runSim((len(self.TEST_DATA) + 1) * int(CLK_PERIOD))
+        if self.LOG_TIME:
+            time1 = datetime.now()
+            print("RTL sim", time1 - time0)
 
         # res = [IEEE754Fp64.to_py(IEEE754Fp64.from_py({"sign": sign, "exponent": exponent, "mantissa": mantissa}))
         #                             for mantissa, exponent, sign in u.res._ag.data]
@@ -130,17 +144,26 @@ class IEEE754FpFromInt_TC(SimTestCase):
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import to_rtl_str
-    from hwtHls.platform.platform import HlsDebugBundle
-    u = IEEE754FpFromIntConventor()
-    u.T_IN = int16_t
-    u.T = IEEE754Fp16
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    # from hwt.synthesizer.utils import to_rtl_str
+    # from hwtHls.platform.platform import HlsDebugBundle
+    # from hwtHls.platform.virtual import VirtualHlsPlatform
+    # from hwtLib.types.ctypes import int16_t
+    # from tests.floatingpoint.fptypes import IEEE754Fp16
+    # u = IEEE754FpFromIntConventor()
+    # u.T_IN = int16_t
+    # u.T = IEEE754Fp16
+    # print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
-
+    #import cProfile
+    #pr = cProfile.Profile()
+    #pr.enable()
+    #
     testLoader = unittest.TestLoader()
     # suite = unittest.TestSuite([IEEE754FpFromInt_TC('test_cmp_py')])
     suite = testLoader.loadTestsFromTestCase(IEEE754FpFromInt_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
+    
+    #pr.disable()
+    #pr.dump_stats('profile.prof')

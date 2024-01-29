@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta
+from enum import Enum
 from pathlib import Path
 from typing import Optional, Union, Callable, Set
 
@@ -20,24 +22,44 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
         This is a constant used for :meth:`TestLlvmIrAndMirPlatform.forSimpleDataInDataOutUnit` to automatically generate
         noOptIrTest.
         """
-        pass
 
+        def __init__(self):
+            raise AssertionError("This class should be used as a constant")
+
+    class TIME_LOG_STAGE(Enum):
+        NO_OPT_IR, OPT_IR, OPT_MIR = range(3)
+    
+    @staticmethod
+    def logTimeToStdout(stage: TIME_LOG_STAGE, t: timedelta):
+        print(stage.name, t)
+    
     def __init__(self,
                  noOptIrTest:Optional[Callable[[LlvmCompilationBundle, ], None]]=None,
                  optIrTest:Optional[Callable[[LlvmCompilationBundle, ], None]]=None,
                  optMirTest:Optional[Callable[[LlvmCompilationBundle, ], None]]=None,
                  debugDir:Optional[Union[str, Path]]="tmp",
-                 debugFilter:Optional[Set[DebugId]]=HlsDebugBundle.DEFAULT):
+                 debugFilter:Optional[Set[DebugId]]=HlsDebugBundle.DEFAULT,
+                 debugLogTime: Optional[Callable[[TIME_LOG_STAGE, timedelta], None]]=None):
         VirtualHlsPlatform.__init__(self, debugDir=debugDir, debugFilter=debugFilter)
+        self._debugLogTime = debugLogTime
         self._noOptIrTest = noOptIrTest
         self._optIrTest = optIrTest
         self._optMirTest = optMirTest
+
+    def _runWithTimeLog(self, stage: TIME_LOG_STAGE, fn: Callable[[LlvmCompilationBundle, ], None], *args, **kwargs):
+        if self._debugLogTime:
+            time0 = datetime.now()
+        fn(*args, **kwargs)
+        if self._debugLogTime:
+            time1 = datetime.now()
+            self._debugLogTime(stage, time1 - time0)
 
     def runSsaPasses(self, hls: "HlsScope", toSsa: HlsAstToSsa):
         res = super(TestLlvmIrAndMirPlatform, self).runSsaPasses(hls, toSsa)
         tr: ToLlvmIrTranslator = toSsa.start
         if self._noOptIrTest:
-            self._noOptIrTest(tr.llvm)
+            self._runWithTimeLog(self.TIME_LOG_STAGE.NO_OPT_IR, self._noOptIrTest, tr.llvm)
+
         return res
 
     def runSsaToNetlist(self, hls:"HlsScope", toSsa:HlsAstToSsa) -> HlsNetlistCtx:
@@ -48,7 +70,7 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
             if self._optIrTest:
                 # if the compilation was interrupted prematurely (by this debug exception)
                 # execute IR tests for debugging purposes
-                self._optIrTest(tr.llvm)
+                self._runWithTimeLog(self.TIME_LOG_STAGE.OPT_IR, self._optIrTest, tr.llvm)
             raise
 
     def runNetlistTranslation(self,
@@ -57,9 +79,9 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
         tr: ToLlvmIrTranslator = toSsa.start
         try:
             if self._optIrTest:
-                self._optIrTest(tr.llvm)
+                self._runWithTimeLog(self.TIME_LOG_STAGE.OPT_IR, self._optIrTest, tr.llvm)
             if self._optMirTest:
-                self._optMirTest(tr.llvm)
+                self._runWithTimeLog(self.TIME_LOG_STAGE.OPT_MIR, self._optMirTest, tr.llvm)
         except:
             dbg = self._debug.runDebugIfEnabled
             D = HlsDebugBundle
