@@ -20,7 +20,8 @@ from hwtHls.frontend.pyBytecode.instructions import JUMP_FORWARD, JUMP_BACKWARD,
     JUMP_IF_FALSE_OR_POP, JUMP_IF_TRUE_OR_POP, RETURN_VALUE, RAISE_VARARGS, RERAISE, \
     JUMP_BACKWARD_NO_INTERRUPT, JUMP_OPS, POP_JUMP_FORWARD_IF_FALSE, \
     POP_JUMP_BACKWARD_IF_FALSE, POP_JUMP_BACKWARD_IF_NOT_NONE, \
-    POP_JUMP_BACKWARD_IF_NONE
+    POP_JUMP_BACKWARD_IF_NONE, POP_JUMP_FORWARD_IF_NOT_NONE,\
+    POP_JUMP_FORWARD_IF_NONE
 from hwtHls.frontend.pyBytecode.loopMeta import PyBytecodeLoopInfo, \
     BranchTargetPlaceholder, LoopExitJumpInfo
 from hwtHls.frontend.pyBytecode.markers import PyBytecodePreprocDivergence
@@ -453,10 +454,10 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
                                   POP_JUMP_BACKWARD_IF_FALSE):
                         # swap targets because condition is negated
                         ifTrueOffset, ifFalseOffset = ifFalseOffset, ifTrueOffset
-                    elif opcode == POP_JUMP_BACKWARD_IF_NOT_NONE:
+                    elif opcode in (POP_JUMP_BACKWARD_IF_NOT_NONE, POP_JUMP_FORWARD_IF_NOT_NONE):
                         assert compileTimeResolved, cond
                         cond = cond is not None
-                    elif opcode == POP_JUMP_BACKWARD_IF_NONE:
+                    elif opcode in (POP_JUMP_BACKWARD_IF_NONE, POP_JUMP_FORWARD_IF_NONE):
                         assert compileTimeResolved, cond
                         cond = cond is None
 
