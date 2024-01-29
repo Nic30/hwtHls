@@ -91,8 +91,10 @@ class BaseSsaTC(BaseSerializationTC):
 
     def _runTranslation(self, unit_cls, p: BaseTestPlatform):
         self.rmSim()
+
         with self.assertRaises(TestFinishedSuccessfuly):
             self.compileSimAndStart(unit_cls, target_platform=p)
+
         self.rmSim()
 
     def _test_ll(self, unitConstructor: Unit, name=None):
@@ -101,6 +103,7 @@ class BaseSsaTC(BaseSerializationTC):
             unit = unitConstructor
         else:
             unit = unitConstructor()
+
         self._runTranslation(unit, p)
         if name is None:
             name = unit.__class__.__name__

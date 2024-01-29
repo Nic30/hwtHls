@@ -46,6 +46,7 @@ class CountBitsTC(SimTestCase):
             while v & x:
                 x >>= 1
                 leading += 1
+
             ref.append(leading)
 
         self.runSim((len(ref) + 2) * CLK_PERIOD)
