@@ -204,6 +204,43 @@ static bool collectParallelInstructionOnSameVectorFindFollowingInstr(
 	return false;
 }
 
+bool collectParallelInstructionOnSameVectorForConstSelect(
+		ParallelInstVec &parallelInstrOnSameVec, const llvm::SelectInst &I,
+		std::function<bool(llvm::Instruction&)> &extraCheck) {
+	auto *Cond = I.getCondition();
+	bool otherFound = false;
+	for (const User *user : Cond->users()) {
+		if (const SelectInst *OtherI = dyn_cast<SelectInst>(user)) {
+			if (OtherI != &I && OtherI->getParent() == I.getParent()
+					&& OtherI->getCondition() == Cond
+					&& isa<Constant>(OtherI->getTrueValue())
+					&& isa<Constant>(OtherI->getFalseValue())
+					&& extraCheck(*const_cast<SelectInst*>(OtherI))) {
+				parallelInstrOnSameVec.insertSorted(
+						const_cast<SelectInst*>(OtherI), false);
+				otherFound = true;
+			}
+		}
+	}
+	return otherFound;
+}
+
+bool collectParallelInstructionOnSameVectorForConstPhi(
+		ParallelInstVec &parallelInstrOnSameVec, const llvm::PHINode &I,
+		std::function<bool(llvm::Instruction&)> &extraCheck) {
+	bool otherFound = false;
+	for (const PHINode &OtherI : I.getParent()->phis()) {
+		if (&OtherI != &I && all_of(OtherI.incoming_values(), [](const Use &u) {
+			return isa<Constant>(u.get());
+		}) && extraCheck(const_cast<PHINode&>(OtherI))) {
+			parallelInstrOnSameVec.insertSorted(&const_cast<PHINode&>(OtherI),
+					false);
+			otherFound = true;
+		}
+	}
+	return otherFound;
+}
+
 bool collectParallelInstructionOnSameVector(DceWorklist::SliceDict &slices,
 		ParallelInstVec &parallelInstrOnSameVec, const llvm::Instruction &I,
 		std::function<bool(llvm::Instruction&)> &extraCheck, bool commutative,
@@ -226,12 +263,21 @@ bool collectParallelInstructionOnSameVector(DceWorklist::SliceDict &slices,
 		if (op1SucSlices == slices.end())
 			return false;
 	}
-	assert(
-			(!op0asC || !op1asC)
-					&& "If both are constants this instruction should have already been evaluated");
-	// [todo] search for select/phi with constant value operands by searching of the condition - there is a problem
-	//  that we do not know the ordering of instructions and we may generate value with shuffled bits
-	//  which generates additional instructions when merged value is used
+	if (op0asC && op1asC) {
+		// search for select/phi with constant value operands by searching of the condition
+		// * push them into parallelInstrOnSameVec in program order
+		if (const SelectInst *SI = dyn_cast<SelectInst>(&I)) {
+			return collectParallelInstructionOnSameVectorForConstSelect(
+					parallelInstrOnSameVec, *SI, extraCheck);
+		} else if (const PHINode *PHI = dyn_cast<PHINode>(&I)) {
+			return collectParallelInstructionOnSameVectorForConstPhi(
+					parallelInstrOnSameVec, *PHI, extraCheck);
+		}
+		I.dump();
+		llvm_unreachable(
+				"If both are constants this instruction should have already been evaluated");
+	}
+
 	for (bool requireWidthToMatch : { true, false }) {
 		if (op0asC) {
 			assert(op1SucSlices != slices.end());
@@ -314,12 +360,14 @@ bool condensateInstructionGroup(BasicBlock &ParentBB,
 	// try to hoist other instructions between parts before first part
 	std::set<Instruction*> extractedInstructions;
 	SetVector<Instruction*> unhoistableInstructions;
-	BasicBlock * ParentBlock = nullptr;
+	BasicBlock *ParentBlock = nullptr;
 	for (const auto &I2 : parallelInstrOnSameVec.iterUnique()) {
 		extractedInstructions.insert(I2.I);
 		if (ParentBlock) {
-			assert(ParentBlock == I2.I->getParent() && "Each instruction must be in the same block"
-					" otherwise we can not condensate them together by this alg.");
+			assert(
+					ParentBlock == I2.I->getParent()
+							&& "Each instruction must be in the same block"
+									" otherwise we can not condensate them together by this alg.");
 		} else {
 			ParentBlock = I2.I->getParent();
 		}
@@ -387,7 +435,9 @@ bool extractWiderOperandsFromParallelInstructions(
 		const CreateBitRangeGetFn &createSlice, BasicBlock &ParentBlock,
 		size_t op0Index, size_t op1Index, IRBuilder<> &Builder,
 		Value *&widerOp0, Value *&widerOp1, bool &modified) {
-	assert(parallelInstrOnSameVec.uniqueSize() > 1 && "Otherwise this is useless and it should not be called");
+	assert(
+			parallelInstrOnSameVec.uniqueSize() > 1
+					&& "Otherwise this is useless and it should not be called");
 	// parallel instructions were discovered
 	if (!condensateInstructionGroup(ParentBlock, parallelInstrOnSameVec))
 		return false; // there is something non removable between instructions

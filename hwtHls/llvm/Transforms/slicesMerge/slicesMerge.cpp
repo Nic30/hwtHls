@@ -19,7 +19,7 @@
 using namespace llvm;
 using namespace std;
 
-//#define DBG_VERIFY_AFTER_EVERY_MODIFICATION 1
+// #define DBG_VERIFY_AFTER_EVERY_MODIFICATION 1
 
 namespace hwtHls {
 
@@ -126,6 +126,7 @@ PreservedAnalyses SlicesMergePass::run(Function &F,
 				bool _changed = false;
 				if (auto *CallI = dyn_cast<CallInst>(&*I)) {
 					if (IsBitConcat(CallI)) {
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 						{
 							std::string errTmp = "hwtHls::SlicesMergePass rewriteConcat received corrupted function ";
 							llvm::raw_string_ostream errSS(errTmp);
@@ -135,8 +136,9 @@ PreservedAnalyses SlicesMergePass::run(Function &F,
 								throw std::runtime_error(errSS.str());
 							}
 						}
+#endif
 						_changed = rewriteConcat(CallI, createSlice, dce);
-//#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 	{
 		std::string errTmp = "hwtHls::SlicesMergePass rewriteConcat corrupted function ";
 		llvm::raw_string_ostream errSS(errTmp);
@@ -146,7 +148,7 @@ PreservedAnalyses SlicesMergePass::run(Function &F,
 			throw std::runtime_error(errSS.str());
 		}
 	}
-//#endif
+#endif
 					}
 				}
 
