@@ -1,3 +1,4 @@
+from functools import lru_cache
 from itertools import chain
 from typing import Union, Dict, List, Set
 
@@ -28,6 +29,7 @@ class HlsNetlistAnalysisPassIoDiscover(HlsNetlistAnalysisPass):
         self.interfaceList: UniqList[Interface] = UniqList()
         self.extraReadSync: Dict[HlsNetNodeRead, UniqList[HlsNetNodeExplicitSync]] = {}
 
+    @lru_cache(int(1e6))
     def _detectExplicitSyncIsSameClkCycleFromOutputs(self, dataIn: HlsNetNodeIn, clkEndTime: int):
         if dataIn.obj.scheduledIn[dataIn.in_i] > clkEndTime:
             return
