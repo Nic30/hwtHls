@@ -18,7 +18,7 @@ from hwtHls.netlist.transformation.simplifyUtils import getConstDriverOf
 class InsideOfBlockSyncTracker():
     """
     This object holds an information which node may hold invalid value and
-    which needs an and with vld singnal of some input before use.
+    which needs an and with vld signal of some input before use.
     
     For nodes before block the validity of data is asserted by
     branch condition, for nodes inside of this block we need to extend
@@ -93,11 +93,15 @@ class InsideOfBlockSyncTracker():
         if isinstance(out, int):
             assert out in (0, 1), out
             return out
+
         usedInputs: UniqList[HlsNetNodeExplicitSync] = UniqList()
         self._collectInputValidityFlags(out, None, usedInputs)
         if usedInputs:
-            andMembers = tuple((out, *(rw.getValidNB() for rw in usedInputs)))
-            newOut = self.builder.buildAndVariadic(andMembers)
-            return newOut
+            andMembers = tuple((out, *(rw.getValidNB() for rw in usedInputs if isinstance(rw, HlsNetNodeRead))))
+            if andMembers:
+                newOut = self.builder.buildAndVariadic(andMembers)
+                return newOut
+            else:
+                return out
         else:
             return out
