@@ -410,6 +410,20 @@ bool processLoop(llvm::Loop &L, LoopInfo &LI, TargetLibraryInfo &TLI,
 			if (PreHeaderExitCondIsBreak != ToExitCondIsBreak) {
 				return Changed; // not implemented operand polarity swap
 			}
+			for (auto& PHI: ExitBlock->phis()) {
+				if (any_of(PHI.incoming_values(), [PreHeader](const Use & u) {
+					if (auto *I = dyn_cast<Instruction>(u.get())) {
+						if (I->getParent() == PreHeader) {
+							return true;
+						}
+					}
+					return false;
+				})) {
+					return Changed; // [todo] some PHI of exit block uses value defined in preheader block
+					// we can not move this PHI as is and instead we have to use SelectInst to select correct
+					// value for first iteration
+				}
+			}
 			if (matchSameExpression(valueMap, PreHeaderExitCond, ToExitCond,
 					isOutsideOfPreHeader, isOutsideOfLoop)) {
 				//writeCFGToDotFile(*L.getHeader()->getParent(),
