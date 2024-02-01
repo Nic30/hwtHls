@@ -1,60 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from itertools import takewhile
-import os
-import re
-
-from hwtHls.llvm.llvmIr import LlvmCompilationBundle, SMDiagnostic, parseIR
-from tests.baseSsaTest import BaseSsaTC
+from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function
+from tests.llvmIr.baseLlvmIrTC import BaseLlvmIrTC
 
 
-RE_HWTHLS_FN_CALL = re.compile('call (i[0-9]+) @hwtHls.((bitRangeGet)|(bitConcat))((\.i?[0-9]+)+)\(.*\)( #(\d+))')
-
-
-def generateAndAppendHwtHlsFunctionDeclarations(llvmIrStr:str):
-    indent = "".join(takewhile(lambda x: str.isspace(x) and x != '\n', llvmIrStr))
-    declarations = set()
-    for fn in RE_HWTHLS_FN_CALL.findall(llvmIrStr):
-        retTy = fn[0]
-        fnName = fn[1]
-        _argTy = fn[4]
-        assert fn[7] == "2", (fn[7], "@hwtHls.(bitRangeGet)|(bitConcat) must have memory attribute #2 otherwise it will not be reduced correctly")
-        argTy = _argTy.split(".")
-        assert argTy[0] == ""
-        argTy = argTy[1:]
-        if fnName == "bitRangeGet":
-            #  %ret = call i16 @hwtHls.bitRangeGet.i19.i6.i16.0(i19 %1, i6 0) #2
-            assert len(argTy) == 2 + 1 + 1, (fn, argTy)
-            assert argTy[-2] == retTy, ("wrong bitRangeGet return type", argTy[-2], "!=", retTy)
-            declarations.add(f"{indent:s}declare {retTy:s} @hwtHls.bitRangeGet{_argTy:s}({argTy[0]:s} %0, {argTy[1]:s} %1) #1")
-        elif fnName == "bitConcat":
-            # %ret = call i10 @hwtHls.bitConcat.i8.i1.i1(i8 %1, i1 %2, i1 %3) #2
-            args = ", ".join(f"{t:s} %{i}" for i, t in enumerate(argTy))
-            declarations.add(f"{indent:s}declare {retTy:s} @hwtHls.bitConcat{_argTy:s}({args:s}) #1")
-
-    atts = (f"{indent:s}attributes #1 = {{ nofree nounwind speculatable willreturn }}\n"
-            f"{indent:s}attributes #2 = {{ memory(none) }}")
-    return "\n".join([llvmIrStr ] + sorted(declarations) + ([atts] if declarations else []))
-
-
-class SlicesMergePass_TC(BaseSsaTC):
+class SlicesMergePass_TC(BaseLlvmIrTC):
     __FILE__ = __file__
 
-    def _test_ll(self, irStr: str):
-        irStr = generateAndAppendHwtHlsFunctionDeclarations(irStr)
-        llvm = LlvmCompilationBundle("test")
-        Err = SMDiagnostic()
-        M = parseIR(irStr, "test", Err, llvm.ctx)
-        if M is None:
-            raise AssertionError(Err.str("test", True, True))
-        else:
-            fns = tuple(M)
-            llvm.main = fns[0]
-            name = llvm.main.getName().str()
-
-        optF = llvm._testSlicesMergePass()
-        self.assert_same_as_file(repr(optF), os.path.join("data", 'SlicesMergePass_TC.' + name + ".ll"))
+    def _runTestOpt(self, llvm:LlvmCompilationBundle) -> Function:
+        return llvm._testSlicesMergePass()
 
     def test_notingToReduce(self):
         llvmIr0 = """
@@ -242,6 +197,29 @@ class SlicesMergePass_TC(BaseSsaTC):
         }
         """
         self._test_ll(ir)
+
+    def test_parallelSelect5(self):
+        ir = """\
+        define void @parallelSelect5(i4 addrspace(1)* %i0,
+                                     i1 addrspace(2)* %o0, i1 addrspace(2)* %o1,
+                                     i1 addrspace(2)* %o2, i1 addrspace(2)* %o3) {
+            %i00 = load volatile i4, i4 addrspace(1)* %i0, align 1
+            %"c" = call i1 @hwtHls.bitRangeGet.i4.i64.i1.0(i4 %i00, i64 0) #2
+
+            %sel0 = select i1 %c, i1 false, i1 false
+            %sel1 = select i1 %c, i1 false, i1 true
+            %sel2 = select i1 %c, i1 true, i1 false
+            %sel3 = select i1 %c, i1 true, i1 false
+
+            store volatile i1 %sel0, i1 addrspace(2)* %o0, align 1
+            store volatile i1 %sel1, i1 addrspace(2)* %o1, align 1
+            store volatile i1 %sel2, i1 addrspace(2)* %o2, align 1
+            store volatile i1 %sel3, i1 addrspace(2)* %o3, align 1
+            ret void
+        }
+        """
+        self._test_ll(ir)
+
 
 if __name__ == "__main__":
     # from hwt.synthesizer.utils import to_rtl_str

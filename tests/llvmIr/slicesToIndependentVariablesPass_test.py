@@ -13,14 +13,14 @@ from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
-from hwtHls.llvm.llvmIr import LlvmCompilationBundle, SMDiagnostic, parseIR
+from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtHls.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
 from hwtHls.ssa.translation.toLlvm import SsaPassToLlvm
-from tests.baseSsaTest import BaseSsaTC, TestFinishedSuccessfuly
+from tests.baseSsaTest import TestFinishedSuccessfuly
 from tests.bitOpt.countBits import CountLeadingZeros
-from tests.llvmIr.slicesMergePass_test import generateAndAppendHwtHlsFunctionDeclarations
+from tests.llvmIr.baseLlvmIrTC import BaseLlvmIrTC
 
 
 class SliceBreakSlicedVar0(Unit):
@@ -186,24 +186,14 @@ class BaseSliceBreakTestPlatform(VirtualHlsPlatform):
         raise TestFinishedSuccessfuly()
 
 
-class SlicesToIndependentVariablesPass_TC(BaseSsaTC):
+class SlicesToIndependentVariablesPass_TC(BaseLlvmIrTC):
     __FILE__ = __file__
 
-    def _test_ll_direct(self, irStr: str):
-        irStr = generateAndAppendHwtHlsFunctionDeclarations(irStr)
-        llvm = LlvmCompilationBundle("test")
-        Err = SMDiagnostic()
-        M = parseIR(irStr, "test", Err, llvm.ctx)
-        if M is None:
-            raise AssertionError(Err.str("test", True, True))
-        else:
-            fns = tuple(M)
-            llvm.module = M
-            llvm.main = fns[0]
-            name = llvm.main.getName().str()
+    def _runTestOpt(self, llvm:LlvmCompilationBundle) -> Function:
+        return llvm._testSlicesToIndependentVariablesPass()
 
-        optF = llvm._testSlicesToIndependentVariablesPass()
-        self.assert_same_as_file(repr(optF), os.path.join("data", self.__class__.__name__ + '.' + name + ".ll"))
+    def _test_ll_direct(self, irStr: str):
+        return BaseLlvmIrTC._test_ll(self, irStr)
 
     def _test_ll(self, unitConstructor: Unit, name=None):
         p = BaseSliceBreakTestPlatform()
@@ -311,7 +301,7 @@ class SlicesToIndependentVariablesPass_TC(BaseSsaTC):
         }
         """
         self._test_ll_direct(llvmIr)
-    
+
     def test_shiftInLoop0(self):
         # store, >> 1
         llvmIr = """\

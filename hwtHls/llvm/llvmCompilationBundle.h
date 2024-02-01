@@ -74,6 +74,7 @@ public:
 	llvm::Function& _testSlicesToIndependentVariablesPass();
 	llvm::Function& _testBitwidthReductionPass();
 	llvm::Function& _testSlicesMergePass();
+	llvm::Function& _testLoopUnrotatePass();
 	llvm::Function& _testRewriteExtractOnMergeValues();
 	llvm::Function& _testFunctionPass(
 			std::function<void(llvm::FunctionPassManager&)> addPasses);

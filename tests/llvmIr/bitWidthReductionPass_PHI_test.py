@@ -2,14 +2,15 @@
 # -*- coding: utf-8 -*-
 
 from tests.llvmIr.bitWidthReduction_test import BitwidthReductionPass_TC
-from tests.baseSsaTest import BaseSsaTC
+from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function
+from tests.llvmIr.baseLlvmIrTC import BaseLlvmIrTC
 
 
-class BitwidthReductionPass_PHI_TC(BaseSsaTC):
+class BitwidthReductionPass_PHI_TC(BaseLlvmIrTC):
     __FILE__ = __file__
 
-    def _test_ll(self, irStr:str):
-        BitwidthReductionPass_TC._test_ll(self, irStr)
+    def _runTestOpt(self, llvm:LlvmCompilationBundle) -> Function:
+        return BitwidthReductionPass_TC._runTestOpt(self, llvm)
 
     def test_rmInTheMiddle0(self):
         #  rxRaw = rx.read()

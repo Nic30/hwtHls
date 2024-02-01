@@ -1,32 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import os
-
-from hwtHls.llvm.llvmIr import LlvmCompilationBundle, SMDiagnostic, parseIR
-from tests.baseSsaTest import BaseSsaTC
-from tests.llvmIr.slicesMergePass_test import generateAndAppendHwtHlsFunctionDeclarations
+from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function
+from tests.llvmIr.baseLlvmIrTC import BaseLlvmIrTC
 from tests.llvmIr.rewriteExtractOnMergeValues_test import RewriteExtractOnMergeValuesPass_TC
 
 
-class BitwidthReductionPass_TC(BaseSsaTC):
+class BitwidthReductionPass_TC(BaseLlvmIrTC):
     __FILE__ = __file__
 
-    def _test_ll(self, irStr: str):
-        irStr = generateAndAppendHwtHlsFunctionDeclarations(irStr)
-        llvm = LlvmCompilationBundle("test")
-        Err = SMDiagnostic()
-        M = parseIR(irStr, "test", Err, llvm.ctx)
-        if M is None:
-            raise AssertionError(Err.str("test", True, True))
-        else:
-            fns = tuple(M)
-            llvm.module = M
-            llvm.main = fns[0]
-            name = llvm.main.getName().str()
-
-        optF = llvm._testBitwidthReductionPass()
-        self.assert_same_as_file(repr(optF), os.path.join("data", self.__class__.__name__ + '.' + name + ".ll"))
+    def _runTestOpt(self, llvm:LlvmCompilationBundle) -> Function:
+        return llvm._testBitwidthReductionPass()
 
     def test_constInConcat0(self):
         llvmIr = """\
@@ -179,6 +163,7 @@ class BitwidthReductionPass_TC(BaseSsaTC):
         }
         """
         self._test_ll(llvmIr)
+
 
 if __name__ == "__main__":
     import unittest

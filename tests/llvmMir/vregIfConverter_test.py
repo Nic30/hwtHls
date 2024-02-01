@@ -6,7 +6,7 @@ from pathlib import Path
 
 from hwtHls.llvm.llvmIr import LlvmCompilationBundle, parseMIR, parseIR, SMDiagnostic
 from tests.baseSsaTest import BaseSsaTC
-from tests.llvmIr.slicesMergePass_test import generateAndAppendHwtHlsFunctionDeclarations
+from tests.llvmIr.baseLlvmIrTC import generateAndAppendHwtHlsFunctionDeclarations
 
 
 class VRegIfConverter_TC(BaseSsaTC):
@@ -114,7 +114,6 @@ class VRegIfConverter_TC(BaseSsaTC):
         """
         self._test_ll_IR(ir)
 
-
     def test_simpleWithTooManyBranches(self):
         # Simple (split, no rejoin):
         #   EBB
@@ -125,7 +124,7 @@ class VRegIfConverter_TC(BaseSsaTC):
         #   FBB
         #   | \
         #   FT TF
-        # In this case it is not possible to merge branch of TBB to 
+        # In this case it is not possible to merge branch of TBB to
         ir = """\
         define void @simpleWithTooManyBranches(i1 addrspace(2)* %iC0, i8 addrspace(3)* %o) {
           EBB:
@@ -149,7 +148,6 @@ class VRegIfConverter_TC(BaseSsaTC):
         }
         """
         self._test_ll_IR(ir)
-
 
     def test_simpleInDiamondLike(self):
         # Simple (split, no rejoin):
@@ -188,7 +186,7 @@ class VRegIfConverter_TC(BaseSsaTC):
 #    def test_TriangleFRev(self):
         # Same as ICTriangleFalse, but false path rev condition.
 #    def test_TriangleRev(self):  # Same as ICTriangle, but true path rev condition.
-    def test_TriangleFalse(self):# Same as ICTriangle, but on the false path.
+    def test_TriangleFalse(self):  # Same as ICTriangle, but on the false path.
         ir = """\
         define void @triangleFalse(i1 addrspace(2)* %iC0, i8 addrspace(3)* %o) {
           EBB:
@@ -203,7 +201,7 @@ class VRegIfConverter_TC(BaseSsaTC):
         """
         self._test_ll_IR(ir)
 
-    def test_Triangle(self):     # BB is entry of a triangle sub-CFG.
+    def test_Triangle(self):  # BB is entry of a triangle sub-CFG.
         # Triangle:
         #   EBB
         #   | \_
@@ -225,7 +223,7 @@ class VRegIfConverter_TC(BaseSsaTC):
         """
         self._test_ll_IR(ir)
 
-    def test_ForkedTriangle0(self):     # BB is entry of a triangle sub-CFG.
+    def test_ForkedTriangle0(self):  # BB is entry of a triangle sub-CFG.
         # Triangle:
         #   EBB
         #   | \_

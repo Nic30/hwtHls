@@ -16,6 +16,7 @@
 #include <llvm/Target/TargetMachine.h>
 
 #include <hwtHls/llvm/Transforms/slicesMerge/slicesMerge.h>
+#include <hwtHls/llvm/Transforms/LoopUnrotatePass.h>
 #include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.h>
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/bitwidthReducePass.h>
 #include <hwtHls/llvm/Transforms/utils/dceWorklist.h>
@@ -115,6 +116,17 @@ llvm::Function& LlvmCompilationBundle::_testBitwidthReductionPass() {
 llvm::Function& LlvmCompilationBundle::_testSlicesMergePass() {
 	return _testFunctionPass([](llvm::FunctionPassManager &FPM) {
 		FPM.addPass(hwtHls::SlicesMergePass());
+	});
+}
+
+llvm::Function& LlvmCompilationBundle::_testLoopUnrotatePass() {
+	return _testFunctionPass([](llvm::FunctionPassManager &FPM) {
+		llvm::LoopPassManager LPM0;
+		LPM0.addPass(hwtHls::LoopUnrotatePass());
+
+		FPM.addPass(llvm::createFunctionToLoopPassAdaptor(std::move(LPM0),
+				/*UseMemorySSA=*/ false,
+				/*UseBlockFrequencyInfo=*/ false));
 	});
 }
 
