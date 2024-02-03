@@ -408,7 +408,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
         callFrame = PyBytecodeFrame.fromFunction(fn, curBlockLabel, callSiteAddress, fnArgs, fnKwargs, self.callStack)
 
         fnEntryBlockLabel = callFrame.blockTracker._getBlockLabel(0)
-        _fnEntryBlockLabel = fnEntryBlockLabel
+        # _fnEntryBlockLabel = fnEntryBlockLabel
         fnEntryBlock, fnEntryBlockIsNew = self._getOrCreateSsaBasicBlock(fnEntryBlockLabel)
         assert fnEntryBlockIsNew, "Must not reuse other existing block because every inline should generate new blocks only"
         curBlock.successors.addTarget(None, fnEntryBlock)
@@ -431,7 +431,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
             if first:
                 first = False
             elif finalRetVal is not retVal:
-                raise NotImplementedError("Currently function can return only a sigle instance.", callFrame.returnPoints)
+                raise NotImplementedError("Currently function can return only a single instance from any return.", callFrame.returnPoints)
 
             if retVal is not None:
                 finalRetVal = retVal

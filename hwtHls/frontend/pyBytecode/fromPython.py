@@ -20,11 +20,12 @@ from hwtHls.frontend.pyBytecode.instructions import JUMP_FORWARD, JUMP_BACKWARD,
     JUMP_IF_FALSE_OR_POP, JUMP_IF_TRUE_OR_POP, RETURN_VALUE, RAISE_VARARGS, RERAISE, \
     JUMP_BACKWARD_NO_INTERRUPT, JUMP_OPS, POP_JUMP_FORWARD_IF_FALSE, \
     POP_JUMP_BACKWARD_IF_FALSE, POP_JUMP_BACKWARD_IF_NOT_NONE, \
-    POP_JUMP_BACKWARD_IF_NONE, POP_JUMP_FORWARD_IF_NOT_NONE,\
-    POP_JUMP_FORWARD_IF_NONE
+    POP_JUMP_BACKWARD_IF_NONE, POP_JUMP_FORWARD_IF_NOT_NONE, \
+    POP_JUMP_FORWARD_IF_NONE, FOR_ITER
 from hwtHls.frontend.pyBytecode.loopMeta import PyBytecodeLoopInfo, \
     BranchTargetPlaceholder, LoopExitJumpInfo
-from hwtHls.frontend.pyBytecode.markers import PyBytecodePreprocDivergence
+from hwtHls.frontend.pyBytecode.markers import PyBytecodePreprocDivergence, \
+    PyBytecodeInPreproc
 from hwtHls.frontend.pyBytecode.utils import isLastJumpFromBlock, blockHasBranchPlaceholder
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.value import SsaValue
@@ -85,7 +86,7 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
             d.mkdir(exist_ok=True)
             with open(d / f"00.bytecode.{fnName}.txt", "w") as f:
                 dis(fn, file=f)
-                
+
         self.toSsa = HlsAstToSsa(self.hls.ssaCtx, fnName, None)
 
         entryBlock = self.toSsa.start
@@ -407,7 +408,40 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
         else:
             self._onBlockNotGenerated(frame, curBlock, sucBlockOffset)
 
+    def _translateInctuctionJumpFOR_ITER(self, frame: PyBytecodeFrame,
+                                    curBlock: SsaBasicBlock,
+                                    forIter: Instruction):
+        # preproc eval for loop
+        curLoopInfo: PyBytecodeLoopInfo = frame.loopStack[-1]
+        # curLoop = curLoopInfo.loop
+        assert curLoopInfo.loop.entryPoint == self.blockToLabel[curBlock][-1], (curLoopInfo, curBlock)
+        curLoopInfo.mustBeEvaluatedInPreproc = True
+        a = frame.stack[-1]
+        bodyBlockOffset = forIter.offset + 2
+        exitBlockOffset = forIter.argval
+        try:
+            v = next(a)
+        except StopIteration:
+            #assert curLoop.entryPoint == forIter.offset
+            # create only branch placeholder to delegate processing of this jump from the loop to a _translateBlockBody on a loop header
+            branchPlaceholder = BranchTargetPlaceholder.create(curBlock)
+            lei = LoopExitJumpInfo(None, curBlock, None, None, exitBlockOffset, None, None, branchPlaceholder, frame)
+            frame.markJumpFromBodyOfCurrentLoop(lei)
+            curBlockLabel = self.blockToLabel[curBlock]
+            self._addNotGeneratedJump(frame, curBlockLabel, frame.blockTracker._getBlockLabel(bodyBlockOffset))
+            frame.stack.pop()  # pop iterator itself
+            return
 
+        frame.stack.append(PyBytecodeInPreproc(v))
+        # :attention: Jump to exit block can not be marked as notGenerate immediately
+        #   It must be done after last iteration because we need to keep exit block alive unitl the loop is completly resolved.
+
+        # mark jump from loop in header as not performed
+        exitBlockLabel = frame.blockTracker._getBlockLabel(exitBlockOffset)
+        exitInfo = LoopExitJumpInfo(False, curBlock, False, None, exitBlockLabel, None, None, None, frame)
+        curLoopInfo.markJumpFromBodyOfLoop(exitInfo)
+        # jump into loop body
+        self._getOrCreateSsaBasicBlockAndJumpRecursively(frame, curBlock, bodyBlockOffset, None, None)
 
     def _translateInstructionJumpHw(self,
                                     frame: PyBytecodeFrame,
@@ -418,6 +452,8 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
             opcode = instr.opcode
 
             if opcode == RETURN_VALUE or opcode == RAISE_VARARGS or opcode == RERAISE:
+                retVal = frame.stack.pop()
+                frame.returnPoints.append((frame, curBlock, retVal))
                 self._onBlockGenerated(frame, self.blockToLabel[curBlock])
                 return
 
@@ -426,6 +462,8 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
 
                 if not blockHasBranchPlaceholder(curBlock):
                     self._onBlockGenerated(frame, self.blockToLabel[curBlock])
+            elif opcode == FOR_ITER:
+                self._translateInctuctionJumpFOR_ITER(frame, curBlock, instr)
             else:
                 condJumpCond = JUMP_OPS.get(opcode, None)
                 if condJumpCond is not None:
@@ -455,10 +493,10 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
                         # swap targets because condition is negated
                         ifTrueOffset, ifFalseOffset = ifFalseOffset, ifTrueOffset
                     elif opcode in (POP_JUMP_BACKWARD_IF_NOT_NONE, POP_JUMP_FORWARD_IF_NOT_NONE):
-                        assert compileTimeResolved, cond
+                        assert compileTimeResolved, ("Can not check if HW value is not None, supports only non HW object", cond)
                         cond = cond is not None
                     elif opcode in (POP_JUMP_BACKWARD_IF_NONE, POP_JUMP_FORWARD_IF_NONE):
-                        assert compileTimeResolved, cond
+                        assert compileTimeResolved, ("Can not check if HW value is None, supports only non HW object", cond)
                         cond = cond is None
 
                     if compileTimeResolved:
