@@ -65,11 +65,15 @@ namespace hwtHls {
  *
  * :attention: if there are multiple variables modified in the loop and some of them
  *    are not used behind the loop the loopHeader block will contain additional PHIs which must be moved to guard block
+ *
+ *  Similar passes in other projects:
+ *   * https://github.com/arcana-lab/noelle/blob/master/src/core/loop_whilifier/src/LoopWhilify.cpp
  * */
 class LoopUnrotatePass: public llvm::PassInfoMixin<LoopUnrotatePass> {
 public:
 	llvm::PreservedAnalyses run(llvm::Loop &L, llvm::LoopAnalysisManager &AM,
 			llvm::LoopStandardAnalysisResults &AR, llvm::LPMUpdater &U);
+	static bool isRequired() { return false; }
 };
 
 }
