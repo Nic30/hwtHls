@@ -65,7 +65,9 @@ The source code location is not usually explicitly added to each instruction ins
 * Loop
   * (backedge) detection - Edge, x -> y where y dominates x (loop header is y)
   * Header dominates all blocks in loop
-  
+* PHINode
+  * https://github.com/llvm/llvm-project/blob/main/llvm/lib/ExecutionEngine/Interpreter/Execution.cpp#L979
+  * PHI nodes must be executed atomically, reading their inputs before any of the results are updated.
  
 MIR level (llvm/CodeGen)
 ------------------------
