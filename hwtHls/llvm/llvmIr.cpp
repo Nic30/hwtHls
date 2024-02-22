@@ -1,4 +1,7 @@
 #include <hwtHls/llvm/llvmIrCommon.h>
+#include <hwtHls/llvm/llvmPyCompilationBundle.h>
+#include <hwtHls/llvm/llvmIrAny.h>
+#include <hwtHls/llvm/llvmIrLoop.h>
 #include <hwtHls/llvm/llvmIrBuilder.h>
 #include <hwtHls/llvm/llvmIrFunction.h>
 #include <hwtHls/llvm/llvmIrInstruction.h>
@@ -7,24 +10,19 @@
 #include <hwtHls/llvm/llvmIrMachineFunction.h>
 #include <hwtHls/llvm/llvmIrMachineLoop.h>
 #include <hwtHls/llvm/llvmIrMetadata.h>
-#include <hwtHls/llvm/llvmCompilationBundle.h>
 #include <hwtHls/llvm/targets/hwtFpga.h>
-#include <hwtHls/llvm/targets/Transforms/hwtFpgaToNetlist.h>
-#include <hwtHls/llvm/Transforms/dumpAndExitPass.h>
 
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/DerivedTypes.h>
-#include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Type.h>
 #include <llvm/IR/Verifier.h>
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/CodeGen/MachineInstr.h>
-
+#include <llvm/Support/SourceMgr.h>
+#include <llvm/Pass.h>
 
 #include <pybind11/pybind11.h>
-#include <pybind11/stl.h>
-#include <pybind11/stl_bind.h>
 
 #include <memory>
 #include <string>
@@ -38,15 +36,6 @@ namespace hwtHls {
 // https://pybind11.readthedocs.io/en/stable/advanced/classes.html
 // https://github.com/llvm/circt/blob/main/lib/Bindings/Python/MSFTModule.cpp
 // https://blog.ekbana.com/write-a-python-binding-for-your-c-code-using-pybind11-library-ef0992d4b68
-
-
-std::string Module__repr__(llvm::Module *self) {
-	std::string tmp;
-	llvm::raw_string_ostream ss(tmp);
-	self->print(ss, nullptr);
-	return ss.str();
-}
-
 
 void register_VectorOfTypePtr(pybind11::module_ & m) {
 	py::class_<std::vector<llvm::Type*>>(m, "VectorOfTypePtr")
@@ -119,77 +108,12 @@ void register_Types(pybind11::module_ & m) {
  	}, py::return_value_policy::reference);
 }
 
-// https://github.com/PointCloudLibrary/clang-bind
-// http://nondot.org/~sabre/LLVMNotes/TypeSystemChanges.txt
-PYBIND11_MODULE(llvmIr, m) {
-	hwtFpgaTargetInitialize();
-	py::register_local_exception<hwtHls::IntentionalCompilationInterupt>(m, "IntentionalCompilationInterupt", PyExc_RuntimeError);
-	py::class_<hwtHls::LlvmCompilationBundle>(m, "LlvmCompilationBundle")
-		.def(py::init<const std::string &>())
-		.def("addLlvmCliArgOccurence", &hwtHls::LlvmCompilationBundle::addLlvmCliArgOccurence)
-		.def("runOpt", [](hwtHls::LlvmCompilationBundle * LCB, py::function & callbackFn, py::object & hls, py::object & toSsa) {
-			py::object returnObj;
-			LCB->runOpt([callbackFn, &hls, &toSsa, &returnObj](llvm::MachineFunction &MF,
-					std::set<hwtHls::HwtFpgaToNetlist::MachineBasicBlockEdge>& backedges,
-					hwtHls::EdgeLivenessDict & liveness,
-					std::vector<llvm::Register> & ioRegs,
-					std::map<llvm::Register, unsigned> & registerTypes,
-					llvm::MachineLoopInfo & loops) {
-				// :note: specified explicitly so we can modify reference handling and pass python objects without
-				//        spoiling C++ llvm code with pybind11
-				returnObj = callbackFn.operator() <py::return_value_policy::reference,
-						py::object &,
-						py::object &,
-						llvm::MachineFunction &,
-						std::set<hwtHls::HwtFpgaToNetlist::MachineBasicBlockEdge>&,
-					    hwtHls::EdgeLivenessDict &,
-					    std::vector<llvm::Register> &,
-					    std::map<llvm::Register, unsigned> &,
-					    llvm::MachineLoopInfo &>(
-					    		hls, toSsa,MF, backedges, liveness, ioRegs, registerTypes, loops
-				);
-			});
-			return returnObj;
-		})
-		.def("getMachineFunction", &hwtHls::LlvmCompilationBundle::getMachineFunction, py::return_value_policy::reference_internal)
-		.def("getMachineModuleInfo", &hwtHls::LlvmCompilationBundle::getMachineModuleInfo, py::return_value_policy::reference_internal)
-		.def("_testSlicesToIndependentVariablesPass", &hwtHls::LlvmCompilationBundle::_testSlicesToIndependentVariablesPass, py::return_value_policy::reference_internal)
-		.def("_testSlicesMergePass", &hwtHls::LlvmCompilationBundle::_testSlicesMergePass, py::return_value_policy::reference_internal)
-		.def("_testLoopUnrotatePass", &hwtHls::LlvmCompilationBundle::_testLoopUnrotatePass, py::return_value_policy::reference_internal)
-		.def("_testBitwidthReductionPass", &hwtHls::LlvmCompilationBundle::_testBitwidthReductionPass, py::return_value_policy::reference_internal)
-		.def("_testRewriteExtractOnMergeValuesPass", &hwtHls::LlvmCompilationBundle::_testRewriteExtractOnMergeValues, py::return_value_policy::reference_internal)
-		.def("_testEarlyIfConverter", &hwtHls::LlvmCompilationBundle::_testEarlyIfConverter, py::return_value_policy::reference_internal)
-		.def("_testVRegIfConverter", &hwtHls::LlvmCompilationBundle::_testVRegIfConverter, py::return_value_policy::reference_internal)
-		.def("_testVRegIfConverterForIr", &hwtHls::LlvmCompilationBundle::_testVRegIfConverterForIr, py::return_value_policy::reference_internal)
-		.def_readonly("ctx", &hwtHls::LlvmCompilationBundle::ctx)
-		.def_readonly("strCtx", &hwtHls::LlvmCompilationBundle::strCtx)
-		.def_readonly("builder", &hwtHls::LlvmCompilationBundle::builder)
-		.def_readwrite("main", &hwtHls::LlvmCompilationBundle::main)
-		.def_readwrite("module", &hwtHls::LlvmCompilationBundle::module);
-
-	py::class_<llvm::LLVMContext,  std::unique_ptr<llvm::LLVMContext, py::nodelete>>(m, "LLVMContext"); // construct using LlvmCompilationBundle
-	py::class_<llvm::Module, std::unique_ptr<llvm::Module, py::nodelete>>(m, "Module")
-			.def(py::init<llvm::StringRef, llvm::LLVMContext&>(), py::keep_alive<1, 2>(), py::keep_alive<1, 3>())
-			.def("__repr__", &Module__repr__)
-			.def("getName", &llvm::Module::getName)
-			.def("getFunction", &llvm::Module::getFunction)
-			.def("__eq__", [](llvm::Module* self, llvm::Module* other) {
-				return self == other;
-			})
-			.def("__hash__", [](llvm::Module * v) {
-				return reinterpret_cast<intptr_t>(v);
-			})
-			.def("__iter__", [](llvm::Module &M) {
-					return py::make_iterator(M.begin(), M.end());
-				}, py::keep_alive<0, 1>());
-	register_VectorOfTypePtr(m);
-	register_IRBuilder(m);
-	register_strings(m);
-	register_Values_and_Use(m);
-
+void register_BasicBlock(pybind11::module_ & m) {
 	py::class_<llvm::BasicBlock, std::unique_ptr<llvm::BasicBlock, py::nodelete>, llvm::Value>(m, "BasicBlock")
 		.def("Create", &llvm::BasicBlock::Create, py::return_value_policy::reference_internal)
 		.def("getName", &llvm::BasicBlock::getName)
+		.def("getParent", [](llvm::BasicBlock & BB) {return BB.getParent();}, py::return_value_policy::reference_internal)
+		.def("insertInto", &llvm::BasicBlock::insertInto)
 		.def("printAsOperand", [](const llvm::BasicBlock & BB) {
 			std::string tmp;
 			llvm::raw_string_ostream ss(tmp);
@@ -210,12 +134,55 @@ PYBIND11_MODULE(llvmIr, m) {
 			return (llvm::BasicBlock*) nullptr;
 		}
 	});
+}
 
+std::string Module__repr__(llvm::Module *self) {
+	std::string tmp;
+	llvm::raw_string_ostream ss(tmp);
+	self->print(ss, nullptr);
+	return ss.str();
+}
+
+void register_Module(pybind11::module_ & m) {
+	py::class_<llvm::Module, std::unique_ptr<llvm::Module, py::nodelete>>(m, "Module")
+			.def(py::init<llvm::StringRef, llvm::LLVMContext&>(), py::keep_alive<1, 2>(), py::keep_alive<1, 3>())
+			.def("__repr__", &Module__repr__)
+			.def("getName", &llvm::Module::getName)
+			.def("getFunction", &llvm::Module::getFunction)
+			.def("__eq__", [](llvm::Module* self, llvm::Module* other) {
+				return self == other;
+			})
+			.def("__hash__", [](llvm::Module * v) {
+				return reinterpret_cast<intptr_t>(v);
+			})
+			.def("__iter__", [](llvm::Module &M) {
+					return py::make_iterator(M.begin(), M.end());
+				}, py::keep_alive<0, 1>());
+
+}
+
+// https://github.com/PointCloudLibrary/clang-bind
+// http://nondot.org/~sabre/LLVMNotes/TypeSystemChanges.txt
+PYBIND11_MODULE(llvmIr, m) {
+	hwtFpgaTargetInitialize();
+	// it is recommended to construct LLVMContext using LlvmCompilationBundle
+	py::class_<llvm::LLVMContext, std::unique_ptr<llvm::LLVMContext, py::nodelete>>(m, "LLVMContext");
+	register_Module(m);
+	register_VectorOfTypePtr(m);
+	register_IRBuilder(m);
+	register_strings(m);
+	register_Values_and_Use(m);
+	register_BasicBlock(m);
 	register_Function(m);
 	register_Types(m);
 	register_Attribute(m);
 	register_MDNode(m);
 	register_Instruction(m);
+	register_llvmAny(m);
+	register_Loop(m);
+	register_MachineFunction(m);
+	register_MachineLoop(m);
+	register_LlvmCompilationBundle(m);
 
 	m.def("errs", &llvm::errs);
 
@@ -229,8 +196,7 @@ PYBIND11_MODULE(llvmIr, m) {
 		auto & e = llvm::errs();
 		return llvm::verifyModule(M, &e);
 	});
-	register_MachineFunction(m);
-	register_MachineLoop(m);
+
 
 	py::class_<llvm::SMDiagnostic> (m, "SMDiagnostic")
 			.def(py::init<>())
