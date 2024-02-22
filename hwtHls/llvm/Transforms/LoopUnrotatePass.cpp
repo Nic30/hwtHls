@@ -73,7 +73,7 @@ bool matchSameExpression(std::map<Value*, Value*> &valueMap, Value *v0,
 	// check for handles
 	if (isHandle0(*i0)) {
 		if (isHandle1(*i1)) {
-			// checked that the there is no valueMap[v0] in the beggining of this function
+			// checked that the there is no valueMap[v0] in the beginning of this function
 			valueMap[v0] = v1;
 			return true;
 		} else {
