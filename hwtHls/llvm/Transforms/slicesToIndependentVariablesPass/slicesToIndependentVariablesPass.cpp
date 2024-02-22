@@ -2,6 +2,8 @@
 #include <map>
 #include <set>
 
+#include <llvm/Transforms/Utils/BasicBlockUtils.h>
+
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/detectSplitPoints.h>
 #include <hwtHls/llvm/targets/intrinsic/concatMemberVector.h>
@@ -10,6 +12,8 @@
 #define DEBUG_TYPE "slices-to-independent-variables"
 
 using namespace llvm;
+// #undef LLVM_DEBUG
+// #define LLVM_DEBUG(dbg) dbg
 
 namespace hwtHls {
 
@@ -19,11 +23,35 @@ public:
 	const std::map<Instruction*, std::set<uint64_t>> &splitPoints;
 	IRBuilder<> &builder;
 	std::unordered_map<OffsetWidthValue, Value*> commonSubexpressionCache;
+	std::set<Instruction*> &toRemove;
+	// bool & CFGWasChanged;
 
 	SlicedValueResolver(
 			const std::map<Instruction*, std::set<uint64_t>> &splitPoints,
-			IRBuilder<> &builder) :
-			splitPoints(splitPoints), builder(builder) {
+			IRBuilder<> &builder, std::set<Instruction*> &toRemove//, bool & CFGWasChanged
+			) :
+			splitPoints(splitPoints), builder(builder), toRemove(toRemove)//, CFGWasChanged(CFGWasChanged)
+	{
+	}
+
+	void cancelRemoveOfBitConcatAndBitRangeGetExpr(Value *V) {
+		if (auto *C = dyn_cast<CallInst>(V)) {
+			if (IsBitConcat(C) || IsBitRangeGet(C)) {
+				auto cur = toRemove.find(C);
+				if (cur != toRemove.end())
+					toRemove.erase(cur);
+				for (llvm::Use &opU : C->args()) {
+					cancelRemoveOfBitConcatAndBitRangeGetExpr(opU.get());
+				}
+			}
+		} else if (auto *C = dyn_cast<CastInst>(V)) {
+			auto cur = toRemove.find(C);
+			if (cur != toRemove.end())
+				toRemove.erase(cur);
+			for (llvm::Use &opU : C->operands()) {
+				cancelRemoveOfBitConcatAndBitRangeGetExpr(opU.get());
+			}
+		}
 	}
 
 	static bool isInstructionSplitable(Instruction &I) {
@@ -36,9 +64,9 @@ public:
 			default:
 				break;
 			};
-		} else if (dyn_cast<PHINode>(&I)) {
+		} else if (isa<PHINode>(&I)) {
 			return true;
-		} else if (dyn_cast<SelectInst>(&I)) {
+		} else if (isa<SelectInst>(&I)) {
 			return true;
 		} else if (auto *C = dyn_cast<CallInst>(&I)) {
 			if (IsBitConcat(C) || IsBitRangeGet(C))
@@ -49,7 +77,17 @@ public:
 
 		return false;
 	}
-
+	static bool InstructionDominatesInSameBlock(Instruction & I0, Instruction & I1) {
+		// :returns: true if I0 is predecessor of I1
+		const BasicBlock & BB = *I0.getParent();
+		assert(I1.getParent() == &BB);
+		for (auto I = I1.getIterator(); I->getIterator() != BB.begin(); --I) {
+			if (I0.getIterator() == I) {
+				return true;
+			}
+		}
+		return false;
+	}
 	void resolveConcatMembersSlicedInstruction(ConcatMemberVector &result,
 			Instruction *I, bool isConcat, bool isBitRangeGet,
 			uint64_t highBitNo, uint64_t lowBitNo) {
@@ -152,14 +190,58 @@ public:
 				auto *newPhi = builder.CreatePHI(builder.getIntNTy(width),
 						PHI->getNumIncomingValues(), PHI->getName());
 				commonSubexpressionCache[cacheKey] = newPhi;
-				for (auto &U : PHI->incoming_values()) {
+				// prefill incoming values to have a valid PHI, for SplidEdge call
+				//auto undefV = UndefValue::get(newPhi->getType());
+				//for (auto& BB: PHI->blocks()) {
+				//	newPhi->addIncoming(undefV, BB);
+				//}
+
+				// BasicBlock & ParentBB = *PHI->getParent();
+				// size_t predIndex = 0;
+				for (auto const &[PredBB, U] : llvm::zip(PHI->blocks(), PHI->incoming_values())) {
 					Value *newV;
 					if (U->getType()->isIntegerTy()) {
 						newV = resolveValue(U.get(), highBitNo, lowBitNo);
 					} else {
 						newV = U.get();
 					}
-					newPhi->addIncoming(newV, PHI->getIncomingBlock(U));
+					// [note] This is not required because all phis at the top of block are resolved atomically at once.
+					// check for case where value depends on some predecessor PHINode in this block
+					// if (auto otherPhi = dyn_cast<PHINode>(newV)) {
+					// 	if (otherPhi->getParent() == &ParentBB) {
+					// 		if (InstructionDominatesInSameBlock(*otherPhi, *newPhi)) {
+					// 			// if this is a case we have to create a temporary variable using PHINode
+					// 			BasicBlock * tmpBB;
+					// 			if (PredBB != &ParentBB && PredBB->getSinglePredecessor()) {
+					// 				// check if we can place tmp var PHINode in predecessor block
+					// 				assert(otherPhi->getParent() != PredBB && "It should already be checked that otherPhi is in same block as PHI and it is not PredBB");
+					// 				tmpBB = &*PredBB;
+					// 			} else {
+					// 				// or we have to create a new block
+					// 				tmpBB = SplitEdge(&*PredBB, &ParentBB,
+					// 				                      /*DT */ nullptr, /*LI*/ nullptr,
+					// 				                      /*MSSAU*/ nullptr,
+					// 				                      /*BBName*/"");
+					// 				CFGWasChanged = true;
+					// 			}
+					// 			{
+					// 				IRBuilder<>::InsertPointGuard g(builder);
+					// 				builder.SetInsertPoint(tmpBB);
+					// 				if (tmpBB->begin() != tmpBB->end()) {
+					// 					IRBuilder_setInsertPointBehindPhi(builder, &*tmpBB->begin());
+					// 				}
+					// 				auto tmpPhi = builder.CreatePHI(otherPhi->getType(), 1, otherPhi->getName() + ".tmp");
+					// 				auto predPred = tmpBB->getSinglePredecessor();
+					// 				assert(predPred && "We just build a block which has a single predecessor");
+					// 				tmpPhi->addIncoming(newV, tmpBB->getSinglePredecessor());
+					// 				newV = tmpPhi;
+					// 			}
+					// 		}
+					// 	}
+					// }
+					newPhi->addIncoming(newV, PredBB);
+					// newPhi->setIncomingValue(predIndex, newV);
+					// ++predIndex;
 				}
 				result.push_back( { 0, width, newPhi });
 				added = true;
@@ -316,7 +398,7 @@ public:
 				result.push_back( { lowBitNo, highBitNo - lowBitNo, v });
 			}
 		} else if (auto *CI = dyn_cast<CastInst>(v)) {
-			errs() << *v << "\n";
+			errs() << *CI << "\n";
 			llvm_unreachable("[todo]");
 		} else if (auto *C = dyn_cast<ConstantInt>(v)) {
 			// this is constant slice it immediately
@@ -349,6 +431,7 @@ public:
 			return existing->second;
 		}
 		Value *res = concatMembers.resolveValue(dyn_cast<Instruction>(v));
+		cancelRemoveOfBitConcatAndBitRangeGetExpr(res);
 		commonSubexpressionCache[cacheKey] = res;
 		return res;
 	}
@@ -371,26 +454,7 @@ public:
 	}
 };
 
-static void removeBitConcatAndBitRangeGetExprFromSet(
-		std::set<Instruction*> &set, Value *V) {
-	if (auto *C = dyn_cast<CallInst>(V)) {
-		if (IsBitConcat(C) || IsBitRangeGet(C)) {
-			auto cur = set.find(C);
-			if (cur != set.end())
-				set.erase(cur);
-			for (llvm::Use &opU : C->args()) {
-				removeBitConcatAndBitRangeGetExprFromSet(set, opU.get());
-			}
-		}
-	} else if (auto *C = dyn_cast<CastInst>(V)) {
-		auto cur = set.find(C);
-		if (cur != set.end())
-			set.erase(cur);
-		for (llvm::Use &opU : C->operands()) {
-			removeBitConcatAndBitRangeGetExprFromSet(set, opU.get());
-		}
-	}
-}
+
 
 bool splitOnSplitPoints(
 		const std::map<Instruction*, std::set<uint64_t>> &splitPoints,
@@ -413,7 +477,7 @@ bool splitOnSplitPoints(
 			}
 		}
 	}
-	SlicedValueResolver svr(splitPoints, builder);
+	SlicedValueResolver svr(splitPoints, builder, toRemove);
 	bool Changed = toRemove.size() != 0;
 	for (auto &B : F) {
 		for (Instruction &I : B) {
@@ -424,7 +488,7 @@ bool splitOnSplitPoints(
 			LLVM_DEBUG(dbgs() << "Resolving operands for:" << I << "\n");
 			for (Use &O : I.operands()) {
 				Changed |= svr.resolveOperand(O);
-				removeBitConcatAndBitRangeGetExprFromSet(toRemove, O.get());
+				//removeBitConcatAndBitRangeGetExprFromSet(toRemove, O.get());
 			}
 		}
 	}
@@ -450,9 +514,25 @@ bool splitOnSplitPoints(
 	for (auto *I : toRemove) {
 		I->replaceAllUsesWith(UndefValue::get(I->getType()));
 		I->eraseFromParent();
-
 	}
+
 	return Changed;
+}
+
+void assertPhiDoesNotUsePredecessorPhi(const Function &F) {
+	for (auto & BB: F) {
+		std::set<const PHINode*> phis;
+		for (const PHINode & PHI: BB.phis()) {
+			for (const Use & IV: PHI.incoming_values()) {
+				if (const PHINode * PhiIV = dyn_cast<const PHINode>(IV.get())) {
+					if (phis.find(PhiIV) != phis.end()) {
+						llvm_unreachable("PHI in block uses other PHI defined before it in the same block");
+					}
+				}
+			}
+			phis.insert(&PHI);
+		}
+	}
 }
 
 /*
@@ -463,18 +543,19 @@ bool splitOnSplitPoints(
  */
 PreservedAnalyses SlicesToIndependentVariablesPass::run(Function &F,
 		FunctionAnalysisManager &AM) {
+	assertPhiDoesNotUsePredecessorPhi(F);
 
 	// for each instruction resolve segments of bits which are used independently
 	auto splitPoints = collectSplitPoints(F);
-	// errs() << "Split points:\n";
-	// for (auto &item : splitPoints) {
-	// 	errs() << *item.first;
-	// 	errs() << "    [";
-	// 	for (auto p : item.second) {
-	// 		errs() << p << " ";
-	// 	}
-	// 	errs() << "]\n";
-	// }
+	//errs() << "Split points:\n";
+	//for (auto &item : splitPoints) {
+	//	errs() << *item.first;
+	//	errs() << "    [";
+	//	for (auto p : item.second) {
+	//		errs() << p << " ";
+	//	}
+	//	errs() << "]\n";
+	//}
 	//writeCFGToDotFile(F, "before.SlicesToIndependentVariablesPass.dot", nullptr, nullptr);
 	// for each user of variable which have a split point resolve a new value
 	// while looking trough the hierarchy of slices, concatenations and bitwise operators
