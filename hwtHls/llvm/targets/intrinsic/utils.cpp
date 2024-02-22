@@ -114,10 +114,15 @@ void AddDefaultFunctionAttributes(Function &TheFn) {
 void IRBuilder_setInsertPointBehindPhi(IRBuilder<> &builder, llvm::Instruction *I) {
 	builder.SetInsertPoint(I);
 	auto insPoint = builder.GetInsertPoint();
-	while (dyn_cast<PHINode>(&*insPoint)) {
+	auto end = I->getParent()->end();
+	while (insPoint != end && isa<PHINode>(&*insPoint)) {
 		++insPoint;
 	}
-	builder.SetInsertPoint(&*insPoint);
+	if (insPoint == end) {
+		builder.SetInsertPoint(I->getParent());
+	} else {
+		builder.SetInsertPoint(&*insPoint);
+	}
 }
 
 }
