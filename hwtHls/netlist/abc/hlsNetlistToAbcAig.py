@@ -14,7 +14,7 @@ from pyMathBitPrecise.bit_utils import ValidityError
 
 class HlsNetlistToAbcAig(RtlNetlistToAbcAig):
 
-    def __init__(self,):
+    def __init__(self):
         self.translationCache: Dict[RtlSignal, Abc_Obj_t] = {}
 
     def _translate(self, aig: Abc_Aig_t, o: HlsNetNodeOut):

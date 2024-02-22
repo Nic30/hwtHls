@@ -42,9 +42,9 @@ class AbcAigToRtlNetlist():
             yield (o1, not o1n and o1isPi)
         else:
             yield from cls._collectOrMembers(o1)
-    
-    #@classmethod
-    #def _collectAndMembers(cls, o: Abc_Obj_t):
+
+    # @classmethod
+    # def _collectAndMembers(cls, o: Abc_Obj_t):
     #    """
     #    Collect members (a, b, c) from patterns like (~a | ~b | ~c)
     #    to translate it to ~(a & b & c)
@@ -54,14 +54,14 @@ class AbcAigToRtlNetlist():
     #    o0, o1 = o.IterFanin()
     #    o0isPi = o0.IsPi()
     #    o1isPi = o1.IsPi()
-    #    
     #
-    #@classmethod
-    #def _collectAndNotMembers(cls, o: Abc_Obj_t):
+    #
+    # @classmethod
+    # def _collectAndNotMembers(cls, o: Abc_Obj_t):
     #    """
     #    Collect members (a, b, c) from patterns like (~a & ~b & ~c)
     #    to translate it to ~(a | b | c)
-    #    """        
+    #    """
 
     def _recognizeNonAigOperator(self, o: Abc_Obj_t, negated: bool):
         """
@@ -88,7 +88,7 @@ class AbcAigToRtlNetlist():
             if topP0 == topP1 and ((negated and not o0n and not o1n) or
                                    (not negated and o0n and o1n)):
                 return AllOps.NOT, (tr(topP0, False),)
-            
+
             # or: ~(~p0 & ~p1 & ~p2 ...)
             orMembers = tuple(self._collectOrMembers(o))
             if orMembers:
@@ -103,9 +103,8 @@ class AbcAigToRtlNetlist():
                     elif not allArePis or all(not n for _, n in orMembers):
                         # (~p0 & ~p1) -> ~(p0 | p1)
                         return AllOps.NOT, (AllOps.OR, tuple(tr(p, n) for p, n in orMembers))
-        
+
             return None
-        
 
         if not topP0.IsPi() and not topP1.IsPi():
             P0o0n = topP0.FaninC0()
@@ -166,7 +165,7 @@ class AbcAigToRtlNetlist():
                 while op is AllOps.NOT and isinstance(ops[0], OpDefinition):
                     negated = not negated
                     op, ops = ops
-                
+
                 if op is AllOps.OR and len(ops) != 2:
                     res = Or(*ops)
                 elif op is AllOps.AND and len(ops) != 2:

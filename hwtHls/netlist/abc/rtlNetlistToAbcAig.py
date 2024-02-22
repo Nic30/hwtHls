@@ -2,10 +2,10 @@ from typing import Dict, Tuple, Union
 
 from hwt.hdl.operator import Operator
 from hwt.hdl.operatorDefs import AllOps
+from hwt.hdl.value import HValue
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.netlist.abc.abcCpp import Abc_Ntk_t, Abc_Aig_t, Abc_NtkType_t, Abc_NtkFunc_t, Abc_Frame_t, Abc_Obj_t
-from hwt.hdl.value import HValue
 
 
 class RtlNetlistToAbcAig():
