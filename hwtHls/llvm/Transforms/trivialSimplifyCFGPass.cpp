@@ -87,7 +87,8 @@ bool trySimplifyTerminator(BasicBlock &BB,
 	}
 	return false;
 }
-
+TrivialSimplifyCFGPass::TrivialSimplifyCFGPass(bool pruneSinglePredSingleSucBlocks): pruneSinglePredSingleSucBlocks(pruneSinglePredSingleSucBlocks) {
+}
 llvm::PreservedAnalyses TrivialSimplifyCFGPass::run(llvm::Function &F,
 		llvm::FunctionAnalysisManager &AM) {
 	bool Changed = false;
@@ -107,7 +108,8 @@ llvm::PreservedAnalyses TrivialSimplifyCFGPass::run(llvm::Function &F,
 		if (trySimplifyTerminator(*BB, WorkList)) {
 			Changed = true;
 		}
-		Changed |= tryRemoveSingleSuccessorSinglePredecessorBlock(BB, WorkList);
+		if (pruneSinglePredSingleSucBlocks)
+			Changed |= tryRemoveSingleSuccessorSinglePredecessorBlock(BB, WorkList);
 	}
 	if (Changed) {
 		PreservedAnalyses PA;
