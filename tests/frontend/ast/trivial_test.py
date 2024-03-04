@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.serializer.combLoopAnalyzer import CombLoopAnalyzer
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.platform.virtual import VirtualHlsPlatform
-from hwtLib.examples.errors.combLoops import freeze_set_of_sets
 from hwtLib.types.ctypes import uint8_t
 from hwtSimApi.constants import CLK_PERIOD
+from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
 from tests.frontend.ast.trivial import WriteOnce, ReadWriteOnce0, ReadWriteOnce1, WhileTrueWrite, \
     WhileTrueReadWrite, ReadWriteOnce2, WhileTrueReadWriteExpr
 
@@ -14,16 +13,7 @@ from tests.frontend.ast.trivial import WriteOnce, ReadWriteOnce0, ReadWriteOnce1
 class HlsAstTrivial_TC(SimTestCase):
 
     def _test_no_comb_loops(self):
-        s = CombLoopAnalyzer()
-        s.visit_Unit(self.u)
-        comb_loops = freeze_set_of_sets(s.report())
-        msg_buff = []
-        for loop in comb_loops:
-            msg_buff.append(10 * "-")
-            for s in loop:
-                msg_buff.append(str(s.resolve()[1:]))
-
-        self.assertEqual(comb_loops, frozenset(), msg="\n".join(msg_buff))
+        BaseIrMirRtl_TC._test_no_comb_loops(self)
 
     def test_WriteOnce(self):
         u = WriteOnce()
