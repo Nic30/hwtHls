@@ -28,7 +28,6 @@ from tests.frontend.pyBytecode.basics_test import FromPythonBasics_TC
 from tests.frontend.pyBytecode.binToBcd_test import BinToBcd_TC
 from tests.frontend.pyBytecode.errors_test import PyBytecodeErrors_TC
 from tests.frontend.pyBytecode.fnClosue_test import FnClosure_TC
-from tests.frontend.pyBytecode.llvmLoopUnroll_test import LlvmLoopUnroll_TC
 from tests.frontend.pyBytecode.pragmaInline_test import PyBytecodeInline_TC
 from tests.frontend.pyBytecode.preprocLoopMultiExit_test import PreprocLoopMultiExit_TCs
 from tests.frontend.pyBytecode.pyArrHwIndex_test import PyArrHwIndex_TC
@@ -67,6 +66,8 @@ from tests.io.readSizeFromRamAndSendSequence_test import ReadSizeFromRamAndSendS
 from tests.llvmIr.bitWidthReductionPass_Cmp_test import BitWidthReductionPass_Cmp_example_TC
 from tests.llvmIr.bitWidthReductionPass_PHI_test import BitwidthReductionPass_PHI_TC
 from tests.llvmIr.bitWidthReduction_test import BitwidthReductionPass_TC
+from tests.llvmIr.llvmLoopUnroll_test import LlvmLoopUnroll_TC
+from tests.llvmIr.loopUnrotatePass_test import LoopUnrotatePass_TC
 from tests.llvmIr.rewriteExtractOnMergeValues_test import RewriteExtractOnMergeValuesPass_TC
 from tests.llvmIr.slicesMergePass_test import SlicesMergePass_TC
 from tests.llvmIr.slicesToIndependentVariablesPass_test import SlicesToIndependentVariablesPass_TC
