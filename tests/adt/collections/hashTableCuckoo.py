@@ -70,7 +70,9 @@ class HashTableCuckoo(Unit):
         self.tableRams = tableRams
 
     def hash(self, key: RtlSignal, table_i: int, res: RtlSignal):
-        # [todo] this is a placeholder
+        """
+        :attention: This methods should be overriden in implementation of this abstract component
+        """
         res(key[res._dtype.bit_length():])
 
     @PyBytecodeInline
@@ -96,7 +98,11 @@ class HashTableCuckoo(Unit):
         item_flat_t = Bits(item_t.bit_length())
         res_t = Interface_to_HdlType().apply(self.cmdRes, exclude=(self.cmdRes.rd, self.cmdRes.vld))
         ram_index_t = self.tableRams[0].port[0].addr._dtype
+
+        # stash is used to accommodate items which do not fit into main tables due to hash collisions
+        # it is also used as a Scratchpad memory for moving of items between tables
         stash = [hls.var(f"stash{i:d}", item_t) for i in range(self.STASH_CAM_SIZE)]
+        # reset value for stash valid registers
         for d in stash:
             d.itemValid = 0
 
@@ -118,7 +124,7 @@ class HashTableCuckoo(Unit):
                 res.id = cmd.id
 
             curData = [hls.read(ram[i]).data._reinterpret_cast(item_t) for ram, i in zip(rams, indexes)]
-            # find in tables or stash
+            # find in tables or in stash
             foundInRam = Concat(*(d.itemValid & d.key._eq(cmd.key) for d in reversed(curData)))
             occupiedInRam = Concat(*(d.itemValid for d in reversed(curData)))
             foundInStash = Concat(*(d.itemValid & d.key._eq(cmd.key) for d in reversed(stash)))
@@ -162,6 +168,7 @@ class HashTableCuckoo(Unit):
                 while stash[-1].itemValid:
                     # [todo] deadlock if the stash is full (not implemented stash swapping)
                     pass
+
             hls.write(res, self.cmdRes)
 
     def _impl(self) -> None:

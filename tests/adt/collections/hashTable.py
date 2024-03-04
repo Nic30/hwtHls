@@ -17,11 +17,11 @@ from hwtHls.frontend.pyBytecode.ioProxyAddressed import IoProxyAddressed
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.io.bram import BramArrayProxy
+from hwtHls.io.portGroups import MultiPortGroup
 from hwtHls.scope import HlsScope
 from hwtLib.mem.ram import RamSingleClock
 from tests.adt.collections.hashTableIo import HashTableCmd, HashTableCmdResult, \
     HASH_TABLE_CMD
-from hwtHls.io.portGroups import MultiPortGroup
 
 
 class HashTable(Unit):
@@ -80,7 +80,7 @@ class HashTable(Unit):
 
     @hlsBytecode
     def hash(self, key: RtlSignal, res: RtlSignal):
-        # [todo]
+        # [todo] redefine this function in your implementation of this component
         res = key[res._dtype.bit_length():]
 
     @hlsBytecode
