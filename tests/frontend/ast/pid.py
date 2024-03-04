@@ -11,7 +11,7 @@ from hwtLib.logic.pid import PidController
 
 class PidControllerHalfHls(PidController):
     """
-    A variant of PID regulator where only expression betwen the registers is in HLS context.
+    A variant of PID regulator where only expression between the registers is in HLS context.
     """
 
     def _config(self):
