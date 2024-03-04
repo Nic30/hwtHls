@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from datetime import datetime
 from pathlib import Path
 
 from hwt.hdl.types.defs import BIT
@@ -19,7 +20,6 @@ from pyMathBitPrecise.bit_utils import mask, ValidityError, to_signed
 from tests.floatingpoint.fptypes import IEEE754Fp64
 from tests.floatingpoint.fromInt import IEEE754FpFromInt
 from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
-from datetime import datetime
 
 
 class IEEE754FpFromIntConventor(Unit):
