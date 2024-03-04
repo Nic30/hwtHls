@@ -40,7 +40,7 @@ class BaseTestPlatform(VirtualHlsPlatform):
     def runSsaPasses(self, hls:"HlsScope", toSsa:HlsAstToSsa):
         SsaPassConsystencyCheck().apply(hls, toSsa)
         SsaPassDumpToLl(lambda name: (self.postPyOpt, False)).apply(hls, toSsa)
-        SsaPassToLlvm().apply(hls, toSsa)
+        SsaPassToLlvm(self._llvmCliArgs).apply(hls, toSsa)
 
     def runNetlistTranslation(self,
                               hls: "HlsScope", toSsa: HlsAstToSsa,
