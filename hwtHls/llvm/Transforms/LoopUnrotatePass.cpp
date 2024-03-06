@@ -410,56 +410,59 @@ bool processLoop(llvm::Loop &L, LoopInfo &LI, TargetLibraryInfo &TLI,
 			if (PreHeaderExitCondIsBreak != ToExitCondIsBreak) {
 				return Changed; // not implemented operand polarity swap
 			}
-			for (auto& PHI: ExitBlock->phis()) {
-				if (any_of(PHI.incoming_values(), [PreHeader](const Use & u) {
+
+			if (!matchSameExpression(valueMap, PreHeaderExitCond, ToExitCond,
+					isOutsideOfPreHeader, isOutsideOfLoop)) {
+				return Changed;
+			}
+			for (auto &PHI : ExitBlock->phis()) {
+				if (any_of(PHI.incoming_values(), [PreHeader, &valueMap](const Use &u) {
 					if (auto *I = dyn_cast<Instruction>(u.get())) {
-						if (I->getParent() == PreHeader) {
+						if (I->getParent() == PreHeader && valueMap.find(I) == valueMap.end()) {
+							// [todo] some PHI of exit block uses value defined in preheader block
+							// we can not move this PHI as is and instead we have to use SelectInst to select correct
+							// value for first iteration
 							return true;
 						}
 					}
 					return false;
 				})) {
-					return Changed; // [todo] some PHI of exit block uses value defined in preheader block
-					// we can not move this PHI as is and instead we have to use SelectInst to select correct
-					// value for first iteration
-				}
-			}
-			if (matchSameExpression(valueMap, PreHeaderExitCond, ToExitCond,
-					isOutsideOfPreHeader, isOutsideOfLoop)) {
-				//writeCFGToDotFile(*L.getHeader()->getParent(),
-				//		"LoopUnrotatePass.dot", nullptr, nullptr);
-				//errs() << "loop:" << L << "\n";
-				//errs() << "PreHeader:" << PreHeader->getName() << "\n";
-				//errs() << "ExitBlock:" << ExitBlock->getName() << "\n";
-				//errs() << "PreHeaderExitCondIsBreak: "
-				//		<< PreHeaderExitCondIsBreak << " ToExitCondIsBreak:"
-				//		<< ToExitCondIsBreak << "\n";
-				//errs() << "PreHeaderExitCond:" << *PreHeaderExitCond << "\n";
-				//errs() << "ToExitCond:" << *ToExitCond << "\n";
-				//errs() << "valueMap\n";
-				//for (auto v : valueMap) {
-				//	errs() << "    " << *v.first << "\n";
-				//	errs() << "        " << *v.second << "\n";
-				//}
-				BasicBlock *Guard = PreHeader;
-				BasicBlock *LoopHeader = L.getHeader();
-				BasicBlock *LoopExit = L.getExitBlock();
-				BasicBlock *GuardExit = ExitBlock;
-
-				SmallVector<RotatedLoopAssociatedPHIs> associatedPHIs;
-				if (!collectAssociatedPHIs(L, Guard, LoopHeader, LoopExit,
-						GuardExit, associatedPHIs)) {
 					return Changed;
 				}
-				rewriteGuardedDoWhileToWhile(L, LI, TLI, valueMap, Guard,
-						LoopHeader, LoopExit, GuardExit, associatedPHIs,
-						PreHeaderExitCond, ToExitCond);
-				Changed = true;
-				//writeCFGToDotFile(*L.getHeader()->getParent(),
-				//		"LoopUnrotatePassUpdated.dot", nullptr, nullptr);
-				Function &F = *L.getHeader()->getParent();
-				assert(!llvm::verifyFunction(F, &errs()));
 			}
+			//writeCFGToDotFile(*L.getHeader()->getParent(),
+			//		"LoopUnrotatePass.dot", nullptr, nullptr);
+			//errs() << "loop:" << L << "\n";
+			//errs() << "PreHeader:" << PreHeader->getName() << "\n";
+			//errs() << "ExitBlock:" << ExitBlock->getName() << "\n";
+			//errs() << "PreHeaderExitCondIsBreak: "
+			//		<< PreHeaderExitCondIsBreak << " ToExitCondIsBreak:"
+			//		<< ToExitCondIsBreak << "\n";
+			//errs() << "PreHeaderExitCond:" << *PreHeaderExitCond << "\n";
+			//errs() << "ToExitCond:" << *ToExitCond << "\n";
+			//errs() << "valueMap\n";
+			//for (auto v : valueMap) {
+			//	errs() << "    " << *v.first << "\n";
+			//	errs() << "        " << *v.second << "\n";
+			//}
+			BasicBlock *Guard = PreHeader;
+			BasicBlock *LoopHeader = L.getHeader();
+			BasicBlock *LoopExit = L.getExitBlock();
+			BasicBlock *GuardExit = ExitBlock;
+
+			SmallVector<RotatedLoopAssociatedPHIs> associatedPHIs;
+			if (!collectAssociatedPHIs(L, Guard, LoopHeader, LoopExit,
+					GuardExit, associatedPHIs)) {
+				return Changed;
+			}
+			rewriteGuardedDoWhileToWhile(L, LI, TLI, valueMap, Guard,
+					LoopHeader, LoopExit, GuardExit, associatedPHIs,
+					PreHeaderExitCond, ToExitCond);
+			Changed = true;
+			//writeCFGToDotFile(*L.getHeader()->getParent(),
+			//		"LoopUnrotatePassUpdated.dot", nullptr, nullptr);
+			Function &F = *L.getHeader()->getParent();
+			assert(!llvm::verifyFunction(F, &errs()));
 		}
 	}
 	if (!Changed)
