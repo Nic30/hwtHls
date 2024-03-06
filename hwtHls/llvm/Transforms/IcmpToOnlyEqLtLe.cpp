@@ -59,6 +59,32 @@ PreservedAnalyses IcmpToOnlyEqLtLePass::run(llvm::Function &F,
 					}
 					break;
 				}
+
+				case Pred::ICMP_SGT: {
+					IRBuilder<> Builder(&I);
+					if (isa<ConstantInt>(RHS)) {
+						// a > b -> ~(a <= b)
+						auto le = Builder.CreateICmpSLE(LHS, RHS);
+						replacement = Builder.CreateNot(le, Name);
+					} else {
+						// a > b -> b < a
+						replacement = Builder.CreateICmpSLT(RHS, LHS);
+					}
+					break;
+				}
+				case Pred::ICMP_SGE: {
+					IRBuilder<> Builder(&I);
+					if (isa<ConstantInt>(RHS)) {
+						// a >= b -> ~(a < b)
+						auto lt = Builder.CreateICmpSLT(LHS, RHS);
+						replacement = Builder.CreateNot(lt, Name);
+					} else {
+						//  a >=- b -> b <= a
+						replacement = Builder.CreateICmpSLE(RHS, LHS);
+					}
+					break;
+				}
+
 				default:
 					I.dump();
 					llvm_unreachable("NotImplemented");
