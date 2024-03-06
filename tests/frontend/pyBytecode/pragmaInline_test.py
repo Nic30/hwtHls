@@ -10,6 +10,8 @@ from tests.frontend.pyBytecode.pragmaInline import PragmaInline_singleBlock, \
     PragmaInline_writeCntr2, PragmaInline_writeCntr3, \
     PragmaInline_writeSaturatedCntr4, PragmaInline_SequenceCounter, \
     PragmaInline_FilterZeros, PragmaInline_TwoInLoopLiveVars
+from tests.frontend.pyBytecode.varReference import \
+    VarReference_writeCntr0, VarReference_writeCntr1
 
 
 class PyBytecodeInline_TC(SimTestCase):
@@ -50,6 +52,12 @@ class PyBytecodeInline_TC(SimTestCase):
 
     def test_PragmaInline_writeCntr1(self):
         self._test_writesCntr(PragmaInline_writeCntr1)
+
+    def test_VarReference_writeCntr0(self):
+        self._test_writesCntr(VarReference_writeCntr0)
+
+    def test_VarReference_writeCntr1(self):
+        self._test_writesCntr(VarReference_writeCntr1)
 
     def test_PragmaInline_writeCntr2(self):
         self._test_writesCntr(PragmaInline_writeCntr2)
@@ -121,17 +129,18 @@ class PyBytecodeInline_TC(SimTestCase):
         self.runSim((len(u.i._ag.data) + 1) * int(CLK_PERIOD))
 
         self.assertValSequenceEqual(u.o._ag.data, ref)
-        
+
 
 if __name__ == "__main__":
     import unittest
     # from hwt.synthesizer.utils import to_rtl_str
     # from hwtHls.platform.platform import HlsDebugBundle
-    # u = PragmaInline_TwoInLoopLiveVars()
-    # print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
-
+    # u = PragmaInline_SequenceCounter()
+    # print(to_rtl_str(u, target_platform=VirtualHlsPlatform(
+    #     debugFilter=HlsDebugBundle.ALL_RELIABLE.union({HlsDebugBundle.DBG_20_addSignalNamesToSync,
+    #                                                   HlsDebugBundle.DBG_20_addSignalNamesToData}))))
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([PyBytecodeInline_TC("test_PragmaInline_TwoInLoopLiveVars")])
+    # suite = unittest.TestSuite([PyBytecodeInline_TC("test_PragmaInline_SequenceCounter")])
     suite = testLoader.loadTestsFromTestCase(PyBytecodeInline_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
