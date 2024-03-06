@@ -50,6 +50,7 @@ class PyBytecodeFrame():
         self.localsplus = localsplus
         self.stack = stack
         self.returnPoints: List[Tuple[PyBytecodeFrame, SsaBasicBlock, tuple]] = []
+        self.pragma: List["_PyBytecodePragma"] = []
 
     def isJumpFromCurrentLoopBody(self, dstBlockOffset: int) -> bool:
         return self.loopStack and self.loopStack[-1].isJumpFromLoopBody(dstBlockOffset)
@@ -141,5 +142,6 @@ class PyBytecodeFrame():
         o.bytecodeBlocks = self.bytecodeBlocks
         o.blockTracker = self.blockTracker
         o.returnPoints = self.returnPoints
+        o.pragma = self.pragma
         return o
 

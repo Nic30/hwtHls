@@ -78,7 +78,7 @@ class HlsAstToSsa(AnalysisCache):
     :ivar _loop_stack: list of loop where the AST visitor actually is to resolve
         the continue/break and loop association. The record is a tuple (loop statement, entry block, list of blocks ending with break).
         The blocks ending with break will have its branch destination assigned after the loop is processed (in loop parsing fn.).
-    :ivar ioNodeConstructors: a
+    :ivar ioNodeConstructors: dictionary of read/write statements associated with io used to construct HlsNetlist node later
     """
 
     def __init__(self, ssaCtx: SsaContext, startBlockName:str, original_code_for_debug: Optional[HlsStmCodeBlock]):
@@ -93,6 +93,7 @@ class HlsAstToSsa(AnalysisCache):
         self.ioNodeConstructors: Optional[NetlistIoConstructorDictT] = None
         self.ssaBuilder = SsaExprBuilder(self.start, None)
         self.m_ssa_u = MemorySSAUpdater(self.ssaBuilder, self.visit_expr)
+        self.pragma: List["_PyBytecodePragma"] = []
         AnalysisCache.__init__(self)
 
     @staticmethod

@@ -1,7 +1,7 @@
 from dis import Instruction
 from math import inf
 from types import FunctionType
-from typing import Union, Literal
+from typing import Union, Literal, List
 
 from hwt.hdl.value import HValue
 from hwt.synthesizer.interface import Interface
@@ -9,7 +9,7 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.pyBytecode.frame import PyBytecodeFrame
 from hwtHls.frontend.pyBytecode.ioProxyStream import IoProxyStream
 from hwtHls.frontend.pyBytecode.loopMeta import PyBytecodeLoopInfo
-from hwtHls.llvm.llvmIr import BranchInst, Argument
+from hwtHls.llvm.llvmIr import BranchInst, Argument, Function
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.value import SsaValue
 
@@ -75,9 +75,10 @@ class PyBytecodeInline(_PyBytecodePragma):
 
     def apply(self, pyToSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction):
         pass
-    
+
     def __call__(self, *args, **kwargs):
         return self.ref(*args, **kwargs)
+
 
 class PyBytecodeBlockLabel(_PyBytecodePragma):
     """
@@ -173,7 +174,6 @@ class PyBytecodeLLVMLoopUnroll(_PyBytecodeLoopPragma):
         self.count = count
 
     def toLlvm(self, irTranslator: "ToLlvmIrTranslator", brInst: BranchInst):
-
         getStr = irTranslator.mdGetStr
         getInt = irTranslator.mdGetUInt32
         getTuple = irTranslator.mdGetTuple
@@ -208,6 +208,8 @@ class PyBytecodeStreamLoopUnroll(_PyBytecodeLoopPragma):
         ...
         !0 = !{!0, !1}
         !1 = !{!"hwthls.loop.streamunroll.unroll.io", i32 0}
+
+    https://yashwantsingh.in/posts/loop-unroll/
     """
 
     def __init__(self, io_: Union[Interface, IoProxyStream]):
@@ -229,4 +231,32 @@ class PyBytecodeStreamLoopUnroll(_PyBytecodeLoopPragma):
                         False)
         ]
         brInst.setMetadata(irTranslator.strCtx.addStringRef("hwthls.loop"), getTuple(items, True))
+
+
+class _PyBytecodeFunctionPragma(_PyBytecodePragma):
+
+    def apply(self, pyToSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction):
+        frame.pragma.append(self)
+
+
+class PyBytecodeSkipPass(_PyBytecodeFunctionPragma):
+    """
+    Skip pass by its name. For example:
+
+    .. code-block:: llvm
+
+        define void @main() !hwtHls.skipPass !0 {
+        ...
+        }
+        !0 = !{!"hwtHls::SlicesToIndependentVariablesPass", !"ADCEPass"}
+    """
+
+    def __init__(self, skipedPassNames: List[str]):
+        self.skipedPassNames = skipedPassNames
+
+    def toLlvm(self, irTranslator: "ToLlvmIrTranslator", mainFn: Function):
+        getStr = irTranslator.mdGetStr
+        getTuple = irTranslator.mdGetTuple
+        items = [getStr(passName) for passName in self.skipedPassNames]
+        mainFn.setMetadata(irTranslator.strCtx.addStringRef("hwtHls.skipPass"), getTuple(items, False))
 

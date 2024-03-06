@@ -114,6 +114,7 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
             if self.debugCfgFinal:
                 self._debugDump(frame, "_final")
 
+        self.toSsa.pragma.extend(frame.pragma)
         assert len(self.callStack) == 1 and self.callStack[0] is frame, self.callStack
         self.toSsa.finalize()
         return finalRetVal
@@ -422,7 +423,7 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
         try:
             v = next(a)
         except StopIteration:
-            #assert curLoop.entryPoint == forIter.offset
+            # assert curLoop.entryPoint == forIter.offset
             # create only branch placeholder to delegate processing of this jump from the loop to a _translateBlockBody on a loop header
             branchPlaceholder = BranchTargetPlaceholder.create(curBlock)
             lei = LoopExitJumpInfo(None, curBlock, None, None, exitBlockOffset, None, None, branchPlaceholder, frame)
