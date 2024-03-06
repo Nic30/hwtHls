@@ -35,6 +35,10 @@ class HlsSchedulerResourceUseList(List[Dict[object, int]]):
         curCnt = cur[resourceType]
         if curCnt == 1:
             cur.pop(resourceType)
+            if not cur and i == len(self) - 1:
+                _cur = list.pop(self)
+                assert cur is _cur
+
         else:
             assert curCnt > 0, (clkI, resourceType, "Resource must be used in order to remove the use")
             cur[resourceType] = curCnt - 1
@@ -58,6 +62,9 @@ class HlsSchedulerResourceUseList(List[Dict[object, int]]):
         assert curCnt > 0, (resourceType, curCnt)
         if curCnt == 1:
             cur.pop(resourceType)
+            if not cur and _fromClkI == len(self) - 1:
+                _cur = list.pop(self)
+                assert cur is _cur
         else:
             cur[resourceType] = curCnt - 1
 
@@ -102,6 +109,9 @@ class HlsSchedulerResourceUseList(List[Dict[object, int]]):
             self.clkOffset = 0
         else:
             assert off == 0
+
+        while not list.__getitem__(self, -1):
+            self.pop()
 
     def __getitem__(self, i: int):
         _i = i
