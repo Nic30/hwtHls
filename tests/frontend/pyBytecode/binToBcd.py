@@ -54,7 +54,6 @@ class BinToBcd(Unit):
         self.DATA_WIDTH, self.BCD_DIGITS
 
         while BIT.from_py(1):
-            
             bcdp = [
                 hls.var(f"bcdp_{i:d}", Bits(4, signed=False))
                 for i in range(BCD_DIGITS)]
@@ -66,7 +65,7 @@ class BinToBcd(Unit):
                 bcd(0)
             
             bin_r = hls.read(self.din)
-            bitcount = Bits(log2ceil(DATA_WIDTH), signed=False).from_py(0)
+            bitcount = Bits(log2ceil(DATA_WIDTH+1), signed=False).from_py(0)
             while bitcount != DATA_WIDTH:
                 for bcdDigitI in range(BCD_DIGITS):
                     bcd = PyBytecodeInPreproc(bcd_digits[bcdDigitI])
