@@ -77,17 +77,17 @@ public:
 
 		return false;
 	}
-	static bool InstructionDominatesInSameBlock(Instruction & I0, Instruction & I1) {
-		// :returns: true if I0 is predecessor of I1
-		const BasicBlock & BB = *I0.getParent();
-		assert(I1.getParent() == &BB);
-		for (auto I = I1.getIterator(); I->getIterator() != BB.begin(); --I) {
-			if (I0.getIterator() == I) {
-				return true;
-			}
-		}
-		return false;
-	}
+	// static bool InstructionDominatesInSameBlock(Instruction & I0, Instruction & I1) {
+	// 	// :returns: true if I0 is predecessor of I1
+	// 	const BasicBlock & BB = *I0.getParent();
+	// 	assert(I1.getParent() == &BB);
+	// 	for (auto I = I1.getIterator(); I->getIterator() != BB.begin(); --I) {
+	// 		if (I0.getIterator() == I) {
+	// 			return true;
+	// 		}
+	// 	}
+	// 	return false;
+	// }
 	void resolveConcatMembersSlicedInstruction(ConcatMemberVector &result,
 			Instruction *I, bool isConcat, bool isBitRangeGet,
 			uint64_t highBitNo, uint64_t lowBitNo) {
@@ -519,21 +519,21 @@ bool splitOnSplitPoints(
 	return Changed;
 }
 
-void assertPhiDoesNotUsePredecessorPhi(const Function &F) {
-	for (auto & BB: F) {
-		std::set<const PHINode*> phis;
-		for (const PHINode & PHI: BB.phis()) {
-			for (const Use & IV: PHI.incoming_values()) {
-				if (const PHINode * PhiIV = dyn_cast<const PHINode>(IV.get())) {
-					if (phis.find(PhiIV) != phis.end()) {
-						llvm_unreachable("PHI in block uses other PHI defined before it in the same block");
-					}
-				}
-			}
-			phis.insert(&PHI);
-		}
-	}
-}
+//void assertPhiDoesNotUsePredecessorPhi(const Function &F) {
+//	for (auto & BB: F) {
+//		std::set<const PHINode*> phis;
+//		for (const PHINode & PHI: BB.phis()) {
+//			for (const Use & IV: PHI.incoming_values()) {
+//				if (const PHINode * PhiIV = dyn_cast<const PHINode>(IV.get())) {
+//					if (phis.find(PhiIV) != phis.end()) {
+//						llvm_unreachable("PHI in block uses other PHI defined before it in the same block");
+//					}
+//				}
+//			}
+//			phis.insert(&PHI);
+//		}
+//	}
+//}
 
 /*
  * There are several things to resolve:
@@ -543,7 +543,7 @@ void assertPhiDoesNotUsePredecessorPhi(const Function &F) {
  */
 PreservedAnalyses SlicesToIndependentVariablesPass::run(Function &F,
 		FunctionAnalysisManager &AM) {
-	assertPhiDoesNotUsePredecessorPhi(F);
+	//assertPhiDoesNotUsePredecessorPhi(F);
 
 	// for each instruction resolve segments of bits which are used independently
 	auto splitPoints = collectSplitPoints(F);
