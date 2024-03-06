@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from tests.baseSsaTest import BaseSsaTC
-from tests.frontend.pyBytecode.llvmLoopUnroll import InfLoopUnrollDissable, \
+from tests.llvmIr.llvmLoopUnroll import InfLoopUnrollDissable, \
     InfLoopUnrollCount
 
 
@@ -13,14 +13,14 @@ class LlvmLoopUnroll_TC(BaseSsaTC):
         self._test_ll(InfLoopUnrollDissable)
 
     def test_InfLoopUnrollCount_ll(self):
-        self._test_ll(InfLoopUnrollCount) 
+        self._test_ll(InfLoopUnrollCount)
 
 
 if __name__ == "__main__":
     import unittest
 
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([LlvmLoopUnroll_TC("test_InfLoopUnrollDissable_ll")])
+    # suite = unittest.TestSuite([LlvmLoopUnroll_TC("test_InfLoopUnrollCount_ll")])
     suite = testLoader.loadTestsFromTestCase(LlvmLoopUnroll_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
