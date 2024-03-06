@@ -1,6 +1,7 @@
+from io import StringIO
 from pathlib import Path
 from typing import Union, Callable, Tuple
-from io import StringIO
+
 
 # :note: bool in return type of OutputStreamGetter specifies if the stream should be closed or not
 OutputStreamGetter = Callable[[str], Tuple[StringIO, bool]]
