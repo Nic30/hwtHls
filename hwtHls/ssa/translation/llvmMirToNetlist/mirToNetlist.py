@@ -10,7 +10,6 @@ from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HVoidOrdering
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge, \
     HlsNetNodeReadBackedge, BACKEDGE_ALLOCATION_TYPE
-from hwtHls.netlist.nodes.delay import HlsNetNodeDelayClkTick
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge, \
     HlsNetNodeReadForwardedge
@@ -124,22 +123,6 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
             controlO = self.builder.buildReadSync(control)
             control = control.obj
 
-            # if isinstance(control, HlsNetNodeOut):
-            #    control = control.obj
-            #    assert isinstance(control, HlsNetNodeRead), control
-            #    # no need for extra sync because we are reading only a sync of the channel
-            #    # controlO = control.getValidNB()
-            #
-            # else:
-            #    assert isinstance(control, HlsNetNodeOutLazy), (
-            #        "Branch control from predecessor must be lazy output because we did not connect it from pred block yet.",
-            #        mb, pred, control)
-            #    _control = HlsNetNodeExplicitSyncInsertBehindLazyOut(netlist, valCache, control, f"hls_c_bb{pred.getNumber():d}_to_bb{mb.getNumber():d}")
-            #    control = _control
-            #    # controlO = control._outputs[0]
-            #
-            # control.addControlSerialExtraCond(controlO)
-            # control.addControlSerialSkipWhen(builder.buildNot(controlO))
         return dataAsControl, control, controlO
 
     def _collectLiveInDataChannels(self, pred: MachineBasicBlock,
@@ -171,13 +154,14 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                                            loopReenters: LoopPortGroup):
         # predMbSync: MachineBasicBlockMeta = self.blockSync[pred]
         if any(l.headerBlockNum == mb.getNumber() for l in eMeta.reenteringLoops):
+            # reenter
             if eMeta.reenteringLoops[0].headerBlockNum == mb.getNumber():
                 lcg = eMeta.getLoopChannelGroup()
                 if not lcg.members:
                     lcg.appendWrite(control.associatedWrite, True)
                 else:
                     assert lcg.members and lcg.getChannelWhichIsUsedToImplementControl() is control.associatedWrite, (eMeta, lcg.members)
-                control._isBlocking = False
+                # control.setNonBlocking()
                 cp, cpO = loopStatus.addReenterPort(pred.getNumber(), mb.getNumber(), lcg)
             else:
                 raise NotImplementedError("ask owner of channel for allocation")
@@ -192,13 +176,14 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
             #    predMbSync.addOrderedNode(cp.associatedWrite, atEnd=True)
         else:
             assert any(l.headerBlockNum == mb.getNumber() for l in eMeta.enteringLoops)
+            # enter
             if eMeta.enteringLoops[0].headerBlockNum == mb.getNumber():
                 lcg = eMeta.getLoopChannelGroup()
                 if not lcg.members:
                     lcg.appendWrite(control.associatedWrite, True)
                 else:
                     assert lcg.members and lcg.getChannelWhichIsUsedToImplementControl() is control.associatedWrite, (eMeta, lcg.members)
-                control._isBlocking = False
+                # control.setNonBlocking()
                 cp, cpO = loopStatus.addEnterPort(pred.getNumber(), mb.getNumber(), lcg)
             else:
                 raise NotImplementedError("ask owner of channel for allocation")
@@ -256,6 +241,8 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
             # loopStatus.addEnterPort(pred.getNumber(), mb.getNumber(), eMeta.getLoopChannelGroup())
 
         # loopBusy select if loop should process inputs from loopReenters or from loopExecs
+        # if busy skip channels for entry of the loop
+        # if not busy skip channels for reenter of the loop
         _createSyncForAnyInputSelector(builder, loopReenters, loopBusy, loopBusy_n)
         _createSyncForAnyInputSelector(builder, loopExecs, loopBusy_n, loopBusy)
 
