@@ -39,3 +39,9 @@ def indexOfClkPeriod(time: int, clkPeriod: int):
         return (time // clkPeriod) - 1
     else:
         return time // clkPeriod
+
+
+def offsetInClockCycle(time: int, clkPeriod: int):
+    assert time >= 0, time
+    return time - (time // clkPeriod) * clkPeriod
+
