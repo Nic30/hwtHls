@@ -1,7 +1,7 @@
 import re
 from typing import List, Tuple, Dict, Union, Sequence, Callable, Optional
 
-from hwt.hdl.operatorDefs import AllOps
+from hwt.hdl.operatorDefs import AllOps, OpDefinition
 from hwt.hdl.types.array import HArray
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.bitsVal import BitsVal
@@ -20,7 +20,7 @@ from hwtHls.io.portGroups import MultiPortGroup, BankedPortGroup
 from hwtHls.llvm.llvmIr import Value, Type, FunctionType, Function, VectorOfTypePtr, BasicBlock, Argument, \
     PointerType, ConstantInt, APInt, verifyFunction, verifyModule, TypeToIntegerType, \
     PHINode, LlvmCompilationBundle, LLVMContext, LLVMStringContext, ArrayType, MDString, \
-    ConstantAsMetadata, MDNode
+    ConstantAsMetadata, MDNode, Module, IRBuilder, UndefValue
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.phi import SsaPhi
@@ -29,7 +29,6 @@ from hwtHls.ssa.transformation.utils.blockAnalysis import collect_all_blocks
 from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axi4Lite import Axi4Lite
 from hwtLib.types.ctypes import uint32_t
-
 
 RE_ID_WITH_NUMBER = re.compile('[^0-9]+|[0-9]+')
 
@@ -41,12 +40,11 @@ class ToLlvmIrTranslator():
 
     While converting there are several issues:
     1. LLVM does not have multi-level logic type like VHDL STD_LOGIC_VECTOR or Verilog wire/logic.
-      * all x/z/u are replaced with 0
+      * all x/z/u are replaced with 0 or with UndefValue if value is fully undefined
     2. LLVM does not have bit slicing and concatenation operators.
-      * all replaced by shifting and masking
-    3. LLVM does not have equivalent of HlsNetNodeRead/HlsNetNodeWrite
-      * all read/write expressions are replaced with a function unique for each interface.
-
+      * all replaced with zext, sext, hwtHls.bitrangeGet/hwtHls.bitConcat
+    
+    :note: Information about IO are stored in function attributes
     :ivar _branchTmpBlocks: dictionary to keep track of BasicBlocks generated during conversion of branch instruction
         used to resolve argument of PHIs, specified in dictionary format
         original block to list of tuples LLVM basic block and list of original successors
@@ -57,8 +55,8 @@ class ToLlvmIrTranslator():
         self.llvm = LlvmCompilationBundle(label)
         self.ctx: LLVMContext = self.llvm.ctx
         self.strCtx: LLVMStringContext = self.llvm.strCtx
-        self.module = self.llvm.module
-        self.b = self.llvm.builder
+        self.module: Module = self.llvm.module
+        self.b: IRBuilder = self.llvm.builder
         self.topIo = topIo
         self.ioSorted: Optional[Tuple[str, Union[Interface, MultiPortGroup, BankedPortGroup],
                  Tuple[List[HlsRead],
@@ -68,6 +66,35 @@ class ToLlvmIrTranslator():
         self.varMap: Dict[Union[SsaValue, SsaBasicBlock], Value] = {}
         self._branchTmpBlocks: Dict[SsaBasicBlock, List[Tuple[BasicBlock, List[SsaBasicBlock]]]] = {}
         self._afterTranslation: List[Callable[[ToLlvmIrTranslator], None]] = []
+
+        b = self.b
+        self._opConstructorMap0 = {
+            AllOps.AND: b.CreateAnd,
+            AllOps.OR: b.CreateOr,
+            AllOps.XOR: b.CreateXor,
+        }
+        self._opConstructorMap1 = {
+            AllOps.ADD: b.CreateAdd,
+            AllOps.SUB: b.CreateSub,
+            AllOps.MUL: b.CreateMul,
+        }
+
+        self._opConstructorMapSignedCmp = {
+            AllOps.NE: b.CreateICmpNE,
+            AllOps.EQ: b.CreateICmpEQ,
+            AllOps.LE: b.CreateICmpSLE,
+            AllOps.LT: b.CreateICmpSLT,
+            AllOps.GT: b.CreateICmpSGT,
+            AllOps.GE: b.CreateICmpSGE,
+        }
+        self._opConstructorMapUnsignedCmp = {
+            AllOps.NE: b.CreateICmpNE,
+            AllOps.EQ: b.CreateICmpEQ,
+            AllOps.LE: b.CreateICmpULE,
+            AllOps.LT: b.CreateICmpULT,
+            AllOps.GT: b.CreateICmpUGT,
+            AllOps.GE: b.CreateICmpUGE,
+        }
 
     def addAfterTranslationUnique(self, fn: Callable[['ToLlvmIrTranslator'], None]):
         if fn not in self._afterTranslation:
@@ -137,101 +164,95 @@ class ToLlvmIrTranslator():
         # t = self._translateType(Bits(v), ptr=False)
         return ConstantInt.get(t, _v)
 
-    def _translateExpr(self, v: Union[SsaValue, HValue]):
-        if isinstance(v, HValue):
-            if isinstance(v, BitsVal):
+    def _translateExprHValue(self, v: HValue):
+        if isinstance(v, BitsVal):
+            t = self._translateType(v._dtype)
+            if v._is_full_valid():
                 _v = APInt(v._dtype.bit_length(), self.strCtx.addStringRef(f"{v.val:x}"), 16)
-                t = self._translateType(v._dtype)
                 return ConstantInt.get(t, _v)
+            elif v.vld_mask == 0:
+                return UndefValue.get(t)
             else:
                 raise NotImplementedError(v)
-            return v
+        else:
+            raise NotImplementedError(v)
 
-        return self.varMap[v]  # if variable was defined it must be there
+    def _translateExpr(self, v: Union[SsaInstr, HValue]):
+        if isinstance(v, HValue):
+            c = self.varMap.get(v, None)
+            if c is None:
+                c = self._translateExprHValue(v)
+                self.varMap[v] = c
 
-    def _translateInstr(self, instr: SsaInstr):
+            return c
+        else:
+            return self.varMap[v]  # if variable was defined it must be there
+
+    def _translateExprOperand(self, operator: OpDefinition, resTy: HdlType,
+                              operands: Tuple[Union[SsaInstr, HValue]],
+                              instrName: str, instrForDebug):
         b = self.b
-        if isinstance(instr, (HlsRead, HlsWrite)):
-            return instr._translateToLlvm(self)
-
-        elif instr.operator == AllOps.CONCAT and isinstance(instr._dtype, Bits):
-            ops = [self._translateExpr(op) for op in instr.operands]
+        if operator == AllOps.CONCAT and isinstance(resTy, Bits):
+            ops = [self._translateExpr(op) for op in operands]
             return b.CreateBitConcat(ops)
 
-        elif instr.operator == AllOps.INDEX and isinstance(instr.operands[0]._dtype, Bits):
-            op0, op1 = instr.operands
+        elif operator == AllOps.INDEX and isinstance(operands[0]._dtype, Bits):
+            op0, op1 = operands
             op0 = self._translateExpr(op0)
             if isinstance(op1._dtype, HSlice):
                 op1 = int(op1.val.stop)
             else:
                 op1 = int(op1)
 
-            return b.CreateBitRangeGetConst(op0, op1, instr._dtype.bit_length())
+            return b.CreateBitRangeGetConst(op0, op1, resTy.bit_length())
 
         else:
-            args = (self._translateExpr(a) for a in instr.operands)
-            if instr.operator in (AllOps.BitsAsSigned, AllOps.BitsAsUnsigned, AllOps.BitsAsVec):
+            args = (self._translateExpr(a) for a in operands)
+            if operator in (AllOps.BitsAsSigned, AllOps.BitsAsUnsigned, AllOps.BitsAsVec):
                 op0, = args
                 # LLVM uses sign/unsigned variants of instructions and does not have signed/unsigned as a part of type or variable
                 return op0
 
-            name = self.strCtx.addTwine(self._formatVarName(instr._name))
-            if instr.operator == AllOps.NOT:
+            name = self.strCtx.addTwine(self._formatVarName(instrName) if instrName else "")
+            if operator == AllOps.NOT:
                 op0, = args
-                # xor -1
-                mask = APInt.getAllOnesValue(instr._dtype.bit_length())
+                # op0 xor -1
+                mask = APInt.getAllOnesValue(resTy.bit_length())
                 return b.CreateXor(op0, ConstantInt.get(TypeToIntegerType(op0.getType()), mask), name)
 
-            elif instr.operator == AllOps.MINUS_UNARY:
+            elif operator == AllOps.MINUS_UNARY:
                 op0, = args
                 return b.CreateNeg(op0, name, False, False)
-            elif instr.operator == AllOps.TERNARY:
+            elif operator == AllOps.TERNARY:
                 opC, opTrue, opFalse = args
                 return b.CreateSelect(opC, opTrue, opFalse, name, None)
 
-            _opConstructorMap0 = {
-                AllOps.AND: b.CreateAnd,
-                AllOps.OR: b.CreateOr,
-                AllOps.XOR: b.CreateXor,
-            }
-
-            constructor_fn = _opConstructorMap0.get(instr.operator, None)
+            constructor_fn = self._opConstructorMap0.get(operator, None)
             if constructor_fn is not None:
                 return constructor_fn(*args, name)
 
-            _opConstructorMap1 = {
-                AllOps.ADD: b.CreateAdd,
-                AllOps.SUB: b.CreateSub,
-                AllOps.MUL: b.CreateMul,
-            }
-            constructor_fn = _opConstructorMap1.get(instr.operator, None)
+            constructor_fn = self._opConstructorMap1.get(operator, None)
             if constructor_fn is not None:
                 return constructor_fn(*args, name, False, False)
             else:
-                assert len(instr.operands) == 2, instr
-                isSigned = bool(instr.operands[0]._dtype.signed)
-                if isSigned != bool(instr.operands[1]._dtype.signed):
+                assert len(operands) == 2, instrForDebug
+                isSigned = bool(operands[0]._dtype.signed)
+                if isSigned != bool(operands[1]._dtype.signed):
                     raise NotImplementedError("signed+unsigned cmp")
 
                 if isSigned:
-                    _opConstructorMap2 = {
-                        AllOps.NE: b.CreateICmpNE,
-                        AllOps.EQ: b.CreateICmpEQ,
-                        AllOps.LE: b.CreateICmpSLE,
-                        AllOps.LT: b.CreateICmpSLT,
-                        AllOps.GT: b.CreateICmpSGT,
-                        AllOps.GE: b.CreateICmpSGE,
-                    }
+                    _opConstructorMap2 = self._opConstructorMapSignedCmp
                 else:
-                    _opConstructorMap2 = {
-                        AllOps.NE: b.CreateICmpNE,
-                        AllOps.EQ: b.CreateICmpEQ,
-                        AllOps.LE: b.CreateICmpULE,
-                        AllOps.LT: b.CreateICmpULT,
-                        AllOps.GT: b.CreateICmpUGT,
-                        AllOps.GE: b.CreateICmpUGE,
-                    }
-                return _opConstructorMap2[instr.operator](*args, name)
+                    _opConstructorMap2 = self._opConstructorMapUnsignedCmp
+
+                return _opConstructorMap2[operator](*args, name)
+
+    def _translateInstr(self, instr: SsaInstr):
+        if isinstance(instr, (HlsRead, HlsWrite)):
+            return instr._translateToLlvm(self)
+        else:
+            return self._translateExprOperand(
+                instr.operator, instr._dtype, instr.operands, instr._name, instr)
 
     def _translate(self, bb: SsaBasicBlock):
         llvmBb = self.varMap[bb]
@@ -240,7 +261,7 @@ class ToLlvmIrTranslator():
 
         for phi in bb.phis:
             phi: SsaPhi
-            llvmPhi: PHINode = b.CreatePHI(self._translateType(phi._dtype), len(phi.operands), self.strCtx.addTwine(phi._name))
+            llvmPhi: PHINode = b.CreatePHI(self._translateType(phi._dtype), len(phi.operands), self.strCtx.addTwine(self._formatVarName(phi._name)))
             self.varMap[phi] = llvmPhi
 
         for instr in bb.body:
@@ -255,9 +276,7 @@ class ToLlvmIrTranslator():
         llvmBb = self.varMap[bb]
         branchTmpBlocks = self._branchTmpBlocks[bb] = []
 
-        # firstPairOfSuccessors = True
         for i, (c, sucBb, meta) in enumerate(bb.successors.targets):
-
             doBreak = False
             if i == preLastTargetsI:
                 nextC, nextB, nextMeta = bb.successors.targets[i + 1]
@@ -346,7 +365,7 @@ class ToLlvmIrTranslator():
             for io, ioOps in self.topIo.items()
         ]
         ioSorted = self.ioSorted = sorted(ioTuplesWithName, key=lambda x: self.splitStrToStrsAndInts(x[0]))
-        # name, pointer type, element type, addres width
+        # name, pointer type, element type, address width
         params: List[str, Type, Type, int] = [
             (name,
              *self._getInterfaceTypeForFnArg(intf[0]
@@ -413,7 +432,7 @@ class SsaPassToLlvm(SsaPass):
             #    assert i == instr._src, (i, instr)
             #    nativeWordT = instr._getNativeInterfaceWordType()
             #    if instr._isBlocking:
-            #        assert instr._dtype.bit_length() == nativeWordT.bit_length(), (
+            #        resTy._dtype.bit_length() == nativeWordT.bit_length(), (
             #            "In this stages the read operations must read only native type of interface",
             #            instr, nativeWordT)
             #    else:
