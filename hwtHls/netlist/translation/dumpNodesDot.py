@@ -1,7 +1,7 @@
 import html
 from itertools import zip_longest
 import pydot
-from typing import List, Union, Dict, Optional, Callable
+from typing import List, Union, Dict, Optional, Callable, Tuple
 
 from hwt.hdl.operatorDefs import COMPARE_OPS, AllOps, OpDefinition
 from hwt.pyUtils.uniqList import UniqList
@@ -27,6 +27,7 @@ from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.platform.fileUtils import OutputStreamGetter
+from hwtHls.netlist.nodes.archElement import ArchElement
 
 
 class HwtHlsNetlistToGraphwiz():
@@ -34,7 +35,7 @@ class HwtHlsNetlistToGraphwiz():
     Generate a Graphwiz (dot) diagram of the netlist.
     """
 
-    def __init__(self, name: str, nodes: List[HlsNetNode], expandAggregates: bool):
+    def __init__(self, name: str, nodes: List[HlsNetNode], expandAggregates: bool, addLegend: bool):
         """
         :attention: if expandAggregates==True the nodes should contain also parent aggregates
             and parent aggregate position in nodes list must be before its children.
@@ -45,9 +46,10 @@ class HwtHlsNetlistToGraphwiz():
         self.obj_to_node: Dict[HlsNetNode, pydot.Node] = {}
         self.nodeCounter = 0
         self.expandAggregates = expandAggregates
+        self.addLegend = addLegend
         self._edgeFilterFn: Optional[Callable[[HlsNetNodeOut, HlsNetNodeIn], bool]] = None
-        self._expandedNodes: Dict[HlsNetNodeAggregate, pydot.Cluster] = {}
-        self._parentOfNode: Dict[HlsNetNode, HlsNetNodeAggregate] = {}
+        self._expandedNodes: Dict[Union[HlsNetNodeAggregate, Tuple[HlsNetNodeAggregate, int]], pydot.Cluster] = {}
+        self._parentOfNode: Dict[HlsNetNode, Tuple[HlsNetNodeAggregate, int]] = {}
 
     def _constructLegend(self):
         legendTable = """<
@@ -91,6 +93,7 @@ class HwtHlsNetlistToGraphwiz():
         expandedNodes = self._expandedNodes
         for parent in allNodes:
             if isinstance(parent, HlsNetNodeAggregate):
+                parent: HlsNetNodeAggregate
                 label = f"{parent.__class__.__name__} {parent._id:d} {self._formatNodeScheduleTime(parent)}{' ' + parent.name if parent.name else ''}"
                 clusterNode = pydot.Cluster(f"n{self._getNewNodeId()}", label=f'"{html.escape(label)}"')
                 g = self._getGraph(parent)
@@ -100,6 +103,20 @@ class HwtHlsNetlistToGraphwiz():
                 for n in parent._subNodes:
                     assert n not in parentOfNode
                     parentOfNode[n] = parent
+
+                if isinstance(parent, ArchElement):
+                    # parentOfNode nodes are already preset in the case that there
+                    # are some nodes which are not placed in clock windows yet
+                    parent: ArchElement
+                    for clkI, nodes in parent.iterStages():
+                        if not nodes:
+                            continue
+                        label = f"{clkI}"
+                        clockWindowClusterNode = pydot.Cluster(f"n{self._getNewNodeId()}", label=f'"{html.escape(label)}"')
+                        clusterNode.add_subgraph(clockWindowClusterNode)
+                        expandedNodes[(parent, clkI)] = clockWindowClusterNode
+                        for n in nodes:
+                            parentOfNode[n] = (parent, clkI)
 
     def construct(self):
         expandAggregates = self.expandAggregates
@@ -111,8 +128,8 @@ class HwtHlsNetlistToGraphwiz():
             if isinstance(n, HlsNetNodeConst) and len(n.usedBy[0]) == 1:
                 continue  # const inlined into user node
             self._node_from_HlsNetNode(n)
-
-        self.graph.add_node(self._constructLegend())
+        if self.addLegend:
+            self.graph.add_node(self._constructLegend())
 
     def _getGraph(self, n: HlsNetNode):
         if self.expandAggregates:
@@ -248,7 +265,7 @@ class HwtHlsNetlistToGraphwiz():
                 output_rows.append(f"<td port='o{node_out_i:d}'>{outName:s}</td>")
             if isinstance(obj, HlsNetNodeAggregatePortOut):
                 assert not obj._outputs, obj
-                output_rows.append(f"<td port='o0'>outside</td>")
+                output_rows.append(f"<td port='o0'></td>")
 
         else:
             output_rows.append("<td port='o0'>o0</td>")
@@ -309,21 +326,44 @@ class HwtHlsNetlistToGraphwiz():
 
 class HlsNetlistPassDumpNodesDot(HlsNetlistPass):
 
-    def __init__(self, outStreamGetter: OutputStreamGetter, expandAggregates: bool=True):
+    def __init__(self, outStreamGetter: OutputStreamGetter, expandAggregates: bool=True, addLegend:bool=True, showVoid:bool=True):
         self.outStreamGetter = outStreamGetter
         self.expandAggregates = expandAggregates
+        self.addLegend = addLegend
+        self.showVoid = showVoid
 
-    def getNodes(self, netlist: HlsNetlistCtx):
+    def _getNodes(self, netlist: HlsNetlistCtx):
         if self.expandAggregates:
-            return netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.PREORDER)
+            nodeIt = netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.PREORDER)
         else:
-            return netlist.iterAllNodes()
+            nodeIt = netlist.iterAllNodes()
+        if self.showVoid:
+            yield from nodeIt
+        else:
+            for n in nodeIt:
+                if isinstance(n, HlsNetNodeIoClusterCore):
+                    continue
+                elif isinstance(n, HlsNetNodeAggregatePortIn):
+                    if HdlType_isVoid(n._outputs[0]._dtype):
+                        continue
+                elif isinstance(n, HlsNetNodeAggregatePortOut):
+                    if HdlType_isVoid(n.parentOut._dtype):
+                        continue
+                elif isinstance(n, HlsNetNodeOperator) and n.operator is AllOps.CONCAT and HdlType_isVoid(n._outputs[0]._dtype):
+                    continue
+
+                yield n
+
+    def _edgeFilterVoid(self, src: HlsNetNodeOut, dst: HlsNetNodeOut):
+        return not HdlType_isVoid(src._dtype)
 
     def apply(self, hls: "HlsScope", netlist: HlsNetlistCtx):
         name = netlist.label
         out, doClose = self.outStreamGetter(name)
         try:
-            toGraphwiz = HwtHlsNetlistToGraphwiz(name, self.getNodes(netlist), self.expandAggregates)
+            toGraphwiz = HwtHlsNetlistToGraphwiz(name, self._getNodes(netlist), self.expandAggregates, self.addLegend)
+            if not self.showVoid:
+                toGraphwiz._edgeFilterFn = self._edgeFilterVoid
             toGraphwiz.construct()
             out.write(toGraphwiz.dumps())
         finally:
@@ -333,8 +373,8 @@ class HlsNetlistPassDumpNodesDot(HlsNetlistPass):
 
 class HlsNetlistPassDumpIoClustersDot(HlsNetlistPassDumpNodesDot):
 
-    def __init__(self, outStreamGetter:OutputStreamGetter, expandAggregates: bool=False):
-        HlsNetlistPassDumpNodesDot.__init__(self, outStreamGetter, expandAggregates)
+    def __init__(self, outStreamGetter:OutputStreamGetter, expandAggregates: bool=False, addLegend:bool=True):
+        HlsNetlistPassDumpNodesDot.__init__(self, outStreamGetter, expandAggregates=expandAggregates, addLegend=addLegend)
         self._edgeFilterFn = self._edgeFilter
 
     def _edgeFilter(self, src: HlsNetNodeOut, dst: HlsNetNodeOut):
