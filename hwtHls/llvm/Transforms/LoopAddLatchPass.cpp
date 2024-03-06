@@ -10,14 +10,20 @@ llvm::PreservedAnalyses LoopAddLatchPass::run(llvm::Function &F,
 		llvm::FunctionAnalysisManager &AM) {
 	bool Changed = false;
 	for (BasicBlock &BB : F) {
-		for (BasicBlock * suc: successors(&BB)) {
+		for (BasicBlock *suc : successors(&BB)) {
 			if (&BB == suc) {
-				auto * origTI = suc->getTerminator();
-				auto * loopMD = origTI->getMetadata(LLVMContext::MD_loop);
+				auto *origTI = suc->getTerminator();
+				SmallVector<std::pair<unsigned, MDNode*>> MDs;
+				origTI->getAllMetadata(MDs);
 				auto *latchBB = SplitEdge(&BB, &BB);
-				if (loopMD) {
-					latchBB->getTerminator()->setMetadata(LLVMContext::MD_loop, loopMD);
-					origTI->setMetadata(LLVMContext::MD_loop, nullptr);
+				auto *newTerm = latchBB->getTerminator();
+				if (origTI != newTerm && MDs.size()) {
+					for (const auto& [KindID, Node] : MDs) {
+						newTerm->setMetadata(KindID, Node);
+					}
+					for (const auto& [KindID, Node] : MDs) {
+						origTI->setMetadata(KindID, nullptr);
+					}
 				}
 				Changed = true;
 			}
