@@ -22,14 +22,12 @@ def netlistCmpNormalize(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode], r
     t = n._outputs[0]._dtype
     if t.signed:
         raise NotImplementedError(n, t)
-    
+    newO = None
     # :note: const can not be first operand because it denormalizes the expression
     if op is AllOps.NE:
         # a != b -> ~(a == b)
         eq = b.buildOp(AllOps.EQ, t, op0, op1)
         newO = b.buildNot(eq)
-        replaceOperatorNodeWith(n, newO, worklist, removed)
-        return True
 
     elif op is AllOps.GT:
         if isinstance(op1.obj, HlsNetNodeConst):
@@ -39,8 +37,6 @@ def netlistCmpNormalize(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode], r
         else:
             # a > b -> b < a
             newO = b.buildOp(AllOps.LT, t, op1, op0)
-        replaceOperatorNodeWith(n, newO, worklist, removed)
-        return True
 
     elif op is AllOps.GE:
         if isinstance(op1.obj, HlsNetNodeConst):
@@ -50,6 +46,8 @@ def netlistCmpNormalize(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode], r
         else:
             # a >=- b -> b <= a
             newO = b.buildOp(AllOps.LE, t, op1, op0)
+
+    if newO is not None:
         replaceOperatorNodeWith(n, newO, worklist, removed)
         return True
 
