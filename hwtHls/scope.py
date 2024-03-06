@@ -50,7 +50,7 @@ class HlsScope():
         :param freq: override of the clock frequency, if None the frequency of clock associated with parent is used
         """
         self.parentUnit = parentUnit
-        self._private_interfaces = parentUnit._private_interfaces
+        self._private_interfaces = parentUnit._private_interfaces if parentUnit else []
         if freq is None:
             freq = parentUnit.clk.FREQ
         self.freq = freq
