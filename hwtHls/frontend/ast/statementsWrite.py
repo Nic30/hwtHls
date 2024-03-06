@@ -5,7 +5,6 @@ from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.value import HValue
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getInterfaceName
-from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.ast.statements import HlsStm
 from hwtHls.frontend.ast.statementsRead import HlsRead
@@ -89,7 +88,7 @@ class HlsWrite(HlsStm, SsaInstr):
         # srcVal, dstIo, index, cond = ops
         assert isinstance(dstIo, (Interface, RtlSignal)), dstIo
         assert isinstance(index, int) and index == 0, (instr, index, "Because this read is not addressed there should not be any index")
-        n = HlsNetNodeWrite(netlist, NOT_SPECIFIED, dstIo)
+        n = HlsNetNodeWrite(netlist, dstIo)
         link_hls_nodes(srcVal, n._inputs[0])
 
         _cond = syncTracker.resolveControlOutput(cond)
@@ -161,7 +160,7 @@ class HlsWriteAddressed(HlsWrite):
         assert isinstance(dstIo, Interface), dstIo
         if isinstance(index, int):
             raise AssertionError("If the index is constant it should be an output of a constant node but it is an integer", dstIo, instr)
-        n = HlsNetNodeWriteIndexed(netlist, NOT_SPECIFIED, dstIo)
+        n = HlsNetNodeWriteIndexed(netlist, dstIo)
         link_hls_nodes(index, n.indexes[0])
         link_hls_nodes(srcVal, n._inputs[0])
 

@@ -8,7 +8,6 @@ from hwt.hdl.value import HValue
 from hwt.interfaces.std import BramPort_withoutClk
 from hwt.interfaces.structIntf import Interface_to_HdlType
 from hwt.math import log2ceil
-from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.ast.statementsRead import HlsReadAddressed
 from hwtHls.frontend.ast.statementsWrite import HlsWriteAddressed
@@ -63,7 +62,7 @@ class HlsReadAxi4Lite(HlsReadAddressed):
 
         aVal = netlist.builder.buildConcatVariadic((Bits(offsetWidth).from_py(0), addrVal, prot))
 
-        aNode = HlsNetNodeWrite(netlist, NOT_SPECIFIED, addr)
+        aNode = HlsNetNodeWrite(netlist, addr)
         link_hls_nodes(aVal, aNode._inputs[0])
 
         mirToNetlist._addExtraCond(aNode, cond, mbSync.blockEn)
@@ -139,7 +138,7 @@ class HlsWriteAxi4Lite(HlsWriteAddressed):
     def __init__(self,
             parentProxy: "Axi4LiteArrayProxy",
             parent:"HlsScope",
-            src:Union[SsaValue, RtlSignal, HValue],
+            src:Union[SsaValue, HValue],
             dst:Union[BramPort_withoutClk, Tuple[BramPort_withoutClk]],
             index:Union[SsaValue, RtlSignal, HValue],
             element_t:HdlType):
@@ -174,7 +173,7 @@ class HlsWriteAxi4Lite(HlsWriteAddressed):
 
         if proxy.LATENCY_AW_TO_W:
             mbSync.addOrderingDelay(proxy.LATENCY_AW_TO_W)
-        wNode = HlsNetNodeWrite(netlist, NOT_SPECIFIED, dstIo.w)
+        wNode = HlsNetNodeWrite(netlist, dstIo.w)
         HlsReadAxi4Lite._connectUsingExternalDataDep(aNode, wNode)
         assert srcVal._dtype.bit_length() == proxy.wWordT.bit_length(), (dstIo, srcVal._dtype, dstIo.DATA_WIDTH)
         link_hls_nodes(srcVal, wNode._inputs[0])

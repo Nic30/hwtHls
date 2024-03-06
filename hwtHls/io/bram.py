@@ -47,7 +47,7 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
     def __init__(self, netlist:"HlsNetlistCtx",
                  dst:AnyBramPort,
                  cmd: Union[Literal[READ], Literal[WRITE]]):
-        HlsNetNodeWriteIndexed.__init__(self, netlist, NOT_SPECIFIED, dst)
+        HlsNetNodeWriteIndexed.__init__(self, netlist, dst)
         assert cmd is READ or cmd is WRITE, cmd
         self.cmd = cmd
         if isinstance(dst, BankedPortGroup):
@@ -183,9 +183,7 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
             yield HlsNetNodeWriteBramCmdPartRef(self.netlist, self, not p.isDataReadPart, self.scheduledZero if p.isDataReadPart else self.scheduledOut[0])
 
     def __repr__(self, minify=False):
-        src = self.src
-        if src is NOT_SPECIFIED:
-            src = self.dependsOn[0]
+        src = self.dependsOn[0]
         dstName = self._getInterfaceName(self.dst)
         if minify:
             return f"<{self.__class__.__name__:s} {self._id:d} {self.cmd} {dstName}>"
