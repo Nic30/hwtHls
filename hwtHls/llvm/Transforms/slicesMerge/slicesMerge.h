@@ -19,6 +19,7 @@ class SlicesMergePass: public llvm::PassInfoMixin<SlicesMergePass> {
 public:
 	llvm::PreservedAnalyses run(llvm::Function &F,
 			llvm::FunctionAnalysisManager &AM);
+	static bool isRequired() { return false; }
 };
 
 }

@@ -61,6 +61,9 @@ public:
 	std::size_t uniqueSize() const;
 };
 
+/*
+ * ParallelInstVec::iterator which skips items with isDuplicate=true
+ * */
 class ParallelInstVecUniqueIterator {
 	ParallelInstVec &parent;
 	ParallelInstVec::iterator instrIt;

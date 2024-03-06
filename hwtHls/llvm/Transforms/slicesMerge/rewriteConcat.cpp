@@ -11,7 +11,7 @@ using namespace llvm;
 namespace hwtHls {
 
 template<typename T>
-void mergeInstructionsInVector(SmallVector<OffsetWidthValue> &members,
+bool mergeInstructionsInVector(SmallVector<OffsetWidthValue> &members,
 		SmallVector<OffsetWidthValue>::iterator begin,
 		SmallVector<OffsetWidthValue>::iterator &end, Instruction *userToSkip,
 		const CreateBitRangeGetFn &createSlice, DceWorklist &dce,
@@ -29,8 +29,9 @@ void mergeInstructionsInVector(SmallVector<OffsetWidthValue> &members,
 	}
 
 	Value *widerI = buildReducedInstrFn(instructions);
-	if (!widerI)
-		return; // extraction failed
+	if (!widerI) {
+		return false; // extraction failed
+	}
 	Instruction *widerInstr = dyn_cast<Instruction>(widerI);
 	size_t offset = 0;
 	for (auto _I = begin; _I != end; ++_I) {
@@ -57,17 +58,18 @@ void mergeInstructionsInVector(SmallVector<OffsetWidthValue> &members,
 	begin->offset = 0;
 	begin->width = widerI->getType()->getIntegerBitWidth();
 	end = begin + 1; // set current end to a member behind newly added member
+	return true;
 }
 
 /*
  * :note: end will point at newly added member with new PHINode
  * */
-void mergePhisInConcatMemberVector(SmallVector<OffsetWidthValue> &members,
+bool mergePhisInConcatMemberVector(SmallVector<OffsetWidthValue> &members,
 		SmallVector<OffsetWidthValue>::iterator begin,
 		SmallVector<OffsetWidthValue>::iterator &end, Instruction *userToSkip,
 		const CreateBitRangeGetFn &createSlice, DceWorklist &dce,
 		const Twine &Name) {
-	mergeInstructionsInVector<PHINode>(members, begin, end, userToSkip,
+	return mergeInstructionsInVector<PHINode>(members, begin, end, userToSkip,
 			createSlice, dce,
 			[&members, &Name](const std::vector<PHINode*> &phis) {
 				return mergePhisToWiderPhi(members[0].value->getContext(), Name,
@@ -153,7 +155,7 @@ bool mergeBinaryOperatorsInConcatMemberVector(IRBuilder<> &Builder,
 	return modified;
 }
 
-void mergeInstructionSequenceInPlace(
+bool mergeInstructionSequenceInPlace(
 		llvm::SmallVector<OffsetWidthValue>::iterator mergableInstrSequenceBegin,
 		llvm::SmallVector<OffsetWidthValue>::iterator &mergableInstrSequenceEnd,
 		const CreateBitRangeGetFn &createSlice,
@@ -162,22 +164,21 @@ void mergeInstructionSequenceInPlace(
 	// merge PHIs in range <phiMembersBegin, m) to a single PHI and replace them in members vector
 	auto ToMerge = mergableInstrSequenceBegin->value;
 	if (isa<PHINode>(ToMerge)) {
-		mergePhisInConcatMemberVector(members, mergableInstrSequenceBegin,
+		return mergePhisInConcatMemberVector(members, mergableInstrSequenceBegin,
 				mergableInstrSequenceEnd, I, createSlice, dce,
 				I->getName() + ".phiConc");
+	} else if (isa<SelectInst>(ToMerge)) {
+		return mergeSelectsInConcatMemberVector(Builder, members,
+				mergableInstrSequenceBegin, mergableInstrSequenceEnd, I,
+				createSlice, dce, I->getName() + ".selConc");
+	} else if (isa<BinaryOperator>(ToMerge)) {
+		return mergeBinaryOperatorsInConcatMemberVector(Builder, members,
+				mergableInstrSequenceBegin, mergableInstrSequenceEnd, I,
+				createSlice, dce, I->getName() + ".opConc");
 	} else {
-		if (isa<SelectInst>(ToMerge)) {
-			mergeSelectsInConcatMemberVector(Builder, members,
-					mergableInstrSequenceBegin, mergableInstrSequenceEnd, I,
-					createSlice, dce, I->getName() + ".selConc");
-		} else if (isa<BinaryOperator>(ToMerge)) {
-			mergeBinaryOperatorsInConcatMemberVector(Builder, members,
-					mergableInstrSequenceBegin, mergableInstrSequenceEnd, I,
-					createSlice, dce, I->getName() + ".opConc");
-		} else {
-			llvm_unreachable("NotImplemented");
-		}
+		llvm_unreachable("NotImplemented");
 	}
+	return false;
 }
 
 bool rewriteConcat(CallInst *I, const CreateBitRangeGetFn &createSlice,
@@ -241,10 +242,11 @@ bool rewriteConcat(CallInst *I, const CreateBitRangeGetFn &createSlice,
 		// end of compatible instruction sequence detected
 		if (isWorthReplacing(mergableInstrSequenceBegin, m)) {
 			// merge instructions in range <mergableInstrSequenceBegin, m) to a single instruction and replace them in members vector
-			mergeInstructionSequenceInPlace(mergableInstrSequenceBegin, m,
-					createSlice, members, I, dce, builder);
-			modified = true;
-			I2 = nullptr; // clean to prevent to mark end of sequence
+			if(mergeInstructionSequenceInPlace(mergableInstrSequenceBegin, m,
+					createSlice, members, I, dce, builder)) {
+				modified = true;
+				I2 = nullptr; // clean to prevent to mark end of sequence
+			}
 		}
 
 		if (I2) {
@@ -257,9 +259,10 @@ bool rewriteConcat(CallInst *I, const CreateBitRangeGetFn &createSlice,
 		// if instruction sequence is longer than 1 and contains more than 1 unique instruction
 		// merge instructions in range <mergableInstrSequenceBegin, m) to a single instruction and replace them in members vector
 		auto end = members.end();
-		mergeInstructionSequenceInPlace(mergableInstrSequenceBegin, end,
-				createSlice, members, I, dce, builder);
-		modified = true;
+		if (mergeInstructionSequenceInPlace(mergableInstrSequenceBegin, end,
+				createSlice, members, I, dce, builder)) {
+			modified = true;
+		}
 	}
 
 	// the Concat can have only operands modified and rewrite may not be required

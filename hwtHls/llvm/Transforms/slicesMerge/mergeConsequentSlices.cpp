@@ -372,6 +372,7 @@ bool condensateInstructionGroup(BasicBlock &ParentBB,
 			ParentBlock = I2.I->getParent();
 		}
 	}
+
 	size_t uniqueInstrCnt = extractedInstructions.size();
 	Instruction *firstParInstr = nullptr;
 	Instruction *lastParInstr = nullptr;
@@ -388,6 +389,7 @@ bool condensateInstructionGroup(BasicBlock &ParentBB,
 	};
 	size_t seenParInstrCnt = 0;
 	for (Instruction &I2 : make_early_inc_range(ParentBB)) {
+		// try to hoist instruction between extractedInstructions, if it fails add it to unhoistableInstructions
 		if (extractedInstructions.find(&I2) != extractedInstructions.end()) {
 			++seenParInstrCnt;
 			if (firstParInstr == nullptr) {
@@ -408,9 +410,11 @@ bool condensateInstructionGroup(BasicBlock &ParentBB,
 			}
 		}
 	}
+
 	if (!unhoistableInstructions.empty()) {
-		// iterating reversed because we need first move dependent instructions to not break use-def
+		// try to sink instructions which can not be hoisted
 		for (Instruction *I2 : reverse(unhoistableInstructions)) {
+			// iterating reversed because we need first move dependent instructions to not break use-def
 			if (any_of(I2->users(),
 					[&extractedInstructions](User *U) {
 						if (auto UI = dyn_cast<Instruction>(U))
@@ -418,10 +422,7 @@ bool condensateInstructionGroup(BasicBlock &ParentBB,
 									!= extractedInstructions.end();
 						return false;
 					})) {
-				I2->dump();
-				llvm_unreachable(
-						"Can not extract parallel instruction operand because it depends on some extracted instruction."
-								" This should have already been checked before calling of this function.");
+				return false; // can not sink
 			} else {
 				I2->moveAfter(lastParInstr);
 			}
@@ -493,11 +494,11 @@ std::tuple<bool, Value*, Value*> mergeConsequentSlicesExtractWiderOperads(
 		// op0 or op1 are not result of any slice and are not constants
 		return {false, nullptr, nullptr};
 	} else {
-		//assert(!op0asC && !op1asC);
 		parallelInstrOnSameVec.insertSorted(&I, false);
 		auto op0width = op0->getType()->getIntegerBitWidth();
 		auto op1width = op1->getType()->getIntegerBitWidth();
 		assert(dce.getSliceDict());
+		// [fixme] select and phi may have parallelInstrOnSameVec invalid after instruction was extracted
 		if (collectParallelInstructionOnSameVector(*dce.getSliceDict(),
 				parallelInstrOnSameVec, I, extraCheck, commutative, op0BitVec,
 				op0Offset, op0width, op0Index, op1BitVec, op1Offset, op1width,
