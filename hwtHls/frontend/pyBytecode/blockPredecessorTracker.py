@@ -39,7 +39,8 @@ class BlockPredecessorTracker():
       This unique label is generated from scope of currently evaluated loops and their iteration indexes and the label of original block.
     """
 
-    def __init__(self, fnCfg: DiGraph, predecessorBlockLabel: BlockLabel, callStack: List["PyBytecodeFrame"]):
+    def __init__(self, fnCfg: DiGraph, predecessorBlockLabel: BlockLabel,
+                 callStack: List["PyBytecodeFrame"]):
         self.originalCfg = fnCfg
         assert callStack
         self.callStack = callStack
@@ -50,11 +51,13 @@ class BlockPredecessorTracker():
             self.notGenerated: Set[BlockLabel] = lastBT.notGenerated
             self.notGeneratedEdges: Set[Tuple[BlockLabel, BlockLabel]] = lastBT.notGeneratedEdges
             globalCfg = lastBT.cfg
+            # jumpsBackToPredecessor = True
         else:
             self.generated: Set[BlockLabel] = set()
             self.notGenerated: Set[BlockLabel] = set()
             self.notGeneratedEdges: Set[Tuple[BlockLabel, BlockLabel]] = set()
             globalCfg = DiGraph()
+            # jumpsBackToPredecessor = False
 
         self.cfg = globalCfg 
         prefix = tuple(self._getBlockLabelPrefix(0))
@@ -66,6 +69,11 @@ class BlockPredecessorTracker():
             globalCfg.add_edge(BlockLabel(*prefix, src), BlockLabel(*prefix, dst))
         # add jump to this new function call from call site
         globalCfg.add_edge(predecessorBlockLabel, BlockLabel(*prefix, 0))
+        #if jumpsBackToPredecessor:
+        #    for n in fnCfg.nodes:
+        #        if not any(True for _ in fnCfg.successors(n)):
+        #            globalCfg.add_edge(BlockLabel(*prefix, n), predecessorBlockLabel)
+            
 
     def hasAllPredecessorsKnown(self, blockLabel: BlockLabel) -> bool:
         allPredecKnown = True
