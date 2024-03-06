@@ -191,18 +191,15 @@ class LlvmIrInterpret():
         waveLog.enddefinitions()
         return instrCodeline, simCodelineLabel, simTimeLabel, simBlockLabel
 
-    def _runLlvmIrFunctionInstr(self, waveLog: Optional[VcdWriter],
-                                nowTime: int,
-                                regs: Dict[Instruction, HValue],
-                                instr: Instruction, predBb: BasicBlock, bb: BasicBlock,
-                                fnArgs: Tuple[Generator[Union[int, HValue], None, None], List[HValue], ...],
-                                simBlockLabel: Optional[object]) -> Tuple[Optional[BasicBlock], BasicBlock, bool]:
+    def _runBlockPhis(self, predBb: BasicBlock, bb: BasicBlock, waveLog: Optional[VcdWriter], regs: Dict[Instruction, HValue], nowTime: int):
         """
-        :return: predBb, bb, isJump
+        Atomically evaluate PHIs at the top of the block.
         """
-        # check for instructions which require special handling of operands
-        phi = InstructionToPHINode(instr)
-        if phi is not None:
+        newPhiVals = []
+        for instr in bb:
+            phi = InstructionToPHINode(instr)
+            if phi is None:
+                break
             # special case for PHIs because they may have operands which are undefined
             v = phi.getIncomingValueForBlock(predBb)
             assert v is not None, phi
@@ -215,16 +212,16 @@ class LlvmIrInterpret():
                 v = pyT.from_py(v)
                 if waveLog is not None:
                     waveLog.logChange(nowTime, phi, v, None)
-                regs[phi] = v
-                return predBb, bb, False
+                newPhiVals.append((phi, v))
+                continue
 
             vvInstr = ValueToInstruction(v)
             if vvInstr is not None:
                 v = regs[vvInstr]
                 if waveLog is not None:
                     waveLog.logChange(nowTime, phi, v, None)
-                regs[phi] = v
-                return predBb, bb, False
+                newPhiVals.append((phi, v))
+                continue
 
             vvUndef = ValueToUndefValue(v)
             if vvUndef is not None:
@@ -232,11 +229,25 @@ class LlvmIrInterpret():
                 v = pyT.from_py(None)
                 if waveLog is not None:
                     waveLog.logChange(nowTime, phi, v, None)
-                regs[phi] = v
-                return predBb, bb, False
+                newPhiVals.append((phi, v))
+                continue
 
             raise NotImplementedError("NotImplemented type of value", phi, v)
 
+        for phi, v in newPhiVals:
+            regs[phi] = v
+
+    def _runLlvmIrFunctionInstr(self, waveLog: Optional[VcdWriter],
+                                nowTime: int,
+                                regs: Dict[Instruction, HValue],
+                                instr: Instruction,
+                                bb: BasicBlock,
+                                fnArgs: Tuple[Generator[Union[int, HValue], None, None], List[HValue], ...],
+                                simBlockLabel: Optional[object]) -> Tuple[Optional[BasicBlock], BasicBlock, bool]:
+        """
+        :return: bb, isJump
+        """
+        # check for instructions which require special handling of operands
         load = InstructionToLoadInst(instr)
         if load is not None:
             srcPtr, = load.iterOperandValues()
@@ -248,11 +259,12 @@ class LlvmIrInterpret():
                     res = next(ioValues)
                 except StopIteration:
                     raise SimIoUnderflowErr()
+
                 assert isinstance(res, HValue) and res._dtype.bit_length() == instr.getType().getIntegerBitWidth(), (instr, res)
                 if waveLog is not None:
                     waveLog.logChange(nowTime, load, res, None)
                 regs[instr] = res
-                return predBb, bb, False
+                return bb, False
             else:
                 raise NotImplementedError(instr, srcPtr)
 
@@ -276,7 +288,7 @@ class LlvmIrInterpret():
                 ioValues.append(v)
                 if waveLog is not None:
                     waveLog.logChange(nowTime, dstPtrAsArg, v, None)
-                return predBb, bb, False
+                return bb, False
             else:
                 raise NotImplementedError(instr)
 
@@ -326,32 +338,7 @@ class LlvmIrInterpret():
             if waveLog is not None:
                 waveLog.logChange(nowTime, instr, res, None)
             regs[instr] = res
-            return predBb, bb, False
-
-        # resolve instruction type and execute it
-        br = InstructionToBranchInst(instr)
-        if br is not None:
-            if instr.getNumOperands() == 1:
-                nextBbb = ops[0]
-                predBb = bb
-                bb = nextBbb
-                if waveLog is not None:
-                    waveLog.logChange(nowTime, simBlockLabel, bb, None)
-                return predBb, bb, True
-            else:
-                assert instr.getNumOperands() == 3, instr
-                cond, falseBlock, trueBlock = ops  # true/false is visually reversed in print, but ops are in this order
-                assert cond._is_full_valid(), (br, v)
-                predBb = bb
-                if cond:
-                    bb = trueBlock
-                else:
-                    bb = falseBlock
-                if waveLog is not None:
-                    waveLog.logChange(nowTime, simBlockLabel, bb, None)
-                return predBb, bb, True
-
-            raise NotImplementedError(instr)
+            return bb, False
 
         call = InstructionToCallInst(instr)
         if call is not None:
@@ -374,7 +361,7 @@ class LlvmIrInterpret():
             if waveLog is not None:
                 waveLog.logChange(nowTime, instr, res, None)
             regs[instr] = res
-            return predBb, bb, False
+            return bb, False
 
         gep = InstructionToGetElementPtrInst(instr)
         if gep is not None:
@@ -406,7 +393,7 @@ class LlvmIrInterpret():
             if waveLog is not None:
                 waveLog.logChange(nowTime, instr, res, None)
             regs[instr] = res
-            return predBb, bb, False
+            return bb, False
 
         select = InstructionToSelectInst(instr)
         if select is not None:
@@ -419,7 +406,7 @@ class LlvmIrInterpret():
             else:
                 res = tVal._dtype.from_py(None)
             regs[instr] = res
-            return predBb, bb, False
+            return bb, False
 
         cast = InstructionToCastInst(instr)
         if cast is not None:
@@ -440,8 +427,36 @@ class LlvmIrInterpret():
                 raise NotImplementedError(instr)
 
             regs[instr] = res
-            return predBb, bb, False
+            return bb, False
 
+        # resolve instruction type and execute it
+        br = InstructionToBranchInst(instr)
+        if br is not None:
+            if instr.getNumOperands() == 1:
+                nextBb = ops[0]
+                if waveLog is not None:
+                    waveLog.logChange(nowTime, simBlockLabel, nextBb, None)
+                
+                self._runBlockPhis(bb, nextBb, waveLog, regs, nowTime)
+                bb = nextBb
+                return bb, True
+            else:
+                assert instr.getNumOperands() == 3, instr
+                cond, falseBlock, trueBlock = ops  # true/false is visually reversed in print, but ops are in this order
+                assert cond._is_full_valid(), (br, v)
+                if cond:
+                    nextBb = trueBlock
+                else:
+                    nextBb = falseBlock
+
+                if waveLog is not None:
+                    waveLog.logChange(nowTime, simBlockLabel, nextBb, None)
+                self._runBlockPhis(bb, nextBb, waveLog, regs, nowTime)
+                bb = nextBb
+                return bb, True
+
+            raise NotImplementedError(instr)
+        
         switchBr = InstructionToSwitchInst(instr)
         if switchBr is not None:
             c = ops[0].cast_sign(None)
@@ -451,17 +466,17 @@ class LlvmIrInterpret():
                 assert isinstance(condVal, HValue), condVal
                 assert isinstance(dst, BasicBlock), dst
                 if c._eq(condVal):
-                    predBb = bb
-                    bb = dst
                     if waveLog is not None:
-                        waveLog.logChange(nowTime, simBlockLabel, bb, None)
-                    return predBb, bb, True
+                        waveLog.logChange(nowTime, simBlockLabel, dst, None)
+                    self._runBlockPhis(bb, dst, waveLog, regs, nowTime)
+                    bb = dst
+                    return bb, True
 
-            predBb = bb
-            bb = defDst
             if waveLog is not None:
-                waveLog.logChange(nowTime, simBlockLabel, bb, None)
-            return predBb, bb, True
+                waveLog.logChange(nowTime, simBlockLabel, defDst, None)
+            self._runBlockPhis(bb, defDst, waveLog, regs, nowTime)
+            bb = defDst
+            return bb, True
 
         raise NotImplementedError(instr)
 
@@ -477,7 +492,6 @@ class LlvmIrInterpret():
             simTimeLabel = None
             simBlockLabel = None
 
-        predBb: Optional[BasicBlock] = None
         bb: BasicBlock = F.getEntryBlock()
         regs: Dict[Instruction, HValue] = {}
 
@@ -489,7 +503,12 @@ class LlvmIrInterpret():
                 if waveLog is not None:
                     waveLog.logChange(nowTime, simTimeLabel, nowTime, None)
                     waveLog.logChange(nowTime, simCodelineLabel, instr, None)
-                predBb, bb, isJump = self._runLlvmIrFunctionInstr(waveLog, nowTime, regs, instr, predBb, bb, fnArgs, simBlockLabel)
+                
+                phi = InstructionToPHINode(instr)
+                if phi is not None:
+                    continue # PHIs are evaluated before jump to this block, so we skip them
+
+                bb, isJump = self._runLlvmIrFunctionInstr(waveLog, nowTime, regs, instr, bb, fnArgs, simBlockLabel)
                 if wallTime is not None and wallTime <= nowTime:
                     raise StopSimumulation()
                 if isJump:
