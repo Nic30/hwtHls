@@ -15,7 +15,7 @@ class VariableChain_TC(BaseSsaTC):
             u = VariableChain()
             u.LEN = 1
             return u
-        
+
         self._test_ll(VariableChain_1, name="VariableChain_1")
 
     def test_VariableChain3_ll(self):
@@ -24,8 +24,8 @@ class VariableChain_TC(BaseSsaTC):
             u = VariableChain()
             u.LEN = 3
             return u
-        
-        self._test_ll(VariableChain_3, name="VariableChain_3") 
+
+        self._test_ll(VariableChain_3, name="VariableChain_3")
 
 
 if __name__ == "__main__":
