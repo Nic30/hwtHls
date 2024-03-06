@@ -1,4 +1,3 @@
-from itertools import chain
 from networkx.algorithms.components.strongly_connected import strongly_connected_components
 from networkx.classes.digraph import DiGraph
 from typing import List, Dict, Set, Tuple, Generator, Union
