@@ -122,6 +122,7 @@ source venv/bin/activate # modifies current shell to use previously generate pyt
 ## Related open-source
 * :skull: [ahaHLS](https://github.com/dillonhuff/ahaHLS) - 2018-2019, A Basic High Level Synthesis System Using LLVM
 * :skull: [augh](http://tima.imag.fr/sls/research-projects/augh/) - c->verilog, DSP support
+* :skull: [balsa](https://apt.cs.manchester.ac.uk/projects/tools/balsa/) 2003-2010, Async circuit synthesis
 * :skull: [c-ll-verilog](https://github.com/sabbaghm/c-ll-verilog) 2017-2017, C++, An LLVM based mini-C to Verilog High-level Synthesis tool
 * :skull: [Chips-2.0](https://github.com/dawsonjon/Chips-2.0) - 2011-2019, Python, C->Verilog HLS
 * :skull: [COMBA](https://github.com/zjru/COMBA) - 2017-2020, C++/LLVM, focused on resource constrained scheduling
@@ -145,7 +146,7 @@ source venv/bin/activate # modifies current shell to use previously generate pyt
 * :skull: [FPGA C Compiler](https://sourceforge.net/projects/fpgac/) - 2005-2006, trivial 1:1 c->vhdl
 * :skull: [hpiasg](https://github.com/hpiasg) - , set of tools for asynchronous and handshake circuit synthesis
 * [abc](https://people.eecs.berkeley.edu/~alanmi/abc/) <2008-?, A System for Sequential Synthesis and Verification
-* [ahir](https://github.com/madhavPdesai/ahir) - LLVM, c->vhdl
+* [ahir](https://github.com/madhavPdesai/ahir) - LLVM, llvm bytecode->vhdl
 * [AutoBridge](https://autosa.readthedocs.io/en/latest/tutorials/auto_bridge.html) - Python, floorplaning/pipelining tool for Vitis HLS
 * [AutoSA](https://github.com/UCLA-VAST/AutoSA) - C++, Polyhedral-Based Systolic Array Compiler
 * [binaryen](https://github.com/WebAssembly/binaryen) - , C++, WebAssembly compiler (implements some similar optimization passes)
@@ -190,6 +191,7 @@ source venv/bin/activate # modifies current shell to use previously generate pyt
 * [slothy](https://github.com/slothy-optimizer/slothy) - Python, Assembly optimizer
 * [souper](https://github.com/google/souper) - C++/LLVM, superoptimizer for LLVM IR based on SMT solver
 * [llvm-superasm](https://github.com/sjoerdmeijer/llvm-superasm/tree/main/llvm/tools/llvm-superasm) - C++/LLVM, assembly superoptimizer based on SMT solver
+* [noelle](https://github.com/arcana-lab/noelle) - C++/LLVM, library of LLVM analyses and transformations
 
 
 ## Useful publications
