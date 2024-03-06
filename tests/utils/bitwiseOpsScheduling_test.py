@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.simulator.simTestCase import SimTestCase
-from hwtHls.platform.virtual import VirtualHlsPlatform
-from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.platform.platform import HlsDebugBundle
-from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.types.bits import Bits
+from hwt.interfaces.std import VectSignal
+from hwt.simulator.simTestCase import SimTestCase
+from hwtHls.netlist.analysis.schedule import HlsNetlistAnalysisPassRunScheduler
+from hwtHls.netlist.builder import HlsNetlistBuilder
+from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import link_hls_nodes
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.aggregateBitwiseOps import HlsNetlistPassAggregateBitwiseOps
 from hwtHls.netlist.translation.dumpNodesDot import HlsNetlistPassDumpNodesDot
 from hwtHls.netlist.translation.dumpSchedulingJson import HlsNetlistPassDumpSchedulingJson
-from hwtHls.netlist.analysis.schedule import HlsNetlistAnalysisPassRunScheduler
-from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.platform.fileUtils import outputFileGetter
-from hwt.interfaces.std import VectSignal
+from hwtHls.platform.platform import HlsDebugBundle
+from hwtHls.platform.virtual import VirtualHlsPlatform
 
 
 class BitwiseOpsScheduling_TC(SimTestCase):
@@ -40,7 +40,7 @@ class BitwiseOpsScheduling_TC(SimTestCase):
         n2 = HlsNetNodeOperator(net, AllOps.NOT, 1, t, "n2")
         net.nodes.extend((n0, n1, n2))
 
-        w = HlsNetNodeWrite(net, None, VectSignal(8), name="w0")
+        w = HlsNetNodeWrite(net, VectSignal(8), name="w0")
         net.outputs.append(w)
 
         prev = r
@@ -72,7 +72,7 @@ class BitwiseOpsScheduling_TC(SimTestCase):
         n2 = HlsNetNodeOperator(net, AllOps.AND, 2, t, "n2")
         net.nodes.extend((n0, n1, n2))
 
-        w = HlsNetNodeWrite(net, None, VectSignal(8), name="w0")
+        w = HlsNetNodeWrite(net, VectSignal(8), name="w0")
         net.outputs.append(w)
 
         prev = r0
