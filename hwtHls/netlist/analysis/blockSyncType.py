@@ -57,7 +57,12 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
         and it can be only obtained once datapath in blocks was constructed.
         :see: :class:`~.HlsNetlistAnalysisPassDataThreadsForBlocks`
     '''
-    _CONSTANT_OPCODES = {TargetOpcode.G_CONSTANT, TargetOpcode.HWTFPGA_BR, TargetOpcode.HWTFPGA_ARG_GET}
+    _CONSTANT_OPCODES = {
+        TargetOpcode.G_CONSTANT,
+        TargetOpcode.HWTFPGA_BR,
+        TargetOpcode.HWTFPGA_ARG_GET,
+        TargetOpcode.IMPLICIT_DEF
+    }
 
     @classmethod
     def _blockCanBeInlinedAsReset(cls, mb: MachineBasicBlock):
