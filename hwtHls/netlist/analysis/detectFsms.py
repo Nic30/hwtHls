@@ -265,7 +265,7 @@ class HlsNetlistAnalysisPassDetectFsms(HlsNetlistAnalysisPass):
                     clkI = self._getClkIOfAccess(a, clkPeriod)
                     self._floodNetInClockCycles(a, clkI, alreadyUsed, floodPredicateExcludeOtherIoWithOwnFsm, fsm, seenInClks)
 
-                stCnt = len(fsm.states)
+                stCnt = sum(1 if st else 0 for st in fsm.states)
                 if stCnt > 1:
                     self._discardIncompatibleNodes(fsm)
                     # initialize with transition table with always jump to next state sequentially
