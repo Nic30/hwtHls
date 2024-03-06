@@ -1,13 +1,12 @@
-from typing import Type, Dict
 
 
 class SsaContext():
     """
-    :ivar objCnt: the dictionary of object counts used for name generating
+    :ivar objCnt: the number used to generated unique object id
     """
 
     def __init__(self):
-        self.objCnt = 0  # : Dict[Type, int] = {}
+        self.objCnt = 0
 
     def genName(self, obj):
         prefix = getattr(obj, "_GEN_NAME_PREFIX", "o")
