@@ -11,7 +11,7 @@ from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
-from hwtHls.netlist.transformation.simplifyExpr.cmpInAndUtils import ValueConstrainLatice, \
+from hwtHls.netlist.transformation.simplifyExpr.cmpInAndUtils import ValueConstrainLattice, \
     _appendKnowledgeTwoVars, _appendKnowledgeVarAndConst, \
     _intervalListIntersection
 from hwtHls.netlist.transformation.simplifyUtils import replaceOperatorNodeWith, \
@@ -64,24 +64,23 @@ def _andNotInRangeExpr(curExpr: Optional[HlsNetNodeOut], inp: HlsNetNodeOut, sta
     return curExpr
 
 
-def _valueLatticeToExpr(b: HlsNetlistBuilder, allInputs: Sequence[HlsNetNodeOut], latice: ValueConstrainLatice):
+def _valueLatticeToExpr(b: HlsNetlistBuilder, allInputs: Sequence[HlsNetNodeOut], lattice: ValueConstrainLattice):
     """
     Rewrite value lattice to the expression.
     """
     inputs = sorted(allInputs, key=lambda x: (x.obj._id, x.out_i))
     res = None
     for i, inp in enumerate(inputs):
-        valConstr = latice.get((inp, inp))
+        valConstr = lattice.get((inp, inp))
         if valConstr is not None:
             t = inp._dtype
             width = inp._dtype.bit_length()
             if inp._dtype.signed:
-                raise NotImplementedError()
+                _max = mask(width - 1)
+                _min = -_max - 1
             else:
                 _min = 0
                 _max = mask(width)
-
-#            for r in enumerate(valConstr):
 
             if len(valConstr) == 1:
                 r = valConstr[0]
@@ -169,7 +168,7 @@ def _valueLatticeToExpr(b: HlsNetlistBuilder, allInputs: Sequence[HlsNetNodeOut]
                         res = _andNotInRangeExpr(res, inp, r.stop, rNext.start, _min, _max)
 
         for otherInp in islice(inputs, i + 1, None):
-            constr = latice.get((inp, otherInp))
+            constr = lattice.get((inp, otherInp))
             if constr is None:
                 continue
             else:
@@ -196,7 +195,8 @@ def getConst(o: HlsNetNodeOut):
     else:
         return None
 
-#AND_OR_XOR = (AllOps.XOR, AllOps.AND, AllOps.OR)
+
+# AND_OR_XOR = (AllOps.XOR, AllOps.AND, AllOps.OR)
 def netlistReduceCmpInAnd(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]):
     """
     This algorithm simplifies comparations in AND tree. It is similar to Sparse Conditional Constant Propagation (SCC).
@@ -217,15 +217,15 @@ def netlistReduceCmpInAnd(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode],
     b: HlsNetlistCtx = n.netlist.builder
 
     # sorted list of allowed ranges for each input variable (which is realized as node output)
-    # values: ValueConstrainLatice = {}
+    # values: ValueConstrainLattice = {}
     # equalGroups: Dict[HlsNetNodeOut, Set[HlsNetNodeOut]] = {}
     # a dictionary mapping relations between input variables in oposite direction to "values"
     # varDeps: Dict[HlsNetNodeOut, HlsNetNodeOut] = {}
-    latice: ValueConstrainLatice = {}
+    lattice: ValueConstrainLattice = {}
     allInputs: UniqList[HlsNetNodeOut] = UniqList()
     registerInput = allInputs.append
     changed = False
-    inputs = tuple(iterOperatorTreeInputs(n, (AllOps.AND, )))
+    inputs = tuple(iterOperatorTreeInputs(n, (AllOps.AND,)))
     for inp in inputs:
         inp: HlsNetNodeOut
         negated, inpO, inp = popNotFromExpr(inp)
@@ -260,10 +260,10 @@ def netlistReduceCmpInAnd(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode],
                     changed = True
                     registerInput(o0)
                     registerInput(o1)
-                    knownResult, _changed = _appendKnowledgeTwoVars(latice, o, o0, o1)
+                    knownResult, _changed = _appendKnowledgeTwoVars(lattice, o, o0, o1)
                 else:
                     registerInput(o0)
-                    knownResult, _changed = _appendKnowledgeVarAndConst(latice, o, o0, c1)
+                    knownResult, _changed = _appendKnowledgeVarAndConst(lattice, o, o0, c1)
 
                 changed |= _changed
                 if knownResult is not None:
@@ -272,14 +272,14 @@ def netlistReduceCmpInAnd(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode],
 
         registerInput(inp)
         k = (inp, inp)
-        curV = latice.get(k, None)
+        curV = lattice.get(k, None)
         if negated:
             ranges = [range(0, 1)]
         else:
             ranges = [range(1, 2)]
         if curV is not None:
             ranges = list(_intervalListIntersection(curV, ranges))
-        latice[k] = ranges
+        lattice[k] = ranges
 
     if knownResult is not None:
         replaceOperatorNodeWith(n, b.buildConstBit(knownResult), worklist, removed)
@@ -287,7 +287,7 @@ def netlistReduceCmpInAnd(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode],
     elif not changed:
         return False
     else:
-        replacement = _valueLatticeToExpr(b, allInputs, latice)
+        replacement = _valueLatticeToExpr(b, allInputs, lattice)
         if replacement is n._outputs[0]:
             return False
         else:

@@ -11,7 +11,7 @@ from pyMathBitPrecise.bit_utils import mask
 # :attention: because bottom-left triangle is only negation of top-right triangle, only top-right is present,
 #      variables are ordered "see: _:func:`~._appendKnowledgeTwoVars`
 #
-ValueConstrainLatice = Dict[HlsNetNodeOut,
+ValueConstrainLattice = Dict[HlsNetNodeOut,
                  Union[
                     OpDefinition,  # compare operator
                     Tuple[int, int],
@@ -31,11 +31,11 @@ OP_STRENGTH = {
 }
 
 
-def _appendKnowledgeTwoVars(latice: ValueConstrainLatice, rel: OpDefinition, o0: HlsNetNodeOut, o1: HlsNetNodeOut) -> Tuple[Optional[bool], bool]:
+def _appendKnowledgeTwoVars(lattice: ValueConstrainLattice, rel: OpDefinition, o0: HlsNetNodeOut, o1: HlsNetNodeOut) -> Tuple[Optional[bool], bool]:
     """
-    This function updates the knowledge in latice from binary relation operator
+    This function updates the knowledge in lattice from binary relation operator
 
-    :param latice: latice object where knowledge about relations between variables is stored
+    :param lattice: lattice object where knowledge about relations between variables is stored
     :param rel: relation operator for specification of new knowledge
     :param o0: operand0 for specification of new knowledge
     :param o1: operand0 for specification of new knowledge
@@ -53,10 +53,10 @@ def _appendKnowledgeTwoVars(latice: ValueConstrainLatice, rel: OpDefinition, o0:
         o0, o1 = o1, o0
 
     k = (o0, o1)
-    curRel = latice.get(k, None)
+    curRel = lattice.get(k, None)
     if curRel is None:
         # newly obtained knowledge about rel between o0 and o1
-        latice[k] = rel
+        lattice[k] = rel
         return None, False
     else:
         if curRel is rel:
@@ -113,7 +113,7 @@ def _appendKnowledgeTwoVars(latice: ValueConstrainLatice, rel: OpDefinition, o0:
         else:
             raise AssertionError("All cases should be handled", r1)
 
-        latice[k] = rel
+        lattice[k] = rel
         return None, True
 
 
@@ -195,7 +195,7 @@ def _intervalListIntersection(l0: List[range], l1: List[range]):
             return
 
 
-def _appendKnowledgeVarAndConst(latice: ValueConstrainLatice,
+def _appendKnowledgeVarAndConst(lattice: ValueConstrainLattice,
                                 rel: OpDefinition,
                                 v: HlsNetNodeOut,
                                 c: HValue) -> Tuple[Optional[bool], bool]:
@@ -213,10 +213,10 @@ def _appendKnowledgeVarAndConst(latice: ValueConstrainLatice,
 
     assert isinstance(intervals, list)
     k = (v, v)
-    curV = latice.get(k, None)
+    curV = lattice.get(k, None)
     if curV is None:
         # newly obtained knowledge about exact value
-        latice[k] = intervals
+        lattice[k] = intervals
         return None, False
 
     posibleInterval: List[range] = list(_intervalListIntersection(curV, intervals))
@@ -224,7 +224,7 @@ def _appendKnowledgeVarAndConst(latice: ValueConstrainLatice,
         # discovered 0 in "and" tree, whole result is 0
         return 0, True
     else:
-        latice[k] = posibleInterval
+        lattice[k] = posibleInterval
         return None, True
 
 # def mergeItemsInGroupDict(d: Dict[HlsNetNodeOut, Set[HlsNetNodeOut]], item0: HlsNetNodeOut, item1: HlsNetNodeOut):
