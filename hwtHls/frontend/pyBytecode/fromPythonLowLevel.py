@@ -19,7 +19,6 @@ from hwtHls.frontend.pyBytecode.instructions import FOR_ITER, JUMP_OPS, \
 from hwtHls.frontend.pyBytecode.loopMeta import BranchTargetPlaceholder, \
     LoopExitJumpInfo
 from hwtHls.frontend.pyBytecode.loopsDetect import PreprocLoopScope
-from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc
 from hwtHls.frontend.pyBytecode.utils import blockHasBranchPlaceholder
 from hwtHls.scope import HlsScope
 from hwtHls.ssa.basicBlock import SsaBasicBlock
@@ -43,7 +42,7 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
 
     def __init__(self, hls: HlsScope, label: str):
         super(PyBytecodeToSsaLowLevel, self).__init__()
-        assert sys.version_info >= (3, 10, 0), ("Python3.10 is minimum requirement", sys.version_info)
+        assert sys.version_info >= (3, 11, 0), ("Python3.11 is minimum requirement", sys.version_info)
         self.hls = hls
         self.label = label
         self.toSsa: Optional[HlsAstToSsa] = None
@@ -61,7 +60,7 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
         assert self.debugDirectory is not None, self
         d = Path(self.debugDirectory) / self.toSsa.label
         d.mkdir(exist_ok=True)
-        with open(d / f"00.cfg.{self.debugGraphCntr:d}{label if label else ''}.dot", "w") as f:
+        with open(d / f"00.cfg.{self.debugGraphCntr:d}{'.' if label else ''}{label if label else ''}.dot", "w") as f:
             sealedBlocks = set(self.blockToLabel[b] for b in self.toSsa.m_ssa_u.sealedBlocks)
             frame.blockTracker.dumpCfgToDot(f, sealedBlocks)
             self.debugGraphCntr += 1
@@ -299,57 +298,17 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
         Evaluate instruction list and translate to SSA all which is using HW types and which can not be evaluated compile time.
         Follow jumps recursively unless the jump is out of current loop body. If it is the case just stagg it for later.
         """
-        if instructions[0].opcode == FOR_ITER:
-            assert len(instructions) == 1, ("It is expected that FOR_ITER opcode is alone in the block", instructions)
-            forIter: Instruction = instructions[0]
-            # preproc eval for loop
-            curLoopInfo: PyBytecodeLoopInfo = frame.loopStack[-1]
-            curLoop = curLoopInfo.loop
-            assert curLoopInfo.loop.entryPoint == self.blockToLabel[curBlock][-1], (curLoopInfo, curBlock)
-            curLoopInfo.mustBeEvaluatedInPreproc = True
-            a = frame.stack[-1]
-            bodyBlockOffset = forIter.offset + 2
-            exitBlockOffset = forIter.argval
-            try:
-                v = next(a)
-            except StopIteration:
-                assert curLoop.entryPoint == forIter.offset
-                # create only branch placeholder to delegate processing of this jump from the loop to a _translateBlockBody on a loop header
-                branchPlaceholder = BranchTargetPlaceholder.create(curBlock)
-                lei = LoopExitJumpInfo(None, curBlock, None, None, exitBlockOffset, None, None, branchPlaceholder, frame)
-                frame.markJumpFromBodyOfCurrentLoop(lei)
-                curBlockLabel = self.blockToLabel[curBlock]
-                self._addNotGeneratedJump(frame, curBlockLabel, frame.blockTracker._getBlockLabel(bodyBlockOffset))
-                frame.stack.pop()  # pop iterator itself
-                return
-
-            frame.stack.append(PyBytecodeInPreproc(v))
-            # :attention: Jump to exit block can not be marked as notGenerate immediately
-            #   It must be done after last iteration because we need to keep exit block alive unitl the loop is completly resolved.
-            
-            # mark jump from loop in header as not performed
-            exitBlockLabel = frame.blockTracker._getBlockLabel(exitBlockOffset)
-            exitInfo = LoopExitJumpInfo(False, curBlock, False, None, exitBlockLabel, None, None, None, frame)
-            curLoopInfo.markJumpFromBodyOfLoop(exitInfo)
-            # jump into loop body
-            self._getOrCreateSsaBasicBlockAndJumpRecursively(frame, curBlock, bodyBlockOffset, None, None)
-
-        else:
-            for last, instr in iter_with_last(instructions):
-                if instr.opcode in JUMP_OPS:
-                    assert last, instr
-                    self._translateInstructionJumpHw(frame, curBlock, instr)
-                elif instr.opcode == RETURN_VALUE:
-                    assert last, instr
-                    retVal = frame.stack.pop()
-                    frame.returnPoints.append((frame, curBlock, retVal))
-                    self._onBlockGenerated(frame, self.blockToLabel[curBlock])
-                else:
-                    curBlock = self._translateBytecodeBlockInstruction(frame, curBlock, instr)
-                    assert curBlock is not None, instr
-                    if last:
-                        # jump to next block, there was no explicit jump because this is regular code flow, but the next instruction
-                        # is jump target
-                        self._getOrCreateSsaBasicBlockAndJumpRecursively(frame, curBlock, self._getFalltroughOffset(frame, curBlock), None, None)
-                        if not blockHasBranchPlaceholder(curBlock):
-                            self._onBlockGenerated(frame, self.blockToLabel[curBlock])
+        for last, instr in iter_with_last(instructions):
+            opcode = instr.opcode
+            if opcode in JUMP_OPS or opcode in (RETURN_VALUE, FOR_ITER):
+                assert last, instr
+                self._translateInstructionJumpHw(frame, curBlock, instr)
+            else:
+                curBlock = self._translateBytecodeBlockInstruction(frame, curBlock, instr)
+                assert curBlock is not None, instr
+                if last:
+                    # jump to next block, there was no explicit jump because this is regular code flow, but the next instruction
+                    # is jump target
+                    self._getOrCreateSsaBasicBlockAndJumpRecursively(frame, curBlock, self._getFalltroughOffset(frame, curBlock), None, None)
+                    if not blockHasBranchPlaceholder(curBlock):
+                        self._onBlockGenerated(frame, self.blockToLabel[curBlock])
