@@ -358,7 +358,7 @@ class ToLlvmIrTranslator():
 
         return ptrT, elmT, addrWidth
 
-    def translate(self, start_bb: SsaBasicBlock):
+    def translate(self, start_bb: SsaBasicBlock, fnPragma: List["_PyBytecodePragma"]):
         # create a function where we place the code and the arguments for a io interfaces
         ioTuplesWithName = [
             (getInterfaceName(self.parentUnit, io[0] if isinstance(io, (MultiPortGroup, BankedPortGroup)) else io), io, ioOps)
@@ -401,6 +401,10 @@ class ToLlvmIrTranslator():
                             llvmPhi.addIncoming(self._translateExpr(v), llvmPredBlock)
                             predFound = True
                     assert predFound, phi
+
+        for meta in fnPragma:
+            meta:"_PyBytecodePragma"
+            meta.toLlvm(self, main)
 
         for cb in self._afterTranslation:
             cb(self)
@@ -451,6 +455,6 @@ class SsaPassToLlvm(SsaPass):
         toLlvm = ToLlvmIrTranslator(toSsa.label, ioDict, hls.parentUnit)
         for (optionName, position, argName, argValue) in self.llvmCliArgs:
             toLlvm.llvm.addLlvmCliArgOccurence(optionName, position, argName, argValue)
-        toLlvm.translate(toSsa.start)
+        toLlvm.translate(toSsa.start, toSsa.pragma)
         toSsa.resolveIoNetlistConstructors(ioDict)
         toSsa.start = toLlvm
