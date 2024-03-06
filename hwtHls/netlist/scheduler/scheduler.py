@@ -2,15 +2,44 @@ from collections import deque
 from io import StringIO
 from math import inf
 import sys
-from typing import Deque, Set
+from typing import Deque, Set, List, Optional, Callable
 
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge
 from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.schedulableNode import SchedulizationDict, SchedTime
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
 from hwtHls.netlist.scheduler.resourceList import HlsSchedulerResourceUseList
+
+
+def asapSchedulePartlyScheduled(o: HlsNetNodeOut, beforeSchedulingFn: Optional[Callable[[HlsNetNode], bool]]) -> List[HlsNetNode]:
+    """
+    Run ASAP scheduling partly scheduled netlist.
+    :param beforeSchedulingFn: a function which can be used to initialize or skip node which is going to be scheduled
+    """
+    newlyScheduledNodes: List[HlsNetNode] = []
+    n = o.obj
+    if n.scheduledIn is None:
+        if beforeSchedulingFn is not None and not beforeSchedulingFn(n):
+            return newlyScheduledNodes
+        # add all not scheduled nodes to elmTimeSlot
+        toSearch = [n]
+        seen = set()
+        while toSearch:
+            n1 = toSearch.pop()
+            if n1 not in seen and n1.scheduledIn is None:
+                if beforeSchedulingFn is not None and not beforeSchedulingFn(n1):
+                    continue
+                newlyScheduledNodes.append(n1)
+                seen.add(n1)
+                for dep in n1.dependsOn:
+                    toSearch.append(dep.obj)
+
+        n.scheduleAsap(None, 0, None)
+
+    return newlyScheduledNodes
 
 
 class HlsScheduler():
