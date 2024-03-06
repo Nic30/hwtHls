@@ -3,6 +3,7 @@ from typing import Tuple, Dict
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
+from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.node import HlsNetNode
 
 
@@ -18,6 +19,14 @@ class HlsNetlistAnalysisPassNodeParentAggregate(HlsNetlistAnalysisPass):
         HlsNetlistAnalysisPass.__init__(self, netlist)
         self.nodeHieararchy: Dict[HlsNetlistHierarchyPath, UniqList[HlsNetNode]] = {}
         self.nodePath: Dict[HlsNetNode, HlsNetlistHierarchyPath] = {}
+
+    def getBottomMostArchElementParent(self, n: HlsNetNode):
+        nPath = self.nodePath[n]
+        for parent in reversed(nPath):
+            if isinstance(parent, ArchElement):
+                return parent
+
+        raise ValueError("Node has no ArchElement parent", n)
 
     def _collectHierarchyNodes(self, currentPath: HlsNetlistHierarchyPath, nodes: UniqList[HlsNetNode]):
         self.nodeHieararchy[currentPath] = nodes
