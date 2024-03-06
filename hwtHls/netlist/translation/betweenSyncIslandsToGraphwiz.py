@@ -16,8 +16,8 @@ class HwtHlsNetlistBetweenSyncIslandsToGraphwiz(HwtHlsNetlistToGraphwiz):
     Generate a Graphwiz (dot) diagram of sync domains extracted from the netlist.
     """
 
-    def __init__(self, name:str, nodes:List[HlsNetNode], expandAggregates:bool=False):
-        HwtHlsNetlistToGraphwiz.__init__(self, name, nodes, expandAggregates=expandAggregates)
+    def __init__(self, name:str, nodes:List[HlsNetNode], expandAggregates:bool=False, addLegend:bool=True):
+        HwtHlsNetlistToGraphwiz.__init__(self, name, nodes, expandAggregates=expandAggregates, addLegend=addLegend)
         self.syncIslandsGroupOfSyncNode: Dict[HlsNetNode, pydot.Cluster] = {}
 
     def _getGraph(self, n:HlsNetNode):
@@ -53,14 +53,15 @@ class HwtHlsNetlistBetweenSyncIslandsToGraphwiz(HwtHlsNetlistToGraphwiz):
 
 class HlsNetlistPassBetweenSyncIslandsToGraphwiz(HlsNetlistPass):
 
-    def __init__(self, outStreamGetter: OutputStreamGetter):
+    def __init__(self, outStreamGetter: OutputStreamGetter, addLegend:bool=True):
         self.outStreamGetter = outStreamGetter
+        self.addLegend = addLegend
 
     def apply(self, hls: "HlsScope", netlist: HlsNetlistCtx):
         name = netlist.label
         out, doClose = self.outStreamGetter(name)
         try:
-            toGraphwiz = HwtHlsNetlistBetweenSyncIslandsToGraphwiz(name, netlist.iterAllNodes())
+            toGraphwiz = HwtHlsNetlistBetweenSyncIslandsToGraphwiz(name, netlist.iterAllNodes(), addLegend=self.addLegend)
             syncIslands = netlist.getAnalysis(HlsNetlistAnalysisPassBetweenSyncIslands)
             toGraphwiz.construct(syncIslands)
             out.write(toGraphwiz.dumps())
