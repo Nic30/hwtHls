@@ -149,7 +149,7 @@ class HlsRead(HdlStatement, SsaInstr):
         mbSync.addOrderedNode(n)
         mirToNetlist.inputs.append(n)
 
-        o = n._outputs[0] if representativeReadStm._isBlocking else n._rawValue
+        o = n._outputs[0] if representativeReadStm._isBlocking else n.getRawValue()
         o = cls._outAsBitVec(netlist, mirToNetlist, o, n.name)
         valCache.add(mbSync.block, instrDstReg, o, True)
 
