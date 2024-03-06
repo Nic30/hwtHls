@@ -7,9 +7,7 @@ from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge
 from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeReadAnyChannel
-from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes, \
-    HlsNetNodeOutLazy, HlsNetNodeOut
-from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
+from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, HlsNetNodeOut
 
 
 class LiveInMuxMeta():
@@ -28,38 +26,6 @@ def getTopLoopForBlock(mb: MachineBasicBlock, loop: MachineLoop) -> MachineLoop:
         else:
             break
     return topLoop
-
-
-def HlsNetNodeExplicitSyncInsertBehindLazyOut(netlist: "HlsNetlistCtx",
-                                              valCache: MirToHwtHlsNetlistValueCache,
-                                              var: HlsNetNodeOutLazy,
-                                              name: str) -> HlsNetNodeExplicitSync:
-    """
-    Prepend the synchronization to an operation output representing variable.
-    """
-    assert isinstance(var, HlsNetNodeOutLazy), var
-    esync = HlsNetNodeExplicitSync(netlist, var._dtype, name=name)
-    netlist.nodes.append(esync)
-    assert len(var.keys_of_self_in_cache) == 1, "Implemented only for case where the input var was not propagated anywhere"
-
-    # add original var as valCache unresolvedBlockInputs
-    k = var.keys_of_self_in_cache[0]
-    block, reg = k
-    o = esync._outputs[0]
-    # copy endpoints of var to newly generated sync node
-    valCache._replaceOutOnInputOfBlock(block, reg, var, k, o)
-    var.replaced_by = None  # reset because we will still use the object
-
-    # put original lazy out back to cache so once
-    # we resolve input we replace the input to this control and not the explicit sync which we just created
-    valCache._moveLazyOutToUnresolvedBlockInputs(block, reg, var, k)
-    valCache._toHlsCache[k] = o
-
-    # connect original var to the input of sync node
-    link_hls_nodes(var, esync._inputs[0])
-
-    return esync
-
 
 # tuples (controlEn, controlObj, allInputDataChannels)
 LoopPortGroup = List[Tuple[HlsNetNodeOutAny,
@@ -81,7 +47,10 @@ def _createSyncForAnyInputSelector(builder: HlsNetlistBuilder,
         # convertedToNb = False
         assert isinstance(controlPort, (HlsNetNodeReadBackedge, HlsNetNodeReadForwardedge)), controlPort
         controlPort: HlsNetNodeReadBackedge
-        controlPort.setNonBlocking()
+        if not last:
+            # only last is non blocking because we need at least one to be blocking so body does not execute
+            # if no input is available
+            controlPort.setNonBlocking()
         # vld: HlsNetNodeOut = controlPort.getValidNB()
         # convertedToNb = True
 
@@ -99,7 +68,7 @@ def _createSyncForAnyInputSelector(builder: HlsNetlistBuilder,
             # first item
             if data:
                 dEn = builder.buildAnd(externalEn, vld)
-                dSw = builder.buildAnd(externalEn, builder.buildNot(vld))
+                dSw = builder.buildOr(externalEn_n, builder.buildNot(vld))
             anyPrevVld = vld
         else:
             # if last or convertedToNb:
@@ -110,7 +79,7 @@ def _createSyncForAnyInputSelector(builder: HlsNetlistBuilder,
             if data:
                 en = builder.buildAnd(builder.buildNot(anyPrevVld), vld)
                 dEn = builder.buildAnd(externalEn, en)
-                dSw = builder.buildAnd(externalEn, builder.buildNot(en))
+                dSw = builder.buildOr(externalEn_n, builder.buildNot(en))
             anyPrevVld = builder.buildOr(anyPrevVld, vld)
 
         # if isinstance(cEn, int):
