@@ -203,7 +203,15 @@ void register_Instruction(pybind11::module_ & m) {
 
 	py::class_<llvm::CallBase, std::unique_ptr<llvm::CallBase, py::nodelete>, llvm::Instruction>(m, "CallBase");
 	py::implicitly_convertible<llvm::CallBase, llvm::Instruction>();
-	py::class_<llvm::CallInst, std::unique_ptr<llvm::CallInst, py::nodelete>, llvm::CallBase>(m, "CallInst");
+	py::class_<llvm::CallInst, std::unique_ptr<llvm::CallInst, py::nodelete>, llvm::CallBase>(m, "CallInst")
+			.def("getCalledFunction", &llvm::CallInst::getCalledFunction)
+			.def("args", [](llvm::CallInst*CI) {
+					return py::make_iterator(CI->arg_begin(), CI->arg_end());
+	        }, py::keep_alive<0, 1>())
+			.def("arg_size", &llvm::CallInst::arg_size)
+			.def("arg_empty", &llvm::CallInst::arg_empty)
+			.def("getArgOperand", &llvm::CallInst::getArgOperand, py::return_value_policy::reference_internal)
+			;
 	py::implicitly_convertible<llvm::CallInst, llvm::Instruction>();
 	m.def("InstructionToCallInst", &llvmInstructionCaster<llvm::CallInst>, py::return_value_policy::reference_internal);
 

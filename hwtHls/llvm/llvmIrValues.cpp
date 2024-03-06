@@ -93,7 +93,8 @@ void register_Values_and_Use(pybind11::module_ & m) {
 	py::class_<llvm::ConstantDataArray, std::unique_ptr<llvm::ConstantDataArray, py::nodelete>, llvm::ConstantDataSequential>(m, "ConstantDataArray");
 	m.def("ValueToConstantDataArray", &llvmValueCaster<llvm::ConstantDataArray>, py::return_value_policy::reference);
 
-	py::class_<llvm::UndefValue, std::unique_ptr<llvm::UndefValue, py::nodelete>, llvm::ConstantData>(m, "UndefValue");
+	py::class_<llvm::UndefValue, std::unique_ptr<llvm::UndefValue, py::nodelete>, llvm::ConstantData>(m, "UndefValue")
+		.def_static("get", &llvm::UndefValue::get, py::return_value_policy::reference);
 	m.def("ValueToUndefValue", &llvmValueCaster<llvm::UndefValue>, py::return_value_policy::reference);
 
 }
