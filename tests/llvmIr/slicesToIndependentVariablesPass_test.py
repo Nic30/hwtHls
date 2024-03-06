@@ -365,6 +365,24 @@ class SlicesToIndependentVariablesPass_TC(BaseLlvmIrTC):
         """
         self._test_ll_direct(llvmIr)
 
+    def test_ShifterLeftBarrelUsingLoop2(self):
+        llvmIr = """\
+            define void @ShifterLeftBarrelUsingLoop2(ptr addrspace(1) %i, ptr addrspace(2) %o, ptr addrspace(3) %sh) {
+            BB0:
+              br label %BB1
+            
+            BB1:
+              %vIn = load volatile i2, ptr addrspace(1) %i, align 1
+              %vIn_b0 = call i1 @hwtHls.bitRangeGet.i2.i2.i1.0(i2 %vIn, i2 0) #2
+              %shVal = load volatile i1, ptr addrspace(3) %sh, align 1
+              %vIn_sh1 = call i2 @hwtHls.bitConcat.i1.i1(i1 false, i1 %vIn_b0) #2
+              %vOut = select i1 %shVal, i2 %vIn_sh1, i2 %vIn
+              store volatile i2 %vOut, ptr addrspace(2) %o, align 1
+              br label %BB1
+            }
+        """
+        self._test_ll_direct(llvmIr)
+
 
 if __name__ == "__main__":
     # from hwt.synthesizer.utils import to_rtl_str
@@ -374,7 +392,7 @@ if __name__ == "__main__":
 
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([SlicesToIndependentVariablesPass_TC('test_zextUle0')])
+    # suite = unittest.TestSuite([SlicesToIndependentVariablesPass_TC('test_ShifterLeftBarrelUsingLoop2')])
     suite = testLoader.loadTestsFromTestCase(SlicesToIndependentVariablesPass_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
