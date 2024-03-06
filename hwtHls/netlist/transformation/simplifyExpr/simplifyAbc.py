@@ -52,12 +52,11 @@ def runAbcControlpathOpt(builder: HlsNetlistBuilder, worklist: UniqList[HlsNetNo
     inTreeOutputs: Set[HlsNetNodeOut] = set()
     outputs: List[HlsNetNodeOut] = []
     outputsSet: Set[HlsNetNodeOut] = set()
-    _collect = _collect1bOpTree
 
     def collect(n: HlsNetNode, i: HlsNetNodeIn):
         o = n.dependsOn[i.in_i]
         assert o is not None, ("Input must be connected", i)
-        if o not in outputsSet and _collect(o, inputs, inTreeOutputs):
+        if o not in outputsSet and _collect1bOpTree(o, inputs, inTreeOutputs):
             # it may be the case that this is just wire and can not be optimized further
             # from this reason we do not add it to collected outputs
             outputsSet.add(o)
@@ -65,6 +64,8 @@ def runAbcControlpathOpt(builder: HlsNetlistBuilder, worklist: UniqList[HlsNetNo
 
     for n in allNodeIt:
         n: HlsNetNode
+        if n in removed:
+            continue
         if isinstance(n, HlsNetNodeExplicitSync):
             n: HlsNetNodeExplicitSync
             if n.extraCond is not None:
