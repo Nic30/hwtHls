@@ -40,7 +40,7 @@ class HlsNetlistAnalysisPassDetectPipelines(HlsNetlistAnalysisPass):
                 list_.append([])
 
     @classmethod
-    def _addNodeToPipeline(cls, node: HlsNetNode, clkPeriod: int, pipeline: List[List[HlsNetNode]]):
+    def _addNodeToPipeline(cls, node: HlsNetNode, pipeline: List[List[HlsNetNode]]):
         for clk_index in node.iterScheduledClocks():
             # clk_index = start_clk(node.scheduledIn[0] if node.scheduledIn else node.scheduledOut[0], clkPeriod)
             cls._extendIfRequired(pipeline, clk_index)
@@ -117,5 +117,5 @@ class HlsNetlistAnalysisPassDetectPipelines(HlsNetlistAnalysisPass):
 
                 # this is just node which is part of no FSM,
                 # we add it to global pipeline for each clock cycle where it is defined
-                self._addNodeToPipeline(node, clkPeriod, pipelineStages)
+                self._addNodeToPipeline(node, pipelineStages)
 
