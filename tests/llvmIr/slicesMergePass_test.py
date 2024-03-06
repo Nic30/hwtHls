@@ -220,6 +220,110 @@ class SlicesMergePass_TC(BaseLlvmIrTC):
         """
         self._test_ll(ir)
 
+    def test_parallelMultipletimes(self):
+        ir = """\
+        define void @test_parallelMultipletimes(i2 addrspace(1)* %i0, i2 addrspace(1)* %i1,
+                                     i1 addrspace(2)* %o0, i1 addrspace(2)* %o1) {
+            %i00 = load volatile i2, i2 addrspace(1)* %i0, align 1
+            %i0b0 = call i1 @hwtHls.bitRangeGet.i2.i64.i1.0(i2 %i00, i64 0) #2
+            %i0b1 = call i1 @hwtHls.bitRangeGet.i2.i64.i1.1(i2 %i00, i64 1) #2
+
+            %i10 = load volatile i2, i2 addrspace(1)* %i1, align 1
+            %i1b0 = call i1 @hwtHls.bitRangeGet.i2.i64.i1.0(i2 %i10, i64 0) #2
+            %i1b1 = call i1 @hwtHls.bitRangeGet.i2.i64.i1.1(i2 %i10, i64 1) #2
+           
+            %xor0 = xor i1 %i0b0, %i1b0
+            %xor1 = xor i1 %i0b1, %i1b1
+            
+            
+            %and0 = and i1 %i0b0, %i1b0
+            %and1 = and i1 %i0b1, %i1b1
+            %and2 = and i1 %and0, %and1
+            
+            %xor2 = xor i1 %xor0, %xor1
+            
+            store volatile i1 %xor2, i1 addrspace(2)* %o0, align 1
+            store volatile i1 %and2, i1 addrspace(2)* %o1, align 1
+            ret void
+        }
+        """
+        self._test_ll(ir)
+
+    def test_parallelMultipletimes2(self):
+        # parallelMultipletimes with partial results also stored
+        ir = """\
+        define void @test_parallelMultipletimes2(i2 addrspace(1)* %i0, i2 addrspace(1)* %i1,
+                                     i1 addrspace(2)* %o0, i1 addrspace(2)* %o1, i1 addrspace(2)* %o2) {
+            %i00 = load volatile i2, i2 addrspace(1)* %i0, align 1
+            %i0b0 = call i1 @hwtHls.bitRangeGet.i2.i64.i1.0(i2 %i00, i64 0) #2
+            %i0b1 = call i1 @hwtHls.bitRangeGet.i2.i64.i1.1(i2 %i00, i64 1) #2
+
+            %i10 = load volatile i2, i2 addrspace(1)* %i1, align 1
+            %i1b0 = call i1 @hwtHls.bitRangeGet.i2.i64.i1.0(i2 %i10, i64 0) #2
+            %i1b1 = call i1 @hwtHls.bitRangeGet.i2.i64.i1.1(i2 %i10, i64 1) #2
+           
+            %xor0 = xor i1 %i0b0, %i1b0
+            %xor1 = xor i1 %i0b1, %i1b1
+            
+            %and0 = and i1 %i0b0, %i1b0
+            %and1 = and i1 %i0b1, %i1b1
+            %and2 = and i1 %and0, %and1
+            
+            %xor2 = xor i1 %xor0, %xor1
+            
+            store volatile i1 %xor2, i1 addrspace(2)* %o0, align 1
+            store volatile i1 %and2, i1 addrspace(2)* %o1, align 1
+            store volatile i1 %xor0, i1 addrspace(2)* %o2, align 1
+            ret void
+        }
+        """
+        self._test_ll(ir)
+
+    def test_crc32_3b(self):
+        ir = """\
+        define void @test_crc32_3b(ptr addrspace(1) %dataIn, ptr addrspace(2) %dataOut) {
+          %"dataIn0(dataIn_read)" = load volatile i3, ptr addrspace(1) %dataIn, align 1
+          %"0" = call i1 @hwtHls.bitRangeGet.i3.i3.i1.0(i3 %"dataIn0(dataIn_read)", i3 0) #2
+          %"1" = call i1 @hwtHls.bitRangeGet.i3.i3.i1.1(i3 %"dataIn0(dataIn_read)", i3 1) #2
+          %"2" = call i1 @hwtHls.bitRangeGet.i3.i3.i1.2(i3 %"dataIn0(dataIn_read)", i3 2) #2
+          %"8" = xor i1 %"2", %"1"
+          %"9" = xor i1 %"8", true
+          %"15" = xor i1 %"2", true
+          %"17" = xor i1 %"1", %"15"
+          %"19" = xor i1 %"0", %"17"
+          %"20" = xor i1 %"19", true
+          %"26" = xor i1 %"1", true
+          %"29" = xor i1 %"0", %"1"
+          %"38" = xor i1 %"0", %"2"
+          %"110" = xor i1 %"0", %"8"
+          %"111" = xor i1 %"110", true
+          %"126" = xor i1 %"0", true
+          %"3" = call i32 @hwtHls.bitConcat.i1.i1.i1.i1.i1.i1.i1.i1.i1.i1.i1.i1.i1.i1.i1.i1.i1.i1.i1.i3.i1.i1.i1.i1.i1.i1.i1.i3(i1 %"2", i1 %"9", i1 %"20", i1 %"29", i1 %"38", i1 %"8", i1 %"29", i1 %"38", i1 %"8", i1 %"29", i1 %"38", i1 %"8", i1 %"111", i1 %"29", i1 %"126", i1 false, i1 %"15", i1 %"26", i1 %"126", i3 0, i1 %"15", i1 %"8", i1 %"29", i1 %"126", i1 %"15", i1 %"26", i1 %"126", i3 0) #2
+          store volatile i32 %"3", ptr addrspace(2) %dataOut, align 4
+          ret void
+        }
+        """
+        self._test_ll(ir)
+
+    def test_crc32_3b_reduced(self):
+        ir = """\
+        define void @test_crc32_3b_reduced(ptr addrspace(1) %dataIn, ptr addrspace(2) %dataOut) {
+          %"dataIn0(dataIn_read)" = load volatile i3, ptr addrspace(1) %dataIn, align 1
+          %"0" = call i1 @hwtHls.bitRangeGet.i3.i3.i1.0(i3 %"dataIn0(dataIn_read)", i3 0) #2
+          %"1" = call i1 @hwtHls.bitRangeGet.i3.i3.i1.1(i3 %"dataIn0(dataIn_read)", i3 1) #2
+          %"2" = call i1 @hwtHls.bitRangeGet.i3.i3.i1.2(i3 %"dataIn0(dataIn_read)", i3 2) #2
+          %"8" = xor i1 %"2", %"1"
+          %"29" = xor i1 %"0", %"1"
+          %"38" = xor i1 %"0", %"2"
+          %"110" = xor i1 %"0", %"8"
+          %"111" = xor i1 %"110", true
+          %"3" = call i32 @hwtHls.bitConcat.i3.i1.i1.i1.i1.i1.i1.i1.i1.i1.i1.i1.i9.i1.i1.i7(i3 0, i1 %"29", i1 %"38", i1 %"8", i1 %"29", i1 %"38", i1 %"8", i1 %"29", i1 %"38", i1 %"8", i1 %"111", i1 %"29", i9 0, i1 %"8", i1 %"29", i7 0) #2
+          store volatile i32 %"3", ptr addrspace(2) %dataOut, align 4
+          ret void
+        }
+        """
+        self._test_ll(ir)
+
 
 if __name__ == "__main__":
     # from hwt.synthesizer.utils import to_rtl_str
@@ -230,7 +334,7 @@ if __name__ == "__main__":
     import unittest
     import sys
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([SlicesMergePass_TC('test_parallelSelect3')])
-    suite = testLoader.loadTestsFromTestCase(SlicesMergePass_TC)
+    suite = unittest.TestSuite([SlicesMergePass_TC('test_crc32_3b_reduced')])
+    # suite = testLoader.loadTestsFromTestCase(SlicesMergePass_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     sys.exit(not runner.run(suite).wasSuccessful())
