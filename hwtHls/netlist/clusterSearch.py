@@ -167,6 +167,7 @@ class HlsNetlistClusterSearch():
             newInterUses.append(boundaryOutPort)
             interOutput.obj.usedBy[interOutput.out_i] = newInterUses
             boundaryOutPort.obj.dependsOn[0] = interOutput
+
         if not self.outputs and isScheduled:
             n.scheduledOut = ()
         
@@ -292,6 +293,7 @@ class HlsNetlistClusterSearch():
                         newOutputs.append(o)
                     else:
                         predCluster.outputs.append(o)
+
                 self.outputs = newOutputs
                 # new inputs/outputs are generated because we cut the cluster
                 for n in self.nodes:
