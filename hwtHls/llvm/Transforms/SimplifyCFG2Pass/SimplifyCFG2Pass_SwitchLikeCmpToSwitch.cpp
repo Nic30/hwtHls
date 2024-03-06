@@ -8,7 +8,7 @@
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFGUtils.h>
 
-//#include <hwtHls/llvm/Transforms/utils/writeCFGToDotFile.h>
+#include <hwtHls/llvm/Transforms/utils/writeCFGToDotFile.h>
 #define DEBUG_TYPE "simplifycfg2"
 
 using namespace llvm;
@@ -181,6 +181,8 @@ bool tryHoistFromCheapBlocksWithcSwitchLikeCmpBr(llvm::BranchInst *BI,
 			if (usingParentSwitch) {
 				// use parent switch and BBTop will be just another case branch
 				BBC0 = BBTop;
+				// [todo]
+				// writeCFGToDotFile(*BBTop->getParent(), "tryHoistFromCheapBlocksWithcSwitchLikeCmpBr.usingParentSwitch.dot", nullptr, nullptr);
 				llvm_unreachable("NotImplemented - merge current switch default with newly discovered BBDefault");
 			} else {
 				// split BBTop to block with all code ending with switch to all branches and an empty branch block BBC0
