@@ -122,9 +122,11 @@ def _cmpAndConstToInterval(rel: OpDefinition, width: int, signed: bool, c:int) -
     :note: returned intervals are always sorted low to high
     """
     if signed:
-        raise NotImplementedError(rel, width, c)
-    _min = 0
-    _max = mask(width)
+        _max = mask(width - 1)
+        _min = -_max - 1
+    else:
+        _min = 0
+        _max = mask(width)
 
     if rel is AllOps.EQ:
         return [range(c, c + 1), ]
