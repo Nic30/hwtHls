@@ -60,7 +60,7 @@ class HlsReadAxi4Lite(HlsReadAddressed):
         if isinstance(prot, int):
             prot = netlist.builder.buildConst(addr.prot._dtype.from_py(prot))
 
-        aVal = netlist.builder.buildConcatVariadic((Bits(offsetWidth).from_py(0), addrVal, prot))
+        aVal = netlist.builder.buildConcat(Bits(offsetWidth).from_py(0), addrVal, prot)
 
         aNode = HlsNetNodeWrite(netlist, addr)
         link_hls_nodes(aVal, aNode._inputs[0])
@@ -124,7 +124,7 @@ class HlsReadAxi4Lite(HlsReadAddressed):
             # because write is using larger word and this must be the same pointer for reads and writes
             # :note: The next node which uses data output should be the slice to correct width.
             padding = netlist.builder.buildConst(Bits(nativeWordWidth - rWordWidth).from_py(None))
-            rDataO = netlist.builder.buildConcatVariadic((rDataO, padding))
+            rDataO = netlist.builder.buildConcat(rDataO, padding)
         else:
             assert rWordWidth == nativeWordWidth
 

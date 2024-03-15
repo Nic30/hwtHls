@@ -1,12 +1,15 @@
+from hwt.code_utils import rename_signal
 from hwt.hdl.operatorDefs import OpDefinition, AllOps
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.value import HValue
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, \
     TimeIndependentRtlResourceItem, INVARIANT_TIME
+from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.orderable import HdlType_isVoid
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.typeUtils import dtypeEqualSignIgnore
+from hwtHls.typingFuture import override
+from hwt.code import Concat
 
 
 class HlsNetNodeOperator(HlsNetNode):
@@ -16,7 +19,7 @@ class HlsNetNodeOperator(HlsNetNode):
     :ivar operator: parent RTL operator for this hls operator
     :ivar _dtype: RTL data type of output
 
-    :note: CONCAT operands are in lowest bits first format
+    :note: CONCAT operands are in lowest bits first format (Same as LLVM MERGE_VALUES)
     """
 
     def __init__(self, netlist: "HlsNetlistCtx",
@@ -31,6 +34,7 @@ class HlsNetNodeOperator(HlsNetNode):
         # add containers for io pins
         self._addOutput(dtype, None)
 
+    @override
     def resolveRealization(self):
         netlist = self.netlist
         input_cnt = len(self.dependsOn)
@@ -68,9 +72,12 @@ class HlsNetNodeOperator(HlsNetNode):
             if HdlType_isVoid(op_out._dtype):
                 s = op_out._dtype.from_py(None)
             operands = reversed(operands)
+            evalFn = Concat
+        else:
+            evalFn = self.operator._evalFn
 
         if s is None:
-            s = self.operator._evalFn(*(o.data for o in operands))
+            s = evalFn(*(o.data for o in operands))
 
         if isinstance(s, HValue):
             t = INVARIANT_TIME

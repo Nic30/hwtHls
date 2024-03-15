@@ -204,7 +204,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                     # src{N}, width{N} - lowest bits first
                     assert len(ops) % 2 == 0, ops
                     half = len(ops) // 2
-                    res = builder.buildConcatVariadic(ops[:half])
+                    res = builder.buildConcat(*ops[:half])
                     res.obj.name = name
                     valCache.add(mb, dst, res, True)
 

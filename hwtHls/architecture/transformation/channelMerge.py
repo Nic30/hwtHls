@@ -287,16 +287,17 @@ class RtlArchPassChannelMerge(RtlArchPass):
         wValues = [n.dependsOn[0] for n in selectedForRewrite if not HdlType_isVoid(n.dependsOn[0]._dtype)]
         builder: HlsNetlistBuilder = w0.netlist.builder.scoped(srcElm)
         firstDep: HlsNetNodeOut = selectedForRewrite[0].dependsOn[0]
- 
+
         if wValues:
-            newWVal = builder.buildConcatVariadic(wValues)
+            newWVal = builder.buildConcat(wValues)
+            # Run scheduling on Concat (HlsNetNodeOperator) nodes which were just generated.
             newlyScheduledNodes = self.scheduleConcats(newWVal)
         else:
             newWVal = builder.buildConstPy(firstDep._dtype, None)
             newWVal.obj.resolveRealization()
             t = firstDep.obj.scheduledOut[firstDep.out_i]
             newWVal.obj.scheduledZero = t
-            newWVal.obj.scheduledOut = (t, )
+            newWVal.obj.scheduledOut = (t,)
             newlyScheduledNodes = [newWVal.obj, ]
 
         clkPeriod = w0.netlist.normalizedClkPeriod

@@ -1,4 +1,5 @@
 
+from itertools import islice
 from typing import Tuple, Union, Dict, Optional, Type, Callable, Set, List
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
@@ -337,26 +338,27 @@ class HlsNetlistBuilder():
         self.operatorCache[keyWithHValues] = o
         return o
 
-    def buildConcat(self, lsbs: Union[HlsNetNodeOut, HValue], msbs: Union[HlsNetNodeOut, HValue]) -> HlsNetNodeOut:
-        if HdlType_isVoid(lsbs._dtype):
-            assert lsbs._dtype == msbs._dtype
-            t = msbs._dtype
+    def buildConcat(self, *lsbToMsbOps: Union[HlsNetNodeOut, HValue]) -> HlsNetNodeOut:
+        """
+        :param lsbToMsbOps: operands to concatenate, lower bits first
+        """
+        if len(lsbToMsbOps) == 1:
+            return lsbToMsbOps[0]
         else:
-            t = Bits(lsbs._dtype.bit_length() + msbs._dtype.bit_length())
-        return self.buildOp(AllOps.CONCAT, t, lsbs, msbs)
+            assert lsbToMsbOps
 
-    def buildConcatVariadic(self, ops: Tuple[Union[HlsNetNodeOut, HValue], ...]):
-        """
-        :param ops: operands to concatenate, lower bits first
-        """
-        assert ops, "Must have operands because the output can not be void"
-        res = None
-        for o in ops:
-            if res is None:
-                res = o
-            else:
-                res = self.buildConcat(res, o)
-        return res
+        lsbs = lsbToMsbOps[0]
+        if HdlType_isVoid(lsbs._dtype):
+            t = lsbs._dtype
+            for other in islice(lsbToMsbOps, 1, None):
+                assert t == other._dtype, ("If this is a concatenation of void types, all ops must be of same type",
+                                           t, other._dtype, other, lsbToMsbOps)
+        else:
+            w = 0
+            for o in lsbToMsbOps:
+                w += o._dtype.bit_length()
+            t = Bits(w)
+        return self.buildOp(AllOps.CONCAT, t, *lsbToMsbOps)
 
     def buildSignCast(self, o: HlsNetNodeOut, signed: Optional[bool]) -> HlsNetNodeOut:
         if signed:

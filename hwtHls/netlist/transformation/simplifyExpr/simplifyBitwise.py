@@ -115,7 +115,7 @@ def netlistReduceAndOrXor(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode],
                     concatMembers.append(v0)
 
                     offset += width
-                newO = builder.buildConcatVariadic(tuple(concatMembers))
+                newO = builder.buildConcat(*concatMembers)
 
         elif o0 == o1:
             # x & x = x
@@ -148,7 +148,7 @@ def netlistReduceAndOrXor(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode],
                     concatMembers.append(v0)
 
                     offset += width
-                newO = builder.buildConcatVariadic(tuple(concatMembers))
+                newO = builder.buildConcat(*concatMembers)
 
         elif o0 == o1:
             # x | x = x
@@ -177,7 +177,7 @@ def netlistReduceAndOrXor(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode],
                     concatMembers.append(v0)
                     offset += width
 
-                newO = builder.buildConcatVariadic(tuple(concatMembers))
+                newO = builder.buildConcat(*concatMembers)
 
         elif o0 == o1:
             # x ^ x = 0
