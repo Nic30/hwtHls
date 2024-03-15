@@ -64,7 +64,7 @@ class BaseTestPlatform(VirtualHlsPlatform):
         HlsNetlistPassDumpDataThreads(lambda name: (self.dataThreads, False)).apply(hls, netlist)
 
         netlist.getAnalysis(HlsNetlistAnalysisPassBlockSyncType)
-        HlsNetlistPassDumpBlockSync(lambda name: (self.blockSync, False)).apply(hls, netlist)
+        HlsNetlistPassDumpBlockSync(lambda name: (self.blockSync, False), addLegend=False).apply(hls, netlist)
 
         blockLiveInMuxInputSync: BlockLiveInMuxSyncDict = toNetlist.constructLiveInMuxes(mf)
         toNetlist.extractRstValues(mf, threads)
