@@ -1350,7 +1350,7 @@ void VRegIfConverter::AnalyzeBlock(
       }
     }
     {
-    	// [todo] ValidLoopTail
+    	// [todo] cover case where EBB == FBB, poroblem is that we skip BBs with backedges
     	bool PredBBCondRev;
     	// :note: BBI is the one which will be if-converted into predecessor
     	//        search can not start at predecessor because it is a loop header and blocks with backedges are omitted

@@ -4,7 +4,9 @@
 #include <llvm/CodeGen/MachineBasicBlock.h>
 #include <llvm/CodeGen/MachineRegisterInfo.h>
 #include <llvm/ADT/SetVector.h>
+
 namespace hwtHls {
+
 using EdgeLivenessDict = std::map<llvm::MachineBasicBlock*, std::map<llvm::MachineBasicBlock*, std::set<llvm::Register>>>;
 
 /*
