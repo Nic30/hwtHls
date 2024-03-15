@@ -91,10 +91,12 @@
 #include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass.h>
 #include <hwtHls/llvm/Transforms/trivialSimplifyCFGPass.h>
 #include <hwtHls/llvm/Transforms/dumpAndExitPass.h>
+#include <hwtHls/llvm/Transforms/LoopAddLatchPass.h>
 #include <hwtHls/llvm/Transforms/LoopUnrotatePass.h>
 #include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamReadLoweringPass.h>
 #include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamWriteLoweringPass.h>
 #include <hwtHls/llvm/Transforms/streamLoopUnrollPass/streamLoopUnrollPass.h>
+#include <hwtHls/llvm/Transforms/IcmpToOnlyEqLtLe.h>
 
 namespace hwtHls {
 
@@ -317,7 +319,7 @@ void LlvmCompilationBundle::runExprOpt() {
 
 void LlvmCompilationBundle::_addInitialNormalizationPasses(
 		llvm::FunctionPassManager &FPM) {
-	FPM.addPass(hwtHls::TrivialSimplifyCFGPass());
+	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true));
 	llvm::LoopPassManager LPM0;
 	LPM0.addPass(hwtHls::LoopUnrotatePass());
 
@@ -325,7 +327,7 @@ void LlvmCompilationBundle::_addInitialNormalizationPasses(
 			/*UseMemorySSA=*/ false,
 			/*UseBlockFrequencyInfo=*/ false));
 	// [fixme] LoopUnrotatePass probably breaks SE and TrivialSimplifyCFGPass forces to recompute it
-	FPM.addPass(hwtHls::TrivialSimplifyCFGPass()); // simplify trivial cases so IR is more easy to read
+	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true)); // simplify trivial cases so IR is more easy to read
 	// Form SSA out of local memory accesses after breaking apart aggregates into
 	// scalars.
 	FPM.addPass(hwtHls::SimplifyCFG2Pass(llvm::SimplifyCFGOptions().hoistCommonInsts(true)));
@@ -346,9 +348,9 @@ void LlvmCompilationBundle::_addStreamOperationLoweringPasses(
 	// because if used correctly it reduces complexity of stream processing exponentially
 	FPM.addPass(hwtHls::StreamLoopUnrollPass());
 	FPM.addPass(hwtHls::StreamReadLoweringPass());
-	FPM.addPass(hwtHls::TrivialSimplifyCFGPass());
+	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true));
 	FPM.addPass(hwtHls::StreamWriteLoweringPass());
-	FPM.addPass(hwtHls::TrivialSimplifyCFGPass());
+	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true));
 }
 
 void LlvmCompilationBundle::_addCommonPasses(llvm::FunctionPassManager &FPM) {
@@ -416,6 +418,8 @@ void LlvmCompilationBundle::_addInstrCombinePasses(llvm::FunctionPassManager &FP
 }
 
 void LlvmCompilationBundle::_addLoopPasses(llvm::FunctionPassManager &FPM) {
+	// FPM.addPass(llvm::LoopSimplifyPass()); // added automatically by PM
+
 	// Add the primary loop simplification pipeline.
 	// FIXME: Currently this is split into two loop pass pipelines because we run
 	// some function passes in between them. These can and should be removed
@@ -491,6 +495,10 @@ void LlvmCompilationBundle::_addLoopPasses(llvm::FunctionPassManager &FPM) {
 void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 		llvm::FunctionPassManager &FPM, bool IsFullLTO) {
 	// based on PassBuilder::addVectorPasses
+
+	// important for LoopUnrollPass because otherwise it generates obscure prolog for loops with dynamic range
+	FPM.addPass(hwtHls::LoopAddLatchPass());
+
 	FPM.addPass(
 			llvm::LoopVectorizePass(
 					llvm::LoopVectorizeOptions(!PTO.LoopInterleaving,
@@ -512,7 +520,11 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 		FPM.addPass(
 				llvm::LoopUnrollPass(
 						llvm::LoopUnrollOptions(Level.getSpeedupLevel(), /*OnlyWhenForced=*/
-						!PTO.LoopUnrolling, PTO.ForgetAllSCEVInLoopUnroll)));
+						!PTO.LoopUnrolling, PTO.ForgetAllSCEVInLoopUnroll)//
+						.setPartial(false)//
+						.setPeeling(false)//
+						.setRuntime(false)//
+						.setProfileBasedPeeling(false)));
 		FPM.addPass(llvm::WarnMissedTransformationsPass());
 	}
 
@@ -596,6 +608,7 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 
 	if (!IsFullLTO) {
 		FPM.addPass(llvm::InstCombinePass());
+		FPM.addPass(hwtHls::LoopAddLatchPass());
 		// Unroll small loops to hide loop backedge latency and saturate any
 		// parallel execution resources of an out-of-order processor. We also then
 		// need to clean up redundancies and loop invariant code.
@@ -614,7 +627,11 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 				llvm::LoopUnrollPass(
 						llvm::LoopUnrollOptions(Level.getSpeedupLevel(), /*OnlyWhenForced=*/
 								!PTO.LoopUnrolling,
-								PTO.ForgetAllSCEVInLoopUnroll)));
+								PTO.ForgetAllSCEVInLoopUnroll)//
+								.setPartial(false)//
+								.setPeeling(false)//
+								.setRuntime(false)//
+								.setProfileBasedPeeling(false)));
 		FPM.addPass(llvm::WarnMissedTransformationsPass());
 		FPM.addPass(llvm::InstCombinePass());
 		FPM.addPass(
@@ -626,6 +643,7 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 								PTO.LicmMssaNoAccForPromotionCap,
 								/*AllowSpeculation=*/true),
 						/*UseMemorySSA=*/true, /*UseBlockFrequencyInfo=*/true));
+		FPM.addPass(hwtHls::SimplifyCFG2Pass()); // hwtHls specific
 	}
 
 	// Now that we've vectorized and unrolled loops, we may have more refined
