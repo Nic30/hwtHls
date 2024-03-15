@@ -9,8 +9,6 @@ from hwtHls.netlist.nodes.IoClusterCore import HlsNetNodeIoClusterCore
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
-from hwtHls.netlist.nodes.loopChannelGroup import LoopChanelGroup
-from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
 from hwtHls.netlist.nodes.node import HlsNetNode
 from ipCorePackager.constants import DIRECTION
 
@@ -112,17 +110,17 @@ class HlsNetlistAnalysisPassBetweenSyncIslands(HlsNetlistAnalysisPass):
                     inputs.append(n)
                 else:
                     internalNodes.append(n)
-                    if isinstance(n, HlsNetNodeLoopStatus):
-                        n: HlsNetNodeLoopStatus
-                        for chGroup in n.iterConnectedChannelGroups():
-                            chGroup: LoopChanelGroup
-                            for w in chGroup.members:
-                                r = w.associatedRead
-                                if r not in seenDefToUse:
-                                    inputs.append(r)
-                                    seenDefToUse.add(r)
-                                    toSearchDefToUse.append(r)
-
+                    #if isinstance(n, HlsNetNodeLoopStatus):
+                    #    n: HlsNetNodeLoopStatus
+                    #    for chGroup in n.iterConnectedChannelGroups():
+                    #        chGroup: LoopChanelGroup
+                    #        for w in chGroup.members:
+                    #            r = w.associatedRead
+                    #            if r not in seenDefToUse:
+                    #                inputs.append(r)
+                    #                seenDefToUse.add(r)
+                    #                toSearchDefToUse.append(r)
+                    #
         # inputs may dependent on outputs because we stop search
         # after first found HlsNetNodeExplicitSync instance
         iOffset = 0
