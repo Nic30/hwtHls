@@ -6,10 +6,10 @@ from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachabil
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.IoClusterCore import HlsNetNodeIoClusterCore
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.node import NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.ports import link_hls_nodes
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from ipCorePackager.constants import DIRECTION
-from hwtHls.netlist.nodes.node import NODE_ITERATION_TYPE
 
 
 class HlsNetlistPassCreateIoClusters(HlsNetlistPass):
