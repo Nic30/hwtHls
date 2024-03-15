@@ -1,4 +1,4 @@
-from typing import Tuple, Set, List, Optional, Union, Dict
+from typing import Tuple, List, Optional, Union, Dict
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.hdl.types.defs import BIT
