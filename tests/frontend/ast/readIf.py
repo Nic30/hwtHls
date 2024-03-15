@@ -10,8 +10,8 @@ from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtSimApi.utils import freq_to_period
+from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
 from tests.baseSsaTest import BaseSsaTC
-from tests.frontend.ast.trivial_test import HlsAstTrivial_TC
 
 
 class ReadIfOtherEqual(Unit):
@@ -74,7 +74,7 @@ class HlsAstReadIfTc(BaseSsaTC):
         u.a._ag.data.extend([0, 3, 3, 0, 3, 0, 0, ])
         u.b._ag.data.extend(range(10))
         self.runSim((len(u.a._ag.data) + 15) * int(freq_to_period(f)))
-        HlsAstTrivial_TC._test_no_comb_loops(self)
+        BaseIrMirRtl_TC._test_no_comb_loops(self)
         self.assertSequenceEqual(u.a._ag.data, [])
         self.assertSequenceEqual(u.b._ag.data, [4, 5, 6, 7, 8, 9])
 
@@ -88,7 +88,7 @@ class HlsAstReadIfTc(BaseSsaTC):
         u.a._ag.data.append(a)
         u.b._ag.data.extend(range(5))
         self.runSim(5 * int(freq_to_period(f)))
-        HlsAstTrivial_TC._test_no_comb_loops(self)
+        BaseIrMirRtl_TC._test_no_comb_loops(self)
         self.assertSequenceEqual(u.a._ag.data, [])
         self.assertSequenceEqual(u.b._ag.data, res)
 

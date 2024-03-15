@@ -3,8 +3,8 @@
 
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtSimApi.utils import freq_to_period
+from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
 from tests.baseSsaTest import BaseSsaTC
-from tests.frontend.ast.trivial_test import HlsAstTrivial_TC
 from tests.frontend.ast.whileIf import WhileAndIf0, WhileAndIf2, WhileAndIf3, WhileAndIf4
 
 
@@ -22,7 +22,7 @@ class HlsAstWhileIf_TC(BaseSsaTC):
         clk_period = int(freq_to_period(u.FREQ))
 
         self.runSim((CLK + 2) * clk_period)
-        HlsAstTrivial_TC._test_no_comb_loops(self)
+        BaseIrMirRtl_TC._test_no_comb_loops(self)
 
         expected = []
 
@@ -65,7 +65,7 @@ class HlsAstWhileIf_TC(BaseSsaTC):
 
         u.dataIn._ag.data.extend(inputs)
         self.runSim((CLK + 10) * int(clk_period))
-        HlsAstTrivial_TC._test_no_comb_loops(self)
+        BaseIrMirRtl_TC._test_no_comb_loops(self)
         self.assertValSequenceEqual(u.dataOut._ag.data, expected)
 
     def test_WhileAndIf3(self):
@@ -98,7 +98,7 @@ class HlsAstWhileIf_TC(BaseSsaTC):
 
         u.dataIn._ag.data.extend(inputs)
         self.runSim((CLK + 10) * int(clk_period))
-        HlsAstTrivial_TC._test_no_comb_loops(self)
+        BaseIrMirRtl_TC._test_no_comb_loops(self)
         self.assertValSequenceEqual(u.dataOut._ag.data, expected)
 
     def test_WhileAndIf4_ll(self):
