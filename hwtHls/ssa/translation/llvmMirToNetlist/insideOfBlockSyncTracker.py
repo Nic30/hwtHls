@@ -97,7 +97,7 @@ class InsideOfBlockSyncTracker():
         usedInputs: UniqList[HlsNetNodeExplicitSync] = UniqList()
         self._collectInputValidityFlags(out, None, usedInputs)
         if usedInputs:
-            andMembers = tuple((out, *(rw.getValidNB() for rw in usedInputs if isinstance(rw, HlsNetNodeRead))))
+            andMembers = tuple((out, *(rw.getValidNB() for rw in usedInputs if isinstance(rw, HlsNetNodeRead) and rw._rtlUseValid)))
             if andMembers:
                 newOut = self.builder.buildAndVariadic(andMembers)
                 return newOut
