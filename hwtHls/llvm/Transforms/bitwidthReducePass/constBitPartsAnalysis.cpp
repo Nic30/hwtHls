@@ -9,7 +9,11 @@ namespace hwtHls {
 
 ConstBitPartsAnalysisContext::ConstBitPartsAnalysisContext(
 		std::optional<std::function<bool(const llvm::Instruction&)>> analysisHandle) :
-		analysisHandle(analysisHandle) {
+		analysisHandle(analysisHandle), resolvePhiValues(false) {
+}
+
+void ConstBitPartsAnalysisContext::setShouldResolvePhiValues() {
+	resolvePhiValues = true;
 }
 
 VarBitConstraint& ConstBitPartsAnalysisContext::visitConstantInt(
@@ -47,27 +51,29 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitPHINode(const PHINode *I) {
 	// because there can be cycle in PHI dependencies so if we meet this value when resolving this
 	// we will know that it is this PHI.
 	VarBitConstraint &c = *constraints[I];
-	bool first = true;
-	for (auto op : I->operand_values()) {
-		const auto &_c = visitValue(op);
-		if (first) {
-			first = false;
-			assert(_c.consystencyCheck());
-			c = _c; // intended copy of _c to c
-		} else {
-			assert(c.consystencyCheck());
-			c.srcUnionInplace(_c, I, false);
-			// can not reduce undefs because it may remove
-			// this phi which may result in non dominated uses for branches where value
-			// may come to block as undef
+	if (resolvePhiValues) {
+		bool first = true;
+		for (auto op : I->operand_values()) {
+			const auto &_c = visitValue(op);
+			if (first) {
+				first = false;
+				assert(_c.consystencyCheck());
+				c = _c; // intended copy of _c to c
+			} else {
+				assert(c.consystencyCheck());
+				c.srcUnionInplace(_c, I, false);
+				// can not reduce undefs because it may remove
+				// this phi which may result in non dominated uses for branches where value
+				// may come to block as undef
 
 #ifndef NDEBUG
-			if (!c.consystencyCheck()) {
-				errs() << *I << "\n";
-				errs() << c << "\n";
-				llvm_unreachable("PHINode in inconsistent state");
-			}
+				if (!c.consystencyCheck()) {
+					errs() << *I << "\n";
+					errs() << c << "\n";
+					llvm_unreachable("PHINode in inconsistent state");
+				}
 #endif
+			}
 		}
 	}
 	return c;
@@ -93,7 +99,9 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitValue(const Value *V) {
 	auto cur = constraints.find(V);
 	if (cur != constraints.end()) {
 		// already seen return prev record reference
-		return *cur->second.get();
+		VarBitConstraint& curVal = *cur->second.get();
+		assert(curVal.consystencyCheck());
+		return curVal;
 	}
 	if (analysisHandle.has_value()) {
 		if (auto *VasI = dyn_cast<Instruction>(V)) {
@@ -239,12 +247,13 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitCallInst(
 		constraints[C] = std::make_unique<VarBitConstraint>(C);
 		VarBitConstraint &cur = *constraints[C];
 		std::vector<KnownBitRangeInfo> newParts; // high first
-		auto &base = visitValue(C->getArgOperand(0));
 		auto &sh = visitValue(C->getArgOperand(1));
+		// if shift offset is resolved to a constant int
 		if (sh.replacements.size() == 1
 				&& dyn_cast<const ConstantInt>(sh.replacements[0].src)) {
 			if (const ConstantInt *shConst = dyn_cast<const ConstantInt>(
 					sh.replacements[0].src)) {
+				auto &base = visitValue(C->getArgOperand(0));
 				auto w = cur.useMask.getBitWidth();
 				auto off = shConst->getLimitedValue();
 				IRBuilder<> B(const_cast<CallInst*>(C));

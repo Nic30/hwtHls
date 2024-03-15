@@ -31,6 +31,7 @@ protected:
 
 	// visit functions to discover which bits are constant in value
 	// if value is of non int type the mask wit 1 bit is used
+
 	VarBitConstraint& visitPHINode(const llvm::PHINode *I);
 	VarBitConstraint& visitAsAllInputBitsUsedAllOutputBitsKnown(
 			const llvm::Value *V);
@@ -45,6 +46,9 @@ protected:
 	VarBitConstraint& visitSExt(const llvm::CastInst *I);
 
 	std::optional<std::function<bool(const llvm::Instruction&)>> analysisHandle; // :see: constructor
+	// if false phi replacement is resolved as PHI itself, if true
+	// incoming values are used to resolve value for this PHI
+	bool resolvePhiValues;
 public:
 	using InstructionToVarBitConstraintMap = std::map<const llvm::Value*, std::unique_ptr<VarBitConstraint>>;
 	InstructionToVarBitConstraintMap constraints;
@@ -53,6 +57,8 @@ public:
 	// and the value is used as is
 	ConstBitPartsAnalysisContext(
 			std::optional<std::function<bool(const llvm::Instruction&)>> analysisHandle={});
+
+	void setShouldResolvePhiValues();
 	VarBitConstraint& visitValue(const llvm::Value *V);
 	// update constant bit info for instruction from dependencies, return true if changed
 	bool updateInstruction(const llvm::Instruction *I);

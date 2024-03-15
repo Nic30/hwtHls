@@ -45,6 +45,7 @@ static bool runBitwidthReduction(Function &F, TargetLibraryInfo *TLI) {
 			Worklist.push_back(&I);
 		}
 	}
+	A.setShouldResolvePhiValues();
 	// transitively propagate constant bits until something changes (def -> use)
 	while (!Worklist.empty()) {
 		Instruction *I = Worklist.front();

@@ -402,7 +402,7 @@ void VarBitConstraint::srcUnionPushBackWithMerge(
 
 VarBitConstraint VarBitConstraint::slice(IRBuilder<> *Builder, unsigned offset,
 		unsigned width) const {
-	assert(offset < 0xffff && width < 0xffff);
+	assert(offset < 0xffff && width < 0xffff && "Sanity check");
 	assert(width > 0);
 	VarBitConstraint res(width);
 	unsigned end = offset + width;
