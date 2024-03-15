@@ -17,6 +17,7 @@ from hwtHls.netlist.scheduler.resourceList import HlsSchedulerResourceUseList
 def asapSchedulePartlyScheduled(o: HlsNetNodeOut, beforeSchedulingFn: Optional[Callable[[HlsNetNode], bool]]) -> List[HlsNetNode]:
     """
     Run ASAP scheduling partly scheduled netlist.
+
     :param beforeSchedulingFn: a function which can be used to initialize or skip node which is going to be scheduled
     """
     newlyScheduledNodes: List[HlsNetNode] = []
