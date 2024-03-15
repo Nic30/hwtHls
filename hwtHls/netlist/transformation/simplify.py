@@ -209,7 +209,10 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
             if runCntr == 0 or didModifyExpr:
                 if dbgEn:
                     HlsNetlistPassConsystencyCheck._checkCycleFree(n.netlist, removed)
-                runAbcControlpathOpt(netlist.builder, worklist, removed, (n for n in netlist.iterAllNodes() if n not in removed))
+                runAbcControlpathOpt(netlist.builder, worklist, removed, netlist.iterAllNodes())
+                if dbgEn:
+                    HlsNetlistPassConsystencyCheck._checkCycleFree(n.netlist, removed)
+                runLlvmCmpOpt(builder, worklist, removed, netlist.iterAllNodes())
                 if dbgEn:
                     HlsNetlistPassConsystencyCheck._checkCycleFree(n.netlist, removed)
 
