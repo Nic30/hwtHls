@@ -2,7 +2,7 @@ from typing import Union, Optional, List
 
 from hwt.hdl.types.bitsVal import BitsVal
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.architecture.connectionsOfStage import extractControlSigOfInterfaceTuple
+from hwtHls.architecture.syncUtils import getInterfaceSyncTuple
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
@@ -23,18 +23,18 @@ class HlsNetlistPassReadSyncToAckOfIoNodes(HlsNetlistPass):
             # drop this for input which does not have vld signal
             n: HlsNetNodeRead
 
-            vld, _ = extractControlSigOfInterfaceTuple(n.src)
+            vld, _ = getInterfaceSyncTuple(n.src)
             if isinstance(vld, (int, BitsVal)):
                 # if IO interface does not use any sync replace this with 1
                 assert vld == 1, (n, vld)
                 return None
             else:
                 return n.getValidNB()
-                
+
         else:
             assert isinstance(n, HlsNetNodeWrite), n
             # drop this for output which does not have rd signal
-            _, rd = extractControlSigOfInterfaceTuple(n.dst)
+            _, rd = getInterfaceSyncTuple(n.dst)
             if isinstance(rd, (int, BitsVal)):
                 # if IO interface does not use any sync replace this with 1
                 assert rd == 1, (n, rd)
@@ -70,7 +70,7 @@ class HlsNetlistPassReadSyncToAckOfIoNodes(HlsNetlistPass):
                         else:
                             _res = _collectSyncValidFromExpr(v)
                     else:
-                        # all previous mux conditions 0 this condition 1 and 
+                        # all previous mux conditions 0 this condition 1 and
                         if not is1b:
                             v = _collectSyncValidFromExpr(v)
                         srcVld = builder.buildAndVariadic(prevConditions_n + [c, v])
@@ -93,7 +93,7 @@ class HlsNetlistPassReadSyncToAckOfIoNodes(HlsNetlistPass):
                     return result[0]
                 else:
                     return builder.buildAndVariadic(result)
-    
+
         elif isinstance(n, HlsNetNodeExplicitSync):
             if o is n._outputs[0]:
                 if n.__class__ is HlsNetNodeExplicitSync:
@@ -106,14 +106,14 @@ class HlsNetlistPassReadSyncToAckOfIoNodes(HlsNetlistPass):
                 return o
             else:
                 raise NotImplementedError(o)
-    
+
         elif not n._inputs:
             return None
         elif isinstance(n, HlsNetNodeReadSync):
             return o  # return output of HlsNetNodeReadSync which will be replaced later
         else:
             raise NotImplementedError(o)
-             
+
     def apply(self, hls:"HlsScope", netlist:HlsNetlistCtx):
         builder: HlsNetlistBuilder = netlist.builder
         worklistPlaceholder = []
@@ -127,10 +127,10 @@ class HlsNetlistPassReadSyncToAckOfIoNodes(HlsNetlistPass):
             dep = n.dependsOn[0].obj
             if isinstance(dep, HlsNetNodeExplicitSync) and dep._associatedReadSync is n:
                 dep._associatedReadSync = None
-        
-            # replace with the expression made from 
+
+            # replace with the expression made from
             origDepO = n.dependsOn[0]
-        
+
             newDep = self._collectSyncValidFromExpr(origDepO)
             if newDep is None:
                 newDep = builder.buildConstBit(1)
