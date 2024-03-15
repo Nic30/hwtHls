@@ -14,26 +14,29 @@ from hwtHls.ssa.translation.llvmMirToNetlist.machineEdgeMeta import \
 
 class HlsNetlistPassDumpBlockSync(HlsNetlistPass):
 
-    def __init__(self, outStreamGetter: OutputStreamGetter):
+    def __init__(self, outStreamGetter: OutputStreamGetter, addLegend:bool=True):
         self.outStreamGetter = outStreamGetter
+        self.addLegend = addLegend
 
     @staticmethod
     def dumpBlockSyncToDot(mf: MachineFunction,
                            blockSync: Dict[MachineBasicBlock, MachineBasicBlockMeta],
                            edgeMeta: Dict[MachineEdge, MachineEdgeMeta],
                            liveness: Dict[MachineBasicBlock, Dict[MachineBasicBlock, Set[Register]]],
-                           regToIo: Dict[Register, Interface]):
+                           regToIo: Dict[Register, Interface],
+                           addLegend:bool):
         P = pydot.Dot(f'"{mf.getName().str()}"', graph_type="digraph")
 
-        legendTable = """<
+        if addLegend:
+            legendTable = """<
 <table border="0" cellborder="1" cellspacing="0">
   <tr><td>discarded</td><td bgcolor="red"> </td></tr>
   <tr><td>reset</td><td bgcolor="orange"> </td></tr>
   <tr><td>backedge</td><td bgcolor="blue"> </td></tr>
   <tr><td>fowardedge</td><td bgcolor="green"> </td></tr>
 </table>>"""
-        legend = pydot.Node("legend", label=legendTable, style='filled', shape="plain")
-        P.add_node(legend)
+            legend = pydot.Node("legend", label=legendTable, style='filled', shape="plain")
+            P.add_node(legend)
 
         blockNames = {}
         for i, b in  enumerate(mf):
@@ -146,7 +149,9 @@ class HlsNetlistPassDumpBlockSync(HlsNetlistPass):
         out, doClose = self.outStreamGetter(netlist.label)
 
         try:
-            P = self.dumpBlockSyncToDot(toNetlist.mf, toNetlist.blockSync, toNetlist.edgeMeta, toNetlist.liveness, toNetlist.regToIo)
+            P = self.dumpBlockSyncToDot(toNetlist.mf, toNetlist.blockSync,
+                                        toNetlist.edgeMeta, toNetlist.liveness,
+                                        toNetlist.regToIo, self.addLegend)
             out.write(P.to_string())
         finally:
             if doClose:
