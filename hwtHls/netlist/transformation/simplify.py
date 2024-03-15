@@ -29,7 +29,8 @@ from hwtHls.netlist.transformation.simplifyExpr.normalizeConstToRhs import netli
 from hwtHls.netlist.transformation.simplifyExpr.rehash import HlsNetlistPassRehashDeduplicate
 from hwtHls.netlist.transformation.simplifyExpr.simplifyAbc import runAbcControlpathOpt
 from hwtHls.netlist.transformation.simplifyExpr.simplifyBitwise import netlistReduceNot, netlistReduceAndOrXor
-from hwtHls.netlist.transformation.simplifySync.simplifyIo import netlistReduceReadReadSyncWithReadOfValidNB
+from hwtHls.netlist.transformation.simplifyExpr.simplifyIo import netlistReduceReadReadSyncWithReadOfValidNB
+from hwtHls.netlist.transformation.simplifyExpr.simplifyLlvmIrExpr import runLlvmCmpOpt
 from hwtHls.netlist.transformation.simplifyExpr.simplifyMux import netlistReduceMux
 from hwtHls.netlist.transformation.simplifyExpr.validAndOrXorEqValidNb import netlistReduceValidAndOrXorEqValidNb
 from hwtHls.netlist.transformation.simplifySync.readOfRawValueToDataAndVld import netlistReadOfRawValueToDataAndVld
@@ -184,7 +185,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
 
                 elif isinstance(n, HlsNetNodeExplicitSync):
                     n: HlsNetNodeExplicitSync
-                    netlistReduceExplicitSyncConditions(dbgTracer, n, worklist, removed)
+                    netlistReduceExplicitSyncFlags(dbgTracer, n, worklist, removed)
                     if n in removed:
                         didModifyExpr = True
                         continue

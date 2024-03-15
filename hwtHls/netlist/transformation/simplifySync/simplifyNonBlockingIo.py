@@ -16,15 +16,17 @@ from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import netlistExplicitSyncDisconnectFromOrderingChain
 from hwtHls.netlist.transformation.simplifySync.simplifySyncUtils import removeExplicitSync
 from hwtHls.netlist.builder import HlsNetlistBuilder
+from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge
+from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge
 
 
-def netlistReduceExplicitSyncConditions(dbgTracer: DebugTracer, n: HlsNetNodeExplicitSync,
-                                        worklist: Optional[UniqList[HlsNetNode]],
-                                        removed: Set[HlsNetNode]):
+def netlistReduceExplicitSyncFlags(dbgTracer: DebugTracer, n: HlsNetNodeExplicitSync,
+                                   worklist: Optional[UniqList[HlsNetNode]],
+                                   removed: Set[HlsNetNode]):
     """
     Remove skipWhen extraCond ports if they are useless and remove n if it has no sync flags and is directly HlsNetNodeExplicitSync instance.
     """
-    with dbgTracer.scoped(netlistReduceExplicitSyncConditions, n):
+    with dbgTracer.scoped(netlistReduceExplicitSyncFlags, n):
         modified = False
         if n.skipWhen is not None:
             dep = n.dependsOn[n.skipWhen.in_i]
@@ -51,6 +53,23 @@ def netlistReduceExplicitSyncConditions(dbgTracer: DebugTracer, n: HlsNetNodeExp
                     n._removeInput(n.extraCond.in_i)
                     modified = True
                     dbgTracer.log("rm extraCond")
+
+        b: HlsNetlistBuilder = n.netlist.builder
+        if not isinstance(n, (HlsNetNodeReadBackedge, HlsNetNodeReadForwardedge)):
+            for vld in (n._valid, n._validNB):
+                if vld is not None:
+                    if not n._rtlUseValid:
+                        b.replaceOutputWithConst1b(vld, True)
+
+        if not isinstance(n, (HlsNetNodeReadBackedge, HlsNetNodeReadForwardedge)):
+            for rd in (n._ready, n._readyNB):
+                if rd is not None:
+                    if not n._rtlUseReady:
+                        b.replaceOutputWithConst1b(rd, True)
+
+        for outFlag in (n._valid, n._validNB, n._ready, n._readyNB, getattr(n, "_rawValue", None)):
+            if outFlag is not None and not n.usedBy[outFlag.out_i]:
+                n._removeOutput(outFlag.out_i)
 
         if n.__class__ is HlsNetNodeExplicitSync and n.skipWhen is None and n.extraCond is None:
             dbgTracer.log("rm node")
@@ -131,7 +150,7 @@ def createLogicalExpressionOmmitingInput(valToOmmit: HlsNetNodeOut, expr: HlsNet
             else:
                 raise NotImplementedError(op, expr)
         elif op == AllOps.NOT:
-            o0,  = expr.obj.dependsOn
+            o0, = expr.obj.dependsOn
             newO0 = createLogicalExpressionOmmitingInput(valToOmmit, o0)
             if newO0 is None:
                 return None
@@ -248,7 +267,7 @@ def netlistReduceExplicitSyncTryExtractNonBlockingReadOrWrite(dbgTracer: DebugTr
 
             removed.add(n)
             dbgTracer.log("rm")
-            netlistReduceExplicitSyncConditions(dbgTracer, r, worklist, removed)
+            netlistReduceExplicitSyncFlags(dbgTracer, r, worklist, removed)
             return True
 
         # elif (isinstance(syncedDep.obj, HlsNetNodeOperator) and

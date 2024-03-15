@@ -17,7 +17,7 @@ from hwtHls.netlist.transformation.simplifySync.simplifyBackedge import netlistR
 from hwtHls.netlist.transformation.simplifySync.simplifyBackedgeStraightening import netlistBackedgeStraightening
 from hwtHls.netlist.transformation.simplifySync.simplifyEdgeWritePropagation import netlistEdgeWritePropagation, \
     netlistEdgeWriteVoidWithoudDeps
-from hwtHls.netlist.transformation.simplifySync.simplifyNonBlockingIo import netlistReduceExplicitSyncConditions, \
+from hwtHls.netlist.transformation.simplifySync.simplifyNonBlockingIo import netlistReduceExplicitSyncFlags, \
     netlistReduceExplicitSyncTryExtractNonBlockingReadOrWrite
 from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import netlistOrderingReduce, netlistTrivialOrderingReduce
 from hwtHls.netlist.transformation.simplifySync.simplifySyncIsland import netlistReduceExplicitSyncDissolve
@@ -65,7 +65,7 @@ class HlsNetlistPassSimplifySync(HlsNetlistPass):
 
                     elif isinstance(n, HlsNetNodeExplicitSync):
                         n: HlsNetNodeExplicitSync
-                        if netlistReduceExplicitSyncConditions(dbgTrace, n, worklistTmp, removed) and n in removed:
+                        if netlistReduceExplicitSyncFlags(dbgTrace, n, worklistTmp, removed) and n in removed:
                             if dbgEn:
                                 HlsNetlistPassConsystencyCheck().apply(None, n.netlist, removed=removed)
                             pass
