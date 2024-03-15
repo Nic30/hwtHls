@@ -19,6 +19,7 @@ def netlistReadOfRawValueToDataAndVld(n: HlsNetNodeRead, worklist: UniqList[HlsN
     raw value is expected to be in format Concat(_validNB, _valid, dataOut) (_validNB as MSB)
     """
     rawValueO: HlsNetNodeOut = n._rawValue
+    assert rawValueO is not None, n
     rawUses = n.usedBy[rawValueO.out_i]
     dataValueO = n._outputs[0]
     dataWidth = n._outputs[0]._dtype.bit_length()
@@ -36,9 +37,9 @@ def netlistReadOfRawValueToDataAndVld(n: HlsNetNodeRead, worklist: UniqList[HlsN
                     if dataWidth == iVal:
                         # is selecting _valid port
                         if n._isBlocking:
-                            vld = n._valid
+                            vld = n.getValid()
                         else:
-                            vld = n._validNB
+                            vld = n.getValidNB()
 
                         replaceOperatorNodeWith(uObj, vld, worklist, removed)
                     
@@ -75,9 +76,9 @@ def netlistReadOfRawValueToDataAndVld(n: HlsNetNodeRead, worklist: UniqList[HlsN
                     elif lowBitNo == dataWidth and highBitNo == dataWidth + 1:
                         # exactly selecting _valid port
                         if n._isBlocking:
-                            vld = n._valid
+                            vld = n.getValid()
                         else:
-                            vld = n._validNB
+                            vld = n.getValidNB()
                         replaceOperatorNodeWith(uObj, vld, worklist, removed)
                 
                     elif lowBitNo == dataWidth + 1 and highBitNo == dataWidth + 2:
@@ -92,7 +93,6 @@ def netlistReadOfRawValueToDataAndVld(n: HlsNetNodeRead, worklist: UniqList[HlsN
                 # reachDb.addOutUseChange(n)
     if not rawUses:
         n._removeOutput(n._rawValue.out_i)
-        n._rawValue = None
     # if modified:
     #    reachDb.commitChanges(removed)
     return modified

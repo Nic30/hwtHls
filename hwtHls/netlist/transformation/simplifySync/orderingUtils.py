@@ -11,8 +11,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
 
 def _dependsOnNonOrderingData(n: HlsNetNode, inputs: List[HlsNetNode],
         reachDb:HlsNetlistAnalysisPassReachability):
-    for oOtherInp, dep in zip(n._inputs, n.dependsOn):
-        oOtherInp: HlsNetNodeIn
+    for dep in n.dependsOn:
         dep: HlsNetNodeOut
         if HdlType_isNonData(dep._dtype):
             continue

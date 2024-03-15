@@ -40,10 +40,10 @@ def extendSyncFlagsFromMultipleParallel(srcs: List[HlsNetNodeExplicitSync],
     if srcsEc is not NOT_SPECIFIED:
         ecModified = False
         if srcsEc is None:
-            # no extension is required because extraCond flags in srcs together al always satisfied
+            # no extension is required because extraCond flags in srcs together is always satisfied
             pass
         elif ec is None:
-            # add completly new extraCond
+            # add completely new extraCond
             dst.addControlSerialExtraCond(srcsEc)
             ecModified = True
         else:
@@ -143,6 +143,7 @@ def netlistReduceExplicitSyncWithoutInput(
             for dep, i in zip(n.dependsOn, n._inputs):
                 if dep is not None:
                     unlink_hls_nodes(dep, i)
+
             removed.add(n)
             modified = True
 
