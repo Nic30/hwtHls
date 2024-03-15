@@ -10,6 +10,7 @@ from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.IoClusterCore import HlsNetNodeIoClusterCore
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregatePortOut, \
     HlsNetNodeAggregatePortIn, HlsNetNodeAggregate
+from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
@@ -27,7 +28,7 @@ from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.platform.fileUtils import OutputStreamGetter
-from hwtHls.netlist.nodes.archElement import ArchElement
+from hwtHls.netlist.nodes.delay import HlsNetNodeDelayClkTick
 
 
 class HwtHlsNetlistToGraphwiz():
@@ -326,7 +327,8 @@ class HwtHlsNetlistToGraphwiz():
 
 class HlsNetlistPassDumpNodesDot(HlsNetlistPass):
 
-    def __init__(self, outStreamGetter: OutputStreamGetter, expandAggregates: bool=True, addLegend:bool=True, showVoid:bool=True):
+    def __init__(self, outStreamGetter: OutputStreamGetter, expandAggregates: bool=True,
+                 addLegend:bool=True, showVoid:bool=True):
         self.outStreamGetter = outStreamGetter
         self.expandAggregates = expandAggregates
         self.addLegend = addLegend
@@ -342,6 +344,8 @@ class HlsNetlistPassDumpNodesDot(HlsNetlistPass):
         else:
             for n in nodeIt:
                 if isinstance(n, HlsNetNodeIoClusterCore):
+                    continue
+                elif isinstance(n, HlsNetNodeDelayClkTick) and HdlType_isVoid(n._outputs[0]._dtype):
                     continue
                 elif isinstance(n, HlsNetNodeAggregatePortIn):
                     if HdlType_isVoid(n._outputs[0]._dtype):
