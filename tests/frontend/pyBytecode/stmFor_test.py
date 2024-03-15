@@ -12,13 +12,13 @@ class StmFor_TC(BaseSsaTC):
 
     def test_HlsPythonPreprocFor_ll(self):
         self._test_ll(HlsPythonPreprocFor)
-        
+
     def test_HlsPythonPreprocForPreprocWhile_ll(self):
         self._test_ll(HlsPythonPreprocForPreprocWhile)
-        
+
     def test_HlsPythonPreprocFor2x_0_ll(self):
         self._test_ll(HlsPythonPreprocFor2x_0)
-        
+
     def test_HlsPythonPreprocFor2x_1_ll(self):
         self._test_ll(HlsPythonPreprocFor2x_1)
 
