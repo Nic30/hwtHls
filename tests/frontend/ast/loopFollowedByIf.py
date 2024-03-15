@@ -6,11 +6,12 @@ from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.synthesizer.param import Param
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
+from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import uint8_t
-from tests.frontend.ast.loopAfterLoop import TwoTimesFiniteWhileInWhileTrue
-from tests.baseSsaTest import BaseSsaTC
 from hwtSimApi.utils import freq_to_period
+from tests.baseSsaTest import BaseSsaTC
+from tests.frontend.ast.loopAfterLoop import TwoTimesFiniteWhileInWhileTrue
 
 
 class FiniteWhileIf0(TwoTimesFiniteWhileInWhileTrue):
@@ -81,18 +82,22 @@ class LoopFollowedByIf_TC(BaseSsaTC):
 
     def test_FiniteWhileIf0(self):
         u = FiniteWhileIf0()
+        u.FREQ = int(50e6)
         self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
-        self.runSim(int(10 * freq_to_period(u.FREQ)))
+
         u.dataIn0._ag.data.append(8)
+        self.runSim(int(10 * freq_to_period(u.FREQ)))
 
         self.assertValSequenceEqual(u.dataOut0._ag.data, [4 for _ in range(4)])
         self.assertValSequenceEqual(u.dataOut1._ag.data, [7, ])
 
     def test_FiniteWhileIf1(self):
         u = FiniteWhileIf1()
+        u.FREQ = int(50e6)
         self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
-        self.runSim(int(10 * freq_to_period(u.FREQ)))
+        
         u.dataIn0._ag.data.append(8)
+        self.runSim(int(10 * freq_to_period(u.FREQ)))
 
         self.assertValSequenceEqual(u.dataOut0._ag.data, [4 for _ in range(4)])
         self.assertValSequenceEqual(u.dataOut1._ag.data, [7, ])
@@ -100,10 +105,9 @@ class LoopFollowedByIf_TC(BaseSsaTC):
 
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
-    from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.platform import HlsDebugBundle
     u = FiniteWhileIf1()
-    u.FREQ = int(150e6)
+    u.FREQ = int(50e6)
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
