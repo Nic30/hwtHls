@@ -6,11 +6,15 @@ from typing import Set, Optional
 from hwt.hdl.operatorDefs import AllOps, BITWISE_OPS, COMPARE_OPS
 from hwt.hdl.types.defs import BIT
 from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
+from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
 from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
+from hwtHls.netlist.nodes.schedulableNode import SchedTime
+from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 
 
@@ -19,9 +23,10 @@ class HlsNetlistPassConsystencyCheck(HlsNetlistPass):
     Check if connection of nodes is error free.
     """
 
-    def __init__(self, checkCycleFree:bool=True):
+    def __init__(self, checkCycleFree:bool=True, checkAllArchElementPortsInSameClockCycle:bool=False):
         HlsNetlistPass.__init__(self)
         self.checkCycleFree = checkCycleFree
+        self.checkAllArchElementPortsInSameClockCycle = checkAllArchElementPortsInSameClockCycle
 
     @staticmethod
     def _checkConnections(netlist: HlsNetlistCtx, removed: Optional[Set[HlsNetNode]]):
@@ -164,6 +169,37 @@ class HlsNetlistPassConsystencyCheck(HlsNetlistPass):
                 if o in OPS_WITH_OP0_AND_RES_OF_SAME_TYPE:
                     assert n._outputs[0]._dtype == op0t, ("wrong type of result", n, n._outputs[0]._dtype, op0t)
 
+    def _checkAllArchElementPortsInSameClockCycle(self, netlist: HlsNetlistCtx, removed: Set[HlsNetNode]):
+        """
+        Check if all top nodes are instances of ArchElement and all connected ports are always in same clock cycle window.
+        """
+        clkPeriod: SchedTime = netlist.normalizedClkPeriod
+        for srcElm in netlist.nodes:
+            if srcElm in removed:
+                continue
+            assert isinstance(srcElm, ArchElement), srcElm
+
+            srcElm: ArchElement
+            for srcTime, o, uses in zip(srcElm.scheduledOut, srcElm._outputs, srcElm.usedBy):
+                assert uses, o
+                for u in uses:
+                    u: HlsNetNodeIn
+                    dstElm: ArchElement = u.obj
+                    ii = dstElm._inputsInside[u.in_i]
+                    assert ii._outputs[0]._dtype == o._dtype, ("Aggregate port must have same type as its driver", ii._outputs[0]._dtype, o._dtype, ii, o)
+
+                if HdlType_isVoid(o._dtype):
+                    continue
+
+                srcClkI = indexOfClkPeriod(srcTime, clkPeriod)
+                for inp in uses:
+                    dstElm: ArchElement = inp.obj
+                    dstTime = dstElm.scheduledIn[inp.in_i]
+                    assert srcClkI == indexOfClkPeriod(dstTime, clkPeriod), (
+                        "At this point all inter element IO paths should be scheduled in a same clk period",
+                        o, inp, srcTime, dstTime, clkPeriod)
+                    assert isinstance(dstElm, ArchElement), inp
+
     def apply(self, hls:"HlsScope", netlist: HlsNetlistCtx, removed: Optional[Set[HlsNetNode]]=None):
         if removed is None:
             removed = netlist.builder._removedNodes
@@ -173,3 +209,5 @@ class HlsNetlistPassConsystencyCheck(HlsNetlistPass):
         self._checkNodeContainers(netlist, removed)
         self._checkSyncNodes(netlist, removed)
         self._checkTypes(netlist, removed)
+        if self.checkAllArchElementPortsInSameClockCycle:
+            self._checkAllArchElementPortsInSameClockCycle(netlist, removed)
