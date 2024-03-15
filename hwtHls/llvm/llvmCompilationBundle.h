@@ -71,12 +71,14 @@ public:
 			hwtHls::HwtFpgaToNetlist::ConvesionFnT &toNetlistConversionFn);
 	void _addCommonPasses(llvm::FunctionPassManager &FPM);
 
+	void runExprOpt();
+
 	llvm::Function& _testSlicesToIndependentVariablesPass();
 	llvm::Function& _testBitwidthReductionPass();
 	llvm::Function& _testSlicesMergePass();
 	llvm::Function& _testLoopUnrotatePass();
 	llvm::Function& _testRewriteExtractOnMergeValues();
-	llvm::Function& _testFunctionPass(
+	llvm::Function& _runCustomFunctionPass(
 			std::function<void(llvm::FunctionPassManager&)> addPasses);
 	void _testMachineFunctionPass(
 			std::function<void(llvm::HwtFpgaTargetPassConfig&)> addPasses);

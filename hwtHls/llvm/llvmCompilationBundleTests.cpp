@@ -35,7 +35,7 @@ using namespace llvm;
 
 namespace hwtHls {
 
-llvm::Function& LlvmCompilationBundle::_testFunctionPass(
+llvm::Function& LlvmCompilationBundle::_runCustomFunctionPass(
 		std::function<void(llvm::FunctionPassManager&)> addPasses) {
 	if (!main)
 		throw std::runtime_error("Main function not specified");
@@ -108,19 +108,19 @@ void LlvmCompilationBundle::_testMachineFunctionPass(
 
 /////////////////////////////////////////////////////////////// IR tests ///////////////////////////////////////////////////////////////
 llvm::Function& LlvmCompilationBundle::_testBitwidthReductionPass() {
-	return _testFunctionPass([](llvm::FunctionPassManager &FPM) {
+	return _runCustomFunctionPass([](llvm::FunctionPassManager &FPM) {
 		FPM.addPass(hwtHls::BitwidthReductionPass());
 	});
 }
 
 llvm::Function& LlvmCompilationBundle::_testSlicesMergePass() {
-	return _testFunctionPass([](llvm::FunctionPassManager &FPM) {
+	return _runCustomFunctionPass([](llvm::FunctionPassManager &FPM) {
 		FPM.addPass(hwtHls::SlicesMergePass());
 	});
 }
 
 llvm::Function& LlvmCompilationBundle::_testLoopUnrotatePass() {
-	return _testFunctionPass([](llvm::FunctionPassManager &FPM) {
+	return _runCustomFunctionPass([](llvm::FunctionPassManager &FPM) {
 		llvm::LoopPassManager LPM0;
 		LPM0.addPass(hwtHls::LoopUnrotatePass());
 
@@ -131,7 +131,7 @@ llvm::Function& LlvmCompilationBundle::_testLoopUnrotatePass() {
 }
 
 llvm::Function& LlvmCompilationBundle::_testSlicesToIndependentVariablesPass() {
-	return _testFunctionPass([](llvm::FunctionPassManager &FPM) {
+	return _runCustomFunctionPass([](llvm::FunctionPassManager &FPM) {
 		FPM.addPass(hwtHls::SlicesToIndependentVariablesPass());
 		FPM.addPass(llvm::ADCEPass());
 	});
@@ -175,7 +175,7 @@ public:
 };
 
 llvm::Function& LlvmCompilationBundle::_testRewriteExtractOnMergeValues() {
-	return _testFunctionPass([](llvm::FunctionPassManager &FPM) {
+	return _runCustomFunctionPass([](llvm::FunctionPassManager &FPM) {
 		FPM.addPass(hwtHls::SlicesToIndependentVariablesPass());
 	});
 }

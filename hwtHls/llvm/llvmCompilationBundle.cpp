@@ -74,7 +74,6 @@
 #include <llvm/Transforms/Utils.h>
 #include <llvm/Transforms/Utils/Local.h>
 #include <llvm/Support/CommandLine.h>
-
 #include <llvm/Target/TargetMachine.h>
 //#include <llvm/Support/TargetSelect.h>
 #include <llvm/Support/CodeGen.h>
@@ -82,6 +81,7 @@
 #include <llvm/CodeGen/MachineModuleInfo.h>
 #include <llvm/CodeGen/TargetPassConfig.h>
 
+#include <hwtHls/llvm/llvmHwtHlsInstrumentation.h>
 #include <hwtHls/llvm/targets/hwtFpgaTargetInfo.h>
 #include <hwtHls/llvm/targets/hwtFpgaTargetMachine.h>
 #include <hwtHls/llvm/Transforms/extractBitConcatAndSliceOpsPass.h>
@@ -95,7 +95,6 @@
 #include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamReadLoweringPass.h>
 #include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamWriteLoweringPass.h>
 #include <hwtHls/llvm/Transforms/streamLoopUnrollPass/streamLoopUnrollPass.h>
-
 
 namespace hwtHls {
 
@@ -117,7 +116,7 @@ static llvm::cl::opt<DebugLogging> DebugPMCliOpt(
             DebugLogging::Verbose, "verbose",
             "Print extra information about adaptors and pass managers")));
 
-
+// https://discourse.llvm.org/t/how-to-implement-a-disable-pass-option/71149/12
 LlvmCompilationBundle::LlvmCompilationBundle(const std::string &moduleName) :
 		ctx(), strCtx(), module(new llvm::Module(strCtx.addStringRef(moduleName), ctx)),
 		builder(ctx), main(nullptr), MMIWP(nullptr), VerifyEachPass(false), DebugPM(DebugPMCliOpt.getValue()) {
@@ -192,6 +191,7 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 	llvm::StandardInstrumentations SI(ctx, DebugPM != DebugLogging::None,
 	                            VerifyEachPass, PrintPassOpts);
 	SI.registerCallbacks(PIC, &FAM);
+	hwtHls::registerInstrumenationHwtHlsSkipPass(PIC);
 	_initPassBuilder();
 	PB->registerModuleAnalyses(MAM);
 	PB->registerCGSCCAnalyses(CGAM);
@@ -303,11 +303,24 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 }
 
 
+void LlvmCompilationBundle::runExprOpt() {
+	_runCustomFunctionPass([](llvm::FunctionPassManager &FPM) {
+			 FPM.addPass(llvm::EarlyCSEPass());
+			 // FPM.addPass(hwtHls::BitwidthReductionPass());
+			 FPM.addPass(llvm::CorrelatedValuePropagationPass());
+			 FPM.addPass(llvm::AggressiveInstCombinePass());
+			 FPM.addPass(llvm::InstCombinePass());
+			 // FPM.addPass(hwtHls::SlicesMergePass());
+			 FPM.addPass(hwtHls::IcmpToOnlyEqLtLePass());
+		});
+}
+
 void LlvmCompilationBundle::_addInitialNormalizationPasses(
 		llvm::FunctionPassManager &FPM) {
 	FPM.addPass(hwtHls::TrivialSimplifyCFGPass());
 	llvm::LoopPassManager LPM0;
 	LPM0.addPass(hwtHls::LoopUnrotatePass());
+
 	FPM.addPass(llvm::createFunctionToLoopPassAdaptor(std::move(LPM0),
 			/*UseMemorySSA=*/ false,
 			/*UseBlockFrequencyInfo=*/ false));
@@ -596,6 +609,7 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 							llvm::LoopUnrollAndJamPass(
 									Level.getSpeedupLevel())));
 		}
+
 		FPM.addPass(
 				llvm::LoopUnrollPass(
 						llvm::LoopUnrollOptions(Level.getSpeedupLevel(), /*OnlyWhenForced=*/
