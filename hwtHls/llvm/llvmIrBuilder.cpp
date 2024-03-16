@@ -28,6 +28,8 @@ void register_IRBuilder(pybind11::module_ & m) {
 		.def("CreateAdd", &llvm::IRBuilder<>::CreateAdd, py::return_value_policy::reference)
 		.def("CreateSub", &llvm::IRBuilder<>::CreateSub, py::return_value_policy::reference)
 		.def("CreateMul", &llvm::IRBuilder<>::CreateMul, py::return_value_policy::reference)
+		.def("CreateUDiv", &llvm::IRBuilder<>::CreateUDiv, py::return_value_policy::reference)
+		.def("CreateSDiv", &llvm::IRBuilder<>::CreateSDiv, py::return_value_policy::reference)
 		.def("CreateLShr", [](llvm::IRBuilder<> * self, llvm::Value *LHS, llvm::Value *RHS,
 				const llvm::Twine &Name = "", bool isExact=false) {
 			return self->CreateLShr(LHS, RHS, Name, isExact);
