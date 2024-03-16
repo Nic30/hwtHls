@@ -46,25 +46,32 @@ void collectDirectLiveinsAndDefines(llvm::MachineRegisterInfo &MRI,
 		unsigned opCnt = i.getNumOperands();
 		if (i.getOpcode() == TargetOpcode::PHI
 				|| i.getOpcode() == TargetOpcode::G_PHI) {
-			llvm_unreachable(
-					"NotImplemented - fill req with proper register, mbb pairs");
-		}
-		// uses must be seen first, defs after
-		for (unsigned _i = opCnt; _i > 0; --_i) {
-			auto &v = i.getOperand(_i - 1);
-			if (!v.isReg()) {
-				continue;
-			}
-			if (v.isDef() || v.isUndef()) {
-				defines.insert(v.getReg());
-			} else if (!defines.contains(v.getReg())) {
-				auto r = v.getReg();
-				if (auto *defMO = MRI.getOneDef(r)) {
-					if (ignoreInstrPredicate(MRI, *defMO->getParent())) {
-						continue;
-					}
+		    for (unsigned Idx = 1; Idx < i.getNumOperands(); Idx += 2) {
+		      const MachineOperand &Src = i.getOperand(Idx);
+		      Register SrcReg = Src.getReg();
+		      const MachineOperand &_SrcMBB = i.getOperand(Idx+1);
+		      MachineBasicBlock * SrcMBB = _SrcMBB.getMBB();
+		      liveins.insert( { SrcReg, SrcMBB });
+		    }
+			defines.insert(i.getOperand(0).getReg());
+		} else {
+			// uses must be seen first, defs after
+			for (unsigned _i = opCnt; _i > 0; --_i) {
+				auto &v = i.getOperand(_i - 1);
+				if (!v.isReg()) {
+					continue;
 				}
-				liveins.insert( { r, nullptr });
+				if (v.isDef() || v.isUndef()) {
+					defines.insert(v.getReg());
+				} else if (!defines.contains(v.getReg())) {
+					auto r = v.getReg();
+					if (auto *defMO = MRI.getOneDef(r)) {
+						if (ignoreInstrPredicate(MRI, *defMO->getParent())) {
+							continue;
+						}
+					}
+					liveins.insert( { r, nullptr });
+				}
 			}
 		}
 	}
