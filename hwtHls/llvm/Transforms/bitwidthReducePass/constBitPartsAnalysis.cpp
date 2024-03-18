@@ -548,10 +548,9 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitCmpInst(const CmpInst *I) {
 			// (this switch does not contains check of eq because it was already checked)
 			switch (op) {
 			case CmpInst::Predicate::ICMP_UGE:
-			case CmpInst::Predicate::ICMP_SGE:
 				// o0 >= min -> 1 (if prefix msb equal)
 				// max >= o1 -> 1 (if prefix msb equal)
-				if (v1IsMin || v0IsMax) {
+				if (v0IsMax || v1IsMin) {
 					doesAffectResult = false;
 				}
 				break;
@@ -560,6 +559,8 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitCmpInst(const CmpInst *I) {
 			case CmpInst::Predicate::ICMP_SGT:
 			case CmpInst::Predicate::ICMP_ULT:
 			case CmpInst::Predicate::ICMP_SLT:
+			case CmpInst::Predicate::ICMP_SLE:
+			case CmpInst::Predicate::ICMP_SGE:
 				//  // we can not do this because o0/i1 may be just the min/max
 				// {
 				// // o0 > max -> 0
@@ -588,10 +589,9 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitCmpInst(const CmpInst *I) {
 				break;
 
 			case CmpInst::Predicate::ICMP_ULE:
-			case CmpInst::Predicate::ICMP_SLE:
 				// o0 <= max -> 1 (if prefix msb equal)
 				// min <= o1 -> 1 (if prefix msb equal)
-				if (v1IsMax || v0IsMin) {
+				if (v0IsMin || v1IsMax) {
 					doesAffectResult = false;
 				}
 				break;
@@ -646,15 +646,15 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitCmpInst(const CmpInst *I) {
 				break;
 			case CmpInst::Predicate::ICMP_SGE:
 			case CmpInst::Predicate::ICMP_SGT:
-				if (_v0 && _v1) {
-					if (v0.sgt(v1)) {
-						is1 = true;
-					} else if (eq && op == CmpInst::Predicate::ICMP_SGE) {
-						doesAffectResult = false;
-					} else {
-						is0 = true;
-					}
-				}
+				// if (_v0 && _v1) {
+				// 	if (v0.sgt(v1)) {
+				// 		is1 = true;
+				// 	} else if (eq && op == CmpInst::Predicate::ICMP_SGE) {
+				// 		doesAffectResult = false;
+				// 	} else {
+				// 		is0 = true;
+				// 	}
+				// }
 				break;
 
 			case CmpInst::Predicate::ICMP_ULT:
@@ -671,15 +671,15 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitCmpInst(const CmpInst *I) {
 				break;
 			case CmpInst::Predicate::ICMP_SLT:
 			case CmpInst::Predicate::ICMP_SLE:
-				if (_v0 && _v1) {
-					if (v0.slt(v1)) {
-						is1 = true;
-					} else if (eq && op == CmpInst::Predicate::ICMP_SLE) {
-						doesAffectResult = false;
-					} else {
-						is0 = true;
-					}
-				}
+			//	if (_v0 && _v1) {
+			//		if (v0.slt(v1)) {
+			//			is1 = true;
+			//		} else if (eq && op == CmpInst::Predicate::ICMP_SLE) {
+			//			doesAffectResult = false;
+			//		} else {
+			//			is0 = true;
+			//		}
+			//	}
 				break;
 			default:
 				assert(false && "Unknown compare operator value");
