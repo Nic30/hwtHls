@@ -18,7 +18,7 @@ As the name suggests this inlcude dir contains files with definition of common A
 * Commonly used iterator utilites (STLExtras.h)
   * make_filter_range - creates filtered iterator from iterator and filter
   * make_early_inc_range - creates iterator which internally gets successor before the item is processed by user of this iterator
-    this is usefull when removing item as the iterator is internally already on next item and delete of current item
+    this is useful when removing item as the iterator is internally already on next item and delete of current item
     does not cause issue.
   * zip_* - creates iterator of tuples from list of iterators as zip() in python
   * there are many others like replace_if, concat, one_of
