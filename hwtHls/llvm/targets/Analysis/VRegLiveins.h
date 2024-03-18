@@ -48,6 +48,11 @@ public:
 	void UpdateAfterInsertBranch(llvm::MachineBasicBlock &MBB);
 	void UpdateKillAndDeadFlags(llvm::MachineBasicBlock &MBB);
 	void UpdateKillAndDeadFlags(llvm::MachineFunction &MF);
+	/*
+	 * Before new predecessor is added update liveins of MBB, all liveouts from NewPredecMBB will become liveins
+	 * of MBB.
+	 * */
+	void UpdateLiveinsBeforeNewPredecessorAdd(llvm::MachineBasicBlock &MBB, llvm::MachineBasicBlock &NewPredecMBB);
 	void recompute();
 
 	void print(llvm::raw_ostream &O, const llvm::Module *M) const override;

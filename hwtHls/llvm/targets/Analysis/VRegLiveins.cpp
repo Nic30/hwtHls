@@ -230,6 +230,13 @@ void HwtHlsVRegLiveins::UpdateKillAndDeadFlags(llvm::MachineFunction &MF) {
 	}
 }
 
+void HwtHlsVRegLiveins::UpdateLiveinsBeforeNewPredecessorAdd(llvm::MachineBasicBlock &MBB, llvm::MachineBasicBlock &NewPredecMBB) {
+	std::set<llvm::Register> liveouts;
+	collectLiveouts(NewPredecMBB, liveouts);
+	auto & liveins = liveinsMutable(MBB);
+	liveins.insert(liveouts.begin(), liveouts.end());
+}
+
 void HwtHlsVRegLiveins::recompute() {
 	_liveins.clear();
 	runOnMachineFunction(*MF);

@@ -1856,6 +1856,10 @@ bool VRegIfConverter::IfConvertTriangle(BBInfo &BBI, IfcvtKind Kind) {
     // Now merge the entry of the triangle with the true block.
     MergeBlocks(BBI, *CvtBBI, &regsForSpeculation, Cond, false);
   }
+  if (PreRegAlloc)
+	for (auto & PHI: NextMBB.phis()) {
+		llvm_unreachable("NotImplemented - Convert phis to MUX");
+	}
 
   // Keep the CFG updated.
   BBI.BB->removeSuccessor(&CvtMBB, true);
@@ -2159,10 +2163,14 @@ bool VRegIfConverter::IfConvertDiamondCommon(
   }
 
   bimap<llvm::Register, llvm::Register> regsForSpeculation1;
+  // Add speculation replacement for all registers which are modified
+  // in BB1 and are liveins to BB2. Because we can not overwrite them
+  // if this block predicate is not satisfied. This happens automatically by
+  // predicateInstructionUsingDefRegRename.
+  MBB1.addSuccessorWithoutProb(&MBB2); // we need this to know that regs should be preserved for MBB2
   // Predicate the 'true' block.
   PredicateBlock(*BBI1, MBB1.end(), *Cond1, regsForSpeculation1,
       &RedefsByFalse);
-
   // After predicating BBI1, if there is a predicated terminator in BBI1 and
   // a non-predicated in BBI2, then we don't want to predicate the one from
   // BBI2. The reason is that if we merged these blocks, we would end up with
@@ -2180,6 +2188,12 @@ bool VRegIfConverter::IfConvertDiamondCommon(
   }
 
   bimap<llvm::Register, llvm::Register> regsForSpeculation2;
+  // Add replacement for all liveouts of BB1 or BB2.
+  // Because we can not let BB2 instruction overwrite values in those registers
+  // for BB2 predicate is not satisfied. This happens automatically by
+  // predicateInstructionUsingDefRegRename. But we need to update liveness for it.
+  VRegLiveins->UpdateLiveinsBeforeNewPredecessorAdd(MBB1, MBB1);
+
   // Predicate the 'false' block.
   PredicateBlock(*BBI2, DI2, *Cond2, regsForSpeculation2);
 
@@ -2385,7 +2399,9 @@ void VRegIfConverter::CopyAndPredicateBlock(BBInfo &ToBBI, BBInfo &FromBBI,
     // Make a copy of the call site info.
     if (I.isCandidateForCallSiteEntry())
       MF.copyCallSiteInfo(&I, MI);
-
+    if (MI->isPHI()) {
+    	llvm_unreachable("NotImplemented - replace with copy of value for FromBBI");
+    }
     ToBBI.BB->insert(ToBBI.BB->end(), MI);
     ToBBI.NonPredSize++;
     unsigned ExtraPredCost = TII->getPredicationCost(I);
@@ -2452,6 +2468,10 @@ void VRegIfConverter::MergeBlocks(BBInfo &ToBBI, BBInfo &FromBBI,
           if (MO.isMBB() && !ToBBI.BB->isSuccessor(MO.getMBB()))
             ToBBI.BB->addSuccessor(MO.getMBB(), BranchProbability::getZero());
 
+  for (MachineInstr &MI : FromMBB)
+   if (MI.isPHI()) {
+	   llvm_unreachable("NotImplemented, assert that the phi stays on top, update incoming blocks, convert to MUX");
+   }
   // In case FromMBB contains terminators (e.g. return instruction),
   // first move the non-terminator instructions, then the terminators.
   MachineBasicBlock::iterator FromTI = FromMBB.getFirstTerminator();
