@@ -326,6 +326,7 @@ llvm::Value* BitPartsRewriter::rewritePHINodeArgsIfRequired(
 	}
 	VarBitConstraint &vbc = *phiConstr->second;
 	assert(newPhi != nullptr);
+	assert(newPhi != phi);
 	IRBuilder<> b(phi);
 
 	unsigned opI = 0;
@@ -366,6 +367,12 @@ llvm::Value* BitPartsRewriter::rewritePHINodeArgsIfRequired(
 		}
 		newPhi->addIncoming(val, pred);
 		opI += 2;
+	}
+	if (newPhi->isSameOperationAs(phi)) {
+		_newPhi->second = phi;
+		newPhi->replaceAllUsesWith(phi);
+		newPhi->eraseFromParent();
+		newPhi = phi;
 	}
 	return newPhi;
 }
