@@ -194,10 +194,13 @@ void LlvmCompilationBundle::_testVRegIfConverter() {
 	});
 }
 
-void LlvmCompilationBundle::_testVRegIfConverterForIr() {
-	_testMachineFunctionPass([](llvm::HwtFpgaTargetPassConfig &TPC) {
+void LlvmCompilationBundle::_testVRegIfConverterForIr(bool lowerSsaToNonSsa) {
+	_testMachineFunctionPass([lowerSsaToNonSsa](llvm::HwtFpgaTargetPassConfig &TPC) {
 		if (TPC.addISelPasses())
 			llvm_unreachable("Can not addISelPasses");
+		if (lowerSsaToNonSsa) {
+			TPC._testAddPass(&llvm::PHIEliminationID);
+		}
 		TPC._testAddPass(hwtHls::createVRegIfConverter(nullptr));
 		//TPC._testAddPass(llvm::createHwtFpgaPreRegAllocCombiner());
 		//TPC._testAddPass(&hwtHls::EarlyMachineCopyPropagationID);

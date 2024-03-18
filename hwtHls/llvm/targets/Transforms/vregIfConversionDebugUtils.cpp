@@ -4,8 +4,6 @@ using namespace llvm;
 
 namespace hwtHls {
 
-size_t VRegIfConverter::dbgCntr = 0;
-
 const char* VRegIfConverter::IfcvtKind_toStr(VRegIfConverter::IfcvtKind Kind) {
 	switch (Kind) {
 	case ICSimple:

@@ -30,7 +30,7 @@ class VRegIfConverter_TC(BaseSsaTC):
         assert MF is not None
         self.assert_same_as_file(str(MF), os.path.join("data", self.__class__.__name__ + "." + nameOfMain + ".out.mir.ll"))
 
-    def _test_ll_IR(self, irStr: str):
+    def _test_ll_IR(self, irStr: str, lowerSsaToNonSsa=False):
         irStr = generateAndAppendHwtHlsFunctionDeclarations(irStr)
         llvm = LlvmCompilationBundle("test")
         Err = SMDiagnostic()
@@ -43,7 +43,7 @@ class VRegIfConverter_TC(BaseSsaTC):
             llvm.main = fns[0]
             name = llvm.main.getName().str()
 
-        llvm._testVRegIfConverterForIr()
+        llvm._testVRegIfConverterForIr(lowerSsaToNonSsa)
         MF = llvm.getMachineFunction(llvm.main)
         assert MF
         self.assert_same_as_file(str(MF), os.path.join("data", self.__class__.__name__ + "." + name + ".out.mir.ll"))
@@ -223,6 +223,47 @@ class VRegIfConverter_TC(BaseSsaTC):
         """
         self._test_ll_IR(ir)
 
+    def test_TriangleWithLiveoutSsa(self):
+        # same as test_Triangle but with phi at end
+        ir = """\
+        define void @triangleWithLiveoutSsa(i1 addrspace(2)* %iC0, i8 addrspace(3)* %o) {
+          EBB:
+            %c0 = load volatile i1, i1 addrspace(2)* %iC0, align 1
+            br i1 %c0, label %TBB, label %FBB
+          TBB:
+            store volatile i8 0, i8 addrspace(3)* %o, align 1
+            br label %FBB
+          FBB:
+            %res = phi i8 [ 2, %EBB ], [ 3, %TBB ]
+            store volatile i8 %res, i8 addrspace(3)* %o, align 1
+            ret void
+        }
+        """
+        self._test_ll_IR(ir)
+
+    def test_TriangleWithLiveout(self):
+        # same as test_TriangleWidthLiveoutSsa just with lowering to non-SSA
+        ir = """\
+        define void @triangleWithLiveout(i1 addrspace(2)* %iC0, i8 addrspace(3)* %o) {
+          EBB:
+            %c0 = load volatile i1, i1 addrspace(2)* %iC0, align 1
+            br i1 %c0, label %TBB, label %FBB
+          TBB:
+            store volatile i8 0, i8 addrspace(3)* %o, align 1
+            br label %FBB
+          FBB:
+            %res = phi i8 [ 2, %EBB ], [ 3, %TBB ]
+            store volatile i8 %res, i8 addrspace(3)* %o, align 1
+            ret void
+        }
+        """
+        self._test_ll_IR(ir, lowerSsaToNonSsa=True)
+
+    def test_TriangleWithLiveoutStoredMultipletimes(self):
+        # same as test_TriangleWithLiveout just register is written multipletimes
+        # in if-converted block
+        self._test_ll()
+
     def test_ForkedTriangle0(self):  # BB is entry of a triangle sub-CFG.
         # Triangle:
         #   EBB
@@ -316,6 +357,27 @@ class VRegIfConverter_TC(BaseSsaTC):
         """
         self._test_ll_IR(ir)
 
+    def test_Diamond0withLiveout(self):
+        # same as Diamond0 just with extra live registers on entry to TailBB
+        ir = """\
+        define void @diamond0withLiveout(i1 addrspace(2)* %iC0, i8 addrspace(3)* %o) {
+          EBB:
+            %c0 = load volatile i1, i1 addrspace(2)* %iC0, align 1
+            br i1 %c0, label %TBB, label %FBB
+          TBB:
+            store volatile i8 10, i8 addrspace(3)* %o, align 1
+            br label %TailBB
+          FBB:
+            store volatile i8 11, i8 addrspace(3)* %o, align 1
+            br label %TailBB
+          TailBB:
+            %res = phi i8 [ 2, %TBB ], [ 3, %FBB ]
+            store volatile i8 %res, i8 addrspace(3)* %o, align 1
+            ret void
+        }
+        """
+        self._test_ll_IR(ir, lowerSsaToNonSsa=True)
+
 #    def test_ForkedDiamond(self):# BB is entry of an almost diamond sub-CFG, with a
         # ForkedDiamond:
         # if TBB and FBB have a common tail that includes their conditional
@@ -371,6 +433,97 @@ class VRegIfConverter_TC(BaseSsaTC):
         }
         """
         self._test_ll_IR(ir)
+
+    def test_LoopOptionalTail(self):
+        ir = """\
+        define void @LoopOptionalTail(ptr addrspace(1) %i, ptr addrspace(2) %o) {
+          HlsPythonHwWhile3.mainThread:
+            br label %bb1
+          
+          bb1:
+            %"i0(i_read)" = load volatile i8, ptr addrspace(1) %i, align 1
+            %"1.not" = icmp eq i8 %"i0(i_read)", 1
+            br i1 %"1.not", label %bb3, label %bb2
+          
+          bb2:
+            %"i2(i_read)" = load volatile i8, ptr addrspace(1) %i, align 1
+            store volatile i8 %"i2(i_read)", ptr addrspace(2) %o, align 1
+            %"4.not" = icmp eq i8 %"i2(i_read)", 2
+            br i1 %"4.not", label %bb1, label %bb3
+          
+          bb3:
+            store volatile i8 99, ptr addrspace(2) %o, align 1
+            br label %bb1
+        }
+        """
+        self._test_ll_IR(ir)
+
+    def test_switchInLoop(self):
+        ir = """\
+        define void @ShifterLeftUsingHwLoopWithWhileNot0.mainThread(ptr addrspace(1) %i, ptr addrspace(2) %o, ptr addrspace(3) %sh) {
+          ShifterLeftUsingHwLoopWithWhileNot0.mainThread:
+            br label %bb0
+          
+          bb0:
+            %"i0(i_read)" = load volatile i8, ptr addrspace(1) %i, align 1
+            %0 = call i7 @hwtHls.bitRangeGet.i8.i4.i7.0(i8 %"i0(i_read)", i4 0) #2
+            %"sh1(sh_read)" = load volatile i3, ptr addrspace(3) %sh, align 1
+            switch i3 %"sh1(sh_read)", label %bb0.crit_edge [
+              i3 0, label %bb
+              i3 1, label %bb.loopexit
+              i3 2, label %bb.loopexit.fold.split2
+              i3 3, label %bb.loopexit.fold.split3
+              i3 -4, label %bb.loopexit.fold.split4
+              i3 -3, label %bb.loopexit.fold.split5
+              i3 -2, label %bb.loopexit.fold.split6
+              i3 -1, label %bb.loopexit.fold.split7
+            ]
+          
+          bb0.crit_edge:
+            unreachable
+          
+          bb.loopexit.fold.split2:
+            %1 = call i6 @hwtHls.bitRangeGet.i8.i4.i6.0(i8 %"i0(i_read)", i4 0) #2
+            %2 = call i7 @hwtHls.bitConcat.i1.i6(i1 false, i6 %1) #2
+            br label %bb.loopexit
+          
+          bb.loopexit.fold.split3:
+            %3 = call i5 @hwtHls.bitRangeGet.i8.i4.i5.0(i8 %"i0(i_read)", i4 0) #2
+            %4 = call i7 @hwtHls.bitConcat.i2.i5(i2 0, i5 %3) #2
+            br label %bb.loopexit
+          
+          bb.loopexit.fold.split4:
+            %5 = call i4 @hwtHls.bitRangeGet.i8.i4.i4.0(i8 %"i0(i_read)", i4 0) #2
+            %6 = call i7 @hwtHls.bitConcat.i3.i4(i3 0, i4 %5) #2
+            br label %bb.loopexit
+          
+          bb.loopexit.fold.split5:
+            %7 = call i3 @hwtHls.bitRangeGet.i8.i4.i3.0(i8 %"i0(i_read)", i4 0) #2
+            %8 = call i7 @hwtHls.bitConcat.i4.i3(i4 0, i3 %7) #2
+            br label %bb.loopexit
+          
+          bb.loopexit.fold.split6:
+            %9 = call i2 @hwtHls.bitRangeGet.i8.i4.i2.0(i8 %"i0(i_read)", i4 0) #2
+            %10 = call i7 @hwtHls.bitConcat.i5.i2(i5 0, i2 %9) #2
+            br label %bb.loopexit
+          
+          bb.loopexit.fold.split7:
+            %11 = call i1 @hwtHls.bitRangeGet.i8.i4.i1.0(i8 %"i0(i_read)", i4 0) #2
+            %12 = call i7 @hwtHls.bitConcat.i6.i1(i6 0, i1 %11) #2
+            br label %bb.loopexit
+          
+          bb.loopexit:
+            %.phiConc36 = phi i7 [ %0, %bb0 ], [ %2, %bb.loopexit.fold.split2 ], [ %4, %bb.loopexit.fold.split3 ], [ %6, %bb.loopexit.fold.split4 ], [ %8, %bb.loopexit.fold.split5 ], [ %10, %bb.loopexit.fold.split6 ], [ %12, %bb.loopexit.fold.split7 ]
+            %13 = call i8 @hwtHls.bitConcat.i1.i7(i1 false, i7 %.phiConc36) #2
+            br label %bb
+          
+          bb:
+            %.phiConc38 = phi i8 [ %"i0(i_read)", %bb0 ], [ %13, %bb.loopexit ]
+            store volatile i8 %.phiConc38, ptr addrspace(2) %o, align 1
+            br label %bb0
+        }
+        """
+        self._test_ll_IR(ir, lowerSsaToNonSsa=True)
 
 
 if __name__ == "__main__":

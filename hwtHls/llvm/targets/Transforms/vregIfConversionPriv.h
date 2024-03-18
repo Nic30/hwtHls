@@ -155,7 +155,7 @@ class VRegIfConverter: public llvm::MachineFunctionPass {
 
 	// debug variables
 	bool enableTrace;
-	static size_t dbgCntr;
+	size_t dbgCntr;
 
 public:
 	static char ID;

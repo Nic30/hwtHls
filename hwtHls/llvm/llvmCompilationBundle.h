@@ -87,7 +87,7 @@ public:
 	void _testVRegIfConverter();
 	// _testVRegIfConverter which has input in LLVM IR
 	// (which is then translated to MIR which is then processed by VRegIfConverter)
-	void _testVRegIfConverterForIr();
+	void _testVRegIfConverterForIr(bool lowerSsaToNonSsa);
 };
 
 }

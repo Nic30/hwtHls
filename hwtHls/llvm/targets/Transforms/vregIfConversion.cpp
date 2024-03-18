@@ -4,7 +4,7 @@
 // This file implements the machine instruction level if-conversion pass, which
 // tries to convert conditional branches into predicated instructions.
 // Original did it for physical registers, this variant works with virtual registers only.
-// :note: It is preffered if all changes to this pass are made outside of this file
+// :note: It is preferred if all changes to this pass are made outside of this file
 //        to simplify upgrade to next versions of LLVM.
 //===----------------------------------------------------------------------===//
 #include <hwtHls/llvm/targets/Transforms/vregIfConversion.h>
@@ -115,7 +115,7 @@ namespace hwtHls {
 
 VRegIfConverter::VRegIfConverter(std::function<bool(const llvm::MachineFunction&)> Ftor) :
   llvm::MachineFunctionPass(ID), PreRegAlloc(false),
-  MadeChange(false), PredicateFtor(std::move(Ftor)), enableTrace(IfCvtTrace) {
+  MadeChange(false), PredicateFtor(std::move(Ftor)), enableTrace(IfCvtTrace), dbgCntr(0) {
   initializeIfConverterPass(*PassRegistry::getPassRegistry());
 }
 
@@ -1780,7 +1780,7 @@ bool VRegIfConverter::IfConvertTriangle(BBInfo &BBI, IfcvtKind Kind) {
   BBInfo *CvtBBI = &TrueBBI;
   BBInfo *NextBBI = &FalseBBI;
   DebugLoc dl;  // FIXME: this is nowhere
-
+  // normalize cond/CvtBBI to be in if(cond) CvtBB() format
   SmallVector<MachineOperand, 4> Cond(BBI.BrCond.begin(), BBI.BrCond.end());
   if (Kind == ICTriangleFalse || Kind == ICTriangleFRev)
     std::swap(CvtBBI, NextBBI);
@@ -2469,7 +2469,7 @@ void VRegIfConverter::MergeBlocks(BBInfo &ToBBI, BBInfo &FromBBI,
             ToBBI.BB->addSuccessor(MO.getMBB(), BranchProbability::getZero());
 
   for (MachineInstr &MI : FromMBB)
-   if (MI.isPHI()) {
+   if (MI.getOpcode() == TargetOpcode::PHI || MI.getOpcode() == TargetOpcode::G_PHI) {
 	   llvm_unreachable("NotImplemented, assert that the phi stays on top, update incoming blocks, convert to MUX");
    }
   // In case FromMBB contains terminators (e.g. return instruction),

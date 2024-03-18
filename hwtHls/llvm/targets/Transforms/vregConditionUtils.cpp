@@ -243,7 +243,7 @@ void predicateInstructionUsingDefRegRename(llvm::MachineRegisterInfo &MRI,
 			continue;
 
 		auto MOReg = MO.getReg();
-		auto curReplacement = regReplaces.find0(MOReg);
+		auto curReplacement = regReplaces.find1(MOReg);
 		if (MO.isDef()) {
 			// check if we have to create a temporary register for this define
 			// or if it used only locally
