@@ -1,3 +1,5 @@
+#pragma once
+
 #include <llvm/IR/Value.h>
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/IR/IRBuilder.h>

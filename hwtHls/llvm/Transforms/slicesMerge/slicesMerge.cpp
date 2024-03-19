@@ -87,34 +87,39 @@ PreservedAnalyses SlicesMergePass::run(Function &F,
 			std::pair<Value*, uint64_t> key(bitVec, lowBitNo);
 			auto cur = slices.find(key);
 			if (cur == slices.end()) {
+				// create a new slice because there is non on this vector
 				auto _slice = CreateBitRangeGetConst(Builder, bitVec, lowBitNo,
 						bitWidth);
 				if (auto _sliceI = dyn_cast<Instruction>(_slice)) {
-					if (IsBitRangeGetInst(_sliceI))
+					if (IsBitRangeGetInst(_sliceI)) {
 						slices[key] = { _sliceI };
+					}
 				}
 				return _slice;
 			} else {
-				for (auto sliceItem : cur->second) {
+				for (Instruction* sliceItem : cur->second) {
 					if (sliceItem->getType()->getIntegerBitWidth()
 							== bitWidth) {
+						// return existing slice with proper lowBitNo, bitWidth
 						return (Value*) sliceItem;
 					}
 				}
+				// create new slice because all other slices are different than requested
 				auto _slice = CreateBitRangeGetConst(Builder, bitVec, lowBitNo,
 						bitWidth);
 				if (auto _sliceI = dyn_cast<Instruction>(_slice)) {
-					if (IsBitRangeGetInst(_sliceI))
+					if (IsBitRangeGetInst(_sliceI)) {
 						cur->second.push_back(_sliceI);
+					}
 				}
 				return _slice;
 			}
 		};
 
-		for (BasicBlock &BB : F) {
-			change |= phiShiftPatternRewrite(BB, createSlice);
-		}
 		DceWorklist dce(TLI, &slices);
+		for (BasicBlock &BB : F) {
+			change |= phiShiftPatternRewrite(BB, createSlice, dce);
+		}
 		for (BasicBlock &BB : F) {
 			for (auto I = BB.begin(); I != BB.end();) {
 				if (dce.tryRemoveIfDead(*I, I)) {
@@ -139,23 +144,23 @@ PreservedAnalyses SlicesMergePass::run(Function &F,
 #endif
 						_changed = rewriteConcat(CallI, createSlice, dce);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
-	{
-		std::string errTmp = "hwtHls::SlicesMergePass rewriteConcat corrupted function ";
-		llvm::raw_string_ostream errSS(errTmp);
-		errSS << F.getName().str();
-		errSS << "\n";
-		if (verifyModule(*F.getParent(), &errSS)) {
-			throw std::runtime_error(errSS.str());
-		}
-	}
+						{
+							std::string errTmp = "hwtHls::SlicesMergePass rewriteConcat corrupted function ";
+							llvm::raw_string_ostream errSS(errTmp);
+							errSS << F.getName().str();
+							errSS << "\n";
+							if (verifyModule(*F.getParent(), &errSS)) {
+								throw std::runtime_error(errSS.str());
+							}
+						}
 #endif
 					}
 				}
 
 				if (!_changed && !slices.empty()) {
-					_changed |= mergeConsequentSlices(*I, createSlice,
-							dce);
+					_changed |= mergeConsequentSlices(*I, createSlice, dce);
 				}
+				_changed |= !dce.empty();
 				change |= _changed;
 				if (_changed) {
 					change |= dce.tryRemoveIfDead(*I, I);

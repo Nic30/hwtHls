@@ -1,6 +1,7 @@
 #pragma once
 #include <llvm/IR/BasicBlock.h>
 #include <hwtHls/llvm/Transforms/slicesMerge/utils.h>
+#include <hwtHls/llvm/Transforms/utils/dceWorklist.h>
 
 namespace hwtHls {
 
@@ -33,7 +34,7 @@ namespace hwtHls {
  *   we must extract all PHIs which are chained together because
  *   bitRangeGet and concat can not be inserted between PHIs
  * */
-bool phiShiftPatternRewrite(llvm::BasicBlock &BB, const CreateBitRangeGetFn & createSlice);
+bool phiShiftPatternRewrite(llvm::BasicBlock &BB, const CreateBitRangeGetFn & createSlice, DceWorklist & dce);
 
 /*
  * Create one wider PHINode from group of phis

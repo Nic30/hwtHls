@@ -36,6 +36,7 @@ public:
 	using BASE_T::empty;
 	using iterator = typename BASE_T::iterator;
 	using reference = typename BASE_T::reference;
+	using const_reference = typename BASE_T::const_reference;
 	using difference_type = typename BASE_T::difference_type;
 	using const_iterator = typename BASE_T::const_iterator;
 

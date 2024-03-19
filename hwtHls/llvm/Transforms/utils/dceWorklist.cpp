@@ -17,9 +17,7 @@ using namespace llvm;
 namespace hwtHls {
 
 // copied from llvm/lib/Transforms/Scalar/DCE.cpp
-bool DCEInstruction(Instruction *I, SmallSetVector<Instruction*, 16> &WorkList,
-		const TargetLibraryInfo *TLI, BasicBlock::iterator &curI,
-		DceWorklist::SliceDict *slices) {
+bool DceWorklist::DCEInstruction(Instruction *I, BasicBlock::iterator &curI) {
 	if (isInstructionTriviallyDead(I, TLI)) {
 		salvageDebugInfo(*I);
 		salvageKnowledge(I);
@@ -46,17 +44,7 @@ bool DCEInstruction(Instruction *I, SmallSetVector<Instruction*, 16> &WorkList,
 			++curI; // increment current iterator so the parent skips this remove instruction
 		}
 		if (slices && sliceItem.value != I) {
-			auto _slicesList = slices->find(
-					{ sliceItem.value, sliceItem.offset });
-			if (_slicesList != slices->end()) {
-				// the bit range get may not be registered if it was generated originally for a different bit vector
-				// and during optimization the expression of base bitVector changed
-				auto &slicesList = _slicesList->second;
-				auto it = std::find(slicesList.begin(), slicesList.end(),
-						sliceItem.value);
-				if (it != slicesList.end())
-					slicesList.erase(it);
-			}
+			erraseFromSlices(sliceItem, *I);
 		}
 		I->eraseFromParent();
 		return true;
@@ -76,7 +64,7 @@ void DceWorklist::insert(llvm::Instruction &I) {
 bool DceWorklist::tryRemoveIfDead(llvm::Instruction &I,
 		BasicBlock::iterator &curI) {
 	if (!WorkList.count(&I)) {
-		return DCEInstruction(&I, WorkList, TLI, curI, slices);
+		return DCEInstruction(&I, curI);
 	}
 	return false;
 }
@@ -84,9 +72,50 @@ bool DceWorklist::runToCompletition(llvm::BasicBlock::iterator &curIt) {
 	bool MadeChange = false;
 	while (!WorkList.empty()) {
 		Instruction *I = WorkList.pop_back_val();
-		MadeChange |= DCEInstruction(I, WorkList, TLI, curIt, slices);
+		MadeChange |= DCEInstruction(I, curIt);
 	}
 	return MadeChange;
+}
+void DceWorklist::erraseFromSlices(OffsetWidthValue sliceItem, Instruction & I) {
+	auto _slicesList = slices->find( { sliceItem.value, sliceItem.offset });
+	if (_slicesList != slices->end()) {
+		// the bit range get may not be registered if it was generated originally for a different bit vector
+		// and during optimization the expression of base bitVector changed
+		auto &slicesList = _slicesList->second;
+		auto it = std::find(slicesList.begin(), slicesList.end(),
+				&I);
+		if (it != slicesList.end())
+			slicesList.erase(it);
+		if (slicesList.empty()) {
+			slices->erase( { sliceItem.value, sliceItem.offset });
+		}
+	}
+}
+void DceWorklist::updateSlicesBeforeReplace(llvm::Instruction &I,
+		llvm::Value &replacement) {
+	if (slices == nullptr || &I == &replacement || !I.getType()->isIntegerTy())
+		return;
+
+	auto *replacementI = dyn_cast<Instruction>(&replacement);
+	for (auto *u : I.users()) {
+		if (auto *ui = dyn_cast<Instruction>(u)) {
+			if (!ui->getType()->isIntegerTy())
+				continue;
+			OffsetWidthValue sliceItem = OffsetWidthValue::fromValue(ui);
+			if (sliceItem.value != ui) {
+				erraseFromSlices(sliceItem, I);
+				if (replacementI) {
+					SliceDict::key_type newKey(replacementI, sliceItem.offset);
+					auto _slicesList = slices->find(newKey);
+					if (_slicesList == slices->end()) {
+						(*slices)[newKey] = { ui };
+					} else {
+						_slicesList->second.push_back(ui);
+					}
+				}
+			}
+		}
+	}
 }
 
 }

@@ -44,6 +44,7 @@ bool mergeInstructionsInVector(SmallVector<OffsetWidthValue> &members,
 								&& I->comesBefore(widerInstr) ? widerInstr : I);
 				IRBuilder_setInsertPointBehindPhi(builder, I);
 				auto *slice = createSlice(&builder, widerI, offset, _I->width);
+				dce.updateSlicesBeforeReplace(*I, *slice);
 				I->replaceAllUsesWith(slice);
 				dce.insert(*I);
 				break;
@@ -272,6 +273,7 @@ bool rewriteConcat(CallInst *I, const CreateBitRangeGetFn &createSlice,
 		if (_newI)
 			*_newI = newI;
 		assert(newI != I);
+		dce.updateSlicesBeforeReplace(*I, *newI);
 		I->replaceAllUsesWith(newI);
 		dce.insert(*I); // can not remove immediately due to parent interators
 		modified = true;

@@ -1,8 +1,10 @@
 #pragma once
+
 #include <llvm/IR/Instructions.h>
 #include <hwtHls/llvm/Transforms/slicesMerge/utils.h>
 #include <hwtHls/llvm/Transforms/utils/dceWorklist.h>
 #include <hwtHls/llvm/Transforms/slicesMerge/parallelInstrVec.h>
+
 // #define DBG_VERIFY_AFTER_EVERY_MODIFICATION
 
 namespace hwtHls {

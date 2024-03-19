@@ -90,6 +90,7 @@ void replaceMergedInstructions(const ParallelInstVec &parallelInstrOnSameVec,
 		auto w = partI->getType()->getIntegerBitWidth();
 		auto repl = createSlice(&builder, res, offset, w);
 		if (repl != partI) {
+			dce.updateSlicesBeforeReplace(*partI, *repl);
 			partI->replaceAllUsesWith(repl);
 			dce.insert(*partI);
 		}
@@ -97,10 +98,10 @@ void replaceMergedInstructions(const ParallelInstVec &parallelInstrOnSameVec,
 	}
 
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
-	auto &I = *parallelInstrOnSameVec[0].second;
+	const Instruction &I = *parallelInstrOnSameVec[0].I;
 	auto &F = *I.getParent()->getParent();
 	auto &M = *F.getParent();
-	std::string errTmp = "replaceMergedInstructions - replacing brokenn";
+	std::string errTmp = "replaceMergedInstructions - replacing broken";
 	llvm::raw_string_ostream errSS(errTmp);
 	errSS << F.getName().str();
 	errSS << "\n";
@@ -247,11 +248,14 @@ bool collectParallelInstructionOnSameVector(DceWorklist::SliceDict &slices,
 		llvm::Value *op0BitVec, uint64_t op0Offset, uint64_t op0Width,
 		size_t op0Index, llvm::Value *op1BitVec, uint64_t op1Offset,
 		uint64_t op1Width, size_t op1Index) {
-
+	assert(op0Index != op1Index);
 	auto op0asC = dyn_cast<Constant>(op0BitVec);
 	auto op0SucSlices = slices.end();
 	if (!op0asC) {
-		op0SucSlices = slices.find( { op0BitVec, op0Offset + op0Width });
+		op0SucSlices = slices.find({ op0BitVec, op0Offset + op0Width });
+		if (op0BitVec->getType()->getIntegerBitWidth() == op0Offset + op0Width) {
+			assert(op0SucSlices == slices.end() && "This is end of bit vector there should not be any successor slice");
+		}
 		if (op0SucSlices == slices.end())
 			return false;
 	}
@@ -293,6 +297,7 @@ bool collectParallelInstructionOnSameVector(DceWorklist::SliceDict &slices,
 		} else {
 			assert(op0SucSlices != slices.end());
 			for (Instruction *op0Suc : op0SucSlices->second) {
+				assert(slices.find({ op0BitVec, op0Offset + op0Width }) != slices.end());
 				if (collectParallelInstructionOnSameVectorFindFollowingInstr(
 						slices, parallelInstrOnSameVec, I, extraCheck,
 						commutative, op0BitVec, op0Offset, op0Width, op0Index,
@@ -498,6 +503,7 @@ std::tuple<bool, Value*, Value*> mergeConsequentSlicesExtractWiderOperads(
 		auto op0width = op0->getType()->getIntegerBitWidth();
 		auto op1width = op1->getType()->getIntegerBitWidth();
 		assert(dce.getSliceDict());
+
 		// [fixme] select and phi may have parallelInstrOnSameVec invalid after instruction was extracted
 		if (collectParallelInstructionOnSameVector(*dce.getSliceDict(),
 				parallelInstrOnSameVec, I, extraCheck, commutative, op0BitVec,

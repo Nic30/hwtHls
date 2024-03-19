@@ -4,6 +4,7 @@
 #include <sstream>
 
 #include <llvm/IR/IRBuilder.h>
+#include <llvm/ADT/SetVector.h>
 
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <hwtHls/llvm/targets/intrinsic/concatMemberVector.h>
@@ -121,14 +122,14 @@ PHINode* mergePhisToWiderPhi(LLVMContext & C, const Twine& nameStem, const std::
 	return widerPhi;
 }
 
-bool phiShiftPatternRewrite(BasicBlock &BB, const CreateBitRangeGetFn & createSlice) {
+bool phiShiftPatternRewrite(BasicBlock &BB, const CreateBitRangeGetFn & createSlice, DceWorklist & dce) {
 	map<PHINode*, shared_ptr<set<PHINode*>>> phiGroups;
 	for (auto &phi : BB.phis()) {
 		collectAllChanedPhisInBlock(phi, phiGroups);
 	}
-	set<PHINode*> toRm;
+	SetVector<PHINode*> toRm;
 	for (auto &phi : BB.phis()) {
-		if (toRm.find(&phi) != toRm.end())
+		if (toRm.count(&phi))
 			continue; // already converted PHI
 
 		auto group = phiGroups.find(&phi);
@@ -136,9 +137,9 @@ bool phiShiftPatternRewrite(BasicBlock &BB, const CreateBitRangeGetFn & createSl
 			continue; // just create new PHI
 		if (group->second->size() == 1)
 			continue; // pointless to rewrite to same
-		toRm.insert(group->second->begin(), group->second->end());
 
 		auto phigroup = sortPhiGroup(BB, *group->second);
+		toRm.insert(phigroup.begin(), phigroup.end());
 		auto widerPhi = mergePhisToWiderPhi(BB.getContext(), "shiftPhi", phigroup);
 		IRBuilder<> builder(&*BB.begin());
 		IRBuilder_setInsertPointBehindPhi(builder, &*BB.begin());
@@ -146,11 +147,15 @@ bool phiShiftPatternRewrite(BasicBlock &BB, const CreateBitRangeGetFn & createSl
 		for (auto _phi : phigroup) {
 			size_t bitWidth = _phi->getType()->getIntegerBitWidth();
 			auto phiSlice = createSlice(&builder, widerPhi, lowBitNo, bitWidth);
+			dce.updateSlicesBeforeReplace(*_phi, *phiSlice);
 			_phi->replaceAllUsesWith(phiSlice);
 			lowBitNo += bitWidth;
 		}
 	}
 	for (auto phi : toRm) {
+		for (Use& v: phi->incoming_values())
+			if (auto ii = dyn_cast<Instruction>(v.get()))
+				dce.insert(*ii);
 		phi->eraseFromParent();
 	}
 	return toRm.size() != 0;
