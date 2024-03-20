@@ -337,7 +337,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
     def opcode_STORE_ATTR(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:
         stack = frame.stack
         dstParent = stack.pop()
-        dst = getattr(dstParent, instr.argval)
+        dst = getattr(dstParent, instr.argval, None)
         src = stack.pop()
         src, curBlock = expandBeforeUse(self, instr.offset, frame, src, curBlock)
         if isinstance(dst, (RtlSignal, Interface)):
