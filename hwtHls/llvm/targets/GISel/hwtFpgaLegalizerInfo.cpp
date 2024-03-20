@@ -24,9 +24,18 @@ HwtFpgaLegalizerInfo::HwtFpgaLegalizerInfo(const HwtFpgaTargetSubtarget &ST) :
 	}
 	getActionDefinitionsBuilder( { G_SEXTLOAD, G_ZEXTLOAD }).custom();
 	//.lower();
-	getActionDefinitionsBuilder( { G_MEMCPY, G_MEMCPY_INLINE, G_MEMMOVE,
-			G_MEMSET, G_ABS, G_SMIN, G_SMAX, G_UMAX, G_UMIN, G_FSHL, G_FSHR,
-			G_SEXT_INREG }).lower();
+	getActionDefinitionsBuilder( {
+		// high order functions
+		G_MEMCPY, G_MEMCPY_INLINE, G_MEMMOVE,
+	    G_MEMSET, G_ABS, G_SMIN, G_SMAX, G_UMAX, G_UMIN,
+		// funnel shifts/rotations
+		G_FSHL, G_FSHR,
+	    G_SEXT_INREG,
+	    // saturated arithmetic
+	    G_SADDSAT, G_UADDSAT, G_SSUBSAT, G_USUBSAT, G_SSHLSAT, G_USHLSAT,
+	    // add/sub/modulo with carry out
+	    G_UADDO, G_SADDO, G_USUBO, G_SSUBO, G_SMULO, G_UMULO
+	}).lower();
 
 	//getActionDefinitionsBuilder({G_VASTART, G_VAARG, G_BRJT, G_JUMP_TABLE,
 	//      G_INDEXED_LOAD, G_INDEXED_SEXTLOAD,
