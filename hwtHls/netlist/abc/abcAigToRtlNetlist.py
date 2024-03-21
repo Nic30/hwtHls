@@ -136,6 +136,8 @@ class AbcAigToRtlNetlist():
                         return AllOps.OR, (tr(pc, False), tr(p1, False))
 
                     p0 = P1o1
+                    if P1o0n:
+                        p0, p1 = p1, p0
                     # mux: (pC & p1) | (~pC & p0)
                     return AllOps.TERNARY, (tr(pc, False), tr(p0, False), tr(p1, False))
 
