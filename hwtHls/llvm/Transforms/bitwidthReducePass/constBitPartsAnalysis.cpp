@@ -510,10 +510,10 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitCmpInst(const CmpInst *I) {
 		auto _v1 = dyn_cast<ConstantInt>(item.v1->src);
 		is0 = false;
 		is1 = false;
-		bool v0IsMin = false;
-		bool v0IsMax = false;
-		bool v1IsMin = false;
-		bool v1IsMax = false;
+		bool v0IsUMin = false;
+		bool v0IsUMax = false;
+		bool v1IsUMin = false;
+		bool v1IsUMax = false;
 
 		APInt v0;
 		APInt v1;
@@ -522,8 +522,8 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitCmpInst(const CmpInst *I) {
 			v0 = _v0->getValue().extractBits(item.width,
 					item.v0->srcBeginBitI
 							+ (item.begin - item.v0->dstBeginBitI));
-			v0IsMin = v0.isMinValue();
-			v0IsMax = v0.isMinValue();
+			v0IsUMin = v0.isZero();
+			v0IsUMax = v0.isAllOnes();
 
 		}
 		if (_v1) {
@@ -531,8 +531,8 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitCmpInst(const CmpInst *I) {
 			v1 = _v1->getValue().extractBits(item.width,
 					item.v1->srcBeginBitI
 							+ (item.begin - item.v1->dstBeginBitI));
-			v1IsMin = v1.isMinValue();
-			v1IsMax = v1.isMinValue();
+			v1IsUMin = v1.isZero();
+			v1IsUMax = v1.isAllOnes();
 		}
 
 		bool eq = item.v0 == item.v1;
@@ -550,7 +550,7 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitCmpInst(const CmpInst *I) {
 			case CmpInst::Predicate::ICMP_UGE:
 				// o0 >= min -> 1 (if prefix msb equal)
 				// max >= o1 -> 1 (if prefix msb equal)
-				if (v0IsMax || v1IsMin) {
+				if (v0IsUMax || v1IsUMin) {
 					doesAffectResult = false;
 				}
 				break;
@@ -591,7 +591,7 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitCmpInst(const CmpInst *I) {
 			case CmpInst::Predicate::ICMP_ULE:
 				// o0 <= max -> 1 (if prefix msb equal)
 				// min <= o1 -> 1 (if prefix msb equal)
-				if (v0IsMin || v1IsMax) {
+				if (v0IsUMin || v1IsUMax) {
 					doesAffectResult = false;
 				}
 				break;
