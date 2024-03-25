@@ -301,32 +301,37 @@ void register_Abc_Ntk_t(py::module_ &m) {
 	}, R""""(
 			Dump this network to a file in format specified by second argument.
 		)""""
+	)
+	.def("Io_WriteHie", [](Abc_Ntk_t * pNtk,  char * pBaseName, char * pFileName) {
+		Io_WriteHie(pNtk, pFileName, pFileName);
+	}, R""""(
+			Outputs the hierarchy containing black boxes into a file if the original design contained black boxes. The original file should be given as one of the arguments in this command.
+		)""""
 	).doc() = "ABC network object.";
 
 
 	py::enum_<Io_FileType_t>(m, "Io_FileType_t")
 	 .value("IO_FILE_NONE",    Io_FileType_t::IO_FILE_NONE   )//
-	 .value("IO_FILE_AIGER",   Io_FileType_t::IO_FILE_AIGER  )//
-	 .value("IO_FILE_BAF",     Io_FileType_t::IO_FILE_BAF    )//
+	 .value("IO_FILE_AIGER",   Io_FileType_t::IO_FILE_AIGER  , "Writes the combinational AIG in binary AIGER format developed by Armin Biere. This format is very compact and leads to a substantial reduction in the reading/writing times. (When writing AIGER for sequential circuits with non-0 initial states, use command zero to normalize the registers initial states.)")//
+	 .value("IO_FILE_BAF",     Io_FileType_t::IO_FILE_BAF    , "Writes the combinational AIG in Binary Aig Format (BAF). For a description of BAF, refer to the source code file src/base/io/ioWriteBaf.c. This format is superseded by the AIGER format and kept for backward compatibility with earlier versions of ABC.")//
 	 .value("IO_FILE_BBLIF",   Io_FileType_t::IO_FILE_BBLIF  )//
-	 .value("IO_FILE_BLIF",    Io_FileType_t::IO_FILE_BLIF   )//
-	 .value("IO_FILE_BLIFMV",  Io_FileType_t::IO_FILE_BLIFMV )//
-	 .value("IO_FILE_BENCH",   Io_FileType_t::IO_FILE_BENCH  )//
+	 .value("IO_FILE_BLIF",    Io_FileType_t::IO_FILE_BLIF   , "Outputs the current network into a BLIF file. If the current network is mapped using a standard cell library, outputs the current network into a BLIF file, compatible with SIS and other tools. (The same genlib library has to be selected in SIS before reading the generated file.) The current mapper does not map the registers. As a result, the mapped BLIF files generated for sequential circuits contain unmapped latches. Additionally, command write_blif with command-line switch –l writes out a part of the current network containing a combinational logic without latches.")//
+	 .value("IO_FILE_BLIFMV",  Io_FileType_t::IO_FILE_BLIFMV , "Outputs the current network into a BLIF-MV file. Two write a hierarchical BLIF-MV output, use command write_hie.")//
+	 .value("IO_FILE_BENCH",   Io_FileType_t::IO_FILE_BENCH  , "Outputs the current network into a BENCH file.")//
 	 .value("IO_FILE_BOOK",    Io_FileType_t::IO_FILE_BOOK   )//
-	 .value("IO_FILE_CNF",     Io_FileType_t::IO_FILE_CNF    )//
-	 .value("IO_FILE_DOT",     Io_FileType_t::IO_FILE_DOT    )//
+	 .value("IO_FILE_CNF",     Io_FileType_t::IO_FILE_CNF    , "Outputs the current network into a CNF file, which can be used with a variety of SAT solvers. This command is only applicable to combinational miter circuits (the miter circuit has only one output, which is expected to be zero under all input combinations).")//
+	 .value("IO_FILE_DOT",     Io_FileType_t::IO_FILE_DOT    , "Outputs the structure of the current network into a DOT file that can be processed by graph visualization package GraphViz. Currently work only if the current network is an AIG.")//
 	 .value("IO_FILE_EDIF",    Io_FileType_t::IO_FILE_EDIF   )//
-	 .value("IO_FILE_EQN",     Io_FileType_t::IO_FILE_EQN    )//
-	 .value("IO_FILE_GML",     Io_FileType_t::IO_FILE_GML    )//
+	 .value("IO_FILE_EQN",     Io_FileType_t::IO_FILE_EQN    , "Outputs the combinational part of the current network in the Synopsys equation format.")//
+	 .value("IO_FILE_GML",     Io_FileType_t::IO_FILE_GML    , "Outputs the structure of the current network into a GML file used by some graph editors, such as yEd, a free product of yWorks.")//
 	 .value("IO_FILE_JSON",    Io_FileType_t::IO_FILE_JSON   )//
 	 .value("IO_FILE_LIST",    Io_FileType_t::IO_FILE_LIST   )//
-	 .value("IO_FILE_PLA",     Io_FileType_t::IO_FILE_PLA    )//
+	 .value("IO_FILE_PLA",     Io_FileType_t::IO_FILE_PLA    , "Outputs the current network into a PLA file. The current network should be collapsed (each PO is represented by a node whose fanins are PIs). Works only for combinational networks.")//
 	 .value("IO_FILE_MOPLA",   Io_FileType_t::IO_FILE_MOPLA  )//
 	 .value("IO_FILE_SMV",     Io_FileType_t::IO_FILE_SMV    )//
-	 .value("IO_FILE_VERILOG", Io_FileType_t::IO_FILE_VERILOG)//
+	 .value("IO_FILE_VERILOG", Io_FileType_t::IO_FILE_VERILOG, "Outputs the network using technology-independent Verilog.")//
 	 .value("IO_FILE_UNKNOWN", Io_FileType_t::IO_FILE_UNKNOWN)//
-     .export_values()
-	 .doc() = ":see: https://people.eecs.berkeley.edu/~alanmi/abc/";
+     .export_values();
 
 
 	py::class_<Abc_Aig_t_pybind11_wrap, std::unique_ptr<Abc_Aig_t_pybind11_wrap, py::nodelete>>(m, "Abc_Aig_t")
