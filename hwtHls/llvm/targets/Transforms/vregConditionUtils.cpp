@@ -5,6 +5,7 @@
 #include <hwtHls/llvm/targets/hwtFpgaInstrInfo.h>
 #include <hwtHls/llvm/targets/hwtFpgaRegisterInfo.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionBuilderUtils.h>
+#include <hwtHls/llvm/targets/machineInstrUtils.h>
 
 using namespace llvm;
 using namespace llvm::MIPatternMatch;
@@ -13,7 +14,9 @@ namespace hwtHls {
 
 MachineOperand* getRegisterNegationIfExits(MachineRegisterInfo &MRI,
 		llvm::MachineBasicBlock &TargetMBB,
-		llvm::MachineBasicBlock::iterator TargetIp, Register reg) {
+		llvm::MachineBasicBlock::iterator TargetIp, Register reg,
+		bool &wasOriginallyKillOrDead) {
+	wasOriginallyKillOrDead = false;
 	if (auto *DefMO = MRI.getOneDef(reg)) {
 		auto &I = *DefMO->getParent();
 		bool Op1CanBeUsed = false;
@@ -37,6 +40,7 @@ MachineOperand* getRegisterNegationIfExits(MachineRegisterInfo &MRI,
 				auto &Op1 = I.getOperand(1);
 				auto &Op2 = I.getOperand(2);
 				if (match_OperandIs1(MRI, Op2)) {
+					wasOriginallyKillOrDead = Op1.isKill();
 					Op1.setIsKill(false);
 					return &Op1;
 				}
@@ -44,6 +48,7 @@ MachineOperand* getRegisterNegationIfExits(MachineRegisterInfo &MRI,
 			}
 			case HwtFpga::HWTFPGA_NOT: {
 				auto &Op1 = I.getOperand(1);
+				wasOriginallyKillOrDead = Op1.isKill();
 				Op1.setIsKill(false);
 				return &Op1;
 			}
@@ -93,6 +98,7 @@ MachineOperand* getRegisterNegationIfExits(MachineRegisterInfo &MRI,
 						TargetIp)) {
 					return nullptr;
 				}
+				wasOriginallyKillOrDead = Op0.isDead();
 				Op0.setIsDead(false);
 				return &Op0;
 			}
@@ -102,8 +108,9 @@ MachineOperand* getRegisterNegationIfExits(MachineRegisterInfo &MRI,
 				if (Register_isRedefinedInLinearBlockSequenceEndToBegin(
 						Op1.getReg(), prevInstr.getIterator(), TargetMBB,
 						TargetIp)) {
-					return {};
+					return nullptr;
 				}
+				wasOriginallyKillOrDead = Op1.isKill();
 				Op1.setIsKill(false);
 				return &Op1;
 			}
@@ -144,8 +151,9 @@ MachineOperand& _negateRegister(MachineRegisterInfo &MRI,
 
 Register negateRegister(MachineRegisterInfo &MRI, MachineIRBuilder &Builder,
 		Register reg, bool isKill) {
+	bool wasKillOrDead;
 	auto existingN = getRegisterNegationIfExits(MRI, Builder.getMBB(),
-			Builder.getInsertPt(), reg);
+			Builder.getInsertPt(), reg, wasKillOrDead);
 	if (existingN) {
 		return existingN->getReg();
 	}
@@ -401,6 +409,192 @@ void Condition_and_or(unsigned opcode_and_or, llvm::MachineIRBuilder &Builder,
 	}
 }
 
+class MPHIPairs {
+	MachineInstr &MI;
+public:
+	MPHIPairs(MachineInstr &_MI) :
+			MI(_MI) {
+	}
 
+	struct iterator {
+		MachineInstr &MI;
+		size_t opIndex;
+	public:
+		using iterator_category = std::forward_iterator_tag;
+		using difference_type = std::ptrdiff_t;
+		using value_type = std::pair<MachineOperand*, MachineOperand*>; // value_type (v, mbb);
+		//using pointer           = int*;  // or also value_type*
+		//using reference         = int&;
+
+		explicit iterator(MachineInstr &_MI, size_t _opIndex = 0) :
+				MI(_MI), opIndex(1 + _opIndex * 2) {
+		}
+		iterator& operator++() {
+			opIndex += 2;
+			return *this;
+		}
+		iterator operator++(int) {
+			iterator retval = *this;
+			++(*this);
+			return retval;
+		}
+		bool operator==(iterator other) const {
+			assert(&MI == &other.MI);
+			return opIndex == other.opIndex;
+		}
+		bool operator!=(iterator other) const {
+			return !(*this == other);
+		}
+		value_type operator*() const {
+			MachineOperand &Src = MI.getOperand(opIndex);
+			MachineOperand &SrcMBB = MI.getOperand(opIndex + 1);
+			return {&Src, &SrcMBB};
+		}
+	};
+	iterator begin() {
+		return iterator(MI, 0);
+	}
+	iterator end() {
+		return iterator(MI, (MI.getNumOperands() - 1) / 2);
+	}
+};
+
+struct PhiPruningItem {
+	MachineInstr *PHI;
+	MachineOperand *TopV;
+	MachineOperand *CvtV;
+	// Result of Select instruction to replace TopV, CvtV values in phi operands
+	// If nullptr it means that the whole PHI can be removed and any replacement is not required,
+	// because new Select uses dst reg of this PHI.
+	MachineOperand *selResult;
+	PhiPruningItem(MachineInstr *PHI, MachineOperand *TopV,
+			MachineOperand *CvtV, MachineOperand *selResult) :
+			PHI(PHI), TopV(TopV), CvtV(CvtV), selResult(selResult) {
+	}
+};
+
+void PHIsToSelectAfterIfCvt(HwtHlsVRegLiveins &VRegLiveins,
+		llvm::MachineBasicBlock &TopMBB,
+		const llvm::SmallVectorImpl<llvm::MachineOperand> &Cond,
+		llvm::MachineBasicBlock &CvtTMBB, llvm::MachineBasicBlock &NextMBB) {
+
+	assert(&TopMBB != &CvtTMBB);
+	if (NextMBB.pred_size() != 1) {
+		assert(
+				NextMBB.pred_size() > 1
+						&& "In triangle there should be EBB and TBB, TBB should be removed from successors");
+	}
+	// create a mux EBB/TBB val with EBB.br.cond as cond at the end of just if converted block CvtBB(TBB)
+	bool CondRegIsNegated = false;
+	bool CondWasOriginallyUnused = false;
+	std::optional<Register> CondReg;
+	MachineFunction &MF = *TopMBB.getParent();
+	MachineRegisterInfo &MRI = MF.getRegInfo();
+	MachineOperand *lastUseOfCond = nullptr;
+
+	SmallVector<PhiPruningItem> toPrune;
+	MachineIRBuilder MIRB(TopMBB, TopMBB.terminators().begin());
+
+	for (MachineInstr &PHI : NextMBB.phis()) {
+		// check if value from TBB or
+		MachineOperand *TopV = nullptr;
+		MachineOperand *CvtV = nullptr;
+
+		for (const auto& [V, PredMBB] : MPHIPairs(PHI)) {
+			if (PredMBB->getMBB() == &TopMBB) {
+				assert(TopV == 0);
+				TopV = V;
+			} else if (PredMBB->getMBB() == &CvtTMBB) {
+				CvtV = V;
+			}
+		}
+		assert(TopV != nullptr);
+		assert(CvtV != nullptr);
+		// if TopV and CvtV are same, we do not have o create select
+		if (MachineOperand_isIdenticalTo_ignoringFlags(*TopV, *CvtV)) {
+			toPrune.push_back(PhiPruningItem(&PHI, TopV, CvtV, TopV));
+			continue;
+		}
+
+		auto &Dst = PHI.getOperand(0);
+		if (!CondReg.has_value()) {
+			assert(Cond[0].isReg());
+			MachineOperand Br_cond = Cond[0];
+			bool isNegated = Cond[1].getImm();
+
+			if (isNegated) {
+				MachineOperand *_Br_n = hwtHls::getRegisterNegationIfExits(MRI,
+						TopMBB, TopMBB.terminators().begin(), Br_cond.getReg(),
+						CondWasOriginallyUnused);
+				if (_Br_n) {
+					// use existing negation of register
+					Br_cond = *_Br_n;
+				} else {
+					CondRegIsNegated = true;
+				}
+			}
+			if (!isNegated || CondRegIsNegated) {
+				// is using original Br_cond
+				CondWasOriginallyUnused = MRI.use_empty(Br_cond.getReg())
+						|| Br_cond.isKill();
+			}
+			CondReg = Br_cond.getReg();
+		}
+
+		auto Op0 = *CvtV;
+		auto Op1 = *TopV;
+		if (CondRegIsNegated) {
+			std::swap(Op0, Op1);
+		}
+		MachineInstr *sel;
+		if (PHI.getNumOperands() == 1 + 2 * 2) {
+			sel = MIRB.buildSelect(Dst, CondReg.value(), Op0, Op1).getInstr();
+			toPrune.push_back(PhiPruningItem(&PHI, TopV, CvtV, nullptr));
+		} else {
+			Register SelDst = MRI.cloneVirtualRegister(Dst.getReg());
+			sel =
+					MIRB.buildSelect(SelDst, CondReg.value(), Op0, Op1).getInstr();
+			toPrune.push_back(
+					PhiPruningItem(&PHI, TopV, CvtV, &sel->getOperand(0)));
+		}
+		// :note: potential liveins from TopV/CvtV are not pruned
+
+		// instead of TopV, CvtV the result of select is now livein to NextMBB
+		VRegLiveins.liveinsMutable(NextMBB).insert(
+				sel->getOperand(0).getReg());
+		lastUseOfCond = &sel->getOperand(1);
+	}
+
+	if (CondWasOriginallyUnused && lastUseOfCond) {
+		lastUseOfCond->setIsKill();
+	}
+
+	for (const auto &item : toPrune) {
+		if (item.selResult) {
+			if (item.PHI->getNumOperands() > 1 + 2 * 2) {
+				MachineIRBuilder MIRB(NextMBB, item.PHI);
+				auto MIB = MIRB.buildInstr(item.PHI->getOpcode());
+				bool skipNextMO = false;
+				for (auto &MO : item.PHI->operands()) {
+					if (skipNextMO) {
+						assert(MO.isMBB());
+						assert(MO.getMBB() == &TopMBB || MO.getMBB() == &CvtTMBB);
+						skipNextMO = false;
+						continue;
+					}
+					if (&MO == item.CvtV || &MO == item.TopV) {
+						skipNextMO = true;
+						continue;
+					}
+					MIB.add(MO);
+				}
+				MIB.addUse(item.selResult->getReg(), RegState::Kill);
+			} else {
+				MRI.replaceRegWith(item.PHI->getOperand(0).getReg(), item.selResult->getReg());
+			}
+		}
+		item.PHI->eraseFromParent();
+	}
+}
 
 }

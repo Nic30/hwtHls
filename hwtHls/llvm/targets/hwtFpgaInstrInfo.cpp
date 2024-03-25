@@ -274,10 +274,10 @@ unsigned HwtFpgaInstrInfo::insertBranch(MachineBasicBlock &MBB,
 	MachineFunction &MF = *MBB.getParent();
 	MachineRegisterInfo &MRI = MF.getRegInfo();
 	auto CondMutable = reinterpret_cast<MutableArrayRef<MachineOperand>&>(Cond);
-
+	bool CondWasKill = Cond[0].isKill();
 	if (isNegated) {
 		MachineOperand *_Br_n = hwtHls::getRegisterNegationIfExits(MRI, MBB,
-				MBB.end(), Br_cond.getReg());
+				MBB.end(), Br_cond.getReg(), CondWasKill);
 		if (_Br_n) {
 			// use existing negation of register
 			Br_cond = CondMutable[0] = *_Br_n;
@@ -296,7 +296,7 @@ unsigned HwtFpgaInstrInfo::insertBranch(MachineBasicBlock &MBB,
 	}
 	MachineInstrBuilder MIB = BuildMI(&MBB, DL, get(TargetOpcode::G_BRCOND));
 	MIB.addUse(Br_cond.getReg(),
-			MRI.use_empty(Br_cond.getReg()) || Cond[0].isKill() ?
+			MRI.use_empty(Br_cond.getReg()) || CondWasKill ?
 					RegState::Kill : 0);
 	MIB.addMBB(TBB);
 

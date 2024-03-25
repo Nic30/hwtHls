@@ -11,7 +11,7 @@ namespace hwtHls {
 // :returns: defining machine operand
 llvm::MachineOperand* getRegisterNegationIfExits(llvm::MachineRegisterInfo &MRI,
 		llvm::MachineBasicBlock &TargetMBB,
-		llvm::MachineBasicBlock::iterator TargetIp, llvm::Register reg);
+		llvm::MachineBasicBlock::iterator TargetIp, llvm::Register reg, bool& wasOriginallyKill);
 
 // create register with a negation of the register
 llvm::MachineOperand& _negateRegister(llvm::MachineRegisterInfo &MRI,
@@ -76,5 +76,16 @@ void Condition_or(llvm::MachineIRBuilder &Builder,
 void Condition_and_or(unsigned opcode_and_or, llvm::MachineIRBuilder &Builder,
 		llvm::SmallVectorImpl<llvm::MachineOperand> &Op0,
 		llvm::SmallVectorImpl<llvm::MachineOperand> &Op1AndDst);
+/*
+ * After CvtTMBB was ifconverted update or replace PHIs in NextMBB
+ *
+ * :param CvtTMBB: block which was just merged into TopMBB
+ * :param Cond: condition which enables instructions from CvtTMBB which are now merged into TopMBB
+ * :param NextMBB: successor of TopMBB and CvtTMBB
+ * */
+void PHIsToSelectAfterIfCvt(HwtHlsVRegLiveins &VRegLiveins,
+		llvm::MachineBasicBlock &TopMBB,
+		const llvm::SmallVectorImpl<llvm::MachineOperand> &Cond,
+		llvm::MachineBasicBlock &CvtTMBB, llvm::MachineBasicBlock &NextMBB);
 
 }

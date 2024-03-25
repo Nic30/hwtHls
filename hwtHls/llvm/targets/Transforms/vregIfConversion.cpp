@@ -1570,10 +1570,17 @@ static void UpdatePredRedefs(MachineInstr &MI, MachineRegisterInfo & MRI, LiveVR
       MIB.addReg(Reg, RegState::Implicit | RegState::Define);
       continue;
     }
-    if (LiveBeforeMI.count(Reg))
-      MIB.addReg(Reg, RegState::Implicit | RegState::Kill);
-    else {
-      continue;
+    if (LiveBeforeMI.count(Reg)) {
+      bool foundSameRegInUseOperands = false;
+      for (MachineOperand &MO: reverse(MI.operands())) {
+    	  if (MO.isUse() && MO.isReg()) {
+    		  MO.setIsKill();
+    		  foundSameRegInUseOperands = true;
+    		  break;
+    	  }
+      }
+      if (!foundSameRegInUseOperands)
+    	  MIB.addReg(Reg, RegState::Implicit | RegState::Kill);
     }
   }
 }
@@ -1856,10 +1863,10 @@ bool VRegIfConverter::IfConvertTriangle(BBInfo &BBI, IfcvtKind Kind) {
     // Now merge the entry of the triangle with the true block.
     MergeBlocks(BBI, *CvtBBI, &regsForSpeculation, Cond, false);
   }
-  if (PreRegAlloc)
-	for (auto & PHI: NextMBB.phis()) {
-		llvm_unreachable("NotImplemented - Convert phis to MUX");
-	}
+  if (PreRegAlloc) {
+	// create a mux EBB/TBB val with EBB.br.cond as cond at the end of just if converted block CvtBB(TBB)
+	PHIsToSelectAfterIfCvt(*VRegLiveins, *BBI.BB, Cond, CvtMBB, NextMBB);
+  }
 
   // Keep the CFG updated.
   BBI.BB->removeSuccessor(&CvtMBB, true);
@@ -2276,6 +2283,9 @@ bool VRegIfConverter::IfConvertDiamond(BBInfo &BBI, IfcvtKind Kind,
   // fold the tail block in as well. Otherwise, unless it falls through to the
   // tail, add a unconditional branch to it.
   if (TailBB) {
+	for (auto & PHI: TailBB->phis()) {
+		llvm_unreachable("NotImplemented");
+	}
     // We need to remove the edges to the true and false blocks manually since
     // we didn't let IfConvertDiamondCommon update the CFG.
     BBI.BB->removeSuccessor(TrueBBI.BB);
@@ -2469,8 +2479,8 @@ void VRegIfConverter::MergeBlocks(BBInfo &ToBBI, BBInfo &FromBBI,
             ToBBI.BB->addSuccessor(MO.getMBB(), BranchProbability::getZero());
 
   for (MachineInstr &MI : FromMBB)
-   if (MI.getOpcode() == TargetOpcode::PHI || MI.getOpcode() == TargetOpcode::G_PHI) {
-	   llvm_unreachable("NotImplemented, assert that the phi stays on top, update incoming blocks, convert to MUX");
+   if (MI.isPHI()) {
+	   llvm_unreachable("NotImplemented, assert that the PHI stays on top, update incoming blocks, convert to MUX");
    }
   // In case FromMBB contains terminators (e.g. return instruction),
   // first move the non-terminator instructions, then the terminators.
