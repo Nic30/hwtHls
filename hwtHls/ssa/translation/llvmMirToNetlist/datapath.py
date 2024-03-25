@@ -176,11 +176,6 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                 elif opc == TargetOpcode.HWTFPGA_ICMP:
                     predicate, lhs, rhs = ops
                     opDef = self.CMP_PREDICATE_TO_OP[predicate]
-                    signed = predicate in self.SIGNED_CMP_OPS
-                    if signed:
-                        lhs = builder.buildSignCast(lhs, True)
-                        rhs = builder.buildSignCast(rhs, True)
-
                     res = builder.buildOp(opDef, BIT, lhs, rhs)
                     res.obj.name = name
                     valCache.add(mb, dst, res, True)
@@ -290,11 +285,9 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                 elif edgeMeta.etype == MACHINE_EDGE_TYPE.FORWARD:
                     name = f"bb{predMb.getNumber()}_to_bb{sucMb.getNumber()}_c"
                     v = self.builder.buildConst(HVoidData.from_py(None))
-                    wn, rn = HlsNetNodeWriteForwardedge.createPredSucPair(self.netlist, name, HVoidData)
+                    wn, _, v = HlsNetNodeWriteForwardedge.createPredSucPair(self.netlist, name, v)
                     if edgeMeta.inlineRstDataFromEdge is not None:
                         raise NotImplementedError()
-                    link_hls_nodes(v, wn._inputs[0])
-                    v = rn._outputs[0]
                     edgeMeta.loopChannelGroupAppendWrite(wn, True)
 
                 if v is not None:
@@ -361,11 +354,8 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                         # rstPredeccessor are not resolve yet we generate this read-write pair but we may
                         # remove it later when rstPredeccessor extraction is possible
                         name = f"bb{predMb.getNumber()}_to_bb{sucMb.getNumber()}_r{liveIn.virtRegIndex():d}"
-                        wn, rn = HlsNetNodeWriteForwardedge.createPredSucPair(netlist, name, dtype)
+                        wn, rn, v = HlsNetNodeWriteForwardedge.createPredSucPair(netlist, name, v)
                         blockLiveInMuxInputSync[(predMb, sucMb, liveIn)] = rn
-                        link_hls_nodes(v, wn._inputs[0])
-                        # predMbSync.addOrderedNode(wn, atEnd=True)
-                        v = rn._outputs[0]
                         edgeMeta.buffers.append((liveIn, v))
                         edgeMeta.loopChannelGroupAppendWrite(wn, isReusedAsControl)
 

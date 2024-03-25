@@ -260,7 +260,10 @@ class LlvmIrInterpret():
                 except StopIteration:
                     raise SimIoUnderflowErr()
 
-                assert isinstance(res, HValue) and res._dtype.bit_length() == instr.getType().getIntegerBitWidth(), (instr, res)
+                assert isinstance(res, HValue) and \
+                    res._dtype.bit_length() == instr.getType().getIntegerBitWidth() and \
+                    isinstance(res._dtype, Bits) and\
+                    not res._dtype.signed, ("Input value must be must be unsigned BitsVal of correct width", instr, res)
                 if waveLog is not None:
                     waveLog.logChange(nowTime, load, res, None)
                 regs[instr] = res
@@ -372,16 +375,8 @@ class LlvmIrInterpret():
             pred = cmp.getPredicate()
             op = HlsNetlistAnalysisPassMirToNetlistLowLevel.CMP_PREDICATE_TO_OP[pred]
             src0, src1 = ops
-            if pred in HlsNetlistAnalysisPassMirToNetlistLowLevel.SIGNED_CMP_OPS:
-                if not src0._dtype.signed:
-                    src0 = src0.cast_sign(True)
-                if not src1._dtype.signed is not None:
-                    src1 = src1.cast_sign(True)
-            else:
-                if src0._dtype.signed is not None:
-                    src0 = src0.cast_sign(None)
-                if src1._dtype.signed is not None:
-                    src1 = src1.cast_sign(None)
+            assert not src0._dtype.signed, ("Use only unsigned internally", cmp, src0)
+            assert not src1._dtype.signed, ("Use only unsigned internally", cmp, src1)
 
             if src0._dtype != src1._dtype:
                 # cases where force_vector, strict_sign or strict_width flag is different
@@ -436,7 +431,7 @@ class LlvmIrInterpret():
                 nextBb = ops[0]
                 if waveLog is not None:
                     waveLog.logChange(nowTime, simBlockLabel, nextBb, None)
-                
+
                 self._runBlockPhis(bb, nextBb, waveLog, regs, nowTime)
                 bb = nextBb
                 return bb, True
@@ -456,7 +451,7 @@ class LlvmIrInterpret():
                 return bb, True
 
             raise NotImplementedError(instr)
-        
+
         switchBr = InstructionToSwitchInst(instr)
         if switchBr is not None:
             c = ops[0].cast_sign(None)
@@ -503,10 +498,10 @@ class LlvmIrInterpret():
                 if waveLog is not None:
                     waveLog.logChange(nowTime, simTimeLabel, nowTime, None)
                     waveLog.logChange(nowTime, simCodelineLabel, instr, None)
-                
+
                 phi = InstructionToPHINode(instr)
                 if phi is not None:
-                    continue # PHIs are evaluated before jump to this block, so we skip them
+                    continue  # PHIs are evaluated before jump to this block, so we skip them
 
                 bb, isJump = self._runLlvmIrFunctionInstr(waveLog, nowTime, regs, instr, bb, fnArgs, simBlockLabel)
                 if wallTime is not None and wallTime <= nowTime:

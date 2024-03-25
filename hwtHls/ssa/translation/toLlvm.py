@@ -77,23 +77,23 @@ class ToLlvmIrTranslator():
             AllOps.ADD: b.CreateAdd,
             AllOps.SUB: b.CreateSub,
             AllOps.MUL: b.CreateMul,
+            AllOps.UDIV: b.CreateUDiv,
+            AllOps.SDIV: b.CreateSDiv,
         }
 
-        self._opConstructorMapSignedCmp = {
+        self._opConstructorMapCmp = {
             AllOps.NE: b.CreateICmpNE,
             AllOps.EQ: b.CreateICmpEQ,
-            AllOps.LE: b.CreateICmpSLE,
-            AllOps.LT: b.CreateICmpSLT,
-            AllOps.GT: b.CreateICmpSGT,
-            AllOps.GE: b.CreateICmpSGE,
-        }
-        self._opConstructorMapUnsignedCmp = {
-            AllOps.NE: b.CreateICmpNE,
-            AllOps.EQ: b.CreateICmpEQ,
-            AllOps.LE: b.CreateICmpULE,
-            AllOps.LT: b.CreateICmpULT,
-            AllOps.GT: b.CreateICmpUGT,
-            AllOps.GE: b.CreateICmpUGE,
+
+            AllOps.SLE: b.CreateICmpSLE,
+            AllOps.SLT: b.CreateICmpSLT,
+            AllOps.SGT: b.CreateICmpSGT,
+            AllOps.SGE: b.CreateICmpSGE,
+            
+            AllOps.ULE: b.CreateICmpULE,
+            AllOps.ULT: b.CreateICmpULT,
+            AllOps.UGT: b.CreateICmpUGT,
+            AllOps.UGE: b.CreateICmpUGE,
         }
 
     def addAfterTranslationUnique(self, fn: Callable[['ToLlvmIrTranslator'], None]):
@@ -236,14 +236,7 @@ class ToLlvmIrTranslator():
                 return constructor_fn(*args, name, False, False)
             else:
                 assert len(operands) == 2, instrForDebug
-                isSigned = bool(operands[0]._dtype.signed)
-                if isSigned != bool(operands[1]._dtype.signed):
-                    raise NotImplementedError("signed+unsigned cmp")
-
-                if isSigned:
-                    _opConstructorMap2 = self._opConstructorMapSignedCmp
-                else:
-                    _opConstructorMap2 = self._opConstructorMapUnsignedCmp
+                _opConstructorMap2 = self._opConstructorMapCmp
 
                 return _opConstructorMap2[operator](*args, name)
 
