@@ -31,7 +31,7 @@ class BitWidthReductionCmp2Values(Unit):
                 i = hls.read(self.i).data
                 # 1. only bits [5:0] should be compared
                 # and the cmp of other bits should be shared
-                # 2. output mux should be only for lower 4 bits and the uper bits should be set to 0x001 as it is constant in all cases
+                # 2. output mux should be only for lower 4 bits and the upper bits should be set to 0x001 as it is constant in all cases
                 if i._eq(10):
                     hls.write(20, self.o)
                 elif i._eq(11):
@@ -55,6 +55,17 @@ class BitWidthReductionCmpReducibleEq(Unit):
         self.res_prefix_same_1 = Signal()._m()
         self.res_prefix_0vs1 = Signal()._m()
         self.res_prefix_0vsAll = Signal()._m()
+
+        self.res_suffix_aVs0 = Signal()._m()
+        self.res_suffix_aVsAll = Signal()._m()
+        self.res_suffix_0vsB = Signal()._m()
+        self.res_suffix_AllVsB = Signal()._m()
+
+        self.res_prefix_aVs0 = Signal()._m()
+        self.res_prefix_aVsAll = Signal()._m()
+        self.res_prefix_bVs0 = Signal()._m()
+        self.res_prefix_bVsAll = Signal()._m()
+        
         self.res_prefix_sameInMiddle = Signal()._m()
         self.res_prefix_differentInMiddle = Signal()._m()
 
@@ -81,6 +92,17 @@ class BitWidthReductionCmpReducibleEq(Unit):
                 hls.write(p(Concat(one8b, a), Concat(one8b, b)), self.res_prefix_same_1)  # resolved as a==b
                 hls.write(p(Concat(zero8b, a), Concat(one8b, b)), self.res_prefix_0vs1)  # resolved as 0
                 hls.write(p(Concat(zero8b, a), Concat(all8b, b)), self.res_prefix_0vsAll)  # resolved as 0
+                
+                hls.write(p(Concat(a, a), Concat(zero8b, b)), self.res_suffix_aVs0)
+                hls.write(p(Concat(a, a), Concat(all8b, b)), self.res_suffix_aVsAll)
+                hls.write(p(Concat(zero8b, a), Concat(b, b)), self.res_suffix_0vsB)
+                hls.write(p(Concat(all8b, a), Concat(b, b)), self.res_suffix_AllVsB)
+                
+                hls.write(p(Concat(a, a), Concat(b, zero8b)), self.res_prefix_aVs0)
+                hls.write(p(Concat(a, a), Concat(b, all8b)), self.res_prefix_aVsAll)
+                hls.write(p(Concat(a, zero8b), Concat(b, b)), self.res_prefix_bVs0)
+                hls.write(p(Concat(a, all8b), Concat(b, b)), self.res_prefix_bVsAll)
+                
                 hls.write(p(Concat(a[:4], zero8b, a[4:]), Concat(b[:4], zero8b, b[4:])), self.res_prefix_sameInMiddle)  # resolved as a==b
                 hls.write(p(Concat(a[:4], zero8b, a[4:]), Concat(b[:4], all8b, b[4:])), self.res_prefix_differentInMiddle)  # resolved as 0
 
