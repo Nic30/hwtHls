@@ -27,8 +27,8 @@ class LlvmIrExprToHlsNetlist():
         Instruction.Add: AllOps.ADD,
         Instruction.Sub: AllOps.SUB,
         Instruction.Mul: AllOps.MUL,
-        Instruction.SDiv: AllOps.DIV,
-        Instruction.UDiv: AllOps.DIV,
+        Instruction.SDiv: AllOps.SDIV,
+        Instruction.UDiv: AllOps.UDIV,
     }
 
     def __init__(self, netlist: HlsNetlistCtx):
@@ -154,17 +154,8 @@ class LlvmIrExprToHlsNetlist():
                     op0 = self._translateExpr(_op0)
                     op1 = self._translateExpr(_op1)
                     operator: OpDefinition = HlsNetlistAnalysisPassMirToNetlistLowLevel.CMP_PREDICATE_TO_OP[pred]
-                    if pred in HlsNetlistAnalysisPassMirToNetlistLowLevel.SIGNED_CMP_OPS:
-                        if not op0._dtype.signed:
-                            op0 = b.buildSignCast(op0, True)
-                        if not op1._dtype.signed:
-                            op1 = b.buildSignCast(op1, True)
-                    else:
-                        if op0._dtype.signed:
-                            op0 = b.buildSignCast(op0, None)
-                        if op1._dtype.signed:
-                            op1 = b.buildSignCast(op1, None)
-
+                    assert not op0._dtype.signed, ("signed types should not be used internally", cmp, op0)
+                    assert not op1._dtype.signed, ("signed types should not be used internally", cmp, op1)
                     v = b.buildOp(operator, BIT, op0, op1)
                     varMap[i] = v
                     continue
@@ -189,11 +180,11 @@ class LlvmIrExprToHlsNetlist():
 
                     if fnName.startswith("llvm.umin."):
                         opV0, opV1 = (self._translateExpr(op.get()) for op in ci.args())
-                        lt = b.buildLt(opV0, opV1)
+                        lt = b.buildULt(opV0, opV1)
                         v = b.buildMux(opV0._dtype, (opV0, lt, opV1), name)
                     elif fnName.startswith("llvm.umax."):
                         opV0, opV1 = (self._translateExpr(op.get()) for op in ci.args())
-                        lt = b.buildLt(opV0, opV1)
+                        lt = b.buildULt(opV0, opV1)
                         v = b.buildMux(opV0._dtype, (opV1, lt, opV0), name)
                     else:
                         raise NotImplementedError()
