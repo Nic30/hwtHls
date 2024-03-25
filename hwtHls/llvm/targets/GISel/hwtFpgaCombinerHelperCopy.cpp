@@ -23,9 +23,26 @@ bool HwtFpgaCombinerHelper::isTrivialRemovableCopy(llvm::MachineInstr &MI,
 	auto srcReg = src.getReg();
 	auto dstReg = MI.getOperand(0).getReg();
 
-	if (src.isReg() && MRI.hasOneUse(dstReg)) {
+	// if replacing src with mux dst check if
+	//            * src is used outside of block or redefined inside block
+	//               * allow the case where this mux is only define of this reg and there is only single define of src reg in this same block
+	//                 in instruction before this
+	//         If it is the case there is a risk that
+	if (src.isReg() && MRI.hasOneUse(dstReg) && MRI.hasOneDef(srcReg)) {
+		size_t userOfSrcBetwenSrcDefAndDstDefCnt = 0;
 		auto def = MRI.getOneDef(srcReg);
-		if (def && def->getParent()->getParent() == MI.getParent()
+		size_t srcUseCnt = 0;
+		bool srcUseOnlyInThisBB = true;
+		for (auto &U: MRI.use_operands(srcReg)) {
+			if (U.getParent()->getParent() != MI.getParent()) {
+				srcUseOnlyInThisBB = false;
+				break;
+			}
+			srcUseCnt++;
+		}
+
+		if (srcUseOnlyInThisBB &&
+				def && def->getParent()->getParent() == MI.getParent()
 				&& isPredecessor(*def->getParent(), MI)) {
 			/*
 			 * Check for
@@ -39,14 +56,27 @@ bool HwtFpgaCombinerHelper::isTrivialRemovableCopy(llvm::MachineInstr &MI,
 			auto i = defInstr->getNextNode();
 			while (i) {
 				if (i == &MI) {
-					replaceMuxSrcReg = true;
-					return true;
+					if (userOfSrcBetwenSrcDefAndDstDefCnt + 1 == srcUseCnt) {
+						replaceMuxSrcReg = true;
+						return true;
+					} else {
+						// src is used somewhere outside of this interval, we can not replace it
+						break;
+					}
 				}
+				// * check that %dst is not used between %src def and MI, because we can not replace srcReg with dstReg
+				//   if something uses old value in dstReg after srcReg is defined
+				// * check that %dst is not modified between %src def and MI which is %dst = HWTFPGA_MUX %src
 				bool dstRegUsedOrModified = false;
 				for (auto &MO : i->operands()) {
-					if (MO.isReg() && MO.getReg() == dstReg) {
-						dstRegUsedOrModified = true;
-						break;
+					if (MO.isReg()) {
+						if (MO.getReg() == dstReg) {
+							dstRegUsedOrModified = true;
+							break;
+						}
+						if (MO.isUse() && MO.getReg() == srcReg) {
+							userOfSrcBetwenSrcDefAndDstDefCnt++;
+						}
 					}
 				}
 				if (dstRegUsedOrModified)
