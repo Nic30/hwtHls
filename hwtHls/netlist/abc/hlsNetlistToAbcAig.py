@@ -62,7 +62,7 @@ class HlsNetlistToAbcAig(RtlNetlistToAbcAig):
                 assert d.operator == AllOps.TERNARY
                 if inCnt == 3:
                     o0, c, o1 = (self._translate(aig, i) for i in d.dependsOn)
-                    res = aig.Mux(c, o1, o0)  # ABC notation is in in this order
+                    res = aig.Mux(c, o0, o1)  # ABC notation is in in this order, p1, p0 means if c=1 or c=0
                 else:
                     assert inCnt % 2 == 1, d
                     prevCond = None
@@ -76,13 +76,14 @@ class HlsNetlistToAbcAig(RtlNetlistToAbcAig):
                             assert prevCond is None
                             prevVal = v
                         else:
-                            prevVal = aig.Mux(prevCond, v, prevVal)
+                            prevVal = aig.Mux(prevCond, prevVal, v)
                         prevCond = c
                     assert prevCond is None, (prevCond, d)
                     res = prevVal
             else:
                 raise NotImplementedError(d)
-            
+        
+        assert o not in self.translationCache, o
         self.translationCache[o] = res
         return res
            
