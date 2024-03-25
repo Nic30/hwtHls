@@ -3,7 +3,7 @@ from itertools import islice
 from typing import Tuple, Union, Dict, Optional, Type, Callable, Set, List
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
-from hwt.hdl.operatorDefs import OpDefinition, AllOps
+from hwt.hdl.operatorDefs import OpDefinition, AllOps, CAST_OPS
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.defs import BIT, SLICE
 from hwt.hdl.types.hdlType import HdlType
@@ -104,6 +104,9 @@ class HlsNetlistBuilder():
         return None, keyWithHValues
 
     def buildOp(self, operator: OpDefinition, resT: HdlType, *operands: Tuple[Union[HlsNetNodeOut, HValue], ...]) -> HlsNetNodeOut:
+        assert operator not in {AllOps.DIV, AllOps.GT, AllOps.GE, AllOps.LT, AllOps.LE}, ("Signed or unsigned variant should be used instead", operator, operands)
+        assert operator not in CAST_OPS, ("Internally there is no cast required", operator, operands)
+        assert not isinstance(resT, Bits) or not resT.signed, ("Only unsigned should be used internally", resT)
         res, keyWithHValues = self._tryToFindInCache(operator, operands)
         if res is not None:
             return res
@@ -130,18 +133,32 @@ class HlsNetlistBuilder():
         elif operator == AllOps.NE:
             assert resT == BIT, resT
             return self.buildNe(*operands)
-        elif operator == AllOps.LT:
+
+        elif operator == AllOps.ULT:
             assert resT == BIT, resT
-            return self.buildLtbuildLt(*operands)
-        elif operator == AllOps.LE:
+            return self.buildULt(*operands)
+        elif operator == AllOps.ULE:
             assert resT == BIT, resT
-            return self.buildLe(*operands)
-        elif operator == AllOps.GT:
+            return self.buildULe(*operands)
+        elif operator == AllOps.UGT:
             assert resT == BIT, resT
-            return self.buildGt(*operands)
-        elif operator == AllOps.GE:
+            return self.buildUGt(*operands)
+        elif operator == AllOps.UGE:
             assert resT == BIT, resT
-            return self.buildGe(*operands)
+            return self.buildUGe(*operands)
+
+        elif operator == AllOps.SLT:
+            assert resT == BIT, resT
+            return self.buildSLt(*operands)
+        elif operator == AllOps.SLE:
+            assert resT == BIT, resT
+            return self.buildSLe(*operands)
+        elif operator == AllOps.SGT:
+            assert resT == BIT, resT
+            return self.buildSGt(*operands)
+        elif operator == AllOps.SGE:
+            assert resT == BIT, resT
+            return self.buildSGe(*operands)
 
         elif operator == AllOps.AND:
             assert resT == operands[0]._dtype, (resT, operands[0]._dtype)
@@ -166,29 +183,57 @@ class HlsNetlistBuilder():
             return self.buildConstBit(0)
         return self.buildOp(AllOps.NE, BIT, a, b)
 
-    def buildLt(self, a: HlsNetNodeOut, b: HlsNetNodeOut):
+    def buildULt(self, a: HlsNetNodeOut, b: HlsNetNodeOut):
+        return self.buildLt(AllOps.ULT, a, b)
+
+    def buildSLt(self, a: HlsNetNodeOut, b: HlsNetNodeOut):
+        return self.buildLt(AllOps.SLT, a, b)
+
+    def buildLt(self, op: OpDefinition, a: HlsNetNodeOut, b: HlsNetNodeOut):
         assert a._dtype == b._dtype, (a, b)
+        assert op in (AllOps.ULT, AllOps.SLT)
         if a is b:
             return self.buildConstBit(0)
-        return self.buildOp(AllOps.LT, BIT, a, b)
+        return self.buildOp(op, BIT, a, b)
 
-    def buildLe(self, a: HlsNetNodeOut, b: HlsNetNodeOut):
+    def buildULe(self, a: HlsNetNodeOut, b: HlsNetNodeOut):
+        return self.buildLe(AllOps.ULE, a, b)
+
+    def buildSLe(self, a: HlsNetNodeOut, b: HlsNetNodeOut):
+        return self.buildLe(AllOps.SLE, a, b)
+
+    def buildLe(self, op: OpDefinition, a: HlsNetNodeOut, b: HlsNetNodeOut):
         assert a._dtype == b._dtype, (a, b)
+        assert op in (AllOps.ULE, AllOps.SLE)
         if a is b:
             return self.buildConstBit(1)
-        return self.buildOp(AllOps.LE, BIT, a, b)
+        return self.buildOp(op, BIT, a, b)
 
-    def buildGt(self, a: HlsNetNodeOut, b: HlsNetNodeOut):
+    def buildUGt(self, a: HlsNetNodeOut, b: HlsNetNodeOut):
+        return self.buildGt(AllOps.UGT, a, b)
+
+    def buildSGt(self, a: HlsNetNodeOut, b: HlsNetNodeOut):
+        return self.buildGt(AllOps.SGT, a, b)
+
+    def buildGt(self, op: OpDefinition, a: HlsNetNodeOut, b: HlsNetNodeOut):
         assert a._dtype == b._dtype, (a, b)
+        assert op in (AllOps.UGT, AllOps.SGT)
         if a is b:
             return self.buildConstBit(0)
-        return self.buildOp(AllOps.GT, BIT, a, b)
+        return self.buildOp(op, BIT, a, b)
 
-    def buildGe(self, a: HlsNetNodeOut, b: HlsNetNodeOut):
+    def buildUGe(self, a: HlsNetNodeOut, b: HlsNetNodeOut):
+        return self.buildGe(AllOps.UGE, a, b)
+
+    def buildSGe(self, a: HlsNetNodeOut, b: HlsNetNodeOut):
+        return self.buildGe(AllOps.SGE, a, b)
+
+    def buildGe(self, op: OpDefinition, a: HlsNetNodeOut, b: HlsNetNodeOut):
         assert a._dtype == b._dtype, (a, b)
+        assert op in (AllOps.UGE, AllOps.SGE)
         if a is b:
             return self.buildConstBit(1)
-        return self.buildOp(AllOps.GE, BIT, a, b)
+        return self.buildOp(op, BIT, a, b)
 
     def buildRom(self, data: Union[Dict[int, HValue], List[HValue], Tuple[HValue]], index: HlsNetNodeOut):
         assert data, ("ROM array should not be of zero size", data)
@@ -359,16 +404,6 @@ class HlsNetlistBuilder():
                 w += o._dtype.bit_length()
             t = Bits(w)
         return self.buildOp(AllOps.CONCAT, t, *lsbToMsbOps)
-
-    def buildSignCast(self, o: HlsNetNodeOut, signed: Optional[bool]) -> HlsNetNodeOut:
-        if signed:
-            op = AllOps.BitsAsSigned
-        elif signed is None:
-            op = AllOps.BitsAsVec
-        else:
-            op = AllOps.BitsAsUnsigned
-
-        return self.buildOp(op, Bits(o._dtype.bit_length(), signed=signed), o)
 
     def buildIndexConstSlice(self, resT: HdlType, a: HlsNetNodeOut, high: int, low: int):
         assert high > low, (high, low)
