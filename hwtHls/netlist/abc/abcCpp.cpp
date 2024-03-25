@@ -10,6 +10,7 @@
 
 // abc realated
 #include <base/abc/abc.h>
+#include <base/io/ioAbc.h>
 #include <base/main/abcapis.h>
 #include <base/main/main.h>
 #include <map/mio/mio.h>
@@ -244,85 +245,100 @@ Abc_Obj_t * Abc_AigNe( Abc_Aig_t * pMan, Abc_Obj_t * p0, Abc_Obj_t * p1 )
                             Abc_AigAnd(pMan, Abc_ObjNot(p0), p1) );
 }
 
-PYBIND11_MODULE(abcCpp, m) {
-	// https://people.eecs.berkeley.edu/~alanmi/abc/aig.pdf
-	Abc_Start();
-
-	py::class_<Abc_Frame_t_pybind11_wrap, std::unique_ptr<Abc_Frame_t_pybind11_wrap, py::nodelete>>(m, "Abc_Frame_t")
-		.def_static("GetGlobalFrame", []() {
-				return (Abc_Frame_t_pybind11_wrap*)Abc_FrameGetGlobalFrame();
-			}, py::return_value_policy::reference)
-		.def("CommandExecute", [](Abc_Frame_t_pybind11_wrap * pAbc, const char * sCommand) {
-			return Cmd_CommandExecute((Abc_Frame_t*)pAbc, sCommand);
-		})
-		.def("SetCurrentNetwork", [](Abc_Frame_t_pybind11_wrap * pAbc, Abc_Ntk_t * pNtkNew) {
-			Abc_FrameSetCurrentNetwork((Abc_Frame_t*)pAbc, pNtkNew);
-		}, py::keep_alive<1, 0>()) // keep network alive while frame exists
-		.def("DeleteAllNetworks", [](Abc_Frame_t_pybind11_wrap * pAbc) {
-			Abc_FrameDeleteAllNetworks((Abc_Frame_t*)pAbc);
-		});
-
+void register_Abc_Ntk_t(py::module_ &m) {
 	py::class_<Abc_Ntk_t, std::unique_ptr<Abc_Ntk_t, py::nodelete>>(m, "Abc_Ntk_t")
-		.def(py::init(&Abc_NtkAlloc))
-		.def_property("pManFunc",
-				[](Abc_Ntk_t * self) {
-					return (Abc_Aig_t_pybind11_wrap*)self->pManFunc;
-				},
-				[](Abc_Ntk_t * self, Abc_Aig_t_pybind11_wrap * val) {
-					self->pManFunc = (Abc_Aig_t*)val;
-				}
-		)
-		.def("setName", [](Abc_Ntk_t * self, char * name) {
-			self->pName = Extra_UtilStrsav(name);
-		})
-		.def("CreatePi", &Abc_NtkCreatePi, py::return_value_policy::reference)
-		.def("CreatePo", &Abc_NtkCreatePo, py::return_value_policy::reference)
-		.def("Pi", &Abc_NtkPi)
-		.def("Po", &Abc_NtkPo)
-		.def("IterPo", [](Abc_Ntk_t &self) {
-			return py::make_iterator(Abc_Ntk_PoIterator(self), Abc_Ntk_PoIterator(self, Abc_NtkPoNum(&self)));
-	 	 }, py::keep_alive<0, 1>()) /* Keep vector alive while iterator is used */
-		 .def("IterPi", [](Abc_Ntk_t &self) {
-		 	 return py::make_iterator(Abc_Ntk_PiIterator(self), Abc_Ntk_PiIterator(self, Abc_NtkPiNum(&self)));
-		 }, py::keep_alive<0, 1>()) /* Keep vector alive while iterator is used */
+	.def(py::init(&Abc_NtkAlloc))
+	.def_property("pManFunc",
+			[](Abc_Ntk_t * self) {
+				return (Abc_Aig_t_pybind11_wrap*)self->pManFunc;
+			},
+			[](Abc_Ntk_t * self, Abc_Aig_t_pybind11_wrap * val) {
+				self->pManFunc = (Abc_Aig_t*)val;
+			}
+	)
+	.def("setName", [](Abc_Ntk_t * self, char * name) {
+		self->pName = Extra_UtilStrsav(name);
+	})
+	.def("CreatePi", &Abc_NtkCreatePi, py::return_value_policy::reference_internal)
+	.def("CreatePo", &Abc_NtkCreatePo, py::return_value_policy::reference_internal)
+	.def("Pi", &Abc_NtkPi, py::return_value_policy::reference_internal)
+	.def("Po", &Abc_NtkPo, py::return_value_policy::reference_internal)
+	.def("IterPo", [](Abc_Ntk_t &self) {
+		return py::make_iterator(Abc_Ntk_PoIterator(self), Abc_Ntk_PoIterator(self, Abc_NtkPoNum(&self)));
+	 }, py::keep_alive<0, 1>()) /* Keep vector alive while iterator is used */
+	 .def("IterPi", [](Abc_Ntk_t &self) {
+	 	 return py::make_iterator(Abc_Ntk_PiIterator(self), Abc_Ntk_PiIterator(self, Abc_NtkPiNum(&self)));
+	 }, py::keep_alive<0, 1>()) /* Keep vector alive while iterator is used */
 
-		.def("PiNum", &Abc_NtkPiNum)
-		.def("PoNum", &Abc_NtkPoNum)
-		.def("CreateBi", &Abc_NtkCreateBi, py::return_value_policy::reference)
-		.def("CreateBo", &Abc_NtkCreateBo, py::return_value_policy::reference)
-		.def("Const1", &Abc_AigConst1, py::return_value_policy::reference)
-		.def("Balance", &Abc_NtkBalance,
-				py::arg("fDuplicate")=false,
-				py::arg("fSelective")=false,
-				py::arg("fUpdateLevel")=true, py::return_value_policy::reference)
-		.def("Rewrite", returnCodeToException("Abc_NtkRewrite has failed", &Abc_NtkRewrite),
-				/* defaults are from Abc_CommandRewrite */
-				py::arg("fUpdateLevel")=true,
-				py::arg("fUseZeros")=false,
-				py::arg("fVerbose")=false,
-				py::arg("fVeryVerbose")=false,
-				py::arg("fPlaceEnable")=false)
-		.def("Refactor", returnCodeToException("Abc_NtkRefactor has failed", &Abc_NtkRefactor),
-				/* defaults are from Abc_CommandRefactor */
-				py::arg("nNodeSizeMax")=10,
-				py::arg("nMinSaved")=1,
-				py::arg("nConeSizeMax")=16,
-				py::arg("fUpdateLevel")=true,
-				py::arg("fUseZeros")=false,
-				py::arg("fUseDcs")=false,
-				py::arg("fVerbose")=false)
-		.def("Check", &Abc_NtkCheck);
+	.def("PiNum", &Abc_NtkPiNum)
+	.def("PoNum", &Abc_NtkPoNum)
+	.def("CreateBi", &Abc_NtkCreateBi, py::return_value_policy::reference_internal)
+	.def("CreateBo", &Abc_NtkCreateBo, py::return_value_policy::reference_internal)
+	.def("Const1", &Abc_AigConst1, py::return_value_policy::reference)
+	.def("Balance", &Abc_NtkBalance,
+			py::arg("fDuplicate")=false,
+			py::arg("fSelective")=false,
+			py::arg("fUpdateLevel")=true, py::return_value_policy::reference)
+	.def("Rewrite", returnCodeToException("Abc_NtkRewrite has failed", &Abc_NtkRewrite),
+			/* defaults are from Abc_CommandRewrite */
+			py::arg("fUpdateLevel")=true,
+			py::arg("fUseZeros")=false,
+			py::arg("fVerbose")=false,
+			py::arg("fVeryVerbose")=false,
+			py::arg("fPlaceEnable")=false)
+	.def("Refactor", returnCodeToException("Abc_NtkRefactor has failed", &Abc_NtkRefactor),
+			/* defaults are from Abc_CommandRefactor */
+			py::arg("nNodeSizeMax")=10,
+			py::arg("nMinSaved")=1,
+			py::arg("nConeSizeMax")=16,
+			py::arg("fUpdateLevel")=true,
+			py::arg("fUseZeros")=false,
+			py::arg("fUseDcs")=false,
+			py::arg("fVerbose")=false)
+	.def("Check", &Abc_NtkCheck)
+	.def("Io_Write", [](Abc_Ntk_t * pNtk, char *pFileName, Io_FileType_t FileType) {
+		Io_Write(pNtk, pFileName, FileType);
+	}, R""""(
+			Dump this network to a file in format specified by second argument.
+		)""""
+	).doc() = "ABC network object.";
+
+
+	py::enum_<Io_FileType_t>(m, "Io_FileType_t")
+	 .value("IO_FILE_NONE",    Io_FileType_t::IO_FILE_NONE   )//
+	 .value("IO_FILE_AIGER",   Io_FileType_t::IO_FILE_AIGER  )//
+	 .value("IO_FILE_BAF",     Io_FileType_t::IO_FILE_BAF    )//
+	 .value("IO_FILE_BBLIF",   Io_FileType_t::IO_FILE_BBLIF  )//
+	 .value("IO_FILE_BLIF",    Io_FileType_t::IO_FILE_BLIF   )//
+	 .value("IO_FILE_BLIFMV",  Io_FileType_t::IO_FILE_BLIFMV )//
+	 .value("IO_FILE_BENCH",   Io_FileType_t::IO_FILE_BENCH  )//
+	 .value("IO_FILE_BOOK",    Io_FileType_t::IO_FILE_BOOK   )//
+	 .value("IO_FILE_CNF",     Io_FileType_t::IO_FILE_CNF    )//
+	 .value("IO_FILE_DOT",     Io_FileType_t::IO_FILE_DOT    )//
+	 .value("IO_FILE_EDIF",    Io_FileType_t::IO_FILE_EDIF   )//
+	 .value("IO_FILE_EQN",     Io_FileType_t::IO_FILE_EQN    )//
+	 .value("IO_FILE_GML",     Io_FileType_t::IO_FILE_GML    )//
+	 .value("IO_FILE_JSON",    Io_FileType_t::IO_FILE_JSON   )//
+	 .value("IO_FILE_LIST",    Io_FileType_t::IO_FILE_LIST   )//
+	 .value("IO_FILE_PLA",     Io_FileType_t::IO_FILE_PLA    )//
+	 .value("IO_FILE_MOPLA",   Io_FileType_t::IO_FILE_MOPLA  )//
+	 .value("IO_FILE_SMV",     Io_FileType_t::IO_FILE_SMV    )//
+	 .value("IO_FILE_VERILOG", Io_FileType_t::IO_FILE_VERILOG)//
+	 .value("IO_FILE_UNKNOWN", Io_FileType_t::IO_FILE_UNKNOWN)//
+     .export_values();
 
 
 	py::class_<Abc_Aig_t_pybind11_wrap, std::unique_ptr<Abc_Aig_t_pybind11_wrap, py::nodelete>>(m, "Abc_Aig_t")
-			.def("And", wrap_Abc_Aig_t(&Abc_AigAnd), py::return_value_policy::reference)
-			.def("Or", wrap_Abc_Aig_t(&Abc_AigOr), py::return_value_policy::reference)
-		    .def("Xor", wrap_Abc_Aig_t(&Abc_AigXor), py::return_value_policy::reference)
-		    .def("Mux", wrap_Abc_Aig_t(&Abc_AigMux), py::return_value_policy::reference)
-			.def("Eq", wrap_Abc_Aig_t(&Abc_AigEq), py::return_value_policy::reference)
-			.def("Ne", wrap_Abc_Aig_t(&Abc_AigNe), py::return_value_policy::reference)
-			.def_static("Not", &Abc_ObjNot, py::return_value_policy::reference)
-			.def("Cleanup", wrap_Abc_Aig_t(&Abc_AigCleanup));
+		.def("And", wrap_Abc_Aig_t(&Abc_AigAnd), py::return_value_policy::reference_internal)
+		.def("Or", wrap_Abc_Aig_t(&Abc_AigOr), py::return_value_policy::reference_internal)
+		.def("Xor", wrap_Abc_Aig_t(&Abc_AigXor), py::return_value_policy::reference_internal)
+		.def("Mux", wrap_Abc_Aig_t(&Abc_AigMux), py::return_value_policy::reference_internal)
+		.def("Eq", wrap_Abc_Aig_t(&Abc_AigEq), py::return_value_policy::reference_internal)
+		.def("Ne", wrap_Abc_Aig_t(&Abc_AigNe), py::return_value_policy::reference_internal)
+		.def("Not", [](Abc_Aig_t_pybind11_wrap *self, Abc_Obj_t* v) {
+			return Abc_ObjNot(v);
+		}, py::return_value_policy::reference_internal)
+		.def("Cleanup", wrap_Abc_Aig_t(&Abc_AigCleanup));
 
 	py::enum_<Abc_NtkType_t>(m, "Abc_NtkType_t")
 	    .value("ABC_NTK_NONE", Abc_NtkType_t::ABC_NTK_NONE  )
@@ -342,24 +358,27 @@ PYBIND11_MODULE(abcCpp, m) {
 	    .value("ABC_FUNC_BLACKBOX", Abc_NtkFunc_t::ABC_FUNC_BLACKBOX, "black box about which nothing is known")
 	    .value("ABC_FUNC_OTHER", Abc_NtkFunc_t::ABC_FUNC_OTHER, "unused")
 		.export_values();
+}
 
+void register_Abc_Obj_t(py::module_ &m) {
 	py::enum_<Abc_ObjType_t>(m, "Abc_ObjType_t")
-	    .value("ABC_OBJ_NONE",     Abc_ObjType_t::ABC_OBJ_NONE,      "unknown"                   )
-	    .value("ABC_OBJ_CONST1",   Abc_ObjType_t::ABC_OBJ_CONST1,    "constant 1 node (AIG only)")
-	    .value("ABC_OBJ_PI",       Abc_ObjType_t::ABC_OBJ_PI,        "primary input terminal"    )
-	    .value("ABC_OBJ_PO",       Abc_ObjType_t::ABC_OBJ_PO,        "primary output terminal"   )
-	    .value("ABC_OBJ_BI",       Abc_ObjType_t::ABC_OBJ_BI,        "box input terminal"        )
-	    .value("ABC_OBJ_BO",       Abc_ObjType_t::ABC_OBJ_BO,        "box output terminal"       )
-	    .value("ABC_OBJ_NET",      Abc_ObjType_t::ABC_OBJ_NET,       "net"                       )
-	    .value("ABC_OBJ_NODE",     Abc_ObjType_t::ABC_OBJ_NODE,      "node"                      )
-	    .value("ABC_OBJ_LATCH",    Abc_ObjType_t::ABC_OBJ_LATCH,     "latch"                     )
-	    .value("ABC_OBJ_WHITEBOX", Abc_ObjType_t::ABC_OBJ_WHITEBOX,  "box with known contents"   )
-	    .value("ABC_OBJ_BLACKBOX", Abc_ObjType_t::ABC_OBJ_BLACKBOX,  "box with unknown contents" )
-	    .value("ABC_OBJ_NUMBER",   Abc_ObjType_t::ABC_OBJ_NUMBER,    "unused"                    )
+	    .value("ABC_OBJ_NONE",     Abc_ObjType_t::ABC_OBJ_NONE,      "unknown"                   )//
+	    .value("ABC_OBJ_CONST1",   Abc_ObjType_t::ABC_OBJ_CONST1,    "constant 1 node (AIG only)")//
+	    .value("ABC_OBJ_PI",       Abc_ObjType_t::ABC_OBJ_PI,        "primary input terminal"    )//
+	    .value("ABC_OBJ_PO",       Abc_ObjType_t::ABC_OBJ_PO,        "primary output terminal"   )//
+	    .value("ABC_OBJ_BI",       Abc_ObjType_t::ABC_OBJ_BI,        "box input terminal"        )//
+	    .value("ABC_OBJ_BO",       Abc_ObjType_t::ABC_OBJ_BO,        "box output terminal"       )//
+	    .value("ABC_OBJ_NET",      Abc_ObjType_t::ABC_OBJ_NET,       "net"                       )//
+	    .value("ABC_OBJ_NODE",     Abc_ObjType_t::ABC_OBJ_NODE,      "node"                      )//
+	    .value("ABC_OBJ_LATCH",    Abc_ObjType_t::ABC_OBJ_LATCH,     "latch"                     )//
+	    .value("ABC_OBJ_WHITEBOX", Abc_ObjType_t::ABC_OBJ_WHITEBOX,  "box with known contents"   )//
+	    .value("ABC_OBJ_BLACKBOX", Abc_ObjType_t::ABC_OBJ_BLACKBOX,  "box with unknown contents" )//
+	    .value("ABC_OBJ_NUMBER",   Abc_ObjType_t::ABC_OBJ_NUMBER,    "unused"                    )//
 		.export_values();
 
-
-	py::class_<Abc_Obj_t>(m, "Abc_Obj_t")
+	// this must be without delete, because life is mantained by parent Abc_Ntk_t
+	// and some bits of pointer are used to mark private information so this is not even proper C++ pointer
+	py::class_<Abc_Obj_t, std::unique_ptr<Abc_Obj_t, py::nodelete>>(m, "Abc_Obj_t")
 		.def_property_readonly("Type", [](Abc_Obj_t * self) {
 			return (Abc_ObjType_t)Abc_ObjType(self);
 		})
@@ -390,7 +409,28 @@ PYBIND11_MODULE(abcCpp, m) {
 		.def("__hash__", [](Abc_Obj_t* self) {
 			return (std::intptr_t) self;
 		});
+}
 
+PYBIND11_MODULE(abcCpp, m) {
+	// https://people.eecs.berkeley.edu/~alanmi/abc/aig.pdf
+	Abc_Start();
+
+	py::class_<Abc_Frame_t_pybind11_wrap, std::unique_ptr<Abc_Frame_t_pybind11_wrap, py::nodelete>>(m, "Abc_Frame_t")
+		.def_static("GetGlobalFrame", []() {
+				return (Abc_Frame_t_pybind11_wrap*)Abc_FrameGetGlobalFrame();
+			}, py::return_value_policy::reference)
+		.def("CommandExecute", [](Abc_Frame_t_pybind11_wrap * pAbc, const char * sCommand) {
+			return Cmd_CommandExecute((Abc_Frame_t*)pAbc, sCommand);
+		})
+		.def("SetCurrentNetwork", [](Abc_Frame_t_pybind11_wrap * pAbc, Abc_Ntk_t * pNtkNew) {
+			Abc_FrameSetCurrentNetwork((Abc_Frame_t*)pAbc, pNtkNew);
+		}, py::keep_alive<1, 0>()) // keep network alive while frame exists
+		.def("DeleteAllNetworks", [](Abc_Frame_t_pybind11_wrap * pAbc) {
+			Abc_FrameDeleteAllNetworks((Abc_Frame_t*)pAbc);
+		});
+
+	register_Abc_Ntk_t(m);
+	register_Abc_Obj_t(m);
 	//py::capsule cleanup(m, [](PyObject *) { Abc_Stop(); });
 	//m.add_object("_cleanup", cleanup);
 }
