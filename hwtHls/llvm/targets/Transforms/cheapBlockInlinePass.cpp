@@ -180,7 +180,10 @@ void copyMachineBlockContentToPredecessor(MachineRegisterInfo &MRI,
 	for (auto &MI : MBB) {
 		if (MI.isTerminator()) {
 			break;
+		} else if (MI.isPHI()) {
+			llvm_unreachable("NotImplemented");
 		}
+
 		switch (MI.getOpcode()) {
 		case HwtFpga::HWTFPGA_MUX: {
 			// convert copy to conditional copy

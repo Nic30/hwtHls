@@ -189,7 +189,7 @@ void HwtHlsVRegLiveins::UpdateAfterInsertBranch(llvm::MachineBasicBlock &MBB) {
 	assert(CondOp.isReg() && "Branch condition should be always register");
 	addToLivenessRecursively(MBB, CondOp.getReg());
 
-	// 2. The condition may operand in branch may require "killed" flag if the register is not liveout of the block.
+	// 2. The condition operand in branch may require "killed" flag if the register is not liveout of the block.
 	if (CondOp.isKill() && !isLiveout(MBB, CondOp.getReg())) {
 		CondOp.setIsKill(true);
 	}

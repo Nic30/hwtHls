@@ -44,8 +44,7 @@ void collectDirectLiveinsAndDefines(llvm::MachineRegisterInfo &MRI,
 		if (ignoreInstrPredicate(MRI, i))
 			continue;
 		unsigned opCnt = i.getNumOperands();
-		if (i.getOpcode() == TargetOpcode::PHI
-				|| i.getOpcode() == TargetOpcode::G_PHI) {
+		if (i.isPHI()) {
 		    for (unsigned Idx = 1; Idx < i.getNumOperands(); Idx += 2) {
 		      const MachineOperand &Src = i.getOperand(Idx);
 		      Register SrcReg = Src.getReg();
