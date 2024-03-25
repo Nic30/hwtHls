@@ -154,9 +154,16 @@ public:
 std::string __repr__Abc_ObjPrint(Abc_Obj_t * pObj )
 {
 	std::stringstream ss;
-    Abc_Obj_t * pFanin;
-    int i;
-    ss << "Object " << std::setw(5) << pObj->Id << " : ";
+    ss << "Object ";
+    if (Abc_ObjIsComplement(pObj)) {
+    	ss << "~";
+    } else {
+     	ss << " ";
+    }
+	// :attention: complement pointer is a abc hack which stores values in lower bits of pointer
+	// which makes pointer itself invalid C++ pointer
+	pObj = Abc_ObjRegular(pObj);
+    ss << std::setw(5) << pObj->Id << " : ";
     switch ( pObj->Type )
     {
         case ABC_OBJ_NONE:
@@ -197,6 +204,8 @@ std::string __repr__Abc_ObjPrint(Abc_Obj_t * pObj )
             break;
     }
     // print the fanins
+    Abc_Obj_t * pFanin;
+    int i;
     ss << " Fanins ( ";
     Abc_ObjForEachFanin( pObj, pFanin, i )
         ss << pFanin->Id << " ";
