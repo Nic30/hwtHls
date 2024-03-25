@@ -7,7 +7,7 @@ from hwt.simulator.simTestCase import SimTestCase
 from hwt.synthesizer.unit import Unit
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtSimApi.constants import CLK_PERIOD
-from tests.frontend.ast.trivial_test import HlsAstTrivial_TC
+from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
 from tests.io.ioFsm2 import WriteFsmFor, WriteFsmPrequel, WriteFsmIf, \
     WriteFsmIfOptionalInMiddle, WriteFsmControlledFromIn
 
@@ -15,7 +15,7 @@ from tests.io.ioFsm2 import WriteFsmFor, WriteFsmPrequel, WriteFsmIf, \
 class IoFsm2_TC(SimTestCase):
 
     def _test_no_comb_loops(self):
-        HlsAstTrivial_TC._test_no_comb_loops(self)
+        BaseIrMirRtl_TC._test_no_comb_loops(self)
 
     def _test_Write(self, cls: Type[Unit], ref: List[Optional[int]], CLK):
         u = cls()
@@ -101,9 +101,8 @@ class IoFsm2_TC(SimTestCase):
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
-
     u = WriteFsmPrequel()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter={*HlsDebugBundle.ALL_RELIABLE, HlsDebugBundle.DBG_20_addSignalNamesToSync})))
 
     import unittest
     testLoader = unittest.TestLoader()

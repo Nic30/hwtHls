@@ -7,16 +7,16 @@ from hwt.simulator.simTestCase import SimTestCase
 from hwt.synthesizer.unit import Unit
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtSimApi.constants import CLK_PERIOD
-from tests.frontend.ast.trivial_test import HlsAstTrivial_TC
 from tests.io.ioFsm import WriteFsm0Send123, WriteFsm0WhileTrue123, WriteFsm1WhileTrue123hs, WriteFsm1Send123hs, \
     ReadFsm0WhileTrueRead3TimesWriteConcat, ReadFsm0Read3TimesWriteConcat, ReadFsm1Read3TimesWriteConcatHs, \
     ReadFsm1WhileTrueRead3TimesWriteConcatHs
+from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
 
 
 class IoFsm_TC(SimTestCase):
 
     def _test_no_comb_loops(self):
-        HlsAstTrivial_TC._test_no_comb_loops(self)
+        BaseIrMirRtl_TC._test_no_comb_loops(self)
 
     def _test_Write(self, cls: Type[Unit], ref: List[Optional[int]], CLK):
         u = cls()

@@ -3,10 +3,10 @@
 
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.platform.virtual import VirtualHlsPlatform
-from tests.frontend.ast.trivial_test import HlsAstTrivial_TC
+from hwtSimApi.utils import freq_to_period
+from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
 from tests.io.bram.bramRead import BramReadWithRom
 from tests.io.bram.bramRead2R import BramRead2RWithRom
-from hwtSimApi.utils import freq_to_period
 
 
 class BramRead_TC(SimTestCase):
@@ -17,7 +17,7 @@ class BramRead_TC(SimTestCase):
         clkPeriod = int(freq_to_period(u.CLK_FREQ))
         # + 1 for reset, +1 for latency
         self.runSim((32 + 1 + 1) * clkPeriod)
-        HlsAstTrivial_TC._test_no_comb_loops(self)
+        BaseIrMirRtl_TC._test_no_comb_loops(self)
 
         ref = []
         for _ in range(2):
@@ -32,7 +32,7 @@ class BramRead_TC(SimTestCase):
         clkPeriod = int(freq_to_period(u.CLK_FREQ))
         # + 1 for reset, +1 for latency
         self.runSim((16 + 1 + 1) * clkPeriod)
-        HlsAstTrivial_TC._test_no_comb_loops(self)
+        BaseIrMirRtl_TC._test_no_comb_loops(self)
 
         ref0 = []
         ref1 = []

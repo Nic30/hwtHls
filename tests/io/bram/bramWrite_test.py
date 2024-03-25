@@ -4,8 +4,8 @@
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtSimApi.utils import freq_to_period
-from tests.frontend.ast.trivial_test import HlsAstTrivial_TC
 from tests.io.bram.bramWrite import BramWrite
+from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
 
 
 class BramWrite_TC(SimTestCase):
@@ -16,7 +16,7 @@ class BramWrite_TC(SimTestCase):
         clkPeriod = int(freq_to_period(u.CLK_FREQ))
         N = 8
         self.runSim((N + 1) * clkPeriod)
-        HlsAstTrivial_TC._test_no_comb_loops(self)
+        BaseIrMirRtl_TC._test_no_comb_loops(self)
         res = {i: int(v) for i, v in u.ram._ag.mem.items()}
         self.assertDictEqual({i: i for i in range(N)}, res)
 

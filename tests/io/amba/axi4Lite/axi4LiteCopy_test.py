@@ -5,7 +5,7 @@ from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtLib.amba.axiLite_comp.sim.ram import Axi4LiteSimRam
 from hwtSimApi.utils import freq_to_period
-from tests.frontend.ast.trivial_test import HlsAstTrivial_TC
+from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
 from tests.io.amba.axi4Lite.axi4LiteCopy import Axi4LiteCopy
 
 
@@ -30,7 +30,7 @@ class Axi4LiteCopy_TC(SimTestCase):
 
         clkPeriod = int(freq_to_period(u.CLK_FREQ))
         self.runSim((3 * N + 1) * clkPeriod)
-        HlsAstTrivial_TC._test_no_comb_loops(self)
+        BaseIrMirRtl_TC._test_no_comb_loops(self)
 
         inRamData = m.getArray(u.OFFSET, WORD_SIZE, N)
         self.assertValSequenceEqual(inRamData, ref)
