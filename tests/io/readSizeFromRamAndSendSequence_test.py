@@ -4,14 +4,14 @@
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtSimApi.utils import freq_to_period
-from tests.frontend.ast.trivial_test import HlsAstTrivial_TC
 from tests.io.readSizeFromRamAndSendSequence import ReadSizeFromRamAndSendSequence
+from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
 
 
 class ReadSizeFromRamAndSendSequence_TC(SimTestCase):
 
     def _test_no_comb_loops(self):
-        HlsAstTrivial_TC._test_no_comb_loops(self)
+        BaseIrMirRtl_TC._test_no_comb_loops(self)
 
     def test_ReadSizeFromRamAndSendSequence(self, FREQ=50e6):
         u = ReadSizeFromRamAndSendSequence()
@@ -41,10 +41,10 @@ if __name__ == "__main__":
     u = ReadSizeFromRamAndSendSequence()
     u.CLK_FREQ = int(50e6)
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
-    
-    import unittest
-    testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([ReadSizeFromRamAndSendSequence_TC("test_ReadSizeFromRamAndSendSequence")])
-    suite = testLoader.loadTestsFromTestCase(ReadSizeFromRamAndSendSequence_TC)
-    runner = unittest.TextTestRunner(verbosity=3)
-    runner.run(suite)
+
+    #import unittest
+    #testLoader = unittest.TestLoader()
+    ## suite = unittest.TestSuite([ReadSizeFromRamAndSendSequence_TC("test_ReadSizeFromRamAndSendSequence")])
+    #suite = testLoader.loadTestsFromTestCase(ReadSizeFromRamAndSendSequence_TC)
+    #runner = unittest.TextTestRunner(verbosity=3)
+    #runner.run(suite)
