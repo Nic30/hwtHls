@@ -33,6 +33,7 @@ class BramCounterArray_TC(BaseSsaTC):
             self.randomize(u.incr)
 
         self.runSim((TIME_MULTIPLIER * N + 10) * int(freq_to_period(u.CLK_FREQ)))
+        self.assertEmpty(u.incr._ag.data)
         for i in range(u.ITEMS):
             d = mem.val.val.get(i, None)
             # print(i, ref[i], d)
@@ -46,7 +47,7 @@ class BramCounterArray_TC(BaseSsaTC):
         self._test_BramCounterArray(BramCounterArray0nocheck, mayLeak=True)
 
     def test_BramCounterArray1hardcodedlsu(self):
-        self._test_BramCounterArray(BramCounterArray1hardcodedlsu, TIME_MULTIPLIER=4)
+        self._test_BramCounterArray(BramCounterArray1hardcodedlsu, TIME_MULTIPLIER=3)
 
 
 if __name__ == "__main__":

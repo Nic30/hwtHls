@@ -21,11 +21,12 @@ from hwtHls.io.portGroups import MultiPortGroup
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.scope import HlsScope
 from hwtLib.mem.ram import RamSingleClock
+from hwtHls.netlist.nodes.schedulableNode import SchedTime
 
 
 class BramCounterArray0nocheck(Unit):
     """
-    Array of couters stored in bram without any data consystency handling.
+    Array of counters stored in BRAM without any data consystency handling.
     """
 
     def _config(self) -> None:
@@ -74,7 +75,8 @@ class BramCounterArray0nocheck(Unit):
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, ram)
         hls.addThread(mainThread)
         hls.compile()
-        assert len(hls._threads[0].toHw.scheduler.resourceUsage) == 2, "Intended only for 2 cycle operation"
+        assert len(hls._threads[0].toHw.scheduler.resourceUsage) == 2, (
+            "Intended only for 2 cycle operation", len(hls._threads[0].toHw.scheduler.resourceUsage))
 
 
 class BramCounterArray1hardcodedlsu(BramCounterArray0nocheck):
@@ -107,7 +109,7 @@ class BramCounterArray3stall(BramCounterArray0nocheck):
     """
     Store last N addresses and stall read if current read address in in last N addresses.
     Stalling of read is done using extraCond flag.
-    Flust of last N address pipeline happends every clock. It is implemented using non blocking read of control
+    Flush of last N address pipeline happens every clock. It is implemented using non blocking read of control
     from block where read is.
     """
 
@@ -130,7 +132,7 @@ class BramCounterArray3autoLsu(BramCounterArray0nocheck):
                 w = o
         assert r is not None
         assert w is not None
-        clkPeriod: int = r.netlist.normalizedClkPeriod
+        clkPeriod: SchedTime = r.netlist.normalizedClkPeriod
         r: HlsNetNodeWriteBramCmd
         w: HlsNetNodeWriteBramCmd
 
@@ -177,5 +179,6 @@ if __name__ == "__main__":
     from hwtHls.platform.xilinx.artix7 import Artix7Slow
     from hwtHls.platform.platform import HlsDebugBundle
     u = BramCounterArray1hardcodedlsu()
+    u.CLK_FREQ = int(10e6)
     print(to_rtl_str(u, target_platform=Artix7Slow(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
