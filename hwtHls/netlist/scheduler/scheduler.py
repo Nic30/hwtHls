@@ -14,7 +14,9 @@ from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
 from hwtHls.netlist.scheduler.resourceList import HlsSchedulerResourceUseList
 
 
-def asapSchedulePartlyScheduled(o: HlsNetNodeOut, beforeSchedulingFn: Optional[Callable[[HlsNetNode], bool]]) -> List[HlsNetNode]:
+def asapSchedulePartlyScheduled(o: HlsNetNodeOut,
+                                beforeSchedulingFn: Optional[Callable[[HlsNetNode], bool]],
+                                beginOfFirstClk:int=0) -> List[HlsNetNode]:
     """
     Run ASAP scheduling partly scheduled netlist.
 
@@ -38,7 +40,7 @@ def asapSchedulePartlyScheduled(o: HlsNetNodeOut, beforeSchedulingFn: Optional[C
                 for dep in n1.dependsOn:
                     toSearch.append(dep.obj)
 
-        n.scheduleAsap(None, 0, None)
+        n.scheduleAsap(None, beginOfFirstClk, None)
 
     return newlyScheduledNodes
 
