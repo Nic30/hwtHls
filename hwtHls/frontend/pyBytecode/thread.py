@@ -19,11 +19,10 @@ class HlsThreadFromPy(HlsThread):
         self.bytecodeToSsa = PyBytecodeToSsa(self.hls, self.fnName)
         self.fnArgs = fnArgs
         self.fnKwargs = fnKwargs
-        self.code = None
-        self._imports: List[Tuple[Union[RtlSignal, Interface], DIRECTION.IN]] = [] 
-        self._exports: List[Tuple[Union[RtlSignal, Interface], DIRECTION.IN]] = []
+        self._imports: List[Tuple[Union[RtlSignal, Interface], DIRECTION]] = [] 
+        self._exports: List[Tuple[Union[RtlSignal, Interface], DIRECTION]] = []
 
-    def debugEnable(self, p: DefaultHlsPlatform):
+    def debugCopyConfig(self, p: DefaultHlsPlatform):
         d = p._debug
         debugDir = d.dir
         if debugDir is not None:

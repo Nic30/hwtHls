@@ -299,7 +299,7 @@ class DefaultHlsPlatform(DummyPlatform):
         return dbgTracer, doCloseTrace
 
     def beforeThreadToSsa(self, thread: "HlsThread"):
-        thread.debugEnable(self)
+        thread.debugCopyConfig(self)
 
     def runSsaPasses(self, hls: "HlsScope", toSsa: HlsAstToSsa):
         dbg = self._debug.runDebugIfEnabled

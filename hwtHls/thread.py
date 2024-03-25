@@ -20,7 +20,10 @@ class HlsThread():
         self.toHw: Optional[HlsNetlistCtx] = None
         self.netlistCallbacks: List[Callable[["HlsScope", HlsThread]]] = []
     
-    def debugEnable(self, p: DefaultHlsPlatform):
+    def debugCopyConfig(self, p: DefaultHlsPlatform):
+        """
+        Copy debugging config from HlsPlatform object before any other work is performed.
+        """
         pass
 
     def getLabel(self) -> str:
