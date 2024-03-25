@@ -325,7 +325,8 @@ void register_Abc_Ntk_t(py::module_ &m) {
 	 .value("IO_FILE_SMV",     Io_FileType_t::IO_FILE_SMV    )//
 	 .value("IO_FILE_VERILOG", Io_FileType_t::IO_FILE_VERILOG)//
 	 .value("IO_FILE_UNKNOWN", Io_FileType_t::IO_FILE_UNKNOWN)//
-     .export_values();
+     .export_values()
+	 .doc() = ":see: https://people.eecs.berkeley.edu/~alanmi/abc/";
 
 
 	py::class_<Abc_Aig_t_pybind11_wrap, std::unique_ptr<Abc_Aig_t_pybind11_wrap, py::nodelete>>(m, "Abc_Aig_t")
