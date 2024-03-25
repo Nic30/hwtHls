@@ -5,7 +5,8 @@ from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.value import HValue
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.netlist.abc.abcCpp import Abc_Ntk_t, Abc_Aig_t, Abc_NtkType_t, Abc_NtkFunc_t, Abc_Frame_t, Abc_Obj_t
+from hwtHls.netlist.abc.abcCpp import Abc_Ntk_t, Abc_Aig_t, Abc_NtkType_t, Abc_NtkFunc_t,\
+    Abc_Frame_t, Abc_Obj_t #, Io_FileType_t
 
 
 class RtlNetlistToAbcAig():
@@ -76,4 +77,5 @@ class RtlNetlistToAbcAig():
         
         aig.Cleanup()
         net.Check()
+        # net.Io_Write("abc-directly.0.dot", Io_FileType_t.IO_FILE_DOT)
         return f, net, aig

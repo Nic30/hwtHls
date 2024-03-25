@@ -4,7 +4,8 @@ from hwt.code import Or, And
 from hwt.hdl.operatorDefs import AllOps, OpDefinition
 from hwt.hdl.types.defs import BIT
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.netlist.abc.abcCpp import Abc_Ntk_t, Abc_Aig_t, Abc_Frame_t, Abc_Obj_t, Abc_ObjType_t
+from hwtHls.netlist.abc.abcCpp import Abc_Ntk_t, Abc_Aig_t, Abc_Frame_t, Abc_Obj_t, \
+    Abc_ObjType_t  # , Io_FileType_t
 
 
 class AbcAigToRtlNetlist():
@@ -187,6 +188,7 @@ class AbcAigToRtlNetlist():
         return res
 
     def translate(self):
+        # self.net.Io_Write("abc-directly.dot", Io_FileType_t.IO_FILE_DOT)
         res = []
         for o in self.net.IterPo():
             o: Abc_Obj_t
