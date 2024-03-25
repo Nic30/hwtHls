@@ -312,18 +312,15 @@ class SlicesMergePass_TC(BaseLlvmIrTC):
           %"0" = call i1 @hwtHls.bitRangeGet.i3.i3.i1.0(i3 %"dataIn0(dataIn_read)", i3 0) #2
           %"1" = call i1 @hwtHls.bitRangeGet.i3.i3.i1.1(i3 %"dataIn0(dataIn_read)", i3 1) #2
           %"2" = call i1 @hwtHls.bitRangeGet.i3.i3.i1.2(i3 %"dataIn0(dataIn_read)", i3 2) #2
-          %"8" = xor i1 %"2", %"1"
-          %"29" = xor i1 %"0", %"1"
-          %"38" = xor i1 %"0", %"2"
-          %"110" = xor i1 %"0", %"8"
-          %"111" = xor i1 %"110", true
-          %"3" = call i32 @hwtHls.bitConcat.i3.i1.i1.i1.i1.i1.i1.i1.i1.i1.i1.i1.i9.i1.i1.i7(i3 0, i1 %"29", i1 %"38", i1 %"8", i1 %"29", i1 %"38", i1 %"8", i1 %"29", i1 %"38", i1 %"8", i1 %"111", i1 %"29", i9 0, i1 %"8", i1 %"29", i7 0) #2
-          store volatile i32 %"3", ptr addrspace(2) %dataOut, align 4
+          %"3" = xor i1 %"2", %"1"
+          %"4" = and i1 %"0", %"3"
+          %"5" = xor i1 %"4", true
+          %"6" = call i2 @hwtHls.bitConcat.i1.i1(i1 %"3", i1 %"5") #2
+          store volatile i2 %"6", ptr addrspace(2) %dataOut, align 4
           ret void
         }
         """
         self._test_ll(ir)
-
 
 if __name__ == "__main__":
     # from hwt.synthesizer.utils import to_rtl_str
@@ -334,7 +331,7 @@ if __name__ == "__main__":
     import unittest
     import sys
     testLoader = unittest.TestLoader()
-    suite = unittest.TestSuite([SlicesMergePass_TC('test_crc32_3b_reduced')])
-    # suite = testLoader.loadTestsFromTestCase(SlicesMergePass_TC)
+    # suite = unittest.TestSuite([SlicesMergePass_TC('test_crc32_3b_reduced')])
+    suite = testLoader.loadTestsFromTestCase(SlicesMergePass_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     sys.exit(not runner.run(suite).wasSuccessful())
