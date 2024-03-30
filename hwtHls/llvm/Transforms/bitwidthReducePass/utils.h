@@ -18,8 +18,11 @@ public:
 	KnownBitRangeInfo(const llvm::ConstantInt *CI);
 	KnownBitRangeInfo(const llvm::Value *V);
 	unsigned dstEndBitI() const;
-	KnownBitRangeInfo slice(llvm::IRBuilder<> *Builder, unsigned offset,
-			unsigned width) const;
+	// check if this and itemOnRight overlaps in dst, if it is guaranteed this.begin <= itemOnRight.begin
+	bool overlapsThisOnLeftInDst(const KnownBitRangeInfo &itemOnRight) const;
+	// :note: It does not construct slices of values, srcBeginBitI and width is used in that case,
+	//        constants are sliced immediately
+	KnownBitRangeInfo slice(unsigned offset, unsigned width) const;
 
 	void print(llvm::raw_ostream &O, bool IsForDebug = false) const;
 	bool operator!=(const KnownBitRangeInfo &rhs) const;
@@ -64,7 +67,7 @@ public:
 	// if value is not specified this vector it means that the original bits of this value should be used
 
 	// mask for each operand which is used to prune some bits from operand value
-	// [todo] this is used only for compares, check it ti is required
+	// [todo] this is used only for compares, check if it is required
 	std::vector<llvm::APInt> operandUseMask;
 
 	VarBitConstraint(unsigned bitWidth);
@@ -76,7 +79,7 @@ public:
 	void clearAllOperandMasks(unsigned lowBitI, unsigned highBitI);
 	// get mask for bits which are truly computed by this instruction
 	// (are not known to be constant or some specific other value)
-	llvm::APInt getTrullyComputedBitMask(const llvm::Value * selfValue) const;
+	llvm::APInt getTrullyComputedBitMask(const llvm::Value *selfValue) const;
 
 	// fill known bit range as a slice on self
 	//void _srcUnionInplaceSelf(const llvm::Value *parent, uint64_t offset,
@@ -97,9 +100,9 @@ public:
 	// :param srcOffset: additional offset to current src offfset in item
 	// :param srcWidth: width of added segment from item
 	static void srcUnionPushBackWithMerge(
-			std::vector<KnownBitRangeInfo> &newList, KnownBitRangeInfo item, size_t srcOffset, size_t srcWidth);
-	VarBitConstraint slice(llvm::IRBuilder<> *Builder, unsigned offset,
-			unsigned width) const;
+			std::vector<KnownBitRangeInfo> &newList, KnownBitRangeInfo item,
+			size_t srcOffset, size_t srcWidth);
+	VarBitConstraint slice(unsigned offset, unsigned width) const;
 	bool consystencyCheck() const;
 	void print(llvm::raw_ostream &O, bool IsForDebug = false) const;
 };

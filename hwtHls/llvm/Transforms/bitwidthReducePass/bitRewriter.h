@@ -58,6 +58,6 @@ public:
 };
 
 // :param vbc: the slice containers from where to iterate bits, low to high
-std::vector<KnownBitRangeInfo> iterUsedBitRanges(llvm::IRBuilder<> *Builder,
+std::vector<KnownBitRangeInfo> iterUsedBitRanges(
 		const llvm::APInt &useMask, const VarBitConstraint &vbc);
 }

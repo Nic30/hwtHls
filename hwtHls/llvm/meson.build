@@ -104,8 +104,9 @@ py3.extension_module(
 
      'Transforms/bitwidthReducePass/bitPartsUseAnalysis.cpp',
      'Transforms/bitwidthReducePass/bitRewriter.cpp',
-     'Transforms/bitwidthReducePass/constBitPartsAnalysis.cpp',
      'Transforms/bitwidthReducePass/bitwidthReducePass.cpp',
+     'Transforms/bitwidthReducePass/constBitPartsAnalysis.cpp',
+     'Transforms/bitwidthReducePass/phiValueProover.cpp',
      'Transforms/bitwidthReducePass/utils.cpp',
      'Transforms/slicesToIndependentVariablesPass/detectSplitPoints.cpp',
      'Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.cpp',

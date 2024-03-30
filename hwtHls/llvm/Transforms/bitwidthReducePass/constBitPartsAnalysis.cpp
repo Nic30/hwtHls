@@ -1,4 +1,5 @@
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/constBitPartsAnalysis.h>
+#include <hwtHls/llvm/Transforms/bitwidthReducePass/phiValueProover.h>
 #include <llvm/IR/IRBuilder.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <hwtHls/llvm/bitMath.h>
@@ -43,6 +44,23 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitSelectInst(
 	}
 	return c;
 }
+/*
+ * RAII style context manager which sets provided reference to specified value
+ * when deallocated.
+ * */
+template<typename T>
+struct SetOnExitAction {
+	SetOnExitAction(T &valToSet, T enterVal, T exitVal) :
+			valToSet(valToSet), exitVal(exitVal) {
+		valToSet = enterVal;
+	}
+	~SetOnExitAction() {
+		valToSet = exitVal;
+	}
+private:
+	T &valToSet;
+	T exitVal;
+};
 
 VarBitConstraint& ConstBitPartsAnalysisContext::visitPHINode(const PHINode *I) {
 	// propagate from ops to this, union of masks an known values
@@ -50,33 +68,20 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitPHINode(const PHINode *I) {
 	constraints[I] = std::make_unique<VarBitConstraint>(I); // Must be initialized to self
 	// because there can be cycle in PHI dependencies so if we meet this value when resolving this
 	// we will know that it is this PHI.
-	VarBitConstraint &c = *constraints[I];
-	if (resolvePhiValues) {
-		bool first = true;
-		for (auto op : I->operand_values()) {
-			const auto &_c = visitValue(op);
-			if (first) {
-				first = false;
-				assert(_c.consystencyCheck());
-				c = _c; // intended copy of _c to c
-			} else {
-				assert(c.consystencyCheck());
-				c.srcUnionInplace(_c, I, false);
-				// can not reduce undefs because it may remove
-				// this phi which may result in non dominated uses for branches where value
-				// may come to block as undef
 
-#ifndef NDEBUG
-				if (!c.consystencyCheck()) {
-					errs() << *I << "\n";
-					errs() << c << "\n";
-					llvm_unreachable("PHINode in inconsistent state");
-				}
-#endif
-			}
+	VarBitConstraint &origC = *constraints[I];
+	if (resolvePhiValues) {
+		PHIValueProover valProover(I);
+		SetOnExitAction<bool> setBackResolvePhiValues(resolvePhiValues, false, true);
+
+		for (auto *op : I->operand_values()) {
+			const auto &_c = visitValue(op);
+			valProover.addOperandConstraint(_c);
 		}
+
+		origC = valProover.resolve();
 	}
-	return c;
+	return origC;
 }
 
 VarBitConstraint& ConstBitPartsAnalysisContext::visitAsAllInputBitsUsedAllOutputBitsKnown(
@@ -152,8 +157,7 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitTrunc(const CastInst *I) {
 	constraints[I] = std::make_unique<VarBitConstraint>(I);
 	VarBitConstraint &cur = *constraints[I];
 	auto &op = visitValue(I->getOperand(0));
-	IRBuilder<> Builder(const_cast<CastInst*>(I));
-	cur = op.slice(&Builder, 0, I->getType()->getIntegerBitWidth());
+	cur = op.slice(0, I->getType()->getIntegerBitWidth());
 	assert(cur.consystencyCheck());
 	return cur;
 }
@@ -164,9 +168,8 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitZExt(const CastInst *I) {
 	auto &op = visitValue(I->getOperand(0));
 	unsigned origWidth = op.useMask.getBitWidth();
 	unsigned resWidth = cur.useMask.getBitWidth();
-	IRBuilder<> b(I->getContext()); // only for ints
 	if (origWidth != resWidth) {
-		KnownBitRangeInfo r(b.getInt(APInt(resWidth - origWidth, 0)));
+		KnownBitRangeInfo r(ConstantInt::get(I->getContext(), APInt(resWidth - origWidth, 0)));
 		r.srcBeginBitI = 0;
 		r.dstBeginBitI = origWidth;
 		cur.replacements.pop_back();
@@ -256,8 +259,7 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitCallInst(
 				auto &base = visitValue(C->getArgOperand(0));
 				auto w = cur.useMask.getBitWidth();
 				auto off = shConst->getLimitedValue();
-				IRBuilder<> B(const_cast<CallInst*>(C));
-				auto res = base.slice(&B, off, w);
+				auto res = base.slice(off, w);
 				cur.replacements.clear();
 				cur.replacements.insert(cur.replacements.begin(),
 						res.replacements.begin(), res.replacements.end());
@@ -275,18 +277,18 @@ void ConstBitPartsAnalysisContext::visitBinaryOperatorReduceAnd(
 		std::vector<KnownBitRangeInfo> &newParts, const BinaryOperator *parentI,
 		unsigned width, unsigned vSrcOffset, unsigned cSrcOffset,
 		unsigned dstOffset, const APInt &c, const KnownBitRangeInfo &v) {
-	IRBuilder<> b(const_cast<BinaryOperator*>(parentI));
+	auto& Context = parentI->getContext();
 	for (auto seq : iter1and0sequences(c, cSrcOffset, width)) {
 		unsigned w = seq.second;
 		if (seq.first) {
 			// 1 sequence found
-			KnownBitRangeInfo i = v.slice(&b, vSrcOffset, w);
+			KnownBitRangeInfo i = v.slice(vSrcOffset, w);
 			i.dstBeginBitI = dstOffset;
 			VarBitConstraint::srcUnionPushBackWithMerge(newParts, i, 0,
 					i.width);
 		} else {
 			// 0 sequence found
-			KnownBitRangeInfo i = KnownBitRangeInfo(b.getInt(APInt(w, 0)));
+			KnownBitRangeInfo i = KnownBitRangeInfo(ConstantInt::get(Context, APInt(w, 0)));
 			i.dstBeginBitI = dstOffset;
 			VarBitConstraint::srcUnionPushBackWithMerge(newParts, i, 0,
 					i.width);
@@ -301,19 +303,18 @@ void ConstBitPartsAnalysisContext::visitBinaryOperatorReduceOr(
 		std::vector<KnownBitRangeInfo> &newParts, const BinaryOperator *parentI,
 		unsigned width, unsigned vSrcOffset, unsigned cSrcOffset,
 		unsigned dstOffset, const APInt &c, const KnownBitRangeInfo &v) {
-	IRBuilder<> b(const_cast<BinaryOperator*>(parentI));
+	auto& Context = parentI->getContext();
 	for (auto seq : iter1and0sequences(c, cSrcOffset, width)) {
 		unsigned w = seq.second;
 		if (seq.first) {
 			// end of 1 sequence found
-			KnownBitRangeInfo i = KnownBitRangeInfo(
-					b.getInt(APInt::getAllOnesValue(w)));
+			KnownBitRangeInfo i = KnownBitRangeInfo(ConstantInt::get(Context, APInt::getAllOnesValue(w)));
 			i.dstBeginBitI = dstOffset;
 			VarBitConstraint::srcUnionPushBackWithMerge(newParts, i, 0,
 					i.width);
 		} else {
 			// end of 0 sequence found
-			KnownBitRangeInfo i = v.slice(&b, vSrcOffset, w);
+			KnownBitRangeInfo i = v.slice(vSrcOffset, w);
 			i.dstBeginBitI = dstOffset;
 			VarBitConstraint::srcUnionPushBackWithMerge(newParts, i, 0,
 					i.width);
@@ -408,7 +409,7 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitBinaryOperator(
 			void (ConstBitPartsAnalysisContext::*reduceFn)(
 					std::vector<KnownBitRangeInfo> &, const BinaryOperator *,
 					unsigned, unsigned, unsigned,
-					unsigned, const APInt &, const KnownBitRangeInfo &) = &ConstBitPartsAnalysisContext::visitBinaryOperatorReduceOr;
+					unsigned, const APInt &, const KnownBitRangeInfo &) = nullptr;
 			unsigned vSrcOffset;
 			unsigned cSrcOffset;
 			const APInt *c;
@@ -742,9 +743,12 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitCmpInst(const CmpInst *I) {
 }
 
 bool ConstBitPartsAnalysisContext::updateInstruction(const Instruction *I) {
+	if (!resolvePhiValues && isa<PHINode>(I))
+		return false;
 	std::unique_ptr<VarBitConstraint> prev = std::move(constraints[I]);
 	constraints.erase(I);
 	auto &cur = visitInstruction(I);
+	assert(constraints[I].get() == &cur);
 	return prev->replacements != cur.replacements;
 }
 

@@ -10,14 +10,13 @@ BitPartsRewriter::BitPartsRewriter(
 		constraints(_constraints) {
 }
 
-std::vector<KnownBitRangeInfo> iterUsedBitRanges(IRBuilder<> *Builder,
-		const APInt &useMask, const VarBitConstraint &vbc) {
+std::vector<KnownBitRangeInfo> iterUsedBitRanges(const APInt &useMask, const VarBitConstraint &vbc) {
 	std::vector<KnownBitRangeInfo> res;
 	unsigned dstBeginOffset = 0;
 	iterUsedBitRangeSlices(useMask,
-			[Builder, &dstBeginOffset, &vbc, &res](size_t offset,
+			[&dstBeginOffset, &vbc, &res](size_t offset,
 					size_t width) {
-				for (auto &i : vbc.slice(Builder, offset, width).replacements) {
+				for (auto &i : vbc.slice(offset, width).replacements) {
 					i.dstBeginBitI = dstBeginOffset;
 					VarBitConstraint::srcUnionPushBackWithMerge(res, i, 0,
 							i.width);
@@ -52,8 +51,8 @@ llvm::Value* BitPartsRewriter::rewriteKnownBitRangeInfo(IRBuilder<> *Builder,
 						auto constr = constraints.find(I);
 						assert(constr != constraints.end());
 						const auto &useMask = constr->second->useMask;
-						auto noOfZerosInUseMaskBeforeThisSlice = (~useMask.trunc(
-								offset)).countPopulation();
+						auto noOfZerosInUseMaskBeforeThisSlice =
+								(~useMask.trunc(offset)).countPopulation();
 						assert(offset >= noOfZerosInUseMaskBeforeThisSlice);
 						offset -= noOfZerosInUseMaskBeforeThisSlice;
 						src = repl->second;
@@ -83,6 +82,9 @@ llvm::Value* BitPartsRewriter::rewriteKnownBitRangeInfoVector(
 
 llvm::Value* BitPartsRewriter::rewritePHINode(llvm::PHINode &I,
 		const VarBitConstraint &vbc) {
+	assert(
+			!vbc.useMask.isAllOnes()
+					&& "If this was the case it should not be required to rewrite this PHINode (only its incomming values)");
 	IRBuilder<> b(&I);
 	auto *newTy = b.getIntNTy(vbc.useMask.countPopulation());
 	auto *res = b.CreatePHI(newTy, I.getNumOperands(), I.getName());
@@ -98,14 +100,15 @@ llvm::Value* BitPartsRewriter::rewriteSelect(llvm::SelectInst &I,
 	IRBuilder<> b(&I);
 	auto &T = constraints[I.getTrueValue()];
 	Value *tVal = rewriteKnownBitRangeInfoVector(&b,
-			iterUsedBitRanges(&b, vbc.useMask, *T));
+			iterUsedBitRanges(vbc.useMask, *T));
 	auto &F = constraints[I.getFalseValue()];
 	Value *fVal = rewriteKnownBitRangeInfoVector(&b,
-			iterUsedBitRanges(&b, vbc.useMask, *F));
+			iterUsedBitRanges(vbc.useMask, *F));
 	Value *c = rewriteIfRequired(I.getCondition());
 	assert(c && "This can not be null because it has use (this one)");
 	Value *res;
-	if (c == I.getCondition() && tVal == I.getTrueValue() && fVal == I.getFalseValue()) {
+	if (c == I.getCondition() && tVal == I.getTrueValue()
+			&& fVal == I.getFalseValue()) {
 		res = &I;
 	} else {
 		res = b.CreateSelect(c, tVal, fVal, I.getName());
@@ -119,10 +122,10 @@ llvm::Value* BitPartsRewriter::rewriteBinaryOperatorBitwise(
 	IRBuilder<> b(&I);
 	auto &lhs = constraints[I.getOperand(0)];
 	Value *LHS = rewriteKnownBitRangeInfoVector(&b,
-			iterUsedBitRanges(&b, vbc.useMask, *lhs));
+			iterUsedBitRanges(vbc.useMask, *lhs));
 	auto &rhs = constraints[I.getOperand(1)];
 	Value *RHS = rewriteKnownBitRangeInfoVector(&b,
-			iterUsedBitRanges(&b, vbc.useMask, *rhs));
+			iterUsedBitRanges(vbc.useMask, *rhs));
 	Value *res;
 	if (LHS == I.getOperand(0) && RHS == I.getOperand(1)) {
 		res = &I;
@@ -138,10 +141,10 @@ llvm::Value* BitPartsRewriter::rewriteCmpInst(llvm::CmpInst &I,
 	IRBuilder<> b(&I);
 	auto &lVbc = constraints[I.getOperand(0)];
 	Value *LHS = rewriteKnownBitRangeInfoVector(&b,
-			iterUsedBitRanges(&b, vbc.operandUseMask[0], *lVbc));
+			iterUsedBitRanges(vbc.operandUseMask[0], *lVbc));
 	auto &rVbc = constraints[I.getOperand(1)];
 	Value *RHS = rewriteKnownBitRangeInfoVector(&b,
-			iterUsedBitRanges(&b, vbc.operandUseMask[1], *rVbc));
+			iterUsedBitRanges(vbc.operandUseMask[1], *rVbc));
 	Value *res;
 	if (LHS == I.getOperand(0) && RHS == I.getOperand(1)) {
 		res = &I;
@@ -252,7 +255,6 @@ void BitPartsRewriter::rewriteInstructionOperands(llvm::Instruction *I) {
 		}
 		opI++;
 	}
-
 }
 
 // @note we can not remove instruction immediately when rewritten because
@@ -273,12 +275,16 @@ llvm::Value* BitPartsRewriter::rewriteIfRequired(llvm::Value *V) {
 			// rewrite instructions which may have some bits reduced and are not bit concat/slice
 			if (auto *CI = dyn_cast<llvm::CmpInst>(I)) {
 				return rewriteCmpInst(*CI, vbc);
-			} else if (auto *PHI = dyn_cast<PHINode>(I)) {
-				return rewritePHINode(*PHI, vbc);
 			} else if (vbc.useMask.isAllOnesValue()) {
 				replacementCache[I] = I;
-				rewriteInstructionOperands(I);
+				if (!isa<PHINode>(I)) {
+					// if it is PHINode it will be done later in rewritePHINodeArgsIfRequired
+					// because phi argument values must be constructed in predecessor block.
+					rewriteInstructionOperands(I);
+				}
 				return I;
+			} else if (auto *PHI = dyn_cast<PHINode>(I)) {
+				return rewritePHINode(*PHI, vbc);
 			} else if (auto *SI = dyn_cast<llvm::SelectInst>(I)) {
 				return rewriteSelect(*SI, vbc);
 			} else if (auto *BO = dyn_cast<BinaryOperator>(I)) {
@@ -312,23 +318,32 @@ llvm::Value* BitPartsRewriter::rewriteIfRequired(llvm::Value *V) {
 
 llvm::Value* BitPartsRewriter::rewritePHINodeArgsIfRequired(
 		llvm::PHINode *phi) {
+	APInt phiUseMask = APInt::getAllOnes(phi->getType()->getIntegerBitWidth());
+	auto phiConstr = constraints.find(phi);
+	if (phiConstr != constraints.end()) {
+		VarBitConstraint &vbc = *phiConstr->second;
+		phiUseMask = vbc.useMask;
+		if (phiUseMask.isZero()) {
+			for (auto &v : phi->incoming_values()) {
+				// clear values of PHI which is entirely replaced to allow DCE
+				v.set(UndefValue::get(v.get()->getType()));
+			}
+			return phi; // no rewrite required because this is not used
+		}
+	}
 	auto _newPhi = replacementCache.find(phi);
 	if (_newPhi == replacementCache.end()) {
 		// The replacement value should be already generated from BitPartsRewriter::rewritePHINode
-		// This must be one of newly generated PHINodes
-		return phi;
+		// This must be one of newly generated PHINodes.
+		replacementCache[phi] = phi;
+		_newPhi = replacementCache.find(phi);
 	}
+
 	llvm::PHINode *newPhi = dyn_cast<PHINode>(_newPhi->second);
-
-	auto phiConstr = constraints.find(phi);
-	if (phiConstr == constraints.end()) {
-		return phi;
-	}
-	VarBitConstraint &vbc = *phiConstr->second;
 	assert(newPhi != nullptr);
-	assert(newPhi != phi);
-	IRBuilder<> b(phi);
+	assert(phi != newPhi || phiUseMask.isAllOnes());
 
+	IRBuilder<> b(phi);
 	unsigned opI = 0;
 	for (BasicBlock *pred : phi->blocks()) {
 		Value *val = phi->getIncomingValueForBlock(pred);
@@ -361,18 +376,31 @@ llvm::Value* BitPartsRewriter::rewritePHINodeArgsIfRequired(
 				b.SetInsertPoint(insertPoint);
 			}
 			// materialize phi operand
-			val = rewriteKnownBitRangeInfoVector(&b,
-					iterUsedBitRanges(&b, vbc.useMask, *constr->second));
-
+			auto *_val = rewriteKnownBitRangeInfoVector(&b,
+					iterUsedBitRanges(phiUseMask, *constr->second));
+			if (!_val->hasName() && val->hasName() && isa<Instruction>(_val)) {
+				_val->setName(val->getName());
+			}
+			val = _val;
 		}
-		newPhi->addIncoming(val, pred);
+		if (newPhi == phi) {
+			phi->setIncomingValueForBlock(pred, val);
+		} else {
+			newPhi->addIncoming(val, pred);
+		}
 		opI += 2;
 	}
-	if (newPhi->isSameOperationAs(phi)) {
+	if (newPhi != phi && newPhi->isSameOperationAs(phi)) {
 		_newPhi->second = phi;
 		newPhi->replaceAllUsesWith(phi);
 		newPhi->eraseFromParent();
 		newPhi = phi;
+	}
+	if (newPhi != phi) {
+		for (auto & v: phi->incoming_values()) {
+			// clear values of PHI which is entirely replaced to allow DCE
+			v.set(UndefValue::get(v.get()->getType()));
+		}
 	}
 	return newPhi;
 }

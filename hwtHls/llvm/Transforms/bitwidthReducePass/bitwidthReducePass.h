@@ -14,6 +14,10 @@ namespace hwtHls {
  * Similar to:
  *   * llvm::BDCEPass
  *     - works only on shifts and extensions
+ *   * llvm::KnownBits
+ *     - only the structure to discover known 0 or 1 in bit vectors
+ *   * llvm::ValueTracking
+ *     - only a set of functions to analyze specific patterns
  *   * A generic logic minimizer like ABC, Z3 bit-blast
  *     + performs full minimization
  *     - computationally complex, destroys the information about used operands and thus prevents other optimization

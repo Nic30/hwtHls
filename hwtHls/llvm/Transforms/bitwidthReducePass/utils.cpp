@@ -2,7 +2,6 @@
 #include <llvm/IR/IRBuilder.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 
-
 using namespace llvm;
 namespace hwtHls {
 
@@ -22,17 +21,26 @@ unsigned KnownBitRangeInfo::dstEndBitI() const {
 	return dstBeginBitI + width;
 }
 
-KnownBitRangeInfo KnownBitRangeInfo::slice(IRBuilder<> *Builder,
-		unsigned offset, unsigned width) const {
+bool KnownBitRangeInfo::overlapsThisOnLeftInDst(
+		const KnownBitRangeInfo &itemOnRight) const {
+	assert(dstBeginBitI <= itemOnRight.dstBeginBitI);
+	return dstEndBitI() > itemOnRight.dstBeginBitI; // this ending after other begin
+}
+
+KnownBitRangeInfo KnownBitRangeInfo::slice(unsigned offset,
+		unsigned width) const {
 	assert(offset < 0xffffff && width < 0xffffff && "Sanity check");
 	assert(width > 0);
-	assert(srcBeginBitI + offset + width <= src->getType()->getIntegerBitWidth() && "Bit range does not overflow");
+	assert(
+			srcBeginBitI + offset + width
+					<= src->getType()->getIntegerBitWidth()
+					&& "Bit range does not overflow");
 	KnownBitRangeInfo res(width);
 	if (auto *CI = dyn_cast<const ConstantInt>(src)) {
 		auto v = CI->getValue();
 		v.lshrInPlace(offset);
 		assert(res.srcBeginBitI == 0);
-		res.src = Builder->getInt(v.trunc(width));
+		res.src = ConstantInt::get(CI->getContext(), v.trunc(width));
 		res.srcBeginBitI = 0;
 	} else {
 		res.src = src;
@@ -190,7 +198,8 @@ VarBitConstraint::VarBitConstraint(const Value *V) :
 }
 
 VarBitConstraint::VarBitConstraint(const VarBitConstraint &obj) :
-		useMask(obj.useMask), replacements(obj.replacements) {
+		useMask(obj.useMask), replacements(obj.replacements), operandUseMask(
+				obj.operandUseMask) {
 }
 void VarBitConstraint::addAllSetOperandMask(unsigned width) {
 	operandUseMask.push_back(APInt::getAllOnesValue(width));
@@ -219,7 +228,8 @@ llvm::APInt VarBitConstraint::getTrullyComputedBitMask(
 	}
 	APInt m(useMask.getBitWidth(), 0);
 	for (const KnownBitRangeInfo &r : replacements) {
-		if (!isa<ConstantData>(r.src) && (selfIsCastOrSliceOrConcat || r.src == selfValue)) {
+		if (!isa<ConstantData>(r.src)
+				&& (selfIsCastOrSliceOrConcat || r.src == selfValue)) {
 			m.setBits(r.dstBeginBitI, r.dstBeginBitI + r.width);
 		}
 	}
@@ -251,10 +261,12 @@ void VarBitConstraint::srcUnionInplace(const VarBitConstraint &other,
 #ifndef NDEBUG
 		prevEndIndex = item.begin + item.width;
 #endif
+
 		if (item.v0 && item.v1) {
 			assert(item.begin >= item.v0->dstBeginBitI);
 			assert(item.begin >= item.v1->dstBeginBitI);
-			if (isa<UndefValue>(item.v0->src) && (reduceUndefs || isa<UndefValue>(item.v1->src))) {
+			if (isa<UndefValue>(item.v0->src)
+					&& (reduceUndefs || isa<UndefValue>(item.v1->src))) {
 				srcUnionPushBackWithMerge(newList, *item.v1,
 						item.begin - item.v1->dstBeginBitI, item.width);
 				continue;
@@ -263,7 +275,8 @@ void VarBitConstraint::srcUnionInplace(const VarBitConstraint &other,
 						item.begin - item.v0->dstBeginBitI, item.width);
 				continue;
 			} else if (item.v0->src == item.v1->src
-					&& item.v0->dstBeginBitI - item.v0->srcBeginBitI == item.v1->dstBeginBitI - item.v1->srcBeginBitI) {
+					&& item.v0->dstBeginBitI - item.v0->srcBeginBitI
+							== item.v1->dstBeginBitI - item.v1->srcBeginBitI) {
 				// both variants are specifying same bits for the item
 				srcUnionPushBackWithMerge(newList, *item.v0,
 						item.begin - item.v0->dstBeginBitI, item.width);
@@ -352,10 +365,13 @@ void VarBitConstraint::srcUnionPushBackWithMerge(
 		size_t srcOffset, size_t srcWidth) {
 	assert(srcWidth > 0);
 	assert(item.width >= srcWidth);
-	assert(item.srcBeginBitI < item.src->getType()->getIntegerBitWidth() && "bit range does not overflow");
+	assert(
+			item.srcBeginBitI < item.src->getType()->getIntegerBitWidth()
+					&& "bit range does not overflow");
 	assert(
 			item.srcBeginBitI + srcOffset + srcWidth
-					<= item.src->getType()->getIntegerBitWidth() && "bit range does not overflow");
+					<= item.src->getType()->getIntegerBitWidth()
+					&& "bit range does not overflow");
 	// select [srcOffset:srcOffset+srcWidth] bits from input item
 	item.srcBeginBitI += srcOffset;
 	item.dstBeginBitI += srcOffset;
@@ -400,7 +416,7 @@ void VarBitConstraint::srcUnionPushBackWithMerge(
 	newList.push_back(item);
 }
 
-VarBitConstraint VarBitConstraint::slice(IRBuilder<> *Builder, unsigned offset,
+VarBitConstraint VarBitConstraint::slice(unsigned offset,
 		unsigned width) const {
 	assert(offset < 0xffff && width < 0xffff && "Sanity check");
 	assert(width > 0);
@@ -418,18 +434,16 @@ VarBitConstraint VarBitConstraint::slice(IRBuilder<> *Builder, unsigned offset,
 				if (i.dstEndBitI() > end) {
 					// must cut this item at the begin and end"
 					res.replacements.push_back(
-							i.slice(Builder, offset - i.dstBeginBitI, width));
+							i.slice(offset - i.dstBeginBitI, width));
 					last = true;
 				} else {
 					// must cut this item at the begin
 					auto o = offset - i.dstBeginBitI;
-					res.replacements.push_back(
-							i.slice(Builder, o, i.width - o));
+					res.replacements.push_back(i.slice(o, i.width - o));
 				}
 			} else if (i.dstEndBitI() > end) {
 				// must cut this item at the end
-				res.replacements.push_back(
-						i.slice(Builder, 0, end - i.dstBeginBitI));
+				res.replacements.push_back(i.slice(0, end - i.dstBeginBitI));
 				last = true;
 			} else if (i.dstBeginBitI > end) {
 				break;
