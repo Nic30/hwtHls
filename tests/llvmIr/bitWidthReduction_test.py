@@ -15,14 +15,14 @@ class BitwidthReductionPass_TC(BaseLlvmIrTC):
     def test_constInConcat0(self):
         llvmIr = """\
             define void @constInConcat0(ptr addrspace(1) %dataOut) {
-            AxiSWriteByte.mainThread:
+            bb0:
               %0 = call i16 @hwtHls.bitConcat.i8.i8(i8 1, i8 0) #2
               %1 = call i19 @hwtHls.bitConcat.i16.i2.i1(i16 %0, i2 1, i1 true) #2
-              br label %blockL42i0_42
+              br label %bb1
             
-            blockL42i0_42:                                    ; preds = %blockL42i0_42, %AxiSWriteByte.mainThread
+            bb1:
               store volatile i19 %1, ptr addrspace(1) %dataOut, align 4
-              br label %blockL42i0_42
+              br label %bb1
             }
         """
         self._test_ll(llvmIr)
