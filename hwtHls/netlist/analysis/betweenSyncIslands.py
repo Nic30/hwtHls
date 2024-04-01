@@ -7,8 +7,13 @@ from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPas
 from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 from hwtHls.netlist.nodes.IoClusterCore import HlsNetNodeIoClusterCore
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
+from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge
+from hwtHls.netlist.nodes.loopChannelGroup import LoopChanelGroup, \
+    LOOP_CHANEL_GROUP_ROLE
+from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
 from hwtHls.netlist.nodes.node import HlsNetNode
 from ipCorePackager.constants import DIRECTION
 
@@ -88,7 +93,7 @@ class HlsNetlistAnalysisPassBetweenSyncIslands(HlsNetlistAnalysisPass):
 
             for n in reachDb._getDirectDataSuccessorsRaw(toSearchDefToUse, set()):
                 assert not isinstance(n, HlsNetNodeAggregate), n
-                # search use -> def (top -> down)
+                # search def <- use  (top <- down)
                 if n not in seenUseToDef:
                     seenUseToDef.add(n)
                     toSearchUseToDef.append(n)
@@ -101,31 +106,52 @@ class HlsNetlistAnalysisPassBetweenSyncIslands(HlsNetlistAnalysisPass):
             for n in reachDb._getDirectDataPredecessorsRaw(toSearchUseToDef, set()):
                 assert isinstance(n, HlsNetNode), n
                 assert not isinstance(n, HlsNetNodeAggregate), n
-                # search use -> def (top -> down)
+                # search def -> use (top -> down)
                 if n not in seenDefToUse:
                     seenDefToUse.add(n)
                     toSearchDefToUse.append(n)
 
+                # io of the loop must be in the same node as HlsNetNodeLoopStatus,
+                # for each io add also HlsNetNodeLoopStatus
                 if isinstance(n, HlsNetNodeExplicitSync):
                     inputs.append(n)
+                    if isinstance(n, (HlsNetNodeReadBackedge, HlsNetNodeReadForwardedge)):
+                        chGroup = n.associatedWrite._loopChannelGroup
+                        if chGroup is not None and chGroup.getChannelWhichIsUsedToImplementControl() is n:
+                            chGroup: LoopChanelGroup
+                            for loop, role in chGroup.connectedLoops:
+                                if role not in (
+                                    LOOP_CHANEL_GROUP_ROLE.ENTER,
+                                    LOOP_CHANEL_GROUP_ROLE.REENTER,
+                                    ):
+                                    continue
+                                elif loop not in seenDefToUse and loop not in internalNodes:
+                                    seenDefToUse.add(loop)
+                                    toSearchDefToUse.append(loop)
                 else:
-                    internalNodes.append(n)
-                    #if isinstance(n, HlsNetNodeLoopStatus):
-                    #    n: HlsNetNodeLoopStatus
-                    #    for chGroup in n.iterConnectedChannelGroups():
-                    #        chGroup: LoopChanelGroup
-                    #        for w in chGroup.members:
-                    #            r = w.associatedRead
-                    #            if r not in seenDefToUse:
-                    #                inputs.append(r)
-                    #                seenDefToUse.add(r)
-                    #                toSearchDefToUse.append(r)
-                    #
+                    nIsNewlyAdded = internalNodes.append(n)
+                    if nIsNewlyAdded and isinstance(n, HlsNetNodeLoopStatus):
+                        n: HlsNetNodeLoopStatus
+                        for chGroup in n.iterConnectedChannelGroups():
+                            chGroup: LoopChanelGroup
+                            if chGroup.getRoleForLoop(n) not in (
+                                LOOP_CHANEL_GROUP_ROLE.ENTER,
+                                LOOP_CHANEL_GROUP_ROLE.REENTER,
+                                ):
+                                continue
+                            w = chGroup.getChannelWhichIsUsedToImplementControl()
+                            r = w.associatedRead
+                            if r not in seenDefToUse:
+                                inputs.append(r)
+                                seenDefToUse.add(r)
+                                toSearchDefToUse.append(r)
+
         # inputs may dependent on outputs because we stop search
         # after first found HlsNetNodeExplicitSync instance
         iOffset = 0
-        for ii, i in tuple(enumerate(inputs)):
-            for o in outputs:
+        _inputs = tuple(inputs)
+        for ii, i in enumerate(_inputs):
+            for o in chain(outputs, _inputs):
                 if reachDb.doesReachToData(o, i):
                     _i = inputs.pop(iOffset + ii)
                     assert _i is i
