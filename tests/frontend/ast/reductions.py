@@ -10,7 +10,7 @@ from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import uint8_t
 
 
-class SumReduce(Unit):
+class ForLoopWithIoSelectIn(Unit):
 
     def _config(self) -> None:
         self.DATA_WIDTH = Param(8)
@@ -52,6 +52,33 @@ class SumReduce(Unit):
         hls.compile()
 
 
+class SumReduce(ForLoopWithIoSelectIn):
+
+    def _impl(self) -> None:
+        hls = HlsScope(self)
+        din = self.dataIn
+        res = hls.var("res", self.dataOut0.T)
+        i = hls.var("i", uint8_t)
+        ast = HlsAstBuilder(hls)
+        hls.addThread(HlsThreadFromAst(hls,
+            ast.While(True,
+                res(0),
+                ast.For(i(0), i < 3, i(i + 1),
+                    # if this for is not unrolled the execution is sequential,
+                    # in each clock only a single input is read
+                    ast.If(i._eq(0),
+                        res(res + hls.read(din[0]).data),
+                    ).Elif(i._eq(1),
+                        res(res + hls.read(din[1]).data),
+                    ).Elif(i._eq(2),
+                        res(res + hls.read(din[2]).data),
+                    )
+                ),
+                hls.write(res, self.dataOut0),
+            ),
+            self._name)
+        )
+        hls.compile()
 
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
