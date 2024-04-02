@@ -436,15 +436,15 @@ class AxiSParseIfTC(SimTestCase):
 
 
 if __name__ == '__main__':
-    from hwt.synthesizer.utils import to_rtl_str
-    u = AxiSParse2IfAndSequel()
-    u.WRITE_FOOTER = True
-    u.DATA_WIDTH = 512
-    u.CLK_FREQ = int(1e6)
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
-      HlsDebugBundle.DBG_20_addSyncSigNames}))))
+    #from hwt.synthesizer.utils import to_rtl_str
+    #u = AxiSParse2IfAndSequel()
+    #u.WRITE_FOOTER = True
+    #u.DATA_WIDTH = 512
+    #u.CLK_FREQ = int(1e6)
+    #print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
+    #  HlsDebugBundle.DBG_20_addSignalNamesToSync}))))
     testLoader = unittest.TestLoader()
-    suite = unittest.TestSuite([AxiSParseIfTC("test_AxiSParse2IfAndSequel_512b_1MHz")])
-    # suite = testLoader.loadTestsFromTestCase(AxiSParseIfTC)
+    # suite = unittest.TestSuite([AxiSParseIfTC("test_AxiSParse2IfAndSequel_512b_1MHz")])
+    suite = testLoader.loadTestsFromTestCase(AxiSParseIfTC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

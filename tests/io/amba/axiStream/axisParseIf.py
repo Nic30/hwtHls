@@ -4,6 +4,7 @@
 from hwt.hdl.types.bits import Bits
 from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.interfaces.utils import addClkRstn
+from hwt.synthesizer.param import Param
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.statementsRead import HlsStmReadStartOfFrame, \
     HlsStmReadEndOfFrame
@@ -11,9 +12,8 @@ from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.io.amba.axiStream.stmRead import HlsStmReadAxiStream
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axis import AxiStream
-from tests.io.amba.axiStream.axisParseLinear import AxiSParse2fields
-from hwt.synthesizer.param import Param
 from hwtLib.amba.axis_comp.builder import AxiSBuilder
+from tests.io.amba.axiStream.axisParseLinear import AxiSParse2fields
 
 
 class AxiSParse2If2B(AxiSParse2fields):

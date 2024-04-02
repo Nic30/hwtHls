@@ -5,9 +5,11 @@ from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.struct import HStruct
 from hwt.interfaces.std import Signal
 from hwt.interfaces.utils import addClkRstn
+from hwt.simulator.simTestCase import SimTestCase
 from hwt.synthesizer.byteOrder import reverseByteOrder
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc
 from hwtHls.frontend.pyBytecode.markers import PyBytecodePreprocHwCopy
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
@@ -19,8 +21,7 @@ from hwtLib.examples.builders.pingResponder_test import PingResponderTC as HwtLi
 from hwtLib.types.net.ethernet import Eth2Header_t, ETHER_TYPE
 from hwtLib.types.net.icmp import ICMP_echo_header_t, ICMP_TYPE
 from hwtLib.types.net.ip import IPv4Header_t, ipv4_t, IP_PROTOCOL
-from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwt.simulator.simTestCase import SimTestCase
+
 
 echoFrame_t = HStruct(
     (Eth2Header_t, "eth"),
