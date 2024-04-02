@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import uint8_t
 from tests.io.ioFsm import WriteFsm1WhileTrue123hs
-from hwt.interfaces.hsStructIntf import HsStructIntf
 
 
 class WriteFsmFor(WriteFsm1WhileTrue123hs):
