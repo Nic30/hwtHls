@@ -180,13 +180,18 @@ class HlsNetlistPassConsystencyCheck(HlsNetlistPass):
             assert isinstance(srcElm, ArchElement), srcElm
 
             srcElm: ArchElement
-            for srcTime, o, uses in zip(srcElm.scheduledOut, srcElm._outputs, srcElm.usedBy):
+            for srcTime, oInside, o, uses in zip(srcElm.scheduledOut, srcElm._outputsInside, srcElm._outputs, srcElm.usedBy):
                 assert uses, o
+                assert oInside.scheduledIn == (srcTime, ), (oInside.scheduledIn, srcTime, oInside,
+                                                            "Aggregate output port must have same time inside and outside of element")
                 for u in uses:
                     u: HlsNetNodeIn
                     dstElm: ArchElement = u.obj
                     ii = dstElm._inputsInside[u.in_i]
-                    assert ii._outputs[0]._dtype == o._dtype, ("Aggregate port must have same type as its driver", ii._outputs[0]._dtype, o._dtype, ii, o)
+                    assert ii._outputs[0]._dtype == o._dtype, (
+                        "Aggregate port must have same type as its driver", ii._outputs[0]._dtype, o._dtype, ii, o)
+                    assert (dstElm.scheduledIn[u.in_i], ) == ii.scheduledOut, (
+                        dstElm.scheduledIn[u.in_i],  ii.scheduledOut, ii, "Aggregate input port must have same time inside and outside of element")
 
                 if HdlType_isVoid(o._dtype):
                     continue
