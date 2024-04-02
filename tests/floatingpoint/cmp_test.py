@@ -3,6 +3,7 @@
 
 import struct
 
+from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.defs import BIT
 from hwt.interfaces.hsStructIntf import HsStructIntf
 from hwt.interfaces.std import Handshaked
@@ -18,6 +19,7 @@ from hwtHls.scope import HlsScope
 from hwtSimApi.utils import freq_to_period
 from tests.floatingpoint.cmp import IEEE754FpCmp, IEEE754FpCmpResult
 from tests.floatingpoint.fptypes import IEEE754Fp32
+from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
 
 
 class IEEE754FpComparator(Unit):
@@ -95,16 +97,38 @@ class IEEE754FpCmp_TC(SimTestCase):
 
     def test_cmp(self):
         u = IEEE754FpComparator()
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
-
         refRes = []
+        aDataIn = []
+        bDataIn = []
         for (a, b) in self.TEST_DATA_FORMATED:
-            u.a._ag.data.append(a)
-            u.b._ag.data.append(b)
+            aDataIn.append(a)
+            bDataIn.append(b)
             _a = IEEE754Fp32.to_py(a)
             _b = IEEE754Fp32.to_py(b)
             _resRef = int(self.model(_a, _b))
             refRes.append(_resRef)
+
+        def prepareDataInFn():
+            aDataIn = []
+            bDataIn = []
+            t = Bits(u.T.bit_length())
+            for a, b in self.TEST_DATA:
+                aDataIn.append(t.from_py(a))
+                bDataIn.append(t.from_py(b))
+
+            return aDataIn, bDataIn
+
+        def checkDataOutFn(dataOut):
+            self.assertValSequenceEqual(dataOut, refRes)
+
+        self.compileSimAndStart(u, target_platform=TestLlvmIrAndMirPlatform.forSimpleDataInDataOutUnit(
+                                    prepareDataInFn, checkDataOutFn, None,
+                                    inputCnt=2,
+                                    noOptIrTest=TestLlvmIrAndMirPlatform.TEST_NO_OPT_IR,
+                                    runTestAfterEachPass=True))
+
+        u.a._ag.data.extend(aDataIn)
+        u.b._ag.data.extend(bDataIn)
 
         CLK_PERIOD = freq_to_period(u.clk.FREQ)
         self.runSim((len(self.TEST_DATA_FORMATED) + 1) * int(CLK_PERIOD))
