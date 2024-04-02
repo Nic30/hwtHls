@@ -219,9 +219,9 @@ class HlsPythonHwWhile4(HlsPythonHwWhile2):
 
     def _declr(self):
         addClkRstn(self)
-        self.i = Handshaked()
+        self.i = HsStructIntf()
+        self.i.T = BIT
         self.o = Handshaked()._m()
-        self.i.DATA_WIDTH = 1
         self.o.DATA_WIDTH = 8
 
     @staticmethod
@@ -238,12 +238,17 @@ class HlsPythonHwWhile4(HlsPythonHwWhile2):
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
         # serial to parallel
+        PyBytecodeBlockLabel("mainThread")
         while TRUE:
+            PyBytecodeBlockLabel("LCntrParent")
             data = Bits(8).from_py(None)
             cntr = Bits(4, signed=True).from_py(8 - 1)
             while cntr >= 0:
+                PyBytecodeBlockLabel("LCntr")
                 data = Concat(hls.read(self.i).data, data[8:1])  # shift-in data from left
                 cntr -= 1
+
+            PyBytecodeBlockLabel("LFinalWrite")
             hls.write(data, self.o)
 
 
@@ -254,6 +259,7 @@ class HlsPythonHwWhile5(HlsPythonHwWhile4):
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
+        PyBytecodeBlockLabel("mainThread")
         # serial to parallel
         while TRUE:
             PyBytecodeBlockLabel("LCntrParentParent")
@@ -265,7 +271,34 @@ class HlsPythonHwWhile5(HlsPythonHwWhile4):
                     PyBytecodeBlockLabel("LCntr")
                     data = Concat(hls.read(self.i).data, data[8:1])  # shift-in data from left
                     cntr -= 1
+
+                PyBytecodeBlockLabel("LFinalWrite")
                 hls.write(data, self.o)
+
+
+class HlsPythonHwWhile5b(HlsPythonHwWhile5):
+    """
+    Same as :class:`~.HlsPythonHwWhile4b` just with extra while (because this is test of this syntax)
+    """
+
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
+        while TRUE:
+            PyBytecodeBlockLabel("mainThread")
+            # serial to parallel
+            while TRUE:
+                PyBytecodeBlockLabel("LCntrParentParent")
+                while TRUE:
+                    PyBytecodeBlockLabel("LCntrParent")
+                    data = Bits(8).from_py(None)
+                    cntr = Bits(4, signed=True).from_py(8 - 1)
+                    while cntr >= 0:
+                        PyBytecodeBlockLabel("LCntr")
+                        data = Concat(hls.read(self.i).data, data[8:1])  # shift-in data from left
+                        cntr -= 1
+
+                    PyBytecodeBlockLabel("LFinalWrite")
+                    hls.write(data, self.o)
 
 
 class HlsPythonHwWhile6(HlsPythonHwWhile4):
@@ -371,7 +404,7 @@ class LoopZeroPadCompareShift(MovingOneGen):
         t = Bits(4)
         divisor = next(dataIn)
         dividend = next(dataIn)
-        
+
         width = t.bit_length()
         zeroPad = Bits(width - 1).from_py(0)
         divisorTmp = Concat(divisor, zeroPad)
@@ -385,19 +418,18 @@ class LoopZeroPadCompareShift(MovingOneGen):
             if i == width:
                 break
             else:
-                i += 1 
-
+                i += 1
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
         divisor = hls.read(self.i)
         dividend = hls.read(self.i)
-        
+
         t = self.o.T
         width = t.bit_length()
         zeroPad = Bits(width - 1).from_py(0)
         divisorTmp = Concat(divisor, zeroPad)
-    
+
         while BIT.from_py(1):
             if divisorTmp <= Concat(zeroPad, dividend):
                 dividend -= divisorTmp[width:]
@@ -405,11 +437,20 @@ class LoopZeroPadCompareShift(MovingOneGen):
             divisorTmp >>= 1
 
 
+class PragmaInline_HlsPythonHwWhile4(HlsPythonHwWhile4):
+
+    @hlsBytecode
+    def mainThread(self, hls:HlsScope):
+        while TRUE:
+            PyBytecodeBlockLabel("LBeforeInline")
+            PyBytecodeInline(HlsPythonHwWhile4.mainThread)(self, hls)
+
+
 class PragmaInline_HlsPythonHwWhile5(HlsPythonHwWhile5):
 
     @hlsBytecode
     def mainThread(self, hls:HlsScope):
-        while TRUE:  # [fixme] afterPrefix does not add prefix correctly and generates new blocks without loop prefix for inlined blocks
+        while TRUE:
             PyBytecodeBlockLabel("LBeforeInline")
             PyBytecodeInline(HlsPythonHwWhile5.mainThread)(self, hls)
 

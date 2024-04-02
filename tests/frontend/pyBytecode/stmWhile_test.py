@@ -11,7 +11,8 @@ from tests.frontend.pyBytecode.stmWhile import HlsPythonHwWhile0a, \
     HlsPythonHwWhile1, HlsPythonHwWhile2, HlsPythonHwWhile3, HlsPythonHwWhile4, \
     HlsPythonHwWhile5, HlsPythonHwWhile0b, HlsPythonHwWhile0c, \
     PragmaInline_HlsPythonHwWhile5, HlsPythonHwWhile6, MovingOneGen, \
-    LoopCondBitSet, LoopZeroPadCompareShift
+    LoopCondBitSet, LoopZeroPadCompareShift, HlsPythonHwWhile5b, \
+    PragmaInline_HlsPythonHwWhile4
 
 
 class StmWhile_ll_TC(BaseSsaTC):
@@ -69,7 +70,7 @@ class StmWhile_sim_TC(BaseIrMirRtl_TC):
         in_t = Bits(8)
         dataIn = [in_t.from_py(self._rand.getrandbits(2)) for _ in range(IN_CNT)]
         self._test_OneInOneOut(HlsPythonHwWhile3(), HlsPythonHwWhile3.model,
-                               dataIn, wallTimeRtlClks=IN_CNT + 9 + 1)
+                               dataIn, wallTimeRtlClks=IN_CNT + 9 + 20 + 1)
 
     def test_HlsPythonHwWhile4(self, uCls=HlsPythonHwWhile4):
         IN_CNT = 32
@@ -78,6 +79,9 @@ class StmWhile_sim_TC(BaseIrMirRtl_TC):
 
     def test_HlsPythonHwWhile5(self):
         self.test_HlsPythonHwWhile4(uCls=HlsPythonHwWhile5)
+
+    def test_HlsPythonHwWhile5b(self):
+        self.test_HlsPythonHwWhile4(uCls=HlsPythonHwWhile5b)
 
     def test_HlsPythonHwWhile6(self):
         self.test_HlsPythonHwWhile4(uCls=HlsPythonHwWhile6)
@@ -100,10 +104,13 @@ class StmWhile_sim_TC(BaseIrMirRtl_TC):
         t = Bits(u.DATA_WIDTH)
         dataIn = [t.from_py(13), t.from_py(3)]
         self._test_OneInOneOut(u, u.model, dataIn,
-                                wallTimeIr=64,
-                                wallTimeOptIr=64,
+                                wallTimeIr=60,
+                                wallTimeOptIr=60,
                                 wallTimeOptMir=6,
                                 )
+
+    def test_PragmaInline_PragmaInline_HlsPythonHwWhile4(self):
+        self.test_HlsPythonHwWhile4(uCls=PragmaInline_HlsPythonHwWhile4)
 
     def test_PragmaInline_HlsPythonHwWhile5(self):
         self.test_HlsPythonHwWhile4(uCls=PragmaInline_HlsPythonHwWhile5)
@@ -111,18 +118,17 @@ class StmWhile_sim_TC(BaseIrMirRtl_TC):
 
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
-    u = LoopZeroPadCompareShift()
-    u.DATA_WIDTH = 4
-    # u = HlsPythonHwWhile1()
-    u.CLK_FREQ = int(1e6)
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(
-        debugFilter=HlsDebugBundle.ALL_RELIABLE.union(HlsDebugBundle.DBG_FRONTEND))))
+    # [fixme] afterPrefix does not add prefix correctly and generates
+    # new blocks without loop prefix for inlined blocks
+    # * or returns are handled incorrectly
+    # * CFG is missing edges and that is why the block is marked non-generated prematurely
 
     import unittest
 
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([StmWhile_sim_TC("test_LoopZeroPadCompareShift")])
-    # suite = testLoader.loadTestsFromTestCase(StmWhile_ll_TC)
-    suite = testLoader.loadTestsFromTestCase(StmWhile_sim_TC)
+    # suite1 = unittest.TestSuite([StmWhile_sim_TC("test_LoopZeroPadCompareShift")])
+    suite1 = testLoader.loadTestsFromTestCase(StmWhile_ll_TC)
+    suite2 = testLoader.loadTestsFromTestCase(StmWhile_sim_TC)
     runner = unittest.TextTestRunner(verbosity=3)
-    runner.run(suite)
+    runner.run(unittest.TestSuite([suite1, suite2]))
+    # runner.run(suite1)
