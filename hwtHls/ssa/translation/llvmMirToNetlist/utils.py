@@ -27,6 +27,7 @@ def getTopLoopForBlock(mb: MachineBasicBlock, loop: MachineLoop) -> MachineLoop:
             break
     return topLoop
 
+
 # tuples (controlEn, controlObj, allInputDataChannels)
 LoopPortGroup = List[Tuple[HlsNetNodeOutAny,
                            HlsNetNodeReadAnyChannel,
@@ -39,6 +40,8 @@ def _createSyncForAnyInputSelector(builder: HlsNetlistBuilder,
                                    externalEn_n: HlsNetNodeOut):
     """
     Create a logic circuit which select a first control input which is valid and enables all its associated data inputs.
+    All inputs except last one are non blocking.
+    Last input has skipWhen=anyPrevVld
 
     :param inputCases: list of case tuple (control channel, all input data channels)
     """
@@ -51,6 +54,10 @@ def _createSyncForAnyInputSelector(builder: HlsNetlistBuilder,
             # only last is non blocking because we need at least one to be blocking so body does not execute
             # if no input is available
             controlPort.setNonBlocking()
+        elif anyPrevVld is not None:
+            #controlPort.addControlSerialExtraCond(builder.buildNot(anyPrevVld))
+            controlPort.addControlSerialSkipWhen(anyPrevVld)
+
         # vld: HlsNetNodeOut = controlPort.getValidNB()
         # convertedToNb = True
 
