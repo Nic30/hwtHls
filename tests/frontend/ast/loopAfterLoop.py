@@ -19,7 +19,7 @@ class TwoTimesFiniteWhileInWhileTrue(Unit):
 
     def _config(self) -> None:
         self.DATA_WIDTH = Param(8)
-        self.FREQ = Param(int(100e6))
+        self.FREQ = Param(int(50e6))
 
     def _declr(self) -> None:
         addClkRstn(self)
