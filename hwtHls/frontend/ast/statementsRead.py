@@ -95,22 +95,6 @@ class HlsRead(HdlStatement, SsaInstr):
         return _getNativeInterfaceWordType(self._src)
 
     @classmethod
-    def _outAsBitVec(cls, netlist: HlsNetlistCtx,
-                     mirToNetlist:"HlsNetlistAnalysisPassMirToNetlist",
-                     o: HlsNetNodeOut,
-                     name: Optional[str]) -> HlsNetNodeOut:
-        assert isinstance(o._dtype, Bits)
-        sign = o._dtype.signed
-        if sign is None:
-            pass
-        else:
-            toBits = HlsNetNodeOperator(netlist, AllOps.BitsAsVec, 1, Bits(o._dtype.bit_length()), name)
-            mirToNetlist.nodes.append(toBits)
-            link_hls_nodes(o, toBits._inputs[0])
-            o = toBits._outputs[0]
-        return o
-
-    @classmethod
     def _translateMirToNetlist(cls,
                                representativeReadStm: "HlsRead",
                                mirToNetlist:"HlsNetlistAnalysisPassMirToNetlist",
@@ -150,7 +134,7 @@ class HlsRead(HdlStatement, SsaInstr):
         mirToNetlist.inputs.append(n)
 
         o = n._outputs[0] if representativeReadStm._isBlocking else n.getRawValue()
-        o = cls._outAsBitVec(netlist, mirToNetlist, o, n.name)
+        assert not o._dtype.signed, o
         valCache.add(mbSync.block, instrDstReg, o, True)
 
         return [n, ]
