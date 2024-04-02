@@ -8,7 +8,7 @@ from tests.floatingpoint.fptypes import IEEE754Fp
 bit2_t = Bits(2)
 
 
-class IEEE754FpCmpResult:
+class IEEE754FpCmpResult():
     EQ = bit2_t.from_py(0b00)
     LT = bit2_t.from_py(0b01)
     GT = bit2_t.from_py(0b10)
