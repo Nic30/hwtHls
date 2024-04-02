@@ -6,7 +6,8 @@ from typing import Tuple, Dict, Optional, Callable, Union, Literal, List, \
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.observableList import ObservableList
-from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod, start_clk
+from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod, start_clk,\
+    offsetInClockCycle
 from hwtHls.netlist.scheduler.errors import TimeConstraintError
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 
@@ -135,18 +136,23 @@ class SchedulableNode():
 
     @staticmethod
     def _schedulerGetNormalizedTimeForInput(availableInTime: SchedTime, inWireLatency: SchedTime,
-                                            inputClkTickOffset: SchedTime, clkPeriod: SchedTime, ffdelay: SchedTime):
+                                            inputClkTickOffset: SchedTime, clkPeriod: SchedTime,
+                                            ffdelay: SchedTime, mayBeInFFStoreTime: bool):
         """
         :param availableInTime: time when all dependencies of input are available
         :param inWireLatency: time which must be available before clock cycle
         :param inputClkTickOffset: number of clock cycles between clock cycle where this input is and where node zero time is
         :param clkPeriod: normalized clock period
         :param ffdelay: normalized time of register store operation
+        :param mayBeginInFFStoreTime: if true the input time may be at the end of clock window in FF store time
 
         :return: normalized time of where node zero time is according this input
         """
+        if mayBeInFFStoreTime and inWireLatency == 0 and inputClkTickOffset == 0:
+            return availableInTime
+
         nextClkTime = (indexOfClkPeriod(availableInTime, clkPeriod) + 1) * clkPeriod
-        timeBudget = nextClkTime - availableInTime - ffdelay
+        timeBudget = nextClkTime - availableInTime - (0 if mayBeInFFStoreTime else ffdelay)
 
         if inWireLatency > timeBudget:
             availableInTime = nextClkTime
@@ -195,7 +201,8 @@ class SchedulableNode():
                                 "Impossible scheduling, clkPeriod too low for ",
                                 self.inputWireDelay, self.outputWireDelay, self)
                         normalizedTime = self._schedulerGetNormalizedTimeForInput(
-                            availableInTime, inWireLatency, inputClkTickOffset, clkPeriod, ffdelay)
+                            availableInTime, inWireLatency, inputClkTickOffset, clkPeriod, ffdelay,
+                            self.realization.mayBeInFFStoreTime)
 
                         if normalizedTime >= nodeZeroTime:
                             nodeZeroTime = normalizedTime
@@ -222,11 +229,11 @@ class SchedulableNode():
         :return: a generator of dependencies which are now possible subject to compaction.
         """
         assert not self.isMulticlock, (self, "this node should use scheduleAlapCompactionMultiClock instead")
-
         # assert self.usedBy, ("Compaction should be called only for nodes with dependencies, others should be moved only manually", self)
         netlist = self.netlist
         ffdelay = netlist.platform.get_ff_store_time(netlist.realTimeClkPeriod, netlist.scheduler.resolution)
         clkPeriod = netlist.normalizedClkPeriod
+        
         if not self._outputs:
             # no outputs, we must use some asap input time and move to end of the clock
             assert self._inputs, (self, "Node must have at least some port.")
@@ -234,11 +241,9 @@ class SchedulableNode():
         else:
             # resolve a minimal time where the output can be scheduler and translate it to nodeZeroTime
             nodeZeroTime = inf
-            maxLatencyPre = self.inputWireDelay[0] if self.inputWireDelay else 0
-
             curZero = self.scheduledZero
             for (out, uses, outWireLatency) in zip(self._outputs, self.usedBy, self.outputWireDelay):
-                if maxLatencyPre + outWireLatency + ffdelay >= clkPeriod:
+                if outWireLatency + ffdelay >= clkPeriod:
                         raise TimeConstraintError(
                             "Impossible scheduling, clkPeriod too low for ",
                             self.outputWireDelay, ffdelay, clkPeriod, self)
@@ -282,18 +287,22 @@ class SchedulableNode():
             # no use of any output, we must use some ASAP input time and move to end of the clock
             assert self._inputs, (self, "Node must have at least some port used (or more likely it should be removed because it is useless)")
             nodeZeroTime = endOfLastClk - (ffdelay + maxOutputLatency)
-
         if self.scheduledZero != nodeZeroTime:
             assert isinstance(nodeZeroTime, SchedTime) and (self.scheduledZero is None or (isinstance(self.scheduledZero, SchedTime))
                     ), (self.scheduledZero, "->", nodeZeroTime, self)
 
             if self.scheduledZero is not None and self.scheduledZero > nodeZeroTime:
-                # this can happen if successor nodes were packed inefficiently in previous cycles and it moved this node
-                # we can not move this node because it would potentially move whole circuit which would eventually result
+                if clkPeriod - offsetInClockCycle(self.scheduledZero, clkPeriod) < ffdelay + maxOutputLatency: 
+                    raise TimeConstraintError("Node was already scheduled on wrong time, end overlaps to ffstore time",
+                                              clkPeriod - offsetInClockCycle(self.scheduledZero, clkPeriod), ffdelay, maxOutputLatency)
+                # this can happen if successor nodes were packed inefficiently in previous cycles and it moved this node.
+                # We can not move this node because it would potentially move whole circuit which would eventually result
                 # in an endless cycle in scheduling
                 raise TimeConstraintError(
-                       "Can not be scheduled sooner then current best ALAP time because otherwise time should have been kept", self)
+                       "Can not be scheduled sooner then current best ALAP time because otherwise time should have been kept", self, self.scheduledZero, nodeZeroTime)
+
             self._setScheduleZeroTimeSingleClock(nodeZeroTime)
+            
             for dep in self.dependsOn:
                 yield dep.obj
 
