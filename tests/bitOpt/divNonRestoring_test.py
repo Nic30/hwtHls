@@ -107,7 +107,8 @@ class DivNonRestoring_TC(SimTestCase):
         self.compileSimAndStart(u,
                                 target_platform=TestLlvmIrAndMirPlatform.forSimpleDataInDataOutUnit(
                                     prepareDataInFn, checkDataOutFn, None, debugFilter=HlsDebugBundle.ALL_RELIABLE,
-                                    noOptIrTest=TestLlvmIrAndMirPlatform.TEST_NO_OPT_IR))
+                                    noOptIrTest=TestLlvmIrAndMirPlatform.TEST_NO_OPT_IR,
+                                    runTestAfterEachPass=True))
         CLK_PERIOD = freq_to_period(u.clk.FREQ)
         u.data_in._ag.data.extend(self.GOLDEN_DATA[0])
         self.runSim((len(u.data_in._ag.data) * u.DATA_WIDTH + 10) * int(CLK_PERIOD))
