@@ -13,9 +13,10 @@ from hwtHls.netlist.analysis.blockSyncType import HlsNetlistAnalysisPassBlockSyn
 from hwtHls.netlist.analysis.dataThreadsForBlocks import HlsNetlistAnalysisPassDataThreadsForBlocks
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.hdlTypeVoid import HVoidData
+from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge
-from hwtHls.netlist.hdlTypeVoid import HVoidData
 from hwtHls.netlist.nodes.ports import link_hls_nodes, HlsNetNodeOut, \
     HlsNetNodeOutLazy
 from hwtHls.ssa.translation.llvmMirToNetlist.branchOutLabel import BranchOutLabel
@@ -24,7 +25,7 @@ from hwtHls.ssa.translation.llvmMirToNetlist.lowLevel import HlsNetlistAnalysisP
 from hwtHls.ssa.translation.llvmMirToNetlist.machineEdgeMeta import MachineEdgeMeta, MACHINE_EDGE_TYPE
 from hwtHls.ssa.translation.llvmMirToNetlist.utils import LiveInMuxMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
-from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
+
 
 BlockLiveInMuxSyncDict = Dict[Tuple[MachineBasicBlock, MachineBasicBlock, Register], HlsNetNodeExplicitSync]
 
