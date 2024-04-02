@@ -43,7 +43,7 @@ class PyExceptionJustRaise(Unit):
 
 
 class PyExceptionRaisePyConditionaly(PyExceptionJustRaise):
-    
+
     def _config(self) -> None:
         self.RAISE = Param(True)
 
@@ -113,7 +113,7 @@ class PyExceptionRaiseRaiseUsingAssertFromInlined2(PyExceptionRaisePyConditional
     def _declr(self):
         PyExceptionRaisePyConditionaly._declr(self)
         addClkRstn(self)
-    
+
     @hlsBytecode
     def mainThreadMainPart(self, hls: HlsScope):
         assert not self.RAISE
@@ -204,6 +204,7 @@ class PyBytecodePyException_TC(SimTestCase):
         u.RAISE = True
         with self.assertRaises(errCls):
             self._testIfCompiles(u)
+
         u = cls()
         u.RAISE = False
         self._testIfCompiles(u)
