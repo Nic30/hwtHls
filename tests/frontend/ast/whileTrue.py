@@ -3,47 +3,68 @@
 
 from hwt.interfaces.std import Handshaked
 from hwt.interfaces.utils import propagateClkRstn
+from hwt.synthesizer.param import Param
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
+from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from hwtLib.handshaked.reg import HandshakedReg
 from tests.frontend.ast.trivial import WhileTrueReadWrite, WhileTrueWrite
+from tests.frontend.pyBytecode.stmWhile import TRUE
 
 
 class WhileTrueWriteCntr0(WhileTrueWrite):
 
+    def _config(self) -> None:
+        WhileTrueWrite._config(self)
+        self.USE_PY_FRONTEND = Param(False)
+
     def _impl(self) -> None:
-        dout = self.dataOut
         hls = HlsScope(self)
+        if self.USE_PY_FRONTEND:
+            t = HlsThreadFromPy(hls, self._implPy, hls)
+        else:
+            ast = HlsAstBuilder(hls)
+            t = HlsThreadFromAst(hls, self._implAst(hls, ast), self._name)
+        hls.addThread(t)
+        hls.compile()
+
+    def _implAst(self, hls: HlsScope, ast: HlsAstBuilder):
+        dout = self.dataOut
         cntr = hls.var("cntr", dout.data._dtype)
-        ast = HlsAstBuilder(hls)
-        hls.addThread(HlsThreadFromAst(hls, [
+        return [
             cntr(0),
             ast.While(True,
                 hls.write(cntr, dout),
                 cntr(cntr + 1),
             )
-            ], self._name)
-        )
-        hls.compile()
+        ]
+
+    def _implPy(self, hls: HlsScope):
+        cntr = self.dataOut.data._dtype.from_py(0)
+        while TRUE:
+            hls.write(cntr, self.dataOut)
+            cntr = cntr + 1
 
 
-class WhileTrueWriteCntr1(WhileTrueWrite):
+class WhileTrueWriteCntr1(WhileTrueWriteCntr0):
 
-    def _impl(self) -> None:
+    def _implAst(self, hls: HlsScope, ast: HlsAstBuilder):
         dout = self.dataOut
-        hls = HlsScope(self)
         cntr = hls.var("cntr", dout.data._dtype)
-        ast = HlsAstBuilder(hls)
-        hls.addThread(HlsThreadFromAst(hls, [
+        return [
             cntr(0),
             ast.While(True,
                 cntr(cntr + 1),
                 hls.write(cntr, dout),
             )
-            ], self._name)
-        )
-        hls.compile()
+        ]
+
+    def _implPy(self, hls: HlsScope):
+        cntr = self.dataOut.data._dtype.from_py(0)
+        while TRUE:
+            cntr = cntr + 1
+            hls.write(cntr, self.dataOut)
 
 
 class WhileSendSequence0(WhileTrueReadWrite):
@@ -51,8 +72,15 @@ class WhileSendSequence0(WhileTrueReadWrite):
     WhileSendSequence described as a simple feed forward pipeline without nested loops.
     """
 
+    def _config(self) -> None:
+        WhileTrueReadWrite._config(self)
+        self.USE_PY_FRONTEND = Param(False)
+
     def _impl(self) -> None:
-        hls = HlsScope(self)
+        WhileTrueWriteCntr0._impl(self)
+        propagateClkRstn(self)
+
+    def _implAst(self, hls: HlsScope, ast: HlsAstBuilder):
         sizeBuff = HandshakedReg(Handshaked)
         sizeBuff.DATA_WIDTH = self.dataIn.T.bit_length()
         sizeBuff.LATENCY = (1, 2)
@@ -60,8 +88,7 @@ class WhileSendSequence0(WhileTrueReadWrite):
         self.sizeBuff = sizeBuff
 
         size = hls.var("size", self.dataIn.T)
-        ast = HlsAstBuilder(hls)
-        hls.addThread(HlsThreadFromAst(hls,
+        return \
             ast.While(True,
                 size(hls.read(self.sizeBuff.dataOut).data),
                 ast.If(size._eq(0),
@@ -74,27 +101,37 @@ class WhileSendSequence0(WhileTrueReadWrite):
                     hls.write(size, sizeBuff.dataIn)
 
                 )
-            ),
-            self._name)
-        )
-        hls.compile()
-        propagateClkRstn(self)
+            )
+
+    def _implPy(self, hls: HlsScope):
+        sizeBuff = HandshakedReg(Handshaked)
+        sizeBuff.DATA_WIDTH = self.dataIn.T.bit_length()
+        sizeBuff.LATENCY = (1, 2)
+        sizeBuff.INIT_DATA = ((0,),)
+        self.sizeBuff = sizeBuff
+
+        while TRUE:
+            size = hls.read(self.sizeBuff.dataOut).data
+            if size._eq(0):
+                size = hls.read(self.dataIn).data
+            if size > 0:
+                hls.write(size, self.dataOut)
+                hls.write(size - 1, sizeBuff.dataIn)
+            else:
+                hls.write(size, sizeBuff.dataIn)
 
 
 class WhileSendSequence1(WhileSendSequence0):
     """
     dataIn is always read if size==0, Control of loops are entirely dependent on value of size
     which makes it more simple.
-    :note: this is significantly more simple than :class:`~.WhileSendSequence2`
+    :note: this is significantly less complicated than :class:`~.WhileSendSequence2`
            however there is 1 cycle delay after reset
     """
 
-    def _impl(self) -> None:
-        hls = HlsScope(self)
-
+    def _implAst(self, hls: HlsScope, ast: HlsAstBuilder):
         size = hls.var("size", self.dataIn.T)
-        ast = HlsAstBuilder(hls)
-        hls.addThread(HlsThreadFromAst(hls,
+        return \
              ast.While(True,
                 size(0),
                 ast.While(True,
@@ -108,10 +145,15 @@ class WhileSendSequence1(WhileSendSequence0):
                     # expect the dataOut to be flushed.
                     size(hls.read(self.dataIn).data),
                 )
-            ),
-            self._name)
-        )
-        hls.compile()
+            )
+
+    def _implPy(self, hls: HlsScope):
+        size = self.dataIn.T.from_py(0)
+        while TRUE:
+            while size != 0:
+                hls.write(size, self.dataOut)
+                size = size - 1
+            size = hls.read(self.dataIn).data
 
 
 class WhileSendSequence2(WhileTrueReadWrite):
@@ -125,22 +167,30 @@ class WhileSendSequence2(WhileTrueReadWrite):
     :note: This is actually a complex example.
     """
 
-    def _impl(self) -> None:
-        hls = HlsScope(self)
+    def _config(self) -> None:
+        WhileTrueReadWrite._config(self)
+        self.USE_PY_FRONTEND = Param(False)
 
+    def _impl(self) -> None:
+        WhileTrueWriteCntr0._impl(self)
+
+    def _implAst(self, hls: HlsScope, ast: HlsAstBuilder):
         size = hls.var("size", self.dataIn.T)
-        ast = HlsAstBuilder(hls)
-        hls.addThread(HlsThreadFromAst(hls,
+        return \
             ast.While(True,
                 size(hls.read(self.dataIn).data),
                 ast.While(size != 0,
                     hls.write(size, self.dataOut),
                     size(size - 1),
                 ),
-            ),
-            self._name)
-        )
-        hls.compile()
+            )
+
+    def _implPy(self, hls: HlsScope):
+        while TRUE:
+            size = hls.read(self.dataIn).data
+            while size != 0:
+                hls.write(size, self.dataOut)
+                size = size - 1
 
 
 class WhileSendSequence3(WhileSendSequence0):
@@ -148,12 +198,9 @@ class WhileSendSequence3(WhileSendSequence0):
     same as :class:`~.WhileSendSequence2` but more explicit
     """
 
-    def _impl(self) -> None:
-        hls = HlsScope(self)
-
+    def _implAst(self, hls: HlsScope, ast: HlsAstBuilder):
         size = hls.var("size", self.dataIn.T)
-        ast = HlsAstBuilder(hls)
-        hls.addThread(HlsThreadFromAst(hls,
+        return \
             ast.While(True,
                 size(0),
                 ast.While(True,
@@ -165,10 +212,17 @@ class WhileSendSequence3(WhileSendSequence0):
                         size(size - 1),
                     ),
                 )
-            ),
-            self._name)
-        )
-        hls.compile()
+            )
+
+    def _implPy(self, hls: HlsScope) -> None:
+        while TRUE:
+            size = self.dataIn.T.from_py(0)
+            while size._eq(0):
+                size = hls.read(self.dataIn).data
+
+            while size != 0:
+                hls.write(size, self.dataOut)
+                size = size - 1
 
 
 class WhileSendSequence4(WhileSendSequence0):
@@ -176,13 +230,9 @@ class WhileSendSequence4(WhileSendSequence0):
     same as :class:`~.WhileSendSequence3` but more explicit
     """
 
-    def _impl(self) -> None:
-        hls = HlsScope(self)
-
+    def _implAst(self, hls: HlsScope, ast: HlsAstBuilder):
         size = hls.var("size", self.dataIn.T)
-        ast = HlsAstBuilder(hls)
-        hls.addThread(HlsThreadFromAst(hls,
-            ast.While(True,
+        return ast.While(True,
                 size(0),
                 ast.While(True,
                     ast.While(size._eq(0),
@@ -196,17 +246,26 @@ class WhileSendSequence4(WhileSendSequence0):
                         )
                     ),
                 )
-            ),
-            self._name)
-        )
-        hls.compile()
+            )
+
+    def _implPy(self, hls: HlsScope):
+        while TRUE:
+            size = self.dataIn.T.from_py(0)
+            while size._eq(0):
+                size = hls.read(self.dataIn).data
+            while TRUE:
+                hls.write(size, self.dataOut)
+                size = size - 1
+                if size._eq(0):
+                    break
 
 
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.platform import HlsDebugBundle
-    u = WhileSendSequence1()
+    u = WhileTrueWriteCntr1()
+    u.USE_PY_FRONTEND = True
     # u.DATA_WIDTH = 32
     u.FREQ = int(20e6)
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
