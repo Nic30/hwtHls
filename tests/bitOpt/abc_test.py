@@ -15,11 +15,13 @@ class AbcTC(unittest.TestCase):
         b = hwtNet.sig("b")
         c = hwtNet.sig("c")
         c1 = hwtNet.sig("c1")
+        c2 = hwtNet.sig("c2")
+        
         d = a ^ b & a & a ^ 1
         e = a._ternary(b, d)
 
         toAig = RtlNetlistToAbcAig()
-        f, net, aig = toAig.translate([a, b, c, c1], [
+        f, net, aig = toAig.translate([a, b, c, c1, c2], [
             d,  # 0
             e,  # 1
             a,  # 2
@@ -43,6 +45,9 @@ class AbcTC(unittest.TestCase):
             ~a & b,  # 16
             a & (~b | c),  # 17
             (a & b) | (c & ~b), # 18
+            (a | b) & c & c1 & ~c2, # 19
+            (a & c) | (b & ~c), # 20
+            (~a & b)._ternary(BIT.from_py(0), ~a), # 21
             ])
         net = abcCmd_resyn2(net)
         net = abcCmd_compress2(net)
@@ -73,9 +78,16 @@ class AbcTC(unittest.TestCase):
             ~a & b,  # 16
             a & (~b | c),  # 17
             (a | ~b) & (b | c), # 18
+            ~(~(a | b) | c2 | ~c | ~c1), # 19
+            (b | c) & (a | ~c), # 20
+            ~(a | b) # 21
             ])
-
-
+        # for x in range(4):
+        #     _a = 0b01 & x
+        #     _b = (0b10 & x) >> 1
+        #     print(int(0 if (not _a and _b) else not _a),
+        #           int(not (_a or _b)))
+        # 
 if __name__ == "__main__":
     testLoader = unittest.TestLoader()
     # suite = unittest.TestSuite([AbcTC('testFromRtlNetlistAndBack')])
