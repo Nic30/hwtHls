@@ -3,23 +3,20 @@
 
 from typing import Optional
 
-from hwt.hdl.operatorDefs import AllOps
 from hwt.interfaces.std import Signal
 from hwt.interfaces.utils import addClkRstn
 from hwt.simulator.simTestCase import SimTestCase
 from hwt.synthesizer.param import Param
-from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.netlist import HlsThreadFromNetlist
 from hwtHls.netlist.analysis.betweenSyncIslands import HlsNetlistAnalysisPassBetweenSyncIslands
 from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge
 from hwtHls.netlist.nodes.ports import link_hls_nodes
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.netlist.transformation.moveExplicitSyncOutOfDataAndAddVoidDataLinks import HlsNetlistPassMoveExplicitSyncOutOfDataAndAddVoidDataLinks
 from hwtHls.netlist.translation.dumpNodesDot import HlsNetlistPassDumpNodesDot
 from hwtHls.platform.fileUtils import outputFileGetter
 from hwtHls.platform.virtual import VirtualHlsPlatform
@@ -51,12 +48,11 @@ class HlsNetlistSyncIsland0Unit(Unit):
         # scheduling offset 1clk for i2 from i1
         netlist.inputs.extend([i0, ])
 
-        o = HlsNetNodeWrite(netlist, NOT_SPECIFIED, self.o)
+        o = HlsNetNodeWrite(netlist, self.o)
         netlist.outputs.append(o)
         link_hls_nodes(i0._outputs[0], o._inputs[0])
         reachDb: HlsNetlistAnalysisPassReachability = netlist.getAnalysis(HlsNetlistAnalysisPassReachability)
 
-        HlsNetlistPassMoveExplicitSyncOutOfDataAndAddVoidDataLinks().apply(None, netlist)
         tc: SimTestCase = self.TEST_CASE
         if tc is not None:
             inputs, outputs, _ = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(i0, DIRECTION.IN, reachDb)
@@ -77,7 +73,7 @@ class HlsNetlistSyncIsland0Unit(Unit):
 
 class HlsNetlistSyncIsland1Unit(HlsNetlistSyncIsland0Unit):
     """
-    read0 -> sync -> write
+    read0 -> wf0 .. rf0 -> write
     """
 
     def mainThread(self, netlist: HlsNetlistCtx):
@@ -86,26 +82,27 @@ class HlsNetlistSyncIsland1Unit(HlsNetlistSyncIsland0Unit):
         # scheduling offset 1clk for i2 from i1
         netlist.inputs.extend([i0, ])
 
-        sync = HlsNetNodeExplicitSync(netlist, i0._outputs[0]._dtype)
-        netlist.nodes.append(sync)
-        link_hls_nodes(i0._outputs[0], sync._inputs[0])
+        fw, fr, frOut = HlsNetNodeWriteForwardedge.createPredSucPair(netlist, "f", i0._outputs[0])
 
-        o = HlsNetNodeWrite(netlist, NOT_SPECIFIED, self.o)
+        o = HlsNetNodeWrite(netlist, self.o)
         netlist.outputs.append(o)
-        link_hls_nodes(sync._outputs[0], o._inputs[0])
+        link_hls_nodes(frOut, o._inputs[0])
         reachDb: HlsNetlistAnalysisPassReachability = netlist.getAnalysis(HlsNetlistAnalysisPassReachability)
 
-        HlsNetlistPassMoveExplicitSyncOutOfDataAndAddVoidDataLinks().apply(None, netlist)
         tc: SimTestCase = self.TEST_CASE
         if tc is not None:
-            #HlsNetlistPassDumpNodesDot(outputFileGetter("tmp", "nodes.dot")).apply(None, netlist)
+            # HlsNetlistPassDumpNodesDot(outputFileGetter("tmp", "nodes.dot")).apply(None, netlist)
             inputs, outputs, _ = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(i0, DIRECTION.IN, reachDb)
-            tc.assertSequenceEqual(inputs, [i0, sync])
-            tc.assertSequenceEqual(outputs, [o, sync])
+            tc.assertSequenceEqual(inputs, [i0, ])
+            tc.assertSequenceEqual(outputs, [fw])
 
-            inputs, outputs, _ = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(sync, DIRECTION.IN, reachDb)
-            tc.assertSequenceEqual(inputs, [sync, i0])
-            tc.assertSequenceEqual(outputs, [o, sync])
+            inputs, outputs, _ = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(fw, DIRECTION.IN, reachDb)
+            tc.assertSequenceEqual(inputs, [fw, ])
+            tc.assertSequenceEqual(outputs, [ ])
+
+            inputs, outputs, _ = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(fr, DIRECTION.IN, reachDb)
+            tc.assertSequenceEqual(inputs, [fr, ])
+            tc.assertSequenceEqual(outputs, [o, ])
 
             inputs, outputs, _ = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(o, DIRECTION.IN, reachDb)
             tc.assertSequenceEqual(inputs, [o, ])
@@ -134,38 +131,33 @@ class HlsNetlistSyncIsland2Unit(HlsNetlistSyncIsland0Unit):
         b: HlsNetlistBuilder = netlist.builder
         i0andI1 = b.buildAnd(i0._outputs[0], i1._outputs[0])
 
-        sync = HlsNetNodeExplicitSync(netlist, i0andI1._dtype)
-        netlist.nodes.append(sync)
-        link_hls_nodes(i0andI1, sync._inputs[0])
+        fw, fr, frOut = HlsNetNodeWriteForwardedge.createPredSucPair(netlist, "f", i0andI1)
 
-        o = HlsNetNodeWrite(netlist, NOT_SPECIFIED, self.o)
+        o = HlsNetNodeWrite(netlist, self.o)
         netlist.outputs.append(o)
-        link_hls_nodes(sync._outputs[0], o._inputs[0])
+        link_hls_nodes(frOut, o._inputs[0])
         reachDb: HlsNetlistAnalysisPassReachability = netlist.getAnalysis(HlsNetlistAnalysisPassReachability)
 
-        HlsNetlistPassMoveExplicitSyncOutOfDataAndAddVoidDataLinks().apply(None, netlist)
         tc: SimTestCase = self.TEST_CASE
         if tc is not None:
-            #HlsNetlistPassDumpNodesDot(outputFileGetter("tmp", "nodes.dot")).apply(None, netlist)
-            i1i0VoidConcat = netlist._dbgGetNodeById(5)
-            tc.assertEqual(i1i0VoidConcat.operator, AllOps.CONCAT)
+            HlsNetlistPassDumpNodesDot(outputFileGetter("tmp", "nodes.dot")).apply(None, netlist)
             inputs, outputs, nodes = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(i0, DIRECTION.IN, reachDb)
             # sync is input because the dependency was changed to void
-            tc.assertSequenceEqual(inputs, [i0, sync, i1])
-            tc.assertSequenceEqual(outputs, [sync, o, ])
-            tc.assertSequenceEqual(nodes, [i0andI1.obj, i1i0VoidConcat])
+            tc.assertSequenceEqual(inputs, [i0, i1])
+            tc.assertSequenceEqual(outputs, [fw, ])
+            tc.assertSequenceEqual(nodes, [i0andI1.obj, ])
 
-            inputs, outputs, _ = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(i1, DIRECTION.IN, reachDb)
-            tc.assertSequenceEqual(inputs, [i1, sync, i0])
-            tc.assertSequenceEqual(outputs, [sync, o, ])
-            tc.assertSequenceEqual(nodes, [i0andI1.obj, i1i0VoidConcat])
+            inputs, outputs, nodes = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(i1, DIRECTION.IN, reachDb)
+            tc.assertSequenceEqual(inputs, [i1, i0])
+            tc.assertSequenceEqual(outputs, [fw, ])
+            tc.assertSequenceEqual(nodes, [i0andI1.obj, ])
 
-            inputs, outputs, _ = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(sync, DIRECTION.IN, reachDb)
-            tc.assertSequenceEqual(inputs, [sync, i0, i1])
-            tc.assertSequenceEqual(outputs, [o, sync])
-            tc.assertSequenceEqual(nodes, [i0andI1.obj, i1i0VoidConcat])
+            inputs, outputs, nodes = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(fr, DIRECTION.IN, reachDb)
+            tc.assertSequenceEqual(inputs, [fr])
+            tc.assertSequenceEqual(outputs, [o])
+            tc.assertSequenceEqual(nodes, [ ])
 
-            inputs, outputs, _ = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(o, DIRECTION.IN, reachDb)
+            inputs, outputs, nodes = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(o, DIRECTION.IN, reachDb)
             tc.assertSequenceEqual(inputs, [o, ])
             tc.assertSequenceEqual(outputs, set())
         netlist.invalidateAnalysis(HlsNetlistAnalysisPassReachability)
