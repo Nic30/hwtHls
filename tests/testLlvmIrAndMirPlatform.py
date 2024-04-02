@@ -1,10 +1,12 @@
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Optional, Union, Callable, Set
+from typing import Optional, Union, Callable, Set, List
 
+from hwt.hdl.value import HValue
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
-from hwtHls.llvm.llvmIr import LlvmCompilationBundle, MachineFunction, IntentionalCompilationInterupt
+from hwtHls.llvm.llvmIr import LlvmCompilationBundle, MachineFunction, IntentionalCompilationInterupt, \
+    StringRef, Any, AnyToFunction, AnyToModule, AnyToLoop, Module, Function
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.platform.platform import DebugId, HlsDebugBundle
 from hwtHls.platform.virtual import VirtualHlsPlatform
@@ -28,23 +30,27 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
 
     class TIME_LOG_STAGE(Enum):
         NO_OPT_IR, OPT_IR, OPT_MIR = range(3)
-    
+
     @staticmethod
     def logTimeToStdout(stage: TIME_LOG_STAGE, t: timedelta):
         print(stage.name, t)
-    
+
     def __init__(self,
                  noOptIrTest:Optional[Callable[[LlvmCompilationBundle, ], None]]=None,
                  optIrTest:Optional[Callable[[LlvmCompilationBundle, ], None]]=None,
                  optMirTest:Optional[Callable[[LlvmCompilationBundle, ], None]]=None,
                  debugDir:Optional[Union[str, Path]]="tmp",
                  debugFilter:Optional[Set[DebugId]]=HlsDebugBundle.DEFAULT,
-                 debugLogTime: Optional[Callable[[TIME_LOG_STAGE, timedelta], None]]=None):
+                 debugLogTime: Optional[Callable[[TIME_LOG_STAGE, timedelta], None]]=None,
+                 runTestAfterEachPass:bool=False):
         VirtualHlsPlatform.__init__(self, debugDir=debugDir, debugFilter=debugFilter)
         self._debugLogTime = debugLogTime
         self._noOptIrTest = noOptIrTest
         self._optIrTest = optIrTest
         self._optMirTest = optMirTest
+        self._runTestAfterEachPass = runTestAfterEachPass
+        self._lastWorkingIr: Optional[str] = None
+        self._llvm: Optional[LlvmCompilationBundle] = None
 
     def _runWithTimeLog(self, stage: TIME_LOG_STAGE, fn: Callable[[LlvmCompilationBundle, ], None], *args, **kwargs):
         if self._debugLogTime:
@@ -54,11 +60,37 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
             time1 = datetime.now()
             self._debugLogTime(stage, time1 - time0)
 
+    def runTestAfterIrPass(self, passName: StringRef, ir: Any):
+        F = AnyToFunction(ir)
+        if F is None:
+            M = AnyToModule(ir)
+            if M is None:
+                L = AnyToLoop(ir)
+                assert L
+                F = L.getHeader().getParent()
+                assert F
+            else:
+                M: Module
+                for obj in M:
+                    if isinstance(obj, Function):
+                        F = obj
+                        break
+                assert F is not None
+        try:
+            self._runWithTimeLog(self.TIME_LOG_STAGE.OPT_IR, self._optIrTest, self.llvm)
+        except:
+            raise AssertionError(f"Broken after {passName.str():s} lastWorking:\n{self._lastWorkingIr}\n broken:\n{str(F):s}")
+        self._lastWorkingIr = str(F)
+
     def runSsaPasses(self, hls: "HlsScope", toSsa: HlsAstToSsa):
         res = super(TestLlvmIrAndMirPlatform, self).runSsaPasses(hls, toSsa)
-        tr: ToLlvmIrTranslator = toSsa.start
+        toLlvm: ToLlvmIrTranslator = toSsa.start
+        self.llvm = toLlvm.llvm
         if self._noOptIrTest:
-            self._runWithTimeLog(self.TIME_LOG_STAGE.NO_OPT_IR, self._noOptIrTest, tr.llvm)
+            self._runWithTimeLog(self.TIME_LOG_STAGE.NO_OPT_IR, self._noOptIrTest, toLlvm.llvm)
+        if self._runTestAfterEachPass:
+            llvm: LlvmCompilationBundle = toLlvm.llvm
+            llvm.registerAfterPassCallback(self.runTestAfterIrPass)
 
         return res
 
@@ -95,13 +127,41 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
     @classmethod
     def forSimpleDataInDataOutUnit(cls,
                                    prepareDataInFn: Callable[[], None],
-                                   checkDataOutFn: Callable[[], None],
-                                   logFileNameStem: Optional[Union[Path, str]], *args, **kwargs):
-
-        def testLlvmOptIr(llvm: LlvmCompilationBundle):
+                                   checkDataOutFn: Callable[[Union[List[HValue], List[List[HValue]]]], None],
+                                   logFileNameStem: Optional[Union[Path, str]],
+                                   inputCnt=1,
+                                   outputCnt=1,
+                                   *args, **kwargs):
+        """
+        This function is a syntax sugar for :class:`~.TestLlvmIrAndMirPlatform` constructor.
+        It creates instance which will have generated testing function for LLVM IR and LLVM MIR.
+        
+        :param prepareDataInFn: function called before each test to generate new test data
+        :param checkDataOutFn: function called after function is executed to test if output is correct
+        :param inputCnt: number of inputs of tested function (inputs must be at the beginning of parameters)
+        :param outputCnt: number of outputs of tested function (outputs must be at the end of parameters) 
+        """
+        
+        def createDataInDataOut():
             dataIn = prepareDataInFn()
             dataOut = []
-            args = [iter(dataIn), dataOut]
+            args = []
+
+            if inputCnt == 1:
+                args.append(iter(dataIn))
+            else:
+                assert len(dataIn) == inputCnt, len(inputCnt)
+                args.extend(iter(d) for d in dataIn)
+
+            if outputCnt == 1:
+                args.append(dataOut)
+            else:
+                args.extend([] for _ in range(outputCnt))
+            
+            return dataIn, dataOut, args
+
+        def testLlvmOptIr(llvm: LlvmCompilationBundle):
+            _, dataOut, args = createDataInDataOut()
             interpret = LlvmIrInterpret(llvm.main)
             try:
                 if logFileNameStem is not None:
@@ -116,9 +176,7 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
             checkDataOutFn(dataOut)
 
         def testLlvmOptMir(llvm: LlvmCompilationBundle):
-            dataIn = prepareDataInFn()
-            dataOut = []
-            args = [iter(dataIn), dataOut]
+            _, dataOut, args = createDataInDataOut()
             interpret = LlvmMirInterpret(llvm.getMachineFunction(llvm.main))
             try:
                 if logFileNameStem is not None:
