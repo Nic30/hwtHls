@@ -4,13 +4,15 @@ from typing import List, Optional, Tuple, Generator, Set, Deque
 from hwt.hdl.types.hdlType import HdlType
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
-from hwtHls.netlist.nodes.node import HlsNetNode, _tupleAppend, \
-    NODE_ITERATION_TYPE
+from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
+from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.nodes.schedulableNode import SchedulizationDict, OutputTimeGetter, OutputMinUseTimeGetter, \
     SchedTime
 from hwtHls.platform.opRealizationMeta import EMPTY_OP_REALIZATION
 from hwtHls.typingFuture import override
+from hwtHls.netlist.scheduler.clk_math import offsetInClockCycle, \
+    indexOfClkPeriod
 
 
 class HlsNetNodeAggregatePortIn(HlsNetNode):
@@ -131,7 +133,26 @@ class HlsNetNodeAggregate(HlsNetNode):
 
     @override
     def _addOutput(self, t:HdlType, name:Optional[str], time:Optional[SchedTime]=None) -> Tuple[HlsNetNodeOut, HlsNetNodeIn]:
-        o = HlsNetNode._addOutput(self, t, name)
+        outputClkTickOffset: int = 0
+        outputWireDelay: int = 0
+        if time is None:
+            assert self.scheduledZero is None
+        else:
+            assert self.scheduledZero is not None
+            schedZero = self.scheduledZero
+            clkPeriod = self.netlist.normalizedClkPeriod
+            outputClkTickOffset = indexOfClkPeriod(time, clkPeriod) - indexOfClkPeriod(schedZero, clkPeriod)
+            if outputClkTickOffset == 0:
+                # schedZero is an offset in current clock window
+                outputWireDelay = offsetInClockCycle(time, clkPeriod) - offsetInClockCycle(schedZero, clkPeriod)
+            else:
+                # schedZero is not important because start is from the beginning of selected clock window
+                outputWireDelay = offsetInClockCycle(time, clkPeriod)
+
+        o = HlsNetNode._addOutput(self, t, name, addDefaultScheduling=time is not None,
+                                  outputClkTickOffset=outputClkTickOffset,
+                                  outputWireDelay=outputWireDelay)
+        assert time is None or self.scheduledOut[o.out_i] == time, (self.scheduledOut[o.out_i], time)
         oPort = HlsNetNodeAggregatePortOut(self.netlist, o, name)
         self._outputsInside.append(oPort)
         self._subNodes.append(oPort)
@@ -139,25 +160,42 @@ class HlsNetNodeAggregate(HlsNetNode):
             assert self.scheduledOut is None
         else:
             oPort._setScheduleZero(time)
-            if self.scheduledOut:
-                self.scheduledOut = _tupleAppend(self.scheduledOut, time)
-            else:
-                self.scheduledOut = (time,)
+            if self.scheduledOut is not None:
+                assert len(self.scheduledOut) == len(self._outputs)
 
         return o, oPort._inputs[0]
 
     @override
     def _addInput(self, t:HdlType, name:Optional[str], time:Optional[SchedTime]=None) -> Tuple[HlsNetNodeIn, HlsNetNodeOut]:
-        i = HlsNetNode._addInput(self, name)
+        inputClkTickOffset: int = 0
+        inputWireDelay: int = 0
+        schedZero = self.scheduledZero
+        if time is None:
+            assert schedZero is None
+        else:
+            assert schedZero is not None
+            assert self.realization.mayBeInFFStoreTime, self
+            netlist = self.netlist
+            clkPeriod = netlist.normalizedClkPeriod
+            inputClkTickOffset = indexOfClkPeriod(schedZero, clkPeriod) - indexOfClkPeriod(time, clkPeriod) 
+            if inputClkTickOffset == 0:
+                # under normal circumstances where input is scheduled before scheduledZero time < schedZero
+                inputWireDelay = schedZero - time
+            else:
+                inputWireDelay = (
+                    (clkPeriod - offsetInClockCycle(time, clkPeriod))  # remaining until end of clk
+                )
+
+        i = HlsNetNode._addInput(self, name, addDefaultScheduling=time is not None,
+                                 inputClkTickOffset=inputClkTickOffset,
+                                 inputWireDelay=inputWireDelay)
         iPort = HlsNetNodeAggregatePortIn(self.netlist, i, t, name)
         if time is None:
             assert self.scheduledIn is None
         else:
             iPort._setScheduleZero(time)
-            if self.scheduledIn:
-                self.scheduledIn = _tupleAppend(self.scheduledIn, time)
-            else:
-                self.scheduledIn = (time,)
+            if self.scheduledIn is not None:
+                assert len(self.scheduledIn) == len(self._inputs)
 
         self._inputsInside.append(iPort)
         self._subNodes.append(iPort)
@@ -167,7 +205,8 @@ class HlsNetNodeAggregate(HlsNetNode):
     def _removeOutput(self, index:int):
         HlsNetNode._removeOutput(self, index)
         outInside = self._outputsInside.pop(index)
-        assert outInside is not None
+        assert outInside is not None, self
+        assert outInside.dependsOn[0] is None, ("Port must be disconnected inside of aggregate before remove", self)
         self._subNodes.remove(outInside)
 
     @override
@@ -175,6 +214,7 @@ class HlsNetNodeAggregate(HlsNetNode):
         HlsNetNode._removeInput(self, index)
         inInside = self._inputsInside.pop(index)
         assert inInside is not None
+        assert not inInside.usedBy[0], ("Port must be disconnected inside of aggregate before remove", self)
         self._subNodes.remove(inInside)
 
     @override
@@ -262,10 +302,13 @@ class HlsNetNodeAggregate(HlsNetNode):
 
     @override
     def scheduleAsap(self, pathForDebug: Optional[UniqList["HlsNetNode"]],
-                     beginOfFirstClk: int,
+                     beginOfFirstClk: SchedTime,
                      outputTimeGetter: Optional[OutputTimeGetter]) -> List[int]:
-        raise NotImplementedError(
-            "Override this method in derived class", self)
+        if self.scheduledOut is not None:
+            return self.scheduledOut
+        else:
+            raise NotImplementedError(
+                "Override this method in derived class", self)
 
     @override
     def scheduleAlapCompaction(self, endOfLastClk: SchedTime,
