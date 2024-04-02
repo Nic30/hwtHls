@@ -1,10 +1,12 @@
-from typing import List, Set, Dict, Callable
+from math import inf
+from typing import List, Set, Dict, Callable, Optional
 
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
     link_hls_nodes
+from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.observableList import ObservableList
 
 
@@ -77,16 +79,11 @@ class HlsNetlistClusterSearch():
         self._discover(n, seen, predicateFn)
         self.inputs = ObservableList(i for i in self.inputs if i.obj not in self.nodes)
         self.inputsDict = {k: v for k, v in self.inputsDict.items() if k.obj not in self.nodes}
-        # self.outputs = [o for o in self.outputs if o.obj not in self.nodes]
         self.consystencyCheck()
 
     @classmethod
     def discoverFromNodeList(cls, nodeList: List[HlsNetNode]):
         self = cls()
-        # self.inputs: List[HlsNetNodeOut] = []
-        # self.inputsDict: Dict[HlsNetNodeOut, UniqList[HlsNetNodeIn]] = {}
-        # self.outputs: UniqList[HlsNetNodeOut] = UniqList()
-        # self.nodes: UniqList[HlsNetNode] = UniqList()
         inputs = self.inputs
         inputsDict = self.inputsDict
         outputs = self.outputs
@@ -105,22 +102,76 @@ class HlsNetlistClusterSearch():
                     outputs.append(o)
         return self
 
-    def substituteWithNode(self, n: HlsNetNodeAggregate):
+    def _tryResolveScheduledZero(self, n: HlsNetNodeAggregate, requiredToBeScheduled:bool) -> Optional[SchedTime]:
+        """
+        Resolve scheduledZero time from inputs/outputs
+        """
+        netlist = n.netlist
+        clkPeriod = netlist.normalizedClkPeriod
+        epsilon = netlist.scheduler.epsilon
+        ffdelay = netlist.platform.get_ff_store_time(netlist.realTimeClkPeriod, netlist.scheduler.resolution)
+
+        schedZero = +inf
+        for outerOutput in self.inputs:
+            scheduledOut = outerOutput.obj.scheduledOut
+            if scheduledOut is None:
+                assert not requiredToBeScheduled, ("Input of cluster is required to be scheduled", outerOutput)
+            else:
+                schedZero = min(schedZero, scheduledOut[outerOutput.out_i])
+
+        for interOutput in self.outputs:
+            scheduledOut = interOutput.obj.scheduledOut
+            if scheduledOut is None:
+                assert not requiredToBeScheduled, ("Output of cluster is required to be scheduled", interOutput)
+            else:
+                schedZero = min(schedZero, scheduledOut[interOutput.out_i])
+
+        for sn in self.nodes:
+            _schedZero = sn.scheduledZero
+            if _schedZero is None:
+                assert not requiredToBeScheduled, ("Internal node of cluster is required to be scheduled", sn)
+            else:
+                schedZero = min(schedZero, _schedZero)
+
+        if isinstance(schedZero, int):
+            n._setScheduleZeroTimeMultiClock(schedZero, clkPeriod, epsilon, ffdelay)
+            return schedZero
+        else:
+            if requiredToBeScheduled:
+                raise AssertionError("Node did not contain any port to infer scheduledZero", n)
+
+            return None
+
+    def substituteWithNode(self, n: HlsNetNodeAggregate, requiredToBeScheduled:bool=False):
         """
         Substitute all nodes with the cluster with a single node. All nodes are removed from netlists and disconnected on outer side.
         On inner side the nodes are connected to input of new node.
         """
         assert not n._inputs, (n, "Inputs are added in this function")
         assert not n._outputs, (n, "Outputs are added in this function")
+        assert self.nodes, "Cluster is not supposed to be empty"
         isScheduled = self.nodes[0].scheduledOut is not None
+
+        if requiredToBeScheduled:
+            assert isScheduled, n
+
+        if isScheduled and n.scheduledZero is None:
+            n.resolveRealization()
+            self._tryResolveScheduledZero(n, requiredToBeScheduled)
+
         for outerOutput in self.inputs:
             outerOutput: HlsNetNodeOut
             scheduledOut = outerOutput.obj.scheduledOut
-            time = None
             if scheduledOut is not None:
                 time = scheduledOut[outerOutput.out_i]
+            else:
+                time = None
 
-            boundaryIn, boundaryInPort = n._addInput(outerOutput._dtype, outerOutput.name, time)
+            boundaryIn, boundaryInPort = n._addInput(outerOutput._dtype, outerOutput.name, time=time)
+            if time is not None:
+                assert boundaryInPort.obj.scheduledOut == (time,), (boundaryInPort, boundaryInPort.obj.scheduledOut, time)
+                assert n.scheduledIn[boundaryIn.in_i] == time, (boundaryIn, n.scheduledIn[boundaryIn.in_i], time, n.scheduledZero, n.netlist.normalizedClkPeriod)
+
             # assert outerOutput.obj in outerOutput.obj.hls.nodes or outerOutput.obj in outerOutput.obj.hls.inputs or outerOutput.obj in outerOutput.obj.hls.outputs, outerOutput
             internInputs = self.inputsDict[outerOutput]
             oldUsedBy = outerOutput.obj.usedBy[outerOutput.out_i]
@@ -134,10 +185,7 @@ class HlsNetlistClusterSearch():
             for i in internInputs:
                 i.obj.dependsOn[i.in_i] = boundaryInPort
                 portUses.append(i)
-        if not self.inputs and isScheduled:
-            n.scheduledIn = ()
-            n.scheduledZero = min(subN.scheduledZero for subN in self.nodes)
-        
+
         clusterNodes = self.nodes
         for interOutput in self.outputs:
             # disconnect interOutput from all external inputs
@@ -146,11 +194,15 @@ class HlsNetlistClusterSearch():
             # if this is also an output from parent cluster
             # it should have only
             scheduledOut = interOutput.obj.scheduledOut
-            time = None
             if scheduledOut is not None:
                 time = scheduledOut[interOutput.out_i]
+            else:
+                time = None
 
-            boundaryOut, boundaryOutPort = n._addOutput(interOutput._dtype, interOutput.name, time)
+            boundaryOut, boundaryOutPort = n._addOutput(interOutput._dtype, interOutput.name, time=time)
+            if time is not None:
+                assert boundaryOutPort.obj.scheduledIn == (time,), (boundaryOutPort, boundaryOutPort.obj.scheduledIn, time)
+                assert n.scheduledOut[boundaryOut.out_i] == time, (boundaryOut, n.scheduledOut[boundaryOut.out_i], time)
             # reconnect all external uses to a port on this aggregate
             newUsedBy = n.usedBy[boundaryOut.out_i]
             usedBy = interOutput.obj.usedBy[interOutput.out_i]
@@ -168,10 +220,7 @@ class HlsNetlistClusterSearch():
             interOutput.obj.usedBy[interOutput.out_i] = newInterUses
             boundaryOutPort.obj.dependsOn[0] = interOutput
 
-        if not self.outputs and isScheduled:
-            n.scheduledOut = ()
-        
-        # remove because the information is now store in node "n"
+        # remove because the information is now stored in node "n"
         self.inputs = None
         self.inputsDict = None
         self.outputs = None
