@@ -14,7 +14,7 @@ from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwtHls.llvm.llvmIr import parseMIR, LlvmCompilationBundle, MachineFunction, MachineBasicBlock, MachineInstr, TargetOpcode, MachineOperand, \
     CmpInst, TypeToIntegerType, Register, LLVMStringContext, MachineRegisterInfo
 from hwtHls.ssa.analysis.llvmIrInterpret import VcdLlvmIrCodelineFormatter, \
-    VcdLlvmIrSimTimeFormatter, VcdLlvmIrBBFormatter, SimIoUnderflowErr, _prepareWaveWriterTopIo,\
+    VcdLlvmIrSimTimeFormatter, VcdLlvmIrBBFormatter, SimIoUnderflowErr, _prepareWaveWriterTopIo, \
     LlvmIrInterpret
 from hwtHls.ssa.translation.llvmMirToNetlist.lowLevel import HlsNetlistAnalysisPassMirToNetlistLowLevel
 from hwtSimApi.constants import CLK_PERIOD
@@ -122,9 +122,11 @@ class LlvmMirInterpret():
         waveLog.enddefinitions()
         return instrCodeline, simCodelineLabel, simTimeLabel, simBlockLabel
 
-    def run(self, args: Tuple[Generator[Union[int, HValue], None, None], List[HValue], ...], wallTime:Optional[int]=None):
+    def run(self, args: Tuple[Generator[Union[int, HValue], None, None], List[HValue], ...],
+            wallTime:Optional[int]=None):
         """
-        :param args: arguments for executed function, generator is used for inputs, list is for RAM/ROMs and outputs streams 
+        :param args: arguments for executed function, generator is used for inputs,
+            list is for RAM/ROMs and outputs streams 
         """
         MF = self.MF
         timeStep = self.timeStep

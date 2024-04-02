@@ -504,7 +504,7 @@ class LlvmIrInterpret():
                     continue  # PHIs are evaluated before jump to this block, so we skip them
 
                 bb, isJump = self._runLlvmIrFunctionInstr(waveLog, nowTime, regs, instr, bb, fnArgs, simBlockLabel)
-                if wallTime is not None and wallTime <= nowTime:
+                if wallTime is not None and nowTime >= wallTime:
                     raise StopSimumulation()
                 if isJump:
                     break
