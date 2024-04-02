@@ -392,9 +392,11 @@ class RtlArchPassChannelMerge(RtlArchPass):
                         ioWithSameSyncFlags: MergeCandidateList = []
                         isForwrard = isinstance(io0, HlsNetNodeWriteForwardedge)
                         if not isForwrard:
-                            assert isinstance(io0, HlsNetNodeWriteBackedge), io0
+                            assert isinstance(io0, HlsNetNodeWriteBackedge), (io0, "Must be HlsNetNodeWriteForwardedge or HlsNetNodeWriteBackedge")
 
                         for io1 in islice(ioList, i + 1, None):
+                            io0r = io0.associatedRead
+                            io1r = io1.associatedRead
                             if io1 in removed:
                                 continue
 
@@ -403,8 +405,13 @@ class RtlArchPassChannelMerge(RtlArchPass):
                             elif not isForwrard and not isinstance(io1, HlsNetNodeWriteBackedge):
                                 continue
 
-                            elif hasInputSameDriver(io0.extraCond, io1.extraCond) \
-                                    and hasInputSameDriver(io0.skipWhen, io1.skipWhen):
+                            elif io0._loopChannelGroup is io1._loopChannelGroup and \
+                                    io0.allocationType == io1.allocationType and \
+                                    len(io0.channelInitValues) == len(io1.channelInitValues) and \
+                                    hasInputSameDriver(io0.extraCond, io1.extraCond) and\
+                                    hasInputSameDriver(io0.skipWhen, io1.skipWhen) and \
+                                    hasInputSameDriver(io0r.extraCond, io1r.extraCond) and\
+                                    hasInputSameDriver(io0r.skipWhen, io1r.skipWhen):
                                 ioWithSameSyncFlags.append(io1)
 
                         if len(ioWithSameSyncFlags) > 1:
@@ -416,19 +423,16 @@ class RtlArchPassChannelMerge(RtlArchPass):
                             # discard those which data inputs are driven from io0
                             selectedForRewrite: MergeCandidateList = [io0]
                             for io1 in ioWithSameSyncFlags:
-                                if len(io0.channelInitValues) == len(io1.channelInitValues) and\
-                                        io0._loopChannelGroup is io1._loopChannelGroup and\
-                                        io0.allocationType == io1.allocationType:
-                                    compatible = True
-                                    for io0 in selectedForRewrite:
-                                        if reachDb.doesReachToData(io0, io1.dependsOn[0]):
-                                            compatible = False
-                                            break
-                                        if reachDb.doesReachToData(io1, io0.dependsOn[0]):
-                                            compatible = False
-                                            break
-                                    if compatible:
-                                        selectedForRewrite.append(io1)
+                                compatible = True
+                                for io0 in selectedForRewrite:
+                                    if reachDb.doesReachToData(io0, io1.dependsOn[0]):
+                                        compatible = False
+                                        break
+                                    if reachDb.doesReachToData(io1, io0.dependsOn[0]):
+                                        compatible = False
+                                        break
+                                if compatible:
+                                    selectedForRewrite.append(io1)
 
                             if len(selectedForRewrite) > 1:
                                 self._mergeChannels(selectedForRewrite, dbgTracer,
