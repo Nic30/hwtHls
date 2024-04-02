@@ -148,7 +148,7 @@ class HlsNetlistPassConsystencyCheck(HlsNetlistPass):
 
     @staticmethod
     def _checkTypes(netlist: HlsNetlistCtx, removed: Set[HlsNetNode]):
-        OPS_WITH_OP0_AND_RES_OF_SAME_TYPE = {*BITWISE_OPS, AllOps.DIV, AllOps.MUL, AllOps.ADD, AllOps.SUB}
+        OPS_WITH_OP0_AND_RES_OF_SAME_TYPE = {*BITWISE_OPS, AllOps.UDIV, AllOps.SDIV, AllOps.DIV, AllOps.MUL, AllOps.ADD, AllOps.SUB}
         OPS_WITH_SAME_OP_TYPE = {*OPS_WITH_OP0_AND_RES_OF_SAME_TYPE, *COMPARE_OPS}
         for n in netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.PREORDER):
             n: HlsNetNode
