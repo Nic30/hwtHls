@@ -29,6 +29,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut, unlink_hls_nodes, \
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
+from hwtHls.netlist.scheduler.scheduler import asapSchedulePartlyScheduled
 from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import netlistExplicitSyncDisconnectFromOrderingChain
 from hwtHls.netlist.transformation.simplifyUtils import hasInputSameDriver
 
@@ -47,35 +48,22 @@ RE_MATCH_REG = re.compile("^_r(\d+)$")
 
 class RtlArchPassChannelMerge(RtlArchPass):
     """
-    Merge forward and backward channels if they are between same source and destination (ArchElement, clockIndex)
+    Merge forward and backward channels if they are between the same source and destination (ArchElement, clockIndex)
     and do have same skipWhen and extraCond conditions.
+    
+    [todo] Cover the case where r0 channel read is non blocking and others reads have
+        rN.extraCond=r0.validNB & r0.extraCond,
+        rN.skipWhen=~r0.validNB | r0.skipWhen
+        Such reads are usually on the entry of the loops. The r0 is usually a control flag which enables read of liveins.
 
     :note: It is important to reduce number of channels as much as possible
         to reduce synchronization complexity and to remove combinational loops
         in handshake control logic.
     """
 
-    def scheduleConcats(self, o: HlsNetNodeOut):
-        """
-        Run scheduling on Concat (HlsNetNodeOperator) nodes which were just generated.
-        """
-        newlyScheduledNodes: List[HlsNetNode] = []
-        n = o.obj
-        if n.scheduledZero is None:
-            assert isinstance(n, HlsNetNodeOperator) and n.operator == AllOps.CONCAT, n
-
-            # add all not scheduled nodes to elmTimeSlot
-            toSearch = [n]
-            seen = set()
-            while toSearch:
-                n1 = toSearch.pop()
-                if n1 not in seen and n1.scheduledZero is None:
-                    newlyScheduledNodes.append(n1)
-                    seen.add(n1)
-                    for dep in n1.dependsOn:
-                        toSearch.append(dep.obj)
-            n.scheduleAsap(None, 0, None)
-        return newlyScheduledNodes
+    def __init__(self, dbgTracer: DebugTracer):
+        super(RtlArchPassChannelMerge, self).__init__()
+        self._dbgTracer = dbgTracer
 
     def _generatePrettyBufferName(self, writes: List[HlsNetNodeWrite]) -> Optional[str]:
         """
@@ -263,6 +251,11 @@ class RtlArchPassChannelMerge(RtlArchPass):
             assert lcg.getChannelWhichIsUsedToImplementControl() is not w, w
             lcg.members.remove(w)
 
+    @staticmethod
+    def _assertIsConcat(n: HlsNetNode):
+        assert isinstance(n, HlsNetNodeOperator) and n.operator == AllOps.CONCAT, n
+        return True
+
     def _mergeChannels(self, selectedForRewrite: List[Union[HlsNetNodeWriteBackedge, HlsNetNodeWriteForwardedge]],
                        dbgTracer: DebugTracer,
                        srcElm: ArchElement, srcClkI: int,
@@ -289,9 +282,9 @@ class RtlArchPassChannelMerge(RtlArchPass):
         firstDep: HlsNetNodeOut = selectedForRewrite[0].dependsOn[0]
 
         if wValues:
-            newWVal = builder.buildConcat(wValues)
+            newWVal = builder.buildConcat(*wValues)
             # Run scheduling on Concat (HlsNetNodeOperator) nodes which were just generated.
-            newlyScheduledNodes = self.scheduleConcats(newWVal)
+            newlyScheduledNodes = asapSchedulePartlyScheduled(newWVal, self._assertIsConcat)
         else:
             newWVal = builder.buildConstPy(firstDep._dtype, None)
             newWVal.obj.resolveRealization()
@@ -338,7 +331,13 @@ class RtlArchPassChannelMerge(RtlArchPass):
         self._changeDataTypeOfChannel(r0, w0, newT, newBuffName)
 
         w0.channelInitValues = newInit
+        curTime = w0.scheduledOut[0]
+        timeAdded = newWVal.obj.scheduledOut[newWVal.out_i] - curTime
         link_hls_nodes(newWVal, w0._inputs[0])
+        if timeAdded > 0:
+            assert curTime // clkPeriod == (curTime + timeAdded) // clkPeriod, ("Merging of the channels is not supposed to move write to other cycle", w0, curTime, timeAdded, clkPeriod)
+            w0.moveSchedulingTime(timeAdded)
+
         self._removeIoNodesAfterTheyWereMergedToFirstOne(r0, w0, r0O0OrigT, r0Users, selectedForRewrite,
                                                          srcElm, srcClkI, dstElm, dstClkI, removed)
 
@@ -379,7 +378,7 @@ class RtlArchPassChannelMerge(RtlArchPass):
         elmIndex = {elm: i for i, elm in enumerate(netlist.nodes)}
         removed: Set[HlsNetNode] = netlist.builder._removedNodes
         MergeCandidateList = Union[List[HlsNetNodeWriteBackedge], List[HlsNetNodeWriteForwardedge]]
-        dbgTracer = DebugTracer(None)
+        dbgTracer = self._dbgTracer
         with dbgTracer.scoped(self.__class__, None):
             for (srcElm, srcClkI, dstElm, dstClkI), ioList in sorted(
                     channels.items(),
