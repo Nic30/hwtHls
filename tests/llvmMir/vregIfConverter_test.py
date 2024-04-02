@@ -458,7 +458,7 @@ class VRegIfConverter_TC(BaseSsaTC):
         """
         self._test_ll_IR(ir)
 
-    def test_switchInLoop(self):
+    def test_switchInLoop0(self):
         ir = """\
         define void @ShifterLeftUsingHwLoopWithWhileNot0.mainThread(ptr addrspace(1) %i, ptr addrspace(2) %o, ptr addrspace(3) %sh) {
           ShifterLeftUsingHwLoopWithWhileNot0.mainThread:
@@ -526,15 +526,98 @@ class VRegIfConverter_TC(BaseSsaTC):
         self._test_ll_IR(ir, lowerSsaToNonSsa=True)
 
 
-if __name__ == "__main__":
-    # from hwt.synthesizer.utils import to_rtl_str
-    # from hwtHls.platform.platform import HlsDebugBundle
-    # u = SliceBreak3()
-    # print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    def test_switchInLoop1(self):
+        ir = """\
+        define void @SwitchInLoop1(ptr addrspace(1) %i, ptr addrspace(2) %o) {
+          t0_AxiSParse2IfAndSequel:
+            br label %bb0
+          
+          bb0:
+            %c = load volatile i16, ptr addrspace(1) %i, align 2
+            switch i16 %c, label %bb3 [
+              i16 2, label %bb2
+              i16 1, label %bb1
+            ]
+        
+          bb1:
+            br label %bb2
+          
+          bb2:
+            %ph0 = phi i1 [ true, %bb0 ], [ false, %bb1 ]
+            store volatile i1 %ph0, ptr addrspace(2) %o, align 2
+            br label %bb3
+          
+          bb3:
+            br label %bb0
+        }
+        """
 
+        self._test_ll_IR(ir, lowerSsaToNonSsa=True)
+
+    def test_switchInLoop2(self):
+        ir = """\
+        define void @SwitchInLoop2(ptr addrspace(1) %i, ptr addrspace(2) %o) {
+          t0_AxiSParse2IfAndSequel:
+            br label %bb0
+          
+          bb0:
+            %c = load volatile i16, ptr addrspace(1) %i, align 2
+            switch i16 %c, label %bb3 [
+              ; values 3, 7 are picked to have space between otherwise
+              ; this interval would get merged and sub, UGT would be used
+              i16 3, label %bb2 
+              i16 7, label %bb1
+            ]
+        
+          bb1:
+            br label %bb2
+          
+          bb2:
+            br label %bb3
+          
+          bb3:
+            %phi0 = phi i8 [ 10, %bb0 ], [ 20, %bb2 ]
+            store volatile i8 %phi0, ptr addrspace(2) %o, align 4
+            br label %bb0
+        }
+        """
+        
+        self._test_ll_IR(ir, lowerSsaToNonSsa=True)
+
+    def test_switchInLoop3(self):
+        ir = """\
+        define void @SwitchInLoop3(ptr addrspace(1) %i, ptr addrspace(2) %o) {
+          t0_AxiSParse2IfAndSequel:
+            br label %bb0
+          
+          bb0:
+            %c = load volatile i16, ptr addrspace(1) %i, align 2
+            switch i16 %c, label %bb3 [
+              ; will reduce to %c sub 3 UGT 1
+              i16 3, label %bb2 
+              i16 4, label %bb1
+            ]
+        
+          bb1:
+            br label %bb2
+          
+          bb2:
+            br label %bb3
+          
+          bb3:
+            %phi0 = phi i8 [ 10, %bb0 ], [ 20, %bb2 ]
+            store volatile i8 %phi0, ptr addrspace(2) %o, align 4
+            br label %bb0
+        }
+        """
+        
+        self._test_ll_IR(ir, lowerSsaToNonSsa=True)
+
+        
+if __name__ == "__main__":
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([VRegIfConverter_TC('test_noOptSingleBlock')])
+    # suite = unittest.TestSuite([VRegIfConverter_TC('test_switchInLoop3')])
     suite = testLoader.loadTestsFromTestCase(VRegIfConverter_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
