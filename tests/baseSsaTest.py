@@ -55,23 +55,30 @@ class BaseTestPlatform(VirtualHlsPlatform):
         toNetlist = HlsNetlistAnalysisPassMirToNetlist(
             hls, tr, mf, backedges, liveness, ioRegs, registerTypes, loops)
         netlist = toNetlist.netlist
-
+        dbgTracer, doCloseTrace = self._getDebugTracer(netlist, HlsDebugBundle.DBG_5_netlistConsttructionTrace)
+        toNetlist.setDebugTracer(dbgTracer)
+        
         SsaPassDumpMIR(lambda name: (self.mir, False)).apply(hls, toSsa)
 
-        toNetlist.translateDatapathInBlocks(mf, toSsa.ioNodeConstructors)
-        threads = netlist.getAnalysis(HlsNetlistAnalysisPassDataThreadsForBlocks)
-        toNetlist.updateThreadsOnLiveInMuxes(threads)
-        HlsNetlistPassDumpDataThreads(lambda name: (self.dataThreads, False)).apply(hls, netlist)
+        try:
+            toNetlist.translateDatapathInBlocks(mf, toSsa.ioNodeConstructors)
+            threads = netlist.getAnalysis(HlsNetlistAnalysisPassDataThreadsForBlocks)
+            toNetlist.updateThreadsOnLiveInMuxes(threads)
+            HlsNetlistPassDumpDataThreads(lambda name: (self.dataThreads, False)).apply(hls, netlist)
+    
+            netlist.getAnalysis(HlsNetlistAnalysisPassBlockSyncType)
+            HlsNetlistPassDumpBlockSync(lambda name: (self.blockSync, False), addLegend=False).apply(hls, netlist)
+    
+            blockLiveInMuxInputSync: BlockLiveInMuxSyncDict = toNetlist.constructLiveInMuxes(mf)
+            toNetlist.extractRstValues(mf, threads)
+            toNetlist.resolveLoopControl(mf, blockLiveInMuxInputSync)
+            toNetlist.resolveBlockEn(mf, threads)
+            toNetlist.netlist.invalidateAnalysis(HlsNetlistAnalysisPassDataThreadsForBlocks)  # because we modified the netlist
+            toNetlist.connectOrderingPorts(mf)
+        finally:
+            if doCloseTrace:
+                dbgTracer._out.close()
 
-        netlist.getAnalysis(HlsNetlistAnalysisPassBlockSyncType)
-        HlsNetlistPassDumpBlockSync(lambda name: (self.blockSync, False), addLegend=False).apply(hls, netlist)
-
-        blockLiveInMuxInputSync: BlockLiveInMuxSyncDict = toNetlist.constructLiveInMuxes(mf)
-        toNetlist.extractRstValues(mf, threads)
-        toNetlist.resolveLoopControl(mf, blockLiveInMuxInputSync)
-        toNetlist.resolveBlockEn(mf, threads)
-        toNetlist.netlist.invalidateAnalysis(HlsNetlistAnalysisPassDataThreadsForBlocks)  # because we modified the netlist
-        toNetlist.connectOrderingPorts(mf)
         return netlist
 
     def runHlsNetlistPasses(self, hls:"HlsScope", netlist:HlsNetlistCtx):

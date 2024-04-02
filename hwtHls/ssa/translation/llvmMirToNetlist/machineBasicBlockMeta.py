@@ -39,8 +39,8 @@ class MachineBasicBlockMeta():
 
 
     :ivar isLoopHeader: True if this block is a header block of loop
-    :ivar isLoopHeaderOfFreeRunning: True if the loop with this block as header does not requre between
-        iteration sychhronization.
+    :ivar isLoopHeaderOfFreeRunning: True if the loop with this block as header does not require between
+        iteration synchronization.
     :ivar loopDepths: a list of depths of loops which should be constructed in netlist
 
     #:note: if useDataAsControl is specified it must contain record for every predecessor except rstPredeccessor.
@@ -68,6 +68,7 @@ class MachineBasicBlockMeta():
 
         self.isLoopHeader: bool = False
         self.isLoopHeaderOfFreeRunning: bool = False
+        self.isLoopAsyncPrequel: bool = False
         self.loopStatusNode: Optional[HlsNetNodeLoopStatus] = None
         # self.uselessOrderingFrom: Set[MachineBasicBlock] = set()
         # self.uselessControlBackedgesFrom: Set[MachineBasicBlock] = set()

@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional, Union, Set, Tuple, Dict, List, Type
+from typing import Optional, Union, Set, Tuple, Dict, List
 
 from hwt.synthesizer.dummyPlatform import DummyPlatform
 from hwtHls.architecture.allocator import HlsAllocator
@@ -345,28 +345,33 @@ class DefaultHlsPlatform(DummyPlatform):
         toNetlist = HlsNetlistAnalysisPassMirToNetlist(
             hls, tr, mf, backedges, liveness, ioRegs, registerTypes, loops)
         netlist = toNetlist.netlist
+        dbgTracer, doCloseTrace = self._getDebugTracer(netlist, D.DBG_5_netlistConsttructionTrace)
+        toNetlist.setDebugTracer(dbgTracer)
+        try:
+            toNetlist.translateDatapathInBlocks(mf, toSsa.ioNodeConstructors)
+            threads = netlist.getAnalysis(HlsNetlistAnalysisPassDataThreadsForBlocks)
+            toNetlist.updateThreadsOnLiveInMuxes(threads)
+            dbg(D.DBG_5_dthreads, (hls, netlist))
 
-        toNetlist.translateDatapathInBlocks(mf, toSsa.ioNodeConstructors)
-        threads = netlist.getAnalysis(HlsNetlistAnalysisPassDataThreadsForBlocks)
-        toNetlist.updateThreadsOnLiveInMuxes(threads)
-        dbg(D.DBG_5_dthreads, (hls, netlist))
+            netlist.getAnalysis(HlsNetlistAnalysisPassBlockSyncType)
+            dbg(D.DBG_6_blockSync, (hls, netlist))
 
-        netlist.getAnalysis(HlsNetlistAnalysisPassBlockSyncType)
-        dbg(D.DBG_6_blockSync, (hls, netlist))
+            blockLiveInMuxInputSync: BlockLiveInMuxSyncDict = toNetlist.constructLiveInMuxes(mf)
+            dbg(D.DBG_7_preSync, (hls, netlist))
 
-        blockLiveInMuxInputSync: BlockLiveInMuxSyncDict = toNetlist.constructLiveInMuxes(mf)
-        dbg(D.DBG_7_preSync, (hls, netlist))
+            toNetlist.extractRstValues(mf, threads)
+            dbg(D.DBG_8_postRst, (hls, netlist))
 
-        toNetlist.extractRstValues(mf, threads)
-        dbg(D.DBG_8_postRst, (hls, netlist))
+            toNetlist.resolveLoopControl(mf, blockLiveInMuxInputSync)
+            dbg(D.DBG_9_postLoop, (hls, netlist))
 
-        toNetlist.resolveLoopControl(mf, blockLiveInMuxInputSync)
-        dbg(D.DBG_9_postLoop, (hls, netlist))
-
-        toNetlist.resolveBlockEn(mf, threads)
-        netlist.invalidateAnalysis(HlsNetlistAnalysisPassDataThreadsForBlocks)  # because we modified the netlist
-        toNetlist.connectOrderingPorts(mf)
-        dbg(D.DBG_10_postSync, (hls, netlist))
+            toNetlist.resolveBlockEn(mf, threads)
+            netlist.invalidateAnalysis(HlsNetlistAnalysisPassDataThreadsForBlocks)  # because we modified the netlist
+            toNetlist.connectOrderingPorts(mf)
+            dbg(D.DBG_10_postSync, (hls, netlist))
+        finally:
+            if doCloseTrace:
+                dbgTracer._out.close()
 
         # must drop reference on all MIR related objects
         netlist.invalidateAnalysis(HlsNetlistAnalysisPassBlockSyncType)

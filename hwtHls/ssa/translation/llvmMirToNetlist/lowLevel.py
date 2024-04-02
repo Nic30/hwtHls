@@ -14,6 +14,7 @@ from hwtHls.netlist.analysis.dataThreadsForBlocks import HlsNetlistAnalysisPassD
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
     HlsNetNodeWriteBackedge
@@ -65,7 +66,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
                  liveness: Dict[MachineBasicBlock, Dict[MachineBasicBlock, Set[Register]]],
                  ioRegs: List[Register],
                  registerTypes: Dict[Register, int],
-                 loops: MachineLoopInfo
+                 loops: MachineLoopInfo,
                  ):
         super(HlsNetlistAnalysisPassMirToNetlistLowLevel, self).__init__(HlsNetlistCtx(hls.parentUnit, hls.freq, tr.label))
         # :note: value of a block in block0 means that the control flow was passed to block0 from block
@@ -89,6 +90,13 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         self.translatedBranchConditions: Dict[MachineBasicBlock, Dict[Register, HlsNetNodeOutAny]] = {}
         # register self in netlist analysis cache
         netlist._analysis_cache[self.__class__] = self
+        self.dbgTracer: Optional[DebugTracer] = None
+
+    def setDebugTracer(self, dbgTracer: DebugTracer):
+        """
+        :attention: This must be called before this object is used, it can not be done in constructor
+        """
+        self.dbgTracer = dbgTracer
 
     def _constructBackedgeBuffer(self, name: str,
                                  srcBlock: MachineBasicBlock,

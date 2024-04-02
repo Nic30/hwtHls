@@ -101,10 +101,12 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
     """
 
     def extractRstValues(self, mf: MachineFunction, threads: HlsNetlistAnalysisPassDataThreadsForBlocks):
-        return ResetValueExtractor(
-            self.builder, self.valCache, self.liveness,
-            self.blockSync, self.edgeMeta, self.regToIo
-        ).apply(mf, threads)
+        with self.dbgTracer.scoped(ResetValueExtractor, None):
+            return ResetValueExtractor(
+                self.builder, self.valCache, self.liveness,
+                self.blockSync, self.edgeMeta, self.regToIo,
+                self.dbgTracer
+            ).apply(mf, threads)
 
     def _getControlFromPred(self, pred: MachineBasicBlock, mb: MachineBasicBlock, mbSync: MachineBasicBlockMeta, eMeta: MachineEdgeMeta):
         edge = (pred, mb)
@@ -175,8 +177,8 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
             #    # add because it was just generated
             #    predMbSync.addOrderedNode(cp.associatedWrite, atEnd=True)
         else:
-            assert any(l.headerBlockNum == mb.getNumber() for l in eMeta.enteringLoops)
             # enter
+            assert any(l.headerBlockNum == mb.getNumber() for l in eMeta.enteringLoops)
             if eMeta.enteringLoops[0].headerBlockNum == mb.getNumber():
                 lcg = eMeta.getLoopChannelGroup()
                 if not lcg.members:
@@ -329,18 +331,25 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                 raise NotImplementedError()
             else:
                 exitForHeaderR = self._constructBackedgeBuffer(
-                    f"bb{exitBlock.getNumber()}_to_bb{exitSucBlock.getNumber()}_loopExit",
+                    f"bb{exitBlock.getNumber():d}_to_bb{exitSucBlock.getNumber():d}_loopExit",
                     exitBlock, mb,
                     None, builder.buildConstPy(HVoidOrdering, None), True)
                 # [todo] add exits also for parent loops
                 edgeMeta.buffersForLoopExit.append(exitForHeaderR)
                 exitForHeaderR.obj.setNonBlocking()
                 exitForHeaderW: HlsNetNodeWriteBackedge = exitForHeaderR.obj.associatedWrite
+                # this channel will asynchronously notify loop header, it is not required
+                # to have ready sync signal
                 exitForHeaderW.allocationType = BACKEDGE_ALLOCATION_TYPE.IMMEDIATE
+                exitForHeaderW._rtlUseReady = exitForHeaderR.obj._rtlUseReady = False
+                # exitForHeaderW._rtlUseValid = exitForHeaderR.obj._rtlUseValid = False
+
                 self._addExtraCond(exitForHeaderW, controlOrig, eMbSync.blockEn)
                 self._addSkipWhen_n(exitForHeaderW, controlOrig, eMbSync.blockEn)
                 # w.channelInitValues = ((0,),)
-                lcg = LoopChanelGroup([(exitBlock.getNumber(), exitSucBlock.getNumber(), LOOP_CHANEL_GROUP_ROLE.EXIT_NOTIFY_TO_HEADER)])
+                lcg = LoopChanelGroup([(exitBlock.getNumber(),
+                                        exitSucBlock.getNumber(),
+                                        LOOP_CHANEL_GROUP_ROLE.EXIT_NOTIFY_TO_HEADER)])
                 lcg.appendWrite(exitForHeaderW, True)
 
             loopStatus.addExitToHeaderNotifyPort(exitBlock.getNumber(), exitSucBlock.getNumber(), lcg)
@@ -355,7 +364,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                 # [todo] same for data channels on this edge
                 # :note: exit edge may be reenter to parent loop, or enter to other loop
                 if edgeMeta.etype == MACHINE_EDGE_TYPE.BACKWARD:
-                    # if exit is backedge the read from exit happens before any enter is writen
+                    # if exit is backedge the read from exit happens before any enter is written
                     # because of this we must use backedge for anyEnterExecuted_n flag and initialize it to 0
                     anyEnterExecuted_n = self._constructBackedgeBuffer(f"bb{mb.getNumber()}_wasEntered",
                                                                        exitBlock, exitSucBlock,
@@ -366,8 +375,8 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                     assert isinstance(eRead, (HlsNetNodeReadForwardedge, HlsNetNodeReadBackedge))
 
                 # e.addControlSerialExtraCond(anyEnterExecuted)
-                if anyEnterExecuted_n != 0:
-                    eRead.addControlSerialSkipWhen(anyEnterExecuted_n)
+                #if anyEnterExecuted_n != 0:
+                #    eRead.addControlSerialSkipWhen(anyEnterExecuted_n)
 
                 # update cache so successor uses the port from loop control exit port
                 # controlAfterExit = eSuc.getValid()
@@ -399,8 +408,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
         """
         return resolveBlockEn(self, mf, threads, self.translatedBranchConditions)
 
-    def connectOrderingPorts(self,
-                             mf: MachineFunction):
+    def connectOrderingPorts(self, mf: MachineFunction):
         """
         Finalize ordering connections after all IO is instantiated.
         """
