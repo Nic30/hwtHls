@@ -9,7 +9,8 @@ from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtSimApi.constants import CLK_PERIOD
 from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
 from tests.io.ioFsm2 import WriteFsmFor, WriteFsmPrequel, WriteFsmIf, \
-    WriteFsmIfOptionalInMiddle, WriteFsmControlledFromIn
+    WriteFsmIfOptionalInMiddle, WriteFsmControlledFromIn, \
+    ReadFsmWriteFsmSumAndCondWrite
 
 
 class IoFsm2_TC(SimTestCase):
@@ -70,8 +71,9 @@ class IoFsm2_TC(SimTestCase):
         ref = [next(m) for _ in range(CLK)]
         self._test_Write(cls, ref, CLK + 3)
 
-    def _test_ReadWrite(self, cls: Type[Unit], dinRef: List[Optional[int]], ref: List[Optional[int]], CLK: int):
+    def _test_ReadWrite(self, cls: Type[Unit], dinRef: List[Optional[int]], ref: List[Optional[int]], CLK: int, USE_PY_FRONTEND=False):
         u = cls()
+        u.USE_PY_FRONTEND = USE_PY_FRONTEND
         self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
         u.i._ag.data.extend(dinRef)
         self.runSim(CLK * CLK_PERIOD)
@@ -97,6 +99,28 @@ class IoFsm2_TC(SimTestCase):
         ref = [next(m) for _ in range(CLK)]
         self._test_ReadWrite(cls, dinRef, ref, CLK + 4)
 
+    def test_ReadFsmWriteFsmSumAndCondWrite(self, cls=ReadFsmWriteFsmSumAndCondWrite, CLK=16):
+
+        def model(din):
+            while True:
+                v0 = next(din)
+                if v0 == 0:
+                    continue
+                v1 = next(din)
+                if v1 == 1:
+                    yield 1
+                    yield 2
+                    yield 3
+
+                v2 = next(din)
+                yield 4
+                yield 5
+
+        dinRef = [self._rand.choice((0, 1, 2)) for _ in range(CLK)]
+        m = model(iter(dinRef))
+        ref = [next(m) for _ in range(CLK)]
+        self._test_ReadWrite(cls, dinRef, ref, CLK + 13, USE_PY_FRONTEND=True)
+
 
 if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
@@ -106,7 +130,7 @@ if __name__ == "__main__":
 
     import unittest
     testLoader = unittest.TestLoader()
-    suite = unittest.TestSuite([IoFsm2_TC("test_WriteFsmPrequel")])
-    # suite = testLoader.loadTestsFromTestCase(IoFsm2_TC)
+    # suite = unittest.TestSuite([IoFsm2_TC("test_WriteFsmPrequel")])
+    suite = testLoader.loadTestsFromTestCase(IoFsm2_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
