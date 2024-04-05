@@ -509,7 +509,8 @@ bool VRegIfConverter::runOnMachineFunction(MachineFunction &MF) {
       //Change |= normalizeBranchCondition(BBI); // at this point BBI is in invalid state
 
       NumIfCvts = NumSimple + NumSimpleFalse + NumTriangle + NumTriangleRev +
-        NumTriangleFalse + NumTriangleFRev + NumDiamonds;
+        NumTriangleFalse + NumTriangleFRev + NumDiamonds +
+		NumLoopTail + NumLoopTailFalse + NumLoopTailRev + NumLoopTailFRev;
       if (IfCvtLimit != -1 && (int)NumIfCvts >= IfCvtLimit)
         break;
     }
@@ -1193,13 +1194,14 @@ void VRegIfConverter::AnalyzeBlock(
         continue;
       }
 
+      // [todo] maybe because this is dissabled it is required to add check for this in every pattern detector
       // Do not ifcvt if either path is a back edge to the entry block.
-      if (BBI.TrueBB == BB || BBI.FalseBB == BB) {
-        BBI.IsBeingAnalyzed = false;
-        BBI.IsAnalyzed = true;
-        BBStack.pop_back();
-        continue;
-      }
+      //if (BBI.TrueBB == BB || BBI.FalseBB == BB) {
+      //  BBI.IsBeingAnalyzed = false;
+      //  BBI.IsAnalyzed = true;
+      //  BBStack.pop_back();
+      //  continue;
+      //}
 
       // Do not ifcvt if true and false fallthrough blocks are the same.
       if (!BBI.FalseBB) {
@@ -1350,7 +1352,7 @@ void VRegIfConverter::AnalyzeBlock(
       }
     }
     {
-    	// [todo] cover case where EBB == FBB, poroblem is that we skip BBs with backedges
+    	// [todo] cover case where EBB == FBB, problem is that we skip BBs with backedges
     	bool PredBBCondRev;
     	// :note: BBI is the one which will be if-converted into predecessor
     	//        search can not start at predecessor because it is a loop header and blocks with backedges are omitted
@@ -1613,7 +1615,7 @@ bool VRegIfConverter::IfConvertSimple(BBInfo &BBI, IfcvtKind Kind) {
   assert(CvtMBB.succ_size() <= 1);
   //assert(CvtBBI->Predicate.size() == 0);
   MachineBasicBlock* SucOfCvtBB = CvtMBB.succ_empty() ? nullptr : *CvtMBB.succ_begin();
-  assert(SucOfCvtBB != NextBBI->BB && "If this was true, this should be Triangle instead");
+  assert((BBI.BB == SucOfCvtBB || SucOfCvtBB != NextBBI->BB) && "If this was true, this should be Triangle instead (if this is not loop tail)");
 
   if (CvtMBB.hasAddressTaken())
     // Conservatively abort if-conversion if BB's address is taken.
@@ -1672,7 +1674,7 @@ bool VRegIfConverter::IfConvertSimple(BBInfo &BBI, IfcvtKind Kind) {
   if (!CvtMBBEndsWithRet) {
 	CvtMBB.clear();
   }
-  if (NewTSuc) {
+  if (NewTSuc && NewTSuc != &NextMBB) {
 	// :note: NewTSuc may be false if CvtMBB has no successor and no return instr
 	TII->insertBranch(*BBI.BB, NewTSuc, nullptr, Cond, dl);
 	if(!BBI.BB->isSuccessor(NewTSuc)) {

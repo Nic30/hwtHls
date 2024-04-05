@@ -77,9 +77,11 @@ bool VRegIfConverter::IfConvertLoopTail(BBInfo &BBI, IfcvtKind Kind) {
 		assert(BBI.BB->isPredecessor(_FalseBB));
 		ParentBBI = &BBAnalysis[_FalseBB->getNumber()];
 	}
+	bool success = false;
 	if (_FalseBB) {
 		// if there is false this is Triangle like pattern
-		IfcvtKind TriangleKind; // :note: for triangle the 1st T branch is ifconverted block
+		IfcvtKind TriangleKind;
+		// :note: for triangle the 1st T branch is ifconverted block
 		// and 2nd T branch is common tail
 		// while for LoopTail the true branches lead back to loop header
 		// False is related to condition in parent, Rev is related to condition in BBI
@@ -100,26 +102,25 @@ bool VRegIfConverter::IfConvertLoopTail(BBInfo &BBI, IfcvtKind Kind) {
 			llvm_unreachable("Unexpected!");
 		}
 
-		return IfConvertTriangle(*ParentBBI, TriangleKind);
+		success = IfConvertTriangle(*ParentBBI, TriangleKind);
 	} else {
 		// if there is no false this is Simple like pattern where we can not remove branch in tail (BBI)
 		switch (Kind) {
 		case ICLoopTail:
-			return IfConvertSimple(*ParentBBI, ICSimple);
+			success = IfConvertSimple(*ParentBBI, ICSimple);
 			break;
 		case ICLoopTailFalse:
-			return IfConvertSimple(*ParentBBI, ICSimpleFalse);
+			success = IfConvertSimple(*ParentBBI, ICSimpleFalse);
 			break;
 			// Rev variants are invalid because there is unconditional jump in BBI which can not be reversed
 		default:
 			llvm_unreachable("Unexpected!");
 		}
 	}
-
 #ifdef VREG_IF_CONVERTER_CONSYSTENCY_CHECKS
 	consystencyCheck(*BBI.BB);
 #endif
-	return true;
+	return success;
 }
 
 }
