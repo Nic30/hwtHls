@@ -52,7 +52,7 @@ class PyBytecodeInPreproc(_PyBytecodePragma):
 
 class PyBytecodeInline(_PyBytecodePragma):
     """
-    Inline function body to a callsite.
+    Inline function body to a callsite in preprocessor.
 
     Usage:
 
@@ -96,6 +96,7 @@ class PyBytecodeBlockLabel(_PyBytecodePragma):
         self.name = name
 
     def apply(self, pyToSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction):
+        pyToSsa.dbgTracer.log(("renaming block", curBlock.label, self.name))
         curBlock.label = self.name
 
 

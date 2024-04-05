@@ -9,6 +9,7 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.errors import HlsSyntaxError
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.frontend.pyBytecode.blockLabel import BlockLabel
+from hwtHls.frontend.pyBytecode.blockPredecessorTracker import SsaBlockGroup
 from hwtHls.frontend.pyBytecode.errorUtils import createInstructionException
 from hwtHls.frontend.pyBytecode.frame import PyBytecodeFrame, \
     PyBytecodeLoopInfo
@@ -23,24 +24,14 @@ from hwtHls.frontend.pyBytecode.utils import blockHasBranchPlaceholder
 from hwtHls.scope import HlsScope
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.value import SsaValue
-
+from hwtHls.netlist.debugTracer import DebugTracer
 
 JumpCondition = Union[None, HValue, RtlSignal, SsaValue, Literal[False]]
 
 
-class SsaBlockGroup():
-    """
-    Represents a set of block for a specific block label.
-    """
-
-    def __init__(self, begin: SsaBasicBlock):
-        self.begin = begin
-        self.end = begin
-
-
 class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
 
-    def __init__(self, hls: HlsScope, label: str):
+    def __init__(self, hls: HlsScope, dbgTracer: DebugTracer, label: str):
         super(PyBytecodeToSsaLowLevel, self).__init__()
         assert sys.version_info >= (3, 11, 0), ("Python3.11 is minimum requirement", sys.version_info)
         self.hls = hls
@@ -49,6 +40,7 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
         self.blockToLabel: Dict[SsaBasicBlock, BlockLabel] = {}
         self.labelToBlock: Dict[BlockLabel, SsaBlockGroup] = {}
         self.callStack: List[PyBytecodeFrame] = []
+        self.dbgTracer = dbgTracer
         self.debugDirectory = None
         self.debugBytecode = False
         self.debugCfgBegin = False
@@ -62,7 +54,7 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
         d.mkdir(exist_ok=True)
         with open(d / f"00.cfg.{self.debugGraphCntr:d}{'.' if label else ''}{label if label else ''}.dot", "w") as f:
             sealedBlocks = set(self.blockToLabel[b] for b in self.toSsa.m_ssa_u.sealedBlocks)
-            frame.blockTracker.dumpCfgToDot(f, sealedBlocks)
+            frame.blockTracker.dumpCfgToDot(f, sealedBlocks, self.labelToBlock)
             self.debugGraphCntr += 1
 
     @classmethod
@@ -97,6 +89,7 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
         """
         Called once all successors were added in SSA.
         """
+        self.dbgTracer.log(("_onBlockGenerated", label))
         for bl in frame.blockTracker.addGenerated(label):
             # we can seal the block only after body was generated
             # :attention: The header of hardware loop can be sealed only after all body blocks were generated
@@ -108,6 +101,7 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
         Marks edge in CFG as not generated. If subgraph behind the edge becomes unreachable, mark recursively.
         If some block will get all edges know mark it recursively.
         """
+        self.dbgTracer.log(("_addNotGeneratedJump", srcBlockLabel, "->", dstBlockLabel))
         for bl in frame.blockTracker.addNotGenerated(srcBlockLabel, dstBlockLabel):
             # sealing begin should be sufficient because all block behind begin in this
             # group should already have all predecessors known
@@ -129,6 +123,8 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
 
     def _onAllPredecsKnown(self, frame: PyBytecodeFrame, block: SsaBasicBlock):
         label = self.blockToLabel[block]
+        self.dbgTracer.log(("_onAllPredecsKnown", label))
+
         loop = frame.loops.get(label[-1], None)
         self.toSsa._onAllPredecsKnown(block)
         if loop is not None:
@@ -169,7 +165,7 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
         Get existing or new block, prepare jump to this block and translate body of blocks recursively.
         If the loop exit is detected the meta information is saved to loop for later use when all loop exits are resolved.
         """
-        # print("jmp", curBlock.label, "->", sucBlockOffset, cond)
+        self.dbgTracer.log(("jmp", curBlock.label, "->", sucBlockOffset, cond))
         res = self._prepareSsaBlockBeforeTranslation(frame,
             curBlock, sucBlockOffset, cond, branchPlaceholder, allowJumpToNextLoopIteration)
 
@@ -227,11 +223,13 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
                 for sucLoop in sucLoops:
                     frame.enterLoop(sucLoop)
                     newPrefix = BlockLabel(*blockTracker._getBlockLabelPrefix(sucBlockOffset))
-
-                    for bl in blockTracker.cfgAddPrefixToLoopBlocks(sucLoop, newPrefix):
-                        bl: BlockLabel
-                        self._onBlockGenerated(frame, bl)
                     
+                    with self.dbgTracer.scoped("cfgAddPrefixToLoopBlocks", sucLoop):
+                        self.dbgTracer.log(("newPrefix", newPrefix))
+                        for bl in blockTracker.cfgAddPrefixToLoopBlocks(sucLoop, newPrefix):
+                            bl: BlockLabel
+                            self._onBlockGenerated(frame, bl)
+
                     if self.debugCfgGen:
                         self._debugDump(frame, f"_afterPrefix_{newPrefix}")
 
@@ -255,6 +253,8 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
         """
         Call :meth:`~._translateBytecodeBlock` and check if we finished translation of some loop body.
         """
+        self.dbgTracer.log(("_translateBlockBody", blockOffset, block.label))
+        
         self._translateBytecodeBlock(frame, frame.bytecodeBlocks[blockOffset], block)
 
         if not isExplicitLoopReenter and loops:
@@ -262,22 +262,23 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
             loopInfo: PyBytecodeLoopInfo = frame.loopStack[-1]
             assert loopInfo.loop is loops[-1]
             if not loopInfo.jumpsFromLoopBody:
-                # if there are no jumps from loop body this is group of blocks is 
+                # if there are no jumps from loop body this is group of blocks is
                 blockTracker = frame.blockTracker
                 headerLabel = self.blockToLabel[block]
                 frame.exitLoop()
                 if headerLabel not in blockTracker.generated:
                     self._onBlockGenerated(frame, headerLabel)
-                        
+
             elif loopInfo.mustBeEvaluatedInHw():
                 self._finalizeJumpsFromHwLoopBody(frame, block, blockOffset, loopInfo)
                 if loopInfo.pragma:
                     _applyLoopPragma(block, loopInfo)
-    
+
             else:
                 self._runPreprocessorLoop(frame, loopInfo)
                 if loopInfo.pragma:
                     raise NotImplementedError("_runPreprocessorLoop + pragma", loopInfo.pragma)
+
     def _getFalltroughOffset(self, frame: PyBytecodeFrame, block: SsaBasicBlock) -> int:
         curBlockOff = self.blockToLabel[block][-1]
         fOff = None

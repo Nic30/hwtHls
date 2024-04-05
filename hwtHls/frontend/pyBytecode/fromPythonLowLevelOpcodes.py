@@ -397,53 +397,56 @@ class PyBytecodeToSsaLowLevelOpcodes():
                               fn: FunctionType, callSiteAddress: int, fnArgs: list, fnKwargs: dict):
         # create function entry point block, assign to all function parameters and prepare frame where we initialize preproc/hw variable meta
         # for variables from arguments
-        if self.debugBytecode:
-            fnName = getattr(fn, "__qualname__", fn.__name__)
-            d = Path(self.debugDirectory) / self.toSsa.label
-            d.mkdir(exist_ok=True)
-            with open(d / f"00.bytecode.{fnName}.txt", "w") as f:
-                dis(fn, file=f)
-
-        curBlockLabel = self.blockToLabel[curBlock]
-        callFrame = PyBytecodeFrame.fromFunction(fn, curBlockLabel, callSiteAddress, fnArgs, fnKwargs, self.callStack)
-
-        fnEntryBlockLabel = callFrame.blockTracker._getBlockLabel(0)
-        # _fnEntryBlockLabel = fnEntryBlockLabel
-        fnEntryBlock, fnEntryBlockIsNew = self._getOrCreateSsaBasicBlock(fnEntryBlockLabel)
-        assert fnEntryBlockIsNew, "Must not reuse other existing block because every inline should generate new blocks only"
-        curBlock.successors.addTarget(None, fnEntryBlock)
-
-        if self.debugCfgGen:
-            self._debugDump(callFrame, label=callFrame.fn.__name__)
-        try:
-            self._translateBytecodeBlock(callFrame, callFrame.bytecodeBlocks[0], fnEntryBlock)
-        finally:
+        fnName = getattr(fn, "__qualname__", fn.__name__)
+        with self.dbgTracer.scoped("inlining", fnName):
+    
+            if self.debugBytecode:
+                d = Path(self.debugDirectory) / self.toSsa.label
+                d.mkdir(exist_ok=True)
+                with open(d / f"00.bytecode.{fnName}.txt", "w") as f:
+                    dis(fn, file=f)
+    
+            curBlockLabel = self.blockToLabel[curBlock]
+            callFrame = PyBytecodeFrame.fromFunction(fn, curBlockLabel, callSiteAddress, fnArgs, fnKwargs, self.callStack)
+    
+            fnEntryBlockLabel = callFrame.blockTracker._getBlockLabel(0)
+            # _fnEntryBlockLabel = fnEntryBlockLabel
+            fnEntryBlock, fnEntryBlockIsNew = self._getOrCreateSsaBasicBlock(fnEntryBlockLabel)
+            assert fnEntryBlockIsNew, "Must not reuse other existing block because every inline should generate new blocks only"
+            curBlock.successors.addTarget(None, fnEntryBlock)
+    
             if self.debugCfgGen:
                 self._debugDump(callFrame, label=callFrame.fn.__name__)
-
-        curBlockAfterCall = SsaBasicBlock(self.toSsa.ssaCtx, f"{curBlock.label:s}_afterCall")
-        self.labelToBlock[curBlockLabel].end = curBlockAfterCall
-        self.blockToLabel[curBlockAfterCall] = curBlockLabel
-        # iterate return points in frame and jump to curBlockAfterCall
-        finalRetVal = None
-        first = True
-        for (_, retBlock, retVal) in callFrame.returnPoints:
-            if first:
-                first = False
-            elif finalRetVal is not retVal:
-                raise NotImplementedError("Currently function can return only a single instance from any return.", callFrame.returnPoints)
-
-            if retVal is not None:
-                finalRetVal = retVal
-
-            retBlock.successors.addTarget(None, curBlockAfterCall)
-
-        frame.stack.append(finalRetVal)
-        # todo process return points and connected to curBlockAfterCall block in cfg
-        self.callStack.pop()
-        self._onAllPredecsKnown(frame, curBlockAfterCall)
-
-        return curBlockAfterCall
+            try:
+                self._translateBytecodeBlock(callFrame, callFrame.bytecodeBlocks[0], fnEntryBlock)
+            finally:
+                if self.debugCfgGen:
+                    self._debugDump(callFrame, label=callFrame.fn.__name__)
+    
+            curBlockAfterCall = SsaBasicBlock(self.toSsa.ssaCtx, f"{curBlock.label:s}_afterCall")
+            self.labelToBlock[curBlockLabel].end = curBlockAfterCall
+            self.blockToLabel[curBlockAfterCall] = curBlockLabel
+            # iterate return points in frame and jump to curBlockAfterCall
+            finalRetVal = None
+            first = True
+            for (_, retBlock, retVal) in callFrame.returnPoints:
+                if first:
+                    first = False
+                elif finalRetVal is not retVal:
+                    raise NotImplementedError("Currently function can return only a single instance from any return.", callFrame.returnPoints)
+    
+                if retVal is not None:
+                    finalRetVal = retVal
+    
+                retBlock.successors.addTarget(None, curBlockAfterCall)
+            self.dbgTracer.log(("inlining return from", fnName, finalRetVal))
+    
+            frame.stack.append(finalRetVal)
+            # todo process return points and connected to curBlockAfterCall block in cfg
+            self.callStack.pop()
+            self._onAllPredecsKnown(frame, curBlockAfterCall)
+    
+            return curBlockAfterCall
 
     def opcode_IS_OP(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:
         """
