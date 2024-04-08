@@ -7,7 +7,7 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 
 class DebugTracer():
     """
-    A wraper arround output stream for messages about optimization pass actions. Functionality similar to standard python module called logging.
+    A wrapper around output stream for messages about optimization pass actions. Functionality similar to standard python module called logging.
     """
     INDENT = "  "
 
@@ -43,7 +43,10 @@ class DebugTracer():
 
             out.write(objStr)
             if node is not None:
-                out.write(f"<{node._id:d}>")
+                if isinstance(node, HlsNetNode):
+                    out.write(f"<{node._id:d}>")
+                else:
+                    out.write(f"<{node}>")
             out.write(":\n")
             self._labelPrinted[i] = True
 
