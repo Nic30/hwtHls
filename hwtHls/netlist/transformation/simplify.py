@@ -48,7 +48,8 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
     :var REST_OF_EVALUABLE_OPS: set of operators which can evaluated and are not a specific case
     :var NON_REMOVABLE_CLS: tuple of node classes which can not be removed by dead code removal
     """
-    REST_OF_EVALUABLE_OPS = {AllOps.CONCAT, AllOps.ADD, AllOps.SUB, AllOps.DIV, AllOps.MUL, AllOps.INDEX, *COMPARE_OPS, *CAST_OPS}
+    REST_OF_EVALUABLE_OPS = {AllOps.CONCAT, AllOps.ADD, AllOps.SUB, AllOps.UDIV, AllOps.SDIV,
+                             AllOps.MUL, AllOps.INDEX, *COMPARE_OPS, *CAST_OPS}
     OPS_AND_OR_XOR = (AllOps.AND, AllOps.OR, AllOps.XOR)
     NON_REMOVABLE_CLS = (HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeLoopStatus, HlsNetNodeExplicitSync)
     OPT_ITERATION_LIMIT = 20
