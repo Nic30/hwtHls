@@ -1,6 +1,5 @@
 from typing import Set
 
-from hwt.code import Concat
 from hwt.hdl.operatorDefs import AllOps, COMPARE_OPS, CAST_OPS
 from hwt.hdl.types.hdlType import HdlType
 from hwt.pyUtils.uniqList import UniqList
@@ -138,7 +137,8 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                             if netlistReduceConcat(n, worklist, removed):
                                 didModifyExpr = True
                                 continue
-
+                            continue
+                    
                         c0 = getConstDriverOf(n._inputs[0])
                         if c0 is None:
                             if o is AllOps.EQ:
@@ -170,15 +170,13 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                                         didModifyExpr = True
                                         continue
                                 continue
-
-                            if o == AllOps.CONCAT:
-                                v = Concat(c1, c0)
-                            else:
-                                v = o._evalFn(c0, c1)
-
+                    
+                            v = o._evalFn(c0, c1)
+                    
                         if v._dtype != resT:
-                            assert v._dtype.bit_length() == resT.bit_length()
-                            v = v.cast_sign(resT.signed)
+                            assert resT.signed is None, (n, resT)
+                            assert v._dtype.bit_length() == resT.bit_length(), (v, v._dtype, resT)
+                            v = v.cast_sign(None)
                     
                         replaceOperatorNodeWith(n, builder.buildConst(v), worklist, removed)
                         didModifyExpr = True
