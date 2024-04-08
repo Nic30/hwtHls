@@ -521,12 +521,22 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                         if any(mir._regIsValidLiveIn(MRI, liveIn) for liveIn in lives):
                             compatible = False
                             break
+
+                    assert eT in (MACHINE_EDGE_TYPE.NORMAL, MACHINE_EDGE_TYPE.BACKWARD), eT
                     edgesToDiscard.append((e, eMeta))
 
                 if compatible and edgesToDiscard:
                     mbSync.isLoopHeaderOfFreeRunning = True
                     for _, eMeta in edgesToDiscard:
                         eMeta.etype = MACHINE_EDGE_TYPE.DISCARDED
+                else:
+                    pass
+                    # [todo] try hoist loop prequel as an async call
+                    # :ivar isLoopAsyncPrequel: if true, this block is loop async prequel.        
+                    # The prequel extraction is possible if it can be asynchronously executed. This is the case
+                    # when loop does not have any non-reset entry and no exit.
+                    # Prequel runs exactly once for each iteration and it does not need to wait for loop live ins.
+    
 
     def run(self):
         from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
