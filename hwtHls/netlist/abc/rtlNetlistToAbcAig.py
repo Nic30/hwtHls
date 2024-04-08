@@ -1,12 +1,11 @@
-from typing import Dict, Tuple, Union
+from typing import Dict, Tuple, Union, Sequence
 
 from hwt.hdl.operator import Operator
 from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.value import HValue
-from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.netlist.abc.abcCpp import Abc_Ntk_t, Abc_Aig_t, Abc_NtkType_t, Abc_NtkFunc_t,\
-    Abc_Frame_t, Abc_Obj_t #, Io_FileType_t
+from hwtHls.netlist.abc.abcCpp import Abc_Ntk_t, Abc_Aig_t, Abc_NtkType_t, Abc_NtkFunc_t, \
+    Abc_Frame_t, Abc_Obj_t  # , Io_FileType_t
 
 
 class RtlNetlistToAbcAig():
@@ -26,7 +25,7 @@ class RtlNetlistToAbcAig():
             if not bool(o):
                 res = aig.Not(res)
             return res
-        
+
         d = o.singleDriver()
         assert isinstance(d, Operator), (o, d)
         d: Operator
@@ -53,29 +52,34 @@ class RtlNetlistToAbcAig():
             res = aig.Mux(c, o0, o1)
         else:
             raise NotImplementedError(d)
-            
+
         self.translationCache[o] = res
         return res
-           
-    def translate(self, inputs: UniqList[RtlSignal], outputs: UniqList[RtlSignal]) -> Tuple[Abc_Frame_t, Abc_Ntk_t, Abc_Aig_t]:
+
+    def translate(self, inputs: Sequence[RtlSignal], outputs: Sequence[RtlSignal])\
+            ->Tuple[Abc_Frame_t, Abc_Ntk_t, Abc_Aig_t, Dict[str, Tuple[Abc_Obj_t, RtlSignal]]]:
         f = Abc_Frame_t.GetGlobalFrame()
         net = Abc_Ntk_t(Abc_NtkType_t.ABC_NTK_STRASH, Abc_NtkFunc_t.ABC_FUNC_AIG, 64)
         f.SetCurrentNetwork(net)
         aig: Abc_Aig_t = net.pManFunc
         self.c1 = net.Const1()
-        
+        # :note: we can not store Abc_Obj_t because the object could be discarded after first operation with network
+        #        we can not use index because IO may reorder and we can not use Id because it also changes
+        ioMap: Dict[str, Tuple[str, RtlSignal]] = {}
         for i in inputs:
             abcI = net.CreatePi()
-            abcI.SetData(i)
+            ioMap[abcI.Name()] = i
+            # abcI.SetData(i)
             self.translationCache[i] = abcI
-        
+
         for o in outputs:
             abcO = net.CreatePo()
-            abcO.SetData(o)
+            ioMap[abcO.Name()] = o
+            # abcO.SetData(o)
             v = self._translate(aig, o)
             abcO.AddFanin(v)
-        
-        aig.Cleanup()
+
+        aig.Cleanup()  # removes dangling nodes
         net.Check()
         # net.Io_Write("abc-directly.0.dot", Io_FileType_t.IO_FILE_DOT)
-        return f, net, aig
+        return f, net, aig, ioMap

@@ -1,11 +1,12 @@
 
-from typing import Union, Set, Generator, Callable
+from typing import Union, Set, Generator, Callable, Sequence
 
 from hwt.hdl.operator import Operator
 from hwt.hdl.operatorDefs import COMPARE_OPS, AllOps
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.statements.ifContainter import IfContainer
 from hwt.hdl.statements.statement import HdlStatement
+from hwt.hdl.types.defs import BIT, BOOL
 from hwt.hdl.value import HValue
 from hwt.pyUtils.uniqList import UniqList
 from hwt.serializer.utils import RtlSignal_sort_key
@@ -17,6 +18,7 @@ from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage, \
     extractControlSigOfInterfaceTuple
 from hwtHls.architecture.transformation.rtlNetlistPass import RtlNetlistPass
 from hwtHls.netlist.abc.abcAigToRtlNetlist import AbcAigToRtlNetlist
+from hwtHls.netlist.abc.abcCpp import Abc_Frame_t, Abc_Ntk_t, Abc_Aig_t  # , Io_FileType_t
 from hwtHls.netlist.abc.optScripts import abcCmd_resyn2, abcCmd_compress2
 from hwtHls.netlist.abc.rtlNetlistToAbcAig import RtlNetlistToAbcAig
 from hwtHls.netlist.context import HlsNetlistCtx
@@ -25,7 +27,14 @@ from hwtHls.netlist.context import HlsNetlistCtx
 class RtlNetlistPassControlLogicMinimize(RtlNetlistPass):
     """
     Run ABC logic optimizer on every branch condition, channel flag and every control signal in arch elements 
+    
+    :ivar verifyExprEquivalence: flag, True means that every updated expression should be checked for equivalence. 
     """
+
+    def __init__(self, verifyExprEquivalence=False) -> None:
+        RtlNetlistPass.__init__(self)
+        self.verifyExprEquivalence = verifyExprEquivalence
+
     @classmethod
     def _collect1bOpTree(cls, o: RtlSignal, inputs: UniqList[RtlSignal], inTreeOutputs: Set[RtlSignal]):
         """
@@ -39,6 +48,7 @@ class RtlNetlistPassControlLogicMinimize(RtlNetlistPass):
             d = o.singleDriver()
         except SignalDriverErr:
             d = None
+
         if not isinstance(d, Operator):
             inputs.append(o)
             return False
@@ -171,38 +181,63 @@ class RtlNetlistPassControlLogicMinimize(RtlNetlistPass):
                 collect(c, allControlIoOutputs, inputs, inTreeOutputs)
         return allControlIoOutputs, inputs
 
-    def apply(self, hls: "HlsScope", netlist: HlsNetlistCtx):
-        allControlIoOutputs, inputs = self.collectAllControl(netlist, self.collectControlDrivingTree)
-
-        if allControlIoOutputs:
-            toAbcAig = RtlNetlistToAbcAig()
-            abcFrame, abcNet, abcAig = toAbcAig.translate(inputs, allControlIoOutputs)
-            abcAig.Cleanup()
-
+    @staticmethod
+    def _runAbc(abcFrame: Abc_Frame_t, abcNet: Abc_Ntk_t, abcAig: Abc_Aig_t):
+        for _ in range(2):
             abcNet = abcCmd_resyn2(abcNet)
             abcNet = abcCmd_compress2(abcNet)
 
-            toHlsNetlist = AbcAigToRtlNetlist(abcFrame, abcNet, abcAig)
-            newOutputs = toHlsNetlist.translate()
-            assert len(allControlIoOutputs) == len(newOutputs)
-            for o, newO in zip(allControlIoOutputs, newOutputs):
-                if o is not newO:
-                    o: RtlSignal
-                    assert newO._dtype.bit_length() == 1, (o, o._dtype, "->", newO, newO._dtype)
+        return abcFrame, abcNet, abcAig
 
-                    for ep in o.endpoints:
-                        if isinstance(ep, Operator):
-                            # was already replaced when it was replaced in statement
-                            pass
-                            # ep: Operator
-                            # ep._replace_input((o, newO))
-                        elif isinstance(ep, HdlStatement):
-                            ep: HdlStatement
-                            if newO._dtype.negated:
-                                newO = ~newO
-                            newO = newO._isOn()
-                            ep._replace_input((o, newO))
-                        else:
-                            raise NotImplementedError(ep, o)
+    @classmethod
+    def _verifyAbcExprEquivalence(cls, inputs: Sequence[Union[RtlSignal, HValue]], expr0: Union[RtlSignal, HValue], expr1: Union[RtlSignal, HValue]):
+        toAbcAig = RtlNetlistToAbcAig()
+        miter = expr0 ^ expr1
+        abcFrame, abcNet, abcAig, _ = toAbcAig.translate(inputs, miter)
+        abcAig.Cleanup()
+        abcFrame, abcNet, abcAig = cls._runAbc(abcFrame, abcNet, abcAig)
+        # 1 means unsat, means that there is not a case where input differs
+        miterIsConstant = abcNet.MiterIsConstant()
+        assert miterIsConstant == 1, ("Expected to be equivalent", {0: "sat", 1: "unsat", -1: "undecided"}[miterIsConstant], expr0, "is not equivalent to", expr1)
+
+    def apply(self, hls: "HlsScope", netlist: HlsNetlistCtx):
+        allControlIoOutputs, inputs = self.collectAllControl(netlist, self.collectControlDrivingTree)
+        if allControlIoOutputs:
+            verifyExprEquivalence = self.verifyExprEquivalence
+            toAbcAig = RtlNetlistToAbcAig()
+            abcFrame, abcNet, abcAig, ioMap = toAbcAig.translate(inputs, allControlIoOutputs)
+            abcAig.Cleanup()
+            abcFrame, abcNet, abcAig = self._runAbc(abcFrame, abcNet, abcAig)
+            toHlsNetlist = AbcAigToRtlNetlist(abcFrame, abcNet, abcAig, ioMap)
+            for o, newO in toHlsNetlist.translate():
+                if o is newO:
+                    continue
+                # add casts in the case of specific Bits type variant
+                assert newO._dtype.bit_length() == 1, ("After optimization in ABC the type should remain the same",
+                                                       o, o._dtype, "->", newO, newO._dtype)
+                isNegatedTy = newO._dtype.negated
+                if isNegatedTy:
+                    newO = ~newO
+                if isNegatedTy or o._dtype == BOOL:
+                    newO = newO._isOn()
+                if newO._dtype == BOOL and o._dtype == BIT:
+                    newO = newO._auto_cast(BIT)
+                if o is newO:
+                    continue
+
+                for ep in tuple(o.endpoints):
+                    if isinstance(ep, Operator):
+                        # was already replaced when it was replaced in statement
+                        pass
+                        # ep: Operator
+                        # ep._replace_input((o, newO))
+                    elif isinstance(ep, HdlStatement):
+                        ep: HdlStatement
+                        if verifyExprEquivalence:
+                            self._verifyAbcExprEquivalence(inputs, o, newO)
+
+                        ep._replace_input((o, newO))
+                    else:
+                        raise NotImplementedError(ep, o)
 
             abcFrame.DeleteAllNetworks()

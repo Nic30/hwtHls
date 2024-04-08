@@ -14,6 +14,7 @@
 #include <base/main/abcapis.h>
 #include <base/main/main.h>
 #include <map/mio/mio.h>
+#include <aig/aig/aig.h>
 
 
 namespace py = pybind11;
@@ -256,6 +257,7 @@ void register_Abc_Ntk_t(py::module_ &m) {
 				self->pManFunc = (Abc_Aig_t*)val;
 			}
 	)
+	.def("Name", &Abc_NtkName, py::return_value_policy::reference_internal)
 	.def("setName", [](Abc_Ntk_t * self, char * name) {
 		self->pName = Extra_UtilStrsav(name);
 	})
@@ -274,7 +276,26 @@ void register_Abc_Ntk_t(py::module_ &m) {
 	.def("PoNum", &Abc_NtkPoNum)
 	.def("CreateBi", &Abc_NtkCreateBi, py::return_value_policy::reference_internal)
 	.def("CreateBo", &Abc_NtkCreateBo, py::return_value_policy::reference_internal)
-	.def("Const1", &Abc_AigConst1, py::return_value_policy::reference)
+	.def("Const1", &Abc_AigConst1, py::return_value_policy::reference_internal)
+	.def_static("Miter", &Abc_NtkMiter, py::return_value_policy::reference_internal,
+			py::arg("pNtk1"),
+			py::arg("pNtk2"),
+			py::arg("fComb") = false,
+			py::arg("nPartSize") = 0ull,
+			py::arg("fImplic") = false,
+			py::arg("fMulti") = false,
+			 R"""(
+:param fComb: deriving combinational miter (latches as POs)
+:param fImplic: deriving implication miter (file1 => file2)
+:param nPartSize: output partition size
+:param fMulti: creating multi-output miter
+	)""")
+	.def("MiterReport", &Abc_NtkMiterReport)
+	.def("MiterIsConstant", &Abc_NtkMiterIsConstant, R"""(
+        Description [Return 0 if the miter is sat for at least one output.
+        Return 1 if the miter is unsat for all its outputs. Returns -1 if the
+        miter is undecided for some outputs.]
+	)""")
 	.def("Balance", &Abc_NtkBalance,
 			py::arg("fDuplicate")=false,
 			py::arg("fSelective")=false,
@@ -297,9 +318,13 @@ void register_Abc_Ntk_t(py::module_ &m) {
 			py::arg("fVerbose")=false)
 	.def("Check", &Abc_NtkCheck)
 	.def("Io_Write", [](Abc_Ntk_t * pNtk, char *pFileName, Io_FileType_t FileType) {
+		if (FileType == Io_FileType_t::IO_FILE_VERILOG && Abc_NtkName(pNtk) == nullptr) {
+			throw std::runtime_error("Abc_Ntk_t is missing name");
+		}
 		Io_Write(pNtk, pFileName, FileType);
 	}, R""""(
 			Dump this network to a file in format specified by second argument.
+			:attention: some formats like IO_FILE_VERILOG requires network name to be set
 		)""""
 	)
 	.def("Io_WriteHie", [](Abc_Ntk_t * pNtk,  char * pBaseName, char * pFileName) {
@@ -344,6 +369,29 @@ void register_Abc_Ntk_t(py::module_ &m) {
 		.def("Not", [](Abc_Aig_t_pybind11_wrap *self, Abc_Obj_t* v) {
 			return Abc_ObjNot(v);
 		}, py::return_value_policy::reference_internal)
+		.def("Miter", [](Abc_Aig_t_pybind11_wrap *self, const std::vector<Abc_Obj_t*> & memberPairs, bool fImplic) {
+			// based on Abc_NtkMiterFinalize
+			if (memberPairs.empty()) {
+				throw std::runtime_error("memberPairs should not be empty");
+			}
+		    if (memberPairs.size() % 2 != 0) {
+				throw std::runtime_error("memberPairs should contain pairs but size % 2 != 0");
+			}
+			struct Vec_Ptr_deleter {
+				void operator()(Vec_Ptr_t *p) {
+					Vec_PtrFree(p);
+				}
+			};
+		    std::unique_ptr<Vec_Ptr_t, Vec_Ptr_deleter> vPairs;
+		    vPairs.reset(Vec_PtrAlloc(memberPairs.size()));
+			for (auto * pNode: memberPairs) {
+				Vec_PtrPush( vPairs.get(), Abc_ObjChild0Copy(pNode) );
+			}
+			// pMiter = Abc_AigMiter( (Abc_Aig_t *)pNtkMiter->pManFunc, vPairs, fImplic );
+            // Abc_ObjAddFanin( Abc_NtkPo(pNtkMiter,0), pMiter );
+			return Abc_AigMiter( ((Abc_Aig_t *)self), vPairs.get(), fImplic);
+
+		}, py::return_value_policy::reference_internal)
 		.def("Cleanup", wrap_Abc_Aig_t(&Abc_AigCleanup));
 
 	py::enum_<Abc_NtkType_t>(m, "Abc_NtkType_t")
@@ -366,6 +414,13 @@ void register_Abc_Ntk_t(py::module_ &m) {
 		.export_values();
 }
 
+template<typename ReturnT, typename ... Args>
+auto Abc_Obj_t_rmComplementBeforeCall(ReturnT (*f)(Abc_Obj_t * self, Args...)) {
+	return [f](Abc_Obj_t * self, Args &&... args) {
+		return f(Abc_ObjRegular(self), args...);
+	};
+}
+
 void register_Abc_Obj_t(py::module_ &m) {
 	py::enum_<Abc_ObjType_t>(m, "Abc_ObjType_t")
 	    .value("ABC_OBJ_NONE",     Abc_ObjType_t::ABC_OBJ_NONE,      "unknown"                   )//
@@ -386,28 +441,36 @@ void register_Abc_Obj_t(py::module_ &m) {
 	// and some bits of pointer are used to mark private information so this is not even proper C++ pointer
 	py::class_<Abc_Obj_t, std::unique_ptr<Abc_Obj_t, py::nodelete>>(m, "Abc_Obj_t")
 		.def_property_readonly("Type", [](Abc_Obj_t * self) {
-			return (Abc_ObjType_t)Abc_ObjType(self);
+			return (Abc_ObjType_t)Abc_ObjType(Abc_ObjRegular(self));
 		})
-		.def("Not", &Abc_ObjNot, py::return_value_policy::reference)
-		.def("FaninC0", &Abc_ObjFaninC0)
-		.def("FaninC1", &Abc_ObjFaninC1)
-		.def("IsPi", &Abc_ObjIsPi)
-		.def("IsPo", &Abc_ObjIsPo)
-		.def("AddFanin", &Abc_ObjAddFanin)
-		.def("AssignName", &Abc_ObjAssignName)
-		.def("SetData", [](Abc_Obj_t * self, py::object & d) {
-				d.inc_ref();
-				Abc_ObjSetData(self, d.ptr());
-			}, py::keep_alive<1, 0>()) // keep data alive while Abc_Obj_t is alive
-		.def("Data", [](Abc_Obj_t * self) {
-				PyObject* d = (PyObject*) Abc_ObjData(self);
-				if (d == nullptr)
-					return py::reinterpret_borrow<py::object>(py::none());
-				return py::reinterpret_borrow<py::object>(d);
-			}, py::return_value_policy::reference)
+		.def_property_readonly("Id", Abc_Obj_t_rmComplementBeforeCall(&Abc_ObjId))
+		.def("IsComplement", &Abc_ObjIsComplement)
+		.def("Not", Abc_Obj_t_rmComplementBeforeCall(&Abc_ObjNot), "Get negated value of this")
+		.def("NotCond", Abc_Obj_t_rmComplementBeforeCall(&Abc_ObjNotCond), "Conditionally get negated value of this")
+		.def("Regular", Abc_Obj_t_rmComplementBeforeCall(&Abc_ObjRegular), "Get a non negated value of this")
+		.def("FaninC0", Abc_Obj_t_rmComplementBeforeCall(&Abc_ObjFaninC0))
+		.def("FaninC1", Abc_Obj_t_rmComplementBeforeCall(&Abc_ObjFaninC1))
+		.def("AddFanin", Abc_Obj_t_rmComplementBeforeCall(&Abc_ObjAddFanin))
 		.def("IterFanin", [](Abc_Obj_t &self) {
-	 			return py::make_iterator(Abc_ObjFaninIterator(self), Abc_ObjFaninIterator(self, Abc_ObjFaninNum(&self)));
+				Abc_Obj_t & _self = *Abc_ObjRegular(&self);
+	 			return py::make_iterator(Abc_ObjFaninIterator(_self), Abc_ObjFaninIterator(_self, Abc_ObjFaninNum(&_self)));
 	 	 	 }, py::keep_alive<0, 1>()) /* Keep vector alive while iterator is used */
+		.def("IsPi", Abc_Obj_t_rmComplementBeforeCall(&Abc_ObjIsPi), "Is primary input")
+		.def("IsPo", Abc_Obj_t_rmComplementBeforeCall(&Abc_ObjIsPo), "is primary output")
+		.def("Name", Abc_Obj_t_rmComplementBeforeCall(&Abc_ObjName), py::return_value_policy::reference_internal)
+		.def("AssignName", Abc_Obj_t_rmComplementBeforeCall(&Abc_ObjAssignName))
+		// [todo] temporally disable using Abc_Obj_t private data because it is not clear if it
+		//        is used by ABC internally, the data is also cleared after every abc transformation which
+		//	.def("SetData", [](Abc_Obj_t * self, py::object & d) {
+		//			d.inc_ref();
+		//			Abc_ObjSetData(self, d.ptr());
+		//		}, py::keep_alive<1, 0>()) // keep data alive while Abc_Obj_t is alive
+		//	.def("Data", [](Abc_Obj_t * self) {
+		//			PyObject* d = (PyObject*) Abc_ObjData(self);
+		//			if (d == nullptr)
+		//				return py::reinterpret_borrow<py::object>(py::none());
+		//			return py::reinterpret_borrow<py::object>(d);
+		//		}, py::return_value_policy::reference)
 		.def("__repr__", &__repr__Abc_ObjPrint)
 		.def("__eq__", [](Abc_Obj_t * self, Abc_Obj_t * other) {
 			return self == other;
@@ -432,7 +495,7 @@ PYBIND11_MODULE(abcCpp, m) {
 			Abc_FrameSetCurrentNetwork((Abc_Frame_t*)pAbc, pNtkNew);
 		}, py::keep_alive<1, 0>()) // keep network alive while frame exists
 		.def("DeleteAllNetworks", [](Abc_Frame_t_pybind11_wrap * pAbc) {
-			Abc_FrameDeleteAllNetworks((Abc_Frame_t*)pAbc);
+			Abc_FrameDeleteAllNetworks((Abc_Frame_t*)pAbc); // [todo] decr_ref for all Abc_Obj_t data
 		});
 
 	register_Abc_Ntk_t(m);

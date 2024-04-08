@@ -81,17 +81,15 @@ def runAbcControlpathOpt(builder: HlsNetlistBuilder, worklist: UniqList[HlsNetNo
         # filter outputs from nodes which are used only inside of this expression tree which will be replaced
         treeNodes = set(o.obj for o in inTreeOutputs)
         outputs = [o for o in outputs if any(user.obj not in treeNodes for user in o.obj.usedBy[o.out_i])]
-        abcFrame, abcNet, abcAig = toAbcAig.translate(inputs, outputs)
+        abcFrame, abcNet, abcAig, ioMap = toAbcAig.translate(inputs, outputs)
         abcAig.Cleanup()
 
         abcNet = abcCmd_resyn2(abcNet)
         abcNet = abcCmd_compress2(abcNet)
 
-        toHlsNetlist = AbcAigToHlsNetlist(abcFrame, abcNet, abcAig, builder)
-        newOutputs = toHlsNetlist.translate()
-        assert len(outputs) == len(newOutputs)
+        toHlsNetlist = AbcAigToHlsNetlist(abcFrame, abcNet, abcAig, ioMap, builder)
         anyChangeSeen = False
-        for o, newO in zip(outputs, newOutputs):
+        for o, newO in toHlsNetlist.translate():
             if o is not newO:
                 if isinstance(newO, HValue):
                     newO = builder.buildConst(newO)
@@ -100,7 +98,7 @@ def runAbcControlpathOpt(builder: HlsNetlistBuilder, worklist: UniqList[HlsNetNo
                     if isinstance(newObj, HlsNetNodeOperator) and newObj.name is None:
                         # inherit the name is possible
                         newObj.name = o.obj.name
-
+                
                 builder.replaceOutput(o, newO, True)
                 # we can remove "o" immediately because its parent node may have multiple outputs
                 for use in newO.obj.usedBy[newO.out_i]:
