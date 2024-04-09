@@ -274,8 +274,8 @@ class AbcTC(unittest.TestCase):
         f.DeleteAllNetworks()
 
         toAig = RtlNetlistToAbcAig()
-        f, net, aig, ioMap = toAig.translate(inputsRtl, (testedFn0(*inputsRtl,), testedFn1(*inputsRtl,)))
-        toRtl = AbcAigToRtlNetlist(f, net, aig, ioMap)
+        f, net, aig, ioMap0and1 = toAig.translate(inputsRtl, (testedFn0(*inputsRtl,), testedFn1(*inputsRtl,)))
+        toRtl = AbcAigToRtlNetlist(f, net, aig, ioMap0and1)
         res = tuple(newO for _, newO in toRtl.translate())
         # net.setName("test3")
         # net.Io_Write("abc-directly.test3.v", Io_FileType_t.IO_FILE_VERILOG)
@@ -285,7 +285,7 @@ class AbcTC(unittest.TestCase):
             net = abcCmd_resyn2(net)
             net = abcCmd_compress2(net)
 
-        toRtl = AbcAigToRtlNetlist(f, net, aig, ioMap)
+        toRtl = AbcAigToRtlNetlist(f, net, aig, ioMap0and1)
         res = tuple(newO for _, newO in toRtl.translate())
         # net.setName("test4")
         # net.Io_Write("abc-directly.test4.v", Io_FileType_t.IO_FILE_VERILOG)
@@ -346,14 +346,13 @@ class AbcTC(unittest.TestCase):
             reorder arguments to match parameters of testNoOpt0and1
             """
             res = [None for _ in range(1, 10)]
-            for nName, (pI, rtlI) in ioMap.items():
-                if not pI.IsPi():
-                    continue  # skip POs
+            for nName, rtlI in ioMap0and1.items():
                 nIndex = int(nName[1:])
-                assert nIndex > 0 and nIndex <= 9, nIndex
-                assert res[nIndex - 1] is None, res[nIndex - 1]
-                v = valDict[rtlI.name]
-                res[nIndex - 1] = v
+                assert nIndex > 0
+                if nIndex <= 9:
+                    assert res[nIndex - 1] is None, res[nIndex - 1]
+                    v = valDict[rtlI.name]
+                    res[nIndex - 1] = v
             return res
 
         for inputs in generateAllBitPermutations(9):
