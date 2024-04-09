@@ -259,7 +259,19 @@ InstructionCost HwtFpgaTTIImpl::getInstructionCost(const User *U,
                                    TTI::TargetCostKind CostKind) {
 	if (IsFreeOperator(U))
 		return TTI::TCC_Free;
-
+	if (CostKind == TTI::TargetCostKind::TCK_CodeSize
+			|| CostKind == TTI::TargetCostKind::TCK_Latency
+			|| CostKind == TTI::TargetCostKind::TCK_SizeAndLatency) {
+		// prevent duplication of volatile loads and stores
+		if (const StoreInst *S = dyn_cast<StoreInst>(U)) {
+			if (S->isVolatile())
+				return InstructionCost::getInvalid();
+		}
+		if (const LoadInst *L = dyn_cast<LoadInst>(U)) {
+			if (L->isVolatile())
+				return InstructionCost::getInvalid();
+		}
+	}
 	return BaseT::getInstructionCost(U, Operands, CostKind);
 }
 
