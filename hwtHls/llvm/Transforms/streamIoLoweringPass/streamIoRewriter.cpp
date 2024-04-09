@@ -17,11 +17,10 @@ StreamIoRewriter::StreamIoRewriter(StreamIoDetector &cfg,
 		cfg(cfg), streamProps(streamProps), DTU(DTU), LI(LI) {
 }
 
-std::pair<std::vector<llvm::BasicBlock*>, llvm::BasicBlock*> StreamIoRewriter::_createBranchForEachOffsetVariant(
+std::vector<llvm::BasicBlock*> StreamIoRewriter::_createBranchForEachOffsetVariant(
 		llvm::IRBuilder<> &builder,
 		const std::vector<size_t> &possibleOffsets) {
 	std::vector<llvm::BasicBlock*> offsetBranches;
-	llvm::BasicBlock *sequelBlock;
 
 	if (possibleOffsets.size() > 1) {
 		BasicBlock *elseBlock = nullptr;
@@ -66,15 +65,13 @@ std::pair<std::vector<llvm::BasicBlock*>, llvm::BasicBlock*> StreamIoRewriter::_
 			++offI;
 		}
 
-		builder.SetInsertPoint(&sequelBlock->front());
 
 	} else {
 		auto *curBlock = builder.GetInsertBlock();
 		offsetBranches = { curBlock };
-		sequelBlock = curBlock;
 	}
 
-	return {offsetBranches, sequelBlock};
+	return offsetBranches;
 }
 
 void StreamIoRewriter::rewriteAdtAccessToWordAccess(BasicBlock &_curBlock) {

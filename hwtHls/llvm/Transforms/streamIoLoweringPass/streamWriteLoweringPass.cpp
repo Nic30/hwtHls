@@ -137,11 +137,7 @@ public:
 			// :note: the information about which word is last is stored in offset variable and does not need to be explicitly specified
 
 			const auto DATA_WIDTH = streamProps.dataWidth;
-			std::vector<llvm::BasicBlock*> offsetBranches;
-			llvm::BasicBlock *_sequelBlock;
-
-			std::tie(offsetBranches, _sequelBlock) =
-					_createBranchForEachOffsetVariant(builder, possibleOffsets);
+			std::vector<llvm::BasicBlock*> offsetBranches = _createBranchForEachOffsetVariant(builder, possibleOffsets);
 
 			// [todo] aggregate rewrite for all writes in this same block to reduce number of branches because of offset
 			//   * writes may sink into common successor (may be beneficial to do this before LLVM to simplify code in advance to improve debugability)

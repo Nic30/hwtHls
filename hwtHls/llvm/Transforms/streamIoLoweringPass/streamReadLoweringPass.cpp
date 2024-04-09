@@ -141,12 +141,11 @@ void StreamReadRewriter::_consumeReadWordsAndCreateResultData(
 	// 	errs() << " " << o;
 	// }
 	// errs() << "\n";
-	std::vector<llvm::BasicBlock*> offsetBranches;
-	llvm::BasicBlock *sequelBlock;
+	;
 	auto *readResVar = builder.CreateAlloca(read->getType(), nullptr,
 			read->getName());
 	streamProps.GeneratedAllocas.push_back(readResVar);
-	std::tie(offsetBranches, sequelBlock) = _createBranchForEachOffsetVariant(
+	std::vector<llvm::BasicBlock*> offsetBranches = _createBranchForEachOffsetVariant(
 			builder, possibleOffsets);
 
 	auto off = possibleOffsets.begin();

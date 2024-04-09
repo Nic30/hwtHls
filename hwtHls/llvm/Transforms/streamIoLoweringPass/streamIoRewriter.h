@@ -13,7 +13,7 @@ namespace hwtHls {
 
 class StreamIoRewriter {
 protected:
-	std::pair<std::vector<llvm::BasicBlock*>, llvm::BasicBlock*> _createBranchForEachOffsetVariant(
+	std::vector<llvm::BasicBlock*> _createBranchForEachOffsetVariant(
 			llvm::IRBuilder<> &builder,
 			const std::vector<size_t> &possibleOffsets);
 public:
