@@ -184,6 +184,7 @@ llvm::Value* CreateBitConcat(llvm::IRBuilder<> *Builder,
 			throw std::runtime_error(
 					"CreateBitConcat called with non-integer type");
 		}
+		assert((!lastWasConst || !lastWasUndef) && "Only one of flags may be set at once");
 		if (auto *C = dyn_cast<ConstantInt>(o)) {
 			if (lastWasConst) {
 				// merge constants in operand vector
@@ -220,6 +221,8 @@ llvm::Value* CreateBitConcat(llvm::IRBuilder<> *Builder,
 					continue;
 				}
 				lastWasUndef = true;
+			} else {
+				lastWasUndef = false;
 			}
 		}
 		OpsLowFirst.push_back(o);
