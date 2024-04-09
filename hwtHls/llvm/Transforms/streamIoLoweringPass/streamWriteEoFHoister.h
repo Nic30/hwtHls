@@ -15,10 +15,10 @@ public:
 	struct StreamEoFReachInfo {
 		bool mayBeEof;
 		bool mayBeNotEof;
-		llvm::Instruction *brCond;
 
 		StreamEoFReachInfo() :
-				mayBeEof(false), mayBeNotEof(false), brCond(nullptr) {
+				mayBeEof(false), mayBeNotEof(false)
+		{
 		}
 	};
 
@@ -52,6 +52,9 @@ protected:
 			llvm::IRBuilder<> &Builder, llvm::Instruction *MovePos,
 			llvm::BasicBlock *curBlock);
 
+	/*
+	 * :return: tuple isEoFCond, isEoFValue (value is valid only if isEoFCond==nullptr)
+	 * */
 	std::pair<llvm::Value*, bool> _prepareEoFCondition(
 			llvm::IRBuilder<> &Builder, llvm::Instruction *MovePos,
 			llvm::BasicBlock *curBlock, bool fromBlockBeginning);
@@ -59,6 +62,8 @@ protected:
 	 * In the first phase of the search for EoF trigger we have to just analyze following blocks
 	 * and search for EoF pseudo instructions. This is done by this function.
 	 * :param allInfos: a map used to resolve record for a block and for the deallocation
+	 *
+	 * :note: returns nullptr if the block ends with UnreachableInst
 	 * */
 	StreamEoFReachInfo* _tryToGetConditionToEnableEoFProbe(
 			llvm::BasicBlock &curBlock, llvm::BasicBlock::iterator blockIt);

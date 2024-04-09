@@ -40,6 +40,8 @@ StreamWriteEoFHoister::StreamEoFReachInfo* StreamWriteEoFHoister::_tryToGetCondi
 	StreamEoFReachInfo *info = nullptr;
 	if (cur != AllInfos.end()) {
 		return cur->second.get();
+	} else if (isa<UnreachableInst>(curBlock.getTerminator())) {
+		return nullptr;
 	} else {
 		auto tmp = std::make_unique<StreamEoFReachInfo>();
 		info = tmp.get();
@@ -69,29 +71,43 @@ StreamWriteEoFHoister::StreamEoFReachInfo* StreamWriteEoFHoister::_tryToGetCondi
 		// search recursion ends because some other IO was found and we do not need to probe successor blocks
 	} else {
 		// continue search in successor blocks until some other IO is found
-		auto *T = curBlock.getTerminator();
-		if (auto *BR = dyn_cast<llvm::BranchInst>(T)) {
+		auto *Term = curBlock.getTerminator();
+
+		if (auto *BR = dyn_cast<llvm::BranchInst>(Term)) {
 			auto *TBB = BR->getSuccessor(0);
 			auto *T = _tryToGetConditionToEnableEoFProbe(*TBB, TBB->begin());
 			if (BR->isConditional()) {
 				auto *FBB = BR->getSuccessor(1);
 				auto *F = _tryToGetConditionToEnableEoFProbe(*FBB,
 						FBB->begin());
-				info->mayBeEof = T->mayBeEof | F->mayBeEof;
-				info->mayBeNotEof = T->mayBeNotEof | F->mayBeNotEof;
+				info->mayBeEof = (T && T->mayBeEof) | (F && F->mayBeEof);
+				info->mayBeNotEof = (T && T->mayBeNotEof)
+						| (F && F->mayBeNotEof);
 				assert(
 						(info->mayBeEof | info->mayBeNotEof)
 								&& "must be followed by another IO because we started the search from not EoF");
-				info->brCond = dyn_cast<Instruction>(BR->getCondition());
-				assert(info->brCond);
+
 			} else {
-				info->mayBeEof = T->mayBeEof;
-				info->mayBeNotEof = T->mayBeNotEof;
+				info->mayBeEof = (T && T->mayBeEof);
+				info->mayBeNotEof = (T && T->mayBeNotEof);
 			}
+		} else if (auto *Sw = dyn_cast<llvm::SwitchInst>(Term)) {
+			for (auto &Case : Sw->cases()) {
+				auto *SucBB = _tryToGetConditionToEnableEoFProbe(
+						*Case.getCaseSuccessor(),
+						Case.getCaseSuccessor()->begin());
+				info->mayBeEof |= (SucBB && SucBB->mayBeEof);
+				info->mayBeNotEof |= (SucBB && SucBB->mayBeNotEof);
+			}
+			assert(
+					(info->mayBeEof | info->mayBeNotEof)
+							&& "must be followed by another IO because we started the search from not EoF");
+
 		} else {
 			throw std::runtime_error(
 					std::string("NotImplemented: ") + __func__
-							+ ": block ending with unknown terminator");
+							+ ": block ending with unknown terminator "
+							+ Term->getOpcodeName(Term->getOpcode()));
 		}
 	}
 
@@ -120,50 +136,88 @@ std::pair<llvm::Value*, bool> StreamWriteEoFHoister::_prepareEoFCondition(
 			AllInfos[ { curBlock, fromBlockBeginning }].get();
 	assert(Info != nullptr);
 	if (Info->mayBeEof && Info->mayBeNotEof) {
-		auto *TER = curBlock->getTerminator();
-		auto *BR = dyn_cast<llvm::BranchInst>(TER);
-		if (Info->brCond) {
-			assert(BR->isConditional());
-			auto *TBB = BR->getSuccessor(0);
-			auto *FBB = BR->getSuccessor(1);
-			//StreamEoFReachInfo *T = AllInfos[ { TBB, true }].get();
-			//StreamEoFReachInfo *F = AllInfos[ { FBB, true }].get();
-			if (llvm::isSafeToMoveBefore(*Info->brCond, *MovePos, DT, &PDT, &DI, /*CheckForEntireBlock*/
+		auto ToVal = [&Builder](std::pair<llvm::Value*, bool> &v) {
+			if (v.first != nullptr) {
+				return v.first;
+			} else {
+				return (llvm::Value*) ConstantInt::getBool(Builder.getContext(),
+						v.second);
+			}
+		};
+		auto *Term = curBlock->getTerminator();
+		if (auto *BR = dyn_cast<llvm::BranchInst>(Term)) {
+			if (BR->isConditional()) {
+				auto *BrCond = dyn_cast<Instruction>(BR->getCondition());
+				assert(
+						BrCond
+								&& "If it is not instruction this branch should be already optimized-out");
+				auto *TBB = BR->getSuccessor(0);
+				auto *FBB = BR->getSuccessor(1);
+
+				if (llvm::isSafeToMoveBefore(*BrCond, *MovePos, DT, &PDT, &DI, /*CheckForEntireBlock*/
+				true)) {
+					BrCond->moveBefore(MovePos);
+				} else {
+					throw std::runtime_error(
+							"NotImplemented: can not move condition for EOF before potentially last write");
+				}
+				auto TLastExpr = _prepareEoFCondition(Builder, MovePos, TBB,
+						true);
+				auto FLastExpr = _prepareEoFCondition(Builder, MovePos, FBB,
+						true);
+				if (TLastExpr.first == nullptr && FLastExpr.first == nullptr) {
+					// simplified case where each successor have only one possibility of EoF/non-EoF
+					if (TLastExpr.second && !FLastExpr.second) {
+						return {BrCond, false};
+					} else {
+						assert(
+								!TLastExpr.second && FLastExpr.second
+										&& "Because this block may end up in EoF or non-EoF booth variants must be in successors");
+						return {Builder.CreateNot(BrCond), false};
+					}
+				} else {
+					// create a SelectInst to select between EoF condition variants
+					Value *TCaseVal = ToVal(TLastExpr);
+					Value *FCaseVal = ToVal(FLastExpr);
+					return {Builder.CreateSelect(BrCond, TCaseVal, FCaseVal), false};
+				}
+			} else {
+				return _prepareEoFCondition(Builder, MovePos,
+						BR->getSuccessor(0), true);
+			}
+		} else if (auto Sw = dyn_cast<llvm::SwitchInst>(Term)) {
+			auto *Cond = dyn_cast<Instruction>(Sw->getCondition());
+			assert(
+					Cond
+							&& "If it is not instruction this branch should be already optimized-out");
+			if (llvm::isSafeToMoveBefore(*Cond, *MovePos, DT, &PDT, &DI, /*CheckForEntireBlock*/
 			true)) {
-				Info->brCond->moveBefore(MovePos);
+				Cond->moveBefore(MovePos);
 			} else {
 				throw std::runtime_error(
 						"NotImplemented: can not move condition for EOF before potentially last write");
 			}
-			auto TLastExpr = _prepareEoFCondition(Builder, MovePos, TBB, true);
-			auto FLastExpr = _prepareEoFCondition(Builder, MovePos, FBB, true);
-			if (TLastExpr.first == nullptr && FLastExpr.first == nullptr) {
-				// simplified case where each successor have only one possibility of EoF/non-EoF
-				if (TLastExpr.second && !FLastExpr.second) {
-					return {Info->brCond, false};
-				} else {
-					assert(
-							!TLastExpr.second && FLastExpr.second
-									&& "Because this block may end up in EoF or non-EoF booth variants must be in successors");
-					return {Builder.CreateNot(Info->brCond), false};
-				}
-			} else {
-				// create a SelectInst to select between EoF condition variants
-				auto ToVal = [&Builder](std::pair<llvm::Value*, bool> &v) {
-					if (v.first != nullptr) {
-						return v.first;
-					} else {
-						return (llvm::Value*) ConstantInt::getBool(
-								Builder.getContext(), v.second);
-					}
-				};
-				Value *TCaseVal = ToVal(TLastExpr);
-				Value *FCaseVal = ToVal(FLastExpr);
-				return {Builder.CreateSelect(Info->brCond, TCaseVal, FCaseVal), false};
-			}
-		} else {
-			return _prepareEoFCondition(Builder, MovePos, BR->getSuccessor(0),
+			auto *DefBB = Sw->getDefaultDest();
+			assert(DefBB);
+			auto CondIsEofTuple = _prepareEoFCondition(Builder, MovePos, DefBB,
 					true);
+			Value *IsEoF = ToVal(CondIsEofTuple);
+			for (auto &Case : Sw->cases()) {
+				auto *SucBB = Case.getCaseSuccessor();
+				auto *CV = Case.getCaseValue();
+				auto SucLastExpr = _prepareEoFCondition(Builder, MovePos, SucBB,
+						true);
+				auto *IsEoFFromSuc = ToVal(SucLastExpr);
+				IsEoF = Builder.CreateSelect(Builder.CreateICmpEQ(Cond, CV),
+						IsEoFFromSuc, IsEoF);
+			}
+			return {IsEoF, false};
+
+		} else {
+			throw std::runtime_error(
+					std::string("NotImplemented: ") + __func__
+							+ ": block ending with unknown terminator "
+							+ Term->getOpcodeName(Term->getOpcode()));
 		}
 	} else {
 		assert(

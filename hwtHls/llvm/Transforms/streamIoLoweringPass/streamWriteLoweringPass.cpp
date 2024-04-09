@@ -102,7 +102,8 @@ public:
 					streamProps.setDataMaskConst(builder, possibleOffsets[0],
 							0);
 					streamProps.setVarU64(builder, { }, streamProps.dataVar);
-					streamProps.setVarU64(builder, possibleOffsets[0], streamProps.dataOffsetVar);
+					streamProps.setVarU64(builder, possibleOffsets[0],
+							streamProps.dataOffsetVar);
 				}
 
 			} else if (IsStreamWriteEndOfFrame(writeInst)) {
@@ -239,7 +240,8 @@ public:
 								// if not ending word output word only if isLast
 
 								// write current offset in a specific branch (_optionallyConsumePendingWord may override it)
-								streamProps.setOffsetVar(builder, end % DATA_WIDTH);
+								streamProps.setOffsetVar(builder,
+										end % DATA_WIDTH);
 								endsWithConsumePendingOnLast = true;
 								_optionallyConsumePendingWord(builder,
 										meta->isLastExpr, writeInst,
@@ -296,7 +298,7 @@ llvm::PreservedAnalyses StreamWriteLoweringPass::run(llvm::Function &F,
 		DTU.flush();
 	}
 	if (changed) {
-//		writeCFGToDotFile(F, "after.StreamWriteLoweringPass.dot", nullptr, nullptr);
+//		writeCFGToDotFile(F, "tmp/after.StreamWriteLoweringPass.dot", nullptr, nullptr);
 		finalizeStreamIoLowerig(F, FAM, DT, streamProps, true,
 				GeneratedAllocas);
 		//throw std::runtime_error("[debug]");

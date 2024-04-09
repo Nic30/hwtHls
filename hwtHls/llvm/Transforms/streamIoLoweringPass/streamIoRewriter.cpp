@@ -33,43 +33,39 @@ std::pair<std::vector<llvm::BasicBlock*>, llvm::BasicBlock*> StreamIoRewriter::_
 		for (size_t off : possibleOffsets) {
 			bool last = offI == possibleOffsets.size() - 1;
 			BasicBlock *offsetVariantBlock;
-			if (last) {
-				// only option left, check not required
-				offsetVariantBlock = elseBlock;
-				sequelBlock = dyn_cast<BasicBlock>(
-						elseBlock->getTerminator()->getOperand(0));
-				assert(sequelBlock != nullptr);
+
+			Value *offEn = builder.CreateICmpEQ(_curOffsetVar,
+					ConstantInt::get(_curOffsetVar->getType(),
+							off % streamProps.dataWidth));
+
+			llvm::Instruction *SplitBefore;
+			if (elseBlock) {
+				SplitBefore = elseBlock->getTerminator();
 			} else {
-				Value *offEn = builder.CreateICmpEQ(_curOffsetVar,
-						ConstantInt::get(_curOffsetVar->getType(),
-								off % streamProps.dataWidth));
-
-				llvm::Instruction *SplitBefore;
-				if (elseBlock) {
-					SplitBefore = elseBlock->getTerminator();
-				} else {
-					SplitBefore = &*builder.GetInsertPoint();
-				}
-				llvm::Instruction *ThenTerm = nullptr;
-				llvm::Instruction *ElseTerm = nullptr;
-				llvm::SplitBlockAndInsertIfThenElse(offEn, SplitBefore,
-						&ThenTerm, &ElseTerm, (llvm::MDNode*) nullptr, DTU);
-				offsetVariantBlock = dyn_cast<BasicBlock>(
-						ThenTerm->getParent());
-				assert(offsetVariantBlock != nullptr);
-
-				elseBlock = ElseTerm->getParent();
-				assert(elseBlock != nullptr);
-				builder.SetInsertPoint(elseBlock->getTerminator());
+				SplitBefore = &*builder.GetInsertPoint();
 			}
+			llvm::Instruction *ThenTerm = nullptr;
+			llvm::Instruction *ElseTerm = nullptr;
+			llvm::SplitBlockAndInsertIfThenElse(offEn, SplitBefore, &ThenTerm,
+					&ElseTerm, (llvm::MDNode*) nullptr, DTU);
+			offsetVariantBlock = dyn_cast<BasicBlock>(ThenTerm->getParent());
+			assert(offsetVariantBlock != nullptr);
+
+			elseBlock = ElseTerm->getParent();
+			assert(elseBlock != nullptr);
+			builder.SetInsertPoint(elseBlock->getTerminator());
+			if (last) {
+
+				builder.CreateUnreachable();
+				ElseTerm->eraseFromParent();
+			}
+
 			offsetVariantBlock->setName(
 					streamProps.ioArg->getName() + "off" + std::to_string(off));
 			offsetBranches.push_back(offsetVariantBlock);
 			++offI;
 		}
-		//sequelBlock->front().dump();
-		//sequelBlock->getTerminator()->dump();
-		//assert(&sequelBlock->front() == sequelBlock->getTerminator());
+
 		builder.SetInsertPoint(&sequelBlock->front());
 
 	} else {
@@ -93,7 +89,8 @@ void StreamIoRewriter::rewriteAdtAccessToWordAccess(BasicBlock &_curBlock) {
 			curBlock = curBlockPos->getParent();
 		}
 		if (auto *CI = dyn_cast<CallInst>(&*curBlockPos)) {
-			if (streamProps.ios.count(CI) && cfg.resolvedStms.find(CI) == cfg.resolvedStms.end()) {
+			if (streamProps.ios.count(CI)
+					&& cfg.resolvedStms.find(CI) == cfg.resolvedStms.end()) {
 				cfg.resolvedStms.insert(CI);
 				_rewriteAdtAccessToWordAccessInstruction(CI);
 			}
@@ -121,7 +118,7 @@ void StreamIoRewriter::rewriteAdtAccessToWordAccess(BasicBlock &_curBlock) {
 void finalizeStreamIoLowerig(llvm::Function &F,
 		llvm::FunctionAnalysisManager &FAM, DominatorTree &DT,
 		const std::vector<StreamChannelProps> &streamProps, bool rmOutputs,
-		llvm::SmallVector<llvm::AllocaInst*>& GeneratedAllocas) {
+		llvm::SmallVector<llvm::AllocaInst*> &GeneratedAllocas) {
 	assert(!llvm::verifyFunction(F, &errs()));
 	for (const StreamChannelProps &s : streamProps) {
 		if (rmOutputs != s.isOutput)
