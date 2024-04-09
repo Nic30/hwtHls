@@ -24,10 +24,14 @@
 #include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_SwitchSuccessorHoistCode.h>
 #include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_SwitchToSelect.h>
 #include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_SwitchLikeCmpToSwitch.h>
+#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFGUtils.h>
 
 #include <map>
 
 #define DEBUG_TYPE "simplifycfg2"
+
+// #undef LLVM_DEBUG
+// #define LLVM_DEBUG(x) x
 
 using namespace llvm;
 namespace hwtHls {
@@ -42,7 +46,7 @@ cl::opt<T>& getLlvmOption(llvm::StringRef name) {
 
 // [copied] copied from llvm because of SimplifyCFG private Options which can not be accessed through inheritance
 // Command-line settings override compile-time settings.
-static void applyCommandLineOverridesToOptions(SimplifyCFGOptions &Options) {
+static void applyCommandLineOverridesToOptions(SimplifyCFG2Options &Options) {
 	auto &UserBonusInstThreshold = getLlvmOption<unsigned>(
 			"bonus-inst-threshold");
 	auto &UserForwardSwitchCond = getLlvmOption<bool>("forward-switch-cond");
@@ -51,6 +55,8 @@ static void applyCommandLineOverridesToOptions(SimplifyCFGOptions &Options) {
 	auto &UserKeepLoops = getLlvmOption<bool>("keep-loops");
 	auto &UserHoistCommonInsts = getLlvmOption<bool>("hoist-common-insts");
 	auto &UserSinkCommonInsts = getLlvmOption<bool>("sink-common-insts");
+	auto &UserHoistCheapInsts = getLlvmOption<bool>("hoist-cheap-insts");
+	//auto &UserSinkCheapInsts = getLlvmOption<bool>("sink-cheap-insts");
 	if (UserBonusInstThreshold.getNumOccurrences())
 		Options.BonusInstThreshold = UserBonusInstThreshold;
 	if (UserForwardSwitchCond.getNumOccurrences())
@@ -65,6 +71,10 @@ static void applyCommandLineOverridesToOptions(SimplifyCFGOptions &Options) {
 		Options.HoistCommonInsts = UserHoistCommonInsts;
 	if (UserSinkCommonInsts.getNumOccurrences())
 		Options.SinkCommonInsts = UserSinkCommonInsts;
+	if (UserHoistCheapInsts.getNumOccurrences())
+		Options.HoistCheapInsts = UserHoistCheapInsts;
+	//if (UserSinkCheapInsts.getNumOccurrences())
+	//	Options.SinkCheapInsts = UserSinkCheapInsts;
 }
 
 SimplifyCFG2Pass::SimplifyCFG2Pass() :
@@ -72,7 +82,7 @@ SimplifyCFG2Pass::SimplifyCFG2Pass() :
 	applyCommandLineOverridesToOptions(Options);
 }
 
-SimplifyCFG2Pass::SimplifyCFG2Pass(const SimplifyCFGOptions &Opts) :
+SimplifyCFG2Pass::SimplifyCFG2Pass(const SimplifyCFG2Options &Opts) :
 		SimplifyCFGPass(Opts), Options(Opts) {
 	applyCommandLineOverridesToOptions(Options);
 }
@@ -110,7 +120,7 @@ class SimplifyCFGOpt2 {
 	DomTreeUpdater *DTU;
 	const DataLayout &DL;
 	const TargetTransformInfo &TTI;
-	const SimplifyCFGOptions &Options;
+	const SimplifyCFG2Options &Options;
 	unsigned LlvmHoistCommonSkipLimit;
 
 	bool Resimplify;
@@ -128,7 +138,7 @@ class SimplifyCFGOpt2 {
 
 public:
 	SimplifyCFGOpt2(DomTreeUpdater *DTU, const DataLayout &DL,
-			const TargetTransformInfo &TTI, const SimplifyCFGOptions &Opts,
+			const TargetTransformInfo &TTI, const SimplifyCFG2Options &Opts,
 			unsigned LlvmHoistCommonSkipLimit) :
 			DTU(DTU), DL(DL), TTI(TTI), Options(Opts), LlvmHoistCommonSkipLimit(
 					LlvmHoistCommonSkipLimit), Resimplify(false) {
@@ -150,7 +160,7 @@ public:
 		do {
 			Resimplify = false;
 
-			// Perform one round of simplifcation. Resimplify flag will be set if
+			// Perform one round of simplification. Resimplify flag will be set if
 			// another iteration is requested.
 			Changed |= simplifyOnce(BB);
 		} while (Resimplify);
@@ -846,7 +856,13 @@ bool SimplifyCFGOpt2::simplifyOnce(BasicBlock *BB) {
 		DeleteDeadBlock(BB, DTU);
 		return true;
 	}
-
+	if (Options.HoistCheapInsts) {
+		auto *PredBB = BB->getSinglePredecessor();
+		if (PredBB && PredBB != BB) {
+			Changed |= tryHoistCheapInstsAtBlockBegin(*BB,
+					PredBB->getTerminator());
+		}
+	}
 	// Check to see if we can constant propagate this terminator instruction
 	// away...
 	Changed |= ConstantFoldTerminator(BB, /*DeleteDeadConditions=*/true,

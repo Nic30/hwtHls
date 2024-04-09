@@ -16,4 +16,5 @@ namespace hwtHls {
  * */
 bool tryHoistFromCheapBlocksWithcSwitchLikeCmpBr(llvm::BranchInst *BI,
 		llvm::IRBuilder<> &Builder, llvm::DomTreeUpdater *DTU);
+
 }

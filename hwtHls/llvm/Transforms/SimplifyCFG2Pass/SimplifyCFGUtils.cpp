@@ -4,6 +4,8 @@
 #include <llvm/Analysis/ValueTracking.h>
 #include <llvm/IR/IRBuilder.h>
 
+#include <hwtHls/llvm/targets/intrinsic/bitrange.h>
+
 using namespace llvm;
 namespace hwtHls {
 
@@ -78,5 +80,37 @@ Value* CreateGlobalDataWithGEP(IRBuilder<> &builder, Module &M,
 			newArray, GEPIndices, GepName);
 	return newGep;
 }
+
+
+bool IsCheapInstruction(Instruction &I) {
+	if (auto *CI = dyn_cast<CallInst>(&I)) {
+		return IsBitConcat(CI) || IsBitRangeGet(CI);
+	} else if (isa<BinaryOperator>(&I)) {
+		return true;
+	} else if (isa<CmpInst>(&I)) {
+		return true;
+	} else if (isa<CastInst>(&I)) {
+		return true;
+	} else if (isa<SelectInst>(&I)) {
+		return true;
+	} else {
+		return false;
+	}
+}
+
+bool tryHoistCheapInstsAtBlockBegin(BasicBlock &BB, Instruction *MovePos) {
+	bool Changed = false;
+	for (Instruction &I : make_early_inc_range(BB)) {
+		if (I.isTerminator())
+			break;
+		if (!IsCheapInstruction(I)) {
+			return Changed;
+		}
+		I.moveBefore(MovePos);
+		Changed = true;
+	}
+	return Changed;
+}
+
 
 }

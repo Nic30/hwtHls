@@ -16,21 +16,6 @@ using namespace llvm::PatternMatch;
 
 namespace hwtHls {
 
-bool IsCheapInstruction(Instruction &I) {
-	if (auto *CI = dyn_cast<CallInst>(&I)) {
-		return IsBitConcat(CI) || IsBitRangeGet(CI);
-	} else if (isa<BinaryOperator>(&I)) {
-		return true;
-	} else if (isa<CmpInst>(&I)) {
-		return true;
-	} else if (isa<CastInst>(&I)) {
-		return true;
-	} else if (isa<SelectInst>(&I)) {
-		return true;
-	} else {
-		return false;
-	}
-}
 bool isValueEqualityComparation(Value *Expr, ICmpInst::Predicate &pred,
 		Value *&comparedVal, ConstantInt *&caseVal) {
 	return match(Expr,
@@ -53,16 +38,7 @@ struct CmpBrInfo {
 bool tryHoistFromCheapBlocksWithcSwitchLikeCmpBrRewriteBlock(
 		Instruction *MovePos, Value *CmpCond, BasicBlock &BB,
 		SmallVectorImpl<CmpBrInfo> &branchInfo) {
-	bool Changed = false;
-	for (Instruction &I : make_early_inc_range(BB)) {
-		if (I.isTerminator())
-			break;
-		if (!IsCheapInstruction(I)) {
-			return Changed;
-		}
-		I.moveBefore(MovePos);
-		Changed = true;
-	}
+	bool Changed = tryHoistCheapInstsAtBlockBegin(BB, MovePos);
 	if (auto *Br = dyn_cast<BranchInst>(BB.getTerminator())) {
 		Value *potentialSwitchCond = nullptr;
 		if (!Br->isConditional())
@@ -135,7 +111,8 @@ bool tryHoistFromCheapBlocksWithcSwitchLikeCmpBr(llvm::BranchInst *BI,
 			if (Suc != BBTop && Suc->hasNPredecessors(1)) {
 				Changed |=
 						tryHoistFromCheapBlocksWithcSwitchLikeCmpBrRewriteBlock(
-								MoveBeforePoint, potentialSwitchCond, *Suc, branchInfo);
+								MoveBeforePoint, potentialSwitchCond, *Suc,
+								branchInfo);
 			}
 		}
 
@@ -183,21 +160,22 @@ bool tryHoistFromCheapBlocksWithcSwitchLikeCmpBr(llvm::BranchInst *BI,
 				BBC0 = BBTop;
 				// [todo]
 				// writeCFGToDotFile(*BBTop->getParent(), "tryHoistFromCheapBlocksWithcSwitchLikeCmpBr.usingParentSwitch.dot", nullptr, nullptr);
-				llvm_unreachable("NotImplemented - merge current switch default with newly discovered BBDefault");
+				llvm_unreachable(
+						"NotImplemented - merge current switch default with newly discovered BBDefault");
 			} else {
 				// split BBTop to block with all code ending with switch to all branches and an empty branch block BBC0
 				BBC0 = SplitBlock(BBTop, BI, DTU, nullptr, nullptr);
 				BBTop->getTerminator()->eraseFromParent();
 				if (DTU)
-					DTU->applyUpdates( { { DominatorTree::Delete, BBTop, BBC0 } });
+					DTU->applyUpdates(
+							{ { DominatorTree::Delete, BBTop, BBC0 } });
 				Builder.SetInsertPoint(BBTop);
 				MainSwitch = Builder.CreateSwitch(potentialSwitchCond,
 						&BBDefault);
 				if (DTU)
-					DTU->applyUpdates( {
-							{ DominatorTree::Insert, BBTop, &BBDefault } });
+					DTU->applyUpdates( { { DominatorTree::Insert, BBTop,
+							&BBDefault } });
 			}
-
 
 			for (auto &BrInfo : branchInfo) {
 				auto *Dest = &BrInfo.parentBlock;
