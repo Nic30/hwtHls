@@ -19,6 +19,7 @@
 #include <llvm/Analysis/DomTreeUpdater.h>
 
 #include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_aggresiveStoreSink.h>
+#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_mergePredecessorsStore.h>
 #include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_normalizeLookupTableIndex.h>
 #include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_rewriteMaskPatternsFromCFGToData.h>
 #include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_SwitchSuccessorHoistCode.h>
@@ -960,9 +961,12 @@ llvm::PreservedAnalyses SimplifyCFG2Pass::run(llvm::Function &F,
 			//AM.invalidate(F, _PA);
 			//DT = &AM.getResult<DominatorTreeAnalysis>(F);
 			//auto _DTU = DomTreeUpdater(DT, DomTreeUpdater::UpdateStrategy::Lazy);
+
+			// continue rewriting this block while it is updated
 			if (SimplifyCFG2Pass_aggresiveStoreSink(DTU, *BBIt)) {
 				_changed = true;
-				// continue rewriting this block while it is updated
+			} else if (SimplifyCFG2Pass_mergePredecessorsStore(DTU, *BBIt)) {
+				_changed = true;
 			} else {
 				BBIt++;
 			}
