@@ -111,6 +111,9 @@ void AddDefaultFunctionAttributes(Function &TheFn) {
 	TheFn.setCallingConv(CallingConv::C);
 }
 
+/*
+ * [todo] duplicity with BasicBlock::SkipPHIsAndLabels, BasicBlock::getFirstInsertionPt
+ * */
 void IRBuilder_setInsertPointBehindPhi(IRBuilder<> &builder, llvm::Instruction *I) {
 	builder.SetInsertPoint(I);
 	auto insPoint = builder.GetInsertPoint();
