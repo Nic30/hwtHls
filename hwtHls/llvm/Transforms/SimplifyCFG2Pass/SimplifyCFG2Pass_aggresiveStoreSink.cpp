@@ -8,8 +8,6 @@
 #include <llvm/IR/Verifier.h>
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 
-#include <hwtHls/llvm/Transforms/utils/writeCFGToDotFile.h>
-
 #define DEBUG_TYPE "simplifycfg2"
 using namespace llvm;
 
