@@ -68,7 +68,7 @@ HwtFpgaTargetMachine::HwtFpgaTargetMachine(const Target &T,
 		const TargetOptions &Options, Optional<Reloc::Model> RM,
 		Optional<CodeModel::Model> CM, CodeGenOpt::Level OL, bool JIT) :
 		LLVMTargetMachine(T, computeDataLayout(TT), TT, CPU, TuneCPU, Options,
-				getEffectiveRelocModel(TT, RM), CodeModel::Large, OL) {
+				getEffectiveRelocModel(TT, RM), CodeModel::Large, OL), allowVolatileMemOpDuplication(false) {
 	AsmInfo.reset(new llvm::MCAsmInfo());
 }
 

@@ -14,6 +14,7 @@ class StringRef;
  * */
 class HwtFpgaTargetMachine final : public llvm::LLVMTargetMachine {
 	mutable llvm::StringMap<std::unique_ptr<HwtFpgaTargetSubtarget>> SubtargetMap;
+	bool allowVolatileMemOpDuplication;
 public:
 	HwtFpgaTargetMachine(const llvm::Target &T, const llvm::Triple &TT,
 			llvm::StringRef CPU, llvm::StringRef FS,
@@ -29,6 +30,12 @@ public:
 	// Set up the pass pipeline.
 	llvm::TargetPassConfig* createPassConfig(llvm::PassManagerBase &PM)
 			override;
+	void setAllowVolatileMemOpDuplication(bool B) {
+		allowVolatileMemOpDuplication = B;
+	};
+	bool getAllowVolatileMemOpDuplication() const {
+		return allowVolatileMemOpDuplication;
+	};
 };
 
 }

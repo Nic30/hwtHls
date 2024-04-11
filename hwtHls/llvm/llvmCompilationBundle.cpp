@@ -91,8 +91,9 @@
 #include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass.h>
 #include <hwtHls/llvm/Transforms/trivialSimplifyCFGPass.h>
 #include <hwtHls/llvm/Transforms/dumpAndExitPass.h>
-#include <hwtHls/llvm/Transforms/LoopAddLatchPass.h>
 #include <hwtHls/llvm/Transforms/LoopUnrotatePass.h>
+#include <hwtHls/llvm/Transforms/LoopAddLatchPass.h>
+#include <hwtHls/llvm/Transforms/ReconfigureHwtFpgaTTIPass.h>
 #include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamReadLoweringPass.h>
 #include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamWriteLoweringPass.h>
 #include <hwtHls/llvm/Transforms/streamLoopUnrollPass/streamLoopUnrollPass.h>
@@ -174,6 +175,17 @@ void LlvmCompilationBundle::addLlvmCliArgOccurence(const std::string & OptionNam
 	}
 }
 
+struct HwtFpgaAllowVolatileMemOpDuplication {
+	llvm::TargetMachine * TM;
+	llvm::FunctionPassManager & FPM;
+	HwtFpgaAllowVolatileMemOpDuplication(llvm::TargetMachine * TM, llvm::FunctionPassManager & FPM):TM(TM), FPM(FPM) {
+		FPM.addPass(hwtHls::ReconfigureHwtFpgaTTIPass(TM, true));
+	}
+	~HwtFpgaAllowVolatileMemOpDuplication() {
+		FPM.addPass(hwtHls::ReconfigureHwtFpgaTTIPass(TM, false));
+	}
+
+};
 
 void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetlistConversionFn) {
 	assert(main && "a main function must be created before call of this function");
@@ -520,6 +532,7 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 					llvm::LoopVectorizeOptions(!PTO.LoopInterleaving,
 							!PTO.LoopVectorization)));
 	if (IsFullLTO) {
+		HwtFpgaAllowVolatileMemOpDuplication _(TM, FPM);
 		// The vectorizer may have significantly shortened a loop body; unroll
 		// again. Unroll small loops to hide loop backedge latency and saturate any
 		// parallel execution resources of an out-of-order processor. We also then
@@ -625,30 +638,33 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 	if (!IsFullLTO) {
 		FPM.addPass(llvm::InstCombinePass());
 		FPM.addPass(hwtHls::LoopAddLatchPass());
-		// Unroll small loops to hide loop backedge latency and saturate any
-		// parallel execution resources of an out-of-order processor. We also then
-		// need to clean up redundancies and loop invariant code.
-		// FIXME: It would be really good to use a loop-integrated instruction
-		// combiner for cleanup here so that the unrolling and LICM can be pipelined
-		// across the loop nests.
-		// We do UnrollAndJam in a separate LPM to ensure it happens before unroll
-		if (PTO.LoopUnrolling) { // EnableUnrollAndJam &&
-			FPM.addPass(
-					llvm::createFunctionToLoopPassAdaptor(
-							llvm::LoopUnrollAndJamPass(
-									Level.getSpeedupLevel())));
-		}
+		{
+			HwtFpgaAllowVolatileMemOpDuplication _(TM, FPM);
+			// Unroll small loops to hide loop backedge latency and saturate any
+			// parallel execution resources of an out-of-order processor. We also then
+			// need to clean up redundancies and loop invariant code.
+			// FIXME: It would be really good to use a loop-integrated instruction
+			// combiner for cleanup here so that the unrolling and LICM can be pipelined
+			// across the loop nests.
+			// We do UnrollAndJam in a separate LPM to ensure it happens before unroll
+			if (PTO.LoopUnrolling) { // EnableUnrollAndJam &&
+				FPM.addPass(
+						llvm::createFunctionToLoopPassAdaptor(
+								llvm::LoopUnrollAndJamPass(
+										Level.getSpeedupLevel())));
+			}
 
-		FPM.addPass(
-				llvm::LoopUnrollPass(
-						llvm::LoopUnrollOptions(Level.getSpeedupLevel(), /*OnlyWhenForced=*/
-								!PTO.LoopUnrolling,
-								PTO.ForgetAllSCEVInLoopUnroll)//
-								.setPartial(false)//
-								.setPeeling(false)//
-								.setRuntime(false)//
-								.setProfileBasedPeeling(false)));
-		FPM.addPass(llvm::WarnMissedTransformationsPass());
+			FPM.addPass(
+					llvm::LoopUnrollPass(
+							llvm::LoopUnrollOptions(Level.getSpeedupLevel(), /*OnlyWhenForced=*/
+									!PTO.LoopUnrolling,
+									PTO.ForgetAllSCEVInLoopUnroll)//
+									.setPartial(false)//
+									.setPeeling(false)//
+									.setRuntime(false)//
+									.setProfileBasedPeeling(false)));
+			FPM.addPass(llvm::WarnMissedTransformationsPass());
+		}
 		FPM.addPass(llvm::InstCombinePass());
 		FPM.addPass(
 				llvm::RequireAnalysisPass<
