@@ -69,6 +69,8 @@ struct SimplifyCFG2Options: public llvm::SimplifyCFGOptions {
 /// same as original LLVM SimplifyCFGPass but with:
 //  * cheap instruction hoist/sink
 //  * fixed merge of large switch instructions :attention: should be removed once https://github.com/llvm/llvm-project/issues/61391 is fixed
+//  :attention: this potentially removes empty preheaders and latches, L->isLoopSimplifyForm() may not be satisfied
+//             L->getLoopPreheader() and L->getLoopLatch() may return nullptr
 class SimplifyCFG2Pass: public llvm::SimplifyCFGPass {
 	// [copied] copied from llvm base class because of SimplifyCFG::Options is private,
 	// which can not be accessed through inheritance

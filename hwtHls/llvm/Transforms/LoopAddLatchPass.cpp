@@ -8,6 +8,7 @@ namespace hwtHls {
 
 llvm::PreservedAnalyses LoopAddLatchPass::run(llvm::Function &F,
 		llvm::FunctionAnalysisManager &AM) {
+	//bool addPreheaders = true;
 	bool Changed = false;
 	for (BasicBlock &BB : F) {
 		for (BasicBlock *suc : successors(&BB)) {
@@ -15,7 +16,8 @@ llvm::PreservedAnalyses LoopAddLatchPass::run(llvm::Function &F,
 				auto *origTI = suc->getTerminator();
 				SmallVector<std::pair<unsigned, MDNode*>> MDs;
 				origTI->getAllMetadata(MDs);
-				auto *latchBB = SplitEdge(&BB, &BB);
+				auto *latchBB = SplitEdge(&BB, &BB,  nullptr, nullptr, nullptr,
+						BB.getName() + ".latch");
 				auto *newTerm = latchBB->getTerminator();
 				if (origTI != newTerm && MDs.size()) {
 					for (const auto& [KindID, Node] : MDs) {
