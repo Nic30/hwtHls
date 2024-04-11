@@ -114,6 +114,7 @@ py3.extension_module(
      'Transforms/IcmpToOnlyEqLtLe.cpp',
      'Transforms/LoopAddLatchPass.cpp',
      'Transforms/LoopUnrotatePass.cpp',
+     'Transforms/ReconfigureHwtFpgaTTIPass.cpp',
      'Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_aggresiveStoreSink.cpp',
 	 'Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_mergePredecessorsStore.cpp',
      'Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_normalizeLookupTableIndex.cpp',
