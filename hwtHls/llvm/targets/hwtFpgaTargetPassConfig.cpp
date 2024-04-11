@@ -5,6 +5,7 @@
 #include <llvm/CodeGen/GlobalISel/InstructionSelect.h>
 #include <llvm/CodeGen/GlobalISel/RegBankSelect.h>
 #include <llvm/CodeGen/GlobalISel/Legalizer.h>
+#include <llvm/CodeGen/GlobalISel/LoadStoreOpt.h>
 
 #include <llvm/CodeGen/StackProtector.h>
 #include <llvm/CodeGen/Passes.h>
@@ -56,6 +57,8 @@ void HwtFpgaTargetPassConfig::addIRPasses() {
 	}
 	TargetPassConfig::addIRPasses();
 	addPass(createGVNPass());
+	// based on AArch64
+	addPass(createSelectOptimizePass());
 }
 
 void HwtFpgaTargetPassConfig::addCodeGenPrepare() {
@@ -91,6 +94,8 @@ bool HwtFpgaTargetPassConfig::addIRTranslator() {
 void HwtFpgaTargetPassConfig::addPreLegalizeMachineIR() {
 	// concat, slice calls to instructions
 	addPass(createHwtFpgaPreLegalizerCombiner());
+	// based on AArch64
+	addPass(new LoadStoreOpt());
 }
 
 bool HwtFpgaTargetPassConfig::addLegalizeMachineIR() {
