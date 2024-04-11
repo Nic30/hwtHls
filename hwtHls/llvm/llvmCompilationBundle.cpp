@@ -292,6 +292,8 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 					.needCanonicalLoops(false)//
 					.hoistCommonInsts(true)//
 					.sinkCommonInsts(true)//
+					.hoistCommonInsts(true)//
+					.setHoistCheapInsts(true)//
 					.bonusInstThreshold(1024)
 	));
 
@@ -342,8 +344,9 @@ void LlvmCompilationBundle::_addInitialNormalizationPasses(
 	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true)); // simplify trivial cases so IR is more easy to read
 	// Form SSA out of local memory accesses after breaking apart aggregates into
 	// scalars.
-	FPM.addPass(hwtHls::SimplifyCFG2Pass(hwtHls::SimplifyCFG2Options().hoistCommonInsts(true)));
-
+	FPM.addPass(hwtHls::SimplifyCFG2Pass(hwtHls::SimplifyCFG2Options()\
+			.hoistCommonInsts(true)\
+			.setHoistCheapInsts(true)));
 	FPM.addPass(hwtHls::SlicesToIndependentVariablesPass()); // hwtHls specific
 	FPM.addPass(llvm::ADCEPass()); // hwtHls specific
 	FPM.addPass(llvm::SROAPass(llvm::SROAOptions::ModifyCFG));
@@ -359,24 +362,19 @@ void LlvmCompilationBundle::_addStreamOperationLoweringPasses(
 	// StreamLoopUnrollPass must be before StreamReadLoweringPass, StreamWriteLoweringPass
 	// because if used correctly it reduces complexity of stream processing exponentially
 	FPM.addPass(hwtHls::StreamLoopUnrollPass());
+
 	FPM.addPass(hwtHls::StreamReadLoweringPass());
+
 	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true));
-	FPM.addPass(
-			hwtHls::SimplifyCFG2Pass(
-					hwtHls::SimplifyCFG2Options()\
-					.convertSwitchRangeToICmp(false)\
-					.hoistCommonInsts(false)\
-					.sinkCommonInsts(false)\
-					.setHoistCheapInsts(true)));
+	FPM.addPass(hwtHls::SimplifyCFG2Pass(hwtHls::SimplifyCFG2Options()	//
+	.setHoistCheapInsts(true)));
+
 	FPM.addPass(hwtHls::StreamWriteLoweringPass());
+
 	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true));
-	FPM.addPass(
-			hwtHls::SimplifyCFG2Pass(
-					hwtHls::SimplifyCFG2Options()\
-										.convertSwitchRangeToICmp(false)\
-										.hoistCommonInsts(false)\
-										.sinkCommonInsts(false)\
-										.setHoistCheapInsts(true)));
+	FPM.addPass(hwtHls::SimplifyCFG2Pass(hwtHls::SimplifyCFG2Options()	//
+	.setHoistCheapInsts(true)));
+	FPM.addPass(llvm::LoopSimplifyPass());
 }
 
 void LlvmCompilationBundle::_addCommonPasses(llvm::FunctionPassManager &FPM) {
@@ -431,10 +429,12 @@ void LlvmCompilationBundle::_addCommonPasses(llvm::FunctionPassManager &FPM) {
 	//		C(FPM, Level);
 	FPM.addPass(
 			hwtHls::SimplifyCFG2Pass(
-					hwtHls::SimplifyCFG2Options()\
-					.convertSwitchRangeToICmp(true)\
-					.hoistCommonInsts(true)\
-					.sinkCommonInsts(true)));
+					hwtHls::SimplifyCFG2Options()//
+					.convertSwitchRangeToICmp(true)//
+					.hoistCommonInsts(true)//
+					.sinkCommonInsts(true)//
+					.setHoistCheapInsts(true)
+			));
 	FPM.addPass(llvm::InstCombinePass());
 }
 
@@ -510,7 +510,7 @@ void LlvmCompilationBundle::_addLoopPasses(llvm::FunctionPassManager &FPM) {
 	FPM.addPass(
 			hwtHls::SimplifyCFG2Pass(
 					hwtHls::SimplifyCFG2Options().convertSwitchRangeToICmp(true)));
-
+	FPM.addPass(llvm::LoopSimplifyPass());
 	FPM.addPass(llvm::InstCombinePass());
 	// The loop passes in LPM2 (LoopIdiomRecognizePass, IndVarSimplifyPass,
 	// LoopDeletionPass and LoopFullUnrollPass) do not preserve MemorySSA.
@@ -526,6 +526,7 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 
 	// important for LoopUnrollPass because otherwise it generates obscure prolog for loops with dynamic range
 	FPM.addPass(hwtHls::LoopAddLatchPass());
+	FPM.addPass(llvm::LoopSimplifyPass());
 
 	FPM.addPass(
 			llvm::LoopVectorizePass(
@@ -598,6 +599,7 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 				hwtHls::SimplifyCFG2Pass(
 						hwtHls::SimplifyCFG2Options()//
 						.convertSwitchRangeToICmp(true)));
+		ExtraPasses.addPass(llvm::LoopSimplifyPass());
 		ExtraPasses.addPass(llvm::InstCombinePass());
 		FPM.addPass(std::move(ExtraPasses));
 	}
@@ -611,13 +613,17 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 	// convert to more optimized IR using more aggressive simplify CFG options.
 	// The extra sinking transform can create larger basic blocks, so do this
 	// before SLP vectorization.
-	FPM.addPass(hwtHls::SimplifyCFG2Pass(hwtHls::SimplifyCFG2Options()
-	                                .forwardSwitchCondToPhi(true)
-	                                .convertSwitchRangeToICmp(true)
-	                                //.convertSwitchToLookupTable(true)
-	                                .needCanonicalLoops(false)
-	                                .hoistCommonInsts(true)
-	                                .sinkCommonInsts(true)));
+	FPM.addPass(hwtHls::SimplifyCFG2Pass(
+			hwtHls::SimplifyCFG2Options()\
+				.forwardSwitchCondToPhi(true)\
+				.convertSwitchRangeToICmp(true)\
+				//.convertSwitchToLookupTable(true)
+				.needCanonicalLoops(false)\
+				.hoistCommonInsts(true)\
+				.sinkCommonInsts(true)\
+				.setHoistCheapInsts(true)
+	));
+	FPM.addPass(llvm::LoopSimplifyPass());
 
 	if (IsFullLTO) {
 		FPM.addPass(llvm::SCCPPass());
@@ -638,6 +644,7 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 	if (!IsFullLTO) {
 		FPM.addPass(llvm::InstCombinePass());
 		FPM.addPass(hwtHls::LoopAddLatchPass());
+		FPM.addPass(llvm::LoopSimplifyPass());
 		{
 			HwtFpgaAllowVolatileMemOpDuplication _(TM, FPM);
 			// Unroll small loops to hide loop backedge latency and saturate any
@@ -676,6 +683,7 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 								/*AllowSpeculation=*/true),
 						/*UseMemorySSA=*/true, /*UseBlockFrequencyInfo=*/true));
 		FPM.addPass(hwtHls::SimplifyCFG2Pass()); // hwtHls specific
+		FPM.addPass(llvm::LoopSimplifyPass());
 	}
 
 	// Now that we've vectorized and unrolled loops, we may have more refined

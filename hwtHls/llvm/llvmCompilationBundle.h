@@ -72,7 +72,19 @@ public:
 	void _addCommonPasses(llvm::FunctionPassManager &FPM);
 
 	void runExprOpt();
-
+	// for param doc :see: SimplifyCFG2Options
+	llvm::Function& _testSimplifyCFG2Pass(
+			int BonusInstThreshold,           //
+			bool ForwardSwitchCondToPhi,      //
+			bool ConvertSwitchRangeToICmp,    //
+			bool ConvertSwitchToLookupTable,  //
+			bool NeedCanonicalLoop,           //
+			bool HoistCommonInsts,            //
+			bool SinkCommonInsts,             //
+			bool SimplifyCondBranch,          //
+			bool FoldTwoEntryPHINode,         //
+			bool HoistCheapInsts              //
+	);
 	llvm::Function& _testSlicesToIndependentVariablesPass();
 	llvm::Function& _testBitwidthReductionPass();
 	llvm::Function& _testSlicesMergePass();

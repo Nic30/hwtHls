@@ -18,6 +18,7 @@
 #include <hwtHls/llvm/Transforms/slicesMerge/slicesMerge.h>
 #include <hwtHls/llvm/Transforms/LoopUnrotatePass.h>
 #include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.h>
+#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass.h>
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/bitwidthReducePass.h>
 #include <hwtHls/llvm/Transforms/utils/dceWorklist.h>
 #include <hwtHls/llvm/Transforms/utils/bitSliceFlattening.h>
@@ -29,7 +30,6 @@
 #include <hwtHls/llvm/targets/Transforms/EarlyMachineCopyPropagation.h>
 #include <hwtHls/llvm/targets/Transforms/vregIfConversion.h>
 #include <hwtHls/llvm/llvmIrCommon.h>
-
 
 using namespace llvm;
 
@@ -107,6 +107,45 @@ void LlvmCompilationBundle::_testMachineFunctionPass(
 }
 
 /////////////////////////////////////////////////////////////// IR tests ///////////////////////////////////////////////////////////////
+
+llvm::Function& LlvmCompilationBundle::_testSimplifyCFG2Pass(
+		int BonusInstThreshold,           //
+		bool ForwardSwitchCondToPhi,      //
+		bool ConvertSwitchRangeToICmp,    //
+		bool ConvertSwitchToLookupTable,  //
+		bool NeedCanonicalLoop,           //
+		bool HoistCommonInsts,            //
+		bool SinkCommonInsts,             //
+		bool SimplifyCondBranch,          //
+		bool FoldTwoEntryPHINode,         //
+		bool HoistCheapInsts              //
+		) {
+	return _runCustomFunctionPass([
+								   BonusInstThreshold,           //
+								    ForwardSwitchCondToPhi,      //
+								    ConvertSwitchRangeToICmp,    //
+								    ConvertSwitchToLookupTable,  //
+								    NeedCanonicalLoop,           //
+								    HoistCommonInsts,            //
+								    SinkCommonInsts,             //
+								    SimplifyCondBranch,          //
+								    FoldTwoEntryPHINode,         //
+								    HoistCheapInsts              //
+								   ](llvm::FunctionPassManager &FPM) {
+		FPM.addPass(hwtHls::SimplifyCFG2Pass(hwtHls::SimplifyCFG2Options()//
+				.bonusInstThreshold(BonusInstThreshold)//
+				.forwardSwitchCondToPhi(ForwardSwitchCondToPhi)//
+				.convertSwitchRangeToICmp(ConvertSwitchRangeToICmp)//
+				.convertSwitchToLookupTable(ConvertSwitchToLookupTable)//
+				.needCanonicalLoops(NeedCanonicalLoop)//
+				.hoistCommonInsts(HoistCommonInsts)//
+				.sinkCommonInsts(SinkCommonInsts)//
+				.setSimplifyCondBranch(SimplifyCondBranch)//
+				.setFoldTwoEntryPHINode(FoldTwoEntryPHINode)//
+				.setHoistCheapInsts(HoistCheapInsts)
+		));
+	});
+}
 llvm::Function& LlvmCompilationBundle::_testBitwidthReductionPass() {
 	return _runCustomFunctionPass([](llvm::FunctionPassManager &FPM) {
 		FPM.addPass(hwtHls::BitwidthReductionPass());
