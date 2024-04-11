@@ -72,20 +72,20 @@ Value * buildSelectForSwitchWith2UniqValues(PHINode & PHI,
 		Value * v1) {
 	assert(v1);
 	assert(v0);
-	Value* v1Cond = nullptr;
+	Value* v0Cond = nullptr;
 	for (auto &Cond : Conditions) {
 		auto _V = PHI.getIncomingValueForBlock(Cond.first);
-		if (_V == v1) {
-			if (!v1Cond) {
-				v1Cond = Cond.second;
+		if (_V == v0) {
+			if (!v0Cond) {
+				v0Cond = Cond.second;
 			} else {
-				v1Cond = Builder.CreateOr(v1Cond, Cond.second);
+				v0Cond = Builder.CreateOr(v0Cond, Cond.second);
 			}
 		}
 	}
-	assert(v1Cond);
+	assert(v0Cond);
 
-	return Builder.CreateSelect(v1Cond, v1, v0);
+	return Builder.CreateSelect(v0Cond, v0, v1);
 }
 
 Value* buildRomLoadFromPHI(SwitchInst *SI, Value *Cond, BasicBlock *BBTop,
@@ -154,15 +154,19 @@ void rewritePHIsAsSelectOrRomLoad(size_t MaxRomAddrWidth, llvm::SwitchInst *SI,
 		}
 	}
 
+	auto getPhiPredForBB = [&](BasicBlock * BB) {
+		return BB == BBBottom ? BBTop : BB;
+	};
 	std::map<PHINode*, PhiWithFewUnieqValues> phisWithFewUniqValues;
 	size_t phiCnt = 0;
 	for (PHINode &PHI : BBBottom->phis()) {
 		++phiCnt;
 		PhiWithFewUnieqValues phiMeta(PHI);
 		bool hasJustPhiUniqInputs = true;
+		auto *BBDefaultPredInPHI = getPhiPredForBB(DefDst);
 		for (auto BB : PHI.blocks()) {
 			auto *V = PHI.getIncomingValueForBlock(&*BB);
-			if (!phiMeta.add_incoming_value(V, &*BB == DefDst)) {
+			if (!phiMeta.add_incoming_value(V, &*BB == BBDefaultPredInPHI)) {
 				hasJustPhiUniqInputs = false;
 				break;
 			}
@@ -174,36 +178,35 @@ void rewritePHIsAsSelectOrRomLoad(size_t MaxRomAddrWidth, llvm::SwitchInst *SI,
 				phisWithFewUniqValues.insert(std::make_pair(&PHI, phiMeta));
 			}
 		}
-
 	}
 
 	bool allPhisCanBeRom = phisForRomExtraction.size() == phiCnt;
 	if (!allPhisCanBeRom) {
 		if (DefDst) {
-			Conditions.push_back(
-					{ DefDst == BBBottom ? BBTop : DefDst, nullptr });
+			Conditions.push_back( { getPhiPredForBB(DefDst), nullptr });
 		}
 		for (auto C : SI->cases()) {
 			auto *Succ = C.getCaseSuccessor();
 			Conditions.push_back(
-					{ Succ == BBBottom ? BBTop : Succ, Builder.CreateICmpEQ(
-							Cond, C.getCaseValue()) });
+					{ getPhiPredForBB(Succ), Builder.CreateICmpEQ(Cond,
+							C.getCaseValue()) });
 		}
 	}
 	for (PHINode &PHI : make_early_inc_range(BBBottom->phis())) {
+		// there can be more conditions because the SwitchInst may jump to same block multiple times
 		Value *V = nullptr;
 		bool extractAsRom = phisForRomExtraction.find(&PHI)
 				!= phisForRomExtraction.end();
 		if (extractAsRom) {
 			V = buildRomLoadFromPHI(SI, Cond, BBTop, BBBottom, PHI, Builder);
-
 		} else {
-			assert(Conditions.size());
+			assert(Conditions.size() >= PHI.getNumIncomingValues());
 			auto hasFewValues = phisWithFewUniqValues.find(&PHI);
 			if (hasFewValues != phisWithFewUniqValues.end()) {
 				auto& fewValues = hasFewValues->second;
 				assert(fewValues.v0);
 				assert(fewValues.v0UseCnt);
+				assert(fewValues.v0IsFromSwitchDefault != fewValues.v1IsFromSwitchDefault && "Only one can be switch default");
 				if (!fewValues.v1) {
 					// most simple case: there is just one unique incoming value in phi
 					V = fewValues.v0;
@@ -231,12 +234,12 @@ void rewritePHIsAsSelectOrRomLoad(size_t MaxRomAddrWidth, llvm::SwitchInst *SI,
 					} else {
 						// the cases in switch are too sparse, we have to create cmp for every case to resolve condition
 						// for default branch
-						V = buildSelectForSwitchWith2UniqValues(PHI, Conditions, Builder, fewValues.v1, fewValues.v0);
+						V = buildSelectForSwitchWith2UniqValues(PHI, Conditions, Builder, fewValues.v0, fewValues.v1);
 					}
 
 				} else {
 					// construct condition for the value with least uses
-					V = buildSelectForSwitchWith2UniqValues(PHI, Conditions, Builder, fewValues.v0, fewValues.v1);
+					V = buildSelectForSwitchWith2UniqValues(PHI, Conditions, Builder, fewValues.v1, fewValues.v0);
 				}
 			} else {
 				for (auto &Cond : Conditions) {
