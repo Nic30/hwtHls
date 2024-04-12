@@ -62,7 +62,7 @@ void StreamReadRewriter::_handleOptionalReadsDependingOnCurrentOffset(
 			read, false, /*BranchWeights*/nullptr, DTU, LI);
 	builder.SetInsertPoint(thenBlockTerm);
 	auto *ioWordLd = builder.CreateLoad(streamProps.nativeWordTy,
-			streamProps.ioArg, /*isVolatile*/true);
+			streamProps.ioArg, /*isVolatile*/true, read->getName() + ".opt");
 	streamProps.setAllData(builder, ioWordLd);
 	auto *subBB = dyn_cast<BasicBlock>(thenBlockTerm->getOperand(0));
 	builder.SetInsertPoint(subBB, BasicBlock::iterator(&subBB->front()));
@@ -125,7 +125,7 @@ void StreamReadRewriter::_consumeReadWordsAndCreateResultData(
 		} else {
 			// load next word from IO
 			auto *ioWordLd = builder.CreateLoad(streamProps.nativeWordTy,
-					streamProps.ioArg, /*isVolatile*/true);
+					streamProps.ioArg, /*isVolatile*/true, read->getName() + ".w" + std::to_string(i));
 			prevWordVars.push_back(
 					streamProps.parseNativeWord(builder, ioWordLd));
 			bool isLast = i == wordCntRange.first - 1;
