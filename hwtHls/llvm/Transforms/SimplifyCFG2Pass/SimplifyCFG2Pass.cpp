@@ -807,19 +807,26 @@ bool SimplifyCFGOpt2::simplifySwitch(SwitchInst *SI, IRBuilder<> &Builder) {
 		}
 		if (Succ->getUniquePredecessor() == BB)
 			continue;
-		bool allSucPredecessorsAreDominatedByBB = true;
-		for (auto *SuccPred : predecessors(Succ)) {
-			if (SuccPred != BB
-					&& std::find(BBSuccessors.begin(), BBSuccessors.end(),
-							SuccPred) == BBSuccessors.end()) {
-				allSucPredecessorsAreDominatedByBB = false;
-				break;
-			}
-		}
-		if (!allSucPredecessorsAreDominatedByBB) {
-			everySucDominated = false;
-			break;
-		}
+		everySucDominated = false;
+		break;
+
+		// [todo] this commented code causes instructions with side effect to be hoisted
+		//        if the successor blocks can jump between each other this would produce
+		//        invalid code
+		//        There should be flag which will dissallow hoist of instruction with sideeffects
+		//bool allSucPredecessorsAreDominatedByBB = true;
+		//for (auto *SuccPred : predecessors(Succ)) {
+		//	if (SuccPred != BB
+		//			&& std::find(BBSuccessors.begin(), BBSuccessors.end(),
+		//					SuccPred) == BBSuccessors.end()) {
+		//		allSucPredecessorsAreDominatedByBB = false;
+		//		break;
+		//	}
+		//}
+		//if (!allSucPredecessorsAreDominatedByBB) {
+		//	everySucDominated = false;
+		//	break;
+		//}
 	}
 	if (Options.HoistCommonInsts) {
 		if (everySucDominated
