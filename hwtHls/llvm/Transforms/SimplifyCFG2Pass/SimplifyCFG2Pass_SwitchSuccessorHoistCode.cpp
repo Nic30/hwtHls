@@ -165,7 +165,7 @@ InstructionCompareResult checkCompatiblityOfInstructions(Instruction *I1,
 }
 /// :note: based on SimplifyCFGOpt::HoistThenElseCodeToIf
 /// Given a conditional branch that goes to s, hoist any common code
-/// in the two blocks up into the branch block. The caller of this function
+/// in blocks up into the branch block. The caller of this function
 /// guarantees that BI's block dominates BB1 and BB2. If EqTermsOnly is given,
 /// only perform hoisting in case both blocks only contain a terminator. In that
 /// case, only the original BI will be replaced and selects for PHIs are added.
