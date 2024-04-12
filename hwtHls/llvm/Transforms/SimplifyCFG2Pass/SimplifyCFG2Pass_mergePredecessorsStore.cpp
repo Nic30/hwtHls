@@ -90,7 +90,14 @@ static void sinkStores(ArrayRef<StoreInst*> stores, BasicBlock &TargetBB) {
 
 bool SimplifyCFG2Pass_mergePredecessorsStore(llvm::DomTreeUpdater &DTU,
 		llvm::BasicBlock &BB) {
-
+	for (auto Pred0 : predecessors(&BB)) {
+		for (auto PredSuc : successors(Pred0)) {
+			if (PredSuc != &BB) {
+				// BB is not dominated by its predecessor thus is not possible to sink store
+				return false;
+			}
+		}
+	}
 	SmallVector<BasicBlock*> predecessorsWithCommonStore;
 
 	auto PredEnd = pred_end(&BB);
