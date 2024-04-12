@@ -36,10 +36,10 @@ def generateAndAppendHwtHlsFunctionDeclarations(llvmIrStr:str):
 
 class BaseLlvmIrTC(BaseSsaTC):
 
-    def _runTestOpt(self, llvm:LlvmCompilationBundle) -> Function:
+    def _runTestOpt(self, llvm:LlvmCompilationBundle, *args, **kwargs) -> Function:
         raise NotImplementedError("Override this in your implementation of this abstract class")
 
-    def _test_ll(self, irStr: str):
+    def _test_ll(self, irStr: str, passArgs=(), passKwArgs={}):
         irStr = generateAndAppendHwtHlsFunctionDeclarations(irStr)
         llvm = LlvmCompilationBundle("test")
         Err = SMDiagnostic()
@@ -52,5 +52,5 @@ class BaseLlvmIrTC(BaseSsaTC):
             llvm.main = fns[0]
             name = llvm.main.getName().str()
 
-        optF = self._runTestOpt(llvm)
+        optF = self._runTestOpt(llvm, *passArgs, **passKwArgs)
         self.assert_same_as_file(repr(optF), os.path.join("data", f'{self.__class__.__name__:s}.{name:s}.ll'))
