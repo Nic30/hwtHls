@@ -799,37 +799,34 @@ bool SimplifyCFGOpt2::simplifySwitch(SwitchInst *SI, IRBuilder<> &Builder) {
 				return requestResimplify();
 	}
 	bool everySucDominated = true;
+	bool everySucHasOnlyThisPred = true;
 	auto BBSuccessors = successors(BB);
 	for (BasicBlock *Succ : BBSuccessors) {
 		if (Succ->hasAddressTaken()) {
 			everySucDominated = false;
+			everySucHasOnlyThisPred = false;
 			break;
 		}
 		if (Succ->getUniquePredecessor() == BB)
 			continue;
-		everySucDominated = false;
-		break;
+		everySucHasOnlyThisPred = false;
 
-		// [todo] this commented code causes instructions with side effect to be hoisted
-		//        if the successor blocks can jump between each other this would produce
-		//        invalid code
-		//        There should be flag which will dissallow hoist of instruction with sideeffects
-		//bool allSucPredecessorsAreDominatedByBB = true;
-		//for (auto *SuccPred : predecessors(Succ)) {
-		//	if (SuccPred != BB
-		//			&& std::find(BBSuccessors.begin(), BBSuccessors.end(),
-		//					SuccPred) == BBSuccessors.end()) {
-		//		allSucPredecessorsAreDominatedByBB = false;
-		//		break;
-		//	}
-		//}
-		//if (!allSucPredecessorsAreDominatedByBB) {
-		//	everySucDominated = false;
-		//	break;
-		//}
+		bool allSucPredecessorsAreDominatedByBB = true;
+		for (auto *SuccPred : predecessors(Succ)) {
+			if (SuccPred != BB
+					&& std::find(BBSuccessors.begin(), BBSuccessors.end(),
+							SuccPred) == BBSuccessors.end()) {
+				allSucPredecessorsAreDominatedByBB = false;
+				break;
+			}
+		}
+		if (!allSucPredecessorsAreDominatedByBB) {
+			everySucDominated = false;
+			break;
+		}
 	}
 	if (Options.HoistCommonInsts) {
-		if (everySucDominated
+		if (everySucHasOnlyThisPred
 				&& HoistFromSwitchSuccessors(SI, TTI,
 						LlvmHoistCommonSkipLimit)) {
 			return requestResimplify();
