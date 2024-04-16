@@ -139,10 +139,6 @@ class WhileSendSequence1(WhileSendSequence0):
                         hls.write(size, self.dataOut),
                         size(size - 1),
                     ),
-                    # [todo] last iteration requires dataIn to be present
-                    # as a consequence the last dataOut stuck in the component and is currently
-                    # not flushed by default. However based on the original code user probably
-                    # expect the dataOut to be flushed.
                     size(hls.read(self.dataIn).data),
                 )
             )
