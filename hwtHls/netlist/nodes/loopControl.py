@@ -120,6 +120,31 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
             if i not in nonOrderingInputs:
                 yield i
 
+    def iterConnectedChannelGroups(self) -> Generator[LoopChanelGroup, None, None]:
+        return chain(self.fromEnter, self.fromReenter, self.fromExitToHeaderNotify)
+
+    def iterChannelIoOutsideOfLoop(self):
+        for g in self.fromEnter:
+            yield from g.members
+
+        for g in self.fromExitToSuccessor:
+            for w in g.members:
+                yield w.associatedRead
+
+    def iterChannelIoInsideOfLoop(self):
+        for g in self.fromEnter:
+            for w in g.members:
+                yield w.associatedRead
+
+        for g in chain(self.fromReenter, self.fromExitToHeaderNotify):
+            for w in g.members:
+                yield w
+                yield w.associatedRead
+
+        for g in self.fromExitToSuccessor:
+            for w in g.members:
+                yield w
+
     def _findLoopChannelIn_bbNumberToPorts(self, lcg: LoopChanelGroup):
         for srcDst, (portChannelGroup, outPort) in self._bbNumberToPorts.items():
             outPort: HlsNetNodeOut
@@ -405,4 +430,3 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
 
     def __repr__(self):
         return f"<{self.__class__.__name__:s}{' ' if self.name else ''}{self.name} {self._id:d}{' isEnteredOnExit' if self._isEnteredOnExit else ''}>"
-
