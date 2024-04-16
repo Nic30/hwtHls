@@ -253,7 +253,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
             # loop has exits
             self._resolveLoopIoSyncForExit(loopStatus, loop, loopExecs, mb)
 
-    #def _resolveLoopIoSyncAddLatencyToExitReads(self, loopStatus: HlsNetNodeLoopStatus, edgeMeta: MachineEdgeMeta):
+    # def _resolveLoopIoSyncAddLatencyToExitReads(self, loopStatus: HlsNetNodeLoopStatus, edgeMeta: MachineEdgeMeta):
     #    """
     #    Postpone read of exit ports by 1 clock cycle from clock cycle where execution of the loops starts (where loopStatus is)
     #    to prevent combinational loop from executing and exiting loop in zero time and to prevent deadlock if loop body takes at least one
@@ -307,7 +307,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                 p = p.getParentLoop()
 
             edgeMeta: MachineEdgeMeta = self.edgeMeta[edge]
-            #self._resolveLoopIoSyncAddLatencyToExitReads(loopStatus, edgeMeta)
+            # self._resolveLoopIoSyncAddLatencyToExitReads(loopStatus, edgeMeta)
 
             eMbSync: MachineBasicBlockMeta = self.blockSync[exitBlock]
             # if exiting loop return token to HlsNetNodeLoopStatus
@@ -325,6 +325,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                 eWrite = eRead.associatedWrite
                 assert isinstance(eWrite, (HlsNetNodeWriteForwardedge, HlsNetNodeWriteBackedge)), eWrite
 
+            # register and optionally construct EXIT_NOTIFY_TO_HEADER port
             controlOrig = valCache.get(exitBlock, BranchOutLabel(exitSucBlock), BIT)
             if exitSucBlock == mb and eWrite is not None:
                 exitForHeaderW = eWrite
@@ -335,7 +336,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                     exitBlock, mb,
                     None, builder.buildConstPy(HVoidOrdering, None), True)
                 # [todo] add exits also for parent loops
-                edgeMeta.buffersForLoopExit.append(exitForHeaderR)
+                # edgeMeta.buffersForLoopExit.append(exitForHeaderR) # :note: buffersForLoopExit is not for EXIT_NOTIFY_TO_HEADER
                 exitForHeaderR.obj.setNonBlocking()
                 exitForHeaderW: HlsNetNodeWriteBackedge = exitForHeaderR.obj.associatedWrite
                 # this channel will asynchronously notify loop header, it is not required
@@ -345,7 +346,8 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                 # exitForHeaderW._rtlUseValid = exitForHeaderR.obj._rtlUseValid = False
 
                 self._addExtraCond(exitForHeaderW, controlOrig, eMbSync.blockEn)
-                self._addSkipWhen_n(exitForHeaderW, controlOrig, eMbSync.blockEn)
+                # skipWhen is not required because rtlUseReady = False
+                # self._addSkipWhen_n(exitForHeaderW, controlOrig, eMbSync.blockEn)
                 # w.channelInitValues = ((0,),)
                 lcg = LoopChanelGroup([(exitBlock.getNumber(),
                                         exitSucBlock.getNumber(),
@@ -353,6 +355,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                 lcg.appendWrite(exitForHeaderW, True)
 
             loopStatus.addExitToHeaderNotifyPort(exitBlock.getNumber(), exitSucBlock.getNumber(), lcg)
+
             if eWrite is not None:
                 # make write to exit channel the last last in block from which there is jump outside of loop
                 # :note: ordering should be already added
@@ -375,13 +378,24 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                     assert isinstance(eRead, (HlsNetNodeReadForwardedge, HlsNetNodeReadBackedge))
 
                 # e.addControlSerialExtraCond(anyEnterExecuted)
-                #if anyEnterExecuted_n != 0:
+                # if anyEnterExecuted_n != 0:
                 #    eRead.addControlSerialSkipWhen(anyEnterExecuted_n)
 
                 # update cache so successor uses the port from loop control exit port
                 # controlAfterExit = eSuc.getValid()
                 # valCache.add(exitBloc, BranchOutLabel(exitSucBlock), controlAfterExit, True)
                 # valCache.add(exitSucBlock, exitBloc, controlAfterExit, False)
+
+                # register exit write for the loop
+                lcg = eWrite._loopChannelGroup
+                if lcg is None:
+                    lcg = LoopChanelGroup([(exitBlock.getNumber(),
+                                            exitSucBlock.getNumber(),
+                                            LOOP_CHANEL_GROUP_ROLE.EXIT_TO_SUCCESSOR)])
+                    lcg.appendWrite(eWrite, True)
+
+                lcg.associateWithLoop(loopStatus, LOOP_CHANEL_GROUP_ROLE.EXIT_TO_SUCCESSOR)
+
     def resolveLoopControl(self,
                            mf: MachineFunction,
                            blockLiveInMuxInputSync: BlockLiveInMuxSyncDict):
