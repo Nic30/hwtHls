@@ -123,7 +123,7 @@ class HlsRead(HdlStatement, SsaInstr):
         netlist: HlsNetlistCtx = mirToNetlist.netlist
         assert isinstance(srcIo, (Interface, RtlSignalBase)), srcIo
         assert isinstance(index, int) and index == 0, (srcIo, index, "Because this read is not addressed there should not be any index")
-        n = HlsNetNodeRead(netlist, srcIo)
+        n = HlsNetNodeRead(netlist, srcIo, name=f"ld_r{instr.getOperand(0).getReg().virtRegIndex():d}")
         if not representativeReadStm._isBlocking:
             n.setNonBlocking()
 
@@ -206,7 +206,7 @@ class HlsReadAddressed(HlsRead):
         if isinstance(index, int):
             raise AssertionError("If the index is constant it should be an output of a constant node but it is an integer", srcIo, instr)
 
-        n = HlsNetNodeReadIndexed(netlist, srcIo)
+        n = HlsNetNodeReadIndexed(netlist, srcIo, name=f"ld_r{instr.getOperand(0).getReg().virtRegIndex()}")
         link_hls_nodes(index, n.indexes[0])
 
         _cond = syncTracker.resolveControlOutput(cond)
