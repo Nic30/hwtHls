@@ -65,20 +65,19 @@ class HlsNetlistToAbcAig(RtlNetlistToAbcAig):
                     res = aig.Mux(c, o0, o1)  # ABC notation is in in this order, p1, p0 means if c=1 or c=0
                 else:
                     assert inCnt % 2 == 1, d
-                    prevCond = None
                     prevVal = None
-                    # mux must be build from end so first condition ends up at the top
-                    for v, c in grouper(2, reversed(d.dependsOn), padvalue=None):
+                    # mux must be build from end so first condition ends up at the top of expression (bottom of code)
+                    for v, c in reversed(tuple(d._iterValueConditionDriverPairs())):
                         v = self._translate(aig, v)
                         if c is not None:
                             c = self._translate(aig, c)
+
                         if prevVal is None:
-                            assert prevCond is None
+                            assert c is None
                             prevVal = v
                         else:
-                            prevVal = aig.Mux(prevCond, prevVal, v)
-                        prevCond = c
-                    assert prevCond is None, (prevCond, d)
+                            prevVal = aig.Mux(c, v, prevVal)
+
                     res = prevVal
             else:
                 raise NotImplementedError(d)
