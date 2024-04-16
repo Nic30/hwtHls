@@ -24,9 +24,9 @@ class HlsAstWhileTrue_TC(SimTestCase):
                                      USE_PY_FRONTEND:bool=False):
         u = cls()
         u.USE_PY_FRONTEND = USE_PY_FRONTEND
-        self.compileSimAndStart(u,
-                                target_platform=VirtualHlsPlatform(debugFilter={
-                                    *HlsDebugBundle.ALL_RELIABLE, HlsDebugBundle.DBG_20_addSignalNamesToSync}))
+        # debugFilter={*HlsDebugBundle.ALL_RELIABLE, HlsDebugBundle.DBG_20_addSignalNamesToSync}
+        debugFilter = HlsDebugBundle.DEFAULT
+        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform(debugFilter=debugFilter))
         CLK = 5
         self.runSim(CLK * CLK_PERIOD)
         self._test_no_comb_loops()
