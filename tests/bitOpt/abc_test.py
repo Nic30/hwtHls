@@ -1,18 +1,18 @@
+from typing import Dict
 import unittest
 
 from hwt.hdl.types.defs import BIT
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
+from hwtHls.architecture.transformation.controlLogicMinimize import RtlNetlistPassControlLogicMinimize
 from hwtHls.netlist.abc.abcAigToRtlNetlist import AbcAigToRtlNetlist
-from hwtHls.netlist.abc.abcCpp import Io_FileType_t
 from hwtHls.netlist.abc.optScripts import abcCmd_resyn2, abcCmd_compress2
 from hwtHls.netlist.abc.rtlNetlistToAbcAig import RtlNetlistToAbcAig
-from hwtHls.architecture.transformation.controlLogicMinimize import RtlNetlistPassControlLogicMinimize
-from typing import Dict
 
 
-def generateAllBitPermutations(n):
-    for i in range(1 << n):
-        yield ((i >> bitIndex) & 1 for bitIndex in range(n))
+# from hwtHls.netlist.abc.abcCpp import Io_FileType_t
+def generateAllBitPermutations(n:int):
+    for i in range(1 << n):  # for all number in range defined by number of bits
+        yield tuple((i >> bitIndex) & 1 for bitIndex in range(n))  # extract individual bits from number
 
 
 class AbcTC(unittest.TestCase):
@@ -356,7 +356,6 @@ class AbcTC(unittest.TestCase):
             return res
 
         for inputs in generateAllBitPermutations(9):
-            inputs = tuple(inputs)
             (rx_valid,
              rx_last,
              loop_bb2_enterFrom_bb1,
@@ -389,6 +388,89 @@ class AbcTC(unittest.TestCase):
 
             fn0, fn1 = testOpt0and1(*translateInputNamesToNNames(locals()))
             self.assertEqual((fn0, fn1), (eRef0, eRef1), inputs)
+
+    def test_largerExpression1(self):
+        # originally taken from AxiSPacketCopyByteByByte 1->2B unroll=None pipe0_st0_ack
+        hwtNet = RtlNetlist(None)
+        inputs = tuple(hwtNet.sig(name) for name in (
+            "a",
+            "b",
+            "c",
+            "d",
+            "e",
+        ))
+        a, b, c, d, e = inputs
+
+        def f0(a, b, c , d, e):
+            expr0 = (c & ~d) | (e & d)
+            return (a & (~b & expr0)) | (b | ~expr0)
+
+        def f0b(a, b, c, d, e):
+            return ((a & (~(b) & ((c & ~d) | (e & d))._eq(1))) | (b | ((c & ~d) | (e & d))._eq(0)))
+
+        def f0_py(a, b, c , d, e):
+            return (a and (not b and ((c and not d) or (e and d)))) or (b or not ((c and not d) or (e and d)))
+
+        def f0Opt(a, b, c , d, e):
+            # for ('x', 'x', 0, 'x', 0) this returns x (which is different from original which was returning 1)
+            return ~(c | d) | (d & ~e) | a | b
+
+        def f0Opt_py(a, b, c , d, e):
+            return not (c or d) or (d and not e) or a or b
+
+        def f1(a, b, c):
+            return (a & (~b & c)) | (b | ~c)
+
+        def f1Opt(a, b, c):
+            # (1, 'x', 'x') this returns 1 (which is different from original which was returning x)
+            return ~c | a | b
+
+        exampleExpr = [
+            f0(*inputs),
+            f0b(*inputs),
+            f1(inputs[0], inputs[1], inputs[2])
+        ]
+        toAig = RtlNetlistToAbcAig()
+        f, net, aig, ioMap = toAig.translate(inputs, exampleExpr)
+        net = abcCmd_resyn2(net)
+        net = abcCmd_compress2(net)
+        toRtl = AbcAigToRtlNetlist(f, net, aig, ioMap)
+        res = tuple(newO for _, newO in toRtl.translate())
+        f.DeleteAllNetworks()
+        for i, (oOptimized, oInput) in enumerate(zip(res, exampleExpr)):
+            #print(">>>>>>>>>")
+            #print("inp", oInput)
+            #print("opt", oOptimized)
+            _inputs = inputs
+            if i == 2:
+                _inputs = [inputs[0], inputs[1], inputs[2]]
+            RtlNetlistPassControlLogicMinimize._verifyAbcExprEquivalence(inputs, oOptimized, oInput)
+
+        # test with fully defined values
+        for inputVals in generateAllBitPermutations(5):
+            self.assertEqual(f0_py(*inputVals), f0Opt_py(*inputVals), inputVals)
+
+        #def formatValues(_inputVals: Sequence[BitsVal]):
+        #    return tuple(v.val if v.vld_mask else 'x' for v in _inputVals)
+
+        #for inputVals in generateAllBitPermutations(3):
+        #    for vldMask in generateAllBitPermutations(3):
+        #        _inputVals = tuple(BIT.from_py(v, vld_mask) for v, vld_mask in zip(inputVals, vldMask))
+        #        res0 = f1(*_inputVals)
+        #        res0Opt = f1Opt(*_inputVals)
+        #        self.assertEqual((res0.val, res0.vld_mask), (res0Opt.val, res0Opt.vld_mask), formatValues(_inputVals))
+
+        #for inputVals in generateAllBitPermutations(5):
+        #    print(inputVals, int(f0_py(*inputVals)))
+        #    for vldMask in generateAllBitPermutations(5):
+        #        _inputVals = tuple(BIT.from_py(v, vld_mask) for v, vld_mask in zip(inputVals, vldMask))
+        #        if formatValues(_inputVals) == ('x', 'x', 0, 'x', 0):
+        #            res0Opt = f0Opt(*_inputVals)
+        #            print(res0Opt)
+        #        res0 = f0(*_inputVals)
+        #        res0Opt = f0Opt(*_inputVals)
+        #        print(formatValues(_inputVals), res0, res0Opt)
+        #        self.assertEqual((res0.val, res0.vld_mask), (res0Opt.val, res0Opt.vld_mask), formatValues(_inputVals))
 
 
 if __name__ == "__main__":
