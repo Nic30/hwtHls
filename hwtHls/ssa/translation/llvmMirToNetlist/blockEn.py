@@ -24,7 +24,9 @@ from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlis
 def _mergeBrachOutConditions(builder: HlsNetlistBuilder,
                              mbEn: Optional[HlsNetNodeOutAny],
                              anyPrevBranchEn: Union[HlsNetNodeOutAny, None, NOT_SPECIFIED],
-                             brCond: Optional[HlsNetNodeOutAny]):
+                             brCond: Optional[HlsNetNodeOutAny],
+                             srcBbNumber: int,
+                             dstBbNumber: int):
     """
     This function merges condition flags which are used to resolve if the jump should be performed or not.
     
@@ -52,6 +54,8 @@ def _mergeBrachOutConditions(builder: HlsNetlistBuilder,
         else:
             _brCond = builder.buildAndVariadic((mbEn, anyPrevBranchEn_n, brCond))
     assert _brCond is not None
+    if isinstance(_brCond.obj, HlsNetNodeOperator) and _brCond.obj.name is None:
+        _brCond.obj.name = f"bb{srcBbNumber:d}_br_bb{dstBbNumber:d}"
     return _brCond
 
 
@@ -92,7 +96,7 @@ def _resolveBranchOutLabels(self: "HlsNetlistAnalysisPassMirToNetlist", mb: Mach
         else:
             raise NotImplementedError("Unknown terminator", ter)
 
-        _brCond = _mergeBrachOutConditions(builder, mbEn, anyPrevBranchEn, brCond)
+        _brCond = _mergeBrachOutConditions(builder, mbEn, anyPrevBranchEn, brCond, mb.getNumber(), dstBlock.getNumber())
         valCache.add(mb, BranchOutLabel(dstBlock), _brCond, False)  # the BranchOutLabel is set only once
 
         if brCond is None:
@@ -106,7 +110,7 @@ def _resolveBranchOutLabels(self: "HlsNetlistAnalysisPassMirToNetlist", mb: Mach
     fallThroughDstBlock = mb.getFallThrough(True)
     if fallThroughDstBlock is not None:
         brCond = None  # because now it is default jump
-        _brCond = _mergeBrachOutConditions(builder, mbEn, anyPrevBranchEn, brCond)
+        _brCond = _mergeBrachOutConditions(builder, mbEn, anyPrevBranchEn, brCond,  mb.getNumber(), fallThroughDstBlock.getNumber())
         # the BranchOutLabel is set only once
         valCache.add(mb, BranchOutLabel(fallThroughDstBlock), _brCond, False)
 
