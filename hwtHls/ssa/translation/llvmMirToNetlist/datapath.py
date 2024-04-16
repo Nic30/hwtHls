@@ -17,15 +17,13 @@ from hwtHls.netlist.hdlTypeVoid import HVoidData
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge
-from hwtHls.netlist.nodes.ports import link_hls_nodes, HlsNetNodeOut, \
-    HlsNetNodeOutLazy
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy
 from hwtHls.ssa.translation.llvmMirToNetlist.branchOutLabel import BranchOutLabel
 from hwtHls.ssa.translation.llvmMirToNetlist.insideOfBlockSyncTracker import InsideOfBlockSyncTracker
 from hwtHls.ssa.translation.llvmMirToNetlist.lowLevel import HlsNetlistAnalysisPassMirToNetlistLowLevel
 from hwtHls.ssa.translation.llvmMirToNetlist.machineEdgeMeta import MachineEdgeMeta, MACHINE_EDGE_TYPE
 from hwtHls.ssa.translation.llvmMirToNetlist.utils import LiveInMuxMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
-
 
 BlockLiveInMuxSyncDict = Dict[Tuple[MachineBasicBlock, MachineBasicBlock, Register], HlsNetNodeExplicitSync]
 
@@ -149,7 +147,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
 
                 elif opc == TargetOpcode.HWTFPGA_CLOAD:
                     # load from data channel
-                    srcIo, index, cond = ops # [todo] implicit operands
+                    srcIo, index, cond = ops  # [todo] implicit operands
                     if isinstance(srcIo, HlsNetNodeOut):
                         res = builder.buildOp(AllOps.INDEX, srcIo._dtype.element_t, srcIo, index)
                         if isinstance(cond, int):
@@ -280,7 +278,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                     v = self._constructBackedgeBuffer("c", predMb, sucMb, (predMb, sucMb), v, isControl=True)
                     wn: HlsNetNodeWriteBackedge = v.obj.associatedWrite
                     if edgeMeta.inlineRstDataFromEdge is not None:
-                        wn.channelInitValues = (tuple(), )
+                        wn.channelInitValues = (tuple(),)
                     edgeMeta.loopChannelGroupAppendWrite(wn, True)
 
                 elif edgeMeta.etype == MACHINE_EDGE_TYPE.FORWARD:
