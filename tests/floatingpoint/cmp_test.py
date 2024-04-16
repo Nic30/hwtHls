@@ -134,7 +134,8 @@ class IEEE754FpCmp_TC(SimTestCase):
         self.runSim((len(self.TEST_DATA_FORMATED) + 1) * int(CLK_PERIOD))
 
         self.assertValSequenceEqual(u.res._ag.data, refRes,
-                                    [(IEEE754Fp32.to_py(a), IEEE754Fp32.to_py(b), a, b) for a, b in self.TEST_DATA_FORMATED])
+                                    [(IEEE754Fp32.to_py(a), IEEE754Fp32.to_py(b), a, b)
+                                     for a, b in self.TEST_DATA_FORMATED])
         self.rtl_simulator_cls = None
 
 
