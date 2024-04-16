@@ -1,5 +1,5 @@
 from itertools import chain
-from typing import List, Optional, Generator, Union, Tuple, Dict, Set
+from typing import List, Generator, Tuple, Dict, Optional
 
 from hwt.code import If, Or
 from hwt.code_utils import rename_signal
@@ -7,20 +7,25 @@ from hwt.hdl.types.defs import BIT
 from hwt.hdl.value import HValue
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
+from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
+from hwtHls.netlist.analysis.nodeParentAggregate import HlsNetlistAnalysisPassNodeParentAggregate
+from hwtHls.netlist.hdlTypeVoid import HVoidData, HVoidOrdering
 from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
     HlsNetNodeWriteBackedge, BACKEDGE_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.explicitSync import IO_COMB_REALIZATION
 from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge
-from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeReadAnyChannel, \
-    LoopChanelGroup, HlsNetNodeWriteAnyChannel, LOOP_CHANEL_GROUP_ROLE
+from hwtHls.netlist.nodes.loopChannelGroup import \
+    LoopChanelGroup, LOOP_CHANEL_GROUP_ROLE, HlsNetNodeReadOrWriteToAnyChannel, \
+    HlsNetNodeReadAnyChannel
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.orderable import HVoidData, HlsNetNodeOrderable, \
-    HVoidOrdering
+from hwtHls.netlist.nodes.orderable import HlsNetNodeOrderable
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, link_hls_nodes, \
     HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
+from hwtHls.typingFuture import override
+from hwtLib.logic.rtlSignalBuilder import RtlSignalBuilder
 
 
 class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
@@ -30,23 +35,26 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
 
     Not all hardware loops necessary need this:
     * Top loops with a single predecessor may have this predecessor liveIn variables values inlined to an initialization
-      of backedges of this loop if all values comming from this predecessor are constant.
+      of backedges of this loop if all values coming from this predecessor are constant.
       (This removes enter to loop which is important for next items in this list.)
     * Loops with no enter and exit do not need this as they are always running.
     * Loops with no enter and no live variables on reenter edges do not need this as there are no inter iteration dependencies.
 
-    :attention: Loop ports may be shared betwen loops. E.g. one exit may be also enter to other loop and also exit from parent loop.
-    :attention: Loop ports may hold data if some data channel is resused as a control.
+    :attention: Loop ports may be shared between loops. E.g. one exit may be also enter to other loop and also exit from parent loop.
+    :attention: Loop ports may hold data if some data channel is reused as a control.
     :attention: For correct functionality the loop body must be separated from rest of the circuit.
         This is required because various blocking operations which are not inside of the loop must be separated.
     :attention: There should be ordering connected from last IO in the loop to achieve better results in
         :meth:`~.HlsNetNodeLoopStatus.scheduleAlapCompaction` because without it this does not have any outputs
         and will stay at the end of current cycle which is sub-optimal if the whole loop shifts in time.
+    :attention: The status register is not 1 in the first clock and becomes 1 after first clock when loop is executed.
+        The busy port value is should control only if data is accepted from loop predecessors or reenter.
     :note: This node does not contain any multiplexers or explicit synchronization it is just a state-full control logic
         which provides "enable signals".
 
-    :note: For nested loops the top loop is always guaranted to be busy if child is.
-        If the child has same header block as parent, the children status is most important. Because we need to continue executing the lowest loop.
+    :note: For nested loops the top loop is always guaranteed to be busy if child is.
+        If the child has same header block as parent, the children status is most important. Because we need to
+        continue executing the lowest loop.
 
     :ivar fromEnter: for each direct predecessor which is not in cycle body a tuple input for control and variable values.
         Signalizes that the loop has data to be executed.
@@ -73,10 +81,39 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
         self.fromReenter: List[LoopChanelGroup] = []
         self.fromExitToHeaderNotify: List[LoopChanelGroup] = []
         self.fromExitToSuccessor: List[LoopChanelGroup] = []
+        self.channelExtraEnCondtions: Dict[LoopChanelGroup, List[HlsNetNodeIn]] = {}
 
         self._bbNumberToPorts: Dict[tuple(int, int), Tuple[LoopChanelGroup, HlsNetNodeOut]] = {}
         self._isEnteredOnExit: bool = False
 
+    def addChannelExtraEnCondtion(self, lcg: LoopChanelGroup, en: HlsNetNodeOut, name:str,
+                                  addDefaultScheduling=False, inputWireDelay:int=0):
+        """
+        Add an extra enable condition for channel group which will be anded with enable from channel to control this
+        loop status.
+        """
+        # if role == LOOP_CHANEL_GROUP_ROLE.ENTER:
+        #    inList = self.fromEnter
+        # elif role == LOOP_CHANEL_GROUP_ROLE.REENTER:
+        #    inList = self.fromReenter
+        # elif role == LOOP_CHANEL_GROUP_ROLE.EXIT_NOTIFY_TO_HEADER:
+        #    inList = self.fromExitToHeaderNotify
+        # elif role == LOOP_CHANEL_GROUP_ROLE.EXIT_TO_SUCCESSOR:
+        #    inList = self.fromExitToSuccessor
+        # else:
+        #    raise ValueError(role)
+
+        i = self._addInput(name, addDefaultScheduling=addDefaultScheduling,
+                           inputClkTickOffset=0, # must be 0 because it must be in same clk
+                           inputWireDelay=inputWireDelay)
+        link_hls_nodes(en, i)
+        ens = self.channelExtraEnCondtions.get(lcg)
+        if ens is None:
+            ens = []
+            self.channelExtraEnCondtions[lcg] = ens
+        ens.append(i)
+
+    @override
     def iterOrderingInputs(self) -> Generator[HlsNetNodeIn, None, None]:
         nonOrderingInputs = set(v[1] for v in self._bbNumberToPorts.values())
         for i in self._inputs:
@@ -94,9 +131,11 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
     def getBusyOutPort(self) -> HlsNetNodeOut:
         return self._outputs[1]
 
+    @override
     def getOrderingOutPort(self) -> HlsNetNodeOut:
         return self._outputs[0]
 
+    @override
     def resolveRealization(self):
         self.assignRealization(IO_COMB_REALIZATION)
 
@@ -110,8 +149,8 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
         Register connection of control and data from some block which causes the loop to to execute.
 
         :note: When transaction on this IO is accepted the loop sync token is changed to busy state if not overriden by exit.
-        :note: Loop can be executed directly after reset. This implies that the enter ports are optional. However enter or exit port must be present,
-            otherwise this loop status node is not required at all because
+        :note: Loop can be executed directly after reset. This implies that the enter ports are optional. However enter or
+            exit port must be present, otherwise this loop status node is not required at all because
         """
         lcg.associateWithLoop(self, LOOP_CHANEL_GROUP_ROLE.ENTER)
         name = f"enterFrom_bb{srcBlockNumber:}"
@@ -119,8 +158,8 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
         w = lcg.getChannelWhichIsUsedToImplementControl()
         r: HlsNetNodeReadBackedge = w.associatedRead
         assert isinstance(r, HlsNetNodeRead), r
-        assert not r._isBlocking, r
-        
+        # assert not r._isBlocking, r
+
         link_hls_nodes(w.getOrderingOutPort(), self._addInput("orderingIn"))
         self.fromEnter.append(lcg)
         self._bbNumberToPorts[(srcBlockNumber, dstBlockNumber)] = (lcg, fromStatusOut)
@@ -138,7 +177,7 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
         fromStatusOut = self._addOutput(BIT, name)
         r: HlsNetNodeReadBackedge = lcg.getChannelWhichIsUsedToImplementControl().associatedRead
         assert isinstance(r, HlsNetNodeReadBackedge), r
-        assert not r._isBlocking, r
+        # assert not r._isBlocking, r
         self.fromReenter.append(lcg)
         self._bbNumberToPorts[(srcBlockNumber, dstBlockNumber)] = (lcg, fromStatusOut)
         return r, fromStatusOut
@@ -156,9 +195,12 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
         """
         lcg.associateWithLoop(self, LOOP_CHANEL_GROUP_ROLE.EXIT_NOTIFY_TO_HEADER)
         w: HlsNetNodeWriteBackedge = lcg.getChannelWhichIsUsedToImplementControl()
+        assert w.allocationType == BACKEDGE_ALLOCATION_TYPE.IMMEDIATE, (
+            "Must be IMMEDIATE because this information modifies busy flag immediately",
+            w, w.allocationType)
         assert isinstance(w, HlsNetNodeWriteBackedge), w
         r = w.associatedRead
-        assert not r._isBlocking, r
+        assert not r._isBlocking, ("Must be non-blocking because busy flag must be reset without blocking to prevent deadlock", r)
         exitIn = self._addInput(f"exit_from_bb{srcBlockNumber:d}_to_bb{dstBlockNumber:d}", True)
         link_hls_nodes(r.getValidNB(), exitIn)
 
