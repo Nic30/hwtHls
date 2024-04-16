@@ -24,7 +24,7 @@ class CntrArrayWithCfgDotDump(CntrArray):
             hls.compile()
         finally:
             sealedBlocks = set(t.bytecodeToSsa.blockToLabel[b] for b in t.bytecodeToSsa.toSsa.m_ssa_u.sealedBlocks)
-            t.bytecodeToSsa.callStack[-1].blockTracker.dumpCfgToDot(self.CFG_FILE, sealedBlocks)
+            t.bytecodeToSsa.callStack[-1].blockTracker.dumpCfgToDot(self.CFG_FILE, sealedBlocks, t.bytecodeToSsa.labelToBlock)
             
 
 class PyArrHwIndex_TC(BaseSsaTC):

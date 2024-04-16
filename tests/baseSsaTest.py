@@ -55,7 +55,7 @@ class BaseTestPlatform(VirtualHlsPlatform):
         toNetlist = HlsNetlistAnalysisPassMirToNetlist(
             hls, tr, mf, backedges, liveness, ioRegs, registerTypes, loops)
         netlist = toNetlist.netlist
-        dbgTracer, doCloseTrace = self._getDebugTracer(netlist, HlsDebugBundle.DBG_5_netlistConsttructionTrace)
+        dbgTracer, doCloseTrace = self._getDebugTracer(netlist.label, HlsDebugBundle.DBG_5_netlistConsttructionTrace)
         toNetlist.setDebugTracer(dbgTracer)
         
         SsaPassDumpMIR(lambda name: (self.mir, False)).apply(hls, toSsa)
