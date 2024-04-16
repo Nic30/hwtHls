@@ -113,7 +113,7 @@ llvm::Function& LlvmCompilationBundle::_testSimplifyCFG2Pass(
 		bool ForwardSwitchCondToPhi,      //
 		bool ConvertSwitchRangeToICmp,    //
 		bool ConvertSwitchToLookupTable,  //
-		bool NeedCanonicalLoop,           //
+		bool NeedCanonicalLoops,          //
 		bool HoistCommonInsts,            //
 		bool SinkCommonInsts,             //
 		bool SimplifyCondBranch,          //
@@ -125,7 +125,7 @@ llvm::Function& LlvmCompilationBundle::_testSimplifyCFG2Pass(
 								    ForwardSwitchCondToPhi,      //
 								    ConvertSwitchRangeToICmp,    //
 								    ConvertSwitchToLookupTable,  //
-								    NeedCanonicalLoop,           //
+								    NeedCanonicalLoops,           //
 								    HoistCommonInsts,            //
 								    SinkCommonInsts,             //
 								    SimplifyCondBranch,          //
@@ -137,7 +137,7 @@ llvm::Function& LlvmCompilationBundle::_testSimplifyCFG2Pass(
 				.forwardSwitchCondToPhi(ForwardSwitchCondToPhi)//
 				.convertSwitchRangeToICmp(ConvertSwitchRangeToICmp)//
 				.convertSwitchToLookupTable(ConvertSwitchToLookupTable)//
-				.needCanonicalLoops(NeedCanonicalLoop)//
+				.needCanonicalLoops(NeedCanonicalLoops)//
 				.hoistCommonInsts(HoistCommonInsts)//
 				.sinkCommonInsts(SinkCommonInsts)//
 				.setSimplifyCondBranch(SimplifyCondBranch)//
