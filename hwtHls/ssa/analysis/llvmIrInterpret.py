@@ -1,7 +1,7 @@
 from datetime import datetime
 from io import StringIO
 from itertools import islice
-from operator import and_, or_, xor, add, mul, sub, floordiv
+from operator import and_, or_, xor, add, mul, sub, floordiv, rshift, lshift
 import re
 from typing import Tuple, Generator, Union, List, Optional, Dict
 
@@ -50,6 +50,8 @@ BINARY_OPS_TO_FN = {
     Instruction.BinaryOps.Sub: sub,
     Instruction.BinaryOps.Mul: mul,
     Instruction.BinaryOps.UDiv: floordiv,
+    Instruction.BinaryOps.LShr: rshift, # logical shift right
+    Instruction.BinaryOps.Shl: lshift,
 }
 
 
@@ -330,7 +332,6 @@ class LlvmIrInterpret():
             else:
                 raise NotImplementedError(v)
 
-        # print("        ", repr(ops))
         bi = InstructionToBinaryOperator(instr)
         if bi is not None:
             bi: BinaryOperator
