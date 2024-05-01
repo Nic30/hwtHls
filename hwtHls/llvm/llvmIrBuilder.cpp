@@ -1,11 +1,16 @@
 #include <hwtHls/llvm/llvmIrBuilder.h>
 
 #include <pybind11/stl.h>
+#include <pybind11/stl_bind.h>
+
 #include <llvm/IR/IRBuilder.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <hwtHls/llvm/targets/intrinsic/streamIo.h>
 
 namespace py = pybind11;
+
+PYBIND11_MAKE_OPAQUE(std::vector<llvm::Value*>);
+
 
 namespace hwtHls {
 
@@ -86,7 +91,15 @@ void register_IRBuilder(pybind11::module_ & m) {
 		})
 		.def("CreateGEP",  [](llvm::IRBuilder<> * self, llvm::Type *Ty, llvm::Value *Ptr, std::vector<llvm::Value *>& IdxList) {
 			return self->CreateGEP(Ty, Ptr, IdxList, "", true);
-		}, py::return_value_policy::reference);
+		}, py::return_value_policy::reference)
+		.def("CreateCall", [](llvm::IRBuilder<> * self, llvm::FunctionCallee Callee,
+                std::vector<llvm::Value *> Args, const llvm::Twine &Name = "") {
+			return self->CreateCall(Callee, Args, Name);
+		}, py::arg("Callee"), py::arg("Args"), py::arg("Name")=llvm::Twine(""));
+
+    	py::bind_vector<std::vector<llvm::Value*>>(m, "VectorValuePtr");
+		py::implicitly_convertible<py::list, std::vector<llvm::Value*>>();
+
 }
 
 }
