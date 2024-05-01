@@ -169,8 +169,8 @@ PYBIND11_MODULE(llvmIr, m) {
 	py::class_<llvm::LLVMContext, std::unique_ptr<llvm::LLVMContext, py::nodelete>>(m, "LLVMContext");
 	register_Module(m);
 	register_VectorOfTypePtr(m);
-	register_IRBuilder(m);
 	register_strings(m);
+	register_IRBuilder(m);
 	register_Values_and_Use(m);
 	register_BasicBlock(m);
 	register_Function(m);
