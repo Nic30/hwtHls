@@ -40,7 +40,7 @@ bool DceWorklist::DCEInstruction(Instruction *I, BasicBlock::iterator &curI) {
 				if (isInstructionTriviallyDead(OpI, TLI))
 					WorkList.insert(OpI);
 		}
-		if (I == &*curI) {
+		if (curI != BasicBlock::iterator() && I == &*curI) {
 			++curI; // increment current iterator so the parent skips this remove instruction
 		}
 		if (slices && sliceItem.value != I) {
