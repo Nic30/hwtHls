@@ -23,6 +23,7 @@ T* llvmInstructionCaster(llvm::Instruction *I) {
 
 void register_Instruction(pybind11::module_ & m) {
 	py::class_<llvm::Instruction, std::unique_ptr<llvm::Instruction, py::nodelete>, llvm::User> Instruction(m, "Instruction");
+	py::implicitly_convertible<llvm::Instruction, llvm::Value>();
 	Instruction
 		.def("getOpcode", &llvm::Instruction::getOpcode)
 		.def("getOpcodeName", [](llvm::Instruction*self) {
@@ -211,6 +212,8 @@ void register_Instruction(pybind11::module_ & m) {
 			.def("arg_size", &llvm::CallInst::arg_size)
 			.def("arg_empty", &llvm::CallInst::arg_empty)
 			.def("getArgOperand", &llvm::CallInst::getArgOperand, py::return_value_policy::reference_internal)
+			.def("setOnlyAccessesArgMemory", &llvm::CallInst::setOnlyAccessesArgMemory)
+			.def("setDoesNotAccessMemory", &llvm::CallInst::setDoesNotAccessMemory)
 			;
 	py::implicitly_convertible<llvm::CallInst, llvm::Instruction>();
 	m.def("InstructionToCallInst", &llvmInstructionCaster<llvm::CallInst>, py::return_value_policy::reference_internal);
