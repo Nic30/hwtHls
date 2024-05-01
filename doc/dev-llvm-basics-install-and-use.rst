@@ -3,6 +3,7 @@ LLVM basics, install and use
 
 LLVM/clang is useful when debugging something LLVM related which does not necessary dependent on this library.
 There is also https://llvm.godbolt.org/ which has nice WEB UI. There is a discord server and https://discourse.llvm.org.
+https://www.cs.cmu.edu/afs/cs/academic/class/15745-s13/public/lectures/L6-LLVM-Detail-1up.pdf
 
 Installation linux
 ------------------
@@ -120,6 +121,10 @@ Interpret
 
 Transformation passes
 ---------------------
+
+
+.. code-block:: text
+    opt --help-hidden # displays all options for every pass
 
 .. code-block:: text
 	opt --debug-pass=Structure < main.bc
