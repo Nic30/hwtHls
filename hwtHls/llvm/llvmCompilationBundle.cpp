@@ -13,6 +13,7 @@
 #include <llvm/ADT/APInt.h>
 #include <llvm/ADT/APSInt.h>
 #include <llvm/ADT/STLExtras.h>
+#include <llvm/ADT/Statistic.h>
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/DerivedTypes.h>
@@ -21,6 +22,7 @@
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Type.h>
 #include <llvm/IR/Verifier.h>
+#include <llvm/IR/PassTimingInfo.h>
 #include <llvm/Pass.h>
 #include <llvm/Passes/StandardInstrumentations.h>
 #include <llvm/Analysis/OptimizationRemarkEmitter.h>
@@ -81,6 +83,7 @@
 #include <llvm/CodeGen/MachineModuleInfo.h>
 #include <llvm/CodeGen/TargetPassConfig.h>
 
+#include <hwtHls/llvm/llvmCompilationBundleORE.h>
 #include <hwtHls/llvm/llvmHwtHlsInstrumentation.h>
 #include <hwtHls/llvm/targets/hwtFpgaTargetInfo.h>
 #include <hwtHls/llvm/targets/hwtFpgaTargetMachine.h>
@@ -92,12 +95,14 @@
 #include <hwtHls/llvm/Transforms/trivialSimplifyCFGPass.h>
 #include <hwtHls/llvm/Transforms/dumpAndExitPass.h>
 #include <hwtHls/llvm/Transforms/LoopUnrotatePass.h>
+#include <hwtHls/llvm/Transforms/overwriteBlockNamesPass.h>
 #include <hwtHls/llvm/Transforms/LoopAddLatchPass.h>
 #include <hwtHls/llvm/Transforms/ReconfigureHwtFpgaTTIPass.h>
 #include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamReadLoweringPass.h>
 #include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamWriteLoweringPass.h>
 #include <hwtHls/llvm/Transforms/streamLoopUnrollPass/streamLoopUnrollPass.h>
 #include <hwtHls/llvm/Transforms/IcmpToOnlyEqLtLe.h>
+
 
 namespace hwtHls {
 
@@ -189,7 +194,9 @@ struct HwtFpgaAllowVolatileMemOpDuplication {
 
 void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetlistConversionFn) {
 	assert(main && "a main function must be created before call of this function");
-
+	std::unique_ptr<llvm::ToolOutputFile> RemarksFile =  LlvmCompilationBundle_registerORE(ctx);
+	if (RemarksFile)
+		RemarksFile->keep();
 	auto &F = *main;
 	// https://stackoverflow.com/questions/51934964/function-optimization-pass
 	// @see PassBuilder::buildFunctionSimplificationPipeline
@@ -214,7 +221,7 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 	PB->crossRegisterProxies(LAM, FAM, CGAM, MAM);
 
 	llvm::FunctionPassManager FPM;
-
+	//FPM.addPass(hwtHls::OverwriteBlockNamesPass());
 	_addInitialNormalizationPasses(FPM);
 	_addStreamOperationLoweringPasses(FPM);
 	FPM.addPass(hwtHls::SimplifyCFG2Pass());
@@ -316,6 +323,22 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
     _addMachineCodegenPasses(toNetlistConversionFn);
 
 	PM.run(*F.getParent());
+
+
+	// from llvm/lib/LTO/LTOCodeGenerator.cpp
+	// If statistics were requested, save them to the specified file or
+	// print them out after codegen.
+	//if (StatsFile)
+	//  PrintStatisticsJSON(StatsFile->os());
+	//else
+	if (llvm::AreStatisticsEnabled())
+		llvm::PrintStatistics();
+
+	llvm::reportAndResetTimings();
+	if (RemarksFile) {
+		RemarksFile->keep();
+		RemarksFile->os().flush();
+	}
 }
 
 
@@ -368,6 +391,7 @@ void LlvmCompilationBundle::_addStreamOperationLoweringPasses(
 	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true));
 	FPM.addPass(hwtHls::SimplifyCFG2Pass(hwtHls::SimplifyCFG2Options()	//
 	.setHoistCheapInsts(true)));
+	//FPM.addPass(hwtHls::DumpAndExitPass(false, false, "tmp/SimplifyCFG2Pass.1.dot", true));
 
 	FPM.addPass(hwtHls::StreamWriteLoweringPass());
 
@@ -375,6 +399,7 @@ void LlvmCompilationBundle::_addStreamOperationLoweringPasses(
 	FPM.addPass(hwtHls::SimplifyCFG2Pass(hwtHls::SimplifyCFG2Options()	//
 	.setHoistCheapInsts(true)));
 	FPM.addPass(llvm::LoopSimplifyPass());
+	//FPM.addPass(hwtHls::DumpAndExitPass(false, false, "tmp/SimplifyCFG2Pass.2.dot", true));
 }
 
 void LlvmCompilationBundle::_addCommonPasses(llvm::FunctionPassManager &FPM) {

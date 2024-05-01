@@ -32,6 +32,7 @@ py3.extension_module(
     [
      'bitMath.cpp',
      'llvmCompilationBundle.cpp',
+     'llvmCompilationBundleORE.cpp',
      'llvmPyCompilationBundle.cpp',
      'llvmCompilationBundleTests.cpp',
      'llvmHwtHlsInstrumentation.cpp',
