@@ -114,8 +114,14 @@ llvm::Value* CreateBitRangeGet(IRBuilder<> *Builder, Value *bitVec,
 	bool updateIP = false;
 	// resolve insertion point
 	if (auto *bitVecInst = dyn_cast<Instruction>(bitVec)) {
-		if (origIP.getPoint() != origIP.getBlock()->begin()) {
-			auto pred = origIP.getPoint()->getPrevNode();
+		auto origIpPoint = origIP.getPoint();
+		if (origIpPoint != origIP.getBlock()->begin()) {
+			Instruction* pred;
+			if (origIpPoint == origIP.getBlock()->end()) {
+				pred = &origIP.getBlock()->back();
+			} else {
+				pred = origIpPoint->getPrevNode();
+			}
 			if (pred == bitVec) {
 				// inserting behind sliced vector
 				updateIP = true;
