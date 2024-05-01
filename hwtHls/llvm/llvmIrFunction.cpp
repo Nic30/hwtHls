@@ -2,10 +2,12 @@
 
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Module.h>
+#include <llvm/IR/Attributes.h>
 
 
 #include <hwtHls/llvm/llvmIrCommon.h>
 #include <hwtHls/llvm/llvmIrMetadata.h>
+#include <hwtHls/llvm/targets/intrinsic/utils.h>
 
 namespace py = pybind11;
 
@@ -46,6 +48,9 @@ void register_Function(pybind11::module_ & m) {
 		.def("setMetadata", [](llvm::Function * F, llvm::StringRef Kind, MDNodeWithDeletedDelete *Node) {
 			F->setMetadata(Kind, Node);
 		})
+		.def("addFnAttrKind", [](llvm::Function*F, llvm::Attribute::AttrKind Attr) {
+			F->addFnAttr(Attr);
+		})
 		.def("getEntryBlock", [](llvm::Function *self) {
 			return &self->getEntryBlock();
 		}, py::return_value_policy::reference_internal);
@@ -72,6 +77,21 @@ void register_Function(pybind11::module_ & m) {
 		.value("ExternalWeakLinkage",        llvm::Function::LinkageTypes::ExternalWeakLinkage       )
 		.value("CommonLinkage",              llvm::Function::LinkageTypes::CommonLinkage             )
 		.export_values();
+
+	py::class_<llvm::Attribute, std::unique_ptr<llvm::Attribute, py::nodelete>> Attribute(m, "Attribute");
+	py::enum_<llvm::Attribute::AttrKind> AttrKind(Attribute, "AttrKind");
+	AttrKind.value("None",            llvm::Attribute::AttrKind::None           );
+#define GET_ATTR_NAMES
+#define _QUOTE(x) #x
+#define ATTRIBUTE_ENUM(name, name_snakecase)  AttrKind.value(_QUOTE(name), llvm::Attribute::AttrKind::name);
+#include <llvm/IR/Attributes.inc>
+	AttrKind.export_values();
+
+	m.def("AddDefaultFunctionAttributes", &AddDefaultFunctionAttributes);
+
+	py::class_<llvm::FunctionCallee> FunctionCallee(m, "FunctionCallee");
+	FunctionCallee.def(py::init<llvm::Function *>());
+
 }
 
 }
