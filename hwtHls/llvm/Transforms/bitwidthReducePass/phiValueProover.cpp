@@ -37,6 +37,7 @@ void PHIValueProover::addOperandConstraint(const VarBitConstraint &opConstr) {
 
 void PHIValueProover::knownBits_insertSameSizeNonPhi(KnownBitsIteraor valInfoIt,
 		const KnownBitRangeInfo *kbri, bool hasMultipleValues) {
+
 	if (hasMultipleValues || valInfoIt->hasMultipleValues) {
 		if (valInfoIt->hasMultipleValues) {
 			return; // no change, no need to propagate further
@@ -83,6 +84,7 @@ void PHIValueProover::knownBits_insertSameSizeNonPhi(KnownBitsIteraor valInfoIt,
 		valInfoIt->currentValue = { };
 	} else {
 		assert(!valInfoIt->hasMultipleValues);
+		assert(kbri->dstBeginBitI == valInfoIt - knownBits.begin());
 		valInfoIt->currentValue = *kbri;
 	}
 	// propagate value change in both directions
@@ -92,14 +94,20 @@ void PHIValueProover::knownBits_insertSameSizeNonPhi(KnownBitsIteraor valInfoIt,
 		if (hasMultipleValues) {
 			knownBits_insertSameSizeNonPhi(u, nullptr, true);
 		} else {
-			size_t w = _valInfoIt->width;
+			// :note: the kbri may have dstBitI <,= or > than uOff
+			// we have to shift it to be the same
+			KnownBitRangeInfo _kbri(*kbri);
+			_kbri.dstBeginBitI = uOff;
+
+			size_t w = _valInfoIt->width; // width of current item in knownBits to be updated
 			for (size_t off = 0; off != kbri->width; off += w) {
+				// for each chunk of bits in newly propagated kbri
 				w = _valInfoIt->width;
 				if (off == 0 && kbri->width == w) {
-					knownBits_insertSameSizeNonPhi(u, kbri,
+					knownBits_insertSameSizeNonPhi(u, &_kbri,
 							valInfoIt->hasMultipleValues);
 				} else {
-					auto _v = kbri->slice(off, w);
+					auto _v = _kbri.slice(off, w);
 					knownBits_insertSameSizeNonPhi(u, &_v,
 							valInfoIt->hasMultipleValues);
 				}
