@@ -47,6 +47,22 @@ bool checkOrSetWidth(MachineRegisterInfo &MRI, MachineOperand &op,
 		return opWidth <= width;
 	}
 }
+
+void duplicateRegsForUndefValues(
+		const llvm::SmallVector<std::pair<unsigned, uint64_t> > &undefsToDuplicate,
+		MachineRegisterInfo &MRI, MachineInstr &MI) {
+	for (auto &v : undefsToDuplicate) {
+		Register Reg = MRI.createVirtualRegister(&HwtFpga::anyregclsRegClass);
+		auto &O = MI.getOperand(v.first);
+		O.setReg(Reg);
+		O.setIsUndef();
+		if (!checkOrSetWidth(MRI, O, v.second, nullptr)) {
+			llvm_unreachable(
+					"Set of type for register for operand with undefined value failed");
+		}
+	}
+}
+
 /*
  * Analyze type of operands and resolve type of other operands if possible
  * :returns: true if resolution was successful and all operands have known type
@@ -265,18 +281,7 @@ bool resolveTypes(MachineInstr &MI) {
 			}
 			totalWidth += width;
 		}
-		for (auto &v : undefsToDuplicate) {
-			Register Reg = MRI.createVirtualRegister(
-					&HwtFpga::anyregclsRegClass);
-			auto &O = MI.getOperand(v.first);
-			O.setReg(Reg);
-			O.setIsUndef();
-			if (!checkOrSetWidth(MRI, O, v.second, nullptr)) {
-				llvm_unreachable(
-						"HWTFPGA_MERGE_VALUES set of type for register for operand with undefined value failed");
-			}
-
-		}
+		duplicateRegsForUndefValues(undefsToDuplicate, MRI, MI);
 		assert(checkOrSetWidth(MRI, MI.getOperand(0), totalWidth, nullptr));
 		return true;
 	}
@@ -311,6 +316,31 @@ bool resolveTypes(MachineInstr &MI) {
 		}
 
 		return false;
+	}
+	case HwtFpga::HWTFPGA_PYOBJECT_PLACEHOLDER:
+	case HwtFpga::HWTFPGA_PYOBJECT_PLACEHOLDER_NOTDUPLICABLE:
+	case HwtFpga::HWTFPGA_PYOBJECT_PLACEHOLDER_WITH_SIDEEFFECT:
+	case HwtFpga::HWTFPGA_PYOBJECT_PLACEHOLDER_NOTDUPLICABLE_WITH_SIDEEFECT: {
+		// $dst, $objId, $dstWidt, $src[n], $srcWidth[n]
+		auto dstWidth = MI.getOperand(2).getImm();
+		assert(checkOrSetWidth(MRI, MI.getOperand(0), dstWidth, nullptr));
+
+		unsigned srcCnt = (MI.getNumExplicitOperands() - 3) / 2;
+		llvm::SmallVector<std::pair<unsigned, uint64_t>> undefsToDuplicate;
+		for (unsigned i = 0; i < srcCnt; i++) {
+			auto width = MI.getOperand(3 + srcCnt + i).getImm();
+			auto &O = MI.getOperand(3 + i);
+			if (!checkOrSetWidth(MRI, O, width, &undefsToDuplicate)) {
+				MF.dump();
+				errs() << MI << " i:" << i << ", " << O << ", " << width
+						<< "\n";
+				llvm_unreachable(
+						"operand specified and actual width differs");
+			}
+		}
+		duplicateRegsForUndefValues(undefsToDuplicate, MRI, MI);
+
+		return true;
 	}
 	default: {
 		//const auto *TII = MF.getSubtarget().getInstrInfo();

@@ -3,7 +3,7 @@
 // note that this is a list of special instructions and generic G_* instructions are inherited.
 //===----------------------------------------------------------------------===//
 
-// base class for HwtFpga instructions
+// base class for HwtFpga instructions, for full option list :see: Instruction definition at llvm/Target/Target.td
 class HwtFpgaInst<
              dag outs,
              dag ins,
@@ -21,14 +21,16 @@ class HwtFpgaBinOp : HwtFpgaInst<
     (ins unknown:$src0, unknown:$src1),
     []>;
 
-let hasSideEffects = 0, isAsCheapAsAMove = 1 in {
 // an instruction which gets the argument of the function (used for IO of the circuit)
 def HWTFPGA_ARG_GET : HwtFpgaInst<
     (outs anyregcls:$dst),
     (ins i64imm:$src),
     []> {
     	let hasSideEffects = true;
+		let isAsCheapAsAMove = true;
     }
+
+let hasSideEffects = 0, isAsCheapAsAMove = 1 in {
 
 // G_EXTRACT variant which have a number of extracted bits explicitely specified in last operand
 def HWTFPGA_EXTRACT : HwtFpgaInst<
@@ -132,4 +134,52 @@ def HWTFPGA_BRCOND : HwtFpgaInst<
     	let isBranch = true;
     	let isTerminator = true;
     }
+
+// Execute code asynchronously.
+// :param isAsyncBegin: If 1 the begin of callee is executed asynchonously (always, out of CFG) and this instruction waits for return
+//                      Calle has no liveins from this code locations and it may have liveouts to this code location.
+//                      If 0 the callee is executed asynchronously from this instruction and the execution does not wait for callee.
+//                      Calle may have liveins from this code location and it has no liveouts.
+// :param callee_addr: Block to be called.
+def HWTFPGA_ASYNC_CALL : HwtFpgaInst<
+    (outs),
+    (ins anyregcls:$isAsyncBegin, unknown:$callee_addr),
+    []> {
+    	let hasSideEffects = true;
+    }
+
+// Placeholder instruction for netlist object which will be aded later in translation
+// inputs are in format  // in format [objId, dstOperandWidth, *srcOperands, *srcOperandWidths]
+def HWTFPGA_PYOBJECT_PLACEHOLDER: HwtFpgaInst<
+    (outs anyregcls:$dst),
+    (ins variable_ops),
+    []> {
+    	let hasSideEffects = false;
+		let isNotDuplicable = false;
+    }
+
+def HWTFPGA_PYOBJECT_PLACEHOLDER_WITH_SIDEEFFECT: HwtFpgaInst<
+    (outs anyregcls:$dst),
+    (ins variable_ops),
+    []> {
+    	let hasSideEffects = true;
+		let isNotDuplicable = false;
+    }
+def HWTFPGA_PYOBJECT_PLACEHOLDER_NOTDUPLICABLE: HwtFpgaInst<
+    (outs anyregcls:$dst),
+    (ins variable_ops),
+    []> {
+    	let hasSideEffects = false;
+		let isNotDuplicable = true;
+    }
+    
+def HWTFPGA_PYOBJECT_PLACEHOLDER_NOTDUPLICABLE_WITH_SIDEEFECT: HwtFpgaInst<
+    (outs anyregcls:$dst),
+    (ins variable_ops),
+    []> {
+    	let hasSideEffects = true;
+		let isNotDuplicable = true;
+    }
+     
+
 

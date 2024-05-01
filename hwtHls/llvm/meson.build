@@ -56,6 +56,7 @@ py3.extension_module(
 
      'targets/intrinsic/bitrange.cpp',
      'targets/intrinsic/concatMemberVector.cpp',
+     'targets/intrinsic/pyObjectPlaceholder.cpp',
      'targets/intrinsic/utils.cpp',
      'targets/intrinsic/streamIo.cpp',
 

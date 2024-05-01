@@ -6,16 +6,17 @@
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
 #include <llvm/CodeGen/GlobalISel/Utils.h>
 #include <llvm/Support/Casting.h>
+#include <llvm/IR/Attributes.h>
 
 #include <llvm/CodeGen/MachineInstrBuilder.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
+#include <hwtHls/llvm/targets/intrinsic/pyObjectPlaceholder.h>
 
 #include <iostream>
 
 namespace llvm {
 
-HwtFpgaCallLowering::HwtFpgaCallLowering(
-		const llvm::HwtFpgaTargetLowering &TLI) :
+HwtFpgaCallLowering::HwtFpgaCallLowering(const llvm::HwtFpgaTargetLowering &TLI) :
 		llvm::CallLowering(&TLI) {
 }
 
@@ -23,8 +24,7 @@ bool HwtFpgaCallLowering::lowerReturn(MachineIRBuilder &MIRBuilder,
 		const Value *Val, ArrayRef<Register> VRegs,
 		FunctionLoweringInfo &FLI) const {
 
-	MachineInstrBuilder Ret = MIRBuilder.buildInstrNoInsert(
-			HwtFpga::PseudoRET);
+	MachineInstrBuilder Ret = MIRBuilder.buildInstrNoInsert(HwtFpga::PseudoRET);
 	if (Val != nullptr) {
 		return false;
 	}
@@ -73,54 +73,125 @@ bool HwtFpgaCallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder,
 	return true;
 }
 
+bool addIntImmByRegiter(MachineRegisterInfo &MRI, MachineInstrBuilder &MIB,
+		Register objId) {
+	assert(MRI.hasOneDef(objId) && "SSA expected");
+	if (std::optional<ValueAndVReg> VRegVal =
+			getAnyConstantVRegValWithLookThrough(objId, MRI)) {
+		auto objIdVal = VRegVal.value().Value;
+		assert(objIdVal.isNonNegative());
+		MIB.addImm(VRegVal.value().Value.getZExtValue());
+		return true;
+	} else {
+		return false;
+	}
+}
+
 bool HwtFpgaCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
 		CallLoweringInfo &Info) const {
-	auto *F = dyn_cast_or_null<Function>(Info.Callee.getGlobal());
+	const Function *F = dyn_cast_or_null<Function>(Info.Callee.getGlobal());
 	MachineRegisterInfo &MRI = *MIRBuilder.getMRI();
 	if (F) {
 		if (hwtHls::IsBitConcat(F)) {
 			// BitConcat has higher bits first
 			assert(Info.OrigRet.Regs.size() == 1);
 			unsigned DstReg = Info.OrigRet.Regs[0];
-			auto MBI = MIRBuilder.buildInstr(HwtFpga::HWTFPGA_MERGE_VALUES)	// lower bits first
+			auto MIB = MIRBuilder.buildInstr(HwtFpga::HWTFPGA_MERGE_VALUES)	// lower bits first
 			.addReg(DstReg, RegState::Define);
 			MRI.setRegClass(DstReg, &HwtFpga::anyregclsRegClass);
 			// add operands
 			for (auto &op : Info.OrigArgs) {
-				MBI.addUse(op.Regs[0]);
+				MIB.addUse(op.Regs[0]);
 			}
 			// add operand widths
 			for (auto &op : Info.OrigArgs) {
 				uint64_t width = MRI.getType(op.Regs[0]).getSizeInBits();
-				MBI.addImm(width);
+				MIB.addImm(width);
 			}
 			return true;
+
 		} else if (hwtHls::IsBitRangeGet(F)) {
 			assert(Info.OrigRet.Regs.size() == 1);
 			// dst, src, offset in bits (same in BitRangeGet and G_EXTRACT), offset must be imm
+			auto DstReg = Info.OrigRet.Regs[0];
 			auto MIB = MIRBuilder.buildInstr(TargetOpcode::G_EXTRACT)	 //
-			.addReg(Info.OrigRet.Regs[0], RegState::Define);
+			.addReg(DstReg, RegState::Define);
+			MRI.setRegClass(DstReg, &HwtFpga::anyregclsRegClass);
 
 			MIB.addUse(Info.OrigArgs[0].Regs[0]);
 			Register offset = Info.OrigArgs[1].Regs[0];
-
-			assert(MRI.hasOneDef(offset) && "SSA expected");
-			if (std::optional<ValueAndVReg> VRegVal =
-					getAnyConstantVRegValWithLookThrough(offset,
-							*MIRBuilder.getMRI())) {
-				auto offsetVal = VRegVal.value().Value;
-				assert(offsetVal.isNonNegative());
-				MIB.addImm(VRegVal.value().Value.getZExtValue());
-			} else {
-				throw std::runtime_error(
-						"hwtHls.bitRangeGet offset operand must be constant");
+			if (!addIntImmByRegiter(MRI, MIB, offset)) {
+				std::string errStr =
+						"hwtHls.bitRangeGet offset operand must be constant: ";
+				llvm::raw_string_ostream ss(errStr);
+				Info.CB->print(ss);
+				throw std::runtime_error(ss.str());
 			}
 			return true;
+
+		} else if (hwtHls::IsPyObjectPlacehoder(F)) {
+			bool noDuplicate = Info.CB->hasFnAttr(
+					Attribute::AttrKind::NoDuplicate);
+			bool hasSideEffect = !Info.CB->hasFnAttr(
+					Attribute::AttrKind::Speculatable);
+			int opc = HwtFpga::HWTFPGA_PYOBJECT_PLACEHOLDER;
+			if (noDuplicate && hasSideEffect) {
+				opc =
+						HwtFpga::HWTFPGA_PYOBJECT_PLACEHOLDER_NOTDUPLICABLE_WITH_SIDEEFECT;
+			} else if (noDuplicate) {
+				opc = HwtFpga::HWTFPGA_PYOBJECT_PLACEHOLDER_NOTDUPLICABLE;
+			} else if (hasSideEffect) {
+				opc = HwtFpga::HWTFPGA_PYOBJECT_PLACEHOLDER_WITH_SIDEEFFECT;
+			}
+			assert(Info.OrigRet.Regs.size() == 1);
+			auto DstReg = Info.OrigRet.Regs[0];
+			auto MIB = MIRBuilder.buildInstr(opc)	 //
+			.addReg(DstReg, RegState::Define);
+			MRI.setRegClass(DstReg, &HwtFpga::anyregclsRegClass);
+
+			if (!addIntImmByRegiter(MRI, MIB, Info.OrigArgs[0].Regs[0])) {
+				std::string errStr =
+						"hwtHls.pyOjbectPlaceholder object id operand must be constant: ";
+				llvm::raw_string_ostream ss(errStr);
+				Info.CB->print(ss);
+				throw std::runtime_error(ss.str());
+			}
+			uint64_t dstRegWidth = MRI.getType(DstReg).getSizeInBits();
+			MIB.addImm(dstRegWidth);
+
+			// add operands
+			bool first = true;
+			for (auto &op : Info.OrigArgs) {
+				if (first) {
+					first = false;
+					continue;
+				}
+				MIB.addUse(op.Regs[0]);
+			}
+			// add input operand widths
+			first = true;
+			for (auto &op : Info.OrigArgs) {
+				if (first) {
+					first = false;
+					continue; // skip width for objectId input argument
+				}
+				uint64_t width = MRI.getType(op.Regs[0]).getSizeInBits();
+				MIB.addImm(width);
+			}
+			return true;
+
 		} else {
-			throw std::runtime_error(
-					"Not implemented, call of generic function in HW function");
+			std::string errStr =
+					"Not implemented, call of generic function in HW function: ";
+			llvm::raw_string_ostream ss(errStr);
+			Info.CB->print(ss);
+			throw std::runtime_error(ss.str());
 		}
 	}
+	std::string errStr = "Not implemented, lowerCall: ";
+	llvm::raw_string_ostream ss(errStr);
+	Info.CB->print(ss);
+	throw std::runtime_error(ss.str());
 	throw std::runtime_error("Not implemented, lowerCall");
 	return false;
 }
