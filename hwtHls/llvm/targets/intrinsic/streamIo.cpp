@@ -1,5 +1,5 @@
-#include "targets/intrinsic/streamIo.h"
-#include "targets/intrinsic/utils.h"
+#include <hwtHls/llvm/targets/intrinsic/streamIo.h>
+#include <hwtHls/llvm/targets/intrinsic/utils.h>
 #include <llvm/ADT/StringExtras.h>
 
 using namespace llvm;
