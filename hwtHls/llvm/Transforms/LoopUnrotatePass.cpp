@@ -27,6 +27,7 @@
 
 using namespace llvm;
 #define DEBUG_TYPE "loop-unrotate"
+// #define DEBUG_DUMP_CFG_AFTER_EACH_STEP
 
 namespace hwtHls {
 
@@ -345,27 +346,28 @@ void rerouteJumpsToLoopHeaderToGuardBlock(llvm::Loop &L, BasicBlock *Guard,
 	}
 
 	for (BasicBlock *HeaderPred : make_early_inc_range(predecessors(LoopHeader))) {
-		if (HeaderPred != Guard && HeaderPred != originalPreHeader
+		if (HeaderPred != Guard &&
+				HeaderPred != originalPreHeader
 				&& L.contains(HeaderPred)) {
 			assert(HeaderPred != LoopExit);
-			HeaderPred->getTerminator()->eraseFromParent();
-			IRBuilder<> Builder(HeaderPred);
 			bool guardAlreadyHasThisPredec = any_of(predecessors(Guard),
 					[HeaderPred](BasicBlock *BB) {
 						return BB == HeaderPred;
 					});
+
+			HeaderPred->getTerminator()->eraseFromParent();
+
+			IRBuilder<> Builder(HeaderPred);
 			Builder.CreateBr(Guard);
-			reentrySources.push_back(
-					HeaderPred == LoopHeader ? Guard : HeaderPred);
+			reentrySources.push_back(HeaderPred);
 			// when re-routing LoopHeader predecessors to Guard we have to update PHIs there
 			if (!guardAlreadyHasThisPredec) {
-				if (HeaderPred != LoopHeader) {
-					// else this would be added as re-entry later
+				//if (HeaderPred != LoopHeader) {
+				//	// else this would be added as re-entry later
 					for (PHINode &PHI : Guard->phis()) {
-						PHI.addIncoming(&PHI,
-								HeaderPred == LoopHeader ? Guard : HeaderPred);
+						PHI.addIncoming(&PHI, HeaderPred);
 					}
-				}
+				//}
 			}
 		}
 	}
@@ -686,8 +688,10 @@ bool processLoop(llvm::Loop &L, LoopInfo &LI, TargetLibraryInfo &TLI,
 					return Changed;
 				}
 			}
-			//writeCFGToDotFile(*L.getHeader()->getParent(),
-			//		"LoopUnrotatePass.0.dot", nullptr, nullptr);
+#ifdef DEBUG_DUMP_CFG_AFTER_EACH_STEP
+			writeCFGToDotFile(*L.getHeader()->getParent(),
+					"LoopUnrotatePass.0.dot", nullptr, nullptr);
+#endif
 			LLVM_DEBUG(dbgs() << "LoopUnrotate: loop:" << L << "\n");
 			LLVM_DEBUG(dbgs() << "PreHeader: " << PreHeader->getName() << "\n");
 			LLVM_DEBUG(dbgs() << "ExitBlock: " << ExitBlock->getName() << "\n");
@@ -712,12 +716,19 @@ bool processLoop(llvm::Loop &L, LoopInfo &LI, TargetLibraryInfo &TLI,
 					GuardExit, associatedPHIs)) {
 				return Changed;
 			}
-			//auto &F = *L.getHeader()->getParent();
+#ifdef DEBUG_DUMP_CFG_AFTER_EACH_STEP
+			auto &F = *L.getHeader()->getParent();
+#endif
 			rewriteGuardedDoWhileToWhile(&L, LI, SE, TLI, LPMU, valueMap, Guard,
 					LoopHeader, LoopExit, GuardExit, associatedPHIs,
 					PreHeaderExitCond, ToExitCond);
 			Changed = true;
-			//writeCFGToDotFile(F, "LoopUnrotatePass.1.dot", nullptr, nullptr);
+#ifdef DEBUG_DUMP_CFG_AFTER_EACH_STEP
+			writeCFGToDotFile(F, "LoopUnrotatePass.1.dot", nullptr, nullptr);
+			if (verifyFunction(F, &errs())) {
+				throw std::runtime_error("Function broken by LoopUnrotatePass");
+			}
+#endif
 		}
 	}
 	if (!Changed)
