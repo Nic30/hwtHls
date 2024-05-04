@@ -170,7 +170,6 @@ PYBIND11_MODULE(llvmIr, m) {
 	register_Module(m);
 	register_VectorOfTypePtr(m);
 	register_strings(m);
-	register_IRBuilder(m);
 	register_Values_and_Use(m);
 	register_BasicBlock(m);
 	register_Function(m);
@@ -179,6 +178,7 @@ PYBIND11_MODULE(llvmIr, m) {
 	register_MDNode(m);
 	register_Instruction(m);
 	register_llvmAny(m);
+	register_IRBuilder(m);
 	register_Loop(m);
 	register_MachineFunction(m);
 	register_MachineLoop(m);

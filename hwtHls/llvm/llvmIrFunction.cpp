@@ -1,8 +1,11 @@
 #include <hwtHls/llvm/llvmIrFunction.h>
 
+#include <algorithm>
+
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Attributes.h>
+#include <llvm/IR/Intrinsics.h>
 
 
 #include <hwtHls/llvm/llvmIrCommon.h>
@@ -91,6 +94,17 @@ void register_Function(pybind11::module_ & m) {
 
 	py::class_<llvm::FunctionCallee> FunctionCallee(m, "FunctionCallee");
 	FunctionCallee.def(py::init<llvm::Function *>());
+
+	auto Intrinsic = m.def_submodule("Intrinsic");
+	py::enum_<llvm::Intrinsic::IndependentIntrinsics> IndependentIntrinsics(Intrinsic, "IndependentIntrinsics");
+	for (unsigned I= llvm::Intrinsic::IndependentIntrinsics::abs; I <= llvm::Intrinsic::xray_typedevent; ++I) {
+		auto _name = llvm::Intrinsic::getBaseName(I);
+		assert(_name.starts_with("llvm."));
+		std::string name = _name.substr(std::string("llvm.").length()).str();
+		std::replace(name.begin(), name.end(), '.', '_');
+		IndependentIntrinsics.value(name.c_str(), llvm::Intrinsic::IndependentIntrinsics(I));
+	}
+	IndependentIntrinsics.export_values();
 
 }
 

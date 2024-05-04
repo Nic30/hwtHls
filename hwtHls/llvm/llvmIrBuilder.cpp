@@ -88,14 +88,31 @@ void register_IRBuilder(pybind11::module_ & m) {
 		.def("CreateBitRangeGetConst", &CreateBitRangeGetConst, py::return_value_policy::reference)
 		.def("CreateBitConcat", [](llvm::IRBuilder<> * self, std::vector<llvm::Value*> & OpsLowFirst) {
 			return CreateBitConcat(self, OpsLowFirst);
-		})
+		}, py::return_value_policy::reference)
 		.def("CreateGEP",  [](llvm::IRBuilder<> * self, llvm::Type *Ty, llvm::Value *Ptr, std::vector<llvm::Value *>& IdxList) {
 			return self->CreateGEP(Ty, Ptr, IdxList, "", true);
 		}, py::return_value_policy::reference)
 		.def("CreateCall", [](llvm::IRBuilder<> * self, llvm::FunctionCallee Callee,
                 std::vector<llvm::Value *> Args, const llvm::Twine &Name = "") {
 			return self->CreateCall(Callee, Args, Name);
-		}, py::arg("Callee"), py::arg("Args"), py::arg("Name")=llvm::Twine(""));
+		}, py::arg("Callee"), py::arg("Args"), py::arg("Name")=llvm::Twine(""), py::return_value_policy::reference)
+		.def("CreateIntrinsic", [](llvm::IRBuilder<> * self,
+					llvm::Type * RetTy,
+					llvm::Intrinsic::ID ID,
+					llvm::ArrayRef<llvm::Type *> Types,
+					llvm::ArrayRef<llvm::Value *> Args,
+					llvm::Instruction *FMFSource,
+					const llvm::Twine &Name) {
+				return self->CreateIntrinsic(RetTy, ID, Args, FMFSource, Name);
+			},
+			py::arg("RetTy"),
+			py::arg("ID"),
+			py::arg("Types"),
+			py::arg("Args"),
+			py::arg("FMFSource")=(llvm::Instruction *)nullptr,
+			py::arg("Name")=llvm::Twine(""),
+			py::return_value_policy::reference
+		);
 
     	py::bind_vector<std::vector<llvm::Value*>>(m, "VectorValuePtr");
 		py::implicitly_convertible<py::list, std::vector<llvm::Value*>>();
