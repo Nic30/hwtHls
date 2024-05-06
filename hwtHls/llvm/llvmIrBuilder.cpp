@@ -14,6 +14,9 @@ PYBIND11_MAKE_OPAQUE(std::vector<llvm::Value*>);
 
 namespace hwtHls {
 
+#define COMMON_BIN_OP_ARGS py::arg("LHS"), py::arg("RHS"), py::arg("Name")= llvm::Twine(""), py::arg("HasNUW")=false, py::arg("HasNSW")=false
+#define COMMON_BIN_OP_ARGS_WITH_ISEXACT py::arg("LHS"), py::arg("RHS"), py::arg("Name")= llvm::Twine(""), py::arg("isExact")=false
+
 void register_IRBuilder(pybind11::module_ & m) {
 	py::class_<llvm::IRBuilder<>>(m, "IRBuilder")
 		.def(py::init<llvm::LLVMContext&>())
@@ -29,21 +32,31 @@ void register_IRBuilder(pybind11::module_ & m) {
 		.def("CreateXor", [](llvm::IRBuilder<> * self, llvm::Value *LHS, llvm::Value *RHS, const llvm::Twine &Name = "") {
 				return self->CreateXor(LHS, RHS, Name);
 			}, py::return_value_policy::reference)
-		.def("CreateNeg", &llvm::IRBuilder<>::CreateNeg, py::return_value_policy::reference)
-		.def("CreateAdd", &llvm::IRBuilder<>::CreateAdd, py::return_value_policy::reference)
-		.def("CreateSub", &llvm::IRBuilder<>::CreateSub, py::return_value_policy::reference)
-		.def("CreateMul", &llvm::IRBuilder<>::CreateMul, py::return_value_policy::reference)
-		.def("CreateUDiv", &llvm::IRBuilder<>::CreateUDiv, py::return_value_policy::reference)
-		.def("CreateSDiv", &llvm::IRBuilder<>::CreateSDiv, py::return_value_policy::reference)
+		.def("CreateNeg", &llvm::IRBuilder<>::CreateNeg,
+				py::return_value_policy::reference)
+		.def("CreateAdd", &llvm::IRBuilder<>::CreateAdd,
+				COMMON_BIN_OP_ARGS, py::return_value_policy::reference)
+		.def("CreateSub", &llvm::IRBuilder<>::CreateSub,
+				COMMON_BIN_OP_ARGS, py::return_value_policy::reference)
+		.def("CreateMul", &llvm::IRBuilder<>::CreateMul,
+				COMMON_BIN_OP_ARGS, py::return_value_policy::reference)
+		.def("CreateUDiv", &llvm::IRBuilder<>::CreateUDiv,
+				COMMON_BIN_OP_ARGS_WITH_ISEXACT, py::return_value_policy::reference)
+		.def("CreateSDiv", &llvm::IRBuilder<>::CreateSDiv,
+				COMMON_BIN_OP_ARGS_WITH_ISEXACT, py::return_value_policy::reference)
+		.def("CreateAShr", [](llvm::IRBuilder<> * self, llvm::Value *LHS, llvm::Value *RHS,
+				const llvm::Twine &Name = "", bool isExact=false) {
+			return self->CreateAShr(LHS, RHS, Name, isExact);
+		 }, COMMON_BIN_OP_ARGS_WITH_ISEXACT)
 		.def("CreateLShr", [](llvm::IRBuilder<> * self, llvm::Value *LHS, llvm::Value *RHS,
 				const llvm::Twine &Name = "", bool isExact=false) {
 			return self->CreateLShr(LHS, RHS, Name, isExact);
-		 })
+		 }, COMMON_BIN_OP_ARGS_WITH_ISEXACT, py::return_value_policy::reference)
 		.def("CreateShl", [](llvm::IRBuilder<> * self, llvm::Value *LHS, llvm::Value *RHS,
 				const llvm::Twine &Name = "", bool HasNUW = false, bool HasNSW = false) {
 			return self->CreateShl(LHS, RHS, Name, HasNUW, HasNSW);
-		})
-		.def("CreateRetVoid", &llvm::IRBuilder<>::CreateRetVoid)
+		}, COMMON_BIN_OP_ARGS, py::return_value_policy::reference)
+		.def("CreateRetVoid", &llvm::IRBuilder<>::CreateRetVoid, py::return_value_policy::reference)
 		.def("CreateStore", &llvm::IRBuilder<>::CreateStore, py::return_value_policy::reference)
 		.def("CreateLoad", [](llvm::IRBuilder<> * self, llvm::Type *Ty, llvm::Value *Ptr, bool isVolatile,
                 const llvm::Twine &Name = "") {
@@ -98,16 +111,14 @@ void register_IRBuilder(pybind11::module_ & m) {
 		}, py::arg("Callee"), py::arg("Args"), py::arg("Name")=llvm::Twine(""), py::return_value_policy::reference)
 		.def("CreateIntrinsic", [](llvm::IRBuilder<> * self,
 					llvm::Type * RetTy,
-					llvm::Intrinsic::ID ID,
-					llvm::ArrayRef<llvm::Type *> Types,
-					llvm::ArrayRef<llvm::Value *> Args,
-					llvm::Instruction *FMFSource,
-					const llvm::Twine &Name) {
+					int ID,
+					std::vector<llvm::Value *> Args,
+					llvm::Instruction *FMFSource=nullptr,
+					const llvm::Twine &Name="") {
 				return self->CreateIntrinsic(RetTy, ID, Args, FMFSource, Name);
 			},
 			py::arg("RetTy"),
 			py::arg("ID"),
-			py::arg("Types"),
 			py::arg("Args"),
 			py::arg("FMFSource")=(llvm::Instruction *)nullptr,
 			py::arg("Name")=llvm::Twine(""),
