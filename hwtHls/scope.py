@@ -176,6 +176,7 @@ class HlsScope():
                 t.compileToSsa()
             except HlsThreadDoesNotUseSsa:
                 useSsa = False
+
             if useSsa:
                 p.runSsaPasses(self, t.toSsa)
 
@@ -186,5 +187,8 @@ class HlsScope():
             p.runHlsNetlistPasses(self, t.toHw)
 
         for t in self._threads:
-            p.runHlsNetlistToRtlNetlist(self, t.toHw)
+            p.runHlsNetlistToArchNetlist(self, t.toHw)
+            for callback in t.archNetlistCallbacks:
+                callback(self, t)
+            p.runArchNetlistToRtlNetlist(self, t.toHw)
             p.runRtlNetlistPasses(self, t.toHw)

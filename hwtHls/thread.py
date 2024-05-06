@@ -19,6 +19,7 @@ class HlsThread():
         self.toSsa: Optional[HlsAstToSsa] = None
         self.toHw: Optional[HlsNetlistCtx] = None
         self.netlistCallbacks: List[Callable[["HlsScope", HlsThread]]] = []
+        self.archNetlistCallbacks: List[Callable[["HlsScope", HlsThread]]] = []
     
     def debugCopyConfig(self, p: DefaultHlsPlatform):
         """
