@@ -9,8 +9,10 @@ using namespace llvm;
 
 namespace hwtHls {
 
+const char * metadataNameNoSplit = "hwtHls.slicesToIndependentVariables.noSplit";
+
 inline bool _splitPointsPropagateUpdate(
-		std::map<Instruction*, std::set<uint64_t>>::iterator &_splitPoints,
+		SplitPoints::iterator &_splitPoints,
 		bool updated, uint64_t bitNo) {
 	if (!updated) {
 		if (_splitPoints->second.find(bitNo) == _splitPoints->second.end()) {
@@ -22,11 +24,11 @@ inline bool _splitPointsPropagateUpdate(
 }
 
 void splitPointPropagate(
-		std::map<llvm::Instruction*, std::set<uint64_t>> &result,
+		SplitPoints &result,
 		llvm::Instruction &I, uint64_t bitNo, bool forcePropagation,
 		int operandNo, llvm::Instruction *user);
 
-void splitPointPropagate(std::map<Instruction*, std::set<uint64_t>> &result,
+void splitPointPropagate(SplitPoints &result,
 		User *U, uint64_t bitNo, bool forcePropagation, int operandNo,
 		Instruction *user) {
 	if (Instruction *I = dyn_cast<Instruction>(U)) {
@@ -36,7 +38,7 @@ void splitPointPropagate(std::map<Instruction*, std::set<uint64_t>> &result,
 }
 
 bool splitPointPropagateBitRangeGet(Instruction &I, int operandNo, bool updated,
-		std::map<Instruction*, std::set<uint64_t>>::iterator &_splitPoints,
+		SplitPoints::iterator &_splitPoints,
 		uint64_t bitNo, uint64_t &resultBitNo, bool forcePropagation,
 		const hwtHls::OffsetWidthValue &v,
 		std::map<Instruction*, std::set<uint64_t> > &result) {
@@ -71,7 +73,7 @@ bool splitPointPropagateBitRangeGet(Instruction &I, int operandNo, bool updated,
  * */
 bool splitPointPropagateBitConcatOperand(Instruction &I, const Use &O,
 		int operandNo, bool &updated,
-		std::map<Instruction*, std::set<uint64_t>>::iterator &_splitPoints,
+		SplitPoints::iterator &_splitPoints,
 		uint64_t bitNo, uint64_t &resultBitNo,
 		std::map<Instruction*, std::set<uint64_t> > &result, size_t &offset) {
 	uint64_t oWidth = O.get()->getType()->getIntegerBitWidth();
@@ -101,13 +103,117 @@ bool splitPointPropagateBitConcatOperand(Instruction &I, const Use &O,
 	return false;
 }
 
+
+bool splitPointPropagate_BinaryOperator(bool updated,
+		SplitPoints::iterator & _splitPoints, uint64_t bitNo, bool forcePropagation,
+		int operandNo, llvm::BinaryOperator *BO,
+		std::map<Instruction*, std::set<uint64_t> > &result) {
+	switch (BO->getOpcode()) {
+	case Instruction::BinaryOps::And:
+	case Instruction::BinaryOps::Or:
+	case Instruction::BinaryOps::Xor: {
+		updated = _splitPointsPropagateUpdate(_splitPoints, updated, bitNo);
+		if (updated || forcePropagation) {
+			// no bitNo translation needed
+			int i = 0;
+			for (auto &O : BO->operands()) {
+				if (i != operandNo) {
+					if (auto *I2 = dyn_cast<Instruction>(O.get())) {
+						splitPointPropagate(result, *I2, bitNo, false, -1, BO);
+					}
+				}
+			}
+		}
+		break;
+	}
+	case Instruction::BinaryOps::Shl: // Shift left  (logical)
+	case Instruction::BinaryOps::LShr: // Shift right (logical)
+	case Instruction::BinaryOps::AShr: // Shift right (arithmetic)
+	{
+		BO->dump();
+		llvm_unreachable(
+				"Shifts should be converted to concatenations before running this pass");
+		break;
+	}
+	default:
+		break;
+	}
+	return updated;
+}
+
+bool splitPointPropagate_SelectInst(bool updated,
+		SplitPoints::iterator & _splitPoints, uint64_t bitNo, bool forcePropagation,
+		int operandNo, llvm::SelectInst *SI,
+		std::map<Instruction*, std::set<uint64_t> > &result) {
+	updated = _splitPointsPropagateUpdate(_splitPoints, updated, bitNo);
+	if (updated || forcePropagation) {
+		if (operandNo == -1) {
+			for (Value *O : std::vector<Value*>(
+					{ SI->getTrueValue(), SI->getFalseValue() })) {
+				// propagate to values
+				if (auto *I2 = dyn_cast<Instruction>(O)) {
+					splitPointPropagate(result, *I2, bitNo, false, -1, SI);
+				}
+			}
+		} else {
+			switch (operandNo) {
+			case 0:
+				// 1b condition, no propagation needed
+				break;
+			case 1:
+				// if true value changed
+				if (auto *I2 = dyn_cast<Instruction>(SI->getFalseValue())) {
+					splitPointPropagate(result, *I2, bitNo, false, -1, SI);
+				}
+				break;
+			case 2:
+				// if false value changed
+				if (auto *I2 = dyn_cast<Instruction>(SI->getTrueValue())) {
+					splitPointPropagate(result, *I2, bitNo, false, -1, SI);
+				}
+				break;
+			default:
+				SI->dump();
+				llvm_unreachable(
+						"Select instruction should have 3 operands at most (cond, ifTrue, ifFalse)");
+			}
+		}
+	}
+	return updated;
+}
+
+bool splitPointPropagate_CallInst(int operandNo, bool updated,
+		SplitPoints::iterator & _splitPoints, uint64_t bitNo, bool forcePropagation,
+		llvm::CallInst *C, uint64_t &resultBitNo,
+		std::map<Instruction*, std::set<uint64_t> > &result) {
+	if (IsBitConcat(C)) {
+		bool operandFound = false;
+		uint64_t offset = 0;
+		for (auto &O : C->args()) {
+			operandFound |= splitPointPropagateBitConcatOperand(*C, O, operandNo,
+					updated, _splitPoints, bitNo, resultBitNo, result, offset);
+		}
+		if (operandNo != -1) {
+			assert(
+					operandFound
+							&& "splitPointPropagate operandNo must be operand no of this instruction I");
+		}
+	} else if (IsBitRangeGet(C)) {
+		auto v = BitRangeGetOffsetWidthValue(C);
+		updated = splitPointPropagateBitRangeGet(*C, operandNo, updated,
+				_splitPoints, bitNo, resultBitNo, forcePropagation, v, result);
+	}
+
+	return updated;
+}
+
 /*
  * :param operandNo: the index of operand which changed for Instruction I
  * 		-1 marks that the value of I itself was sliced
  * :param user: optional user of this Instruction I, specified if we propagate from user to this I else
  * 		nullptr if we propagate from I to all users
  * */
-void splitPointPropagate(std::map<Instruction*, std::set<uint64_t>> &result,
+void splitPointPropagate(SplitPoints &result,
 		Instruction &I, uint64_t bitNo, bool forcePropagation, int operandNo,
 		Instruction *user) {
 	//errs() << "splitPointPropagate:" << I << ", bitNo:" << bitNo << "\n";
@@ -134,134 +240,60 @@ void splitPointPropagate(std::map<Instruction*, std::set<uint64_t>> &result,
 	}
 	uint64_t resultBitNo = bitNo;
 
-	// process cases specific to each instruction type
-	if (auto *BO = dyn_cast<BinaryOperator>(&I)) {
-		switch (BO->getOpcode()) {
-		case Instruction::BinaryOps::And:
-		case Instruction::BinaryOps::Or:
-		case Instruction::BinaryOps::Xor: {
+	if (!I.getMetadata(metadataNameNoSplit)) {
+		// process cases specific to each instruction type
+		if (auto *BO = dyn_cast<BinaryOperator>(&I)) {
+			updated = splitPointPropagate_BinaryOperator(updated, _splitPoints,
+					bitNo, forcePropagation, operandNo, BO, result);
+
+		} else if (auto SI = dyn_cast<PHINode>(&I)) {
 			updated = _splitPointsPropagateUpdate(_splitPoints, updated, bitNo);
 			if (updated || forcePropagation) {
-				// no bitNo translation needed
 				int i = 0;
-				for (auto &O : I.operands()) {
+				for (auto &O : SI->incoming_values()) {
 					if (i != operandNo) {
+						// avoid propagation back to source of update
 						if (auto *I2 = dyn_cast<Instruction>(O.get())) {
-							splitPointPropagate(result, *I2, bitNo, false, -1,
-									&I);
+							splitPointPropagate(result, *I2, bitNo, false, -1, &I);
 						}
 					}
+					++i;
 				}
 			}
-			break;
-		}
-		case Instruction::BinaryOps::Shl: // Shift left  (logical)
-		case Instruction::BinaryOps::LShr: // Shift right (logical)
-		case Instruction::BinaryOps::AShr: { // Shift right (arithmetic)
-			llvm_unreachable(
-					"Shifts should be converted to concatenations before running this pass");
-			break;
-		}
-		default:
-			break;
-		}
 
-	} else if (auto SI = dyn_cast<PHINode>(&I)) {
-		updated = _splitPointsPropagateUpdate(_splitPoints, updated, bitNo);
-		if (updated || forcePropagation) {
-			int i = 0;
-			for (auto &O : SI->incoming_values()) {
-				if (i != operandNo) {
-					// avoid propagation back to source of update
-					if (auto *I2 = dyn_cast<Instruction>(O.get())) {
-						splitPointPropagate(result, *I2, bitNo, false, -1, &I);
-					}
-				}
-				++i;
-			}
-		}
-
-	} else if (auto *SI = dyn_cast<SelectInst>(&I)) {
-		updated = _splitPointsPropagateUpdate(_splitPoints, updated, bitNo);
-		if (updated || forcePropagation) {
-			if (operandNo == -1) {
-				for (Value *O : std::vector<Value*>(
-						{ SI->getTrueValue(), SI->getFalseValue() })) {
-					// propagate to values
-					if (auto *I2 = dyn_cast<Instruction>(O)) {
-						splitPointPropagate(result, *I2, bitNo, false, -1, &I);
-					}
-				}
-			} else {
-				switch (operandNo) {
-				case 0:
-					// 1b condition, no propagation needed
-					break;
-				case 1:
-					// if true value changed
-					if (auto *I2 = dyn_cast<Instruction>(SI->getFalseValue())) {
-						splitPointPropagate(result, *I2, bitNo, false, -1, &I);
-					}
-					break;
-				case 2:
-					// if false value changed
-					if (auto *I2 = dyn_cast<Instruction>(SI->getTrueValue())) {
-						splitPointPropagate(result, *I2, bitNo, false, -1, &I);
-					}
-					break;
-				default:
-					llvm_unreachable(
-							"Select instruction should have 3 operands at most (cond, ifTrue, ifFalse)");
-				}
-			}
-		}
-
-	} else if (auto *C = dyn_cast<CallInst>(&I)) {
-		if (IsBitConcat(C)) {
-			bool operandFound = false;
-			uint64_t offset = 0;
-			for (auto &O : C->args()) {
-				operandFound |= splitPointPropagateBitConcatOperand(I, O,
-						operandNo, updated, _splitPoints, bitNo, resultBitNo,
-						result, offset);
-			}
-			if (operandNo != -1) {
-				assert(
-						operandFound
-								&& "splitPointPropagate operandNo must be operand no of this instruction I");
-			}
-
-		} else if (IsBitRangeGet(C)) {
-			auto v = BitRangeGetOffsetWidthValue(C);
-			updated = splitPointPropagateBitRangeGet(I, operandNo, updated,
-					_splitPoints, bitNo, resultBitNo, forcePropagation, v,
+		} else if (auto *SI = dyn_cast<SelectInst>(&I)) {
+			updated = splitPointPropagate_SelectInst(updated, _splitPoints,
+					bitNo, forcePropagation, operandNo, SI, result);
+		} else if (auto *C = dyn_cast<CallInst>(&I)) {
+			updated = splitPointPropagate_CallInst(operandNo, updated,
+					_splitPoints, bitNo, forcePropagation, C, resultBitNo,
 					result);
-		}
 
-	} else if (auto CI = dyn_cast<CastInst>(&I)) {
-		switch (CI->getOpcode()) {
-		case Instruction::CastOps::Trunc: {
-			OffsetWidthValue v = BitRangeGetOffsetWidthValue(
-					dyn_cast<TruncInst>(CI));
-			updated = splitPointPropagateBitRangeGet(I, operandNo, updated,
-					_splitPoints, bitNo, resultBitNo, forcePropagation, v,
-					result);
-			break;
-		}
-		case Instruction::CastOps::ZExt:
-		case Instruction::CastOps::SExt: {
-			auto &o0 = I.getOperandUse(0);
-			if (bitNo < o0.get()->getType()->getIntegerBitWidth()) {
-				size_t offset = 0;
-				splitPointPropagateBitConcatOperand(I, o0, operandNo, updated,
-						_splitPoints, bitNo, resultBitNo, result, offset);
+		} else if (auto CI = dyn_cast<CastInst>(&I)) {
+			switch (CI->getOpcode()) {
+			case Instruction::CastOps::Trunc: {
+				OffsetWidthValue v = BitRangeGetOffsetWidthValue(
+						dyn_cast<TruncInst>(CI));
+				updated = splitPointPropagateBitRangeGet(I, operandNo, updated,
+						_splitPoints, bitNo, resultBitNo, forcePropagation, v,
+						result);
+				break;
 			}
-			break;
-		}
-		default:
-			break;
-		}
+			case Instruction::CastOps::ZExt:
+			case Instruction::CastOps::SExt: {
+				auto &o0 = I.getOperandUse(0);
+				if (bitNo < o0.get()->getType()->getIntegerBitWidth()) {
+					size_t offset = 0;
+					splitPointPropagateBitConcatOperand(I, o0, operandNo, updated,
+							_splitPoints, bitNo, resultBitNo, result, offset);
+				}
+				break;
+			}
+			default:
+				break;
+			}
 
+		}
 	}
 
 	if (updated || forcePropagation) {
@@ -277,8 +309,8 @@ void splitPointPropagate(std::map<Instruction*, std::set<uint64_t>> &result,
  * Collect bit indexes where some slice on each variable is sliced by some bit slice.
  * Bit indexes for each value do specify the boundaries between segments of bit in this Value which are used independently.
  * */
-std::map<Instruction*, std::set<uint64_t>> collectSplitPoints(Function &F) {
-	std::map<Instruction*, std::set<uint64_t>> result;
+SplitPoints collectSplitPoints(Function &F) {
+	SplitPoints result;
 	// collect indexes from slices
 	for (auto &B : F) {
 		for (Instruction &I : B) {

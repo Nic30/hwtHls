@@ -59,12 +59,7 @@ class SsaInstrBranch():
         return f"<{self.__class__.__name__} {targets}>"
 
 
-class OperatorAssign(OpDefinition):
-    pass
-
-
-OP_ASSIGN = OperatorAssign(lambda x: x, allowsAssignTo=True)
-OP_ASSIGN.id = "ASSIGN"
+OP_ASSIGN = OpDefinition(lambda x: x, allowsAssignTo=True, idStr="ASSIGN")
 
 
 class SsaInstr(SsaValue):
@@ -88,6 +83,7 @@ class SsaInstr(SsaValue):
                 op.users.append(self)
             else:
                 assert isinstance(op, HValue), op
+        self.metadata: Optional[List["_PyBytecodePragma"]] = None
 
     def iterInputs(self):
         return self.operands

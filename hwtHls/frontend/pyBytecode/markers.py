@@ -9,15 +9,55 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.pyBytecode.frame import PyBytecodeFrame
 from hwtHls.frontend.pyBytecode.ioProxyStream import IoProxyStream
 from hwtHls.frontend.pyBytecode.loopMeta import PyBytecodeLoopInfo
-from hwtHls.llvm.llvmIr import BranchInst, Argument, Function
+from hwtHls.llvm.llvmIr import BranchInst, Argument, Function, Value, ValueToInstruction
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.value import SsaValue
+from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
+from hwtHls.ssa.instr import SsaInstr
 
 
 class _PyBytecodePragma():
 
     def apply(self, pyToSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction):
         raise NotImplementedError()
+
+
+class _PyBytecodeFunctionPragma(_PyBytecodePragma):
+
+    def apply(self, pyToSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction):
+        frame.pragma.append(self)
+
+
+class _PyBytecodeLoopPragma(_PyBytecodePragma):
+    """
+    A type of pragma which is applied to a loop.
+    """
+
+    def apply(self, pyToSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction):
+        assert frame.loopStack, "This pragma needs to be placed in the loop"
+        loop: PyBytecodeLoopInfo = frame.loopStack[-1]
+        loop.pragma.append(self)
+
+    def toLlvm(self, irTranslator: "ToLlvmIrTranslator", brInst: BranchInst):
+        raise NotImplementedError("This is abstract class override this method")
+
+
+class PyBytecodeInstructionPragma(_PyBytecodePragma):
+
+    def __init__(self, variable: Union["SsaInstr", RtlSignalBase]):
+        self.varTmp = variable
+
+    def apply(self, pyToSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction):
+        # add self to metadata of reference variable
+        v = pyToSsa.toSsa.m_ssa_u.readVariable(self.varTmp, curBlock)
+        assert isinstance(v, SsaInstr), v
+        if v.metadata is None:
+            v.metadata = [self, ]
+        else:
+            v.metadata.append(self)
+
+    def toLlvm(self, irTranslator: "ToLlvmIrTranslator", origInst: Instruction, v: Value):
+        raise NotImplementedError("This is abstract class override this method")
 
 
 class PyBytecodeInPreproc(_PyBytecodePragma):
@@ -53,6 +93,8 @@ class PyBytecodeInPreproc(_PyBytecodePragma):
 class PyBytecodeInline(_PyBytecodePragma):
     """
     Inline function body to a callsite in preprocessor.
+
+    :attention: There is an interference with method bounding, do not use decorator for methods
 
     Usage:
 
@@ -135,17 +177,6 @@ class PyBytecodePreprocHwCopy(_PyBytecodePragma):
     def __init__(self, v: Union[SsaValue, HValue, RtlSignal]):
         assert isinstance(v, (SsaValue, HValue, RtlSignal)), (v, "Must be hardware evaluated expression otherwise this marker is useless")
         self.v = v
-
-
-class _PyBytecodeLoopPragma(_PyBytecodePragma):
-    """
-    A type of pragma which is applied to a loop.
-    """
-
-    def apply(self, pyToSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction):
-        assert frame.loopStack, "This pragma needs to be placed in the loop"
-        loop: PyBytecodeLoopInfo = frame.loopStack[-1]
-        loop.pragma.append(self)
 
 
 class PyBytecodeLLVMLoopUnroll(_PyBytecodeLoopPragma):
@@ -234,12 +265,6 @@ class PyBytecodeStreamLoopUnroll(_PyBytecodeLoopPragma):
         brInst.setMetadata(irTranslator.strCtx.addStringRef("hwthls.loop"), getTuple(items, True))
 
 
-class _PyBytecodeFunctionPragma(_PyBytecodePragma):
-
-    def apply(self, pyToSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction):
-        frame.pragma.append(self)
-
-
 class PyBytecodeSkipPass(_PyBytecodeFunctionPragma):
     """
     Skip pass by its name. For example:
@@ -253,6 +278,7 @@ class PyBytecodeSkipPass(_PyBytecodeFunctionPragma):
     """
 
     def __init__(self, skipedPassNames: List[str]):
+        assert isinstance(skipedPassNames, (list, tuple)), skipedPassNames
         self.skipedPassNames = skipedPassNames
 
     def toLlvm(self, irTranslator: "ToLlvmIrTranslator", mainFn: Function):
@@ -261,3 +287,12 @@ class PyBytecodeSkipPass(_PyBytecodeFunctionPragma):
         items = [getStr(passName) for passName in self.skipedPassNames]
         mainFn.setMetadata(irTranslator.strCtx.addStringRef("hwtHls.skipPass"), getTuple(items, False))
 
+
+class PyBytecodeNoSplitSlices(PyBytecodeInstructionPragma):
+
+    def toLlvm(self, irTranslator: "ToLlvmIrTranslator", origInst: Instruction, v: Value):
+        inst = ValueToInstruction(v)
+        assert inst, v
+        inst.setMetadata(
+            irTranslator.strCtx.addStringRef("hwtHls.slicesToIndependentVariables.noSplit"),
+            irTranslator.mdGetTuple([], False))

@@ -242,10 +242,14 @@ class ToLlvmIrTranslator():
 
     def _translateInstr(self, instr: SsaInstr):
         if isinstance(instr, (HlsRead, HlsWrite)):
-            return instr._translateToLlvm(self)
+            res = instr._translateToLlvm(self)
         else:
-            return self._translateExprOperand(
+            res = self._translateExprOperand(
                 instr.operator, instr._dtype, instr.operands, instr._name, instr)
+        if instr.metadata:
+            for m in instr.metadata:
+                m.toLlvm(self, instr, res)
+        return res
 
     def _translate(self, bb: SsaBasicBlock):
         llvmBb = self.varMap[bb]
