@@ -51,6 +51,7 @@ void register_Function(pybind11::module_ & m) {
 		.def("setMetadata", [](llvm::Function * F, llvm::StringRef Kind, MDNodeWithDeletedDelete *Node) {
 			F->setMetadata(Kind, Node);
 		})
+		.def("getIntrinsicID", &llvm::Function::getIntrinsicID)
 		.def("addFnAttrKind", [](llvm::Function*F, llvm::Attribute::AttrKind Attr) {
 			F->addFnAttr(Attr);
 		})
