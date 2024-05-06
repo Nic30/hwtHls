@@ -90,6 +90,9 @@ class HlsNetlistClusterSearch():
         nodes = self.nodes
         nodes.extend(nodeList)
         for n in nodeList:
+            n: HlsNetNode
+            if n._inputs is None:
+                raise AssertionError("Use of deleted node", n.__class__, n._id)
             for i, dep in zip(n._inputs, n.dependsOn):
                 if dep.obj not in nodes:
                     internOutUsers = inputsDict.get(dep, None)
