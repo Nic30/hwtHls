@@ -103,7 +103,7 @@ class HlsNetlistBuilder():
 
         return None, keyWithHValues
 
-    def buildOp(self, operator: OpDefinition, resT: HdlType, *operands: Tuple[Union[HlsNetNodeOut, HValue], ...]) -> HlsNetNodeOut:
+    def buildOp(self, operator: OpDefinition, resT: HdlType, *operands: Tuple[Union[HlsNetNodeOut, HValue], ...], name:Optional[str]=None) -> HlsNetNodeOut:
         assert operator not in {AllOps.DIV, AllOps.GT, AllOps.GE, AllOps.LT, AllOps.LE}, ("Signed or unsigned variant should be used instead", operator, operands)
         assert operator not in CAST_OPS, ("Internally there is no cast required", operator, operands)
         assert not isinstance(resT, Bits) or not resT.signed, ("Only unsigned should be used internally", resT)
@@ -113,7 +113,7 @@ class HlsNetlistBuilder():
 
         operandsWithOutputsOnly = tuple(self._toNodeOut(o) for o in operands)
 
-        n = HlsNetNodeOperator(self.netlist, operator, len(operands), resT)
+        n = HlsNetNodeOperator(self.netlist, operator, len(operands), resT, name=name)
         self.netlistNodes.append(n)
         for i, arg in zip(n._inputs, operandsWithOutputsOnly):
             link_hls_nodes(arg, i)
