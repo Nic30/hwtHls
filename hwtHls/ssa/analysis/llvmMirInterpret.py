@@ -11,6 +11,7 @@ from hwt.hdl.types.defs import INT, SLICE
 from hwt.hdl.value import HValue
 from hwt.pyUtils.arrayQuery import grouper
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
+from hwtHls.code import OP_CTLZ, OP_CTTZ, OP_CTPOP
 from hwtHls.llvm.llvmIr import parseMIR, LlvmCompilationBundle, MachineFunction, MachineBasicBlock, MachineInstr, TargetOpcode, MachineOperand, \
     CmpInst, TypeToIntegerType, Register, LLVMStringContext, MachineRegisterInfo
 from hwtHls.ssa.analysis.llvmIrInterpret import VcdLlvmIrCodelineFormatter, \
@@ -330,7 +331,7 @@ class LlvmMirInterpret():
 
                 else:
                     op = HlsNetlistAnalysisPassMirToNetlistLowLevel.OPC_TO_OP.get(opc)
-                    if op  is AllOps.NOT:
+                    if op in (AllOps.NOT, OP_CTLZ, OP_CTTZ, OP_CTPOP):
                         dst, src0 = ops
                         if src0._dtype.signed is not None:
                             src0 = src0.cast_sign(None)

@@ -14,7 +14,8 @@ from hwtHls.llvm.llvmIr import Function, BasicBlock, BinaryOperator, Instruction
     ValueToConstantInt, ValueToFunction, ValueToInstruction, Instruction, InstructionToBinaryOperator, \
     InstructionToLoadInst, InstructionToStoreInst, ValueToArgument, TypeToPointerType, TypeToIntegerType, \
     Argument, LLVMStringContext, MDOperand, MetadataAsMDNode, MetadataAsValueAsMetadata, Value, User, \
-    UserToInstruction, InstructionToSelectInst, ValueToUndefValue, InstructionToCastInst, InstructionToSwitchInst
+    UserToInstruction, InstructionToSelectInst, ValueToUndefValue, InstructionToCastInst, InstructionToSwitchInst, \
+    Intrinsic, InstructionToFreezeInst
 from hwtHls.ssa.translation.llvmMirToNetlist.lowLevel import HlsNetlistAnalysisPassMirToNetlistLowLevel
 from hwtSimApi.constants import CLK_PERIOD
 from hwtSimApi.triggers import StopSimumulation
@@ -22,6 +23,7 @@ from pyDigitalWaveTools.vcd.common import VCD_SIG_TYPE
 from pyDigitalWaveTools.vcd.value_format import VcdBitsFormatter, \
     LogValueFormatter
 from pyDigitalWaveTools.vcd.writer import VcdWriter
+from hwtHls.code import ctlz, zext, hwUMax, hwUMin, hwSMax, hwSMin
 
 
 class SimIoUnderflowErr(Exception):
@@ -50,7 +52,7 @@ BINARY_OPS_TO_FN = {
     Instruction.BinaryOps.Sub: sub,
     Instruction.BinaryOps.Mul: mul,
     Instruction.BinaryOps.UDiv: floordiv,
-    Instruction.BinaryOps.LShr: rshift, # logical shift right
+    Instruction.BinaryOps.LShr: rshift,  # logical shift right
     Instruction.BinaryOps.Shl: lshift,
 }
 
@@ -348,6 +350,7 @@ class LlvmIrInterpret():
         if call is not None:
             fn = ops[-1]
             fnName = fn.getName().str()
+            inId = fn.getIntrinsicID()
             if fnName.startswith("hwtHls.bitRangeGet"):
                 resW = instr.getType().getIntegerBitWidth()
                 bitVector, index, _ = ops
@@ -355,12 +358,27 @@ class LlvmIrInterpret():
                     res = bitVector[index]
                 else:
                     res = bitVector[(index + resW): index]
+                if res._dtype.signed is not None:
+                    res = res._convSign(None)
             elif fnName.startswith("hwtHls.bitConcat"):
                 res = Concat(*reversed(ops[:-1]))
                 assert res._dtype.bit_length() == instr.getType().getIntegerBitWidth(), (
                     instr, res._dtype, [o._dtype for o in ops[:-1]])
+                if res._dtype.signed is not None:
+                    res = res._convSign(None)
+            elif inId == Intrinsic.ctlz:
+                res = ctlz(*ops[:-1])
+                res = zext(res, ops[0]._dtype.bit_length())
+            elif inId == Intrinsic.umax:
+                res = hwUMax(*ops[:-1])
+            elif inId == Intrinsic.umin:
+                res = hwUMin(*ops[:-1])
+            elif inId == Intrinsic.smax:
+                res = hwSMax(*ops[:-1])
+            elif inId == Intrinsic.smin:
+                res = hwSMin(*ops[:-1])
             else:
-                raise NotImplementedError(instr)
+                raise NotImplementedError(instr, Intrinsic(inId))
 
             if waveLog is not None:
                 waveLog.logChange(nowTime, instr, res, None)
@@ -421,7 +439,8 @@ class LlvmIrInterpret():
                 res = o[newWidth:]
             else:
                 raise NotImplementedError(instr)
-
+            if res._dtype.signed is not None:
+                res = res._convSign(None)
             regs[instr] = res
             return bb, False
 
@@ -473,6 +492,12 @@ class LlvmIrInterpret():
             self._runBlockPhis(bb, defDst, waveLog, regs, nowTime)
             bb = defDst
             return bb, True
+        
+        freeze = InstructionToFreezeInst(instr)
+        if freeze:
+            o, = ops
+            regs[instr] = o
+            return bb, False
 
         raise NotImplementedError(instr)
 

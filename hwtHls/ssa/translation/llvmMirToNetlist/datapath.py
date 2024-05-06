@@ -24,6 +24,8 @@ from hwtHls.ssa.translation.llvmMirToNetlist.lowLevel import HlsNetlistAnalysisP
 from hwtHls.ssa.translation.llvmMirToNetlist.machineEdgeMeta import MachineEdgeMeta, MACHINE_EDGE_TYPE
 from hwtHls.ssa.translation.llvmMirToNetlist.utils import LiveInMuxMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
+from hwtHls.frontend.hardBlock import HardBlockUnit
+from hwt.math import log2ceil
 
 BlockLiveInMuxSyncDict = Dict[Tuple[MachineBasicBlock, MachineBasicBlock, Register], HlsNetNodeExplicitSync]
 
@@ -33,6 +35,13 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
     This object translates LLVM MIR to hwtHls HlsNetlist
     """
     _HWTFPGA_CLOAD_CSTORE = (TargetOpcode.HWTFPGA_CLOAD, TargetOpcode.HWTFPGA_CSTORE)
+    _BITCOUNT_OPCODES = {
+        TargetOpcode.HWTFPGA_CTLZ,
+        TargetOpcode.HWTFPGA_CTLZ_ZERO_UNDEF,
+        TargetOpcode.HWTFPGA_CTTZ,
+        TargetOpcode.HWTFPGA_CTTZ_ZERO_UNDEF,
+        TargetOpcode.HWTFPGA_CTPOP,
+    }
 
     def translateDatapathInBlocks(self, mf: MachineFunction, ioNodeConstructors: NetlistIoConstructorDictT):
         """
@@ -64,6 +73,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
 
             for instr in mb:
                 instr: MachineInstr
+
                 opc = instr.getOpcode()
                 if opc == TargetOpcode.HWTFPGA_ARG_GET:
                     continue
@@ -126,8 +136,10 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                 opDef = self.OPC_TO_OP.get(opc, None)
                 if opDef is not None:
                     resT = ops[0]._dtype
-                    res = builder.buildOp(opDef, resT, *ops)
-                    res.obj.name = name
+                    if opc in self._BITCOUNT_OPCODES:
+                        resT = Bits(log2ceil(resT.bit_length() + 1))
+
+                    res = builder.buildOp(opDef, resT, *ops, name=name)
                     valCache.add(mb, dst, res, True)
 
                 elif opc == TargetOpcode.HWTFPGA_MUX:
@@ -141,20 +153,18 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                             # add current value as a default option in MUX
                             ops.append(self._translateRegister(mb, dst))
 
-                        res = builder.buildMux(resT, tuple(ops))
-                        res.obj.name = name
+                        res = builder.buildMux(resT, tuple(ops), name=name)
                         valCache.add(mb, dst, res, True)
 
                 elif opc == TargetOpcode.HWTFPGA_CLOAD:
                     # load from data channel
                     srcIo, index, cond = ops  # [todo] implicit operands
                     if isinstance(srcIo, HlsNetNodeOut):
-                        res = builder.buildOp(AllOps.INDEX, srcIo._dtype.element_t, srcIo, index)
+                        res = builder.buildOp(AllOps.INDEX, srcIo._dtype.element_t, srcIo, index, name=name)
                         if isinstance(cond, int):
                             assert cond == 1, instr
                         else:
                             raise NotImplementedError("Create additional mux to update dst value conditionally")
-                        res.obj.name = name
                         valCache.add(mb, dst, res, True)
                     else:
                         constructor: HlsRead = ioNodeConstructors[srcIo][0]
@@ -224,7 +234,17 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                     BW = self.registerTypes[dst]
                     v = Bits(BW).from_py(None)
                     valCache.add(mb, dst, builder.buildConst(v), True)
-
+                elif opc in (TargetOpcode.HWTFPGA_PYOBJECT_PLACEHOLDER,
+                             TargetOpcode.HWTFPGA_PYOBJECT_PLACEHOLDER_NOTDUPLICABLE,
+                             TargetOpcode.HWTFPGA_PYOBJECT_PLACEHOLDER_WITH_SIDEEFFECT,
+                             TargetOpcode.HWTFPGA_PYOBJECT_PLACEHOLDER_NOTDUPLICABLE_WITH_SIDEEFECT):
+                    objId = ops[0]
+                    try:
+                        obj: HardBlockUnit = self.placeholderObjectSlots[objId]
+                    except IndexError:
+                        raise IndexError("ThMissing object requested by placeholder object id", objId, instr)
+                    inputs = ops[2:2 + (len(ops) - 2) // 2]
+                    obj.translateMirToNetlist(self, syncTracker, mbSync, instr, builder, inputs, name)
                 else:
                     raise NotImplementedError(instr)
 

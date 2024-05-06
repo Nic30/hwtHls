@@ -30,6 +30,7 @@ from hwtHls.ssa.translation.llvmMirToNetlist.machineEdgeMeta import MachineEdgeM
 from hwtHls.ssa.translation.llvmMirToNetlist.resetValueExtract import ResetValueExtractor
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
+from hwtHls.code import OP_ASHR, OP_LSHR, OP_SHL, OP_CTLZ, OP_CTTZ, OP_CTPOP
 
 
 class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
@@ -46,7 +47,17 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         TargetOpcode.HWTFPGA_OR: AllOps.OR,
         TargetOpcode.HWTFPGA_XOR: AllOps.XOR,
         TargetOpcode.HWTFPGA_NOT: AllOps.NOT,
+        
+        TargetOpcode.HWTFPGA_ASHR: OP_ASHR,
+        TargetOpcode.HWTFPGA_LSHR: OP_LSHR,
+        TargetOpcode.HWTFPGA_SHL: OP_SHL,
+        TargetOpcode.HWTFPGA_CTLZ: OP_CTLZ,
+        TargetOpcode.HWTFPGA_CTLZ_ZERO_UNDEF: OP_CTLZ,
+        TargetOpcode.HWTFPGA_CTTZ: OP_CTTZ,
+        TargetOpcode.HWTFPGA_CTTZ_ZERO_UNDEF: OP_CTTZ,
+        TargetOpcode.HWTFPGA_CTPOP: OP_CTPOP,
     }
+
     CMP_PREDICATE_TO_OP = {
         CmpInst.Predicate.ICMP_EQ:AllOps.EQ,
         CmpInst.Predicate.ICMP_NE:AllOps.NE,
@@ -68,14 +79,15 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
                  registerTypes: Dict[Register, int],
                  loops: MachineLoopInfo,
                  ):
-        super(HlsNetlistAnalysisPassMirToNetlistLowLevel, self).__init__(HlsNetlistCtx(hls.parentUnit, hls.freq, tr.label))
+        super(HlsNetlistAnalysisPassMirToNetlistLowLevel, self).__init__()
         # :note: value of a block in block0 means that the control flow was passed to block0 from block
-        netlist = self.netlist
+        netlist = self.netlist = HlsNetlistCtx(hls.parentUnit, hls.freq, tr.label, platform=hls.parentUnit._target_platform)
         self.builder = HlsNetlistBuilder(netlist)
         netlist._setBuilder(self.builder)
         self.valCache = MirToHwtHlsNetlistValueCache(netlist)
         aargToArgIndex = {a: i for (i, a) in enumerate(tr.llvm.main.args())}
         self._argIToIo = {aargToArgIndex[a]: io for (io, (a, _, _)) in tr.ioToVar.items()}
+        self.placeholderObjectSlots = [obj for (obj, _) in tr.placeholderObjectSlots]
         self.blockSync: Dict[MachineBasicBlock, MachineBasicBlockMeta] = {}
         self.edgeMeta: Dict[MachineEdge, MachineEdgeMeta] = {}
         self.nodes: ObservableList[HlsNetNode] = netlist.nodes

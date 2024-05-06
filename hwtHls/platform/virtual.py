@@ -9,7 +9,7 @@ from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.platform.platform import DefaultHlsPlatform, DebugId, HlsDebugBundle
 from hwtHls.ssa.instr import OP_ASSIGN
-
+from hwtHls.code import OP_ASHR, OP_SHL, OP_LSHR, OP_CTLZ, OP_CTPOP, OP_CTTZ
 
 _OPS_T_GROWING_EXP = {
     AllOps.UDIV,
@@ -33,6 +33,14 @@ _OPS_T_GROWING_LIN = {
     AllOps.SGE,
     AllOps.SLT,
     AllOps.SLE,
+}
+_OPS_T_GROWING_LOG = {
+    OP_ASHR,
+    OP_LSHR,
+    OP_SHL,
+    OP_CTLZ,
+    OP_CTTZ,
+    OP_CTPOP,
 }
 
 _OPS_T_ZERO_LATENCY = {
@@ -76,6 +84,14 @@ class VirtualHlsPlatform(DefaultHlsPlatform):
             AllOps.AND: 1.2e-9,
             AllOps.OR: 1.2e-9,
 
+            # nearly logarithmical with bit widht
+            OP_ASHR: 1.2e-9,
+            OP_LSHR: 1.2e-9,
+            OP_SHL: 1.2e-9,
+            OP_CTLZ: 1.2e-9,
+            OP_CTTZ: 1.2e-9,
+            OP_CTPOP: 1.2e-9,
+
             # nearly linear with bit width
             AllOps.ADD: 1.5e-9,
             AllOps.SUB: 1.5e-9,
@@ -108,6 +124,9 @@ class VirtualHlsPlatform(DefaultHlsPlatform):
         base_delay = self._OP_DELAYS[op]
         if op in _OPS_T_GROWING_CONST:
             inputWireDelay = base_delay
+
+        elif op in _OPS_T_GROWING_LOG:
+            inputWireDelay = base_delay * log2(log2(bit_width))
 
         elif op in _OPS_T_GROWING_LIN:
             inputWireDelay = base_delay * log2(bit_width)

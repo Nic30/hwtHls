@@ -5,6 +5,7 @@ from hwt.hdl.operatorDefs import AllOps, OpDefinition
 from hwt.hdl.types.array import HArray
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.bitsVal import BitsVal
+from hwt.hdl.types.function import HFunctionVal
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.types.slice import HSlice
 from hwt.hdl.types.struct import HStruct
@@ -12,23 +13,32 @@ from hwt.hdl.value import HValue
 from hwt.interfaces.std import BramPort_withoutClk
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getInterfaceName
+from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa, IoPortToIoOpsDictionary
 from hwtHls.frontend.ast.statementsRead import HlsRead
 from hwtHls.frontend.ast.statementsWrite import HlsWrite
-from hwtHls.io.portGroups import MultiPortGroup, BankedPortGroup
+from hwtHls.frontend.hardBlock import HardBlockUnit
+from hwtHls.io.portGroups import MultiPortGroup, BankedPortGroup, \
+    getFirstInterfaceInstance
 from hwtHls.llvm.llvmIr import Value, Type, FunctionType, Function, VectorOfTypePtr, BasicBlock, Argument, \
     PointerType, ConstantInt, APInt, verifyFunction, verifyModule, TypeToIntegerType, \
     PHINode, LlvmCompilationBundle, LLVMContext, LLVMStringContext, ArrayType, MDString, \
-    ConstantAsMetadata, MDNode, Module, IRBuilder, UndefValue
+    ConstantAsMetadata, MDNode, Module, IRBuilder, UndefValue, FunctionCallee, Intrinsic
+from hwtHls.code import OP_CTLZ, OP_CTTZ, OP_CTPOP, OP_BITREVERSE, \
+    OP_FSHL, OP_FSHR, OP_ZEXT, OP_SEXT, OP_ASHR, OP_LSHR, OP_SHL, OP_UMAX, \
+    OP_SMAX, OP_UMIN, OP_SMIN
+from hwtHls.netlist.hdlTypeVoid import _HVoidOrdering
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.phi import SsaPhi
 from hwtHls.ssa.transformation.ssaPass import SsaPass
 from hwtHls.ssa.transformation.utils.blockAnalysis import collect_all_blocks
 from hwtHls.ssa.value import SsaValue
+from hwtHls.typingFuture import override
 from hwtLib.amba.axi4Lite import Axi4Lite
 from hwtLib.types.ctypes import uint32_t
+from pyMathBitPrecise.bit_utils import iter_bits_sequences, get_bit_range
 
 RE_ID_WITH_NUMBER = re.compile('[^0-9]+|[0-9]+')
 
@@ -66,21 +76,35 @@ class ToLlvmIrTranslator():
         self.varMap: Dict[Union[SsaValue, SsaBasicBlock], Value] = {}
         self._branchTmpBlocks: Dict[SsaBasicBlock, List[Tuple[BasicBlock, List[SsaBasicBlock]]]] = {}
         self._afterTranslation: List[Callable[[ToLlvmIrTranslator], None]] = []
+        self.placeholderObjectSlots = []
 
         b = self.b
-        self._opConstructorMap0 = {
+        self._opConstructorMap = {
             AllOps.AND: b.CreateAnd,
             AllOps.OR: b.CreateOr,
             AllOps.XOR: b.CreateXor,
-        }
-        self._opConstructorMap1 = {
+
             AllOps.ADD: b.CreateAdd,
             AllOps.SUB: b.CreateSub,
             AllOps.MUL: b.CreateMul,
             AllOps.UDIV: b.CreateUDiv,
             AllOps.SDIV: b.CreateSDiv,
+            OP_ASHR: b.CreateAShr,
+            OP_LSHR: b.CreateLShr,
+            OP_SHL: b.CreateShl,
         }
-
+        self._opIntrinsic = {
+            OP_CTLZ: Intrinsic.ctlz,
+            OP_CTTZ: Intrinsic.cttz,
+            OP_CTPOP: Intrinsic.ctpop,
+            OP_BITREVERSE: Intrinsic.bitreverse,
+            OP_FSHL: Intrinsic.fshl,
+            OP_FSHR: Intrinsic.fshr,
+            OP_UMAX: Intrinsic.umax,
+            OP_SMAX: Intrinsic.smax,
+            OP_UMIN: Intrinsic.umin,
+            OP_SMIN: Intrinsic.smin,
+        }
         self._opConstructorMapCmp = {
             AllOps.NE: b.CreateICmpNE,
             AllOps.EQ: b.CreateICmpEQ,
@@ -89,7 +113,7 @@ class ToLlvmIrTranslator():
             AllOps.SLT: b.CreateICmpSLT,
             AllOps.SGT: b.CreateICmpSGT,
             AllOps.SGE: b.CreateICmpSGE,
-            
+
             AllOps.ULE: b.CreateICmpULE,
             AllOps.ULT: b.CreateICmpULT,
             AllOps.UGT: b.CreateICmpUGT,
@@ -120,7 +144,10 @@ class ToLlvmIrTranslator():
         res = MDNode.get(self.ctx, itemsAsMetadata, insertTmpAsFirts=insertSelfAsFirts)
         return res
 
-    def createFunctionPrototype(self, name: str, args:List[Tuple[str, Type, Type]], returnType: Type):
+    def createFunctionPrototype(self, name: str, args:List[Tuple[str, Type, Type, int]], returnType: Type, addHwtHlsMeta=True):
+        """
+        :param args: tuples name, pointer type, element type, address width 
+        """
         strCtx = self.strCtx
         _argTypes = VectorOfTypePtr()
         for _, t, _ , _ in args:
@@ -132,9 +159,10 @@ class ToLlvmIrTranslator():
         for a, (aName, _, _, _) in zip(F.args(), args):
             a.setName(strCtx.addTwine(aName))
 
-        argAddrWidths = self.mdGetTuple([self.mdGetUInt32(addrWidth) for (_, _, _, addrWidth) in args], False)
-        F.setMetadata(self.strCtx.addStringRef("hwtHls.param_addr_width"),
-                       self.mdGetTuple([argAddrWidths, ], True))
+        if addHwtHlsMeta:
+            argAddrWidths = self.mdGetTuple([self.mdGetUInt32(addrWidth) for (_, _, _, addrWidth) in args], False)
+            F.setMetadata(self.strCtx.addStringRef("hwtHls.param_addr_width"),
+                           self.mdGetTuple([argAddrWidths, ], True))
         return F
 
     def _formatVarName(self, name):
@@ -166,14 +194,60 @@ class ToLlvmIrTranslator():
 
     def _translateExprHValue(self, v: HValue):
         if isinstance(v, BitsVal):
-            t = self._translateType(v._dtype)
             if v._is_full_valid():
+                t = self._translateType(v._dtype)
                 _v = APInt(v._dtype.bit_length(), self.strCtx.addStringRef(f"{v.val:x}"), 16)
                 return ConstantInt.get(t, _v)
             elif v.vld_mask == 0:
+                t = self._translateType(v._dtype)
                 return UndefValue.get(t)
             else:
-                raise NotImplementedError(v)
+                concatMembers = []
+                offset = 0
+                for (bVal, width) in iter_bits_sequences(v.vld_mask, v._dtype.bit_length()):
+                    t = Type.getIntNTy(self.ctx, width)
+                    if bVal == 0:
+                        m = UndefValue.get(t)
+                    elif bVal == 1:
+                        _v = get_bit_range(v.val, offset, offset + width)
+                        _v = APInt(width, self.strCtx.addStringRef(f"{_v:x}"), 16)
+                        m = ConstantInt.get(t, _v)
+                    else:
+                        raise ValueError(bVal)
+                    concatMembers.append(m)
+                    offset += width
+                return self.b.CreateBitConcat(concatMembers)
+
+        elif isinstance(v, HFunctionVal):
+            assert isinstance(v, HardBlockUnit)
+            v: HardBlockUnit
+            if v.placeholderObjectId is not None:
+                cur, curV = self.placeholderObjectSlots[v.placeholderObjectId]
+                assert cur is v, (cur, v)
+                return curV
+
+            params = [("id", Type.getIntNTy(self.ctx, 32), None, 0)]
+            if v.hasManyInputs:
+                if isinstance(v.hwInputT, HStruct):
+                    params.extend((f.name, self._translateType(f._dtype), None, 0) for f in v.hwInputT._fields)
+                else:
+                    raise NotImplementedError(v.hwInputT)
+            else:
+                params.append(("arg0", self._translateType(v.hwInputT), None, 0))
+
+            if v.hasManyOutputs:
+                raise NotImplementedError()
+            else:
+                if isinstance(v.hwOutputT, _HVoidOrdering):
+                    resTy = Type.getVoidTy(self.ctx)
+                else:
+                    resTy = self._translateType(v.hwOutputT)
+
+            v.placeholderObjectId = len(self.placeholderObjectSlots)
+            fn = self.createFunctionPrototype(f"hwtHls.pyObjectPlaceholder.{v.placeholderObjectId:d}.{v.val:s}",
+                                              params, resTy, addHwtHlsMeta=False)
+            self.placeholderObjectSlots.append((v, fn))
+            return fn
         else:
             raise NotImplementedError(v)
 
@@ -223,17 +297,59 @@ class ToLlvmIrTranslator():
             elif operator == AllOps.MINUS_UNARY:
                 op0, = args
                 return b.CreateNeg(op0, name, False, False)
+            elif operator == OP_ZEXT:
+                op0, = args
+                return b.CreateZExt(op0, self._translateType(resTy), name)
+            elif operator == OP_SEXT:
+                op0, = args
+                return b.CreateSExt(op0, self._translateType(resTy), name)
             elif operator == AllOps.TERNARY:
                 opC, opTrue, opFalse = args
                 return b.CreateSelect(opC, opTrue, opFalse, name, None)
+            elif operator == AllOps.CALL:
+                args = tuple(args)
+                fn = operands[0]
+                isHardblock = isinstance(fn, HardBlockUnit)
+                if isHardblock:
+                    _args = [self._translateExprInt(fn.placeholderObjectId, Type.getIntNTy(self.ctx, 32))]
+                    _args.extend(args[1:])
+                else:
+                    _args = list(args[1:])
+                res = b.CreateCall(FunctionCallee(args[0]), _args)
+                if isHardblock:
+                    res = fn.translateCallAttributesToLlvm(self, res)
 
-            constructor_fn = self._opConstructorMap0.get(operator, None)
+                return res
+
+            intrinsic = self._opIntrinsic.get(operator)
+            if intrinsic is not None:
+                sliceOut = None
+                if operator in (OP_CTLZ, OP_CTTZ, OP_CTPOP):
+                    op0, _ = operands
+                    sliceOut = resTy.bit_length()
+                    resTy = op0._dtype
+                elif operator == OP_BITREVERSE:
+                    op0, = operands
+                    resTy = op0._dtype
+                elif operator in (OP_UMIN, OP_UMAX, OP_SMIN, OP_SMAX,):
+                    assert len(operands) == 2
+                    resTy = operands[0]._dtype
+                elif operator in (OP_FSHL, OP_FSHR):
+                    assert len(operands) == 3
+                    resTy = operands[0]._dtype
+                else:
+                    raise NotImplementedError(operator)
+
+                resTy = self._translateType(resTy)
+                res = b.CreateIntrinsic(resTy, intrinsic.value, list(args), Name=name)
+                if sliceOut is None:
+                    return res
+                else:
+                    return b.CreateBitRangeGetConst(res, 0, sliceOut)
+
+            constructor_fn = self._opConstructorMap.get(operator, None)
             if constructor_fn is not None:
                 return constructor_fn(*args, name)
-
-            constructor_fn = self._opConstructorMap1.get(operator, None)
-            if constructor_fn is not None:
-                return constructor_fn(*args, name, False, False)
             else:
                 assert len(operands) == 2, instrForDebug
                 _opConstructorMap2 = self._opConstructorMapCmp
@@ -363,7 +479,7 @@ class ToLlvmIrTranslator():
         ]
         ioSorted = self.ioSorted = sorted(ioTuplesWithName, key=lambda x: self.splitStrToStrsAndInts(x[0]))
         # name, pointer type, element type, address width
-        params: List[str, Type, Type, int] = [
+        params: List[Tuple[str, Type, Type, int]] = [
             (name,
              *self._getInterfaceTypeForFnArg(intf[0]
                                            if isinstance(intf, tuple)
