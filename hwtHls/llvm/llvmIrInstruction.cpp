@@ -272,5 +272,10 @@ void register_Instruction(pybind11::module_ & m) {
 	py::implicitly_convertible<llvm::GetElementPtrInst, llvm::Instruction>();
 	m.def("InstructionToGetElementPtrInst", &llvmInstructionCaster<llvm::GetElementPtrInst>, py::return_value_policy::reference_internal);
 
+
+	py::class_<llvm::FreezeInst, std::unique_ptr<llvm::FreezeInst, py::nodelete>, llvm::Instruction>(m, "FreezeInst");
+	m.def("InstructionToFreezeInst", &llvmInstructionCaster<llvm::FreezeInst>, py::return_value_policy::reference_internal);
+
+
 }
 }
