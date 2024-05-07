@@ -9,7 +9,8 @@ from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.platform.platform import DefaultHlsPlatform, DebugId, HlsDebugBundle
 from hwtHls.ssa.instr import OP_ASSIGN
-from hwtHls.code import OP_ASHR, OP_SHL, OP_LSHR, OP_CTLZ, OP_CTPOP, OP_CTTZ
+from hwtHls.code import OP_ASHR, OP_SHL, OP_LSHR, OP_CTLZ, OP_CTPOP, OP_CTTZ,\
+    OP_BITREVERSE, OP_FSHR, OP_FSHL
 
 _OPS_T_GROWING_EXP = {
     AllOps.UDIV,
@@ -41,11 +42,14 @@ _OPS_T_GROWING_LOG = {
     OP_CTLZ,
     OP_CTTZ,
     OP_CTPOP,
+    OP_FSHL,
+    OP_FSHR,
 }
 
 _OPS_T_ZERO_LATENCY = {
     AllOps.INDEX,
     AllOps.CONCAT,
+    OP_BITREVERSE,
     OP_ASSIGN,
 }
 _OPS_T_GROWING_CONST = {
