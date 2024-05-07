@@ -159,7 +159,11 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                                 if netlistReduceEqNe(n, worklist, removed):
                                     didModifyExpr = True
                                     continue
-                    
+                            if o is AllOps.INDEX:
+                                if netlistReduceIndexOnIndex(n, worklist, removed):
+                                    didModifyExpr = True
+                                    continue
+
                             continue
 
                         if len(n._inputs) == 1:
