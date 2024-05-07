@@ -76,6 +76,7 @@ def runAbcControlpathOpt(builder: HlsNetlistBuilder, worklist: UniqList[HlsNetNo
             for _, c in n._iterValueConditionInputPairs():
                 if c is not None:
                     collect(n, c)
+
     if outputs:
         toAbcAig = HlsNetlistToAbcAig()
         # filter outputs from nodes which are used only inside of this expression tree which will be replaced
