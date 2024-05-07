@@ -280,3 +280,10 @@ The case specification corresponds to a tuple: (data dependency, control depende
       from each break/continue/end of the loop from the body of the loop.
       The data from these inputs may arrive in an order different from original. Because latency of branches
       may be nondeterministic.
+
+      
+Arbitration problems in pipelines:
+* read, nop, read - the second read must be performed with higher priority and first one must stall
+
+Research groups related to this topic:
+* https://www.cs.upc.edu/~jordicf/gavina/gavina.html

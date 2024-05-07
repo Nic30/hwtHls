@@ -107,7 +107,7 @@ https://releases.llvm.org/15.0.0/docs/LangRef.html
 
 .. code-block:: bash
 
-	opt -dot-cfg test.s
+	opt -dot-cfg test.s # there is also -view-cfg, -view-cfg-only
 	# and now by using xdot for instance we can see the control flow graph of the program
 	xdot cfg.main.dot
 
