@@ -69,7 +69,7 @@ class BramRead2R(Unit):
 
     def _impl(self) -> None:
         hls = HlsScope(self)
-        ram = BramArrayProxy(hls, MultiPortGroup(self.ram0, self.ram1))
+        ram = BramArrayProxy(hls, MultiPortGroup((self.ram0, self.ram1)))
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, ram)
         mainThread.netlistCallbacks.append(self.reduceOrdering)
         hls.addThread(mainThread)
