@@ -138,9 +138,11 @@ class HlsRead(HdlStatement, SsaInstr):
         mirToNetlist._addSkipWhen_n(n, _cond, mbSync.blockEn)
         mbSync.addOrderedNode(n)
         mirToNetlist.inputs.append(n)
-
-        o = n._outputs[0] if representativeReadStm._isBlocking else n.getRawValue()
-        assert not o._dtype.signed, o
+        if representativeReadStm._isBlocking:
+            o = n._outputs[0]
+        else:
+            o = n.getRawValue()
+        assert not isinstance(o._dtype, Bits) or not o._dtype.signed, o  # can potentially be of voi type
         valCache.add(mbSync.block, instrDstReg, o, True)
 
         return [n, ]
