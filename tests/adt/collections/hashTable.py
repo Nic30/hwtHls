@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 from typing import Optional
 
 from hwt.code import In
@@ -120,7 +122,7 @@ class HashTable(Unit):
     def _impl(self) -> None:
         propagateClkRstn(self)
         hls = HlsScope(self)
-        ram = BramArrayProxy(hls, MultiPortGroup(*self.tableRam.port))
+        ram = BramArrayProxy(hls, MultiPortGroup(self.tableRam.port))
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, ram)
         hls.addThread(mainThread)
         hls.compile()

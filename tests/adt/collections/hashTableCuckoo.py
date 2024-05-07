@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 from typing import List
 
 from hwt.code import In, Concat, Or, And
@@ -174,7 +177,7 @@ class HashTableCuckoo(Unit):
     def _impl(self) -> None:
         propagateClkRstn(self)
         hls = HlsScope(self)
-        rams = [BramArrayProxy(hls, MultiPortGroup(*t.port)) for t in self.tableRams]
+        rams = [BramArrayProxy(hls, MultiPortGroup(t.port)) for t in self.tableRams]
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, rams)
         hls.addThread(mainThread)
         hls.compile()
