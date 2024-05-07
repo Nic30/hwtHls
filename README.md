@@ -158,6 +158,7 @@ source venv/bin/activate # modifies current shell to use previously generate pyt
 * [coreir](https://github.com/rdaly525/coreir) - 2016-?, LLVM HW compiler
 * [DASS](https://github.com/JianyiCheng/DSS) - combination of dynamic and static scheduling
 * [domino-compiler](https://github.com/packet-transactions/domino-compiler) 2016 -> C++, c like packet processing language and compiler
+* [dynamatic](https://github.com/EPFL-LAP/dynamatic) - , C++/LLVM-MLIR, HLS with dynamic scheduling, MLIR handshake
 * [DPC++](https://github.com/intel/llvm/tree/sycl) - C++/LLVM,
 * [DuroHLS](https://github.com/corelab-src/DuroHLS-opt) [CorelabVerilog](https://github.com/corelab-src/CorelabVerilog) - C++/LLVM, set of hls passes
 * [dynamatic](https://github.com/lana555/dynamatic) - , C++/LLVM - set of LLVM passes for dynamically scheduled HLS
@@ -218,6 +219,7 @@ source venv/bin/activate # modifies current shell to use previously generate pyt
 * Halide-HLS (Pu, TACO 17)
 * [Hipacc-FPGA (Reiche, CODES + ISS 14)](https://github.com/hipacc/hipacc-fpga)
 * [Clokwork (Huff, FCCM 21)](https://github.com/dillonhuff/clockwork)
+* https://jianyicheng.github.io/
 
 ## Timing database generator scripts
 
