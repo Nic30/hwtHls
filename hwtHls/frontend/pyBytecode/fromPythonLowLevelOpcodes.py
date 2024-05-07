@@ -23,7 +23,7 @@ from hwtHls.frontend.pyBytecode.instructions import CMP_OPS, BINARY_OPS, UN_OPS,
     COMPARE_OP, GET_ITER, UNPACK_SEQUENCE, MAKE_FUNCTION, STORE_SUBSCR, EXTENDED_ARG, DELETE_DEREF, DELETE_FAST, \
     FORMAT_VALUE, LIST_TO_TUPLE, IS_OP, RAISE_VARARGS, LOAD_ASSERTION_ERROR, \
     RESUME, MAKE_CELL, PRECALL, KW_NAMES, NULL, PUSH_NULL, BINARY_SUBSCR, COPY_FREE_VARS, \
-    CONTAINS_OP, INPLACE_UPDATE_OPS
+    CONTAINS_OP, INPLACE_UPDATE_OPS, LOAD_BUILD_CLASS
 from hwtHls.frontend.pyBytecode.ioProxyAddressed import IoProxyAddressed
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc, \
     PyBytecodeInline, _PyBytecodePragma, PyBytecodePreprocHwCopy
@@ -74,6 +74,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
             RAISE_VARARGS: self.opcode_RAISE_VARARGS,
             PUSH_NULL: self.opcode_PUSH_NULL,
             LOAD_ASSERTION_ERROR: self.opcode_LOAD_ASSERTION_ERROR,
+            LOAD_BUILD_CLASS: self.opcode_LOAD_BUILD_CLASS,
             MAKE_CELL: self.opcode_MAKE_CELL,
             PRECALL: self.opcodeMakeStoreForLater("_last_PRECALL"),
             KW_NAMES: self.opcodeMakeStoreForLater("_last_KW_NAMES"),
@@ -399,7 +400,6 @@ class PyBytecodeToSsaLowLevelOpcodes():
         # for variables from arguments
         fnName = getattr(fn, "__qualname__", fn.__name__)
         with self.dbgTracer.scoped("inlining", fnName):
-    
             if self.debugBytecode:
                 d = Path(self.debugDirectory) / self.toSsa.label
                 d.mkdir(exist_ok=True)
@@ -440,6 +440,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
     
                 retBlock.successors.addTarget(None, curBlockAfterCall)
             self.dbgTracer.log(("inlining return from", fnName, finalRetVal))
+            #retTy = fn.__annotations__.get("return")
     
             frame.stack.append(finalRetVal)
             # todo process return points and connected to curBlockAfterCall block in cfg
@@ -812,6 +813,10 @@ class PyBytecodeToSsaLowLevelOpcodes():
 
     def opcode_LOAD_ASSERTION_ERROR(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:
         frame.stack.append(AssertionError)
+        return curBlock
+
+    def opcode_LOAD_BUILD_CLASS(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:
+        frame.stack.append(builtins.__build_class__)
         return curBlock
 
     def opcode_MAKE_CELL(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:
