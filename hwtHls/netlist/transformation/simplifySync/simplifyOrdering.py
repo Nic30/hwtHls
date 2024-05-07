@@ -17,6 +17,11 @@ def netlistExplicitSyncDisconnectFromOrderingChain(dbgTracer: DebugTracer, n: Hl
                                                    worklist: Optional[UniqList[HlsNetNode]],
                                                    disconnectPredecessors: bool=True,
                                                    disconnectSuccesors: bool=True):
+    """
+    Using orderingIn and orderingOut node may be connected to other orderable nodes.
+    Mentioned ports can not be just disconnected instead they need to be transitively reconnected
+    to preserver global ordering of nodes. This is done by this function.
+    """
     assert disconnectPredecessors or disconnectSuccesors, "At least one must be set otherwise this function would do nothing and in that case it should not be called at all."
 
     with dbgTracer.scoped(netlistExplicitSyncDisconnectFromOrderingChain, n):
