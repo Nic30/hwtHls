@@ -122,6 +122,9 @@ class LlvmIrExprToHlsNetlist():
                     outI = ptrArg.getArgNo() - outputArgIndexOffset
                     assert outI >= 0, ("Store only to output args is expected", ptrArg)
                     assert newOutputs[outI] == None, ("It is expected that every output is writen only once", st, newOutputs[outI])
+                    name = i.getName().str()
+                    if name and v.obj.name is None:
+                        v.obj.name = name
                     newOutputs[outI] = v
                     continue
 
@@ -142,7 +145,7 @@ class LlvmIrExprToHlsNetlist():
                     resT = op0._dtype
                     operator = self.OPS_MAP[opc]
                     op1 = self._translateExpr(_op1)
-                    v = b.buildOp(operator, resT, op0, op1)
+                    v = b.buildOp(operator, resT, op0, op1, name=i.getName().str())
                     varMap[i] = v
                     continue
 
@@ -157,6 +160,9 @@ class LlvmIrExprToHlsNetlist():
                     assert not op0._dtype.signed, ("signed types should not be used internally", cmp, op0)
                     assert not op1._dtype.signed, ("signed types should not be used internally", cmp, op1)
                     v = b.buildOp(operator, BIT, op0, op1)
+                    name = i.getName().str()
+                    if name and v.obj.name is None:
+                        v.obj.name = name
                     varMap[i] = v
                     continue
 
@@ -190,9 +196,30 @@ class LlvmIrExprToHlsNetlist():
                         raise NotImplementedError()
                     varMap[i] = v
                     continue
+                opc = i.getOpcode()
+                if opc in (Instruction.SExt, Instruction.ZExt):
+                    opV0, = (self._translateExpr(op) for op in i.iterOperandValues())
+                    w = opV0._dtype.bit_length()
+                    resTwidth = i.getType().getIntegerBitWidth()
+                    if opc == Instruction.SExt:
+                        if opV0._dtype.bit_length() == 1:
+                            msb = opV0
+                        else:
+                            msb = b.buildIndexConstSlice(resT, opV0, w, w - 1)
+                        v = b.buildConcat(opV0, *(msb for _ in range(resTwidth - w)))
+                    else:
+                        assert opc == Instruction.ZExt, opc
+                        v = b.buildConcat(opV0, b.buildConst(Bits(resTwidth - w).from_py(0)))
+
+                    name = i.getName().str()
+                    if name and v.obj.name is None:
+                        v.obj.name = name
+                    varMap[i] = v
+                    continue
 
                 if InstructionToReturnInst(i) is not None:
                     break
+
                 raise NotImplementedError(i)
 
         for o in newOutputs:
