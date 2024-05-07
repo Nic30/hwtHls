@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from tests.llvmIr.bitWidthReduction_test import BitwidthReductionPass_TC
 from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function
 from tests.llvmIr.baseLlvmIrTC import BaseLlvmIrTC
+from tests.llvmIr.bitWidthReduction_test import BitwidthReductionPass_TC
 
 
 class BitwidthReductionPass_PHI_TC(BaseLlvmIrTC):
@@ -331,11 +331,90 @@ class BitwidthReductionPass_PHI_TC(BaseLlvmIrTC):
         """
         self._test_ll(llvmIr)
 
+    def test_phiInitToUndef0a(self):
+        llvmIr = """\
+        define void @phiInitToUndef0a(ptr addrspace(1) %dout, ptr addrspace(3) %timerTick, ptr addrspace(4) %uart) {
+            bb11:
+              br label %bb14
+            
+            bb14:                                             ; preds = %bb11, %bb14
+              %shiftPhi = phi i7 [ undef, %bb11 ], [ %data0, %bb14 ]
+              %0 = call i6 @hwtHls.bitRangeGet.i7.i4.i6.1(i7 %shiftPhi, i4 1) #2
+              %uart0 = load volatile i1, ptr addrspace(4) %uart, align 1
+              %data0 = call i7 @hwtHls.bitConcat.i6.i1(i6 %0, i1 %uart0) #2
+              store volatile i7 %data0, ptr addrspace(1) %dout, align 1
+              br label %bb14
+            }
+        """
+        self._test_ll(llvmIr)
+
+
+    def test_phiInitToUndef0b(self):
+        # :note: phiInitToUndef0a with order of phi operands reversed
+        llvmIr = """\
+        define void @phiInitToUndef0b(ptr addrspace(1) %dout, ptr addrspace(3) %timerTick, ptr addrspace(4) %uart) {
+            bb11:
+              br label %bb14
+            
+            bb14:                                             ; preds = %bb11, %bb14
+              %shiftPhi = phi i7 [ %data0, %bb14 ], [ undef, %bb11 ] 
+              %0 = call i6 @hwtHls.bitRangeGet.i7.i4.i6.1(i7 %shiftPhi, i4 1) #2
+              %uart0 = load volatile i1, ptr addrspace(4) %uart, align 1
+              %data0 = call i7 @hwtHls.bitConcat.i6.i1(i6 %0, i1 %uart0) #2
+              store volatile i7 %data0, ptr addrspace(1) %dout, align 1
+              br label %bb14
+            }
+        """
+        self._test_ll(llvmIr)
+            
+            
+    def test_phiInitToUndef1(self):
+        # :note: same as phiInitToUndef0 with 2 nested loops 
+        llvmIr = """\
+        define void @PhiInitToUndef1(ptr addrspace(1) %dout, ptr addrspace(3) %timerTick, ptr addrspace(4) %uart) {
+            bb11:
+              br label %bb14
+            
+            bb14:                                             ; preds = %bb11, %bb24
+              %cntr0 = phi i4 [ %"37", %bb24 ], [ 7, %bb11 ]
+              %shiftPhi = phi i7 [ %data0, %bb24 ], [ undef, %bb11 ]
+              %0 = call i6 @hwtHls.bitRangeGet.i7.i4.i6.1(i7 %shiftPhi, i4 1) #2
+              br label %bb16
+            
+            bb16:                                             ; preds = %bb17, %bb14
+              %timerTick.0 = load volatile i1, ptr addrspace(3) %timerTick, align 1
+              br i1 %timerTick.0, label %bb20, label %bb17
+            
+            bb17:                                             ; preds = %bb16
+              br label %bb16
+            
+            bb20:                                             ; preds = %bb16, %bb21
+              %timerTick.1 = load volatile i1, ptr addrspace(3) %timerTick, align 1
+              br i1 %timerTick.1, label %bb24, label %bb21
+            
+            bb21:                                             ; preds = %bb20
+              br label %bb20
+            
+            bb24:                                             ; preds = %bb20
+              %uart0 = load volatile i1, ptr addrspace(4) %uart, align 1
+              %"37" = add nsw i4 %cntr0, -1
+              %"38" = icmp sgt i4 %cntr0, 0
+              %data0 = call i7 @hwtHls.bitConcat.i6.i1(i6 %0, i1 %uart0) #2
+              store volatile i7 %data0, ptr addrspace(1) %dout, align 1
+              br i1 %"38", label %bb14, label %bb27
+            
+            bb27:                                             ; preds = %bb24
+              ret void
+        }
+        """
+        self._test_ll(llvmIr)
+
+        
 
 if __name__ == "__main__":
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([BitwidthReductionPass_PHI_TC('test_loopCondBitSet')])
+    # suite = unittest.TestSuite([BitwidthReductionPass_PHI_TC('test_phiInitToUndef0b')])
     suite = testLoader.loadTestsFromTestCase(BitwidthReductionPass_PHI_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
