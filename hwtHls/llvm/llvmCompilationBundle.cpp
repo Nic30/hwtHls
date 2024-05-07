@@ -123,11 +123,15 @@ static llvm::cl::opt<DebugLogging> DebugPMCliOpt(
         clEnumValN(
             DebugLogging::Verbose, "verbose",
             "Print extra information about adaptors and pass managers")));
+static llvm::cl::opt<bool> VerifyEach("verify-each",
+		llvm::cl::desc("Verify after each transform"));
+
+
 
 // https://discourse.llvm.org/t/how-to-implement-a-disable-pass-option/71149/12
 LlvmCompilationBundle::LlvmCompilationBundle(const std::string &moduleName) :
 		ctx(), strCtx(), module(new llvm::Module(strCtx.addStringRef(moduleName), ctx)),
-		builder(ctx), main(nullptr), MMIWP(nullptr), VerifyEachPass(false), DebugPM(DebugPMCliOpt.getValue()) {
+		builder(ctx), main(nullptr), MMIWP(nullptr), VerifyEachPass(VerifyEach), DebugPM(DebugPMCliOpt.getValue()) {
 	Target = &getTheHwtFpgaTarget(); //llvm::TargetRegistry::targets()[0];
 	Level = llvm::OptimizationLevel::O3;
 	EnableO3NonTrivialUnswitching = true;
@@ -177,6 +181,8 @@ void LlvmCompilationBundle::addLlvmCliArgOccurence(const std::string & OptionNam
 	o->second->addOccurrence(pos, strCtx.addStringRef(ArgName), strCtx.addStringRef(ArgValue));
 	if (OptionName == "debug-pass-manager") {
 		_updateDebugPM();
+	} else if (OptionName == "verify-each") {
+		VerifyEachPass = VerifyEach;
 	}
 }
 
@@ -189,7 +195,6 @@ struct HwtFpgaAllowVolatileMemOpDuplication {
 	~HwtFpgaAllowVolatileMemOpDuplication() {
 		FPM.addPass(hwtHls::ReconfigureHwtFpgaTTIPass(TM, false));
 	}
-
 };
 
 void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetlistConversionFn) {
@@ -221,7 +226,6 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 	PB->crossRegisterProxies(LAM, FAM, CGAM, MAM);
 
 	llvm::FunctionPassManager FPM;
-	//FPM.addPass(hwtHls::OverwriteBlockNamesPass());
 	_addInitialNormalizationPasses(FPM);
 	_addStreamOperationLoweringPasses(FPM);
 	FPM.addPass(hwtHls::SimplifyCFG2Pass());
@@ -356,6 +360,7 @@ void LlvmCompilationBundle::runExprOpt() {
 
 void LlvmCompilationBundle::_addInitialNormalizationPasses(
 		llvm::FunctionPassManager &FPM) {
+	// FPM.addPass(hwtHls::OverwriteBlockNamesPass());
 	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true));
 	llvm::LoopPassManager LPM0;
 	LPM0.addPass(hwtHls::LoopUnrotatePass());
