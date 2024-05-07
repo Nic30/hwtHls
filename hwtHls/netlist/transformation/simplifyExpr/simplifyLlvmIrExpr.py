@@ -1,15 +1,17 @@
 from typing import Set, Sequence, List, Dict
 
 from hwt.hdl.operatorDefs import BITWISE_OPS, COMPARE_OPS, AllOps
+from hwt.hdl.value import HValue
 from hwt.pyUtils.uniqList import UniqList
+from hwtHls.netlist.builder import HlsNetlistBuilder
+from hwtHls.netlist.nodes.const import HlsNetNodeConst
+from hwtHls.netlist.nodes.mux import HlsNetNodeMux
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
-from hwtHls.netlist.builder import HlsNetlistBuilder
-from hwtHls.netlist.nodes.const import HlsNetNodeConst
-from hwtHls.netlist.translation.llvmIrExprToHlsNetlist import LlvmIrExprToHlsNetlist
 from hwtHls.netlist.translation.hlsNetlistExprToLlvmIr import HlsNetlistExprToLlvmIr
-from hwt.hdl.value import HValue
+from hwtHls.netlist.translation.llvmIrExprToHlsNetlist import LlvmIrExprToHlsNetlist
+
 
 _collectCmpContainingExpr_OPS = {
     *BITWISE_OPS,
@@ -39,7 +41,6 @@ def runLlvmCmpOpt(builder: HlsNetlistBuilder, worklist: UniqList[HlsNetNode],
     """
     Run LLVM expression simplify pipeline to optimize expressions with comparisons
     """
-
     inputs: UniqList[HlsNetNodeOut] = UniqList()
     cmpCoutPerOut: Dict[HlsNetNodeOut, int] = {}
     for n in allNodeIt:
@@ -48,6 +49,8 @@ def runLlvmCmpOpt(builder: HlsNetlistBuilder, worklist: UniqList[HlsNetNode],
             continue
         if isinstance(n, HlsNetNodeOperator) and n.operator in COMPARE_OPS:
             for op in n.dependsOn:
+                if isinstance(op.obj, HlsNetNodeConst):
+                    continue
                 cnt = cmpCoutPerOut.get(op, 0)
                 if cnt == 1:
                     inputs.append(op)  # append to inputs if there are more than 1 compare operands on this output
@@ -78,6 +81,12 @@ def runLlvmCmpOpt(builder: HlsNetlistBuilder, worklist: UniqList[HlsNetNode],
 
     if outputs:
         toLlvmIr = HlsNetlistExprToLlvmIr("runLlvmCmpOpt")
+        # set of inputs which were originally input
+        # but then it was discovered that the expression is also an expr tree of interest
+        # and the input has became output
+        inputsWhichBecomeOutputs = set(o for o in outputs if o in inputs)
+        if inputsWhichBecomeOutputs:
+            inputs = UniqList(i for i in inputs if i not in inputsWhichBecomeOutputs)
         toLlvmIr.translate(inputs, outputs)
         toLlvmIr.llvm.runExprOpt()
 
