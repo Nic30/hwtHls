@@ -136,7 +136,7 @@ class HlsScope():
         else:
             raise NotImplementedError(src)
 
-        return HlsRead(self, src, dtype, blocking)
+        return HlsRead(self, _src, dtype, blocking)
 
     @hlsLowLevel
     def write(self, src: Union[HlsRead, bytes, int, HValue], dst: ANY_HLS_COMPATIBLE_IO):
