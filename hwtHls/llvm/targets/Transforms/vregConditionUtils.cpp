@@ -402,7 +402,12 @@ void Condition_and_or(unsigned opcode_and_or, llvm::MachineIRBuilder &Builder,
 			Src1 = hwtHls::negateRegister(MRI, Builder, Src1,
 					Op1AndDst[0].isKill());
 		}
+		for (auto R: {Src0, Src1}) {
+			if (!MRI.getType(R).isValid())
+				MRI.setType(R, LLT::scalar(1));
+		}
 		auto Dst = MRI.cloneVirtualRegister(Op0[0].getReg());
+
 		auto MIB = Builder.buildInstr(opcode_and_or, { Dst, }, { Src0, Src1 });
 		Op1AndDst[0] = MIB.getInstr()->getOperand(0);
 		Op1AndDst[1].setImm(0); // not negated
