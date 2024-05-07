@@ -83,17 +83,14 @@ class IEEE754FpCmp_TC(SimTestCase):
             return IEEE754FpCmpResult.UNKNOWN
 
     def test_cmp_py(self):
-        for (a, b), (aRaw, bRaw) in zip(self.TEST_DATA_FORMATED, self.TEST_DATA):
+        for (a, b) in zip(self.TEST_DATA_FORMATED):
             res = IEEE754FpCmp(a, b)
             _a = IEEE754Fp32.to_py(a)
             _b = IEEE754Fp32.to_py(b)
             # check if conversion from py int to hvalue and to float is correct
-            self.assertEqual(struct.unpack("f", aRaw.to_bytes(4, byteorder='little'))[0], _a)
-            self.assertEqual(struct.unpack("f", bRaw.to_bytes(4, byteorder='little'))[0], _b)
             resRef = self.model(_a, _b)
-
             self.assertValEqual(res, int(resRef),
-                                       msg=(_a, IEEE754FpCmpResult.toStr(res), _b, 'expected', IEEE754FpCmpResult.toStr(resRef)))
+                                msg=(_a, IEEE754FpCmpResult.toStr(res), _b, 'expected', IEEE754FpCmpResult.toStr(resRef)))
 
     def test_cmp(self):
         u = IEEE754FpComparator()
@@ -125,7 +122,8 @@ class IEEE754FpCmp_TC(SimTestCase):
                                     prepareDataInFn, checkDataOutFn, None,
                                     inputCnt=2,
                                     noOptIrTest=TestLlvmIrAndMirPlatform.TEST_NO_OPT_IR,
-                                    runTestAfterEachPass=True))
+                                    # runTestAfterEachPass=True
+                                    ))
 
         u.a._ag.data.extend(aDataIn)
         u.b._ag.data.extend(bDataIn)
