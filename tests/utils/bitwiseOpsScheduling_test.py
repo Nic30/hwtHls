@@ -48,10 +48,10 @@ class BitwiseOpsScheduling_TC(SimTestCase):
             link_hls_nodes(prev._outputs[0], n._inputs[0])
             prev = n
 
-        HlsNetlistPassAggregateBitwiseOps().apply(None, net)
-        # HlsNetlistPassDumpNodesDot(outputFileGetter("tmp", ".nodes.dot")).apply(None, net)
+        HlsNetlistPassAggregateBitwiseOps().runOnHlsNetlist(net)
+        # HlsNetlistPassDumpNodesDot(outputFileGetter("tmp", ".nodes.dot")).runOnHlsNetlist(net)
         net.getAnalysis(HlsNetlistAnalysisPassRunScheduler)
-        # HlsNetlistPassDumpSchedulingJson(outputFileGetter("tmp", ".hwschedule.json")).apply(None, net)
+        # HlsNetlistPassDumpSchedulingJson(outputFileGetter("tmp", ".hwschedule.json")).runOnHlsNetlist(net)
 
     def test_2not1and_200MHz(self):
         self._test_2not1and(200e6)
@@ -81,10 +81,10 @@ class BitwiseOpsScheduling_TC(SimTestCase):
             prev = n
         link_hls_nodes(r1._outputs[0], n2._inputs[1])
 
-        HlsNetlistPassAggregateBitwiseOps().apply(None, net)
-        HlsNetlistPassDumpNodesDot(outputFileGetter("tmp", ".nodes.dot")).apply(None, net)
+        HlsNetlistPassAggregateBitwiseOps().runOnHlsNetlist(net)
+        #HlsNetlistPassDumpNodesDot(outputFileGetter("tmp", ".nodes.dot")).runOnHlsNetlist(net)
         net.getAnalysis(HlsNetlistAnalysisPassRunScheduler)
-        HlsNetlistPassDumpSchedulingJson(outputFileGetter("tmp", ".hwschedule.json")).apply(None, net)
+        #HlsNetlistPassDumpSchedulingJson(outputFileGetter("tmp", ".hwschedule.json")).runOnHlsNetlist(net)
 
 
 if __name__ == "__main__":

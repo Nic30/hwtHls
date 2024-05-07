@@ -27,7 +27,7 @@ class PhiConstruction_TC(unittest.TestCase):
 
     def testAstWhileCondWrite(self):
         ssaCtx = SsaContext()
-        toSsa = HlsAstToSsa(ssaCtx, "entry", None)
+        toSsa = HlsAstToSsa(ssaCtx, "entry", None, None)
         toSsa._onAllPredecsKnown(toSsa.start)
         netlist = RtlNetlist()
 
@@ -78,8 +78,8 @@ class PhiConstruction_TC(unittest.TestCase):
         class TestPlatform(VirtualHlsPlatform):
 
             def runSsaPasses(self, hls:"HlsScope", toSsa:HlsAstToSsa):
-                SsaPassDumpToDot(outputFileGetter("tmp", "0.dot"), extractPipeline=False).apply(hls, toSsa)
-                SsaPassConsystencyCheck().apply(hls, toSsa)
+                SsaPassDumpToDot(hls, outputFileGetter("tmp", "0.dot"), extractPipeline=False).runOnSsaModule(toSsa)
+                SsaPassConsystencyCheck(hls).runOnSsaModule(toSsa)
                 raise TestFinishedSuccessfuly()
 
         try:
