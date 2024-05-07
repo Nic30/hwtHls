@@ -1,12 +1,13 @@
 from hwt.hdl.types.array import HArray
 from hwt.hdl.value import HValue
-from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, INVARIANT_TIME
+from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.typingFuture import override
 
 
 class HlsNetNodeConst(HlsNetNode):
     """
-    Wrapper around constant value for HLS sybsystem
+    Wrapper around constant value for HLS subsystem
     """
 
     def __init__(self, netlist: "HlsNetlistCtx", val: HValue):
@@ -14,26 +15,21 @@ class HlsNetNodeConst(HlsNetNode):
         HlsNetNode.__init__(self, netlist, name=None)
         self._addOutput(val._dtype, "val")
 
-    def get(self, time: float):
-        return self.val
-
-    def allocateRtlInstance(self, allocator: "ArchElement") -> TimeIndependentRtlResource:
+    @override
+    def rtlAlloc(self, allocator: "ArchElement") -> TimeIndependentRtlResource:
+        assert not self._isRtlAllocated
         o = self._outputs[0]
-        try:
-            return allocator.netNodeToRtl[o]
-        except KeyError:
-            pass
-
         s = self.val
         if isinstance(s._dtype, HArray):
             # wrap into const signal to prevent code duplication
             s = allocator._sig(self.name, s._dtype, def_val=s)
             s._const = True
+        
+        res = allocator.rtlRegisterOutputRtlSignal(o, s, False, False, False)
+        self._isRtlAllocated = True
+        return res
 
-        rtl = TimeIndependentRtlResource(s, INVARIANT_TIME, allocator, False)
-        allocator.netNodeToRtl[o] = rtl
-        return rtl
-
+    @override
     def resolveRealization(self):
         assert not self._inputs
         assert len(self._outputs) == 1

@@ -17,7 +17,7 @@ class HlsNetlistPassAggregateIoSyncSccs(HlsNetlistPass):
     Extract cluster of nodes for each IO Strongly Connected Component (SCC) as a single node to simplify scheduling.
     """
 
-    def apply(self, hls: "HlsScope", netlist: HlsNetlistCtx):
+    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
         removedNodes: Set[HlsNetNode] = set()
         syncDomains:HlsNetlistAnalysisPassSyncDomains = netlist.getAnalysis(HlsNetlistAnalysisPassSyncDomains)
         hierarchy: HlsNetlistAnalysisPassNodeParentAggregate = netlist.getAnalysis(HlsNetlistAnalysisPassNodeParentAggregate)

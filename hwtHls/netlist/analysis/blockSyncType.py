@@ -538,11 +538,11 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                     # Prequel runs exactly once for each iteration and it does not need to wait for loop live ins.
     
 
-    def run(self):
+    def runOnHlsNetlist(self, netlist:"HlsNetlistCtx"):
         from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
 
-        originalMir: HlsNetlistAnalysisPassMirToNetlist = self.netlist.getAnalysis(HlsNetlistAnalysisPassMirToNetlist)
-        threads: HlsNetlistAnalysisPassDataThreadsForBlocks = self.netlist.getAnalysis(HlsNetlistAnalysisPassDataThreadsForBlocks)
+        originalMir: HlsNetlistAnalysisPassMirToNetlist = netlist.getAnalysis(HlsNetlistAnalysisPassMirToNetlist)
+        threads: HlsNetlistAnalysisPassDataThreadsForBlocks = netlist.getAnalysis(HlsNetlistAnalysisPassDataThreadsForBlocks)
 
         self.originalMir = originalMir
         self.threadsPerBlock = threads.threadsPerBlock

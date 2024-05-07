@@ -4,6 +4,7 @@ from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock
 from hwtHls.platform.fileUtils import OutputStreamGetter
 from hwtHls.ssa.transformation.ssaPass import SsaPass
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
+from hwtHls.typingFuture import override
 
 
 def dumpMirCfgToDot(mf: MachineFunction):
@@ -31,8 +32,9 @@ class SsaPassDumpMirCfg(SsaPass):
     def __init__(self, outStreamGetter:OutputStreamGetter):
         self.outStreamGetter = outStreamGetter
 
-    def apply(self, hls: "HlsScope", to_ssa: "HlsAstToSsa"):
-        tr: ToLlvmIrTranslator = to_ssa.start
+    @override
+    def runOnSsaModuleImpl(self, toSsa: "HlsAstToSsa"):
+        tr: ToLlvmIrTranslator = toSsa.start
         assert isinstance(tr, ToLlvmIrTranslator), tr
         mf = tr.llvm.getMachineFunction(tr.llvm.main)
         assert mf

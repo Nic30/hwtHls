@@ -86,6 +86,19 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
         self._bbNumberToPorts: Dict[tuple(int, int), Tuple[LoopChanelGroup, HlsNetNodeOut]] = {}
         self._isEnteredOnExit: bool = False
 
+    @override
+    def clone(self, memo:dict) -> Tuple["HlsNetNode", bool]:
+        y, isNew = HlsNetNodeOrderable.clone(self, memo)
+        if isNew:
+            y.fromEnter = [c.clone(memo)[0] for c in self.fromEnter]
+            y.fromReenter = [c.clone(memo)[0] for c in self.fromReenter]
+            y.fromExitToHeaderNotify = [c.clone(memo)[0] for c in self.fromExitToHeaderNotify]
+            y.fromExitToSuccessor = [c.clone(memo)[0] for c in self.fromExitToSuccessor]
+            y.channelExtraEnCondtions = {memo[id(lcg)]: [y._inputs[i.in_i] for i in inputs]
+                                         for lcg, inputs in self.channelExtraEnCondtions.items()}
+            y._bbNumberToPorts = {k: (memo[id(lcg)], y._outputs[o.out_i]) for k, (lcg, o) in self._bbNumberToPorts.items()}
+        return y, isNew
+
     def addChannelExtraEnCondtion(self, lcg: LoopChanelGroup, en: HlsNetNodeOut, name:str,
                                   addDefaultScheduling=False, inputWireDelay:int=0):
         """
@@ -104,7 +117,7 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
         #    raise ValueError(role)
 
         i = self._addInput(name, addDefaultScheduling=addDefaultScheduling,
-                           inputClkTickOffset=0, # must be 0 because it must be in same clk
+                           inputClkTickOffset=0,  # must be 0 because it must be in same clk
                            inputWireDelay=inputWireDelay)
         link_hls_nodes(en, i)
         ens = self.channelExtraEnCondtions.get(lcg)
@@ -244,38 +257,58 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
         return w
 
     @staticmethod
-    def _resolveBackedgeDataRtlValidSig(portNode: HlsNetNodeReadBackedge):
-        portNode._allocateRtlIo()
-        allocationType = portNode.associatedWrite.allocationType
+    def _resolveBackedgeDataRtlValidSig(rPortNode: HlsNetNodeReadBackedge):
+        rPortNode._rtlAllocDatapathIo()
+        allocationType = rPortNode.associatedWrite.allocationType
         if allocationType == BACKEDGE_ALLOCATION_TYPE.BUFFER:
-            return portNode.src.vld  # & portNode.src.rd
+            return rPortNode.src.vld  # & portNode.src.rd
         elif allocationType == BACKEDGE_ALLOCATION_TYPE.REG:
-            return portNode.src.vld
+            return rPortNode.src.vld
         else:
-            raise NotImplementedError(portNode, allocationType)
+            raise NotImplementedError(rPortNode, allocationType)
 
-    def allocateRtlInstance(self, allocator: "ArchElement") -> TimeIndependentRtlResource:
+    def _getAckOfStageWhereNodeIs(self, parents: HlsNetlistAnalysisPassNodeParentAggregate,
+                                  n: HlsNetNodeReadOrWriteToAnyChannel) -> Optional[RtlSignal]:
+        elm = parents.getBottomMostArchElementParent(n)
+        t = n.scheduledOut[0] if n.scheduledOut else n.scheduledIn[0]
+        con: ConnectionsOfStage = elm.connections.getForTime(t)
+        return con.getRtlStageAckSignal()
+
+    def _lazyLoadParents(self, parents: Optional[HlsNetlistAnalysisPassNodeParentAggregate]):
+        if parents is None:
+            parents = self.netlist.getAnalysis(HlsNetlistAnalysisPassNodeParentAggregate)
+        return parents
+
+    def _andOptionalWithExtraChannelEn(self, allocator: "ArchElement", s: Optional[RtlSignal], lcg: LoopChanelGroup):
+        ens = self.channelExtraEnCondtions.get(lcg)
+        if not ens:
+            return s
+        for en in ens:
+            _en = allocator.rtlAllocHlsNetNodeOutInTime(self.dependsOn[en.in_i], self.scheduledIn[en.in_i]).data
+            s = RtlSignalBuilder.buildAndOptional(s, _en)
+        return s
+
+    @override
+    def rtlAlloc(self, allocator: "ArchElement") -> TimeIndependentRtlResource:
         """
         :note: drive of this register is generated from :class:`~.HlsNetNodeLoop`
         """
-        try:
-            return allocator.netNodeToRtl[self]
-        except KeyError:
-            pass
-
+        assert not self._isRtlAllocated, self
         name = self.name
         if name:
-            name = f"{allocator.namePrefix}{name}"
+            name = f"{allocator.name:s}{name:s}"
         else:
-            name = f"{allocator.namePrefix}loop{self._id:d}"
+            name = f"{allocator.name:s}loop{self._id:d}"
 
         isAlwaysBusy = self._isEnteredOnExit and not self.fromEnter
         if isAlwaysBusy:
+            # raise AssertionError("This node should be optimized out if state of the loop can't change", self)
             statusBusyReg = BIT.from_py(1)
         else:
             statusBusyReg = allocator._reg(
-                f"{name:s}_busy",
+                f"{name:s}_busyReg" if self.fromEnter else f"{name:s}_busy",
                 def_val=0 if self.fromEnter else 1)  # busy if is executed at 0 time
+
         bbNumberToPortsSorted = sorted(self._bbNumberToPorts.items(), key=lambda x: x[0])
         portGroupSigs = self._rtlPortGroupSigs
         for _, (channelGroup, portOut) in bbNumberToPortsSorted:
@@ -284,12 +317,20 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
 
         useNamedSignals = self.debugUseNamedSignalsForControl
         parentU = self.netlist.parentUnit
-
+        andOptional = RtlSignalBuilder.buildAndOptional
+        parents: Optional[HlsNetlistAnalysisPassNodeParentAggregate] = None
         # has the priority and does not require sync token (because it already owns it)
         assert self.fromReenter, (self, "Must have some reenters otherwise this is not the loop")
         for channelGroup in self.fromReenter:
             s = portGroupSigs[channelGroup]
-            s(self._resolveBackedgeDataRtlValidSig(channelGroup.getChannelWhichIsUsedToImplementControl().associatedRead))
+            portNode: HlsNetNodeWriteBackedge = channelGroup.getChannelWhichIsUsedToImplementControl()
+            _s = self._resolveBackedgeDataRtlValidSig(portNode.associatedRead)
+            _s = self._andOptionalWithExtraChannelEn(allocator, _s, channelGroup)
+            if not portNode._rtlUseValid:
+                parents = self._lazyLoadParents(parents)
+                _s = andOptional(_s, self._getAckOfStageWhereNodeIs(parents, portNode))
+
+            s(_s)
 
         newExit = NOT_SPECIFIED
         if self.fromExitToHeaderNotify:
@@ -298,13 +339,18 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
             for channelGroup in self.fromExitToHeaderNotify:
                 portNode = channelGroup.getChannelWhichIsUsedToImplementControl()
                 assert isinstance(portNode, HlsNetNodeWriteBackedge), (portNode, self)
-                # e.allocateRtlInstance(allocator)
                 s = portGroupSigs[channelGroup]
                 fromExit.append(s)
                 portNodeR = portNode.associatedRead
-                allocator.instantiateHlsNetNodeOutInTime(portNodeR._validNB, self.scheduledZero)
-                # portNode.associatedRead._allocateRtlIo()
-                s(portNodeR.src.vld)
+                allocator.rtlAllocHlsNetNodeOutInTime(portNodeR._validNB, self.scheduledZero)
+                # portNode.associatedRead._rtlAllocDatapathIo()
+                _s = portNodeR.src.vld
+                _s = self._andOptionalWithExtraChannelEn(allocator, _s, channelGroup)
+                if not portNode._rtlUseValid:
+                    parents = self._lazyLoadParents(parents)
+                    _s = RtlSignalBuilder.buildAndOptional(_s, self._getAckOfStageWhereNodeIs(parents, portNode))
+
+                s(_s)
 
             newExit = Or(*fromExit)
             if useNamedSignals:
@@ -313,34 +359,47 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
         newExe = NOT_SPECIFIED
         if self.fromEnter:
             fromEnter = []
+            en = ~statusBusyReg  # :note: the statusBusyReg is 0 in the first clock of the loop execution
             # takes the control token
             for channelGroup in self.fromEnter:
-                portNode = channelGroup.getChannelWhichIsUsedToImplementControl().associatedRead
-                portNode._allocateRtlIo()
+                portWriteNode = channelGroup.getChannelWhichIsUsedToImplementControl()
+                portNode: HlsNetNodeReadAnyChannel = portWriteNode.associatedRead
+                portNode._rtlAllocDatapathIo()
                 _s = portGroupSigs[channelGroup]
-                s = portNode.src.vld
-                if newExit is not NOT_SPECIFIED:
-                    en = ~statusBusyReg | newExit
+                if portNode._rtlUseValid or (portNode.hasValidOnlyToPassFlags()):
+                    s = portNode.src.vld
                 else:
-                    en = ~statusBusyReg
-                _s(s & en)
-                # e.src.rd(~statusBusyReg)
+                    s = BIT.from_py(1)
+
+                _s(s)
+                # :note: ExtraChannelEn can not be added to output because it would cause conditional loop
+                # as this port potentially drivers extraCond/skipWhen of other channels
+                s = self._andOptionalWithExtraChannelEn(allocator, s, channelGroup)
+                if not portNode._rtlUseValid:
+                    parents = self._lazyLoadParents(parents)
+                    channelAck = self._getAckOfStageWhereNodeIs(
+                        parents, portNode if portWriteNode._getBufferCapacity() else portWriteNode)
+                    s = RtlSignalBuilder.buildAndOptional(s, channelAck)
+
                 fromEnter.append(s)
 
-            newExe = Or(*fromEnter)
+            newExe = en & Or(*fromEnter)
             if useNamedSignals:
                 newExe = rename_signal(parentU, newExe, f"{name:s}_newExe")
-            # statusBusy = statusBusyReg | newExe
 
+        # new exe or reenter should be executed only if stage with this node has ack
+        # exit should be executed only if stage with exit write has ack
+        statusBusyRegDrive = []
         if isAlwaysBusy:
             assert isinstance(statusBusyReg, HValue), self
+            # raise AssertionError("This node should be optimized out if state of the loop can't change", self)
             pass
 
         elif not self.fromEnter and not self.fromExitToHeaderNotify:
             # this is infinite loop without predecessor, it will run infinitely but in just one instance
             assert newExe is NOT_SPECIFIED, (newExe, self)
             assert newExit is NOT_SPECIFIED, (newExit, self)
-            statusBusyReg(1)
+            statusBusyRegDrive = statusBusyReg(1)
             # raise AssertionError("This node should be optimized out if state of the loop can't change", self)
 
         elif self.fromEnter and not self.fromExitToHeaderNotify:
@@ -348,6 +407,7 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
             # :attention: we pick the data from any time because this is kind of back edge
             assert newExe is not NOT_SPECIFIED, (newExe, self)
             assert newExit is NOT_SPECIFIED, (newExit, self)
+            statusBusyRegDrive = \
             If(newExe,
                statusBusyReg(1)
             )
@@ -355,30 +415,31 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
             # loop with a predecessor and successor
             assert newExe is not NOT_SPECIFIED, (newExe, self)
             assert newExit is not NOT_SPECIFIED, (newExit, self)
-            becomesBusy = newExe & (newExit | ~statusBusyReg)
+            becomesBusy = newExe & ~newExit
             becomesFree = ~newExe & newExit
             if isinstance(becomesBusy, HValue):
                 if becomesBusy:
-                    statusBusyReg(1)
+                    statusBusyRegDrive = statusBusyReg(1)
                 else:
                     if isinstance(becomesFree, HValue):
                         if becomesFree:
-                            statusBusyReg(0)
+                            statusBusyRegDrive = statusBusyReg(0)
                     else:
+                        statusBusyRegDrive = \
                         If(becomesFree,
                             statusBusyReg(0)
                         )
             else:
-                resStm = If(becomesBusy,
+                statusBusyRegDrive = If(becomesBusy,
                    statusBusyReg(1)
                 )
                 if isinstance(becomesFree, HValue):
                     if becomesFree:
-                        resStm.Else(
+                        statusBusyRegDrive.Else(
                             statusBusyReg(0)
                         )
                 else:
-                    resStm.Elif(becomesFree,
+                    statusBusyRegDrive.Elif(becomesFree,
                         statusBusyReg(0)
                     )
 
@@ -386,47 +447,41 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
             # loop with no predecessor and successor
             assert newExe is NOT_SPECIFIED, (newExe, self)
             assert newExit is not NOT_SPECIFIED, (newExit, self)
+            statusBusyRegDrive = \
             If(newExit,
                statusBusyReg(0)  # finished work
             )
         else:
             raise AssertionError("All cases should already be covered in this if", self)
 
-        # create RTL signal expression base on operator type
-        t = self.scheduledOut[0] + self.netlist.scheduler.epsilon
-        netNodeToRtl = allocator.netNodeToRtl
-        if newExit is NOT_SPECIFIED:
-            busy = statusBusyReg
-        else:
-            busy = statusBusyReg & ~newExit
-
-        netNodeToRtl[self.getBusyOutPort()] = TimeIndependentRtlResource(busy, t, allocator, False)
-        # netNodeToRtl[self.getEnterOutPort()] = TimeIndependentRtlResource(~statusBusyReg, t, allocator, False)
+        allocator.rtlRegisterOutputRtlSignal(self.getBusyOutPort(), statusBusyReg, False, False, True)
         for _, (channelGroup, portOut) in bbNumberToPortsSorted:
+            # :note: portOut port is a port on this loop control which should be asserted 1 if the control of the program
+            #  came from the place which the port is associated with
             s = portGroupSigs[channelGroup]
             if isinstance(portOut, HlsNetNodeIn):
                 # exits don't have portOut
                 continue
-            elif channelGroup in self.fromReenter:
+            if channelGroup in self.fromReenter:
                 s = s & statusBusyReg
             elif channelGroup in self.fromEnter:
-                if newExit is NOT_SPECIFIED:
-                    s = s & ~statusBusyReg
-                else:
-                    s = s & (~statusBusyReg | newExit)
+                s = s & ~statusBusyReg
             else:
-                raise AssertionError("unknown type of port node", channelGroup)
+                raise ValueError("There should not be any other ports")
 
-            allocator.netNodeToRtl[portOut] = TimeIndependentRtlResource(
-                    s, self.scheduledOut[portOut.out_i], allocator, False)
+            allocator.rtlRegisterOutputRtlSignal(portOut, s, False, False, False)
 
-        res = netNodeToRtl[self] = []
+        res = allocator.netNodeToRtl[self] = []
+        self._isRtlAllocated = True
         return res
 
-    def debug_iter_shadow_connection_dst(self) -> Generator["HlsNetNode", None, None]:
+    @override
+    def debugIterShadowConnectionDst(self) -> Generator[Tuple[HlsNetNode, bool], None, None]:
         for g in chain(self.fromEnter, self.fromReenter, self.fromExitToHeaderNotify):
             for w in g.members:
-                yield w.associatedRead
+                yield w.associatedRead, False
 
     def __repr__(self):
-        return f"<{self.__class__.__name__:s}{' ' if self.name else ''}{self.name} {self._id:d}{' isEnteredOnExit' if self._isEnteredOnExit else ''}>"
+        return (f"<{self.__class__.__name__:s}{' ' if self.name else ''}{self.name}"
+                f" {self._id:d}{' isEnteredOnExit' if self._isEnteredOnExit else ''}>")
+

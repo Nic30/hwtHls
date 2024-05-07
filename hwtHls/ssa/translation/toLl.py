@@ -2,7 +2,7 @@ from typing import Set
 
 from hdlConvertorAst.to.hdlUtils import Indent, \
     AutoIndentingStream
-from hwt.hdl.value import HValue
+from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.unitImplHelpers import getInterfaceName
 from hwtHls.frontend.ast.statementsRead import HlsRead
 from hwtHls.frontend.ast.statementsWrite import HlsWrite, HlsWriteAddressed
@@ -10,8 +10,9 @@ from hwtHls.platform.fileUtils import OutputStreamGetter
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.phi import SsaPhi
+from hwtHls.ssa.transformation.ssaPass import SsaPass
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
-from hwt.synthesizer.interface import Interface
+from hwtHls.typingFuture import override
 
 
 class SsaToLl():
@@ -103,25 +104,27 @@ class SsaToLl():
         return s
 
 
-class SsaPassDumpToLl():
+class SsaPassDumpToLl(SsaPass):
 
     def __init__(self, outStreamGetter:OutputStreamGetter):
+        super(SsaPassDumpToLl, self).__init__()
         self.outStreamGetter = outStreamGetter
 
-    def apply(self, hls: "HlsScope", to_ssa: "HlsAstToSsa"):
-        output, doClose = self.outStreamGetter(to_ssa.label) 
+    @override
+    def runOnSsaModuleImpl(self, toSsa: "HlsAstToSsa"):
+        output, doClose = self.outStreamGetter(toSsa.label)
         output = AutoIndentingStream(output, "  ")
         try:
-            if isinstance(to_ssa.start, SsaBasicBlock):
+            if isinstance(toSsa.start, SsaBasicBlock):
                 toLl = SsaToLl(output)
-                toLl.construct(to_ssa.start)
-            elif isinstance(to_ssa.start, ToLlvmIrTranslator):
-                toLlvmIr: ToLlvmIrTranslator = to_ssa.start
+                toLl.construct(toSsa.start)
+            elif isinstance(toSsa.start, ToLlvmIrTranslator):
+                toLlvmIr: ToLlvmIrTranslator = toSsa.start
                 M = toLlvmIr.llvm.module
                 assert M is not None
                 output.write(str(M))
             else:
-                raise NotImplementedError(to_ssa.start)
+                raise NotImplementedError(toSsa.start)
         finally:
             if doClose:
                 output.close()

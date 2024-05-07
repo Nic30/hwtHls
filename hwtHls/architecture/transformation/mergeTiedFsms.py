@@ -1,14 +1,11 @@
-from typing import List, Dict, Tuple, Set
+from typing import List, Dict
 
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.architecture.allocator import HlsAllocator
-from hwtHls.architecture.archElement import ArchElement, ArchElmEdge
-from hwtHls.architecture.archElementFsm import ArchElementFsm
-from hwtHls.architecture.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis
 from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
-from hwtHls.netlist.analysis.detectFsms import IoFsm
-from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.orderable import HdlType_isVoid
+from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.nodes.archElement import ArchElement, ArchElmEdge
+from hwtHls.netlist.nodes.archElementFsm import ArchElementFsm
+from hwtHls.netlist.nodes.archElementUtils import ArchElement_mergeFsms
 from hwtHls.netlist.scheduler.clk_math import start_clk
 
 
@@ -66,69 +63,6 @@ class RtlArchPassMergeTiedFsms(RtlArchPass):
         else:
             return False
 
-    @classmethod
-    def _mergeFsms(cls, iea: InterArchElementNodeSharingAnalysis,
-                   syncClkIs: List[int],
-                   addedTransitions: Set[Tuple[ArchElementFsm, int, int]],
-                   srcElm: ArchElementFsm, dstElm: ArchElementFsm):
-        # for clkIndex in syncClkIs:
-        #    cls._copyFsmTransitionIfRequired(srcElm, dstElm, clkIndex, addedTransitions)
-
-        firstUseTimeOfOutInElem = iea.firstUseTimeOfOutInElem
-        ownerOfInput = iea.ownerOfInput
-        ownerOfOutput = iea.ownerOfOutput
-        ownerOfNode = iea.ownerOfNode
-        for n in srcElm.allNodes:
-            n: HlsNetNode
-            for dep, i in zip(n.dependsOn, n._inputs):
-                if HdlType_isVoid(dep._dtype):
-                    continue
-                #elif isinstance(dep.obj, HlsNetNodeConst):
-                #    continue
-                tSrc = firstUseTimeOfOutInElem.pop((srcElm, dep), None)
-                k = (dstElm, dep)
-                if tSrc is None:
-                    assert k not in firstUseTimeOfOutInElem, (k, "if this is only this ArchElement internal, it should be internal everywhere")
-                else:
-                    tDst = firstUseTimeOfOutInElem.get(k, tSrc)
-                    t = min(tSrc, tDst)
-                    firstUseTimeOfOutInElem[k] = t
-
-                cur = ownerOfInput[i]
-                cur.remove(srcElm)
-                cur.append(dstElm)
-
-            for o in n._outputs:
-                if HdlType_isVoid(o._dtype):
-                    continue
-
-                cur = ownerOfOutput.pop(o)
-                assert cur is srcElm
-                ownerOfOutput[o] = dstElm
-
-            cur = ownerOfNode.pop(n)
-            assert cur is srcElm, (n, cur, srcElm)
-            ownerOfNode[n] = dstElm
-
-        update = {}
-        for k, v in iea.explicitPathSpec.items():
-            o, i, elm = k
-            if elm is srcElm:
-                update[(o, i, dstElm)] = v
-        iea.explicitPathSpec.update(update)
-        dstElm.allNodes.extend(srcElm.allNodes)
-
-        srcFsm: IoFsm = srcElm.fsm
-        dstFsm: IoFsm = dstElm.fsm
-        # rename FSM states in FSM to match names in dst
-        for srcClk, srcSt in enumerate(srcFsm.states):
-            dstSt = dstFsm.addState(srcClk)
-            dstSt.extend(srcSt)
-            dstFsm.syncIslands.extend(srcFsm.syncIslands)
-            dstElm.connections[srcClk].merge(srcElm.connections[srcClk])
-
-        dstFsm.intf = None
-
     @staticmethod
     def _getFinalElement(elmMergedInto: Dict[ArchElementFsm, ArchElementFsm], elm: ArchElementFsm):
         while True:
@@ -137,33 +71,30 @@ class RtlArchPassMergeTiedFsms(RtlArchPass):
                 return elm
             elm = _elm
 
-    def apply(self, hls: "HlsScope", allocator: HlsAllocator):
+    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
         # find all deadlocking FSMs due to missing state transition
-        iea: InterArchElementNodeSharingAnalysis = allocator._iea
-        ownerOfNode = iea.ownerOfNode
-        clkPeriod = allocator.netlist.normalizedClkPeriod
-        # useT = iea.firstUseTimeOfOutInElem[(dstElm, o)]
-        # dstUseClkI = start_clk(useT, clkPeriod)
-        firstUseTimeOfOutInElem = iea.firstUseTimeOfOutInElem
-
+        clkPeriod = netlist.normalizedClkPeriod
         syncMatrix: Dict[ArchElmEdge, List[int]] = {}
         fsmConnectedWithMultipleSync: UniqList[ArchElmEdge] = UniqList()
-        for dep, use in iea.interElemConnections:
-            srcElm = ownerOfNode[dep.obj]
-            dstElm = ownerOfNode[use.obj]
-            k = (srcElm, dstElm)
-            syncClks = syncMatrix.get(k, None)
-            if syncClks is None:
-                syncClks = syncMatrix[k] = set()
-            elif len(syncClks) == 1:
-                fsmConnectedWithMultipleSync.append(k)
+        for elm in netlist.nodes:
+            assert isinstance(elm, ArchElement), elm
+            for dep, users in zip(elm._outputs, elm.usedBy):
+                for use in users:
+                    srcElm = dep.obj
+                    dstElm = use.obj
+                    k = (srcElm, dstElm)
+                    syncClks = syncMatrix.get(k, None)
+                    if syncClks is None:
+                        syncClks = syncMatrix[k] = set()
+                    elif len(syncClks) == 1:
+                        fsmConnectedWithMultipleSync.append(k)
 
-            clkI = start_clk(firstUseTimeOfOutInElem[(dstElm, dep)], clkPeriod)
-            syncClks.add(clkI)
+                    clkI = start_clk(use.obj.scheduledIn[use.in_i], clkPeriod)
+                    syncClks.add(clkI)
 
-        # for dstElm in allocator._archElements:
+        # for dstElm in netlist.nodes:
         #    dstElm: ArchElement
-        #    for n in dstElm.allNodes:
+        #    for n in dstElm._subNodes:
         #        n: HlsNetNode
         #        for dep, useTime in zip(n.dependsOn, n.scheduledIn):
         #            if depElm is not dstElm:
@@ -171,13 +102,13 @@ class RtlArchPassMergeTiedFsms(RtlArchPass):
         #                raise NotImplementedError()
 
         # iterate left top of
-        # for elm in allocator._archElements:
+        # for elm in netlist.nodes:
         #     elm: ArchElement
         #     for con in elm.connections:
         #         con: ConnectionsOfStage
         #         for o, _ in con.outputs:
-        #             if isinstance(o, InterArchElementHandshakeSync):
-        #                 o: InterArchElementHandshakeSync
+        #             if isinstance(o, ArchChannelSync):
+        #                 o: ArchChannelSync
         #                 assert elm is o.srcElm, (elm, o, o.srcElm)
         #                 k = (o.srcElm, o.dstElm)
         #                 syncList = syncMatrix.get(k, None)
@@ -188,7 +119,6 @@ class RtlArchPassMergeTiedFsms(RtlArchPass):
         #
         #                 syncList.append(o)
 
-        addedTransitions: Set[Tuple[ArchElementFsm, int, int]] = set()
         elmMergedInto: Dict[ArchElementFsm, ArchElementFsm] = {}
         for k in fsmConnectedWithMultipleSync:
             elm0, elm1 = k
@@ -198,13 +128,13 @@ class RtlArchPassMergeTiedFsms(RtlArchPass):
                 if elm0 is elm1:
                     # skip because it is already merged
                     continue
-                syncClkIs = sorted(syncMatrix[k])
+
                 if self._elmInsideOfTimeIntervalOfOther(elm1, elm0):
-                    self._mergeFsms(iea, syncClkIs, addedTransitions, elm1, elm0)
+                    ArchElement_mergeFsms(elm1, elm0)
                     elmMergedInto[elm1] = elm0
 
                 elif self._elmInsideOfTimeIntervalOfOther(elm1, elm0):
-                    self._mergeFsms(iea, syncClkIs, addedTransitions, elm0, elm1)
+                    ArchElement_mergeFsms(elm0, elm1)
                     elmMergedInto[elm0] = elm1
 
                 else:
@@ -214,4 +144,4 @@ class RtlArchPassMergeTiedFsms(RtlArchPass):
                     #    self._copyFsmTransitionIfRequired(elm0, elm1, clkIndex, addedTransitions)
                     #    self._copyFsmTransitionIfRequired(elm1, elm0, clkIndex, addedTransitions)
 
-        allocator._archElements = [elm for elm in allocator._archElements if elm not in elmMergedInto]
+        netlist.filterNodesUsingSet(elmMergedInto, recursive=True)

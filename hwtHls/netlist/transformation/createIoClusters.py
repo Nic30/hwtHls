@@ -70,15 +70,23 @@ class HlsNetlistPassCreateIoClusters(HlsNetlistPass):
         for n in allSync:
             n: HlsNetNodeExplicitSync
             if n.dependsOn[n._inputOfCluster.in_i] is None:
+                #print("search in", n._id)
                 inputs, outputs, _ = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(n, DIRECTION.IN, reachDb)
                 inputs = UniqList((i for i in inputs if i not in outputs))
+                #print("found",
+                #      [i._id for i in inputs],
+                #      [o._id for o in outputs])
+                #
                 if n in inputs or n.dependsOn[n._outputOfCluster.in_i] is None:
                     self.createIoClusterCore(netlist, inputs, outputs)
-
+                 
             if n.dependsOn[n._outputOfCluster.in_i] is None:
+                #print("search out", n._id)
                 inputs, outputs, _ = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(n, DIRECTION.OUT, reachDb)
                 inputs = UniqList((i for i in inputs if i not in outputs))
-
+                #print("found",
+                #          [i._id for i in inputs],
+                #          [o._id for o in outputs])
                 self.createIoClusterCore(netlist, inputs, outputs)
                 assert n.dependsOn[n._outputOfCluster.in_i] is not None, n
 
@@ -86,7 +94,7 @@ class HlsNetlistPassCreateIoClusters(HlsNetlistPass):
             if n.dependsOn[n._inputOfCluster.in_i] is None:
                 self.createIoClusterCore(netlist, UniqList((n,)), UniqList())
 
-    def apply(self, hls:"HlsScope", netlist:HlsNetlistCtx):
+    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
         try:
             reachDb = netlist.getAnalysis(HlsNetlistAnalysisPassReachability)
             self.createIoClusterCores(netlist, reachDb)

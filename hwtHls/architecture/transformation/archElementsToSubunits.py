@@ -1,10 +1,11 @@
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.architecture.archElement import ArchElement
+from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResourceItem
 from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
+from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.nodes.archElement import ArchElement
+from hwtHls.typingFuture import override
 from hwtLib.abstract.componentBuilder import AbstractComponentBuilder
 from hwtLib.examples.hierarchy.extractHierarchy import extractRegsToSubunit
-from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 
 
 class RtlArchPassTransplantArchElementsToSubunits(RtlArchPass):
@@ -41,29 +42,26 @@ class RtlArchPassTransplantArchElementsToSubunits(RtlArchPass):
     After whole RTL is allocated iterate every element and wrap its statements into a unit instance.
     Each signal is private to this newly extracted unit if used only by this element.
     '''
-
-    def apply(self, hls: "HlsScope", netlist: HlsNetlistCtx):
+    @override
+    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
         parentUnit = netlist.parentUnit
-        for e in netlist.allocator._archElements:
+        for e in netlist.nodes:
             e: ArchElement
             for pipeline_st_i, con in enumerate(e.connections):
                 stateRegisters = UniqList()
-                for s in con.signals:
-                    s: TimeIndependentRtlResource
+                for v in con.signals:
+                    v: TimeIndependentRtlResourceItem
                     # if the value has a register at the end of this stage
-                    v = s.checkIfExistsInClockCycle(pipeline_st_i)
-                    if v.isExplicitRegister:
+                    v = v.parent.checkIfExistsInClockCycle(pipeline_st_i + 1)
+                    if v is not None and v.isRltRegister():
                         stateRegisters.append(v.data)
-                    else:
-                        v = s.checkIfExistsInClockCycle(pipeline_st_i + 1)
-                        if v is not None and v.isRltRegister():
-                            stateRegisters.append(v.data)
 
                 if not stateRegisters:
                     continue
+
                 stRegsExtracted = extractRegsToSubunit(stateRegisters)
                 name = AbstractComponentBuilder(parentUnit, None, "")._findSuitableName(
-                    f"{e.namePrefix:s}st{pipeline_st_i:d}_regs",
+                    f"{e.name:s}st{pipeline_st_i:d}_regs",
                     firstWithoutCntrSuffix=True)
                 setattr(parentUnit, name, stRegsExtracted)
-            
+

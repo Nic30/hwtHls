@@ -2,11 +2,13 @@ from math import ceil
 from typing import Optional, List
 
 from hwt.hdl.types.hdlType import HdlType
+from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.node import HlsNetNode, HlsNetNodePartRef
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.nodes.schedulableNode import OutputMinUseTimeGetter, \
     SchedTime
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
+from hwtHls.typingFuture import override
 
 
 class HlsNetNodeDelayClkTick(HlsNetNode):
@@ -19,37 +21,37 @@ class HlsNetNodeDelayClkTick(HlsNetNode):
     :ivar clkCnt: length of this delay in clock period count
     """
 
-    def __init__(self, netlist:"HlsNetlistCtx", clkCnt: int, dtype: HdlType, name:str=None):
+    def __init__(self, netlist:HlsNetlistCtx, clkCnt: int, dtype: HdlType, name:str=None):
         HlsNetNode.__init__(self, netlist, name=name)
         assert clkCnt > 0, clkCnt
         self._clkCnt = clkCnt
         self._addInput(None)
         self._addOutput(dtype, None)
 
+    @override
     def resolveRealization(self):
         self.assignRealization(OpRealizationMeta(0, 0, 0, self._clkCnt))
 
+    @override
     def scheduleAlapCompaction(self, endOfLastClk: SchedTime, outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter]):
         return HlsNetNode.scheduleAlapCompactionMultiClock(self, endOfLastClk, outputMinUseTimeGetter)
 
-    def allocateRtlInstance(self, allocator:"ArchElement"):
+    @override
+    def rtlAlloc(self, allocator:"ArchElement"):
+        assert not self._isRtlAllocated
         op_out = self._outputs[0]
-
-        try:
-            return allocator.netNodeToRtl[op_out]
-        except KeyError:
-            pass
-
         # synchronization applied in allocator additionally, we just pass the data
-        v = allocator.instantiateHlsNetNodeOut(self.dependsOn[0])
+        v = allocator.rtlAllocHlsNetNodeOut(self.dependsOn[0])
         allocator.netNodeToRtl[op_out] = v
-
+        self._isRtlAllocated = True
         return v
 
+    @override
     def createSubNodeRefrenceFromPorts(self, beginTime: SchedTime, endTime: SchedTime,
                                        inputs: List[HlsNetNodeIn], outputs: List[HlsNetNodeOut]) -> "HlsNetNodePartRef":
         return HlsNetNodeDelayPartRef(self.netlist, self, beginTime // self.netlist.normalizedClkPeriod)
 
+    @override
     def partsComplement(self, otherParts: List["HlsNetNodePartRef"]):
         """
         :see: :meth:`HlsNetNode.partsComplement`
@@ -83,20 +85,10 @@ class HlsNetNodeDelayPartRef(HlsNetNodePartRef):
         HlsNetNodePartRef.__init__(self, netlist, parentNode, name=name)
         self.clkI = clkI
 
-    def iterChildReads(self):
-        return
-        yield
-
-    def iterChildWrites(self):
-        return
-        yield
-
-    def allocateRtlInstance(self, allocator:"ArchElement"):
-        try:
-            return allocator.netNodeToRtl[self]
-        except KeyError:
-            res = allocator.netNodeToRtl[self] = []
-            return res
+    @override
+    def rtlAlloc(self, allocator:"ArchElement"):
+        res = allocator.netNodeToRtl[self] = []
+        return res
 
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__} for {self.parentNode._id:d} clkI={self.clkI:d}>"

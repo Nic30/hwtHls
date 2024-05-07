@@ -22,7 +22,7 @@ class HlsNetlistPassDumpNodesTxt(HlsNetlistPass):
             if isinstance(n, HlsNetNodeAggregate):
                 cls._printNodes(indent + "  ", n._subNodes, out)
 
-    def apply(self, hls: "HlsScope", netlist: HlsNetlistCtx):
+    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
         out, doClose = self.outStreamGetter(netlist.label)
         try:
             self._printNodes("", netlist.iterAllNodes(), out)

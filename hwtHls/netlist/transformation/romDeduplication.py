@@ -15,7 +15,7 @@ class HlsNetlistPassRomDeduplication(HlsNetlistPass):
     :note: Used after scheduling to remove code duplication.
     """
 
-    def apply(self, hls: "HlsScope", netlist: HlsNetlistCtx):
+    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
         builder = netlist.builder
         constCache: Dict[HArrayVal, HlsNetNodeOut] = {}
         removed = set()

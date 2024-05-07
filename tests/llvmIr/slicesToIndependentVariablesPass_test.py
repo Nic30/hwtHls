@@ -177,8 +177,8 @@ class BaseSliceBreakTestPlatform(VirtualHlsPlatform):
         self.postSliceBreak = StringIO()
 
     def runSsaPasses(self, hls:"HlsScope", toSsa:HlsAstToSsa):
-        SsaPassConsystencyCheck().apply(hls, toSsa)
-        SsaPassToLlvm().apply(hls, toSsa)
+        SsaPassConsystencyCheck().runOnSsaModule(toSsa)
+        SsaPassToLlvm(hls, self._llvmCliArgs).runOnSsaModule(toSsa)
         f = toSsa.start.llvm._testSlicesToIndependentVariablesPass()
         fStr = repr(f)
         # print(fStr)

@@ -89,7 +89,7 @@ def netlistReduceExplicitSyncDissolve(
     assert node.__class__ is HlsNetNodeExplicitSync, node
     if netlistReduceExplicitSyncTryExtractNonBlockingReadOrWrite(dbgTracer, node, worklist, removed, reachDb):
         HlsNetlistPassConsystencyCheck._checkCycleFree(node.netlist, removed)
-        # HlsNetlistPassConsystencyCheck().apply(None, _n.netlist, removed=removed)
+        # HlsNetlistPassConsystencyCheck().runOnHlsNetlist(_n.netlist, removed=removed)
         return True
     elif netlistReduceExplicitSyncWithoutInput(dbgTracer, node, worklist, removed, reachDb):
         return True
@@ -119,7 +119,7 @@ def netlistReduceExplicitSyncDissolve(
         # print("netlistReduceExplicitSyncDissolve", [i._id for i in seenInputs], [o._id for o in seenOutputs])
         # global dbgCntr
         # dbgTracer.log(f"dbg {dbgCntr:d}")
-        # HlsNetlistPassDumpNodesDot(outputFileGetter("tmp", f"dbg.{dbgCntr}.dot")).apply(None, node.netlist)
+        # HlsNetlistPassDumpNodesDot(outputFileGetter("tmp", f"dbg.{dbgCntr}.dot")).runOnHlsNetlist(node.netlist)
         # dbgCntr += 1
 
         modified = False

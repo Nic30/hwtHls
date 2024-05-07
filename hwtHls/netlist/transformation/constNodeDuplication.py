@@ -10,7 +10,7 @@ class HlsNetlistPassConstNodeDuplication(HlsNetlistPass):
     :note: Used before scheduling to reduce fanout of the const nodes to speedup the sheduler alg. 
     """
 
-    def apply(self, hls: "HlsScope", netlist: HlsNetlistCtx):
+    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
         builder = netlist.builder
         for n in netlist.nodes:
             if isinstance(n, HlsNetNodeConst) and len(n.usedBy[0]) > 1:

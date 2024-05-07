@@ -7,7 +7,6 @@ from hwt.interfaces.utils import addClkRstn
 from hwt.simulator.simTestCase import SimTestCase
 from hwt.synthesizer.hObjList import HObjList
 from hwt.synthesizer.param import Param
-from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.netlist import HlsThreadFromNetlist
 from hwtHls.frontend.pyBytecode import hlsBytecode
@@ -47,7 +46,7 @@ class ReadOrDefaultUnit(Unit):
         t = r._dtype
 
         mux = b.buildMux(r._dtype, (r, rVld, t.from_py(0)))
-        w = HlsNetNodeWrite(netlist, NOT_SPECIFIED, self.dataOut)
+        w = HlsNetNodeWrite(netlist, self.dataOut)
         netlist.outputs.append(w)
         link_hls_nodes(mux, w._inputs[0])
 
@@ -69,17 +68,14 @@ class ReadNonBlockingOrDefaultUnit(ReadOrDefaultUnit):
         """
         b = netlist.builder
         r = HlsNetNodeRead(netlist, self.dataIn)
+        r._isBlocking = False
         netlist.inputs.append(r)
         r = r._outputs[0]
         rVld = b.buildReadSync(r)
         t = r._dtype
-        sync = HlsNetNodeExplicitSync(netlist, t)
-        sync.addControlSerialSkipWhen(b.buildNot(rVld))
-        netlist.nodes.append(sync)
-        link_hls_nodes(r, sync._inputs[0])
 
-        mux = b.buildMux(r._dtype, (sync._outputs[0], rVld, t.from_py(0)))
-        w = HlsNetNodeWrite(netlist, NOT_SPECIFIED, self.dataOut)
+        mux = b.buildMux(t, (r, rVld, t.from_py(0)))
+        w = HlsNetNodeWrite(netlist, self.dataOut)
         netlist.outputs.append(w)
         link_hls_nodes(mux, w._inputs[0])
 
@@ -159,7 +155,7 @@ class ReadAnyHsUnit(ReadOrDefaultUnit):
         t = inputs[0][1]._dtype
         muxOps.append(t.from_py(0))
         mux = b.buildMux(r._dtype, tuple(muxOps))
-        w = HlsNetNodeWrite(netlist, NOT_SPECIFIED, self.dataOut)
+        w = HlsNetNodeWrite(netlist, self.dataOut)
         netlist.outputs.append(w)
         link_hls_nodes(mux, w._inputs[0])
 
@@ -220,7 +216,7 @@ if __name__ == "__main__":
     import unittest
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
-    u = ReadAnyHsUnit()
+    u = ReadNonBlockingOrDefaultUnit()
     # u.DATA_WIDTH = 32
     u.CLK_FREQ = int(40e6)
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

@@ -143,7 +143,7 @@ class HlsNetlistPassDumpBlockSync(HlsNetlistPass):
 
         return P
 
-    def apply(self, hls: "HlsScope", netlist: HlsNetlistCtx):
+    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
         from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
         toNetlist: HlsNetlistAnalysisPassMirToNetlist = netlist.getAnalysis(HlsNetlistAnalysisPassMirToNetlist)
         out, doClose = self.outStreamGetter(netlist.label)

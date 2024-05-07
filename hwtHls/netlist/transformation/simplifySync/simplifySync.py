@@ -22,6 +22,7 @@ from hwtHls.netlist.transformation.simplifySync.simplifyNonBlockingIo import net
 from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import netlistOrderingReduce, netlistTrivialOrderingReduce
 from hwtHls.netlist.transformation.simplifySync.simplifySyncIsland import netlistReduceExplicitSyncDissolve
 from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge
+from hwtHls.typingFuture import override
 
 
 class HlsNetlistPassSimplifySync(HlsNetlistPass):
@@ -36,7 +37,8 @@ class HlsNetlistPassSimplifySync(HlsNetlistPass):
         self._dbgTrace = dbgTracer
         HlsNetlistPass.__init__(self)
 
-    def apply(self, hls:"HlsScope", netlist:HlsNetlistCtx,
+    @override
+    def runOnHlsNetlistImpl(self, netlist:HlsNetlistCtx,
               parentWorklist: Optional[UniqList[HlsNetNode]]=None,
               parentRemoved: Optional[Set[HlsNetNode]]=None):
         dbgTrace = self._dbgTrace
@@ -47,7 +49,7 @@ class HlsNetlistPassSimplifySync(HlsNetlistPass):
                 HlsNetlistPassConsystencyCheck.checkRemovedNotReachable(netlist, removed)
 
             assert netlist.getAnalysisIfAvailable(HlsNetlistAnalysisPassReachability) is None
-            reachDb: HlsNetlistAnalysisPassReachability = netlist.getAnalysis(HlsNetlistAnalysisPassReachability(netlist, removed=removed))
+            reachDb: HlsNetlistAnalysisPassReachability = netlist.getAnalysis(HlsNetlistAnalysisPassReachability(removed=removed))
 
             worklist: UniqList[HlsNetNode] = UniqList(
                 n for n in netlist.iterAllNodes()
@@ -55,7 +57,9 @@ class HlsNetlistPassSimplifySync(HlsNetlistPass):
             )
 
             try:
-                netlist.setupNetlistListeners(reachDb._beforeNodeAddedListener, reachDb._beforeInputDriveUpdate, reachDb._beforeOutputUpdate, removed)
+                netlist.setupNetlistListeners(reachDb._beforeNodeAddedListener,
+                                              reachDb._beforeInputDriveUpdate,
+                                              reachDb._beforeOutputUpdate, removed)
 
                 worklistTmp = []
                 while worklist:
@@ -67,34 +71,25 @@ class HlsNetlistPassSimplifySync(HlsNetlistPass):
                         n: HlsNetNodeExplicitSync
                         if netlistReduceExplicitSyncFlags(dbgTrace, n, worklistTmp, removed) and n in removed:
                             if dbgEn:
-                                HlsNetlistPassConsystencyCheck().apply(None, n.netlist, removed=removed)
+                                HlsNetlistPassConsystencyCheck().runOnHlsNetlist(n.netlist, removed=removed)
                             pass
                         elif netlistTrivialOrderingReduce(n, worklistTmp, removed):
                             pass
                         else:
                             # if dbgEn:
-                            #   HlsNetlistPassConsystencyCheck().apply(None, n.netlist, removed=removed)
+                            #   HlsNetlistPassConsystencyCheck().runOnHlsNetlist(n.netlist, removed=removed)
                             netlistOrderingReduce(dbgTrace, n, reachDb)
                             if dbgEn:
-                                HlsNetlistPassConsystencyCheck().apply(None, n.netlist, removed=removed)
+                                HlsNetlistPassConsystencyCheck().runOnHlsNetlist(n.netlist, removed=removed)
 
-                            if n.__class__ is HlsNetNodeExplicitSync:
-                                if netlistReduceExplicitSyncTryExtractNonBlockingReadOrWrite(dbgTrace, n, worklistTmp, removed, reachDb):
-                                    if dbgEn:
-                                        HlsNetlistPassConsystencyCheck._checkCycleFree(n.netlist, removed)
-                                        # HlsNetlistPassConsystencyCheck().apply(None, n.netlist, removed=removed)
+                            assert n.__class__ is not HlsNetNodeExplicitSync, (n, "Nodes of this type should not exist at this stage")
 
-                                elif netlistReduceExplicitSyncDissolve(dbgTrace, n, worklistTmp, removed, reachDb):
-                                    if dbgEn:
-                                        HlsNetlistPassConsystencyCheck._checkCycleFree(n.netlist, removed)
-                                        # HlsNetlistPassConsystencyCheck().apply(None, n.netlist, removed=removed)
-
-                            elif isinstance(n, HlsNetNodeRead):
+                            if isinstance(n, HlsNetNodeRead):
                                 if isinstance(n, HlsNetNodeReadBackedge):
                                     if netlistReduceUnusedBackedgeBuffer(dbgTrace, n, worklistTmp, removed):
                                         if dbgEn:
                                             HlsNetlistPassConsystencyCheck._checkCycleFree(n.netlist, removed)
-                                            # HlsNetlistPassConsystencyCheck().apply(None, n.netlist, removed=removed)
+                                            # HlsNetlistPassConsystencyCheck().runOnHlsNetlist(n.netlist, removed=removed)
 
                             elif isinstance(n, (HlsNetNodeWriteForwardedge, HlsNetNodeWriteBackedge)):
                                 if netlistEdgeWritePropagation(dbgTrace, n, worklistTmp, removed, reachDb):

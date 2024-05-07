@@ -7,7 +7,6 @@ from hwt.interfaces.std import VectSignal, Handshaked, VldSynced, RdSynced
 from hwt.interfaces.utils import addClkRstn
 from hwt.simulator.simTestCase import SimTestCase
 from hwt.synthesizer.param import Param
-from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.netlist import HlsThreadFromNetlist
 from hwtHls.netlist.context import HlsNetlistCtx
@@ -31,7 +30,7 @@ class HlsNetlistWireUnit(Unit):
 
     def connectIo(self, netlist: HlsNetlistCtx):
         r = HlsNetNodeRead(netlist, self.dataIn)
-        w = HlsNetNodeWrite(netlist, NOT_SPECIFIED, self.dataOut)
+        w = HlsNetNodeWrite(netlist, self.dataOut)
         link_hls_nodes(r._outputs[0], w._inputs[0])
         netlist.inputs.append(r)
         netlist.outputs.append(w)

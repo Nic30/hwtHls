@@ -21,8 +21,8 @@ from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachabil
 
 class HlsNetlistAnalysisPassReachabilityCpp(HlsNetlistAnalysisPassReachability):
 
-    def __init__(self, netlist:"HlsNetlistCtx", removed: Optional[Set[HlsNetNode]]=None):
-        HlsNetlistAnalysisPass.__init__(self, netlist)
+    def __init__(self, removed: Optional[Set[HlsNetNode]]=None):
+        super(HlsNetlistAnalysisPassReachabilityCpp, self).__init__()
         self._dataGraph: Optional[DagGraphWithDFSReachQuery] = None
         self._anyConGraph: Optional[DagGraphWithDFSReachQuery] = None
         self.removed = removed
@@ -163,7 +163,7 @@ class HlsNetlistAnalysisPassReachabilityCpp(HlsNetlistAnalysisPassReachability):
         if not HdlType_isNonData(o._dtype):
             self._dataGraph.removeLink(o, i)
 
-    def run(self):
+    def runOnHlsNetlistImpl(self, netlist:"HlsNetlistCtx"):
         assert self._dataGraph is None
         assert self._anyConGraph is None
         removed = self.removed
@@ -174,7 +174,7 @@ class HlsNetlistAnalysisPassReachabilityCpp(HlsNetlistAnalysisPassReachability):
         addAnyNodeWithLinks = anyConG.insertNodeWithLinks
         addDataNodeWithLinks = dataG.insertNodeWithLinks
 
-        for n in self.netlist.iterAllNodes():
+        for n in netlist.iterAllNodes():
             if removed is not None and n in removed:
                 continue
             for io in chain(n._inputs, n._outputs):
@@ -184,7 +184,7 @@ class HlsNetlistAnalysisPassReachabilityCpp(HlsNetlistAnalysisPassReachability):
             addAnyNodeWithLinks(n, n._inputs, n._outputs)
             addDataNodeWithLinks(n, n._inputs, n._outputs)
 
-        for n in self.netlist.iterAllNodes():
+        for n in netlist.iterAllNodes():
             if removed is not None and n in removed:
                 continue
             for dep, user in zip(n.dependsOn, n._inputs):

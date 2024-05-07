@@ -33,8 +33,8 @@ class HlsNetlistAnalysisPassDataThreadsForBlocks(HlsNetlistAnalysisPass):
     :ivar threadsPerBlock: for each block threads which do have some node from this block
     """
 
-    def __init__(self, netlist: HlsNetlistCtx):
-        super(HlsNetlistAnalysisPassDataThreadsForBlocks, self).__init__(netlist)
+    def __init__(self):
+        super(HlsNetlistAnalysisPassDataThreadsForBlocks, self).__init__()
         self.threadPerNode: Dict[HlsNetNode, Set[Union[HlsNetNode, HlsNetNodeOutLazy]]] = {}
         self.threadsPerBlock: Dict[MachineBasicBlock, List[DataFlowThread]] = {}
         self.threadIdToBlock: Dict[int, List[MachineBasicBlock]] = {}
@@ -209,15 +209,15 @@ class HlsNetlistAnalysisPassDataThreadsForBlocks(HlsNetlistAnalysisPass):
                 raise AssertionError("Nodes were already in a different thread", sorted(n._id for n in seen.intersection(t)))
             seen.update(t)
 
-    def run(self):
+    def runOnHlsNetlistImpl(self, netlist:"HlsNetlistCtx"):
         assert not self.threadPerNode
         assert not self.threadsPerBlock
         from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
-        originalMir: HlsNetlistAnalysisPassMirToNetlist = self.netlist.getAnalysisIfAvailable(HlsNetlistAnalysisPassMirToNetlist)
+        originalMir: HlsNetlistAnalysisPassMirToNetlist = netlist.getAnalysisIfAvailable(HlsNetlistAnalysisPassMirToNetlist)
         if originalMir is None:
             # we do not have MIR because this netlist was not generated from it, we have to search everything and we can not distinguish between control and data path
             liveIns = []
-            for i in self.netlist.inputs:
+            for i in netlist.inputs:
                 liveIns.extend(i._outputs)
             self.threadsPerBlock[None] = self.searchEnForDrivenThreads(None, liveIns)
 

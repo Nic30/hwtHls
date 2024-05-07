@@ -28,6 +28,7 @@ from hwtHls.ssa.translation.llvmMirToNetlist.resetValueExtract import ResetValue
 from hwtHls.ssa.translation.llvmMirToNetlist.utils import _createSyncForAnyInputSelector, \
     LoopPortGroup
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
+from hwtHls.typingFuture import override
 
 
 class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatapath):
@@ -461,7 +462,8 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                             depI2 = depI.obj._addInput("orderingIn")
                             link_hls_nodes(i, depI2)
 
-    def run(self):
+    @override
+    def runOnSsaModuleImpl(self, toSsa: "HlsAstToSsa"):
         raise NotImplementedError("This class does not have run() method because it is "
                                   "a special case customized for each build in Platform class. "
                                   "Use object netlist translation methods directly.")

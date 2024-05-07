@@ -4,12 +4,12 @@
 from hwt.interfaces.std import Handshaked
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.param import Param
-from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.netlist import HlsThreadFromNetlist
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
     HlsNetNodeWriteBackedge
+from hwtHls.netlist.nodes.node import NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.ports import link_hls_nodes
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.platform.virtual import VirtualHlsPlatform
@@ -45,7 +45,7 @@ class CycleDelayUnit(Unit):
         link_hls_nodes(c9, bw._inputs[0])
         bw.associateRead(br)
 
-        w = HlsNetNodeWrite(netlist, NOT_SPECIFIED, self.dataOut)
+        w = HlsNetNodeWrite(netlist, self.dataOut)
         netlist.outputs.append(w)
         link_hls_nodes(br._outputs[0], w._inputs[0])
 
@@ -62,7 +62,7 @@ class HlsCycleDelayUnit(BaseSsaTC):
         u = CycleDelayUnit()
         u.FREQ = int(f)
         self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
-        self.assertEqual(len(list(u.hls._threads[0].toHw.iterAllNodes())), 4)  # const 9, 2xio cluster, write
+        self.assertEqual(len(list(u.hls._threads[0].toHw.iterAllNodesFlat(NODE_ITERATION_TYPE.OMMIT_PARENT))), 4)  # const 9, 2xio cluster, write
 
 
 if __name__ == "__main__":

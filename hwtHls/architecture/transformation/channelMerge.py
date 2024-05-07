@@ -32,6 +32,7 @@ from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
 from hwtHls.netlist.scheduler.scheduler import asapSchedulePartlyScheduled
 from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import netlistExplicitSyncDisconnectFromOrderingChain
 from hwtHls.netlist.transformation.simplifyUtils import hasInputSameDriver
+from hwtHls.typingFuture import override
 
 
 AnyChannelIo = Union[HlsNetNodeRead, HlsNetNodeWrite]
@@ -304,6 +305,8 @@ class RtlArchPassChannelMerge(RtlArchPass):
                 continue
             for n0 in (n, n.associatedRead):
                 for i in (n0._inputOfCluster, n0._outputOfCluster):
+                    if i is None:
+                        continue
                     dep = n0.dependsOn[i.in_i]
                     unlink_hls_nodes(dep, i)
                     n0._removeInput(i.in_i)
@@ -371,8 +374,9 @@ class RtlArchPassChannelMerge(RtlArchPass):
                 channelList.append(w)
 
         return channels
-
-    def apply(self, hls:"HlsScope", netlist: HlsNetlistCtx):
+    
+    @override
+    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
         channels = self._detectChannes(netlist.nodes)
         reachDb: HlsNetlistAnalysisPassReachability = None
         elmIndex = {elm: i for i, elm in enumerate(netlist.nodes)}
@@ -418,19 +422,29 @@ class RtlArchPassChannelMerge(RtlArchPass):
                             # dbgTracer.log(("found potentially mergable ports", ioWithSameSyncFlags), lambda x: f"{x[0]} {[n._id for n in x[1]]}")
                             if reachDb is None:
                                 # lazy load reachDb from performance reasons
-                                reachDb = netlist.getAnalysis(HlsNetlistAnalysisPassReachability(netlist))
+                                reachDb = netlist.getAnalysis(HlsNetlistAnalysisPassReachability)
 
                             # discard those which data inputs are driven from io0
                             selectedForRewrite: MergeCandidateList = [io0]
                             for io1 in ioWithSameSyncFlags:
                                 compatible = True
-                                for io0 in selectedForRewrite:
-                                    if reachDb.doesReachToData(io0, io1.dependsOn[0]):
+                                for _io0 in selectedForRewrite:
+                                    if reachDb.doesReachToData(_io0, io1.dependsOn[0]):
                                         compatible = False
                                         break
-                                    if reachDb.doesReachToData(io1, io0.dependsOn[0]):
+                                    if reachDb.doesReachToData(io1, _io0.dependsOn[0]):
                                         compatible = False
                                         break
+                                    
+                                    if isForwrard:
+                                        if _io0.scheduledZero > io1.associatedRead.scheduledZero:
+                                            # can not move read before write
+                                            compatible = False
+                                            break
+                                        if io1.scheduledZero > _io0.associatedRead.scheduledZero:
+                                            # can not move write after read
+                                            compatible = False
+                                            break
                                 if compatible:
                                     selectedForRewrite.append(io1)
 

@@ -1,3 +1,4 @@
+from io import StringIO
 from itertools import chain
 from typing import Union, List, Optional, Tuple, Dict
 
@@ -22,13 +23,16 @@ from hwtHls.frontend.ast.statements import HlsStm, HlsStmWhile, \
 from hwtHls.frontend.ast.statementsRead import HlsRead, HlsReadAddressed
 from hwtHls.frontend.ast.statementsWrite import HlsWrite, HlsWriteAddressed
 from hwtHls.io.portGroups import MultiPortGroup, BankedPortGroup
+from hwtHls.ssa.analysis.ssaAnalysisPass import SsaAnalysisPass
+from hwtHls.ssa.analysisCache import AnalysisCache
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.context import SsaContext
 from hwtHls.ssa.exprBuilder import SsaExprBuilder
 from hwtHls.ssa.instr import SsaInstr, SsaInstrBranch
 from hwtHls.ssa.transformation.utils.blockAnalysis import collect_all_blocks
 from hwtHls.ssa.value import SsaValue
-from hwtHls.ssa.analysisCache import AnalysisCache
+from hwtHls.typingFuture import override
+
 
 AnyStm = Union[HdlAssignmentContainer, HlsStm]
 
@@ -43,6 +47,7 @@ class SsaBasicBlockUnreachable(SsaBasicBlock):
     """
     Placeholder block which is known to be unreachable.
     """
+
     def __init__(self, ctx: SsaContext, label:str):
         SsaBasicBlock.__init__(self, ctx, label)
         self.successors = SsaInstrBranchUnreachable(self)
@@ -81,7 +86,11 @@ class HlsAstToSsa(AnalysisCache):
     :ivar ioNodeConstructors: dictionary of read/write statements associated with io used to construct HlsNetlist node later
     """
 
-    def __init__(self, ssaCtx: SsaContext, startBlockName:str, original_code_for_debug: Optional[HlsStmCodeBlock]):
+    def __init__(self, ssaCtx: SsaContext,
+                 startBlockName:str,
+                 original_code_for_debug: Optional[HlsStmCodeBlock],
+                 dbgLogPassExec: Optional[StringIO]):
+        AnalysisCache.__init__(self)
         self.ssaCtx = ssaCtx
         self.label = startBlockName
         self.start = SsaBasicBlock(ssaCtx, startBlockName)
@@ -94,7 +103,12 @@ class HlsAstToSsa(AnalysisCache):
         self.ssaBuilder = SsaExprBuilder(self.start, None)
         self.m_ssa_u = MemorySSAUpdater(self.ssaBuilder, self.visit_expr)
         self.pragma: List["_PyBytecodePragma"] = []
-        AnalysisCache.__init__(self)
+        self._dbgLogPassExec:Optional[StringIO] = None
+        self._dbgLogPassExec = dbgLogPassExec
+
+    @override
+    def _runAnalysisImpl(self, a: SsaAnalysisPass):
+        return a.runOnSsaModule(self)
 
     @staticmethod
     def _addNewTargetBb(predecessor: SsaBasicBlock, cond: Optional[RtlSignal], label: str, origin) -> SsaBasicBlock:
@@ -197,7 +211,6 @@ class HlsAstToSsa(AnalysisCache):
                 ops.append(_o)
                 if allOpsAreValues and not isinstance(_o, HValue):
                     allOpsAreValues = False
-
 
             sig = var
             if allOpsAreValues:

@@ -13,15 +13,15 @@ from hwt.serializer.utils import RtlSignal_sort_key
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.rtlLevel.signalUtils.exceptions import SignalDriverErr
-from hwtHls.architecture.archElement import ArchElement
-from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage, \
-    extractControlSigOfInterfaceTuple
+from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage
+from hwtHls.architecture.syncUtils import getInterfaceSyncTuple
 from hwtHls.architecture.transformation.rtlNetlistPass import RtlNetlistPass
 from hwtHls.netlist.abc.abcAigToRtlNetlist import AbcAigToRtlNetlist
 from hwtHls.netlist.abc.abcCpp import Abc_Frame_t, Abc_Ntk_t, Abc_Aig_t  # , Io_FileType_t
 from hwtHls.netlist.abc.optScripts import abcCmd_resyn2, abcCmd_compress2
 from hwtHls.netlist.abc.rtlNetlistToAbcAig import RtlNetlistToAbcAig
 from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.nodes.archElement import ArchElement
 
 
 class RtlNetlistPassControlLogicMinimize(RtlNetlistPass):
@@ -140,28 +140,30 @@ class RtlNetlistPassControlLogicMinimize(RtlNetlistPass):
         allControlIoOutputs: UniqList[RtlSignal] = UniqList()
         inputs: UniqList[RtlSignal] = []
         inTreeOutputs: Set[RtlSignal] = set()
-        for elm in netlist.allocator._archElements:
+        for elm in netlist.nodes:
             elm: ArchElement
             for con in elm.connections:
+                if con is None:
+                    continue
                 con: ConnectionsOfStage
-                # [todo] con.stageDataVld
-                if isinstance(con.syncNodeAck, RtlSignal):
+
+                if con.syncNodeAck is not None:
                     if con.syncNodeAck.hidden:
                         src = con.syncNodeAck
                     else:
                         src = con.syncNodeAck.singleDriver().src
                     collect(src, allControlIoOutputs, inputs, inTreeOutputs)
 
-                if con.sync_node:
-                    for m in con.sync_node.masters:
-                        _, rd = extractControlSigOfInterfaceTuple(m)
+                if con.syncNode:
+                    for m in con.syncNode.masters:
+                        _, rd = getInterfaceSyncTuple(m)
                         collect(rd, allControlIoOutputs, inputs, inTreeOutputs)
 
-                    for s in con.sync_node.slaves:
-                        vld, _ = extractControlSigOfInterfaceTuple(s)
+                    for s in con.syncNode.slaves:
+                        vld, _ = getInterfaceSyncTuple(s)
                         collect(vld, allControlIoOutputs, inputs, inTreeOutputs)
-            
-            if elm._dbgAddNamesToSyncSignals:
+
+            if elm._dbgAddSignalNamesToSync:
                 for s in sorted(elm._dbgExplicitlyNamedSyncSignals, key=RtlSignal_sort_key):
                     assert s._dtype.bit_length() == 1
                     while True:
@@ -200,9 +202,10 @@ class RtlNetlistPassControlLogicMinimize(RtlNetlistPass):
         miterIsConstant = abcNet.MiterIsConstant()
         assert miterIsConstant == 1, ("Expected to be equivalent", {0: "sat", 1: "unsat", -1: "undecided"}[miterIsConstant], expr0, "is not equivalent to", expr1)
 
-    def apply(self, hls: "HlsScope", netlist: HlsNetlistCtx):
+    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
         allControlIoOutputs, inputs = self.collectAllControl(netlist, self.collectControlDrivingTree)
         if allControlIoOutputs:
+            #allControlIoOutputs = [allControlIoOutputs[2], ]
             verifyExprEquivalence = self.verifyExprEquivalence
             toAbcAig = RtlNetlistToAbcAig()
             abcFrame, abcNet, abcAig, ioMap = toAbcAig.translate(inputs, allControlIoOutputs)
@@ -235,7 +238,11 @@ class RtlNetlistPassControlLogicMinimize(RtlNetlistPass):
                         ep: HdlStatement
                         if verifyExprEquivalence:
                             self._verifyAbcExprEquivalence(inputs, o, newO)
-
+                        # print("replacing")
+                        # if isinstance(ep, HdlAssignmentContainer):
+                        #     print("for: ", ep.dst)
+                        # print(o)
+                        # print(newO)
                         ep._replace_input((o, newO))
                     else:
                         raise NotImplementedError(ep, o)

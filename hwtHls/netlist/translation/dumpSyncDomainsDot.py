@@ -58,7 +58,7 @@ class HlsNetlistPassDumpSyncDomainsDot(HlsNetlistPass):
         self.outStreamGetter = outStreamGetter
         self.addLegend = addLegend
 
-    def apply(self, hls: "HlsScope", netlist: HlsNetlistCtx):
+    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
         name = netlist.label
         out, doClose = self.outStreamGetter(name)
         try:

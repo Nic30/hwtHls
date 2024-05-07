@@ -88,7 +88,8 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
             with open(d / f"00.bytecode.{fnName}.txt", "w") as f:
                 dis(fn, file=f)
         with self.dbgTracer.scoped("translateFunction", fnName):
-            self.toSsa = HlsAstToSsa(self.hls.ssaCtx, fnName, None)
+            platform = self.hls.parentUnit._target_platform
+            self.toSsa = HlsAstToSsa(self.hls.ssaCtx, fnName, None, platform.getPassManagerDebugLogFile())
 
             entryBlock = self.toSsa.start
             entryBlockLabel = self.blockToLabel[entryBlock] = BlockLabel(-1)

@@ -68,7 +68,7 @@ class HlsNetlistPassAggregateBitwiseOps(HlsNetlistPass):
 
         return ObservableList(n for n in nodes if n not in removedNodes)
 
-    def apply(self, hls: "HlsScope", netlist: HlsNetlistCtx):
+    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
         seen: Set[HlsNetNodeOperator] = set()
         removedNodes: Set[HlsNetNode] = set()
         newOutMap: Dict[HlsNetNodeOut, HlsNetNodeOut] = {}

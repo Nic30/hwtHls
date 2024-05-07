@@ -38,7 +38,8 @@ class HlsThreadFromAst(HlsThread):
 
     def compileToSsa(self):
         _code = self._formatCode(self.code)
-        toSsa = HlsAstToSsa(self.hls.ssaCtx, self.getLabel(), _code)
+        platform = self.hls.parentUnit._target_platform
+        toSsa = HlsAstToSsa(self.hls.ssaCtx, self.getLabel(), _code, platform.getPassManagerDebugLogFile())
         toSsa._onAllPredecsKnown(toSsa.start)
         toSsa.visit_top_CodeBlock(_code)
         toSsa.finalize()

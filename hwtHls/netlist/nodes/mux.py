@@ -8,6 +8,7 @@ from hwt.pyUtils.arrayQuery import grouper
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
+from hwtHls.typingFuture import override
 
 
 class HlsNetNodeMux(HlsNetNodeOperator):
@@ -21,24 +22,22 @@ class HlsNetNodeMux(HlsNetNodeOperator):
         super(HlsNetNodeMux, self).__init__(
             netlist, AllOps.TERNARY, 0, dtype, name=name)
 
-    def allocateRtlInstance(self, allocator: "ArchElement") -> TimeIndependentRtlResource:
+    @override
+    def rtlAlloc(self, allocator: "ArchElement") -> TimeIndependentRtlResource:
+        assert not self._isRtlAllocated
+        assert len(self._outputs) == 1, self
         op_out = self._outputs[0]
-
-        try:
-            return allocator.netNodeToRtl[op_out]
-        except KeyError:
-            pass
         assert self._inputs, ("Mux has to have operands", self)
         name = self.name
         if name:
-            name = f"{allocator.namePrefix}{name}"
+            name = f"{allocator.name:s}{name}"
         else:
-            name = f"{allocator.namePrefix}mux{self._id}"
-        v0 = allocator.instantiateHlsNetNodeOutInTime(self.dependsOn[0], self.scheduledIn[0])
+            name = f"{allocator.name:s}mux{self._id:d}"
+        v0 = allocator.rtlAllocHlsNetNodeOutInTime(self.dependsOn[0], self.scheduledIn[0])
         mux_out_s = allocator._sig(name, v0.data._dtype)
         if len(self._inputs) == 1:
             v = self.dependsOn[0]
-            v = allocator.instantiateHlsNetNodeOutInTime(
+            v = allocator.rtlAllocHlsNetNodeOutInTime(
                     v,
                     self.scheduledIn[0])
             mux_out_s(v.data)
@@ -48,10 +47,10 @@ class HlsNetNodeMux(HlsNetNodeOperator):
             for (v, c) in grouper(2, zip(self.dependsOn, self.scheduledIn), padvalue=None):
                 if c is not None:
                     c, ct = c
-                    c = allocator.instantiateHlsNetNodeOutInTime(c, ct)
+                    c = allocator.rtlAllocHlsNetNodeOutInTime(c, ct)
 
                 v, vt = v
-                v = allocator.instantiateHlsNetNodeOutInTime(v, vt)
+                v = allocator.rtlAllocHlsNetNodeOutInTime(v, vt)
 
                 if c is not None and isinstance(c.data, HValue):
                     # The value of condition was resolved to be a constant
@@ -71,14 +70,11 @@ class HlsNetNodeMux(HlsNetNodeOperator):
                     mux_top.Elif(c.data, mux_out_s(v.data))
                 else:
                     mux_top.Else(mux_out_s(v.data))
-            assert mux_top is not None, (self, "Every ase of mux was optimized away")
+            assert mux_top is not None, (self, "Every case of MUX was optimized away")
 
-        # create RTL signal expression base on operator type
-        t = self.scheduledOut[0] + self.netlist.scheduler.epsilon
-        mux_out_s = TimeIndependentRtlResource(mux_out_s, t, allocator, False)
-        allocator.netNodeToRtl[op_out] = mux_out_s
-
-        return mux_out_s
+        res = allocator.rtlRegisterOutputRtlSignal(op_out, mux_out_s, False, False, False)
+        self._isRtlAllocated = True
+        return res
 
     def _iterValueConditionInputPairs(self) -> Generator[HlsNetNodeIn, None, None]:
         for (v, c) in grouper(2, self._inputs, padvalue=None):

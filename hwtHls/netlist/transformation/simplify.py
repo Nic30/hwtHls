@@ -5,9 +5,11 @@ from hwt.hdl.types.hdlType import HdlType
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.analysis.consystencyCheck import HlsNetlistPassConsystencyCheck
 from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
+from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
+from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregatePortOut
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
@@ -18,9 +20,8 @@ from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.netlist.transformation.simplifyExpr.cmp import netlistReduceEqNe
-from hwtHls.netlist.transformation.simplifyExpr.cmpInAnd import netlistReduceCmpInAnd
 from hwtHls.netlist.transformation.simplifyExpr.cmpNormalize import netlistCmpNormalize, _DENORMALIZED_CMP_OPS
-from hwtHls.netlist.transformation.simplifyExpr.concat import netlistReduceConcatOfVoid,\
+from hwtHls.netlist.transformation.simplifyExpr.concat import netlistReduceConcatOfVoid, \
     netlistReduceConcat
 from hwtHls.netlist.transformation.simplifyExpr.loops import netlistReduceLoopWithoutEnterAndExit
 from hwtHls.netlist.transformation.simplifyExpr.normalizeConstToRhs import netlistNormalizeConstToRhs, \
@@ -28,8 +29,10 @@ from hwtHls.netlist.transformation.simplifyExpr.normalizeConstToRhs import netli
 from hwtHls.netlist.transformation.simplifyExpr.rehash import HlsNetlistPassRehashDeduplicate
 from hwtHls.netlist.transformation.simplifyExpr.simplifyAbc import runAbcControlpathOpt
 from hwtHls.netlist.transformation.simplifyExpr.simplifyBitwise import netlistReduceNot, netlistReduceAndOrXor
+from hwtHls.netlist.transformation.simplifyExpr.simplifyIndex import netlistReduceIndexOnIndex
 from hwtHls.netlist.transformation.simplifyExpr.simplifyIo import netlistReduceReadReadSyncWithReadOfValidNB
-from hwtHls.netlist.transformation.simplifyExpr.simplifyLlvmIrExpr import runLlvmCmpOpt
+from hwtHls.netlist.transformation.simplifyExpr.simplifyLlvmIrExpr import runLlvmCmpOpt, \
+    runLlvmMuxCondOpt
 from hwtHls.netlist.transformation.simplifyExpr.simplifyMux import netlistReduceMux
 from hwtHls.netlist.transformation.simplifyExpr.validAndOrXorEqValidNb import netlistReduceValidAndOrXorEqValidNb
 from hwtHls.netlist.transformation.simplifySync.readOfRawValueToDataAndVld import netlistReadOfRawValueToDataAndVld
@@ -37,8 +40,10 @@ from hwtHls.netlist.transformation.simplifySync.simplifyNonBlockingIo import net
 from hwtHls.netlist.transformation.simplifySync.simplifySync import HlsNetlistPassSimplifySync
 from hwtHls.netlist.transformation.simplifyUtils import disconnectAllInputs, \
     getConstDriverOf, replaceOperatorNodeWith
+from hwtHls.typingFuture import override
 
 
+# from hwtHls.netlist.transformation.simplifyExpr.cmpInAnd import netlistReduceCmpInAnd
 # https://fitzgeraldnick.com/2020/01/13/synthesizing-loop-free-programs.html
 class HlsNetlistPassSimplify(HlsNetlistPass):
     """
@@ -50,7 +55,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
     REST_OF_EVALUABLE_OPS = {AllOps.CONCAT, AllOps.ADD, AllOps.SUB, AllOps.UDIV, AllOps.SDIV,
                              AllOps.MUL, AllOps.INDEX, *COMPARE_OPS, *CAST_OPS}
     OPS_AND_OR_XOR = (AllOps.AND, AllOps.OR, AllOps.XOR)
-    NON_REMOVABLE_CLS = (HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeLoopStatus, HlsNetNodeExplicitSync)
+    NON_REMOVABLE_CLS = (HlsNetNodeLoopStatus, HlsNetNodeExplicitSync)
     OPT_ITERATION_LIMIT = 20
 
     def __init__(self, dbgTracer: DebugTracer):
@@ -60,8 +65,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
     def _DCE(self, n: HlsNetNode, worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]):
         if not self._isTriviallyDead(n):
             return False
-
-        builder = n.netlist.builder
+        builder: HlsNetlistBuilder = n.netlist.builder
         if isinstance(n, HlsNetNodeReadSync):
             p = n.dependsOn[0].obj
             if isinstance(p, HlsNetNodeExplicitSync):
@@ -80,7 +84,8 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
         removed.add(n)
         return True
 
-    def apply(self, hls:"HlsScope", netlist: HlsNetlistCtx):
+    @override
+    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
         worklist: UniqList[HlsNetNode] = UniqList(netlist.iterAllNodes())
         removed: Set[HlsNetNode] = netlist.builder._removedNodes
         builder = netlist.builder
@@ -102,21 +107,21 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                         if netlistReduceMux(n, worklist, removed):
                             didModifyExpr = True
                             continue
-                    
+
                     elif o == AllOps.NOT:
                         if netlistReduceNot(n, worklist, removed):
                             didModifyExpr = True
                             continue
-                    
+
                     elif o in BINARY_OPS_WITH_SWAPABLE_OPERANDS and netlistNormalizeConstToRhs(n, worklist, removed):
                         didModifyExpr = True
                         continue
-                    
+
                     elif o in self.OPS_AND_OR_XOR:
                         if netlistReduceAndOrXor(n, worklist, removed):
                             didModifyExpr = True
                             continue
-                        
+
                         elif n._outputs[0]._dtype.bit_length() == 1:
                             if runCntr % 2 == 0 and o == AllOps.AND and netlistReduceCmpInAnd(n, worklist, removed):
                                 # :attention: there is an issue in structure in expression generated by ABC and from this function
@@ -138,30 +143,30 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                                 didModifyExpr = True
                                 continue
                             continue
-                    
+
                         c0 = getConstDriverOf(n._inputs[0])
                         if c0 is None:
                             if o is AllOps.EQ:
                                 if resT.bit_length() == 1 and netlistReduceValidAndOrXorEqValidNb(n, worklist, removed):
                                     didModifyExpr = True
                                     continue
-                            
+
                             if o in _DENORMALIZED_CMP_OPS and netlistCmpNormalize(n, worklist, removed):
                                 didModifyExpr = True
                                 continue
-                            
+
                             if o in (AllOps.EQ, AllOps.NE):
                                 if netlistReduceEqNe(n, worklist, removed):
                                     didModifyExpr = True
                                     continue
                     
                             continue
-                    
+
                         if len(n._inputs) == 1:
                             # operand with a single const input
                             v = o._evalFn(c0)
                         else:
-                    
+
                             c1 = getConstDriverOf(n._inputs[1])
                             if c1 is None:
                                 # other is not const
@@ -170,18 +175,18 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                                         didModifyExpr = True
                                         continue
                                 continue
-                    
+
                             v = o._evalFn(c0, c1)
-                    
+
                         if v._dtype != resT:
                             assert resT.signed is None, (n, resT)
                             assert v._dtype.bit_length() == resT.bit_length(), (v, v._dtype, resT)
                             v = v.cast_sign(None)
-                    
+
                         replaceOperatorNodeWith(n, builder.buildConst(v), worklist, removed)
                         didModifyExpr = True
                         continue
-                
+
                 elif isinstance(n, HlsNetNodeExplicitSync):
                     n: HlsNetNodeExplicitSync
                     netlistReduceExplicitSyncFlags(dbgTracer, n, worklist, removed)
@@ -212,6 +217,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                 if dbgEn:
                     HlsNetlistPassConsystencyCheck._checkCycleFree(n.netlist, removed)
                 runLlvmCmpOpt(builder, worklist, removed, netlist.iterAllNodes())
+                runLlvmMuxCondOpt(builder, worklist, removed, netlist.iterAllNodes())
                 if dbgEn:
                     HlsNetlistPassConsystencyCheck._checkCycleFree(n.netlist, removed)
 
@@ -219,21 +225,21 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                 HlsNetlistPassConsystencyCheck._checkConnections(netlist, removed)
 
             if not worklist:
-                reachAnalysis = netlist.getAnalysisIfAvailable(HlsNetlistAnalysisPassReachability(netlist, removed))
-                HlsNetlistPassSimplifySync(dbgTracer).apply(hls, netlist, parentWorklist=worklist, parentRemoved=removed)
+                reachAnalysis = netlist.getAnalysisIfAvailable(HlsNetlistAnalysisPassReachability(removed))
+                HlsNetlistPassSimplifySync(dbgTracer).runOnHlsNetlist(netlist, parentWorklist=worklist, parentRemoved=removed)
                 dbgTracer.log("rehash")
-                HlsNetlistPassRehashDeduplicate().apply(hls, netlist, worklist=worklist, removed=removed)
+                HlsNetlistPassRehashDeduplicate().runOnHlsNetlist(netlist, worklist=worklist, removed=removed)
                 if not worklist:
-                    HlsNetlistPassSimplifySync(dbgTracer).apply(hls, netlist, parentWorklist=worklist, parentRemoved=removed)
+                    HlsNetlistPassSimplifySync(dbgTracer).runOnHlsNetlist(netlist, parentWorklist=worklist, parentRemoved=removed)
                     if dbgEn:
                         HlsNetlistPassConsystencyCheck._checkCycleFree(n.netlist, removed)
                         HlsNetlistPassConsystencyCheck._checkConnections(netlist, removed)
                     if reachAnalysis is None:
-                        netlist.invalidateAnalysis(HlsNetlistAnalysisPassReachability(netlist, removed))
+                        netlist.invalidateAnalysis(HlsNetlistAnalysisPassReachability(removed))
                     if not worklist:
                         break
                 elif reachAnalysis is None:
-                    netlist.invalidateAnalysis(HlsNetlistAnalysisPassReachability(netlist, removed))
+                    netlist.invalidateAnalysis(HlsNetlistAnalysisPassReachability(removed))
 
             runCntr += 1
             if runCntr > self.OPT_ITERATION_LIMIT:
@@ -247,7 +253,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
         if removed:
             netlist.filterNodesUsingSet(removed)
             if dbgEn:
-                HlsNetlistPassConsystencyCheck().apply(hls, netlist)
+                HlsNetlistPassConsystencyCheck().runOnHlsNetlist(netlist)
 
     def _isTriviallyDead(self, n: HlsNetNode):
         if isinstance(n, self.NON_REMOVABLE_CLS):
@@ -259,6 +265,9 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
             for uses in n.usedBy:
                 if uses:
                     return False
+
+            if isinstance(n, HlsNetNodeAggregatePortOut):
+                return not n.parentOut.obj.usedBy[n.parentOut.out_i]
 
             return True
 

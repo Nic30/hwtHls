@@ -1,3 +1,4 @@
+from copy import copy
 from enum import Enum
 from typing import Tuple, List, Union
 
@@ -6,7 +7,9 @@ from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
     HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge, \
     HlsNetNodeWriteForwardedge
+from hwtHls.netlist.nodes.node import _HlsNetNodeDeepcopyNil
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
+
 
 HlsNetNodeReadAnyChannel = Union[HlsNetNodeReadForwardedge, HlsNetNodeReadBackedge]
 HlsNetNodeWriteAnyChannel = Union[HlsNetNodeWriteForwardedge, HlsNetNodeWriteBackedge]
@@ -47,6 +50,19 @@ class LoopChanelGroup():
         self.members: UniqList[HlsNetNodeWriteAnyChannel] = UniqList()
         self.connectedLoops: List[Tuple["HlsNetNodeLoopStatus", LOOP_CHANEL_GROUP_ROLE]] = []
 
+    def clone(self, memo: dict) -> Tuple["LoopChanelGroup", bool]:
+        d = id(self)
+        y = memo.get(d, _HlsNetNodeDeepcopyNil)
+        if y is not _HlsNetNodeDeepcopyNil:
+            return y, False
+
+        y: LoopChanelGroup = copy(self)
+        memo[d] = y
+        y.members = UniqList(c.clone(memo, True)[0] for c in self.members)
+        self.connectedLoops = [(lcg.clone(memo, True)[0], role) for lcg, role in self.connectedLoops]
+
+        return y, True
+
     def appendWrite(self, ch: HlsNetNodeWriteAnyChannel, isControl: bool):
         assert ch._loopChannelGroup is None, (ch, ch._loopChannelGroup)
         ch._loopChannelGroup = self
@@ -69,8 +85,7 @@ class LoopChanelGroup():
             if l is loop:
                 return role
         raise KeyError("This group is not associated with requested loop", loop)
-    
-    
+
     def destroy(self):
         """
         delete itself from every member
@@ -81,7 +96,7 @@ class LoopChanelGroup():
                 m = m.associatedWrite
             assert m._loopChannelGroup is self
             m._loopChannelGroup = None
-        
+
     def __repr__(self):
         origin = [(o[0], o[1], o[2].name) if len(o) == 3 else o for o in self.origin]
         return  f"<{self.__class__.__name__:s} origin:{origin}, channels:{[(w._id, w.associatedRead._id) for w in self.members]} loops:{[(l._id, r.name) for l, r in self.connectedLoops]}>"

@@ -343,7 +343,7 @@ class HwtHlsNetlistToTimelineJson():
                 jObj.portsIn.append(_mkPortIn(t * self.time_scale, i.name, depJsonObj, depOutI, color))
 
             # convert other logical connections which are not done trough ports
-            for bdep_obj in obj.debugIterShadowConnectionDst():
+            for bdep_obj, _ in obj.debugIterShadowConnectionDst():
                 if not self.expandCompositeNodes:
                     bdep_obj = containerOfNode.get(bdep_obj, bdep_obj)
                 try:
@@ -363,7 +363,7 @@ class HlsNetlistPassDumpSchedulingJson(HlsNetlistPass):
         self.outStreamGetter = outStreamGetter
         self.expandCompositeNodes = expandCompositeNodes
 
-    def apply(self, hls: "HlsScope", netlist: HlsNetlistCtx):
+    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
         netlist.getAnalysis(HlsNetlistAnalysisPassRunScheduler)
         to_timeline = HwtHlsNetlistToTimelineJson(netlist.normalizedClkPeriod,
                                               netlist.scheduler.resolution,

@@ -4,54 +4,30 @@ from typing import Set, Tuple, Optional
 from hwt.hdl.operatorDefs import AllOps
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.analysis.betweenSyncIslands import HlsNetlistAnalysisPassBetweenSyncIslands
-from hwtHls.netlist.analysis.betweenSyncIslandsUtils import BetweenSyncIsland, \
-    BetweenSyncIsland_getScheduledClkTimes
+from hwtHls.netlist.analysis.betweenSyncIslandsUtils import BetweenSyncIsland
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.debugTracer import DebugTracer
+from hwtHls.netlist.hdlTypeVoid import HVoidOrdering
 from hwtHls.netlist.nodes.IoClusterCore import HlsNetNodeIoClusterCore
+from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
+    HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge, \
+    HlsNetNodeWriteForwardedge
+from hwtHls.netlist.nodes.loopChannelGroup import LoopChanelGroup, \
+    LOOP_CHANEL_GROUP_ROLE
 from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
-# from hwtHls.netlist.nodes.loopControlPort import HlsNetNodeLoopEnterRead, \
-#    HlsNetNodeLoopEnterWrite, HlsNetNodeLoopExitWrite, HlsNetNodeLoopExitRead
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
-from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge, \
-    HlsNetNodeWriteForwardedge
-from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
-    HlsNetNodeWriteBackedge
-from hwtHls.netlist.nodes.loopChannelGroup import LoopChanelGroup, \
-    LOOP_CHANEL_GROUP_ROLE
 
 
-def _iterAllChannelIoOutsideOfLoop(loopStatus: HlsNetNodeLoopStatus):
-    for g in loopStatus.fromEnter:
-        yield from g.members
-
-    for g in loopStatus.fromExitToSuccessor:
-        for w in g.members:
-            yield w.associatedRead
-
-
-def _iterAllChannelIoInsideOfLoop(loopStatus: HlsNetNodeLoopStatus):
-    for g in loopStatus.fromEnter:
-        for w in g.members:
-            yield w.associatedRead
-
-    for g in chain(loopStatus.fromReenter, loopStatus.fromExitToHeaderNotify):
-        for w in g.members:
-            yield w
-            yield w.associatedRead
-
-    for g in loopStatus.fromExitToSuccessor:
-        for w in g.members:
-            yield w
-
-
+# from hwtHls.netlist.nodes.loopControlPort import HlsNetNodeLoopEnterRead, \
+#    HlsNetNodeLoopEnterWrite, HlsNetNodeLoopExitWrite, HlsNetNodeLoopExitRead
 class SyncIslandProps():
     """
     Container of sync island properties.
@@ -83,7 +59,8 @@ class SyncIslandProps():
                 for g in n.fromEnter:
                     unmergablePredNodes.update(g.members)
                 for e in n.fromExitToSuccessor:
-                    unmergableSucNodes.update(w.associatedRead for w in e.members if isinstance(w.associatedRead, HlsNetNodeWriteForwardedge))
+                    unmergableSucNodes.update(w.associatedRead for w in e.members
+                                              if isinstance(w.associatedRead, HlsNetNodeWriteForwardedge))
             elif isinstance(n, HlsNetNodeReadBackedge):
                 g = n.associatedWrite._loopChannelGroup
                 if g is not None:
@@ -92,10 +69,10 @@ class SyncIslandProps():
                         if role in (LOOP_CHANEL_GROUP_ROLE.ENTER,
                                     LOOP_CHANEL_GROUP_ROLE.REENTER,
                                     LOOP_CHANEL_GROUP_ROLE.EXIT_NOTIFY_TO_HEADER):
-                            unmergableSucNodes.update(_iterAllChannelIoOutsideOfLoop(loop))
+                            unmergableSucNodes.update(loop.iterChannelIoOutsideOfLoop())
                         else:
                             assert role == LOOP_CHANEL_GROUP_ROLE.EXIT_TO_SUCCESSOR
-                            unmergableSucNodes.update(_iterAllChannelIoInsideOfLoop(loop))
+                            unmergableSucNodes.update(loop.iterChannelIoInsideOfLoop())
             elif isinstance(n, HlsNetNodeWriteBackedge):
                 g = n._loopChannelGroup
                 if g is not None:
@@ -104,7 +81,7 @@ class SyncIslandProps():
                         if role in (LOOP_CHANEL_GROUP_ROLE.REENTER,
                                     LOOP_CHANEL_GROUP_ROLE.EXIT_TO_SUCCESSOR,
                                     LOOP_CHANEL_GROUP_ROLE.EXIT_NOTIFY_TO_HEADER):
-                            unmergableSucNodes.update(_iterAllChannelIoOutsideOfLoop(loop))
+                            unmergableSucNodes.update(loop.iterChannelIoOutsideOfLoop())
                         else:
                             assert role == LOOP_CHANEL_GROUP_ROLE.ENTER
                             #unmergableSucNodes.update(_iterAllChannelIoInsideOfLoop(loop))
@@ -119,10 +96,10 @@ class SyncIslandProps():
                         assert role not in (LOOP_CHANEL_GROUP_ROLE.EXIT_NOTIFY_TO_HEADER,
                                             LOOP_CHANEL_GROUP_ROLE.REENTER), (loop, n, "must always be backedges")
                         if role == LOOP_CHANEL_GROUP_ROLE.ENTER:
-                            unmergableSucNodes.update(_iterAllChannelIoOutsideOfLoop(loop))
+                            unmergableSucNodes.update(loop.iterChannelIoOutsideOfLoop())
                         else:
                             assert role == LOOP_CHANEL_GROUP_ROLE.EXIT_TO_SUCCESSOR
-                            unmergableSucNodes.update(_iterAllChannelIoInsideOfLoop(loop))
+                            unmergableSucNodes.update(loop.iterChannelIoInsideOfLoop())
 
             elif isinstance(n, HlsNetNodeWriteForwardedge):
                 unmergableSucNodes.add(n.associatedRead)
@@ -133,10 +110,10 @@ class SyncIslandProps():
                         assert role not in (LOOP_CHANEL_GROUP_ROLE.EXIT_NOTIFY_TO_HEADER,
                                             LOOP_CHANEL_GROUP_ROLE.REENTER), (loop, n, "must always be backedges")
                         if role == LOOP_CHANEL_GROUP_ROLE.ENTER:
-                            unmergableSucNodes.update(_iterAllChannelIoInsideOfLoop(loop))
+                            unmergableSucNodes.update(loop.iterChannelIoInsideOfLoop())
                         else:
                             assert role == LOOP_CHANEL_GROUP_ROLE.EXIT_TO_SUCCESSOR
-                            unmergableSucNodes.update(_iterAllChannelIoOutsideOfLoop(loop))
+                            unmergableSucNodes.update(loop.iterChannelIoOutsideOfLoop())
 
         return unmergablePredNodes, unmergableSucNodes
 
@@ -234,6 +211,8 @@ class HlsNetlistPassBetweenSyncIslandsMerge(HlsNetlistPass):
             # no need to check exclude void links as there is no IO and thus void links
             # there are representing data only
             for dep in n.dependsOn:
+                if dep._dtype == HVoidOrdering:
+                    continue
                 predIsl = syncIslandOfNode[dep.obj]
                 if isinstance(predIsl, tuple):
                     iIsl, oIsl = predIsl
@@ -246,7 +225,10 @@ class HlsNetlistPassBetweenSyncIslandsMerge(HlsNetlistPass):
                     assert predIsl is not None, dep.obj
                     predIslands.append(predIsl)
 
-            for uses in n.usedBy:
+            for o, uses in zip(n._outputs, n.usedBy):
+                if o._dtype == HVoidOrdering:
+                    continue
+
                 for u in uses:
                     sucIsl = syncIslandOfNode[u.obj]
                     if isinstance(sucIsl, tuple):
@@ -271,7 +253,7 @@ class HlsNetlistPassBetweenSyncIslandsMerge(HlsNetlistPass):
     #             w = io.associatedWrite
     #             assert w not in syncIsland.inputs and w not in syncIsland.outputs, (syncIsland, io, w)
 
-    def apply(self, hls:"HlsScope", netlist:HlsNetlistCtx):
+    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
 
         syncNodes = netlist.getAnalysisIfAvailable(HlsNetlistAnalysisPassBetweenSyncIslands)
         assert syncNodes is not None, "HlsNetlistAnalysisPassBetweenSyncIslands analysis not present at all"
@@ -285,7 +267,7 @@ class HlsNetlistPassBetweenSyncIslandsMerge(HlsNetlistPass):
         #  This means that the query for irregular IO channels is just query for clusters.
         removedIslands: Set[BetweenSyncIsland] = set()
         dbgTracer = self._dbgTracer
-        with dbgTracer.scoped(HlsNetlistPassBetweenSyncIslandsMerge.apply, None):
+        with dbgTracer.scoped(HlsNetlistPassBetweenSyncIslandsMerge, None):
             while True:
                 change: bool = False
                 for isl in syncIslands:
@@ -325,10 +307,10 @@ class HlsNetlistPassBetweenSyncIslandsMerge(HlsNetlistPass):
                                 continue
 
                             # merge to some successor or predecessor which is scheduled to the same clock cycle
-                            schedTimes = BetweenSyncIsland_getScheduledClkTimes(isl, clkPeriod)
+                            schedTimes = isl.getScheduledClkTimes(clkPeriod)
                             for otherIsl, isPred in chain(((i, True) for i in predIslands),
                                                           ((i, False) for i in sucIslands)):
-                                otherSchedTimes = BetweenSyncIsland_getScheduledClkTimes(otherIsl, clkPeriod)
+                                otherSchedTimes = otherIsl.getScheduledClkTimes(clkPeriod)
                                 if schedTimes.issubset(otherSchedTimes):
                                     if isPred:
                                         if self._mayMergeIslands(otherIsl, isl, None, islProps.unmergableNodes):

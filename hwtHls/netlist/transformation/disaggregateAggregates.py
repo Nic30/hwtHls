@@ -15,7 +15,7 @@ class HlsNetlistPassDisaggregateAggregates(HlsNetlistPass):
     Replace aggregated clusters with original nodes.
     """
 
-    def apply(self, hls: "HlsScope", netlist: HlsNetlistCtx):
+    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
         removedNodes: Set[HlsNetNodeAggregate] = set()
         addedNodes: ObservableList[HlsNetNode] = ObservableList()
         # discover clusters of bitwise operators

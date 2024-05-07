@@ -4,8 +4,8 @@ from typing import List, Tuple, Optional, Dict
 
 from hwt.hdl.types.defs import BIT
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.architecture.transformation.breakHandshakeCycles import RtlArchPassBreakHandshakeCycles, \
-    HsCycleDeadlockError
+from hwtHls.architecture.transformation.channelHandshakeCycleBreak import RtlArchPassChannelHandshakeCycleBreak, \
+    ChannelHandshakeCycleDeadlockError
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HVoidData
@@ -41,8 +41,7 @@ class BreakHandshakeCycles_TC(BaseSerializationTC):
             channelType = None
             assert nodeType in ('i', 'o'), nodeType
             channelId = int(nodeName[1:])
-   
-    
+
         initValueCnt = 0
         hasSw = False
         hasEc = False
@@ -151,9 +150,9 @@ class BreakHandshakeCycles_TC(BaseSerializationTC):
             nameToNode[elmName] = elm
             netlist.nodes.append(elm)
 
-        RtlArchPassBreakHandshakeCycles().apply(None, netlist)
+        RtlArchPassChannelHandshakeCycleBreak().runOnHlsNetlist(netlist)
         buff = StringIO()
-        HlsNetlistPassDumpNodesDot(lambda name: (buff, False), expandAggregates=True, addLegend=False).apply(None, netlist)
+        HlsNetlistPassDumpNodesDot(lambda name: (buff, False), expandAggregates=True, addLegend=False).runOnNetlist(netlist)
         self.assert_same_as_file(buff.getvalue(), "data/" + self.getTestName() + ".dot")
         return nameToNode
 
@@ -234,12 +233,12 @@ class BreakHandshakeCycles_TC(BaseSerializationTC):
         self._test_graph(graph)
 
     def test_loop_prequel(self):
-        graph = [("p0", [["i0", "wf0"]]), 
+        graph = [("p0", [["i0", "wf0"]]),
                  ("loop0", [["o0", "rf0", "rb1", "wb1 init:1"]])]
         self._test_graph(graph)
 
     def test_loop_prequelOptional(self):
-        graph = [("p0", [["i0", "wf0"]]), 
+        graph = [("p0", [["i0", "wf0"]]),
                  ("loop0", [["o0", "rf0 ec sw", "rb1 ec sw", "wb1 init:1"]])]
         self._test_graph(graph)
 
@@ -252,13 +251,13 @@ class BreakHandshakeCycles_TC(BaseSerializationTC):
         # because second stage is skipable because b0 has capacity=1
         # :note: b0 has no init and must be always active, this results in a deadlock at start
         graph = [("p0", [["i0", "o0", "rb0", "wf1 init:1"], ["rf1", "wb0"]])]
-        with self.assertRaises(HsCycleDeadlockError):
+        with self.assertRaises(ChannelHandshakeCycleDeadlockError):
             self._test_graph(graph)
 
     def test_loop_2clk_1b_wsw_init1(self):
         # :note: same problem as in test_loop_2clk_1b_init1
         graph = [("p0", [["i0", "o0", "rb0", "wf1 init:1"], ["rf1", "wb0 sw"]])]
-        with self.assertRaises(HsCycleDeadlockError):
+        with self.assertRaises(ChannelHandshakeCycleDeadlockError):
             self._test_graph(graph)
 
     def test_loop_2clk_1b_rsw_init1(self):
@@ -294,8 +293,8 @@ if __name__ == '__main__':
     import unittest
 
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([BreakHandshakeCycles_TC("test_triangle_ff")])
-    suite = testLoader.loadTestsFromTestCase(BreakHandshakeCycles_TC)
+    suite = unittest.TestSuite([BreakHandshakeCycles_TC("test_triangle_ff")])
+    # suite = testLoader.loadTestsFromTestCase(BreakHandshakeCycles_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
 

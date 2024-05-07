@@ -536,10 +536,12 @@ class SsaPassToLlvm(SsaPass):
     :ivar llvmCliArgs: tuples (optionName, position, argName, argValue), argValue is also string 
     """
 
-    def __init__(self, llvmCliArgs: List[Tuple[str, int, str, str]]=[]):
+    def __init__(self, hls: "HlsScope", llvmCliArgs: List[Tuple[str, int, str, str]]=[]):
+        self.hls = hls
         self.llvmCliArgs = llvmCliArgs
 
-    def apply(self, hls: "HlsScope", toSsa: HlsAstToSsa):
+    @override
+    def runOnSsaModuleImpl(self, toSsa: HlsAstToSsa):
         ioDict = toSsa.collectIo()
         for i, (reads, writes) in ioDict.items():
             if not reads and not writes:
@@ -566,7 +568,7 @@ class SsaPassToLlvm(SsaPass):
             #        "In this stages the read operations must read only native type of interface",
             #        instr, instr.operands[0]._dtype, nativeWordT)
 
-        toLlvm = ToLlvmIrTranslator(toSsa.label, ioDict, hls.parentUnit)
+        toLlvm = ToLlvmIrTranslator(toSsa.label, ioDict, self.hls.parentUnit)
         for (optionName, position, argName, argValue) in self.llvmCliArgs:
             toLlvm.llvm.addLlvmCliArgOccurence(optionName, position, argName, argValue)
         toLlvm.translate(toSsa.start, toSsa.pragma)

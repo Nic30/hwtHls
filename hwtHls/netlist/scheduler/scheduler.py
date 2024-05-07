@@ -187,7 +187,7 @@ class HlsScheduler():
                            any(t >= clkPeriod for t in n.scheduledOut)
                            for n in self.netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.OMMIT_PARENT))
         if self.debug and dgDir is not None:
-            HlsNetlistPassDumpSchedulingJson(outputFileGetter(dgDir, "schedulingDbg.0.asap0.hwschedule.json"), expandCompositeNodes=True).apply(None, self.netlist)
+            HlsNetlistPassDumpSchedulingJson(outputFileGetter(dgDir, "schedulingDbg.0.asap0.hwschedule.json"), expandCompositeNodes=True).runOnHlsNetlist(self.netlist)
 
         if isMultiClock:
             # if circuit schedule spans over multiple clock periods
@@ -195,19 +195,19 @@ class HlsScheduler():
             if self.debug:
                 self._checkAllNodesScheduled()
                 if dgDir is not None:
-                    HlsNetlistPassDumpSchedulingJson(outputFileGetter(dgDir, "schedulingDbg.1.alap0.hwschedule.json"), expandCompositeNodes=True).apply(None, self.netlist)
+                    HlsNetlistPassDumpSchedulingJson(outputFileGetter(dgDir, "schedulingDbg.1.alap0.hwschedule.json"), expandCompositeNodes=True).runOnHlsNetlist(self.netlist)
 
             self._scheduleAsapCompaction()
             if self.debug:
                 self._checkAllNodesScheduled()
                 if dgDir is not None:
-                    HlsNetlistPassDumpSchedulingJson(outputFileGetter(dgDir, "schedulingDbg.2.asap1.hwschedule.json"), expandCompositeNodes=True).apply(None, self.netlist)
+                    HlsNetlistPassDumpSchedulingJson(outputFileGetter(dgDir, "schedulingDbg.2.asap1.hwschedule.json"), expandCompositeNodes=True).runOnHlsNetlist(self.netlist)
 
             self._scheduleAlapCompaction(True)
             if self.debug:
                 self._checkAllNodesScheduled()
                 if dgDir is not None:
-                    HlsNetlistPassDumpSchedulingJson(outputFileGetter(dgDir, "schedulingDbg.3.alap1.hwschedule.json"), expandCompositeNodes=True).apply(None, self.netlist)
+                    HlsNetlistPassDumpSchedulingJson(outputFileGetter(dgDir, "schedulingDbg.3.alap1.hwschedule.json"), expandCompositeNodes=True).runOnHlsNetlist(self.netlist)
 
     def _dbgDumpResources(self, out:StringIO=sys.stdout):
         clkPeriod = self.netlist.normalizedClkPeriod

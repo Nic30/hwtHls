@@ -1,26 +1,34 @@
 from typing import Type, Union
 
+from hwtHls.architecture.analysis.hlsArchAnalysisPass import HlsArchAnalysisPass
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.ssa.analysis.ssaAnalysisPass import SsaAnalysisPass
 
-AnalysisPass = Union[SsaAnalysisPass, HlsNetlistAnalysisPass]
+
+AnalysisPass = Union[SsaAnalysisPass, HlsNetlistAnalysisPass, HlsArchAnalysisPass]
 
 
 class AnalysisCache():
+    """
+    A pass manager for analysis passes
+    """
 
-    def __init__(self):
+    def __init__(self,):
         self._analysis_cache = {}
 
     def invalidateAnalysis(self, analysis_cls:Type[AnalysisPass]):
         a = self._analysis_cache.pop(analysis_cls, None)
         if a is not None:
-            a.invalidate()
+            a.invalidate(self)
 
     def getAnalysisIfAvailable(self, analysis_cls:Type[AnalysisPass]):
         try:
             return self._analysis_cache[analysis_cls]
         except KeyError:
             return None
+        
+    def _runAnalysisImpl(self, a):
+        raise NotImplementedError()
 
     def getAnalysis(self, analysis_cls:Union[Type[AnalysisPass], AnalysisPass]):
         if isinstance(analysis_cls, (SsaAnalysisPass, HlsNetlistAnalysisPass)):
@@ -34,8 +42,8 @@ class AnalysisCache():
             pass
 
         if a is None:
-            a = analysis_cls(self)
+            a = analysis_cls()
 
         self._analysis_cache[analysis_cls] = a
-        a.run()
+        self._runAnalysisImpl(a)
         return a

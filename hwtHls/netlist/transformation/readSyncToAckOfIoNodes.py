@@ -114,7 +114,7 @@ class HlsNetlistPassReadSyncToAckOfIoNodes(HlsNetlistPass):
         else:
             raise NotImplementedError(o)
 
-    def apply(self, hls:"HlsScope", netlist:HlsNetlistCtx):
+    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
         builder: HlsNetlistBuilder = netlist.builder
         worklistPlaceholder = []
         removed = set()

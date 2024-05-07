@@ -1,64 +1,116 @@
-from itertools import chain
-from typing import List, Type, Optional, Dict, Tuple, Union, Generator
+from typing import List, Dict, Tuple, Union, Generator
 
-from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.code import If
 from hwt.code_utils import rename_signal
-from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
-from hwt.hdl.statements.statement import HdlStatement
-from hwt.hdl.types.defs import BIT
 from hwt.hdl.value import HValue
-from hwt.interfaces.std import Signal, HandshakeSync
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
-from hwt.synthesizer.interfaceLevel.unitImplHelpers import Interface_without_registration
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.architecture.archElement import ArchElement
-from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage, resolveStrongestSyncType, \
-    SignalsOfStages
-from hwtHls.architecture.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis
-from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, INVARIANT_TIME
+from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage, \
+    ConnectionsOfStageList
+from hwtHls.architecture.timeIndependentRtlResource import INVARIANT_TIME, \
+    TimeIndependentRtlResourceItem
 from hwtHls.netlist.analysis.betweenSyncIslands import BetweenSyncIsland
-from hwtHls.netlist.analysis.ioDiscover import HlsNetlistAnalysisPassIoDiscover
+from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.hdlTypeVoid import HVoidOrdering, HdlType_isVoid
+from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
     HlsNetNodeWriteBackedge, BACKEDGE_ALLOCATION_TYPE
-from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.const import HlsNetNodeConst
+from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge, \
+    HlsNetNodeReadForwardedge
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.orderable import HdlType_isVoid
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut, link_hls_nodes
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
+from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from ipCorePackager.constants import INTF_DIRECTION
+from hwtHls.typingFuture import override
 
 
 class ArchElementPipeline(ArchElement):
     """
-    A container of informations about HW pipeline allocation.
+    This HlsNetNode represents a hardware pipeline. Pipeline is composed of linearly connected groups of nodes.
+
+    .. figure:: ./_static/ArchElementPipeline.png
+
+    :see: `~.ArchElement`
 
     :ivar syncIsland: synchronization regions which are handled by this element
     :ivar stages: list of lists of nodes representing the nodes managed by this pipeline in individual clock stages
     :note: stages always start in time 0 and empty lists on beginning marking where the pipeline actually starts.
         This is to have uniform index when we scope into some other element.
-    :ivar _dataPathAllocated: flag which is True if datapath logic was already allocated in RTL
-    :ivar _syncAllocated: flag which is True if synchronization logic was already allocated in RTL
-    :ivar _beginClkI: index of the first non-empty stage
-    :ivar _endClkI: index of the last non-empty stage
     """
 
-    def __init__(self, netlist: "HlsNetlistCtx", namePrefix:str, stages: List[List[HlsNetNode]], syncIsland: BetweenSyncIsland):
-        allNodes = UniqList()
-        for nodes in stages:
-            allNodes.extend(nodes)
+    def __init__(self, netlist: HlsNetlistCtx, name: str, subNodes: UniqList[HlsNetNode],
+                 stages: List[List[HlsNetNode]], syncIsland: BetweenSyncIsland):
         self.syncIsland = syncIsland
         self.stages = stages
-        stageCons = [ConnectionsOfStage() for _ in self.stages]
-        stageSignals = SignalsOfStages(netlist.normalizedClkPeriod,
-                                       (con.signals for con in stageCons))
-        ArchElement.__init__(self, netlist, namePrefix, allNodes, stageCons, stageSignals)
-        self._dataPathAllocated = False
-        self._syncAllocated = False
-        self._beginClkI: Optional[int] = None
-        self._endClkI: Optional[int] = None
+        stageCons = ConnectionsOfStageList(netlist.normalizedClkPeriod, (ConnectionsOfStage(self, clkI) for clkI, _ in enumerate(self.stages)))
+        ArchElement.__init__(self, netlist, name, subNodes, stageCons)
 
+    @override
+    def clone(self, memo:dict, keepTopPortsConnected:bool) -> Tuple["HlsNetNode", bool]:
+        y, isNew = ArchElement.clone(self, memo, keepTopPortsConnected)
+        if isNew:
+            y.stages = [[n.clone(memo, True)[0] for n in nodes] for nodes in self.stages]
+        return y, isNew
+
+    def getBeginEndClkI(self) -> Tuple[int, int]:
+        beginClkI = None
+        endClkI = None
+        for stI, (nodes, con) in enumerate(zip(self.stages, self.connections)):
+            con: ConnectionsOfStage
+            if not nodes and not con.inputs and not con.outputs:
+                # if there is nothing in this stage, we skip it
+                continue
+            else:
+                if beginClkI is None:
+                    beginClkI = stI
+                endClkI = stI
+        return (beginClkI, endClkI)
+
+    @override
+    def addImplicitSyncChannelsInsideOfElm(self):
+        """
+        Construct HlsNetNodeWriteForwardedge/HlsNetNodeReadForwardedge pairs connecting pipeline stages.
+        """
+        netlist = self.netlist
+        clkPeriod: SchedTime = netlist.normalizedClkPeriod
+        epsilon: SchedTime = netlist.scheduler.epsilon
+        ffdelay = netlist.platform.get_ff_store_time(netlist.realTimeClkPeriod, netlist.scheduler.resolution)
+
+        previousClkI = None
+        connections = self.connections
+        for clkI, _ in self.iterStages():
+            if previousClkI is not None:
+                # build r/w node pairs for sync between pipeline stages (previousClkI -> clkI)
+                wTime = ((previousClkI + 1) * clkPeriod) - ffdelay - epsilon  # end of previous clock
+                dummyC = HlsNetNodeConst(netlist, HVoidOrdering.from_py(None))
+                dummyC.resolveRealization()
+                dummyC._setScheduleZeroTimeSingleClock(wTime - epsilon)
+                self._addNodeIntoScheduled(clkI, dummyC)
+
+                name = f"{self.name:s}stSync_{previousClkI:d}_to_{clkI:d}"
+                wNode = HlsNetNodeWriteForwardedge(netlist,
+                                                   name=f"{name}_atSrc")
+                link_hls_nodes(dummyC._outputs[0], wNode._inputs[0])
+                wNode.resolveRealization()
+                wNode._setScheduleZeroTimeSingleClock(wTime)  # at the end of previousClkI
+                self._addNodeIntoScheduled(previousClkI, wNode)
+
+                rNode = HlsNetNodeReadForwardedge(netlist, dtype=HVoidOrdering,
+                                                  name=f"{name:s}_atDst")
+                assert clkI >= 1, clkI
+                rNode.resolveRealization()
+                rNode._setScheduleZeroTimeSingleClock((clkI * clkPeriod) + epsilon)  # at the beginning of ClkI
+                wNode.associateRead(rNode)
+                self._addNodeIntoScheduled(clkI, rNode)
+                con: ConnectionsOfStage = connections[clkI]
+                con.implicitSyncFromPrevStage = rNode
+
+            previousClkI = clkI
+
+    @override
     def iterStages(self) -> Generator[Tuple[int, List[HlsNetNode]], None, None]:
         beginClkI = self._beginClkI
         endClkI = self._endClkI
@@ -68,90 +120,69 @@ class ArchElementPipeline(ArchElement):
                 continue
             if endClkI is not None and clkI > endClkI:
                 return
-            yield (clkI, nodes)
+            if beginClkI is None and nodes:
+                beginClkI = clkI
+            if beginClkI is not None:
+                yield (clkI, nodes)
 
+    @override
     def getStageForClock(self, clkIndex: int) -> List[HlsNetNode]:
         return self.stages[clkIndex]
 
-    def _afterNodeInstantiated(self, n: HlsNetNode, rtl: Optional[TimeIndependentRtlResource]):
-        isTir = isinstance(rtl, TimeIndependentRtlResource)
+    @override
+    def rtlRegisterOutputRtlSignal(self, outOrTime: Union[HlsNetNodeOut, SchedTime], data: Union[RtlSignal, Interface, HValue],
+                 isExplicitRegister: bool, isForwardDeclr: bool,
+                 mayChangeOutOfCfg: bool):
+        tir = super(ArchElementPipeline, self).rtlRegisterOutputRtlSignal(
+            outOrTime, data, isExplicitRegister, isForwardDeclr, mayChangeOutOfCfg)
 
-        if isinstance(n, HlsNetNodeWriteBackedge) and n.allocationType == BACKEDGE_ALLOCATION_TYPE.REG:
-            clkPeriod = self.netlist.normalizedClkPeriod
-            con: ConnectionsOfStage = self.connections[n.scheduledIn[0] // clkPeriod]
-            con.stDependentDrives.append(rtl)
-        # elif isinstance(n, HlsProgramStarter):
-        #    assert isTir, n
-        #    # because we want to consume token from the starter only on transition in this FSM
-        #    con: ConnectionsOfStage = self.connections[0]
-        #    con.stDependentDrives.append(rtl.valuesInTime[0].data.next.drivers[0])
+        # if isinstance(outOrTime, HlsNetNodeOut):
+        #    n = outOrTime.obj
+        #    if isinstance(n, HlsNetNodeReadBackedge) and n.associatedWrite.allocationType == BACKEDGE_ALLOCATION_TYPE.REG:
+        #        clkPeriod = self.netlist.normalizedClkPeriod
+        #        con: ConnectionsOfStage = self.connections[n.scheduledIn[0] // clkPeriod]
+        #        con.stDependentDrives.append(tir)
 
-        if rtl is None or not isTir:
-            cons = (self.netNodeToRtl[o] for o in n._outputs if o in self.netNodeToRtl if not HdlType_isVoid(o._dtype))
-        elif isinstance(rtl, list):
-            cons = rtl
-        else:
-            cons = (rtl,)
+        if tir.timeOffset is not INVARIANT_TIME:
+            self.connections.getForTime(tir.timeOffset).signals.append(tir.valuesInTime[0])
+        return tir
 
-        for o in cons:
-            o: TimeIndependentRtlResource
-            # register all uses
-            if o.timeOffset is not INVARIANT_TIME:
-                self.stageSignals.getForTime(o.timeOffset).append(o)
-
-        for dep in n.dependsOn:
-            self._afterOutputUsed(dep)
-
-    def _privatizeLocalOnlyBackedges(self):
+    def _privatizeLocalOnlyChannels(self):
         clkPeriod = self.netlist.normalizedClkPeriod
 
         for stI, nodes in enumerate(self.stages):
             for node in nodes:
                 if isinstance(node, HlsNetNodeReadBackedge):
                     w = node.associatedWrite
-                    if w.allocationType == BACKEDGE_ALLOCATION_TYPE.BUFFER and w in self.allNodes and w.scheduledIn[0] // clkPeriod == stI:
-                        w.allocationType = BACKEDGE_ALLOCATION_TYPE.REG  # allocate as a register because this is connect just this stage with itself
+                    if w.allocationType == BACKEDGE_ALLOCATION_TYPE.BUFFER and w in self._subNodes and w.scheduledIn[0] // clkPeriod == stI:
+                        # allocate as a register because this is connect just this stage with itself
+                        w.allocationType = BACKEDGE_ALLOCATION_TYPE.REG
 
-    def allocateDataPath(self, iea: InterArchElementNodeSharingAnalysis):
-        assert not self._dataPathAllocated
-        assert not self._syncAllocated
+    @override
+    def rtlStatesMayHappenConcurrently(self, stateClkI0: int, stateClkI1: int):
+        return stateClkI0 != stateClkI1
 
-        self.interArchAnalysis = iea
-        self._privatizeLocalOnlyBackedges()
+    @override
+    def rtlAllocDatapath(self):
+        assert not self._rtlDatapathAllocated
+        assert not self._rtlSyncAllocated
 
-        ioDiscovery: HlsNetlistAnalysisPassIoDiscover = self.netlist.getAnalysis(HlsNetlistAnalysisPassIoDiscover)
+        self._privatizeLocalOnlyChannels()
+
+        # dictionaries to assert that the IO is accessed only in a single stage
         rToCon: Dict[Interface, ConnectionsOfStage] = {}
         wToCon: Dict[Interface, ConnectionsOfStage] = {}
-        allIoObjSeen = set()
-        beginFound = False
-        self._beginClkI = 0
-
-        for stI, (nodes, con) in enumerate(zip(self.stages, self.connections)):
+        for (nodes, con) in zip(self.stages, self.connections):
             con: ConnectionsOfStage
-            if not beginFound:
-                if not nodes and not con.inputs and not con.outputs:
-                    # if there is nothing in this stage, we skip it
-                    continue
-                else:
-                    beginFound = True
-                    self._beginClkI = stI
-
-            # assert nodes
-            ioMuxes: Dict[Interface, Tuple[Union[HlsNetNodeRead, HlsNetNodeWrite], List[HdlStatement]]] = {}
-            ioSeen: UniqList[Interface] = UniqList()
             for node in nodes:
                 node: HlsNetNode
                 # this is one level of nodes,
                 # node can not be dependent on nodes behind in this list
                 # because this engine does not support backward edges in DFG
-                wasInstantiated = node._outputs and node._outputs[0] not in self.netNodeToRtl
-                rtl = node.allocateRtlInstance(self)
-                if wasInstantiated:
-                    self._afterNodeInstantiated(node, rtl)
-
-                if node in allIoObjSeen:
-                    # io mux constructed in previous stage
+                if node._isRtlAllocated:
                     continue
+
+                node.rtlAlloc(self)
 
                 if isinstance(node, HlsNetNodeRead):
                     if isinstance(node, HlsNetNodeReadBackedge):
@@ -159,12 +190,21 @@ class ArchElementPipeline(ArchElement):
                             # only buffer has an explicit IO from pipeline
                             continue
 
+                    if node.src is None:
+                        # local only channel
+                        assert (
+                            isinstance(node, (HlsNetNodeReadBackedge, HlsNetNodeReadForwardedge)) and
+                            node.associatedWrite in self._subNodes
+                            ) or (
+                                not node._rtlUseReady and
+                                not node._rtlUseValid and
+                                HdlType_isVoid(node._outputs[0]._dtype)
+                                ), node
+                        continue
+
                     currentStageForIo = rToCon.get(node.src, con)
                     assert currentStageForIo is con, ("If the access to IO is from different stage, this should already have IO gate generated", node, con)
-                    con.inputs.append((node.src, node._isBlocking))
-                    self._allocateIo(ioDiscovery, node.src, node, con, ioMuxes, ioSeen, rtl)
                     rToCon[node.src] = con
-                    allIoObjSeen.add(node)
 
                 elif isinstance(node, HlsNetNodeWrite):
                     if isinstance(node, HlsNetNodeWriteBackedge):
@@ -172,188 +212,94 @@ class ArchElementPipeline(ArchElement):
                             # only buffer has an explicit IO from pipeline
                             continue
 
+                    if node.dst is None:
+                        # local only channel
+                        assert (isinstance(node, (HlsNetNodeWriteBackedge, HlsNetNodeWriteForwardedge)) and
+                                node.associatedRead in self._subNodes
+                                ) or (
+                                      not node._rtlUseReady and
+                                      not node._rtlUseValid and
+                                      HdlType_isVoid(node.dependsOn[0]._dtype)
+                                     ), node
+                        continue
+
                     currentStageForIo = wToCon.get(node.dst, con)
                     assert currentStageForIo is con, ("If the access to IO is from different stage, this should already have IO gate generated", node, con)
-                    con.outputs.append((node.dst, node._isBlocking))
-
-                    self._allocateIo(ioDiscovery, node.dst, node, con, ioMuxes, ioSeen, rtl)
                     wToCon[node.dst] = con
-                    allIoObjSeen.add(node)
 
-                elif node.__class__ is HlsNetNodeExplicitSync:
-                    raise NotImplementedError("Should be translated to channel in previous steps", node)
-
-            for rtl in self._allocateIoMux(ioMuxes, ioSeen):
-                pass
-
-        self._dataPathAllocated = True
-
-    def extendValidityOfRtlResource(self, tir: TimeIndependentRtlResource, endTime: float):
-        assert self._dataPathAllocated
-        assert not self._syncAllocated
-        assert tir.timeOffset is not INVARIANT_TIME
-        assert endTime > tir.timeOffset, (tir, tir.timeOffset, endTime)
-
-        clkPeriod = self.netlist.normalizedClkPeriod
-        t = tir.timeOffset + (len(tir.valuesInTime) - 1) * clkPeriod + self.netlist.scheduler.epsilon
-        assert t < endTime
-        # :note: done in reverse so we do not have to always iterate over registered prequel
-        while t <= endTime:
-            t += clkPeriod
-            i = int(t // clkPeriod)
-            if i >= len(self.stageSignals):
-                self.stageSignals.append(UniqList())
-                self.stages.append([])
-                self.connections.append(ConnectionsOfStage())
-
-            sigs = self.stageSignals.getForTime(t)
-            assert tir not in sigs
-            tir.get(t)
-            sigs.append(tir)
-
-    def connectSync(self, clkI: int, intf: HandshakeSync, intfDir: INTF_DIRECTION, isBlocking: bool):
-        if clkI < self._beginClkI:
-            self._beginClkI = clkI
-        return super(ArchElementPipeline, self).connectSync(clkI, intf, intfDir, isBlocking)
-
-    def allocateSync(self):
-        assert self._dataPathAllocated
-        assert not self._syncAllocated
-
-        syncType = Signal
         for con in self.connections:
-            syncType = resolveStrongestSyncType(syncType, chain((io for io, _ in con.inputs), (io for io, _ in con.outputs)))
+            for _ in self._rtlAllocIoMux(con.ioMuxes, con.ioMuxesKeysOrdered):
+                pass
+        self._rtlDatapathAllocated = True
 
-        for is_last_in_pipeline, (pipeline_st_i, con) in iter_with_last(enumerate(self.connections)):
+    @override
+    def rtlAllocSync(self):
+        assert self._rtlDatapathAllocated, self
+        assert not self._rtlSyncAllocated, self
+        self._beginClkI, self._endClkI = self.getBeginEndClkI()
+
+        for (pipeline_st_i, con) in enumerate(self.connections):
             con: ConnectionsOfStage
             if pipeline_st_i < self._beginClkI:
-                continue
-            self.allocateSyncForStage(
-                con, syncType,
-                None if is_last_in_pipeline else self.connections[pipeline_st_i + 1],
-                pipeline_st_i)
-        self._syncAllocated = True
+                assert con.isUnused(), (self, pipeline_st_i, self._beginClkI, con)
+            else:
+                self.rtlAllocSyncForStage(con, pipeline_st_i)
 
-    # def _getSyncForInFromPrevStage(self, pipeline_st_i: int, con: ConnectionsOfStage,
-    #                                            syncType: Type[Interface]):
-    #    assert syncType is not Signal, ("If current sync is type of Signal this should not be called because there will be no sync")
-    #    syncDomains:HlsNetlistAnalysisPassSyncDomains = self.netlist.getAnalysis(HlsNetlistAnalysisPassSyncDomains)
-    #    prevStNodes = set(self.stages[pipeline_st_i - 1])
-    #    for n in self.stages[pipeline_st_i]:
-    #        for dep in n.dependsOn:
-    #            dep: HlsNetNodeOut
-    #            if dep._dtype is HVoidOrdering or dep._dtype is HVoidExternData:
-    #                continue
-    #            depO = dep.obj
-    #            if depO in prevStNodes:
-    #                sync = syncDomains.syncOfNode[n]
-    #                # [todo]
-    #    raise NotImplementedError()
+        self._rtlSyncAllocated = True
 
-    def allocateSyncForStage(self,
-                      con: ConnectionsOfStage,
-                      syncType: Type[Interface],
-                      nextCon: Optional[ConnectionsOfStage],
-                      pipeline_st_i:int):
+    def rtlAllocSyncForStage(self, con: ConnectionsOfStage, pipeline_st_i:int):
         """
         Allocate synchronization for a single stage of pipeline.
         Each pipeline represents only a straight pipeline. Each non-last stage is equipped with a stage_N_valid register.
-        The 1 in this stage represents that the stage registers are occupied and can accept data only if data can be flushed to successor stage.
+        The 1 in this stage represents that the stage registers are occupied and can accept data only
+        if data can be flushed to successor stage.
         There is stage_sync_N_to_N+1 synchronization channel which synchronizes the data movement between stages.
         The channel is ready if next stage is able to process new data. And valid if data are provided from this stage.
 
         :note: pipeline registers are placed visually at the end of the non-last stage
         """
+        # :note: Collect registers at the end of this stage
+        # because additional synchronization needs to be added
+        nextStRegDrivers = UniqList()
+        for curV in con.signals:
+            curV: TimeIndependentRtlResourceItem
+            s = curV.parent
+            # if the value has a register at the end of this stage
+            nextStVal = s.checkIfExistsInClockCycle(pipeline_st_i + 1)
+            if nextStVal is not None and nextStVal.isRltRegister():
+                nextStRegDrivers.append(nextStVal.data.next.drivers[0])
 
-        if syncType is Signal:
-            # no sync required
-            return
-        else:
-            # if con.syncIn is not None:
-            #    self._getSyncForInFromPrevStage(pipeline_st_i, con, syncType)
+        nextStRegDrivers.extend(con.stDependentDrives)
 
-            # :note: Collect registers at the end of this stage
-            # because additional synchronization needs to be added
-            curRegisterDrivers = []
-            for s in con.signals:
-                s: TimeIndependentRtlResource
-                # if the value has a register at the end of this stage
-                v = s.checkIfExistsInClockCycle(pipeline_st_i)
-                if v.isExplicitRegister:
-                    curRegisterDrivers.append(v.data.next.drivers[0])
-                else:
-                    v = s.checkIfExistsInClockCycle(pipeline_st_i + 1)
-                    if v is not None and v.isRltRegister():
-                        curRegisterDrivers.append(v.data.next.drivers[0])
-
-            curRegisterDrivers.extend(con.stDependentDrives)
-
-            if nextCon is None:
-                toNextStSource = None
-                toNextStSink = None
-                stValid = None
+        if con.inputs or con.outputs:
+            sync = con.syncNode = self._rtlAllocateSyncStreamNode(con)
+            # check if results of this stage do validity register
+            sync.sync()
+            ack = sync.ack()
+            if isinstance(ack, (HValue, int)):
+                ack = int(ack)
+                assert ack == 1, ("If statge ack is a constant, it must be 1, otherwise this stage is always stalling", self, pipeline_st_i, con, ack)
+                if con.syncNodeAck is not None:
+                    assert not con.syncNodeAck.drivers
+                    con.syncNodeAck(1)
             else:
-                # need a synchronization if there is a next stage in the pipeline
-                toNextStSource = Interface_without_registration(
-                    self, HandshakeSync(), f"{self.namePrefix:s}stSync_st{pipeline_st_i:d}_{pipeline_st_i:d}_to_{pipeline_st_i+1:d}")
-                con.outputs.append((toNextStSource, True))
-                con.syncOut = toNextStSource
-
-                toNextStSink = Interface_without_registration(
-                    self, HandshakeSync(), f"{self.namePrefix:s}stSync_st{pipeline_st_i+1:d}_{pipeline_st_i:d}_to_{pipeline_st_i+1:d}")
-                nextCon.inputs.append((toNextStSink, True))
-                nextCon.syncIn = toNextStSink
-                # if not is_first_in_pipeline:
-                # :note: that the register 0 is behind the first stage of pipeline
-                con.stageDataVld = stValid = self._reg(f"{self.namePrefix:s}st{pipeline_st_i:d}_valid", def_val=0)
-
-            if con.inputs or con.outputs:
-                sync = con.sync_node = self._makeSyncNode(con)
-                # check if results of this stage do validity register
-                sync.sync()
-                ack = sync.ack()
-                if isinstance(ack, (HValue, int)):
-                    ack = int(ack)
-                    assert ack == 1, (self, pipeline_st_i, con, ack)
+                if con.syncNodeAck is None:
+                    ack = rename_signal(self.netlist.parentUnit, ack, f"{self.name:s}st{pipeline_st_i:d}_ack")
+                    con.syncNodeAck = ack
                 else:
-                    ack = rename_signal(self.netlist.parentUnit, ack, f"{self.namePrefix}st{pipeline_st_i:d}_ack")
-                    if curRegisterDrivers:
-                        # add enable signal for register load derived from synchronization of stage
-                        If(ack,
-                           *curRegisterDrivers,
-                        )
-                    for n in self.stages[pipeline_st_i]:
-                        if isinstance(n, HlsNetNodeWriteBackedge) and n.allocationType == BACKEDGE_ALLOCATION_TYPE.IMMEDIATE:
-                            val = self.netNodeToRtl[n]
-                            if isinstance(val, (RtlSignal, Interface)):
-                                raise NotImplementedError(val)
-                            elif isinstance(val, HdlAssignmentContainer):
-                                val: HdlAssignmentContainer
-                                newSrc = val.src & ack
-                                if not (val.src == newSrc):
-                                    val._replace_input((val.src, newSrc))
-                            elif isinstance(val, list):
-                                for _val in val:
-                                    _val: HdlAssignmentContainer
-                                    assert isinstance(_val, HdlAssignmentContainer), _val
-                                    newSrc = _val.src & ack
-                                    if not (_val.src == newSrc):
-                                        _val._replace_input((_val.src, newSrc))
+                    assert not con.syncNodeAck.drivers
+                    con.syncNodeAck(ack)
+                    ack = con.syncNodeAck
 
-                            else:
-                                raise NotImplementedError(val)
-            else:
-                # 1 stage no input/output
-                ack = BIT.from_py(1)
+                if con.stageEnable is not None:
+                    if con.implicitSyncFromPrevStage is None:
+                        con.stageEnable(1)  # there are no implicit data
+                    else:
+                        con.stageEnable(con.implicitSyncFromPrevStage.src.vld)
 
-            con.syncNodeAck = ack
-            if toNextStSource is not None:
-                If(toNextStSink.rd | ~stValid,
-                    stValid(ack)
-                )
-                toNextStSource.rd(toNextStSink.rd | ~stValid)
-                toNextStSink.vld(stValid)  # valid only if data is in registers
-
-    # def _propageteInputDependencyToElement(self, i: Optional[HlsNetNodeIn], dstElm: ArchElement):
-    #    t = super(ArchElementPipeline, self)._propageteInputDependencyToElement(i, dstElm)
+                if nextStRegDrivers:
+                    # add enable signal for register load derived from synchronization of stage
+                    If(ack,
+                       *nextStRegDrivers,
+                    )
 

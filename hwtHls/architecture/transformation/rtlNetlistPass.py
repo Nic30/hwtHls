@@ -7,5 +7,5 @@ class RtlNetlistPass():
     Passes of this type are used after code was translated to hardware netlist to customize it for target architecture.
     """
 
-    def apply(self, hls: "HlsScope", netlist: HlsNetlistCtx):
+    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
         pass

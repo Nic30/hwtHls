@@ -1,9 +1,11 @@
+from io import StringIO
 from itertools import chain
 from math import ceil
 from typing import Union, Optional, Set, Callable
 
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.unit import Unit
+from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
 from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
@@ -12,6 +14,7 @@ from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.observableList import ObservableList, ObservableListRm
 from hwtHls.netlist.scheduler.scheduler import HlsScheduler
 from hwtHls.ssa.analysisCache import AnalysisCache
+from hwtHls.typingFuture import override
 
 
 class HlsNetlistCtx(AnalysisCache):
@@ -19,6 +22,8 @@ class HlsNetlistCtx(AnalysisCache):
     High level synthesiser netlist context.
     Convert sequential code without data dependency cycles to RTL.
 
+    :ivar label: a name of this scope
+    :ivar namePrefix: name prefix which should be used for child object names
     :ivar parentUnit: parent unit where RTL should be instantiated
     :ivar platform: platform with configuration of this HLS context
     :ivar freq: target frequency for RTL (in Hz)
@@ -30,11 +35,14 @@ class HlsNetlistCtx(AnalysisCache):
         the purpose of objects in this ctx is only to store the input code
         these objects are not present in output circuit and are only form of code
         template which must be translated
+    :ivar _dbgAddSignalNamesToSync: add names to synchronization signals in order to improve readability,
+        disabled by default as it goes against optimizations
     """
 
     def __init__(self, parentUnit: Unit,
                  freq: Union[float, int],
                  label: str,
+                 namePrefix:str="hls_",
                  schedulerResolution:float=0.01e-9,
                  platform: Optional["VirtualHlsPlatform"]=None):
         """
@@ -42,6 +50,7 @@ class HlsNetlistCtx(AnalysisCache):
         :ivar schedulerResolution: The time resolution for time in scheduler specified in seconds (1e-9 is 1ns).
         """
         self.label = label
+        self.namePrefix = namePrefix
         self.parentUnit = parentUnit
         self.platform = platform if platform is not None else parentUnit._target_platform
         self.builder: Optional["HlsNetlistBuilder"] = None
@@ -59,7 +68,15 @@ class HlsNetlistCtx(AnalysisCache):
         self.ctx = RtlNetlist()
         AnalysisCache.__init__(self)
         self.scheduler: HlsScheduler = self.platform.schedulerCls(self, schedulerResolution)
-        self.allocator: "HlsAllocator" = self.platform.allocatorCls(self)
+        self._dbgAddSignalNamesToSync = False
+        self._dbgAddSignalNamesToData = False
+        self._dbgLogPassExec:Optional[StringIO] = None
+        if platform is not None:
+            self._dbgLogPassExec = platform.getPassManagerDebugLogFile()
+
+    @override
+    def _runAnalysisImpl(self, a: HlsNetlistAnalysisPass):
+        return a.runOnHlsNetlist(self)
 
     def _setBuilder(self, b: "HlsNetlistBuilder"):
         self.builder = b
@@ -81,7 +98,7 @@ class HlsNetlistCtx(AnalysisCache):
         """
         for n in self.iterAllNodes():
             yield from n.iterAllNodesFlat(itTy)
-        
+
     def schedule(self):
         self.scheduler.schedule()
 
@@ -128,3 +145,6 @@ class HlsNetlistCtx(AnalysisCache):
                 return n
         raise ValueError("Node with requested id not found", _id)
 
+    def __repr__(self)->str:
+        return f"<{self.__class__.__name__:s} {self.label:s}>"
+    

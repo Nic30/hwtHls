@@ -6,7 +6,6 @@ from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
 from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.node import HlsNetNode
 
-
 HlsNetlistHierarchyPath = Tuple[HlsNetNodeAggregate, ...]
 
 
@@ -15,8 +14,8 @@ class HlsNetlistAnalysisPassNodeParentAggregate(HlsNetlistAnalysisPass):
     An analysis which provides dictionaries for fast lookup of hierarchy path for each node
     """
 
-    def __init__(self, netlist:"HlsNetlistCtx"):
-        HlsNetlistAnalysisPass.__init__(self, netlist)
+    def __init__(self):
+        super(HlsNetlistAnalysisPassNodeParentAggregate, self).__init__()
         self.nodeHieararchy: Dict[HlsNetlistHierarchyPath, UniqList[HlsNetNode]] = {}
         self.nodePath: Dict[HlsNetNode, HlsNetlistHierarchyPath] = {}
 
@@ -35,7 +34,7 @@ class HlsNetlistAnalysisPassNodeParentAggregate(HlsNetlistAnalysisPass):
             if isinstance(n, HlsNetNodeAggregate):
                 self._collectHierarchyNodes(tuple((*currentPath, n)), n._subNodes)
 
-    def run(self):
+    def runOnHlsNetlist(self, netlist: "HlsNetlistCtx"):
         assert not self.nodeHieararchy
         assert not self.nodePath
-        self._collectHierarchyNodes((), UniqList(self.netlist.iterAllNodes()))
+        self._collectHierarchyNodes((), UniqList(netlist.iterAllNodes()))

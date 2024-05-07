@@ -1,4 +1,5 @@
 from collections import deque
+from itertools import chain
 from typing import List, Optional, Tuple, Generator, Set, Deque
 
 from hwt.hdl.types.hdlType import HdlType
@@ -9,10 +10,10 @@ from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.nodes.schedulableNode import SchedulizationDict, OutputTimeGetter, OutputMinUseTimeGetter, \
     SchedTime
-from hwtHls.platform.opRealizationMeta import EMPTY_OP_REALIZATION
-from hwtHls.typingFuture import override
 from hwtHls.netlist.scheduler.clk_math import offsetInClockCycle, \
     indexOfClkPeriod
+from hwtHls.platform.opRealizationMeta import EMPTY_OP_REALIZATION
+from hwtHls.typingFuture import override
 
 
 class HlsNetNodeAggregatePortIn(HlsNetNode):
@@ -22,7 +23,7 @@ class HlsNetNodeAggregatePortIn(HlsNetNode):
 
     def __init__(self, netlist:"HlsNetlistCtx", parentIn: HlsNetNodeIn, dtype: HdlType, name:str=None):
         HlsNetNode.__init__(self, netlist, name=name)
-        self._addOutput(dtype, name)
+        self._addOutput(dtype, "inside")
         self.parentIn = parentIn
 
     @override
@@ -59,16 +60,28 @@ class HlsNetNodeAggregatePortIn(HlsNetNode):
     def rtlAlloc(self, allocator: "ArchElement"):
         assert not self._isRtlAllocated, self
         assert len(self._outputs) == 1, self
-        op_out = self._outputs[0]
-        parentInPort = self.parentIn
-        parentDrive = parentInPort.obj.dependsOn[parentInPort.in_i]
-        assert op_out._dtype == parentDrive._dtype, ("Aggregate port must be of same time as port which drives it",
-                                                     self, parentDrive, op_out._dtype, parentDrive._dtype)
-        rtl = allocator.netNodeToRtl[parentDrive]  # this port must be forward declared,
-        # so it is guaranteed that the RTL is present
-        allocator.netNodeToRtl[op_out] = rtl
+        dataOut = self._outputs[0]
+        if not HdlType_isVoid(dataOut._dtype):
+            parentInPort = self.parentIn
+            parentDriver = parentInPort.obj.dependsOn[parentInPort.in_i]
+            assert dataOut._dtype == parentDriver._dtype, ("Aggregate port must be of same time as port which drives it",
+                                                         self, parentDriver, dataOut._dtype, parentDriver._dtype)
+            otherArchElm: "ArchElement" = parentDriver.obj
+            tir: Optional[TimeIndependentRtlResource] = otherArchElm.netNodeToRtl.get(parentDriver, None)
+            # This port has not yet been allocated, it must use forward declaration
+            # because there is no topological order in how the ArchElements are connected.
+            time = otherArchElm.scheduledOut[parentDriver.out_i]
+            if tir is None:
+                tir = otherArchElm.rtlAllocOutDeclr(otherArchElm, parentDriver, time)
+                assert tir is not None, parentDriver
+
+            # make tir local to this element
+            tir = allocator.rtlRegisterOutputRtlSignal(dataOut, tir.get(time).data, False, False, False)
+        else:
+            tir = []
+
         self._isRtlAllocated = True
-        return rtl
+        return tir
 
     def __repr__(self):
         return f"<{self.__class__.__name__:s} {self._id:d} i={self.parentIn.in_i} parent={self.parentIn.obj._id:d}>"
@@ -81,7 +94,7 @@ class HlsNetNodeAggregatePortOut(HlsNetNode):
 
     def __init__(self, netlist:"HlsNetlistCtx", parentOut: HlsNetNodeIn, name:str=None):
         HlsNetNode.__init__(self, netlist, name=name)
-        self._addInput(name)
+        self._addInput("inside")
         self.parentOut = parentOut
 
     def _setScheduleZero(self, t: SchedTime):
@@ -107,8 +120,24 @@ class HlsNetNodeAggregatePortOut(HlsNetNode):
         return
         yield
 
+    @override
+    def rtlAlloc(self, allocator:"ArchElement"):
+        assert not self._isRtlAllocated
+        outerO = self.parentOut
+        if not HdlType_isVoid(outerO._dtype):
+            internO = self.dependsOn[0]
+            assert internO is not None, ("Port must have a driver", self)
+            oTir = allocator.rtlAllocHlsNetNodeOut(internO)
+            # propagate output value to output of parent
+            # :note: if this was previously declared using forward declaration rtlRegisterOutputRtlSignal should update its drive
+            outTime = outerO.obj.scheduledOut[outerO.out_i]
+            allocator.rtlRegisterOutputRtlSignal(outerO, oTir.get(outTime).data, False, False, False)
+
+        self._isRtlAllocated = True
+        return []
+
     def __repr__(self):
-        return f"<{self.__class__.__name__:s} {self._id:d} i={self.parentOut.out_i} parent={self.parentOut.obj._id:d}>"
+        return f"<{self.__class__.__name__:s} {self._id:d} {'' if self.name is None else  f'{self.name} '}i={self.parentOut.out_i} parent={self.parentOut.obj._id:d}>"
 
 
 class HlsNetNodeAggregate(HlsNetNode):
@@ -130,6 +159,34 @@ class HlsNetNodeAggregate(HlsNetNode):
         self._isFragmented = False
         self._inputsInside: List[HlsNetNodeAggregatePortIn] = []
         self._outputsInside: List[HlsNetNodeAggregatePortOut] = []
+
+    @override
+    def clone(self, memo:dict, keepTopPortsConnected:bool) -> Tuple["HlsNetNode", bool]:
+        y, isNew = HlsNetNode.clone(self, memo, keepTopPortsConnected)
+        if isNew:
+            y: HlsNetNodeAggregate
+            # copy ports omitting desp/uses (to avoid cycle during object cloning)
+            y._inputsInside = [HlsNetNodeAggregatePortIn(y.netlist, i, ii._outputs[0]._dtype, ii.name)
+                               for i, ii in zip(y._inputs, self._inputsInside)]
+            y._outputsInside = [HlsNetNodeAggregatePortOut(y.netlist, o, oi.name)
+                                for o, oi in zip(y._outputs, self._outputsInside)]
+            for orig, new in zip(chain(self._inputsInside, self._outputsInside), chain(y._inputsInside, y._outputsInside)):
+                memo[id(orig)] = new
+
+            y._subNodes = UniqList(n.clone(memo, True)[0] for n in self._subNodes)
+            # connect previously ommitted links
+            for orig, new in zip(self._inputsInside, y._inputsInside):
+                new: HlsNetNodeAggregatePortIn
+                newUses = new.usedBy[0]
+                for u in orig.usedBy[0]:
+                    u: HlsNetNodeIn
+                    newUses.append(u.obj.clone(memo, True)[0]._inputs[u.in_i])
+
+            for orig, new in zip(self._outputsInside, y._outputsInside):
+                dep: Optional[HlsNetNodeOut] = orig.dependsOn[0]
+                new.dependsOn[0].append(None if dep is None else dep.obj.clone(memo, True)[0]._outputs[dep.out_i])
+
+        return y, isNew
 
     @override
     def _addOutput(self, t:HdlType, name:Optional[str], time:Optional[SchedTime]=None) -> Tuple[HlsNetNodeOut, HlsNetNodeIn]:
@@ -177,7 +234,7 @@ class HlsNetNodeAggregate(HlsNetNode):
             assert self.realization.mayBeInFFStoreTime, self
             netlist = self.netlist
             clkPeriod = netlist.normalizedClkPeriod
-            inputClkTickOffset = indexOfClkPeriod(schedZero, clkPeriod) - indexOfClkPeriod(time, clkPeriod) 
+            inputClkTickOffset = indexOfClkPeriod(schedZero, clkPeriod) - indexOfClkPeriod(time, clkPeriod)
             if inputClkTickOffset == 0:
                 # under normal circumstances where input is scheduled before scheduledZero time < schedZero
                 inputWireDelay = schedZero - time
@@ -350,16 +407,6 @@ class HlsNetNodeAggregate(HlsNetNode):
                     toSearchSet.add(node1)
 
     @override
-    def rtlAllocOutDeclr(self, allocator: "ArchElement", o: HlsNetNodeOut, startTime: SchedTime)\
-            ->TimeIndependentRtlResource:
-        internOutPort: HlsNetNodeAggregatePortOut = self._outputsInside[o.out_i]
-        outOfInternDriverNode: HlsNetNodeOut = internOutPort.dependsOn[0]
-        tir = outOfInternDriverNode.obj.rtlAllocOutDeclr(allocator, outOfInternDriverNode, startTime)
-        assert o not in allocator.netNodeToRtl, o
-        allocator.netNodeToRtl[o] = tir
-        return tir
-
-    @override
     def rtlAlloc(self, allocator: "ArchElement"):
         """
         Instantiate layers of bitwise operators. (Just delegation to sub nodes)
@@ -420,6 +467,9 @@ class HlsNetNodeAggregate(HlsNetNode):
         if itTy == NODE_ITERATION_TYPE.PREORDER:
             yield self
 
+        if self._subNodes is None:
+            raise AssertionError()
+
         for n in self._subNodes:
             yield from n.iterAllNodesFlat(itTy)
 
@@ -428,13 +478,20 @@ class HlsNetNodeAggregate(HlsNetNode):
 
     def filterNodesUsingSet(self, removed: Set[HlsNetNode], recursive=False):
         if removed:
+            toRm = []
             for iNode in self._inputsInside:
                 if iNode in removed:
-                    raise NotImplementedError()
+                    toRm.append(iNode)
 
+            for iNode in toRm:
+                self._removeInput(iNode.parentIn.in_i)
+
+            toRm.clear()
             for oNode in self._outputsInside:
                 if oNode in removed:
-                    raise NotImplementedError()
+                    toRm.append(oNode)
+            for oNode in toRm:
+                self._removeOutput(oNode.parentOut.out_i)
 
             self._subNodes[:] = (n for n in self._subNodes if n not in removed)
             if recursive:

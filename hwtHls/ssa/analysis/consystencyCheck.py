@@ -9,6 +9,8 @@ from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.phi import SsaPhi
 from hwtHls.ssa.transformation.ssaPass import SsaPass
 from hwtHls.ssa.value import SsaValue
+from hwtHls.typingFuture import override
+
 
 _ValOrVal = (HValue, SsaValue)
 
@@ -85,8 +87,9 @@ class SsaPassConsystencyCheck(SsaPass):
             if _bb not in seen:
                 self.visit_check(_bb, blocks, phis, variables, seen)
 
-    def apply(self, hls: "HlsScope", to_ssa: "HlsAstToSsa"):
-        bb = to_ssa.start
+    @override
+    def runOnSsaModuleImpl(self, toSsa: "HlsAstToSsa"):
+        bb = toSsa.start
         blocks: UniqList[SsaBasicBlock] = UniqList()
         phis: UniqList[SsaPhi] = UniqList()
         variables: Dict[SsaValue, SsaBasicBlock] = {}

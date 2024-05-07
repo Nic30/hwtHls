@@ -29,8 +29,8 @@ class HlsNetlistAnalysisPassDetectPipelines(HlsNetlistAnalysisPass):
     This pass collect largest continuous segments of the netlist.
     """
 
-    def __init__(self, netlist: "HlsNetlistCtx"):
-        HlsNetlistAnalysisPass.__init__(self, netlist)
+    def __init__(self):
+        super(HlsNetlistAnalysisPassDetectPipelines, self).__init__()
         self.pipelines: List[NetlistPipeline] = []
 
     @staticmethod
@@ -46,20 +46,20 @@ class HlsNetlistAnalysisPassDetectPipelines(HlsNetlistAnalysisPass):
             cls._extendIfRequired(pipeline, clk_index)
             pipeline[clk_index].append(node)
 
-    def run(self):
-        fsms: HlsNetlistAnalysisPassDetectFsms = self.netlist.getAnalysis(HlsNetlistAnalysisPassDetectFsms)
-        ioByInterface = self.netlist.getAnalysis(HlsNetlistAnalysisPassIoDiscover).ioByInterface
+    def runOnHlsNetlistImpl(self, netlist: "HlsNetlistCtx"):
+        fsms: HlsNetlistAnalysisPassDetectFsms = netlist.getAnalysis(HlsNetlistAnalysisPassDetectFsms)
+        ioByInterface = netlist.getAnalysis(HlsNetlistAnalysisPassIoDiscover).ioByInterface
         allFsmNodes, inFsmNodeParts = fsms.collectInFsmNodes()
         allFsmNodes: Dict[HlsNetNode, UniqList[IoFsm]]
         inFsmNodeParts: Dict[HlsNetNode, UniqList[Tuple[IoFsm, HlsNetNodePartRef]]]
-        clkPeriod = self.netlist.normalizedClkPeriod
+        clkPeriod = netlist.normalizedClkPeriod
         pipelines = self.pipelines
-        syncIslands: HlsNetlistAnalysisPassBetweenSyncIslands = self.netlist.getAnalysis(HlsNetlistAnalysisPassBetweenSyncIslands)
+        syncIslands: HlsNetlistAnalysisPassBetweenSyncIslands = netlist.getAnalysis(HlsNetlistAnalysisPassBetweenSyncIslands)
         # interfaces which were checked to be accessed correctly
         alreadyCheckedIo: Set[Interface] = set()
         pipelineForIsland: Dict[BetweenSyncIsland, NetlistPipeline] = {}
 
-        for node in self.netlist.iterAllNodes():
+        for node in netlist.iterAllNodes():
             node: HlsNetNode
             assert not isinstance(node, HlsNetNodePartRef), node
             _node = node

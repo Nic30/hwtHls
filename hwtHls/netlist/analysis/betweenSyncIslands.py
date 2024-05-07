@@ -31,8 +31,8 @@ class HlsNetlistAnalysisPassBetweenSyncIslands(HlsNetlistAnalysisPass):
         and this control must be part of this cluster because it decides behavior of this cluster.
     """
 
-    def __init__(self, netlist:"HlsNetlistCtx"):
-        HlsNetlistAnalysisPass.__init__(self, netlist)
+    def __init__(self):
+        super(HlsNetlistAnalysisPassBetweenSyncIslands, self).__init__()
         self.syncIslands: List[BetweenSyncIsland] = []
         # :note: HlsNetNodeExplicitSync nodes have tuple of islands (island where this node is input, island where this node is output)
         self.syncIslandOfNode: Dict[HlsNetNode, Union[BetweenSyncIsland,
@@ -201,36 +201,43 @@ class HlsNetlistAnalysisPassBetweenSyncIslands(HlsNetlistAnalysisPass):
         self._addNodesFromIslandToSyncIslandOfNodeDict(island)
         self.syncIslands.append(island)
 
-    def _collectSyncIslandsByFlooding(self, reachDb: HlsNetlistAnalysisPassReachability):
+    def _collectSyncIslandsByFlooding(self, netlist:"HlsNetlistCtx", reachDb: HlsNetlistAnalysisPassReachability):
         syncIslandOfNode = self.syncIslandOfNode
 
         # singleIoClusters: List[HlsNetNodeIoClusterCore] = []
-        for n in self.netlist.iterAllNodes():
-            if n not in syncIslandOfNode.keys() and isinstance(n, HlsNetNodeIoClusterCore):
-                n: HlsNetNodeIoClusterCore
-                _inputs = n.usedBy[n.inputNodePort.out_i]
-                _outputs = n.usedBy[n.outputNodePort.out_i]
+        for ioClusterNode in netlist.iterAllNodes():
+            if ioClusterNode not in syncIslandOfNode.keys() and isinstance(ioClusterNode, HlsNetNodeIoClusterCore):
+                ioClusterNode: HlsNetNodeIoClusterCore
+                _inputs = ioClusterNode.usedBy[ioClusterNode.inputNodePort.out_i]
+                _outputs = ioClusterNode.usedBy[ioClusterNode.outputNodePort.out_i]
                 if len(_inputs) + len(_outputs) == 1:
                     if _inputs:
-                        # search predecessor cluster and this will be adde automatically
+                        # search predecessor cluster and this will be added automatically
                         boundaryIoNode = _inputs[0].obj
                     else:
-                        #  search predecessor cluster and this will be adde automatically
+                        # search successor cluster and this will be added automatically
                         boundaryIoNode = _outputs[0].obj
 
                     iClus = boundaryIoNode.dependsOn[boundaryIoNode._inputOfCluster.in_i].obj
                     oClus = boundaryIoNode.dependsOn[boundaryIoNode._outputOfCluster.in_i].obj
-                    if iClus is n:
-                        assert oClus is not n
-                        assert oClus not in syncIslandOfNode.keys(), oClus
+                    if iClus is ioClusterNode:
+                        assert oClus is not ioClusterNode
+                        assert oClus not in syncIslandOfNode.keys(), (
+                            "If any connected cluster core was already seen, this should be seen as well",
+                            ioClusterNode, oClus, boundaryIoNode)
                         clusNode = oClus
                     else:
-                        assert iClus is not n
-                        assert oClus is n
-                        assert iClus not in syncIslandOfNode.keys(), iClus
+                        assert oClus is ioClusterNode, (
+                            "Check that the ioClusterNode is output of boundaryIoNode if it was not input",
+                            boundaryIoNode, ioClusterNode, oClus)
+                        assert iClus is not ioClusterNode
+                        assert iClus not in syncIslandOfNode.keys(), (
+                            "If any connected cluster core was already seen, this should be seen as well",
+                            ioClusterNode, iClus, boundaryIoNode)
                         clusNode = iClus
                 else:
-                    clusNode = n
+                    clusNode = ioClusterNode
+
                 self._collectSyncIslandByFlooding(reachDb, clusNode)
 
     def _collectDirectyConnectedConstNodesWithoutIslandUseToDef(self, node: HlsNetNode):
@@ -264,14 +271,14 @@ class HlsNetlistAnalysisPassBetweenSyncIslands(HlsNetlistAnalysisPass):
 
         resolvedNodes = syncIslandOfNode.keys()
         while toSearchUseToDef or toSearchDefToUse:
-            for n in HlsNetlistAnalysisPassReachability._getDirectDataSuccessorsRawAnyData(toSearchDefToUse, seenDefToUse, resolvedNodes):
+            for n in HlsNetlistAnalysisPassReachability._getDirectDataSuccessorsRawAnyData(toSearchDefToUse, seenDefToUse, resolvedNodes.__contains__):
                 # search use -> def (top -> down)
                 internalNodes.extend(self._collectDirectyConnectedConstNodesWithoutIslandUseToDef(n))
                 if n not in seenUseToDef:
                     toSearchUseToDef.append(n)
                 internalNodes.append(n)
 
-            for n in HlsNetlistAnalysisPassReachability._getDirectDataPredecessorsRawAnyData(toSearchUseToDef, seenUseToDef, resolvedNodes):
+            for n in HlsNetlistAnalysisPassReachability._getDirectDataPredecessorsRawAnyData(toSearchUseToDef, seenUseToDef, resolvedNodes.__contains__):
                 # search use -> def (top -> down)
                 internalNodes.extend(self._collectDirectyConnectedConstNodesWithoutIslandUseToDef(n))
                 if n not in seenDefToUse:
@@ -316,7 +323,7 @@ class HlsNetlistAnalysisPassBetweenSyncIslands(HlsNetlistAnalysisPass):
 
         # syncIslandOfNode = self.syncIslandOfNode
         #    syncDomains = netlist.getAnalysis(HlsNetlistAnalysisPassSyncDomains)
-        #    for n in self.netlist.iterAllNodes():
+        #    for n in netlist.iterAllNodes():
         #        if n not in seen:
         #            searchFromDef = None
         #            n1 = n
@@ -370,13 +377,12 @@ class HlsNetlistAnalysisPassBetweenSyncIslands(HlsNetlistAnalysisPass):
         #                else:
         #                    raise NotImplementedError(n1, syncDomain)
 
-    def run(self):
+    def runOnHlsNetlist(self, netlist:"HlsNetlistCtx"):
         """
         Discover clusters of nodes which are definitely a consecutive cluster with HlsNetNodeExplicitSync nodes on its boundaries.
         """
-        netlist = self.netlist
         reachDb = netlist.getAnalysis(HlsNetlistAnalysisPassReachability)
-        self._collectSyncIslandsByFlooding(reachDb)
+        self._collectSyncIslandsByFlooding(netlist, reachDb)
         seen = self.syncIslandOfNode
         if len(seen) != len(netlist.inputs) + len(netlist.nodes) + len(netlist.outputs):
             self._collectLeftOutNodesToOwnIslandsOrMergeIfPossible()

@@ -45,12 +45,13 @@ class RtlArchPassIoPortPrivatization(RtlArchPass):
         else:
             assert isinstance(ioNode, HlsNetNodeWrite), ioNode
             ioNode.dst = port
-        
-    def apply(self, hls:"HlsScope", allocator:HlsAllocator):
-        ioDiscovery: HlsNetlistAnalysisPassIoDiscover = allocator.netlist.getAnalysis(HlsNetlistAnalysisPassIoDiscover)
+
+    @override
+    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
+        ioDiscovery: HlsNetlistAnalysisPassIoDiscover = netlist.getAnalysis(HlsNetlistAnalysisPassIoDiscover)
         ioByInterface = ioDiscovery.ioByInterface
-        #clkPeriod: int = allocator.netlist.normalizedClkPeriod
-        nodeSharing: Optional[InterArchElementNodeSharingAnalysis] = allocator._iea 
+        hierarchy: HlsNetlistAnalysisPassNodeParentAggregate = netlist.getAnalysis(HlsNetlistAnalysisPassNodeParentAggregate)
+        # clkPeriod: SchedTime = allocator.netlist.normalizedClkPeriod
         portOwner: Dict[Interface, ArchElement] = {}
         # for each FSM we need to keep pool of assigned ports so we can reuse it in next clock cycle
         # because the ports can be shared between clock cycles.
@@ -65,13 +66,9 @@ class RtlArchPassIoPortPrivatization(RtlArchPass):
                     isRead = isinstance(ioNode, HlsNetNodeRead)
                     if not isRead:
                         assert isinstance(ioNode, HlsNetNodeWrite), ioNode
-                        
-                    if nodeSharing is None or len(allocator._archElements) == 1:
-                        elm = allocator._archElements[0]
-                    elif isRead:
-                        elm = nodeSharing.ownerOfInput[ioNode]
-                    else:
-                        elm = nodeSharing.ownerOfOutput[ioNode]
+                    # [todo] update after ArchElement update
+                    elm = hierarchy.nodePath[ioNode][0]
+                    assert isinstance(elm, ArchElement), ("node should be placed in ArchElement and ArchElement instances should be only at top level")
 
                     elm: ArchElement
                     if isinstance(elm, ArchElementPipeline):

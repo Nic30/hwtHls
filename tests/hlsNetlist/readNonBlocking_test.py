@@ -5,11 +5,9 @@ from hwt.interfaces.std import Handshaked
 from hwt.interfaces.utils import addClkRstn
 from hwt.simulator.simTestCase import SimTestCase
 from hwt.synthesizer.param import Param
-from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.netlist import HlsThreadFromNetlist
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.ports import link_hls_nodes
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
@@ -46,21 +44,14 @@ class ReadNonBlockingUnit(Unit):
         b = netlist.builder
 
         r = HlsNetNodeRead(netlist, self.dataIn)
+        r._isBlocking = False
         netlist.inputs.append(r)
         rOut = r._outputs[0]
         rVld = b.buildReadSync(rOut)
         t = rOut._dtype
-        es = HlsNetNodeExplicitSync(netlist, t)
-        netlist.nodes.append(es)
-        link_hls_nodes(rOut, es._inputs[0])
-        rOut = es._outputs[0]
-        
-        rVld_n = b.buildNot(rVld)
-        es.addControlSerialSkipWhen(rVld_n)        
-        es.addControlSerialExtraCond(rVld)
 
         mux = b.buildMux(t, (rOut, rVld, t.from_py(0)))
-        w = HlsNetNodeWrite(netlist, NOT_SPECIFIED, self.dataOut)
+        w = HlsNetNodeWrite(netlist, self.dataOut)
         netlist.outputs.append(w)
         link_hls_nodes(mux, w._inputs[0])
 

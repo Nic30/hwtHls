@@ -44,7 +44,7 @@ class HlsNetlistPassDumpDataThreads(HlsNetlistPass):
                 out.write(f"    {n}\n")
             out.write("\n")
 
-    def apply(self, hls: "HlsScope", netlist: HlsNetlistCtx):
+    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
         from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
         threads = netlist.getAnalysis(HlsNetlistAnalysisPassDataThreadsForBlocks)
         mf: MachineFunction = netlist.getAnalysis(HlsNetlistAnalysisPassMirToNetlist).mf

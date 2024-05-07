@@ -48,6 +48,7 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
                  dst:AnyBramPort,
                  cmd: Union[Literal[READ], Literal[WRITE]]):
         HlsNetNodeWriteIndexed.__init__(self, netlist, dst)
+        self._rtlUseValid = True  # en is form of valid
         assert cmd is READ or cmd is WRITE, cmd
         self.cmd = cmd
         if isinstance(dst, BankedPortGroup):
@@ -89,20 +90,31 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
         )
         self.assignRealization(re)
 
-    def allocateRtlInstance(self, allocator: "ArchElement") -> List[HdlStatement]:
+    @override
+    def getAllocatedRTL(self, allocator:"ArchElement"):
+        assert self._isRtlAllocated, self
+        wData = self.dependsOn[0]
+        addr = self.dependsOn[1]
+        ram: BramPort_withoutClk = self.dst
+        key = (ram, addr, wData)
+        return allocator.netNodeToRtl[key]
+
+    @override
+    def rtlAlloc(self, allocator: "ArchElement") -> List[HdlStatement]:
         """
         Instantiate write operation on RTL level
         """
+        assert not self._isRtlAllocated, self
         assert len(self.dependsOn) >= 2, self.dependsOn
         # [0] - data, [1] - addr, [2:] control dependencies
         for sync, t in zip(self.dependsOn[1:], self.scheduledIn[1:]):
             # prepare sync inputs but do not connect it because we do not implement synchronization
             # in this step we are building only datapath
             if sync._dtype != HVoidOrdering:
-                allocator.instantiateHlsNetNodeOutInTime(sync, t)
+                allocator.rtlAllocHlsNetNodeOutInTime(sync, t)
 
         ram: BramPort_withoutClk = self.dst
-        assert not isinstance(ram, tuple), (self, ram, "If this was an operation with a group of ports the individual ports should have already been assigned")
+        assert not isinstance(ram, (MultiPortGroup, BankedPortGroup)), (self, ram, "If this was an operation with a group of ports the individual ports should have already been assigned")
         en = ram.en
         if en._sig._nop_val is NOT_SPECIFIED:
             en._sig._nop_val = en._sig._dtype.from_py(0)
@@ -115,17 +127,12 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
         wData = self.dependsOn[0]
         addr = self.dependsOn[1]
         key = (ram, addr, wData)
-        try:
-            # skip instantiation of writes in the same mux
-            return allocator.netNodeToRtl[key]
-        except KeyError:
-            pass
 
         if self._dataVoidOut is not None:
-            HlsNetNodeReadIndexed._allocateRtlInstanceDataVoidOut(self, allocator)
+            HlsNetNodeReadIndexed._rtlAllocDataVoidOut(self, allocator)
 
-        _wData = allocator.instantiateHlsNetNodeOutInTime(wData, self.scheduledIn[0])
-        _addr = allocator.instantiateHlsNetNodeOutInTime(addr, self.scheduledIn[1])
+        _wData = allocator.rtlAllocHlsNetNodeOutInTime(wData, self.scheduledIn[0])
+        _addr = allocator.rtlAllocHlsNetNodeOutInTime(addr, self.scheduledIn[1])
 
         rtlObj = []
         # [todo] llvm MIR lefts bits which are sliced out
@@ -140,8 +147,12 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
 
         allocator.netNodeToRtl[key] = rtlObj
         if ram.HAS_R:
-            allocator.netNodeToRtl[self._outputs[0]] = TimeIndependentRtlResource(ram.dout, self.scheduledOut[0], allocator, False)
+            allocator.rtlRegisterOutputRtlSignal(self._outputs[0], ram.dout, False, False, False)
 
+        clkI = indexOfClkPeriod(self.scheduledIn[0], allocator.netlist.normalizedClkPeriod)
+        allocator.rtlAllocDatapathWrite(self, allocator.connections[clkI], rtlObj)
+
+        self._isRtlAllocated = True
         return rtlObj
 
     def createSubNodeRefrenceFromPorts(self, beginTime: int, endTime: int,
@@ -196,17 +207,8 @@ class HlsNetNodeWriteBramCmdPartRef(HlsNetNodePartRef):
         self.isDataReadPart = isDataReadPart
         self.scheduledZero = scheduledZero
 
-    def allocateRtlInstance(self, allocator: "ArchElement"):
-        return self.parentNode.allocateRtlInstance(allocator)
-
-    def iterChildReads(self):
-        return
-        yield
-
-    def iterChildWrites(self):
-        if not self.isDataReadPart:
-            yield self.parentNode
-        return
+    def rtlAlloc(self, allocator: "ArchElement"):
+        return self.parentNode.rtlAlloc(allocator)
 
     def __repr__(self):
         return f"<{self.__class__.__name__:s} {self._id:d} for {'data' if self.isDataReadPart else 'cmd'} {self.parentNode}>"
@@ -327,7 +329,7 @@ class HlsWriteBram(HlsWriteAddressed):
         :see: :meth:`hwtHls.frontend.ast.statementsRead.HlsRead._translateMirToNetlist`
         """
         netlist: HlsNetlistCtx = mirToNetlist.netlist
-        assert isInstanceOfInterfacePort(dstIo, BramPort_withoutClk), dstIo
+        isInstanceOfInterfacePort(dstIo, BramPort_withoutClk)
         if isinstance(index, int):
             raise AssertionError("If the index is constant it should be an output of a constant node but it is an integer", dstIo, instr)
 

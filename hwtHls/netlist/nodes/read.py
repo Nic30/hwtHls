@@ -3,32 +3,31 @@ from typing import Union, Optional, List, Generator, Tuple
 from hwt.code import Concat
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.bits import Bits
-from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.value import HValue
-from hwt.interfaces.hsStructIntf import HsStructIntf
-from hwt.interfaces.std import Signal, HandshakeSync, Handshaked, VldSynced, \
-    RdSynced, BramPort_withoutClk
+from hwt.interfaces.std import RdSynced
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.interfaceLevel.interfaceUtils.utils import packIntf
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, \
-    INVARIANT_TIME
+from hwtHls.architecture.syncUtils import getInterfaceSyncTuple, \
+    getInterfaceSyncSignals
+from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.frontend.utils import getInterfaceName
+from hwtHls.io.portGroups import MultiPortGroup, BankedPortGroup
+from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid, HVoidData
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.orderable import HdlType_isNonData, HdlType_isVoid, \
-    HVoidData
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
     HlsNetNodeOutAny
 from hwtHls.netlist.nodes.schedulableNode import SchedulizationDict, OutputTimeGetter, \
     OutputMinUseTimeGetter, SchedTime
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
-from hwtLib.amba.axi_intf_common import Axi_hs
+from hwtHls.typingFuture import override
+from hwtLib.handshaked.streamNode import InterfaceOrValidReadyTuple
 from ipCorePackager.constants import INTF_DIRECTION_asDirecton, \
-    DIRECTION_opposite, DIRECTION
+    DIRECTION_opposite, DIRECTION, INTF_DIRECTION
 
 
 class HlsNetNodeRead(HlsNetNodeExplicitSync):
@@ -40,40 +39,40 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
     :ivar _isBlocking: If true the node blocks the CFG until the read is performed. If False
         the node uses flag to signalize that the read was performed and never blocks the CFG.
     :ivar dependsOn: list of dependencies for scheduling composed of extraConds and skipWhen
-    :ivar _valid: output with "valid" signal for reads which signalizes that the read was successful.
-                 Reading of this port requires read to be performed.
-    :ivar _validNB: same as "_valid" but reading this does not cause read from main interface
-    :note: _valid and _validNB holds the same, the _validNB can be read without triggering read, _valid can not because _valid is a part of the data.
-    :ivar _rawValue: Concat(_validNB, _valid, dataOut)
+    :ivar _rawValue: A port is used only during optimization phase, its value is Concat(_validNB, _valid, dataOut)
     """
 
-    def __init__(self, netlist: "HlsNetlistCtx", src: Union[RtlSignal, Interface], dtype: Optional[HdlType]=None, name:Optional[str]=None):
+    def __init__(self, netlist: "HlsNetlistCtx", src: Union[RtlSignal, Interface],
+                 dtype: Optional[HdlType]=None, name:Optional[str]=None):
         HlsNetNode.__init__(self, netlist, name=name)
         self.src = src
-        self.maxIosPerClk = 1
-        self._isBlocking = True
-        self._valid = None
-        self._validNB = None
-        self._rawValue = None
+        self.maxIosPerClk: int = 1
+        self._isBlocking: bool = True
+        self._rawValue: Optional[HlsNetNodeOut] = None
         self._associatedReadSync: Optional["HlsNetNodeReadSync"] = None
-
-        self._initCommonPortProps()
+        self._initCommonPortProps(src)
         if dtype is None:
             d = self.getRtlDataSig()
             if d is None:
                 dtype = HVoidData
             else:
                 dtype = d._dtype
+
+            # if isinstance(dtype, Bits) and dtype.force_vector and dtype.bit_length() == 1:
+            #    raise NotImplementedError("Reading of 1b vector would cause issues"
+            #                              " with missing auto casts when with other operands without force_vector", d, src)
+
         self._addOutput(dtype, "dataOut")
 
     def setNonBlocking(self):
         self._isBlocking = False
-        self._rawValue = self._addOutput(Bits(self._outputs[0]._dtype.bit_length() + 1), "rawValue")
-        if self._valid is None:
-            self._addValid()
-        if self._validNB is None:
-            self._addValidNB()
 
+    def getRawValue(self):
+        if self._rawValue is None:
+            self._rawValue = self._addOutput(Bits(self._outputs[0]._dtype.bit_length() + 1), "rawValue")
+        return self._rawValue
+
+    @override
     def _removeOutput(self, i:int):
         vld = self._valid
         if vld is not None and vld.out_i == i:
@@ -88,168 +87,125 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
                     self._rawValue = None
         return HlsNetNodeExplicitSync._removeOutput(self, i)
 
-    def _addValid(self):
-        assert self._valid is None, (self, "Already present")
-        self._valid = self._addOutput(BIT, "valid", addDefaultScheduling=True)
-
-    def _addValidNB(self):
-        assert self._validNB is None, (self, "Already present")
-        self._validNB = self._addOutput(BIT, "validNB", addDefaultScheduling=True)
-
-    def getValid(self):
-        if not self.hasValid():
-            self._addValid()
-
-        return self._valid
-
-    def getValidNB(self):
-        if not self.hasValidNB():
-            self._addValidNB()
-
-        return self._validNB
-
-    def hasValid(self):
-        return self._valid is not None
-
-    def hasValidNB(self):
-        return self._validNB is not None
-
+    @override
     def iterOrderingInputs(self) -> Generator[HlsNetNodeIn, None, None]:
         nonOrderingInputs = (self.extraCond, self.skipWhen, self._inputOfCluster, self._outputOfCluster)
         for i in self._inputs:
             if i not in nonOrderingInputs:
                 yield i
 
-    def getRtlValidSig(self, allocator: "ArchElement") -> Union[RtlSignalBase, HValue]:
-        intf = self.src
-        if isinstance(intf, Axi_hs):
-            return intf.valid._sig
-        elif isinstance(intf, (Handshaked, HandshakeSync, VldSynced)):
-            return intf.vld._sig
-        elif isinstance(intf, (Signal, RtlSignalBase, RdSynced)):
-            return BIT.from_py(1)
-        elif isinstance(intf, BramPort_withoutClk):
-            return intf.en._sig
+    def getRtlValidSig(self, intf: InterfaceOrValidReadyTuple) -> Union[RtlSignalBase, HValue]:
+        vld = getInterfaceSyncTuple(intf)[0]
+        if isinstance(vld, int):
+            raise NotImplementedError("rtl valid should not be requested because it is constant", self)
         else:
-            raise NotImplementedError(intf)
+            return vld
 
-    def _allocateRtlInstanceDataVoidOut(self, allocator: "ArchElement"):
-        netNodeToRtl = allocator.netNodeToRtl
-        netNodeToRtl[self._dataVoidOut] = TimeIndependentRtlResource(
-            self._dataVoidOut._dtype.from_py(None),
-            INVARIANT_TIME,
-            allocator,
-            False)
+    def _rtlAllocDataVoidOut(self, allocator: "ArchElement"):
+        v = self._dataVoidOut._dtype.from_py(None)
+        return allocator.rtlRegisterOutputRtlSignal(self._dataVoidOut, v, False, False, False)
 
-    def allocateRtlInstance(self, allocator: "ArchElement") -> Union[TimeIndependentRtlResource, List[HdlStatement]]:
+    @override
+    def rtlAlloc(self, allocator: "ArchElement") -> Union[TimeIndependentRtlResource, List[HdlStatement]]:
         """
         Instantiate read operation on RTL level
         """
+        assert not self._isRtlAllocated, self
         r_out = self._outputs[0]
         hasNoSpecialControl = self._isBlocking and not self.hasValidNB() and not self.hasValid() and self._dataVoidOut is None
         netNodeToRtl = allocator.netNodeToRtl
-        try:
-            cur = netNodeToRtl[r_out]
-            if hasNoSpecialControl:
-                return cur
-            else:
-                return []  # because there are multiple outputs
 
-        except KeyError:
-            pass
+        if self.hasReady() or self.hasReadyNB():
+            raise AssertionError("Ready of read is always 1 and this port should be already optimized out")
 
-        t = self.scheduledOut[0]
+        hasData = not HdlType_isVoid(r_out._dtype)
+        if hasData:
+            assert not isinstance(self.src, (MultiPortGroup, BankedPortGroup)), (
+                "At this point the concrete memory port should be resolved for this IO node", self)
+            dataRtl = self.getRtlDataSig()
+            _data = allocator.rtlRegisterOutputRtlSignal(r_out, dataRtl, False, False, False)
+        else:
+            dataRtl = None
+            _data = []
 
-        dataRtl = self.getRtlDataSig()
-        _data = TimeIndependentRtlResource(
-            dataRtl,
-            t,
-            allocator, False)
-
-        iea = self.netlist.allocator._iea
-        hasManyArchElems = len(self.netlist.allocator._archElements) > 1
-        netNodeToRtl[r_out] = _data
-        for sync in self.dependsOn:
+        for sync, time in zip(self.dependsOn, self.scheduledIn):
             if HdlType_isVoid(sync._dtype):
                 continue
             assert isinstance(sync, HlsNetNodeOut), (self, self.dependsOn)
             # prepare sync inputs but do not connect it because we do not implement synchronization
             # in this step we are building only data path
-            if hasManyArchElems and iea.ownerOfOutput[sync] is not allocator:
-                continue
-            sync.obj.allocateRtlInstance(allocator)
+            allocator.rtlAllocHlsNetNodeOutInTime(sync, time)
 
         _valid = None
         _validNB = None
-        if self.hasValid() or self.hasValidNB():
-            validRtl = self.getRtlValidSig(allocator)
+        if self.hasAnyUsedValidPort():
+            validRtl = self.getRtlValidSig(self.src)
             if self.hasValid():
-                _valid = TimeIndependentRtlResource(
-                    validRtl,
-                    INVARIANT_TIME if isinstance(validRtl, HValue) else t,
-                    allocator,
-                    False)
-                netNodeToRtl[self._valid] = _valid
+                _valid = allocator.rtlRegisterOutputRtlSignal(self._valid, validRtl, False, False, False)
             if self.hasValidNB():
-                _validNB = TimeIndependentRtlResource(
-                    validRtl,
-                    INVARIANT_TIME if isinstance(validRtl, HValue) else t,
-                    allocator,
-                    False)
-                netNodeToRtl[self._validNB] = _validNB
+                if _valid is None:
+                    _validNB = allocator.rtlRegisterOutputRtlSignal(self._validNB, validRtl, False, False, False)
+                else:
+                    _validNB = _valid
+                    netNodeToRtl[self._validNB] = _validNB
+
         if self._dataVoidOut is not None:
-            self._allocateRtlInstanceDataVoidOut(allocator)
+            self._rtlAllocDataVoidOut(allocator)
 
         if self._rawValue is not None:
             assert not self._isBlocking, self
             assert self.hasValid(), self
-            if HdlType_isNonData(self._outputs[0]._dtype):
-                if self.hasValidNB():
-                    rawValue = Concat(validRtl, validRtl)
-                    _rawValue = TimeIndependentRtlResource(
-                        rawValue,
-                        INVARIANT_TIME if isinstance(rawValue, HValue) else t,
-                        allocator,
-                        False)
+            if hasData:
+                if hasData:
+                    rawValue = Concat(validRtl, validRtl, dataRtl)
                 else:
-                    _rawValue = _valid
+                    rawValue = Concat(validRtl, validRtl)
+
+                allocator.rtlRegisterOutputRtlSignal(self._rawValue, rawValue, False, False, False)
 
             else:
-                rawValue = Concat(validRtl, validRtl, dataRtl)
-                _rawValue = TimeIndependentRtlResource(
-                    rawValue,
-                    INVARIANT_TIME if isinstance(rawValue, HValue) else t,
-                    allocator,
-                    False)
-            netNodeToRtl[self._rawValue] = _rawValue
+                if self.hasValidNB():
+                    rawValue = Concat(validRtl, validRtl)
+                    allocator.rtlRegisterOutputRtlSignal(self._rawValue, rawValue, False, False, False)
+
+                else:
+                    netNodeToRtl[self._rawValue] = _valid
 
         # because there are multiple outputs
+        clkI = indexOfClkPeriod(self.scheduledOut[0], allocator.netlist.normalizedClkPeriod)
+        allocator.rtlAllocDatapathRead(self, allocator.connections[clkI], [])
+
+        self._isRtlAllocated = True
         return _data if hasNoSpecialControl else []
 
-    def _getSchedulingResourceType(self):
+    def getSchedulingResourceType(self):
         resourceType = self.src
         assert resourceType is not None, self
         return resourceType
 
+    @override
     def checkScheduling(self):
         HlsNetNodeExplicitSync.checkScheduling(self)
-        resourceType = self._getSchedulingResourceType()
+        resourceType = self.getSchedulingResourceType()
         clkPeriod = self.netlist.normalizedClkPeriod
         clkI = indexOfClkPeriod(self.scheduledZero, clkPeriod)
-        assert self.netlist.scheduler.resourceUsage[clkI].get(resourceType, None) is not None, (self, clkI, self.netlist.scheduler.resourceUsage)
+        assert self.netlist.scheduler.resourceUsage[clkI].get(resourceType, None) is not None, (
+            self, clkI, self.netlist.scheduler.resourceUsage)
 
+    @override
     def resetScheduling(self):
         scheduledZero = self.scheduledZero
         if scheduledZero is None:
             return  # already restarted
-        resourceType = self._getSchedulingResourceType()
+        resourceType = self.getSchedulingResourceType()
         clkPeriod = self.netlist.normalizedClkPeriod
         self.netlist.scheduler.resourceUsage.removeUse(resourceType, indexOfClkPeriod(scheduledZero, clkPeriod))
         HlsNetNodeExplicitSync.resetScheduling(self)
 
+    @override
     def setScheduling(self, schedule:SchedulizationDict):
         resourceUsage = self.netlist.scheduler.resourceUsage
-        resourceType = self._getSchedulingResourceType()
+        resourceType = self.getSchedulingResourceType()
         clkPeriod = self.netlist.normalizedClkPeriod
 
         if self.scheduledZero is not None:
@@ -258,6 +214,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
         HlsNetNodeExplicitSync.setScheduling(self, schedule)
         self.netlist.scheduler.resourceUsage.addUse(resourceType, indexOfClkPeriod(self.scheduledZero, clkPeriod))
 
+    @override
     def moveSchedulingTime(self, offset: SchedTime):
         clkPeriod = self.netlist.normalizedClkPeriod
         originalClkI = indexOfClkPeriod(self.scheduledZero, clkPeriod)
@@ -265,17 +222,19 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
 
         curClkI = indexOfClkPeriod(self.scheduledZero, clkPeriod)
         if originalClkI != curClkI:
-            resourceType = self._getSchedulingResourceType()
+            resourceType = self.getSchedulingResourceType()
             self.netlist.scheduler.resourceUsage.moveUse(resourceType, originalClkI, curClkI)
 
-    def scheduleAsap(self, pathForDebug: Optional[UniqList["HlsNetNode"]], beginOfFirstClk: int, outputTimeGetter: Optional[OutputTimeGetter]) -> List[int]:
+    @override
+    def scheduleAsap(self, pathForDebug: Optional[UniqList["HlsNetNode"]], beginOfFirstClk: int,
+                     outputTimeGetter: Optional[OutputTimeGetter]) -> List[int]:
         # schedule all dependencies
         if self.scheduledOut is None:
             HlsNetNode.scheduleAsap(self, pathForDebug, beginOfFirstClk, outputTimeGetter)
             scheduledZero = self.scheduledZero
             clkPeriod = self.netlist.normalizedClkPeriod
             curClkI = scheduledZero // clkPeriod
-            resourceType = self._getSchedulingResourceType()
+            resourceType = self.getSchedulingResourceType()
             scheduler = self.netlist.scheduler
             suitableClkI = scheduler.resourceUsage.findFirstClkISatisfyingLimit(resourceType, curClkI, self.maxIosPerClk)
             if curClkI != suitableClkI:
@@ -292,12 +251,13 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
 
         return self.scheduledOut
 
+    @override
     def scheduleAlapCompaction(self, endOfLastClk: SchedTime, outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter]):
         originalTimeZero = self.scheduledZero
         netlist = self.netlist
         scheduler = netlist.scheduler
         clkPeriod = netlist.normalizedClkPeriod
-        resourceType = self._getSchedulingResourceType()
+        resourceType = self.getSchedulingResourceType()
         originalClkI = indexOfClkPeriod(originalTimeZero, clkPeriod)
         if self.isMulticlock:
             for _ in HlsNetNodeExplicitSync.scheduleAlapCompactionMultiClock(self, endOfLastClk, outputMinUseTimeGetter):
@@ -328,40 +288,72 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
             for dep in self.dependsOn:
                 yield dep.obj
 
-    def getRtlDataSig(self):
+    def getRtlDataSig(self) -> Optional[RtlSignal]:
         src: Interface = self.src
-
-        if isinstance(src, HsStructIntf):
-            return src.data._reinterpret_cast(Bits(src.data._dtype.bit_length()))
-
-        if isinstance(src, Axi_hs):
-            exclude = (src.valid, src.ready)
-
-        elif isinstance(src, (Handshaked, HandshakeSync)):
-            exclude = (src.vld, src.rd)
-
-        elif isinstance(src, VldSynced):
-            exclude = (src.vld,)
-
-        elif isinstance(src, RdSynced):
-            return packIntf(src,
-                            masterDirEqTo=DIRECTION_opposite[INTF_DIRECTION_asDirecton[src.rd._direction]],
-                            exclude=(src.rd,))
-        elif isinstance(src, RtlSignalBase):
-            return src
+        assert src is not None, ("This operation is missing hw interface or it is only virtual and does not use any data signals", self)
+        if isinstance(src, RtlSignalBase):
+            res = src
         else:
-            return packIntf(src, masterDirEqTo=src._masterDir)
+            exclude = getInterfaceSyncSignals(src)
 
-        assert exclude[0]._masterDir == DIRECTION.OUT, exclude[0]._masterDir
-        return packIntf(src,
-                        masterDirEqTo=exclude[0]._masterDir,
-                        exclude=exclude)
+            if isinstance(src, RdSynced):
+                if src.rd._direction == INTF_DIRECTION.UNKNOWN:
+                    masterDirEqTo = DIRECTION.OUT
+                else:
+                    masterDirEqTo = DIRECTION_opposite[INTF_DIRECTION_asDirecton[src.rd._direction]]
+            else:
+                if exclude:
+                    assert exclude[0]._masterDir == DIRECTION.OUT, (exclude[0]._masterDir, self)
+                    masterDirEqTo = exclude[0]._masterDir
+                else:
+                    masterDirEqTo = DIRECTION.OUT
+
+            res = packIntf(src,
+                            masterDirEqTo=masterDirEqTo,
+                            exclude=exclude)
+        if res is not None:
+            assert isinstance(res._dtype, Bits), (res, res._dtype)
+            if res._dtype.signed is not None:
+                res = res._reinterpret_cast(Bits(res._dtype.bit_length()))
+            if isinstance(res, RtlSignalBase) and res.hasGenericName:
+                name = self.name
+                if name is None:
+                    name = f"r{self._id}_data"
+                res.name = name
+
+        return res
+
+    def _stringFormatRtlUseReadyAndValid(self):
+        validIsOnFlag = self.hasValidOnlyToPassFlags()
+        readyIsOnFlag = self.hasReadyOnlyToPassFlags()
+        if self._rtlUseReady and self._rtlUseValid:
+            return "<r, v>"
+        elif self._rtlUseReady:
+            if validIsOnFlag:
+                return "<r,v(flagOnly)>"
+            else:
+                return "<r>"
+        elif self._rtlUseValid:
+            if readyIsOnFlag:
+                return "<r(flagOnly), v>"
+            else:
+                return "<v>"
+        else:
+            if readyIsOnFlag and validIsOnFlag:
+                return "<r(flagOnly), v(flagOnly)>"
+            elif readyIsOnFlag:
+                return "<r(flagOnly)>"
+            elif validIsOnFlag:
+                return "<v(flagOnly)>"
+            else:
+                return "<>"
 
     def _getInterfaceName(self, io: Union[Interface, Tuple[Interface]]) -> str:
         return getInterfaceName(self.netlist.parentUnit, io)
 
     def __repr__(self):
-        return f"<{self.__class__.__name__:s}{'' if self._isBlocking else ' NB'} {self._id:d}{' ' + self.name if self.name else ''} {self.src}>"
+        return (f"<{self.__class__.__name__:s}{'' if self._isBlocking else ' NB'} {self._id:d}"
+               f"{' ' + self.name if self.name else ''} {self._stringFormatRtlUseReadyAndValid():s} {self.src}>")
 
 
 class HlsNetNodeReadIndexed(HlsNetNodeRead):
@@ -369,10 +361,19 @@ class HlsNetNodeReadIndexed(HlsNetNodeRead):
     Same as :class:`~.HlsNetNodeRead` but for memory mapped interfaces with address or index.
     """
 
-    def __init__(self, netlist:"HlsNetlistCtx", src:Union[RtlSignal, Interface]):
-        HlsNetNodeRead.__init__(self, netlist, src)
+    def __init__(self, netlist:"HlsNetlistCtx", src:Union[RtlSignal, Interface], name:Optional[str]=None):
+        HlsNetNodeRead.__init__(self, netlist, src, name=name)
         self.indexes = [self._addInput("index0"), ]
 
+    @override
+    def clone(self, memo:dict, keepTopPortsConnected:bool) -> Tuple["HlsNetNode", bool]:
+        y, isNew = HlsNetNodeRead.clone(self, memo, keepTopPortsConnected)
+        if isNew:
+            y.indexes = [y._inputs[i.in_i] for i in self.indexes]
+
+        return y, isNew
+
+    @override
     def iterOrderingInputs(self) -> Generator[HlsNetNodeIn, None, None]:
         nonOrderingInputs = (self.extraCond, self.skipWhen, self._inputOfCluster, self._outputOfCluster, *self.indexes)
         for i in self._inputs:
@@ -387,7 +388,7 @@ class HlsNetNodeReadIndexed(HlsNetNodeRead):
                 i: HlsNetNodeIn
                 dep: Optional[HlsNetNodeOutAny] = i.obj.dependsOn[i.in_i]
                 if isinstance(dep, HlsNetNodeOut):
-                    indexesStrs.append(f"<{dep.obj._id}>.{dep.out_i}")
+                    indexesStrs.append(f"<{dep.obj._id:d}>.{dep.out_i:d}")
                 else:
                     indexesStrs.append(repr(dep))
 
@@ -396,4 +397,5 @@ class HlsNetNodeReadIndexed(HlsNetNodeRead):
             return ""
 
     def __repr__(self):
-        return f"<{self.__class__.__name__:s}{'' if self._isBlocking else ' NB'} {self._id:d}{' ' + self.name if self.name else ''} {self.src}{self._strFormatIndexes(self.indexes)}>"
+        return (f"<{self.__class__.__name__:s}{'' if self._isBlocking else ' NB'} {self._id:d}{' ' + self.name if self.name else ''}"
+               f" {self._stringFormatRtlUseReadyAndValid():s} {self.src}{self._strFormatIndexes(self.indexes)}>")

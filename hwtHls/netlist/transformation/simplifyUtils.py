@@ -10,6 +10,7 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn, \
     unlink_hls_nodes, link_hls_nodes, HlsNetNodeOutAny
+from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregatePortIn
 
 
 def getConstDriverOf(inputObj: Optional[HlsNetNodeIn]) -> Optional[HValue]:
@@ -37,6 +38,14 @@ def disconnectAllInputs(n: HlsNetNode, worklist: UniqList[HlsNetNode]):
         dep.obj.usedBy[dep.out_i].remove(i)
         worklist.append(dep.obj)
         n.dependsOn[i.in_i] = None
+
+    if isinstance(n, HlsNetNodeAggregatePortIn):
+        i: HlsNetNodeIn = n.parentIn
+        dep: HlsNetNodeOut = i.obj.dependsOn[i.in_i]
+        # disconnect driver from self
+        dep.obj.usedBy[dep.out_i].remove(i)
+        worklist.append(dep.obj)
+        i.obj.dependsOn[i.in_i] = None
 
 
 def addAllUsersToWorklist(worklist: UniqList[HlsNetNode], n: HlsNetNode):

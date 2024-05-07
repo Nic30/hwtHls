@@ -5,7 +5,7 @@ from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 
 class HlsNetlistPassBetweenSyncIslandsConsystencyCheck(HlsNetlistPass):
 
-    def apply(self, hls:"HlsScope", netlist:HlsNetlistCtx):
+    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
         syncNodes = netlist.getAnalysisIfAvailable(HlsNetlistAnalysisPassBetweenSyncIslands)
         assert syncNodes is not None, "HlsNetlistAnalysisPassBetweenSyncIslands analysis not present at all"
         for n in netlist.iterAllNodes():

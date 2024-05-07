@@ -1,10 +1,15 @@
-from itertools import chain
+from copy import copy
+from enum import Enum
+from itertools import chain, islice
 from typing import List, Optional, Union, Tuple, Generator
 
 from hwt.hdl.types.hdlType import HdlType
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
+from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.nodes.schedulableNode import SchedulableNode, SchedTime
+from hwtHls.netlist.observableList import ObservableList
+from hwtHls.netlist.scheduler.clk_math import offsetInClockCycle
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 
 
@@ -14,6 +19,18 @@ def _tupleWithoutItemOnIndex(arr: tuple, index: int):
 
 def _tupleAppend(arr: tuple, v:int):
     return tuple(chain(arr, (v,)))
+
+
+def _tupleSetItem(arr: tuple, index: int, replacement):
+    return tuple(replacement if i == index else item for i, item in enumerate(arr))
+
+
+class NODE_ITERATION_TYPE(Enum):
+    PREORDER, POSTORDER, OMMIT_PARENT = range(3)
+
+
+class _HlsNetNodeDeepcopyNil():
+    pass
 
 
 class HlsNetNode(SchedulableNode):
@@ -45,6 +62,30 @@ class HlsNetNode(SchedulableNode):
         self.name = name
         self._id = netlist.getUniqId()
         SchedulableNode.__init__(self, netlist)
+        self._isRtlAllocated = False
+
+    def clone(self, memo: dict, keepTopPortsConnected: bool) -> Tuple["HlsNetNode", bool]:
+        """
+        :returns: new object and flag which is True if object was newly constructed 
+        """
+        d = id(self)
+        y = memo.get(d, _HlsNetNodeDeepcopyNil)
+        if y is not _HlsNetNodeDeepcopyNil:
+            return y, False
+
+        y: HlsNetNode = copy(self)
+        y._id = self.netlist.getUniqId()
+        memo[d] = y
+        # now we must also copy all mutable properties specific to this node
+        y._inputs = [HlsNetNodeIn(y, i.in_i, i.name) for i in self._inputs]
+        y._outputs = ObservableList(HlsNetNodeOut(y, o.out_i, o._dtype, o.name) for o in self._outputs)
+        # self._outputs: ObservableList[HlsNetNodeOut] = ObservableList()
+        y.usedBy = [[u.obj.clone(memo, True)[0]._inputs[u.in_i] if keepTopPortsConnected else [] for u in users]
+                    for users in self.usedBy]
+        y.dependsOn = ObservableList(None if dep is None or not keepTopPortsConnected
+                                          else dep.obj.clone(memo, True)[0]._outputs[dep.out_i]
+                                     for dep in self.dependsOn)
+        return y, True
 
     def destroy(self):
         """
@@ -67,7 +108,7 @@ class HlsNetNode(SchedulableNode):
         """
         self.dependsOn.pop(index)
         self._inputs.pop(index)
-        for inp in self._inputs[index:]:
+        for inp in islice(self._inputs, index, None):
             inp.in_i -= 1
 
         if self.realization is not None:
@@ -82,7 +123,7 @@ class HlsNetNode(SchedulableNode):
         """
         self.usedBy.pop(index)
         self._outputs.pop(index)
-        for out in self._outputs[index:]:
+        for out in islice(self._outputs, index, None):
             out.out_i -= 1
 
         if self.realization is not None:
@@ -91,13 +132,32 @@ class HlsNetNode(SchedulableNode):
             if self.scheduledOut is not None:
                 self.scheduledOut = _tupleWithoutItemOnIndex(self.scheduledOut, index)
 
-    def _addInput(self, name: Optional[str], addDefaultScheduling=False) -> HlsNetNodeIn:
+    def _addInput(self, name: Optional[str], addDefaultScheduling=False,
+                  inputClkTickOffset:int=0, inputWireDelay:int=0) -> HlsNetNodeIn:
         if addDefaultScheduling:
             if self.realization is not None:
-                self.inputClkTickOffset = _tupleAppend(self.inputClkTickOffset, 0)
-                self.inputWireDelay = _tupleAppend(self.inputWireDelay, 0)
+                self.inputClkTickOffset = _tupleAppend(self.inputClkTickOffset, inputClkTickOffset)
+                self.inputWireDelay = _tupleAppend(self.inputWireDelay, inputWireDelay)
                 if self.scheduledIn is not None:
-                    self.scheduledIn = _tupleAppend(self.scheduledIn, self.scheduledZero)
+                    netlist = self.netlist
+                    clkPeriod = netlist.normalizedClkPeriod
+                    schedZero = self.scheduledZero
+                    if inputClkTickOffset == 0:
+                        assert offsetInClockCycle(schedZero, clkPeriod) >= inputWireDelay, (
+                            offsetInClockCycle(schedZero, clkPeriod), inputWireDelay,
+                            schedZero, clkPeriod)
+                        time = schedZero
+                    else:
+                        if self.realization.mayBeInFFStoreTime:
+                            epsilon = 0
+                            ffdelay = 0
+                        else:
+                            ffdelay = netlist.platform.get_ff_store_time(netlist.realTimeClkPeriod, netlist.scheduler.resolution)
+                            epsilon = netlist.scheduler.epsilon
+                        time = self._scheduleAlapCompactionMultiClockInTime(self.scheduledZero, netlist.normalizedClkPeriod,
+                                                                             inputClkTickOffset, epsilon, ffdelay)
+                    time -= inputWireDelay
+                    self.scheduledIn = _tupleAppend(self.scheduledIn, time)
         else:
             assert self.realization is None, self
 
@@ -106,13 +166,18 @@ class HlsNetNode(SchedulableNode):
         self.dependsOn.append(None)
         return i
 
-    def _addOutput(self, t: HdlType, name: Optional[str], addDefaultScheduling=False) -> HlsNetNodeOut:
+    def _addOutput(self, t: HdlType, name: Optional[str], addDefaultScheduling=False,
+                   outputClkTickOffset:int=0, outputWireDelay:int=0) -> HlsNetNodeOut:
         if addDefaultScheduling:
             if self.realization is not None:
-                self.outputClkTickOffset = _tupleAppend(self.outputClkTickOffset, 0)
-                self.outputWireDelay = _tupleAppend(self.outputWireDelay, 0)
+                self.outputClkTickOffset = _tupleAppend(self.outputClkTickOffset, outputClkTickOffset)
+                self.outputWireDelay = _tupleAppend(self.outputWireDelay, outputWireDelay)
                 if self.scheduledOut is not None:
-                    self.scheduledOut = _tupleAppend(self.scheduledOut, self.scheduledZero)
+                    time = self._scheduleAlapCompactionMultiClockOutTime(self.scheduledZero,
+                                                                         self.netlist.normalizedClkPeriod,
+                                                                         outputClkTickOffset)
+                    time += outputWireDelay
+                    self.scheduledOut = _tupleAppend(self.scheduledOut, time)
         else:
             assert self.realization is None, self
 
@@ -159,33 +224,23 @@ class HlsNetNode(SchedulableNode):
         raise NotImplementedError(
             "Override this method in derived class", self)
 
-    def allocateRtlInstanceOutDeclr(self, allocator: "ArchElement", o: HlsNetNodeOut, startTime: SchedTime) -> TimeIndependentRtlResource:
+    def rtlAllocOutDeclr(self, allocator: "ArchElement", o: HlsNetNodeOut, startTime: SchedTime) -> TimeIndependentRtlResource:
+        assert not self._isRtlAllocated, ("It is pointless to ask for forward declaration if node is already RTL allocated", self, "in", allocator)
         assert allocator.netNodeToRtl.get(o, None) is None, ("Must not be redeclared", allocator, o)
-        try:
-            assert startTime >= o.obj.scheduledOut[o.out_i], (o, startTime, o.obj.scheduledOut[o.out_i])
-        except:
-            print("[debug] to rm")
-            raise
-        if len(self._outputs) == 1:
-            assert o.out_i == 0, o
-            if self.name:
-                name = f"{allocator.namePrefix}forwardDeclr_{self.name:s}"
-            else:
-                name = f"{allocator.namePrefix}forwardDeclr_{self._id:d}"
-        else:
-            if self.name and o.name:
-                name = f"{allocator.namePrefix}forwardDeclr_{self.name:s}_{o.name:s}"
-            elif self.name:
-                name = f"{allocator.namePrefix}forwardDeclr_{self.name:s}_{o.out_i:d}"
-            elif o.name:
-                name = f"{allocator.namePrefix}forwardDeclr_{self._id:d}_{o.name:s}"
-            else:
-                name = f"{allocator.namePrefix}forwardDeclr_{self._id:d}_{o.out_i:d}"
-        s = allocator._sig(name, o._dtype)
-        res = allocator.netNodeToRtl[o] = TimeIndependentRtlResource(s, startTime, allocator, False)
-        return res
+        assert startTime >= o.obj.scheduledOut[o.out_i], (o, startTime, o.obj.scheduledOut[o.out_i])
+        assert not HdlType_isVoid(o._dtype), (o, "Signals of void types should not have representation in RTL")
 
-    def allocateRtlInstance(self, allocator: "ArchElement"):
+        name = f"{o.getPrettyName():s}_forwardDeclr"
+        s = allocator._sig(name, o._dtype)
+        tir = allocator.rtlRegisterOutputRtlSignal(o, s, False, True, False)
+        return tir
+
+    def getAllocatedRTL(self, allocator: "ArchElement"):
+        assert self._isRtlAllocated, self
+        return []
+
+    def rtlAlloc(self, allocator: "ArchElement"):
+        assert not self._isRtlAllocated, self
         raise NotImplementedError(
             "Override this method in derived class", self)
 
@@ -201,19 +256,26 @@ class HlsNetNode(SchedulableNode):
         raise NotImplementedError(
             "Override this method in derived class", self)
 
-    def iterAllNodesFlat(self):
+    def iterAllNodesFlat(self, itTy: NODE_ITERATION_TYPE):
         yield self
 
     def _get_rtl_context(self):
         return self.netlist.ctx
 
-    def debug_iter_shadow_connection_dst(self) -> Generator["HlsNetNode", None, None]:
+    def debugIterShadowConnectionDst(self) -> Generator[Tuple["HlsNetNode", bool], None, None]:
         """
         Iter nodes which are not connected but are somehow related.
-        (The information is used for visualization purposes.)
+        The bool in tuple is isExplicitBackedge flag.
+
+        :note: The information is used for visualization purposes.
+            The isExplicitBackedge flag is improves readability of graph.
+            As it makes edges to follow natural direction which results in better consistency of layers.
         """
         return
         yield
+
+    def __repr__(self) -> str:
+        return f"<{self.__class__.__name__:s} {self._id:d}>"
 
 
 def HlsNetNode_numberForEachInput(node: HlsNetNode, val: Union[float, Tuple[float]]) -> Tuple[Union[int, float]]:
@@ -270,11 +332,3 @@ class HlsNetNodePartRef(HlsNetNode):
         self.scheduledIn = None
         self.scheduledOut = None
         self._subNodes: Optional["HlsNetlistClusterSearch"] = None
-
-    def iterChildReads(self):
-        raise NotImplementedError(
-            "Override this method in derived class", self)
-
-    def iterChildWrites(self):
-        raise NotImplementedError(
-            "Override this method in derived class", self)

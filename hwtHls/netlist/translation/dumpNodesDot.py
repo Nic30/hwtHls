@@ -13,6 +13,7 @@ from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregatePortOut, \
 from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
+from hwtHls.netlist.nodes.delay import HlsNetNodeDelayClkTick
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge
 from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
@@ -28,7 +29,6 @@ from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.platform.fileUtils import OutputStreamGetter
-from hwtHls.netlist.nodes.delay import HlsNetNodeDelayClkTick
 
 
 class HwtHlsNetlistToGraphwiz():
@@ -102,7 +102,7 @@ class HwtHlsNetlistToGraphwiz():
                 expandedNodes[parent] = clusterNode
 
                 for n in parent._subNodes:
-                    assert n not in parentOfNode
+                    assert n not in parentOfNode, ("Each node is supposed to have just a single parent", n, parentOfNode[n], parent)
                     parentOfNode[n] = parent
 
                 if isinstance(parent, ArchElement):
@@ -143,7 +143,15 @@ class HwtHlsNetlistToGraphwiz():
             return self.graph
 
     @staticmethod
-    def _formatNodeScheduleTime(node: Union[HlsNetNode, HlsNetNodeOutLazy]):
+    def _formatScheduleTime(time: SchedTime, clkPeriod: SchedTime):
+        clkI = indexOfClkPeriod(time, clkPeriod)
+        if clkI < 0:
+            raise NotImplementedError()
+        inClkPos = time - clkI * clkPeriod
+        return f" {clkI}clk+{inClkPos}"
+
+    @classmethod
+    def _formatNodeScheduleTime(cls, node: Union[HlsNetNode, HlsNetNodeOutLazy]):
         if isinstance(node, HlsNetNodeOutLazy):
             return ""
         t = node.scheduledZero
@@ -151,11 +159,7 @@ class HwtHlsNetlistToGraphwiz():
             return ""
         else:
             clkPeriod: SchedTime = node.netlist.normalizedClkPeriod
-            clkI = indexOfClkPeriod(t, clkPeriod)
-            if clkI < 0:
-                raise NotImplementedError()
-            inClkPos = t - clkI * clkPeriod
-            return f" {clkI}clk+{inClkPos}"
+            return cls._formatScheduleTime(t, clkPeriod)
 
     def _node_from_HlsNetNode(self, obj: Union[HlsNetNode, HlsNetNodeOutLazy]):
         try:
@@ -165,7 +169,9 @@ class HwtHlsNetlistToGraphwiz():
         g = self._getGraph(obj)
         # node needs to be constructed before connecting because graph may contain loops
         # fillcolor=color, style='filled',
-        node = pydot.Node(f"n{self._getNewNodeId()}", shape="plaintext")
+
+        bgcolor, color = self._getColor(obj) if obj in self.allNodes else ("orange", "black")
+        node = pydot.Node(f"n{self._getNewNodeId()}", shape="plaintext", bgcolor=bgcolor, color=color, fontcolor=color)
         g.add_node(node)
         self.obj_to_node[obj] = node
 
@@ -175,7 +181,12 @@ class HwtHlsNetlistToGraphwiz():
         input_rows = []
         if isinstance(obj, HlsNetNode):
             try:
-                for node_in_i, (inp, dep) in enumerate(zip(obj._inputs, obj.dependsOn)):
+                scheduledIn = obj.scheduledIn
+                clkPeriod = obj.netlist.normalizedClkPeriod
+                if scheduledIn is None:
+                    scheduledIn = (None for _ in obj._inputs)
+
+                for node_in_i, (inp, dep, time) in enumerate(zip(obj._inputs, obj.dependsOn, scheduledIn)):
                     if isinstance(dep, HlsNetNodeOut) and dep.obj not in self.allNodes:
                         # connected to something which is not part of selected graph
                         continue
@@ -184,6 +195,10 @@ class HwtHlsNetlistToGraphwiz():
                         inpName = inp.name
                     else:
                         inpName = f"i{node_in_i:d}"
+
+                    if time is not None:
+                        inpName = f"{inpName} {self._formatScheduleTime(time, clkPeriod)}"
+
                     isInlinableConst = (isinstance(dep, HlsNetNodeOut) and
                                         isinstance(dep.obj, HlsNetNodeConst) and
                                         len(dep.obj.usedBy) == 1)
@@ -198,18 +213,23 @@ class HwtHlsNetlistToGraphwiz():
                         dep: Union[HlsNetNodeOut, HlsNetNodeOutLazy]
                         dst = f"{node.get_name():s}:i{node_in_i:d}"
                         attrs = {}
+                        depTime = None
                         if isinstance(dep, HlsNetNodeOut):
+                            depObj = dep.obj
+                            if time is not None and depObj.scheduledOut:
+                                depTime = depObj.scheduledOut[dep.out_i]
+
                             if expandAggregates and\
-                                    isinstance(dep.obj, HlsNetNodeAggregate) and\
-                                    dep.obj in self._expandedNodes:
+                                    isinstance(depObj, HlsNetNodeAggregate) and\
+                                    depObj in self._expandedNodes:
                                 # connect to output port node instead, because parent is represented as a pydot.Cluster
-                                dep_node = self._node_from_HlsNetNode(dep.obj._outputsInside[dep.out_i])
+                                dep_node = self._node_from_HlsNetNode(depObj._outputsInside[dep.out_i])
                                 src = f"{dep_node.get_name():s}:o0"
                             else:
-                                dep_node = self._node_from_HlsNetNode(dep.obj)
+                                dep_node = self._node_from_HlsNetNode(depObj)
                                 src = f"{dep_node.get_name():s}:o{dep.out_i:d}"
-                                if isinstance(dep.obj, HlsNetNodeIoClusterCore):
-                                    if dep is dep.obj.inputNodePort:
+                                if isinstance(depObj, HlsNetNodeIoClusterCore):
+                                    if dep is depObj.inputNodePort:
                                         # swap src and dst for inputNodePort port of HlsNetNodeIoClusterCore which is output
                                         # but its meaning is input (to generate more acceptable visual appearance of graph)
                                         src, dst = dst, src
@@ -221,6 +241,13 @@ class HwtHlsNetlistToGraphwiz():
                         if HdlType_isVoid(dep._dtype):
                             attrs["style"] = "dotted"
 
+                        if time is not None and\
+                                depTime is not None and\
+                                depTime > time:
+                            # reverse edge (but keep it visually in the same order) to keep ordering of nodes based on time
+                            src, dst = dst, src
+                            attrs["dir"] = "back"
+
                         e = pydot.Edge(src, dst, **attrs)
                         self.graph.add_edge(e)
 
@@ -229,12 +256,13 @@ class HwtHlsNetlistToGraphwiz():
                     obj: HlsNetNodeAggregatePortIn
 
                     dep = obj.parentIn.obj.dependsOn[obj.parentIn.in_i]
-                    if isinstance(dep.obj, HlsNetNodeAggregate):
-                        depNode = dep.obj._outputsInside[dep.out_i]
+                    depObj = dep.obj
+                    if isinstance(depObj, HlsNetNodeAggregate):
+                        depNode = depObj._outputsInside[dep.out_i]
                         dep_node = self._node_from_HlsNetNode(depNode)
                         src = f"{dep_node.get_name():s}:o0"
                     else:
-                        dep_node = self._node_from_HlsNetNode(dep.obj)
+                        dep_node = self._node_from_HlsNetNode(depObj)
                         src = f"{dep_node.get_name():s}:o{dep.out_i:d}"
                     attrs = {}
                     if HdlType_isVoid(dep._dtype):
@@ -244,11 +272,22 @@ class HwtHlsNetlistToGraphwiz():
                     e = pydot.Edge(src, dst, **attrs)
                     self.graph.add_edge(e)
 
-                for shadow_dst in obj.debugIterShadowConnectionDst():
+                for shadow_dst, isExplicitBackedge in obj.debugIterShadowConnectionDst():
                     if isinstance(shadow_dst, HlsNetNode) and shadow_dst not in self.allNodes:
                         continue
                     shadow_dst_node = self._node_from_HlsNetNode(shadow_dst)
-                    e = pydot.Edge(f"{node.get_name():s}", f"{shadow_dst_node.get_name():s}", style="dashed", color="gray")
+                    src = f"{node.get_name():s}"
+                    dst = f"{shadow_dst_node.get_name():s}"
+                    extraAttrs = {}
+                    if isExplicitBackedge or (
+                            obj.scheduledZero is not None and
+                            shadow_dst.scheduledZero is not None and
+                            obj.scheduledZero > shadow_dst.scheduledZero):
+                        # reverse edge (but keep it visually in the same order) to keep ordering of nodes based on time
+                        src, dst = dst, src
+                        extraAttrs["dir"] = "back"
+
+                    e = pydot.Edge(src, dst, style="dashed", color="gray", **extraAttrs)
                     self.graph.add_edge(e)
 
             except Exception as e:
@@ -258,11 +297,18 @@ class HwtHlsNetlistToGraphwiz():
 
         output_rows = []
         if isinstance(obj, HlsNetNode):
-            for node_out_i, out in enumerate(obj._outputs):
+            scheduledOut = obj.scheduledOut
+            clkPeriod = obj.netlist.normalizedClkPeriod
+            if scheduledOut is None:
+                scheduledOut = (None for _ in obj._outputs)
+            for node_out_i, (out, time) in enumerate(zip(obj._outputs, scheduledOut)):
                 if out.name is not None:
                     outName = out.name
                 else:
                     outName = f"o{node_out_i:d}"
+                if time is not None:
+                    outName = f"{outName} {self._formatScheduleTime(time, clkPeriod)}"
+
                 output_rows.append(f"<td port='o{node_out_i:d}'>{outName:s}</td>")
             if isinstance(obj, HlsNetNodeAggregatePortOut):
                 assert not obj._outputs, obj
@@ -273,9 +319,8 @@ class HwtHlsNetlistToGraphwiz():
 
         buff = []
 
-        color = self._getColor(obj) if obj in self.allNodes else "orange"
         buff.append(f'''<
-        <table bgcolor="{color:s}" border="0" cellborder="1" cellspacing="0">\n''')
+        <table bgcolor="{bgcolor:s}" border="0" cellborder="1" cellspacing="0">\n''')
 
         if isinstance(obj, HlsNetNodeConst):
             label = f"{obj.val} id:{obj._id:d}"
@@ -294,6 +339,12 @@ class HwtHlsNetlistToGraphwiz():
             label = f"{obj.operator.id if isinstance(obj.operator, OpDefinition) else str(obj.operator)} {obj._id:d} {self._formatNodeScheduleTime(obj)}{name:s} {t}"
         elif isinstance(obj, (HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeLoopStatus)):
             label = f"{_reprMinify(obj):s}{self._formatNodeScheduleTime(obj)}"
+        elif isinstance(obj, HlsNetNodeAggregatePortIn):
+            label = (f"{obj.__class__.__name__} {obj._id:d} ({obj.parentIn.obj._id:d}:i{obj.parentIn.in_i})"
+            f" {self._formatNodeScheduleTime(obj)}\"{html.escape(obj.name) if obj.name else '':s}\"")
+        elif isinstance(obj, HlsNetNodeAggregatePortOut):
+            label = (f"{obj.__class__.__name__} {obj._id:d} ({obj.parentOut.obj._id:d}:o{obj.parentOut.out_i})"
+            f" {self._formatNodeScheduleTime(obj)}\"{html.escape(obj.name) if obj.name else '':s}\"")
         elif obj.name is not None:
             label = f"{obj.__class__.__name__} {obj._id:d} {self._formatNodeScheduleTime(obj)}\"{html.escape(obj.name):s}\""
         else:
@@ -361,7 +412,7 @@ class HlsNetlistPassDumpNodesDot(HlsNetlistPass):
     def _edgeFilterVoid(self, src: HlsNetNodeOut, dst: HlsNetNodeOut):
         return not HdlType_isVoid(src._dtype)
 
-    def apply(self, hls: "HlsScope", netlist: HlsNetlistCtx):
+    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
         name = netlist.label
         out, doClose = self.outStreamGetter(name)
         try:

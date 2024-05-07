@@ -38,9 +38,9 @@ class BaseTestPlatform(VirtualHlsPlatform):
         self.blockSync = StringIO()
 
     def runSsaPasses(self, hls:"HlsScope", toSsa:HlsAstToSsa):
-        SsaPassConsystencyCheck().apply(hls, toSsa)
-        SsaPassDumpToLl(lambda name: (self.postPyOpt, False)).apply(hls, toSsa)
-        SsaPassToLlvm(self._llvmCliArgs).apply(hls, toSsa)
+        SsaPassConsystencyCheck().runOnSsaModule(toSsa)
+        SsaPassDumpToLl(lambda name: (self.postPyOpt, False)).runOnSsaModule(toSsa)
+        SsaPassToLlvm(hls, self._llvmCliArgs).runOnSsaModule(toSsa)
 
     def runNetlistTranslation(self,
                               hls: "HlsScope", toSsa: HlsAstToSsa,
@@ -57,18 +57,18 @@ class BaseTestPlatform(VirtualHlsPlatform):
         netlist = toNetlist.netlist
         dbgTracer, doCloseTrace = self._getDebugTracer(netlist.label, HlsDebugBundle.DBG_5_netlistConsttructionTrace)
         toNetlist.setDebugTracer(dbgTracer)
-        
-        SsaPassDumpMIR(lambda name: (self.mir, False)).apply(hls, toSsa)
+
+        SsaPassDumpMIR(lambda name: (self.mir, False)).runOnSsaModule(toSsa)
 
         try:
             toNetlist.translateDatapathInBlocks(mf, toSsa.ioNodeConstructors)
             threads = netlist.getAnalysis(HlsNetlistAnalysisPassDataThreadsForBlocks)
             toNetlist.updateThreadsOnLiveInMuxes(threads)
-            HlsNetlistPassDumpDataThreads(lambda name: (self.dataThreads, False)).apply(hls, netlist)
-    
+            HlsNetlistPassDumpDataThreads(lambda name: (self.dataThreads, False)).runOnHlsNetlist(netlist)
+
             netlist.getAnalysis(HlsNetlistAnalysisPassBlockSyncType)
-            HlsNetlistPassDumpBlockSync(lambda name: (self.blockSync, False), addLegend=False).apply(hls, netlist)
-    
+            HlsNetlistPassDumpBlockSync(lambda name: (self.blockSync, False), addLegend=False).runOnHlsNetlist(netlist)
+
             blockLiveInMuxInputSync: BlockLiveInMuxSyncDict = toNetlist.constructLiveInMuxes(mf)
             toNetlist.extractRstValues(mf, threads)
             toNetlist.resolveLoopControl(mf, blockLiveInMuxInputSync)

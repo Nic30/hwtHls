@@ -1,145 +1,211 @@
-from typing import Type, Dict, Optional, List, Tuple, Union, Sequence, Literal
+from typing import Dict, Optional, List, Tuple, Union
 
 from hwt.code import And
 from hwt.hdl.statements.statement import HdlStatement
-from hwt.interfaces.std import HandshakeSync, Handshaked, VldSynced, RdSynced, \
-    Signal, BramPort_withoutClk
-from hwt.interfaces.structIntf import StructIntf
 from hwt.pyUtils.uniqList import UniqList
 from hwt.synthesizer.interface import Interface
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
-from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResourceItem
-from hwtLib.amba.axi_intf_common import Axi_hs
-from hwtLib.handshaked.streamNode import StreamNode
+from hwtHls.netlist.nodes.read import HlsNetNodeRead
+from hwtHls.netlist.nodes.schedulableNode import SchedTime
+from hwtHls.netlist.nodes.write import HlsNetNodeWrite
+from hwtLib.handshaked.streamNode import StreamNode, ValidReadyTuple
+from hwtLib.logic.rtlSignalBuilder import RtlSignalBuilder
+from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 
 
-def geSyncType(intf: Interface) -> Type[Interface]:
-    """
-    resolve which primitive type of synchronization is the interface using
-    """
+class SkipWhenMemberList():
 
-    if isinstance(intf, HandshakeSync):
-        return Handshaked
-    elif isinstance(intf, (VldSynced, BramPort_withoutClk)):
-        return VldSynced
-    elif isinstance(intf, RdSynced):
-        return RdSynced
-    else:
-        assert isinstance(intf, (Signal, RtlSignal, StructIntf)), intf
-        return Signal
-
-
-class SkipWhenMemberList(TimeIndependentRtlResourceItem):
-
-    def __init__(self, data:List[TimeIndependentRtlResourceItem]):
+    def __init__(self, data:List[RtlSignal]):
         self.data = data
 
     def resolve(self) -> RtlSignal:
         assert self.data
-        return And(*(d.data for d in self.data))
-
-    def isRltRegister(self) -> bool:
-        raise NotImplementedError()
+        return And(*(d for d in self.data))
 
 
-class ExtraCondMemberList(TimeIndependentRtlResourceItem):
+class ExtraCondMemberList():
     """
     Container of tuples skipWhen, extraCond flags for stream synchronization.
     """
 
-    def __init__(self, data:List[Tuple[Optional[TimeIndependentRtlResourceItem], TimeIndependentRtlResourceItem]]):
+    def __init__(self, data:List[Tuple[Optional[RtlSignal], RtlSignal]]):
         self.data = data
 
     def resolve(self) -> RtlSignal:
         assert self.data
         if len(self.data) == 1:
-            return self.data[0][1].data
+            return self.data[0][1]
 
         extraCond = None
         for skipWhen, curExtraCond in self.data:
-            if skipWhen is None:
-                if extraCond is None:
-                    extraCond = curExtraCond.data
-                else:
-                    extraCond = extraCond | curExtraCond.data
-            else:
-                if extraCond is None:
-                    extraCond = ~skipWhen.data & curExtraCond.data
-                else:
-                    extraCond = extraCond | (~skipWhen.data & curExtraCond.data)
+            extraCond = RtlSignalBuilder.buildOrWithNegatedMaskedOptional(extraCond, curExtraCond, skipWhen)
 
         return extraCond
 
-    def isRltRegister(self) -> bool:
-        raise NotImplementedError()
+
+InterfaceOrReadWriteNodeOrValidReadyTuple = Union[Interface, HlsNetNodeRead, HlsNetNodeWrite, ValidReadyTuple]
+
+
+class IORecord:
+    """
+    :ivar validReadyTupleUsedInSyncGeneration: is used when synchronization is generated.
+    :ivar validReadyTuplePhysicallyPresent: is used to store valid/ready signals for IO which do not use valid/ready signal
+        for handshake synchronization but the has mentioned signals.
+    :ivar validHasCustomDriver: if True the valid driver is not not generated
+    :ivar readyHasCustomDriver: if True the ready driver is not not generated
+    """
+
+    def __init__(self, firstSeenIoNode: Union[HlsNetNodeRead, HlsNetNodeWrite],
+                  ioInterface:Optional[Union[Interface, HlsNetNodeWrite]],
+                  validReadyTupleUsedInSyncGeneration: ValidReadyTuple,
+                  ioUniqueKey: InterfaceOrReadWriteNodeOrValidReadyTuple,
+                  validReadyTuplePhysicallyPresent: ValidReadyTuple,
+                  validHasCustomDriver:bool,
+                  readyHasCustomDriver:bool):
+        self.node = firstSeenIoNode
+        assert ioInterface is None or isinstance(ioInterface, (Interface, RtlSignalBase, HlsNetNodeWrite)), ioInterface
+        self.io = ioInterface
+        self.validReady = validReadyTupleUsedInSyncGeneration
+        self.ioUniqueKey = ioUniqueKey
+        self.validReadyPresent = validReadyTuplePhysicallyPresent
+        assert validReadyTuplePhysicallyPresent[0] is not None, (validReadyTuplePhysicallyPresent, "1 should be used instead of None")
+        assert validReadyTuplePhysicallyPresent[1] is not None, (validReadyTuplePhysicallyPresent, "1 should be used instead of None")
+
+        self.validHasCustomDriver = validHasCustomDriver
+        self.readyHasCustomDriver = readyHasCustomDriver
 
 
 class ConnectionsOfStage():
     """
     This object is a container of meta-information for synchronization generation for a single clock pipeline stage pipeline stage or FSM state.
 
-    :ivar inputs: a tuple (io, isBlocking) for every input channels to this stage.
-    :ivar outputs: a tuple (io, isBlocking) for every output channels from this stage.
+    :ivar inputs: a :var:`~.IORecordTuple` for every input channels to this stage
+    :ivar outputs: equivalent of inputs for outputs
     :ivar signals: all TimeIndependentRtlResourceItem instances generated in this pipeline stage/FSM state
-    :ivar io_skipWhen: skipWhen condition for inputs/outputs which specifies when the synchronization should wait for this channel
-    :ivar io_extraCond: extraCond condition for inputs/outputs which specifies when the data should be send/received from channel
-    :ivar sync_node: optional StreamNode instance which was used to generate synchronization
+    :ivar inputs_skipWhen: skipWhen condition for inputs which specifies when the synchronization should wait for this channel
+    :ivar inputs_extraCond: extraCond condition for inputs which specifies when the data should be received from channel
+    :ivar outputs_skipWhen: inputs_skipWhen equivalent for outputs
+    :ivar outputs_extraCond: inputs_extraCond equivalent for outputs
+    :ivar implicitSyncFromPrevStage: The read for a channel which holds information if the implicit input data for this stage are valid.
+        Used to implement "valid" for pipelines. 
+    :ivar syncNode: optional StreamNode instance which was used to generate synchronization
     :ivar syncNodeAck: optional signal which is 1 if this stage is working
-    :ivar stageDataVld: optional synchronous signal which is 1 if this stage is loaded with the data
+    :ivar stageEnable: optional signal which is 1 if this stage is allowed to perform its function
     :ivar stDependentDrives: list of HdlStatement which should be wrapped under the condition that this state is enabled in FSM
-    :ivar syncIn: An interface for synchronization with the predecessor in the pipeline.
-    :ivar syncOut: An interface for synchronization with the successor in the pipeline.
-    :note: syncIn and syncOut are also in inputs/outputs, there are used for detection for association of data
-        from previous stage to a synchronization interface
     """
 
-    def __init__(self):
-        self.inputs: UniqList[Tuple[Interface, bool]] = UniqList()
-        self.outputs: UniqList[Tuple[Interface, bool]] = UniqList()
+    def __init__(self, parent: "ArchElement", clkIndex: int):
+        self.parent = parent
+        self.clkIndex = clkIndex
+        self.inputs: UniqList[IORecord] = UniqList()
+        self.outputs: UniqList[IORecord] = UniqList()
         self.signals: UniqList[TimeIndependentRtlResourceItem] = UniqList()
-        self.io_skipWhen: Dict[Interface, SkipWhenMemberList] = {}
-        self.io_extraCond: Dict[Interface, ExtraCondMemberList] = {}
-        self.sync_node: Optional[StreamNode] = None
-        self.syncNodeAck: Optional[Union[RtlSignal, Literal[1], None]] = None
-        self.stageDataVld: Optional[RtlSyncSignal] = None
+        self.inputs_skipWhen: Dict[InterfaceOrReadWriteNodeOrValidReadyTuple, SkipWhenMemberList] = {}
+        self.inputs_extraCond: Dict[InterfaceOrReadWriteNodeOrValidReadyTuple, ExtraCondMemberList] = {}
+        self.outputs_skipWhen: Dict[InterfaceOrReadWriteNodeOrValidReadyTuple, SkipWhenMemberList] = {}
+        self.outputs_extraCond: Dict[InterfaceOrReadWriteNodeOrValidReadyTuple, ExtraCondMemberList] = {}
+        self.ioMuxes: Dict[Interface, Tuple[Union[HlsNetNodeRead, HlsNetNodeWrite], List[HdlStatement]]] = {}
+        self.ioMuxesKeysOrdered: UniqList[Interface] = UniqList()
+
+        self.implicitSyncFromPrevStage: Optional["HlsNetNodeReadForwardedge"] = None
+        self.syncNode: Optional[StreamNode] = None
+        self.syncNodeAck: Optional[RtlSignal] = None
+        self.stageEnable: Optional[RtlSyncSignal] = None
         self.stDependentDrives: List[HdlStatement] = []
-        self.syncIn: Optional[HandshakeSync] = None
-        self.syncOut: Optional[HandshakeSync] = None
+
+    def isUnused(self):
+        return (
+            not self.inputs and
+            not self.outputs and
+            # not self.signals and # unused at the beginning still may have signals which are coming from outside
+            not self.inputs_extraCond and
+            not self.inputs_skipWhen and
+            not self.outputs_extraCond and
+            not self.outputs_skipWhen and
+            not self.ioMuxes and
+            not self.ioMuxesKeysOrdered and
+            not self.implicitSyncFromPrevStage and
+            not self.syncNode and
+            not self.syncNodeAck and
+            not self.stageEnable and
+            not self.stDependentDrives)
 
     def merge(self, other: "ConnectionsOfStage"):
         "merge other to self"
         self.inputs.extend(other.inputs)
         self.outputs.extend(other.outputs)
         self.signals.extend(other.signals)
-        self.io_skipWhen.update(other.io_skipWhen)
-        self.io_extraCond.update(other.io_extraCond)
-        assert self.sync_node is None
+        self.inputs_skipWhen.update(other.inputs_skipWhen)
+        self.inputs_extraCond.update(other.inputs_extraCond)
+        self.outputs_skipWhen.update(other.outputs_skipWhen)
+        self.outputs_extraCond.update(other.outputs_extraCond)
+        assert self.implicitSyncFromPrevStage is None
+        assert self.syncNode is None
         assert self.syncNodeAck is None
-        assert other.stageDataVld is None
+        assert other.syncNodeAck is None
+        assert self.stageEnable is None
+        assert other.stageEnable is None
         self.stDependentDrives.extend(other.stDependentDrives)
-        assert other.syncIn is None
-        assert other.syncOut is None
+        assert not self.ioMuxes
+        assert not other.ioMuxes
+        assert not self.ioMuxesKeysOrdered
+        assert not other.ioMuxesKeysOrdered
+
+    def getRtlStageAckSignal(self):
+        ack = self.syncNodeAck
+        if ack is None:
+            # forward declaration
+            ack = self.parent._sig(f"{self.parent.name}st{self.clkIndex:d}_ack")
+            self.syncNodeAck = ack
+        return ack
+
+    def getRtlStageEnableSignal(self):
+        en = self.stageEnable
+        if en is None:
+            # forward declaration
+            en = self.parent._sig(f"{self.parent.name}st{self.clkIndex:d}_en")
+            self.stageEnable = en
+        return en
+
+    def __repr__(self):
+        return f"<{self.__class__.__name__:s} {self.parent} clk:{self.clkIndex}>"
 
 
-class SignalsOfStages(List[Optional[UniqList[TimeIndependentRtlResourceItem]]]):
+class ConnectionsOfStageList(List[Optional[UniqList[ConnectionsOfStage]]]):
     """
-    Container of for :class:`~.TimeIndependentRtlResourceItem` divided into clock cycles.
+    Container of for :class:`~.ConnectionsOfStage` divided into clock cycles.
     """
 
-    def __init__(self, normalizedClkPeriod: int, initVals=None):
+    def __init__(self, normalizedClkPeriod: SchedTime, initVals=None):
         self.normalizedClkPeriod = normalizedClkPeriod
         list.__init__(self)
         if initVals:
             for v in initVals:
-                assert isinstance(v, UniqList) or v is None, v
+                assert isinstance(v, ConnectionsOfStage) or v is None, v
                 self.append(v)
 
-    def getForTime(self, t: int) -> UniqList[TimeIndependentRtlResourceItem]:
+    def getForClkIndex(self, clkIndex: int, allowNone=False) -> Optional[UniqList[TimeIndependentRtlResourceItem]]:
+        try:
+            if clkIndex < 0:
+                raise IndexError("Asking for an object in invalid time", clkIndex)
+            res = self[clkIndex]
+        except IndexError:
+            raise IndexError("Asking for an object which is scheduled to different architectural element",
+                             clkIndex, len(self), self) from None
+
+        if res is None and not allowNone:
+            raise IndexError("Asking for an object in time which is not managed by this architectural element",
+                             clkIndex, [int(item is not None) for item in self])
+
+        return res
+
+    def getForTime(self, t: int, allowNone=False) -> Optional[UniqList[TimeIndependentRtlResourceItem]]:
         """
-        Use time to index in this lis.
+        Use time to index in this list.
+        :note: entirely same as getForClkIndex just with better error messages
         """
         i = int(t // self.normalizedClkPeriod)
         try:
@@ -147,27 +213,14 @@ class SignalsOfStages(List[Optional[UniqList[TimeIndependentRtlResourceItem]]]):
                 raise IndexError("Asking for an object in invalid time", t)
             res = self[i]
         except IndexError:
-            raise IndexError("Asking for an object which is scheduled to different architectural element", t, i, len(self), self) from None
+            raise IndexError("Asking for an object which is scheduled to different architectural element",
+                             t, i, len(self), self) from None
 
-        if res is None:
-            raise IndexError("Asking for an object in time which is not managed by this architectural element", t, i, [int(item is not None) for item in self])
+        if res is None and not allowNone:
+            raise IndexError("Asking for an object in time which is not managed by this architectural element",
+                             t, i, [int(item is not None) for item in self])
 
         return res
-
-    #def merge(self, other: "SignalsOfStages"):
-    #    """
-    #    Merge other into self.
-    #    """
-    #    for i, (list0, list1) in enumerate(zip(self, other)):
-    #        if list0 is None:
-    #            self[i] = list1
-    #        elif not list1:
-    #            continue
-    #        else:
-    #            list0.extend(list1)
-    #
-    #    if len(other) > len(self):
-    #        self.extend(other[len(self):])
 
 
 def setNopValIfNotSet(intf: Union[Interface, RtlSignal], nopVal, exclude: List[Interface]):
@@ -183,79 +236,3 @@ def setNopValIfNotSet(intf: Union[Interface, RtlSignal], nopVal, exclude: List[I
     elif intf._sig._nop_val is NOT_SPECIFIED:
         intf._sig._nop_val = intf._dtype.from_py(nopVal)
 
-
-InterfaceSyncTuple = Tuple[Union[int, RtlSignalBase, Signal],
-                  Union[int, RtlSignalBase, Signal]]
-SyncOfInterface = Union[Handshaked, HandshakeSync, Axi_hs, InterfaceSyncTuple]
-
-
-def extractControlSigOfInterface(
-            intf: Union[HandshakeSync, RdSynced, VldSynced, RtlSignalBase, Signal, SyncOfInterface]
-            ) -> SyncOfInterface:
-    if isinstance(intf, (Handshaked, HandshakeSync, Axi_hs)):
-        return intf
-    else:
-        return extractControlSigOfInterfaceTuple(intf)
-
-
-def extractControlSigOfInterfaceTuple(
-            intf: Union[HandshakeSync, RdSynced, VldSynced, RtlSignalBase, Signal, InterfaceSyncTuple]
-            ) -> InterfaceSyncTuple:
-    if isinstance(intf, tuple):
-        assert len(intf) == 2
-        return intf
-    elif isinstance(intf, Axi_hs):
-        return (intf.valid, intf.ready)
-    elif isinstance(intf, (Handshaked, HandshakeSync)):
-        return (intf.vld, intf.rd)
-    elif isinstance(intf, VldSynced):
-        return (intf.vld, 1)
-    elif isinstance(intf, BramPort_withoutClk):
-        return (intf.en, 1)
-    elif isinstance(intf, RdSynced):
-        return (1, intf.rd)
-    elif isinstance(intf, (RtlSignalBase, Signal, StructIntf)):
-        return (1, 1)
-    else:
-        raise TypeError("Unknown synchronization of ", intf)
-
-
-def getIntfSyncSignals(intf: Union[Interface, RtlSignal]) -> Tuple[Interface, ...]:
-    if isinstance(intf, Axi_hs):
-        return (intf.ready, intf.valid)
-    elif isinstance(intf, (HandshakeSync, Handshaked)):
-        return (intf.rd, intf.vld)
-    elif isinstance(intf, (RtlSignal, Signal, StructIntf)):
-        return ()
-    elif isinstance(intf, VldSynced):
-        return (intf.vld,)
-    elif isinstance(intf, RdSynced):
-        return (intf.rd,)
-    elif isinstance(intf, BramPort_withoutClk):
-        return (intf.en,)
-    else:
-        raise NotImplementedError(intf)
-
-
-def resolveStrongestSyncType(current_sync: Type[Interface], io_channels: Sequence[Interface]):
-    for op in io_channels:
-        sync_type = geSyncType(op)
-        if sync_type is Handshaked or current_sync is RdSynced and sync_type is VldSynced:
-            current_sync = Handshaked
-        elif sync_type is RdSynced:
-            if current_sync is Handshaked:
-                pass
-            elif current_sync is VldSynced:
-                current_sync = Handshaked
-            else:
-                current_sync = sync_type
-
-        elif sync_type is VldSynced:
-            if current_sync is Handshaked:
-                pass
-            elif current_sync is RdSynced:
-                current_sync = Handshaked
-            else:
-                current_sync = sync_type
-
-    return current_sync

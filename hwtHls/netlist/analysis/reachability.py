@@ -1,5 +1,5 @@
 from copy import copy
-from typing import Set, Dict, Optional, Tuple, Union, Literal, List
+from typing import Set, Dict, Optional, Tuple, Union, Literal, List, Callable
 
 from hwt.hdl.operatorDefs import AllOps
 from hwt.pyUtils.uniqList import UniqList
@@ -68,8 +68,8 @@ class HlsNetlistAnalysisPassReachability(HlsNetlistAnalysisPass):
     :note: This analysis mostly ignores netlist hierarchy and uses only leaf nodes and ports.
     """
 
-    def __init__(self, netlist:"HlsNetlistCtx", removed: Optional[Set[HlsNetNode]]=None):
-        HlsNetlistAnalysisPass.__init__(self, netlist)
+    def __init__(self, removed: Optional[Set[HlsNetNode]]=None):
+        super(HlsNetlistAnalysisPassReachability, self).__init__()
         self._dataSuccessors: ReachDict = {}
         self._anySuccessors: ReachDict = {}
         self.removed = removed
@@ -535,9 +535,9 @@ class HlsNetlistAnalysisPassReachability(HlsNetlistAnalysisPass):
     @classmethod
     def _getDirectDataPredecessorsRawAnyData(cls, toSearch: UniqList[HlsNetNode],
                                              seen: Set[HlsNetNode],
-                                             blacklist: Set[HlsNetNode]) -> UniqList[HlsNetNodeExplicitSync]:
+                                             searchEndPredicateFn: Callable[[HlsNetNode], bool]) -> UniqList[HlsNetNodeExplicitSync]:
         """
-        Simplified version of :meth:`~._getDirectDataPredecessorsRaw` which uses node blacklist instead of check for specific ports.
+        Simplified version of :meth:`~._getDirectDataPredecessorsRaw` which uses searchEndPredicateFn instead of check for specific ports.
         """
         while toSearch:
             n = toSearch.pop()
@@ -551,7 +551,7 @@ class HlsNetlistAnalysisPassReachability(HlsNetlistAnalysisPass):
                     continue
                 dep = cls._flattenNodeOrPort(dep)
                 depObj = dep.obj
-                if depObj in blacklist:
+                if searchEndPredicateFn(depObj):
                     continue
                 yield depObj
                 toSearch.append(dep.obj)
@@ -609,9 +609,9 @@ class HlsNetlistAnalysisPassReachability(HlsNetlistAnalysisPass):
     def _getDirectDataSuccessorsRawAnyData(cls,
                                            toSearch: UniqList[HlsNetNode],
                                            seen: Set[HlsNetNode],
-                                           blacklist: Set[HlsNetNode]) -> UniqList[HlsNetNodeExplicitSync]:
+                                           searchEndPredicateFn: Callable[[HlsNetNode], bool]) -> UniqList[HlsNetNodeExplicitSync]:
         """
-        Simplified version of :meth:`~._getDirectDataSuccessorsRaw` which uses node blacklist instead of check for specific ports.
+        Simplified version of :meth:`~._getDirectDataSuccessorsRaw` which uses node searchEndPredicateFn instead of check for specific ports.
         """
 
         while toSearch:
@@ -629,19 +629,19 @@ class HlsNetlistAnalysisPassReachability(HlsNetlistAnalysisPass):
                 for u in uses:
                     u = cls._flattenNodeOrPort(u)
                     uObj = u.obj
-                    if uObj in blacklist:
+                    if searchEndPredicateFn(uObj):
                         continue
                     yield uObj
                     toSearch.append(uObj)
 
-    def run(self):
+    def runOnHlsNetlistImpl(self, netlist: "HlsNetlistCtx"):
         assert not  self._dataSuccessors
         assert not self._anySuccessors
         removed = self.removed
-        dataSuccessors = self._dataSuccessors = self._initSetDict(self.netlist, removed)
-        anySuccessors = self._anySuccessors = self._initSetDict(self.netlist, removed)
+        dataSuccessors = self._dataSuccessors = self._initSetDict(netlist, removed)
+        anySuccessors = self._anySuccessors = self._initSetDict(netlist, removed)
 
-        for n in self.netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.OMMIT_PARENT):
+        for n in netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.OMMIT_PARENT):
             if removed is not None and n in removed:
                 continue
 

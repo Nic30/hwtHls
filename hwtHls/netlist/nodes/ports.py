@@ -29,21 +29,38 @@ class HlsNetNodeOut():
         raise NotImplementedError()
 
     @classmethod
-    def _reprMinified(cls, o:Union[None, "HlsNetNodeOut", "HlsNetNodeOutLazy"]):
+    def _reprMinified(cls, o:Union[None, "HlsNetNodeOut", "HlsNetNodeOutLazy"]) -> str:
         if o is None:
             return "None"
         elif isinstance(o, HlsNetNodeOut):
             return f"{o.obj._id:d}:{o.out_i:d}"
         else:
-            return f'lazy:{o._id}'
+            return f'lazy:{o._id:d}'
 
-    def __repr__(self, minify=True):
+    def getPrettyName(self) -> str:
+        obj = self.obj
+        if obj.name and self.name:
+            return f"{obj.name:s}_{self.name:s}"
+        elif obj.name:
+            if len(obj._outputs) == 1:
+                return obj.name
+            else:
+                return f"{obj.name:s}_{self.out_i:d}"
+        elif self.name:
+            return f"{obj._id:d}_{self.name:s}"
+        else:
+            if len(obj._outputs) == 1:
+                return str(obj._id)
+            else:
+                return f"{obj._id:d}_{self.out_i:d}"
+
+    def __repr__(self, minify=True) -> str:
         if minify:
             objStr = _reprMinify(self.obj)
         else:
             objStr = repr(self.obj)
         if self.name is None:
-            return f"<{self.__class__.__name__} {objStr:s} [{self.out_i:d}]>"
+            return f"<{self.__class__.__name__:s} {objStr:s} [{self.out_i:d}]>"
         else:
             return f"<{self.__class__.__name__} {objStr:s} [{self.out_i:d}-{self.name:s}]>"
 
@@ -165,7 +182,7 @@ class HlsNetNodeIn():
             return f"<{self.__class__.__name__:s} {objStr:s} [{self.in_i:d}-{self.name:s}]>"
 
 
-def link_hls_nodes(parent: HlsNetNodeOutAny, child: HlsNetNodeIn) -> None:
+def link_hls_nodes(parent: HlsNetNodeOutAny, child: HlsNetNodeIn, checkCycleFree:bool=True) -> None:
     assert isinstance(child, HlsNetNodeIn), child
 
     if isinstance(parent, HlsNetNodeOutLazy):
@@ -173,7 +190,8 @@ def link_hls_nodes(parent: HlsNetNodeOutAny, child: HlsNetNodeIn) -> None:
         parent.dependent_inputs.append(child)
     else:
         assert isinstance(parent, HlsNetNodeOut), parent
-        assert parent.obj is not child.obj, ("Can not create cycle", parent, child)
+        if checkCycleFree:
+            assert parent.obj is not child.obj, ("Can not create cycle", parent, child)
         removed = parent.obj.netlist.builder._removedNodes
         assert parent.obj not in removed, parent
         assert child.obj not in removed, child

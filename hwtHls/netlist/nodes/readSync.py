@@ -5,7 +5,8 @@ from hwt.hdl.value import HValue
 from hwt.interfaces.std import Handshaked, HandshakeSync, VldSynced, Signal, \
     RdSynced, BramPort_withoutClk
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
-from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, INVARIANT_TIME
+from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
+from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge, \
     BACKEDGE_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
@@ -14,6 +15,7 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
+from hwtHls.typingFuture import override
 from hwtLib.amba.axi_intf_common import Axi_hs
 
 
@@ -28,40 +30,27 @@ class HlsNetNodeReadSync(HlsNetNode):
     :ivar dependsOn: list of dependencies for scheduling composed of extraConds and skipWhen
     """
 
-    def __init__(self, netlist: "HlsNetlistCtx"):
+    def __init__(self, netlist: HlsNetlistCtx):
         HlsNetNode.__init__(self, netlist, None)
         self._addInput("io")
         self._addOutput(BIT, "ack")
         self.operator = "read_sync"
 
+    @override
     def resolveRealization(self):
         self.assignRealization(IO_COMB_REALIZATION)
 
-    def allocateRtlInstance(self,
-                          allocator: "ArchElement",
-                          ) -> TimeIndependentRtlResource:
+    @override
+    def rtlAlloc(self, allocator: "ArchElement") -> TimeIndependentRtlResource:
         """
         Instantiate read operation on RTL level
         """
-        r_out = self._outputs[0]
-        try:
-            return allocator.netNodeToRtl[r_out]
-        except KeyError:
-            pass
-
-        t = self.scheduledOut[0]
-        en = self.getRtlControlEn(allocator)
-        _o = TimeIndependentRtlResource(
-            en,
-            INVARIANT_TIME if isinstance(en, HValue) else t,
-            allocator,
-            False)
-        allocator.netNodeToRtl[r_out] = _o
-        return _o
+        assert not self._isRtlAllocated
+        raise AssertionError("This node is not intended for RTL and should be lowered to HlsNetNodeRead._validNB or HlsNetNodeWrite._readyNB")
 
     def _getRtlSigForInput(self, allocator: "ArchElement", i: HlsNetNodeIn):
-        return allocator.instantiateHlsNetNodeOutInTime(i.obj.dependsOn[i.in_i], self.scheduledOut[0]).data
-        
+        return allocator.rtlAllocHlsNetNodeOutInTime(i.obj.dependsOn[i.in_i], self.scheduledOut[0]).data
+
     def getRtlControlEn(self, allocator: "ArchElement") -> Union[RtlSignalBase, HValue]:
         d = self.dependsOn[0]
         dObj = d.obj

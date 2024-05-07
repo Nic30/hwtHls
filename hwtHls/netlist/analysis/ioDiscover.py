@@ -21,14 +21,13 @@ class HlsNetlistAnalysisPassIoDiscover(HlsNetlistAnalysisPass):
     :note:Primary use for this analysis is to
     """
 
-    def __init__(self, netlist: "HlsNetlistCtx"):
-        HlsNetlistAnalysisPass.__init__(self, netlist)
+    def __init__(self,):
+        super(HlsNetlistAnalysisPassIoDiscover, self).__init__()
         self.ioByInterface: Dict[Interface, UniqList[Union[HlsNetNodeRead, HlsNetNodeWrite]]] = {}
         self.interfaceList: UniqList[Interface] = UniqList()
 
     def runOnHlsNetlist(self, netlist: "HlsNetlistCtx"):
         assert not self.ioByInterface, "Must be run only once"
-        netlist = self.netlist
         assert netlist.getAnalysisIfAvailable(HlsNetlistAnalysisPassRunScheduler) is not None, "Should be performed only after scheduling"
         ioByInterface = self.ioByInterface
         interfaceList = self.interfaceList

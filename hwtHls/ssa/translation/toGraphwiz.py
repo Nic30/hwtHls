@@ -11,7 +11,7 @@ from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.phi import SsaPhi
 from hwtHls.ssa.transformation.ssaPass import SsaPass
 from hwtHls.ssa.value import SsaValue
-
+from hwtHls.typingFuture import override
 
 EdgeLivenessDict = Dict[SsaBasicBlock, Dict[SsaBasicBlock, Set[SsaValue]]]
 
@@ -77,7 +77,7 @@ class SsaToGraphwiz():
 
         bodyStr = "\n".join(bodyRows)
         label = f'<<table border="0" cellborder="1" cellspacing="0">{bodyStr:s}</table>>'
-        node.set("label", label) 
+        node.set("label", label)
         return node
 
     def dumps(self):
@@ -87,12 +87,14 @@ class SsaToGraphwiz():
 class SsaPassDumpToDot(SsaPass):
 
     def __init__(self, outStreamGetter:OutputStreamGetter, extractPipeline: bool=False):
+        super(SsaPassDumpToDot, self).__init__()
         self.outStreamGetter = outStreamGetter
         if extractPipeline:
             raise NotImplementedError()
         self.extractPipeline = extractPipeline
 
-    def apply(self, hls: "HlsScope", toSsa: "HlsAstToSsa"):
+    @override
+    def runOnSsaModuleImpl(self, toSsa: "HlsAstToSsa"):
         name = toSsa.label
         to_graphwiz = SsaToGraphwiz(name)
         out, doClose = self.outStreamGetter(name)

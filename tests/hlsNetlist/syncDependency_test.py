@@ -27,11 +27,11 @@ class SyncDependencyTC(unittest.TestCase):
         # r->w
         netlist, _ = self._createNetlist()
         r = HlsNetNodeRead(netlist, None, dtype=uint8_t)
-        w = HlsNetNodeWrite(netlist, None, None)
+        w = HlsNetNodeWrite(netlist, None)
         link_hls_nodes(r._outputs[0], w._inputs[0])
         netlist.nodes.extend((r, w))
-        reachDb = HlsNetlistAnalysisPassReachability(netlist)
-        reachDb.run()
+        reachDb = HlsNetlistAnalysisPassReachability()
+        reachDb.runOnHlsNetlist(netlist)
         self.assertDictEqual(reachDb._dataSuccessors, {r: {r._outputs[0], w._inputs[0], w},
                                                        r._outputs[0]: {w._inputs[0], w},
                                                        w._inputs[0]: {w, },
@@ -42,12 +42,12 @@ class SyncDependencyTC(unittest.TestCase):
         netlist, _ = self._createNetlist()
         r = HlsNetNodeRead(netlist, None, dtype=uint8_t)
         sync = HlsNetNodeExplicitSync(netlist, uint8_t)
-        w = HlsNetNodeWrite(netlist, None, None)
+        w = HlsNetNodeWrite(netlist, None)
         link_hls_nodes(r._outputs[0], sync._inputs[0])
         link_hls_nodes(sync._outputs[0], w._inputs[0])
         netlist.nodes.extend((r, sync, w))
-        reachDb = HlsNetlistAnalysisPassReachability(netlist)
-        reachDb.run()
+        reachDb = HlsNetlistAnalysisPassReachability()
+        reachDb.runOnHlsNetlist(netlist)
         depSeq = [r, r._outputs[0], sync._inputs[0], sync, sync._outputs[0], w._inputs[0], w]
         ref = {}
         for i, obj in enumerate(depSeq):
@@ -60,12 +60,12 @@ class SyncDependencyTC(unittest.TestCase):
         netlist, b = self._createNetlist()
         r0 = HlsNetNodeRead(netlist, None, dtype=uint8_t)
         r1 = HlsNetNodeRead(netlist, None, dtype=uint8_t)
-        w = HlsNetNodeWrite(netlist, None, None)
+        w = HlsNetNodeWrite(netlist, None)
         r0AndR1 = b.buildAnd(r0._outputs[0], r1._outputs[0])
         link_hls_nodes(r0AndR1, w._inputs[0])
         netlist.nodes.extend((r0, r1, w))
-        reachDb = HlsNetlistAnalysisPassReachability(netlist)
-        reachDb.run()
+        reachDb = HlsNetlistAnalysisPassReachability()
+        reachDb.runOnHlsNetlist(netlist)
         
         depSeq0 = [r0, r0._outputs[0], r0AndR1.obj._inputs[0], r0AndR1.obj, r0AndR1.obj._outputs[0], w._inputs[0], w]
         depSeq1 = [r1, r1._outputs[0], r0AndR1.obj._inputs[1], r0AndR1.obj, r0AndR1.obj._outputs[0], w._inputs[0], w]

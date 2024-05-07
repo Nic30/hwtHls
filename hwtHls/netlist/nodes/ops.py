@@ -1,3 +1,4 @@
+from hwt.code import Concat
 from hwt.code_utils import rename_signal
 from hwt.hdl.operatorDefs import OpDefinition, AllOps
 from hwt.hdl.types.bits import Bits
@@ -9,7 +10,6 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.typeUtils import dtypeEqualSignIgnore
 from hwtHls.typingFuture import override
-from hwt.code import Concat
 
 
 class HlsNetNodeOperator(HlsNetNode):
@@ -48,13 +48,10 @@ class HlsNetNodeOperator(HlsNetNode):
             input_cnt, netlist.realTimeClkPeriod)
         self.assignRealization(r)
 
-    def allocateRtlInstance(self, allocator: "ArchElement") -> TimeIndependentRtlResource:
+    @override
+    def rtlAlloc(self, allocator: "ArchElement") -> TimeIndependentRtlResource:
+        assert not self._isRtlAllocated
         op_out = self._outputs[0]
-        try:
-            return allocator.netNodeToRtl[op_out]
-        except KeyError:
-            pass
-
         if HdlType_isVoid(op_out._dtype):
             assert self.operator == AllOps.CONCAT, self
             res = []
@@ -63,7 +60,7 @@ class HlsNetNodeOperator(HlsNetNode):
 
         operands = []
         for (dep, t) in zip(self.dependsOn, self.scheduledIn):
-            _o = allocator.instantiateHlsNetNodeOutInTime(dep, t)
+            _o = allocator.rtlAllocHlsNetNodeOutInTime(dep, t)
             assert isinstance(_o, TimeIndependentRtlResourceItem), (dep, _o)
             operands.append(_o)
 
@@ -87,9 +84,13 @@ class HlsNetNodeOperator(HlsNetNode):
             t = self.scheduledOut[0] + self.netlist.scheduler.epsilon
             if s.hasGenericName:
                 if self.name is not None:
-                    s.name = f"{allocator.namePrefix}{self.name}"
+                    s.name = f"{allocator.name:s}{self.name:s}"
                 else:
-                    s.name = f"{allocator.namePrefix}v{self._id:d}"
+                    s.name = f"{allocator.name:s}n{self._id:d}"
+
+                if self.netlist._dbgAddSignalNamesToData and s.hidden:
+                    # create an explicit rename of this potentially hidden signal
+                    s = rename_signal(allocator.netlist.parentUnit, s, s.name)
 
         if dtypeEqualSignIgnore(s._dtype, op_out._dtype):
             if HdlType_isVoid(s._dtype):
@@ -99,11 +100,10 @@ class HlsNetNodeOperator(HlsNetNode):
         else:
             raise AssertionError("The ", self.__class__.__name__,
                                  " signals of wrong type", s, op_out, s._dtype, op_out._dtype)
-        tis = TimeIndependentRtlResource(s, t, allocator, False)
 
-        allocator.netNodeToRtl[op_out] = tis
-
-        return tis
+        res = allocator.rtlRegisterOutputRtlSignal(op_out, s, False, False, False)
+        self._isRtlAllocated = True
+        return res
 
     def __repr__(self, minify=False):
         if minify:

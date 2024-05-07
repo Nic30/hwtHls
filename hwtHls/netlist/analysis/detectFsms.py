@@ -61,8 +61,8 @@ class HlsNetlistAnalysisPassDetectFsms(HlsNetlistAnalysisPass):
     also collect all nodes which are tied with them into FSM states.
     """
 
-    def __init__(self, netlist: "HlsNetlistCtx"):
-        HlsNetlistAnalysisPass.__init__(self, netlist)
+    def __init__(self):
+        super(HlsNetlistAnalysisPassDetectFsms, self).__init__()
         self.fsms: List[IoFsm] = []
 
     def _floodNetInClockCyclesWalkDepsAndUses(self, node: HlsNetNode,
@@ -70,7 +70,7 @@ class HlsNetlistAnalysisPassDetectFsms(HlsNetlistAnalysisPass):
                                predicate: Callable[[HlsNetNode], bool],
                                fsm: IoFsm,
                                seenInClks: Dict[int, Set[HlsNetNode]]):
-        clkPeriod = self.netlist.normalizedClkPeriod
+        clkPeriod = node.netlist.normalizedClkPeriod
 
         for dep in node.dependsOn:
             dep: HlsNetNodeOut
@@ -105,7 +105,7 @@ class HlsNetlistAnalysisPassDetectFsms(HlsNetlistAnalysisPass):
             seen.add(node)
             alreadyUsed.add(node)
             allNodeClks = tuple(node.iterScheduledClocks())
-            clkPeriod = self.netlist.normalizedClkPeriod
+            clkPeriod = node.netlist.normalizedClkPeriod
             assert allNodeClks, node
             if len(allNodeClks) > 1:
                 # slice a multi-cycle node and pick the parts which belongs to some state of this generated FSM
@@ -130,7 +130,7 @@ class HlsNetlistAnalysisPassDetectFsms(HlsNetlistAnalysisPass):
             self._floodNetInClockCyclesWalkDepsAndUses(node, alreadyUsed, predicate, fsm, seenInClks)
 
     def _appendNodeToState(self, clkI: int, n: HlsNetNode, stateNodeList: List[HlsNetNode],):
-        clkPeriod: SchedTime = self.netlist.normalizedClkPeriod
+        clkPeriod: SchedTime = n.netlist.normalizedClkPeriod
         # add nodes to st while asserting that it is from correct time
         if isinstance(n, HlsNetNodePartRef):
             if n._subNodes:
@@ -206,11 +206,11 @@ class HlsNetlistAnalysisPassDetectFsms(HlsNetlistAnalysisPass):
             if toRm:
                 st[:] = (n for n in st if n not in toRm)
 
-    def run(self):
-        ioDiscovery: HlsNetlistAnalysisPassIoDiscover = self.netlist.getAnalysis(HlsNetlistAnalysisPassIoDiscover)
+    def runOnHlsNetlist(self, netlist:"HlsNetlistCtx"):
+        ioDiscovery: HlsNetlistAnalysisPassIoDiscover = netlist.getAnalysis(HlsNetlistAnalysisPassIoDiscover)
         ioByInterface = ioDiscovery.ioByInterface
-        syncIslands: HlsNetlistAnalysisPassBetweenSyncIslands = self.netlist.getAnalysis(HlsNetlistAnalysisPassBetweenSyncIslands)
-        clkPeriod: SchedTime = self.netlist.normalizedClkPeriod
+        syncIslands: HlsNetlistAnalysisPassBetweenSyncIslands = netlist.getAnalysis(HlsNetlistAnalysisPassBetweenSyncIslands)
+        clkPeriod: SchedTime = netlist.normalizedClkPeriod
 
         def floodPredicateExcludeOtherIoWithOwnFsm(n: HlsNetNode):
             if isinstance(n, HlsNetNodeRead):

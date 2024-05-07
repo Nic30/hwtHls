@@ -14,8 +14,10 @@ from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
-from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
+from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod, \
+    offsetInClockCycle
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
+from hwtHls.netlist.nodes.archElementNoSync import ArchElementNoSync
 
 
 class HlsNetlistPassConsystencyCheck(HlsNetlistPass):
@@ -182,16 +184,27 @@ class HlsNetlistPassConsystencyCheck(HlsNetlistPass):
             srcElm: ArchElement
             for srcTime, oInside, o, uses in zip(srcElm.scheduledOut, srcElm._outputsInside, srcElm._outputs, srcElm.usedBy):
                 assert uses, o
-                assert oInside.scheduledIn == (srcTime, ), (oInside.scheduledIn, srcTime, oInside,
+                assert oInside.scheduledIn == (srcTime,), (oInside.scheduledIn, srcTime, oInside,
                                                             "Aggregate output port must have same time inside and outside of element")
+                # check all inputs connected to this output o
                 for u in uses:
                     u: HlsNetNodeIn
                     dstElm: ArchElement = u.obj
                     ii = dstElm._inputsInside[u.in_i]
                     assert ii._outputs[0]._dtype == o._dtype, (
                         "Aggregate port must have same type as its driver", ii._outputs[0]._dtype, o._dtype, ii, o)
-                    assert (dstElm.scheduledIn[u.in_i], ) == ii.scheduledOut, (
-                        dstElm.scheduledIn[u.in_i],  ii.scheduledOut, ii, "Aggregate input port must have same time inside and outside of element")
+                    dstIsNoSyncElm = isinstance(dstElm, ArchElementNoSync)
+                    # check that dst port and port internally inside of dst has correct time
+                    if dstIsNoSyncElm:
+                        assert dstElm.scheduledZero == 0
+                        t = offsetInClockCycle(dstElm.scheduledIn[u.in_i], clkPeriod)
+                        assert ii.scheduledOut == (t,), (
+                            "ArchElementNoSync instance internal input ports should all be scheduled to offset in clock cycle",
+                            u, ii.scheduledOut, t)
+                    else:
+                        dstPortTime = dstElm.scheduledIn[u.in_i]
+                        assert (dstPortTime,) == ii.scheduledOut, (
+                            dstPortTime, ii.scheduledOut, ii, "Aggregate input port must have same time inside and outside of element")
 
                 if HdlType_isVoid(o._dtype):
                     continue
@@ -205,7 +218,7 @@ class HlsNetlistPassConsystencyCheck(HlsNetlistPass):
                         o, inp, srcTime, dstTime, clkPeriod)
                     assert isinstance(dstElm, ArchElement), inp
 
-    def apply(self, hls:"HlsScope", netlist: HlsNetlistCtx, removed: Optional[Set[HlsNetNode]]=None):
+    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx, removed: Optional[Set[HlsNetNode]]=None):
         if removed is None:
             removed = netlist.builder._removedNodes
         self._checkConnections(netlist, removed)

@@ -1,3 +1,4 @@
+from itertools import islice
 from typing import Union, List, Tuple, Literal
 
 from hwt.hdl.value import HValue
@@ -37,13 +38,13 @@ class INVARIANT_TIME():
 class TimeIndependentRtlResource():
     """
     Container of resource which manages access to resource
-    in different times
+    in different times.
 
     (dynamically generates register chains and synchronization
      to pass values to specified clk periods)
 
 
-    :ivar timeOffset: number of clock form start when valid data appears on "signal"
+    :ivar timeOffset: scheduling time when valid data appears on "signal"
         (constant INVARIANT_TIME is used if input signal is constant
         and does not require any registers and synchronizations)
     :ivar allocator: ArchElement instance to generate registers an synchronization logic
@@ -54,16 +55,21 @@ class TimeIndependentRtlResource():
     :ivar isExplicitRegister: A flag which means that the beginning of life of this resource is a register
         which is instantiated at the time of the beginning and the synchronization from that time should be injected
         into register load logic.
+    :ivar isForwardDeclr: The first value is forward declaration which will be replaced or driver will be added once it is resolved.
+    :ivar mayChangeOutOfCfg: The first value may change from places which were not present in original CFG and thus the value
+        must be copied if used in different time than the first one.
     """
 
     # time constant, which means that item is not time dependent
     # and can be accessed any time
-    __slots__ = ["timeOffset", "allocator", "valuesInTime", "persistenceRanges"]
+    __slots__ = ["timeOffset", "allocator", "valuesInTime", "persistenceRanges", "isForwardDeclr", "mayChangeOutOfCfg"]
 
     def __init__(self, data: Union[RtlSignal, Interface, HValue],
                  timeOffset: Union[int, Literal[INVARIANT_TIME]],
                  allocator: "ArchElement",
-                 isExplicitRegister: bool):
+                 isExplicitRegister: bool,
+                 isForwardDeclr: bool,
+                 mayChangeOutOfCfg: bool):
         """
         :param data: signal with value in initial time
         """
@@ -74,14 +80,24 @@ class TimeIndependentRtlResource():
         self.valuesInTime: List[TimeIndependentRtlResourceItem] = [
             TimeIndependentRtlResourceItem(self, data, isExplicitRegister),
         ]
+        if timeOffset is not INVARIANT_TIME:
+            self.allocator.connections.getForTime(self.timeOffset).signals.append(self.valuesInTime[0])
         self.persistenceRanges: List[Tuple[int, int]] = []
+        self.isForwardDeclr = isForwardDeclr
+        self.mayChangeOutOfCfg = mayChangeOutOfCfg
 
-    def _isInPersistenceRanges(self, clk_i: int):
+    def markPersistent(self, beginClkIndex: int, endClkIndex: int):
+        if self.persistenceRanges:
+            raise NotImplementedError()
+        else:
+            self.persistenceRanges.append((beginClkIndex, endClkIndex))
+
+    def _isInPersistenceRanges(self, clkIndex: int):
         for low, high in self.persistenceRanges:
-            if clk_i < low:
-                continue
+            if clkIndex < low:
                 # before cur. range
-            elif high < clk_i:
+                continue
+            elif high < clkIndex:
                 # after cur. range
                 return False
             else:
@@ -98,15 +114,21 @@ class TimeIndependentRtlResource():
         # if time is first time in live of this value return original signal
         if self.timeOffset is INVARIANT_TIME:
             return self.valuesInTime[0]
-        time += self.allocator.netlist.scheduler.epsilon
+        try:
+            assert time >= self.timeOffset, ("This resource does not yet exist in requested time", time, ">=", self.timeOffset, self)
+        except:
+            raise
+        netlist = self.allocator.netlist
+        #epsilon = netlist.scheduler.epsilon
+        #time += epsilon
         if self.timeOffset == time:
             return self.valuesInTime[0]
 
         # else try to look up register for this signal in valuesInTime cache
-        clkPeriod = self.allocator.netlist.normalizedClkPeriod
-        dstClkPeriod = start_clk(time, clkPeriod)
-        index = dstClkPeriod - \
-            start_clk(self.timeOffset, clkPeriod)
+        clkPeriod = netlist.normalizedClkPeriod
+        dstClkClkIndex = start_clk(time, clkPeriod)
+        startClkIndex = start_clk(self.timeOffset, clkPeriod)
+        index = dstClkClkIndex - startClkIndex
         assert index >= 0, (index, self.timeOffset, time, self.valuesInTime[0])
         try:
             return self.valuesInTime[index]
@@ -115,26 +137,46 @@ class TimeIndependentRtlResource():
 
         # allocate registers to propagate value into next cycles
         sig = self.valuesInTime[0]
-        prev = self.valuesInTime[-1]
-        requestedRegCnt = index + 1
-        actualTimesCnt = len(self.valuesInTime)
 
         # HValue instance should have never get the there
         if isinstance(sig.data, Interface):
             name = sig.data._getHdlName()
         else:
             name = sig.data.name
-        # allocate specified number of registers to pass value to specified pieline stage
-        regsToAdd = requestedRegCnt - actualTimesCnt
-        for i in reversed(range(regsToAdd)):
-            if self._isInPersistenceRanges(dstClkPeriod - i):
-                cur = self.valuesInTime[-1]
-                assert cur.isRltRegister(), cur
-            else:
-                reg = self.allocator._reg(f"{name:s}_delayTo{dstClkPeriod - i:d}",
+        # allocate specified number of registers to pass value to specified pipeline stage
+
+        prev = self.valuesInTime[-1]
+        connections = self.allocator.connections
+
+        actualTimesCnt = len(self.valuesInTime)
+        assert actualTimesCnt >= 0, (self, actualTimesCnt, "This should be initialized with at least one item.")
+        firstRegClkIndex = None
+        if self.persistenceRanges:
+            firstAfterPersistentRangeBegin = self.persistenceRanges[0][0]
+            for clkI, con in islice(enumerate(connections), firstAfterPersistentRangeBegin, None):
+                if con is not None:
+                    firstRegClkIndex = clkI
+                    break
+        for clkI in range(startClkIndex + actualTimesCnt, dstClkClkIndex + 1):
+            isMarkedPersistent = self._isInPersistenceRanges(clkI + 1)
+            cur = self.valuesInTime[-1]
+            # :note: valuesInTime[0] was input signal
+            #        valuesInTime[n] is first register (n is index of first clock window after 0 used by parent - startClkIndex)
+            #        valuesInTime[n:] is reference to this register
+            if not isMarkedPersistent or (firstRegClkIndex is not None and firstRegClkIndex == clkI):
+                # create next register in register pipeline
+                reg = self.allocator._reg(f"{name:s}_delayTo{clkI:d}",
                                           dtype=sig.data._dtype)
-                reg(prev.data)
-                cur = TimeIndependentRtlResourceItem(self, reg, False)
+                # can not use prev.data directly as a reg.next because this assignment (reg.next = prev.data)
+                # will be used to control
+                reg.next(prev.data)
+                cur = TimeIndependentRtlResourceItem(self, reg, True)
+
+            con = connections.getForClkIndex(clkI, allowNone=True)
+            if con is not None:
+                # if time is managed by parent element
+                sigs = con.signals
+                sigs.append(cur)
 
             self.valuesInTime.append(cur)
             prev = cur

@@ -1,15 +1,17 @@
 from typing import Dict, Union, Tuple
 
-from hwtHls.architecture.allocator import HlsAllocator
-from hwtHls.architecture.archElement import ArchElement
-from hwtHls.architecture.archElementFsm import ArchElementFsm
-from hwtHls.architecture.archElementPipeline import ArchElementPipeline
 from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
+from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.hdlTypeVoid import HVoidOrdering
+from hwtHls.netlist.nodes.archElement import ArchElement
+from hwtHls.netlist.nodes.archElementFsm import ArchElementFsm
+from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge, \
     HlsNetNodeReadBackedge
-from hwtHls.netlist.nodes.orderable import HVoidOrdering
-from hwtHls.netlist.nodes.ports import HlsNetNodeOut
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn, \
+    unlink_hls_nodes
 from hwtHls.netlist.scheduler.clk_math import start_clk
+from hwtHls.netlist.nodes.archElementNoSync import ArchElementNoSync
 
 
 class RtlArchPassLoopControlPrivatization(RtlArchPass):
@@ -25,35 +27,49 @@ class RtlArchPassLoopControlPrivatization(RtlArchPass):
         can be skipped when converting pipeline to FSM would be very computationally complex.
     """
 
-    def apply(self, hls:"HlsScope", allocator:HlsAllocator):
+    @staticmethod
+    def _removeOrderingInputsViolatingScheduling(w: HlsNetNodeWriteBackedge):
+        portsToRemove = []
+        for inp, inpTime, dep in zip(w._inputs, w.scheduledIn, w.dependsOn):
+            if dep._dtype is HVoidOrdering:
+                depTime = dep.obj.scheduledOut[dep.out_i]
+                if depTime > inpTime:
+                    portsToRemove.append(inp)
+                    unlink_hls_nodes(dep, inp)
+
+        for port in portsToRemove:
+            port: HlsNetNodeIn
+            w._removeInput(port.in_i)
+
+    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
         ownerOfControl: Dict[Union[HlsNetNodeWriteBackedge, HlsNetNodeReadBackedge],
                              Tuple[ArchElement, int]] = {}
         toSearch: HlsNetNodeWriteBackedge = []
-        for elm in allocator._archElements:
+        for elm in netlist.nodes:
             elm: ArchElement
-            assert elm.interArchAnalysis is None, "This must be done before IAEA analysis because this does not update it"
+            assert isinstance(elm, ArchElement), elm
             if isinstance(elm, ArchElementFsm):
                 # transition table at this point should not be optimized yet
                 states = elm.fsm.states
 
             elif isinstance(elm, ArchElementPipeline):
                 states = elm.stages
-
+            elif isinstance(elm, ArchElementNoSync):
+                continue
             else:
                 raise NotImplementedError(elm)
 
             for stI, st in enumerate(states):
                 for n in st:
                     if isinstance(n, HlsNetNodeReadBackedge):
-                        assert n not in ownerOfControl, n
+                        assert n not in ownerOfControl, (n, ownerOfControl[n], (elm, stI))
                         ownerOfControl[n] = (elm, stI)
 
                     elif isinstance(n, HlsNetNodeWriteBackedge):
-                        assert n not in ownerOfControl, n
+                        assert n not in ownerOfControl, (n, ownerOfControl[n], (elm, stI))
                         ownerOfControl[n] = (elm, stI)
                         toSearch.append(n)
 
-        netlist = allocator.netlist
         scheduler = netlist.scheduler
         epsilon = scheduler.epsilon
         clkPeriod = netlist.normalizedClkPeriod
@@ -89,46 +105,49 @@ class RtlArchPassLoopControlPrivatization(RtlArchPass):
                 removeFromTail = False
                 if isinstance(headerElm, ArchElementFsm):
                     headerElm: ArchElementFsm
-                    if jumpSrcVal.obj in headerElm.allNodes or (
+                    if jumpSrcVal.obj in headerElm._subNodes or (
                             jumpSrcValStI >= headerElm._beginClkI and
                             jumpSrcValStI <= headerElm._endClkI):
                         if headerElm is tailElm and wStI == len(headerElm.fsm.states) - 1:
                             pass  # skip moving to same stage in the same element
                         else:
-                            headerElm.allNodes.append(w)
+                            headerElm._subNodes.append(w)
                             headerElm.fsm.states[-1].append(w)
                             t = (headerElm._endClkI + 1) * clkPeriod - ffdelay
                             assert wMinTime <= t, (w, wMinTime, t)
-                            w.scheduledIn = tuple(t for _ in w._inputs)
-                            w.scheduledOut = tuple(t + epsilon for _ in w._outputs)
+                            w.moveSchedulingTime(t - w.scheduledZero)
                             removeFromTail = True
 
                 elif isinstance(headerElm, ArchElementPipeline):
-                    if jumpSrcVal.obj in headerElm.allNodes:
-                        headerElm.allNodes.append(w)
+                    if jumpSrcVal.obj in headerElm._subNodes:
+                        headerElm._subNodes.append(w)
                         t = max(wMinTime, jumpSrcValT)
                         newStI = start_clk(t, clkPeriod)
                         if newStI != wStI:
-                            w.scheduledIn = tuple(t for _ in w._inputs)
-                            w.scheduledOut = tuple(t + epsilon for _ in w._outputs)
+                            w.moveSchedulingTime(t - w.scheduledZero)
                             headerElm.stages[newStI].append(w)
                             removeFromTail = True
                 else:
                     raise NotImplementedError(headerElm)
 
                 if removeFromTail:
+                    # disconnect all ordering inputs which are not satisfying timing because we have just moved
+                    # the node ignoring void connections
+                    self._removeOrderingInputsViolatingScheduling(w)
+
                     if isinstance(tailElm, ArchElementFsm):
                         # rm write node from current element
                         if headerElm is not tailElm:
-                            tailElm.allNodes.remove(w)
+                            tailElm._subNodes.remove(w)
                         tailElm.fsm.states[wStI].remove(w)
                         if wStI != len(tailElm.fsm.states) - 1:
-                            raise NotImplementedError("This jump in CFG was not in last state and can be used to optimize tailElm but we now removed it, we should add a local version of this instead", w)
+                            raise NotImplementedError("This jump in CFG was not in last state and can be used to optimize tailElm"
+                                                      " but we now removed it, we should add a local version of this instead", w)
 
                     elif isinstance(tailElm, ArchElementPipeline):
                         if headerElm is not tailElm:
-                            tailElm.allNodes.remove(w)
+                            tailElm._subNodes.remove(w)
                         tailElm.stages[wStI].remove(w)
                     else:
                         raise NotImplementedError(headerElm)
-
+                w.checkScheduling()

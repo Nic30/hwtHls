@@ -69,8 +69,8 @@ class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
       if read waits on resolution of sync or data loose if the data was read before it was resolved that data should be read.
     """
 
-    def __init__(self, netlist: "HlsNetlistCtx"):
-        HlsNetlistAnalysisPass.__init__(self, netlist)
+    def __init__(self):
+        super(HlsNetlistAnalysisPassSyncDomains, self).__init__()
         self.ioSccs: List[UniqList[HlsNetNode]] = []
         self.syncOfNode: Dict[HlsNetNode, Set[HlsNetNodeAnySync]] = {}
         self.syncDomains: Dict[List[Tuple[SyncGroupLabel, UniqList[HlsNetNode]]]] = {}
@@ -228,7 +228,7 @@ class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
                 sync = syncOfNode[syncNode] = set()
             sync.add(syncNode)
 
-    def _discoverSyncAssociationsDefToUse(self):
+    def _discoverSyncAssociationsDefToUse(self, netlist:"HlsNetlistCtx"):
         """
         Collect all associations of sync nodes to all nodes.
         Start search on HlsNetNodeAnySync instances and walk circuit in def to use direction
@@ -238,7 +238,7 @@ class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
         This must be also done transitively. If node with > 1 clk delay has some predecessors the nodes
         which does have bout this node and its predecessor
         """
-        getNodeIteratorFn = lambda : self.netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.OMMIT_PARENT)
+        getNodeIteratorFn = lambda: netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.OMMIT_PARENT)
         syncOfNode = self.syncOfNode = {n: set() for n in getNodeIteratorFn()}
         allSyncs: List[HlsNetNodeAnySync] = []
         allDelays: List[HlsNetNodeDelayClkTick] = []
@@ -249,7 +249,7 @@ class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
                     allDelays.append(syncNode)
 
                 continue
-            
+
             syncNode: HlsNetNodeExplicitSync
             allSyncs.append(syncNode)
             self._discoverSyncUsers(syncNode, syncOfNode)
@@ -270,7 +270,7 @@ class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
         for scc in sgcc.mergeSyncGroupsToClusters(syncGroups, syncDomains, syncGroupOfNode):
             ioSccs.append(scc)
 
-    def run(self):
+    def runOnHlsNetlistImpl(self, netlist:"HlsNetlistCtx"):
         assert not self.ioSccs  # and not self.syncUses, "Must be run only once."
         # The naive discovery algorithm for the sync associated to IO operation mapping has O(|nodes|*|edges|) time complexity.
         # Commonly the |nodes| > 10k and |edges| > 30K, that said the time complexity is prohibitively large.
@@ -278,6 +278,6 @@ class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
         # and walk only in the direction to a read (defs).
 
         # :note: If the value for read is not in the dict it means that there is no extra sync for this read.
-        self._discoverSyncAssociationsDefToUse()
+        self._discoverSyncAssociationsDefToUse(netlist)
         self._discoverSyncDomains()
 
