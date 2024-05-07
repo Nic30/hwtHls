@@ -342,13 +342,14 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                 exitForHeaderW: HlsNetNodeWriteBackedge = exitForHeaderR.obj.associatedWrite
                 # this channel will asynchronously notify loop header, it is not required
                 # to have ready sync signal
+                exitForHeaderW._isBlocking = False
                 exitForHeaderW.allocationType = BACKEDGE_ALLOCATION_TYPE.IMMEDIATE
                 exitForHeaderW._rtlUseReady = exitForHeaderR.obj._rtlUseReady = False
                 # exitForHeaderW._rtlUseValid = exitForHeaderR.obj._rtlUseValid = False
 
                 self._addExtraCond(exitForHeaderW, controlOrig, eMbSync.blockEn)
-                # skipWhen is not required because rtlUseReady = False
-                # self._addSkipWhen_n(exitForHeaderW, controlOrig, eMbSync.blockEn)
+                # skipWhen is required because we do not want this to stall parent stage
+                self._addSkipWhen_n(exitForHeaderW, controlOrig, eMbSync.blockEn)
                 # w.channelInitValues = ((0,),)
                 lcg = LoopChanelGroup([(exitBlock.getNumber(),
                                         exitSucBlock.getNumber(),
