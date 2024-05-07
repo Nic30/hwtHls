@@ -94,10 +94,12 @@ def netlistReduceLoopWithoutEnterAndExit(dbgTracer: DebugTracer, n: HlsNetNodeLo
             exitW: HlsNetNodeWriteBackedge = exitG.getChannelWhichIsUsedToImplementControl()
             # promote to a regular channel with an init
             exitW.allocationType = BACKEDGE_ALLOCATION_TYPE.BUFFER 
-            assert not exitW.channelInitValues
+            assert not exitW.channelInitValues, exitW
             assert HdlType_isVoid(exitW._outputs[0]._dtype), exitW
-            exitW.channelInitValues = (tuple(),)
+            exitW.channelInitValues = (tuple(),) # add one token to start the loop 
             exitR: HlsNetNodeReadBackedge = exitW.associatedRead
+            assert not exitR._isBlocking, exitR
+            exitR._isBlocking = True
 
             reenterControl.addControlSerialSkipWhen(builder.buildNot(exitR.getValidNB()))
 
