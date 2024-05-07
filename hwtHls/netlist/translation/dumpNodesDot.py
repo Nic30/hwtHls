@@ -30,6 +30,12 @@ from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.platform.fileUtils import OutputStreamGetter
 
+COLOR_INPUT_READ = "LightGreen"
+COLOR_OUTPUT_WRITE = "LightBlue"
+COLOR_SYNC_INTERNAL = "Chartreuse"  # bright type of green
+COLOR_SPECIAL_PURPOSE = "MediumSpringGreen"
+COLOR_TEMPORARY_NODE = "LightCoral"
+
 
 class HwtHlsNetlistToGraphwiz():
     """
@@ -53,34 +59,41 @@ class HwtHlsNetlistToGraphwiz():
         self._parentOfNode: Dict[HlsNetNode, Tuple[HlsNetNodeAggregate, int]] = {}
 
     def _constructLegend(self):
-        legendTable = """<
+        legendTable = f"""<
 <table border="0" cellborder="1" cellspacing="0">
-  <tr><td bgcolor="LightGreen">HlsNetNodeRead, HlsNetNodeReadSync</td></tr>
-  <tr><td bgcolor="LightBlue">HlsNetNodeWrite</td></tr>
+  <tr><td bgcolor="{COLOR_INPUT_READ:s}">HlsNetNodeRead, HlsNetNodeReadSync</td></tr>
+  <tr><td bgcolor="{COLOR_OUTPUT_WRITE:s}">HlsNetNodeWrite</td></tr>
   <tr><td bgcolor="plum">HlsNetNodeConst</td></tr>
-  <tr><td bgcolor="Chartreuse">HlsNetNodeExplicitSync</td></tr>
-  <tr><td bgcolor="MediumSpringGreen">HlsNetNodeLoopStatus, HlsProgramStarter</td></tr>
+  <tr><td bgcolor="{COLOR_SYNC_INTERNAL:s}">HlsNetNodeExplicitSync</td></tr>
+  <tr><td bgcolor="{COLOR_SPECIAL_PURPOSE:s}">HlsNetNodeLoopStatus, HlsProgramStarter</td></tr>
   <tr><td bgcolor="gray">shadow connection</td></tr>
-  <tr><td bgcolor="LightCoral">HlsNetNodeOutLazy</td></tr>
+  <tr><td bgcolor="{COLOR_TEMPORARY_NODE:s}">HlsNetNodeOutLazy</td></tr>
+  <tr><td bgcolor="gray">HlsNetNodeAggregatePortIn/Out</td></tr>
+  <tr><td bgcolor="gray">HlsNetNodeIoClusterCore</td></tr>
 </table>>"""
         return pydot.Node("legend", label=legendTable, style='filled', shape="plain")
 
     def _getColor(self, obj: Union[HlsNetNode, HlsNetNodeOutLazy]):
+        color = "black"
+        bgcolor = "white"
         if isinstance(obj, HlsNetNodeOutLazy):
-            color = "LightCoral"
+            bgcolor = COLOR_TEMPORARY_NODE
         elif isinstance(obj, (HlsNetNodeRead, HlsNetNodeReadSync)):
-            color = "LightGreen"
+            bgcolor = COLOR_INPUT_READ
         elif isinstance(obj, HlsNetNodeWrite):
-            color = "LightBlue"
+            bgcolor = COLOR_OUTPUT_WRITE
         elif isinstance(obj, HlsNetNodeConst):
-            color = "plum"
+            bgcolor = "plum"
         elif isinstance(obj, HlsNetNodeExplicitSync):
-            color = "Chartreuse"
+            bgcolor = COLOR_SYNC_INTERNAL
         elif isinstance(obj, (HlsNetNodeLoopStatus, HlsProgramStarter)):
-            color = "MediumSpringGreen"
-        else:
-            color = "white"
-        return color
+            bgcolor = COLOR_SPECIAL_PURPOSE
+        elif isinstance(obj, (HlsNetNodeAggregatePortIn, HlsNetNodeAggregatePortOut)):
+            color = "gray"
+        elif isinstance(obj, HlsNetNodeIoClusterCore):
+            color = 'gray'
+
+        return bgcolor, color
 
     def _getNewNodeId(self):
         i = self.nodeCounter
