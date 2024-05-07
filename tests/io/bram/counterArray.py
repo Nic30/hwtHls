@@ -11,17 +11,16 @@ from hwt.interfaces.utils import addClkRstn, propagateClkRstn
 from hwt.math import log2ceil
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
+from hwtHls.architecture.transformation.utils.memoryAccessUtils import detectReadModifyWrite, \
+    ArchImplementStaling, ArchImplementWriteForwarding
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.ioProxyAddressed import IoProxyAddressed
-from hwtHls.frontend.pyBytecode.markers import PyBytecodeLLVMLoopUnroll, \
-    PyBytecodeInline
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
-from hwtHls.io.bram import BramArrayProxy, HlsNetNodeWriteBramCmd
+from hwtHls.io.bram import BramArrayProxy
 from hwtHls.io.portGroups import MultiPortGroup
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.scope import HlsScope
 from hwtLib.mem.ram import RamSingleClock
-from hwtHls.netlist.nodes.schedulableNode import SchedTime
+from tests.frontend.pyBytecode.stmWhile import TRUE
 
 
 class BramCounterArray0nocheck(Unit):
@@ -51,7 +50,7 @@ class BramCounterArray0nocheck(Unit):
         i = Bits(ram.indexT.bit_length()).from_py(0)
         # [todo] if bit slicing is used on i, the llvm generates uglygep because it is not recognizing
         # the bit slicing and this ugly GEP uses 64b pinter type
-        while BIT.from_py(1):
+        while TRUE:
             hls.write(0, ram[i])
             if i._eq(self.ITEMS - 1):
                 break
@@ -61,7 +60,7 @@ class BramCounterArray0nocheck(Unit):
     def mainThread(self, hls: HlsScope, ram: BramArrayProxy):
         # reset
         # PyBytecodeInline(self.resetRam)(hls, ram)
-        while BIT.from_py(1):
+        while TRUE:
             index = hls.read(self.incr).data
             # The ram[index] can not be read until write is finished or there is an LSU to update read data later
             d = hls.read(ram[index]).data + 1
@@ -71,7 +70,7 @@ class BramCounterArray0nocheck(Unit):
     def _impl(self) -> None:
         propagateClkRstn(self)
         hls = HlsScope(self)
-        ram = BramArrayProxy(hls, MultiPortGroup(*self.ram.port))
+        ram = BramArrayProxy(hls, MultiPortGroup(self.ram.port))
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, ram)
         hls.addThread(mainThread)
         hls.compile()
@@ -79,7 +78,7 @@ class BramCounterArray0nocheck(Unit):
             "Intended only for 2 cycle operation", len(hls._threads[0].toHw.scheduler.resourceUsage))
 
 
-class BramCounterArray1hardcodedlsu(BramCounterArray0nocheck):
+class BramCounterArray1hardcodedWriteForwarding(BramCounterArray0nocheck):
     """
     Array counter with manually instantiated LSU for 1 clock write->read latency
     """
@@ -91,7 +90,7 @@ class BramCounterArray1hardcodedlsu(BramCounterArray0nocheck):
         lastVld = BIT.from_py(0)
         lastAddr = self.incr.data._dtype.from_py(None)
         lastData = ram.nativeType.element_t.from_py(None)
-        while BIT.from_py(1):
+        while TRUE:
             index = hls.read(self.incr).data
             # The ram[index] can not be read until write is finished or there is an LSU to update read data later
             d = hls.read(ram[index]).data
@@ -113,51 +112,44 @@ class BramCounterArray3stall(BramCounterArray0nocheck):
     from block where read is.
     """
 
+    def _impl(self) -> None:
+        propagateClkRstn(self)
+        hls = HlsScope(self)
+        ram = BramArrayProxy(hls, MultiPortGroup(self.ram.port))
+        mainThread = HlsThreadFromPy(hls, self.mainThread, hls, ram)
 
-class BramCounterArray3autoLsu(BramCounterArray0nocheck):
+        def implementStaling(hls: HlsScope, thread: HlsThreadFromPy):
+            netlist: HlsNetlistCtx = thread.toHw
+            return ArchImplementStaling(netlist, ram)
+
+        mainThread.archNetlistCallbacks.append(implementStaling)
+        hls.addThread(mainThread)
+        hls.compile()
+        assert len(hls._threads[0].toHw.scheduler.resourceUsage) == 2, (
+            "Intended only for 2 cycle operation", len(hls._threads[0].toHw.scheduler.resourceUsage))
+
+
+class BramCounterArray4WriteForwarding(BramCounterArray0nocheck):
     """
     Array counter with automatically instantiated LSU for write->read latency.
     """
 
-    @staticmethod
-    def detectBramRMW(ram: BramArrayProxy, netlist: HlsNetlistCtx):
-        r = None
-        w = None
-        for o in netlist.outputs:
-            if o.dst is ram.interface[0]:
-                assert o.cmd == READ
-                r = o
-            elif o.dst is ram.interface[1]:
-                assert o.cmd == WRITE
-                w = o
-        assert r is not None
-        assert w is not None
-        clkPeriod: SchedTime = r.netlist.normalizedClkPeriod
-        r: HlsNetNodeWriteBramCmd
-        w: HlsNetNodeWriteBramCmd
+    def _impl(self) -> None:
+        propagateClkRstn(self)
+        hls = HlsScope(self)
+        ram = BramArrayProxy(hls, MultiPortGroup(self.ram.port))
+        mainThread = HlsThreadFromPy(hls, self.mainThread, hls, ram)
 
-        rAddr = r.dependsOn[1]
-        wAddr = w.dependsOn[1]
-        assert rAddr is wAddr, (rAddr, wAddr)
-        rToWClkDiff = (w.scheduledIn[1] // clkPeriod) - (r.scheduledIn[1] // clkPeriod)
-        assert rToWClkDiff >= 0
-        return r, w, rToWClkDiff
+        def implementWriteForwarding(hls: HlsScope, thread: HlsThreadFromPy):
+            netlist: HlsNetlistCtx = thread.toHw
+            return ArchImplementWriteForwarding(netlist, ram)
 
-    def createGenerateLSU(self, ram: BramArrayProxy, runHlsNetlistPostSchedulingPasses: Callable[[HlsScope, HlsNetlistCtx], bool]):
+        mainThread.archNetlistCallbacks.append(implementWriteForwarding)
+        hls.addThread(mainThread)
+        hls.compile()
+        assert len(hls._threads[0].toHw.scheduler.resourceUsage) == 2, (
+            "Intended only for 2 cycle operation", len(hls._threads[0].toHw.scheduler.resourceUsage))
 
-        def createLSU(hls: HlsScope, netlist: HlsNetlistCtx):
-            """
-            If the write and read is not immediate create the circuit which updates read data with just written based on address
-            (Load-Store Unit).
-            """
-            modified = runHlsNetlistPostSchedulingPasses(hls, netlist)
-            r, w, rToWClkDiff = self.detectBramRMW(ram, netlist)
-            # create last N address pipeline
-            raise NotImplementedError()
-
-            return modified
-
-        return createLSU
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope, ram: BramArrayProxy):
@@ -165,7 +157,7 @@ class BramCounterArray3autoLsu(BramCounterArray0nocheck):
         # PyBytecodeInline(self.resetRam)(hls, ram)
         p = hls.parentUnit._target_platform
         p.runHlsNetlistPostSchedulingPasses = self.createGenerateLSU(ram, p.runHlsNetlistPostSchedulingPasses)
-        while BIT.from_py(1):
+        while TRUE:
             index = hls.read(self.incr).data
             # The ram[index] can not be read until write is finished or there is an LSU to update read data later
             d = hls.read(ram[index]).data + 1
@@ -178,7 +170,7 @@ if __name__ == "__main__":
     from hwt.synthesizer.utils import to_rtl_str
     from hwtHls.platform.xilinx.artix7 import Artix7Slow
     from hwtHls.platform.platform import HlsDebugBundle
-    u = BramCounterArray1hardcodedlsu()
+    u = BramCounterArray4WriteForwarding()
     u.CLK_FREQ = int(10e6)
     print(to_rtl_str(u, target_platform=Artix7Slow(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
