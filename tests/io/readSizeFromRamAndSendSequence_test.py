@@ -17,7 +17,10 @@ class ReadSizeFromRamAndSendSequence_TC(SimTestCase):
         u = ReadSizeFromRamAndSendSequence()
         u.CLK_FREQ = int(FREQ)
         CLK = 12
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
+        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform(debugFilter={
+        #    HlsDebugBundle.DBG_20_addSignalNamesToSync,
+        #    HlsDebugBundle.DBG_20_addSignalNamesToData
+        }))
         indexLenTuples = [
             (3, 4),
             (2, 1),
@@ -25,6 +28,7 @@ class ReadSizeFromRamAndSendSequence_TC(SimTestCase):
         ]
         u.index._ag.presetBeforeClk = True
         u.index._ag.data.extend(i for i, _ in indexLenTuples)
+        u.index._ag.presetBeforeClk = True
         u.ram._ag.mem.update({i: v for i, v in indexLenTuples})
 
         self.runSim(CLK * int(freq_to_period(FREQ)))
@@ -40,7 +44,11 @@ if __name__ == "__main__":
     from hwtHls.platform.platform import HlsDebugBundle
     u = ReadSizeFromRamAndSendSequence()
     u.CLK_FREQ = int(50e6)
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter={
+        *HlsDebugBundle.ALL_RELIABLE,
+    #    HlsDebugBundle.DBG_20_addSignalNamesToSync,
+    #    HlsDebugBundle.DBG_20_addSignalNamesToData
+    })))
 
     import unittest
     testLoader = unittest.TestLoader()

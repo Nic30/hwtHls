@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.hdl.types.defs import BIT
 from hwt.interfaces.std import BramPort_withoutClk, Handshaked
 from hwt.interfaces.utils import addClkRstn
 from hwt.synthesizer.param import Param
@@ -10,6 +9,7 @@ from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.io.bram import BramArrayProxy
 from hwtHls.scope import HlsScope
+from tests.frontend.pyBytecode.stmWhile import TRUE
 
 
 class ReadSizeFromRamAndSendSequence(Unit):
@@ -34,10 +34,10 @@ class ReadSizeFromRamAndSendSequence(Unit):
         """
         Read index to ram and send sequence of size stored at ram[index] (size-1 to 0)
         """
-        while BIT.from_py(1):
+        while TRUE:
             index = hls.read(self.index).data
             i = hls.read(ram[index]).data
-            while BIT.from_py(1):
+            while TRUE:
                 hls.write(i, self.out)
                 if i._eq(0):
                     break
