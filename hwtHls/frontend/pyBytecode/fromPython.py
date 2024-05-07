@@ -171,19 +171,19 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
             assert loopInfo.jumpsFromLoopBody, ("Preproc loop must have exit point", loopInfo.loop, frame.loopStack)
             loopExitsToTranslate: List[LoopExitJumpInfo] = []
             headerBlockLabels = []
-    
+
             # [FIXME] the CFG does contain exit jumps from previous iteration jumps which were not marked with notGenerated
             #        but LoopExitJumpInfo should be present
             while loopInfo.jumpsFromLoopBody:
                 # print("preprocessing loop", loopInfo.loop, loopInfo.jumpsFromLoopBody)
                 assert frame.loopStack[-1] is loopInfo, (loopInfo, frame.loopStack)
-    
+
                 # try to delegate jumps from this loop to parent loop
                 jumpsFromLoopBody = loopInfo.jumpsFromLoopBody
                 _jumpsFromLoopBody: List[Tuple[bool, LoopExitJumpInfo]] = []
                 for j in jumpsFromLoopBody:
                     j: LoopExitJumpInfo
-    
+
                     isLoopReenter = loopInfo.loop.entryPoint == j.dstBlockOffset
                     if not isLoopReenter and len(frame.loopStack) > 1:
                         parentLoop: PyBytecodeLoopInfo = frame.loopStack[-2]
@@ -191,26 +191,26 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
                             # if this jump is also jump from parent loop delegate it to parent loop
                             parentLoop.jumpsFromLoopBody.append(j)
                             continue
-    
+
                     _jumpsFromLoopBody.append((isLoopReenter, j))
-    
+
                 if not _jumpsFromLoopBody:
                     # everything was delegeted to parent and it should solve block sealing
                     break
-    
+
                 _jumpsFromLoopBody.sort(key=lambda x: not x[0])
-    
+
                 headerBlockLabel = blockTracker._getBlockLabel(loopInfo.loop.entryPoint)
                 headerBlockLabels.append(headerBlockLabel)
-    
+
                 loopInfo.markNewIteration()
-    
+
                 successorsToTranslate: List[Tuple[bool, LoopExitJumpInfo]] = []
                 for i, (isLoopReenter, j) in enumerate(_jumpsFromLoopBody):
                     srcBlockLabel = self.blockToLabel[j.srcBlock]
                     assert isinstance(srcBlockLabel, BlockLabel), srcBlockLabel
                     dstBlockLabel = blockTracker._getBlockLabel(j.dstBlockOffset)
-    
+
                     # update CFG after we resolved reenter or loop exit
                     if isLoopReenter:
                         blockTracker.cfg.add_edge(srcBlockLabel, dstBlockLabel)
@@ -225,18 +225,18 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
                         # self._onBlockGenerated(frame, dstBlockLabel)
                     if self.debugCfgGen:
                         self._debugDump(frame)
-    
+
                     # translate only jump without actual translation of the blocks behind
                     sucInfo = self._translateJumpFromCurrentLoop(j.frame, False,
                            j.srcBlock, j.cond, j.dstBlockOffset, False, j.branchPlaceholder,
                            allowJumpToNextLoopIteration=True)
-    
+
                     assert frame.loopStack[-1] is loopInfo, (loopInfo, frame.loopStack)
                     if sucInfo is not None and sucInfo.dstBlockIsNew:
                         # if sucInfo is None or is not dstBlockIsNew it means that the jump was already translated
                         # and additional action is required
                         successorsToTranslate.append((isLoopReenter, sucInfo))
-    
+
                     # print(srcBlockLabel, "->", dstBlockLabel, " header:", headerBlockLabel)
                     if (srcBlockLabel != headerBlockLabel and
                             isLastJumpFromBlock([j for  (_, j) in _jumpsFromLoopBody], j.srcBlock, i) and
@@ -244,7 +244,7 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
                             ):
                         # because we we can not jump to a block from anywhere but loop header (because of structural programming)
                         self._onBlockGenerated(frame, srcBlockLabel)
-    
+
                 # process the jumps to next iteration and mark jumps from the loop for later processing
                 if len(successorsToTranslate) > 1:
                     assert len(set(id(j[1].frame) for j in successorsToTranslate)) == len(successorsToTranslate), (
@@ -252,7 +252,7 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
                         )
                 for isLoopReenter, sucInfo in successorsToTranslate:
                     sucInfo: LoopExitJumpInfo
-    
+
                     if isLoopReenter:
                         assert sucInfo.branchPlaceholder is None, sucInfo
                         self._translateBlockBody(sucInfo.frame, sucInfo.isExplicitLoopReenter, sucInfo.dstBlockLoops,
@@ -260,18 +260,18 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
                         assert sucInfo.frame.loopStack[-1] is loopInfo, (loopInfo, sucInfo.frame.loopStack)
                     else:
                         loopExitsToTranslate.append(sucInfo)
-    
+
             for headerBlockLabel in headerBlockLabels:
                 # we must do this after loop is fully expanded
                 # because we must not seal block where something in loop may be predecessor when the loop body does not exist yet
                 if headerBlockLabel not in blockTracker.generated:
                     self._onBlockGenerated(frame, headerBlockLabel)
-    
+
             if len(loopExitsToTranslate) > 1:
                 assert len(set(id(j.frame) for j in loopExitsToTranslate)) == len(loopExitsToTranslate), (
                     "Each jump must have own version of frame because multiple jumps could be only generated for HW evaluated jumps which do require copy of frame"
                     )
-    
+
             frame.exitLoop()
             for sucInfo in loopExitsToTranslate:
                 sucInfo: LoopExitJumpInfo

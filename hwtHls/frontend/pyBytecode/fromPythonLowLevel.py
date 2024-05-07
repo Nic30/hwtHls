@@ -21,10 +21,11 @@ from hwtHls.frontend.pyBytecode.loopMeta import BranchTargetPlaceholder, \
     LoopExitJumpInfo
 from hwtHls.frontend.pyBytecode.loopsDetect import PreprocLoopScope
 from hwtHls.frontend.pyBytecode.utils import blockHasBranchPlaceholder
+from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.scope import HlsScope
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.value import SsaValue
-from hwtHls.netlist.debugTracer import DebugTracer
+
 
 JumpCondition = Union[None, HValue, RtlSignal, SsaValue, Literal[False]]
 
