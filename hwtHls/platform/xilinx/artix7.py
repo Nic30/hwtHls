@@ -5,6 +5,8 @@ from hwt.hdl.operatorDefs import AllOps
 from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF, RtlResourceType
 from hwtHls.platform.interpolations import Spline, ResourceSplineBundle
 from hwtHls.platform.xilinx.abstract import AbstractXilinxPlatform
+from hwtHls.code import OP_ASHR, OP_LSHR, OP_SHL, OP_CTLZ, OP_CTTZ, OP_CTPOP,\
+    OP_FSHL, OP_FSHR
 
 
 class Artix7Slow(AbstractXilinxPlatform):
@@ -53,6 +55,14 @@ class Artix7Slow(AbstractXilinxPlatform):
             AllOps.NOT: LogicGate,
             AllOps.MUL: MulnS,
             AllOps.TERNARY: MuxnS,
+            OP_ASHR: MuxnS,
+            OP_LSHR: MuxnS,
+            OP_SHL: MuxnS,
+            OP_CTLZ: MuxnS,
+            OP_CTTZ: MuxnS,
+            OP_CTPOP: MuxnS,
+            OP_FSHL: MuxnS,
+            OP_FSHR: MuxnS,
             ResourceFF: Sel
         }
 
