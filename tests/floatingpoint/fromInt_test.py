@@ -110,7 +110,9 @@ class IEEE754FpFromInt_TC(SimTestCase):
         if self.LOG_TIME:
             time0 = datetime.now()
         self.compileSimAndStart(u, target_platform=TestLlvmIrAndMirPlatform.forSimpleDataInDataOutUnit(
-            prepareDataInFn, checkDataOutFn, Path(self.DEFAULT_LOG_DIR, f"{self.getTestName()}"),
+            prepareDataInFn,
+            checkDataOutFn,
+            Path(self.DEFAULT_LOG_DIR, f"{self.getTestName()}"),
             debugLogTime=TestLlvmIrAndMirPlatform.logTimeToStdout if self.LOG_TIME else None,
         ))
         if self.LOG_TIME:
@@ -158,7 +160,7 @@ if __name__ == "__main__":
     #import cProfile
     #pr = cProfile.Profile()
     #pr.enable()
-    #
+    
     testLoader = unittest.TestLoader()
     # suite = unittest.TestSuite([IEEE754FpFromInt_TC('test_cmp_py')])
     suite = testLoader.loadTestsFromTestCase(IEEE754FpFromInt_TC)
