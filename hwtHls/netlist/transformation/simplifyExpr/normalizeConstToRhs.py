@@ -9,7 +9,6 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.transformation.simplifyUtils import replaceOperatorNodeWith
 
-
 BINARY_OPS_WITH_SWAPABLE_OPERANDS = {*BITWISE_OPS, *COMPARE_OPS, *ALWAYS_COMMUTATIVE_OPS}
 
 
@@ -23,10 +22,11 @@ def netlistNormalizeConstToRhs(n: HlsNetNodeOperator, worklist: UniqList[HlsNetN
             pass
         else:
             op = CMP_OP_SWAP[op]
-        
+
         newN = b.buildOp(op, n._outputs[0]._dtype, op1, op0)
         assert newN is not n
         replaceOperatorNodeWith(n, newN, worklist, removed)
+        worklist.append(newN.obj)
         return True
 
     return False
