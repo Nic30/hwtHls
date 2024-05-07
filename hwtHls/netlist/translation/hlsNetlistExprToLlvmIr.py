@@ -1,6 +1,7 @@
 from itertools import chain, islice
 from typing import List
 
+from hwt.hdl.operatorDefs import AllOps
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.frontend.ast.astToSsa import IoPortToIoOpsDictionary
 from hwtHls.llvm.llvmIr import Type, BasicBlock, PointerType, Argument, verifyFunction
@@ -8,7 +9,6 @@ from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
-from hwt.hdl.operatorDefs import AllOps
 
 
 class HlsNetlistExprToLlvmIr(ToLlvmIrTranslator):
