@@ -16,6 +16,11 @@ class HwtFpgaInst<
   let Pattern = pattern;
 }
 
+class HwtFpgaUnOp : HwtFpgaInst<
+    (outs anyregcls:$dst),
+    (ins unknown:$src),
+    []>;
+
 class HwtFpgaBinOp : HwtFpgaInst<
     (outs anyregcls:$dst),
     (ins unknown:$src0, unknown:$src1),
@@ -47,45 +52,72 @@ def HWTFPGA_MERGE_VALUES : HwtFpgaInst<
 }
 
 let hasSideEffects = 0 in {
-// bitwise inversion
-def HWTFPGA_NOT : HwtFpgaInst<
-    (outs anyregcls:$dst),
-    (ins anyregcls:$src),
-    []>;
-}
+	// bitwise inversion
+	def HWTFPGA_NOT : HwtFpgaUnOp;
+	
+	def HWTFPGA_GLOBAL_VALUE : HwtFpgaInst<
+	    (outs type0:$dst),
+	    (ins unknown:$src),
+	    []>;
+	def HWTFPGA_UDIV : HwtFpgaBinOp;
+	def HWTFPGA_SDIV : HwtFpgaBinOp;
+	def HWTFPGA_UREM : HwtFpgaBinOp;
+	def HWTFPGA_SREM : HwtFpgaBinOp;
 
+	def HWTFPGA_SHL : HwtFpgaBinOp;
+	def HWTFPGA_LSHR : HwtFpgaBinOp;
+	def HWTFPGA_ASHR : HwtFpgaBinOp;
+	
+	def HWTFPGA_SUB : HwtFpgaBinOp;
+	def HWTFPGA_ICMP : HwtFpgaInst<
+	    (outs type0:$dst),
+	    (ins unknown:$tst, type1:$src1, type1:$src2),
+	    []>;
+	// https://llvm.org/docs/GlobalISel/GenericOpcode.html#g-ctlz-zero-undef-g-cttz-zero-undef
+	def HWTFPGA_CTLZ_ZERO_UNDEF : HwtFpgaUnOp;
+	def HWTFPGA_CTTZ_ZERO_UNDEF : HwtFpgaUnOp;
+	// https://llvm.org/docs/GlobalISel/GenericOpcode.html#g-ctlz-g-cttz-g-ctpop
+	def HWTFPGA_CTLZ : HwtFpgaUnOp;
+	def HWTFPGA_CTTZ : HwtFpgaUnOp;
+	def HWTFPGA_CTPOP : HwtFpgaUnOp;
+}
 
 let mayLoad = 0, mayStore = 0, hasSideEffects = 0, isPredicable = 1, isSelect = 1, isAsCheapAsAMove = 1  in {
-// generic multiplexor - combines copy, select and phi in to a single instructions
-// which manages conditional copy/select driven by predicate or predecessor block
-def HWTFPGA_MUX : HwtFpgaInst<
-    (outs anyregcls:$dst),
-    (ins variable_ops), // ins are variadic, in format (value cond)* value?;
-                        // (format is same as for LLVM PHI) cond can be register, value or BB
-                        // but in final optimized form cond it is only register or BB
-                        // high bits first
-    []>; // no pattern because we match in C++
-}
-
+	// generic multiplexor - combines copy, select and phi in to a single instructions
+	// which manages conditional copy/select driven by predicate or predecessor block
+	def HWTFPGA_MUX : HwtFpgaInst<
+	    (outs anyregcls:$dst),
+	    (ins variable_ops), // ins are variadic, in format (value cond)* value?;
+	                        // (format is same as for LLVM PHI) cond can be register, value or BB
+	                        // but in final optimized form cond it is only register or BB
+	                        // high bits first
+	    []>; // no pattern because we match in C++
+	}
+	
 let mayLoad = 1, canFoldAsLoad=1, hasSideEffects = 0, isPredicable = 0, isNotDuplicable = 1 in {
-// conditional load if cond==1 else set $dst to undef with msb set to 0 
-// :attention: this is not predicated instruction because dst is always modified
-def HWTFPGA_CLOAD : HwtFpgaInst<
-    (outs anyregcls:$dst),
-    (ins anyregcls:$baseaddr, unknown: $index, unknown:$cond),
-    []>; // no pattern because we match in C++
+	// conditional load if cond==1 else set $dst to undef with msb set to 0 
+	// :attention: this is not predicated instruction because dst is always modified
+	def HWTFPGA_CLOAD : HwtFpgaInst<
+	    (outs anyregcls:$dst),
+	    (ins anyregcls:$baseaddr, unknown: $index, unknown:$cond),
+	    []>; // no pattern because we match in C++
 }
 
 let mayLoad = 0, mayStore = 1, hasSideEffects = 0, isPredicable = 1, isNotDuplicable = 1 in {
-// conditional store
-def HWTFPGA_CSTORE : HwtFpgaInst<
-    (outs),
-    (ins anyregcls:$val, anyregcls:$addr, unknown: $index, unknown:$cond),
-    []>; // no pattern because we match in C++
+	// conditional store
+	def HWTFPGA_CSTORE : HwtFpgaInst<
+	    (outs),
+	    (ins anyregcls:$val, anyregcls:$addr, unknown: $index, unknown:$cond),
+	    []>; // no pattern because we match in C++
 }
 
-let isBarrier = 1, isReturn = 1, isTerminator = 1, isPseudo = 1, isCodeGenOnly = 1 in
-def PseudoRET :  HwtFpgaInst<(outs), (ins variable_ops), []>;
+def PseudoRET : HwtFpgaInst<(outs), (ins variable_ops), []> {
+	let isBarrier = 1;
+	let isReturn = 1;
+	let isTerminator = 1;
+	let isPseudo = 1;
+	let isCodeGenOnly = 1;
+}
 
 // generic codes equivalents (llvm/Targets/GenericOpcodes.td)
 // :attention: these codes are used only for final output so satisfy that the selected code does not contain
@@ -97,23 +129,6 @@ let isCommutable = 1, hasSideEffects = 0 in {
 	def HWTFPGA_OR : HwtFpgaBinOp;
 	def HWTFPGA_XOR : HwtFpgaBinOp;
 	def HWTFPGA_MUL : HwtFpgaBinOp;
-}
-
-let hasSideEffects = 0 in {
-	def HWTFPGA_GLOBAL_VALUE : HwtFpgaInst<
-	    (outs type0:$dst),
-	    (ins unknown:$src),
-	    []>;
-	def HWTFPGA_UDIV : HwtFpgaBinOp;
-	def HWTFPGA_SDIV : HwtFpgaBinOp;
-	def HWTFPGA_UREM : HwtFpgaBinOp;
-	def HWTFPGA_SREM : HwtFpgaBinOp;
-	
-	def HWTFPGA_SUB : HwtFpgaBinOp;
-	def HWTFPGA_ICMP : HwtFpgaInst<
-	    (outs type0:$dst),
-	    (ins unknown:$tst, type1:$src1, type1:$src2),
-	    []>;
 }
 
 def HWTFPGA_BR : HwtFpgaInst<

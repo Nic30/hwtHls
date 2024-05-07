@@ -490,6 +490,9 @@ bool HwtFpgaCombinerHelper::genericOpcodeToHwtfpga(llvm::MachineInstr &MI) {
 	case TargetOpcode::G_XOR:
 		newOpc = HwtFpga::HWTFPGA_XOR;
 		break;
+	case TargetOpcode::G_FREEZE: // copy like
+		newOpc = HwtFpga::HWTFPGA_MUX;
+		break;
 	default:
 		llvm_unreachable(
 				"All cases should be covered in this switch in generic_opcode_to_hwtfpga");

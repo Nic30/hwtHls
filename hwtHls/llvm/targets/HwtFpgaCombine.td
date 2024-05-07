@@ -56,9 +56,11 @@ def g_constant_to_imm: GICombineRule<
 			G_XOR ,
 			G_SEXT,
 			G_ZEXT,
-			G_SHL,
-			G_LSHR,
-			G_ASHR,
+			// G_SHL,
+			// G_LSHR,
+			// G_ASHR,
+			// G_CTLZ_ZERO_UNDEF, G_CTTZ_ZERO_UNDEF,
+			// G_CTLZ, G_CTTZ, G_CTPOP,
   			HWTFPGA_EXTRACT,
             HWTFPGA_MERGE_VALUES,
             HWTFPGA_NOT,
@@ -89,6 +91,8 @@ def trivial_instr_deduplication: GICombineRule<
 			G_SHL,
 			G_LSHR,
 			G_ASHR,
+			G_CTLZ_ZERO_UNDEF, G_CTTZ_ZERO_UNDEF,
+			G_CTLZ, G_CTTZ, G_CTPOP,
 			HWTFPGA_EXTRACT,
             HWTFPGA_MERGE_VALUES,
             HWTFPGA_NOT,
@@ -103,7 +107,9 @@ def trivial_instr_deduplication: GICombineRule<
 			HWTFPGA_SREM,
 			HWTFPGA_OR,
 			HWTFPGA_SUB,
-			HWTFPGA_XOR
+			HWTFPGA_XOR,
+			HWTFPGA_CTLZ_ZERO_UNDEF, HWTFPGA_CTTZ_ZERO_UNDEF,
+			HWTFPGA_CTLZ, HWTFPGA_CTTZ, HWTFPGA_CTPOP
 		):$root,
     [{ return Helper.matchTrivialInstrDuplication(*${root}); }]),
   (apply [{ return Helper.rewriteTrivialInstrDuplication(*${root}); }])
@@ -354,7 +360,15 @@ def HwtFpgaGenPreRegAllocGICombinerHelper: GICombinerHelper<
 // rewrite all remaining generic opcodes to HWTFPGA_*
 def generic_opcode_to_hwtfpga : GICombineRule<
   (defs root:$root),
-  (match (wip_match_opcode G_ADD, G_AND, G_BR, G_BRCOND, G_ICMP, G_MUL, G_SDIV, G_UDIV, G_UREM, G_SREM, G_OR, G_SUB, G_XOR, G_GLOBAL_VALUE, G_IMPLICIT_DEF):$root),
+  (match (wip_match_opcode
+  	 G_ADD, G_AND, G_BR, G_BRCOND, G_ICMP, G_MUL, G_SDIV, G_UDIV, G_UREM, G_SREM,
+  	 G_OR, G_SUB, G_XOR, G_GLOBAL_VALUE, G_IMPLICIT_DEF
+  	 // :note: shifts and bit count operations needs special handling, because shift amout type is log2ceil(datawidth + 1),
+  	 // while in llvm it is datawidth
+  	 //G_SHL, G_LSHR, G_ASHR,
+	 //G_CTLZ_ZERO_UNDEF, G_CTTZ_ZERO_UNDEF,
+	 //G_CTLZ, G_CTTZ, G_CTPOP
+	 ):$root),
   (apply [{ Helper.genericOpcodeToHwtfpga(*${root}); }])
  >;
 

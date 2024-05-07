@@ -1,7 +1,11 @@
 #include <hwtHls/llvm/targets/GISel/hwtFpgaLegalizerInfo.h>
 #include <hwtHls/llvm/targets/hwtFpgaTargetSubtarget.h>
+#include <hwtHls/llvm/targets/bitMathUtils.h>
+#include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionSelectorUtils.h>
+
 #include <llvm/CodeGen/GlobalISel/LegalizerHelper.h>
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
+
 
 #ifdef LLVM_NDEBUG
 #define NDEBUG 1
@@ -10,7 +14,7 @@
 namespace llvm {
 
 HwtFpgaLegalizerInfo::HwtFpgaLegalizerInfo(const HwtFpgaTargetSubtarget &ST) :
-		LegalizerInfo() {
+		LegalizerInfo(), TII(*ST.getInstrInfo()) {
 	//auto & LLI = getLegacyLegalizerInfo();
 	using namespace TargetOpcode;
 	// add natively supported ops as legal
@@ -18,11 +22,20 @@ HwtFpgaLegalizerInfo::HwtFpgaLegalizerInfo(const HwtFpgaTargetSubtarget &ST) :
 			G_BRCOND, G_ICMP, G_ADD, G_SUB, G_MUL, G_UREM, G_UDIV, G_SREM,
 			G_SDIV, G_LOAD, G_STORE, G_INDEXED_LOAD, G_INDEXED_STORE, G_PHI,
 			G_AND, G_OR, G_XOR, G_EXTRACT, G_MERGE_VALUES, G_ZEXT, G_SEXT,
-			G_PTR_ADD, G_SHL, G_LSHR, G_ASHR }) {
+			G_PTR_ADD,
+	}) {
 		getActionDefinitionsBuilder(op) //
 		.alwaysLegal();
 	}
-	getActionDefinitionsBuilder( { G_SEXTLOAD, G_ZEXTLOAD }).custom();
+	getActionDefinitionsBuilder( {
+		G_SEXTLOAD, G_ZEXTLOAD,
+		// shift and bit ops
+		G_SHL, G_LSHR, G_ASHR,
+		G_CTLZ_ZERO_UNDEF, G_CTTZ_ZERO_UNDEF,
+		G_CTLZ, G_CTTZ, G_CTPOP,
+		// see llvm::FreezeInst
+		G_FREEZE,
+	}).custom();
 	//.lower();
 	getActionDefinitionsBuilder( {
 		// high order functions
@@ -34,7 +47,7 @@ HwtFpgaLegalizerInfo::HwtFpgaLegalizerInfo(const HwtFpgaTargetSubtarget &ST) :
 	    // saturated arithmetic
 	    G_SADDSAT, G_UADDSAT, G_SSUBSAT, G_USUBSAT, G_SSHLSAT, G_USHLSAT,
 	    // add/sub/modulo with carry out
-	    G_UADDO, G_SADDO, G_USUBO, G_SSUBO, G_SMULO, G_UMULO
+	    G_UADDO, G_SADDO, G_USUBO, G_SSUBO, G_SMULO, G_UMULO,
 	}).lower();
 
 	//getActionDefinitionsBuilder({G_VASTART, G_VAARG, G_BRJT, G_JUMP_TABLE,
@@ -108,9 +121,139 @@ bool HwtFpgaLegalizerInfo::customLowerLoad(LegalizerHelper &Helper,
 	return false;
 }
 
+bool HwtFpgaLegalizerInfo::legalizeCustomBitcount(LegalizerHelper &Helper,
+		MachineInstr &MI) const {
+	MachineFunction &MF = Helper.MIRBuilder.getMF();
+	MachineIRBuilder &MIRBuilder = Helper.MIRBuilder;
+	MachineRegisterInfo &MRI = MF.getRegInfo();
+
+	Register Dst = MI.getOperand(0).getReg();
+	const auto & SrcMO = MI.getOperand(1);
+	Register Src = SrcMO.getReg();
+	LLT DstTy = MRI.getType(Dst);
+	LLT SrcTy = MRI.getType(Src);
+	unsigned dataWidth = SrcTy.getSizeInBits();
+	assert(dataWidth == DstTy.getSizeInBits());
+	unsigned NewOpc;
+	switch (MI.getOpcode()) {
+	case TargetOpcode::G_CTLZ_ZERO_UNDEF:
+		NewOpc = HwtFpga::HWTFPGA_CTLZ_ZERO_UNDEF;
+		break;
+	case TargetOpcode::G_CTTZ_ZERO_UNDEF:
+		NewOpc = HwtFpga::HWTFPGA_CTTZ_ZERO_UNDEF;
+		break;
+	case TargetOpcode::G_CTLZ:
+		NewOpc = HwtFpga::HWTFPGA_CTLZ;
+		break;
+	case TargetOpcode::G_CTTZ:
+		NewOpc = HwtFpga::HWTFPGA_CTTZ;
+		break;
+	case TargetOpcode::G_CTPOP:
+		NewOpc = HwtFpga::HWTFPGA_CTPOP;
+		break;
+	default:
+		errs() << MI << "\n";
+		llvm_unreachable("NotImplemented bit count");
+	}
+
+	unsigned newBitWidth = log2ceil(dataWidth + 1);
+	auto DstTruncated = MRI.cloneVirtualRegister(Dst);
+	MIRBuilder.buildInstr(NewOpc, { DstTruncated }, { Src });
+	MRI.setType(DstTruncated, LLT::scalar(newBitWidth));
+
+	for (auto R : { DstTruncated, Src })
+		MRI.setRegClass(R, &HwtFpga::anyregclsRegClass);
+
+	auto MIB1 = MIRBuilder.buildInstr(NewOpc, { Dst }, { });
+	auto DstTruncatedMO = MachineOperand::CreateReg(DstTruncated, false);
+	hwtHls::HwtFpgaInstructionSelector::selectInstrArg(MF, MIB1, MRI, DstTruncatedMO);
+
+	MIRBuilder.buildZExt(Dst, DstTruncated);
+
+	MI.eraseFromParent();
+	return true;
+}
+
+bool HwtFpgaLegalizerInfo::legalizeCustomShift(LegalizerHelper &Helper,
+		MachineInstr &MI) const {
+	MachineFunction &MF = Helper.MIRBuilder.getMF();
+	MachineIRBuilder &MIRBuilder = Helper.MIRBuilder;
+	MachineRegisterInfo &MRI = MF.getRegInfo();
+
+	Register Dst = MI.getOperand(0).getReg();
+	auto &SrcMO = MI.getOperand(1);
+	Register Src = SrcMO.getReg();
+	Register Sh = MI.getOperand(2).getReg();
+	LLT DstTy = MRI.getType(Dst);
+	LLT SrcTy = MRI.getType(Src);
+	LLT ShTy = MRI.getType(Sh);
+	unsigned dataWidth = SrcTy.getSizeInBits();
+	assert(dataWidth == DstTy.getSizeInBits());
+	assert(dataWidth == ShTy.getSizeInBits());
+
+	unsigned newShBitWidth = log2ceil(dataWidth + 1);
+
+	unsigned NewOpc;
+	switch (MI.getOpcode()) {
+	case TargetOpcode::G_SHL:
+		NewOpc = HwtFpga::HWTFPGA_SHL;
+		break;
+	case TargetOpcode::G_LSHR:
+		NewOpc = HwtFpga::HWTFPGA_LSHR;
+		break;
+	case TargetOpcode::G_ASHR:
+		NewOpc = HwtFpga::HWTFPGA_ASHR;
+		break;
+	default:
+		errs() << MI << "\n";
+		llvm_unreachable("NotImplemented shift");
+	}
+
+	auto ShTruncated = MRI.cloneVirtualRegister(Sh);
+	MRI.setType(ShTruncated, LLT::scalar(newShBitWidth));
+	MIRBuilder.buildTrunc(ShTruncated, Sh);
+	auto ShTruncatedMO = MachineOperand::CreateReg(ShTruncated, false);
+
+	auto MIB1 = MIRBuilder.buildInstr(NewOpc, { Dst }, { });
+	for (auto R : { Dst, Src, ShTruncated })
+		MRI.setRegClass(R, &HwtFpga::anyregclsRegClass);
+
+	hwtHls::HwtFpgaInstructionSelector::selectInstrArg(MF, MIB1, MRI, SrcMO);
+	hwtHls::HwtFpgaInstructionSelector::selectInstrArg(MF, MIB1, MRI,
+			ShTruncatedMO);
+
+	MI.eraseFromParent();
+	return true;
+}
+
+
 bool HwtFpgaLegalizerInfo::legalizeCustom(LegalizerHelper &Helper,
 		MachineInstr &MI) const {
+
 	switch (MI.getOpcode()) {
+	case TargetOpcode::G_SHL:
+	case TargetOpcode::G_LSHR:
+	case TargetOpcode::G_ASHR: {
+		if (legalizeCustomShift(Helper, MI))
+			return true;
+		break;
+	}
+	case TargetOpcode::G_CTLZ_ZERO_UNDEF:
+	case TargetOpcode::G_CTTZ_ZERO_UNDEF:
+	case TargetOpcode::G_CTLZ:
+	case TargetOpcode::G_CTTZ:
+	case TargetOpcode::G_CTPOP: {
+		if (legalizeCustomBitcount(Helper, MI))
+			return true;
+		break;
+	}
+	case TargetOpcode::G_FREEZE: {
+		MachineFunction &MF = Helper.MIRBuilder.getMF();
+		MachineRegisterInfo &MRI = MF.getRegInfo();
+		MI.setDesc(TII.get(TargetOpcode::COPY));
+		MRI.setRegClass(MI.getOperand(0).getReg(), &HwtFpga::anyregclsRegClass);
+		return true;
+	}
 	case TargetOpcode::G_ZEXTLOAD:
 	case TargetOpcode::G_SEXTLOAD:
 		if (customLowerLoad(Helper, cast<GAnyLoad>(MI)))
@@ -118,7 +261,7 @@ bool HwtFpgaLegalizerInfo::legalizeCustom(LegalizerHelper &Helper,
 		return Helper.lowerLoad(cast<GAnyLoad>(MI))
 				!= LegalizerHelper::LegalizeResult::UnableToLegalize;
 	}
-	return false;
+	return Helper.lower(MI, 0, LLT()) != LegalizerHelper::LegalizeResult::UnableToLegalize;
 }
 
 }

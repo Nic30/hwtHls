@@ -154,13 +154,15 @@ bool HwtFpgaTargetInstructionSelector::select(MachineInstr &I) {
 	MachineFunction &MF = *MBB.getParent();
 	MachineRegisterInfo &MRI = MF.getRegInfo();
 	auto Opc = I.getOpcode();
+
 	if (!isPreISelGenericOpcode(Opc)) {
 		// Certain non-generic instructions also need some special handling.
 		return true;
 	}
 
-	if (selectImpl(I, *CoverageInfo))
+	if (selectImpl(I, *CoverageInfo)) {
 		return true;
+	}
 
 	const TargetRegisterClass &RC = HwtFpga::anyregclsRegClass;
 
@@ -241,7 +243,34 @@ bool HwtFpgaTargetInstructionSelector::select(MachineInstr &I) {
 	case G_SMIN:
 	case G_SMAX:
 	case G_UMAX:
-	case G_UMIN: {
+	case G_UMIN:
+	case G_CTLZ_ZERO_UNDEF:
+	case G_CTTZ_ZERO_UNDEF:
+	case G_CTLZ:
+	case G_CTTZ:
+	case G_CTPOP:
+	case G_FREEZE:
+	case G_SHL:
+	case G_LSHR:
+	case G_ASHR: {
+		// try special cases
+		switch (Opc) {
+		case G_SHL:
+			if (select_G_SHL(MRI, Builder, I))
+				return true;
+			break;
+		case G_LSHR:
+			if (select_G_SHR(MRI, Builder, I, false))
+				return true;
+			break;
+		case G_ASHR:
+			if (select_G_SHR(MRI, Builder, I, true))
+				return true;
+			break;
+		default:
+			break;
+		}
+
 		auto _Opc = Opc;
 		switch (Opc) {
 		case G_EXTRACT:
@@ -251,7 +280,35 @@ bool HwtFpgaTargetInstructionSelector::select(MachineInstr &I) {
 			_Opc = HwtFpga::HWTFPGA_MERGE_VALUES;
 			break;
 		case G_IMPLICIT_DEF:
-			_Opc = TargetOpcode::IMPLICIT_DEF;
+			_Opc = HwtFpga::IMPLICIT_DEF;
+			break;
+		case G_CTLZ_ZERO_UNDEF:
+			_Opc = HwtFpga::HWTFPGA_CTLZ_ZERO_UNDEF;
+			break;
+		case G_CTTZ_ZERO_UNDEF:
+			_Opc = HwtFpga::HWTFPGA_CTTZ_ZERO_UNDEF;
+			break;
+		case G_CTLZ:
+			_Opc = HwtFpga::HWTFPGA_CTLZ;
+			break;
+		case G_CTTZ:
+			_Opc = HwtFpga::HWTFPGA_CTTZ;
+			break;
+		case G_CTPOP:
+			_Opc = HwtFpga::HWTFPGA_CTPOP;
+			break;
+		case G_FREEZE:
+			_Opc = HwtFpga::COPY;
+			break;
+		case G_SHL:
+			_Opc = HwtFpga::HWTFPGA_SHL;
+			break;
+		case G_LSHR:
+			_Opc = HwtFpga::HWTFPGA_LSHR;
+			break;
+		case G_ASHR:
+			_Opc = HwtFpga::HWTFPGA_ASHR;
+			break;
 		}
 		auto MIB = Builder.buildInstr(_Opc);
 		selectInstrArgs(I, MIB, Opc != G_BRCOND && Opc != G_BR);
@@ -259,7 +316,9 @@ bool HwtFpgaTargetInstructionSelector::select(MachineInstr &I) {
 		// add extra type spec operands if required
 		if (Opc == G_EXTRACT) {
 			// dst, src, offset, dstWidth, (dst, src and offset already added)
-			MIB.addImm(MRI.getType(I.getOperand(0).getReg()).getSizeInBits()); // add dstWidth
+			auto dst = I.getOperand(0).getReg();
+			MIB.addImm(MRI.getType(dst).getSizeInBits()); // add dstWidth
+			//MRI.setType(VReg, Ty)
 		} else if (Opc == G_MERGE_VALUES) {
 			// dst, src{N}, width{N}, (dst, srcs were already added)
 			for (unsigned i = 1; i < I.getNumOperands(); i++) {
@@ -274,12 +333,6 @@ bool HwtFpgaTargetInstructionSelector::select(MachineInstr &I) {
 		return select_G_SEXT(MRI, Builder, I);
 	case G_ZEXT:
 		return select_G_ZEXT(MRI, Builder, I);
-	case G_SHL:
-		return select_G_SHL(MRI, Builder, I);
-	case G_LSHR:
-		return select_G_SHR(MRI, Builder, I, false);
-	case G_ASHR:
-		return select_G_SHR(MRI, Builder, I, true);
 	case G_TRUNC:
 		return select_G_TRUNC(MRI, Builder, I);
 	default:
@@ -420,11 +473,9 @@ bool HwtFpgaTargetInstructionSelector::select_G_SHL(
 	} else if (lhsConst) {
 		// if lhs is constant we generate mux for all possible constant values of the shift
 		return false;
-		//assert(false && "NotImplemented");
 	} else {
 		// if lhs and rhs are not constants we have to create mux for every possible value
 		return false;
-		//assert(false && "NotImplemented");
 	}
 }
 

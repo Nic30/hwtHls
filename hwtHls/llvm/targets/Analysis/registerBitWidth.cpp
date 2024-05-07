@@ -48,6 +48,49 @@ bool checkOrSetWidth(MachineRegisterInfo &MRI, MachineOperand &op,
 	}
 }
 
+void checkOrSetWidth(MachineRegisterInfo &MRI, MachineOperand &MO,
+		unsigned bitWidth) {
+	if (MO.isCImm()) {
+		auto w = MO.getCImm()->getBitWidth();
+		if (w != bitWidth) {
+			errs() << *MO.getParent() << "\n";
+			errs() << MO << "  (width=" << w << ", expected=" << bitWidth << ")\n";
+			llvm_unreachable("Operand value does not have expected bit width");
+		}
+	} else if (MO.isReg()) {
+		Register R = MO.getReg();
+		LLT T = MRI.getType(R);
+		if (T.isValid()) {
+			if (T.getSizeInBits() != bitWidth) {
+				if (MRI.def_empty(R)) {
+					if (!MRI.hasOneUse(R)) {
+						// this reg may have been used as undef constant on multiple places with different
+						// bit width, we define new reg to prevent interference
+						Register NewReg = MRI.createVirtualRegister(
+								&HwtFpga::anyregclsRegClass);
+						MO.setReg(NewReg);
+						MO.setIsUndef();
+					}
+					if (!checkOrSetWidth(MRI, MO, bitWidth, nullptr)) {
+						errs() << *MO.getParent() << "\n";
+						errs() << MO << "\n";
+						llvm_unreachable(
+								"set of type for register for operand with undefined value failed");
+					}
+				} else {
+					MO.getParent()->getParent()->print(errs());
+					errs() << "\n";
+					errs() << *MO.getParent() << "\n";
+					errs() << MO << "  (width=" << T.getSizeInBits() << ", expected=" << bitWidth << ")\n";
+					llvm_unreachable("Operand value does not have expected bit width");
+				}
+			}
+
+		} else {
+			MRI.setType(R, LLT::scalar(bitWidth));
+		}
+	}
+}
 void duplicateRegsForUndefValues(
 		const llvm::SmallVector<std::pair<unsigned, uint64_t> > &undefsToDuplicate,
 		MachineRegisterInfo &MRI, MachineInstr &MI) {
@@ -61,6 +104,40 @@ void duplicateRegsForUndefValues(
 					"Set of type for register for operand with undefined value failed");
 		}
 	}
+}
+
+
+const MachineOperand & getMopReference(const MachineOperand* v) {
+	return *v;
+}
+
+const MachineOperand & getMopReference(const MachineOperand & v) {
+	return v;
+}
+
+
+inline unsigned tryResolveBitWidthFromOperand(MachineRegisterInfo &MRI, const MachineOperand & MO) {
+	unsigned bitWidth = 0;
+	if (MO.isCImm()) {
+		bitWidth = MO.getCImm()->getBitWidth();
+	} else if (MO.isReg()) {
+		LLT T = MRI.getType(MO.getReg());
+		if (T.isValid()) {
+			bitWidth = T.getSizeInBits();
+		}
+	}
+	return bitWidth;
+}
+template<typename Ty>
+unsigned tryResolveBitWidthFromOperands(MachineRegisterInfo &MRI, Ty operands) {
+	unsigned bitWidth = 0;
+	for (auto _MO : operands) {
+		const MachineOperand &MO = getMopReference(_MO);
+		bitWidth = tryResolveBitWidthFromOperand(MRI, MO);
+		if (bitWidth)
+			break;
+	}
+	return bitWidth;
 }
 
 /*
@@ -109,39 +186,44 @@ bool resolveTypes(MachineInstr &MI) {
 	case HwtFpga::HWTFPGA_XOR:
 	case HwtFpga::HWTFPGA_NOT: {
 		// all operands of same type
-		unsigned bitWidth = 0;
-		for (MachineOperand &MO : MI.operands()) {
-			if (MO.isCImm()) {
-				bitWidth = MO.getCImm()->getBitWidth();
-				break;
-			} else if (MO.isReg()) {
-				LLT T = MRI.getType(MO.getReg());
-				if (T.isValid()) {
-					bitWidth = T.getSizeInBits();
-				}
-			}
-		}
+		unsigned bitWidth = tryResolveBitWidthFromOperands(MRI, MI.operands());
 		if (bitWidth == 0)
 			return false;
 		for (MachineOperand &MO : MI.operands()) {
-			if (MO.isCImm()) {
-				assert(
-						MO.getCImm()->getBitWidth() == bitWidth
-								&& "All operands of this operator must be of same type");
-			} else if (MO.isReg()) {
-				Register R = MO.getReg();
-				LLT T = MRI.getType(R);
-				if (T.isValid()) {
-					if (T.getSizeInBits() != bitWidth) {
-						MI.dump();
-						llvm_unreachable(
-								"All operands of this operator must be of same type");
-					}
-				} else {
-					MRI.setType(R, LLT::scalar(bitWidth));
-				}
-			}
+			checkOrSetWidth(MRI, MO, bitWidth);
 		}
+		return true;
+	}
+	// shift, src, dst same, shiftAmount log2ceil(src.width()+1) bits
+	case HwtFpga::HWTFPGA_LSHR:
+	case HwtFpga::HWTFPGA_ASHR:
+	case HwtFpga::HWTFPGA_SHL: {
+		auto &dst = MI.getOperand(0);
+		auto &src = MI.getOperand(1);
+		auto &shiftAmount = MI.getOperand(2);
+		std::vector dataOps( { &dst, &src });
+		unsigned bitWidth = tryResolveBitWidthFromOperands(MRI, dataOps);
+		if (bitWidth == 0)
+			return false;
+		for (auto MO : dataOps)
+			checkOrSetWidth(MRI, *MO, bitWidth);
+		unsigned shWidth = log2ceil(bitWidth + 1);
+		checkOrSetWidth(MRI, shiftAmount, shWidth);
+		return true;
+	}
+	// bit counts, dst of log2ceil(src.width()+1) width
+	case HwtFpga::HWTFPGA_CTLZ_ZERO_UNDEF:
+	case HwtFpga::HWTFPGA_CTTZ_ZERO_UNDEF:
+	case HwtFpga::HWTFPGA_CTLZ:
+	case HwtFpga::HWTFPGA_CTTZ:
+	case HwtFpga::HWTFPGA_CTPOP: {
+		auto &dst = MI.getOperand(0);
+		auto &src = MI.getOperand(1);
+		unsigned dataBitWidth = tryResolveBitWidthFromOperand(MRI, src);
+		if (dataBitWidth == 0)
+			return false;
+		unsigned shWidth = log2ceil(dataBitWidth + 1);
+		checkOrSetWidth(MRI, dst, shWidth);
 		return true;
 	}
 	case HwtFpga::HWTFPGA_MUX: {
@@ -174,65 +256,7 @@ bool resolveTypes(MachineInstr &MI) {
 		OpI = 0;
 		for (MachineOperand &MO : MI.operands()) {
 			bool isValueOp = OpI == 0 || OpI % 2 == 1; // dst or any src val
-			if (MO.isCImm()) {
-				if (isValueOp) {
-					assert(
-							MO.getCImm()->getBitWidth() == bitWidth
-									&& "All values must be of same type");
-				} else {
-					llvm_unreachable(
-							"HWTFPGA_MUX should not have a constant as a condition operand");
-				}
-			} else if (MO.isReg()) {
-				Register R = MO.getReg();
-				LLT T = MRI.getType(R);
-				if (T.isValid()) {
-					if (isValueOp) {
-						if (T.getSizeInBits() != bitWidth) {
-							if (MRI.def_empty(R)) {
-								if (!MRI.hasOneUse(R)) {
-									// this reg may have been used as undef constant on multiple places with different
-									// bit width, we define new reg to prevent interference
-									Register NewReg = MRI.createVirtualRegister(
-											&HwtFpga::anyregclsRegClass);
-									MO.setReg(NewReg);
-									MO.setIsUndef();
-								}
-								if (!checkOrSetWidth(MRI, MO, bitWidth,
-										nullptr)) {
-									llvm_unreachable(
-											"HWTFPGA_MERGE_VALUES set of type for register for operand with undefined value failed");
-								}
-							} else {
-								MF.print(errs());
-								errs() << "\n";
-								errs() << R << " bitWidth:" << T.getSizeInBits()
-										<< " previous bitWidth:" << bitWidth
-										<< "\n";
-								errs() << MI << "\n";
-								llvm_unreachable(
-										"All values for register must be of same type");
-							}
-						}
-					} else {
-						if (T.getSizeInBits() != 1) {
-							MF.print(errs());
-							errs() << "\n";
-							errs() << R << " bitWidth:" << T.getSizeInBits()
-									<< "\n";
-							errs() << MI << "\n";
-							llvm_unreachable(
-									"All conditions must be of i1 type");
-						}
-					}
-				} else {
-					if (isValueOp) {
-						MRI.setType(R, LLT::scalar(bitWidth));
-					} else {
-						MRI.setType(R, LLT::scalar(1));
-					}
-				}
-			}
+			checkOrSetWidth(MRI, MO, isValueOp ? bitWidth : 1);
 			OpI++;
 		}
 		return true;
@@ -251,17 +275,8 @@ bool resolveTypes(MachineInstr &MI) {
 			MRI.setType(MI.getOperand(0).getReg(), LLT::scalar(bitWidth));
 
 		auto &cond = MI.getOperand(3);
-		if (cond.isReg()) {
-			Register R = cond.getReg();
-			LLT T = MRI.getType(R);
-			if (T.isValid()) {
-				assert(
-						T.getSizeInBits() == 1
-								&& "All conditions must be of i1 type");
-			} else {
-				MRI.setType(R, LLT::scalar(1));
-			}
-		}
+		checkOrSetWidth(MRI, cond, 1);
+
 		return true;
 	}
 	case HwtFpga::HWTFPGA_MERGE_VALUES: {
@@ -345,7 +360,7 @@ bool resolveTypes(MachineInstr &MI) {
 	default: {
 		//const auto *TII = MF.getSubtarget().getInstrInfo();
 		errs() << "Not implemented for this instruction: " << MI << "\n";
-		llvm_unreachable("Not implemented for this instruction");
+		llvm_unreachable("Not implemented for this instruction (G_* instructions should already be selected)");
 	}
 	}
 	return false;
