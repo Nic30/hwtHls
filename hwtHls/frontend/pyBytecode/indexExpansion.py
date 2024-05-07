@@ -10,6 +10,8 @@ from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.frontend.pyBytecode.frame import PyBytecodeFrame
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.value import SsaValue
+from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
+from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
 
 
 class PyObjectHwSubscriptRef():
@@ -131,9 +133,12 @@ def expandBeforeUse(toSsa: "PyBytecodeToSsa",
 def expandBeforeUseSequence(toSsa: "PyBytecodeToSsa",
                     offsetForLabels: int,
                     frame: PyBytecodeFrame, oSeq: Sequence, curBlock: SsaBasicBlock):
-    oSeqExpanded = []
-    for o in oSeq:
-        o, curBlock = expandBeforeUse(toSsa, offsetForLabels, frame, o, curBlock)
-        oSeqExpanded.append(o)
-    return oSeqExpanded, curBlock
-
+    if isinstance(oSeq, (RtlSignalBase, InterfaceBase, HValue)):
+        return oSeq, curBlock
+    else:
+        oSeqExpanded = []
+        for o in oSeq:
+            o, curBlock = expandBeforeUse(toSsa, offsetForLabels, frame, o, curBlock)
+            oSeqExpanded.append(o)
+        return oSeqExpanded, curBlock
+    
