@@ -1,0 +1,41 @@
+from hwt.hdl.operatorDefs import AllOps
+from hwtHls.architecture.transformation.utils.termPropagationContext import ArchSyncNodeTy
+from hwtHls.netlist.nodes.const import HlsNetNodeConst
+from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut
+from hwtHls.netlist.nodes.schedulableNode import SchedTime
+from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
+from hwtHls.netlist.scheduler.scheduler import asapSchedulePartlyScheduled
+from hwtHls.platform.opRealizationMeta import OpRealizationMeta
+
+
+def setUnscheduledNodeRealizationToCombForSyncLogic(n: HlsNetNode):
+    """
+    This function is called for newly generated synchronization logic nodes.
+    It performs an initialization required for scheduling.
+    """
+    assert isinstance(n, HlsNetNodeConst) or (
+    isinstance(n, HlsNetNodeOperator) and n.operator in (
+    AllOps.AND, AllOps.OR, AllOps.XOR, AllOps.EQ, AllOps.NE, AllOps.NOT)), n
+    n.assignRealization(OpRealizationMeta(mayBeInFFStoreTime=True))
+    return True
+
+
+def scheduleUnscheduledControlLogic(syncNode: ArchSyncNodeTy, out: HlsNetNodeOut) -> SchedTime:
+    """
+    Apply default scheduling for newly generated nodes.
+    """
+    elm, clkI = syncNode
+    clkPeriod = elm.netlist.normalizedClkPeriod
+    beginOfFirstClk = clkI * clkPeriod
+
+    newlyScheduledNodes = asapSchedulePartlyScheduled(
+        out, setUnscheduledNodeRealizationToCombForSyncLogic, beginOfFirstClk=beginOfFirstClk)
+    stage = elm.getStageForClock(clkI)
+    for n in newlyScheduledNodes:
+        _clkI = indexOfClkPeriod(n.scheduledZero, clkPeriod)
+        assert clkI == _clkI, ("all nodes must be in the same clk window", clkI, _clkI, n, n.scheduledZero)
+        stage.append(n)
+
+    return out.obj.scheduledOut[out.out_i]
