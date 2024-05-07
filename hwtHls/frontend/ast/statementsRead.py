@@ -25,6 +25,8 @@ from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlis
 from hwtHls.ssa.value import SsaValue
 from hwtLib.types.ctypes import uint64_t
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
+from hwtHls.io.portGroups import getFirstInterfaceInstance, MultiPortGroup, \
+    BankedPortGroup
 
 
 class HlsRead(HdlStatement, SsaInstr):
@@ -92,7 +94,7 @@ class HlsRead(HdlStatement, SsaInstr):
         return self._parent.ctx
 
     def _getNativeInterfaceWordType(self) -> HdlType:
-        return _getNativeInterfaceWordType(self._src)
+        return _getNativeInterfaceWordType(getFirstInterfaceInstance(self._src))
 
     @classmethod
     def _translateMirToNetlist(cls,
@@ -121,9 +123,13 @@ class HlsRead(HdlStatement, SsaInstr):
         """
         valCache: MirToHwtHlsNetlistValueCache = mirToNetlist.valCache
         netlist: HlsNetlistCtx = mirToNetlist.netlist
-        assert isinstance(srcIo, (Interface, RtlSignalBase)), srcIo
+        assert isinstance(srcIo, (Interface, RtlSignalBase, MultiPortGroup, BankedPortGroup)), srcIo
         assert isinstance(index, int) and index == 0, (srcIo, index, "Because this read is not addressed there should not be any index")
-        n = HlsNetNodeRead(netlist, srcIo, name=f"ld_r{instr.getOperand(0).getReg().virtRegIndex():d}")
+        dtype = _getNativeInterfaceWordType(getFirstInterfaceInstance(srcIo))
+        n = HlsNetNodeRead(netlist,
+                           srcIo,
+                           dtype=dtype,
+                           name=f"ld_r{instr.getOperand(0).getReg().virtRegIndex():d}")
         if not representativeReadStm._isBlocking:
             n.setNonBlocking()
 
@@ -180,9 +186,10 @@ class HlsReadAddressed(HlsRead):
         src, _, t = toLlvm.ioToVar[self._src]
         src: Argument
         t: Type
-        indexes = (toLlvm._translateExprInt(0, toLlvm._translateType(uint64_t)),
-                   toLlvm._translateExpr(self.operands[0]),)
+        indexes = [toLlvm._translateExprInt(0, toLlvm._translateType(uint64_t)),
+                   toLlvm._translateExpr(self.operands[0]), ]
         arrTy: ArrayType = TypeToArrayType(t)
+        assert arrTy is not None, ("It is expected that this object access data of array type", self, t)
         elmT = arrTy.getElementType()
         ptr = toLlvm.b.CreateGEP(arrTy, src, indexes)
         name = toLlvm.strCtx.addTwine(toLlvm._formatVarName(self._name))

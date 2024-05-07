@@ -1,24 +1,37 @@
-from typing import Tuple, TypeVar
+from typing import TypeVar, Union, Type
 
+from hwt.synthesizer.hObjList import HObjList
 from hwt.synthesizer.interface import Interface
+from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 
-T0 = TypeVar('T0')
+T = TypeVar('T')
 
 
-class MultiPortGroup(Tuple[T0, 'BankedPortGroup[T0]']):
+class MultiPortGroup(HObjList[T]):
     """
     A tuple of interfaces which can be accessed concurrently and are accessing same data source/destination.
     """
 
-    def __new__(cls, *args):
-        return super(MultiPortGroup, cls).__new__(cls, args)
+    def __hash__(self) -> int:
+        return hash(tuple(self))
 
 
-class BankedPortGroup(Tuple[Interface]):
+class BankedPortGroup(HObjList[T]):
     """
     A tuple of interfaces which are consecutive ports to the same continuous memory.
     Where each interface can access only corresponding non overlapping part of the memory.
     """
 
-    def __new__(cls, *args):
-        return super(BankedPortGroup, cls).__new__(cls, args)
+    def __hash__(self) -> int:
+        return hash(tuple(self))
+
+
+def getFirstInterfaceInstance(intf:Union[Interface, MultiPortGroup, BankedPortGroup]) -> Union[Interface, RtlSignalBase]:
+    while isinstance(intf, (MultiPortGroup, BankedPortGroup)):
+        intf = intf[0]
+    return intf
+
+
+def isInstanceOfInterfacePort(intf:Union[Interface, MultiPortGroup, BankedPortGroup], class_: Type[Interface]) -> bool:
+    intf = getFirstInterfaceInstance(intf)
+    return isinstance(intf, class_)

@@ -1,15 +1,17 @@
-from typing import Dict, Union, Optional
+from typing import Dict, Union
 
 from hwt.synthesizer.interface import Interface
-from hwtHls.architecture.allocator import HlsAllocator
-from hwtHls.architecture.archElement import ArchElement
-from hwtHls.architecture.archElementFsm import ArchElementFsm
-from hwtHls.architecture.archElementPipeline import ArchElementPipeline
-from hwtHls.architecture.interArchElementNodeSharingAnalysis import InterArchElementNodeSharingAnalysis
 from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
 from hwtHls.netlist.analysis.ioDiscover import HlsNetlistAnalysisPassIoDiscover
+from hwtHls.netlist.analysis.nodeParentAggregate import HlsNetlistAnalysisPassNodeParentAggregate
+from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.nodes.archElement import ArchElement
+from hwtHls.netlist.nodes.archElementFsm import ArchElementFsm
+from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
+from hwtHls.typingFuture import override
+from hwtHls.io.portGroups import MultiPortGroup, BankedPortGroup
 
 
 class RtlArchPassIoPortPrivatization(RtlArchPass):
@@ -52,9 +54,9 @@ class RtlArchPassIoPortPrivatization(RtlArchPass):
         portOwner: Dict[Interface, ArchElement] = {}
         # for each FSM we need to keep pool of assigned ports so we can reuse it in next clock cycle
         # because the ports can be shared between clock cycles.
-        #fsmPortPool: Dict[Tuple[ArchElementFsm, Tuple[Interface]], List[Interface]] = {}
+        # fsmPortPool: Dict[Tuple[ArchElementFsm, Tuple[Interface]], List[Interface]] = {}
         for io in ioDiscovery.interfaceList:
-            if isinstance(io, tuple):
+            if isinstance(io, (MultiPortGroup, BankedPortGroup)):
                 freePorts = list(reversed(io))  # reversed so we allocate ports with lower index fist
                 ioNodes = ioByInterface.pop(io)  # operations which are using this port group
                 for ioNode in sorted(ioNodes, key=lambda n: n.scheduledZero):

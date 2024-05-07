@@ -20,13 +20,18 @@ from hwtHls.frontend.ast.thread import HlsThreadForSharedVar
 from hwtHls.frontend.pyBytecode import hlsLowLevel
 from hwtHls.frontend.pyBytecode.indexExpansion import PyObjectHwSubscriptRef
 from hwtHls.frontend.pyBytecode.ioProxyAddressed import IoProxyAddressed
+from hwtHls.io.portGroups import getFirstInterfaceInstance
 from hwtHls.platform.platform import DefaultHlsPlatform
 from hwtHls.ssa.context import SsaContext
 from hwtHls.thread import HlsThread, HlsThreadDoesNotUseSsa
 from hwtLib.amba.axi_intf_common import Axi_hs
 
 
-ANY_HLS_COMPATIBLE_IO = Union[Handshaked, HsStructIntf, HandshakeSync, Axi_hs, VldSynced, RdSynced, Signal, StructIntf, RtlSignal, PyObjectHwSubscriptRef]
+ANY_HLS_COMPATIBLE_IO = Union[Handshaked, HsStructIntf,
+                              HandshakeSync, Axi_hs,
+                              VldSynced, RdSynced, Signal,
+                              StructIntf, RtlSignal,
+                              PyObjectHwSubscriptRef]
 
 
 class HlsScope():
@@ -90,6 +95,9 @@ class HlsScope():
         """
         Create a read statement for simple interfaces.
         """
+        _src = src
+        src = getFirstInterfaceInstance(src)
+
         if isinstance(src, (Handshaked, HsStructIntf, HandshakeSync, Axi_hs)):
             if len(src._interfaces) == 3 and hasattr(src, "data"):
                 dtype = src.data._dtype

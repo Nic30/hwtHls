@@ -9,12 +9,12 @@ from hwt.interfaces.std import BramPort_withoutClk
 from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF
 from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.frontend.ast.statementsRead import HlsReadAddressed
 from hwtHls.frontend.ast.statementsWrite import HlsWriteAddressed
 from hwtHls.frontend.ast.utils import ANY_SCALAR_INT_VALUE
 from hwtHls.frontend.pyBytecode.ioProxyAddressed import IoProxyAddressed
-from hwtHls.io.portGroups import MultiPortGroup, BankedPortGroup
+from hwtHls.io.portGroups import MultiPortGroup, BankedPortGroup, \
+    isInstanceOfInterfacePort, getFirstInterfaceInstance
 from hwtHls.llvm.llvmIr import LoadInst, Register
 from hwtHls.llvm.llvmIr import MachineInstr
 from hwtHls.netlist.context import HlsNetlistCtx
@@ -26,7 +26,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes, \
 from hwtHls.netlist.nodes.read import HlsNetNodeReadIndexed
 from hwtHls.netlist.nodes.schedulableNode import OutputMinUseTimeGetter
 from hwtHls.netlist.nodes.write import HlsNetNodeWriteIndexed
-from hwtHls.netlist.scheduler.clk_math import epsilon
+from hwtHls.netlist.scheduler.clk_math import epsilon, indexOfClkPeriod
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.insideOfBlockSyncTracker import InsideOfBlockSyncTracker
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
@@ -70,15 +70,13 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
             assert _dst.HAS_W, dst
 
     def _getNominaInterface(self):
-        dst = self.dst
-        if isinstance(dst, tuple):
-            return dst[0]
-        else:
-            return dst
+        return getFirstInterfaceInstance(self.dst)
 
+    @override
     def scheduleAlapCompaction(self, endOfLastClk: int, outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter]):
         return HlsNetNodeWriteIndexed.scheduleAlapCompaction(self, endOfLastClk, outputMinUseTimeGetter)
 
+    @override
     def resolveRealization(self):
         netlist = self.netlist
         ffdelay = netlist.platform.get_op_realization(ResourceFF, 1, 1, netlist.realTimeClkPeriod).inputWireDelay * 2
@@ -226,7 +224,7 @@ class HlsReadBram(HlsReadAddressed):
             intfName: Optional[str]=None):
 
         if isinstance(src, MultiPortGroup):
-            src = MultiPortGroup(*(i for i in src if i.HAS_R))
+            src = MultiPortGroup(i for i in src if i.HAS_R)
             if len(src) == 1:
                 src = src[0]
             else:
@@ -240,11 +238,10 @@ class HlsReadBram(HlsReadAddressed):
         self.parentProxy = parentProxy
 
     def _getNativeInterfaceWordType(self) -> HdlType:
-        src = self._src
-        if isinstance(src, tuple):
-            src = src[0]
+        src = getFirstInterfaceInstance(self._src)
         return src.dout._dtype
 
+    @override
     @classmethod
     def _translateMirToNetlist(cls,
             representativeReadStm: "HlsReadBram",
@@ -296,7 +293,7 @@ class HlsWriteBram(HlsWriteAddressed):
             element_t:HdlType):
 
         if isinstance(dst, MultiPortGroup):
-            dst = MultiPortGroup(*(i for i in dst if i.HAS_W))
+            dst = MultiPortGroup(i for i in dst if i.HAS_W)
             if len(dst) == 1:
                 dst = dst[0]
             else:
@@ -311,11 +308,10 @@ class HlsWriteBram(HlsWriteAddressed):
         self.parentProxy = parentProxy
 
     def _getNativeInterfaceWordType(self) -> HdlType:
-        dst = self.dst
-        if isinstance(dst, tuple):
-            dst = dst[0]
+        dst = getFirstInterfaceInstance(self.dst)
         return dst.din._dtype
 
+    @override
     @classmethod
     def _translateMirToNetlist(cls,
             representativeWriteStm: "HlsWrite",
@@ -331,7 +327,7 @@ class HlsWriteBram(HlsWriteAddressed):
         :see: :meth:`hwtHls.frontend.ast.statementsRead.HlsRead._translateMirToNetlist`
         """
         netlist: HlsNetlistCtx = mirToNetlist.netlist
-        assert isinstance(dstIo, BramPort_withoutClk), dstIo
+        assert isInstanceOfInterfacePort(dstIo, BramPort_withoutClk), dstIo
         if isinstance(index, int):
             raise AssertionError("If the index is constant it should be an output of a constant node but it is an integer", dstIo, instr)
 
@@ -354,6 +350,7 @@ class BramArrayProxy(IoProxyAddressed):
             i = interface[0]
         else:
             i = interface
+        assert isInstanceOfInterfacePort(i, BramPort_withoutClk), i
         if i.HAS_W:
             if i.HAS_BE:
                 raise NotImplementedError()

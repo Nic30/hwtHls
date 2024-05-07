@@ -12,6 +12,7 @@ from hwtHls.netlist.nodes.node import NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
+from hwtHls.io.portGroups import MultiPortGroup, BankedPortGroup
 
 
 class HlsNetlistAnalysisPassIoDiscover(HlsNetlistAnalysisPass):
@@ -25,7 +26,7 @@ class HlsNetlistAnalysisPassIoDiscover(HlsNetlistAnalysisPass):
         self.ioByInterface: Dict[Interface, UniqList[Union[HlsNetNodeRead, HlsNetNodeWrite]]] = {}
         self.interfaceList: UniqList[Interface] = UniqList()
 
-    def run(self):
+    def runOnHlsNetlist(self, netlist: "HlsNetlistCtx"):
         assert not self.ioByInterface, "Must be run only once"
         netlist = self.netlist
         assert netlist.getAnalysisIfAvailable(HlsNetlistAnalysisPassRunScheduler) is not None, "Should be performed only after scheduling"
@@ -49,7 +50,7 @@ class HlsNetlistAnalysisPassIoDiscover(HlsNetlistAnalysisPass):
             if i is None:
                 continue
 
-            assert isinstance(i, (RtlSignalBase, InterfaceBase)), (i, op)
+            assert isinstance(i, (RtlSignalBase, InterfaceBase, MultiPortGroup, BankedPortGroup)), (i, op)
             opList = ioByInterface.get(i, None)
             if opList is None:
                 opList = ioByInterface[i] = UniqList()
@@ -62,7 +63,7 @@ class HlsNetlistAnalysisPassIoDiscover(HlsNetlistAnalysisPass):
             i = op.dst
             if i is None:
                 continue
-            assert isinstance(i, (tuple, RtlSignalBase, InterfaceBase)), (i, op)
+            assert isinstance(i, (tuple, RtlSignalBase, InterfaceBase, MultiPortGroup, BankedPortGroup)), (i, op)
             opList = ioByInterface.get(i, None)
             if opList  is None:
                 opList = ioByInterface[i] = UniqList()

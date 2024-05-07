@@ -436,7 +436,7 @@ class ToLlvmIrTranslator():
                 key.append(part)
         return key
 
-    def _getInterfaceTypeForFnArg(self, i: Interface, ioIndex: int,
+    def _getInterfaceTypeForFnArg(self, i: Union[Interface, MultiPortGroup, BankedPortGroup, RtlSignalBase], ioIndex: int,
                                   reads: List[HlsRead], writes: List[HlsWrite]) -> Tuple[Type, Type]:
         wordType = None
         if reads:
@@ -461,6 +461,7 @@ class ToLlvmIrTranslator():
                     wordType = _wordType
 
         ptrT = PointerType.get(self.ctx, ioIndex + 1)
+        i = getFirstInterfaceInstance(i)
         if isinstance(i, (BramPort_withoutClk, Axi4Lite)):
             addrWidth = i.ADDR_WIDTH
             arrTy = wordType[int(2 ** i.ADDR_WIDTH)]
