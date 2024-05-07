@@ -9,7 +9,8 @@ from hwt.hdl.value import HValue
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtLib.types.ctypes import uint16_t, uint32_t, uint64_t
-from pyMathBitPrecise.bit_utils import mask, ValidityError, get_bit_range
+from pyMathBitPrecise.bit_utils import mask, ValidityError, get_bit_range, \
+    to_unsigned
 
 
 class IEEE754Fp(HStruct):
@@ -26,7 +27,9 @@ class IEEE754Fp(HStruct):
     
     :note: subnormal and denormal is synonym.
 
-    Exponent is biased. For fp32 it has an offset of -127. All 1s represent the highest value, 0 the lowest.
+    Exponent is biased. For fp32 it has an offset of -127.
+    (msb=1, others=0) (EXPONENT_OFFSET_U) value represents offset of 0.
+    All 1s represent the highest value, 0 the lowest.
     If the exponent is 0, then:
         * the leading bit becomes 0
         * the exponent is fixed to -126 (not -127 as if we didn't have this exception)
@@ -36,6 +39,7 @@ class IEEE754Fp(HStruct):
         self.EXPONENT_WIDTH = exponentWidth
         self.MANTISSA_WIDTH = mantissaWidth
         self.EXPONENT_OFFSET = -mask(exponentWidth - 1)
+        self.EXPONENT_OFFSET_U = to_unsigned(self.EXPONENT_OFFSET, self.EXPONENT_WIDTH)
         HStruct.__init__(self,
             # mantissa on lowest bits sign on MSB
             (Bits(mantissaWidth, signed=False), "mantissa"),
@@ -58,9 +62,15 @@ class IEEE754Fp(HStruct):
         return hVal._reinterpret_cast(self)
 
     def from_py(self, v, vld_mask=None):
-        if isinstance(v, float):
+        if isinstance(v, (float, int)):
             if self != IEEE754Fp64:
                 raise NotImplementedError(self, "not implemented rounding when converting from python float to a float of a different size")
+            if isinstance(v, int):
+                v = float(v)
+
+            if vld_mask is not None:
+                raise NotImplementedError()
+
             v = int.from_bytes(struct.pack("d", v), byteorder='little')
             v = {
                 "mantissa": get_bit_range(v, 0, self.MANTISSA_WIDTH),
@@ -113,7 +123,7 @@ class IEEE754Fp(HStruct):
     @classmethod
     @hlsBytecode
     def isSubnormal(cls, v: RtlSignalBase["IEEE754Fp"]):
-        return v.exponent._eq(0) & v.mantissa != 0
+        return v.exponent._eq(0) & (v.mantissa != 0)
 
     @classmethod
     @hlsBytecode
@@ -140,8 +150,8 @@ IEEE754Fp32 = IEEE754Fp(8, 23, name="float32")
 IEEE754Fp64 = IEEE754Fp(11, 52, name="float64")
 
 # other commonly used floating point number types
-TF32 = IEEE754Fp(8, 10, name="TF32") # NVidia's TensorFloat32 (19 bits)
-BF16 = IEEE754Fp(8, 10, name="BF16") # BFLOAT16
-fp24 = IEEE754Fp(7, 16, name="fp24") # AMD's fp24 format
-PXR24 = IEEE754Fp(8, 15, name="PXR24") # Pixar's PXR24 format
-sfp_3_3 = IEEE754Fp(3, 3, name="sfp_3_3") # Xilinx Small Floating Point<3,3>: https://xilinx.eetrend.com/files/2021-06/wen_zhang_/100113810-209893-wp530-small-floating-point.pdf
+TF32 = IEEE754Fp(8, 10, name="TF32")  # NVidia's TensorFloat32 (19 bits)
+BF16 = IEEE754Fp(8, 10, name="BF16")  # BFLOAT16
+fp24 = IEEE754Fp(7, 16, name="fp24")  # AMD's fp24 format
+PXR24 = IEEE754Fp(8, 15, name="PXR24")  # Pixar's PXR24 format
+sfp_3_3 = IEEE754Fp(3, 3, name="sfp_3_3")  # Xilinx Small Floating Point<3,3>: https://xilinx.eetrend.com/files/2021-06/wen_zhang_/100113810-209893-wp530-small-floating-point.pdf
