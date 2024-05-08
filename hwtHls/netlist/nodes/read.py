@@ -28,6 +28,7 @@ from hwtHls.typingFuture import override
 from hwtLib.handshaked.streamNode import InterfaceOrValidReadyTuple
 from ipCorePackager.constants import INTF_DIRECTION_asDirecton, \
     DIRECTION_opposite, DIRECTION, INTF_DIRECTION
+from hwt.hdl.types.defs import BIT
 
 
 class HlsNetNodeRead(HlsNetNodeExplicitSync):
@@ -139,7 +140,11 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
         _valid = None
         _validNB = None
         if self.hasAnyUsedValidPort():
-            validRtl = self.getRtlValidSig(self.src)
+            if self._rtlUseValid or self.hasValidOnlyToPassFlags():
+                validRtl = self.getRtlValidSig(self.src)
+            else:
+                validRtl = BIT.from_py(1)
+
             if self.hasValid():
                 _valid = allocator.rtlRegisterOutputRtlSignal(self._valid, validRtl, False, False, False)
             if self.hasValidNB():

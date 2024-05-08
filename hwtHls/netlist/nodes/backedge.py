@@ -24,8 +24,7 @@ from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
-from hwtHls.netlist.nodes.schedulableNode import OutputMinUseTimeGetter, \
-    SchedTime
+from hwtHls.netlist.nodes.schedulableNode import OutputMinUseTimeGetter
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
 from hwtHls.typingFuture import override
@@ -69,18 +68,16 @@ class HlsNetNodeReadBackedge(HlsNetNodeRead):
     def hasValidOnlyToPassFlags(self):
         if self._rtlUseValid:
             return False
-        if HlsNetNodeExplicitSync.hasValidOnlyToPassFlags(self):
-            return True
+
         w = self.associatedWrite
-        if w is not None:
-            if w._loopChannelGroup is not None and w._loopChannelGroup.getChannelWhichIsUsedToImplementControl() == w:
-                return True  # because we need valid for loop to know that the channel is active
+        if w is None:
+            return False
 
-            if w.extraCond and not w._rtlUseValid:
-                return True
+        if w.extraCond is not None and HlsNetNodeExplicitSync.hasValidOnlyToPassFlags(self):
+            return True
 
-            if HlsNetNodeExplicitSync.hasValidOnlyToPassFlags(w):
-                return True
+        if w._loopChannelGroup is not None and w._loopChannelGroup.getChannelWhichIsUsedToImplementControl() == w:
+            return True  # because we need valid for loop to know that the channel is active
 
         return False
 
@@ -92,14 +89,14 @@ class HlsNetNodeReadBackedge(HlsNetNodeRead):
             # it the write is going to be performed
             return False
 
-        if HlsNetNodeExplicitSync.hasReadyOnlyToPassFlags(self):
-            return True
         w = self.associatedWrite
-        if w is not None:
-            if self.extraCond is not None and not self._rtlUseReady:
-                return True
-            if HlsNetNodeExplicitSync.hasReadyOnlyToPassFlags(w):
-                return True
+        if w is None:
+            return False
+
+        if self.extraCond is not None and HlsNetNodeExplicitSync.hasReadyOnlyToPassFlags(w):
+            # read extra cond may cause stall, and w is checking ready
+            return True
+
         return False
 
     def _rtlAllocDatapathIo(self):
@@ -463,6 +460,7 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
                             initVal = initVal[0]
                         data = parentUnit._reg(f"{namePrefix:s}{i:d}_data", data._dtype, nextSig=data, def_val=initVal)
                     dstRead.src(data)
+
             if self._fullPort is not None:
                 if vld is None:
                     raise AssertionError("This channel has no form of valid but it has full which is form of valid", self)
