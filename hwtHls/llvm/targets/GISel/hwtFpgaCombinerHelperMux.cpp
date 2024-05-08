@@ -87,6 +87,24 @@ bool checkAnyOperandRedefined(MachineInstr &MI, MachineInstr &MIEnd) {
 	return true;
 }
 
+MachineOperand *getNextUseOfRegInBloc(MachineRegisterInfo &MRI, MachineInstr &MI,
+		Register &DstRegNo) {
+	MachineOperand *otherUse = nullptr;
+	if (!MRI.hasOneUse(DstRegNo)) {
+		for (MachineInstr *NextInstr = MI.getNextNode(); NextInstr != nullptr;
+				NextInstr = NextInstr->getNextNode()) {
+			// :note: redefs checked later in checkAnyOperandRedefined
+			auto UseOpIndx = NextInstr->findRegisterUseOperandIdx(DstRegNo,
+					false);
+			if (UseOpIndx > 0) {
+				otherUse = &NextInstr->getOperand(UseOpIndx);
+				break;
+			}
+		}
+	}
+	return otherUse;
+}
+
 /**
  * rules for merging MUX instructions:
  * * if conditions are proven to be exclusive the order of pairs condition-value does not matter
@@ -127,16 +145,9 @@ bool HwtFpgaCombinerHelper::matchNestedMux(MachineInstr &MI,
 	auto DstRegNo = MI.getOperand(0).getReg();
 	MachineOperand *otherUse = nullptr;
 	if (!MRI.hasOneUse(DstRegNo)) {
-		auto NextInstr = MI.getNextNode();
-		if (NextInstr) {
-			auto UseOpIndx = NextInstr->findRegisterUseOperandIdx(DstRegNo,
-					false);
-			if (UseOpIndx > 0) {
-				otherUse = &NextInstr->getOperand(UseOpIndx);
-			}
-		}
+		otherUse = getNextUseOfRegInBloc(MRI, MI, DstRegNo);
 		if (!otherUse) {
-			// if there are multiple users merging of this register is not beneficial
+			// nothing to merge
 			return false;
 		}
 	} else {
@@ -214,7 +225,7 @@ bool HwtFpgaCombinerHelper::rewriteNestedMuxToMux(MachineInstr &MI,
 		parentUse = &*MRI.use_begin(DstRegNo);
 		assert(parentUse->getReg() == DstRegNo);
 	} else {
-		auto NextInstr = MI.getNextNode();
+		MachineInstr* NextInstr = getNextUseOfRegInBloc(MRI, MI, DstRegNo)->getParent();
 		assert(NextInstr && "Should be already checked in matchNestedMux");
 		assert(NextInstr->getOpcode() == HwtFpga::HWTFPGA_MUX);
 		auto UseOpIndx = NextInstr->findRegisterUseOperandIdx(DstRegNo, false);
