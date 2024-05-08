@@ -125,11 +125,11 @@ class DefaultHlsPlatform(DummyPlatform):
     def runSsaToNetlist(self, hls: "HlsScope", toSsa: HlsAstToSsa) -> HlsNetlistCtx:
         tr: ToLlvmIrTranslator = toSsa.start
         assert isinstance(tr, ToLlvmIrTranslator), tr
-        netlist = tr.llvm.runOpt(self.runNetlistTranslation, hls, toSsa)
+        netlist = tr.llvm.runOpt(self.runMirToHlsNetlist, hls, toSsa)
         assert netlist is not None
         return netlist
 
-    def runNetlistTranslation(self,
+    def runMirToHlsNetlist(self,
                               hls: "HlsScope", toSsa: HlsAstToSsa,
                               mf: MachineFunction,
                               backedges: Set[Tuple[MachineBasicBlock, MachineBasicBlock]],
@@ -138,7 +138,7 @@ class DefaultHlsPlatform(DummyPlatform):
                               registerTypes: Dict[Register, int],
                               loops: MachineLoopInfo):
         """
-        .. figure:: ./_static/DefaultHlsPlatform.runNetlistTranslation.png
+        .. figure:: ./_static/DefaultHlsPlatform.runMirToHlsNetlist.png
         """
         tr: ToLlvmIrTranslator = toSsa.start
         assert isinstance(tr, ToLlvmIrTranslator), tr

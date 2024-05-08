@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from math import inf
 from typing import Optional, Set
 
 from hwt.hdl.types.bits import Bits
 from hwt.math import log2ceil
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
-from hwtHls.frontend.pyBytecode.markers import PyBytecodeLLVMLoopUnroll, \
-    PyBytecodeSkipPass
+from hwtHls.frontend.pyBytecode.markers import PyBytecodeLLVMLoopUnroll
 from hwtHls.llvm.llvmIr import LlvmCompilationBundle, StringRef, Any, AnyToModule, \
     AnyToFunction, AnyToLoop, Module, Function, MachineFunction
 from hwtHls.platform.debugBundle import DebugId
@@ -108,11 +106,11 @@ class ShifterTC(SimTestCase):
                     llvm: LlvmCompilationBundle = toLlvm.llvm
                     llvm.registerAfterPassCallback(self.runTestAfterPass)
 
-            def runNetlistTranslation(self,
+            def runMirToHlsNetlist(self,
                               hls: "HlsScope", toSsa: HlsAstToSsa,
                               mf: MachineFunction, *args, **kwargs):
                 self.runTestOnMachineFuncion(mf)
-                return super(TestPlatform, self).runNetlistTranslation(hls, toSsa, mf,
+                return super(TestPlatform, self).runMirToHlsNetlist(hls, toSsa, mf,
                                                                        *args, **kwargs)
 
         self.compileSimAndStart(u, target_platform=TestPlatform(debugFilter=debugFilter))  # debugFilter=HlsDebugBundle.ALL_RELIABLE
@@ -203,9 +201,9 @@ class ShifterTC(SimTestCase):
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import to_rtl_str
-    # u = ShifterLeftUsingHwLoopWithBreakIf0()
-    # u.UNROLL_META = PyBytecodeLLVMLoopUnroll(True, u.DATA_WIDTH - 1)
+    # from hwt.synthesizer.utils import to_rtl_str
+    # u = ShifterLeftUsingHwLoopWithWhileNot0()
+    # # u.UNROLL_META = PyBytecodeLLVMLoopUnroll(True, u.DATA_WIDTH - 1)
     # u.CLK_FREQ = int(1e6)
     # print(to_rtl_str(u, target_platform=VirtualHlsPlatform(
     #   debugFilter=HlsDebugBundle.ALL_RELIABLE.union({HlsDebugBundle.DBG_20_addSignalNamesToSync,
@@ -213,7 +211,7 @@ if __name__ == "__main__":
 
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([ShifterTC("test_ShifterLeftUsingHwLoopWithWhileNot0_unrol4")])
+    # suite = unittest.TestSuite([ShifterTC("test_ShifterLeftUsingHwLoopWithBreakIf0_unrol2")])
     suite = testLoader.loadTestsFromTestCase(ShifterTC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

@@ -42,7 +42,7 @@ class BaseTestPlatform(VirtualHlsPlatform):
         SsaPassDumpToLl(lambda name: (self.postPyOpt, False)).runOnSsaModule(toSsa)
         SsaPassToLlvm(hls, self._llvmCliArgs).runOnSsaModule(toSsa)
 
-    def runNetlistTranslation(self,
+    def runMirToHlsNetlist(self,
                               hls: "HlsScope", toSsa: HlsAstToSsa,
                               mf: MachineFunction,
                               backedges: Set[Tuple[MachineBasicBlock, MachineBasicBlock]],

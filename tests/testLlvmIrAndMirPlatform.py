@@ -105,7 +105,7 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
                 self._runWithTimeLog(self.TIME_LOG_STAGE.OPT_IR, self._optIrTest, tr.llvm)
             raise
 
-    def runNetlistTranslation(self,
+    def runMirToHlsNetlist(self,
                       hls: "HlsScope", toSsa: HlsAstToSsa,
                       MF: MachineFunction, *args):
         tr: ToLlvmIrTranslator = toSsa.start
@@ -121,7 +121,7 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
             dbg(D.DBG_4_mirCfg, (hls, toSsa))
             raise
 
-        netlist = super(TestLlvmIrAndMirPlatform, self).runNetlistTranslation(hls, toSsa, MF, *args)
+        netlist = super(TestLlvmIrAndMirPlatform, self).runMirToHlsNetlist(hls, toSsa, MF, *args)
         return netlist
 
     @classmethod
