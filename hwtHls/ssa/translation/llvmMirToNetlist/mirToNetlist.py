@@ -6,6 +6,7 @@ from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, \
     MachineLoop, Register, MachineRegisterInfo
 from hwtHls.netlist.analysis.dataThreadsForBlocks import HlsNetlistAnalysisPassDataThreadsForBlocks
+from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HVoidOrdering
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge, \
@@ -16,7 +17,8 @@ from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge, \
 from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeReadAnyChannel, \
     LoopChanelGroup, LOOP_CHANEL_GROUP_ROLE, HlsNetNodeReadOrWriteToAnyChannel
 from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
-from hwtHls.netlist.nodes.ports import link_hls_nodes, HlsNetNodeIn, HlsNetNodeOut
+from hwtHls.netlist.nodes.ports import link_hls_nodes, HlsNetNodeIn, HlsNetNodeOut, \
+    HlsNetNodeOutAny
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.ssa.translation.llvmMirToNetlist.blockEn import resolveBlockEn
 from hwtHls.ssa.translation.llvmMirToNetlist.branchOutLabel import BranchOutLabel
@@ -272,6 +274,53 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
     #            for exitChWrite in exitChWrites:
     #                link_hls_nodes(delay._outputs[0], exitChWrite._addInput("orderingIn"))
     #
+    def _constructChannelForLoopExitNotifyToHeader(self,
+                                                   builder: HlsNetlistBuilder,
+                                                   eMbSync: MachineBasicBlockMeta,
+                                                   loopStatus: HlsNetNodeLoopStatus,
+                                                   mb: MachineBasicBlock,
+                                                   exitBlock: MachineBasicBlock,
+                                                   exitSucBlock: MachineBasicBlock,
+                                                   controlOrig: HlsNetNodeOutAny,
+                                                   ):
+        exitForHeaderR = self._constructBackedgeBuffer(
+            f"bb{exitBlock.getNumber():d}_to_bb{exitSucBlock.getNumber():d}_loopExitNotify",
+            exitBlock, mb,
+            None, builder.buildConstPy(HVoidOrdering, None), True)
+        # [todo] add exits also for parent loops
+        # edgeMeta.buffersForLoopExit.append(exitForHeaderR) # :note: buffersForLoopExit is not for EXIT_NOTIFY_TO_HEADER
+        exitForHeaderR.obj.setNonBlocking()
+        exitForHeaderW: HlsNetNodeWriteBackedge = exitForHeaderR.obj.associatedWrite
+        # this channel will asynchronously notify loop header, it is not required
+        # to have ready sync signal
+        exitForHeaderW._isBlocking = False
+        exitForHeaderW.allocationType = BACKEDGE_ALLOCATION_TYPE.IMMEDIATE
+        exitForHeaderW._rtlUseReady = exitForHeaderR.obj._rtlUseReady = False
+        # exitForHeaderW._rtlUseValid = exitForHeaderR.obj._rtlUseValid = False
+
+        self._addExtraCond(exitForHeaderW, controlOrig, eMbSync.blockEn)
+        # skipWhen is required because we do not want this to stall parent stage
+        self._addSkipWhen_n(exitForHeaderW, controlOrig, eMbSync.blockEn)
+        # w.channelInitValues = ((0,),)
+        lcg = LoopChanelGroup([(exitBlock.getNumber(),
+                                exitSucBlock.getNumber(),
+                                LOOP_CHANEL_GROUP_ROLE.EXIT_NOTIFY_TO_HEADER)])
+        lcg.appendWrite(exitForHeaderW, True)
+        loopStatus.addExitToHeaderNotifyPort(exitBlock.getNumber(), exitSucBlock.getNumber(), lcg)
+
+    def _isExistingParentLoop(self, loop: MachineLoop, exitSucBlock: MachineBasicBlock):
+        isExitFromParentLoop = False
+        p: MachineLoop = loop.getParentLoop()
+        while p is not None:
+            if p.getHeader() == exitSucBlock or not p.containsBlock(exitSucBlock):
+                if self.blockSync[p.getHeader()].isLoopHeaderOfFreeRunning:
+                    # parent loop was just found out to be without HW representation
+                    break
+                isExitFromParentLoop = True
+                break
+            p = p.getParentLoop()
+        return isExitFromParentLoop
+
     def _resolveLoopIoSyncForExit(self, loopStatus: HlsNetNodeLoopStatus, loop: MachineLoop, loopExecs: LoopPortGroup, mb: MachineBasicBlock):
         builder = loopStatus.netlist.builder
         valCache: MirToHwtHlsNetlistValueCache = self.valCache
@@ -292,28 +341,23 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
         else:
             anyEnterExecuted_n = 0
 
+        loopIsHwLoop = not self.blockSync[loop.getHeader()].isLoopHeaderOfFreeRunning
         # for every exit build a channel which notifies the loop status
         for edge in loop.getExitEdges():
             (exitBlock, exitSucBlock) = edge
-
-            isExitFromParentLoop = False
-            p: MachineLoop = loop.getParentLoop()
-            while p is not None:
-                if p.getHeader() == exitSucBlock or not p.containsBlock(exitSucBlock):
-                    if self.blockSync[p.getHeader()].isLoopHeaderOfFreeRunning:
-                        # parent loop was just found out to be without HW representation
-                        break
-                    isExitFromParentLoop = True
-                    break
-                p = p.getParentLoop()
-
             edgeMeta: MachineEdgeMeta = self.edgeMeta[edge]
+            eMbSync: MachineBasicBlockMeta = self.blockSync[exitBlock]
+
+            edgeIsNotBackedge = edgeMeta.etype in (MACHINE_EDGE_TYPE.DISCARDED,
+                                                   MACHINE_EDGE_TYPE.NORMAL)
+
+            loopExitExits = edgeIsNotBackedge or\
+                    not loopIsHwLoop or\
+                    self._isExistingParentLoop(loop, exitSucBlock)
             # self._resolveLoopIoSyncAddLatencyToExitReads(loopStatus, edgeMeta)
 
-            eMbSync: MachineBasicBlockMeta = self.blockSync[exitBlock]
             # if exiting loop return token to HlsNetNodeLoopStatus
-
-            if (isExitFromParentLoop or edgeMeta.etype in (MACHINE_EDGE_TYPE.DISCARDED, MACHINE_EDGE_TYPE.NORMAL)):
+            if loopExitExits:
                 # if it is exit from parent loop  we let parent loop add flags to write node
                 eRead = None
                 eWrite = None
@@ -328,35 +372,9 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
 
             # register and optionally construct EXIT_NOTIFY_TO_HEADER port
             controlOrig = valCache.get(exitBlock, BranchOutLabel(exitSucBlock), BIT)
-            if exitSucBlock == mb and eWrite is not None:
-                exitForHeaderW = eWrite
-                raise NotImplementedError()
-            else:
-                exitForHeaderR = self._constructBackedgeBuffer(
-                    f"bb{exitBlock.getNumber():d}_to_bb{exitSucBlock.getNumber():d}_loopExit",
-                    exitBlock, mb,
-                    None, builder.buildConstPy(HVoidOrdering, None), True)
-                # [todo] add exits also for parent loops
-                # edgeMeta.buffersForLoopExit.append(exitForHeaderR) # :note: buffersForLoopExit is not for EXIT_NOTIFY_TO_HEADER
-                exitForHeaderR.obj.setNonBlocking()
-                exitForHeaderW: HlsNetNodeWriteBackedge = exitForHeaderR.obj.associatedWrite
-                # this channel will asynchronously notify loop header, it is not required
-                # to have ready sync signal
-                exitForHeaderW._isBlocking = False
-                exitForHeaderW.allocationType = BACKEDGE_ALLOCATION_TYPE.IMMEDIATE
-                exitForHeaderW._rtlUseReady = exitForHeaderR.obj._rtlUseReady = False
-                # exitForHeaderW._rtlUseValid = exitForHeaderR.obj._rtlUseValid = False
-
-                self._addExtraCond(exitForHeaderW, controlOrig, eMbSync.blockEn)
-                # skipWhen is required because we do not want this to stall parent stage
-                self._addSkipWhen_n(exitForHeaderW, controlOrig, eMbSync.blockEn)
-                # w.channelInitValues = ((0,),)
-                lcg = LoopChanelGroup([(exitBlock.getNumber(),
-                                        exitSucBlock.getNumber(),
-                                        LOOP_CHANEL_GROUP_ROLE.EXIT_NOTIFY_TO_HEADER)])
-                lcg.appendWrite(exitForHeaderW, True)
-
-            loopStatus.addExitToHeaderNotifyPort(exitBlock.getNumber(), exitSucBlock.getNumber(), lcg)
+            if loopIsHwLoop:
+                self._constructChannelForLoopExitNotifyToHeader(
+                    builder, eMbSync, loopStatus, mb, exitBlock, exitSucBlock, controlOrig)
 
             if eWrite is not None:
                 # make write to exit channel the last last in block from which there is jump outside of loop
