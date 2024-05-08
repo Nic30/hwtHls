@@ -42,10 +42,16 @@ class HwtHlsNetlistToGraphwiz():
     Generate a Graphwiz (dot) diagram of the netlist.
     """
 
-    def __init__(self, name: str, nodes: List[HlsNetNode], expandAggregates: bool, addLegend: bool):
+    def __init__(self, name: str, nodes: List[HlsNetNode],
+                 expandAggregates: bool,
+                 addLegend: bool,
+                 showArchElementLinks:bool=True):
         """
         :attention: if expandAggregates==True the nodes should contain also parent aggregates
             and parent aggregate position in nodes list must be before its children.
+            
+        :param showArchElementLinks: if True add links between HlsNetNodeAggregatePortIn/HlsNetNodeAggregatePortOut
+            instances, else keep just the dst/src name in port node
         """
         self.name = name
         self.allNodes = UniqList(nodes)
@@ -57,6 +63,7 @@ class HwtHlsNetlistToGraphwiz():
         self._edgeFilterFn: Optional[Callable[[HlsNetNodeOut, HlsNetNodeIn], bool]] = None
         self._expandedNodes: Dict[Union[HlsNetNodeAggregate, Tuple[HlsNetNodeAggregate, int]], pydot.Cluster] = {}
         self._parentOfNode: Dict[HlsNetNode, Tuple[HlsNetNodeAggregate, int]] = {}
+        self._showArchElementLinks = showArchElementLinks
 
     def _constructLegend(self):
         legendTable = f"""<
@@ -267,23 +274,26 @@ class HwtHlsNetlistToGraphwiz():
                 # add link from parent aggregate port
                 if isinstance(obj, HlsNetNodeAggregatePortIn):
                     obj: HlsNetNodeAggregatePortIn
+                    parentIn = obj.parentIn
+                    dep = parentIn.obj.dependsOn[parentIn.in_i]
+                    input_rows.append(f"<td port='i0'>{dep.obj._id}:{dep.out_i}</td>")
+                    if self._showArchElementLinks or not isinstance(parentIn.obj, ArchElement):
+                        dep = obj.parentIn.obj.dependsOn[obj.parentIn.in_i]
+                        depObj = dep.obj
+                        if isinstance(depObj, HlsNetNodeAggregate):
+                            depNode = depObj._outputsInside[dep.out_i]
+                            dep_node = self._node_from_HlsNetNode(depNode)
+                            src = f"{dep_node.get_name():s}:o0"
+                        else:
+                            dep_node = self._node_from_HlsNetNode(depObj)
+                            src = f"{dep_node.get_name():s}:o{dep.out_i:d}"
+                        attrs = {}
+                        if HdlType_isVoid(dep._dtype):
+                            attrs["style"] = "dotted"
 
-                    dep = obj.parentIn.obj.dependsOn[obj.parentIn.in_i]
-                    depObj = dep.obj
-                    if isinstance(depObj, HlsNetNodeAggregate):
-                        depNode = depObj._outputsInside[dep.out_i]
-                        dep_node = self._node_from_HlsNetNode(depNode)
-                        src = f"{dep_node.get_name():s}:o0"
-                    else:
-                        dep_node = self._node_from_HlsNetNode(depObj)
-                        src = f"{dep_node.get_name():s}:o{dep.out_i:d}"
-                    attrs = {}
-                    if HdlType_isVoid(dep._dtype):
-                        attrs["style"] = "dotted"
-
-                    dst = f"{node.get_name():s}:i0"
-                    e = pydot.Edge(src, dst, **attrs)
-                    self.graph.add_edge(e)
+                        dst = f"{node.get_name():s}:i0"
+                        e = pydot.Edge(src, dst, **attrs)
+                        self.graph.add_edge(e)
 
                 for shadow_dst, isExplicitBackedge in obj.debugIterShadowConnectionDst():
                     if isinstance(shadow_dst, HlsNetNode) and shadow_dst not in self.allNodes:
