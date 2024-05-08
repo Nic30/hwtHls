@@ -79,6 +79,7 @@ void register_LlvmCompilationBundle(pybind11::module_ &m) {
 		.def("_testEarlyIfConverter", &hwtHls::LlvmCompilationBundle::_testEarlyIfConverter, py::return_value_policy::reference_internal)
 		.def("_testVRegIfConverter", &hwtHls::LlvmCompilationBundle::_testVRegIfConverter, py::return_value_policy::reference_internal)
 		.def("_testVRegIfConverterForIr", &hwtHls::LlvmCompilationBundle::_testVRegIfConverterForIr, py::return_value_policy::reference_internal)
+		.def("_testHwtFpgaPreToNetlistCombiner", &hwtHls::LlvmCompilationBundle::_testHwtFpgaPreToNetlistCombiner, py::return_value_policy::reference_internal)
 		.def_readonly("ctx", &hwtHls::LlvmCompilationBundle::ctx)
 		.def_readonly("strCtx", &hwtHls::LlvmCompilationBundle::strCtx)
 		.def_readonly("builder", &hwtHls::LlvmCompilationBundle::builder)

@@ -248,4 +248,10 @@ void LlvmCompilationBundle::_testVRegIfConverterForIr(bool lowerSsaToNonSsa) {
 	});
 }
 
+void LlvmCompilationBundle::_testHwtFpgaPreToNetlistCombiner() {
+	_testMachineFunctionPass([](llvm::HwtFpgaTargetPassConfig &TPC) {
+		TPC._testAddPass(llvm::createHwtFpgaPreToNetlistCombiner());
+	});
+}
+
 }

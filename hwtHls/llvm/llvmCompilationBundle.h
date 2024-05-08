@@ -100,6 +100,7 @@ public:
 	// _testVRegIfConverter which has input in LLVM IR
 	// (which is then translated to MIR which is then processed by VRegIfConverter)
 	void _testVRegIfConverterForIr(bool lowerSsaToNonSsa);
+	void _testHwtFpgaPreToNetlistCombiner();
 };
 
 }

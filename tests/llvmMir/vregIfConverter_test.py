@@ -2,35 +2,19 @@
 # -*- coding: utf-8 -*-
 
 import os
-from pathlib import Path
 
-from hwtHls.llvm.llvmIr import LlvmCompilationBundle, parseMIR, parseIR, SMDiagnostic
-from tests.baseSsaTest import BaseSsaTC
+from hwtHls.llvm.llvmIr import LlvmCompilationBundle, parseIR, SMDiagnostic, Function
 from tests.llvmIr.baseLlvmIrTC import generateAndAppendHwtHlsFunctionDeclarations
+from tests.llvmMir.baseLlvmMirTC import BaseLlvmMirTC
 
 
-class VRegIfConverter_TC(BaseSsaTC):
+class VRegIfConverter_TC(BaseLlvmMirTC):
     __FILE__ = __file__
 
-    def _test_ll(self):
-        nameOfMain = self.getTestName()
-        ctx = LlvmCompilationBundle(nameOfMain)
+    def _runTestOpt(self, llvm:LlvmCompilationBundle) -> Function:
+        llvm._testVRegIfConverter()
 
-        inputFileName = Path(self.__FILE__).expanduser().resolve().parent / "dataIn" / (nameOfMain + ".in.mir.ll")
-        with open(inputFileName) as f:
-            parseMIR(f.read(), nameOfMain, ctx)
-        assert ctx.module is not None
-
-        f = ctx.module.getFunction(ctx.strCtx.addStringRef(nameOfMain))
-        assert f is not None, (inputFileName, nameOfMain)
-        ctx.main = f
-        ctx._testVRegIfConverter()
-        MMI = ctx.getMachineModuleInfo()
-        MF = MMI.getMachineFunction(f)
-        assert MF is not None
-        self.assert_same_as_file(str(MF), os.path.join("data", self.__class__.__name__ + "." + nameOfMain + ".out.mir.ll"))
-
-    def _test_ll_IR(self, irStr: str, lowerSsaToNonSsa=False):
+    def _test_ll(self, irStr: str, lowerSsaToNonSsa=False):
         irStr = generateAndAppendHwtHlsFunctionDeclarations(irStr)
         llvm = LlvmCompilationBundle("test")
         Err = SMDiagnostic()
@@ -57,7 +41,7 @@ class VRegIfConverter_TC(BaseSsaTC):
             ret void
         }
         """
-        self._test_ll_IR(ir)
+        self._test_ll(ir)
 
     def test_returnBlockMerge0(self):
         ir = """\
@@ -73,7 +57,7 @@ class VRegIfConverter_TC(BaseSsaTC):
             ret void
         }
         """
-        self._test_ll_IR(ir)
+        self._test_ll(ir)
 
     def test_SimpleFalse(self):
         # Same as ICSimple, but on the false path.
@@ -89,7 +73,7 @@ class VRegIfConverter_TC(BaseSsaTC):
             ret void
         }
         """
-        self._test_ll_IR(ir)
+        self._test_ll(ir)
 
     def test_simple(self):
         # Simple (split, no rejoin):
@@ -112,7 +96,7 @@ class VRegIfConverter_TC(BaseSsaTC):
             ret void
         }
         """
-        self._test_ll_IR(ir)
+        self._test_ll(ir)
 
     def test_simpleWithTooManyBranches(self):
         # Simple (split, no rejoin):
@@ -147,7 +131,7 @@ class VRegIfConverter_TC(BaseSsaTC):
             br label %L0
         }
         """
-        self._test_ll_IR(ir)
+        self._test_ll(ir)
 
     def test_simpleInDiamondLike(self):
         # Simple (split, no rejoin):
@@ -181,7 +165,7 @@ class VRegIfConverter_TC(BaseSsaTC):
             ret void
         }
         """
-        self._test_ll_IR(ir)
+        self._test_ll(ir)
 
 #    def test_TriangleFRev(self):
         # Same as ICTriangleFalse, but false path rev condition.
@@ -199,7 +183,7 @@ class VRegIfConverter_TC(BaseSsaTC):
             ret void
         }
         """
-        self._test_ll_IR(ir)
+        self._test_ll(ir)
 
     def test_Triangle(self):  # BB is entry of a triangle sub-CFG.
         # Triangle:
@@ -221,7 +205,7 @@ class VRegIfConverter_TC(BaseSsaTC):
             ret void
         }
         """
-        self._test_ll_IR(ir)
+        self._test_ll(ir)
 
     def test_TriangleWithLiveoutSsa(self):
         # same as test_Triangle but with phi at end
@@ -239,7 +223,7 @@ class VRegIfConverter_TC(BaseSsaTC):
             ret void
         }
         """
-        self._test_ll_IR(ir)
+        self._test_ll(ir)
 
     def test_TriangleWithLiveout(self):
         # same as test_TriangleWidthLiveoutSsa just with lowering to non-SSA
@@ -257,15 +241,14 @@ class VRegIfConverter_TC(BaseSsaTC):
             ret void
         }
         """
-        self._test_ll_IR(ir, lowerSsaToNonSsa=True)
+        self._test_ll(ir, lowerSsaToNonSsa=True)
 
     def test_TriangleWithLiveoutStoredMultipletimes(self):
         # same as test_TriangleWithLiveout just register is written multipletimes
         # in if-converted block
-        self._test_ll()
+        self._test_mir_file()
 
     def test_ForkedTriangle0(self):  # BB is entry of a triangle sub-CFG.
-        # Triangle:
         #   EBB
         #   | \_
         #   |  |
@@ -288,7 +271,7 @@ class VRegIfConverter_TC(BaseSsaTC):
             br label %BBLoop
         }
         """
-        self._test_ll_IR(ir)
+        self._test_ll(ir)
 
     def test_ForkedTriangle1(self):
         # test_ForkedTriangle with reordered blocks
@@ -308,7 +291,107 @@ class VRegIfConverter_TC(BaseSsaTC):
             ret void
         }
         """
-        self._test_ll_IR(ir)
+        self._test_ll(ir)
+
+    def test_ForkedTriangleInLoop(self):  # BB is entry of a triangle sub-CFG.
+        #   BBLoopHead <--+
+        #   |             |
+        #   EBB           |
+        #   |  \_         |
+        #   | TBB -+      |
+        #   |  /   |      |
+        #   FBB    |      |
+        #   |      v      |
+        #   BBLoopTail----+
+
+        ir = """\
+        define void @forkedTriangleInLoop(i1 addrspace(2)* %iC0, i8 addrspace(3)* %o) {
+          BBEntry:
+            br label %BBLoopHead
+          BBLoopHead:
+            br label %EBB
+          EBB:
+            %c0 = load volatile i1, i1 addrspace(2)* %iC0, align 1
+            store volatile i8 0, i8 addrspace(3)* %o, align 1
+            br i1 %c0, label %TBB, label %FBB
+          TBB:
+            %c1 = load volatile i1, i1 addrspace(2)* %iC0, align 1
+            store volatile i8 1, i8 addrspace(3)* %o, align 1
+            br i1 %c1, label %FBB, label %BBLoopTail
+          FBB:
+            store volatile i8 2, i8 addrspace(3)* %o, align 1
+            br label %BBLoopTail
+          BBLoopTail:
+            store volatile i8 3, i8 addrspace(3)* %o, align 1
+            br label %BBLoopHead
+        }
+        """
+        self._test_ll(ir)
+
+    def test_ForkedTriangleWhichIsLoopInLoop0(self):  # BB is entry of a triangle sub-CFG.
+        #   BBLoopHead <--+
+        #   |             |
+        #   EBB <---------+
+        #   |  \_         |
+        #   | TBB -+      |
+        #   |  /   |      |
+        #   FBB    |      |
+        #   |      v      |
+        #   BBLoopTail----+
+
+        ir = """\
+        define void @forkedTriangleWhichIsLoopInLoop0(i1 addrspace(2)* %iC0, i8 addrspace(3)* %o) {
+          BBEntry:
+            br label %BBLoopHead
+          BBLoopHead:
+            store volatile i8 0, i8 addrspace(3)* %o, align 1
+            br label %EBB
+          EBB:
+            %c0 = load volatile i1, i1 addrspace(2)* %iC0, align 1
+            store volatile i8 1, i8 addrspace(3)* %o, align 1
+            br i1 %c0, label %TBB, label %FBB
+          TBB:
+            %c1 = load volatile i1, i1 addrspace(2)* %iC0, align 1
+            store volatile i8 2, i8 addrspace(3)* %o, align 1
+            br i1 %c1, label %FBB, label %BBLoopTail
+          FBB:
+            store volatile i8 3, i8 addrspace(3)* %o, align 1
+            br label %BBLoopTail
+          BBLoopTail:
+            store volatile i8 4, i8 addrspace(3)* %o, align 1
+            %c2 = load volatile i1, i1 addrspace(2)* %iC0, align 1
+            br i1 %c2, label %EBB, label %BBLoopHead
+        }
+        """
+        self._test_ll(ir)
+
+    def test_ForkedTriangleWhichIsLoopInLoop1(self):  # BB is entry of a triangle sub-CFG.
+        # forkedTriangleWhichIsLoopInLoop0 with modified branch order
+        ir = """\
+        define void @forkedTriangleWhichIsLoopInLoop1(i1 addrspace(2)* %iC0, i8 addrspace(3)* %o) {
+          BBEntry:
+            br label %BBLoopHead
+          BBLoopHead:
+            store volatile i8 0, i8 addrspace(3)* %o, align 1
+            br label %EBB
+          EBB:
+            %c0 = load volatile i1, i1 addrspace(2)* %iC0, align 1
+            store volatile i8 1, i8 addrspace(3)* %o, align 1
+            br i1 %c0, label %FBB, label %TBB
+          TBB:
+            %c1 = load volatile i1, i1 addrspace(2)* %iC0, align 1
+            store volatile i8 2, i8 addrspace(3)* %o, align 1
+            br i1 %c1, label %FBB, label %BBLoopTail
+          FBB:
+            store volatile i8 3, i8 addrspace(3)* %o, align 1
+            br label %BBLoopTail
+          BBLoopTail:
+            store volatile i8 4, i8 addrspace(3)* %o, align 1
+            %c2 = load volatile i1, i1 addrspace(2)* %iC0, align 1
+            br i1 %c2, label %BBLoopHead, label %EBB
+        }
+        """
+        self._test_ll(ir)
 
     def test_Diamond0(self):
         # BB is entry of a diamond sub-CFG.
@@ -335,7 +418,7 @@ class VRegIfConverter_TC(BaseSsaTC):
             ret void
         }
         """
-        self._test_ll_IR(ir)
+        self._test_ll(ir)
 
     def test_Diamond1(self):
         # same as Diamond0 just Branch condition in EBB reversed
@@ -355,7 +438,7 @@ class VRegIfConverter_TC(BaseSsaTC):
             ret void
         }
         """
-        self._test_ll_IR(ir)
+        self._test_ll(ir)
 
     def test_Diamond0withLiveout(self):
         # same as Diamond0 just with extra live registers on entry to TailBB
@@ -376,7 +459,7 @@ class VRegIfConverter_TC(BaseSsaTC):
             ret void
         }
         """
-        self._test_ll_IR(ir, lowerSsaToNonSsa=True)
+        self._test_ll(ir, lowerSsaToNonSsa=True)
 
 #    def test_ForkedDiamond(self):# BB is entry of an almost diamond sub-CFG, with a
         # ForkedDiamond:
@@ -392,7 +475,7 @@ class VRegIfConverter_TC(BaseSsaTC):
         #
 
     def test_mergeRegSet(self):
-        self._test_ll()
+        self._test_mir_file()
 
     def test_linearSequenceOfBlocksWithSameTail(self):
         # while iC0 load is 1 continue upto 4x
@@ -415,7 +498,7 @@ class VRegIfConverter_TC(BaseSsaTC):
         }
         """
         # [todo] liveness incorrect, dead %1, %2 missing kill
-        self._test_ll_IR(ir)
+        self._test_ll(ir)
 
     def test_LoopTail0(self):
         ir = """\
@@ -432,7 +515,7 @@ class VRegIfConverter_TC(BaseSsaTC):
             ret void
         }
         """
-        self._test_ll_IR(ir)
+        self._test_ll(ir)
 
     def test_LoopOptionalTail(self):
         ir = """\
@@ -456,7 +539,7 @@ class VRegIfConverter_TC(BaseSsaTC):
             br label %bb1
         }
         """
-        self._test_ll_IR(ir)
+        self._test_ll(ir)
 
     def test_switchInLoop0(self):
         ir = """\
@@ -523,8 +606,7 @@ class VRegIfConverter_TC(BaseSsaTC):
             br label %bb0
         }
         """
-        self._test_ll_IR(ir, lowerSsaToNonSsa=True)
-
+        self._test_ll(ir, lowerSsaToNonSsa=True)
 
     def test_switchInLoop1(self):
         ir = """\
@@ -552,7 +634,7 @@ class VRegIfConverter_TC(BaseSsaTC):
         }
         """
 
-        self._test_ll_IR(ir, lowerSsaToNonSsa=True)
+        self._test_ll(ir, lowerSsaToNonSsa=True)
 
     def test_switchInLoop2(self):
         ir = """\
@@ -581,8 +663,8 @@ class VRegIfConverter_TC(BaseSsaTC):
             br label %bb0
         }
         """
-        
-        self._test_ll_IR(ir, lowerSsaToNonSsa=True)
+
+        self._test_ll(ir, lowerSsaToNonSsa=True)
 
     def test_switchInLoop3(self):
         ir = """\
@@ -610,14 +692,14 @@ class VRegIfConverter_TC(BaseSsaTC):
             br label %bb0
         }
         """
-        
-        self._test_ll_IR(ir, lowerSsaToNonSsa=True)
 
-        
+        self._test_ll(ir, lowerSsaToNonSsa=True)
+
+
 if __name__ == "__main__":
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([VRegIfConverter_TC('test_switchInLoop3')])
-    suite = testLoader.loadTestsFromTestCase(VRegIfConverter_TC)
+    suite = unittest.TestSuite([VRegIfConverter_TC('test_ForkedTriangleWhichIsLoopInLoop1')])
+    # suite = testLoader.loadTestsFromTestCase(VRegIfConverter_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
