@@ -620,6 +620,7 @@ class RtlArchPassChannelHandshakeCycleBreak(RtlArchPass):
                 # To linearize graph a little bit we use 1 node, pass all terms there and we compute enable conditions there
                 # and the result is passed back to nodes of scc.
                 sccSyncArcElm = ArchElementNoSync.createEmptyScheduledInstance(netlist, f"hsSccSync{sccIndex:d}")
+                sccSyncArchElements.append(sccSyncArcElm)
 
                 builderForRoot.operatorCache.clear()  # we must prevent reuse of expr parts constructed in a different stage/ArchElement
                 builder = builderForRoot.scoped(sccSyncArcElm)
