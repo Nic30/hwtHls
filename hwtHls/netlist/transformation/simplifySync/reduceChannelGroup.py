@@ -1,7 +1,8 @@
 from typing import List, Tuple
 
 from hwt.pyUtils.uniqList import UniqList
-from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
+from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge,\
+    BACKEDGE_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.loopChannelGroup import LoopChanelGroup, LOOP_CHANEL_GROUP_ROLE
 from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -13,7 +14,6 @@ def netlistTryRemoveChannelGroup(chGroup: LoopChanelGroup,
     if len(chGroup.members) != 1:
         return False
     builder = chGroup.members[0].netlist.builder
-
     chGroup: LoopChanelGroup
     connectedLoopsToRm: List[Tuple[LoopChanelGroup, LOOP_CHANEL_GROUP_ROLE]] = []
     for loopAndRole in chGroup.connectedLoops:
@@ -24,20 +24,23 @@ def netlistTryRemoveChannelGroup(chGroup: LoopChanelGroup,
         assert loop._bbNumberToPorts, (loop, "Loop must always have some channels to implement its functionality")
         srcDst, outPort = loop._findLoopChannelIn_bbNumberToPorts(chGroup)
 
-        if role in (LOOP_CHANEL_GROUP_ROLE.ENTER, LOOP_CHANEL_GROUP_ROLE.REENTER):
+        if role in (LOOP_CHANEL_GROUP_ROLE.ENTER,
+                    LOOP_CHANEL_GROUP_ROLE.REENTER):
             assert outPort is not None
             uses = loop.usedBy[outPort.out_i]
             if uses:
                 # if it is only enter, and there are no data, we can execute loop automatically directly after loop ended
-                if chGroup in loop.fromEnter and len(loop.fromEnter) == 1:
-                    exits = loop.fromExitToHeaderNotify
+                exits = loop.fromExitToHeaderNotify
+                if chGroup in loop.fromEnter and len(loop.fromEnter) == 1 and len(exits) <= 1:
                     if exits:
                         # implicit enter = enter on any exit
-                        enterReplacement = builder.buildOrVariadic(tuple(e.getChannelWhichIsUsedToImplementControl().associatedRead.getValidNB() for e in exits))
+                        enterReplacement = builder.buildConstBit(1) #exits[0].getChannelWhichIsUsedToImplementControl().associatedRead.getValidNB()
                         e0: HlsNetNodeWriteBackedge = exits[0].getChannelWhichIsUsedToImplementControl()
                         assert HdlType_isVoid(e0.associatedRead._outputs[0]._dtype), (e0, "This must be of void type because it only triggers the loop exit")
-                        # assert not e0.channelInitValues, (e0, e0.channelInitValues)
-                        # e0.channelInitValues = ((),)
+                        assert not e0.channelInitValues, (e0, e0.channelInitValues)
+                        assert e0.allocationType == BACKEDGE_ALLOCATION_TYPE.IMMEDIATE
+                        #e0.allocationType = BACKEDGE_ALLOCATION_TYPE.BUFFER
+                        #e0.channelInitValues = ((),)
                         loop._isEnteredOnExit = True
 
                     else:
@@ -46,7 +49,7 @@ def netlistTryRemoveChannelGroup(chGroup: LoopChanelGroup,
                         reenters = []
                         for e in loop.fromReenter:
                             found = False
-                            for (pn, op) in loop._bbNumberToPorts.values():
+                            for (pn, op) in loop._bbNumberToPorts.values(): # [todo] maybe non deterministic
                                 if pn is e:
                                     reenters.append(op)
                                     found = True
