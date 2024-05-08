@@ -94,7 +94,7 @@ def netlistReduceLoopWithoutEnterAndExit(dbgTracer: DebugTracer, n: HlsNetNodeLo
             exitW: HlsNetNodeWriteBackedge = exitG.getChannelWhichIsUsedToImplementControl()
             # promote to a regular channel with an init
             exitW.allocationType = BACKEDGE_ALLOCATION_TYPE.BUFFER 
-            assert not exitW.channelInitValues, exitW
+            assert not exitW.channelInitValues, ("EXIT_NOTIFY_TO_HEADER should never have init value", exitW, exitW.channelInitValues)
             assert HdlType_isVoid(exitW._outputs[0]._dtype), exitW
             exitW.channelInitValues = (tuple(),) # add one token to start the loop 
             exitR: HlsNetNodeReadBackedge = exitW.associatedRead
