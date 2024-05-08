@@ -1521,16 +1521,28 @@ bool canFallThroughTo(MachineBasicBlock &MBB, MachineBasicBlock &ToMBB) {
 
 /// Invalidate predecessor BB info so it would be re-analyzed to determine if it
 /// can be if-converted. If predecessor is already enqueued, dequeue it!
-void VRegIfConverter::InvalidatePreds(MachineBasicBlock &MBB) {
+void VRegIfConverter::InvalidatePreds(MachineBasicBlock &MBB, bool resetDone) {
   for (const MachineBasicBlock *Predecessor : MBB.predecessors()) {
     BBInfo &PBBI = BBAnalysis[Predecessor->getNumber()];
-    if (PBBI.IsDone || PBBI.BB == &MBB)
+    if ((!resetDone && PBBI.IsDone) || PBBI.BB == &MBB)
       continue;
+    if (resetDone)
+    	PBBI.IsDone = false;
     PBBI.IsAnalyzed = false;
     PBBI.IsEnqueued = false;
   }
 }
-
+void VRegIfConverter::InvalidateSuccs(MachineBasicBlock &MBB, bool resetDone) {
+  for (const MachineBasicBlock *Successor : MBB.successors()) {
+    BBInfo &BBI = BBAnalysis[Successor->getNumber()];
+    if ((!resetDone && BBI.IsDone) || BBI.BB == &MBB)
+      continue;
+    if (resetDone)
+      	BBI.IsDone = false;
+    BBI.IsAnalyzed = false;
+    BBI.IsEnqueued = false;
+  }
+}
 /// Behaves like LiveRegUnits::StepForward() but also adds implicit uses to all
 /// values defined in MI which are also live/used by MI.
 static void UpdatePredRedefs(MachineInstr &MI, MachineRegisterInfo & MRI, LiveVRegs &Redefs, bimap<llvm::Register, llvm::Register> &regReplaces) {
@@ -1770,7 +1782,11 @@ bool VRegIfConverter::IfConvertSimple(BBInfo &BBI, IfcvtKind Kind) {
   if (!IterIfcvt)
     BBI.IsDone = true;
 
-  InvalidatePreds(*BBI.BB);
+  InvalidatePreds(*BBI.BB, true);
+  InvalidateSuccs(*BBI.BB, true);
+  BBI.IsDone = false;
+  BBI.IsAnalyzed = false;
+  BBI.IsEnqueued = false;
   CvtBBI->IsDone = true;
   // FIXME: Must maintain LiveIns.
 

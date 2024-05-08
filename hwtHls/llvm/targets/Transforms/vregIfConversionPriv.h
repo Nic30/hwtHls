@@ -205,7 +205,8 @@ private:
 			bool hasCommonTail = false);
 	void AnalyzeBlocks(llvm::MachineFunction &MF,
 			std::vector<std::unique_ptr<IfcvtToken>> &Tokens);
-	void InvalidatePreds(llvm::MachineBasicBlock &MBB);
+	void InvalidatePreds(llvm::MachineBasicBlock &MBB, bool resetDone=false);
+	void InvalidateSuccs(MachineBasicBlock &MBB, bool resetDone=false);
 	bool IfConvertSimple(BBInfo &BBI, IfcvtKind Kind);
 	bool IfConvertTriangle(BBInfo &BBI, IfcvtKind Kind);
 	bool IfConvertDiamondCommon(BBInfo &BBI, BBInfo &TrueBBI, BBInfo &FalseBBI,
