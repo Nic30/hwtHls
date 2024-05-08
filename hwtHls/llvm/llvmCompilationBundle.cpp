@@ -73,6 +73,7 @@
 #include <llvm/Transforms/Vectorize/SLPVectorizer.h>
 #include <llvm/Transforms/Vectorize/VectorCombine.h>
 #include <llvm/Transforms/Utils/AssumeBundleBuilder.h>
+#include <llvm/Transforms/Utils/UnifyFunctionExitNodes.h>
 #include <llvm/Transforms/Utils.h>
 #include <llvm/Transforms/Utils/Local.h>
 #include <llvm/Support/CommandLine.h>
@@ -369,6 +370,7 @@ void LlvmCompilationBundle::_addInitialNormalizationPasses(
 			/*UseBlockFrequencyInfo=*/ false));
 	// [fixme] LoopUnrotatePass probably breaks SE and TrivialSimplifyCFGPass forces to recompute it
 	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true)); // simplify trivial cases so IR is more easy to read
+	FPM.addPass(llvm::UnifyFunctionExitNodesPass()); // llvm mergereturn
 	// Form SSA out of local memory accesses after breaking apart aggregates into
 	// scalars.
 	FPM.addPass(hwtHls::SimplifyCFG2Pass(hwtHls::SimplifyCFG2Options()\
