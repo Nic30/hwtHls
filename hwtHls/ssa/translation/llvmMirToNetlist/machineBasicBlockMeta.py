@@ -81,7 +81,8 @@ class MachineBasicBlockMeta():
         # else:
         self.addOrderedNode(n)
 
-    def addOrderedNode(self, n: Union[HlsNetNodeRead, HlsNetNodeWrite], atEnd: Union[bool, Literal[ADD_ORDERING_PREPEND]]=True):
+    def addOrderedNode(self, n: Union[HlsNetNodeRead, HlsNetNodeWrite],
+                       atEnd: Union[bool, Literal[ADD_ORDERING_PREPEND]]=True):
         i = n._addInput("orderingIn")
         if atEnd is ADD_ORDERING_PREPEND:
             curI = self.orderingIn
