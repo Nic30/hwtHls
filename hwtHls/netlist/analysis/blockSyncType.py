@@ -120,7 +120,9 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
             rstE: MachineEdgeMeta = self.edgeMeta[(p0, mb)]
             rstE.etype = MACHINE_EDGE_TYPE.RESET
             rstE.inlineRstDataToEdge = (mostOuterOuterPred, mb)
-            self.edgeMeta[rstE.inlineRstDataToEdge].inlineRstDataFromEdge = (p0, mb)
+            rstReplaceEdge: MachineEdgeMeta = self.edgeMeta[rstE.inlineRstDataToEdge]
+            assert rstReplaceEdge.etype != MACHINE_EDGE_TYPE.DISCARDED, (rstE, rstReplaceEdge)
+            rstReplaceEdge.inlineRstDataFromEdge = (p0, mb)
 
         return mbSync.rstPredeccessor
 
@@ -505,16 +507,19 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                 # if this block has reset predecessor, some edge may have channelInitValues
                 compatible = True
                 edgesToDiscard: List[Tuple[MachineEdge, MachineEdgeMeta]] = []
+                # print(mb)
                 for pred in mb.predecessors():
                     e = (pred, mb)
                     eMeta: MachineEdgeMeta = self.edgeMeta[e]
                     eT = eMeta.etype
                     if eT in (MACHINE_EDGE_TYPE.DISCARDED, MACHINE_EDGE_TYPE.RESET):
                         continue
+
                     elif eT == MACHINE_EDGE_TYPE.FORWARD:
                         # this loop is executed after some previous code, this loop needs to know that it needs to wait for it
                         compatible = False
                         break
+
                     elif eT == MACHINE_EDGE_TYPE.BACKWARD:
                         # backedge will be discarded if has no live ins
                         lives = mir.liveness[pred][mb]
@@ -528,15 +533,15 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                 if compatible and edgesToDiscard:
                     mbSync.isLoopHeaderOfFreeRunning = True
                     for _, eMeta in edgesToDiscard:
+                        #assert eMeta.inlineRstDataFromEdge is None, ("Can not discard edge holding reset data", eMeta)
                         eMeta.etype = MACHINE_EDGE_TYPE.DISCARDED
                 else:
                     pass
                     # [todo] try hoist loop prequel as an async call
-                    # :ivar isLoopAsyncPrequel: if true, this block is loop async prequel.        
+                    # :ivar isLoopAsyncPrequel: if true, this block is loop async prequel.
                     # The prequel extraction is possible if it can be asynchronously executed. This is the case
                     # when loop does not have any non-reset entry and no exit.
                     # Prequel runs exactly once for each iteration and it does not need to wait for loop live ins.
-    
 
     def runOnHlsNetlist(self, netlist:"HlsNetlistCtx"):
         from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
