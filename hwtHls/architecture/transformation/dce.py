@@ -15,13 +15,14 @@ def ArchElementDCE(netlist:HlsNetlistCtx, sccSyncArchElements: List[ArchElement]
 
     worklist: UniqList[HlsNetNode] = UniqList()
     for elm in sccSyncArchElements:
+        anyNodeRemoved = False
         for n in elm._subNodes:
-            simplify._DCE(n, worklist, removed)
+            anyNodeRemoved |= simplify._DCE(n, worklist, removed)
         while worklist:
             n = worklist.pop()
             simplify._DCE(n, worklist, removed)
-
-        elm.filterNodesUsingSet(removed)
+        if anyNodeRemoved:
+            elm.filterNodesUsingSet(removed)
 
     # prune unused outputs on all elements
     toRm = []
@@ -34,4 +35,12 @@ def ArchElementDCE(netlist:HlsNetlistCtx, sccSyncArchElements: List[ArchElement]
         if toRm:
             for o in reversed(toRm):
                 elm._removeOutput(o.out_i)
+            
             toRm.clear()
+            anyNodeRemoved = False
+            while worklist:
+                n = worklist.pop()
+                anyNodeRemoved |= simplify._DCE(n, worklist, removed)
+
+            if anyNodeRemoved:
+                elm.filterNodesUsingSet(removed)
