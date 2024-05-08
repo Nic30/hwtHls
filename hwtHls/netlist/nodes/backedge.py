@@ -262,7 +262,7 @@ class HlsNetNodeReadBackedge(HlsNetNodeRead):
                             res = If(en, res)
                         rStageCon.stDependentDrives.append(res)
 
-                if not self.hasValidOnlyToPassFlags():
+                if self._rtlUseValid and not self.hasValidOnlyToPassFlags():
                     assert not self.src.vld._sig.drivers, (self, self.src.vld._sig.drivers)
                     self.src.vld(dataVldReg)
 
