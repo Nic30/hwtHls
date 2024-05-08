@@ -9,7 +9,7 @@ namespace hwtHls {
 
 struct SimplifyCFG2Options: public llvm::SimplifyCFGOptions {
 	// move AND/OR/XOR/Select/bitrange.get/bitrange.concat instructions to predecessor block
-	bool HoistCheapInsts = false;
+	bool HoistCheapInsts = true;
 	//// same as HoistCheapInsts just move successor block
 	//bool SinkCheapInsts = true;
 

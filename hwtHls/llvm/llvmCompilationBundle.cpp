@@ -304,7 +304,6 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 					.hoistCommonInsts(true)//
 					.sinkCommonInsts(true)//
 					.hoistCommonInsts(true)//
-					.setHoistCheapInsts(true)//
 					.bonusInstThreshold(1024)
 	));
 
@@ -394,15 +393,14 @@ void LlvmCompilationBundle::_addStreamOperationLoweringPasses(
 	FPM.addPass(hwtHls::StreamReadLoweringPass());
 
 	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true));
-	FPM.addPass(hwtHls::SimplifyCFG2Pass(hwtHls::SimplifyCFG2Options()	//
-	.setHoistCheapInsts(true)));
+	FPM.addPass(hwtHls::SimplifyCFG2Pass());
 	//FPM.addPass(hwtHls::DumpAndExitPass(false, false, "tmp/SimplifyCFG2Pass.1.dot", true));
 
 	FPM.addPass(hwtHls::StreamWriteLoweringPass());
 
 	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true));
-	FPM.addPass(hwtHls::SimplifyCFG2Pass(hwtHls::SimplifyCFG2Options()	//
-	.setHoistCheapInsts(true)));
+	FPM.addPass(hwtHls::SimplifyCFG2Pass());
+
 	FPM.addPass(llvm::LoopSimplifyPass());
 	//FPM.addPass(hwtHls::DumpAndExitPass(false, false, "tmp/SimplifyCFG2Pass.2.dot", true));
 }
@@ -463,7 +461,6 @@ void LlvmCompilationBundle::_addCommonPasses(llvm::FunctionPassManager &FPM) {
 					.convertSwitchRangeToICmp(true)//
 					.hoistCommonInsts(true)//
 					.sinkCommonInsts(true)//
-					.setHoistCheapInsts(true)
 			));
 	FPM.addPass(llvm::InstCombinePass());
 }
@@ -651,7 +648,6 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 				.needCanonicalLoops(false)\
 				.hoistCommonInsts(true)\
 				.sinkCommonInsts(true)\
-				.setHoistCheapInsts(true)
 	));
 	FPM.addPass(llvm::LoopSimplifyPass());
 
