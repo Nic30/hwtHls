@@ -115,6 +115,9 @@ class ArchElementNoSync(ArchElement):
             node: Union[HlsNetNodeAggregatePortIn, HlsNetNodeAggregatePortOut]
             if node._isRtlAllocated:
                 continue
+
+            assert node.scheduledIn is not None, ("Node must be scheduled", node)
+            assert node.dependsOn is not None, ("Node must not be destroyed", node)
             node.rtlAlloc(self)
 
         self._rtlDatapathAllocated = True

@@ -339,8 +339,11 @@ class ArchElementFsm(ArchElement):
             con: ConnectionsOfStage
             for node in nodes:
                 node: HlsNetNode
-                if not node._isRtlAllocated:
-                    node.rtlAlloc(self)
+                if node._isRtlAllocated:
+                    continue
+                assert node.scheduledIn is not None, ("Node must be scheduled", node)
+                assert node.dependsOn is not None, ("Node must not be destroyed", node)
+                node.rtlAlloc(self)
 
         for con in self.connections:
             if con is None:

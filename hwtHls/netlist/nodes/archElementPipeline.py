@@ -182,6 +182,8 @@ class ArchElementPipeline(ArchElement):
                 if node._isRtlAllocated:
                     continue
 
+                assert node.scheduledIn is not None, ("Node must be scheduled", node)
+                assert node.dependsOn is not None, ("Node must not be destroyed", node)
                 node.rtlAlloc(self)
 
                 if isinstance(node, HlsNetNodeRead):
