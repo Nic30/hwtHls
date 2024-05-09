@@ -51,11 +51,32 @@ bool checkOrSetWidth(MachineRegisterInfo &MRI, MachineOperand &op,
 void checkOrSetWidth(MachineRegisterInfo &MRI, MachineOperand &MO,
 		unsigned bitWidth) {
 	if (MO.isCImm()) {
+		auto *CI = MO.getCImm();
 		auto w = MO.getCImm()->getBitWidth();
 		if (w != bitWidth) {
-			errs() << *MO.getParent() << "\n";
-			errs() << MO << "  (width=" << w << ", expected=" << bitWidth << ")\n";
-			llvm_unreachable("Operand value does not have expected bit width");
+			auto opc = MO.getParent()->getOpcode();
+			if (MO.getParent()->getOperandNo(&MO) == 2
+					&& (opc == HwtFpga::HWTFPGA_SHL
+							|| opc == HwtFpga::HWTFPGA_ASHR
+							|| opc == HwtFpga::HWTFPGA_LSHR)) {
+				// shift amount can reuce bitwidth if we discover that the actual value
+				// in register has fewer bits than during legalization
+				assert(bitWidth < w);
+				auto newVal = CI->getValue().trunc(bitWidth).getZExtValue();
+				assert(
+						newVal == CI->getValue().getZExtValue()
+								&& "Value should not change during truncate of shiftamount operand");
+				MO.setCImm(
+						ConstantInt::get(
+								IntegerType::get(CI->getContext(), bitWidth),
+								newVal));
+			} else {
+				errs() << *MO.getParent() << "\n";
+				errs() << MO << "  (width=" << w << ", expected=" << bitWidth
+						<< ")\n";
+				llvm_unreachable(
+						"Operand value does not have expected bit width");
+			}
 		}
 	} else if (MO.isReg()) {
 		Register R = MO.getReg();
@@ -81,8 +102,10 @@ void checkOrSetWidth(MachineRegisterInfo &MRI, MachineOperand &MO,
 					MO.getParent()->getParent()->print(errs());
 					errs() << "\n";
 					errs() << *MO.getParent() << "\n";
-					errs() << MO << "  (width=" << T.getSizeInBits() << ", expected=" << bitWidth << ")\n";
-					llvm_unreachable("Operand value does not have expected bit width");
+					errs() << MO << "  (width=" << T.getSizeInBits()
+							<< ", expected=" << bitWidth << ")\n";
+					llvm_unreachable(
+							"Operand value does not have expected bit width");
 				}
 			}
 
@@ -91,6 +114,7 @@ void checkOrSetWidth(MachineRegisterInfo &MRI, MachineOperand &MO,
 		}
 	}
 }
+
 void duplicateRegsForUndefValues(
 		const llvm::SmallVector<std::pair<unsigned, uint64_t> > &undefsToDuplicate,
 		MachineRegisterInfo &MRI, MachineInstr &MI) {
