@@ -265,8 +265,10 @@ class ArchElement(HlsNetNodeAggregate):
         if _o is None:
             if HdlType_isVoid(o._dtype):
                 return []
+            
             assert not o.obj._isRtlAllocated, (
-                "Node was allocated, but the output rtl is missing, this could be the case only for outputs of void type", o)
+                "Node was allocated, but the output rtl is missing, this could be the case only for outputs of void type, "
+                "This error could be also a sign of node being allocated/used directly in other element (without port on this element)", o)
 
             clkI = start_clk(o.obj.scheduledOut[o.out_i], self.netlist.normalizedClkPeriod)
             if len(self.connections) <= clkI or self.connections[clkI] is None:
