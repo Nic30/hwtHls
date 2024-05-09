@@ -139,7 +139,8 @@ bool HwtFpgaCombinerHelper::rewriteExtractOnConstShift(
 	auto opc = srcInstr->getOpcode();
 	switch (opc) {
 	case HwtFpga::HWTFPGA_SHL: {
-		offset += shAmount;
+		assert(offset >= shAmount);
+		offset -= shAmount;
 		Builder.setInstrAndDebugLoc(MI);
 		auto MIB = Builder.buildInstr(HwtFpga::HWTFPGA_EXTRACT);
 		MIB.addDef(MI.getOperand(0).getReg());
