@@ -67,7 +67,7 @@ from tests.io.flushing_test import Flushing_TC
 from tests.io.ioFsm2_test import IoFsm2_TC
 from tests.io.ioFsm_test import IoFsm_TC
 from tests.io.readAtleastOne_test import ReadAtleastOne_TC
-from tests.io.readSizeFromRamAndSendSequence_test import ReadSizeFromRamAndSendSequence_TC
+from tests.io.bram.readSizeFromRamAndSendSequence_test import ReadSizeFromRamAndSendSequence_TC
 from tests.llvmIr.SimplifyCFG2Pass_test import SimplifyCFG2Pass_TC
 from tests.llvmIr.bitWidthReductionPass_Cmp_test import BitWidthReductionPass_Cmp_example_TC
 from tests.llvmIr.bitWidthReductionPass_PHI_test import BitwidthReductionPass_PHI_TC
