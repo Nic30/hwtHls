@@ -29,6 +29,9 @@ using namespace llvm;
 #define DEBUG_TYPE "loop-unrotate"
 // #define DEBUG_DUMP_CFG_AFTER_EACH_STEP
 
+// #undef LLVM_DEBUG
+// #define LLVM_DEBUG(x) x
+
 namespace hwtHls {
 
 BasicBlock::const_iterator skipSingleEntryPhis(BasicBlock::const_iterator it) {
@@ -412,10 +415,6 @@ void movePHIFromGuardExitToGuardBlock(RotatedLoopAssociatedPHIs &phis,
 			if (GuardPhi->getParent() != Guard) {
 				GuardPhi = nullptr;
 			}
-		} else if (auto GVal = dyn_cast<Instruction>(fromGuardPredVal)) {
-			assert(
-					GVal->getParent() != Guard
-							&& "If this is a case we should not be able to rewrite this");
 		}
 
 		Value *phiReplacement = nullptr;
