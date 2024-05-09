@@ -138,7 +138,8 @@ class HlsRead(HdlStatement, SsaInstr):
             o = n._outputs[0]
         else:
             o = n.getRawValue()
-        assert not isinstance(o._dtype, Bits) or not o._dtype.signed, o  # can potentially be of voi type
+        assert not isinstance(o._dtype, Bits) or not o._dtype.signed, (
+            "At this stage all values of Bits type should have signed=None", o)  # can potentially be of void type
         valCache.add(mbSync.block, instrDstReg, o, True)
 
         return [n, ]
