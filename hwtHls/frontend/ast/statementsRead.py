@@ -1,21 +1,21 @@
 from typing import Optional, Union, Tuple, Sequence
 
 from hwt.doc_markers import internal
-from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.hdlType import HdlType
 from hwt.synthesizer.interface import Interface
+from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwtHls.frontend.ast.utils import _getNativeInterfaceWordType, \
     ANY_HLS_STREAM_INTF_TYPE, ANY_SCALAR_INT_VALUE
 from hwtHls.frontend.utils import getInterfaceName
+from hwtHls.io.portGroups import getFirstInterfaceInstance, MultiPortGroup, \
+    BankedPortGroup
 from hwtHls.llvm.llvmIr import Register, MachineInstr, Argument, ArrayType, TypeToArrayType, Type
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes, \
-    HlsNetNodeOut
+from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes
 from hwtHls.netlist.nodes.read import HlsNetNodeRead, HlsNetNodeReadIndexed
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr, OP_ASSIGN
@@ -23,10 +23,6 @@ from hwtHls.ssa.translation.llvmMirToNetlist.insideOfBlockSyncTracker import Ins
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
 from hwtHls.ssa.value import SsaValue
-from hwtLib.types.ctypes import uint64_t
-from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
-from hwtHls.io.portGroups import getFirstInterfaceInstance, MultiPortGroup, \
-    BankedPortGroup
 
 
 class HlsRead(HdlStatement, SsaInstr):
@@ -188,7 +184,9 @@ class HlsReadAddressed(HlsRead):
         src, _, t = toLlvm.ioToVar[self._src]
         src: Argument
         t: Type
-        indexes = [toLlvm._translateExprInt(0, toLlvm._translateType(uint64_t)),
+        # :note: the index type does not matter much as llvm::InstCombine extends it to i64
+        index_t = Type.getIntNTy(toLlvm.ctx, self.operands[0]._dtype.bit_length())
+        indexes = [toLlvm._translateExprInt(0, index_t),
                    toLlvm._translateExpr(self.operands[0]), ]
         arrTy: ArrayType = TypeToArrayType(t)
         assert arrTy is not None, ("It is expected that this object access data of array type", self, t)

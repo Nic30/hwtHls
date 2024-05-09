@@ -133,7 +133,9 @@ class HlsWriteAddressed(HlsWrite):
         dst: Argument
         t: Type
         src = toLlvm._translateExpr(self.getSrc())
-        indexes = [toLlvm._translateExprInt(0, toLlvm._translateType(uint64_t)),
+        # :note: the index type does not matter much as llvm::InstCombine extends it to i64
+        index_t = Type.getIntNTy(toLlvm.ctx, self.getIndex()._dtype.bit_length())
+        indexes = [toLlvm._translateExprInt(0, index_t),
                                              toLlvm._translateExpr(self.getIndex()), ]
         arrTy: ArrayType = TypeToArrayType(t)
         # elmT = arrTy.getElementType()
