@@ -43,6 +43,8 @@ public:
 	//             correct copy is used and we can no just take any register with output
 	bool matchIsExtractOnMergeValues(llvm::MachineInstr &MI);
 	bool rewriteExtractOnMergeValues(llvm::MachineInstr &MI);
+	bool matchIsExtractOnConstShift(llvm::MachineInstr &MI);
+	bool rewriteExtractOnConstShift(llvm::MachineInstr &MI);
 	/*
 	 * Recursively collect members of concatenations, looks through HWTFPGA_EXTRACT and HWTFPGA_MERGE_VALUES instructions
 	 *

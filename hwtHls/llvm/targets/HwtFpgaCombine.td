@@ -178,6 +178,18 @@ def const_val_mux_eval : GICombineRule<
   (apply [{ return Helper.rewriteConstValMux(*${root}, ${matchinfo}); }])
 >;
 
+
+// // convert (HWTFPGA_SHL, HWTFPGA_ASHR, HWTFPGA_LSHR), x, constShAmount
+// //   to new const if x is const
+// //   to HWTFPGA_EXTRACT x, shAmount
+// def const_shift_eval : GICombineRule<
+//   (defs root:$root),
+//   (match (wip_match_opcode HWTFPGA_SHL, HWTFPGA_ASHR, HWTFPGA_LSHR):$root,
+//     [{ return !${root}->getOperand(2).isReg(); }]),
+//   (apply [{ return Helper.rewriteConstShift(*${root}); }])
+// >;
+
+
 // // generalized const_val_mux_eval which probes every bit for every condition operand separately
 // def mux_sink_directly_cond_driven_val_bits_matchdata : GIDefMatchData<"hwtHls::MuxDirectlyCondDrivenBits">;
 // def mux_sink_directly_cond_driven_val_bits : GICombineRule<
@@ -257,6 +269,7 @@ def const_eval_combines : GICombineGroup<[
 	const_mul_eval,
 	const_mux_eval,
 	const_val_mux_eval,
+	// const_shift_eval,
 	undef_propagation,
 	const_merge_values_eval,
 	trivial_instr_deduplication,
@@ -269,7 +282,27 @@ def const_eval_combines : GICombineGroup<[
 // perform all known combinations to simplify the code as much as possible before next step
 def HwtFpgaGenPreLegalizeGICombinerHelper: GICombinerHelper<
   "HwtFpgaGenPreLegalizeGICombinerHelper", [
-  	all_combines
+  	// all_combines except commented out
+  	trivial_combines, //insert_vec_elt_combines,
+    //extract_vec_elt_combines, combines_for_extload,
+    combine_indexed_load_store, undef_combines, identity_combines, phi_combines,
+    simplify_add_to_sub, hoist_logic_op_with_same_opcode_hands,
+    reassocs, ptr_add_immed_chain,
+    shl_ashr_to_sext_inreg, sext_inreg_of_load,
+    width_reduction_combines, select_combines,
+    known_bits_simplifications, ext_ext_fold,
+    not_cmp_fold, opt_brcond_by_inverting_cond,
+    unmerge_merge, unmerge_cst, unmerge_dead_to_trunc,
+    unmerge_zext_to_zext, merge_unmerge, trunc_ext_fold, trunc_shift,
+    const_combines, xor_of_and_with_same_reg, ptr_add_with_zero,
+    shift_immed_chain, shift_of_shifted_logic_chain, load_or_combine,
+    truncstore_merge, div_rem_to_divrem, funnel_shift_combines,
+    form_bitfield_extract, constant_fold, fabs_fneg_fold,
+    intdiv_combines, mulh_combines, redundant_neg_operands,
+    and_or_disjoint_mask, fma_combines, fold_binop_into_select,
+    sub_add_reg, select_to_minmax, redundant_binop_in_equality,
+    // fsub_to_fneg,
+    commute_constant_to_rhs
   ]> {
   let DisableRuleOption = "HwtFpgaGenPreLegalizeGICombinerHelper-disable-rule";
   let StateClass = "HwtFpgaGenPreLegalizeGICombinerHelperState";
@@ -300,6 +333,13 @@ def extract_on_merge_values: GICombineRule<
   (apply [{ return Helper.rewriteExtractOnMergeValues(*${root}); }])
 >;
 
+// Fold (HWTFPGA_EXTRACT (HWTFPGA_SHL src, constShAmount), offset, width) -> HWTFPGA_EXTRACT src, constShAmount+offset, width
+def extract_on_const_shift: GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode HWTFPGA_EXTRACT):$root,
+    [{ return Helper.matchIsExtractOnConstShift(*${root}); }]),
+  (apply [{ return Helper.rewriteExtractOnConstShift(*${root}); }])
+>;
 
 //
 // Fold (HWTFPGA_MUX (... HWTFPGA_MUX ...)) -> HWTFPGA_MUX ...
@@ -349,6 +389,7 @@ def HwtFpgaGenPreRegAllocGICombinerHelper: GICombinerHelper<
   "HwtFpgaGenPreRegAllocGICombinerHelper", [
   	copy_to_HWTFPGA_mux,
     extract_on_merge_values,
+    extract_on_const_shift,
     const_eval_combines,
     trivial_copy_propagate,
     mux_trivial_const_propagation,
@@ -381,6 +422,7 @@ def HwtFpgaGenPreToNetlistGICombinerHelper: GICombinerHelper<
     mux_mask_to_and_or_mask,
   	xor_right_allOnes,
   	extract_on_merge_values,
+  	extract_on_const_shift,
     const_eval_combines,
     mux_merge,
     mux_trivial_const_propagation,
