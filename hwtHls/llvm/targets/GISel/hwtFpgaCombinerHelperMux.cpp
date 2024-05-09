@@ -87,7 +87,7 @@ bool checkAnyOperandRedefined(MachineInstr &MI, MachineInstr &MIEnd) {
 	return true;
 }
 
-MachineOperand *getNextUseOfRegInBloc(MachineRegisterInfo &MRI, MachineInstr &MI,
+MachineOperand *getNextUseOfRegInBlock(MachineRegisterInfo &MRI, MachineInstr &MI,
 		Register &DstRegNo) {
 	MachineOperand *otherUse = nullptr;
 	if (!MRI.hasOneUse(DstRegNo)) {
@@ -145,7 +145,7 @@ bool HwtFpgaCombinerHelper::matchNestedMux(MachineInstr &MI,
 	auto DstRegNo = MI.getOperand(0).getReg();
 	MachineOperand *otherUse = nullptr;
 	if (!MRI.hasOneUse(DstRegNo)) {
-		otherUse = getNextUseOfRegInBloc(MRI, MI, DstRegNo);
+		otherUse = getNextUseOfRegInBlock(MRI, MI, DstRegNo);
 		if (!otherUse) {
 			// nothing to merge
 			return false;
@@ -225,7 +225,7 @@ bool HwtFpgaCombinerHelper::rewriteNestedMuxToMux(MachineInstr &MI,
 		parentUse = &*MRI.use_begin(DstRegNo);
 		assert(parentUse->getReg() == DstRegNo);
 	} else {
-		MachineInstr* NextInstr = getNextUseOfRegInBloc(MRI, MI, DstRegNo)->getParent();
+		MachineInstr* NextInstr = getNextUseOfRegInBlock(MRI, MI, DstRegNo)->getParent();
 		assert(NextInstr && "Should be already checked in matchNestedMux");
 		assert(NextInstr->getOpcode() == HwtFpga::HWTFPGA_MUX);
 		auto UseOpIndx = NextInstr->findRegisterUseOperandIdx(DstRegNo, false);
@@ -292,7 +292,9 @@ bool HwtFpgaCombinerHelper::rewriteNestedMuxToMux(MachineInstr &MI,
 	}
 
 	Observer.changedInstr(newMI);
-	MI.eraseFromParent();
+
+	if (MRI.use_empty(MI.getOperand(0).getReg()))
+		MI.eraseFromParent();
 	parentMI->eraseFromParent();
 	return true;
 }
