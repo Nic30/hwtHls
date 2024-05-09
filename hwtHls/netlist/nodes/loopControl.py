@@ -272,6 +272,13 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
         elm = parents.getBottomMostArchElementParent(n)
         t = n.scheduledOut[0] if n.scheduledOut else n.scheduledIn[0]
         con: ConnectionsOfStage = elm.connections.getForTime(t)
+
+        selfParent = parents.getBottomMostArchElementParent(self)
+        selfT = n.scheduledOut[0] if n.scheduledOut else n.scheduledIn[0]
+        selfCon: ConnectionsOfStage = selfParent.connections.getForTime(selfT)
+        if con is selfCon:
+            return BIT.from_py(1)
+
         return con.getRtlStageAckSignal()
 
     def _lazyLoadParents(self, parents: Optional[HlsNetlistAnalysisPassNodeParentAggregate]):
@@ -328,6 +335,7 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
             _s = self._andOptionalWithExtraChannelEn(allocator, _s, channelGroup)
             if not portNode._rtlUseValid:
                 parents = self._lazyLoadParents(parents)
+
                 _s = andOptional(_s, self._getAckOfStageWhereNodeIs(parents, portNode))
 
             s(_s)
