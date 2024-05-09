@@ -46,6 +46,7 @@ from hwtHls.typingFuture import override
 from hwtHls.architecture.transformation.utils.termPropagationContext import ArchElementTermPropagationCtx,\
     exportPortFromArchElement, importPortToArchElement
 from hwtHls.architecture.transformation.utils.dummyScheduling import scheduleUnscheduledControlLogic
+from hwtHls.architecture.transformation.utils.syncUtils import insertDummyWriteToImplementSync
 
 
 class ChannelHandshakeCycleDeadlockError(AssertionError):
@@ -248,20 +249,7 @@ class RtlArchPassChannelHandshakeCycleBreak(RtlArchPass):
         _enName = f"{ArchSyncNodeTy_stringFormat_short(syncNode):s}_en"
         enName = f"hsScc{sccIndex:d}_{_enName:s}"
         syncTime = dstClkIndex * clkPeriod + latestAckTimeOffset
-        sync = HlsNetNodeWriteHsSccSync(netlist, sccIndex, enName)
-        sync.resolveRealization()
-        sync._setScheduleZeroTimeSingleClock(syncTime)
-        sync._rtlUseReady = sync._rtlUseValid = False
-
-        nopVal = HlsNetNodeConst(netlist, HVoidOrdering.from_py(None))
-        nopVal.resolveRealization()
-        nopVal._setScheduleZeroTimeSingleClock(syncTime)
-        link_hls_nodes(nopVal._outputs[0], sync._inputs[0])
-
-        for n in (sync, nopVal):
-            parentElm._subNodes.append(n)
-            parentElm.getStageForClock(dstClkIndex).append(n)
-
+        sync, _ = insertDummyWriteToImplementSync(parentElm, syncTime, enName, writeCls=HlsNetNodeWriteHsSccSync)
         otherAcks = builder.buildAndVariadic(otherAcks)
         _otherAcks = otherAcks
         cls._scheduleDefault(parentNodeForScheduling, otherAcks)
