@@ -194,7 +194,8 @@ bool HwtFpgaLegalizerInfo::legalizeCustomShift(LegalizerHelper &Helper,
 	unsigned newShBitWidth = log2ceil(dataWidth + 1);
 
 	unsigned NewOpc;
-	switch (MI.getOpcode()) {
+	auto opc = MI.getOpcode();
+	switch (opc) {
 	case TargetOpcode::G_SHL:
 		NewOpc = HwtFpga::HWTFPGA_SHL;
 		break;
@@ -208,7 +209,20 @@ bool HwtFpgaLegalizerInfo::legalizeCustomShift(LegalizerHelper &Helper,
 		errs() << MI << "\n";
 		llvm_unreachable("NotImplemented shift");
 	}
-
+	// :note: can not do this because, this may actually be G_EXTRACT+G_ZEXT
+	//if (opc == TargetOpcode::G_LSHR) {
+	//	auto shConst = getAnyConstantVRegValWithLookThrough(Sh, MRI, true,
+	//			true);
+	//	if (shConst.has_value()) {
+	//		auto MIB0 = MIRBuilder.buildInstr(TargetOpcode::G_EXTRACT, { Dst },
+	//				{ });
+	//		hwtHls::HwtFpgaInstructionSelector::selectInstrArg(MF, MIB0, MRI,
+	//				SrcMO);
+	//		MIB0.addImm(shConst.value().Value.getZExtValue());
+	//		MI.eraseFromParent();
+	//		return true;
+	//	}
+	//}
 	auto ShTruncated = MRI.cloneVirtualRegister(Sh);
 	MRI.setType(ShTruncated, LLT::scalar(newShBitWidth));
 	MIRBuilder.buildTrunc(ShTruncated, Sh);
@@ -221,7 +235,6 @@ bool HwtFpgaLegalizerInfo::legalizeCustomShift(LegalizerHelper &Helper,
 	hwtHls::HwtFpgaInstructionSelector::selectInstrArg(MF, MIB1, MRI, SrcMO);
 	hwtHls::HwtFpgaInstructionSelector::selectInstrArg(MF, MIB1, MRI,
 			ShTruncatedMO);
-
 	MI.eraseFromParent();
 	return true;
 }
