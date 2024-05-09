@@ -8,7 +8,6 @@
 from typing import Dict, List, Union, Set, \
     Optional
 
-from hwt.hdl.operatorDefs import AllOps
 from hwt.hdl.value import HValue
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.architecture.analysis.channelGraph import ArchSyncNodeTy, \
@@ -17,7 +16,6 @@ from hwtHls.architecture.analysis.handshakeSCCs import \
     ArchSyncSuccDiGraphDict, ChannelSyncType, \
     getOtherPortOfChannel, ArchSyncSuccDict, \
     HlsArchAnalysisPassHandshakeSCC, ArchSyncNodeTy_stringFormat_short
-from hwtHls.architecture.connectionsOfStage import ConnectionsOfStageList
 from hwtHls.architecture.transformation.channelHandshakeCycleBreakDynamicLinkUtils import resolveDynamicallyDirectlyNotReachable, \
     DynamicallyDirectlyNotReachableFlagDict, DST_UNREACHABLE, \
     _getSyncNodeDynSkipExpression, resolveNodeInputsValid
@@ -39,15 +37,11 @@ from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge
 from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeWriteAnyChannel, \
     HlsNetNodeReadAnyChannel
-from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, link_hls_nodes
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.writeHsSCCSync import HlsNetNodeWriteHsSccSync
-from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod, \
-    offsetInClockCycle
-from hwtHls.netlist.scheduler.scheduler import asapSchedulePartlyScheduled
-from hwtHls.platform.opRealizationMeta import OpRealizationMeta
+from hwtHls.netlist.scheduler.clk_math import offsetInClockCycle
 from hwtHls.typingFuture import override
 from hwtHls.architecture.transformation.utils.termPropagationContext import ArchElementTermPropagationCtx,\
     exportPortFromArchElement, importPortToArchElement
