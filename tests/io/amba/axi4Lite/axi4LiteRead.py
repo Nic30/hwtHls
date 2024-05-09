@@ -13,7 +13,6 @@ from hwtHls.scope import HlsScope
 from hwtLib.amba.axi4Lite import Axi4Lite
 
 
-#  packIntf(intf, masterDirEqTo, exclude)
 class Axi4LiteRead(Unit):
     """
     Sequentially read data from Axi4Lite port.
