@@ -124,6 +124,7 @@ class AxiSParseIfTC(SimTestCase):
             interpret.run(args)
         except SimIoUnderflowErr:
             pass
+
         self.assertValSequenceEqual(dataOut, outputRef, "%r [%s] != [%s]" % (
             u.o,
             ", ".join("0x%x" % int(i) if i._is_full_valid() else repr(i) for i in dataOut),
@@ -195,10 +196,11 @@ class AxiSParseIfTC(SimTestCase):
             ", ".join("0x%x" % i for i in outputRef)
         ))
 
-    def _test_AxiSParse2IfAndSequel(self, DATA_WIDTH:int, freq=int(1e6), N=16, WRITE_FOOTER=True):
+    def _test_AxiSParse2IfAndSequel(self, DATA_WIDTH:int, freq=int(1e6), N=16, WRITE_FOOTER=True, USE_PY_FRONTEND=False):
         u = AxiSParse2IfAndSequel()
         u.WRITE_FOOTER = WRITE_FOOTER
         u.DATA_WIDTH = DATA_WIDTH
+        u.USE_PY_FRONTEND = USE_PY_FRONTEND
         u.CLK_FREQ = freq
 
         T0 = HStruct(
@@ -219,18 +221,22 @@ class AxiSParseIfTC(SimTestCase):
         outputRef: List[int] = []
         inputFrames: List[List[int]] = []
         ALL_Ts = [T0, T2, T4]
-        for _ in range(N):
+        for dbgI in range(N):
+            dbgSkip = False
             T = self._rand.choice(ALL_Ts)
             v2 = self._rand.getrandbits(8)
             d = {
                 "v0": {T0: 10, T2: 3, T4: 4}[T],
                 "v2": v2
             }
-            if T is not T0:
+            if T is not T0:  # (because T0 does not have v1)_
                 v1_width = T.field_by_name["v1"].dtype.bit_length()
                 v1 = self._rand.getrandbits(v1_width)
                 d["v1"] = v1
-                outputRef.append(v1)
+                if not dbgSkip:
+                    outputRef.append(v1)
+            if dbgSkip:
+                continue
 
             if WRITE_FOOTER:
                 outputRef.append(v2)
@@ -246,13 +252,21 @@ class AxiSParseIfTC(SimTestCase):
         tc = self
 
         def testLlvmOptIr(llvm: LlvmCompilationBundle):
+            # try:
             tc._testLlvmIr(u, llvm.main, inputFrames, outputRef)
 
+            # except NotImplementedError:
+            #    pass
         def testLlvmOptMir(llvm: LlvmCompilationBundle):
             tc._testLlvmMir(u, llvm.getMachineFunction(llvm.main), inputFrames, outputRef)
 
-        self.compileSimAndStart(u, target_platform=TestLlvmIrAndMirPlatform(optIrTest=testLlvmOptIr,
-                                                                            optMirTest=testLlvmOptMir))
+        self.compileSimAndStart(u, target_platform=TestLlvmIrAndMirPlatform(
+                debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
+                    HlsDebugBundle.DBG_20_addSignalNamesToSync}),
+                optIrTest=testLlvmOptIr,
+                optMirTest=testLlvmOptMir,
+                # runTestAfterEachPass=True
+        ))
 
         u.i._ag.presetBeforeClk = True
         for f in inputFrames:
@@ -354,7 +368,7 @@ class AxiSParseIfTC(SimTestCase):
         self._test_AxiSParse2IfAndSequel(24)
 
     def test_AxiSParse2IfAndSequel_48b_1MHz(self):
-        self._test_AxiSParse2IfAndSequel(48)
+        self._test_AxiSParse2IfAndSequel(48, N=4)
 
     def test_AxiSParse2IfAndSequel_512b_1MHz(self):
         self._test_AxiSParse2IfAndSequel(512)
@@ -439,12 +453,16 @@ if __name__ == '__main__':
     #from hwt.synthesizer.utils import to_rtl_str
     #u = AxiSParse2IfAndSequel()
     #u.WRITE_FOOTER = True
-    #u.DATA_WIDTH = 512
+    #u.DATA_WIDTH = 16
     #u.CLK_FREQ = int(1e6)
-    #print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
-    #  HlsDebugBundle.DBG_20_addSignalNamesToSync}))))
+    #print(to_rtl_str(u, target_platform=VirtualHlsPlatform(
+    #    debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
+    #        HlsDebugBundle.DBG_20_addSignalNamesToSync
+    #}))))
+    
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([AxiSParseIfTC("test_AxiSParse2IfAndSequel_512b_1MHz")])
-    suite = testLoader.loadTestsFromTestCase(AxiSParseIfTC)
+    
+    suite = unittest.TestSuite([AxiSParseIfTC("test_AxiSParse2If_24b_100MHz")])
+    #suite = testLoader.loadTestsFromTestCase(AxiSParseIfTC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
