@@ -4,7 +4,7 @@
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtSimApi.utils import freq_to_period
-from tests.io.readSizeFromRamAndSendSequence import ReadSizeFromRamAndSendSequence
+from tests.io.bram.readSizeFromRamAndSendSequence import ReadSizeFromRamAndSendSequence
 from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
 
 
@@ -46,8 +46,8 @@ if __name__ == "__main__":
     u.CLK_FREQ = int(50e6)
     print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter={
         *HlsDebugBundle.ALL_RELIABLE,
-    #    HlsDebugBundle.DBG_20_addSignalNamesToSync,
-    #    HlsDebugBundle.DBG_20_addSignalNamesToData
+        # HlsDebugBundle.DBG_20_addSignalNamesToSync,
+        # HlsDebugBundle.DBG_20_addSignalNamesToData
     })))
 
     import unittest
