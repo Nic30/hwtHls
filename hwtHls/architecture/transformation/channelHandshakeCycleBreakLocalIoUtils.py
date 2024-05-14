@@ -4,17 +4,15 @@ from hwt.hdl.value import HValue
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.architecture.analysis.channelGraph import ArchSyncNodeTy, \
     ArchSyncNodeIoDict
+from hwtHls.architecture.analysis.handshakeSCCs import ArchSyncNodeTy_stringFormat_short
 from hwtHls.architecture.transformation.channelHandshakeCycleBreakUtils import ArchElementTermPropagationCtx, \
-    resolveAckFromNodeIo
+    resolveAckFromNodeIo, optionallyAddNameToOperatorNode
 from hwtHls.netlist.builder import HlsNetlistBuilder
-from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
-from hwtHls.architecture.analysis.handshakeSCCs import ArchSyncSuccDict
-from hwtHls.netlist.nodes.read import HlsNetNodeRead
 
 
 def _resolveLocalOnlyIoAck(scc: UniqList[ArchSyncNodeTy],
-                           #neighborDict: ArchSyncSuccDict,
+                           # neighborDict: ArchSyncSuccDict,
                            nodeIo: ArchSyncNodeIoDict,
                            builder: HlsNetlistBuilder,
                            termPropagationCtx: ArchElementTermPropagationCtx):
@@ -29,8 +27,8 @@ def _resolveLocalOnlyIoAck(scc: UniqList[ArchSyncNodeTy],
         nodeInputs, nodeOutputs = nodeIo[n]
 
         # ioAck = None
-        #elmNode, clkI_ = n
-        #elmNode: ArchElement
+        # elmNode, clkI_ = n
+        # elmNode: ArchElement
         # isFsm = isinstance(elmNode, ArchElementFsm)
         # if nodeInputs or nodeOutputs or isFsm:
         # builder = builderForRoot.scoped(elmNode)
@@ -43,8 +41,8 @@ def _resolveLocalOnlyIoAck(scc: UniqList[ArchSyncNodeTy],
         if ioAck is not None:
             assert not isinstance(ioAck, HValue), (n, ioAck)
 
-        ## resolve ack from buffers with capacity > 0
-        #for channels in neighborDict[n].values():
+        # # resolve ack from buffers with capacity > 0
+        # for channels in neighborDict[n].values():
         #    for c in channels:
         #        if isinstance(c, HlsNetNodeRead) and \
         #                c.associatedWrite and\
@@ -53,5 +51,6 @@ def _resolveLocalOnlyIoAck(scc: UniqList[ArchSyncNodeTy],
         #            ioAck = builder.buildAndOptional(ioAck, vld)
 
         localOnlyAckFromIo[n] = ioAck
+        optionallyAddNameToOperatorNode(ioAck, f"hsScc_localOnlyAckFromIo_{ArchSyncNodeTy_stringFormat_short(n)}")
 
     return localOnlyAckFromIo

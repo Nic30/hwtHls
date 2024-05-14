@@ -28,20 +28,21 @@ def _getIOAck(node:ArchSyncNodeTy,
               builder: HlsNetlistBuilder,
               termPropagationCtx: ArchElementTermPropagationCtx,
               predecessorAck: Optional[HlsNetNodeOut],
-              io: Union[HlsNetNodeRead, HlsNetNodeWrite]) -> Optional[HlsNetNodeOut]:
+              io: Union[HlsNetNodeRead, HlsNetNodeWrite],
+              extraExtraCond:Optional[HlsNetNodeOut]=None) -> Optional[HlsNetNodeOut]:
     """
     Resolve if expression which is 0 if this node is causing rest of the circuit to stall
     None means circuit never stalls.
     """
     ack: Optional[HlsNetNodeOut] = None
     if isinstance(io, HlsNetNodeRead):
-        if io._rtlUseValid:  # isChannelPrivateToHsScc
+        if io._isBlocking and io._rtlUseValid:  # isChannelPrivateToHsScc
             ack = io.getValidNB()
             ack = termPropagationCtx.propagate(node, ack, f"r{io._id}_validNB")
 
     else:
         assert isinstance(io, HlsNetNodeWrite), io
-        if io._rtlUseReady:
+        if io._isBlocking and io._rtlUseReady:
             ack = io.getReadyNB()
             ack = termPropagationCtx.propagate(node, ack, f"w{io._id}_readyNB")
 
@@ -49,11 +50,15 @@ def _getIOAck(node:ArchSyncNodeTy,
     if extraCond is not None:
         extraCond = termPropagationCtx.propagate(node, extraCond, f"n{io._id}_extraCond")
         # extraCond = builder.buildAndOptional(predecessorAck, extraCond)
-
-    skipWhen = io.getSkipWhenDriver()
-    if skipWhen is not None:
-        skipWhen = termPropagationCtx.propagate(node, skipWhen, f"n{io._id}_skipWhen")
-        # skipWhen = builder.buildAndOptional(predecessorAck, skipWhen)
+    extraCond = builder.buildAndOptional(extraCond, extraExtraCond)
+    
+    if ack is not None or extraCond is not None:
+        skipWhen = io.getSkipWhenDriver()
+        if skipWhen is not None:
+            skipWhen = termPropagationCtx.propagate(node, skipWhen, f"n{io._id}_skipWhen")
+            # skipWhen = builder.buildAndOptional(predecessorAck, skipWhen)
+    else:
+        skipWhen = None
 
     ack = builder.buildOrOptional(builder.buildAndOptional(ack, extraCond), skipWhen)
     optionallyAddNameToOperatorNode(ack, f"ackFromIo_n{io._id}")

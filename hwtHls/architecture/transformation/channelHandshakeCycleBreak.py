@@ -1,10 +1,3 @@
-"""
-:var DynamicallyDirectlyNotReachableFlagDict: for every node for every connected node a flag which tells that all connections to to that node is disabled and not required (skipWhen=1)
-     There are two skipWhen flags each one for different side of channel.
-     If flag does not exit it is not stored in the dictionary.
-     BIT.from_py(1) means that the channel port is always optional.
-"""
-
 from typing import Dict, List, Union, Set, \
     Optional
 
@@ -18,41 +11,35 @@ from hwtHls.architecture.analysis.handshakeSCCs import \
     HlsArchAnalysisPassHandshakeSCC, ArchSyncNodeTy_stringFormat_short
 from hwtHls.architecture.transformation.channelHandshakeCycleBreakDynamicLinkUtils import resolveDynamicallyDirectlyNotReachable, \
     DynamicallyDirectlyNotReachableFlagDict, DST_UNREACHABLE, \
-    _getSyncNodeDynSkipExpression, resolveNodeInputsValid
+    _getSyncNodeDynSkipExpression, resolveNodeInputsValid, \
+    ChannelHandshakeCycleDeadlockError, NoBufferWritePossibleToNodeDict, \
+    PrunedConditions, PrunedConditions_append_and
 from hwtHls.architecture.transformation.channelHandshakeCycleBreakLocalIoUtils import _resolveLocalOnlyIoAck
 from hwtHls.architecture.transformation.channelHandshakeCycleBreakUtils import \
     hasSameDriver, hasNotAnySyncOrFlag, ArchSyncNodeTerm, \
-    constructExpressionFromTemplate
+    constructExpressionFromTemplate, optionallyAddNameToOperatorNode
 from hwtHls.architecture.transformation.dce import ArchElementDCE
 from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
 from hwtHls.netlist.analysis.nodeParentAggregate import HlsNetlistAnalysisPassNodeParentAggregate
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid, HVoidOrdering
+from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.archElementNoSync import ArchElementNoSync
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge, \
     HlsNetNodeReadBackedge
-from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge
 from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeWriteAnyChannel, \
     HlsNetNodeReadAnyChannel
-from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwtHls.netlist.nodes.ports import HlsNetNodeOut, link_hls_nodes
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.writeHsSCCSync import HlsNetNodeWriteHsSccSync
 from hwtHls.netlist.scheduler.clk_math import offsetInClockCycle
 from hwtHls.typingFuture import override
-from hwtHls.architecture.transformation.utils.termPropagationContext import ArchElementTermPropagationCtx,\
+from hwtHls.architecture.transformation.utils.termPropagationContext import ArchElementTermPropagationCtx, \
     exportPortFromArchElement, importPortToArchElement
 from hwtHls.architecture.transformation.utils.dummyScheduling import scheduleUnscheduledControlLogic
 from hwtHls.architecture.transformation.utils.syncUtils import insertDummyWriteToImplementSync
-
-
-class ChannelHandshakeCycleDeadlockError(AssertionError):
-    """
-    An exception which is raised if deadlock in channels in handshake SCC is found.
-    """
 
 
 class RtlArchPassChannelHandshakeCycleBreak(RtlArchPass):
@@ -260,15 +247,50 @@ class RtlArchPassChannelHandshakeCycleBreak(RtlArchPass):
         sync.addControlSerialExtraCond(otherAcks, addDefaultScheduling=True)
         return _otherAcks
 
+    @staticmethod
+    def _getWritePossibleForSyncNode(
+            successorsDirected: ArchSyncSuccDiGraphDict,
+            writePossible: NoBufferWritePossibleToNodeDict,
+            builder: HlsNetlistBuilder,
+            node: ArchSyncNodeTy):
+        """
+        resolve expression which is 1 if all direct successors of node
+        are able accept non-buffered writes or the write is skipped
+        """
+
+        _writePossible = writePossible[node]
+        edgeWriteAckTermList: Optional[PrunedConditions] = None
+
+        for suc in successorsDirected[node].keys():
+            _edgeWriteAck = _writePossible.get(suc)
+            if _edgeWriteAck is not None:
+                assert _edgeWriteAck[1], ("If there is a condition is must be satisfiable", node, suc)
+                for term in _edgeWriteAck[1]:
+                    shorted, edgeWriteAckTermList = PrunedConditions_append_and(edgeWriteAckTermList, term)
+                    if shorted:
+                        raise ChannelHandshakeCycleDeadlockError(
+                            "It was proven that the node can not write"
+                            " to non-buffered channels leading to multiple successor nodes."
+                            " This leads to a deadlock.", node, suc, term)
+
+        if edgeWriteAckTermList:
+            edgeWriteAck = builder.buildAndVariadic(
+                edgeWriteAckTermList[1],
+                name=f"{ArchSyncNodeTy_stringFormat_short(node)}_noBuffWritePossible")
+            return edgeWriteAck
+        else:
+            return None
+
     @classmethod
     def _addWriteWithReadyOfOthersToImplementReadyForSCC(cls,
             netlist: HlsNetlistCtx,
             scc: UniqList[ArchSyncNodeTy],
             sccIndex: int,
-            successorsUndirected: Optional[ArchSyncSuccDict],
+            successorsUndirected: ArchSyncSuccDict,
             localOnlyAckFromIo: Dict[ArchSyncNodeTy, HlsNetNodeOut],
             nodeCurrentIOVld: Dict[ArchSyncNodeTy, Optional[HlsNetNodeOut]],
-            nodeIsNotDirectlyReachable: Optional[DynamicallyDirectlyNotReachableFlagDict],
+            nodeIsNotDirectlyReachable: DynamicallyDirectlyNotReachableFlagDict,
+            noBufferWritePossibleForSrcNode: Dict[ArchSyncNodeTy, Optional[HlsNetNodeOut]],
             builder: HlsNetlistBuilder,
             termPropagationCtx: ArchElementTermPropagationCtx):
         """
@@ -277,8 +299,6 @@ class RtlArchPassChannelHandshakeCycleBreak(RtlArchPass):
         
         Builds an expression syncRead.extraCond = And(n.ack | n.notReachableFromCurrentNode() for n in scc if n is not currentNode)
         """
-        if nodeIsNotDirectlyReachable is not None:
-            assert successorsUndirected is not None, "If nodeIsNotDirectlyReachable is provided successorsUndirected should be provided as well"
 
         # in ackForSyncNodes the out is inside of HsScc arch element node termPropagationCtx.parentDstElm
         ackForSyncNode: Dict[ArchSyncNodeTy, Optional[HlsNetNodeOut]] = {}
@@ -306,6 +326,8 @@ class RtlArchPassChannelHandshakeCycleBreak(RtlArchPass):
                 #        builder.buildNot(stVld)
                 #    )
                 ack = builder.buildAndOptional(ack, ioAckOrNotLoaded)
+                noBuffWriteAck = noBufferWritePossibleForSrcNode.get(otherSyncNode)
+                ack = builder.buildAndOptional(ack, noBuffWriteAck)
 
                 skipOtherSyncNode = None
                 if ack is not None and nodeIsNotDirectlyReachable is not None:
@@ -329,8 +351,9 @@ class RtlArchPassChannelHandshakeCycleBreak(RtlArchPass):
                             else:
                                 skipOtherSyncNode = None
                         else:
-                            if isinstance(skipOtherSyncNode.obj, HlsNetNodeOperator) and skipOtherSyncNode.name is None:
-                                skipOtherSyncNode.obj.name = f"hss_skip_{ArchSyncNodeTy_stringFormat_short(syncNode)}__{ArchSyncNodeTy_stringFormat_short(otherSyncNode)}"
+                            optionallyAddNameToOperatorNode(
+                                skipOtherSyncNode, 
+                                f"hsScc_skip_{ArchSyncNodeTy_stringFormat_short(syncNode)}__{ArchSyncNodeTy_stringFormat_short(otherSyncNode)}")
                             time = cls._scheduleDefault(parentNodeForScheduling, skipOtherSyncNode)
                             try:
                                 assert time // clkPeriod <= dstClkIndex, (
@@ -369,6 +392,9 @@ class RtlArchPassChannelHandshakeCycleBreak(RtlArchPass):
             # inVld = nodeCurrentIOVld[syncNode]
             # if inVld is not None:
             #    otherAcks.append(inVld)
+            noBuffWriteAck = noBufferWritePossibleForSrcNode.get(syncNode)
+            if noBuffWriteAck is not None:
+                otherAcks.append(noBuffWriteAck)
             if otherAcks:
                 otherAcks = cls._constructWriteToImplementHsSCCnodeSync(
                     sccIndex, syncNode, parentNodeForScheduling, latestAckTimeOffset,
@@ -614,17 +640,25 @@ class RtlArchPassChannelHandshakeCycleBreak(RtlArchPass):
                 neighborDict = hsSccs.getSuccessorsUndirected()
                 nodeCurrentIOVld, ioCondVld = resolveNodeInputsValid(
                     successors, nodeIo, scc, builder, termPropagationCtx)
-                nodeIsNotDynDirectlyReachable = resolveDynamicallyDirectlyNotReachable(
+                nodeIsNotDynDirectlyReachable, writePossible = resolveDynamicallyDirectlyNotReachable(
                     neighborDict, scc, ioCondVld, builder, termPropagationCtx)
 
                 localOnlyAckFromIo = _resolveLocalOnlyIoAck(
                     scc,  # neighborDict,
                     nodeIo, builder, termPropagationCtx)
 
+                writePossibleForSrcNode: Dict[ArchSyncNodeTy, Optional[HlsNetNodeOut]] = {
+                    n: self._getWritePossibleForSyncNode(
+                        successors,
+                        writePossible,
+                        builder,
+                        n) for n in scc
+                }
                 self._addWriteWithReadyOfOthersToImplementReadyForSCC(
                     netlist, scc, sccIndex, neighborDict, localOnlyAckFromIo,
                     nodeCurrentIOVld,
-                    nodeIsNotDynDirectlyReachable, builder, termPropagationCtx)
+                    nodeIsNotDynDirectlyReachable, writePossibleForSrcNode,
+                    builder, termPropagationCtx)
                 self._discardSyncCausingLoop(successors, scc)
 
             self._removeChannelsWithoutAnyDataSyncOrFlag(channels.nodes, successors)
