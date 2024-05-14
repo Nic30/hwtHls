@@ -83,7 +83,7 @@ def netlistReduceExplicitSyncDissolve(
         reachDb: HlsNetlistAnalysisPassReachability):
     """
     While merging HlsNetNodeExplicitSync nodes it is required to check all sync nodes which are related
-    to inputs and outputs of this sync. This means that it is required to search reachability in bout directions,
+    to inputs and outputs of this sync. This means that it is required to search reachability in both directions,
     when searching for related sync nodes.
     """
     assert node.__class__ is HlsNetNodeExplicitSync, node
