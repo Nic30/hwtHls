@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import struct
-
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.defs import BIT
 from hwt.interfaces.hsStructIntf import HsStructIntf
@@ -83,7 +81,7 @@ class IEEE754FpCmp_TC(SimTestCase):
             return IEEE754FpCmpResult.UNKNOWN
 
     def test_cmp_py(self):
-        for (a, b) in zip(self.TEST_DATA_FORMATED):
+        for (a, b) in self.TEST_DATA_FORMATED:
             res = IEEE754FpCmp(a, b)
             _a = IEEE754Fp32.to_py(a)
             _b = IEEE754Fp32.to_py(b)
