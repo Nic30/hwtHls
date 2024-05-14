@@ -56,8 +56,10 @@ def addAllUsersToWorklist(worklist: UniqList[HlsNetNode], n: HlsNetNode):
 
 def replaceOperatorNodeWith(n: HlsNetNodeOperator, newO: HlsNetNodeOut,
                             worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]):
-    assert len(n.usedBy) == 1 or all(not uses for uses in islice(n.usedBy, 1, None)), (n, "implemented only for single output nodes or nodes with only first output used")
+    assert len(n.usedBy) == 1 or all(not uses for uses in islice(n.usedBy, 1, None)), (
+        n, "implemented only for single output nodes or nodes with only first output used")
     assert newO.obj not in removed, newO
+    assert n._outputs[0]._dtype == newO._dtype, (n._outputs[0]._dtype, newO._dtype)
     builder: "HlsNetlistBuilder" = n.netlist.builder
     addAllUsersToWorklist(worklist, n)
 
