@@ -12,7 +12,7 @@ from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn, \
     unlink_hls_nodes, link_hls_nodes
 from hwtHls.netlist.transformation.simplifyUtils import replaceOperatorNodeWith, \
-    disconnectAllInputs
+    disconnectAllInputs, getConstOfOutput
 from pyMathBitPrecise.bit_utils import ValidityError
 
 
@@ -219,6 +219,15 @@ def netlistReduceMux(n: HlsNetNodeMux, worklist: UniqList[HlsNetNode], removed: 
         if v0 is c:
             newO = builder.buildOr(c, v1)
             replaceOperatorNodeWith(n, newO, worklist, removed)
+            return True
+        # if one operand is undef, replace this with other value operand
+        v0Const = getConstOfOutput(v0)
+        if v0Const is not None and v0Const.vld_mask == 0:
+            replaceOperatorNodeWith(n, v1, worklist, removed)
+            return True
+        v1Const = getConstOfOutput(v1)
+        if v1Const is not None and v1Const.vld_mask == 0:
+            replaceOperatorNodeWith(n, v0, worklist, removed)
             return True
 
     # search large ROMs implemented as MUX
