@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from typing import Callable
-
 from hwt.hdl.constants import WRITE, READ
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.defs import BIT
