@@ -29,6 +29,7 @@ from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
 from hwtHls.typingFuture import override
 from hwtLib.handshaked.builder import HsBuilder
+from hwtLib.logic.rtlSignalBuilder import RtlSignalBuilder
 
 
 class HlsNetNodeReadBackedge(HlsNetNodeRead):
@@ -218,7 +219,7 @@ class HlsNetNodeReadBackedge(HlsNetNodeRead):
             if not HdlType_isVoid(dtype):
                 dtype = self.getRtlDataSig()._dtype
             requiresVld = self.hasAnyFormOfValidPort()
-            if srcWrite.allocationType == BACKEDGE_ALLOCATION_TYPE.REG:
+            if srcWrite.allocationType == BACKEDGE_ALLOCATION_TYPE.REG and srcWrite._getBufferCapacity() > 0:
                 if init:
                     if len(init) > 1:
                         raise NotImplementedError(self, init)
@@ -233,7 +234,8 @@ class HlsNetNodeReadBackedge(HlsNetNodeRead):
                     dataReg = allocator._reg(dataRegName, dtype, def_val=_init)
                     dataReg.hidden = False
             else:
-                assert srcWrite.allocationType == BACKEDGE_ALLOCATION_TYPE.IMMEDIATE, srcWrite.allocationType
+                assert srcWrite.allocationType in (BACKEDGE_ALLOCATION_TYPE.IMMEDIATE,
+                                                   BACKEDGE_ALLOCATION_TYPE.REG), srcWrite.allocationType
                 assert not init, ("Immediate channels can not have init value", srcWrite, init)
                 dataReg = allocator._sig(dataRegName, dtype)
 
@@ -519,12 +521,14 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
 
             wEn = self._getRtlEnableForNonBufferReg(allocator)
             isReg = self.allocationType == BACKEDGE_ALLOCATION_TYPE.REG
+            isRegWithCapacity = isReg and self._getBufferCapacity() > 0
             rwMayHappenAtOnce = rClkI == wClkI or allocator.rtlStatesMayHappenConcurrently(rClkI, wClkI)
             wStageCon: ConnectionsOfStage = allocator.connections[wClkI]
 
             if dstRead.hasValidOnlyToPassFlags():
                 assert not dstRead.src.vld._sig.drivers, (self, dstRead.src.vld._sig.drivers)
-                dstRead.src.vld(1 if wEn is None else wEn)
+                _wEn = RtlSignalBuilder.buildAndOptional(wEn, wStageCon.getRtlStageEnableSignal())
+                dstRead.src.vld(1 if _wEn is None else _wEn)
 
             if wEn is None:
                 res = []
@@ -532,7 +536,7 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
                     res.append(vldDst(1))
                 if dataDst is not None:
                     res.append(dataDst(dataSrc))
-                if isReg:
+                if isRegWithCapacity:
                     wStageCon.stDependentDrives.extend(res)
             else:
                 if isReg:
@@ -583,7 +587,7 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
                             res = [res]
                         else:
                             res = []
-                    if isReg:
+                    if isRegWithCapacity:
                         wStageCon.stDependentDrives.extend(res)
                 else:
                     assert self.allocationType == BACKEDGE_ALLOCATION_TYPE.IMMEDIATE, self.allocationType
