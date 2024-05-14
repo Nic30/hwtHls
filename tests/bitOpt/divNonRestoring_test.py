@@ -11,7 +11,8 @@ from hwt.simulator.simTestCase import SimTestCase
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline
+from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline, \
+    PyBytecodeSkipPass
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.platform.platform import HlsDebugBundle
 from hwtHls.scope import HlsScope
@@ -27,6 +28,7 @@ class DivNonRestoring(Unit):
         self.DATA_WIDTH = Param(4)
         self.FREQ = Param(int(20e6))
         self.UNROLL_FACTOR = Param(1)
+        self.MAIN_FN_META = Param(None)
 
     def _declr(self) -> None:
         addClkRstn(self)
@@ -47,6 +49,7 @@ class DivNonRestoring(Unit):
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
+        self.MAIN_FN_META
         while BIT.from_py(1):
             inp = hls.read(self.data_in)
             res = PyBytecodeInline(divNonRestoring)(inp.dividend, inp.divisor, inp.signed, self.UNROLL_FACTOR)
@@ -64,8 +67,8 @@ class DivNonRestoring(Unit):
 
 class DivNonRestoring_TC(SimTestCase):
     GOLDEN_DATA = [
-        [(1, 1, 0), (2, 2, 0), (4, 2, 0),], #(13, 3, 0), (3, 15, 0), (9, 3, 0)],  # dividend, divisor, isSigned
-        [(1, 0), (1, 0), (2, 0), ], #(4, 1), (0, 3), (3, 0)],  # quotient, remainder
+        [(1, 1, 0), (2, 2, 0), (4, 2, 0), ],  # (13, 3, 0), (3, 15, 0), (9, 3, 0)],  # dividend, divisor, isSigned
+        [(1, 0), (1, 0), (2, 0), ],  # (4, 1), (0, 3), (3, 0)],  # quotient, remainder
     ]
 
     def test_div_py(self):
@@ -78,9 +81,10 @@ class DivNonRestoring_TC(SimTestCase):
             self.assertValSequenceEqual([_quotient, _remainder], (quotient, remainder),
                                         msg=((dividend, "//", divisor, "signed?:", isSigned), (quotient, "rem:", remainder)))
 
-    def test_div(self):
+    def test_div(self, MAIN_FN_META=None, runTestAfterEachPass=False):
         u = DivNonRestoring()
         u.DATA_WIDTH = 3
+        u.MAIN_FN_META = MAIN_FN_META
 
         def prepareDataInFn():
             DW = u.DATA_WIDTH
@@ -101,14 +105,15 @@ class DivNonRestoring_TC(SimTestCase):
 
             self.assertValSequenceEqual(dataOut, dataOutRef, "[%s] != [%s]" % (
                 ", ".join("(q:%d, r:%d)" % (int(i) & mask(DW), int(i) >> DW) if i._is_full_valid() else repr(i) for i in dataOut),
-                ", ".join("(q:%d, r:%d)" % (q, r) for q,r in self.GOLDEN_DATA[1])
+                ", ".join("(q:%d, r:%d)" % (q, r) for q, r in self.GOLDEN_DATA[1])
             ))
 
         self.compileSimAndStart(u,
                                 target_platform=TestLlvmIrAndMirPlatform.forSimpleDataInDataOutUnit(
-                                    prepareDataInFn, checkDataOutFn, None, debugFilter=HlsDebugBundle.ALL_RELIABLE,
+                                    prepareDataInFn, checkDataOutFn, None, #debugFilter=HlsDebugBundle.ALL_RELIABLE,
                                     noOptIrTest=TestLlvmIrAndMirPlatform.TEST_NO_OPT_IR,
-                                    runTestAfterEachPass=True))
+                                    runTestAfterEachPass=runTestAfterEachPass
+                                    ))
         CLK_PERIOD = freq_to_period(u.clk.FREQ)
         u.data_in._ag.data.extend(self.GOLDEN_DATA[0])
         self.runSim((len(u.data_in._ag.data) * u.DATA_WIDTH + 10) * int(CLK_PERIOD))
@@ -117,14 +122,17 @@ class DivNonRestoring_TC(SimTestCase):
                                     self.GOLDEN_DATA[1])
         self.rtl_simulator_cls = None
 
+    def test_div_no_SlicesToIndependentVariablesPass(self):
+        self.test_div(MAIN_FN_META=PyBytecodeSkipPass(["hwtHls::SlicesToIndependentVariablesPass"]), runTestAfterEachPass=False)
+
 
 if __name__ == "__main__":
-    #from hwt.synthesizer.utils import to_rtl_str
-    #from hwtHls.platform.virtual import VirtualHlsPlatform
-    ## from hwtHls.platform.xilinx.artix7 import Artix7Fast
-    #u = DivNonRestoring()
-    ## u.DATA_WIDTH = 8
-    #print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    # from hwt.synthesizer.utils import to_rtl_str
+    # from hwtHls.platform.virtual import VirtualHlsPlatform
+    # # from hwtHls.platform.xilinx.artix7 import Artix7Fast
+    # u = DivNonRestoring()
+    # # u.DATA_WIDTH = 8
+    # print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
 
