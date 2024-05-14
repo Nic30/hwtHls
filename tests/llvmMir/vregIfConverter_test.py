@@ -699,7 +699,7 @@ class VRegIfConverter_TC(BaseLlvmMirTC):
 if __name__ == "__main__":
     import unittest
     testLoader = unittest.TestLoader()
-    suite = unittest.TestSuite([VRegIfConverter_TC('test_ForkedTriangleWhichIsLoopInLoop1')])
-    # suite = testLoader.loadTestsFromTestCase(VRegIfConverter_TC)
+    # suite = unittest.TestSuite([VRegIfConverter_TC('test_ForkedTriangle0')])
+    suite = testLoader.loadTestsFromTestCase(VRegIfConverter_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
