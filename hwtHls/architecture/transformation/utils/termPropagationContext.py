@@ -47,6 +47,7 @@ class ArchElementTermPropagationCtx():
 
     def propagate(self, srcNode: ArchSyncNodeTy, out: HlsNetNodeOut, name: str):
         assert out
+        assert out.obj in srcNode[0]._subNodes, (srcNode[0], out, name)
         k = ArchSyncNodeTerm(srcNode, out, name)
         curI = self.importedPorts.get(k)
         if curI is None:
