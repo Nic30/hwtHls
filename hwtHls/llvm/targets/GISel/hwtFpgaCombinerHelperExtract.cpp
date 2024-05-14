@@ -68,17 +68,21 @@ bool HwtFpgaCombinerHelper::rewriteExtractOnMergeValues(
 		} else {
 			Builder.setInstrAndDebugLoc(MI);
 			auto MIB = Builder.buildInstr(HwtFpga::HWTFPGA_EXTRACT);
+			auto& newMI = *MIB.getInstr();
+			Observer.changingInstr(newMI);
 			// $dst $src $offset $dstWidth
 			MIB.addDef(MI.getOperand(0).getReg());
 			addSrcOperand(MIB, src);
 			MIB.addImm(src.offsetOfUse);
 			MIB.addImm(src.widthOfUse);
+			Observer.changedInstr(newMI);
 		}
 	} else {
 		// we must build HWTFPGA_MERGE_VALUE for members
 		Builder.setInstrAndDebugLoc(MI);
 		auto currentInsertionPoint = Builder.getInsertPt();
 		auto MIB = Builder.buildInstr(HwtFpga::HWTFPGA_MERGE_VALUES);
+		Observer.changingInstr(*MIB.getInstr());
 		MIB.addDef(MI.getOperand(0).getReg());
 
 		for (auto &src : concatMembers) {
@@ -90,6 +94,8 @@ bool HwtFpgaCombinerHelper::rewriteExtractOnMergeValues(
 				Builder.setInstrAndDebugLoc(MI);
 				Builder.setInsertPt(*MI.getParent(), --currentInsertionPoint);
 				auto memberMIB = Builder.buildInstr(HwtFpga::HWTFPGA_EXTRACT);
+				Observer.changingInstr(*memberMIB.getInstr());
+
 				// $dst $src $offset $dstWidth
 				Register memberReg = MRI.createVirtualRegister(
 						&HwtFpga::anyregclsRegClass);
@@ -97,13 +103,17 @@ bool HwtFpgaCombinerHelper::rewriteExtractOnMergeValues(
 				addSrcOperand(memberMIB, src);
 				memberMIB.addImm(src.offsetOfUse);
 				memberMIB.addImm(src.widthOfUse);
+				Observer.changedInstr(*memberMIB.getInstr());
+
 				MIB.addReg(memberReg);
 			}
 		}
 		for (auto &src : concatMembers) {
 			MIB.addImm(src.widthOfUse);
 		}
+		Observer.changedInstr(*MIB.getInstr());
 	}
+
 	MI.eraseFromParent();
 	return true;
 }
@@ -143,10 +153,14 @@ bool HwtFpgaCombinerHelper::rewriteExtractOnConstShift(
 		offset -= shAmount;
 		Builder.setInstrAndDebugLoc(MI);
 		auto MIB = Builder.buildInstr(HwtFpga::HWTFPGA_EXTRACT);
+		Observer.changingInstr(*MIB.getInstr());
+
 		MIB.addDef(MI.getOperand(0).getReg());
 		MIB.add(srcValMO);
 		MIB.addImm(offset);
 		MIB.addImm(resWidth);
+		Observer.changedInstr(*MIB.getInstr());
+
 		break;
 	}
 	//case HwtFpga::HWTFPGA_ASHR:
