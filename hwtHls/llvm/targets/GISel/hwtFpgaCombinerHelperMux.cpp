@@ -89,7 +89,6 @@ bool checkAnyOperandRedefined(MachineInstr &MI, MachineInstr &MIEnd) {
 
 MachineOperand *getNextUseOfRegInBlock(MachineRegisterInfo &MRI, MachineInstr &MI,
 		Register &DstRegNo) {
-	MachineOperand *otherUse = nullptr;
 	if (!MRI.hasOneUse(DstRegNo)) {
 		for (MachineInstr *NextInstr = MI.getNextNode(); NextInstr != nullptr;
 				NextInstr = NextInstr->getNextNode()) {
@@ -97,12 +96,11 @@ MachineOperand *getNextUseOfRegInBlock(MachineRegisterInfo &MRI, MachineInstr &M
 			auto UseOpIndx = NextInstr->findRegisterUseOperandIdx(DstRegNo,
 					false);
 			if (UseOpIndx > 0) {
-				otherUse = &NextInstr->getOperand(UseOpIndx);
-				break;
+				return &NextInstr->getOperand(UseOpIndx);
 			}
 		}
 	}
-	return otherUse;
+	return nullptr;
 }
 
 /**
@@ -143,6 +141,11 @@ bool HwtFpgaCombinerHelper::matchNestedMux(MachineInstr &MI,
 	requiresAndWithParentCond.clear();
 	// check if is used only by a HWTFPGA_MUX and can merge operands into user
 	auto DstRegNo = MI.getOperand(0).getReg();
+	if (!MRI.hasOneDef(DstRegNo) && MI.findRegisterUseOperandIdx(DstRegNo) > 0) {
+		// Dst must have just this def or previous def must not be operand
+		return false;
+	}
+
 	MachineOperand *otherUse = nullptr;
 	if (!MRI.hasOneUse(DstRegNo)) {
 		otherUse = getNextUseOfRegInBlock(MRI, MI, DstRegNo);
@@ -161,6 +164,7 @@ bool HwtFpgaCombinerHelper::matchNestedMux(MachineInstr &MI,
 	if (otherMI->getOpcode() != HwtFpga::HWTFPGA_MUX) {
 		return false;
 	}
+
 	size_t otherUseOpIndex = otherMI->getOperandNo(otherUse);
 	bool otherUseIsValueOp = otherUseOpIndex % 2 == 1;
 	if (!otherUseIsValueOp)
@@ -220,6 +224,8 @@ bool HwtFpgaCombinerHelper::rewriteNestedMuxToMux(MachineInstr &MI,
 		const SmallVector<bool> &requiresAndWithParentCond) {
 	assert(MI.getOpcode() == HwtFpga::HWTFPGA_MUX);
 	auto DstRegNo = MI.getOperand(0).getReg();
+	assert((MRI.hasOneDef(DstRegNo) || MI.findRegisterUseOperandIdx(DstRegNo) < 0)
+			&& "Dst must have just this def or previous def must not be operand");
 	MachineOperand *parentUse = nullptr;
 	if (MRI.hasOneUse(DstRegNo)) {
 		parentUse = &*MRI.use_begin(DstRegNo);
@@ -232,14 +238,19 @@ bool HwtFpgaCombinerHelper::rewriteNestedMuxToMux(MachineInstr &MI,
 		assert(UseOpIndx > 0);
 		parentUse = &NextInstr->getOperand(UseOpIndx);
 		assert(parentUse->getReg() == DstRegNo);
-	}
 
+	}
+	// :note: parentMI is a MUX which is using MI
+	//    we are now tying to remove MI by inline of MI into parentMI
+	//    MI is removed if dst has no other use or MI.dst is parentMi.dst
 	MachineInstr *parentMI = parentUse->getParent();
+	assert(parentMI->getOpcode() == HwtFpga::HWTFPGA_MUX);
 
 	Builder.setInstrAndDebugLoc(*parentMI);
 	auto MIB0 = Builder.buildInstr(HwtFpga::HWTFPGA_MUX);
-	auto &newMI = *MIB0.getInstr();
-	Observer.changingInstr(newMI);
+	auto &newParentMI = *MIB0.getInstr();
+	Observer.changingInstr(newParentMI);
+	auto newParentDst = parentMI->getOperand(0).getReg();
 
 	for (size_t ParentOpI = 0; ParentOpI < parentMI->getNumOperands();
 			++ParentOpI) {
@@ -252,7 +263,7 @@ bool HwtFpgaCombinerHelper::rewriteNestedMuxToMux(MachineInstr &MI,
 			for (auto NesOp : MI.operands()) {
 				if (first) {
 					first = false;
-					continue;
+					continue; // skip dst
 				}
 
 				if (nestedOpIsCond && requiresAndWithParentCond.size()
@@ -260,10 +271,12 @@ bool HwtFpgaCombinerHelper::rewriteNestedMuxToMux(MachineInstr &MI,
 					assert(ParentOpI + 1 < parentMI->getNumOperands());
 					MachineOperand &parentCondOp = parentMI->getOperand(ParentOpI + 1);
 
-					if (NesOp.getReg() == parentCondOp.getReg()) {
+					if (NesOp.getReg() == DstRegNo) {
+						MIB0.addUse(newParentDst);
+					} else if (NesOp.getReg() == parentCondOp.getReg()) {
 						MIB0.add(NesOp);
 					} else {
-						Builder.setInstrAndDebugLoc(newMI);
+						Builder.setInstrAndDebugLoc(newParentMI);
 						auto MIB1 = Builder.buildInstr(TargetOpcode::G_AND);
 						auto &newCondAndMI = *MIB1.getInstr();
 						Observer.changingInstr(newCondAndMI);
@@ -275,11 +288,15 @@ bool HwtFpgaCombinerHelper::rewriteNestedMuxToMux(MachineInstr &MI,
 						}
 						Observer.changedInstr(newCondAndMI);
 
-						Builder.setInstrAndDebugLoc(newMI);
+						Builder.setInstrAndDebugLoc(newParentMI);
 						MIB0.addUse(newCondAndReg);
 					}
 				} else {
-					MIB0.add(NesOp);
+					if (NesOp.isReg() && NesOp.getReg() == DstRegNo) {
+						MIB0.addUse(newParentDst);
+					} else {
+						MIB0.add(NesOp);
+					}
 				}
 				if (nestedOpIsCond)
 					condI++;
@@ -291,11 +308,18 @@ bool HwtFpgaCombinerHelper::rewriteNestedMuxToMux(MachineInstr &MI,
 		}
 	}
 
-	Observer.changedInstr(newMI);
+	Observer.changedInstr(newParentMI);
 
-	if (MRI.use_empty(MI.getOperand(0).getReg()))
+	if (DstRegNo == newParentDst || MRI.use_empty(DstRegNo)
+			|| all_of(MRI.use_instructions(DstRegNo),
+					// MI is only user of its dst
+					[&MI](const MachineInstr &_MI) {
+						return &_MI == &MI;
+					})
+		)
 		MI.eraseFromParent();
 	parentMI->eraseFromParent();
+
 	return true;
 }
 
