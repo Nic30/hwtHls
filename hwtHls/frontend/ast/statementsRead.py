@@ -122,6 +122,8 @@ class HlsRead(HdlStatement, SsaInstr):
         assert isinstance(srcIo, (Interface, RtlSignalBase, MultiPortGroup, BankedPortGroup)), srcIo
         assert isinstance(index, int) and index == 0, (srcIo, index, "Because this read is not addressed there should not be any index")
         dtype = _getNativeInterfaceWordType(getFirstInterfaceInstance(srcIo))
+        if isinstance(dtype, Bits) and dtype.signed is not None:
+            dtype = Bits(dtype.bit_length())
         n = HlsNetNodeRead(netlist,
                            srcIo,
                            dtype=dtype,
