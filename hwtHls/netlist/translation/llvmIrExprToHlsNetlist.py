@@ -205,7 +205,7 @@ class LlvmIrExprToHlsNetlist():
                         if opV0._dtype.bit_length() == 1:
                             msb = opV0
                         else:
-                            msb = b.buildIndexConstSlice(resT, opV0, w, w - 1)
+                            msb = b.buildIndexConstSlice(resT, opV0, w, w - 1, [])
                         v = b.buildConcat(opV0, *(msb for _ in range(resTwidth - w)))
                     else:
                         assert opc == Instruction.ZExt, opc

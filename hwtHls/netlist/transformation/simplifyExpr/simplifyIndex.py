@@ -1,11 +1,11 @@
 from typing import Set
 
 from hwt.hdl.operatorDefs import AllOps
+from hwt.hdl.types.defs import SLICE
 from hwt.pyUtils.uniqList import UniqList
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwt.hdl.types.defs import SLICE
 from hwtHls.netlist.transformation.simplifyUtils import replaceOperatorNodeWith
 
 
@@ -32,7 +32,7 @@ def netlistReduceIndexOnIndex(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNo
                 offset = i0.stop + i1.stop
                 w = i1.start - i1.stop
                 assert w > 0, i1
-                newOut = n.netlist.builder.buildIndexConstSlice(curOut._dtype, newSrc, w + offset, offset)
+                newOut = n.netlist.builder.buildIndexConstSlice(curOut._dtype, newSrc, w + offset, offset, worklist)
                 replaceOperatorNodeWith(n, newOut, worklist, removed)
 
                 return True

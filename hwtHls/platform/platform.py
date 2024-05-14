@@ -69,11 +69,11 @@ class DefaultHlsPlatform(DummyPlatform):
             # ("debug-only", 0, "", "hwtfpga-pretonetlist-combiner"),
             # ("print-after-all", 0, "", "true"),
             # ("print-before-all", 0, "", "true"),
+            # ("print-before", 0, "", "hwtfpga-pretonetlist-combiner"),
             # ("verify-each", 0, "", ""), # run verification after each pass
             # ("pass-remarks-output", 0, "", "opt.yaml"),
             # ("time-passes", 0, "", "true"), # profile times of passes and analysis
             # ("time-phases", 0, "", ""), [todo] rm
-            # ("print-after", 0, "", "machine-sink"),
             # ("view-dag-combine1-dags", 0, "", "true"),
             # ("view-legalize-types-dags", 0, "", "true"),
             # ("view-dag-combine-lt-dags", 0, "", "true"),

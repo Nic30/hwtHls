@@ -219,7 +219,7 @@ class RtlArchPassChannelMerge(RtlArchPass):
                     builder.replaceOutput(r._validNB, r0.getValidNB(), True)
 
             if rUsers:
-                newV = builder.buildIndexConstSlice(rO0T, r0O0, offset + rO0T.bit_length(), offset)
+                newV = builder.buildIndexConstSlice(rO0T, r0O0, offset + rO0T.bit_length(), offset, [])
                 newV.obj.scheduleAsap(None, 0, None)
                 for u in rUsers:
                     if rO0 is not r0O0:
