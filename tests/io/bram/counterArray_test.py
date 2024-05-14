@@ -7,7 +7,7 @@ from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtSimApi.utils import freq_to_period
 from tests.baseSsaTest import BaseSsaTC
 from tests.io.bram.counterArray import BramCounterArray0nocheck, \
-    BramCounterArray1hardcodedlsu
+    BramCounterArray1hardcodedWriteForwarding
 
 
 class BramCounterArray_TC(BaseSsaTC):
@@ -46,8 +46,8 @@ class BramCounterArray_TC(BaseSsaTC):
     def test_BramCounterArray0nocheck(self):
         self._test_BramCounterArray(BramCounterArray0nocheck, mayLeak=True)
 
-    def test_BramCounterArray1hardcodedlsu(self):
-        self._test_BramCounterArray(BramCounterArray1hardcodedlsu, TIME_MULTIPLIER=3)
+    def test_BramCounterArray1hardcodedWriteForwarding(self):
+        self._test_BramCounterArray(BramCounterArray1hardcodedWriteForwarding, TIME_MULTIPLIER=3)
 
 
 if __name__ == "__main__":
