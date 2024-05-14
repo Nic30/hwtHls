@@ -30,6 +30,8 @@ from hwtHls.netlist.transformation.simplifyExpr.rehash import HlsNetlistPassReha
 from hwtHls.netlist.transformation.simplifyExpr.simplifyAbc import runAbcControlpathOpt
 from hwtHls.netlist.transformation.simplifyExpr.simplifyBitwise import netlistReduceNot, netlistReduceAndOrXor
 from hwtHls.netlist.transformation.simplifyExpr.simplifyIndex import netlistReduceIndexOnIndex
+from hwtHls.netlist.transformation.simplifyExpr.simplifyIndexOnConcat import netlistReduceIndexOnConcat
+from hwtHls.netlist.transformation.simplifyExpr.simplifyIndexOnMuxOfConcats import netlistReduceIndexOnMuxOfConcats
 from hwtHls.netlist.transformation.simplifyExpr.simplifyIo import netlistReduceReadReadSyncWithReadOfValidNB
 from hwtHls.netlist.transformation.simplifyExpr.simplifyLlvmIrExpr import runLlvmCmpOpt, \
     runLlvmMuxCondOpt
@@ -97,6 +99,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
             didModifyExpr = False  # flag which is True if we modified some expression and the ABC should be run
             while worklist:
                 n = worklist.pop()
+                
                 if n in removed or self._DCE(n, worklist, removed):
                     continue
 
@@ -163,7 +166,13 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                                 if netlistReduceIndexOnIndex(n, worklist, removed):
                                     didModifyExpr = True
                                     continue
-
+                                elif netlistReduceIndexOnConcat(n, worklist, removed):
+                                    didModifyExpr = True
+                                    continue
+                                elif netlistReduceIndexOnMuxOfConcats(n, worklist, removed):
+                                    didModifyExpr = True
+                                    continue
+                                
                             continue
 
                         if len(n._inputs) == 1:
