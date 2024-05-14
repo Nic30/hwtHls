@@ -33,6 +33,7 @@ class HlsNetNodeMux(HlsNetNodeOperator):
             name = f"{allocator.name:s}{name}"
         else:
             name = f"{allocator.name:s}mux{self._id:d}"
+
         v0 = allocator.rtlAllocHlsNetNodeOutInTime(self.dependsOn[0], self.scheduledIn[0])
         mux_out_s = allocator._sig(name, v0.data._dtype)
         if len(self._inputs) == 1:

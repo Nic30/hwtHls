@@ -62,7 +62,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
             # if isinstance(dtype, Bits) and dtype.force_vector and dtype.bit_length() == 1:
             #    raise NotImplementedError("Reading of 1b vector would cause issues"
             #                              " with missing auto casts when with other operands without force_vector", d, src)
-
+        assert not isinstance(dtype, Bits) or dtype.signed is None, dtype
         self._addOutput(dtype, "dataOut")
 
     def setNonBlocking(self):
