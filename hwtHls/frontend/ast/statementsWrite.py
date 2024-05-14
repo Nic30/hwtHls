@@ -19,7 +19,6 @@ from hwtHls.ssa.instr import SsaInstr, OP_ASSIGN
 from hwtHls.ssa.translation.llvmMirToNetlist.insideOfBlockSyncTracker import InsideOfBlockSyncTracker
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.value import SsaValue
-from hwtLib.types.ctypes import uint64_t
 
 
 class HlsWrite(HlsStm, SsaInstr):
