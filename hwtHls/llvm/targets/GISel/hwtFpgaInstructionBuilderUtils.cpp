@@ -397,11 +397,15 @@ CImmOrRegOrUndefWithWidth buildHWTFPGA_EXTRACT(MachineIRBuilder &Builder,
 			{
 				hwtHls::MachineInsertPointGuard g(Builder, &DefMI);
 				auto MIB = Builder.buildInstr(HwtFpga::HWTFPGA_EXTRACT);
+				//if (Observer)
+				//	Observer->changingInstr(*MIB.getInstr());
 				res = MRI.cloneVirtualRegister(src);
 				MIB.addDef(res);
 				MIB.addUse(srcReg.getReg());
 				MIB.addImm(extractOffset + offset);
 				MIB.addImm(resWidth);
+				//if (Observer)
+				//	Observer->changedInstr(*MIB.getInstr());
 			}
 
 			return {resWidth, res};
@@ -409,11 +413,17 @@ CImmOrRegOrUndefWithWidth buildHWTFPGA_EXTRACT(MachineIRBuilder &Builder,
 		}
 	}
 	auto MIB = Builder.buildInstr(HwtFpga::HWTFPGA_EXTRACT);
+	//if (Observer)
+	//	Observer->changingInstr(*MIB.getInstr());
+
 	Register res = MRI.createVirtualRegister(&HwtFpga::anyregclsRegClass);
 	MIB.addDef(res);
 	MIB.addUse(src);
 	MIB.addImm(offset);
 	MIB.addImm(resWidth);
+
+	//if (Observer)
+	//	Observer->changedInstr(*MIB.getInstr());
 	return {resWidth, res};
 }
 
@@ -481,7 +491,8 @@ void ConcatMembersReduce(
 
 CImmOrRegOrUndefWithWidth buildHWTFPGA_MERGE_VALUES(
 		llvm::MachineIRBuilder &Builder,
-		llvm::SmallVector<hwtHls::CImmOrRegOrUndefWithWidth> &ConcatMembers) {
+		llvm::SmallVector<hwtHls::CImmOrRegOrUndefWithWidth> &ConcatMembers//, GISelChangeObserver * Observer
+		) {
 	assert(
 			ConcatMembers.size()
 					&& "concatenation must always contain some bits");
@@ -494,6 +505,8 @@ CImmOrRegOrUndefWithWidth buildHWTFPGA_MERGE_VALUES(
 		Register res = Builder.getMRI()->createVirtualRegister(
 				&HwtFpga::anyregclsRegClass);
 		auto MIB = Builder.buildInstr(HwtFpga::HWTFPGA_MERGE_VALUES);
+		//if (Observer)
+		//	Observer->changingInstr(*MIB.getInstr());
 		MIB.addDef(res);
 		for (auto &v : ConcatMembers) {
 			v.addAsUse(Builder, MIB);
@@ -502,6 +515,8 @@ CImmOrRegOrUndefWithWidth buildHWTFPGA_MERGE_VALUES(
 		for (auto &v : ConcatMembers) {
 			MIB.addImm(v.width);
 		}
+		//if (Observer)
+		//	Observer->changedInstr(*MIB.getInstr());
 		return {width, res};
 	}
 }
