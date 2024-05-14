@@ -413,7 +413,6 @@ bool HwtFpgaCombinerHelper::rewriteConstValMux(MachineInstr &MI,
 		replaceSingleDefInstWithReg(MI, replacement);
 	}
 
-	MI.eraseFromParent();
 	return true;
 }
 
