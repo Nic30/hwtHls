@@ -297,8 +297,10 @@ class LlvmMirInterpret():
                             res = v
                             break
                         else:
-                            assert c._is_full_valid(), mi
-                            if c:
+                            if not c._is_full_valid():
+                                res = v._dtype.from_py(None)
+                                break
+                            elif c:
                                 res = v
                                 break
                     if res is not NOT_SPECIFIED:
