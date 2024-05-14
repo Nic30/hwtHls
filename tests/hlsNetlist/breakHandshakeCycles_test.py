@@ -152,7 +152,7 @@ class BreakHandshakeCycles_TC(BaseSerializationTC):
 
         RtlArchPassChannelHandshakeCycleBreak().runOnHlsNetlist(netlist)
         buff = StringIO()
-        HlsNetlistPassDumpNodesDot(lambda name: (buff, False), expandAggregates=True, addLegend=False).runOnNetlist(netlist)
+        HlsNetlistPassDumpNodesDot(lambda name: (buff, False), expandAggregates=True, addLegend=False).runOnHlsNetlist(netlist)
         self.assert_same_as_file(buff.getvalue(), "data/" + self.getTestName() + ".dot")
         return nameToNode
 
@@ -293,8 +293,8 @@ if __name__ == '__main__':
     import unittest
 
     testLoader = unittest.TestLoader()
-    suite = unittest.TestSuite([BreakHandshakeCycles_TC("test_triangle_ff")])
-    # suite = testLoader.loadTestsFromTestCase(BreakHandshakeCycles_TC)
+    # suite = unittest.TestSuite([BreakHandshakeCycles_TC("test_triangle_ff")])
+    suite = testLoader.loadTestsFromTestCase(BreakHandshakeCycles_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
 
