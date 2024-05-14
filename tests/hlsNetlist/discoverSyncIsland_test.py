@@ -91,7 +91,7 @@ class HlsNetlistSyncIsland1Unit(HlsNetlistSyncIsland0Unit):
 
         tc: SimTestCase = self.TEST_CASE
         if tc is not None:
-            # HlsNetlistPassDumpNodesDot(outputFileGetter("tmp", "nodes.dot")).runOnNetlist(netlist)
+            # HlsNetlistPassDumpNodesDot(outputFileGetter("tmp", "nodes.dot")).runOnHlsNetlist(netlist)
             inputs, outputs, _ = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(i0, DIRECTION.IN, reachDb)
             tc.assertSequenceEqual(inputs, [i0, ])
             tc.assertSequenceEqual(outputs, [fw])
@@ -140,7 +140,7 @@ class HlsNetlistSyncIsland2Unit(HlsNetlistSyncIsland0Unit):
 
         tc: SimTestCase = self.TEST_CASE
         if tc is not None:
-            # HlsNetlistPassDumpNodesDot(outputFileGetter("tmp", "nodes.dot")).runOnNetlist(netlist)
+            # HlsNetlistPassDumpNodesDot(outputFileGetter("tmp", "nodes.dot")).runOnHlsNetlist(netlist)
             inputs, outputs, nodes = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(i0, DIRECTION.IN, reachDb)
             # sync is input because the dependency was changed to void
             tc.assertSequenceEqual(inputs, [i0, i1])
