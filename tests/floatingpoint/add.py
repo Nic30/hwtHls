@@ -1,15 +1,15 @@
-from hwt.code import Concat, Or
+from hwt.code import Concat
 from hwt.hdl.types.bits import Bits
+from hwt.hdl.types.defs import BIT
+from hwt.math import log2ceil
 from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
 from hwt.synthesizer.vectorUtils import fitTo
-from hwtHls.code import ashr, getMsb, zext, lshr, ctlz, hwUMin, shl
+from hwtHls.code import getMsb, zext, lshr, ctlz, hwUMin, shl
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodePreprocHwCopy, \
     PyBytecodeInline, PyBytecodeNoSplitSlices
 from pyMathBitPrecise.bit_utils import mask
 from tests.floatingpoint.fptypes import IEEE754Fp
-from hwt.hdl.types.defs import BIT
-from hwt.math import log2ceil
 
 
 # https://github.com/sudhamshu091/32-Verilog-Mini-Projects/blob/main/Floating%20Point%20IEEE%20754%20Addition%20Subtraction/Addition_Subtraction.v
@@ -112,7 +112,7 @@ def IEEE754FpAdd(a: RtlSignalBase[IEEE754Fp], b: RtlSignalBase[IEEE754Fp], isSim
             bMantissaTmp = Concat(bMantissa, Bits(t.MANTISSA_WIDTH - 1).from_py(0))
             bMantissaTmp = lshr(bMantissaTmp, requiredShift[log2ceil(bMantissaTmp._dtype.bit_length() + 1):])
             PyBytecodeNoSplitSlices(bMantissaTmp)
-            bMantissa = Concat(bMantissaTmp[:t.MANTISSA_WIDTH], Or(*bMantissaTmp[t.MANTISSA_WIDTH:]))
+            bMantissa = Concat(bMantissaTmp[:t.MANTISSA_WIDTH], bMantissaTmp[t.MANTISSA_WIDTH:] != 0)
             del requiredShift
             del bMantissaTmp
 
@@ -185,7 +185,7 @@ def IEEE754FpAdd(a: RtlSignalBase[IEEE754Fp], b: RtlSignalBase[IEEE754Fp], isSim
 
             # handle overflows
             # (original pack)
-            overflow = Or(*exponetTmp[:t.EXPONENT_WIDTH])
+            overflow = exponetTmp[:t.EXPONENT_WIDTH] != 0
             if overflow:
                 # return inf
                 res.mantissa = res.mantissa._dtype.from_py(0)

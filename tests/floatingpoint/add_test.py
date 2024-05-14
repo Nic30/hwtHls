@@ -1,36 +1,29 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from math import nan, inf
 from itertools import zip_longest
 from math import isnan
-import struct
+from math import nan, inf
 import sys
-
-
 
 from hwt.hdl.types.bits import Bits
 from hwt.hdl.types.defs import BIT
 from hwt.interfaces.hsStructIntf import HsStructIntf
-from hwt.interfaces.std import Handshaked
 from hwt.interfaces.utils import addClkRstn
 from hwt.simulator.simTestCase import SimTestCase
 from hwt.synthesizer.param import Param
 from hwt.synthesizer.unit import Unit
-
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline
-from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
-from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtSimApi.utils import freq_to_period
 from tests.floatingpoint.add import IEEE754FpAdd
-from tests.floatingpoint.cmp import IEEE754FpCmp, IEEE754FpCmpResult
-from tests.floatingpoint.cmp_test import IEEE754FpComparator
-from tests.floatingpoint.fptypes import IEEE754Fp32, IEEE754Fp64, IEEE754Fp
+from tests.floatingpoint.fptypes import IEEE754Fp64, IEEE754Fp
 from tests.floatingpoint.fptypes_test import fp64reinterpretToInt, \
     int64reinterpretToFloat
 from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
+from tests.floatingpoint.cmp_test import IEEE754FpComparator
+from tests.frontend.pyBytecode.stmWhile import TRUE
 
 
 class IEEE754FpAdder(Unit):
@@ -50,7 +43,7 @@ class IEEE754FpAdder(Unit):
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
-        while BIT.from_py(1):
+        while TRUE:
             a = hls.read(self.a).data
             b = hls.read(self.b).data
             res = PyBytecodeInline(IEEE754FpAdd)(a, b)
@@ -90,7 +83,7 @@ class IEEE754FpAdder_TC(SimTestCase):
             res = IEEE754FpAdd(a, b, isSim=True)
             # print(aRaw, "+", bRaw, "=", t.to_py(res), "(", resRef, ")")
             msg = ("aRaw", aRaw, "bRaw", bRaw, "a", a, "b", b,
-                  'got', res, "expected", t.from_py(resRef))
+                   'got', res, "expected", t.from_py(resRef))
 
             if isnan(resRef):
                 self.assertTrue(isnan(t.to_py(res)), msg)
