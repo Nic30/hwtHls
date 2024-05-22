@@ -12,6 +12,7 @@ from hwt.hwIOs.std import HwIOVectSignal, HwIOSignal, HwIODataRdVld, HwIOClk
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
+from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.vectorUtils import fitTo_t
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline, \
@@ -26,10 +27,12 @@ TRUE = BIT.from_py(1)
 
 class HlsPythonHwWhile0a(HwModule):
 
-    def _config(self) -> None:
+    @override
+    def hwConfig(self) -> None:
         self.CLK_FREQ = HwParam(HwIOClk.DEFAULT_FREQ)
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.i = HwIOSignal()  # rst
         self.o = HwIOVectSignal(8, signed=False)._m()
@@ -53,7 +56,8 @@ class HlsPythonHwWhile0a(HwModule):
             if hls.read(self.i).data:
                 i = 0
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls)
         hls.addThread(mainThread)
@@ -65,17 +69,20 @@ class HlsPythonHwWhile0b(HlsPythonHwWhile0a):
     Test of directly nested HW while true loop
     """
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.o = HwIOVectSignal(8, signed=False)._m()
 
     @staticmethod
+    @override
     def model(dataOut: List[int]):
         while True:
             dataOut.append(10)
             yield
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         while TRUE:  # recognized as HW loop because of type
             while TRUE:  # recognized as HW loop because of type
@@ -86,6 +93,7 @@ class HlsPythonHwWhile0b(HlsPythonHwWhile0a):
 class HlsPythonHwWhile0c(HlsPythonHwWhile0a):
 
     @staticmethod
+    @override
     def model(dataIn: Iterator[HBitsConst], dataOut: List[HBitsConst]):
         while True:
             i = uint8_t.from_py(10)
@@ -96,6 +104,7 @@ class HlsPythonHwWhile0c(HlsPythonHwWhile0a):
                     break
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         while TRUE:  # recognized as HW loop because of type
             i = uint8_t.from_py(10)
@@ -109,6 +118,7 @@ class HlsPythonHwWhile0c(HlsPythonHwWhile0a):
 class HlsPythonHwWhile1(HlsPythonHwWhile0a):
 
     @staticmethod
+    @override
     def model(dataIn: Iterator[HBitsConst], dataOut: List[int]):
         i = uint8_t.from_py(10)
         while True:
@@ -122,6 +132,7 @@ class HlsPythonHwWhile1(HlsPythonHwWhile0a):
             i = 0
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         i = uint8_t.from_py(10)
         while TRUE:  # recognized as HW loop because of type
@@ -136,17 +147,20 @@ class HlsPythonHwWhile1(HlsPythonHwWhile0a):
 
 class HlsPythonHwWhile2(HlsPythonHwWhile0a):
 
-    def _config(self) -> None:
-        HlsPythonHwWhile0a._config(self)
+    @override
+    def hwConfig(self) -> None:
+        HlsPythonHwWhile0a.hwConfig(self)
         self.CLK_FREQ = int(1e6)
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.o = HwIOStructRdVld()._m()
         self.o.T = uint8_t
         # self.o = HwIOVectSignal(8, signed=False)._m()
 
     @staticmethod
+    @override
     def model(dataOut: List[Union[HBitsConst, int]]):
         i = uint8_t.from_py(0)
         while True:  # recognized as HW loop because of type
@@ -162,6 +176,7 @@ class HlsPythonHwWhile2(HlsPythonHwWhile0a):
             yield
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         i = uint8_t.from_py(0)
         while TRUE:  # recognized as HW loop because of type
@@ -179,7 +194,8 @@ class HlsPythonHwWhile2(HlsPythonHwWhile0a):
 
 class HlsPythonHwWhile3(HlsPythonHwWhile2):
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.i = HwIODataRdVld()
         self.o = HwIODataRdVld()._m()
@@ -187,6 +203,7 @@ class HlsPythonHwWhile3(HlsPythonHwWhile2):
             i.DATA_WIDTH = 8
 
     @staticmethod
+    @override
     def model(dataIn: Iterator[HBitsConst], dataOut: List[Union[HBitsConst, int]]):
         while True:
             while True:
@@ -202,6 +219,7 @@ class HlsPythonHwWhile3(HlsPythonHwWhile2):
             dataOut.append(99)
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         while TRUE:
             while TRUE:
@@ -220,7 +238,8 @@ class HlsPythonHwWhile3(HlsPythonHwWhile2):
 
 class HlsPythonHwWhile4(HlsPythonHwWhile2):
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.i = HwIOStructRdVld()
         self.i.T = BIT
@@ -228,6 +247,7 @@ class HlsPythonHwWhile4(HlsPythonHwWhile2):
         self.o.DATA_WIDTH = 8
 
     @staticmethod
+    @override
     def model(dataIn: Iterator[HBitsConst], dataOut: List[HBitsConst]):
         while True:
             data = HBits(8).from_py(None)
@@ -239,6 +259,7 @@ class HlsPythonHwWhile4(HlsPythonHwWhile2):
             dataOut.append(data)
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         # serial to parallel
         PyBytecodeBlockLabel("mainThread")
@@ -261,6 +282,7 @@ class HlsPythonHwWhile5(HlsPythonHwWhile4):
     """
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         PyBytecodeBlockLabel("mainThread")
         # serial to parallel
@@ -285,6 +307,7 @@ class HlsPythonHwWhile5b(HlsPythonHwWhile5):
     """
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         while TRUE:
             PyBytecodeBlockLabel("mainThread")
@@ -310,6 +333,7 @@ class HlsPythonHwWhile5c(HlsPythonHwWhile4):
     """
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         PyBytecodeBlockLabel("mainThread")
         # serial to parallel
@@ -333,6 +357,7 @@ class HlsPythonHwWhile6(HlsPythonHwWhile4):
     """
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         # serial to parallel
         while TRUE:
@@ -348,11 +373,13 @@ class HlsPythonHwWhile6(HlsPythonHwWhile4):
 
 class MovingOneGen(HwModule):
 
-    def _config(self) -> None:
+    @override
+    def hwConfig(self) -> None:
         self.DATA_WIDTH = HwParam(4)
         self.FREQ = HwParam(int(100e6))
 
-    def _declr(self) -> None:
+    @override
+    def hwDeclr(self) -> None:
         addClkRstn(self)
         self.clk.FREQ = self.FREQ
 
@@ -380,18 +407,21 @@ class MovingOneGen(HwModule):
                 hls.write(qMask, self.o)
                 qMask >>= 1
 
-    def _impl(self) -> None:
-        HlsPythonHwWhile0a._impl(self)
+    @override
+    def hwImpl(self) -> None:
+        HlsPythonHwWhile0a.hwImpl(self)
 
 
 class LoopCondBitSet(MovingOneGen):
 
-    def _declr(self) -> None:
-        MovingOneGen._declr(self)
+    @override
+    def hwDeclr(self) -> None:
+        MovingOneGen.hwDeclr(self)
         self.i = HwIOStructRdVld()
         self.i.T = BIT
 
     @staticmethod
+    @override
     def model(dataIn: Iterator[HBitsConst], dataOut: List[int]):
         t = HBits(4)
         width = t.bit_length()
@@ -405,6 +435,7 @@ class LoopCondBitSet(MovingOneGen):
                 qMask >>= 1
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         t = self.o.T
         width = t.bit_length()
@@ -420,12 +451,14 @@ class LoopCondBitSet(MovingOneGen):
 
 class LoopZeroPadCompareShift(MovingOneGen):
 
-    def _declr(self) -> None:
-        MovingOneGen._declr(self)
+    @override
+    def hwDeclr(self) -> None:
+        MovingOneGen.hwDeclr(self)
         self.i = HwIOStructRdVld()
         self.i.T = self.o.T
 
     @staticmethod
+    @override
     def model(dataIn: Iterator[HBitsConst], dataOut: List[int]):
         t = HBits(4)
         divisor = next(dataIn)
@@ -447,6 +480,7 @@ class LoopZeroPadCompareShift(MovingOneGen):
                 i += 1
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         divisor = hls.read(self.i).data
         dividend = hls.read(self.i).data
@@ -466,6 +500,7 @@ class LoopZeroPadCompareShift(MovingOneGen):
 class PragmaInline_HlsPythonHwWhile4(HlsPythonHwWhile4):
 
     @hlsBytecode
+    @override
     def mainThread(self, hls:HlsScope):
         while TRUE:
             PyBytecodeBlockLabel("LBeforeInline")
@@ -475,6 +510,7 @@ class PragmaInline_HlsPythonHwWhile4(HlsPythonHwWhile4):
 class PragmaInline_HlsPythonHwWhile5(HlsPythonHwWhile5):
 
     @hlsBytecode
+    @override
     def mainThread(self, hls:HlsScope):
         while TRUE:
             PyBytecodeBlockLabel("LBeforeInline")
@@ -484,6 +520,7 @@ class PragmaInline_HlsPythonHwWhile5(HlsPythonHwWhile5):
 class PragmaInline_HlsPythonHwWhile5c(HlsPythonHwWhile5):
 
     @hlsBytecode
+    @override
     def mainThread(self, hls:HlsScope):
         PyBytecodeBlockLabel("mainThread")
         while TRUE:

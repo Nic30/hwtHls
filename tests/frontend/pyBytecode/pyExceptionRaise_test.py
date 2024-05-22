@@ -8,9 +8,10 @@ from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.std import HwIOVectSignal
 from hwt.hwIOs.utils import addClkRstn
-from hwt.simulator.simTestCase import SimTestCase
-from hwt.hwParam import HwParam
 from hwt.hwModule import HwModule
+from hwt.hwParam import HwParam
+from hwt.pyUtils.typingFuture import override
+from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
@@ -24,7 +25,8 @@ class TestException0(Exception):
 
 class PyExceptionJustRaise(HwModule):
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         self.i = HwIOVectSignal(8, signed=False)
         self.o = HwIOVectSignal(8, signed=False)._m()
 
@@ -35,7 +37,8 @@ class PyExceptionJustRaise(HwModule):
         while BIT.from_py(1):
             hls.write(hls.read(self.i), self.o)
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self, freq=int(100e6))
         thread = HlsThreadFromPy(hls, self.mainThread, hls)
         hls.addThread(thread)
@@ -44,10 +47,12 @@ class PyExceptionJustRaise(HwModule):
 
 class PyExceptionRaisePyConditionaly(PyExceptionJustRaise):
 
-    def _config(self) -> None:
+    @override
+    def hwConfig(self) -> None:
         self.RAISE = HwParam(True)
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         if self.RAISE:
             raise TestException0()
@@ -59,6 +64,7 @@ class PyExceptionRaisePyConditionaly(PyExceptionJustRaise):
 class PyExceptionRaiseRaiseUsingAssert(PyExceptionRaisePyConditionaly):
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         assert not self.RAISE
 
@@ -76,6 +82,7 @@ class PyExceptionRaiseRaiseUsingAssertFromInlined0(PyExceptionRaisePyConditional
             hls.write(hls.read(self.i), self.o)
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         PyBytecodeInline(self.mainThreadMainPart)(hls)
 
@@ -88,6 +95,7 @@ class PyExceptionRaiseRaiseUsingAssertFromInlined1(PyExceptionRaisePyConditional
         x = 0
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         PyBytecodeInline(self.mainThreadMainPart)(hls)
         while BIT.from_py(1):
@@ -102,6 +110,7 @@ class PyExceptionRaiseRaiseUsingAssertFromInlinedWithLognerCond(PyExceptionRaise
         x = 0
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         PyBytecodeInline(self.mainThreadMainPart)(hls)
         while BIT.from_py(1):
@@ -110,8 +119,9 @@ class PyExceptionRaiseRaiseUsingAssertFromInlinedWithLognerCond(PyExceptionRaise
 
 class PyExceptionRaiseRaiseUsingAssertFromInlined2(PyExceptionRaisePyConditionaly):
 
-    def _declr(self):
-        PyExceptionRaisePyConditionaly._declr(self)
+    @override
+    def hwDeclr(self):
+        PyExceptionRaisePyConditionaly.hwDeclr(self)
         addClkRstn(self)
 
     @hlsBytecode
@@ -124,6 +134,7 @@ class PyExceptionRaiseRaiseUsingAssertFromInlined2(PyExceptionRaisePyConditional
             i += 1
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         PyBytecodeInline(self.mainThreadMainPart)(hls)
         while BIT.from_py(1):
@@ -133,6 +144,7 @@ class PyExceptionRaiseRaiseUsingAssertFromInlined2(PyExceptionRaisePyConditional
 class PyExceptionRaiseRaiseUsingAssertWithMsg(PyExceptionRaisePyConditionaly):
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         assert not self.RAISE, "Err msg"
 
@@ -143,6 +155,7 @@ class PyExceptionRaiseRaiseUsingAssertWithMsg(PyExceptionRaisePyConditionaly):
 class PyExceptionRaiseRaiseUsingAssertWithLongerCond(PyExceptionRaisePyConditionaly):
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         assert self.RAISE != True or self.RAISE != 1
 
@@ -153,6 +166,7 @@ class PyExceptionRaiseRaiseUsingAssertWithLongerCond(PyExceptionRaisePyCondition
 class PyExceptionRaiseRaiseCatch(PyExceptionJustRaise):
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         try:
             raise TestException0()

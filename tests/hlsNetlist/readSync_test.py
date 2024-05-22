@@ -21,11 +21,11 @@ from hwtSimApi.utils import freq_to_period
 
 class ReadOrDefaultHwModule(HwModule):
 
-    def _config(self) -> None:
+    def hwConfig(self) -> None:
         self.CLK_FREQ = HwParam(int(100e6))
         self.DATA_WIDTH = HwParam(8)
 
-    def _declr(self) -> None:
+    def hwDeclr(self) -> None:
         self.dataIn = HwIOVectSignal(self.DATA_WIDTH)
         self.dataOut = HwIOVectSignal(self.DATA_WIDTH)._m()
 
@@ -49,7 +49,7 @@ class ReadOrDefaultHwModule(HwModule):
         netlist.outputs.append(w)
         link_hls_nodes(mux, w._inputs[0])
 
-    def _impl(self) -> None:
+    def hwImpl(self) -> None:
         hls = HlsScope(self, self.CLK_FREQ)
         hls.addThread(HlsThreadFromNetlist(hls, self.connectIo))
         hls.compile()
@@ -81,7 +81,7 @@ class ReadNonBlockingOrDefaultHwModule(ReadOrDefaultHwModule):
 
 class ReadOrDefaultHwModuleHs(ReadOrDefaultHwModule):
 
-    def _declr(self) -> None:
+    def hwDeclr(self) -> None:
         # added because of sim agent
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
@@ -93,17 +93,17 @@ class ReadOrDefaultHwModuleHs(ReadOrDefaultHwModule):
 
 class ReadNonBlockingOrDefaultHwModuleHs(ReadNonBlockingOrDefaultHwModule):
 
-    def _declr(self) -> None:
-        ReadOrDefaultHwModuleHs._declr(self)
+    def hwDeclr(self) -> None:
+        ReadOrDefaultHwModuleHs.hwDeclr(self)
 
 
 class ReadAnyHsHwModule(ReadOrDefaultHwModule):
 
-    def _config(self) -> None:
-        ReadOrDefaultHwModule._config(self)
+    def hwConfig(self) -> None:
+        ReadOrDefaultHwModule.hwConfig(self)
         self.INPUT_CNT = HwParam(3)
 
-    def _declr(self) -> None:
+    def hwDeclr(self) -> None:
         # added because of sim agent
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ

@@ -4,12 +4,13 @@
 from typing import Union
 
 from hwt.code import Concat
-from hwt.hdl.types.defs import BIT
 from hwt.hdl.const import HConst
+from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.std import HwIOVectSignal, HwIOSignal
 from hwt.hwIOs.utils import addClkRstn
-from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.hwModule import HwModule
+from hwt.pyUtils.typingFuture import override
+from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
@@ -18,11 +19,13 @@ from hwtLib.types.ctypes import uint8_t
 
 class BitWidthReductionCmp2Values(HwModule):
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         self.i = HwIOVectSignal(16, signed=False)
         self.o = HwIOVectSignal(16, signed=False)._m()
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self, freq=int(100e6))
 
         @hlsBytecode
@@ -45,7 +48,8 @@ class BitWidthReductionCmp2Values(HwModule):
 
 class BitWidthReductionCmpReducibleEq(HwModule):
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.a = HwIOVectSignal(8, signed=False)
         self.b = HwIOVectSignal(8, signed=False)
@@ -72,7 +76,8 @@ class BitWidthReductionCmpReducibleEq(HwModule):
     def predicate(self, a:Union[RtlSignal, HConst], b:Union[RtlSignal, HConst]):
         return a._eq(b)
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self, freq=int(50e6))
 
         zero8b = uint8_t.from_py(0)
@@ -112,30 +117,35 @@ class BitWidthReductionCmpReducibleEq(HwModule):
 
 class BitWidthReductionCmpReducibleNe(BitWidthReductionCmpReducibleEq):
 
+    @override
     def predicate(self, a:Union[RtlSignal, HConst], b:Union[RtlSignal, HConst]):
         return a != b
 
 
 class BitWidthReductionCmpReducibleLt(BitWidthReductionCmpReducibleEq):
 
+    @override
     def predicate(self, a:Union[RtlSignal, HConst], b:Union[RtlSignal, HConst]):
         return a < b
 
 
 class BitWidthReductionCmpReducibleLe(BitWidthReductionCmpReducibleEq):
 
+    @override
     def predicate(self, a:Union[RtlSignal, HConst], b:Union[RtlSignal, HConst]):
         return a <= b
 
 
 class BitWidthReductionCmpReducibleGt(BitWidthReductionCmpReducibleEq):
 
+    @override
     def predicate(self, a:Union[RtlSignal, HConst], b:Union[RtlSignal, HConst]):
         return a > b
 
 
 class BitWidthReductionCmpReducibleGe(BitWidthReductionCmpReducibleEq):
 
+    @override
     def predicate(self, a:Union[RtlSignal, HConst], b:Union[RtlSignal, HConst]):
         return a >= b
 

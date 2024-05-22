@@ -5,9 +5,10 @@ from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.struct import HStruct
 from hwt.hwIOs.std import HwIOSignal
 from hwt.hwIOs.utils import addClkRstn
-from hwt.simulator.simTestCase import SimTestCase
-from hwt.hwParam import HwParam
 from hwt.hwModule import HwModule
+from hwt.hwParam import HwParam
+from hwt.pyUtils.typingFuture import override
+from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc
 from hwtHls.frontend.pyBytecode.markers import PyBytecodePreprocHwCopy
@@ -43,12 +44,14 @@ class Axi4SPingResponder(HwModule):
     .. hwt-autodoc::
     """
 
-    def _config(self):
+    @override
+    def hwConfig(self):
         self.DATA_WIDTH = HwParam(256)
         self.USE_STRB = HwParam(False)
         self.CLK_FREQ = HwParam(int(100e6))
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
 
@@ -95,7 +98,8 @@ class Axi4SPingResponder(HwModule):
                 tx.writeEndOfFrame()
             # else drop packet if it is not echo request for myIp
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self)
         rx = IoProxyAxi4Stream(hls, self.rx)
         tx = IoProxyAxi4Stream(hls, self.tx)

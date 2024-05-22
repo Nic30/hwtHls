@@ -4,6 +4,7 @@
 from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.std import HwIOVectSignal
 from hwt.hwModule import HwModule
+from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
@@ -11,7 +12,8 @@ from hwtHls.scope import HlsScope
 
 class FnClosureSingleItem(HwModule):
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         self.i = HwIOVectSignal(8, signed=False)
         self.o = HwIOVectSignal(8, signed=False)._m()
 
@@ -25,7 +27,8 @@ class FnClosureSingleItem(HwModule):
         while BIT.from_py(1):
             hls.write(read(self.i), self.o)
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self, freq=int(100e6))
         hls.addThread(HlsThreadFromPy(hls, self.mainThread, hls))
         hls.compile()
@@ -33,7 +36,8 @@ class FnClosureSingleItem(HwModule):
 
 class FnClosureNone0(HwModule):
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         self.o = HwIOVectSignal(8, signed=False)._m()
 
     @hlsBytecode
@@ -45,13 +49,15 @@ class FnClosureNone0(HwModule):
         while BIT.from_py(1):
             hls.write(genVal(), self.o)
 
-    def _impl(self):
-        FnClosureSingleItem._impl(self)
+    @override
+    def hwImpl(self):
+        FnClosureSingleItem.hwImpl(self)
 
 
 class FnClosureNone1(HwModule):
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         self.o = HwIOVectSignal(8, signed=False)._m()
 
     @hlsBytecode
@@ -64,8 +70,9 @@ class FnClosureNone1(HwModule):
 
             hls.write(genVal(), self.o)
 
-    def _impl(self):
-        FnClosureSingleItem._impl(self)
+    @override
+    def hwImpl(self):
+        FnClosureSingleItem.hwImpl(self)
 
 
 if __name__ == "__main__":

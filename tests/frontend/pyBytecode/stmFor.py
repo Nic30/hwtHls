@@ -11,7 +11,7 @@ from hwtHls.scope import HlsScope
 
 class HlsPythonPreprocFor(HwModule):
 
-    def _declr(self):
+    def hwDeclr(self):
         addClkRstn(self)
         self.o = HwIOVectSignal(8, signed=False)._m()
 
@@ -20,7 +20,7 @@ class HlsPythonPreprocFor(HwModule):
         for i in range(5):
             hls.write(i, self.o)
 
-    def _impl(self):
+    def hwImpl(self):
         hls = HlsScope(self, freq=int(100e6))
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls)
         hls.addThread(mainThread)

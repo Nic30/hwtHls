@@ -16,16 +16,16 @@ from tests.frontend.ast.loopAfterLoop import TwoTimesFiniteWhileInWhileTrue
 
 class FiniteWhileIf0(TwoTimesFiniteWhileInWhileTrue):
 
-    def _config(self) -> None:
+    def hwConfig(self) -> None:
         self.DATA_WIDTH = HwParam(8)
         self.FREQ = HwParam(int(100e6))
 
-    def _declr(self) -> None:
-        TwoTimesFiniteWhileInWhileTrue._declr(self)
+    def hwDeclr(self) -> None:
+        TwoTimesFiniteWhileInWhileTrue.hwDeclr(self)
         self.dataIn0: HwIOStructRdVld = HwIOStructRdVld()
         self.dataIn0.T = HBits(self.DATA_WIDTH, signed=False)
 
-    def _impl(self) -> None:
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         i0 = hls.var("i0", uint8_t)
         ast = HlsAstBuilder(hls)
@@ -46,16 +46,16 @@ class FiniteWhileIf0(TwoTimesFiniteWhileInWhileTrue):
 
 class FiniteWhileIf1(TwoTimesFiniteWhileInWhileTrue):
 
-    def _config(self) -> None:
+    def hwConfig(self) -> None:
         self.DATA_WIDTH = HwParam(8)
         self.FREQ = HwParam(int(100e6))
 
-    def _declr(self) -> None:
-        TwoTimesFiniteWhileInWhileTrue._declr(self)
+    def hwDeclr(self) -> None:
+        TwoTimesFiniteWhileInWhileTrue.hwDeclr(self)
         self.dataIn0: HwIOStructRdVld = HwIOStructRdVld()
         self.dataIn0.T = HBits(self.DATA_WIDTH, signed=False)
 
-    def _impl(self) -> None:
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         i0 = hls.var("i0", uint8_t)
         din0 = hls.read(self.dataIn0).data

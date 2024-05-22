@@ -11,19 +11,23 @@ from hwtLib.examples.statements.ifStm import SimpleIfStatement
 from hwtSimApi.utils import freq_to_period
 from pyMathBitPrecise.bit_utils import get_bit
 from tests.baseSsaTest import BaseSsaTC
+from hwt.pyUtils.typingFuture import override
 
 
 class HlsSimpleIfStatement(SimpleIfStatement):
 
-    def _config(self):
+    @override
+    def hwConfig(self):
         self.CLK_FREQ = HwParam(int(100e6))
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
-        super(HlsSimpleIfStatement, self)._declr()
+        super(HlsSimpleIfStatement, self).hwDeclr()
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self)
         r = hls.read
         a = r(self.a)

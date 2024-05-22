@@ -15,11 +15,11 @@ from tests.frontend.pyBytecode.stmWhile import TRUE
 
 class WhileTrueWriteCntr0(WhileTrueWrite):
 
-    def _config(self) -> None:
-        WhileTrueWrite._config(self)
+    def hwConfig(self) -> None:
+        WhileTrueWrite.hwConfig(self)
         self.USE_PY_FRONTEND = HwParam(False)
 
-    def _impl(self) -> None:
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         if self.USE_PY_FRONTEND:
             t = HlsThreadFromPy(hls, self._implPy, hls)
@@ -72,12 +72,12 @@ class WhileSendSequence0(WhileTrueReadWrite):
     WhileSendSequence described as a simple feed forward pipeline without nested loops.
     """
 
-    def _config(self) -> None:
-        WhileTrueReadWrite._config(self)
+    def hwConfig(self) -> None:
+        WhileTrueReadWrite.hwConfig(self)
         self.USE_PY_FRONTEND = HwParam(False)
 
-    def _impl(self) -> None:
-        WhileTrueWriteCntr0._impl(self)
+    def hwImpl(self) -> None:
+        WhileTrueWriteCntr0.hwImpl(self)
         propagateClkRstn(self)
 
     def _implAst(self, hls: HlsScope, ast: HlsAstBuilder):
@@ -163,12 +163,12 @@ class WhileSendSequence2(WhileTrueReadWrite):
     :note: This is actually a complex example.
     """
 
-    def _config(self) -> None:
-        WhileTrueReadWrite._config(self)
+    def hwConfig(self) -> None:
+        WhileTrueReadWrite.hwConfig(self)
         self.USE_PY_FRONTEND = HwParam(False)
 
-    def _impl(self) -> None:
-        WhileTrueWriteCntr0._impl(self)
+    def hwImpl(self) -> None:
+        WhileTrueWriteCntr0.hwImpl(self)
 
     def _implAst(self, hls: HlsScope, ast: HlsAstBuilder):
         size = hls.var("size", self.dataIn.T)

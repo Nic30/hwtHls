@@ -10,7 +10,7 @@ from tests.frontend.ast.trivial import WhileTrueWrite, WhileTrueReadWrite
 
 class WhileAndIf0(WhileTrueWrite):
 
-    def _impl(self) -> None:
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         x = hls.var("x", HBits(self.DATA_WIDTH, signed=False))
         ast = HlsAstBuilder(hls)
@@ -39,7 +39,7 @@ class WhileAndIf0(WhileTrueWrite):
 
 class WhileAndIf0b(WhileAndIf0):
 
-    def _impl(self) -> None:
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         x = hls.var("x", HBits(self.DATA_WIDTH, signed=False))
         ast = HlsAstBuilder(hls)
@@ -63,7 +63,7 @@ class WhileAndIf0b(WhileAndIf0):
 
 class WhileAndIf1(WhileTrueWrite):
 
-    def _impl(self) -> None:
+    def hwImpl(self) -> None:
         dout = self.dataOut
         hls = HlsScope(self)
         x = hls.var("x", HBits(self.DATA_WIDTH, signed=False))
@@ -94,7 +94,7 @@ class WhileAndIf1(WhileTrueWrite):
 
 class WhileAndIf2(WhileTrueReadWrite):
 
-    def _impl(self) -> None:
+    def hwImpl(self) -> None:
         dout = self.dataOut
         hls = HlsScope(self)
         x = hls.var("x", HBits(self.DATA_WIDTH, signed=False))
@@ -118,7 +118,7 @@ class WhileAndIf2(WhileTrueReadWrite):
 
 class WhileAndIf3(WhileTrueReadWrite):
 
-    def _impl(self) -> None:
+    def hwImpl(self) -> None:
         dout = self.dataOut
         hls = HlsScope(self)
         x = hls.var("x", HBits(self.DATA_WIDTH, signed=False))
@@ -145,7 +145,7 @@ class WhileAndIf3(WhileTrueReadWrite):
 
 class WhileAndIf4(WhileTrueReadWrite):
 
-    def _impl(self) -> None:
+    def hwImpl(self) -> None:
         dout = self.dataOut
         hls = HlsScope(self)
         x = hls.var("x", HBits(self.DATA_WIDTH, signed=False))

@@ -5,6 +5,7 @@ from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.std import HwIOVectSignal, HwIOSignal, HwIODataRdVld
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
+from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline, \
     PyBytecodePreprocHwCopy, PyBytecodeBlockLabel
@@ -15,7 +16,8 @@ from hwtLib.types.ctypes import uint8_t
 
 class PragmaInline_singleBlock(HwModule):
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         self.o = HwIOVectSignal(8, signed=False)._m()
 
     @hlsBytecode
@@ -28,7 +30,8 @@ class PragmaInline_singleBlock(HwModule):
         while BIT.from_py(1):
             PyBytecodeInline(fn)()
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self, freq=int(100e6))
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls)
         hls.addThread(mainThread)
@@ -38,6 +41,7 @@ class PragmaInline_singleBlock(HwModule):
 class PragmaInline_NestedLoop(PragmaInline_singleBlock):
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         b1 = BIT.from_py(1)
 
@@ -52,6 +56,7 @@ class PragmaInline_NestedLoop(PragmaInline_singleBlock):
 
 class PragmaInline_return1_0(PragmaInline_singleBlock):
 
+    @override
     def mainThread(self, hls: HlsScope):
 
         def fn():
@@ -64,6 +69,7 @@ class PragmaInline_return1_0(PragmaInline_singleBlock):
 class PragmaInline_return1_1(PragmaInline_return1_0):
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
 
         @PyBytecodeInline
@@ -77,6 +83,7 @@ class PragmaInline_return1_1(PragmaInline_return1_0):
 class PragmaInline_return1_1hw(PragmaInline_return1_0):
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
 
         @PyBytecodeInline
@@ -89,11 +96,13 @@ class PragmaInline_return1_1hw(PragmaInline_return1_0):
 
 class PragmaInline_writeCntr0(PragmaInline_return1_0):
 
-    def _declr(self):
-        PragmaInline_return1_0._declr(self)
+    @override
+    def hwDeclr(self):
+        PragmaInline_return1_0.hwDeclr(self)
         addClkRstn(self)
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         cntr = uint8_t.from_py(0)
 
@@ -108,11 +117,13 @@ class PragmaInline_writeCntr0(PragmaInline_return1_0):
 
 class PragmaInline_writeCntr1(PragmaInline_return1_0):
 
-    def _declr(self):
-        PragmaInline_return1_0._declr(self)
+    @override
+    def hwDeclr(self):
+        PragmaInline_return1_0.hwDeclr(self)
         addClkRstn(self)
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         cntr = uint8_t.from_py(0)
 
@@ -128,6 +139,7 @@ class PragmaInline_writeCntr1(PragmaInline_return1_0):
 class PragmaInline_writeCntr2(PragmaInline_writeCntr1):
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         cntr = uint8_t.from_py(0)
 
@@ -150,6 +162,7 @@ class PragmaInline_writeCntr3(PragmaInline_writeCntr1):
         return cntr
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         cntr = uint8_t.from_py(0)
 
@@ -172,6 +185,7 @@ class PragmaInline_writeSaturatedCntr4(PragmaInline_writeCntr1):
         return cntrTmp
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         cntr = uint8_t.from_py(0)
 
@@ -182,7 +196,8 @@ class PragmaInline_writeSaturatedCntr4(PragmaInline_writeCntr1):
 
 class PragmaInline_SequenceCounter(PragmaInline_singleBlock):
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.o = HwIODataRdVld()._m()
         self.o.DATA_WIDTH = 8
@@ -200,6 +215,7 @@ class PragmaInline_SequenceCounter(PragmaInline_singleBlock):
         return cntr
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         PyBytecodeBlockLabel("entry")
         while BIT.from_py(1):
@@ -207,13 +223,15 @@ class PragmaInline_SequenceCounter(PragmaInline_singleBlock):
             oneLen = self.oneSeqLen(self, hls)
             hls.write(oneLen, self.o)
 
-    def _impl(self):
-        PragmaInline_singleBlock._impl(self)
+    @override
+    def hwImpl(self):
+        PragmaInline_singleBlock.hwImpl(self)
 
 
 class PragmaInline_FilterZeros(PragmaInline_SequenceCounter):
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.o = HwIODataRdVld()._m()
         self.o.DATA_WIDTH = 8
@@ -222,6 +240,7 @@ class PragmaInline_FilterZeros(PragmaInline_SequenceCounter):
 
     @hlsBytecode
     @PyBytecodeInline
+    @override
     def oneSeqLen(self, hls: HlsScope):
         PyBytecodeBlockLabel("oneSeqLen")
         v = hls.read(self.i).data
@@ -236,6 +255,7 @@ class PragmaInline_TwoInLoopLiveVars(PragmaInline_FilterZeros):
 
     @hlsBytecode
     @PyBytecodeInline
+    @override
     def oneSeqLen(self, hls: HlsScope):
         PyBytecodeBlockLabel("oneSeqLen")
         cntr = uint8_t.from_py(0)

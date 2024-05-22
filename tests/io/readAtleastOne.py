@@ -4,21 +4,24 @@
 from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.std import HwIODataRdVld
 from hwt.hwIOs.utils import addClkRstn
-from hwt.hwParam import HwParam
 from hwt.hwModule import HwModule
+from hwt.hwParam import HwParam
+from hwt.pyUtils.typingFuture import override
+from hwtHls.frontend.pyBytecode import hlsBytecode
+from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
-from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc
-from hwtHls.frontend.pyBytecode import hlsBytecode
 
 
 class ReadAtleastOneOf2(HwModule):
 
-    def _config(self) -> None:
+    @override
+    def hwConfig(self) -> None:
         self.DATA_WIDTH = HwParam(8)
         self.CLK_FREQ = HwParam(int(100e6))
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
         with self._hwParamsShared():
@@ -42,7 +45,8 @@ class ReadAtleastOneOf2(HwModule):
 
             hls.write(o, self.o)
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls)
         hls.addThread(mainThread)
@@ -51,11 +55,13 @@ class ReadAtleastOneOf2(HwModule):
 
 class ReadAtleastOneOf3(ReadAtleastOneOf2):
 
-    def _declr(self):
-        ReadAtleastOneOf2._declr(self)
+    @override
+    def hwDeclr(self):
+        ReadAtleastOneOf2.hwDeclr(self)
         with self._hwParamsShared():
             self.i2 = HwIODataRdVld()
 
+    @override
     def mainThread(self, hls: HlsScope):
 
         prepr = PyBytecodeInPreproc

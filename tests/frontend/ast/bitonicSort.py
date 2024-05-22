@@ -9,18 +9,21 @@ from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtLib.logic.bitonicSorter import BitonicSorter, BitonicSorterTC
+from hwt.pyUtils.typingFuture import override
 
 
 class BitonicSorterHLS(BitonicSorter):
 
-    def _config(self):
-        BitonicSorter._config(self)
+    @override
+    def hwConfig(self):
+        BitonicSorter.hwConfig(self)
         self.CLK_FREQ = HwParam(int(50e6))
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
-        BitonicSorter._declr(self)
+        BitonicSorter.hwDeclr(self)
         self.clk.FREQ = self.CLK_FREQ
 
     def bitonic_compare(self, cmpFn, x, layer, offset):
@@ -40,7 +43,8 @@ class BitonicSorterHLS(BitonicSorter):
             )
         return _x
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self)
         self.hls = hls
         self.astBuilder = HlsAstBuilder(self.hls)
@@ -63,6 +67,7 @@ class BitonicSorterHLS(BitonicSorter):
 class BitonicSorterHLS_TC(BitonicSorterTC):
 
     @classmethod
+    @override
     def setUpClass(cls):
         cls.dut = BitonicSorterHLS()
         cls.compileSim(cls.dut, target_platform=VirtualHlsPlatform())
@@ -72,6 +77,7 @@ class BitonicSorterHLS_large_TC(BitonicSorterTC):
     SIM_TIME = 220 * Time.ns
 
     @classmethod
+    @override
     def setUpClass(cls):
         cls.dut = BitonicSorterHLS()
         cls.dut.ITEMS = 16

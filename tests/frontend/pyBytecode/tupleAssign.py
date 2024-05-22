@@ -2,6 +2,7 @@ from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.std import HwIOVectSignal
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
+from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodePreprocHwCopy
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
@@ -12,7 +13,8 @@ from tests.baseSsaTest import BaseSsaTC
 
 class HlsPythonTupleAssign(HwModule):
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.o0 = HwIOVectSignal(8)._m()
         self.o1 = HwIOVectSignal(8)._m()
@@ -29,7 +31,8 @@ class HlsPythonTupleAssign(HwModule):
             copy = PyBytecodePreprocHwCopy
             i1, i0 = copy(i0), copy(i1)
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self, freq=int(100e6))
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls)
         hls.addThread(mainThread)

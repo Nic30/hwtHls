@@ -24,13 +24,13 @@ from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
 
 class IEEE754FpFromIntConventor(HwModule):
 
-    def _config(self) -> None:
+    def hwConfig(self) -> None:
         self.T_IN = HwParam(int64_t)
         self.T = HwParam(IEEE754Fp64)
 
         self.FREQ = HwParam(int(20e6))
 
-    def _declr(self) -> None:
+    def hwDeclr(self) -> None:
         addClkRstn(self)
         self.clk.FREQ = self.FREQ
 
@@ -46,7 +46,7 @@ class IEEE754FpFromIntConventor(HwModule):
             res = PyBytecodeInline(IEEE754FpFromInt)(a, IEEE754Fp64)  # self.T
             hls.write(res, self.res)
 
-    def _impl(self) -> None:
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls)
         hls.addThread(mainThread)

@@ -4,8 +4,9 @@
 from hwt.hdl.types.bits import HBits
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
 from hwt.hwIOs.utils import addClkRstn
-from hwt.hwParam import HwParam
 from hwt.hwModule import HwModule
+from hwt.hwParam import HwParam
+from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.scope import HlsScope
@@ -13,17 +14,20 @@ from hwtHls.scope import HlsScope
 
 class WriteOnce(HwModule):
 
-    def _config(self):
+    @override
+    def hwConfig(self):
         self.FREQ = HwParam(int(100e6))
         self.DATA_WIDTH = HwParam(8)
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.clk.FREQ = self.FREQ
         o = self.dataOut = HwIOStructRdVld()._m()
         o.T = HBits(self.DATA_WIDTH, signed=False)
 
-    def _impl(self) -> None:
+    @override
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         hls.addThread(HlsThreadFromAst(hls,
             hls.write(1, self.dataOut),
@@ -34,12 +38,14 @@ class WriteOnce(HwModule):
 
 class ReadWriteOnce0(WriteOnce):
 
-    def _declr(self):
-        super(ReadWriteOnce0, self)._declr()
+    @override
+    def hwDeclr(self):
+        super(ReadWriteOnce0, self).hwDeclr()
         i = self.dataIn = HwIOStructRdVld()
         i.T = HBits(self.DATA_WIDTH, signed=False)
 
-    def _impl(self) -> None:
+    @override
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         hls.addThread(HlsThreadFromAst(hls,
             hls.write(hls.read(self.dataIn).data, self.dataOut),
@@ -50,7 +56,8 @@ class ReadWriteOnce0(WriteOnce):
 
 class ReadWriteOnce1(ReadWriteOnce0):
 
-    def _impl(self) -> None:
+    @override
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         tmp = hls.var("tmp", self.dataIn.T)
         hls.addThread(HlsThreadFromAst(hls, [
@@ -64,7 +71,8 @@ class ReadWriteOnce1(ReadWriteOnce0):
 
 class ReadWriteOnce2(ReadWriteOnce0):
 
-    def _impl(self) -> None:
+    @override
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         tmp = hls.var("tmp", self.dataIn.T)
         hls.addThread(HlsThreadFromAst(hls, [
@@ -78,17 +86,20 @@ class ReadWriteOnce2(ReadWriteOnce0):
 
 class WhileTrueWrite(HwModule):
 
-    def _config(self) -> None:
+    @override
+    def hwConfig(self) -> None:
         self.DATA_WIDTH = HwParam(8)
         self.FREQ = HwParam(int(100e6))
 
-    def _declr(self) -> None:
+    @override
+    def hwDeclr(self) -> None:
         addClkRstn(self)
         self.clk.FREQ = self.FREQ
         self.dataOut: HwIOStructRdVld = HwIOStructRdVld()._m()
         self.dataOut.T = HBits(self.DATA_WIDTH, signed=False)
 
-    def _impl(self) -> None:
+    @override
+    def hwImpl(self) -> None:
         dout = self.dataOut
         hls = HlsScope(self)
         ast = HlsAstBuilder(hls)
@@ -103,12 +114,14 @@ class WhileTrueWrite(HwModule):
 
 class WhileTrueReadWrite(WhileTrueWrite):
 
-    def _declr(self) -> None:
-        super(WhileTrueReadWrite, self)._declr()
+    @override
+    def hwDeclr(self) -> None:
+        super(WhileTrueReadWrite, self).hwDeclr()
         i = self.dataIn = HwIOStructRdVld()
         i.T = HBits(self.DATA_WIDTH, signed=False)
 
-    def _impl(self) -> None:
+    @override
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
@@ -122,7 +135,8 @@ class WhileTrueReadWrite(WhileTrueWrite):
 
 class WhileTrueReadWriteExpr(WhileTrueReadWrite):
 
-    def _impl(self) -> None:
+    @override
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,

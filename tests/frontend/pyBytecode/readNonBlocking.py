@@ -5,6 +5,7 @@ from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.std import HwIOVectSignal, HwIODataRdVld
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
+from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
@@ -13,7 +14,8 @@ from hwtLib.types.ctypes import int8_t
 
 class HlsPythonReadNonBlocking(HwModule):
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.i = HwIODataRdVld()
         self.i.DATA_WIDTH = 1
@@ -30,7 +32,8 @@ class HlsPythonReadNonBlocking(HwModule):
                 cntr -= 1
             hls.write(cntr, self.o)
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self, freq=int(100e6))
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls)
         hls.addThread(mainThread)

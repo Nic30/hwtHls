@@ -4,8 +4,9 @@ from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hwIOs.agents.rdVldSync import UniversalRdVldSyncAgent
 from hwt.hwIOs.std import HwIORdVldSync, HwIOSignal, HwIOVectSignal
-from hwt.math import log2ceil
 from hwt.hwParam import HwParam
+from hwt.math import log2ceil
+from hwt.pyUtils.typingFuture import override
 from hwtSimApi.hdlSimulator import HdlSimulator
 
 
@@ -40,15 +41,17 @@ class HashTableCmd(HwIORdVldSync):
     :ivar value: item value to store/update (if VALUE_T is not None)
     """
 
-    def _config(self) -> None:
+    @override
+    def hwConfig(self) -> None:
         self.KEY_T = HwParam(HBits(5))
         self.VALUE_T: Optional[HdlType] = HwParam(HBits(32))
         self.ID_T: Optional[HdlType] = HwParam(None)
         self.TABLE_CNT = HwParam(1)
         self.ITEMS_PER_TABLE = HwParam(16)
 
-    def _declr(self):
-        HwIORdVldSync._declr(self)
+    @override
+    def hwDeclr(self):
+        HwIORdVldSync.hwDeclr(self)
         if self.ID_T is not None:
             self.id = HwIOSignal(self.ID_T)
         self.cmd = HwIOSignal(HBits(2))
@@ -60,6 +63,7 @@ class HashTableCmd(HwIORdVldSync):
         if self.TABLE_CNT > 1:
             self.table_oh = HwIOVectSignal(self.TABLE_CNT)
 
+    @override
     def _initSimAgent(self, sim:HdlSimulator):
         self._ag = UniversalRdVldSyncAgent(sim, self)
 
@@ -75,11 +79,13 @@ class HashTableCmdResult(HwIORdVldSync):
     :ivar originalValue: the value from the data originally stored in the table (if VALUE_T is not None)
     """
 
-    def _config(self) -> None:
-        HashTableCmd._config(self)
+    @override
+    def hwConfig(self) -> None:
+        HashTableCmd.hwConfig(self)
 
-    def _declr(self):
-        HwIORdVldSync._declr(self)
+    @override
+    def hwDeclr(self):
+        HwIORdVldSync.hwDeclr(self)
         if self.ID_T is not None:
             self.id = HwIOSignal(self.ID_T)
 
@@ -94,5 +100,6 @@ class HashTableCmdResult(HwIORdVldSync):
         if self.VALUE_T is not None:
             self.originalValue = HwIOSignal(self.VALUE_T)
 
+    @override
     def _initSimAgent(self, sim:HdlSimulator):
         self._ag = UniversalRdVldSyncAgent(sim, self)

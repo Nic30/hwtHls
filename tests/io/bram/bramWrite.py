@@ -5,12 +5,13 @@ from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.std import HwIOBramPort_noClk
 from hwt.hwIOs.utils import addClkRstn
-from hwt.hwParam import HwParam
 from hwt.hwModule import HwModule
+from hwt.hwParam import HwParam
+from hwt.pyUtils.typingFuture import override
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.io.bram import BramArrayProxy
 from hwtHls.scope import HlsScope
-from hwtHls.frontend.pyBytecode import hlsBytecode
 
 
 class BramWrite(HwModule):
@@ -18,12 +19,14 @@ class BramWrite(HwModule):
     Sequentially write counter to BRAM port.
     """
 
-    def _config(self) -> None:
+    @override
+    def hwConfig(self) -> None:
         self.CLK_FREQ = HwParam(int(100e6))
         self.ADDR_WIDTH = HwParam(4)
         self.DATA_WIDTH = HwParam(64)
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
 
@@ -40,7 +43,7 @@ class BramWrite(HwModule):
             hls.write(i._reinterpret_cast(self.ram.din._dtype), ram[i])
             i += 1
 
-    def _impl(self) -> None:
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
 
         ram = BramArrayProxy(hls, self.ram)

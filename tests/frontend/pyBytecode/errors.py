@@ -7,11 +7,13 @@ from hwt.hwModule import HwModule
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
+from hwt.pyUtils.typingFuture import override
 
 
 class ErrorUseOfUnitialized0(HwModule):
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         self.i = HwIOVectSignal(8, signed=False)
         self.o = HwIOVectSignal(8, signed=False)._m()
 
@@ -21,7 +23,8 @@ class ErrorUseOfUnitialized0(HwModule):
         while BIT.from_py(1):
             hls.write(hls.read(self.i).data, self.o)
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self, freq=int(100e6))
         hls.addThread(HlsThreadFromPy(hls, self.mainThread, hls))
         hls.compile()
@@ -30,6 +33,7 @@ class ErrorUseOfUnitialized0(HwModule):
 class ErrorUseOfUnitialized1(ErrorUseOfUnitialized0):
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         res = a < 1
         a = 1
@@ -40,6 +44,7 @@ class ErrorUseOfUnitialized1(ErrorUseOfUnitialized0):
 class UseOfNone(ErrorUseOfUnitialized0):
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         a = None
         while BIT.from_py(1):

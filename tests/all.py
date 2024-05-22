@@ -66,7 +66,6 @@ from tests.io.bram.bramRead_test import BramRead_TC
 from tests.io.bram.bramWrite_test import BramWrite_TC
 from tests.io.bram.counterArray_test import BramCounterArray_TC
 from tests.io.bram.readSizeFromRamAndSendSequence_test import ReadSizeFromRamAndSendSequence_TC
-from tests.io.flushing_test import Flushing_TC
 from tests.io.ioFsm2_test import IoFsm2_TC
 from tests.io.ioFsm_test import IoFsm_TC
 from tests.io.readAtleastOne_test import ReadAtleastOne_TC
@@ -107,7 +106,6 @@ suite = testSuiteFromTCs(
     #HlsNetlistPassInjectVldMaskToSkipWhenConditionsTC,
     HlsNetlistReadSyncTC,
     BreakHandshakeCycles_TC,
-    Flushing_TC,
     SlicesToIndependentVariablesPass_TC,
     HlsSlicingTC,
     BitwiseOpsScheduling_TC,

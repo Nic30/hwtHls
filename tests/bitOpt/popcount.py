@@ -10,6 +10,7 @@ from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from hwtHls.frontend.pyBytecode import hlsBytecode
+from hwt.pyUtils.typingFuture import override
 
 
 @hlsBytecode
@@ -41,12 +42,14 @@ def popcount(num: RtlSignal, bitsToLookupInROM: int=4):
 
 class Popcount(HwModule):
 
-    def _config(self) -> None:
+    @override
+    def hwConfig(self) -> None:
         self.FREQ = HwParam(int(100e6))
         self.DATA_WIDTH = HwParam(8)
         self.BITS_TO_LOOKUP_IN_ROM = HwParam(4)
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.clk._FREQ = self.FREQ
         w = self.DATA_WIDTH
@@ -59,7 +62,8 @@ class Popcount(HwModule):
             i = hls.read(self.data_in)
             hls.write(PyBytecodeInline(popcount)(i, bitsToLookupInROM=self.BITS_TO_LOOKUP_IN_ROM), self.data_out)
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self, freq=int(100e6))
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls)
         hls.addThread(mainThread)

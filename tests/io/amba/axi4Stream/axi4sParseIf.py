@@ -5,18 +5,19 @@ from hwt.hdl.types.bits import HBits
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwParam import HwParam
+from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.statementsRead import HlsStmReadStartOfFrame, \
     HlsStmReadEndOfFrame
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
+from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc
+from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
+from hwtHls.io.amba.axi4Stream.proxy import IoProxyAxi4Stream
 from hwtHls.io.amba.axi4Stream.stmRead import HlsStmReadAxi4Stream
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axi4s import Axi4Stream
-from tests.io.amba.axi4Stream.axi4sParseLinear import Axi4SParse2fields
-from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc
 from tests.frontend.pyBytecode.stmWhile import TRUE
-from hwtHls.io.amba.axi4Stream.proxy import IoProxyAxi4Stream
-from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
+from tests.io.amba.axi4Stream.axi4sParseLinear import Axi4SParse2fields
 
 
 class Axi4SParse2If2B(Axi4SParse2fields):
@@ -24,7 +25,8 @@ class Axi4SParse2If2B(Axi4SParse2fields):
     Optionally read second byte from input stream
     """
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
         with self._hwParamsShared():
@@ -32,7 +34,8 @@ class Axi4SParse2If2B(Axi4SParse2fields):
         self.o = HwIOStructRdVld()._m()
         self.o.T = HBits(8)
 
-    def _impl(self) -> None:
+    @override
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         # add register to prevent zero time data exchange ins sim (to see nicely transaction nicely in wave)
         i = self.i
@@ -63,7 +66,8 @@ class Axi4SParse2IfLess(Axi4SParse2fields):
     Read packet in following format: 1B header, 2 or 0B footer
     """
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
         with self._hwParamsShared():
@@ -71,7 +75,8 @@ class Axi4SParse2IfLess(Axi4SParse2fields):
         self.o = HwIOStructRdVld()._m()
         self.o.T = HBits(32)
 
-    def _impl(self) -> None:
+    @override
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         # add register to prevent zero time data exchange ins sim (to see nicely transaction nicely in wave)
         i = self.i
@@ -100,7 +105,8 @@ class Axi4SParse2If(Axi4SParse2fields):
     Read packet in following format: 2B header, 2 or 4 or 1B footer
     """
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
         with self._hwParamsShared():
@@ -108,7 +114,8 @@ class Axi4SParse2If(Axi4SParse2fields):
         self.o = HwIOStructRdVld()._m()
         self.o.T = HBits(32)
 
-    def _impl(self) -> None:
+    @override
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         # add register to prevent zero time data exchange ins sim (to see nicely transaction nicely in wave)
         i = self.i
@@ -144,12 +151,14 @@ class Axi4SParse2IfAndSequel(Axi4SParse2fields):
     Read packet in following format: 2B header, 3 or 4 or 0 bytes, 1B footer 
     """
 
-    def _config(self) -> None:
-        Axi4SParse2fields._config(self)
+    @override
+    def hwConfig(self) -> None:
+        Axi4SParse2fields.hwConfig(self)
         self.WRITE_FOOTER = HwParam(True)
         self.USE_PY_FRONTEND = HwParam(False)
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
         with self._hwParamsShared():
@@ -157,7 +166,8 @@ class Axi4SParse2IfAndSequel(Axi4SParse2fields):
         self.o = HwIOStructRdVld()._m()
         self.o.T = HBits(32)
 
-    def _impl(self) -> None:
+    @override
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         if self.USE_PY_FRONTEND:
             i = IoProxyAxi4Stream(hls, self.i)

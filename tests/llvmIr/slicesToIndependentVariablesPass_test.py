@@ -25,7 +25,7 @@ from tests.llvmIr.baseLlvmIrTC import BaseLlvmIrTC
 
 class SliceBreakSlicedVar0(HwModule):
 
-    def _declr(self) -> None:
+    def hwDeclr(self) -> None:
         addClkRstn(self)
         self.clk.FREQ = int(1e6)
         self.o = HwIOVectSignal(32)._m()
@@ -37,7 +37,7 @@ class SliceBreakSlicedVar0(HwModule):
         x[1] = 1
         hls.write(x, self.o)
 
-    def _impl(self) -> None:
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         hls.addThread(HlsThreadFromPy(hls, self.mainThread, hls))
         hls.compile()
@@ -64,7 +64,7 @@ class SliceBreakSlicedVar2(SliceBreakSlicedVar0):
 
 class SliceBreak0(SliceBreakSlicedVar0):
 
-    def _declr(self) -> None:
+    def hwDeclr(self) -> None:
         addClkRstn(self)
         self.clk.FREQ = int(1e6)
         self.i = HwIOVectSignal(32)
@@ -110,7 +110,7 @@ class SliceBreak3(SliceBreak0):
 
 class Slice0(HwModule):
 
-    def _declr(self) -> None:
+    def hwDeclr(self) -> None:
         addClkRstn(self)
         self.i = HwIOVectSignal(16)
         self.clk.FREQ = int(1e6)
@@ -121,7 +121,7 @@ class Slice0(HwModule):
         x = hls.read(self.i).data
         hls.write(Concat(HBits(16).from_py(0), x), self.o)
 
-    def _impl(self) -> None:
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         hls.addThread(HlsThreadFromPy(hls, self.mainThread, hls))
         hls.compile()
@@ -137,7 +137,7 @@ class Slice1(Slice0):
 
 class Slice2(Slice0):
 
-    def _declr(self) -> None:
+    def hwDeclr(self) -> None:
         addClkRstn(self)
         self.i0 = HwIOSignal()
         self.i1 = HwIOVectSignal(5)

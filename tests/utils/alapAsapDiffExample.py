@@ -3,8 +3,9 @@
 
 from hwt.hwIOs.std import HwIOVectSignal
 from hwt.hwIOs.utils import addClkRstn
-from hwt.simulator.simTestCase import SimTestCase
 from hwt.hwModule import HwModule
+from hwt.pyUtils.typingFuture import override
+from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.netlist.scheduler.errors import TimeConstraintError
@@ -15,10 +16,12 @@ from hwtSimApi.utils import freq_to_period
 
 class AlapAsapDiffExample(HwModule):
 
-    def _config(self):
+    @override
+    def hwConfig(self):
         self.CLK_FREQ = int(400e6)
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
         self.a = HwIOVectSignal(8)
@@ -26,7 +29,8 @@ class AlapAsapDiffExample(HwModule):
         self.c = HwIOVectSignal(8)
         self.d = HwIOVectSignal(8)._m()
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self)
         # inputs has to be readed to enter hls scope
         # (without read() operation will not be schedueled by HLS

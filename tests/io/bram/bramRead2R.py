@@ -8,6 +8,7 @@ from hwt.hwIOs.std import HwIOBramPort_noClk, HwIODataRdVld
 from hwt.hwIOs.utils import addClkRstn, propagateClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
+from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.io.bram import BramArrayProxy
@@ -25,12 +26,14 @@ class BramRead2R(HwModule):
     :note: dataOut0/ram0 reads first half, dataOut1/ram1 the second half
     """
 
-    def _config(self) -> None:
+    @override
+    def hwConfig(self) -> None:
         self.CLK_FREQ = HwParam(int(100e6))
         self.ADDR_WIDTH = HwParam(4)
         self.DATA_WIDTH = HwParam(64)
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
 
@@ -67,7 +70,8 @@ class BramRead2R(HwModule):
                                                                    disconnectSuccesors=True)
                     break
 
-    def _impl(self) -> None:
+    @override
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         ram = BramArrayProxy(hls, MultiPortGroup((self.ram0, self.ram1)))
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, ram)
@@ -78,10 +82,12 @@ class BramRead2R(HwModule):
 
 class BramRead2RWithRom(HwModule):
 
-    def _config(self) -> None:
-        BramRead2R._config(self)
+    @override
+    def hwConfig(self) -> None:
+        BramRead2R.hwConfig(self)
 
-    def _declr(self) -> None:
+    @override
+    def hwDeclr(self) -> None:
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
 
@@ -90,7 +96,8 @@ class BramRead2RWithRom(HwModule):
             self.dataOut1 = HwIODataRdVld()._m()
             self.reader = BramRead2R()
 
-    def _impl(self) -> None:
+    @override
+    def hwImpl(self) -> None:
         ITEMS = int(2 ** self.ADDR_WIDTH)
         rom = self._sig("rom", HBits(self.DATA_WIDTH)[ITEMS], [i + 1 for i in range(ITEMS)])
         r = self.reader

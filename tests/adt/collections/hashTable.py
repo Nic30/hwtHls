@@ -33,14 +33,14 @@ class HashTable(HwModule):
     :see: :class:`tests.frontend.pyBytecode.hashTableIo.HashTableCmd`
     """
 
-    def _config(self) -> None:
+    def hwConfig(self) -> None:
         self.KEY_T = HwParam(HBits(16))
         self.VALUE_T: Optional[HdlType] = HwParam(HBits(32))
         self.ID_T: Optional[HdlType] = HwParam(None)
         self.ITEMS_PER_TABLE = HwParam(1024)
         self.CLK_FREQ = HwParam(int(40e6))
 
-    def _declr(self) -> None:
+    def hwDeclr(self) -> None:
         assert self.ITEMS_PER_TABLE >= 2
 
         addClkRstn(self)
@@ -119,7 +119,7 @@ class HashTable(HwModule):
 
             hls.write(res, self.cmdRes)
 
-    def _impl(self) -> None:
+    def hwImpl(self) -> None:
         propagateClkRstn(self)
         hls = HlsScope(self)
         ram = BramArrayProxy(hls, MultiPortGroup(self.tableRam.port))

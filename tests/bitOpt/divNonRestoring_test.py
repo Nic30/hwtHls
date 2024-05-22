@@ -24,13 +24,13 @@ from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
 
 class DivNonRestoring(HwModule):
 
-    def _config(self) -> None:
+    def hwConfig(self) -> None:
         self.DATA_WIDTH = HwParam(4)
         self.FREQ = HwParam(int(20e6))
         self.UNROLL_FACTOR = HwParam(1)
         self.MAIN_FN_META = HwParam(None)
 
-    def _declr(self) -> None:
+    def hwDeclr(self) -> None:
         addClkRstn(self)
         self.clk.FREQ = self.FREQ
 
@@ -58,7 +58,7 @@ class DivNonRestoring(HwModule):
             resTmp.remainder(res[1])
             hls.write(resTmp, self.data_out)
 
-    def _impl(self) -> None:
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls)
         hls.addThread(mainThread)

@@ -7,6 +7,7 @@ from hwt.hdl.types.struct import HStruct
 from hwt.hwIOs.std import HwIOVectSignal
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
+from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline, \
     PyBytecodeInPreproc
@@ -17,7 +18,8 @@ from hwtHls.scope import HlsScope
 
 class PyArrShift(HwModule):
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.i = HwIOVectSignal(8, signed=False)
         self.o = HwIOVectSignal(8, signed=False)._m()
@@ -36,7 +38,8 @@ class PyArrShift(HwModule):
             arr[0](hls.read(self.i).data)
             hls.write(arr[-1], self.o)
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self, freq=int(100e6))
         t = HlsThreadFromPy(hls, self.mainThread, hls)
         hls.addThread(t)
@@ -50,6 +53,7 @@ class PyArrShiftFn(PyArrShift):
         for i in range(len(arr) - 1, 0, -1):
             arr[i](arr[i - 1])
 
+    @override
     def mainThread(self, hls: HlsScope):
         arr = [hls.var(f"arr{i}", self.o._dtype) for i in range(3)]
         # :note: using () instead of just = because we want to set value not just rewrite reference in preprocessor
@@ -65,10 +69,12 @@ class PyArrShiftFn(PyArrShift):
 class PyArrShiftFnStruct(PyArrShift):
 
     @staticmethod
+    @override
     def shiftArray(arr: list):
         for i in range(len(arr) - 1, 0, -1):
             arr[i](arr[i - 1])
 
+    @override
     def mainThread(self, hls: HlsScope):
         HALF_WIDTH = self.o._dtype.bit_length() // 2
         halfT = HBits(HALF_WIDTH)

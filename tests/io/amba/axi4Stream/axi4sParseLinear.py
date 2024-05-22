@@ -1,30 +1,33 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from hwt.hObjList import HObjList
 from hwt.hdl.types.struct import HStruct
 from hwt.hwIOs.std import HwIODataRdVld
 from hwt.hwIOs.utils import addClkRstn
-from hwt.hObjList import HObjList
-from hwt.hwParam import HwParam
 from hwt.hwModule import HwModule
+from hwt.hwParam import HwParam
+from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.ast.builder import HlsAstBuilder
+from hwtHls.frontend.ast.statementsRead import HlsStmReadStartOfFrame, \
+    HlsStmReadEndOfFrame
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
+from hwtHls.io.amba.axi4Stream.stmRead import HlsStmReadAxi4Stream
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axi4s import Axi4Stream
 from hwtLib.amba.axis_comp.frame_parser.test_types import structManyInts
 from hwtLib.types.ctypes import uint16_t, uint32_t
-from hwtHls.io.amba.axi4Stream.stmRead import HlsStmReadAxi4Stream
-from hwtHls.frontend.ast.statementsRead import HlsStmReadStartOfFrame, \
-    HlsStmReadEndOfFrame
 
 
 class Axi4SParseStructManyInts0(HwModule):
 
-    def _config(self) -> None:
+    @override
+    def hwConfig(self) -> None:
         self.DATA_WIDTH = HwParam(64)
         self.CLK_FREQ = HwParam(int(100e6))
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
         with self._hwParamsShared():
@@ -38,7 +41,8 @@ class Axi4SParseStructManyInts0(HwModule):
 
         self.o = o
 
-    def _impl(self) -> None:
+    @override
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         v = HlsStmReadAxi4Stream(hls, self.i, structManyInts, True)
 
@@ -63,7 +67,8 @@ class Axi4SParseStructManyInts1(Axi4SParseStructManyInts0):
     :note: same as :class:`~.Axi4SParseStructManyInts1` just read field by field
     """
 
-    def _impl(self) -> None:
+    @override
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         v = [
             HlsStmReadAxi4Stream(hls, self.i, f.dtype, True)
@@ -99,7 +104,8 @@ struct_i16_i32 = HStruct(
 
 class Axi4SParse2fields(Axi4SParseStructManyInts0):
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
         with self._hwParamsShared():
@@ -110,7 +116,8 @@ class Axi4SParse2fields(Axi4SParseStructManyInts0):
         o[1].DATA_WIDTH = 32
         self.o = o
 
-    def _impl(self) -> None:
+    @override
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         v = [
             HlsStmReadAxi4Stream(hls, self.i, uint16_t, True),

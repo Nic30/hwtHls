@@ -10,16 +10,19 @@ from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.io.bram import BramArrayProxy
 from hwtHls.scope import HlsScope
 from tests.frontend.pyBytecode.stmWhile import TRUE
+from hwt.pyUtils.typingFuture import override
 
 
 class ReadSizeFromRamAndSendSequence(HwModule):
 
-    def _config(self):
+    @override
+    def hwConfig(self):
         self.CLK_FREQ = HwParam(int(100e6))
         self.ADDR_WIDTH = HwParam(16)
         self.DATA_WIDTH = HwParam(16)
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
         self.index = HwIODataRdVld()
@@ -43,7 +46,8 @@ class ReadSizeFromRamAndSendSequence(HwModule):
                     break
                 i -= 1
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, BramArrayProxy(hls, self.ram))
         hls.addThread(mainThread)

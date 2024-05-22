@@ -5,14 +5,17 @@ from hwt.hwModule import HwModule
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
+from hwt.pyUtils.typingFuture import override
 
 
 class RedundantCmpGT(HwModule):
 
-    def _config(self) -> None:
+    @override
+    def hwConfig(self) -> None:
         self.FREQ = HwParam(int(100e6))
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         self.i0 = HwIOVectSignal(8, signed=False)
         # self.i1 = HwIOVectSignal(8, signed=False)
 
@@ -26,7 +29,8 @@ class RedundantCmpGT(HwModule):
 
             hls.write((i0 > 1) | (i0 > 2), self.o)
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self, freq=int(100e6))
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls)
         hls.addThread(mainThread)

@@ -4,6 +4,7 @@
 from hwt.hwIOs.std import HwIOVectSignal
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
+from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
@@ -11,7 +12,8 @@ from hwtHls.scope import HlsScope
 
 class HlsConnectionFromPyIf(HwModule):
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         self.i = HwIOVectSignal(8, signed=False)
         self.o = HwIOVectSignal(8, signed=False)._m()
         addClkRstn(self)
@@ -22,7 +24,8 @@ class HlsConnectionFromPyIf(HwModule):
         if v._eq(2):
             hls.write(3, self.o)
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self)
         hls.addThread(HlsThreadFromPy(hls, self.mainThread, hls))
         hls.compile()
@@ -31,6 +34,7 @@ class HlsConnectionFromPyIf(HwModule):
 class HlsConnectionFromPyIfElse(HlsConnectionFromPyIf):
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         v = hls.read(self.i).data
         if v._eq(2):
@@ -42,6 +46,7 @@ class HlsConnectionFromPyIfElse(HlsConnectionFromPyIf):
 class HlsConnectionFromPyIfElsePreproc(HlsConnectionFromPyIf):
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope, useIf: bool):
         if useIf:
             v = hls.read(self.i).data
@@ -53,7 +58,8 @@ class HlsConnectionFromPyIfElsePreproc(HlsConnectionFromPyIf):
             v = hls.read(self.i).data
             hls.write(v, self.o)
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self)
         hls.addThread(HlsThreadFromPy(hls, self.mainThread, hls, True))
         hls.compile()
@@ -62,6 +68,7 @@ class HlsConnectionFromPyIfElsePreproc(HlsConnectionFromPyIf):
 class HlsConnectionFromPyIfElifElse(HlsConnectionFromPyIf):
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         v = hls.read(self.i).data
 

@@ -5,12 +5,13 @@ from typing import List
 from hwt.code import Concat
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.struct import HStruct
-from hwt.hwParam import HwParam
 from hwt.hwIOs.hwIOStruct import HwIOStruct
 from hwt.hwIOs.std import HwIOVectSignal, HwIODataRdVld
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
+from hwt.hwParam import HwParam
 from hwt.math import log2ceil
+from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
@@ -19,7 +20,8 @@ from hwtLib.commonHwIO.addr_data import HwIOAddrDataVldRdVld
 
 class Rom(HwModule):
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.i = HwIOVectSignal(2, signed=False)
         self.o = HwIOVectSignal(32, signed=False)._m()
@@ -34,7 +36,8 @@ class Rom(HwModule):
             o = mem[i]
             hls.write(o, self.o)
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self, freq=int(100e6))
         t = HlsThreadFromPy(hls, self.mainThread, hls)
         hls.addThread(t)
@@ -43,10 +46,12 @@ class Rom(HwModule):
 
 class CntrArray(HwModule):
 
-    def _config(self) -> None:
+    @override
+    def hwConfig(self) -> None:
         self.ITEMS = HwParam(4)
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         ADDR_WIDTH = log2ceil(self.ITEMS - 1)
         self.i = HwIOVectSignal(ADDR_WIDTH, signed=False)
@@ -66,17 +71,20 @@ class CntrArray(HwModule):
             hls.write(o, self.o)
             mem[i] += 1
 
-    def _impl(self):
-        Rom._impl(self)
+    @override
+    def hwImpl(self):
+        Rom.hwImpl(self)
 
 
 class Cam(HwModule):
 
-    def _config(self) -> None:
+    @override
+    def hwConfig(self) -> None:
         self.KEY_WIDTH = HwParam(16)
         self.ITEMS = HwParam(4)
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
 
         w = HwIOAddrDataVldRdVld()
@@ -116,7 +124,8 @@ class Cam(HwModule):
             # or write switch-case  is constructed if the item is written
             hls.write(newKey, keys[w.addr])
 
-    def _impl(self) -> None:
+    @override
+    def hwImpl(self) -> None:
         hls = HlsScope(self, freq=int(100e6))
         record_t = HStruct(
             (self.match.data._dtype, "key"),

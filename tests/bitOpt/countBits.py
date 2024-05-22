@@ -5,10 +5,11 @@ from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.std import HwIOVectSignal
 from hwt.hwIOs.utils import addClkRstn
-from hwt.math import isPow2, log2ceil
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.mainBases import RtlSignalBase
+from hwt.math import isPow2, log2ceil
+from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
@@ -107,11 +108,13 @@ def countBits(dataIn: RtlSignalBase[HBits], bitValToCount: int, leading: bool):
 
 class CountLeadingZeros(HwModule):
 
-    def _config(self) -> None:
+    @override
+    def hwConfig(self) -> None:
         self.FREQ = HwParam(int(100e6))
         self.DATA_WIDTH = HwParam(8)
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.clk._FREQ = self.FREQ
         w = self.DATA_WIDTH
@@ -125,8 +128,9 @@ class CountLeadingZeros(HwModule):
             i = hls.read(self.data_in)
             hls.write(PyBytecodeInline(countBits)(i, 0, True), self.data_out)
 
-    def _impl(self):
-        hls = HlsScope(self, freq=int(100e6))
+    @override
+    def hwImpl(self):
+        hls = HlsScope(self)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls)
         hls.addThread(mainThread)
         hls.compile()

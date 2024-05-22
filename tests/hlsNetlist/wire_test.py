@@ -20,11 +20,11 @@ from hwtSimApi.utils import freq_to_period
 
 class HlsNetlistWireHwModule(HwModule):
 
-    def _config(self) -> None:
+    def hwConfig(self) -> None:
         self.CLK_FREQ = HwParam(int(100e6))
         self.DATA_WIDTH = HwParam(8)
 
-    def _declr(self) -> None:
+    def hwDeclr(self) -> None:
         self.dataIn = HwIOVectSignal(self.DATA_WIDTH)
         self.dataOut = HwIOVectSignal(self.DATA_WIDTH)._m()
 
@@ -35,7 +35,7 @@ class HlsNetlistWireHwModule(HwModule):
         netlist.inputs.append(r)
         netlist.outputs.append(w)
 
-    def _impl(self) -> None:
+    def hwImpl(self) -> None:
         hls = HlsScope(self, self.CLK_FREQ)
         hls.addThread(HlsThreadFromNetlist(hls, self.connectIo))
         hls.compile()
@@ -43,7 +43,7 @@ class HlsNetlistWireHwModule(HwModule):
 
 class HlsNetlistWireHwModuleHs(HlsNetlistWireHwModule):
 
-    def _declr(self) -> None:
+    def hwDeclr(self) -> None:
         # added because of sim agent
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
@@ -55,7 +55,7 @@ class HlsNetlistWireHwModuleHs(HlsNetlistWireHwModule):
 
 class HlsNetlistWireHwModuleVldSynced(HlsNetlistWireHwModule):
 
-    def _declr(self) -> None:
+    def hwDeclr(self) -> None:
         # added because of sim agent
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
@@ -67,7 +67,7 @@ class HlsNetlistWireHwModuleVldSynced(HlsNetlistWireHwModule):
 
 class HlsNetlistWireHwModuleRdSynced(HlsNetlistWireHwModule):
 
-    def _declr(self) -> None:
+    def hwDeclr(self) -> None:
         # added because of sim agent
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ

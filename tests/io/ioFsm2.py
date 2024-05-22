@@ -3,6 +3,7 @@
 
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
 from hwt.hwParam import HwParam
+from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.scope import HlsScope
@@ -17,7 +18,8 @@ class WriteFsmFor(WriteFsm1WhileTrue123hs):
     IO write FSM inside of pipeline
     """
 
-    def _impl(self) -> None:
+    @override
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         i = hls.var("i", uint8_t)
         ast = HlsAstBuilder(hls)
@@ -37,7 +39,8 @@ class WriteFsmPrequel(WriteFsm1WhileTrue123hs):
     IO write FSM before pipeline
     """
 
-    def _impl(self) -> None:
+    @override
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         i = hls.var("i", uint8_t)
         ast = HlsAstBuilder(hls)
@@ -57,7 +60,8 @@ class WriteFsmPrequel(WriteFsm1WhileTrue123hs):
 
 class WriteFsmIf(WriteFsm1WhileTrue123hs):
 
-    def _impl(self) -> None:
+    @override
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         i = hls.var("i", uint8_t)
 
@@ -82,7 +86,8 @@ class WriteFsmIf(WriteFsm1WhileTrue123hs):
 
 class WriteFsmIfOptionalInMiddle(WriteFsm1WhileTrue123hs):
 
-    def _impl(self) -> None:
+    @override
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         i = hls.var("i", uint8_t)
 
@@ -108,12 +113,14 @@ class WriteFsmIfOptionalInMiddle(WriteFsm1WhileTrue123hs):
 
 class WriteFsmControlledFromIn(WriteFsm1WhileTrue123hs):
 
-    def _declr(self):
-        WriteFsm1WhileTrue123hs._declr(self)
+    @override
+    def hwDeclr(self):
+        WriteFsm1WhileTrue123hs.hwDeclr(self)
         self.i = HwIOStructRdVld()
         self.i.T = self.o.T
 
-    def _impl(self) -> None:
+    @override
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
 
         ast = HlsAstBuilder(hls)
@@ -139,12 +146,14 @@ class WriteFsmControlledFromIn(WriteFsm1WhileTrue123hs):
 
 class ReadFsmWriteFsmSumAndCondWrite(WriteFsm1WhileTrue123hs):
 
-    def _config(self) -> None:
-        WriteFsm1WhileTrue123hs._config(self)
+    @override
+    def hwConfig(self) -> None:
+        WriteFsm1WhileTrue123hs.hwConfig(self)
         self.USE_PY_FRONTEND = HwParam(False)
 
-    def _declr(self):
-        WriteFsm1WhileTrue123hs._declr(self)
+    @override
+    def hwDeclr(self):
+        WriteFsm1WhileTrue123hs.hwDeclr(self)
         self.i = HwIOStructRdVld()
         self.i.T = self.o.T
 
@@ -163,8 +172,9 @@ class ReadFsmWriteFsmSumAndCondWrite(WriteFsm1WhileTrue123hs):
             hls.write(4, self.o)
             hls.write(5, self.o)
 
-    def _impl(self) -> None:
-        WhileTrueWriteCntr0._impl(self)
+    @override
+    def hwImpl(self) -> None:
+        WhileTrueWriteCntr0.hwImpl(self)
 
 
 if __name__ == "__main__":

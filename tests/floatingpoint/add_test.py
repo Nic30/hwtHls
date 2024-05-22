@@ -27,11 +27,11 @@ from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
 
 class IEEE754FpAdder(HwModule):
 
-    def _config(self) -> None:
+    def hwConfig(self) -> None:
         self.T = HwParam(IEEE754Fp64)
         self.FREQ = HwParam(int(20e6))
 
-    def _declr(self) -> None:
+    def hwDeclr(self) -> None:
         addClkRstn(self)
         self.clk.FREQ = self.FREQ
 
@@ -48,8 +48,8 @@ class IEEE754FpAdder(HwModule):
             res = PyBytecodeInline(IEEE754FpAdd)(a, b)
             hls.write(res, self.res)
 
-    def _impl(self) -> None:
-        IEEE754FpComparator._impl(self)
+    def hwImpl(self) -> None:
+        IEEE754FpComparator.hwImpl(self)
 
 
 class IEEE754FpAdder_TC(SimTestCase):

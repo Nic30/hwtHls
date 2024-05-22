@@ -3,8 +3,9 @@ from typing import Union, Sequence, Literal, List
 from hwt.hdl.operatorDefs import HwtOps
 from hwt.hwIOs.std import HwIOVectSignal
 from hwt.hwIOs.utils import addClkRstn
-from hwt.hwParam import HwParam
 from hwt.hwModule import HwModule
+from hwt.hwParam import HwParam
+from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.hardBlock import HardBlockHwModule
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
@@ -18,7 +19,6 @@ from hwtHls.ssa.translation.llvmMirToNetlist.insideOfBlockSyncTracker import Ins
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
-from hwt.pyUtils.typingFuture import override
 from tests.frontend.pyBytecode.stmWhile import TRUE
 
 
@@ -58,11 +58,13 @@ class ExampleHardBlockHwModule_netlist_add1(HardBlockHwModule):
 
 class ExampleHardBlock_netlist(HwModule):
 
-    def _config(self) -> None:
+    @override
+    def hwConfig(self) -> None:
         self.FREQ = HwParam(int(100e6))
         self.DATA_WIDTH = HwParam(8)
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.clk._FREQ = self.FREQ
         w = self.DATA_WIDTH
@@ -76,7 +78,8 @@ class ExampleHardBlock_netlist(HwModule):
             ip1 = ExampleHardBlockHwModule_netlist_add1(i._dtype)(i)
             hls.write(ip1, self.data_out)
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self, freq=int(100e6))
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls)
         hls.addThread(mainThread)

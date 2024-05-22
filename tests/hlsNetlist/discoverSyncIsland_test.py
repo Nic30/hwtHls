@@ -29,11 +29,11 @@ class HlsNetlistSyncIsland0HwModule(HwModule):
     o.write(i0.read())
     """
 
-    def _config(self) -> None:
+    def hwConfig(self) -> None:
         self.CLK_FREQ = HwParam(int(100e6))
         self.TEST_CASE: Optional[SimTestCase] = None
 
-    def _declr(self) -> None:
+    def hwDeclr(self) -> None:
         # added because of sim agent
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
@@ -65,7 +65,7 @@ class HlsNetlistSyncIsland0HwModule(HwModule):
 
         netlist.invalidateAnalysis(HlsNetlistAnalysisPassReachability)
 
-    def _impl(self) -> None:
+    def hwImpl(self) -> None:
         hls = HlsScope(self, self.CLK_FREQ)
         hls.addThread(HlsThreadFromNetlist(hls, self.mainThread))
         hls.compile()
@@ -117,8 +117,8 @@ class HlsNetlistSyncIsland2HwModule(HlsNetlistSyncIsland0HwModule):
     read1 ---^
     """
 
-    def _declr(self) -> None:
-        HlsNetlistSyncIsland0HwModule._declr(self)
+    def hwDeclr(self) -> None:
+        HlsNetlistSyncIsland0HwModule.hwDeclr(self)
         with self._hwParamsShared():
             self.i1 = HwIOSignal()
 

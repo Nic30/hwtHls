@@ -6,8 +6,10 @@ from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.std import HwIOBramPort_noClk, HwIODataRdVld
 from hwt.hwIOs.utils import addClkRstn, propagateClkRstn
-from hwt.hwParam import HwParam
 from hwt.hwModule import HwModule
+from hwt.hwParam import HwParam
+from hwt.pyUtils.typingFuture import override
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.io.bram import BramArrayProxy
 from hwtHls.netlist.debugTracer import DebugTracer
@@ -15,7 +17,6 @@ from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import \
     netlistExplicitSyncDisconnectFromOrderingChain
 from hwtHls.scope import HlsScope
-from hwtHls.frontend.pyBytecode import hlsBytecode
 
 
 class BramRead(HwModule):
@@ -23,12 +24,14 @@ class BramRead(HwModule):
     Sequentially read data from BRAM port.
     """
 
-    def _config(self) -> None:
+    @override
+    def hwConfig(self) -> None:
         self.CLK_FREQ = HwParam(int(100e6))
         self.ADDR_WIDTH = HwParam(4)
         self.DATA_WIDTH = HwParam(64)
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
 
@@ -59,7 +62,8 @@ class BramRead(HwModule):
                                                                    disconnectSuccesors=True)
                     break
 
-    def _impl(self) -> None:
+    @override
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         ram = BramArrayProxy(hls, self.ram)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, ram)
@@ -71,10 +75,12 @@ class BramRead(HwModule):
 
 class BramReadWithRom(HwModule):
 
-    def _config(self) -> None:
-        BramRead._config(self)
+    @override
+    def hwConfig(self) -> None:
+        BramRead.hwConfig(self)
 
-    def _declr(self) -> None:
+    @override
+    def hwDeclr(self) -> None:
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
 
@@ -82,7 +88,8 @@ class BramReadWithRom(HwModule):
             self.dataOut = HwIODataRdVld()._m()
             self.reader = BramRead()
 
-    def _impl(self) -> None:
+    @override
+    def hwImpl(self) -> None:
         ITEMS = int(2 ** self.ADDR_WIDTH)
         rom = self._sig("rom", HBits(self.DATA_WIDTH)[ITEMS], [i + 1 for i in range(ITEMS)])
         r = self.reader

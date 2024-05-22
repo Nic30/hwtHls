@@ -19,7 +19,7 @@ class Axi4SPacketByteCntr0(Axi4SPacketCntr):
     Counts a total number of bytes in any word seen.
     """
 
-    def _declr(self):
+    def hwDeclr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
         with self._hwParamsShared():

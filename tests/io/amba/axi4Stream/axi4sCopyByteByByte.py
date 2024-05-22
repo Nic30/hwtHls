@@ -21,14 +21,14 @@ class Axi4SPacketCopyByteByByteHs(HwModule):
     Cut off Ethernet and IPv4 header.
     """
 
-    def _config(self) -> None:
+    def hwConfig(self) -> None:
         self.DATA_WIDTH = HwParam(16)
         self.OUT_DATA_WIDTH = HwParam(8)
         self.USE_STRB = HwParam(True)
         self.UNROLL = HwParam(PyBytecodeStreamLoopUnroll)
         self.CLK_FREQ = HwParam(int(100e6))
 
-    def _declr(self):
+    def hwDeclr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
         with self._hwParamsShared():
@@ -61,7 +61,7 @@ class Axi4SPacketCopyByteByByteHs(HwModule):
 
             rx.readEndOfFrame()
 
-    def _impl(self):
+    def hwImpl(self):
         hls = HlsScope(self)
         rx = IoProxyAxi4Stream(hls, self.rx)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, rx)
@@ -74,10 +74,10 @@ class Axi4SPacketCopyByteByByte(HwModule):
     Cut off Ethernet and IPv4 header.
     """
 
-    def _config(self) -> None:
-        Axi4SPacketCopyByteByByteHs._config(self)
+    def hwConfig(self) -> None:
+        Axi4SPacketCopyByteByByteHs.hwConfig(self)
 
-    def _declr(self):
+    def hwDeclr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
         with self._hwParamsShared():
@@ -111,7 +111,7 @@ class Axi4SPacketCopyByteByByte(HwModule):
             txBody.writeEndOfFrame()
             rx.readEndOfFrame()
 
-    def _impl(self):
+    def hwImpl(self):
         hls = HlsScope(self)
         rx = IoProxyAxi4Stream(hls, self.rx)
         txBody = IoProxyAxi4Stream(hls, self.txBody)

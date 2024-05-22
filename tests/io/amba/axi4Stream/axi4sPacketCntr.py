@@ -4,8 +4,9 @@
 from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.std import HwIODataRdVld
 from hwt.hwIOs.utils import addClkRstn
-from hwt.hwParam import HwParam
 from hwt.hwModule import HwModule
+from hwt.hwParam import HwParam
+from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
@@ -17,11 +18,13 @@ from hwtLib.types.ctypes import uint16_t
 
 class Axi4SPacketCntr(HwModule):
 
-    def _config(self) -> None:
+    @override
+    def hwConfig(self) -> None:
         self.DATA_WIDTH = HwParam(512)
         self.CLK_FREQ = HwParam(int(100e6))
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
         with self._hwParamsShared():
@@ -42,7 +45,8 @@ class Axi4SPacketCntr(HwModule):
                 pkts += 1
             hls.write(pkts, self.pkt_cnt)
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self)
         i = IoProxyAxi4Stream(hls, self.i)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, i)

@@ -3,15 +3,16 @@
 
 from functools import reduce
 
+from hwt.hObjList import HObjList
 from hwt.hdl.types.bits import HBits
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
 from hwt.hwIOs.std import HwIOVectSignal
 from hwt.hwIOs.utils import addClkRstn
-from hwt.pyUtils.arrayQuery import grouper, balanced_reduce
-from hwt.simulator.simTestCase import SimTestCase
-from hwt.hObjList import HObjList
-from hwt.hwParam import HwParam
 from hwt.hwModule import HwModule
+from hwt.hwParam import HwParam
+from hwt.pyUtils.arrayQuery import grouper, balanced_reduce
+from hwt.pyUtils.typingFuture import override
+from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.platform.virtual import VirtualHlsPlatform
@@ -21,12 +22,14 @@ from hwtSimApi.utils import freq_to_period
 
 class HlsMAC_example(HwModule):
 
-    def _config(self):
+    @override
+    def hwConfig(self):
         self.CLK_FREQ = HwParam(int(20e6))
         self.INPUT_CNT = HwParam(4)
         self.DATA_WIDTH = HwParam(32)
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
         assert int(self.INPUT_CNT) % 2 == 0
@@ -36,7 +39,8 @@ class HlsMAC_example(HwModule):
 
         self.dataOut = HwIOVectSignal(self.DATA_WIDTH, signed=False)._m()
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self)
         # inputs has to be readed to enter hls scope
         # (without read() operation will not be schedueled by HLS
@@ -61,11 +65,13 @@ class HlsMAC_example(HwModule):
 
 class HlsMAC_example2(HlsMAC_example):
 
-    def _config(self):
-        super(HlsMAC_example2, self)._config()
+    @override
+    def hwConfig(self):
+        super(HlsMAC_example2, self).hwConfig()
         self.INPUT_CNT = 16
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self)
         # inputs has to be readed to enter hls scope
         # (without read() operation will not be schedueled by HLS
@@ -95,12 +101,14 @@ class HlsMAC_example2(HlsMAC_example):
 
 class HlsMAC_example_handshake(HlsMAC_example2):
 
-    def _config(self):
-        super(HlsMAC_example_handshake, self)._config()
+    @override
+    def hwConfig(self):
+        super(HlsMAC_example_handshake, self).hwConfig()
         self.CLK_FREQ = int(20e6)
         self.INPUT_CNT = 4
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
         assert int(self.INPUT_CNT) % 2 == 0

@@ -3,6 +3,7 @@
 
 from hwt.code import Add
 from hwt.hwParam import HwParam
+from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.scope import HlsScope
@@ -14,15 +15,18 @@ class PidControllerHalfHls(PidController):
     A variant of PID regulator where only expression between the registers is in HLS context.
     """
 
-    def _config(self):
-        super(PidControllerHalfHls, self)._config()
+    @override
+    def hwConfig(self):
+        super(PidControllerHalfHls, self).hwConfig()
         self.CLK_FREQ = HwParam(int(50e6))
 
-    def _declr(self):
-        PidController._declr(self)
+    @override
+    def hwDeclr(self):
+        PidController.hwDeclr(self)
         self.clk.FREQ = self.CLK_FREQ
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         # register of current output value
         u = self._reg("u", dtype=self.output._dtype, def_val=0)
 
@@ -66,7 +70,8 @@ class PidControllerHls(PidControllerHalfHls):
     (Including main loop and reset.)
     """
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         # register of current output value
         hls = HlsScope(self)
 

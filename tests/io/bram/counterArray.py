@@ -26,12 +26,12 @@ class BramCounterArray0nocheck(HwModule):
     Array of counters stored in BRAM without any data consystency handling.
     """
 
-    def _config(self) -> None:
+    def hwConfig(self) -> None:
         self.ITEMS = HwParam(4)
         self.CNTR_WIDTH = HwParam(16)
         self.CLK_FREQ = HwParam(int(100e6))
 
-    def _declr(self) -> None:
+    def hwDeclr(self) -> None:
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
 
@@ -65,7 +65,7 @@ class BramCounterArray0nocheck(HwModule):
             hls.write(d, ram[index])
             # PyBytecodeLLVMLoopUnroll(True, 2)
 
-    def _impl(self) -> None:
+    def hwImpl(self) -> None:
         propagateClkRstn(self)
         hls = HlsScope(self)
         ram = BramArrayProxy(hls, MultiPortGroup(self.ram.port))
@@ -110,7 +110,7 @@ class BramCounterArray3stall(BramCounterArray0nocheck):
     from block where read is.
     """
 
-    def _impl(self) -> None:
+    def hwImpl(self) -> None:
         propagateClkRstn(self)
         hls = HlsScope(self)
         ram = BramArrayProxy(hls, MultiPortGroup(self.ram.port))
@@ -132,7 +132,7 @@ class BramCounterArray4WriteForwarding(BramCounterArray0nocheck):
     Array counter with automatically instantiated LSU for write->read latency.
     """
 
-    def _impl(self) -> None:
+    def hwImpl(self) -> None:
         propagateClkRstn(self)
         hls = HlsScope(self)
         ram = BramArrayProxy(hls, MultiPortGroup(self.ram.port))

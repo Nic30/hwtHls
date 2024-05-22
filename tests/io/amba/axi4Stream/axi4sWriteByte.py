@@ -15,11 +15,11 @@ from hwtLib.types.ctypes import uint8_t
 
 class Axi4SWriteByteOnce(HwModule):
 
-    def _config(self):
+    def hwConfig(self):
         self.CLK_FREQ = HwParam(int(100e6))
-        Axi4Stream._config(self)
+        Axi4Stream.hwConfig(self)
 
-    def _declr(self) -> None:
+    def hwDeclr(self) -> None:
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
         with self._hwParamsShared():
@@ -31,7 +31,7 @@ class Axi4SWriteByteOnce(HwModule):
         dataOut.write(uint8_t.from_py(1))
         dataOut.writeEndOfFrame()
 
-    def _impl(self) -> None:
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         dataOut = IoProxyAxi4Stream(hls, self.dataOut)
         hls.addThread(HlsThreadFromPy(hls, self.mainThread, dataOut))

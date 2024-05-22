@@ -13,8 +13,9 @@ The terminators for duplications are:
 from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.std import HwIODataRdVld
 from hwt.hwIOs.utils import addClkRstn
-from hwt.hwParam import HwParam
 from hwt.hwModule import HwModule
+from hwt.hwParam import HwParam
+from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline, \
     PyBytecodePreprocDivergence
@@ -25,11 +26,13 @@ from hwtLib.types.ctypes import uint8_t
 
 class PreprocLoopMultiExit_singleExit0(HwModule):
 
-    def _config(self):
+    @override
+    def hwConfig(self):
         self.FREQ = HwParam(int(10e6))
         self.DATA_WIDTH = HwParam(8)
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         with self._hwParamsShared():
             self.i = HwIODataRdVld()
             self.o = HwIODataRdVld()._m()
@@ -55,7 +58,8 @@ class PreprocLoopMultiExit_singleExit0(HwModule):
                 # [todo] add variant with the break because this one does not actually generate error
             # in each iteration this block will exist only once because divergence is not marked
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls)
         hls.addThread(mainThread)
@@ -65,6 +69,7 @@ class PreprocLoopMultiExit_singleExit0(HwModule):
 class PreprocLoopMultiExit_singleExit1(PreprocLoopMultiExit_singleExit0):
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         """
         Will expand to:
@@ -97,6 +102,7 @@ class PreprocLoopMultiExit_singleExit1(PreprocLoopMultiExit_singleExit0):
 class PreprocLoopMultiExit_hwBreak0(PreprocLoopMultiExit_singleExit0):
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         """
         Will expand to (unintended the value of 'i' is not propagated as expected):
@@ -117,6 +123,7 @@ class PreprocLoopMultiExit_hwBreak0(PreprocLoopMultiExit_singleExit0):
 class PreprocLoopMultiExit_hwBreak1(PreprocLoopMultiExit_singleExit0):
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         """
         Will expand to (unintended the value of 'i' is not propagated as expected):
@@ -140,6 +147,7 @@ class PreprocLoopMultiExit_hwBreak1(PreprocLoopMultiExit_singleExit0):
 class PreprocLoopMultiExit_hwBreak2(PreprocLoopMultiExit_singleExit0):
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         """
         :meth:`~.PreprocLoopMultiExit_hwBreak1.mainThread` in infinite hardware loop
@@ -154,6 +162,7 @@ class PreprocLoopMultiExit_hwBreak2(PreprocLoopMultiExit_singleExit0):
 class PreprocLoopMultiExit_hwBreak3(PreprocLoopMultiExit_singleExit0):
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         """
         :note: same as :class:`~.PreprocLoopMultiExit_hwBreak2` just with :class:`PyBytecodeInline`
@@ -164,11 +173,13 @@ class PreprocLoopMultiExit_hwBreak3(PreprocLoopMultiExit_singleExit0):
 
 class PreprocLoopMultiExit_countLeadingZeros_0(PreprocLoopMultiExit_singleExit0):
 
-    def _config(self):
+    @override
+    def hwConfig(self):
         self.FREQ = HwParam(int(10e6))
         self.DATA_WIDTH = HwParam(3)
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         with self._hwParamsShared():
             self.i = HwIODataRdVld()
             addClkRstn(self)
@@ -176,6 +187,7 @@ class PreprocLoopMultiExit_countLeadingZeros_0(PreprocLoopMultiExit_singleExit0)
         self.o.DATA_WIDTH = 8
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
             d = hls.read(self.i).data
@@ -190,6 +202,7 @@ class PreprocLoopMultiExit_countLeadingZeros_0(PreprocLoopMultiExit_singleExit0)
 class PreprocLoopMultiExit_countLeadingZeros_1_error(PreprocLoopMultiExit_singleExit0):
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
             d = hls.read(self.i).data
@@ -208,6 +221,7 @@ class PreprocLoopMultiExit_countLeadingZeros_1_error(PreprocLoopMultiExit_single
 class PreprocLoopMultiExit_countLeadingZeros_2(PreprocLoopMultiExit_singleExit0):
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
             d = hls.read(self.i).data

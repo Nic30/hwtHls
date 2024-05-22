@@ -17,11 +17,11 @@ from tests.baseSsaTest import BaseSsaTC
 
 class TwoTimesFiniteWhileInWhileTrue(HwModule):
 
-    def _config(self) -> None:
+    def hwConfig(self) -> None:
         self.DATA_WIDTH = HwParam(8)
         self.FREQ = HwParam(int(50e6))
 
-    def _declr(self) -> None:
+    def hwDeclr(self) -> None:
         addClkRstn(self)
         self.clk.FREQ = self.FREQ
         self.dataOut0: HwIOStructRdVld = HwIOStructRdVld()._m()
@@ -29,7 +29,7 @@ class TwoTimesFiniteWhileInWhileTrue(HwModule):
         self.dataOut1: HwIOStructRdVld = HwIOStructRdVld()._m()
         self.dataOut1.T = HBits(self.DATA_WIDTH, signed=False)
 
-    def _impl(self) -> None:
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         i0, i1 = (hls.var(f"i{i}", uint8_t) for i in range(2))
         ast = HlsAstBuilder(hls)
@@ -54,7 +54,7 @@ class TwoTimesFiniteWhileInWhileTrue(HwModule):
 
 class TwoTimesFiniteWhile(TwoTimesFiniteWhileInWhileTrue):
 
-    def _impl(self) -> None:
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         i0, i1 = (hls.var(f"i{i}", uint8_t) for i in range(2))
         ast = HlsAstBuilder(hls)

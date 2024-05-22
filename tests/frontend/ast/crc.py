@@ -3,6 +3,7 @@
 
 from typing import List
 
+from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.vectorUtils import iterBits
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
@@ -15,17 +16,20 @@ from pyMathBitPrecise.bit_utils import get_bit, bit_list_reversed_bits_in_bytes,
 
 class CrcCombHls(CrcComb):
 
-    def _config(self):
-        CrcComb._config(self)
+    @override
+    def hwConfig(self):
+        CrcComb.hwConfig(self)
         self.CLK_FREQ = 100e6
         self.setConfig(CRC_32)
         self.DATA_WIDTH = 8
 
-    def _declr(self):
-        CrcComb._declr(self)
+    @override
+    def hwDeclr(self):
+        CrcComb.hwDeclr(self)
         self.clk.FREQ = self.CLK_FREQ
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self)
         DW = int(self.DATA_WIDTH)
         # assert PW == DW

@@ -13,11 +13,11 @@ from tests.frontend.pyBytecode.pyArrHwIndex import Rom, CntrArray
 
 class CntrArrayWithCfgDotDump(CntrArray):
 
-    def _config(self) -> None:
-        CntrArray._config(self)
+    def hwConfig(self) -> None:
+        CntrArray.hwConfig(self)
         self.CFG_FILE = None
 
-    def _impl(self):
+    def hwImpl(self):
         hls = HlsScope(self, freq=int(100e6))
         t = hls.addThread(HlsThreadFromPy(hls, self.mainThread, hls))
         try:

@@ -57,11 +57,11 @@ class PhiConstruction_TC(unittest.TestCase):
 
         class M0(HwModule):
 
-            def _declr(self) -> None:
+            def hwDeclr(self) -> None:
                 addClkRstn(self)
                 self.o = HwIOVectSignal(8, signed=True)._m()
 
-            def _impl(self):
+            def hwImpl(self):
                 hls = HlsScope(self)
 
                 @hlsBytecode

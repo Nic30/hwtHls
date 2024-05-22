@@ -10,20 +10,24 @@ from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from tests.baseSsaTest import BaseSsaTC
+from hwt.pyUtils.typingFuture import override
 
 
 class TwoTimesA0(HwModule):
 
-    def _config(self):
+    @override
+    def hwConfig(self):
         self.CLK_FREQ = int(100e6)
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
         self.a = HwIOVectSignal(8)
         self.b = HwIOVectSignal(8)._m()
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self)
         # a = hls.read(self.a).data
         a = hls.var("a", self.a._dtype)
@@ -40,7 +44,8 @@ class TwoTimesA0(HwModule):
 
 class TwoTimesA1(TwoTimesA0):
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self)
         a = hls.read(self.a).data
         ast = HlsAstBuilder(hls)

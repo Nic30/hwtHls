@@ -3,25 +3,28 @@
 
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
 from hwt.hwIOs.utils import addClkRstn
-from hwt.hwParam import HwParam
 from hwt.hwModule import HwModule
+from hwt.hwParam import HwParam
+from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.ast.builder import HlsAstBuilder
+from hwtHls.frontend.ast.statementsRead import HlsStmReadStartOfFrame, \
+    HlsStmReadEndOfFrame
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
+from hwtHls.io.amba.axi4Stream.stmRead import HlsStmReadAxi4Stream
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axi4s import Axi4Stream
 from hwtLib.types.net.ethernet import Eth2Header_t, eth_mac_t
-from hwtHls.io.amba.axi4Stream.stmRead import HlsStmReadAxi4Stream
-from hwtHls.frontend.ast.statementsRead import HlsStmReadStartOfFrame, \
-    HlsStmReadEndOfFrame
 
 
 class Axi4SParseEth(HwModule):
 
-    def _config(self) -> None:
+    @override
+    def hwConfig(self) -> None:
         self.DATA_WIDTH = HwParam(512)
         self.CLK_FREQ = HwParam(int(100e6))
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
         with self._hwParamsShared():
@@ -29,7 +32,8 @@ class Axi4SParseEth(HwModule):
             self.dst_mac: HwIOStructRdVld[eth_mac_t] = HwIOStructRdVld()._m()
             self.dst_mac.T = eth_mac_t
 
-    def _impl(self) -> None:
+    @override
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
 
         # :note: the read has to be put somewhere in the code later

@@ -30,10 +30,10 @@ class TREE_ORDER(Enum):
 
 class HlsNetlistBitwiseOpsPreorder0HwModule(HwModule):
 
-    def _config(self) -> None:
+    def hwConfig(self) -> None:
         self.CLK_FREQ = HwParam(int(100e6))
 
-    def _declr(self) -> None:
+    def hwDeclr(self) -> None:
         # added because of sim agent
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
@@ -83,7 +83,7 @@ class HlsNetlistBitwiseOpsPreorder0HwModule(HwModule):
             
         link_hls_nodes(i0andI1andI2, o._inputs[0])
 
-    def _impl(self, treeOrder:TREE_ORDER=TREE_ORDER.PRE) -> None:
+    def hwImpl(self, treeOrder:TREE_ORDER=TREE_ORDER.PRE) -> None:
         hls = HlsScope(self, self.CLK_FREQ)
         hls.addThread(HlsThreadFromNetlist(hls, lambda netlist: self.mainThread(netlist, treeOrder)))
         hls.compile()
@@ -91,14 +91,14 @@ class HlsNetlistBitwiseOpsPreorder0HwModule(HwModule):
 
 class HlsNetlistBitwiseOpsInorder0HwModule(HlsNetlistBitwiseOpsPreorder0HwModule):
 
-    def _impl(self) -> None:
-        HlsNetlistBitwiseOpsPreorder0HwModule._impl(self, treeOrder=TREE_ORDER.IN)
+    def hwImpl(self) -> None:
+        HlsNetlistBitwiseOpsPreorder0HwModule.hwImpl(self, treeOrder=TREE_ORDER.IN)
 
 
 class HlsNetlistBitwiseOpsPostorder0HwModule(HlsNetlistBitwiseOpsPreorder0HwModule):
 
-    def _impl(self) -> None:
-        HlsNetlistBitwiseOpsPreorder0HwModule._impl(self, treeOrder=TREE_ORDER.POST)
+    def hwImpl(self) -> None:
+        HlsNetlistBitwiseOpsPreorder0HwModule.hwImpl(self, treeOrder=TREE_ORDER.POST)
 
 
 class HlsNetlistBitwiseOpsTC(SimTestCase):

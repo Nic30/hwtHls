@@ -1,6 +1,7 @@
 from hwt.doc_markers import internal
-from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.const import HConst
+from hwt.hdl.types.hdlType import HdlType
+from hwt.pyUtils.typingFuture import override
 
 
 class _HVoidOrdering(HdlType):
@@ -12,6 +13,7 @@ class _HVoidOrdering(HdlType):
         return 0
 
     @internal
+    @override
     @classmethod
     def getConstCls(cls):
         try:

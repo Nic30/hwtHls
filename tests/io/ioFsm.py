@@ -8,6 +8,7 @@ from hwt.hwIOs.std import HwIOVectSignal
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
+from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.scope import HlsScope
@@ -15,17 +16,20 @@ from hwtHls.scope import HlsScope
 
 class WriteFsm0WhileTrue123(HwModule):
 
-    def _config(self) -> None:
+    @override
+    def hwConfig(self) -> None:
         self.DATA_WIDTH = HwParam(8)
         self.CLK_FREQ = HwParam(int(100e6))
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
 
         self.o: HwIOVectSignal = HwIOVectSignal(self.DATA_WIDTH, signed=False)._m()
 
-    def _impl(self) -> None:
+    @override
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
@@ -42,7 +46,8 @@ class WriteFsm0WhileTrue123(HwModule):
 
 class WriteFsm0Send123(WriteFsm0WhileTrue123):
 
-    def _impl(self) -> None:
+    @override
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         hls.addThread(
             HlsThreadFromAst(hls, [
@@ -57,7 +62,8 @@ class WriteFsm0Send123(WriteFsm0WhileTrue123):
 
 class WriteFsm1WhileTrue123hs(WriteFsm0WhileTrue123):
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
 
@@ -67,24 +73,28 @@ class WriteFsm1WhileTrue123hs(WriteFsm0WhileTrue123):
 
 class WriteFsm1Send123hs(WriteFsm1WhileTrue123hs):
 
-    def _impl(self) -> None:
-        WriteFsm0Send123._impl(self)
+    @override
+    def hwImpl(self) -> None:
+        WriteFsm0Send123.hwImpl(self)
 
 
 class ReadFsm0WhileTrueRead3TimesWriteConcat(HwModule):
 
-    def _config(self) -> None:
+    @override
+    def hwConfig(self) -> None:
         self.DATA_WIDTH = HwParam(8)
         self.CLK_FREQ = HwParam(int(100e6))
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
 
         self.i = HwIOVectSignal(self.DATA_WIDTH)
         self.o = HwIOVectSignal(3 * self.DATA_WIDTH)._m()
 
-    def _impl(self) -> None:
+    @override
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         r = [hls.read(self.i) for _ in range(3)]
         ast = HlsAstBuilder(hls)
@@ -100,7 +110,8 @@ class ReadFsm0WhileTrueRead3TimesWriteConcat(HwModule):
 
 class ReadFsm0Read3TimesWriteConcat(ReadFsm0WhileTrueRead3TimesWriteConcat):
 
-    def _impl(self) -> None:
+    @override
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         r = [hls.read(self.i) for _ in range(3)]
         hls.addThread(HlsThreadFromAst(hls, [
@@ -114,7 +125,8 @@ class ReadFsm0Read3TimesWriteConcat(ReadFsm0WhileTrueRead3TimesWriteConcat):
 
 class ReadFsm1WhileTrueRead3TimesWriteConcatHs(ReadFsm0WhileTrueRead3TimesWriteConcat):
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
 
@@ -126,8 +138,9 @@ class ReadFsm1WhileTrueRead3TimesWriteConcatHs(ReadFsm0WhileTrueRead3TimesWriteC
 
 class ReadFsm1Read3TimesWriteConcatHs(ReadFsm1WhileTrueRead3TimesWriteConcatHs):
 
-    def _impl(self) -> None:
-        ReadFsm0Read3TimesWriteConcat._impl(self)
+    @override
+    def hwImpl(self) -> None:
+        ReadFsm0Read3TimesWriteConcat.hwImpl(self)
 
 
 if __name__ == "__main__":

@@ -12,11 +12,11 @@ from hwtLib.types.ctypes import uint8_t
 
 class ForLoopWithIoSelectIn(HwModule):
 
-    def _config(self) -> None:
+    def hwConfig(self) -> None:
         self.DATA_WIDTH = HwParam(8)
         self.FREQ = HwParam(int(100e6))
 
-    def _declr(self) -> None:
+    def hwDeclr(self) -> None:
         addClkRstn(self)
         self.clk.FREQ = self.FREQ
         self.dataIn: HObjList[HwIOStructRdVld] = HObjList(HwIOStructRdVld() for _ in range(3))
@@ -25,7 +25,7 @@ class ForLoopWithIoSelectIn(HwModule):
         self.dataOut0: HwIOStructRdVld = HwIOStructRdVld()._m()
         self.dataOut0.T = HBits(self.DATA_WIDTH, signed=False)
 
-    def _impl(self) -> None:
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         din = self.dataIn
         res = hls.var("res", self.dataOut0.T)
@@ -54,7 +54,7 @@ class ForLoopWithIoSelectIn(HwModule):
 
 class SumReduce(ForLoopWithIoSelectIn):
 
-    def _impl(self) -> None:
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         din = self.dataIn
         res = hls.var("res", self.dataOut0.T)

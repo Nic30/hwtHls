@@ -3,8 +3,9 @@
 
 from hwt.hwIOs.std import HwIODataRdVld
 from hwt.hwIOs.utils import addClkRstn
-from hwt.hwParam import HwParam
 from hwt.hwModule import HwModule
+from hwt.hwParam import HwParam
+from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.platform.virtual import VirtualHlsPlatform
@@ -16,18 +17,21 @@ from tests.baseSsaTest import BaseSsaTC
 
 class ReadIfOtherEqual(HwModule):
 
-    def _config(self):
+    @override
+    def hwConfig(self):
         self.FREQ = HwParam(int(100e6))
         self.DATA_WIDTH = HwParam(8)
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.clk.FREQ = self.FREQ
         with self._hwParamsShared():
             self.a = HwIODataRdVld()
             self.b = HwIODataRdVld()
 
-    def _impl(self) -> None:
+    @override
+    def hwImpl(self) -> None:
         hls = HlsScope(self, freq=self.FREQ)
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
@@ -43,7 +47,8 @@ class ReadIfOtherEqual(HwModule):
 
 class ReadIfOtherEqualOnce(ReadIfOtherEqual):
 
-    def _impl(self) -> None:
+    @override
+    def hwImpl(self) -> None:
         hls = HlsScope(self, freq=self.FREQ)
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,

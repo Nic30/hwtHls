@@ -5,6 +5,7 @@ from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.std import HwIOVectSignal
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
+from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeLLVMLoopUnroll
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
@@ -14,7 +15,8 @@ from hwtLib.types.ctypes import uint8_t
 
 class InfLoopUnrollDissable(HwModule):
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         self.o = HwIOVectSignal(8, signed=False)._m()
         addClkRstn(self)
 
@@ -26,7 +28,8 @@ class InfLoopUnrollDissable(HwModule):
             i += 1
             PyBytecodeLLVMLoopUnroll(False, None)
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self)
         hls.addThread(HlsThreadFromPy(hls, self.mainThread, hls))
         hls.compile()
@@ -35,6 +38,7 @@ class InfLoopUnrollDissable(HwModule):
 class InfLoopUnrollCount(InfLoopUnrollDissable):
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         i = uint8_t.from_py(0)
         while BIT.from_py(1):

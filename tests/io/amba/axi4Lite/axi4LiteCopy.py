@@ -4,6 +4,7 @@
 from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwParam import HwParam
+from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.io.amba.axi4Lite import Axi4LiteArrayProxy
@@ -18,14 +19,16 @@ class Axi4LiteCopy(BramRead):
     Sequentially read data from Axi4Lite port and write it using same interface with address after beginning at specified OFFSET.
     """
 
-    def _config(self) -> None:
+    @override
+    def hwConfig(self) -> None:
         self.CLK_FREQ = HwParam(int(100e6))
         self.ADDR_WIDTH = HwParam(5 + 3)
         self.OFFSET = HwParam(16)  # specified in bus words
         self.SIZE = HwParam(8)  # specified in bus words
         self.DATA_WIDTH = HwParam(64)
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
 
@@ -46,7 +49,8 @@ class Axi4LiteCopy(BramRead):
             else:
                 i += 1
 
-    def _impl(self) -> None:
+    @override
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         ram = Axi4LiteArrayProxy(hls, self.ram)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, ram)

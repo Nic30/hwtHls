@@ -36,12 +36,12 @@ class HashTableCuckoo(HwModule):
         also used to store items if the table is full
     """
 
-    def _config(self) -> None:
-        HashTableCmd._config(self)
+    def hwConfig(self) -> None:
+        HashTableCmd.hwConfig(self)
         self.STASH_CAM_SIZE = HwParam(3)
         self.CLK_FREQ = HwParam(int(40e6))
 
-    def _declr(self) -> None:
+    def hwDeclr(self) -> None:
         assert self.TABLE_CNT > 0
         assert self.ITEMS_PER_TABLE >= 2
         assert self.STASH_CAM_SIZE >= 1
@@ -174,7 +174,7 @@ class HashTableCuckoo(HwModule):
 
             hls.write(res, self.cmdRes)
 
-    def _impl(self) -> None:
+    def hwImpl(self) -> None:
         propagateClkRstn(self)
         hls = HlsScope(self)
         rams = [BramArrayProxy(hls, MultiPortGroup(t.port)) for t in self.tableRams]

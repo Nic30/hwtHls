@@ -16,14 +16,17 @@ from hwtLib.examples.errors.combLoops import freeze_set_of_sets
 from hwtLib.types.ctypes import uint8_t
 from hwtSimApi.utils import freq_to_period
 from pyMathBitPrecise.bit_utils import mask
+from hwt.pyUtils.typingFuture import override
 
 
 class AndShiftInLoop2(HwModule):
 
-    def _config(self) -> None:
+    @override
+    def hwConfig(self) -> None:
         self.FREQ = HwParam(int(100e6))
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.clk.FREQ = self.FREQ
         self.i = HwIOVectSignal(8, signed=False)
@@ -42,7 +45,8 @@ class AndShiftInLoop2(HwModule):
             i1 &= (i0 << 1)
             hls.write(i1, self.o)
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls)
         hls.addThread(mainThread)
@@ -51,10 +55,12 @@ class AndShiftInLoop2(HwModule):
 
 class AndShiftInLoop3(HwModule):
 
-    def _config(self) -> None:
+    @override
+    def hwConfig(self) -> None:
         self.FREQ = HwParam(int(100e6))
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.clk.FREQ = self.FREQ
         self.i = HwIOVectSignal(8, signed=False)
@@ -74,7 +80,8 @@ class AndShiftInLoop3(HwModule):
             i2 &= (i2 << 1)
             hls.write(i2, self.o)
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls)
         hls.addThread(mainThread)

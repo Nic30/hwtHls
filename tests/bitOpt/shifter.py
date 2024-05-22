@@ -27,11 +27,11 @@ from hwtHls.scope import HlsScope
 
 class ShifterLeft0(HwModule):
 
-    def _config(self) -> None:
+    def hwConfig(self) -> None:
         self.DATA_WIDTH = HwParam(8)
         self.CLK_FREQ = HwParam(int(100e6))
 
-    def _declr(self) -> None:
+    def hwDeclr(self) -> None:
         addClkRstn(self)
         self.i = HwIOSignal(HBits(self.DATA_WIDTH))
         self.sh = HwIOSignal(HBits(log2ceil(self.DATA_WIDTH)))
@@ -52,7 +52,7 @@ class ShifterLeft0(HwModule):
                     v <<= 1
             hls.write(v, self.o)
 
-    def _impl(self) -> None:
+    def hwImpl(self) -> None:
         hls = HlsScope(self)
         hls.addThread(HlsThreadFromPy(hls, self.mainThread, hls))
         hls.compile()
@@ -80,12 +80,12 @@ class ShifterLeft1(ShifterLeft0):
 
 class ShifterLeftUsingHwLoopWithWhileNot0(ShifterLeft0):
 
-    def _config(self) -> None:
-        super(ShifterLeftUsingHwLoopWithWhileNot0, self)._config()
+    def hwConfig(self) -> None:
+        super(ShifterLeftUsingHwLoopWithWhileNot0, self).hwConfig()
         self.UNROLL_META: Optional[PyBytecodeLLVMLoopUnroll] = HwParam(None)
         self.FN_META: Optional[PyBytecodeLLVMLoopUnroll] = HwParam(None)
 
-    def _declr(self) -> None:
+    def hwDeclr(self) -> None:
         """
         Use handshake for sync of IO because the implementation may not be fully pipelined.
         """

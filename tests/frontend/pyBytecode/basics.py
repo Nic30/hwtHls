@@ -7,6 +7,7 @@ from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.std import HwIOVectSignal
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
+from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
@@ -16,7 +17,8 @@ from hwtLib.types.ctypes import uint32_t, uint8_t
 
 class HlsConnectionFromPyFn0(HwModule):
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         self.i = HwIOVectSignal(8, signed=False)
         self.o = HwIOVectSignal(8, signed=False)._m()
 
@@ -25,7 +27,8 @@ class HlsConnectionFromPyFn0(HwModule):
         while BIT.from_py(1):
             hls.write(hls.read(self.i).data, self.o)
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self, freq=int(10e6))
         hls.addThread(HlsThreadFromPy(hls, self.mainThread, hls))
         hls.compile()
@@ -34,6 +37,7 @@ class HlsConnectionFromPyFn0(HwModule):
 class HlsConnectionFromPyFnTmpVar(HlsConnectionFromPyFn0):
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
             v = hls.read(self.i).data
@@ -43,6 +47,7 @@ class HlsConnectionFromPyFnTmpVar(HlsConnectionFromPyFn0):
 class HlsConnectionFromPyFnPreprocTmpVar0(HlsConnectionFromPyFn0):
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
             o = PyBytecodeInPreproc(self.o)
@@ -52,6 +57,7 @@ class HlsConnectionFromPyFnPreprocTmpVar0(HlsConnectionFromPyFn0):
 class HlsConnectionFromPyFnPreprocTmpVar1(HlsConnectionFromPyFn0):
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         o = PyBytecodeInPreproc(self.o)
         while BIT.from_py(1):
@@ -60,22 +66,26 @@ class HlsConnectionFromPyFnPreprocTmpVar1(HlsConnectionFromPyFn0):
 
 class HlsConnectionFromPyFn1(HwModule):
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         self.i = HwIOVectSignal(8 - 4, signed=False)
         self.o = HwIOVectSignal(8, signed=False)._m()
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
             hls.write(Concat(hls.read(self.i).data, HBits(4).from_py(0)), self.o)
 
-    def _impl(self):
-        HlsConnectionFromPyFn0._impl(self)
+    @override
+    def hwImpl(self):
+        HlsConnectionFromPyFn0.hwImpl(self)
 
 
 class HlsConnectionFromPyFnIfTmpVar(HlsConnectionFromPyFn0):
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
             a: uint32_t = hls.read(self.i).data
@@ -88,6 +98,7 @@ class HlsConnectionFromPyFnIfTmpVar(HlsConnectionFromPyFn0):
 class HlsConnectionFromPyFnIf(HlsConnectionFromPyFn0):
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
             if hls.read(self.i).data._eq(3):
@@ -99,6 +110,7 @@ class HlsConnectionFromPyFnIf(HlsConnectionFromPyFn0):
 class HlsConnectionFromPyFnIfIf(HlsConnectionFromPyFn0):
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
             a = hls.read(self.i).data
@@ -116,6 +128,7 @@ class HlsConnectionFromPyFnIfIf(HlsConnectionFromPyFn0):
 class HlsConnectionFromPyFnElif(HlsConnectionFromPyFn0):
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
             a = hls.read(self.i).data
@@ -129,11 +142,13 @@ class HlsConnectionFromPyFnElif(HlsConnectionFromPyFn0):
 
 class HlsConnectionFromPyFnWhile(HlsConnectionFromPyFn0):
 
-    def _declr(self):
-        HlsConnectionFromPyFn0._declr(self)
+    @override
+    def hwDeclr(self):
+        HlsConnectionFromPyFn0.hwDeclr(self)
         addClkRstn(self)
 
     @hlsBytecode
+    @override
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
             v = uint8_t.from_py(0)
@@ -146,7 +161,8 @@ class HlsConnectionFromPyFnWhile(HlsConnectionFromPyFn0):
 
 class HlsConnectionFromPyFnKwArgs(HwModule):
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         self.i = HwIOVectSignal(8, signed=False)
         self.o = HwIOVectSignal(8, signed=False)._m()
 
@@ -155,7 +171,8 @@ class HlsConnectionFromPyFnKwArgs(HwModule):
         while BIT.from_py(1):
             hls.write(kwArg, self.o)
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self, freq=int(100e6))
         hls.addThread(HlsThreadFromPy(hls, self.mainThread, hls, kwArg=10))
         hls.compile()

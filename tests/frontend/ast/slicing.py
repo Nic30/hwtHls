@@ -3,9 +3,10 @@
 
 from hwt.code import Concat
 from hwt.constants import Time
+from hwt.hdl.types.bits import HBits
 from hwt.hwIOs.std import HwIOVectSignal
 from hwt.hwModule import HwModule
-from hwt.hdl.types.bits import HBits
+from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.platform.virtual import VirtualHlsPlatform
@@ -16,11 +17,13 @@ from tests.baseSsaTest import BaseSsaTC
 
 class HlsConnection(HwModule):
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         self.a = HwIOVectSignal(32, signed=False)
         self.b = HwIOVectSignal(32, signed=False)._m()
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self, freq=int(100e6))
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
@@ -35,11 +38,13 @@ class HlsConnection(HwModule):
 
 class HlsSlice(HwModule):
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         self.a = HwIOVectSignal(32, signed=False)
         self.b = HwIOVectSignal(16, signed=False)._m()
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self, freq=int(100e6))
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
@@ -54,11 +59,13 @@ class HlsSlice(HwModule):
 
 class HlsSlice2TmpHlsVarConcat(HwModule):
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         self.a = HwIOVectSignal(16, signed=False)
         self.b = HwIOVectSignal(32, signed=False)._m()
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self, freq=int(100e6))
         tmp = hls.var("tmp", self.b._dtype)
         ast = HlsAstBuilder(hls)
@@ -74,7 +81,8 @@ class HlsSlice2TmpHlsVarConcat(HwModule):
 
 # class HlsSlice2(HlsSlice2TmpHlsVarConcat):
 #
-#    def _impl(self):
+#    @override
+#    def hwImpl(self):
 #        hls = HlsScope(self, freq=int(100e6))
 #        ast = HlsAstBuilder(hls)
 #        hls.addThread(HlsThreadFromAst(hls,
@@ -88,7 +96,8 @@ class HlsSlice2TmpHlsVarConcat(HwModule):
 
 class HlsSlice2TmpHlsVarSlice(HlsSlice2TmpHlsVarConcat):
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self, freq=int(100e6))
         tmp = hls.var("tmp", self.b._dtype)
         ast = HlsAstBuilder(hls)

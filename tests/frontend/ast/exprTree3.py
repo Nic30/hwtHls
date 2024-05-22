@@ -3,8 +3,9 @@
 
 from hwt.hwIOs.std import HwIOVectSignal
 from hwt.hwIOs.utils import addClkRstn
-from hwt.hwParam import HwParam
 from hwt.hwModule import HwModule
+from hwt.hwParam import HwParam
+from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.platform.virtual import VirtualHlsPlatform
@@ -15,10 +16,12 @@ from tests.baseSsaTest import BaseSsaTC
 
 class HlsAstExprTree3_example(HwModule):
 
-    def _config(self):
+    @override
+    def hwConfig(self):
         self.CLK_FREQ = HwParam(int(40e6))
 
-    def _declr(self):
+    @override
+    def hwDeclr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
 
@@ -36,7 +39,8 @@ class HlsAstExprTree3_example(HwModule):
         self.f2 = HwIOVectSignal(32, signed=False)._m()
         self.f3 = HwIOVectSignal(32, signed=False)._m()
 
-    def _impl(self):
+    @override
+    def hwImpl(self):
         hls = HlsScope(self)
         r = hls.read
         _a, _b, _c, _d = r(self.a), r(self.b), r(self.c), r(self.d)
