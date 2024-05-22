@@ -8,7 +8,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.nodes.schedulableNode import OutputMinUseTimeGetter, \
     SchedTime
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
-from hwtHls.typingFuture import override
+from hwt.pyUtils.typingFuture import override
 
 
 class HlsNetNodeDelayClkTick(HlsNetNode):

@@ -30,7 +30,7 @@ from hwtHls.ssa.translation.llvmMirToNetlist.resetValueExtract import ResetValue
 from hwtHls.ssa.translation.llvmMirToNetlist.utils import _createSyncForAnyInputSelector, \
     LoopPortGroup
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
-from hwtHls.typingFuture import override
+from hwt.pyUtils.typingFuture import override
 
 
 class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatapath):

@@ -14,7 +14,7 @@ from hwtHls.netlist.nodes.archElementFsm import ArchElementFsm
 from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
-from hwtHls.typingFuture import override
+from hwt.pyUtils.typingFuture import override
 
 
 class HlsNetlistPassAggregateArchElements(HlsNetlistPass):

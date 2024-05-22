@@ -38,7 +38,7 @@ from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import start_clk, indexOfClkPeriod
 from hwtHls.platform.opRealizationMeta import EMPTY_OP_REALIZATION
-from hwtHls.typingFuture import override
+from hwt.pyUtils.typingFuture import override
 from hwtLib.handshaked.streamNode import StreamNode, HwIOOrValidReadyTuple, \
     ValidReadyTuple
 from hwtLib.logic.rtlSignalBuilder import RtlSignalBuilder

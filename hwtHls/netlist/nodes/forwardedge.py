@@ -13,7 +13,7 @@ from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
-from hwtHls.typingFuture import override
+from hwt.pyUtils.typingFuture import override
 
 
 class HlsNetNodeReadForwardedge(HlsNetNodeRead):

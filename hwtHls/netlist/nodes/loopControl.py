@@ -24,7 +24,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut, link_hls_nodes, \
     HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.typingFuture import override
+from hwt.pyUtils.typingFuture import override
 from hwtLib.logic.rtlSignalBuilder import RtlSignalBuilder
 
 

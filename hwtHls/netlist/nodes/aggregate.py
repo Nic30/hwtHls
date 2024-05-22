@@ -13,7 +13,7 @@ from hwtHls.netlist.nodes.schedulableNode import SchedulizationDict, OutputTimeG
 from hwtHls.netlist.scheduler.clk_math import offsetInClockCycle, \
     indexOfClkPeriod
 from hwtHls.platform.opRealizationMeta import EMPTY_OP_REALIZATION
-from hwtHls.typingFuture import override
+from hwt.pyUtils.typingFuture import override
 
 
 class HlsNetNodeAggregatePortIn(HlsNetNode):

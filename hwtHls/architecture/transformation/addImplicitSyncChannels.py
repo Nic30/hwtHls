@@ -11,7 +11,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
     link_hls_nodes
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.scheduler.clk_math import start_clk
-from hwtHls.typingFuture import override
+from hwt.pyUtils.typingFuture import override
 
 
 SyncCacheKey = Tuple[int, ArchElement, ArchElement]

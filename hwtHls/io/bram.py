@@ -33,7 +33,7 @@ from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import Machin
 from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
 from hwtHls.ssa.value import SsaValue
-from hwtHls.typingFuture import override
+from hwt.pyUtils.typingFuture import override
 
 
 AnyBramPort = Union[HwIOBramPort_noClk, BankedPortGroup[HwIOBramPort_noClk], MultiPortGroup[HwIOBramPort_noClk]]

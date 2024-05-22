@@ -9,7 +9,7 @@ from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.phi import SsaPhi
 from hwtHls.ssa.transformation.ssaPass import SsaPass
 from hwtHls.ssa.value import SsaValue
-from hwtHls.typingFuture import override
+from hwt.pyUtils.typingFuture import override
 
 
 _ValOrVal = (HConst, SsaValue)

@@ -14,7 +14,7 @@ from hwtHls.netlist.nodes.schedulableNode import OutputTimeGetter, OutputMinUseT
 from hwtHls.netlist.scheduler.clk_math import start_of_next_clk_period, \
     indexOfClkPeriod
 from hwtHls.netlist.scheduler.errors import TimeConstraintError
-from hwtHls.typingFuture import override
+from hwt.pyUtils.typingFuture import override
 
 
 class HlsNetNodeBitwiseOps(HlsNetNodeAggregate):

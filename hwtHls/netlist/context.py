@@ -14,7 +14,7 @@ from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.observableList import ObservableList, ObservableListRm
 from hwtHls.netlist.scheduler.scheduler import HlsScheduler
 from hwtHls.ssa.analysisCache import AnalysisCache
-from hwtHls.typingFuture import override
+from hwt.pyUtils.typingFuture import override
 
 
 class HlsNetlistCtx(AnalysisCache):

@@ -142,7 +142,7 @@ class TimeIndependentRtlResource():
         if isinstance(sig.data, HwIO):
             name = sig.data._getHdlName()
         else:
-            name = sig.data.name
+            name = sig.data._name
         # allocate specified number of registers to pass value to specified pipeline stage
 
         prev = self.valuesInTime[-1]

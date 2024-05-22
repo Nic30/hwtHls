@@ -16,7 +16,7 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.scheduler.clk_math import offsetInClockCycle
-from hwtHls.typingFuture import override
+from hwt.pyUtils.typingFuture import override
 
 
 class ArchElementNoSync(ArchElement):

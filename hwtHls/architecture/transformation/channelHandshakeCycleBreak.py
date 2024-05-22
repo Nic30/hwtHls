@@ -35,7 +35,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.writeHsSCCSync import HlsNetNodeWriteHsSccSync
 from hwtHls.netlist.scheduler.clk_math import offsetInClockCycle
-from hwtHls.typingFuture import override
+from hwt.pyUtils.typingFuture import override
 from hwtHls.architecture.transformation.utils.termPropagationContext import ArchElementTermPropagationCtx, \
     exportPortFromArchElement, importPortToArchElement
 from hwtHls.architecture.transformation.utils.dummyScheduling import scheduleUnscheduledControlLogic

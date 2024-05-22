@@ -31,7 +31,7 @@ from hwtHls.ssa.exprBuilder import SsaExprBuilder
 from hwtHls.ssa.instr import SsaInstr, SsaInstrBranch
 from hwtHls.ssa.transformation.utils.blockAnalysis import collect_all_blocks
 from hwtHls.ssa.value import SsaValue
-from hwtHls.typingFuture import override
+from hwt.pyUtils.typingFuture import override
 
 
 AnyStm = Union[HdlAssignmentContainer, HlsStm]

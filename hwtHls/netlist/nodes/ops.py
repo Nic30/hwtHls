@@ -9,7 +9,7 @@ from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.typeUtils import dtypeEqualSignIgnore
-from hwtHls.typingFuture import override
+from hwt.pyUtils.typingFuture import override
 
 
 class HlsNetNodeOperator(HlsNetNode):
@@ -84,13 +84,13 @@ class HlsNetNodeOperator(HlsNetNode):
             t = self.scheduledOut[0] + self.netlist.scheduler.epsilon
             if s.hasGenericName:
                 if self.name is not None:
-                    s.name = f"{allocator.name:s}{self.name:s}"
+                    s._name = f"{allocator.name:s}{self.name:s}"
                 else:
-                    s.name = f"{allocator.name:s}n{self._id:d}"
+                    s._name = f"{allocator.name:s}n{self._id:d}"
 
                 if self.netlist._dbgAddSignalNamesToData and s.hidden:
                     # create an explicit rename of this potentially hidden signal
-                    s = rename_signal(allocator.netlist.parentHwModule, s, s.name)
+                    s = rename_signal(allocator.netlist.parentHwModule, s, s._name)
 
         if dtypeEqualSignIgnore(s._dtype, op_out._dtype):
             if HdlType_isVoid(s._dtype):

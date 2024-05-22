@@ -13,7 +13,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
     link_hls_nodes, HlsNetNodeOutLazy
 from hwtHls.netlist.scheduler.clk_math import epsilon
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
-from hwtHls.typingFuture import override
+from hwt.pyUtils.typingFuture import override
 
 
 IO_COMB_REALIZATION = OpRealizationMeta(outputWireDelay=epsilon)

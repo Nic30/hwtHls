@@ -23,7 +23,7 @@ from hwtHls.netlist.nodes.schedulableNode import OutputTimeGetter, \
     OutputMinUseTimeGetter, SchedulizationDict
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
 from hwtHls.ssa.value import SsaValue
-from hwtHls.typingFuture import override
+from hwt.pyUtils.typingFuture import override
 from hwtLib.handshaked.streamNode import HwIOOrValidReadyTuple
 
 

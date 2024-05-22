@@ -10,7 +10,7 @@ from hwtHls.netlist.nodes.archElementFsm import ArchElementFsm
 from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.typingFuture import override
+from hwt.pyUtils.typingFuture import override
 from hwtHls.io.portGroups import MultiPortGroup, BankedPortGroup
 
 

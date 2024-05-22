@@ -3,7 +3,7 @@ from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlRes
 from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.archElement import ArchElement
-from hwtHls.typingFuture import override
+from hwt.pyUtils.typingFuture import override
 from hwtLib.abstract.componentBuilder import AbstractComponentBuilder
 from hwtLib.examples.hierarchy.extractHierarchy import extractRegsToSubmodule
 

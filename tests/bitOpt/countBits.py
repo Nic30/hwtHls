@@ -167,7 +167,7 @@ if __name__ == "__main__":
     import sys
 
     sys.setrecursionlimit(int(1e6))
-    m = CountLeadingOnes()
+    m = CountLeadingZeros()
     m.DATA_WIDTH = 4
 
     print(to_rtl_str(m, target_platform=Artix7Fast(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

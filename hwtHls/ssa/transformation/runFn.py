@@ -2,7 +2,7 @@ from typing import Callable
 
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.ssa.transformation.ssaPass import SsaPass
-from hwtHls.typingFuture import override
+from hwt.pyUtils.typingFuture import override
 
 
 class SsaPassRunFn(SsaPass):

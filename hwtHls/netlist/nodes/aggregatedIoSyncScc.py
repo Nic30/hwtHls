@@ -9,7 +9,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.schedulableNode import SchedulizationDict, OutputTimeGetter, \
     OutputMinUseTimeGetter, SchedTime
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
-from hwtHls.typingFuture import override
+from hwt.pyUtils.typingFuture import override
 
 
 class HlsNetNodeIoSyncScc(HlsNetNodeAggregate):

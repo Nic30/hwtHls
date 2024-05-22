@@ -2,7 +2,7 @@ from hwt.hdl.types.array import HArray
 from hwt.hdl.const import HConst
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.typingFuture import override
+from hwt.pyUtils.typingFuture import override
 
 
 class HlsNetNodeConst(HlsNetNode):

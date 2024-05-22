@@ -25,7 +25,7 @@ from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.schedulableNode import OutputMinUseTimeGetter
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
-from hwtHls.typingFuture import override
+from hwt.pyUtils.typingFuture import override
 from hwtLib.handshaked.builder import HsBuilder
 from hwtLib.logic.rtlSignalBuilder import RtlSignalBuilder
 

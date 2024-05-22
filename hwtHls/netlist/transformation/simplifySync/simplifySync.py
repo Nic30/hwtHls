@@ -22,7 +22,7 @@ from hwtHls.netlist.transformation.simplifySync.simplifyNonBlockingIo import net
 from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import netlistOrderingReduce, netlistTrivialOrderingReduce
 from hwtHls.netlist.transformation.simplifySync.simplifySyncIsland import netlistReduceExplicitSyncDissolve
 from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge
-from hwtHls.typingFuture import override
+from hwt.pyUtils.typingFuture import override
 
 
 class HlsNetlistPassSimplifySync(HlsNetlistPass):

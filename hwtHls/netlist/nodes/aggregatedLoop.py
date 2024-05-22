@@ -8,7 +8,7 @@ from hwtHls.netlist.nodes.schedulableNode import OutputTimeGetter, \
     OutputMinUseTimeGetter, SchedulizationDict, SchedTime
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
 from hwtHls.netlist.scheduler.errors import TimeConstraintError
-from hwtHls.typingFuture import override
+from hwt.pyUtils.typingFuture import override
 
 
 class HlsNetNodeLoop(HlsNetNodeAggregate):

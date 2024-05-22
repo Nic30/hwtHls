@@ -2,7 +2,7 @@ from hwt.hdl.types.defs import BIT
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.typingFuture import override
+from hwt.pyUtils.typingFuture import override
 
 
 class HlsNetNodeFsmStateEn(HlsNetNode):

@@ -5,7 +5,7 @@ from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HVoidOrdering
 from hwtHls.netlist.nodes.explicitSync import IO_COMB_REALIZATION
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.typingFuture import override
+from hwt.pyUtils.typingFuture import override
 
 
 class HlsNetNodeIoClusterCore(HlsNetNode):

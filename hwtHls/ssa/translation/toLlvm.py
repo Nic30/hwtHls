@@ -35,7 +35,7 @@ from hwtHls.ssa.phi import SsaPhi
 from hwtHls.ssa.transformation.ssaPass import SsaPass
 from hwtHls.ssa.transformation.utils.blockAnalysis import collect_all_blocks
 from hwtHls.ssa.value import SsaValue
-from hwtHls.typingFuture import override
+from hwt.pyUtils.typingFuture import override
 from hwtLib.amba.axi4Lite import Axi4Lite
 from hwtLib.types.ctypes import uint32_t
 from pyMathBitPrecise.bit_utils import iter_bits_sequences, get_bit_range

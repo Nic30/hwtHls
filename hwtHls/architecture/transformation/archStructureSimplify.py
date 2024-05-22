@@ -9,7 +9,7 @@ from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
 from hwtHls.netlist.nodes.archElementUtils import ArchElement_merge
 from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge, \
     HlsNetNodeWriteForwardedge
-from hwtHls.typingFuture import override
+from hwt.pyUtils.typingFuture import override
 
 
 class RtlArchPassArchStructureSimplfy(RtlArchPass):

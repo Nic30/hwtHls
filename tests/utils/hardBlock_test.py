@@ -18,7 +18,7 @@ from hwtHls.ssa.translation.llvmMirToNetlist.insideOfBlockSyncTracker import Ins
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
-from hwtHls.typingFuture import override
+from hwt.pyUtils.typingFuture import override
 from tests.frontend.pyBytecode.stmWhile import TRUE
 
 

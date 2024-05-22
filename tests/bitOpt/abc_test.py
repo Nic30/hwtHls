@@ -351,7 +351,7 @@ class AbcTC(unittest.TestCase):
                 assert nIndex > 0
                 if nIndex <= 9:
                     assert res[nIndex - 1] is None, res[nIndex - 1]
-                    v = valDict[rtlI.name]
+                    v = valDict[rtlI._name]
                     res[nIndex - 1] = v
             return res
 

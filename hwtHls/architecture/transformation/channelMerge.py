@@ -32,7 +32,7 @@ from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
 from hwtHls.netlist.scheduler.scheduler import asapSchedulePartlyScheduled
 from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import netlistExplicitSyncDisconnectFromOrderingChain
 from hwtHls.netlist.transformation.simplifyUtils import hasInputSameDriver
-from hwtHls.typingFuture import override
+from hwt.pyUtils.typingFuture import override
 
 
 AnyChannelIo = Union[HlsNetNodeRead, HlsNetNodeWrite]

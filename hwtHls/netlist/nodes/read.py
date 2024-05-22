@@ -24,7 +24,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
 from hwtHls.netlist.nodes.schedulableNode import SchedulizationDict, OutputTimeGetter, \
     OutputMinUseTimeGetter, SchedTime
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
-from hwtHls.typingFuture import override
+from hwt.pyUtils.typingFuture import override
 from hwtLib.handshaked.streamNode import HwIOOrValidReadyTuple
 from ipCorePackager.constants import INTF_DIRECTION_asDirecton, \
     DIRECTION_opposite, DIRECTION, INTF_DIRECTION
@@ -324,7 +324,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
                 name = self.name
                 if name is None:
                     name = f"r{self._id}_data"
-                res.name = name
+                res._name = name
 
         return res
 

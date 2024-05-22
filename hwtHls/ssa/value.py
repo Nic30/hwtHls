@@ -19,7 +19,7 @@ class SsaValue():
         if name is None:
             name = ctx.genName(self)
             if isinstance(origin, RtlSignalBase) and not origin.hasGenericName:
-                name = f"{name}({origin.name:s})"
+                name = f"{name}({origin._name:s})"
             
         self._name = name
         self._dtype = dtype
