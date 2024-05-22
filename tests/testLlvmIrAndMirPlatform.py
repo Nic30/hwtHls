@@ -3,7 +3,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Optional, Union, Callable, Set, List
 
-from hwt.hdl.value import HValue
+from hwt.hdl.const import HConst
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.llvm.llvmIr import LlvmCompilationBundle, MachineFunction, IntentionalCompilationInterupt, \
     StringRef, Any, AnyToFunction, AnyToModule, AnyToLoop, Module, Function
@@ -21,7 +21,7 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
 
     class TEST_NO_OPT_IR:
         """
-        This is a constant used for :meth:`TestLlvmIrAndMirPlatform.forSimpleDataInDataOutUnit` to automatically generate
+        This is a constant used for :meth:`TestLlvmIrAndMirPlatform.forSimpleDataInDataOutHwModule` to automatically generate
         noOptIrTest.
         """
 
@@ -125,9 +125,9 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
         return netlist
 
     @classmethod
-    def forSimpleDataInDataOutUnit(cls,
+    def forSimpleDataInDataOutHwModule(cls,
                                    prepareDataInFn: Callable[[], None],
-                                   checkDataOutFn: Callable[[Union[List[HValue], List[List[HValue]]]], None],
+                                   checkDataOutFn: Callable[[Union[List[HConst], List[List[HConst]]]], None],
                                    logFileNameStem: Optional[Union[Path, str]],
                                    inputCnt=1,
                                    outputCnt=1,

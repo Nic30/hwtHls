@@ -88,7 +88,7 @@ public:
 				for (auto startOffset : possibleOffsets) {
 					if (startOffset % 8 != 0) {
 						throw std::runtime_error(
-								"must be aligned to octet because AxiStream strb/keep works this way"); // (write, startOffset,
+								"must be aligned to octet because Axi4Stream strb/keep works this way"); // (write, startOffset,
 					}
 				}
 				if (possibleOffsets.size() != 1) {
@@ -115,7 +115,7 @@ public:
 					for (auto endOffset : possibleOffsets) {
 						if (endOffset % 8 != 0) {
 							throw std::runtime_error(
-									"must be aligned to octet because AxiStream strb/keep works this way"); // write, endOffset,
+									"must be aligned to octet because Axi4Stream strb/keep works this way"); // write, endOffset,
 						}
 					}
 					// :note: remaining bits in mask should be set to 0 from the start

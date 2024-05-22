@@ -1,7 +1,7 @@
 from math import inf
 from typing import Optional, Generator, List, Tuple
 
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
 from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.schedulableNode import OutputTimeGetter, \
@@ -17,7 +17,7 @@ class HlsNetNodeLoop(HlsNetNodeAggregate):
     """
 
     @override
-    def scheduleAsap(self, pathForDebug:Optional[UniqList["HlsNetNode"]],
+    def scheduleAsap(self, pathForDebug:Optional[SetList["HlsNetNode"]],
         beginOfFirstClk:SchedTime,
         outputTimeGetter:Optional[OutputTimeGetter]) -> List[int]:
         if self.scheduledOut is None:

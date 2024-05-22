@@ -6,11 +6,11 @@ from types import FunctionType, CellType, MethodType
 from typing import Callable, Dict, Union, Optional
 
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
-from hwt.hdl.value import HValue
-from hwt.interfaces.std import Signal
+from hwt.hdl.const import HConst
+from hwt.hwIOs.std import HwIOSignal
 from hwt.pyUtils.arrayQuery import flatten
-from hwt.synthesizer.interface import Interface
-from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
+from hwt.hwIO import HwIO
+from hwt.mainBases import HwIOBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.ast.statementsRead import HlsRead
 from hwtHls.frontend.ast.statementsWrite import HlsWrite
@@ -155,7 +155,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
         a = stack.pop()
         a, curBlock = expandBeforeUse(self, instr.offset, frame, a, curBlock)
         b, curBlock = expandBeforeUse(self, instr.offset, frame, b, curBlock)
-        if (isinstance(b, (RtlSignal, Interface, SsaValue)) and
+        if (isinstance(b, (RtlSignal, HwIO, SsaValue)) and
             not isinstance(a, (RtlSignal, SsaValue))):
             # if this is indexing using hw value on non hw object we need to expand it to a switch-case on individual cases
             # must generate blocks for switch cases,
@@ -250,12 +250,12 @@ class PyBytecodeToSsaLowLevelOpcodes():
         _v = v.cell_contents
         preprocVarKey = instr.arg
         if preprocVarKey not in frame.preprocVars:
-            if _v is NULL and isinstance(vVal, (HValue, RtlSignal, SsaValue)):
+            if _v is NULL and isinstance(vVal, (HConst, RtlSignal, SsaValue)):
                 # only if it is a value which generates HW variable
                 t = getattr(vVal, "_dtypeOrig", vVal._dtype)
                 _v = self.hls.var(instr.argval, t)
 
-            if isinstance(_v, (RtlSignal, Interface)):
+            if isinstance(_v, (RtlSignal, HwIO)):
                 # only if it is a hw variable, create assignment to HW variable
                 v.cell_contents = _v
                 return self._storeToHwSignal(curBlock, _v, vVal)
@@ -323,10 +323,10 @@ class PyBytecodeToSsaLowLevelOpcodes():
 
         return curBlock
 
-    def _storeToHwSignal(self, curBlock, dst: Union[RtlSignal, InterfaceBase], src):
+    def _storeToHwSignal(self, curBlock, dst: Union[RtlSignal, HwIOBase], src):
         srcIsRead = isinstance(src, HlsRead)
         if isinstance(src, SsaValue) and not srcIsRead:
-            if isinstance(dst, InterfaceBase):
+            if isinstance(dst, HwIOBase):
                 dst = dst._sig
             self.toSsa.m_ssa_u.writeVariable(dst, [], curBlock, src)
             return curBlock
@@ -341,7 +341,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
         dst = getattr(dstParent, instr.argval, None)
         src = stack.pop()
         src, curBlock = expandBeforeUse(self, instr.offset, frame, src, curBlock)
-        if isinstance(dst, (RtlSignal, Interface)):
+        if isinstance(dst, (RtlSignal, HwIO)):
             # stm = self.hls.write(src, dst)
             self._storeToHwSignal(curBlock, dst, src)
         else:
@@ -357,7 +357,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
         v = localsplus[instr.arg]
         varIndex = instr.arg
         if varIndex not in frame.preprocVars:
-            if v is NULL and isinstance(vVal, (HValue, RtlSignal, Interface, SsaValue, Interface)):
+            if v is NULL and isinstance(vVal, (HConst, RtlSignal, HwIO, SsaValue, HwIO)):
                 # only if it is a value which generates HW variable
                 t = getattr(vVal, "_dtypeOrig", vVal._dtype)
                 if isinstance(vVal, RtlSignal) and vVal.hasGenericName:
@@ -368,7 +368,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
                 v = self.hls.var(instr.argval, t)
                 localsplus[varIndex] = v
 
-            if isinstance(v, (RtlSignal, Interface)):
+            if isinstance(v, (RtlSignal, HwIO)):
                 # only if it is a hw variable, create assignment to HW variable
                 if isinstance(v, RtlSignal) and v.hasGenericName:
                     v.name = instr.argval
@@ -701,12 +701,12 @@ class PyBytecodeToSsaLowLevelOpcodes():
         val = stack.pop()
         index, curBlock = expandBeforeUse(self, instr.offset, frame, index, curBlock)
         val, curBlock = expandBeforeUse(self, instr.offset, frame, val, curBlock)
-        if isinstance(index, (RtlSignal, SsaValue, Signal)) and not isinstance(sequence, (RtlSignal, SsaValue, Signal)):
+        if isinstance(index, (RtlSignal, SsaValue, HwIOSignal)) and not isinstance(sequence, (RtlSignal, SsaValue, HwIOSignal)):
             if not isinstance(sequence, PyObjectHwSubscriptRef):
                 sequence = PyObjectHwSubscriptRef(instr.offset, sequence, index)
             return sequence.expandSetitemAsSwitchCase(self, instr.offset, frame, curBlock, lambda i, dst: dst(val))
-        if isinstance(sequence, (RtlSignal, Signal)):
-            if isinstance(index, (RtlSignal, SsaValue, Signal)):
+        if isinstance(sequence, (RtlSignal, HwIOSignal)):
+            if isinstance(index, (RtlSignal, SsaValue, HwIOSignal)):
                 raise NotImplementedError()
             else:
                 stm = sequence[index](val)

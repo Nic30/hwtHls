@@ -2,9 +2,9 @@ from typing import Dict, Optional, List, Tuple, Union
 
 from hwt.code import And
 from hwt.hdl.statements.statement import HdlStatement
-from hwt.pyUtils.uniqList import UniqList
-from hwt.synthesizer.interface import Interface
-from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
+from hwt.pyUtils.setList import SetList
+from hwt.hwIO import HwIO
+from hwt.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResourceItem
@@ -13,7 +13,7 @@ from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtLib.handshaked.streamNode import StreamNode, ValidReadyTuple
 from hwtLib.logic.rtlSignalBuilder import RtlSignalBuilder
-from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
+from hwt.mainBases import RtlSignalBase
 
 
 class SkipWhenMemberList():
@@ -46,7 +46,7 @@ class ExtraCondMemberList():
         return extraCond
 
 
-InterfaceOrReadWriteNodeOrValidReadyTuple = Union[Interface, HlsNetNodeRead, HlsNetNodeWrite, ValidReadyTuple]
+InterfaceOrReadWriteNodeOrValidReadyTuple = Union[HwIO, HlsNetNodeRead, HlsNetNodeWrite, ValidReadyTuple]
 
 
 class IORecord:
@@ -59,14 +59,14 @@ class IORecord:
     """
 
     def __init__(self, firstSeenIoNode: Union[HlsNetNodeRead, HlsNetNodeWrite],
-                  ioInterface:Optional[Union[Interface, HlsNetNodeWrite]],
+                  ioInterface:Optional[Union[HwIO, HlsNetNodeWrite]],
                   validReadyTupleUsedInSyncGeneration: ValidReadyTuple,
                   ioUniqueKey: InterfaceOrReadWriteNodeOrValidReadyTuple,
                   validReadyTuplePhysicallyPresent: ValidReadyTuple,
                   validHasCustomDriver:bool,
                   readyHasCustomDriver:bool):
         self.node = firstSeenIoNode
-        assert ioInterface is None or isinstance(ioInterface, (Interface, RtlSignalBase, HlsNetNodeWrite)), ioInterface
+        assert ioInterface is None or isinstance(ioInterface, (HwIO, RtlSignalBase, HlsNetNodeWrite)), ioInterface
         self.io = ioInterface
         self.validReady = validReadyTupleUsedInSyncGeneration
         self.ioUniqueKey = ioUniqueKey
@@ -100,15 +100,15 @@ class ConnectionsOfStage():
     def __init__(self, parent: "ArchElement", clkIndex: int):
         self.parent = parent
         self.clkIndex = clkIndex
-        self.inputs: UniqList[IORecord] = UniqList()
-        self.outputs: UniqList[IORecord] = UniqList()
-        self.signals: UniqList[TimeIndependentRtlResourceItem] = UniqList()
+        self.inputs: SetList[IORecord] = SetList()
+        self.outputs: SetList[IORecord] = SetList()
+        self.signals: SetList[TimeIndependentRtlResourceItem] = SetList()
         self.inputs_skipWhen: Dict[InterfaceOrReadWriteNodeOrValidReadyTuple, SkipWhenMemberList] = {}
         self.inputs_extraCond: Dict[InterfaceOrReadWriteNodeOrValidReadyTuple, ExtraCondMemberList] = {}
         self.outputs_skipWhen: Dict[InterfaceOrReadWriteNodeOrValidReadyTuple, SkipWhenMemberList] = {}
         self.outputs_extraCond: Dict[InterfaceOrReadWriteNodeOrValidReadyTuple, ExtraCondMemberList] = {}
-        self.ioMuxes: Dict[Interface, Tuple[Union[HlsNetNodeRead, HlsNetNodeWrite], List[HdlStatement]]] = {}
-        self.ioMuxesKeysOrdered: UniqList[Interface] = UniqList()
+        self.ioMuxes: Dict[HwIO, Tuple[Union[HlsNetNodeRead, HlsNetNodeWrite], List[HdlStatement]]] = {}
+        self.ioMuxesKeysOrdered: SetList[HwIO] = SetList()
 
         self.implicitSyncFromPrevStage: Optional["HlsNetNodeReadForwardedge"] = None
         self.syncNode: Optional[StreamNode] = None
@@ -174,7 +174,7 @@ class ConnectionsOfStage():
         return f"<{self.__class__.__name__:s} {self.parent} clk:{self.clkIndex}>"
 
 
-class ConnectionsOfStageList(List[Optional[UniqList[ConnectionsOfStage]]]):
+class ConnectionsOfStageList(List[Optional[SetList[ConnectionsOfStage]]]):
     """
     Container of for :class:`~.ConnectionsOfStage` divided into clock cycles.
     """
@@ -187,7 +187,7 @@ class ConnectionsOfStageList(List[Optional[UniqList[ConnectionsOfStage]]]):
                 assert isinstance(v, ConnectionsOfStage) or v is None, v
                 self.append(v)
 
-    def getForClkIndex(self, clkIndex: int, allowNone=False) -> Optional[UniqList[TimeIndependentRtlResourceItem]]:
+    def getForClkIndex(self, clkIndex: int, allowNone=False) -> Optional[SetList[TimeIndependentRtlResourceItem]]:
         try:
             if clkIndex < 0:
                 raise IndexError("Asking for an object in invalid time", clkIndex)
@@ -202,7 +202,7 @@ class ConnectionsOfStageList(List[Optional[UniqList[ConnectionsOfStage]]]):
 
         return res
 
-    def getForTime(self, t: int, allowNone=False) -> Optional[UniqList[TimeIndependentRtlResourceItem]]:
+    def getForTime(self, t: int, allowNone=False) -> Optional[SetList[TimeIndependentRtlResourceItem]]:
         """
         Use time to index in this list.
         :note: entirely same as getForClkIndex just with better error messages
@@ -223,16 +223,16 @@ class ConnectionsOfStageList(List[Optional[UniqList[ConnectionsOfStage]]]):
         return res
 
 
-def setNopValIfNotSet(intf: Union[Interface, RtlSignal], nopVal, exclude: List[Interface]):
-    if intf in exclude:
+def setNopValIfNotSet(hwIO: Union[HwIO, RtlSignal], nopVal, exclude: List[HwIO]):
+    if hwIO in exclude:
         return
-    elif isinstance(intf, RtlSignal):
-        intf._nop_val = intf._dtype.from_py(nopVal)
+    elif isinstance(hwIO, RtlSignal):
+        hwIO._nop_val = hwIO._dtype.from_py(nopVal)
 
-    elif intf._interfaces:
-        for _intf in intf._interfaces:
-            setNopValIfNotSet(_intf, nopVal, exclude)
+    elif hwIO._hwIOs:
+        for cHwIO in hwIO._hwIOs:
+            setNopValIfNotSet(cHwIO, nopVal, exclude)
 
-    elif intf._sig._nop_val is NOT_SPECIFIED:
-        intf._sig._nop_val = intf._dtype.from_py(nopVal)
+    elif hwIO._sig._nop_val is NOT_SPECIFIED:
+        hwIO._sig._nop_val = hwIO._dtype.from_py(nopVal)
 

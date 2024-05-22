@@ -4,11 +4,11 @@
 import unittest
 
 from hwt.hdl.types.defs import BIT
-from hwt.interfaces.std import VectSignal
-from hwt.interfaces.utils import addClkRstn
+from hwt.hwIOs.std import HwIOVectSignal
+from hwt.hwIOs.utils import addClkRstn
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
-from hwt.synthesizer.unit import Unit
-from hwt.synthesizer.utils import to_rtl_str
+from hwt.hwModule import HwModule
+from hwt.synth import to_rtl_str
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.frontend.ast.statements import HlsStmWhile, HlsStmIf
 from hwtHls.frontend.pyBytecode import hlsBytecode
@@ -55,11 +55,11 @@ class PhiConstruction_TC(unittest.TestCase):
 
     def testPyBytecodeWhileCondWrite(self):
 
-        class U0(Unit):
+        class M0(HwModule):
 
             def _declr(self) -> None:
                 addClkRstn(self)
-                self.o = VectSignal(8, signed=True)._m()
+                self.o = HwIOVectSignal(8, signed=True)._m()
 
             def _impl(self):
                 hls = HlsScope(self)
@@ -78,12 +78,12 @@ class PhiConstruction_TC(unittest.TestCase):
         class TestPlatform(VirtualHlsPlatform):
 
             def runSsaPasses(self, hls:"HlsScope", toSsa:HlsAstToSsa):
-                SsaPassDumpToDot(hls, outputFileGetter("tmp", "0.dot"), extractPipeline=False).runOnSsaModule(toSsa)
-                SsaPassConsystencyCheck(hls).runOnSsaModule(toSsa)
+                SsaPassDumpToDot(outputFileGetter("tmp", "0.dot"), extractPipeline=False).runOnSsaModule(toSsa)
+                SsaPassConsystencyCheck().runOnSsaModule(toSsa)
                 raise TestFinishedSuccessfuly()
 
         try:
-            to_rtl_str(U0(), target_platform=TestPlatform())
+            to_rtl_str(M0(), target_platform=TestPlatform())
         except TestFinishedSuccessfuly:
             pass
 

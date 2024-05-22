@@ -1,8 +1,8 @@
 from typing import Tuple
 import unittest
 
-from hwt.hdl.operatorDefs import AllOps
-from hwt.hdl.types.bits import Bits
+from hwt.hdl.operatorDefs import HwtOps
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
@@ -13,7 +13,7 @@ from hwtHls.netlist.transformation.simplifyExpr.simplifyLlvmIrExpr import runLlv
 from tests.hlsNetlist.netlistReduceCmpInAnd_test import HlsNetlistReduceCmpInAndTC
 
 
-b8_t = Bits(8)
+b8_t = HBits(8)
 
 
 class HlsNetlistReduceCmpUsingLlvmTC(unittest.TestCase):
@@ -63,8 +63,8 @@ class HlsNetlistReduceCmpUsingLlvmTC(unittest.TestCase):
         netlist, b = self._createNetlist()
         r0 = self._r(netlist)
 
-        e0 = b.buildOp(AllOps.ULE, BIT, r0, b.buildConstPy(b8_t, 10))
-        e1 = b.buildOp(AllOps.UGE, BIT, r0, b.buildConstPy(b8_t, 10))
+        e0 = b.buildOp(HwtOps.ULE, BIT, r0, b.buildConstPy(b8_t, 10))
+        e1 = b.buildOp(HwtOps.UGE, BIT, r0, b.buildConstPy(b8_t, 10))
         res = b.buildAnd(
             e0,
             e1,
@@ -74,7 +74,7 @@ class HlsNetlistReduceCmpUsingLlvmTC(unittest.TestCase):
         runLlvmCmpOpt(b, [], set(), netlist.iterAllNodes())
         resOpt = w.dependsOn[0].obj
         self.assertIsInstance(resOpt, HlsNetNodeOperator)
-        self.assertEqual(resOpt.operator, AllOps.EQ)
+        self.assertEqual(resOpt.operator, HwtOps.EQ)
 
         o0, o1 = resOpt.dependsOn
         self.assertIs(o0, r0)
@@ -86,8 +86,8 @@ class HlsNetlistReduceCmpUsingLlvmTC(unittest.TestCase):
         netlist, b = self._createNetlist()
         r0 = self._r(netlist)
 
-        e0 = b.buildOp(AllOps.ULT, BIT, r0, b.buildConstPy(b8_t, 10))
-        e1 = b.buildOp(AllOps.UGT, BIT, r0, b.buildConstPy(b8_t, 10))
+        e0 = b.buildOp(HwtOps.ULT, BIT, r0, b.buildConstPy(b8_t, 10))
+        e1 = b.buildOp(HwtOps.UGT, BIT, r0, b.buildConstPy(b8_t, 10))
         res = b.buildAnd(
             e0,
             e1,
@@ -103,7 +103,7 @@ class HlsNetlistReduceCmpUsingLlvmTC(unittest.TestCase):
         netlist, b = self._createNetlist()
         r0 = self._r(netlist)
 
-        e0 = b.buildOp(AllOps.ULT, BIT, r0, b.buildConstPy(b8_t, 10))
+        e0 = b.buildOp(HwtOps.ULT, BIT, r0, b.buildConstPy(b8_t, 10))
         e1 = b.buildNe(r0, b.buildConstPy(b8_t, 15))
         res = b.buildAnd(
             e0,
@@ -119,7 +119,7 @@ class HlsNetlistReduceCmpUsingLlvmTC(unittest.TestCase):
         netlist, b = self._createNetlist()
         r0 = self._r(netlist)
 
-        e0 = b.buildOp(AllOps.ULE, BIT, r0, b.buildConstPy(b8_t, 255))
+        e0 = b.buildOp(HwtOps.ULE, BIT, r0, b.buildConstPy(b8_t, 255))
         c15 = b.buildConstPy(b8_t, 15)
         e1 = b.buildNe(r0, c15)
         res = b.buildAnd(
@@ -135,7 +135,7 @@ class HlsNetlistReduceCmpUsingLlvmTC(unittest.TestCase):
 if __name__ == '__main__':
 
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([HlsNetlistReduceCmpUsingLlvmTC("test_ReadNonBlockingUnit")])
+    # suite = unittest.TestSuite([HlsNetlistReduceCmpUsingLlvmTC("test_ReadNonBlockingHwModule")])
     suite = testLoader.loadTestsFromTestCase(HlsNetlistReduceCmpUsingLlvmTC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

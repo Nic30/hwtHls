@@ -7,7 +7,7 @@ from hwt.hdl.statements.codeBlockContainer import HdlStmCodeBlockContainer
 from hwt.hdl.statements.ifContainter import IfContainer
 from hwt.hdl.statements.statement import HdlStatement, HwtSyntaxError
 from hwt.hdl.statements.switchContainer import SwitchContainer
-from hwt.hdl.value import HValue
+from hwt.hdl.const import HConst
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 
 
@@ -48,9 +48,9 @@ class HlsStmCodeBlock(HlsStm, HdlStmCodeBlockContainer):
 
 class HlsStmIf(HlsStm, IfContainer):
 
-    def __init__(self, parent: "HlsScope", cond: Union[RtlSignal, HValue], body: List[HdlStatement]):
+    def __init__(self, parent: "HlsScope", cond: Union[RtlSignal, HConst], body: List[HdlStatement]):
         HlsStm.__init__(self, parent)
-        assert isinstance(cond, (RtlSignal, HValue)), cond
+        assert isinstance(cond, (RtlSignal, HConst)), cond
         self.cond = cond
         self.ifTrue = body
         self.elIfs = []
@@ -71,9 +71,9 @@ class HlsStmIf(HlsStm, IfContainer):
 
 class  HlsStmSwitch(HlsStm, SwitchContainer):
 
-    def __init__(self, parent: "HlsScope", switchOn: Union[RtlSignal, HValue]):
+    def __init__(self, parent: "HlsScope", switchOn: Union[RtlSignal, HConst]):
         HlsStm.__init__(self, parent)
-        assert isinstance(switchOn, (RtlSignal, HValue)), switchOn
+        assert isinstance(switchOn, (RtlSignal, HConst)), switchOn
         self.switchOn = switchOn
         self.cases = []
         self.default = None
@@ -99,11 +99,11 @@ class HlsStmFor(HlsStm):
 
     def __init__(self, parent: "HlsScope",
                  init: List[HdlStatement],
-                 cond: Union[RtlSignal, HValue],
+                 cond: Union[RtlSignal, HConst],
                  step: List[HdlStatement],
                  body: List[HdlStatement]):
         super(HlsStmFor, self).__init__(parent)
-        assert isinstance(cond, (RtlSignal, HValue)), cond
+        assert isinstance(cond, (RtlSignal, HConst)), cond
         self.init = init
         self.cond = cond
         self.step = step
@@ -119,10 +119,10 @@ class HlsStmWhile(HlsStm):
     """
 
     def __init__(self, parent: "HlsScope",
-                 cond: Union[RtlSignal, HValue],
+                 cond: Union[RtlSignal, HConst],
                  body: List[HdlStatement]):
         super(HlsStmWhile, self).__init__(parent)
-        assert isinstance(cond, (RtlSignal, HValue)), cond
+        assert isinstance(cond, (RtlSignal, HConst)), cond
         self.cond = cond
         self.body = body
 

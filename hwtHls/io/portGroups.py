@@ -1,8 +1,8 @@
 from typing import TypeVar, Union, Type
 
-from hwt.synthesizer.hObjList import HObjList
-from hwt.synthesizer.interface import Interface
-from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
+from hwt.hObjList import HObjList
+from hwt.hwIO import HwIO
+from hwt.mainBases import RtlSignalBase
 
 T = TypeVar('T')
 
@@ -26,12 +26,12 @@ class BankedPortGroup(HObjList[T]):
         return hash(tuple(self))
 
 
-def getFirstInterfaceInstance(intf:Union[Interface, MultiPortGroup, BankedPortGroup]) -> Union[Interface, RtlSignalBase]:
-    while isinstance(intf, (MultiPortGroup, BankedPortGroup)):
-        intf = intf[0]
-    return intf
+def getFirstInterfaceInstance(hwIO:Union[HwIO, MultiPortGroup, BankedPortGroup]) -> Union[HwIO, RtlSignalBase]:
+    while isinstance(hwIO, (MultiPortGroup, BankedPortGroup)):
+        hwIO = hwIO[0]
+    return hwIO
 
 
-def isInstanceOfInterfacePort(intf:Union[Interface, MultiPortGroup, BankedPortGroup], class_: Type[Interface]) -> bool:
-    intf = getFirstInterfaceInstance(intf)
-    return isinstance(intf, class_)
+def isInstanceOfInterfacePort(hwIO:Union[HwIO, MultiPortGroup, BankedPortGroup], class_: Type[HwIO]) -> bool:
+    hwIO = getFirstInterfaceInstance(hwIO)
+    return isinstance(hwIO, class_)

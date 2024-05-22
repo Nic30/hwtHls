@@ -2,16 +2,16 @@ from typing import Sequence, Union, Callable, List, Tuple, Optional
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
-from hwt.hdl.value import HValue
+from hwt.hdl.const import HConst
 from hwt.pyUtils.arrayQuery import flatten
-from hwt.synthesizer.interface import Interface
+from hwt.hwIO import HwIO
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.frontend.pyBytecode.frame import PyBytecodeFrame
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.value import SsaValue
-from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
-from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
+from hwt.mainBases import RtlSignalBase
+from hwt.mainBases import HwIOBase
 
 
 class PyObjectHwSubscriptRef():
@@ -50,7 +50,7 @@ class PyObjectHwSubscriptRef():
 
         res = None
         for last, (i, v) in iter_with_last(enumerate(self.sequence)):
-            assert isinstance(v, (HValue, RtlSignal, Interface, PyObjectHwSubscriptRef)), ("Item in sequence must have HDL type", v)
+            assert isinstance(v, (HConst, RtlSignal, HwIO, PyObjectHwSubscriptRef)), ("Item in sequence must have HDL type", v)
             if res is None:
                 # in first iteration create result variable in the previous block
                 res = toSsa.hls.var(f"tmp_seq{offsetForLabels}", v._dtype)
@@ -82,7 +82,7 @@ class PyObjectHwSubscriptRef():
                                   offsetForLabels: int,
                                   frame: PyBytecodeFrame,
                                   curBlock: SsaBasicBlock,
-                                  assignFn: Callable[[int, Union[RtlSignal, Interface, HValue, SsaValue]],
+                                  assignFn: Callable[[int, Union[RtlSignal, HwIO, HConst, SsaValue]],
                                                      List[Union[SsaValue, HdlAssignmentContainer]]]) -> SsaBasicBlock:
 
         """
@@ -133,7 +133,7 @@ def expandBeforeUse(toSsa: "PyBytecodeToSsa",
 def expandBeforeUseSequence(toSsa: "PyBytecodeToSsa",
                     offsetForLabels: int,
                     frame: PyBytecodeFrame, oSeq: Sequence, curBlock: SsaBasicBlock):
-    if isinstance(oSeq, (RtlSignalBase, InterfaceBase, HValue)):
+    if isinstance(oSeq, (RtlSignalBase, HwIOBase, HConst)):
         return oSeq, curBlock
     else:
         oSeqExpanded = []

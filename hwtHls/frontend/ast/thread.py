@@ -1,12 +1,12 @@
 from typing import List, Tuple, Union
 
-from hwt.interfaces.structIntf import HdlType_to_Interface
-from hwt.interfaces.vldSyncedStructIntf import VldSyncedStructIntf
+from hwt.hwIO import HwIO
+from hwt.hwIOs.hwIOStruct import HdlType_to_HwIO
+from hwt.hwIOs.hwIOStruct import HwIOStructVld
 from hwt.pyUtils.arrayQuery import flatten
-from hwt.pyUtils.uniqList import UniqList
-from hwt.synthesizer.interface import Interface
-from hwt.synthesizer.interfaceLevel.unitImplHelpers import Interface_without_registration, \
-    getInterfaceName
+from hwt.pyUtils.setList import SetList
+from hwt.synthesizer.interfaceLevel.hwModuleImplHelpers import HwIO_without_registration, \
+    HwIO_getName
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.ast.astToSsa import AnyStm, HlsAstToSsa
 from hwtHls.frontend.ast.builder import HlsAstBuilder
@@ -32,13 +32,13 @@ class HlsThreadFromAst(HlsThread):
         """
         _code = HlsStmCodeBlock(self)
         _code.name = self.name
-        _code._sensitivity = UniqList()
+        _code._sensitivity = SetList()
         _code.statements.extend(flatten(code))
         return _code
 
     def compileToSsa(self):
         _code = self._formatCode(self.code)
-        platform = self.hls.parentUnit._target_platform
+        platform = self.hls.parentHwModule._target_platform
         toSsa = HlsAstToSsa(self.hls.ssaCtx, self.getLabel(), _code, platform.getPassManagerDebugLogFile())
         toSsa._onAllPredecsKnown(toSsa.start)
         toSsa.visit_top_CodeBlock(_code)
@@ -48,23 +48,23 @@ class HlsThreadFromAst(HlsThread):
 
 class HlsThreadForSharedVar(HlsThreadFromAst):
 
-    def __init__(self, hls: "HlsScope", var: Union[RtlSignal, Interface]):
-        super(HlsThreadForSharedVar, self).__init__(hls, None, f"sharedVarThread_{getInterfaceName(var)}")
+    def __init__(self, hls: "HlsScope", var: Union[RtlSignal, HwIO]):
+        super(HlsThreadForSharedVar, self).__init__(hls, None, f"sharedVarThread_{HwIO_getName(var)}")
         self.var = var
-        self._exports: List[Tuple[Union[RtlSignal, Interface], DIRECTION.IN]] = []
+        self._exports: List[Tuple[Union[RtlSignal, HwIO], DIRECTION.IN]] = []
 
     def getReadPort(self):
-        p = HdlType_to_Interface().apply(self.var._dtype)
-        Interface_without_registration(self.hls.parentUnit, p,
-                                        f"{getInterfaceName(self._parent.parentUnit, self.var):s}_{len(self._exports):d}")
+        p = HdlType_to_HwIO().apply(self.var._dtype)
+        HwIO_without_registration(self.hls.parentHwModule, p,
+                                        f"{HwIO_getName(self._parent.parentHwModule, self.var):s}_{len(self._exports):d}")
         self._exports.append((p, DIRECTION.OUT))
         return p
 
     def getWritePort(self):
-        p = VldSyncedStructIntf()
+        p = HwIOStructVld()
         p.T = self.var._dtype
-        Interface_without_registration(self.hls.parentUnit, p,
-                                       f"{getInterfaceName(self._parent.parentUnit, self.var):s}_{len(self._exports):d}")
+        HwIO_without_registration(self.hls.parentHwModule, p,
+                                       f"{HwIO_getName(self._parent.parentHwModule, self.var):s}_{len(self._exports):d}")
         self._exports.append((p, DIRECTION.IN))
         return p
 

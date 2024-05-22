@@ -2,7 +2,7 @@ from typing import Optional, Union, List, Tuple, Generator
 
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.hdlType import HdlType
-from hwt.synthesizer.interface import Interface
+from hwt.hwIO import HwIO
 from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.backedge import BACKEDGE_ALLOCATION_TYPE, HlsNetNodeWriteBackedge, \
@@ -26,7 +26,7 @@ class HlsNetNodeReadForwardedge(HlsNetNodeRead):
         self.associatedWrite: Optional[HlsNetNodeWriteForwardedge] = None
         self.maxIosPerClk = 2  # read, write
         self._rtlIoAllocated = False
-        self._rtlDataVldReg:Optional[Union[RtlSyncSignal, Interface]] = None
+        self._rtlDataVldReg:Optional[Union[RtlSyncSignal, HwIO]] = None
 
     @override
     def clone(self, memo:dict, keepTopPortsConnected: bool) -> Tuple["HlsNetNode", bool]:

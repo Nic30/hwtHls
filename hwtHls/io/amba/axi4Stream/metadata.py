@@ -1,13 +1,13 @@
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
-from hwtLib.amba.axis import AxiStream
+from hwtLib.amba.axi4s import Axi4Stream
 from hwtHls.llvm.llvmIr import Function
 
 
-def addAxiStreamLllvmMetadata(tr: ToLlvmIrTranslator):
+def addAxi4StreamLllvmMetadata(tr: ToLlvmIrTranslator):
     F: Function = tr.llvm.main
     ioMetaTuples = []
     for i, (_, io, _) in enumerate(tr.ioSorted):
-        if isinstance(io, AxiStream):
+        if isinstance(io, Axi4Stream):
             ioMetaTuples.append(
                            tr.mdGetTuple([tr.mdGetUInt32(i),
                                           tr.mdGetUInt32(io.DATA_WIDTH),

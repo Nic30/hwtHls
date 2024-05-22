@@ -1,10 +1,10 @@
 from typing import Set, Dict, Union, Callable, Tuple, List
 
-from hwt.hdl.types.bits import Bits
-from hwt.hdl.types.bitsVal import BitsVal
-from hwt.hdl.types.sliceVal import HSliceVal
-from hwt.hdl.value import HValue
-from hwt.pyUtils.uniqList import UniqList
+from hwt.hdl.types.bits import HBits
+from hwt.hdl.types.bitsConst import HBitsConst
+from hwt.hdl.types.sliceConst import HSliceConst
+from hwt.hdl.const import HConst
+from hwt.pyUtils.setList import SetList
 from hwt.serializer.utils import RtlSignal_sort_key
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.ast.statementsRead import HlsRead
@@ -28,23 +28,23 @@ class MemorySSAUpdater():
     def __init__(self,
                  ssaBuilder: SsaExprBuilder,
                  hwtExprToSsa: Callable[
-                     [SsaBasicBlock, Union[RtlSignal, HValue]],
-                     Tuple[SsaBasicBlock, Union[SsaValue, HValue]]
+                     [SsaBasicBlock, Union[RtlSignal, HConst]],
+                     Tuple[SsaBasicBlock, Union[SsaValue, HConst]]
                 ]):
         """
         :param onBlockReduce: function (old, new) called if some block is reduced
         """
-        self.currentDef: Dict[RtlSignal, Dict[SsaBasicBlock, Union[SsaValue, HValue]]] = {}
-        self.currentDefRev: Dict[Union[SsaValue, HValue], Dict[SsaBasicBlock, UniqList[RtlSignal]]] = {}
+        self.currentDef: Dict[RtlSignal, Dict[SsaBasicBlock, Union[SsaValue, HConst]]] = {}
+        self.currentDefRev: Dict[Union[SsaValue, HConst], Dict[SsaBasicBlock, SetList[RtlSignal]]] = {}
         self.sealedBlocks: Set[SsaBasicBlock] = set()
         self.incompletePhis: Dict[SsaBasicBlock, Dict[RtlSignal, SsaPhi]] = {}
         self._hwtExprToSsa = hwtExprToSsa
         self.ssaBuilder = ssaBuilder
 
     def writeVariable(self, variable: RtlSignal,
-                      indexes: Tuple[Union[SsaValue, BitsVal, HSliceVal], ...],
+                      indexes: Tuple[Union[SsaValue, HBitsConst, HSliceConst], ...],
                       block: SsaBasicBlock,
-                      value: Union[SsaPhi, SsaValue, HValue]) -> int:
+                      value: Union[SsaPhi, SsaValue, HConst]) -> int:
         """
         :param variable: A variable which is being written to.
         :param indexes: A list of indexes where in the variable is written.
@@ -58,13 +58,13 @@ class MemorySSAUpdater():
         if isinstance(value, SsaInstr):
             assert value.block is not None, (value, "Can not write object removed from SSA")
         else:
-            assert isinstance(value, HValue), value
+            assert isinstance(value, HConst), value
 
         new_bb = block
         if indexes:
-            _intf, _indexes, _sign_cast_seen = variable._getIndexCascade()
+            _hwIO, _indexes, _sign_cast_seen = variable._getIndexCascade()
             assert not _indexes, (variable, "Must tot be a slice of signal")
-            if len(indexes) != 1 or not isinstance(variable._dtype, Bits):
+            if len(indexes) != 1 or not isinstance(variable._dtype, HBits):
                 raise NotImplementedError(block, variable, indexes, value)
 
             i = indexes[0]
@@ -72,14 +72,14 @@ class MemorySSAUpdater():
                 raise NotImplementedError("indexing using address variable, we need to use getelementptr/extractelement/insertelement etc.")
 
             else:
-                assert isinstance(i, HValue), (block, variable, indexes, value)
-                if isinstance(i, BitsVal):
+                assert isinstance(i, HConst), (block, variable, indexes, value)
+                if isinstance(i, HBitsConst):
                     assert value._dtype.bit_length() == 1, value
                     low = int(i)
                     high = low + 1
 
                 else:
-                    assert isinstance(i, HSliceVal), (block, variable, indexes, value)
+                    assert isinstance(i, HSliceConst), (block, variable, indexes, value)
                     assert int(i.val.step) == -1, (block, variable, indexes, value)
                     low = int(i.val.stop)
                     high = int(i.val.start)
@@ -123,7 +123,7 @@ class MemorySSAUpdater():
             value.hasGenericName = False
 
         defs[new_bb] = value
-        self.currentDefRev.setdefault(value, {}).setdefault(new_bb, UniqList()).append(variable)
+        self.currentDefRev.setdefault(value, {}).setdefault(new_bb, SetList()).append(variable)
 
     def readVariable(self, variable: RtlSignal, block: SsaBasicBlock) -> SsaPhi:
         assert isinstance(variable, RtlSignal), variable
@@ -131,7 +131,7 @@ class MemorySSAUpdater():
         try:
             # local value numbering
             v = self.currentDef[variable][block]
-            assert isinstance(v, HValue) or v.block is not None, (v, "was already removed from SSA and should not be there")
+            assert isinstance(v, HConst) or v.block is not None, (v, "was already removed from SSA and should not be there")
             # if this assert fails it may be consequence of wrong block sealing which resulted in a situation where the PHI
             # was optimized out before block which used this PHI was added
             return v
@@ -141,7 +141,7 @@ class MemorySSAUpdater():
         # global value numbering
         return self.readVariableRecursive(variable, block)
 
-    def readVariableRecursive(self, variable: RtlSignal, block: SsaBasicBlock) -> Union[SsaPhi, HValue]:
+    def readVariableRecursive(self, variable: RtlSignal, block: SsaBasicBlock) -> Union[SsaPhi, HConst]:
         """
         :return: actual phi function variable or value which represents the symbolic variable in current block
         """
@@ -163,12 +163,12 @@ class MemorySSAUpdater():
 
         if isinstance(v, (SsaPhi, SsaInstr)):
             self.writeVariable(variable, (), block, v)
-        elif isinstance(v, (HValue, HlsRead)):
+        elif isinstance(v, (HConst, HlsRead)):
             pass
         else:
             raise TypeError(v.__class__)
 
-        assert isinstance(v, HValue) or v.block is not None, (v, "was already removed from SSA and should not be there")
+        assert isinstance(v, HConst) or v.block is not None, (v, "was already removed from SSA and should not be there")
         return v
 
     def addPhiOperands(self, variable: RtlSignal, phi: SsaPhi):
@@ -208,7 +208,7 @@ class MemorySSAUpdater():
                 if d[b] is phi:
                     d[b] = same
                     if sameIsAlsoPhi:
-                        self.currentDefRev[same].setdefault(b, UniqList()).append(v)
+                        self.currentDefRev[same].setdefault(b, SetList()).append(v)
         del self.currentDefRev[phi]
 
         # Try to recursively remove all phi users, which might have become trivial
@@ -217,7 +217,7 @@ class MemorySSAUpdater():
                 # potentially could be already removed
                 self.tryRemoveTrivialPhi(use)
 
-        assert isinstance(same, HValue) or same.block is not None
+        assert isinstance(same, HConst) or same.block is not None
         return same
 
     def sealBlock(self, block: SsaBasicBlock):

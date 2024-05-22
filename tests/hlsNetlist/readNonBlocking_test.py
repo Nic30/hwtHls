@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.interfaces.std import Handshaked
-from hwt.interfaces.utils import addClkRstn
+from hwt.hwIOs.std import HwIODataRdVld
+from hwt.hwIOs.utils import addClkRstn
 from hwt.simulator.simTestCase import SimTestCase
-from hwt.synthesizer.param import Param
-from hwt.synthesizer.unit import Unit
+from hwt.hwParam import HwParam
+from hwt.hwModule import HwModule
 from hwtHls.frontend.netlist import HlsThreadFromNetlist
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.ports import link_hls_nodes
@@ -16,22 +16,22 @@ from hwtHls.scope import HlsScope
 from hwtSimApi.utils import freq_to_period
 
 
-class ReadNonBlockingUnit(Unit):
+class ReadNonBlockingHwModule(HwModule):
     """
     In this example the HlsNetNodeRead+HlsNetNodeExplicitSync should be converted to non blocking HlsNetNodeRead
     and ._validNB should be used to drive output MUX
     """
 
     def _config(self) -> None:
-        self.CLK_FREQ = Param(int(100e6))
-        self.DATA_WIDTH = Param(8)
+        self.CLK_FREQ = HwParam(int(100e6))
+        self.DATA_WIDTH = HwParam(8)
 
     def _declr(self) -> None:
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
-        with self._paramsShared():
-            self.dataIn = Handshaked()
-            self.dataOut = Handshaked()._m()
+        with self._hwParamsShared():
+            self.dataIn = HwIODataRdVld()
+            self.dataOut = HwIODataRdVld()._m()
 
     def connectIo(self, netlist: HlsNetlistCtx):
         """
@@ -63,25 +63,25 @@ class ReadNonBlockingUnit(Unit):
 
 class ReadNonBockingTC(SimTestCase):
 
-    def test_ReadNonBlockingUnit(self):
-        u = ReadNonBlockingUnit()
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
-        u.dataIn._ag.data.extend([1])
-        t = int(freq_to_period(u.CLK_FREQ)) * 4
+    def test_ReadNonBlockingHwModule(self):
+        dut = ReadNonBlockingHwModule()
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
+        dut.dataIn._ag.data.extend([1])
+        t = int(freq_to_period(dut.CLK_FREQ)) * 4
         self.runSim(t)
-        self.assertValSequenceEqual(u.dataOut._ag.data, [1, 0, 0])
+        self.assertValSequenceEqual(dut.dataOut._ag.data, [1, 0, 0])
 
      
 if __name__ == '__main__':
     import unittest
 
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
-    u = ReadNonBlockingUnit()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    m = ReadNonBlockingHwModule()
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([ReadNonBockingTC("test_ReadNonBlockingUnit")])
+    # suite = unittest.TestSuite([ReadNonBockingTC("test_ReadNonBlockingHwModule")])
     suite = testLoader.loadTestsFromTestCase(ReadNonBockingTC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

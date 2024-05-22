@@ -1,6 +1,6 @@
 from typing import List
 
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -13,7 +13,7 @@ def ArchElementDCE(netlist:HlsNetlistCtx, sccSyncArchElements: List[ArchElement]
     assert not removed, ("Should be already filtered before calling this", removed)
     simplify = HlsNetlistPassSimplify(None)
 
-    worklist: UniqList[HlsNetNode] = UniqList()
+    worklist: SetList[HlsNetNode] = SetList()
     for elm in sccSyncArchElements:
         anyNodeRemoved = False
         for n in elm._subNodes:

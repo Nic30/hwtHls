@@ -1,6 +1,6 @@
 from typing import Dict, Union
 
-from hwt.synthesizer.interface import Interface
+from hwt.hwIO import HwIO
 from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
 from hwtHls.netlist.analysis.ioDiscover import HlsNetlistAnalysisPassIoDiscover
 from hwtHls.netlist.analysis.nodeParentAggregate import HlsNetlistAnalysisPassNodeParentAggregate
@@ -30,9 +30,9 @@ class RtlArchPassIoPortPrivatization(RtlArchPass):
     def _privatizePortToIo(self,
                            elm: ArchElement,
                            ioNode: Union[HlsNetNodeRead, HlsNetNodeWrite],
-                           port: Interface,
+                           port: HwIO,
                            ioDiscovery: HlsNetlistAnalysisPassIoDiscover,
-                           portOwner: Dict[Interface, ArchElement]):
+                           portOwner: Dict[HwIO, ArchElement]):
         ioNodes = ioDiscovery.ioByInterface.get(port, None)
         if ioNodes is None:
             ioNodes = ioDiscovery.ioByInterface[port] = []
@@ -52,10 +52,10 @@ class RtlArchPassIoPortPrivatization(RtlArchPass):
         ioByInterface = ioDiscovery.ioByInterface
         hierarchy: HlsNetlistAnalysisPassNodeParentAggregate = netlist.getAnalysis(HlsNetlistAnalysisPassNodeParentAggregate)
         # clkPeriod: SchedTime = allocator.netlist.normalizedClkPeriod
-        portOwner: Dict[Interface, ArchElement] = {}
+        portOwner: Dict[HwIO, ArchElement] = {}
         # for each FSM we need to keep pool of assigned ports so we can reuse it in next clock cycle
         # because the ports can be shared between clock cycles.
-        # fsmPortPool: Dict[Tuple[ArchElementFsm, Tuple[Interface]], List[Interface]] = {}
+        # fsmPortPool: Dict[Tuple[ArchElementFsm, Tuple[HwIO]], List[HwIO]] = {}
         for io in ioDiscovery.interfaceList:
             if isinstance(io, (MultiPortGroup, BankedPortGroup)):
                 freePorts = list(reversed(io))  # reversed so we allocate ports with lower index fist

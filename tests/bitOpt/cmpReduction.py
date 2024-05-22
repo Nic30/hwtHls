@@ -1,22 +1,22 @@
 from hwt.hdl.types.defs import BIT
-from hwt.interfaces.std import VectSignal, Signal
-from hwt.synthesizer.param import Param
-from hwt.synthesizer.unit import Unit
+from hwt.hwIOs.std import HwIOVectSignal, HwIOSignal
+from hwt.hwParam import HwParam
+from hwt.hwModule import HwModule
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 
 
-class RedundantCmpGT(Unit):
+class RedundantCmpGT(HwModule):
 
     def _config(self) -> None:
-        self.FREQ = Param(int(100e6))
+        self.FREQ = HwParam(int(100e6))
 
     def _declr(self):
-        self.i0 = VectSignal(8, signed=False)
-        # self.i1 = VectSignal(8, signed=False)
+        self.i0 = HwIOVectSignal(8, signed=False)
+        # self.i1 = HwIOVectSignal(8, signed=False)
 
-        self.o = Signal()._m()
+        self.o = HwIOSignal()._m()
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
@@ -34,8 +34,9 @@ class RedundantCmpGT(Unit):
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.platform import HlsDebugBundle
-    u = RedundantCmpGT()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+
+    m = RedundantCmpGT()
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

@@ -7,7 +7,7 @@ the gate we have to analyze all possible ways which leads to the gate.
 
 from typing import Set
 
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.analysis.consystencyCheck import HlsNetlistPassConsystencyCheck
 from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 from hwtHls.netlist.builder import HlsNetlistBuilder
@@ -24,8 +24,8 @@ from hwtHls.netlist.transformation.simplifySync.simplifySyncUtils import removeE
 
 def _analyzeHoistabilityOfSyncFlags(outNode: HlsNetNodeExplicitSync,
                                     reachDb: HlsNetlistAnalysisPassReachability):
-    seenInputs: UniqList[HlsNetNodeExplicitSync] = UniqList()
-    seenOutputs: UniqList[HlsNetNodeExplicitSync] = UniqList()
+    seenInputs: SetList[HlsNetNodeExplicitSync] = SetList()
+    seenOutputs: SetList[HlsNetNodeExplicitSync] = SetList()
     hoistableTo = {}
 
     inputsToAnalyze = []
@@ -78,7 +78,7 @@ dbgCntr = 0
 def netlistReduceExplicitSyncDissolve(
         dbgTracer: DebugTracer,
         node: HlsNetNodeExplicitSync,
-        worklist: UniqList[HlsNetNode],
+        worklist: SetList[HlsNetNode],
         removed: Set[HlsNetNode],
         reachDb: HlsNetlistAnalysisPassReachability):
     """
@@ -144,7 +144,7 @@ def netlistReduceExplicitSyncDissolve(
                         # [todo] only if hoisted to every predecessor
                         # disconnect void data channels from outNode and connect them to all successors of outNode
                         iVoid = i.getDataVoidOutPort()
-                        successors: UniqList[HlsNetNodeExplicitSync] = UniqList()
+                        successors: SetList[HlsNetNodeExplicitSync] = SetList()
 
                         for u in i.usedBy[iVoid.out_i]:
                             if u.obj is outNode:

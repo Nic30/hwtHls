@@ -1,8 +1,8 @@
 from itertools import chain
 from typing import Set, Tuple, Optional
 
-from hwt.hdl.operatorDefs import AllOps
-from hwt.pyUtils.uniqList import UniqList
+from hwt.hdl.operatorDefs import HwtOps
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.analysis.betweenSyncIslands import HlsNetlistAnalysisPassBetweenSyncIslands
 from hwtHls.netlist.analysis.betweenSyncIslandsUtils import BetweenSyncIsland
 from hwtHls.netlist.context import HlsNetlistCtx
@@ -123,7 +123,7 @@ class SyncIslandProps():
             for n in isl.nodes:
                 if isinstance(n, (HlsNetNodeIoClusterCore, HlsNetNodeConst)):
                     pass
-                elif isinstance(n, HlsNetNodeOperator) and n.operator in (AllOps.INDEX, AllOps.CONCAT):
+                elif isinstance(n, HlsNetNodeOperator) and n.operator in (HwtOps.INDEX, HwtOps.CONCAT):
                     pass
                 elif isinstance(n, (HlsNetNodeLoopStatus, HlsProgramStarter,
                                     HlsNetNodeReadForwardedge, HlsNetNodeWriteForwardedge,
@@ -203,10 +203,10 @@ class HlsNetlistPassBetweenSyncIslandsMerge(HlsNetlistPass):
         dstIsl.nodes.extend(srcIsl.nodes)
         dstIsl.outputs.extend(srcIsl.outputs)
 
-    def _collectConnectedIslands(self, isl: BetweenSyncIsland) -> Tuple[UniqList[BetweenSyncIsland], UniqList[BetweenSyncIsland]]:
+    def _collectConnectedIslands(self, isl: BetweenSyncIsland) -> Tuple[SetList[BetweenSyncIsland], SetList[BetweenSyncIsland]]:
         syncIslandOfNode = self.syncIslandOfNode
-        predIslands: UniqList[BetweenSyncIsland] = UniqList()
-        sucIslands: UniqList[BetweenSyncIsland] = UniqList()
+        predIslands: SetList[BetweenSyncIsland] = SetList()
+        sucIslands: SetList[BetweenSyncIsland] = SetList()
         for n in chain(isl.inputs, isl.nodes, isl.outputs):
             # no need to check exclude void links as there is no IO and thus void links
             # there are representing data only

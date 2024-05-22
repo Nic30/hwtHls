@@ -1,7 +1,7 @@
 from typing import Set
 
-from hwt.hdl.operatorDefs import AllOps
-from hwt.pyUtils.uniqList import UniqList
+from hwt.hdl.operatorDefs import HwtOps
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
@@ -9,7 +9,7 @@ from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.transformation.simplifyUtils import replaceOperatorNodeWith
 
 
-def netlistReduceValidAndOrXorEqValidNb(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]):
+def netlistReduceValidAndOrXorEqValidNb(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode], removed: Set[HlsNetNode]):
     builder: HlsNetlistBuilder = n.netlist.builder
     # search for const in for commutative operator
     o0, o1 = n.dependsOn
@@ -29,13 +29,13 @@ def netlistReduceValidAndOrXorEqValidNb(n: HlsNetNodeOperator, worklist: UniqLis
     # o0 and o1 are r._valid or r._validNB, order does not matter
 
     o = n.operator
-    if o is AllOps.AND or o is AllOps.OR:
+    if o is HwtOps.AND or o is HwtOps.OR:
         replaceOperatorNodeWith(n, r._valid, worklist, removed)
         return True
-    elif o is AllOps.XOR:
+    elif o is HwtOps.XOR:
         replaceOperatorNodeWith(n, builder.buildConstBit(0), worklist, removed)
         return True
-    elif o is AllOps.EQ:
+    elif o is HwtOps.EQ:
         replaceOperatorNodeWith(n, builder.buildConstBit(1), worklist, removed)
         return True
     else:

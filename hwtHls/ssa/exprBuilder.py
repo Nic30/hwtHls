@@ -1,13 +1,13 @@
 from itertools import chain
 from typing import Optional, Union, List, Tuple, Sequence
 
-from hwt.hdl.operator import Operator
-from hwt.hdl.operatorDefs import OpDefinition, AllOps
+from hwt.hdl.operator import HOperatorNode
+from hwt.hdl.operatorDefs import HOperatorDef, HwtOps
 from hwt.hdl.types.defs import SLICE
-from hwt.hdl.types.sliceVal import HSliceVal
-from hwt.hdl.value import HValue
-from hwt.interfaces.std import Signal
-from hwt.synthesizer.interface import Interface
+from hwt.hdl.types.sliceConst import HSliceConst
+from hwt.hdl.const import HConst
+from hwt.hwIOs.std import HwIOSignal
+from hwt.hwIO import HwIO
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
@@ -26,10 +26,10 @@ class SsaExprBuilder():
         self.block = block
         self.position = position
 
-    def _unaryOp(self, o: Union[SsaValue, HValue], operator: OpDefinition) -> SsaValue:
+    def _unaryOp(self, o: Union[SsaValue, HConst], operator: HOperatorDef) -> SsaValue:
         o, oForTypeInference = self._normalizeOperandForOperatorResTypeEval(o)
         res = operator._evalFn(oForTypeInference)
-        if o is oForTypeInference and isinstance(res, HValue):
+        if o is oForTypeInference and isinstance(res, HConst):
             return res
 
         instr = SsaInstr(self.block.ctx, res._dtype, operator, [o, ], origin=res)
@@ -69,15 +69,15 @@ class SsaExprBuilder():
             self.position += 1
 
     def _normalizeOperandForOperatorResTypeEval(self,
-                                                o: Union[SsaValue, HValue, RtlSignal, Signal]
-                                                ) -> Tuple[Union[SsaValue, HValue], Union[SsaValue, HValue]]:
+                                                o: Union[SsaValue, HConst, RtlSignal, HwIOSignal]
+                                                ) -> Tuple[Union[SsaValue, HConst], Union[SsaValue, HConst]]:
         """
         :return: tuple (object for expressing, object for type inference)
         """
-        if isinstance(o, Interface):
+        if isinstance(o, HwIO):
             o = o._sig
 
-        if isinstance(o, HValue):
+        if isinstance(o, HConst):
             return o, o
 
         elif isinstance(o, SsaValue):
@@ -90,8 +90,8 @@ class SsaExprBuilder():
             if isinstance(origin, SsaValue):
                 return origin, o._dtype.from_py(None)
 
-            elif isinstance(origin, Operator):
-                origin: Operator
+            elif isinstance(origin, HOperatorNode):
+                origin: HOperatorNode
                 ops = origin.operands
 
                 if len(ops) == 1:
@@ -101,7 +101,7 @@ class SsaExprBuilder():
                 else:
                     raise NotImplementedError(o.origin)
 
-                if isinstance(res, HValue):
+                if isinstance(res, HConst):
                     return res, res
                 else:
                     while isinstance(res, SsaPhi) and res.replacedBy is not None:
@@ -114,13 +114,13 @@ class SsaExprBuilder():
         else:
             return o, o._dtype.from_py(None)
 
-    def _binaryOp(self, o0: Union[SsaValue, HValue, RtlSignal, Signal],
-                        operator: OpDefinition,
-                        o1: Union[SsaValue, HValue, RtlSignal, Signal]) -> SsaValue:
+    def _binaryOp(self, o0: Union[SsaValue, HConst, RtlSignal, HwIOSignal],
+                        operator: HOperatorDef,
+                        o1: Union[SsaValue, HConst, RtlSignal, HwIOSignal]) -> SsaValue:
         o0, o0ForTypeInference = self._normalizeOperandForOperatorResTypeEval(o0)
         o1, o1ForTypeInference = self._normalizeOperandForOperatorResTypeEval(o1)
 
-        if operator == AllOps.CONCAT:
+        if operator == HwtOps.CONCAT:
             res = operator._evalFn(
                 o1ForTypeInference,
                 o0ForTypeInference,
@@ -130,16 +130,16 @@ class SsaExprBuilder():
                 o0ForTypeInference,
                 o1ForTypeInference,
             )
-        if o0 is o0ForTypeInference and o1 is o1ForTypeInference and isinstance(res, HValue):
+        if o0 is o0ForTypeInference and o1 is o1ForTypeInference and isinstance(res, HConst):
             return res
 
         instr = SsaInstr(self.block.ctx, res._dtype, operator, [o0, o1], origin=res)
         self._insertInstr(instr)
         return instr
 
-    def _binaryOpVariadic(self, operator: OpDefinition, ops: Sequence[Union[SsaValue, HValue, RtlSignal, Signal]]):
+    def _binaryOpVariadic(self, operator: HOperatorDef, ops: Sequence[Union[SsaValue, HConst, RtlSignal, HwIOSignal]]):
         assert ops
-        if operator == AllOps.CONCAT:
+        if operator == HwtOps.CONCAT:
             ops = reversed(ops)
 
         instr = None
@@ -152,13 +152,13 @@ class SsaExprBuilder():
         assert instr is not None
         return instr
 
-    def buildSliceConst(self, v: SsaValue, highBitNo: int, lowBitNo: int) -> Union[SsaValue, HValue]:
+    def buildSliceConst(self, v: SsaValue, highBitNo: int, lowBitNo: int) -> Union[SsaValue, HConst]:
         if highBitNo - lowBitNo == v._dtype.bit_length():
             return v
-        elif isinstance(v, HValue):
+        elif isinstance(v, HConst):
             return v[highBitNo:lowBitNo]
         elif isinstance(v, SsaInstr):
-            if v.operator == AllOps.CONCAT:
+            if v.operator == HwtOps.CONCAT:
                 op0, op1 = v.operands
                 half = op0._dtype.bit_length()
                 if highBitNo <= half:
@@ -167,7 +167,7 @@ class SsaExprBuilder():
                     return self.buildSliceConst(op1, highBitNo - half, lowBitNo - half)
 
         i = SLICE.from_py(slice(highBitNo, lowBitNo, -1))
-        return self._binaryOp(v, AllOps.INDEX, i)
+        return self._binaryOp(v, HwtOps.INDEX, i)
 
     def concat(self, *args) -> SsaValue:
         """
@@ -183,10 +183,10 @@ class SsaExprBuilder():
         lastSlice = None
         handle = object()  # using handle to check for leftover from slice merging after last item
         for p in chain(args, (handle,)):
-            pIsSlice = isinstance(p, SsaInstr) and p.operator == AllOps.INDEX and isinstance(p.operands[1], HValue)
+            pIsSlice = isinstance(p, SsaInstr) and p.operator == HwtOps.INDEX and isinstance(p.operands[1], HConst)
             if pIsSlice:
                 src, i = p.operands
-                if isinstance(i, HSliceVal):
+                if isinstance(i, HSliceConst):
                     i = i.val
                     assert int(i.step) == -1, (p, i)
                     low = int(i.stop)
@@ -216,7 +216,7 @@ class SsaExprBuilder():
                         res = lastSlice
                     else:
                         # left must be the first, right the latest
-                        res = self._binaryOp(res, AllOps.CONCAT, lastSlice)
+                        res = self._binaryOp(res, HwtOps.CONCAT, lastSlice)
 
                 if p is handle:
                     break
@@ -238,7 +238,7 @@ class SsaExprBuilder():
                 res = p
             else:
                 # left must be the first, right the latest
-                res = self._binaryOp(res, AllOps.CONCAT, p)
+                res = self._binaryOp(res, HwtOps.CONCAT, p)
 
         return res
 

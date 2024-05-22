@@ -228,7 +228,7 @@ std::pair<llvm::Value*, bool> StreamWriteEoFHoister::_prepareEoFCondition(
 }
 
 //llvm::Value* StreamWriteEoFHoister::_tryToGetConditionToEnableEoF(
-//		/*Union[HlsStmWriteStartOfFrame, HlsStmWriteAxiStream]*/const StreamIoDetector::HlsReadOrWrite *curWrite) {
+//		/*Union[HlsStmWriteStartOfFrame, HlsStmWriteAxi4Stream]*/const StreamIoDetector::HlsReadOrWrite *curWrite) {
 //	//auto *curBlock = curWrite->getParent();
 //	//std::set<const BasicBlock*> successorsWithEoF;
 //	//for (BasicBlock *suc : llvm::successors(curBlock)) {

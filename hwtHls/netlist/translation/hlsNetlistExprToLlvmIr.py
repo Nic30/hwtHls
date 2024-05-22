@@ -1,8 +1,8 @@
 from itertools import chain, islice
 from typing import List
 
-from hwt.hdl.operatorDefs import AllOps
-from hwt.pyUtils.uniqList import UniqList
+from hwt.hdl.operatorDefs import HwtOps
+from hwt.pyUtils.setList import SetList
 from hwtHls.frontend.ast.astToSsa import IoPortToIoOpsDictionary
 from hwtHls.llvm.llvmIr import Type, BasicBlock, PointerType, Argument, verifyFunction
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
@@ -15,8 +15,8 @@ class HlsNetlistExprToLlvmIr(ToLlvmIrTranslator):
 
     def __init__(self, label: str):
         topIo: IoPortToIoOpsDictionary = {}
-        parentUnit = None
-        super(HlsNetlistExprToLlvmIr, self).__init__(label, topIo, parentUnit)
+        parentHwModule = None
+        super(HlsNetlistExprToLlvmIr, self).__init__(label, topIo, parentHwModule)
 
     def _translateExpr(self, out: HlsNetNodeOut):
         v = self.varMap.get(out, None)
@@ -26,13 +26,13 @@ class HlsNetlistExprToLlvmIr(ToLlvmIrTranslator):
         obj = out.obj
         if isinstance(obj, HlsNetNodeConst):
             v = obj.val
-            c = self._translateExprHValue(v)
+            c = self._translateExprHConst(v)
             self.varMap[out] = c
             return c
         else:
             assert isinstance(obj, HlsNetNodeOperator), obj
             ops = obj.dependsOn
-            if obj.operator == AllOps.TERNARY:
+            if obj.operator == HwtOps.TERNARY:
                 assert len(ops) == 3
                 ops = (ops[1], ops[0], ops[2])
 
@@ -40,7 +40,7 @@ class HlsNetlistExprToLlvmIr(ToLlvmIrTranslator):
             self.varMap[out] = v
             return v
 
-    def translate(self, inputs: UniqList[HlsNetNodeOut], outputs: UniqList[HlsNetNodeOut]):
+    def translate(self, inputs: SetList[HlsNetNodeOut], outputs: SetList[HlsNetNodeOut]):
         # name, pointer type, element type, address width
         params: List[str, Type, Type, int] = []
         for ioIndex, io in enumerate(chain(inputs, outputs)):

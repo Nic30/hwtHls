@@ -12,10 +12,10 @@ from tests.io.amba.axi4Lite.axi4LiteWrite import Axi4LiteWrite
 class Axi4LiteWrite_TC(SimTestCase):
 
     def test_Axi4LiteWrite(self):
-        u = Axi4LiteWrite()
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
-        clkPeriod = int(freq_to_period(u.CLK_FREQ))
-        mem = Axi4LiteSimRam(u.ram)
+        dut = Axi4LiteWrite()
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
+        clkPeriod = int(freq_to_period(dut.CLK_FREQ))
+        mem = Axi4LiteSimRam(dut.ram)
         N = 8
         self.runSim((N + 2) * clkPeriod)
         BaseIrMirRtl_TC._test_no_comb_loops(self)

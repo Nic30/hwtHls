@@ -1,6 +1,6 @@
 from typing import Dict, List, Set
 
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.archElement import ArchElement
@@ -16,11 +16,11 @@ class RtlArchPassArchStructureSimplfy(RtlArchPass):
 
     @staticmethod
     def findSuccessorsPredecessors(archElements: List[ArchElement]):
-        archElmSuccessors: Dict[ArchElement, UniqList[ArchElement]] = {}
-        archElmPredecessors: Dict[ArchElement, UniqList[ArchElement]] = {}
+        archElmSuccessors: Dict[ArchElement, SetList[ArchElement]] = {}
+        archElmPredecessors: Dict[ArchElement, SetList[ArchElement]] = {}
         for archElm in archElements:
-            archElmSuccessors[archElm] = UniqList()
-            archElmPredecessors[archElm] = UniqList()
+            archElmSuccessors[archElm] = SetList()
+            archElmPredecessors[archElm] = SetList()
 
         for dstElm in archElements:
             for dep in dstElm.dependsOn:
@@ -31,8 +31,8 @@ class RtlArchPassArchStructureSimplfy(RtlArchPass):
         return archElmPredecessors, archElmSuccessors
 
     @classmethod
-    def isPipelineEndingInElm(cls, archElmPredecessors: Dict[ArchElement, UniqList[ArchElement]],
-                              archElmSuccessors: Dict[ArchElement, UniqList[ArchElement]],
+    def isPipelineEndingInElm(cls, archElmPredecessors: Dict[ArchElement, SetList[ArchElement]],
+                              archElmSuccessors: Dict[ArchElement, SetList[ArchElement]],
                               cur: ArchElementPipeline, dst: ArchElement, path: List[ArchElementPipeline]):
         if cur is dst:
             return True

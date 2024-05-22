@@ -4,7 +4,7 @@
 from typing import Optional, Type, List
 
 from hwt.simulator.simTestCase import SimTestCase
-from hwt.synthesizer.unit import Unit
+from hwt.hwModule import HwModule
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtSimApi.constants import CLK_PERIOD
 from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
@@ -18,13 +18,13 @@ class IoFsm2_TC(SimTestCase):
     def _test_no_comb_loops(self):
         BaseIrMirRtl_TC._test_no_comb_loops(self)
 
-    def _test_Write(self, cls: Type[Unit], ref: List[Optional[int]], CLK):
-        u = cls()
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
+    def _test_Write(self, cls: Type[HwModule], ref: List[Optional[int]], CLK):
+        dut = cls()
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
         self.runSim(CLK * CLK_PERIOD)
         self._test_no_comb_loops()
 
-        self.assertValSequenceEqual(u.o._ag.data, ref)
+        self.assertValSequenceEqual(dut.o._ag.data, ref)
 
     def test_WriteFsmFor(self, cls=WriteFsmFor, ref=[1, 2, 3,
                                                      1, 2, 3,
@@ -71,15 +71,21 @@ class IoFsm2_TC(SimTestCase):
         ref = [next(m) for _ in range(CLK)]
         self._test_Write(cls, ref, CLK + 3)
 
-    def _test_ReadWrite(self, cls: Type[Unit], dinRef: List[Optional[int]], ref: List[Optional[int]], CLK: int, USE_PY_FRONTEND=False):
-        u = cls()
-        u.USE_PY_FRONTEND = USE_PY_FRONTEND
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
-        u.i._ag.data.extend(dinRef)
+    def _test_ReadWrite(self, cls: Type[HwModule], dinRef: List[Optional[int]], ref: List[Optional[int]], CLK: int, USE_PY_FRONTEND=False):
+        dut = cls()
+        dut.USE_PY_FRONTEND = USE_PY_FRONTEND
+        target_platform=VirtualHlsPlatform()
+        #target_platform = VirtualHlsPlatform(debugFilter={
+        #    *HlsDebugBundle.ALL_RELIABLE,
+        #    HlsDebugBundle.DBG_20_addSignalNamesToSync,
+        #    HlsDebugBundle.DBG_20_addSignalNamesToData,
+        #})
+        self.compileSimAndStart(dut, target_platform=target_platform)
+        dut.i._ag.data.extend(dinRef)
         self.runSim(CLK * CLK_PERIOD)
         self._test_no_comb_loops()
 
-        self.assertValSequenceEqual(u.o._ag.data, ref)
+        self.assertValSequenceEqual(dut.o._ag.data, ref)
 
     def test_WriteFsmControlledFromIn(self, cls=WriteFsmControlledFromIn, CLK=16):
 
@@ -123,14 +129,19 @@ class IoFsm2_TC(SimTestCase):
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import to_rtl_str
-    from hwtHls.platform.platform import HlsDebugBundle
-    u = WriteFsmPrequel()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter={*HlsDebugBundle.ALL_RELIABLE, HlsDebugBundle.DBG_20_addSignalNamesToSync})))
+    # from hwt.synth import to_rtl_str
+    # from hwtHls.platform.platform import HlsDebugBundle
+    # m = ReadFsmWriteFsmSumAndCondWrite()
+    # m.USE_PY_FRONTEND = True
+    # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter={
+    #     *HlsDebugBundle.ALL_RELIABLE,
+    #     HlsDebugBundle.DBG_20_addSignalNamesToSync,
+    #     HlsDebugBundle.DBG_20_addSignalNamesToData,
+    # })))
 
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([IoFsm2_TC("test_WriteFsmPrequel")])
+    # suite = unittest.TestSuite([IoFsm2_TC("test_ReadFsmWriteFsmSumAndCondWrite")])
     suite = testLoader.loadTestsFromTestCase(IoFsm2_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

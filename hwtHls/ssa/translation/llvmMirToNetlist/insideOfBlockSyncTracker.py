@@ -1,8 +1,8 @@
 from typing import Set, Union, Literal, Optional
 
-from hwt.hdl.operatorDefs import AllOps
-from hwt.hdl.types.bits import Bits
-from hwt.pyUtils.uniqList import UniqList
+from hwt.hdl.operatorDefs import HwtOps
+from hwt.hdl.types.bits import HBits
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -35,9 +35,9 @@ class InsideOfBlockSyncTracker():
         self.blockEn = blockEn
         self.builder = builder
         self.blockBoudary: Set[HlsNetNodeOutAny] = {blockEn, }
-        # self.syncForOut: Dict[HlsNetNodeOutAny, UniqList[HlsNetNodeExplicitSync]] = {}
+        # self.syncForOut: Dict[HlsNetNodeOutAny, SetList[HlsNetNodeExplicitSync]] = {}
 
-    def _collectInputValidityFlags(self, out: HlsNetNodeOutAny, parentUser: Optional[HlsNetNode], usedInputs: UniqList[HlsNetNodeExplicitSync]):
+    def _collectInputValidityFlags(self, out: HlsNetNodeOutAny, parentUser: Optional[HlsNetNode], usedInputs: SetList[HlsNetNodeExplicitSync]):
         if out in self.blockBoudary:
             return
 
@@ -55,11 +55,11 @@ class InsideOfBlockSyncTracker():
                 if out is outObj._valid or out is outObj._validNB:
                     return
                 elif out is outObj._rawValue:
-                    if isinstance(parentUser, HlsNetNodeOperator) and parentUser.operator == AllOps.INDEX:
+                    if isinstance(parentUser, HlsNetNodeOperator) and parentUser.operator == HwtOps.INDEX:
                         assert parentUser.dependsOn[0] is out
                         i = getConstDriverOf(parentUser._inputs[1])
                         assert i is not None
-                        if isinstance(i._dtype, Bits):
+                        if isinstance(i._dtype, HBits):
                             i = int(i)
                             dataWidth = outObj._outputs[0]._dtype.bit_length()
                             if i >= dataWidth: # _valid or _validNB
@@ -94,7 +94,7 @@ class InsideOfBlockSyncTracker():
             assert out in (0, 1), out
             return out
 
-        usedInputs: UniqList[HlsNetNodeExplicitSync] = UniqList()
+        usedInputs: SetList[HlsNetNodeExplicitSync] = SetList()
         self._collectInputValidityFlags(out, None, usedInputs)
         if usedInputs:
             andMembers = tuple((out, *(rw.getValidNB() for rw in usedInputs if isinstance(rw, HlsNetNodeRead) and rw._rtlUseValid)))

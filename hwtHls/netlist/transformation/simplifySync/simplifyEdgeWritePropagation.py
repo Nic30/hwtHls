@@ -1,8 +1,8 @@
 from typing import Set
 
-from hwt.hdl.types.bitsVal import BitsVal
-from hwt.interfaces.std import HandshakeSync
-from hwt.pyUtils.uniqList import UniqList
+from hwt.hdl.types.bitsConst import HBitsConst
+from hwt.hwIOs.std import HwIORdVldSync
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.debugTracer import DebugTracer
@@ -10,7 +10,7 @@ from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeReadAnyChannel, \
     HlsNetNodeWriteAnyChannel, LoopChanelGroup
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.hdlTypeVoid import _HVoidValue, HVoidOrdering, \
+from hwtHls.netlist.hdlTypeVoid import _HVoidConst, HVoidOrdering, \
     HdlType_isNonData, HdlType_isVoid
 from hwtHls.netlist.nodes.ports import unlink_hls_nodes, \
     link_hls_nodes, unlink_hls_node_input_if_exists,\
@@ -23,7 +23,7 @@ from hwtHls.netlist.transformation.simplifySync.reduceChannelGroup import netlis
 def netlistEdgeWritePropagation(
         dbgTracer: DebugTracer,
         writeNode: HlsNetNodeWriteAnyChannel,
-        worklist: UniqList[HlsNetNode],
+        worklist: SetList[HlsNetNode],
         removed: Set[HlsNetNode],
         reachDb: HlsNetlistAnalysisPassReachability) -> bool:
     """
@@ -52,10 +52,10 @@ def netlistEdgeWritePropagation(
         if init:
             if len(init) == 1:
                 # if write value is same as init allow propagation
-                if isinstance(d, BitsVal) and len(init[0]) == 1 and int(d) == int(init[0][0]):
+                if isinstance(d, HBitsConst) and len(init[0]) == 1 and int(d) == int(init[0][0]):
                     dbgTracer.log("reduce init values")
                     writeNode.channelInitValues = ((),)
-                elif isinstance(d, _HVoidValue) and len(init[0]) == 1  and len(init[0]) == 0:
+                elif isinstance(d, _HVoidConst) and len(init[0]) == 1  and len(init[0]) == 0:
                     # channelInitValues already in correct format
                     pass
                 else:
@@ -69,7 +69,7 @@ def netlistEdgeWritePropagation(
         builder: HlsNetlistBuilder = writeNode.netlist.builder
 
         # sync which is using the value coming from "r"
-        # dependentSync: UniqList[HlsNetNodeIn] = UniqList()
+        # dependentSync: SetList[HlsNetNodeIn] = SetList()
         directDataSuccessors = tuple(reachDb.getDirectDataSuccessors(r))
         # for user in directDataSuccessors:
         #    if user.__class__ is HlsNetNodeExplicitSync and reachDb.doesReachTo(r._outputs[0], user._inputs[0]):
@@ -99,7 +99,7 @@ def netlistEdgeWritePropagation(
         origRSrc = r.src
         if r.src is not None:
             assert r.src._ctx is None, ("Interface must not be instantiated yet", r)
-            r.src = HandshakeSync()
+            r.src = HwIORdVldSync()
 
         if writeNode.dst is not None:
             assert writeNode.dst._ctx is None, (
@@ -107,7 +107,7 @@ def netlistEdgeWritePropagation(
             if writeNode.dst is origRSrc:
                 writeNode.dst = r.src
             else:
-                writeNode.dst = HandshakeSync()
+                writeNode.dst = HwIORdVldSync()
 
         r._outputs[0]._dtype = HVoidOrdering
         worklist.append(writeNode.dependsOn[0].obj)
@@ -122,7 +122,7 @@ def netlistEdgeWritePropagation(
 def netlistEdgeWriteVoidWithoudDeps(
         dbgTracer: DebugTracer,
         writeNode: HlsNetNodeWriteAnyChannel,
-        worklist: UniqList[HlsNetNode],
+        worklist: SetList[HlsNetNode],
         removed: Set[HlsNetNode]) -> bool:
     if len(writeNode._inputs) != 1:
         return False

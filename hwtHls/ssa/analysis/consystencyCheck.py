@@ -1,8 +1,8 @@
 from typing import Set, Dict, Union
 
-from hwt.hdl.operatorDefs import OpDefinition
-from hwt.hdl.value import HValue
-from hwt.pyUtils.uniqList import UniqList
+from hwt.hdl.operatorDefs import HOperatorDef
+from hwt.hdl.const import HConst
+from hwt.pyUtils.setList import SetList
 from hwtHls.frontend.ast.statementsRead import HlsRead
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
@@ -12,13 +12,13 @@ from hwtHls.ssa.value import SsaValue
 from hwtHls.typingFuture import override
 
 
-_ValOrVal = (HValue, SsaValue)
+_ValOrVal = (HConst, SsaValue)
 
 
 class SsaPassConsystencyCheck(SsaPass):
 
-    def visit_collect(self, bb: SsaBasicBlock, blocks: UniqList[SsaBasicBlock],
-                      phis: UniqList[SsaPhi],
+    def visit_collect(self, bb: SsaBasicBlock, blocks: SetList[SsaBasicBlock],
+                      phis: SetList[SsaPhi],
                       variables: Dict[SsaValue, SsaBasicBlock]):
         blocks.append(bb)
         for phi in bb.phis:
@@ -31,7 +31,7 @@ class SsaPassConsystencyCheck(SsaPass):
             variables[phi] = phi
             for v, src_block in  phi.operands:
                 assert src_block in bb.predecessors, (phi, src_block, bb.predecessors)
-                assert isinstance(v, HValue) or v.block is not None, ("PHI operand was removed from SSA but it is still there", phi, v)
+                assert isinstance(v, HConst) or v.block is not None, ("PHI operand was removed from SSA but it is still there", phi, v)
 
         for stm in bb.body:
             if isinstance(stm, SsaInstr):
@@ -47,10 +47,10 @@ class SsaPassConsystencyCheck(SsaPass):
             if _bb not in blocks:
                 self.visit_collect(_bb, blocks, phis, variables)
 
-    def _check_variable_definition_for_use(self, var: Union[SsaValue, HValue],
-                                           phis: UniqList[SsaPhi],
+    def _check_variable_definition_for_use(self, var: Union[SsaValue, HConst],
+                                           phis: SetList[SsaPhi],
                                            variables: Dict[SsaValue, SsaBasicBlock]):
-        if isinstance(var, (HValue, HlsRead)):
+        if isinstance(var, (HConst, HlsRead)):
             pass
         elif isinstance(var, SsaPhi):
             assert var in phis, ("Variable never defined", var)
@@ -59,8 +59,8 @@ class SsaPassConsystencyCheck(SsaPass):
             assert var in variables, ("Variable never defined", var)
 
     def visit_check(self, bb: SsaBasicBlock,
-                    blocks: UniqList[SsaBasicBlock],
-                    phis: UniqList[SsaPhi],
+                    blocks: SetList[SsaBasicBlock],
+                    phis: SetList[SsaPhi],
                     variables: Dict[SsaValue, SsaBasicBlock],
                     seen: Set[SsaBasicBlock]):
         assert bb in blocks
@@ -69,7 +69,7 @@ class SsaPassConsystencyCheck(SsaPass):
             if isinstance(stm, SsaInstr):
                 stm: SsaInstr
                 assert isinstance(stm.operands, (tuple, list)), stm
-                assert isinstance(stm.operator, OpDefinition), stm
+                assert isinstance(stm.operator, HOperatorDef), stm
                 for op in stm.operands:
                     self._check_variable_definition_for_use(op, phis, variables)
 
@@ -90,8 +90,8 @@ class SsaPassConsystencyCheck(SsaPass):
     @override
     def runOnSsaModuleImpl(self, toSsa: "HlsAstToSsa"):
         bb = toSsa.start
-        blocks: UniqList[SsaBasicBlock] = UniqList()
-        phis: UniqList[SsaPhi] = UniqList()
+        blocks: SetList[SsaBasicBlock] = SetList()
+        phis: SetList[SsaPhi] = SetList()
         variables: Dict[SsaValue, SsaBasicBlock] = {}
         self.visit_collect(bb, blocks, phis, variables)
         seen = set()

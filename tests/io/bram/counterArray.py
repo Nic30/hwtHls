@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.hdl.constants import WRITE, READ
-from hwt.hdl.types.bits import Bits
+from hwt.constants import WRITE, READ
+from hwt.hwIOs.std import HwIODataRdVld
+from hwt.hwIOs.utils import addClkRstn, propagateClkRstn
+from hwt.hwModule import HwModule
+from hwt.hwParam import HwParam
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
-from hwt.interfaces.std import Handshaked
-from hwt.interfaces.utils import addClkRstn, propagateClkRstn
 from hwt.math import log2ceil
-from hwt.synthesizer.param import Param
-from hwt.synthesizer.unit import Unit
 from hwtHls.architecture.transformation.utils.memoryAccessUtils import detectReadModifyWrite, \
     ArchImplementStaling, ArchImplementWriteForwarding
 from hwtHls.frontend.pyBytecode import hlsBytecode
@@ -21,21 +21,21 @@ from hwtLib.mem.ram import RamSingleClock
 from tests.frontend.pyBytecode.stmWhile import TRUE
 
 
-class BramCounterArray0nocheck(Unit):
+class BramCounterArray0nocheck(HwModule):
     """
     Array of counters stored in BRAM without any data consystency handling.
     """
 
     def _config(self) -> None:
-        self.ITEMS = Param(4)
-        self.CNTR_WIDTH = Param(16)
-        self.CLK_FREQ = Param(int(100e6))
+        self.ITEMS = HwParam(4)
+        self.CNTR_WIDTH = HwParam(16)
+        self.CLK_FREQ = HwParam(int(100e6))
 
     def _declr(self) -> None:
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
 
-        self.incr = Handshaked()
+        self.incr = HwIODataRdVld()
 
         t = RamSingleClock()
         t.ADDR_WIDTH = self.incr.DATA_WIDTH = log2ceil(self.ITEMS - 1)
@@ -45,7 +45,7 @@ class BramCounterArray0nocheck(Unit):
 
     @hlsBytecode
     def resetRam(self, hls: HlsScope, ram: BramArrayProxy):
-        i = Bits(ram.indexT.bit_length()).from_py(0)
+        i = HBits(ram.indexT.bit_length()).from_py(0)
         # [todo] if bit slicing is used on i, the llvm generates uglygep because it is not recognizing
         # the bit slicing and this ugly GEP uses 64b pinter type
         while TRUE:
@@ -153,7 +153,7 @@ class BramCounterArray4WriteForwarding(BramCounterArray0nocheck):
     def mainThread(self, hls: HlsScope, ram: BramArrayProxy):
         # reset
         # PyBytecodeInline(self.resetRam)(hls, ram)
-        p = hls.parentUnit._target_platform
+        p = hls.parentHwModule._target_platform
         p.runHlsNetlistPostSchedulingPasses = self.createGenerateLSU(ram, p.runHlsNetlistPostSchedulingPasses)
         while TRUE:
             index = hls.read(self.incr).data
@@ -165,10 +165,11 @@ class BramCounterArray4WriteForwarding(BramCounterArray0nocheck):
 
 if __name__ == "__main__":
     # from hwtHls.platform.virtual import VirtualHlsPlatform
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.xilinx.artix7 import Artix7Slow
     from hwtHls.platform.platform import HlsDebugBundle
-    u = BramCounterArray4WriteForwarding()
-    u.CLK_FREQ = int(10e6)
-    print(to_rtl_str(u, target_platform=Artix7Slow(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+   
+    m = BramCounterArray4WriteForwarding()
+    m.CLK_FREQ = int(10e6)
+    print(to_rtl_str(m, target_platform=Artix7Slow(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 

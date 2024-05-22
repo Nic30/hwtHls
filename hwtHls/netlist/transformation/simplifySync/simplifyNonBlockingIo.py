@@ -1,7 +1,7 @@
 from typing import Set, Optional
 
-from hwt.hdl.operatorDefs import AllOps
-from hwt.pyUtils.uniqList import UniqList
+from hwt.hdl.operatorDefs import HwtOps
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
@@ -21,7 +21,7 @@ from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge
 
 
 def netlistReduceExplicitSyncFlags(dbgTracer: DebugTracer, n: HlsNetNodeExplicitSync,
-                                   worklist: Optional[UniqList[HlsNetNode]],
+                                   worklist: Optional[SetList[HlsNetNode]],
                                    removed: Set[HlsNetNode]):
     """
     Remove skipWhen extraCond ports if they are useless and remove n if it has no sync flags and is directly HlsNetNodeExplicitSync instance.
@@ -91,7 +91,7 @@ def isAndedToExpression(valToSearch: HlsNetNodeOut, expr: HlsNetNodeOut):
     """
     if expr is valToSearch:
         return True
-    elif isinstance(expr.obj, HlsNetNodeOperator) and expr.obj.operator == AllOps.AND:
+    elif isinstance(expr.obj, HlsNetNodeOperator) and expr.obj.operator == HwtOps.AND:
         for o in expr.obj.dependsOn:
             if isAndedToExpression(valToSearch, o):
                 return True
@@ -104,13 +104,13 @@ def isAndedToNodAndExpr(valToSearch: HlsNetNodeOut, expr: HlsNetNodeOut):
     Check if expression is in format expr = ~And(.., valToSearch, ...)
     """
     return isinstance(expr.obj, HlsNetNodeOperator) and \
-           expr.obj.operator is AllOps.NOT and \
+           expr.obj.operator is HwtOps.NOT and \
            isAndedToExpression(valToSearch, expr.obj.dependsOn[0])
 
 
 def isNot(valToSearch: HlsNetNodeOut, expr: HlsNetNodeOut):
     return isinstance(expr.obj, HlsNetNodeOperator) and \
-           expr.obj.operator is AllOps.NOT and \
+           expr.obj.operator is HwtOps.NOT and \
            expr.obj.dependsOn[0] is valToSearch
 
 
@@ -120,7 +120,7 @@ def isNotOredToOrExpr(valToSearch: HlsNetNodeOut, expr: HlsNetNodeOut):
     """
     if isNot(valToSearch, expr):
         return True
-    elif isinstance(expr.obj, HlsNetNodeOperator) and expr.obj.operator == AllOps.OR:
+    elif isinstance(expr.obj, HlsNetNodeOperator) and expr.obj.operator == HwtOps.OR:
         for o in expr.obj.dependsOn:
             if isNotOredToOrExpr(valToSearch, o):
                 return True
@@ -133,7 +133,7 @@ def createLogicalExpressionOmmitingInput(valToOmmit: HlsNetNodeOut, expr: HlsNet
         return None
     elif isinstance(expr.obj, HlsNetNodeOperator):
         op = expr.obj.operator
-        if op == AllOps.AND or op == AllOps.OR:
+        if op == HwtOps.AND or op == HwtOps.OR:
             o0, o1 = expr.obj.dependsOn
             newO0 = createLogicalExpressionOmmitingInput(valToOmmit, o0)
             newO1 = createLogicalExpressionOmmitingInput(valToOmmit, o1)
@@ -143,13 +143,13 @@ def createLogicalExpressionOmmitingInput(valToOmmit: HlsNetNodeOut, expr: HlsNet
                 return newO0
             elif o0 is newO0 and o1 is newO1:
                 return expr
-            elif op == AllOps.AND:
+            elif op == HwtOps.AND:
                 return expr.obj.netlist.builder.buildAnd(newO0, newO1)
-            elif op == AllOps.OR:
+            elif op == HwtOps.OR:
                 return expr.obj.netlist.builder.buildOr(newO0, newO1)
             else:
                 raise NotImplementedError(op, expr)
-        elif op == AllOps.NOT:
+        elif op == HwtOps.NOT:
             o0, = expr.obj.dependsOn
             newO0 = createLogicalExpressionOmmitingInput(valToOmmit, o0)
             if newO0 is None:
@@ -166,7 +166,7 @@ def createLogicalExpressionOmmitingInput(valToOmmit: HlsNetNodeOut, expr: HlsNet
 
 def netlistReduceExplicitSyncTryExtractNonBlockingReadOrWrite(dbgTracer: DebugTracer,
                                                               n: HlsNetNodeExplicitSync,
-                                                              worklist: UniqList[HlsNetNode],
+                                                              worklist: SetList[HlsNetNode],
                                                               removed: Set[HlsNetNode],
                                                               reachDb: HlsNetlistAnalysisPassReachability):
     assert n.__class__ is HlsNetNodeExplicitSync, n
@@ -271,7 +271,7 @@ def netlistReduceExplicitSyncTryExtractNonBlockingReadOrWrite(dbgTracer: DebugTr
             return True
 
         # elif (isinstance(syncedDep.obj, HlsNetNodeOperator) and
-        #      syncedDep.obj.operator is AllOps.AND and
+        #      syncedDep.obj.operator is HwtOps.AND and
         #      (syncedDep.dependsOn == (r._outputs[0], vld) or
         #       syncedDep.dependsOn == (vld, r._outputs[0]))):
         #    # r = read()
@@ -281,7 +281,7 @@ def netlistReduceExplicitSyncTryExtractNonBlockingReadOrWrite(dbgTracer: DebugTr
 
 
 def tryExtractNonBlockingVoidRead(n: HlsNetNodeRead, readSync:HlsNetNodeReadSync,
-                                  worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]):
+                                  worklist: SetList[HlsNetNode], removed: Set[HlsNetNode]):
     assert readSync is n._associatedReadSync, (n, n._associatedReadSync, readSync)
     if len(n.usedBy[0]) == 1 and n.extraCond is None and n.skipWhen is None:
         n.setNonBlocking()

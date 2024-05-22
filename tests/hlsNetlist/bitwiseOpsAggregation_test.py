@@ -5,11 +5,11 @@ from enum import Enum
 from typing import Type
 
 from hwt.hdl.types.defs import BIT
-from hwt.interfaces.std import Signal
-from hwt.interfaces.utils import addClkRstn
+from hwt.hwIOs.std import HwIOSignal
+from hwt.hwIOs.utils import addClkRstn
 from hwt.simulator.simTestCase import SimTestCase
-from hwt.synthesizer.param import Param
-from hwt.synthesizer.unit import Unit
+from hwt.hwModule import HwModule
+from hwt.hwParam import HwParam
 from hwtHls.frontend.netlist import HlsThreadFromNetlist
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
@@ -28,21 +28,21 @@ class TREE_ORDER(Enum):
     PRE, IN, POST = range(3)
 
 
-class HlsNetlistBitwiseOpsPreorder0Unit(Unit):
+class HlsNetlistBitwiseOpsPreorder0HwModule(HwModule):
 
     def _config(self) -> None:
-        self.CLK_FREQ = Param(int(100e6))
+        self.CLK_FREQ = HwParam(int(100e6))
 
     def _declr(self) -> None:
         # added because of sim agent
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
         
-        with self._paramsShared():
-            self.i0 = Signal()
-            self.i1 = Signal()
-            self.i2 = Signal()
-            self.o = Signal()._m()
+        with self._hwParamsShared():
+            self.i0 = HwIOSignal()
+            self.i1 = HwIOSignal()
+            self.i2 = HwIOSignal()
+            self.o = HwIOSignal()._m()
 
     @staticmethod
     def model(i0, i1, i2):
@@ -89,27 +89,27 @@ class HlsNetlistBitwiseOpsPreorder0Unit(Unit):
         hls.compile()
 
 
-class HlsNetlistBitwiseOpsInorder0Unit(HlsNetlistBitwiseOpsPreorder0Unit):
+class HlsNetlistBitwiseOpsInorder0HwModule(HlsNetlistBitwiseOpsPreorder0HwModule):
 
     def _impl(self) -> None:
-        HlsNetlistBitwiseOpsPreorder0Unit._impl(self, treeOrder=TREE_ORDER.IN)
+        HlsNetlistBitwiseOpsPreorder0HwModule._impl(self, treeOrder=TREE_ORDER.IN)
 
 
-class HlsNetlistBitwiseOpsPostorder0Unit(HlsNetlistBitwiseOpsPreorder0Unit):
+class HlsNetlistBitwiseOpsPostorder0HwModule(HlsNetlistBitwiseOpsPreorder0HwModule):
 
     def _impl(self) -> None:
-        HlsNetlistBitwiseOpsPreorder0Unit._impl(self, treeOrder=TREE_ORDER.POST)
+        HlsNetlistBitwiseOpsPreorder0HwModule._impl(self, treeOrder=TREE_ORDER.POST)
 
 
 class HlsNetlistBitwiseOpsTC(SimTestCase):
 
-    def _test_HlsNetlistBitwiseOps0Unit(self, cls: Type[HlsNetlistBitwiseOpsPreorder0Unit]):
-        u = cls()
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
+    def _test_HlsNetlistBitwiseOps0HwModule(self, cls: Type[HlsNetlistBitwiseOpsPreorder0HwModule]):
+        dut = cls()
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
 
-        i0 = u.i0._ag.data
-        i1 = u.i1._ag.data
-        i2 = u.i2._ag.data
+        i0 = dut.i0._ag.data
+        i1 = dut.i1._ag.data
+        i2 = dut.i2._ag.data
         
         N = (1 << 3) * 2
         for i in range(N):
@@ -122,31 +122,32 @@ class HlsNetlistBitwiseOpsTC(SimTestCase):
         for _ in range(N):
             ref.append(next(m))
         
-        self.runSim(int((N + 1) * freq_to_period(u.CLK_FREQ)))
+        self.runSim(int((N + 1) * freq_to_period(dut.CLK_FREQ)))
     
-        res = u.o._ag.data
+        res = dut.o._ag.data
         self.assertValSequenceEqual(res, ref)
 
-    def test_HlsNetlistBitwiseOpsPreorder0Unit(self):
-        self._test_HlsNetlistBitwiseOps0Unit(HlsNetlistBitwiseOpsPreorder0Unit)
+    def test_HlsNetlistBitwiseOpsPreorder0HwModule(self):
+        self._test_HlsNetlistBitwiseOps0HwModule(HlsNetlistBitwiseOpsPreorder0HwModule)
 
-    def test_HlsNetlistBitwiseOpsInorder0Unit(self):
-        self._test_HlsNetlistBitwiseOps0Unit(HlsNetlistBitwiseOpsPreorder0Unit)
+    def test_HlsNetlistBitwiseOpsInorder0HwModule(self):
+        self._test_HlsNetlistBitwiseOps0HwModule(HlsNetlistBitwiseOpsPreorder0HwModule)
 
-    def test_HlsNetlistBitwiseOpsPostorder0Unit(self):
-        self._test_HlsNetlistBitwiseOps0Unit(HlsNetlistBitwiseOpsPostorder0Unit)
+    def test_HlsNetlistBitwiseOpsPostorder0HwModule(self):
+        self._test_HlsNetlistBitwiseOps0HwModule(HlsNetlistBitwiseOpsPostorder0HwModule)
 
 
 if __name__ == "__main__":
     import unittest
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
-    u = HlsNetlistBitwiseOpsPostorder0Unit()
-    u.CLK_FREQ = int(100e6)
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    
+    m = HlsNetlistBitwiseOpsPostorder0HwModule()
+    m.CLK_FREQ = int(100e6)
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([HlsNetlistBitwiseOpsTC("test_NetlistWireUnitRdSynced")])
+    # suite = unittest.TestSuite([HlsNetlistBitwiseOpsTC("test_NetlistWireHwModuleRdSynced")])
     suite = testLoader.loadTestsFromTestCase(HlsNetlistBitwiseOpsTC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

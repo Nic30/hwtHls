@@ -5,24 +5,24 @@ from typing import List
 from hwt.code import Concat
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.struct import HStruct
-from hwt.interfaces.std import VectSignal, Handshaked
-from hwt.interfaces.structIntf import StructIntf
-from hwt.interfaces.utils import addClkRstn
+from hwt.hwParam import HwParam
+from hwt.hwIOs.hwIOStruct import HwIOStruct
+from hwt.hwIOs.std import HwIOVectSignal, HwIODataRdVld
+from hwt.hwIOs.utils import addClkRstn
+from hwt.hwModule import HwModule
 from hwt.math import log2ceil
-from hwt.synthesizer.param import Param
-from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
-from hwtLib.common_nonstd_interfaces.addr_data_hs import AddrDataVldHs
+from hwtLib.commonHwIO.addr_data import HwIOAddrDataVldRdVld
 
 
-class Rom(Unit):
+class Rom(HwModule):
 
     def _declr(self):
         addClkRstn(self)
-        self.i = VectSignal(2, signed=False)
-        self.o = VectSignal(32, signed=False)._m()
+        self.i = HwIOVectSignal(2, signed=False)
+        self.o = HwIOVectSignal(32, signed=False)._m()
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
@@ -41,18 +41,18 @@ class Rom(Unit):
         hls.compile()
 
 
-class CntrArray(Unit):
+class CntrArray(HwModule):
 
     def _config(self) -> None:
-        self.ITEMS = Param(4)
+        self.ITEMS = HwParam(4)
 
     def _declr(self):
         addClkRstn(self)
         ADDR_WIDTH = log2ceil(self.ITEMS - 1)
-        self.i = VectSignal(ADDR_WIDTH, signed=False)
+        self.i = HwIOVectSignal(ADDR_WIDTH, signed=False)
 
-        self.o_addr = VectSignal(ADDR_WIDTH, signed=False)
-        self.o = VectSignal(16, signed=False)._m()
+        self.o_addr = HwIOVectSignal(ADDR_WIDTH, signed=False)
+        self.o = HwIOVectSignal(16, signed=False)._m()
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
@@ -70,28 +70,28 @@ class CntrArray(Unit):
         Rom._impl(self)
 
 
-class Cam(Unit):
+class Cam(HwModule):
 
     def _config(self) -> None:
-        self.KEY_WIDTH = Param(16)
-        self.ITEMS = Param(4)
+        self.KEY_WIDTH = HwParam(16)
+        self.ITEMS = HwParam(4)
 
     def _declr(self):
         addClkRstn(self)
 
-        w = AddrDataVldHs()
+        w = HwIOAddrDataVldRdVld()
         w.DATA_WIDTH = self.KEY_WIDTH
         w.ADDR_WIDTH = log2ceil(self.ITEMS - 1)
         self.write = w
 
-        self.match = m = Handshaked()
+        self.match = m = HwIODataRdVld()
         m.DATA_WIDTH = self.KEY_WIDTH
 
         # one hot encoded
-        self.out = o = Handshaked()._m()
+        self.out = o = HwIODataRdVld()._m()
         o.DATA_WIDTH = self.ITEMS
 
-    def matchThread(self, hls: HlsScope, keys: List[StructIntf]):
+    def matchThread(self, hls: HlsScope, keys: List[HwIOStruct]):
         while BIT.from_py(1):
             m = hls.read(self.match).data
             match_bits = []
@@ -101,7 +101,7 @@ class Cam(Unit):
 
             hls.write(Concat(*reversed(match_bits)), self.out)
 
-    def updateThread(self, hls: HlsScope, keys: List[StructIntf]):
+    def updateThread(self, hls: HlsScope, keys: List[HwIOStruct]):
         # initial reset
         for k in keys:
             k.vld(0)
@@ -130,9 +130,10 @@ class Cam(Unit):
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.xilinx.artix7 import Artix7Medium
     from hwtHls.platform.platform import HlsDebugBundle
     # from hwtHls.platform.virtual import VirtualHlsPlatform
-    u = CntrArray()
-    print(to_rtl_str(u, target_platform=Artix7Medium(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+
+    m = CntrArray()
+    print(to_rtl_str(m, target_platform=Artix7Medium(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

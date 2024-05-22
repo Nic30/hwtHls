@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Dict, Callable, Tuple, Optional, Union, Set
 
-from hwt.hdl.operatorDefs import OpDefinition
+from hwt.hdl.operatorDefs import HOperatorDef
 from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.platform.platform import DefaultHlsPlatform, DebugId, HlsDebugBundle
@@ -30,7 +30,7 @@ class AbstractXilinxPlatform(DefaultHlsPlatform):
         self._OP_DELAYS: Dict[str, Callable[[int, int, int, float], Tuple[int, float]]] = {}
 
     @lru_cache()
-    def get_op_realization(self, op: OpDefinition, bit_width: int,
+    def get_op_realization(self, op: HOperatorDef, bit_width: int,
                            input_cnt: int, clkPeriod: float) -> OpRealizationMeta:
         if op in _OPS_T_ZERO_LATENCY:
             return OpRealizationMeta()

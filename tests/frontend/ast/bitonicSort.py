@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.hdl.constants import Time
-from hwt.interfaces.utils import addClkRstn
-from hwt.synthesizer.param import Param
+from hwt.constants import Time
+from hwt.hwIOs.utils import addClkRstn
+from hwt.hwParam import HwParam
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.platform.virtual import VirtualHlsPlatform
@@ -15,7 +15,7 @@ class BitonicSorterHLS(BitonicSorter):
 
     def _config(self):
         BitonicSorter._config(self)
-        self.CLK_FREQ = Param(int(50e6))
+        self.CLK_FREQ = HwParam(int(50e6))
 
     def _declr(self):
         addClkRstn(self)
@@ -64,8 +64,8 @@ class BitonicSorterHLS_TC(BitonicSorterTC):
 
     @classmethod
     def setUpClass(cls):
-        cls.u = BitonicSorterHLS()
-        cls.compileSim(cls.u, target_platform=VirtualHlsPlatform())
+        cls.dut = BitonicSorterHLS()
+        cls.compileSim(cls.dut, target_platform=VirtualHlsPlatform())
 
 
 class BitonicSorterHLS_large_TC(BitonicSorterTC):
@@ -73,9 +73,9 @@ class BitonicSorterHLS_large_TC(BitonicSorterTC):
 
     @classmethod
     def setUpClass(cls):
-        cls.u = BitonicSorterHLS()
-        cls.u.ITEMS = 16
-        cls.compileSim(cls.u, target_platform=VirtualHlsPlatform())
+        cls.dut = BitonicSorterHLS()
+        cls.dut.ITEMS = 16
+        cls.compileSim(cls.dut, target_platform=VirtualHlsPlatform())
 
 
 BitonicSorterHLS_TCs = [
@@ -85,12 +85,12 @@ BitonicSorterHLS_TCs = [
 
 if __name__ == "__main__":
     import unittest
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
 
-    u = BitonicSorterHLS()
-    u.ITEMS = 4
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    m = BitonicSorterHLS()
+    m.ITEMS = 4
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     testLoader = unittest.TestLoader()
     # suite = unittest.TestSuite([BitonicSorterHLS_large_TC('test_reversed')])

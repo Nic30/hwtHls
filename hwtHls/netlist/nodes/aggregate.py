@@ -3,7 +3,7 @@ from itertools import chain
 from typing import List, Optional, Tuple, Generator, Set, Deque
 
 from hwt.hdl.types.hdlType import HdlType
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
@@ -36,7 +36,7 @@ class HlsNetNodeAggregatePortIn(HlsNetNode):
         self.scheduledOut = (t,)
 
     @override
-    def scheduleAsap(self, pathForDebug: Optional[UniqList["HlsNetNode"]],
+    def scheduleAsap(self, pathForDebug: Optional[SetList["HlsNetNode"]],
                      beginOfFirstClk: SchedTime,
                      outputTimeGetter: Optional[OutputTimeGetter]) -> List[int]:
         """
@@ -152,9 +152,9 @@ class HlsNetNodeAggregate(HlsNetNode):
     :ivar _outputsInside: a list of nodes which are representing an output port of this node inside of this node
     """
 
-    def __init__(self, netlist: "HlsNetlistCtx", subNodes: UniqList[HlsNetNode], name: str=None):
+    def __init__(self, netlist: "HlsNetlistCtx", subNodes: SetList[HlsNetNode], name: str=None):
         HlsNetNode.__init__(self, netlist, name=name)
-        assert isinstance(subNodes, UniqList), subNodes
+        assert isinstance(subNodes, SetList), subNodes
         self._subNodes = subNodes
         self._isFragmented = False
         self._inputsInside: List[HlsNetNodeAggregatePortIn] = []
@@ -173,7 +173,7 @@ class HlsNetNodeAggregate(HlsNetNode):
             for orig, new in zip(chain(self._inputsInside, self._outputsInside), chain(y._inputsInside, y._outputsInside)):
                 memo[id(orig)] = new
 
-            y._subNodes = UniqList(n.clone(memo, True)[0] for n in self._subNodes)
+            y._subNodes = SetList(n.clone(memo, True)[0] for n in self._subNodes)
             # connect previously ommitted links
             for orig, new in zip(self._inputsInside, y._inputsInside):
                 new: HlsNetNodeAggregatePortIn
@@ -358,7 +358,7 @@ class HlsNetNodeAggregate(HlsNetNode):
         return t
 
     @override
-    def scheduleAsap(self, pathForDebug: Optional[UniqList["HlsNetNode"]],
+    def scheduleAsap(self, pathForDebug: Optional[SetList["HlsNetNode"]],
                      beginOfFirstClk: SchedTime,
                      outputTimeGetter: Optional[OutputTimeGetter]) -> List[int]:
         if self.scheduledOut is not None:

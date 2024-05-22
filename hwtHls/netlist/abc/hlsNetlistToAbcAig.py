@@ -1,8 +1,8 @@
 from typing import Dict, Tuple
 
-from hwt.hdl.operatorDefs import AllOps
+from hwt.hdl.operatorDefs import HwtOps
 from hwt.pyUtils.arrayQuery import grouper
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.netlist.abc.abcCpp import Abc_Ntk_t, Abc_Aig_t, Abc_Frame_t, Abc_Obj_t
 from hwtHls.netlist.abc.rtlNetlistToAbcAig import RtlNetlistToAbcAig
@@ -40,26 +40,26 @@ class HlsNetlistToAbcAig(RtlNetlistToAbcAig):
             op = d.operator
             inCnt = len(d._inputs)
             if inCnt == 1:
-                assert d.operator == AllOps.NOT, d
+                assert d.operator == HwtOps.NOT, d
                 res = aig.Not(self._translate(aig, d.dependsOn[0]))
     
             elif inCnt == 2:
                 lhs, rhs = (self._translate(aig, i) for i in d.dependsOn)
-                if op == AllOps.AND:
+                if op == HwtOps.AND:
                     res = aig.And(lhs, rhs)
-                elif op == AllOps.OR:
+                elif op == HwtOps.OR:
                     res = aig.Or(lhs, rhs)
-                elif op == AllOps.XOR:
+                elif op == HwtOps.XOR:
                     res = aig.Xor(lhs, rhs)
-                elif op == AllOps.EQ:
+                elif op == HwtOps.EQ:
                     res = aig.Eq(lhs, rhs)
-                elif op == AllOps.NE:
+                elif op == HwtOps.NE:
                     res = aig.Ne(lhs, rhs)
                 else:
                     raise NotImplementedError(d)
     
             elif inCnt >= 3:
-                assert d.operator == AllOps.TERNARY
+                assert d.operator == HwtOps.TERNARY
                 if inCnt == 3:
                     o0, c, o1 = (self._translate(aig, i) for i in d.dependsOn)
                     res = aig.Mux(c, o0, o1)  # ABC notation is in in this order, p1, p0 means if c=1 or c=0
@@ -86,5 +86,5 @@ class HlsNetlistToAbcAig(RtlNetlistToAbcAig):
         self.translationCache[o] = res
         return res
            
-    def translate(self, inputs: UniqList[HlsNetNodeOut], outputs: UniqList[HlsNetNodeOut]) -> Tuple[Abc_Frame_t, Abc_Ntk_t, Abc_Aig_t]:
+    def translate(self, inputs: SetList[HlsNetNodeOut], outputs: SetList[HlsNetNodeOut]) -> Tuple[Abc_Frame_t, Abc_Ntk_t, Abc_Aig_t]:
         return super(HlsNetlistToAbcAig, self).translate(inputs, outputs)

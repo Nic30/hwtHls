@@ -2,7 +2,7 @@ from io import StringIO
 import os
 from typing import Set, Tuple, Dict, List
 
-from hwt.synthesizer.unit import Unit
+from hwt.hwModule import HwModule
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, MachineLoopInfo
 from hwtHls.netlist.analysis.dataThreadsForBlocks import HlsNetlistAnalysisPassDataThreadsForBlocks
@@ -104,12 +104,12 @@ class BaseSsaTC(BaseSerializationTC):
 
         self.rmSim()
 
-    def _test_ll(self, unitConstructor: Unit, name=None):
+    def _test_ll(self, hwModuleConstructor: HwModule, name=None):
         p = BaseTestPlatform()
-        if isinstance(unitConstructor, Unit):
-            unit = unitConstructor
+        if isinstance(hwModuleConstructor, HwModule):
+            unit = hwModuleConstructor
         else:
-            unit = unitConstructor()
+            unit = hwModuleConstructor()
 
         self._runTranslation(unit, p)
         if name is None:

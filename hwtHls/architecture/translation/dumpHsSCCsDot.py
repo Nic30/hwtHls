@@ -2,7 +2,7 @@ import html
 import pydot
 from typing import Dict, List
 
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.architecture.analysis.channelGraph import HlsArchAnalysisPassChannelGraph
 from hwtHls.architecture.analysis.handshakeSCCs import HlsArchAnalysisPassHandshakeSCC, \
     ArchSyncNodeTy, ArchSyncNodeTy_stringFormat_short
@@ -78,7 +78,7 @@ class HsSCCsToGraphwiz():
             g.add_subgraph(sccDot)
 
             # create clusters for clock windows
-            clocksUsed: UniqList[int] = UniqList(clkI for (_, clkI) in scc)
+            clocksUsed: SetList[int] = SetList(clkI for (_, clkI) in scc)
             nodeForClk: Dict[int, pydot.Node] = {}
             for clkI in clocksUsed:
                 nId = self._getNewNodeId()

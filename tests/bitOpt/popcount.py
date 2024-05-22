@@ -1,11 +1,11 @@
-from hwt.hdl.types.bits import Bits
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
-from hwt.interfaces.std import VectSignal
-from hwt.interfaces.utils import addClkRstn
+from hwt.hwIOs.std import HwIOVectSignal
+from hwt.hwIOs.utils import addClkRstn
 from hwt.math import log2ceil
-from hwt.synthesizer.param import Param
+from hwt.hwParam import HwParam
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwt.synthesizer.unit import Unit
+from hwt.hwModule import HwModule
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
@@ -23,7 +23,7 @@ def popcount(num: RtlSignal, bitsToLookupInROM: int=4):
         is performed by ROM instead of adder
     """
     w = num._dtype.bit_length()
-    res = Bits(log2ceil(w + 1)).from_py(None)
+    res = HBits(log2ceil(w + 1)).from_py(None)
     if w == 1:
         res = num
     elif w <= bitsToLookupInROM:
@@ -39,19 +39,19 @@ def popcount(num: RtlSignal, bitsToLookupInROM: int=4):
     return res
 
 
-class Popcount(Unit):
+class Popcount(HwModule):
 
     def _config(self) -> None:
-        self.FREQ = Param(int(100e6))
-        self.DATA_WIDTH = Param(8)
-        self.BITS_TO_LOOKUP_IN_ROM = Param(4)
+        self.FREQ = HwParam(int(100e6))
+        self.DATA_WIDTH = HwParam(8)
+        self.BITS_TO_LOOKUP_IN_ROM = HwParam(4)
 
     def _declr(self):
         addClkRstn(self)
         self.clk._FREQ = self.FREQ
         w = self.DATA_WIDTH
-        self.data_in = VectSignal(w)
-        self.data_out = VectSignal(log2ceil(w + 1))._m()
+        self.data_in = HwIOVectSignal(w)
+        self.data_out = HwIOVectSignal(log2ceil(w + 1))._m()
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
@@ -67,15 +67,15 @@ class Popcount(Unit):
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.platform import HlsDebugBundle
     import sys
 
     sys.setrecursionlimit(int(1e6))
-    u = Popcount()
-    u.DATA_WIDTH = 8
-    u.BITS_TO_LOOKUP_IN_ROM = 4
+    m = Popcount()
+    m.DATA_WIDTH = 8
+    m.BITS_TO_LOOKUP_IN_ROM = 4
 
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 

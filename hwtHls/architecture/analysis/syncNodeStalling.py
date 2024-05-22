@@ -1,6 +1,6 @@
 from typing import Dict, List, Union
 
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.architecture.analysis.channelGraph import HlsArchAnalysisPassChannelGraph, \
     ArchSyncNodeIoDict, ArchSyncNodeTy
 from hwtHls.architecture.analysis.hlsArchAnalysisPass import HlsArchAnalysisPass
@@ -140,7 +140,7 @@ class HlsArchAnalysisPassSyncNodeStallling(HlsArchAnalysisPass):
                                nodeChannels:ArchSyncNodeIoDict,
                                nodeCanStall: Dict[ArchSyncNodeTy, ArchSyncNodeStallingMeta]):
         # propagate this property over whole graph
-        toSearch: UniqList[ArchSyncNodeTy] = UniqList(n for n in nodes if nodeCanStall[n])
+        toSearch: SetList[ArchSyncNodeTy] = SetList(n for n in nodes if nodeCanStall[n])
         while toSearch:
             n = toSearch.pop()
             rList, wList = nodeChannels[n]  # channel ports for node

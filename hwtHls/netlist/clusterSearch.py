@@ -1,7 +1,7 @@
 from math import inf
 from typing import List, Set, Dict, Callable, Optional
 
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
@@ -23,9 +23,9 @@ class HlsNetlistClusterSearch():
 
     def __init__(self):
         self.inputs: List[HlsNetNodeOut] = []
-        self.inputsDict: Dict[HlsNetNodeOut, UniqList[HlsNetNodeIn]] = {}
-        self.outputs: UniqList[HlsNetNodeOut] = UniqList()
-        self.nodes: UniqList[HlsNetNode] = UniqList()
+        self.inputsDict: Dict[HlsNetNodeOut, SetList[HlsNetNodeIn]] = {}
+        self.outputs: SetList[HlsNetNodeOut] = SetList()
+        self.nodes: SetList[HlsNetNode] = SetList()
 
     def destroy(self):
         """
@@ -97,7 +97,7 @@ class HlsNetlistClusterSearch():
                 if dep.obj not in nodes:
                     internOutUsers = inputsDict.get(dep, None)
                     if internOutUsers is None:
-                        internOutUsers = inputsDict[dep] = UniqList()
+                        internOutUsers = inputsDict[dep] = SetList()
                         inputs.append(dep)
                     internOutUsers.append(i)
             for o, uses in zip(n._outputs, n.usedBy):
@@ -303,7 +303,7 @@ class HlsNetlistClusterSearch():
                 for o in outputsCausingLoop:
                     predCluster.nodes.extend(self.collectPredecesorsInCluster(o.obj))
                 # nodes and outputs can not be shared
-                self.nodes = UniqList(n for n in self.nodes if n not in predCluster.nodes)
+                self.nodes = SetList(n for n in self.nodes if n not in predCluster.nodes)
 
                 # construct new inputs and inputsDict for self and predCluster
                 newInputs = []
@@ -311,8 +311,8 @@ class HlsNetlistClusterSearch():
                 for outerInp in self.inputs:
                     added0 = False
                     added1 = False
-                    newInternalInputs = UniqList()
-                    predInternalInputs = UniqList()
+                    newInternalInputs = SetList()
+                    predInternalInputs = SetList()
                     for internInp in self.inputsDict[outerInp]:
                         internInp: HlsNetNodeOut
                         # the input can actually be input of bouth new clusters
@@ -339,7 +339,7 @@ class HlsNetlistClusterSearch():
                 self.inputsDict = newInputsDict
 
                 # construct new outputs for self and predCluster
-                newOutputs: UniqList[HlsNetNodeOut] = UniqList()
+                newOutputs: SetList[HlsNetNodeOut] = SetList()
                 for o in self.outputs:
                     if o.obj in self.nodes:
                         newOutputs.append(o)
@@ -354,7 +354,7 @@ class HlsNetlistClusterSearch():
                             o = dep.obj._outputs[dep.out_i]
                             inputsDependentOnOutput = self.inputsDict.get(o, None)
                             if inputsDependentOnOutput is None:
-                                inputsDependentOnOutput = self.inputsDict[o] = UniqList()
+                                inputsDependentOnOutput = self.inputsDict[o] = SetList()
                                 self.inputs.append(o)
 
                             if i not in inputsDependentOnOutput:

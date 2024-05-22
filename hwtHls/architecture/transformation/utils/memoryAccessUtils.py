@@ -1,4 +1,4 @@
-from hwt.hdl.constants import READ, WRITE
+from hwt.constants import READ, WRITE
 from hwtHls.architecture.transformation.utils.dummyScheduling import scheduleUnscheduledControlLogic
 from hwtHls.architecture.transformation.utils.syncUtils import insertDummyWriteToImplementSync
 from hwtHls.architecture.transformation.utils.termPropagationContext import ArchElementTermPropagationCtx

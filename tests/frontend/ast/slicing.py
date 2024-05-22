@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 
 from hwt.code import Concat
-from hwt.hdl.constants import Time
-from hwt.hdl.types.bits import Bits
-from hwt.interfaces.std import VectSignal
-from hwt.synthesizer.unit import Unit
+from hwt.constants import Time
+from hwt.hwIOs.std import HwIOVectSignal
+from hwt.hwModule import HwModule
+from hwt.hdl.types.bits import HBits
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.platform.virtual import VirtualHlsPlatform
@@ -14,11 +14,11 @@ from pyMathBitPrecise.bit_utils import mask
 from tests.baseSsaTest import BaseSsaTC
 
 
-class HlsConnection(Unit):
+class HlsConnection(HwModule):
 
     def _declr(self):
-        self.a = VectSignal(32, signed=False)
-        self.b = VectSignal(32, signed=False)._m()
+        self.a = HwIOVectSignal(32, signed=False)
+        self.b = HwIOVectSignal(32, signed=False)._m()
 
     def _impl(self):
         hls = HlsScope(self, freq=int(100e6))
@@ -33,11 +33,11 @@ class HlsConnection(Unit):
 
 
 
-class HlsSlice(Unit):
+class HlsSlice(HwModule):
 
     def _declr(self):
-        self.a = VectSignal(32, signed=False)
-        self.b = VectSignal(16, signed=False)._m()
+        self.a = HwIOVectSignal(32, signed=False)
+        self.b = HwIOVectSignal(16, signed=False)._m()
 
     def _impl(self):
         hls = HlsScope(self, freq=int(100e6))
@@ -52,11 +52,11 @@ class HlsSlice(Unit):
 
 
 
-class HlsSlice2TmpHlsVarConcat(Unit):
+class HlsSlice2TmpHlsVarConcat(HwModule):
 
     def _declr(self):
-        self.a = VectSignal(16, signed=False)
-        self.b = VectSignal(32, signed=False)._m()
+        self.a = HwIOVectSignal(16, signed=False)
+        self.b = HwIOVectSignal(32, signed=False)._m()
 
     def _impl(self):
         hls = HlsScope(self, freq=int(100e6))
@@ -64,7 +64,7 @@ class HlsSlice2TmpHlsVarConcat(Unit):
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
             ast.While(True,
-                tmp(Concat(Bits(16).from_py(16), hls.read(self.a).data)),
+                tmp(Concat(HBits(16).from_py(16), hls.read(self.a).data)),
                 hls.write(tmp, self.b)
             ),
             self._name)
@@ -94,7 +94,7 @@ class HlsSlice2TmpHlsVarSlice(HlsSlice2TmpHlsVarConcat):
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
             ast.While(True,
-                tmp[:16](Bits(16).from_py(16)),
+                tmp[:16](HBits(16).from_py(16)),
                 tmp[16:](hls.read(self.a).data),
                 hls.write(tmp, self.b)
             ),
@@ -153,7 +153,7 @@ if __name__ == "__main__":
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
 
-    # from hwt.synthesizer.utils import to_rtl_str
+    # from hwt.synth import to_rtl_str
     # from hwtHls.platform.platform import HlsDebugBundle
-    # u = HlsSlice()
-    # print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    # m = HlsSlice()
+    # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

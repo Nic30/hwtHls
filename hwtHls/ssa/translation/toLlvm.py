@@ -1,24 +1,24 @@
 import re
 from typing import List, Tuple, Dict, Union, Sequence, Callable, Optional
 
-from hwt.hdl.operatorDefs import AllOps, OpDefinition
+from hwt.hdl.operatorDefs import HwtOps, HOperatorDef
 from hwt.hdl.types.array import HArray
-from hwt.hdl.types.bits import Bits
-from hwt.hdl.types.bitsVal import BitsVal
-from hwt.hdl.types.function import HFunctionVal
+from hwt.hdl.types.bits import HBits
+from hwt.hdl.types.bitsConst import HBitsConst
+from hwt.hdl.types.function import HFunctionConst
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.types.slice import HSlice
 from hwt.hdl.types.struct import HStruct
-from hwt.hdl.value import HValue
-from hwt.interfaces.std import BramPort_withoutClk
-from hwt.synthesizer.interface import Interface
-from hwt.synthesizer.interfaceLevel.unitImplHelpers import getInterfaceName
-from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
-from hwt.synthesizer.unit import Unit
+from hwt.hdl.const import HConst
+from hwt.hwIOs.std import HwIOBramPort_noClk
+from hwt.hwIO import HwIO
+from hwt.synthesizer.interfaceLevel.hwModuleImplHelpers import HwIO_getName
+from hwt.mainBases import RtlSignalBase
+from hwt.hwModule import HwModule
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa, IoPortToIoOpsDictionary
 from hwtHls.frontend.ast.statementsRead import HlsRead
 from hwtHls.frontend.ast.statementsWrite import HlsWrite
-from hwtHls.frontend.hardBlock import HardBlockUnit
+from hwtHls.frontend.hardBlock import HardBlockHwModule
 from hwtHls.io.portGroups import MultiPortGroup, BankedPortGroup, \
     getFirstInterfaceInstance
 from hwtHls.llvm.llvmIr import Value, Type, FunctionType, Function, VectorOfTypePtr, BasicBlock, Argument, \
@@ -60,7 +60,7 @@ class ToLlvmIrTranslator():
         original block to list of tuples LLVM basic block and list of original successors
     """
 
-    def __init__(self, label: str, topIo: IoPortToIoOpsDictionary, parentUnit: Unit):
+    def __init__(self, label: str, topIo: IoPortToIoOpsDictionary, parentHwModule: HwModule):
         self.label = label
         self.llvm = LlvmCompilationBundle(label)
         self.ctx: LLVMContext = self.llvm.ctx
@@ -68,11 +68,11 @@ class ToLlvmIrTranslator():
         self.module: Module = self.llvm.module
         self.b: IRBuilder = self.llvm.builder
         self.topIo = topIo
-        self.ioSorted: Optional[Tuple[str, Union[Interface, MultiPortGroup, BankedPortGroup],
+        self.ioSorted: Optional[Tuple[str, Union[HwIO, MultiPortGroup, BankedPortGroup],
                  Tuple[List[HlsRead],
                        List[HlsWrite]]]] = None
-        self.parentUnit = parentUnit
-        self.ioToVar: Dict[Interface, Tuple[Argument, Type, Type]] = {}
+        self.parentHwModule = parentHwModule
+        self.ioToVar: Dict[HwIO, Tuple[Argument, Type, Type]] = {}
         self.varMap: Dict[Union[SsaValue, SsaBasicBlock], Value] = {}
         self._branchTmpBlocks: Dict[SsaBasicBlock, List[Tuple[BasicBlock, List[SsaBasicBlock]]]] = {}
         self._afterTranslation: List[Callable[[ToLlvmIrTranslator], None]] = []
@@ -80,15 +80,15 @@ class ToLlvmIrTranslator():
 
         b = self.b
         self._opConstructorMap = {
-            AllOps.AND: b.CreateAnd,
-            AllOps.OR: b.CreateOr,
-            AllOps.XOR: b.CreateXor,
+            HwtOps.AND: b.CreateAnd,
+            HwtOps.OR: b.CreateOr,
+            HwtOps.XOR: b.CreateXor,
 
-            AllOps.ADD: b.CreateAdd,
-            AllOps.SUB: b.CreateSub,
-            AllOps.MUL: b.CreateMul,
-            AllOps.UDIV: b.CreateUDiv,
-            AllOps.SDIV: b.CreateSDiv,
+            HwtOps.ADD: b.CreateAdd,
+            HwtOps.SUB: b.CreateSub,
+            HwtOps.MUL: b.CreateMul,
+            HwtOps.UDIV: b.CreateUDiv,
+            HwtOps.SDIV: b.CreateSDiv,
             OP_ASHR: b.CreateAShr,
             OP_LSHR: b.CreateLShr,
             OP_SHL: b.CreateShl,
@@ -106,18 +106,18 @@ class ToLlvmIrTranslator():
             OP_SMIN: Intrinsic.smin,
         }
         self._opConstructorMapCmp = {
-            AllOps.NE: b.CreateICmpNE,
-            AllOps.EQ: b.CreateICmpEQ,
+            HwtOps.NE: b.CreateICmpNE,
+            HwtOps.EQ: b.CreateICmpEQ,
 
-            AllOps.SLE: b.CreateICmpSLE,
-            AllOps.SLT: b.CreateICmpSLT,
-            AllOps.SGT: b.CreateICmpSGT,
-            AllOps.SGE: b.CreateICmpSGE,
+            HwtOps.SLE: b.CreateICmpSLE,
+            HwtOps.SLT: b.CreateICmpSLT,
+            HwtOps.SGT: b.CreateICmpSGT,
+            HwtOps.SGE: b.CreateICmpSGE,
 
-            AllOps.ULE: b.CreateICmpULE,
-            AllOps.ULT: b.CreateICmpULT,
-            AllOps.UGT: b.CreateICmpUGT,
-            AllOps.UGE: b.CreateICmpUGE,
+            HwtOps.ULE: b.CreateICmpULE,
+            HwtOps.ULT: b.CreateICmpULT,
+            HwtOps.UGT: b.CreateICmpUGT,
+            HwtOps.UGE: b.CreateICmpUGE,
         }
 
     def addAfterTranslationUnique(self, fn: Callable[['ToLlvmIrTranslator'], None]):
@@ -169,13 +169,13 @@ class ToLlvmIrTranslator():
         return name.replace("%", "")
 
     def _translateType(self, hdlType: HdlType):
-        if isinstance(hdlType, (Bits, HStruct)):
+        if isinstance(hdlType, (HBits, HStruct)):
             return Type.getIntNTy(self.ctx, hdlType.bit_length())
         else:
             raise NotImplementedError(hdlType)
 
     def _translatePtrType(self, hdlType: HdlType, addressSpace: int):
-        if isinstance(hdlType, (Bits, HStruct)):
+        if isinstance(hdlType, (HBits, HStruct)):
             return Type.getIntNPtrTy(self.ctx, hdlType.bit_length(), addressSpace)
         else:
             raise NotImplementedError(hdlType)
@@ -189,11 +189,11 @@ class ToLlvmIrTranslator():
             raise NotImplementedError()
 
         _v = APInt(t.getBitWidth(), self.strCtx.addStringRef(f"{v:x}"), 16)
-        # t = self._translateType(Bits(v), ptr=False)
+        # t = self._translateType(HBits(v), ptr=False)
         return ConstantInt.get(t, _v)
 
-    def _translateExprHValue(self, v: HValue):
-        if isinstance(v, BitsVal):
+    def _translateExprHConst(self, v: HConst):
+        if isinstance(v, HBitsConst):
             if v._is_full_valid():
                 t = self._translateType(v._dtype)
                 _v = APInt(v._dtype.bit_length(), self.strCtx.addStringRef(f"{v.val:x}"), 16)
@@ -218,9 +218,9 @@ class ToLlvmIrTranslator():
                     offset += width
                 return self.b.CreateBitConcat(concatMembers)
 
-        elif isinstance(v, HFunctionVal):
-            assert isinstance(v, HardBlockUnit)
-            v: HardBlockUnit
+        elif isinstance(v, HFunctionConst):
+            assert isinstance(v, HardBlockHwModule)
+            v: HardBlockHwModule
             if v.placeholderObjectId is not None:
                 cur, curV = self.placeholderObjectSlots[v.placeholderObjectId]
                 assert cur is v, (cur, v)
@@ -251,26 +251,26 @@ class ToLlvmIrTranslator():
         else:
             raise NotImplementedError(v)
 
-    def _translateExpr(self, v: Union[SsaInstr, HValue]):
-        if isinstance(v, HValue):
+    def _translateExpr(self, v: Union[SsaInstr, HConst]):
+        if isinstance(v, HConst):
             c = self.varMap.get(v, None)
             if c is None:
-                c = self._translateExprHValue(v)
+                c = self._translateExprHConst(v)
                 self.varMap[v] = c
 
             return c
         else:
             return self.varMap[v]  # if variable was defined it must be there
 
-    def _translateExprOperand(self, operator: OpDefinition, resTy: HdlType,
-                              operands: Tuple[Union[SsaInstr, HValue]],
+    def _translateExprOperand(self, operator: HOperatorDef, resTy: HdlType,
+                              operands: Tuple[Union[SsaInstr, HConst]],
                               instrName: str, instrForDebug):
         b = self.b
-        if operator == AllOps.CONCAT and isinstance(resTy, Bits):
+        if operator == HwtOps.CONCAT and isinstance(resTy, HBits):
             ops = [self._translateExpr(op) for op in operands]
             return b.CreateBitConcat(ops)
 
-        elif operator == AllOps.INDEX and isinstance(operands[0]._dtype, Bits):
+        elif operator == HwtOps.INDEX and isinstance(operands[0]._dtype, HBits):
             op0, op1 = operands
             op0 = self._translateExpr(op0)
             if isinstance(op1._dtype, HSlice):
@@ -282,19 +282,19 @@ class ToLlvmIrTranslator():
 
         else:
             args = (self._translateExpr(a) for a in operands)
-            if operator in (AllOps.BitsAsSigned, AllOps.BitsAsUnsigned, AllOps.BitsAsVec):
+            if operator in (HwtOps.BitsAsSigned, HwtOps.BitsAsUnsigned, HwtOps.BitsAsVec):
                 op0, = args
                 # LLVM uses sign/unsigned variants of instructions and does not have signed/unsigned as a part of type or variable
                 return op0
 
             name = self.strCtx.addTwine(self._formatVarName(instrName) if instrName else "")
-            if operator == AllOps.NOT:
+            if operator == HwtOps.NOT:
                 op0, = args
                 # op0 xor -1
                 mask = APInt.getAllOnesValue(resTy.bit_length())
                 return b.CreateXor(op0, ConstantInt.get(TypeToIntegerType(op0.getType()), mask), name)
 
-            elif operator == AllOps.MINUS_UNARY:
+            elif operator == HwtOps.MINUS_UNARY:
                 op0, = args
                 return b.CreateNeg(op0, name, False, False)
             elif operator == OP_ZEXT:
@@ -303,13 +303,13 @@ class ToLlvmIrTranslator():
             elif operator == OP_SEXT:
                 op0, = args
                 return b.CreateSExt(op0, self._translateType(resTy), name)
-            elif operator == AllOps.TERNARY:
+            elif operator == HwtOps.TERNARY:
                 opC, opTrue, opFalse = args
                 return b.CreateSelect(opC, opTrue, opFalse, name, None)
-            elif operator == AllOps.CALL:
+            elif operator == HwtOps.CALL:
                 args = tuple(args)
                 fn = operands[0]
-                isHardblock = isinstance(fn, HardBlockUnit)
+                isHardblock = isinstance(fn, HardBlockHwModule)
                 if isHardblock:
                     _args = [self._translateExprInt(fn.placeholderObjectId, Type.getIntNTy(self.ctx, 32))]
                     _args.extend(args[1:])
@@ -436,15 +436,15 @@ class ToLlvmIrTranslator():
                 key.append(part)
         return key
 
-    def _getInterfaceTypeForFnArg(self, i: Union[Interface, MultiPortGroup, BankedPortGroup, RtlSignalBase], ioIndex: int,
+    def _getInterfaceTypeForFnArg(self, i: Union[HwIO, MultiPortGroup, BankedPortGroup, RtlSignalBase], ioIndex: int,
                                   reads: List[HlsRead], writes: List[HlsWrite]) -> Tuple[Type, Type]:
         wordType = None
         if reads:
             wordType = reads[0]._getNativeInterfaceWordType()
             if not reads[0]._isBlocking:
-                wordType = Bits(wordType.bit_length() + 1)
-            elif not isinstance(wordType, Bits):
-                wordType = Bits(wordType.bit_length())
+                wordType = HBits(wordType.bit_length() + 1)
+            elif not isinstance(wordType, HBits):
+                wordType = HBits(wordType.bit_length())
 
         if writes:
             _wordType = writes[0]._getNativeInterfaceWordType()
@@ -462,7 +462,7 @@ class ToLlvmIrTranslator():
 
         ptrT = PointerType.get(self.ctx, ioIndex + 1)
         i = getFirstInterfaceInstance(i)
-        if isinstance(i, (BramPort_withoutClk, Axi4Lite)):
+        if isinstance(i, (HwIOBramPort_noClk, Axi4Lite)):
             addrWidth = i.ADDR_WIDTH
             arrTy = wordType[int(2 ** i.ADDR_WIDTH)]
             elmT = self._translateArrayType(arrTy)
@@ -475,18 +475,18 @@ class ToLlvmIrTranslator():
     def translate(self, start_bb: SsaBasicBlock, fnPragma: List["_PyBytecodePragma"]):
         # create a function where we place the code and the arguments for a io interfaces
         ioTuplesWithName = [
-            (getInterfaceName(self.parentUnit, io[0] if isinstance(io, (MultiPortGroup, BankedPortGroup)) else io), io, ioOps)
+            (HwIO_getName(self.parentHwModule, io[0] if isinstance(io, (MultiPortGroup, BankedPortGroup)) else io), io, ioOps)
             for io, ioOps in self.topIo.items()
         ]
         ioSorted = self.ioSorted = sorted(ioTuplesWithName, key=lambda x: self.splitStrToStrsAndInts(x[0]))
         # name, pointer type, element type, address width
         params: List[Tuple[str, Type, Type, int]] = [
             (name,
-             *self._getInterfaceTypeForFnArg(intf[0]
-                                           if isinstance(intf, tuple)
-                                           else intf,
+             *self._getInterfaceTypeForFnArg(hwIO[0]
+                                           if isinstance(hwIO, tuple)
+                                           else hwIO,
                                             ioIndex, reads, writes))
-            for ioIndex, (name, intf, (reads, writes)) in enumerate(ioSorted)]
+            for ioIndex, (name, hwIO, (reads, writes)) in enumerate(ioSorted)]
         main = self.createFunctionPrototype(self.label, params, Type.getVoidTy(self.ctx))
         self.llvm.main = main
 
@@ -568,7 +568,7 @@ class SsaPassToLlvm(SsaPass):
             #        "In this stages the read operations must read only native type of interface",
             #        instr, instr.operands[0]._dtype, nativeWordT)
 
-        toLlvm = ToLlvmIrTranslator(toSsa.label, ioDict, self.hls.parentUnit)
+        toLlvm = ToLlvmIrTranslator(toSsa.label, ioDict, self.hls.parentHwModule)
         for (optionName, position, argName, argValue) in self.llvmCliArgs:
             toLlvm.llvm.addLlvmCliArgOccurence(optionName, position, argName, argValue)
         toLlvm.translate(toSsa.start, toSsa.pragma)

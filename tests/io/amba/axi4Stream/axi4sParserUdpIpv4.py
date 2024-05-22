@@ -1,44 +1,44 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.hdl.types.bits import Bits
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
-from hwt.interfaces.hsStructIntf import HsStructIntf
-from hwt.interfaces.utils import addClkRstn
-from hwt.synthesizer.param import Param
-from hwt.synthesizer.unit import Unit
+from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
+from hwt.hwIOs.utils import addClkRstn
+from hwt.hwParam import HwParam
+from hwt.hwModule import HwModule
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
-from hwtHls.io.amba.axiStream.proxy import IoProxyAxiStream
+from hwtHls.io.amba.axi4Stream.proxy import IoProxyAxi4Stream
 from hwtHls.scope import HlsScope
-from hwtLib.amba.axis import AxiStream
+from hwtLib.amba.axi4s import Axi4Stream
 from hwtLib.types.ctypes import uint16_t
 from hwtLib.types.net.ethernet import Eth2Header_t, ETHER_TYPE
 from hwtLib.types.net.ip import IPv4Header_t, IP_PROTOCOL, ipv4_t
 from hwtLib.types.net.udp import UDP_header_t
 
 
-class AxiSParseUdpIpv4(Unit):
+class Axi4SParseUdpIpv4(HwModule):
 
     def _config(self) -> None:
-        self.DATA_WIDTH = Param(512)
-        self.CLK_FREQ = Param(int(100e6))
+        self.DATA_WIDTH = HwParam(512)
+        self.CLK_FREQ = HwParam(int(100e6))
 
     def _declr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
-        with self._paramsShared():
-            self.i = AxiStream()
-            self.src_ip: HsStructIntf[ipv4_t] = HsStructIntf()._m()
+        with self._hwParamsShared():
+            self.i = Axi4Stream()
+            self.src_ip: HwIOStructRdVld[ipv4_t] = HwIOStructRdVld()._m()
             self.src_ip.T = ipv4_t
 
-            self.srcp: HsStructIntf[uint16_t] = HsStructIntf()._m()
-            self.srcp.T = Bits(16)
+            self.srcp: HwIOStructRdVld[uint16_t] = HwIOStructRdVld()._m()
+            self.srcp.T = HBits(16)
 
     @hlsBytecode
     def parseEth(self, hls: HlsScope):
-        i = IoProxyAxiStream(hls, self.i)
+        i = IoProxyAxi4Stream(hls, self.i)
         while BIT.from_py(1):
             i.readStartOfFrame()
             eth = PyBytecodeInPreproc(i.read(Eth2Header_t))
@@ -58,10 +58,10 @@ class AxiSParseUdpIpv4(Unit):
 
 if __name__ == "__main__":
     from hwtHls.platform.virtual import VirtualHlsPlatform
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
 
-    u = AxiSParseUdpIpv4()
-    u.CLK_FREQ = int(130e6)
+    m = Axi4SParseUdpIpv4()
+    m.CLK_FREQ = int(130e6)
     p = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)
-    print(to_rtl_str(u, target_platform=p))
+    print(to_rtl_str(m, target_platform=p))

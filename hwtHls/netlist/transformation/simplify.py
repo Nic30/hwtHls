@@ -1,8 +1,8 @@
 from typing import Set
 
-from hwt.hdl.operatorDefs import AllOps, COMPARE_OPS, CAST_OPS
+from hwt.hdl.operatorDefs import HwtOps, COMPARE_OPS, CAST_OPS
 from hwt.hdl.types.hdlType import HdlType
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.analysis.consystencyCheck import HlsNetlistPassConsystencyCheck
 from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 from hwtHls.netlist.builder import HlsNetlistBuilder
@@ -54,9 +54,9 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
     :var REST_OF_EVALUABLE_OPS: set of operators which can evaluated and are not a specific case
     :var NON_REMOVABLE_CLS: tuple of node classes which can not be removed by dead code removal
     """
-    REST_OF_EVALUABLE_OPS = {AllOps.CONCAT, AllOps.ADD, AllOps.SUB, AllOps.UDIV, AllOps.SDIV,
-                             AllOps.MUL, AllOps.INDEX, *COMPARE_OPS, *CAST_OPS}
-    OPS_AND_OR_XOR = (AllOps.AND, AllOps.OR, AllOps.XOR)
+    REST_OF_EVALUABLE_OPS = {HwtOps.CONCAT, HwtOps.ADD, HwtOps.SUB, HwtOps.UDIV, HwtOps.SDIV,
+                             HwtOps.MUL, HwtOps.INDEX, *COMPARE_OPS, *CAST_OPS}
+    OPS_AND_OR_XOR = (HwtOps.AND, HwtOps.OR, HwtOps.XOR)
     NON_REMOVABLE_CLS = (HlsNetNodeLoopStatus, HlsNetNodeExplicitSync)
     OPT_ITERATION_LIMIT = 20
 
@@ -64,7 +64,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
         super(HlsNetlistPassSimplify, self).__init__()
         self._dbgTracer = dbgTracer
 
-    def _DCE(self, n: HlsNetNode, worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]):
+    def _DCE(self, n: HlsNetNode, worklist: SetList[HlsNetNode], removed: Set[HlsNetNode]):
         if not self._isTriviallyDead(n):
             return False
         builder: HlsNetlistBuilder = n.netlist.builder
@@ -88,7 +88,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
 
     @override
     def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
-        worklist: UniqList[HlsNetNode] = UniqList(netlist.iterAllNodes())
+        worklist: SetList[HlsNetNode] = SetList(netlist.iterAllNodes())
         removed: Set[HlsNetNode] = netlist.builder._removedNodes
         builder = netlist.builder
         dbgTracer = self._dbgTracer
@@ -111,7 +111,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                             didModifyExpr = True
                             continue
 
-                    elif o == AllOps.NOT:
+                    elif o == HwtOps.NOT:
                         if netlistReduceNot(n, worklist, removed):
                             didModifyExpr = True
                             continue
@@ -139,7 +139,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                 
                     elif o in self.REST_OF_EVALUABLE_OPS:
                         resT: HdlType = n._outputs[0]._dtype
-                        if o == AllOps.CONCAT:
+                        if o == HwtOps.CONCAT:
                             if HdlType_isVoid(resT) and netlistReduceConcatOfVoid(n, worklist, removed):
                                 continue
                             if netlistReduceConcat(n, worklist, removed):
@@ -149,7 +149,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
 
                         c0 = getConstDriverOf(n._inputs[0])
                         if c0 is None:
-                            if o is AllOps.EQ:
+                            if o is HwtOps.EQ:
                                 if resT.bit_length() == 1 and netlistReduceValidAndOrXorEqValidNb(n, worklist, removed):
                                     didModifyExpr = True
                                     continue
@@ -158,11 +158,11 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                                 didModifyExpr = True
                                 continue
 
-                            if o in (AllOps.EQ, AllOps.NE):
+                            if o in (HwtOps.EQ, HwtOps.NE):
                                 if netlistReduceEqNe(n, worklist, removed):
                                     didModifyExpr = True
                                     continue
-                            if o is AllOps.INDEX:
+                            if o is HwtOps.INDEX:
                                 if netlistReduceIndexOnIndex(n, worklist, removed):
                                     didModifyExpr = True
                                     continue
@@ -183,7 +183,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                             c1 = getConstDriverOf(n._inputs[1])
                             if c1 is None:
                                 # other is not const
-                                if o in (AllOps.EQ, AllOps.NE):
+                                if o in (HwtOps.EQ, HwtOps.NE):
                                     if netlistReduceEqNe(n, worklist, removed):
                                         didModifyExpr = True
                                         continue

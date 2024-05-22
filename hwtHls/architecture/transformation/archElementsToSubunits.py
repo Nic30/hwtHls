@@ -1,11 +1,11 @@
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResourceItem
 from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.typingFuture import override
 from hwtLib.abstract.componentBuilder import AbstractComponentBuilder
-from hwtLib.examples.hierarchy.extractHierarchy import extractRegsToSubunit
+from hwtLib.examples.hierarchy.extractHierarchy import extractRegsToSubmodule
 
 
 class RtlArchPassTransplantArchElementsToSubunits(RtlArchPass):
@@ -44,11 +44,11 @@ class RtlArchPassTransplantArchElementsToSubunits(RtlArchPass):
     '''
     @override
     def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
-        parentUnit = netlist.parentUnit
+        parentHwModule = netlist.parentHwModule
         for e in netlist.nodes:
             e: ArchElement
             for pipeline_st_i, con in enumerate(e.connections):
-                stateRegisters = UniqList()
+                stateRegisters = SetList()
                 for v in con.signals:
                     v: TimeIndependentRtlResourceItem
                     # if the value has a register at the end of this stage
@@ -59,9 +59,9 @@ class RtlArchPassTransplantArchElementsToSubunits(RtlArchPass):
                 if not stateRegisters:
                     continue
 
-                stRegsExtracted = extractRegsToSubunit(stateRegisters)
-                name = AbstractComponentBuilder(parentUnit, None, "")._findSuitableName(
+                stRegsExtracted = extractRegsToSubmodule(stateRegisters)
+                name = AbstractComponentBuilder(parentHwModule, None, "")._findSuitableName(
                     f"{e.name:s}st{pipeline_st_i:d}_regs",
                     firstWithoutCntrSuffix=True)
-                setattr(parentUnit, name, stRegsExtracted)
+                setattr(parentHwModule, name, stRegsExtracted)
 

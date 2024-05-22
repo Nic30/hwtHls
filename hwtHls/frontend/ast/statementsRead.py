@@ -2,14 +2,14 @@ from typing import Optional, Union, Tuple, Sequence
 
 from hwt.doc_markers import internal
 from hwt.hdl.statements.statement import HdlStatement
-from hwt.hdl.types.bits import Bits
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.hdlType import HdlType
-from hwt.synthesizer.interface import Interface
-from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
+from hwt.hwIO import HwIO
+from hwt.mainBases import RtlSignalBase
 from hwtHls.frontend.ast.utils import _getNativeInterfaceWordType, \
     ANY_HLS_STREAM_INTF_TYPE, ANY_SCALAR_INT_VALUE
-from hwtHls.frontend.utils import getInterfaceName
+from hwtHls.frontend.utils import HwIO_getName
 from hwtHls.io.portGroups import getFirstInterfaceInstance, MultiPortGroup, \
     BankedPortGroup
 from hwtHls.llvm.llvmIr import Register, MachineInstr, Argument, ArrayType, TypeToArrayType, Type
@@ -38,7 +38,7 @@ class HlsRead(HdlStatement, SsaInstr):
                  src: ANY_HLS_STREAM_INTF_TYPE,
                  dtype: HdlType,
                  isBlocking: bool,
-                 intfName: Optional[str]=None):
+                 hwIOName: Optional[str]=None):
         super(HlsRead, self).__init__()
         self._isAccessible = True
         self._parent = parent
@@ -46,20 +46,20 @@ class HlsRead(HdlStatement, SsaInstr):
         self._isBlocking = isBlocking
         self.block: Optional[SsaBasicBlock] = None
 
-        if intfName is None:
-            intfName = self._getInterfaceName(src)
+        if hwIOName is None:
+            hwIOName = self._getInterfaceName(src)
 
         # create an interface and signals which will hold value of this object
         var = parent.var
-        name = f"{intfName:s}_read"
+        name = f"{hwIOName:s}_read"
         sig = var(name, dtype)
-        if isinstance(sig, Interface) or not isBlocking:
+        if isinstance(sig, HwIO) or not isBlocking:
             w = dtype.bit_length()
             force_vector = False
-            if w == 1 and isinstance(dtype, Bits):
+            if w == 1 and isinstance(dtype, HBits):
                 force_vector = dtype.force_vector
 
-            sig_flat = var(name, Bits(w + (0 if isBlocking else 1), force_vector=force_vector))
+            sig_flat = var(name, HBits(w + (0 if isBlocking else 1), force_vector=force_vector))
             # use flat signal and make type member fields out of slices of that signal
             if isBlocking:
                 sig = sig_flat._reinterpret_cast(dtype)
@@ -75,7 +75,7 @@ class HlsRead(HdlStatement, SsaInstr):
             sig.origin = self
 
         self._sig = sig_flat
-        self._GEN_NAME_PREFIX = intfName
+        self._GEN_NAME_PREFIX = hwIOName
         SsaInstr.__init__(self, parent.ssaCtx, sig_flat._dtype, OP_ASSIGN, (),
                           origin=sig)
         self._dtypeOrig = dtype
@@ -99,13 +99,13 @@ class HlsRead(HdlStatement, SsaInstr):
                                syncTracker: InsideOfBlockSyncTracker,
                                mbSync: MachineBasicBlockMeta,
                                instr: MachineInstr,
-                               srcIo: Union[Interface, RtlSignalBase],
+                               srcIo: Union[HwIO, RtlSignalBase],
                                index: Union[int, HlsNetNodeOutAny],
                                cond: Union[int, HlsNetNodeOutAny],
                                instrDstReg: Register) -> Sequence[HlsNetNode]:
         """
         This method is called to generated HlsNetlist nodes from LLVM MIR.
-        The purpose of this function is to make this translation customizable for specific :class:`hwt.synthesizer.interface.Interface` instances.
+        The purpose of this function is to make this translation customizable for specific :class:`hwt.hwIO.HwIO` instances.
 
         :param representativeReadStm: Any found read for this interface before LLVM opt.
             We can not find the original because optimization process may remove and generate new reads and exact mapping can not be found.
@@ -119,11 +119,11 @@ class HlsRead(HdlStatement, SsaInstr):
         """
         valCache: MirToHwtHlsNetlistValueCache = mirToNetlist.valCache
         netlist: HlsNetlistCtx = mirToNetlist.netlist
-        assert isinstance(srcIo, (Interface, RtlSignalBase, MultiPortGroup, BankedPortGroup)), srcIo
+        assert isinstance(srcIo, (HwIO, RtlSignalBase, MultiPortGroup, BankedPortGroup)), srcIo
         assert isinstance(index, int) and index == 0, (srcIo, index, "Because this read is not addressed there should not be any index")
         dtype = _getNativeInterfaceWordType(getFirstInterfaceInstance(srcIo))
-        if isinstance(dtype, Bits) and dtype.signed is not None:
-            dtype = Bits(dtype.bit_length())
+        if isinstance(dtype, HBits) and dtype.signed is not None:
+            dtype = HBits(dtype.bit_length())
         n = HlsNetNodeRead(netlist,
                            srcIo,
                            dtype=dtype,
@@ -140,14 +140,14 @@ class HlsRead(HdlStatement, SsaInstr):
             o = n._outputs[0]
         else:
             o = n.getRawValue()
-        assert not isinstance(o._dtype, Bits) or not o._dtype.signed, (
-            "At this stage all values of Bits type should have signed=None", o)  # can potentially be of void type
+        assert not isinstance(o._dtype, HBits) or not o._dtype.signed, (
+            "At this stage all values of HBits type should have signed=None", o)  # can potentially be of void type
         valCache.add(mbSync.block, instrDstReg, o, True)
 
         return [n, ]
 
-    def _getInterfaceName(self, io: Union[Interface, Tuple[Interface]]) -> str:
-        return getInterfaceName(self._parent.parentUnit, io)
+    def _getInterfaceName(self, io: Union[HwIO, Tuple[HwIO]]) -> str:
+        return HwIO_getName(self._parent.parentHwModule, io)
 
     def _translateToLlvm(self, toLlvm: "ToLlvmIrTranslator"):
         src, _, t = toLlvm.ioToVar[self._src]
@@ -172,12 +172,12 @@ class HlsReadAddressed(HlsRead):
     """
 
     def __init__(self, parent:"HlsScope",
-                 src:Interface,
+                 src:HwIO,
                  index: ANY_SCALAR_INT_VALUE,
                  element_t: HdlType,
                  isBlocking:bool,
-                 intfName: Optional[str]=None):
-        super(HlsReadAddressed, self).__init__(parent, src, element_t, isBlocking, intfName=intfName)
+                 hwIOName: Optional[str]=None):
+        super(HlsReadAddressed, self).__init__(parent, src, element_t, isBlocking, hwIOName=hwIOName)
         self.operands = (index,)
         if isinstance(index, SsaValue):
             # assert index.block is not None, (index, "Must not construct instruction with operands which are not in SSA")
@@ -203,7 +203,7 @@ class HlsReadAddressed(HlsRead):
                                mbSync: MachineBasicBlockMeta,
                                syncTracker: InsideOfBlockSyncTracker,
                                instr: MachineInstr,
-                               srcIo: Interface,
+                               srcIo: HwIO,
                                index: Union[int, HlsNetNodeOutAny],
                                cond: Union[int, HlsNetNodeOutAny],
                                instrDstReg: Register) -> Sequence[HlsNetNode]:
@@ -212,7 +212,7 @@ class HlsReadAddressed(HlsRead):
         """
         valCache: MirToHwtHlsNetlistValueCache = mirToNetlist.valCache
         netlist: HlsNetlistCtx = mirToNetlist.netlist
-        assert isinstance(srcIo, Interface), srcIo
+        assert isinstance(srcIo, HwIO), srcIo
         if isinstance(index, int):
             raise AssertionError("If the index is constant it should be an output of a constant node but it is an integer", srcIo, instr)
 
@@ -225,7 +225,7 @@ class HlsReadAddressed(HlsRead):
         mbSync.addOrderedNode(n)
         mirToNetlist.inputs.append(n)
         o = n._outputs[0]
-        assert isinstance(o._dtype, Bits)
+        assert isinstance(o._dtype, HBits)
         sign = o._dtype.signed
         if sign is None:
             pass

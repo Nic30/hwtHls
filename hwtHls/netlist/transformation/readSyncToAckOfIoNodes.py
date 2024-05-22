@@ -1,8 +1,8 @@
 from typing import Union, Optional, List
 
-from hwt.hdl.types.bitsVal import BitsVal
-from hwt.pyUtils.uniqList import UniqList
-from hwtHls.architecture.syncUtils import getInterfaceSyncTuple
+from hwt.hdl.types.bitsConst import HBitsConst
+from hwt.pyUtils.setList import SetList
+from hwtHls.architecture.syncUtils import HwIO_getSyncTuple
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
@@ -23,8 +23,8 @@ class HlsNetlistPassReadSyncToAckOfIoNodes(HlsNetlistPass):
             # drop this for input which does not have vld signal
             n: HlsNetNodeRead
 
-            vld, _ = getInterfaceSyncTuple(n.src)
-            if isinstance(vld, (int, BitsVal)):
+            vld, _ = HwIO_getSyncTuple(n.src)
+            if isinstance(vld, (int, HBitsConst)):
                 # if IO interface does not use any sync replace this with 1
                 assert vld == 1, (n, vld)
                 return None
@@ -34,8 +34,8 @@ class HlsNetlistPassReadSyncToAckOfIoNodes(HlsNetlistPass):
         else:
             assert isinstance(n, HlsNetNodeWrite), n
             # drop this for output which does not have rd signal
-            _, rd = getInterfaceSyncTuple(n.dst)
-            if isinstance(rd, (int, BitsVal)):
+            _, rd = HwIO_getSyncTuple(n.dst)
+            if isinstance(rd, (int, HBitsConst)):
                 # if IO interface does not use any sync replace this with 1
                 assert rd == 1, (n, rd)
                 return None
@@ -82,7 +82,7 @@ class HlsNetlistPassReadSyncToAckOfIoNodes(HlsNetlistPass):
                 return builder.buildOrVariadic(result)
 
             else:
-                result = UniqList()
+                result = SetList()
                 for dep in n.dependsOn:
                     _res = _collectSyncValidFromExpr(dep)
                     if _res is not None:

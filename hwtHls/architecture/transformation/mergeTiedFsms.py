@@ -1,6 +1,6 @@
 from typing import List, Dict
 
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.archElement import ArchElement, ArchElmEdge
@@ -75,7 +75,7 @@ class RtlArchPassMergeTiedFsms(RtlArchPass):
         # find all deadlocking FSMs due to missing state transition
         clkPeriod = netlist.normalizedClkPeriod
         syncMatrix: Dict[ArchElmEdge, List[int]] = {}
-        fsmConnectedWithMultipleSync: UniqList[ArchElmEdge] = UniqList()
+        fsmConnectedWithMultipleSync: SetList[ArchElmEdge] = SetList()
         for elm in netlist.nodes:
             assert isinstance(elm, ArchElement), elm
             for dep, users in zip(elm._outputs, elm.usedBy):

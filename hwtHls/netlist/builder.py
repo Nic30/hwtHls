@@ -3,11 +3,11 @@ from itertools import islice
 from typing import Tuple, Union, Dict, Optional, Type, Callable, Set, List
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
-from hwt.hdl.operatorDefs import OpDefinition, AllOps, CAST_OPS
-from hwt.hdl.types.bits import Bits
+from hwt.hdl.operatorDefs import HOperatorDef, HwtOps, CAST_OPS
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT, SLICE, INT
 from hwt.hdl.types.hdlType import HdlType
-from hwt.hdl.value import HValue
+from hwt.hdl.const import HConst
 from hwt.pyUtils.arrayQuery import grouper, balanced_reduce
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
@@ -23,7 +23,7 @@ from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.observableList import ObservableList
 from hwtHls.netlist.transformation.simplifyUtils import getConstOfOutput
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 
 
 class HlsNetlistBuilder():
@@ -33,7 +33,7 @@ class HlsNetlistBuilder():
 
     :note: constant nodes are always unique nodes and structural hashing does not apply to them.
         (But operator nodes with const operands will yield always the same output object.)
-    :note: Constant operands are always store in operatorCache key as a HValue and output of HlsNetNodeConst is never used.
+    :note: Constant operands are always store in operatorCache key as a HConst and output of HlsNetNodeConst is never used.
     :ivar _removedNodes: optional set of removed nodes used to discard records from the operatorCache
     """
 
@@ -42,8 +42,8 @@ class HlsNetlistBuilder():
         if netlistNodes is None:
             netlistNodes = netlist.nodes
         self.netlistNodes = netlistNodes
-        self.operatorCache: Dict[Tuple[Union[OpDefinition, Type[HlsNetNode]],
-                                       Tuple[Union[HlsNetNodeOut, HValue], ...]],
+        self.operatorCache: Dict[Tuple[Union[HOperatorDef, Type[HlsNetNode]],
+                                       Tuple[Union[HlsNetNodeOut, HConst], ...]],
                                  HlsNetNodeOut] = {}
 #        class ObservableSet(set):
 #            def add(self, n):
@@ -51,8 +51,8 @@ class HlsNetlistBuilder():
 #        self._removedNodes: Set[HlsNetNode] = ObservableSet()
         self._removedNodes: Set[HlsNetNode] = set()
 
-    def _outputOfConstNodeToHValue(self, o: Union[HlsNetNodeOut, HValue]):
-        if isinstance(o, (HValue, HlsNetNodeOutLazy)):
+    def _outputOfConstNodeToHConst(self, o: Union[HlsNetNodeOut, HConst]):
+        if isinstance(o, (HConst, HlsNetNodeOutLazy)):
             return o
         else:
             assert isinstance(o, HlsNetNodeOut), o
@@ -63,8 +63,8 @@ class HlsNetlistBuilder():
 
         return o
 
-    def _toNodeOut(self, o: Union[HlsNetNodeOut, HValue]):
-        if isinstance(o, HValue):
+    def _toNodeOut(self, o: Union[HlsNetNodeOut, HConst]):
+        if isinstance(o, HConst):
             return self.buildConst(o)
         else:
             return o
@@ -72,7 +72,7 @@ class HlsNetlistBuilder():
     def buildConstPy(self, dtype: HdlType, v):
         return self.buildConst(dtype.from_py(v))
 
-    def buildConst(self, v: HValue):
+    def buildConst(self, v: HConst):
         c = HlsNetNodeConst(self.netlist, v)
         self.netlistNodes.append(c)
         return c._outputs[0]
@@ -80,7 +80,7 @@ class HlsNetlistBuilder():
     def buildConstBit(self, v: int):
         return self.buildConst(BIT.from_py(v))
 
-    def _tryToFindInCache(self, operator: OpDefinition, operands: Tuple[Union[HlsNetNodeOut, HValue], ...]):
+    def _tryToFindInCache(self, operator: HOperatorDef, operands: Tuple[Union[HlsNetNodeOut, HConst], ...]):
         key = (operator, operands)
         rm = self._removedNodes
         opCache = self.operatorCache
@@ -92,28 +92,28 @@ class HlsNetlistBuilder():
             else:
                 return v, None
         # if there are constants in operands try to search them as well
-        # variant of the key where all constants are converted to HValue
-        operandsWithHValues = tuple(self._outputOfConstNodeToHValue(o) for o in operands)
-        keyWithHValues = (operator, operandsWithHValues)
-        v = opCache.get(keyWithHValues, None)
+        # variant of the key where all constants are converted to HConst
+        operandsWithHConsts = tuple(self._outputOfConstNodeToHConst(o) for o in operands)
+        keyWithHConsts = (operator, operandsWithHConsts)
+        v = opCache.get(keyWithHConsts, None)
         if v is not None:
             if v.obj in rm:
-                opCache.pop(keyWithHValues)
+                opCache.pop(keyWithHConsts)
             else:
                 return v, None
 
-        return None, keyWithHValues
+        return None, keyWithHConsts
 
     def buildOp(self,
-                operator: OpDefinition,
+                operator: HOperatorDef,
                 resT: HdlType,
-                *operands: Tuple[Union[HlsNetNodeOut, HValue], ...],
+                *operands: Tuple[Union[HlsNetNodeOut, HConst], ...],
                 name:Optional[str]=None,
-                worklist: Optional[UniqList[HlsNetNode]]=None) -> HlsNetNodeOut:
-        assert operator not in {AllOps.DIV, AllOps.GT, AllOps.GE, AllOps.LT, AllOps.LE}, ("Signed or unsigned variant should be used instead", operator, operands)
+                worklist: Optional[SetList[HlsNetNode]]=None) -> HlsNetNodeOut:
+        assert operator not in {HwtOps.DIV, HwtOps.GT, HwtOps.GE, HwtOps.LT, HwtOps.LE}, ("Signed or unsigned variant should be used instead", operator, operands)
         assert operator not in CAST_OPS, ("Internally there is no cast required", operator, operands)
-        assert not isinstance(resT, Bits) or not resT.signed, ("Only unsigned should be used internally", resT)
-        res, keyWithHValues = self._tryToFindInCache(operator, operands)
+        assert not isinstance(resT, HBits) or not resT.signed, ("Only unsigned should be used internally", resT)
+        res, keyWithHConsts = self._tryToFindInCache(operator, operands)
         if res is not None:
             if worklist is not None:
                 for o in operands:
@@ -130,54 +130,54 @@ class HlsNetlistBuilder():
             link_hls_nodes(arg, i)
 
         o = n._outputs[0]
-        self.operatorCache[keyWithHValues] = o
-        if operator is AllOps.NOT:
+        self.operatorCache[keyWithHConsts] = o
+        if operator is HwtOps.NOT:
             # if operator is NOT automatically precompute not not x to x
-            self.operatorCache[(AllOps.NOT, o)] = keyWithHValues[1][0]
+            self.operatorCache[(HwtOps.NOT, o)] = keyWithHConsts[1][0]
 
         return o
 
-    def buildOpWithOpt(self, operator: OpDefinition, resT: HdlType, *operands: Tuple[Union[HlsNetNodeOut, HValue], ...]) -> HlsNetNodeOut:
-        if operator == AllOps.EQ:
+    def buildOpWithOpt(self, operator: HOperatorDef, resT: HdlType, *operands: Tuple[Union[HlsNetNodeOut, HConst], ...]) -> HlsNetNodeOut:
+        if operator == HwtOps.EQ:
             assert resT == BIT, resT
             return self.buildEq(*operands)
-        elif operator == AllOps.NE:
+        elif operator == HwtOps.NE:
             assert resT == BIT, resT
             return self.buildNe(*operands)
 
-        elif operator == AllOps.ULT:
+        elif operator == HwtOps.ULT:
             assert resT == BIT, resT
             return self.buildULt(*operands)
-        elif operator == AllOps.ULE:
+        elif operator == HwtOps.ULE:
             assert resT == BIT, resT
             return self.buildULe(*operands)
-        elif operator == AllOps.UGT:
+        elif operator == HwtOps.UGT:
             assert resT == BIT, resT
             return self.buildUGt(*operands)
-        elif operator == AllOps.UGE:
+        elif operator == HwtOps.UGE:
             assert resT == BIT, resT
             return self.buildUGe(*operands)
 
-        elif operator == AllOps.SLT:
+        elif operator == HwtOps.SLT:
             assert resT == BIT, resT
             return self.buildSLt(*operands)
-        elif operator == AllOps.SLE:
+        elif operator == HwtOps.SLE:
             assert resT == BIT, resT
             return self.buildSLe(*operands)
-        elif operator == AllOps.SGT:
+        elif operator == HwtOps.SGT:
             assert resT == BIT, resT
             return self.buildSGt(*operands)
-        elif operator == AllOps.SGE:
+        elif operator == HwtOps.SGE:
             assert resT == BIT, resT
             return self.buildSGe(*operands)
 
-        elif operator == AllOps.AND:
+        elif operator == HwtOps.AND:
             assert resT == operands[0]._dtype, (resT, operands[0]._dtype)
             return self.buildAndVariadic(operands)
-        elif operator == AllOps.OR:
+        elif operator == HwtOps.OR:
             assert resT == operands[0]._dtype, (resT, operands[0]._dtype)
             return self.buildOrVariadic(operands)
-        elif operator == AllOps.NOT:
+        elif operator == HwtOps.NOT:
             return self.buildNot(*operands)
         else:
             return self.buildOp(operator, resT, *operands)
@@ -186,67 +186,67 @@ class HlsNetlistBuilder():
         assert a._dtype == b._dtype, (a, b)
         if a is b:
             return self.buildConstBit(1)
-        return self.buildOp(AllOps.EQ, BIT, a, b)
+        return self.buildOp(HwtOps.EQ, BIT, a, b)
 
     def buildNe(self, a: HlsNetNodeOut, b: HlsNetNodeOut):
         assert a._dtype == b._dtype, (a, b)
         if a is b:
             return self.buildConstBit(0)
-        return self.buildOp(AllOps.NE, BIT, a, b)
+        return self.buildOp(HwtOps.NE, BIT, a, b)
 
     def buildULt(self, a: HlsNetNodeOut, b: HlsNetNodeOut):
-        return self.buildLt(AllOps.ULT, a, b)
+        return self.buildLt(HwtOps.ULT, a, b)
 
     def buildSLt(self, a: HlsNetNodeOut, b: HlsNetNodeOut):
-        return self.buildLt(AllOps.SLT, a, b)
+        return self.buildLt(HwtOps.SLT, a, b)
 
-    def buildLt(self, op: OpDefinition, a: HlsNetNodeOut, b: HlsNetNodeOut):
+    def buildLt(self, op: HOperatorDef, a: HlsNetNodeOut, b: HlsNetNodeOut):
         assert a._dtype == b._dtype, (a, b)
-        assert op in (AllOps.ULT, AllOps.SLT)
+        assert op in (HwtOps.ULT, HwtOps.SLT)
         if a is b:
             return self.buildConstBit(0)
         return self.buildOp(op, BIT, a, b)
 
     def buildULe(self, a: HlsNetNodeOut, b: HlsNetNodeOut):
-        return self.buildLe(AllOps.ULE, a, b)
+        return self.buildLe(HwtOps.ULE, a, b)
 
     def buildSLe(self, a: HlsNetNodeOut, b: HlsNetNodeOut):
-        return self.buildLe(AllOps.SLE, a, b)
+        return self.buildLe(HwtOps.SLE, a, b)
 
-    def buildLe(self, op: OpDefinition, a: HlsNetNodeOut, b: HlsNetNodeOut):
+    def buildLe(self, op: HOperatorDef, a: HlsNetNodeOut, b: HlsNetNodeOut):
         assert a._dtype == b._dtype, (a, b)
-        assert op in (AllOps.ULE, AllOps.SLE)
+        assert op in (HwtOps.ULE, HwtOps.SLE)
         if a is b:
             return self.buildConstBit(1)
         return self.buildOp(op, BIT, a, b)
 
     def buildUGt(self, a: HlsNetNodeOut, b: HlsNetNodeOut):
-        return self.buildGt(AllOps.UGT, a, b)
+        return self.buildGt(HwtOps.UGT, a, b)
 
     def buildSGt(self, a: HlsNetNodeOut, b: HlsNetNodeOut):
-        return self.buildGt(AllOps.SGT, a, b)
+        return self.buildGt(HwtOps.SGT, a, b)
 
-    def buildGt(self, op: OpDefinition, a: HlsNetNodeOut, b: HlsNetNodeOut):
+    def buildGt(self, op: HOperatorDef, a: HlsNetNodeOut, b: HlsNetNodeOut):
         assert a._dtype == b._dtype, (a, b)
-        assert op in (AllOps.UGT, AllOps.SGT)
+        assert op in (HwtOps.UGT, HwtOps.SGT)
         if a is b:
             return self.buildConstBit(0)
         return self.buildOp(op, BIT, a, b)
 
     def buildUGe(self, a: HlsNetNodeOut, b: HlsNetNodeOut):
-        return self.buildGe(AllOps.UGE, a, b)
+        return self.buildGe(HwtOps.UGE, a, b)
 
     def buildSGe(self, a: HlsNetNodeOut, b: HlsNetNodeOut):
-        return self.buildGe(AllOps.SGE, a, b)
+        return self.buildGe(HwtOps.SGE, a, b)
 
-    def buildGe(self, op: OpDefinition, a: HlsNetNodeOut, b: HlsNetNodeOut):
+    def buildGe(self, op: HOperatorDef, a: HlsNetNodeOut, b: HlsNetNodeOut):
         assert a._dtype == b._dtype, (a, b)
-        assert op in (AllOps.UGE, AllOps.SGE)
+        assert op in (HwtOps.UGE, HwtOps.SGE)
         if a is b:
             return self.buildConstBit(1)
         return self.buildOp(op, BIT, a, b)
 
-    def buildRom(self, data: Union[Dict[int, HValue], List[HValue], Tuple[HValue]], index: HlsNetNodeOut):
+    def buildRom(self, data: Union[Dict[int, HConst], List[HConst], Tuple[HConst]], index: HlsNetNodeOut):
         assert data, ("ROM array should not be of zero size", data)
         itemCnt = 2 ** index._dtype.bit_length()
 
@@ -260,28 +260,28 @@ class HlsNetlistBuilder():
             data = tuple(data)
             resT = data[0]._dtype
         data = resT[itemCnt].from_py(data)
-        return self.buildOp(AllOps.INDEX, resT, data, index)
+        return self.buildOp(HwtOps.INDEX, resT, data, index)
 
-    def buildAndVariadic(self, ops: Tuple[Union[HlsNetNodeOut, HValue], ...], name:Optional[str]=None):
+    def buildAndVariadic(self, ops: Tuple[Union[HlsNetNodeOut, HConst], ...], name:Optional[str]=None):
         return balanced_reduce(ops, lambda a, b: self.buildAnd(a, b, name=name))
 
-    def buildOrVariadic(self, ops: Tuple[Union[HlsNetNodeOut, HValue], ...], name:Optional[str]=None):
+    def buildOrVariadic(self, ops: Tuple[Union[HlsNetNodeOut, HConst], ...], name:Optional[str]=None):
         return balanced_reduce(ops, lambda a, b: self.buildOr(a, b, name=name))
 
-    def buildAnd(self, a: Union[HlsNetNodeOut, HValue], b:Union[HlsNetNodeOut, HValue], name:Optional[str]=None) -> HlsNetNodeOut:
+    def buildAnd(self, a: Union[HlsNetNodeOut, HConst], b:Union[HlsNetNodeOut, HConst], name:Optional[str]=None) -> HlsNetNodeOut:
         assert a._dtype == b._dtype, (a, b, a._dtype, b._dtype)
         if a is b or isinstance(a, HlsNetNodeOut) and\
                 isinstance(a.obj, HlsNetNodeOperator) and\
-                a.obj.operator == AllOps.AND and\
+                a.obj.operator == HwtOps.AND and\
                 (a.obj.dependsOn[0] is b or a.obj.dependsOn[1] is b):
             return a
         for op0, other in ((a, b), (b, a)):
             if isinstance(op0, HlsNetNodeConst):
                 op0 = op0.val
 
-            if isinstance(op0, HValue) and op0._is_full_valid():
+            if isinstance(op0, HConst) and op0._is_full_valid():
                 if op0._eq(op0._dtype.all_mask()):
-                    if isinstance(other, HValue):
+                    if isinstance(other, HConst):
                         c = HlsNetNodeConst(self.netlist, other)
                         self.netlistNodes.append(c)
                         return c._outputs[0]
@@ -292,10 +292,10 @@ class HlsNetlistBuilder():
                     self.netlistNodes.append(c)
                     return c._outputs[0]
 
-        return self.buildOp(AllOps.AND, a._dtype, a, b, name=name)
+        return self.buildOp(HwtOps.AND, a._dtype, a, b, name=name)
 
-    def buildAndOptional(self, a: Optional[Union[HlsNetNodeOut, HValue]], b: Optional[Union[HlsNetNodeOut, HValue]])\
-            ->Union[HlsNetNodeOut, HValue, None]:
+    def buildAndOptional(self, a: Optional[Union[HlsNetNodeOut, HConst]], b: Optional[Union[HlsNetNodeOut, HConst]])\
+            ->Union[HlsNetNodeOut, HConst, None]:
         if a is None:
             return b
         elif b is None or b is a:
@@ -303,11 +303,11 @@ class HlsNetlistBuilder():
         else:
             return self.buildAnd(a, b)
 
-    def buildOr(self, a: Union[HlsNetNodeOut, HValue], b:Union[HlsNetNodeOut, HValue], name:Optional[str]=None) -> HlsNetNodeOut:
+    def buildOr(self, a: Union[HlsNetNodeOut, HConst], b:Union[HlsNetNodeOut, HConst], name:Optional[str]=None) -> HlsNetNodeOut:
         assert a._dtype == b._dtype, (a, b, a._dtype, b._dtype)
         if isinstance(a, HlsNetNodeOut) and\
                 isinstance(a.obj, HlsNetNodeOperator) and\
-                a.obj.operator == AllOps.OR and\
+                a.obj.operator == HwtOps.OR and\
                 (a.obj.dependsOn[0] is b or a.obj.dependsOn[1] is b):
             return a
 
@@ -315,9 +315,9 @@ class HlsNetlistBuilder():
             if isinstance(op0, HlsNetNodeConst):
                 op0 = op0.val
 
-            if isinstance(op0, HValue) and op0._is_full_valid():
+            if isinstance(op0, HConst) and op0._is_full_valid():
                 if op0._eq(0):
-                    if isinstance(other, HValue):
+                    if isinstance(other, HConst):
                         c = HlsNetNodeConst(self.netlist, other)
                         self.netlistNodes.append(c)
                         return c._outputs[0]
@@ -328,10 +328,10 @@ class HlsNetlistBuilder():
                     self.netlistNodes.append(c)
                     return c._outputs[0]
 
-        return self.buildOp(AllOps.OR, a._dtype, a, b, name=name)
+        return self.buildOp(HwtOps.OR, a._dtype, a, b, name=name)
 
-    def buildOrOptional(self, a: Optional[Union[HlsNetNodeOut, HValue]], b: Optional[Union[HlsNetNodeOut, HValue]])\
-            ->Union[HlsNetNodeOut, HValue, None]:
+    def buildOrOptional(self, a: Optional[Union[HlsNetNodeOut, HConst]], b: Optional[Union[HlsNetNodeOut, HConst]])\
+            ->Union[HlsNetNodeOut, HConst, None]:
         if a is None:
             if b is None:
                 return None
@@ -343,17 +343,17 @@ class HlsNetlistBuilder():
             else:
                 return self.buildOr(a, b)
 
-    def buildNot(self, a: Union[HlsNetNodeOut, HValue]) -> HlsNetNodeOut:
-        if isinstance(a, HlsNetNodeOut) and isinstance(a.obj, HlsNetNodeOperator) and a.obj.operator == AllOps.NOT:
+    def buildNot(self, a: Union[HlsNetNodeOut, HConst]) -> HlsNetNodeOut:
+        if isinstance(a, HlsNetNodeOut) and isinstance(a.obj, HlsNetNodeOperator) and a.obj.operator == HwtOps.NOT:
             return a.obj.dependsOn[0]
-        return self.buildOp(AllOps.NOT, a._dtype, a)
+        return self.buildOp(HwtOps.NOT, a._dtype, a)
 
-    def buildMux(self, resT: HdlType, operands: Tuple[Union[HlsNetNodeOut, HValue]], name:Optional[str]=None):
+    def buildMux(self, resT: HdlType, operands: Tuple[Union[HlsNetNodeOut, HConst]], name:Optional[str]=None):
         """
         :param operands: operands in format of val0, (condN, valN)*
         """
         assert operands, "MUX has to have at least a single input"
-        res, keyWithHValues = self._tryToFindInCache(AllOps.TERNARY, operands)
+        res, keyWithHConsts = self._tryToFindInCache(HwtOps.TERNARY, operands)
         if res is not None:
             return res
 
@@ -396,10 +396,10 @@ class HlsNetlistBuilder():
                 link_hls_nodes(cond, i)
 
         o = n._outputs[0]
-        self.operatorCache[keyWithHValues] = o
+        self.operatorCache[keyWithHConsts] = o
         return o
 
-    def buildConcat(self, *lsbToMsbOps: Union[HlsNetNodeOut, HValue]) -> HlsNetNodeOut:
+    def buildConcat(self, *lsbToMsbOps: Union[HlsNetNodeOut, HConst]) -> HlsNetNodeOut:
         """
         :param lsbToMsbOps: operands to concatenate, lower bits first
         """
@@ -418,10 +418,10 @@ class HlsNetlistBuilder():
             w = 0
             for o in lsbToMsbOps:
                 w += o._dtype.bit_length()
-            t = Bits(w)
-        return self.buildOp(AllOps.CONCAT, t, *lsbToMsbOps)
+            t = HBits(w)
+        return self.buildOp(HwtOps.CONCAT, t, *lsbToMsbOps)
 
-    def buildIndexConst(self, resT: HdlType, a: HlsNetNodeOut, high: int, low: Optional[int], worklist: UniqList[HlsNetNode]):
+    def buildIndexConst(self, resT: HdlType, a: HlsNetNodeOut, high: int, low: Optional[int], worklist: SetList[HlsNetNode]):
         if resT == a._dtype:
             return a
         elif high == low + 1:
@@ -429,7 +429,7 @@ class HlsNetlistBuilder():
             low = None
         return self.buildIndexConstSlice(resT, a, high, low, worklist)
 
-    def buildIndexConstSlice(self, resT: HdlType, a: HlsNetNodeOut, high: int, low: Optional[int], worklist: UniqList[HlsNetNode]):
+    def buildIndexConstSlice(self, resT: HdlType, a: HlsNetNodeOut, high: int, low: Optional[int], worklist: SetList[HlsNetNode]):
         if low is None:
             assert resT == BIT, resT
             i = self.buildConst(INT.from_py(high))
@@ -437,7 +437,7 @@ class HlsNetlistBuilder():
             assert high > low, (high, low)
             i = self.buildConst(SLICE.from_py(slice(high, low, -1)))
 
-        return self.buildOp(AllOps.INDEX, resT, a, i, worklist=worklist)
+        return self.buildOp(HwtOps.INDEX, resT, a, i, worklist=worklist)
 
     def buildReadSync(self, i: HlsNetNodeOutAny):
         isResolvedOut = False
@@ -460,7 +460,7 @@ class HlsNetlistBuilder():
         return o
 
     def _getOperatorCacheKey(self, obj: HlsNetNodeOperator):
-        return (obj.operator, tuple(self._outputOfConstNodeToHValue(o) for o in obj.dependsOn))
+        return (obj.operator, tuple(self._outputOfConstNodeToHConst(o) for o in obj.dependsOn))
 
     def _replaceInputDriverWithConst1b(self, i: HlsNetNodeIn):
         c = self.buildConstBit(1)

@@ -2,19 +2,19 @@ from typing import Union, Optional, List, Generator, Tuple
 
 from hwt.code import Concat
 from hwt.hdl.statements.statement import HdlStatement
-from hwt.hdl.types.bits import Bits
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.hdlType import HdlType
-from hwt.hdl.value import HValue
-from hwt.interfaces.std import RdSynced
-from hwt.pyUtils.uniqList import UniqList
-from hwt.synthesizer.interface import Interface
-from hwt.synthesizer.interfaceLevel.interfaceUtils.utils import packIntf
-from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
+from hwt.hdl.const import HConst
+from hwt.hwIOs.std import HwIODataRd
+from hwt.pyUtils.setList import SetList
+from hwt.hwIO import HwIO
+from hwt.synthesizer.interfaceLevel.utils import HwIO_pack
+from hwt.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.architecture.syncUtils import getInterfaceSyncTuple, \
-    getInterfaceSyncSignals
+from hwtHls.architecture.syncUtils import HwIO_getSyncTuple, \
+    HwIO_getSyncSignals
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
-from hwtHls.frontend.utils import getInterfaceName
+from hwtHls.frontend.utils import HwIO_getName
 from hwtHls.io.portGroups import MultiPortGroup, BankedPortGroup
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid, HVoidData
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
@@ -25,7 +25,7 @@ from hwtHls.netlist.nodes.schedulableNode import SchedulizationDict, OutputTimeG
     OutputMinUseTimeGetter, SchedTime
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
 from hwtHls.typingFuture import override
-from hwtLib.handshaked.streamNode import InterfaceOrValidReadyTuple
+from hwtLib.handshaked.streamNode import HwIOOrValidReadyTuple
 from ipCorePackager.constants import INTF_DIRECTION_asDirecton, \
     DIRECTION_opposite, DIRECTION, INTF_DIRECTION
 from hwt.hdl.types.defs import BIT
@@ -43,7 +43,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
     :ivar _rawValue: A port is used only during optimization phase, its value is Concat(_validNB, _valid, dataOut)
     """
 
-    def __init__(self, netlist: "HlsNetlistCtx", src: Union[RtlSignal, Interface],
+    def __init__(self, netlist: "HlsNetlistCtx", src: Union[RtlSignal, HwIO],
                  dtype: Optional[HdlType]=None, name:Optional[str]=None):
         HlsNetNode.__init__(self, netlist, name=name)
         self.src = src
@@ -59,10 +59,10 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
             else:
                 dtype = d._dtype
 
-            # if isinstance(dtype, Bits) and dtype.force_vector and dtype.bit_length() == 1:
+            # if isinstance(dtype, HBits) and dtype.force_vector and dtype.bit_length() == 1:
             #    raise NotImplementedError("Reading of 1b vector would cause issues"
             #                              " with missing auto casts when with other operands without force_vector", d, src)
-        assert not isinstance(dtype, Bits) or dtype.signed is None, dtype
+        assert not isinstance(dtype, HBits) or dtype.signed is None, dtype
         self._addOutput(dtype, "dataOut")
 
     def setNonBlocking(self):
@@ -70,7 +70,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
 
     def getRawValue(self):
         if self._rawValue is None:
-            self._rawValue = self._addOutput(Bits(self._outputs[0]._dtype.bit_length() + 1), "rawValue")
+            self._rawValue = self._addOutput(HBits(self._outputs[0]._dtype.bit_length() + 1), "rawValue")
         return self._rawValue
 
     @override
@@ -95,8 +95,8 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
             if i not in nonOrderingInputs:
                 yield i
 
-    def getRtlValidSig(self, intf: InterfaceOrValidReadyTuple) -> Union[RtlSignalBase, HValue]:
-        vld = getInterfaceSyncTuple(intf)[0]
+    def getRtlValidSig(self, hwIO: HwIOOrValidReadyTuple) -> Union[RtlSignalBase, HConst]:
+        vld = HwIO_getSyncTuple(hwIO)[0]
         if isinstance(vld, int):
             raise NotImplementedError("rtl valid should not be requested because it is constant", self)
         else:
@@ -231,7 +231,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
             self.netlist.scheduler.resourceUsage.moveUse(resourceType, originalClkI, curClkI)
 
     @override
-    def scheduleAsap(self, pathForDebug: Optional[UniqList["HlsNetNode"]], beginOfFirstClk: int,
+    def scheduleAsap(self, pathForDebug: Optional[SetList["HlsNetNode"]], beginOfFirstClk: int,
                      outputTimeGetter: Optional[OutputTimeGetter]) -> List[int]:
         # schedule all dependencies
         if self.scheduledOut is None:
@@ -294,14 +294,14 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
                 yield dep.obj
 
     def getRtlDataSig(self) -> Optional[RtlSignal]:
-        src: Interface = self.src
+        src: HwIO = self.src
         assert src is not None, ("This operation is missing hw interface or it is only virtual and does not use any data signals", self)
         if isinstance(src, RtlSignalBase):
             res = src
         else:
-            exclude = getInterfaceSyncSignals(src)
+            exclude = HwIO_getSyncSignals(src)
 
-            if isinstance(src, RdSynced):
+            if isinstance(src, HwIODataRd):
                 if src.rd._direction == INTF_DIRECTION.UNKNOWN:
                     masterDirEqTo = DIRECTION.OUT
                 else:
@@ -313,13 +313,13 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
                 else:
                     masterDirEqTo = DIRECTION.OUT
 
-            res = packIntf(src,
+            res = HwIO_pack(src,
                             masterDirEqTo=masterDirEqTo,
                             exclude=exclude)
         if res is not None:
-            assert isinstance(res._dtype, Bits), (res, res._dtype)
+            assert isinstance(res._dtype, HBits), (res, res._dtype)
             if res._dtype.signed is not None:
-                res = res._reinterpret_cast(Bits(res._dtype.bit_length()))
+                res = res._reinterpret_cast(HBits(res._dtype.bit_length()))
             if isinstance(res, RtlSignalBase) and res.hasGenericName:
                 name = self.name
                 if name is None:
@@ -353,8 +353,8 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
             else:
                 return "<>"
 
-    def _getInterfaceName(self, io: Union[Interface, Tuple[Interface]]) -> str:
-        return getInterfaceName(self.netlist.parentUnit, io)
+    def _getInterfaceName(self, io: Union[HwIO, Tuple[HwIO]]) -> str:
+        return HwIO_getName(self.netlist.parentHwModule, io)
 
     def __repr__(self):
         return (f"<{self.__class__.__name__:s}{'' if self._isBlocking else ' NB'} {self._id:d}"
@@ -366,7 +366,7 @@ class HlsNetNodeReadIndexed(HlsNetNodeRead):
     Same as :class:`~.HlsNetNodeRead` but for memory mapped interfaces with address or index.
     """
 
-    def __init__(self, netlist:"HlsNetlistCtx", src:Union[RtlSignal, Interface], name:Optional[str]=None):
+    def __init__(self, netlist:"HlsNetlistCtx", src:Union[RtlSignal, HwIO], name:Optional[str]=None):
         HlsNetNodeRead.__init__(self, netlist, src, name=name)
         self.indexes = [self._addInput("index0"), ]
 

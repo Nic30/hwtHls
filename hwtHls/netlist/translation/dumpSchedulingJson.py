@@ -4,11 +4,11 @@ import json
 from math import inf, isinf
 from typing import Dict, List, Optional, Set, Tuple
 
-from hwt.hdl.operatorDefs import OpDefinition
-from hwt.hdl.types.bitsVal import BitsVal
-from hwt.hdl.types.sliceVal import HSliceVal
-from hwt.pyUtils.uniqList import UniqList
-from hwt.synthesizer.interface import Interface
+from hwt.hdl.operatorDefs import HOperatorDef
+from hwt.hdl.types.bitsConst import HBitsConst
+from hwt.hdl.types.sliceConst import HSliceConst
+from hwt.pyUtils.setList import SetList
+from hwt.hwIO import HwIO
 from hwtHls.io.bram import HlsNetNodeWriteBramCmd
 from hwtHls.netlist.analysis.schedule import HlsNetlistAnalysisPassRunScheduler
 from hwtHls.netlist.context import HlsNetlistCtx
@@ -44,7 +44,7 @@ class TimelineItem():
         self.textColor = "black" if color in self.BRIGHT_COLORS else "white"
         self.portsIn: List[Tuple[float, str, TimelineItem, int, str]] = []  # tuples (abs. time, name, dependency TimelineItem, dependency port index, link color)
         self.portsOut: List[Tuple[float, str]] = []  # tuples (abs. time, name)
-        self.genericDeps: UniqList[TimelineItem] = UniqList()
+        self.genericDeps: SetList[TimelineItem] = SetList()
 
     def toJson(self):
         return {
@@ -164,7 +164,7 @@ class HwtHlsNetlistToTimelineJson():
 
     def translateNodeToTimelineItemTransitively(self,
                                        obj: HlsNetNode,
-                                       ioGroupIds: Dict[Interface, int],
+                                       ioGroupIds: Dict[HwIO, int],
                                        nodesFlat: List[HlsNetNode],
                                        compositeNodes: Set[HlsNetNodeAggregate],
                                        seenNodes: Set[HlsNetNode]):
@@ -177,7 +177,7 @@ class HwtHlsNetlistToTimelineJson():
                 self.translateNodeToTimelineItem(n, ioGroupIds)
                 nodesFlat.append(n)
 
-    def translateNodeToTimelineItem(self, obj: HlsNetNode, io_group_ids: Dict[Interface, int]):
+    def translateNodeToTimelineItem(self, obj: HlsNetNode, io_group_ids: Dict[HwIO, int]):
         if obj.scheduledIn:
             start = min(obj.scheduledIn)
         else:
@@ -232,7 +232,7 @@ class HwtHlsNetlistToTimelineJson():
         color = "white"
         representativeIo = None
         if isinstance(obj, HlsNetNodeOperator):
-            label = f"{obj.operator.id if isinstance(obj.operator, OpDefinition) else str(obj.operator)} {obj._id:d}"
+            label = f"{obj.operator.id if isinstance(obj.operator, HOperatorDef) else str(obj.operator)} {obj._id:d}"
 
         elif isinstance(obj, HlsNetNodeWrite):
             name = obj.name
@@ -259,14 +259,14 @@ class HwtHlsNetlistToTimelineJson():
 
         elif isinstance(obj, HlsNetNodeConst):
             val = obj.val
-            if isinstance(val, BitsVal):
+            if isinstance(val, HBitsConst):
                 if val._is_full_valid():
                     label = "0x%x" % int(val)
                 elif val.vld_mask == 0:
                     label = "X"
                 else:
                     label = repr(val)
-            elif isinstance(val, HSliceVal):
+            elif isinstance(val, HSliceConst):
                 if int(val.val.step) == -1:
                     label = f"{int(val.val.start)}:{int(val.val.stop)}"
                 else:
@@ -309,7 +309,7 @@ class HwtHlsNetlistToTimelineJson():
     def construct(self, nodes: List[HlsNetNode]):
         jsonObjs = self.jsonObjs
         objToJsonObj = self.objToJsonObj
-        ioGroupIds: Dict[Interface, int] = {}
+        ioGroupIds: Dict[HwIO, int] = {}
         nodesFlat = []
         compositeNodes: Set[HlsNetNodeAggregate] = set()
         containerOfNode: Dict[HlsNetNode, HlsNetNodeAggregate] = {}

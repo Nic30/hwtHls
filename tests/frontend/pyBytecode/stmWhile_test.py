@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.hdl.types.bits import Bits
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
 from hwtHls.platform.platform import HlsDebugBundle
 from hwtHls.platform.virtual import VirtualHlsPlatform
@@ -67,24 +67,24 @@ class StmWhile_sim_TC(BaseIrMirRtl_TC):
 
     def test_HlsPythonHwWhile3(self):
         IN_CNT = 32
-        in_t = Bits(8)
+        in_t = HBits(8)
         dataIn = [in_t.from_py(self._rand.getrandbits(2)) for _ in range(IN_CNT)]
         self._test_OneInOneOut(HlsPythonHwWhile3(), HlsPythonHwWhile3.model,
                                dataIn, wallTimeRtlClks=IN_CNT + 9 + 20 + 1)
 
-    def test_HlsPythonHwWhile4(self, uCls=HlsPythonHwWhile4):
+    def test_HlsPythonHwWhile4(self, mCls=HlsPythonHwWhile4):
         IN_CNT = 32
         dataIn = [BIT.from_py(self._rand.getrandbits(1)) for _ in range(IN_CNT)]
-        self._test_OneInOneOut(uCls(), uCls.model, dataIn)
+        self._test_OneInOneOut(mCls(), mCls.model, dataIn)
 
     def test_HlsPythonHwWhile5(self):
-        self.test_HlsPythonHwWhile4(uCls=HlsPythonHwWhile5)
+        self.test_HlsPythonHwWhile4(mCls=HlsPythonHwWhile5)
 
     def test_HlsPythonHwWhile5b(self):
-        self.test_HlsPythonHwWhile4(uCls=HlsPythonHwWhile5b)
+        self.test_HlsPythonHwWhile4(mCls=HlsPythonHwWhile5b)
 
     def test_HlsPythonHwWhile6(self):
-        self.test_HlsPythonHwWhile4(uCls=HlsPythonHwWhile6)
+        self.test_HlsPythonHwWhile4(mCls=HlsPythonHwWhile6)
 
     def test_MovingOneGen(self):
         OUT_CNT = 10
@@ -99,30 +99,43 @@ class StmWhile_sim_TC(BaseIrMirRtl_TC):
         self._test_OneInOneOut(LoopCondBitSet(), LoopCondBitSet.model, dataIn)
 
     def test_LoopZeroPadCompareShift(self):
-        u = LoopZeroPadCompareShift()
-        u.DATA_WIDTH = 4
-        t = Bits(u.DATA_WIDTH)
+        dut = LoopZeroPadCompareShift()
+        dut.DATA_WIDTH = 4
+        dut.FREQ = int(1e6)
+        t = HBits(dut.DATA_WIDTH)
         dataIn = [t.from_py(13), t.from_py(3)]
-        self._test_OneInOneOut(u, u.model, dataIn,
+        self._test_OneInOneOut(dut, dut.model, dataIn,
                                 wallTimeIr=60,
                                 wallTimeOptIr=60,
                                 wallTimeOptMir=6,
+                                wallTimeRtlClks=16+1,
+                                debugFilter={
+                                    *HlsDebugBundle.ALL_RELIABLE,
+                                    HlsDebugBundle.DBG_20_addSignalNamesToSync,
+                                    HlsDebugBundle.DBG_20_addSignalNamesToData,
+                                }
                                 )
 
     def test_PragmaInline_PragmaInline_HlsPythonHwWhile4(self):
-        self.test_HlsPythonHwWhile4(uCls=PragmaInline_HlsPythonHwWhile4)
+        self.test_HlsPythonHwWhile4(mCls=PragmaInline_HlsPythonHwWhile4)
 
     def test_PragmaInline_HlsPythonHwWhile5(self):
-        self.test_HlsPythonHwWhile4(uCls=PragmaInline_HlsPythonHwWhile5)
+        self.test_HlsPythonHwWhile4(mCls=PragmaInline_HlsPythonHwWhile5)
+    
+    # [todo] PragmaInline_HlsPythonHwWhile5c
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import to_rtl_str
-    # [fixme] afterPrefix does not add prefix correctly and generates
-    # new blocks without loop prefix for inlined blocks
-    # * or returns are handled incorrectly
-    # * CFG is missing edges and that is why the block is marked non-generated prematurely
-
+    from hwt.synth import to_rtl_str
+    m = LoopZeroPadCompareShift()
+    m.FREQ = int(1e6)
+    # m.DATA_WIDTH = 4
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter={
+        *HlsDebugBundle.ALL_RELIABLE,
+        HlsDebugBundle.DBG_20_addSignalNamesToSync,
+        HlsDebugBundle.DBG_20_addSignalNamesToData,
+    })))
+   
     import unittest
 
     testLoader = unittest.TestLoader()
@@ -131,4 +144,4 @@ if __name__ == "__main__":
     suite2 = testLoader.loadTestsFromTestCase(StmWhile_sim_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(unittest.TestSuite([suite1, suite2]))
-    # runner.run(suite1)
+    #runner.run(suite1)

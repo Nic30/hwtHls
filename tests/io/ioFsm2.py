@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.interfaces.hsStructIntf import HsStructIntf
-from hwt.synthesizer.param import Param
+from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
+from hwt.hwParam import HwParam
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.scope import HlsScope
@@ -110,7 +110,7 @@ class WriteFsmControlledFromIn(WriteFsm1WhileTrue123hs):
 
     def _declr(self):
         WriteFsm1WhileTrue123hs._declr(self)
-        self.i = HsStructIntf()
+        self.i = HwIOStructRdVld()
         self.i.T = self.o.T
 
     def _impl(self) -> None:
@@ -141,11 +141,11 @@ class ReadFsmWriteFsmSumAndCondWrite(WriteFsm1WhileTrue123hs):
 
     def _config(self) -> None:
         WriteFsm1WhileTrue123hs._config(self)
-        self.USE_PY_FRONTEND = Param(False)
+        self.USE_PY_FRONTEND = HwParam(False)
 
     def _declr(self):
         WriteFsm1WhileTrue123hs._declr(self)
-        self.i = HsStructIntf()
+        self.i = HwIOStructRdVld()
         self.i.T = self.o.T
 
     def _implPy(self, hls: HlsScope) -> None:
@@ -169,10 +169,10 @@ class ReadFsmWriteFsmSumAndCondWrite(WriteFsm1WhileTrue123hs):
 
 if __name__ == "__main__":
     from hwtHls.platform.virtual import VirtualHlsPlatform
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
 
-    u = ReadFsmWriteFsmSumAndCondWrite()
-    u.USE_PY_FRONTEND = True
+    dut = ReadFsmWriteFsmSumAndCondWrite()
+    dut.USE_PY_FRONTEND = True
     p = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)
-    print(to_rtl_str(u, target_platform=p))
+    print(to_rtl_str(dut, target_platform=p))

@@ -4,20 +4,20 @@
 from math import ceil, log10
 
 from hwt.code import Concat
-from hwt.hdl.types.bits import Bits
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
-from hwt.interfaces.std import Handshaked
-from hwt.interfaces.utils import addClkRstn
+from hwt.hwIOs.std import HwIODataRdVld
+from hwt.hwIOs.utils import addClkRstn
 from hwt.math import log2ceil
-from hwt.synthesizer.param import Param
-from hwt.synthesizer.unit import Unit
+from hwt.hwModule import HwModule
+from hwt.hwParam import HwParam
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 
 
-class BinToBcd(Unit):
+class BinToBcd(HwModule):
     """
     Convert binary to BCD (Binary coded decimal) format
     (BCD is a format where each 4 bites represents a single decimal digit 0-9)
@@ -28,8 +28,8 @@ class BinToBcd(Unit):
     """
 
     def _config(self):
-        self.DATA_WIDTH = Param(8)
-        self.FREQ = Param(int(100e6))
+        self.DATA_WIDTH = HwParam(8)
+        self.FREQ = HwParam(int(100e6))
 
     def _declr(self):
         addClkRstn(self)
@@ -37,10 +37,10 @@ class BinToBcd(Unit):
         assert self.DATA_WIDTH > 0, self.DATA_WIDTH
         self.BCD_DIGITS = self.decadic_deciamls_for_bin(self.DATA_WIDTH)
         assert self.BCD_DIGITS > 0
-        self.din = Handshaked()
+        self.din = HwIODataRdVld()
         self.din.DATA_WIDTH = self.DATA_WIDTH
 
-        self.dout = Handshaked()._m()
+        self.dout = HwIODataRdVld()._m()
         self.dout.DATA_WIDTH = self.BCD_DIGITS * 4
 
     @hlsBytecode
@@ -55,17 +55,17 @@ class BinToBcd(Unit):
 
         while BIT.from_py(1):
             bcdp = [
-                hls.var(f"bcdp_{i:d}", Bits(4, signed=False))
+                hls.var(f"bcdp_{i:d}", HBits(4, signed=False))
                 for i in range(BCD_DIGITS)]
             bcd_digits = [
-                hls.var(f"bcd_digit_{i:d}", Bits(4, signed=False))
+                hls.var(f"bcd_digit_{i:d}", HBits(4, signed=False))
                 for i in range(BCD_DIGITS)]
             # reset before first iteration
             for bcd in bcd_digits:
                 bcd(0)
             
             bin_r = hls.read(self.din)
-            bitcount = Bits(log2ceil(DATA_WIDTH+1), signed=False).from_py(0)
+            bitcount = HBits(log2ceil(DATA_WIDTH+1), signed=False).from_py(0)
             while bitcount != DATA_WIDTH:
                 for bcdDigitI in range(BCD_DIGITS):
                     bcd = PyBytecodeInPreproc(bcd_digits[bcdDigitI])
@@ -75,9 +75,9 @@ class BinToBcd(Unit):
                     else:
                         bcdp_(bcd)
 
-                    prev = hls.var(f"prev_{bcdDigitI:d}", Bits(4))
+                    prev = hls.var(f"prev_{bcdDigitI:d}", HBits(4))
                     if bcdDigitI == 0:
-                        prev(bin_r[DATA_WIDTH - 1]._concat(Bits(3).from_py(0)))
+                        prev(bin_r[DATA_WIDTH - 1]._concat(HBits(3).from_py(0)))
                     else:
                         prev(bcdp[bcdDigitI - 1])
 
@@ -96,11 +96,11 @@ class BinToBcd(Unit):
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.xilinx.artix7 import Artix7Medium
     from hwtHls.platform.platform import HlsDebugBundle
     
-    u = BinToBcd()
-    u.DATA_WIDTH = 3
-    print(to_rtl_str(u, target_platform=Artix7Medium(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    m = BinToBcd()
+    m.DATA_WIDTH = 3
+    print(to_rtl_str(m, target_platform=Artix7Medium(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 

@@ -6,7 +6,7 @@ from networkx.classes.digraph import DiGraph
 import sys
 from typing import Tuple, Dict, List, Union, Optional
 
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.architecture.analysis.channelGraph import ArchSyncNodeTy, \
     HlsArchAnalysisPassChannelGraph
 from hwtHls.architecture.analysis.hlsArchAnalysisPass import HlsArchAnalysisPass
@@ -69,7 +69,7 @@ class HlsArchAnalysisPassHandshakeSCC(HlsArchAnalysisPass):
         super(HlsArchAnalysisPassHandshakeSCC, self).__init__()
         self.successors: ArchSyncSuccDiGraphDict = OrderedDict()
         self._successorsUndirected: Optional[ArchSyncSuccDict] = None  # lazy computed from performance reasons
-        self.sccs: List[UniqList[ArchSyncNodeTy]] = []
+        self.sccs: List[SetList[ArchSyncNodeTy]] = []
 
     def runOnHlsNetlistImpl(self, netlist:"HlsNetlistCtx"):
         channels = netlist.getAnalysis(HlsArchAnalysisPassChannelGraph)
@@ -101,7 +101,7 @@ class HlsArchAnalysisPassHandshakeSCC(HlsArchAnalysisPass):
                 # list of channel ports inside of src
                 newChannelList = unSrcSucessors.get(dst, None)
                 if newChannelList is None:
-                    newChannelList = unSrcSucessors[dst] = UniqList()
+                    newChannelList = unSrcSucessors[dst] = SetList()
 
                 for chTy, ch in dstChannels:
                     # add src -> dst
@@ -122,7 +122,7 @@ class HlsArchAnalysisPassHandshakeSCC(HlsArchAnalysisPass):
 
                     dstChannels = dstSuccessors.get(src, None)
                     if dstChannels is None:
-                        dstChannels = dstSuccessors[src] = UniqList()
+                        dstChannels = dstSuccessors[src] = SetList()
 
                     dstChannels.append(chDstToSrc)
 
@@ -187,7 +187,7 @@ class HlsArchAnalysisPassHandshakeSCC(HlsArchAnalysisPass):
 
     @staticmethod
     def detectHandshakeSCCs(successors: ArchSyncSuccDiGraphDict, nodes: List[ArchSyncNodeTy])\
-            ->List[UniqList[ArchSyncNodeTy]]:
+            ->List[SetList[ArchSyncNodeTy]]:
         """
         Detect paths in handshake logic which would result in combinational loop on logic level.
         """
@@ -205,7 +205,7 @@ class HlsArchAnalysisPassHandshakeSCC(HlsArchAnalysisPass):
                 if not g.has_edge(n, n):
                     continue
 
-            sccs.append(UniqList(sorted(scc, key=nodeOrder.get)))
+            sccs.append(SetList(sorted(scc, key=nodeOrder.get)))
 
         return sccs
 

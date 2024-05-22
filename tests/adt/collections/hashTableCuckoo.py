@@ -4,17 +4,17 @@
 from typing import List
 
 from hwt.code import In, Concat, Or, And
-from hwt.hdl.constants import WRITE, READ
-from hwt.hdl.types.bits import Bits
+from hwt.constants import WRITE, READ
+from hwt.hwIOs.hwIOStruct import HwIO_to_HdlType, HwIOStruct
+from hwt.hwIOs.utils import addClkRstn, propagateClkRstn
+from hwt.hwModule import HwModule
+from hwt.hObjList import HObjList
+from hwt.hwParam import HwParam
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.struct import HStruct
-from hwt.interfaces.structIntf import Interface_to_HdlType, StructIntf
-from hwt.interfaces.utils import addClkRstn, propagateClkRstn
 from hwt.math import log2ceil
-from hwt.synthesizer.hObjList import HObjList
-from hwt.synthesizer.param import Param
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.pyBytecode.ioProxyAddressed import IoProxyAddressed
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
@@ -27,7 +27,7 @@ from tests.adt.collections.hashTableIo import HashTableCmd, HashTableCmdResult, 
     HASH_TABLE_CMD
 
 
-class HashTableCuckoo(Unit):
+class HashTableCuckoo(HwModule):
     """
     Hash table utilizing Cuckoo hashing scheme
     
@@ -38,8 +38,8 @@ class HashTableCuckoo(Unit):
 
     def _config(self) -> None:
         HashTableCmd._config(self)
-        self.STASH_CAM_SIZE = Param(3)
-        self.CLK_FREQ = Param(int(40e6))
+        self.STASH_CAM_SIZE = HwParam(3)
+        self.CLK_FREQ = HwParam(int(40e6))
 
     def _declr(self) -> None:
         assert self.TABLE_CNT > 0
@@ -48,7 +48,7 @@ class HashTableCuckoo(Unit):
         
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
-        with self._paramsShared():
+        with self._hwParamsShared():
             self.cmd = HashTableCmd()
             self.cmdRes = HashTableCmdResult()._m()
             for i in [self.cmd, self.cmdRes]:
@@ -74,20 +74,20 @@ class HashTableCuckoo(Unit):
 
     def hash(self, key: RtlSignal, table_i: int, res: RtlSignal):
         """
-        :attention: This methods should be overriden in implementation of this abstract component
+        :attention: This methods should be overridden in implementation of this abstract component
         """
         res(key[res._dtype.bit_length():])
 
     @PyBytecodeInline
     @staticmethod
-    def _copyItem(src: StructIntf, dst: StructIntf):
+    def _copyItem(src: HwIOStruct, dst: HwIOStruct):
         dst.itemValid = src.itemValid
         dst.key = src.key
         dst.value = src.value
 
     @PyBytecodeInline
     @staticmethod
-    def _copyOriginalItem(src: StructIntf, dst: HashTableCmdResult):
+    def _copyOriginalItem(src: HwIOStruct, dst: HashTableCmdResult):
         dst.originalItemValid = src.itemValid
         dst.originalKey = src.key
         dst.originalValue = src.value
@@ -98,8 +98,8 @@ class HashTableCuckoo(Unit):
 
     def mainThread(self, hls: HlsScope, rams: List[IoProxyAddressed]):
         item_t = self.item_t
-        item_flat_t = Bits(item_t.bit_length())
-        res_t = Interface_to_HdlType().apply(self.cmdRes, exclude=(self.cmdRes.rd, self.cmdRes.vld))
+        item_flat_t = HBits(item_t.bit_length())
+        res_t = HwIO_to_HdlType().apply(self.cmdRes, exclude=(self.cmdRes.rd, self.cmdRes.vld))
         ram_index_t = self.tableRams[0].port[0].addr._dtype
 
         # stash is used to accommodate items which do not fit into main tables due to hash collisions
@@ -185,32 +185,32 @@ class HashTableCuckoo(Unit):
 
 if __name__ == "__main__":
     # from hwtHls.platform.virtual import VirtualHlsPlatform
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.xilinx.artix7 import Artix7Fast
     from hwtHls.platform.platform import HlsDebugBundle
     import sys
     sys.setrecursionlimit(int(10e6))
     for tableCnt in [1]: # ,2,3,4
-        u = HashTableCuckoo()
-        u.KEY_T = Bits(16)
-        u.CLK_FREQ = int(100e6)
-        u.TABLE_CNT = tableCnt
-        u.STASH_CAM_SIZE = 1
-        u.ITEMS_PER_TABLE = 1024
-        print(to_rtl_str(u, target_platform=Artix7Fast(debugFilter=HlsDebugBundle.ALL_RELIABLE))) 
+        m = HashTableCuckoo()
+        m.KEY_T = HBits(16)
+        m.CLK_FREQ = int(100e6)
+        m.TABLE_CNT = tableCnt
+        m.STASH_CAM_SIZE = 1
+        m.ITEMS_PER_TABLE = 1024
+        print(to_rtl_str(m, target_platform=Artix7Fast(debugFilter=HlsDebugBundle.ALL_RELIABLE))) 
     
         #from sphinx_hwt.debugUtils import hwt_unit_to_html
-        #hwt_unit_to_html(u, "tmp/HashTableCuckoo.scheme.html")
+        #hwt_unit_to_html(m, "tmp/HashTableCuckoo.scheme.html")
         #import sqlite3
         #import os
         #import datetime
         #from hwtBuildsystem.vivado.executor import VivadoExecutor
         #from hwtBuildsystem.vivado.part import XilinxPart
-        #from hwtBuildsystem.examples.synthetizeUnit import buildUnit,\
+        #from hwtBuildsystem.examples.synthetizeHwModule import buildHwModule,\
         #   store_vivado_report_in_db
         #
         #
-        #conn = sqlite3.connect('build_reports.db')
+        #conn = sqlite3.connect('build_report.db')
         #c = conn.cursor()
         #logComunication = True
         #
@@ -222,14 +222,14 @@ if __name__ == "__main__":
         #            __pb.Size._160t,
         #            __pb.Package.ffg676,
         #            __pb.Speedgrade._2)
-        #    project = buildUnit(executor, u, f"tmp/vivado{tableCnt:d}", part,
+        #    project = buildHwModule(executor, m, f"tmp/vivado{tableCnt:d}", part,
         #                        targetPlatform=Artix7Fast(debugDir=f"tmp/hls{tableCnt:d}"),
         #                  synthesize=True,
         #                  implement=False,
         #                  writeBitstream=False,
         #                  # openGui=True,
         #                  )
-        #    name = ".".join([u.__class__.__module__, u.__class__.__qualname__])
+        #    name = ".".join([m.__class__.__module__, m.__class__.__qualname__])
         #    store_vivado_report_in_db(c, start, project, name)
         #    conn.commit()
         

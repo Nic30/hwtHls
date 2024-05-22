@@ -1,10 +1,10 @@
 from typing import Union, Tuple, Sequence
 
+from hwt.hdl.const import HConst
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.hdlType import HdlType
-from hwt.hdl.value import HValue
-from hwt.synthesizer.interface import Interface
-from hwt.synthesizer.interfaceLevel.unitImplHelpers import getInterfaceName
+from hwt.hwIO import HwIO
+from hwt.synthesizer.interfaceLevel.hwModuleImplHelpers import HwIO_getName
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.ast.statements import HlsStm
 from hwtHls.frontend.ast.statementsRead import HlsRead
@@ -28,19 +28,19 @@ class HlsWrite(HlsStm, SsaInstr):
 
     def __init__(self,
                  parent: "HlsScope",
-                 src:Union[SsaValue, HValue],
+                 src:Union[SsaValue, HConst],
                  dst: ANY_HLS_STREAM_INTF_TYPE,
                  dtype: HdlType):
         HlsStm.__init__(self, parent)
         if isinstance(dst, RtlSignal):
-            intf, indexes, sign_cast_seen = dst._getIndexCascade()
-            if intf is not dst or indexes:
-                raise AssertionError("Use :class:`~.HlsWriteAddressed` if you require addressing", intf, indexes, sign_cast_seen)
+            hwIO, indexes, sign_cast_seen = dst._getIndexCascade()
+            if hwIO is not dst or indexes:
+                raise AssertionError("Use :class:`~.HlsWriteAddressed` if you require addressing", hwIO, indexes, sign_cast_seen)
         else:
-            assert not isinstance(dst, (int, HValue)), dst
+            assert not isinstance(dst, (int, HConst)), dst
         SsaInstr.__init__(self, parent.ssaCtx, dtype, OP_ASSIGN, ())
         # [todo] this put this object in temporary inconsistent state,
-        #  because src can be more than just SsaValue/HValue instance
+        #  because src can be more than just SsaValue/HConst instance
         self.operands = (src,)
         if isinstance(src, SsaValue):
             # assert src.block is not None, (src, "Must not construct instruction with operands which are not in SSA")
@@ -58,7 +58,7 @@ class HlsWrite(HlsStm, SsaInstr):
     def _getNativeInterfaceWordType(self) -> HdlType:
         return _getNativeInterfaceWordType(self.dst)
 
-    def _getInterfaceName(self, io: Union[Interface, Tuple[Interface]]) -> str:
+    def _getInterfaceName(self, io: Union[HwIO, Tuple[HwIO]]) -> str:
         return HlsRead._getInterfaceName(self, io)
 
     def _translateToLlvm(self, toLlvm: 'ToLlvmIrTranslator'):
@@ -77,7 +77,7 @@ class HlsWrite(HlsStm, SsaInstr):
             mbSync: MachineBasicBlockMeta,
             instr: MachineInstr,
             srcVal: HlsNetNodeOutAny,
-            dstIo: Union[Interface, RtlSignal],
+            dstIo: Union[HwIO, RtlSignal],
             index: Union[int, HlsNetNodeOutAny],
             cond: Union[int, HlsNetNodeOutAny]) -> Sequence[HlsNetNode]:
         """
@@ -85,7 +85,7 @@ class HlsWrite(HlsStm, SsaInstr):
         """
         netlist: HlsNetlistCtx = mirToNetlist.netlist
         # srcVal, dstIo, index, cond = ops
-        assert isinstance(dstIo, (Interface, RtlSignal)), dstIo
+        assert isinstance(dstIo, (HwIO, RtlSignal)), dstIo
         assert isinstance(index, int) and index == 0, (instr, index, "Because this read is not addressed there should not be any index")
         n = HlsNetNodeWrite(netlist, dstIo)
         link_hls_nodes(srcVal, n._inputs[0])
@@ -99,15 +99,15 @@ class HlsWrite(HlsStm, SsaInstr):
 
     def __repr__(self):
         src = self.operands[0]
-        return f"<{self.__class__.__name__} {src if isinstance(src, HValue) else src._name}->{getInterfaceName(self._parent.parentUnit, self.dst)}>"
+        return f"<{self.__class__.__name__} {src if isinstance(src, HConst) else src._name}->{HwIO_getName(self._parent.parentHwModule, self.dst)}>"
 
 
 class HlsWriteAddressed(HlsWrite):
 
     def __init__(self,
             parent:"HlsScope",
-            src:Union[SsaValue, HValue],
-            dst:Interface,
+            src:Union[SsaValue, HConst],
+            dst:HwIO,
             index: ANY_SCALAR_INT_VALUE,
             element_t: HdlType):
         HlsWrite.__init__(self, parent, src, dst, element_t)
@@ -150,7 +150,7 @@ class HlsWriteAddressed(HlsWrite):
             mbSync: MachineBasicBlockMeta,
             instr: MachineInstr,
             srcVal: HlsNetNodeOutAny,
-            dstIo: Interface,
+            dstIo: HwIO,
             index: Union[int, HlsNetNodeOutAny],
             cond: Union[int, HlsNetNodeOutAny]) -> Sequence[HlsNetNode]:
         """
@@ -158,7 +158,7 @@ class HlsWriteAddressed(HlsWrite):
         """
         netlist: HlsNetlistCtx = mirToNetlist.netlist
         # srcVal, dstIo, index, cond = ops
-        assert isinstance(dstIo, Interface), dstIo
+        assert isinstance(dstIo, HwIO), dstIo
         if isinstance(index, int):
             raise AssertionError("If the index is constant it should be an output of a constant node but it is an integer", dstIo, instr)
         n = HlsNetNodeWriteIndexed(netlist, dstIo)
@@ -174,12 +174,12 @@ class HlsWriteAddressed(HlsWrite):
 
     def __repr__(self):
         src, index = self.operands
-        if isinstance(src, (Interface, RtlSignal)):
-            src = getInterfaceName(self._parent.parentUnit, src)
-        if isinstance(index, (Interface, RtlSignal)):
-            index = getInterfaceName(self._parent.parentUnit, index)
+        if isinstance(src, (HwIO, RtlSignal)):
+            src = HwIO_getName(self._parent.parentHwModule, src)
+        if isinstance(index, (HwIO, RtlSignal)):
+            index = HwIO_getName(self._parent.parentHwModule, index)
 
-        return f"<{self.__class__.__name__} {src}->{getInterfaceName(self._parent.parentUnit, self.dst)}[{index}]>"
+        return f"<{self.__class__.__name__} {src}->{HwIO_getName(self._parent.parentHwModule, self.dst)}[{index}]>"
 
 
 class HlsStmWriteStartOfFrame(HlsWrite):
@@ -187,8 +187,8 @@ class HlsStmWriteStartOfFrame(HlsWrite):
     Statement which marks a start of frame on specified interface.
     """
 
-    def __init__(self, parent:"HlsScope", intf:Interface):
-        super(HlsStmWriteStartOfFrame, self).__init__(parent, BIT.from_py(1), intf, BIT)
+    def __init__(self, parent:"HlsScope", hwIO:HwIO):
+        super(HlsStmWriteStartOfFrame, self).__init__(parent, BIT.from_py(1), hwIO, BIT)
 
     def _translateToLlvm(self, toLlvm:"ToLlvmIrTranslator"):
         dst, _, _ = toLlvm.ioToVar[self.dst]
@@ -201,8 +201,8 @@ class HlsStmWriteEndOfFrame(HlsWrite):
     Statement which marks an end of frame on specified interface.
     """
 
-    def __init__(self, parent:"HlsScope", intf:Interface):
-        super(HlsStmWriteEndOfFrame, self).__init__(parent, BIT.from_py(1), intf, BIT)
+    def __init__(self, parent:"HlsScope", hwIO:HwIO):
+        super(HlsStmWriteEndOfFrame, self).__init__(parent, BIT.from_py(1), hwIO, BIT)
 
     def _translateToLlvm(self, toLlvm:"ToLlvmIrTranslator"):
         dst, _, _ = toLlvm.ioToVar[self.dst]

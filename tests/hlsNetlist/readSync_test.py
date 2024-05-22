@@ -2,16 +2,15 @@
 # -*- coding: utf-8 -*-
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
-from hwt.interfaces.std import VectSignal, Handshaked
-from hwt.interfaces.utils import addClkRstn
+from hwt.hwIOs.std import HwIOVectSignal, HwIODataRdVld
+from hwt.hwIOs.utils import addClkRstn
 from hwt.simulator.simTestCase import SimTestCase
-from hwt.synthesizer.hObjList import HObjList
-from hwt.synthesizer.param import Param
-from hwt.synthesizer.unit import Unit
+from hwt.hObjList import HObjList
+from hwt.hwModule import HwModule
+from hwt.hwParam import HwParam
 from hwtHls.frontend.netlist import HlsThreadFromNetlist
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.ports import link_hls_nodes
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
@@ -20,15 +19,15 @@ from hwtHls.scope import HlsScope
 from hwtSimApi.utils import freq_to_period
 
 
-class ReadOrDefaultUnit(Unit):
+class ReadOrDefaultHwModule(HwModule):
 
     def _config(self) -> None:
-        self.CLK_FREQ = Param(int(100e6))
-        self.DATA_WIDTH = Param(8)
+        self.CLK_FREQ = HwParam(int(100e6))
+        self.DATA_WIDTH = HwParam(8)
 
     def _declr(self) -> None:
-        self.dataIn = VectSignal(self.DATA_WIDTH)
-        self.dataOut = VectSignal(self.DATA_WIDTH)._m()
+        self.dataIn = HwIOVectSignal(self.DATA_WIDTH)
+        self.dataOut = HwIOVectSignal(self.DATA_WIDTH)._m()
 
     @hlsBytecode
     def connectIo(self, netlist: HlsNetlistCtx):
@@ -56,7 +55,7 @@ class ReadOrDefaultUnit(Unit):
         hls.compile()
 
 
-class ReadNonBlockingOrDefaultUnit(ReadOrDefaultUnit):
+class ReadNonBlockingOrDefaultHwModule(ReadOrDefaultHwModule):
 
     @hlsBytecode
     def connectIo(self, netlist: HlsNetlistCtx):
@@ -80,38 +79,38 @@ class ReadNonBlockingOrDefaultUnit(ReadOrDefaultUnit):
         link_hls_nodes(mux, w._inputs[0])
 
 
-class ReadOrDefaultUnitHs(ReadOrDefaultUnit):
+class ReadOrDefaultHwModuleHs(ReadOrDefaultHwModule):
 
     def _declr(self) -> None:
         # added because of sim agent
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
 
-        with self._paramsShared():
-            self.dataIn = Handshaked()
-            self.dataOut = Handshaked()._m()
+        with self._hwParamsShared():
+            self.dataIn = HwIODataRdVld()
+            self.dataOut = HwIODataRdVld()._m()
 
 
-class ReadNonBlockingOrDefaultUnitHs(ReadNonBlockingOrDefaultUnit):
+class ReadNonBlockingOrDefaultHwModuleHs(ReadNonBlockingOrDefaultHwModule):
 
     def _declr(self) -> None:
-        ReadOrDefaultUnitHs._declr(self)
+        ReadOrDefaultHwModuleHs._declr(self)
 
 
-class ReadAnyHsUnit(ReadOrDefaultUnit):
+class ReadAnyHsHwModule(ReadOrDefaultHwModule):
 
     def _config(self) -> None:
-        ReadOrDefaultUnit._config(self)
-        self.INPUT_CNT = Param(3)
+        ReadOrDefaultHwModule._config(self)
+        self.INPUT_CNT = HwParam(3)
 
     def _declr(self) -> None:
         # added because of sim agent
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
 
-        with self._paramsShared():
-            self.dataIn = HObjList(Handshaked() for _ in range(self.INPUT_CNT))
-            self.dataOut = Handshaked()._m()
+        with self._hwParamsShared():
+            self.dataIn = HObjList(HwIODataRdVld() for _ in range(self.INPUT_CNT))
+            self.dataOut = HwIODataRdVld()._m()
 
     @hlsBytecode
     def connectIo(self, netlist: HlsNetlistCtx):
@@ -162,67 +161,67 @@ class ReadAnyHsUnit(ReadOrDefaultUnit):
 
 class HlsNetlistReadSyncTC(SimTestCase):
 
-    def test_ReadOrDefaultUnit(self, cls=ReadOrDefaultUnit, dataIn=range(4), dataOut=list(range(4))):
-        u = cls()
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
-        u.dataIn._ag.data.extend(dataIn)
-        clkPeriod = freq_to_period(u.CLK_FREQ)
+    def test_ReadOrDefaultHwModule(self, cls=ReadOrDefaultHwModule, dataIn=range(4), dataOut=list(range(4))):
+        dut = cls()
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
+        dut.dataIn._ag.data.extend(dataIn)
+        clkPeriod = freq_to_period(dut.CLK_FREQ)
 
         self.runSim(int(len(dataIn) * clkPeriod))
 
-        res = u.dataOut._ag.data
+        res = dut.dataOut._ag.data
         self.assertValSequenceEqual(res, dataOut)
 
-    def test_ReadOrDefaultUnitHs(self, cls=ReadOrDefaultUnitHs, dataIn=range(8), dataOut=list(range(8))):
-        u = cls()
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
-        u.dataIn._ag.data.extend(dataIn)
-        clkPeriod = freq_to_period(u.CLK_FREQ)
+    def test_ReadOrDefaultHwModuleHs(self, cls=ReadOrDefaultHwModuleHs, dataIn=range(8), dataOut=list(range(8))):
+        dut = cls()
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
+        dut.dataIn._ag.data.extend(dataIn)
+        clkPeriod = freq_to_period(dut.CLK_FREQ)
 
-        self.randomize(u.dataIn)
-        self.randomize(u.dataOut)
+        self.randomize(dut.dataIn)
+        self.randomize(dut.dataOut)
 
         self.runSim(int((len(dataIn) * 6) * clkPeriod))
 
-        res = u.dataOut._ag.data
+        res = dut.dataOut._ag.data
         self.assertValSequenceEqual(res, dataOut)
 
-    def test_ReadNonBlockingOrDefaultUnitHs(self,
-                                            cls=ReadNonBlockingOrDefaultUnitHs,
+    def test_ReadNonBlockingOrDefaultHwModuleHs(self,
+                                            cls=ReadNonBlockingOrDefaultHwModuleHs,
                                             dataIn=range(8),
                                             dataOut=[0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 0, 5, 6, 0, 7, 0, 0, 0, 0, 0]):
-        self.test_ReadOrDefaultUnitHs(cls, dataIn, dataOut)
+        self.test_ReadOrDefaultHwModuleHs(cls, dataIn, dataOut)
 
-    def test_ReadNonBlockingOrDefaultUnit(self):
-        self.test_ReadOrDefaultUnit(ReadNonBlockingOrDefaultUnit, dataIn=range(4), dataOut=list(range(4)))
+    def test_ReadNonBlockingOrDefaultHwModule(self):
+        self.test_ReadOrDefaultHwModule(ReadNonBlockingOrDefaultHwModule, dataIn=range(4), dataOut=list(range(4)))
 
-    def test_ReadAnyHsUnit(self, N=4):
-        u = ReadAnyHsUnit()
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
+    def test_ReadAnyHsHwModule(self, N=4):
+        dut = ReadAnyHsHwModule()
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
 
-        for i, intf in enumerate(u.dataIn):
-            self.randomize(intf)
-            intf._ag.data.extend(range(i * N, (i + 1) * N))
-        self.randomize(u.dataOut)
+        for i, hwIO in enumerate(dut.dataIn):
+            self.randomize(hwIO)
+            hwIO._ag.data.extend(range(i * N, (i + 1) * N))
+        self.randomize(dut.dataOut)
 
-        clkPeriod = freq_to_period(u.CLK_FREQ)
-        self.runSim(int((N * u.INPUT_CNT * 3) * clkPeriod))
+        clkPeriod = freq_to_period(dut.CLK_FREQ)
+        self.runSim(int((N * dut.INPUT_CNT * 3) * clkPeriod))
 
-        res = u.dataOut._ag.data
+        res = dut.dataOut._ag.data
         self.assertValSequenceEqual(res, [8, 0, 1, 2, 3, 4, 5, 6, 7, 9, 10, 11])
 
 
 if __name__ == "__main__":
     import unittest
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
-    u = ReadNonBlockingOrDefaultUnit()
-    # u.DATA_WIDTH = 32
-    u.CLK_FREQ = int(40e6)
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    m = ReadNonBlockingOrDefaultHwModule()
+    # m.DATA_WIDTH = 32
+    m.CLK_FREQ = int(40e6)
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([HlsNetlistReadSyncTC("test_ReadNonBlockingOrDefaultUnitHs")])
+    # suite = unittest.TestSuite([HlsNetlistReadSyncTC("test_ReadNonBlockingOrDefaultHwModuleHs")])
     suite = testLoader.loadTestsFromTestCase(HlsNetlistReadSyncTC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

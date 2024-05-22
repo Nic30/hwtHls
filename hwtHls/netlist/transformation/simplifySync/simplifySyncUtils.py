@@ -1,7 +1,7 @@
 from itertools import islice
 from typing import Set, Optional
 
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.debugTracer import DebugTracer
@@ -18,7 +18,7 @@ def netlistContainsExplicitSync(netlist: HlsNetlistCtx, removed: Optional[Set[Hl
     return False
 
 
-def removeExplicitSync(dbgTracer: DebugTracer, n: HlsNetNodeExplicitSync, worklist: Optional[UniqList[HlsNetNode]], removed: Set[HlsNetNode]):
+def removeExplicitSync(dbgTracer: DebugTracer, n: HlsNetNodeExplicitSync, worklist: Optional[SetList[HlsNetNode]], removed: Set[HlsNetNode]):
     with dbgTracer.scoped(removeExplicitSync, n):
         if worklist is not None:
             for dep in n.dependsOn:

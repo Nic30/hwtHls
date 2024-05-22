@@ -42,7 +42,7 @@ def override(method):
                 base_class = obj
 
             if hasattr(base_class, method.__name__):
-                return method  # successfully found the method which is being overriden
+                return method  # successfully found the method which is being overridden
 
         raise AssertionError(
             f"Does not override because any base class does not have this method ({method.__name__:s})")

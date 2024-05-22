@@ -1,41 +1,41 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.hdl.types.bits import Bits
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
-from hwt.interfaces.std import BramPort_withoutClk
-from hwt.interfaces.utils import addClkRstn
-from hwt.synthesizer.param import Param
-from hwt.synthesizer.unit import Unit
+from hwt.hwIOs.std import HwIOBramPort_noClk
+from hwt.hwIOs.utils import addClkRstn
+from hwt.hwParam import HwParam
+from hwt.hwModule import HwModule
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.io.bram import BramArrayProxy
 from hwtHls.scope import HlsScope
 from hwtHls.frontend.pyBytecode import hlsBytecode
 
 
-class BramWrite(Unit):
+class BramWrite(HwModule):
     """
     Sequentially write counter to BRAM port.
     """
 
     def _config(self) -> None:
-        self.CLK_FREQ = Param(int(100e6))
-        self.ADDR_WIDTH = Param(4)
-        self.DATA_WIDTH = Param(64)
+        self.CLK_FREQ = HwParam(int(100e6))
+        self.ADDR_WIDTH = HwParam(4)
+        self.DATA_WIDTH = HwParam(64)
 
     def _declr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
 
-        with self._paramsShared():
-            self.ram: BramPort_withoutClk = BramPort_withoutClk()._m()
+        with self._hwParamsShared():
+            self.ram: HwIOBramPort_noClk = HwIOBramPort_noClk()._m()
             ram = self.ram
             ram.HAS_W = True
             ram.HAS_R = False
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope, ram: BramArrayProxy):
-        i = Bits(self.ADDR_WIDTH).from_py(0)
+        i = HBits(self.ADDR_WIDTH).from_py(0)
         while BIT.from_py(1):
             hls.write(i._reinterpret_cast(self.ram.din._dtype), ram[i])
             i += 1
@@ -51,7 +51,8 @@ class BramWrite(Unit):
 
 if __name__ == "__main__":
     from hwtHls.platform.virtual import VirtualHlsPlatform
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
-    u = BramWrite()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    
+    m = BramWrite()
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

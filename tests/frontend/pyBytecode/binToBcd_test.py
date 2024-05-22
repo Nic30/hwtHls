@@ -9,18 +9,18 @@ from hwtHls.ssa.analysis.llvmMirInterpret import LlvmMirInterpret
 from hwtLib.logic.bcdToBin_test import bin_to_bcd
 from hwtLib.logic.binToBcd_test import BinToBcdTC as HwtLibBinToBcdTC
 from hwtSimApi.utils import freq_to_period
-from tests.frontend.pyBytecode.binToBcd import BinToBcd
 from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
+from tests.frontend.pyBytecode.binToBcd import BinToBcd
 
 
 class BinToBcd_TC(HwtLibBinToBcdTC):
 
     @classmethod
     def setUpClass(cls):
-        cls.u = BinToBcd()
-        cls.u.DATA_WIDTH = 8
-        cls.CLK_PERIOD = int(freq_to_period(cls.u.FREQ))
-        cls.compileSim(cls.u, target_platform=Artix7Medium(debugFilter={HlsDebugBundle.DBG_3_mir, HlsDebugBundle.DBG_20_addSignalNamesToSync, HlsDebugBundle.DBG_20_addSignalNamesToData}))
+        cls.dut = BinToBcd()
+        cls.dut.DATA_WIDTH = 8
+        cls.CLK_PERIOD = int(freq_to_period(cls.dut.FREQ))
+        cls.compileSim(cls.dut, target_platform=Artix7Medium(debugFilter={HlsDebugBundle.DBG_3_mir, HlsDebugBundle.DBG_20_addSignalNamesToSync, HlsDebugBundle.DBG_20_addSignalNamesToData}))
 
     def test_0to127(self):
         BaseIrMirRtl_TC._test_no_comb_loops(self)
@@ -37,11 +37,14 @@ class BinToBcd_TC(HwtLibBinToBcdTC):
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
 
-    u = BinToBcd()
-    u.DATA_WIDTH = 10
-    print(to_rtl_str(u, target_platform=Artix7Medium(debugFilter=HlsDebugBundle.ALL_RELIABLE.union({HlsDebugBundle.DBG_20_addSignalNamesToSync, HlsDebugBundle.DBG_20_addSignalNamesToData}))))
+    m = BinToBcd()
+    m.DATA_WIDTH = 10
+    print(to_rtl_str(m, target_platform=Artix7Medium(debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
+        HlsDebugBundle.DBG_20_addSignalNamesToSync,
+        HlsDebugBundle.DBG_20_addSignalNamesToData
+    }))))
 
     import unittest
     testLoader = unittest.TestLoader()

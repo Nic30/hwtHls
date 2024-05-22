@@ -1,14 +1,14 @@
 from hwt.code import Concat
-from hwt.hdl.types.bits import Bits
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
-from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
+from hwt.mainBases import RtlSignalBase
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeBlockLabel
 from pyMathBitPrecise.bit_utils import mask, to_unsigned, to_signed
 from tests.floatingpoint.fptypes import IEEE754Fp
 
 
 # based on https://github.com/dawsonjon/fpu/blob/master/float_to_int/float_to_int.v
-def IEEE754FpToInt(a: RtlSignalBase[IEEE754Fp], res: RtlSignalBase[Bits]):
+def IEEE754FpToInt(a: RtlSignalBase[IEEE754Fp], res: RtlSignalBase[HBits]):
     """
     :note: does not handle +-inf and NaN
     """
@@ -18,7 +18,7 @@ def IEEE754FpToInt(a: RtlSignalBase[IEEE754Fp], res: RtlSignalBase[Bits]):
     if extendBitCnt <= 0:
         raise NotImplementedError("Result has fewer bits than mantissa")
 
-    res = Concat(BIT.from_py(1), a.mantissa, Bits(extendBitCnt).from_py(0))
+    res = Concat(BIT.from_py(1), a.mantissa, HBits(extendBitCnt).from_py(0))
     if resIsSigned:
         res = res._signed()
 

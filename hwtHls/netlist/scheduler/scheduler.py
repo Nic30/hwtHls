@@ -4,7 +4,7 @@ from math import inf
 import sys
 from typing import Deque, Set, List, Optional, Callable
 
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge
 from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
@@ -77,7 +77,7 @@ class HlsScheduler():
         """
         if self.debug:
             # debug run which will raise an exception containing cycle node ids
-            debugPath = UniqList()
+            debugPath = SetList()
         else:
             # normal run without checking for cycles
             debugPath = None

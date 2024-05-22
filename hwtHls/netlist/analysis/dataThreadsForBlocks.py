@@ -1,7 +1,7 @@
 from typing import Dict, Set, List, Union, Optional, Tuple
 
-from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
-from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
+from hwt.mainBases import HwIOBase
+from hwt.mainBases import RtlSignalBase
 from hwtHls.llvm.llvmIr import MachineBasicBlock
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.context import HlsNetlistCtx
@@ -173,7 +173,7 @@ class HlsNetlistAnalysisPassDataThreadsForBlocks(HlsNetlistAnalysisPass):
         """
         :returns: True if there are multiple nodes which are using the same interface.
         """
-        seenIos: Set[Union[InterfaceBase, RtlSignalBase]] = set()
+        seenIos: Set[Union[HwIOBase, RtlSignalBase]] = set()
         for n in thread:
             if isinstance(n, (HlsNetNodeReadBackedge, HlsNetNodeWriteBackedge, HlsNetNodeReadForwardedge, HlsNetNodeWriteForwardedge)):
                 # there is always only 1 instance of write/read to such a channel

@@ -3,11 +3,11 @@ import html
 from pydot import Dot, Node, Edge
 from typing import Optional, Dict, List, Tuple, Union
 
-from hwt.synthesizer.interface import Interface
-from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
-from hwt.synthesizer.interfaceLevel.unitImplHelpers import getInterfaceName
-from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
-from hwt.synthesizer.unit import Unit
+from hwt.hwIO import HwIO
+from hwt.mainBases import HwIOBase
+from hwt.synthesizer.interfaceLevel.hwModuleImplHelpers import HwIO_getName
+from hwt.mainBases import RtlSignalBase
+from hwt.hwModule import HwModule
 from hwtHls.architecture.analysis.handshakeSCCs import ArchSyncNodeTy
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage, IORecord
 from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
@@ -102,16 +102,16 @@ class RtlArchToGraphwiz():
     Class which translates RTL architecture from HlsNetlistCtx instance to a Graphwiz dot graph for visualization purposes.
     """
 
-    def __init__(self, name:str, netlist: HlsNetlistCtx, parentUnit: Unit, parents: HlsNetlistAnalysisPassNodeParentAggregate):
+    def __init__(self, name:str, netlist: HlsNetlistCtx, parentHwModule: HwModule, parents: HlsNetlistAnalysisPassNodeParentAggregate):
         self.graph = Dot(name)
         self.netlist = netlist
-        self.parentUnit = parentUnit
-        self.interfaceToNodes: Dict[Union[InterfaceBase, Tuple[ArchSyncNodeTy, ArchSyncNodeTy]], Node] = {}
+        self.parentHwModule = parentHwModule
+        self.interfaceToNodes: Dict[Union[HwIOBase, Tuple[ArchSyncNodeTy, ArchSyncNodeTy]], Node] = {}
         self.archElementToNode: Dict[ArchElement, Node] = {}
         self.parents = parents
         self._hsSccsNodes: Dict[int, Node] = {}
 
-    def _getInterfaceNode(self, i: InterfaceBase, bgcolor:str):
+    def _getInterfaceNode(self, i: HwIOBase, bgcolor:str):
         try:
             return self.interfaceToNodes[i]
         except KeyError:
@@ -120,7 +120,7 @@ class RtlArchToGraphwiz():
         nodeId = len(self.graph.obj_dict['nodes'])
         n = Node(f"n{nodeId:d}", shape="plaintext")
         name = "None" if i is None else\
-            html.escape(getInterfaceName(self.parentUnit, i)) if isinstance(i, (InterfaceBase, RtlSignalBase)) else\
+            html.escape(HwIO_getName(self.parentHwModule, i)) if isinstance(i, (HwIOBase, RtlSignalBase)) else\
             html.escape(repr(i))
         bodyRows = []
         bodyRows.append(f'<tr port="0"><td>{name:s}</td><td>{html.escape(i.__class__.__name__)}</td></tr>')
@@ -202,7 +202,7 @@ class RtlArchToGraphwiz():
 
     # @staticmethod
     # def _collectBufferInfo(netlist: HlsNetlistCtx):
-    #    bufferInfo: Dict[InterfaceBase, Tuple[int, InterfaceBase]] = {}
+    #    bufferInfo: Dict[HwIOBase, Tuple[int, HwIOBase]] = {}
     #
     #    for n in netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.OMMIT_PARENT):
     #        if isinstance(n, (HlsNetNodeWriteBackedge, HlsNetNodeWriteForwardedge)):
@@ -232,22 +232,22 @@ class RtlArchToGraphwiz():
             return "<>"
 
     @staticmethod
-    def _getReadIntf(intf: Optional[Interface], rNode: HlsNetNodeRead):
-        if intf is not None:
-            return intf
-        intf = rNode.src
-        if intf is None:
+    def _getReadHwIO(hwIO: Optional[HwIO], rNode: HlsNetNodeRead):
+        if hwIO is not None:
+            return hwIO
+        hwIO = rNode.src
+        if hwIO is None:
             if isinstance(rNode, (HlsNetNodeReadBackedge, HlsNetNodeReadForwardedge)):
-                intf = rNode.associatedWrite
+                hwIO = rNode.associatedWrite
             else:
-                intf = rNode
-        return intf
+                hwIO = rNode
+        return hwIO
 
     @staticmethod
-    def _getWriteIntf(intf: Optional[Interface], wNode: HlsNetNodeWrite):
-        if intf is None:
-            intf = wNode
-        return intf
+    def _getWriteHwIO(hwIO: Optional[HwIO], wNode: HlsNetNodeWrite):
+        if hwIO is None:
+            hwIO = wNode
+        return hwIO
 
     def constructArchElementNodeRows(self, elm: ArchElement, isFsm:bool, isPipeline:bool, nodeRows: List[str]):
         """
@@ -304,12 +304,12 @@ class RtlArchToGraphwiz():
                     iec.insert((srcElm, srcClkI), (dstElm, dstClkI), (node.associatedWrite, None, ioRecord.validReady), isReversed=True)
                 else:
                     # construct and connect node for input read
-                    intf = ioRecord.io
-                    intf = self._getReadIntf(intf, node)
-                    if intf in seen:
+                    hwIO = ioRecord.io
+                    hwIO = self._getReadHwIO(hwIO, node)
+                    if hwIO in seen:
                         continue
-                    seen.add(intf)
-                    iN = self._getInterfaceNode(intf, COLOR_INPUT_READ)
+                    seen.add(hwIO)
+                    iN = self._getInterfaceNode(hwIO, COLOR_INPUT_READ)
                     label = self._stringFormatValidReadTupleType(ioRecord.validReady)
                     # link connecting element node slot with node for interface
                     e = Edge(f"{iN.get_name():s}:0", f"n{nodeId:d}:i{clkI:d}",
@@ -348,11 +348,11 @@ class RtlArchToGraphwiz():
                     # g.add_edge(e)
                 else:
                     # construct and connect node for output write
-                    intf = self._getWriteIntf(ioRecord.io, node)
-                    if intf in seen:
+                    hwIO = self._getWriteHwIO(ioRecord.io, node)
+                    if hwIO in seen:
                         continue
-                    seen.add(intf)
-                    oN = self._getInterfaceNode(intf, COLOR_OUTPUT_WRITE)
+                    seen.add(hwIO)
+                    oN = self._getInterfaceNode(hwIO, COLOR_OUTPUT_WRITE)
                     label = self._stringFormatValidReadTupleType(ioRecord.validReady)
                     # link connecting element node slot with node for interface
                     e = Edge(f"n{nodeId:d}:o{clkI:d}", f"{oN.get_name():s}:0",
@@ -479,12 +479,12 @@ class RtlArchToGraphwiz():
     #    for n in self.netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.OMMIT_PARENT):
     #        if isinstance(n, (HlsNetNodeWriteBackedge, HlsNetNodeWriteForwardedge)):
     #            n: HlsNetNodeWriteBackedge
-    #            wIntf = self._getWriteIntf(n.dst, n)
-    #            wN = self.interfaceToNodes.get(wIntf)
+    #            wHwIO = self._getWriteHwIO(n.dst, n)
+    #            wN = self.interfaceToNodes.get(wHwIO)
     #            if wN is None:
     #                continue
-    #            rIntf = self._getReadIntf(n.associatedRead.src if n.associatedRead else None, n.associatedRead)
-    #            rN = self.interfaceToNodes.get(rIntf)
+    #            rHwIO = self._getReadHwIO(n.associatedRead.src if n.associatedRead else None, n.associatedRead)
+    #            rN = self.interfaceToNodes.get(rHwIO)
     #            if rN is None:
     #                continue
     #            init = n.channelInitValues
@@ -515,7 +515,7 @@ class RtlArchPassDumpArchDot(RtlArchPass):
     def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
         name = netlist.label
         parents: HlsNetlistAnalysisPassNodeParentAggregate = netlist.getAnalysis(HlsNetlistAnalysisPassNodeParentAggregate)
-        toGraphwiz = RtlArchToGraphwiz(name, netlist, netlist.parentUnit, parents)
+        toGraphwiz = RtlArchToGraphwiz(name, netlist, netlist.parentHwModule, parents)
         out, doClose = self.outStreamGetter(name)
         try:
             toGraphwiz.construct()

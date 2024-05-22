@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.hdl.types.bits import Bits
-from hwt.interfaces.hsStructIntf import HsStructIntf
-from hwt.synthesizer.param import Param
+from hwt.hdl.types.bits import HBits
+from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
+from hwt.hwParam import HwParam
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.platform.virtual import VirtualHlsPlatform
@@ -17,13 +17,13 @@ from tests.frontend.ast.loopAfterLoop import TwoTimesFiniteWhileInWhileTrue
 class FiniteWhileIf0(TwoTimesFiniteWhileInWhileTrue):
 
     def _config(self) -> None:
-        self.DATA_WIDTH = Param(8)
-        self.FREQ = Param(int(100e6))
+        self.DATA_WIDTH = HwParam(8)
+        self.FREQ = HwParam(int(100e6))
 
     def _declr(self) -> None:
         TwoTimesFiniteWhileInWhileTrue._declr(self)
-        self.dataIn0: HsStructIntf = HsStructIntf()
-        self.dataIn0.T = Bits(self.DATA_WIDTH, signed=False)
+        self.dataIn0: HwIOStructRdVld = HwIOStructRdVld()
+        self.dataIn0.T = HBits(self.DATA_WIDTH, signed=False)
 
     def _impl(self) -> None:
         hls = HlsScope(self)
@@ -47,13 +47,13 @@ class FiniteWhileIf0(TwoTimesFiniteWhileInWhileTrue):
 class FiniteWhileIf1(TwoTimesFiniteWhileInWhileTrue):
 
     def _config(self) -> None:
-        self.DATA_WIDTH = Param(8)
-        self.FREQ = Param(int(100e6))
+        self.DATA_WIDTH = HwParam(8)
+        self.FREQ = HwParam(int(100e6))
 
     def _declr(self) -> None:
         TwoTimesFiniteWhileInWhileTrue._declr(self)
-        self.dataIn0: HsStructIntf = HsStructIntf()
-        self.dataIn0.T = Bits(self.DATA_WIDTH, signed=False)
+        self.dataIn0: HwIOStructRdVld = HwIOStructRdVld()
+        self.dataIn0.T = HBits(self.DATA_WIDTH, signed=False)
 
     def _impl(self) -> None:
         hls = HlsScope(self)
@@ -81,34 +81,34 @@ class LoopFollowedByIf_TC(BaseSsaTC):
     __FILE__ = __file__
 
     def test_FiniteWhileIf0(self):
-        u = FiniteWhileIf0()
-        u.FREQ = int(50e6)
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
+        dut = FiniteWhileIf0()
+        dut.FREQ = int(50e6)
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
 
-        u.dataIn0._ag.data.append(8)
-        self.runSim(int(10 * freq_to_period(u.FREQ)))
+        dut.dataIn0._ag.data.append(8)
+        self.runSim(int(10 * freq_to_period(dut.FREQ)))
 
-        self.assertValSequenceEqual(u.dataOut0._ag.data, [4 for _ in range(4)])
-        self.assertValSequenceEqual(u.dataOut1._ag.data, [7, ])
+        self.assertValSequenceEqual(dut.dataOut0._ag.data, [4 for _ in range(4)])
+        self.assertValSequenceEqual(dut.dataOut1._ag.data, [7, ])
 
     def test_FiniteWhileIf1(self):
-        u = FiniteWhileIf1()
-        u.FREQ = int(50e6)
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
+        dut = FiniteWhileIf1()
+        dut.FREQ = int(50e6)
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
         
-        u.dataIn0._ag.data.append(8)
-        self.runSim(int(10 * freq_to_period(u.FREQ)))
+        dut.dataIn0._ag.data.append(8)
+        self.runSim(int(10 * freq_to_period(dut.FREQ)))
 
-        self.assertValSequenceEqual(u.dataOut0._ag.data, [4 for _ in range(4)])
-        self.assertValSequenceEqual(u.dataOut1._ag.data, [7, ])
+        self.assertValSequenceEqual(dut.dataOut0._ag.data, [4 for _ in range(4)])
+        self.assertValSequenceEqual(dut.dataOut1._ag.data, [7, ])
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
-    u = FiniteWhileIf1()
-    u.FREQ = int(50e6)
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    m = FiniteWhileIf1()
+    m.FREQ = int(50e6)
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
     testLoader = unittest.TestLoader()

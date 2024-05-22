@@ -22,16 +22,16 @@ class HlsAstWhileTrue_TC(SimTestCase):
 
     def test_WhileTrueWriteCntr0_ast(self, cls=WhileTrueWriteCntr0, ref=[0, 1, 2, 3],
                                      USE_PY_FRONTEND:bool=False):
-        u = cls()
-        u.USE_PY_FRONTEND = USE_PY_FRONTEND
+        dut = cls()
+        dut.USE_PY_FRONTEND = USE_PY_FRONTEND
         # debugFilter={*HlsDebugBundle.ALL_RELIABLE, HlsDebugBundle.DBG_20_addSignalNamesToSync}
         debugFilter = HlsDebugBundle.DEFAULT
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform(debugFilter=debugFilter))
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform(debugFilter=debugFilter))
         CLK = 5
         self.runSim(CLK * CLK_PERIOD)
         self._test_no_comb_loops()
 
-        self.assertValSequenceEqual(u.dataOut._ag.data, ref)
+        self.assertValSequenceEqual(dut.dataOut._ag.data, ref)
 
     def test_WhileTrueWriteCntr0_py(self):
         self.test_WhileTrueWriteCntr0_ast(USE_PY_FRONTEND=True)
@@ -48,29 +48,29 @@ class HlsAstWhileTrue_TC(SimTestCase):
                                 platform=None,
                                 timeMultiplier=1,
                                 USE_PY_FRONTEND=False):
-        u = cls()
-        u.FREQ = int(FREQ)
-        u.USE_PY_FRONTEND = USE_PY_FRONTEND
+        dut = cls()
+        dut.FREQ = int(FREQ)
+        dut.USE_PY_FRONTEND = USE_PY_FRONTEND
         if platform is None:
             platform = VirtualHlsPlatform()
             # platform = VirtualHlsPlatform(debugFilter={HlsDebugBundle.DBG_20_addSignalNamesToSync})
-        self.compileSimAndStart(u, target_platform=platform)
-        # u.dataIn._ag.data.extend([1, 1, 1, 1])
+        self.compileSimAndStart(dut, target_platform=platform)
+        # dut.dataIn._ag.data.extend([1, 1, 1, 1])
 
-        u.dataIn._ag.data.extend([5, 0, 0, 3, 2, 0, 1, 3, 1,
+        dut.dataIn._ag.data.extend([5, 0, 0, 3, 2, 0, 1, 3, 1,
                                   1, 0, 1])
-        u.dataIn._ag.presetBeforeClk = True
-        # u.dataIn._ag.data.extend([2, 2])
+        dut.dataIn._ag.presetBeforeClk = True
+        # dut.dataIn._ag.data.extend([2, 2])
         CLK = 40
         if randomizeIn and randomizeOut:
             CLK *= 4
         elif randomizeIn or randomizeOut:
             CLK *= 3
 
-        self.runSim(int(CLK * freq_to_period(u.FREQ) * timeMultiplier))
+        self.runSim(int(CLK * freq_to_period(dut.FREQ) * timeMultiplier))
         self._test_no_comb_loops()
 
-        self.assertValSequenceEqual(u.dataOut._ag.data, [5, 4, 3, 2, 1,
+        self.assertValSequenceEqual(dut.dataOut._ag.data, [5, 4, 3, 2, 1,
                                                          3, 2, 1,
                                                          2, 1,
                                                          1,
@@ -298,18 +298,19 @@ class HlsAstWhileTrue_TC(SimTestCase):
 
 
 if __name__ == "__main__":
-    # from hwt.synthesizer.utils import to_rtl_str
-    # u = WhileSendSequence1()
-    # u.USE_PY_FRONTEND = True
-    # u.FREQ = int(150e6)
-    # print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter={
-    #     *HlsDebugBundle.ALL_RELIABLE, HlsDebugBundle.DBG_20_addSignalNamesToSync
-    # })))
-    # print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    from hwt.synth import to_rtl_str
+    m = WhileSendSequence2()
+    m.USE_PY_FRONTEND = True
+    m.FREQ = int(130e6)
+    print(to_rtl_str(m, target_platform=Artix7Medium(debugFilter={
+        *HlsDebugBundle.ALL_RELIABLE,
+        HlsDebugBundle.DBG_20_addSignalNamesToSync
+    })))
+    # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([HlsAstWhileTrue_TC('test_WhileSendSequence1_py_150Mhz_rand')])
+    # suite = unittest.TestSuite([HlsAstWhileTrue_TC('test_WhileSendSequence2_ast_100Mhz_rand')])
     suite = testLoader.loadTestsFromTestCase(HlsAstWhileTrue_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

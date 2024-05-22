@@ -3,17 +3,17 @@
 from typing import Optional
 
 from hwt.code import In
-from hwt.hdl.constants import WRITE, READ
-from hwt.hdl.types.bits import Bits
+from hwt.constants import WRITE, READ
+from hwt.hwIOs.hwIOStruct import HwIO_to_HdlType, HwIOStruct
+from hwt.hwIOs.utils import addClkRstn, propagateClkRstn
+from hwt.hwModule import HwModule
+from hwt.hwParam import HwParam
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.types.struct import HStruct
-from hwt.interfaces.structIntf import Interface_to_HdlType, StructIntf
-from hwt.interfaces.utils import addClkRstn, propagateClkRstn
 from hwt.math import log2ceil
-from hwt.synthesizer.param import Param
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.ioProxyAddressed import IoProxyAddressed
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline
@@ -26,7 +26,7 @@ from tests.adt.collections.hashTableIo import HashTableCmd, HashTableCmdResult, 
     HASH_TABLE_CMD
 
 
-class HashTable(Unit):
+class HashTable(HwModule):
     """
     Hash table without any hash collision resolution scheme.
 
@@ -34,17 +34,17 @@ class HashTable(Unit):
     """
 
     def _config(self) -> None:
-        self.KEY_T = Param(Bits(16))
-        self.VALUE_T: Optional[HdlType] = Param(Bits(32))
-        self.ID_T: Optional[HdlType] = Param(None)
-        self.ITEMS_PER_TABLE = Param(1024)
-        self.CLK_FREQ = Param(int(40e6))
+        self.KEY_T = HwParam(HBits(16))
+        self.VALUE_T: Optional[HdlType] = HwParam(HBits(32))
+        self.ID_T: Optional[HdlType] = HwParam(None)
+        self.ITEMS_PER_TABLE = HwParam(1024)
+        self.CLK_FREQ = HwParam(int(40e6))
 
     def _declr(self) -> None:
         assert self.ITEMS_PER_TABLE >= 2
 
         addClkRstn(self)
-        with self._paramsShared():
+        with self._hwParamsShared():
             self.cmd = HashTableCmd()
             self.cmdRes: HashTableCmdResult = HashTableCmdResult()._m()
             for i in [self.cmd, self.cmdRes]:
@@ -56,7 +56,7 @@ class HashTable(Unit):
             (self.VALUE_T, "value"),
         )
 
-        self.item_flat_t = Bits(item_t.bit_length())
+        self.item_flat_t = HBits(item_t.bit_length())
         RAM_ADDR_WIDTH = log2ceil(self.ITEMS_PER_TABLE)
         RAM_DATA_WIDTH = item_t.bit_length()
         t = RamSingleClock()
@@ -68,14 +68,14 @@ class HashTable(Unit):
 
     @PyBytecodeInline
     @staticmethod
-    def _copyItem(src: StructIntf, dst: StructIntf):
+    def _copyItem(src: HwIOStruct, dst: HwIOStruct):
         dst.itemValid = src.itemValid
         dst.key = src.key
         dst.value = src.value
 
     @PyBytecodeInline
     @staticmethod
-    def _copyOriginalItem(src: StructIntf, dst: HashTableCmdResult):
+    def _copyOriginalItem(src: HwIOStruct, dst: HashTableCmdResult):
         dst.originalItemValid = src.itemValid
         dst.originalKey = src.key
         dst.originalValue = src.value
@@ -89,7 +89,7 @@ class HashTable(Unit):
     def mainThread(self, hls: HlsScope, ram: IoProxyAddressed):
         item_t = self.item_t
         item_flat_t = self.item_flat_t
-        res_t = Interface_to_HdlType().apply(self.cmdRes, exclude=(self.cmdRes.rd, self.cmdRes.vld))
+        res_t = HwIO_to_HdlType().apply(self.cmdRes, exclude=(self.cmdRes.rd, self.cmdRes.vld))
         ram_index_t = self.tableRam.port[0].addr._dtype
 
         while BIT.from_py(1):
@@ -130,19 +130,19 @@ class HashTable(Unit):
 
 if __name__ == "__main__":
     # from hwtHls.platform.virtual import VirtualHlsPlatform
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.xilinx.artix7 import Artix7Slow
     from hwtHls.platform.platform import HlsDebugBundle
-    u = HashTable()
-    print(to_rtl_str(u, target_platform=Artix7Slow(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    m = HashTable()
+    print(to_rtl_str(m, target_platform=Artix7Slow(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
-    from sphinx_hwt.debugUtils import hwt_unit_to_html
-    hwt_unit_to_html(u, "tmp/HashTable.scheme.html")
+    from sphinx_hwt.debugUtils import hwt_HwModule_to_html
+    hwt_HwModule_to_html(m, "tmp/HashTable.scheme.html")
     # import sqlite3
     # import datetime
     # from hwtBuildsystem.vivado.executor import VivadoExecutor
     # from hwtBuildsystem.vivado.part import XilinxPart
-    # from hwtBuildsystem.examples.synthetizeUnit import buildUnit,\
+    # from hwtBuildsystem.examples.synthetizeHwModule import buildHwModule,\
     #    store_vivado_report_in_db
     #
     #
@@ -158,13 +158,13 @@ if __name__ == "__main__":
     #            __pb.Size._160t,
     #            __pb.Package.ffg676,
     #            __pb.Speedgrade._2)
-    #    project = buildUnit(executor, u, "tmp/vivado", part,
+    #    project = buildHwModule(executor, m, "tmp/vivado", part,
     #                        target_platform=Artix7Slow(debugDir="tmp/hls", debugFilter=HlsDebugBundle.ALL_RELIABLE),
     #                  synthesize=True,
     #                  implement=False,
     #                  writeBitstream=False,
     #                  # openGui=True,
     #                  )
-    #    name = ".".join([u.__class__.__module__, u.__class__.__qualname__])
+    #    name = ".".join([m.__class__.__module__, m.__class__.__qualname__])
     #    store_vivado_report_in_db(c, start, project, name)
     #    conn.commit()

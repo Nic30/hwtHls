@@ -1,18 +1,18 @@
 from typing import Set
 
-from hwt.hdl.operatorDefs import AllOps
-from hwt.pyUtils.uniqList import UniqList
+from hwt.hdl.operatorDefs import HwtOps
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.transformation.simplifyUtils import replaceOperatorNodeWith
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 
-_DENORMALIZED_CMP_OPS = {AllOps.NE, AllOps.UGT, AllOps.UGE, AllOps.SGT, AllOps.SGE}
-_NORMALIZED_CMP_OPS = {AllOps.EQ, AllOps.ULT, AllOps.ULE, AllOps.SLT, AllOps.SLE}
+_DENORMALIZED_CMP_OPS = {HwtOps.NE, HwtOps.UGT, HwtOps.UGE, HwtOps.SGT, HwtOps.SGE}
+_NORMALIZED_CMP_OPS = {HwtOps.EQ, HwtOps.ULT, HwtOps.ULE, HwtOps.SLT, HwtOps.SLE}
 
 
-def netlistCmpNormalize(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]):
+def netlistCmpNormalize(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode], removed: Set[HlsNetNode]):
     b: HlsNetlistBuilder = n.netlist.builder
     op = n.operator
     op0, op1 = n.dependsOn
@@ -24,46 +24,46 @@ def netlistCmpNormalize(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode], r
     #raise NotImplementedError("UGT not correct")
     newO = None
     # :note: const can not be first operand because it denormalizes the expression
-    if op is AllOps.NE:
+    if op is HwtOps.NE:
         # a != b -> ~(a == b)
-        eq = b.buildOp(AllOps.EQ, t, op0, op1)
+        eq = b.buildOp(HwtOps.EQ, t, op0, op1)
         newO = b.buildNot(eq)
 
-    elif op is AllOps.UGT:
+    elif op is HwtOps.UGT:
         if isinstance(op1.obj, HlsNetNodeConst):
             # a > b -> ~(a <= b)
-            le = b.buildOp(AllOps.ULE, t, op0, op1)
+            le = b.buildOp(HwtOps.ULE, t, op0, op1)
             newO = b.buildNot(le)
         else:
             # a > b -> b < a
-            newO = b.buildOp(AllOps.ULT, t, op1, op0)
+            newO = b.buildOp(HwtOps.ULT, t, op1, op0)
 
-    elif op is AllOps.SGT:
+    elif op is HwtOps.SGT:
         if isinstance(op1.obj, HlsNetNodeConst):
             # a > b -> ~(a <= b)
-            le = b.buildOp(AllOps.SLE, t, op0, op1)
+            le = b.buildOp(HwtOps.SLE, t, op0, op1)
             newO = b.buildNot(le)
         else:
             # a > b -> b < a
-            newO = b.buildOp(AllOps.SLT, t, op1, op0)
+            newO = b.buildOp(HwtOps.SLT, t, op1, op0)
 
-    elif op is AllOps.UGE:
+    elif op is HwtOps.UGE:
         if isinstance(op1.obj, HlsNetNodeConst):
             # a >= b -> ~(a < b)
-            lt = b.buildOp(AllOps.ULT, t, op0, op1)
+            lt = b.buildOp(HwtOps.ULT, t, op0, op1)
             newO = b.buildNot(lt)
         else:
             # a >=- b -> b <= a
-            newO = b.buildOp(AllOps.ULE, t, op1, op0)
+            newO = b.buildOp(HwtOps.ULE, t, op1, op0)
 
-    elif op is AllOps.SGE:
+    elif op is HwtOps.SGE:
         if isinstance(op1.obj, HlsNetNodeConst):
             # a >= b -> ~(a < b)
-            lt = b.buildOp(AllOps.SLT, t, op0, op1)
+            lt = b.buildOp(HwtOps.SLT, t, op0, op1)
             newO = b.buildNot(lt)
         else:
             # a >=- b -> b <= a
-            newO = b.buildOp(AllOps.SLE, t, op1, op0)
+            newO = b.buildOp(HwtOps.SLE, t, op1, op0)
 
     if newO is not None:
         replaceOperatorNodeWith(n, newO, worklist, removed)

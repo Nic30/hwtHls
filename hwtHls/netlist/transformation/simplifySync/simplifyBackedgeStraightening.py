@@ -1,6 +1,6 @@
 from typing import Set, List
 
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.debugTracer import DebugTracer
@@ -16,7 +16,7 @@ from hwtHls.netlist.transformation.simplifySync.reduceChannelGroup import netlis
 
 def netlistBackedgeStraightening(dbgTracer: DebugTracer,
                                  w: HlsNetNodeWriteBackedge,
-                                 worklist: UniqList[HlsNetNode],
+                                 worklist: SetList[HlsNetNode],
                                  removed: Set[HlsNetNode],
                                  reachDb: HlsNetlistAnalysisPassReachability):
     """

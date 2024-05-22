@@ -1,9 +1,9 @@
 from typing import Set, Generator, Tuple, Literal
 
-from hwt.hdl.operatorDefs import AllOps
-from hwt.hdl.types.bits import Bits
-from hwt.hdl.types.bitsVal import BitsVal
-from hwt.pyUtils.uniqList import UniqList
+from hwt.hdl.operatorDefs import HwtOps
+from hwt.hdl.types.bits import HBits
+from hwt.hdl.types.bitsConst import HBitsConst
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -13,7 +13,7 @@ from hwtHls.netlist.transformation.simplifyUtils import replaceOperatorNodeWith
 from pyMathBitPrecise.bit_utils import get_bit, mask, ValidityError
 
 
-def iter1and0sequences(v: BitsVal) -> Generator[Tuple[Literal[1, 0], int], None, None]:
+def iter1and0sequences(v: HBitsConst) -> Generator[Tuple[Literal[1, 0], int], None, None]:
     """
     :note: same as ConstBitPartsAnalysisContext::iter1and0sequences
     :note: lower first
@@ -46,7 +46,7 @@ def iter1and0sequences(v: BitsVal) -> Generator[Tuple[Literal[1, 0], int], None,
             l_0 = -1  # reset start
 
 
-def isAll0OrAll1(v: BitsVal):
+def isAll0OrAll1(v: HBitsConst):
     try:
         vInt = int(v)
     except ValidityError:
@@ -54,14 +54,14 @@ def isAll0OrAll1(v: BitsVal):
     return vInt == 0 or vInt == mask(v._dtype.bit_length())
 
 
-def netlistReduceNot(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]):
+def netlistReduceNot(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode], removed: Set[HlsNetNode]):
     builder: HlsNetlistBuilder = n.netlist.builder
     o0, = n.dependsOn
     o0Const = isinstance(o0.obj, HlsNetNodeConst)
     newO = None
     if o0Const:
         newO = builder.buildConst(~o0.obj.val)
-    elif isinstance(o0, HlsNetNodeOut) and isinstance(o0.obj, HlsNetNodeOperator) and o0.obj.operator == AllOps.NOT:
+    elif isinstance(o0, HlsNetNodeOut) and isinstance(o0.obj, HlsNetNodeOperator) and o0.obj.operator == HwtOps.NOT:
         # ~~x = x
         newO = o0.obj.dependsOn[0]
 
@@ -72,7 +72,7 @@ def netlistReduceNot(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode], remo
     return False
 
 
-def netlistReduceAndOrXor(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]):
+def netlistReduceAndOrXor(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode], removed: Set[HlsNetNode]):
     builder: HlsNetlistBuilder = n.netlist.builder
     # search for const in for commutative operator
     o0, o1 = n.dependsOn
@@ -87,7 +87,7 @@ def netlistReduceAndOrXor(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode],
         o0Const = False
         o1Const = True
 
-    if n.operator == AllOps.AND:
+    if n.operator == HwtOps.AND:
         if o0Const and o1Const:
             newO = builder.buildConst(o0.obj.val & o1.obj.val)
 
@@ -107,10 +107,10 @@ def netlistReduceAndOrXor(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode],
                 for bitVal, width in iter1and0sequences(o1.obj.val):
                     if bitVal:
                         # x & 1 = x
-                        v0 = builder.buildIndexConstSlice(Bits(width), o0, offset + width, offset, worklist)
+                        v0 = builder.buildIndexConstSlice(HBits(width), o0, offset + width, offset, worklist)
                     else:
                         # x & 0 = 0
-                        v0 = builder.buildConstPy(Bits(width), 0)
+                        v0 = builder.buildConstPy(HBits(width), 0)
 
                     concatMembers.append(v0)
 
@@ -121,7 +121,7 @@ def netlistReduceAndOrXor(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode],
             # x & x = x
             newO = o0
 
-    elif n.operator == AllOps.OR:
+    elif n.operator == HwtOps.OR:
         if o0Const and o1Const:
             newO = builder.buildConst(o0.obj.val | o1.obj.val)
 
@@ -140,10 +140,10 @@ def netlistReduceAndOrXor(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode],
                 for bitVal, width in iter1and0sequences(o1.obj.val):
                     if bitVal:
                         # x | 1 = 1
-                        v0 = builder.buildConst(Bits(width).from_py(mask(width)))
+                        v0 = builder.buildConst(HBits(width).from_py(mask(width)))
                     else:
                         # x | 0 = x
-                        v0 = builder.buildIndexConstSlice(Bits(width), o0, offset + width, offset, worklist)
+                        v0 = builder.buildIndexConstSlice(HBits(width), o0, offset + width, offset, worklist)
 
                     concatMembers.append(v0)
 
@@ -154,7 +154,7 @@ def netlistReduceAndOrXor(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode],
             # x | x = x
             newO = o0
 
-    elif n.operator == AllOps.XOR:
+    elif n.operator == HwtOps.XOR:
         if o0Const and o1Const:
             newO = builder.buildConst(o0.obj.val ^ o1.obj.val)
 
@@ -171,7 +171,7 @@ def netlistReduceAndOrXor(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode],
                 concatMembers = []
                 offset = 0
                 for bitVal, width in iter1and0sequences(o1.obj.val):
-                    v0 = builder.buildIndexConstSlice(Bits(width), o0, offset + width, offset, worklist)
+                    v0 = builder.buildIndexConstSlice(HBits(width), o0, offset + width, offset, worklist)
                     if bitVal:
                         v0 = builder.buildNot(v0)
                     concatMembers.append(v0)

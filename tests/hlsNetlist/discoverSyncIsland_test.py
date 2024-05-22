@@ -3,11 +3,11 @@
 
 from typing import Optional
 
-from hwt.interfaces.std import Signal
-from hwt.interfaces.utils import addClkRstn
+from hwt.hwIOs.std import HwIOSignal
+from hwt.hwIOs.utils import addClkRstn
 from hwt.simulator.simTestCase import SimTestCase
-from hwt.synthesizer.param import Param
-from hwt.synthesizer.unit import Unit
+from hwt.hwParam import HwParam
+from hwt.hwModule import HwModule
 from hwtHls.frontend.netlist import HlsThreadFromNetlist
 from hwtHls.netlist.analysis.betweenSyncIslands import HlsNetlistAnalysisPassBetweenSyncIslands
 from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
@@ -24,13 +24,13 @@ from hwtHls.scope import HlsScope
 from ipCorePackager.constants import DIRECTION
 
 
-class HlsNetlistSyncIsland0Unit(Unit):
+class HlsNetlistSyncIsland0HwModule(HwModule):
     """
     o.write(i0.read())
     """
 
     def _config(self) -> None:
-        self.CLK_FREQ = Param(int(100e6))
+        self.CLK_FREQ = HwParam(int(100e6))
         self.TEST_CASE: Optional[SimTestCase] = None
 
     def _declr(self) -> None:
@@ -38,9 +38,9 @@ class HlsNetlistSyncIsland0Unit(Unit):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
 
-        with self._paramsShared():
-            self.i0 = Signal()
-            self.o = Signal()._m()
+        with self._hwParamsShared():
+            self.i0 = HwIOSignal()
+            self.o = HwIOSignal()._m()
 
     def mainThread(self, netlist: HlsNetlistCtx):
         i0 = HlsNetNodeRead(netlist, self.i0)
@@ -71,7 +71,7 @@ class HlsNetlistSyncIsland0Unit(Unit):
         hls.compile()
 
 
-class HlsNetlistSyncIsland1Unit(HlsNetlistSyncIsland0Unit):
+class HlsNetlistSyncIsland1HwModule(HlsNetlistSyncIsland0HwModule):
     """
     read0 -> wf0 .. rf0 -> write
     """
@@ -111,16 +111,16 @@ class HlsNetlistSyncIsland1Unit(HlsNetlistSyncIsland0Unit):
         netlist.invalidateAnalysis(HlsNetlistAnalysisPassReachability)
 
 
-class HlsNetlistSyncIsland2Unit(HlsNetlistSyncIsland0Unit):
+class HlsNetlistSyncIsland2HwModule(HlsNetlistSyncIsland0HwModule):
     """
     read0 -> and -> sync -> write
     read1 ---^
     """
 
     def _declr(self) -> None:
-        HlsNetlistSyncIsland0Unit._declr(self)
-        with self._paramsShared():
-            self.i1 = Signal()
+        HlsNetlistSyncIsland0HwModule._declr(self)
+        with self._hwParamsShared():
+            self.i1 = HwIOSignal()
 
     def mainThread(self, netlist: HlsNetlistCtx):
         i0 = HlsNetNodeRead(netlist, self.i0)
@@ -165,29 +165,29 @@ class HlsNetlistSyncIsland2Unit(HlsNetlistSyncIsland0Unit):
 
 class HlsNetlistDiscoverSyncIslandTC(SimTestCase):
 
-    def test_HlsNetlistSyncIsland0Unit(self, cls=HlsNetlistSyncIsland0Unit):
-        u = cls()
-        u.TEST_CASE = self
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
+    def test_HlsNetlistSyncIsland0HwModule(self, cls=HlsNetlistSyncIsland0HwModule):
+        dut = cls()
+        dut.TEST_CASE = self
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
 
-    def test_HlsNetlistSyncIsland1Unit(self):
-        self.test_HlsNetlistSyncIsland0Unit(HlsNetlistSyncIsland1Unit)
+    def test_HlsNetlistSyncIsland1HwModule(self):
+        self.test_HlsNetlistSyncIsland0HwModule(HlsNetlistSyncIsland1HwModule)
 
-    def test_HlsNetlistSyncIsland2Unit(self):
-        self.test_HlsNetlistSyncIsland0Unit(HlsNetlistSyncIsland2Unit)
+    def test_HlsNetlistSyncIsland2HwModule(self):
+        self.test_HlsNetlistSyncIsland0HwModule(HlsNetlistSyncIsland2HwModule)
 
 
 if __name__ == "__main__":
     import unittest
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
 
-    u = HlsNetlistSyncIsland2Unit()
-    u.CLK_FREQ = int(100e6)
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    m = HlsNetlistSyncIsland2HwModule()
+    m.CLK_FREQ = int(100e6)
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([HlsNetlistDiscoverSyncIslandTC("test_HlsNetlistSyncIsland2Unit")])
+    # suite = unittest.TestSuite([HlsNetlistDiscoverSyncIslandTC("test_HlsNetlistSyncIsland2HwModule")])
     suite = testLoader.loadTestsFromTestCase(HlsNetlistDiscoverSyncIslandTC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

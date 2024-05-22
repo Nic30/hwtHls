@@ -16,63 +16,63 @@ class HlsAstTrivial_TC(SimTestCase):
         BaseIrMirRtl_TC._test_no_comb_loops(self)
 
     def test_WriteOnce(self):
-        u = WriteOnce()
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
+        dut = WriteOnce()
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
         CLK = 4
         self.runSim(CLK * CLK_PERIOD)
         self._test_no_comb_loops()
 
-        self.assertValSequenceEqual(u.dataOut._ag.data, [1, ])
+        self.assertValSequenceEqual(dut.dataOut._ag.data, [1, ])
 
     def test_ReadWriteOnce0(self, cls=ReadWriteOnce0):
-        u = cls()
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
+        dut = cls()
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
         CLK = 4
         for i in range(CLK):
-            u.dataIn._ag.data.append(i)
+            dut.dataIn._ag.data.append(i)
 
         self.runSim(CLK * CLK_PERIOD)
         self._test_no_comb_loops()
 
-        self.assertSequenceEqual(u.dataIn._ag.data, [2, 3])
-        self.assertValSequenceEqual(u.dataOut._ag.data, [0, ])
+        self.assertSequenceEqual(dut.dataIn._ag.data, [2, 3])
+        self.assertValSequenceEqual(dut.dataOut._ag.data, [0, ])
 
     def test_ReadWriteOnce1(self):
         self.test_ReadWriteOnce0(ReadWriteOnce1)
 
     def test_ReadWriteOnce2(self, cls=ReadWriteOnce2):
-        u = cls()
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
+        dut = cls()
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
         CLK = 4
         for i in range(CLK):
-            u.dataIn._ag.data.append(i)
+            dut.dataIn._ag.data.append(i)
 
         self.runSim(CLK * CLK_PERIOD)
         self._test_no_comb_loops()
 
-        self.assertSequenceEqual(u.dataIn._ag.data, [2, 3])
-        self.assertValSequenceEqual(u.dataOut._ag.data, [1, ])
+        self.assertSequenceEqual(dut.dataIn._ag.data, [2, 3])
+        self.assertValSequenceEqual(dut.dataOut._ag.data, [1, ])
 
     def test_WhileTrueWrite(self):
-        u = WhileTrueWrite()
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
+        dut = WhileTrueWrite()
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
         CLK = 4
         self.runSim(CLK * CLK_PERIOD)
         self._test_no_comb_loops()
 
-        self.assertValSequenceEqual(u.dataOut._ag.data, [10 for _ in range(CLK - 1) ])
+        self.assertValSequenceEqual(dut.dataOut._ag.data, [10 for _ in range(CLK - 1) ])
 
     def test_WhileTrueReadWrite(self, cls=WhileTrueReadWrite, model=lambda x: x):
-        u = cls()
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
+        dut = cls()
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
         CLK = 4
         for i in range(CLK):
-            u.dataIn._ag.data.append(i)
+            dut.dataIn._ag.data.append(i)
 
         self.runSim(CLK * CLK_PERIOD)
         self._test_no_comb_loops()
 
-        self.assertValSequenceEqual(u.dataOut._ag.data,
+        self.assertValSequenceEqual(dut.dataOut._ag.data,
                                     [model(i) for i in range(CLK - 1)])
 
     def test_WhileTrueReadWriteExpr(self):
@@ -80,10 +80,10 @@ class HlsAstTrivial_TC(SimTestCase):
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
-    u = ReadWriteOnce0()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    m = ReadWriteOnce0()
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
     testLoader = unittest.TestLoader()

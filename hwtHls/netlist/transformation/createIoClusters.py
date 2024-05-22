@@ -1,6 +1,6 @@
 from itertools import chain
 
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.analysis.betweenSyncIslands import HlsNetlistAnalysisPassBetweenSyncIslands
 from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 from hwtHls.netlist.context import HlsNetlistCtx
@@ -23,8 +23,8 @@ class HlsNetlistPassCreateIoClusters(HlsNetlistPass):
 
     @staticmethod
     def createIoClusterCore(netlist:HlsNetlistCtx,
-                            inputs: UniqList[HlsNetNodeExplicitSync],
-                            outputs:UniqList[HlsNetNodeExplicitSync]) -> HlsNetNodeIoClusterCore:
+                            inputs: SetList[HlsNetNodeExplicitSync],
+                            outputs:SetList[HlsNetNodeExplicitSync]) -> HlsNetNodeIoClusterCore:
         assert inputs or outputs
         cc = HlsNetNodeIoClusterCore(netlist)
         netlist.nodes.append(cc)
@@ -72,7 +72,7 @@ class HlsNetlistPassCreateIoClusters(HlsNetlistPass):
             if n.dependsOn[n._inputOfCluster.in_i] is None:
                 #print("search in", n._id)
                 inputs, outputs, _ = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(n, DIRECTION.IN, reachDb)
-                inputs = UniqList((i for i in inputs if i not in outputs))
+                inputs = SetList((i for i in inputs if i not in outputs))
                 #print("found",
                 #      [i._id for i in inputs],
                 #      [o._id for o in outputs])
@@ -83,7 +83,7 @@ class HlsNetlistPassCreateIoClusters(HlsNetlistPass):
             if n.dependsOn[n._outputOfCluster.in_i] is None:
                 #print("search out", n._id)
                 inputs, outputs, _ = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(n, DIRECTION.OUT, reachDb)
-                inputs = UniqList((i for i in inputs if i not in outputs))
+                inputs = SetList((i for i in inputs if i not in outputs))
                 #print("found",
                 #          [i._id for i in inputs],
                 #          [o._id for o in outputs])
@@ -92,7 +92,7 @@ class HlsNetlistPassCreateIoClusters(HlsNetlistPass):
 
         for n in allSync:
             if n.dependsOn[n._inputOfCluster.in_i] is None:
-                self.createIoClusterCore(netlist, UniqList((n,)), UniqList())
+                self.createIoClusterCore(netlist, SetList((n,)), SetList())
 
     def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
         try:

@@ -1,6 +1,6 @@
 from typing import Set, Optional
 
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.analysis.consystencyCheck import HlsNetlistPassConsystencyCheck
 from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 from hwtHls.netlist.context import HlsNetlistCtx
@@ -39,7 +39,7 @@ class HlsNetlistPassSimplifySync(HlsNetlistPass):
 
     @override
     def runOnHlsNetlistImpl(self, netlist:HlsNetlistCtx,
-              parentWorklist: Optional[UniqList[HlsNetNode]]=None,
+              parentWorklist: Optional[SetList[HlsNetNode]]=None,
               parentRemoved: Optional[Set[HlsNetNode]]=None):
         dbgTrace = self._dbgTrace
         with dbgTrace.scoped(HlsNetlistPassSimplifySync, None):
@@ -51,7 +51,7 @@ class HlsNetlistPassSimplifySync(HlsNetlistPass):
             assert netlist.getAnalysisIfAvailable(HlsNetlistAnalysisPassReachability) is None
             reachDb: HlsNetlistAnalysisPassReachability = netlist.getAnalysis(HlsNetlistAnalysisPassReachability(removed=removed))
 
-            worklist: UniqList[HlsNetNode] = UniqList(
+            worklist: SetList[HlsNetNode] = SetList(
                 n for n in netlist.iterAllNodes()
                 if isinstance(n, (HlsNetNodeExplicitSync, HlsNetNodeReadSync, HlsNetNodeIoClusterCore))
             )

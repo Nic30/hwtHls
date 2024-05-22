@@ -1,8 +1,8 @@
 from typing import Dict, List, Union, Set, \
     Optional
 
-from hwt.hdl.value import HValue
-from hwt.pyUtils.uniqList import UniqList
+from hwt.hdl.const import HConst
+from hwt.pyUtils.setList import SetList
 from hwtHls.architecture.analysis.channelGraph import ArchSyncNodeTy, \
     ArchSyncNodeIoDict, HlsArchAnalysisPassChannelGraph
 from hwtHls.architecture.analysis.handshakeSCCs import \
@@ -111,7 +111,7 @@ class RtlArchPassChannelHandshakeCycleBreak(RtlArchPass):
 
     @classmethod
     def _moveNonSccChannelPortsToIO(cls, successors: ArchSyncSuccDiGraphDict,
-                                    scc: UniqList[ArchSyncNodeTy], nodeIo: ArchSyncNodeIoDict):
+                                    scc: SetList[ArchSyncNodeTy], nodeIo: ArchSyncNodeIoDict):
         """
         Channel read/write which is not part of handshake SCC is a normal IO and will not be rewritten.
         Thus we move it to nodeIo as normal IO.
@@ -144,7 +144,7 @@ class RtlArchPassChannelHandshakeCycleBreak(RtlArchPass):
         return scheduleUnscheduledControlLogic(syncNode, out)
 
     # @classmethod
-    # def _canSomeNodesBeSkiped(cls, successors: ArchSyncSuccDiGraphDict, scc: UniqList[ArchSyncNodeTy],
+    # def _canSomeNodesBeSkiped(cls, successors: ArchSyncSuccDiGraphDict, scc: SetList[ArchSyncNodeTy],
     #                          searchStart=NOT_SPECIFIED, searchEnd=NOT_SPECIFIED):
     #    """
     #    The node in SCC may be skipped because there are buffers in architecture which can accommodate
@@ -197,7 +197,7 @@ class RtlArchPassChannelHandshakeCycleBreak(RtlArchPass):
 
     @classmethod
     def _discardSyncCausingLoop(cls, successors: ArchSyncSuccDiGraphDict,
-                                scc: UniqList[ArchSyncNodeTy]):
+                                scc: SetList[ArchSyncNodeTy]):
         """
         Remove ready/valid signals which are reason for handshake SCC,
         (Before we replace them with acyclic logic)
@@ -284,7 +284,7 @@ class RtlArchPassChannelHandshakeCycleBreak(RtlArchPass):
     @classmethod
     def _addWriteWithReadyOfOthersToImplementReadyForSCC(cls,
             netlist: HlsNetlistCtx,
-            scc: UniqList[ArchSyncNodeTy],
+            scc: SetList[ArchSyncNodeTy],
             sccIndex: int,
             successorsUndirected: ArchSyncSuccDict,
             localOnlyAckFromIo: Dict[ArchSyncNodeTy, HlsNetNodeOut],
@@ -333,7 +333,7 @@ class RtlArchPassChannelHandshakeCycleBreak(RtlArchPass):
                 if ack is not None and nodeIsNotDirectlyReachable is not None:
                     # build template for an expressions which means all paths from syncNode to otherSyncNode have skipWhen=1
                     _skipOtherSyncNode = _getSyncNodeDynSkipExpression(
-                        syncNode, UniqList(), otherSyncNode,
+                        syncNode, SetList(), otherSyncNode,
                         successorsUndirected, nodeIsNotDirectlyReachable,
                         termPropagationCtx)
                     assert _skipOtherSyncNode is not DST_UNREACHABLE, (
@@ -344,7 +344,7 @@ class RtlArchPassChannelHandshakeCycleBreak(RtlArchPass):
                     else:
                         skipOtherSyncNode = constructExpressionFromTemplate(
                             builder, termPropagationCtx, _skipOtherSyncNode)
-                        if isinstance(skipOtherSyncNode, HValue):
+                        if isinstance(skipOtherSyncNode, HConst):
                             if skipOtherSyncNode:
                                 # communication to otherSyncNode is always skipped we do not need to check for ack
                                 continue
@@ -407,7 +407,7 @@ class RtlArchPassChannelHandshakeCycleBreak(RtlArchPass):
 
     @classmethod
     def _removeValidFromReadOfBackedgeIfAlwaysContainValidData(cls,
-            scc: UniqList[ArchSyncNodeTy], successors:ArchSyncSuccDiGraphDict):
+            scc: SetList[ArchSyncNodeTy], successors:ArchSyncSuccDiGraphDict):
         """
         Remove valid from backedges with read and write enabled under same condition
         and have init data so there is always some data in buffer.
@@ -438,7 +438,7 @@ class RtlArchPassChannelHandshakeCycleBreak(RtlArchPass):
         :attention: The read/write nodes are moved from ArchElement but the successors dictionary is not updated.
         """
         nodesToRemove: Set[Union[HlsNetNodeReadAnyChannel, HlsNetNodeWriteAnyChannel]] = set()
-        modifiedElements:UniqList[ArchElement] = []
+        modifiedElements:SetList[ArchElement] = []
         for n in nodes:
             sucDict = successors.get(n, None)
             if not sucDict:
@@ -488,7 +488,7 @@ class RtlArchPassChannelHandshakeCycleBreak(RtlArchPass):
     def _buildHsSccEnLogic(cls, hsSccs:HlsArchAnalysisPassHandshakeSCC,
                            successors: ArchSyncSuccDiGraphDict,
                            nodeIo: ArchSyncNodeIoDict,
-                           scc: UniqList[ArchSyncNodeTy],
+                           scc: SetList[ArchSyncNodeTy],
                            builder: HlsNetlistBuilder,
                            termPropagationCtx: ArchElementTermPropagationCtx):
         """
@@ -619,7 +619,7 @@ class RtlArchPassChannelHandshakeCycleBreak(RtlArchPass):
         try:
             sccSyncArchElements: List[ArchElementNoSync] = []
             for sccIndex, scc in enumerate(hsSccs.sccs):
-                scc: UniqList[ArchSyncNodeTy]
+                scc: SetList[ArchSyncNodeTy]
                 # if possible, convert Non Oscillatory Feedback Paths in handshake sync to Acyclic circuit
                 self._moveNonSccChannelPortsToIO(successors, scc, nodeIo)
 

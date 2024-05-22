@@ -3,8 +3,8 @@ from math import log2
 from pathlib import Path
 from typing import Dict, Optional, Union, Set
 
-from hwt.hdl.operator import Operator
-from hwt.hdl.operatorDefs import AllOps, OpDefinition
+from hwt.hdl.operator import HOperatorNode
+from hwt.hdl.operatorDefs import HwtOps, HOperatorDef
 from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.platform.platform import DefaultHlsPlatform, DebugId, HlsDebugBundle
@@ -13,27 +13,27 @@ from hwtHls.code import OP_ASHR, OP_SHL, OP_LSHR, OP_CTLZ, OP_CTPOP, OP_CTTZ,\
     OP_BITREVERSE, OP_FSHR, OP_FSHL
 
 _OPS_T_GROWING_EXP = {
-    AllOps.UDIV,
-    AllOps.SDIV,
-    AllOps.POW,
-    AllOps.MUL,
-    AllOps.MOD,
+    HwtOps.UDIV,
+    HwtOps.SDIV,
+    HwtOps.POW,
+    HwtOps.MUL,
+    HwtOps.MOD,
 }
 
 _OPS_T_GROWING_LIN = {
-    AllOps.ADD,
-    AllOps.SUB,
-    AllOps.MINUS_UNARY,
-    AllOps.EQ,
-    AllOps.NE,
-    AllOps.UGT,
-    AllOps.UGE,
-    AllOps.ULT,
-    AllOps.ULE,
-    AllOps.SGT,
-    AllOps.SGE,
-    AllOps.SLT,
-    AllOps.SLE,
+    HwtOps.ADD,
+    HwtOps.SUB,
+    HwtOps.MINUS_UNARY,
+    HwtOps.EQ,
+    HwtOps.NE,
+    HwtOps.UGT,
+    HwtOps.UGE,
+    HwtOps.ULT,
+    HwtOps.ULE,
+    HwtOps.SGT,
+    HwtOps.SGE,
+    HwtOps.SLT,
+    HwtOps.SLE,
 }
 _OPS_T_GROWING_LOG = {
     OP_ASHR,
@@ -47,16 +47,16 @@ _OPS_T_GROWING_LOG = {
 }
 
 _OPS_T_ZERO_LATENCY = {
-    AllOps.INDEX,
-    AllOps.CONCAT,
+    HwtOps.INDEX,
+    HwtOps.CONCAT,
     OP_BITREVERSE,
     OP_ASSIGN,
 }
 _OPS_T_GROWING_CONST = {
-    AllOps.NOT,
-    AllOps.XOR,
-    AllOps.AND,
-    AllOps.OR,
+    HwtOps.NOT,
+    HwtOps.XOR,
+    HwtOps.AND,
+    HwtOps.OR,
     *_OPS_T_ZERO_LATENCY,
     ResourceFF,
 }
@@ -74,19 +74,19 @@ class VirtualHlsPlatform(DefaultHlsPlatform):
         super(VirtualHlsPlatform, self).__init__(debugDir=debugDir, debugFilter=debugFilter)
 
         # operator: seconds to perform
-        self._OP_DELAYS: Dict[Operator, float] = {
+        self._OP_DELAYS: Dict[HOperatorNode, float] = {
             # exponentially growing with bit width
-            AllOps.UDIV: 0.9e-9,
-            AllOps.SDIV: 0.9e-9,
-            AllOps.POW: 0.6e-9,
-            AllOps.MUL: 0.6e-9,
-            AllOps.MOD: 0.9e-9,
+            HwtOps.UDIV: 0.9e-9,
+            HwtOps.SDIV: 0.9e-9,
+            HwtOps.POW: 0.6e-9,
+            HwtOps.MUL: 0.6e-9,
+            HwtOps.MOD: 0.9e-9,
 
             # nearly constant with bit width
-            AllOps.NOT: 1.2e-9,
-            AllOps.XOR: 1.2e-9,
-            AllOps.AND: 1.2e-9,
-            AllOps.OR: 1.2e-9,
+            HwtOps.NOT: 1.2e-9,
+            HwtOps.XOR: 1.2e-9,
+            HwtOps.AND: 1.2e-9,
+            HwtOps.OR: 1.2e-9,
 
             # nearly logarithmical with bit widht
             OP_ASHR: 1.2e-9,
@@ -97,33 +97,33 @@ class VirtualHlsPlatform(DefaultHlsPlatform):
             OP_CTPOP: 1.2e-9,
 
             # nearly linear with bit width
-            AllOps.ADD: 1.5e-9,
-            AllOps.SUB: 1.5e-9,
-            AllOps.MINUS_UNARY: 1.5e-9,
+            HwtOps.ADD: 1.5e-9,
+            HwtOps.SUB: 1.5e-9,
+            HwtOps.MINUS_UNARY: 1.5e-9,
 
-            AllOps.EQ: 1.5e-9,
-            AllOps.NE: 1.5e-9,
-            AllOps.UGT: 1.5e-9,
-            AllOps.UGE: 1.5e-9,
-            AllOps.ULT: 1.5e-9,
-            AllOps.ULE: 1.5e-9,
+            HwtOps.EQ: 1.5e-9,
+            HwtOps.NE: 1.5e-9,
+            HwtOps.UGT: 1.5e-9,
+            HwtOps.UGE: 1.5e-9,
+            HwtOps.ULT: 1.5e-9,
+            HwtOps.ULE: 1.5e-9,
 
-            AllOps.SGT: 1.5e-9,
-            AllOps.SGE: 1.5e-9,
-            AllOps.SLT: 1.5e-9,
-            AllOps.SLE: 1.5e-9,
+            HwtOps.SGT: 1.5e-9,
+            HwtOps.SGE: 1.5e-9,
+            HwtOps.SLT: 1.5e-9,
+            HwtOps.SLE: 1.5e-9,
 
             # depends on number of inputs and bit width
-            AllOps.TERNARY: 0.8e-9,
+            HwtOps.TERNARY: 0.8e-9,
             # constant
-            AllOps.INDEX: 0,
-            AllOps.CONCAT: 0,
+            HwtOps.INDEX: 0,
+            HwtOps.CONCAT: 0,
             ResourceFF: 1.2e-9,
             OP_ASSIGN: 0,
         }
 
     @lru_cache()
-    def get_op_realization(self, op: OpDefinition, bit_width: int,
+    def get_op_realization(self, op: HOperatorDef, bit_width: int,
                            input_cnt: int, clkPeriod: float) -> OpRealizationMeta:
         base_delay = self._OP_DELAYS[op]
         if op in _OPS_T_GROWING_CONST:
@@ -138,7 +138,7 @@ class VirtualHlsPlatform(DefaultHlsPlatform):
         elif op in _OPS_T_GROWING_EXP:
             inputWireDelay = base_delay * bit_width
 
-        elif op == AllOps.TERNARY:
+        elif op == HwtOps.TERNARY:
             inputWireDelay = base_delay * log2(bit_width * input_cnt)
 
         else:

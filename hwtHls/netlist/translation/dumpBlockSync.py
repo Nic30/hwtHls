@@ -2,7 +2,7 @@ import html
 import pydot
 from typing import Dict, Set
 
-from hwt.synthesizer.interface import Interface
+from hwt.hwIO import HwIO
 from hwtHls.llvm.llvmIr import MachineBasicBlock, MachineFunction, Register, TargetOpcode
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
@@ -23,7 +23,7 @@ class HlsNetlistPassDumpBlockSync(HlsNetlistPass):
                            blockSync: Dict[MachineBasicBlock, MachineBasicBlockMeta],
                            edgeMeta: Dict[MachineEdge, MachineEdgeMeta],
                            liveness: Dict[MachineBasicBlock, Dict[MachineBasicBlock, Set[Register]]],
-                           regToIo: Dict[Register, Interface],
+                           regToIo: Dict[Register, HwIO],
                            addLegend:bool):
         P = pydot.Dot(f'"{mf.getName().str()}"', graph_type="digraph")
 

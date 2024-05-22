@@ -1,6 +1,6 @@
 from typing import Tuple, Dict
 
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
 from hwtHls.netlist.nodes.archElement import ArchElement
@@ -16,7 +16,7 @@ class HlsNetlistAnalysisPassNodeParentAggregate(HlsNetlistAnalysisPass):
 
     def __init__(self):
         super(HlsNetlistAnalysisPassNodeParentAggregate, self).__init__()
-        self.nodeHieararchy: Dict[HlsNetlistHierarchyPath, UniqList[HlsNetNode]] = {}
+        self.nodeHieararchy: Dict[HlsNetlistHierarchyPath, SetList[HlsNetNode]] = {}
         self.nodePath: Dict[HlsNetNode, HlsNetlistHierarchyPath] = {}
 
     def getBottomMostArchElementParent(self, n: HlsNetNode):
@@ -27,7 +27,7 @@ class HlsNetlistAnalysisPassNodeParentAggregate(HlsNetlistAnalysisPass):
 
         raise ValueError("Node has no ArchElement parent", n)
 
-    def _collectHierarchyNodes(self, currentPath: HlsNetlistHierarchyPath, nodes: UniqList[HlsNetNode]):
+    def _collectHierarchyNodes(self, currentPath: HlsNetlistHierarchyPath, nodes: SetList[HlsNetNode]):
         self.nodeHieararchy[currentPath] = nodes
         for n in nodes:
             self.nodePath[n] = currentPath
@@ -37,4 +37,4 @@ class HlsNetlistAnalysisPassNodeParentAggregate(HlsNetlistAnalysisPass):
     def runOnHlsNetlist(self, netlist: "HlsNetlistCtx"):
         assert not self.nodeHieararchy
         assert not self.nodePath
-        self._collectHierarchyNodes((), UniqList(netlist.iterAllNodes()))
+        self._collectHierarchyNodes((), SetList(netlist.iterAllNodes()))

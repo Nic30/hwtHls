@@ -1,8 +1,8 @@
 from itertools import islice
 from typing import Union, List, Tuple, Literal
 
-from hwt.hdl.value import HValue
-from hwt.synthesizer.interface import Interface
+from hwt.hdl.const import HConst
+from hwt.hwIO import HwIO
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
 from hwtHls.netlist.scheduler.clk_math import start_clk
@@ -14,7 +14,7 @@ class TimeIndependentRtlResourceItem():
     """
     __slots__ = ["parent", "data", "isExplicitRegister"]
 
-    def __init__(self, parent:"TimeIndependentRtlResource", data:Interface, isExplicitRegister: bool):
+    def __init__(self, parent:"TimeIndependentRtlResource", data:HwIO, isExplicitRegister: bool):
         self.parent = parent
         self.data = data
         self.isExplicitRegister = isExplicitRegister
@@ -64,7 +64,7 @@ class TimeIndependentRtlResource():
     # and can be accessed any time
     __slots__ = ["timeOffset", "allocator", "valuesInTime", "persistenceRanges", "isForwardDeclr", "mayChangeOutOfCfg"]
 
-    def __init__(self, data: Union[RtlSignal, Interface, HValue],
+    def __init__(self, data: Union[RtlSignal, HwIO, HConst],
                  timeOffset: Union[int, Literal[INVARIANT_TIME]],
                  allocator: "ArchElement",
                  isExplicitRegister: bool,
@@ -73,7 +73,7 @@ class TimeIndependentRtlResource():
         """
         :param data: signal with value in initial time
         """
-        if isinstance(data, HValue):
+        if isinstance(data, HConst):
             assert timeOffset == INVARIANT_TIME
         self.timeOffset = timeOffset
         self.allocator = allocator
@@ -138,8 +138,8 @@ class TimeIndependentRtlResource():
         # allocate registers to propagate value into next cycles
         sig = self.valuesInTime[0]
 
-        # HValue instance should have never get the there
-        if isinstance(sig.data, Interface):
+        # HConst instance should have never get the there
+        if isinstance(sig.data, HwIO):
             name = sig.data._getHdlName()
         else:
             name = sig.data.name

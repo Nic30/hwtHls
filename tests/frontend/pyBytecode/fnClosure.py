@@ -2,18 +2,18 @@
 # -*- coding: utf-8 -*-
 
 from hwt.hdl.types.defs import BIT
-from hwt.interfaces.std import VectSignal
-from hwt.synthesizer.unit import Unit
+from hwt.hwIOs.std import HwIOVectSignal
+from hwt.hwModule import HwModule
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 
 
-class FnClosureSingleItem(Unit):
+class FnClosureSingleItem(HwModule):
 
     def _declr(self):
-        self.i = VectSignal(8, signed=False)
-        self.o = VectSignal(8, signed=False)._m()
+        self.i = HwIOVectSignal(8, signed=False)
+        self.o = HwIOVectSignal(8, signed=False)._m()
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
@@ -31,10 +31,10 @@ class FnClosureSingleItem(Unit):
         hls.compile()
 
 
-class FnClosureNone0(Unit):
+class FnClosureNone0(HwModule):
 
     def _declr(self):
-        self.o = VectSignal(8, signed=False)._m()
+        self.o = HwIOVectSignal(8, signed=False)._m()
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
@@ -49,10 +49,10 @@ class FnClosureNone0(Unit):
         FnClosureSingleItem._impl(self)
 
 
-class FnClosureNone1(Unit):
+class FnClosureNone1(HwModule):
 
     def _declr(self):
-        self.o = VectSignal(8, signed=False)._m()
+        self.o = HwIOVectSignal(8, signed=False)._m()
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
@@ -69,8 +69,8 @@ class FnClosureNone1(Unit):
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.platform import HlsDebugBundle
-    u = FnClosureNone1()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    m = FnClosureNone1()
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

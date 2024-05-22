@@ -1,8 +1,8 @@
 from math import inf
 from typing import List, Dict, Optional, Generator
 
-from hwt.hdl.operatorDefs import  AllOps
-from hwt.pyUtils.uniqList import UniqList
+from hwt.hdl.operatorDefs import  HwtOps
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate, \
     HlsNetNodeAggregatePortIn, HlsNetNodeAggregatePortOut
 from hwtHls.netlist.nodes.node import HlsNetNode_numberForEachInput, \
@@ -34,14 +34,14 @@ class HlsNetNodeBitwiseOps(HlsNetNodeAggregate):
         assert isinstance(node, HlsNetNodeOperator), node
         bit_length = node._outputs[0]._dtype.bit_length()
 
-        if node.operator is AllOps.TERNARY:
+        if node.operator is HwtOps.TERNARY:
             input_cnt = input_cnt // 2 + 1
 
         rWithThisNode = netlist.platform.get_op_realization(
             node.operator, bit_length,
             input_cnt, netlist.realTimeClkPeriod)
 
-        if input_cnt == 1 and node.operator == AllOps.NOT or input_cnt == 2:
+        if input_cnt == 1 and node.operator == HwtOps.NOT or input_cnt == 2:
             node.assignRealization(rWithThisNode)  # the first operator in cluster does not need any latency modifications
             return
 
@@ -69,7 +69,7 @@ class HlsNetNodeBitwiseOps(HlsNetNodeAggregate):
         node.assignRealization(rWithThisNode)
 
     def scheduleAsapWithQuantization(self, node: HlsNetNodeOperator,
-                                     pathForDebug: Optional[UniqList["HlsNetNode"]],
+                                     pathForDebug: Optional[SetList["HlsNetNode"]],
                                      beginOfFirstClk: SchedTime,
                                      outputTimeGetter: Optional[OutputTimeGetter]):
         assert node in self._subNodes, (node, self._subNodes)
@@ -138,7 +138,7 @@ class HlsNetNodeBitwiseOps(HlsNetNodeAggregate):
 
     @override
     def scheduleAsap(self,
-                     pathForDebug: Optional[UniqList["HlsNetNode"]],
+                     pathForDebug: Optional[SetList["HlsNetNode"]],
                      beginOfFirstClk: SchedTime,
                      outputTimeGetter: Optional[OutputTimeGetter]) -> List[int]:
         """
@@ -172,7 +172,7 @@ class HlsNetNodeBitwiseOps(HlsNetNodeAggregate):
     def scheduleAlapCompactionForOutput(self,
                                         internalOut: HlsNetNodeOut,
                                         clkBoundaryTime: SchedTime,
-                                        currentInputs: UniqList[HlsNetNodeIn],
+                                        currentInputs: SetList[HlsNetNodeIn],
                                         outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter]):
         """
         BFS consume all inputs until the start or until the boundary is found
@@ -234,7 +234,7 @@ class HlsNetNodeBitwiseOps(HlsNetNodeAggregate):
                     depObj._setScheduleZeroTimeSingleClock(min(clkBoundaryTime - ffdelay, depT))  # move to start of clock cycle - ffdealy
                     # all uses known and time crossing clock boundary, start a new cluster from this output
                     self.scheduleAlapCompactionForOutput(dep, newClkBeginBoundary,
-                                                             UniqList(), outputMinUseTimeGetter)
+                                                             SetList(), outputMinUseTimeGetter)
                 else:
                     # somewhere inside clock cycle, no need to modify time
                     depObj._setScheduleZeroTimeSingleClock(depT)
@@ -295,7 +295,7 @@ class HlsNetNodeBitwiseOps(HlsNetNodeAggregate):
                 # set time for all dependencies in this cluster as last as possible
                 self.scheduleAlapCompactionForOutput(o,
                                                      clkStartBoundary,
-                                                     UniqList(),
+                                                     SetList(),
                                                      outputMinUseTimeGetter)
 
         self.copySchedulingFromChildren()

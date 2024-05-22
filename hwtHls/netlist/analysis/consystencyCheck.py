@@ -3,7 +3,7 @@ from networkx.algorithms.components.strongly_connected import strongly_connected
 from networkx.classes.digraph import DiGraph
 from typing import Set, Optional
 
-from hwt.hdl.operatorDefs import AllOps, BITWISE_OPS, COMPARE_OPS
+from hwt.hdl.operatorDefs import HwtOps, BITWISE_OPS, COMPARE_OPS
 from hwt.hdl.types.defs import BIT
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
@@ -150,7 +150,7 @@ class HlsNetlistPassConsystencyCheck(HlsNetlistPass):
 
     @staticmethod
     def _checkTypes(netlist: HlsNetlistCtx, removed: Set[HlsNetNode]):
-        OPS_WITH_OP0_AND_RES_OF_SAME_TYPE = {*BITWISE_OPS, AllOps.UDIV, AllOps.SDIV, AllOps.DIV, AllOps.MUL, AllOps.ADD, AllOps.SUB}
+        OPS_WITH_OP0_AND_RES_OF_SAME_TYPE = {*BITWISE_OPS, HwtOps.UDIV, HwtOps.SDIV, HwtOps.DIV, HwtOps.MUL, HwtOps.ADD, HwtOps.SUB}
         OPS_WITH_SAME_OP_TYPE = {*OPS_WITH_OP0_AND_RES_OF_SAME_TYPE, *COMPARE_OPS}
         for n in netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.PREORDER):
             n: HlsNetNode

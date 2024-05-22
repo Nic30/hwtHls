@@ -2,18 +2,18 @@
 # -*- coding: utf-8 -*-
 
 from hwt.hdl.types.defs import BIT
-from hwt.interfaces.std import VectSignal
-from hwt.synthesizer.unit import Unit
+from hwt.hwIOs.std import HwIOVectSignal
+from hwt.hwModule import HwModule
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 
 
-class ErrorUseOfUnitialized0(Unit):
+class ErrorUseOfUnitialized0(HwModule):
 
     def _declr(self):
-        self.i = VectSignal(8, signed=False)
-        self.o = VectSignal(8, signed=False)._m()
+        self.i = HwIOVectSignal(8, signed=False)
+        self.o = HwIOVectSignal(8, signed=False)._m()
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
@@ -47,8 +47,8 @@ class UseOfNone(ErrorUseOfUnitialized0):
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.platform import HlsDebugBundle
-    u = UseOfNone()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    m = UseOfNone()
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

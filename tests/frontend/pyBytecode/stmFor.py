@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.interfaces.std import VectSignal
-from hwt.interfaces.utils import addClkRstn
-from hwt.synthesizer.unit import Unit
+from hwt.hwIOs.std import HwIOVectSignal
+from hwt.hwIOs.utils import addClkRstn
+from hwt.hwModule import HwModule
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 
 
-class HlsPythonPreprocFor(Unit):
+class HlsPythonPreprocFor(HwModule):
 
     def _declr(self):
         addClkRstn(self)
-        self.o = VectSignal(8, signed=False)._m()
+        self.o = HwIOVectSignal(8, signed=False)._m()
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
@@ -56,8 +56,9 @@ class HlsPythonPreprocFor2x_1(HlsPythonPreprocFor):
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.platform import HlsDebugBundle
-    u = HlsPythonPreprocFor2x_1()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    
+    m = HlsPythonPreprocFor2x_1()
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

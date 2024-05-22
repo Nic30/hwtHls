@@ -1,7 +1,7 @@
 from types import FunctionType
 from typing import Optional, List, Tuple, Union
 
-from hwt.synthesizer.interface import Interface
+from hwt.hwIO import HwIO
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.frontend.pyBytecode.fromPython import PyBytecodeToSsa
@@ -20,8 +20,8 @@ class HlsThreadFromPy(HlsThread):
         self.bytecodeToSsa = PyBytecodeToSsa(self.hls, DebugTracer(None), self.fnName)
         self.fnArgs = fnArgs
         self.fnKwargs = fnKwargs
-        self._imports: List[Tuple[Union[RtlSignal, Interface], DIRECTION]] = []
-        self._exports: List[Tuple[Union[RtlSignal, Interface], DIRECTION]] = []
+        self._imports: List[Tuple[Union[RtlSignal, HwIO], DIRECTION]] = []
+        self._exports: List[Tuple[Union[RtlSignal, HwIO], DIRECTION]] = []
         self._doCloseTrace = False
         self.dbgTracer: Optional[DebugTracer] = None
 

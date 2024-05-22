@@ -3,13 +3,13 @@
 
 import sys
 
-from hwt.hdl.types.bits import Bits
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
-from hwt.interfaces.hsStructIntf import HsStructIntf
-from hwt.interfaces.utils import addClkRstn
+from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
+from hwt.hwIOs.utils import addClkRstn
 from hwt.simulator.simTestCase import SimTestCase
-from hwt.synthesizer.param import Param
-from hwt.synthesizer.unit import Unit
+from hwt.hwParam import HwParam
+from hwt.hwModule import HwModule
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
@@ -23,20 +23,20 @@ from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
 
 
 
-class IEEE754FpToIntConventor(Unit):
+class IEEE754FpToIntConventor(HwModule):
 
     def _config(self) -> None:
-        self.T = Param(IEEE754Fp64)
-        self.RES_T = Param(int64_t)
-        self.FREQ = Param(int(20e6))
+        self.T = HwParam(IEEE754Fp64)
+        self.RES_T = HwParam(int64_t)
+        self.FREQ = HwParam(int(20e6))
 
     def _declr(self) -> None:
         addClkRstn(self)
         self.clk.FREQ = self.FREQ
 
-        self.a = HsStructIntf()
+        self.a = HwIOStructRdVld()
         self.a.T = self.T
-        self.res = HsStructIntf()._m()
+        self.res = HwIOStructRdVld()._m()
         self.res.T = self.RES_T
 
     @hlsBytecode
@@ -89,11 +89,11 @@ class IEEE754FpToInt_TC(SimTestCase):
             self.assertEqual(res, resRef, msg=(res, _res, 'expected', resRef, "input", a))
 
     def test_rtl(self):
-        u = IEEE754FpToIntConventor()
+        dut = IEEE754FpToIntConventor()
 
         def prepareDataInFn():
             dataIn = []
-            flat_t = Bits(64)
+            flat_t = HBits(64)
             for a in self.TEST_DATA:
                 _a = IEEE754Fp64.from_py(a)
                 dataIn.append(_a._reinterpret_cast(flat_t))
@@ -107,36 +107,36 @@ class IEEE754FpToInt_TC(SimTestCase):
                 resRef = self.model(a)
                 self.assertValEqual(res, resRef, msg=(res, 'expected', resRef, "input", a))
 
-        self.compileSimAndStart(u, target_platform=TestLlvmIrAndMirPlatform.forSimpleDataInDataOutUnit(
+        self.compileSimAndStart(dut, target_platform=TestLlvmIrAndMirPlatform.forSimpleDataInDataOutHwModule(
             prepareDataInFn, checkDataOutFn, None))
 
         refRes = []
         for a in self.TEST_DATA:
             _a = IEEE754Fp64.from_py(a)
-            u.a._ag.data.append(_a)
+            dut.a._ag.data.append(_a)
             _resRef = int(self.model(a))
             refRes.append(_resRef)
 
-        CLK_PERIOD = freq_to_period(u.clk.FREQ)
+        CLK_PERIOD = freq_to_period(dut.clk.FREQ)
         self.runSim((len(self.TEST_DATA) + 1) * 2 * int(CLK_PERIOD))
 
-        self.assertValSequenceEqual(u.res._ag.data, refRes,
+        self.assertValSequenceEqual(dut.res._ag.data, refRes,
                                     [float(a) for a in self.TEST_DATA])
         self.rtl_simulator_cls = None
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
     from tests.floatingpoint.fptypes import IEEE754Fp
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtLib.types.ctypes import int8_t
     
-    u = IEEE754FpToIntConventor()
-    u.T = IEEE754Fp(4, 4)
-    u.RES_T = int8_t
-    u.FREQ = int(1e6)
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    m = IEEE754FpToIntConventor()
+    m.T = IEEE754Fp(4, 4)
+    m.RES_T = int8_t
+    m.FREQ = int(1e6)
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
 

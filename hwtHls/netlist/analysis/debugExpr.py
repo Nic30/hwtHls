@@ -2,7 +2,7 @@ from io import StringIO
 from typing import Dict, Optional
 
 from hdlConvertorAst.to.verilog.verilog2005 import ToVerilog2005
-from hwt.hdl.operatorDefs import AllOps
+from hwt.hdl.operatorDefs import HwtOps
 from hwt.pyUtils.arrayQuery import grouper
 from hwt.serializer.verilog.ops import ToHdlAstVerilog_ops
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
@@ -28,7 +28,7 @@ def _netlistDebugExpr(o: HlsNetNodeOut, tmpVars: Dict[HlsNetNodeOut, int], exprO
     n = o.obj
     if isinstance(n, HlsNetNodeOperator):
         op = n.operator
-        if op == AllOps.TERNARY:
+        if op == HwtOps.TERNARY:
             first = True
             if len(n.dependsOn) == 1:
                 exprOut.write("copy(")

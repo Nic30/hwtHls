@@ -3,7 +3,7 @@ from itertools import islice
 from typing import List, Tuple, Optional, Dict
 
 from hwt.hdl.types.defs import BIT
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.architecture.transformation.channelHandshakeCycleBreak import RtlArchPassChannelHandshakeCycleBreak, \
     ChannelHandshakeCycleDeadlockError
 from hwtHls.netlist.builder import HlsNetlistBuilder
@@ -60,7 +60,7 @@ class BreakHandshakeCycles_TC(BaseSerializationTC):
         return nodeName, nodeType, channelType, channelId, initValueCnt, hasSw, hasEc
 
     def _subNodesFromStages(self, stages: List[List[HlsNetNode]]):
-        subNodes = UniqList()
+        subNodes = SetList()
         for nodes in stages:
             subNodes.extend(nodes)
         return subNodes

@@ -1,6 +1,6 @@
 from hwt.doc_markers import internal
 from hwt.hdl.types.hdlType import HdlType
-from hwt.hdl.value import HValue
+from hwt.hdl.const import HConst
 
 
 class _HVoidOrdering(HdlType):
@@ -13,23 +13,23 @@ class _HVoidOrdering(HdlType):
 
     @internal
     @classmethod
-    def getValueCls(cls):
+    def getConstCls(cls):
         try:
-            return cls._valCls
+            return cls._constCls
         except AttributeError:
-            cls._valCls = _HVoidValue
-            return cls._valCls
+            cls._constCls = _HVoidConst
+            return cls._constCls
 
 
-class _HVoidValue(HValue):
+class _HVoidConst(HConst):
 
     @classmethod
     def from_py(cls, typeObj, val, vld_mask=None):
         assert val is None, ("Only allowed value is None because void value does not contain any data", val)
         return cls(typeObj, None, vld_mask=None)
 
-    def _concat(self, other: "_HVoidValue"):
-        assert isinstance(self, HValue) and self.__class__ == other.__class__, (self, other, self.__class__, other.__class__)
+    def _concat(self, other: "_HVoidConst"):
+        assert isinstance(self, HConst) and self.__class__ == other.__class__, (self, other, self.__class__, other.__class__)
         assert self._dtype == other._dtyp
         assert self
 

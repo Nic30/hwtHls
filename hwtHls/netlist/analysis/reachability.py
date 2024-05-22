@@ -1,8 +1,8 @@
 from copy import copy
 from typing import Set, Dict, Optional, Tuple, Union, Literal, List, Callable
 
-from hwt.hdl.operatorDefs import AllOps
-from hwt.pyUtils.uniqList import UniqList
+from hwt.hdl.operatorDefs import HwtOps
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
@@ -36,7 +36,7 @@ def _collectConcatOfVoidTreeInputs(o: HlsNetNodeOut, inputs: List[HlsNetNodeOut]
 
     duplicitySeen = False
     obj: HlsNetNode = o.obj
-    if isinstance(obj, HlsNetNodeOperator) and obj.operator == AllOps.CONCAT:
+    if isinstance(obj, HlsNetNodeOperator) and obj.operator == HwtOps.CONCAT:
         t = obj.dependsOn[0]._dtype
         assert HdlType_isVoid(t), obj
         for i in obj.dependsOn:
@@ -50,7 +50,7 @@ def _collectConcatOfVoidTreeInputs(o: HlsNetNodeOut, inputs: List[HlsNetNodeOut]
 def _collectConcatOfVoidTreeOutputs(o: HlsNetNodeOut):
     for use in o.obj.usedBy[o.out_i]:
         useO = use.obj
-        if isinstance(useO, HlsNetNodeOperator) and useO.operator == AllOps.CONCAT:
+        if isinstance(useO, HlsNetNodeOperator) and useO.operator == HwtOps.CONCAT:
             yield from _collectConcatOfVoidTreeOutputs(useO._outputs[0])
         else:
             yield use
@@ -154,14 +154,14 @@ class HlsNetlistAnalysisPassReachability(HlsNetlistAnalysisPass):
         return False
         # return user in self._controlSuccessors[n]
 
-    def getDirectDataSuccessors(self, n: HlsNetNodeExplicitSync) -> UniqList[HlsNetNodeExplicitSync]:
+    def getDirectDataSuccessors(self, n: HlsNetNodeExplicitSync) -> SetList[HlsNetNodeExplicitSync]:
         """
         Use IO cluster core to iterate HlsNetNodeExplicitSync successor nodes.
 
         :attention: Expects that HlsNetlistPassMoveExplicitSyncOutOfDataAndAddVoidDataLinks and HlsNetlistPassExplicitSyncDataToOrdering to be applied before
         """
         assert isinstance(n, HlsNetNodeExplicitSync), n
-        found: UniqList[HlsNetNodeExplicitSync] = UniqList()
+        found: SetList[HlsNetNodeExplicitSync] = SetList()
         voidDataOuts = []
         if n._outputs and n._outputs[0]._dtype == HVoidData and n._outputs[0] is not n._dataVoidOut:
             voidDataOuts.append(n._outputs[0])
@@ -175,21 +175,21 @@ class HlsNetlistAnalysisPassReachability(HlsNetlistAnalysisPass):
                 if isinstance(obj, HlsNetNodeExplicitSync):
                     found.append(obj)
                 else:
-                    assert isinstance(obj, HlsNetNodeOperator) and obj.operator == AllOps.CONCAT, obj
+                    assert isinstance(obj, HlsNetNodeOperator) and obj.operator == HwtOps.CONCAT, obj
                     for user in _collectConcatOfVoidTreeOutputs(o):
                         assert isinstance(user.obj, HlsNetNodeExplicitSync), (n, user.obj)
                         found.append(user.obj)
 
         return found
 
-    def getDirectDataPredecessors(self, n: HlsNetNodeExplicitSync) -> UniqList[HlsNetNodeExplicitSync]:
+    def getDirectDataPredecessors(self, n: HlsNetNodeExplicitSync) -> SetList[HlsNetNodeExplicitSync]:
         """
         Use IO cluster core to iterate HlsNetNodeExplicitSync successor nodes.
 
         :attention: Expects some passes to be applied before :see:`~.HlsNetlistAnalysisPassReachability.getDirectDataSuccessors`
         """
         assert isinstance(n, HlsNetNodeExplicitSync), n
-        found: UniqList[HlsNetNodeExplicitSync] = UniqList()
+        found: SetList[HlsNetNodeExplicitSync] = SetList()
         orderingPorts = n.iterOrderingInputs()
         if n.__class__ is HlsNetNodeExplicitSync and HdlType_isVoid(n._outputs[0]._dtype):
             orderingPorts = (n._inputs[0], *orderingPorts)
@@ -203,8 +203,8 @@ class HlsNetlistAnalysisPassReachability(HlsNetlistAnalysisPass):
                 elif isinstance(obj, HlsNetNodeConst):
                     continue
                 else:
-                    assert isinstance(obj, HlsNetNodeOperator) and obj.operator == AllOps.CONCAT, obj
-                    _found = UniqList()
+                    assert isinstance(obj, HlsNetNodeOperator) and obj.operator == HwtOps.CONCAT, obj
+                    _found = SetList()
                     _collectConcatOfVoidTreeInputs(dep, _found, set())
                     for o in _found:
                         if not isinstance(o.obj, HlsNetNodeConst):
@@ -360,7 +360,7 @@ class HlsNetlistAnalysisPassReachability(HlsNetlistAnalysisPass):
         :attention: newSuc, beginOfPropagation must be flattened (not a port of HlsNetNodeAggregate)
         """
         # startingNode = sucO.obj
-        toSearch: UniqList[NodeOrPort] = UniqList((beginOfPropagation,))
+        toSearch: SetList[NodeOrPort] = SetList((beginOfPropagation,))
         while toSearch:
             nodeOrPort = toSearch.pop()
 
@@ -405,7 +405,7 @@ class HlsNetlistAnalysisPassReachability(HlsNetlistAnalysisPass):
         """
         :attention: o, removedI must be flattened (not a port of HlsNetNodeAggregate)
         """
-        toSearch: UniqList[NodeOrPort] = UniqList((o,))
+        toSearch: SetList[NodeOrPort] = SetList((o,))
         while toSearch:
             nodeOrPort = toSearch.pop()
             curSuccessors = dictToUpdate[nodeOrPort]
@@ -477,7 +477,7 @@ class HlsNetlistAnalysisPassReachability(HlsNetlistAnalysisPass):
         return isinstance(n, HlsNetNodeExplicitSync) and (i is n.extraCond or i is n.skipWhen)
 
     # @classmethod
-    # def _getDirectDataPredecessorsRawAddToSearch(cls, n: HlsNetNode, toSearch: UniqList[HlsNetNode]):
+    # def _getDirectDataPredecessorsRawAddToSearch(cls, n: HlsNetNode, toSearch: SetList[HlsNetNode]):
     #    if isinstance(n, HlsNetNodeExplicitSync):
     #        for i, dep in zip(n._inputs, n.dependsOn):
     #            if dep is None or i is n.extraCond or i is n.skipWhen or cls._isValidNB(dep):
@@ -505,7 +505,7 @@ class HlsNetlistAnalysisPassReachability(HlsNetlistAnalysisPass):
     #            toSearch.append(n.obj)
 
     @classmethod
-    def _getDirectDataPredecessorsRaw(cls, toSearch: UniqList[HlsNetNode], seen: Set[HlsNetNode]) -> UniqList[HlsNetNodeExplicitSync]:
+    def _getDirectDataPredecessorsRaw(cls, toSearch: SetList[HlsNetNode], seen: Set[HlsNetNode]) -> SetList[HlsNetNodeExplicitSync]:
         """
         BFS search for HlsNetNodeExplicitSync predecessor nodes, but do not cross these instances while searching
         """
@@ -533,9 +533,9 @@ class HlsNetlistAnalysisPassReachability(HlsNetlistAnalysisPass):
                     toSearch.append(dep.obj)
 
     @classmethod
-    def _getDirectDataPredecessorsRawAnyData(cls, toSearch: UniqList[HlsNetNode],
+    def _getDirectDataPredecessorsRawAnyData(cls, toSearch: SetList[HlsNetNode],
                                              seen: Set[HlsNetNode],
-                                             searchEndPredicateFn: Callable[[HlsNetNode], bool]) -> UniqList[HlsNetNodeExplicitSync]:
+                                             searchEndPredicateFn: Callable[[HlsNetNode], bool]) -> SetList[HlsNetNodeExplicitSync]:
         """
         Simplified version of :meth:`~._getDirectDataPredecessorsRaw` which uses searchEndPredicateFn instead of check for specific ports.
         """
@@ -557,7 +557,7 @@ class HlsNetlistAnalysisPassReachability(HlsNetlistAnalysisPass):
                 toSearch.append(dep.obj)
 
     # @staticmethod
-    # def _getDirectDataSuccessorsRawAddToSearch(n: HlsNetNode, toSearch: UniqList[HlsNetNode]):
+    # def _getDirectDataSuccessorsRawAddToSearch(n: HlsNetNode, toSearch: SetList[HlsNetNode]):
     #    if isinstance(n, HlsNetNodeExplicitSync):
     #        if isinstance(n, HlsNetNodeRead):
     #            validNB = n._validNB
@@ -576,7 +576,7 @@ class HlsNetlistAnalysisPassReachability(HlsNetlistAnalysisPass):
     #            toSearch.extend(u.obj for u in uses)
     #
     @classmethod
-    def _getDirectDataSuccessorsRaw(cls, toSearch: UniqList[HlsNetNode], seen: Set[HlsNetNode]) -> UniqList[HlsNetNodeExplicitSync]:
+    def _getDirectDataSuccessorsRaw(cls, toSearch: SetList[HlsNetNode], seen: Set[HlsNetNode]) -> SetList[HlsNetNodeExplicitSync]:
         """
         BFS search for HlsNetNodeExplicitSync successor nodes, but do not cross these instances while searching
         """
@@ -607,9 +607,9 @@ class HlsNetlistAnalysisPassReachability(HlsNetlistAnalysisPass):
 
     @classmethod
     def _getDirectDataSuccessorsRawAnyData(cls,
-                                           toSearch: UniqList[HlsNetNode],
+                                           toSearch: SetList[HlsNetNode],
                                            seen: Set[HlsNetNode],
-                                           searchEndPredicateFn: Callable[[HlsNetNode], bool]) -> UniqList[HlsNetNodeExplicitSync]:
+                                           searchEndPredicateFn: Callable[[HlsNetNode], bool]) -> SetList[HlsNetNodeExplicitSync]:
         """
         Simplified version of :meth:`~._getDirectDataSuccessorsRaw` which uses node searchEndPredicateFn instead of check for specific ports.
         """

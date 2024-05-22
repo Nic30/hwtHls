@@ -9,35 +9,33 @@
 
 from typing import Optional
 
-from hwt.code import Concat
-from hwt.hdl.types.bits import Bits
+from hdlConvertorAst.to.hdlUtils import iter_with_last
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
-from hwt.interfaces.std import Signal
-from hwt.interfaces.utils import addClkRstn
-from hwt.math import log2ceil, isPow2
-from hwt.synthesizer.param import Param
+from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
+from hwt.hwIOs.std import HwIOSignal
+from hwt.hwIOs.utils import addClkRstn
+from hwt.math import log2ceil
+from hwt.hwModule import HwModule
+from hwt.hwParam import HwParam
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwt.synthesizer.unit import Unit
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.markers import PyBytecodeLLVMLoopUnroll, \
-    PyBytecodeInPreproc
+from hwtHls.frontend.pyBytecode.markers import PyBytecodeLLVMLoopUnroll
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
-from hdlConvertorAst.to.hdlUtils import iter_with_last
-from hwt.interfaces.hsStructIntf import HsStructIntf
 
 
-class ShifterLeft0(Unit):
+class ShifterLeft0(HwModule):
 
     def _config(self) -> None:
-        self.DATA_WIDTH = Param(8)
-        self.CLK_FREQ = Param(int(100e6))
+        self.DATA_WIDTH = HwParam(8)
+        self.CLK_FREQ = HwParam(int(100e6))
 
     def _declr(self) -> None:
         addClkRstn(self)
-        self.i = Signal(Bits(self.DATA_WIDTH))
-        self.sh = Signal(Bits(log2ceil(self.DATA_WIDTH)))
-        self.o = Signal(Bits(self.DATA_WIDTH))._m()
+        self.i = HwIOSignal(HBits(self.DATA_WIDTH))
+        self.sh = HwIOSignal(HBits(log2ceil(self.DATA_WIDTH)))
+        self.o = HwIOSignal(HBits(self.DATA_WIDTH))._m()
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
@@ -84,21 +82,20 @@ class ShifterLeftUsingHwLoopWithWhileNot0(ShifterLeft0):
 
     def _config(self) -> None:
         super(ShifterLeftUsingHwLoopWithWhileNot0, self)._config()
-        self.UNROLL_META: Optional[PyBytecodeLLVMLoopUnroll] = Param(None)
-        self.FN_META: Optional[PyBytecodeLLVMLoopUnroll] = Param(None)
-        
+        self.UNROLL_META: Optional[PyBytecodeLLVMLoopUnroll] = HwParam(None)
+        self.FN_META: Optional[PyBytecodeLLVMLoopUnroll] = HwParam(None)
 
     def _declr(self) -> None:
         """
         Use handshake for sync of IO because the implementation may not be fully pipelined.
         """
         addClkRstn(self)
-        self.i = HsStructIntf()
-        self.sh = HsStructIntf()
-        self.sh.T = Bits(log2ceil(self.DATA_WIDTH))
-        self.o = HsStructIntf()._m()
+        self.i = HwIOStructRdVld()
+        self.sh = HwIOStructRdVld()
+        self.sh.T = HBits(log2ceil(self.DATA_WIDTH))
+        self.o = HwIOStructRdVld()._m()
 
-        self.i.T = self.o.T = Bits(self.DATA_WIDTH)
+        self.i.T = self.o.T = HBits(self.DATA_WIDTH)
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):

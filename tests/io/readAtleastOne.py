@@ -2,30 +2,30 @@
 # -*- coding: utf-8 -*-
 
 from hwt.hdl.types.defs import BIT
-from hwt.interfaces.std import Handshaked
-from hwt.interfaces.utils import addClkRstn
-from hwt.synthesizer.param import Param
-from hwt.synthesizer.unit import Unit
+from hwt.hwIOs.std import HwIODataRdVld
+from hwt.hwIOs.utils import addClkRstn
+from hwt.hwParam import HwParam
+from hwt.hwModule import HwModule
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc
 from hwtHls.frontend.pyBytecode import hlsBytecode
 
 
-class ReadAtleastOneOf2(Unit):
+class ReadAtleastOneOf2(HwModule):
 
     def _config(self) -> None:
-        self.DATA_WIDTH = Param(8)
-        self.CLK_FREQ = Param(int(100e6))
+        self.DATA_WIDTH = HwParam(8)
+        self.CLK_FREQ = HwParam(int(100e6))
 
     def _declr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
-        with self._paramsShared():
-            self.i0 = Handshaked()
-            self.i1 = Handshaked()
+        with self._hwParamsShared():
+            self.i0 = HwIODataRdVld()
+            self.i1 = HwIODataRdVld()
 
-            self.o: Handshaked = Handshaked()._m()
+            self.o: HwIODataRdVld = HwIODataRdVld()._m()
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
@@ -53,8 +53,8 @@ class ReadAtleastOneOf3(ReadAtleastOneOf2):
 
     def _declr(self):
         ReadAtleastOneOf2._declr(self)
-        with self._paramsShared():
-            self.i2 = Handshaked()
+        with self._hwParamsShared():
+            self.i2 = HwIODataRdVld()
 
     def mainThread(self, hls: HlsScope):
 
@@ -76,10 +76,11 @@ class ReadAtleastOneOf3(ReadAtleastOneOf2):
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.platform import HlsDebugBundle
-    u = ReadAtleastOneOf3()
-    # u.CLK_FREQ = int(100e6)
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    
+    m = ReadAtleastOneOf3()
+    # m.CLK_FREQ = int(100e6)
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 

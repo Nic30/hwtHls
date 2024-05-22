@@ -2,37 +2,37 @@
 # -*- coding: utf-8 -*-
 
 from hwt.hdl.types.struct import HStruct
-from hwt.interfaces.std import Handshaked
-from hwt.interfaces.utils import addClkRstn
-from hwt.synthesizer.hObjList import HObjList
-from hwt.synthesizer.param import Param
-from hwt.synthesizer.unit import Unit
+from hwt.hwIOs.std import HwIODataRdVld
+from hwt.hwIOs.utils import addClkRstn
+from hwt.hObjList import HObjList
+from hwt.hwParam import HwParam
+from hwt.hwModule import HwModule
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.scope import HlsScope
-from hwtLib.amba.axis import AxiStream
+from hwtLib.amba.axi4s import Axi4Stream
 from hwtLib.amba.axis_comp.frame_parser.test_types import structManyInts
 from hwtLib.types.ctypes import uint16_t, uint32_t
-from hwtHls.io.amba.axiStream.stmRead import HlsStmReadAxiStream
+from hwtHls.io.amba.axi4Stream.stmRead import HlsStmReadAxi4Stream
 from hwtHls.frontend.ast.statementsRead import HlsStmReadStartOfFrame, \
     HlsStmReadEndOfFrame
 
 
-class AxiSParseStructManyInts0(Unit):
+class Axi4SParseStructManyInts0(HwModule):
 
     def _config(self) -> None:
-        self.DATA_WIDTH = Param(64)
-        self.CLK_FREQ = Param(int(100e6))
+        self.DATA_WIDTH = HwParam(64)
+        self.CLK_FREQ = HwParam(int(100e6))
 
     def _declr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
-        with self._paramsShared():
-            self.i = AxiStream()
-        o: HObjList[Handshaked] = HObjList()
+        with self._hwParamsShared():
+            self.i = Axi4Stream()
+        o: HObjList[HwIODataRdVld] = HObjList()
         for f in structManyInts.fields:
             if f.name is not None:
-                _o = Handshaked()._m()
+                _o = HwIODataRdVld()._m()
                 _o.DATA_WIDTH = f.dtype.bit_length()
                 o.append(_o)
 
@@ -40,7 +40,7 @@ class AxiSParseStructManyInts0(Unit):
 
     def _impl(self) -> None:
         hls = HlsScope(self)
-        v = HlsStmReadAxiStream(hls, self.i, structManyInts, True)
+        v = HlsStmReadAxi4Stream(hls, self.i, structManyInts, True)
 
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
@@ -58,15 +58,15 @@ class AxiSParseStructManyInts0(Unit):
         hls.compile()
 
 
-class AxiSParseStructManyInts1(AxiSParseStructManyInts0):
+class Axi4SParseStructManyInts1(Axi4SParseStructManyInts0):
     """
-    :note: same as :class:`~.AxiSParseStructManyInts1` just read field by field
+    :note: same as :class:`~.Axi4SParseStructManyInts1` just read field by field
     """
 
     def _impl(self) -> None:
         hls = HlsScope(self)
         v = [
-            HlsStmReadAxiStream(hls, self.i, f.dtype, True)
+            HlsStmReadAxi4Stream(hls, self.i, f.dtype, True)
             for f in structManyInts.fields
         ]
 
@@ -97,15 +97,15 @@ struct_i16_i32 = HStruct(
 )
 
 
-class AxiSParse2fields(AxiSParseStructManyInts0):
+class Axi4SParse2fields(Axi4SParseStructManyInts0):
 
     def _declr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
-        with self._paramsShared():
-            self.i = AxiStream()
+        with self._hwParamsShared():
+            self.i = Axi4Stream()
 
-        o: HObjList[Handshaked] = HObjList(Handshaked()._m() for _ in range(2))
+        o: HObjList[HwIODataRdVld] = HObjList(HwIODataRdVld()._m() for _ in range(2))
         o[0].DATA_WIDTH = 16
         o[1].DATA_WIDTH = 32
         self.o = o
@@ -113,8 +113,8 @@ class AxiSParse2fields(AxiSParseStructManyInts0):
     def _impl(self) -> None:
         hls = HlsScope(self)
         v = [
-            HlsStmReadAxiStream(hls, self.i, uint16_t, True),
-            HlsStmReadAxiStream(hls, self.i, uint32_t, True),
+            HlsStmReadAxi4Stream(hls, self.i, uint16_t, True),
+            HlsStmReadAxi4Stream(hls, self.i, uint32_t, True),
         ]
 
         ast = HlsAstBuilder(hls)
@@ -135,10 +135,10 @@ class AxiSParse2fields(AxiSParseStructManyInts0):
 
 if __name__ == "__main__":
     from hwtHls.platform.virtual import VirtualHlsPlatform
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
 
-    u = AxiSParseStructManyInts0()
-    u.DATA_WIDTH = 16
+    m = Axi4SParseStructManyInts0()
+    m.DATA_WIDTH = 16
     p = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)
-    print(to_rtl_str(u, target_platform=p))
+    print(to_rtl_str(m, target_platform=p))

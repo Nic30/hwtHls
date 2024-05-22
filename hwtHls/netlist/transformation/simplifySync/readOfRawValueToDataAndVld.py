@@ -1,8 +1,8 @@
 from typing import Set
 
-from hwt.hdl.operatorDefs import AllOps
-from hwt.hdl.types.bitsVal import BitsVal
-from hwt.pyUtils.uniqList import UniqList
+from hwt.hdl.operatorDefs import HwtOps
+from hwt.hdl.types.bitsConst import HBitsConst
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn, \
@@ -12,7 +12,7 @@ from hwtHls.netlist.transformation.simplifyUtils import getConstDriverOf, \
     replaceOperatorNodeWith
 
 
-def netlistReadOfRawValueToDataAndVld(n: HlsNetNodeRead, worklist: UniqList[HlsNetNode],
+def netlistReadOfRawValueToDataAndVld(n: HlsNetNodeRead, worklist: SetList[HlsNetNode],
                                             removed: Set[HlsNetNode]):
     """
     try convert uses of "rawValue" to uses of "dataOut" and "valid" outputs
@@ -27,12 +27,12 @@ def netlistReadOfRawValueToDataAndVld(n: HlsNetNodeRead, worklist: UniqList[HlsN
     for u in tuple(rawUses):
         u: HlsNetNodeIn
         uObj: HlsNetNode = u.obj
-        if isinstance(uObj, HlsNetNodeOperator) and uObj.operator == AllOps.INDEX and rawValueO is uObj.dependsOn[0]:
+        if isinstance(uObj, HlsNetNodeOperator) and uObj.operator == HwtOps.INDEX and rawValueO is uObj.dependsOn[0]:
             i = getConstDriverOf(uObj._inputs[1])
             if i is not None:
                 iVal = i.val  # index of selected bit
                 # reachDb.addAllUsersToInDepChange(uObj)
-                if isinstance(iVal, (BitsVal, int)):
+                if isinstance(iVal, (HBitsConst, int)):
                     iVal = int(iVal)
                     if dataWidth == iVal:
                         # is selecting _valid port

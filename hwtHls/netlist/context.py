@@ -4,7 +4,7 @@ from math import ceil
 from typing import Union, Optional, Set, Callable
 
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
-from hwt.synthesizer.unit import Unit
+from hwt.hwModule import HwModule
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
 from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
@@ -24,7 +24,7 @@ class HlsNetlistCtx(AnalysisCache):
 
     :ivar label: a name of this scope
     :ivar namePrefix: name prefix which should be used for child object names
-    :ivar parentUnit: parent unit where RTL should be instantiated
+    :ivar parentHwModule: parent unit where RTL should be instantiated
     :ivar platform: platform with configuration of this HLS context
     :ivar freq: target frequency for RTL (in Hz)
     :ivar resource_constrain: optional resource constrains
@@ -39,7 +39,7 @@ class HlsNetlistCtx(AnalysisCache):
         disabled by default as it goes against optimizations
     """
 
-    def __init__(self, parentUnit: Unit,
+    def __init__(self, parentHwModule: HwModule,
                  freq: Union[float, int],
                  label: str,
                  namePrefix:str="hls_",
@@ -51,8 +51,8 @@ class HlsNetlistCtx(AnalysisCache):
         """
         self.label = label
         self.namePrefix = namePrefix
-        self.parentUnit = parentUnit
-        self.platform = platform if platform is not None else parentUnit._target_platform
+        self.parentHwModule = parentHwModule
+        self.platform = platform if platform is not None else parentHwModule._target_platform
         self.builder: Optional["HlsNetlistBuilder"] = None
         self._uniqNodeCntr = 0
 

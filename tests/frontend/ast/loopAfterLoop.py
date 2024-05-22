@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.hdl.types.bits import Bits
-from hwt.interfaces.hsStructIntf import HsStructIntf
-from hwt.interfaces.utils import addClkRstn
-from hwt.synthesizer.param import Param
-from hwt.synthesizer.unit import Unit
+from hwt.hdl.types.bits import HBits
+from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
+from hwt.hwIOs.utils import addClkRstn
+from hwt.hwModule import HwModule
+from hwt.hwParam import HwParam
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.platform.virtual import VirtualHlsPlatform
@@ -15,19 +15,19 @@ from hwtSimApi.utils import freq_to_period
 from tests.baseSsaTest import BaseSsaTC
 
 
-class TwoTimesFiniteWhileInWhileTrue(Unit):
+class TwoTimesFiniteWhileInWhileTrue(HwModule):
 
     def _config(self) -> None:
-        self.DATA_WIDTH = Param(8)
-        self.FREQ = Param(int(50e6))
+        self.DATA_WIDTH = HwParam(8)
+        self.FREQ = HwParam(int(50e6))
 
     def _declr(self) -> None:
         addClkRstn(self)
         self.clk.FREQ = self.FREQ
-        self.dataOut0: HsStructIntf = HsStructIntf()._m()
-        self.dataOut0.T = Bits(self.DATA_WIDTH, signed=False)
-        self.dataOut1: HsStructIntf = HsStructIntf()._m()
-        self.dataOut1.T = Bits(self.DATA_WIDTH, signed=False)
+        self.dataOut0: HwIOStructRdVld = HwIOStructRdVld()._m()
+        self.dataOut0.T = HBits(self.DATA_WIDTH, signed=False)
+        self.dataOut1: HwIOStructRdVld = HwIOStructRdVld()._m()
+        self.dataOut1.T = HBits(self.DATA_WIDTH, signed=False)
 
     def _impl(self) -> None:
         hls = HlsScope(self)
@@ -79,33 +79,47 @@ class LoopAfterLoop_TC(BaseSsaTC):
     __FILE__ = __file__
 
     def test_TwoTimesFiniteWhileInWhileTrue(self):
-        u = TwoTimesFiniteWhileInWhileTrue()
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
-        self.runSim(int(10 * freq_to_period(u.FREQ)))
+        
+        from hwtHls.platform.platform import HlsDebugBundle
+        dut = TwoTimesFiniteWhileInWhileTrue()
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform(
+            debugFilter={
+                *HlsDebugBundle.ALL_RELIABLE,
+                HlsDebugBundle.DBG_20_addSignalNamesToData,
+                HlsDebugBundle.DBG_20_addSignalNamesToSync,
+            }
+            ))
+        self.runSim(int(10 * freq_to_period(dut.FREQ)))
 
-        self.assertValSequenceEqual(u.dataOut0._ag.data, [4 for _ in range(4)])
-        self.assertValSequenceEqual(u.dataOut1._ag.data, [5 for _ in range(5)])
+        self.assertValSequenceEqual(dut.dataOut0._ag.data, [4 for _ in range(4)])
+        self.assertValSequenceEqual(dut.dataOut1._ag.data, [5 for _ in range(5)])
 
     def test_TwoTimesFiniteWhile(self):
-        u = TwoTimesFiniteWhile()
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
-        self.runSim(int(10 * freq_to_period(u.FREQ)))
+        dut = TwoTimesFiniteWhile()
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform(
 
-        self.assertValSequenceEqual(u.dataOut0._ag.data, [4 for _ in range(4)])
-        self.assertValSequenceEqual(u.dataOut1._ag.data, [5 for _ in range(5)])
+            ))
+        self.runSim(int(10 * freq_to_period(dut.FREQ)))
+
+        self.assertValSequenceEqual(dut.dataOut0._ag.data, [4 for _ in range(4)])
+        self.assertValSequenceEqual(dut.dataOut1._ag.data, [5 for _ in range(5)])
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import to_rtl_str
-    from hwtHls.platform.platform import HlsDebugBundle
-
-    u = TwoTimesFiniteWhile()
-    u.FREQ = int(150e6)
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    # from hwt.synth import to_rtl_str
+    # from hwtHls.platform.platform import HlsDebugBundle
+    # 
+    # m = TwoTimesFiniteWhileInWhileTrue()
+    # # m.FREQ = int(150e6)
+    # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter={
+    #     *HlsDebugBundle.ALL_RELIABLE,
+    #     HlsDebugBundle.DBG_20_addSignalNamesToData,
+    #     HlsDebugBundle.DBG_20_addSignalNamesToSync,
+    # })))
 
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([LoopAfterLoop_TC('test_TwoTimesFiniteWhile')])
+    # suite = unittest.TestSuite([LoopAfterLoop_TC('test_TwoTimesFiniteWhileInWhileTrue')])
     suite = testLoader.loadTestsFromTestCase(LoopAfterLoop_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

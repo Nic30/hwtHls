@@ -1,7 +1,7 @@
 from itertools import chain
 from typing import List, Optional, Dict
 
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.hdlTypeVoid import HdlType_isNonData
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
@@ -35,7 +35,7 @@ class HlsNetlistAnalysisPassDetectLoops(HlsNetlistAnalysisPass):
 
     def __init__(self):
         super(HlsNetlistAnalysisPassDetectLoops, self).__init__()
-        self.loops: List[UniqList[HlsNetNode]] = []
+        self.loops: List[SetList[HlsNetNode]] = []
         self.syncOfNode: Dict[HlsNetNode, Optional[NetlistLoop]] = {}
 
     @staticmethod

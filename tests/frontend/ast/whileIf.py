@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.hdl.types.bits import Bits
+from hwt.hdl.types.bits import HBits
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.scope import HlsScope
@@ -12,7 +12,7 @@ class WhileAndIf0(WhileTrueWrite):
 
     def _impl(self) -> None:
         hls = HlsScope(self)
-        x = hls.var("x", Bits(self.DATA_WIDTH, signed=False))
+        x = hls.var("x", HBits(self.DATA_WIDTH, signed=False))
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
             ast.While(True,
@@ -41,7 +41,7 @@ class WhileAndIf0b(WhileAndIf0):
 
     def _impl(self) -> None:
         hls = HlsScope(self)
-        x = hls.var("x", Bits(self.DATA_WIDTH, signed=False))
+        x = hls.var("x", HBits(self.DATA_WIDTH, signed=False))
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
             ast.While(True,
@@ -66,7 +66,7 @@ class WhileAndIf1(WhileTrueWrite):
     def _impl(self) -> None:
         dout = self.dataOut
         hls = HlsScope(self)
-        x = hls.var("x", Bits(self.DATA_WIDTH, signed=False))
+        x = hls.var("x", HBits(self.DATA_WIDTH, signed=False))
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
             ast.While(True,
@@ -97,7 +97,7 @@ class WhileAndIf2(WhileTrueReadWrite):
     def _impl(self) -> None:
         dout = self.dataOut
         hls = HlsScope(self)
-        x = hls.var("x", Bits(self.DATA_WIDTH, signed=False))
+        x = hls.var("x", HBits(self.DATA_WIDTH, signed=False))
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
             ast.While(True,
@@ -121,7 +121,7 @@ class WhileAndIf3(WhileTrueReadWrite):
     def _impl(self) -> None:
         dout = self.dataOut
         hls = HlsScope(self)
-        x = hls.var("x", Bits(self.DATA_WIDTH, signed=False))
+        x = hls.var("x", HBits(self.DATA_WIDTH, signed=False))
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
             ast.While(True,
@@ -148,7 +148,7 @@ class WhileAndIf4(WhileTrueReadWrite):
     def _impl(self) -> None:
         dout = self.dataOut
         hls = HlsScope(self)
-        x = hls.var("x", Bits(self.DATA_WIDTH, signed=False))
+        x = hls.var("x", HBits(self.DATA_WIDTH, signed=False))
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
             ast.While(True,
@@ -170,10 +170,10 @@ class WhileAndIf4(WhileTrueReadWrite):
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.platform import HlsDebugBundle
-    u = WhileAndIf0()
-    u.DATA_WIDTH = 4
-    u.FREQ = int(50e6)
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    m = WhileAndIf0()
+    m.DATA_WIDTH = 4
+    m.FREQ = int(50e6)
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

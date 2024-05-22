@@ -1,12 +1,12 @@
 from typing import Union, Optional, List
 
-from hwt.hdl.operator import Operator
-from hwt.hdl.operatorDefs import AllOps
+from hwt.hdl.operator import HOperatorNode
+from hwt.hdl.operatorDefs import HwtOps
 from hwt.hdl.types.array import HArray
-from hwt.hdl.types.function import HFunctionVal, HFunction
+from hwt.hdl.types.function import HFunctionConst, HFunction
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.types.struct import HStruct
-from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
+from hwt.constants import NOT_SPECIFIED
 from hwtHls.llvm.llvmIr import MachineInstr, CallInst, AddDefaultFunctionAttributes, Register
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
@@ -18,24 +18,24 @@ from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import Machin
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
 
 
-class HardBlockUnit(HFunctionVal):
+class HardBlockHwModule(HFunctionConst):
     """
     A container for part of the circuit inlined later during compilation.
-    :note: this class inherits from HFunctionVal because the object represents a constant function pointer
+    :note: this class inherits from HFunctionConst because the object represents a constant function pointer
     
     [todo] maybe it is better to implement inlining on arch level using processes
     There are multiple ways how to inline function in hwtHls:
        * call normal python function which produces expression/ast and analyze this expression.
        * call hlsBytecode with PyBytecodeInline which inlines function in frontend
-       * use :meth:`HardBlockUnit.translateMirToNetlist` to merge with netlist of parent function on netlist level
-       * use :meth:`HardBlockUnit.translateNetlistToArch` to merge with netlist of parent function on architecture level
+       * use :meth:`HardBlockHwModule.translateMirToNetlist` to merge with netlist of parent function on netlist level
+       * use :meth:`HardBlockHwModule.translateNetlistToArch` to merge with netlist of parent function on architecture level
     
     :cvar __hlsIsLowLevelFn: a constant flag which tells pybytecode frontend that this object call will translate this object
     :cvar _dtype: constant attribute holding type of HFunction
     :ivar val: name used for user to better identify object in LLVM and netlist
     :ivar hwInputT: type of hardware inputs
     :ivar hwOutputT: type of hardware outputs
-    :ivar vld_mask: constant 1 to complete  HFunctionVal attributes
+    :ivar vld_mask: constant 1 to complete  HFunctionConst attributes
     :ivar placeholderObjectId: index of this in placeholder list
     """
 
@@ -78,7 +78,7 @@ class HardBlockUnit(HFunctionVal):
         if self.hasManyOutputs:
             raise NotImplementedError()
         else:
-            return Operator.withRes(AllOps.CALL, [self, *args], self.hwOutputT)
+            return HOperatorNode.withRes(HwtOps.CALL, [self, *args], self.hwOutputT)
 
     def translateCallAttributesToLlvm(self, toLlvm: "ToLlvmIrTranslator", res: CallInst):
         fn = res.getCalledFunction()

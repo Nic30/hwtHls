@@ -12,15 +12,15 @@ from tests.io.amba.axi4Lite.axi4LiteCopy import Axi4LiteCopy
 class Axi4LiteCopy_TC(SimTestCase):
 
     def test_Axi4LiteCopy(self):
-        u = Axi4LiteCopy()
+        dut = Axi4LiteCopy()
         WORD_SIZE = 8
-        u.ADDR_WIDTH = 5 + 3
-        u.OFFSET = 16 * WORD_SIZE
-        u.DATA_WIDTH = WORD_SIZE * 8
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
+        dut.ADDR_WIDTH = 5 + 3
+        dut.OFFSET = 16 * WORD_SIZE
+        dut.DATA_WIDTH = WORD_SIZE * 8
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
 
-        m = Axi4LiteSimRam(u.ram)
-        t = u.ram.r.data._dtype
+        m = Axi4LiteSimRam(dut.ram)
+        t = dut.ram.r.data._dtype
         N = 8
         MAGIC = 0x10
         ref = []
@@ -28,11 +28,11 @@ class Axi4LiteCopy_TC(SimTestCase):
             m.data[i] = t.from_py(i + MAGIC)
             ref.append(i + MAGIC)
 
-        clkPeriod = int(freq_to_period(u.CLK_FREQ))
+        clkPeriod = int(freq_to_period(dut.CLK_FREQ))
         self.runSim((3 * N + 1) * clkPeriod)
         BaseIrMirRtl_TC._test_no_comb_loops(self)
 
-        inRamData = m.getArray(u.OFFSET, WORD_SIZE, N)
+        inRamData = m.getArray(dut.OFFSET, WORD_SIZE, N)
         self.assertValSequenceEqual(inRamData, ref)
 
 

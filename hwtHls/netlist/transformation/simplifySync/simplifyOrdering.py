@@ -1,6 +1,6 @@
 from typing import Set, Sequence, Optional, Tuple
 
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.hdlTypeVoid import HdlType_isNonData, HVoidOrdering, \
@@ -14,7 +14,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeIn, link_hls_nodes, \
 
 
 def netlistExplicitSyncDisconnectFromOrderingChain(dbgTracer: DebugTracer, n: HlsNetNodeOrderable,
-                                                   worklist: Optional[UniqList[HlsNetNode]],
+                                                   worklist: Optional[SetList[HlsNetNode]],
                                                    disconnectPredecessors: bool=True,
                                                    disconnectSuccesors: bool=True):
     """
@@ -140,7 +140,7 @@ def netlistExplicitSyncOrderingBypass(orderingI: HlsNetNodeIn, disconnectInput: 
             link_hls_nodes(predOo, i)
 
 
-def netlistExplicitSyncOrderingOutUsesDiscard(n: HlsNetNodeExplicitSync, worklist: Optional[UniqList[HlsNetNode]]):
+def netlistExplicitSyncOrderingOutUsesDiscard(n: HlsNetNodeExplicitSync, worklist: Optional[SetList[HlsNetNode]]):
     """
     Disconnect uses of ordering output of n and remove all ports which were originally connected.
     """
@@ -155,7 +155,7 @@ def netlistExplicitSyncOrderingOutUsesDiscard(n: HlsNetNodeExplicitSync, worklis
     # n.usedBy[o.out_i].clear()
 
 
-def netlistTrivialOrderingReduce(n: HlsNetNodeExplicitSync, worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]):
+def netlistTrivialOrderingReduce(n: HlsNetNodeExplicitSync, worklist: SetList[HlsNetNode], removed: Set[HlsNetNode]):
     modified = False
     for orderingI in tuple(n.iterOrderingInputs()):
         orderingI: HlsNetNodeIn

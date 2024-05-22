@@ -1,7 +1,7 @@
 from itertools import chain
 from typing import List, Set, Dict, Tuple, Union
 
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.analysis.betweenSyncIslandsUtils import BetweenSyncIsland
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
@@ -62,7 +62,7 @@ class HlsNetlistAnalysisPassBetweenSyncIslands(HlsNetlistAnalysisPass):
 
     @classmethod
     def discoverSyncIsland(cls, node: HlsNetNodeExplicitSync, incommingDir: DIRECTION, reachDb: HlsNetlistAnalysisPassReachability)\
-            ->Tuple[UniqList[HlsNetNodeExplicitSync], UniqList[HlsNetNodeExplicitSync]]:
+            ->Tuple[SetList[HlsNetNodeExplicitSync], SetList[HlsNetNodeExplicitSync]]:
         """
         This function search for sync nodes related to specified input node.
         First search for all users of this node outputs
@@ -73,13 +73,13 @@ class HlsNetlistAnalysisPassBetweenSyncIslands(HlsNetlistAnalysisPass):
         """
 
         # find boundaries of local synchronization cluster
-        inputs: UniqList[HlsNetNodeExplicitSync] = UniqList()
-        outputs: UniqList[HlsNetNodeExplicitSync] = UniqList()
+        inputs: SetList[HlsNetNodeExplicitSync] = SetList()
+        outputs: SetList[HlsNetNodeExplicitSync] = SetList()
         toSearchDefToUse: List[HlsNetNode] = []
         toSearchUseToDef: List[HlsNetNode] = []
         seenDefToUse: Set[HlsNetNode] = set()
         seenUseToDef: Set[HlsNetNode] = set()
-        internalNodes: UniqList[HlsNetNode] = UniqList()
+        internalNodes: SetList[HlsNetNode] = SetList()
 
         if incommingDir == DIRECTION.IN:
             toSearchDefToUse.append(node)
@@ -257,7 +257,7 @@ class HlsNetlistAnalysisPassBetweenSyncIslands(HlsNetlistAnalysisPass):
         toSearchUseToDef: List[HlsNetNode] = []
         seenDefToUse: Set[HlsNetNode] = set()
         seenUseToDef: Set[HlsNetNode] = set()
-        internalNodes: UniqList[HlsNetNode] = UniqList((node,))
+        internalNodes: SetList[HlsNetNode] = SetList((node,))
 
         if incommingDir == DIRECTION.IN:
             toSearchDefToUse.append(node)
@@ -300,7 +300,7 @@ class HlsNetlistAnalysisPassBetweenSyncIslands(HlsNetlistAnalysisPass):
                     depOIsl = syncIslandOfNode.get(depO, None)
                     if depOIsl is None:
                         nodes = self._collectNodesWithoutIsland(depO, DIRECTION.INOUT)
-                        isl = BetweenSyncIsland(UniqList(), UniqList(), nodes)
+                        isl = BetweenSyncIsland(SetList(), SetList(), nodes)
                         syncIslands.append(isl)
                         for n0 in isl.nodes:
                             syncIslandOfNode[n0] = isl
@@ -316,7 +316,7 @@ class HlsNetlistAnalysisPassBetweenSyncIslands(HlsNetlistAnalysisPass):
                         useOIsl = syncIslandOfNode.get(useO, None)
                         if useOIsl is None:
                             nodes = self._collectNodesWithoutIsland(useO, DIRECTION.INOUT)
-                            isl = BetweenSyncIsland(UniqList(), UniqList(), nodes)
+                            isl = BetweenSyncIsland(SetList(), SetList(), nodes)
                             syncIslands.append(isl)
                             for n0 in isl.nodes:
                                 syncIslandOfNode[n0] = isl

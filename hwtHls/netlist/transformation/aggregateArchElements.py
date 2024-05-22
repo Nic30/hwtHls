@@ -1,6 +1,6 @@
 from typing import Set, List
 
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.analysis.detectFsms import HlsNetlistAnalysisPassDetectFsms, \
     IoFsm
 from hwtHls.netlist.analysis.detectPipelines import HlsNetlistAnalysisPassDetectPipelines, \
@@ -57,7 +57,7 @@ class HlsNetlistPassAggregateArchElements(HlsNetlistPass):
         removedNodes: Set[HlsNetNode] = set()
         for i, ioFsm in enumerate(fsms.fsms):
             ioFsm: IoFsm
-            allNodes: UniqList[HlsNetNode] = UniqList()
+            allNodes: SetList[HlsNetNode] = SetList()
             for nodes in ioFsm.states:
                 allNodes.extend(nodes)
                 for n in nodes:
@@ -74,7 +74,7 @@ class HlsNetlistPassAggregateArchElements(HlsNetlistPass):
 
         for i, pipe in enumerate(pipelines.pipelines):
             pipe: NetlistPipeline
-            allNodes = UniqList()
+            allNodes = SetList()
             for nodes in pipe.stages:
                 allNodes.extend(nodes)
                 for n in nodes:

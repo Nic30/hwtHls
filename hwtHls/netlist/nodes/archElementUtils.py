@@ -1,7 +1,7 @@
 from itertools import chain, zip_longest
 from typing import Optional, Dict
 
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.analysis.detectFsms import IoFsm
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.nodes.archElement import ArchElement
@@ -94,7 +94,7 @@ def ArchElement_mergeFsms(src: ArchElementFsm, dst: ArchElementFsm):
 
     dst._subNodes.extend(src._subNodes)
     ArchElement_mergePorts(src, dst)
-    dstFsm.intf = None  # because there are now 2 interfaces and thus this FSM is not associated with a single io
+    dstFsm.hwIO = None  # because there are now 2 interfaces and thus this FSM is not associated with a single io
     src.destroy()
 
 
@@ -130,8 +130,8 @@ def ArchElement_mergePipeline(src: ArchElementPipeline,
 
 
 def ArchElement_merge(src: ArchElement, dst: ArchElement,
-                      predecessors: Optional[Dict[ArchElement, UniqList[ArchElement]]],
-                      successors: Optional[Dict[ArchElement, UniqList[ArchElement]]]):
+                      predecessors: Optional[Dict[ArchElement, SetList[ArchElement]]],
+                      successors: Optional[Dict[ArchElement, SetList[ArchElement]]]):
 
     if isinstance(src, ArchElementPipeline) and isinstance(dst, ArchElementFsm):
         ArchElement_mergePipeToFsm(src, dst)

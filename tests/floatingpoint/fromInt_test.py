@@ -5,11 +5,11 @@ from datetime import datetime
 from pathlib import Path
 
 from hwt.hdl.types.defs import BIT
-from hwt.interfaces.hsStructIntf import HsStructIntf
-from hwt.interfaces.utils import addClkRstn
+from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
+from hwt.hwIOs.utils import addClkRstn
 from hwt.simulator.simTestCase import SimTestCase
-from hwt.synthesizer.param import Param
-from hwt.synthesizer.unit import Unit
+from hwt.hwParam import HwParam
+from hwt.hwModule import HwModule
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
@@ -22,21 +22,21 @@ from tests.floatingpoint.fromInt import IEEE754FpFromInt
 from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
 
 
-class IEEE754FpFromIntConventor(Unit):
+class IEEE754FpFromIntConventor(HwModule):
 
     def _config(self) -> None:
-        self.T_IN = Param(int64_t)
-        self.T = Param(IEEE754Fp64)
+        self.T_IN = HwParam(int64_t)
+        self.T = HwParam(IEEE754Fp64)
 
-        self.FREQ = Param(int(20e6))
+        self.FREQ = HwParam(int(20e6))
 
     def _declr(self) -> None:
         addClkRstn(self)
         self.clk.FREQ = self.FREQ
 
-        self.a = HsStructIntf()
+        self.a = HwIOStructRdVld()
         self.a.T = self.T_IN
-        self.res = HsStructIntf()._m()
+        self.res = HwIOStructRdVld()._m()
         self.res.T = self.T
 
     @hlsBytecode
@@ -105,11 +105,11 @@ class IEEE754FpFromInt_TC(SimTestCase):
                                                    "%016X" % int(refVal._reinterpret_cast(uint64_t)),
                                                    "input", a, resFp, "expected", refVal))
 
-        u = IEEE754FpFromIntConventor()
-        u.FREQ = int(1e6)
+        dut = IEEE754FpFromIntConventor()
+        dut.FREQ = int(1e6)
         if self.LOG_TIME:
             time0 = datetime.now()
-        self.compileSimAndStart(u, target_platform=TestLlvmIrAndMirPlatform.forSimpleDataInDataOutUnit(
+        self.compileSimAndStart(dut, target_platform=TestLlvmIrAndMirPlatform.forSimpleDataInDataOutHwModule(
             prepareDataInFn,
             checkDataOutFn,
             Path(self.DEFAULT_LOG_DIR, f"{self.getTestName()}"),
@@ -121,13 +121,13 @@ class IEEE754FpFromInt_TC(SimTestCase):
 
         refRes = []
         for a in self.TEST_DATA:
-            u.a._ag.data.append(a)
+            dut.a._ag.data.append(a)
             _resRef = self.model(a)
             # refRes.append(_resRef)
             _resRef = IEEE754Fp64.from_py(_resRef)
             refRes.append((int(_resRef.mantissa), int(_resRef.exponent), int(_resRef.sign)))
 
-        CLK_PERIOD = freq_to_period(u.clk.FREQ)
+        CLK_PERIOD = freq_to_period(dut.clk.FREQ)
         if self.LOG_TIME:
             time0 = datetime.now()
         self.runSim((len(self.TEST_DATA) + 1) * int(CLK_PERIOD))
@@ -136,8 +136,8 @@ class IEEE754FpFromInt_TC(SimTestCase):
             print("RTL sim", time1 - time0)
 
         # res = [IEEE754Fp64.to_py(IEEE754Fp64.from_py({"sign": sign, "exponent": exponent, "mantissa": mantissa}))
-        #                             for mantissa, exponent, sign in u.res._ag.data]
-        res = u.res._ag.data
+        #                             for mantissa, exponent, sign in dut.res._ag.data]
+        res = dut.res._ag.data
         # for resItem, refItem in zip(res, refRes):
         #     self.assertValSequenceEqual(resItem, refItem)
         self.assertValSequenceEqual(res, refRes)
@@ -146,15 +146,15 @@ class IEEE754FpFromInt_TC(SimTestCase):
 
 
 if __name__ == "__main__":
-    # from hwt.synthesizer.utils import to_rtl_str
+    # from hwt.synth import to_rtl_str
     # from hwtHls.platform.platform import HlsDebugBundle
     # from hwtHls.platform.virtual import VirtualHlsPlatform
     # from hwtLib.types.ctypes import int16_t
     # from tests.floatingpoint.fptypes import IEEE754Fp16
-    # u = IEEE754FpFromIntConventor()
-    # u.T_IN = int16_t
-    # u.T = IEEE754Fp16
-    # print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    # dut = IEEE754FpFromIntConventor()
+    # dut.T_IN = int16_t
+    # dut.T = IEEE754Fp16
+    # print(to_rtl_str(dut, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
     #import cProfile

@@ -4,13 +4,13 @@
 from typing import Type
 import unittest
 
-from hwt.hdl.types.bits import Bits
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
-from hwt.interfaces.std import VectSignal
-from hwt.interfaces.utils import addClkRstn
+from hwt.hwIOs.std import HwIOVectSignal
+from hwt.hwIOs.utils import addClkRstn
 from hwt.simulator.simTestCase import SimTestCase
-from hwt.synthesizer.param import Param
-from hwt.synthesizer.unit import Unit
+from hwt.hwParam import HwParam
+from hwt.hwModule import HwModule
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
@@ -22,11 +22,11 @@ class TestException0(Exception):
     pass
 
 
-class PyExceptionJustRaise(Unit):
+class PyExceptionJustRaise(HwModule):
 
     def _declr(self):
-        self.i = VectSignal(8, signed=False)
-        self.o = VectSignal(8, signed=False)._m()
+        self.i = HwIOVectSignal(8, signed=False)
+        self.o = HwIOVectSignal(8, signed=False)._m()
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
@@ -45,7 +45,7 @@ class PyExceptionJustRaise(Unit):
 class PyExceptionRaisePyConditionaly(PyExceptionJustRaise):
 
     def _config(self) -> None:
-        self.RAISE = Param(True)
+        self.RAISE = HwParam(True)
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
@@ -117,7 +117,7 @@ class PyExceptionRaiseRaiseUsingAssertFromInlined2(PyExceptionRaisePyConditional
     @hlsBytecode
     def mainThreadMainPart(self, hls: HlsScope):
         assert not self.RAISE
-        i = hls.var("i", Bits(8))
+        i = hls.var("i", HBits(8))
         i = 0
         while i < 4:
             hls.write(i, self.o)
@@ -165,11 +165,11 @@ class PyExceptionRaiseRaiseCatch(PyExceptionJustRaise):
 
 class PyBytecodePyException_TC(SimTestCase):
 
-    def _testIfCompiles(self, unit: Unit):
+    def _testIfCompiles(self, module: HwModule):
         t_name = self.getTestName()
-        u_name = unit._getDefaultName()
+        u_name = module._getDefaultName()
         unique_name = f"{t_name:s}__{u_name:s}"
-        self.compileSim(unit, unique_name=unique_name, target_platform=VirtualHlsPlatform())
+        self.compileSim(module, unique_name=unique_name, target_platform=VirtualHlsPlatform())
 
     def test_PyExceptionJustRaise(self):
         with self.assertRaises(TestException0):
@@ -200,27 +200,27 @@ class PyBytecodePyException_TC(SimTestCase):
         self._test_PyExceptionRaisePyConditionaly(PyExceptionRaiseRaiseUsingAssertFromInlinedWithLognerCond, errCls=AssertionError)
 
     def _test_PyExceptionRaisePyConditionaly(self, cls: Type[PyExceptionRaisePyConditionaly], errCls: Type[Exception]):
-        u = cls()
-        u.RAISE = True
+        dut = cls()
+        dut.RAISE = True
         with self.assertRaises(errCls):
-            self._testIfCompiles(u)
+            self._testIfCompiles(dut)
 
-        u = cls()
-        u.RAISE = False
-        self._testIfCompiles(u)
+        dut = cls()
+        dut.RAISE = False
+        self._testIfCompiles(dut)
 
     @unittest.expectedFailure
     def test_PyExceptionRaiseRaiseCatch(self):
-        u = PyExceptionRaiseRaiseCatch()
-        self._testIfCompiles(u)
+        dut = PyExceptionRaiseRaiseCatch()
+        self._testIfCompiles(dut)
 
 
 if __name__ == "__main__":
-    # from hwt.synthesizer.utils import to_rtl_str
+    # from hwt.synth import to_rtl_str
     # from hwtHls.platform.platform import HlsDebugBundle
-    # u = PyExceptionJustRaise()
-    # #u.RAISE = False
-    # print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    # m = PyExceptionJustRaise()
+    # #m.RAISE = False
+    # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     testLoader = unittest.TestLoader()
     # suite = unittest.TestSuite([PyBytecodePyException_TC("test_frameHeader")])

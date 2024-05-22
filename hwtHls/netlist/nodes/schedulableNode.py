@@ -3,7 +3,7 @@ from math import inf, isfinite
 from typing import Tuple, Dict, Optional, Callable, Union, Literal, List, \
     Generator
 
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.observableList import ObservableList
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod, start_clk,\
@@ -18,7 +18,7 @@ SchedulizationDict = Dict["HlsNetNode", Tuple[SchedTime,  # node zero time
                                               Tuple[SchedTime, ...]]]  # scheduledOut
 TimeSpec = Union[float, Tuple[SchedTime, ...]]
 OutputMinUseTimeGetter = Callable[[HlsNetNodeOut, Union[SchedTime, Literal[inf]]], SchedTime]  # second parameter is a current min time resolved from inputs
-OutputTimeGetter = Callable[[HlsNetNodeOut, Optional[UniqList["HlsNetNode"]], SchedTime], SchedTime]  # 2. parameter is path of nodes for debug of cycles, 3. parameter is beginOfFirstClk
+OutputTimeGetter = Callable[[HlsNetNodeOut, Optional[SetList["HlsNetNode"]], SchedTime], SchedTime]  # 2. parameter is path of nodes for debug of cycles, 3. parameter is beginOfFirstClk
 
 
 class SchedulableNode():
@@ -163,7 +163,7 @@ class SchedulableNode():
                           +inputClkTickOffset * clkPeriod)
         return normalizedTime
 
-    def scheduleAsap(self, pathForDebug: Optional[UniqList["HlsNetNode"]],
+    def scheduleAsap(self, pathForDebug: Optional[SetList["HlsNetNode"]],
                      beginOfFirstClk: SchedTime,
                      outputTimeGetter: Optional[OutputTimeGetter]) -> List[int]:
         """

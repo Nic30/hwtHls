@@ -1,8 +1,8 @@
 from hwt.code import Concat
 from hwt.code_utils import rename_signal
-from hwt.hdl.operatorDefs import OpDefinition, AllOps
-from hwt.hdl.types.bits import Bits
-from hwt.hdl.value import HValue
+from hwt.hdl.operatorDefs import HOperatorDef, HwtOps
+from hwt.hdl.types.bits import HBits
+from hwt.hdl.const import HConst
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, \
     TimeIndependentRtlResourceItem, INVARIANT_TIME
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
@@ -23,9 +23,9 @@ class HlsNetNodeOperator(HlsNetNode):
     """
 
     def __init__(self, netlist: "HlsNetlistCtx",
-                 operator: OpDefinition,
+                 operator: HOperatorDef,
                  operandCnt: int,
-                 dtype: Bits,
+                 dtype: HBits,
                  name=None):
         super(HlsNetNodeOperator, self).__init__(netlist, name=name)
         self.operator = operator
@@ -40,7 +40,7 @@ class HlsNetNodeOperator(HlsNetNode):
         input_cnt = len(self.dependsOn)
 
         bit_length = self.getInputDtype(0).bit_length()
-        if self.operator is AllOps.TERNARY:
+        if self.operator is HwtOps.TERNARY:
             input_cnt = input_cnt // 2 + 1
 
         r = netlist.platform.get_op_realization(
@@ -53,7 +53,7 @@ class HlsNetNodeOperator(HlsNetNode):
         assert not self._isRtlAllocated
         op_out = self._outputs[0]
         if HdlType_isVoid(op_out._dtype):
-            assert self.operator == AllOps.CONCAT, self
+            assert self.operator == HwtOps.CONCAT, self
             res = []
             allocator.netNodeToRtl[op_out] = res
             return res
@@ -65,7 +65,7 @@ class HlsNetNodeOperator(HlsNetNode):
             operands.append(_o)
 
         s = None
-        if self.operator == AllOps.CONCAT:
+        if self.operator == HwtOps.CONCAT:
             if HdlType_isVoid(op_out._dtype):
                 s = op_out._dtype.from_py(None)
             operands = reversed(operands)
@@ -76,7 +76,7 @@ class HlsNetNodeOperator(HlsNetNode):
         if s is None:
             s = evalFn(*(o.data for o in operands))
 
-        if isinstance(s, HValue):
+        if isinstance(s, HConst):
             t = INVARIANT_TIME
 
         else:
@@ -90,7 +90,7 @@ class HlsNetNodeOperator(HlsNetNode):
 
                 if self.netlist._dbgAddSignalNamesToData and s.hidden:
                     # create an explicit rename of this potentially hidden signal
-                    s = rename_signal(allocator.netlist.parentUnit, s, s.name)
+                    s = rename_signal(allocator.netlist.parentHwModule, s, s.name)
 
         if dtypeEqualSignIgnore(s._dtype, op_out._dtype):
             if HdlType_isVoid(s._dtype):

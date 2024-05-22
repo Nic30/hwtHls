@@ -2,8 +2,8 @@ from typing import Set
 
 from hdlConvertorAst.to.hdlUtils import Indent, \
     AutoIndentingStream
-from hwt.synthesizer.interface import Interface
-from hwt.synthesizer.interfaceLevel.unitImplHelpers import getInterfaceName
+from hwt.hwIO import HwIO
+from hwt.synthesizer.interfaceLevel.hwModuleImplHelpers import HwIO_getName
 from hwtHls.frontend.ast.statementsRead import HlsRead
 from hwtHls.frontend.ast.statementsWrite import HlsWrite, HlsWriteAddressed
 from hwtHls.platform.fileUtils import OutputStreamGetter
@@ -69,20 +69,20 @@ class SsaToLl():
                     w(" = call ")
                     w(self._escape(repr(stm._dtype)))
                     w(" @hls.read(")
-                    w(getInterfaceName(stm._parent.parentUnit, stm._src))
+                    w(HwIO_getName(stm._parent.parentHwModule, stm._src))
                     w(")\n")
                 elif isinstance(stm, HlsWrite):
                     w("void call ")
                     w(self._escape(repr(stm._dtype)))
                     w(" @hls.write(")
-                    if isinstance(stm._origSrc, Interface):
-                        w(getInterfaceName(stm._parent.parentUnit, stm._origSrc))
+                    if isinstance(stm._origSrc, HwIO):
+                        w(HwIO_getName(stm._parent.parentHwModule, stm._origSrc))
                     else:
                         w(repr(stm._origSrc))
                     if isinstance(stm, HlsWriteAddressed):
                         w(", ")
-                        if isinstance(stm._origIndex, Interface):
-                            w(getInterfaceName(stm._parent.parentUnit, stm._origIndex))
+                        if isinstance(stm._origIndex, HwIO):
+                            w(HwIO_getName(stm._parent.parentHwModule, stm._origIndex))
                         else:
                             w(repr(stm._origIndex))
                     w(")\n")

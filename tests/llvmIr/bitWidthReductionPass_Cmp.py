@@ -5,22 +5,22 @@ from typing import Union
 
 from hwt.code import Concat
 from hwt.hdl.types.defs import BIT
-from hwt.hdl.value import HValue
-from hwt.interfaces.std import VectSignal, Signal
-from hwt.interfaces.utils import addClkRstn
+from hwt.hdl.const import HConst
+from hwt.hwIOs.std import HwIOVectSignal, HwIOSignal
+from hwt.hwIOs.utils import addClkRstn
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwt.synthesizer.unit import Unit
+from hwt.hwModule import HwModule
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import uint8_t
 
 
-class BitWidthReductionCmp2Values(Unit):
+class BitWidthReductionCmp2Values(HwModule):
 
     def _declr(self):
-        self.i = VectSignal(16, signed=False)
-        self.o = VectSignal(16, signed=False)._m()
+        self.i = HwIOVectSignal(16, signed=False)
+        self.o = HwIOVectSignal(16, signed=False)._m()
 
     def _impl(self):
         hls = HlsScope(self, freq=int(100e6))
@@ -43,33 +43,33 @@ class BitWidthReductionCmp2Values(Unit):
         hls.compile()
 
 
-class BitWidthReductionCmpReducibleEq(Unit):
+class BitWidthReductionCmpReducibleEq(HwModule):
 
     def _declr(self):
         addClkRstn(self)
-        self.a = VectSignal(8, signed=False)
-        self.b = VectSignal(8, signed=False)
-        self.res = Signal()._m()
-        self.res_same = Signal()._m()
-        self.res_prefix_same = Signal()._m()
-        self.res_prefix_same_1 = Signal()._m()
-        self.res_prefix_0vs1 = Signal()._m()
-        self.res_prefix_0vsAll = Signal()._m()
+        self.a = HwIOVectSignal(8, signed=False)
+        self.b = HwIOVectSignal(8, signed=False)
+        self.res = HwIOSignal()._m()
+        self.res_same = HwIOSignal()._m()
+        self.res_prefix_same = HwIOSignal()._m()
+        self.res_prefix_same_1 = HwIOSignal()._m()
+        self.res_prefix_0vs1 = HwIOSignal()._m()
+        self.res_prefix_0vsAll = HwIOSignal()._m()
 
-        self.res_suffix_aVs0 = Signal()._m()
-        self.res_suffix_aVsAll = Signal()._m()
-        self.res_suffix_0vsB = Signal()._m()
-        self.res_suffix_AllVsB = Signal()._m()
+        self.res_suffix_aVs0 = HwIOSignal()._m()
+        self.res_suffix_aVsAll = HwIOSignal()._m()
+        self.res_suffix_0vsB = HwIOSignal()._m()
+        self.res_suffix_AllVsB = HwIOSignal()._m()
 
-        self.res_prefix_aVs0 = Signal()._m()
-        self.res_prefix_aVsAll = Signal()._m()
-        self.res_prefix_bVs0 = Signal()._m()
-        self.res_prefix_bVsAll = Signal()._m()
+        self.res_prefix_aVs0 = HwIOSignal()._m()
+        self.res_prefix_aVsAll = HwIOSignal()._m()
+        self.res_prefix_bVs0 = HwIOSignal()._m()
+        self.res_prefix_bVsAll = HwIOSignal()._m()
         
-        self.res_prefix_sameInMiddle = Signal()._m()
-        self.res_prefix_differentInMiddle = Signal()._m()
+        self.res_prefix_sameInMiddle = HwIOSignal()._m()
+        self.res_prefix_differentInMiddle = HwIOSignal()._m()
 
-    def predicate(self, a:Union[RtlSignal, HValue], b:Union[RtlSignal, HValue]):
+    def predicate(self, a:Union[RtlSignal, HConst], b:Union[RtlSignal, HConst]):
         return a._eq(b)
 
     def _impl(self):
@@ -112,37 +112,38 @@ class BitWidthReductionCmpReducibleEq(Unit):
 
 class BitWidthReductionCmpReducibleNe(BitWidthReductionCmpReducibleEq):
 
-    def predicate(self, a:Union[RtlSignal, HValue], b:Union[RtlSignal, HValue]):
+    def predicate(self, a:Union[RtlSignal, HConst], b:Union[RtlSignal, HConst]):
         return a != b
 
 
 class BitWidthReductionCmpReducibleLt(BitWidthReductionCmpReducibleEq):
 
-    def predicate(self, a:Union[RtlSignal, HValue], b:Union[RtlSignal, HValue]):
+    def predicate(self, a:Union[RtlSignal, HConst], b:Union[RtlSignal, HConst]):
         return a < b
 
 
 class BitWidthReductionCmpReducibleLe(BitWidthReductionCmpReducibleEq):
 
-    def predicate(self, a:Union[RtlSignal, HValue], b:Union[RtlSignal, HValue]):
+    def predicate(self, a:Union[RtlSignal, HConst], b:Union[RtlSignal, HConst]):
         return a <= b
 
 
 class BitWidthReductionCmpReducibleGt(BitWidthReductionCmpReducibleEq):
 
-    def predicate(self, a:Union[RtlSignal, HValue], b:Union[RtlSignal, HValue]):
+    def predicate(self, a:Union[RtlSignal, HConst], b:Union[RtlSignal, HConst]):
         return a > b
 
 
 class BitWidthReductionCmpReducibleGe(BitWidthReductionCmpReducibleEq):
 
-    def predicate(self, a:Union[RtlSignal, HValue], b:Union[RtlSignal, HValue]):
+    def predicate(self, a:Union[RtlSignal, HConst], b:Union[RtlSignal, HConst]):
         return a >= b
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.platform import HlsDebugBundle
-    u = BitWidthReductionCmpReducibleEq()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    
+    m = BitWidthReductionCmpReducibleEq()
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

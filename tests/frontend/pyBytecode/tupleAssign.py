@@ -1,7 +1,7 @@
 from hwt.hdl.types.defs import BIT
-from hwt.interfaces.std import VectSignal
-from hwt.interfaces.utils import addClkRstn
-from hwt.synthesizer.unit import Unit
+from hwt.hwIOs.std import HwIOVectSignal
+from hwt.hwIOs.utils import addClkRstn
+from hwt.hwModule import HwModule
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodePreprocHwCopy
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
@@ -10,12 +10,12 @@ from hwtLib.types.ctypes import uint8_t
 from tests.baseSsaTest import BaseSsaTC
 
 
-class HlsPythonTupleAssign(Unit):
+class HlsPythonTupleAssign(HwModule):
 
     def _declr(self):
         addClkRstn(self)
-        self.o0 = VectSignal(8)._m()
-        self.o1 = VectSignal(8)._m()
+        self.o0 = HwIOVectSignal(8)._m()
+        self.o1 = HwIOVectSignal(8)._m()
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
@@ -45,11 +45,12 @@ class HlsPythonTupleAssign_TC(BaseSsaTC):
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.platform import HlsDebugBundle
-    u = HlsPythonTupleAssign()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    
+    m = HlsPythonTupleAssign()
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
 

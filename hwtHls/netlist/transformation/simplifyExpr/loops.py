@@ -1,6 +1,6 @@
 from typing import Set
 
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
@@ -14,7 +14,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut, unlink_hls_nodes
 from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import netlistExplicitSyncDisconnectFromOrderingChain
 
 
-def _replaceOutPortWith1(o: HlsNetNodeOut, worklist: UniqList[HlsNetNode]):
+def _replaceOutPortWith1(o: HlsNetNodeOut, worklist: SetList[HlsNetNode]):
     n = o.obj
     b: HlsNetlistBuilder = n.netlist.builder
     uses = n.usedBy[o.out_i]
@@ -26,7 +26,7 @@ def _replaceOutPortWith1(o: HlsNetNodeOut, worklist: UniqList[HlsNetNode]):
     return False
 
 
-def _replaceOutPortWith(o: HlsNetNodeOut, replacementO: HlsNetNodeOut, worklist: UniqList[HlsNetNode]):
+def _replaceOutPortWith(o: HlsNetNodeOut, replacementO: HlsNetNodeOut, worklist: SetList[HlsNetNode]):
     n = o.obj
     b: HlsNetlistBuilder = n.netlist.builder
     uses = n.usedBy[o.out_i]
@@ -39,7 +39,7 @@ def _replaceOutPortWith(o: HlsNetNodeOut, replacementO: HlsNetNodeOut, worklist:
 
 
 def netlistReduceLoopWithoutEnterAndExit(dbgTracer: DebugTracer, n: HlsNetNodeLoopStatus,
-                                         worklist: UniqList[HlsNetNode],
+                                         worklist: SetList[HlsNetNode],
                                          removed: Set[HlsNetNode]):
     modified = False
 

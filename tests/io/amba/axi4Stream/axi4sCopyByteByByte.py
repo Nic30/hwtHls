@@ -1,40 +1,40 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.hdl.types.bits import Bits
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
-from hwt.interfaces.std import Handshaked
-from hwt.interfaces.utils import addClkRstn
-from hwt.synthesizer.param import Param
-from hwt.synthesizer.unit import Unit
+from hwt.hwIOs.std import HwIODataRdVld
+from hwt.hwIOs.utils import addClkRstn
+from hwt.hwParam import HwParam
+from hwt.hwModule import HwModule
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc, \
     PyBytecodeLLVMLoopUnroll, PyBytecodeStreamLoopUnroll
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
-from hwtHls.io.amba.axiStream.proxy import IoProxyAxiStream
+from hwtHls.io.amba.axi4Stream.proxy import IoProxyAxi4Stream
 from hwtHls.scope import HlsScope
-from hwtLib.amba.axis import AxiStream
+from hwtLib.amba.axi4s import Axi4Stream
 
 
-class AxiSPacketCopyByteByByteHs(Unit):
+class Axi4SPacketCopyByteByByteHs(HwModule):
     """
     Cut off Ethernet and IPv4 header.
     """
 
     def _config(self) -> None:
-        self.DATA_WIDTH = Param(16)
-        self.OUT_DATA_WIDTH = Param(8)
-        self.USE_STRB = Param(True)
-        self.UNROLL = Param(PyBytecodeStreamLoopUnroll)
-        self.CLK_FREQ = Param(int(100e6))
+        self.DATA_WIDTH = HwParam(16)
+        self.OUT_DATA_WIDTH = HwParam(8)
+        self.USE_STRB = HwParam(True)
+        self.UNROLL = HwParam(PyBytecodeStreamLoopUnroll)
+        self.CLK_FREQ = HwParam(int(100e6))
 
     def _declr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
-        with self._paramsShared():
-            self.rx = AxiStream()
+        with self._hwParamsShared():
+            self.rx = Axi4Stream()
             self.rx.USE_STRB = self.USE_STRB
-            self.txBody = Handshaked()._m()
+            self.txBody = HwIODataRdVld()._m()
             self.txBody.DATA_WIDTH = self.OUT_DATA_WIDTH
 
     def doUnrolling(self):
@@ -46,13 +46,13 @@ class AxiSPacketCopyByteByByteHs(Unit):
             return self.UNROLL
 
     @hlsBytecode
-    def mainThread(self, hls: HlsScope, rx: IoProxyAxiStream):
+    def mainThread(self, hls: HlsScope, rx: IoProxyAxi4Stream):
         while BIT.from_py(1):
             rx.readStartOfFrame()
             # pass body to txBody output
             while BIT.from_py(1):
                 self.doUnrolling()
-                d = PyBytecodeInPreproc(rx.read(Bits(8), reliable=False))
+                d = PyBytecodeInPreproc(rx.read(HBits(8), reliable=False))
                 hls.write(d.data, self.txBody)
                 if d._isLast():
                     del d
@@ -63,27 +63,27 @@ class AxiSPacketCopyByteByByteHs(Unit):
 
     def _impl(self):
         hls = HlsScope(self)
-        rx = IoProxyAxiStream(hls, self.rx)
+        rx = IoProxyAxi4Stream(hls, self.rx)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, rx)
         hls.addThread(mainThread)
         hls.compile()
 
 
-class AxiSPacketCopyByteByByte(Unit):
+class Axi4SPacketCopyByteByByte(HwModule):
     """
     Cut off Ethernet and IPv4 header.
     """
 
     def _config(self) -> None:
-        AxiSPacketCopyByteByByteHs._config(self)
+        Axi4SPacketCopyByteByByteHs._config(self)
 
     def _declr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
-        with self._paramsShared():
-            self.rx = AxiStream()
+        with self._hwParamsShared():
+            self.rx = Axi4Stream()
             self.rx.USE_STRB = True
-        self.txBody: AxiStream = AxiStream()._m()
+        self.txBody: Axi4Stream = Axi4Stream()._m()
         self.txBody.USE_STRB = True
         if self.OUT_DATA_WIDTH is None:
             self.txBody.DATA_WIDTH = self.OUT_DATA_WIDTH = self.DATA_WIDTH
@@ -91,14 +91,14 @@ class AxiSPacketCopyByteByByte(Unit):
             self.txBody.DATA_WIDTH = self.OUT_DATA_WIDTH
 
     @hlsBytecode
-    def mainThread(self, rx: IoProxyAxiStream, txBody: IoProxyAxiStream):
+    def mainThread(self, rx: IoProxyAxi4Stream, txBody: IoProxyAxi4Stream):
         while BIT.from_py(1):
             # pass body to txBody output
             rx.readStartOfFrame()
             txBody.writeStartOfFrame()
             while BIT.from_py(1):
-                AxiSPacketCopyByteByByteHs.doUnrolling(self)
-                d = PyBytecodeInPreproc(rx.read(Bits(8), reliable=False))  # PyBytecodeInPreproc is used because we want to access internal properties of data (_isLast)
+                Axi4SPacketCopyByteByByteHs.doUnrolling(self)
+                d = PyBytecodeInPreproc(rx.read(HBits(8), reliable=False))  # PyBytecodeInPreproc is used because we want to access internal properties of data (_isLast)
                 txBody.write(d.data)
                 # del d is not necessary is there to limit live of d variable which is useful during debug
                 if d._isLast():
@@ -113,8 +113,8 @@ class AxiSPacketCopyByteByByte(Unit):
 
     def _impl(self):
         hls = HlsScope(self)
-        rx = IoProxyAxiStream(hls, self.rx)
-        txBody = IoProxyAxiStream(hls, self.txBody)
+        rx = IoProxyAxi4Stream(hls, self.rx)
+        txBody = IoProxyAxi4Stream(hls, self.txBody)
         mainThread = HlsThreadFromPy(hls, self.mainThread, rx, txBody)
         hls.addThread(mainThread)
         hls.compile()
@@ -122,12 +122,13 @@ class AxiSPacketCopyByteByByte(Unit):
 
 if __name__ == "__main__":
     from hwtHls.platform.virtual import VirtualHlsPlatform
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
-    u = AxiSPacketCopyByteByByteHs()
-    u.DATA_WIDTH = 16
-    u.UNROLL = False
-    # u.OUT_DATA_WIDTH = 8
+    
+    m = Axi4SPacketCopyByteByByteHs()
+    m.DATA_WIDTH = 16
+    m.UNROLL = False
+    # m.OUT_DATA_WIDTH = 8
     p = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)
-    print(to_rtl_str(u, target_platform=p))
+    print(to_rtl_str(m, target_platform=p))
 

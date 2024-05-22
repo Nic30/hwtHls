@@ -1,13 +1,13 @@
 from itertools import islice
 from typing import List, Tuple, Union
 
-from hwt.hdl.value import HValue
+from hwt.hdl.const import HConst
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.value import SsaValue
 from hwtHls.frontend.pyBytecode.loopMeta import BranchTargetPlaceholder
 
 
-def isLastJumpFromBlock(jumpsFromLoopBody: List[Tuple[Union[None, SsaValue, HValue], SsaBasicBlock, int]],
+def isLastJumpFromBlock(jumpsFromLoopBody: List[Tuple[Union[None, SsaValue, HConst], SsaBasicBlock, int]],
                         srcBlock: SsaBasicBlock, i: int):
     return not any(j.srcBlock is srcBlock for j in islice(jumpsFromLoopBody, i + 1, None))
 

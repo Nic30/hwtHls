@@ -1,7 +1,7 @@
 from typing import List, Dict, Tuple, Set, Optional
 
-from hwt.pyUtils.uniqList import UniqList
-from hwt.synthesizer.interface import Interface
+from hwt.pyUtils.setList import SetList
+from hwt.hwIO import HwIO
 from hwtHls.netlist.analysis.betweenSyncIslands import HlsNetlistAnalysisPassBetweenSyncIslands, \
     BetweenSyncIsland
 from hwtHls.netlist.analysis.detectFsms import HlsNetlistAnalysisPassDetectFsms, IoFsm
@@ -50,13 +50,13 @@ class HlsNetlistAnalysisPassDetectPipelines(HlsNetlistAnalysisPass):
         fsms: HlsNetlistAnalysisPassDetectFsms = netlist.getAnalysis(HlsNetlistAnalysisPassDetectFsms)
         ioByInterface = netlist.getAnalysis(HlsNetlistAnalysisPassIoDiscover).ioByInterface
         allFsmNodes, inFsmNodeParts = fsms.collectInFsmNodes()
-        allFsmNodes: Dict[HlsNetNode, UniqList[IoFsm]]
-        inFsmNodeParts: Dict[HlsNetNode, UniqList[Tuple[IoFsm, HlsNetNodePartRef]]]
+        allFsmNodes: Dict[HlsNetNode, SetList[IoFsm]]
+        inFsmNodeParts: Dict[HlsNetNode, SetList[Tuple[IoFsm, HlsNetNodePartRef]]]
         clkPeriod = netlist.normalizedClkPeriod
         pipelines = self.pipelines
         syncIslands: HlsNetlistAnalysisPassBetweenSyncIslands = netlist.getAnalysis(HlsNetlistAnalysisPassBetweenSyncIslands)
         # interfaces which were checked to be accessed correctly
-        alreadyCheckedIo: Set[Interface] = set()
+        alreadyCheckedIo: Set[HwIO] = set()
         pipelineForIsland: Dict[BetweenSyncIsland, NetlistPipeline] = {}
 
         for node in netlist.iterAllNodes():
@@ -82,7 +82,7 @@ class HlsNetlistAnalysisPassDetectPipelines(HlsNetlistAnalysisPass):
 
                 parts = inFsmNodeParts.get(node, None)
                 if parts is not None:
-                    parts: UniqList[Tuple[IoFsm, HlsNetNodePartRef]]
+                    parts: SetList[Tuple[IoFsm, HlsNetNodePartRef]]
                     # if this is the first part of the node seen
                     # for all parts which are not in any fsm
                     for part in node.partsComplement([p for _, p in parts]):

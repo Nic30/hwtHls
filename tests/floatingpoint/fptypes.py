@@ -2,11 +2,11 @@
 
 import struct
 
-from hwt.hdl.types.bits import Bits
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.struct import HStruct
-from hwt.hdl.value import HValue
-from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
+from hwt.hdl.const import HConst
+from hwt.mainBases import RtlSignalBase
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtLib.types.ctypes import uint16_t, uint32_t, uint64_t
 from pyMathBitPrecise.bit_utils import mask, ValidityError, get_bit_range, \
@@ -42,8 +42,8 @@ class IEEE754Fp(HStruct):
         self.EXPONENT_OFFSET_U = to_unsigned(self.EXPONENT_OFFSET, self.EXPONENT_WIDTH)
         HStruct.__init__(self,
             # mantissa on lowest bits sign on MSB
-            (Bits(mantissaWidth, signed=False), "mantissa"),
-            (Bits(exponentWidth, signed=False), "exponent"),  # biased with EXPONENT_OFFSET
+            (HBits(mantissaWidth, signed=False), "mantissa"),
+            (HBits(exponentWidth, signed=False), "exponent"),  # biased with EXPONENT_OFFSET
             (BIT, "sign"),
             name=name,
             const=const,
@@ -80,7 +80,7 @@ class IEEE754Fp(HStruct):
 
         return HStruct.from_py(self, v, vld_mask)
 
-    def to_py(self, v: HValue["IEEE754Fp"]) -> float:
+    def to_py(self, v: HConst["IEEE754Fp"]) -> float:
         self = v._dtype
         if self == IEEE754Fp16:
             vecT = uint16_t

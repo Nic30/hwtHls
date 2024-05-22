@@ -1,7 +1,7 @@
 from math import inf, isfinite
 from typing import Optional, List
 
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate, \
     HlsNetNodeAggregatePortOut
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -18,7 +18,7 @@ class HlsNetNodeIoSyncScc(HlsNetNodeAggregate):
     """
 
     @override
-    def scheduleAsap(self, pathForDebug: Optional[UniqList["HlsNetNode"]], beginOfFirstClk: SchedTime,
+    def scheduleAsap(self, pathForDebug: Optional[SetList["HlsNetNode"]], beginOfFirstClk: SchedTime,
                      outputTimeGetter: Optional[OutputTimeGetter]) -> List[SchedTime]:
         """
         Schedule from defs to uses as is, if everything fits in a single clock cycle the result is final.
@@ -53,7 +53,7 @@ class HlsNetNodeIoSyncScc(HlsNetNodeAggregate):
                 beginOfClkWhereLastInputIs = indexOfClkPeriod(inMaxT, clkPeriod) * clkPeriod
                 endOfClkWhereLastInputIs = beginOfClkWhereLastInputIs + clkPeriod - epsilon
 
-                def _outputTimeGetter(out: HlsNetNodeOut, pathForDebug: Optional[UniqList["HlsNetNode"]], beginOfFirstClk: int):
+                def _outputTimeGetter(out: HlsNetNodeOut, pathForDebug: Optional[SetList["HlsNetNode"]], beginOfFirstClk: int):
                     t = out.obj.scheduleAsap(pathForDebug, max(beginOfFirstClk, beginOfClkWhereLastInputIs), _outputTimeGetter)[out.out_i]
                     return max(t, beginOfClkWhereLastInputIs)
 

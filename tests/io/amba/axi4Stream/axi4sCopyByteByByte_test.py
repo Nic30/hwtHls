@@ -6,37 +6,39 @@ from pathlib import Path
 from typing import List
 
 from hwt.code import Concat
-from hwt.hdl.types.bits import Bits
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
 from hwt.simulator.simTestCase import SimTestCase
+from hwtHls.frontend.pyBytecode.markers import PyBytecodeLLVMLoopUnroll, \
+    PyBytecodeStreamLoopUnroll
 from hwtHls.llvm.llvmIr import MachineFunction, LLVMStringContext, Function, LlvmCompilationBundle
 from hwtHls.platform.platform import HlsDebugBundle
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.ssa.analysis.llvmIrInterpret import LlvmIrInterpret, \
     SimIoUnderflowErr
 from hwtHls.ssa.analysis.llvmMirInterpret import LlvmMirInterpret
-from hwtLib.amba.axis import axis_send_bytes, packAxiSFrame, \
-    _axis_recieve_bytes, axis_recieve_bytes
+from hwtLib.amba.axi4s import axi4s_send_bytes, packAxi4SFrame, \
+    _axi4s_recieve_bytes, axi4s_recieve_bytes
 from hwtLib.types.ctypes import uint8_t
 from hwtSimApi.utils import freq_to_period
 from pyDigitalWaveTools.vcd.writer import VcdWriter
-from tests.io.amba.axiStream.axisCopyByteByByte import AxiSPacketCopyByteByByte
+from tests.io.amba.axi4Stream.axi4sCopyByteByByte import Axi4SPacketCopyByteByByte
 from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
+
+
 # from hwtHlsGdb.gdbCmdHandlerLlvmIr import GdbCmdHandlerLllvmIr
 # from hwtHlsGdb.gdbServerStub import GDBServerStub
+class Axi4SPacketCopyByteByByteTC(SimTestCase):
 
-
-class AxiSPacketCopyByteByByteTC(SimTestCase):
-
-    def _testLlvmIr(self, u: AxiSPacketCopyByteByByte,
+    def _testLlvmIr(self, dut: Axi4SPacketCopyByteByByte,
                     strCtx: LLVMStringContext, f: Function, refFrames: List[List[int]]):
         dataIn = []
-        strbT = Bits(u.DATA_WIDTH // 8)
+        strbT = HBits(dut.DATA_WIDTH // 8)
         for refFrame in refFrames:
             # print(refFrame)
             t = uint8_t[len(refFrame)]
             _data_B = t.from_py(refFrame)
-            frameBeats = packAxiSFrame(u.DATA_WIDTH, _data_B, withStrb=True)
+            frameBeats = packAxi4SFrame(dut.DATA_WIDTH, _data_B, withStrb=True)
             dataIn.extend(Concat(BIT.from_py(last), strbT.from_py(strb), data) for data, strb, last in frameBeats)
 
         dataOut = []
@@ -53,25 +55,25 @@ class AxiSPacketCopyByteByByteTC(SimTestCase):
         except SimIoUnderflowErr:
             pass  # all inputs consumed
 
-        DW = u.OUT_DATA_WIDTH
+        DW = dut.OUT_DATA_WIDTH
         dataOut = deque((d[DW:], d[(DW + DW // 8):DW], d[DW + DW // 8]) for d in dataOut)
         # for d in dataOut:
         #    d = ["%x" % int(_d) if _d._is_full_valid() else repr(_d) for _d in d]
         #    print(' '.join(d))
 
         for frame in refFrames:
-            offset, data = _axis_recieve_bytes(dataOut, DW // 8, True, False)
+            offset, data = _axi4s_recieve_bytes(dataOut, DW // 8, True, False)
             self.assertEqual(offset, 0)
             self.assertValSequenceEqual(data, frame)
         self.assertEqual(len(dataOut), 0)
 
-    def _testLlvmMir(self, u: AxiSPacketCopyByteByByte, mf: MachineFunction, refFrames: List[List[int]]):
+    def _testLlvmMir(self, dut: Axi4SPacketCopyByteByByte, mf: MachineFunction, refFrames: List[List[int]]):
         dataIn = []
-        strbT = Bits(u.DATA_WIDTH // 8)
+        strbT = HBits(dut.DATA_WIDTH // 8)
         for refFrame in refFrames:
             t = uint8_t[len(refFrame)]
             _data_B = t.from_py(refFrame)
-            frameBeats = packAxiSFrame(u.DATA_WIDTH, _data_B, withStrb=True)
+            frameBeats = packAxi4SFrame(dut.DATA_WIDTH, _data_B, withStrb=True)
             dataIn.extend(Concat(BIT.from_py(last), strbT.from_py(strb), data) for data, strb, last in frameBeats)
 
         dataOut = []
@@ -81,20 +83,23 @@ class AxiSPacketCopyByteByByteTC(SimTestCase):
             interpret.run(args)
         except SimIoUnderflowErr:
             pass  # all inputs consumed
-        DW = u.OUT_DATA_WIDTH
+        DW = dut.OUT_DATA_WIDTH
         dataOut = deque((d[DW:], d[(DW + DW // 8):DW], d[DW + DW // 8]) for d in dataOut)
         for frame in refFrames:
-            offset, data = _axis_recieve_bytes(dataOut, DW // 8, True, False)
+            offset, data = _axi4s_recieve_bytes(dataOut, DW // 8, True, False)
             self.assertEqual(offset, 0)
             self.assertValSequenceEqual(data, frame)
         self.assertEqual(len(dataOut), 0)
 
     def _test(self, DATA_WIDTH:int, OUT_DATA_WIDTH: int, FRAME_LENGTHS: List[int], freq=int(1e6)):
-        u = AxiSPacketCopyByteByByte()
-        u.UNROLL = None
-        u.DATA_WIDTH = DATA_WIDTH
-        u.OUT_DATA_WIDTH = OUT_DATA_WIDTH
-        u.CLK_FREQ = freq
+        """
+        test optimizer IR, MIR and RTL
+        """
+        dut = Axi4SPacketCopyByteByByte()
+        dut.UNROLL = None
+        dut.DATA_WIDTH = DATA_WIDTH
+        dut.OUT_DATA_WIDTH = OUT_DATA_WIDTH
+        dut.CLK_FREQ = freq
 
         refFrames = []
         for frameLen in FRAME_LENGTHS:
@@ -105,24 +110,31 @@ class AxiSPacketCopyByteByByteTC(SimTestCase):
         tc = self
 
         def testLlvmOptIr(llvm: LlvmCompilationBundle):
-            tc._testLlvmIr(u, llvm.strCtx, llvm.main, refFrames)
+            tc._testLlvmIr(dut, llvm.strCtx, llvm.main, refFrames)
 
         def testLlvmOptMir(llvm: LlvmCompilationBundle):
-            tc._testLlvmMir(u, llvm.getMachineFunction(llvm.main), refFrames)
+            tc._testLlvmMir(dut, llvm.getMachineFunction(llvm.main), refFrames)
 
-        self.compileSimAndStart(u, target_platform=TestLlvmIrAndMirPlatform(optIrTest=testLlvmOptIr, optMirTest=testLlvmOptMir, debugFilter=HlsDebugBundle.ALL_RELIABLE))
+        platform = TestLlvmIrAndMirPlatform(optIrTest=testLlvmOptIr, optMirTest=testLlvmOptMir,
+                                            debugFilter={*HlsDebugBundle.ALL_RELIABLE,
+                                                          #HlsDebugBundle.DBG_20_addSignalNamesToSync,
+                                                          #HlsDebugBundle.DBG_20_addSignalNamesToData,
+                                                          },
+                                            # runTestAfterEachPass=True
+                                            )
+        self.compileSimAndStart(dut, target_platform=platform)
 
         for refFrame in refFrames:
-            axis_send_bytes(u.rx, refFrame)
+            axi4s_send_bytes(dut.rx, refFrame)
 
-        t = int(freq_to_period(freq)) * (len(u.rx._ag.data) + 10) * 2
+        t = int(freq_to_period(freq)) * (len(dut.rx._ag.data) + 10) * 2
         self.runSim(t)
 
         for frame in refFrames:
-            offset, data = axis_recieve_bytes(u.txBody)
+            offset, data = axi4s_recieve_bytes(dut.txBody)
             self.assertEqual(offset, 0)
             self.assertValSequenceEqual(data, frame)
-        self.assertEqual(len(u.txBody._ag.data), 0)
+        self.assertEqual(len(dut.txBody._ag.data), 0)
 
     def test_1B(self):
         PKT_CNT = 6
@@ -150,17 +162,22 @@ class AxiSPacketCopyByteByByteTC(SimTestCase):
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import to_rtl_str
-    u = AxiSPacketCopyByteByByte()
-    u.UNROLL = None
-    u.DATA_WIDTH = 1 * 8
-    u.OUT_DATA_WIDTH = 2 * 8
-    p = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)
-    print(to_rtl_str(u, target_platform=p))
+    from hwt.synth import to_rtl_str
+    m = Axi4SPacketCopyByteByByte()
+    m.UNROLL = PyBytecodeStreamLoopUnroll #PyBytecodeLLVMLoopUnroll(True, 2)
+    #m.UNROLL = None
+    m.DATA_WIDTH = 3 * 8
+    m.OUT_DATA_WIDTH = 3 * 8
+    m.CLK_FREQ = int(0.1e6)
+    p = VirtualHlsPlatform(debugFilter={
+        *HlsDebugBundle.ALL_RELIABLE, 
+        # 0HlsDebugBundle.DBG_20_addSignalNamesToSync
+    })
+    print(to_rtl_str(m, target_platform=p))
 
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([AxiSPacketCopyByteByByteTC("test_4B")])
-    suite = testLoader.loadTestsFromTestCase(AxiSPacketCopyByteByByteTC)
+    suite = unittest.TestSuite([Axi4SPacketCopyByteByByteTC("test_2B")])
+    #suite = testLoader.loadTestsFromTestCase(Axi4SPacketCopyByteByByteTC)
     runner = unittest.TextTestRunner(verbosity=3)
-    runner.run(suite)
+    #runner.run(suite)

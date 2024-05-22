@@ -3,11 +3,11 @@
 
 from typing import Type
 
-from hwt.interfaces.std import VectSignal, Handshaked, VldSynced, RdSynced
-from hwt.interfaces.utils import addClkRstn
+from hwt.hwIOs.std import HwIOVectSignal, HwIODataRdVld, HwIODataVld, HwIODataRd
+from hwt.hwIOs.utils import addClkRstn
 from hwt.simulator.simTestCase import SimTestCase
-from hwt.synthesizer.param import Param
-from hwt.synthesizer.unit import Unit
+from hwt.hwParam import HwParam
+from hwt.hwModule import HwModule
 from hwtHls.frontend.netlist import HlsThreadFromNetlist
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.ports import link_hls_nodes
@@ -18,15 +18,15 @@ from hwtHls.scope import HlsScope
 from hwtSimApi.utils import freq_to_period
 
 
-class HlsNetlistWireUnit(Unit):
+class HlsNetlistWireHwModule(HwModule):
 
     def _config(self) -> None:
-        self.CLK_FREQ = Param(int(100e6))
-        self.DATA_WIDTH = Param(8)
+        self.CLK_FREQ = HwParam(int(100e6))
+        self.DATA_WIDTH = HwParam(8)
 
     def _declr(self) -> None:
-        self.dataIn = VectSignal(self.DATA_WIDTH)
-        self.dataOut = VectSignal(self.DATA_WIDTH)._m()
+        self.dataIn = HwIOVectSignal(self.DATA_WIDTH)
+        self.dataOut = HwIOVectSignal(self.DATA_WIDTH)._m()
 
     def connectIo(self, netlist: HlsNetlistCtx):
         r = HlsNetNodeRead(netlist, self.dataIn)
@@ -41,75 +41,75 @@ class HlsNetlistWireUnit(Unit):
         hls.compile()
 
 
-class HlsNetlistWireUnitHs(HlsNetlistWireUnit):
+class HlsNetlistWireHwModuleHs(HlsNetlistWireHwModule):
 
     def _declr(self) -> None:
         # added because of sim agent
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
         
-        with self._paramsShared():
-            self.dataIn = Handshaked()
-            self.dataOut = Handshaked()._m()
+        with self._hwParamsShared():
+            self.dataIn = HwIODataRdVld()
+            self.dataOut = HwIODataRdVld()._m()
 
 
-class HlsNetlistWireUnitVldSynced(HlsNetlistWireUnit):
-
-    def _declr(self) -> None:
-        # added because of sim agent
-        addClkRstn(self)
-        self.clk.FREQ = self.CLK_FREQ
-        
-        with self._paramsShared():
-            self.dataIn = VldSynced()
-            self.dataOut = VldSynced()._m()
-
-
-class HlsNetlistWireUnitRdSynced(HlsNetlistWireUnit):
+class HlsNetlistWireHwModuleVldSynced(HlsNetlistWireHwModule):
 
     def _declr(self) -> None:
         # added because of sim agent
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
         
-        with self._paramsShared():
-            self.dataIn = RdSynced()
-            self.dataOut = RdSynced()._m()
+        with self._hwParamsShared():
+            self.dataIn = HwIODataVld()
+            self.dataOut = HwIODataVld()._m()
+
+
+class HlsNetlistWireHwModuleRdSynced(HlsNetlistWireHwModule):
+
+    def _declr(self) -> None:
+        # added because of sim agent
+        addClkRstn(self)
+        self.clk.FREQ = self.CLK_FREQ
+        
+        with self._hwParamsShared():
+            self.dataIn = HwIODataRd()
+            self.dataOut = HwIODataRd()._m()
 
 
 class HlsNetlistWireTC(SimTestCase):
 
-    def test_HlsNetlistWireUnit(self, cls: Type[HlsNetlistWireUnit]=HlsNetlistWireUnit, extraTime=0):
-        u = cls()
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
+    def test_HlsNetlistWireHwModule(self, cls: Type[HlsNetlistWireHwModule]=HlsNetlistWireHwModule, extraTime=0):
+        dut = cls()
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
         N = 4
-        u.dataIn._ag.data.extend(range(N))
-        self.runSim(int((N + extraTime) * freq_to_period(u.CLK_FREQ)))
+        dut.dataIn._ag.data.extend(range(N))
+        self.runSim(int((N + extraTime) * freq_to_period(dut.CLK_FREQ)))
 
-        res = u.dataOut._ag.data
+        res = dut.dataOut._ag.data
         self.assertValSequenceEqual(res, list(range(N)))
 
-    def test_HlsNetlistWireUnitHs(self):
-        self.test_HlsNetlistWireUnit(HlsNetlistWireUnitHs, extraTime=1)
+    def test_HlsNetlistWireHwModuleHs(self):
+        self.test_HlsNetlistWireHwModule(HlsNetlistWireHwModuleHs, extraTime=1)
 
-    def test_HlsNetlistWireUnitVldSynced(self):
-        self.test_HlsNetlistWireUnit(HlsNetlistWireUnitVldSynced, extraTime=1)
+    def test_HlsNetlistWireHwModuleVldSynced(self):
+        self.test_HlsNetlistWireHwModule(HlsNetlistWireHwModuleVldSynced, extraTime=1)
 
-    def test_HlsNetlistWireUnitRdSynced(self):
-        self.test_HlsNetlistWireUnit(HlsNetlistWireUnitRdSynced, extraTime=1)
+    def test_HlsNetlistWireHwModuleRdSynced(self):
+        self.test_HlsNetlistWireHwModule(HlsNetlistWireHwModuleRdSynced, extraTime=1)
 
 
 if __name__ == "__main__":
     import unittest
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
-    u = HlsNetlistWireUnitHs()
-    u.DATA_WIDTH = 32
-    u.CLK_FREQ = int(40e6)
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    m = HlsNetlistWireHwModuleHs()
+    m.DATA_WIDTH = 32
+    m.CLK_FREQ = int(40e6)
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([HlsNetlistWireTC("test_NetlistWireUnitRdSynced")])
+    # suite = unittest.TestSuite([HlsNetlistWireTC("test_NetlistWireHwModuleRdSynced")])
     suite = testLoader.loadTestsFromTestCase(HlsNetlistWireTC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

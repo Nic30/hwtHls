@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.hdl.types.bits import Bits
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
-from hwt.interfaces.hsStructIntf import HsStructIntf
-from hwt.interfaces.std import Handshaked
-from hwt.interfaces.utils import addClkRstn
+from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
+from hwt.hwIOs.std import HwIODataRdVld
+from hwt.hwIOs.utils import addClkRstn
 from hwt.simulator.simTestCase import SimTestCase
-from hwt.synthesizer.param import Param
-from hwt.synthesizer.unit import Unit
+from hwt.hwParam import HwParam
+from hwt.hwModule import HwModule
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
@@ -20,21 +20,21 @@ from tests.floatingpoint.fptypes import IEEE754Fp32
 from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
 
 
-class IEEE754FpComparator(Unit):
+class IEEE754FpComparator(HwModule):
 
     def _config(self) -> None:
-        self.T = Param(IEEE754Fp32)
-        self.FREQ = Param(int(20e6))
+        self.T = HwParam(IEEE754Fp32)
+        self.FREQ = HwParam(int(20e6))
 
     def _declr(self) -> None:
         addClkRstn(self)
         self.clk.FREQ = self.FREQ
 
-        self.a = HsStructIntf()
-        self.b = HsStructIntf()
+        self.a = HwIOStructRdVld()
+        self.b = HwIOStructRdVld()
         self.a.T = self.b.T = self.T
 
-        self.res = Handshaked()._m()
+        self.res = HwIODataRdVld()._m()
         self.res.DATA_WIDTH = 2
 
     @hlsBytecode
@@ -91,7 +91,7 @@ class IEEE754FpCmp_TC(SimTestCase):
                                 msg=(_a, IEEE754FpCmpResult.toStr(res), _b, 'expected', IEEE754FpCmpResult.toStr(resRef)))
 
     def test_cmp(self):
-        u = IEEE754FpComparator()
+        dut = IEEE754FpComparator()
         refRes = []
         aDataIn = []
         bDataIn = []
@@ -106,7 +106,7 @@ class IEEE754FpCmp_TC(SimTestCase):
         def prepareDataInFn():
             aDataIn = []
             bDataIn = []
-            t = Bits(u.T.bit_length())
+            t = HBits(dut.T.bit_length())
             for a, b in self.TEST_DATA:
                 aDataIn.append(t.from_py(a))
                 bDataIn.append(t.from_py(b))
@@ -116,31 +116,31 @@ class IEEE754FpCmp_TC(SimTestCase):
         def checkDataOutFn(dataOut):
             self.assertValSequenceEqual(dataOut, refRes)
 
-        self.compileSimAndStart(u, target_platform=TestLlvmIrAndMirPlatform.forSimpleDataInDataOutUnit(
+        self.compileSimAndStart(dut, target_platform=TestLlvmIrAndMirPlatform.forSimpleDataInDataOutHwModule(
                                     prepareDataInFn, checkDataOutFn, None,
                                     inputCnt=2,
                                     noOptIrTest=TestLlvmIrAndMirPlatform.TEST_NO_OPT_IR,
                                     # runTestAfterEachPass=True
                                     ))
 
-        u.a._ag.data.extend(aDataIn)
-        u.b._ag.data.extend(bDataIn)
+        dut.a._ag.data.extend(aDataIn)
+        dut.b._ag.data.extend(bDataIn)
 
-        CLK_PERIOD = freq_to_period(u.clk.FREQ)
+        CLK_PERIOD = freq_to_period(dut.clk.FREQ)
         self.runSim((len(self.TEST_DATA_FORMATED) + 1) * int(CLK_PERIOD))
 
-        self.assertValSequenceEqual(u.res._ag.data, refRes,
+        self.assertValSequenceEqual(dut.res._ag.data, refRes,
                                     [(IEEE754Fp32.to_py(a), IEEE754Fp32.to_py(b), a, b)
                                      for a, b in self.TEST_DATA_FORMATED])
         self.rtl_simulator_cls = None
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
-    u = IEEE754FpComparator()
+    m = IEEE754FpComparator()
 
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
 

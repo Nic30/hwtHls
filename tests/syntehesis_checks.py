@@ -27,36 +27,36 @@ class HlsSynthesisChecksTC(SimTestCase):
         self._test(PidControllerHls())
 
     def test_PidControllerHls_unschedulable(self):
-        u = PidControllerHls()
-        u.CLK_FREQ = int(150e6)
+        m = PidControllerHls()
+        m.CLK_FREQ = int(150e6)
         with self.assertRaises(TimeConstraintError):
-            self._test(u)
+            self._test(m)
 
     def test_HlsSimpleIfStatement(self):
         self._test(HlsSimpleIfStatement())
     
     def test_CrcCombHls_crc32_128b_200MHz(self):
         # :note: takes 6s
-        u = CrcCombHls()
-        u.setConfig(CRC_32)
-        u.CLK_FREQ = int(200e6)
-        u.DATA_WIDTH = 128
-        self._test(u)
+        m = CrcCombHls()
+        m.setConfig(CRC_32)
+        m.CLK_FREQ = int(200e6)
+        m.DATA_WIDTH = 128
+        self._test(m)
 
     def test_CrcCombHls_crc32_8b_100MHz(self):
-        u = CrcCombHls()
-        u.setConfig(CRC_32)
-        u.CLK_FREQ = int(100e6)
-        u.DATA_WIDTH = 8
-        self._test(u)
+        m = CrcCombHls()
+        m.setConfig(CRC_32)
+        m.CLK_FREQ = int(100e6)
+        m.DATA_WIDTH = 8
+        self._test(m)
 
     def test_CrcCombHls_crc32_128b_200MHz_XilinxAtrix7Slow(self):
         # takes 6s
-        u = CrcCombHls()
-        u.setConfig(CRC_32)
-        u.CLK_FREQ = int(200e6)
-        u.DATA_WIDTH = 128
-        self.compileSimAndStart(u, target_platform=Artix7Slow())
+        m = CrcCombHls()
+        m.setConfig(CRC_32)
+        m.CLK_FREQ = int(200e6)
+        m.DATA_WIDTH = 128
+        self.compileSimAndStart(m, target_platform=Artix7Slow())
 
     def _test(self, unit):
         self.compileSimAndStart(unit, target_platform=VirtualHlsPlatform())

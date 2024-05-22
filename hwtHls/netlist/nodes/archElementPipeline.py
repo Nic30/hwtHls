@@ -2,9 +2,9 @@ from typing import List, Dict, Tuple, Union, Generator
 
 from hwt.code import If
 from hwt.code_utils import rename_signal
-from hwt.hdl.value import HValue
-from hwt.pyUtils.uniqList import UniqList
-from hwt.synthesizer.interface import Interface
+from hwt.hdl.const import HConst
+from hwt.pyUtils.setList import SetList
+from hwt.hwIO import HwIO
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage, \
     ConnectionsOfStageList
@@ -41,7 +41,7 @@ class ArchElementPipeline(ArchElement):
         This is to have uniform index when we scope into some other element.
     """
 
-    def __init__(self, netlist: HlsNetlistCtx, name: str, subNodes: UniqList[HlsNetNode],
+    def __init__(self, netlist: HlsNetlistCtx, name: str, subNodes: SetList[HlsNetNode],
                  stages: List[List[HlsNetNode]], syncIsland: BetweenSyncIsland):
         self.syncIsland = syncIsland
         self.stages = stages
@@ -130,7 +130,7 @@ class ArchElementPipeline(ArchElement):
         return self.stages[clkIndex]
 
     @override
-    def rtlRegisterOutputRtlSignal(self, outOrTime: Union[HlsNetNodeOut, SchedTime], data: Union[RtlSignal, Interface, HValue],
+    def rtlRegisterOutputRtlSignal(self, outOrTime: Union[HlsNetNodeOut, SchedTime], data: Union[RtlSignal, HwIO, HConst],
                  isExplicitRegister: bool, isForwardDeclr: bool,
                  mayChangeOutOfCfg: bool):
         tir = super(ArchElementPipeline, self).rtlRegisterOutputRtlSignal(
@@ -170,8 +170,8 @@ class ArchElementPipeline(ArchElement):
         self._privatizeLocalOnlyChannels()
 
         # dictionaries to assert that the IO is accessed only in a single stage
-        rToCon: Dict[Interface, ConnectionsOfStage] = {}
-        wToCon: Dict[Interface, ConnectionsOfStage] = {}
+        rToCon: Dict[HwIO, ConnectionsOfStage] = {}
+        wToCon: Dict[HwIO, ConnectionsOfStage] = {}
         for (nodes, con) in zip(self.stages, self.connections):
             con: ConnectionsOfStage
             for node in nodes:
@@ -262,7 +262,7 @@ class ArchElementPipeline(ArchElement):
         """
         # :note: Collect registers at the end of this stage
         # because additional synchronization needs to be added
-        nextStRegDrivers = UniqList()
+        nextStRegDrivers = SetList()
         for curV in con.signals:
             curV: TimeIndependentRtlResourceItem
             s = curV.parent
@@ -278,7 +278,7 @@ class ArchElementPipeline(ArchElement):
             # check if results of this stage do validity register
             sync.sync()
             ack = sync.ack()
-            if isinstance(ack, (HValue, int)):
+            if isinstance(ack, (HConst, int)):
                 ack = int(ack)
                 assert ack == 1, ("If statge ack is a constant, it must be 1, otherwise this stage is always stalling", self, pipeline_st_i, con, ack)
                 if con.syncNodeAck is not None:
@@ -286,7 +286,7 @@ class ArchElementPipeline(ArchElement):
                     con.syncNodeAck(1)
             else:
                 if con.syncNodeAck is None:
-                    ack = rename_signal(self.netlist.parentUnit, ack, f"{self.name:s}st{pipeline_st_i:d}_ack")
+                    ack = rename_signal(self.netlist.parentHwModule, ack, f"{self.name:s}st{pipeline_st_i:d}_ack")
                     con.syncNodeAck = ack
                 else:
                     assert not con.syncNodeAck.drivers

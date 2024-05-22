@@ -1,5 +1,5 @@
-from hwt.hdl.types.bits import Bits
-from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
+from hwt.hdl.types.bits import HBits
+from hwt.mainBases import RtlSignalBase
 from hwt.synthesizer.vectorUtils import fitTo_t
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline
@@ -12,7 +12,7 @@ from tests.floatingpoint.fptypes import IEEE754Fp
 # https://github.com/dawsonjon/fpu/blob/master/int_to_float/int_to_float.v
 # https://github.com/hVHDL/hVHDL_floating_point/blob/main/float_to_integer_converter/float_to_integer_converter_pkg.vhd
 @hlsBytecode
-def IEEE754FpFromInt(a: RtlSignalBase[Bits], t: IEEE754Fp):
+def IEEE754FpFromInt(a: RtlSignalBase[HBits], t: IEEE754Fp):
     intW = a._dtype.bit_length()
     res = t.from_py(None)
     exp_t = res.exponent._dtype
@@ -44,7 +44,7 @@ def IEEE754FpFromInt(a: RtlSignalBase[Bits], t: IEEE754Fp):
         # compute rounding
         cutOffWidth = intW - t.MANTISSA_WIDTH - 1  # how many lower bits to cut due to mantissa/input width difference
         # for 32b int and 32b float (mantissa width=23) this = 8
-        mantissa = Bits(t.MANTISSA_WIDTH + 1).from_py(None)
+        mantissa = HBits(t.MANTISSA_WIDTH + 1).from_py(None)
         if cutOffWidth > 0:
             mantissa = value[:cutOffWidth]  # mantissa + MSB
             guard = value[cutOffWidth - 1]

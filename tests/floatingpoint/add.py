@@ -1,8 +1,8 @@
 from hwt.code import Concat
-from hwt.hdl.types.bits import Bits
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
 from hwt.math import log2ceil
-from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
+from hwt.mainBases import RtlSignalBase
 from hwt.synthesizer.vectorUtils import fitTo
 from hwtHls.code import getMsb, zext, lshr, ctlz, hwUMin, shl
 from hwtHls.frontend.pyBytecode import hlsBytecode
@@ -17,7 +17,7 @@ def _denormalize(a: RtlSignalBase[IEEE754Fp]):
     # :note: contains expression only, no inlining required
     # mantissa now has +4 bits, exponent is 1 if number is subnormal
     isSubnormal = a._dtype.isSubnormal(a)
-    aMantissa = Concat(~isSubnormal, a.mantissa, Bits(3).from_py(0))
+    aMantissa = Concat(~isSubnormal, a.mantissa, HBits(3).from_py(0))
     expWidth = a.exponent._dtype.bit_length()
     aExponent = zext(a.exponent, expWidth + 1)  # + a._dtype.EXPONENT_OFFSET_U
     _aExponent = isSubnormal._ternary(aExponent._dtype.from_py(1), aExponent)
@@ -109,7 +109,7 @@ def IEEE754FpAdd(a: RtlSignalBase[IEEE754Fp], b: RtlSignalBase[IEEE754Fp], isSim
             # perform shit of b to scale it to the same exponent as a
             # accumulate all shifted out bits t bit0
             # (original align)
-            bMantissaTmp = Concat(bMantissa, Bits(t.MANTISSA_WIDTH - 1).from_py(0))
+            bMantissaTmp = Concat(bMantissa, HBits(t.MANTISSA_WIDTH - 1).from_py(0))
             bMantissaTmp = lshr(bMantissaTmp, requiredShift[log2ceil(bMantissaTmp._dtype.bit_length() + 1):])
             PyBytecodeNoSplitSlices(bMantissaTmp)
             bMantissa = Concat(bMantissaTmp[:t.MANTISSA_WIDTH], bMantissaTmp[t.MANTISSA_WIDTH:] != 0)
@@ -118,7 +118,7 @@ def IEEE754FpAdd(a: RtlSignalBase[IEEE754Fp], b: RtlSignalBase[IEEE754Fp], isSim
 
             # perform mantissa add
             # (add_0)
-            sumTmp = Bits(aMantissa._dtype.bit_length() + 1).from_py(None)
+            sumTmp = HBits(aMantissa._dtype.bit_length() + 1).from_py(None)
             res.sign = aSign
 
             aMantissaTmp = Concat(BIT.from_py(0), aMantissa)
@@ -136,7 +136,7 @@ def IEEE754FpAdd(a: RtlSignalBase[IEEE754Fp], b: RtlSignalBase[IEEE754Fp], isSim
             del bMantissa
 
             # (original add_1)
-            mantissaTmp = Bits(t.MANTISSA_WIDTH + 1).from_py(None)
+            mantissaTmp = HBits(t.MANTISSA_WIDTH + 1).from_py(None)
             exponetTmp = aExponent
             if getMsb(sumTmp):
                 mantissaTmp = sumTmp[:4]

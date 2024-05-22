@@ -1,7 +1,7 @@
 from typing import  Tuple, Union, List, Optional, Literal
 
-from hwt.hdl.value import HValue
-from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
+from hwt.hdl.const import HConst
+from hwt.mainBases import RtlSignalBase
 from hwtHls.frontend.pyBytecode.loopsDetect import PyBytecodeLoop
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import ConditionBlockTuple
@@ -35,8 +35,8 @@ class BranchTargetPlaceholder():
 
         self._isReplaced = True
 
-    def replaceInput(self, orig_expr: SsaValue, new_expr: Union[SsaValue, HValue]):
-        assert isinstance(new_expr, (SsaValue, HValue)), (self, orig_expr, new_expr)
+    def replaceInput(self, orig_expr: SsaValue, new_expr: Union[SsaValue, HConst]):
+        assert isinstance(new_expr, (SsaValue, HConst)), (self, orig_expr, new_expr)
         assert self in orig_expr.users
         self.targets = [
             ConditionBlockTuple(new_expr if o is orig_expr else o, t, m)
@@ -81,7 +81,7 @@ class PyBytecodeLoopInfo():
     def markJumpFromBodyOfLoop(self, exitInfo: "LoopExitJumpInfo"):
         self.jumpsFromLoopBody.append(exitInfo)
 
-    def markNewIteration(self) -> List[Tuple[Union[None, SsaValue, HValue], SsaBasicBlock, int]]:
+    def markNewIteration(self) -> List[Tuple[Union[None, SsaValue, HConst], SsaBasicBlock, int]]:
         self.iteraionI += 1
         jumpsFromLoopBody = self.jumpsFromLoopBody
         self.jumpsFromLoopBody = []
@@ -95,7 +95,7 @@ class PyBytecodeLoopInfo():
             return False
         if len(set((j.srcBlock, j.dstBlockOffset) for j in self.jumpsFromLoopBody)) > 1:
             return True
-        if any(isinstance(j.cond, HValue) or isinstance(j.cond, SsaValue) for j in self.jumpsFromLoopBody):
+        if any(isinstance(j.cond, HConst) or isinstance(j.cond, SsaValue) for j in self.jumpsFromLoopBody):
             return True
         return False
 
@@ -150,7 +150,7 @@ class LoopExitRegistry():
     """
 
     def __init__(self):
-        self.exitPoints: List[Tuple[Union[SsaValue, HValue, RtlSignalBase, None], SsaBasicBlock, int]] = []
+        self.exitPoints: List[Tuple[Union[SsaValue, HConst, RtlSignalBase, None], SsaBasicBlock, int]] = []
 
     def isHwLoop(self):
         return len(set(dstOffset for _, _, dstOffset in self.exitPoints))

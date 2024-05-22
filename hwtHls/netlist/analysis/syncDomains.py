@@ -1,7 +1,7 @@
 from itertools import chain
 from typing import List, Dict, Set, Tuple, Callable, Generator
 
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.analysis.syncGroupClusterContext import SyncGroupLabel, \
     SyncGroupClusterContext, HlsNetNodeAnySync
@@ -71,9 +71,9 @@ class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
 
     def __init__(self):
         super(HlsNetlistAnalysisPassSyncDomains, self).__init__()
-        self.ioSccs: List[UniqList[HlsNetNode]] = []
+        self.ioSccs: List[SetList[HlsNetNode]] = []
         self.syncOfNode: Dict[HlsNetNode, Set[HlsNetNodeAnySync]] = {}
-        self.syncDomains: Dict[List[Tuple[SyncGroupLabel, UniqList[HlsNetNode]]]] = {}
+        self.syncDomains: Dict[List[Tuple[SyncGroupLabel, SetList[HlsNetNode]]]] = {}
 
     @staticmethod
     def _discoverSyncUsers(syncNode: HlsNetNodeAnySync, syncOfNode: Dict[HlsNetNode, Set[HlsNetNodeAnySync]]):

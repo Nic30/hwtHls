@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.interfaces.std import VectSignal
-from hwt.interfaces.utils import addClkRstn
-from hwt.synthesizer.param import Param
-from hwt.synthesizer.unit import Unit
+from hwt.hwIOs.std import HwIOVectSignal
+from hwt.hwIOs.utils import addClkRstn
+from hwt.hwParam import HwParam
+from hwt.hwModule import HwModule
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.platform.virtual import VirtualHlsPlatform
@@ -13,28 +13,28 @@ from hwtSimApi.utils import freq_to_period
 from tests.baseSsaTest import BaseSsaTC
 
 
-class HlsAstExprTree3_example(Unit):
+class HlsAstExprTree3_example(HwModule):
 
     def _config(self):
-        self.CLK_FREQ = Param(int(40e6))
+        self.CLK_FREQ = HwParam(int(40e6))
 
     def _declr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
 
-        self.a = VectSignal(32, signed=False)
-        self.b = VectSignal(32, signed=False)
-        self.c = VectSignal(32, signed=False)
-        self.d = VectSignal(32, signed=False)
+        self.a = HwIOVectSignal(32, signed=False)
+        self.b = HwIOVectSignal(32, signed=False)
+        self.c = HwIOVectSignal(32, signed=False)
+        self.d = HwIOVectSignal(32, signed=False)
 
-        self.x = VectSignal(32, signed=False)
-        self.y = VectSignal(32, signed=False)
-        self.z = VectSignal(32, signed=False)
-        self.w = VectSignal(32, signed=False)
+        self.x = HwIOVectSignal(32, signed=False)
+        self.y = HwIOVectSignal(32, signed=False)
+        self.z = HwIOVectSignal(32, signed=False)
+        self.w = HwIOVectSignal(32, signed=False)
 
-        self.f1 = VectSignal(32, signed=False)._m()
-        self.f2 = VectSignal(32, signed=False)._m()
-        self.f3 = VectSignal(32, signed=False)._m()
+        self.f1 = HwIOVectSignal(32, signed=False)._m()
+        self.f2 = HwIOVectSignal(32, signed=False)._m()
+        self.f3 = HwIOVectSignal(32, signed=False)._m()
 
     def _impl(self):
         hls = HlsScope(self)
@@ -70,30 +70,30 @@ class HlsAstExprTree3_example_TC(BaseSsaTC):
         self._test_ll(HlsAstExprTree3_example)
 
     def test_simple(self):
-        u = HlsAstExprTree3_example()
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
-        u.a._ag.data.append(3)
-        u.b._ag.data.append(4)
-        u.c._ag.data.append(5)
-        u.d._ag.data.append(6)
-        u.x._ag.data.append(7)
-        u.y._ag.data.append(8)
-        u.z._ag.data.append(9)
-        u.w._ag.data.append(10)
+        dut = HlsAstExprTree3_example()
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
+        dut.a._ag.data.append(3)
+        dut.b._ag.data.append(4)
+        dut.c._ag.data.append(5)
+        dut.d._ag.data.append(6)
+        dut.x._ag.data.append(7)
+        dut.y._ag.data.append(8)
+        dut.z._ag.data.append(9)
+        dut.w._ag.data.append(10)
 
-        self.runSim(int(7 * freq_to_period(u.CLK_FREQ)))
+        self.runSim(int(7 * freq_to_period(dut.CLK_FREQ)))
 
-        self.assertValEqual(u.f1._ag.data[-1], (3 + 4 + 5) * 6)
-        self.assertValEqual(u.f2._ag.data[-1], (7 + 8) * 9)
-        self.assertValEqual(u.f3._ag.data[-1], (7 + 8) * 10)
+        self.assertValEqual(dut.f1._ag.data[-1], (3 + 4 + 5) * 6)
+        self.assertValEqual(dut.f2._ag.data[-1], (7 + 8) * 9)
+        self.assertValEqual(dut.f3._ag.data[-1], (7 + 8) * 10)
 
 
 if __name__ == "__main__":
     import unittest
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
-    u = HlsAstExprTree3_example()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    m = HlsAstExprTree3_example()
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     testLoader = unittest.TestLoader()
     # suite = unittest.TestSuite([HlsAstExprTree3_example_TC("test_simple")])

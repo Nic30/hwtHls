@@ -3,24 +3,24 @@
 
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.struct import HStruct
-from hwt.interfaces.std import Signal
-from hwt.interfaces.utils import addClkRstn
+from hwt.hwIOs.std import HwIOSignal
+from hwt.hwIOs.utils import addClkRstn
 from hwt.simulator.simTestCase import SimTestCase
-from hwt.synthesizer.byteOrder import reverseByteOrder
-from hwt.synthesizer.param import Param
-from hwt.synthesizer.unit import Unit
+from hwt.hwParam import HwParam
+from hwt.hwModule import HwModule
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc
 from hwtHls.frontend.pyBytecode.markers import PyBytecodePreprocHwCopy
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
-from hwtHls.io.amba.axiStream.proxy import IoProxyAxiStream
+from hwtHls.io.amba.axi4Stream.proxy import IoProxyAxi4Stream
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
-from hwtLib.amba.axis import AxiStream
-from hwtLib.examples.builders.pingResponder_test import PingResponderTC as HwtLibPingResponderTC
+from hwtLib.amba.axi4s import Axi4Stream
+from hwtLib.examples.builders.pingResponder_test import Axi4SPingResponderTC as HwtLibPingResponderTC
 from hwtLib.types.net.ethernet import Eth2Header_t, ETHER_TYPE
 from hwtLib.types.net.icmp import ICMP_echo_header_t, ICMP_TYPE
 from hwtLib.types.net.ip import IPv4Header_t, ipv4_t, IP_PROTOCOL
+from pyMathBitPrecise.bit_utils import reverse_byte_order
 
 
 echoFrame_t = HStruct(
@@ -31,7 +31,7 @@ echoFrame_t = HStruct(
 
 
 # https://github.com/hamsternz/FPGA_Webserver/tree/master/hdl/icmp
-class PingResponder(Unit):
+class Axi4SPingResponder(HwModule):
     """
     Listen for echo request on rx AXI-stream interface and respond
     with echo response on tx interface
@@ -44,19 +44,19 @@ class PingResponder(Unit):
     """
 
     def _config(self):
-        self.DATA_WIDTH = Param(256)
-        self.USE_STRB = Param(False)
-        self.CLK_FREQ = Param(int(100e6))
+        self.DATA_WIDTH = HwParam(256)
+        self.USE_STRB = HwParam(False)
+        self.CLK_FREQ = HwParam(int(100e6))
 
     def _declr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
 
-        self.myIp = Signal(dtype=ipv4_t)
+        self.myIp = HwIOSignal(dtype=ipv4_t)
 
-        with self._paramsShared():
-            self.rx = AxiStream()
-            self.tx = AxiStream()._m()
+        with self._hwParamsShared():
+            self.rx = Axi4Stream()
+            self.tx = Axi4Stream()._m()
 
     @hlsBytecode
     def icmp_checksum(self, header):
@@ -65,13 +65,13 @@ class PingResponder(Unit):
         """
         # [todo] endianity
         # type, code, checksum = 0
-        return reverseByteOrder(
-            ~(reverseByteOrder(header.identifier) + 
-              reverseByteOrder(header.seqNo))
+        return reverse_byte_order(
+            ~(reverse_byte_order(header.identifier) + 
+              reverse_byte_order(header.seqNo))
         )
 
     @hlsBytecode
-    def mainThread(self, hls: HlsScope, rx: IoProxyAxiStream, tx: IoProxyAxiStream):
+    def mainThread(self, hls: HlsScope, rx: IoProxyAxi4Stream, tx: IoProxyAxi4Stream):
         while BIT.from_py(1):
             myIp = hls.read(self.myIp).data
             rx.readStartOfFrame()
@@ -79,7 +79,7 @@ class PingResponder(Unit):
             pd = p.data
             rx.readEndOfFrame()
             if pd.eth.type._eq(ETHER_TYPE.IPv4) & \
-               reverseByteOrder(pd.ip.dst)._eq(myIp) & \
+               reverse_byte_order(pd.ip.dst)._eq(myIp) & \
                pd.ip.protocol._eq(IP_PROTOCOL.ICMP) & \
                pd.icmp.type._eq(ICMP_TYPE.ECHO_REQUEST):
                 # set fields for reply
@@ -97,21 +97,21 @@ class PingResponder(Unit):
 
     def _impl(self):
         hls = HlsScope(self)
-        rx = IoProxyAxiStream(hls, self.rx)
-        tx = IoProxyAxiStream(hls, self.tx)
+        rx = IoProxyAxi4Stream(hls, self.rx)
+        tx = IoProxyAxi4Stream(hls, self.tx)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, rx, tx)
         hls.addThread(mainThread)
         hls.compile()
 
 
-class PingResponderTC(SimTestCase):
+class Axi4SPingResponderTC(SimTestCase):
     DATA_WIDTH = 32
 
     @classmethod
     def setUpClass(cls):
-        u = cls.u = PingResponder()
-        u.DATA_WIDTH = cls.DATA_WIDTH
-        cls.compileSim(u, target_platform=VirtualHlsPlatform())
+        dut = cls.dut = Axi4SPingResponder()
+        dut.DATA_WIDTH = cls.DATA_WIDTH
+        cls.compileSim(dut, target_platform=VirtualHlsPlatform())
 
     def create_ICMP_echo_frame(self, **kwargs):
         return HwtLibPingResponderTC.create_ICMP_echo_frame(self, **kwargs)
@@ -122,17 +122,18 @@ class PingResponderTC(SimTestCase):
 
 if __name__ == "__main__":
     # from hwtHls.platform.virtual import VirtualHlsPlatform
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.xilinx.artix7 import Artix7Slow
     from hwtHls.platform.platform import HlsDebugBundle
-    u = PingResponder()
-    u.DATA_WIDTH = 256
-    u.CLK_FREQ = int(100e6)
-    print(to_rtl_str(u, target_platform=Artix7Slow(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    
+    m = Axi4SPingResponder()
+    m.DATA_WIDTH = 256
+    m.CLK_FREQ = int(100e6)
+    print(to_rtl_str(m, target_platform=Artix7Slow(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([PingResponderTC("test_reply1x")])
-    suite = testLoader.loadTestsFromTestCase(PingResponderTC)
+    # suite = unittest.TestSuite([Axi4SPingResponderTC("test_reply1x")])
+    suite = testLoader.loadTestsFromTestCase(Axi4SPingResponderTC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

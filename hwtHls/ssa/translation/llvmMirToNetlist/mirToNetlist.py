@@ -2,7 +2,7 @@ from typing import Set, Tuple, List, Optional
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.hdl.types.defs import BIT
-from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
+from hwt.constants import NOT_SPECIFIED
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, \
     MachineLoop, Register, MachineRegisterInfo
 from hwtHls.netlist.analysis.dataThreadsForBlocks import HlsNetlistAnalysisPassDataThreadsForBlocks

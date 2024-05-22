@@ -2,20 +2,20 @@ from io import StringIO
 from itertools import chain
 from typing import Union, List, Optional, Tuple, Dict
 
-from hwt.hdl.operator import Operator
-from hwt.hdl.operatorDefs import AllOps
+from hwt.hdl.const import HConst
+from hwt.hdl.operator import HOperatorNode
+from hwt.hdl.operatorDefs import HwtOps
 from hwt.hdl.portItem import HdlPortItem
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.statements.codeBlockContainer import HdlStmCodeBlockContainer
 from hwt.hdl.statements.ifContainter import IfContainer
-from hwt.hdl.types.bitsVal import BitsVal
-from hwt.hdl.value import HValue
-from hwt.interfaces.std import Signal
-from hwt.interfaces.structIntf import StructIntf
-from hwt.synthesizer.interface import Interface
-from hwt.synthesizer.interfaceLevel.interfaceUtils.utils import packIntf
+from hwt.hdl.types.bitsConst import HBitsConst
+from hwt.hwIOs.std import HwIOSignal
+from hwt.hwIOs.hwIOStruct import HwIOStruct
+from hwt.hwIO import HwIO
+from hwt.synthesizer.interfaceLevel.utils import HwIO_pack
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwt.synthesizer.rtlLevel.signalUtils.exceptions import SignalDriverErr
+from hwt.synthesizer.rtlLevel.exceptions import SignalDriverErr
 from hwtHls.frontend.ast.memorySSAUpdater import MemorySSAUpdater
 from hwtHls.frontend.ast.statements import HlsStm, HlsStmWhile, \
     HlsStmCodeBlock, HlsStmIf, HlsStmFor, HlsStmContinue, \
@@ -53,9 +53,9 @@ class SsaBasicBlockUnreachable(SsaBasicBlock):
         self.successors = SsaInstrBranchUnreachable(self)
 
 
-NetlistIoConstructorDictT = Dict[Interface, Tuple[Optional[HlsRead], Optional[HlsWrite]]]
+NetlistIoConstructorDictT = Dict[HwIO, Tuple[Optional[HlsRead], Optional[HlsWrite]]]
 
-IoPortToIoOpsDictionary = Dict[Union[Interface, MultiPortGroup, BankedPortGroup],
+IoPortToIoOpsDictionary = Dict[Union[HwIO, MultiPortGroup, BankedPortGroup],
                  Tuple[List[HlsRead],
                        List[HlsWrite]]]
 
@@ -152,8 +152,8 @@ class HlsAstToSsa(AnalysisCache):
 
         return block
 
-    def visit_expr(self, block: SsaBasicBlock, var: Union[RtlSignal, HValue]) -> Tuple[SsaBasicBlock, Union[SsaValue, HValue]]:
-        if isinstance(var, Signal):
+    def visit_expr(self, block: SsaBasicBlock, var: Union[RtlSignal, HConst]) -> Tuple[SsaBasicBlock, Union[SsaValue, HConst]]:
+        if isinstance(var, HwIOSignal):
             var = var._sig
         builder = self.ssaBuilder
         if builder.block is not block:
@@ -165,7 +165,7 @@ class HlsAstToSsa(AnalysisCache):
             except SignalDriverErr:
                 op = None
 
-            if op is None or not isinstance(op, Operator):
+            if op is None or not isinstance(op, HOperatorNode):
                 if isinstance(op, HdlPortItem):
                     raise NotImplementedError(op)
 
@@ -190,15 +190,15 @@ class HlsAstToSsa(AnalysisCache):
                 else:
                     return block, self.m_ssa_u.readVariable(var, block)
 
-            if op.operator in (AllOps.BitsAsVec, AllOps.BitsAsUnsigned) and not var._dtype.signed and not op.operands[0]._dtype.signed:
+            if op.operator in (HwtOps.BitsAsVec, HwtOps.BitsAsUnsigned) and not var._dtype.signed and not op.operands[0]._dtype.signed:
                 # skip implicit conversions between vec without sign and unsigned
                 assert len(op.operands) == 1
                 return self.visit_expr(block, op.operands[0])
 
-            elif (op.operator == AllOps.INDEX
+            elif (op.operator == HwtOps.INDEX
                 and var._dtype.bit_length() == 1
                 and len(op.operands) == 2
-                and isinstance(op.operands[1], BitsVal)
+                and isinstance(op.operands[1], HBitsConst)
                 and int(op.operands[1]) == 0
                 and op.operands[0]._dtype.bit_length() == 1):
                 # skip indexing on 1b vectors/ 1b bits
@@ -209,14 +209,14 @@ class HlsAstToSsa(AnalysisCache):
             for o in op.operands:
                 block, _o = self.visit_expr(block, o)
                 ops.append(_o)
-                if allOpsAreValues and not isinstance(_o, HValue):
+                if allOpsAreValues and not isinstance(_o, HConst):
                     allOpsAreValues = False
 
             sig = var
             if allOpsAreValues:
                 var = op.operator._evalFn(*ops)
             else:
-                if op.operator == AllOps.CONCAT:
+                if op.operator == HwtOps.CONCAT:
                     ops = list(reversed(ops))
 
                 var = SsaInstr(builder.block.ctx, var._dtype, op.operator, ops, origin=var)
@@ -225,7 +225,7 @@ class HlsAstToSsa(AnalysisCache):
             # we know for sure that this in in this block that is why we do not need to use readVariable
             return block, var
 
-        elif isinstance(var, HValue):
+        elif isinstance(var, HConst):
             return block, var
 
         else:
@@ -240,8 +240,8 @@ class HlsAstToSsa(AnalysisCache):
 
                 var = var._sig
 
-            elif isinstance(var, StructIntf):
-                var = packIntf(var)
+            elif isinstance(var, HwIOStruct):
+                var = HwIO_pack(var)
                 return self.visit_expr(block, var)
 
             return builder.block, self.m_ssa_u.readVariable(var, builder.block)
@@ -251,7 +251,7 @@ class HlsAstToSsa(AnalysisCache):
         return self.visit_While(block, HlsStmWhile(o.parent, o.cond, o.body + o.step))
 
     def visit_While(self, block: SsaBasicBlock, o: HlsStmWhile) -> SsaBasicBlock:
-        if isinstance(o.cond, HValue):
+        if isinstance(o.cond, HConst):
             if o.cond:
                 # while True
                 cond_block = self._addNewTargetBb(block, None, f"{block.label:s}_whC", o)
@@ -432,7 +432,7 @@ class HlsAstToSsa(AnalysisCache):
                         otherWrites.append(instr)
         return io
 
-    def resolveIoNetlistConstructors(self, io: Dict[Interface, Tuple[List[HlsRead], List[HlsWrite]]]):
+    def resolveIoNetlistConstructors(self, io: Dict[HwIO, Tuple[List[HlsRead], List[HlsWrite]]]):
         ioNodeConstructors = self.ioNodeConstructors = {}
         for i, (reads, writes) in io.items():
             ioNodeConstructors[i] = (reads[0] if reads else None,

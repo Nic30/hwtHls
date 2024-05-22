@@ -1,6 +1,6 @@
 from typing import Optional, Set, Dict
 
-from hwt.synthesizer.interface import Interface
+from hwt.hwIO import HwIO
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register
 from hwtHls.netlist.analysis.dataThreadsForBlocks import HlsNetlistAnalysisPassDataThreadsForBlocks
 from hwtHls.netlist.builder import HlsNetlistBuilder
@@ -31,7 +31,7 @@ class ResetValueExtractor():
                  liveness: Dict[MachineBasicBlock, Dict[MachineBasicBlock, Set[Register]]],
                  blockSync: Dict[MachineBasicBlock, MachineBasicBlockMeta],
                  edgeMeta: Dict[MachineEdge, MachineEdgeMeta],
-                 regToIo: Dict[Register, Interface],
+                 regToIo: Dict[Register, HwIO],
                  dbgTracer: DebugTracer):
         self.builder = builder
         self.valCache = valCache

@@ -1,21 +1,21 @@
 from typing import Set
 
-from hwt.hdl.operatorDefs import AllOps
+from hwt.hdl.operatorDefs import HwtOps
 from hwt.hdl.types.defs import SLICE
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.transformation.simplifyUtils import replaceOperatorNodeWith
 
 
-def netlistReduceIndexOnIndex(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]):
-    assert n.operator is AllOps.INDEX, n
+def netlistReduceIndexOnIndex(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode], removed: Set[HlsNetNode]):
+    assert n.operator is HwtOps.INDEX, n
     srcObj = n.dependsOn[0].obj
     indxObj = n.dependsOn[1].obj
     if (isinstance(indxObj, HlsNetNodeConst) and
         isinstance(srcObj, HlsNetNodeOperator) and
-        srcObj.operator is AllOps.INDEX and
+        srcObj.operator is HwtOps.INDEX and
         isinstance(srcObj.dependsOn[1].obj, HlsNetNodeConst)):
         # flatten index
         i1 = indxObj.val

@@ -4,7 +4,7 @@ import sys
 from typing import Optional, Dict, List, Union, Literal
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
-from hwt.hdl.value import HValue
+from hwt.hdl.const import HConst
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.errors import HlsSyntaxError
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
@@ -27,7 +27,7 @@ from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.value import SsaValue
 
 
-JumpCondition = Union[None, HValue, RtlSignal, SsaValue, Literal[False]]
+JumpCondition = Union[None, HConst, RtlSignal, SsaValue, Literal[False]]
 
 
 class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
@@ -209,7 +209,7 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
             return None
 
         # if this is a jump out of current loop
-        if isinstance(cond, HValue):
+        if isinstance(cond, HConst):
             assert cond, (cond, "If this was not True the jump should not be evaluated at the first place")
             cond = None  # always jump, but we need this value to know that this will be unconditional jump only in HW
 

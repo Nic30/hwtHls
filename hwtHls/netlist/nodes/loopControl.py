@@ -4,8 +4,8 @@ from typing import List, Generator, Tuple, Dict, Optional
 from hwt.code import If, Or
 from hwt.code_utils import rename_signal
 from hwt.hdl.types.defs import BIT
-from hwt.hdl.value import HValue
-from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
+from hwt.hdl.const import HConst
+from hwt.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
@@ -186,7 +186,7 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
         """
         Register connection of control and data from some block which causes the loop to to execute.
 
-        :note: When transaction on this IO is accepted the loop sync token is changed to busy state if not overriden by exit.
+        :note: When transaction on this IO is accepted the loop sync token is changed to busy state if not overridden by exit.
         :note: Loop can be executed directly after reset. This implies that the enter ports are optional. However enter or
             exit port must be present, otherwise this loop status node is not required at all because
         """
@@ -323,7 +323,7 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
             portGroupSigs[channelGroup] = s
 
         useNamedSignals = self.debugUseNamedSignalsForControl
-        parentU = self.netlist.parentUnit
+        parentHwModule = self.netlist.parentHwModule
         andOptional = RtlSignalBuilder.buildAndOptional
         parents: Optional[HlsNetlistAnalysisPassNodeParentAggregate] = None
         # has the priority and does not require sync token (because it already owns it)
@@ -362,7 +362,7 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
 
             newExit = Or(*fromExit)
             if useNamedSignals:
-                newExit = rename_signal(parentU, newExit, f"{name:s}_newExit")
+                newExit = rename_signal(parentHwModule, newExit, f"{name:s}_newExit")
 
         newExe = NOT_SPECIFIED
         if self.fromEnter:
@@ -393,13 +393,13 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
 
             newExe = en & Or(*fromEnter)
             if useNamedSignals:
-                newExe = rename_signal(parentU, newExe, f"{name:s}_newExe")
+                newExe = rename_signal(parentHwModule, newExe, f"{name:s}_newExe")
 
         # new exe or reenter should be executed only if stage with this node has ack
         # exit should be executed only if stage with exit write has ack
         statusBusyRegDrive = []
         if isAlwaysBusy:
-            assert isinstance(statusBusyReg, HValue), self
+            assert isinstance(statusBusyReg, HConst), self
             # raise AssertionError("This node should be optimized out if state of the loop can't change", self)
             pass
 
@@ -425,11 +425,11 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
             assert newExit is not NOT_SPECIFIED, (newExit, self)
             becomesBusy = newExe & ~newExit
             becomesFree = ~newExe & newExit
-            if isinstance(becomesBusy, HValue):
+            if isinstance(becomesBusy, HConst):
                 if becomesBusy:
                     statusBusyRegDrive = statusBusyReg(1)
                 else:
-                    if isinstance(becomesFree, HValue):
+                    if isinstance(becomesFree, HConst):
                         if becomesFree:
                             statusBusyRegDrive = statusBusyReg(0)
                     else:
@@ -441,7 +441,7 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
                 statusBusyRegDrive = If(becomesBusy,
                    statusBusyReg(1)
                 )
-                if isinstance(becomesFree, HValue):
+                if isinstance(becomesFree, HConst):
                     if becomesFree:
                         statusBusyRegDrive.Else(
                             statusBusyReg(0)

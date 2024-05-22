@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 
 from hwt.hdl.types.defs import BIT
-from hwt.interfaces.std import VectSignal, Signal, Handshaked
-from hwt.interfaces.utils import addClkRstn
-from hwt.synthesizer.unit import Unit
+from hwt.hwIOs.std import HwIOVectSignal, HwIOSignal, HwIODataRdVld
+from hwt.hwIOs.utils import addClkRstn
+from hwt.hwModule import HwModule
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline, \
     PyBytecodePreprocHwCopy, PyBytecodeBlockLabel
@@ -13,10 +13,10 @@ from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import uint8_t
 
 
-class PragmaInline_singleBlock(Unit):
+class PragmaInline_singleBlock(HwModule):
 
     def _declr(self):
-        self.o = VectSignal(8, signed=False)._m()
+        self.o = HwIOVectSignal(8, signed=False)._m()
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
@@ -184,9 +184,9 @@ class PragmaInline_SequenceCounter(PragmaInline_singleBlock):
 
     def _declr(self):
         addClkRstn(self)
-        self.o = Handshaked()._m()
+        self.o = HwIODataRdVld()._m()
         self.o.DATA_WIDTH = 8
-        self.i = Signal()
+        self.i = HwIOSignal()
 
     @hlsBytecode
     @PyBytecodeInline
@@ -215,9 +215,9 @@ class PragmaInline_FilterZeros(PragmaInline_SequenceCounter):
 
     def _declr(self):
         addClkRstn(self)
-        self.o = Handshaked()._m()
+        self.o = HwIODataRdVld()._m()
         self.o.DATA_WIDTH = 8
-        self.i = Handshaked()
+        self.i = HwIODataRdVld()
         self.i.DATA_WIDTH = 8
 
     @hlsBytecode
@@ -251,8 +251,9 @@ class PragmaInline_TwoInLoopLiveVars(PragmaInline_FilterZeros):
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.platform import HlsDebugBundle
-    u = PragmaInline_SequenceCounter()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+
+    m = PragmaInline_SequenceCounter()
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

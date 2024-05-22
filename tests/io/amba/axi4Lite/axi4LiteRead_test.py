@@ -12,16 +12,16 @@ from tests.io.amba.axi4Lite.axi4LiteRead import Axi4LiteRead
 class Axi4LiteRead_TC(SimTestCase):
 
     def test_Axi4LiteRead(self):
-        u = Axi4LiteRead()
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
+        dut = Axi4LiteRead()
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
 
-        m = Axi4LiteSimRam(u.ram)
-        t = u.ram.r.data._dtype
+        m = Axi4LiteSimRam(dut.ram)
+        t = dut.ram.r.data._dtype
         N = 8
         for i in range(N):
             m.data[i] = t.from_py(i)
 
-        clkPeriod = int(freq_to_period(u.CLK_FREQ))
+        clkPeriod = int(freq_to_period(dut.CLK_FREQ))
         self.runSim((N + 2) * clkPeriod)
         BaseIrMirRtl_TC._test_no_comb_loops(self)
 
@@ -29,7 +29,7 @@ class Axi4LiteRead_TC(SimTestCase):
         for i in range(N):
             ref.append(i)
 
-        self.assertValSequenceEqual(u.dataOut._ag.data, ref)
+        self.assertValSequenceEqual(dut.dataOut._ag.data, ref)
 
 
 if __name__ == "__main__":

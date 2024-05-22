@@ -611,7 +611,7 @@ class VRegIfConverter_TC(BaseLlvmMirTC):
     def test_switchInLoop1(self):
         ir = """\
         define void @SwitchInLoop1(ptr addrspace(1) %i, ptr addrspace(2) %o) {
-          t0_AxiSParse2IfAndSequel:
+          t0_Axi4SParse2IfAndSequel:
             br label %bb0
           
           bb0:
@@ -639,7 +639,7 @@ class VRegIfConverter_TC(BaseLlvmMirTC):
     def test_switchInLoop2(self):
         ir = """\
         define void @SwitchInLoop2(ptr addrspace(1) %i, ptr addrspace(2) %o) {
-          t0_AxiSParse2IfAndSequel:
+          t0_Axi4SParse2IfAndSequel:
             br label %bb0
           
           bb0:
@@ -669,7 +669,7 @@ class VRegIfConverter_TC(BaseLlvmMirTC):
     def test_switchInLoop3(self):
         ir = """\
         define void @SwitchInLoop3(ptr addrspace(1) %i, ptr addrspace(2) %o) {
-          t0_AxiSParse2IfAndSequel:
+          t0_Axi4SParse2IfAndSequel:
             br label %bb0
           
           bb0:

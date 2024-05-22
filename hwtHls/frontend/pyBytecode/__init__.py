@@ -10,7 +10,7 @@ The translation process involves several things.
 
 2. A preprocessor immediately evaluates everything which is not required to convert to circuit.
    This mainly involves operations and variables of non hardware type.
-   Instances of SsaValue, HValue, Interface, RtlSignal are hardware objects
+   Instances of SsaValue, HConst, Interface, RtlSignal are hardware objects
    for which operations are not evaluatable during compilation instead they are staged into output SSA.
 
    * There is a specific case where predecessor block may disappear or are dynamically added because jumps in code are evaluated in preprocessor

@@ -3,6 +3,7 @@
 
 import unittest
 
+from hwt.hdl.types.bits import HBits
 from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
@@ -11,7 +12,6 @@ from hwtHls.netlist.nodes.ports import link_hls_nodes
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.platform.virtual import VirtualHlsPlatform
-from hwtLib.types.ctypes import uint8_t
 
 
 class SyncDependencyTC(unittest.TestCase):
@@ -26,7 +26,7 @@ class SyncDependencyTC(unittest.TestCase):
     def test_linear0(self):
         # r->w
         netlist, _ = self._createNetlist()
-        r = HlsNetNodeRead(netlist, None, dtype=uint8_t)
+        r = HlsNetNodeRead(netlist, None, dtype=HBits(8))
         w = HlsNetNodeWrite(netlist, None)
         link_hls_nodes(r._outputs[0], w._inputs[0])
         netlist.nodes.extend((r, w))
@@ -40,8 +40,8 @@ class SyncDependencyTC(unittest.TestCase):
     def test_linear1(self):
         # r->sync->w
         netlist, _ = self._createNetlist()
-        r = HlsNetNodeRead(netlist, None, dtype=uint8_t)
-        sync = HlsNetNodeExplicitSync(netlist, uint8_t)
+        r = HlsNetNodeRead(netlist, None, dtype=HBits(8))
+        sync = HlsNetNodeExplicitSync(netlist, HBits(8))
         w = HlsNetNodeWrite(netlist, None)
         link_hls_nodes(r._outputs[0], sync._inputs[0])
         link_hls_nodes(sync._outputs[0], w._inputs[0])
@@ -58,8 +58,8 @@ class SyncDependencyTC(unittest.TestCase):
     def test_join(self):
         # r0 and r1 -> w
         netlist, b = self._createNetlist()
-        r0 = HlsNetNodeRead(netlist, None, dtype=uint8_t)
-        r1 = HlsNetNodeRead(netlist, None, dtype=uint8_t)
+        r0 = HlsNetNodeRead(netlist, None, dtype=HBits(8))
+        r1 = HlsNetNodeRead(netlist, None, dtype=HBits(8))
         w = HlsNetNodeWrite(netlist, None)
         r0AndR1 = b.buildAnd(r0._outputs[0], r1._outputs[0])
         link_hls_nodes(r0AndR1, w._inputs[0])

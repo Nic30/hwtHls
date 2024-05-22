@@ -12,9 +12,9 @@ from tests.io.bram.bramRead2R import BramRead2RWithRom
 class BramRead_TC(SimTestCase):
 
     def test_BramRead(self):
-        u = BramReadWithRom()
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
-        clkPeriod = int(freq_to_period(u.CLK_FREQ))
+        dut = BramReadWithRom()
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
+        clkPeriod = int(freq_to_period(dut.CLK_FREQ))
         # + 1 for reset, +1 for latency
         self.runSim((32 + 1 + 1) * clkPeriod)
         BaseIrMirRtl_TC._test_no_comb_loops(self)
@@ -24,12 +24,12 @@ class BramRead_TC(SimTestCase):
             for i in range(16):
                 ref.append(i + 1)
 
-        self.assertValSequenceEqual(u.dataOut._ag.data, ref)
+        self.assertValSequenceEqual(dut.dataOut._ag.data, ref)
 
     def test_BramRead2R(self):
-        u = BramRead2RWithRom()
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
-        clkPeriod = int(freq_to_period(u.CLK_FREQ))
+        dut = BramRead2RWithRom()
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
+        clkPeriod = int(freq_to_period(dut.CLK_FREQ))
         # + 1 for reset, +1 for latency
         self.runSim((16 + 1 + 1) * clkPeriod)
         BaseIrMirRtl_TC._test_no_comb_loops(self)
@@ -42,8 +42,8 @@ class BramRead_TC(SimTestCase):
             for i in range(8, 16):
                 ref1.append(i + 1)
 
-        self.assertValSequenceEqual(u.dataOut0._ag.data, ref0)
-        self.assertValSequenceEqual(u.dataOut1._ag.data, ref1)
+        self.assertValSequenceEqual(dut.dataOut0._ag.data, ref0)
+        self.assertValSequenceEqual(dut.dataOut1._ag.data, ref1)
 
 
 if __name__ == "__main__":

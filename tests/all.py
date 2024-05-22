@@ -12,7 +12,9 @@ from tests.bitOpt.countBits_test import CountBitsTC
 from tests.bitOpt.divNonRestoring_test import DivNonRestoring_TC
 from tests.bitOpt.popcount_test import PopcountTC
 from tests.bitOpt.shifter_test import ShifterTC
+from tests.floatingpoint.add_test import IEEE754FpAdder_TC
 from tests.floatingpoint.cmp_test import IEEE754FpCmp_TC
+from tests.floatingpoint.fptypes_test import IEEE754Fp_TC
 from tests.floatingpoint.fromInt_test import IEEE754FpFromInt_TC
 from tests.floatingpoint.toInt_test import IEEE754FpToInt_TC
 from tests.frontend.ast.bitonicSort import BitonicSorterHLS_TCs
@@ -48,26 +50,26 @@ from tests.hlsNetlist.discoverSyncIsland_test import HlsNetlistDiscoverSyncIslan
 from tests.hlsNetlist.netlistReduceCmpInAnd_test import HlsNetlistReduceCmpInAndTC
 from tests.hlsNetlist.readNonBlocking_test import ReadNonBockingTC
 from tests.hlsNetlist.readSync_test import HlsNetlistReadSyncTC
-from tests.hlsNetlist.simplifyBackedgeWritePropagation_test import HlsCycleDelayUnit
+from tests.hlsNetlist.simplifyBackedgeWritePropagation_test import HlsCycleDelayHwModule
 from tests.hlsNetlist.wire_test import HlsNetlistWireTC
 from tests.io.amba.axi4Lite.axi4LiteCopy_test import Axi4LiteCopy_TC
 from tests.io.amba.axi4Lite.axi4LiteRead_test import Axi4LiteRead_TC
 from tests.io.amba.axi4Lite.axi4LiteWrite_test import Axi4LiteWrite_TC
-from tests.io.amba.axiStream.axisCopyByteByByte_test import AxiSPacketCopyByteByByteTC
-from tests.io.amba.axiStream.axisPacketCntr_test import AxiSPacketCntrTC
-from tests.io.amba.axiStream.axisParseEth_test import AxiSParseEthTC
-from tests.io.amba.axiStream.axisParseIf_test import AxiSParseIfTC
-from tests.io.amba.axiStream.axisParseLinear_test import AxiSParseLinearTC
-from tests.io.amba.axiStream.axisPingResponder import PingResponderTC
-from tests.io.amba.axiStream.axisWriteByte_test import AxiSWriteByteTC
+from tests.io.amba.axi4Stream.axi4sCopyByteByByte_test import Axi4SPacketCopyByteByByteTC
+from tests.io.amba.axi4Stream.axi4sPacketCntr_test import Axi4SPacketCntrTC
+from tests.io.amba.axi4Stream.axi4sParseEth_test import Axi4SParseEthTC
+from tests.io.amba.axi4Stream.axi4sParseIf_test import Axi4SParseIfTC
+from tests.io.amba.axi4Stream.axi4sParseLinear_test import Axi4SParseLinearTC
+from tests.io.amba.axi4Stream.axi4sPingResponder import Axi4SPingResponderTC
+from tests.io.amba.axi4Stream.axi4sWriteByte_test import Axi4SWriteByteTC
 from tests.io.bram.bramRead_test import BramRead_TC
 from tests.io.bram.bramWrite_test import BramWrite_TC
 from tests.io.bram.counterArray_test import BramCounterArray_TC
+from tests.io.bram.readSizeFromRamAndSendSequence_test import ReadSizeFromRamAndSendSequence_TC
 from tests.io.flushing_test import Flushing_TC
 from tests.io.ioFsm2_test import IoFsm2_TC
 from tests.io.ioFsm_test import IoFsm_TC
 from tests.io.readAtleastOne_test import ReadAtleastOne_TC
-from tests.io.bram.readSizeFromRamAndSendSequence_test import ReadSizeFromRamAndSendSequence_TC
 from tests.llvmIr.SimplifyCFG2Pass_test import SimplifyCFG2Pass_TC
 from tests.llvmIr.bitWidthReductionPass_Cmp_test import BitWidthReductionPass_Cmp_example_TC
 from tests.llvmIr.bitWidthReductionPass_PHI_test import BitwidthReductionPass_PHI_TC
@@ -84,7 +86,6 @@ from tests.utils.alapAsapDiffExample import AlapAsapDiffExample_TC
 from tests.utils.bitwiseOpsScheduling_test import BitwiseOpsScheduling_TC
 from tests.utils.phiConstructions_test import PhiConstruction_TC
 from tests.utils.schedulingNodeFunctions_test import SchedulingNodeFunctions_TC
-from tests.floatingpoint.add_test import IEEE754FpAdder_TC
 
 
 def testSuiteFromTCs(*tcs):
@@ -113,7 +114,7 @@ suite = testSuiteFromTCs(
     CountBitsTC,
     PopcountTC,
     ReadNonBockingTC,
-    HlsCycleDelayUnit,
+    HlsCycleDelayHwModule,
     HlsPythonTupleAssign_TC,
     SimplifyCFG2Pass_TC,
     LoopUnrotatePass_TC,
@@ -163,17 +164,17 @@ suite = testSuiteFromTCs(
     StmWhile_sim_TC,
     PyArrHwIndex_TC,
     VariableChain_TC,
-    AxiSPacketCntrTC,
-    AxiSParseEthTC,
-    AxiSParseLinearTC,
-    AxiSParseIfTC,
-    AxiSWriteByteTC,
-    AxiSPacketCopyByteByByteTC,
+    Axi4SPacketCntrTC,
+    Axi4SParseEthTC,
+    Axi4SParseLinearTC,
+    Axi4SParseIfTC,
+    Axi4SWriteByteTC,
+    Axi4SPacketCopyByteByByteTC,
     BramRead_TC,
     BramWrite_TC,
     HashTable_TC,
     LlvmLoopUnroll_TC,
-    PingResponderTC,
+    Axi4SPingResponderTC,
     Axi4LiteRead_TC,
     Axi4LiteWrite_TC,
     Axi4LiteCopy_TC,

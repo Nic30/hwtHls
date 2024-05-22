@@ -2,27 +2,27 @@ from typing import Union, List, Dict, Tuple, Optional, Generator, Literal, Set
 
 from hwt.code import SwitchLogic
 from hwt.code_utils import rename_signal
-from hwt.hdl.operatorDefs import OpDefinition
+from hwt.hdl.operatorDefs import HOperatorDef
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.statements.statement import HdlStatement
-from hwt.hdl.types.bits import Bits
-from hwt.hdl.types.bitsVal import BitsVal
+from hwt.hdl.types.bits import HBits
+from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.hdlType import HdlType
-from hwt.hdl.value import HValue
-from hwt.interfaces.std import Signal
-from hwt.pyUtils.uniqList import UniqList
-from hwt.synthesizer.interface import Interface
-from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
-from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
-from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
+from hwt.hdl.const import HConst
+from hwt.hwIOs.std import HwIOSignal
+from hwt.pyUtils.setList import SetList
+from hwt.hwIO import HwIO
+from hwt.mainBases import HwIOBase
+from hwt.constants import NOT_SPECIFIED
+from hwt.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
-from hwt.synthesizer.unit import Unit
+from hwt.hwModule import HwModule
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage, \
     ExtraCondMemberList, SkipWhenMemberList, \
     InterfaceOrReadWriteNodeOrValidReadyTuple, IORecord, ConnectionsOfStageList
-from hwtHls.architecture.syncUtils import getInterfaceSyncTuple
+from hwtHls.architecture.syncUtils import HwIO_getSyncTuple
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, \
     TimeIndependentRtlResourceItem, INVARIANT_TIME
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
@@ -39,7 +39,7 @@ from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import start_clk, indexOfClkPeriod
 from hwtHls.platform.opRealizationMeta import EMPTY_OP_REALIZATION
 from hwtHls.typingFuture import override
-from hwtLib.handshaked.streamNode import StreamNode, InterfaceOrValidReadyTuple, \
+from hwtLib.handshaked.streamNode import StreamNode, HwIOOrValidReadyTuple, \
     ValidReadyTuple
 from hwtLib.logic.rtlSignalBuilder import RtlSignalBuilder
 
@@ -74,14 +74,14 @@ class ArchElement(HlsNetNodeAggregate):
     """
 
     def __init__(self, netlist: "HlsNetlistCtx", name:str,
-                 subNodes: UniqList[HlsNetNode],
+                 subNodes: SetList[HlsNetNode],
                  connections: ConnectionsOfStageList):
         HlsNetNodeAggregate.__init__(self, netlist, subNodes, name)
         self.netlist = netlist
         self.netNodeToRtl: Dict[
             Union[
                 HlsNetNodeOut,  # any operation output
-                Tuple[HlsNetNodeOut, Interface]  # write
+                Tuple[HlsNetNodeOut, HwIO]  # write
             ],
             TimeIndependentRtlResource] = {}
         # function to create register/signal on RTL level
@@ -109,22 +109,22 @@ class ArchElement(HlsNetNodeAggregate):
     def _reg(self, name: str,
              dtype: HdlType=BIT,
              def_val: Union[int, None, dict, list]=None,
-             clk: Union[RtlSignalBase, None, Tuple[RtlSignalBase, OpDefinition]]=None,
+             clk: Union[RtlSignalBase, None, Tuple[RtlSignalBase, HOperatorDef]]=None,
              rst: Optional[RtlSignalBase]=None,
              nextSig:Optional[RtlSignalBase]=NOT_SPECIFIED) -> RtlSyncSignal:
         """
-        :see: :meth:`hwt.synthesizer.interfaceLevel.unitImplHelpers._reg`
+        :see: :meth:`hwt.synthesizer.interfaceLevel.hwModuleImplHelpers._reg`
         """
-        return self.netlist.parentUnit._reg(name, dtype=dtype, def_val=def_val, clk=clk, rst=rst, nextSig=nextSig)
+        return self.netlist.parentHwModule._reg(name, dtype=dtype, def_val=def_val, clk=clk, rst=rst, nextSig=nextSig)
 
     def _sig(self, name: str,
              dtype: HdlType=BIT,
              def_val: Union[int, None, dict, list]=None,
              nop_val: Union[int, None, dict, list, "NOT_SPECIFIED"]=NOT_SPECIFIED) -> RtlSignal:
         """
-        :see: :meth:`hwt.synthesizer.interfaceLevel.unitImplHelpers._sig`
+        :see: :meth:`hwt.synthesizer.interfaceLevel.hwModuleImplHelpers._sig`
         """
-        return self.netlist.parentUnit._sig(name, dtype=dtype, def_val=def_val, nop_val=nop_val)
+        return self.netlist.parentHwModule._sig(name, dtype=dtype, def_val=def_val, nop_val=nop_val)
 
     @override
     def _addOutput(self, t:HdlType, name:Optional[str], time:Optional[SchedTime]=None) -> Tuple[HlsNetNodeOut, HlsNetNodeIn]:
@@ -220,7 +220,7 @@ class ArchElement(HlsNetNodeAggregate):
 
     def rtlRegisterOutputRtlSignal(self,
                                    outOrTime: Union[HlsNetNodeOut, SchedTime],
-                                   data: Union[RtlSignal, Interface, HValue],
+                                   data: Union[RtlSignal, HwIO, HConst],
                                    isExplicitRegister: bool,
                                    isForwardDeclr: bool,
                                    mayChangeOutOfCfg: bool,
@@ -231,7 +231,7 @@ class ArchElement(HlsNetNodeAggregate):
         notAddToNetNodeToRtl = isinstance(outOrTime, SchedTime) or outOrTime is NOT_SPECIFIED
         timeOffset = \
             timeOffset if timeOffset is not NOT_SPECIFIED else\
-            INVARIANT_TIME if (isinstance(data, HValue) or isinstance(data, RtlSignal) and data._const) else\
+            INVARIANT_TIME if (isinstance(data, HConst) or isinstance(data, RtlSignal) and data._const) else\
             outOrTime if notAddToNetNodeToRtl else\
             outOrTime.obj.scheduledOut[outOrTime.out_i]
 
@@ -282,7 +282,7 @@ class ArchElement(HlsNetNodeAggregate):
                 try:
                     res = self.netNodeToRtl[o]
                     assert isinstance(res, TimeIndependentRtlResource) and \
-                        (not isinstance(o._dtype, Bits) or\
+                        (not isinstance(o._dtype, HBits) or\
                          res.valuesInTime[0].data._dtype.bit_length() == o._dtype.bit_length()), (
                              o, res, o._dtype, res.valuesInTime[0].data._dtype
                              if isinstance(res, TimeIndependentRtlResource) else None)
@@ -342,7 +342,7 @@ class ArchElement(HlsNetNodeAggregate):
         self._rtlAllocDatapathIo(node.dst, node, con, rtl, False, validHasCustomDriver, readyHasCustomDriver)
 
     def _rtlAllocDatapathIo(self,
-                    intf: Optional[Interface],
+                    hwIO: Optional[HwIO],
                     node: Union[HlsNetNodeRead, HlsNetNodeWrite],
                     con: ConnectionsOfStage,
                     rtl: List[HdlStatement],
@@ -357,21 +357,21 @@ class ArchElement(HlsNetNodeAggregate):
         :attention: validHasCustomDriver are related to IO and must be set always the same when calling this method multiple times for this IO
         """
         assert isinstance(rtl, list), (node, rtl.__class__, rtl)
-        if intf is None:
+        if hwIO is None:
             assert not node._rtlUseValid and not node._rtlUseReady, node
             valid = 1
             ready = 1
             validReadyPhysicallyPresent = (1, 1)
             if isRead:
-                assert HdlType_isVoid(node._outputs[0]._dtype), ("Node without any hw Interface or sync must not have any data", node)
+                assert HdlType_isVoid(node._outputs[0]._dtype), ("Node without any hw HwIO or sync must not have any data", node)
                 if isinstance(node, (HlsNetNodeReadBackedge, HlsNetNodeReadForwardedge)):
-                    intf = node.associatedWrite
+                    hwIO = node.associatedWrite
             else:
-                assert HdlType_isVoid(node.dependsOn[0]._dtype), ("Node without any hw Interface or sync must not have any data", node)
+                assert HdlType_isVoid(node.dependsOn[0]._dtype), ("Node without any hw HwIO or sync must not have any data", node)
             # we need some object to store extraCond and skipWhen
         else:
-            assert isinstance(intf, (Interface, RtlSignalBase)), ("Node should already have interface resolved", node, intf)
-            validReadyPhysicallyPresent = getInterfaceSyncTuple(intf)
+            assert isinstance(hwIO, (HwIO, RtlSignalBase)), ("Node should already have interface resolved", node, hwIO)
+            validReadyPhysicallyPresent = HwIO_getSyncTuple(hwIO)
             valid, ready = validReadyPhysicallyPresent
 
             if isinstance(node, (HlsNetNodeReadForwardedge, HlsNetNodeWriteForwardedge)):
@@ -405,10 +405,10 @@ class ArchElement(HlsNetNodeAggregate):
         validReadyForSync = (valid, ready)
 
         if valid == 1 and ready == 1:
-            if intf is None:
+            if hwIO is None:
                 keyForFlagDicts = node
             else:
-                keyForFlagDicts = intf
+                keyForFlagDicts = hwIO
         else:
             keyForFlagDicts = validReadyForSync
 
@@ -416,18 +416,18 @@ class ArchElement(HlsNetNodeAggregate):
                not (isinstance(keyForFlagDicts , tuple) and\
                     keyForFlagDicts == (1, 1)), node
 
-        io = IORecord(node, intf, validReadyForSync, keyForFlagDicts, validReadyPhysicallyPresent,
+        io = IORecord(node, hwIO, validReadyForSync, keyForFlagDicts, validReadyPhysicallyPresent,
                       validHasCustomDriver, readyHasCustomDriver)
         ioContainer.append(io)
 
-        if intf is None:
+        if hwIO is None:
             assert not rtl, ("If it has no HW interface (it is only virtual read/write)"
                              " it should not produce any rtl", node)
         else:
-            muxVariants = con.ioMuxes.get(intf, None)
+            muxVariants = con.ioMuxes.get(hwIO, None)
             if muxVariants is None:
-                con.ioMuxesKeysOrdered.append(intf)
-                muxVariants = con.ioMuxes[intf] = []
+                con.ioMuxesKeysOrdered.append(hwIO)
+                muxVariants = con.ioMuxes[hwIO] = []
             muxVariants.append((node, rtl))
 
         if isRead:
@@ -515,16 +515,16 @@ class ArchElement(HlsNetNodeAggregate):
             _skip = self.rtlAllocHlsNetNodeOutInTime(skipWhen, node.scheduledIn[node.skipWhen.in_i]).data
             ack = RtlSignalBuilder.buildOrNegatedMaskOptional(ack, _skip)
 
-        if isinstance(ack, BitsVal):
+        if isinstance(ack, HBitsConst):
             assert int(ack) == 1, (node, "If ack=0 this means that channel is always stalling")
             ack = None
 
         if ack is not None and self._dbgAddSignalNamesToSync:
-            ack = rename_signal(self.netlist.parentUnit, ack, f"{namePrefix:s}n{node._id}_ack")
+            ack = rename_signal(self.netlist.parentHwModule, ack, f"{namePrefix:s}n{node._id}_ack")
 
         return ack
 
-    def _rtlChannelSyncFinalizeFlag(self, parentUnit: Unit,
+    def _rtlChannelSyncFinalizeFlag(self, parentHwModule: HwModule,
                                     flagDict: Dict[InterfaceOrReadWriteNodeOrValidReadyTuple, Union[ExtraCondMemberList, SkipWhenMemberList]],
                                     flagsDictKey: InterfaceOrReadWriteNodeOrValidReadyTuple,
                                     baseName:Optional[str],
@@ -536,14 +536,14 @@ class ArchElement(HlsNetNodeAggregate):
         flag = flagBundle.resolve()
         if flag is None:
             return None
-        elif isinstance(flag, BitsVal):
+        elif isinstance(flag, HBitsConst):
             assert int(flag) == defaultVal, (baseName, flagName, flag, "Enable condition is never satisfied, channel would be always disabled")
             return None
         else:
-            assert isinstance(flag, (RtlSignal, Signal)), (baseName, flagName, flag)
+            assert isinstance(flag, (RtlSignal, HwIOSignal)), (baseName, flagName, flag)
             if self._dbgAddSignalNamesToSync and baseName is not None and baseName is not flagName:
                 newName = f"{baseName:s}_{flagName:s}"
-                flag = rename_signal(parentUnit, flag, newName)
+                flag = rename_signal(parentHwModule, flag, newName)
                 self._dbgExplicitlyNamedSyncSignals.add(flag)
 
             return flag
@@ -553,12 +553,12 @@ class ArchElement(HlsNetNodeAggregate):
         Before this function all concurrent IOs and their conditions are collected.
         In this function we resolve final enable conditions.
         """
-        masters: List[InterfaceOrValidReadyTuple] = []
-        slaves: List[InterfaceOrValidReadyTuple] = []
-        extraConds: Dict[InterfaceOrValidReadyTuple, RtlSignal] = {}
-        skipWhens: Dict[InterfaceOrValidReadyTuple, RtlSignal] = {}
+        masters: List[HwIOOrValidReadyTuple] = []
+        slaves: List[HwIOOrValidReadyTuple] = []
+        extraConds: Dict[HwIOOrValidReadyTuple, RtlSignal] = {}
+        skipWhens: Dict[HwIOOrValidReadyTuple, RtlSignal] = {}
 
-        parentUnit = self.netlist.parentUnit
+        parentHwModule = self.netlist.parentHwModule
         seen: Set[InterfaceOrReadWriteNodeOrValidReadyTuple] = set()
         # :attention: It is important that outputs are iterated first, because if IO is
         # in inputs and outputs it needs to be slave and we are using first found and then
@@ -567,7 +567,7 @@ class ArchElement(HlsNetNodeAggregate):
             for ioRecord in ioList:
                 ioRecord: IORecord
                 node: Union[HlsNetNodeRead, HlsNetNodeWrite] = ioRecord.node
-                intf: Optional[Interface] = ioRecord.io
+                hwIO: Optional[HwIO] = ioRecord.io
                 flagsDictKey: InterfaceOrReadWriteNodeOrValidReadyTuple = ioRecord.ioUniqueKey
                 if flagsDictKey in seen:
                     continue
@@ -576,26 +576,26 @@ class ArchElement(HlsNetNodeAggregate):
 
                 if not self._dbgAddSignalNamesToSync:
                     baseName = None
-                elif intf is None or not isinstance(intf, (InterfaceBase, RtlSignalBase)):
+                elif hwIO is None or not isinstance(hwIO, (HwIOBase, RtlSignalBase)):
                     baseName = node.name
                 else:
-                    baseName = intf._name
+                    baseName = hwIO._name
 
                 # resolve conditions for IO as input and output (some IO may be both)
-                inputExtraCond = self._rtlChannelSyncFinalizeFlag(parentUnit, con.inputs_extraCond, flagsDictKey, baseName, "extraCond", 1)
-                inputSkipWhen = self._rtlChannelSyncFinalizeFlag(parentUnit, con.inputs_skipWhen, flagsDictKey, baseName, "skipWhen", 0)
-                oututExtraCond = self._rtlChannelSyncFinalizeFlag(parentUnit, con.outputs_extraCond, flagsDictKey, baseName, "extraCond", 1)
-                oututSkipWhen = self._rtlChannelSyncFinalizeFlag(parentUnit, con.outputs_skipWhen, flagsDictKey, baseName, "skipWhen", 0)
+                inputExtraCond = self._rtlChannelSyncFinalizeFlag(parentHwModule, con.inputs_extraCond, flagsDictKey, baseName, "extraCond", 1)
+                inputSkipWhen = self._rtlChannelSyncFinalizeFlag(parentHwModule, con.inputs_skipWhen, flagsDictKey, baseName, "skipWhen", 0)
+                oututExtraCond = self._rtlChannelSyncFinalizeFlag(parentHwModule, con.outputs_extraCond, flagsDictKey, baseName, "extraCond", 1)
+                oututSkipWhen = self._rtlChannelSyncFinalizeFlag(parentHwModule, con.outputs_skipWhen, flagsDictKey, baseName, "skipWhen", 0)
 
                 extraCond = RtlSignalBuilder.buildAndOptional(inputExtraCond, oututExtraCond)
                 if extraCond is not None:
-                    if isinstance(extraCond, BitsVal):
+                    if isinstance(extraCond, HBitsConst):
                         assert int(extraCond) == 1, (node, "Must be 1 otherwise IO is never activated")
                         extraCond = None
 
                 skipWhen = RtlSignalBuilder.buildAndOptional(inputSkipWhen, oututSkipWhen)
                 if skipWhen is not None:
-                    if isinstance(skipWhen, BitsVal):
+                    if isinstance(skipWhen, HBitsConst):
                         assert int(skipWhen) == 0, (node, "Must be 0 otherwise IO is never activated")
                         skipWhen = None
 
@@ -624,13 +624,13 @@ class ArchElement(HlsNetNodeAggregate):
                     ack = RtlSignalBuilder.buildOrNegatedMaskOptional(extraCond, skipWhen)
                     if ack is None:
                         ack = 1
-                    elif isinstance(ack, BitsVal):
+                    elif isinstance(ack, HBitsConst):
                         assert int(ack) == 1, node
                         ack = 1
 
                     if hasValidDrivenFromLocalAck:
                         if driveValidFromLocalAck:
-                            assert isinstance(_valid, (RtlSignalBase, Signal)), (node, _valid)
+                            assert isinstance(_valid, (RtlSignalBase, HwIOSignal)), (node, _valid)
                             con.stDependentDrives.append(_valid(ack))
 
                         if not isRead:
@@ -638,7 +638,7 @@ class ArchElement(HlsNetNodeAggregate):
                                             " only in ioRecord.validReadyPresent", node, valid)
                     if hasReadyDrivenFromLocalAck:
                         if driveReadyFromLocalAck:
-                            assert isinstance(_ready, (RtlSignalBase, Signal)), (node, _ready)
+                            assert isinstance(_ready, (RtlSignalBase, HwIOSignal)), (node, _ready)
                             con.stDependentDrives.append(_ready(ack))
                         if isRead:
                             assert ready == 1, ("ready should not be used in sync tuple and should be present"
@@ -656,7 +656,7 @@ class ArchElement(HlsNetNodeAggregate):
                     # of this node if there is some extraCond or skipWhen condition
                     if ack is NOT_SPECIFIED:
                         ack = RtlSignalBuilder.buildOrOptional(extraCond, skipWhen)
-                        if isinstance(ack, BitsVal):
+                        if isinstance(ack, HBitsConst):
                             assert int(ack) == 1, node
                             ack = None
                     if isinstance(ack, int):
@@ -666,7 +666,7 @@ class ArchElement(HlsNetNodeAggregate):
                     if ack is not None:
                         # add virtual masters to implement stalling of this node for IO which
                         if baseName is not None:
-                            ack = rename_signal(self.netlist.parentUnit, ack, f"{baseName}_ack")
+                            ack = rename_signal(self.netlist.parentHwModule, ack, f"{baseName}_ack")
                             self._dbgExplicitlyNamedSyncSignals.add(ack)
 
                         virtualMaster = (ack, 1)
@@ -718,8 +718,8 @@ class ArchElement(HlsNetNodeAggregate):
         con.syncNode = sync
         return sync
 
-    def _rtlAllocIoMux(self, ioMuxes: Dict[Interface, Tuple[Union[HlsNetNodeRead, HlsNetNodeWrite], List[HdlStatement]]],
-                             ioMuxesKeysOrdered: UniqList[Interface]):
+    def _rtlAllocIoMux(self, ioMuxes: Dict[HwIO, Tuple[Union[HlsNetNodeRead, HlsNetNodeWrite], List[HdlStatement]]],
+                             ioMuxesKeysOrdered: SetList[HwIO]):
         """
         After all read/write nodes constructed all RTL create a HDL switch to select RTL which should be active.
         """

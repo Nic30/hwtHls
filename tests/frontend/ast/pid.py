@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from hwt.code import Add
-from hwt.synthesizer.param import Param
+from hwt.hwParam import HwParam
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.scope import HlsScope
@@ -16,7 +16,7 @@ class PidControllerHalfHls(PidController):
 
     def _config(self):
         super(PidControllerHalfHls, self)._config()
-        self.CLK_FREQ = Param(int(50e6))
+        self.CLK_FREQ = HwParam(int(50e6))
 
     def _declr(self):
         PidController._declr(self)
@@ -44,7 +44,7 @@ class PidControllerHalfHls(PidController):
         err = y[0] - hls.read(self.target).data
         a = [hls.read(c).data for c in self.coefs]
 
-        _u = Add(hls.read(u).data, a[0] * err, a[1] * y[0],
+        _u = Add(hls.read(m).data, a[0] * err, a[1] * y[0],
                  a[2] * y[1], a[3] * y[2], key=trim)
 
         ast = HlsAstBuilder(hls)
@@ -109,10 +109,10 @@ class PidControllerHls(PidControllerHalfHls):
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.platform import HlsDebugBundle
-    # u = PidController()
-    # print(to_rtl_str(u))
-    u = PidControllerHls()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    # m = PidController()
+    # print(to_rtl_str(m))
+    m = PidControllerHls()
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

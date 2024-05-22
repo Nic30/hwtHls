@@ -1,6 +1,6 @@
 from hwt.hdl.types.hdlType import HdlType
-from hwt.pyUtils.uniqList import UniqList
-from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
+from hwt.pyUtils.setList import SetList
+from hwt.mainBases import RtlSignalBase
 from hwtHls.ssa.context import SsaContext
 
 
@@ -23,4 +23,4 @@ class SsaValue():
             
         self._name = name
         self._dtype = dtype
-        self.users: UniqList[SsaUser] = UniqList()
+        self.users: SetList[SsaUser] = SetList()

@@ -5,12 +5,12 @@ from typing import Tuple, List, Generator, Union, Optional, Dict, Iterable, Any,
     Callable
 
 from hwt.code import Concat
-from hwt.hdl.operatorDefs import AllOps
-from hwt.hdl.types.bits import Bits
+from hwt.hdl.operatorDefs import HwtOps
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import INT, SLICE
-from hwt.hdl.value import HValue
+from hwt.hdl.const import HConst
 from hwt.pyUtils.arrayQuery import grouper
-from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
+from hwt.constants import NOT_SPECIFIED
 from hwtHls.code import OP_CTLZ, OP_CTTZ, OP_CTPOP
 from hwtHls.llvm.llvmIr import parseMIR, LlvmCompilationBundle, MachineFunction, MachineBasicBlock, MachineInstr, TargetOpcode, MachineOperand, \
     CmpInst, TypeToIntegerType, Register, LLVMStringContext, MachineRegisterInfo
@@ -123,7 +123,7 @@ class LlvmMirInterpret():
         waveLog.enddefinitions()
         return instrCodeline, simCodelineLabel, simTimeLabel, simBlockLabel
 
-    def run(self, args: Tuple[Generator[Union[int, HValue], None, None], List[HValue], ...],
+    def run(self, args: Tuple[Generator[Union[int, HConst], None, None], List[HConst], ...],
             wallTime:Optional[int]=None):
         """
         :param args: arguments for executed function, generator is used for inputs,
@@ -134,11 +134,11 @@ class LlvmMirInterpret():
         MRI: MachineRegisterInfo = MF.getRegInfo()
         waveLog = self.waveLog
         timeNow = -timeStep
-        regs: List[Union[HValue, List[Union[int, HValue]], None]] = [None for _ in range(MRI.getNumVirtRegs())]
+        regs: List[Union[HConst, List[Union[int, HConst]], None]] = [None for _ in range(MRI.getNumVirtRegs())]
         if waveLog is not None:
             _, simCodelineLabel, simTimeLabel, simBlockLabel = self._prepareVcdWriter()
 
-            def logToWave(_:List[HValue], i: int, v: HValue):
+            def logToWave(_:List[HConst], i: int, v: HConst):
                 if i in waveLog._idScope:
                     waveLog.logChange(timeNow, i, v, None)
 
@@ -149,7 +149,7 @@ class LlvmMirInterpret():
             simBlockLabel = None
 
         mb: MachineBasicBlock = MF.getBlockNumbered(0)
-        # globalValues: Dict[Register, HValue] = {}
+        # globalValues: Dict[Register, HConst] = {}
 
         assert mb is not None
         while True:
@@ -160,7 +160,7 @@ class LlvmMirInterpret():
             if waveLog is not None:
                 waveLog.logChange(timeNow, simBlockLabel, mb, None)
             nextMb = None
-            ops: List[Union[Register, MachineBasicBlock, int, HValue]] = []
+            ops: List[Union[Register, MachineBasicBlock, int, HConst]] = []
             for mi in mb:
                 mi: MachineInstr
 
@@ -181,7 +181,7 @@ class LlvmMirInterpret():
                             llt = MRI.getType(mo.getReg())
                             assert llt.isValid()
                             width = llt.getSizeInBits()
-                            ops.append(Bits(width).from_py(None))
+                            ops.append(HBits(width).from_py(None))
                         else:
                             ops.append(regs[r.virtRegIndex()])
 
@@ -195,7 +195,7 @@ class LlvmMirInterpret():
                         t = TypeToIntegerType(c.getType())
                         if t is None:
                             raise NotImplementedError(mi, mo)
-                        pyT = Bits(t.getBitWidth())
+                        pyT = HBits(t.getBitWidth())
                         v = int(v)
                         if v < 0:  # convert to unsigned
                             v = pyT.all_mask() + v + 1
@@ -225,7 +225,7 @@ class LlvmMirInterpret():
                             llt = MRI.getType(val)
                             assert llt.isValid()
                             width = llt.getSizeInBits()
-                            t = Bits(width)
+                            t = HBits(width)
                             regs[val.virtRegIndex()] = t.from_py(0, vld_mask=1 << width - 1)
 
                             continue
@@ -240,8 +240,8 @@ class LlvmMirInterpret():
 
                     llt = MRI.getType(val)
                     assert llt.isValid()
-                    t = Bits(llt.getSizeInBits())
-                    if isinstance(v, HValue):
+                    t = HBits(llt.getSizeInBits())
+                    if isinstance(v, HConst):
                         if v._dtype != t:
                             assert v._dtype.bit_length() == t.bit_length(), (mi, v._dtype, t, v)
                             v = v._reinterpret_cast(t)
@@ -328,12 +328,12 @@ class LlvmMirInterpret():
                     dst, = ops
                     llt = MRI.getType(ops[0])
                     assert llt.isValid()
-                    t = Bits(llt.getSizeInBits())
+                    t = HBits(llt.getSizeInBits())
                     regs[dst.virtRegIndex()] = t.from_py(None)
 
                 else:
                     op = HlsNetlistAnalysisPassMirToNetlistLowLevel.OPC_TO_OP.get(opc)
-                    if op in (AllOps.NOT, OP_CTLZ, OP_CTTZ, OP_CTPOP):
+                    if op in (HwtOps.NOT, OP_CTLZ, OP_CTTZ, OP_CTPOP):
                         dst, src0 = ops
                         if src0._dtype.signed is not None:
                             src0 = src0.cast_sign(None)

@@ -1,9 +1,9 @@
 from typing import Set, List, Generator, Tuple, Optional
 
-from hwt.hdl.operatorDefs import AllOps
-from hwt.hdl.types.bits import Bits
+from hwt.hdl.operatorDefs import HwtOps
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.slice import HSlice
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
@@ -16,7 +16,7 @@ from hwtHls.netlist.transformation.simplifyUtils import replaceOperatorNodeWith,
 from pyMathBitPrecise.bit_utils import ValidityError
 
 
-def netlistReduceMuxToRom(builder: HlsNetlistBuilder, n: HlsNetNodeMux, worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]):
+def netlistReduceMuxToRom(builder: HlsNetlistBuilder, n: HlsNetNodeMux, worklist: SetList[HlsNetNode], removed: Set[HlsNetNode]):
     # try to format mux to a format where each condition is comparison with EQ operator
     # so the mux behaves like switch-case statement id it is suitable for ROM extraction
     cases = tuple(n._iterValueConditionDriverPairs())
@@ -34,10 +34,10 @@ def netlistReduceMuxToRom(builder: HlsNetlistBuilder, n: HlsNetNodeMux, worklist
         if isinstance(c.obj, HlsNetNodeOperator):
             op = c.obj.operator
             if i == preLastcaseIndex:
-                lastConditionIsNe = op == AllOps.NE
-                everyConditionIsEq = everyNonLastConditionIsEq and op == AllOps.EQ
+                lastConditionIsNe = op == HwtOps.NE
+                everyConditionIsEq = everyNonLastConditionIsEq and op == HwtOps.EQ
             else:
-                everyNonLastConditionIsEq &= op == AllOps.EQ
+                everyNonLastConditionIsEq &= op == HwtOps.EQ
         else:
             everyConditionIsEq = False
             everyNonLastConditionIsEq = False
@@ -123,7 +123,118 @@ def netlistReduceMuxToRom(builder: HlsNetlistBuilder, n: HlsNetNodeMux, worklist
     return False
 
 
-def netlistReduceMuxConstantConditionsAndChildMuxSink(n: HlsNetNodeMux, worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]):
+def popConcatOfSlices(o: HlsNetNodeOut, depthLimit: int) -> Generator[Tuple[HlsNetNodeOut, int, int], None, None]:
+    obj = o.obj
+
+    if not isinstance(obj, HlsNetNodeOperator):
+        yield (o, 0, o._dtype.bit_length())
+        return
+
+    if depthLimit > 0 and obj.operator == HwtOps.CONCAT:
+        for op in obj.dependsOn:
+            yield from popConcatOfSlices(op, depthLimit - 1)
+        return
+    elif obj.operator == HwtOps.INDEX and isinstance(o._dtype, HBits):
+        v, indx = obj.dependsOn
+        assert isinstance(indx.obj, HlsNetNodeConst), indx
+        indx = indx.obj.val
+        if isinstance(indx._dtype, HBits):
+            indx = int(indx)
+            yield (v, indx, indx + 1)
+        else:
+            assert isinstance(indx._dtype, HSlice), indx
+            slice_:slice = indx.val
+            start = int(slice_.start)
+            stop = int(slice_.stop)
+            step = int(slice_.step)
+            assert step == -1, (step, indx)
+            assert stop < start, (indx, stop, start)
+            yield (v, stop, start)  # stop=LSB index, start=MSB index
+        return
+    else:
+        yield (o, 0, o._dtype.bit_length())
+
+
+def netlistReduceMuxToShift(builder: HlsNetlistBuilder, n: HlsNetNodeMux, worklist: SetList[HlsNetNode], removed: Set[HlsNetNode]):
+    assert len(n._inputs) % 2 == 1, n
+    msbShiftIn = None
+    shiftedVal = None
+    lsbShiftIn = None
+    # Tuple(condition, shiftAmountValue, shiftedValueConcatMembers)
+    shiftVariants: List[Tuple[HlsNetNodeOut, Optional[int], Tuple[HlsNetNodeOut, int, int]]] = []
+    for _v, c in n._iterValueConditionDriverPairs():
+        v = tuple(popConcatOfSlices(_v, 1))
+        if len(v) == 1:
+            if shiftedVal is not None:
+                return False
+            shiftedVal = [c, None, v]
+        else:
+            shiftVariants.append([c, None, v])
+
+    if (shiftedVal is not None and shiftVariants) or len(shiftVariants) > 0:
+        if shiftedVal is None:
+            return False  # [todo] support shifts which do not have 0-bit shift value where variant value is shiftedVal
+        else:
+            # shiftedVal can actually be msbShiftIn or lsbShiftIn
+            shiftInCandidates = []
+            for variant in shiftVariants:
+                # check if every value operand is:
+                # * v or
+                # * msbShiftIn
+                # * lsbShiftIn
+                # * v shift or
+                # *  Concat(msbShiftIn slice, v slice)
+                # *  Concat(v slice, lsbShitIn slice)
+                v = variant[2]
+                if len(v) == 1:
+                    # this is not concat, it must be msbShiftIn lsbShiftIn
+                    if len(shiftInCandidates) == 2:
+                        return False  # there can be at most msbShiftIn and lsbShiftIn
+
+                    shiftInCandidates.append(variant)
+                else:
+                    # find position of shiftedVal in variant
+                    shiftedValPort, shiftedValBeginBitI, shiftedValEndBitI = shiftedVal
+                    offset = 0
+                    found = False
+                    for vMember, beginBitI, endBitI in v:
+                        if vMember is shiftedValPort:
+                            # [todo] msbShiftIn/lsbShiftIn can be shiftedVal or part of it
+                            # arithmetic shift right
+                            raise NotImplementedError()
+                            found = True
+                        else:
+                            assert beginBitI < endBitI
+                            offset += endBitI - beginBitI
+
+                    if not found:
+                        # this does not contain shiftedValPort
+                        if len(shiftInCandidates) == 2:
+                            return False  # there can be at most msbShiftIn and lsbShiftIn
+                        shiftInCandidates.append(variant)
+
+            if len(shiftInCandidates) == len(shiftVariants):
+                # all variants did not contain shiftedValPort and thus this is not a shift
+                return False
+            else:
+                raise NotImplementedError()
+
+        raise NotImplementedError()
+
+    # check if all condition operands can are form of equality comparison
+    return False
+
+# def netlistReduceMuxOverspecifiedConditions(n: HlsNetNodeMux, worklist: SetList[HlsNetNode], removed: Set[HlsNetNode]):
+#    """
+#    convert
+#
+#    MUX v0 c0 v1 ~c0 & c1 v2
+#    to
+#    MUX v0 c0 v1 c1 v2
+#    """
+
+
+def netlistReduceMuxConstantConditionsAndChildMuxSink(n: HlsNetNodeMux, worklist: SetList[HlsNetNode], removed: Set[HlsNetNode]):
     builder: HlsNetlistBuilder = n.netlist.builder
     # resolve constant conditions
     newCondSet: Set[HlsNetNodeOut] = set()
@@ -182,7 +293,7 @@ def netlistReduceMuxConstantConditionsAndChildMuxSink(n: HlsNetNodeMux, worklist
     return False
 
 
-def netlistReduceMux(n: HlsNetNodeMux, worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]):
+def netlistReduceMux(n: HlsNetNodeMux, worklist: SetList[HlsNetNode], removed: Set[HlsNetNode]):
     inpCnt = len(n._inputs)
     if inpCnt == 1:
         # mux x = x
@@ -238,7 +349,7 @@ def netlistReduceMux(n: HlsNetNodeMux, worklist: UniqList[HlsNetNode], removed: 
     # ~c ? v0: v1 -> c ? v1: v0 (supports arbitrary number of operands, swaps last two values if last condition is negated to remove negation of c)
     if inpCnt % 2 == 1 and inpCnt >= 3:
         v0, c, v1 = n.dependsOn[-3:]
-        if isinstance(c.obj, HlsNetNodeOperator) and c.obj.operator == AllOps.NOT:
+        if isinstance(c.obj, HlsNetNodeOperator) and c.obj.operator == HwtOps.NOT:
             cIn = n._inputs[-2]
             unlink_hls_nodes(c, cIn)
             worklist.append(c.obj)
@@ -249,6 +360,10 @@ def netlistReduceMux(n: HlsNetNodeMux, worklist: UniqList[HlsNetNode], removed: 
             unlink_hls_nodes(v1, v1In)
             link_hls_nodes(v0, v1In)
             link_hls_nodes(v1, v0In)
+            return True
+
+    if inpCnt > 2 and inpCnt % 2 == 1:
+        if netlistReduceMuxToShift(builder, n, worklist, removed):
             return True
 
     return False

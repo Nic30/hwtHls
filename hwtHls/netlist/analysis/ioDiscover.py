@@ -1,10 +1,10 @@
 from itertools import chain
 from typing import Union, Dict, List
 
-from hwt.pyUtils.uniqList import UniqList
-from hwt.synthesizer.interface import Interface
-from hwt.synthesizer.interfaceLevel.mainBases import InterfaceBase
-from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
+from hwt.pyUtils.setList import SetList
+from hwt.hwIO import HwIO
+from hwt.mainBases import HwIOBase
+from hwt.mainBases import RtlSignalBase
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.analysis.schedule import HlsNetlistAnalysisPassRunScheduler
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
@@ -23,8 +23,8 @@ class HlsNetlistAnalysisPassIoDiscover(HlsNetlistAnalysisPass):
 
     def __init__(self,):
         super(HlsNetlistAnalysisPassIoDiscover, self).__init__()
-        self.ioByInterface: Dict[Interface, UniqList[Union[HlsNetNodeRead, HlsNetNodeWrite]]] = {}
-        self.interfaceList: UniqList[Interface] = UniqList()
+        self.ioByInterface: Dict[HwIO, SetList[Union[HlsNetNodeRead, HlsNetNodeWrite]]] = {}
+        self.interfaceList: SetList[HwIO] = SetList()
 
     def runOnHlsNetlist(self, netlist: "HlsNetlistCtx"):
         assert not self.ioByInterface, "Must be run only once"
@@ -49,10 +49,10 @@ class HlsNetlistAnalysisPassIoDiscover(HlsNetlistAnalysisPass):
             if i is None:
                 continue
 
-            assert isinstance(i, (RtlSignalBase, InterfaceBase, MultiPortGroup, BankedPortGroup)), (i, op)
+            assert isinstance(i, (RtlSignalBase, HwIOBase, MultiPortGroup, BankedPortGroup)), (i, op)
             opList = ioByInterface.get(i, None)
             if opList is None:
-                opList = ioByInterface[i] = UniqList()
+                opList = ioByInterface[i] = SetList()
                 interfaceList.append(i)
 
             opList.append(op)
@@ -62,10 +62,10 @@ class HlsNetlistAnalysisPassIoDiscover(HlsNetlistAnalysisPass):
             i = op.dst
             if i is None:
                 continue
-            assert isinstance(i, (tuple, RtlSignalBase, InterfaceBase, MultiPortGroup, BankedPortGroup)), (i, op)
+            assert isinstance(i, (tuple, RtlSignalBase, HwIOBase, MultiPortGroup, BankedPortGroup)), (i, op)
             opList = ioByInterface.get(i, None)
             if opList  is None:
-                opList = ioByInterface[i] = UniqList()
+                opList = ioByInterface[i] = SetList()
                 interfaceList.append(i)
             opList.append(op)
 

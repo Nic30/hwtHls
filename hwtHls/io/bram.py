@@ -1,13 +1,13 @@
 
 from typing import Union, Literal, List, Optional, Generator, Sequence
 
-from hwt.hdl.constants import WRITE, READ
+from hwt.constants import NOT_SPECIFIED
+from hwt.constants import WRITE, READ
+from hwt.hwIOs.std import HwIOBramPort_noClk
+from hwt.hdl.const import HConst
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.hdlType import HdlType
-from hwt.hdl.value import HValue
-from hwt.interfaces.std import BramPort_withoutClk
 from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF
-from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.ast.statementsRead import HlsReadAddressed
 from hwtHls.frontend.ast.statementsWrite import HlsWriteAddressed
@@ -36,7 +36,7 @@ from hwtHls.ssa.value import SsaValue
 from hwtHls.typingFuture import override
 
 
-AnyBramPort = Union[BramPort_withoutClk, BankedPortGroup[BramPort_withoutClk], MultiPortGroup[BramPort_withoutClk]]
+AnyBramPort = Union[HwIOBramPort_noClk, BankedPortGroup[HwIOBramPort_noClk], MultiPortGroup[HwIOBramPort_noClk]]
 
 
 class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
@@ -95,7 +95,7 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
         assert self._isRtlAllocated, self
         wData = self.dependsOn[0]
         addr = self.dependsOn[1]
-        ram: BramPort_withoutClk = self.dst
+        ram: HwIOBramPort_noClk = self.dst
         key = (ram, addr, wData)
         return allocator.netNodeToRtl[key]
 
@@ -113,7 +113,7 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
             if sync._dtype != HVoidOrdering:
                 allocator.rtlAllocHlsNetNodeOutInTime(sync, t)
 
-        ram: BramPort_withoutClk = self.dst
+        ram: HwIOBramPort_noClk = self.dst
         assert not isinstance(ram, (MultiPortGroup, BankedPortGroup)), (self, ram, "If this was an operation with a group of ports the individual ports should have already been assigned")
         en = ram.en
         if en._sig._nop_val is NOT_SPECIFIED:
@@ -223,7 +223,7 @@ class HlsReadBram(HlsReadAddressed):
             index:ANY_SCALAR_INT_VALUE,
             element_t:HdlType,
             isBlocking:bool,
-            intfName: Optional[str]=None):
+            hwIOName: Optional[str]=None):
 
         if isinstance(src, MultiPortGroup):
             src = MultiPortGroup(i for i in src if i.HAS_R)
@@ -236,7 +236,7 @@ class HlsReadBram(HlsReadAddressed):
         else:
             assert src.HAS_R
 
-        HlsReadAddressed.__init__(self, parent, src, index, element_t, isBlocking, intfName=intfName)
+        HlsReadAddressed.__init__(self, parent, src, index, element_t, isBlocking, hwIOName=hwIOName)
         self.parentProxy = parentProxy
 
     def _getNativeInterfaceWordType(self) -> HdlType:
@@ -260,7 +260,7 @@ class HlsReadBram(HlsReadAddressed):
         """
         valCache: MirToHwtHlsNetlistValueCache = mirToNetlist.valCache
         netlist: HlsNetlistCtx = mirToNetlist.netlist
-        assert isinstance(srcIo, BramPort_withoutClk) or (isinstance(srcIo, MultiPortGroup) and isinstance(srcIo[0], BramPort_withoutClk)), srcIo
+        assert isinstance(srcIo, HwIOBramPort_noClk) or (isinstance(srcIo, MultiPortGroup) and isinstance(srcIo[0], HwIOBramPort_noClk)), srcIo
         if isinstance(index, int):
             raise AssertionError("If the index is constant it should be an output of a constant node but it is an integer", srcIo, instr)
 
@@ -289,9 +289,9 @@ class HlsWriteBram(HlsWriteAddressed):
     def __init__(self,
             parentProxy: "BramArrayProxy",
             parent:"HlsScope",
-            src:Union[SsaValue, RtlSignal, HValue],
+            src:Union[SsaValue, RtlSignal, HConst],
             dst:AnyBramPort,
-            index:Union[SsaValue, RtlSignal, HValue],
+            index:Union[SsaValue, RtlSignal, HConst],
             element_t:HdlType):
 
         if isinstance(dst, MultiPortGroup):
@@ -303,7 +303,7 @@ class HlsWriteBram(HlsWriteAddressed):
         elif isinstance(dst, BankedPortGroup):
             raise NotImplementedError(dst)
         else:
-            assert isinstance(dst, BramPort_withoutClk), dst
+            assert isinstance(dst, HwIOBramPort_noClk), dst
             assert dst.HAS_W, dst
 
         HlsWriteAddressed.__init__(self, parent, src, dst, index, element_t)
@@ -329,7 +329,7 @@ class HlsWriteBram(HlsWriteAddressed):
         :see: :meth:`hwtHls.frontend.ast.statementsRead.HlsRead._translateMirToNetlist`
         """
         netlist: HlsNetlistCtx = mirToNetlist.netlist
-        isInstanceOfInterfacePort(dstIo, BramPort_withoutClk)
+        isInstanceOfInterfacePort(dstIo, HwIOBramPort_noClk)
         if isinstance(index, int):
             raise AssertionError("If the index is constant it should be an output of a constant node but it is an integer", dstIo, instr)
 
@@ -352,7 +352,7 @@ class BramArrayProxy(IoProxyAddressed):
             i = interface[0]
         else:
             i = interface
-        assert isInstanceOfInterfacePort(i, BramPort_withoutClk), i
+        assert isInstanceOfInterfacePort(i, HwIOBramPort_noClk), i
         if i.HAS_W:
             if i.HAS_BE:
                 raise NotImplementedError()

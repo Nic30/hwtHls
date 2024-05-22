@@ -1,4 +1,4 @@
-from hwt.hdl.operatorDefs import AllOps
+from hwt.hdl.operatorDefs import HwtOps
 from hwtHls.architecture.transformation.utils.termPropagationContext import ArchSyncNodeTy
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -17,7 +17,7 @@ def setUnscheduledNodeRealizationToCombForSyncLogic(n: HlsNetNode):
     """
     assert isinstance(n, HlsNetNodeConst) or (
     isinstance(n, HlsNetNodeOperator) and n.operator in (
-    AllOps.AND, AllOps.OR, AllOps.XOR, AllOps.EQ, AllOps.NE, AllOps.NOT)), n
+    HwtOps.AND, HwtOps.OR, HwtOps.XOR, HwtOps.EQ, HwtOps.NE, HwtOps.NOT)), n
     n.assignRealization(OpRealizationMeta(mayBeInFFStoreTime=True))
     return True
 

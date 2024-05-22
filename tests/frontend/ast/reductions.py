@@ -1,29 +1,29 @@
-from hwt.hdl.types.bits import Bits
-from hwt.interfaces.hsStructIntf import HsStructIntf
-from hwt.interfaces.utils import addClkRstn
-from hwt.synthesizer.hObjList import HObjList
-from hwt.synthesizer.param import Param
-from hwt.synthesizer.unit import Unit
+from hwt.hdl.types.bits import HBits
+from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
+from hwt.hwIOs.utils import addClkRstn
+from hwt.hObjList import HObjList
+from hwt.hwParam import HwParam
+from hwt.hwModule import HwModule
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import uint8_t
 
 
-class ForLoopWithIoSelectIn(Unit):
+class ForLoopWithIoSelectIn(HwModule):
 
     def _config(self) -> None:
-        self.DATA_WIDTH = Param(8)
-        self.FREQ = Param(int(100e6))
+        self.DATA_WIDTH = HwParam(8)
+        self.FREQ = HwParam(int(100e6))
 
     def _declr(self) -> None:
         addClkRstn(self)
         self.clk.FREQ = self.FREQ
-        self.dataIn: HObjList[HsStructIntf] = HObjList(HsStructIntf() for _ in range(3))
+        self.dataIn: HObjList[HwIOStructRdVld] = HObjList(HwIOStructRdVld() for _ in range(3))
         for i in self.dataIn:
-            i.T = Bits(self.DATA_WIDTH, signed=False)
-        self.dataOut0: HsStructIntf = HsStructIntf()._m()
-        self.dataOut0.T = Bits(self.DATA_WIDTH, signed=False)
+            i.T = HBits(self.DATA_WIDTH, signed=False)
+        self.dataOut0: HwIOStructRdVld = HwIOStructRdVld()._m()
+        self.dataOut0.T = HBits(self.DATA_WIDTH, signed=False)
 
     def _impl(self) -> None:
         hls = HlsScope(self)
@@ -81,9 +81,9 @@ class SumReduce(ForLoopWithIoSelectIn):
         hls.compile()
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.platform import HlsDebugBundle
-    u = SumReduce()
-    u.FREQ = int(150e6)
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    m = SumReduce()
+    m.FREQ = int(150e6)
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

@@ -2,11 +2,11 @@
 # -*- coding: utf-8 -*-
 
 from hwt.code import Concat
-from hwt.hdl.types.bits import Bits
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
-from hwt.interfaces.std import VectSignal
-from hwt.interfaces.utils import addClkRstn
-from hwt.synthesizer.unit import Unit
+from hwt.hwIOs.std import HwIOVectSignal
+from hwt.hwIOs.utils import addClkRstn
+from hwt.hwModule import HwModule
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
@@ -14,11 +14,11 @@ from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import uint32_t, uint8_t
 
 
-class HlsConnectionFromPyFn0(Unit):
+class HlsConnectionFromPyFn0(HwModule):
 
     def _declr(self):
-        self.i = VectSignal(8, signed=False)
-        self.o = VectSignal(8, signed=False)._m()
+        self.i = HwIOVectSignal(8, signed=False)
+        self.o = HwIOVectSignal(8, signed=False)._m()
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
@@ -58,16 +58,16 @@ class HlsConnectionFromPyFnPreprocTmpVar1(HlsConnectionFromPyFn0):
             hls.write(hls.read(self.i).data, o)
 
 
-class HlsConnectionFromPyFn1(Unit):
+class HlsConnectionFromPyFn1(HwModule):
 
     def _declr(self):
-        self.i = VectSignal(8 - 4, signed=False)
-        self.o = VectSignal(8, signed=False)._m()
+        self.i = HwIOVectSignal(8 - 4, signed=False)
+        self.o = HwIOVectSignal(8, signed=False)._m()
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
-            hls.write(Concat(hls.read(self.i).data, Bits(4).from_py(0)), self.o)
+            hls.write(Concat(hls.read(self.i).data, HBits(4).from_py(0)), self.o)
 
     def _impl(self):
         HlsConnectionFromPyFn0._impl(self)
@@ -144,11 +144,11 @@ class HlsConnectionFromPyFnWhile(HlsConnectionFromPyFn0):
             hls.write(v, self.o)
 
 
-class HlsConnectionFromPyFnKwArgs(Unit):
+class HlsConnectionFromPyFnKwArgs(HwModule):
 
     def _declr(self):
-        self.i = VectSignal(8, signed=False)
-        self.o = VectSignal(8, signed=False)._m()
+        self.i = HwIOVectSignal(8, signed=False)
+        self.o = HwIOVectSignal(8, signed=False)._m()
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope, kwArg=1):
@@ -162,8 +162,8 @@ class HlsConnectionFromPyFnKwArgs(Unit):
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.platform import HlsDebugBundle
-    u = HlsConnectionFromPyFnKwArgs()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    m = HlsConnectionFromPyFnKwArgs()
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

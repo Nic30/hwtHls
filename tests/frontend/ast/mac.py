@@ -3,15 +3,15 @@
 
 from functools import reduce
 
-from hwt.hdl.types.bits import Bits
-from hwt.interfaces.hsStructIntf import HsStructIntf
-from hwt.interfaces.std import VectSignal
-from hwt.interfaces.utils import addClkRstn
+from hwt.hdl.types.bits import HBits
+from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
+from hwt.hwIOs.std import HwIOVectSignal
+from hwt.hwIOs.utils import addClkRstn
 from hwt.pyUtils.arrayQuery import grouper, balanced_reduce
 from hwt.simulator.simTestCase import SimTestCase
-from hwt.synthesizer.hObjList import HObjList
-from hwt.synthesizer.param import Param
-from hwt.synthesizer.unit import Unit
+from hwt.hObjList import HObjList
+from hwt.hwParam import HwParam
+from hwt.hwModule import HwModule
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.platform.virtual import VirtualHlsPlatform
@@ -19,22 +19,22 @@ from hwtHls.scope import HlsScope
 from hwtSimApi.utils import freq_to_period
 
 
-class HlsMAC_example(Unit):
+class HlsMAC_example(HwModule):
 
     def _config(self):
-        self.CLK_FREQ = Param(int(20e6))
-        self.INPUT_CNT = Param(4)
-        self.DATA_WIDTH = Param(32)
+        self.CLK_FREQ = HwParam(int(20e6))
+        self.INPUT_CNT = HwParam(4)
+        self.DATA_WIDTH = HwParam(32)
 
     def _declr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
         assert int(self.INPUT_CNT) % 2 == 0
 
-        self.dataIn = HObjList(VectSignal(self.DATA_WIDTH, signed=False)
+        self.dataIn = HObjList(HwIOVectSignal(self.DATA_WIDTH, signed=False)
                        for _ in range(int(self.INPUT_CNT)))
 
-        self.dataOut = VectSignal(self.DATA_WIDTH, signed=False)._m()
+        self.dataOut = HwIOVectSignal(self.DATA_WIDTH, signed=False)._m()
 
     def _impl(self):
         hls = HlsScope(self)
@@ -42,7 +42,7 @@ class HlsMAC_example(Unit):
         # (without read() operation will not be schedueled by HLS
         #  instead they will be directly synthesized)
         # [NOTE] number of input is hardcoded by this
-        a, b, c, d = [hls.read(intf).data for intf in self.dataIn]
+        a, b, c, d = [hls.read(hwIO).data for hwIO in self.dataIn]
         # depending on target platform this expresion
         # can be mapped to DPS, LUT, etc...
         # no constrains are specified => default strategy is
@@ -71,7 +71,7 @@ class HlsMAC_example2(HlsMAC_example):
         # (without read() operation will not be schedueled by HLS
         #  instead they will be directly synthesized)
         # [NOTE] number of input is hardcoded by this
-        dataIn = [hls.read(intf) for intf in self.dataIn]
+        dataIn = [hls.read(hwIO) for hwIO in self.dataIn]
         # depending on target platform this expresion
         # can be mapped to DPS, LUT, etc...
         # no constrains are specified => default strategy is
@@ -106,48 +106,48 @@ class HlsMAC_example_handshake(HlsMAC_example2):
         assert int(self.INPUT_CNT) % 2 == 0
 
         self.dataIn = HObjList(
-            HsStructIntf()
+            HwIOStructRdVld()
             for _ in range(int(self.INPUT_CNT))
         )
-        self.dataOut = HsStructIntf()._m()
+        self.dataOut = HwIOStructRdVld()._m()
         for d in self.dataIn + [self.dataOut, ]:
-            d.T = Bits(self.DATA_WIDTH, signed=False)
+            d.T = HBits(self.DATA_WIDTH, signed=False)
 
 
 class HlsMAC_example_TC(SimTestCase):
 
-    def test_simple(self, u_cls=HlsMAC_example):
-        u = u_cls()
-        u.INPUT_CNT = 4
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
-        for intf, d in zip(u.dataIn, [3, 4, 5, 6]):
-            intf._ag.data.append(d)
+    def test_simple(self, moduleCls=HlsMAC_example):
+        dut = moduleCls()
+        dut.INPUT_CNT = 4
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
+        for hwIO, d in zip(dut.dataIn, [3, 4, 5, 6]):
+            hwIO._ag.data.append(d)
 
-        self.runSim(int(4 * freq_to_period(u.CLK_FREQ)))
+        self.runSim(int(4 * freq_to_period(dut.CLK_FREQ)))
 
-        self.assertValEqual(u.dataOut._ag.data[-1],
+        self.assertValEqual(dut.dataOut._ag.data[-1],
                             (3 * 4) + (5 * 6))
 
     def test_simple_handshaked(self):
-        self.test_simple(u_cls=HlsMAC_example_handshake)
+        self.test_simple(moduleCls=HlsMAC_example_handshake)
 
     def test_2simple(self):
-        self.test_simple(u_cls=HlsMAC_example2)
+        self.test_simple(moduleCls=HlsMAC_example2)
 
-    def test_2_16simple(self, u_cls=HlsMAC_example2):
-        u = u_cls()
-        #u.INPUT_CNT = 16
-        # u.CLK_FREQ = int(40e6)
-        u.INPUT_CNT = 16
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
+    def test_2_16simple(self, moduleCls=HlsMAC_example2):
+        dut = moduleCls()
+        #dut.INPUT_CNT = 16
+        # dut.CLK_FREQ = int(40e6)
+        dut.INPUT_CNT = 16
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
 
-        inputs = [i for i in range(u.INPUT_CNT)]
-        for intf, d in zip(u.dataIn, inputs):
-            intf._ag.data.append(d)
+        inputs = [i for i in range(dut.INPUT_CNT)]
+        for hwIO, d in zip(dut.dataIn, inputs):
+            hwIO._ag.data.append(d)
 
-        self.runSim(int(8 * freq_to_period(u.CLK_FREQ)))
+        self.runSim(int(8 * freq_to_period(dut.CLK_FREQ)))
 
-        res = u.dataOut._ag.data[-1]
+        res = dut.dataOut._ag.data[-1]
         expectedRes = reduce(lambda a, b: a + b,
                              map(lambda x: x[0] * x[1],
                                  grouper(2,
@@ -160,13 +160,13 @@ class HlsMAC_example_TC(SimTestCase):
 
 if __name__ == "__main__":
     import unittest
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
-    u = HlsMAC_example_handshake()
-    u.DATA_WIDTH = 32
-    u.CLK_FREQ = int(40e6)
-    u.INPUT_CNT = 16
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    m = HlsMAC_example_handshake()
+    m.DATA_WIDTH = 32
+    m.CLK_FREQ = int(40e6)
+    m.INPUT_CNT = 16
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     testLoader = unittest.TestLoader()
     # suite = unittest.TestSuite([HlsMAC_example_TC('test_2_16simple_handshaked')])

@@ -2,28 +2,28 @@
 # -*- coding: utf-8 -*-
 
 from hwt.code import Concat
-from hwt.hdl.types.bits import Bits
-from hwt.interfaces.hsStructIntf import HsStructIntf
-from hwt.interfaces.std import VectSignal
-from hwt.interfaces.utils import addClkRstn
-from hwt.synthesizer.param import Param
-from hwt.synthesizer.unit import Unit
+from hwt.hdl.types.bits import HBits
+from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
+from hwt.hwIOs.std import HwIOVectSignal
+from hwt.hwIOs.utils import addClkRstn
+from hwt.hwModule import HwModule
+from hwt.hwParam import HwParam
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.scope import HlsScope
 
 
-class WriteFsm0WhileTrue123(Unit):
+class WriteFsm0WhileTrue123(HwModule):
 
     def _config(self) -> None:
-        self.DATA_WIDTH = Param(8)
-        self.CLK_FREQ = Param(int(100e6))
+        self.DATA_WIDTH = HwParam(8)
+        self.CLK_FREQ = HwParam(int(100e6))
 
     def _declr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
 
-        self.o: VectSignal = VectSignal(self.DATA_WIDTH, signed=False)._m()
+        self.o: HwIOVectSignal = HwIOVectSignal(self.DATA_WIDTH, signed=False)._m()
 
     def _impl(self) -> None:
         hls = HlsScope(self)
@@ -38,7 +38,6 @@ class WriteFsm0WhileTrue123(Unit):
 
         )
         hls.compile()
-
 
 
 class WriteFsm0Send123(WriteFsm0WhileTrue123):
@@ -62,8 +61,8 @@ class WriteFsm1WhileTrue123hs(WriteFsm0WhileTrue123):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
 
-        self.o: HsStructIntf = HsStructIntf()._m()
-        self.o.T = Bits(self.DATA_WIDTH)
+        self.o: HwIOStructRdVld = HwIOStructRdVld()._m()
+        self.o.T = HBits(self.DATA_WIDTH)
 
 
 class WriteFsm1Send123hs(WriteFsm1WhileTrue123hs):
@@ -72,18 +71,18 @@ class WriteFsm1Send123hs(WriteFsm1WhileTrue123hs):
         WriteFsm0Send123._impl(self)
 
 
-class ReadFsm0WhileTrueRead3TimesWriteConcat(Unit):
+class ReadFsm0WhileTrueRead3TimesWriteConcat(HwModule):
 
     def _config(self) -> None:
-        self.DATA_WIDTH = Param(8)
-        self.CLK_FREQ = Param(int(100e6))
+        self.DATA_WIDTH = HwParam(8)
+        self.CLK_FREQ = HwParam(int(100e6))
 
     def _declr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
 
-        self.i = VectSignal(self.DATA_WIDTH)
-        self.o = VectSignal(3 * self.DATA_WIDTH)._m()
+        self.i = HwIOVectSignal(self.DATA_WIDTH)
+        self.o = HwIOVectSignal(3 * self.DATA_WIDTH)._m()
 
     def _impl(self) -> None:
         hls = HlsScope(self)
@@ -97,7 +96,6 @@ class ReadFsm0WhileTrueRead3TimesWriteConcat(Unit):
             self._name)
         )
         hls.compile()
-
 
 
 class ReadFsm0Read3TimesWriteConcat(ReadFsm0WhileTrueRead3TimesWriteConcat):
@@ -114,17 +112,16 @@ class ReadFsm0Read3TimesWriteConcat(ReadFsm0WhileTrueRead3TimesWriteConcat):
         hls.compile()
 
 
-
 class ReadFsm1WhileTrueRead3TimesWriteConcatHs(ReadFsm0WhileTrueRead3TimesWriteConcat):
 
     def _declr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
 
-        self.i: HsStructIntf = HsStructIntf()
-        self.i.T = Bits(self.DATA_WIDTH)
-        self.o: HsStructIntf = HsStructIntf()._m()
-        self.o.T = Bits(3 * self.DATA_WIDTH)
+        self.i: HwIOStructRdVld = HwIOStructRdVld()
+        self.i.T = HBits(self.DATA_WIDTH)
+        self.o: HwIOStructRdVld = HwIOStructRdVld()._m()
+        self.o.T = HBits(3 * self.DATA_WIDTH)
 
 
 class ReadFsm1Read3TimesWriteConcatHs(ReadFsm1WhileTrueRead3TimesWriteConcatHs):
@@ -135,8 +132,8 @@ class ReadFsm1Read3TimesWriteConcatHs(ReadFsm1WhileTrueRead3TimesWriteConcatHs):
 
 if __name__ == "__main__":
     from hwtHls.platform.virtual import VirtualHlsPlatform
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
 
-    u = WriteFsm1WhileTrue123hs()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    m = WriteFsm1WhileTrue123hs()
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

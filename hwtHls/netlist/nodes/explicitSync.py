@@ -2,8 +2,8 @@ from typing import Union, Optional, Generator, Tuple
 
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.hdlType import HdlType
-from hwt.interfaces.std import HandshakeSync, RdSynced, VldSynced
-from hwt.synthesizer.interface import Interface
+from hwt.hwIOs.std import HwIORdVldSync, HwIODataRd, HwIODataVld
+from hwt.hwIO import HwIO
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.hdlTypeVoid import HVoidOrdering, HVoidData, \
     HdlType_isVoid
@@ -74,7 +74,7 @@ class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
         self._addInput("dataIn")
         self._addOutput(dtype, "dataOut")
 
-    def _initCommonPortProps(self, io: Optional[Interface]):
+    def _initCommonPortProps(self, io: Optional[HwIO]):
         self._valid: Optional[HlsNetNodeOut] = None
         self._validNB: Optional[HlsNetNodeOut] = None
         self._ready: Optional[HlsNetNodeOut] = None
@@ -86,8 +86,8 @@ class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
         self._dataVoidOut: Optional[HlsNetNodeOut] = None
         self._outputOfCluster: Optional[HlsNetNodeIn] = None
         self._inputOfCluster: Optional[HlsNetNodeIn] = None
-        self._rtlUseReady = io is None or isinstance(io, (HandshakeSync, RdSynced))
-        self._rtlUseValid = io is None or isinstance(io, (HandshakeSync, VldSynced))
+        self._rtlUseReady = io is None or isinstance(io, (HwIORdVldSync, HwIODataRd))
+        self._rtlUseValid = io is None or isinstance(io, (HwIORdVldSync, HwIODataVld))
 
     @override
     def clone(self, memo:dict, keepTopPortsConnected: bool) -> Tuple["HlsNetNode", bool]:

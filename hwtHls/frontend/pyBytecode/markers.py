@@ -3,8 +3,8 @@ from math import inf
 from types import FunctionType
 from typing import Union, Literal, List
 
-from hwt.hdl.value import HValue
-from hwt.synthesizer.interface import Interface
+from hwt.hdl.const import HConst
+from hwt.hwIO import HwIO
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.pyBytecode.frame import PyBytecodeFrame
 from hwtHls.frontend.pyBytecode.ioProxyStream import IoProxyStream
@@ -12,7 +12,7 @@ from hwtHls.frontend.pyBytecode.loopMeta import PyBytecodeLoopInfo
 from hwtHls.llvm.llvmIr import BranchInst, Argument, Function, Value, ValueToInstruction
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.value import SsaValue
-from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
+from hwt.mainBases import RtlSignalBase
 from hwtHls.ssa.instr import SsaInstr
 
 
@@ -76,7 +76,7 @@ class PyBytecodeInPreproc(_PyBytecodePragma):
         # :note: it is sufficient to mark variable only once in first initialization
     """
 
-    def __init__(self, ref: Union[SsaValue, HValue, RtlSignal]):
+    def __init__(self, ref: Union[SsaValue, HConst, RtlSignal]):
         self.ref = ref
 
     def __iter__(self):
@@ -164,8 +164,8 @@ class PyBytecodePreprocDivergence(_PyBytecodePragma):
 
     """
 
-    def __init__(self, cond: Union[SsaValue, HValue, RtlSignal]):
-        assert isinstance(cond, (SsaValue, HValue, RtlSignal)), (cond, "Must be hardware evaluated expression otherwise this marker is useless")
+    def __init__(self, cond: Union[SsaValue, HConst, RtlSignal]):
+        assert isinstance(cond, (SsaValue, HConst, RtlSignal)), (cond, "Must be hardware evaluated expression otherwise this marker is useless")
         self.cond = cond
 
 
@@ -174,8 +174,8 @@ class PyBytecodePreprocHwCopy(_PyBytecodePragma):
     Explicitly copy HW-evaluated value.
     """
 
-    def __init__(self, v: Union[SsaValue, HValue, RtlSignal]):
-        assert isinstance(v, (SsaValue, HValue, RtlSignal)), (v, "Must be hardware evaluated expression otherwise this marker is useless")
+    def __init__(self, v: Union[SsaValue, HConst, RtlSignal]):
+        assert isinstance(v, (SsaValue, HConst, RtlSignal)), (v, "Must be hardware evaluated expression otherwise this marker is useless")
         self.v = v
 
 
@@ -244,7 +244,7 @@ class PyBytecodeStreamLoopUnroll(_PyBytecodeLoopPragma):
     https://yashwantsingh.in/posts/loop-unroll/
     """
 
-    def __init__(self, io_: Union[Interface, IoProxyStream]):
+    def __init__(self, io_: Union[HwIO, IoProxyStream]):
         self.io = io_
 
     def toLlvm(self, irTranslator: "ToLlvmIrTranslator", brInst: BranchInst):

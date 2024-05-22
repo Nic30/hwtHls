@@ -1,6 +1,6 @@
 from typing import List, Tuple
 
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge,\
     BACKEDGE_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.loopChannelGroup import LoopChanelGroup, LOOP_CHANEL_GROUP_ROLE
@@ -10,7 +10,7 @@ from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 
 
 def netlistTryRemoveChannelGroup(chGroup: LoopChanelGroup,
-                                 worklist: UniqList[HlsNetNode]):
+                                 worklist: SetList[HlsNetNode]):
     if len(chGroup.members) != 1:
         return False
     builder = chGroup.members[0].netlist.builder

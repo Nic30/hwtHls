@@ -1,10 +1,10 @@
 from typing import Union, Literal, List, Optional, Tuple, Generator, Self
 
 from hwt.hdl.types.hdlType import HdlType
-from hwt.hdl.value import HValue
-from hwt.pyUtils.uniqList import UniqList
-from hwt.synthesizer.interface import Interface
-from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
+from hwt.hdl.const import HConst
+from hwt.pyUtils.setList import SetList
+from hwt.hwIO import HwIO
+from hwt.constants import NOT_SPECIFIED
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStageList
 from hwtHls.architecture.timeIndependentRtlResource import INVARIANT_TIME
@@ -30,7 +30,7 @@ class ArchElementNoSync(ArchElement):
     """
 
     def __init__(self, netlist:"HlsNetlistCtx", name:str,
-        subNodes:UniqList[HlsNetNode],
+        subNodes:SetList[HlsNetNode],
         connections:ConnectionsOfStageList):
         ArchElement.__init__(self, netlist, name, subNodes, connections)
         self.stages = [[] for _ in connections]
@@ -40,7 +40,7 @@ class ArchElementNoSync(ArchElement):
     @classmethod
     def createEmptyScheduledInstance(cls, netlist:"HlsNetlistCtx", name:str) -> Self:
         elm = cls(netlist, name,
-                  UniqList(),
+                  SetList(),
                   ConnectionsOfStageList(netlist.normalizedClkPeriod))
         elm.resolveRealization()
         elm._setScheduleZeroTimeSingleClock(0)
@@ -74,7 +74,7 @@ class ArchElementNoSync(ArchElement):
     @override
     def rtlRegisterOutputRtlSignal(self,
                                outOrTime: Union[HlsNetNodeOut, SchedTime],
-                               data: Union[RtlSignal, Interface, HValue],
+                               data: Union[RtlSignal, HwIO, HConst],
                                isExplicitRegister: bool,
                                isForwardDeclr: bool,
                                mayChangeOutOfCfg: bool,

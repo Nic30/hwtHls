@@ -5,8 +5,8 @@ from types import FunctionType
 from typing import Optional, List, Tuple
 
 from hwt.hdl.types.defs import BIT
-from hwt.hdl.value import HValue
-from hwt.synthesizer.interface import Interface
+from hwt.hdl.const import HConst
+from hwt.hwIO import HwIO
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.errors import HlsSyntaxError
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
@@ -88,7 +88,7 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
             with open(d / f"00.bytecode.{fnName}.txt", "w") as f:
                 dis(fn, file=f)
         with self.dbgTracer.scoped("translateFunction", fnName):
-            platform = self.hls.parentUnit._target_platform
+            platform = self.hls.parentHwModule._target_platform
             self.toSsa = HlsAstToSsa(self.hls.ssaCtx, fnName, None, platform.getPassManagerDebugLogFile())
 
             entryBlock = self.toSsa.start
@@ -316,7 +316,7 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
                         self._addNotGeneratedJump(j.frame, srcBlockLabel, dstBlockLabel)
                         continue
 
-                    elif isinstance(c, HValue):
+                    elif isinstance(c, HConst):
                         assert int(c) == 1, c
                         c = None
 
@@ -485,10 +485,10 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
                     else:
                         duplicateCodeUntilConvergencePoint = False
                     cond, curBlock = expandBeforeUse(self, instr.offset, frame, cond, curBlock)
-                    if isinstance(cond, Interface):
+                    if isinstance(cond, HwIO):
                         cond = cond._sig
 
-                    compileTimeResolved = not isinstance(cond, (RtlSignal, HValue, SsaValue))
+                    compileTimeResolved = not isinstance(cond, (RtlSignal, HConst, SsaValue))
                     if not compileTimeResolved:
                         curBlock, cond = self.toSsa.visit_expr(curBlock, cond)
 
@@ -515,7 +515,7 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
                             self._getOrCreateSsaBasicBlockAndJumpRecursively(frame, curBlock, ifFalseOffset, None, None)
                             self._onBlockNotGeneratedPotentiallyOutOfLoop(frame, curBlock, ifTrueOffset)
                     else:
-                        if isinstance(cond, HValue):
+                        if isinstance(cond, HConst):
                             assert not duplicateCodeUntilConvergencePoint
                             if cond:
                                 self._getOrCreateSsaBasicBlockAndJumpRecursively(frame, curBlock, ifTrueOffset, cond, None)

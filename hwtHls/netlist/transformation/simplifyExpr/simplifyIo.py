@@ -1,6 +1,6 @@
 from typing import Set
 
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.transformation.simplifyUtils import replaceOperatorNodeWith, \
@@ -8,7 +8,7 @@ from hwtHls.netlist.transformation.simplifyUtils import replaceOperatorNodeWith,
 
 
 def netlistReduceReadReadSyncWithReadOfValidNB(n: HlsNetNodeRead,
-                                               worklist: UniqList[HlsNetNode],
+                                               worklist: SetList[HlsNetNode],
                                                removed: Set[HlsNetNode]):
     rs = n._associatedReadSync
     if rs:

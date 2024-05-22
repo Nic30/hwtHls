@@ -2,11 +2,11 @@
 from functools import lru_cache
 from typing import Union, Tuple, Sequence
 
-from hwt.hdl.types.bits import Bits
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.hdlType import HdlType
-from hwt.hdl.value import HValue
-from hwt.interfaces.std import BramPort_withoutClk
-from hwt.interfaces.structIntf import Interface_to_HdlType
+from hwt.hdl.const import HConst
+from hwt.hwIOs.std import HwIOBramPort_noClk
+from hwt.hwIOs.hwIOStruct import HwIO_to_HdlType
 from hwt.math import log2ceil
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.ast.statementsRead import HlsReadAddressed
@@ -44,7 +44,7 @@ class HlsReadAxi4Lite(HlsReadAddressed):
     @lru_cache(maxsize=None, typed=True)
     def _getNativeInterfaceWordType(self) -> HdlType:
         i = self._src.r
-        return Interface_to_HdlType().apply(i, exclude=(i.valid, i.ready))
+        return HwIO_to_HdlType().apply(i, exclude=(i.valid, i.ready))
 
     @classmethod
     def _constructAddrWrite(cls,
@@ -60,7 +60,7 @@ class HlsReadAxi4Lite(HlsReadAddressed):
         if isinstance(prot, int):
             prot = netlist.builder.buildConst(addr.prot._dtype.from_py(prot))
 
-        aVal = netlist.builder.buildConcat(Bits(offsetWidth).from_py(0), addrVal, prot)
+        aVal = netlist.builder.buildConcat(HBits(offsetWidth).from_py(0), addrVal, prot)
 
         aNode = HlsNetNodeWrite(netlist, addr)
         link_hls_nodes(aVal, aNode._inputs[0])
@@ -123,7 +123,7 @@ class HlsReadAxi4Lite(HlsReadAddressed):
             # the read data is larger because pointer representing IO is pointing to a larger word
             # because write is using larger word and this must be the same pointer for reads and writes
             # :note: The next node which uses data output should be the slice to correct width.
-            padding = netlist.builder.buildConst(Bits(nativeWordWidth - rWordWidth).from_py(None))
+            padding = netlist.builder.buildConst(HBits(nativeWordWidth - rWordWidth).from_py(None))
             rDataO = netlist.builder.buildConcat(rDataO, padding)
         else:
             assert rWordWidth == nativeWordWidth
@@ -138,9 +138,9 @@ class HlsWriteAxi4Lite(HlsWriteAddressed):
     def __init__(self,
             parentProxy: "Axi4LiteArrayProxy",
             parent:"HlsScope",
-            src:Union[SsaValue, HValue],
-            dst:Union[BramPort_withoutClk, Tuple[BramPort_withoutClk]],
-            index:Union[SsaValue, RtlSignal, HValue],
+            src:Union[SsaValue, HConst],
+            dst:Union[HwIOBramPort_noClk, Tuple[HwIOBramPort_noClk]],
+            index:Union[SsaValue, RtlSignal, HConst],
             element_t:HdlType):
         HlsWriteAddressed.__init__(self, parent, src, dst, index, element_t)
         self.parentProxy = parentProxy
@@ -148,7 +148,7 @@ class HlsWriteAxi4Lite(HlsWriteAddressed):
     @lru_cache(maxsize=None, typed=True)
     def _getNativeInterfaceWordType(self) -> HdlType:
         i = self.dst.w
-        return Interface_to_HdlType().apply(i, exclude=(i.valid, i.ready))
+        return HwIO_to_HdlType().apply(i, exclude=(i.valid, i.ready))
 
     @classmethod
     def _translateMirToNetlist(cls,
@@ -211,14 +211,14 @@ class Axi4LiteArrayProxy(IoProxyAddressed):
     def __init__(self, hls:"HlsScope", interface:Axi4Lite):
         indexWidth = interface.ADDR_WIDTH - log2ceil(interface.DATA_WIDTH // 8 - 1)
         if interface.HAS_R:
-            rWordT = Interface_to_HdlType().apply(interface.r, exclude=(interface.r.valid, interface.r.ready))
+            rWordT = HwIO_to_HdlType().apply(interface.r, exclude=(interface.r.valid, interface.r.ready))
             nativeType = rWordT[int(2 ** indexWidth)]
             dataWordT = interface.r.data._dtype
         else:
             rWordT = None
 
         if interface.HAS_W:
-            wWordT = Interface_to_HdlType().apply(interface.w, exclude=(interface.w.valid, interface.w.ready))
+            wWordT = HwIO_to_HdlType().apply(interface.w, exclude=(interface.w.valid, interface.w.ready))
             nativeType = wWordT[int(2 ** indexWidth)]
             dataWordT = interface.w.data._dtype
 
@@ -228,7 +228,7 @@ class Axi4LiteArrayProxy(IoProxyAddressed):
         offsetWidth = log2ceil(interface.DATA_WIDTH // 8 - 1)
         assert indexWidth > 1, (interface.ADDR_WIDTH, indexWidth, "Address is of insufficient size because", interface.DATA_WIDTH, offsetWidth)
         IoProxyAddressed.__init__(self, hls, interface, nativeType)
-        self.indexT = Bits(indexWidth)
+        self.indexT = HBits(indexWidth)
         self.offsetWidth = offsetWidth
         self.rWordT = rWordT
         self.wWordT = wWordT

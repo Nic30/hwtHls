@@ -11,9 +11,9 @@ from tests.frontend.pyBytecode.errors import ErrorUseOfUnitialized0, ErrorUseOfU
 class PyBytecodeErrors_TC(SimTestCase):
     __FILE__ = __file__
 
-    def _testEndsWithErr(self, unitCls, errCls):
+    def _testEndsWithErr(self, hwModuleCls, errCls):
         with self.assertRaises(errCls):
-            self.compileSimAndStart(unitCls(), target_platform=VirtualHlsPlatform())
+            self.compileSimAndStart(hwModuleCls(), target_platform=VirtualHlsPlatform())
         
     def test_ErrorUseOfUnitialized0(self):
         self._testEndsWithErr(ErrorUseOfUnitialized0, HlsSyntaxError)
@@ -22,12 +22,12 @@ class PyBytecodeErrors_TC(SimTestCase):
         self._testEndsWithErr(ErrorUseOfUnitialized1, HlsSyntaxError)
     
     def test_UseOfNone(self):
-        u = UseOfNone()
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
+        dut = UseOfNone()
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
         CLK_PERIOD = freq_to_period(int(100e6))
         self.runSim(3 * int(CLK_PERIOD))
 
-        self.assertValSequenceEqual(u.o._ag.data, [1, 1, 1])
+        self.assertValSequenceEqual(dut.o._ag.data, [1, 1, 1])
 
 
 if __name__ == "__main__":

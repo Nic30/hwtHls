@@ -3,8 +3,8 @@ from itertools import zip_longest
 import pydot
 from typing import List, Union, Dict, Optional, Callable, Tuple
 
-from hwt.hdl.operatorDefs import COMPARE_OPS, AllOps, OpDefinition
-from hwt.pyUtils.uniqList import UniqList
+from hwt.hdl.operatorDefs import COMPARE_OPS, HwtOps, HOperatorDef
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.IoClusterCore import HlsNetNodeIoClusterCore
@@ -54,7 +54,7 @@ class HwtHlsNetlistToGraphwiz():
             instances, else keep just the dst/src name in port node
         """
         self.name = name
-        self.allNodes = UniqList(nodes)
+        self.allNodes = SetList(nodes)
         self.graph = pydot.Dot(f'"{name}"')
         self.obj_to_node: Dict[HlsNetNode, pydot.Node] = {}
         self.nodeCounter = 0
@@ -276,9 +276,11 @@ class HwtHlsNetlistToGraphwiz():
                     obj: HlsNetNodeAggregatePortIn
                     parentIn = obj.parentIn
                     dep = parentIn.obj.dependsOn[parentIn.in_i]
-                    input_rows.append(f"<td port='i0'>{dep.obj._id}:{dep.out_i}</td>")
-                    if self._showArchElementLinks or not isinstance(parentIn.obj, ArchElement):
-                        dep = obj.parentIn.obj.dependsOn[obj.parentIn.in_i]
+                    if dep is None:
+                        input_rows.append(f"<td port='i0'>{html.escape('<unconnected>'):s}</td>")
+                    else:
+                        input_rows.append(f"<td port='i0'>{dep.obj._id}:{dep.out_i}</td>")
+                    if dep is not None and self._showArchElementLinks or not isinstance(parentIn.obj, ArchElement):
                         depObj = dep.obj
                         if isinstance(depObj, HlsNetNodeAggregate):
                             depNode = depObj._outputsInside[dep.out_i]
@@ -359,7 +361,7 @@ class HwtHlsNetlistToGraphwiz():
             name = ""
             if obj.name is not None:
                 name = f" \"{html.escape(obj.name)}\""
-            label = f"{obj.operator.id if isinstance(obj.operator, OpDefinition) else str(obj.operator)} {obj._id:d} {self._formatNodeScheduleTime(obj)}{name:s} {t}"
+            label = f"{obj.operator.id if isinstance(obj.operator, HOperatorDef) else str(obj.operator)} {obj._id:d} {self._formatNodeScheduleTime(obj)}{name:s} {t}"
         elif isinstance(obj, (HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeLoopStatus)):
             label = f"{_reprMinify(obj):s}{self._formatNodeScheduleTime(obj)}"
         elif isinstance(obj, HlsNetNodeAggregatePortIn):
@@ -427,7 +429,7 @@ class HlsNetlistPassDumpNodesDot(HlsNetlistPass):
                 elif isinstance(n, HlsNetNodeAggregatePortOut):
                     if HdlType_isVoid(n.parentOut._dtype):
                         continue
-                elif isinstance(n, HlsNetNodeOperator) and n.operator is AllOps.CONCAT and HdlType_isVoid(n._outputs[0]._dtype):
+                elif isinstance(n, HlsNetNodeOperator) and n.operator is HwtOps.CONCAT and HdlType_isVoid(n._outputs[0]._dtype):
                     continue
 
                 yield n
@@ -461,5 +463,5 @@ class HlsNetlistPassDumpIoClustersDot(HlsNetlistPassDumpNodesDot):
     def getNodes(self, netlist: HlsNetlistCtx):
         return (n for n in super(HlsNetlistPassDumpIoClustersDot, self).getNodes(netlist)
                  if isinstance(n, (HlsNetNodeExplicitSync, HlsNetNodeIoClusterCore))
-                   or (isinstance(n, HlsNetNodeOperator) and n.operator is AllOps.CONCAT and HdlType_isVoid(n._outputs[0]._dtype)))
+                   or (isinstance(n, HlsNetNodeOperator) and n.operator is HwtOps.CONCAT and HdlType_isVoid(n._outputs[0]._dtype)))
 

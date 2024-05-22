@@ -1,9 +1,9 @@
 from typing import Generator
 
 from hwt.code import If
-from hwt.hdl.operatorDefs import AllOps
+from hwt.hdl.operatorDefs import HwtOps
 from hwt.hdl.types.hdlType import HdlType
-from hwt.hdl.value import HValue
+from hwt.hdl.const import HConst
 from hwt.pyUtils.arrayQuery import grouper
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
@@ -20,7 +20,7 @@ class HlsNetNodeMux(HlsNetNodeOperator):
 
     def __init__(self, netlist: "HlsNetlistCtx", dtype: HdlType, name: str=None):
         super(HlsNetNodeMux, self).__init__(
-            netlist, AllOps.TERNARY, 0, dtype, name=name)
+            netlist, HwtOps.TERNARY, 0, dtype, name=name)
 
     @override
     def rtlAlloc(self, allocator: "ArchElement") -> TimeIndependentRtlResource:
@@ -53,7 +53,7 @@ class HlsNetNodeMux(HlsNetNodeOperator):
                 v, vt = v
                 v = allocator.rtlAllocHlsNetNodeOutInTime(v, vt)
 
-                if c is not None and isinstance(c.data, HValue):
+                if c is not None and isinstance(c.data, HConst):
                     # The value of condition was resolved to be a constant
                     if c.data:
                         if mux_top is None:

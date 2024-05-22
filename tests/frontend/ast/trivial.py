@@ -1,27 +1,27 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.hdl.types.bits import Bits
-from hwt.interfaces.hsStructIntf import HsStructIntf
-from hwt.interfaces.utils import addClkRstn
-from hwt.synthesizer.param import Param
-from hwt.synthesizer.unit import Unit
+from hwt.hdl.types.bits import HBits
+from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
+from hwt.hwIOs.utils import addClkRstn
+from hwt.hwParam import HwParam
+from hwt.hwModule import HwModule
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.scope import HlsScope
 
 
-class WriteOnce(Unit):
+class WriteOnce(HwModule):
 
     def _config(self):
-        self.FREQ = Param(int(100e6))
-        self.DATA_WIDTH = Param(8)
+        self.FREQ = HwParam(int(100e6))
+        self.DATA_WIDTH = HwParam(8)
 
     def _declr(self):
         addClkRstn(self)
         self.clk.FREQ = self.FREQ
-        o = self.dataOut = HsStructIntf()._m()
-        o.T = Bits(self.DATA_WIDTH, signed=False)
+        o = self.dataOut = HwIOStructRdVld()._m()
+        o.T = HBits(self.DATA_WIDTH, signed=False)
 
     def _impl(self) -> None:
         hls = HlsScope(self)
@@ -36,8 +36,8 @@ class ReadWriteOnce0(WriteOnce):
 
     def _declr(self):
         super(ReadWriteOnce0, self)._declr()
-        i = self.dataIn = HsStructIntf()
-        i.T = Bits(self.DATA_WIDTH, signed=False)
+        i = self.dataIn = HwIOStructRdVld()
+        i.T = HBits(self.DATA_WIDTH, signed=False)
 
     def _impl(self) -> None:
         hls = HlsScope(self)
@@ -76,17 +76,17 @@ class ReadWriteOnce2(ReadWriteOnce0):
         hls.compile()
 
 
-class WhileTrueWrite(Unit):
+class WhileTrueWrite(HwModule):
 
     def _config(self) -> None:
-        self.DATA_WIDTH = Param(8)
-        self.FREQ = Param(int(100e6))
+        self.DATA_WIDTH = HwParam(8)
+        self.FREQ = HwParam(int(100e6))
 
     def _declr(self) -> None:
         addClkRstn(self)
         self.clk.FREQ = self.FREQ
-        self.dataOut: HsStructIntf = HsStructIntf()._m()
-        self.dataOut.T = Bits(self.DATA_WIDTH, signed=False)
+        self.dataOut: HwIOStructRdVld = HwIOStructRdVld()._m()
+        self.dataOut.T = HBits(self.DATA_WIDTH, signed=False)
 
     def _impl(self) -> None:
         dout = self.dataOut
@@ -105,8 +105,8 @@ class WhileTrueReadWrite(WhileTrueWrite):
 
     def _declr(self) -> None:
         super(WhileTrueReadWrite, self)._declr()
-        i = self.dataIn = HsStructIntf()
-        i.T = Bits(self.DATA_WIDTH, signed=False)
+        i = self.dataIn = HwIOStructRdVld()
+        i.T = HBits(self.DATA_WIDTH, signed=False)
 
     def _impl(self) -> None:
         hls = HlsScope(self)
@@ -135,9 +135,9 @@ class WhileTrueReadWriteExpr(WhileTrueReadWrite):
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.platform import HlsDebugBundle
-    u = WhileTrueReadWriteExpr()
-    u.FREQ = int(150e6)
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    m = WhileTrueReadWriteExpr()
+    m.FREQ = int(150e6)
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

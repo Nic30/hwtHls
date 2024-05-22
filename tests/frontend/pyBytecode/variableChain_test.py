@@ -12,18 +12,18 @@ class VariableChain_TC(BaseSsaTC):
     def test_VariableChain1_ll(self):
 
         def VariableChain_1():
-            u = VariableChain()
-            u.LEN = 1
-            return u
+            m = VariableChain()
+            m.LEN = 1
+            return m
 
         self._test_ll(VariableChain_1, name="VariableChain_1")
 
     def test_VariableChain3_ll(self):
 
         def VariableChain_3():
-            u = VariableChain()
-            u.LEN = 3
-            return u
+            m = VariableChain()
+            m.LEN = 3
+            return m
 
         self._test_ll(VariableChain_3, name="VariableChain_3")
 

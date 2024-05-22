@@ -1,11 +1,11 @@
-from hwt.hdl.types.bits import Bits
-from hwt.hdl.value import HValue
-from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
+from hwt.hdl.types.bits import HBits
+from hwt.hdl.const import HConst
+from hwt.mainBases import RtlSignalBase
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from tests.floatingpoint.fptypes import IEEE754Fp
 
 
-bit2_t = Bits(2)
+bit2_t = HBits(2)
 
 
 class IEEE754FpCmpResult():
@@ -15,7 +15,7 @@ class IEEE754FpCmpResult():
     UNKNOWN = bit2_t.from_py(0b11)  # for operations with NaN
 
     @classmethod
-    def toStr(cls, val: HValue[bit2_t]):
+    def toStr(cls, val: HConst[bit2_t]):
         if not val._is_full_valid():
             return "INVALID"
         if val == cls.EQ:

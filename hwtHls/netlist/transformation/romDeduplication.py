@@ -1,7 +1,7 @@
 from typing import Dict
 
 from hwt.hdl.types.array import HArray
-from hwt.hdl.types.arrayVal import HArrayVal
+from hwt.hdl.types.arrayConst import HArrayConst
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
@@ -17,7 +17,7 @@ class HlsNetlistPassRomDeduplication(HlsNetlistPass):
 
     def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
         builder = netlist.builder
-        constCache: Dict[HArrayVal, HlsNetNodeOut] = {}
+        constCache: Dict[HArrayConst, HlsNetNodeOut] = {}
         removed = set()
         for n in netlist.nodes:
             if isinstance(n, HlsNetNodeConst):

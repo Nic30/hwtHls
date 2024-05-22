@@ -323,10 +323,10 @@ class SlicesMergePass_TC(BaseLlvmIrTC):
         self._test_ll(ir)
 
 if __name__ == "__main__":
-    # from hwt.synthesizer.utils import to_rtl_str
+    # from hwt.synth import to_rtl_str
     # from hwtHls.platform.platform import HlsDebugBundle
-    # u = SliceBreak3()
-    # print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    # m = SliceBreak3()
+    # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
     import sys

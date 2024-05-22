@@ -4,16 +4,16 @@ from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.code import SwitchLogic, Switch, If
 from hwt.code_utils import rename_signal
 from hwt.hdl.statements.statement import HdlStatement
-from hwt.hdl.types.bits import Bits
-from hwt.hdl.types.bitsVal import BitsVal
-from hwt.hdl.value import HValue
+from hwt.hdl.types.bits import HBits
+from hwt.hdl.types.bitsConst import HBitsConst
+from hwt.hdl.const import HConst
 from hwt.math import log2ceil
-from hwt.pyUtils.uniqList import UniqList
-from hwt.synthesizer.interface import Interface
+from hwt.pyUtils.setList import SetList
+from hwt.hwIO import HwIO
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.connectionsOfStage import \
     setNopValIfNotSet, ConnectionsOfStage, ConnectionsOfStageList
-from hwtHls.architecture.syncUtils import getInterfaceSyncSignals
+from hwtHls.architecture.syncUtils import HwIO_getSyncSignals
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, INVARIANT_TIME, \
     TimeIndependentRtlResourceItem
 from hwtHls.netlist.analysis.detectFsms import IoFsm
@@ -53,7 +53,7 @@ class ArchElementFsm(ArchElement):
     :ivar stateEncoding: a dictionary mapping state index to a value which will be used in RTL to represent this state.
     """
 
-    def __init__(self, netlist: HlsNetlistCtx, name: str, subNodes: UniqList[HlsNetNode], fsm: IoFsm):
+    def __init__(self, netlist: HlsNetlistCtx, name: str, subNodes: SetList[HlsNetNode], fsm: IoFsm):
         self.fsm = fsm
         clkPeriod = self.normalizedClkPeriod = netlist.normalizedClkPeriod
         assert fsm.states, fsm
@@ -104,7 +104,7 @@ class ArchElementFsm(ArchElement):
 
     @override
     def rtlRegisterOutputRtlSignal(self, outOrTime: Union[HlsNetNodeOut, SchedTime],
-                                data: Union[RtlSignal, Interface, HValue],
+                                data: Union[RtlSignal, HwIO, HConst],
                                 isExplicitRegister: bool,
                                 isForwardDeclr: bool,
                                 mayChangeOutOfCfg: bool):
@@ -134,14 +134,14 @@ class ArchElementFsm(ArchElement):
 
         return tir
 
-    def _initNopValsOfIoForIntf(self, intf: Union[Interface], intfDir: INTF_DIRECTION):
-        if intfDir == INTF_DIRECTION.MASTER:
+    def _initNopValsOfIoForHwIO(self, hwIO: Union[HwIO], dir_: INTF_DIRECTION):
+        if dir_ == INTF_DIRECTION.MASTER:
             # to prevent latching when interface is not used
-            syncSignals = getInterfaceSyncSignals(intf)
-            setNopValIfNotSet(intf, None, syncSignals)
+            syncSignals = HwIO_getSyncSignals(hwIO)
+            setNopValIfNotSet(hwIO, None, syncSignals)
         else:
-            assert intfDir == INTF_DIRECTION.SLAVE, (intf, intfDir)
-            syncSignals = getInterfaceSyncSignals(intf)
+            assert dir_ == INTF_DIRECTION.SLAVE, (hwIO, dir_)
+            syncSignals = HwIO_getSyncSignals(hwIO)
 
         for s in syncSignals:
             setNopValIfNotSet(s, 0, ())
@@ -154,14 +154,14 @@ class ArchElementFsm(ArchElement):
             for node in nodes:
                 if isinstance(node, HlsNetNodeWrite):
                     if node.dst is not None:
-                        self._initNopValsOfIoForIntf(node.dst, INTF_DIRECTION.MASTER)
+                        self._initNopValsOfIoForHwIO(node.dst, INTF_DIRECTION.MASTER)
 
                 elif isinstance(node, HlsNetNodeRead):
                     if node.src is not None:
-                        self._initNopValsOfIoForIntf(node.src, INTF_DIRECTION.SLAVE)
+                        self._initNopValsOfIoForHwIO(node.src, INTF_DIRECTION.SLAVE)
 
     def _collectLoopsAndSetBackedgesToReg(self):
-        localControlReads: UniqList[HlsNetNodeReadAnyChannel] = UniqList()
+        localControlReads: SetList[HlsNetNodeReadAnyChannel] = SetList()
         controlToStateI: Dict[Union[HlsNetNodeReadAnyChannel, HlsNetNodeWriteAnyChannel], int] = {}
         clkPeriod = self.normalizedClkPeriod
         for stI, nodes in enumerate(self.fsm.states):
@@ -223,7 +223,7 @@ class ArchElementFsm(ArchElement):
         return nonSkipableStateI
 
     def _resolveTranstitionTableFromLoopControlChannels(self,
-                localControlReads: UniqList[HlsNetNodeReadBackedge],
+                localControlReads: SetList[HlsNetNodeReadBackedge],
                 controlToStateI: Dict[Union[HlsNetNodeReadBackedge, HlsNetNodeWriteBackedge], int],
                 nonSkipableStateI: Set[int]):
         transitionTable = self.transitionTable
@@ -358,7 +358,7 @@ class ArchElementFsm(ArchElement):
         if stateCnt > 1:
             # if there is more than 1 state
             stReg = self._reg(f"{self.name}st",
-                           Bits(log2ceil(max(self.stateEncoding.values()) + 1)),
+                           HBits(log2ceil(max(self.stateEncoding.values()) + 1)),
                            def_val=0)
         else:
             # because there is just a single state, the state value has no meaning
@@ -396,7 +396,7 @@ class ArchElementFsm(ArchElement):
             stateAck = sync.ack()
 
             # reduce if ack is a constant value
-            if isinstance(stateAck, (bool, int, HValue)):
+            if isinstance(stateAck, (bool, int, HConst)):
                 assert bool(stateAck) == 1, ("If synchronization of state is always stalling it should be already optimized out", self, clkI)
                 stateAck = None
             else:
@@ -419,7 +419,7 @@ class ArchElementFsm(ArchElement):
                     con.syncNodeAck(1)
             else:
                 if con.syncNodeAck is None:
-                    con.syncNodeAck = stateAck = rename_signal(self.netlist.parentUnit, stateAck, f"{self.name}st{clkI:d}_ack")
+                    con.syncNodeAck = stateAck = rename_signal(self.netlist.parentHwModule, stateAck, f"{self.name}st{clkI:d}_ack")
                 else:
                     assert not con.syncNodeAck.drivers
                     con.syncNodeAck(stateAck)
@@ -427,7 +427,7 @@ class ArchElementFsm(ArchElement):
 
             # build next state logic from transitionTable
             # :note: isinstance(x[1], int) to have unconditional transitions as last
-            for dstStI, c in sorted(self.transitionTable[clkI].items(), key=lambda tr: (isinstance(tr[1], (int, BitsVal)), tr[0])):
+            for dstStI, c in sorted(self.transitionTable[clkI].items(), key=lambda tr: (isinstance(tr[1], (int, HBitsConst)), tr[0])):
                 assert not unconditionalTransSeen, "If there is an unconditional transition from this state it must be the last one"
                 if c == 1:
                     unconditionalTransSeen = True

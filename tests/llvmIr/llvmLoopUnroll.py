@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 
 from hwt.hdl.types.defs import BIT
-from hwt.interfaces.std import VectSignal
-from hwt.interfaces.utils import addClkRstn
-from hwt.synthesizer.unit import Unit
+from hwt.hwIOs.std import HwIOVectSignal
+from hwt.hwIOs.utils import addClkRstn
+from hwt.hwModule import HwModule
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeLLVMLoopUnroll
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
@@ -12,10 +12,10 @@ from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import uint8_t
 
 
-class InfLoopUnrollDissable(Unit):
+class InfLoopUnrollDissable(HwModule):
 
     def _declr(self):
-        self.o = VectSignal(8, signed=False)._m()
+        self.o = HwIOVectSignal(8, signed=False)._m()
         addClkRstn(self)
 
     @hlsBytecode
@@ -44,8 +44,9 @@ class InfLoopUnrollCount(InfLoopUnrollDissable):
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.platform import HlsDebugBundle
-    u = InfLoopUnrollCount()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    
+    m = InfLoopUnrollCount()
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

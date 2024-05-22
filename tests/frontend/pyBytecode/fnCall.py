@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from hwt.hdl.types.defs import BIT
-from hwt.interfaces.std import VectSignal
-from hwt.synthesizer.unit import Unit
+from hwt.hwIOs.std import HwIOVectSignal
+from hwt.hwModule import HwModule
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
@@ -79,10 +79,10 @@ def checkedFn7(*args, d=None, e=4, f=None):
     return 10
 
 
-class FnCallFn(Unit):
+class FnCallFn(HwModule):
 
     def _declr(self):
-        self.o = VectSignal(8, signed=False)._m()
+        self.o = HwIOVectSignal(8, signed=False)._m()
     
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
@@ -213,8 +213,8 @@ class FnCallMethodArgsKwArgsSomeDefault(FnCallFn):
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.platform import HlsDebugBundle
-    u = FnCallFnVariadicExpandKwArgsExpand()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    m = FnCallFnVariadicExpandKwArgsExpand()
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

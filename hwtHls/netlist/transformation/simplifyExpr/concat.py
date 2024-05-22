@@ -1,8 +1,8 @@
 from itertools import islice
 from typing import Set, Dict
 
-from hwt.hdl.operatorDefs import AllOps
-from hwt.pyUtils.uniqList import UniqList
+from hwt.hdl.operatorDefs import HwtOps
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.analysis.reachability import _collectConcatOfVoidTreeInputs
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
@@ -26,11 +26,11 @@ def _getOrderingOutStrenght(o: HlsNetNodeOut):
             return 1
 
 
-def netlistReduceConcat(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]):
+def netlistReduceConcat(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode], removed: Set[HlsNetNode]):
     if len(n.usedBy[0]) == 1:
         onlyUser = n.usedBy[0][0]
         onlyUserObj = onlyUser.obj
-        if isinstance(onlyUserObj, HlsNetNodeOperator) and onlyUserObj.operator == AllOps.CONCAT:
+        if isinstance(onlyUserObj, HlsNetNodeOperator) and onlyUserObj.operator == HwtOps.CONCAT:
             # Merge this concat into only user which is also concat
             newOps = []
             newOps.extend(onlyUserObj.dependsOn[:onlyUser.in_i])
@@ -47,7 +47,7 @@ def netlistReduceConcat(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode], r
     return False
 
 
-def netlistReduceConcatOfVoid(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]):
+def netlistReduceConcatOfVoid(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode], removed: Set[HlsNetNode]):
     """
     For concatenation of data of void type the ordering of operands does not matter. Also some ports (output, dataVoidOut)
     have stronger meaning than regular ordering and lesser strength ordering dependencies can be removed from expression.
@@ -94,7 +94,7 @@ def netlistReduceConcatOfVoid(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNo
         return True
 
     if len(n.usedBy[0]) > 1 or (not isinstance(n.usedBy[0][0].obj, HlsNetNodeOperator)
-                                or n.usedBy[0][0].obj.operator != AllOps.CONCAT):
+                                or n.usedBy[0][0].obj.operator != HwtOps.CONCAT):
         # collect all inputs and check if concat operator tree does not have any duplicit inputs
         inputs = []
         duplicity = _collectConcatOfVoidTreeInputs(n._outputs[0], inputs, set())

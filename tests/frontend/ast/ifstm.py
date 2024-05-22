@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.interfaces.utils import addClkRstn
-from hwt.synthesizer.param import Param
+from hwt.hwIOs.utils import addClkRstn
+from hwt.hwParam import HwParam
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.platform.virtual import VirtualHlsPlatform
@@ -16,7 +16,7 @@ from tests.baseSsaTest import BaseSsaTC
 class HlsSimpleIfStatement(SimpleIfStatement):
 
     def _config(self):
-        self.CLK_FREQ = Param(int(100e6))
+        self.CLK_FREQ = HwParam(int(100e6))
 
     def _declr(self):
         addClkRstn(self)
@@ -52,13 +52,13 @@ class HlsSimpleIfStatement_TC(BaseSsaTC):
     __FILE__ = __file__
 
     def test_simple(self):
-        u = HlsSimpleIfStatement()
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
+        dut = HlsSimpleIfStatement()
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
         # test all combinations
         for i in range(1 << 3):
-            u.a._ag.data.append(get_bit(i, 0))
-            u.b._ag.data.append(get_bit(i, 1))
-            u.c._ag.data.append(get_bit(i, 2))
+            dut.a._ag.data.append(get_bit(i, 0))
+            dut.b._ag.data.append(get_bit(i, 1))
+            dut.c._ag.data.append(get_bit(i, 2))
 
         def model(a, b, c):
             # b if a else c
@@ -69,20 +69,20 @@ class HlsSimpleIfStatement_TC(BaseSsaTC):
             else:
                 return c
 
-        d = [model(*args) for args in zip(u.a._ag.data, u.b._ag.data, u.c._ag.data)]
+        d = [model(*args) for args in zip(dut.a._ag.data, dut.b._ag.data, dut.c._ag.data)]
 
-        self.runSim(int((len(d) + 1) * freq_to_period(u.CLK_FREQ)))
+        self.runSim(int((len(d) + 1) * freq_to_period(dut.CLK_FREQ)))
 
-        self.assertValSequenceEqual(u.d._ag.data, d)
+        self.assertValSequenceEqual(dut.d._ag.data, d)
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
 
-    u = HlsSimpleIfStatement()
+    m = HlsSimpleIfStatement()
     p = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)
-    print(to_rtl_str(u, target_platform=p))
+    print(to_rtl_str(m, target_platform=p))
 
     import unittest
     testLoader = unittest.TestLoader()

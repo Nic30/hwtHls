@@ -18,23 +18,23 @@ class BramCounterArray_TC(BaseSsaTC):
         # :param mayLeak: if true it is allowed that the value in memory is less than it is expected
         #     this is used for test where the increment of counter may be lost due to unhandled lolision check
         #     in the pipeline
-        u = cls()
-        u.CLK_FREQ = int(F)
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
+        dut = cls()
+        dut.CLK_FREQ = int(F)
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
         mem = self.rtl_simulator.model.ram_inst.io.ram_memory
-        ref = {i: 0 for i in range(u.ITEMS)}
+        ref = {i: 0 for i in range(dut.ITEMS)}
         mem.val = mem.def_val = mem._dtype.from_py(ref)
         for _ in range(N):
-            i = self._rand.randint(0, u.ITEMS - 1)
+            i = self._rand.randint(0, dut.ITEMS - 1)
             ref[i] += 1
-            u.incr._ag.data.append(i)
+            dut.incr._ag.data.append(i)
 
         if randomize:
-            self.randomize(u.incr)
+            self.randomize(dut.incr)
 
-        self.runSim((TIME_MULTIPLIER * N + 10) * int(freq_to_period(u.CLK_FREQ)))
-        self.assertEmpty(u.incr._ag.data)
-        for i in range(u.ITEMS):
+        self.runSim((TIME_MULTIPLIER * N + 10) * int(freq_to_period(dut.CLK_FREQ)))
+        self.assertEmpty(dut.incr._ag.data)
+        for i in range(dut.ITEMS):
             d = mem.val.val.get(i, None)
             # print(i, ref[i], d)
             self.assertTrue(d is not None and d._is_full_valid(), ("index", i))

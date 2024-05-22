@@ -1,8 +1,8 @@
 from typing import Tuple, Dict, List, Set
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
-from hwt.hdl.operatorDefs import AllOps
-from hwt.hdl.types.bits import Bits
+from hwt.hdl.operatorDefs import HwtOps
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT, SLICE, INT
 from hwtHls.frontend.ast.astToSsa import NetlistIoConstructorDictT
 from hwtHls.frontend.ast.statementsRead import HlsRead
@@ -24,7 +24,7 @@ from hwtHls.ssa.translation.llvmMirToNetlist.lowLevel import HlsNetlistAnalysisP
 from hwtHls.ssa.translation.llvmMirToNetlist.machineEdgeMeta import MachineEdgeMeta, MACHINE_EDGE_TYPE
 from hwtHls.ssa.translation.llvmMirToNetlist.utils import LiveInMuxMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
-from hwtHls.frontend.hardBlock import HardBlockUnit
+from hwtHls.frontend.hardBlock import HardBlockHwModule
 from hwt.math import log2ceil
 
 BlockLiveInMuxSyncDict = Dict[Tuple[MachineBasicBlock, MachineBasicBlock, Register], HlsNetNodeExplicitSync]
@@ -66,7 +66,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
             for pred in mb.predecessors():
                 for liveIn in sorted(self.liveness[pred][mb], key=lambda li: li.virtRegIndex()):
                     if self._regIsValidLiveIn(MRI, liveIn) and liveIn not in seenLiveIns:
-                        dtype = Bits(self.registerTypes[liveIn])
+                        dtype = HBits(self.registerTypes[liveIn])
                         liveInO = valCache.get(mb, liveIn, dtype)
                         blockBoudary.add(liveInO)
                         seenLiveIns.add(liveIn)
@@ -109,7 +109,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
 
                             if isUndef:
                                 bw = self.registerTypes[r]
-                                op = builder.buildConst(Bits(bw).from_py(None))
+                                op = builder.buildConst(HBits(bw).from_py(None))
                             else:
                                 op = self._translateRegister(mb, r)
                             ops.append(op)
@@ -137,7 +137,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                 if opDef is not None:
                     resT = ops[0]._dtype
                     if opc in self._BITCOUNT_OPCODES:
-                        resT = Bits(log2ceil(resT.bit_length() + 1))
+                        resT = HBits(log2ceil(resT.bit_length() + 1))
 
                     res = builder.buildOp(opDef, resT, *ops, name=name)
                     valCache.add(mb, dst, res, True)
@@ -160,7 +160,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                     # load from data channel
                     srcIo, index, cond = ops  # [todo] implicit operands
                     if isinstance(srcIo, HlsNetNodeOut):
-                        res = builder.buildOp(AllOps.INDEX, srcIo._dtype.element_t, srcIo, index, name=name)
+                        res = builder.buildOp(HwtOps.INDEX, srcIo._dtype.element_t, srcIo, index, name=name)
                         if isinstance(cond, int):
                             assert cond == 1, instr
                         else:
@@ -200,7 +200,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                     else:
                         raise NotImplementedError()
 
-                    res = builder.buildOp(AllOps.INDEX, Bits(width), src, index)
+                    res = builder.buildOp(HwtOps.INDEX, HBits(width), src, index)
                     res.obj.name = name
                     valCache.add(mb, dst, res, True)
 
@@ -232,7 +232,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                 elif opc == TargetOpcode.IMPLICIT_DEF:
                     assert not ops, ops
                     BW = self.registerTypes[dst]
-                    v = Bits(BW).from_py(None)
+                    v = HBits(BW).from_py(None)
                     valCache.add(mb, dst, builder.buildConst(v), True)
                 elif opc in (TargetOpcode.HWTFPGA_PYOBJECT_PLACEHOLDER,
                              TargetOpcode.HWTFPGA_PYOBJECT_PLACEHOLDER_NOTDUPLICABLE,
@@ -240,7 +240,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                              TargetOpcode.HWTFPGA_PYOBJECT_PLACEHOLDER_NOTDUPLICABLE_WITH_SIDEEFECT):
                     objId = ops[0]
                     try:
-                        obj: HardBlockUnit = self.placeholderObjectSlots[objId]
+                        obj: HardBlockHwModule = self.placeholderObjectSlots[objId]
                     except IndexError:
                         raise IndexError("ThMissing object requested by placeholder object id", objId, instr)
                     inputs = ops[2:2 + (len(ops) - 2) // 2]
@@ -269,7 +269,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                     v = v.getLatestReplacement()
             else:
                 assert len(cases) > 1, ("mb", mb.getNumber(), "liveIn", liveIn.virtRegIndex(), cases)
-                dtype = Bits(self.registerTypes[liveIn])
+                dtype = HBits(self.registerTypes[liveIn])
                 _operands = []
                 for last, (src, cond) in iter_with_last(cases):
                     if isinstance(cond, HlsNetNodeOutLazy):
@@ -356,7 +356,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                         muxMeta = liveIns[liveIn] = LiveInMuxMeta()
 
                     muxMeta: LiveInMuxMeta
-                    dtype = Bits(self.registerTypes[liveIn])
+                    dtype = HBits(self.registerTypes[liveIn])
                     v = valCache.get(predMb, liveIn, dtype)
 
                     wn = None
@@ -425,7 +425,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                     if not self._regIsValidLiveIn(MRI, liveIn):
                         continue
 
-                    dtype = Bits(self.registerTypes[liveIn])
+                    dtype = HBits(self.registerTypes[liveIn])
                     srcThread = self._getThreadOfReg(threads, pred, liveIn, dtype)
                     dstThread = self._getThreadOfReg(threads, mb, liveIn, dtype)
                     if srcThread is not None and dstThread is not None and srcThread is not dstThread:

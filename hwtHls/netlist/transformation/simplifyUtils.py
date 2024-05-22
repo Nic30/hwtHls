@@ -1,9 +1,9 @@
 from itertools import islice
 from typing import Set, Optional, Tuple
 
-from hwt.hdl.operatorDefs import OpDefinition, AllOps
-from hwt.hdl.value import HValue
-from hwt.pyUtils.uniqList import UniqList
+from hwt.hdl.operatorDefs import HOperatorDef, HwtOps
+from hwt.hdl.const import HConst
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -13,7 +13,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn, \
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregatePortIn
 
 
-def getConstDriverOf(inputObj: Optional[HlsNetNodeIn]) -> Optional[HValue]:
+def getConstDriverOf(inputObj: Optional[HlsNetNodeIn]) -> Optional[HConst]:
     if inputObj is None:
         return None
     dep = inputObj.obj.dependsOn[inputObj.in_i]
@@ -23,14 +23,14 @@ def getConstDriverOf(inputObj: Optional[HlsNetNodeIn]) -> Optional[HValue]:
         return None
 
 
-def getConstOfOutput(o: HlsNetNodeOutAny) -> Optional[HValue]:
+def getConstOfOutput(o: HlsNetNodeOutAny) -> Optional[HConst]:
     if isinstance(o, HlsNetNodeOut) and isinstance(o.obj, HlsNetNodeConst):
         return o.obj.val
     else:
         return None
 
 
-def disconnectAllInputs(n: HlsNetNode, worklist: UniqList[HlsNetNode]):
+def disconnectAllInputs(n: HlsNetNode, worklist: SetList[HlsNetNode]):
     for i, dep in zip(n._inputs, n.dependsOn):
         i: HlsNetNodeIn
         dep: HlsNetNodeOut
@@ -48,14 +48,14 @@ def disconnectAllInputs(n: HlsNetNode, worklist: UniqList[HlsNetNode]):
         i.obj.dependsOn[i.in_i] = None
 
 
-def addAllUsersToWorklist(worklist: UniqList[HlsNetNode], n: HlsNetNode):
+def addAllUsersToWorklist(worklist: SetList[HlsNetNode], n: HlsNetNode):
     for uses in n.usedBy:
         for u in uses:
             worklist.append(u.obj)
 
 
 def replaceOperatorNodeWith(n: HlsNetNodeOperator, newO: HlsNetNodeOut,
-                            worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]):
+                            worklist: SetList[HlsNetNode], removed: Set[HlsNetNode]):
     assert len(n.usedBy) == 1 or all(not uses for uses in islice(n.usedBy, 1, None)), (
         n, "implemented only for single output nodes or nodes with only first output used")
     assert newO.obj not in removed, newO
@@ -129,7 +129,7 @@ def hasInputSameDriver(i0: Optional[HlsNetNodeIn], i1: Optional[HlsNetNodeIn]) -
         return False
 
 
-def iterOperatorTreeInputs(root: HlsNetNodeOut, ops: Tuple[OpDefinition]):
+def iterOperatorTreeInputs(root: HlsNetNodeOut, ops: Tuple[HOperatorDef]):
     """
     :note: The most left input first
     """
@@ -145,7 +145,7 @@ def popNotFromExpr(e: HlsNetNodeOut):
     negated = False
     while True:
         obj = e.obj
-        if isinstance(obj, HlsNetNodeOperator) and obj.operator is AllOps.NOT:
+        if isinstance(obj, HlsNetNodeOperator) and obj.operator is HwtOps.NOT:
             negated = not negated
             e = obj.dependsOn[0]
         else:

@@ -4,7 +4,7 @@
 import unittest
 
 from hwt.hdl.types.defs import BIT
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge, \
@@ -114,7 +114,7 @@ class SchedulingNodeFunctions_TC(unittest.TestCase):
         r._setScheduleZeroTimeSingleClock(881)
         self.assertEqual(r.scheduledOut[0], 881)
 
-        a = HlsNetNodeAggregate(netlist, UniqList([r, ]), "agg0")
+        a = HlsNetNodeAggregate(netlist, SetList([r, ]), "agg0")
         a.assignRealization(EMPTY_OP_REALIZATION)
 
         a._setScheduleZeroTimeSingleClock(161)

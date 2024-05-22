@@ -2,7 +2,7 @@ from typing import Set
 
 from hwt.hdl.operatorDefs import COMPARE_OPS, BITWISE_OPS, \
     ALWAYS_COMMUTATIVE_OPS, ALWAYS_ASSOCIATIVE_COMMUTATIVE_OPS, CMP_OP_SWAP
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -12,7 +12,7 @@ from hwtHls.netlist.transformation.simplifyUtils import replaceOperatorNodeWith
 BINARY_OPS_WITH_SWAPABLE_OPERANDS = {*BITWISE_OPS, *COMPARE_OPS, *ALWAYS_COMMUTATIVE_OPS}
 
 
-def netlistNormalizeConstToRhs(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]) -> bool:
+def netlistNormalizeConstToRhs(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode], removed: Set[HlsNetNode]) -> bool:
     b: HlsNetlistBuilder = n.netlist.builder
     op = n.operator
     assert op in BINARY_OPS_WITH_SWAPABLE_OPERANDS, "This function should be only called if this is satisfied"

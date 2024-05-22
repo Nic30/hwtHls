@@ -2,9 +2,9 @@ from enum import Enum
 from functools import cmp_to_key
 from typing import Dict, Optional, List, Tuple, Set, Union, Literal
 
-from hwt.hdl.operatorDefs import AllOps
-from hwt.hdl.value import HValue
-from hwt.pyUtils.uniqList import UniqList
+from hwt.hdl.operatorDefs import HwtOps
+from hwt.hdl.const import HConst
+from hwt.pyUtils.setList import SetList
 from hwtHls.architecture.analysis.channelGraph import ArchSyncNodeTy, \
     ArchSyncNodeIoDict
 from hwtHls.architecture.analysis.handshakeSCCs import ArchSyncSuccDict, \
@@ -110,7 +110,7 @@ class DST_UNREACHABLE():
 
 
 def _getSyncNodeDynSkipExpression(src: ArchSyncNodeTy,
-                           curPath: UniqList[ArchSyncNodeTy],
+                           curPath: SetList[ArchSyncNodeTy],
                            dst: ArchSyncNodeTy,
                            successorsUndirected: ArchSyncSuccDict,
                            nodeIsNotDirectlyReachable: DynamicallyDirectlyNotReachableFlagDict,
@@ -128,7 +128,7 @@ def _getSyncNodeDynSkipExpression(src: ArchSyncNodeTy,
 
     # hsSccNode = (termPropagationCtx.parentDstElm, 0)
     curPath.append(src)
-    andMembers: UniqList[HlsNetNodeOut] = UniqList()
+    andMembers: SetList[HlsNetNodeOut] = SetList()
     notReachFromSrc = nodeIsNotDirectlyReachable.get(src, None)
     for suc in _successors.keys():
         if suc in curPath:
@@ -167,19 +167,19 @@ def _getSyncNodeDynSkipExpression(src: ArchSyncNodeTy,
             pass
 
         else:
-            assert not isinstance(sucSkippingDst, HValue), sucSkippingDst
+            assert not isinstance(sucSkippingDst, HConst), sucSkippingDst
             assert not (isinstance(sucSkippingDst, ArchSyncNodeTerm) and
-                        isinstance(sucSkippingDst.out, HValue)), sucSkippingDst.out
+                        isinstance(sucSkippingDst.out, HConst)), sucSkippingDst.out
 
             if skippingSucFromSrc is None:
-                if not(isinstance(sucSkippingDst, HValue) and sucSkippingDst):
+                if not(isinstance(sucSkippingDst, HConst) and sucSkippingDst):
                     andMembers.append(sucSkippingDst)
             elif len(skippingSucFromSrc) == 0:
                 p = curPath.pop()
                 assert p is src, ("When leaving this function the path end must the one added at the beginning", p, src)
                 return None  # dst is not skippable
 
-            elif isinstance(skippingSucFromSrc, HValue):
+            elif isinstance(skippingSucFromSrc, HConst):
                 if skippingSucFromSrc:
                     continue  # communication with suc is always optional and thus we can always skip it
                 else:
@@ -191,21 +191,21 @@ def _getSyncNodeDynSkipExpression(src: ArchSyncNodeTy,
                 # skippingSucFromSrc = ArchSyncNodeTerm(
                 #    hsSccNode, skippingSucFromSrc,
                 #    f"{ArchSyncNodeTy_stringFormat(suc):s}_skipPathTo_{ArchSyncNodeTy_stringFormat(dst):s}")
-                if isinstance(sucSkippingDst, HValue):
+                if isinstance(sucSkippingDst, HConst):
                     if sucSkippingDst:
                         continue  # andMember always True
                     else:
                         andMembers.extend(skippingSucFromSrc)
                 else:
                     andMembers.append(
-                        (AllOps.OR, (sucSkippingDst, (AllOps.AND, tuple(skippingSucFromSrc)))))
+                        (HwtOps.OR, (sucSkippingDst, (HwtOps.AND, tuple(skippingSucFromSrc)))))
 
     p = curPath.pop()
     assert p is src, ("When leaving this function the path end must be the one added at the beginning", p, src)
     if len(andMembers) == 1:
         return andMembers[0]
     elif andMembers:
-        return (AllOps.AND, tuple(andMembers))
+        return (HwtOps.AND, tuple(andMembers))
     else:
         return DST_UNREACHABLE
 
@@ -249,7 +249,7 @@ HlsNetNodePreceCmpKey = cmp_to_key(HlsNetNodePreceCmp)
 @staticmethod
 def sortIoByOffsetInClkWindow(successors: ArchSyncSuccDiGraphDict,
                   nodeIo: ArchSyncNodeIoDict,
-                  scc: UniqList[ArchSyncNodeTy]):
+                  scc: SetList[ArchSyncNodeTy]):
     clkPeriod = scc[0][0].netlist.normalizedClkPeriod
     allIo: List[Tuple[SchedTime, HlsNetNodeExplicitSync, ArchSyncNodeTy, ReadOrWriteType]] = []
     seen: Set[HlsNetNodeReadOrWriteToAnyChannel] = set()
@@ -410,7 +410,7 @@ def resolveDynamicallyDirectlyNotReachable(neighborDict: ArchSyncSuccDict,
 
 def resolveNodeInputsValid(successors: ArchSyncSuccDiGraphDict,
             nodeIo: ArchSyncNodeIoDict,
-            scc: UniqList[ArchSyncNodeTy],
+            scc: SetList[ArchSyncNodeTy],
             builder: HlsNetlistBuilder,
             termPropagationCtx: ArchElementTermPropagationCtx):
     # prepare ordered sequence of all IO and channels
@@ -427,7 +427,7 @@ def resolveNodeInputsValid(successors: ArchSyncSuccDiGraphDict,
     # dictionary with output marking that the condition of write is in valid state
     ioCondVld: Dict[HlsNetNodeExplicitSync, HlsNetNodeOut] = {}
     # nodeCurrentAck: Dict[ArchSyncNodeTy, Optional[HlsNetNodeOut]] = {n:None for n in scc}
-    # nodeCurrentReach: Dict[ArchSyncNodeTy, Tuple[Optional[HlsNetNodeOut], UniqList[ArchSyncNodeTy]]] = {n:(None, UniqList()) for n in scc}
+    # nodeCurrentReach: Dict[ArchSyncNodeTy, Tuple[Optional[HlsNetNodeOut], SetList[ArchSyncNodeTy]]] = {n:(None, SetList()) for n in scc}
     allIo = sortIoByOffsetInClkWindow(successors, nodeIo, scc)
     for (_, ioNode, syncNode, ioTy) in allIo:
         ioNode: HlsNetNodeExplicitSync

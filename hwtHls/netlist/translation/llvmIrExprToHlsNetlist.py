@@ -1,10 +1,10 @@
 
 from typing import Dict
 
-from hwt.hdl.operatorDefs import OpDefinition, AllOps
-from hwt.hdl.types.bits import Bits
+from hwt.hdl.operatorDefs import HOperatorDef, HwtOps
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.llvm.llvmIr import Function, Value, ValueToConstantInt, ValueToUndefValue, \
     ValueToArgument, Argument, BasicBlock, Instruction, InstructionToLoadInst, \
     LoadInst, InstructionToStoreInst, StoreInst, Type, TypeToIntegerType, IntegerType, \
@@ -21,14 +21,14 @@ from pyMathBitPrecise.bit_utils import to_unsigned
 
 class LlvmIrExprToHlsNetlist():
     OPS_MAP = {
-        Instruction.And: AllOps.AND,
-        Instruction.Or: AllOps.OR,
-        Instruction.Xor: AllOps.XOR,
-        Instruction.Add: AllOps.ADD,
-        Instruction.Sub: AllOps.SUB,
-        Instruction.Mul: AllOps.MUL,
-        Instruction.SDiv: AllOps.SDIV,
-        Instruction.UDiv: AllOps.UDIV,
+        Instruction.And: HwtOps.AND,
+        Instruction.Or: HwtOps.OR,
+        Instruction.Xor: HwtOps.XOR,
+        Instruction.Add: HwtOps.ADD,
+        Instruction.Sub: HwtOps.SUB,
+        Instruction.Mul: HwtOps.MUL,
+        Instruction.SDiv: HwtOps.SDIV,
+        Instruction.UDiv: HwtOps.UDIV,
     }
 
     def __init__(self, netlist: HlsNetlistCtx):
@@ -52,7 +52,7 @@ class LlvmIrExprToHlsNetlist():
         it = TypeToIntegerType(t)
         if it is not None:
             it: IntegerType
-            return Bits(it.getBitWidth())
+            return HBits(it.getBitWidth())
         raise NotImplementedError(t)
 
     def _translateExpr(self, v: Value):
@@ -86,7 +86,7 @@ class LlvmIrExprToHlsNetlist():
 
         return self.varMap[v]  # if variable was defined it must be there
 
-    def translate(self, fn: Function, inputs: UniqList[HlsNetNodeOut], outputs: UniqList[HlsNetNodeOut]):
+    def translate(self, fn: Function, inputs: SetList[HlsNetNodeOut], outputs: SetList[HlsNetNodeOut]):
         newOutputs = [None for _ in range(len(outputs))]
         assert fn.arg_size() == len(inputs) + len(outputs), (fn, inputs, outputs)
         # for a, inp in zip(fn.args(), inputs):
@@ -156,7 +156,7 @@ class LlvmIrExprToHlsNetlist():
                     pred = cmp.getPredicate()
                     op0 = self._translateExpr(_op0)
                     op1 = self._translateExpr(_op1)
-                    operator: OpDefinition = HlsNetlistAnalysisPassMirToNetlistLowLevel.CMP_PREDICATE_TO_OP[pred]
+                    operator: HOperatorDef = HlsNetlistAnalysisPassMirToNetlistLowLevel.CMP_PREDICATE_TO_OP[pred]
                     assert not op0._dtype.signed, ("signed types should not be used internally", cmp, op0)
                     assert not op1._dtype.signed, ("signed types should not be used internally", cmp, op1)
                     v = b.buildOp(operator, BIT, op0, op1)
@@ -209,7 +209,7 @@ class LlvmIrExprToHlsNetlist():
                         v = b.buildConcat(opV0, *(msb for _ in range(resTwidth - w)))
                     else:
                         assert opc == Instruction.ZExt, opc
-                        v = b.buildConcat(opV0, b.buildConst(Bits(resTwidth - w).from_py(0)))
+                        v = b.buildConcat(opV0, b.buildConst(HBits(resTwidth - w).from_py(0)))
 
                     name = i.getName().str()
                     if name and v.obj.name is None:

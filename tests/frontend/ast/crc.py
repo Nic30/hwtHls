@@ -70,7 +70,7 @@ class CrcCombHls(CrcComb):
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtLib.logic.crcPoly import CRC_5_USB
     from hwtHls.platform.platform import HlsDebugBundle
@@ -78,10 +78,10 @@ if __name__ == "__main__":
     # import sys
     # sys.setrecursionlimit(10 ** 5)
 
-    u = CrcCombHls()
-    u.setConfig(CRC_5_USB)
-    u.REFOUT = False
-    u.CLK_FREQ = int(200e6)
-    u.DATA_WIDTH = 8
+    m = CrcCombHls()
+    m.setConfig(CRC_5_USB)
+    m.REFOUT = False
+    m.CLK_FREQ = int(200e6)
+    m.DATA_WIDTH = 8
 
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

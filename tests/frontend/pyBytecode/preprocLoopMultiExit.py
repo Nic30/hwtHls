@@ -11,10 +11,10 @@ The terminators for duplications are:
 """
 
 from hwt.hdl.types.defs import BIT
-from hwt.interfaces.std import Handshaked
-from hwt.interfaces.utils import addClkRstn
-from hwt.synthesizer.param import Param
-from hwt.synthesizer.unit import Unit
+from hwt.hwIOs.std import HwIODataRdVld
+from hwt.hwIOs.utils import addClkRstn
+from hwt.hwParam import HwParam
+from hwt.hwModule import HwModule
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline, \
     PyBytecodePreprocDivergence
@@ -23,16 +23,16 @@ from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import uint8_t
 
 
-class PreprocLoopMultiExit_singleExit0(Unit):
+class PreprocLoopMultiExit_singleExit0(HwModule):
 
     def _config(self):
-        self.FREQ = Param(int(10e6))
-        self.DATA_WIDTH = Param(8)
+        self.FREQ = HwParam(int(10e6))
+        self.DATA_WIDTH = HwParam(8)
 
     def _declr(self):
-        with self._paramsShared():
-            self.i = Handshaked()
-            self.o = Handshaked()._m()
+        with self._hwParamsShared():
+            self.i = HwIODataRdVld()
+            self.o = HwIODataRdVld()._m()
             addClkRstn(self)
 
     @hlsBytecode
@@ -165,14 +165,14 @@ class PreprocLoopMultiExit_hwBreak3(PreprocLoopMultiExit_singleExit0):
 class PreprocLoopMultiExit_countLeadingZeros_0(PreprocLoopMultiExit_singleExit0):
 
     def _config(self):
-        self.FREQ = Param(int(10e6))
-        self.DATA_WIDTH = Param(3)
+        self.FREQ = HwParam(int(10e6))
+        self.DATA_WIDTH = HwParam(3)
 
     def _declr(self):
-        with self._paramsShared():
-            self.i = Handshaked()
+        with self._hwParamsShared():
+            self.i = HwIODataRdVld()
             addClkRstn(self)
-        self.o = Handshaked()._m()
+        self.o = HwIODataRdVld()._m()
         self.o.DATA_WIDTH = 8
 
     @hlsBytecode
@@ -223,8 +223,9 @@ class PreprocLoopMultiExit_countLeadingZeros_2(PreprocLoopMultiExit_singleExit0)
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.platform import HlsDebugBundle
-    u = PreprocLoopMultiExit_countLeadingZeros_0()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+
+    m = PreprocLoopMultiExit_countLeadingZeros_0()
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

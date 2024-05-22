@@ -1,7 +1,7 @@
 from typing import Dict, Tuple, Generator
 
 from hwt.code import Or, And, Xor
-from hwt.hdl.operatorDefs import AllOps, OpDefinition
+from hwt.hdl.operatorDefs import HwtOps, HOperatorDef
 from hwt.hdl.types.defs import BIT
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.netlist.abc.abcCpp import Abc_Ntk_t, Abc_Aig_t, Abc_Frame_t, Abc_Obj_t, \
@@ -89,7 +89,7 @@ class AbcAigToRtlNetlist():
             # not: (~p0 & ~p0)
             if topP0 == topP1 and ((negated and not o0n and not o1n) or
                                    (not negated and o0n and o1n)):
-                return AllOps.NOT, (tr(topP0, False),)
+                return HwtOps.NOT, (tr(topP0, False),)
 
             # or: ~(~p0 & ~p1 & ~p2 ...)
             orMembers = tuple(self._collectOrMembers(o))
@@ -99,12 +99,12 @@ class AbcAigToRtlNetlist():
                     if negated:
                         if all(n for _, n in orMembers):
                             # (~p0 | ~p1) -> ~(p0 & p1)
-                            return AllOps.NOT, (AllOps.AND, tuple(tr(p, int(not n)) for p, n in orMembers))
+                            return HwtOps.NOT, (HwtOps.AND, tuple(tr(p, int(not n)) for p, n in orMembers))
                         else:
-                            return AllOps.OR, tuple(tr(p, n) for p, n in orMembers)
+                            return HwtOps.OR, tuple(tr(p, n) for p, n in orMembers)
                     elif not allArePis or all(not n for _, n in orMembers):
                         # (~p0 & ~p1) -> ~(p0 | p1)
-                        return AllOps.NOT, (AllOps.OR, tuple(tr(p, n) for p, n in orMembers))
+                        return HwtOps.NOT, (HwtOps.OR, tuple(tr(p, n) for p, n in orMembers))
 
             return None
 
@@ -126,7 +126,7 @@ class AbcAigToRtlNetlist():
 
                 if p0 == P1o1 and p1 == P1o0:
                     # xor: (p0 & ~p1) | (p1 & ~p0)
-                    return AllOps.XOR, (tr(p0, False), tr(p1, False))
+                    return HwtOps.XOR, (tr(p0, False), tr(p1, False))
 
             elif not P0o0n and not P0o1n and (P1o0n + P1o1n) == 1:
                 pc, p1 = topP0.IterFanin()  # both not negated
@@ -139,32 +139,32 @@ class AbcAigToRtlNetlist():
                 if pc == P1o0:  # is in format ((~)pC & P0o1) | ((~)pC & P1o1)  (there is just 1 ~pC in expression)
                     if pc == P1o1:
                         # or: (pC & p1) | (~pC & pC) -> (pC & p1)
-                        res = AllOps.AND, (tr(pc, False), tr(p1, False))
+                        res = HwtOps.AND, (tr(pc, False), tr(p1, False))
                         if negated:
                             return res
                         else:
                             # ~(pC & p1)
-                            return AllOps.NOT, res
+                            return HwtOps.NOT, res
 
                     p0 = P1o1
                     if P1o0n:
                         p0, p1 = p1, p0
                     # mux: (pC & p1) | (~pC & p0) -> pC ? p1 : p0
-                    res = AllOps.TERNARY, (tr(pc, False), tr(p0, False), tr(p1, False))
+                    res = HwtOps.TERNARY, (tr(pc, False), tr(p0, False), tr(p1, False))
                     if negated:
                         return res
                     else:
                         # ~(pC ? p1 : p0)
-                        return AllOps.NOT, res
+                        return HwtOps.NOT, res
 
         if o0n and o1n:
             # or:  ~(~p0 & ~p1)
-            res = AllOps.OR, (tr(topP0, False), tr(topP1, False))
+            res = HwtOps.OR, (tr(topP0, False), tr(topP1, False))
             if negated:
                 return res
             else:
                 # or:  ~~(~p0 & ~p1) = ~(p0 | p1)
-                return AllOps.NOT, res
+                return HwtOps.NOT, res
 
     def _translate(self, o: Abc_Obj_t, negated: bool):
         key = (o, negated)
@@ -192,15 +192,15 @@ class AbcAigToRtlNetlist():
                 op, ops = res
                 negated = False
                 # pop NOTs from expression
-                while op is AllOps.NOT and isinstance(ops[0], OpDefinition):
+                while op is HwtOps.NOT and isinstance(ops[0], HOperatorDef):
                     negated = not negated
                     op, ops = ops
 
-                if op is AllOps.OR and len(ops) != 2:
+                if op is HwtOps.OR and len(ops) != 2:
                     res = Or(*ops)
-                elif op is AllOps.AND and len(ops) != 2:
+                elif op is HwtOps.AND and len(ops) != 2:
                     res = And(*ops)
-                elif op is AllOps.XOR and len(ops) != 2:
+                elif op is HwtOps.XOR and len(ops) != 2:
                     res = Xor(*ops)
                 else:
                     res = op._evalFn(*ops)

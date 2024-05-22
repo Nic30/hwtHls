@@ -45,9 +45,9 @@ class PyArrHwIndex_TC(BaseSsaTC):
             def runSsaPasses(self, hls:"HlsScope", toSsa:HlsAstToSsa):
                 raise TestFinishedSuccessfuly()
 
-        u = CntrArrayWithCfgDotDump()
-        u.CFG_FILE = buff
-        self._runTranslation(u, FrontendTestPlatform())
+        m = CntrArrayWithCfgDotDump()
+        m.CFG_FILE = buff
+        self._runTranslation(m, FrontendTestPlatform())
         self.assert_same_as_file(buff.getvalue(), os.path.join("data", "CntrArray_cfg.dot"))
 
 

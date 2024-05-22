@@ -1,7 +1,7 @@
 from typing import Literal, Union, Dict
 
-from hwt.hdl.value import HValue
-from hwt.pyUtils.uniqList import UniqList
+from hwt.hdl.const import HConst
+from hwt.pyUtils.setList import SetList
 from hwtHls.architecture.analysis.channelGraph import ArchSyncNodeTy, \
     ArchSyncNodeIoDict
 from hwtHls.architecture.analysis.handshakeSCCs import ArchSyncNodeTy_stringFormat_short
@@ -11,7 +11,7 @@ from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 
 
-def _resolveLocalOnlyIoAck(scc: UniqList[ArchSyncNodeTy],
+def _resolveLocalOnlyIoAck(scc: SetList[ArchSyncNodeTy],
                            # neighborDict: ArchSyncSuccDict,
                            nodeIo: ArchSyncNodeIoDict,
                            builder: HlsNetlistBuilder,
@@ -39,7 +39,7 @@ def _resolveLocalOnlyIoAck(scc: UniqList[ArchSyncNodeTy],
             ioAck = resolveAckFromNodeIo(n, builder, termPropagationCtx, nodeInputs, nodeOutputs)
 
         if ioAck is not None:
-            assert not isinstance(ioAck, HValue), (n, ioAck)
+            assert not isinstance(ioAck, HConst), (n, ioAck)
 
         # # resolve ack from buffers with capacity > 0
         # for channels in neighborDict[n].values():

@@ -1,8 +1,8 @@
 from itertools import chain
 from typing import List, Set, Union, Dict, Tuple, Callable, Optional
 
-from hwt.pyUtils.uniqList import UniqList
-from hwt.synthesizer.interface import Interface
+from hwt.pyUtils.setList import SetList
+from hwt.hwIO import HwIO
 from hwtHls.netlist.analysis.betweenSyncIslands import HlsNetlistAnalysisPassBetweenSyncIslands, \
     BetweenSyncIsland
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
@@ -20,7 +20,7 @@ from hwtHls.netlist.scheduler.clk_math import start_clk
 # from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 class IoFsm():
     """
-    :ivar intf: An interface instance for which this FSM is generated for. For debugging purposes.
+    :ivar hwIO: An HwIO instance for which this FSM is generated for. For debugging purposes.
     :ivar states: list of list of nodes for each state, some states may be empty,
         index in states corresponds to clock period index in scheduling
     :ivar syncIslands: a list of unique synchronization islands touching this FSM
@@ -29,8 +29,8 @@ class IoFsm():
         Non linear transitions must be explicitly discovered in ArchElementFsm.
     """
 
-    def __init__(self, intf: Optional[Interface], syncIslands: UniqList[BetweenSyncIsland]):
-        self.intf = intf
+    def __init__(self, hwIO: Optional[HwIO], syncIslands: SetList[BetweenSyncIsland]):
+        self.hwIO = hwIO
         self.states: List[List[HlsNetNode]] = []
         self.syncIslands = syncIslands
 
@@ -148,23 +148,23 @@ class HlsNetlistAnalysisPassDetectFsms(HlsNetlistAnalysisPass):
         stateNodeList.append(n)
 
     def collectInFsmNodes(self) -> Tuple[
-            Dict[HlsNetNode, UniqList[IoFsm]],
-            Dict[HlsNetNode, UniqList[Tuple[IoFsm, HlsNetNodePartRef]]]]:
+            Dict[HlsNetNode, SetList[IoFsm]],
+            Dict[HlsNetNode, SetList[Tuple[IoFsm, HlsNetNodePartRef]]]]:
         "Collect nodes which are part of some fsm"
-        inFsm: Dict[HlsNetNode, UniqList[IoFsm]] = {}
-        inFsmNodeParts: Dict[HlsNetNode, UniqList[Tuple[IoFsm, HlsNetNodePartRef]]] = {}
+        inFsm: Dict[HlsNetNode, SetList[IoFsm]] = {}
+        inFsmNodeParts: Dict[HlsNetNode, SetList[Tuple[IoFsm, HlsNetNodePartRef]]] = {}
         for fsm in self.fsms:
             for nodes in fsm.states:
                 for n in nodes:
                     cur = inFsm.get(n, None)
                     if cur is None:
-                        cur = inFsm[n] = UniqList()
+                        cur = inFsm[n] = SetList()
                     cur.append(fsm)
                     if isinstance(n, HlsNetNodePartRef):
                         n: HlsNetNodePartRef
                         otherParts = inFsmNodeParts.get(n.parentNode, None)
                         if otherParts is None:
-                            otherParts = inFsmNodeParts[n.parentNode] = UniqList()
+                            otherParts = inFsmNodeParts[n.parentNode] = SetList()
                         otherParts.append((fsm, n))
 
         return inFsm, inFsmNodeParts
@@ -232,7 +232,7 @@ class HlsNetlistAnalysisPassDetectFsms(HlsNetlistAnalysisPass):
             accesses = ioByInterface[i]
             if len(accesses) > accesses[0].maxIosPerClk:
                 # if is is accessed on multiple places we need to create a FSM which will control access to it
-                islands = UniqList()
+                islands = SetList()
                 for a in accesses:
                     inIsl, outIsl = syncIslands.syncIslandOfNode[a]
                     if (isinstance(a, HlsNetNodeRead) and inIsl is not None) or outIsl is None:
@@ -247,7 +247,7 @@ class HlsNetlistAnalysisPassDetectFsms(HlsNetlistAnalysisPass):
                 # all accesses which are not in same clock cycle must be mapped to individual FSM state
                 # every interface may spot a FSM
                 fsm = IoFsm(i, islands)
-                allClkI: UniqList[int] = UniqList()
+                allClkI: SetList[int] = SetList()
                 for a in accesses:
                     clkI = self._getClkIOfAccess(a, clkPeriod)
                     allClkI.append(clkI)

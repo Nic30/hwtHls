@@ -4,19 +4,17 @@ from typing import Optional, Generator, Union, Tuple
 
 from hwt.code import If
 from hwt.code_utils import rename_signal
+from hwt.constants import NOT_SPECIFIED
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.hdlType import HdlType
-from hwt.interfaces.hsStructIntf import HsStructIntf
-from hwt.interfaces.rdSyncedStructIntf import RdSyncedStructIntf
-from hwt.interfaces.std import HandshakeSync, VldSync, RdSync
-from hwt.interfaces.structIntf import HdlType_to_Interface
-from hwt.interfaces.vldSyncedStructIntf import VldSyncedStructIntf
-from hwt.synthesizer.interface import Interface
-from hwt.synthesizer.interfaceLevel.unitImplHelpers import Interface_without_registration
-from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
-from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
+from hwt.hwIO import HwIO
+from hwt.hwIOs.hwIOStruct import HdlType_to_HwIO
+from hwt.hwIOs.hwIOStruct import HwIOStructRd, HwIOStructRdVld, HwIOStructVld
+from hwt.hwIOs.std import HwIORdVldSync, HwIOVldSync, HwIORdSync
+from hwt.hwModule import HwModule
+from hwt.mainBases import RtlSignalBase
+from hwt.synthesizer.interfaceLevel.hwModuleImplHelpers import HwIO_without_registration
 from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
-from hwt.synthesizer.unit import Unit
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
@@ -41,7 +39,7 @@ class HlsNetNodeReadBackedge(HlsNetNodeRead):
         HlsNetNodeRead.__init__(self, netlist, None, dtype=dtype, name=name)
         self.associatedWrite: Optional[HlsNetNodeWriteBackedge] = None
         self._rtlIoAllocated = False
-        self._rtlDataVldReg:Optional[Union[RtlSyncSignal, Interface]] = None
+        self._rtlDataVldReg:Optional[Union[RtlSyncSignal, HwIO]] = None
 
     @override
     def clone(self, memo:dict, keepTopPortsConnected: bool):
@@ -112,39 +110,39 @@ class HlsNetNodeReadBackedge(HlsNetNodeRead):
             #        hasValid &= self._rtlUseReady
             #        hasReady &= self._rtlUseValid
 
-            u:Unit = self.netlist.parentUnit
+            u:HwModule = self.netlist.parentHwModule
             assert self.src is None, (
-                "Src interface must not be yet instantiated on parent Unit", self, self.src)
+                "Src interface must not be yet instantiated on parent HwModule", self, self.src)
             w = self.associatedWrite
             assert w.dst is None, (w, w.dst)
             dtype = self._outputs[0]._dtype
             if HdlType_isVoid(dtype):
                 if hasValid and hasReady:
-                    src = HandshakeSync()
+                    src = HwIORdVldSync()
                 elif hasValid:
-                    src = VldSync()
+                    src = HwIOVldSync()
                 elif hasReady:
-                    src = RdSync()
+                    src = HwIORdSync()
                 else:
                     src = None
 
             else:
                 if hasValid and hasReady:
-                    src = HsStructIntf()
+                    src = HwIOStructRdVld()
                     src.T = dtype
                 elif hasValid:
-                    src = VldSyncedStructIntf()
+                    src = HwIOStructVld()
                     src.T = dtype
                 elif hasReady:
-                    src = RdSyncedStructIntf()
+                    src = HwIOStructRd()
                     src.T = dtype
                 else:
-                    src = HdlType_to_Interface().apply(dtype)
+                    src = HdlType_to_HwIO().apply(dtype)
 
             if src is not None:
                 src._name = self.name
 
-                self.src = Interface_without_registration(u, src, src._name)
+                self.src = HwIO_without_registration(u, src, src._name)
             # :note: getattr used to avoid cyclic dependencies in HlsNetNodeReadBackedge, HlsNetNodeReadForwardedge classes
             allocTy = getattr(w, "allocationType", None)
             if allocTy == BACKEDGE_ALLOCATION_TYPE.IMMEDIATE:
@@ -153,7 +151,7 @@ class HlsNetNodeReadBackedge(HlsNetNodeRead):
                 if src is None:
                     w.dst = None
                 else:
-                    w.dst = Interface_without_registration(u, self.src.__copy__(), f"{self.netlist.namePrefix}{w.name:s}")
+                    w.dst = HwIO_without_registration(u, self.src.__copy__(), f"{self.netlist.namePrefix}{w.name:s}")
 
             self._rtlIoAllocated = True
 
@@ -410,15 +408,15 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
             assert regCnt >= 0, self
             hasValid = self._rtlUseValid or self.hasValidOnlyToPassFlags()
             hasReady = self._rtlUseReady or self.hasReadyOnlyToPassFlags()
-            parentUnit = allocator.netlist.parentUnit
-            for i in dstRead.src._interfaces:
-                i._sig.hidden = False
+            parentHwModule = allocator.netlist.parentHwModule
+            for hwIO in dstRead.src._hwIOs:
+                hwIO._sig.hidden = False
             if hasValid and hasReady:
-                buffs = HsBuilder(parentUnit, srcWrite.dst, self.buffName if self.buffName else f"{allocator.name:s}n{self._id:d}")\
+                buffs = HsBuilder(parentHwModule, srcWrite.dst, self.buffName if self.buffName else f"{allocator.name:s}n{self._id:d}")\
                     .buff(regCnt, init_data=self.channelInitValues).end
                 dstRead.src(buffs)
-                for i in buffs._interfaces:
-                    i._sig.hidden = False
+                for hwIO in buffs._hwIOs:
+                    hwIO._sig.hidden = False
                 vld = buffs.vld
             else:
                 if regCnt > 2:
@@ -443,10 +441,10 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
                             else:
                                 assert len(initVal) == 1, initVal
                                 initVal = initVal[0]
-                            data = parentUnit._reg(f"{namePrefix:s}{i:d}_data", data._dtype, nextSig=data, def_val=initVal)
+                            data = parentHwModule._reg(f"{namePrefix:s}{i:d}_data", data._dtype, nextSig=data, def_val=initVal)
 
                         # vld = dstRead.rtlAllocDataVldReg(allocator)
-                        vld = parentUnit._reg(f"{namePrefix:s}{i:d}_vld", nextSig=vld, def_val=int(initVal is not NOT_SPECIFIED))
+                        vld = parentHwModule._reg(f"{namePrefix:s}{i:d}_vld", nextSig=vld, def_val=int(initVal is not NOT_SPECIFIED))
                     if hasData:
                         dstRead.src.data(data)
                     dstRead.src.vld(vld)
@@ -460,7 +458,7 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
                         else:
                             assert len(initVal) == 1, initVal
                             initVal = initVal[0]
-                        data = parentUnit._reg(f"{namePrefix:s}{i:d}_data", data._dtype, nextSig=data, def_val=initVal)
+                        data = parentHwModule._reg(f"{namePrefix:s}{i:d}_data", data._dtype, nextSig=data, def_val=initVal)
                     dstRead.src(data)
 
             if self._fullPort is not None:

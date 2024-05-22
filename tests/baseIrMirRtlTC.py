@@ -4,7 +4,7 @@ from typing import Iterable, Tuple, Union, Callable, Optional, Any, Set
 
 from hwt.serializer.combLoopAnalyzer import CombLoopAnalyzer
 from hwt.simulator.simTestCase import SimTestCase
-from hwt.synthesizer.unit import Unit
+from hwt.hwModule import HwModule
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.llvm.llvmIr import Function, LLVMStringContext, MachineFunction
 from hwtHls.platform.platform import DebugId, HlsDebugBundle
@@ -46,7 +46,7 @@ class BaseIrMirRtl_TC(SimTestCase):
 
     def _test_no_comb_loops(self):
         s = CombLoopAnalyzer()
-        s.visit_Unit(self.u)
+        s.visit_HwModule(self.dut)
         comb_loops = freeze_set_of_sets(s.report())
         msg_buff = []
         for loop in comb_loops:
@@ -91,10 +91,10 @@ class BaseIrMirRtl_TC(SimTestCase):
 
         checkArgs(args)
 
-    def _test(self, u: Unit, prepareArgs: Callable[LlvmSimFunctionArgT, []],
+    def _test(self, dut: HwModule, prepareArgs: Callable[LlvmSimFunctionArgT, []],
                     checkArgs:Callable[None, [LlvmSimFunctionArgT]],
-                    prepareRtlSimArgs: Callable[Tuple[Any, int], [Unit]],  # returns tuple arg reference passes to checkRtlSimResults, simulation time
-                    checkRtlSimResults: Callable[None, [Unit, Any]],
+                    prepareRtlSimArgs: Callable[Tuple[Any, int], [HwModule]],  # returns tuple arg reference passes to checkRtlSimResults, simulation time
+                    checkRtlSimResults: Callable[None, [HwModule, Any]],
                     wallTimeIr: Optional[int]=None,
                     wallTimeOptIr: Optional[int]=None,
                     wallTimeOptMir: Optional[int]=None,
@@ -107,7 +107,7 @@ class BaseIrMirRtl_TC(SimTestCase):
         * Test optimized LLVM MIR
         * Test RTL
         """
-        u.CLK_FREQ = freq
+        dut.CLK_FREQ = freq
 
         tc = self
 
@@ -128,14 +128,14 @@ class BaseIrMirRtl_TC(SimTestCase):
                 netlist = super(TestVirtualHlsPlatform, self).runNetlistTranslation(hls, toSsa, mf, *args)
                 return netlist
 
-        self.compileSimAndStart(u, target_platform=TestVirtualHlsPlatform(debugFilter=debugFilter))
+        self.compileSimAndStart(dut, target_platform=TestVirtualHlsPlatform(debugFilter=debugFilter))
         self._test_no_comb_loops()
-        ref = prepareRtlSimArgs(u)
+        ref = prepareRtlSimArgs(dut)
         t = int(wallTimeRtlClks * freq_to_period(freq))
         self.runSim(t)
-        checkRtlSimResults(u, ref)
+        checkRtlSimResults(dut, ref)
 
-    def _testOneOut(self, u, model, OUT_CNT: int,
+    def _testOneOut(self, dut: HwModule, model, OUT_CNT: int,
                    wallTimeIr: Optional[int]=None,
                    wallTimeOptIr: Optional[int]=None,
                    wallTimeOptMir: Optional[int]=None,
@@ -163,10 +163,10 @@ class BaseIrMirRtl_TC(SimTestCase):
             ref = dataOutRef
             return ref
 
-        def checkRtlSimResults(u, ref):
-            self.assertValSequenceEqual(u.o._ag.data, ref)
+        def checkRtlSimResults(dut: HwModule, ref):
+            self.assertValSequenceEqual(dut.o._ag.data, ref)
 
-        self._test(u, prepareArgs, checkArgs, prepareRtlSimArgs, checkRtlSimResults,
+        self._test(dut, prepareArgs, checkArgs, prepareRtlSimArgs, checkRtlSimResults,
                    wallTimeIr=wallTimeIr,
                    wallTimeOptIr=wallTimeOptIr,
                    wallTimeOptMir=wallTimeOptMir,
@@ -175,7 +175,7 @@ class BaseIrMirRtl_TC(SimTestCase):
                    debugFilter=debugFilter,
                    )
 
-    def _test_OneInOneOut(self, u, model, dataIn,
+    def _test_OneInOneOut(self, dut: HwModule, model, dataIn,
                           wallTimeIr: Optional[int]=None,
                           wallTimeOptIr: Optional[int]=None,
                           wallTimeOptMir: Optional[int]=None,
@@ -197,18 +197,18 @@ class BaseIrMirRtl_TC(SimTestCase):
             dataOut = args[1]
             self.assertValSequenceEqual(dataOut, dataOutRef)
 
-        def prepareRtlSimArgs(u):
-            u.i._ag.data.extend(dataIn)
+        def prepareRtlSimArgs(dut):
+            dut.i._ag.data.extend(dataIn)
             ref = dataOutRef
             return ref
 
-        def checkRtlSimResults(u, ref):
-            self.assertValSequenceEqual(u.o._ag.data, ref)
+        def checkRtlSimResults(dut, ref):
+            self.assertValSequenceEqual(dut.o._ag.data, ref)
 
         if wallTimeRtlClks is None:
             wallTimeRtlClks = len(dataIn) + 1
 
-        self._test(u, prepareArgs, checkArgs, prepareRtlSimArgs, checkRtlSimResults,
+        self._test(dut, prepareArgs, checkArgs, prepareRtlSimArgs, checkRtlSimResults,
             wallTimeIr=wallTimeIr,
             wallTimeOptIr=wallTimeOptIr,
             wallTimeOptMir=wallTimeOptMir,

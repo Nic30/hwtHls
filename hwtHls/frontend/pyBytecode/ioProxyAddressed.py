@@ -1,7 +1,7 @@
 from typing import Union
 
 from hwt.hdl.types.array import HArray
-from hwt.synthesizer.interface import Interface
+from hwt.hwIO import HwIO
 from hwtHls.frontend.ast.statementsRead import HlsReadAddressed
 from hwtHls.frontend.ast.statementsWrite import HlsWriteAddressed
 from hwtHls.frontend.pyBytecode.indexExpansion import PyObjectHwSubscriptRef
@@ -15,7 +15,7 @@ class IoProxyAddressed():
     READ_CLS = HlsReadAddressed
     WRITE_CLS = HlsWriteAddressed
 
-    def __init__(self, hls: "HlsScope", interface: Union[Interface, MultiPortGroup, BankedPortGroup], nativeType: HArray):
+    def __init__(self, hls: "HlsScope", interface: Union[HwIO, MultiPortGroup, BankedPortGroup], nativeType: HArray):
         self.hls = hls
         self.interface = interface
         self.nativeType = nativeType

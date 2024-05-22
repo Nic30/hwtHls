@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.interfaces.std import Handshaked
-from hwt.interfaces.utils import propagateClkRstn
-from hwt.synthesizer.param import Param
+from hwt.hwIOs.std import HwIODataRdVld
+from hwt.hwIOs.utils import propagateClkRstn
+from hwt.hwParam import HwParam
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
@@ -17,7 +17,7 @@ class WhileTrueWriteCntr0(WhileTrueWrite):
 
     def _config(self) -> None:
         WhileTrueWrite._config(self)
-        self.USE_PY_FRONTEND = Param(False)
+        self.USE_PY_FRONTEND = HwParam(False)
 
     def _impl(self) -> None:
         hls = HlsScope(self)
@@ -74,14 +74,14 @@ class WhileSendSequence0(WhileTrueReadWrite):
 
     def _config(self) -> None:
         WhileTrueReadWrite._config(self)
-        self.USE_PY_FRONTEND = Param(False)
+        self.USE_PY_FRONTEND = HwParam(False)
 
     def _impl(self) -> None:
         WhileTrueWriteCntr0._impl(self)
         propagateClkRstn(self)
 
     def _implAst(self, hls: HlsScope, ast: HlsAstBuilder):
-        sizeBuff = HandshakedReg(Handshaked)
+        sizeBuff = HandshakedReg(HwIODataRdVld)
         sizeBuff.DATA_WIDTH = self.dataIn.T.bit_length()
         sizeBuff.LATENCY = (1, 2)
         sizeBuff.INIT_DATA = ((0,),)
@@ -104,7 +104,7 @@ class WhileSendSequence0(WhileTrueReadWrite):
             )
 
     def _implPy(self, hls: HlsScope):
-        sizeBuff = HandshakedReg(Handshaked)
+        sizeBuff = HandshakedReg(HwIODataRdVld)
         sizeBuff.DATA_WIDTH = self.dataIn.T.bit_length()
         sizeBuff.LATENCY = (1, 2)
         sizeBuff.INIT_DATA = ((0,),)
@@ -165,7 +165,7 @@ class WhileSendSequence2(WhileTrueReadWrite):
 
     def _config(self) -> None:
         WhileTrueReadWrite._config(self)
-        self.USE_PY_FRONTEND = Param(False)
+        self.USE_PY_FRONTEND = HwParam(False)
 
     def _impl(self) -> None:
         WhileTrueWriteCntr0._impl(self)
@@ -257,11 +257,11 @@ class WhileSendSequence4(WhileSendSequence0):
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.platform import HlsDebugBundle
-    u = WhileTrueWriteCntr1()
-    u.USE_PY_FRONTEND = True
-    # u.DATA_WIDTH = 32
-    u.FREQ = int(20e6)
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    m = WhileTrueWriteCntr1()
+    m.USE_PY_FRONTEND = True
+    # m.DATA_WIDTH = 32
+    m.FREQ = int(20e6)
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

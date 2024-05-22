@@ -47,7 +47,7 @@ protected:
 	//std::optional<bool> _isLastWrite(
 	//		const StreamIoDetector::HlsReadOrWrite *instr);
 	//llvm::Value* _tryToGetConditionToEnableEoF(
-	//		/*Union[HlsStmWriteStartOfFrame, HlsStmWriteAxiStream]*/const StreamIoDetector::HlsReadOrWrite *curWrite);
+	//		/*Union[HlsStmWriteStartOfFrame, HlsStmWriteAxi4Stream]*/const StreamIoDetector::HlsReadOrWrite *curWrite);
 	std::pair<llvm::Value*, std::optional<bool>> prepareEoFCondition(
 			llvm::IRBuilder<> &Builder, llvm::Instruction *MovePos,
 			llvm::BasicBlock *curBlock);

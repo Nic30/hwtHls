@@ -1,7 +1,7 @@
 from typing import Sequence, Set, List
 
-from hwt.hdl.value import HValue
-from hwt.pyUtils.uniqList import UniqList
+from hwt.hdl.const import HConst
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.abc.abcAigToHlsNetlist import AbcAigToHlsNetlist
 from hwtHls.netlist.abc.hlsNetlistToAbcAig import HlsNetlistToAbcAig
 from hwtHls.netlist.abc.optScripts import abcCmd_resyn2, abcCmd_compress2
@@ -15,7 +15,7 @@ from hwtHls.netlist.hdlTypeVoid import HdlType_isNonData
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 
 
-def _collect1bOpTree(o: HlsNetNodeOut, inputs: UniqList[HlsNetNodeOut], inTreeOutputs: Set[HlsNetNodeOut]):
+def _collect1bOpTree(o: HlsNetNodeOut, inputs: SetList[HlsNetNodeOut], inTreeOutputs: Set[HlsNetNodeOut]):
     """
     Collect tree of 1b operators ending from specified output
 
@@ -43,12 +43,12 @@ def _collect1bOpTree(o: HlsNetNodeOut, inputs: UniqList[HlsNetNodeOut], inTreeOu
     return False
 
 
-def runAbcControlpathOpt(builder: HlsNetlistBuilder, worklist: UniqList[HlsNetNode],
+def runAbcControlpathOpt(builder: HlsNetlistBuilder, worklist: SetList[HlsNetNode],
                          removed: Set[HlsNetNode], allNodeIt: Sequence[HlsNetNode]):
     """
     Run berkeley-ABC to optimize control path.
     """
-    inputs: UniqList[HlsNetNodeOut] = []
+    inputs: SetList[HlsNetNodeOut] = []
     inTreeOutputs: Set[HlsNetNodeOut] = set()
     outputs: List[HlsNetNodeOut] = []
     outputsSet: Set[HlsNetNodeOut] = set()
@@ -92,7 +92,7 @@ def runAbcControlpathOpt(builder: HlsNetlistBuilder, worklist: UniqList[HlsNetNo
         anyChangeSeen = False
         for o, newO in toHlsNetlist.translate():
             if o is not newO:
-                if isinstance(newO, HValue):
+                if isinstance(newO, HConst):
                     newO = builder.buildConst(newO)
                 else:
                     newObj = newO.obj

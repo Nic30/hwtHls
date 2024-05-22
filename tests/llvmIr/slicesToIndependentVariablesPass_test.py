@@ -5,11 +5,11 @@ from io import StringIO
 import os
 
 from hwt.code import Concat
-from hwt.hdl.types.bits import Bits
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
-from hwt.interfaces.std import VectSignal, Signal
-from hwt.interfaces.utils import addClkRstn
-from hwt.synthesizer.unit import Unit
+from hwt.hwIOs.std import HwIOVectSignal, HwIOSignal
+from hwt.hwIOs.utils import addClkRstn
+from hwt.hwModule import HwModule
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
@@ -23,16 +23,16 @@ from tests.bitOpt.countBits import CountLeadingZeros
 from tests.llvmIr.baseLlvmIrTC import BaseLlvmIrTC
 
 
-class SliceBreakSlicedVar0(Unit):
+class SliceBreakSlicedVar0(HwModule):
 
     def _declr(self) -> None:
         addClkRstn(self)
         self.clk.FREQ = int(1e6)
-        self.o = VectSignal(32)._m()
+        self.o = HwIOVectSignal(32)._m()
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
-        x = Bits(32).from_py(0)
+        x = HBits(32).from_py(0)
         x[0] = 1
         x[1] = 1
         hls.write(x, self.o)
@@ -47,7 +47,7 @@ class SliceBreakSlicedVar1(SliceBreakSlicedVar0):
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
-        x = Bits(32).from_py(0)
+        x = HBits(32).from_py(0)
         x[1] = 1
         x[0] = 1
         hls.write(x, self.o)
@@ -57,7 +57,7 @@ class SliceBreakSlicedVar2(SliceBreakSlicedVar0):
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
-        x = Bits(32).from_py(0)
+        x = HBits(32).from_py(0)
         x[5] = 1
         hls.write(x, self.o)
 
@@ -67,8 +67,8 @@ class SliceBreak0(SliceBreakSlicedVar0):
     def _declr(self) -> None:
         addClkRstn(self)
         self.clk.FREQ = int(1e6)
-        self.i = VectSignal(32)
-        self.o = VectSignal(32)._m()
+        self.i = HwIOVectSignal(32)
+        self.o = HwIOVectSignal(32)._m()
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
@@ -108,18 +108,18 @@ class SliceBreak3(SliceBreak0):
         hls.write(x2, self.o)
 
 
-class Slice0(Unit):
+class Slice0(HwModule):
 
     def _declr(self) -> None:
         addClkRstn(self)
-        self.i = VectSignal(16)
+        self.i = HwIOVectSignal(16)
         self.clk.FREQ = int(1e6)
-        self.o = VectSignal(32)._m()
+        self.o = HwIOVectSignal(32)._m()
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
         x = hls.read(self.i).data
-        hls.write(Concat(Bits(16).from_py(0), x), self.o)
+        hls.write(Concat(HBits(16).from_py(0), x), self.o)
 
     def _impl(self) -> None:
         hls = HlsScope(self)
@@ -131,7 +131,7 @@ class Slice1(Slice0):
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
-        x = Concat(Bits(32).from_py(0), hls.read(self.i).data)
+        x = Concat(HBits(32).from_py(0), hls.read(self.i).data)
         hls.write(x[32:], self.o)
 
 
@@ -139,10 +139,10 @@ class Slice2(Slice0):
 
     def _declr(self) -> None:
         addClkRstn(self)
-        self.i0 = Signal()
-        self.i1 = VectSignal(5)
+        self.i0 = HwIOSignal()
+        self.i1 = HwIOVectSignal(5)
         self.clk.FREQ = int(1e6)
-        self.o = VectSignal(2)._m()
+        self.o = HwIOVectSignal(2)._m()
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
@@ -150,11 +150,11 @@ class Slice2(Slice0):
         Extracted from:
 
         .. code-block:: Python
-            u = CrcCombHls()
-            u.setConfig(CRC_5_USB)
-            u.REFOUT = False
-            u.CLK_FREQ = int(200e6)
-            u.DATA_WIDTH = 1
+            m = CrcCombHls()
+            m.setConfig(CRC_5_USB)
+            m.REFOUT = False
+            m.CLK_FREQ = int(200e6)
+            m.DATA_WIDTH = 1
 
         """
         v3 = hls.read(self.i0).data
@@ -195,12 +195,12 @@ class SlicesToIndependentVariablesPass_TC(BaseLlvmIrTC):
     def _test_ll_direct(self, irStr: str):
         return BaseLlvmIrTC._test_ll(self, irStr)
 
-    def _test_ll(self, unitConstructor: Unit, name=None):
+    def _test_ll(self, hwModuleConstructor: HwModule, name=None):
         p = BaseSliceBreakTestPlatform()
-        if isinstance(unitConstructor, Unit):
-            unit = unitConstructor
+        if isinstance(hwModuleConstructor, HwModule):
+            unit = hwModuleConstructor
         else:
-            unit = unitConstructor()
+            unit = hwModuleConstructor()
         self._runTranslation(unit, p)
         if name is None:
             name = unit.__class__.__name__
@@ -237,9 +237,9 @@ class SlicesToIndependentVariablesPass_TC(BaseLlvmIrTC):
         self._test_ll(Slice2)
 
     def test_CountLeadingZeros(self):
-        u = CountLeadingZeros()
-        u.DATA_WIDTH = 4
-        self._test_ll(u)
+        m = CountLeadingZeros()
+        m.DATA_WIDTH = 4
+        self._test_ll(m)
 
     def test_sliceZext(self):
         llvmIr = """\
@@ -385,10 +385,10 @@ class SlicesToIndependentVariablesPass_TC(BaseLlvmIrTC):
 
 
 if __name__ == "__main__":
-    # from hwt.synthesizer.utils import to_rtl_str
+    # from hwt.synth import to_rtl_str
     # from hwtHls.platform.platform import HlsDebugBundle
-    # u = SliceBreak3()
-    # print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    # m = SliceBreak3()
+    # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
     testLoader = unittest.TestLoader()

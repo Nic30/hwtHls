@@ -2,12 +2,12 @@
 # -*- coding: utf-8 -*-
 
 from hwt.code import If
-from hwt.hdl.types.bits import Bits
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
-from hwt.interfaces.std import BramPort_withoutClk, Handshaked
-from hwt.interfaces.utils import addClkRstn, propagateClkRstn
-from hwt.synthesizer.param import Param
-from hwt.synthesizer.unit import Unit
+from hwt.hwIOs.std import HwIOBramPort_noClk, HwIODataRdVld
+from hwt.hwIOs.utils import addClkRstn, propagateClkRstn
+from hwt.hwParam import HwParam
+from hwt.hwModule import HwModule
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.io.bram import BramArrayProxy
 from hwtHls.netlist.debugTracer import DebugTracer
@@ -18,27 +18,27 @@ from hwtHls.scope import HlsScope
 from hwtHls.frontend.pyBytecode import hlsBytecode
 
 
-class BramRead(Unit):
+class BramRead(HwModule):
     """
     Sequentially read data from BRAM port.
     """
 
     def _config(self) -> None:
-        self.CLK_FREQ = Param(int(100e6))
-        self.ADDR_WIDTH = Param(4)
-        self.DATA_WIDTH = Param(64)
+        self.CLK_FREQ = HwParam(int(100e6))
+        self.ADDR_WIDTH = HwParam(4)
+        self.DATA_WIDTH = HwParam(64)
 
     def _declr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
 
-        with self._paramsShared():
-            self.dataOut = Handshaked()._m()
-            self.ram: BramPort_withoutClk = BramPort_withoutClk()._m()
+        with self._hwParamsShared():
+            self.dataOut = HwIODataRdVld()._m()
+            self.ram: HwIOBramPort_noClk = HwIOBramPort_noClk()._m()
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope, ram: BramArrayProxy):
-        i = Bits(self.ADDR_WIDTH).from_py(0)
+        i = HBits(self.ADDR_WIDTH).from_py(0)
         while BIT.from_py(1):
             d = hls.read(ram[i]).data
             hls.write(d, self.dataOut)
@@ -52,8 +52,8 @@ class BramRead(Unit):
         netlist = thread.toHw
         for rwNode in netlist.outputs:
             rwNode: HlsNetNodeWrite
-            for intf in (self.dataOut, self.ram):
-                if rwNode.dst is intf:
+            for hwIO in (self.dataOut, self.ram):
+                if rwNode.dst is hwIO:
                     netlistExplicitSyncDisconnectFromOrderingChain(DebugTracer(None), rwNode, None,
                                                                    disconnectPredecessors=False,
                                                                    disconnectSuccesors=True)
@@ -69,7 +69,7 @@ class BramRead(Unit):
         hls.compile()
 
 
-class BramReadWithRom(Unit):
+class BramReadWithRom(HwModule):
 
     def _config(self) -> None:
         BramRead._config(self)
@@ -78,13 +78,13 @@ class BramReadWithRom(Unit):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
 
-        with self._paramsShared():
-            self.dataOut = Handshaked()._m()
+        with self._hwParamsShared():
+            self.dataOut = HwIODataRdVld()._m()
             self.reader = BramRead()
 
     def _impl(self) -> None:
         ITEMS = int(2 ** self.ADDR_WIDTH)
-        rom = self._sig("rom", Bits(self.DATA_WIDTH)[ITEMS], [i + 1 for i in range(ITEMS)])
+        rom = self._sig("rom", HBits(self.DATA_WIDTH)[ITEMS], [i + 1 for i in range(ITEMS)])
         r = self.reader
         self.dataOut(r.dataOut)
 
@@ -98,8 +98,8 @@ class BramReadWithRom(Unit):
 
 if __name__ == "__main__":
     from hwtHls.platform.virtual import VirtualHlsPlatform
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
 
-    u = BramRead()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    m = BramRead()
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.hdl.constants import Time
-from hwt.interfaces.std import VectSignal
-from hwt.interfaces.utils import addClkRstn
-from hwt.synthesizer.unit import Unit
+from hwt.constants import Time
+from hwt.hwIOs.std import HwIOVectSignal
+from hwt.hwIOs.utils import addClkRstn
+from hwt.hwModule import HwModule
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.platform.virtual import VirtualHlsPlatform
@@ -12,7 +12,7 @@ from hwtHls.scope import HlsScope
 from tests.baseSsaTest import BaseSsaTC
 
 
-class TwoTimesA0(Unit):
+class TwoTimesA0(HwModule):
 
     def _config(self):
         self.CLK_FREQ = int(100e6)
@@ -20,8 +20,8 @@ class TwoTimesA0(Unit):
     def _declr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
-        self.a = VectSignal(8)
-        self.b = VectSignal(8)._m()
+        self.a = HwIOVectSignal(8)
+        self.b = HwIOVectSignal(8)._m()
 
     def _impl(self):
         hls = HlsScope(self)
@@ -65,22 +65,22 @@ class TwoTimesA_TC(BaseSsaTC):
         self._test_ll(TwoTimesA1)
 
     def _test_simple(self, cls):
-        u = cls()
+        dut = cls()
         a = 20
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
-        u.a._ag.data.append(a)
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
+        dut.a._ag.data.append(a)
 
         self.runSim(40 * Time.ns)
 
-        res = u.b._ag.data[-1]
+        res = dut.b._ag.data[-1]
         self.assertValEqual(res, a + a)
 
 
 if __name__ == "__main__":
-    # from hwt.synthesizer.utils import to_rtl_str
+    # from hwt.synth import to_rtl_str
     # from hwtHls.platform.platform import HlsDebugBundle
-    # u = TwoTimesA0()
-    # print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    # m = TwoTimesA0()
+    # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
     testLoader = unittest.TestLoader()

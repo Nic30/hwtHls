@@ -1,9 +1,9 @@
 from collections import namedtuple
 from typing import List, Tuple, Optional, Union
 
-from hwt.hdl.operatorDefs import OpDefinition
+from hwt.hdl.operatorDefs import HOperatorDef
 from hwt.hdl.types.hdlType import HdlType
-from hwt.hdl.value import HValue
+from hwt.hdl.const import HConst
 from hwtHls.ssa.context import SsaContext
 from hwtHls.ssa.value import SsaValue
 from hwtHls.ssa.codeLocation import CodeLocation
@@ -31,8 +31,8 @@ class SsaInstrBranch():
             cond.users.append(self)
         return t
 
-    def replaceInput(self, orig_expr: SsaValue, new_expr: Union[SsaValue, HValue]):
-        assert isinstance(new_expr, (SsaValue, HValue)), (self, orig_expr, new_expr)
+    def replaceInput(self, orig_expr: SsaValue, new_expr: Union[SsaValue, HConst]):
+        assert isinstance(new_expr, (SsaValue, HConst)), (self, orig_expr, new_expr)
         assert self in orig_expr.users
         self.targets = [
             ConditionBlockTuple(new_expr if o is orig_expr else o, t, meta)
@@ -59,7 +59,7 @@ class SsaInstrBranch():
         return f"<{self.__class__.__name__} {targets}>"
 
 
-OP_ASSIGN = OpDefinition(lambda x: x, allowsAssignTo=True, idStr="ASSIGN")
+OP_ASSIGN = HOperatorDef(lambda x: x, allowsAssignTo=True, idStr="ASSIGN")
 
 
 class SsaInstr(SsaValue):
@@ -67,8 +67,8 @@ class SsaInstr(SsaValue):
     def __init__(self,
                  ctx: SsaContext,
                  dtype: HdlType,
-                 operator: OpDefinition,
-                 operands: Tuple[Union[SsaValue, HValue], ...],
+                 operator: HOperatorDef,
+                 operands: Tuple[Union[SsaValue, HConst], ...],
                  name: str=None,
                  origin=None):
         super(SsaInstr, self).__init__(ctx, dtype, name, origin)
@@ -82,14 +82,14 @@ class SsaInstr(SsaValue):
                 assert op.block is not None, (op, "Must not construct instruction with operands which are not in SSA")
                 op.users.append(self)
             else:
-                assert isinstance(op, HValue), op
+                assert isinstance(op, HConst), op
         self.metadata: Optional[List["_PyBytecodePragma"]] = None
 
     def iterInputs(self):
         return self.operands
 
-    def replaceInput(self, orig_expr: SsaValue, new_expr: Union[SsaValue, HValue]):
-        assert isinstance(new_expr, (SsaValue, HValue)), (self, orig_expr, new_expr)
+    def replaceInput(self, orig_expr: SsaValue, new_expr: Union[SsaValue, HConst]):
+        assert isinstance(new_expr, (SsaValue, HConst)), (self, orig_expr, new_expr)
         assert orig_expr in self.operands
         self.operands = tuple(
             new_expr if o is orig_expr else o
@@ -99,7 +99,7 @@ class SsaInstr(SsaValue):
         if isinstance(new_expr, SsaValue):
             new_expr.users.append(self)
 
-    def replaceBy(self, replacement: Union[SsaValue, HValue]):
+    def replaceBy(self, replacement: Union[SsaValue, HConst]):
         assert replacement._dtype.bit_length() == self._dtype.bit_length(), ("Must have same type", self, replacement, self._dtype, replacement._dtype)
         for u in tuple(self.users):
             u.replaceInput(self, replacement)

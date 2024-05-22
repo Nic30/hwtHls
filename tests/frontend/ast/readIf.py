@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.interfaces.std import Handshaked
-from hwt.interfaces.utils import addClkRstn
-from hwt.synthesizer.param import Param
-from hwt.synthesizer.unit import Unit
+from hwt.hwIOs.std import HwIODataRdVld
+from hwt.hwIOs.utils import addClkRstn
+from hwt.hwParam import HwParam
+from hwt.hwModule import HwModule
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.platform.virtual import VirtualHlsPlatform
@@ -14,18 +14,18 @@ from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
 from tests.baseSsaTest import BaseSsaTC
 
 
-class ReadIfOtherEqual(Unit):
+class ReadIfOtherEqual(HwModule):
 
     def _config(self):
-        self.FREQ = Param(int(100e6))
-        self.DATA_WIDTH = Param(8)
+        self.FREQ = HwParam(int(100e6))
+        self.DATA_WIDTH = HwParam(8)
 
     def _declr(self):
         addClkRstn(self)
         self.clk.FREQ = self.FREQ
-        with self._paramsShared():
-            self.a = Handshaked()
-            self.b = Handshaked()
+        with self._hwParamsShared():
+            self.a = HwIODataRdVld()
+            self.b = HwIODataRdVld()
 
     def _impl(self) -> None:
         hls = HlsScope(self, freq=self.FREQ)
@@ -68,29 +68,29 @@ class HlsAstReadIfTc(BaseSsaTC):
         self.testReadIfOtherEqual_100M(f)
 
     def testReadIfOtherEqual_100M(self, f=100e6):
-        u = ReadIfOtherEqual()
-        u.FREQ = int(f)
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
-        u.a._ag.data.extend([0, 3, 3, 0, 3, 0, 0, ])
-        u.b._ag.data.extend(range(10))
-        self.runSim((len(u.a._ag.data) + 15) * int(freq_to_period(f)))
+        dut = ReadIfOtherEqual()
+        dut.FREQ = int(f)
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
+        dut.a._ag.data.extend([0, 3, 3, 0, 3, 0, 0, ])
+        dut.b._ag.data.extend(range(10))
+        self.runSim((len(dut.a._ag.data) + 15) * int(freq_to_period(f)))
         BaseIrMirRtl_TC._test_no_comb_loops(self)
-        self.assertSequenceEqual(u.a._ag.data, [])
-        self.assertSequenceEqual(u.b._ag.data, [4, 5, 6, 7, 8, 9])
+        self.assertSequenceEqual(dut.a._ag.data, [])
+        self.assertSequenceEqual(dut.b._ag.data, [4, 5, 6, 7, 8, 9])
 
     def testReadIfOtherEqual_150M(self, f=150e6):
         self.testReadIfOtherEqual_100M(f)
 
     def _testReadIfOtherEqualOnce(self, a, res, f:float):
-        u = ReadIfOtherEqualOnce()
-        u.FREQ = int(f)
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
-        u.a._ag.data.append(a)
-        u.b._ag.data.extend(range(5))
+        dut = ReadIfOtherEqualOnce()
+        dut.FREQ = int(f)
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
+        dut.a._ag.data.append(a)
+        dut.b._ag.data.extend(range(5))
         self.runSim(5 * int(freq_to_period(f)))
         BaseIrMirRtl_TC._test_no_comb_loops(self)
-        self.assertSequenceEqual(u.a._ag.data, [])
-        self.assertSequenceEqual(u.b._ag.data, res)
+        self.assertSequenceEqual(dut.a._ag.data, [])
+        self.assertSequenceEqual(dut.b._ag.data, res)
 
     def testReadIfOtherEqualOnce_noread_50M(self):
         self._testReadIfOtherEqualOnce(0, list(range(1, 5)), 50e6)
@@ -112,12 +112,12 @@ class HlsAstReadIfTc(BaseSsaTC):
 
 
 if __name__ == '__main__':
-    # from hwt.synthesizer.utils import to_rtl_str
+    # from hwt.synth import to_rtl_str
     # from hwtHls.platform.platform import HlsDebugBundle
-    # u = ReadIfOtherEqual()
-    # # u.DATA_WIDTH = 8
-    # u.FREQ = int(150e6)
-    # print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    # m = ReadIfOtherEqual()
+    # # m.DATA_WIDTH = 8
+    # m.FREQ = int(150e6)
+    # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
 

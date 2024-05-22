@@ -2,12 +2,12 @@
 # -*- coding: utf-8 -*-
 
 from hwt.code import If
-from hwt.hdl.types.bits import Bits
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
-from hwt.interfaces.std import BramPort_withoutClk, Handshaked
-from hwt.interfaces.utils import addClkRstn, propagateClkRstn
-from hwt.synthesizer.param import Param
-from hwt.synthesizer.unit import Unit
+from hwt.hwIOs.std import HwIOBramPort_noClk, HwIODataRdVld
+from hwt.hwIOs.utils import addClkRstn, propagateClkRstn
+from hwt.hwModule import HwModule
+from hwt.hwParam import HwParam
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.io.bram import BramArrayProxy
@@ -18,7 +18,7 @@ from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import netlistE
 from hwtHls.scope import HlsScope
 
 
-class BramRead2R(Unit):
+class BramRead2R(HwModule):
     """
     Sequentially read data from 2 BRAM ports hidden by a single proxy.
 
@@ -26,24 +26,24 @@ class BramRead2R(Unit):
     """
 
     def _config(self) -> None:
-        self.CLK_FREQ = Param(int(100e6))
-        self.ADDR_WIDTH = Param(4)
-        self.DATA_WIDTH = Param(64)
+        self.CLK_FREQ = HwParam(int(100e6))
+        self.ADDR_WIDTH = HwParam(4)
+        self.DATA_WIDTH = HwParam(64)
 
     def _declr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
 
-        with self._paramsShared():
-            self.dataOut0 = Handshaked()._m()
-            self.dataOut1 = Handshaked()._m()
-            self.ram0: BramPort_withoutClk = BramPort_withoutClk()._m()
-            self.ram1: BramPort_withoutClk = BramPort_withoutClk()._m()
+        with self._hwParamsShared():
+            self.dataOut0 = HwIODataRdVld()._m()
+            self.dataOut1 = HwIODataRdVld()._m()
+            self.ram0: HwIOBramPort_noClk = HwIOBramPort_noClk()._m()
+            self.ram1: HwIOBramPort_noClk = HwIOBramPort_noClk()._m()
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope, ram: BramArrayProxy):
-        addrT = Bits(self.ADDR_WIDTH)
-        i = Bits(self.ADDR_WIDTH - 1).from_py(0)
+        addrT = HBits(self.ADDR_WIDTH)
+        i = HBits(self.ADDR_WIDTH - 1).from_py(0)
         while BIT.from_py(1):
             iAsAddr = i._reinterpret_cast(addrT)
             d0 = hls.read(ram[iAsAddr]).data
@@ -60,8 +60,8 @@ class BramRead2R(Unit):
         netlist = thread.toHw
         for rwNode in netlist.outputs:
             rwNode: HlsNetNodeWrite
-            for intf in (self.dataOut0, self.dataOut1, self.ram0, self.ram1):
-                if rwNode.dst is intf:
+            for hwIO in (self.dataOut0, self.dataOut1, self.ram0, self.ram1):
+                if rwNode.dst is hwIO:
                     netlistExplicitSyncDisconnectFromOrderingChain(DebugTracer(None), rwNode, None,
                                                                    disconnectPredecessors=False,
                                                                    disconnectSuccesors=True)
@@ -76,7 +76,7 @@ class BramRead2R(Unit):
         hls.compile()
 
 
-class BramRead2RWithRom(Unit):
+class BramRead2RWithRom(HwModule):
 
     def _config(self) -> None:
         BramRead2R._config(self)
@@ -85,14 +85,14 @@ class BramRead2RWithRom(Unit):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
 
-        with self._paramsShared():
-            self.dataOut0 = Handshaked()._m()
-            self.dataOut1 = Handshaked()._m()
+        with self._hwParamsShared():
+            self.dataOut0 = HwIODataRdVld()._m()
+            self.dataOut1 = HwIODataRdVld()._m()
             self.reader = BramRead2R()
 
     def _impl(self) -> None:
         ITEMS = int(2 ** self.ADDR_WIDTH)
-        rom = self._sig("rom", Bits(self.DATA_WIDTH)[ITEMS], [i + 1 for i in range(ITEMS)])
+        rom = self._sig("rom", HBits(self.DATA_WIDTH)[ITEMS], [i + 1 for i in range(ITEMS)])
         r = self.reader
         self.dataOut0(r.dataOut0)
         self.dataOut1(r.dataOut1)
@@ -108,7 +108,8 @@ class BramRead2RWithRom(Unit):
 
 if __name__ == "__main__":
     from hwtHls.platform.virtual import VirtualHlsPlatform
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
-    u = BramRead2R()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    
+    m = BramRead2R()
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

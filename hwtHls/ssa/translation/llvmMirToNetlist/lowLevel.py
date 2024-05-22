@@ -1,11 +1,11 @@
 from typing import Set, Tuple, Dict, List, Union, Optional
 
-from hwt.hdl.operatorDefs import AllOps
+from hwt.hdl.operatorDefs import HwtOps
 from hwt.hdl.types.array import HArray
-from hwt.hdl.types.bits import Bits
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.hdlType import HdlType
-from hwt.synthesizer.interface import Interface
+from hwt.hwIO import HwIO
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, \
     TargetOpcode, CmpInst, ConstantInt, TypeToIntegerType, TypeToArrayType, IntegerType, Type as LlvmType, ArrayType, \
     MachineLoopInfo, GlobalValue, ValueToConstantArray, ValueToConstantInt, ValueToConstantDataArray, ConstantArray
@@ -38,15 +38,15 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
     This object translates low level elements of LLVM MIR to hwtHls HlsNetlist
     """
     OPC_TO_OP = {
-        TargetOpcode.HWTFPGA_ADD: AllOps.ADD,
-        TargetOpcode.HWTFPGA_SUB: AllOps.SUB,
-        TargetOpcode.HWTFPGA_MUL: AllOps.MUL,
-        TargetOpcode.HWTFPGA_UDIV: AllOps.UDIV,
-        TargetOpcode.HWTFPGA_SDIV: AllOps.SDIV,
-        TargetOpcode.HWTFPGA_AND: AllOps.AND,
-        TargetOpcode.HWTFPGA_OR: AllOps.OR,
-        TargetOpcode.HWTFPGA_XOR: AllOps.XOR,
-        TargetOpcode.HWTFPGA_NOT: AllOps.NOT,
+        TargetOpcode.HWTFPGA_ADD: HwtOps.ADD,
+        TargetOpcode.HWTFPGA_SUB: HwtOps.SUB,
+        TargetOpcode.HWTFPGA_MUL: HwtOps.MUL,
+        TargetOpcode.HWTFPGA_UDIV: HwtOps.UDIV,
+        TargetOpcode.HWTFPGA_SDIV: HwtOps.SDIV,
+        TargetOpcode.HWTFPGA_AND: HwtOps.AND,
+        TargetOpcode.HWTFPGA_OR: HwtOps.OR,
+        TargetOpcode.HWTFPGA_XOR: HwtOps.XOR,
+        TargetOpcode.HWTFPGA_NOT: HwtOps.NOT,
         
         TargetOpcode.HWTFPGA_ASHR: OP_ASHR,
         TargetOpcode.HWTFPGA_LSHR: OP_LSHR,
@@ -59,16 +59,16 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
     }
 
     CMP_PREDICATE_TO_OP = {
-        CmpInst.Predicate.ICMP_EQ:AllOps.EQ,
-        CmpInst.Predicate.ICMP_NE:AllOps.NE,
-        CmpInst.Predicate.ICMP_UGT:AllOps.UGT,
-        CmpInst.Predicate.ICMP_UGE:AllOps.UGE,
-        CmpInst.Predicate.ICMP_ULT:AllOps.ULT,
-        CmpInst.Predicate.ICMP_ULE:AllOps.ULE,
-        CmpInst.Predicate.ICMP_SGT:AllOps.SGT,
-        CmpInst.Predicate.ICMP_SGE:AllOps.SGE,
-        CmpInst.Predicate.ICMP_SLT:AllOps.SLT,
-        CmpInst.Predicate.ICMP_SLE:AllOps.SLE,
+        CmpInst.Predicate.ICMP_EQ:HwtOps.EQ,
+        CmpInst.Predicate.ICMP_NE:HwtOps.NE,
+        CmpInst.Predicate.ICMP_UGT:HwtOps.UGT,
+        CmpInst.Predicate.ICMP_UGE:HwtOps.UGE,
+        CmpInst.Predicate.ICMP_ULT:HwtOps.ULT,
+        CmpInst.Predicate.ICMP_ULE:HwtOps.ULE,
+        CmpInst.Predicate.ICMP_SGT:HwtOps.SGT,
+        CmpInst.Predicate.ICMP_SGE:HwtOps.SGE,
+        CmpInst.Predicate.ICMP_SLT:HwtOps.SLT,
+        CmpInst.Predicate.ICMP_SLE:HwtOps.SLE,
     }
 
     def __init__(self, hls: "HlsScope", tr: ToLlvmIrTranslator,
@@ -81,7 +81,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
                  ):
         super(HlsNetlistAnalysisPassMirToNetlistLowLevel, self).__init__()
         # :note: value of a block in block0 means that the control flow was passed to block0 from block
-        netlist = self.netlist = HlsNetlistCtx(hls.parentUnit, hls.freq, tr.label, platform=hls.parentUnit._target_platform)
+        netlist = self.netlist = HlsNetlistCtx(hls.parentHwModule, hls.freq, tr.label, platform=hls.parentHwModule._target_platform)
         self.builder = HlsNetlistBuilder(netlist)
         netlist._setBuilder(self.builder)
         self.valCache = MirToHwtHlsNetlistValueCache(netlist)
@@ -97,7 +97,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         self.backedges = backedges
         self.liveness = liveness
         self.registerTypes = registerTypes
-        self.regToIo: Dict[Register, Interface] = {ioRegs[ai]: io for (ai, io) in self._argIToIo.items()}
+        self.regToIo: Dict[Register, HwIO] = {ioRegs[ai]: io for (ai, io) in self._argIToIo.items()}
         self.loops = loops
         self.translatedBranchConditions: Dict[MachineBasicBlock, Dict[Register, HlsNetNodeOutAny]] = {}
         # register self in netlist analysis cache
@@ -166,7 +166,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         it = TypeToIntegerType(t)
         if it is not None:
             it: IntegerType
-            return Bits(it.getBitWidth())
+            return HBits(it.getBitWidth())
         at = TypeToArrayType(t)
         if at is not None:
             at: ArrayType
@@ -219,7 +219,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         c.obj.name = g.getName().str()
         return c
 
-    def _translateIntBits(self, val: int, dtype: Bits):
+    def _translateIntBits(self, val: int, dtype: HBits):
         v = dtype.from_py(val)
         return self.builder.buildConst(v)
 
@@ -228,7 +228,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
 
     def _translateRegister(self, block: MachineBasicBlock, r: Register):
         bw = self.registerTypes.get(r, None)
-        res = self.valCache.get(block, r, Bits(bw))
+        res = self.valCache.get(block, r, HBits(bw))
         assert isinstance(res, (HlsNetNodeOut, HlsNetNodeOutLazy)), res
         return res
 
@@ -244,7 +244,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
                 return
             cond = blockEn
         elif blockEn is not None:
-            cond = self.builder.buildOp(AllOps.AND, BIT, blockEn, cond)
+            cond = self.builder.buildOp(HwtOps.AND, BIT, blockEn, cond)
 
         n.addControlSerialExtraCond(cond)
 
@@ -253,16 +253,16 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         add skipWhen condition to read or write, the condition itself is negated
         """
         b = self.builder
-        blockEn_n = None if blockEn is None else b.buildOp(AllOps.NOT, BIT, blockEn)
+        blockEn_n = None if blockEn is None else b.buildOp(HwtOps.NOT, BIT, blockEn)
         if isinstance(cond_n, int):
             assert cond_n == 1, cond_n
             if blockEn_n is None:
                 return
             cond = blockEn_n
         else:
-            cond = b.buildOp(AllOps.NOT, BIT, cond_n)
+            cond = b.buildOp(HwtOps.NOT, BIT, cond_n)
             if blockEn_n is not None:
-                cond = b.buildOp(AllOps.OR, BIT, blockEn_n, cond)
+                cond = b.buildOp(HwtOps.OR, BIT, blockEn_n, cond)
 
         n.addControlSerialSkipWhen(cond)
 

@@ -5,7 +5,7 @@ hwtHls
 hwtHls is a library which provides a High Level Synthesis (HLS) compiler egine for hwt Hardware Construction Language (HCL).
 
 * :mod:`hwtHls.frontend`: Converts the input code into SSA objects defined in `hwtHls.ssa`.
-  (The code is loaded using `HlsScope` object in hwt component (`Unit` class),
+  (The code is loaded using `HlsScope` object in hwt component (`HwModule` class),
    the constraints and interface types are specified as hwt objects.)
 
 * There are several optimization SSA passes. Full list of optimizations is specified in HlsPlatform.

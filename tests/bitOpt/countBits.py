@@ -1,14 +1,14 @@
 # https://electronics.stackexchange.com/questions/196914/verilog-synthesize-high-speed-leading-zero-count
 # https://content.sciendo.com/view/journals/jee/66/6/article-p329.xml?language=en
 from hwt.code import Concat
-from hwt.hdl.types.bits import Bits
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
-from hwt.interfaces.std import VectSignal
-from hwt.interfaces.utils import addClkRstn
+from hwt.hwIOs.std import HwIOVectSignal
+from hwt.hwIOs.utils import addClkRstn
 from hwt.math import isPow2, log2ceil
-from hwt.synthesizer.param import Param
-from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
-from hwt.synthesizer.unit import Unit
+from hwt.hwModule import HwModule
+from hwt.hwParam import HwParam
+from hwt.mainBases import RtlSignalBase
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
@@ -17,7 +17,7 @@ from pyMathBitPrecise.bit_utils import mask
 
 
 @hlsBytecode
-def _countLeadingRecurse(dataIn: RtlSignalBase[Bits], bitValToCount: int):
+def _countLeadingRecurse(dataIn: RtlSignalBase[HBits], bitValToCount: int):
     """
     Construct a balanced tree for counter of leading 0/1
 
@@ -51,7 +51,7 @@ def _countLeadingRecurse(dataIn: RtlSignalBase[Bits], bitValToCount: int):
 
 
 @hlsBytecode
-def _countTailingRecurse(dataIn: RtlSignalBase[Bits], bitValToCount: int):
+def _countTailingRecurse(dataIn: RtlSignalBase[HBits], bitValToCount: int):
     """
     Verison of :func:`~._countLeadingRecurse` which counts from the back of the vector (upper bits first)
     """
@@ -82,7 +82,7 @@ def _countTailingRecurse(dataIn: RtlSignalBase[Bits], bitValToCount: int):
 
 
 @hlsBytecode
-def countBits(dataIn: RtlSignalBase[Bits], bitValToCount: int, leading: bool):
+def countBits(dataIn: RtlSignalBase[HBits], bitValToCount: int, leading: bool):
     """
     :returns: number of bits set to value bitValToCount
     """
@@ -96,7 +96,7 @@ def countBits(dataIn: RtlSignalBase[Bits], bitValToCount: int, leading: bool):
         full = dataIn._eq(mask(inWidth))
 
     halfCount = PyBytecodeInline(_countLeadingRecurse if leading else _countTailingRecurse)(dataIn, bitValToCount)
-    dataOut = Bits(log2ceil(inWidth + 1)).from_py(None)
+    dataOut = HBits(log2ceil(inWidth + 1)).from_py(None)
     if full:
         dataOut = inWidth
     else:
@@ -105,19 +105,19 @@ def countBits(dataIn: RtlSignalBase[Bits], bitValToCount: int, leading: bool):
     return dataOut
 
 
-class CountLeadingZeros(Unit):
+class CountLeadingZeros(HwModule):
 
     def _config(self) -> None:
-        self.FREQ = Param(int(100e6))
-        self.DATA_WIDTH = Param(8)
+        self.FREQ = HwParam(int(100e6))
+        self.DATA_WIDTH = HwParam(8)
 
     def _declr(self):
         addClkRstn(self)
         self.clk._FREQ = self.FREQ
         w = self.DATA_WIDTH
         assert isPow2(self.DATA_WIDTH), self.DATA_WIDTH
-        self.data_in = VectSignal(w)
-        self.data_out = VectSignal(log2ceil(w + 1))._m()
+        self.data_in = HwIOVectSignal(w)
+        self.data_out = HwIOVectSignal(log2ceil(w + 1))._m()
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
@@ -160,14 +160,14 @@ class CountTailingOnes(CountLeadingZeros):
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.platform import HlsDebugBundle
     from hwtHls.platform.xilinx.artix7 import Artix7Fast
     import sys
 
     sys.setrecursionlimit(int(1e6))
-    u = CountLeadingOnes()
-    u.DATA_WIDTH = 4
+    m = CountLeadingOnes()
+    m.DATA_WIDTH = 4
 
-    print(to_rtl_str(u, target_platform=Artix7Fast(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    print(to_rtl_str(m, target_platform=Artix7Fast(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

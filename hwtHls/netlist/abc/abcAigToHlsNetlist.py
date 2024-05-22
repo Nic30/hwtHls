@@ -1,6 +1,6 @@
 from typing import Dict, Tuple
 
-from hwt.hdl.operatorDefs import AllOps, OpDefinition
+from hwt.hdl.operatorDefs import HwtOps, HOperatorDef
 from hwt.hdl.types.defs import BIT
 from hwtHls.netlist.abc.abcAigToRtlNetlist import AbcAigToRtlNetlist
 from hwtHls.netlist.abc.abcCpp import Abc_Ntk_t, Abc_Aig_t, Abc_Frame_t, Abc_Obj_t, Abc_ObjType_t
@@ -37,15 +37,15 @@ class AbcAigToHlsNetlist(AbcAigToRtlNetlist):
             if res is not None:
                 op, ops = res
                 negated = False
-                while op is AllOps.NOT and isinstance(ops[0], OpDefinition):
+                while op is HwtOps.NOT and isinstance(ops[0], HOperatorDef):
                     negated = not negated
                     op, ops = ops
 
-                if op is AllOps.OR and len(ops) != 2:
+                if op is HwtOps.OR and len(ops) != 2:
                     res = self.builder.buildOrVariadic(ops)
-                elif op is AllOps.AND and len(ops) != 2:
+                elif op is HwtOps.AND and len(ops) != 2:
                     res = self.builder.buildAndVariadic(ops)
-                elif op is AllOps.TERNARY:
+                elif op is HwtOps.TERNARY:
                     res = self.builder.buildMux(BIT, tuple(ops))
                 else:
                     res = self.builder.buildOp(op, BIT, *ops)

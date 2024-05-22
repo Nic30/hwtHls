@@ -134,7 +134,7 @@ class AbcTC(unittest.TestCase):
         #
 
     def test_largerExpression(self):
-        # originally taken from AxiSPacketCopyByteByByte 1->2B unroll=None pipe0_st0_ack
+        # originally taken from Axi4SPacketCopyByteByByte 1->2B unroll=None pipe0_st0_ack
         hwtNet = RtlNetlist(None)
         inputsRtl = tuple(hwtNet.sig(name) for name in (
             "rx_valid",
@@ -390,7 +390,7 @@ class AbcTC(unittest.TestCase):
             self.assertEqual((fn0, fn1), (eRef0, eRef1), inputs)
 
     def test_largerExpression1(self):
-        # originally taken from AxiSPacketCopyByteByByte 1->2B unroll=None pipe0_st0_ack
+        # originally taken from Axi4SPacketCopyByteByByte 1->2B unroll=None pipe0_st0_ack
         hwtNet = RtlNetlist(None)
         inputs = tuple(hwtNet.sig(name) for name in (
             "a",

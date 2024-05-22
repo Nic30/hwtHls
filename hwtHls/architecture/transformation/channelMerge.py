@@ -3,12 +3,12 @@ import re
 from typing import List, Union, Dict, Tuple, Set, Optional
 
 from hwt.code import Concat
-from hwt.hdl.operatorDefs import AllOps
-from hwt.hdl.types.bits import Bits
+from hwt.hdl.operatorDefs import HwtOps
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.hdlType import HdlType
-from hwt.interfaces.hsStructIntf import HsStructIntf
-from hwt.interfaces.std import HandshakeSync
-from hwt.pyUtils.uniqList import UniqList
+from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
+from hwt.hwIOs.std import HwIORdVldSync
+from hwt.pyUtils.setList import SetList
 from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
 from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 from hwtHls.netlist.builder import HlsNetlistBuilder
@@ -127,10 +127,10 @@ class RtlArchPassChannelMerge(RtlArchPass):
                             elif new._is_full_valid():
                                 cur |= int(new) << curWidth
                             else:
-                                cur = Concat(new, Bits(curWidth).from_py(cur))
+                                cur = Concat(new, HBits(curWidth).from_py(cur))
                         else:
                             if isinstance(new, int):
-                                cur = Concat(Bits(width).from_py(new), cur)
+                                cur = Concat(HBits(width).from_py(new), cur)
                             elif HdlType_isVoid(new._dtype):
                                 continue
                             else:
@@ -151,17 +151,17 @@ class RtlArchPassChannelMerge(RtlArchPass):
                                  newT: HdlType,
                                  newBuffName: str):
         """
-        Update type of HsStructIntf instances and node ports for new read and write node.
+        Update type of HwIOStructRdVld instances and node ports for new read and write node.
         """
         r0.name = f"{newBuffName}_dst"
         r0OrigSrc = r0.src
         if r0.src is not None:
             if HdlType_isVoid(newT):
-                intf = HandshakeSync()
+                hwIO = HwIORdVldSync()
             else:
-                intf = HsStructIntf()
-                intf.T = newT
-            r0.src = intf
+                hwIO = HwIOStructRdVld()
+                hwIO.T = newT
+            r0.src = hwIO
 
         r0._outputs[0]._dtype = newT
 
@@ -171,11 +171,11 @@ class RtlArchPassChannelMerge(RtlArchPass):
                 w0.dst = r0.src
             else:
                 if HdlType_isVoid(newT):
-                    intf = HandshakeSync()
+                    hwIO = HwIORdVldSync()
                 else:
-                    intf = HsStructIntf()
-                    intf.T = newT
-                w0.dst = intf
+                    hwIO = HwIOStructRdVld()
+                    hwIO.T = newT
+                w0.dst = hwIO
 
     def _removeIoNodesAfterTheyWereMergedToFirstOne(self, r0: HlsNetNodeReadAnyChannel,
                                                     w0: HlsNetNodeWriteAnyChannel,
@@ -233,9 +233,9 @@ class RtlArchPassChannelMerge(RtlArchPass):
 
         srcElmClkSlot = srcElm.getStageForClock(srcClkI)
         srcElmClkSlot[:] = (n for n in srcElmClkSlot if n not in removed)
-        srcElm._subNodes = UniqList(n for n in srcElm._subNodes if n not in removed)
+        srcElm._subNodes = SetList(n for n in srcElm._subNodes if n not in removed)
         if srcElm is not dstElm:
-            dstElm._subNodes = UniqList(n for n in dstElm._subNodes if n not in removed)
+            dstElm._subNodes = SetList(n for n in dstElm._subNodes if n not in removed)
 
         if srcElm is not dstElm or srcClkI != dstClkI:
             dstElmClkSlot = dstElm.getStageForClock(dstClkI)
@@ -254,7 +254,7 @@ class RtlArchPassChannelMerge(RtlArchPass):
 
     @staticmethod
     def _assertIsConcat(n: HlsNetNode):
-        assert isinstance(n, HlsNetNodeOperator) and n.operator == AllOps.CONCAT, n
+        assert isinstance(n, HlsNetNodeOperator) and n.operator == HwtOps.CONCAT, n
         return True
 
     def _mergeChannels(self, selectedForRewrite: List[Union[HlsNetNodeWriteBackedge, HlsNetNodeWriteForwardedge]],
@@ -321,7 +321,7 @@ class RtlArchPassChannelMerge(RtlArchPass):
         unlink_hls_nodes(w0.dependsOn[0], w0._inputs[0])
         newDataWidth = sum(wv._dtype.bit_length() for wv in wValues)
         if newDataWidth > 0:
-            newT = Bits(newDataWidth)
+            newT = HBits(newDataWidth)
         else:
             newT = firstDep._dtype
 

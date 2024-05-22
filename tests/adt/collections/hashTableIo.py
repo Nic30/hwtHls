@@ -1,11 +1,11 @@
 from typing import Optional
 
-from hwt.hdl.types.bits import Bits
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.hdlType import HdlType
-from hwt.interfaces.agents.handshaked import UniversalHandshakedAgent
-from hwt.interfaces.std import HandshakeSync, Signal, VectSignal
+from hwt.hwIOs.agents.rdVldSync import UniversalRdVldSyncAgent
+from hwt.hwIOs.std import HwIORdVldSync, HwIOSignal, HwIOVectSignal
 from hwt.math import log2ceil
-from hwt.synthesizer.param import Param
+from hwt.hwParam import HwParam
 from hwtSimApi.hdlSimulator import HdlSimulator
 
 
@@ -23,7 +23,7 @@ class HASH_TABLE_CMD():
     SWAP_BY_INDEX = 3
 
 
-class HashTableCmd(HandshakeSync):
+class HashTableCmd(HwIORdVldSync):
     """
     A command port of a hash table engines.
 
@@ -41,30 +41,30 @@ class HashTableCmd(HandshakeSync):
     """
 
     def _config(self) -> None:
-        self.KEY_T = Param(Bits(5))
-        self.VALUE_T: Optional[HdlType] = Param(Bits(32))
-        self.ID_T: Optional[HdlType] = Param(None)
-        self.TABLE_CNT = Param(1)
-        self.ITEMS_PER_TABLE = Param(16)
+        self.KEY_T = HwParam(HBits(5))
+        self.VALUE_T: Optional[HdlType] = HwParam(HBits(32))
+        self.ID_T: Optional[HdlType] = HwParam(None)
+        self.TABLE_CNT = HwParam(1)
+        self.ITEMS_PER_TABLE = HwParam(16)
 
     def _declr(self):
-        HandshakeSync._declr(self)
+        HwIORdVldSync._declr(self)
         if self.ID_T is not None:
-            self.id = Signal(self.ID_T)
-        self.cmd = Signal(Bits(2))
-        self.itemValid = Signal()
-        self.key = Signal(self.KEY_T)
+            self.id = HwIOSignal(self.ID_T)
+        self.cmd = HwIOSignal(HBits(2))
+        self.itemValid = HwIOSignal()
+        self.key = HwIOSignal(self.KEY_T)
         if self.VALUE_T is not None:
-            self.value = Signal(self.VALUE_T)
-        self.index = Signal(Bits(log2ceil(self.ITEMS_PER_TABLE)))
+            self.value = HwIOSignal(self.VALUE_T)
+        self.index = HwIOSignal(HBits(log2ceil(self.ITEMS_PER_TABLE)))
         if self.TABLE_CNT > 1:
-            self.table_oh = VectSignal(self.TABLE_CNT)
+            self.table_oh = HwIOVectSignal(self.TABLE_CNT)
 
     def _initSimAgent(self, sim:HdlSimulator):
-        self._ag = UniversalHandshakedAgent(sim, self)
+        self._ag = UniversalRdVldSyncAgent(sim, self)
 
 
-class HashTableCmdResult(HandshakeSync):
+class HashTableCmdResult(HwIORdVldSync):
     """
     A port with a result for :class:`~.HashTableCmd`
 
@@ -79,20 +79,20 @@ class HashTableCmdResult(HandshakeSync):
         HashTableCmd._config(self)
 
     def _declr(self):
-        HandshakeSync._declr(self)
+        HwIORdVldSync._declr(self)
         if self.ID_T is not None:
-            self.id = Signal(self.ID_T)
+            self.id = HwIOSignal(self.ID_T)
 
-        self.cmd = Signal(Bits(2))
+        self.cmd = HwIOSignal(HBits(2))
         # the item which was originally stored in table or result of LOOKUP/READ_BY_INDEX
-        self.found = Signal()
-        self.index = Signal(Bits(log2ceil(self.ITEMS_PER_TABLE)))
+        self.found = HwIOSignal()
+        self.index = HwIOSignal(HBits(log2ceil(self.ITEMS_PER_TABLE)))
         if self.TABLE_CNT > 1:
-            self.table_oh = VectSignal(self.TABLE_CNT)
-        self.originalItemValid = Signal()
-        self.originalKey = Signal(self.KEY_T)
+            self.table_oh = HwIOVectSignal(self.TABLE_CNT)
+        self.originalItemValid = HwIOSignal()
+        self.originalKey = HwIOSignal(self.KEY_T)
         if self.VALUE_T is not None:
-            self.originalValue = Signal(self.VALUE_T)
+            self.originalValue = HwIOSignal(self.VALUE_T)
 
     def _initSimAgent(self, sim:HdlSimulator):
-        self._ag = UniversalHandshakedAgent(sim, self)
+        self._ag = UniversalRdVldSyncAgent(sim, self)

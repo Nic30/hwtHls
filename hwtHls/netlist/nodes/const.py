@@ -1,5 +1,5 @@
 from hwt.hdl.types.array import HArray
-from hwt.hdl.value import HValue
+from hwt.hdl.const import HConst
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.typingFuture import override
@@ -10,7 +10,7 @@ class HlsNetNodeConst(HlsNetNode):
     Wrapper around constant value for HLS subsystem
     """
 
-    def __init__(self, netlist: "HlsNetlistCtx", val: HValue):
+    def __init__(self, netlist: "HlsNetlistCtx", val: HConst):
         self.val = val
         HlsNetNode.__init__(self, netlist, name=None)
         self._addOutput(val._dtype, "val")

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.interfaces.std import VectSignal
-from hwt.interfaces.utils import addClkRstn
+from hwt.hwIOs.std import HwIOVectSignal
+from hwt.hwIOs.utils import addClkRstn
 from hwt.simulator.simTestCase import SimTestCase
-from hwt.synthesizer.unit import Unit
+from hwt.hwModule import HwModule
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.netlist.scheduler.errors import TimeConstraintError
@@ -13,7 +13,7 @@ from hwtHls.scope import HlsScope
 from hwtSimApi.utils import freq_to_period
 
 
-class AlapAsapDiffExample(Unit):
+class AlapAsapDiffExample(HwModule):
 
     def _config(self):
         self.CLK_FREQ = int(400e6)
@@ -21,17 +21,17 @@ class AlapAsapDiffExample(Unit):
     def _declr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
-        self.a = VectSignal(8)
-        self.b = VectSignal(8)
-        self.c = VectSignal(8)
-        self.d = VectSignal(8)._m()
+        self.a = HwIOVectSignal(8)
+        self.b = HwIOVectSignal(8)
+        self.c = HwIOVectSignal(8)
+        self.d = HwIOVectSignal(8)._m()
 
     def _impl(self):
         hls = HlsScope(self)
         # inputs has to be readed to enter hls scope
         # (without read() operation will not be schedueled by HLS
         #  but they will be directly synthesized)
-        a, b, c = [hls.read(intf).data for intf in [self.a, self.b, self.c]]
+        a, b, c = [hls.read(hwIO).data for hwIO in [self.a, self.b, self.c]]
         # depending on target platform this expresion
         # can be mapped to DPS, LUT, etc...
         # no constrains are specified => default strategy is
@@ -67,28 +67,29 @@ class AlapAsapDiffExample_TC(SimTestCase):
             self._test_simple(1e9)
 
     def _test_simple(self, freq):
-        u = AlapAsapDiffExample()
-        u.CLK_FREQ = int(freq)
+        dut = AlapAsapDiffExample()
+        dut.CLK_FREQ = int(freq)
         a = 20
         b = 58
         c = 48
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
-        u.a._ag.data.append(a)
-        u.b._ag.data.append(b)
-        u.c._ag.data.append(c)
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
+        dut.a._ag.data.append(a)
+        dut.b._ag.data.append(b)
+        dut.c._ag.data.append(c)
 
-        self.runSim(int(40 * freq_to_period(u.CLK_FREQ)))
+        self.runSim(int(40 * freq_to_period(dut.CLK_FREQ)))
 
-        res = u.d._ag.data[-1]
+        res = dut.d._ag.data[-1]
         self.assertValEqual(res, neg_8b(neg_8b(a) & neg_8b(b)) & neg_8b(c))
 
 
 if __name__ == "__main__":
     import unittest
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
-    u = AlapAsapDiffExample()
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    
+    m = AlapAsapDiffExample()
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     testLoader = unittest.TestLoader()
     # suite = unittest.TestSuite([AlapAsapDiffExample_TC("test_frameHeader")])

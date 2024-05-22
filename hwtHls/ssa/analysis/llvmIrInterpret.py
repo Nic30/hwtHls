@@ -6,8 +6,8 @@ import re
 from typing import Tuple, Generator, Union, List, Optional, Dict
 
 from hwt.code import Concat
-from hwt.hdl.types.bits import Bits
-from hwt.hdl.value import HValue
+from hwt.hdl.types.bits import HBits
+from hwt.hdl.const import HConst
 from hwt.pyUtils.arrayQuery import grouper
 from hwtHls.llvm.llvmIr import Function, BasicBlock, BinaryOperator, InstructionToBranchInst, InstructionToCallInst, \
     InstructionToGetElementPtrInst, InstructionToICmpInst, InstructionToPHINode, ValueToBasicBlock, \
@@ -195,7 +195,7 @@ class LlvmIrInterpret():
         waveLog.enddefinitions()
         return instrCodeline, simCodelineLabel, simTimeLabel, simBlockLabel
 
-    def _runBlockPhis(self, predBb: BasicBlock, bb: BasicBlock, waveLog: Optional[VcdWriter], regs: Dict[Instruction, HValue], nowTime: int):
+    def _runBlockPhis(self, predBb: BasicBlock, bb: BasicBlock, waveLog: Optional[VcdWriter], regs: Dict[Instruction, HConst], nowTime: int):
         """
         Atomically evaluate PHIs at the top of the block.
         """
@@ -209,7 +209,7 @@ class LlvmIrInterpret():
             assert v is not None, phi
             vvConst = ValueToConstantInt(v)
             if vvConst is not None:
-                pyT = Bits(vvConst.getType().getIntegerBitWidth())
+                pyT = HBits(vvConst.getType().getIntegerBitWidth())
                 v = int(vvConst.getValue())
                 if v < 0:  # convert to unsigned
                     v = pyT.all_mask() + v + 1
@@ -229,7 +229,7 @@ class LlvmIrInterpret():
 
             vvUndef = ValueToUndefValue(v)
             if vvUndef is not None:
-                pyT = Bits(vvUndef.getType().getIntegerBitWidth())
+                pyT = HBits(vvUndef.getType().getIntegerBitWidth())
                 v = pyT.from_py(None)
                 if waveLog is not None:
                     waveLog.logChange(nowTime, phi, v, None)
@@ -243,10 +243,10 @@ class LlvmIrInterpret():
 
     def _runLlvmIrFunctionInstr(self, waveLog: Optional[VcdWriter],
                                 nowTime: int,
-                                regs: Dict[Instruction, HValue],
+                                regs: Dict[Instruction, HConst],
                                 instr: Instruction,
                                 bb: BasicBlock,
-                                fnArgs: Tuple[Generator[Union[int, HValue], None, None], List[HValue], ...],
+                                fnArgs: Tuple[Generator[Union[int, HConst], None, None], List[HConst], ...],
                                 simBlockLabel: Optional[object]) -> Tuple[Optional[BasicBlock], BasicBlock, bool]:
         """
         :return: bb, isJump
@@ -264,9 +264,9 @@ class LlvmIrInterpret():
                 except StopIteration:
                     raise SimIoUnderflowErr()
 
-                assert isinstance(res, HValue) and \
+                assert isinstance(res, HConst) and \
                     res._dtype.bit_length() == instr.getType().getIntegerBitWidth() and \
-                    isinstance(res._dtype, Bits) and\
+                    isinstance(res._dtype, HBits) and\
                     not res._dtype.signed, ("Input value must be must be unsigned BitsVal of correct width", instr, res)
                 if waveLog is not None:
                     waveLog.logChange(nowTime, load, res, None)
@@ -280,7 +280,7 @@ class LlvmIrInterpret():
             v, dstPtr = store.iterOperandValues()
             vAsConst = ValueToConstantInt(v)
             if vAsConst is not None:
-                pyT = Bits(vAsConst.getType().getIntegerBitWidth())
+                pyT = HBits(vAsConst.getType().getIntegerBitWidth())
                 v = int(vAsConst.getValue())
                 if v < 0:  # convert to unsigned
                     v = pyT.all_mask() + v + 1
@@ -300,11 +300,11 @@ class LlvmIrInterpret():
                 raise NotImplementedError(instr)
 
         # prepare values for argumens
-        ops: List[Union[HValue, BasicBlock, Function]] = []
+        ops: List[Union[HConst, BasicBlock, Function]] = []
         for v in instr.iterOperandValues():
             vAsConst = ValueToConstantInt(v)
             if vAsConst is not None:
-                pyT = Bits(vAsConst.getType().getIntegerBitWidth())
+                pyT = HBits(vAsConst.getType().getIntegerBitWidth())
                 v = int(vAsConst.getValue())
                 if v < 0:  # convert to unsigned
                     v = pyT.all_mask() + v + 1
@@ -314,7 +314,7 @@ class LlvmIrInterpret():
 
             vAsUndef = ValueToUndefValue(v)
             if vAsUndef is not None:
-                pyT = Bits(vAsUndef.getType().getIntegerBitWidth())
+                pyT = HBits(vAsUndef.getType().getIntegerBitWidth())
                 ops.append(pyT.from_py(None))
                 continue
 
@@ -431,7 +431,7 @@ class LlvmIrInterpret():
             oWidth = o._dtype.bit_length()
 
             if opc == CastOps.ZExt:
-                res = Concat(Bits(newWidth - oWidth).from_py(0), o)
+                res = Concat(HBits(newWidth - oWidth).from_py(0), o)
             elif opc == CastOps.SExt:
                 msb = o[oWidth - 1]
                 res = Concat(*(msb for _ in range(newWidth - oWidth)), o)
@@ -478,7 +478,7 @@ class LlvmIrInterpret():
             assert c._is_full_valid(), ("jump condition must be always valid", c)
             defDst = ops[1]
             for condVal, dst in grouper(2, islice(ops, 2, None)):
-                assert isinstance(condVal, HValue), condVal
+                assert isinstance(condVal, HConst), condVal
                 assert isinstance(dst, BasicBlock), dst
                 if c._eq(condVal):
                     if waveLog is not None:
@@ -501,7 +501,7 @@ class LlvmIrInterpret():
 
         raise NotImplementedError(instr)
 
-    def run(self, fnArgs: Tuple[Generator[Union[int, HValue], None, None], List[HValue], ...],
+    def run(self, fnArgs: Tuple[Generator[Union[int, HConst], None, None], List[HConst], ...],
             wallTime:Optional[int]=None):
         F = self.F
         waveLog = self.waveLog
@@ -514,7 +514,7 @@ class LlvmIrInterpret():
             simBlockLabel = None
 
         bb: BasicBlock = F.getEntryBlock()
-        regs: Dict[Instruction, HValue] = {}
+        regs: Dict[Instruction, HConst] = {}
 
         nowTime = -timeStep
         while True:

@@ -2,7 +2,7 @@ from networkx.algorithms.components.strongly_connected import strongly_connected
 from networkx.classes.digraph import DiGraph
 from typing import List, Dict, Set, Tuple, Generator, Union
 
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
@@ -23,7 +23,7 @@ class SyncGroupClusterContext():
         # :note: every input/output should have some sync group because it must be connected
         # to some IO (transitively)
 
-        syncGroups: Dict[SyncGroupLabel, UniqList[HlsNetNode]] = {}
+        syncGroups: Dict[SyncGroupLabel, SetList[HlsNetNode]] = {}
         syncGroupOfNode: Dict[HlsNetNode, SyncGroupLabel] = {}
         for n, syncGroupSet in self.syncOfNode.items():
             if not syncGroupSet:
@@ -33,12 +33,12 @@ class SyncGroupClusterContext():
             syncGroupLabel = tuple(sorted(syncGroupSet, key=lambda n: n._id))
             groupNodes = syncGroups.get(syncGroupLabel, None)
             if groupNodes is None:
-                groupNodes = syncGroups[syncGroupLabel] = UniqList()
+                groupNodes = syncGroups[syncGroupLabel] = SetList()
             groupNodes.append(n)
             syncGroupOfNode[n] = syncGroupLabel
         return syncGroups, syncGroupOfNode
 
-    def _copySyncGroupToDiGraph(self, g:DiGraph, nodes: UniqList[HlsNetNode]) -> Generator[HlsNetNode, None, None]:
+    def _copySyncGroupToDiGraph(self, g:DiGraph, nodes: SetList[HlsNetNode]) -> Generator[HlsNetNode, None, None]:
         g.add_nodes_from(nodes)
         allNodes = g.nodes
         for n0 in nodes:
@@ -61,8 +61,8 @@ class SyncGroupClusterContext():
 
     def _copySyncGroupToDiGraphFlodding(self,
                                         syncGroupLabel: SyncGroupLabel,
-                                        syncGroupNodes: UniqList[HlsNetNode],
-                                        syncGroups: Dict[SyncGroupLabel, UniqList[HlsNetNode]],
+                                        syncGroupNodes: SetList[HlsNetNode],
+                                        syncGroups: Dict[SyncGroupLabel, SetList[HlsNetNode]],
                                         syncGroupOfNode: Dict[HlsNetNode, SyncGroupLabel],
                                         resolvedGroups: Set[SyncGroupLabel]):
         """
@@ -93,8 +93,8 @@ class SyncGroupClusterContext():
         return g, tiedGroups
 
     def mergeSyncGroupsToClusters(self,
-                                  syncGroups: Dict[SyncGroupLabel, UniqList[HlsNetNode]],
-                                  syncGroupsSorted: List[Tuple[SyncGroupLabel, UniqList[HlsNetNode]]],
+                                  syncGroups: Dict[SyncGroupLabel, SetList[HlsNetNode]],
+                                  syncGroupsSorted: List[Tuple[SyncGroupLabel, SetList[HlsNetNode]]],
                                   syncGroupOfNode: Dict[HlsNetNode, SyncGroupLabel]):
         # sync groups are scope of unique reach of sync nodes, some of them may be tied in the IO SCC
         # this dictionary is used to keep track of this association, key is the label of the group and value (if present)
@@ -102,7 +102,7 @@ class SyncGroupClusterContext():
         resolvedSyncGroups: Set[SyncGroupLabel] = set()
         for syncGroupLabel, syncGroupNodes in syncGroupsSorted:
             syncGroupLabel: SyncGroupLabel
-            syncGroupNodes: UniqList[HlsNetNode]
+            syncGroupNodes: SetList[HlsNetNode]
             if syncGroupLabel in resolvedSyncGroups:
                 continue
             g, tiedGroups = self._copySyncGroupToDiGraphFlodding(syncGroupLabel, syncGroupNodes, syncGroups, syncGroupOfNode, resolvedSyncGroups)
@@ -153,7 +153,7 @@ class SyncGroupClusterContext():
                 ioScc: Set[HlsNetNode]
                 # if it is worth extracting
                 if len(ioScc) > 1:
-                    _ioScc = UniqList(sorted(ioScc, key=lambda n: n._id))
+                    _ioScc = SetList(sorted(ioScc, key=lambda n: n._id))
                     # privatize constants to reduce number of ports
                     usedConstants = []
                     for n in _ioScc:

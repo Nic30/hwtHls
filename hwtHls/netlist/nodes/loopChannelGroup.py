@@ -2,7 +2,7 @@ from copy import copy
 from enum import Enum
 from typing import Tuple, List, Union
 
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
     HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge, \
@@ -47,7 +47,7 @@ class LoopChanelGroup():
 
     def __init__(self, origin: List[Union[Tuple[int, int], Tuple[int, int, LOOP_CHANEL_GROUP_ROLE]]]):
         self.origin = origin
-        self.members: UniqList[HlsNetNodeWriteAnyChannel] = UniqList()
+        self.members: SetList[HlsNetNodeWriteAnyChannel] = SetList()
         self.connectedLoops: List[Tuple["HlsNetNodeLoopStatus", LOOP_CHANEL_GROUP_ROLE]] = []
 
     def clone(self, memo: dict) -> Tuple["LoopChanelGroup", bool]:
@@ -58,7 +58,7 @@ class LoopChanelGroup():
 
         y: LoopChanelGroup = copy(self)
         memo[d] = y
-        y.members = UniqList(c.clone(memo, True)[0] for c in self.members)
+        y.members = SetList(c.clone(memo, True)[0] for c in self.members)
         self.connectedLoops = [(lcg.clone(memo, True)[0], role) for lcg, role in self.connectedLoops]
 
         return y, True

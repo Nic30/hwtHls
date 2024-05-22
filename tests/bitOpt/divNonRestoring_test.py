@@ -2,14 +2,14 @@
 # -*- coding: utf-8 -*-
 
 from hwt.code import Concat
-from hwt.hdl.types.bits import Bits
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.struct import HStruct
-from hwt.interfaces.hsStructIntf import HsStructIntf
-from hwt.interfaces.utils import addClkRstn
+from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
+from hwt.hwIOs.utils import addClkRstn
 from hwt.simulator.simTestCase import SimTestCase
-from hwt.synthesizer.param import Param
-from hwt.synthesizer.unit import Unit
+from hwt.hwParam import HwParam
+from hwt.hwModule import HwModule
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline, \
     PyBytecodeSkipPass
@@ -22,26 +22,26 @@ from tests.bitOpt.divNonRestoring import divNonRestoring
 from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
 
 
-class DivNonRestoring(Unit):
+class DivNonRestoring(HwModule):
 
     def _config(self) -> None:
-        self.DATA_WIDTH = Param(4)
-        self.FREQ = Param(int(20e6))
-        self.UNROLL_FACTOR = Param(1)
-        self.MAIN_FN_META = Param(None)
+        self.DATA_WIDTH = HwParam(4)
+        self.FREQ = HwParam(int(20e6))
+        self.UNROLL_FACTOR = HwParam(1)
+        self.MAIN_FN_META = HwParam(None)
 
     def _declr(self) -> None:
         addClkRstn(self)
         self.clk.FREQ = self.FREQ
 
-        self.data_in = HsStructIntf()
-        t = Bits(self.DATA_WIDTH)
+        self.data_in = HwIOStructRdVld()
+        t = HBits(self.DATA_WIDTH)
         self.data_in.T = HStruct(
             (t, "dividend"),
             (t, "divisor"),
             (BIT, "signed"),
         )
-        self.data_out = HsStructIntf()._m()
+        self.data_out = HwIOStructRdVld()._m()
         self.data_out.T = HStruct(
             (t, "quotient"),
             (t, "remainder")
@@ -72,7 +72,7 @@ class DivNonRestoring_TC(SimTestCase):
     ]
 
     def test_div_py(self):
-        T = Bits(4)
+        T = HBits(4)
         for (dividend, divisor, isSigned), (quotient, remainder) in zip(self.GOLDEN_DATA[0], self.GOLDEN_DATA[1]):
             _dividend = T.from_py(dividend)
             _divisor = T.from_py(divisor)
@@ -82,13 +82,13 @@ class DivNonRestoring_TC(SimTestCase):
                                         msg=((dividend, "//", divisor, "signed?:", isSigned), (quotient, "rem:", remainder)))
 
     def test_div(self, MAIN_FN_META=None, runTestAfterEachPass=False):
-        u = DivNonRestoring()
-        u.DATA_WIDTH = 3
-        u.MAIN_FN_META = MAIN_FN_META
+        dut = DivNonRestoring()
+        dut.DATA_WIDTH = 3
+        dut.MAIN_FN_META = MAIN_FN_META
 
         def prepareDataInFn():
-            DW = u.DATA_WIDTH
-            T = Bits(DW)
+            DW = dut.DATA_WIDTH
+            T = HBits(DW)
             dataIn = []
             for (dividend, divisor, isSigned) in self.GOLDEN_DATA[0]:
                 _dividend = T.from_py(dividend)
@@ -98,7 +98,7 @@ class DivNonRestoring_TC(SimTestCase):
             return dataIn
 
         def checkDataOutFn(dataOut):
-            DW = u.DATA_WIDTH
+            DW = dut.DATA_WIDTH
             dataOutRef = []
             for (quotient, remainder) in self.GOLDEN_DATA[1]:
                 dataOutRef.append((remainder << DW) | quotient)
@@ -108,17 +108,17 @@ class DivNonRestoring_TC(SimTestCase):
                 ", ".join("(q:%d, r:%d)" % (q, r) for q, r in self.GOLDEN_DATA[1])
             ))
 
-        self.compileSimAndStart(u,
-                                target_platform=TestLlvmIrAndMirPlatform.forSimpleDataInDataOutUnit(
+        self.compileSimAndStart(dut,
+                                target_platform=TestLlvmIrAndMirPlatform.forSimpleDataInDataOutHwModule(
                                     prepareDataInFn, checkDataOutFn, None, #debugFilter=HlsDebugBundle.ALL_RELIABLE,
                                     noOptIrTest=TestLlvmIrAndMirPlatform.TEST_NO_OPT_IR,
                                     runTestAfterEachPass=runTestAfterEachPass
                                     ))
-        CLK_PERIOD = freq_to_period(u.clk.FREQ)
-        u.data_in._ag.data.extend(self.GOLDEN_DATA[0])
-        self.runSim((len(u.data_in._ag.data) * u.DATA_WIDTH + 10) * int(CLK_PERIOD))
+        CLK_PERIOD = freq_to_period(dut.clk.FREQ)
+        dut.data_in._ag.data.extend(self.GOLDEN_DATA[0])
+        self.runSim((len(dut.data_in._ag.data) * dut.DATA_WIDTH + 10) * int(CLK_PERIOD))
 
-        self.assertValSequenceEqual(u.data_out._ag.data,
+        self.assertValSequenceEqual(dut.data_out._ag.data,
                                     self.GOLDEN_DATA[1])
         self.rtl_simulator_cls = None
 
@@ -127,12 +127,12 @@ class DivNonRestoring_TC(SimTestCase):
 
 
 if __name__ == "__main__":
-    # from hwt.synthesizer.utils import to_rtl_str
+    # from hwt.synth import to_rtl_str
     # from hwtHls.platform.virtual import VirtualHlsPlatform
     # # from hwtHls.platform.xilinx.artix7 import Artix7Fast
-    # u = DivNonRestoring()
-    # # u.DATA_WIDTH = 8
-    # print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    # m = DivNonRestoring()
+    # # m.DATA_WIDTH = 8
+    # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
 

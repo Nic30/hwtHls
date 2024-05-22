@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.interfaces.std import Handshaked
-from hwt.interfaces.utils import addClkRstn
-from hwt.synthesizer.param import Param
-from hwt.synthesizer.unit import Unit
+from hwt.hwIOs.std import HwIODataRdVld
+from hwt.hwIOs.utils import addClkRstn
+from hwt.hwParam import HwParam
+from hwt.hwModule import HwModule
 from hwtHls.frontend.netlist import HlsThreadFromNetlist
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
@@ -17,17 +17,17 @@ from hwtHls.scope import HlsScope
 from tests.baseSsaTest import BaseSsaTC
 
 
-class CycleDelayUnit(Unit):
+class CycleDelayHwModule(HwModule):
 
     def _config(self) -> None:
-        self.CLK_FREQ = Param(int(100e6))
-        self.DATA_WIDTH = Param(8)
+        self.CLK_FREQ = HwParam(int(100e6))
+        self.DATA_WIDTH = HwParam(8)
 
     def _declr(self) -> None:
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
-        with self._paramsShared():
-            self.dataOut = Handshaked()._m()
+        with self._hwParamsShared():
+            self.dataOut = HwIODataRdVld()._m()
 
     def connectIo(self, netlist: HlsNetlistCtx):
         """
@@ -55,27 +55,27 @@ class CycleDelayUnit(Unit):
         hls.compile()
 
 
-class HlsCycleDelayUnit(BaseSsaTC):
+class HlsCycleDelayHwModule(BaseSsaTC):
     __FILE__ = __file__
 
-    def test_CycleDelayUnit(self, f=100e6):
-        u = CycleDelayUnit()
-        u.FREQ = int(f)
-        self.compileSimAndStart(u, target_platform=VirtualHlsPlatform())
-        self.assertEqual(len(list(u.hls._threads[0].toHw.iterAllNodesFlat(NODE_ITERATION_TYPE.OMMIT_PARENT))), 4)  # const 9, 2xio cluster, write
+    def test_CycleDelayHwModule(self, f=100e6):
+        dut = CycleDelayHwModule()
+        dut.FREQ = int(f)
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
+        self.assertEqual(len(list(dut.hls._threads[0].toHw.iterAllNodesFlat(NODE_ITERATION_TYPE.OMMIT_PARENT))), 4)  # const 9, 2xio cluster, write
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
-    u = CycleDelayUnit()
-    u.CLK_FREQ = int(40e6)
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    m = CycleDelayHwModule()
+    m.CLK_FREQ = int(40e6)
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
 
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([HlsCycleDelayUnit("test_CycleDelayUnit")])
-    suite = testLoader.loadTestsFromTestCase(HlsCycleDelayUnit)
+    # suite = unittest.TestSuite([HlsCycleDelayHwModule("test_CycleDelayHwModule")])
+    suite = testLoader.loadTestsFromTestCase(HlsCycleDelayHwModule)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

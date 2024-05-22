@@ -1,7 +1,7 @@
 from typing import Set, Dict, List, Optional
 
 from hwt.hdl.operatorDefs import BITWISE_OPS
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.clusterSearch import HlsNetlistClusterSearch
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
@@ -24,11 +24,11 @@ class HlsNetlistPassAggregateBitwiseOps(HlsNetlistPass):
     def _isBitwiseOperator(n: HlsNetNode):
         return isinstance(n, HlsNetNodeOperator) and n.operator in BITWISE_OPS
     
-    def _registerInternalyStoredClusterInputs(self, n: HlsNetNodeAggregate, otherAggregateInputs: Dict[HlsNetNodeOut, UniqList[HlsNetNodeAggregate]]): 
+    def _registerInternalyStoredClusterInputs(self, n: HlsNetNodeAggregate, otherAggregateInputs: Dict[HlsNetNodeOut, SetList[HlsNetNodeAggregate]]): 
         for dep in n.dependsOn:
             userList = otherAggregateInputs.get(dep, None)
             if userList is None:
-                userList = otherAggregateInputs[dep] = UniqList()
+                userList = otherAggregateInputs[dep] = SetList()
             userList.append(n)
 
     def _searchClusters(self, nodes: ObservableList[HlsNetNode],
@@ -36,7 +36,7 @@ class HlsNetlistPassAggregateBitwiseOps(HlsNetlistPass):
                         seen: Set[HlsNetNode],
                         removedNodes: Set[HlsNetNode],
                         newOutMap: Dict[HlsNetNodeOut, HlsNetNodeOut],
-                        otherAggregateInputs: Dict[HlsNetNodeOut, UniqList[HlsNetNodeAggregate]]) -> ObservableList[HlsNetNode]:
+                        otherAggregateInputs: Dict[HlsNetNodeOut, SetList[HlsNetNodeAggregate]]) -> ObservableList[HlsNetNode]:
         for n in nodes:
             if n not in seen and self._isBitwiseOperator(n):
                 cluster = HlsNetlistClusterSearch()
@@ -72,7 +72,7 @@ class HlsNetlistPassAggregateBitwiseOps(HlsNetlistPass):
         seen: Set[HlsNetNodeOperator] = set()
         removedNodes: Set[HlsNetNode] = set()
         newOutMap: Dict[HlsNetNodeOut, HlsNetNodeOut] = {}
-        otherAggregateInputs: Dict[HlsNetNodeOut, UniqList[HlsNetNodeAggregate]] = {}
+        otherAggregateInputs: Dict[HlsNetNodeOut, SetList[HlsNetNodeAggregate]] = {}
         for n in netlist.nodes:
             if isinstance(n, HlsNetNodeAggregate):
                 self._registerInternalyStoredClusterInputs(n, otherAggregateInputs)

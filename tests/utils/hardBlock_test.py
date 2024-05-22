@@ -1,11 +1,11 @@
 from typing import Union, Sequence, Literal, List
 
-from hwt.hdl.operatorDefs import AllOps
-from hwt.interfaces.std import VectSignal
-from hwt.interfaces.utils import addClkRstn
-from hwt.synthesizer.param import Param
-from hwt.synthesizer.unit import Unit
-from hwtHls.frontend.hardBlock import HardBlockUnit
+from hwt.hdl.operatorDefs import HwtOps
+from hwt.hwIOs.std import HwIOVectSignal
+from hwt.hwIOs.utils import addClkRstn
+from hwt.hwParam import HwParam
+from hwt.hwModule import HwModule
+from hwtHls.frontend.hardBlock import HardBlockHwModule
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.llvm.llvmIr import Attribute, CallInst, Function, AddDefaultFunctionAttributes
@@ -22,7 +22,7 @@ from hwtHls.typingFuture import override
 from tests.frontend.pyBytecode.stmWhile import TRUE
 
 
-class ExampleHardBlockUnit_netlist_add1(HardBlockUnit):
+class ExampleHardBlockHwModule_netlist_add1(HardBlockHwModule):
 
     @override
     def translateCallAttributesToLlvm(self, toLlvm:"ToLlvmIrTranslator", res:CallInst):
@@ -49,31 +49,31 @@ class ExampleHardBlockUnit_netlist_add1(HardBlockUnit):
         instrDstReg = instr.getOperand(0).getReg()
         assert len(inputs) == 1, inputs
         i = inputs[0]
-        res = builder.buildOp(AllOps.ADD, i._dtype, i, builder.buildConstPy(i._dtype, 1))
+        res = builder.buildOp(HwtOps.ADD, i._dtype, i, builder.buildConstPy(i._dtype, 1))
         res.name = dstName
         valCache.add(mbSync.block, instrDstReg, res, True)
 
 
-#class ExampleHardBlockUnit_arch_add1(HardBlockUnit):
+#class ExampleHardBlockHwModule_arch_add1(HardBlockHwModule):
 
-class ExampleHardBlock_netlist(Unit):
+class ExampleHardBlock_netlist(HwModule):
 
     def _config(self) -> None:
-        self.FREQ = Param(int(100e6))
-        self.DATA_WIDTH = Param(8)
+        self.FREQ = HwParam(int(100e6))
+        self.DATA_WIDTH = HwParam(8)
 
     def _declr(self):
         addClkRstn(self)
         self.clk._FREQ = self.FREQ
         w = self.DATA_WIDTH
-        self.data_in = VectSignal(w)
-        self.data_out = VectSignal(w)._m()
+        self.data_in = HwIOVectSignal(w)
+        self.data_out = HwIOVectSignal(w)._m()
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
         while TRUE:
             i = hls.read(self.data_in)
-            ip1 = ExampleHardBlockUnit_netlist_add1(i._dtype)(i)
+            ip1 = ExampleHardBlockHwModule_netlist_add1(i._dtype)(i)
             hls.write(ip1, self.data_out)
 
     def _impl(self):
@@ -84,13 +84,13 @@ class ExampleHardBlock_netlist(Unit):
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.platform import HlsDebugBundle
     import sys
 
     sys.setrecursionlimit(int(1e6))
-    u = ExampleHardBlock_netlist()
-    u.DATA_WIDTH = 8
+    m = ExampleHardBlock_netlist()
+    m.DATA_WIDTH = 8
 
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

@@ -1,7 +1,7 @@
 from itertools import chain
 from typing import Optional, Union, List, Tuple
 
-from hwt.hdl.operatorDefs import OpDefinition
+from hwt.hdl.operatorDefs import HOperatorDef
 from hwt.hdl.types.defs import BIT
 from hwtHls.architecture.analysis.channelGraph import ArchSyncNodeTy
 from hwtHls.architecture.transformation.utils.termPropagationContext import ArchSyncNodeTerm, \
@@ -21,7 +21,7 @@ def optionallyAddNameToOperatorNode(out: Optional[HlsNetNodeOut], name: str):
         out.obj.name = name
 
 
-ArchSyncExprTemplate = Union[ArchSyncNodeTerm, Tuple[OpDefinition, Tuple["ArchSyncExprTemplate", ...]]]
+ArchSyncExprTemplate = Union[ArchSyncNodeTerm, Tuple[HOperatorDef, Tuple["ArchSyncExprTemplate", ...]]]
 
 
 def _getIOAck(node:ArchSyncNodeTy,

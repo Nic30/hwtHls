@@ -1,9 +1,9 @@
 from typing import Tuple, Union, List, Optional
 
-from hwt.hdl.operatorDefs import AllOps
+from hwt.hdl.operatorDefs import HwtOps
 from hwt.hdl.types.hdlType import HdlType
-from hwt.hdl.value import HValue
-from hwt.synthesizer.rtlLevel.mainBases import RtlSignalBase
+from hwt.hdl.const import HConst
+from hwt.mainBases import RtlSignalBase
 from hwtHls.ssa.context import SsaContext
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.value import SsaValue
@@ -15,12 +15,12 @@ class SsaPhi(SsaInstr):
 
     def __init__(self,
                  ctx: SsaContext, dtype: HdlType, name:Optional[str]=None, origin=None):
-        super(SsaPhi, self).__init__(ctx, dtype, AllOps.TERNARY, (), name=name, origin=origin)
+        super(SsaPhi, self).__init__(ctx, dtype, HwtOps.TERNARY, (), name=name, origin=origin)
         self.block: Optional["SsaBasicBlock"] = None
-        self.operands:Tuple[Union[HValue, SsaValue], "SsaBasicBlock"] = ()
-        self.replacedBy: Optional[Union[SsaValue, HValue]] = None
+        self.operands:Tuple[Union[HConst, SsaValue], "SsaBasicBlock"] = ()
+        self.replacedBy: Optional[Union[SsaValue, HConst]] = None
 
-    def replaceInput(self, orig_expr: SsaValue, new_expr: Union[SsaValue, HValue]):
+    def replaceInput(self, orig_expr: SsaValue, new_expr: Union[SsaValue, HConst]):
         if isinstance(new_expr, SsaValue):
             assert new_expr.block is not None, (self, new_expr, "Operand must be somewhere in SSA first")
             new_expr.users.append(self)
@@ -36,7 +36,7 @@ class SsaPhi(SsaInstr):
         assert somethingReplaced, (self, orig_expr, new_expr)
         self.operands = tuple(ops)
 
-    def replaceUseBy(self, v: Union[SsaValue, RtlSignalBase, HValue]):
+    def replaceUseBy(self, v: Union[SsaValue, RtlSignalBase, HConst]):
         if isinstance(v, SsaValue):
             assert v.block is not None, (self, v, "Operand must be somewhere in SSA first")
         for u in tuple(self.users):
@@ -46,7 +46,7 @@ class SsaPhi(SsaInstr):
         
 
     def appendOperand(self,
-                      val: Union[SsaValue, RtlSignalBase, HValue],
+                      val: Union[SsaValue, RtlSignalBase, HConst],
                       predecessor_block: "SsaBasicBlock"):
         assert self.replacedBy is None
         new_op = (val, predecessor_block)

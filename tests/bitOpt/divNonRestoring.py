@@ -1,8 +1,9 @@
 from hwt.code import Concat
-from hwt.hdl.types.bits import Bits
+from hwt.hdl.types.bits import HBits
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.frontend.pyBytecode.markers import PyBytecodeLLVMLoopUnroll
 from hwtHls.frontend.pyBytecode import hlsBytecode
+from hwtHls.frontend.pyBytecode.markers import PyBytecodeLLVMLoopUnroll
+
 
 @hlsBytecode
 def divNonRestoring(dividend: RtlSignal, divisor: RtlSignal, isSigned: RtlSignal, unrollFactor: int):
@@ -25,7 +26,7 @@ def divNonRestoring(dividend: RtlSignal, divisor: RtlSignal, isSigned: RtlSignal
     if isSigned & (divisor[width - 1]):
         divisor = -divisor
 
-    zeroPad = Bits(width - 1).from_py(0)
+    zeroPad = HBits(width - 1).from_py(0)
     quotient = t.from_py(0)
     divisorTmp = Concat(divisor, zeroPad)
     qMask = t.from_py(1 << (width - 1))

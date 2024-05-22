@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.interfaces.std import BramPort_withoutClk, Handshaked
-from hwt.interfaces.utils import addClkRstn
-from hwt.synthesizer.param import Param
-from hwt.synthesizer.unit import Unit
+from hwt.hwIOs.std import HwIOBramPort_noClk, HwIODataRdVld
+from hwt.hwIOs.utils import addClkRstn
+from hwt.hwParam import HwParam
+from hwt.hwModule import HwModule
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.io.bram import BramArrayProxy
@@ -12,22 +12,22 @@ from hwtHls.scope import HlsScope
 from tests.frontend.pyBytecode.stmWhile import TRUE
 
 
-class ReadSizeFromRamAndSendSequence(Unit):
+class ReadSizeFromRamAndSendSequence(HwModule):
 
     def _config(self):
-        self.CLK_FREQ = Param(int(100e6))
-        self.ADDR_WIDTH = Param(16)
-        self.DATA_WIDTH = Param(16)
+        self.CLK_FREQ = HwParam(int(100e6))
+        self.ADDR_WIDTH = HwParam(16)
+        self.DATA_WIDTH = HwParam(16)
 
     def _declr(self):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
-        self.index = Handshaked()
+        self.index = HwIODataRdVld()
         self.index.DATA_WIDTH = self.ADDR_WIDTH
-        with self._paramsShared():
-            self.ram = BramPort_withoutClk()._m()
+        with self._hwParamsShared():
+            self.ram = HwIOBramPort_noClk()._m()
             self.ram.HAS_W = False
-            self.out = Handshaked()._m()
+            self.out = HwIODataRdVld()._m()
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope, ram: BramArrayProxy):
@@ -51,10 +51,11 @@ class ReadSizeFromRamAndSendSequence(Unit):
 
 
 if __name__ == "__main__":
-    from hwt.synthesizer.utils import to_rtl_str
+    from hwt.synth import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.platform import HlsDebugBundle
-    u = ReadSizeFromRamAndSendSequence()
-    u.CLK_FREQ = int(50e6)
-    print(to_rtl_str(u, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+
+    m = ReadSizeFromRamAndSendSequence()
+    m.CLK_FREQ = int(50e6)
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 

@@ -1,7 +1,7 @@
 from typing import Set, List, Union, Literal
 
-from hwt.pyUtils.uniqList import UniqList
-from hwt.synthesizer.rtlLevel.constants import NOT_SPECIFIED
+from hwt.pyUtils.setList import SetList
+from hwt.constants import NOT_SPECIFIED
 from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.debugTracer import DebugTracer
@@ -25,7 +25,7 @@ def extendSyncFlagsFrom(src: HlsNetNodeExplicitSync,
 
 def extendSyncFlagsFromMultipleParallel(srcs: List[HlsNetNodeExplicitSync],
                                         dst: HlsNetNodeExplicitSync,
-                                        worklist: UniqList[HlsNetNode]):
+                                        worklist: SetList[HlsNetNode]):
     """
     .. code-block:: python
 
@@ -75,7 +75,7 @@ def extendSyncFlagsFromMultipleParallel(srcs: List[HlsNetNodeExplicitSync],
 
 
 def mergeSyncFlagsFromMultipleParallel(srcs: List[HlsNetNodeExplicitSync],
-                                       worklist: UniqList[HlsNetNode]):
+                                       worklist: SetList[HlsNetNode]):
     b: HlsNetlistBuilder = srcs[0].netlist.builder
 
     srcsEc: Union[None, Literal[NOT_SPECIFIED], HlsNetNodeOut] = NOT_SPECIFIED
@@ -120,7 +120,7 @@ def mergeSyncFlagsFromMultipleParallel(srcs: List[HlsNetNodeExplicitSync],
 def netlistReduceExplicitSyncWithoutInput(
         dbgTracer: DebugTracer,
         n: HlsNetNodeExplicitSync,
-        worklist: UniqList[HlsNetNode],
+        worklist: SetList[HlsNetNode],
         removed: Set[HlsNetNode],
         reachDb: HlsNetlistAnalysisPassReachability):
     """

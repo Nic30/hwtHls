@@ -1,6 +1,6 @@
 from itertools import chain
 
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
@@ -21,18 +21,18 @@ class BetweenSyncIsland():
     * if input is also an output it means that the node is somewhere in the middle of the island
     """
 
-    def __init__(self, inputs: UniqList[HlsNetNodeExplicitSync],
-                 outputs: UniqList[HlsNetNodeExplicitSync],
-                 nodes: UniqList[HlsNetNode]):
+    def __init__(self, inputs: SetList[HlsNetNodeExplicitSync],
+                 outputs: SetList[HlsNetNodeExplicitSync],
+                 nodes: SetList[HlsNetNode]):
         self.inputs = inputs
         self.nodes = nodes
         self.outputs = outputs
 
     def substract(self, other: "BetweenSyncIsland"):
         assert self is not other
-        self.inputs = UniqList(i for i in self.inputs if i not in other.inputs)
-        self.nodes = UniqList(n for n in self.nodes if n not in other.nodes)
-        self.outputs = UniqList(o for o in self.outputs if o not in other.outputs)
+        self.inputs = SetList(i for i in self.inputs if i not in other.inputs)
+        self.nodes = SetList(n for n in self.nodes if n not in other.nodes)
+        self.outputs = SetList(o for o in self.outputs if o not in other.outputs)
 
     def iterAllNodes(self):
         yield from self.inputs
