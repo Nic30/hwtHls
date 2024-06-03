@@ -10,7 +10,7 @@ project(
 
 py3_mod = import('python')
 py3 = py3_mod.find_installation(required: true)
-run_command(py3, '-c', 'import sys;  assert sys.version_info >= (3, 11)', check: true)
+run_command(py3, '-c', 'import sys;  assert sys.version_info >= (3, 12)', check: true)
 py3_dep = py3.dependency()
 pybind11_inc = run_command(py3, '-c', 'from pybind11 import get_include;  print(get_include())', check: true).stdout().strip()
 pybind11_inc = include_directories(pybind11_inc)

@@ -1,14 +1,15 @@
 from dis import Instruction
 from io import StringIO
-from opcode import opmap, cmp_op, _nb_ops
+from opcode import opmap, cmp_op, _nb_ops, _intrinsic_1_descs,\
+    _intrinsic_2_descs
 import operator
 import sys
 from typing import Type, Tuple, Dict, Callable
 
 
 # https://docs.python.org/3/library/dis.html
-assert (sys.version_info[0], sys.version_info[1]) == (3, 11), (
-    "This module is for python3.11 only (3.10 or 3.12 will not work due to bytecode changes)", sys.version_info)
+assert (sys.version_info[0], sys.version_info[1]) == (3, 12), (
+    "This module is for python3.11 only (3.11 or 3.13 will not work due to bytecode changes)", sys.version_info)
 
 
 class _NULLMeta(type):
@@ -27,7 +28,6 @@ POP_TOP = opmap['POP_TOP']
 PUSH_NULL = opmap['PUSH_NULL']
 
 NOP = opmap['NOP']
-UNARY_POSITIVE = opmap['UNARY_POSITIVE']
 UNARY_NEGATIVE = opmap['UNARY_NEGATIVE']
 UNARY_NOT = opmap['UNARY_NOT']
 
@@ -56,7 +56,6 @@ LOAD_BUILD_CLASS = opmap['LOAD_BUILD_CLASS']
 
 LOAD_ASSERTION_ERROR = opmap['LOAD_ASSERTION_ERROR']
 
-LIST_TO_TUPLE = opmap['LIST_TO_TUPLE']
 RETURN_VALUE = opmap['RETURN_VALUE']
 
 YIELD_VALUE = opmap['YIELD_VALUE']
@@ -80,10 +79,13 @@ LOAD_ATTR = opmap['LOAD_ATTR']
 COMPARE_OP = opmap['COMPARE_OP']
 
 JUMP_FORWARD = opmap['JUMP_FORWARD']
-JUMP_IF_FALSE_OR_POP = opmap['JUMP_IF_FALSE_OR_POP']
-JUMP_IF_TRUE_OR_POP = opmap['JUMP_IF_TRUE_OR_POP']
-POP_JUMP_FORWARD_IF_FALSE = opmap['POP_JUMP_FORWARD_IF_FALSE']
-POP_JUMP_FORWARD_IF_TRUE = opmap['POP_JUMP_FORWARD_IF_TRUE']
+JUMP_BACKWARD = opmap['JUMP_BACKWARD']
+JUMP_BACKWARD_NO_INTERRUPT = opmap['JUMP_BACKWARD_NO_INTERRUPT']
+POP_JUMP_IF_TRUE = opmap['POP_JUMP_IF_TRUE']
+POP_JUMP_IF_FALSE = opmap['POP_JUMP_IF_FALSE']
+POP_JUMP_IF_NOT_NONE = opmap['POP_JUMP_IF_NOT_NONE']
+POP_JUMP_IF_NONE = opmap['POP_JUMP_IF_NONE']
+
 
 LOAD_GLOBAL = opmap['LOAD_GLOBAL']
 IS_OP = opmap['IS_OP']
@@ -96,8 +98,6 @@ SEND = opmap['SEND']
 LOAD_FAST = opmap['LOAD_FAST']
 STORE_FAST = opmap['STORE_FAST']
 DELETE_FAST = opmap['DELETE_FAST']
-POP_JUMP_FORWARD_IF_NOT_NONE = opmap['POP_JUMP_FORWARD_IF_NOT_NONE']
-POP_JUMP_FORWARD_IF_NONE = opmap['POP_JUMP_FORWARD_IF_NONE']
 RAISE_VARARGS = opmap['RAISE_VARARGS']
 
 MAKE_FUNCTION = opmap['MAKE_FUNCTION']
@@ -106,6 +106,7 @@ JUMP_BACKWARD_NO_INTERRUPT = opmap['JUMP_BACKWARD_NO_INTERRUPT']
 MAKE_CELL = opmap['MAKE_CELL']
 LOAD_CLOSURE = opmap['LOAD_CLOSURE']
 LOAD_DEREF = opmap['LOAD_DEREF']
+LOAD_FROM_DICT_OR_DEREF = opmap['LOAD_FROM_DICT_OR_DEREF']
 STORE_DEREF = opmap['STORE_DEREF']
 DELETE_DEREF = opmap["DELETE_DEREF"]
 JUMP_BACKWARD = opmap['JUMP_BACKWARD']
@@ -116,7 +117,6 @@ EXTENDED_ARG = opmap['EXTENDED_ARG']
 LIST_APPEND = opmap['LIST_APPEND']
 SET_ADD = opmap['SET_ADD']
 MAP_ADD = opmap['MAP_ADD']
-LOAD_CLASSDEREF = opmap['LOAD_CLASSDEREF']
 COPY_FREE_VARS = opmap['COPY_FREE_VARS']
 
 RESUME = opmap['RESUME']
@@ -133,17 +133,10 @@ SET_UPDATE = opmap['SET_UPDATE']
 DICT_MERGE = opmap['DICT_MERGE']
 DICT_UPDATE = opmap['DICT_UPDATE']
 
-PRECALL = opmap['PRECALL']
 CALL = opmap['CALL']
 KW_NAMES = opmap['KW_NAMES']
 
-POP_JUMP_BACKWARD_IF_NOT_NONE = opmap['POP_JUMP_BACKWARD_IF_NOT_NONE']
-POP_JUMP_BACKWARD_IF_NONE = opmap['POP_JUMP_BACKWARD_IF_NONE']
-POP_JUMP_BACKWARD_IF_FALSE = opmap['POP_JUMP_BACKWARD_IF_FALSE']
-POP_JUMP_BACKWARD_IF_TRUE = opmap['POP_JUMP_BACKWARD_IF_TRUE']
-
 UN_OPS = {
-    UNARY_POSITIVE: operator.pos,
     UNARY_NEGATIVE: operator.neg,
     UNARY_NOT: operator.not_,
     UNARY_INVERT: operator.invert,
@@ -221,7 +214,7 @@ INPLACE_UPDATE_OPS = {
     DICT_UPDATE: dict.update,
 }
 
-JUMPS_RELATIVE = (
+JUMPS_NON_OPTIONAL = (
     JUMP_FORWARD,
     JUMP_BACKWARD,
     JUMP_BACKWARD_NO_INTERRUPT,
@@ -229,14 +222,10 @@ JUMPS_RELATIVE = (
     RERAISE, RAISE_VARARGS)
 
 JUMPS_CONDITIONAL = (
-    POP_JUMP_FORWARD_IF_NOT_NONE,
-    POP_JUMP_FORWARD_IF_NONE,
-    POP_JUMP_FORWARD_IF_FALSE,
-    POP_JUMP_FORWARD_IF_TRUE,
-    POP_JUMP_BACKWARD_IF_NOT_NONE,
-    POP_JUMP_BACKWARD_IF_NONE,
-    POP_JUMP_BACKWARD_IF_FALSE,
-    POP_JUMP_BACKWARD_IF_TRUE,
+    POP_JUMP_IF_NOT_NONE,
+    POP_JUMP_IF_NONE,
+    POP_JUMP_IF_FALSE,
+    POP_JUMP_IF_TRUE,
 )
 
 JUMPS_CONDITIONAL_ANY = (
@@ -248,17 +237,10 @@ JUMP_OPS = {
     JUMP_FORWARD: None,
     JUMP_BACKWARD: None,
     JUMP_BACKWARD_NO_INTERRUPT: None,
-    JUMP_IF_FALSE_OR_POP: False,
-    JUMP_IF_TRUE_OR_POP: True,
-
-    POP_JUMP_FORWARD_IF_NOT_NONE: lambda x: x is not None,
-    POP_JUMP_FORWARD_IF_NONE: lambda x: x is None,
-    POP_JUMP_FORWARD_IF_FALSE: False,
-    POP_JUMP_FORWARD_IF_TRUE: True,
-    POP_JUMP_BACKWARD_IF_NOT_NONE: lambda x: x is not None,
-    POP_JUMP_BACKWARD_IF_NONE: lambda x: x is None,
-    POP_JUMP_BACKWARD_IF_FALSE: False,
-    POP_JUMP_BACKWARD_IF_TRUE: True,
+    POP_JUMP_IF_NOT_NONE: lambda x: x is not None,
+    POP_JUMP_IF_NONE: lambda x: x is None,
+    POP_JUMP_IF_FALSE: False,
+    POP_JUMP_IF_TRUE: True,
 }
 
 
@@ -329,3 +311,23 @@ BUILD_OPS = {
     BUILD_MAP: _BUILD_MAP,
     BUILD_CONST_KEY_MAP: _BUILD_CONST_KEY_MAP,
 }
+
+INTRINSIC_1_INVALID =           _intrinsic_1_descs.index("INTRINSIC_1_INVALID")
+INTRINSIC_PRINT =               _intrinsic_1_descs.index("INTRINSIC_PRINT")
+INTRINSIC_IMPORT_STAR =         _intrinsic_1_descs.index("INTRINSIC_IMPORT_STAR")
+INTRINSIC_STOPITERATION_ERROR = _intrinsic_1_descs.index("INTRINSIC_STOPITERATION_ERROR")
+INTRINSIC_ASYNC_GEN_WRAP =      _intrinsic_1_descs.index("INTRINSIC_ASYNC_GEN_WRAP")
+INTRINSIC_UNARY_POSITIVE =      _intrinsic_1_descs.index("INTRINSIC_UNARY_POSITIVE")
+INTRINSIC_LIST_TO_TUPLE =       _intrinsic_1_descs.index("INTRINSIC_LIST_TO_TUPLE")
+INTRINSIC_TYPEVAR =             _intrinsic_1_descs.index("INTRINSIC_TYPEVAR")
+INTRINSIC_PARAMSPEC =           _intrinsic_1_descs.index("INTRINSIC_PARAMSPEC")
+INTRINSIC_TYPEVARTUPLE =        _intrinsic_1_descs.index("INTRINSIC_TYPEVARTUPLE")
+INTRINSIC_SUBSCRIPT_GENERIC =   _intrinsic_1_descs.index("INTRINSIC_SUBSCRIPT_GENERIC")
+INTRINSIC_TYPEALIAS =           _intrinsic_1_descs.index("INTRINSIC_TYPEALIAS")
+
+INTRINSIC_2_INVALID =                _intrinsic_2_descs.index("INTRINSIC_2_INVALID")
+INTRINSIC_PREP_RERAISE_STAR =        _intrinsic_2_descs.index("INTRINSIC_PREP_RERAISE_STAR")
+INTRINSIC_TYPEVAR_WITH_BOUND =       _intrinsic_2_descs.index("INTRINSIC_TYPEVAR_WITH_BOUND")
+INTRINSIC_TYPEVAR_WITH_CONSTRAINTS = _intrinsic_2_descs.index("INTRINSIC_TYPEVAR_WITH_CONSTRAINTS")
+INTRINSIC_SET_FUNCTION_TYPE_PARAMS = _intrinsic_2_descs.index("INTRINSIC_SET_FUNCTION_TYPE_PARAMS")
+

@@ -21,14 +21,15 @@ from hwtHls.frontend.pyBytecode.instructions import CMP_OPS, BINARY_OPS, UN_OPS,
     POP_TOP, COPY, SWAP, LOAD_DEREF, LOAD_ATTR, LOAD_FAST, LOAD_CONST, LOAD_GLOBAL, \
     LOAD_METHOD, LOAD_CLOSURE, STORE_ATTR, STORE_FAST, STORE_DEREF, CALL, CALL_FUNCTION_EX, \
     COMPARE_OP, GET_ITER, UNPACK_SEQUENCE, MAKE_FUNCTION, STORE_SUBSCR, EXTENDED_ARG, DELETE_DEREF, DELETE_FAST, \
-    FORMAT_VALUE, LIST_TO_TUPLE, IS_OP, RAISE_VARARGS, LOAD_ASSERTION_ERROR, \
-    RESUME, MAKE_CELL, PRECALL, KW_NAMES, NULL, PUSH_NULL, BINARY_SUBSCR, COPY_FREE_VARS, \
+    FORMAT_VALUE, IS_OP, RAISE_VARARGS, LOAD_ASSERTION_ERROR, \
+    RESUME, MAKE_CELL, KW_NAMES, NULL, PUSH_NULL, BINARY_SUBSCR, COPY_FREE_VARS, \
     CONTAINS_OP, INPLACE_UPDATE_OPS, LOAD_BUILD_CLASS
 from hwtHls.frontend.pyBytecode.ioProxyAddressed import IoProxyAddressed
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc, \
     PyBytecodeInline, _PyBytecodePragma, PyBytecodePreprocHwCopy
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.value import SsaValue
+from inspect import ismethod
 
 
 class PyBytecodeToSsaLowLevelOpcodes():
@@ -69,14 +70,12 @@ class PyBytecodeToSsaLowLevelOpcodes():
             MAKE_FUNCTION: self.opcode_MAKE_FUNCTION,
             STORE_SUBSCR: self.opcode_STORE_SUBSCR,
             FORMAT_VALUE: self.opcode_FORMAT_VALUE,
-            LIST_TO_TUPLE: self.opcode_LIST_TO_TUPLE,
             IS_OP: self.opcode_IS_OP,
             RAISE_VARARGS: self.opcode_RAISE_VARARGS,
             PUSH_NULL: self.opcode_PUSH_NULL,
             LOAD_ASSERTION_ERROR: self.opcode_LOAD_ASSERTION_ERROR,
             LOAD_BUILD_CLASS: self.opcode_LOAD_BUILD_CLASS,
             MAKE_CELL: self.opcode_MAKE_CELL,
-            PRECALL: self.opcodeMakeStoreForLater("_last_PRECALL"),
             KW_NAMES: self.opcodeMakeStoreForLater("_last_KW_NAMES"),
         }
         opD = self.opcodeDispatch
@@ -88,7 +87,6 @@ class PyBytecodeToSsaLowLevelOpcodes():
             for opcode, op in opcodes.items():
                 opD[opcode] = createFn(op)
 
-        self._last_PRECALL: Optional[Instruction] = None
         self._last_KW_NAMES: Optional[Instruction] = None
 
     def _stackIndex(self, stack: list, index: int):
@@ -268,10 +266,26 @@ class PyBytecodeToSsaLowLevelOpcodes():
         return curBlock
 
     def opcode_LOAD_ATTR(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:
+        """
+        LOAD_ATTR(namei)
+    
+        If the low bit of namei is not set, this replaces STACK[-1] with getattr(STACK[-1], co_names[namei>>1]).
+        If the low bit of namei is set, this will attempt to load a method named co_names[namei>>1] from the STACK[-1] object. STACK[-1] is popped.
+        This bytecode distinguishes two cases: if STACK[-1] has a method with the correct name, the bytecode pushes the unbound method and STACK[-1].
+        STACK[-1] will be used as the first argument (self) by CALL when calling the unbound method. Otherwise, NULL and the object returned by the attribute lookup are pushed.
+        Changed in version 3.12: If the low bit of namei is set, then a NULL or self is pushed to the stack before the attribute or unbound method respectively.
+        """
         stack = frame.stack
+        selfOrNull = instr.arg & 1
         v = stack[-1]
         v = getattr(v, instr.argval)
         stack[-1] = v
+        if selfOrNull:
+            if ismethod(v):
+                stack[-1] = v.__func__
+                stack.append(v.__self__)
+            else:
+                stack.append(NULL)
         return curBlock
 
     def opcode_LOAD_FAST(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:
@@ -501,10 +515,6 @@ class PyBytecodeToSsaLowLevelOpcodes():
         """
         stack = frame.stack
 
-        precall = self._last_PRECALL
-        self._last_PRECALL = None
-
-        assert precall.arg == instr.arg
         argCnt = instr.arg
         if argCnt == 0:
             args = []
@@ -604,22 +614,13 @@ class PyBytecodeToSsaLowLevelOpcodes():
         stack.append(res)
         return curBlock
 
-    def opcode_LIST_TO_TUPLE(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:
-        """
-        Pops a list from the stack and pushes a tuple containing the same values.
-        New in version 3.9.
-        """
-        stack = frame.stack
-        v = stack.pop()
-        stack.append(tuple(v))
-        return curBlock
-
     def _shouldExpandArgsOfFn(self, fn):
         return not isinstance(fn, PyBytecodeInline) and fn is not PyBytecodePreprocHwCopy and not getattr(fn, "__hlsIsLowLevelFn", False)
 
     def opcode_COMPARE_OP(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:
         stack = frame.stack
-        binOp = CMP_OPS[instr.arg]
+        # https://github.com/python/cpython/issues/117270
+        binOp = CMP_OPS[instr.arg >> 4]
         b = stack.pop()
         a = stack.pop()
         a, curBlock = expandBeforeUse(self, instr.offset, frame, a, curBlock)

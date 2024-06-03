@@ -17,11 +17,9 @@ from hwtHls.frontend.pyBytecode.fromPythonLowLevel import PyBytecodeToSsaLowLeve
     SsaBlockGroup, JumpCondition
 from hwtHls.frontend.pyBytecode.indexExpansion import expandBeforeUse
 from hwtHls.frontend.pyBytecode.instructions import JUMP_FORWARD, JUMP_BACKWARD, \
-    JUMP_IF_FALSE_OR_POP, JUMP_IF_TRUE_OR_POP, RETURN_VALUE, RAISE_VARARGS, RERAISE, \
-    JUMP_BACKWARD_NO_INTERRUPT, JUMP_OPS, POP_JUMP_FORWARD_IF_FALSE, \
-    POP_JUMP_BACKWARD_IF_FALSE, POP_JUMP_BACKWARD_IF_NOT_NONE, \
-    POP_JUMP_BACKWARD_IF_NONE, POP_JUMP_FORWARD_IF_NOT_NONE, \
-    POP_JUMP_FORWARD_IF_NONE, FOR_ITER
+    RETURN_VALUE, RAISE_VARARGS, RERAISE, \
+    JUMP_BACKWARD_NO_INTERRUPT, JUMP_OPS, FOR_ITER, POP_JUMP_IF_FALSE,\
+    POP_JUMP_IF_NOT_NONE, POP_JUMP_IF_NONE
 from hwtHls.frontend.pyBytecode.loopMeta import PyBytecodeLoopInfo, \
     BranchTargetPlaceholder, LoopExitJumpInfo
 from hwtHls.frontend.pyBytecode.markers import PyBytecodePreprocDivergence, \
@@ -436,7 +434,6 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
             frame.markJumpFromBodyOfCurrentLoop(lei)
             curBlockLabel = self.blockToLabel[curBlock]
             self._addNotGeneratedJump(frame, curBlockLabel, frame.blockTracker._getBlockLabel(bodyBlockOffset))
-            frame.stack.pop()  # pop iterator itself
             return
 
         frame.stack.append(PyBytecodeInPreproc(v))
@@ -474,9 +471,6 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
             else:
                 condJumpCond = JUMP_OPS.get(opcode, None)
                 if condJumpCond is not None:
-                    if opcode in (JUMP_IF_FALSE_OR_POP, JUMP_IF_TRUE_OR_POP):
-                        raise NotImplementedError("stack pop depends on hw evaluated condition")
-
                     cond = frame.stack.pop()
                     cond, curBlock = expandBeforeUse(self, instr.offset, frame, cond, curBlock)
                     if isinstance(cond, PyBytecodePreprocDivergence):
@@ -494,15 +488,13 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
 
                     ifFalseOffset = self._getFalltroughOffset(frame, curBlock)
                     ifTrueOffset = instr.argval
-                    if opcode in (JUMP_IF_FALSE_OR_POP,
-                                  POP_JUMP_FORWARD_IF_FALSE,
-                                  POP_JUMP_BACKWARD_IF_FALSE):
+                    if opcode == POP_JUMP_IF_FALSE:
                         # swap targets because condition is negated
                         ifTrueOffset, ifFalseOffset = ifFalseOffset, ifTrueOffset
-                    elif opcode in (POP_JUMP_BACKWARD_IF_NOT_NONE, POP_JUMP_FORWARD_IF_NOT_NONE):
+                    elif opcode == POP_JUMP_IF_NOT_NONE:
                         assert compileTimeResolved, ("Can not check if HW value is not None, supports only non HW object", cond)
                         cond = cond is not None
-                    elif opcode in (POP_JUMP_BACKWARD_IF_NONE, POP_JUMP_FORWARD_IF_NONE):
+                    elif opcode == POP_JUMP_IF_NONE:
                         assert compileTimeResolved, ("Can not check if HW value is None, supports only non HW object", cond)
                         cond = cond is None
 
