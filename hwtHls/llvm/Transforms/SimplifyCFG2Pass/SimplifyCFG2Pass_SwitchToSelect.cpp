@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <map>
+#include <set>
 
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/ADT/SetVector.h>

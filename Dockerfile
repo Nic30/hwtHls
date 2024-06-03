@@ -25,7 +25,7 @@ RUN adduser --disabled-password \
 
 USER root
 RUN apt update && \
-	DEBIAN_FRONTEND="noninteractive" apt install python3 python3-pip python3-dev llvm-16 llvm-16-dev libreadline-dev npm -y
+	DEBIAN_FRONTEND="noninteractive" apt install python3 python3-pip python3-dev llvm-18 llvm-18-dev libreadline-dev npm -y
 RUN pip3 install jupyterlab jupyterlab-lsp 'python-lsp-server[all]' jupyterlab-system-monitor
 RUN jupyter labextension install @deathbeds/jupyterlab_graphviz
 

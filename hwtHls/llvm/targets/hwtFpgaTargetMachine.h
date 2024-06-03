@@ -1,8 +1,9 @@
 #pragma once
 
+#include <optional>
+#include <llvm/Support/CodeGen.h>
 #include <llvm/Analysis/TargetTransformInfo.h>
 #include <llvm/Target/TargetMachine.h>
-#include <llvm/ADT/Optional.h>
 #include <hwtHls/llvm/targets/hwtFpgaTargetSubtarget.h>
 
 namespace llvm {
@@ -21,7 +22,7 @@ public:
 			const llvm::TargetOptions &Options,
 			std::optional<llvm::Reloc::Model> RM,
 			std::optional<llvm::CodeModel::Model> CM,
-			llvm::CodeGenOpt::Level OL, bool JIT);
+			llvm::CodeGenOptLevel OL, bool JIT);
 	~HwtFpgaTargetMachine() override;
 	const HwtFpgaTargetSubtarget* getSubtargetImpl(
 			const llvm::Function &F) const override;

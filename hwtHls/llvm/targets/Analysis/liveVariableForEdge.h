@@ -1,5 +1,8 @@
 #pragma once
 
+#include <map>
+#include <set>
+
 #include <llvm/CodeGen/MachineFunction.h>
 #include <llvm/CodeGen/MachineBasicBlock.h>
 #include <llvm/CodeGen/MachineRegisterInfo.h>

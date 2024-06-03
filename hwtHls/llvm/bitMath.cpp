@@ -47,7 +47,7 @@ void iterUsedBitRangeSlices(const llvm::APInt &useMask,
 		std::function<void(size_t, size_t)> consumer) {
 	if (useMask.isZero())
 		return;
-	if (useMask.isAllOnesValue()) {
+	if (useMask.isAllOnes()) {
 		// no need for pruning
 		consumer(0, useMask.getBitWidth());
 		return;

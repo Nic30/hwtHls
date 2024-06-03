@@ -8,7 +8,7 @@ https://www.cs.cmu.edu/afs/cs/academic/class/15745-s13/public/lectures/L6-LLVM-D
 Installation linux
 ------------------
 .. code-block:: bash
-   apt install llvm-16-dev
+   apt install llvm-18-dev
 
 Using local llvm build
 ----------------------

@@ -1,6 +1,6 @@
 #include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionSelector.h>
 
-#include <llvm/CodeGen/GlobalISel/InstructionSelectorImpl.h>
+#include <llvm/CodeGen/GlobalISel/GIMatchTableExecutorImpl.h>
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
 #include <llvm/MC/MCContext.h>
 #include <llvm/Support/Debug.h>
@@ -48,7 +48,7 @@ private:
 			MachineInstr &I);
 	bool select_G_LOAD_or_G_STORE(MachineFunction &MF, MachineRegisterInfo &MRI,
 			MachineIRBuilder &MIRB, MachineInstr &MI);
-	Optional<Register> _getSelectedMsb(MachineIRBuilder &MIRB,
+	std::optional<Register> _getSelectedMsb(MachineIRBuilder &MIRB,
 			MachineRegisterInfo &MRI, MachineOperand inputMo);
 
 	const HwtFpgaTargetSubtarget &STI;
@@ -576,7 +576,7 @@ bool HwtFpgaTargetInstructionSelector::select_G_SHR(
 	}
 }
 
-Optional<Register> HwtFpgaTargetInstructionSelector::_getSelectedMsb(
+std::optional<Register> HwtFpgaTargetInstructionSelector::_getSelectedMsb(
 		MachineIRBuilder &MIRB, MachineRegisterInfo &MRI,
 		MachineOperand inputMo) {
 	unsigned srcWidth = MRI.getType(inputMo.getReg()).getSizeInBits();
@@ -604,7 +604,7 @@ bool HwtFpgaTargetInstructionSelector::select_G_SEXT(
 	// add leading 0s
 	unsigned prefixWidth = dstWidth - srcWidth;
 
-	Optional<Register> msb = _getSelectedMsb(MIRB, MRI, I.getOperand(1));
+	std::optional<Register> msb = _getSelectedMsb(MIRB, MRI, I.getOperand(1));
 	if (!msb.has_value())
 		return false;
 	MachineInstrBuilder MIB = MIRB.buildInstr(

@@ -70,7 +70,7 @@ static bool runBitwidthReduction(Function &F, TargetLibraryInfo *TLI) {
 			if (isa<StoreInst>(&I)
 					|| (isa<LoadInst>(&I)
 							&& dyn_cast<LoadInst>(&I)->isVolatile())
-					|| I.isTerminator() || I.isExceptionalTerminator()) { // || dyn_cast<BranchInst>(&I) || dyn_cast<SwitchInst>(&I)
+					|| I.isTerminator() || I.isSpecialTerminator()) { // || dyn_cast<BranchInst>(&I) || dyn_cast<SwitchInst>(&I)
 				AU.updateUseMaskEntirelyUsed(&I);
 			}
 		}

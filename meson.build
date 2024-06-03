@@ -17,7 +17,7 @@ pybind11_inc = include_directories(pybind11_inc)
 pybind11_dep = declare_dependency(
   include_directories : pybind11_inc)
 
-llvm_dep = dependency('llvm', method: 'config-tool', version : '>=16.0.0')
+llvm_dep = dependency('llvm', method: 'config-tool', version : '>=18.0.0')
 llvm_bin = llvm_dep.get_variable('bindir')
 llvm_includedir = llvm_dep.get_variable('includedir')
 llvm_tblgen = find_program(llvm_bin + '/llvm-tblgen', required: true)

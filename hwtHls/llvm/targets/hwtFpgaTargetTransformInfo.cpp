@@ -32,7 +32,7 @@ using namespace llvm;
 
 namespace llvm {
 
-bool HwtFpgaTTIImpl::hasBranchDivergence() {
+bool HwtFpgaTTIImpl::hasBranchDivergence(const Function *F) {
 	return true;
 }
 
@@ -165,7 +165,7 @@ bool HwtFpgaTTIImpl::isTypeLegal(Type *Ty) const {
 }
 
 bool HwtFpgaTTIImpl::shouldBuildLookupTables() const {
-	return true; // this must be true to translate SwitchInst to Load from global constant for llvm-16.0.0
+	return true; // this must be true to translate SwitchInst to Load from global constant for llvm-18.0.0
 	//return false; // no lookup tables for jumps
 }
 

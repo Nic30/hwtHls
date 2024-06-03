@@ -65,7 +65,7 @@ void register_Values_and_Use(pybind11::module_ & m) {
 
 	py::class_<llvm::APInt>(m, "APInt")
 		.def(py::init<unsigned, llvm::StringRef, uint8_t>())
-		.def_static("getAllOnesValue", llvm::APInt::getAllOnesValue)
+		.def_static("getAllOnes", llvm::APInt::getAllOnes)
 		.def_static("getBitsSet", llvm::APInt::getBitsSet)
 		.def("__int__", [](llvm::APInt* I) {
 		 	llvm::SmallString<256> str;

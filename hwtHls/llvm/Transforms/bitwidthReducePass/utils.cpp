@@ -1,6 +1,9 @@
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/utils.h>
 #include <llvm/IR/IRBuilder.h>
+#include <llvm/ADT/SmallString.h>
+
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
+
 
 using namespace llvm;
 namespace hwtHls {
@@ -202,7 +205,7 @@ VarBitConstraint::VarBitConstraint(const VarBitConstraint &obj) :
 				obj.operandUseMask) {
 }
 void VarBitConstraint::addAllSetOperandMask(unsigned width) {
-	operandUseMask.push_back(APInt::getAllOnesValue(width));
+	operandUseMask.push_back(APInt::getAllOnes(width));
 }
 
 void VarBitConstraint::clearAllOperandMasks(unsigned lowBitI,

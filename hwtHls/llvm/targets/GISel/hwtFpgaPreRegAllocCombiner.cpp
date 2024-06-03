@@ -3,13 +3,14 @@
 // This pass does combining of machine instructions at the generic MI level,
 // before the register allocation.
 //
+// :note: code structure based on hwtFpgaPreToNetlistCombiner.cpp
 //===----------------------------------------------------------------------===//
 #include <hwtHls/llvm/targets/GISel/hwtFpgaPreRegAllocCombiner.h>
 #include <hwtHls/llvm/targets/hwtFpgaTargetMachine.h>
 
 #include <llvm/CodeGen/GlobalISel/Combiner.h>
-#include <llvm/CodeGen/GlobalISel/CombinerHelper.h>
 #include <llvm/CodeGen/GlobalISel/CombinerInfo.h>
+#include <llvm/CodeGen/GlobalISel/GIMatchTableExecutorImpl.h>
 #include <llvm/CodeGen/GlobalISel/GISelKnownBits.h>
 #include <llvm/CodeGen/GlobalISel/MIPatternMatch.h>
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
@@ -29,70 +30,57 @@
 using namespace llvm;
 using namespace MIPatternMatch;
 
-class HwtFpgaGenPreRegAllocGICombinerHelperState {
-protected:
-	HwtFpgaCombinerHelper &Helper;
-
-public:
-	HwtFpgaGenPreRegAllocGICombinerHelperState(HwtFpgaCombinerHelper &Helper) :
-			Helper(Helper) {
-	}
-};
-
-#define HWTFPGAGENPREREGALLOCGICOMBINERHELPER_GENCOMBINERHELPER_DEPS
+#define GET_GICOMBINER_DEPS
 #include "HwtFpgaGenPreRegAllocGICombiner.inc"
-#undef HWTFPGAGENPREREGALLOCGICOMBINERHELPER_GENCOMBINERHELPER_DEPS
+#undef GET_GICOMBINER_DEPS
 
 namespace {
-#define HWTFPGAGENPREREGALLOCGICOMBINERHELPER_GENCOMBINERHELPER_H
+
+#define GET_GICOMBINER_TYPES
 #include "HwtFpgaGenPreRegAllocGICombiner.inc"
-#undef HWTFPGAGENPREREGALLOCGICOMBINERHELPER_GENCOMBINERHELPER_H
+#undef GET_GICOMBINER_TYPES
 
-class HwtFpgaPreRegAllocCombinerInfo: public CombinerInfo {
-	GISelKnownBits *KB;
-	MachineDominatorTree *MDT;
-	HwtFpgaGenPreRegAllocGICombinerHelperRuleConfig GeneratedRuleCfg;
-
+class HwtFpgaPreRegAllocGICombinerImpl: public Combiner {
+protected:
+	mutable HwtFpgaCombinerHelper Helper;
+	const HwtFpgaPreRegAllocGICombinerImplRuleConfig &RuleConfig;
+	const HwtFpgaTargetSubtarget &STI;
 public:
-	HwtFpgaPreRegAllocCombinerInfo(bool EnableOpt, bool OptSize,
-			bool MinSize, GISelKnownBits *KB, MachineDominatorTree *MDT) :
-			CombinerInfo(/*AllowIllegalOps*/true, /*ShouldRegAllocIllegal*/
-			false,
-			/*RegAllocInfo*/nullptr, EnableOpt, OptSize, MinSize), KB(KB), MDT(
-					MDT) {
-		if (!GeneratedRuleCfg.parseCommandLineOption())
-			report_fatal_error("Invalid rule identifier");
-	}
+	HwtFpgaPreRegAllocGICombinerImpl(
+      MachineFunction &MF, CombinerInfo &CInfo, const TargetPassConfig *TPC,
+      GISelKnownBits &KB, GISelCSEInfo *CSEInfo,
+      const HwtFpgaPreRegAllocGICombinerImplRuleConfig &RuleConfig,
+      const HwtFpgaTargetSubtarget &STI, MachineDominatorTree *MDT,
+      const LegalizerInfo *LI);
 
-	virtual bool combine(GISelChangeObserver &Observer, MachineInstr &MI,
-			MachineIRBuilder &B) const override;
+  static const char *getName() { return "HwtFpgaPreRegAllocCombiner"; }
+
+  bool tryCombineAll(MachineInstr &I) const override;
+
+private:
+#define GET_GICOMBINER_CLASS_MEMBERS
+#include "HwtFpgaGenPreRegAllocGICombiner.inc"
+#undef GET_GICOMBINER_CLASS_MEMBERS
 };
+#define GET_GICOMBINER_IMPL
+#include "HwtFpgaGenPreRegAllocGICombiner.inc"
+#undef GET_GICOMBINER_IMPL
 
-bool HwtFpgaPreRegAllocCombinerInfo::combine(GISelChangeObserver &Observer,
-		MachineInstr &MI, MachineIRBuilder &B) const {
-	HwtFpgaCombinerHelper Helper(Observer, B, false, KB, MDT, LInfo);
-	HwtFpgaGenPreRegAllocGICombinerHelper Generated(GeneratedRuleCfg,
-			Helper);
-
-	if (Generated.tryCombineAll(Observer, MI, B))
-		return true;
-
-	unsigned Opc = MI.getOpcode();
-	switch (Opc) {
-	case TargetOpcode::G_CONCAT_VECTORS:
-		return Helper.tryCombineConcatVectors(MI);
-	case TargetOpcode::G_SHUFFLE_VECTOR:
-		return Helper.tryCombineShuffleVector(MI);
-	case TargetOpcode::G_MEMCPY_INLINE:
-		return Helper.tryEmitMemcpyInline(MI);
-	}
-
-	return false;
+HwtFpgaPreRegAllocGICombinerImpl::HwtFpgaPreRegAllocGICombinerImpl(
+    MachineFunction &MF, CombinerInfo &CInfo, const TargetPassConfig *TPC,
+    GISelKnownBits &KB, GISelCSEInfo *CSEInfo,
+    const HwtFpgaPreRegAllocGICombinerImplRuleConfig &RuleConfig,
+    const HwtFpgaTargetSubtarget &STI, MachineDominatorTree *MDT,
+    const LegalizerInfo *LI)
+    : Combiner(MF, CInfo, TPC, &KB, CSEInfo),
+      Helper(Observer, B, /*IsPreLegalize*/ false, &KB, MDT, LI),
+      RuleConfig(RuleConfig), STI(STI),
+#define GET_GICOMBINER_CONSTRUCTOR_INITS
+#include "HwtFpgaGenPreRegAllocGICombiner.inc"
+#undef GET_GICOMBINER_CONSTRUCTOR_INITS
+{
 }
 
-#define HWTFPGAGENPREREGALLOCGICOMBINERHELPER_GENCOMBINERHELPER_CPP
-#include "HwtFpgaGenPreRegAllocGICombiner.inc"
-#undef HWTFPGAGENPREREGALLOCGICOMBINERHELPER_GENCOMBINERHELPER_CPP
 
 // Pass boilerplate
 // ================
@@ -108,8 +96,9 @@ public:
 	}
 
 	bool runOnMachineFunction(MachineFunction &MF) override;
-
 	void getAnalysisUsage(AnalysisUsage &AU) const override;
+private:
+	HwtFpgaPreRegAllocGICombinerImplRuleConfig RuleConfig;
 };
 } // end anonymous namespace
 
@@ -130,28 +119,38 @@ HwtFpgaPreRegAllocCombiner::HwtFpgaPreRegAllocCombiner() :
 		MachineFunctionPass(ID) {
 	initializeHwtFpgaPreRegAllocCombinerPass(
 			*PassRegistry::getPassRegistry());
+	if (!RuleConfig.parseCommandLineOption())
+	  report_fatal_error("Invalid rule identifier");
 }
 
-bool HwtFpgaPreRegAllocCombiner::runOnMachineFunction(MachineFunction &MF) {
+bool HwtFpgaPreRegAllocCombiner::runOnMachineFunction(
+		MachineFunction &MF) {
 	if (MF.getProperties().hasProperty(
-			MachineFunctionProperties::Property::FailedISel))
-		return false;
-	auto &TPC = getAnalysis<TargetPassConfig>();
-
-	// Enable CSE.
-	GISelCSEAnalysisWrapper &Wrapper =
-			getAnalysis<GISelCSEAnalysisWrapperPass>().getCSEWrapper();
-	auto *CSEInfo = &Wrapper.get(TPC.getCSEConfig());
-
+	        MachineFunctionProperties::Property::FailedISel))
+	  return false;
+	assert(MF.getProperties().hasProperty(
+	           MachineFunctionProperties::Property::Legalized) &&
+	       "Expected a legalized function?");
+	auto *TPC = &getAnalysis<TargetPassConfig>();
 	const Function &F = MF.getFunction();
-	bool EnableOpt = MF.getTarget().getOptLevel() != CodeGenOpt::None
-			&& !skipFunction(F);
+	bool EnableOpt =
+	    MF.getTarget().getOptLevel() != CodeGenOptLevel::None && !skipFunction(F);
+
+	const HwtFpgaTargetSubtarget &ST = MF.getSubtarget<HwtFpgaTargetSubtarget>();
+	const auto *LI = ST.getLegalizerInfo();
+
 	GISelKnownBits *KB = &getAnalysis<GISelKnownBitsAnalysis>().get(MF);
 	MachineDominatorTree *MDT = &getAnalysis<MachineDominatorTree>();
-	HwtFpgaPreRegAllocCombinerInfo PCInfo(EnableOpt, F.hasOptSize(),
-			F.hasMinSize(), KB, MDT);
-	Combiner C(PCInfo, &TPC);
-	return C.combineMachineInstrs(MF, CSEInfo);
+	GISelCSEAnalysisWrapper &Wrapper =
+	    getAnalysis<GISelCSEAnalysisWrapperPass>().getCSEWrapper();
+	auto *CSEInfo = &Wrapper.get(TPC->getCSEConfig());
+
+	CombinerInfo CInfo(/*AllowIllegalOps*/ true, /*ShouldLegalizeIllegal*/ false,
+	                   /*LegalizerInfo*/ nullptr, EnableOpt, F.hasOptSize(),
+	                   F.hasMinSize());
+	HwtFpgaPreRegAllocGICombinerImpl Impl(MF, CInfo, TPC, *KB, CSEInfo,
+	                                      RuleConfig, ST, MDT, LI);
+	return Impl.combineMachineInstrs();
 }
 
 char HwtFpgaPreRegAllocCombiner::ID = 0;

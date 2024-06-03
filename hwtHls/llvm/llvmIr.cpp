@@ -59,7 +59,7 @@ void register_Types(pybind11::module_ & m) {
 		.def("getVoidTy", &llvm::Type::getVoidTy, py::return_value_policy::reference_internal)
 		.def("getIntNTy", &llvm::Type::getIntNTy, py::return_value_policy::reference_internal)
 		.def("getIntegerBitWidth", &llvm::Type::getIntegerBitWidth)
-		.def("getIntNPtrTy", &llvm::Type::getIntNPtrTy, py::return_value_policy::reference)
+		.def("getPointerTo", &llvm::Type::getPointerTo, py::return_value_policy::reference)
 		.def("__repr__",  &printToStr<llvm::Type>);;
 
 	py::class_<llvm::PointerType, std::unique_ptr<llvm::PointerType, py::nodelete>, llvm::Type>(m, "PointerType")

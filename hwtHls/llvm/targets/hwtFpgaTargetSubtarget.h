@@ -1,6 +1,6 @@
 #pragma once
 
-#include <llvm/ADT/Triple.h>
+#include <llvm/TargetParser/Triple.h>
 #include <llvm/Analysis/TargetTransformInfo.h>
 #include <llvm/CodeGen/CallingConvLower.h>
 #include <llvm/CodeGen/GlobalISel/CallLowering.h>

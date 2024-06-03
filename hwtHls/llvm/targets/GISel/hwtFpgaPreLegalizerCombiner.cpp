@@ -7,12 +7,12 @@
 #include <hwtHls/llvm/targets/GISel/hwtFpgaPreLegalizerCombiner.h>
 #include <hwtHls/llvm/targets/hwtFpgaTargetMachine.h>
 
+#include <llvm/CodeGen/GlobalISel/CSEInfo.h>
 #include <llvm/CodeGen/GlobalISel/Combiner.h>
-#include <llvm/CodeGen/GlobalISel/CombinerHelper.h>
 #include <llvm/CodeGen/GlobalISel/CombinerInfo.h>
+#include <llvm/CodeGen/GlobalISel/GIMatchTableExecutorImpl.h>
 #include <llvm/CodeGen/GlobalISel/GISelKnownBits.h>
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
-#include <llvm/CodeGen/GlobalISel/CSEInfo.h>
 #include <llvm/CodeGen/MachineDominators.h>
 #include <llvm/CodeGen/MachineFunction.h>
 #include <llvm/CodeGen/MachineFunctionPass.h>
@@ -22,86 +22,59 @@
 #include <llvm/Support/Debug.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaCombinerHelper.h>
 
+#define GET_GICOMBINER_DEPS
+#include "HwtFpgaGenPreLegalizerGICombiner.inc"
+#undef GET_GICOMBINER_DEPS
+
 #define DEBUG_TYPE "hwtfpga-prelegalizer-combiner"
 
 using namespace llvm;
 
-class HwtFpgaGenPreLegalizeGICombinerHelperState {
-protected:
-	HwtFpgaCombinerHelper &Helper;
-
-public:
-	HwtFpgaGenPreLegalizeGICombinerHelperState(HwtFpgaCombinerHelper &Helper) :
-			Helper(Helper) {
-	}
-};
-
-#define HWTFPGAGENPRELEGALIZEGICOMBINERHELPER_GENCOMBINERHELPER_DEPS
-#include "HwtFpgaGenPreLegalizeGICombiner.inc"
-#undef HWTFPGAGENPRELEGALIZEGICOMBINERHELPER_GENCOMBINERHELPER_DEPS
-
 namespace {
-#define HWTFPGAGENPRELEGALIZEGICOMBINERHELPER_GENCOMBINERHELPER_H
-#include "HwtFpgaGenPreLegalizeGICombiner.inc"
-#undef HWTFPGAGENPRELEGALIZEGICOMBINERHELPER_GENCOMBINERHELPER_H
 
-class HwtFpgaPreLegalizerCombinerInfo: public CombinerInfo {
-	bool IsPreLegalize;
-	GISelKnownBits *KB;
-	MachineDominatorTree *MDT;
-	HwtFpgaGenPreLegalizeGICombinerHelperRuleConfig GeneratedRuleCfg;
+#define GET_GICOMBINER_TYPES
+#include "HwtFpgaGenPreLegalizerGICombiner.inc"
+#undef GET_GICOMBINER_TYPES
 
+class HwtFpgaPreLegalizerGICombinerImpl: public Combiner {
+protected:
+	mutable HwtFpgaCombinerHelper Helper;
+	const HwtFpgaPreLegalizerGICombinerImplRuleConfig &RuleConfig;
+	const HwtFpgaTargetSubtarget &STI;
 public:
-	HwtFpgaPreLegalizerCombinerInfo(bool EnableOpt, bool OptSize,
-			bool MinSize, bool IsPreLegalize, GISelKnownBits *KB,
-			MachineDominatorTree *MDT, const LegalizerInfo *LI) :
-			CombinerInfo(/*AllowIllegalOps*/true, /*ShouldLegalizeIllegal*/
-			false, LI, EnableOpt, OptSize, MinSize), IsPreLegalize(
-					IsPreLegalize), KB(KB), MDT(MDT) {
-		if (!GeneratedRuleCfg.parseCommandLineOption())
-			report_fatal_error("Invalid rule identifier");
-	}
-
-	virtual bool combine(GISelChangeObserver &Observer, MachineInstr &MI,
-			MachineIRBuilder &B) const override;
+	HwtFpgaPreLegalizerGICombinerImpl(
+			MachineFunction &MF, CombinerInfo &CInfo, const TargetPassConfig *TPC,
+	      GISelKnownBits &KB, GISelCSEInfo *CSEInfo,
+	      const HwtFpgaPreLegalizerGICombinerImplRuleConfig &RuleConfig,
+	      const HwtFpgaTargetSubtarget &STI, MachineDominatorTree *MDT,
+	      const LegalizerInfo *LI);
+	  static const char *getName() { return "HwtFpgaPreLegalizerGICombiner"; }
+	  bool tryCombineAll(MachineInstr &I) const override;
+private:
+#define GET_GICOMBINER_CLASS_MEMBERS
+#include "HwtFpgaGenPreLegalizerGICombiner.inc"
+#undef GET_GICOMBINER_CLASS_MEMBERS
 };
 
-bool HwtFpgaPreLegalizerCombinerInfo::combine(GISelChangeObserver &Observer,
-		MachineInstr &MI, MachineIRBuilder &B) const {
-	HwtFpgaCombinerHelper Helper(Observer, B, IsPreLegalize, KB, MDT, LInfo);
-	HwtFpgaGenPreLegalizeGICombinerHelper Generated(GeneratedRuleCfg,
-			Helper);
+#define GET_GICOMBINER_IMPL
+#include "HwtFpgaGenPreLegalizerGICombiner.inc"
+#undef GET_GICOMBINER_IMPL
 
-	if (Generated.tryCombineAll(Observer, MI, B))
-		return true;
 
-	unsigned Opc = MI.getOpcode();
-	switch (Opc) {
-	case TargetOpcode::G_CONCAT_VECTORS:
-		return Helper.tryCombineConcatVectors(MI);
-	case TargetOpcode::G_SHUFFLE_VECTOR:
-		return Helper.tryCombineShuffleVector(MI);
-	case TargetOpcode::G_MEMCPY_INLINE:
-		return Helper.tryEmitMemcpyInline(MI);
-	case TargetOpcode::G_MEMCPY:
-	case TargetOpcode::G_MEMMOVE:
-	case TargetOpcode::G_MEMSET: {
-		// If we're at -O0 set a maxlen of 32 to inline, otherwise let the other
-		// heuristics decide.
-		unsigned MaxLen = EnableOpt ? 0 : 32;
-		// Try to inline memcpy type calls if optimizations are enabled.
-		if (Helper.tryCombineMemCpyFamily(MI, MaxLen))
-			return true;
-		return false;
-	}
-	}
-
-	return false;
+HwtFpgaPreLegalizerGICombinerImpl::HwtFpgaPreLegalizerGICombinerImpl(
+    MachineFunction &MF, CombinerInfo &CInfo, const TargetPassConfig *TPC,
+    GISelKnownBits &KB, GISelCSEInfo *CSEInfo,
+    const HwtFpgaPreLegalizerGICombinerImplRuleConfig &RuleConfig,
+    const HwtFpgaTargetSubtarget &STI, MachineDominatorTree *MDT,
+    const LegalizerInfo *LI)
+    : Combiner(MF, CInfo, TPC, &KB, CSEInfo),
+      Helper(Observer, B, /*IsPreLegalize*/ false, &KB, MDT, LI),
+      RuleConfig(RuleConfig), STI(STI),
+#define GET_GICOMBINER_CONSTRUCTOR_INITS
+#include "HwtFpgaGenPreLegalizerGICombiner.inc"
+#undef GET_GICOMBINER_CONSTRUCTOR_INITS
+{
 }
-
-#define HWTFPGAGENPRELEGALIZEGICOMBINERHELPER_GENCOMBINERHELPER_CPP
-#include "HwtFpgaGenPreLegalizeGICombiner.inc"
-#undef HWTFPGAGENPRELEGALIZEGICOMBINERHELPER_GENCOMBINERHELPER_CPP
 
 // Pass boilerplate
 // ================
@@ -117,8 +90,9 @@ public:
 	}
 
 	bool runOnMachineFunction(MachineFunction &MF) override;
-
 	void getAnalysisUsage(AnalysisUsage &AU) const override;
+private:
+	HwtFpgaPreLegalizerGICombinerImplRuleConfig RuleConfig;
 };
 } // end anonymous namespace
 
@@ -140,30 +114,38 @@ HwtFpgaPreLegalizerCombiner::HwtFpgaPreLegalizerCombiner() :
 		MachineFunctionPass(ID) {
 	initializeHwtFpgaPreLegalizerCombinerPass(
 			*PassRegistry::getPassRegistry());
+	if (!RuleConfig.parseCommandLineOption())
+	  report_fatal_error("Invalid rule identifier");
 }
 
 bool HwtFpgaPreLegalizerCombiner::runOnMachineFunction(
 		MachineFunction &MF) {
 	if (MF.getProperties().hasProperty(
-			MachineFunctionProperties::Property::FailedISel))
-		return false;
-	auto &TPC = getAnalysis<TargetPassConfig>();
-
-	// Enable CSE.
-	GISelCSEAnalysisWrapper &Wrapper =
-			getAnalysis<GISelCSEAnalysisWrapperPass>().getCSEWrapper();
-	auto *CSEInfo = &Wrapper.get(TPC.getCSEConfig());
-
+	        MachineFunctionProperties::Property::FailedISel))
+	  return false;
+	assert(!MF.getProperties().hasProperty(
+	           MachineFunctionProperties::Property::Legalized) &&
+	       "Expected a non-legalized function?");
+	auto *TPC = &getAnalysis<TargetPassConfig>();
 	const Function &F = MF.getFunction();
-	bool EnableOpt = MF.getTarget().getOptLevel() != CodeGenOpt::None
-			&& !skipFunction(F);
+	bool EnableOpt =
+	    MF.getTarget().getOptLevel() != CodeGenOptLevel::None && !skipFunction(F);
+
+	const HwtFpgaTargetSubtarget &ST = MF.getSubtarget<HwtFpgaTargetSubtarget>();
+	const auto *LI = ST.getLegalizerInfo();
+
 	GISelKnownBits *KB = &getAnalysis<GISelKnownBitsAnalysis>().get(MF);
 	MachineDominatorTree *MDT = &getAnalysis<MachineDominatorTree>();
-	const LegalizerInfo *LInfo = ((const HwtFpgaTargetSubtarget *)&MF.getSubtarget())->getLegalizerInfo();
-	HwtFpgaPreLegalizerCombinerInfo PCInfo(EnableOpt, F.hasOptSize(),
-			F.hasMinSize(), true, KB, MDT, LInfo);
-	Combiner C(PCInfo, &TPC);
-	return C.combineMachineInstrs(MF, CSEInfo);
+	GISelCSEAnalysisWrapper &Wrapper =
+	    getAnalysis<GISelCSEAnalysisWrapperPass>().getCSEWrapper();
+	auto *CSEInfo = &Wrapper.get(TPC->getCSEConfig());
+
+	CombinerInfo CInfo(/*AllowIllegalOps*/ true, /*ShouldLegalizeIllegal*/ false,
+	                   /*LegalizerInfo*/ nullptr, EnableOpt, F.hasOptSize(),
+	                   F.hasMinSize());
+	HwtFpgaPreLegalizerGICombinerImpl Impl(MF, CInfo, TPC, *KB, CSEInfo,
+	                                      RuleConfig, ST, MDT, LI);
+	return Impl.combineMachineInstrs();
 }
 
 char HwtFpgaPreLegalizerCombiner::ID = 0;

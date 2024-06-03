@@ -308,7 +308,7 @@ void ConstBitPartsAnalysisContext::visitBinaryOperatorReduceOr(
 		unsigned w = seq.second;
 		if (seq.first) {
 			// end of 1 sequence found
-			KnownBitRangeInfo i = KnownBitRangeInfo(ConstantInt::get(Context, APInt::getAllOnesValue(w)));
+			KnownBitRangeInfo i = KnownBitRangeInfo(ConstantInt::get(Context, APInt::getAllOnes(w)));
 			i.dstBeginBitI = dstOffset;
 			VarBitConstraint::srcUnionPushBackWithMerge(newParts, i, 0,
 					i.width);

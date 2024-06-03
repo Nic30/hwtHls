@@ -3,9 +3,9 @@ generated_llvm_backend_files = [
 	['HwtFpgaGenInstrInfo.inc', ['-gen-instr-info', ]],
 	['HwtFpgaGenRegisterInfo.inc', ['-gen-register-info', ]],
 	['HwtFpgaGenSubtargetInfo.inc', ['-gen-subtarget', ]],
-	['HwtFpgaGenPreLegalizeGICombiner.inc', ['-gen-global-isel-combiner', '-combiners=HwtFpgaGenPreLegalizeGICombinerHelper']],
-	['HwtFpgaGenPreRegAllocGICombiner.inc', ['-gen-global-isel-combiner', '-combiners=HwtFpgaGenPreRegAllocGICombinerHelper']],
-	['HwtFpgaGenPreToNetlistGICombiner.inc', ['-gen-global-isel-combiner', '-combiners=HwtFpgaGenPreToNetlistGICombinerHelper']],
+	['HwtFpgaGenPreLegalizerGICombiner.inc', ['-gen-global-isel-combiner', '-combiners=HwtFpgaPreLegalizerGICombiner']],
+	['HwtFpgaGenPreRegAllocGICombiner.inc', ['-gen-global-isel-combiner', '-combiners=HwtFpgaPreRegAllocGICombiner']],
+	['HwtFpgaGenPreToNetlistGICombiner.inc', ['-gen-global-isel-combiner', '-combiners=HwtFpgaPreToNetlistGICombiner']],
 ]
 
 all_llvm_backend_gen_files = []
@@ -119,6 +119,7 @@ py3.extension_module(
      'Transforms/LoopUnrotatePass.cpp',
      'Transforms/overwriteBlockNamesPass.cpp',
      'Transforms/ReconfigureHwtFpgaTTIPass.cpp',
+     'Transforms/SimplifyCFG2Pass/SimplifyCFG2.cpp',
      'Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_aggresiveStoreSink.cpp',
 	 'Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_mergePredecessorsStore.cpp',
      'Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_normalizeLookupTableIndex.cpp',

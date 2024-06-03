@@ -4,6 +4,7 @@
 #include <llvm/ADT/SetVector.h>
 
 #include <map>
+#include <set>
 
 namespace llvm {
 void initializeHwtHlsVRegLiveinsPass(PassRegistry&);

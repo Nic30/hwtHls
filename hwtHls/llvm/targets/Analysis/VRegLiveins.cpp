@@ -1,6 +1,7 @@
 #include <hwtHls/llvm/targets/Analysis/VRegLiveins.h>
 
 #include <llvm/ADT/SetVector.h>
+#include <llvm/ADT/SmallSet.h>
 #include <hwtHls/llvm/targets/Analysis/liveVariableForEdge.h>
 
 #define DEBUG_TYPE "vreg-liveins"

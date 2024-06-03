@@ -24,27 +24,25 @@ public:
 	bool matchAnyExplicitUseIsUndef(MachineInstr &MI);
 	//bool replaceInstWithUndefNonGeneric(MachineInstr &MI);
 
-	bool hashOnlyConstUses(llvm::MachineInstr &MI);
-	bool rewriteConstExtract(llvm::MachineInstr &MI);
-	bool rewriteConstMergeValues(llvm::MachineInstr &MI);
+
 
 	bool hasG_CONSTANTasUse(llvm::MachineInstr &MI);
-	bool rewriteG_CONSTANTasUseAsCImm(llvm::MachineInstr &MI);
+	void rewriteG_CONSTANTasUseAsCImm(llvm::MachineInstr &MI);
 
 	bool matchAllOnesConstantOp(const llvm::MachineOperand &MOP);
 	bool matchOperandIsAllOnes(llvm::MachineInstr &MI, unsigned OpIdx);
-	bool rewriteXorToNot(llvm::MachineInstr &MI);
+	void rewriteXorToNot(llvm::MachineInstr &MI);
 
-	bool rewriteConstBinOp(llvm::MachineInstr &MI,
+	void rewriteConstBinOp(llvm::MachineInstr &MI,
 			std::function<APInt(const APInt&, const APInt&)>);
 
 	// :attention: this is only for instructions in same block
 	//             extract/merge instruction does copy of original data, it must be proven that
 	//             correct copy is used and we can no just take any register with output
 	bool matchIsExtractOnMergeValues(llvm::MachineInstr &MI);
-	bool rewriteExtractOnMergeValues(llvm::MachineInstr &MI);
+	void rewriteExtractOnMergeValues(llvm::MachineInstr &MI);
 	bool matchIsExtractOnConstShift(llvm::MachineInstr &MI);
-	bool rewriteExtractOnConstShift(llvm::MachineInstr &MI);
+	void rewriteExtractOnConstShift(llvm::MachineInstr &MI);
 	/*
 	 * Recursively collect members of concatenations, looks through HWTFPGA_EXTRACT and HWTFPGA_MERGE_VALUES instructions
 	 *
@@ -60,9 +58,10 @@ public:
 			std::vector<ConcatMember> &members, uint64_t mainOffset,
 			uint64_t mainWidth, uint64_t &currentOffset, uint64_t offsetOfIRes,
 			uint64_t widthOfIRes);
-
+	void convertG_SELECT_to_HWTFPGA_MUX(llvm::MachineInstr &MI);
+	void convertPHI_to_HWTFPGA_MUX(llvm::MachineInstr &MI);
 	bool hasSomeConstConditions(llvm::MachineInstr &MI);
-	bool rewriteConstCondMux(llvm::MachineInstr &MI);
+	void rewriteConstCondMux(llvm::MachineInstr &MI);
 
 	bool matchMuxForConstPropagation(llvm::MachineInstr &MI,
 			hwtHls::MuxReducibleValuesInfo &matchInfo);
@@ -79,15 +78,15 @@ public:
 	// check if can merge two HWTFPGA_MUX instructions
 	bool matchNestedMux(llvm::MachineInstr &MI,
 			llvm::SmallVector<bool> &requiresAndWithParentCond);
-	bool rewriteNestedMuxToMux(llvm::MachineInstr &MI,
+	void rewriteNestedMuxToMux(llvm::MachineInstr &MI,
 			const llvm::SmallVector<bool> &requiresAndWithParentCond);
 	bool matchMuxDuplicitCaseReduce(llvm::MachineInstr &MI, llvm::SmallVector<unsigned> & duplicitCaseConditions);
 	bool matchMuxRedundantCase(llvm::MachineInstr &MI, llvm::SmallVector<unsigned> &caseConditionsToRm);
-	bool rewriteMuxRmCases(llvm::MachineInstr &MI, const llvm::SmallVector<unsigned> & caseConditionsToRm);
+	void rewriteMuxRmCases(llvm::MachineInstr &MI, const llvm::SmallVector<unsigned> & caseConditionsToRm);
 
 	bool hasAll1AndAll0Values(llvm::MachineInstr &MI,
 			hwtHls::CImmOrRegWithNegFlag &matchinfo);
-	bool rewriteConstValMux(llvm::MachineInstr &MI,
+	void rewriteConstValMux(llvm::MachineInstr &MI,
 			const hwtHls::CImmOrRegWithNegFlag &matchinfo);
 	bool matchMuxMask(llvm::MachineInstr &MI, BuildFnTy &rewriteFn);
 
@@ -99,21 +98,24 @@ public:
 	 * Search if HWTFPGA_MUX used as a copy could be removed by using src/dst register directly
 	 **/
 	bool isTrivialRemovableCopy(llvm::MachineInstr &MI, bool &replaceMuxSrcReg);
-	bool rewriteTrivialRemovableCopy(llvm::MachineInstr &MI,
+	void rewriteTrivialRemovableCopy(llvm::MachineInstr &MI,
 			bool replaceMuxSrcReg);
 
-	bool genericOpcodeToHwtfpga(llvm::MachineInstr &MI);
+	void rewriteGenericOpcodeToHwtFpga(llvm::MachineInstr &MI);
 
+	bool hashOnlyConstUses(llvm::MachineInstr &MI);
+	void rewriteConstExtract(llvm::MachineInstr &MI);
+	void rewriteConstMergeValues(llvm::MachineInstr &MI);
 	bool matchConstMergeValues(llvm::MachineInstr &MI,
 			llvm::APInt &replacement);
-	bool rewriteConstMergeValues(llvm::MachineInstr &MI,
+	void rewriteConstMergeValues(llvm::MachineInstr &MI,
 			const llvm::APInt &replacement);
 
 	bool matchTrivialInstrDuplication(llvm::MachineInstr &MI);
-	bool rewriteTrivialInstrDuplication(llvm::MachineInstr &MI);
+	void rewriteTrivialInstrDuplication(llvm::MachineInstr &MI);
 
 	bool matchAndOrSequenceReduce(llvm::MachineInstr &MI, bool& removeRightOp);
-	bool rewriteAndOrSequenceReduce(llvm::MachineInstr &MI, bool removeRightOp);
+	void rewriteAndOrSequenceReduce(llvm::MachineInstr &MI, bool removeRightOp);
 };
 
 }

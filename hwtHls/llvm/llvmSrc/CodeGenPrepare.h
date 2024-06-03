@@ -1,5 +1,6 @@
 #pragma once
 
+#include <llvm/CodeGen/CodeGenPrepare.h>
 #include <llvm/ADT/APInt.h>
 #include <llvm/ADT/ArrayRef.h>
 #include <llvm/ADT/DenseMap.h>
@@ -21,6 +22,7 @@
 #include <llvm/CodeGen/Analysis.h>
 #include <llvm/CodeGen/BasicBlockSectionsProfileReader.h>
 #include <llvm/CodeGen/ISDOpcodes.h>
+#include <llvm/CodeGen/MachineValueType.h>
 #include <llvm/CodeGen/SelectionDAGNodes.h>
 #include <llvm/CodeGen/TargetLowering.h>
 #include <llvm/CodeGen/TargetPassConfig.h>
@@ -70,7 +72,6 @@
 #include <llvm/Support/Compiler.h>
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/ErrorHandling.h>
-#include <llvm/Support/MachineValueType.h>
 #include <llvm/Support/MathExtras.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Target/TargetMachine.h>
@@ -121,18 +122,20 @@ class TypePromotionTransaction;
 
 /// Transform the code to expose more pattern
 /// matching during instruction selection.
-class CodeGenPrepare : public llvm::FunctionPass {
+class CodeGenPrepare {
+  friend class CodeGenPrepareLegacyPass;
+protected:
   const llvm::TargetMachine *TM = nullptr;
-  const llvm::TargetSubtargetInfo *SubtargetInfo;
+  const llvm::TargetSubtargetInfo *SubtargetInfo = nullptr;
   const llvm::TargetLowering *TLI = nullptr;
-  const llvm::TargetRegisterInfo *TRI;
+  const llvm::TargetRegisterInfo *TRI = nullptr;
   const llvm::TargetTransformInfo *TTI = nullptr;
   const llvm::BasicBlockSectionsProfileReader *BBSectionsProfileReader = nullptr;
-  const llvm::TargetLibraryInfo *TLInfo;
-  const llvm::LoopInfo *LI;
+  const llvm::TargetLibraryInfo *TLInfo = nullptr;
+  llvm::LoopInfo *LI = nullptr;
   std::unique_ptr<llvm::BlockFrequencyInfo> BFI;
   std::unique_ptr<llvm::BranchProbabilityInfo> BPI;
-  llvm::ProfileSummaryInfo *PSI;
+  llvm::ProfileSummaryInfo *PSI = nullptr;
 
   /// As we scan instructions optimizing them, this is the next instruction
   /// to optimize. Transforms that can invalidate this should update it.
@@ -186,6 +189,8 @@ class CodeGenPrepare : public llvm::FunctionPass {
   std::unique_ptr<llvm::DominatorTree> DT;
 
 public:
+  CodeGenPrepare(){};
+  CodeGenPrepare(const TargetMachine *TM) : TM(TM){};
   /// If encounter huge function, we need to limit the build time.
   bool IsHugeFunc = false;
 
@@ -195,22 +200,16 @@ public:
   /// to insert such BB into FreshBBs for huge function.
   SmallSet<BasicBlock *, 32> FreshBBs;
 
-  static char ID; // Pass identification, replacement for typeid
-
-  CodeGenPrepare();
-  bool runOnFunction(llvm::Function &F) override;
-
-  llvm::StringRef getPassName() const override { return "CodeGen Prepare"; }
-
-  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
-    // FIXME: When we can selectively preserve passes, preserve the domtree.
-    AU.addRequired<llvm::ProfileSummaryInfoWrapperPass>();
-    AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
-    AU.addRequired<llvm::TargetPassConfig>();
-    AU.addRequired<llvm::TargetTransformInfoWrapperPass>();
-    AU.addRequired<llvm::LoopInfoWrapperPass>();
-    AU.addUsedIfAvailable<BasicBlockSectionsProfileReader>();
+  void releaseMemory() {
+    // Clear per function information.
+    InsertedInsts.clear();
+    PromotedInsts.clear();
+    FreshBBs.clear();
+    BPI.reset();
+    BFI.reset();
   }
+
+  bool run(Function &F, FunctionAnalysisManager &AM);
 
 protected:
   template <typename F>
@@ -239,7 +238,7 @@ protected:
   }
   void removeAllAssertingVHReferences(llvm::Value *V);
   bool eliminateAssumptions(llvm::Function &F);
-  bool eliminateFallThrough(llvm::Function &F);
+  bool eliminateFallThrough(Function &F, DominatorTree *DT = nullptr);
   bool eliminateMostlyEmptyBlocks(llvm::Function &F);
   llvm::BasicBlock *findDestBlockOfMergeableEmptyBlock(llvm::BasicBlock *BB);
   bool canMergeBlocks(const llvm::BasicBlock *BB, const llvm::BasicBlock *DestBB) const;
@@ -267,6 +266,8 @@ protected:
   bool optimizeExtractElementInst(llvm::Instruction *Inst);
   bool dupRetToEnableTailCallOpts(llvm::BasicBlock *BB, ModifyDT &ModifiedDT);
   bool fixupDbgValue(llvm::Instruction *I);
+  bool fixupDPValue(DPValue &I);
+  bool fixupDPValuesOnInst(Instruction &I);
   bool placeDbgValues(llvm::Function &F);
   bool placePseudoProbes(llvm::Function &F);
   bool canFormExtLd(const llvm::SmallVectorImpl<llvm::Instruction *> &MovedExts,
@@ -296,8 +297,9 @@ protected:
   bool combineToUSubWithOverflow(llvm::CmpInst *Cmp, ModifyDT &ModifiedDT);
   bool combineToUAddWithOverflow(llvm::CmpInst *Cmp, ModifyDT &ModifiedDT);
   void verifyBFIUpdates(llvm::Function &F);
+  bool _run(Function &F);
 };
 
-void initializeCodeGenPreparePass(llvm::PassRegistry &Registry);
+
 }
 }

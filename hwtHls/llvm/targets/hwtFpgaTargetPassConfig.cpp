@@ -51,7 +51,7 @@ void HwtFpgaTargetPassConfig::addStraightLineScalarOptimizationPasses() {
 void HwtFpgaTargetPassConfig::addIRPasses() {
 	// based on AMDGPU
 	const auto &TM = getHwtFpgaTargetMachine();
-	if (TM.getOptLevel() > CodeGenOpt::None) {
+	if (TM.getOptLevel() > CodeGenOptLevel::None) {
 		addPass(createSROAPass());
 		addStraightLineScalarOptimizationPasses();
 	}
@@ -62,8 +62,8 @@ void HwtFpgaTargetPassConfig::addIRPasses() {
 }
 
 void HwtFpgaTargetPassConfig::addCodeGenPrepare() {
-	if (getOptLevel() != llvm::CodeGenOpt::None)
-		addPass(new hwtHls::HwtHlsCodeGenPrepare());
+	if (getOptLevel() != CodeGenOptLevel::None)
+		addPass(new hwtHls::HwtHlsCodeGenPrepareLegacyPass());
 }
 
 bool HwtFpgaTargetPassConfig::addInstSelector() {
@@ -77,7 +77,7 @@ bool HwtFpgaTargetPassConfig::addPreISel() {
 	// only protect functions that have corresponding attributes.
 	//addPass(new SafeStackPass());
 	addPass(new StackProtector());
-	if (TM->getOptLevel() > CodeGenOpt::None) {
+	if (TM->getOptLevel() > CodeGenOptLevel::None) {
 		addPass(createFlattenCFGPass()); // from AMDGPU
 	}
 	return false;

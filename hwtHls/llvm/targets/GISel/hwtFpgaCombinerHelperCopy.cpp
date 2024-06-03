@@ -139,7 +139,7 @@ bool HwtFpgaCombinerHelper::isTrivialRemovableCopy(llvm::MachineInstr &MI,
 	return false;
 }
 
-bool HwtFpgaCombinerHelper::rewriteTrivialRemovableCopy(llvm::MachineInstr &MI,
+void HwtFpgaCombinerHelper::rewriteTrivialRemovableCopy(llvm::MachineInstr &MI,
 		bool replaceMuxSrcReg) {
 	auto &dst = MI.getOperand(0);
 	auto &src = MI.getOperand(1);
@@ -170,7 +170,6 @@ bool HwtFpgaCombinerHelper::rewriteTrivialRemovableCopy(llvm::MachineInstr &MI,
 	}
 
 	MI.eraseFromParent();
-	return true;
 }
 
 }

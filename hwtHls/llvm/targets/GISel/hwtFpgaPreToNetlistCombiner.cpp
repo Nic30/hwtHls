@@ -3,23 +3,23 @@
 // This pass does combining of machine instructions at the generic MI level,
 // before the to netlist conversion.
 //
+// :note: code structure based on RISCVGenPostLegalizerCombiner.cpp
 //===----------------------------------------------------------------------===//
 #include <hwtHls/llvm/targets/GISel/hwtFpgaPreToNetlistCombiner.h>
 #include <hwtHls/llvm/targets/hwtFpgaTargetMachine.h>
 
 #include <llvm/CodeGen/GlobalISel/Combiner.h>
-#include <llvm/CodeGen/GlobalISel/CombinerHelper.h>
 #include <llvm/CodeGen/GlobalISel/CombinerInfo.h>
+#include <llvm/CodeGen/GlobalISel/GIMatchTableExecutorImpl.h>
 #include <llvm/CodeGen/GlobalISel/GISelKnownBits.h>
 #include <llvm/CodeGen/GlobalISel/MIPatternMatch.h>
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
+#include <llvm/CodeGen/GlobalISel/CSEInfo.h>
 #include <llvm/CodeGen/MachineDominators.h>
 #include <llvm/CodeGen/MachineFunction.h>
 #include <llvm/CodeGen/MachineFunctionPass.h>
 #include <llvm/CodeGen/MachineRegisterInfo.h>
 #include <llvm/CodeGen/TargetPassConfig.h>
-#include <llvm/CodeGen/GlobalISel/CombinerHelper.h>
-#include <llvm/CodeGen/GlobalISel/CSEInfo.h>
 
 #include <llvm/IR/Instructions.h>
 #include <llvm/Support/Debug.h>
@@ -30,137 +30,59 @@
 using namespace llvm;
 using namespace MIPatternMatch;
 
-class HwtFpgaGenPreToNetlistGICombinerHelperState {
-protected:
-	HwtFpgaCombinerHelper &Helper;
 
-public:
-	HwtFpgaGenPreToNetlistGICombinerHelperState(
-			HwtFpgaCombinerHelper &Helper) :
-			Helper(Helper) {
-	}
-};
-
-#define HWTFPGAGENPRETONETLISTGICOMBINERHELPER_GENCOMBINERHELPER_DEPS
+#define GET_GICOMBINER_DEPS
 #include "HwtFpgaGenPreToNetlistGICombiner.inc"
-#undef HWTFPGAGENPRETONETLISTGICOMBINERHELPER_GENCOMBINERHELPER_DEPS
+#undef GET_GICOMBINER_DEPS
 
 namespace {
-#define HWTFPGAGENPRETONETLISTGICOMBINERHELPER_GENCOMBINERHELPER_H
+
+#define GET_GICOMBINER_TYPES
 #include "HwtFpgaGenPreToNetlistGICombiner.inc"
-#undef HWTFPGAGENPRETONETLISTGICOMBINERHELPER_GENCOMBINERHELPER_H
+#undef GET_GICOMBINER_TYPES
 
-class HwtFpgaPreToNetlistCombinerInfo: public CombinerInfo {
-	bool isPrelegalize;
-	GISelKnownBits *KB;
-	MachineDominatorTree *MDT;
-	HwtFpgaGenPreToNetlistGICombinerHelperRuleConfig GeneratedRuleCfg;
+class HwtFpgaPreToNetlistGICombinerImpl: public Combiner {
+protected:
+	// TODO: Make CombinerHelper methods const.
+	mutable HwtFpgaCombinerHelper Helper;
+	const HwtFpgaPreToNetlistGICombinerImplRuleConfig &RuleConfig;
+	const HwtFpgaTargetSubtarget &STI;
 public:
-	HwtFpgaPreToNetlistCombinerInfo(bool EnableOpt, bool OptSize,
-			bool MinSize, bool isPrelegalize, GISelKnownBits *KB,
-			MachineDominatorTree *MDT, const LegalizerInfo *LInfo) :
-			CombinerInfo(/*AllowIllegalOps*/true, /*ShouldToNetlistIllegal*/
-			false, LInfo, EnableOpt, OptSize, MinSize), isPrelegalize(
-					isPrelegalize), KB(KB), MDT(MDT) {
-		if (!GeneratedRuleCfg.parseCommandLineOption())
-			report_fatal_error("Invalid rule identifier");
-	}
+	HwtFpgaPreToNetlistGICombinerImpl(
+	    MachineFunction &MF, CombinerInfo &CInfo, const TargetPassConfig *TPC,
+	    GISelKnownBits &KB, GISelCSEInfo *CSEInfo,
+	    const HwtFpgaPreToNetlistGICombinerImplRuleConfig &RuleConfig,
+	    const HwtFpgaTargetSubtarget &STI, MachineDominatorTree *MDT,
+	    const LegalizerInfo *LI);
 
-	virtual bool combine(GISelChangeObserver &Observer, MachineInstr &MI,
-			MachineIRBuilder &B) const override;
+	static const char *getName() { return "HwtFpgaPreToNetlistCombiner"; }
 
-	static void convertG_SELECT_to_HWTFPGA_MUX(MachineIRBuilder &Builder);
-	static void convertPHI_to_HWTFPGA_MUX(MachineIRBuilder &Builder);
+	bool tryCombineAll(MachineInstr &I) const override;
+private:
+#define GET_GICOMBINER_CLASS_MEMBERS
+#include "HwtFpgaGenPreToNetlistGICombiner.inc"
+#undef GET_GICOMBINER_CLASS_MEMBERS
 };
 
-void copyOperand(MachineInstrBuilder &MIB, MachineRegisterInfo &MRI,
-		MachineFunction &MF, MachineOperand &MO) {
-	if (MO.isReg() && MO.isDef()) {
-		MIB.addDef(MO.getReg(), MO.getTargetFlags());
-		return;
-	} else if (MO.isReg() && MO.getReg() && MRI.hasOneDef(MO.getReg())) {
-		if (auto VRegVal = getAnyConstantVRegValWithLookThrough(MO.getReg(),
-				MRI)) {
-			auto &C = MF.getFunction().getContext();
-			auto *CI = ConstantInt::get(C, VRegVal->Value);
-			MIB.addCImm(CI);
-			return;
-		}
-	}
-	MIB.add(MO);
-}
-
-void HwtFpgaPreToNetlistCombinerInfo::convertG_SELECT_to_HWTFPGA_MUX(
-		MachineIRBuilder &Builder) {
-	// dst, cond, a, b -> dst, a, cond, b
-	MachineInstr &MI = *Builder.getInsertPt();
-	MachineInstrBuilder MIB = Builder.buildInstr(HwtFpga::HWTFPGA_MUX);
-	MachineBasicBlock &MBB = *MI.getParent();
-	MachineFunction &MF = *MBB.getParent();
-	MachineRegisterInfo &MRI = MF.getRegInfo();
-	if (MI.getNumOperands() != 4) {
-		errs() << MI;
-		llvm_unreachable("NotImplemented");
-	}
-	copyOperand(MIB, MRI, MF, MI.getOperand(0)); // dst
-	copyOperand(MIB, MRI, MF, MI.getOperand(2)); // v0
-	copyOperand(MIB, MRI, MF, MI.getOperand(1)); // cond
-	copyOperand(MIB, MRI, MF, MI.getOperand(3)); // v1s
-}
-
-void HwtFpgaPreToNetlistCombinerInfo::convertPHI_to_HWTFPGA_MUX(
-		MachineIRBuilder &Builder) {
-	MachineInstr &MI = *Builder.getInsertPt();
-	MachineInstrBuilder MIB = Builder.buildInstr(HwtFpga::HWTFPGA_MUX);
-	MachineBasicBlock &MBB = *MI.getParent();
-	MachineFunction &MF = *MBB.getParent();
-	MachineRegisterInfo &MRI = MF.getRegInfo();
-
-	for (auto MO : MI.operands()) {
-		copyOperand(MIB, MRI, MF, MO);
-	}
-}
-
-bool HwtFpgaPreToNetlistCombinerInfo::combine(GISelChangeObserver &Observer,
-		MachineInstr &MI, MachineIRBuilder &B) const {
-	HwtFpgaCombinerHelper Helper(Observer, B, false, KB, MDT, LInfo);
-	HwtFpgaGenPreToNetlistGICombinerHelper Generated(GeneratedRuleCfg,
-			Helper);
-
-	if (Generated.tryCombineAll(Observer, MI, B))
-		return true;
-
-	unsigned Opc = MI.getOpcode();
-	switch (Opc) {
-	//case TargetOpcode::IMPLICIT_DEF:
-	//case TargetOpcode::G_IMPLICIT_DEF:
-	//	MI.eraseFromParent();
-	//	return true;
-	case TargetOpcode::PHI: {
-		std::function<void(llvm::MachineIRBuilder&)> _phiToMux =
-				convertPHI_to_HWTFPGA_MUX;
-		Helper.applyBuildFn(MI, _phiToMux);
-		return true;
-	}
-	case TargetOpcode::G_CONCAT_VECTORS:
-		return Helper.tryCombineConcatVectors(MI);
-	case TargetOpcode::G_SHUFFLE_VECTOR:
-		return Helper.tryCombineShuffleVector(MI);
-	case TargetOpcode::G_MEMCPY_INLINE:
-		return Helper.tryEmitMemcpyInline(MI);
-	case llvm::HwtFpga::G_SELECT:
-		std::function<void(llvm::MachineIRBuilder&)> _selectToMux =
-				convertG_SELECT_to_HWTFPGA_MUX;
-		Helper.applyBuildFn(MI, _selectToMux);
-		return true;
-	}
-
-	return false;
-}
-
-#define HWTFPGAGENPRETONETLISTGICOMBINERHELPER_GENCOMBINERHELPER_CPP
+#define GET_GICOMBINER_IMPL
 #include "HwtFpgaGenPreToNetlistGICombiner.inc"
-#undef HWTFPGAGENPRETONETLISTGICOMBINERHELPER_GENCOMBINERHELPER_CPP
+#undef GET_GICOMBINER_IMPL
+
+HwtFpgaPreToNetlistGICombinerImpl::HwtFpgaPreToNetlistGICombinerImpl(
+    MachineFunction &MF, CombinerInfo &CInfo, const TargetPassConfig *TPC,
+    GISelKnownBits &KB, GISelCSEInfo *CSEInfo,
+    const HwtFpgaPreToNetlistGICombinerImplRuleConfig &RuleConfig,
+    const HwtFpgaTargetSubtarget &STI, MachineDominatorTree *MDT,
+    const LegalizerInfo *LI)
+    : Combiner(MF, CInfo, TPC, &KB, CSEInfo),
+      Helper(Observer, B, /*IsPreLegalize*/ false, &KB, MDT, LI),
+      RuleConfig(RuleConfig), STI(STI),
+#define GET_GICOMBINER_CONSTRUCTOR_INITS
+#include "HwtFpgaGenPreToNetlistGICombiner.inc"
+#undef GET_GICOMBINER_CONSTRUCTOR_INITS
+{
+}
+
 
 // Pass boilerplate
 // ================
@@ -175,8 +97,9 @@ public:
 	}
 
 	bool runOnMachineFunction(MachineFunction &MF) override;
-
 	void getAnalysisUsage(AnalysisUsage &AU) const override;
+private:
+	HwtFpgaPreToNetlistGICombinerImplRuleConfig RuleConfig;
 };
 } // end anonymous namespace
 
@@ -198,31 +121,38 @@ HwtFpgaPreToNetlistCombiner::HwtFpgaPreToNetlistCombiner() :
 		MachineFunctionPass(ID) {
 	initializeHwtFpgaPreToNetlistCombinerPass(
 			*PassRegistry::getPassRegistry());
+	if (!RuleConfig.parseCommandLineOption())
+	  report_fatal_error("Invalid rule identifier");
 }
 
 bool HwtFpgaPreToNetlistCombiner::runOnMachineFunction(
 		MachineFunction &MF) {
 	if (MF.getProperties().hasProperty(
-			MachineFunctionProperties::Property::FailedISel))
-		return false;
-	auto &TPC = getAnalysis<TargetPassConfig>();
-
-	// Enable CSE.
-	GISelCSEAnalysisWrapper &Wrapper =
-			getAnalysis<GISelCSEAnalysisWrapperPass>().getCSEWrapper();
-	auto *CSEInfo = &Wrapper.get(TPC.getCSEConfig());
-
+	        MachineFunctionProperties::Property::FailedISel))
+	  return false;
+	assert(MF.getProperties().hasProperty(
+	           MachineFunctionProperties::Property::Legalized) &&
+	       "Expected a legalized function?");
+	auto *TPC = &getAnalysis<TargetPassConfig>();
 	const Function &F = MF.getFunction();
-	bool EnableOpt = MF.getTarget().getOptLevel() != CodeGenOpt::None
-			&& !skipFunction(F);
+	bool EnableOpt =
+	    MF.getTarget().getOptLevel() != CodeGenOptLevel::None && !skipFunction(F);
+
+	const HwtFpgaTargetSubtarget &ST = MF.getSubtarget<HwtFpgaTargetSubtarget>();
+	const auto *LI = ST.getLegalizerInfo();
+
 	GISelKnownBits *KB = &getAnalysis<GISelKnownBitsAnalysis>().get(MF);
 	MachineDominatorTree *MDT = &getAnalysis<MachineDominatorTree>();
-	const LegalizerInfo *LInfo = ((const HwtFpgaTargetSubtarget *)&MF.getSubtarget())->getLegalizerInfo();
-	HwtFpgaPreToNetlistCombinerInfo PCInfo(EnableOpt, F.hasOptSize(),
-			F.hasMinSize(), false, KB, MDT, LInfo);
-	Combiner C(PCInfo, &TPC);
+	GISelCSEAnalysisWrapper &Wrapper =
+	    getAnalysis<GISelCSEAnalysisWrapperPass>().getCSEWrapper();
+	auto *CSEInfo = &Wrapper.get(TPC->getCSEConfig());
 
-	return C.combineMachineInstrs(MF, CSEInfo);
+	CombinerInfo CInfo(/*AllowIllegalOps*/ true, /*ShouldLegalizeIllegal*/ false,
+	                   /*LegalizerInfo*/ nullptr, EnableOpt, F.hasOptSize(),
+	                   F.hasMinSize());
+	HwtFpgaPreToNetlistGICombinerImpl Impl(MF, CInfo, TPC, *KB, CSEInfo,
+	                                      RuleConfig, ST, MDT, LI);
+	return Impl.combineMachineInstrs();
 }
 
 char HwtFpgaPreToNetlistCombiner::ID = 0;

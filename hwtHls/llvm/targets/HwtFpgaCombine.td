@@ -9,14 +9,14 @@ def extract_const_propagation: GICombineRule<
   (defs root:$root),
   (match (wip_match_opcode HWTFPGA_EXTRACT):$root,
     [{ return Helper.hashOnlyConstUses(*${root}); }]),
-  (apply [{ return Helper.rewriteConstExtract(*${root}); }])
+  (apply [{ Helper.rewriteConstExtract(*${root}); }])
 >;
 
 def merge_values_const_propagation: GICombineRule<
   (defs root:$root),
   (match (wip_match_opcode HWTFPGA_MERGE_VALUES):$root,
     [{ return Helper.hashOnlyConstUses(*${root}); }]),
-  (apply [{ return Helper.rewriteConstMergeValues(*${root}); }])
+  (apply [{ Helper.rewriteConstMergeValues(*${root}); }])
 >;
 
 def trivial_copy_propagate_matchdata : GIDefMatchData<"bool">;
@@ -24,7 +24,7 @@ def trivial_copy_propagate: GICombineRule<
   (defs root:$root, trivial_copy_propagate_matchdata:$matchinfo),
   (match (wip_match_opcode HWTFPGA_MUX):$root,
     [{ return Helper.isTrivialRemovableCopy(*${root}, ${matchinfo}); }]),
-  (apply [{ return Helper.rewriteTrivialRemovableCopy(*${root}, ${matchinfo}); }])
+  (apply [{ Helper.rewriteTrivialRemovableCopy(*${root}, ${matchinfo}); }])
 >;
 
 // convert the G_CONSTANT instructions to CImm operands on all users
@@ -68,7 +68,7 @@ def g_constant_to_imm: GICombineRule<
             HWTFPGA_CLOAD,
             HWTFPGA_CSTORE,
             PseudoRET):$root, [{ return Helper.hasG_CONSTANTasUse(*${root}); }]),
-  (apply [{ return Helper.rewriteG_CONSTANTasUseAsCImm(*${root}); }])
+  (apply [{ Helper.rewriteG_CONSTANTasUseAsCImm(*${root}); }])
 >;
 
 // merge 2 instruction with successor if they have same use operands and
@@ -112,7 +112,7 @@ def trivial_instr_deduplication: GICombineRule<
 			HWTFPGA_CTLZ, HWTFPGA_CTTZ, HWTFPGA_CTPOP
 		):$root,
     [{ return Helper.matchTrivialInstrDuplication(*${root}); }]),
-  (apply [{ return Helper.rewriteTrivialInstrDuplication(*${root}); }])
+  (apply [{ Helper.rewriteTrivialInstrDuplication(*${root}); }])
 >;
 
 def undef_propagation: GICombineRule<
@@ -125,38 +125,38 @@ def const_and_eval: GICombineRule<
   (defs root:$root),
   (match (wip_match_opcode G_AND):$root,
     [{ return Helper.hashOnlyConstUses(*${root}); }]),
-  (apply [{ return Helper.rewriteConstBinOp(*${root}, [](const APInt & a, const APInt & b) { return a & b; }); }])
+  (apply [{ Helper.rewriteConstBinOp(*${root}, [](const APInt & a, const APInt & b) { return a & b; }); }])
 >;
 def const_or_eval: GICombineRule<
   (defs root:$root),
   (match (wip_match_opcode G_OR):$root,
     [{ return Helper.hashOnlyConstUses(*${root}); }]),
-  (apply [{ return Helper.rewriteConstBinOp(*${root}, [](const APInt & a, const APInt & b) { return a | b; }); }])
+  (apply [{ Helper.rewriteConstBinOp(*${root}, [](const APInt & a, const APInt & b) { return a | b; }); }])
 >;
 def const_xor_eval: GICombineRule<
   (defs root:$root),
   (match (wip_match_opcode G_XOR):$root,
     [{ return Helper.hashOnlyConstUses(*${root}); }]),
-  (apply [{ return Helper.rewriteConstBinOp(*${root}, [](const APInt & a, const APInt & b) { return a ^ b; }); }])
+  (apply [{ Helper.rewriteConstBinOp(*${root}, [](const APInt & a, const APInt & b) { return a ^ b; }); }])
 >;
 
 def const_sub_eval: GICombineRule<
   (defs root:$root),
   (match (wip_match_opcode G_SUB):$root,
     [{ return Helper.hashOnlyConstUses(*${root}); }]),
-  (apply [{ return Helper.rewriteConstBinOp(*${root}, [](const APInt & a, const APInt & b) { return a - b; }); }])
+  (apply [{ Helper.rewriteConstBinOp(*${root}, [](const APInt & a, const APInt & b) { return a - b; }); }])
 >;
 def const_add_eval: GICombineRule<
   (defs root:$root),
   (match (wip_match_opcode G_ADD):$root,
     [{ return Helper.hashOnlyConstUses(*${root}); }]),
-  (apply [{ return Helper.rewriteConstBinOp(*${root}, [](const APInt & a, const APInt & b) { return a + b; }); }])
+  (apply [{ Helper.rewriteConstBinOp(*${root}, [](const APInt & a, const APInt & b) { return a + b; }); }])
 >;
 def const_mul_eval: GICombineRule<
   (defs root:$root),
   (match (wip_match_opcode G_MUL):$root,
     [{ return Helper.hashOnlyConstUses(*${root}); }]),
-  (apply [{ return Helper.rewriteConstBinOp(*${root}, [](const APInt & a, const APInt & b) { return a * b; }); }])
+  (apply [{ Helper.rewriteConstBinOp(*${root}, [](const APInt & a, const APInt & b) { return a * b; }); }])
 >;
 
 // strip mux cases which can be evaluated immedietly
@@ -164,7 +164,7 @@ def const_mux_eval : GICombineRule<
   (defs root:$root),
   (match (wip_match_opcode HWTFPGA_MUX):$root,
     [{ return Helper.hasSomeConstConditions(*${root}); }]),
-  (apply [{ return Helper.rewriteConstCondMux(*${root}); }])
+  (apply [{ Helper.rewriteConstCondMux(*${root}); }])
 >;
 
 // convert cond ? 1:0 -> cond,
@@ -175,7 +175,7 @@ def const_val_mux_eval : GICombineRule<
   (defs root:$root, const_val_mux_eval_matchdata:$matchinfo),
   (match (wip_match_opcode HWTFPGA_MUX):$root,
     [{ return Helper.hasAll1AndAll0Values(*${root}, ${matchinfo}); }]),
-  (apply [{ return Helper.rewriteConstValMux(*${root}, ${matchinfo}); }])
+  (apply [{ Helper.rewriteConstValMux(*${root}, ${matchinfo}); }])
 >;
 
 
@@ -186,7 +186,7 @@ def const_val_mux_eval : GICombineRule<
 //   (defs root:$root),
 //   (match (wip_match_opcode HWTFPGA_SHL, HWTFPGA_ASHR, HWTFPGA_LSHR):$root,
 //     [{ return !${root}->getOperand(2).isReg(); }]),
-//   (apply [{ return Helper.rewriteConstShift(*${root}); }])
+//   (apply [{ Helper.rewriteConstShift(*${root}); }])
 // >;
 
 
@@ -196,7 +196,7 @@ def const_val_mux_eval : GICombineRule<
 //   (defs root:$root, mux_sink_directly_cond_driven_val_bits_matchdata:$matchinfo),
 //   (match (wip_match_opcode HWTFPGA_MUX):$root,
 //     [{ return Helper.matchMuxSinkDirectlyCondDrivenValBits(*${root}, ${matchinfo}); }]),
-//   (apply [{ return Helper.rewriteMuxSinkDirectlyCondDrivenValBits(*${root}, ${matchinfo}); }])
+//   (apply [{ Helper.rewriteMuxSinkDirectlyCondDrivenValBits(*${root}, ${matchinfo}); }])
 // >;
 
 // if mux values are HWTFPGA_MERGE_VALUES check if there are same bits in every value, if this is the case
@@ -214,7 +214,7 @@ def mux_trivial_const_propagation: GICombineRule<
   (defs root:$root, mux_trivial_const_propagation_matchdata:$matchinfo),
   (match (wip_match_opcode HWTFPGA_MUX):$root,
     [{ return Helper.matchMuxForConstPropagation(*${root}, ${matchinfo}); }]),
-  (apply [{ return Helper.rewriteMuxConstPropagation(*${root}, ${matchinfo}); }])
+  (apply [{ Helper.rewriteMuxConstPropagation(*${root}, ${matchinfo}); }])
 >;
 
 // remove cases from MUX which have same condition, keeping only the first appereance
@@ -223,7 +223,7 @@ def mux_duplicit_case_reduce: GICombineRule<
   (defs root:$root, mux_duplicit_case_reduce_matchdata:$matchinfo),
   (match (wip_match_opcode HWTFPGA_MUX):$root,
     [{ return Helper.matchMuxDuplicitCaseReduce(*${root}, ${matchinfo}); }]),
-  (apply [{ return Helper.rewriteMuxRmCases(*${root}, ${matchinfo}); }])
+  (apply [{ Helper.rewriteMuxRmCases(*${root}, ${matchinfo}); }])
 >;
 
 // remove cases from end which have same T and F value
@@ -232,7 +232,7 @@ def mux_redundant_case_reduce: GICombineRule<
   (defs root:$root, mux_redundant_case_reduce_matchdata:$matchinfo),
   (match (wip_match_opcode HWTFPGA_MUX):$root,
     [{ return Helper.matchMuxRedundantCase(*${root}, ${matchinfo}); }]),
-  (apply [{ return Helper.rewriteMuxRmCases(*${root}, ${matchinfo}); }])
+  (apply [{ Helper.rewriteMuxRmCases(*${root}, ${matchinfo}); }])
 >;
 
 def const_merge_values_matchdata : GIDefMatchData<"llvm::APInt">;
@@ -253,7 +253,7 @@ def and_or_sequence_reduce: GICombineRule<
             HWTFPGA_OR
 		):$root,
     [{ return Helper.matchAndOrSequenceReduce(*${root}, ${matchinfo}); }]),
-  (apply [{ return Helper.rewriteAndOrSequenceReduce(*${root}, ${matchinfo}); }])
+  (apply [{ Helper.rewriteAndOrSequenceReduce(*${root}, ${matchinfo}); }])
 >;
 
 
@@ -280,13 +280,13 @@ def const_eval_combines : GICombineGroup<[
 
 
 // perform all known combinations to simplify the code as much as possible before next step
-def HwtFpgaGenPreLegalizeGICombinerHelper: GICombinerHelper<
-  "HwtFpgaGenPreLegalizeGICombinerHelper", [
+def HwtFpgaPreLegalizerGICombiner: GICombiner<
+  "HwtFpgaPreLegalizerGICombinerImpl", [
   	// all_combines except commented out
-  	trivial_combines, //insert_vec_elt_combines,
-    //extract_vec_elt_combines, combines_for_extload,
-    combine_indexed_load_store, undef_combines, identity_combines, phi_combines,
-    simplify_add_to_sub, hoist_logic_op_with_same_opcode_hands,
+    trivial_combines, //insert_vec_elt_combines,
+    // extract_vec_elt_combines, combines_for_extload, combine_extracted_vector_load,
+    undef_combines, identity_combines, phi_combines, 
+    simplify_add_to_sub, hoist_logic_op_with_same_opcode_hands, shifts_too_big,
     reassocs, ptr_add_immed_chain,
     shl_ashr_to_sext_inreg, sext_inreg_of_load,
     width_reduction_combines, select_combines,
@@ -296,17 +296,15 @@ def HwtFpgaGenPreLegalizeGICombinerHelper: GICombinerHelper<
     unmerge_zext_to_zext, merge_unmerge, trunc_ext_fold, trunc_shift,
     const_combines, xor_of_and_with_same_reg, ptr_add_with_zero,
     shift_immed_chain, shift_of_shifted_logic_chain, load_or_combine,
-    truncstore_merge, div_rem_to_divrem, funnel_shift_combines,
-    form_bitfield_extract, constant_fold, fabs_fneg_fold,
+    div_rem_to_divrem, funnel_shift_combines, commute_shift,
+    form_bitfield_extract, constant_fold_binops, constant_fold_fma,
+    constant_fold_cast_op, fabs_fneg_fold,
     intdiv_combines, mulh_combines, redundant_neg_operands,
     and_or_disjoint_mask, fma_combines, fold_binop_into_select,
     sub_add_reg, select_to_minmax, redundant_binop_in_equality,
     // fsub_to_fneg,
     commute_constant_to_rhs
   ]> {
-  let DisableRuleOption = "HwtFpgaGenPreLegalizeGICombinerHelper-disable-rule";
-  let StateClass = "HwtFpgaGenPreLegalizeGICombinerHelperState";
-  let AdditionalArguments = [];
 }
 
 
@@ -317,12 +315,26 @@ def copy_to_HWTFPGA_mux : GICombineRule<
 	  	Helper.replaceOpcodeWith(*${mi}, HwtFpga::HWTFPGA_MUX);
   	}])>;
 
+def G_SELECT_to_HWTFPGA_MUX : GICombineRule<
+  (defs root:$mi),
+  (match (wip_match_opcode G_SELECT):$mi),
+  (apply [{
+	  	Helper.convertG_SELECT_to_HWTFPGA_MUX(*${mi});
+  	}])>;
+
+def PHI_to_HWTFPGA_MUX : GICombineRule<
+  (defs root:$mi),
+  (match (wip_match_opcode PHI):$mi),
+  (apply [{
+	  	Helper.convertPHI_to_HWTFPGA_MUX(*${mi});
+  	}])>;
+
 // Fold (x G_XOR allOnes) - > HWTFPGA_NOT x
 def xor_right_allOnes: GICombineRule<
   (defs root:$root),
   (match (wip_match_opcode G_XOR):$root,
     [{ return Helper.matchOperandIsAllOnes(*${root}, 2); }]),
-  (apply [{ return Helper.rewriteXorToNot(*${root}); }])
+  (apply [{ Helper.rewriteXorToNot(*${root}); }])
 >;
 
 // Fold (HWTFPGA_EXTRACT (HWTFPGA_MERGE_VALUES ...)) -> HWTFPGA_MERGE_VALUES of just selected parts
@@ -330,7 +342,7 @@ def extract_on_merge_values: GICombineRule<
   (defs root:$root),
   (match (wip_match_opcode HWTFPGA_EXTRACT):$root,
     [{ return Helper.matchIsExtractOnMergeValues(*${root}); }]),
-  (apply [{ return Helper.rewriteExtractOnMergeValues(*${root}); }])
+  (apply [{ Helper.rewriteExtractOnMergeValues(*${root}); }])
 >;
 
 // Fold (HWTFPGA_EXTRACT (HWTFPGA_SHL src, constShAmount), offset, width) -> HWTFPGA_EXTRACT src, constShAmount+offset, width
@@ -338,7 +350,7 @@ def extract_on_const_shift: GICombineRule<
   (defs root:$root),
   (match (wip_match_opcode HWTFPGA_EXTRACT):$root,
     [{ return Helper.matchIsExtractOnConstShift(*${root}); }]),
-  (apply [{ return Helper.rewriteExtractOnConstShift(*${root}); }])
+  (apply [{ Helper.rewriteExtractOnConstShift(*${root}); }])
 >;
 
 //
@@ -348,7 +360,7 @@ def mux_merge: GICombineRule<
   (defs root:$root, mux_merge_matchdata:$matchinfo),
   (match (wip_match_opcode HWTFPGA_MUX):$root,
     [{ return Helper.matchNestedMux(*${root}, ${matchinfo}); }]),
-  (apply [{ return Helper.rewriteNestedMuxToMux(*${root}, ${matchinfo}); }])
+  (apply [{ Helper.rewriteNestedMuxToMux(*${root}, ${matchinfo}); }])
 >;
 
 // (MUX  x, c, 0) -> (G_AND|HWTFPGA_AND x, (SEXT c))
@@ -385,8 +397,8 @@ def constCmpConstAdd_to_constCmp: GICombineRule<
 
 
 // rewrite generic opcodes to HWTFPGA_* where beneficial
-def HwtFpgaGenPreRegAllocGICombinerHelper: GICombinerHelper<
-  "HwtFpgaGenPreRegAllocGICombinerHelper", [
+def HwtFpgaPreRegAllocGICombiner: GICombiner<
+  "HwtFpgaPreRegAllocGICombinerImpl", [
   	copy_to_HWTFPGA_mux,
     extract_on_merge_values,
     extract_on_const_shift,
@@ -394,9 +406,6 @@ def HwtFpgaGenPreRegAllocGICombinerHelper: GICombinerHelper<
     trivial_copy_propagate,
     mux_trivial_const_propagation,
     ]> {
-  let DisableRuleOption = "HwtFpgaGenPreRegAllocGICombinerHelper-disable-rule";
-  let StateClass = "HwtFpgaGenPreRegAllocGICombinerHelperState";
-  let AdditionalArguments = [];
 }
 // rewrite all remaining generic opcodes to HWTFPGA_*
 def generic_opcode_to_hwtfpga : GICombineRule<
@@ -408,17 +417,17 @@ def generic_opcode_to_hwtfpga : GICombineRule<
   	 // while in llvm it is datawidth
   	 //G_SHL, G_LSHR, G_ASHR,
 	 //G_CTLZ_ZERO_UNDEF, G_CTTZ_ZERO_UNDEF,
-	 //G_CTLZ, G_CTTZ, G_CTPOP
+	 //G_CTLZ, G_CTTZ, G_CTPOP,
 	 ):$root),
-  (apply [{ Helper.genericOpcodeToHwtfpga(*${root}); }])
+  (apply [{ Helper.rewriteGenericOpcodeToHwtFpga(*${root}); }])
  >;
 
 // at this point all optimizations should be done and we only format the instructions form more simple conversion to netlist
 // * extract muxes to simplify thread detection
 // * extract HWTFPGA_NOT
 // * extract/merge bit concatenations and slices
-def HwtFpgaGenPreToNetlistGICombinerHelper: GICombinerHelper<
-  "HwtFpgaGenPreToNetlistGICombinerHelper", [
+def HwtFpgaPreToNetlistGICombiner: GICombiner<
+  "HwtFpgaPreToNetlistGICombinerImpl", [
     mux_mask_to_and_or_mask,
   	xor_right_allOnes,
   	extract_on_merge_values,
@@ -430,9 +439,8 @@ def HwtFpgaGenPreToNetlistGICombinerHelper: GICombinerHelper<
     constCmpConstAdd_to_constCmp,
     trivial_copy_propagate,
     generic_opcode_to_hwtfpga,
+    G_SELECT_to_HWTFPGA_MUX,
+    PHI_to_HWTFPGA_MUX,
     ]> {
-  let DisableRuleOption = "HwtFpgaGenPreToNetlistGICombinerHelper-disable-rule";
-  let StateClass = "HwtFpgaGenPreToNetlistGICombinerHelperState";
-  let AdditionalArguments = [];
 }
 

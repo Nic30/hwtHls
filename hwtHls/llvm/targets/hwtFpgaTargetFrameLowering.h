@@ -19,10 +19,6 @@ public:
 	bool hasFP(const llvm::MachineFunction &MF) const override {
 		return false;
 	}
-	virtual unsigned getStackAlignmentSkew(const MachineFunction &MF) const
-			override {
-		llvm_unreachable("HwtFpgaTarget does not use stack");
-	}
 	virtual bool isStackIdSafeForLocalArea(unsigned StackId) const override {
 		llvm_unreachable("HwtFpgaTarget does not use stack");
 	}

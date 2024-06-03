@@ -3,6 +3,7 @@
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
 #include <llvm/CodeGen/GlobalISel/GISelKnownBits.h>
 #include <llvm/ADT/STLExtras.h>
+#include <llvm/ADT/SmallSet.h>
 
 #include <hwtHls/llvm/targets/hwtFpgaInstrInfo.h>
 #include <hwtHls/llvm/targets/machineInstrUtils.h>
@@ -10,6 +11,52 @@
 #include <hwtHls/llvm/bitMath.h>
 
 namespace llvm {
+
+
+void copyOperand(MachineInstrBuilder &MIB, MachineRegisterInfo &MRI,
+		MachineFunction &MF, MachineOperand &MO) {
+	if (MO.isReg() && MO.isDef()) {
+		MIB.addDef(MO.getReg(), MO.getTargetFlags());
+		return;
+	} else if (MO.isReg() && MO.getReg() && MRI.hasOneDef(MO.getReg())) {
+		if (auto VRegVal = getAnyConstantVRegValWithLookThrough(MO.getReg(),
+				MRI)) {
+			auto &C = MF.getFunction().getContext();
+			auto *CI = ConstantInt::get(C, VRegVal->Value);
+			MIB.addCImm(CI);
+			return;
+		}
+	}
+	MIB.add(MO);
+}
+
+void HwtFpgaCombinerHelper::convertG_SELECT_to_HWTFPGA_MUX(MachineInstr &MI) {
+	// dst, cond, a, b -> dst, a, cond, b
+	MachineInstrBuilder MIB = Builder.buildInstr(HwtFpga::HWTFPGA_MUX);
+	MachineBasicBlock &MBB = *MI.getParent();
+	MachineFunction &MF = *MBB.getParent();
+	MachineRegisterInfo &MRI = MF.getRegInfo();
+	if (MI.getNumOperands() != 4) {
+		errs() << MI;
+		llvm_unreachable("NotImplemented");
+	}
+	copyOperand(MIB, MRI, MF, MI.getOperand(0)); // dst
+	copyOperand(MIB, MRI, MF, MI.getOperand(2)); // v0
+	copyOperand(MIB, MRI, MF, MI.getOperand(1)); // cond
+	copyOperand(MIB, MRI, MF, MI.getOperand(3)); // v1s
+}
+
+void HwtFpgaCombinerHelper::convertPHI_to_HWTFPGA_MUX(MachineInstr &MI) {
+	MachineInstrBuilder MIB = Builder.buildInstr(HwtFpga::HWTFPGA_MUX);
+	MachineBasicBlock &MBB = *MI.getParent();
+	MachineFunction &MF = *MBB.getParent();
+	MachineRegisterInfo &MRI = MF.getRegInfo();
+
+	for (auto MO : MI.operands()) {
+		copyOperand(MIB, MRI, MF, MO);
+	}
+}
+
 
 bool HwtFpgaCombinerHelper::hasSomeConstConditions(MachineInstr &MI) {
 	// dst, a, (cond, b)*
@@ -24,7 +71,7 @@ bool HwtFpgaCombinerHelper::hasSomeConstConditions(MachineInstr &MI) {
 	return false;
 }
 
-bool HwtFpgaCombinerHelper::rewriteConstCondMux(MachineInstr &MI) {
+void HwtFpgaCombinerHelper::rewriteConstCondMux(MachineInstr &MI) {
 	assert(MI.getOpcode() == HwtFpga::HWTFPGA_MUX);
 	auto opIt = MI.operands_begin();
 	Builder.setInstrAndDebugLoc(MI);
@@ -59,7 +106,6 @@ bool HwtFpgaCombinerHelper::rewriteConstCondMux(MachineInstr &MI) {
 	}
 	Observer.changedInstr(newMI);
 	MI.eraseFromParent();
-	return true;
 }
 
 bool checkAnyOperandRedefined(MachineInstr &MI, MachineInstr &MIEnd) {
@@ -209,7 +255,7 @@ bool HwtFpgaCombinerHelper::matchNestedMux(MachineInstr &MI,
 			}
 			KnownBits KnownNestedC = KB->getKnownBits(NestedCondO->getReg());
 			// c1 is always 1 if NestedCond is 1 (NestedCond implies c1)
-			Optional<bool> CanMergeOperands = KnownBits::uge(KnownC1,
+			std::optional<bool> CanMergeOperands = KnownBits::uge(KnownC1,
 					KnownNestedC);
 			bool mustAndWithParentCond = !CanMergeOperands.has_value()
 					|| !CanMergeOperands.value();
@@ -220,7 +266,7 @@ bool HwtFpgaCombinerHelper::matchNestedMux(MachineInstr &MI,
 	}
 }
 
-bool HwtFpgaCombinerHelper::rewriteNestedMuxToMux(MachineInstr &MI,
+void HwtFpgaCombinerHelper::rewriteNestedMuxToMux(MachineInstr &MI,
 		const SmallVector<bool> &requiresAndWithParentCond) {
 	assert(MI.getOpcode() == HwtFpga::HWTFPGA_MUX);
 	auto DstRegNo = MI.getOperand(0).getReg();
@@ -319,8 +365,6 @@ bool HwtFpgaCombinerHelper::rewriteNestedMuxToMux(MachineInstr &MI,
 		)
 		MI.eraseFromParent();
 	parentMI->eraseFromParent();
-
-	return true;
 }
 
 bool HwtFpgaCombinerHelper::hasAll1AndAll0Values(MachineInstr &MI,
@@ -409,7 +453,7 @@ bool HwtFpgaCombinerHelper::hasAll1AndAll0Values(MachineInstr &MI,
 	return false;
 }
 
-bool HwtFpgaCombinerHelper::rewriteConstValMux(MachineInstr &MI,
+void HwtFpgaCombinerHelper::rewriteConstValMux(MachineInstr &MI,
 		const hwtHls::CImmOrRegWithNegFlag &matchinfo) {
 	if (matchinfo.CImm) {
 		if (matchinfo.Negate) {
@@ -429,15 +473,13 @@ bool HwtFpgaCombinerHelper::rewriteConstValMux(MachineInstr &MI,
 						replaceInstWithConstant(MI, v_n.getCImm()->getValue());
 
 						MI.eraseFromParent();
-						return true;
+						return;
 					}
 				}
 			}
 		}
 		replaceSingleDefInstWithReg(MI, replacement);
 	}
-
-	return true;
 }
 
 bool HwtFpgaCombinerHelper::matchMuxMask(llvm::MachineInstr &MI,
@@ -511,7 +553,7 @@ bool HwtFpgaCombinerHelper::matchMuxDuplicitCaseReduce(llvm::MachineInstr &MI,
 	return !duplicitCaseConditions.empty();
 }
 
-bool HwtFpgaCombinerHelper::rewriteMuxRmCases(llvm::MachineInstr &MI,
+void HwtFpgaCombinerHelper::rewriteMuxRmCases(llvm::MachineInstr &MI,
 		const llvm::SmallVector<unsigned> &caseConditionsToRm) {
 	assert(MI.getOpcode() == HwtFpga::HWTFPGA_MUX);
 	Observer.changingInstr(MI);
@@ -520,7 +562,6 @@ bool HwtFpgaCombinerHelper::rewriteMuxRmCases(llvm::MachineInstr &MI,
 		MI.removeOperand(CondI - 1); // v
 	}
 	Observer.changedInstr(MI);
-	return true;
 }
 
 bool HwtFpgaCombinerHelper::matchMuxRedundantCase(llvm::MachineInstr &MI,

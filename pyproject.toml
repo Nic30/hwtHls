@@ -37,7 +37,7 @@ classifiers = [
   "Topic :: System :: Emulators",
   "Topic :: Utilities"
 ]
-requires-python = '==3.11.*' # python frontend works directly with bytecode 3.10 or 3.12 will not work
+requires-python = '==3.12.*' # python frontend works directly with bytecode 3.10 or 3.12 will not work
 dependencies  = [
   'hwtLib>=2.9', # primitive hardware components
   'scipy>=1.10.1', # interpolations and other complex math

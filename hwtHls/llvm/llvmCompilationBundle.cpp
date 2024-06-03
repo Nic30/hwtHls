@@ -148,7 +148,7 @@ LlvmCompilationBundle::LlvmCompilationBundle(const std::string &moduleName) :
 	TPC = nullptr;
 	auto RM = std::optional<llvm::Reloc::Model>();
 	TM = Target->createTargetMachine(TargetTriple, CPU, Features, opt, RM);
-	TM->setOptLevel(llvm::CodeGenOpt::Level::Aggressive);
+	TM->setOptLevel(llvm::CodeGenOptLevel::Aggressive);
 	PTO = llvm::PipelineTuningOptions();
 	llvm::LLVMTargetMachine &LLVMTM = static_cast<llvm::LLVMTargetMachine&>(*TM);
 	MMIWP = new llvm::MachineModuleInfoWrapperPass(&LLVMTM);
@@ -217,7 +217,7 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 	// PIC same as in llvm/toools/opt/NewPMDriver.cpp llvm::runPassPipeline()
 	llvm::StandardInstrumentations SI(ctx, DebugPM != DebugLogging::None,
 	                            VerifyEachPass, PrintPassOpts);
-	SI.registerCallbacks(PIC, &FAM);
+	SI.registerCallbacks(PIC, &MAM);
 	hwtHls::registerInstrumenationHwtHlsSkipPass(PIC);
 	_initPassBuilder();
 	PB->registerModuleAnalyses(MAM);
@@ -744,7 +744,7 @@ void LlvmCompilationBundle::_addMachineCodegenPasses(
 	// :note: we can not call pass explicitly after PM.run() because addRequired/getAnalysis will not work
 	TPC->toNetlistConversionFn = &toNetlistConversionFn;
 	if (TPC->hasLimitedCodeGenPipeline()) {
-		llvm::errs() << "run-pass cannot be used with " << TPC->getLimitedCodeGenPipelineReason(" and ") << ".\n";
+		llvm::errs() << "run-pass cannot be used with " << TPC->getLimitedCodeGenPipelineReason() << ".\n";
 		throw std::runtime_error("run-pass cannot be used with ...");
 	}
 	// PM.add(llvm::createCFGPrinterLegacyPassPass()); //llvm::CFGPrinterPass());

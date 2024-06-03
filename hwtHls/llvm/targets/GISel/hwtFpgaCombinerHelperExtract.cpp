@@ -29,7 +29,7 @@ void addSrcOperand(MachineInstrBuilder &MIB,
 	}
 }
 
-bool HwtFpgaCombinerHelper::rewriteExtractOnMergeValues(
+void HwtFpgaCombinerHelper::rewriteExtractOnMergeValues(
 		llvm::MachineInstr &MI) {
 	// MI.operands() == $dst $src $offset $dstWidth
 	std::vector<ConcatMember> concatMembers;
@@ -39,7 +39,7 @@ bool HwtFpgaCombinerHelper::rewriteExtractOnMergeValues(
 	bool didReduce = collectConcatMembers(MI.getOperand(0), concatMembers, 0,
 			mainWidth, currentOffset, 0, mainWidth);
 	if (!didReduce)
-		return false;
+		return;
 	assert(
 			concatMembers.size()
 					&& "There must be something which EXTRACT selects");
@@ -115,7 +115,6 @@ bool HwtFpgaCombinerHelper::rewriteExtractOnMergeValues(
 	}
 
 	MI.eraseFromParent();
-	return true;
 }
 
 bool HwtFpgaCombinerHelper::matchIsExtractOnConstShift(llvm::MachineInstr &MI) {
@@ -138,7 +137,7 @@ bool HwtFpgaCombinerHelper::matchIsExtractOnConstShift(llvm::MachineInstr &MI) {
 	return false;
 }
 
-bool HwtFpgaCombinerHelper::rewriteExtractOnConstShift(
+void HwtFpgaCombinerHelper::rewriteExtractOnConstShift(
 		llvm::MachineInstr &MI) {
 	auto *src = MRI.getOneDef(MI.getOperand(1).getReg());
 	MachineInstr *srcInstr = src->getParent();
@@ -171,7 +170,6 @@ bool HwtFpgaCombinerHelper::rewriteExtractOnConstShift(
 	};
 
 	MI.eraseFromParent();
-	return true;
 }
 
 }

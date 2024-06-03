@@ -50,10 +50,6 @@ struct SimplifyCFG2Options: public llvm::SimplifyCFGOptions {
 		return reinterpret_cast<SimplifyCFG2Options&>(SimplifyCFGOptions::setSimplifyCondBranch(
 				B));
 	}
-	SimplifyCFG2Options& setFoldTwoEntryPHINode(bool B) {
-		return reinterpret_cast<SimplifyCFG2Options&>(SimplifyCFGOptions::setFoldTwoEntryPHINode(
-				B));
-	}
 
 	SimplifyCFG2Options& setHoistCheapInsts(bool B) {
 		HoistCheapInsts = B;

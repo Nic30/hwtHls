@@ -50,7 +50,7 @@ public:
 	llvm::InstructionCost getInstructionCost(const llvm::User *U,
 			llvm::ArrayRef<const llvm::Value*> Operands, TTI::TargetCostKind CostKind);
 	unsigned getNumberOfRegisters(unsigned ClassID) const;
-	bool hasBranchDivergence();
+	bool hasBranchDivergence(const Function *F = nullptr);
 	bool isSourceOfDivergence(const llvm::Value *V);
 	void getUnrollingPreferences(llvm::Loop *, llvm::ScalarEvolution &,
 	                               llvm::TTI::UnrollingPreferences &,

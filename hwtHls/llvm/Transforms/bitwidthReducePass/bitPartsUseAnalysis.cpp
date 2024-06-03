@@ -38,7 +38,7 @@ void BitPartsUseAnalysisContext::updateUseMaskEntirelyUsed(
 		if (auto I2 = dyn_cast<Instruction>(op)) {
 			auto cur = constraints.find(I2);
 			if (cur != constraints.end()) {
-				APInt useAll = APInt::getAllOnesValue(
+				APInt useAll = APInt::getAllOnes(
 						cur->second.get()->useMask.getBitWidth());
 				updateUseMask(I2, *cur->second, useAll);
 			} else {

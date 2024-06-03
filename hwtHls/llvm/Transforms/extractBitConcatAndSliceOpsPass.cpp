@@ -53,8 +53,8 @@ static bool trySelectInstrToBitConcat(SelectInst *SI) {
 							// lastVarAsInt |= curVarAsInt << lastVarAsInt.width
 							OpsLowFirst.pop_back();
 							// concatenate integer constants
-							auto lastW = lastVarAsInt->getType()->getBitWidth();
-							auto curW = curVarAsInt->getType()->getBitWidth();
+							auto lastW = lastVarAsInt->getType()->getIntegerBitWidth();
+							auto curW = curVarAsInt->getType()->getIntegerBitWidth();
 							APInt newV = lastVarAsInt->getValue().zext(
 									lastW + curW);
 							newV |= curVarAsInt->getValue().zext(lastW + curW)

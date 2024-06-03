@@ -68,7 +68,6 @@ void register_LlvmCompilationBundle(pybind11::module_ &m) {
 				py::arg("HoistCommonInsts").noconvert() = false,
 				py::arg("SinkCommonInsts").noconvert() = false,
 				py::arg("SimplifyCondBranch").noconvert() = true,
-				py::arg("FoldTwoEntryPHINode").noconvert() = true,
 				py::arg("HoistCheapInsts").noconvert() = false,
 				py::return_value_policy::reference_internal)
 		.def("_testSlicesToIndependentVariablesPass", &hwtHls::LlvmCompilationBundle::_testSlicesToIndependentVariablesPass, py::return_value_policy::reference_internal)

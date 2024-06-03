@@ -49,7 +49,7 @@ llvm::Function& LlvmCompilationBundle::_runCustomFunctionPass(
 	// PIC same as in llvm/toools/opt/NewPMDriver.cpp llvm::runPassPipeline()
 	llvm::StandardInstrumentations SI(ctx, DebugPM != DebugLogging::None,
 			VerifyEachPass, PrintPassOpts);
-	SI.registerCallbacks(PIC, &FAM);
+	SI.registerCallbacks(PIC, &MAM);
 	_initPassBuilder();
 	PB->registerModuleAnalyses(MAM);
 	PB->registerCGSCCAnalyses(cgscc_manager);
@@ -77,7 +77,7 @@ void LlvmCompilationBundle::_testMachineFunctionPass(
 	// PIC same as in llvm/toools/opt/NewPMDriver.cpp llvm::runPassPipeline()
 	llvm::StandardInstrumentations SI(ctx, DebugPM != DebugLogging::None,
 			VerifyEachPass, PrintPassOpts);
-	SI.registerCallbacks(PIC, &FAM);
+	SI.registerCallbacks(PIC, &MAM);
 	_initPassBuilder();
 	PB->registerModuleAnalyses(MAM);
 	PB->registerCGSCCAnalyses(cgscc_manager);
@@ -92,7 +92,7 @@ void LlvmCompilationBundle::_testMachineFunctionPass(
 					PM));
 	if (TPC->hasLimitedCodeGenPipeline()) {
 		llvm::errs() << "run-pass cannot be used with "
-				<< TPC->getLimitedCodeGenPipelineReason(" and ") << ".\n";
+				<< TPC->getLimitedCodeGenPipelineReason() << ".\n";
 		throw std::runtime_error("run-pass cannot be used with ...");
 	}
 
@@ -117,7 +117,6 @@ llvm::Function& LlvmCompilationBundle::_testSimplifyCFG2Pass(
 		bool HoistCommonInsts,            //
 		bool SinkCommonInsts,             //
 		bool SimplifyCondBranch,          //
-		bool FoldTwoEntryPHINode,         //
 		bool HoistCheapInsts              //
 		) {
 	return _runCustomFunctionPass([
@@ -129,7 +128,6 @@ llvm::Function& LlvmCompilationBundle::_testSimplifyCFG2Pass(
 								    HoistCommonInsts,            //
 								    SinkCommonInsts,             //
 								    SimplifyCondBranch,          //
-								    FoldTwoEntryPHINode,         //
 								    HoistCheapInsts              //
 								   ](llvm::FunctionPassManager &FPM) {
 		FPM.addPass(hwtHls::SimplifyCFG2Pass(hwtHls::SimplifyCFG2Options()//
@@ -141,7 +139,6 @@ llvm::Function& LlvmCompilationBundle::_testSimplifyCFG2Pass(
 				.hoistCommonInsts(HoistCommonInsts)//
 				.sinkCommonInsts(SinkCommonInsts)//
 				.setSimplifyCondBranch(SimplifyCondBranch)//
-				.setFoldTwoEntryPHINode(FoldTwoEntryPHINode)//
 				.setHoistCheapInsts(HoistCheapInsts)
 		));
 	});

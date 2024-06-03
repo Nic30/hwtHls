@@ -82,7 +82,6 @@ public:
 			bool HoistCommonInsts,            //
 			bool SinkCommonInsts,             //
 			bool SimplifyCondBranch,          //
-			bool FoldTwoEntryPHINode,         //
 			bool HoistCheapInsts              //
 	);
 	llvm::Function& _testSlicesToIndependentVariablesPass();

@@ -6,24 +6,21 @@ namespace llvm {
 
 const size_t hwtFpgaRegBanksCnt = 1;
 uint32_t AnyRegBankMask = 1;
-//llvm::RegisterBank hwtFpgaRegBank0(0/*ID*/,
-//		"hwtFpgaReg" /* only for debugging purposes*/,
-//		1 << 16/*maximal size in bits that fits in this register bank.*/,
-//		(const uint32_t*) &hwtFpgaRegBanksCnt /*CoveredClasses*/,
-//		hwtFpgaRegBanksCnt);
-llvm::RegisterBank AnyRegBank(/* ID */0, /* Name */"anyregbank", /* Size in bits */1 << 16, /* CoveredRegClasses */
+llvm::RegisterBank AnyRegBank(/* ID */0, /* Name */"anyregbank", /* CoveredRegClasses */
 				&AnyRegBankMask, /* NumRegBanks */1);
-llvm::RegisterBank *hwtFpgaRegBanks[hwtFpgaRegBanksCnt] = {
+
+const llvm::RegisterBank *hwtFpgaRegBanks[hwtFpgaRegBanksCnt] = {
 		&AnyRegBank,
+};
+const unsigned hwtFpgaRegBankSizes[hwtFpgaRegBanksCnt] = {
+		1 << 16,
 };
 
 
 
 HwtFpgaRegisterBankInfo::HwtFpgaRegisterBankInfo() :
-		llvm::RegisterBankInfo(hwtFpgaRegBanks, hwtFpgaRegBanksCnt)
-//, ControlRegBank(/* ID */0, /* Name */
-//		"ControlReg", /* Size in bits */1 << 16, /* CoveredRegClasses */
-//		nullptr, /* NumRegClasses */0)
+		llvm::RegisterBankInfo(/* **RegBanks */ hwtFpgaRegBanks, /*NumRegBanks*/ hwtFpgaRegBanksCnt,
+                /* *Sizes */ hwtFpgaRegBankSizes, /*HwMode*/ 0)
 {
 }
 

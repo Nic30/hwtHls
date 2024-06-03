@@ -18,7 +18,7 @@
 #include <hwtHls/llvm/targets/hwtFpgaTargetInfo.h>
 #include <hwtHls/llvm/targets/hwtFpgaTargetSubtarget.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaPreLegalizerCombiner.h>
-#include <hwtHls/llvm/llvmSrc/CodeGenPrepare.h>
+#include <hwtHls/llvm/targets/Transforms/hwtHlsCodeGenPrepare.h>
 #include <hwtHls/llvm/targets/Transforms/EarlyMachineCopyPropagation.h>
 #include <hwtHls/llvm/targets/Transforms/hwtFpgaToNetlist.h>
 #include <hwtHls/llvm/targets/Transforms/vregIfConversion.h>
@@ -38,7 +38,7 @@ extern "C" void LLVMInitializeHwtFpgaTarget() {
 	llvm::initializeBranchRelaxationPass(PR);
 	llvm::initializeRegAllocFastPass(PR);
 	llvm::initializeHwtFpgaPreLegalizerCombinerPass(PR);
-	hwtHls::llvmSrc::initializeCodeGenPreparePass(PR);
+	hwtHls::initializeHwtHlsCodeGenPrepareLegacyPassPass(PR);
 	hwtHls::initializeHwtFpgaToNetlist(PR);
 	llvm::initializeEarlyMachineCopyPropagationPass(PR);
 	llvm::initializeVRegIfConverterPass(PR);
@@ -59,14 +59,14 @@ static std::string computeDataLayout(const Triple &TT) {
 }
 
 static Reloc::Model getEffectiveRelocModel(const Triple &TT,
-		Optional<Reloc::Model> RM) {
+		std::optional<Reloc::Model> RM) {
 	return Reloc::Static;
 }
 
 HwtFpgaTargetMachine::HwtFpgaTargetMachine(const Target &T,
 		const Triple &TT, StringRef CPU, StringRef TuneCPU,
-		const TargetOptions &Options, Optional<Reloc::Model> RM,
-		Optional<CodeModel::Model> CM, CodeGenOpt::Level OL, bool JIT) :
+		const TargetOptions &Options, std::optional<Reloc::Model> RM,
+		std::optional<CodeModel::Model> CM, CodeGenOptLevel OL, bool JIT) :
 		LLVMTargetMachine(T, computeDataLayout(TT), TT, CPU, TuneCPU, Options,
 				getEffectiveRelocModel(TT, RM), CodeModel::Large, OL), allowVolatileMemOpDuplication(false) {
 	AsmInfo.reset(new llvm::MCAsmInfo());

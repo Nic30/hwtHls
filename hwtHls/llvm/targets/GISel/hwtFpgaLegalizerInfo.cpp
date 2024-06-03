@@ -241,7 +241,7 @@ bool HwtFpgaLegalizerInfo::legalizeCustomShift(LegalizerHelper &Helper,
 
 
 bool HwtFpgaLegalizerInfo::legalizeCustom(LegalizerHelper &Helper,
-		MachineInstr &MI) const {
+		MachineInstr &MI, LostDebugLocObserver &LocObserver) const {
 
 	switch (MI.getOpcode()) {
 	case TargetOpcode::G_SHL:

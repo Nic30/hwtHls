@@ -2,6 +2,7 @@
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/utils.h>
 #include <llvm/ADT/SetVector.h>
 #include <list>
+#include <set>
 
 namespace hwtHls {
 

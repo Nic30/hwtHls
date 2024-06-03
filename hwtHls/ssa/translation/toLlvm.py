@@ -176,7 +176,7 @@ class ToLlvmIrTranslator():
 
     def _translatePtrType(self, hdlType: HdlType, addressSpace: int):
         if isinstance(hdlType, (HBits, HStruct)):
-            return Type.getIntNPtrTy(self.ctx, hdlType.bit_length(), addressSpace)
+            return Type.getPointerTo(self.ctx, addressSpace)
         else:
             raise NotImplementedError(hdlType)
 
@@ -291,7 +291,7 @@ class ToLlvmIrTranslator():
             if operator == HwtOps.NOT:
                 op0, = args
                 # op0 xor -1
-                mask = APInt.getAllOnesValue(resTy.bit_length())
+                mask = APInt.getAllOnes(resTy.bit_length())
                 return b.CreateXor(op0, ConstantInt.get(TypeToIntegerType(op0.getType()), mask), name)
 
             elif operator == HwtOps.MINUS_UNARY:

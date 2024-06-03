@@ -8,6 +8,9 @@
 #define LLVM_MUST_UNDEF_NDEBUG 1
 #endif
 
+
+#include <llvm/CodeGen/GlobalISel/GISelChangeObserver.h>
+#include <llvm/CodeGen/GlobalISel/LegalizerHelper.h>
 #include <llvm/CodeGen/GlobalISel/LegalizerInfo.h>
 #include <llvm/CodeGen/GlobalISel/GenericMachineInstrs.h>
 namespace llvm {
@@ -22,8 +25,8 @@ public:
 	HwtFpgaLegalizerInfo(const HwtFpgaTargetSubtarget &ST);
 	bool customLowerLoad(LegalizerHelper &Helper, GAnyLoad &LoadMI) const;
 	/// Called for instructions with the Custom LegalizationAction.
-	virtual bool legalizeCustom(LegalizerHelper &Helper, MachineInstr &MI) const
-			override;
+	virtual bool legalizeCustom(LegalizerHelper &Helper, MachineInstr &MI,
+			LostDebugLocObserver &LocObserver) const override;
 	// translate to HwtFpga equivalent, zext result to emulate llvm variant
 	bool legalizeCustomBitcount(LegalizerHelper &Helper, MachineInstr &MI) const;
 	// translate to HwtFpga equivalent, truncate shiftAmount operand to emulate llvm variant

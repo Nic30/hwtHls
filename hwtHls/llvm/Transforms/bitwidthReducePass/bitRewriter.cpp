@@ -52,7 +52,7 @@ llvm::Value* BitPartsRewriter::rewriteKnownBitRangeInfo(IRBuilder<> *Builder,
 						assert(constr != constraints.end());
 						const auto &useMask = constr->second->useMask;
 						auto noOfZerosInUseMaskBeforeThisSlice =
-								(~useMask.trunc(offset)).countPopulation();
+								(~useMask.trunc(offset)).popcount();
 						assert(offset >= noOfZerosInUseMaskBeforeThisSlice);
 						offset -= noOfZerosInUseMaskBeforeThisSlice;
 						src = repl->second;
@@ -86,7 +86,7 @@ llvm::Value* BitPartsRewriter::rewritePHINode(llvm::PHINode &I,
 			!vbc.useMask.isAllOnes()
 					&& "If this was the case it should not be required to rewrite this PHINode (only its incomming values)");
 	IRBuilder<> b(&I);
-	auto *newTy = b.getIntNTy(vbc.useMask.countPopulation());
+	auto *newTy = b.getIntNTy(vbc.useMask.popcount());
 	auto *res = b.CreatePHI(newTy, I.getNumOperands(), I.getName());
 	replacementCache[&I] = res;
 	return res;
@@ -275,7 +275,7 @@ llvm::Value* BitPartsRewriter::rewriteIfRequired(llvm::Value *V) {
 			// rewrite instructions which may have some bits reduced and are not bit concat/slice
 			if (auto *CI = dyn_cast<llvm::CmpInst>(I)) {
 				return rewriteCmpInst(*CI, vbc);
-			} else if (vbc.useMask.isAllOnesValue()) {
+			} else if (vbc.useMask.isAllOnes()) {
 				replacementCache[I] = I;
 				if (!isa<PHINode>(I)) {
 					// if it is PHINode it will be done later in rewritePHINodeArgsIfRequired
