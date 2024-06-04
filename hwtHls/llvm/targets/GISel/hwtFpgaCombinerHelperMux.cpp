@@ -40,10 +40,15 @@ void HwtFpgaCombinerHelper::convertG_SELECT_to_HWTFPGA_MUX(MachineInstr &MI) {
 		errs() << MI;
 		llvm_unreachable("NotImplemented");
 	}
+
+	Observer.changingInstr(*MIB.getInstr());
 	copyOperand(MIB, MRI, MF, MI.getOperand(0)); // dst
 	copyOperand(MIB, MRI, MF, MI.getOperand(2)); // v0
 	copyOperand(MIB, MRI, MF, MI.getOperand(1)); // cond
 	copyOperand(MIB, MRI, MF, MI.getOperand(3)); // v1s
+	Observer.changedInstr(*MIB.getInstr());
+
+	MI.eraseFromParent();
 }
 
 void HwtFpgaCombinerHelper::convertPHI_to_HWTFPGA_MUX(MachineInstr &MI) {
@@ -52,9 +57,13 @@ void HwtFpgaCombinerHelper::convertPHI_to_HWTFPGA_MUX(MachineInstr &MI) {
 	MachineFunction &MF = *MBB.getParent();
 	MachineRegisterInfo &MRI = MF.getRegInfo();
 
+	Observer.changingInstr(*MIB.getInstr());
 	for (auto MO : MI.operands()) {
 		copyOperand(MIB, MRI, MF, MO);
 	}
+	Observer.changedInstr(*MIB.getInstr());
+
+	MI.eraseFromParent();
 }
 
 
@@ -200,6 +209,8 @@ bool HwtFpgaCombinerHelper::matchNestedMux(MachineInstr &MI,
 			return false;
 		}
 	} else {
+		if (MRI.use_empty(DstRegNo))
+			return false;
 		otherUse = &*MRI.use_begin(DstRegNo);
 	}
 	MachineInstr *otherMI = otherUse->getParent();
