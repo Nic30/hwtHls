@@ -404,11 +404,12 @@ class HwtHlsNetlistToGraphwiz():
 class HlsNetlistPassDumpNodesDot(HlsNetlistPass):
 
     def __init__(self, outStreamGetter: OutputStreamGetter, expandAggregates: bool=True,
-                 addLegend:bool=True, showVoid:bool=True):
+                 addLegend:bool=True, showVoid:bool=True, showArchElementLinks:bool=False):
         self.outStreamGetter = outStreamGetter
         self.expandAggregates = expandAggregates
         self.addLegend = addLegend
         self.showVoid = showVoid
+        self.showArchElementLinks = showArchElementLinks
 
     def _getNodes(self, netlist: HlsNetlistCtx):
         if self.expandAggregates:
@@ -441,7 +442,9 @@ class HlsNetlistPassDumpNodesDot(HlsNetlistPass):
         name = netlist.label
         out, doClose = self.outStreamGetter(name)
         try:
-            toGraphwiz = HwtHlsNetlistToGraphwiz(name, self._getNodes(netlist), self.expandAggregates, self.addLegend)
+            toGraphwiz = HwtHlsNetlistToGraphwiz(
+                name, self._getNodes(netlist), self.expandAggregates, self.addLegend,
+                showArchElementLinks=self.showArchElementLinks)
             if not self.showVoid:
                 toGraphwiz._edgeFilterFn = self._edgeFilterVoid
             toGraphwiz.construct()
