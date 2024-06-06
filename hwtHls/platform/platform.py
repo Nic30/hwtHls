@@ -9,7 +9,7 @@ from hwtHls.architecture.transformation.archStructureSimplify import RtlArchPass
 from hwtHls.architecture.transformation.channelHandshakeCycleBreak import RtlArchPassChannelHandshakeCycleBreak
 from hwtHls.architecture.transformation.channelMerge import RtlArchPassChannelMerge
 from hwtHls.architecture.transformation.channelReduceSyncStrength import RtlArchPassChannelReduceSyncStrength
-from hwtHls.architecture.transformation.controlLogicMinimize import RtlNetlistPassControlLogicMinimize
+from hwtHls.architecture.transformation.controlLogicMinimize import HlsAndRtlNetlistPassControlLogicMinimize
 from hwtHls.architecture.transformation.ioPortPrivatization import RtlArchPassIoPortPrivatization
 from hwtHls.architecture.transformation.loopControlPrivatization import RtlArchPassLoopControlPrivatization
 from hwtHls.architecture.transformation.mergeTiedFsms import RtlArchPassMergeTiedFsms
@@ -362,10 +362,10 @@ class DefaultHlsPlatform(DummyPlatform):
             e: ArchElement
             e.rtlAllocSync()
 
-    def runRtlNetlistPasses(self, hls: "HlsScope", netlist: HlsNetlistCtx):
+    def runHlsAndRtlNetlistPasses(self, hls: "HlsScope", netlist: HlsNetlistCtx):
         DBG = self._debug.runDebugIfEnabled
         D = HlsDebugBundle
 
-        RtlNetlistPassControlLogicMinimize().runOnHlsNetlist(netlist)
+        HlsAndRtlNetlistPassControlLogicMinimize().runOnHlsNetlist(netlist)
         DBG(D.DBG_24_sync, (netlist,))
         DBG(D.DBG_25_regFileHierarchy, (netlist,))
