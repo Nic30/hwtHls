@@ -81,7 +81,8 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
                  ):
         super(HlsNetlistAnalysisPassMirToNetlistLowLevel, self).__init__()
         # :note: value of a block in block0 means that the control flow was passed to block0 from block
-        netlist = self.netlist = HlsNetlistCtx(hls.parentHwModule, hls.freq, tr.label, platform=hls.parentHwModule._target_platform)
+        netlist = self.netlist = HlsNetlistCtx(hls.parentHwModule, hls.freq, tr.label, namePrefix=hls.namePrefix,
+                                               platform=hls.parentHwModule._target_platform)
         self.builder = HlsNetlistBuilder(netlist)
         netlist._setBuilder(self.builder)
         self.valCache = MirToHwtHlsNetlistValueCache(netlist)
