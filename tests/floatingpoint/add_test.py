@@ -9,9 +9,9 @@ import sys
 from hwt.hdl.types.bits import HBits
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
 from hwt.hwIOs.utils import addClkRstn
-from hwt.simulator.simTestCase import SimTestCase
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
+from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline
 from hwtHls.scope import HlsScope
@@ -139,11 +139,12 @@ class IEEE754FpAdder_TC(SimTestCase):
 
 
 if __name__ == "__main__":
-    #from hwt.synth import to_rtl_str
-    #from hwtHls.platform.platform import HlsDebugBundle
-    #m = IEEE754FpAdder()
-    #
-    #print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    from hwt.synth import to_rtl_str
+    from hwtHls.platform.virtual import VirtualHlsPlatform
+    from hwtHls.platform.platform import HlsDebugBundle
+    m = IEEE754FpAdder()
+
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
 

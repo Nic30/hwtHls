@@ -16,6 +16,7 @@ from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
+from tests.frontend.pyBytecode.stmWhile import TRUE
 
 
 class BinToBcd(HwModule):
@@ -56,7 +57,7 @@ class BinToBcd(HwModule):
         DATA_WIDTH, BCD_DIGITS = \
         self.DATA_WIDTH, self.BCD_DIGITS
 
-        while BIT.from_py(1):
+        while TRUE:
             bcdp = [
                 hls.var(f"bcdp_{i:d}", HBits(4, signed=False))
                 for i in range(BCD_DIGITS)]

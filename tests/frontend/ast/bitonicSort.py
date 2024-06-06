@@ -4,12 +4,12 @@
 from hwt.constants import Time
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwParam import HwParam
+from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtLib.logic.bitonicSorter import BitonicSorter, BitonicSorterTC
-from hwt.pyUtils.typingFuture import override
 
 
 class BitonicSorterHLS(BitonicSorter):

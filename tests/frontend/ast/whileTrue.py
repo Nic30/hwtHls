@@ -20,7 +20,7 @@ class WhileTrueWriteCntr0(WhileTrueWrite):
         self.USE_PY_FRONTEND = HwParam(False)
 
     def hwImpl(self) -> None:
-        hls = HlsScope(self)
+        hls = HlsScope(self, namePrefix="")
         if self.USE_PY_FRONTEND:
             t = HlsThreadFromPy(hls, self._implPy, hls)
         else:
