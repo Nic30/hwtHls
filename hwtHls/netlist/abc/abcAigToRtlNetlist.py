@@ -12,6 +12,12 @@ class AbcAigToRtlNetlist():
     """
     :attention: original RtlSignal inputs must be store in data of each ABC primary input
     :note: PI stands for Primary Input
+    
+    
+    .. figure:: _static/abc_aig_patterns_basic.png
+    
+       Some of the AIG patterns which are translated back to its operand
+
     """
 
     def __init__(self, f: Abc_Frame_t, net: Abc_Ntk_t, aig: Abc_Aig_t, ioMap: Dict[str, RtlSignal]):
