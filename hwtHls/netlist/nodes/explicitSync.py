@@ -2,8 +2,9 @@ from typing import Union, Optional, Generator, Tuple
 
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.hdlType import HdlType
-from hwt.hwIOs.std import HwIORdVldSync, HwIODataRd, HwIODataVld
 from hwt.hwIO import HwIO
+from hwt.hwIOs.std import HwIORdVldSync, HwIODataRd, HwIODataVld
+from hwt.pyUtils.typingFuture import override
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.hdlTypeVoid import HVoidOrdering, HVoidData, \
     HdlType_isVoid
@@ -13,7 +14,6 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
     link_hls_nodes, HlsNetNodeOutLazy
 from hwtHls.netlist.scheduler.clk_math import epsilon
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
-from hwt.pyUtils.typingFuture import override
 
 
 IO_COMB_REALIZATION = OpRealizationMeta(outputWireDelay=epsilon)
