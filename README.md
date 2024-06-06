@@ -36,7 +36,7 @@ This is a big difference from hand crafted hardware, where it is assured, that y
     * Bytecode of any Python can be translated to hardware
        * Bytecode is symbolically executed and the code which does not depend on HW evaluated value is executed immediately.
          This means that the python runs as a preprocessors and it generates HW code.
-       * As this part translates bytecode to SSA the input syntax does not matter.
+       * As this part translates bytecode to SSA, the input syntax does not matter.
 
     * No exception handling, function calls must be explicitly marked to be translated to HW otherwise calls are evaluated compile time
     * Only static typing for HW code, limited use of iterators
@@ -53,15 +53,13 @@ This is a big difference from hand crafted hardware, where it is assured, that y
     * Operation chaining
     * FSM/dataflow fine-graded architecture extraction with different optimization strategies
      (extraction strategy specified as a sequence of transformations)
-
-  * Precise operation scheduling using target device timing characteristics (any Xilinx, Intel and others after benchmark)
+	* Target architecture aware (any Xilinx, Intel and others after benchmark)
 
   * Fine-graded HW resource optimizations
-    * SsaPassExtractPartDrivers - splits the slices to individual variables to exploit real dependencies, splits also bitwise operations and casts
-    * ConstantBitPropagationPass - recursively minimizes the number of bits used by variables
+    * SlicesToIndependentVariablesPass - splits the slices to individual variables to exploit real dependencies, splits also bitwise operations and casts
+    * BitwidthReducePass - recursively minimizes the number of bits used by variables
 
-
-  * Any loop type with special care for:
+  * Any loop type, with special care for:
     * Infinite top loops - with/without internal/external sync beeing involved
     * Loops where sync can be achieved only by data (no speculation, all inputs depends on every output)
     * Polyhedral, affine, unroll and other transformations
@@ -100,11 +98,12 @@ This is a big difference from hand crafted hardware, where it is assured, that y
 ## How it works?
 
 * see doc in `hwtHls/__init__.py`
+* for tutorial see examples and tests
 
 
 ### Installation
 
-Linux (Ubuntu 23.04):
+Linux (Ubuntu 24.04):
 ```
 apt install build-essential python3-dev python3-pip llvm-18-dev
 pip3 install -r https://raw.githubusercontent.com/Nic30/hwtHls/master/doc/requirements.txt # [optional]
