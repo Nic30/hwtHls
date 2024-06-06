@@ -117,6 +117,7 @@ callsUnwindInit: false
 hasEHCatchret:   false
 hasEHScopes:     false
 hasEHFunclets:   false
+isOutlined:      false
 debugInstrRef:   false
 failsVerification: false
 tracksDebugUserValues: false
@@ -151,6 +152,7 @@ frameInfo:
   restorePoint:    ''
 fixedStack:      []
 stack:           []
+entry_values:    []
 callSites:       []
 debugValueSubstitutions: []
 constants:       []
