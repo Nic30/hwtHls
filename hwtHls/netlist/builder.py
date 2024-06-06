@@ -3,12 +3,13 @@ from itertools import islice
 from typing import Tuple, Union, Dict, Optional, Type, Callable, Set, List
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
+from hwt.hdl.const import HConst
 from hwt.hdl.operatorDefs import HOperatorDef, HwtOps, CAST_OPS
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT, SLICE, INT
 from hwt.hdl.types.hdlType import HdlType
-from hwt.hdl.const import HConst
 from hwt.pyUtils.arrayQuery import grouper, balanced_reduce
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
@@ -23,7 +24,6 @@ from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.observableList import ObservableList
 from hwtHls.netlist.transformation.simplifyUtils import getConstOfOutput
-from hwt.pyUtils.setList import SetList
 
 
 class HlsNetlistBuilder():
@@ -488,15 +488,19 @@ class HlsNetlistBuilder():
         if isOp:
             self.registerOperatorNode(i.obj)
 
-    def replaceOutputWithConst1b(self, o: HlsNetNodeOut, updateCache: bool):
+    def replaceOutputWithConst1b(self, o: HlsNetNodeOut, updateCache: bool) -> HlsNetNodeOut:
         c = self.buildConstBit(1)
-        return self.replaceOutput(o, c, updateCache)
+        self.replaceOutput(o, c, updateCache)
+        return c
 
     def replaceOutput(self, o: HlsNetNodeOutAny, newO: HlsNetNodeOutAny, updateCache: bool):
         """
         Replace all uses of this output port.
         """
-        assert o._dtype == newO._dtype, (o, newO, o._dtype, newO._dtype)
+        oldTy = o._dtype
+        newTy = newO._dtype
+        assert oldTy == newO._dtype or (isinstance(oldTy, HBits) and
+                                    isinstance(newTy, HBits) and oldTy.bit_length() == newTy.bit_length()), (oldTy, newO._dtype)
         assert o is not newO, ("It is pointless to replace to the same", o)
         if isinstance(o, HlsNetNodeOut):
             _uses = o.obj.usedBy[o.out_i]
