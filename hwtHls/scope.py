@@ -3,17 +3,17 @@
 
 from typing import Union, List, Optional, Literal
 
+from hwt.constants import NOT_SPECIFIED
+from hwt.hdl.const import HConst
 from hwt.hdl.types.defs import  BIT
 from hwt.hdl.types.hdlType import HdlType
-from hwt.hdl.const import HConst
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
+from hwt.hwIOs.hwIOStruct import HwIO_to_HdlType, HwIOStruct
 from hwt.hwIOs.std import HwIODataRdVld, HwIOSignal, HwIORdVldSync, HwIODataVld, \
     HwIODataRd
-from hwt.hwIOs.hwIOStruct import HwIO_to_HdlType, HwIOStruct
-from hwt.constants import NOT_SPECIFIED
+from hwt.hwModule import HwModule
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwt.hwModule import HwModule
 from hwtHls.frontend.ast.statementsRead import HlsRead
 from hwtHls.frontend.ast.statementsWrite import HlsWrite
 from hwtHls.frontend.ast.thread import HlsThreadForSharedVar
@@ -25,6 +25,7 @@ from hwtHls.platform.platform import DefaultHlsPlatform
 from hwtHls.ssa.context import SsaContext
 from hwtHls.thread import HlsThread, HlsThreadDoesNotUseSsa
 from hwtLib.amba.axi_common import Axi_hs
+from ipCorePackager.constants import INTF_DIRECTION
 
 
 ANY_HLS_COMPATIBLE_IO = Union[HwIODataRdVld, HwIOStructRdVld,
@@ -199,4 +200,4 @@ class HlsScope():
             for callback in t.archNetlistCallbacks:
                 callback(self, t)
             p.runArchNetlistToRtlNetlist(self, t.toHw)
-            p.runRtlNetlistPasses(self, t.toHw)
+            p.runHlsAndRtlNetlistPasses(self, t.toHw)

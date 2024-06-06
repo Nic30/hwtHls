@@ -1,9 +1,9 @@
-from hwtHls.architecture.transformation.rtlNetlistPass import RtlNetlistPass
+from hwtHls.architecture.transformation.hlsAndRtlNetlistPass import HlsAndRtlNetlistPass
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.archElement import ArchElement
 
 
-class RtlNetlistPassAddSignalNamesToSync(RtlNetlistPass):
+class HlsAndRtlNetlistPassAddSignalNamesToSync(HlsAndRtlNetlistPass):
     """
     :see: :class:`hwtHls.netlist.context.HlsNetlistCtx`
     """
@@ -16,7 +16,7 @@ class RtlNetlistPassAddSignalNamesToSync(RtlNetlistPass):
             assert not elm._rtlSyncAllocated, elm
 
 
-class RtlNetlistPassAddSignalNamesToData(RtlNetlistPass):
+class HlsAndRtlNetlistPassAddSignalNamesToData(HlsAndRtlNetlistPass):
     """
     :see: :class:`hwtHls.netlist.context.HlsNetlistCtx`
     """

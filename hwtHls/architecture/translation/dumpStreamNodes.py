@@ -1,6 +1,6 @@
 
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage
-from hwtHls.architecture.transformation.rtlNetlistPass import RtlNetlistPass
+from hwtHls.architecture.transformation.hlsAndRtlNetlistPass import HlsAndRtlNetlistPass
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.archElementFsm import ArchElementFsm
@@ -9,7 +9,7 @@ from hwtHls.platform.fileUtils import OutputStreamGetter
 from hwtHls.netlist.nodes.archElementNoSync import ArchElementNoSync
 
 
-class RtlNetlistPassDumpStreamNodes(RtlNetlistPass):
+class HlsAndRtlNetlistPassDumpStreamNodes(HlsAndRtlNetlistPass):
     """
     Dump text representations of stream synchronization nodes in architecture for debugging purposes.
     """

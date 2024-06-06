@@ -11,10 +11,10 @@ from hwtHls.netlist.translation.dumpNodesTxt import HlsNetlistPassDumpNodesTxt
 from hwtHls.netlist.translation.dumpSyncDomainsDot import HlsNetlistPassDumpSyncDomainsDot
 from hwtHls.netlist.translation.dumpSchedulingJson import HlsNetlistPassDumpSchedulingJson
 from hwtHls.netlist.translation.betweenSyncIslandsToGraphwiz import HlsNetlistPassBetweenSyncIslandsToGraphwiz
-from hwtHls.architecture.transformation.addSyncSigNames import RtlNetlistPassAddSignalNamesToSync, \
-    RtlNetlistPassAddSignalNamesToData
+from hwtHls.architecture.transformation.addSyncSigNames import HlsAndRtlNetlistPassAddSignalNamesToSync, \
+    HlsAndRtlNetlistPassAddSignalNamesToData
 from hwtHls.architecture.translation.dumpArchDot import RtlArchPassDumpArchDot
-from hwtHls.architecture.translation.dumpStreamNodes import RtlNetlistPassDumpStreamNodes
+from hwtHls.architecture.translation.dumpStreamNodes import HlsAndRtlNetlistPassDumpStreamNodes
 from hwtHls.architecture.transformation.archElementsToSubunits import RtlArchPassTransplantArchElementsToSubunits
 from pathlib import Path
 from hwtHls.platform.fileUtils import outputFileGetter
@@ -66,15 +66,15 @@ class HlsDebugBundle():
     # arch gen
     DBG_20_netlistSyncIslandsTrace = (None, "20.netlistSyncIslandsTrace.txt")  # trace of sync islands simplifier
     DBG_20_netlistSyncIslands = (HlsNetlistPassBetweenSyncIslandsToGraphwiz, "20.netlistSyncIslands.dot")  # dump transitive enclosure of DBG_15_syncDomains
-    DBG_20_addSignalNamesToSync = (RtlNetlistPassAddSignalNamesToSync, None)  # signal names are directly in output RTL
-    DBG_20_addSignalNamesToData = (RtlNetlistPassAddSignalNamesToData, None)  # signal names are directly in output RTL
+    DBG_20_addSignalNamesToSync = (HlsAndRtlNetlistPassAddSignalNamesToSync, None)  # signal names are directly in output RTL
+    DBG_20_addSignalNamesToData = (HlsAndRtlNetlistPassAddSignalNamesToData, None)  # signal names are directly in output RTL
     DBG_21_finalHwschedule = (HlsNetlistPassDumpSchedulingJson, "21.final.hwschedule.json")  # node scheduling which will be used to generate circuit
     DBG_22_netlistChannelMergeTrace = (None, "22.netlistChannelMergeTrace.txt")  # trace of c
     DBG_22_handshakeSCCs = (RtlArchPassDumpHsSCCsDot, "22.hanshakeSCCs.dot")
     DBG_23_finalNetlist = (HlsNetlistPassDumpNodesDot, "22.final.netlist.dot")  # basic blocks disolved to netlist
     DBG_23_finalNetlistTxt = (HlsNetlistPassDumpNodesTxt, "22.final.netlist.txt")  # same as DBG_11_netlist just in txt
     DBG_23_arch = (RtlArchPassDumpArchDot, "22.arch.dot")  # relations between arch elements in whole generated architecutre
-    DBG_24_sync = (RtlNetlistPassDumpStreamNodes, "22.sync.txt")  # control expressions of IO, FSMs and pipelines
+    DBG_24_sync = (HlsAndRtlNetlistPassDumpStreamNodes, "22.sync.txt")  # control expressions of IO, FSMs and pipelines
     DBG_25_regFileHierarchy = (RtlArchPassTransplantArchElementsToSubunits, None)  # extract registers in pipeline stage or fsm to separate component
 
     ALL = None

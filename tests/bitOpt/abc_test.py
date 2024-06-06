@@ -3,7 +3,7 @@ import unittest
 
 from hwt.hdl.types.defs import BIT
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
-from hwtHls.architecture.transformation.controlLogicMinimize import RtlNetlistPassControlLogicMinimize
+from hwtHls.architecture.transformation.controlLogicMinimize import HlsAndRtlNetlistPassControlLogicMinimize
 from hwtHls.netlist.abc.abcAigToRtlNetlist import AbcAigToRtlNetlist
 from hwtHls.netlist.abc.optScripts import abcCmd_resyn2, abcCmd_compress2
 from hwtHls.netlist.abc.rtlNetlistToAbcAig import RtlNetlistToAbcAig
@@ -123,8 +123,8 @@ class AbcTC(unittest.TestCase):
 #            print("inp", oInput)
 #            print("opt", oOptimized)
 #            print("exp", oExpected)
-            RtlNetlistPassControlLogicMinimize._verifyAbcExprEquivalence(exampleExprInputs, oOptimized, oInput)
-            RtlNetlistPassControlLogicMinimize._verifyAbcExprEquivalence(exampleExprInputs, oInput, oExpected)
+            HlsAndRtlNetlistPassControlLogicMinimize._verifyAbcExprEquivalence(exampleExprInputs, oOptimized, oInput)
+            HlsAndRtlNetlistPassControlLogicMinimize._verifyAbcExprEquivalence(exampleExprInputs, oInput, oExpected)
 
         # for x in range(4):
         #     _a = 0b01 & x
@@ -444,7 +444,7 @@ class AbcTC(unittest.TestCase):
             _inputs = inputs
             if i == 2:
                 _inputs = [inputs[0], inputs[1], inputs[2]]
-            RtlNetlistPassControlLogicMinimize._verifyAbcExprEquivalence(inputs, oOptimized, oInput)
+            HlsAndRtlNetlistPassControlLogicMinimize._verifyAbcExprEquivalence(inputs, oOptimized, oInput)
 
         # test with fully defined values
         for inputVals in generateAllBitPermutations(5):

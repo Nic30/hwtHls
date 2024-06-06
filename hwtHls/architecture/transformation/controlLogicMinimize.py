@@ -15,7 +15,7 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.rtlLevel.exceptions import SignalDriverErr
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage
 from hwtHls.architecture.syncUtils import HwIO_getSyncTuple
-from hwtHls.architecture.transformation.rtlNetlistPass import RtlNetlistPass
+from hwtHls.architecture.transformation.hlsAndRtlNetlistPass import HlsAndRtlNetlistPass
 from hwtHls.netlist.abc.abcAigToRtlNetlist import AbcAigToRtlNetlist
 from hwtHls.netlist.abc.abcCpp import Abc_Frame_t, Abc_Ntk_t, Abc_Aig_t  # , Io_FileType_t
 from hwtHls.netlist.abc.optScripts import abcCmd_resyn2, abcCmd_compress2
@@ -24,7 +24,7 @@ from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.archElement import ArchElement
 
 
-class RtlNetlistPassControlLogicMinimize(RtlNetlistPass):
+class HlsAndRtlNetlistPassControlLogicMinimize(HlsAndRtlNetlistPass):
     """
     Run ABC logic optimizer on every branch condition, channel flag and every control signal in arch elements 
     
@@ -32,7 +32,7 @@ class RtlNetlistPassControlLogicMinimize(RtlNetlistPass):
     """
 
     def __init__(self, verifyExprEquivalence=False) -> None:
-        RtlNetlistPass.__init__(self)
+        HlsAndRtlNetlistPass.__init__(self)
         self.verifyExprEquivalence = verifyExprEquivalence
 
     @classmethod
