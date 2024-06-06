@@ -33,7 +33,7 @@ class SsaToGraphwiz():
 
         if code is not None:
             CopyBasicBlockLabelsToCode().visit(begin)
-            g.add_node(pydot.Node("code", shape="plaintext", fontname="monospace", label='"' + html.escape(repr(code)).replace("\n", "\\l\\\n") + '\l"'))
+            g.add_node(pydot.Node("code", shape="plaintext", fontname="monospace", label='"' + html.escape(repr(code)).replace("\n", "\\l\\\n") + '\\l"'))
 
     def _node_from_SsaBasicBlock(self, bb: SsaBasicBlock, is_start: bool):
         try:
