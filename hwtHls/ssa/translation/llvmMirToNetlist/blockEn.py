@@ -107,7 +107,7 @@ def _resolveBranchOutLabels(self: "HlsNetlistAnalysisPassMirToNetlist", mb: Mach
             assert anyPrevBranchEn is not None, "Must not request another branch after HWTFPGA_BR and others"
             anyPrevBranchEn = builder.buildOr(anyPrevBranchEn, brCond)
 
-    fallThroughDstBlock = mb.getFallThrough(True)
+    fallThroughDstBlock = mb.getFallThrough(False)
     if fallThroughDstBlock is not None:
         brCond = None  # because now it is default jump
         _brCond = _mergeBrachOutConditions(builder, mbEn, anyPrevBranchEn, brCond,  mb.getNumber(), fallThroughDstBlock.getNumber())
