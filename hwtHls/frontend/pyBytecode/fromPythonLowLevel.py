@@ -16,7 +16,7 @@ from hwtHls.frontend.pyBytecode.frame import PyBytecodeFrame, \
 from hwtHls.frontend.pyBytecode.fromPythonLowLevelOpcodes import PyBytecodeToSsaLowLevelOpcodes
 from hwtHls.frontend.pyBytecode.fromPythonPragma import _applyLoopPragma
 from hwtHls.frontend.pyBytecode.instructions import FOR_ITER, JUMP_OPS, \
-    RETURN_VALUE
+    RETURN_VALUE, RETURN_CONST
 from hwtHls.frontend.pyBytecode.loopMeta import BranchTargetPlaceholder, \
     LoopExitJumpInfo
 from hwtHls.frontend.pyBytecode.loopsDetect import PreprocLoopScope
@@ -302,7 +302,7 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
         """
         for last, instr in iter_with_last(instructions):
             opcode = instr.opcode
-            if opcode in JUMP_OPS or opcode in (RETURN_VALUE, FOR_ITER):
+            if opcode in JUMP_OPS or opcode in (RETURN_VALUE, RETURN_CONST, FOR_ITER):
                 assert last, instr
                 self._translateInstructionJumpHw(frame, curBlock, instr)
             else:

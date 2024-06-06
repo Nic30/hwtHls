@@ -4,7 +4,8 @@ from typing import Tuple, Dict
 
 from hwtHls.frontend.pyBytecode.instructions import \
     FOR_ITER, RAISE_VARARGS, RERAISE, \
-    RETURN_VALUE, JUMPS_NON_OPTIONAL, JUMPS_CONDITIONAL_ANY, EXTENDED_ARG
+    RETURN_VALUE, JUMPS_CONDITIONAL_ANY, EXTENDED_ARG,\
+    RETURN_CONST, JUMP_FORWARD, JUMP_BACKWARD, JUMP_BACKWARD_NO_INTERRUPT
 
 
 def extractBytecodeBlocks(instructions: Tuple[Instruction, ...]) -> Tuple[Dict[int, Tuple[Instruction, ...]], DiGraph]:
@@ -46,11 +47,13 @@ def extractBytecodeBlocks(instructions: Tuple[Instruction, ...]) -> Tuple[Dict[i
         
         # [todo] skip jump instruction’s CACHE entries when applying jump offset
         opc = instr.opcode
-        if opc in (RETURN_VALUE, RERAISE, RAISE_VARARGS):
+        if opc in (RETURN_VALUE, RETURN_CONST, RERAISE, RAISE_VARARGS):
             lastWasNonOptionalJump = True
             skipNonJumpTargets = True
 
-        elif opc in JUMPS_NON_OPTIONAL:
+        elif opc in (JUMP_FORWARD,
+                     JUMP_BACKWARD,
+                     JUMP_BACKWARD_NO_INTERRUPT):
             src = curBlock[0].offset
             dst = instr.argval
             cfg.add_edge(src, dst)

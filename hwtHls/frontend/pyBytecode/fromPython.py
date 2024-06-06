@@ -19,7 +19,7 @@ from hwtHls.frontend.pyBytecode.indexExpansion import expandBeforeUse
 from hwtHls.frontend.pyBytecode.instructions import JUMP_FORWARD, JUMP_BACKWARD, \
     RETURN_VALUE, RAISE_VARARGS, RERAISE, \
     JUMP_BACKWARD_NO_INTERRUPT, JUMP_OPS, FOR_ITER, POP_JUMP_IF_FALSE,\
-    POP_JUMP_IF_NOT_NONE, POP_JUMP_IF_NONE
+    POP_JUMP_IF_NOT_NONE, POP_JUMP_IF_NONE, RETURN_CONST, NULL
 from hwtHls.frontend.pyBytecode.loopMeta import PyBytecodeLoopInfo, \
     BranchTargetPlaceholder, LoopExitJumpInfo
 from hwtHls.frontend.pyBytecode.markers import PyBytecodePreprocDivergence, \
@@ -416,19 +416,34 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
     def _translateInctuctionJumpFOR_ITER(self, frame: PyBytecodeFrame,
                                     curBlock: SsaBasicBlock,
                                     forIter: Instruction):
+        """
+        STACK[-1] is an iterator. Call its __next__() method. If this yields a new value,
+        push it on the stack (leaving the iterator below it). If the iterator indicates it
+        is exhausted then the byte code counter is incremented by delta.
+        Changed in version 3.12: Up until 3.11 the iterator was popped when it was exhausted.
+        """
+        
         # preproc eval for loop
         curLoopInfo: PyBytecodeLoopInfo = frame.loopStack[-1]
         # curLoop = curLoopInfo.loop
         assert curLoopInfo.loop.entryPoint == self.blockToLabel[curBlock][-1], (curLoopInfo, curBlock)
         curLoopInfo.mustBeEvaluatedInPreproc = True
         a = frame.stack[-1]
-        bodyBlockOffset = forIter.offset + 2
         exitBlockOffset = forIter.argval
+        bodyBlockOffset = [o for o in frame.blockTracker.originalCfg[forIter.offset].keys() if o != exitBlockOffset]
+        assert len(bodyBlockOffset) == 1
+        bodyBlockOffset = bodyBlockOffset[0]
         try:
             v = next(a)
         except StopIteration:
             # assert curLoop.entryPoint == forIter.offset
             # create only branch placeholder to delegate processing of this jump from the loop to a _translateBlockBody on a loop header
+
+            # :attention: there may be issue with python doc, FOR_ITER is actually skipping END_FOR
+            # There we can not skip instruction because it would be impossible to lookup block by offset.
+            # Instead we add dummy NULL value on stack.
+            frame.stack.append(NULL)
+
             branchPlaceholder = BranchTargetPlaceholder.create(curBlock)
             lei = LoopExitJumpInfo(None, curBlock, None, None, exitBlockOffset, None, None, branchPlaceholder, frame)
             frame.markJumpFromBodyOfCurrentLoop(lei)
@@ -455,8 +470,11 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
             assert curBlock
             opcode = instr.opcode
 
-            if opcode == RETURN_VALUE or opcode == RAISE_VARARGS or opcode == RERAISE:
-                retVal = frame.stack.pop()
+            if opcode in (RETURN_VALUE, RETURN_CONST, RAISE_VARARGS, RERAISE):
+                if opcode == RETURN_CONST:
+                    retVal = instr.argval
+                else:
+                    retVal = frame.stack.pop()
                 frame.returnPoints.append((frame, curBlock, retVal))
                 self._onBlockGenerated(frame, self.blockToLabel[curBlock])
                 return
