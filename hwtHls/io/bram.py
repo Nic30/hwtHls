@@ -3,10 +3,11 @@ from typing import Union, Literal, List, Optional, Generator, Sequence
 
 from hwt.constants import NOT_SPECIFIED
 from hwt.constants import WRITE, READ
-from hwt.hwIOs.std import HwIOBramPort_noClk
 from hwt.hdl.const import HConst
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.hdlType import HdlType
+from hwt.hwIOs.std import HwIOBramPort_noClk
+from hwt.pyUtils.typingFuture import override
 from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.ast.statementsRead import HlsReadAddressed
@@ -33,7 +34,6 @@ from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import Machin
 from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
 from hwtHls.ssa.value import SsaValue
-from hwt.pyUtils.typingFuture import override
 
 
 AnyBramPort = Union[HwIOBramPort_noClk, BankedPortGroup[HwIOBramPort_noClk], MultiPortGroup[HwIOBramPort_noClk]]
@@ -114,7 +114,8 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
                 allocator.rtlAllocHlsNetNodeOutInTime(sync, t)
 
         ram: HwIOBramPort_noClk = self.dst
-        assert not isinstance(ram, (MultiPortGroup, BankedPortGroup)), (self, ram, "If this was an operation with a group of ports the individual ports should have already been assigned")
+        assert not isinstance(ram, (MultiPortGroup, BankedPortGroup)), (self, ram,
+            "If this was an operation with a group of ports the individual ports should have already been assigned")
         en = ram.en
         if en._sig._nop_val is NOT_SPECIFIED:
             en._sig._nop_val = en._sig._dtype.from_py(0)
