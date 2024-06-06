@@ -1,15 +1,15 @@
 from hwt.code import Concat
 from hwt.code_utils import rename_signal
+from hwt.hdl.const import HConst
 from hwt.hdl.operatorDefs import HOperatorDef, HwtOps
 from hwt.hdl.types.bits import HBits
-from hwt.hdl.const import HConst
+from hwt.pyUtils.typingFuture import override
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, \
     TimeIndependentRtlResourceItem, INVARIANT_TIME
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.typeUtils import dtypeEqualSignIgnore
-from hwt.pyUtils.typingFuture import override
 
 
 class HlsNetNodeOperator(HlsNetNode):
@@ -87,6 +87,7 @@ class HlsNetNodeOperator(HlsNetNode):
                     s._name = f"{allocator.name:s}{self.name:s}"
                 else:
                     s._name = f"{allocator.name:s}n{self._id:d}"
+                s.hasGenericName = False
 
                 if self.netlist._dbgAddSignalNamesToData and s.hidden:
                     # create an explicit rename of this potentially hidden signal
