@@ -3,8 +3,9 @@ from typing import List, Dict, Tuple, Union, Generator
 from hwt.code import If
 from hwt.code_utils import rename_signal
 from hwt.hdl.const import HConst
-from hwt.pyUtils.setList import SetList
 from hwt.hwIO import HwIO
+from hwt.pyUtils.setList import SetList
+from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage, \
     ConnectionsOfStageList
@@ -24,7 +25,6 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut, link_hls_nodes
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwt.pyUtils.typingFuture import override
 
 
 class ArchElementPipeline(ArchElement):
@@ -239,13 +239,19 @@ class ArchElementPipeline(ArchElement):
         assert self._rtlDatapathAllocated, self
         assert not self._rtlSyncAllocated, self
         self._beginClkI, self._endClkI = self.getBeginEndClkI()
-
-        for (pipeline_st_i, con) in enumerate(self.connections):
-            con: ConnectionsOfStage
-            if pipeline_st_i < self._beginClkI:
+        if self._beginClkI is None:
+            # completely empty element
+            assert self._endClkI is None, self
+            for (pipeline_st_i, con) in enumerate(self.connections):
+                con: ConnectionsOfStage
                 assert con.isUnused(), (self, pipeline_st_i, self._beginClkI, con)
-            else:
-                self.rtlAllocSyncForStage(con, pipeline_st_i)
+        else:
+            for (pipeline_st_i, con) in enumerate(self.connections):
+                con: ConnectionsOfStage
+                if pipeline_st_i < self._beginClkI:
+                    assert con.isUnused(), (self, pipeline_st_i, self._beginClkI, con)
+                else:
+                    self.rtlAllocSyncForStage(con, pipeline_st_i)
 
         self._rtlSyncAllocated = True
 
