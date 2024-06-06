@@ -45,3 +45,10 @@ def offsetInClockCycle(time: int, clkPeriod: int):
     assert time >= 0, time
     return time - (time // clkPeriod) * clkPeriod
 
+
+def timeUntilClkEnd(time: int, clkPeriod: int):
+    if time < 0:
+        raise NotImplementedError()
+    clkI = indexOfClkPeriod(time, clkPeriod)
+    return (clkI + 1) * clkPeriod - time
+
