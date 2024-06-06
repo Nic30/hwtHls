@@ -1,10 +1,11 @@
 from typing import Union, Literal, List, Optional, Tuple, Generator, Self
 
-from hwt.hdl.types.hdlType import HdlType
-from hwt.hdl.const import HConst
-from hwt.pyUtils.setList import SetList
-from hwt.hwIO import HwIO
 from hwt.constants import NOT_SPECIFIED
+from hwt.hdl.const import HConst
+from hwt.hdl.types.hdlType import HdlType
+from hwt.hwIO import HwIO
+from hwt.pyUtils.setList import SetList
+from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStageList
 from hwtHls.architecture.timeIndependentRtlResource import INVARIANT_TIME
@@ -16,7 +17,6 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.scheduler.clk_math import offsetInClockCycle
-from hwt.pyUtils.typingFuture import override
 
 
 class ArchElementNoSync(ArchElement):

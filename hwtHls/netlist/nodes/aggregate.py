@@ -4,6 +4,7 @@ from typing import List, Optional, Tuple, Generator, Set, Deque
 
 from hwt.hdl.types.hdlType import HdlType
 from hwt.pyUtils.setList import SetList
+from hwt.pyUtils.typingFuture import override
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
@@ -13,7 +14,6 @@ from hwtHls.netlist.nodes.schedulableNode import SchedulizationDict, OutputTimeG
 from hwtHls.netlist.scheduler.clk_math import offsetInClockCycle, \
     indexOfClkPeriod
 from hwtHls.platform.opRealizationMeta import EMPTY_OP_REALIZATION
-from hwt.pyUtils.typingFuture import override
 
 
 class HlsNetNodeAggregatePortIn(HlsNetNode):

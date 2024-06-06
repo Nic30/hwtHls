@@ -1,15 +1,17 @@
+from copy import copy
 from typing import List, Set, Tuple, Union, Dict, Generator
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.code import SwitchLogic, Switch, If
 from hwt.code_utils import rename_signal
+from hwt.hdl.const import HConst
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsConst import HBitsConst
-from hwt.hdl.const import HConst
+from hwt.hwIO import HwIO
 from hwt.math import log2ceil
 from hwt.pyUtils.setList import SetList
-from hwt.hwIO import HwIO
+from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.connectionsOfStage import \
     setNopValIfNotSet, ConnectionsOfStage, ConnectionsOfStageList
@@ -34,10 +36,8 @@ from hwtHls.netlist.nodes.read import  HlsNetNodeRead
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import start_clk, indexOfClkPeriod
-from hwt.pyUtils.typingFuture import override
 from hwtLib.logic.rtlSignalBuilder import RtlSignalBuilder
 from ipCorePackager.constants import INTF_DIRECTION
-from copy import copy
 
 
 class ArchElementFsm(ArchElement):
