@@ -76,7 +76,9 @@ void register_IRBuilder(pybind11::module_ & m) {
 		.def("SetInsertPoint", [](llvm::IRBuilder<> * self, llvm::BasicBlock * bb) {
 			self->SetInsertPoint(bb);
 		})
-		.def("CreateZExt", &llvm::IRBuilder<>::CreateZExt, py::return_value_policy::reference)
+		.def("CreateZExt", &llvm::IRBuilder<>::CreateZExt,
+				py::arg("V"), py::arg("DestTy"), py::arg("Name")=llvm::Twine(""), py::arg("IsNonNeg")=false,
+				py::return_value_policy::reference)
 		.def("CreateSExt", &llvm::IRBuilder<>::CreateSExt, py::return_value_policy::reference)
 		.def("CreateSelect", &llvm::IRBuilder<>::CreateSelect, py::return_value_policy::reference)
 		.def("CreateTrunc", &llvm::IRBuilder<>::CreateTrunc, py::return_value_policy::reference)
