@@ -3,8 +3,9 @@ from itertools import chain
 from math import ceil
 from typing import Union, Optional, Set, Callable
 
-from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.hwModule import HwModule
+from hwt.pyUtils.typingFuture import override
+from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
 from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
@@ -14,7 +15,6 @@ from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.observableList import ObservableList, ObservableListRm
 from hwtHls.netlist.scheduler.scheduler import HlsScheduler
 from hwtHls.ssa.analysisCache import AnalysisCache
-from hwt.pyUtils.typingFuture import override
 
 
 class HlsNetlistCtx(AnalysisCache):
@@ -42,7 +42,7 @@ class HlsNetlistCtx(AnalysisCache):
     def __init__(self, parentHwModule: HwModule,
                  freq: Union[float, int],
                  label: str,
-                 namePrefix:str="hls_",
+                 namePrefix:str="",
                  schedulerResolution:float=0.01e-9,
                  platform: Optional["VirtualHlsPlatform"]=None):
         """

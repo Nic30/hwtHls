@@ -50,12 +50,13 @@ class HlsScope():
     """
 
     def __init__(self, parentHwModule: HwModule,
-                 freq: Optional[Union[int, float]]=None):
+                 freq: Optional[Union[int, float]]=None,
+                 namePrefix:str="hls_"):
         """
-        :note: ssaPasses, hlsNetlistPasses, rtlNetlistPasses parameters are meant as an override to specification from target platform
         :param freq: override of the clock frequency, if None the frequency of clock associated with parent is used
         """
         self.parentHwModule = parentHwModule
+        self.namePrefix = namePrefix
         self._private_hwIOs = parentHwModule._private_hwIOs if parentHwModule else []
         if freq is None:
             freq = parentHwModule.clk.FREQ
@@ -92,7 +93,7 @@ class HlsScope():
         return t
 
     @hlsLowLevel
-    def read(self, src: ANY_HLS_COMPATIBLE_IO, blocking:bool=True):
+    def read(self, src: ANY_HLS_COMPATIBLE_IO, blocking:bool=True) -> HlsRead:
         """
         Create a read statement for simple interfaces.
         """
@@ -137,10 +138,11 @@ class HlsScope():
         else:
             raise NotImplementedError(src)
 
+        assert _src._direction != INTF_DIRECTION.SLAVE, (_src, "Can not read from output")
         return HlsRead(self, _src, dtype, blocking)
 
     @hlsLowLevel
-    def write(self, src: Union[HlsRead, bytes, int, HConst], dst: ANY_HLS_COMPATIBLE_IO):
+    def write(self, src: Union[HlsRead, bytes, int, HConst], dst: ANY_HLS_COMPATIBLE_IO) -> HlsWrite:
         """
         Create a write statement for simple interfaces.
         """
@@ -164,6 +166,7 @@ class HlsScope():
             assert isinstance(mem, IoProxyAddressed), (dst, mem)
             return mem.WRITE_CLS(mem, self, src, mem.interface, dst.index, mem.wWordT)
         else:
+            assert dst._direction != INTF_DIRECTION.MASTER, (dst, "Can not write to input")
             return HlsWrite(self, src, dst, dtype)
 
     def addThread(self, t: HlsThread) -> HlsThread:

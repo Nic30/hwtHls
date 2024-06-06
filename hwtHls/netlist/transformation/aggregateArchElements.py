@@ -1,6 +1,7 @@
 from typing import Set, List
 
 from hwt.pyUtils.setList import SetList
+from hwt.pyUtils.typingFuture import override
 from hwtHls.netlist.analysis.detectFsms import HlsNetlistAnalysisPassDetectFsms, \
     IoFsm
 from hwtHls.netlist.analysis.detectPipelines import HlsNetlistAnalysisPassDetectPipelines, \
@@ -14,7 +15,6 @@ from hwtHls.netlist.nodes.archElementFsm import ArchElementFsm
 from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
-from hwt.pyUtils.typingFuture import override
 
 
 class HlsNetlistPassAggregateArchElements(HlsNetlistPass):
@@ -49,7 +49,7 @@ class HlsNetlistPassAggregateArchElements(HlsNetlistPass):
         Query HlsNetlistAnalysisPassDiscoverFsm and HlsNetlistAnalysisPassDiscoverPipelines to search ArchElement instances
         in current HlsNetlist.
         """
-        namePrefix: str = "hls_"
+        namePrefix: str = netlist.namePrefix
         fsms: HlsNetlistAnalysisPassDetectFsms = netlist.getAnalysis(HlsNetlistAnalysisPassDetectFsms)
         pipelines: HlsNetlistAnalysisPassDetectPipelines = netlist.getAnalysis(HlsNetlistAnalysisPassDetectPipelines)
         onlySingleElem = (len(fsms.fsms) + len(pipelines.pipelines)) == 1

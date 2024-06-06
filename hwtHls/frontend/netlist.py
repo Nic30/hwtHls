@@ -25,7 +25,7 @@ class HlsThreadFromNetlist(HlsThread):
     
     def compileToNetlist(self, platform:DefaultHlsPlatform):
         hls = self.hls
-        netlist = self.toHw = HlsNetlistCtx(hls.parentHwModule, hls.freq, self.getLabel())
+        netlist = self.toHw = HlsNetlistCtx(hls.parentHwModule, hls.freq, self.getLabel(), namePrefix=self.hls.namePrefix)
         self.builder = HlsNetlistBuilder(netlist)
         netlist._setBuilder(self.builder)
         self.netlistConstructor(netlist)
