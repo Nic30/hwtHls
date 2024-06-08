@@ -22,7 +22,7 @@ def _countLeadingRecurse(dataIn: RtlSignalBase[HBits], bitValToCount: int):
     """
     Construct a balanced tree for counter of leading 0/1
 
-    :atterntion: result is not final result, it is only for 0 to width-1 values
+    :attention: result is not final result, it is only for 0 to width-1 values
 
     """
     assert bitValToCount in (0, 1), bitValToCount
@@ -54,7 +54,7 @@ def _countLeadingRecurse(dataIn: RtlSignalBase[HBits], bitValToCount: int):
 @hlsBytecode
 def _countTailingRecurse(dataIn: RtlSignalBase[HBits], bitValToCount: int):
     """
-    Verison of :func:`~._countLeadingRecurse` which counts from the back of the vector (upper bits first)
+    Version of :func:`~._countLeadingRecurse` which counts from the back of the vector (upper bits first)
     """
     assert bitValToCount in (0, 1), bitValToCount
     inWidth = dataIn._dtype.bit_length()
@@ -165,7 +165,7 @@ class CountTailingOnes(CountLeadingZeros):
 
 if __name__ == "__main__":
     from hwt.synth import to_rtl_str
-    from hwtHls.platform.virtual import VirtualHlsPlatform
+    # from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.platform import HlsDebugBundle
     from hwtHls.platform.xilinx.artix7 import Artix7Fast
     import sys
