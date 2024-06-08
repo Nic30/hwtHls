@@ -4,19 +4,19 @@ from hwt.pyUtils.setList import SetList
 from hwtHls.architecture.analysis.channelGraph import HlsArchAnalysisPassChannelGraph, \
     ArchSyncNodeIoDict, ArchSyncNodeTy
 from hwtHls.architecture.analysis.hlsArchAnalysisPass import HlsArchAnalysisPass
+from hwtHls.netlist.nodes.archElementFsm import ArchElementFsm
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeWriteAnyChannel, \
     HlsNetNodeReadAnyChannel
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.netlist.nodes.archElementFsm import ArchElementFsm
 
 
 class ArchSyncNodeStallingMeta():
     """
     Object of this class represents an information about stalling of :see:`ArchSyncNodeTy`.
     
-    :note: If the inputCanStall=True it means that the input to this node may stall, thus valid rtl signal is required.
+    :note: If the inputCanStall=True it means that the input to this node may stall, thus valid RTL signal is required.
         inputCanStall and outputCanStall are separate flags because we need the direction of stalling
         so we can later resolve if we should use ready/valid RTL signal.
     """
