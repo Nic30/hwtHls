@@ -15,9 +15,9 @@ SyncOfInterface = Union[HwIODataRdVld, HwIORdVldSync, Axi_hs, ValidReadyTuple]
 
 
 def HwIO_getSync(
-            hwIO: Union[HwIORdVldSync, HwIORdSync, HwIOVldSync, RtlSignalBase, HwIOSignal, SyncOfInterface]
+            hwIO: Union[HwIORdVldSync, Axi_hs, HwIORdSync, HwIOVldSync, RtlSignalBase, HwIOSignal, SyncOfInterface]
             ) -> SyncOfInterface:
-    if isinstance(hwIO, (HwIODataRdVld, HwIORdVldSync, Axi_hs)):
+    if isinstance(hwIO, (HwIORdVldSync, Axi_hs)):
         return hwIO
     else:
         return HwIO_getSyncTuple(hwIO)
