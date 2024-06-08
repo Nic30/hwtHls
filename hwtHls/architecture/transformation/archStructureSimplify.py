@@ -10,6 +10,13 @@ from hwtHls.netlist.nodes.archElementUtils import ArchElement_merge
 from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge, \
     HlsNetNodeWriteForwardedge
 from hwt.pyUtils.typingFuture import override
+from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregatePortIn, \
+    HlsNetNodeAggregatePortOut
+from hwtHls.netlist.nodes.const import HlsNetNodeConst
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut, unlink_hls_nodes
+from hdlConvertorAst.to.hdlUtils import iter_with_last
+from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
+from hwtHls.netlist.builder import HlsNetlistBuilder
 
 
 class RtlArchPassArchStructureSimplfy(RtlArchPass):
@@ -84,6 +91,42 @@ class RtlArchPassArchStructureSimplfy(RtlArchPass):
                     return False
         return True
 
+    def _tryRemoveElementIfEmpty(self, archElm: ArchElement):
+        for n in archElm._subNodes:
+            if not isinstance(n, (HlsNetNodeAggregatePortIn, HlsNetNodeAggregatePortOut, HlsNetNodeConst)):
+                return False
+        clkPeriod = archElm.netlist.normalizedClkPeriod
+        builder: HlsNetlistBuilder = archElm.netlist.builder
+        for o, oi in zip(archElm._outputs, archElm._outputsInside):
+            o: HlsNetNodeOut
+            oi: HlsNetNodeAggregatePortOut
+            src = oi.dependsOn[0]
+            while isinstance(src.obj, HlsNetNodeAggregatePortIn):
+                raise NotImplementedError()
+            if isinstance(src.obj, HlsNetNodeConst):
+                srcUsers = src.obj.usedBy[src.out_i]
+                for last, u in iter_with_last(archElm.usedBy[o.out_i]):
+                    userElm: ArchElement = u.obj
+                    assert userElm is not archElm, u
+                    if last and len(srcUsers) == 1:
+                        unlink_hls_nodes(src, srcUsers[0]) # [todo] src may not be the direct driver of u
+                        # move constant nodes between arch elements
+                        if src.obj.scheduledIn is not None:
+                            clkI = indexOfClkPeriod(src.obj.scheduledZero, clkPeriod)
+                            userElm._addNodeIntoScheduled(clkI, src.obj)
+                        else:
+                            userElm._subNodes.append(src.obj)
+
+                        builder.replaceOutput(userElm._inputsInside[u.in_i]._outputs[0], src, False)
+                        userElm._removeInput(u.in_i)
+                    else:
+                        # duplicate constant in user ArchElement
+                        raise NotImplementedError(archElm, u, src)
+
+        for i, dep in zip(archElm._inputs, archElm.dependsOn):
+            unlink_hls_nodes(dep, i)
+        return True
+
     @override
     def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
         if len(netlist.nodes) <= 1:
@@ -91,15 +134,20 @@ class RtlArchPassArchStructureSimplfy(RtlArchPass):
         archElmPredecessors, archElmSuccessors = self.findSuccessorsPredecessors(netlist.nodes)
         removed: Set[ArchElement] = set()
         for archElm in netlist.nodes:
+            archElm: ArchElement
             if archElm in removed:
+                continue
+
+            if self._tryRemoveElementIfEmpty(archElm):
+                removed.add(archElm)
                 continue
 
             if isinstance(archElm, ArchElementFsm):
                 for suc in archElmSuccessors[archElm]:
                     if suc is archElm:
                         continue
-                    #pipelinePath = []
-                    #if self.isPipelineEndingInElm(archElmPredecessors, archElmSuccessors, suc, archElm, pipelinePath):
+                    # pipelinePath = []
+                    # if self.isPipelineEndingInElm(archElmPredecessors, archElmSuccessors, suc, archElm, pipelinePath):
                     #    raise NotImplementedError()
 
                     # [todo] move all nodes from this clock cycle to predecessor to have element crossing on clock boundary
@@ -119,7 +167,7 @@ class RtlArchPassArchStructureSimplfy(RtlArchPass):
                         # but we modifying it during the iteration so we used a copy of values
                         # which may not be up to date
                         continue
-                    
+
                     if isinstance(suc, ArchElementPipeline):
                         if self.shouldMergePipelineToPipeline(suc, archElm):
                             ArchElement_merge(suc, archElm, archElmPredecessors, archElmSuccessors)
