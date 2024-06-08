@@ -43,8 +43,8 @@ def archElmEdgeSortKey(archElmChannelKeyValue: Tuple[Tuple[ArchElement, int, Arc
     return (elmIndex[srcElm], srcClkI, elmIndex[dstElm], dstClkI)
 
 
-RE_MATCH_REG_TO_BB = re.compile("^bb(\d+)_to_bb(\d+)(_r\d+)((_src)|(_in)|(_out)|(_dst))?$")
-RE_MATCH_REG = re.compile("^_r(\d+)$")
+RE_MATCH_REG_TO_BB = re.compile(r"^bb(\d+)_to_bb(\d+)(_r\d+)((_src)|(_in)|(_out)|(_dst))?$")
+RE_MATCH_REG = re.compile(r"^_r(\d+)$")
 
 
 class RtlArchPassChannelMerge(RtlArchPass):
