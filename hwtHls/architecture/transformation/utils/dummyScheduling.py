@@ -26,6 +26,7 @@ def scheduleUnscheduledControlLogic(syncNode: ArchSyncNodeTy, out: HlsNetNodeOut
     """
     Apply default scheduling for newly generated nodes.
     """
+    assert out is not None
     elm, clkI = syncNode
     clkPeriod = elm.netlist.normalizedClkPeriod
     beginOfFirstClk = clkI * clkPeriod
