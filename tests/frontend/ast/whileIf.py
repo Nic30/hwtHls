@@ -96,7 +96,7 @@ class WhileAndIf2(WhileTrueReadWrite):
 
     def hwImpl(self) -> None:
         dout = self.dataOut
-        hls = HlsScope(self)
+        hls = HlsScope(self, namePrefix="")
         x = hls.var("x", HBits(self.DATA_WIDTH, signed=False))
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
@@ -120,7 +120,7 @@ class WhileAndIf3(WhileTrueReadWrite):
 
     def hwImpl(self) -> None:
         dout = self.dataOut
-        hls = HlsScope(self)
+        hls = HlsScope(self, namePrefix="")
         x = hls.var("x", HBits(self.DATA_WIDTH, signed=False))
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
@@ -147,7 +147,7 @@ class WhileAndIf4(WhileTrueReadWrite):
 
     def hwImpl(self) -> None:
         dout = self.dataOut
-        hls = HlsScope(self)
+        hls = HlsScope(self, namePrefix="")
         x = hls.var("x", HBits(self.DATA_WIDTH, signed=False))
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,

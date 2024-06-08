@@ -28,7 +28,7 @@ class WriteOnce(HwModule):
 
     @override
     def hwImpl(self) -> None:
-        hls = HlsScope(self)
+        hls = HlsScope(self, namePrefix="")
         hls.addThread(HlsThreadFromAst(hls,
             hls.write(1, self.dataOut),
             self._name)
@@ -46,7 +46,7 @@ class ReadWriteOnce0(WriteOnce):
 
     @override
     def hwImpl(self) -> None:
-        hls = HlsScope(self)
+        hls = HlsScope(self, namePrefix="")
         hls.addThread(HlsThreadFromAst(hls,
             hls.write(hls.read(self.dataIn).data, self.dataOut),
             self._name)
@@ -101,7 +101,7 @@ class WhileTrueWrite(HwModule):
     @override
     def hwImpl(self) -> None:
         dout = self.dataOut
-        hls = HlsScope(self)
+        hls = HlsScope(self, namePrefix="")
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
             ast.While(True,
@@ -122,7 +122,7 @@ class WhileTrueReadWrite(WhileTrueWrite):
 
     @override
     def hwImpl(self) -> None:
-        hls = HlsScope(self)
+        hls = HlsScope(self, namePrefix="")
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
             ast.While(True,
@@ -137,7 +137,7 @@ class WhileTrueReadWriteExpr(WhileTrueReadWrite):
 
     @override
     def hwImpl(self) -> None:
-        hls = HlsScope(self)
+        hls = HlsScope(self, namePrefix="")
         ast = HlsAstBuilder(hls)
         hls.addThread(HlsThreadFromAst(hls,
             ast.While(True,
