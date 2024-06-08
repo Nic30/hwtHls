@@ -33,7 +33,7 @@ from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr
 from hwtHls.ssa.phi import SsaPhi
 from hwtHls.ssa.transformation.ssaPass import SsaPass
-from hwtHls.ssa.transformation.utils.blockAnalysis import collect_all_blocks
+from hwtHls.ssa.analysis.blockUtils import collect_all_blocks
 from hwtHls.ssa.value import SsaValue
 from hwt.pyUtils.typingFuture import override
 from hwtLib.amba.axi4Lite import Axi4Lite

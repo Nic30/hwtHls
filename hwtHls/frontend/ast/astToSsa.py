@@ -29,7 +29,7 @@ from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.context import SsaContext
 from hwtHls.ssa.exprBuilder import SsaExprBuilder
 from hwtHls.ssa.instr import SsaInstr, SsaInstrBranch
-from hwtHls.ssa.transformation.utils.blockAnalysis import collect_all_blocks
+from hwtHls.ssa.analysis.blockUtils import collect_all_blocks
 from hwtHls.ssa.value import SsaValue
 from hwt.pyUtils.typingFuture import override
 
