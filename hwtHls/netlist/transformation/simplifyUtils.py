@@ -1,16 +1,17 @@
 from itertools import islice
 from typing import Set, Optional, Tuple
 
-from hwt.hdl.operatorDefs import HOperatorDef, HwtOps
 from hwt.hdl.const import HConst
+from hwt.hdl.operatorDefs import HOperatorDef, HwtOps
+from hwt.hdl.types.bits import HBits
 from hwt.pyUtils.setList import SetList
+from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregatePortIn
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn, \
     unlink_hls_nodes, link_hls_nodes, HlsNetNodeOutAny
-from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregatePortIn
 
 
 def getConstDriverOf(inputObj: Optional[HlsNetNodeIn]) -> Optional[HConst]:
@@ -59,7 +60,10 @@ def replaceOperatorNodeWith(n: HlsNetNodeOperator, newO: HlsNetNodeOut,
     assert len(n.usedBy) == 1 or all(not uses for uses in islice(n.usedBy, 1, None)), (
         n, "implemented only for single output nodes or nodes with only first output used")
     assert newO.obj not in removed, newO
-    assert n._outputs[0]._dtype == newO._dtype, (n._outputs[0]._dtype, newO._dtype)
+    oldTy = n._outputs[0]._dtype
+    newTy = newO._dtype
+    assert oldTy == newO._dtype or (isinstance(oldTy, HBits) and
+                                    isinstance(newTy, HBits) and oldTy.bit_length() == newTy.bit_length()), (oldTy, newO._dtype)
     builder: "HlsNetlistBuilder" = n.netlist.builder
     addAllUsersToWorklist(worklist, n)
 
