@@ -4,10 +4,10 @@ from pydot import Dot, Node, Edge
 from typing import Optional, Dict, List, Tuple, Union
 
 from hwt.hwIO import HwIO
-from hwt.mainBases import HwIOBase
-from hwt.synthesizer.interfaceLevel.hwModuleImplHelpers import HwIO_getName
-from hwt.mainBases import RtlSignalBase
 from hwt.hwModule import HwModule
+from hwt.mainBases import HwIOBase
+from hwt.mainBases import RtlSignalBase
+from hwt.synthesizer.interfaceLevel.hwModuleImplHelpers import HwIO_getName
 from hwtHls.architecture.analysis.handshakeSCCs import ArchSyncNodeTy
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage, IORecord
 from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
@@ -15,6 +15,7 @@ from hwtHls.netlist.analysis.nodeParentAggregate import HlsNetlistAnalysisPassNo
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.archElementFsm import ArchElementFsm
+from hwtHls.netlist.nodes.archElementNoSync import ArchElementNoSync
 from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge, \
     BACKEDGE_ALLOCATION_TYPE, HlsNetNodeReadBackedge
@@ -30,7 +31,7 @@ from hwtHls.netlist.translation.dumpNodesDot import COLOR_INPUT_READ, \
 from hwtHls.platform.fileUtils import OutputStreamGetter
 from hwtLib.handshaked.streamNode import ValidReadyTuple
 from ipCorePackager.constants import DIRECTION
-from hwtHls.netlist.nodes.archElementNoSync import ArchElementNoSync
+
 
 ArchElmentEdge = Tuple[ArchElement, int, ArchElement, int]
 
@@ -444,16 +445,24 @@ class RtlArchToGraphwiz():
         # construct connections aggregated in interElementCon
         archElmToNode = self.archElementToNode
         attrsEmpty = {}
+        attrsEmptyBack = {"constraint": False}
         attrsSpecialColor = {"color": COLOR_SPECIAL_PURPOSE}
+        attrsSpecialColorBack = {**attrsSpecialColor, **attrsEmptyBack}
 
         for (srcElm, srcClkI), dsts in interElementCon.items():
             for (dstElm, dstClkI), members in dsts.items():
                 hasSpecialSyncMeaning = isinstance(srcElm, ArchElementNoSync) or isinstance(dstElm, ArchElementNoSync)
                 if hasSpecialSyncMeaning:
                     # tableStyle = f'bgcolor="{COLOR_SPECIAL_PURPOSE:s}"'
-                    edgeAtts = attrsSpecialColor
+                    if srcClkI > dstClkI:
+                        edgeAtts = attrsSpecialColorBack
+                    else:
+                        edgeAtts = attrsSpecialColor
                 else:
-                    edgeAtts = attrsEmpty
+                    if srcClkI > dstClkI:
+                        edgeAtts = attrsEmptyBack
+                    else:
+                        edgeAtts = attrsEmpty
                 n = self._getNodeForInterElementConnections(srcElm, srcClkI, dstElm, dstClkI, members)
                 src = archElmToNode[srcElm]
                 dst = archElmToNode[dstElm]
