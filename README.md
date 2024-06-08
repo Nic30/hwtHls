@@ -178,7 +178,7 @@ source venv/bin/activate # modifies current shell to use previously generate pyt
 * [PipelineC](https://github.com/JulianKemmerer/PipelineC) - 2018, Python, c -> hdl for a limited subset of c
 * [pluto](https://github.com/bondhugula/pluto) -  An automatic polyhedral parallelizer and locality optimizer
 * [ROCCC](https://github.com/nxt4hll/roccc-2.0), http://roccc.cs.ucr.edu/ - 2009-2013, C++/LLVM/suif c -> vhdl
-* [ScaleHLS](https://github.com/hanchenye/scalehls) - C++/LLVM, MLIR based HLS compiler, ML focused
+* [ScaleHLS](https://github.com/hanchenye/scalehls), [ScaleHLS-HIDA](https://github.com/UIUC-ChenLab/ScaleHLS-HIDA) - C++/LLVM, MLIR based HLS compiler, ML focused
 * [Slice](https://github.com/sylefeb/Silice)
 * [spatial](https://github.com/stanford-ppl/spatial)  - , scala
 * [TCE](https://github.com/cpc/tce)- C++/LLVM, environment for development of application specific processors
