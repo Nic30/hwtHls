@@ -32,7 +32,7 @@ public:
 		if (dumpFn)
 			F.dump();
 		if (cfgDumpFileName.has_value()) {
-			writeCFGToDotFile(F, cfgDumpFileName.value(), nullptr, nullptr);
+			writeCFGToDotFile(F, cfgDumpFileName.value(), AM);
 		}
 		if (verify) {
 			if(llvm::verifyModule(*F.getParent(), &llvm::dbgs())) {

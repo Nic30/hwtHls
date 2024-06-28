@@ -12,16 +12,19 @@ namespace hwtHls {
 // based on llvm/Analysis/CFGPrinter.cpp
 void writeCFGToDotFile(Function &F, const std::string &Filename,
 		llvm::FunctionAnalysisManager &FAM, bool debugMsgs, bool CFGOnly) {
-	//auto *BFI = &FAM.getResult<BlockFrequencyAnalysis>(F);
-	//auto *BPI = &FAM.getResult<BranchProbabilityAnalysis>(F);
-	BlockFrequencyInfo *BFI = nullptr;
-	BranchProbabilityInfo *BPI = nullptr;
+	auto *BFI = &FAM.getResult<BlockFrequencyAnalysis>(F);
+	auto *BPI = &FAM.getResult<BranchProbabilityAnalysis>(F);
+	//BlockFrequencyInfo *BFI = nullptr;
+	//BranchProbabilityInfo *BPI = nullptr;
 	writeCFGToDotFile(F, Filename, BFI, BPI, debugMsgs, CFGOnly);
 }
 
 void writeCFGToDotFile(Function &F, const std::string &Filename,
 		BlockFrequencyInfo *BFI, BranchProbabilityInfo *BPI, bool debugMsgs,
 		bool CFGOnly) {
+	// for loop passes use flags of to provide these createFunctionToLoopPassAdaptor
+	assert(BFI && "required after llvm-16");
+	assert(BPI && "required after llvm-16");
 	if (debugMsgs)
 		errs() << "Writing '" << Filename << "'...";
 
