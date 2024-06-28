@@ -4,8 +4,8 @@ from pathlib import Path
 from types import FunctionType
 from typing import Optional, List, Tuple
 
-from hwt.hdl.types.defs import BIT
 from hwt.hdl.const import HConst
+from hwt.hdl.types.defs import BIT
 from hwt.hwIO import HwIO
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.errors import HlsSyntaxError
@@ -18,19 +18,20 @@ from hwtHls.frontend.pyBytecode.fromPythonLowLevel import PyBytecodeToSsaLowLeve
 from hwtHls.frontend.pyBytecode.indexExpansion import expandBeforeUse
 from hwtHls.frontend.pyBytecode.instructions import JUMP_FORWARD, JUMP_BACKWARD, \
     RETURN_VALUE, RAISE_VARARGS, RERAISE, \
-    JUMP_BACKWARD_NO_INTERRUPT, JUMP_OPS, FOR_ITER, POP_JUMP_IF_FALSE,\
+    JUMP_BACKWARD_NO_INTERRUPT, JUMP_OPS, FOR_ITER, POP_JUMP_IF_FALSE, \
     POP_JUMP_IF_NOT_NONE, POP_JUMP_IF_NONE, RETURN_CONST, NULL
 from hwtHls.frontend.pyBytecode.loopMeta import PyBytecodeLoopInfo, \
     BranchTargetPlaceholder, LoopExitJumpInfo
 from hwtHls.frontend.pyBytecode.markers import PyBytecodePreprocDivergence, \
     PyBytecodeInPreproc
 from hwtHls.frontend.pyBytecode.utils import isLastJumpFromBlock, blockHasBranchPlaceholder
-from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.value import SsaValue
 
 
 # [TODO] support for debugger
+#    _PyMonitoring_RegisterCallback, PY_MONITORING_SYS_TRACE_ID, sys.settrace is used by pydev and others
+#    https://github.com/JetBrains/intellij-community/blob/master/python/helpers/pydev/pydevd_tracing.py#L155
 #    https://stackoverflow.com/questions/32486204/debugging-python-bytecode-when-source-is-not-available
 #    https://github.com/Kuree/hgdb
 #    https://github.com/bet4it/gdbserver
