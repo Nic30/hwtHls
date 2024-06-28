@@ -12,11 +12,11 @@
 #include <llvm/Transforms/Utils/UnrollLoop.h>
 #include <llvm/Transforms/Utils/LoopSimplify.h>
 #include <llvm/Transforms/Scalar/LoopUnrollPass.h>
+#include <hwtHls/llvm/bitMath.h>
+#include <hwtHls/llvm/targets/intrinsic/streamIo.h>
 #include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamIoInstrCollector.h>
 #include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamIoCfgDetector.h>
-#include <hwtHls/llvm/Transforms/streamLoopUnrollPass/streamLoopInfo.h>
-#include <hwtHls/llvm/targets/intrinsic/streamIo.h>
-#include <hwtHls/llvm/bitMath.h>
+#include <hwtHls/llvm/Transforms/utils/loopHwtHlsMetadata.h>
 
 #define DEBUG_TYPE "StreamLoopUnroll"
 // #undef LLVM_DEBUG
