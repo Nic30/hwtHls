@@ -1,4 +1,5 @@
-#include <hwtHls/llvm/Transforms/streamLoopUnrollPass/streamLoopInfo.h>
+#include <hwtHls/llvm/Transforms/utils/loopHwtHlsMetadata.h>
+
 #include <llvm/IR/Constants.h>
 
 using namespace llvm;
@@ -14,9 +15,8 @@ llvm::MDNode* Loop_getHwtHlsLoopID(const llvm::Loop &L) {
 	for (BasicBlock *BB : LatchesBlocks) {
 		Instruction *TI = BB->getTerminator();
 		MDNode *MD = TI->getMetadata("hwthls.loop");
-
 		if (!MD)
-			return nullptr;
+			return nullptr; // all latches are required to have same loop ID, this means that there is none
 
 		if (!LoopID)
 			LoopID = MD;
@@ -27,6 +27,17 @@ llvm::MDNode* Loop_getHwtHlsLoopID(const llvm::Loop &L) {
 			|| LoopID->getOperand(0) != LoopID)
 		return nullptr;
 	return LoopID;
+}
+/*
+ * :param LoopID: new LoopID or nullptr to delete the current one
+ * */
+void Loop_setHwtHlsLoopID(const llvm::Loop &L, MDNode *LoopID) {
+	SmallVector<BasicBlock*, 4> LatchesBlocks;
+	L.getLoopLatches(LatchesBlocks);
+	for (BasicBlock *BB : LatchesBlocks) {
+		Instruction *TI = BB->getTerminator();
+		TI->setMetadata("hwthls.loop", LoopID);
+	}
 }
 
 // based on llvm::findOptionMDForLoop

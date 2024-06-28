@@ -4,10 +4,14 @@
 #include <llvm/IR/Metadata.h>
 
 namespace hwtHls {
+
 llvm::MDNode* Loop_getHwtHlsLoopID(const llvm::Loop &L);
-llvm::MDNode* findOptionMDForHwtHlsLoop(const llvm::Loop *TheLoop, llvm::StringRef Name);
+void Loop_setHwtHlsLoopID(const llvm::Loop &L, llvm::MDNode *LoopID);
+llvm::MDNode* findOptionMDForHwtHlsLoop(const llvm::Loop *TheLoop,
+		llvm::StringRef Name);
 std::optional<const llvm::MDOperand*> findStringMetadataForHwtHlsLoop(
 		const llvm::Loop *TheLoop, llvm::StringRef Name);
 std::optional<int> getOptionalIntHwtHlsLoopAttribute(const llvm::Loop *TheLoop,
 		llvm::StringRef Name);
+
 }

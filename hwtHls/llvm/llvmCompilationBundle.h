@@ -88,6 +88,7 @@ public:
 	llvm::Function& _testBitwidthReductionPass();
 	llvm::Function& _testSlicesMergePass();
 	llvm::Function& _testLoopUnrotatePass();
+	llvm::Function& _testLoopFlattenUsingIfPass();
 	llvm::Function& _testRewriteExtractOnMergeValues();
 	llvm::Function& _runCustomFunctionPass(
 			std::function<void(llvm::FunctionPassManager&)> addPasses);

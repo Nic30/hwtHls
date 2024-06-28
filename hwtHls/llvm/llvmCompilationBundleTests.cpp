@@ -15,7 +15,14 @@
 #include <llvm/Support/MemoryBuffer.h>
 #include <llvm/Target/TargetMachine.h>
 
+// #include <llvm/Transforms/Scalar/GVN.h>
+// #include <llvm/Transforms/Scalar/NewGVN.h>
+// #include <llvm/Transforms/Scalar/LoopInstSimplify.h>
+// #include <llvm/Transforms/InstCombine/InstCombine.h>
+// #include <hwtHls/llvm/Transforms/dumpAndExitPass.h>
+
 #include <hwtHls/llvm/Transforms/slicesMerge/slicesMerge.h>
+#include <hwtHls/llvm/Transforms/LoopFlattenUsingIfPass.h>
 #include <hwtHls/llvm/Transforms/LoopUnrotatePass.h>
 #include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.h>
 #include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass.h>
@@ -40,6 +47,7 @@ llvm::Function& LlvmCompilationBundle::_runCustomFunctionPass(
 	if (!main)
 		throw std::runtime_error("Main function not specified");
 	auto &fn = *main;
+	fn.setEntryCount(1); // set dummy profile metadata so BPI/BFI appear in loop passes and WriteGraph works
 	fn.getParent()->setDataLayout(TM->createDataLayout());
 
 	auto LAM = llvm::LoopAnalysisManager { };
@@ -163,6 +171,25 @@ llvm::Function& LlvmCompilationBundle::_testLoopUnrotatePass() {
 		FPM.addPass(llvm::createFunctionToLoopPassAdaptor(std::move(LPM0),
 				/*UseMemorySSA=*/ false,
 				/*UseBlockFrequencyInfo=*/ false));
+	});
+}
+
+
+llvm::Function& LlvmCompilationBundle::_testLoopFlattenUsingIfPass() {
+	return _runCustomFunctionPass([](llvm::FunctionPassManager &FPM) {
+		llvm::LoopPassManager LPM0;
+		LPM0.addPass(hwtHls::LoopFlattenUsingIfPass());
+
+		FPM.addPass(llvm::createFunctionToLoopPassAdaptor(std::move(LPM0),
+				/*UseMemorySSA=*/ false,
+				/*UseBlockFrequencyInfo=*/ true,
+                /*UseBranchProbabilityInfo*/ true));
+		// FPM.addPass(hwtHls::SimplifyCFG2Pass());
+		// FPM.addPass(llvm::GVNHoistPass());
+		// FPM.addPass(llvm::GVNSinkPass());
+		// FPM.addPass(llvm::InstCombinePass());
+		// FPM.addPass(hwtHls::SimplifyCFG2Pass());
+		// FPM.addPass(hwtHls::DumpAndExitPass(false, false, "LoopFlattenUsingIfPass.simplified.dot"));
 	});
 }
 
