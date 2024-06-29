@@ -420,13 +420,12 @@ bool VRegIfConverter::runOnMachineFunction(MachineFunction &MF) {
         if (enableTrace)
           hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbgCntr++) + KindName +  + "-after.dot");
         if (RetVal) {
-          if (isFalse) {
-            if (isRev) ++NumTriangleFRev;
-            else       ++NumTriangleFalse;
-          } else {
-            if (isRev) ++NumTriangleRev;
-            else       ++NumTriangle;
-          }
+          if (isFalse)
+            ++NumTriangleFalse;
+          else if (isRev)
+            ++NumTriangleRev;
+          else
+            ++NumTriangle;
         }
         break;
       }
