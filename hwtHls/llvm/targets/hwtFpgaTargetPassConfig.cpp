@@ -1,7 +1,6 @@
 #include <hwtHls/llvm/targets/hwtFpgaTargetPassConfig.h>
 
 #include <llvm/Analysis/CFGPrinter.h>
-#include <llvm/CodeGen/GlobalISel/IRTranslator.h>
 #include <llvm/CodeGen/GlobalISel/InstructionSelect.h>
 #include <llvm/CodeGen/GlobalISel/RegBankSelect.h>
 #include <llvm/CodeGen/GlobalISel/Legalizer.h>
@@ -13,6 +12,7 @@
 #include <llvm/Transforms/Scalar/GVN.h>
 
 #include <hwtHls/llvm/targets/Analysis/registerBitWidth.h>
+#include <hwtHls/llvm/targets/GISel/hwtFpgaIRTranslator.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaPreLegalizerCombiner.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaPreRegAllocCombiner.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaPreToNetlistCombiner.h>
@@ -86,7 +86,7 @@ bool HwtFpgaTargetPassConfig::addPreISel() {
 bool HwtFpgaTargetPassConfig::addIRTranslator() {
 	//addPass(new hwtHls::MachineDumpAndExitPass(true, true));
 	//addPass(llvm::createCFGPrinterLegacyPassPass());
-	addPass(new IRTranslator(getOptLevel()));
+	addPass(new hwtHls::HwtFpgaIRTranslator(getOptLevel()));
 	//addPass(new hwtHls::MachineDumpAndExitPass(true, true));
 	return false;
 }

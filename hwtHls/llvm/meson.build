@@ -63,6 +63,7 @@ py3.extension_module(
 	 'targets/GISel/hwtFpgaCallLoweringInfo.cpp',
 	 'targets/GISel/hwtFpgaInstructionSelector.cpp',
 	 'targets/GISel/hwtFpgaInstructionSelectorUtils.cpp',
+	 'targets/GISel/hwtFpgaIRTranslator.cpp',
 	 'targets/GISel/hwtFpgaLegalizerInfo.cpp',
 	 'targets/GISel/hwtFpgaPreLegalizerCombiner.cpp',
 	 'targets/GISel/hwtFpgaPreRegAllocCombiner.cpp',
