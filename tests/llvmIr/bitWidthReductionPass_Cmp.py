@@ -12,6 +12,7 @@ from hwt.hwModule import HwModule
 from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.pyBytecode import hlsBytecode
+from hwtHls.frontend.pyBytecode.markers import PyBytecodeBlockLabel
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import uint8_t
@@ -30,16 +31,21 @@ class BitWidthReductionCmp2Values(HwModule):
 
         @hlsBytecode
         def mainThread():
+            PyBytecodeBlockLabel("entry")
             while BIT.from_py(1):
+                PyBytecodeBlockLabel("loopHeader")
                 i = hls.read(self.i).data
                 # 1. only bits [5:0] should be compared
                 # and the cmp of other bits should be shared
                 # 2. output mux should be only for lower 4 bits and the upper bits should be set to 0x001 as it is constant in all cases
                 if i._eq(10):
+                    PyBytecodeBlockLabel("case10")
                     hls.write(20, self.o)
                 elif i._eq(11):
+                    PyBytecodeBlockLabel("case11")
                     hls.write(25, self.o)
                 else:
+                    PyBytecodeBlockLabel("caseElse")
                     hls.write(26, self.o)
 
         hls.addThread(HlsThreadFromPy(hls, mainThread))
@@ -88,7 +94,9 @@ class BitWidthReductionCmpReducibleEq(HwModule):
 
         @hlsBytecode
         def mainThread():
+            PyBytecodeBlockLabel("entry")
             while BIT.from_py(1):
+                PyBytecodeBlockLabel("loopHeader")
                 a = hls.read(self.a).data
                 b = hls.read(self.b).data
                 hls.write(p(a, b), self.res)

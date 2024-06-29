@@ -7,7 +7,8 @@ from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.markers import PyBytecodeLLVMLoopUnroll
+from hwtHls.frontend.pyBytecode.markers import PyBytecodeLLVMLoopUnroll,\
+    PyBytecodeBlockLabel
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import uint8_t
@@ -22,8 +23,10 @@ class InfLoopUnrollDissable(HwModule):
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
+        PyBytecodeBlockLabel("entry")
         i = uint8_t.from_py(0)
         while BIT.from_py(1):
+            PyBytecodeBlockLabel("loopHeader")
             hls.write(i , self.o)
             i += 1
             PyBytecodeLLVMLoopUnroll(False, None)
@@ -40,8 +43,10 @@ class InfLoopUnrollCount(InfLoopUnrollDissable):
     @hlsBytecode
     @override
     def mainThread(self, hls: HlsScope):
+        PyBytecodeBlockLabel("entry")
         i = uint8_t.from_py(0)
         while BIT.from_py(1):
+            PyBytecodeBlockLabel("loopHeader")
             hls.write(i , self.o)
             i += 1
             PyBytecodeLLVMLoopUnroll(True, 3)
