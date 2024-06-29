@@ -1,5 +1,5 @@
-from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.frontend.pyBytecode.loopMeta import PyBytecodeLoopInfo
+from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import ConditionBlockTuple
 
 
@@ -10,7 +10,7 @@ def _applyLoopPragma(headerBlock: SsaBasicBlock, loopInfo:PyBytecodeLoopInfo):
     """
     anyJumpToHeaderFound = False
     latchOrExitBlocks = set(j.srcBlock for j in loopInfo.jumpsFromLoopBody)
-    
+
     for pred in headerBlock.predecessors:
         if pred in latchOrExitBlocks:
             for i, t in enumerate(pred.successors.targets):
