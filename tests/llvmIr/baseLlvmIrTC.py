@@ -2,10 +2,10 @@ from itertools import takewhile
 import os
 import re
 
-from hwtHls.llvm.llvmIr import LlvmCompilationBundle, SMDiagnostic, parseIR, Function
+from hwtHls.llvm.llvmIr import LlvmCompilationBundle, SMDiagnostic, parseIR, Function, verifyModule
 from tests.baseSsaTest import BaseSsaTC
 
-RE_HWTHLS_FN_CALL = re.compile('call (i[0-9]+) @hwtHls.((bitRangeGet)|(bitConcat))((\.i?[0-9]+)+)\(.*\)( #(\d+))')
+RE_HWTHLS_FN_CALL = re.compile(r'call (i[0-9]+) @hwtHls.((bitRangeGet)|(bitConcat))((\.i?[0-9]+)+)\(.*\)( #(\d+))')
 
 
 def generateAndAppendHwtHlsFunctionDeclarations(llvmIrStr:str):
@@ -51,6 +51,8 @@ class BaseLlvmIrTC(BaseSsaTC):
             llvm.module = M
             llvm.main = fns[0]
             name = llvm.main.getName().str()
+        if verifyModule(M):
+            raise AssertionError()
 
         optF = self._runTestOpt(llvm, *passArgs, **passKwArgs)
         self.assert_same_as_file(repr(optF), os.path.join("data", f'{self.__class__.__name__:s}.{name:s}.ll'))
