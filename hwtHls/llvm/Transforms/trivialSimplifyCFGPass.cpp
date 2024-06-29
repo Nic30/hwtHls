@@ -56,12 +56,13 @@ bool tryRemoveSingleSuccessorSinglePredecessorBlock(BasicBlock *BB,
 							!= alreadyHasTheValueInPhis.end())
 						SucPhi.removeIncomingValue(BB, false);
 				}
-				PredBB->getTerminator()->replaceSuccessorWith(BB, SucBB); // guaranteed that there is only one brach with this block as a target
+				// guaranteed that there is only one branch with this block as a target
+				PredBB->getTerminator()->replaceSuccessorWith(BB, SucBB);
 				// because there is a single predecessor
 				BB->replaceAllUsesWith(PredBB); // replace in other PHIs, which effectively disconnect this from predecessor
 				assert(BB->hasNPredecessors(0));
 				scavengeTerminatorMetadata(BB->getTerminator(),
-						SucBB->getTerminator());
+						PredBB->getTerminator());
 				BB->eraseFromParent();
 				//DeleteDeadBlock(BB); // this causes segfault as it expect for PHIs to have this block in operands
 				WorkList.insert(PredBB);
