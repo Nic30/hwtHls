@@ -3,6 +3,7 @@
 #include <llvm/IR/Constants.h>
 
 using namespace llvm;
+
 namespace hwtHls {
 
 // based on llvm::Loop::getLoopID()
@@ -14,7 +15,7 @@ llvm::MDNode* Loop_getHwtHlsLoopID(const llvm::Loop &L) {
 	L.getLoopLatches(LatchesBlocks);
 	for (BasicBlock *BB : LatchesBlocks) {
 		Instruction *TI = BB->getTerminator();
-		MDNode *MD = TI->getMetadata("hwthls.loop");
+		MDNode *MD = TI->getMetadata("llvm.loop");
 		if (!MD)
 			return nullptr; // all latches are required to have same loop ID, this means that there is none
 
@@ -36,7 +37,7 @@ void Loop_setHwtHlsLoopID(const llvm::Loop &L, MDNode *LoopID) {
 	L.getLoopLatches(LatchesBlocks);
 	for (BasicBlock *BB : LatchesBlocks) {
 		Instruction *TI = BB->getTerminator();
-		TI->setMetadata("hwthls.loop", LoopID);
+		TI->setMetadata("llvm.loop", LoopID);
 	}
 }
 

@@ -236,7 +236,7 @@ class PyBytecodeStreamLoopUnroll(_PyBytecodeLoopPragma):
 
     .. code-block:: llvm
 
-        br i1 %exitcond, label %._crit_edge, label %.lr.ph, !hwthls.loop !0
+        br i1 %exitcond, label %._crit_edge, label %.lr.ph, !llvm.loop !0
         ...
         !0 = !{!0, !1}
         !1 = !{!"hwthls.loop.streamunroll.unroll.io", i32 0}
@@ -262,7 +262,28 @@ class PyBytecodeStreamLoopUnroll(_PyBytecodeLoopPragma):
                         ],
                         False)
         ]
-        brInst.setMetadata(irTranslator.strCtx.addStringRef("hwthls.loop"), getTuple(items, True))
+        brInst.setMetadata(irTranslator.strCtx.addStringRef("llvm.loop"), getTuple(items, True))
+
+
+class PyBytecodeLoopFlattenUsingIf(_PyBytecodeLoopPragma):
+    """
+    Merge child loop with parent loop
+    """
+
+    def toLlvm(self, irTranslator: "ToLlvmIrTranslator", brInst: BranchInst):
+        getStr = irTranslator.mdGetStr
+        getInt = irTranslator.mdGetUInt32
+        getTuple = irTranslator.mdGetTuple
+        items = [getTuple([
+                            getStr("hwthls.loop.flattenusingif.enable"),
+                            getInt(1)
+                        ],
+                        False)
+        ]
+        loopStr = irTranslator.strCtx.addStringRef("llvm.loop")
+        if brInst.getMetadata(loopStr) is not None:
+            raise NotImplementedError()
+        brInst.setMetadata(loopStr, getTuple(items, True))
 
 
 class PyBytecodeSkipPass(_PyBytecodeFunctionPragma):

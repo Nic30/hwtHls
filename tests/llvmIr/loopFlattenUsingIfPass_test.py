@@ -46,7 +46,7 @@ class LoopFlattenUsingIfPass_TC(BaseLlvmIrTC):
             br i1 %c1, label %bb.wh.wh.body, label %bb.fn1
           bb.wh.wh.body:
             %v3 = add i8 %v2, 16
-            br label %bb.wh.wh, !hwthls.loop !0
+            br label %bb.wh.wh, !llvm.loop !0
           bb.fn1:
             store volatile i8 %v2, ptr addrspace(2) %o, align 1
             br label %bb.wh
@@ -99,11 +99,11 @@ class LoopFlattenUsingIfPass_TC(BaseLlvmIrTC):
                br i1 %c1.2, label %bb.wh2.body, label %bb.wh1.body.end
             bb.wh2.body:
                %v3.2 = add i8 %v2, 16
-               br label %bb.wh2, !hwthls.loop !0
+               br label %bb.wh2, !llvm.loop !0
           
           bb.wh1.body.end:
             store volatile i8 %v2.2, ptr addrspace(2) %o, align 1
-            br label %bb.wh1, !hwthls.loop !0
+            br label %bb.wh1, !llvm.loop !0
         
           bb.fn1:
             store volatile i8 %v2, ptr addrspace(2) %o, align 1
@@ -152,7 +152,7 @@ class LoopFlattenUsingIfPass_TC(BaseLlvmIrTC):
             br i1 %c1, label %bb.wh.wh.body, label %bb.fn1
           bb.wh.wh.body:
             %v3 = add i8 %v2, 16
-            br label %bb.wh.wh, !hwthls.loop !0
+            br label %bb.wh.wh, !llvm.loop !0
           bb.fn1:
             %v4 = phi i8 [%v1, %bb.wh.if], [%v2, %bb.wh.wh]
             store volatile i8 %v4, ptr addrspace(2) %o, align 1
@@ -207,7 +207,7 @@ class LoopFlattenUsingIfPass_TC(BaseLlvmIrTC):
             br i1 %c1, label %bb.wh.wh.body, label %bb.wh1.if
           bb.wh.wh.body:
             %v3 = add i8 %v2, 16
-            br label %bb.wh.wh, !hwthls.loop !0
+            br label %bb.wh.wh, !llvm.loop !0
             
           bb.wh1.if:
             %v1.1 = phi i8 [%v1, %bb.wh.if], [%v2, %bb.wh.wh]
@@ -219,7 +219,7 @@ class LoopFlattenUsingIfPass_TC(BaseLlvmIrTC):
             br i1 %c1.1, label %bb.wh1.wh.body, label %bb.fn1
           bb.wh1.wh.body:
             %v3.1 = add i8 %v2.1, 16
-            br label %bb.wh1.wh, !hwthls.loop !0
+            br label %bb.wh1.wh, !llvm.loop !0
             
           bb.fn1:
             %v4 = phi i8 [%v1.1, %bb.wh1.if], [%v2.1, %bb.wh1.wh]
@@ -276,7 +276,7 @@ class LoopFlattenUsingIfPass_TC(BaseLlvmIrTC):
             br i1 %c1, label %bb.wh.wh.body, label %bb.wh1.if
           bb.wh.wh.body:
             %v3 = add i8 %v2, 16
-            br label %bb.wh.wh, !hwthls.loop !0
+            br label %bb.wh.wh, !llvm.loop !0
             
           bb.wh1.if:
             %v1.1 = phi i8 [%v2, %bb.wh.wh]
@@ -288,7 +288,7 @@ class LoopFlattenUsingIfPass_TC(BaseLlvmIrTC):
             br i1 %c1.1, label %bb.wh1.wh.body, label %bb.fn1
           bb.wh1.wh.body:
             %v3.1 = add i8 %v2.1, 16
-            br label %bb.wh1.wh, !hwthls.loop !0
+            br label %bb.wh1.wh, !llvm.loop !0
             
           bb.fn1:
             %v4 = phi i8 [%v1, %bb.wh.if], [%v1.1, %bb.wh1.if], [%v2.1, %bb.wh1.wh]
@@ -335,7 +335,7 @@ class LoopFlattenUsingIfPass_TC(BaseLlvmIrTC):
           bb.wh.wh.body:
             %v3 = add i8 %v2, 16
             %c1 = load volatile i1, ptr addrspace(1) %c, align 1
-            br i1 %c1, label %bb.wh.wh, label %bb.fn1, !hwthls.loop !0
+            br i1 %c1, label %bb.wh.wh, label %bb.fn1, !llvm.loop !0
             
           bb.fn1:
             store volatile i8 %v2, ptr addrspace(2) %o, align 1
@@ -376,7 +376,7 @@ class LoopFlattenUsingIfPass_TC(BaseLlvmIrTC):
             br i1 %c1, label %bb.wh.wh.body, label %bb.fn1
           bb.wh.wh.body:
             %v3 = add i8 %v2, 16
-            br label %bb.wh.wh, !hwthls.loop !0
+            br label %bb.wh.wh, !llvm.loop !0
           bb.fn1:
             store volatile i8 %v2, ptr addrspace(2) %o, align 1
             %c0 = load volatile i1, ptr addrspace(1) %c, align 1
@@ -418,7 +418,7 @@ class LoopFlattenUsingIfPass_TC(BaseLlvmIrTC):
           bb.wh.wh.body:
             %v3 = add i8 %v2, 16
             %c1 = load volatile i1, ptr addrspace(1) %c, align 1
-            br i1 %c1, label %bb.wh.wh, label %bb.fn1, !hwthls.loop !0
+            br i1 %c1, label %bb.wh.wh, label %bb.fn1, !llvm.loop !0
           bb.fn1:
             store volatile i8 %v2, ptr addrspace(2) %o, align 1
             %c0 = load volatile i1, ptr addrspace(1) %c, align 1
