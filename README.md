@@ -140,10 +140,12 @@ source venv/bin/activate # modifies current shell to use previously generate pyt
 * :skull: [Shang](https://github.com/etherzhhb/Shang) - 2012-2014, LLVM based, c->verilog
 * :skull: [streamit-hls](https://github.com/stenzek/streamit-hls) - 2017, custom lang, based on micro kernels
 * :skull: [TAPAS](https://github.com/sfu-arch/TAPAS) - 2018-2019, c++, Generating Parallel Accelerators fromParallel Programs
-* :skull: [xronos](https://github.com/endrix/xronos) [git2](https://github.com/endrix/xronos) - 2012-2016, java, simple HLS
 * :skull: [Trident](https://sourceforge.net/projects/trident/) - 2006, java/C++/LLVM
 * :skull: [FPGA C Compiler](https://sourceforge.net/projects/fpgac/) - 2005-2006, trivial 1:1 c->vhdl
 * :skull: [hpiasg](https://github.com/hpiasg) - , set of tools for asynchronous and handshake circuit synthesis
+* :skull: [LeFlow](https://github.com/danielholanda/LeFlow) - 2018-2018, TensorFlow -> XLA -> LegUp
+* :skull: [orcc/Open RVC-CAL Compiler](https://github.com/orcc/orcc) - 2011-2015, dataflow compiler
+* :skull: [xronos](https://github.com/endrix/xronos) [git2](hhttps://github.com/orcc/xronos) - 2012-2016, java, simple HLS for orcc
 * [abc](https://people.eecs.berkeley.edu/~alanmi/abc/) <2008-?, A System for Sequential Synthesis and Verification
 * [ahir](https://github.com/madhavPdesai/ahir) - LLVM, llvm bytecode->vhdl
 * [AutoBridge](https://autosa.readthedocs.io/en/latest/tutorials/auto_bridge.html) - Python, floorplaning/pipelining tool for Vitis HLS
@@ -154,6 +156,7 @@ source venv/bin/activate # modifies current shell to use previously generate pyt
 * [CirC](https://github.com/circify/circ) - Rust - compiler infrastructure for HLS
 * [circt-hls](https://github.com/circt-hls/circt-hls) - C++/LLVM/Python, set of hls libraries for circt
 * [clash-compiler](https://github.com/clash-lang/clash-compiler)
+* [CBMC-GC-2](https://gitlab.com/securityengineering/CBMC-GC-2) - MPC from ANSI-C
 * [coreir](https://github.com/rdaly525/coreir) - 2016-?, LLVM HW compiler
 * [DASS](https://github.com/JianyiCheng/DSS) - combination of dynamic and static scheduling
 * [domino-compiler](https://github.com/packet-transactions/domino-compiler) 2016 -> C++, c like packet processing language and compiler
@@ -167,6 +170,7 @@ source venv/bin/activate # modifies current shell to use previously generate pyt
 * [Hastlayer](https://github.com/Lombiq/Hastlayer-SDK) - 2012-2019, C# -> HW
 * [heterocl](https://awesomeopensource.com/project/cornell-zhang/heterocl)
 * [hls4ml](https://github.com/vloncar/hls4ml)
+* [HyCC](https://github.com/stskeeps/HyCC) - 2018, hybrid MPC from ANSI-C
 * [ICSC](https://github.com/intel/systemc-compiler) - C++/LLVM, systemC compiler
 * [Light-HLS](https://github.com/zslwyuan/Light-HLS) -, C++/LLVM, experimental HLS framework
 * [mockturtle](https://github.com/lsils/mockturtle) - C++, logic network lib. with project similar to HLS
