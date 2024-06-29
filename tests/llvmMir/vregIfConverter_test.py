@@ -17,6 +17,7 @@ class VRegIfConverter_TC(BaseLlvmMirTC):
     def _test_ll(self, irStr: str, lowerSsaToNonSsa=False):
         irStr = generateAndAppendHwtHlsFunctionDeclarations(irStr)
         llvm = LlvmCompilationBundle("test")
+        # llvm.addLlvmCliArgOccurence("print-after-all", 0, "", "true")
         Err = SMDiagnostic()
         M = parseIR(irStr, "test", Err, llvm.ctx)
         if M is None:
@@ -699,7 +700,7 @@ class VRegIfConverter_TC(BaseLlvmMirTC):
 if __name__ == "__main__":
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([VRegIfConverter_TC('test_ForkedTriangle0')])
+    # suite = unittest.TestSuite([VRegIfConverter_TC('test_switchInLoop0')])
     suite = testLoader.loadTestsFromTestCase(VRegIfConverter_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
