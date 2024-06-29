@@ -88,16 +88,17 @@
 #include <hwtHls/llvm/llvmHwtHlsInstrumentation.h>
 #include <hwtHls/llvm/targets/hwtFpgaTargetInfo.h>
 #include <hwtHls/llvm/targets/hwtFpgaTargetMachine.h>
-#include <hwtHls/llvm/Transforms/extractBitConcatAndSliceOpsPass.h>
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/bitwidthReducePass.h>
+#include <hwtHls/llvm/Transforms/dumpAndExitPass.h>
+#include <hwtHls/llvm/Transforms/extractBitConcatAndSliceOpsPass.h>
 #include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.h>
 #include <hwtHls/llvm/Transforms/slicesMerge/slicesMerge.h>
 #include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass.h>
 #include <hwtHls/llvm/Transforms/trivialSimplifyCFGPass.h>
-#include <hwtHls/llvm/Transforms/dumpAndExitPass.h>
+#include <hwtHls/llvm/Transforms/LoopAddLatchPass.h>
+#include <hwtHls/llvm/Transforms/LoopFlattenUsingIfPass.h>
 #include <hwtHls/llvm/Transforms/LoopUnrotatePass.h>
 #include <hwtHls/llvm/Transforms/overwriteBlockNamesPass.h>
-#include <hwtHls/llvm/Transforms/LoopAddLatchPass.h>
 #include <hwtHls/llvm/Transforms/ReconfigureHwtFpgaTTIPass.h>
 #include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamReadLoweringPass.h>
 #include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamWriteLoweringPass.h>
@@ -364,6 +365,7 @@ void LlvmCompilationBundle::_addInitialNormalizationPasses(
 	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true));
 	llvm::LoopPassManager LPM0;
 	LPM0.addPass(hwtHls::LoopUnrotatePass());
+	LPM0.addPass(hwtHls::LoopFlattenUsingIfPass());
 
 	FPM.addPass(llvm::createFunctionToLoopPassAdaptor(std::move(LPM0),
 			/*UseMemorySSA=*/ false,
@@ -383,7 +385,6 @@ void LlvmCompilationBundle::_addInitialNormalizationPasses(
 	FPM.addPass(llvm::EarlyCSEPass(true /* Enable mem-ssa. */));
 	//if (EnableKnowledgeRetention)
 	FPM.addPass(llvm::AssumeSimplifyPass());
-
 }
 
 void LlvmCompilationBundle::_addStreamOperationLoweringPasses(
