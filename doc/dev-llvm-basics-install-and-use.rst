@@ -22,7 +22,7 @@ This is useful when debugging issues which are happening in LLVM code.
 	git clone https://github.com/llvm/llvm-project.git
 	mkdir llvm_install
 	cd llvm-project/llvm
-	git checkout llvmorg-16.0.0 
+	git checkout llvmorg-18.1.3 
 	cmake -B build -DCMAKE_BUILD_TYPE=Debug -G Ninja\
 	    -DLLVM_TARGETS_TO_BUILD=X86\
 		-DLLVM_ENABLE_ASSERTIONS=ON\
