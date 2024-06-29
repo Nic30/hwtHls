@@ -313,9 +313,7 @@ std::pair<BasicBlock*, BasicBlock*> prepareNewLatchBlock(llvm::Loop &LParent,
 		oldLatchBlock = SplitBlock(oldLatchBlock, Term, &DTU, &AR.LI, MSSAU,
 				oldLatchBlock->getName() + ".oldLatch", /*Before*/
 				true);
-		if (DTU.hasPendingUpdates()) {
-			DTU.flush();
-		}
+
 		if (BranchInst *BR = dyn_cast<BranchInst>(Term)) {
 			if (BR->isConditional()) {
 				phiInLatchDrivingBranch = PHINode::Create(int1Ty, 2, "continue",
