@@ -1,32 +1,26 @@
 from enum import Enum
 from functools import cmp_to_key
-from typing import Dict, Optional, List, Tuple, Set, Union, Literal
+from typing import Dict, Optional, List, Tuple, Set, Union, Literal, Sequence
 
-from hwt.hdl.operatorDefs import HwtOps
 from hwt.hdl.const import HConst
+from hwt.hdl.operatorDefs import HwtOps
 from hwt.pyUtils.setList import SetList
-from hwtHls.architecture.analysis.channelGraph import ArchSyncNodeTy, \
-    ArchSyncNodeIoDict
-from hwtHls.architecture.analysis.handshakeSCCs import ArchSyncSuccDict, \
-    ArchSyncSuccDiGraphDict, ChannelSyncType, getOtherPortOfChannel
+from hwtHls.architecture.analysis.channelGraph import ArchSyncNodeTy
+from hwtHls.architecture.analysis.handshakeSCCs import TimeOffsetOrderedIoItem, \
+    ReadOrWriteType
+from hwtHls.architecture.analysis.syncNodeGraph import ArchSyncNeighborDict
 from hwtHls.architecture.transformation.channelHandshakeCycleBreakUtils import ArchElementTermPropagationCtx, \
     _getIOAck, \
-    ArchSyncNodeTerm, ArchSyncExprTemplate, optionallyAddNameToOperatorNode
+    ArchSyncNodeTerm, ArchSyncExprTemplate
 from hwtHls.netlist.builder import HlsNetlistBuilder
-from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
-    HlsNetNodeWriteBackedge
+from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
-from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge, \
-    HlsNetNodeWriteForwardedge
+from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge
 from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeReadOrWriteToAnyChannel
-from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
-from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.netlist.scheduler.clk_math import offsetInClockCycle
 from hwtHls.netlist.transformation.simplifyUtils import popNotFromExpr
-from hwtHls.netlist.nodes.const import HlsNetNodeConst
 
 
 class ChannelHandshakeCycleDeadlockError(AssertionError):
@@ -99,10 +93,6 @@ def PrunedConditions_append_and(skipWhenList: Optional[PrunedConditions],
     return shorted, skipWhenList
 
 
-class ReadOrWriteType(Enum):
-    CHANNEL_R, CHANNEL_W, R, W = range(4)
-
-
 class DST_UNREACHABLE():
 
     def __init__(self):
@@ -112,7 +102,7 @@ class DST_UNREACHABLE():
 def _getSyncNodeDynSkipExpression(src: ArchSyncNodeTy,
                            curPath: SetList[ArchSyncNodeTy],
                            dst: ArchSyncNodeTy,
-                           successorsUndirected: ArchSyncSuccDict,
+                           neighborDict: ArchSyncNeighborDict,
                            nodeIsNotDirectlyReachable: DynamicallyDirectlyNotReachableFlagDict,
                            termPropagationCtx: ArchElementTermPropagationCtx)\
                            ->Union[ArchSyncExprTemplate, None, Literal[DST_UNREACHABLE]]:
@@ -122,7 +112,7 @@ def _getSyncNodeDynSkipExpression(src: ArchSyncNodeTy,
     if src is dst:
         return None  # no extra condition
 
-    _successors = successorsUndirected.get(src, None)
+    _successors = neighborDict.get(src, None)
     if _successors is None:
         return DST_UNREACHABLE
 
@@ -145,7 +135,7 @@ def _getSyncNodeDynSkipExpression(src: ArchSyncNodeTy,
 
         # recursion to discover all paths between src and dst
         sucSkippingDst = _getSyncNodeDynSkipExpression(
-            suc, curPath, dst, successorsUndirected,
+            suc, curPath, dst, neighborDict,
             nodeIsNotDirectlyReachable, termPropagationCtx)
         if sucSkippingDst is None:
             # the dst is reachable and there is no skip option
@@ -210,94 +200,6 @@ def _getSyncNodeDynSkipExpression(src: ArchSyncNodeTy,
         return DST_UNREACHABLE
 
 
-def HlsNetNodePreceCmp(a: HlsNetNode, b: HlsNetNode):
-    t0 = a[0]
-    t1 = b[0]
-    if t0 != t1:
-        return t0 - t1  # earlier first
-    n0 = a[1]
-    n1 = b[1]
-
-    for dep in n1.dependsOn:
-        if dep is not None and dep.obj is n0:
-            return -1
-
-    for dep in n0.dependsOn:
-        if dep is not None and dep.obj is n1:
-            return 1
-
-    if isinstance(n0, HlsNetNodeReadBackedge):
-        if n0.associatedWrite is n1:
-            return -1  # read before write
-    if isinstance(n0, HlsNetNodeReadForwardedge):
-        if n0.associatedWrite is n1:
-            return 1  # read after write
-
-    if isinstance(n0, HlsNetNodeWriteBackedge):
-        if n0.associatedRead is n1:
-            return 1  # read before write
-    if isinstance(n0, HlsNetNodeWriteForwardedge):
-        if n0.associatedRead is n1:
-            return -1  # read after write
-
-    return n0._id - n1._id  # [todo] use reachability
-
-
-HlsNetNodePreceCmpKey = cmp_to_key(HlsNetNodePreceCmp)
-
-
-@staticmethod
-def sortIoByOffsetInClkWindow(successors: ArchSyncSuccDiGraphDict,
-                  nodeIo: ArchSyncNodeIoDict,
-                  scc: SetList[ArchSyncNodeTy]):
-    clkPeriod = scc[0][0].netlist.normalizedClkPeriod
-    allIo: List[Tuple[SchedTime, HlsNetNodeExplicitSync, ArchSyncNodeTy, ReadOrWriteType]] = []
-    seen: Set[HlsNetNodeReadOrWriteToAnyChannel] = set()
-    for n in scc:
-        reads, writes = nodeIo[n]
-        for r in reads:
-            allIo.append((r.scheduledZero, r, n, ReadOrWriteType.R))
-        for w in writes:
-            allIo.append((w.scheduledZero, w, n, ReadOrWriteType.W))
-
-        for suc, sucChannelIo in successors[n].items():
-            for chTy, chPort in sucChannelIo:
-                chTy: ChannelSyncType
-                chPort: HlsNetNodeReadOrWriteToAnyChannel
-                otherChPort = getOtherPortOfChannel(chPort)
-                if chPort not in seen:
-                    seen.add(chPort)
-                    if chTy == ChannelSyncType.READY:
-                        ioTy = ReadOrWriteType.CHANNEL_R
-                        _chPort = otherChPort
-                        assert isinstance(_chPort, HlsNetNodeRead), _chPort
-                    else:
-                        assert chTy == ChannelSyncType.VALID
-                        ioTy = ReadOrWriteType.CHANNEL_W
-                        _chPort = chPort
-                        assert isinstance(_chPort, HlsNetNodeWrite), _chPort
-
-                    timeOff = offsetInClockCycle(_chPort.scheduledZero, clkPeriod)
-                    allIo.append((timeOff, _chPort, n, ioTy))
-
-                if otherChPort not in seen:
-                    seen.add(otherChPort)
-                    if chTy == ChannelSyncType.READY:
-                        ioTy = ReadOrWriteType.CHANNEL_W
-                        _otherChPort = chPort
-                        assert isinstance(_otherChPort, HlsNetNodeWrite), _chPort
-                    else:
-                        assert chTy == ChannelSyncType.VALID
-                        ioTy = ReadOrWriteType.CHANNEL_R
-                        _otherChPort = otherChPort
-                        assert isinstance(_otherChPort, HlsNetNodeRead), _chPort
-                    timeOff = offsetInClockCycle(_otherChPort.scheduledZero, clkPeriod)
-                    allIo.append((timeOff, _otherChPort, suc, ioTy))
-
-    allIo = sorted(allIo, key=HlsNetNodePreceCmpKey)  # sort by offset in clock window
-    return allIo
-
-
 def _resolveDynamicallyDirectlyNotReachableLink(
         builder: HlsNetlistBuilder,
         termPropagationCtx: ArchElementTermPropagationCtx,
@@ -314,14 +216,14 @@ def _resolveDynamicallyDirectlyNotReachableLink(
         if channel._isBlocking:
             sw = channel.getSkipWhenDriver()
             if sw is not None:
-                sw = termPropagationCtx.propagate(node, sw, f"w{channel._id}_sw")
+                sw = termPropagationCtx.propagate(node, sw, f"n{channel._id}_sw")
                 sw = builder.buildAndOptional(sw, ioCondVld[channel])
 
             if isinstance(channel, HlsNetNodeWrite):
                 if channel._getBufferCapacity() > 0:
                     # sw = can skip or there is a place in the buffer
                     full = channel.getFullPort()
-                    full = termPropagationCtx.propagate(node, full, f"w{channel._id}_full")
+                    full = termPropagationCtx.propagate(node, full, f"n{channel._id}_full")
                     sw = builder.buildOrOptional(sw, builder.buildNot(full))
                 else:
                     full = None
@@ -332,13 +234,18 @@ def _resolveDynamicallyDirectlyNotReachableLink(
                 r = channel.associatedRead
                 rEc = channel.associatedRead.getExtraCondDriver()
                 if rEc is not None:
-                    rEc = termPropagationCtx.propagate(otherNode, rEc, f"r{r._id}_extraCond")
+                    rEc = termPropagationCtx.propagate(otherNode, rEc, f"n{r._id}_extraCond")
 
                 if rEc is not None and full is not None:
                     # dst ready or there is a place in buffer
                     rEc = builder.buildOr(rEc, builder.buildNot(full))
 
-                writePossible = builder.buildOrOptional(sw, rEc)
+                if rEc is None:
+                    # read has always extraCond=1
+                    writePossible = None
+                else:
+                    writePossible = builder.buildOrOptional(sw, rEc)
+
                 if writePossible is not None:
                     shorted, writeSkipOrReadAcceptList = PrunedConditions_append_and(
                         writeSkipOrReadAcceptList, writePossible)
@@ -351,7 +258,7 @@ def _resolveDynamicallyDirectlyNotReachableLink(
                 if channel.getAssociatedWrite()._getBufferCapacity() > 0:
                     # there is some data in buffer we do not have to wait on src (otherNode) element to provide it
                     validNB = channel.getValidNB()
-                    validNB = termPropagationCtx.propagate(node, validNB, f"w{channel._id}_validNB")
+                    validNB = termPropagationCtx.propagate(node, validNB, f"n{channel._id}_validNB")
                     sw = builder.buildOrOptional(sw, validNB)
 
             shorted, skipWhenList = PrunedConditions_append_and(skipWhenList, sw)
@@ -366,8 +273,8 @@ def _resolveDynamicallyDirectlyNotReachableLink(
     return skipWhenList, writeSkipOrReadAcceptList
 
 
-def resolveDynamicallyDirectlyNotReachable(neighborDict: ArchSyncSuccDict,
-                                           nodes: List[ArchSyncNodeTy],
+def resolveDynamicallyDirectlyNotReachable(nodes: List[ArchSyncNodeTy],
+                                           neighborDict: ArchSyncNeighborDict,
                                            ioCondVld: Dict[HlsNetNodeExplicitSync, HlsNetNodeOut],
                                            builder: HlsNetlistBuilder,
                                            termPropagationCtx: ArchElementTermPropagationCtx)\
@@ -408,11 +315,12 @@ def resolveDynamicallyDirectlyNotReachable(neighborDict: ArchSyncSuccDict,
     return nodeIsNotDynDirectlyReachable, writePossible
 
 
-def resolveNodeInputsValid(successors: ArchSyncSuccDiGraphDict,
-            nodeIo: ArchSyncNodeIoDict,
+def resolveNodeInputsValidAndMayFlush(
             scc: SetList[ArchSyncNodeTy],
+            allSccIOs: Sequence[TimeOffsetOrderedIoItem],
             builder: HlsNetlistBuilder,
-            termPropagationCtx: ArchElementTermPropagationCtx):
+            termPropagationCtx: ArchElementTermPropagationCtx,
+            ):
     # prepare ordered sequence of all IO and channels
     # vld means that the input data is valid or input is skipped
     # inVld = And(*((allPredecInVld(i) & ((i.valid & i.extraCond) | i.skipWhen)) for i in inputs))
@@ -426,10 +334,9 @@ def resolveNodeInputsValid(successors: ArchSyncSuccDiGraphDict,
     }
     # dictionary with output marking that the condition of write is in valid state
     ioCondVld: Dict[HlsNetNodeExplicitSync, HlsNetNodeOut] = {}
-    # nodeCurrentAck: Dict[ArchSyncNodeTy, Optional[HlsNetNodeOut]] = {n:None for n in scc}
-    # nodeCurrentReach: Dict[ArchSyncNodeTy, Tuple[Optional[HlsNetNodeOut], SetList[ArchSyncNodeTy]]] = {n:(None, SetList()) for n in scc}
-    allIo = sortIoByOffsetInClkWindow(successors, nodeIo, scc)
-    for (_, ioNode, syncNode, ioTy) in allIo:
+    writeMayFlush: List[Tuple[HlsNetNodeWrite, HlsNetNodeOut]] = []
+
+    for (_, ioNode, syncNode, ioTy) in allSccIOs:
         ioNode: HlsNetNodeExplicitSync
         syncNode: ArchSyncNodeTy
         ioTy: ReadOrWriteType
@@ -437,6 +344,9 @@ def resolveNodeInputsValid(successors: ArchSyncSuccDiGraphDict,
         ioCondVld[ioNode] = _nodeCurrentIoVld
         # _nodeCurrentIoAck = nodeCurrentAck[syncNode]
         if ioTy == ReadOrWriteType.R or ioTy == ReadOrWriteType.W:
+            if ioTy == ReadOrWriteType.W and ioNode._isFlushable:
+                writeMayFlush.append((syncNode, ioNode, _nodeCurrentIoVld))
+
             # :note: IO write may also read, that is why we process it the same
             inVld = _getIOAck(syncNode, builder, termPropagationCtx, _nodeCurrentIoVld, ioNode)
             # [todo] if it is write check that it also reads otherwise ignore this node
@@ -454,12 +364,12 @@ def resolveNodeInputsValid(successors: ArchSyncSuccDiGraphDict,
                 # optionally we have to update node reachability if this is the channel is optional
                 assert isinstance(ioNode, HlsNetNodeReadForwardedge), ioNode
                 wEn = ioCondVld[ioNode.associatedWrite]
-                # wEn = builder.buildAndOptional(wEn, _nodeCurrentIoVld)
-                # if wEn is not None:
-                #    optionallyAddNameToOperatorNode(wEn, f"r{ioNode._id}_wEn")
                 inVld = _getIOAck(syncNode, builder, termPropagationCtx, _nodeCurrentIoVld, ioNode, extraExtraCond=wEn)
 
         elif ioTy == ReadOrWriteType.CHANNEL_W:
+            if ioNode._isFlushable:
+                writeMayFlush.append((syncNode, ioNode, _nodeCurrentIoVld))
+
             if ioNode._getBufferCapacity() > 0:
                 inVld = _nodeCurrentIoVld
             else:
@@ -467,29 +377,9 @@ def resolveNodeInputsValid(successors: ArchSyncSuccDiGraphDict,
                 # propagate inputs valid to dst node
                 inVld = _nodeCurrentIoVld
 
-            # If valid is used in non standard way, we have to and valid/validNB with en for this SCC part
-            # because we have to assert that the channel valid signal correctly marks that
-            # data is valid.
-            # :note: We can not just and HsSCC en to extraCond because it would
-            # just introduce another cycle in sync logic.
-            # lcg = ioNode._loopChannelGroup
-            # if lcg is not None:
-            #    for loop, _ in lcg.connectedLoops:
-            #        loop: HlsNetNodeLoopStatus
-            #        # export en of src  node back to node
-            #        en = localOnlyAckFromIo.get(srcNode)
-            #        if en is None:
-            #            continue  # does not need any change because srcNode turned out to be always active
-            #        enName = f"{ArchSyncNodeTy_stringFormat_short(srcNode):s}_ioAck"
-            #        en = exportPortFromArchElement((termPropagationCtx.parentDstElm, dstNode[1]), en,
-            #            enName, termPropagationCtx.exportedPorts)
-            #        en, time = importPortToArchElement(en, enName, dstNode)
-            #        loop.addChannelExtraEnCondtion(lcg, en, enName, addDefaultScheduling=True,
-            #                                       inputWireDelay=loop.scheduledZero - time)
-
         else:
             raise ValueError(ioTy)
 
         nodeCurrentIOVld[syncNode] = inVld
 
-    return nodeCurrentIOVld, ioCondVld
+    return nodeCurrentIOVld, ioCondVld, writeMayFlush

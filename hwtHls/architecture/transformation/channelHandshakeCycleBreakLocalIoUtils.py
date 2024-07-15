@@ -1,18 +1,21 @@
-from typing import Literal, Union, Dict
+from typing import Literal, Union, Dict, List
 
 from hwt.hdl.const import HConst
 from hwt.pyUtils.setList import SetList
 from hwtHls.architecture.analysis.channelGraph import ArchSyncNodeTy, \
     ArchSyncNodeIoDict
-from hwtHls.architecture.analysis.handshakeSCCs import ArchSyncNodeTy_stringFormat_short
+from hwtHls.architecture.analysis.handshakeSCCs import ArchSyncNodeTy_stringFormat_short,\
+    TimeOffsetOrderedIoItem, AllIOsOfSyncNode
 from hwtHls.architecture.transformation.channelHandshakeCycleBreakUtils import ArchElementTermPropagationCtx, \
     resolveAckFromNodeIo, optionallyAddNameToOperatorNode
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
+from hwtHls.architecture.analysis.syncNodeGraph import ArchSyncSuccDiGraphDict, \
+    ChannelSyncType, getOtherPortOfChannel
 
 
 def _resolveLocalOnlyIoAck(scc: SetList[ArchSyncNodeTy],
-                           # neighborDict: ArchSyncSuccDict,
+                           # neighborDict: ArchSyncNeighborDict,
                            nodeIo: ArchSyncNodeIoDict,
                            builder: HlsNetlistBuilder,
                            termPropagationCtx: ArchElementTermPropagationCtx):
@@ -54,3 +57,35 @@ def _resolveLocalOnlyIoAck(scc: SetList[ArchSyncNodeTy],
         optionallyAddNameToOperatorNode(ioAck, f"hsScc_localOnlyAckFromIo_{ArchSyncNodeTy_stringFormat_short(n)}")
 
     return localOnlyAckFromIo
+
+
+def _moveNonSccChannelPortsToIO(successors: ArchSyncSuccDiGraphDict,
+                                scc: SetList[ArchSyncNodeTy],
+                                nodeIo: ArchSyncNodeIoDict,
+                                allSccIOs: AllIOsOfSyncNode):
+    """
+    Channel read/write which is not part of handshake SCC is a normal IO and will not be rewritten.
+    Thus we move it to nodeIo as normal IO.
+    """
+    for n in scc:
+        n: ArchSyncNodeTy
+        inputList, outputList = nodeIo[n]
+        _successors = successors[n]
+        toRm = set()
+        # move suc channel to nodeIo if the suc is not in the same scc
+        for suc , sucChannelIo in _successors.items():
+            if suc not in scc:
+                toRm.add(suc)
+                for chTy, ch in sucChannelIo:
+                    chTy: ChannelSyncType
+                    if chTy == ChannelSyncType.READY:
+                        ch = getOtherPortOfChannel(ch)
+                        assert ch in n[0]._subNodes, ch
+                        outputList.append(ch)
+                    else:
+                        assert ch in n[0]._subNodes, ch
+                        inputList.append(ch)
+                        # allSccIOs
+        # rm suc which channels were converted to IO
+        for suc in toRm:
+            _successors.pop(suc)

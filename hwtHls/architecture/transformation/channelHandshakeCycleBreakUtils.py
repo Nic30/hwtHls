@@ -46,6 +46,11 @@ def _getIOAck(node:ArchSyncNodeTy,
             ack = io.getReadyNB()
             ack = termPropagationCtx.propagate(node, ack, f"w{io._id}_readyNB")
 
+            if io._isFlushable:
+                isFlushed = io.getIsFlushedPort()
+                isFlushed = termPropagationCtx.propagate(node, isFlushed, f"w{io._id}_isFlushed")
+                ack = builder.buildOr(ack, isFlushed)
+
     extraCond = io.getExtraCondDriver()
     if extraCond is not None:
         extraCond = termPropagationCtx.propagate(node, extraCond, f"n{io._id}_extraCond")

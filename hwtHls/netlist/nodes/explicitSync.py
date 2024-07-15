@@ -21,10 +21,10 @@ IO_COMB_REALIZATION = OpRealizationMeta(outputWireDelay=epsilon)
 
 class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
     """
-    This node represents just wire in scheduled graph which has an extra synchronization conditions.
+    This node is a base class for nodes with an extra synchronization conditions.
     :see: :class:`hwtLib.handshaked.streamNode.StreamNode`
 
-    This node is used to stall/drop/not-require some data based on external conditions.
+    It is used to stall/drop/not-require some data based on external conditions.
     
     Explicit sync flag combinations (both flags are optional)
     ---------------------------------------------|
@@ -52,8 +52,9 @@ class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
     :ivar _valid: output with "valid" signal for reads which signalizes that the read was successful.
         Reading of this port requires read to be performed.
     :ivar _validNB: same as "_valid" but reading this does not cause read from main interface.
-    :note: _valid/_ready and _validNB/_readyNB holds the same value, the NB variant can be read without triggering the operation,
-        _valid/_valid requires operation to be performed and comes out as a part of the data.
+    :attention: valid/ready is not affected by any other flag (extraCond, skipWhen) and it may become 1
+        even if node operation was not performed. (done to avoid comb. path inside of this node)
+
     :note: _valid for read means that the read was triggered and the returned data is available.
     :note: _valid for writes is always 1 (because direction of signal is from the operation itself to read)
     :note: _ready for read is always 1 (because direction of signal is from the operation itself to write)
@@ -71,8 +72,6 @@ class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
         HlsNetNode.__init__(self, netlist, name=name)
         self._associatedReadSync: Optional["HlsNetNodeReadSync"] = None
         self._initCommonPortProps(None)
-        self._addInput("dataIn")
-        self._addOutput(dtype, "dataOut")
 
     def _initCommonPortProps(self, io: Optional[HwIO]):
         self._valid: Optional[HlsNetNodeOut] = None
@@ -93,6 +92,9 @@ class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
     def clone(self, memo:dict, keepTopPortsConnected: bool) -> Tuple["HlsNetNode", bool]:
         y, isNew = HlsNetNodeOrderable.clone(self, memo, keepTopPortsConnected)
         if isNew:
+            readSync = self._associatedReadSync
+            if readSync is not None:
+                y._associatedReadSync = readSync.clone(memo)
             for attrName in self._PORT_ATTR_NAMES:
                 a = getattr(self, attrName)
                 if a is not None:
@@ -203,10 +205,9 @@ class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
         """
         Get port which used for data dependency which is of a void type.
         """
-        if self._outputs:
-            o = self._outputs[0]
-            if o._dtype == HVoidData:
-                return o
+        o = self._portDataOut
+        if o is not None and o._dtype == HVoidData:
+            return o
         o = self._dataVoidOut
         if o is None:
             o = self._dataVoidOut = self._addOutput(HVoidData, "dataVoidOut", addDefaultScheduling=True)

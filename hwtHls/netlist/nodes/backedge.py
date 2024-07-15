@@ -13,6 +13,7 @@ from hwt.hwIOs.hwIOStruct import HwIOStructRd, HwIOStructRdVld, HwIOStructVld
 from hwt.hwIOs.std import HwIORdVldSync, HwIOVldSync, HwIORdSync
 from hwt.hwModule import HwModule
 from hwt.mainBases import RtlSignalBase
+from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.interfaceLevel.hwModuleImplHelpers import HwIO_without_registration
 from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage
@@ -20,12 +21,12 @@ from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlRes
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.ports import HlsNetNodeOut
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut, link_hls_nodes, \
+    HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.schedulableNode import OutputMinUseTimeGetter
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
-from hwt.pyUtils.typingFuture import override
 from hwtLib.handshaked.builder import HsBuilder
 from hwtLib.logic.rtlSignalBuilder import RtlSignalBuilder
 
@@ -37,20 +38,8 @@ class HlsNetNodeReadBackedge(HlsNetNodeRead):
 
     def __init__(self, netlist:"HlsNetlistCtx", dtype: HdlType, name: Optional[str]=None):
         HlsNetNodeRead.__init__(self, netlist, None, dtype=dtype, name=name)
-        self.associatedWrite: Optional[HlsNetNodeWriteBackedge] = None
         self._rtlIoAllocated = False
         self._rtlDataVldReg:Optional[Union[RtlSyncSignal, HwIO]] = None
-
-    @override
-    def clone(self, memo:dict, keepTopPortsConnected: bool):
-        y, isNew = HlsNetNodeRead.clone(self, memo, keepTopPortsConnected)
-        if isNew:
-            if self.associatedWrite is not None:
-                y.associatedWrite = self.associatedWrite.clone(memo, True)
-        return y, isNew
-
-    def getAssociatedWrite(self):
-        return self.associatedWrite
 
     @override
     def getSchedulingResourceType(self):
@@ -75,7 +64,8 @@ class HlsNetNodeReadBackedge(HlsNetNodeRead):
         if w.extraCond is not None and HlsNetNodeExplicitSync.hasValidOnlyToPassFlags(self):
             return True
 
-        if w._loopChannelGroup is not None and w._loopChannelGroup.getChannelWhichIsUsedToImplementControl() == w:
+        if w._loopChannelGroup is not None and\
+                w._loopChannelGroup.getChannelUsedAsControl() == w:
             return True  # because we need valid for loop to know that the channel is active
 
         return False
@@ -92,7 +82,8 @@ class HlsNetNodeReadBackedge(HlsNetNodeRead):
         if w is None:
             return False
 
-        if self.extraCond is not None and HlsNetNodeExplicitSync.hasReadyOnlyToPassFlags(w):
+        if self.extraCond is not None and\
+                HlsNetNodeExplicitSync.hasReadyOnlyToPassFlags(w):
             # read extra cond may cause stall, and w is checking ready
             return True
 
@@ -115,7 +106,7 @@ class HlsNetNodeReadBackedge(HlsNetNodeRead):
                 "Src interface must not be yet instantiated on parent HwModule", self, self.src)
             w = self.associatedWrite
             assert w.dst is None, (w, w.dst)
-            dtype = self._outputs[0]._dtype
+            dtype = self._portDataOut._dtype
             if HdlType_isVoid(dtype):
                 if hasValid and hasReady:
                     src = HwIORdVldSync()
@@ -140,18 +131,17 @@ class HlsNetNodeReadBackedge(HlsNetNodeRead):
                     src = HdlType_to_HwIO().apply(dtype)
 
             if src is not None:
-                src._name = self.name
-
+                src._name = self.netlist.namePrefix + self.name
                 self.src = HwIO_without_registration(u, src, src._name)
+
             # :note: getattr used to avoid cyclic dependencies in HlsNetNodeReadBackedge, HlsNetNodeReadForwardedge classes
             allocTy = getattr(w, "allocationType", None)
             if allocTy == BACKEDGE_ALLOCATION_TYPE.IMMEDIATE:
                 w.dst = self.src
+            elif src is None:
+                w.dst = None
             else:
-                if src is None:
-                    w.dst = None
-                else:
-                    w.dst = HwIO_without_registration(u, self.src.__copy__(), f"{self.netlist.namePrefix}{w.name:s}")
+                w.dst = HwIO_without_registration(u, self.src.__copy__(), self.netlist.namePrefix + w.name)
 
             self._rtlIoAllocated = True
 
@@ -162,11 +152,11 @@ class HlsNetNodeReadBackedge(HlsNetNodeRead):
         if self._rtlDataVldReg is not None:
             return self._rtlDataVldReg
 
-        for vldOut in (self._valid, self._validNB):
-            if vldOut is None:
-                continue
-            cur = allocator.netNodeToRtl.get(vldOut)
-            assert cur is None, (vldOut, "port should not be allocated because _rtlDataVldReg was not set yet")
+        # for vldOut in (self._valid, self._validNB):
+        #    if vldOut is None:
+        #        continue
+        #    cur = allocator.netNodeToRtl.get(vldOut)
+        #    assert cur is None, (vldOut, "port should not be allocated because _rtlDataVldReg was not set yet")
 
         srcWrite: HlsNetNodeWriteBackedge = self.associatedWrite
         dataRegName = f"{allocator.name:s}{self.name:s}"
@@ -196,7 +186,7 @@ class HlsNetNodeReadBackedge(HlsNetNodeRead):
         """
         assert not self._isRtlAllocated, self
         assert self._rawValue is None, ("access to a _rawValue should be already lowered and this port should be removed", self)
-        dataOut = self._outputs[0]
+        dataOut = self._portDataOut
         hasNoSpecialControl = self._isBlocking and not self.hasValidNB() and not self.hasValid()
         self._rtlAllocDatapathIo()
 
@@ -293,61 +283,36 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
     """
     The read from HLS pipeline which is binded to a buffer for data/sync on backward edge in dataflow graph.
 
-    :ivar channelInitValues: Optional tuple for value initialization.
     :ivar buffName: name which can be used to override the name of the buffer in RTL
-    :ivar _fullPort: :see: :meth:`~.HlsNetNodeWriteBackedge.getFullPort` 
     """
+    _PORT_ATTR_NAMES = HlsNetNodeWrite._PORT_ATTR_NAMES + ["_fullPort", "_forceWritePort"]
 
     def __init__(self, netlist:"HlsNetlistCtx",
                  channelInitValues=(),
-                 name:Optional[str]=None):
-        HlsNetNodeWrite.__init__(self, netlist, None, name=name)
-        self.associatedRead: Optional[HlsNetNodeReadBackedge] = None
+                 name:Optional[str]=None,
+                 mayBecomeFlushable:bool=False):
+        HlsNetNodeWrite.__init__(self, netlist, None, name=name, mayBecomeFlushable=mayBecomeFlushable)
         self.channelInitValues = channelInitValues
         self.allocationType = BACKEDGE_ALLOCATION_TYPE.BUFFER
         self.buffName = None
         self._loopChannelGroup: Optional["LoopChanelGroup"] = None
-        self._fullPort: Optional[HlsNetNodeOut] = None
 
     @override
     def clone(self, memo:dict, keepTopPortsConnected: bool) -> Tuple["HlsNetNodeWriteBackedge", bool]:
         y, isNew = HlsNetNodeRead.clone(self, memo, keepTopPortsConnected)
         if isNew:
-            read = self.associatedRea
-            if read is not None:
-                y.associatedRead = read.clone(memo)
-            fullPort = self._fullPort
-            if fullPort is not None:
-                y._fullPort = y._outputs[fullPort.out_i]
             lcg = self._loopChannelGroup
             if lcg is not None:
                 y._loopChannelGroup = lcg.clone
         return y, isNew
 
-    def associateRead(self, read: HlsNetNodeReadBackedge):
-        assert isinstance(read, HlsNetNodeReadBackedge), ("Can associate only with read of compatible type", read, self)
-        read.associatedWrite = self
-        self.associatedRead = read
+    @override
+    def isForwardedge(self):
+        return False
 
-    def getAssociatedWrite(self):
-        return self
-
-    def getFullPort(self) -> HlsNetNodeOut:
-        """
-        :attention: This port should be used only after scheduling to access internal state of the buffer.
-            Under normal scenario one should use ready/readyNB.
-        :return: port which is 1 if there is a space in the buffer of this edge.
-        """
-        assert self.scheduledZero is not None, ("This port should be used only after scheduling", self)
-        assert self._getBufferCapacity() > 0, (
-            "If this edge is not buffer this port should not be used, because it is const 0", self)
-        full = self._fullPort
-        if full is None:
-            full = self._fullPort = self._addOutput(BIT, "full", addDefaultScheduling=True,
-                                                    # = at the begin of clock where this write is
-                                                    outputClkTickOffset=-1,
-                                                    outputWireDelay=self.netlist.normalizedClkPeriod + self.netlist.scheduler.epsilon)
-        return full
+    @override
+    def isBackedge(self):
+        return True
 
     @override
     def _removeOutput(self, index:int):
@@ -378,19 +343,23 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
         en = allocator._rtlAllocDatapathGetIoAck(self, allocator.name)
         return en
 
+    @override
     def _getBufferCapacity(self):
         srcWrite = self
         dstRead = self.associatedRead
+        if dstRead is None or self.allocationType == BACKEDGE_ALLOCATION_TYPE.IMMEDIATE:
+            return 0
         assert dstRead is not None
         dst_t = dstRead.scheduledOut[0]
         src_t = srcWrite.scheduledIn[0]
-        assert dst_t <= src_t, (self, dst_t, src_t)
-        if self.allocationType == BACKEDGE_ALLOCATION_TYPE.IMMEDIATE:
-            return 0
-        else:
-            return 1
+        assert dst_t < src_t, (self, dst_t, src_t)
+        return 1
 
     def rtlAllocAsBuffer(self, allocator: "ArchElement", dstRead: HlsNetNodeReadBackedge):
+        """
+        :note: if the write is flushable the srcWrite.dst sync signals drivers are altered
+            and the code of this function does not care about it
+        """
         srcWrite = self
         res = HlsNetNodeWrite.rtlAlloc(self, allocator)
         assert dstRead is not None
@@ -401,7 +370,7 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
                 dstRead, "Channels to same cycle in same ArchElement would create a combinational loops in sync")
             assert self._fullPort is None, self
             if srcWrite.dst is None and dstRead.src is None:
-                assert HdlType_isVoid(dstRead._outputs[0]._dtype), (srcWrite, dstRead)
+                assert HdlType_isVoid(dstRead._portDataOut._dtype), (srcWrite, dstRead)
             else:
                 dstRead.src(srcWrite.dst)
         else:
@@ -409,10 +378,13 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
             hasValid = self._rtlUseValid or self.hasValidOnlyToPassFlags()
             hasReady = self._rtlUseReady or self.hasReadyOnlyToPassFlags()
             parentHwModule = allocator.netlist.parentHwModule
+
             for hwIO in dstRead.src._hwIOs:
                 hwIO._sig.hidden = False
+
             if hasValid and hasReady:
-                buffs = HsBuilder(parentHwModule, srcWrite.dst, self.buffName if self.buffName else f"{allocator.name:s}n{self._id:d}")\
+                buffs = HsBuilder(parentHwModule, srcWrite.dst,
+                                  self.buffName if self.buffName else f"{allocator.name:s}n{self._id:d}")\
                     .buff(regCnt, init_data=self.channelInitValues).end
                 dstRead.src(buffs)
                 for hwIO in buffs._hwIOs:
@@ -421,7 +393,7 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
             else:
                 if regCnt > 2:
                     raise NotImplementedError("Prefer use of FIFO")
-                hasData = not HdlType_isVoid(dstRead._outputs[0]._dtype)
+                hasData = not HdlType_isVoid(dstRead._portDataOut._dtype)
                 if hasData:
                     if hasReady or hasValid:
                         data = srcWrite.dst.data
@@ -441,10 +413,12 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
                             else:
                                 assert len(initVal) == 1, initVal
                                 initVal = initVal[0]
-                            data = parentHwModule._reg(f"{namePrefix:s}{i:d}_data", data._dtype, nextSig=data, def_val=initVal)
+                            data = parentHwModule._reg(f"{namePrefix:s}{i:d}_data", data._dtype,
+                                                       nextSig=data, def_val=initVal)
 
                         # vld = dstRead.rtlAllocDataVldReg(allocator)
-                        vld = parentHwModule._reg(f"{namePrefix:s}{i:d}_vld", nextSig=vld, def_val=int(initVal is not NOT_SPECIFIED))
+                        vld = parentHwModule._reg(f"{namePrefix:s}{i:d}_vld", nextSig=vld,
+                                                  def_val=int(initVal is not NOT_SPECIFIED))
                     if hasData:
                         dstRead.src.data(data)
                     dstRead.src.vld(vld)
@@ -458,12 +432,14 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
                         else:
                             assert len(initVal) == 1, initVal
                             initVal = initVal[0]
-                        data = parentHwModule._reg(f"{namePrefix:s}{i:d}_data", data._dtype, nextSig=data, def_val=initVal)
+                        data = parentHwModule._reg(f"{namePrefix:s}{i:d}_data", data._dtype,
+                                                   nextSig=data, def_val=initVal)
                     dstRead.src(data)
 
             if self._fullPort is not None:
                 if vld is None:
                     raise AssertionError("This channel has no form of valid but it has full which is form of valid", self)
+
                 if allocator._dbgAddSignalNamesToSync:
                     full = rename_signal(allocator, vld, f"{self.name:s}_full")
                 else:
@@ -488,11 +464,17 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
         rTime = dstRead.scheduledOut[0]
         wClkI = indexOfClkPeriod(wTime, clkPeriod)
         rClkI = indexOfClkPeriod(rTime, clkPeriod)
+
+        if self._forceWritePort:
+            raise NotImplementedError(self)
+
         # isForwardEdge = wTime < rTime
         if self.allocationType == BACKEDGE_ALLOCATION_TYPE.BUFFER:
             res = self.rtlAllocAsBuffer(allocator, dstRead)
 
         else:
+            if self._isFlushable:
+                raise NotImplementedError(self)
             assert dstRead in allocator._subNodes, (
                 self, allocator, "If this backedge is not buffer both write and read must be in same element")
 
@@ -502,7 +484,7 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
             if hasOnlyVoidData:
                 dataDst = dataSrc = None
             else:
-                rData: TimeIndependentRtlResource = allocator.rtlAllocHlsNetNodeOut(self.associatedRead._outputs[0])
+                rData: TimeIndependentRtlResource = allocator.rtlAllocHlsNetNodeOut(self.associatedRead._portDataOut)
                 src = allocator.rtlAllocHlsNetNodeOut(self.dependsOn[0])
                 if HdlType_isVoid(self.dependsOn[0]._dtype):
                     dataSrc = 1
@@ -622,3 +604,4 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
     def debugIterShadowConnectionDst(self) -> Generator[Tuple[HlsNetNode, bool], None, None]:
         if self.associatedRead is not None:
             yield self.associatedRead, True
+
