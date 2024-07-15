@@ -25,7 +25,7 @@ public:
 	llvm::SmallVector<llvm::AllocaInst*> &GeneratedAllocas;
 	llvm::Argument *ioArg; // argument on top function which is used to access the interface
 	llvm::IntegerType *nativeWordTy;
-	size_t dataWidth; // bit width of data signal of the stream interface (not the same thing as ioArg width, it contains other signals concantenated)
+	size_t dataWidth; // bit width of data signal of the stream interface (not the same thing as ioArg width, it contains other signals concatenated)
 	bool hasMask; // if true the interface has data mask which is part of the data returned by reads
 	bool isOutput; // true if channel is output, false if it is input
 	llvm::SetVector<llvm::CallInst*> ios; // all instructions which are using this stream interface
