@@ -70,6 +70,7 @@ void register_LlvmCompilationBundle(pybind11::module_ &m) {
 				py::arg("SimplifyCondBranch").noconvert() = true,
 				py::arg("HoistCheapInsts").noconvert() = false,
 				py::return_value_policy::reference_internal)
+		.def("_testPruneLoopPhiDeadIncomingValuesPass", &hwtHls::LlvmCompilationBundle::_testPruneLoopPhiDeadIncomingValuesPass, py::return_value_policy::reference_internal)
 		.def("_testSlicesToIndependentVariablesPass", &hwtHls::LlvmCompilationBundle::_testSlicesToIndependentVariablesPass, py::return_value_policy::reference_internal)
 		.def("_testSlicesMergePass", &hwtHls::LlvmCompilationBundle::_testSlicesMergePass, py::return_value_policy::reference_internal)
 		.def("_testLoopFlattenUsingIfPass", &hwtHls::LlvmCompilationBundle::_testLoopFlattenUsingIfPass, py::return_value_policy::reference_internal)

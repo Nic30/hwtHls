@@ -24,6 +24,7 @@
 #include <hwtHls/llvm/Transforms/slicesMerge/slicesMerge.h>
 #include <hwtHls/llvm/Transforms/LoopFlattenUsingIfPass.h>
 #include <hwtHls/llvm/Transforms/LoopUnrotatePass.h>
+#include <hwtHls/llvm/Transforms/PruneLoopPhiDeadIncomingValuesPass/PruneLoopPhiDeadIncomingValuesPass.h>
 #include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.h>
 #include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass.h>
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/bitwidthReducePass.h>
@@ -240,6 +241,11 @@ public:
 llvm::Function& LlvmCompilationBundle::_testRewriteExtractOnMergeValues() {
 	return _runCustomFunctionPass([](llvm::FunctionPassManager &FPM) {
 		FPM.addPass(hwtHls::SlicesToIndependentVariablesPass());
+	});
+}
+llvm::Function& LlvmCompilationBundle::_testPruneLoopPhiDeadIncomingValuesPass() {
+	return _runCustomFunctionPass([](llvm::FunctionPassManager &FPM) {
+		FPM.addPass(hwtHls::PruneLoopPhiDeadIncomingValuesPass());
 	});
 }
 

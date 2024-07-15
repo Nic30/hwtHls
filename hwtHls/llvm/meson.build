@@ -120,6 +120,8 @@ py3.extension_module(
      'Transforms/LoopFlattenUsingIfPass.cpp',
      'Transforms/LoopUnrotatePass.cpp',
      'Transforms/overwriteBlockNamesPass.cpp',
+     'Transforms/PruneLoopPhiDeadIncomingValuesPass/PruneLoopPhiDeadIncomingValuesPass.cpp',
+     'Transforms/PruneLoopPhiDeadIncomingValuesPass/KnownValue.cpp',
      'Transforms/ReconfigureHwtFpgaTTIPass.cpp',
      'Transforms/SimplifyCFG2Pass/SimplifyCFG2.cpp',
      'Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_aggresiveStoreSink.cpp',

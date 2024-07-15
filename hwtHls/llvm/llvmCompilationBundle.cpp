@@ -104,7 +104,7 @@
 #include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamWriteLoweringPass.h>
 #include <hwtHls/llvm/Transforms/streamLoopUnrollPass/streamLoopUnrollPass.h>
 #include <hwtHls/llvm/Transforms/IcmpToOnlyEqLtLe.h>
-
+#include <hwtHls/llvm/Transforms/PruneLoopPhiDeadIncomingValuesPass/PruneLoopPhiDeadIncomingValuesPass.h>
 
 namespace hwtHls {
 
@@ -311,6 +311,7 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 
 	FPM.addPass(llvm::DCEPass()); // because of convertSwitchToLookupTable=true
 	FPM.addPass(hwtHls::SlicesMergePass());
+	FPM.addPass(hwtHls::PruneLoopPhiDeadIncomingValuesPass());
 	_addInstrCombinePasses(FPM);
 
 	FPM.run(F, FAM);
