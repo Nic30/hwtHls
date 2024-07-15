@@ -17,6 +17,7 @@
 #include <map/mio/mio.h>
 #include <aig/aig/aig.h>
 
+#include <hwtHls/netlist/abc/expandExternalCombLoops.h>
 #include <hwtHls/netlist/abc/patternRecognize.h>
 
 namespace py = pybind11;
@@ -509,6 +510,12 @@ PYBIND11_MODULE(abcCpp, m) {
 
 	register_Abc_Ntk_t(m);
 	register_Abc_Obj_t(m);
+	m.def("Abc_NtkExpandExternalCombLoops",
+			[](Abc_Ntk_t *pNtk, Abc_Aig_t_pybind11_wrap *pMan,
+			std::map<Abc_Obj_t*, Abc_Obj_t*> inToOutConnections, std::unordered_set<Abc_Obj_t*> trueOutputs) {
+			return hwtHls::Abc_NtkExpandExternalCombLoops(pNtk, (Abc_Aig_t*)pMan, inToOutConnections, trueOutputs);
+		}, py::return_value_policy::reference_internal);
+
 
 	py::class_<AbcPatternMux2>(m, "AbcPatternMux2")
 		.def_readwrite("isNegated", &AbcPatternMux2::isNegated)
