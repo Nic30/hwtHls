@@ -31,7 +31,7 @@ class AbcAigToHlsNetlist(AbcAigToRtlNetlist):
             if negated:
                 res = self.builder.buildNot(res)
         elif o.Type == Abc_ObjType_t.ABC_OBJ_CONST1:
-            res = BIT.from_py(int(not negated))
+            res = self.builder.buildConstBit(int(not negated))
         else:
             res = self._recognizeNonAigOperator(o, negated)
             if res is not None:
@@ -46,7 +46,7 @@ class AbcAigToHlsNetlist(AbcAigToRtlNetlist):
                 elif op is HwtOps.AND and len(ops) != 2:
                     res = self.builder.buildAndVariadic(ops)
                 elif op is HwtOps.TERNARY:
-                    res = self.builder.buildMux(BIT, tuple(ops))
+                    res = self.builder.buildMux(BIT, ops)
                 else:
                     res = self.builder.buildOp(op, BIT, *ops)
             else:
