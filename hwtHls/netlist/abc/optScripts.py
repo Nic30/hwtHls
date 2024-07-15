@@ -1,6 +1,4 @@
-from typing import Sequence
-
-from hwtHls.netlist.abc.abcCpp import Abc_Ntk_t, Abc_Obj_t
+from hwtHls.netlist.abc.abcCpp import Abc_Ntk_t
 
 def abcCmd_resyn2(net: Abc_Ntk_t):
     # abc standard scripts

@@ -1,7 +1,6 @@
 from typing import Dict, Tuple
 
 from hwt.hdl.operatorDefs import HwtOps
-from hwt.pyUtils.arrayQuery import grouper
 from hwt.pyUtils.setList import SetList
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.netlist.abc.abcCpp import Abc_Ntk_t, Abc_Aig_t, Abc_Frame_t, Abc_Obj_t
