@@ -111,6 +111,9 @@ void register_IRBuilder(pybind11::module_ & m) {
                 std::vector<llvm::Value *> Args, const llvm::Twine &Name = "") {
 			return self->CreateCall(Callee, Args, Name);
 		}, py::arg("Callee"), py::arg("Args"), py::arg("Name")=llvm::Twine(""), py::return_value_policy::reference)
+		.def("CreateAssumption", [](llvm::IRBuilder<> * self, llvm::Value *Cond) {
+			return self->CreateAssumption(Cond);
+		})
 		.def("CreateIntrinsic", [](llvm::IRBuilder<> * self,
 					llvm::Type * RetTy,
 					int ID,
