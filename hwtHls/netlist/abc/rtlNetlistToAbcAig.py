@@ -65,9 +65,10 @@ class RtlNetlistToAbcAig():
         self.c1 = net.Const1()
         # :note: we can not store Abc_Obj_t because the object could be discarded after first operation with network
         #        we can not use index because IO may reorder and we can not use Id because it also changes
-        ioMap: Dict[str, Tuple[str, RtlSignal]] = {}
+        ioMap: Dict[str, RtlSignal] = {}
         for i in inputs:
             abcI = net.CreatePi()
+            # abcI.AssignName(i._name, "")
             ioMap[abcI.Name()] = i
             # abcI.SetData(i)
             self.translationCache[i] = abcI
@@ -75,6 +76,7 @@ class RtlNetlistToAbcAig():
         for o in outputs:
             abcO = net.CreatePo()
             ioMap[abcO.Name()] = o
+            # print(abcO.Name(), o)
             # abcO.SetData(o)
             v = self._translate(aig, o)
             abcO.AddFanin(v)
