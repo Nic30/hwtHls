@@ -2,8 +2,11 @@ LLVM basics, install and use
 ============================
 
 LLVM/clang is useful when debugging something LLVM related which does not necessary dependent on this library.
-There is also https://llvm.godbolt.org/ which has nice WEB UI. There is a discord server and https://discourse.llvm.org.
-https://www.cs.cmu.edu/afs/cs/academic/class/15745-s13/public/lectures/L6-LLVM-Detail-1up.pdf
+* There is also https://llvm.godbolt.org/ which has nice WEB UI (use compiler LLVM IR and tool "opt", -passes=).
+  It has also a view "Opt pipeline" which lets you step trough individual steps.
+  Clang has -emit-llvm.
+* There is a discord server and https://discourse.llvm.org.
+* https://www.cs.cmu.edu/afs/cs/academic/class/15745-s13/public/lectures/L6-LLVM-Detail-1up.pdf
 
 Installation linux
 ------------------
@@ -122,6 +125,9 @@ Interpret
 Transformation passes
 ---------------------
 
+Pass names are defined in 
+llvm/lib/Passes/PassRegistry.def
+llvm/CodeGen/MachinePassRegistry.def
 
 .. code-block:: text
     opt --help-hidden # displays all options for every pass
@@ -140,6 +146,11 @@ Transformation passes
 	                      -x86-codegen -fixup-statepoint-caller-saved -lazy-machine-block-freq -machine-opt-remark-emitter -prologepilog -postrapseudos
 	                      -x86-pseudo -gc-analysis -fentry-insert -xray-instrumentation -patchable-function -x86-evex-to-vex-compress -funclet-layout
 	                      -stackmap-liveness -livedebugvalues -x86-seses -cfi-instr-inserter -x86-lvi-ret -lazy-machine-block-freq -machine-opt-remark-emitter
+Example of use
+https://llvm.org/docs/NewPassManager.html#invoking-opt
+.. code-block:: text
+   opt -passes=dce
+   opt -passes='dce, simplifycfg<bonus-inst-threshold=1;no-switch-range-to-icmp>'
 
 
 * https://www.llvm.org/docs/Passes.html#introduction
