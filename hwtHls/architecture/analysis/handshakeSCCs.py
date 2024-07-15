@@ -1,192 +1,63 @@
-from collections import OrderedDict
 from enum import Enum
-from io import StringIO
+from functools import cmp_to_key
 from networkx.algorithms.components.strongly_connected import strongly_connected_components
 from networkx.classes.digraph import DiGraph
-import sys
-from typing import Tuple, Dict, List, Union, Optional
+from typing import Dict, List, Tuple, Set
 
 from hwt.pyUtils.setList import SetList
 from hwtHls.architecture.analysis.channelGraph import ArchSyncNodeTy, \
-    HlsArchAnalysisPassChannelGraph
+    HlsArchAnalysisPassChannelGraph, ArchSyncNodeIoDict
 from hwtHls.architecture.analysis.hlsArchAnalysisPass import HlsArchAnalysisPass
-from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
-from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge, \
-    HlsNetNodeReadBackedge
-from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge, \
-    HlsNetNodeReadForwardedge
-from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeWriteAnyChannel, \
-    HlsNetNodeReadAnyChannel, HlsNetNodeReadOrWriteToAnyChannel
+from hwtHls.architecture.analysis.syncNodeGraph import HlsArchAnalysisPassSyncNodeGraph, \
+    ArchSyncSuccDiGraphDict, ArchSyncNodeTy_stringFormat_short, \
+    getOtherPortOfChannel, ArchSyncNeighborDict
+from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
+    HlsNetNodeWriteBackedge
+from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeReadOrWriteToAnyChannel
+from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.read import HlsNetNodeRead
+from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
+from hwtHls.netlist.scheduler.clk_math import offsetInClockCycle
 
 
-class ChannelSyncType(Enum):
-    """
-    :note: valid and ready are names of signals in handshake
+class ReadOrWriteType(Enum):
+    CHANNEL_R, CHANNEL_W, R, W = range(4)
 
-    valid is a signal in the direction of data transfer
-    * it tells that the valid data is written in channel
-    * by default it has register every time when it is crossing clock boundary or when going backward in time
-    
-    ready is a signal going in the direction opposite to direction of data
-    * it tells that the reader is able to receive the data
-    * by default it has never the register
-    """
-    VALID = 0
-    READY = 1
-    # VALID_TO_SELF_READY_INSIDE_OF_NODE = 2
+    def isRead(self):
+        return self == ReadOrWriteType.CHANNEL_R or self == ReadOrWriteType.R
+
+    def isChannel(self):
+        return self == ReadOrWriteType.CHANNEL_R or self == ReadOrWriteType.CHANNEL_W
 
 
-def getOtherPortOfChannel(n: Union[HlsNetNodeReadAnyChannel, HlsNetNodeWriteAnyChannel]):
-    if isinstance(n, (HlsNetNodeReadForwardedge, HlsNetNodeReadBackedge)):
-        return n.associatedWrite
-    else:
-        assert isinstance(n, (HlsNetNodeWriteForwardedge, HlsNetNodeWriteBackedge))
-        return n.associatedRead
-
-
-# type definitions for synchronization graph
-ArchSyncSuccDiGraphDict = OrderedDict[ArchSyncNodeTy,
-    OrderedDict[ArchSyncNodeTy, List[Tuple[ChannelSyncType, HlsNetNodeWriteAnyChannel]]],
-]
-
-ArchSyncSuccDict = OrderedDict[ArchSyncNodeTy, Tuple[
-    OrderedDict[ArchSyncNodeTy, List[HlsNetNodeReadOrWriteToAnyChannel]],
-]]
-
-"""
-:var ArchSyncSuccDiGraphDict: A directed graph of ArchSyncNodeTy, with an extra list to allow iteration in deterministic order.
-    src -> (dict dst -> channels connected to dst, dstList)
-:note: Write in ArchSyncSuccDiGraphDict is in src for ChannelSyncType.VALID and in dst for ChannelSyncType.READY
-:var ArchSyncSuccDict: An undirected version of ArchSyncSuccDiGraphDict, IO node is the one present in src
-:var ArchSyncNodeIoDict: dictionary storing IO nodes for every ArchSyncNodeTy
-"""
-
+TimeOffsetOrderedIoItem = Tuple[SchedTime, HlsNetNodeExplicitSync, ArchSyncNodeTy, ReadOrWriteType]
+# :note: AllIOsOfSyncNode contains both channel IO and external IO nodes
+AllIOsOfSyncNode = List[TimeOffsetOrderedIoItem]
 
 class HlsArchAnalysisPassHandshakeSCC(HlsArchAnalysisPass):
 
     def __init__(self):
         super(HlsArchAnalysisPassHandshakeSCC, self).__init__()
-        self.successors: ArchSyncSuccDiGraphDict = OrderedDict()
-        self._successorsUndirected: Optional[ArchSyncSuccDict] = None  # lazy computed from performance reasons
-        self.sccs: List[SetList[ArchSyncNodeTy]] = []
+        self.sccs: List[Tuple[SetList[ArchSyncNodeTy], AllIOsOfSyncNode]] = []
+        self.nodesOutsideOfAnySCC: List[Tuple[ArchSyncNodeTy, AllIOsOfSyncNode]] = []
 
-    def runOnHlsNetlistImpl(self, netlist:"HlsNetlistCtx"):
-        channels = netlist.getAnalysis(HlsArchAnalysisPassChannelGraph)
-        self.successors = self.colllectArchSyncGraph(channels)
+    def runOnHlsNetlistImpl(self, netlist:HlsNetlistCtx):
+        channels: HlsArchAnalysisPassChannelGraph = netlist.getAnalysis(HlsArchAnalysisPassChannelGraph)
+        channelGraph = netlist.getAnalysis(HlsArchAnalysisPassSyncNodeGraph)
         # detect combinational cycles in handshake ready/valid signal
-        self.sccs = self.detectHandshakeSCCs(self.successors, channels.nodes)
-
-    def getSuccessorsUndirected(self) -> ArchSyncSuccDict:
-        successorsUndirected = self._successorsUndirected
-        if successorsUndirected is None:
-            successorsUndirected = self._successorsUndirected = \
-                self.ArchSyncSuccDiGraphDict_to_ArchSyncSuccDict(self.successors)
-        return successorsUndirected
+        self.sccs, self.nodesOutsideOfAnySCC = self.detectHandshakeSCCs(
+            channelGraph.successors, channelGraph.getNeighborDict(),
+            channels.nodes, channels.nodeIo)
 
     @staticmethod
-    def ArchSyncSuccDiGraphDict_to_ArchSyncSuccDict(directed: ArchSyncSuccDiGraphDict)\
-                                                   ->ArchSyncSuccDict:
-        """
-        Convert directed graph to undirected.
-        """
-        undirected: ArchSyncSuccDict = OrderedDict()
-        for src, srcSuccessors in directed.items():
-            assert srcSuccessors, src
-            # copy existing
-            unSrcSucessors = undirected.get(src, None)
-            if unSrcSucessors is None:
-                unSrcSucessors = undirected[src] = OrderedDict()
-            for dst, dstChannels in srcSuccessors.items():
-                # list of channel ports inside of src
-                newChannelList = unSrcSucessors.get(dst, None)
-                if newChannelList is None:
-                    newChannelList = unSrcSucessors[dst] = SetList()
-
-                for chTy, ch in dstChannels:
-                    # add src -> dst
-                    chOpposite = getOtherPortOfChannel(ch)
-                    if chTy == ChannelSyncType.VALID:
-                        chSrcToDst = ch
-                        chDstToSrc = chOpposite
-                    else:
-                        chSrcToDst = chOpposite
-                        chDstToSrc = ch
-
-                    newChannelList.append(chSrcToDst)
-
-                    # add dst -> src
-                    dstSuccessors = undirected.get(dst, None)
-                    if dstSuccessors is None:
-                        dstSuccessors = undirected[dst] = OrderedDict()
-
-                    dstChannels = dstSuccessors.get(src, None)
-                    if dstChannels is None:
-                        dstChannels = dstSuccessors[src] = SetList()
-
-                    dstChannels.append(chDstToSrc)
-
-        return undirected
-
-    @staticmethod
-    def _addSuccessorToSuccessorDict(successors: ArchSyncSuccDiGraphDict, src:ArchSyncNodeTy,
-                      dst:ArchSyncNodeTy, w: HlsNetNodeWrite, chTy: ChannelSyncType):
-        srcSuccesors = successors.get(src, None)
-        if srcSuccesors is None:
-            srcSuccesors = successors[src] = OrderedDict()
-
-        dstChannels = srcSuccesors.get(dst, None)
-        if dstChannels is None:
-            dstChannels = srcSuccesors[dst] = [(chTy, w)]
-        else:
-            dstChannels.append((chTy, w))
-
-    @classmethod
-    def colllectArchSyncGraph(cls, channels: HlsArchAnalysisPassChannelGraph):
-        successors = ArchSyncSuccDiGraphDict = OrderedDict()
-        for w in channels.allChannelWrites:
-            w: HlsNetNodeWriteAnyChannel
-            src = channels.channelPortToParentSyncNode[w]
-            assert w.associatedRead is not None, ("Missing read for channel", w)
-            dst = channels.channelPortToParentSyncNode[w.associatedRead]
-            if w._rtlUseValid and src[1] == dst[1] and not isinstance(w, HlsNetNodeWriteBackedge):
-                # if uses valid and is local to this clock cycle
-                cls._addSuccessorToSuccessorDict(successors, src, dst, w, ChannelSyncType.VALID)
-
-            if w._rtlUseReady:
-                cls._addSuccessorToSuccessorDict(successors, dst, src, w, ChannelSyncType.READY)
-
-        # :note: this is not required because if channel connects
-        # for n in channels.nodes:
-        #    # in node i.valid is connected to all other i.ready and o.valid
-        #    #         o.ready is connected to all other o.ready and i.valid
-        #    for r in channels.nodeChannels[n][0]:
-        #        if r._rtlUseReady and isinstance(r, HlsNetNodeReadForwardedge) and r.associatedWrite._getBufferCapacity() == 0:
-        #            # if the read data or valid or validNB is used in any
-        #            # skipWhen condition or extraCond and dst has ready
-        #            # => there is a combinational loop between r.valid and r.ready
-        #            # because r.ready = ((dst.ready & dst.extraCond) | dst.skipWhen) & ...
-        #            raise NotImplementedError()
-        #
-        #            # if the r.ready is driven from r.valid then
-        #            # the inputs from predecessors are all required for this node to perform its function
-        #
-        #            # VALID_TO_SELF_READY_INSIDE_OF_NODE
-        #
-        #        else:
-        #            # valid is coming from register and adding r.valid to expression driving r.ready
-        #            # does not cause any issue
-        #            pass
-        #
-        #    for r in channels.nodeIo[n][0]:
-        #        if r._rtlUseReady:
-        #            # same check as in previous loop for channel read, now just for IO read
-        #            raise NotImplementedError()
-        #
-        return successors
-
-    @staticmethod
-    def detectHandshakeSCCs(successors: ArchSyncSuccDiGraphDict, nodes: List[ArchSyncNodeTy])\
+    def detectHandshakeSCCs(
+            successors: ArchSyncSuccDiGraphDict,
+            neighborDict: ArchSyncNeighborDict,
+            nodes: List[ArchSyncNodeTy],
+            nodeIo: ArchSyncNodeIoDict)\
             ->List[SetList[ArchSyncNodeTy]]:
         """
         Detect paths in handshake logic which would result in combinational loop on logic level.
@@ -197,64 +68,130 @@ class HlsArchAnalysisPassHandshakeSCC(HlsArchAnalysisPass):
                 g.add_edge(n, suc)
 
         nodeOrder: Dict[ArchSyncNodeTy, int] = {n: i for i, n in enumerate(nodes)}
-        # filter out independent nodes which are not reflexive loop
+        # filter out independent nodes which do not have reflexive loop
+        nodesOutsideOfAnySCC = []
+        for n in nodes:
+            _successors = successors.get(n)
+            if not _successors:
+                nodesOutsideOfAnySCC.append((n, sortIoByOffsetInClkWindow(neighborDict, nodeIo, [n])))
+
         sccs = []
         for scc in strongly_connected_components(g):
             if len(scc) == 1:
                 n = tuple(scc)[0]
                 if not g.has_edge(n, n):
+                    if not successors.get(n):
+                        pass  # already added
+                    else:
+                        nodesOutsideOfAnySCC.append((n, sortIoByOffsetInClkWindow(neighborDict, nodeIo, [n])))
                     continue
 
-            sccs.append(SetList(sorted(scc, key=nodeOrder.get)))
+            sccSorted = SetList(sorted(scc, key=nodeOrder.get))
+            sccs.append((sccSorted, sortIoByOffsetInClkWindow(neighborDict, nodeIo, sccSorted)))
 
-        return sccs
-
-
-def ArchSyncNodeTy_stringFormat(n: ArchSyncNodeTy):
-    return f"{n[0]._getBaseName():s}{n[1]:d}"
-
-
-def ArchSyncNodeTy_stringFormat_short(n: ArchSyncNodeTy):
-    return f"elm{n[0]._id:d}_{n[1]:d}"
-
-
-def ArchSyncSuccDiGraphDict_print(successors: ArchSyncSuccDiGraphDict, out:StringIO=sys.stderr):
-    for n, _successors in successors.items():
-        n: ArchSyncNodeTy
-        out.write(repr(n))
-        out.write("\n")
-        sucChannels, sucList = _successors
-        for suc in sucList:
-            suc: ArchSyncNodeTy
-            out.write("    -> ")
-            out.write(repr(suc))
-            out.write("\n")
-            for chTy, ch in sucChannels[suc]:
-                chTy: ChannelSyncType
-                ch: HlsNetNodeWrite
-                out.write("        +> ")
-                out.write(str(chTy.name))
-                out.write(" ")
-                out.write(repr(ch))
-                out.write("\n")
-
-
-def ArchSyncSuccDict_print(successors: ArchSyncSuccDict, out:StringIO=sys.stderr):
-    for n, _successors in successors.items():
-        out.write(repr(n))
-        out.write("\n")
-        sucChannels, sucList = _successors
-        for suc in sucList:
-            suc: ArchSyncNodeTy
-            out.write("    -> ")
-            out.write(repr(suc))
-            out.write("\n")
-            for ch in sucChannels[suc]:
-                ch: HlsNetNodeReadOrWriteToAnyChannel
-                out.write("        +> ")
-                out.write(repr(ch))
-                out.write("\n")
+        return sccs, nodesOutsideOfAnySCC
 
 
 def HandshakeScc_stringFormat(scc: List[ArchSyncNodeTy]):
     return "_".join(ArchSyncNodeTy_stringFormat_short(n) for n in scc)
+
+
+def HlsNetNodePreceCmp(a: HlsNetNode, b: HlsNetNode):
+    t0 = a[0]
+    t1 = b[0]
+    if t0 != t1:
+        return t0 - t1  # earlier first
+    n0 = a[1]
+    n1 = b[1]
+
+    for dep in n1.dependsOn:
+        if dep is not None and dep.obj is n0:
+            return -1
+
+    for dep in n0.dependsOn:
+        if dep is not None and dep.obj is n1:
+            return 1
+
+    if isinstance(n0, HlsNetNodeReadBackedge):
+        if n0.associatedWrite is n1:
+            return -1  # read before write
+    if isinstance(n0, HlsNetNodeRead):
+        if n0.associatedWrite is n1:
+            return 1  # read after write
+
+    if isinstance(n0, HlsNetNodeWriteBackedge):
+        if n0.associatedRead is n1:
+            return 1  # read before write
+    if isinstance(n0, HlsNetNodeWrite):
+        if n0.associatedRead is n1:
+            return -1  # read after write
+
+    return n0._id - n1._id  # [todo] use reachability
+
+
+HlsNetNodePreceCmpKey = cmp_to_key(HlsNetNodePreceCmp)
+
+
+@staticmethod
+def sortIoByOffsetInClkWindow(neighborDict: ArchSyncNeighborDict,
+                  nodeIo: ArchSyncNodeIoDict,
+                  scc: SetList[ArchSyncNodeTy]):
+    clkPeriod = scc[0][0].netlist.normalizedClkPeriod
+    allIo: AllIOsOfSyncNode = []
+    seen: Set[HlsNetNodeReadOrWriteToAnyChannel] = set()
+    for n in scc:
+        # collect all external IOs
+        reads, writes = nodeIo[n]
+        for r in reads:
+            allIo.append((r.scheduledZero, r, n, ReadOrWriteType.R))
+        for w in writes:
+            allIo.append((w.scheduledZero, w, n, ReadOrWriteType.W))
+
+        _neighbors = neighborDict.get(n, None)
+        if _neighbors is None:
+            continue
+        # collect all channel IOs
+        for otherNode, channelIo in _neighbors.items():
+            if otherNode in scc:
+                for chPort in channelIo:
+                    chPort: HlsNetNodeReadOrWriteToAnyChannel
+                    if chPort not in seen:
+                        seen.add(chPort)
+                        if isinstance(chPort, HlsNetNodeRead):
+                            ioTy = ReadOrWriteType.CHANNEL_R
+                            assert isinstance(chPort, HlsNetNodeRead), chPort
+                        else:
+                            ioTy = ReadOrWriteType.CHANNEL_W
+                            assert isinstance(chPort, HlsNetNodeWrite), chPort
+
+                        timeOff = offsetInClockCycle(chPort.scheduledZero, clkPeriod)
+                        allIo.append((timeOff, chPort, n, ioTy))
+
+                    otherChPort = getOtherPortOfChannel(chPort)
+                    if otherChPort not in seen:
+                        seen.add(otherChPort)
+                        if isinstance(chPort, HlsNetNodeRead):
+                            ioTy = ReadOrWriteType.CHANNEL_W
+                            assert isinstance(otherChPort, HlsNetNodeWrite), chPort
+                        else:
+                            ioTy = ReadOrWriteType.CHANNEL_R
+                            assert isinstance(otherChPort, HlsNetNodeRead), chPort
+
+                        timeOff = offsetInClockCycle(otherChPort.scheduledZero, clkPeriod)
+                        allIo.append((timeOff, otherChPort, otherNode, ioTy))
+            else:
+                # interpret channel ports as an external IO
+                for chPort in channelIo:
+                    if isinstance(chPort, HlsNetNodeRead):
+                        ioTy = ReadOrWriteType.R
+                        assert isinstance(chPort, HlsNetNodeRead), chPort
+                    else:
+                        ioTy = ReadOrWriteType.W
+                        assert isinstance(chPort, HlsNetNodeWrite), chPort
+
+                    timeOff = offsetInClockCycle(chPort.scheduledZero, clkPeriod)
+                    allIo.append((timeOff, chPort, n, ioTy))
+
+    allIo = sorted(allIo, key=HlsNetNodePreceCmpKey)  # sort by offset in clock window
+    return allIo
+

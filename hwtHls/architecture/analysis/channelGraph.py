@@ -3,35 +3,30 @@ from typing import Tuple, Dict, Union, List, Sequence
 from hwtHls.architecture.analysis.hlsArchAnalysisPass import HlsArchAnalysisPass
 from hwtHls.architecture.transformation.utils.termPropagationContext import ArchSyncNodeTy
 from hwtHls.netlist.nodes.archElement import ArchElement
-from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge, \
-    HlsNetNodeReadBackedge
-from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge, \
-    HlsNetNodeReadForwardedge
-from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeReadAnyChannel, \
-    HlsNetNodeWriteAnyChannel
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 
 
 ArchSyncNodeIoDict = Dict[ArchSyncNodeTy, Tuple[List[HlsNetNodeRead], List[HlsNetNodeWrite]]]
+ArchSyncChannelToParentDict = Dict[Union[HlsNetNodeRead, HlsNetNodeWrite],
+                                             ArchSyncNodeTy]
 
 
 class HlsArchAnalysisPassChannelGraph(HlsArchAnalysisPass):
     """
     Collect graph of channels connecting ArchElement instances.
-    The channel is represented by:
-        HlsNetNodeReadForwardedge,
-        HlsNetNodeWriteForwardedge,
-        HlsNetNodeReadBackedge,
-        HlsNetNodeWriteBackedge
+    The channel is represented by associated HlsNetNodeRead, HlsNetNodeWrite pairs
+    The :class:`HlsNetNodeReadForwardedge`,
+        :class:`HlsNetNodeWriteForwardedge`,
+        :class:`HlsNetNodeReadBackedge` and
+        :class:`HlsNetNodeWriteBackedge` instances are always associated.
     """
 
     def __init__(self):
         super(HlsArchAnalysisPassChannelGraph, self).__init__()
-        self.channelPortToParentSyncNode: Dict[Union[HlsNetNodeReadAnyChannel, HlsNetNodeWriteAnyChannel],
-                                             ArchSyncNodeTy] = {}
+        self.ioNodeToParentSyncNode: ArchSyncChannelToParentDict = {}
         self.nodes: List[ArchSyncNodeTy] = []
-        self.allChannelWrites: List[HlsNetNodeWriteAnyChannel] = []
+        self.allChannelWrites: List[HlsNetNodeWrite] = []
         self.nodeIo: ArchSyncNodeIoDict = {}
         self.nodeChannels: ArchSyncNodeIoDict = {}
 
@@ -42,11 +37,11 @@ class HlsArchAnalysisPassChannelGraph(HlsArchAnalysisPass):
         """
         archElements: Sequence[ArchElement] = netlist.nodes
 
-        channelPortToParentSyncNode = self.channelPortToParentSyncNode
+        ioNodeToParentSyncNode = self.ioNodeToParentSyncNode
         allChannelWrites = self.allChannelWrites
         allNodes = self.nodes
         nodeIo = self.nodeIo
-        assert not channelPortToParentSyncNode
+        assert not ioNodeToParentSyncNode
         assert not allChannelWrites
         assert not allNodes
         assert not nodeIo
@@ -60,23 +55,24 @@ class HlsArchAnalysisPassChannelGraph(HlsArchAnalysisPass):
                 inputList, outputList = nodeIo[syncNode] = ([], [])
 
                 for n in nodes:
-                    if isinstance(n, (HlsNetNodeWriteForwardedge, HlsNetNodeWriteBackedge)):
-                        channelPortToParentSyncNode[n] = syncNode
-                        allChannelWrites.append(n)
-                    elif isinstance(n, (HlsNetNodeReadForwardedge, HlsNetNodeReadBackedge)):
-                        channelPortToParentSyncNode[n] = syncNode
+                    if isinstance(n, HlsNetNodeWrite):
+                        ioNodeToParentSyncNode[n] = syncNode
+                        if n.associatedRead is not None:
+                            allChannelWrites.append(n)
+                        else:
+                            outputList.append(n)
                     elif isinstance(n, HlsNetNodeRead):
-                        inputList.append(n)
-                    elif isinstance(n, HlsNetNodeWrite):
-                        outputList.append(n)
+                        ioNodeToParentSyncNode[n] = syncNode
+                        if n.associatedWrite is None:
+                            inputList.append(n)
 
         nodeChannels = self.nodeChannels
         for n in allNodes:
             nodeChannels[n] = ([], [])
 
         for w in allChannelWrites:
-            w: HlsNetNodeWriteAnyChannel
-            srcNode = channelPortToParentSyncNode[w]
+            w: HlsNetNodeWrite
+            srcNode = ioNodeToParentSyncNode[w]
             nodeChannels[srcNode][1].append(w)
-            dstNode = channelPortToParentSyncNode[w.associatedRead]
+            dstNode = ioNodeToParentSyncNode[w.associatedRead]
             nodeChannels[dstNode][0].append(w.associatedRead)
