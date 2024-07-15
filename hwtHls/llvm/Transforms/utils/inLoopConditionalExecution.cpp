@@ -178,10 +178,10 @@ SmallVector<AllocaInst*> makeSectionOfLoopConditionalyReexecuted(
 	prequelTerm->eraseFromParent();
 
 	if (conditionIsNegated) {
-		prequelTerm = BranchInst::Create(entryBlock, bypassSuccessor, condition,
+		prequelTerm = BranchInst::Create(bypassSuccessor, entryBlock, condition,
 				prequelBlock);
 	} else {
-		prequelTerm = BranchInst::Create(bypassSuccessor, entryBlock, condition,
+		prequelTerm = BranchInst::Create(entryBlock, bypassSuccessor, condition,
 				prequelBlock);
 	}
 	{
