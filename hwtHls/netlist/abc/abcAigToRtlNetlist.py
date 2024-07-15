@@ -1,11 +1,14 @@
+from itertools import islice
 from typing import Dict, Tuple, Generator
 
 from hwt.code import Or, And, Xor
+from hwt.constants import NOT_SPECIFIED
 from hwt.hdl.operatorDefs import HwtOps, HOperatorDef
 from hwt.hdl.types.defs import BIT
+from hwt.pyUtils.arrayQuery import grouper
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.netlist.abc.abcCpp import Abc_Ntk_t, Abc_Aig_t, Abc_Frame_t, Abc_Obj_t, \
-    Abc_ObjType_t  # , Io_FileType_t
+    Abc_ObjType_t, recognizeMux2, recognizeMux3  # , Io_FileType_t
 
 
 class AbcAigToRtlNetlist():
@@ -42,12 +45,12 @@ class AbcAigToRtlNetlist():
 
         # if is negated or is primary input end search otherwise drill down
         if o0n or o0isPi:
-            yield (o0, not o0n and o0isPi)
+            yield (o0, not o0n)
         else:
             yield from cls._collectOrMembers(o0)
 
         if o1n or o1isPi:
-            yield (o1, not o1n and o1isPi)
+            yield (o1, not o1n)
         else:
             yield from cls._collectOrMembers(o1)
 
@@ -71,12 +74,15 @@ class AbcAigToRtlNetlist():
     #    to translate it to ~(a | b | c)
     #    """
 
+
     def _recognizeNonAigOperator(self, o: Abc_Obj_t, negated: bool):
         """
         Check if object is in format:
 
         xor: (p0 & ~p1) | (p1 & ~p0)
         mux: (pC & p1) | (~pC & p0)
+             (~pC | pT) & (pC | pF)
+             ...
         or:  ~(~p0 & ~p1), ~(~p0 & ~p1 & ~p2 ...)
         not: ~(p0 & p0)
         not: (~p0 & ~p0)
@@ -85,11 +91,33 @@ class AbcAigToRtlNetlist():
         * (~p0 | ~p1) -> ~(p0 & p1)
         * (~p0 & ~p1) -> ~(p0 | p1)
         """
+        m = recognizeMux3(negated, o)
+        if m is not None:
+            tr = self._translate
+            res = (HwtOps.TERNARY, (tr(m.v0, m.v0n), tr(m.c0, m.c0n),
+                                    tr(m.v1, m.v1n), tr(m.c1, m.c1n),
+                                    tr(m.v2, m.v2n)))
+            if m.isNegated:
+                return (HwtOps.NOT, res)
+            else:
+                return res
+
+        m = recognizeMux2(negated, o)
+        if m is not None:
+            tr = self._translate
+            res = (HwtOps.TERNARY, (tr(m.v0, m.v0n), tr(m.c0, m.c0n),
+                                    tr(m.v1, m.v1n)))
+            if m.isNegated:
+                return (HwtOps.NOT, res)
+            else:
+                return res
+
         o0n = o.FaninC0()
         o1n = o.FaninC1()
         topIsOr = negated and o0n and o1n
         topP0, topP1 = o.IterFanin()
         tr = self._translate
+
         if not topIsOr:
             # not: ~(p0 & p0)
             # not: (~p0 & ~p0)
@@ -105,15 +133,19 @@ class AbcAigToRtlNetlist():
                     if negated:
                         if all(n for _, n in orMembers):
                             # (~p0 | ~p1) -> ~(p0 & p1)
-                            return HwtOps.NOT, (HwtOps.AND, tuple(tr(p, int(not n)) for p, n in orMembers))
+                            return HwtOps.NOT, (HwtOps.AND, tuple(tr(p, int(not n))
+                                                                  for p, n in orMembers))
                         else:
-                            return HwtOps.OR, tuple(tr(p, n) for p, n in orMembers)
+                            return HwtOps.OR, tuple(tr(p, n)
+                                                    for p, n in orMembers)
                     elif not allArePis or all(not n for _, n in orMembers):
                         # (~p0 & ~p1) -> ~(p0 | p1)
-                        return HwtOps.NOT, (HwtOps.OR, tuple(tr(p, n) for p, n in orMembers))
+                        return HwtOps.NOT, (HwtOps.OR, tuple(tr(p, n)
+                                                             for p, n in orMembers))
 
             return None
 
+        # :note: top may be "or"
         if o0n and o1n and not topP0.IsPi() and not topP1.IsPi():
             P0o0n = topP0.FaninC0()
             P0o1n = topP0.FaninC1()
@@ -134,6 +166,7 @@ class AbcAigToRtlNetlist():
                     # xor: (p0 & ~p1) | (p1 & ~p0)
                     return HwtOps.XOR, (tr(p0, False), tr(p1, False))
 
+
             elif not P0o0n and not P0o1n and (P1o0n + P1o1n) == 1:
                 pc, p1 = topP0.IterFanin()  # both not negated
                 P1o0, P1o1 = topP1.IterFanin()
@@ -152,16 +185,6 @@ class AbcAigToRtlNetlist():
                             # ~(pC & p1)
                             return HwtOps.NOT, res
 
-                    p0 = P1o1
-                    if P1o0n:
-                        p0, p1 = p1, p0
-                    # mux: (pC & p1) | (~pC & p0) -> pC ? p1 : p0
-                    res = HwtOps.TERNARY, (tr(pc, False), tr(p0, False), tr(p1, False))
-                    if negated:
-                        return res
-                    else:
-                        # ~(pC ? p1 : p0)
-                        return HwtOps.NOT, res
 
         if o0n and o1n:
             # or:  ~(~p0 & ~p1)
@@ -208,6 +231,17 @@ class AbcAigToRtlNetlist():
                     res = And(*ops)
                 elif op is HwtOps.XOR and len(ops) != 2:
                     res = Xor(*ops)
+                elif op is HwtOps.TERNARY:
+                    if len(ops) == 3:
+                        v0, c, v1 = ops
+                        res = c._ternary(v0, v1)
+                    else:
+                        # take last 3 as a base and prepend mux for every c, v pair
+                        v0, c, v1 = ops[-3:]
+                        res = c._ternary(v0, v1)
+                        assert (len(ops) - 3) % 2 == 0
+                        for v, c in grouper(2, islice(ops, 0, len(ops) - 3), padvalue=NOT_SPECIFIED):
+                            res = c._ternary(v, res)
                 else:
                     res = op._evalFn(*ops)
             else:

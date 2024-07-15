@@ -7,8 +7,9 @@
 #include <vector>
 #include <sstream>
 #include <iomanip>
+#include <unordered_set>
 
-// abc realated
+// abc related
 #include <base/abc/abc.h>
 #include <base/io/ioAbc.h>
 #include <base/main/abcapis.h>
@@ -16,8 +17,13 @@
 #include <map/mio/mio.h>
 #include <aig/aig/aig.h>
 
+#include <hwtHls/netlist/abc/patternRecognize.h>
 
 namespace py = pybind11;
+
+PYBIND11_MAKE_OPAQUE(std::map<Abc_Obj_t*, Abc_Obj_t*>);
+// PYBIND11_MAKE_OPAQUE(std::unordered_set<Abc_Obj_t*>);
+
 
 namespace hwtHls {
 
@@ -26,7 +32,7 @@ namespace hwtHls {
 // https://www.dropbox.com/s/qrl9svlf0ylxy8p/ABC_GettingStarted.pdf
 // https://github.com/Yu-Utah/FlowTune
 
-void * __attribute__ ((unused)) ___v = (void*) &Vec_MemHashProfile; // to suppress warning that Vec_MemHashProfile is unused
+void * __attribute__ ((unused)) ___v1 = (void*) &Vec_MemHashProfile; // to suppress warning that Vec_MemHashProfile is unused
 
 // these types are incomplete and pybind11 needs a typeinfo so we have to provide some existing type
 struct Abc_Frame_t_pybind11_wrap {
@@ -358,16 +364,18 @@ void register_Abc_Ntk_t(py::module_ &m) {
 	 .value("IO_FILE_UNKNOWN", Io_FileType_t::IO_FILE_UNKNOWN)//
      .export_values();
 
+#define PYBIND11_ABC_ARG_NOT_NONE_BIN_OP py::arg("p0").none(false), py::arg("p1").none(false), py::return_value_policy::reference_internal
+#define PYBIND11_ABC_ARG_NOT_NONE_MUX_OP py::arg("pC").none(false), py::arg("p1").none(false), py::arg("p0").none(false), py::return_value_policy::reference_internal
 
 	py::class_<Abc_Aig_t_pybind11_wrap, std::unique_ptr<Abc_Aig_t_pybind11_wrap, py::nodelete>>(m, "Abc_Aig_t")
-		.def("And", wrap_Abc_Aig_t(&Abc_AigAnd), py::return_value_policy::reference_internal)
-		.def("Or", wrap_Abc_Aig_t(&Abc_AigOr), py::return_value_policy::reference_internal)
-		.def("Xor", wrap_Abc_Aig_t(&Abc_AigXor), py::return_value_policy::reference_internal)
-		.def("Mux", wrap_Abc_Aig_t(&Abc_AigMux), py::return_value_policy::reference_internal)
-		.def("Eq", wrap_Abc_Aig_t(&Abc_AigEq), py::return_value_policy::reference_internal)
-		.def("Ne", wrap_Abc_Aig_t(&Abc_AigNe), py::return_value_policy::reference_internal)
-		.def("Not", [](Abc_Aig_t_pybind11_wrap *self, Abc_Obj_t* v) {
-			return Abc_ObjNot(v);
+		.def("And", wrap_Abc_Aig_t(&Abc_AigAnd), PYBIND11_ABC_ARG_NOT_NONE_BIN_OP)
+		.def("Or", wrap_Abc_Aig_t(&Abc_AigOr), PYBIND11_ABC_ARG_NOT_NONE_BIN_OP)
+		.def("Xor", wrap_Abc_Aig_t(&Abc_AigXor), PYBIND11_ABC_ARG_NOT_NONE_BIN_OP)
+		.def("Mux", wrap_Abc_Aig_t(&Abc_AigMux), PYBIND11_ABC_ARG_NOT_NONE_MUX_OP)
+		.def("Eq", wrap_Abc_Aig_t(&Abc_AigEq), PYBIND11_ABC_ARG_NOT_NONE_BIN_OP)
+		.def("Ne", wrap_Abc_Aig_t(&Abc_AigNe), PYBIND11_ABC_ARG_NOT_NONE_BIN_OP)
+		.def("Not", [](Abc_Aig_t_pybind11_wrap &self, Abc_Obj_t& v) {
+			return Abc_ObjNot(&v);
 		}, py::return_value_policy::reference_internal)
 		.def("Miter", [](Abc_Aig_t_pybind11_wrap *self, const std::vector<Abc_Obj_t*> & memberPairs, bool fImplic) {
 			// based on Abc_NtkMiterFinalize
@@ -483,6 +491,7 @@ void register_Abc_Obj_t(py::module_ &m) {
 PYBIND11_MODULE(abcCpp, m) {
 	// https://people.eecs.berkeley.edu/~alanmi/abc/aig.pdf
 	Abc_Start();
+	py::bind_map<std::map<Abc_Obj_t*, Abc_Obj_t*>>(m, "MapAbc_Obj_tToAbc_Obj_t");
 
 	py::class_<Abc_Frame_t_pybind11_wrap, std::unique_ptr<Abc_Frame_t_pybind11_wrap, py::nodelete>>(m, "Abc_Frame_t")
 		.def_static("GetGlobalFrame", []() {
@@ -500,7 +509,27 @@ PYBIND11_MODULE(abcCpp, m) {
 
 	register_Abc_Ntk_t(m);
 	register_Abc_Obj_t(m);
+
+	py::class_<AbcPatternMux2>(m, "AbcPatternMux2")
+		.def_readwrite("isNegated", &AbcPatternMux2::isNegated)
+		.def_readwrite("v0", &AbcPatternMux2::v0)
+		.def_readwrite("v0n", &AbcPatternMux2::v0n)
+		.def_readwrite("c0", &AbcPatternMux2::c0)
+		.def_readwrite("c0n", &AbcPatternMux2::c0n)
+		.def_readwrite("v1", &AbcPatternMux2::v1)
+		.def_readwrite("v1n", &AbcPatternMux2::v1n);
+
+	py::class_<AbcPatternMux3, AbcPatternMux2>(m, "AbcPatternMux3")
+		.def_readwrite("c1", &AbcPatternMux3::c1)
+		.def_readwrite("c1n", &AbcPatternMux3::c1n)
+		.def_readwrite("v2", &AbcPatternMux3::v2)
+		.def_readwrite("v2n", &AbcPatternMux3::v2n);
+
+	m.def("recognizeMux2", &recognizeMux2);
+	m.def("recognizeMux3", &recognizeMux3);
+
 	//py::capsule cleanup(m, [](PyObject *) { Abc_Stop(); });
 	//m.add_object("_cleanup", cleanup);
 }
+
 }
