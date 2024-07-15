@@ -143,7 +143,7 @@ void rerouteChildBackedgeAndTransferChildPhis(BasicBlock *childPreHeader,
 				parentPreheader
 						&& "LoopSimplify normal form specifies that there must be preheader");
 		if (!reusingParentPhi)
-			headerPhi->addIncoming(UndefValue::get(Ty), parentPreheader); // value for child loop is undef in first iteration
+			headerPhi->addIncoming(PoisonValue::get(Ty), parentPreheader); // value for child loop is undef in first iteration
 
 		// create a phi in newLatchBlock which will switch between undef and value from the child loop body
 		auto childBackedgeVal = childPhi.getIncomingValueForBlock(childLatch);
@@ -201,7 +201,7 @@ void rerouteChildBackedgeAndTransferChildPhis(BasicBlock *childPreHeader,
 			for (auto latchPred : predecessors(newLatchBlock)) {
 				assert(latchPred != newLatchBlock);
 				// value for child loop is undef once code exited child loop
-				latchPhi->addIncoming(UndefValue::get(Ty), latchPred);
+				latchPhi->addIncoming(PoisonValue::get(Ty), latchPred);
 			}
 		}
 		if (reusingParentPhi)
@@ -225,7 +225,7 @@ void rerouteChildBackedgeAndTransferChildPhis(BasicBlock *childPreHeader,
 			if (valCnt != predCnt) {
 				assert(predCnt == valCnt + 1);
 				assert(latchPhi.getBasicBlockIndex(childHeader) < 0);
-				latchPhi.addIncoming(UndefValue::get(latchPhi.getType()),
+				latchPhi.addIncoming(PoisonValue::get(latchPhi.getType()),
 						childLatch);
 			}
 		}
@@ -257,7 +257,7 @@ void rerouteChildBackedgeAndTransferChildPhis(BasicBlock *childPreHeader,
 				if (newLatchBlock == oldLatchBlock)
 					llvm_unreachable("NotImplemented");
 				newLatchPhi->addIncoming(latchVal, oldLatchBlock);
-				newLatchPhi->addIncoming(UndefValue::get(Ty), childLatch); // undef if looping in child loop mode
+				newLatchPhi->addIncoming(PoisonValue::get(Ty), childLatch); // undef if looping in child loop mode
 				phi.setIncomingValueForBlock(newLatchBlock, newLatchPhi);
 			}
 		}
