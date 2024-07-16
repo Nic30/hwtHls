@@ -120,6 +120,9 @@ class HlsNetlistBuilder():
                     if isinstance(o, HlsNetNodeOut):
                         worklist.append(o.obj)
 
+            if name is not None and len(res.obj._outputs) == 1 and res.obj.name is None:
+                res.obj.name = name
+
             return res
 
         operandsWithOutputsOnly = tuple(self._toNodeOut(o) for o in operands)
@@ -283,12 +286,14 @@ class HlsNetlistBuilder():
                 if op0._eq(op0._dtype.all_mask()):
                     if isinstance(other, HConst):
                         c = HlsNetNodeConst(self.netlist, other)
+                        c.name = name
                         self.netlistNodes.append(c)
                         return c._outputs[0]
                     else:
                         return other
                 elif op0._eq(0):
                     c = HlsNetNodeConst(self.netlist, op0._dtype.from_py(0))
+                    c.name = name
                     self.netlistNodes.append(c)
                     return c._outputs[0]
 
@@ -319,12 +324,14 @@ class HlsNetlistBuilder():
                 if op0._eq(0):
                     if isinstance(other, HConst):
                         c = HlsNetNodeConst(self.netlist, other)
+                        c.name = name
                         self.netlistNodes.append(c)
                         return c._outputs[0]
                     else:
                         return other
                 elif op0._eq(op0._dtype.all_mask()):
                     c = HlsNetNodeConst(self.netlist, op0._dtype.from_py(op0._dtype.all_mask()))
+                    c.name = name
                     self.netlistNodes.append(c)
                     return c._outputs[0]
 
@@ -344,11 +351,18 @@ class HlsNetlistBuilder():
                 return self.buildOr(a, b)
 
     def buildNot(self, a: Union[HlsNetNodeOut, HConst]) -> HlsNetNodeOut:
-        if isinstance(a, HlsNetNodeOut) and isinstance(a.obj, HlsNetNodeOperator) and a.obj.operator == HwtOps.NOT:
-            return a.obj.dependsOn[0]
+        if isinstance(a, HlsNetNodeOut):
+            aObj = a.obj
+            if isinstance(aObj, HlsNetNodeOperator) and aObj.operator == HwtOps.NOT:
+                return aObj.dependsOn[0]
+            elif isinstance(aObj, HlsNetNodeConst):
+                return self.buildConst(~aObj.val)
+        elif isinstance(a, HConst):
+            return self.buildConst(~a)
+
         return self.buildOp(HwtOps.NOT, a._dtype, a)
 
-    def buildMux(self, resT: HdlType, operands: Tuple[Union[HlsNetNodeOut, HConst]], name:Optional[str]=None):
+    def buildMux(self, resT: HdlType, operands: Tuple[Union[HlsNetNodeOut, HConst]], name:Optional[str]=None, opt=True):
         """
         :param operands: operands in format of val0, (condN, valN)*
         """
@@ -358,31 +372,32 @@ class HlsNetlistBuilder():
             return res
 
         operandsWithOutputsOnly = tuple(self._toNodeOut(o) for o in operands)
-        opLen = len(operands)
-        if opLen == 1:
-            return operands[0]  # there is only a single value
-        elif opLen % 2 == 1:
-            v0 = operands[0]
-            for last, (src, cond) in iter_with_last(grouper(2, operandsWithOutputsOnly)):
-                if src is not v0:
-                    break
-                if last:
-                    return v0  # all cases have same value
+        if opt:
+            opLen = len(operands)
+            if opLen == 1:
+                return operands[0]  # there is only a single value
+            elif opLen % 2 == 1:
+                v0 = operands[0]
+                for last, (src, cond) in iter_with_last(grouper(2, operandsWithOutputsOnly)):
+                    if src is not v0:
+                        break
+                    if last:
+                        return v0  # all cases have same value
 
-            if opLen == 3 and resT.bit_length() == 1:
-                v0, c, v1 = operands
-                v0 = getConstOfOutput(v0)
-                if v0 is not None and v0._is_full_valid():
-                    v0 = int(v0)
-                    v1 = getConstOfOutput(v1)
-                    if v1 is not None and v1._is_full_valid():
-                        v1 = int(v1)
-                        if v0 and not v1:
-                            # res = 1 if c else 0  -> res = c
-                            return c
-                        elif not v0 and v1:
-                            # res = 0 if c else 1  -> res = ~c
-                            return self.buildNot(c)
+                if opLen == 3 and resT.bit_length() == 1:
+                    v0, c, v1 = operands
+                    v0 = getConstOfOutput(v0)
+                    if v0 is not None and v0._is_full_valid():
+                        v0 = int(v0)
+                        v1 = getConstOfOutput(v1)
+                        if v1 is not None and v1._is_full_valid():
+                            v1 = int(v1)
+                            if v0 and not v1:
+                                # res = 1 if c else 0  -> res = c
+                                return c
+                            elif not v0 and v1:
+                                # res = 0 if c else 1  -> res = ~c
+                                return self.buildNot(c)
 
         n = HlsNetNodeMux(self.netlist, resT, name=name)
         self.netlistNodes.append(n)
@@ -621,3 +636,27 @@ class HlsNetlistBuilder():
         )
         scopedBuilder._removedNodes = self._removedNodes
         return scopedBuilder
+
+
+def _replaceOutPortWith1(o: HlsNetNodeOut, worklist: SetList[HlsNetNode]):
+    n = o.obj
+    b: HlsNetlistBuilder = n.netlist.builder
+    uses = n.usedBy[o.out_i]
+    if uses:
+        for u in uses:
+            worklist.append(u.obj)
+        b.replaceOutput(o, b.buildConstBit(1), True)
+        return True
+    return False
+
+
+def _replaceOutPortWith(o: HlsNetNodeOut, replacementO: HlsNetNodeOut, worklist: SetList[HlsNetNode]):
+    n = o.obj
+    b: HlsNetlistBuilder = n.netlist.builder
+    uses = n.usedBy[o.out_i]
+    if uses:
+        for u in uses:
+            worklist.append(u.obj)
+        b.replaceOutput(o, replacementO, True)
+        return True
+    return False
