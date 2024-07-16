@@ -83,12 +83,6 @@ class HlsNetNodeWriteForwardedge(HlsNetNodeWrite):
     def isBackedge(self):
         return False
 
-    def getFullPort(self) -> HlsNetNodeOut:
-        return HlsNetNodeWriteBackedge.getFullPort(self)
-
-    def getForceWritePort(self) -> HlsNetNodeIn:
-        return HlsNetNodeWriteBackedge.getForceWritePort(self)
-
     @override
     def getSchedulingResourceType(self):
         return self
