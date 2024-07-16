@@ -47,8 +47,21 @@ def offsetInClockCycle(time: int, clkPeriod: int):
 
 
 def timeUntilClkEnd(time: int, clkPeriod: int):
+    return beginOfNextClk(time, clkPeriod) - time
+
+
+def beginOfClk(time: int, clkPeriod: int):
+    return indexOfClkPeriod(time, clkPeriod) * clkPeriod
+
+def beginOfClkWindow(clkIndex:int, clkPeriod: int):
+    return clkIndex * clkPeriod
+
+def endOfClk(time: int, clkPeriod: int):
+    return beginOfNextClk(time, clkPeriod) * clkPeriod - 1
+
+
+def beginOfNextClk(time: int, clkPeriod: int):
     if time < 0:
         raise NotImplementedError()
     clkI = indexOfClkPeriod(time, clkPeriod)
-    return (clkI + 1) * clkPeriod - time
-
+    return (clkI + 1) * clkPeriod

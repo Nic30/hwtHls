@@ -1,11 +1,14 @@
+from collections import OrderedDict
 from io import StringIO
 from itertools import chain
 from math import ceil
-from typing import Union, Optional, Set, Callable
+from typing import Union, Optional, Set, Callable, Dict, List, Self, Sequence
 
+from hwt.hwIO import HwIO
 from hwt.hwModule import HwModule
 from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
+from hwtHls.hwIOMeta import HwIOMeta
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
 from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
@@ -145,6 +148,267 @@ class HlsNetlistCtx(AnalysisCache):
                 return n
         raise ValueError("Node with requested id not found", _id)
 
-    def __repr__(self)->str:
+    def _computeSchedulingClockWindowOffsets(self, others: List[Self]):
+        offsetsOfOthers: List[int] = []
+        clkPeriod = self.normalizedClkPeriod
+        _, selfOffset = self.scheduler.getSchedulingMinTime(clkPeriod)
+        assert selfOffset == 0, (self, selfOffset)
+        for other in others:
+            assert other.normalizedClkPeriod == clkPeriod
+            _, firstClkI = other.scheduler.getSchedulingMinTime(self.normalizedClkPeriod)
+            if selfOffset == 0:
+                if firstClkI < 0:
+                    # add time of self to make sure other will start at 0
+                    selfOffset += -firstClkI
+                    offsetsOfOthers += [o + -firstClkI for o in offsetsOfOthers]
+                    offsetsOfOthers.append(-firstClkI)
+                else:
+                    offsetsOfOthers.append(selfOffset)
+            else:
+                otherOffsetUnderlap = selfOffset + firstClkI
+                if otherOffsetUnderlap < 0:
+                    # the negative offset of other is so large that it is necessary to also shift the current schedule
+
+                    # add time of self to make sure other will start at 0
+                    selfOffset += -otherOffsetUnderlap
+                    offsetsOfOthers += [o + -otherOffsetUnderlap for o in offsetsOfOthers]
+
+                    # add time of other to make sure it will start at 0
+                    offsetsOfOthers.append(-firstClkI)
+                else:
+                    # other will be moved ad self was
+                    offsetsOfOthers.append(selfOffset)
+
+        assert len(others) == len(offsetsOfOthers)
+        return selfOffset, offsetsOfOthers
+
+    def merge(self, hwIOMeta: Dict[HwIO, HwIOMeta], others: Sequence[Self]):
+        """
+        Merge nodes of the other netlists to this one
+        """
+        nodesPerIO: OrderedDict[HwIO, List[Union[HlsNetNodeRead, HlsNetNodeWrite]]] = {}
+        maxOpsForIO: Dict[HwIO, int] = {}
+        hwIoUserNetlists: Dict[HwIO, List[HlsNetlistCtx]] = {}
+
+        for n in self.iterAllNodesFlat(NODE_ITERATION_TYPE.PREORDER):
+            if isinstance(n, HlsNetNodeWrite):
+                hwio = n.dst
+            elif isinstance(n, HlsNetNodeRead):
+                hwio = n.src
+            else:
+                continue
+
+            if hwio is None:
+                continue  # this one will be generated on demand and is guaranteed that there will be correct number of IOs per clock
+
+            hwioUsers = hwIoUserNetlists.get(hwio, None)
+            if hwioUsers is None:
+                hwIoUserNetlists[hwio] = [self, ]
+
+            ioList = nodesPerIO.get(hwio, None)
+            if ioList is None:
+                maxOpsForIO[hwio] = n.maxIosPerClk
+                ioList = nodesPerIO[hwio] = []
+
+            ioList.append(n)
+
+        clkPeriod = self.normalizedClkPeriod
+        selfOffset, offsetsOfOthers = self._computeSchedulingClockWindowOffsets(others)
+        if selfOffset != 0:
+            self.scheduler.moveSchedulingTime(selfOffset, clkPeriod)
+
+        for other, otherOffset in zip(others, offsetsOfOthers):
+            assert other is not self
+            idOffset = self._uniqNodeCntr
+            iosSeenInThisNetlist: Set[HwIO] = set()
+            if otherOffset != 0:
+                other.scheduler.moveSchedulingTime(otherOffset, clkPeriod)
+
+            for n in other.iterAllNodesFlat(NODE_ITERATION_TYPE.PREORDER):
+                n: HlsNetNode
+                n.netlist = self
+                n._id += idOffset
+
+                if isinstance(n, HlsNetNodeWrite):
+                    if n.associatedRead is not None:
+                        continue  # if it is already associated with something thread local it is not IO
+                    isRead = False
+                    hwio = n.dst
+                elif isinstance(n, HlsNetNodeRead):
+                    if n.associatedWrite is not None:
+                        continue
+                    isRead = True
+                    hwio = n.src
+                else:
+                    continue
+
+                if hwio is None:
+                    # this is the case for on demand generated IO which should have be only
+                    # thread local or nodes should be already associated
+                    continue
+
+                if hwio not in iosSeenInThisNetlist:
+                    hwioUsers = hwIoUserNetlists.get(hwio, None)
+                    if hwioUsers is None:
+                        hwIoUserNetlists[hwio] = [other, ]
+                    else:
+                        hwioUsers.append(other)
+                    # seen first time means that we should add maxIosPerClk
+                    ioList = nodesPerIO.get(hwio, None)
+                    if ioList is None:
+                        # this IO is globally first seen
+                        newMaxOpsPerClk = maxOpsForIO[hwio, 0] = n.maxIosPerClk
+                        ioList = nodesPerIO[hwio] = [n]
+                    else:
+                        # this IO was used in some other netlist
+                        newMaxOpsPerClk = maxOpsForIO.get(hwio, 0) + n.maxIosPerClk
+                        maxOpsForIO[hwio] = newMaxOpsPerClk
+                        ioList.append(n)
+
+                    for _n in ioList:
+                        _n.maxIosPerClk = newMaxOpsPerClk
+
+                else:
+                    ioList = nodesPerIO[hwio]
+                    n.maxIosPerClk = maxOpsForIO[hwio]
+                    ioList.append(n)
+
+                # [todo] association of backedges
+                if isRead:
+                    for _n in ioList:
+                        if isinstance(_n, HlsNetNodeWrite) and _n.associatedRead is None and _n.scheduledZero <= n.scheduledZero:
+                            _n.associateRead(n)
+                            break
+                else:
+                    meta: Optional[HwIOMeta] = hwIOMeta.get(hwio, None)
+                    if meta is not None:
+                        n.channelInitValues = meta.channelInit
+                    for _n in ioList:
+                        if isinstance(_n, HlsNetNodeRead) and _n.associatedWrite is None and _n.scheduledZero >= n.scheduledZero:
+                            n.associateRead(_n)
+                            break
+
+            self.inputs.extend(other.inputs)
+            self.outputs.extend(other.outputs)
+            self.nodes.extend(other.nodes)
+            self._uniqNodeCntr += other._uniqNodeCntr
+            self.scheduler.resourceUsage.merge(other.scheduler.resourceUsage)
+
+    def __repr__(self) -> str:
         return f"<{self.__class__.__name__:s} {self.label:s}>"
-    
+
+
+class HlsNetlistChannels():
+
+    def __init__(self, hwIOMeta: Dict[HwIO, HwIOMeta]):
+        self.hwIOMeta = hwIOMeta
+        self.nodesPerIO: OrderedDict[HwIO, List[Union[HlsNetNodeRead, HlsNetNodeWrite]]] = {}
+        self.hwIoUserNetlists: Dict[HwIO, List[HlsNetlistCtx]] = {}
+        self.alreadyAssociated: Set[Union[HlsNetNodeRead, HlsNetNodeWrite]] = set()
+
+    def propagateChannelTimingConstraints(self, netlist: HlsNetlistCtx):
+        hwIoUserNetlists = self.hwIoUserNetlists
+        nodesPerIO = self.nodesPerIO
+
+        hwiosSeenInThisNetlist: Set[HwIO] = set()
+        for n in netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.PREORDER):
+            if isinstance(n, HlsNetNodeWrite):
+                if n.associatedRead is not None:
+                    continue  # if it is already associated with something thread local it is not IO
+                isRead = False
+                hwio = n.dst
+            elif isinstance(n, HlsNetNodeRead):
+                if n.associatedWrite is not None:
+                    continue
+                isRead = True
+                hwio = n.src
+            else:
+                continue
+
+            if hwio is None:
+                continue  # this one will be generated on demand and is guaranteed that there will be correct number of IOs per clock
+
+            hwioUsers = hwIoUserNetlists.get(hwio, None)
+            if hwioUsers is None:
+                hwIoUserNetlists[hwio] = [self, ]
+                hwiosSeenInThisNetlist.add(hwio)
+            elif hwio not in hwiosSeenInThisNetlist:
+                hwioUsers.append(hwio)
+                hwiosSeenInThisNetlist.add(hwio)
+
+            ioList = nodesPerIO.get(hwio, None)
+            if ioList is None:
+                ioList = nodesPerIO[hwio] = []
+
+            meta: Optional[HwIOMeta] = self.hwIOMeta.get(hwio, None)
+            if meta is not None:
+                if meta.mayBecomeBackedge:
+                    continue  # it is not required to constrain scheduling
+
+            # propagate scheduling constraints
+            isScheduled = n.scheduledZero is not None
+            if isRead:
+                for _n in ioList:
+                    if isinstance(_n, HlsNetNodeWrite):
+                        assert  _n.associatedRead is None, _n
+                        if isScheduled and _n.scheduledZero is None:
+                            _n.scheduledZeroMax = n.scheduledZero
+                            break
+                        elif not isScheduled and _n.scheduledZero is not None:
+                            n.scheduledZeroMin = _n.scheduledZero
+                            break
+            else:
+                for _n in ioList:
+                    if isinstance(_n, HlsNetNodeRead):
+                        assert  _n.associatedWrite is None, _n
+                        if isScheduled and _n.scheduledZero is None:
+                            _n.scheduledZeroMin = n.scheduledZero
+                            break
+                        elif not isScheduled and _n.scheduledZero is not None:
+                            n.scheduledZeroMax = _n.scheduledZero
+                            break
+
+            ioList.append(n)
+
+    def assertAllResolved(self):
+        unresolved = []
+        hwIoUserNetlists = self.hwIoUserNetlists
+        for hwIo, ioList in self.nodesPerIO.items():
+            if len(hwIoUserNetlists[hwIo]) > 1:
+                for n in ioList:
+                    if isinstance(n, HlsNetNodeRead):
+                        if n.associatedWrite is None:
+                            unresolved.append(n)
+                    elif isinstance(n, HlsNetNodeWrite):
+                        if n.associatedRead is None:
+                            unresolved.append(n)
+
+                if unresolved:
+                    raise UnresolvedAssociationOfChannelPorts(hwIo, unresolved)
+
+
+class UnresolvedAssociationOfChannelPorts(AssertionError):
+    """
+    Raised when there is a hwio connecting multiple netlists but it was not possible
+    to resolve which port nodes in netlist are associated together.
+    """
+
+    def __init__(self, hwIo: HwIO, unresolvedIos: List[Union[HlsNetNodeRead, HlsNetNodeWrite]]):
+        self.args = (hwIo, unresolvedIos)
+
+    def __str__(self) -> str:
+        buff = [f"<{self.__class__.__name__}\n"]
+        hwIo, ioList = self.args
+        try:
+            buff.append(repr(hwIo))
+        except:
+            buff.append(f"<faulty HwIO instance> 0x{id(hwIo)} {hwIo.__class__}")
+        buff.append("\n")
+        for io in ioList:
+            io: Union[HlsNetNodeRead, HlsNetNodeWrite]
+            try:
+                buff.append(f"{io.scheduledZero:6d} {repr(io):s}\n")
+            except:
+                buff.append(f"       <brokenNode {io._id:d}>\n")
+        buff.append(">")
+        return "".join(buff)

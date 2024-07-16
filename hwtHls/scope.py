@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from typing import Union, List, Optional, Literal
+from itertools import islice
+from typing import Union, List, Optional, Literal, Dict
 
 from hwt.constants import NOT_SPECIFIED
 from hwt.hdl.const import HConst
@@ -20,13 +21,15 @@ from hwtHls.frontend.ast.thread import HlsThreadForSharedVar
 from hwtHls.frontend.pyBytecode import hlsLowLevel
 from hwtHls.frontend.pyBytecode.indexExpansion import PyObjectHwSubscriptRef
 from hwtHls.frontend.pyBytecode.ioProxyAddressed import IoProxyAddressed
+from hwtHls.hwIOMeta import HwIOMeta
 from hwtHls.io.portGroups import getFirstInterfaceInstance
+from hwtHls.netlist.context import HlsNetlistChannels
+from hwtHls.netlist.hdlTypeVoid import HVoidExternData
 from hwtHls.platform.platform import DefaultHlsPlatform
 from hwtHls.ssa.context import SsaContext
 from hwtHls.thread import HlsThread, HlsThreadDoesNotUseSsa
 from hwtLib.amba.axi_common import Axi_hs
 from ipCorePackager.constants import INTF_DIRECTION
-
 
 ANY_HLS_COMPATIBLE_IO = Union[HwIODataRdVld, HwIOStructRdVld,
                               HwIORdVldSync, Axi_hs,
@@ -64,6 +67,7 @@ class HlsScope():
         self._ctx = RtlNetlist()
         self.ssaCtx = SsaContext()
         self._threads: List[HlsThread] = []
+        self.hwIOMeta: Dict[ANY_HLS_COMPATIBLE_IO, HwIOMeta] = {}
 
     @hlsLowLevel
     def _sig(self, name: str,
@@ -138,6 +142,10 @@ class HlsScope():
         else:
             raise NotImplementedError(src)
 
+        if dtype.bit_length() == 0:
+            # if there is no data, the dtype will be empty struct
+            dtype = HVoidExternData
+
         assert _src._direction != INTF_DIRECTION.SLAVE, (_src, "Can not read from output")
         return HlsRead(self, _src, dtype, blocking)
 
@@ -146,7 +154,7 @@ class HlsScope():
         """
         Create a write statement for simple interfaces.
         """
-        if isinstance(src, int):
+        if src is None or isinstance(src, int):
             dtype = getattr(dst, "_dtype", None)
             if dtype is None:
                 if isinstance(dst, PyObjectHwSubscriptRef):
@@ -155,7 +163,11 @@ class HlsScope():
                     assert isinstance(mem, IoProxyAddressed), (dst, mem)
                     dtype = mem.nativeType.element_t
                 else:
-                    dtype = dst.data._dtype
+                    data = getattr(dst, "data", None)
+                    if data is None:
+                        dtype = HVoidExternData
+                    else:
+                        dtype = data._dtype
             src = dtype.from_py(src)
         else:
             dtype = src._dtype
@@ -176,8 +188,18 @@ class HlsScope():
         self._threads.append(t)
         return t
 
+    def _mergeNetlists(self, threads: List[HlsThread]):
+        # merge content of all netlist to the first one and return it
+        assert threads
+        netlist: "HlsNetlistCtx" = threads[0].toHw
+        netlist.merge(self.hwIOMeta, [t.toHw for t in islice(threads, 1, None)])
+
+        return netlist
+
     def compile(self):
         p: DefaultHlsPlatform = self.parentHwModule._target_platform
+        channels = HlsNetlistChannels(self.hwIOMeta)
+        isThread0 = True
         for t in self._threads:
             t: HlsThread
             # we have to wait with compilation until here
@@ -196,11 +218,26 @@ class HlsScope():
             for callback in t.netlistCallbacks:
                 callback(self, t)
 
+            if not isThread0:
+                channels.propagateChannelTimingConstraints(t.toHw)
+
             p.runHlsNetlistPasses(self, t.toHw)
+
+            if isThread0:
+                isThread0 = False
+                t.toHw.scheduler.normalizeSchedulingTime(t.toHw.normalizedClkPeriod)
+                if len(self._threads) > 1:
+                    channels.propagateChannelTimingConstraints(t.toHw)
 
         for t in self._threads:
             p.runHlsNetlistToArchNetlist(self, t.toHw)
             for callback in t.archNetlistCallbacks:
                 callback(self, t)
-            p.runArchNetlistToRtlNetlist(self, t.toHw)
-            p.runHlsAndRtlNetlistPasses(self, t.toHw)
+
+        netlist = self._mergeNetlists(self._threads)
+        if len(self._threads) > 1:
+            channels.assertAllResolved()
+
+        p.runArchNetlistToRtlNetlist(self, netlist)
+        p.runHlsAndRtlNetlistPasses(self, netlist)
+

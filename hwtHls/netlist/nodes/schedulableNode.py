@@ -6,11 +6,10 @@ from typing import Tuple, Dict, Optional, Callable, Union, Literal, List, \
 from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.observableList import ObservableList
-from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod, start_clk,\
+from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod, start_clk, \
     offsetInClockCycle
 from hwtHls.netlist.scheduler.errors import TimeConstraintError
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
-
 
 SchedTime = int
 SchedulizationDict = Dict["HlsNetNode", Tuple[SchedTime,  # node zero time
@@ -39,7 +38,9 @@ class SchedulableNode():
         self._inputs: List[HlsNetNodeIn] = []
         self._outputs: ObservableList[HlsNetNodeOut] = ObservableList()
 
-        self.scheduledZero: Optional[int] = None
+        self.scheduledZero: Optional[SchedTime] = None
+        self.scheduledZeroMin: Optional[SchedTime] = None
+        self.scheduledZeroMax: Optional[SchedTime] = None
         self.scheduledIn: Optional[TimeSpec] = None
         self.scheduledOut: Optional[TimeSpec] = None
         self.realization: Optional[OpRealizationMeta] = None
@@ -56,6 +57,11 @@ class SchedulableNode():
         Assert that the scheduling is consistent.
         """
         assert self.scheduledZero is not None, self
+        if self.scheduledZeroMin is not None:
+            assert self.scheduledZero >= self.scheduledZeroMin, (self, self.scheduledZero, '>=', self.scheduledZeroMin)
+        if self.scheduledZeroMax is not None:
+            assert self.scheduledZero <= self.scheduledZeroMax, (self, self.scheduledZero, '<', self.scheduledZeroMax)
+
         assert self.scheduledIn is not None, self
         assert self.scheduledOut is not None, self
         for i, iT, dep in zip_longest(self._inputs, self.scheduledIn, self.dependsOn):
@@ -77,12 +83,22 @@ class SchedulableNode():
     def moveSchedulingTime(self, offset: SchedTime):
         assert offset != 0, "If offset is 0 this is useless to call"
         self.scheduledZero += offset
+        if self.scheduledZeroMin is not None:
+            assert self.scheduledZero >= self.scheduledZeroMin, (self, self.scheduledZero, '>=', self.scheduledZeroMin)
+        if self.scheduledZeroMax is not None:
+            assert self.scheduledZero < self.scheduledZeroMax, (self, self.scheduledZero, '<', self.scheduledZeroMax)
+
         self.scheduledIn = tuple(t + offset for t in self.scheduledIn)
         self.scheduledOut = tuple(t + offset for t in self.scheduledOut)
 
     def _setScheduleZeroTimeSingleClock(self, t: SchedTime):
         assert isinstance(t, SchedTime), t
         assert self.scheduledZero != t, (self, t, "If time is the same this is useless to call")
+        if self.scheduledZeroMin is not None:
+            assert t >= self.scheduledZeroMin, (self, t, '>=', self.scheduledZeroMin)
+        if self.scheduledZeroMax is not None:
+            assert t <= self.scheduledZeroMax, (self, t, '<', self.scheduledZeroMax)
+
         self.scheduledIn = tuple(
             t - in_delay
             for in_delay in self.inputWireDelay
@@ -96,6 +112,11 @@ class SchedulableNode():
     def _setScheduleZeroTimeMultiClock(self, t: SchedTime, clkPeriod: SchedTime, epsilon: SchedTime, ffdelay: SchedTime):
         assert isinstance(t, SchedTime), t
         assert self.scheduledZero != t, (self, t, "If time is the same this is useless to call")
+        if self.scheduledZeroMin is not None:
+            assert t >= self.scheduledZeroMin, (self, t, '>=', self.scheduledZeroMin)
+        if self.scheduledZeroMax is not None:
+            assert t < self.scheduledZeroMax, (self, t, '<', self.scheduledZeroMax)
+
         inTime = self._scheduleAlapCompactionMultiClockInTime
         self.scheduledIn = tuple(
             inTime(t, clkPeriod, iTicks, epsilon, ffdelay) - iDelay
@@ -163,6 +184,25 @@ class SchedulableNode():
                           +inputClkTickOffset * clkPeriod)
         return normalizedTime
 
+    def _scheduledZeroApplyLimits(self, newNodeZeroTime: SchedTime, allowEarlier:bool, allowLater:bool):
+        zeroTimeMin = self.scheduledZeroMin
+        if zeroTimeMin is not None and newNodeZeroTime < zeroTimeMin:
+            if allowLater:
+                return zeroTimeMin
+            else:
+                raise TimeConstraintError(
+                                "Impossible scheduling, scheduledZeroMin specifies >=", zeroTimeMin,
+                                " but the best node can do is ", newNodeZeroTime, self)
+        zeroTimeMax = self.scheduledZeroMax
+        if zeroTimeMax is not None and newNodeZeroTime >= zeroTimeMax:
+            if allowEarlier:
+                return zeroTimeMax
+            else:
+                raise TimeConstraintError(
+                                "Impossible scheduling, zeroTimeMax specifies <=", zeroTimeMax,
+                                " but the best node can do is ", newNodeZeroTime, self)
+        return newNodeZeroTime
+
     def scheduleAsap(self, pathForDebug: Optional[SetList["HlsNetNode"]],
                      beginOfFirstClk: SchedTime,
                      outputTimeGetter: Optional[OutputTimeGetter]) -> List[int]:
@@ -213,6 +253,8 @@ class SchedulableNode():
                 assert not self._inputs
                 nodeZeroTime = beginOfFirstClk
 
+            nodeZeroTime = self._scheduledZeroApplyLimits(nodeZeroTime, False, True)
+
             if self.isMulticlock:
                 epsilon = netlist.scheduler.epsilon
                 self._setScheduleZeroTimeMultiClock(nodeZeroTime, clkPeriod, epsilon, ffdelay)
@@ -233,7 +275,7 @@ class SchedulableNode():
         netlist = self.netlist
         ffdelay = netlist.platform.get_ff_store_time(netlist.realTimeClkPeriod, netlist.scheduler.resolution)
         clkPeriod = netlist.normalizedClkPeriod
-        
+
         if not self._outputs:
             # no outputs, we must use some asap input time and move to end of the clock
             assert self._inputs, (self, "Node must have at least some port.")
@@ -287,12 +329,15 @@ class SchedulableNode():
             # no use of any output, we must use some ASAP input time and move to end of the clock
             assert self._inputs, (self, "Node must have at least some port used (or more likely it should be removed because it is useless)")
             nodeZeroTime = endOfLastClk - (ffdelay + maxOutputLatency)
+
+        nodeZeroTime = self._scheduledZeroApplyLimits(nodeZeroTime, True, False)
+
         if self.scheduledZero != nodeZeroTime:
             assert isinstance(nodeZeroTime, SchedTime) and (self.scheduledZero is None or (isinstance(self.scheduledZero, SchedTime))
                     ), (self.scheduledZero, "->", nodeZeroTime, self)
 
             if self.scheduledZero is not None and self.scheduledZero > nodeZeroTime:
-                if clkPeriod - offsetInClockCycle(self.scheduledZero, clkPeriod) < ffdelay + maxOutputLatency: 
+                if clkPeriod - offsetInClockCycle(self.scheduledZero, clkPeriod) < ffdelay + maxOutputLatency:
                     raise TimeConstraintError("Node was already scheduled on wrong time, end overlaps to ffstore time",
                                               clkPeriod - offsetInClockCycle(self.scheduledZero, clkPeriod), ffdelay, maxOutputLatency)
                 # this can happen if successor nodes were packed inefficiently in previous cycles and it moved this node.
@@ -302,7 +347,7 @@ class SchedulableNode():
                        "Can not be scheduled sooner then current best ALAP time because otherwise time should have been kept", self, self.scheduledZero, nodeZeroTime)
 
             self._setScheduleZeroTimeSingleClock(nodeZeroTime)
-            
+
             for dep in self.dependsOn:
                 yield dep.obj
 
@@ -365,6 +410,7 @@ class SchedulableNode():
                     # in a clock cycle where the input is currently scheduled
                     nodeZeroTime = indexOfClkPeriod(nodeZeroTime, clkPeriod) * clkPeriod - ffdelay - epsilon
 
+        nodeZeroTime = self._scheduledZeroApplyLimits(nodeZeroTime, True, False)
         if nodeZeroTime > self.scheduledZero:
             self._setScheduleZeroTimeMultiClock(nodeZeroTime, clkPeriod, epsilon, ffdelay)
             for dep in self.dependsOn:

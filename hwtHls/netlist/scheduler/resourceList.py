@@ -19,11 +19,11 @@ class HlsSchedulerResourceUseList(List[Dict[object, int]]):
         assert resourceType is not None
         return self[self.clkOffset + clkI].get(resourceType, 0)
 
-    def addUse(self, resourceType, clkI: int):
+    def addUse(self, resourceType, clkI: int, useCount:int=1):
         # print("add use ", resourceType, clkI, end="")
         assert resourceType is not None
         cur = self[clkI]  # offset applied in __getitem__
-        cur[resourceType] = cur.get(resourceType, 0) + 1
+        cur[resourceType] = cur.get(resourceType, 0) + useCount
         # print(" v:", cur[resourceType])
 
     def removeUse(self, resourceType, clkI: int):
@@ -113,21 +113,27 @@ class HlsSchedulerResourceUseList(List[Dict[object, int]]):
         while not list.__getitem__(self, -1):
             self.pop()
 
-    def __getitem__(self, i: int):
-        _i = i
-        i += self.clkOffset
-        if i < 0:
+    def merge(self, other: "HlsSchedulerResourceUseList"):
+        for clkI, uses in enumerate(other):
+            clkI -= other.clkOffset
+            for resourceType, useCount in uses.items():
+                self.addUse(resourceType, clkI, useCount)
+
+    def __getitem__(self, clkIndex: int):
+        _clkIndex = clkIndex
+        clkIndex += self.clkOffset
+        if clkIndex < 0:
             # prepend empty slots
-            self[:0] = [{} for _ in range(-i)]
-            self.clkOffset += -i
+            self[:0] = [{} for _ in range(-clkIndex)]
+            self.clkOffset += -clkIndex
             assert self.clkOffset >= 0, self.clkOffset
-            i = 0
+            clkIndex = 0
 
         try:
-            return list.__getitem__(self, i)
+            return list.__getitem__(self, clkIndex)
         except IndexError:
-            assert i >= 0, i
+            assert clkIndex >= 0, clkIndex
             # append empty slots
-            for _ in range(i + 1 - len(self)):
+            for _ in range(clkIndex + 1 - len(self)):
                 self.append({})
-            return self[_i]
+            return self[_clkIndex]
