@@ -37,22 +37,22 @@ class HlsNetNodeOut():
         else:
             return f'lazy:{o._id:d}'
 
-    def getPrettyName(self) -> str:
+    def getPrettyName(self, useParentName=True) -> str:
         obj = self.obj
-        if obj.name and self.name:
+        if useParentName and obj.name and self.name:
             return f"{obj.name:s}_{self.name:s}"
-        elif obj.name:
+        elif useParentName and obj.name:
             if len(obj._outputs) == 1:
                 return obj.name
             else:
                 return f"{obj.name:s}_{self.out_i:d}"
         elif self.name:
-            return f"{obj._id:d}_{self.name:s}"
+            return f"n{obj._id:d}_{self.name:s}"
         else:
             if len(obj._outputs) == 1:
-                return str(obj._id)
+                return f"n{obj._id}"
             else:
-                return f"{obj._id:d}_{self.out_i:d}"
+                return f"n{obj._id:d}_{self.out_i:d}"
 
     def __repr__(self, minify=True) -> str:
         if minify:
@@ -170,6 +170,23 @@ class HlsNetNodeIn():
         self.obj.dependsOn[self.in_i] = o
 
         return oldO
+
+    def getPrettyName(self, useParentName=True) -> str:
+        obj = self.obj
+        if useParentName and obj.name and self.name:
+            return f"{obj.name:s}_{self.name:s}"
+        elif useParentName and obj.name:
+            if len(obj._inputs) == 1:
+                return obj.name
+            else:
+                return f"{obj.name:s}_{self.in_i:d}"
+        elif self.name:
+            return f"{obj._id:d}_{self.name:s}"
+        else:
+            if len(obj._inputs) == 1:
+                return str(obj._id)
+            else:
+                return f"{obj._id:d}_{self.in_i:d}"
 
     def __repr__(self, minify=False):
         if minify:
