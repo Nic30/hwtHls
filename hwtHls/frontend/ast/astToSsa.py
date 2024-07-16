@@ -10,12 +10,13 @@ from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.statements.codeBlockContainer import HdlStmCodeBlockContainer
 from hwt.hdl.statements.ifContainter import IfContainer
 from hwt.hdl.types.bitsConst import HBitsConst
-from hwt.hwIOs.std import HwIOSignal
-from hwt.hwIOs.hwIOStruct import HwIOStruct
 from hwt.hwIO import HwIO
+from hwt.hwIOs.hwIOStruct import HwIOStruct
+from hwt.hwIOs.std import HwIOSignal
+from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.interfaceLevel.utils import HwIO_pack
-from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.rtlLevel.exceptions import SignalDriverErr
+from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.ast.memorySSAUpdater import MemorySSAUpdater
 from hwtHls.frontend.ast.statements import HlsStm, HlsStmWhile, \
     HlsStmCodeBlock, HlsStmIf, HlsStmFor, HlsStmContinue, \
@@ -23,15 +24,15 @@ from hwtHls.frontend.ast.statements import HlsStm, HlsStmWhile, \
 from hwtHls.frontend.ast.statementsRead import HlsRead, HlsReadAddressed
 from hwtHls.frontend.ast.statementsWrite import HlsWrite, HlsWriteAddressed
 from hwtHls.io.portGroups import MultiPortGroup, BankedPortGroup
+from hwtHls.ssa.analysis.blockUtils import collect_all_blocks
 from hwtHls.ssa.analysis.ssaAnalysisPass import SsaAnalysisPass
 from hwtHls.ssa.analysisCache import AnalysisCache
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.context import SsaContext
 from hwtHls.ssa.exprBuilder import SsaExprBuilder
 from hwtHls.ssa.instr import SsaInstr, SsaInstrBranch
-from hwtHls.ssa.analysis.blockUtils import collect_all_blocks
 from hwtHls.ssa.value import SsaValue
-from hwt.pyUtils.typingFuture import override
+from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 
 
 AnyStm = Union[HdlAssignmentContainer, HlsStm]
@@ -88,11 +89,13 @@ class HlsAstToSsa(AnalysisCache):
 
     def __init__(self, ssaCtx: SsaContext,
                  startBlockName:str,
+                 namePrefix: str,
                  original_code_for_debug: Optional[HlsStmCodeBlock],
                  dbgLogPassExec: Optional[StringIO]):
         AnalysisCache.__init__(self)
         self.ssaCtx = ssaCtx
         self.label = startBlockName
+        self.namePrefix = namePrefix
         self.start = SsaBasicBlock(ssaCtx, startBlockName)
         # all predecessors known (because this is an entry point)
         self._continue_target: List[SsaBasicBlock] = []
@@ -236,15 +239,18 @@ class HlsAstToSsa(AnalysisCache):
                         # var.operands = (i, )
                     builder._insertInstr(var)
                     # HlsRead is a SsaValue and thus represents "variable"
-                    self.m_ssa_u.writeVariable(var._sig, (), builder.block, var)
-
+                    if var._sig is not None:
+                        # :note: it is None for reads of void
+                        self.m_ssa_u.writeVariable(var._sig, (), builder.block, var)
+                    else:
+                        assert var._isBlocking and HdlType_isVoid(var._dtype), var
                 var = var._sig
 
             elif isinstance(var, HwIOStruct):
                 var = HwIO_pack(var)
                 return self.visit_expr(block, var)
 
-            return builder.block, self.m_ssa_u.readVariable(var, builder.block)
+            return builder.block, None if var is None else self.m_ssa_u.readVariable(var, builder.block)
 
     def visit_For(self, block: SsaBasicBlock, o: HlsStmFor) -> SsaBasicBlock:
         block = self.visit_CodeBlock_list(block, o.init)

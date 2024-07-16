@@ -12,6 +12,7 @@ from hwt.hwIO import HwIO
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axi_common import Axi_hs
+from hwtHls.netlist.hdlTypeVoid import HVoidExternData
 
 
 ANY_HLS_STREAM_INTF_TYPE = Union[HwIODataRdVld, Axi_hs, HwIODataVld,
@@ -23,9 +24,15 @@ ANY_SCALAR_INT_VALUE = Union[RtlSignal, HConst, HwIOSignal, SsaValue]
 
 def _getNativeInterfaceWordType(i: HwIO) -> HdlType:
     if isinstance(i, (HwIODataRdVld, Axi_hs, HwIOStructRdVld, HwIORdVldSync)):
-        return HBits(i._bit_length() - 2)
+        w = i._bit_length() - 2
+        if w == 0:
+            return HVoidExternData
+        return HBits(w)
     elif isinstance(i, (HwIODataRd, HwIODataVld)):
-        return HBits(i._bit_length() - 1)
+        w = i._bit_length() - 1
+        if w == 0:
+            return HVoidExternData
+        return HBits(w)
     elif isinstance(i, (HwIOSignal, RtlSignal, HwIOStruct)):
         return i._dtype
     else:

@@ -14,6 +14,7 @@ from hwtHls.io.portGroups import getFirstInterfaceInstance, MultiPortGroup, \
     BankedPortGroup
 from hwtHls.llvm.llvmIr import Register, MachineInstr, Argument, ArrayType, TypeToArrayType, Type
 from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes
 from hwtHls.netlist.nodes.read import HlsNetNodeRead, HlsNetNodeReadIndexed
@@ -52,8 +53,22 @@ class HlsRead(HdlStatement, SsaInstr):
         # create an interface and signals which will hold value of this object
         var = parent.var
         name = f"{hwIOName:s}_read"
-        sig = var(name, dtype)
-        if isinstance(sig, HwIO) or not isBlocking:
+        isVoid = HdlType_isVoid(dtype)
+        if isVoid:
+            sig = None
+        else:
+            sig = var(name, dtype)
+
+        if isVoid:
+            w = 0
+            if isBlocking:
+                sig_flat = None
+            else:
+                sig_flat = var(name, HBits(1, force_vector=True))
+                sig_flat.drivers.append(self)
+                sig_flat.origin = self
+
+        elif isinstance(sig, HwIO) or not isBlocking:
             w = dtype.bit_length()
             force_vector = False
             if w == 1 and isinstance(dtype, HBits):
@@ -76,7 +91,9 @@ class HlsRead(HdlStatement, SsaInstr):
 
         self._sig = sig_flat
         self._GEN_NAME_PREFIX = hwIOName
-        SsaInstr.__init__(self, parent.ssaCtx, sig_flat._dtype, OP_ASSIGN, (),
+        SsaInstr.__init__(self, parent.ssaCtx,
+                          sig_flat._dtype if sig_flat is not None else dtype,
+                          OP_ASSIGN, (),
                           origin=sig)
         self._dtypeOrig = dtype
         self.data = sig
@@ -137,7 +154,7 @@ class HlsRead(HdlStatement, SsaInstr):
         mbSync.addOrderedNode(n)
         mirToNetlist.inputs.append(n)
         if representativeReadStm._isBlocking:
-            o = n._outputs[0]
+            o = n._portDataOut
         else:
             o = n.getRawValue()
         assert not isinstance(o._dtype, HBits) or not o._dtype.signed, (
@@ -155,11 +172,12 @@ class HlsRead(HdlStatement, SsaInstr):
         t: Type
         elmT = t
         name = toLlvm.strCtx.addTwine(toLlvm._formatVarName(self._name))
+        # [todo] see mustSuppressSpeculation
         return toLlvm.b.CreateLoad(elmT, src, True, name)
 
     def __repr__(self):
         t = self._dtype
-        tName = getattr(t, "name")
+        tName = getattr(t, "name", None)
         if tName is not None:
             t = tName
 
@@ -224,7 +242,7 @@ class HlsReadAddressed(HlsRead):
         mirToNetlist._addSkipWhen_n(n, _cond, mbSync.blockEn)
         mbSync.addOrderedNode(n)
         mirToNetlist.inputs.append(n)
-        o = n._outputs[0]
+        o = n._portDataOut
         assert isinstance(o._dtype, HBits)
         sign = o._dtype.signed
         if sign is None:
