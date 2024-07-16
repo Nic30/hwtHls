@@ -1,13 +1,12 @@
-from typing import Union, Optional, List
+from typing import Union, Optional, List, Tuple
 
-from hwt.hdl.operator import HOperatorNode
-from hwt.hdl.operatorDefs import HwtOps
-from hwt.hdl.types.array import HArray
-from hwt.hdl.types.function import HFunctionConst, HFunction
-from hwt.hdl.types.hdlType import HdlType
-from hwt.hdl.types.struct import HStruct
 from hwt.constants import NOT_SPECIFIED
-from hwtHls.llvm.llvmIr import MachineInstr, CallInst, AddDefaultFunctionAttributes, Register
+from hwt.hdl.types.function import HFunction
+from hwt.hdl.types.hdlType import HdlType
+from hwt.pyUtils.typingFuture import override
+from hwtHls.frontend.pyBytecode.markers import _PyBytecodeIntrinsic
+from hwtHls.llvm.llvmIr import MachineInstr, CallInst, AddDefaultFunctionAttributes, Register, Value, \
+    IRBuilder, FunctionCallee
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
@@ -18,7 +17,7 @@ from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import Machin
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
 
 
-class HardBlockHwModule(HFunctionConst):
+class HardBlockHwModule(_PyBytecodeIntrinsic):
     """
     A container for part of the circuit inlined later during compilation.
     :note: this class inherits from HFunctionConst because the object represents a constant function pointer
@@ -30,12 +29,6 @@ class HardBlockHwModule(HFunctionConst):
        * use :meth:`HardBlockHwModule.translateMirToNetlist` to merge with netlist of parent function on netlist level
        * use :meth:`HardBlockHwModule.translateNetlistToArch` to merge with netlist of parent function on architecture level
     
-    :cvar __hlsIsLowLevelFn: a constant flag which tells pybytecode frontend that this object call will translate this object
-    :cvar _dtype: constant attribute holding type of HFunction
-    :ivar val: name used for user to better identify object in LLVM and netlist
-    :ivar hwInputT: type of hardware inputs
-    :ivar hwOutputT: type of hardware outputs
-    :ivar vld_mask: constant 1 to complete  HFunctionConst attributes
     :ivar placeholderObjectId: index of this in placeholder list
     """
 
@@ -47,40 +40,12 @@ class HardBlockHwModule(HFunctionConst):
                  hwOutputT: Union[HdlType, NOT_SPECIFIED]=NOT_SPECIFIED,
                  name: Optional[str]=None,
                  operationRealizationMeta: Optional[OpRealizationMeta]=None):
-        if name is None:
-            name = self.__class__.__name__
-        assert isinstance(hwInputT, HdlType), hwInputT
-        if hwOutputT is NOT_SPECIFIED:
-            hwOutputT = hwInputT
-        else:
-            assert isinstance(hwOutputT, HdlType), hwOutputT
-        self.hwInputT = hwInputT
-        self.hwOutputT = hwOutputT
-        self.hasManyInputs = isinstance(hwInputT, (HStruct, HArray))
-        self.hasManyOutputs = isinstance(hwOutputT, (HStruct, HArray))
-        # there is a single instance of this const and we can not use self as a val because it would result
-        # in infinite cycle during cmp
-        self.val = name
-        self.vld_mask = 1
+        super().__init__(hwInputT, hwOutputT=hwOutputT, name=name, operationRealizationMeta=operationRealizationMeta)
         self.placeholderObjectId: Optional[int] = None
-        self.operationRealizationMeta = operationRealizationMeta
 
-    def __call__(self, *args, **kwargs):
-        """
-        Construct the HWT call expression for later translation to LLVM
-        """
-        if self.hasManyInputs:
-            raise NotImplementedError()
-        else:
-            assert not kwargs, kwargs
-            assert len(args) <= 1, args
-
-        if self.hasManyOutputs:
-            raise NotImplementedError()
-        else:
-            return HOperatorNode.withRes(HwtOps.CALL, [self, *args], self.hwOutputT)
-
-    def translateCallAttributesToLlvm(self, toLlvm: "ToLlvmIrTranslator", res: CallInst):
+    @override
+    def translateToLlvm(self, b: IRBuilder, args: Tuple[Value]):
+        res: CallInst = b.CreateCall(FunctionCallee(self), args)
         fn = res.getCalledFunction()
         AddDefaultFunctionAttributes(fn)
         res.setOnlyAccessesArgMemory()
@@ -118,7 +83,7 @@ class HardBlockHwModule(HFunctionConst):
         #
         # _cond = syncTracker.resolveControlOutput(cond)
         #
-        # o = n._outputs[0] if representativeReadStm._isBlocking else n.getRawValue()
+        # o = n._portDataOut if representativeReadStm._isBlocking else n.getRawValue()
         # assert not o._dtype.signed, o
         # valCache.add(mbSync.block, instrDstReg, o, True)
         #
