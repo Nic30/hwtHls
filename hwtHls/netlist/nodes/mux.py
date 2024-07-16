@@ -1,14 +1,14 @@
 from typing import Generator
 
 from hwt.code import If
+from hwt.hdl.const import HConst
 from hwt.hdl.operatorDefs import HwtOps
 from hwt.hdl.types.hdlType import HdlType
-from hwt.hdl.const import HConst
 from hwt.pyUtils.arrayQuery import grouper
+from hwt.pyUtils.typingFuture import override
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
-from hwt.pyUtils.typingFuture import override
 
 
 class HlsNetNodeMux(HlsNetNodeOperator):
