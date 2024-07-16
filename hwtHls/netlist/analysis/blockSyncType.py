@@ -1,18 +1,21 @@
 from typing import Set, List, Dict, Optional, Tuple
 
 from hwt.hdl.types.defs import BIT
+from hwt.pyUtils.setList import SetList
+from hwt.pyUtils.typingFuture import override
 from hwtHls.llvm.llvmIr import MachineBasicBlock, MachineLoopInfo, \
     MachineLoop, MachineInstr, Register, TargetOpcode, MachineFunction, MachineRegisterInfo
 from hwtHls.netlist.analysis.dataThreadsForBlocks import HlsNetlistAnalysisPassDataThreadsForBlocks
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.hdlTypeVoid import HVoidOrdering
+from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutLazy
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.machineEdgeMeta import \
     MachineEdgeMeta, MachineEdge, MACHINE_EDGE_TYPE, MachineLoopId
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
+from ipCorePackager.constants import DIRECTION
 
 
 class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
@@ -21,7 +24,8 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
     flags which are describing what type of synchronization for block should be used.
 
     :note: This is thread level synchronization of control flow in blocks not RTL type of synchronization.
-        That means this does not solve synchronization of pipeline stages but the synchronization between accesses to exclusive resources.
+        That means this does not solve synchronization of pipeline stages but
+        it must solve the synchronization between accesses to exclusive resources.
 
     .. code-block:: llvm
 
@@ -52,7 +56,7 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
 
     In this case loop in while1 needs synchronization because bb0 is not rstPredecessor or while1.
 
-    :note: This is called uppon once the datapath in blocks is resolved.
+    :note: This is called upon once the datapath in blocks is resolved.
         This is because we need to know HlsNetlistAnalysisPassDataThreadsForBlocks
         and it can be only obtained once datapath in blocks was constructed.
         :see: :class:`~.HlsNetlistAnalysisPassDataThreadsForBlocks`
@@ -206,11 +210,13 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
             if p is None or p.getHeader() != mb:
                 break
 
-    def _makeNormalEdgeForward(self, MRI: MachineRegisterInfo, em: MachineEdgeMeta):
+    def _makeNormalEdgeForward(self, MRI: MachineRegisterInfo, em: MachineEdgeMeta) -> bool:
         if em.etype == MACHINE_EDGE_TYPE.NORMAL:
             em.etype = MACHINE_EDGE_TYPE.FORWARD
             self._tryToFindRegWhichCanBeUsedAsControl(self.originalMir, MRI, em.srcBlock, em.dstBlock, em)
-
+            return True
+        else:
+            return False
     # def _hasSomeLiveInFromEveryPredec(self, mb: MachineBasicBlock):
     #    mir = self.originalMir
     #    MF = mir.mf
@@ -284,7 +290,7 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                             # not self._hasSomeLiveInFromEveryPredec(mb)
                            )
                           ):
-                        # multiple independent threads in body or more entry points to a loop
+                        # check for multiple independent threads in body or more entry points to a loop
                         loopBodySelfSynchronized = True
                         for pred in mb.predecessors():
                             pred: MachineBasicBlock
@@ -452,31 +458,30 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                 mbSync.needsControl = True
                 self._onBlockNeedsControl(suc)
 
-    def _initEdgeMeta(self, mf: MachineFunction):
-        edgeMeta: Dict[MachineEdge, MachineEdgeMeta] = self.edgeMeta
-        for mb in mf:
-            mb: MachineBasicBlock
+    def _collectBlockNeighbors(self, mb: MachineBasicBlock, branchDirection: DIRECTION,
+                              predecessors: SetList[MachineBasicBlock],
+                              successors: SetList[MachineBasicBlock]):
+        """
+        Collect all successors of all predecessors or all predecessors of all successors recursively
+        
+        .. figure:: _static/blockNeighbors.png
+            
+            predecessors - 0,1,2,3
+            successors - 3,4,5
+        
+        """
+        if branchDirection == DIRECTION.IN:
+            if not successors.append(mb):
+                return
+            for pred in mb.predecessors():
+                self._collectBlockNeighbors(pred, DIRECTION.OUT, predecessors, successors)
+        else:
+            assert branchDirection == DIRECTION.OUT
+            if not predecessors.append(mb):
+                return
             for suc in mb.successors():
-                e = (mb, suc)
-                eType = MACHINE_EDGE_TYPE.BACKWARD if e in self.backedges else MACHINE_EDGE_TYPE.NORMAL
-                edgeMeta[e] = MachineEdgeMeta(mb, suc, eType)
+                self._collectBlockNeighbors(suc, DIRECTION.IN, predecessors, successors)
 
-        return edgeMeta
-
-    # def _resolveEdgeMeta(self, mf: MachineFunction):
-    #    edgeMeta = self.edgeMeta
-    #    loops = self.loops
-    #    for mb in mf:
-    #        mb: MachineBasicBlock
-    #        loop: MachineLoop = loops.getLoopFor(mb)
-    #        if loop is not None:
-    #            if loop.getHeader() != mb:
-    #                continue
-    #
-    #                loop = loop
-    #            loop = None
-    #        loop.get
-    #
     @staticmethod
     def constructBlockMeta(mf: MachineFunction,
                            netlist: HlsNetlistCtx,
@@ -533,7 +538,7 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                 if compatible and edgesToDiscard:
                     mbSync.isLoopHeaderOfFreeRunning = True
                     for _, eMeta in edgesToDiscard:
-                        #assert eMeta.inlineRstDataFromEdge is None, ("Can not discard edge holding reset data", eMeta)
+                        # assert eMeta.inlineRstDataFromEdge is None, ("Can not discard edge holding reset data", eMeta)
                         eMeta.etype = MACHINE_EDGE_TYPE.DISCARDED
                 else:
                     pass
@@ -543,7 +548,48 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                     # when loop does not have any non-reset entry and no exit.
                     # Prequel runs exactly once for each iteration and it does not need to wait for loop live ins.
 
-    def runOnHlsNetlist(self, netlist:"HlsNetlistCtx"):
+    def _collectBlockNeighborsForLoop(self, loop: MachineLoop,
+                                      blocksUsingChannelsForLiveouts: SetList[MachineBasicBlock],
+                                      blocksUsingChannelsForLiveins: SetList[MachineBasicBlock]):
+        header = loop.getHeader()
+        self._collectBlockNeighbors(header, DIRECTION.IN, blocksUsingChannelsForLiveouts, blocksUsingChannelsForLiveins)
+        for exitEdge in loop.getExitEdges():
+            self._collectBlockNeighbors(exitEdge[0], DIRECTION.OUT, blocksUsingChannelsForLiveouts, blocksUsingChannelsForLiveins)
+
+        for subLoop in loop:
+            self._collectBlockNeighborsForLoop(subLoop, blocksUsingChannelsForLiveouts, blocksUsingChannelsForLiveins)
+
+    def _initEdgeMeta(self, mf: MachineFunction):
+        blocksUsingChannelsForLiveouts: SetList[MachineBasicBlock] = SetList()
+        blocksUsingChannelsForLiveins: SetList[MachineBasicBlock] = SetList()
+
+        for loop in self.loops:
+            self._collectBlockNeighborsForLoop(loop, blocksUsingChannelsForLiveouts, blocksUsingChannelsForLiveins)
+
+        edgeMeta: Dict[MachineEdge, MachineEdgeMeta] = self.edgeMeta
+        MRI: MachineRegisterInfo = self.originalMir.mf.getRegInfo()
+        for mb in mf:
+            mb: MachineBasicBlock
+            for suc in mb.successors():
+                e = (mb, suc)
+                if e in self.backedges:
+                    eType = MACHINE_EDGE_TYPE.BACKWARD
+                    tryToFindRegWhichCanBeUsedAsControl = True
+                elif mb in blocksUsingChannelsForLiveouts:
+                    eType = MACHINE_EDGE_TYPE.FORWARD
+                    tryToFindRegWhichCanBeUsedAsControl = True
+                else:
+                    eType = MACHINE_EDGE_TYPE.NORMAL
+                    tryToFindRegWhichCanBeUsedAsControl = False
+
+                em = edgeMeta[e] = MachineEdgeMeta(mb, suc, eType)
+                if tryToFindRegWhichCanBeUsedAsControl:
+                    self._tryToFindRegWhichCanBeUsedAsControl(self.originalMir, MRI, em.srcBlock, em.dstBlock, em)
+
+        return edgeMeta
+
+    @override
+    def runOnHlsNetlistImpl(self, netlist:"HlsNetlistCtx"):
         from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
 
         originalMir: HlsNetlistAnalysisPassMirToNetlist = netlist.getAnalysis(HlsNetlistAnalysisPassMirToNetlist)
@@ -555,6 +601,7 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
         self.loops: MachineLoopInfo = originalMir.loops
         self.backedges = originalMir.backedges
         self.edgeMeta = originalMir.edgeMeta
+
         self._initEdgeMeta(originalMir.mf)
 
         for mb in originalMir.mf:
