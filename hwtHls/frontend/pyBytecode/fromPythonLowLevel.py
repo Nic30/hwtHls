@@ -32,11 +32,12 @@ JumpCondition = Union[None, HConst, RtlSignal, SsaValue, Literal[False]]
 
 class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
 
-    def __init__(self, hls: HlsScope, dbgTracer: DebugTracer, label: str):
+    def __init__(self, hls: HlsScope, dbgTracer: DebugTracer, label: str, namePrefix:str):
         super(PyBytecodeToSsaLowLevel, self).__init__()
         assert sys.version_info >= (3, 11, 0), ("Python3.11 is minimum requirement", sys.version_info)
         self.hls = hls
         self.label = label
+        self.namePrefix = namePrefix
         self.toSsa: Optional[HlsAstToSsa] = None
         self.blockToLabel: Dict[SsaBasicBlock, BlockLabel] = {}
         self.labelToBlock: Dict[BlockLabel, SsaBlockGroup] = {}
@@ -224,7 +225,7 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
                 for sucLoop in sucLoops:
                     frame.enterLoop(sucLoop)
                     newPrefix = BlockLabel(*blockTracker._getBlockLabelPrefix(sucBlockOffset))
-                    
+
                     with self.dbgTracer.scoped("cfgAddPrefixToLoopBlocks", sucLoop):
                         self.dbgTracer.log(("newPrefix", newPrefix))
                         for bl in blockTracker.cfgAddPrefixToLoopBlocks(sucLoop, newPrefix):
@@ -255,7 +256,7 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
         Call :meth:`~._translateBytecodeBlock` and check if we finished translation of some loop body.
         """
         self.dbgTracer.log(("_translateBlockBody", blockOffset, block.label))
-        
+
         self._translateBytecodeBlock(frame, frame.bytecodeBlocks[blockOffset], block)
 
         if not isExplicitLoopReenter and loops:

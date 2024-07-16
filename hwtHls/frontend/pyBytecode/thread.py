@@ -17,7 +17,7 @@ class HlsThreadFromPy(HlsThread):
         super(HlsThreadFromPy, self).__init__(hls)
         self.fn = fn
         self.fnName = getattr(fn, "__qualname__", fn.__name__)
-        self.bytecodeToSsa = PyBytecodeToSsa(self.hls, DebugTracer(None), self.fnName)
+        self.bytecodeToSsa = PyBytecodeToSsa(self.hls, DebugTracer(None), self.fnName, hls.namePrefix)
         self.fnArgs = fnArgs
         self.fnKwargs = fnKwargs
         self._imports: List[Tuple[Union[RtlSignal, HwIO], DIRECTION]] = []
@@ -60,4 +60,9 @@ class HlsThreadFromPy(HlsThread):
                 self.dbgTracer._out.close()
 
         self.toSsa: Optional[HlsAstToSsa] = self.bytecodeToSsa.toSsa
+        namePrefix = self.hls.namePrefix
+        if len(self.hls._threads) > 1:
+            i = self.hls._threads.index(self)
+            namePrefix = f"{self.hls.namePrefix}t{i:d}_"
+        self.toSsa.namePrefix = namePrefix
 
