@@ -1,10 +1,11 @@
 from typing import Dict, Optional, List, Tuple, Union
 
-from hwt.code import And
-from hwt.hdl.statements.statement import HdlStatement
-from hwt.pyUtils.setList import SetList
-from hwt.hwIO import HwIO
+from hwt.code import And, Or
 from hwt.constants import NOT_SPECIFIED
+from hwt.hdl.statements.statement import HdlStatement
+from hwt.hwIO import HwIO
+from hwt.mainBases import RtlSignalBase
+from hwt.pyUtils.setList import SetList
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResourceItem
@@ -13,7 +14,6 @@ from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtLib.handshaked.streamNode import StreamNode, ValidReadyTuple
 from hwtLib.logic.rtlSignalBuilder import RtlSignalBuilder
-from hwt.mainBases import RtlSignalBase
 
 
 class SkipWhenMemberList():
@@ -44,6 +44,16 @@ class ExtraCondMemberList():
             extraCond = RtlSignalBuilder.buildOrWithNegatedMaskedOptional(extraCond, curExtraCond, skipWhen)
 
         return extraCond
+
+
+class MayFlushMemberList():
+
+    def __init__(self, data:List[RtlSignal]):
+        self.data = data
+
+    def resolve(self) -> RtlSignal:
+        assert self.data
+        return Or(*(d for d in self.data))
 
 
 InterfaceOrReadWriteNodeOrValidReadyTuple = Union[HwIO, HlsNetNodeRead, HlsNetNodeWrite, ValidReadyTuple]
@@ -107,6 +117,7 @@ class ConnectionsOfStage():
         self.inputs_extraCond: Dict[InterfaceOrReadWriteNodeOrValidReadyTuple, ExtraCondMemberList] = {}
         self.outputs_skipWhen: Dict[InterfaceOrReadWriteNodeOrValidReadyTuple, SkipWhenMemberList] = {}
         self.outputs_extraCond: Dict[InterfaceOrReadWriteNodeOrValidReadyTuple, ExtraCondMemberList] = {}
+        self.outputs_mayFlush: Dict[InterfaceOrReadWriteNodeOrValidReadyTuple, MayFlushMemberList] = {}
         self.ioMuxes: Dict[HwIO, Tuple[Union[HlsNetNodeRead, HlsNetNodeWrite], List[HdlStatement]]] = {}
         self.ioMuxesKeysOrdered: SetList[HwIO] = SetList()
 
@@ -124,6 +135,7 @@ class ConnectionsOfStage():
             not self.inputs_extraCond and
             not self.inputs_skipWhen and
             not self.outputs_extraCond and
+            not self.outputs_mayFlush and
             not self.outputs_skipWhen and
             not self.ioMuxes and
             not self.ioMuxesKeysOrdered and
@@ -138,10 +150,19 @@ class ConnectionsOfStage():
         self.inputs.extend(other.inputs)
         self.outputs.extend(other.outputs)
         self.signals.extend(other.signals)
-        self.inputs_skipWhen.update(other.inputs_skipWhen)
-        self.inputs_extraCond.update(other.inputs_extraCond)
-        self.outputs_skipWhen.update(other.outputs_skipWhen)
-        self.outputs_extraCond.update(other.outputs_extraCond)
+        for dstDict, srcDict in [
+            (self.inputs_skipWhen, other.inputs_skipWhen),
+            (self.inputs_extraCond, other.inputs_extraCond),
+            (self.outputs_skipWhen, other.outputs_skipWhen),
+            (self.outputs_extraCond, other.outputs_extraCond),
+            (self.outputs_mayFlush, other.outputs_mayFlush)]:
+            for k, v in srcDict.items():
+                cur = dstDict.get(k, None)
+                if cur is None:
+                    dstDict[k] = v
+                else:
+                    cur.extend(v)
+        
         assert self.implicitSyncFromPrevStage is None
         assert self.syncNode is None
         assert self.syncNodeAck is None

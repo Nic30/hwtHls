@@ -247,7 +247,7 @@ class HlsNetNodeReadBackedge(HlsNetNodeRead):
                     else:
                         # resolve "ready"
                         res = dataVldReg(0)
-                        en = HlsNetNodeWriteBackedge._getRtlEnableForNonBufferReg(self, allocator)
+                        en = allocator._rtlAllocDatapathGetIoAck(self, allocator.name)
                         if en is not None:
                             res = If(en, res)
                         rStageCon.stDependentDrives.append(res)
@@ -332,17 +332,6 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
     def getSchedulingResourceType(self):
         return self
 
-    def _getRtlEnableForNonBufferReg(self, allocator: "ArchElement"):
-        """
-        If this read-write pair is not instantiated as a buffer it means it does not have associated IO interface.
-        In this specific case we have to explicitly resolve synchronization.
-        A reg is written to if it is enabled and not skipped and if every other IO in this clock is either enabled and
-        receives ack from outside or it is skipped.
-        """
-        # :note: _rtlAllocDatapathAddIoToConnections args are None because this node is only one who is using the channel port
-        en = allocator._rtlAllocDatapathGetIoAck(self, allocator.name)
-        return en
-
     @override
     def _getBufferCapacity(self):
         srcWrite = self
@@ -382,11 +371,20 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
             for hwIO in dstRead.src._hwIOs:
                 hwIO._sig.hidden = False
 
+            forceWrite = allocator.rtlAllocHlsNetNodeInDriverIfExists(self._forceWritePort)
             if hasValid and hasReady:
-                buffs = HsBuilder(parentHwModule, srcWrite.dst,
-                                  self.buffName if self.buffName else f"{allocator.name:s}n{self._id:d}")\
+                dst = srcWrite.dst
+                name = self.buffName if self.buffName else f"{allocator.name:s}n{self._id:d}"
+                
+                buffs = HsBuilder(parentHwModule, dst, name)\
                     .buff(regCnt, init_data=self.channelInitValues).end
-                dstRead.src(buffs)
+                
+                if forceWrite is not None:
+                    dstRead.src.connect(buffs, exclude=(buffs.rd))
+                    buffs.rd(dstRead.src.rd | forceWrite.data)
+                else:
+                    dstRead.src(buffs)
+
                 for hwIO in buffs._hwIOs:
                     hwIO._sig.hidden = False
                 vld = buffs.vld
@@ -465,9 +463,6 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
         wClkI = indexOfClkPeriod(wTime, clkPeriod)
         rClkI = indexOfClkPeriod(rTime, clkPeriod)
 
-        if self._forceWritePort:
-            raise NotImplementedError(self)
-
         # isForwardEdge = wTime < rTime
         if self.allocationType == BACKEDGE_ALLOCATION_TYPE.BUFFER:
             res = self.rtlAllocAsBuffer(allocator, dstRead)
@@ -499,7 +494,11 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
             else:
                 vldDst = None
 
-            wEn = self._getRtlEnableForNonBufferReg(allocator)
+            wEn = allocator._rtlAllocDatapathGetIoAck(self, allocator.name)
+            forceWrite = allocator.rtlAllocHlsNetNodeInDriverIfExists(self._forceWritePort)
+            if forceWrite is not None:
+                wEn = wEn | forceWrite.data
+    
             isReg = self.allocationType == BACKEDGE_ALLOCATION_TYPE.REG
             isRegWithCapacity = isReg and self._getBufferCapacity() > 0
             rwMayHappenAtOnce = rClkI == wClkI or allocator.rtlStatesMayHappenConcurrently(rClkI, wClkI)
@@ -523,7 +522,7 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
                     if rwMayHappenAtOnce:
                         if dstRead not in allocator._subNodes:
                             raise NotImplementedError()
-                        rEn = HlsNetNodeWriteBackedge._getRtlEnableForNonBufferReg(dstRead, allocator)
+                        rEn = allocator._rtlAllocDatapathGetIoAck(dstRead, allocator.name)
                     else:
                         rEn = None
 

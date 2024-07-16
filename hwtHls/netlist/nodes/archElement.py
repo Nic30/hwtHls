@@ -2,6 +2,8 @@ from typing import Union, List, Dict, Tuple, Optional, Generator, Literal, Set
 
 from hwt.code import SwitchLogic
 from hwt.code_utils import rename_signal
+from hwt.constants import NOT_SPECIFIED
+from hwt.hdl.const import HConst
 from hwt.hdl.operatorDefs import HOperatorDef
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.statements.statement import HdlStatement
@@ -9,19 +11,19 @@ from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.hdlType import HdlType
-from hwt.hdl.const import HConst
-from hwt.hwIOs.std import HwIOSignal
-from hwt.pyUtils.setList import SetList
 from hwt.hwIO import HwIO
+from hwt.hwIOs.std import HwIOSignal
+from hwt.hwModule import HwModule
 from hwt.mainBases import HwIOBase
-from hwt.constants import NOT_SPECIFIED
 from hwt.mainBases import RtlSignalBase
+from hwt.pyUtils.setList import SetList
+from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
-from hwt.hwModule import HwModule
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage, \
     ExtraCondMemberList, SkipWhenMemberList, \
-    InterfaceOrReadWriteNodeOrValidReadyTuple, IORecord, ConnectionsOfStageList
+    InterfaceOrReadWriteNodeOrValidReadyTuple, IORecord, ConnectionsOfStageList, \
+    MayFlushMemberList
 from hwtHls.architecture.syncUtils import HwIO_getSyncTuple
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, \
     TimeIndependentRtlResourceItem, INVARIANT_TIME
@@ -38,7 +40,6 @@ from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import start_clk, indexOfClkPeriod
 from hwtHls.platform.opRealizationMeta import EMPTY_OP_REALIZATION
-from hwt.pyUtils.typingFuture import override
 from hwtLib.handshaked.streamNode import StreamNode, HwIOOrValidReadyTuple, \
     ValidReadyTuple
 from hwtLib.logic.rtlSignalBuilder import RtlSignalBuilder
@@ -363,39 +364,41 @@ class ArchElement(HlsNetNodeAggregate):
             ready = 1
             validReadyPhysicallyPresent = (1, 1)
             if isRead:
-                assert HdlType_isVoid(node._outputs[0]._dtype), ("Node without any hw HwIO or sync must not have any data", node)
+                assert HdlType_isVoid(node._portDataOut._dtype), (
+                    "Node without any hw HwIO or sync must not have any data", node)
                 if isinstance(node, (HlsNetNodeReadBackedge, HlsNetNodeReadForwardedge)):
                     hwIO = node.associatedWrite
             else:
-                assert HdlType_isVoid(node.dependsOn[0]._dtype), ("Node without any hw HwIO or sync must not have any data", node)
+                assert HdlType_isVoid(node.dependsOn[node._portSrc.out_i]._dtype), (
+                    "Node without any hw HwIO or sync must not have any data", node)
             # we need some object to store extraCond and skipWhen
         else:
             assert isinstance(hwIO, (HwIO, RtlSignalBase)), ("Node should already have interface resolved", node, hwIO)
             validReadyPhysicallyPresent = HwIO_getSyncTuple(hwIO)
             valid, ready = validReadyPhysicallyPresent
 
-            if isinstance(node, (HlsNetNodeReadForwardedge, HlsNetNodeWriteForwardedge)):
-                if not node._rtlUseReady:
+            if isinstance(node, HlsNetNodeWrite) and node._isFlushable:
+                ready, valid = node.getRtlFlushReadyValidSignal()
+                if ready is None:
                     ready = 1
 
-                if not node._rtlUseValid:
-                    valid = 1
-
+            # rm ready/valid from sync as it will be driven only form node flags instead from StreamNode
             if isRead:
                 if not node._isBlocking:
                     valid = 1  # rm valid from sync because we do not have to wait for it
-                if not node._rtlUseReady:
+                if not node._rtlUseReady or node.hasReadyOnlyToPassFlags():
                     ready = 1
+                if isinstance(node, HlsNetNodeReadForwardedge):
+                    if not node._rtlUseValid:
+                        valid = 1
             else:
                 if not node._isBlocking:
                     ready = 1  # rm ready from sync because we do not have to wait for it
-                if not node._rtlUseValid:
+                if (not node._rtlUseValid or node.hasValidOnlyToPassFlags()) and not node._isFlushable:
                     valid = 1
-        # rm ready/valid from sync as it will be driven only form node flags instead from StreamNode
-        if not isRead and node.hasValidOnlyToPassFlags():
-            valid = 1
-        if isRead and node.hasReadyOnlyToPassFlags():
-            ready = 1
+                if isinstance(node, HlsNetNodeWriteForwardedge):
+                    if not node._rtlUseReady:
+                        ready = 1
 
         if isRead:
             ioContainer = con.inputs
@@ -433,16 +436,19 @@ class ArchElement(HlsNetNodeAggregate):
         if isRead:
             assert keyForFlagDicts not in con.outputs_extraCond, node
             assert keyForFlagDicts not in con.outputs_skipWhen, node
+            assert keyForFlagDicts not in con.outputs_mayFlush, node
             io_extraCond = con.inputs_extraCond
             io_skipWhen = con.inputs_skipWhen
+            io_mayFlush = None
         else:
             assert keyForFlagDicts not in con.inputs_extraCond, node
             assert keyForFlagDicts not in con.inputs_skipWhen, node
             io_extraCond = con.outputs_extraCond
             io_skipWhen = con.outputs_skipWhen
+            io_mayFlush = con.outputs_mayFlush
 
         self._rtlAllocDatapathAddIoToConnections(node, isRead, keyForFlagDicts, validReadyForSync,
-                                                 io_extraCond, io_skipWhen)
+                                                 io_extraCond, io_skipWhen, io_mayFlush)
 
     def _rtlAllocDatapathAddIoToConnections(self,
                    node: Union[HlsNetNodeRead, HlsNetNodeWrite],
@@ -450,42 +456,29 @@ class ArchElement(HlsNetNodeAggregate):
                    keyForFlagDicts: InterfaceOrReadWriteNodeOrValidReadyTuple,
                    validReadyTupleUsedInSyncGeneration: ValidReadyTuple,
                    io_extraConds: Dict[InterfaceOrReadWriteNodeOrValidReadyTuple, ExtraCondMemberList],
-                   io_skipWhens: Dict[InterfaceOrReadWriteNodeOrValidReadyTuple, SkipWhenMemberList]):
+                   io_skipWhens: Dict[InterfaceOrReadWriteNodeOrValidReadyTuple, SkipWhenMemberList],
+                   io_mayFlush: Optional[Dict[InterfaceOrReadWriteNodeOrValidReadyTuple, MayFlushMemberList]]):
         """
-        Add io extraCond, skipWhen flag to io_extraConds, io_skipWhens dictionaries
+        Add IO extraCond, skipWhen flag to io_extraConds, io_skipWhens dictionaries
 
         :attention: This function is run for a single read/write node but there may be multiple such nodes
             in a single clock period slot. Such a IO may be concurrent and thus skipWhen and extraCond must be merged.
         """
-
-        # get time when IO happens
-        if isRead:
-            node: HlsNetNodeRead
-            syncTime = node.scheduledOut[0]
-        else:
-            assert isinstance(node, HlsNetNodeWrite), node
-            syncTime = node.scheduledIn[0]
-
-        skipWhen = node.skipWhen
-        if skipWhen is not None:
-            syncTime = node.scheduledIn[skipWhen.in_i]
-            e = node.dependsOn[skipWhen.in_i]
-            skipWhen = self.rtlAllocHlsNetNodeOutInTime(e, syncTime).data
-
-        extraCond = node.extraCond
+        extraCond = self.rtlAllocHlsNetNodeInDriverIfExists(node.extraCond)
         if extraCond is not None:
-            syncTime = node.scheduledIn[extraCond.in_i]
-            e = node.dependsOn[extraCond.in_i]
-            extraCond = self.rtlAllocHlsNetNodeOutInTime(e, syncTime).data
             if isRead:
                 ack = validReadyTupleUsedInSyncGeneration[0]
             else:
                 ack = validReadyTupleUsedInSyncGeneration[1]
 
-            if extraCond is ack:
+            if extraCond.data is ack:
                 extraCond = None  # it is useless to use this twice
+            else:
+                extraCond = extraCond.data
 
+        skipWhen = self.rtlAllocHlsNetNodeInDriverIfExists(node.skipWhen)
         if skipWhen is not None:
+            skipWhen = skipWhen.data
             curSkipWhen = io_skipWhens.get(keyForFlagDicts, None)
             if curSkipWhen is not None:
                 curSkipWhen.data.append(skipWhen)
@@ -501,19 +494,29 @@ class ArchElement(HlsNetNodeAggregate):
                 curExtraCond = ExtraCondMemberList([(skipWhen, extraCond), ])
                 io_extraConds[keyForFlagDicts] = curExtraCond
 
+        if not isRead and node._isFlushable:
+            mayFlush = self.rtlAllocHlsNetNodeInDriverIfExists(node._mayFlushPort)
+            assert mayFlush is not None, node
+            mayFlush = mayFlush.data
+            curMayFlush = io_mayFlush.get(keyForFlagDicts, None)
+            if curMayFlush is not None:
+                curMayFlush.data.append(mayFlush)
+            else:
+                curMayFlush = MayFlushMemberList([mayFlush, ])
+                io_mayFlush[keyForFlagDicts] = curMayFlush
+
     def _rtlAllocDatapathGetIoAck(self, node: Union[HlsNetNodeRead, HlsNetNodeWrite], namePrefix:str) -> Optional[RtlSignal]:
         """
         Use extraCond, skipWhen condition to get enable condition.
         """
         ack = None
-        extraCond = node.getExtraCondDriver()
+        extraCond = self.rtlAllocHlsNetNodeInDriverIfExists(node.extraCond)
         if extraCond is not None:
-            ack = self.rtlAllocHlsNetNodeOutInTime(extraCond, node.scheduledIn[node.extraCond.in_i]).data
+            ack = extraCond.data
 
-        skipWhen = node.getSkipWhenDriver()
+        skipWhen = self.rtlAllocHlsNetNodeInDriverIfExists(node.skipWhen)
         if skipWhen is not None:
-            _skip = self.rtlAllocHlsNetNodeOutInTime(skipWhen, node.scheduledIn[node.skipWhen.in_i]).data
-            ack = RtlSignalBuilder.buildOrNegatedMaskOptional(ack, _skip)
+            ack = RtlSignalBuilder.buildOrNegatedMaskOptional(ack, skipWhen.data)
 
         if isinstance(ack, HBitsConst):
             assert int(ack) == 1, (node, "If ack=0 this means that channel is always stalling")
@@ -533,12 +536,17 @@ class ArchElement(HlsNetNodeAggregate):
         flagBundle = flagDict.get(flagsDictKey, None)
         if flagBundle is None or not flagBundle:
             return None
+
         flag = flagBundle.resolve()
+
         if flag is None:
             return None
+
         elif isinstance(flag, HBitsConst):
-            assert int(flag) == defaultVal, (baseName, flagName, flag, "Enable condition is never satisfied, channel would be always disabled")
+            assert int(flag) == defaultVal, (baseName, flagName, flag,
+                "Enable condition is never satisfied, channel would be always disabled")
             return None
+
         else:
             assert isinstance(flag, (RtlSignal, HwIOSignal)), (baseName, flagName, flag)
             if self._dbgAddSignalNamesToSync and baseName is not None and baseName is not flagName:
@@ -574,9 +582,7 @@ class ArchElement(HlsNetNodeAggregate):
                 else:
                     seen.add(flagsDictKey)
 
-                if not self._dbgAddSignalNamesToSync:
-                    baseName = None
-                elif hwIO is None or not isinstance(hwIO, (HwIOBase, RtlSignalBase)):
+                if hwIO is None or not isinstance(hwIO, (HwIOBase, RtlSignalBase)):
                     baseName = node.name
                 else:
                     baseName = hwIO._name
@@ -584,16 +590,17 @@ class ArchElement(HlsNetNodeAggregate):
                 # resolve conditions for IO as input and output (some IO may be both)
                 inputExtraCond = self._rtlChannelSyncFinalizeFlag(parentHwModule, con.inputs_extraCond, flagsDictKey, baseName, "extraCond", 1)
                 inputSkipWhen = self._rtlChannelSyncFinalizeFlag(parentHwModule, con.inputs_skipWhen, flagsDictKey, baseName, "skipWhen", 0)
-                oututExtraCond = self._rtlChannelSyncFinalizeFlag(parentHwModule, con.outputs_extraCond, flagsDictKey, baseName, "extraCond", 1)
-                oututSkipWhen = self._rtlChannelSyncFinalizeFlag(parentHwModule, con.outputs_skipWhen, flagsDictKey, baseName, "skipWhen", 0)
+                outputExtraCond = self._rtlChannelSyncFinalizeFlag(parentHwModule, con.outputs_extraCond, flagsDictKey, baseName, "extraCond", 1)
+                outputSkipWhen = self._rtlChannelSyncFinalizeFlag(parentHwModule, con.outputs_skipWhen, flagsDictKey, baseName, "skipWhen", 0)
+                outputMayFlush = self._rtlChannelSyncFinalizeFlag(parentHwModule, con.outputs_mayFlush, flagsDictKey, baseName, "mayFlush", 1)
 
-                extraCond = RtlSignalBuilder.buildAndOptional(inputExtraCond, oututExtraCond)
+                extraCond = RtlSignalBuilder.buildAndOptional(inputExtraCond, outputExtraCond)
                 if extraCond is not None:
                     if isinstance(extraCond, HBitsConst):
                         assert int(extraCond) == 1, (node, "Must be 1 otherwise IO is never activated")
                         extraCond = None
 
-                skipWhen = RtlSignalBuilder.buildAndOptional(inputSkipWhen, oututSkipWhen)
+                skipWhen = RtlSignalBuilder.buildAndOptional(inputSkipWhen, outputSkipWhen)
                 if skipWhen is not None:
                     if isinstance(skipWhen, HBitsConst):
                         assert int(skipWhen) == 0, (node, "Must be 0 otherwise IO is never activated")
@@ -631,17 +638,21 @@ class ArchElement(HlsNetNodeAggregate):
                     if hasValidDrivenFromLocalAck:
                         if driveValidFromLocalAck:
                             assert isinstance(_valid, (RtlSignalBase, HwIOSignal)), (node, _valid)
+                            if not isRead and node._isFlushable:
+                                _ack = outputMayFlush
+                            else:
+                                _ack = ack
                             con.stDependentDrives.append(_valid(ack))
 
                         if not isRead:
-                            assert valid == 1, ("valid should not be used in sync tuple and should be present"
+                            assert valid == 1 or valid is not _valid, ("valid should not be used in sync tuple and should be present"
                                             " only in ioRecord.validReadyPresent", node, valid)
                     if hasReadyDrivenFromLocalAck:
                         if driveReadyFromLocalAck:
                             assert isinstance(_ready, (RtlSignalBase, HwIOSignal)), (node, _ready)
                             con.stDependentDrives.append(_ready(ack))
                         if isRead:
-                            assert ready == 1, ("ready should not be used in sync tuple and should be present"
+                            assert ready == 1 or ready is not _ready, ("ready should not be used in sync tuple and should be present"
                                             " only in ioRecord.validReadyPresent", node, ready)
                 # rm ready or valid which would be driven from this port because it has custom driver specified
                 if isRead:
@@ -659,6 +670,7 @@ class ArchElement(HlsNetNodeAggregate):
                         if isinstance(ack, HBitsConst):
                             assert int(ack) == 1, node
                             ack = None
+
                     if isinstance(ack, int):
                         assert ack == 1, node
                         ack = None
@@ -673,6 +685,7 @@ class ArchElement(HlsNetNodeAggregate):
                         if virtualMaster not in seen:
                             masters.append(virtualMaster)
                             seen.add(virtualMaster)
+
                         if skipWhen is not None:
                             skipWhens[virtualMaster] = skipWhen
 
@@ -701,10 +714,10 @@ class ArchElement(HlsNetNodeAggregate):
             slaves = []
             extraConds = None
             skipWhen = None
-            assert not con.inputs_extraCond, (self, con , con.inputs_extraCond)
+            assert not con.inputs_extraCond, (self, con, con.inputs_extraCond)
             assert not con.outputs_extraCond, (self, con, con.outputs_extraCond)
-            assert not con.inputs_skipWhen, (self, con  , con.inputs_skipWhen)
-            assert not con.outputs_skipWhen, (self, con , con.outputs_skipWhen)
+            assert not con.inputs_skipWhen, (self, con, con.inputs_skipWhen)
+            assert not con.outputs_skipWhen, (self, con, con.outputs_skipWhen)
 
         else:
             masters, slaves, extraConds, skipWhen = self._rtlChannelSyncFinalize(con)

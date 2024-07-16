@@ -114,9 +114,6 @@ class HlsNetNodeWriteForwardedge(HlsNetNodeWrite):
     def hasReadyOnlyToPassFlags(self):
         return HlsNetNodeWriteBackedge.hasReadyOnlyToPassFlags(self)
 
-    def _getRtlEnableForNonBufferReg(self, allocator: "ArchElement"):
-        return HlsNetNodeWriteBackedge._getRtlEnableForNonBufferReg(self, allocator)
-
     def rtlAllocAsBuffer(self, allocator: "ArchElement", dstRead: HlsNetNodeReadForwardedge):
         return HlsNetNodeWriteBackedge.rtlAllocAsBuffer(self, allocator, dstRead)
 

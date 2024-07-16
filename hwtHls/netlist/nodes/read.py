@@ -3,13 +3,14 @@ from typing import Union, Optional, List, Generator, Tuple
 from hwt.code import Concat
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.bits import HBits
+from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.hdlType import HdlType
-from hwt.hdl.const import HConst
-from hwt.hwIOs.std import HwIODataRd
-from hwt.pyUtils.setList import SetList
 from hwt.hwIO import HwIO
-from hwt.synthesizer.interfaceLevel.utils import HwIO_pack
+from hwt.hwIOs.std import HwIODataRd
 from hwt.mainBases import RtlSignalBase
+from hwt.pyUtils.setList import SetList
+from hwt.pyUtils.typingFuture import override
+from hwt.synthesizer.interfaceLevel.utils import HwIO_pack
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.syncUtils import HwIO_getSyncTuple, \
     HwIO_getSyncSignals
@@ -24,11 +25,8 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
 from hwtHls.netlist.nodes.schedulableNode import SchedulizationDict, OutputTimeGetter, \
     OutputMinUseTimeGetter, SchedTime
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
-from hwt.pyUtils.typingFuture import override
-from hwtLib.handshaked.streamNode import HwIOOrValidReadyTuple
 from ipCorePackager.constants import INTF_DIRECTION_asDirecton, \
     DIRECTION_opposite, DIRECTION, INTF_DIRECTION
-from hwt.hdl.types.defs import BIT
 
 
 class HlsNetNodeRead(HlsNetNodeExplicitSync):
@@ -42,6 +40,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
     :ivar dependsOn: list of dependencies for scheduling composed of extraConds and skipWhen
     :ivar _rawValue: A port is used only during optimization phase, its value is Concat(_validNB, _valid, dataOut)
     """
+    _PORT_ATTR_NAMES = HlsNetNodeExplicitSync._PORT_ATTR_NAMES + ["_rawValue", "_portDataOut"]
 
     def __init__(self, netlist: "HlsNetlistCtx", src: Union[RtlSignal, HwIO],
                  dtype: Optional[HdlType]=None, name:Optional[str]=None):
@@ -51,6 +50,8 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
         self._isBlocking: bool = True
         self._rawValue: Optional[HlsNetNodeOut] = None
         self._associatedReadSync: Optional["HlsNetNodeReadSync"] = None
+        self.associatedWrite: Optional["HlsNetNodeWrite"] = None
+
         self._initCommonPortProps(src)
         if dtype is None:
             d = self.getRtlDataSig()
@@ -63,15 +64,27 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
             #    raise NotImplementedError("Reading of 1b vector would cause issues"
             #                              " with missing auto casts when with other operands without force_vector", d, src)
         assert not isinstance(dtype, HBits) or dtype.signed is None, dtype
-        self._addOutput(dtype, "dataOut")
+        self._portDataOut = self._addOutput(dtype, "dataOut")
+
+    def getAssociatedWrite(self):
+        return self.associatedWrite
 
     def setNonBlocking(self):
         self._isBlocking = False
 
     def getRawValue(self):
         if self._rawValue is None:
-            self._rawValue = self._addOutput(HBits(self._outputs[0]._dtype.bit_length() + 1), "rawValue")
+            self._rawValue = self._addOutput(HBits(self._portDataOut._dtype.bit_length() + 1), "rawValue")
         return self._rawValue
+
+    @override
+    def clone(self, memo:dict, keepTopPortsConnected: bool):
+        y, isNew = HlsNetNodeExplicitSync.clone(self, memo, keepTopPortsConnected)
+        if isNew:
+            w = self.associatedWrite
+            if w is not None:
+                y.associatedWrite = w.clone(memo, True)
+        return y, isNew
 
     @override
     def _removeOutput(self, i:int):
@@ -86,6 +99,10 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
                 rawVal = self._rawValue
                 if rawVal is not None and rawVal.out_i == i:
                     self._rawValue = None
+                else:
+                    dataOut = self._portDataOut
+                    if dataOut is not None and dataOut.out_i == i:
+                        self._portDataOut = None
         return HlsNetNodeExplicitSync._removeOutput(self, i)
 
     @override
@@ -95,12 +112,27 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
             if i not in nonOrderingInputs:
                 yield i
 
-    def getRtlValidSig(self, hwIO: HwIOOrValidReadyTuple) -> Union[RtlSignalBase, HConst]:
-        vld = HwIO_getSyncTuple(hwIO)[0]
-        if isinstance(vld, int):
-            raise NotImplementedError("rtl valid should not be requested because it is constant", self)
+    def _rtlAllocValidPorts(self, allocator: "ArchElement"):
+        netNodeToRtl = allocator.netNodeToRtl
+        if self._rtlUseValid or self.hasValidOnlyToPassFlags():
+            validRtl = HwIO_getSyncTuple(self.src)[0]
+            if isinstance(validRtl, int):
+                raise NotImplementedError("rtl valid should not be requested because it is constant", self)
         else:
-            return vld
+            validRtl = BIT.from_py(1)
+
+        _valid = None
+        if self.hasValid():
+            _valid = allocator.rtlRegisterOutputRtlSignal(self._valid, validRtl, False, False, False)
+
+        if self.hasValidNB():
+            if _valid is None:
+                _validNB = allocator.rtlRegisterOutputRtlSignal(self._validNB, validRtl, False, False, False)
+            else:
+                _validNB = _valid
+                netNodeToRtl[self._validNB] = _validNB
+
+        return _valid, validRtl
 
     def _rtlAllocDataVoidOut(self, allocator: "ArchElement"):
         v = self._dataVoidOut._dtype.from_py(None)
@@ -112,7 +144,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
         Instantiate read operation on RTL level
         """
         assert not self._isRtlAllocated, self
-        r_out = self._outputs[0]
+        r_out = self._portDataOut
         hasNoSpecialControl = self._isBlocking and not self.hasValidNB() and not self.hasValid() and self._dataVoidOut is None
         netNodeToRtl = allocator.netNodeToRtl
 
@@ -137,44 +169,13 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
             # in this step we are building only data path
             allocator.rtlAllocHlsNetNodeOutInTime(sync, time)
 
-        _valid = None
-        _validNB = None
         if self.hasAnyUsedValidPort():
-            if self._rtlUseValid or self.hasValidOnlyToPassFlags():
-                validRtl = self.getRtlValidSig(self.src)
-            else:
-                validRtl = BIT.from_py(1)
-
-            if self.hasValid():
-                _valid = allocator.rtlRegisterOutputRtlSignal(self._valid, validRtl, False, False, False)
-            if self.hasValidNB():
-                if _valid is None:
-                    _validNB = allocator.rtlRegisterOutputRtlSignal(self._validNB, validRtl, False, False, False)
-                else:
-                    _validNB = _valid
-                    netNodeToRtl[self._validNB] = _validNB
+            self._rtlAllocValidPorts(allocator)
 
         if self._dataVoidOut is not None:
             self._rtlAllocDataVoidOut(allocator)
 
-        if self._rawValue is not None:
-            assert not self._isBlocking, self
-            assert self.hasValid(), self
-            if hasData:
-                if hasData:
-                    rawValue = Concat(validRtl, validRtl, dataRtl)
-                else:
-                    rawValue = Concat(validRtl, validRtl)
-
-                allocator.rtlRegisterOutputRtlSignal(self._rawValue, rawValue, False, False, False)
-
-            else:
-                if self.hasValidNB():
-                    rawValue = Concat(validRtl, validRtl)
-                    allocator.rtlRegisterOutputRtlSignal(self._rawValue, rawValue, False, False, False)
-
-                else:
-                    netNodeToRtl[self._rawValue] = _valid
+        assert self._rawValue is None, ("access to a _rawValue should be already lowered and this port should be removed", self)
 
         # because there are multiple outputs
         clkI = indexOfClkPeriod(self.scheduledOut[0], allocator.netlist.normalizedClkPeriod)
