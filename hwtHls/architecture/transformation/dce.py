@@ -10,13 +10,15 @@ from hwtHls.netlist.transformation.simplifyUtils import disconnectAllInputs
 
 def ArchElementDCE(netlist:HlsNetlistCtx, sccSyncArchElements: List[ArchElement]):
     removed = netlist.builder._removedNodes
-    assert not removed, ("Should be already filtered before calling this", removed)
+    #assert not removed, ("Should be already filtered before calling this", removed)
     simplify = HlsNetlistPassSimplify(None)
 
     worklist: SetList[HlsNetNode] = SetList()
     for elm in sccSyncArchElements:
         anyNodeRemoved = False
         for n in elm._subNodes:
+            if n in removed:
+                continue
             anyNodeRemoved |= simplify._DCE(n, worklist, removed)
         while worklist:
             n = worklist.pop()
@@ -42,5 +44,5 @@ def ArchElementDCE(netlist:HlsNetlistCtx, sccSyncArchElements: List[ArchElement]
                 n = worklist.pop()
                 anyNodeRemoved |= simplify._DCE(n, worklist, removed)
 
-            if anyNodeRemoved:
+            if anyNodeRemoved or removed:
                 elm.filterNodesUsingSet(removed)
