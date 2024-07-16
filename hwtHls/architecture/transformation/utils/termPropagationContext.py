@@ -45,7 +45,7 @@ class ArchElementTermPropagationCtx():
         self.parentDstElm = parentDstElm
         self.stageEnForSyncNode = stageEnForSyncNode
 
-    def propagate(self, srcNode: ArchSyncNodeTy, out: HlsNetNodeOut, name: str):
+    def propagate(self, srcNode: ArchSyncNodeTy, out: HlsNetNodeOut, name: str) -> HlsNetNodeOut:
         assert out
         assert out.obj in srcNode[0]._subNodes, (srcNode[0], out, name)
         k = ArchSyncNodeTerm(srcNode, out, name)
@@ -58,12 +58,12 @@ class ArchElementTermPropagationCtx():
             self.importedPorts[k] = curI
         return curI
 
-    def propagateFromDstElm(self, dstNode: ArchSyncNodeTy, out: HlsNetNodeOut, name: str):
+    def propagateFromDstElm(self, dstNode: ArchSyncNodeTy, out: HlsNetNodeOut, name: str, resetTimeToClkWindowBegin=False) -> HlsNetNodeOut:
         srcNode = (self.parentDstElm, dstNode[1])
         k = ArchSyncNodeTerm(srcNode, out, name)
         curE = self.exportedPorts.get(k)
         if curE is None:
-            curE = exportPortFromArchElement(srcNode, out, name, self.exportedPorts)
+            curE = exportPortFromArchElement(srcNode, out, name, self.exportedPorts, resetTimeToClkWindowBegin=resetTimeToClkWindowBegin)
         curI, _ = importPortToArchElement(curE, name, dstNode)
         self.importedPorts[k] = curI
         return curI
@@ -90,7 +90,8 @@ class ArchElementTermPropagationCtx():
 
 
 def exportPortFromArchElement(srcNode: ArchSyncNodeTy, out: HlsNetNodeOut, name: str,
-                              exportedPorts: Dict[ArchSyncNodeTerm, HlsNetNodeOut]):
+                              exportedPorts: Dict[ArchSyncNodeTerm, HlsNetNodeOut],
+                              resetTimeToClkWindowBegin=False):
     cacheKey = ArchSyncNodeTerm(srcNode, out, name)
     cur = exportedPorts.get(cacheKey, None)
     if cur is not None:
@@ -101,7 +102,9 @@ def exportPortFromArchElement(srcNode: ArchSyncNodeTy, out: HlsNetNodeOut, name:
     assert out.obj.scheduledOut is not None, ("Port must be scheduled", out)
     clkPeriod = elmNode.netlist.normalizedClkPeriod
     # to assert that the port is not exported in sooner time
-    time = max(srcNode[1] * clkPeriod, out.obj.scheduledOut[out.out_i])
+    time = srcNode[1] * clkPeriod
+    if not resetTimeToClkWindowBegin:
+        time = max(time, out.obj.scheduledOut[out.out_i])
     _out, interOutNode = elmNode._addOutput(out._dtype, name, time=time)
     link_hls_nodes(out, interOutNode)
     exportedPorts[cacheKey] = _out
