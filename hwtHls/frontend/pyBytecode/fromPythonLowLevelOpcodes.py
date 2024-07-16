@@ -7,6 +7,8 @@ from types import FunctionType, CellType, MethodType
 from typing import Callable, Dict, Union, Optional
 
 from hwt.hdl.const import HConst
+from hwt.hdl.operator import HOperatorNode
+from hwt.hdl.operatorDefs import HwtOps
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hwIO import HwIO
 from hwt.hwIOs.std import HwIOSignal
@@ -109,6 +111,16 @@ class PyBytecodeToSsaLowLevelOpcodes():
         # Do nothing code. Used as a placeholder by the bytecode optimizer.
         return curBlock
 
+    @staticmethod
+    def _isHwtCall(obj):
+        if not isinstance(obj, RtlSignal):
+            return False
+        try:
+            d = obj.singleDriver()
+        except:
+            return False
+        return isinstance(d, HOperatorNode) and d.operator == HwtOps.CALL
+
     def opcode_POP_TOP(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:
         res = frame.stack.pop()
         res, curBlock = expandBeforeUse(self, instr.offset, frame, res, curBlock)
@@ -123,9 +135,11 @@ class PyBytecodeToSsaLowLevelOpcodes():
                                                      lambda i, _dst: hls.write(res._origSrc, _dst))
 
         if isinstance(res, (HlsWrite, HlsRead, HdlAssignmentContainer)):
-            self.toSsa.visit_CodeBlock_list(curBlock, [res, ])
+            curBlock = self.toSsa.visit_CodeBlock_list(curBlock, [res, ])
+        elif self._isHwtCall(res):
+            curBlock, _ = self.toSsa.visit_expr(curBlock, res)
         elif isinstance(res, list) and len(res) > 0 and isinstance(res[0], (HlsWrite, HlsRead, HdlAssignmentContainer)):
-            self.toSsa.visit_CodeBlock_list(curBlock, res)
+            curBlock = self.toSsa.visit_CodeBlock_list(curBlock, res)
         elif isinstance(res, _PyBytecodePragma):
             res.apply(self, frame, curBlock, instr)
 
