@@ -22,10 +22,15 @@ class HlsThreadFromNetlist(HlsThread):
 
     def compileToSsa(self):
         raise HlsThreadDoesNotUseSsa()
-    
+
     def compileToNetlist(self, platform:DefaultHlsPlatform):
         hls = self.hls
-        netlist = self.toHw = HlsNetlistCtx(hls.parentHwModule, hls.freq, self.getLabel(), namePrefix=self.hls.namePrefix)
+        namePrefix = self.hls.namePrefix
+        if len(self.hls._threads) > 1:
+            i = self.hls._threads.index(self)
+            namePrefix = f"{self.hls.namePrefix}t{i:d}_"
+        netlist = self.toHw = HlsNetlistCtx(hls.parentHwModule, hls.freq,
+                                            self.getLabel(), namePrefix=namePrefix)
         self.builder = HlsNetlistBuilder(netlist)
         netlist._setBuilder(self.builder)
         self.netlistConstructor(netlist)

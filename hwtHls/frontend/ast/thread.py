@@ -39,7 +39,11 @@ class HlsThreadFromAst(HlsThread):
     def compileToSsa(self):
         _code = self._formatCode(self.code)
         platform = self.hls.parentHwModule._target_platform
-        toSsa = HlsAstToSsa(self.hls.ssaCtx, self.getLabel(), _code, platform.getPassManagerDebugLogFile())
+        namePrefix = self.hls.namePrefix
+        if len(self.hls._threads) > 1:
+            i = self.hls._threads.index(self)
+            namePrefix = f"{self.hls.namePrefix}t{i:d}_"
+        toSsa = HlsAstToSsa(self.hls.ssaCtx, self.getLabel(), namePrefix, _code, platform.getPassManagerDebugLogFile())
         toSsa._onAllPredecsKnown(toSsa.start)
         toSsa.visit_top_CodeBlock(_code)
         toSsa.finalize()
