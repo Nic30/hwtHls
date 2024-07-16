@@ -1,18 +1,19 @@
 
 from typing import Union, Set, Generator, Callable, Sequence
 
+from hwt.hdl.const import HConst
 from hwt.hdl.operator import HOperatorNode
 from hwt.hdl.operatorDefs import COMPARE_OPS, HwtOps
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.statements.ifContainter import IfContainer
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.defs import BIT, BOOL
-from hwt.hdl.const import HConst
-from hwt.pyUtils.setList import SetList
-from hwt.serializer.utils import RtlSignal_sort_key
 from hwt.hwIO import HwIO
-from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
+from hwt.pyUtils.setList import SetList
+from hwt.pyUtils.typingFuture import override
+from hwt.serializer.utils import RtlSignal_sort_key
 from hwt.synthesizer.rtlLevel.exceptions import SignalDriverErr
+from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage
 from hwtHls.architecture.syncUtils import HwIO_getSyncTuple
 from hwtHls.architecture.transformation.hlsAndRtlNetlistPass import HlsAndRtlNetlistPass
@@ -202,7 +203,8 @@ class HlsAndRtlNetlistPassControlLogicMinimize(HlsAndRtlNetlistPass):
         miterIsConstant = abcNet.MiterIsConstant()
         assert miterIsConstant == 1, ("Expected to be equivalent", {0: "sat", 1: "unsat", -1: "undecided"}[miterIsConstant], expr0, "is not equivalent to", expr1)
 
-    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
+    @override
+    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
         allControlIoOutputs, inputs = self.collectAllControl(netlist, self.collectControlDrivingTree)
         if allControlIoOutputs:
             #allControlIoOutputs = [allControlIoOutputs[2], ]
