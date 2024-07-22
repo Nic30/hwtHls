@@ -348,7 +348,15 @@ class PyBytecodeToSsaLowLevelOpcodes():
                 stack[-1] = v.__func__
                 stack.append(v.__self__)
             else:
-                stack.append(NULL)
+                call = getattr(v, "__call__", None)
+                if call and ismethod(call):
+                    # handle the case for callable object
+                    stack[-1] = call.__func__
+                    stack.append(call.__self__)
+                else:
+                    # case for normal function without self
+                    stack.append(NULL)
+
         return curBlock
 
     def opcode_LOAD_FAST(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction, check=False, clear=False) -> SsaBasicBlock:
