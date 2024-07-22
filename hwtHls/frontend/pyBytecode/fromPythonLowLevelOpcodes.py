@@ -355,7 +355,8 @@ class PyBytecodeToSsaLowLevelOpcodes():
                     stack.append(call.__self__)
                 else:
                     # case for normal function without self
-                    stack.append(NULL)
+                    stack[-1] = NULL
+                    stack.append(v)
 
         return curBlock
 
