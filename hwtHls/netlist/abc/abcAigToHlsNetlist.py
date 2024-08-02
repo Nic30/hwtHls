@@ -27,6 +27,7 @@ class AbcAigToHlsNetlist(AbcAigToRtlNetlist):
 
         if o.IsPi():
             res = self.ioMap[o.Name()]
+            assert res is not None, (o.Name(),)
             # res = o.Data()
             if negated:
                 res = self.builder.buildNot(res)
