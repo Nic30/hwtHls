@@ -46,11 +46,11 @@ class BaseLlvmMirTC(BaseSsaTC):
 
 
 def extractMetaFromMirStr(mirStr: str):
-    RE_BLOCK = re.compile("^\s*(bb\.\d+\.([^:]+)):")
-    RE_REG = re.compile("%(\d+)(:?\S+)")
+    RE_BLOCK = re.compile(r"^\s*(bb\.\d+\.([^:]+)):")
+    RE_REG = re.compile(r"%(\d+)(:?\S+)")
     # group4 = io name
     # group6 = addrspace
-    RE_IO = re.compile("(load|store) (\(\S+\) )?(from|into) %(\S+)(, align \d+)?, addrspace (\d+)")
+    RE_IO = re.compile(r"(load|store) (\(\S+\) )?(from|into) %(\S+)(, align \d+)?, addrspace (\d+)")
 
     blockNames: List[str] = []
     registers: Set[int] = set()
