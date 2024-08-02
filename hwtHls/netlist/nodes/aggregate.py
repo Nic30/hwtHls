@@ -70,7 +70,9 @@ class HlsNetNodeAggregatePortIn(HlsNetNode):
         assert not self._isRtlAllocated, self
         assert len(self._outputs) == 1, self
         dataOut = self._outputs[0]
-        if not HdlType_isVoid(dataOut._dtype):
+        if HdlType_isVoid(dataOut._dtype):
+            tir = []
+        else:
             parentInPort = self.parentIn
             parentDriver = parentInPort.obj.dependsOn[parentInPort.in_i]
             assert dataOut._dtype == parentDriver._dtype, ("Aggregate port must be of same time as port which drives it",
@@ -86,14 +88,13 @@ class HlsNetNodeAggregatePortIn(HlsNetNode):
 
             # make tir local to this element
             tir = allocator.rtlRegisterOutputRtlSignal(dataOut, tir.get(time).data, False, False, False)
-        else:
-            tir = []
 
         self._isRtlAllocated = True
         return tir
 
     def __repr__(self):
-        return f"<{self.__class__.__name__:s} {self._id:d} i={self.parentIn.in_i} parent={self.parentIn.obj._id:d}>"
+        parentIn = self.parentIn
+        return f"<{self.__class__.__name__:s} {self._id:d} {'' if self.name is None else f'{self.name} '} {parentIn.obj._id:d}:i{parentIn.in_i}>"
 
 
 class HlsNetNodeAggregatePortOut(HlsNetNode):
@@ -140,6 +141,9 @@ class HlsNetNodeAggregatePortOut(HlsNetNode):
         if not HdlType_isVoid(outerO._dtype):
             internO = self.dependsOn[0]
             assert internO is not None, ("Port must have a driver", self)
+            assert internO.obj in allocator._subNodes, (
+                "Driver of HlsNetNodeAggregatePortOut must be in the parent ArchElement",
+                self, internO.obj, allocator)
             oTir = allocator.rtlAllocHlsNetNodeOut(internO)
             # propagate output value to output of parent
             # :note: if this was previously declared using forward declaration rtlRegisterOutputRtlSignal should update its drive
@@ -150,7 +154,8 @@ class HlsNetNodeAggregatePortOut(HlsNetNode):
         return []
 
     def __repr__(self):
-        return f"<{self.__class__.__name__:s} {self._id:d} {'' if self.name is None else  f'{self.name} '}i={self.parentOut.out_i} parent={self.parentOut.obj._id:d}>"
+        parentOut = self.parentOut
+        return f"<{self.__class__.__name__:s} {self._id:d} {'' if self.name is None else f'{self.name} '} {parentOut.obj._id:d}:o{parentOut.out_i}>"
 
 
 class HlsNetNodeAggregate(HlsNetNode):
@@ -276,7 +281,7 @@ class HlsNetNodeAggregate(HlsNetNode):
         HlsNetNode._removeOutput(self, index)
         outInside = self._outputsInside.pop(index)
         assert outInside is not None, self
-        assert outInside.dependsOn[0] is None, ("Port must be disconnected inside of aggregate before remove", self)
+        assert outInside.dependsOn[0] is None, ("Port must be disconnected inside of aggregate before remove", self, outInside)
         self._subNodes.remove(outInside)
 
     @override
@@ -284,7 +289,7 @@ class HlsNetNodeAggregate(HlsNetNode):
         HlsNetNode._removeInput(self, index)
         inInside = self._inputsInside.pop(index)
         assert inInside is not None
-        assert not inInside.usedBy[0], ("Port must be disconnected inside of aggregate before remove", self)
+        assert not inInside.usedBy[0], ("Port must be disconnected inside of aggregate before remove", self, inInside)
         self._subNodes.remove(inInside)
 
     @override
