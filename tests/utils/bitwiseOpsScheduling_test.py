@@ -13,8 +13,8 @@ from hwtHls.netlist.nodes.ports import link_hls_nodes
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.aggregateBitwiseOps import HlsNetlistPassAggregateBitwiseOps
-from hwtHls.netlist.translation.dumpNodesDot import HlsNetlistPassDumpNodesDot
-from hwtHls.netlist.translation.dumpSchedulingJson import HlsNetlistPassDumpSchedulingJson
+from hwtHls.netlist.translation.dumpNodesDot import HlsNetlistAnalysisPassDumpNodesDot
+from hwtHls.netlist.translation.dumpSchedulingJson import HlsNetlistAnalysisPassDumpSchedulingJson
 from hwtHls.platform.fileUtils import outputFileGetter
 from hwtHls.platform.platform import HlsDebugBundle
 from hwtHls.platform.virtual import VirtualHlsPlatform
@@ -49,9 +49,9 @@ class BitwiseOpsScheduling_TC(SimTestCase):
             prev = n
 
         HlsNetlistPassAggregateBitwiseOps().runOnHlsNetlist(net)
-        # HlsNetlistPassDumpNodesDot(outputFileGetter("tmp", ".nodes.dot")).runOnHlsNetlist(net)
+        # HlsNetlistAnalysisPassDumpNodesDot(outputFileGetter("tmp", ".nodes.dot")).runOnHlsNetlist(net)
         net.getAnalysis(HlsNetlistAnalysisPassRunScheduler)
-        # HlsNetlistPassDumpSchedulingJson(outputFileGetter("tmp", ".hwschedule.json")).runOnHlsNetlist(net)
+        # HlsNetlistAnalysisPassDumpSchedulingJson(outputFileGetter("tmp", ".hwschedule.json")).runOnHlsNetlist(net)
 
     def test_2not1and_200MHz(self):
         self._test_2not1and(200e6)
@@ -82,9 +82,9 @@ class BitwiseOpsScheduling_TC(SimTestCase):
         link_hls_nodes(r1._outputs[0], n2._inputs[1])
 
         HlsNetlistPassAggregateBitwiseOps().runOnHlsNetlist(net)
-        #HlsNetlistPassDumpNodesDot(outputFileGetter("tmp", ".nodes.dot")).runOnHlsNetlist(net)
+        #HlsNetlistAnalysisPassDumpNodesDot(outputFileGetter("tmp", ".nodes.dot")).runOnHlsNetlist(net)
         net.getAnalysis(HlsNetlistAnalysisPassRunScheduler)
-        #HlsNetlistPassDumpSchedulingJson(outputFileGetter("tmp", ".hwschedule.json")).runOnHlsNetlist(net)
+        #HlsNetlistAnalysisPassDumpSchedulingJson(outputFileGetter("tmp", ".hwschedule.json")).runOnHlsNetlist(net)
 
 
 if __name__ == "__main__":
