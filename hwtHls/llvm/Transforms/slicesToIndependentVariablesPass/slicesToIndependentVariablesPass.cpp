@@ -184,17 +184,22 @@ public:
 	 * Rewrite value to a concatenation of the smallest non overlapping slices
 	 * */
 	Value* resolveValue(Value *v, uint64_t highBitNo, uint64_t lowBitNo) {
-		if (auto *I = dyn_cast<Instruction>(v)) {
-			if (noSplitInstrs.find(I) != noSplitInstrs.end())
-				return v;
-		}
 		OffsetWidthValue cacheKey = { lowBitNo, highBitNo - lowBitNo, v };
 		auto existing = commonSubexpressionCache.find(cacheKey);
 		if (existing != commonSubexpressionCache.end()) {
 			return existing->second;
 		}
+
 		ConcatMemberVector concatMembers(builder, &commonSubexpressionCache);
-		resolveConcatMembers(concatMembers, v, highBitNo, lowBitNo);
+		bool hasNoSplit = false;
+		if (auto *I = dyn_cast<Instruction>(v)) {
+			hasNoSplit = noSplitInstrs.find(I) != noSplitInstrs.end();
+		}
+		if (hasNoSplit) {
+			concatMembers.members.push_back({ lowBitNo, highBitNo - lowBitNo, v });
+		} else {
+			resolveConcatMembers(concatMembers, v, highBitNo, lowBitNo);
+		}
 		existing = commonSubexpressionCache.find(cacheKey);
 		if (existing != commonSubexpressionCache.end()) {
 			return existing->second;
