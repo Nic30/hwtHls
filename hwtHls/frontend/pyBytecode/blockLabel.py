@@ -2,11 +2,18 @@ from types import FunctionType, MethodWrapperType, MethodType
 from typing import Tuple, Union, List
 
 
-class BlockLabel(Tuple[Union[int, "PreprocLoopScope", FunctionType, MethodType, MethodWrapperType, "BlockLabel"], ...]):
+class BlockLabelTmp(str):
+    """
+    A fragment of BlockLabel for tmp blocks.
+    """
+    pass
+
+
+class BlockLabel(Tuple[Union[int, "PreprocLoopScope", FunctionType, MethodType, MethodWrapperType, BlockLabelTmp, "BlockLabel"], ...]):
 
     def __new__(cls, *args:Union[int, "PreprocLoopScope", FunctionType, MethodType, MethodWrapperType, "BlockLabel"]):
         return tuple.__new__(cls, args)
-
+    
     def __repr__(self):
         nameParts = []
         for item in self:
