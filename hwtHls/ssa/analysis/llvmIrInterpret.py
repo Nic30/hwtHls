@@ -377,8 +377,10 @@ class LlvmIrInterpret():
                 res = hwSMax(*ops[:-1])
             elif inId == Intrinsic.smin:
                 res = hwSMin(*ops[:-1])
+            elif inId == Intrinsic.assume:
+                return bb, False
             else:
-                raise NotImplementedError(instr, Intrinsic(inId))
+                raise NotImplementedError(instr, Intrinsic.IndependentIntrinsics(inId))
 
             if waveLog is not None:
                 waveLog.logChange(nowTime, instr, res, None)
