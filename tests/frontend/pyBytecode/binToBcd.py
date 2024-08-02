@@ -67,9 +67,9 @@ class BinToBcd(HwModule):
             # reset before first iteration
             for bcd in bcd_digits:
                 bcd(0)
-            
+
             bin_r = hls.read(self.din)
-            bitcount = HBits(log2ceil(DATA_WIDTH+1), signed=False).from_py(0)
+            bitcount = HBits(log2ceil(DATA_WIDTH + 1), signed=False).from_py(0)
             while bitcount != DATA_WIDTH:
                 for bcdDigitI in range(BCD_DIGITS):
                     bcd = PyBytecodeInPreproc(bcd_digits[bcdDigitI])
@@ -104,7 +104,7 @@ if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     from hwtHls.platform.xilinx.artix7 import Artix7Medium
     from hwtHls.platform.platform import HlsDebugBundle
-    
+
     m = BinToBcd()
     m.DATA_WIDTH = 3
     print(to_rtl_str(m, target_platform=Artix7Medium(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
