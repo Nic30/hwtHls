@@ -26,6 +26,15 @@ class HlsNetNodeAggregatePortIn(HlsNetNode):
         self._addOutput(dtype, "inside")
         self.parentIn = parentIn
 
+    def getDep(self) -> Optional[HlsNetNodeOut]:
+        return self.parentIn.obj.dependsOn[self.parentIn.in_i]
+
+    def depOnOtherSide(self):
+        """
+        For :class:`HlsNetNodeAggregatePortIn` driven by :class:`HlsNetNodeAggregatePortOut` return what drives :class:`HlsNetNodeAggregatePortOut`
+        """
+        return HlsNetNodeAggregatePortOut.getDepInside(self.getDep())
+
     @override
     def resolveRealization(self):
         self.assignRealization(EMPTY_OP_REALIZATION)
@@ -101,6 +110,10 @@ class HlsNetNodeAggregatePortOut(HlsNetNode):
         self.scheduledZero = t
         self.scheduledIn = (t,)
         self.scheduledOut = ()
+
+    @staticmethod
+    def getDepInside(parentOut: HlsNetNodeOut):
+        return parentOut.obj._outputsInside[parentOut.out_i].dependsOn[0]
 
     @override
     def resolveRealization(self):
