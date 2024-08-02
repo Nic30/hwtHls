@@ -57,7 +57,7 @@ def beginOfClkWindow(clkIndex:int, clkPeriod: int):
     return clkIndex * clkPeriod
 
 def endOfClk(time: int, clkPeriod: int):
-    return beginOfNextClk(time, clkPeriod) * clkPeriod - 1
+    return beginOfNextClk(time, clkPeriod) - 1
 
 
 def beginOfNextClk(time: int, clkPeriod: int):
