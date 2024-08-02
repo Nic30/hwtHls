@@ -307,6 +307,13 @@ def HwtFpgaPreLegalizerGICombiner: GICombiner<
   ]> {
 }
 
+def G_CONSTANT_to_HWTFPGA_MUX: GICombineRule<
+  (defs root:$d),
+  (match (G_CONSTANT $d, $s):$mi),
+  (apply [{
+	  	Helper.replaceOpcodeWith(*${mi}, HwtFpga::HWTFPGA_MUX);
+  	}])>;
+
 
 def copy_to_HWTFPGA_mux : GICombineRule<
   (defs root:$d),
@@ -400,6 +407,7 @@ def constCmpConstAdd_to_constCmp: GICombineRule<
 def HwtFpgaPreRegAllocGICombiner: GICombiner<
   "HwtFpgaPreRegAllocGICombinerImpl", [
   	copy_to_HWTFPGA_mux,
+  	G_CONSTANT_to_HWTFPGA_MUX,
     extract_on_merge_values,
     extract_on_const_shift,
     const_eval_combines,
@@ -440,6 +448,7 @@ def HwtFpgaPreToNetlistGICombiner: GICombiner<
     trivial_copy_propagate,
     generic_opcode_to_hwtfpga,
     G_SELECT_to_HWTFPGA_MUX,
+    G_CONSTANT_to_HWTFPGA_MUX,
     PHI_to_HWTFPGA_MUX,
     ]> {
 }
