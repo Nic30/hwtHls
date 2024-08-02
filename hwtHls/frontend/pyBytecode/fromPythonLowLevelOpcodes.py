@@ -18,6 +18,7 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.ast.statementsRead import HlsRead
 from hwtHls.frontend.ast.statementsWrite import HlsWrite
 from hwtHls.frontend.pyBytecode.frame import PyBytecodeFrame
+from hwtHls.frontend.pyBytecode.hwIterator import HwIterator
 from hwtHls.frontend.pyBytecode.indexExpansion import expandBeforeUse, \
     PyObjectHwSubscriptRef, expandBeforeUseSequence
 from hwtHls.frontend.pyBytecode.instructions import CMP_OPS, BINARY_OPS, UN_OPS, BUILD_OPS, BINARY_OP, NOP, \
@@ -134,12 +135,18 @@ class PyBytecodeToSsaLowLevelOpcodes():
                 return dst.expandSetitemAsSwitchCase(self, instr.offset, frame, curBlock,
                                                      lambda i, _dst: hls.write(res._origSrc, _dst))
 
-        if isinstance(res, (HlsWrite, HlsRead, HdlAssignmentContainer)):
-            curBlock = self.toSsa.visit_CodeBlock_list(curBlock, [res, ])
+        toSsa = self.toSsa
+        if isinstance(res, HlsWrite):
+            curBlock = toSsa.visit_Write(curBlock, res)
+        elif isinstance(res, HlsRead):
+            curBlock, _ = toSsa.visit_expr(curBlock, res)
+        elif isinstance(res, HdlAssignmentContainer):
+            curBlock = toSsa.visit_Assignment(curBlock, res)
         elif self._isHwtCall(res):
-            curBlock, _ = self.toSsa.visit_expr(curBlock, res)
-        elif isinstance(res, list) and len(res) > 0 and isinstance(res[0], (HlsWrite, HlsRead, HdlAssignmentContainer)):
-            curBlock = self.toSsa.visit_CodeBlock_list(curBlock, res)
+            curBlock, _ = toSsa.visit_expr(curBlock, res)
+        elif isinstance(res, (list, tuple)) and len(res) > 0 and isinstance(res[0], (HlsWrite, HlsRead, HdlAssignmentContainer)):
+            # if this a list or tuple of objects left on stack try if objects inside should be translated to ssa
+            curBlock = toSsa.visit_CodeBlock_list(curBlock, res)
         elif isinstance(res, _PyBytecodePragma):
             res.apply(self, frame, curBlock, instr)
 
@@ -633,7 +640,9 @@ class PyBytecodeToSsaLowLevelOpcodes():
                 kwargs[kwName] = a
             del args[-kwArgCnt:]
 
-        if isinstance(m, PyBytecodeInline):
+        if isinstance(_self, PyBytecodeInline) and m == _self.__call__.__func__:
+            return self._translateCallInlined(frame, curBlock, _self.ref, instr.offset, args, kwargs)
+        elif isinstance(m, PyBytecodeInline):
             return self._translateCallInlined(frame, curBlock, m.ref, instr.offset, args, kwargs)
         elif m is PyBytecodePreprocHwCopy:
             assert len(args) == 1, args
@@ -721,7 +730,11 @@ class PyBytecodeToSsaLowLevelOpcodes():
         stack = frame.stack
         a = stack.pop()
         a, curBlock = expandBeforeUse(self, instr.offset, frame, a, curBlock)
-        stack.append(iter(a))
+        it = iter(a)
+        if isinstance(it, HwIterator):
+            curBlock = it.hwInit(self, frame, curBlock)
+
+        stack.append(it)
         return curBlock
 
     def opcode_EXTENDED_ARG(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:

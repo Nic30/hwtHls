@@ -1,4 +1,4 @@
-from typing import  Tuple, Union, List, Optional, Literal
+from typing import  Tuple, Union, List, Optional, Literal, Callable
 
 from hwt.hdl.const import HConst
 from hwt.mainBases import RtlSignalBase
@@ -74,10 +74,12 @@ class PyBytecodeLoopInfo():
         self.mustBeEvaluatedInPreproc = False
         self.jumpsFromLoopBody: List[LoopExitJumpInfo] = []
         self.pragma: List["_PyBytecodePragma"] = []
+        self.additionalLatchBlock: Optional[SsaBasicBlock] = None
+        self.onAdditionalLatchBlockPredecessorsAdded: Optional[Callable[["PyBytecodeFrame", SsaBasicBlock]]] = None
 
     def isJumpFromLoopBody(self, dstBlockOffset: int) -> bool:
         return dstBlockOffset not in self.loop.allBlocks or dstBlockOffset == self.loop.entryPoint
-    
+
     def markJumpFromBodyOfLoop(self, exitInfo: "LoopExitJumpInfo"):
         self.jumpsFromLoopBody.append(exitInfo)
 
@@ -96,13 +98,14 @@ class PyBytecodeLoopInfo():
         if len(set((j.srcBlock, j.dstBlockOffset) for j in self.jumpsFromLoopBody)) > 1:
             return True
         if any(isinstance(j.cond, HConst) or isinstance(j.cond, SsaValue) for j in self.jumpsFromLoopBody):
+            # condition is of hardware type
             return True
         return False
 
     def __repr__(self):
         return f"<{self.__class__.__name__} {self.loop.label:s} i{self.iteraionI:d}>"
 
-    
+
 class LoopExitJumpInfo():
     """
     Temporary container for a jump from the loop where preprocessor should continue once all jumps from loop are resolved.
@@ -123,9 +126,9 @@ class LoopExitJumpInfo():
         self.dstBlockIsNew = dstBlockIsNew
         self.srcBlock = srcBlock
         self.cond = cond
-        self.dstBlock = dstBlock                   
-        self.dstBlockOffset = dstBlockOffset             
-        self.dstBlockLoops = dstBlockLoops                   
+        self.dstBlock = dstBlock
+        self.dstBlockOffset = dstBlockOffset
+        self.dstBlockLoops = dstBlockLoops
         self.isExplicitLoopReenter = isExplicitLoopReenter
         self.branchPlaceholder = branchPlaceholder
         self.frame = frame
@@ -138,7 +141,7 @@ class LoopExitJumpInfo():
 
         return f"<{self.__class__.__name__} {self.srcBlock.label:s} -> {dst}, c={self.cond}>"
 
-   
+
 class LoopExitRegistry():
     """
     :ivar exitPoints: list of points where CFG leaves the loop body in format: condition, srcBlock, dstBlockOffset

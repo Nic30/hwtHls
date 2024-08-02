@@ -26,7 +26,6 @@ from hwtHls.scope import HlsScope
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.value import SsaValue
 
-
 JumpCondition = Union[None, HConst, RtlSignal, SsaValue, Literal[False]]
 
 
@@ -261,10 +260,13 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
 
         if not isExplicitLoopReenter and loops:
             # now header block of loop was already translated by previous _translateBytecodeBlock()
+            assert frame.loopStack, block
             loopInfo: PyBytecodeLoopInfo = frame.loopStack[-1]
             assert loopInfo.loop is loops[-1]
             if not loopInfo.jumpsFromLoopBody:
                 # if there are no jumps from loop body this is group of blocks is
+                assert loopInfo.additionalLatchBlock is None, block
+                assert loopInfo.onAdditionalLatchBlockPredecessorsAdded is None, block
                 blockTracker = frame.blockTracker
                 headerLabel = self.blockToLabel[block]
                 frame.exitLoop()
@@ -272,11 +274,15 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
                     self._onBlockGenerated(frame, headerLabel)
 
             elif loopInfo.mustBeEvaluatedInHw():
-                self._finalizeJumpsFromHwLoopBody(frame, block, blockOffset, loopInfo)
+                self._finalizeJumpsFromHwLoopBody(frame, block, blockOffset, loopInfo,
+                                                  latchBlock=loopInfo.additionalLatchBlock,
+                                                  onAdditionalLatchBlockPredecessorsAdded=loopInfo.onAdditionalLatchBlockPredecessorsAdded)
                 if loopInfo.pragma:
                     _applyLoopPragma(block, loopInfo)
 
             else:
+                assert loopInfo.additionalLatchBlock is None, block
+                assert loopInfo.onAdditionalLatchBlockPredecessorsAdded is None, block
                 self._runPreprocessorLoop(frame, loopInfo)
                 if loopInfo.pragma:
                     raise NotImplementedError("_runPreprocessorLoop + pragma", loopInfo.pragma)
