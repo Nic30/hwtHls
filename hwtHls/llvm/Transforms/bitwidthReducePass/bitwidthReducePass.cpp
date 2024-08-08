@@ -1,6 +1,7 @@
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/bitwidthReducePass.h>
 
 #include <algorithm>
+#include <unordered_set>
 
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/Analysis/GlobalsModRef.h>
@@ -13,7 +14,6 @@
 #include <hwtHls/llvm/Transforms/utils/bitSliceFlattening.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 
-
 using namespace llvm;
 
 // #include <hwtHls/llvm/Transforms/utils/writeCFGToDotFile.h>
@@ -21,6 +21,39 @@ using namespace llvm;
 // #define DBG_VERIFY_AFTER_MODIFICATION
 
 namespace hwtHls {
+
+template<typename T>
+class ListSet: std::list<T> {
+	using list_t = std::list<T>;
+	std::unordered_set<T> set;
+public:
+	ListSet() :
+			list_t() {
+	}
+	bool contains(const T &__x) {
+		return set.contains(__x);
+	}
+	bool empty() const {
+		return list_t::empty();
+	}
+
+	void push_back(T __x) {
+		if (set.contains(__x))
+			return;
+		list_t::push_back(__x);
+		set.insert(__x);
+	}
+
+	T& front() {
+		return list_t::front();
+	}
+
+	void pop_front() {
+		auto front = list_t::front();
+		set.erase(front);
+		list_t::pop_front();
+	}
+};
 
 static bool runBitwidthReduction(Function &F, TargetLibraryInfo *TLI) {
 //#ifdef DBG_VERIFY_AFTER_MODIFICATION
@@ -36,33 +69,31 @@ static bool runBitwidthReduction(Function &F, TargetLibraryInfo *TLI) {
 //#endif
 
 	ConstBitPartsAnalysisContext A;
-	std::list<Instruction*> Worklist;
-	bool didModify = false;
-	// discover all value constraints
-	for (BasicBlock &BB : F) {
-		for (Instruction &I : BB) {
-			A.visitValue(&I);
-			Worklist.push_back(&I);
+	{
+		ListSet<Instruction*> Worklist;
+		// discover all value constraints
+		for (BasicBlock &BB : F) {
+			for (Instruction &I : BB) {
+				A.visitValue(&I);
+				Worklist.push_back(&I);
+			}
 		}
-	}
-	A.setShouldResolvePhiValues();
-	// transitively propagate constant bits until something changes (def -> use)
-	while (!Worklist.empty()) {
-		Instruction *I = Worklist.front();
-		Worklist.pop_front();
-		if (A.updateInstruction(I)) {
-			for (auto user : I->users()) {
-				if (auto *u = dyn_cast<Instruction>(user)) {
-					if (A.constraints.find(u) != A.constraints.end()
-							&& std::find(Worklist.begin(), Worklist.end(), u)
-									== Worklist.end()) {
-						Worklist.push_back(u);
+		A.setShouldResolvePhiValues();
+		// transitively propagate constant bits until something changes (def -> use)
+		while (!Worklist.empty()) {
+			Instruction *I = Worklist.front();
+			Worklist.pop_front();
+			if (A.updateInstruction(I)) {
+				for (auto user : I->users()) {
+					if (auto *u = dyn_cast<Instruction>(user)) {
+						if (A.constraints.find(u) != A.constraints.end()) {
+							Worklist.push_back(u);
+						}
 					}
 				}
 			}
 		}
 	}
-
 	// use the knowledge about bits constant values to resolve truly used bits (use -> def)
 	BitPartsUseAnalysisContext AU(A.constraints);
 	for (BasicBlock &BB : F) {
@@ -85,6 +116,7 @@ static bool runBitwidthReduction(Function &F, TargetLibraryInfo *TLI) {
 	// }
 	// F.dump();
 	// writeCFGToDotFile(F, "before.BitwidthReducePass.dot", nullptr, nullptr);
+	bool didModify = false;
 	BitPartsRewriter rew(A.constraints);
 	for (BasicBlock &BB : F) {
 		for (Instruction &I : BB) {
