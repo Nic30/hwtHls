@@ -12,6 +12,7 @@ from hwt.pyUtils.arrayQuery import grouper, balanced_reduce
 from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
+from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
@@ -350,17 +351,18 @@ class HlsNetlistBuilder():
             else:
                 return self.buildOr(a, b)
 
-    def buildNot(self, a: Union[HlsNetNodeOut, HConst]) -> HlsNetNodeOut:
-        if isinstance(a, HlsNetNodeOut):
-            aObj = a.obj
-            if isinstance(aObj, HlsNetNodeOperator) and aObj.operator == HwtOps.NOT:
-                return aObj.dependsOn[0]
-            elif isinstance(aObj, HlsNetNodeConst):
-                return self.buildConst(~aObj.val)
-        elif isinstance(a, HConst):
-            return self.buildConst(~a)
+    def buildNot(self, a: Union[HlsNetNodeOut, HConst], name:Optional[str]=None, opt=True) -> HlsNetNodeOut:
+        if opt:
+            if isinstance(a, HlsNetNodeOut):
+                aObj = a.obj
+                if isinstance(aObj, HlsNetNodeOperator) and aObj.operator == HwtOps.NOT:
+                    return aObj.dependsOn[0]
+                elif isinstance(aObj, HlsNetNodeConst):
+                    return self.buildConst(~aObj.val)
+            elif isinstance(a, HConst):
+                return self.buildConst(~a)
 
-        return self.buildOp(HwtOps.NOT, a._dtype, a)
+        return self.buildOp(HwtOps.NOT, a._dtype, a, name=name)
 
     def buildMux(self, resT: HdlType, operands: Tuple[Union[HlsNetNodeOut, HConst]], name:Optional[str]=None, opt=True):
         """
@@ -475,6 +477,8 @@ class HlsNetlistBuilder():
         return o
 
     def _getOperatorCacheKey(self, obj: HlsNetNodeOperator):
+        for o in obj.dependsOn:
+            assert o is not None, ("Operator node has some disconnected inputs, can not resolve cache key", obj)
         return (obj.operator, tuple(self._outputOfConstNodeToHConst(o) for o in obj.dependsOn))
 
     def _replaceInputDriverWithConst1b(self, i: HlsNetNodeIn):
