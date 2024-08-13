@@ -51,9 +51,9 @@ class AbcAigToHlsNetlist(AbcAigToRtlNetlist):
                 else:
                     res = self.builder.buildOp(op, BIT, *ops)
             else:
-                o0, o1 = o.IterFanin()
-                o0 = self._translate(o0, o.FaninC0())
-                o1 = self._translate(o1, o.FaninC1())
+                _o0, _o1 = o.IterFanin()
+                o0 = self._translate(_o0, o.FaninC0())
+                o1 = self._translate(_o1, o.FaninC1())
 
                 assert o0.obj not in self.builder._removedNodes, res
                 assert o1.obj not in self.builder._removedNodes, res
