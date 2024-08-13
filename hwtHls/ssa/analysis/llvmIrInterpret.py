@@ -23,7 +23,7 @@ from pyDigitalWaveTools.vcd.common import VCD_SIG_TYPE
 from pyDigitalWaveTools.vcd.value_format import VcdBitsFormatter, \
     LogValueFormatter
 from pyDigitalWaveTools.vcd.writer import VcdWriter
-from hwtHls.code import ctlz, zext, hwUMax, hwUMin, hwSMax, hwSMin
+from hwtHls.code import ctlz, zext, hwUMax, hwUMin, hwSMax, hwSMin, fshl, fshr
 
 
 class SimIoUnderflowErr(Exception):
@@ -379,6 +379,10 @@ class LlvmIrInterpret():
                 res = hwSMin(*ops[:-1])
             elif inId == Intrinsic.assume:
                 return bb, False
+            elif inId == Intrinsic.fshl:
+                res = fshl(*ops[:-1])
+            elif inId == Intrinsic.fshr:
+                res = fshr(*ops[:-1])
             else:
                 raise NotImplementedError(instr, Intrinsic.IndependentIntrinsics(inId))
 
@@ -477,7 +481,7 @@ class LlvmIrInterpret():
         switchBr = InstructionToSwitchInst(instr)
         if switchBr is not None:
             c = ops[0].cast_sign(None)
-            assert c._is_full_valid(), ("jump condition must be always valid", c)
+            assert c._is_full_valid(), ("jump condition must be always valid", c, bb, instr)
             defDst = ops[1]
             for condVal, dst in grouper(2, islice(ops, 2, None)):
                 assert isinstance(condVal, HConst), condVal
@@ -494,7 +498,7 @@ class LlvmIrInterpret():
             self._runBlockPhis(bb, defDst, waveLog, regs, nowTime)
             bb = defDst
             return bb, True
-        
+
         freeze = InstructionToFreezeInst(instr)
         if freeze:
             o, = ops

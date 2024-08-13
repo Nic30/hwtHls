@@ -5,16 +5,17 @@
 """
 from typing import Union
 
-from hwt.hdl.operator import HOperatorNode
-from hwt.hdl.types.bits import HBits
+from hwt.code import Concat
 from hwt.hdl.const import HConst
-from hwt.math import log2ceil, toPow2Ceil
-from hwt.mainBases import RtlSignalBase
-from pyMathBitPrecise.bit_utils import mask, reverse_bits, to_signed, \
-    to_unsigned, bit_field, get_bit
+from hwt.hdl.operator import HOperatorNode
 from hwt.hdl.operatorDefs import HOperatorDef
-from hwt.mainBases import HwIOBase
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
+from hwt.mainBases import HwIOBase
+from hwt.mainBases import RtlSignalBase
+from hwt.math import log2ceil, toPow2Ceil
+from pyMathBitPrecise.bit_utils import mask, reverse_bits, to_signed, \
+    to_unsigned, bit_field, get_bit, ValidityError
 
 
 def ctlz(v: Union[HConst, RtlSignalBase], is_zero_poison:bool=False):
@@ -295,7 +296,32 @@ def fshl(a: Union[HConst, RtlSignalBase], b: Union[HConst, RtlSignalBase], c: Un
         %r = call i8 @llvm.fshl.i8(i8 0, i8 255, i8 8)   ; %r = i8: 0   (0b00000000)
 
     """
-    raise NotImplementedError()
+    t = a._dtype
+    if isinstance(c, HConst):
+        try:
+            c = int(c)
+        except ValidityError:
+            return a._dtype.from_py(None)
+    if isinstance(c, int):
+        w = t.bit_length()
+        c %= w 
+        if c == 0:
+            return a
+        elif c == w:
+            return b
+        else:
+            # b shifted into a from lsb
+            return Concat(a[w - c:], b[:w - c])
+    else:
+        if isinstance(a, HwIOBase):
+            a = a._sig
+        if isinstance(b, HwIOBase):
+            b = b._sig
+        if isinstance(c, HwIOBase):
+            c = c._sig
+        assert b._dtype == t, (t, b._dtype, "all operands must be of same type")
+        assert c._dtype == t, (t, c._dtype, "all operands must be of same type")
+        return HOperatorNode.withRes(OP_FSHL, (a, b, c), t)
 
 
 OP_FSHL = HOperatorDef(fshl, False, idStr="OP_FSHL")
@@ -316,7 +342,32 @@ def fshr(a: Union[HConst, RtlSignalBase], b: Union[HConst, RtlSignalBase], c: Un
         %r = call i8 @llvm.fshr.i8(i8 0, i8 255, i8 8)   ; %r = i8: 255 (0b11111111)   
 
     """
-    raise NotImplementedError()
+    t = a._dtype
+    if isinstance(c, HConst):
+        try:
+            c = int(c)
+        except ValidityError:
+            return a._dtype.from_py(None)
+    if isinstance(c, int):
+        w = t.bit_length()
+        c %= w 
+        if c == 0:
+            return a
+        elif c == w:
+            return b
+        else:
+            # lower bits of 'b' shifter before 'a', lower bits of 'a' shifted out
+            return Concat(b[c:], a[:c],)
+    else:
+        if isinstance(a, HwIOBase):
+            a = a._sig
+        if isinstance(b, HwIOBase):
+            b = b._sig
+        if isinstance(c, HwIOBase):
+            c = c._sig
+        assert b._dtype == t, (t, b._dtype, "all operands must be of same type")
+        assert c._dtype == t, (t, c._dtype, "all operands must be of same type")
+        return HOperatorNode.withRes(OP_FSHL, (a, b, c), t)
 
 
 OP_FSHR = HOperatorDef(fshr, False, idStr="OP_FSHR")
