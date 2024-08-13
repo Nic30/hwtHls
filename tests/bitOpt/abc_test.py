@@ -1,8 +1,10 @@
-from typing import Dict
+from typing import Dict, Union, List
 import unittest
 
+from hwt.hdl.const import HConst
 from hwt.hdl.types.defs import BIT
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
+from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.transformation.controlLogicMinimize import HlsAndRtlNetlistPassControlLogicMinimize
 from hwtHls.netlist.abc.abcAigToRtlNetlist import AbcAigToRtlNetlist
 from hwtHls.netlist.abc.optScripts import abcCmd_resyn2, abcCmd_compress2
@@ -10,12 +12,19 @@ from hwtHls.netlist.abc.rtlNetlistToAbcAig import RtlNetlistToAbcAig
 
 
 # from hwtHls.netlist.abc.abcCpp import Io_FileType_t
+# from hwtHls.netlist.abc.abcCpp import Io_FileType_t
 def generateAllBitPermutations(n:int):
     for i in range(1 << n):  # for all number in range defined by number of bits
         yield tuple((i >> bitIndex) & 1 for bitIndex in range(n))  # extract individual bits from number
 
 
+# truth table gen: https://www.emathhelp.net/en/calculators/discrete-mathematics/truth-table-calculator/
 class AbcTC(unittest.TestCase):
+
+    def assertExprSequenceSame(self, exprs: List[Union[RtlSignal, HConst]], ref: List[Union[RtlSignal, HConst]]):
+        assert len(exprs) == len(ref), (len(exprs), len(ref))
+        for i, (e, opt) in enumerate(zip(exprs, ref)):
+            self.assertEqual(e, opt, i)
 
     def testFromRtlNetlistAndBack(self):
         hwtNet = RtlNetlist(None)
@@ -47,82 +56,123 @@ class AbcTC(unittest.TestCase):
             return n10, n28
 
         e0, e1 = testOpt0and1(n1, n2, n3, n4, n5, n6, n7, n8, n9)
-        exampleExpr = [
-            d,  # 0
-            e,  # 1
-            a,  # 2
-            a | b,  # 3
-            ~a,  # 4
-            a & ~a,  # 5
-            ~a & ~b,  # 5b
-            a | ~a,  # 6
-            ~(a | b | c),  # 7
-            ~(a | b | c | c1),  # 7b
-            ~(a & b & c),  # 7c
-            ~(a & b & c & c1),  # 7d
-            a._eq(1),  # 8
-            a._eq(0),  # 9
-            a != 1,  # 10
-            a != 0,  # 11
-            (~a & (~b & ~c))._eq(0),  # 12
-            ~((~a & ~b) & ~c),  # 13
-            a | (~b | c),  # 14
-            a & ~b,  # 15
-            ~a & b,  # 16
-            a & (~b | c),  # 17
-            (a & b) | (c & ~b),  # 18
-            (a | b) & c & c1 & ~c2,  # 19
-            (a & c) | (b & ~c),  # 20
-            (~a & b)._ternary(BIT.from_py(0), ~a),  # 21
-            n1 | ~n4 | ~n5,
-            e0,
-            e1,
+        exampleExpr0 = [
+           d,  # 0
+           e,  # 1
+           a,  # 2
+           a | b,  # 3
+           ~a,  # 4
+           a & ~a,  # 5
+           ~a & ~b,  # 6
+           a | ~a,  # 7
+           ~(a | b | c),  # 8
+           ~(a | b | c | c1),  # 9
+           ~(a & b & c),  # 10
+           ~(a & b & c & c1),  # 11
+           a._eq(1),  # 12
+           a._eq(0),  # 13
+           a != 1,  # 14
+           a != 0,  # 15
+           (~a & (~b & ~c))._eq(0),  # 16
+           ~((~a & ~b) & ~c),  # 17
+           a | (~b | c),  # 18
+           a & ~b,  # 19
+           ~a & b,  # 20
+           a & (~b | c),  # 21
         ]
+        exampleExpr1 = [
+            (a & b) | (c & ~b),  # 0
+            (a | b) & c & c1 & ~c2,  # 1
+            (a & c) | (b & ~c),  # 2
+            c._ternary(a, ~b),  # 3
+            c._ternary(~a, b),  # 4
+            c._ternary(~a, ~b),  # 5
+            ~c._ternary(~a, b),  # 6
+            ~c._ternary(a, ~b),  # 7
+            ~c._ternary(~a, ~b),  # 8
+            (~a & b)._ternary(BIT.from_py(0), ~a),  # 9
+            (c | a) & ~(c & b),
+        ]
+
+        exampleExpr2 = [
+            n1 | ~n4 | ~n5,  # 0
+            e0,  # 1
+            e1,  # 2
+        ]
+
         exampleExprInputs = [a, b, c, c1, c2, c3, c4, n1, n2, n3, n4, n5, n6, n7, n8, n9]
         toAig = RtlNetlistToAbcAig()
+        exampleExpr = exampleExpr0 + exampleExpr1 + exampleExpr2
         f, net, aig, ioMap = toAig.translate(exampleExprInputs, exampleExpr)
-        net = abcCmd_resyn2(net)
-        net = abcCmd_compress2(net)
+        # net.Io_Write("abc.0.dot", Io_FileType_t.IO_FILE_DOT)
+        for _ in range(3):
+            net = abcCmd_resyn2(net)
+            net = abcCmd_compress2(net)
+        # net.Io_Write("abc.1.dot", Io_FileType_t.IO_FILE_DOT)
         toRtl = AbcAigToRtlNetlist(f, net, aig, ioMap)
         res = tuple(newO for _, newO in toRtl.translate())
         f.DeleteAllNetworks()
-        ref = [
+        ref0 = [
             ~a | b,  # 0
             ~a | b,  # 1
             a,  # 2
             a | b,  # 3
             ~a,  # 4
             BIT.from_py(0),  # 5
-            ~(a | b),  # 5b
-            BIT.from_py(1),  # 6
-            ~(c | a | b),  # 7
-            ~(c1 | c | a | b),  # 7b
-            ~(c & a & b),  # 7c
-            ~(c1 & c & a & b),  # 7d
-            a,  # 8
-            ~a,  # 9
-            a ^ 1,  # 10
-            a ^ 0,  # 11
-            c | a | b,  # 12
-            c | a | b,  # 13
-            a | ~b | c,  # 14
-            a & ~b,  # 15
-            ~a & b,  # 16
-            a & (~b | c),  # 17
-            (a | ~b) & (b | c),  # 18
-            ~(~(a | b) | c2 | ~c | ~c1),  # 19
-            (b | c) & (a | ~c),  # 20
-            ~(a | b),  # 21
-            ~n5 | n1 | ~n4,
-            ~(~(~n1 | ~(n3 | n4) | n4 & ~n5) | n5 & ~n6 | ~n4 | ~n7),
-            ~((n3 | n4) & (~n4 | n5) | n5 & ~n6 | ~n4 | ~n7),
+            ~(a | b),  # 6
+            BIT.from_py(1),  # 7
+            ~(c | a | b),  # 8
+            ~(c1 | c | a | b),  # 9
+            ~(c & a & b),  # 10
+            ~(c1 & c & a & b),  # 11
+            a,  # 12
+            ~a,  # 13
+            a ^ 1,  # 14
+            a ^ 0,  # 15
+            a | b | c,  # 16
+            c | a | b,  # 17
+            a | ~b | c,  # 18 :attention: order of terms may reorder
+            a & ~b,  # 19
+            ~a & b,  # 20
+            a & (~b | c),  # 21
         ]
-        self.assertSequenceEqual(res, ref)
+        ref1 = [
+            b._ternary(a, c),  # 0
+            ~(~(a | b) | c2 | ~c | ~c1),  # 1
+            c._ternary(a, b),  # 2
+            c._ternary(a, ~b),  # 3
+            c._ternary(~a, b),  # 4
+            ~c._ternary(a, b),  # 5
+            c._ternary(a, ~b),  # 6
+            c._ternary(~a, b),  # 7
+            c._ternary(a, b),  # 8
+            ~(a | b),  # 9
+            c._ternary(~b, a)  # 10
+        ]
+        ref2 = [
+            ~n5 | n1 | ~n4,  # 0
+            ~(~(~n1 | ~(n3 | n4) | n4 & ~n5) | n5 & ~n6 | ~n4 | ~n7),  # 1
+            ~(n4._ternary(n5, n3) | n5 & ~n6 | ~n4 | ~n7),  # 2 :note: abc is not able to achieve if used in other expr  n7 & (n4 & ~n5),
+        ]
+        off = 0
+        w = len(ref0)
+        self.assertExprSequenceSame(res[off:off + w], ref0)
+        off += w
+
+        w = len(ref1)
+        self.assertExprSequenceSame(res[off:off + w], ref1)
+        off += w
+
+        w = len(ref1)
+        self.assertExprSequenceSame(res[off:off + w], ref2)
+        off += w
+
+        ref = ref0 + ref1 + ref2
         for oOptimized, oInput, oExpected in zip(res, exampleExpr, ref):
-#            print(">>>>>>>>>")
-#            print("inp", oInput)
-#            print("opt", oOptimized)
-#            print("exp", oExpected)
+            # print(">>>>>>>>>")
+            # print("inp", oInput)
+            # print("opt", oOptimized)
+            # print("exp", oExpected)
             HlsAndRtlNetlistPassControlLogicMinimize._verifyAbcExprEquivalence(exampleExprInputs, oOptimized, oInput)
             HlsAndRtlNetlistPassControlLogicMinimize._verifyAbcExprEquivalence(exampleExprInputs, oInput, oExpected)
 
@@ -201,7 +251,14 @@ class AbcTC(unittest.TestCase):
              hls_stSync_0_to_1_atSrc_rd,
              bb5_to_bb2_r24_dst_vld,
              bb1_to_bb2_r25_dst_vld):
-            return ~(~hls_stSync_0_to_1_atSrc_rd | ~(~loop_bb2_b | ~loop_bb2_reenterFrom_bb5 | bb5_to_bb2_r25_dst_vld & (loop_bb2_b & (loop_bb2_b & loop_bb2_reenterFrom_bb5))) | (loop_bb2_enterFrom_bb1 & ~loop_bb2_b | loop_bb2_b & loop_bb2_reenterFrom_bb5) & ~(rx_valid & (loop_bb2_enterFrom_bb1 & ~loop_bb2_b | loop_bb2_b & loop_bb2_reenterFrom_bb5)) | ~loop_bb2_b & (loop_bb2_b | ~bb1_to_bb2_r25_dst_vld) | loop_bb2_b & ~(loop_bb2_b & bb5_to_bb2_r24_dst_vld))
+            
+            if isinstance(loop_bb2_b, int):
+                e0 = loop_bb2_reenterFrom_bb5 if loop_bb2_b else loop_bb2_enterFrom_bb1
+            else:
+                e0 = loop_bb2_b._ternary(loop_bb2_reenterFrom_bb5, loop_bb2_enterFrom_bb1)
+            
+            
+            return ~(~hls_stSync_0_to_1_atSrc_rd | ~(~loop_bb2_b | ~loop_bb2_reenterFrom_bb5 | bb5_to_bb2_r25_dst_vld & (loop_bb2_b & (loop_bb2_b & loop_bb2_reenterFrom_bb5))) | e0 & ~(rx_valid & e0) | ~loop_bb2_b & (loop_bb2_b | ~bb1_to_bb2_r25_dst_vld) | loop_bb2_b & ~(loop_bb2_b & bb5_to_bb2_r24_dst_vld))
 
         def testedFn1ExpectedUnoptimized(rx_valid,
              rx_last,
@@ -212,8 +269,14 @@ class AbcTC(unittest.TestCase):
              hls_stSync_0_to_1_atSrc_rd,
              bb5_to_bb2_r24_dst_vld,
              bb1_to_bb2_r25_dst_vld):
+            
+            if isinstance(loop_bb2_b, int):
+                e0 = loop_bb2_reenterFrom_bb5 if loop_bb2_b else loop_bb2_enterFrom_bb1
+            else:
+                e0 = loop_bb2_b._ternary(loop_bb2_reenterFrom_bb5, loop_bb2_enterFrom_bb1)
+            
             return (
-            ~((~loop_bb2_enterFrom_bb1 | loop_bb2_b) & ~(loop_bb2_b & loop_bb2_reenterFrom_bb5) | ~hls_stSync_0_to_1_atSrc_rd | ~bb5_to_bb2_r25_dst_vld & (loop_bb2_b & (loop_bb2_b & loop_bb2_reenterFrom_bb5)) | ~(loop_bb2_b | bb1_to_bb2_r25_dst_vld) | loop_bb2_b & ~bb5_to_bb2_r24_dst_vld)
+            ~(~e0 | ~hls_stSync_0_to_1_atSrc_rd | ~bb5_to_bb2_r25_dst_vld & (loop_bb2_b & (loop_bb2_b & loop_bb2_reenterFrom_bb5)) | ~(loop_bb2_b | bb1_to_bb2_r25_dst_vld) | loop_bb2_b & ~bb5_to_bb2_r24_dst_vld)
             )
 
         def testedFn0ExpectedOptimized(rx_valid,
@@ -228,10 +291,13 @@ class AbcTC(unittest.TestCase):
 
             if isinstance(loop_bb2_b, int):
                 e0 = loop_bb2_reenterFrom_bb5 if loop_bb2_b else loop_bb2_enterFrom_bb1
+                e1 = bb5_to_bb2_r24_dst_vld if loop_bb2_b else bb1_to_bb2_r25_dst_vld
             else:
                 e0 = loop_bb2_b._ternary(loop_bb2_reenterFrom_bb5, loop_bb2_enterFrom_bb1)
+                e1 = loop_bb2_b._ternary(bb5_to_bb2_r24_dst_vld, bb1_to_bb2_r25_dst_vld)
 
-            return ~(~rx_valid & e0 | (loop_bb2_b | ~bb1_to_bb2_r25_dst_vld) & ~(loop_bb2_b & bb5_to_bb2_r24_dst_vld) | ~hls_stSync_0_to_1_atSrc_rd | ~bb5_to_bb2_r25_dst_vld & (loop_bb2_b & loop_bb2_reenterFrom_bb5))
+            return ~(~rx_valid & e0 | ~e1 | ~hls_stSync_0_to_1_atSrc_rd | ~bb5_to_bb2_r25_dst_vld & (loop_bb2_b & loop_bb2_reenterFrom_bb5))
+
 
         def testedFn0ExpectedOptimizedAlone(rx_valid,
              rx_last,
@@ -254,10 +320,17 @@ class AbcTC(unittest.TestCase):
              hls_stSync_0_to_1_atSrc_rd,
              bb5_to_bb2_r24_dst_vld,
              bb1_to_bb2_r25_dst_vld):
-            return ~(~(loop_bb2_b & loop_bb2_reenterFrom_bb5) & (~loop_bb2_enterFrom_bb1 | loop_bb2_b) | (loop_bb2_b | ~bb1_to_bb2_r25_dst_vld) & ~(loop_bb2_b & bb5_to_bb2_r24_dst_vld) | ~hls_stSync_0_to_1_atSrc_rd | ~bb5_to_bb2_r25_dst_vld & (loop_bb2_b & loop_bb2_reenterFrom_bb5))
+            
+            if isinstance(loop_bb2_b, int):
+                e0 = loop_bb2_reenterFrom_bb5 if loop_bb2_b else loop_bb2_enterFrom_bb1
+                e1 = bb5_to_bb2_r24_dst_vld if loop_bb2_b else bb1_to_bb2_r25_dst_vld
+            else:
+                e0 = loop_bb2_b._ternary(loop_bb2_reenterFrom_bb5, loop_bb2_enterFrom_bb1)
+                e1 = loop_bb2_b._ternary(bb5_to_bb2_r24_dst_vld, bb1_to_bb2_r25_dst_vld)
+            return ~(~e0 | ~e1 | ~hls_stSync_0_to_1_atSrc_rd | ~bb5_to_bb2_r25_dst_vld & (loop_bb2_b & loop_bb2_reenterFrom_bb5))
 
         toAig = RtlNetlistToAbcAig()
-        f, net, aig, ioMap = toAig.translate(inputsRtl, (testedFn0(*inputsRtl,)))
+        f, net, aig, ioMap = toAig.translate(inputsRtl, (testedFn0(*inputsRtl)))
         toRtl = AbcAigToRtlNetlist(f, net, aig, ioMap)
         res = tuple(newO for _, newO in toRtl.translate())
         self.assertSequenceEqual(res, [testedFn0ExpectedUnoptimized(*inputsRtl), ])
@@ -274,12 +347,14 @@ class AbcTC(unittest.TestCase):
         f.DeleteAllNetworks()
 
         toAig = RtlNetlistToAbcAig()
-        f, net, aig, ioMap0and1 = toAig.translate(inputsRtl, (testedFn0(*inputsRtl,), testedFn1(*inputsRtl,)))
+        f, net, aig, ioMap0and1 = toAig.translate(inputsRtl, (testedFn0(*inputsRtl),
+                                                              testedFn1(*inputsRtl)))
         toRtl = AbcAigToRtlNetlist(f, net, aig, ioMap0and1)
         res = tuple(newO for _, newO in toRtl.translate())
         # net.setName("test3")
         # net.Io_Write("abc-directly.test3.v", Io_FileType_t.IO_FILE_VERILOG)
-        self.assertSequenceEqual(res, (testedFn0ExpectedUnoptimized(*inputsRtl), testedFn1ExpectedUnoptimized(*inputsRtl)))
+        self.assertSequenceEqual(res, (testedFn0ExpectedUnoptimized(*inputsRtl),
+                                       testedFn1ExpectedUnoptimized(*inputsRtl)))
 
         for _ in range(2):
             net = abcCmd_resyn2(net)
@@ -438,9 +513,9 @@ class AbcTC(unittest.TestCase):
         res = tuple(newO for _, newO in toRtl.translate())
         f.DeleteAllNetworks()
         for i, (oOptimized, oInput) in enumerate(zip(res, exampleExpr)):
-            #print(">>>>>>>>>")
-            #print("inp", oInput)
-            #print("opt", oOptimized)
+            # print(">>>>>>>>>")
+            # print("inp", oInput)
+            # print("opt", oOptimized)
             _inputs = inputs
             if i == 2:
                 _inputs = [inputs[0], inputs[1], inputs[2]]
@@ -450,17 +525,17 @@ class AbcTC(unittest.TestCase):
         for inputVals in generateAllBitPermutations(5):
             self.assertEqual(f0_py(*inputVals), f0Opt_py(*inputVals), inputVals)
 
-        #def formatValues(_inputVals: Sequence[BitsVal]):
+        # def formatValues(_inputVals: Sequence[BitsVal]):
         #    return tuple(v.val if v.vld_mask else 'x' for v in _inputVals)
 
-        #for inputVals in generateAllBitPermutations(3):
+        # for inputVals in generateAllBitPermutations(3):
         #    for vldMask in generateAllBitPermutations(3):
         #        _inputVals = tuple(BIT.from_py(v, vld_mask) for v, vld_mask in zip(inputVals, vldMask))
         #        res0 = f1(*_inputVals)
         #        res0Opt = f1Opt(*_inputVals)
         #        self.assertEqual((res0.val, res0.vld_mask), (res0Opt.val, res0Opt.vld_mask), formatValues(_inputVals))
 
-        #for inputVals in generateAllBitPermutations(5):
+        # for inputVals in generateAllBitPermutations(5):
         #    print(inputVals, int(f0_py(*inputVals)))
         #    for vldMask in generateAllBitPermutations(5):
         #        _inputVals = tuple(BIT.from_py(v, vld_mask) for v, vld_mask in zip(inputVals, vldMask))
@@ -472,10 +547,133 @@ class AbcTC(unittest.TestCase):
         #        print(formatValues(_inputVals), res0, res0Opt)
         #        self.assertEqual((res0.val, res0.vld_mask), (res0Opt.val, res0Opt.vld_mask), formatValues(_inputVals))
 
+    def test_mux0(self):
+        # originally taken from Axi4SPacketCopyByteByByte 1->2B unroll=None pipe0_st0_ack
+        hwtNet = RtlNetlist(None)
+        inputs = tuple(hwtNet.sig(name) for name in (
+            "v0",
+            "v1",
+            "c",
+            "d",
+        ))
+        v0, v1, c, d = inputs
+        exampleExpr = [
+            ~c._ternary(v0, v1) & (c | d),
+            ~c._ternary(BIT.from_py(0), BIT.from_py(1)) & (c | d),
+            ~c._ternary(v0, v1),
+        ]
+        toAig = RtlNetlistToAbcAig()
+        f, net, aig, ioMap = toAig.translate(inputs, exampleExpr)
+        # net.Io_Write("abc-directly.0.dot", Io_FileType_t.IO_FILE_DOT)
+        net = abcCmd_resyn2(net)
+        net = abcCmd_compress2(net)
+        # net.Io_Write("abc-directly.1.dot", Io_FileType_t.IO_FILE_DOT)
+        toRtl = AbcAigToRtlNetlist(f, net, aig, ioMap)
+        res = tuple(newO for _, newO in toRtl.translate())
+        f.DeleteAllNetworks()
+
+        self.assertSequenceEqual(res, [
+            (c | d) & ~c._ternary(v0, v1),
+            c,
+            ~c._ternary(v0, v1),
+        ])
+
+        for (oOptimized, oInput) in zip(res, exampleExpr):
+            HlsAndRtlNetlistPassControlLogicMinimize._verifyAbcExprEquivalence(inputs, oOptimized, oInput)
+
+        def f0_py(v0, v1, c, d):
+            return (not(v0 if c else v1)) & (c | d)
+
+        def f0Opt_py(v0, v1, c, d):
+            return (not v0) & c | d & (not (v1 | c))
+
+        for inputVals in generateAllBitPermutations(4):
+            self.assertEqual(f0_py(*inputVals), f0Opt_py(*inputVals), inputVals)
+
+        def f1_py(c, d):
+            return (not(0 if c else 1)) & (c | d)
+
+        def f1Opt_py(c, d):
+            return c
+
+        for inputVals in generateAllBitPermutations(2):
+            self.assertEqual(f1_py(*inputVals), f1Opt_py(*inputVals), inputVals)
+
+        def f2_py(v0, v1, c):
+            return not (v0 if c else v1)
+
+        def f2Opt_py(v0, v1, c):
+            return (not v0) & c | (not (v1 | c))
+
+        for inputVals in generateAllBitPermutations(3):
+            self.assertEqual(f2_py(*inputVals), f2Opt_py(*inputVals), inputVals)
+
+    def test_mux_andOfOrs(self):
+        hwtNet = RtlNetlist(None)
+        inputs = tuple(hwtNet.sig(name) for name in (
+            "c",
+            "v0",
+            "v1",
+        ))
+        c, v0, v1 = inputs
+        exampleExpr = [
+            (~c | v0) & (c | v1),
+        ]
+        toAig = RtlNetlistToAbcAig()
+        f, net, aig, ioMap = toAig.translate(inputs, exampleExpr)
+        # net.Io_Write("abc-directly.0.dot", Io_FileType_t.IO_FILE_DOT)
+        toRtl = AbcAigToRtlNetlist(f, net, aig, ioMap)
+        res = tuple(newO for _, newO in toRtl.translate())
+        f.DeleteAllNetworks()
+
+        self.assertSequenceEqual(res, [
+            c._ternary(v0, v1)
+        ])
+
+    def test_mux_nested(self):
+        # originally taken from Axi4SPacketCopyByteByByte 1->2B unroll=None pipe0_st0_ack
+        hwtNet = RtlNetlist(None)
+        inputs = tuple(hwtNet.sig(name) for name in (
+            "v0",
+            "c0",
+            "v1",
+            "c1",
+            "v2",
+            "c2",
+            "v3",
+        ))
+        v0, c0, v1, c1, v2, c2, v3 = inputs
+        e0 = c1._ternary(v1, v2)
+        e1 = c0._ternary(v0, e0)
+        e2 = c2._ternary(e1, v3)
+        exampleExpr = [
+            e0,
+            e1,
+            e2,
+        ]
+        toAig = RtlNetlistToAbcAig()
+        f, net, aig, ioMap = toAig.translate(inputs, exampleExpr)
+        # net.Io_Write("abc.0.dot", Io_FileType_t.IO_FILE_DOT)
+        net = abcCmd_resyn2(net)
+        net = abcCmd_compress2(net)
+        # net.Io_Write("abc.1.dot", Io_FileType_t.IO_FILE_DOT)
+        net = abcCmd_resyn2(net)
+        net = abcCmd_compress2(net)
+        # net.Io_Write("abc.2.dot", Io_FileType_t.IO_FILE_DOT)
+        toRtl = AbcAigToRtlNetlist(f, net, aig, ioMap)
+        res = tuple(newO for _, newO in toRtl.translate())
+        f.DeleteAllNetworks()
+
+        self.assertSequenceEqual(res, [
+            e0,
+            e1,
+            e2,
+        ])
+
 
 if __name__ == "__main__":
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([AbcTC('testFromRtlNetlistAndBack')])
+    # suite = unittest.TestSuite([AbcTC('test_largerExpression')])
     suite = testLoader.loadTestsFromTestCase(AbcTC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
