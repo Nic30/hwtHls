@@ -7,8 +7,8 @@ from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, MachineLoopInfo
 from hwtHls.netlist.analysis.dataThreadsForBlocks import HlsNetlistAnalysisPassDataThreadsForBlocks
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.translation.dumpBlockSync import HlsNetlistPassDumpBlockSync
-from hwtHls.netlist.translation.dumpDataThreads import HlsNetlistPassDumpDataThreads
+from hwtHls.netlist.translation.dumpBlockSync import HlsNetlistAnalysisPassDumpBlockSync
+from hwtHls.netlist.translation.dumpDataThreads import HlsNetlistAnalysisPassDumpDataThreads
 from hwtHls.platform.platform import HlsDebugBundle
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.netlist.analysis.blockSyncType import HlsNetlistAnalysisPassBlockSyncType
@@ -64,10 +64,10 @@ class BaseTestPlatform(VirtualHlsPlatform):
             toNetlist.translateDatapathInBlocks(mf, toSsa.ioNodeConstructors)
             threads = netlist.getAnalysis(HlsNetlistAnalysisPassDataThreadsForBlocks)
             toNetlist.updateThreadsOnLiveInMuxes(threads)
-            HlsNetlistPassDumpDataThreads(lambda name: (self.dataThreads, False)).runOnHlsNetlist(netlist)
+            HlsNetlistAnalysisPassDumpDataThreads(lambda name: (self.dataThreads, False)).runOnHlsNetlist(netlist)
 
             netlist.getAnalysis(HlsNetlistAnalysisPassBlockSyncType)
-            HlsNetlistPassDumpBlockSync(lambda name: (self.blockSync, False), addLegend=False).runOnHlsNetlist(netlist)
+            HlsNetlistAnalysisPassDumpBlockSync(lambda name: (self.blockSync, False), addLegend=False).runOnHlsNetlist(netlist)
 
             blockLiveInMuxInputSync: BlockLiveInMuxSyncDict = toNetlist.constructLiveInMuxes(mf)
             toNetlist.extractRstValues(mf, threads)
@@ -106,6 +106,7 @@ class BaseSsaTC(BaseSerializationTC):
 
     def _test_ll(self, hwModuleConstructor: HwModule, name=None):
         p = BaseTestPlatform()
+        # p._llvmCliArgs += [("print-after-all", 0, "", "true"),]
         if isinstance(hwModuleConstructor, HwModule):
             unit = hwModuleConstructor
         else:

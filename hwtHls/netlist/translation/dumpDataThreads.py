@@ -1,15 +1,16 @@
 from io import StringIO
 from typing import List, Set, Dict
 
+from hwt.pyUtils.typingFuture import override
 from hwtHls.llvm.llvmIr import MachineBasicBlock, MachineFunction
 from hwtHls.netlist.analysis.dataThreadsForBlocks import HlsNetlistAnalysisPassDataThreadsForBlocks
+from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.platform.fileUtils import OutputStreamGetter
 
 
-class HlsNetlistPassDumpDataThreads(HlsNetlistPass):
+class HlsNetlistAnalysisPassDumpDataThreads(HlsNetlistAnalysisPass):
 
     def __init__(self, outStreamGetter: OutputStreamGetter):
         self.outStreamGetter = outStreamGetter
@@ -44,7 +45,8 @@ class HlsNetlistPassDumpDataThreads(HlsNetlistPass):
                 out.write(f"    {n}\n")
             out.write("\n")
 
-    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
+    @override
+    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
         from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
         threads = netlist.getAnalysis(HlsNetlistAnalysisPassDataThreadsForBlocks)
         mf: MachineFunction = netlist.getAnalysis(HlsNetlistAnalysisPassMirToNetlist).mf

@@ -23,6 +23,7 @@ from hwtHls.netlist.abc.optScripts import abcCmd_resyn2, abcCmd_compress2
 from hwtHls.netlist.abc.rtlNetlistToAbcAig import RtlNetlistToAbcAig
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.archElement import ArchElement
+from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
 
 
 class HlsAndRtlNetlistPassControlLogicMinimize(HlsAndRtlNetlistPass):
@@ -204,10 +205,10 @@ class HlsAndRtlNetlistPassControlLogicMinimize(HlsAndRtlNetlistPass):
         assert miterIsConstant == 1, ("Expected to be equivalent", {0: "sat", 1: "unsat", -1: "undecided"}[miterIsConstant], expr0, "is not equivalent to", expr1)
 
     @override
-    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
+    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx) -> PreservedAnalysisSet:
         allControlIoOutputs, inputs = self.collectAllControl(netlist, self.collectControlDrivingTree)
         if allControlIoOutputs:
-            #allControlIoOutputs = [allControlIoOutputs[2], ]
+            # allControlIoOutputs = [allControlIoOutputs[2], ]
             verifyExprEquivalence = self.verifyExprEquivalence
             toAbcAig = RtlNetlistToAbcAig()
             abcFrame, abcNet, abcAig, ioMap = toAbcAig.translate(inputs, allControlIoOutputs)
@@ -250,3 +251,5 @@ class HlsAndRtlNetlistPassControlLogicMinimize(HlsAndRtlNetlistPass):
                         raise NotImplementedError(ep, o)
 
             abcFrame.DeleteAllNetworks()
+            return PreservedAnalysisSet.preserveScheduling()
+        return PreservedAnalysisSet.preserveAll()

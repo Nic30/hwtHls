@@ -2,6 +2,7 @@ from itertools import chain
 from typing import List, Set, Dict, Tuple, Union
 
 from hwt.pyUtils.setList import SetList
+from hwt.pyUtils.typingFuture import override
 from hwtHls.netlist.analysis.betweenSyncIslandsUtils import BetweenSyncIsland
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
@@ -377,7 +378,8 @@ class HlsNetlistAnalysisPassBetweenSyncIslands(HlsNetlistAnalysisPass):
         #                else:
         #                    raise NotImplementedError(n1, syncDomain)
 
-    def runOnHlsNetlist(self, netlist:"HlsNetlistCtx"):
+    @override
+    def runOnHlsNetlistImpl(self, netlist:"HlsNetlistCtx"):
         """
         Discover clusters of nodes which are definitely a consecutive cluster with HlsNetNodeExplicitSync nodes on its boundaries.
         """

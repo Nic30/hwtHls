@@ -2,14 +2,15 @@ import html
 import pydot
 from typing import List, Dict
 
+from hwt.pyUtils.typingFuture import override
 from hwtHls.netlist.analysis.syncDomains import HlsNetlistAnalysisPassSyncDomains
 from hwtHls.netlist.analysis.syncGroupClusterContext import SyncGroupLabel
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.netlist.translation.dumpNodesDot import HwtHlsNetlistToGraphwiz
 from hwtHls.platform.fileUtils import OutputStreamGetter
+from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 
 
 class HwtHlsNetlistSyncDomainsToGraphwiz(HwtHlsNetlistToGraphwiz):
@@ -52,13 +53,14 @@ class HwtHlsNetlistSyncDomainsToGraphwiz(HwtHlsNetlistToGraphwiz):
         return self.graph.to_string()
 
 
-class HlsNetlistPassDumpSyncDomainsDot(HlsNetlistPass):
+class HlsNetlistAnalysisPassDumpSyncDomainsDot(HlsNetlistAnalysisPass):
 
     def __init__(self, outStreamGetter: OutputStreamGetter, addLegend:bool=True):
         self.outStreamGetter = outStreamGetter
         self.addLegend = addLegend
 
-    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
+    @override
+    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
         name = netlist.label
         out, doClose = self.outStreamGetter(name)
         try:

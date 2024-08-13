@@ -1,18 +1,21 @@
-from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
-from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.architecture.analysis.channelGraph import HlsArchAnalysisPassChannelGraph
-from hwtHls.architecture.analysis.syncNodeStalling import HlsArchAnalysisPassSyncNodeStallling, \
+from hwt.pyUtils.typingFuture import override
+from hwtHls.architecture.analysis.channelGraph import HlsAndRtlNetlistAnalysisPassChannelGraph
+from hwtHls.architecture.analysis.syncNodeStalling import HlsAndRtlNetlistAnalysisPassSyncNodeStallling, \
     ArchSyncNodeStallingMeta
+from hwtHls.architecture.transformation.hlsArchPass import HlsArchPass
+from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeReadAnyChannel, \
     HlsNetNodeWriteAnyChannel
+from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
 
 
-class RtlArchPassChannelReduceSyncStrength(RtlArchPass):
-    
-    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
-        channels: HlsArchAnalysisPassChannelGraph = netlist.getAnalysis(HlsArchAnalysisPassChannelGraph)
-        stalling: HlsArchAnalysisPassSyncNodeStallling = netlist.getAnalysis(HlsArchAnalysisPassSyncNodeStallling)
+class RtlArchPassChannelReduceSyncStrength(HlsArchPass):
 
+    @override
+    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
+        channels: HlsAndRtlNetlistAnalysisPassChannelGraph = netlist.getAnalysis(HlsAndRtlNetlistAnalysisPassChannelGraph)
+        stalling: HlsAndRtlNetlistAnalysisPassSyncNodeStallling = netlist.getAnalysis(HlsAndRtlNetlistAnalysisPassSyncNodeStallling)
+        changed = False
         for n in channels.nodes:
             canStall: ArchSyncNodeStallingMeta = stalling.nodeCanStall[n]
             rList, wList = channels.nodeChannels[n]
@@ -31,3 +34,12 @@ class RtlArchPassChannelReduceSyncStrength(RtlArchPass):
                 for w in wList:
                     w: HlsNetNodeWriteAnyChannel
                     w._rtlUseReady = w.associatedRead._rtlUseReady = False
+        
+        if changed:
+            pa = PreservedAnalysisSet.preserveScheduling()
+            pa.add(HlsAndRtlNetlistAnalysisPassChannelGraph)
+            pa.add(HlsAndRtlNetlistAnalysisPassSyncNodeStallling)
+            return pa
+        else:
+            return PreservedAnalysisSet.preserveAll()
+

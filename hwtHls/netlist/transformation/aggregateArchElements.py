@@ -15,6 +15,7 @@ from hwtHls.netlist.nodes.archElementFsm import ArchElementFsm
 from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
+from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
 
 
 class HlsNetlistPassAggregateArchElements(HlsNetlistPass):
@@ -44,7 +45,7 @@ class HlsNetlistPassAggregateArchElements(HlsNetlistPass):
         self._dbgAddSignalNamesToSync = dbgAddNamesToSyncSignals
 
     @override
-    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
+    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx) -> PreservedAnalysisSet:
         """
         Query HlsNetlistAnalysisPassDiscoverFsm and HlsNetlistAnalysisPassDiscoverPipelines to search ArchElement instances
         in current HlsNetlist.
@@ -113,3 +114,5 @@ class HlsNetlistPassAggregateArchElements(HlsNetlistPass):
         # drop builder.operatorCache because we removed most of bitwise operator from the circuit
         netlist.builder.operatorCache.clear()
         netlist.nodes.extend(archElements)
+        return PreservedAnalysisSet.preserveSchedulingOnly()
+

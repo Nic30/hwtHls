@@ -3,22 +3,22 @@ from hwtHls.ssa.translation.dumpMirCfg import SsaPassDumpMirCfg
 from hwtHls.ssa.translation.toGraphwiz import SsaPassDumpToDot
 from hwtHls.ssa.translation.toLl import SsaPassDumpToLl
 from typing import Tuple, Type, Optional, Union, Set
-from hwtHls.netlist.translation.dumpDataThreads import HlsNetlistPassDumpDataThreads
-from hwtHls.netlist.translation.dumpBlockSync import HlsNetlistPassDumpBlockSync
-from hwtHls.netlist.translation.dumpNodesDot import HlsNetlistPassDumpNodesDot, \
-    HlsNetlistPassDumpIoClustersDot
-from hwtHls.netlist.translation.dumpNodesTxt import HlsNetlistPassDumpNodesTxt
-from hwtHls.netlist.translation.dumpSyncDomainsDot import HlsNetlistPassDumpSyncDomainsDot
-from hwtHls.netlist.translation.dumpSchedulingJson import HlsNetlistPassDumpSchedulingJson
-from hwtHls.netlist.translation.betweenSyncIslandsToGraphwiz import HlsNetlistPassBetweenSyncIslandsToGraphwiz
+from hwtHls.netlist.translation.dumpDataThreads import HlsNetlistAnalysisPassDumpDataThreads
+from hwtHls.netlist.translation.dumpBlockSync import HlsNetlistAnalysisPassDumpBlockSync
+from hwtHls.netlist.translation.dumpNodesDot import HlsNetlistAnalysisPassDumpNodesDot, \
+    HlsNetlistAnalysisPassDumpIoClustersDot
+from hwtHls.netlist.translation.dumpNodesTxt import HlsNetlistAnalysisPassDumpNodesTxt
+from hwtHls.netlist.translation.dumpSyncDomainsDot import HlsNetlistAnalysisPassDumpSyncDomainsDot
+from hwtHls.netlist.translation.dumpSchedulingJson import HlsNetlistAnalysisPassDumpSchedulingJson
+from hwtHls.netlist.translation.betweenSyncIslandsToGraphwiz import HlsNetlistAnalysisPassBetweenSyncIslandsToGraphwiz
 from hwtHls.architecture.transformation.addSyncSigNames import HlsAndRtlNetlistPassAddSignalNamesToSync, \
     HlsAndRtlNetlistPassAddSignalNamesToData
-from hwtHls.architecture.translation.dumpArchDot import RtlArchPassDumpArchDot
+from hwtHls.architecture.translation.dumpArchDot import RtlArchAnalysisPassDumpArchDot
 from hwtHls.architecture.translation.dumpStreamNodes import HlsAndRtlNetlistPassDumpStreamNodes
 from hwtHls.architecture.transformation.archElementsToSubunits import RtlArchPassTransplantArchElementsToSubunits
 from pathlib import Path
 from hwtHls.platform.fileUtils import outputFileGetter
-from hwtHls.architecture.translation.dumpHsSCCsDot import RtlArchPassDumpHsSCCsDot
+from hwtHls.architecture.translation.dumpHsSCCsDot import RtlArchAnalysisPassDumpHsSCCsDot
 from hwtHls.ssa.transformation.ssaPass import SsaPass
 
 DebugId = Tuple[Type, Optional[str]]
@@ -44,36 +44,36 @@ class HlsDebugBundle():
     DBG_3_mir = (SsaPassDumpMIR, "03.mir.ll")  # translated and optimized to LLVM MIR by LLVM
     DBG_4_mirCfg = (SsaPassDumpMirCfg, "04.mirCfg.dot")  # Control Flow Graph of MIR
     DBG_5_netlistConsttructionTrace = (None, "05.netlistConsttructionTrace.txt")  # trace of netlist construction (typically from LLVM MIR)
-    DBG_5_dthreads = (HlsNetlistPassDumpDataThreads, "05.dthreads.txt")  # instructions packed in data treads
-    DBG_6_blockSync = (HlsNetlistPassDumpBlockSync, "06.blockSync.dot")  # synchronization features of basic blocks
-    DBG_7_preSync = (HlsNetlistPassDumpNodesDot, "07.preSync.dot")  # io of basic blocks before implementation of sync
-    DBG_8_postRst = (HlsNetlistPassDumpNodesDot, "08.postRst.dot")  # basic block io after implementation of reset value extraction
-    DBG_9_postLoop = (HlsNetlistPassDumpNodesDot, "09.postLoop.dot")  # basic block io after implementation of loops
-    DBG_10_postSync = (HlsNetlistPassDumpBlockSync, "10.postSync.dot")  # basic block io after implementation of complete control flow sync
+    DBG_5_dthreads = (HlsNetlistAnalysisPassDumpDataThreads, "05.dthreads.txt")  # instructions packed in data treads
+    DBG_6_blockSync = (HlsNetlistAnalysisPassDumpBlockSync, "06.blockSync.dot")  # synchronization features of basic blocks
+    DBG_7_preSync = (HlsNetlistAnalysisPassDumpNodesDot, "07.preSync.dot")  # io of basic blocks before implementation of sync
+    DBG_8_postRst = (HlsNetlistAnalysisPassDumpNodesDot, "08.postRst.dot")  # basic block io after implementation of reset value extraction
+    DBG_9_postLoop = (HlsNetlistAnalysisPassDumpNodesDot, "09.postLoop.dot")  # basic block io after implementation of loops
+    DBG_10_postSync = (HlsNetlistAnalysisPassDumpBlockSync, "10.postSync.dot")  # basic block io after implementation of complete control flow sync
     # hls netlist
-    DBG_11_netlist = (HlsNetlistPassDumpNodesDot, "11.netlist.dot")  # basic blocks disolved to netlist
-    DBG_11_netlistTxt = (HlsNetlistPassDumpNodesTxt, "11.netlist.txt")  # same as DBG_11_netlist just in txt
-    DBG_11_netlistIoClusters = (HlsNetlistPassDumpIoClustersDot, "11.netlistIoClusters.dot")  #
+    DBG_11_netlist = (HlsNetlistAnalysisPassDumpNodesDot, "11.netlist.dot")  # basic blocks disolved to netlist
+    DBG_11_netlistTxt = (HlsNetlistAnalysisPassDumpNodesTxt, "11.netlist.txt")  # same as DBG_11_netlist just in txt
+    DBG_11_netlistIoClusters = (HlsNetlistAnalysisPassDumpIoClustersDot, "11.netlistIoClusters.dot")  #
     DBG_12_netlistSimplifyTrace = (None, "12.netlistSimplifyTrace.txt")  # trace of netlist simplifier
-    DBG_12_netlistSimplifiedErr = (HlsNetlistPassDumpNodesDot, "12.err.netlistSimplified.dot")  # try to dump netlist if simplified failed
-    DBG_14_netlistSimplified = (HlsNetlistPassDumpNodesDot, "14.netlistSimplified.dot")  # dump simplified netlist
-    DBG_14_netlistSimplifiedTxt = (HlsNetlistPassDumpNodesTxt, "14.netlistSimplified.txt")  # same as DBG_13_netlistSimplified just in txt
-    DBG_14_netlistSimplifiedIoClusters = (HlsNetlistPassDumpIoClustersDot, "14.netlistSimplifiedIoClusters.dot")
-    DBG_14_netlistSyncDomains = (HlsNetlistPassDumpSyncDomainsDot, "14.netlistSyncDomains.dot")  # dump association of IO to individual logic node clouds
-    DBG_17_netlistAggregated = (HlsNetlistPassDumpNodesDot, "17.netlistAggregated.dot")  # dump netlist after selected nodes were agregated to scheduling primitives
-    DBG_18_hwscheduleErr = (HlsNetlistPassDumpSchedulingJson, "18.err.hwschedule.json")  # try dump scheduling if scheduler failed
-    DBG_19_hwschedule = (HlsNetlistPassDumpSchedulingJson, "19.hwschedule.json")  # node scheduling after first scheduling atempt
+    DBG_12_netlistSimplifiedErr = (HlsNetlistAnalysisPassDumpNodesDot, "12.netlistSimplified.err.dot")  # try to dump netlist if simplified failed
+    DBG_14_netlistSimplified = (HlsNetlistAnalysisPassDumpNodesDot, "14.netlistSimplified.dot")  # dump simplified netlist
+    DBG_14_netlistSimplifiedTxt = (HlsNetlistAnalysisPassDumpNodesTxt, "14.netlistSimplified.txt")  # same as DBG_13_netlistSimplified just in txt
+    DBG_14_netlistSimplifiedIoClusters = (HlsNetlistAnalysisPassDumpIoClustersDot, "14.netlistSimplifiedIoClusters.dot")
+    DBG_14_netlistSyncDomains = (HlsNetlistAnalysisPassDumpSyncDomainsDot, "14.netlistSyncDomains.dot")  # dump association of IO to individual logic node clouds
+    DBG_17_netlistAggregated = (HlsNetlistAnalysisPassDumpNodesDot, "17.netlistAggregated.dot")  # dump netlist after selected nodes were agregated to scheduling primitives
+    DBG_18_hwscheduleErr = (HlsNetlistAnalysisPassDumpSchedulingJson, "18.hwschedule.err.json")  # try dump scheduling if scheduler failed
+    DBG_19_hwschedule = (HlsNetlistAnalysisPassDumpSchedulingJson, "19.hwschedule.json")  # node scheduling after first scheduling atempt
     # arch gen
     DBG_20_netlistSyncIslandsTrace = (None, "20.netlistSyncIslandsTrace.txt")  # trace of sync islands simplifier
-    DBG_20_netlistSyncIslands = (HlsNetlistPassBetweenSyncIslandsToGraphwiz, "20.netlistSyncIslands.dot")  # dump transitive enclosure of DBG_15_syncDomains
+    DBG_20_netlistSyncIslands = (HlsNetlistAnalysisPassBetweenSyncIslandsToGraphwiz, "20.netlistSyncIslands.dot")  # dump transitive enclosure of DBG_15_syncDomains
     DBG_20_addSignalNamesToSync = (HlsAndRtlNetlistPassAddSignalNamesToSync, None)  # signal names are directly in output RTL
     DBG_20_addSignalNamesToData = (HlsAndRtlNetlistPassAddSignalNamesToData, None)  # signal names are directly in output RTL
-    DBG_21_finalHwschedule = (HlsNetlistPassDumpSchedulingJson, "21.final.hwschedule.json")  # node scheduling which will be used to generate circuit
+    DBG_21_finalHwschedule = (HlsNetlistAnalysisPassDumpSchedulingJson, "21.final.hwschedule.json")  # node scheduling which will be used to generate circuit
     DBG_22_netlistChannelMergeTrace = (None, "22.netlistChannelMergeTrace.txt")  # trace of c
-    DBG_22_handshakeSCCs = (RtlArchPassDumpHsSCCsDot, "22.hanshakeSCCs.dot")
-    DBG_23_finalNetlist = (HlsNetlistPassDumpNodesDot, "22.final.netlist.dot")  # basic blocks disolved to netlist
-    DBG_23_finalNetlistTxt = (HlsNetlistPassDumpNodesTxt, "22.final.netlist.txt")  # same as DBG_11_netlist just in txt
-    DBG_23_arch = (RtlArchPassDumpArchDot, "22.arch.dot")  # relations between arch elements in whole generated architecutre
+    DBG_22_handshakeSCCs = (RtlArchAnalysisPassDumpHsSCCsDot, "22.hanshakeSCCs.dot")
+    DBG_23_finalNetlist = (HlsNetlistAnalysisPassDumpNodesDot, "22.final.netlist.dot")  # basic blocks disolved to netlist
+    DBG_23_finalNetlistTxt = (HlsNetlistAnalysisPassDumpNodesTxt, "22.final.netlist.txt")  # same as DBG_11_netlist just in txt
+    DBG_23_arch = (RtlArchAnalysisPassDumpArchDot, "22.arch.dot")  # relations between arch elements in whole generated architecutre
     DBG_24_sync = (HlsAndRtlNetlistPassDumpStreamNodes, "22.sync.txt")  # control expressions of IO, FSMs and pipelines
     DBG_25_regFileHierarchy = (RtlArchPassTransplantArchElementsToSubunits, None)  # extract registers in pipeline stage or fsm to separate component
 

@@ -2,6 +2,7 @@ from typing import Union, Optional, List
 
 from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.pyUtils.setList import SetList
+from hwt.pyUtils.typingFuture import override
 from hwtHls.architecture.syncUtils import HwIO_getSyncTuple
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
@@ -14,6 +15,8 @@ from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.netlist.transformation.simplifyUtils import replaceOperatorNodeWith
+from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
+from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 
 
 class HlsNetlistPassReadSyncToAckOfIoNodes(HlsNetlistPass):
@@ -114,7 +117,8 @@ class HlsNetlistPassReadSyncToAckOfIoNodes(HlsNetlistPass):
         else:
             raise NotImplementedError(o)
 
-    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
+    @override
+    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx) -> PreservedAnalysisSet:
         builder: HlsNetlistBuilder = netlist.builder
         worklistPlaceholder = []
         removed = set()
@@ -139,3 +143,7 @@ class HlsNetlistPassReadSyncToAckOfIoNodes(HlsNetlistPass):
         if removed:
             # update because nodes list may have listeners set
             netlist.nodes[:] = (n for n in netlist.nodes if n not in removed)
+
+            return PreservedAnalysisSet.preserveReachablity()
+        else:
+            return PreservedAnalysisSet.preserveAll()

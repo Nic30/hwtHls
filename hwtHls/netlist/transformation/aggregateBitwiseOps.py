@@ -2,6 +2,7 @@ from typing import Set, Dict, List, Optional
 
 from hwt.hdl.operatorDefs import BITWISE_OPS
 from hwt.pyUtils.setList import SetList
+from hwt.pyUtils.typingFuture import override
 from hwtHls.netlist.clusterSearch import HlsNetlistClusterSearch
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
@@ -9,8 +10,9 @@ from hwtHls.netlist.nodes.aggregatedBitwiseOps import HlsNetNodeBitwiseOps
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
-from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.netlist.observableList import ObservableList
+from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
+from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
 
 
 class HlsNetlistPassAggregateBitwiseOps(HlsNetlistPass):
@@ -23,8 +25,8 @@ class HlsNetlistPassAggregateBitwiseOps(HlsNetlistPass):
     @staticmethod
     def _isBitwiseOperator(n: HlsNetNode):
         return isinstance(n, HlsNetNodeOperator) and n.operator in BITWISE_OPS
-    
-    def _registerInternalyStoredClusterInputs(self, n: HlsNetNodeAggregate, otherAggregateInputs: Dict[HlsNetNodeOut, SetList[HlsNetNodeAggregate]]): 
+
+    def _registerInternalyStoredClusterInputs(self, n: HlsNetNodeAggregate, otherAggregateInputs: Dict[HlsNetNodeOut, SetList[HlsNetNodeAggregate]]):
         for dep in n.dependsOn:
             userList = otherAggregateInputs.get(dep, None)
             if userList is None:
@@ -37,6 +39,8 @@ class HlsNetlistPassAggregateBitwiseOps(HlsNetlistPass):
                         removedNodes: Set[HlsNetNode],
                         newOutMap: Dict[HlsNetNodeOut, HlsNetNodeOut],
                         otherAggregateInputs: Dict[HlsNetNodeOut, SetList[HlsNetNodeAggregate]]) -> ObservableList[HlsNetNode]:
+        changed = False
+        changedOnThisLevel = False
         for n in nodes:
             if n not in seen and self._isBitwiseOperator(n):
                 cluster = HlsNetlistClusterSearch()
@@ -45,6 +49,7 @@ class HlsNetlistPassAggregateBitwiseOps(HlsNetlistPass):
                     for c in cluster.splitToPreventOuterCycles():
                         c: HlsNetlistClusterSearch
                         if len(c.nodes) > 1:
+                            changedOnThisLevel = True
                             c.updateOuterInputs(newOutMap)
                             clusterNode = HlsNetNodeBitwiseOps(n.netlist, c.nodes)
                             nodes.append(clusterNode)
@@ -54,21 +59,24 @@ class HlsNetlistPassAggregateBitwiseOps(HlsNetlistPass):
                             assert clusterNode._inputsInside
                             assert clusterNode._outputs
                             assert clusterNode._outputsInside
-                            
+
                             removedNodes.update(c.nodes)
 
                             for internO, o  in zip(clusterOutputs, clusterNode._outputs):
                                 newOutMap[internO] = o
-       
-                            self._registerInternalyStoredClusterInputs(clusterNode, otherAggregateInputs) 
+
+                            self._registerInternalyStoredClusterInputs(clusterNode, otherAggregateInputs)
 
             elif isinstance(n, HlsNetNodeAggregate) and not isinstance(n, HlsNetNodeBitwiseOps):
                 # the input uses were updated if something was extracted
-                n._subNodes = self._searchClusters(n._subNodes, n, seen, removedNodes, newOutMap, otherAggregateInputs)
+                changed |= self._searchClusters(n._subNodes, n, seen, removedNodes, newOutMap, otherAggregateInputs)
 
-        return ObservableList(n for n in nodes if n not in removedNodes)
+        if changedOnThisLevel:
+            nodes[:] = (n for n in nodes if n not in removedNodes)
+        return changed or changedOnThisLevel
 
-    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
+    @override
+    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx) -> PreservedAnalysisSet:
         seen: Set[HlsNetNodeOperator] = set()
         removedNodes: Set[HlsNetNode] = set()
         newOutMap: Dict[HlsNetNodeOut, HlsNetNodeOut] = {}
@@ -78,6 +86,11 @@ class HlsNetlistPassAggregateBitwiseOps(HlsNetlistPass):
                 self._registerInternalyStoredClusterInputs(n, otherAggregateInputs)
 
         # discover clusters of bitwise operators
-        netlist.nodes = self._searchClusters(netlist.nodes, None, seen, removedNodes, newOutMap, otherAggregateInputs)
+        changed = self._searchClusters(netlist.nodes, None, seen, removedNodes, newOutMap, otherAggregateInputs)
         # drop builder.operatorCache because we removed most of bitwise operator from the circuit
         netlist.builder.operatorCache.clear()
+
+        if changed:
+            return PreservedAnalysisSet()
+        else:
+            return PreservedAnalysisSet.preserveAll()

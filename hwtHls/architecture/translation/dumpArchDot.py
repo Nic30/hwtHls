@@ -7,15 +7,16 @@ from hwt.hwIO import HwIO
 from hwt.hwModule import HwModule
 from hwt.mainBases import HwIOBase
 from hwt.mainBases import RtlSignalBase
+from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.interfaceLevel.hwModuleImplHelpers import HwIO_getName
 from hwtHls.architecture.analysis.handshakeSCCs import ArchSyncNodeTy
+from hwtHls.architecture.analysis.hlsArchAnalysisPass import HlsArchAnalysisPass
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage, IORecord
-from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
 from hwtHls.netlist.analysis.nodeParentAggregate import HlsNetlistAnalysisPassNodeParentAggregate
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.archElementFsm import ArchElementFsm
-from hwtHls.netlist.nodes.archElementNoSync import ArchElementNoSync
+from hwtHls.netlist.nodes.archElementNoImplicitSync import ArchElementNoImplicitSync
 from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge, \
     BACKEDGE_ALLOCATION_TYPE, HlsNetNodeReadBackedge
@@ -27,16 +28,16 @@ from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.nodes.writeHsSCCSync import HlsNetNodeWriteHsSccSync
 from hwtHls.netlist.translation.dumpNodesDot import COLOR_INPUT_READ, \
-    COLOR_OUTPUT_WRITE, COLOR_SYNC_INTERNAL, COLOR_SPECIAL_PURPOSE
+    COLOR_OUTPUT_WRITE, COLOR_SPECIAL_PURPOSE
 from hwtHls.platform.fileUtils import OutputStreamGetter
 from hwtLib.handshaked.streamNode import ValidReadyTuple
 from ipCorePackager.constants import DIRECTION
 
 
-ArchElmentEdge = Tuple[ArchElement, int, ArchElement, int]
+ArchElementEdge = Tuple[ArchElement, int, ArchElement, int]
 
 
-def isSelfEdge(e: ArchElmentEdge):
+def isSelfEdge(e: ArchElementEdge):
     return e[0:2] == e[2:4]
 
 
@@ -185,7 +186,7 @@ class RtlArchToGraphwiz():
                 bodyRows.append(f"<tr><td>{direction.name} {FOrB:s} {f'{capacity:d} item(s)' if capacity else ''}</td>"
                                 f"<td>{outNode._id:d}{wVR:s}{html.escape('->'):s}{outNode.associatedRead._id:d}{rVR}</td>"
                                 f"<td>{html.escape(name)}</td>"
-                                f"<td>{html.escape(repr(outNode.associatedRead._outputs[0]._dtype))}</td></tr>")
+                                f"<td>{html.escape(repr(outNode.associatedRead._portDataOut._dtype))}</td></tr>")
                 # connectedComponent = self._tryToFindComponentConnectedToInterface(i, direction)
                 # if edgeInfo is not None:
                 #    capacity, breaksReadyChain = edgeInfo
@@ -379,7 +380,7 @@ class RtlArchToGraphwiz():
                 color = "plum"
             elif isPipeline:
                 color = "lime"
-            elif isinstance(elm, ArchElementNoSync):
+            elif isinstance(elm, ArchElementNoImplicitSync):
                 color = COLOR_SPECIAL_PURPOSE
             else:
                 color = "white"
@@ -410,7 +411,7 @@ class RtlArchToGraphwiz():
                     interElementCon.insert(src, dst, out)
 
             # for edge in interElementOutputs:
-            #    edge: ArchElmentEdge
+            #    edge: ArchElementEdge
             #    srcElm, srcClkI, dstElm, _ = edge
             #    connectionNode = self._getNodeForPorts(edge, interElementOutputs[edge])
             #    # edge from self to connectionNode
@@ -429,7 +430,7 @@ class RtlArchToGraphwiz():
             #                                          interElementInputs)
             #
             # for edge in interElementInputs:
-            #    edge: ArchElmentEdge
+            #    edge: ArchElementEdge
             #    if isSelfEdge(edge):
             #        continue  # has <-> style arrow which is already constructed
             #    srcElm, _, dstElm, dstClkI = edge
@@ -451,7 +452,7 @@ class RtlArchToGraphwiz():
 
         for (srcElm, srcClkI), dsts in interElementCon.items():
             for (dstElm, dstClkI), members in dsts.items():
-                hasSpecialSyncMeaning = isinstance(srcElm, ArchElementNoSync) or isinstance(dstElm, ArchElementNoSync)
+                hasSpecialSyncMeaning = isinstance(srcElm, ArchElementNoImplicitSync) or isinstance(dstElm, ArchElementNoImplicitSync)
                 if hasSpecialSyncMeaning:
                     # tableStyle = f'bgcolor="{COLOR_SPECIAL_PURPOSE:s}"'
                     if srcClkI > dstClkI:
@@ -476,9 +477,9 @@ class RtlArchToGraphwiz():
 
     # @staticmethod
     # def _addOutToInterElementConnections(
-    #        edge: ArchElmentEdge, out: HlsNetNodeOut,
+    #        edge: ArchElementEdge, out: HlsNetNodeOut,
     #        direction: DIRECTION,
-    #        interElementConnections: Dict[ArchElmentEdge, List[Tuple[DIRECTION, HlsNetNodeOut]]]):
+    #        interElementConnections: Dict[ArchElementEdge, List[Tuple[DIRECTION, HlsNetNodeOut]]]):
     #    vals = interElementConnections.get(edge, None)
     #    if vals is None:
     #        vals = interElementConnections[edge] = []
@@ -515,13 +516,14 @@ class RtlArchToGraphwiz():
         return self.graph.to_string()
 
 
-class RtlArchPassDumpArchDot(RtlArchPass):
+class RtlArchAnalysisPassDumpArchDot(HlsArchAnalysisPass):
 
     def __init__(self, outStreamGetter:Optional[OutputStreamGetter]=None, auto_open=False):
         self.outStreamGetter = outStreamGetter
         self.auto_open = auto_open
 
-    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
+    @override
+    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
         name = netlist.label
         parents: HlsNetlistAnalysisPassNodeParentAggregate = netlist.getAnalysis(HlsNetlistAnalysisPassNodeParentAggregate)
         toGraphwiz = RtlArchToGraphwiz(name, netlist, netlist.parentHwModule, parents)

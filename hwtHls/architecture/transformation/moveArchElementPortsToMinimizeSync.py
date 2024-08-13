@@ -1,9 +1,11 @@
 from typing import Tuple, Dict, Set
 
+from hwt.pyUtils.typingFuture import override
+from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, \
     INVARIANT_TIME
 from hwtHls.architecture.transformation.addImplicitSyncChannels import SyncCacheKey
-from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
+from hwtHls.architecture.transformation.hlsArchPass import HlsArchPass
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.archElement import ArchElement
@@ -12,10 +14,9 @@ from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.scheduler.clk_math import start_clk
-from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage
 
 
-class RtlArchPassMoveArchElementPortsToMinimizeSync(RtlArchPass):
+class RtlArchPassMoveArchElementPortsToMinimizeSync(HlsArchPass):
     """
     This pass reschedules ArchElement ports to minimize number of clock cycles where the data is exchanged between elements.
     For example, a value is passes to other element once it is required in there.
@@ -23,7 +24,8 @@ class RtlArchPassMoveArchElementPortsToMinimizeSync(RtlArchPass):
     There are several cases where it is beneficial to modify time when data is moved described in this code.
     """
 
-    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
+    @override
+    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
         raise NotImplementedError()
 
     def _handleInterArchElementPropagation(self, o: HlsNetNodeOut, i: HlsNetNodeIn):

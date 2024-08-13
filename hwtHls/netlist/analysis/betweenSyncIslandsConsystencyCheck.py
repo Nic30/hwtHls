@@ -1,11 +1,13 @@
+from hwt.pyUtils.typingFuture import override
 from hwtHls.netlist.analysis.betweenSyncIslands import HlsNetlistAnalysisPassBetweenSyncIslands
+from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 
 
-class HlsNetlistPassBetweenSyncIslandsConsystencyCheck(HlsNetlistPass):
+class HlsNetlistAnalysisPassBetweenSyncIslandsConsystencyCheck(HlsNetlistAnalysisPass):
 
-    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
+    @override
+    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
         syncNodes = netlist.getAnalysisIfAvailable(HlsNetlistAnalysisPassBetweenSyncIslands)
         assert syncNodes is not None, "HlsNetlistAnalysisPassBetweenSyncIslands analysis not present at all"
         for n in netlist.iterAllNodes():

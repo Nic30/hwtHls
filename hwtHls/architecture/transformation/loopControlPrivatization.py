@@ -1,20 +1,22 @@
 from typing import Dict, Union, Tuple
 
-from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
+from hwt.pyUtils.typingFuture import override
+from hwtHls.architecture.transformation.hlsArchPass import HlsArchPass
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HVoidOrdering
 from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.archElementFsm import ArchElementFsm
+from hwtHls.netlist.nodes.archElementNoImplicitSync import ArchElementNoImplicitSync
 from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge, \
     HlsNetNodeReadBackedge
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn, \
     unlink_hls_nodes
 from hwtHls.netlist.scheduler.clk_math import start_clk
-from hwtHls.netlist.nodes.archElementNoSync import ArchElementNoSync
+from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
 
 
-class RtlArchPassLoopControlPrivatization(RtlArchPass):
+class RtlArchPassLoopControlPrivatization(HlsArchPass):
     """
     This transformation tries to extract loop control scheme from strongly connected component of ArchElement instances.
     The goal is to write to control channels more early if possible to allow execution of another loop body iteration before
@@ -41,7 +43,8 @@ class RtlArchPassLoopControlPrivatization(RtlArchPass):
             port: HlsNetNodeIn
             w._removeInput(port.in_i)
 
-    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
+    @override
+    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx) -> PreservedAnalysisSet:
         ownerOfControl: Dict[Union[HlsNetNodeWriteBackedge, HlsNetNodeReadBackedge],
                              Tuple[ArchElement, int]] = {}
         toSearch: HlsNetNodeWriteBackedge = []
@@ -54,7 +57,7 @@ class RtlArchPassLoopControlPrivatization(RtlArchPass):
 
             elif isinstance(elm, ArchElementPipeline):
                 states = elm.stages
-            elif isinstance(elm, ArchElementNoSync):
+            elif isinstance(elm, ArchElementNoImplicitSync):
                 continue
             else:
                 raise NotImplementedError(elm)
@@ -74,6 +77,7 @@ class RtlArchPassLoopControlPrivatization(RtlArchPass):
         epsilon = scheduler.epsilon
         clkPeriod = netlist.normalizedClkPeriod
         ffdelay = netlist.platform.get_ff_store_time(netlist.realTimeClkPeriod, scheduler.resolution)
+        changed = False
         for w in toSearch:
             # because it is instance of HlsNetNodeWriteBackedge we know it is some form of jump from loop body to loop header.
             w: HlsNetNodeWriteBackedge
@@ -131,6 +135,7 @@ class RtlArchPassLoopControlPrivatization(RtlArchPass):
                     raise NotImplementedError(headerElm)
 
                 if removeFromTail:
+                    changed = True
                     # disconnect all ordering inputs which are not satisfying timing because we have just moved
                     # the node ignoring void connections
                     self._removeOrderingInputsViolatingScheduling(w)
@@ -151,3 +156,7 @@ class RtlArchPassLoopControlPrivatization(RtlArchPass):
                     else:
                         raise NotImplementedError(headerElm)
                 w.checkScheduling()
+        if changed:
+            return PreservedAnalysisSet.preserveScheduling()
+        else:
+            return PreservedAnalysisSet.preserveAll()

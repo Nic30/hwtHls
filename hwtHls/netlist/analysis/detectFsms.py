@@ -1,8 +1,9 @@
 from itertools import chain
 from typing import List, Set, Union, Dict, Tuple, Callable, Optional
 
-from hwt.pyUtils.setList import SetList
 from hwt.hwIO import HwIO
+from hwt.pyUtils.setList import SetList
+from hwt.pyUtils.typingFuture import override
 from hwtHls.netlist.analysis.betweenSyncIslands import HlsNetlistAnalysisPassBetweenSyncIslands, \
     BetweenSyncIsland
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
@@ -206,7 +207,8 @@ class HlsNetlistAnalysisPassDetectFsms(HlsNetlistAnalysisPass):
             if toRm:
                 st[:] = (n for n in st if n not in toRm)
 
-    def runOnHlsNetlist(self, netlist:"HlsNetlistCtx"):
+    @override
+    def runOnHlsNetlistImpl(self, netlist:"HlsNetlistCtx"):
         ioDiscovery: HlsNetlistAnalysisPassIoDiscover = netlist.getAnalysis(HlsNetlistAnalysisPassIoDiscover)
         ioByInterface = ioDiscovery.ioByInterface
         syncIslands: HlsNetlistAnalysisPassBetweenSyncIslands = netlist.getAnalysis(HlsNetlistAnalysisPassBetweenSyncIslands)

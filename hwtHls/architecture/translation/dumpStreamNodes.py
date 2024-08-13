@@ -1,15 +1,16 @@
 
+from hwt.pyUtils.typingFuture import override
+from hwtHls.architecture.analysis.hlsAndRtlNetlistAnalysisPass import HlsAndRtlNetlistAnalysisPass
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage
-from hwtHls.architecture.transformation.hlsAndRtlNetlistPass import HlsAndRtlNetlistPass
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.archElementFsm import ArchElementFsm
+from hwtHls.netlist.nodes.archElementNoImplicitSync import ArchElementNoImplicitSync
 from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
 from hwtHls.platform.fileUtils import OutputStreamGetter
-from hwtHls.netlist.nodes.archElementNoSync import ArchElementNoSync
 
 
-class HlsAndRtlNetlistPassDumpStreamNodes(HlsAndRtlNetlistPass):
+class HlsAndRtlNetlistPassDumpStreamNodes(HlsAndRtlNetlistAnalysisPass):
     """
     Dump text representations of stream synchronization nodes in architecture for debugging purposes.
     """
@@ -17,7 +18,8 @@ class HlsAndRtlNetlistPassDumpStreamNodes(HlsAndRtlNetlistPass):
     def __init__(self, outStreamGetter:OutputStreamGetter):
         self.outStreamGetter = outStreamGetter
 
-    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
+    @override
+    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
         out, doClose = self.outStreamGetter(netlist.label)
         try:
             for elem_i, elm in enumerate(netlist.nodes):

@@ -2,6 +2,7 @@ from itertools import chain
 from typing import List, Optional, Dict
 
 from hwt.pyUtils.setList import SetList
+from hwt.pyUtils.typingFuture import override
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.hdlTypeVoid import HdlType_isNonData
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
@@ -83,7 +84,7 @@ class HlsNetlistAnalysisPassDetectLoops(HlsNetlistAnalysisPass):
             n: HlsNetNodeExplicitSync
             # searchSuccessorDelays = True
             # if isinstance(n, (HlsNetNodeWriteBackedge, HlsNetNodeWriteForwardedge)):
-            #     role = n._loopChannelGroup.connectedLoops.getRoleForLoop(loopStatus)
+            #     role = n._loopChannelGroup.connectedLoopsAndBlocks.getRoleForLoop(loopStatus)
             #     if role in (LOOP_CHANEL_GROUP_ROLE.)
             oo = n._orderingOut
             if oo is None:
@@ -100,7 +101,8 @@ class HlsNetlistAnalysisPassDetectLoops(HlsNetlistAnalysisPass):
 
         return foundNodes + delays
 
-    def runOnHlsNetlistImpl(self, netlist:"HlsNetlistCtx"):
+    @override
+    def runOnHlsNetlistImpl(self, netlist: "HlsNetlistCtx"):
         allLoopNodes = set()
         loops = self.loops
 

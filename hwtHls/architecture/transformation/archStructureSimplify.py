@@ -1,25 +1,27 @@
 from typing import Dict, List, Set
 
+from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.pyUtils.setList import SetList
-from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
+from hwt.pyUtils.typingFuture import override
+from hwtHls.architecture.transformation.hlsArchPass import HlsArchPass
+from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregatePortIn, \
+    HlsNetNodeAggregatePortOut
 from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.archElementFsm import ArchElementFsm
 from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
 from hwtHls.netlist.nodes.archElementUtils import ArchElement_merge
+from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge, \
     HlsNetNodeWriteForwardedge
-from hwt.pyUtils.typingFuture import override
-from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregatePortIn, \
-    HlsNetNodeAggregatePortOut
-from hwtHls.netlist.nodes.const import HlsNetNodeConst
-from hwtHls.netlist.nodes.ports import HlsNetNodeOut, unlink_hls_nodes
-from hdlConvertorAst.to.hdlUtils import iter_with_last
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut, unlink_hls_nodes,\
+    unlink_hls_node_input_if_exists
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
-from hwtHls.netlist.builder import HlsNetlistBuilder
+from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
 
 
-class RtlArchPassArchStructureSimplfy(RtlArchPass):
+class RtlArchPassArchStructureSimplify(HlsArchPass):
 
     @staticmethod
     def findSuccessorsPredecessors(archElements: List[ArchElement]):
@@ -128,9 +130,9 @@ class RtlArchPassArchStructureSimplfy(RtlArchPass):
         return True
 
     @override
-    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
+    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx) -> PreservedAnalysisSet:
         if len(netlist.nodes) <= 1:
-            return
+            return PreservedAnalysisSet.preserveAll()
         archElmPredecessors, archElmSuccessors = self.findSuccessorsPredecessors(netlist.nodes)
         removed: Set[ArchElement] = set()
         for archElm in netlist.nodes:
@@ -174,4 +176,8 @@ class RtlArchPassArchStructureSimplfy(RtlArchPass):
                             removed.add(suc)
                             continue
 
-        netlist.filterNodesUsingSet(removed)
+        if removed:
+            netlist.filterNodesUsingSet(removed)
+            return PreservedAnalysisSet.preserveScheduling()
+        else:
+            return PreservedAnalysisSet.preserveAll()

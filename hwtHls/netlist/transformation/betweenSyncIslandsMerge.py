@@ -3,6 +3,7 @@ from typing import Set, Tuple, Optional
 
 from hwt.hdl.operatorDefs import HwtOps
 from hwt.pyUtils.setList import SetList
+from hwt.pyUtils.typingFuture import override
 from hwtHls.netlist.analysis.betweenSyncIslands import HlsNetlistAnalysisPassBetweenSyncIslands
 from hwtHls.netlist.analysis.betweenSyncIslandsUtils import BetweenSyncIsland
 from hwtHls.netlist.context import HlsNetlistCtx
@@ -24,6 +25,7 @@ from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
+from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
 
 
 # from hwtHls.netlist.nodes.loopControlPort import HlsNetNodeLoopEnterRead, \
@@ -253,8 +255,8 @@ class HlsNetlistPassBetweenSyncIslandsMerge(HlsNetlistPass):
     #             w = io.associatedWrite
     #             assert w not in syncIsland.inputs and w not in syncIsland.outputs, (syncIsland, io, w)
 
-    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
-
+    @override
+    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx) -> PreservedAnalysisSet:
         syncNodes = netlist.getAnalysisIfAvailable(HlsNetlistAnalysisPassBetweenSyncIslands)
         assert syncNodes is not None, "HlsNetlistAnalysisPassBetweenSyncIslands analysis not present at all"
 
@@ -365,3 +367,4 @@ class HlsNetlistPassBetweenSyncIslandsMerge(HlsNetlistPass):
         # concurrently executable branches may be merged if they do have same successor and no other predecessor
         #   1 -> 2 --> 4    1 -> 2|3 -> 4
         #    |-> 3 -|
+        return PreservedAnalysisSet.preserveAll() # because this just updates HlsNetlistAnalysisPassBetweenSyncIslands

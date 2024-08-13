@@ -1,6 +1,7 @@
 from typing import Tuple, Dict, Set
 
-from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
+from hwt.pyUtils.typingFuture import override
+from hwtHls.architecture.transformation.hlsArchPass import HlsArchPass
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HVoidOrdering, HdlType_isVoid
 from hwtHls.netlist.nodes.archElement import ArchElement
@@ -11,23 +12,24 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
     link_hls_nodes
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.scheduler.clk_math import start_clk
-from hwt.pyUtils.typingFuture import override
+from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
 
 
 SyncCacheKey = Tuple[int, ArchElement, ArchElement]
 
 
-class RtlArchPassAddImplicitSyncChannels(RtlArchPass):
+class RtlArchPassAddImplicitSyncChannels(HlsArchPass):
     """
     Analyze ports of ArchElements and add HlsNetNodeWriteForwardedge/HlsNetNodeReadForwardedge pairs.
     Note that these r/w pairs are only synchronization and do not hold any data.
     """
 
     @override
-    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
+    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx) -> PreservedAnalysisSet:
         syncAdded: Set[SyncCacheKey] = set()
         elementIndex: Dict[ArchElement, int] = {a: i for i, a in enumerate(netlist.nodes)}
         clkPeriod: SchedTime = netlist.normalizedClkPeriod
+        changed = False
         for srcElm in netlist.nodes:
             srcElm: ArchElement
             srcElmIndex = elementIndex[srcElm]
@@ -44,11 +46,17 @@ class RtlArchPassAddImplicitSyncChannels(RtlArchPass):
                     dstTime = dstElm.scheduledIn[i.in_i]
                     dstClkI = start_clk(dstTime, clkPeriod)
                     assert srcClkI == dstClkI, (o, i, srcTime, dstTime, srcClkI, dstClkI)
-                    self._registerSyncForInterElementConnection(
+                    changed |= self._registerSyncForInterElementConnection(
                         netlist, syncAdded, srcElmIndex, dstElmIndex, srcClkI, o, i)
 
-            srcElm.addImplicitSyncChannelsInsideOfElm()
+            changed |= srcElm.addImplicitSyncChannelsInsideOfElm()
 
+        if changed:
+            return PreservedAnalysisSet.preserveScheduling()
+        else:
+            return PreservedAnalysisSet.preserveAll()
+        
+        
     @classmethod
     def _registerSyncForInterElementConnection(cls,
                                                netlist: HlsNetlistCtx,
@@ -93,7 +101,7 @@ class RtlArchPassAddImplicitSyncChannels(RtlArchPass):
 
             name = f"{netlist.namePrefix:s}sync_clk{clkIndex}_{srcBaseName:s}_to_{dstBaseName:s}"
             wNode = HlsNetNodeWriteForwardedge(srcElm.netlist, name=f"{name:s}_atSrc")
-            link_hls_nodes(dummyC._outputs[0], wNode._inputs[0])
+            link_hls_nodes(dummyC._outputs[0], wNode._portSrc)
             wNode.resolveRealization()
             wNode._setScheduleZeroTimeSingleClock(time)
             srcElm._addNodeIntoScheduled(clkIndex, wNode)
@@ -105,4 +113,5 @@ class RtlArchPassAddImplicitSyncChannels(RtlArchPass):
             dstElm._addNodeIntoScheduled(clkIndex, rNode)
 
             syncAdded.add(syncCacheKey)
-
+            return True
+        return False

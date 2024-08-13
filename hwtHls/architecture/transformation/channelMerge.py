@@ -1,3 +1,4 @@
+from collections import OrderedDict
 from itertools import islice
 import re
 from typing import List, Union, Dict, Tuple, Set, Optional
@@ -8,8 +9,8 @@ from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
 from hwt.hwIOs.std import HwIORdVldSync
-from hwt.pyUtils.setList import SetList
-from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
+from hwt.pyUtils.typingFuture import override
+from hwtHls.architecture.transformation.hlsArchPass import HlsArchPass
 from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
@@ -31,9 +32,8 @@ from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
 from hwtHls.netlist.scheduler.scheduler import asapSchedulePartlyScheduled
 from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import netlistExplicitSyncDisconnectFromOrderingChain
-from hwtHls.netlist.transformation.simplifyUtils import hasInputSameDriver
-from hwt.pyUtils.typingFuture import override
-
+from hwtHls.netlist.transformation.simplifyUtils import hasInputSameDriverOrAndOfIt
+from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
 
 AnyChannelIo = Union[HlsNetNodeRead, HlsNetNodeWrite]
 
@@ -47,7 +47,7 @@ RE_MATCH_REG_TO_BB = re.compile(r"^bb(\d+)_to_bb(\d+)(_r\d+)((_src)|(_in)|(_out)
 RE_MATCH_REG = re.compile(r"^_r(\d+)$")
 
 
-class RtlArchPassChannelMerge(RtlArchPass):
+class RtlArchPassChannelMerge(HlsArchPass):
     """
     Merge forward and backward channels if they are between the same source and destination (ArchElement, clockIndex)
     and do have same skipWhen and extraCond conditions.
@@ -383,6 +383,7 @@ class RtlArchPassChannelMerge(RtlArchPass):
         removed: Set[HlsNetNode] = netlist.builder._removedNodes
         MergeCandidateList = Union[List[HlsNetNodeWriteBackedge], List[HlsNetNodeWriteForwardedge]]
         dbgTracer = self._dbgTracer
+        changed = False
         with dbgTracer.scoped(self.__class__, None):
             for (srcElm, srcClkI, dstElm, dstClkI), ioList in sorted(
                     channels.items(),
@@ -451,5 +452,11 @@ class RtlArchPassChannelMerge(RtlArchPass):
                             if len(selectedForRewrite) > 1:
                                 self._mergeChannels(selectedForRewrite, dbgTracer,
                                                     srcElm, srcClkI, dstElm, dstClkI, removed)
+                                changed = True
 
             netlist.filterNodesUsingSet(removed)
+
+        if changed:
+            return PreservedAnalysisSet.preserveScheduling()
+        else:
+            return PreservedAnalysisSet.preserveAll()

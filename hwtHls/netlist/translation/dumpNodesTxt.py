@@ -1,14 +1,15 @@
 from io import StringIO
 from typing import Sequence
 
+from hwt.pyUtils.typingFuture import override
+from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.platform.fileUtils import OutputStreamGetter
 
 
-class HlsNetlistPassDumpNodesTxt(HlsNetlistPass):
+class HlsNetlistAnalysisPassDumpNodesTxt(HlsNetlistAnalysisPass):
 
     def __init__(self, outStreamGetter: OutputStreamGetter):
         self.outStreamGetter = outStreamGetter
@@ -22,7 +23,8 @@ class HlsNetlistPassDumpNodesTxt(HlsNetlistPass):
             if isinstance(n, HlsNetNodeAggregate):
                 cls._printNodes(indent + "  ", n._subNodes, out)
 
-    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
+    @override
+    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
         out, doClose = self.outStreamGetter(netlist.label)
         try:
             self._printNodes("", netlist.iterAllNodes(), out)
@@ -30,4 +32,3 @@ class HlsNetlistPassDumpNodesTxt(HlsNetlistPass):
         finally:
             if doClose:
                 out.close()
-

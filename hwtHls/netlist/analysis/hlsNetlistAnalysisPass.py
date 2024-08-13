@@ -5,12 +5,12 @@ class HlsNetlistAnalysisPass():
     A base class for HLS netlist analysis classes
     """
 
-    def runOnHlsNetlist(self, netlist: "HlsNetlistCtx"):
+    def runOnHlsNetlist(self, netlist: "HlsNetlistCtx", *args, **kwargs):
         "Perform the analysis on the netlist"
         log = netlist._dbgLogPassExec
         if log is not None:
             log.write(f"Running analysis: {self.__class__.__name__} on {netlist}\n")
-        self.runOnHlsNetlistImpl(netlist)
+        self.runOnHlsNetlistImpl(netlist, *args, **kwargs)
 
     def runOnHlsNetlistImpl(self, netlist: "HlsNetlistCtx"):
         raise NotImplementedError("Implement this in implementation of this abstract class", self)
@@ -24,4 +24,3 @@ class HlsNetlistAnalysisPass():
         log = netlist._dbgLogPassExec
         if log is not None:
             log.write(f"Invalidating analysis: {self.__class__.__name__} on {netlist}\n")
-

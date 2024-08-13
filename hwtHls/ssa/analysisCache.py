@@ -1,3 +1,4 @@
+from collections import OrderedDict
 from typing import Type, Union
 
 from hwtHls.architecture.analysis.hlsArchAnalysisPass import HlsArchAnalysisPass
@@ -14,19 +15,26 @@ class AnalysisCache():
     """
 
     def __init__(self,):
-        self._analysis_cache = {}
+        self._analysis_cache = OrderedDict()
 
     def invalidateAnalysis(self, analysis_cls:Type[AnalysisPass]):
         a = self._analysis_cache.pop(analysis_cls, None)
         if a is not None:
             a.invalidate(self)
+        else:
+            toRm = []
+            for k in self._analysis_cache.keys():
+                if k.__class__ is analysis_cls:
+                    toRm.append(k)
+            for k in reversed(toRm):
+                self.invalidateAnalysis(k)
 
     def getAnalysisIfAvailable(self, analysis_cls:Type[AnalysisPass]):
         try:
             return self._analysis_cache[analysis_cls]
         except KeyError:
             return None
-        
+
     def _runAnalysisImpl(self, a):
         raise NotImplementedError()
 

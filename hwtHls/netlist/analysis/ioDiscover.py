@@ -1,10 +1,12 @@
 from itertools import chain
 from typing import Union, Dict, List
 
-from hwt.pyUtils.setList import SetList
 from hwt.hwIO import HwIO
 from hwt.mainBases import HwIOBase
 from hwt.mainBases import RtlSignalBase
+from hwt.pyUtils.setList import SetList
+from hwt.pyUtils.typingFuture import override
+from hwtHls.io.portGroups import MultiPortGroup, BankedPortGroup
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.analysis.schedule import HlsNetlistAnalysisPassRunScheduler
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
@@ -12,7 +14,6 @@ from hwtHls.netlist.nodes.node import NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.io.portGroups import MultiPortGroup, BankedPortGroup
 
 
 class HlsNetlistAnalysisPassIoDiscover(HlsNetlistAnalysisPass):
@@ -26,7 +27,8 @@ class HlsNetlistAnalysisPassIoDiscover(HlsNetlistAnalysisPass):
         self.ioByInterface: Dict[HwIO, SetList[Union[HlsNetNodeRead, HlsNetNodeWrite]]] = {}
         self.interfaceList: SetList[HwIO] = SetList()
 
-    def runOnHlsNetlist(self, netlist: "HlsNetlistCtx"):
+    @override
+    def runOnHlsNetlistImpl(self, netlist: "HlsNetlistCtx"):
         assert not self.ioByInterface, "Must be run only once"
         assert netlist.getAnalysisIfAvailable(HlsNetlistAnalysisPassRunScheduler) is not None, "Should be performed only after scheduling"
         ioByInterface = self.ioByInterface

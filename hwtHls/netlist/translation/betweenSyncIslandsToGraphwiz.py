@@ -3,10 +3,11 @@ from itertools import chain
 import pydot
 from typing import List, Dict
 
+from hwt.pyUtils.typingFuture import override
 from hwtHls.netlist.analysis.betweenSyncIslands import HlsNetlistAnalysisPassBetweenSyncIslands
+from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.netlist.translation.dumpNodesDot import HwtHlsNetlistToGraphwiz
 from hwtHls.platform.fileUtils import OutputStreamGetter
 
@@ -51,13 +52,14 @@ class HwtHlsNetlistBetweenSyncIslandsToGraphwiz(HwtHlsNetlistToGraphwiz):
         return self.graph.to_string()
 
 
-class HlsNetlistPassBetweenSyncIslandsToGraphwiz(HlsNetlistPass):
+class HlsNetlistAnalysisPassBetweenSyncIslandsToGraphwiz(HlsNetlistAnalysisPass):
 
     def __init__(self, outStreamGetter: OutputStreamGetter, addLegend:bool=True):
         self.outStreamGetter = outStreamGetter
         self.addLegend = addLegend
 
-    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
+    @override
+    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
         name = netlist.label
         out, doClose = self.outStreamGetter(name)
         try:
@@ -68,4 +70,3 @@ class HlsNetlistPassBetweenSyncIslandsToGraphwiz(HlsNetlistPass):
         finally:
             if doClose:
                 out.close()
-

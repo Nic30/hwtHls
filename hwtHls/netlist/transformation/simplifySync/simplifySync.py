@@ -1,6 +1,7 @@
 from typing import Set, Optional
 
 from hwt.pyUtils.setList import SetList
+from hwt.pyUtils.typingFuture import override
 from hwtHls.netlist.analysis.consystencyCheck import HlsNetlistPassConsystencyCheck
 from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 from hwtHls.netlist.context import HlsNetlistCtx
@@ -9,6 +10,7 @@ from hwtHls.netlist.nodes.IoClusterCore import HlsNetNodeIoClusterCore
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge, \
     HlsNetNodeReadBackedge
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
@@ -20,9 +22,7 @@ from hwtHls.netlist.transformation.simplifySync.simplifyEdgeWritePropagation imp
 from hwtHls.netlist.transformation.simplifySync.simplifyNonBlockingIo import netlistReduceExplicitSyncFlags, \
     netlistReduceExplicitSyncTryExtractNonBlockingReadOrWrite
 from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import netlistOrderingReduce, netlistTrivialOrderingReduce
-from hwtHls.netlist.transformation.simplifySync.simplifySyncIsland import netlistReduceExplicitSyncDissolve
-from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge
-from hwt.pyUtils.typingFuture import override
+from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
 
 
 class HlsNetlistPassSimplifySync(HlsNetlistPass):
@@ -40,7 +40,7 @@ class HlsNetlistPassSimplifySync(HlsNetlistPass):
     @override
     def runOnHlsNetlistImpl(self, netlist:HlsNetlistCtx,
               parentWorklist: Optional[SetList[HlsNetNode]]=None,
-              parentRemoved: Optional[Set[HlsNetNode]]=None):
+              parentRemoved: Optional[Set[HlsNetNode]]=None) -> PreservedAnalysisSet:
         dbgTrace = self._dbgTrace
         with dbgTrace.scoped(HlsNetlistPassSimplifySync, None):
             dbgEn = dbgTrace._out is not None
@@ -105,7 +105,7 @@ class HlsNetlistPassSimplifySync(HlsNetlistPass):
                                     if dbgEn:
                                         HlsNetlistPassConsystencyCheck._checkCycleFree(n.netlist, removed)
                                         HlsNetlistPassConsystencyCheck._checkSyncNodes(netlist, removed)
-                                    
+
                     else:
                         assert not isinstance(n, HlsNetNodeReadSync), (n, "Should be already removed")
 
@@ -129,3 +129,5 @@ class HlsNetlistPassSimplifySync(HlsNetlistPass):
             finally:
                 netlist.dropNetlistListeners()
                 netlist.invalidateAnalysis(HlsNetlistAnalysisPassReachability)
+
+            return PreservedAnalysisSet()

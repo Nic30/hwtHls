@@ -3,11 +3,14 @@ import pydot
 from typing import Dict, List
 
 from hwt.pyUtils.setList import SetList
-from hwtHls.architecture.analysis.channelGraph import HlsArchAnalysisPassChannelGraph
-from hwtHls.architecture.analysis.handshakeSCCs import HlsArchAnalysisPassHandshakeSCC, \
+from hwt.pyUtils.typingFuture import override
+from hwtHls.architecture.analysis.channelGraph import HlsAndRtlNetlistAnalysisPassChannelGraph
+from hwtHls.architecture.analysis.handshakeSCCs import HlsAndRtlNetlistAnalysisPassHandshakeSCC, \
     ArchSyncNodeTy, ArchSyncNodeTy_stringFormat_short
-from hwtHls.architecture.analysis.syncNodeStalling import HlsArchAnalysisPassSyncNodeStallling
-from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
+from hwtHls.architecture.analysis.hlsArchAnalysisPass import HlsArchAnalysisPass
+from hwtHls.architecture.analysis.syncNodeGraph import HlsAndRtlNetlistAnalysisPassSyncNodeGraph
+from hwtHls.architecture.analysis.syncNodeStalling import HlsAndRtlNetlistAnalysisPassSyncNodeStallling
+from hwtHls.architecture.transformation.hlsArchPass import HlsArchPass
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge
@@ -58,9 +61,10 @@ class HsSCCsToGraphwiz():
     #    edgeTabletDot = pydot.Node(f"n{self._getNewNodeId():d}", shape="plaintext", label=label)
     #    self.graph.add_node(edgeTabletDot)
 
-    def construct(self, channels: HlsArchAnalysisPassChannelGraph,
-                  stalling: HlsArchAnalysisPassSyncNodeStallling,
-                  hsSCCs: HlsArchAnalysisPassHandshakeSCC):
+    def construct(self, channels: HlsAndRtlNetlistAnalysisPassChannelGraph,
+                  syncGraph: HlsAndRtlNetlistAnalysisPassSyncNodeGraph,
+                  stalling: HlsAndRtlNetlistAnalysisPassSyncNodeStallling,
+                  hsSCCs: HlsAndRtlNetlistAnalysisPassHandshakeSCC):
         g = self.graph
         nodeToDot = self.nodeToDot
         parentNode = self.parentNode
@@ -72,7 +76,7 @@ class HsSCCsToGraphwiz():
                 f'stall {"i" if stallMeta.inputCanStall else ""}{"o" if stallMeta.outputCanStall else ""}"'
             )
 
-        for sccIndex, scc in enumerate(hsSCCs.sccs):
+        for sccIndex, (scc, _) in enumerate(hsSCCs.sccs):
             # create cluster for Handshake SCC
             sccDot = pydot.Cluster(f"scc{self._getNewNodeId()}", label=f'"{sccIndex}"')
             g.add_subgraph(sccDot)
@@ -103,7 +107,7 @@ class HsSCCsToGraphwiz():
 
         edgeTableRows = []
         for n in channels.nodes:
-            succDict = hsSCCs.successors.get(n, None)
+            succDict = syncGraph.successors.get(n, None)
             if not succDict:
                 continue
             nDot = nodeToDot[n]
@@ -156,7 +160,7 @@ class HsSCCsToGraphwiz():
         self.constructEdgeTable(edgeTableRows)
 
         # sccTableRows = []
-        # for sccIndex, scc in enumerate(hsSCCs.sccs):
+        # for sccIndex, (scc, _) in enumerate(hsSCCs.sccs):
         #    first = True
         #    for n in scc:
         #        sccTableRows.append(
@@ -170,7 +174,7 @@ class HsSCCsToGraphwiz():
         return self.graph.to_string()
 
 
-class RtlArchPassDumpHsSCCsDot(RtlArchPass):
+class RtlArchAnalysisPassDumpHsSCCsDot(HlsArchAnalysisPass):
     """
     Dump handshake synchronization Strongly Connected Component graph.
     
@@ -180,15 +184,17 @@ class RtlArchPassDumpHsSCCsDot(RtlArchPass):
     def __init__(self, outStreamGetter: OutputStreamGetter):
         self.outStreamGetter = outStreamGetter
 
-    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
+    @override
+    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
         name = netlist.label
         out, doClose = self.outStreamGetter(name)
         try:
             toGraphwiz = HsSCCsToGraphwiz(name)
-            chanels = netlist.getAnalysis(HlsArchAnalysisPassChannelGraph)
-            stalling = netlist.getAnalysis(HlsArchAnalysisPassSyncNodeStallling)
-            hsSccs = netlist.getAnalysis(HlsArchAnalysisPassHandshakeSCC)
-            toGraphwiz.construct(chanels, stalling, hsSccs)
+            chanels = netlist.getAnalysis(HlsAndRtlNetlistAnalysisPassChannelGraph)
+            syncGraph = netlist.getAnalysis(HlsAndRtlNetlistAnalysisPassSyncNodeGraph)
+            stalling = netlist.getAnalysis(HlsAndRtlNetlistAnalysisPassSyncNodeStallling)
+            hsSccs = netlist.getAnalysis(HlsAndRtlNetlistAnalysisPassHandshakeSCC)
+            toGraphwiz.construct(chanels, syncGraph, stalling, hsSccs)
             out.write(toGraphwiz.dumps())
         finally:
             if doClose:

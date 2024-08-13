@@ -5,6 +5,8 @@ from typing import List, Union, Dict, Optional, Callable, Tuple
 
 from hwt.hdl.operatorDefs import COMPARE_OPS, HwtOps, HOperatorDef
 from hwt.pyUtils.setList import SetList
+from hwt.pyUtils.typingFuture import override
+from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.IoClusterCore import HlsNetNodeIoClusterCore
@@ -27,7 +29,6 @@ from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
-from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.platform.fileUtils import OutputStreamGetter
 
 COLOR_INPUT_READ = "LightGreen"
@@ -401,7 +402,7 @@ class HwtHlsNetlistToGraphwiz():
         return self.graph.to_string()
 
 
-class HlsNetlistPassDumpNodesDot(HlsNetlistPass):
+class HlsNetlistAnalysisPassDumpNodesDot(HlsNetlistAnalysisPass):
 
     def __init__(self, outStreamGetter: OutputStreamGetter, expandAggregates: bool=True,
                  addLegend:bool=True, showVoid:bool=True, showArchElementLinks:bool=False):
@@ -438,7 +439,8 @@ class HlsNetlistPassDumpNodesDot(HlsNetlistPass):
     def _edgeFilterVoid(self, src: HlsNetNodeOut, dst: HlsNetNodeOut):
         return not HdlType_isVoid(src._dtype)
 
-    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
+    @override
+    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
         name = netlist.label
         out, doClose = self.outStreamGetter(name)
         try:
@@ -454,17 +456,17 @@ class HlsNetlistPassDumpNodesDot(HlsNetlistPass):
                 out.close()
 
 
-class HlsNetlistPassDumpIoClustersDot(HlsNetlistPassDumpNodesDot):
+class HlsNetlistAnalysisPassDumpIoClustersDot(HlsNetlistAnalysisPassDumpNodesDot):
 
     def __init__(self, outStreamGetter:OutputStreamGetter, expandAggregates: bool=False, addLegend:bool=True):
-        HlsNetlistPassDumpNodesDot.__init__(self, outStreamGetter, expandAggregates=expandAggregates, addLegend=addLegend)
+        HlsNetlistAnalysisPassDumpNodesDot.__init__(self, outStreamGetter, expandAggregates=expandAggregates, addLegend=addLegend)
         self._edgeFilterFn = self._edgeFilter
 
     def _edgeFilter(self, src: HlsNetNodeOut, dst: HlsNetNodeOut):
         return HdlType_isVoid(src._dtype)
 
     def getNodes(self, netlist: HlsNetlistCtx):
-        return (n for n in super(HlsNetlistPassDumpIoClustersDot, self).getNodes(netlist)
+        return (n for n in super(HlsNetlistAnalysisPassDumpIoClustersDot, self).getNodes(netlist)
                  if isinstance(n, (HlsNetNodeExplicitSync, HlsNetNodeIoClusterCore))
                    or (isinstance(n, HlsNetNodeOperator) and n.operator is HwtOps.CONCAT and HdlType_isVoid(n._outputs[0]._dtype)))
 

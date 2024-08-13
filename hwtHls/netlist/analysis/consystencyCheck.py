@@ -16,17 +16,17 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod, \
     offsetInClockCycle
-from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
-from hwtHls.netlist.nodes.archElementNoSync import ArchElementNoSync
+from hwtHls.netlist.nodes.archElementNoImplicitSync import ArchElementNoImplicitSync
+from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 
 
-class HlsNetlistPassConsystencyCheck(HlsNetlistPass):
+class HlsNetlistPassConsystencyCheck(HlsNetlistAnalysisPass):
     """
     Check if connection of nodes is error free.
     """
 
     def __init__(self, checkCycleFree:bool=True, checkAllArchElementPortsInSameClockCycle:bool=False):
-        HlsNetlistPass.__init__(self)
+        HlsNetlistAnalysisPass.__init__(self)
         self.checkCycleFree = checkCycleFree
         self.checkAllArchElementPortsInSameClockCycle = checkAllArchElementPortsInSameClockCycle
 

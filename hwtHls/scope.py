@@ -23,6 +23,7 @@ from hwtHls.frontend.pyBytecode.indexExpansion import PyObjectHwSubscriptRef
 from hwtHls.frontend.pyBytecode.ioProxyAddressed import IoProxyAddressed
 from hwtHls.hwIOMeta import HwIOMeta
 from hwtHls.io.portGroups import getFirstInterfaceInstance
+from hwtHls.netlist.analysis.schedule import HlsNetlistAnalysisPassRunScheduler
 from hwtHls.netlist.context import HlsNetlistChannels
 from hwtHls.netlist.hdlTypeVoid import HVoidExternData
 from hwtHls.platform.platform import DefaultHlsPlatform
@@ -30,6 +31,7 @@ from hwtHls.ssa.context import SsaContext
 from hwtHls.thread import HlsThread, HlsThreadDoesNotUseSsa
 from hwtLib.amba.axi_common import Axi_hs
 from ipCorePackager.constants import INTF_DIRECTION
+
 
 ANY_HLS_COMPATIBLE_IO = Union[HwIODataRdVld, HwIOStructRdVld,
                               HwIORdVldSync, Axi_hs,
@@ -234,9 +236,14 @@ class HlsScope():
             for callback in t.archNetlistCallbacks:
                 callback(self, t)
 
-        netlist = self._mergeNetlists(self._threads)
+        netlist: "HlsNetlistCtx" = self._mergeNetlists(self._threads)
         if len(self._threads) > 1:
             channels.assertAllResolved()
+        
+        # drop all analysis except scheduling
+        for a in tuple(netlist._analysis_cache.keys()):
+            if a is not HlsNetlistAnalysisPassRunScheduler:
+                netlist.invalidateAnalysis(a)
 
         p.runArchNetlistToRtlNetlist(self, netlist)
         p.runHlsAndRtlNetlistPasses(self, netlist)

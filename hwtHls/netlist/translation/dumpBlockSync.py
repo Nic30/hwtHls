@@ -3,16 +3,17 @@ import pydot
 from typing import Dict, Set
 
 from hwt.hwIO import HwIO
+from hwt.pyUtils.typingFuture import override
 from hwtHls.llvm.llvmIr import MachineBasicBlock, MachineFunction, Register, TargetOpcode
+from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.platform.fileUtils import OutputStreamGetter
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.machineEdgeMeta import \
     MachineEdge, MachineEdgeMeta, MACHINE_EDGE_TYPE
 
 
-class HlsNetlistPassDumpBlockSync(HlsNetlistPass):
+class HlsNetlistAnalysisPassDumpBlockSync(HlsNetlistAnalysisPass):
 
     def __init__(self, outStreamGetter: OutputStreamGetter, addLegend:bool=True):
         self.outStreamGetter = outStreamGetter
@@ -143,7 +144,8 @@ class HlsNetlistPassDumpBlockSync(HlsNetlistPass):
 
         return P
 
-    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
+    @override
+    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
         from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
         toNetlist: HlsNetlistAnalysisPassMirToNetlist = netlist.getAnalysis(HlsNetlistAnalysisPassMirToNetlist)
         out, doClose = self.outStreamGetter(netlist.label)
@@ -156,4 +158,3 @@ class HlsNetlistPassDumpBlockSync(HlsNetlistPass):
         finally:
             if doClose:
                 out.close()
-

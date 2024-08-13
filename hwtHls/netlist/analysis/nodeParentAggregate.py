@@ -1,10 +1,12 @@
 from typing import Tuple, Dict
 
 from hwt.pyUtils.setList import SetList
+from hwt.pyUtils.typingFuture import override
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
 from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.node import HlsNetNode
+
 
 HlsNetlistHierarchyPath = Tuple[HlsNetNodeAggregate, ...]
 
@@ -33,8 +35,9 @@ class HlsNetlistAnalysisPassNodeParentAggregate(HlsNetlistAnalysisPass):
             self.nodePath[n] = currentPath
             if isinstance(n, HlsNetNodeAggregate):
                 self._collectHierarchyNodes(tuple((*currentPath, n)), n._subNodes)
-
-    def runOnHlsNetlist(self, netlist: "HlsNetlistCtx"):
+    
+    @override
+    def runOnHlsNetlistImpl(self, netlist: "HlsNetlistCtx"):
         assert not self.nodeHieararchy
         assert not self.nodePath
         self._collectHierarchyNodes((), SetList(netlist.iterAllNodes()))

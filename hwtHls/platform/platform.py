@@ -5,11 +5,12 @@ from typing import Optional, Union, Set, Tuple, Dict, List
 
 from hwt.synthesizer.dummyPlatform import DummyPlatform
 from hwtHls.architecture.transformation.addImplicitSyncChannels import RtlArchPassAddImplicitSyncChannels
-from hwtHls.architecture.transformation.archStructureSimplify import RtlArchPassArchStructureSimplfy
-from hwtHls.architecture.transformation.channelHandshakeCycleBreak import RtlArchPassChannelHandshakeCycleBreak
+from hwtHls.architecture.transformation.archStructureSimplify import RtlArchPassArchStructureSimplify
+from hwtHls.architecture.transformation.syncLowering import RtlArchPassSyncLowering
 from hwtHls.architecture.transformation.channelMerge import RtlArchPassChannelMerge
 from hwtHls.architecture.transformation.channelReduceSyncStrength import RtlArchPassChannelReduceSyncStrength
 from hwtHls.architecture.transformation.controlLogicMinimize import HlsAndRtlNetlistPassControlLogicMinimize
+from hwtHls.architecture.transformation.loopControlLowering import HlsAndRtlNetlistPassLoopControlLowering
 from hwtHls.architecture.transformation.ioPortPrivatization import RtlArchPassIoPortPrivatization
 from hwtHls.architecture.transformation.loopControlPrivatization import RtlArchPassLoopControlPrivatization
 from hwtHls.architecture.transformation.mergeTiedFsms import RtlArchPassMergeTiedFsms
@@ -17,7 +18,7 @@ from hwtHls.architecture.transformation.moveArchElementPortsToMinimizeSync impor
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, MachineLoopInfo
 from hwtHls.netlist.analysis.betweenSyncIslands import HlsNetlistAnalysisPassBetweenSyncIslands
-from hwtHls.netlist.analysis.betweenSyncIslandsConsystencyCheck import HlsNetlistPassBetweenSyncIslandsConsystencyCheck
+from hwtHls.netlist.analysis.betweenSyncIslandsConsystencyCheck import HlsNetlistAnalysisPassBetweenSyncIslandsConsystencyCheck
 from hwtHls.netlist.analysis.blockSyncType import HlsNetlistAnalysisPassBlockSyncType
 from hwtHls.netlist.analysis.consystencyCheck import HlsNetlistPassConsystencyCheck
 from hwtHls.netlist.analysis.dataThreadsForBlocks import HlsNetlistAnalysisPassDataThreadsForBlocks
@@ -130,15 +131,16 @@ class DefaultHlsPlatform(DummyPlatform):
         return netlist
 
     def runMirToHlsNetlist(self,
-                              hls: "HlsScope", toSsa: HlsAstToSsa,
-                              mf: MachineFunction,
-                              backedges: Set[Tuple[MachineBasicBlock, MachineBasicBlock]],
-                              liveness: Dict[MachineBasicBlock, Dict[MachineBasicBlock, Set[Register]]],
-                              ioRegs: List[Register],
-                              registerTypes: Dict[Register, int],
-                              loops: MachineLoopInfo):
+                           hls: "HlsScope", toSsa: HlsAstToSsa,
+                           mf: MachineFunction,
+                           backedges: Set[Tuple[MachineBasicBlock, MachineBasicBlock]],
+                           liveness: Dict[MachineBasicBlock, Dict[MachineBasicBlock, Set[Register]]],
+                           ioRegs: List[Register],
+                           registerTypes: Dict[Register, int],
+                           loops: MachineLoopInfo):
         """
-        .. figure:: ./_static/DefaultHlsPlatform.runMirToHlsNetlist.png
+        :attention: This function is called from c++ at the end of llvm pipeline.
+          It is necessary for access to analysis in llvm pass manager. 
         """
         tr: ToLlvmIrTranslator = toSsa.start
         assert isinstance(tr, ToLlvmIrTranslator), tr
@@ -282,18 +284,18 @@ class DefaultHlsPlatform(DummyPlatform):
         try:
             HlsNetlistPassCreateIoClusters().runOnHlsNetlist(netlist)
         except:
-            # dump netlist if something went frong
-            DBG.runDebugIfEnabled(D.DBG_23_finalNetlist, (netlist,), constructorKwargs=dict(showVoid=True))
-            DBG.runDebugIfEnabled(D.DBG_23_finalNetlistTxt, (netlist,))
+            # dump netlist if something went wrong
+            DBG(D.DBG_23_finalNetlist, (netlist,), constructorKwargs=dict(showVoid=True))
+            DBG(D.DBG_23_finalNetlistTxt, (netlist,))
             raise
 
         dbgTracer, doCloseTrace = self._getDebugTracer(netlist.label, D.DBG_20_netlistSyncIslandsTrace)
 
         try:
             netlist.getAnalysis(HlsNetlistAnalysisPassBetweenSyncIslands)  # done explicitly to trigger potential exception there
-            DBG(HlsNetlistPassBetweenSyncIslandsConsystencyCheck, (netlist,))
+            DBG(HlsNetlistAnalysisPassBetweenSyncIslandsConsystencyCheck, (netlist,))
             HlsNetlistPassBetweenSyncIslandsMerge(dbgTracer).runOnHlsNetlist(netlist)
-            DBG(HlsNetlistPassBetweenSyncIslandsConsystencyCheck, (netlist,))
+            DBG(HlsNetlistAnalysisPassBetweenSyncIslandsConsystencyCheck, (netlist,))
         finally:
             DBG(D.DBG_20_netlistSyncIslands, (netlist,))
             if doCloseTrace:
@@ -313,7 +315,7 @@ class DefaultHlsPlatform(DummyPlatform):
                 DBG(D.DBG_23_finalNetlistTxt, (netlist,))
             except:
                 raise AssertionError("Previous pass failed and dump of netlist also failed") from e
-                  
+
             raise
 
     def runArchNetlistToRtlNetlist(self, hls: "HlsScope", netlist: HlsNetlistCtx):
@@ -325,7 +327,7 @@ class DefaultHlsPlatform(DummyPlatform):
                               expandCompositeNodes=self._debugExpandCompositeNodes))
 
             RtlArchPassMergeTiedFsms().runOnHlsNetlist(netlist)
-            RtlArchPassArchStructureSimplfy().runOnHlsNetlist(netlist)
+            RtlArchPassArchStructureSimplify().runOnHlsNetlist(netlist)
             DBG(lambda: HlsNetlistPassConsystencyCheck(checkCycleFree=False), (netlist,))
 
             dbgTracer, doCloseTrace = self._getDebugTracer(netlist.label, D.DBG_22_netlistChannelMergeTrace)
@@ -342,7 +344,8 @@ class DefaultHlsPlatform(DummyPlatform):
                 checkCycleFree=False, checkAllArchElementPortsInSameClockCycle=True), (netlist,))
             # RtlArchPassMoveArchElementPortsToMinimizeSync().runOnHlsNetlist(netlist)
             RtlArchPassAddImplicitSyncChannels().runOnHlsNetlist(netlist)
-            DBG(lambda: HlsNetlistPassConsystencyCheck(checkCycleFree=False, checkAllArchElementPortsInSameClockCycle=True),
+            DBG(lambda: HlsNetlistPassConsystencyCheck(checkCycleFree=False,
+                                                       checkAllArchElementPortsInSameClockCycle=True),
                 (netlist,))
             RtlArchPassChannelReduceSyncStrength().runOnHlsNetlist(netlist)
             DBG(D.DBG_22_handshakeSCCs, (netlist,))

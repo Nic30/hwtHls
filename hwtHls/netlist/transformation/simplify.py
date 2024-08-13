@@ -3,6 +3,7 @@ from typing import Set
 from hwt.hdl.operatorDefs import HwtOps, COMPARE_OPS, CAST_OPS
 from hwt.hdl.types.hdlType import HdlType
 from hwt.pyUtils.setList import SetList
+from hwt.pyUtils.typingFuture import override
 from hwtHls.netlist.analysis.consystencyCheck import HlsNetlistPassConsystencyCheck
 from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 from hwtHls.netlist.builder import HlsNetlistBuilder
@@ -17,7 +18,6 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
-from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.netlist.transformation.simplifyExpr.cmp import netlistReduceEqNe
 from hwtHls.netlist.transformation.simplifyExpr.cmpNormalize import netlistCmpNormalize, _DENORMALIZED_CMP_OPS
@@ -42,7 +42,7 @@ from hwtHls.netlist.transformation.simplifySync.simplifyNonBlockingIo import net
 from hwtHls.netlist.transformation.simplifySync.simplifySync import HlsNetlistPassSimplifySync
 from hwtHls.netlist.transformation.simplifyUtils import disconnectAllInputs, \
     getConstDriverOf, replaceOperatorNodeWith
-from hwtHls.typingFuture import override
+from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
 
 
 # from hwtHls.netlist.transformation.simplifyExpr.cmpInAnd import netlistReduceCmpInAnd
@@ -86,8 +86,24 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
         removed.add(n)
         return True
 
+    def _isTriviallyDead(self, n: HlsNetNode):
+        if isinstance(n, self.NON_REMOVABLE_CLS):
+            return False
+        else:
+            if not isinstance(n, HlsNetNode):
+                raise AssertionError(n)
+
+            for uses in n.usedBy:
+                if uses:
+                    return False
+
+            if isinstance(n, HlsNetNodeAggregatePortOut):
+                return not n.parentOut.obj.usedBy[n.parentOut.out_i]
+
+            return True
+
     @override
-    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
+    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx) -> PreservedAnalysisSet:
         worklist: SetList[HlsNetNode] = SetList(netlist.iterAllNodes())
         removed: Set[HlsNetNode] = netlist.builder._removedNodes
         builder = netlist.builder
@@ -99,7 +115,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
             didModifyExpr = False  # flag which is True if we modified some expression and the ABC should be run
             while worklist:
                 n = worklist.pop()
-                
+
                 if n in removed or self._DCE(n, worklist, removed):
                     continue
 
@@ -172,7 +188,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                                 elif netlistReduceIndexOnMuxOfConcats(n, worklist, removed):
                                     didModifyExpr = True
                                     continue
-                                
+
                             continue
 
                         if len(n._inputs) == 1:
@@ -268,19 +284,5 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
             if dbgEn:
                 HlsNetlistPassConsystencyCheck().runOnHlsNetlist(netlist)
 
-    def _isTriviallyDead(self, n: HlsNetNode):
-        if isinstance(n, self.NON_REMOVABLE_CLS):
-            return False
-        else:
-            if not isinstance(n, HlsNetNode):
-                raise AssertionError(n)
-
-            for uses in n.usedBy:
-                if uses:
-                    return False
-
-            if isinstance(n, HlsNetNodeAggregatePortOut):
-                return not n.parentOut.obj.usedBy[n.parentOut.out_i]
-
-            return True
+        return PreservedAnalysisSet.preserveReachablity()
 

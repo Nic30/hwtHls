@@ -1,16 +1,18 @@
 from typing import List, Dict
 
 from hwt.pyUtils.setList import SetList
-from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
+from hwt.pyUtils.typingFuture import override
+from hwtHls.architecture.transformation.hlsArchPass import HlsArchPass
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.archElement import ArchElement, ArchElmEdge
 from hwtHls.netlist.nodes.archElementFsm import ArchElementFsm
 from hwtHls.netlist.nodes.archElementUtils import ArchElement_mergeFsms
 from hwtHls.netlist.scheduler.clk_math import start_clk
+from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
 
 
 # from hwtHls.netlist.nodes.const import HlsNetNodeConst
-class RtlArchPassMergeTiedFsms(RtlArchPass):
+class RtlArchPassMergeTiedFsms(HlsArchPass):
     """
     If multiple FSMs are running in parallel but there is an non-optional communication between them in multiple states
     one FSM control logic may be redundant if the state transitions are same.
@@ -71,7 +73,8 @@ class RtlArchPassMergeTiedFsms(RtlArchPass):
                 return elm
             elm = _elm
 
-    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
+    @override
+    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx) -> PreservedAnalysisSet:
         # find all deadlocking FSMs due to missing state transition
         clkPeriod = netlist.normalizedClkPeriod
         syncMatrix: Dict[ArchElmEdge, List[int]] = {}
@@ -118,7 +121,7 @@ class RtlArchPassMergeTiedFsms(RtlArchPass):
         #                     fsmConnectedWithMultipleSync.append(k)
         #
         #                 syncList.append(o)
-
+        changed = False
         elmMergedInto: Dict[ArchElementFsm, ArchElementFsm] = {}
         for k in fsmConnectedWithMultipleSync:
             elm0, elm1 = k
@@ -132,10 +135,12 @@ class RtlArchPassMergeTiedFsms(RtlArchPass):
                 if self._elmInsideOfTimeIntervalOfOther(elm1, elm0):
                     ArchElement_mergeFsms(elm1, elm0)
                     elmMergedInto[elm1] = elm0
+                    changed = True
 
                 elif self._elmInsideOfTimeIntervalOfOther(elm1, elm0):
                     ArchElement_mergeFsms(elm0, elm1)
                     elmMergedInto[elm0] = elm1
+                    changed = True
 
                 else:
                     # share common state transitions
@@ -145,3 +150,8 @@ class RtlArchPassMergeTiedFsms(RtlArchPass):
                     #    self._copyFsmTransitionIfRequired(elm1, elm0, clkIndex, addedTransitions)
 
         netlist.filterNodesUsingSet(elmMergedInto, recursive=True)
+
+        if changed:
+            return PreservedAnalysisSet.preserveScheduling()
+        else:
+            return PreservedAnalysisSet.preserveAll()

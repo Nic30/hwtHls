@@ -1,6 +1,7 @@
 from itertools import chain
 
 from hwt.pyUtils.setList import SetList
+from hwt.pyUtils.typingFuture import override
 from hwtHls.netlist.analysis.betweenSyncIslands import HlsNetlistAnalysisPassBetweenSyncIslands
 from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 from hwtHls.netlist.context import HlsNetlistCtx
@@ -9,6 +10,7 @@ from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.ports import link_hls_nodes
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
+from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
 from ipCorePackager.constants import DIRECTION
 
 
@@ -70,21 +72,21 @@ class HlsNetlistPassCreateIoClusters(HlsNetlistPass):
         for n in allSync:
             n: HlsNetNodeExplicitSync
             if n.dependsOn[n._inputOfCluster.in_i] is None:
-                #print("search in", n._id)
+                # print("search in", n._id)
                 inputs, outputs, _ = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(n, DIRECTION.IN, reachDb)
                 inputs = SetList((i for i in inputs if i not in outputs))
-                #print("found",
+                # print("found",
                 #      [i._id for i in inputs],
                 #      [o._id for o in outputs])
                 #
                 if n in inputs or n.dependsOn[n._outputOfCluster.in_i] is None:
                     self.createIoClusterCore(netlist, inputs, outputs)
-                 
+
             if n.dependsOn[n._outputOfCluster.in_i] is None:
-                #print("search out", n._id)
+                # print("search out", n._id)
                 inputs, outputs, _ = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(n, DIRECTION.OUT, reachDb)
                 inputs = SetList((i for i in inputs if i not in outputs))
-                #print("found",
+                # print("found",
                 #          [i._id for i in inputs],
                 #          [o._id for o in outputs])
                 self.createIoClusterCore(netlist, inputs, outputs)
@@ -94,10 +96,8 @@ class HlsNetlistPassCreateIoClusters(HlsNetlistPass):
             if n.dependsOn[n._inputOfCluster.in_i] is None:
                 self.createIoClusterCore(netlist, SetList((n,)), SetList())
 
-    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
-        try:
-            reachDb = netlist.getAnalysis(HlsNetlistAnalysisPassReachability)
-            self.createIoClusterCores(netlist, reachDb)
-        finally:
-            netlist.invalidateAnalysis(HlsNetlistAnalysisPassReachability)
-
+    @override
+    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx) -> PreservedAnalysisSet:
+        reachDb = netlist.getAnalysis(HlsNetlistAnalysisPassReachability)
+        self.createIoClusterCores(netlist, reachDb)
+        return PreservedAnalysisSet.preserveSchedulingOnly()

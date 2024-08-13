@@ -1,14 +1,15 @@
 from collections import deque
 from io import StringIO
 import json
-from math import inf, isinf
+from math import inf, isinf, isfinite
 from typing import Dict, List, Optional, Set, Tuple
 
 from hwt.hdl.operatorDefs import HOperatorDef
 from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.hdl.types.sliceConst import HSliceConst
-from hwt.pyUtils.setList import SetList
 from hwt.hwIO import HwIO
+from hwt.pyUtils.setList import SetList
+from hwt.pyUtils.typingFuture import override
 from hwtHls.io.bram import HlsNetNodeWriteBramCmd
 from hwtHls.netlist.analysis.schedule import HlsNetlistAnalysisPassRunScheduler
 from hwtHls.netlist.context import HlsNetlistCtx
@@ -23,8 +24,8 @@ from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.platform.fileUtils import OutputStreamGetter
+from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 
 
 class TimelineItem():
@@ -357,13 +358,14 @@ class HwtHlsNetlistToTimelineJson():
         json.dump(_toJson(j, self.clkPeriod), file)
 
 
-class HlsNetlistPassDumpSchedulingJson(HlsNetlistPass):
+class HlsNetlistAnalysisPassDumpSchedulingJson(HlsNetlistAnalysisPass):
 
     def __init__(self, outStreamGetter:Optional[OutputStreamGetter]=None, expandCompositeNodes=False):
         self.outStreamGetter = outStreamGetter
         self.expandCompositeNodes = expandCompositeNodes
 
-    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
+    @override
+    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
         netlist.getAnalysis(HlsNetlistAnalysisPassRunScheduler)
         to_timeline = HwtHlsNetlistToTimelineJson(netlist.normalizedClkPeriod,
                                               netlist.scheduler.resolution,
@@ -379,4 +381,3 @@ class HlsNetlistPassDumpSchedulingJson(HlsNetlistPass):
         else:
             assert self.auto_open, "Must be True because we can not show figure without opening it"
             to_timeline.show()
-

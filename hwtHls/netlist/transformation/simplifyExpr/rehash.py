@@ -1,10 +1,11 @@
 from math import inf
 from typing import Set, List, Optional
 
+from hwt.hdl.const import HConst
 from hwt.hdl.operatorDefs import ALWAYS_COMMUTATIVE_OPS, \
     CMP_OP_SWAP
-from hwt.hdl.const import HConst
 from hwt.pyUtils.setList import SetList
+from hwt.pyUtils.typingFuture import override
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
@@ -13,7 +14,8 @@ from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.netlist.transformation.simplifyUtils import disconnectAllInputs
-from hwt.pyUtils.typingFuture import override
+from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
+from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 
 
 class HlsNetlistPassRehashDeduplicate(HlsNetlistPass):
@@ -110,7 +112,7 @@ class HlsNetlistPassRehashDeduplicate(HlsNetlistPass):
     @override
     def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx,
               worklist: Optional[SetList[HlsNetNode]]=None,
-              removed: Optional[Set[HlsNetNode]]=None):
+              removed: Optional[Set[HlsNetNode]]=None) -> PreservedAnalysisSet:
         """
         :note: worklist and removed set can be used to track which nodes were changed and removed
         """
@@ -134,4 +136,7 @@ class HlsNetlistPassRehashDeduplicate(HlsNetlistPass):
 
         if filterNodes and removed:
             netlist.nodes[:] = (n for n in netlist.nodes if n not in removed)
-
+        if removed:
+            return PreservedAnalysisSet((HlsNetlistAnalysisPassReachability,))
+        else:
+            return PreservedAnalysisSet.preserveAll()

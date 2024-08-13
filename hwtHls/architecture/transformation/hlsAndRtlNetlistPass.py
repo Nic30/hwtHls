@@ -1,4 +1,6 @@
 from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
+from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
 
 
 class HlsAndRtlNetlistPass():
@@ -7,5 +9,8 @@ class HlsAndRtlNetlistPass():
     Passes of this type are used after code was translated to hardware netlist to customize it for target architecture.
     """
 
-    def runOnHlsNetlist(self, netlist: HlsNetlistCtx):
+    def runOnHlsNetlist(self, netlist: HlsNetlistCtx, *args, **kwargs):
+        return HlsNetlistPass.runOnHlsNetlist(self, netlist, *args, **kwargs)
+
+    def runOnHlsNetlistImp(self, netlist: HlsNetlistCtx) -> PreservedAnalysisSet:
         pass

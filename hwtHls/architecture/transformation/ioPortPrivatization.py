@@ -1,7 +1,9 @@
 from typing import Dict, Union
 
 from hwt.hwIO import HwIO
-from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
+from hwt.pyUtils.typingFuture import override
+from hwtHls.architecture.transformation.hlsArchPass import HlsArchPass
+from hwtHls.io.portGroups import MultiPortGroup, BankedPortGroup
 from hwtHls.netlist.analysis.ioDiscover import HlsNetlistAnalysisPassIoDiscover
 from hwtHls.netlist.analysis.nodeParentAggregate import HlsNetlistAnalysisPassNodeParentAggregate
 from hwtHls.netlist.context import HlsNetlistCtx
@@ -10,11 +12,10 @@ from hwtHls.netlist.nodes.archElementFsm import ArchElementFsm
 from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwt.pyUtils.typingFuture import override
-from hwtHls.io.portGroups import MultiPortGroup, BankedPortGroup
+from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
 
 
-class RtlArchPassIoPortPrivatization(RtlArchPass):
+class RtlArchPassIoPortPrivatization(HlsArchPass):
     """
     This pass divides port groups and assigns specific IO ports to a specific read/write nodes in a specific ArchElement instance.
 
@@ -47,7 +48,7 @@ class RtlArchPassIoPortPrivatization(RtlArchPass):
             ioNode.dst = port
 
     @override
-    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
+    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx) -> PreservedAnalysisSet:
         ioDiscovery: HlsNetlistAnalysisPassIoDiscover = netlist.getAnalysis(HlsNetlistAnalysisPassIoDiscover)
         ioByInterface = ioDiscovery.ioByInterface
         hierarchy: HlsNetlistAnalysisPassNodeParentAggregate = netlist.getAnalysis(HlsNetlistAnalysisPassNodeParentAggregate)
@@ -82,3 +83,6 @@ class RtlArchPassIoPortPrivatization(RtlArchPass):
                     self._privatizePortToIo(elm, ioNode, port, ioDiscovery, portOwner)
 
         ioDiscovery.interfaceList[:] = (io for io in ioDiscovery.interfaceList if not isinstance(io, tuple))
+        pa = PreservedAnalysisSet.preserveScheduling()
+        pa.add(HlsNetlistAnalysisPassIoDiscover)
+        return pa

@@ -1,14 +1,15 @@
 from hwt.pyUtils.setList import SetList
+from hwt.pyUtils.typingFuture import override
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResourceItem
-from hwtHls.architecture.transformation.rtlArchPass import RtlArchPass
+from hwtHls.architecture.transformation.hlsArchPass import HlsArchPass
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.archElement import ArchElement
-from hwt.pyUtils.typingFuture import override
+from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
 from hwtLib.abstract.componentBuilder import AbstractComponentBuilder
 from hwtLib.examples.hierarchy.extractHierarchy import extractRegsToSubmodule
 
 
-class RtlArchPassTransplantArchElementsToSubunits(RtlArchPass):
+class RtlArchPassTransplantArchElementsToSubunits(HlsArchPass):
     '''
     Create an individual unit instance for each architectural element instance.
     
@@ -42,8 +43,9 @@ class RtlArchPassTransplantArchElementsToSubunits(RtlArchPass):
     After whole RTL is allocated iterate every element and wrap its statements into a unit instance.
     Each signal is private to this newly extracted unit if used only by this element.
     '''
+
     @override
-    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
+    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx) -> PreservedAnalysisSet:
         parentHwModule = netlist.parentHwModule
         for e in netlist.nodes:
             e: ArchElement
@@ -65,3 +67,4 @@ class RtlArchPassTransplantArchElementsToSubunits(RtlArchPass):
                     firstWithoutCntrSuffix=True)
                 setattr(parentHwModule, name, stRegsExtracted)
 
+        return PreservedAnalysisSet.preserveAll()
