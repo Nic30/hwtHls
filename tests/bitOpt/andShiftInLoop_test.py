@@ -4,10 +4,11 @@
 from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.std import HwIOVectSignal
 from hwt.hwIOs.utils import addClkRstn
+from hwt.hwModule import HwModule
+from hwt.hwParam import HwParam
+from hwt.pyUtils.typingFuture import override
 from hwt.serializer.combLoopAnalyzer import CombLoopAnalyzer
 from hwt.simulator.simTestCase import SimTestCase
-from hwt.hwParam import HwParam
-from hwt.hwModule import HwModule
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.platform.virtual import VirtualHlsPlatform
@@ -16,7 +17,6 @@ from hwtLib.examples.errors.combLoops import freeze_set_of_sets
 from hwtLib.types.ctypes import uint8_t
 from hwtSimApi.utils import freq_to_period
 from pyMathBitPrecise.bit_utils import mask
-from hwt.pyUtils.typingFuture import override
 
 
 class AndShiftInLoop2(HwModule):
