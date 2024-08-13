@@ -1,10 +1,12 @@
 from collections import deque
 from pathlib import Path
-from typing import Iterable, Tuple, Union, Callable, Optional, Any, Set
+from typing import Iterable, Tuple, Union, Callable, Optional, Any, Set, \
+    Generator, List
 
+from hwt.hdl.const import HConst
+from hwt.hwModule import HwModule
 from hwt.serializer.combLoopAnalyzer import CombLoopAnalyzer
 from hwt.simulator.simTestCase import SimTestCase
-from hwt.hwModule import HwModule
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.llvm.llvmIr import Function, LLVMStringContext, MachineFunction
 from hwtHls.platform.platform import DebugId, HlsDebugBundle
@@ -39,7 +41,6 @@ class ListRaisingStopSimumulationWhenFilled(list):
 
 
 class BaseIrMirRtl_TC(SimTestCase):
-
     """
     This class contains utility methods for testing simple circuit at LLVM IR, MIR and RTL level.
     """
@@ -91,21 +92,36 @@ class BaseIrMirRtl_TC(SimTestCase):
 
         checkArgs(args)
 
-    def _test(self, dut: HwModule, prepareArgs: Callable[LlvmSimFunctionArgT, []],
-                    checkArgs:Callable[None, [LlvmSimFunctionArgT]],
-                    prepareRtlSimArgs: Callable[Tuple[Any, int], [HwModule]],  # returns tuple arg reference passes to checkRtlSimResults, simulation time
-                    checkRtlSimResults: Callable[None, [HwModule, Any]],
-                    wallTimeIr: Optional[int]=None,
-                    wallTimeOptIr: Optional[int]=None,
-                    wallTimeOptMir: Optional[int]=None,
-                    wallTimeRtlClks: Optional[int]=None,  # :attention: specified in clocks
-                    freq=int(1e6),
-                    debugFilter: Optional[Set[DebugId]]=HlsDebugBundle.DEFAULT):
+    def _test(self, dut: HwModule,
+              prepareIrAndMirArgs: Callable[LlvmSimFunctionArgT, []],
+              checkIrAndMirArgs: Callable[None, [LlvmSimFunctionArgT]],
+              prepareRtlSimArgs: Callable[Tuple[Any, int], [HwModule]],  # returns tuple arg reference passes to checkRtlSimResults, simulation time
+              checkRtlSimResults: Callable[None, [HwModule, Any]],
+              wallTimeIr: Optional[int]=None,
+              wallTimeOptIr: Optional[int]=None,
+              wallTimeOptMir: Optional[int]=None,
+              wallTimeRtlClks: Optional[int]=None,  # :attention: specified in clocks
+              freq=int(1e6),
+              debugFilter: Optional[Set[DebugId]]=HlsDebugBundle.DEFAULT):
         """
         * Test non optimized LLVM IR
         * Test optimized LLVM IR
         * Test optimized LLVM MIR
         * Test RTL
+        
+        :param dut: a module which is translated and verified
+        :param prepareIrAndMirArgs: a function which generates argument tuple for LLVM IR and MIR simulations
+        :param checkIrAndMirArgs: a function which checks argument tuple outputs for correctness after LLVM IR and MIR simulations
+        :param prepareRtlSimArgs: a function which add input data to input simulation agents (drivers) and returns
+            values of outputs for later check in checkRtlSimResults
+        :param checkRtlSimResults: A function which check the data in simulation agents (monitors) for correctness
+        
+        :param wallTimeIr: max number of clock cycles for no-opt LLVM IR simulation (1 instr = 1 clk)
+        :param wallTimeOptIr: max number of clock cycles for opt LLVM IR simulation (1 instr = 1 clk)
+        :param wallTimeOptMir: max number of clock cycles for opt LLVM MIR simulation (1 instr = 1 clk)
+        :param wallTimeRtlClks: max number of clock cycles for RTL simulation (1 clk = period of time specified by dut clock frequency)
+        :param freq: override of dut.CLK_FREQ
+        :param debugFilter: An argument for HlsPlatform which can be used to trigger various debug outputs and transformations
         """
         dut.CLK_FREQ = freq
 
@@ -116,15 +132,15 @@ class BaseIrMirRtl_TC(SimTestCase):
             def runSsaPasses(self, hls: HlsScope, toSsa: HlsAstToSsa):
                 res = super(TestVirtualHlsPlatform, self).runSsaPasses(hls, toSsa)
                 tr: ToLlvmIrTranslator = toSsa.start
-                tc._testLlvmIr(tr.llvm.strCtx, tr.llvm.main, "", prepareArgs, checkArgs, wallTimeIr)
+                tc._testLlvmIr(tr.llvm.strCtx, tr.llvm.main, "", prepareIrAndMirArgs, checkIrAndMirArgs, wallTimeIr)
                 return res
 
             def runNetlistTranslation(self,
                               hls: HlsScope, toSsa: HlsAstToSsa,
                               mf: MachineFunction, *args):
                 tr: ToLlvmIrTranslator = toSsa.start
-                tc._testLlvmIr(tr.llvm.strCtx, tr.llvm.main, ".opt", prepareArgs, checkArgs, wallTimeOptIr)
-                tc._testLlvmMir(tr.llvm.strCtx, tr.llvm.getMachineFunction(tr.llvm.main), prepareArgs, checkArgs, wallTimeOptMir)
+                tc._testLlvmIr(tr.llvm.strCtx, tr.llvm.main, ".opt", prepareIrAndMirArgs, checkIrAndMirArgs, wallTimeOptIr)
+                tc._testLlvmMir(tr.llvm.strCtx, tr.llvm.getMachineFunction(tr.llvm.main), prepareIrAndMirArgs, checkIrAndMirArgs, wallTimeOptMir)
                 netlist = super(TestVirtualHlsPlatform, self).runNetlistTranslation(hls, toSsa, mf, *args)
                 return netlist
 
@@ -135,13 +151,20 @@ class BaseIrMirRtl_TC(SimTestCase):
         self.runSim(t)
         checkRtlSimResults(dut, ref)
 
-    def _testOneOut(self, dut: HwModule, model, OUT_CNT: int,
-                   wallTimeIr: Optional[int]=None,
-                   wallTimeOptIr: Optional[int]=None,
-                   wallTimeOptMir: Optional[int]=None,
-                   wallTimeRtlClks: Optional[int]=None,
-                   freq=int(1e6),
-                   debugFilter: Optional[Set[DebugId]]=HlsDebugBundle.DEFAULT):
+    def _testOneOut(self, dut: HwModule,
+                    model, OUT_CNT: int,
+                    wallTimeIr: Optional[int]=None,
+                    wallTimeOptIr: Optional[int]=None,
+                    wallTimeOptMir: Optional[int]=None,
+                    wallTimeRtlClks: Optional[int]=None,
+                    freq=int(1e6),
+                    debugFilter: Optional[Set[DebugId]]=HlsDebugBundle.DEFAULT):
+        """
+        :param model: a generator function which will be used as a model during verification
+            on every compilation step
+        
+        For meaning of other params check :meth:`~._test`
+        """
         dataOutRef = []
         m = model(dataOutRef)
         try:
@@ -151,11 +174,11 @@ class BaseIrMirRtl_TC(SimTestCase):
             pass
         dataOutRef = [int(d) for d in dataOutRef]
 
-        def prepareArgs():
+        def prepareIrAndMirArgs():
             dataOut = ListRaisingStopSimumulationWhenFilled((), OUT_CNT)
             return (dataOut,)
 
-        def checkArgs(args):
+        def checkIrAndMirArgs(args):
             dataOut = args[0]
             self.assertValSequenceEqual(dataOut, dataOutRef)
 
@@ -166,7 +189,7 @@ class BaseIrMirRtl_TC(SimTestCase):
         def checkRtlSimResults(dut: HwModule, ref):
             self.assertValSequenceEqual(dut.o._ag.data, ref)
 
-        self._test(dut, prepareArgs, checkArgs, prepareRtlSimArgs, checkRtlSimResults,
+        self._test(dut, prepareIrAndMirArgs, checkIrAndMirArgs, prepareRtlSimArgs, checkRtlSimResults,
                    wallTimeIr=wallTimeIr,
                    wallTimeOptIr=wallTimeOptIr,
                    wallTimeOptMir=wallTimeOptMir,
@@ -175,25 +198,34 @@ class BaseIrMirRtl_TC(SimTestCase):
                    debugFilter=debugFilter,
                    )
 
-    def _test_OneInOneOut(self, dut: HwModule, model, dataIn,
+    def _test_OneInOneOut(self, dut: HwModule,
+                          model,
+                          dataIn,
                           wallTimeIr: Optional[int]=None,
                           wallTimeOptIr: Optional[int]=None,
                           wallTimeOptMir: Optional[int]=None,
                           wallTimeRtlClks: Optional[int]=None,
                           debugFilter: Optional[Set[DebugId]]=HlsDebugBundle.DEFAULT,
-                          freq=int(1e6)):
+                          freq=int(1e6),
+                          prepareIrAndMirArgs:Callable[[], Tuple[Generator[HConst, None, None], List[HConst]]]=None):
+        """
+        :param model: a function which process all inputs and generate all outputs
+        For meaning of params check :meth:`~._testOneOut`
+        """
         dataOutRef = []
         try:
             model(iter(dataIn), dataOutRef)
         except StopIteration:
             pass
         dataOutRef = [int(d) for d in dataOutRef]
+        
+        if prepareIrAndMirArgs is None:
 
-        def prepareArgs():
-            dataOut = []
-            return (iter(dataIn), dataOut)
+            def prepareIrAndMirArgs():
+                dataOut = []
+                return (iter(dataIn), dataOut)
 
-        def checkArgs(args):
+        def checkIrAndMirArgs(args):
             dataOut = args[1]
             self.assertValSequenceEqual(dataOut, dataOutRef)
 
@@ -208,7 +240,9 @@ class BaseIrMirRtl_TC(SimTestCase):
         if wallTimeRtlClks is None:
             wallTimeRtlClks = len(dataIn) + 1
 
-        self._test(dut, prepareArgs, checkArgs, prepareRtlSimArgs, checkRtlSimResults,
+        self._test(dut,
+            prepareIrAndMirArgs, checkIrAndMirArgs,
+            prepareRtlSimArgs, checkRtlSimResults,
             wallTimeIr=wallTimeIr,
             wallTimeOptIr=wallTimeOptIr,
             wallTimeOptMir=wallTimeOptMir,
